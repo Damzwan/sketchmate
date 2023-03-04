@@ -19,6 +19,7 @@
     "pinia": "^2.0.23",
     "qrcode.vue": "^3.3.3",
     "roboto-fontface": "*",
+    "serve": "^14.2.0",
     "socket.io-client": "^4.5.4",
     "vue": "^3.2.38",
     "vue-barcode-reader": "^1.0.3",

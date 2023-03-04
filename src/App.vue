@@ -14,18 +14,26 @@
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue';
 import {useAppStore} from '@/store/app.store';
-import {onErrorCaptured, onUnmounted, watchEffect} from 'vue';
+import {onErrorCaptured, onUnmounted} from 'vue';
 import {useSocketService} from '@/service/socket.service';
 import FullScreenLoader from '@/components/FullScreenLoader.vue';
 import {storeToRefs} from 'pinia';
 import Error from '@/components/Error.vue';
 import Messenger from '@/components/Messenger.vue';
+import router from '@/router';
 
 const {connect, disconnect} = useSocketService();
 
 
 const {login} = useAppStore();
 const {user, error, isLoading} = storeToRefs(useAppStore())
+
+const channel = new BroadcastChannel('navigation');
+
+// Listen for incoming messages from the Service Worker
+channel.addEventListener('message', function (event) {
+  router.push(event.data.url)
+});
 
 
 onErrorCaptured((err) => {

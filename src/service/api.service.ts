@@ -9,7 +9,7 @@ enum REQUEST_TYPES {
 }
 
 export function useAPI(): API {
-  const baseUrl = import.meta.env.VITE_BACKEND_LOCAL as string;
+  const baseUrl = import.meta.env.VITE_BACKEND as string;
 
   async function getUser(params: GetUserParams): Promise<Res<User>> {
     try {

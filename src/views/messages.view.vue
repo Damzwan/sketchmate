@@ -26,7 +26,7 @@
       </div>
 
       <v-row class="pt-3">
-        <v-col v-for="(inboxItem, i) in Object.values(groups[tab][date])" :key="i" cols="4" class="pa-2">
+        <v-col v-for="(inboxItem, i) in inboxItemsFromGroups(date)" :key="i" cols="4" class="pa-2">
           <v-img
             @click="selectInboxItem(inboxItem)"
             :src="inboxItem.img"
@@ -89,6 +89,10 @@ const tab = ref<string>(user.value!.mate!);
 const dialog = ref<boolean>(false);
 const groups = computed(() => group(user.value!.inbox))
 const selectedInboxItem = ref<InboxItem>();
+
+function inboxItemsFromGroups(date: string): InboxItem[] {
+  return Object.values(groups.value[tab.value][date])
+}
 
 function calculateModalWidth() {
   return window.innerWidth * 0.9;

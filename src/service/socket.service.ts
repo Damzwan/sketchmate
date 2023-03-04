@@ -25,7 +25,7 @@ export function useSocketService(): SocketAPI {
 
   async function connect(): Promise<void> {
     if (socket) return;
-    socket = io(import.meta.env.VITE_BACKEND_LOCAL as string)
+    socket = io(import.meta.env.VITE_BACKEND as string)
 
     socket.on(SOCKET_ENDPONTS.match, (params: Res<MatchRes>) => {
       if (params) {

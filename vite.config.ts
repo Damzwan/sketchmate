@@ -21,10 +21,14 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       strategies: 'injectManifest',
+      injectManifest: {
+        rollupFormat: 'iife'
+      },
       srcDir: 'src',
       filename: 'sw.js',
       devOptions: {
         enabled: true,
+        type: 'module'
       },
       workbox: {
         cleanupOutdatedCaches: true,

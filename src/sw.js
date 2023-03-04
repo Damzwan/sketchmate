@@ -1,3 +1,7 @@
+import {precacheAndRoute} from 'workbox-precaching'
+
+precacheAndRoute(self.__WB_MANIFEST)
+
 self.addEventListener('push', (event) => {
     const {title} = {title: 'New drawing from partner!'}
     const options = {

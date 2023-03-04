@@ -4,7 +4,7 @@
       <v-btn
         variant="text"
         @click="() => {
-          action()
+          if (action) action()
           show = false;
         }"
       >

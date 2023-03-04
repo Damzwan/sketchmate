@@ -47,7 +47,6 @@ export const useDrawStore = defineStore('draw', () => {
 
   async function send() {
     if (!canvas.value) return;
-    console.log(canvas.value.toDataURL())
     await api.send({
       _id: user.value!._id,
       mate: user.value!.mate as string,
@@ -57,7 +56,8 @@ export const useDrawStore = defineStore('draw', () => {
     showMsg('success', 'Drawing Sent!')
   }
 
-  async function reply(inboxItem: InboxItem) {
+  async function reply(inboxItem: InboxItem | undefined) {
+    if (!inboxItem) return;
     const json = await fetch(inboxItem.drawing).then(res => res.json())
     canvas.value.loadFromJSON(json, () => {
       router.push(FRONTEND_ROUTES.draw)

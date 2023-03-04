@@ -134,7 +134,7 @@ function match(mate: string) {
   })
 }
 
-function handleNotificationSwitch(isChecked: boolean) {
+function handleNotificationSwitch(isChecked: any) {
   isChecked ? notificationHandler.requestNotifications() : notificationHandler.unSubscribeNotifications();
 }
 

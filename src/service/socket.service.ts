@@ -15,6 +15,7 @@ import {storeToRefs} from 'pinia';
 import {useMessenger} from '@/service/messenger.service';
 import {useNotificationHandler} from '@/service/notification.service';
 import {computed} from 'vue';
+import {tr} from 'vuetify/locale';
 
 let socket: Socket | undefined;
 
@@ -25,7 +26,7 @@ export function useSocketService(): SocketAPI {
 
   async function connect(): Promise<void> {
     if (socket) return;
-    socket = io(import.meta.env.VITE_BACKEND as string)
+    socket = io(import.meta.env.VITE_BACKEND as string, {withCredentials: true})
 
     socket.on(SOCKET_ENDPONTS.match, (params: Res<MatchRes>) => {
       if (params) {

@@ -6,7 +6,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "eslint . --fix --ignore-path .gitignore",
-    "heroku:start": "serve dist",
+    "heroku:start": "serve -s dist --single",
     "postinstall": "npm run build"
   },
   "dependencies": {

@@ -1,14 +1,16 @@
 <template>
-  <ControlBar/>
+  <div class="h-100 w-100">
+    <DrawToolBar/>
 
-  <div class="h-100 w-100" ref="container">
-    <canvas ref="myCanvasRef"/>
+    <div ref="container" style="height: calc(100vh - 46px)">
+      <canvas ref="myCanvasRef"/>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 
-import ControlBar from '@/components/draw/DrawControlBar.vue';
+import DrawToolBar from '@/components/draw/DrawControlBar.vue';
 
 import {computed, onMounted, ref, watch} from 'vue';
 import {fabric} from 'fabric';

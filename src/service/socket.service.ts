@@ -16,12 +16,15 @@ import {useMessenger} from '@/service/messenger.service';
 import {useNotificationHandler} from '@/service/notification.service';
 import {computed} from 'vue';
 import {tr} from 'vuetify/locale';
+import {useRouter} from 'vue-router';
+import {FRONTEND_ROUTES} from '@/types/app.types';
 
 let socket: Socket | undefined;
 
 export function useSocketService(): SocketAPI {
   const {user, isLoading, notificationsAllowed} = storeToRefs(useAppStore());
   const {showMsg} = useMessenger()
+  const router = useRouter();
   const notificationHandler = useNotificationHandler();
 
   async function connect(): Promise<void> {
@@ -39,8 +42,9 @@ export function useSocketService(): SocketAPI {
 
     socket.on(SOCKET_ENDPONTS.unmatch, (success: boolean) => {
       if (success) {
-        showMsg('success', 'Unmatched')
+        showMsg('warning', 'Unmatched')
         user.value!.mate = undefined;
+        router.push(FRONTEND_ROUTES.connect)
       } else showMsg('error', "Failed to unmatch")
       isLoading.value = false;
     })

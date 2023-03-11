@@ -19,7 +19,7 @@
 
         <v-row justify="center" align="center" class="pt-16">
           <v-col cols="6">
-            <v-switch color="primary" inset prepend-icon="mdi-bell"
+            <v-switch color="primary" inset :prepend-icon="mdiBell"
                       :model-value="notificationsAllowed" @update:modelValue="handleNotificationSwitch"></v-switch>
           </v-col>
         </v-row>
@@ -28,65 +28,65 @@
     </div>
 
     <div v-else>
-      <v-row dense>
-        <v-col cols="12">
-          <v-card
-            color="red-darken-4"
-            theme="dark"
-          >
-            <v-card-title class="text-h5">Welcome to SketchMate!</v-card-title>
+      <div class="text-h6 mb-3">Connect to a mate</div>
+      <v-card rounded="xl" class="mb-3 d-inline-flex align-center w-100 px-3 py-1">
+        <v-icon :icon="mdiHelpCircleOutline"/>
+        <div class="text-subtitle-2 pl-2">How to connect</div>
+      </v-card>
 
-            <v-card-subtitle class="no_wrap">Connect to a mate using one of the options below!</v-card-subtitle>
+      <v-card rounded="xl" class="mb-3 d-inline-flex align-center w-100 px-3 py-1">
+        <v-icon :icon="mdiPencilOutline"/>
+        <div class="text-subtitle-2 pl-2">Edit name</div>
+      </v-card>
 
-            <v-card-actions>
-              <v-btn variant="text" append-icon="mdi-information" @click="isInfoModalOpen = true">Help</v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-col>
-
-        <v-col cols="6">
-          <v-card height="100%"
-                  color="yellow-darken-4"
-                  theme="dark"
-          >
-            <v-card-title class="text-h6">1: Link</v-card-title>
-
-            <v-card-subtitle class="no_wrap">Share this link with your mate</v-card-subtitle>
-
-            <v-card-actions class="align-center">
-              <v-btn variant="text" append-icon="mdi-link" @click="share">Share Link</v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-col>
-
-        <v-col cols="6">
-          <v-card
-            height="100%"
-            color="green-darken-4"
-            theme="dark"
-          >
-            <v-card-title class="text-h6">2: Scan</v-card-title>
-
-            <v-card-subtitle class="no_wrap action_card">Scan the qr code of your mate
+      <v-card rounded="xl" :elevation="6" class="mb-3" @click="isQRReaderOpen ? stopScanning() : startScanning()">
+        <v-row no-gutters>
+          <v-col cols="8">
+            <v-card-title class="card_title">Scan QR Code</v-card-title>
+            <v-card-subtitle class="no_wrap card_subtitle">Become mates by scanning the QR Code of another user
             </v-card-subtitle>
-
-            <v-card-actions>
-              <v-btn variant="text" append-icon="mdi-qrcode-scan" @click="isQRReaderOpen=!isQRReaderOpen">
-                Scan QR
-              </v-btn>
+            <v-card-actions class="pl-3">
+              <v-btn variant="outlined" size="small">Scan QR Code</v-btn>
             </v-card-actions>
-          </v-card>
-        </v-col>
-      </v-row>
+          </v-col>
+          <v-col cols="4" class="d-flex justify-start align-center">
+            <v-icon :icon="mdiCameraOutline" size="90%"/>
+          </v-col>
+        </v-row>
+      </v-card>
+
+      <v-card rounded="xl" :elevation="6" class="mb-3" @click="share">
+        <v-row no-gutters>
+          <v-col cols="8">
+            <v-card-title class="card_title">Share Connect Link</v-card-title>
+            <v-card-subtitle class="no_wrap card_subtitle">Become mates by scanning the QR Code of another user
+            </v-card-subtitle>
+            <v-card-actions class="pl-3">
+              <v-btn variant="outlined" size="small">Share Link</v-btn>
+            </v-card-actions>
+          </v-col>
+          <v-col cols="4" class="d-flex justify-start align-center">
+            <v-icon :icon="mdiShareVariantOutline" size="90%"/>
+          </v-col>
+        </v-row>
+      </v-card>
 
 
-      <div class="qr d-flex justify-center align-center pt-16">
-        <StreamBarcodeReader v-if="isQRReaderOpen" @decode="decode"></StreamBarcodeReader>
-        <qrcode-vue v-else :value="user._id" :size="256"/>
+      <div v-show="isQRReaderOpen" ref="videoContainer">
+        <v-toolbar v-if="isFullscreen" color="transparent">
+          <template v-slot:prepend>
+            <v-btn :icon="mdiClose" color="white" class="pa-0" @click="exit"/>
+          </template>
+        </v-toolbar>
+        <video ref="video" class="w-100 h-100"/>
+      </div>
+      <div class="qr d-flex flex-column justify-center align-center w-100" v-if="!isQRReaderOpen">
+        <qrcode-vue :value="user._id" :size="156" background="transparent"/>
+        <div class="text-h6 pt-2">Connect with QR Code</div>
+        <div class="text-caption w-50 text-center">Let someone scan this code to become mates</div>
       </div>
     </div>
   </v-container>
-  <IntroModal/>
 </template>
 
 <script lang="ts" setup>
@@ -95,16 +95,24 @@ import {ref, watch} from 'vue';
 import {storeToRefs} from 'pinia';
 import QrcodeVue from 'qrcode.vue'
 import {useRouter} from 'vue-router';
-import {StreamBarcodeReader} from "vue-barcode-reader";
 import {useSocketService} from '@/service/socket.service';
 import matchImg from '@/assets/illustrations/match.svg'
 import {useNotificationHandler} from '@/service/notification.service';
 import {useMessenger} from '@/service/messenger.service';
-import IntroModal from '@/components/connect/IntroModal.vue';
+import {
+  mdiBell,
+  mdiCameraOutline,
+  mdiClose,
+  mdiHelpCircleOutline,
+  mdiPencilOutline,
+  mdiShareVariantOutline
+} from '@mdi/js';
+import QrScanner from 'qr-scanner';
+import {useFullscreen} from '@vueuse/core';
 
 const appStore = useAppStore();
 const {showMsg} = useMessenger();
-const {user, notificationsAllowed, isInfoModalOpen} = storeToRefs(appStore);
+const {user, notificationsAllowed} = storeToRefs(appStore);
 const router = useRouter();
 const notificationHandler = useNotificationHandler()
 
@@ -112,11 +120,20 @@ const socketService = useSocketService();
 const isQRReaderOpen = ref(false);
 const query = router.currentRoute.value.query;
 
+const video = ref<HTMLVideoElement>();
+const videoContainer = ref<HTMLElement>();
+const qrScanner = ref<QrScanner>();
+const {isFullscreen, enter, exit} = useFullscreen(videoContainer)
 
 checkQueryParams();
 watch(user, () => {
   checkQueryParams();
 })
+
+watch(isFullscreen, () => {
+  if (!isFullscreen.value) stopScanning();
+})
+
 
 function checkQueryParams() {
   if (!(user.value && query.mate)) return;
@@ -126,6 +143,20 @@ function checkQueryParams() {
   else if (user.value.mate) showMsg('error', 'You already have a mate')
   else match(mate)
 }
+
+function startScanning() {
+  qrScanner.value = new QrScanner(video.value!, decode, {highlightScanRegion: true, returnDetailedScanResult: true});
+  enter()
+  isQRReaderOpen.value = true;
+  qrScanner.value?.start();
+}
+
+function stopScanning() {
+  qrScanner.value?.stop();
+  if (isFullscreen) exit();
+  isQRReaderOpen.value = false;
+}
+
 
 function match(mate: string) {
   socketService.match({
@@ -159,21 +190,32 @@ function share() {
   }
 }
 
-function decode(code: string) {
-  isQRReaderOpen.value = false;
-  match(code);
+function decode(code: any) {
+  if (!isQRReaderOpen.value) return
+  stopScanning();
+  match(code.data);
 }
 
 </script>
 
 <style scoped>
 .qr {
-  width: 100%;
-  height: 256px;
+  bottom: 20px;
+  position: absolute;
+  left: 0;
 }
 
 .no_wrap {
   white-space: normal !important;
 }
 
+.card_title {
+  padding-bottom: 0;
+}
+
+.card_subtitle {
+  font-size: 0.7rem;
+  line-height: 1rem !important;
+  font-weight: bold;
+}
 </style>

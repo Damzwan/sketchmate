@@ -1,7 +1,9 @@
 // Composables
 import {createRouter, createWebHistory} from 'vue-router'
-import Draw from '@/views/draw.view.vue';
 import {FRONTEND_ROUTES} from '@/types/app.types';
+import Draw from '@/views/draw.view.vue';
+import Messages from '@/views/messages.view.vue';
+import Connect from '@/views/settings.view.vue';
 
 const routes = [
   {
@@ -14,10 +16,7 @@ const routes = [
       {
         path: FRONTEND_ROUTES.draw,
         name: 'Draw',
-        // route level code-splitting
-        // this generates a separate chunk (about.[hash].js) for this route
-        // which is lazy-loaded when the route is visited.
-        component: Draw,
+        component: () => import(/* webpackChunkName: "messages" */ '@/views/draw.view.vue'),
       },
       {
         path: FRONTEND_ROUTES.messages,
@@ -28,6 +27,11 @@ const routes = [
         path: FRONTEND_ROUTES.connect,
         name: 'Settings',
         component: () => import(/* webpackChunkName: "connect" */ '@/views/settings.view.vue'),
+      },
+      {
+        path: FRONTEND_ROUTES.tutorial,
+        name: 'Tutorial',
+        component: () => import(/* webpackChunkName: "connect" */ '@/views/tutorial.view.vue'),
       },
     ],
   },

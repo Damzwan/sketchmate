@@ -1,11 +1,11 @@
 <template>
-  <v-app-bar color="primary" density="compact">
+  <v-toolbar color="primary" density="compact">
     <template v-slot:prepend>
       <v-btn-toggle variant="text" mandatory :model-value="selectedTool">
         <v-menu :close-on-content-click="false">
           <template v-slot:activator="{ props }">
             <v-btn icon @click="selectTool(DrawTool.Pen)" v-bind="openPenMenuOnClick ? props: null">
-              <v-icon color="white">mdi-pen</v-icon>
+              <v-icon color="white" :icon="mdiPen"/>
             </v-btn>
           </template>
           <v-card rounded>
@@ -40,7 +40,7 @@
           <template v-slot:activator="{ props }">
             <v-btn icon @click="selectTool(lastSelectedEraserTool)"
                    v-bind="openEraserMenuOnClick ? props: null">
-              <v-icon color="white">mdi-eraser</v-icon>
+              <v-icon color="white" :icon="mdiEraser"/>
             </v-btn>
           </template>
           <v-list>
@@ -53,7 +53,7 @@
         <v-menu>
           <template v-slot:activator="{ props }">
             <v-btn icon v-bind="props" @click="selectTool(DrawTool.Sticker)">
-              <v-icon color="white">mdi-sticker-emoji</v-icon>
+              <v-icon color="white" :icon="mdiStickerEmoji"/>
             </v-btn>
           </template>
           <v-list>
@@ -62,13 +62,13 @@
         </v-menu>
 
         <v-btn icon @click="selectTool(DrawTool.Drag)">
-          <v-icon color="white">mdi-hand-back-right</v-icon>
+          <v-icon color="white" :icon="mdiHandBackRight"/>
         </v-btn>
 
         <v-menu :close-on-content-click="false">
           <template v-slot:activator="{ props }">
             <v-btn icon v-bind="props" @click="selectTool(DrawTool.Text)">
-              <v-icon color="white">mdi-format-text</v-icon>
+              <v-icon color="white" :icon="mdiFormatText"/>
             </v-btn>
           </template>
           <v-card rounded>
@@ -106,9 +106,9 @@
     </template>
 
     <template v-slot:append>
-      <v-btn icon="mdi-send" @click="send"></v-btn>
+      <v-btn :icon="mdiSend" @click="send"/>
     </template>
-  </v-app-bar>
+  </v-toolbar>
 </template>
 
 <script lang="ts" setup>
@@ -117,6 +117,7 @@ import {DrawTool} from '@/types/draw.types';
 import {useDrawStore} from '@/store/draw.store';
 import {storeToRefs} from 'pinia';
 import {ERASERS, SWATCHES} from '@/constants/draw.constants';
+import {mdiPen, mdiEraser, mdiSend, mdiHandBackRight, mdiStickerEmoji, mdiFormatText} from '@mdi/js';
 
 const drawStore = useDrawStore();
 const {selectTool, addSticker, addTextBox, send} = drawStore;

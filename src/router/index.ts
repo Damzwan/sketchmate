@@ -1,9 +1,14 @@
-// Composables
-import {createRouter, createWebHistory} from 'vue-router'
-import Draw from '@/views/draw.view.vue';
-import {FRONTEND_ROUTES} from '@/types/app.types';
+import { createRouter, createWebHistory, NavigationGuard, RouteRecordRaw } from 'vue-router';
+import { FRONTEND_ROUTES } from '@/types/app.types';
+import { useAppStore } from '@/store/app.store';
 
-const routes = [
+const mateRequiredNavigationGuard: NavigationGuard = (to, from, next) => {
+  const { user } = useAppStore();
+  if (!user!.mate) next(FRONTEND_ROUTES.connect);
+  else next();
+};
+
+const routes: RouteRecordRaw[] = [
   {
     path: '/',
     children: [
@@ -14,28 +19,32 @@ const routes = [
       {
         path: FRONTEND_ROUTES.draw,
         name: 'Draw',
-        // route level code-splitting
-        // this generates a separate chunk (about.[hash].js) for this route
-        // which is lazy-loaded when the route is visited.
-        component: Draw,
+        component: () => import(/* webpackChunkName: "draw" */ '@/views/draw.view.vue'),
+        beforeEnter: mateRequiredNavigationGuard,
       },
       {
-        path: FRONTEND_ROUTES.messages,
+        path: FRONTEND_ROUTES.gallery,
         name: 'Saved',
-        component: () => import(/* webpackChunkName: "messages" */ '@/views/messages.view.vue'),
+        component: () => import(/* webpackChunkName: "gallery" */ '@/views/gallery.view.vue'),
+        beforeEnter: mateRequiredNavigationGuard,
       },
       {
         path: FRONTEND_ROUTES.connect,
         name: 'Settings',
-        component: () => import(/* webpackChunkName: "connect" */ '@/views/settings.view.vue'),
+        component: () => import(/* webpackChunkName: "connect" */ '@/views/connect.view.vue'),
+      },
+      {
+        path: FRONTEND_ROUTES.tutorial,
+        name: 'Tutorial',
+        component: () => import(/* webpackChunkName: "tutorial" */ '@/views/tutorial.view.vue'),
       },
     ],
   },
-]
+];
 
 const router = createRouter({
   history: createWebHistory(process.env.BASE_URL),
   routes,
-})
+});
 
-export default router
+export default router;

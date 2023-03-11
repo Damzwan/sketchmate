@@ -1,9 +1,10 @@
-export enum Storage{
-  user= 'user',
+export enum Storage {
+  user = 'user',
 }
 
 export enum FRONTEND_ROUTES {
-    draw = 'draw',
-    messages = 'messages',
-    connect = 'connect'
+  draw = 'draw',
+  gallery = 'gallery',
+  connect = 'connect',
+  tutorial = 'tutorial',
 }

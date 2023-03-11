@@ -1,44 +1,50 @@
 // Utilities
-import {defineStore} from 'pinia'
-import {ref} from 'vue';
-import {FRONTEND_ROUTES, Storage} from '@/types/app.types';
-import {useAPI} from '@/service/api.service';
-import {User} from '@/types/server.types';
-import {useSocketService} from '@/service/socket.service';
-import {useRouter} from 'vue-router';
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+import { InboxItem, User } from '@/types/server.types';
+import { useSocketService } from '@/service/socket.service';
+import { getUser } from '@/helper/app.helper';
+import { useAPI } from '@/service/api.service';
 
 export const useAppStore = defineStore('app', () => {
-  const api = useAPI();
   const user = ref<User>();
-  const isLoading = ref(true);
+  const inbox = ref<InboxItem[]>();
+
+  const isLoggedIn = ref(false);
+  const isLoading = ref(false);
   const notificationsAllowed = ref(false);
-  const isInfoModalOpen = ref(false);
 
   const error = ref();
   const socketService = useSocketService();
-  const router = useRouter();
+  const api = useAPI();
 
   async function login() {
     try {
-      let user_id = localStorage.getItem(Storage.user);
-      if (!user_id) {
-        const res = await api.createUser();
-        if (!res) throw new Error();
-        user_id = res._id;
-        localStorage.setItem(Storage.user, user_id);
-      }
-
-      const found_user = await api.getUser({_id: user_id});
-      if (!found_user) return
-      user.value = found_user;
-
-      if (!user.value.mate && window.location.pathname !== `/${FRONTEND_ROUTES.connect}`) await router.replace(FRONTEND_ROUTES.connect)
-      await socketService.login({_id: found_user._id})
-      isLoading.value = false;
+      user.value = await getUser();
+      await socketService.login({ _id: user.value!._id });
+      isLoggedIn.value = true;
     } catch (e) {
       error.value = e;
     }
   }
 
-  return {user, login, isLoading, error, notificationsAllowed, isInfoModalOpen}
-})
+  async function getInbox() {
+    try {
+      if (user.value!.inbox.length === 0) {
+        inbox.value = [];
+        return;
+      }
+      isLoading.value = true;
+      const retrievedInbox = await api.getInbox({
+        _ids: user.value!.inbox,
+      });
+      isLoading.value = false;
+      if (!retrievedInbox) throw new Error();
+      inbox.value = retrievedInbox;
+    } catch (e) {
+      error.value = e;
+    }
+  }
+
+  return { user, login, isLoading, error, notificationsAllowed, isLoggedIn, inbox, getInbox };
+});

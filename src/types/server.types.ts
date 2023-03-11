@@ -1,21 +1,43 @@
 import { PushSubscription } from 'web-push';
 
+export enum NotificationType {
+  match = 'match',
+  unmatched = 'unmatched',
+  message = 'message',
+}
+
 export interface InboxItem {
+  _id: string;
+  followers: string[];
   drawing: string;
+  thumbnail: string;
+  image: string;
   date: Date;
   sender: string | undefined;
-  img: string;
+  reply?: InboxItem;
+  comments: Comment[];
+}
+
+export interface Comment {
+  sender?: string;
+  message: string;
+  _id: string;
+  date: Date;
 }
 
 export interface User {
   _id: string;
-  mate?: string;
-  inbox: InboxItem[];
+  name: string;
+  img?: string;
+  mate?: Mate;
+  inbox: string[];
   subscription?: PushSubscription;
 }
 
-export interface CreateUserRes {
+export interface Mate {
   _id: string;
+  name: string;
+  img?: string;
 }
 
 export interface SocketLoginParams {
@@ -24,12 +46,12 @@ export interface SocketLoginParams {
 
 export interface MatchParams {
   _id: string;
-  mate: string;
+  mate_id: string;
 }
 
 export interface SendParams {
   _id: string;
-  mate: string;
+  mate_id: string;
   drawing: string;
   img: string;
 }
@@ -38,8 +60,23 @@ export interface SendRes {
   inboxItem: InboxItem;
 }
 
+export interface CommentParams {
+  inbox_id: string;
+  sender: string;
+  message: string;
+}
+
+export interface GetInboxItemsParams {
+  _ids: string[];
+}
+
+export interface RemoveFromInboxParams {
+  user_id: string;
+  inbox_id: string;
+}
+
 export interface UnMatchParams {
-  mate: string;
+  mate_id: string;
   _id: string;
 }
 
@@ -48,7 +85,7 @@ export interface GetUserParams {
 }
 
 export interface MatchRes {
-  mate: string;
+  mate: Mate;
 }
 
 export interface SubscribeParams {
@@ -56,22 +93,43 @@ export interface SubscribeParams {
   _id: string;
 }
 
-export type Res<T> = T | undefined;
-
-export enum Notifications {
-  message = 'message',
+export interface ChangeUserNameParams {
+  _id: string;
+  mate_id?: string;
+  name: string;
 }
 
+export interface UploadProfileImgParams {
+  _id: string;
+  mate_id?: string;
+  img: any;
+  previousImage?: string;
+}
+
+export interface ChangeNameRes {
+  mate_name: string;
+}
+
+export type Res<T> = T | undefined | null;
+
 export interface API {
-  createUser(): Promise<Res<CreateUserRes>>;
+  createUser(): Promise<Res<User>>;
 
   getUser(params: GetUserParams): Promise<Res<User>>;
-
-  getDrawings(params: GetUserParams): Promise<Res<InboxItem[]>>;
 
   subscribe(params: SubscribeParams): Promise<Res<void>>;
 
   unsubscribe(params: GetUserParams): Promise<Res<void>>;
+
+  getInbox(params: GetInboxItemsParams): Promise<Res<InboxItem[]>>;
+
+  comment(params: CommentParams): Promise<Res<Comment>>;
+
+  removeFromInbox(params: RemoveFromInboxParams): Promise<Res<void>>;
+
+  changeUserName(params: ChangeUserNameParams): Promise<Res<void>>;
+
+  uploadProfileImg(params: UploadProfileImgParams): Promise<Res<string>>;
 }
 
 export interface SocketAPI {
@@ -86,10 +144,10 @@ export interface SocketAPI {
 }
 
 export enum ENDPOINTS {
-  create_user = '/create_user',
-  get_user = '/user',
+  user = '/user',
   subscribe = '/subscribe',
   unsubscribe = '/unsubscribe',
+  inbox = '/inbox',
 }
 
 export enum SOCKET_ENDPONTS {

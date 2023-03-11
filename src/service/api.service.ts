@@ -1,5 +1,20 @@
-import {API, CreateUserRes, ENDPOINTS, GetUserParams, Res, SubscribeParams, User} from '@/types/server.types';
-import {Storage} from '@/types/app.types';
+import {
+  API,
+  ChangeUserNameParams,
+  Comment,
+  CommentParams,
+  ENDPOINTS,
+  GetInboxItemsParams,
+  GetUserParams,
+  InboxItem,
+  RemoveFromInboxParams,
+  Res,
+  SubscribeParams,
+  UploadProfileImgParams,
+  User,
+} from '@/types/server.types';
+import { Storage } from '@/types/app.types';
+import { createGlobalState } from '@vueuse/core';
 
 enum REQUEST_TYPES {
   GET = 'GET',
@@ -8,50 +23,77 @@ enum REQUEST_TYPES {
   DELETE = 'DELETE',
 }
 
-export function useAPI(): API {
+export const useAPI = createGlobalState((): API => {
   const baseUrl = import.meta.env.VITE_BACKEND as string;
 
   async function getUser(params: GetUserParams): Promise<Res<User>> {
     try {
-      const url = `${baseUrl}${ENDPOINTS.get_user}?${new URLSearchParams({_id: params._id})}`
-      return await fetch(url, {method: REQUEST_TYPES.GET,}).then(res => res.json());
+      const url = `${baseUrl}${ENDPOINTS.user}?${new URLSearchParams({ _id: params._id })}`;
+      return await fetch(url, { method: REQUEST_TYPES.GET }).then((res) => res.json());
     } catch (e) {
-      const user = await createUser();
-      if (!user) throw new Error();
-      else {
-        localStorage.setItem(Storage.user, user._id);
-        return await getUser({_id: user._id});
-      }
+      return await createUser();
     }
   }
 
-  async function createUser(): Promise<Res<CreateUserRes>> {
-    const url = `${baseUrl}${ENDPOINTS.create_user}`
-    return await fetch(url, {method: REQUEST_TYPES.POST}).then(res => res.json());
-  }
-
-  async function getDrawings(params: GetUserParams) {
-    const url = `${baseUrl}${ENDPOINTS.get_user}?${new URLSearchParams({_id: params._id})}`
-    return await fetch(url, {method: REQUEST_TYPES.GET,}).then(res => res.json());
+  async function createUser(): Promise<Res<User>> {
+    const url = `${baseUrl}${ENDPOINTS.user}`;
+    const user: Res<User> = await fetch(url, { method: REQUEST_TYPES.POST }).then((res) => res.json());
+    if (!user) throw new Error();
+    localStorage.setItem(Storage.user, user._id);
+    return user;
   }
 
   async function subscribe(params: SubscribeParams): Promise<Res<void>> {
-    const url = `${baseUrl}${ENDPOINTS.subscribe}`
-    await fetch(url, {method: REQUEST_TYPES.PUT, body: JSON.stringify(params)})
+    const url = `${baseUrl}${ENDPOINTS.subscribe}`;
+    await fetch(url, { method: REQUEST_TYPES.PUT, body: JSON.stringify(params) });
   }
 
-  // TODO should be delete...
-  // TODO make use of url params
   async function unsubscribe(params: GetUserParams): Promise<Res<void>> {
-    const url = `${baseUrl}${ENDPOINTS.unsubscribe}`
-    await fetch(url, {method: REQUEST_TYPES.PUT, body: JSON.stringify(params)})
+    const url = `${baseUrl}${ENDPOINTS.unsubscribe}`;
+    await fetch(url, { method: REQUEST_TYPES.PUT, body: JSON.stringify(params) });
+  }
+
+  async function getInbox(params: GetInboxItemsParams): Promise<Res<InboxItem[]>> {
+    const url = `${baseUrl}${ENDPOINTS.inbox}?${new URLSearchParams({ _ids: params._ids.join() })}`;
+    return await fetch(url, { method: REQUEST_TYPES.GET }).then((res) => res.json());
+  }
+
+  async function comment(params: CommentParams): Promise<Res<Comment>> {
+    const url = `${baseUrl}${ENDPOINTS.inbox}`;
+    return await fetch(url, { method: REQUEST_TYPES.PUT, body: JSON.stringify(params) }).then((res) => res.json());
+  }
+
+  async function removeFromInbox(params: RemoveFromInboxParams): Promise<Res<void>> {
+    const url = `${baseUrl}${ENDPOINTS.inbox}/${params.user_id}/${params.inbox_id}`;
+    await fetch(url, { method: REQUEST_TYPES.DELETE });
+  }
+
+  async function changeUserName(params: ChangeUserNameParams): Promise<Res<void>> {
+    const url = `${baseUrl}${ENDPOINTS.user}`;
+    await fetch(url, { method: REQUEST_TYPES.PUT, body: JSON.stringify(params) });
+  }
+
+  async function uploadProfileImg(params: UploadProfileImgParams): Promise<Res<string>> {
+    const url = `${baseUrl}${ENDPOINTS.user}/img/${params._id}?${params.mate_id ? `mate_id=${params.mate_id}` : ''}${
+      params.previousImage ? `&previousImage=${params.previousImage}` : ''
+    }`;
+    const data = new FormData();
+    data.append('file', params.img);
+    return await fetch(url, {
+      method: REQUEST_TYPES.PUT,
+      body: data,
+    }).then(async (res) => await res.text());
   }
 
   return {
     createUser,
     getUser,
-    getDrawings,
     subscribe,
-    unsubscribe
-  }
-}
+    unsubscribe,
+    getInbox,
+    comment,
+    removeFromInbox,
+    changeUserName,
+    uploadProfileImg,
+  };
+});

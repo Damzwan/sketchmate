@@ -1,34 +1,39 @@
 // Plugins
-import vue from '@vitejs/plugin-vue'
-import vuetify, {transformAssetUrls} from 'vite-plugin-vuetify'
+import vue from '@vitejs/plugin-vue';
+import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
 
 // Utilities
-import {defineConfig} from 'vite'
-import {fileURLToPath, URL} from 'node:url'
-import {VitePWA} from 'vite-plugin-pwa';
+import { defineConfig } from 'vite';
+import { fileURLToPath, URL } from 'node:url';
+import { VitePWA } from 'vite-plugin-pwa';
+import { visualizer } from 'rollup-plugin-visualizer';
+import eslint from 'vite-plugin-eslint';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     vue({
-      template: {transformAssetUrls}
+      template: { transformAssetUrls },
     }),
     // https://github.com/vuetifyjs/vuetify-loader/tree/next/packages/vite-plugin
     vuetify({
       autoImport: true,
     }),
+    eslint(),
+    visualizer() as any,
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      includeAssets: ['src/assets/*'],
       strategies: 'injectManifest',
       injectManifest: {
-        rollupFormat: 'iife'
+        rollupFormat: 'iife',
       },
       srcDir: 'src',
       filename: 'sw.js',
       devOptions: {
         enabled: true,
-        type: 'module'
+        type: 'module',
       },
       workbox: {
         cleanupOutdatedCaches: true,
@@ -36,6 +41,7 @@ export default defineConfig({
       manifest: {
         name: 'SketchMate',
         short_name: 'SketchMate',
+        theme_color: '#FFAD83',
         icons: [
           {
             src: 'android-chrome-192x192.png',
@@ -51,22 +57,14 @@ export default defineConfig({
       },
     }),
   ],
-  define: {'process.env': {}},
+  define: { 'process.env': {} },
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
-    extensions: [
-      '.js',
-      '.json',
-      '.jsx',
-      '.mjs',
-      '.ts',
-      '.tsx',
-      '.vue',
-    ],
+    extensions: ['.js', '.json', '.jsx', '.mjs', '.ts', '.tsx', '.vue'],
   },
   server: {
     port: 3000,
   },
-})
+});

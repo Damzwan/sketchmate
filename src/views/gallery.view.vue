@@ -1,57 +1,61 @@
 <template>
-  <div class="h-100">
-    <div v-if="user">
+  <div class="h-100" v-if="user">
+    <div v-if="user.mate">
       <v-tabs
         align-tabs="center"
         v-model="tab"
         bg-color="secondary"
+        grow
       >
         <v-tab :value="user.mate">Partner</v-tab>
         <v-tab :value="user._id">Me</v-tab>
       </v-tabs>
     </div>
 
-    <v-container v-if="Object.keys(groups[tab]).length === 0"
-                 class="w-100 h-75 d-flex justify-center align-center">
-      <div class="text-center flex-column d-flex justify-center align-center">
-        <v-img :src="noMessagesImg" :height="200" :width="200"/>
-        <div class="text-caption pt-5 w-75">No messages have been received yet. Your mate probably hates you...</div>
-      </div>
-    </v-container>
-
-    <v-container v-else>
-      <div v-for="date in Object.keys(groups[tab])" :key="date">
-        <div class="text-h6">
-          {{ dayjs(date).format('ddd, MMM D') }}
+    <div class="h-100" v-touch="{left: () => tab = user._id,right: () => tab = user.mate }">
+      <v-container v-if="Object.keys(groups[tab]).length === 0"
+                   class="w-100 h-75 d-flex justify-center align-center">
+        <div class="text-center flex-column d-flex justify-center align-center">
+          <v-img :src="noMessagesImg" :height="200" :width="200"/>
+          <div class="text-caption pt-5 w-75">No messages have been received yet. Your mate probably hates you...</div>
         </div>
+      </v-container>
 
-        <v-row class="pt-3">
-          <v-col v-for="(inboxItem, i) in inboxItemsFromGroups(date)" :key="i" cols="4" class="pa-2">
-            <v-img
-              @click="selectInboxItem(inboxItem)"
-              :src="inboxItem.img"
-              :lazy-src="inboxItem.img"
-              aspect-ratio="1"
-              cover
-              class="bg-grey-lighten-2 pointer"
-            >
-              <template v-slot:placeholder>
-                <v-row
-                  class="fill-height ma-0"
-                  align="center"
-                  justify="center"
-                >
-                  <v-progress-circular
-                    indeterminate
-                    color="primary"
-                  ></v-progress-circular>
-                </v-row>
-              </template>
-            </v-img>
-          </v-col>
-        </v-row>
-      </div>
-    </v-container>
+      <v-container v-else>
+        <div v-for="date in Object.keys(groups[tab])" :key="date">
+          <div class="text-h6">
+            {{ dayjs(date).format('ddd, MMM D') }}
+          </div>
+
+          <v-row class="pt-3">
+            <v-col v-for="(inboxItem, i) in inboxItemsFromGroups(date)" :key="i" cols="4" class="pa-2">
+              <v-img
+                @click="selectInboxItem(inboxItem)"
+                :src="inboxItem.img"
+                :lazy-src="inboxItem.img"
+                aspect-ratio="1"
+                cover
+                class="bg-grey-lighten-2 pointer"
+              >
+                <template v-slot:placeholder>
+                  <v-row
+                    class="fill-height ma-0"
+                    align="center"
+                    justify="center"
+                  >
+                    <v-progress-circular
+                      indeterminate
+                      color="primary"
+                    ></v-progress-circular>
+                  </v-row>
+                </template>
+              </v-img>
+            </v-col>
+          </v-row>
+        </div>
+      </v-container>
+    </div>
+
 
     <v-dialog
       v-model="dialog"
@@ -91,6 +95,10 @@ const tab = ref<string>(user.value!.mate!);
 const dialog = ref<boolean>(false);
 const groups = computed(() => group(user.value!.inbox))
 const selectedInboxItem = ref<InboxItem>();
+
+function test(dir: string) {
+  console.log(dir)
+}
 
 function inboxItemsFromGroups(date: string): InboxItem[] {
   return Object.values(groups.value[tab.value][date])

@@ -10,7 +10,7 @@
 
 <script lang="ts" setup>
 
-import DrawToolBar from '@/components/draw/DrawControlBar.vue';
+import DrawToolBar from '@/components/draw/DrawToolBar.vue';
 
 import {computed, onMounted, ref, watch} from 'vue';
 import {fabric} from 'fabric';

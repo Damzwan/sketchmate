@@ -1,15 +1,18 @@
 <template>
-  <v-bottom-navigation color="primary" grow :height="BOTTOM_NAV_HEIGHT" location="bottom" v-if="show">
+  <v-bottom-navigation color="black" location="bottom" v-if="show">
     <v-btn :to="FRONTEND_ROUTES.draw">
-      <v-icon :icon="mdiPencil" size="x-large"/>
+      <v-icon :icon="mdiPencilOutline" size="x-large"/>
+      Sketch
     </v-btn>
 
-    <v-btn :to="FRONTEND_ROUTES.messages">
-      <v-icon :icon="mdiMessage" size="x-large"/>
+    <v-btn :to="FRONTEND_ROUTES.gallery">
+      <v-icon :icon="mdiImageMultipleOutline" size="x-large"/>
+      Gallery
     </v-btn>
 
     <v-btn :to="FRONTEND_ROUTES.connect">
-      <v-icon :icon="mdiAccount" size="x-large"/>
+      <v-icon :icon="mdiAccountCircleOutline" size="x-large"/>
+      Connect
     </v-btn>
   </v-bottom-navigation>
 </template>
@@ -18,7 +21,16 @@ import {BOTTOM_NAV_HEIGHT} from '@/constants/app.constants';
 import {storeToRefs} from 'pinia';
 import {useAppStore} from '@/store/app.store';
 import {FRONTEND_ROUTES} from '@/types/app.types';
-import {mdiPencil, mdiMessage, mdiAccount} from '@mdi/js';
+import {
+  mdiPencil,
+  mdiMessage,
+  mdiAccount,
+  mdiPencilOutline,
+  mdiDrawPen,
+  mdiDraw,
+  mdiAccountOutline,
+  mdiAccountBoxOutline, mdiAccountCircleOutline, mdiImageMultipleOutline
+} from '@mdi/js';
 import {computed, watch} from 'vue';
 import {useRoute} from 'vue-router';
 

@@ -4,7 +4,7 @@ export enum Storage {
 
 export enum FRONTEND_ROUTES {
   draw = 'draw',
-  messages = 'messages',
+  gallery = 'gallery',
   connect = 'connect',
   tutorial = 'tutorial'
 }

@@ -1,4 +1,13 @@
-import {API, CreateUserRes, ENDPOINTS, GetUserParams, Res, SubscribeParams, User} from '@/types/server.types';
+import {
+  API,
+  ChangeNameParams,
+  CreateUserRes,
+  ENDPOINTS, GetMateInfoParams, GetMateInfoRes,
+  GetUserParams,
+  Res,
+  SubscribeParams,
+  User
+} from '@/types/server.types';
 import {Storage} from '@/types/app.types';
 
 enum REQUEST_TYPES {
@@ -47,11 +56,32 @@ export function useAPI(): API {
     await fetch(url, {method: REQUEST_TYPES.PUT, body: JSON.stringify(params)})
   }
 
+  async function changeName(params: ChangeNameParams): Promise<void> {
+    try {
+      const url = `${baseUrl}${ENDPOINTS.change_name}`
+      const res = await fetch(url, {method: REQUEST_TYPES.PUT, body: JSON.stringify(params)})
+      if (!res.ok) throw new Error();
+    } catch (e) {
+      throw new Error();
+    }
+  }
+
+  async function getMateInfo(params: GetMateInfoParams): Promise<Res<GetMateInfoRes>> {
+    try {
+      const url = `${baseUrl}${ENDPOINTS.mate}?${new URLSearchParams({mate: params.mate})}`
+      return await fetch(url, {method: REQUEST_TYPES.GET,}).then(res => res.json());
+    } catch (e) {
+      throw new Error();
+    }
+  }
+
   return {
     createUser,
     getUser,
     getDrawings,
     subscribe,
-    unsubscribe
+    unsubscribe,
+    changeName,
+    getMateInfo
   }
 }

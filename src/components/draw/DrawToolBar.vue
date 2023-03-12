@@ -1,5 +1,5 @@
 <template>
-  <v-toolbar color="primary" density="compact">
+  <v-toolbar color="secondary" density="compact">
     <template v-slot:prepend>
       <v-btn-toggle variant="text" mandatory :model-value="selectedTool">
         <v-menu :close-on-content-click="false">

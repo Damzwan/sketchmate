@@ -7,7 +7,7 @@
     "preview": "vite preview",
     "lint": "eslint . --fix --ignore-path .gitignore",
     "heroku:start": "serve -s dist --single",
-    "postinstall": "npm run build"
+    "postinstall": "pnpm run build"
   },
   "dependencies": {
     "@mdi/font": "7.0.96",
@@ -25,7 +25,7 @@
     "socket.io-client": "^4.5.4",
     "vue": "^3.2.38",
     "vue-router": "^4.0.0",
-    "vuetify": "^3.0.0",
+    "vuetify": "^3.1.8",
     "web-push": "^3.5.0",
     "webfontloader": "^1.0.0"
   },

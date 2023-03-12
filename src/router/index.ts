@@ -2,8 +2,8 @@
 import {createRouter, createWebHistory} from 'vue-router'
 import {FRONTEND_ROUTES} from '@/types/app.types';
 import Draw from '@/views/draw.view.vue';
-import Messages from '@/views/messages.view.vue';
-import Connect from '@/views/settings.view.vue';
+import Messages from '@/views/gallery.view.vue';
+import Connect from '@/views/connect.view.vue';
 
 const routes = [
   {
@@ -19,14 +19,14 @@ const routes = [
         component: () => import(/* webpackChunkName: "messages" */ '@/views/draw.view.vue'),
       },
       {
-        path: FRONTEND_ROUTES.messages,
+        path: FRONTEND_ROUTES.gallery,
         name: 'Saved',
-        component: () => import(/* webpackChunkName: "messages" */ '@/views/messages.view.vue'),
+        component: () => import(/* webpackChunkName: "messages" */ '@/views/gallery.view.vue'),
       },
       {
         path: FRONTEND_ROUTES.connect,
         name: 'Settings',
-        component: () => import(/* webpackChunkName: "connect" */ '@/views/settings.view.vue'),
+        component: () => import(/* webpackChunkName: "connect" */ '@/views/connect.view.vue'),
       },
       {
         path: FRONTEND_ROUTES.tutorial,

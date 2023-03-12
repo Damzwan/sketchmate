@@ -15,12 +15,13 @@ import {createVuetify, ThemeDefinition} from 'vuetify'
 const theme: ThemeDefinition = {
   dark: false,
   colors: {
-    background: '#FFDFD3',
-    surface: '#FFDFD3',
-    primary: '#6750a4',
+    background: '#F6E7E1',
+    surface: 'F6E7E1',
+    primary: '#FBDED0',
     'primary-darken-1': '#22005d',
-    secondary: '#625b71',
+    secondary: '#4A4E69',
     'secondary-darken-1': '#1e192b',
+    accent: '#A9CCE3',
     error: '#B00020',
     info: '#2196F3',
     success: '#4CAF50',

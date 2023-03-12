@@ -3,7 +3,7 @@ import {defineStore} from 'pinia'
 import {ref} from 'vue';
 import {FRONTEND_ROUTES, Storage} from '@/types/app.types';
 import {useAPI} from '@/service/api.service';
-import {User} from '@/types/server.types';
+import {GetMateInfoRes, Res, User} from '@/types/server.types';
 import {useSocketService} from '@/service/socket.service';
 import {useRoute, useRouter} from 'vue-router';
 
@@ -12,12 +12,11 @@ export const useAppStore = defineStore('app', () => {
   const user = ref<User>();
   const isLoading = ref(true);
   const notificationsAllowed = ref(false);
+  const mateName = ref<Res<GetMateInfoRes>>()
 
   const error = ref();
   const socketService = useSocketService();
   const router = useRouter();
-  const route = useRoute();
-
 
   async function login() {
     try {
@@ -33,14 +32,21 @@ export const useAppStore = defineStore('app', () => {
       if (!found_user) throw new Error();
       user.value = found_user;
 
+      if (user.value?.mate)
+        mateName.value = await api.getMateInfo({
+          mate: user.value.mate
+        })
+
       if (window.location.pathname !== `/${FRONTEND_ROUTES.tutorial}` &&
         !user.value.mate && window.location.pathname !== `/${FRONTEND_ROUTES.connect}`) await router.replace(FRONTEND_ROUTES.connect)
       await socketService.login({_id: found_user._id})
+
+
       isLoading.value = false;
     } catch (e) {
       error.value = e;
     }
   }
 
-  return {user, login, isLoading, error, notificationsAllowed}
+  return {user, login, isLoading, error, notificationsAllowed, mateName}
 })

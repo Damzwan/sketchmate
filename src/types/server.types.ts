@@ -9,6 +9,7 @@ export interface InboxItem {
 
 export interface User {
   _id: string;
+  name?: string;
   mate?: string;
   inbox: InboxItem[];
   subscription?: PushSubscription;
@@ -56,7 +57,20 @@ export interface SubscribeParams {
   _id: string;
 }
 
-export type Res<T> = T | undefined;
+export interface GetMateInfoParams {
+  mate: string;
+}
+
+export interface GetMateInfoRes {
+  name?: string;
+}
+
+export interface ChangeNameParams {
+  _id: string;
+  name: string;
+}
+
+export type Res<T> = T | undefined | null;
 
 export enum Notifications {
   message = 'message',
@@ -72,6 +86,10 @@ export interface API {
   subscribe(params: SubscribeParams): Promise<Res<void>>;
 
   unsubscribe(params: GetUserParams): Promise<Res<void>>;
+
+  changeName(params: ChangeNameParams): Promise<void>;
+
+  getMateInfo(params: GetMateInfoParams): Promise<Res<GetMateInfoRes>>;
 }
 
 export interface SocketAPI {
@@ -88,8 +106,11 @@ export interface SocketAPI {
 export enum ENDPOINTS {
   create_user = '/create_user',
   get_user = '/user',
+  get_drawings = '/drawing',
   subscribe = '/subscribe',
   unsubscribe = '/unsubscribe',
+  change_name = '/change_name',
+  mate = '/mate',
 }
 
 export enum SOCKET_ENDPONTS {

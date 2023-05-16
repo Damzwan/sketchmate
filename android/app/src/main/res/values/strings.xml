@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SketchMate</string>
+    <string name="title_activity_main">SketchMate</string>
+    <string name="package_name">ninja.sketchmate</string>
+    <string name="custom_url_scheme">ninja.sketchmate</string>
+</resources>

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "454566721535",
+    "project_id": "sketchmate-b5977",
+    "storage_bucket": "sketchmate-b5977.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:454566721535:android:4aaab87a448ceb9b1519ca",
+        "android_client_info": {
+          "package_name": "ninja.sketchmate"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "454566721535-e64bfoh9ch1u2a4lvsp09o74p7mghvuv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBeq5fC7X03S62JFkYlYTIUWuvFiXAD-8k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "454566721535-e64bfoh9ch1u2a4lvsp09o74p7mghvuv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

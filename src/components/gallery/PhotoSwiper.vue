@@ -1,0 +1,225 @@
+<template>
+  <ion-modal
+    :is-open="open"
+    @will-dismiss="close"
+    @will-present="checkQueryParams"
+    @did-present="changeNavBarColor"
+    :enter-animation="modalPopAnimation"
+    :leave-animation="leaveAnimation"
+    @ionModalDidPresent="consumeNotification"
+    v-if="user"
+  >
+    <div class="flex flex-col container max-w-full" v-if="currInboxItem">
+      <ion-toolbar class="w-full h-[56px] flex">
+        <ion-buttons slot="start">
+          <ion-button @click="close" color="white">
+            <ion-icon :icon="arrowBack" />
+          </ion-button>
+        </ion-buttons>
+
+        <ion-buttons slot="end">
+          <ion-button
+            @click="showComments = !showComments"
+            color="white"
+            class="pr-2"
+            v-if="currInboxItem.comments.length > 0"
+          >
+            <ion-icon :icon="showComments ? eye : eyeOff" />
+          </ion-button>
+          <ion-avatar class="flex justify-center items-center w-[35px]"
+            ><img :src="senderImg(user, currInboxItem.sender)" alt="" class="aspect-square"
+          /></ion-avatar>
+        </ion-buttons>
+      </ion-toolbar>
+      <div class="flex-grow flex bg-black">
+        <swiper-container
+          class="h-full w-full"
+          :slides-per-view="1"
+          keyboard-enabled="true"
+          @slidechange="onSlideChange"
+          :initial-slide="slide"
+          lazyPreloadPrevNext="3"
+        >
+          <swiper-slide
+            v-for="(item, i) in props.inboxItems"
+            :key="i"
+            :lazy="true"
+            class="flex justify-center items-center w-full relative"
+          >
+            <img
+              :src="item.thumbnail"
+              :srcset="item.image"
+              alt="drawing"
+              loading="lazy"
+              class="w-full h-full absolute"
+            />
+          </swiper-slide>
+        </swiper-container>
+      </div>
+
+      <div v-if="currInboxItem && showComments" @click="isCommentDrawerOpen = true" class="comments cursor-pointer">
+        <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i" class="rounded-full comment my-1">
+          <div class="flex items-center pl-1">
+            <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]"
+              ><img :src="senderImg(user, comment.sender)" alt="" class="aspect-square"
+            /></ion-avatar>
+            <div class="flex-1 ml-2">
+              <div class="text-xs font-bold text-white">{{ senderName(user, comment.sender) }}</div>
+              <div class="text-xs text-white">{{ comment.message }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-evenly w-full items-center h-[56px]">
+        <ion-button fill="clear" color="white" @click="replyToDrawing" class="flex-grow" size="large">
+          <ion-icon :icon="svg(mdiReplyOutline)" />
+        </ion-button>
+
+        <ion-button
+          fill="clear"
+          color="white"
+          @click="() => (isCommentDrawerOpen = true)"
+          class="flex-grow"
+          size="large"
+        >
+          <ion-icon :icon="svg(mdiCommentOutline)" />
+          <ion-badge class="mb-[25px] absolute ml-[35px]" color="secondary"
+            >{{ currInboxItem.comments.length }}
+          </ion-badge>
+        </ion-button>
+        <ion-button fill="clear" color="white" @click="shareImg(currInboxItem.image)" class="flex-grow" size="large">
+          <ion-icon :icon="svg(mdiShareVariantOutline)" />
+        </ion-button>
+        <ion-button fill="clear" color="white" @click="removeFromInboxItem" class="flex-grow" size="large">
+          <ion-icon :icon="svg(mdiDeleteOutline)" />
+        </ion-button>
+      </div>
+    </div>
+    <CommentDrawer
+      :index-of-curr-inbox-item="slide"
+      :curr-inbox-item="currInboxItem"
+      v-model:open="isCommentDrawerOpen"
+    />
+  </ion-modal>
+</template>
+
+<script lang="ts" setup>
+import { InboxItem, NotificationType } from '@/types/server.types'
+import { IonAvatar, IonBadge, IonButton, IonButtons, IonIcon, IonModal, IonToolbar } from '@ionic/vue'
+import { computed, ref } from 'vue'
+import { register } from 'swiper/element/bundle'
+import { useAPI } from '@/service/api.service'
+import { useAppStore } from '@/store/app.store'
+import { useDrawStore } from '@/store/draw.store'
+import { useToast } from '@/service/toast.service'
+import { arrowBack, eye, eyeOff } from 'ionicons/icons'
+import { leaveAnimation, modalPopAnimation } from '@/helper/animation.helper'
+import { senderImg, senderName, svg } from '@/helper/general.helper'
+import { mdiCommentOutline, mdiDeleteOutline, mdiReplyOutline, mdiShareVariantOutline } from '@mdi/js'
+import { shareImg } from '@/helper/share.helper'
+import CommentDrawer from '@/components/gallery/CommentDrawer.vue'
+import router from '@/router'
+import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
+import { StatusBar } from '@capacitor/status-bar'
+
+const props = defineProps({
+  open: {
+    type: Boolean,
+    required: true
+  },
+  slide: {
+    type: Number,
+    required: true
+  },
+  inboxItems: {
+    type: Array<InboxItem>,
+    required: true
+  }
+})
+
+const emit = defineEmits(['update:open', 'update:slide', 'remove'])
+
+const api = useAPI()
+const { user, consumeNotificationLoading } = useAppStore()
+const { reply } = useDrawStore()
+
+const currInboxItem = computed<InboxItem>(() => props.inboxItems![props.slide!])
+const showComments = ref(true)
+const isCommentDrawerOpen = ref(false)
+
+function consumeNotification() {
+  consumeNotificationLoading(NotificationType.comment)
+  consumeNotificationLoading(NotificationType.message)
+}
+
+function changeNavBarColor() {
+  NavigationBar.setColor({ color: '#000000' })
+  StatusBar.setBackgroundColor({ color: '#000000' })
+}
+
+function checkQueryParams() {
+  const query = router.currentRoute.value.query
+  isCommentDrawerOpen.value = query.comments === 'true'
+  router.replace({ query: undefined })
+}
+
+const { toast } = useToast()
+
+register()
+
+function replyToDrawing() {
+  close()
+  reply(currInboxItem.value)
+}
+
+function close() {
+  NavigationBar.setColor({ color: '#FFAD83' })
+  StatusBar.setBackgroundColor({ color: '#FFAD83' })
+  emit('update:open', false)
+}
+
+function onSlideChange(x: any) {
+  emit('update:slide', x.target.swiper.activeIndex)
+}
+
+function removeFromInboxItem() {
+  api.removeFromInbox({
+    user_id: user!._id,
+    inbox_id: currInboxItem.value._id
+  })
+  emit('remove')
+}
+</script>
+
+<style scoped>
+.comments {
+  position: absolute;
+  right: 0;
+  bottom: 60px;
+  z-index: 1000;
+  width: 250px;
+  padding: 10px;
+}
+
+.comment {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+ion-toolbar {
+  --background: #000000;
+}
+
+.container {
+  position: relative;
+  top: env(safe-area-inset-top);
+  height: calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+ion-modal {
+  --background: #000000;
+  --height: 100%;
+  --width: 100%;
+}
+</style>

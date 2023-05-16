@@ -1,32 +1,35 @@
 import { createApp } from 'vue'
 import App from './App.vue'
-import router from './router';
+import router from './router'
 
-import { IonicVue } from '@ionic/vue';
+import { IonicVue } from '@ionic/vue'
 
 /* Core CSS required for Ionic components to work properly */
-import '@ionic/vue/css/core.css';
+import '@ionic/vue/css/core.css'
 
 /* Basic CSS for apps built with Ionic */
-import '@ionic/vue/css/normalize.css';
-import '@ionic/vue/css/structure.css';
-import '@ionic/vue/css/typography.css';
+// import '@ionic/vue/css/normalize.css'
+// import '@ionic/vue/css/structure.css'
+// import '@ionic/vue/css/typography.css'
 
-/* Optional CSS utils that can be commented out */
-import '@ionic/vue/css/padding.css';
-import '@ionic/vue/css/float-elements.css';
-import '@ionic/vue/css/text-alignment.css';
-import '@ionic/vue/css/text-transformation.css';
-import '@ionic/vue/css/flex-utils.css';
-import '@ionic/vue/css/display.css';
+import { defineCustomElements } from '@ionic/pwa-elements/loader'
 
 /* Theme variables */
-import './theme/variables.css';
+import './theme/variables.css'
+import '@/tailwind.css'
 
-const app = createApp(App)
-  .use(IonicVue)
-  .use(router);
-  
-router.isReady().then(() => {
-  app.mount('#app');
-});
+import { createPinia } from 'pinia'
+import { StatusBar } from '@capacitor/status-bar'
+import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
+import mitt from 'mitt'
+
+const pinia = createPinia()
+export const EventBus = mitt()
+const app = createApp(App).use(IonicVue).use(pinia).use(router)
+
+StatusBar.setBackgroundColor({ color: '#FFAD83' })
+// app.config.globalProperties.$statusBar.setBackgroundColor({ color: '#FFAD83' })
+NavigationBar.setColor({ color: '#FFAD83' })
+
+app.mount('#app')
+defineCustomElements(window)

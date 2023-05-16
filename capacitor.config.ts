@@ -1,10 +1,20 @@
-import { CapacitorConfig } from '@capacitor/cli';
+import { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'io.ionic.starter',
+  appId: 'ninja.sketchmate',
   appName: 'SketchMate',
   webDir: 'dist',
-  bundledWebRuntime: false
-};
+  bundledWebRuntime: false,
+  plugins: {
+    LocalNotifications: {
+      smallIcon: 'ic_stat_icon_config_sample',
+      iconColor: '#488AFF',
+      sound: 'beep.wav'
+    },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert']
+    }
+  }
+}
 
-export default config;
+export default config

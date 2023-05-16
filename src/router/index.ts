@@ -1,31 +1,55 @@
-import { createRouter, createWebHistory } from '@ionic/vue-router';
-import { RouteRecordRaw } from 'vue-router';
-import TabsPage from '../views/TabsPage.vue'
+import { createRouter, createWebHistory } from '@ionic/vue-router'
+import { NavigationGuard, RouteRecordRaw } from 'vue-router'
+import TabsPage from '../views/tabs.view.vue'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { useAppStore } from '@/store/app.store'
+import { useSocketService } from '@/service/socket.service'
+
+const hasMateGuard: NavigationGuard = (to, from, next) => {
+  const { user } = useAppStore()
+  if (!user?.mate) next(FRONTEND_ROUTES.connect)
+  else next()
+}
+
+const hasNoMateGuard: NavigationGuard = (to, from, next) => {
+  const { user } = useAppStore()
+  if (user?.mate) next(FRONTEND_ROUTES.draw)
+  else next()
+}
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    redirect: '/tabs/tab1'
+    redirect: FRONTEND_ROUTES.draw
   },
   {
-    path: '/tabs/',
+    path: '/',
     component: TabsPage,
     children: [
       {
         path: '',
-        redirect: '/tabs/tab1'
+        redirect: FRONTEND_ROUTES.connect
       },
       {
-        path: 'tab1',
-        component: () => import('@/views/Tab1Page.vue')
+        path: FRONTEND_ROUTES.draw,
+        component: () => import('@/views/draw.view.vue'),
+        beforeEnter: hasMateGuard
       },
       {
-        path: 'tab2',
-        component: () => import('@/views/Tab2Page.vue')
+        path: FRONTEND_ROUTES.gallery,
+        component: () => import('@/views/gallery.view.vue'),
+        beforeEnter: hasMateGuard
       },
       {
-        path: 'tab3',
-        component: () => import('@/views/Tab3Page.vue')
+        path: FRONTEND_ROUTES.mate,
+        name: 'Mate',
+        component: () => import('@/views/mate.view.vue'),
+        beforeEnter: hasMateGuard
+      },
+      {
+        path: FRONTEND_ROUTES.connect,
+        component: () => import('@/views/connect.view.vue'),
+        beforeEnter: hasNoMateGuard
       }
     ]
   }
@@ -34,6 +58,13 @@ const routes: Array<RouteRecordRaw> = [
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes
+})
+
+router.beforeEach(async (to, from, next) => {
+  const app = useAppStore()
+  const { connect } = useSocketService()
+  if (!app.isLoggedIn) await connect().then(app.login)
+  next()
 })
 
 export default router

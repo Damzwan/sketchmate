@@ -15,7 +15,7 @@
     "lint": "eslint",
     "heroku:start": "serve -s dist --single",
     "postinstall": "npm run build_fabric_js && npm run build",
-    "build_fabric_js": "cd node_modules/fabric && npm install && npm run build_with_gestures"
+    "build_fabric_js": "cd node_modules/fabric && npm install -g uglify-js && npm run build_with_gestures"
   },
   "dependencies": {
     "@capacitor-community/barcode-scanner": "^3.0.3",

@@ -3,5 +3,5 @@
     <string name="app_name">SketchMate</string>
     <string name="title_activity_main">SketchMate</string>
     <string name="package_name">ninja.sketchmate.app</string>
-    <string name="custom_url_scheme">app.sketchmate.ninja</string>
+    <string name="custom_url_scheme">ninja.sketchmate.app</string>
 </resources>

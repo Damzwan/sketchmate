@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:454566721535:android:4aaab87a448ceb9b1519ca",
+        "mobilesdk_app_id": "1:454566721535:android:785c18d007c0c6261519ca",
         "android_client_info": {
-          "package_name": "ninja.sketchmate"
+          "package_name": "ninja.sketchmate.app"
         }
       },
       "oauth_client": [
@@ -29,6 +29,13 @@
             {
               "client_id": "454566721535-e64bfoh9ch1u2a4lvsp09o74p7mghvuv.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "454566721535-ssmar2f7tjkdmtrr82vb7iect1fg4rqk.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "ninja.sketchmate"
+              }
             }
           ]
         }

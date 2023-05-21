@@ -1,4 +1,4 @@
-package ninja.sketchmate;
+package ninja.sketchmate.app;
 
 import com.getcapacitor.BridgeActivity;
 

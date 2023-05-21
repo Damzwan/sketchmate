@@ -108,7 +108,7 @@ import { useAPI } from '@/service/api.service'
 import { useAppStore } from '@/store/app.store'
 import { useToast } from '@/service/toast.service'
 import { storeToRefs } from 'pinia'
-import { compressImage, svg } from '@/helper/general.helper'
+import { compressImage, compressImg, resizeImage, svg } from '@/helper/general.helper'
 import { mdiCancel, mdiDelete, mdiMinus, mdiPlus } from '@mdi/js'
 import { computed, ref } from 'vue'
 import { useDrawStore } from '@/store/draw.store'
@@ -139,7 +139,7 @@ const { selectAction } = useDrawStore()
 async function onUpload(e: any) {
   isLoading.value = true
   const file = e.target.files[0]
-  const img = await compressImage(file, 256)
+  const img = (await resizeImage(file, 256)) as File
   if (selectedSegment.value === '0') await createSticker(img)
   else await createEmblem(img)
   isLoading.value = false

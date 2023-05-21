@@ -47,7 +47,16 @@
 </template>
 
 <script setup lang="ts">
-import { IonContent, IonIcon, IonPage, isPlatform, onIonViewDidEnter } from '@ionic/vue'
+import {
+  IonContent,
+  IonIcon,
+  IonPage,
+  isPlatform,
+  onIonViewDidEnter,
+  IonToolbar,
+  IonButtons,
+  IonButton
+} from '@ionic/vue'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import ConnectMethod from '@/components/connect/ConnectMethod.vue'
 import cameraImg from '@/assets/illustrations/camera.svg'
@@ -65,7 +74,6 @@ import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning
 import QrScanner from 'qr-scanner'
 import { useFullscreen } from '@vueuse/core'
 import { svg } from '@/helper/general.helper'
-import { penIconMapping } from '@/config/draw.config'
 import { mdiClose } from '@mdi/js'
 
 const appStore = useAppStore()
@@ -80,6 +88,8 @@ const video = ref<HTMLVideoElement>()
 const videoContainer = ref<HTMLElement>()
 const { isFullscreen, enter, exit } = useFullscreen(videoContainer)
 const isQRReaderOpen = ref(false)
+
+const { queryParams } = storeToRefs(appStore)
 
 onIonViewDidEnter(() => {
   appStore.consumeNotificationLoading(NotificationType.unmatch)
@@ -98,15 +108,14 @@ function createShareUrl() {
 }
 
 function checkQueryParams() {
-  const query = router.currentRoute.value.query
-  if (!(user.value && query.mate)) return
+  const { queryParams, setQueryParams } = useAppStore()
+  const mateId = queryParams ? queryParams.get('mate') : router.currentRoute.value.query.mate?.toString()
+  setQueryParams(undefined)
+  if (!(user.value && mateId)) return
   router.replace({ query: undefined })
-  const mate = query.mate.toString()
-  if (mate === user.value._id) toast('Do not use your own share link', { color: 'error' })
+  if (mateId === user.value._id) toast('Do not use your own share link', { color: 'error' })
   else if (user.value.mate) toast('You already have a mate', { color: 'error' })
-  else {
-    match(mate)
-  }
+  else match(mateId)
 }
 
 function match(mate_id: string) {

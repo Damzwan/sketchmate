@@ -22,6 +22,8 @@ export const useAppStore = defineStore('app', () => {
   const error = ref()
   const api = useAPI()
 
+  const queryParams = ref<URLSearchParams>()
+
   async function login() {
     try {
       user.value = await getUser()
@@ -84,6 +86,10 @@ export const useAppStore = defineStore('app', () => {
     if (consumeType == notificationRouteLoading.value) notificationRouteLoading.value = undefined
   }
 
+  function setQueryParams(params: URLSearchParams | undefined) {
+    queryParams.value = params
+  }
+
   return {
     user,
     login,
@@ -100,6 +106,8 @@ export const useAppStore = defineStore('app', () => {
     addComment,
     notificationRouteLoading,
     setNotificationLoading,
-    consumeNotificationLoading
+    consumeNotificationLoading,
+    queryParams,
+    setQueryParams
   }
 })

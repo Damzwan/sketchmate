@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="ninja.sketchmate.app">
 
 
@@ -31,6 +32,8 @@
             android:launchMode="singleTask"
             android:theme="@style/AppTheme.NoActionBarLaunch">
 
+            <tools:validation testUrl="https://app.sketchmate.ninja/connect?mate=6463bfd32cd5bf3b444297ff" />
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -42,13 +45,19 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <!-- If a user clicks on a shared link that uses the "http" scheme, your
-                     app should be able to delegate that traffic to "https". -->
-                <data android:scheme="http" />
-                <data android:scheme="https" />
+                <data
+                    android:scheme="http"
+                    android:host="app.sketchmate.ninja" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
 
-                <!-- Include one or more domains that should be verified. -->
-                <data android:host="app.sketchmate.ninja" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="app.sketchmate.ninja" />
             </intent-filter>
 
         </activity>

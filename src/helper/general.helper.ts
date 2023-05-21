@@ -13,15 +13,6 @@ export function sortDates(arr: string[]) {
 }
 
 // TODO does not work well for mobile
-export async function compressImage(img: File, maxSize = 200, maxMb = 1) {
-  return img
-  // const options = {
-  //   maxSizeMB: maxMb,
-  //   maxWidthOrHeight: maxSize,
-  //   fileType: 'image/png'
-  // }
-  // return await imageCompression(img, options)
-}
 
 export async function compressImg(file: File | Blob, maxSize = 500, quality = 0.6): Promise<Blob | File> {
   return new Promise(resolve => {
@@ -29,6 +20,22 @@ export async function compressImg(file: File | Blob, maxSize = 500, quality = 0.
       quality: quality,
       maxWidth: maxSize,
       maxHeight: maxSize,
+      success(result) {
+        resolve(result)
+      },
+      error(err) {
+        console.log(err.message)
+      }
+    })
+  })
+}
+
+export async function resizeImage(file: File | Blob, maxSize = 500): Promise<Blob | File> {
+  return new Promise(resolve => {
+    new Compressor(file, {
+      maxWidth: maxSize,
+      maxHeight: maxSize,
+      mimeType: 'image/png',
       success(result) {
         resolve(result)
       },

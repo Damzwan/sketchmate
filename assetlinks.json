@@ -2,8 +2,8 @@
   {
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
-      "namespace": "SketchMate",
-      "package_name": "app.sketchmate.ninja",
+      "namespace": "android_app",
+      "package_name": "ninja.sketchmate.app",
       "sha256_cert_fingerprints": [
         "DC:18:C0:18:83:82:14:7D:37:81:0C:FF:31:FB:EC:DD:44:6A:58:CD:ED:0B:0D:ED:9E:B2:BE:9E:C3:B3:21:60"
       ]

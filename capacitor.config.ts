@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'app.ninja.sketchmate',
+  appId: 'ninja.sketchmate.app',
   appName: 'SketchMate',
   webDir: 'dist',
   bundledWebRuntime: false,

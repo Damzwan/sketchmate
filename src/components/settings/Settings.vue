@@ -72,7 +72,7 @@ import {
 } from '@ionic/vue'
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { compressImage, svg } from '@/helper/general.helper'
+import { compressImg, svg } from '@/helper/general.helper'
 import { useAPI } from '@/service/api.service'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
@@ -107,7 +107,7 @@ function close() {
 
 async function uploadImage(e: any) {
   const file = e.target.files[0]
-  const img = await compressImage(file)
+  const img = await compressImg(file, 256)
   const imgUrl = await api.uploadProfileImg({
     _id: user.value!._id,
     mate_id: user.value?.mate?._id,

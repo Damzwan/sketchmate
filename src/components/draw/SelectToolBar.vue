@@ -1,5 +1,5 @@
 <template>
-  <ion-toolbar color="primary">
+  <ion-toolbar color="primary" class="h-[46px]">
     <ion-buttons slot="start">
       <ion-button @click="cancelSelect">
         <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
@@ -48,8 +48,10 @@ import { useDrawStore } from '@/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import { DrawAction } from '@/types/draw.types'
+import { selectLastCreatedObject } from '@/helper/draw.helper'
 
-const { setSelectedObjects, refresh, getSelectedObjects, saveState, selectAction, deleteObjects } = useDrawStore()
+const { setSelectedObjects, refresh, getSelectedObjects, saveState, selectAction, deleteObjects, getCanvas } =
+  useDrawStore()
 const { selectedObjectsRef, selectedObjectStrokeColor, selectedObjectFillColor } = storeToRefs(useDrawStore())
 const strokeColorPicker = ref<HTMLInputElement>()
 const fillColorPicker = ref<HTMLInputElement>()
@@ -62,21 +64,42 @@ function cancelSelect() {
 
 function removeObjects() {
   deleteObjects(getSelectedObjects())
-  setSelectedObjects([])
-  refresh()
+  selectLastCreatedObject(getCanvas())
 }
 
 function setStrokeColor(c: string) {
-  selectedObjectsRef.value?.forEach(obj => obj.set({ stroke: selectedObjectStrokeColor.value }))
+  getSelectedObjects()?.forEach(obj => obj.set({ stroke: selectedObjectStrokeColor.value }))
   saveState()
   refresh()
 }
 
 function setFillColor(c: string) {
-  selectedObjectsRef.value?.forEach(obj => obj.set({ fill: selectedObjectFillColor.value }))
+  getSelectedObjects()?.forEach(obj => obj.set({ fill: selectedObjectFillColor.value }))
   saveState()
   refresh()
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+ion-button {
+  width: 46px !important;
+  height: 46px !important;
+}
+
+ion-button ion-icon {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+ion-button::part(native) {
+  @apply p-3;
+}
+
+ion-buttons {
+  @apply h-[46px] top-0 relative;
+}
+
+ion-toolbar {
+  --min-height: 46px;
+}
+</style>

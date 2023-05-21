@@ -5,6 +5,7 @@ import {
   InboxItem,
   MatchParams,
   MatchRes,
+  NotificationType,
   Res,
   SendParams,
   SOCKET_ENDPONTS,
@@ -38,7 +39,7 @@ export function useSocketService(): ExpandedSocketAPI {
 
 export function createSocketService(): ExpandedSocketAPI {
   const { increaseUnreadMessages, addComment } = useAppStore()
-  const { user, isLoading, inbox } = storeToRefs(useAppStore())
+  const { user, isLoading, inbox, notificationRouteLoading } = storeToRefs(useAppStore())
   const { toast } = useToast()
 
   async function connect(): Promise<void> {
@@ -52,7 +53,6 @@ export function createSocketService(): ExpandedSocketAPI {
         user.value!.mate = params.mate
         toast('Matched!', { buttons: [matchButton, dismissButton], duration: 5000 })
         router.push(FRONTEND_ROUTES.mate)
-        isLoading.value = false
       } else toast('Failed to connect to mate', { color: 'error' })
     })
 
@@ -60,6 +60,8 @@ export function createSocketService(): ExpandedSocketAPI {
       if (success) {
         toast('Unmatched', { color: 'warning' })
         user.value!.mate = undefined
+        inbox.value = []
+        user.value!.inbox = []
         router.push(FRONTEND_ROUTES.connect)
       } else toast('Failed to unmatch', { color: 'error' })
       isLoading.value = false
@@ -101,12 +103,12 @@ export function createSocketService(): ExpandedSocketAPI {
   }
 
   async function match(params: MatchParams): Promise<void> {
-    isLoading.value = true
+    notificationRouteLoading.value = NotificationType.match
     socket!.emit(SOCKET_ENDPONTS.match, params)
   }
 
   async function unMatch(params: UnMatchParams): Promise<void> {
-    isLoading.value = true
+    notificationRouteLoading.value = NotificationType.unmatch
     socket!.emit(SOCKET_ENDPONTS.unmatch, params)
   }
 

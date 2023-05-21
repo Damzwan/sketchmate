@@ -11,7 +11,7 @@
     <FullScreenLoader v-show="notificationRouteLoading" class="z-50" />
     <ion-tabs>
       <ion-router-outlet />
-      <ion-tab-bar slot="bottom" v-if="show">
+      <ion-tab-bar slot="bottom" v-if="show" mode="ios">
         <ion-tab-button :tab="FRONTEND_ROUTES.draw" :href="`/${FRONTEND_ROUTES.draw}`">
           <ion-icon :icon="pencil" />
           <ion-label>Draw</ion-label>

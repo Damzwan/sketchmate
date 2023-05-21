@@ -1,11 +1,10 @@
 import { BrushType, DrawAction, DrawTool, Eraser } from '@/types/draw.types'
 import { fabric } from 'fabric'
 import { Canvas } from 'fabric/fabric-impl'
-import { mdiBandage, mdiCircleOutline, mdiEraser, mdiPencilOutline, mdiSpray } from '@mdi/js'
+import { mdiBandage, mdiBucketOutline, mdiCircleOutline, mdiEraser, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import {
   addSticker,
   copyObjects,
-  fillBackground,
   fullErase,
   selectBucket,
   selectHealingMobileEraser,
@@ -34,7 +33,8 @@ export const PENS = [DrawTool.Pen]
 export const brushMapping: { [key in BrushType]: any } = {
   [BrushType.Circle]: (c: Canvas) => new fabric.CircleBrush(c),
   [BrushType.Pencil]: (c: Canvas) => new fabric.PencilBrush(c),
-  [BrushType.Spray]: (c: Canvas) => new fabric.SprayBrush(c)
+  [BrushType.Spray]: (c: Canvas) => new fabric.SprayBrush(c),
+  [BrushType.Bucket]: (c: Canvas) => null
 }
 
 export const eraserIconMapping: { [key in Eraser]: string } = {
@@ -45,7 +45,8 @@ export const eraserIconMapping: { [key in Eraser]: string } = {
 export const penIconMapping: { [key in BrushType]: string } = {
   [BrushType.Pencil]: mdiPencilOutline,
   [BrushType.Spray]: mdiSpray,
-  [BrushType.Circle]: mdiCircleOutline
+  [BrushType.Circle]: mdiCircleOutline,
+  [BrushType.Bucket]: mdiBucketOutline
 }
 
 export const selectToolMapping: { [key in DrawTool]: (c: Canvas) => void } = {
@@ -53,14 +54,13 @@ export const selectToolMapping: { [key in DrawTool]: (c: Canvas) => void } = {
   [DrawTool.MobileEraser]: selectMobileEraser,
   [DrawTool.HealingEraser]: selectHealingMobileEraser,
   [DrawTool.Move]: selectMove,
-  [DrawTool.Select]: selectSelect,
-  [DrawTool.Bucket]: selectBucket
+  [DrawTool.Select]: selectSelect
 }
 
 export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object) => void } = {
   [DrawAction.FullErase]: fullErase,
   [DrawAction.Sticker]: addSticker,
-  [DrawAction.FillBackground]: fillBackground,
   [DrawAction.CopyObject]: copyObjects,
-  [DrawAction.BackgroundImage]: setBgImage
+  [DrawAction.BackgroundImage]: setBgImage,
+  [DrawAction.Bucket]: selectBucket
 }

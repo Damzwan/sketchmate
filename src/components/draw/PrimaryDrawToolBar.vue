@@ -1,5 +1,5 @@
 <template>
-  <ion-toolbar color="primary">
+  <ion-toolbar color="primary" class="h-[46px]">
     <ion-buttons slot="start">
       <ion-button :class="{ selected: penMenuSelected }" @click="selectTool(lastSelectedPenTool, $event)">
         <ion-icon slot="icon-only" :icon="svg(penIconMapping[brushType])"></ion-icon>
@@ -9,9 +9,14 @@
         :class="{ selected: ERASERS.includes(selectedTool) }"
         @click="selectTool(lastSelectedEraserTool, $event)"
       >
-        <ion-icon slot="icon-only" :icon="svg(eraserIconMapping[lastSelectedEraserTool])"></ion-icon>
+        <ion-icon slot="icon-only" :icon="svg(eraserIconMapping[lastSelectedEraserTool])" size="large" />
       </ion-button>
       <EraserMenu />
+
+      <ion-button id="stickers">
+        <ion-icon slot="icon-only" :icon="svg(mdiStickerEmoji)"></ion-icon>
+      </ion-button>
+      <StickerMenu />
 
       <ion-button :class="{ selected: selectedTool == DrawTool.Move }" @click="selectTool(DrawTool.Move)">
         <ion-icon slot="icon-only" :icon="svg(mdiMagnifyPlusOutline)"></ion-icon>
@@ -21,21 +26,19 @@
         <ion-icon slot="icon-only" :icon="svg(mdiCursorMove)"></ion-icon>
       </ion-button>
 
-      <ion-button id="stickers">
-        <ion-icon slot="icon-only" :icon="svg(mdiStickerEmoji)"></ion-icon>
+      <ion-button @click="undo" :disabled="undoStack.length == 0">
+        <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
       </ion-button>
-      <StickerMenu />
 
-      <ion-button :class="{ selected: selectedTool == DrawTool.Bucket }" @click="selectTool(DrawTool.Bucket, $event)">
-        <ion-icon slot="icon-only" :icon="svg(mdiBucketOutline)" :style="{ color: bucketColor }" />
+      <ion-button @click="redo" :disabled="redoStack.length == 0">
+        <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
-      <BucketMenu />
     </ion-buttons>
 
-    <ion-buttons slot="end">
-      <ion-button @click="secondaryToolBarOpen = !secondaryToolBarOpen">
-        <ion-icon slot="icon-only" :icon="svg(secondaryToolBarOpen ? mdiChevronUp : mdiChevronDown)"></ion-icon>
-      </ion-button>
+    <ion-buttons slot="end" class="h-[40px]">
+      <!--      <ion-button @click="secondaryToolBarOpen = !secondaryToolBarOpen">-->
+      <!--        <ion-icon slot="icon-only" :icon="svg(secondaryToolBarOpen ? mdiChevronUp : mdiChevronDown)"></ion-icon>-->
+      <!--      </ion-button>-->
       <ion-button @click="send">
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>
@@ -51,24 +54,31 @@ import { eraserIconMapping, ERASERS, penIconMapping, PENS } from '@/config/draw.
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
 import {
-  mdiBucketOutline,
   mdiChevronDown,
   mdiChevronUp,
   mdiCursorMove,
   mdiMagnifyPlusOutline,
+  mdiRedo,
   mdiSend,
-  mdiStickerEmoji
+  mdiStickerEmoji,
+  mdiUndo
 } from '@mdi/js'
 import PenMenu from '@/components/draw/PenMenu.vue'
 import { computed } from 'vue'
 import EraserMenu from '@/components/draw/EraserMenu.vue'
 import StickerMenu from '@/components/draw/StickerMenu.vue'
-import BucketMenu from '@/components/draw/BucketMenu.vue'
 
 const drawStore = useDrawStore()
-const { selectTool, send } = drawStore
-const { selectedTool, lastSelectedEraserTool, lastSelectedPenTool, brushType, bucketColor, secondaryToolBarOpen } =
-  storeToRefs(drawStore)
+const { selectTool, send, undo, redo } = drawStore
+const {
+  selectedTool,
+  lastSelectedEraserTool,
+  lastSelectedPenTool,
+  brushType,
+  secondaryToolBarOpen,
+  undoStack,
+  redoStack
+} = storeToRefs(drawStore)
 
 const penMenuSelected = computed(() => PENS.includes(selectedTool.value))
 </script>
@@ -78,10 +88,32 @@ const penMenuSelected = computed(() => PENS.includes(selectedTool.value))
   content: '';
   display: block;
   position: relative;
-  bottom: 0;
+  bottom: 3px;
   left: 10%;
   width: 80%;
   height: 3px;
   background-color: var(--ion-color-secondary);
+}
+
+ion-button {
+  width: 46px !important;
+  height: 46px !important;
+}
+
+ion-button ion-icon {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+ion-button::part(native) {
+  @apply p-3;
+}
+
+ion-buttons {
+  @apply h-[46px] top-0 relative;
+}
+
+ion-toolbar {
+  --min-height: 46px;
 }
 </style>

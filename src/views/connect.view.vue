@@ -4,27 +4,36 @@
     <SettingsHeader title="Connect" v-if="!scanning" />
     <ion-content v-show="!scanning">
       <div class="flex flex-col h-full">
-        <div class="flex-grow justify-center items-center flex">
-          <ion-grid>
-            <ion-row class="ion-justify-content-center">
-              <ion-col size="12" size-sm="5" size-md="4" class="flex justify-center align-center col">
-                <ConnectMethod
-                  title="Scan QR Code"
-                  subtitle="Become mates by scanning the qr code of another user"
-                  :img="cameraImg"
-                  :action="startScanning"
-                />
-              </ion-col>
-              <ion-col size="12" size-sm="5" size-md="4" class="flex justify-center align-center col">
-                <ConnectMethod
-                  title="Share connect link"
-                  subtitle="The first person who clicks on this link will become your mate"
-                  :img="shareImage"
-                  :action="shareLink"
-                />
-              </ion-col>
-            </ion-row>
-          </ion-grid>
+        <div class="flex-grow justify-center flex flex-wrap content-evenly">
+          <div class="w-full sm:w-1/2 md:w-1/3 flex justify-center items-center">
+            <ConnectMethod
+              title="Scan QR Code"
+              subtitle="Become mates by scanning the qr code of another user"
+              :img="cameraImg"
+              :action="startScanning"
+            />
+          </div>
+          <div class="w-full sm:w-1/2 md:w-1/3 flex justify-center items-center">
+            <ConnectMethod
+              title="Share connect link"
+              subtitle="The first person who clicks on this link will become your mate"
+              :img="shareImage"
+              :action="shareLink"
+            />
+          </div>
+        </div>
+
+        <div v-show="isQRReaderOpen" ref="videoContainer">
+          <ion-toolbar color="transparent">
+            <ion-buttons>
+              <ion-button @click="stopScanning">
+                <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="fill-white"></ion-icon>
+              </ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+          <div class="w-full h-3/4 flash justify-center items-center grid">
+            <video ref="video" />
+          </div>
         </div>
 
         <div class="flex flex-col items-center justify-center w-full pb-12">
@@ -38,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonCol, IonContent, IonGrid, IonPage, IonRow } from '@ionic/vue'
+import { IonContent, IonIcon, IonPage, isPlatform, onIonViewDidEnter } from '@ionic/vue'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import ConnectMethod from '@/components/connect/ConnectMethod.vue'
 import cameraImg from '@/assets/illustrations/camera.svg'
@@ -47,12 +56,17 @@ import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
 import QrcodeVue from 'qrcode.vue'
 import { shareUrl } from '@/helper/share.helper'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BarcodeScanner } from '@capacitor-community/barcode-scanner'
 import { useSocketService } from '@/service/socket.service'
 import { useToast } from '@/service/toast.service'
 import { NotificationType } from '@/types/server.types'
+import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
+import QrScanner from 'qr-scanner'
+import { useFullscreen } from '@vueuse/core'
+import { svg } from '@/helper/general.helper'
+import { penIconMapping } from '@/config/draw.config'
+import { mdiClose } from '@mdi/js'
 
 const appStore = useAppStore()
 const socketService = useSocketService()
@@ -61,10 +75,27 @@ const route = useRoute()
 const router = useRouter()
 const { toast } = useToast()
 
-const share_url = ref(`${window.location.origin}${route.path}?mate=${user.value!._id}`)
+const qrScanner = ref<QrScanner>()
+const video = ref<HTMLVideoElement>()
+const videoContainer = ref<HTMLElement>()
+const { isFullscreen, enter, exit } = useFullscreen(videoContainer)
+const isQRReaderOpen = ref(false)
 
-appStore.consumeNotificationLoading(NotificationType.unmatch)
-checkQueryParams()
+onIonViewDidEnter(() => {
+  appStore.consumeNotificationLoading(NotificationType.unmatch)
+  checkQueryParams()
+})
+
+watch(isFullscreen, value => {
+  if (!value) stopScanning()
+})
+
+function createShareUrl() {
+  let baseUrl
+  if (isPlatform('ios') || isPlatform('android')) baseUrl = import.meta.env.VITE_FRONTEND as string
+  else baseUrl = `${window.location.origin}`
+  return `${baseUrl}${route.path}?mate=${user.value!._id}`
+}
 
 function checkQueryParams() {
   const query = router.currentRoute.value.query
@@ -88,22 +119,43 @@ function match(mate_id: string) {
 const scanning = ref(false)
 
 async function startScanning() {
-  const status = await BarcodeScanner.checkPermission({ force: true })
-  if (status.granted) {
-    scanning.value = true
-    await BarcodeScanner.hideBackground()
-    const result = await BarcodeScanner.startScan() // start scanning and wait for a result
-    if (result.hasContent) {
-      scanning.value = false
-      match(result.content)
+  if (isPlatform('capacitor')) {
+    const supported = await BarcodeScanner.isSupported()
+
+    if (!supported.supported) {
+      toast('Camera not supported', { color: 'warning' })
+      return
     }
+
+    const status = await BarcodeScanner.requestPermissions()
+    if (status.camera == 'granted') {
+      const { barcodes } = await BarcodeScanner.scan({
+        formats: [BarcodeFormat.QrCode]
+      })
+      match(barcodes[0].rawValue)
+    } else toast('Camera permission not granted or not available', { color: 'warning' })
   } else {
-    toast('Camera not available', { color: 'warning' })
+    qrScanner.value = new QrScanner(video.value!, decode, { highlightScanRegion: true, returnDetailedScanResult: true })
+    enter()
+    isQRReaderOpen.value = true
+    qrScanner.value?.start()
   }
 }
 
+function stopScanning() {
+  qrScanner.value?.stop()
+  if (isFullscreen.value) exit()
+  isQRReaderOpen.value = false
+}
+
+function decode(code: any) {
+  if (!isQRReaderOpen.value) return
+  stopScanning()
+  match(code.data)
+}
+
 function shareLink() {
-  shareUrl(share_url.value, 'Become my mate on Sketchmate', 'Send connect link')
+  shareUrl(createShareUrl(), 'Become my mate on Sketchmate', 'Send connect link')
 }
 </script>
 

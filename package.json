@@ -1,5 +1,5 @@
 {
-  "name": "sketch-mate",
+  "name": "SketchMate",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -8,17 +8,17 @@
     "start": "ionic serve",
     "start_ios": "ionic capacitor run ios -l --external",
     "start_android": "ionic capacitor run android -l --external",
-    "build": "vite build",
+    "build": "vite build && mkdir -p dist/.well-known && cp assetlinks.json dist/.well-known/assetlinks.json",
     "preview": "vite preview",
     "test:e2e": "cypress run",
     "test:unit": "vitest",
     "lint": "eslint",
     "heroku:start": "serve -s dist --single",
     "postinstall": "npm run build_fabric_js && npm run build",
-    "build_fabric_js": "cd node_modules/fabric && npm install -g uglify-js && npm run build_with_gestures"
+    "build_fabric_js": "cd node_modules/fabric && npm run build_with_gestures"
   },
   "dependencies": {
-    "@capacitor-community/barcode-scanner": "^3.0.3",
+    "@capacitor-mlkit/barcode-scanning": "^5.0.0",
     "@capacitor/android": "4.8.0",
     "@capacitor/app": "4.1.1",
     "@capacitor/camera": "^4.1.5",
@@ -47,6 +47,7 @@
     "pako": "^2.1.0",
     "pinia": "^2.0.36",
     "postcss": "^8.4.23",
+    "qr-scanner": "^1.4.2",
     "qrcode.vue": "^3.4.0",
     "sass": "^1.62.1",
     "serve": "^14.2.0",
@@ -72,6 +73,7 @@
     "rollup-plugin-visualizer": "^5.9.0",
     "tailwindcss": "^3.3.2",
     "typescript": "^4.9.5",
+    "uglify-js": "^3.17.4",
     "vite": "^4.3.7",
     "vitest": "^0.29.8",
     "vue-tsc": "^1.6.5"

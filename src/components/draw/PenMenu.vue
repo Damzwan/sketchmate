@@ -39,6 +39,14 @@
           >
             <ion-icon :icon="svg(mdiCircleOutline)" />
           </div>
+
+          <div
+            class="brush_option bg-purple-400"
+            @click="onBucketClick"
+            :class="{ brush_selected: brushType === BrushType.Bucket }"
+          >
+            <ion-icon :icon="svg(mdiBucketOutline)" />
+          </div>
         </div>
       </div>
 
@@ -71,12 +79,13 @@ import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw.store'
 import { watch } from 'vue'
 import { COLORSWATCHES } from '@/config/draw.config'
-import { BrushType } from '@/types/draw.types'
-import { mdiCircleOutline, mdiPencilOutline, mdiSpray } from '@mdi/js'
+import { BrushType, DrawAction } from '@/types/draw.types'
+import { mdiBucketOutline, mdiCircleOutline, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
-import { Canvas } from 'fabric/fabric-impl'
+import BucketMenu from '@/components/draw/BucketMenu.vue'
 
-const { penMenuOpen, event, brushSize, brushColor, brushType, c } = storeToRefs(useDrawStore())
+const drawStore = useDrawStore()
+const { penMenuOpen, event, brushSize, brushColor, brushType, c } = storeToRefs(drawStore)
 
 const renderPreview = () => {
   const canvas = document.getElementById('preview-canvas') as HTMLCanvasElement
@@ -99,6 +108,11 @@ const renderPreview = () => {
   }
 
   ctx!.stroke()
+}
+
+function onBucketClick() {
+  brushType.value = BrushType.Bucket
+  drawStore.selectAction(DrawAction.Bucket)
 }
 
 watch(brushSize, () => {

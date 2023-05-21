@@ -3,7 +3,7 @@ import { fabric } from 'fabric'
 import { isPlatform } from '@ionic/vue'
 import { brushMapping, WHITE } from '@/config/draw.config'
 import { useDrawStore } from '@/store/draw.store'
-import { DrawTool } from '@/types/draw.types'
+import { BrushType, DrawTool } from '@/types/draw.types'
 
 export function selectMove(c: Canvas) {
   let lastX = -1
@@ -150,15 +150,24 @@ export async function selectSelect(c: Canvas) {
 
   c.on('selection:updated', e => setSelectedObjects(e.selected))
 
+  selectLastCreatedObject(c)
+}
+
+export function selectLastCreatedObject(c: Canvas) {
+  const { setSelectedObjects, refresh } = useDrawStore()
   const lastCreatedObj = c._objects[c._objects.length - 1]
-  if (!lastCreatedObj) return
-  setSelectedObjects([lastCreatedObj])
-  c.setActiveObject(lastCreatedObj)
+  if (!lastCreatedObj) {
+    setSelectedObjects([])
+  } else {
+    setSelectedObjects([lastCreatedObj])
+    c.setActiveObject(lastCreatedObj)
+  }
   refresh()
 }
 
 export function selectPen(c: Canvas) {
   const { brushType, brushSize, brushColor } = useDrawStore()
+  if (brushType == BrushType.Bucket) return
   const newBrush = brushMapping[brushType](c)
   c!.freeDrawingBrush = newBrush!
   c.freeDrawingBrush.width = brushSize
@@ -254,10 +263,16 @@ export function selectBucket(c: Canvas) {
   c!.selection = false
   const { refresh, saveState } = useDrawStore()
   c!.forEachObject(function (object) {
+    object.set({
+      hasControls: false,
+      hasBorders: false,
+      selectable: false
+    })
     object.on('mousedown', () => {
-      const { bucketColor } = useDrawStore()
-      object.set({ fill: bucketColor })
+      const { brushColor } = useDrawStore()
+      if (object.fill == brushColor) return
       saveState()
+      object.set({ fill: brushColor })
       refresh()
     })
   })
@@ -277,14 +292,6 @@ export function enableHistorySaving(c: Canvas) {
 export function disableHistorySaving(c: Canvas) {
   historySavingEvents.forEach(event => c.off(event))
   c.off('erasing:end')
-}
-
-export function fillBackground(c: Canvas) {
-  const { bucketColor, setBackgroundColor, refresh, saveState } = useDrawStore()
-  setBackgroundColor(bucketColor)
-  saveState()
-  c.backgroundColor = bucketColor
-  refresh()
 }
 
 export function copyObjects(c: Canvas, options: any) {

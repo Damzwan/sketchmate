@@ -3,8 +3,7 @@ export enum DrawTool {
   MobileEraser,
   HealingEraser,
   Select,
-  Move,
-  Bucket
+  Move
   // StrokeEraser
   // Drag
 }
@@ -15,16 +14,17 @@ export type Pen = DrawTool.Pen
 export enum DrawAction {
   FullErase,
   Sticker,
-  FillBackground,
   CopyObject,
-  BackgroundImage
+  BackgroundImage,
+  Bucket
   // Text
 }
 
 export enum BrushType {
   Pencil,
   Circle,
-  Spray
+  Spray,
+  Bucket
 }
 
 export enum EraserSize {

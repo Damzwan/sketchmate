@@ -22,7 +22,6 @@ export const useDrawStore = defineStore('draw', () => {
   const brushSize = ref(BRUSHSIZE)
   const brushType = ref<BrushType>(BrushType.Pencil)
   const brushColor = ref(BLACK)
-  const bucketColor = ref(BLACK)
 
   const eraserSize = ref<EraserSize>(EraserSize.small)
   const healingEraserSize = ref<EraserSize>(EraserSize.small)
@@ -55,8 +54,7 @@ export const useDrawStore = defineStore('draw', () => {
     [DrawTool.MobileEraser]: () => (eraserMenuOpen.value = true),
     [DrawTool.HealingEraser]: () => (eraserMenuOpen.value = true),
     [DrawTool.Move]: undefined,
-    [DrawTool.Select]: undefined,
-    [DrawTool.Bucket]: () => (bucketMenuOpen.value = true)
+    [DrawTool.Select]: undefined
   }
 
   const selectedObjectStrokeColor = ref(BLACK)
@@ -122,6 +120,10 @@ export const useDrawStore = defineStore('draw', () => {
     await router.push(FRONTEND_ROUTES.draw)
   }
 
+  function getCanvas() {
+    return c!
+  }
+
   function setSelectedObjects(objects: fabric.Object[] | undefined) {
     if (!objects) objects = []
 
@@ -138,7 +140,11 @@ export const useDrawStore = defineStore('draw', () => {
     }
     objects.forEach(obj => obj.set({ hasBorders: true, hasControls: true }))
 
-    selectedObjectsRef.value = objects
+    // TODO this is a weird bugfix
+    setTimeout(() => {
+      selectedObjectsRef.value = objects!
+    }, 100)
+
     selectedObjects = objects
     refresh()
   }
@@ -213,7 +219,11 @@ export const useDrawStore = defineStore('draw', () => {
     c!.freeDrawingBrush.color = brushColor.value
   })
 
-  watch(brushType, () => selectPen(c!))
+  watch(brushType, value => {
+    if (value == BrushType.Bucket) return
+    resetCanvasMode(c!)
+    selectPen(c!)
+  })
 
   return {
     selectedTool,
@@ -247,7 +257,6 @@ export const useDrawStore = defineStore('draw', () => {
     deleteObjects,
     getSelectedObjects,
     selectedObjectsRef,
-    bucketColor,
     secondaryToolBarOpen,
     saveState,
     undo,
@@ -259,6 +268,7 @@ export const useDrawStore = defineStore('draw', () => {
     bucketMenuOpen,
     backgroundColor,
     setBackgroundColor,
-    reset
+    reset,
+    getCanvas
   }
 })

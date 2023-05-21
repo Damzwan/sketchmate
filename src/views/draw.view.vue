@@ -43,7 +43,7 @@ onIonViewDidEnter(async () => {
       new fabric.Canvas(myCanvasRef.value!, {
         isDrawingMode: isDrawingMode.value,
         width: window.innerWidth,
-        height: window.innerHeight - 56 - 56,
+        height: window.innerHeight - 46 - 50,
         backgroundColor: WHITE
       })
     )
@@ -58,7 +58,7 @@ onIonViewDidEnter(async () => {
         const json = jsonToLoad.value as any
 
         c!.width = window.innerWidth
-        c!.height = window.innerHeight - 56 - 56
+        c!.height = window.innerHeight - 46 - 50
 
         const scaleX = c!.width / json['width']
         const scaleY = c!.height! / json['height']

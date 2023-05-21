@@ -9,21 +9,21 @@ use_frameworks!
 install! 'cocoapods', :disable_input_output_paths => true
 
 def capacitor_pods
-  pod 'Capacitor', :path => '../../node_modules/.pnpm/@capacitor+ios@4.8.0_@capacitor+core@4.8.0/node_modules/@capacitor/ios'
-  pod 'CapacitorCordova', :path => '../../node_modules/.pnpm/@capacitor+ios@4.8.0_@capacitor+core@4.8.0/node_modules/@capacitor/ios'
-  pod 'CapacitorCommunityBarcodeScanner', :path => '../../node_modules/.pnpm/@capacitor-community+barcode-scanner@3.0.3_@capacitor+core@4.8.0/node_modules/@capacitor-community/barcode-scanner'
-  pod 'CapacitorApp', :path => '../../node_modules/.pnpm/@capacitor+app@4.1.1_@capacitor+core@4.8.0/node_modules/@capacitor/app'
-  pod 'CapacitorCamera', :path => '../../node_modules/.pnpm/@capacitor+camera@4.1.5_@capacitor+core@4.8.0/node_modules/@capacitor/camera'
-  pod 'CapacitorClipboard', :path => '../../node_modules/.pnpm/@capacitor+clipboard@4.1.0_@capacitor+core@4.8.0/node_modules/@capacitor/clipboard'
-  pod 'CapacitorFilesystem', :path => '../../node_modules/.pnpm/@capacitor+filesystem@5.0.1_@capacitor+core@4.8.0/node_modules/@capacitor/filesystem'
-  pod 'CapacitorHaptics', :path => '../../node_modules/.pnpm/@capacitor+haptics@4.1.0_@capacitor+core@4.8.0/node_modules/@capacitor/haptics'
-  pod 'CapacitorKeyboard', :path => '../../node_modules/.pnpm/@capacitor+keyboard@4.1.1_@capacitor+core@4.8.0/node_modules/@capacitor/keyboard'
-  pod 'CapacitorLocalNotifications', :path => '../../node_modules/.pnpm/@capacitor+local-notifications@4.1.5_@capacitor+core@4.8.0/node_modules/@capacitor/local-notifications'
-  pod 'CapacitorPushNotifications', :path => '../../node_modules/.pnpm/@capacitor+push-notifications@4.1.2_@capacitor+core@4.8.0/node_modules/@capacitor/push-notifications'
-  pod 'CapacitorShare', :path => '../../node_modules/.pnpm/@capacitor+share@4.1.1_@capacitor+core@4.8.0/node_modules/@capacitor/share'
-  pod 'CapacitorStatusBar', :path => '../../node_modules/.pnpm/@capacitor+status-bar@4.1.1_@capacitor+core@4.8.0/node_modules/@capacitor/status-bar'
-  pod 'CapacitorToast', :path => '../../node_modules/.pnpm/@capacitor+toast@4.1.0_@capacitor+core@4.8.0/node_modules/@capacitor/toast'
-  pod 'HugotomaziCapacitorNavigationBar', :path => '../../node_modules/.pnpm/@hugotomazi+capacitor-navigation-bar@2.0.1_@capacitor+core@4.8.0/node_modules/@hugotomazi/capacitor-navigation-bar'
+  pod 'Capacitor', :path => '../../node_modules/.pnpm/@capacitor+ios@4.8.0_@capacitor+core@5.0.3/node_modules/@capacitor/ios'
+  pod 'CapacitorCordova', :path => '../../node_modules/.pnpm/@capacitor+ios@4.8.0_@capacitor+core@5.0.3/node_modules/@capacitor/ios'
+  pod 'CapacitorMlkitBarcodeScanning', :path => '../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@5.0.0_@capacitor+core@5.0.3/node_modules/@capacitor-mlkit/barcode-scanning'
+  pod 'CapacitorApp', :path => '../../node_modules/.pnpm/@capacitor+app@4.1.1_@capacitor+core@5.0.3/node_modules/@capacitor/app'
+  pod 'CapacitorCamera', :path => '../../node_modules/.pnpm/@capacitor+camera@4.1.5_@capacitor+core@5.0.3/node_modules/@capacitor/camera'
+  pod 'CapacitorClipboard', :path => '../../node_modules/.pnpm/@capacitor+clipboard@4.1.0_@capacitor+core@5.0.3/node_modules/@capacitor/clipboard'
+  pod 'CapacitorFilesystem', :path => '../../node_modules/.pnpm/@capacitor+filesystem@5.0.2_@capacitor+core@5.0.3/node_modules/@capacitor/filesystem'
+  pod 'CapacitorHaptics', :path => '../../node_modules/.pnpm/@capacitor+haptics@4.1.0_@capacitor+core@5.0.3/node_modules/@capacitor/haptics'
+  pod 'CapacitorKeyboard', :path => '../../node_modules/.pnpm/@capacitor+keyboard@4.1.1_@capacitor+core@5.0.3/node_modules/@capacitor/keyboard'
+  pod 'CapacitorLocalNotifications', :path => '../../node_modules/.pnpm/@capacitor+local-notifications@4.1.5_@capacitor+core@5.0.3/node_modules/@capacitor/local-notifications'
+  pod 'CapacitorPushNotifications', :path => '../../node_modules/.pnpm/@capacitor+push-notifications@4.1.2_@capacitor+core@5.0.3/node_modules/@capacitor/push-notifications'
+  pod 'CapacitorShare', :path => '../../node_modules/.pnpm/@capacitor+share@4.1.1_@capacitor+core@5.0.3/node_modules/@capacitor/share'
+  pod 'CapacitorStatusBar', :path => '../../node_modules/.pnpm/@capacitor+status-bar@4.1.1_@capacitor+core@5.0.3/node_modules/@capacitor/status-bar'
+  pod 'CapacitorToast', :path => '../../node_modules/.pnpm/@capacitor+toast@4.1.0_@capacitor+core@5.0.3/node_modules/@capacitor/toast'
+  pod 'HugotomaziCapacitorNavigationBar', :path => '../../node_modules/.pnpm/@hugotomazi+capacitor-navigation-bar@2.0.1_@capacitor+core@5.0.3/node_modules/@hugotomazi/capacitor-navigation-bar'
 end
 
 target 'App' do

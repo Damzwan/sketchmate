@@ -1,3 +1,11 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+a{
+    -webkit-tap-highlight-color: transparent;
+}
+
+body{
+    -webkit-tap-highlight-color:  rgba(255, 255, 255, 0);
+}

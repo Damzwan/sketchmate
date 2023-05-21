@@ -2,17 +2,24 @@ import { Share } from '@capacitor/share'
 import { useToast } from '@/service/toast.service'
 import { Clipboard } from '@capacitor/clipboard'
 import { Directory, Filesystem } from '@capacitor/filesystem'
+import { isPlatform } from '@ionic/vue'
+import { useShare } from '@vueuse/core'
 
 const { toast } = useToast()
+const { share, isSupported } = useShare()
 
 export async function shareUrl(url: string, title = '', dialogTitle = '') {
   const can_share = await Share.canShare()
-
-  if (can_share.value) {
+  if (isPlatform('capacitor') && can_share.value) {
     await Share.share({
       title: title,
       text: url,
       dialogTitle: dialogTitle
+    })
+  } else if (isSupported.value) {
+    await share({
+      title: title,
+      text: url
     })
   } else {
     await Clipboard.write({
@@ -40,9 +47,9 @@ export async function shareImg(
   description = undefined,
   dialogTitle = 'Share image'
 ) {
-  const base64 = await urlToBase64(img_url)
   const can_share = await Share.canShare()
-  if (can_share.value) {
+  const base64 = await urlToBase64(img_url)
+  if (isPlatform('capacitor') && can_share.value) {
     const savedFile = await Filesystem.writeFile({
       path: 'sketchmate_img.jpg',
       data: base64.toString().split(',')[1],
@@ -55,6 +62,10 @@ export async function shareImg(
       files: [savedFile.uri],
       dialogTitle: dialogTitle
     })
+  } else if (isSupported.value) {
+    const blob = await (await fetch(base64)).blob()
+    const file = new File([blob], 'SketchMate_image.png', { type: blob.type })
+    await share({ files: [file] })
   } else {
     try {
       await Clipboard.write({

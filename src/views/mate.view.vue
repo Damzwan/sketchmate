@@ -51,7 +51,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonAvatar, IonButton, IonContent, IonPage } from '@ionic/vue'
+import { IonAvatar, IonButton, IonContent, IonPage, onIonViewDidEnter } from '@ionic/vue'
 
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
@@ -69,7 +69,9 @@ const socketService = useSocketService()
 
 const page = ref()
 
-appStore.consumeNotificationLoading(NotificationType.match)
+onIonViewDidEnter(() => {
+  appStore.consumeNotificationLoading(NotificationType.match)
+})
 
 onMounted(() => {
   page.value = document.getElementById('page')

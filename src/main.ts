@@ -32,4 +32,3 @@ StatusBar.setBackgroundColor({ color: '#FFAD83' })
 NavigationBar.setColor({ color: '#FFAD83' })
 
 app.mount('#app')
-defineCustomElements(window)

@@ -14,14 +14,14 @@ export function sortDates(arr: string[]) {
 
 // TODO does not work well for mobile
 
-export async function compressImg(file: File | Blob, maxSize = 500, quality = 0.6): Promise<Blob | File> {
+export async function compressImg(file: File | Blob, maxSize = 500, quality = 0.6): Promise<File> {
   return new Promise(resolve => {
     new Compressor(file, {
       quality: quality,
       maxWidth: maxSize,
       maxHeight: maxSize,
       success(result) {
-        resolve(result)
+        resolve(result as File)
       },
       error(err) {
         console.log(err.message)

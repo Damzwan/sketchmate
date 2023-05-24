@@ -8,7 +8,15 @@ import { useSocketService } from '@/service/socket.service'
 import { InboxItem } from '@/types/server.types'
 import { useRouter } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { disableHistorySaving, enableHistorySaving, resetCanvasMode, resetZoom, selectPen } from '@/helper/draw.helper'
+import {
+  disableHistorySaving,
+  enableHistorySaving,
+  enableObjectIdSaving,
+  findObjectById,
+  resetCanvasMode,
+  resetZoom,
+  selectPen
+} from '@/helper/draw.helper'
 import { fabric } from 'fabric'
 import { EventBus } from '@/main'
 
@@ -47,7 +55,7 @@ export const useDrawStore = defineStore('draw', () => {
   const penMenuOpen = ref(false)
   const eraserMenuOpen = ref(false)
   const bucketMenuOpen = ref(false)
-  const secondaryToolBarOpen = ref(false)
+  const stickerMenuOpen = ref(false)
 
   const openMenuMapping: { [key in DrawTool]: (() => void) | undefined } = {
     [DrawTool.Pen]: () => (penMenuOpen.value = true),
@@ -59,6 +67,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   const selectedObjectStrokeColor = ref(BLACK)
   const selectedObjectFillColor = ref(BLACK)
+  const selectedBackgroundColor = ref(BLACK)
 
   let prevCanvasState: any
   const undoStack = ref<any[]>([])
@@ -109,7 +118,7 @@ export const useDrawStore = defineStore('draw', () => {
       _id: user.value!._id,
       mate_id: user.value!.mate!._id,
       drawing: JSON.stringify(c.toJSON(['width', 'height'])),
-      img: c.toDataURL(),
+      img: c.toDataURL({ format: 'png', multiplier: 2 }),
       name: user.value!.name
     })
   }
@@ -124,26 +133,32 @@ export const useDrawStore = defineStore('draw', () => {
     return c!
   }
 
-  function setSelectedObjects(objects: fabric.Object[] | undefined) {
+  function setSelectedObjects(objects: fabric.Object[] | undefined, isTouchEvent = false) {
     if (!objects) objects = []
 
+    // TODO remove this or place this somewhere else
     if (objects?.length == 1) {
       selectedObjectFillColor.value = objects[0].fill ? (objects[0].fill as string) : BLACK
       selectedObjectStrokeColor.value = objects[0].stroke!
+      selectedBackgroundColor.value = objects[0].backgroundColor!
     } else {
       selectedObjectFillColor.value = BLACK
       selectedObjectStrokeColor.value = BLACK
+      selectedBackgroundColor.value = BLACK
     }
 
-    if (objects?.length == 0) {
+    // objects.forEach(obj => obj.set({ hasBorders: true, hasControls: true }))
+
+    if (objects.length == 0) {
       c?.discardActiveObject()
     }
-    objects.forEach(obj => obj.set({ hasBorders: true, hasControls: true }))
 
     // TODO this is a weird bugfix
-    setTimeout(() => {
-      selectedObjectsRef.value = objects!
-    }, 100)
+    if (isTouchEvent) {
+      setTimeout(() => {
+        selectedObjectsRef.value = objects!
+      }, 100)
+    } else selectedObjectsRef.value = objects!
 
     selectedObjects = objects
     refresh()
@@ -181,12 +196,19 @@ export const useDrawStore = defineStore('draw', () => {
   }
 
   function restoreCanvasFromHistory(previousState: any) {
+    const tmpSelectedObjects = selectedObjects
     disableHistorySaving(c!)
     c!.loadFromJSON(previousState, () => {
+      c?.getObjects().forEach(obj => enableObjectIdSaving(obj)) // when we transform a canvas to json, save the object id as well
       refresh()
       prevCanvasState = previousState
+
+      const newSelectedObjects = tmpSelectedObjects
+        .map((obj: any) => findObjectById(c!, obj.id)!)
+        .filter((obj: any) => !!obj)
+      c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
+      setSelectedObjects(newSelectedObjects)
       enableHistorySaving(c!)
-      // selectToolMapping[selectedTool.value!](c!) TODO why did we need this?
     })
   }
 
@@ -257,7 +279,6 @@ export const useDrawStore = defineStore('draw', () => {
     deleteObjects,
     getSelectedObjects,
     selectedObjectsRef,
-    secondaryToolBarOpen,
     saveState,
     undo,
     redo,
@@ -268,7 +289,8 @@ export const useDrawStore = defineStore('draw', () => {
     bucketMenuOpen,
     backgroundColor,
     setBackgroundColor,
-    reset,
-    getCanvas
+    getCanvas,
+    stickerMenuOpen,
+    selectedBackgroundColor
   }
 })

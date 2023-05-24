@@ -33,26 +33,24 @@
       </ion-toolbar>
       <div class="flex-grow flex bg-black">
         <swiper-container
-          class="h-full w-full"
+          class="h-full w-full relative"
           :slides-per-view="1"
           keyboard-enabled="true"
           @slidechange="onSlideChange"
           :initial-slide="slide"
           lazyPreloadPrevNext="3"
+          :zoom="true"
         >
           <swiper-slide
             v-for="(item, i) in props.inboxItems"
             :key="i"
-            :lazy="true"
-            class="flex justify-center items-center w-full relative"
+            lazy="true"
+            class="flex justify-center items-center w-full beh"
           >
-            <img
-              :src="item.thumbnail"
-              :srcset="item.image"
-              alt="drawing"
-              loading="lazy"
-              class="w-full h-full absolute"
-            />
+            <div class="swiper-zoom-container">
+              <!--              <img :src="item.thumbnail" alt="drawing" loading="lazy" class="object-contain w-full h-full absolute" />-->
+              <img :src="item.image" alt="drawing" class="object-contain w-full h-full z-10" />
+            </div>
           </swiper-slide>
         </swiper-container>
       </div>
@@ -221,5 +219,9 @@ ion-modal {
   --background: #000000;
   --height: 100%;
   --width: 100%;
+}
+
+.beh {
+  height: calc(100vh - 56px - 56px);
 }
 </style>

@@ -13,10 +13,16 @@
       </ion-button>
       <EraserMenu />
 
-      <ion-button id="stickers">
-        <ion-icon slot="icon-only" :icon="svg(mdiStickerEmoji)"></ion-icon>
+      <ion-button id="more_tools">
+        <ion-icon slot="icon-only" :icon="svg(mdiPlus)"></ion-icon>
       </ion-button>
+      <MoreToolsMenu />
       <StickerMenu />
+      <!--      <StickerMenu />-->
+
+      <!--      <ion-button id="stickers">-->
+      <!--        <ion-icon slot="icon-only" :icon="svg(mdiStickerEmoji)"></ion-icon>-->
+      <!--      </ion-button>-->
 
       <ion-button :class="{ selected: selectedTool == DrawTool.Move }" @click="selectTool(DrawTool.Move)">
         <ion-icon slot="icon-only" :icon="svg(mdiMagnifyPlusOutline)"></ion-icon>
@@ -53,32 +59,17 @@ import { storeToRefs } from 'pinia'
 import { eraserIconMapping, ERASERS, penIconMapping, PENS } from '@/config/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import {
-  mdiChevronDown,
-  mdiChevronUp,
-  mdiCursorMove,
-  mdiMagnifyPlusOutline,
-  mdiRedo,
-  mdiSend,
-  mdiStickerEmoji,
-  mdiUndo
-} from '@mdi/js'
+import { mdiCursorMove, mdiMagnifyPlusOutline, mdiPlus, mdiRedo, mdiSend, mdiStickerEmoji, mdiUndo } from '@mdi/js'
 import PenMenu from '@/components/draw/PenMenu.vue'
 import { computed } from 'vue'
 import EraserMenu from '@/components/draw/EraserMenu.vue'
 import StickerMenu from '@/components/draw/StickerMenu.vue'
+import MoreToolsMenu from '@/components/draw/MoreToolsMenu.vue'
 
 const drawStore = useDrawStore()
 const { selectTool, send, undo, redo } = drawStore
-const {
-  selectedTool,
-  lastSelectedEraserTool,
-  lastSelectedPenTool,
-  brushType,
-  secondaryToolBarOpen,
-  undoStack,
-  redoStack
-} = storeToRefs(drawStore)
+const { selectedTool, lastSelectedEraserTool, lastSelectedPenTool, brushType, undoStack, redoStack } =
+  storeToRefs(drawStore)
 
 const penMenuSelected = computed(() => PENS.includes(selectedTool.value))
 </script>

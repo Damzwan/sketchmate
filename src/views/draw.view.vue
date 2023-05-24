@@ -3,10 +3,7 @@
     <LinearLoader text="Sending image..." class="absolute z-50" v-if="isLoading" />
     <ion-header class="ion-no-border bg-white">
       <SelectToolBar v-if="selectedObjectsRef.length > 0" />
-      <div v-else>
-        <PrimaryDrawToolBar />
-        <SecondaryDrawToolBar v-if="secondaryToolBarOpen" />
-      </div>
+      <PrimaryDrawToolBar v-else />
     </ion-header>
     <ion-content>
       <div>
@@ -24,18 +21,36 @@ import { ref } from 'vue'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw.store'
 import { storeToRefs } from 'pinia'
-import { disableHistorySaving, enableHistorySaving, selectPen } from '@/helper/draw.helper'
+import { disableHistorySaving, enableHistorySaving, renderIcon, selectPen } from '@/helper/draw.helper'
 import SelectToolBar from '@/components/draw/SelectToolBar.vue'
-import SecondaryDrawToolBar from '@/components/draw/SecondaryDrawToolBar.vue'
 import LinearLoader from '@/components/loaders/LinearLoader.vue'
 import { useAppStore } from '@/store/app.store'
 import { WHITE } from '@/config/draw.config'
+import { mdiDelete } from '@mdi/js'
+import { pencil } from 'ionicons/icons'
+import { svg } from '@/helper/general.helper'
+import StickerMenu from '@/components/draw/StickerMenu.vue'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
 const { isLoading } = storeToRefs(useAppStore())
 const drawStore = useDrawStore()
-const { isDrawingMode, jsonToLoad, selectedObjectsRef, secondaryToolBarOpen } = storeToRefs(drawStore)
+const { isDrawingMode, jsonToLoad, selectedObjectsRef } = storeToRefs(drawStore)
+
+// TODO interesting
+// const cloneImg = document.createElement('img')
+// cloneImg.src = svg(mdiDelete)
+//
+// fabric.Object.prototype.controls.deleteControl = new fabric.Control({
+//   x: 0.5,
+//   y: -0.5,
+//   offsetY: -16,
+//   offsetX: 16,
+//   cursorStyle: 'pointer',
+//   mouseUpHandler: () => false,
+//   render: renderIcon(cloneImg),
+//   cornerSize: 20
+// })
 
 onIonViewDidEnter(async () => {
   if (!drawStore.retrieveCanvas()) {

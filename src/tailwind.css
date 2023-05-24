@@ -1,11 +1,21 @@
+/*Fonts*/
+@import url('https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rubik+Puddles&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chokokutai&family=Rubik+Puddles&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chokokutai&family=Dancing+Script&family=Rubik+Puddles&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Amatic+SC&family=Chokokutai&family=Dancing+Script&family=Rubik+Puddles&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Amatic+SC&family=Chokokutai&family=Dancing+Script&family=Krub&family=Rubik+Puddles&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-a{
+a {
     -webkit-tap-highlight-color: transparent;
 }
 
-body{
-    -webkit-tap-highlight-color:  rgba(255, 255, 255, 0);
+body {
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0);
 }
+

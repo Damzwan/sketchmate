@@ -1,10 +1,11 @@
 <template>
   <ion-modal
-    trigger="stickers"
+    :is-open="stickerMenuOpen"
     @willPresent="selectedSegment = '0'"
     :handle="false"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
+    @willDismiss="stickerMenuOpen = false"
   >
     <ion-header class="py-1 bg-secondary">
       <ion-toolbar color="secondary">
@@ -17,13 +18,7 @@
         >
           <ion-icon :icon="svg(deleteMode ? mdiCancel : mdiDelete)" color="white" />
         </ion-button>
-        <ion-segment
-          :value="selectedSegment.toString()"
-          mode="ios"
-          class="w-[70%]"
-          :disabled="isDisabled"
-          @ionChange="test"
-        >
+        <ion-segment mode="ios" class="w-[70%]" :disabled="isDisabled" v-model="selectedSegment">
           <ion-segment-button value="0">
             <ion-label>Stickers</ion-label>
           </ion-segment-button>
@@ -116,10 +111,6 @@ import { DrawAction } from '@/types/draw.types'
 import NoStickers from '@/components/draw/NoStickers.vue'
 import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 
-function test(e: any) {
-  selectedSegment.value = e.detail.value
-}
-
 const api = useAPI()
 const { user } = storeToRefs(useAppStore())
 const { toast } = useToast()
@@ -135,6 +126,7 @@ const emptyPage = computed(() =>
 
 const imgInput = ref<HTMLInputElement>()
 const { selectAction } = useDrawStore()
+const { stickerMenuOpen } = storeToRefs(useDrawStore())
 
 async function onUpload(e: any) {
   isLoading.value = true

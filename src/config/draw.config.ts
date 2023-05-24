@@ -1,9 +1,11 @@
-import { BrushType, DrawAction, DrawTool, Eraser } from '@/types/draw.types'
+import { BrushType, DrawAction, DrawTool, Eraser, Font } from '@/types/draw.types'
 import { fabric } from 'fabric'
 import { Canvas } from 'fabric/fabric-impl'
 import { mdiBandage, mdiBucketOutline, mdiCircleOutline, mdiEraser, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import {
+  addShape,
   addSticker,
+  addText,
   copyObjects,
   fullErase,
   selectBucket,
@@ -29,6 +31,16 @@ export const TEXTCOLOR = '#000000'
 
 export const ERASERS = [DrawTool.MobileEraser, DrawTool.HealingEraser]
 export const PENS = [DrawTool.Pen]
+
+export const FONTS: string[] = [
+  'Anton',
+  'Indie Flower',
+  'Rubik Puddles',
+  'Chokokutai',
+  'Dancing Script',
+  'Amatic SC',
+  'Krub'
+]
 
 export const brushMapping: { [key in BrushType]: any } = {
   [BrushType.Circle]: (c: Canvas) => new fabric.CircleBrush(c),
@@ -62,5 +74,7 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object)
   [DrawAction.Sticker]: addSticker,
   [DrawAction.CopyObject]: copyObjects,
   [DrawAction.BackgroundImage]: setBgImage,
-  [DrawAction.Bucket]: selectBucket
+  [DrawAction.Bucket]: selectBucket,
+  [DrawAction.Shape]: addShape,
+  [DrawAction.Text]: addText
 }

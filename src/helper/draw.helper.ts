@@ -1,9 +1,11 @@
-import { Canvas, IPoint } from 'fabric/fabric-impl'
+import { Canvas, IPoint, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { isPlatform } from '@ionic/vue'
-import { brushMapping, WHITE } from '@/config/draw.config'
+import { brushMapping, FONTS, WHITE } from '@/config/draw.config'
 import { useDrawStore } from '@/store/draw.store'
-import { BrushType, DrawTool } from '@/types/draw.types'
+import { BrushType, DrawTool, Shape } from '@/types/draw.types'
+import { v4 as uuidv4 } from 'uuid'
+import FontFaceObserver from 'fontfaceobserver'
 
 export function selectMove(c: Canvas) {
   let lastX = -1
@@ -146,9 +148,24 @@ export async function selectSelect(c: Canvas) {
     })
   })
 
-  c.on('selection:created', e => setSelectedObjects(e.selected))
+  c.on('selection:created', e => setSelectedObjects(e.selected, true))
 
-  c.on('selection:updated', e => setSelectedObjects(e.selected))
+  c.on('selection:updated', e => setSelectedObjects(e.selected, true))
+
+  c.on('selection:cleared', e => {
+    // const { selectedObjectsRef } = useDrawStore()
+
+    // in case we have text and we are editing we just want to exit the editing mode
+    // if (selectedObjectsRef.length == 1 && selectedObjectsRef[0].type == 'i-text') {
+    //   const text = selectedObjectsRef[0] as IText
+    //   console.log(text.isEditing)
+    //   if (text.isEditing) {
+    //     text.exitEditing()
+    //     return
+    //   }
+    // }
+    setSelectedObjects([], true)
+  })
 
   selectLastCreatedObject(c)
 }
@@ -239,9 +256,22 @@ export function setBgImage(c: Canvas, options?: any) {
     function (img) {
       const { saveState, refresh } = useDrawStore()
       saveState()
-      img.scaleToWidth(c.getWidth())
-      img.scaleToHeight(c.getHeight())
-      c.backgroundImage = img
+
+      // Set the image as the background and scale it to fit the canvas
+      c.setBackgroundImage(
+        img,
+        () => {
+          c.renderAll()
+        },
+        {
+          // Options for scaling
+          scaleX: c.width! / img.width!,
+          scaleY: c.height! / img.height!,
+          top: 0,
+          left: 0
+        }
+      )
+
       refresh()
     },
     { crossOrigin: 'anonymous' }
@@ -278,7 +308,7 @@ export function selectBucket(c: Canvas) {
   })
 }
 
-const historySavingEvents = ['object:added', 'object:modified', 'object:removed', 'after:transform']
+const historySavingEvents = ['object:modified', 'object:removed', 'after:transform']
 
 export function enableHistorySaving(c: Canvas) {
   const { saveState } = useDrawStore()
@@ -287,11 +317,20 @@ export function enableHistorySaving(c: Canvas) {
   c.on('erasing:end', (e: any) => {
     if (e.targets.length > 0) saveState()
   })
+
+  c.on('object:added', e => {
+    const obj = e.target as any
+    obj.id = uuidv4()
+    enableObjectIdSaving(obj)
+
+    saveState()
+  })
 }
 
 export function disableHistorySaving(c: Canvas) {
   historySavingEvents.forEach(event => c.off(event))
   c.off('erasing:end')
+  c.off('object:added')
 }
 
 export function copyObjects(c: Canvas, options: any) {
@@ -309,16 +348,17 @@ export function copyObjects(c: Canvas, options: any) {
     copiedObject.clone(function (cloned: fabric.Object) {
       c.discardActiveObject()
       cloned.set({ left: objectToCopy.left! + offsetX, top: objectToCopy.top! + offsetY })
+      cloned.id = uuidv4()
+      enableObjectIdSaving(cloned)
       c.add(cloned)
       clonedObjects.push(cloned)
     })
   })
 
-  c.renderAll()
   c.setActiveObject(new fabric.ActiveSelection(clonedObjects, { canvas: c }))
   setSelectedObjects(clonedObjects)
-  refresh()
 
+  refresh()
   saveState()
   enableHistorySaving(c)
 }
@@ -326,4 +366,109 @@ export function copyObjects(c: Canvas, options: any) {
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
   checkCanvasBounds(c)
+}
+
+export function addShape(c: Canvas, options: any) {
+  const shape = options['shape'] as Shape
+  const { refresh, selectTool } = useDrawStore()
+  let createdShape: any
+
+  switch (shape) {
+    case Shape.Circle:
+      createdShape = new fabric.Circle({ radius: 30, left: 10, top: 10, fill: undefined, stroke: 'black' })
+      break
+    case Shape.Ellipse:
+      createdShape = new fabric.Ellipse({ rx: 20, ry: 30, left: 10, top: 10, fill: undefined, stroke: 'black' })
+      break
+    case Shape.Rectangle:
+      createdShape = new fabric.Rect({ width: 100, height: 50, left: 10, top: 10, fill: undefined, stroke: 'black' })
+      break
+    case Shape.Triangle:
+      createdShape = new fabric.Triangle({
+        width: 50,
+        height: 100,
+        left: 10,
+        top: 10,
+        fill: undefined,
+        stroke: 'black'
+      })
+      break
+    case Shape.Line:
+      createdShape = new fabric.Line([0, 100], { fill: undefined, stroke: 'black' })
+      break
+    case Shape.Polyline:
+      createdShape = new fabric.Polyline(
+        [
+          { x: 0, y: 10 },
+          { x: 100, y: 10 }
+        ],
+        { fill: undefined, stroke: 'black' }
+      )
+      break
+    case Shape.Polygon:
+      createdShape = new fabric.Polygon(
+        [
+          { x: 0, y: 10 },
+          { x: 100, y: 10 }
+        ],
+        { fill: undefined, stroke: 'black' }
+      )
+      break
+    default:
+      // Handle unrecognized shapes
+      break
+  }
+  c.add(createdShape)
+  selectTool(DrawTool.Select)
+  refresh()
+}
+
+export function addText(c: Canvas) {
+  disableHistorySaving(c)
+  const text = new fabric.IText('', {
+    left: c.width! / 2,
+    top: c.height! / 2,
+    fontFamily: 'Arial',
+    fill: '#333',
+    lineHeight: 1.1,
+    originX: 'center',
+    originY: 'center'
+  })
+
+  c.add(text)
+  enableHistorySaving(c)
+
+  text.enterEditing()
+  const { selectTool } = useDrawStore()
+  selectTool(DrawTool.Select)
+
+  // The timeout will make sure that the text object is fully added to the canvas before trying to edit it
+  setTimeout(() => {
+    text.hiddenTextarea!.focus() // This line is especially important for mobile
+  }, 300)
+}
+
+export function findObjectById(canvas: fabric.Canvas, id: string) {
+  return canvas.getObjects().find((obj: any) => obj.id === id)
+}
+
+export function enableObjectIdSaving(obj: fabric.Object) {
+  obj.toObject = (function (toObject) {
+    return function (this: any) {
+      return fabric.util.object.extend(toObject.call(this), {
+        id: this.id
+      })
+    }
+  })(obj.toObject)
+}
+
+export function renderIcon(icon: any) {
+  return function renderIcon(this: any, ctx: any, left: any, top: any, styleOverride: any, fabricObject: any) {
+    const size = this.cornerSize
+    ctx.save()
+    ctx.translate(left, top)
+    ctx.rotate(fabric.util.degreesToRadians(fabricObject.angle))
+    ctx.drawImage(icon, -size / 2, -size / 2, size, size)
+    ctx.restore()
+  }
 }

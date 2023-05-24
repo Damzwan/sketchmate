@@ -16,8 +16,20 @@ export enum DrawAction {
   Sticker,
   CopyObject,
   BackgroundImage,
-  Bucket
+  Bucket,
+  Shape,
+  Text
   // Text
+}
+
+export enum Shape {
+  Circle,
+  Ellipse,
+  Rectangle,
+  Triangle,
+  Line,
+  Polyline,
+  Polygon
 }
 
 export enum BrushType {

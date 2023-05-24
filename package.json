@@ -14,8 +14,8 @@
     "test:unit": "vitest",
     "lint": "eslint",
     "heroku:start": "serve -s dist --single",
-    "postinstall": "npm run build_fabric_js && npm run build",
-    "build_fabric_js": "cd node_modules/fabric && npm run build_with_gestures"
+    "postinstall": "npm run build_fabric && npm run build",
+    "build_fabric": "cd node_modules/fabric && npm run build_with_gestures"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^5.0.0",
@@ -43,6 +43,7 @@
     "compressorjs": "^1.2.1",
     "dayjs": "^1.11.7",
     "fabric": "^5.3.0",
+    "fontfaceobserver": "^2.3.0",
     "mitt": "^3.0.0",
     "pako": "^2.1.0",
     "pinia": "^2.0.36",
@@ -53,6 +54,7 @@
     "serve": "^14.2.0",
     "socket.io-client": "^4.6.1",
     "swiper": "^9.3.2",
+    "uuid": "^9.0.0",
     "vue": "^3.3.2",
     "vue-router": "^4.2.0"
   },
@@ -60,7 +62,9 @@
     "@capacitor/cli": "4.8.0",
     "@mdi/js": "^7.2.96",
     "@types/fabric": "^5.3.2",
+    "@types/fontfaceobserver": "^2.1.0",
     "@types/pako": "^2.0.0",
+    "@types/uuid": "^9.0.1",
     "@vitejs/plugin-vue": "^4.2.3",
     "@vue/eslint-config-typescript": "^11.0.3",
     "@vue/test-utils": "^2.3.2",

@@ -69,7 +69,7 @@ const commentBody = ref('')
 
 function checkIfShouldAutoFocus() {
   const elem: any = document.getElementById('input')
-  if (props.currInboxItem?.comments.length === 0) elem.setFocus()
+  // if (props.currInboxItem?.comments.length === 0) elem.setFocus()
 }
 
 async function comment() {

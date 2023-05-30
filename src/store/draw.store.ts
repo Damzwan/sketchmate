@@ -1,5 +1,5 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { BrushType, DrawAction, DrawTool, Eraser, EraserSize, Pen } from '@/types/draw.types'
+import { BrushType, DrawAction, DrawTool, Eraser, EraserSize, Pen, ShapeCreationMode } from '@/types/draw.types'
 import { ref, watch } from 'vue'
 import { actionMapping, BLACK, BRUSHSIZE, selectToolMapping, TEXTCOLOR, TEXTSIZE, WHITE } from '@/config/draw.config'
 import { Canvas } from 'fabric/fabric-impl'
@@ -16,17 +16,24 @@ import {
   resetCanvasMode,
   resetZoom,
   selectPen
-} from '@/helper/draw.helper'
+} from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
 import { EventBus } from '@/main'
+import { useAPI } from '@/service/api.service'
+import { useToast } from '@/service/toast.service'
+import { viewSavedButton } from '@/config/toast.config'
+import Hammer from 'hammerjs'
 
 export const useDrawStore = defineStore('draw', () => {
-  const { user } = storeToRefs(useAppStore())
+  const { user, isLoading } = storeToRefs(useAppStore())
+  const { toast } = useToast()
   const api = useSocketService()
+  const { createSaved, deleteSaved } = useAPI()
   const router = useRouter()
 
+  const shapeCreationMode = ref<ShapeCreationMode>()
+
   const backgroundColor = ref(WHITE)
-  const isDrawingMode = ref(true)
   const brushSize = ref(BRUSHSIZE)
   const brushType = ref<BrushType>(BrushType.Pencil)
   const brushColor = ref(BLACK)
@@ -46,7 +53,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   // refs do not work that well with fabric.js. We need both
   let selectedObjects: Array<fabric.Object> = []
-  const selectedObjectsRef = ref<fabric.Object[]>([])
+  const selectedObjectsRef = ref<Array<fabric.Object | fabric.Group>>([])
 
   const jsonToLoad = ref<JSON>()
   let c: Canvas | undefined // needs to be a global variable
@@ -56,12 +63,16 @@ export const useDrawStore = defineStore('draw', () => {
   const eraserMenuOpen = ref(false)
   const bucketMenuOpen = ref(false)
   const stickerMenuOpen = ref(false)
+  const savedMenuOpen = ref(false)
+  const shapesMenuOpen = ref(false)
+  const shapesMenuEvent = ref<any>()
+
+  const loadingText = ref('')
 
   const openMenuMapping: { [key in DrawTool]: (() => void) | undefined } = {
     [DrawTool.Pen]: () => (penMenuOpen.value = true),
     [DrawTool.MobileEraser]: () => (eraserMenuOpen.value = true),
     [DrawTool.HealingEraser]: () => (eraserMenuOpen.value = true),
-    [DrawTool.Move]: undefined,
     [DrawTool.Select]: undefined
   }
 
@@ -73,17 +84,21 @@ export const useDrawStore = defineStore('draw', () => {
   const undoStack = ref<any[]>([])
   const redoStack = ref<any[]>([])
 
+  const hammer = ref<HammerManager>()
+  const canZoomOut = ref(false)
+
+  // We make use of events so we do not load the big draw.store in other views
   EventBus.on('reset-canvas', reset)
 
-  function selectTool(newTool: DrawTool, e: Event | undefined = undefined) {
+  function selectTool(newTool: DrawTool, e: Event | undefined = undefined, openMenu = true) {
     event.value = e
     if (newTool != selectedTool.value) {
-      resetCanvasMode(c!)
       selectedTool.value = newTool
-    } else {
+    } else if (openMenu) {
       const openMenu = openMenuMapping[newTool]
       if (openMenu) openMenu()
     }
+    resetCanvasMode(c!)
     selectToolMapping[newTool](c!)
   }
 
@@ -94,6 +109,7 @@ export const useDrawStore = defineStore('draw', () => {
   function storeCanvas(canvas: Canvas) {
     c = canvas
     prevCanvasState = c.toJSON()
+    initGestures()
   }
 
   function retrieveCanvas() {
@@ -113,6 +129,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   async function send() {
     if (!c) return
+    loadingText.value = 'Sending drawing...'
     resetZoom(c)
     await api.send({
       _id: user.value!._id,
@@ -133,7 +150,7 @@ export const useDrawStore = defineStore('draw', () => {
     return c!
   }
 
-  function setSelectedObjects(objects: fabric.Object[] | undefined, isTouchEvent = false) {
+  function setSelectedObjects(objects: Array<fabric.Object | fabric.Group> | undefined, isTouchEvent = false) {
     if (!objects) objects = []
 
     // TODO remove this or place this somewhere else
@@ -150,15 +167,18 @@ export const useDrawStore = defineStore('draw', () => {
     // objects.forEach(obj => obj.set({ hasBorders: true, hasControls: true }))
 
     if (objects.length == 0) {
+      selectedObjects.forEach(obj => obj.set({ perPixelTargetFind: true }))
       c?.discardActiveObject()
     }
+
+    objects.forEach(obj => obj.set({ perPixelTargetFind: false }))
 
     // TODO this is a weird bugfix
     if (isTouchEvent) {
       setTimeout(() => {
         selectedObjectsRef.value = objects!
       }, 100)
-    } else selectedObjectsRef.value = objects!
+    } else selectedObjectsRef.value = objects
 
     selectedObjects = objects
     refresh()
@@ -223,6 +243,83 @@ export const useDrawStore = defineStore('draw', () => {
     redoStack.value = []
   }
 
+  async function addSaved(objects: fabric.Object[]) {
+    isLoading.value = true
+    loadingText.value = 'Saving drawing...'
+
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+
+    // Calculate the bounding box for the objects
+    objects.forEach(obj => {
+      const boundingRect = obj.getBoundingRect(true) // Pass true to get a box that surrounds the entire object even if it's rotated
+      minX = Math.min(minX, boundingRect.left)
+      minY = Math.min(minY, boundingRect.top)
+      maxX = Math.max(maxX, boundingRect.left + boundingRect.width)
+      maxY = Math.max(maxY, boundingRect.top + boundingRect.height)
+    })
+
+    const width = maxX - minX
+    const height = maxY - minY
+
+    const tempCanvas = new fabric.StaticCanvas(null, { width: width, height: height })
+
+    const clonedObjects = await Promise.all(
+      objects.map(
+        obj =>
+          new Promise<fabric.Object>(resolve => {
+            obj.clone((cloned: fabric.Object) => resolve(cloned))
+          })
+      )
+    )
+
+    // Add objects to the canvas
+    clonedObjects.forEach(obj => {
+      // Clone the object
+      obj.set({
+        left: obj.left! - minX,
+        top: obj.top! - minY
+      })
+      tempCanvas.add(obj)
+    })
+
+    tempCanvas.renderAll()
+
+    // Save canvas as JSON and DataURL
+    const json = JSON.stringify(tempCanvas.toJSON())
+    const dataUrl = tempCanvas.toDataURL()
+
+    const saved = await createSaved({ _id: user.value!._id, drawing: json, img: dataUrl })
+    user.value?.saved.push(saved!)
+    isLoading.value = false
+    toast('Saved drawing', { buttons: [viewSavedButton] })
+  }
+
+  function setSavedMenuOpen(open: boolean) {
+    savedMenuOpen.value = open
+  }
+
+  function setShapeCreationMode(mode: ShapeCreationMode) {
+    shapeCreationMode.value = mode
+  }
+
+  function setShapesMenuOpen(open: boolean, event: any) {
+    shapesMenuOpen.value = open
+    shapesMenuEvent.value = event
+  }
+
+  function initGestures() {
+    const upperCanvasEl = (c! as any).upperCanvasEl
+    hammer.value = new Hammer.Manager(upperCanvasEl)
+    hammer.value.add(new Hammer.Pinch())
+  }
+
+  function setCanZoomOut(bool: boolean) {
+    canZoomOut.value = bool
+  }
+
   // make a link between our variables and the variables
   watch(brushSize, () => {
     c!.freeDrawingBrush.width = brushSize.value
@@ -252,7 +349,6 @@ export const useDrawStore = defineStore('draw', () => {
     selectTool,
     brushSize,
     brushColor,
-    isDrawingMode,
     eraserSize,
     lastSelectedEraserTool,
     lastSelectedPenTool,
@@ -291,6 +387,18 @@ export const useDrawStore = defineStore('draw', () => {
     setBackgroundColor,
     getCanvas,
     stickerMenuOpen,
-    selectedBackgroundColor
+    selectedBackgroundColor,
+    addSaved,
+    loadingText,
+    savedMenuOpen,
+    setSavedMenuOpen,
+    shapeCreationMode,
+    setShapeCreationMode,
+    shapesMenuOpen,
+    shapesMenuEvent,
+    setShapesMenuOpen,
+    hammer,
+    canZoomOut,
+    setCanZoomOut
   }
 })

@@ -82,7 +82,6 @@ import { COLORSWATCHES } from '@/config/draw.config'
 import { BrushType, DrawAction } from '@/types/draw.types'
 import { mdiBucketOutline, mdiCircleOutline, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
-import BucketMenu from '@/components/draw/BucketMenu.vue'
 
 const drawStore = useDrawStore()
 const { penMenuOpen, event, brushSize, brushColor, brushType, c } = storeToRefs(drawStore)

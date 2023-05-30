@@ -31,9 +31,9 @@
           /></ion-avatar>
         </ion-buttons>
       </ion-toolbar>
-      <div class="flex-grow flex bg-black">
+      <div class="flex bg-black">
         <swiper-container
-          class="h-full w-full relative"
+          class="beh w-full relative"
           :slides-per-view="1"
           keyboard-enabled="true"
           @slidechange="onSlideChange"

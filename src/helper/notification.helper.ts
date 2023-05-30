@@ -78,8 +78,6 @@ export async function addNotificationListeners() {
           item: notification.notification.data.inbox_id
         }
       })
-      const { isLoading } = storeToRefs(useAppStore())
-      isLoading.value = true
     } else if (notificationType === NotificationType.comment)
       router.push({
         path: FRONTEND_ROUTES.gallery,

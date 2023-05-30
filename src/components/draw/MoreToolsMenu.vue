@@ -22,10 +22,15 @@
           <p class="pl-2 text-base">Text</p>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" :detail="true" id="shapes">
+        <ion-item color="tertiary" :button="true" :detail="true" @click="openShapesMenu">
           <ion-icon :icon="svg(mdiShapeOutline)" />
           <p class="pl-2 text-base">Shapes</p>
           <ShapesMenu />
+        </ion-item>
+
+        <ion-item color="tertiary" :button="true" :detail="true" @click="openSavedMenu">
+          <ion-icon :icon="svg(mdiContentSave)" />
+          <p class="pl-2 text-base">Saved Drawings</p>
         </ion-item>
       </ion-list>
       <ion-action-sheet
@@ -55,6 +60,7 @@ import {
 import { compressImg, svg } from '@/helper/general.helper'
 import {
   mdiCamera,
+  mdiContentSave,
   mdiFormatText,
   mdiImage,
   mdiImagePlusOutline,
@@ -68,15 +74,26 @@ import { useDrawStore } from '@/store/draw.store'
 import { Camera, CameraResultType } from '@capacitor/camera'
 import ShapesMenu from '@/components/draw/ShapesMenu.vue'
 import { storeToRefs } from 'pinia'
+import SavedMenu from '@/components/draw/SavedMenu.vue'
+import { an } from 'vitest/dist/types-94cfe4b4'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
 const imageActionSheetOpen = ref(false)
-const { selectAction } = useDrawStore()
+const { selectAction, setSavedMenuOpen, setShapesMenuOpen } = useDrawStore()
 const { stickerMenuOpen } = storeToRefs(useDrawStore())
 
 function openStickerMenu() {
   stickerMenuOpen.value = true
+  closePopover()
+}
+
+function openShapesMenu(e: any) {
+  setShapesMenuOpen(true, e)
+}
+
+function openSavedMenu() {
+  setSavedMenuOpen(true)
   closePopover()
 }
 

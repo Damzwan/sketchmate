@@ -3,13 +3,12 @@
     <ion-buttons slot="start">
       <ion-button id="select_color" v-if="!containsImage">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
+        <SelectColorMenu
+          @update:stroke-color="setStrokeColor"
+          @update:fill-color="setFillColor"
+          @update:background-color="setBackgroundColor"
+        />
       </ion-button>
-      <SelectColorMenu
-        @update:stroke-color="setStrokeColor"
-        @update:fill-color="setFillColor"
-        @update:background-color="setBackgroundColor"
-      />
-
       <div v-if="isText">
         <ion-button @click="changeTextEdit">
           <ion-icon
@@ -38,12 +37,9 @@
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
-      <ion-button @click="selectAction(DrawAction.CopyObject, { objects: selectedObjectsRef })">
-        <ion-icon slot="icon-only" :icon="svg(mdiContentCopy)" />
-      </ion-button>
-
-      <ion-button @click="removeObjects">
-        <ion-icon slot="icon-only" :icon="svg(mdiDeleteOutline)" />
+      <ion-button id="select_extra_options">
+        <ion-icon slot="icon-only" :icon="svg(mdiDotsVertical)" />
+        <SelectExtraOptions />
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
@@ -53,9 +49,8 @@
 import { svg } from '@/helper/general.helper'
 import {
   mdiCancel,
-  mdiContentCopy,
   mdiCursorText,
-  mdiDeleteOutline,
+  mdiDotsVertical,
   mdiFormatFont,
   mdiPaletteOutline,
   mdiRedo,
@@ -67,12 +62,13 @@ import { useDrawStore } from '@/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { DrawAction } from '@/types/draw.types'
-import { selectLastCreatedObject } from '@/helper/draw.helper'
+import { selectLastCreatedObject } from '@/helper/draw/draw.helper'
 import FontMenu from '@/components/draw/FontMenu.vue'
 import { IText } from 'fabric/fabric-impl'
 import SelectColorMenu from '@/components/draw/SelectColorMenu.vue'
 import { fabric } from 'fabric'
 import FontFaceObserver from 'fontfaceobserver'
+import SelectExtraOptions from '@/components/draw/SelectExtraOptions.vue'
 
 const {
   setSelectedObjects,
@@ -83,11 +79,10 @@ const {
   deleteObjects,
   getCanvas,
   undo,
-  redo
+  redo,
+  addSaved
 } = useDrawStore()
-const { selectedObjectsRef, selectedObjectStrokeColor, selectedObjectFillColor, undoStack, redoStack } = storeToRefs(
-  useDrawStore()
-)
+const { selectedObjectsRef, undoStack, redoStack } = storeToRefs(useDrawStore())
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
 const isText = computed(() => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == 'i-text')

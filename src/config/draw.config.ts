@@ -1,21 +1,22 @@
-import { BrushType, DrawAction, DrawTool, Eraser, Font } from '@/types/draw.types'
+import { BrushType, DrawAction, DrawTool, Eraser } from '@/types/draw.types'
 import { fabric } from 'fabric'
 import { Canvas } from 'fabric/fabric-impl'
 import { mdiBandage, mdiBucketOutline, mdiCircleOutline, mdiEraser, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import {
+  addSavedToCanvas,
   addShape,
   addSticker,
   addText,
   copyObjects,
   fullErase,
+  mergeObjects,
   selectBucket,
   selectHealingMobileEraser,
   selectMobileEraser,
-  selectMove,
   selectPen,
   selectSelect,
   setBgImage
-} from '@/helper/draw.helper'
+} from '@/helper/draw/draw.helper'
 
 export const COLORSWATCHES = [
   ['#000000', '#F3F1F9', '#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
@@ -65,7 +66,6 @@ export const selectToolMapping: { [key in DrawTool]: (c: Canvas) => void } = {
   [DrawTool.Pen]: selectPen,
   [DrawTool.MobileEraser]: selectMobileEraser,
   [DrawTool.HealingEraser]: selectHealingMobileEraser,
-  [DrawTool.Move]: selectMove,
   [DrawTool.Select]: selectSelect
 }
 
@@ -76,5 +76,7 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object)
   [DrawAction.BackgroundImage]: setBgImage,
   [DrawAction.Bucket]: selectBucket,
   [DrawAction.Shape]: addShape,
-  [DrawAction.Text]: addText
+  [DrawAction.Text]: addText,
+  [DrawAction.Saved]: addSavedToCanvas,
+  [DrawAction.Merge]: mergeObjects
 }

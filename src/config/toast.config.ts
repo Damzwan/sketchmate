@@ -2,6 +2,7 @@ import { ToastButton } from '@ionic/vue'
 import { useToast } from '@/service/toast.service'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
+import { useDrawStore } from '@/store/draw.store'
 
 const { dismiss } = useToast()
 
@@ -46,5 +47,13 @@ export const viewCommentButton = (inboxItemId: string): ToastButton => {
         }
       })
     }
+  }
+}
+
+export const viewSavedButton: ToastButton = {
+  text: 'View',
+  handler: () => {
+    const { setSavedMenuOpen } = useDrawStore()
+    setSavedMenuOpen(true)
   }
 }

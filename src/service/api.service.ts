@@ -2,8 +2,10 @@ import {
   API,
   ChangeUserNameParams,
   CreateEmblemParams,
+  CreateSavedParams,
   CreateStickerParams,
   DeleteEmblemParams,
+  DeleteSavedParams,
   DeleteStickerParams,
   ENDPOINTS,
   GetInboxItemsParams,
@@ -11,6 +13,7 @@ import {
   InboxItem,
   RemoveFromInboxParams,
   Res,
+  Saved,
   SubscribeParams,
   UploadProfileImgParams,
   User
@@ -141,6 +144,41 @@ export const useAPI = createGlobalState((): API => {
     await fetch(url, { method: REQUEST_TYPES.DELETE })
   }
 
+  async function createSaved(params: CreateSavedParams): Promise<Res<Saved>> {
+    const url = `${baseUrl}${ENDPOINTS.saved}/${params._id}`
+
+    // const body = {
+    //   drawing: params.drawing,
+    //   img: params.img as string
+    // }
+
+    const jsonBlob = new Blob([params.drawing], { type: 'application/json' })
+    const jsonFile = new File([jsonBlob], 'drawing.json', { type: 'application/json' })
+
+    const imgBlob = await fetch(params.img).then(res => res.blob())
+    const imgFile = new File([imgBlob], 'img.png', { type: 'image/png' })
+
+    const data = new FormData()
+    data.append('img', imgFile)
+    data.append('drawing', jsonFile)
+
+    return await fetch(url, {
+      method: REQUEST_TYPES.POST,
+      body: data
+    }).then(async res => res.json())
+  }
+
+  async function deleteSaved(params: DeleteSavedParams): Promise<void> {
+    const queryParams = new URLSearchParams({
+      user_id: params.user_id,
+      drawing_url: params.drawing_url,
+      img_url: params.img_url
+    })
+    const url = `${baseUrl}${ENDPOINTS.saved}?${queryParams}`
+
+    await fetch(url, { method: REQUEST_TYPES.DELETE })
+  }
+
   return {
     createUser,
     getUser,
@@ -153,6 +191,8 @@ export const useAPI = createGlobalState((): API => {
     createSticker,
     createEmblem,
     deleteSticker,
-    deleteEmblem
+    deleteEmblem,
+    createSaved,
+    deleteSaved
   }
 })

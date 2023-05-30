@@ -2,10 +2,7 @@ export enum DrawTool {
   Pen,
   MobileEraser,
   HealingEraser,
-  Select,
-  Move
-  // StrokeEraser
-  // Drag
+  Select
 }
 
 export type Eraser = DrawTool.MobileEraser | DrawTool.HealingEraser
@@ -18,7 +15,9 @@ export enum DrawAction {
   BackgroundImage,
   Bucket,
   Shape,
-  Text
+  Text,
+  Saved,
+  Merge
   // Text
 }
 
@@ -45,7 +44,7 @@ export enum EraserSize {
   large = 30
 }
 
-export interface Point {
-  x: number
-  y: number
+export enum ShapeCreationMode {
+  Drag,
+  Click
 }

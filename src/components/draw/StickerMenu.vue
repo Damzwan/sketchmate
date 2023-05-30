@@ -5,7 +5,7 @@
     :handle="false"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
-    @willDismiss="stickerMenuOpen = false"
+    @willDismiss="onDismiss"
   >
     <ion-header class="py-1 bg-secondary">
       <ion-toolbar color="secondary">
@@ -43,7 +43,7 @@
       <div v-else class="h-full">
         <div v-if="selectedSegment == 0" class="h-full">
           <NoStickers v-if="user.stickers.length == 0" type="stickers" />
-          <div class="sticker-grid" v-else>
+          <div class="saved-grid" v-else>
             <div v-for="sticker in user.stickers" :key="sticker">
               <div
                 class="relative cursor-pointer hover:opacity-80"
@@ -65,7 +65,7 @@
 
         <div v-else class="h-full">
           <NoStickers v-if="user!.emblems.length == 0" type="emblems" />
-          <div v-else class="sticker-grid">
+          <div v-else class="saved-grid">
             <div v-for="emblem in user!.emblems" :key="emblem">
               <div
                 class="relative cursor-pointer hover:opacity-80"
@@ -177,6 +177,11 @@ function selectImg(img: string) {
     modalController.dismiss()
   }
 }
+
+function onDismiss() {
+  stickerMenuOpen.value = false
+  deleteMode.value = false
+}
 </script>
 
 <style scoped>
@@ -184,7 +189,7 @@ ion-toolbar {
   --min-height: 0;
 }
 
-.sticker-grid {
+.saved-grid {
   @apply grid grid-cols-4 md:grid-cols-4 lg:grid-cols-6 gap-4 p-4;
 }
 

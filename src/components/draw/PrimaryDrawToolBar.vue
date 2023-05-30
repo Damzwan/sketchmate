@@ -18,15 +18,6 @@
       </ion-button>
       <MoreToolsMenu />
       <StickerMenu />
-      <!--      <StickerMenu />-->
-
-      <!--      <ion-button id="stickers">-->
-      <!--        <ion-icon slot="icon-only" :icon="svg(mdiStickerEmoji)"></ion-icon>-->
-      <!--      </ion-button>-->
-
-      <ion-button :class="{ selected: selectedTool == DrawTool.Move }" @click="selectTool(DrawTool.Move)">
-        <ion-icon slot="icon-only" :icon="svg(mdiMagnifyPlusOutline)"></ion-icon>
-      </ion-button>
 
       <ion-button :class="{ selected: selectedTool == DrawTool.Select }" @click="selectTool(DrawTool.Select)">
         <ion-icon slot="icon-only" :icon="svg(mdiCursorMove)"></ion-icon>
@@ -42,9 +33,6 @@
     </ion-buttons>
 
     <ion-buttons slot="end" class="h-[40px]">
-      <!--      <ion-button @click="secondaryToolBarOpen = !secondaryToolBarOpen">-->
-      <!--        <ion-icon slot="icon-only" :icon="svg(secondaryToolBarOpen ? mdiChevronUp : mdiChevronDown)"></ion-icon>-->
-      <!--      </ion-button>-->
       <ion-button @click="send">
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>
@@ -65,6 +53,7 @@ import { computed } from 'vue'
 import EraserMenu from '@/components/draw/EraserMenu.vue'
 import StickerMenu from '@/components/draw/StickerMenu.vue'
 import MoreToolsMenu from '@/components/draw/MoreToolsMenu.vue'
+import SavedMenu from '@/components/draw/SavedMenu.vue'
 
 const drawStore = useDrawStore()
 const { selectTool, send, undo, redo } = drawStore

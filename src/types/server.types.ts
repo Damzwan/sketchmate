@@ -32,6 +32,7 @@ export interface User {
   inbox: string[]
   stickers: string[]
   emblems: string[]
+  saved: Saved[]
   subscription?: string
 }
 
@@ -136,8 +137,25 @@ export interface CreateEmblemParams {
   img: any
 }
 
+export interface CreateSavedParams {
+  _id: string
+  img: any
+  drawing: string
+}
+
+export interface DeleteSavedParams {
+  user_id: string
+  drawing_url: string
+  img_url: string
+}
+
 export interface ChangeNameRes {
   mate_name: string
+}
+
+export interface Saved {
+  drawing: string
+  img: string
 }
 
 export type Res<T> = T | undefined | null
@@ -162,8 +180,14 @@ export interface API {
   createSticker(params: CreateStickerParams): Promise<Res<string>>
 
   createEmblem(params: CreateEmblemParams): Promise<Res<string>>
+
   deleteSticker(params: DeleteStickerParams): Promise<void>
+
   deleteEmblem(params: DeleteEmblemParams): Promise<void>
+
+  createSaved(params: CreateSavedParams): Promise<Res<Saved>>
+
+  deleteSaved(params: DeleteSavedParams): Promise<void>
 }
 
 export interface SocketAPI {
@@ -185,7 +209,8 @@ export enum ENDPOINTS {
   unsubscribe = '/unsubscribe',
   inbox = '/inbox',
   sticker = '/sticker',
-  emblem = '/emblem'
+  emblem = '/emblem',
+  saved = '/saved'
 }
 
 export enum SOCKET_ENDPONTS {

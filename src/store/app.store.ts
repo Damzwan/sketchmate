@@ -80,6 +80,7 @@ export const useAppStore = defineStore('app', () => {
 
   function setNotificationLoading(type: NotificationType) {
     notificationRouteLoading.value = type
+    setTimeout(() => (notificationRouteLoading.value = undefined), 3000) // something went wrong
   }
 
   function consumeNotificationLoading(consumeType: NotificationType) {

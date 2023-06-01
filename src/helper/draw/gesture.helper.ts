@@ -5,6 +5,8 @@ import { useDrawStore } from '@/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { BrushType, DrawTool } from '@/types/draw.types'
 import { isPlatform } from '@ionic/vue'
+import { disableHistorySaving, enableHistorySaving, fabricateTouchUp } from '@/helper/draw/draw.helper'
+import { useToast } from '@/service/toast.service'
 
 export function enableZoomAndPan(c: any) {
   if (isPlatform('mobile') || isPlatform('capacitor')) enableMobileZoomAndPan(c)
@@ -13,74 +15,20 @@ export function enableZoomAndPan(c: any) {
 
 export function enableMobileZoomAndPan(c: any) {
   const { hammer, setCanZoomOut } = useDrawStore()
-  const { selectedTool, brushType } = storeToRefs(useDrawStore())
-  const isPinching = ref(false)
 
-  let timeout: any
   let lastDelta = {
     x: 0,
     y: 0
   }
 
-  c!.on('mouse:down:before', (o: any) => {
-    const touches = (o.e as any).touches
-    const isDrawingMode = c.isDrawingMode
-
-    c!.isDrawingMode = false
-
-    if (!isPinching.value && !timeout && isDrawingMode && selectedTool.value != DrawTool.Select) {
-      timeout = setTimeout(() => {
-        c!.isDrawingMode = true
-        const point = c!.getPointer(o.e)
-        c!.freeDrawingBrush.onMouseDown(point, o)
-        timeout = undefined
-      }, 30)
-    }
-
-    if (touches && touches.length > 1) {
-      if (timeout) {
-        clearTimeout(timeout)
-        timeout = undefined
-      }
-      isPinching.value = true
-
-      if (selectedTool.value == DrawTool.Select) {
-        c.selection = false
-        const evt = new MouseEvent('mouseup', {
-          bubbles: true,
-          cancelable: true,
-          view: window
-        })
-        c.upperCanvasEl.dispatchEvent(evt)
-      }
-    }
+  hammer!.on('pinchstart', () => {
+    disableHistorySaving(c)
+    cancelPreviousAction(c)
   })
-
-  c.on('mouse:move', function (o: any) {
-    if (c.isDrawingMode && !isPinching.value) {
-      const point = c!.getPointer(o.e)
-      if (selectedTool.value != DrawTool.Select) c.freeDrawingBrush.onMouseMove(point, o)
-    }
-  })
-
-  c.on('mouse:up', function (o: any) {
-    if (!isPinching.value && c.isDrawingMode && selectedTool.value != DrawTool.Select) {
-      c.freeDrawingBrush.onMouseUp(o)
-    } else if (o.e.touches.length == 0) {
-      isPinching.value = false
-      if (selectedTool.value == DrawTool.Select) c.selection = true
-      else if (brushType.value != BrushType.Bucket) c.isDrawingMode = true
-    }
-  })
-
-  let isPanning = false
-  const panTolerance = 0.001 // Change this as needed to refine the distinction
 
   hammer!.on('pinch', function (e) {
-    const scaleTolerance = 0.1 // Change this as needed to refine the distinction
-
-    // Check if it's a panning gesture based on the movement
-    isPanning = Math.abs(e.deltaX - lastDelta.x) > panTolerance || Math.abs(e.deltaY - lastDelta.y) > panTolerance
+    const panTolerance = 0.0001 // Change this as needed to refine the distinction
+    const isPanning = Math.abs(e.deltaX - lastDelta.x) > panTolerance || Math.abs(e.deltaY - lastDelta.y) > panTolerance
 
     if (isPanning) {
       // Handle panning
@@ -89,26 +37,39 @@ export function enableMobileZoomAndPan(c: any) {
         y: 2 * (e.deltaY - lastDelta.y)
       }
       handlePan(delta, c)
+      lastDelta = {
+        x: e.deltaX,
+        y: e.deltaY
+      }
     } else {
-      // Only handle zoom if the scale has changed significantly
+      const scaleTolerance = 0 // Change this as needed to refine the distinction
       if (Math.abs(1 - e.scale) > scaleTolerance) {
         handleZoom(e.scale, e.center.x, e.center.y, c)
         setCanZoomOut(c.getZoom() > 1)
       }
     }
-
-    lastDelta = {
-      x: e.deltaX,
-      y: e.deltaY
-    }
   })
 
   hammer!.on('pinchend', function () {
+    enableHistorySaving(c)
     lastDelta = {
       x: 0,
       y: 0
     }
   })
+}
+
+function cancelPreviousAction(c: Canvas) {
+  setTimeout(() => {
+    fabricateTouchUp(c)
+
+    if (c.isDrawingMode) {
+      const lastObject = c.getObjects().pop()
+      if (lastObject) c.remove(lastObject)
+    }
+    c.discardActiveObject()
+    c.renderAll()
+  }, 1)
 }
 
 export function enablePCZoomAndPan(c: any) {

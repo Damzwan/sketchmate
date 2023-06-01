@@ -6,8 +6,9 @@ import { BrushType, DrawTool, Shape, ShapeCreationMode } from '@/types/draw.type
 import { v4 as uuidv4 } from 'uuid'
 import { checkCanvasBounds, enableZoomAndPan } from '@/helper/draw/gesture.helper'
 import { enableObjectCreationEvent } from '@/helper/draw/events.helper'
-import { floodfill } from '@/helper/draw/floodfill'
+import { bucketFill } from '@/helper/draw/bucketFill'
 import { logoGoogle } from 'ionicons/icons'
+import { an } from 'vitest/dist/types-94cfe4b4'
 
 const eventsToDisable = [
   'mouse:down',
@@ -20,12 +21,11 @@ const eventsToDisable = [
   ''
 ]
 
-const hammerEventsToDisable = ['pinch', 'pinchend']
+const hammerEventsToDisable = ['pinch', 'pinchend', 'pinchstart']
 
 export function resetCanvasMode(c: Canvas) {
   c.isDrawingMode = true
   c.selection = false
-  c.selectionFullyContained = true
 
   const { setSelectedObjects, hammer } = useDrawStore()
   setSelectedObjects([])
@@ -58,7 +58,6 @@ export async function selectSelect(c: Canvas) {
 
   c!.forEachObject(function (object) {
     object.set({
-      perPixelTargetFind: true,
       hasBorders: true,
       selectable: true,
       hasControls: true,
@@ -201,7 +200,7 @@ export async function selectBucket(c: Canvas) {
   c.selection = false
   c.on('mouse:down', async o => {
     const pointer: IPoint = c.getPointer(o.e)
-    const img = await floodfill(c, pointer)
+    const img = await bucketFill(c, pointer)
     if (!img) return
     c.add(img)
     c.renderAll()
@@ -574,5 +573,14 @@ export function changeFabricBaseSettings() {
   fabric.Object.prototype.transparentCorners = false
   fabric.Object.prototype.cornerColor = primaryColor
   fabric.Object.prototype.cornerStyle = 'circle'
-  fabric.Object.prototype.cornerSize = 16 // Increase the size of the handles
+  fabric.Object.prototype.cornerSize = 20 // Increase the size of the handles
+}
+
+export function fabricateTouchUp(c: any) {
+  const evt = new TouchEvent('touchend', {
+    bubbles: true,
+    cancelable: true,
+    view: window
+  })
+  c.upperCanvasEl.dispatchEvent(evt)
 }

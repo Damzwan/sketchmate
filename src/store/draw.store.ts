@@ -167,11 +167,8 @@ export const useDrawStore = defineStore('draw', () => {
     // objects.forEach(obj => obj.set({ hasBorders: true, hasControls: true }))
 
     if (objects.length == 0) {
-      selectedObjects.forEach(obj => obj.set({ perPixelTargetFind: true }))
       c?.discardActiveObject()
     }
-
-    objects.forEach(obj => obj.set({ perPixelTargetFind: false }))
 
     // TODO this is a weird bugfix
     if (isTouchEvent) {

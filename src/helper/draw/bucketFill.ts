@@ -1,8 +1,7 @@
-import FloodFill, { ColorRGBA } from 'q-floodfill'
+import { colorToRGBA } from 'q-floodfill'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw.store'
 import { IPoint } from 'fabric/fabric-impl'
-import { resetZoom } from '@/helper/draw/gesture.helper'
 import { CustomFloodFill } from '@/utils/floodfill'
 
 export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
@@ -36,30 +35,20 @@ export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
   startTime = performance.now()
   const floodFill = new CustomFloodFill(imgData)
   floodFill.fill(brushColor, Math.round(p.x * dpr * scale), Math.round(p.y * dpr * scale), 50)
+  const modifiedImgData = floodFill.getModifiedImageData(colorToRGBA(brushColor))
   console.log(`Flood fill operation took ${performance.now() - startTime} ms`)
 
   startTime = performance.now()
   if (floodFill.modifiedPixelsCount == 0) return null
 
   const modifiedArea = floodFill.getModifiedArea()
-  downscaledCtx!.putImageData(floodFill.imageData, 0, 0)
 
   // Create a new canvas to copy the filled area from the temp canvas
   const offscreenCanvas = document.createElement('canvas')
   const offscreenCtx = offscreenCanvas.getContext('2d')
   offscreenCanvas.width = modifiedArea.width / (scale * dpr)
   offscreenCanvas.height = modifiedArea.height / (scale * dpr)
-  offscreenCtx!.drawImage(
-    downscaledCanvas,
-    modifiedArea.minX,
-    modifiedArea.minY,
-    modifiedArea.width,
-    modifiedArea.height,
-    0,
-    0,
-    offscreenCanvas.width,
-    offscreenCanvas.height
-  )
+  offscreenCtx!.putImageData(modifiedImgData, 0, 0)
 
   console.log(`Drawing image on canvas took ${performance.now() - startTime} ms`)
 

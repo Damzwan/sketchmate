@@ -37,4 +37,21 @@ export class CustomFloodFill extends FloodFill {
       height: this.modifiedMaxY - this.modifiedMinY + 1
     }
   }
+
+  public getModifiedImageData(fillColor: ColorRGBA) {
+    const { minX, minY, maxX, maxY, width, height } = this.getModifiedArea()
+    const modifiedImageData = new ImageData(width, height)
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const color = this.getColorAtPixel(this.imageData, x, y)
+
+        if (this.isSameColor(color, fillColor)) {
+          this.setColorAtPixel(modifiedImageData, color, x - minX, y - minY)
+        }
+      }
+    }
+
+    return modifiedImageData
+  }
 }

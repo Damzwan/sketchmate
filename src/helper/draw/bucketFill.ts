@@ -43,18 +43,31 @@ export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
 
   const modifiedArea = floodFill.getModifiedArea()
 
-  // Create a new canvas to copy the filled area from the temp canvas
   const offscreenCanvas = document.createElement('canvas')
   const offscreenCtx = offscreenCanvas.getContext('2d')
-  offscreenCanvas.width = modifiedArea.width / (scale * dpr)
-  offscreenCanvas.height = modifiedArea.height / (scale * dpr)
+  offscreenCanvas.width = modifiedImgData.width
+  offscreenCanvas.height = modifiedImgData.height
   offscreenCtx!.putImageData(modifiedImgData, 0, 0)
+
+  downscaledCanvas.width = offscreenCanvas.width / (dpr * scale)
+  downscaledCanvas.height = offscreenCanvas.height / (dpr * scale)
+  downscaledCtx!.drawImage(
+    offscreenCanvas,
+    0,
+    0,
+    offscreenCanvas.width,
+    offscreenCanvas.height,
+    0,
+    0,
+    downscaledCanvas.width,
+    downscaledCanvas.height
+  )
 
   console.log(`Drawing image on canvas took ${performance.now() - startTime} ms`)
 
   return await new Promise<fabric.Image>(resolve => {
     startTime = performance.now()
-    fabric.Image.fromURL(offscreenCanvas.toDataURL(), img => {
+    fabric.Image.fromURL(downscaledCanvas.toDataURL(), img => {
       img.set({
         left: modifiedArea.minX / (scale * dpr),
         top: modifiedArea.minY / (scale * dpr)

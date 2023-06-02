@@ -77,6 +77,6 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object)
   [DrawAction.Bucket]: selectBucket,
   [DrawAction.Shape]: addShape,
   [DrawAction.Text]: addText,
-  [DrawAction.Saved]: addSavedToCanvas,
+  [DrawAction.AddSavedDrawing]: addSavedToCanvas,
   [DrawAction.Merge]: mergeObjects
 }

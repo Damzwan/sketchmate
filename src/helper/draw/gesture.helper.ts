@@ -9,7 +9,9 @@ import { disableHistorySaving, enableHistorySaving, fabricateTouchUp } from '@/h
 import { useToast } from '@/service/toast.service'
 
 export function enableZoomAndPan(c: any) {
-  if (isPlatform('mobile') || isPlatform('capacitor')) enableMobileZoomAndPan(c)
+  const { toast } = useToast()
+  if (isPlatform('mobile') || isPlatform('capacitor') || isPlatform('android') || isPlatform('ios'))
+    enableMobileZoomAndPan(c)
   else enablePCZoomAndPan(c)
 }
 

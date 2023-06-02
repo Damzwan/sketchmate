@@ -16,7 +16,7 @@ export enum DrawAction {
   Bucket,
   Shape,
   Text,
-  Saved,
+  AddSavedDrawing,
   Merge
   // Text
 }
@@ -47,4 +47,10 @@ export enum EraserSize {
 export enum ShapeCreationMode {
   Drag,
   Click
+}
+
+export enum Layer {
+  background,
+  obj,
+  text
 }

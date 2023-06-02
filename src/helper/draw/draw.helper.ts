@@ -1,14 +1,12 @@
-import { Canvas, IPoint, Object } from 'fabric/fabric-impl'
+import { Canvas, IPoint } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { brushMapping, WHITE } from '@/config/draw.config'
 import { useDrawStore } from '@/store/draw.store'
-import { BrushType, DrawTool, Shape, ShapeCreationMode } from '@/types/draw.types'
+import { BrushType, DrawTool, Layer, Shape, ShapeCreationMode } from '@/types/draw.types'
 import { v4 as uuidv4 } from 'uuid'
 import { checkCanvasBounds, enableZoomAndPan } from '@/helper/draw/gesture.helper'
 import { enableObjectCreationEvent } from '@/helper/draw/events.helper'
 import { bucketFill } from '@/helper/draw/bucketFill'
-import { logoGoogle } from 'ionicons/icons'
-import { an } from 'vitest/dist/types-94cfe4b4'
 
 const eventsToDisable = [
   'mouse:down',
@@ -149,6 +147,7 @@ export function addSticker(c: Canvas, options?: any) {
       const maxDimension = 128 // Maximum width or height for scaling
       img.scaleToWidth(maxDimension)
       c!.add(img)
+      c.moveTo(img, Layer.obj)
       const { selectTool } = useDrawStore()
       selectTool(DrawTool.Select)
     },
@@ -203,6 +202,7 @@ export async function selectBucket(c: Canvas) {
     const img = await bucketFill(c, pointer)
     if (!img) return
     c.add(img)
+    c.moveTo(img, Layer.background)
     c.renderAll()
     // const collidingObjects = c.getObjects().filter(obj => img.intersectsWithObject(obj))
     // mergeObjects(c, { objects: [img, ...collidingObjects], unselect: true })
@@ -361,6 +361,7 @@ function handleMouseDown(c: Canvas, shape: Shape, o: any, createdShape: any) {
 
   createdShape = createShape(shape, startX, startY)
   c.add(createdShape)
+  c.moveTo(createdShape, Layer.obj)
   return { startX, startY, createdShape }
 }
 
@@ -474,6 +475,7 @@ export function addText(c: Canvas) {
   })
 
   c.add(text)
+  c.moveTo(text, Layer.text)
   enableHistorySaving(c)
 
   text.enterEditing()

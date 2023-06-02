@@ -81,7 +81,7 @@ const { deleteSaved } = useAPI()
 
 async function addSavedToCanvas(saved: Saved) {
   const drawing = await fetch(saved.drawing).then(drawing => drawing.json())
-  selectAction(DrawAction.Saved, { json: drawing })
+  selectAction(DrawAction.AddSavedDrawing, { json: drawing })
   modalController.dismiss()
 }
 

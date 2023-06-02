@@ -1,6 +1,10 @@
 <template>
   <ion-toolbar color="primary" class="h-[46px]">
     <ion-buttons slot="start">
+      <ion-button @click="setSelectedObjects([])">
+        <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
+      </ion-button>
+
       <ion-button id="select_color" v-if="!containsImage">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
         <SelectColorMenu
@@ -49,6 +53,8 @@
 import { svg } from '@/helper/general.helper'
 import {
   mdiCancel,
+  mdiClose,
+  mdiCross,
   mdiCursorText,
   mdiDotsVertical,
   mdiFormatFont,

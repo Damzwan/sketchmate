@@ -466,12 +466,13 @@ export function addText(c: Canvas) {
   disableHistorySaving(c)
   const text = new fabric.IText('', {
     left: c.width! / 2,
-    top: c.height! / 2,
+    top: c.height! / 4,
     fontFamily: 'Arial',
-    fill: '#333',
-    lineHeight: 1.1,
+    lineHeight: 0.9,
     originX: 'center',
-    originY: 'center'
+    originY: 'center',
+    selectable: true,
+    editable: true
   })
 
   c.add(text)

@@ -92,12 +92,6 @@ const { selectedObjectsRef, undoStack, redoStack } = storeToRefs(useDrawStore())
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
 const isText = computed(() => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == 'i-text')
-
-function removeObjects() {
-  deleteObjects(getSelectedObjects())
-  selectLastCreatedObject(getCanvas())
-}
-
 function setStrokeColor(color: string) {
   exitEditing() // TODO horrible solution :(
   selectedObjectsRef.value.forEach(obj => obj.set({ stroke: color }))

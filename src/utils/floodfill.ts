@@ -54,4 +54,63 @@ export class CustomFloodFill extends FloodFill {
 
     return modifiedImageData
   }
+
+  private fillLineAt(x: number, y: number): [number, number] {
+    if (!this.isValidTarget({ x, y }) && !this.isPossibleAntiAliasedPixel({ x, y })) {
+      return [-1, -1]
+    }
+    this.setPixelColor(this._newColor, { x, y })
+    let minX = x
+    let maxX = x
+    let px = this.getPixelNeighbour('left', minX, y)
+    while (px && (this.isValidTarget(px) || this.isPossibleAntiAliasedPixel(px))) {
+      this.setPixelColor(this._newColor, px)
+      minX = px.x
+      px = this.getPixelNeighbour('left', minX, y)
+    }
+    px = this.getPixelNeighbour('right', maxX, y)
+    while (px && (this.isValidTarget(px) || this.isPossibleAntiAliasedPixel(px))) {
+      this.setPixelColor(this._newColor, px)
+      maxX = px.x
+      px = this.getPixelNeighbour('right', maxX, y)
+    }
+    return [minX, maxX]
+  }
+
+  private isPossibleAntiAliasedPixel(pixel: PixelCoords | null): boolean {
+    if (pixel === null) {
+      return false
+    }
+    const pixelColor = this.getColorAtPixel(this.imageData, pixel.x, pixel.y)
+
+    // Collect all neighbors
+    const neighbors = this.getPixelNeighbors(pixel)
+
+    // Define a function that checks if a pixel color is different from the current pixel's color
+    const isDifferentFromCurrentColor = (neighbor: PixelCoords): boolean => {
+      const neighborColor = this.getColorAtPixel(this.imageData, neighbor.x, neighbor.y)
+      return !this.isSameColor(neighborColor, pixelColor, 0)
+    }
+
+    // A pixel is possibly anti-aliased if at least 7 of its neighbors have a different color
+    const differentColorCount = neighbors.filter(isDifferentFromCurrentColor).length
+    return differentColorCount >= 7
+  }
+
+  // Add a method to get all neighboring pixels of a given pixel
+  private getPixelNeighbors(pixel: PixelCoords): PixelCoords[] {
+    const { x, y } = pixel
+    const neighbors = []
+
+    for (let i = -1; i <= 1; i++) {
+      for (let j = -1; j <= 1; j++) {
+        if (i === 0 && j === 0) continue // Skip the center pixel
+        if (x + i >= 0 && x + i < this.imageData.width && y + j >= 0 && y + j < this.imageData.height) {
+          neighbors.push({ x: x + i, y: y + j })
+        }
+      }
+    }
+
+    return neighbors
+  }
 }

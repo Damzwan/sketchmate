@@ -174,7 +174,7 @@ export const useDrawStore = defineStore('draw', () => {
     if (isTouchEvent) {
       setTimeout(() => {
         selectedObjectsRef.value = objects!
-      }, 10)
+      }, 100)
     } else selectedObjectsRef.value = objects
 
     selectedObjects = objects

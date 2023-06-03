@@ -1,4 +1,4 @@
-import { colorToRGBA } from 'q-floodfill'
+import { ColorRGBA, colorToRGBA } from 'q-floodfill'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw.store'
 import { Canvas, IPoint } from 'fabric/fabric-impl'

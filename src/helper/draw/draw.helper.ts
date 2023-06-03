@@ -5,7 +5,7 @@ import { useDrawStore } from '@/store/draw.store'
 import { BrushType, DrawTool, Layer, Shape, ShapeCreationMode } from '@/types/draw.types'
 import { v4 as uuidv4 } from 'uuid'
 import { checkCanvasBounds, enableZoomAndPan } from '@/helper/draw/gesture.helper'
-import { enableObjectCreationEvent } from '@/helper/draw/events.helper'
+import { enableObjectCreationEvent, enableObjectModifiedEvent } from '@/helper/draw/events.helper'
 import { bucketFill } from '@/helper/draw/bucketFill'
 
 const eventsToDisable = [
@@ -32,6 +32,7 @@ export function resetCanvasMode(c: Canvas) {
   hammerEventsToDisable.forEach(event => hammer!.off(event)) // TODO this should not be done
   enableZoomAndPan(c) // TODO this should not be done
   enableObjectCreationEvent(c)
+  enableObjectModifiedEvent(c)
 }
 
 export function disableObjectsSelect(c: Canvas) {
@@ -70,18 +71,15 @@ export async function selectSelect(c: Canvas) {
   c.on('selection:cleared', e => {
     setSelectedObjects([], true)
   })
-  selectLastCreatedObject(c)
+
+  selectLastModifiedObjects(c)
 }
 
-export function selectLastCreatedObject(c: Canvas) {
-  const { setSelectedObjects, refresh } = useDrawStore()
-  const lastCreatedObj = c._objects[c._objects.length - 1]
-  if (!lastCreatedObj) {
-    setSelectedObjects([])
-  } else {
-    c.setActiveObject(lastCreatedObj)
-    // setSelectedObjects([lastCreatedObj])
-  }
+export function selectLastModifiedObjects(c: Canvas) {
+  const { refresh, lastModifiedObjects } = useDrawStore()
+  const ids: string[] = lastModifiedObjects.map((obj: any) => obj.id)
+  const foundLastModifiedObjects = c.getObjects().filter((obj: any) => ids.includes(obj.id))
+  c.setActiveObject(foundLastModifiedObjects[0])
   refresh()
 }
 
@@ -147,7 +145,7 @@ export function addSticker(c: Canvas, options?: any) {
       const maxDimension = 128 // Maximum width or height for scaling
       img.scaleToWidth(maxDimension)
       c!.add(img)
-      c.moveTo(img, Layer.obj)
+      // c.moveTo(img, Layer.obj)
       const { selectTool } = useDrawStore()
       selectTool(DrawTool.Select)
     },
@@ -202,7 +200,7 @@ export async function selectBucket(c: Canvas) {
     const img = await bucketFill(c, pointer)
     if (!img) return
     c.add(img)
-    c.moveTo(img, Layer.background)
+    // c.moveTo(img, Layer.background)
     c.renderAll()
     // const collidingObjects = c.getObjects().filter(obj => img.intersectsWithObject(obj))
     // mergeObjects(c, { objects: [img, ...collidingObjects], unselect: true })
@@ -361,7 +359,7 @@ function handleMouseDown(c: Canvas, shape: Shape, o: any, createdShape: any) {
 
   createdShape = createShape(shape, startX, startY)
   c.add(createdShape)
-  c.moveTo(createdShape, Layer.obj)
+  // c.moveTo(createdShape, Layer.obj)
   return { startX, startY, createdShape }
 }
 
@@ -476,7 +474,7 @@ export function addText(c: Canvas) {
   })
 
   c.add(text)
-  c.moveTo(text, Layer.text)
+  // c.moveTo(text, Layer.text)
   enableHistorySaving(c)
 
   text.enterEditing()

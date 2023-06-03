@@ -2,8 +2,8 @@ import { ColorRGBA, colorToRGBA } from 'q-floodfill'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw.store'
 import { Canvas, IPoint } from 'fabric/fabric-impl'
-import { CustomFloodFill } from '@/utils/floodfill'
 import { resetZoom } from '@/helper/draw/draw.helper'
+import { CustomFloodFill } from '@/utils/CustomFloodFill'
 
 export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
   let startTime = performance.now()
@@ -14,15 +14,12 @@ export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
   const downscaledCtx = downscaledCanvas.getContext('2d')
 
   const imgData = downscaledCtx!.getImageData(0, 0, downscaledCanvas.width, downscaledCanvas.height)
-  console.log(`Get image data took ${performance.now() - startTime} ms`)
 
   startTime = performance.now()
   const floodFill = new CustomFloodFill(imgData)
   floodFill.fill(brushColor, Math.round(p.x * dpr * scale), Math.round(p.y * dpr * scale), 50)
   const modifiedImgData = floodFill.getModifiedImageData(colorToRGBA(brushColor))
-  console.log(`Flood fill operation took ${performance.now() - startTime} ms`)
 
-  startTime = performance.now()
   if (floodFill.modifiedPixelsCount == 0) return null
 
   const modifiedArea = floodFill.getModifiedArea()
@@ -47,16 +44,13 @@ export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
     downscaledCanvas.height
   )
 
-  console.log(`Drawing image on canvas took ${performance.now() - startTime} ms`)
-
   return await new Promise<fabric.Image>(resolve => {
-    startTime = performance.now()
     fabric.Image.fromURL(downscaledCanvas.toDataURL(), img => {
       img.set({
         left: modifiedArea.minX / (scale * dpr),
         top: modifiedArea.minY / (scale * dpr)
       })
-      console.log(`Fabric image setup took ${performance.now() - startTime} ms`)
+      console.log(`Floodfill took ${performance.now() - startTime} ms`)
       resolve(img)
     })
   })

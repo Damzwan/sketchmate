@@ -33,14 +33,14 @@ import { mdiContentCopy, mdiContentSave, mdiDeleteOutline, mdiMerge } from '@mdi
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { useDrawStore } from '@/store/draw.store'
 import { storeToRefs } from 'pinia'
-import { selectLastCreatedObject } from '@/helper/draw/draw.helper'
+import { selectLastModifiedObjects } from '@/helper/draw/draw.helper'
 
 const { getSelectedObjects, selectAction, deleteObjects, getCanvas, addSaved } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useDrawStore())
 
 function removeObjects() {
   deleteObjects(getSelectedObjects())
-  selectLastCreatedObject(getCanvas())
+  selectLastModifiedObjects(getCanvas())
   closePopover()
 }
 

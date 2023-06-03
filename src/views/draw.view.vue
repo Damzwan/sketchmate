@@ -69,8 +69,8 @@ onIonViewDidEnter(async () => {
         width: window.innerWidth,
         height: window.innerHeight - 46 - 50,
         backgroundColor: WHITE,
-        fireMiddleClick: true,
-        preserveObjectStacking: true
+        fireMiddleClick: true
+        // preserveObjectStacking: true
       })
     )
   }

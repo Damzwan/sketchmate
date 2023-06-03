@@ -52,6 +52,7 @@ export const useDrawStore = defineStore('draw', () => {
   const lastSelectedEraserTool = ref<Eraser>(DrawTool.MobileEraser)
 
   // refs do not work that well with fabric.js. We need both
+  const lastModifiedObjects = ref<fabric.Object[]>([])
   let selectedObjects: Array<fabric.Object> = []
   const selectedObjectsRef = ref<Array<fabric.Object | fabric.Group>>([])
 
@@ -317,6 +318,10 @@ export const useDrawStore = defineStore('draw', () => {
     canZoomOut.value = bool
   }
 
+  function setLastModifiedObjects(objects: fabric.Object[]) {
+    lastModifiedObjects.value = selectedObjects.length > 0 ? selectedObjects : objects
+  }
+
   // make a link between our variables and the variables
   watch(brushSize, () => {
     c!.freeDrawingBrush.width = brushSize.value
@@ -396,6 +401,8 @@ export const useDrawStore = defineStore('draw', () => {
     setShapesMenuOpen,
     hammer,
     canZoomOut,
-    setCanZoomOut
+    setCanZoomOut,
+    lastModifiedObjects,
+    setLastModifiedObjects
   }
 })

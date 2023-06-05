@@ -1,5 +1,5 @@
 <template>
-  <ion-toolbar color="primary" class="h-[46px]">
+  <ion-toolbar color="primary" class="h-[46px]" mode="md">
     <ion-buttons slot="end">
       <ion-button @click="openShapesMenu">
         <ion-icon slot="icon-only" :icon="svg(mdiShapeOutline)" />

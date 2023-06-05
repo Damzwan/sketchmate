@@ -1,7 +1,7 @@
 <template>
-  <ion-toolbar color="primary" class="h-[46px]">
-    <ion-buttons slot="start">
-      <ion-button @click="setSelectedObjects([])">
+  <div class="h-[46px] flex w-full bg-primary text-black">
+    <ion-buttons slot="start" class="flex flex-grow">
+      <ion-button @click="setSelectedObjects([])" mode="md" color="black">
         <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
       </ion-button>
 
@@ -13,14 +13,19 @@
           @update:background-color="color => selectAction(DrawAction.ChangeBackgroundColor, { color })"
         />
       </ion-button>
-      <div v-if="isText">
+      <div v-if="isText" class="flex items-center flex-grow">
         <ion-button id="text_options">
           <ion-icon slot="icon-only" :icon="svg(mdiFormatText)"></ion-icon>
         </ion-button>
         <TextMenu />
 
-        <ion-button id="font">
-          <ion-icon slot="icon-only" :icon="svg(mdiFormatFont)"></ion-icon>
+        <ion-button id="font" class="font_text">
+          <div class="flex justify-between w-full h-full items-center">
+            <p class="text-xs truncate" :style="{ fontFamily: selectedObjectsRef[0]['fontFamily'] }">{{
+              selectedObjectsRef[0]['fontFamily']
+            }}</p>
+            <ion-icon :icon="svg(mdiMenuSwapOutline)" />
+          </div>
         </ion-button>
         <FontMenu @font_selected="font => selectAction(DrawAction.ChangeFont, { font })" />
       </div>
@@ -40,7 +45,7 @@
         <SelectExtraOptions />
       </ion-button>
     </ion-buttons>
-  </ion-toolbar>
+  </div>
 </template>
 
 <script lang="ts" setup>
@@ -52,6 +57,7 @@ import {
   mdiDotsVertical,
   mdiFormatFont,
   mdiFormatText,
+  mdiMenuSwapOutline,
   mdiPaletteOutline,
   mdiRedo,
   mdiUndo,
@@ -59,7 +65,7 @@ import {
 } from '@mdi/js'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import FontMenu from '@/components/draw/menu/FontMenu.vue'
 import { IText } from 'fabric/fabric-impl'
 import SelectColorMenu from '@/components/draw/menu/SelectColorMenu.vue'
@@ -79,6 +85,10 @@ const { setSelectedObjects } = useSelect()
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
 const isText = computed(() => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == 'i-text')
+
+watch(selectedObjectsRef, () => {
+  console.log(selectedObjectsRef.value)
+})
 </script>
 
 <style scoped>
@@ -90,17 +100,32 @@ ion-button {
 ion-button ion-icon {
   width: 100% !important;
   height: 100% !important;
+  color: black;
 }
 
 ion-button::part(native) {
   @apply p-3;
 }
 
-ion-buttons {
-  @apply h-[46px] top-0 relative;
+ion-toolbar .toolbar-container {
+  @apply bg-red-600 z-10 !important;
 }
 
 ion-toolbar {
   --min-height: 46px;
+}
+
+.font_text {
+  @apply flex-grow p-2 mr-2 border-[1px] border-black h-[36px] rounded max-w-full !important;
+}
+
+.font_text::part(native) {
+  padding: 0 !important;
+}
+
+.font_text ion-icon {
+  width: 20px !important;
+  height: 20px !important;
+  color: black;
 }
 </style>

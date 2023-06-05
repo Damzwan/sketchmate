@@ -1,5 +1,5 @@
 <template>
-  <ion-toolbar color="primary" class="h-[46px]">
+  <ion-toolbar color="primary" class="h-[46px]" mode="md">
     <ion-buttons slot="start">
       <ion-button
         :class="{ selected: penMenuSelected }"

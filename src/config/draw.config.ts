@@ -33,6 +33,7 @@ export const ERASERS = [DrawTool.MobileEraser, DrawTool.HealingEraser]
 export const PENS = [DrawTool.Pen]
 
 export const FONTS: string[] = [
+  'Arial',
   'Anton',
   'Indie Flower',
   'Rubik Puddles',

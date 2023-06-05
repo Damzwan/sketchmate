@@ -7,6 +7,7 @@ import { useSelect } from '@/service/draw/tools/select.service'
 import { storeToRefs } from 'pinia'
 import FontFaceObserver from 'fontfaceobserver'
 import { useHistory } from '@/service/draw/history.service'
+import { popoverController } from '@ionic/vue'
 
 export function addText(c: Canvas) {
   const { selectTool } = useDrawStore()
@@ -54,6 +55,7 @@ export async function changeFont(c: Canvas, options: any) {
   const fontFaceObserver = new FontFaceObserver(font)
   await fontFaceObserver.load()
   textObj.set({ fontFamily: font })
+  popoverController.dismiss()
   c.renderAll()
 }
 

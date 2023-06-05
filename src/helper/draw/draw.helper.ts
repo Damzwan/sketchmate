@@ -1,7 +1,7 @@
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawTool, SelectedObject, Shape, ShapeCreationMode, Type } from '@/types/draw.types'
+import { DrawTool, SelectedObject, Shape, ShapeCreationMode, ObjectType } from '@/types/draw.types'
 import { checkCanvasBounds, enableZoomAndPan } from '@/helper/draw/gesture.helper'
 import { enableObjectCreationEvent } from '@/helper/draw/events.helper'
 import { useSelect } from '@/service/draw/tools/select.service'
@@ -93,10 +93,11 @@ export async function enlivenObjects(objects: fabric.Object[]) {
 }
 
 export function isText(objects: fabric.Object[]) {
-  return objects.length == 1 && objects[0].type == Type.text
+  return objects.length == 1 && objects[0].type == ObjectType.text
 }
 
 export function exitEditing(text: any) {
+  if (text.type != ObjectType.text) return
   text.exitEditing()
   const { isEditingText } = storeToRefs(useDrawStore())
   isEditingText.value = false

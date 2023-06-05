@@ -5,7 +5,7 @@
         <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
       </ion-button>
 
-      <ion-button id="select_color" v-if="!containsImage">
+      <ion-button id="select_color" v-if="!containsImage" @click="exitEditing(selectedObjectsRef[0])">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
         <SelectColorMenu
           @update:stroke-color="color => selectAction(DrawAction.ChangeStrokeColour, { color })"
@@ -14,12 +14,12 @@
         />
       </ion-button>
       <div v-if="isText" class="flex items-center flex-grow">
-        <ion-button id="text_options">
+        <ion-button id="text_options" @click="exitEditing(selectedObjectsRef[0])">
           <ion-icon slot="icon-only" :icon="svg(mdiFormatText)"></ion-icon>
         </ion-button>
         <TextMenu />
 
-        <ion-button id="font" class="font_text">
+        <ion-button id="font" class="font_text" @click="exitEditing(selectedObjectsRef[0])">
           <div class="flex justify-between w-full h-full items-center">
             <p class="text-xs truncate" :style="{ fontFamily: selectedObjectsRef[0]['fontFamily'] }">{{
               selectedObjectsRef[0]['fontFamily']
@@ -76,6 +76,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction } from '@/types/draw.types'
 import TextMenu from '@/components/draw/menu/TextMenu.vue'
+import { exitEditing } from '@/helper/draw/draw.helper'
 
 const { selectAction } = useDrawStore()
 const { saveState, undo, redo } = useHistory()
@@ -116,7 +117,7 @@ ion-toolbar {
 }
 
 .font_text {
-  @apply flex-grow p-2 mr-2 border-[1px] border-black h-[36px] rounded max-w-full !important;
+  @apply flex-grow p-2 mr-2 border-[1px] border-black h-[36px] rounded max-w-[200px] !important;
 }
 
 .font_text::part(native) {

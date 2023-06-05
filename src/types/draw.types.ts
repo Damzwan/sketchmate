@@ -57,7 +57,7 @@ export enum Menu {
   Shapes
 }
 
-export enum Type {
+export enum ObjectType {
   path = 'path',
   image = 'image',
   text = 'i-text'

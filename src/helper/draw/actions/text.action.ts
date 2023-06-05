@@ -51,7 +51,6 @@ export async function changeFont(c: Canvas, options: any) {
   const { selectedObjectsRef } = useSelect()
 
   const textObj = selectedObjectsRef[0] as fabric.IText
-  exitEditing(textObj)
   const fontFaceObserver = new FontFaceObserver(font)
   await fontFaceObserver.load()
   textObj.set({ fontFamily: font })
@@ -63,7 +62,6 @@ export async function changeFontWeight(c: Canvas) {
   const { selectedObjectsRef } = useSelect()
 
   const textObj = selectedObjectsRef[0] as fabric.IText
-  exitEditing(textObj)
   textObj.set({ fontWeight: 'bold' })
   c.renderAll()
 }
@@ -72,7 +70,6 @@ export async function changeFontStyle(c: Canvas) {
   const { selectedObjectsRef } = useSelect()
 
   const textObj = selectedObjectsRef[0] as fabric.IText
-  exitEditing(textObj)
   const style = textObj.fontStyle == 'italic' ? 'normal' : 'italic'
   textObj.set({ fontStyle: style })
   c.renderAll()
@@ -82,7 +79,6 @@ export async function changeTextAlign(c: Canvas) {
   const { selectedObjectsRef } = useSelect()
 
   const textObj = selectedObjectsRef[0] as fabric.IText
-  exitEditing(textObj)
   textObj.set({ textAlign: 'center' })
   c.renderAll()
 }
@@ -90,7 +86,6 @@ export async function changeTextAlign(c: Canvas) {
 export async function curveText(c: Canvas) {
   const { selectedObjectsRef } = useSelect()
   const textObj = selectedObjectsRef[0] as fabric.IText
-  exitEditing(textObj)
 
   const textWidth = textObj.width!
   const textHeight = textObj.height!

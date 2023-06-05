@@ -94,6 +94,12 @@ export enum ShapeCreationMode {
   Click
 }
 
+export enum TextAlign {
+  left = 'left',
+  center = 'center',
+  right = 'right'
+}
+
 export enum Layer {
   background,
   obj,

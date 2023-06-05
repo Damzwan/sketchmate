@@ -7,6 +7,7 @@ import { enableObjectCreationEvent } from '@/helper/draw/events.helper'
 import { useSelect } from '@/service/draw/tools/select.service'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
+import { useHistory } from '@/service/draw/history.service'
 
 const eventsToDisable = [
   'mouse:down',
@@ -97,7 +98,7 @@ export function isText(objects: fabric.Object[]) {
 }
 
 export function exitEditing(text: any) {
-  if (text.type != ObjectType.text) return
+  if (text.type != ObjectType.text || !text.isEditing) return
   text.exitEditing()
   const { isEditingText } = storeToRefs(useDrawStore())
   isEditingText.value = false

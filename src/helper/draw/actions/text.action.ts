@@ -8,6 +8,7 @@ import { storeToRefs } from 'pinia'
 import FontFaceObserver from 'fontfaceobserver'
 import { useHistory } from '@/service/draw/history.service'
 import { popoverController } from '@ionic/vue'
+import { save } from 'ionicons/icons'
 
 export function addText(c: Canvas) {
   const { selectTool } = useDrawStore()
@@ -48,42 +49,55 @@ export function addText(c: Canvas) {
 
 export async function changeFont(c: Canvas, options: any) {
   const font = options['font']
+  const { saveState } = useHistory()
   const { selectedObjectsRef } = useSelect()
 
   const textObj = selectedObjectsRef[0] as fabric.IText
   const fontFaceObserver = new FontFaceObserver(font)
   await fontFaceObserver.load()
   textObj.set({ fontFamily: font })
+
   popoverController.dismiss()
+  saveState()
   c.renderAll()
 }
 
-export async function changeFontWeight(c: Canvas) {
-  const { selectedObjectsRef } = useSelect()
+export async function changeFontWeight(c: Canvas, options: any) {
+  const { saveState } = useHistory()
+  const { selectedObjectsRef } = storeToRefs(useSelect())
+  const weight = options['weight']
 
-  const textObj = selectedObjectsRef[0] as fabric.IText
-  textObj.set({ fontWeight: 'bold' })
+  const textObj = selectedObjectsRef.value[0] as fabric.IText
+  textObj.set({ fontWeight: weight })
+  selectedObjectsRef.value = [textObj]
+  saveState()
   c.renderAll()
 }
 
-export async function changeFontStyle(c: Canvas) {
+export async function changeFontStyle(c: Canvas, options: any) {
+  const { saveState } = useHistory()
   const { selectedObjectsRef } = useSelect()
+  const style = options['style']
 
   const textObj = selectedObjectsRef[0] as fabric.IText
-  const style = textObj.fontStyle == 'italic' ? 'normal' : 'italic'
   textObj.set({ fontStyle: style })
+  saveState()
   c.renderAll()
 }
 
-export async function changeTextAlign(c: Canvas) {
+export async function changeTextAlign(c: Canvas, options: any) {
+  const { saveState } = useHistory()
   const { selectedObjectsRef } = useSelect()
+  const align = options['align']
 
   const textObj = selectedObjectsRef[0] as fabric.IText
-  textObj.set({ textAlign: 'center' })
+  textObj.set({ textAlign: align })
+  saveState()
   c.renderAll()
 }
 
 export async function curveText(c: Canvas) {
+  const { saveState } = useHistory()
   const { selectedObjectsRef } = useSelect()
   const textObj = selectedObjectsRef[0] as fabric.IText
 
@@ -104,5 +118,6 @@ export async function curveText(c: Canvas) {
 
   textObj.set({ path: curvePath })
 
+  saveState()
   c.renderAll()
 }

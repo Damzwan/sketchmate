@@ -86,10 +86,6 @@ const { setSelectedObjects } = useSelect()
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
 const isText = computed(() => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == 'i-text')
-
-watch(selectedObjectsRef, () => {
-  console.log(selectedObjectsRef.value)
-})
 </script>
 
 <style scoped>

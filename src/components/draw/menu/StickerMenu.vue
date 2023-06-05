@@ -99,17 +99,18 @@ import {
   IonToolbar,
   modalController
 } from '@ionic/vue'
-import { useAPI } from '@/service/api.service'
+import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
 import { useToast } from '@/service/toast.service'
 import { storeToRefs } from 'pinia'
 import { resizeImage, svg } from '@/helper/general.helper'
 import { mdiCancel, mdiDelete, mdiMinus, mdiPlus } from '@mdi/js'
 import { computed, ref } from 'vue'
-import { useDrawStore } from '@/store/draw.store'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction } from '@/types/draw.types'
 import NoStickers from '@/components/draw/NoStickers.vue'
 import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 const api = useAPI()
 const { user } = storeToRefs(useAppStore())
@@ -126,7 +127,7 @@ const emptyPage = computed(() =>
 
 const imgInput = ref<HTMLInputElement>()
 const { selectAction } = useDrawStore()
-const { stickerMenuOpen } = storeToRefs(useDrawStore())
+const { stickerMenuOpen } = storeToRefs(useMenuStore())
 
 async function onUpload(e: any) {
   isLoading.value = true

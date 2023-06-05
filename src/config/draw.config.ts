@@ -1,22 +1,21 @@
-import { BrushType, DrawAction, DrawTool, Eraser } from '@/types/draw.types'
+import { BrushType, DrawAction, DrawTool, Eraser, ToolService } from '@/types/draw.types'
 import { fabric } from 'fabric'
 import { Canvas } from 'fabric/fabric-impl'
 import { mdiBandage, mdiBucketOutline, mdiCircleOutline, mdiEraser, mdiPencilOutline, mdiSpray } from '@mdi/js'
+import { fullErase } from '@/helper/draw/actions/eraser.action'
+import { copyObjects, deleteObjects, mergeObjects } from '@/helper/draw/actions/operation.action'
+import { addSavedToCanvas, createSaved } from '@/helper/draw/actions/saved.action'
+import { addSticker, setBgImage } from '@/helper/draw/actions/image.action'
+import { addShape } from '@/helper/draw/actions/shape.action'
 import {
-  addSavedToCanvas,
-  addShape,
-  addSticker,
   addText,
-  copyObjects,
-  fullErase,
-  mergeObjects,
-  selectBucket,
-  selectHealingMobileEraser,
-  selectMobileEraser,
-  selectPen,
-  selectSelect,
-  setBgImage
-} from '@/helper/draw/draw.helper'
+  changeFont,
+  changeFontStyle,
+  changeFontWeight,
+  changeTextAlign,
+  curveText
+} from '@/helper/draw/actions/text.action'
+import { setBackgroundColor, setFillColor, setStrokeColor } from '@/helper/draw/actions/color.action'
 
 export const COLORSWATCHES = [
   ['#000000', '#F3F1F9', '#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
@@ -42,14 +41,6 @@ export const FONTS: string[] = [
   'Amatic SC',
   'Krub'
 ]
-
-export const brushMapping: { [key in BrushType]: any } = {
-  [BrushType.Circle]: (c: Canvas) => new fabric.CircleBrush(c),
-  [BrushType.Pencil]: (c: Canvas) => new fabric.PencilBrush(c),
-  [BrushType.Spray]: (c: Canvas) => new fabric.SprayBrush(c),
-  [BrushType.Bucket]: (c: Canvas) => null
-}
-
 export const eraserIconMapping: { [key in Eraser]: string } = {
   [DrawTool.MobileEraser]: mdiEraser,
   [DrawTool.HealingEraser]: mdiBandage
@@ -62,21 +53,23 @@ export const penIconMapping: { [key in BrushType]: string } = {
   [BrushType.Bucket]: mdiBucketOutline
 }
 
-export const selectToolMapping: { [key in DrawTool]: (c: Canvas) => void } = {
-  [DrawTool.Pen]: selectPen,
-  [DrawTool.MobileEraser]: selectMobileEraser,
-  [DrawTool.HealingEraser]: selectHealingMobileEraser,
-  [DrawTool.Select]: selectSelect
-}
-
 export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object) => void } = {
   [DrawAction.FullErase]: fullErase,
   [DrawAction.Sticker]: addSticker,
   [DrawAction.CopyObject]: copyObjects,
   [DrawAction.BackgroundImage]: setBgImage,
-  [DrawAction.Bucket]: selectBucket,
-  [DrawAction.Shape]: addShape,
-  [DrawAction.Text]: addText,
-  [DrawAction.AddSavedDrawing]: addSavedToCanvas,
-  [DrawAction.Merge]: mergeObjects
+  [DrawAction.AddShape]: addShape,
+  [DrawAction.AddText]: addText,
+  [DrawAction.Merge]: mergeObjects,
+  [DrawAction.CreateSaved]: createSaved,
+  [DrawAction.AddSavedToCanvas]: addSavedToCanvas,
+  [DrawAction.Delete]: deleteObjects,
+  [DrawAction.ChangeStrokeColour]: setStrokeColor,
+  [DrawAction.ChangeFillColour]: setFillColor,
+  [DrawAction.ChangeBackgroundColor]: setBackgroundColor,
+  [DrawAction.ChangeFont]: changeFont,
+  [DrawAction.ChangeFontWeight]: changeFontWeight,
+  [DrawAction.ChangeFontStyle]: changeFontStyle,
+  [DrawAction.ChangeTextAlign]: changeTextAlign,
+  [DrawAction.CurveText]: curveText
 }

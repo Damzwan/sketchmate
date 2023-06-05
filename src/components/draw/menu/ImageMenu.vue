@@ -22,7 +22,7 @@
 import { mdiImage, mdiOverscan } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { ref } from 'vue'
-import { useDrawStore } from '@/store/draw.store'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction } from '@/types/draw.types'
 import { compressImg, svg } from '@/helper/general.helper'
 

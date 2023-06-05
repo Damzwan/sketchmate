@@ -1,5 +1,5 @@
 <template>
-  <ion-popover :is-open="shapesMenuOpen" side="left" @willDismiss="shapesMenuOpen = false" :event="shapesMenuEvent">
+  <ion-popover :is-open="shapesMenuOpen" side="left" @willDismiss="shapesMenuOpen = false" :event="menuEvent">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" @click="addShape(Shape.Circle)">
@@ -54,14 +54,15 @@ import {
   mdiVectorPolygon
 } from '@mdi/js'
 import { DrawAction, Shape } from '@/types/draw.types'
-import { useDrawStore } from '@/store/draw.store'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 const { selectAction } = useDrawStore()
-const { shapesMenuOpen, shapesMenuEvent } = storeToRefs(useDrawStore())
+const { shapesMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 function addShape(shape: Shape) {
-  selectAction(DrawAction.Shape, { shape: shape })
+  selectAction(DrawAction.AddShape, { shape: shape })
   closePopover()
 }
 

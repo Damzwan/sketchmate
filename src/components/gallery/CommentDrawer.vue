@@ -43,7 +43,7 @@ import { useToast } from '@/service/toast.service'
 import { senderImg, senderName, svg } from '@/helper/general.helper'
 import { mdiSend } from '@mdi/js'
 import dayjs from 'dayjs'
-import { useSocketService } from '@/service/socket.service'
+import { useSocketService } from '@/service/api/socket.service'
 
 const socketService = useSocketService()
 const { user } = useAppStore()

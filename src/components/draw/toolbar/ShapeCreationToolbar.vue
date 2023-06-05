@@ -17,28 +17,34 @@ import { svg } from '@/helper/general.helper'
 import { mdiCheck, mdiShapeOutline } from '@mdi/js'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw.store'
-import { ShapeCreationMode } from '@/types/draw.types'
-import { enableHistorySaving } from '@/helper/draw/draw.helper'
+import { useDrawStore } from '@/store/draw/draw.store'
+import { DrawEvent, Menu, ShapeCreationMode } from '@/types/draw.types'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { useHistory } from '@/service/draw/history.service'
+import { useEventManager } from '@/service/draw/eventManager.service'
 
-const { saveState, getCanvas, selectTool, setShapesMenuOpen } = useDrawStore()
+const { selectTool } = useDrawStore()
+const { unsubscribe } = useEventManager()
+const { saveState, enableHistorySaving } = useHistory()
+const { openMenu } = useMenuStore()
 const { shapeCreationMode } = storeToRefs(useDrawStore())
 
+const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
+
 function exitShapeCreationMode() {
+  shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
   if (shapeCreationMode.value == ShapeCreationMode.Click) {
     saveState()
-    enableHistorySaving(getCanvas())
+    enableHistorySaving()
   }
   shapeCreationMode.value = undefined
 
   const { selectedTool } = useDrawStore()
-
-  selectTool(selectedTool, undefined, false)
+  selectTool(selectedTool)
 }
 
 function openShapesMenu(e: any) {
-  saveState()
-  setShapesMenuOpen(true, e)
+  openMenu(Menu.Shapes, e)
 }
 </script>
 

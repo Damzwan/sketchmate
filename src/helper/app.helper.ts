@@ -1,6 +1,6 @@
 import { Storage } from '@/types/storage.types'
 import { User } from '@/types/server.types'
-import { useAPI } from '@/service/api.service'
+import { useAPI } from '@/service/api/api.service'
 
 const api = useAPI()
 

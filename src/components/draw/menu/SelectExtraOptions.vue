@@ -31,21 +31,21 @@ import { DrawAction } from '@/types/draw.types'
 import { svg } from '@/helper/general.helper'
 import { mdiContentCopy, mdiContentSave, mdiDeleteOutline, mdiMerge } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
-import { useDrawStore } from '@/store/draw.store'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
-import { selectLastModifiedObjects } from '@/helper/draw/draw.helper'
+import { useSelect } from '@/service/draw/tools/select.service'
 
-const { getSelectedObjects, selectAction, deleteObjects, getCanvas, addSaved } = useDrawStore()
-const { selectedObjectsRef } = storeToRefs(useDrawStore())
+const { selectAction } = useDrawStore()
+const { selectedObjectsRef } = storeToRefs(useSelect())
+const { getSelectedObjects } = useSelect()
 
 function removeObjects() {
-  deleteObjects(getSelectedObjects())
-  selectLastModifiedObjects(getCanvas())
+  selectAction(DrawAction.Delete, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function saveObjects() {
-  addSaved(selectedObjectsRef.value)
+  selectAction(DrawAction.CreateSaved, { objects: selectedObjectsRef.value })
   closePopover()
 }
 

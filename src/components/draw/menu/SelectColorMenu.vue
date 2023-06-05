@@ -7,7 +7,7 @@
           <p class="pl-2 text-base">Stroke Colour</p>
           <input
             type="color"
-            v-model="selectedObjectStrokeColor"
+            v-model="strokeColor"
             @change="() => onStrokeColorChange()"
             ref="strokeColorPicker"
             class="hidden"
@@ -19,7 +19,7 @@
           <p class="pl-2 text-base">Fill Colour</p>
           <input
             type="color"
-            v-model="selectedObjectFillColor"
+            v-model="fillColor"
             @change="() => onFillColorChange()"
             ref="fillColorPicker"
             class="hidden"
@@ -31,7 +31,7 @@
           <p class="pl-2 text-base">Background Colour</p>
           <input
             type="color"
-            v-model="selectedBackgroundColor"
+            v-model="backgroundColor"
             @change="() => onBackgroundColorChange()"
             ref="backgroundColorPicker"
             class="hidden"
@@ -48,13 +48,17 @@ import { mdiBorderColor, mdiBucketOutline, mdiFormatColorFill } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw.store'
-
-const { selectedObjectStrokeColor, selectedObjectFillColor, selectedBackgroundColor } = storeToRefs(useDrawStore())
+import { useDrawStore } from '@/store/draw/draw.store'
+import { BLACK } from '@/config/draw.config'
 
 const strokeColorPicker = ref<HTMLInputElement>()
+const strokeColor = ref<string>(BLACK)
+
 const fillColorPicker = ref<HTMLInputElement>()
+const fillColor = ref<string>(BLACK)
+
 const backgroundColorPicker = ref<HTMLInputElement>()
+const backgroundColor = ref<string>(BLACK)
 
 const emits = defineEmits<{
   (e: 'update:stroke-color', color: string): void
@@ -63,15 +67,15 @@ const emits = defineEmits<{
 }>()
 
 function onStrokeColorChange() {
-  emits('update:stroke-color', selectedObjectStrokeColor.value)
+  emits('update:stroke-color', strokeColor.value)
 }
 
 function onFillColorChange() {
-  emits('update:fill-color', selectedObjectFillColor.value)
+  emits('update:fill-color', fillColor.value)
 }
 
 function onBackgroundColorChange() {
-  emits('update:background-color', selectedBackgroundColor.value)
+  emits('update:background-color', backgroundColor.value)
 }
 
 function close() {

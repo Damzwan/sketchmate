@@ -73,7 +73,7 @@ import {
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import { compressImg, svg } from '@/helper/general.helper'
-import { useAPI } from '@/service/api.service'
+import { useAPI } from '@/service/api/api.service'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
 import { addOutline, arrowBack } from 'ionicons/icons'

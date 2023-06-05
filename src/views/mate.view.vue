@@ -55,7 +55,7 @@ import { IonAvatar, IonButton, IonContent, IonPage, onIonViewDidEnter } from '@i
 
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
-import { useSocketService } from '@/service/socket.service'
+import { useSocketService } from '@/service/api/socket.service'
 import matchImage from '@/assets/illustrations/match.svg'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'

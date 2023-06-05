@@ -1,12 +1,11 @@
 import { Canvas, IPoint } from 'fabric/fabric-impl'
-import { ref } from 'vue'
 import { fabric } from 'fabric'
-import { useDrawStore } from '@/store/draw.store'
-import { storeToRefs } from 'pinia'
-import { BrushType, DrawTool } from '@/types/draw.types'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { isPlatform } from '@ionic/vue'
-import { disableHistorySaving, enableHistorySaving, fabricateTouchUp } from '@/helper/draw/draw.helper'
-import { useToast } from '@/service/toast.service'
+import { fabricateTouchUp } from '@/helper/draw/draw.helper'
+import { useHistory } from '@/service/draw/history.service'
+import { DrawEvent, FabricEvent } from '@/types/draw.types'
+import { useEventManager } from '@/service/draw/eventManager.service'
 
 export function enableZoomAndPan(c: any) {
   if (isPlatform('mobile') || isPlatform('capacitor') || isPlatform('android') || isPlatform('ios'))
@@ -14,8 +13,10 @@ export function enableZoomAndPan(c: any) {
   else enablePCZoomAndPan(c)
 }
 
+// we are only using hammer events so they should not collide with other events. Not mandatory to store them in the event manager
 export function enableMobileZoomAndPan(c: any) {
   const { hammer, setCanZoomOut } = useDrawStore()
+  const { disableHistorySaving, enableHistorySaving } = useHistory()
 
   let lastDelta = {
     x: 0,
@@ -23,7 +24,7 @@ export function enableMobileZoomAndPan(c: any) {
   }
 
   hammer!.on('pinchstart', () => {
-    disableHistorySaving(c)
+    disableHistorySaving()
     cancelPreviousAction(c)
   })
 
@@ -52,7 +53,7 @@ export function enableMobileZoomAndPan(c: any) {
   })
 
   hammer!.on('pinchend', function () {
-    enableHistorySaving(c)
+    enableHistorySaving()
     lastDelta = {
       x: 0,
       y: 0
@@ -74,52 +75,67 @@ function cancelPreviousAction(c: Canvas) {
 }
 
 export function enablePCZoomAndPan(c: any) {
+  const { subscribe } = useEventManager()
   const { setCanZoomOut } = useDrawStore()
-
   let panStartPoint: any = null
-  c!.on('mouse:wheel', function (e: any) {
-    const deltaY = e.e.deltaY
+  const events: FabricEvent[] = [
+    {
+      on: 'mouse:wheel',
+      handler: (e: any) => {
+        const deltaY = e.e.deltaY
 
-    // Convert deltaY into a zoom factor
-    const zoomFactor = Math.exp(-deltaY / 10)
-    handleZoom(zoomFactor, e.e.offsetX, e.e.offsetY, c)
-    setCanZoomOut(c.getZoom() > 1)
-    e.e.preventDefault()
-    e.e.stopPropagation()
-  })
-
-  c.on('mouse:down', function (o: any) {
-    const event = o.e
-    // Check if the middle button is pressed
-    if (event.button === 1) {
-      // If it is, start the panning
-      panStartPoint = { x: event.pageX, y: event.pageY }
-      event.preventDefault()
-      event.stopPropagation()
+        // Convert deltaY into a zoom factor
+        const zoomFactor = Math.exp(-deltaY / 10)
+        handleZoom(zoomFactor, e.e.offsetX, e.e.offsetY, c)
+        setCanZoomOut(c.getZoom() > 1)
+        e.e.preventDefault()
+        e.e.stopPropagation()
+      },
+      type: DrawEvent.Gesture
+    },
+    {
+      on: 'mouse:down',
+      handler: (o: any) => {
+        const event = o.e
+        // Check if the middle button is pressed
+        if (event.button === 1) {
+          // If it is, start the panning
+          panStartPoint = { x: event.pageX, y: event.pageY }
+          event.preventDefault()
+          event.stopPropagation()
+        }
+      },
+      type: DrawEvent.Gesture
+    },
+    {
+      on: 'mouse:move',
+      handler: (o: any) => {
+        if (panStartPoint) {
+          // If we are panning, calculate the delta and pan the canvas
+          const event = o.e
+          const deltaX = event.pageX - panStartPoint.x
+          const deltaY = event.pageY - panStartPoint.y
+          panStartPoint = { x: event.pageX, y: event.pageY }
+          handlePan(new fabric.Point(deltaX, deltaY), c)
+        }
+      },
+      type: DrawEvent.Gesture
+    },
+    {
+      on: 'mouse:up',
+      handler: (o: any) => {
+        // If we were panning, stop it
+        if (panStartPoint) {
+          panStartPoint = null
+          o.e.preventDefault()
+          o.e.stopPropagation()
+        }
+      },
+      type: DrawEvent.Gesture
     }
-  })
+  ]
 
-  // Handle the mousemove event
-  c.on('mouse:move', function (o: any) {
-    if (panStartPoint) {
-      // If we are panning, calculate the delta and pan the canvas
-      const event = o.e
-      const deltaX = event.pageX - panStartPoint.x
-      const deltaY = event.pageY - panStartPoint.y
-      panStartPoint = { x: event.pageX, y: event.pageY }
-      handlePan(new fabric.Point(deltaX, deltaY), c)
-    }
-  })
-
-  // Handle the mouseup event
-  c.on('mouse:up', function (o: any) {
-    // If we were panning, stop it
-    if (panStartPoint) {
-      panStartPoint = null
-      o.e.preventDefault()
-      o.e.stopPropagation()
-    }
-  })
+  events.forEach(e => subscribe(e))
 }
 
 export const checkCanvasBounds = (c: Canvas) => {

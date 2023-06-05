@@ -69,31 +69,29 @@ import {
   mdiStickerEmoji
 } from '@mdi/js'
 import { ref } from 'vue'
-import { DrawAction } from '@/types/draw.types'
-import { useDrawStore } from '@/store/draw.store'
+import { DrawAction, Menu } from '@/types/draw.types'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { Camera, CameraResultType } from '@capacitor/camera'
-import ShapesMenu from '@/components/draw/ShapesMenu.vue'
-import { storeToRefs } from 'pinia'
-import SavedMenu from '@/components/draw/SavedMenu.vue'
-import { an } from 'vitest/dist/types-94cfe4b4'
+import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
 const imageActionSheetOpen = ref(false)
-const { selectAction, setSavedMenuOpen, setShapesMenuOpen } = useDrawStore()
-const { stickerMenuOpen } = storeToRefs(useDrawStore())
+const { selectAction } = useDrawStore()
+const { openMenu } = useMenuStore()
 
 function openStickerMenu() {
-  stickerMenuOpen.value = true
+  openMenu(Menu.Sticker)
   closePopover()
 }
 
 function openShapesMenu(e: any) {
-  setShapesMenuOpen(true, e)
+  openMenu(Menu.Shapes, e)
 }
 
 function openSavedMenu() {
-  setSavedMenuOpen(true)
+  openMenu(Menu.Saved)
   closePopover()
 }
 
@@ -133,7 +131,7 @@ function addBackgroundImage() {
 }
 
 function onTextClick() {
-  selectAction(DrawAction.Text)
+  selectAction(DrawAction.AddText)
   closePopover()
 }
 

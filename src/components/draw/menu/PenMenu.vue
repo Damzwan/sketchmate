@@ -1,5 +1,5 @@
 <template>
-  <ion-popover :is-open="penMenuOpen" :event="event" @didDismiss="penMenuOpen = false" @willPresent="renderPreview">
+  <ion-popover :is-open="penMenuOpen" :event="menuEvent" @didDismiss="penMenuOpen = false" @willPresent="renderPreview">
     <ion-content class="divide-y divide-primary">
       <!-- Stroke Preview -->
       <div class="relative">
@@ -76,15 +76,20 @@
 <script lang="ts" setup>
 import { IonContent, IonIcon, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw.store'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { watch } from 'vue'
 import { COLORSWATCHES } from '@/config/draw.config'
 import { BrushType, DrawAction } from '@/types/draw.types'
 import { mdiBucketOutline, mdiCircleOutline, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { usePen } from '@/service/draw/tools/pen.service'
 
 const drawStore = useDrawStore()
-const { penMenuOpen, event, brushSize, brushColor, brushType, c } = storeToRefs(drawStore)
+const { brushSize, brushColor, brushType } = storeToRefs(usePen())
+const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
+
+const c = drawStore.getCanvas()
 
 const renderPreview = () => {
   const canvas = document.getElementById('preview-canvas') as HTMLCanvasElement
@@ -111,7 +116,6 @@ const renderPreview = () => {
 
 function onBucketClick() {
   brushType.value = BrushType.Bucket
-  drawStore.selectAction(DrawAction.Bucket)
 }
 
 watch(brushSize, () => {

@@ -1,13 +1,16 @@
 <template>
   <ion-toolbar color="primary" class="h-[46px]">
     <ion-buttons slot="start">
-      <ion-button :class="{ selected: penMenuSelected }" @click="selectTool(lastSelectedPenTool, $event)">
+      <ion-button
+        :class="{ selected: penMenuSelected }"
+        @click="selectTool(DrawTool.Pen, { openMenu: true, e: $event })"
+      >
         <ion-icon slot="icon-only" :icon="svg(penIconMapping[brushType])"></ion-icon>
       </ion-button>
       <PenMenu />
       <ion-button
         :class="{ selected: ERASERS.includes(selectedTool) }"
-        @click="selectTool(lastSelectedEraserTool, $event)"
+        @click="selectTool(lastSelectedEraserTool, { openMenu: true, e: $event })"
       >
         <ion-icon slot="icon-only" :icon="svg(eraserIconMapping[lastSelectedEraserTool])" size="large" />
       </ion-button>
@@ -42,23 +45,27 @@
 
 <script lang="ts" setup>
 import { DrawTool } from '@/types/draw.types'
-import { useDrawStore } from '@/store/draw.store'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import { eraserIconMapping, ERASERS, penIconMapping, PENS } from '@/config/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import { mdiCursorMove, mdiMagnifyPlusOutline, mdiPlus, mdiRedo, mdiSend, mdiStickerEmoji, mdiUndo } from '@mdi/js'
-import PenMenu from '@/components/draw/PenMenu.vue'
+import { mdiCursorMove, mdiPlus, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
+import PenMenu from '@/components/draw/menu/PenMenu.vue'
 import { computed } from 'vue'
-import EraserMenu from '@/components/draw/EraserMenu.vue'
-import StickerMenu from '@/components/draw/StickerMenu.vue'
-import MoreToolsMenu from '@/components/draw/MoreToolsMenu.vue'
-import SavedMenu from '@/components/draw/SavedMenu.vue'
+import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
+import StickerMenu from '@/components/draw/menu/StickerMenu.vue'
+import MoreToolsMenu from '@/components/draw/menu/MoreToolsMenu.vue'
+import { usePen } from '@/service/draw/tools/pen.service'
+import { useHistory } from '@/service/draw/history.service'
 
 const drawStore = useDrawStore()
-const { selectTool, send, undo, redo } = drawStore
-const { selectedTool, lastSelectedEraserTool, lastSelectedPenTool, brushType, undoStack, redoStack } =
-  storeToRefs(drawStore)
+const { selectTool, send } = drawStore
+const { brushType } = storeToRefs(usePen())
+const { selectedTool, lastSelectedEraserTool } = storeToRefs(drawStore)
+
+const { undo, redo } = useHistory()
+const { undoStack, redoStack } = storeToRefs(useHistory())
 
 const penMenuSelected = computed(() => PENS.includes(selectedTool.value))
 </script>

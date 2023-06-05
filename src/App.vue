@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import { IonApp, IonRouterOutlet } from '@ionic/vue'
-import { useSocketService } from '@/service/socket.service'
+import { useSocketService } from '@/service/api/socket.service'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
 import { storeToRefs } from 'pinia'

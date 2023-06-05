@@ -1,13 +1,14 @@
 import { ColorRGBA, colorToRGBA } from 'q-floodfill'
 import { fabric } from 'fabric'
-import { useDrawStore } from '@/store/draw.store'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { Canvas, IPoint } from 'fabric/fabric-impl'
 import { resetZoom } from '@/helper/draw/draw.helper'
 import { CustomFloodFill } from '@/utils/CustomFloodFill'
+import { usePen } from '@/service/draw/tools/pen.service'
 
 export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
   let startTime = performance.now()
-  const { brushColor } = useDrawStore()
+  const { brushColor } = usePen()
   const dpr = window.devicePixelRatio || 1
 
   const downscaledCanvas = createDownScaledCanvas(c, scale)

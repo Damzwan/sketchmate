@@ -1,5 +1,5 @@
 <template>
-  <ion-popover :is-open="eraserMenuOpen" :event="event" @didDismiss="eraserMenuOpen = false">
+  <ion-popover :is-open="eraserMenuOpen" :event="menuEvent" @didDismiss="eraserMenuOpen = false">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" @click="selectEraser" :button="true">
@@ -64,14 +64,20 @@
 <script lang="ts" setup>
 import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw.store'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { svg } from '@/helper/general.helper'
 import { mdiNuke } from '@mdi/js'
 import { DrawAction, DrawTool, EraserSize } from '@/types/draw.types'
 import { eraserIconMapping } from '@/config/draw.config'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { useEraser } from '@/service/draw/tools/eraser.service'
+import { useHealingEraser } from '@/service/draw/tools/healingEraser.service'
 
 const drawStore = useDrawStore()
-const { eraserMenuOpen, event, healingEraserSize, eraserSize, selectedTool } = storeToRefs(drawStore)
+const { selectedTool } = storeToRefs(drawStore)
+const { eraserSize } = storeToRefs(useEraser())
+const { healingEraserSize } = storeToRefs(useHealingEraser())
+const { eraserMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 function clearAll() {
   drawStore.selectAction(DrawAction.FullErase)

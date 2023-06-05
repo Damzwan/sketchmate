@@ -3,7 +3,7 @@ import { NavigationGuard, RouteRecordRaw } from 'vue-router'
 import TabsPage from '../views/tabs.view.vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useAppStore } from '@/store/app.store'
-import { useSocketService } from '@/service/socket.service'
+import { useSocketService } from '@/service/api/socket.service'
 
 const hasMateGuard: NavigationGuard = (to, from, next) => {
   const { user } = useAppStore()

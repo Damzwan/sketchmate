@@ -68,20 +68,21 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
 import { ref } from 'vue'
 import { Saved } from '@/types/server.types'
-import { useDrawStore } from '@/store/draw.store'
+import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction } from '@/types/draw.types'
-import { useAPI } from '@/service/api.service'
+import { useAPI } from '@/service/api/api.service'
 import NoStickers from '@/components/draw/NoStickers.vue'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 const { user, isLoading } = storeToRefs(useAppStore())
 const { selectAction } = useDrawStore()
-const { savedMenuOpen } = storeToRefs(useDrawStore())
+const { savedMenuOpen } = storeToRefs(useMenuStore())
 const deleteMode = ref(false)
 const { deleteSaved } = useAPI()
 
 async function addSavedToCanvas(saved: Saved) {
   const drawing = await fetch(saved.drawing).then(drawing => drawing.json())
-  selectAction(DrawAction.AddSavedDrawing, { json: drawing })
+  selectAction(DrawAction.AddSavedToCanvas, { json: drawing })
   modalController.dismiss()
 }
 

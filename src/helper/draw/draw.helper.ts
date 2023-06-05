@@ -1,12 +1,12 @@
-import { Canvas, IPoint } from 'fabric/fabric-impl'
+import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
-import { brushMapping, WHITE } from '@/config/draw.config'
-import { useDrawStore } from '@/store/draw.store'
-import { BrushType, DrawTool, Layer, Shape, ShapeCreationMode } from '@/types/draw.types'
-import { v4 as uuidv4 } from 'uuid'
+import { useDrawStore } from '@/store/draw/draw.store'
+import { DrawTool, SelectedObject, Shape, ShapeCreationMode, Type } from '@/types/draw.types'
 import { checkCanvasBounds, enableZoomAndPan } from '@/helper/draw/gesture.helper'
-import { enableObjectCreationEvent, enableObjectModifiedEvent } from '@/helper/draw/events.helper'
-import { bucketFill } from '@/helper/draw/bucketFill'
+import { enableObjectCreationEvent } from '@/helper/draw/events.helper'
+import { useSelect } from '@/service/draw/tools/select.service'
+import { v4 as uuidv4 } from 'uuid'
+import { storeToRefs } from 'pinia'
 
 const eventsToDisable = [
   'mouse:down',
@@ -21,470 +21,9 @@ const eventsToDisable = [
 
 const hammerEventsToDisable = ['pinch', 'pinchend', 'pinchstart']
 
-export function resetCanvasMode(c: Canvas) {
-  c.isDrawingMode = true
-  c.selection = false
-
-  const { setSelectedObjects, hammer } = useDrawStore()
-  setSelectedObjects([])
-  disableObjectsSelect(c)
-  eventsToDisable.forEach(eventToDisable => c.off(eventToDisable))
-  hammerEventsToDisable.forEach(event => hammer!.off(event)) // TODO this should not be done
-  enableZoomAndPan(c) // TODO this should not be done
-  enableObjectCreationEvent(c)
-  enableObjectModifiedEvent(c)
-}
-
-export function disableObjectsSelect(c: Canvas) {
-  c!.forEachObject(object => disableObjectSelect(object))
-}
-
-export function disableObjectSelect(object: fabric.Object) {
-  object.set({
-    selectable: false,
-    hasControls: false,
-    evented: false,
-    hasBorders: false
-  })
-  object.off('mousedown')
-}
-
-export async function selectSelect(c: Canvas) {
-  c!.isDrawingMode = false
-  c!.selection = true
-
-  const { setSelectedObjects } = useDrawStore()
-
-  c!.forEachObject(function (object) {
-    object.set({
-      hasBorders: true,
-      selectable: true,
-      hasControls: true,
-      evented: true
-    })
-  })
-
-  c.on('selection:created', e => setSelectedObjects(e.selected, true))
-
-  c.on('selection:updated', e => setSelectedObjects(e.selected, true))
-
-  c.on('selection:cleared', e => {
-    setSelectedObjects([], true)
-  })
-
-  selectLastModifiedObjects(c)
-}
-
-export function selectLastModifiedObjects(c: Canvas) {
-  const { refresh, lastModifiedObjects } = useDrawStore()
-  const ids: string[] = lastModifiedObjects.map((obj: any) => obj.id)
-  const foundLastModifiedObjects = c.getObjects().filter((obj: any) => ids.includes(obj.id))
-  c.setActiveObject(foundLastModifiedObjects[0])
-  refresh()
-}
-
-export function selectPen(c: Canvas) {
-  const { brushType, brushSize, brushColor } = useDrawStore()
-  if (brushType == BrushType.Bucket) {
-    selectBucket(c)
-    return
-  }
-  const newBrush = brushMapping[brushType](c)
-  c!.freeDrawingBrush = newBrush!
-  c.freeDrawingBrush.width = brushSize
-  c.freeDrawingBrush.color = brushColor
-}
-
-export function selectMobileEraser(c: Canvas) {
-  const { eraserSize, setLastSelectedEraser, saveState } = useDrawStore()
-
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  const b = new fabric.EraserBrush(c)
-  c!.freeDrawingBrush = b
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  c!.freeDrawingBrush.inverted = false
-  c!.freeDrawingBrush.width = eraserSize
-  setLastSelectedEraser(DrawTool.MobileEraser)
-}
-
-export function selectHealingMobileEraser(c: Canvas) {
-  const { healingEraserSize, setLastSelectedEraser } = useDrawStore()
-
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  const b = new fabric.EraserBrush(c)
-  c!.freeDrawingBrush = b
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  c!.freeDrawingBrush.inverted = true
-  c!.freeDrawingBrush.width = healingEraserSize
-  setLastSelectedEraser(DrawTool.HealingEraser)
-}
-
-export function fullErase(c: Canvas) {
-  const { selectTool, saveState, setBackgroundColor } = useDrawStore()
-  disableHistorySaving(c)
-  c.clear()
-  setBackgroundColor(WHITE)
-  c.setBackgroundColor(WHITE, () => {
-    console.log('Background cleared')
-  })
-  selectTool(DrawTool.Pen)
-  saveState()
-  enableHistorySaving(c)
-}
-
-export function addSticker(c: Canvas, options?: any) {
-  if (!options) return
-  const sticker: string = options['img']
-  fabric.Image.fromURL(
-    sticker,
-    function (img) {
-      const maxDimension = 128 // Maximum width or height for scaling
-      img.scaleToWidth(maxDimension)
-      c!.add(img)
-      // c.moveTo(img, Layer.obj)
-      const { selectTool } = useDrawStore()
-      selectTool(DrawTool.Select)
-    },
-    { crossOrigin: 'anonymous' }
-  )
-}
-
-export function setBgImage(c: Canvas, options?: any) {
-  if (!options) return
-  const img: string = options['img']
-  fabric.Image.fromURL(
-    img,
-    function (img) {
-      const { saveState, refresh } = useDrawStore()
-      saveState()
-
-      // Set the image as the background and scale it to fit the canvas
-      c.setBackgroundImage(
-        img,
-        () => {
-          c.renderAll()
-        },
-        {
-          // Options for scaling
-          scaleX: c.width! / img.width!,
-          scaleY: c.height! / img.height!,
-          top: 0,
-          left: 0
-        }
-      )
-
-      refresh()
-    },
-    { crossOrigin: 'anonymous' }
-  )
-}
-
-export function disableObjectSelection(c: Canvas) {
-  c!.forEachObject(function (object) {
-    object.set({
-      selectable: false,
-      hoverCursor: 'default'
-    })
-  })
-}
-
-export async function selectBucket(c: Canvas) {
-  c.isDrawingMode = false
-  c.selection = false
-  c.on('mouse:down', async o => {
-    const pointer: IPoint = c.getPointer(o.e)
-    const img = await bucketFill(c, pointer)
-    if (!img) return
-    c.add(img)
-    // c.moveTo(img, Layer.background)
-    c.renderAll()
-    // const collidingObjects = c.getObjects().filter(obj => img.intersectsWithObject(obj))
-    // mergeObjects(c, { objects: [img, ...collidingObjects], unselect: true })
-    disableObjectSelect(img)
-  })
-}
-
-const historySavingEvents = ['object:modified', 'object:removed', 'after:transform']
-
-export function enableHistorySaving(c: Canvas) {
-  const { saveState } = useDrawStore()
-
-  historySavingEvents.forEach(event => c.on(event, saveState))
-  c.on('erasing:end', (e: any) => {
-    if (e.targets.length > 0) saveState()
-  })
-
-  c.on('object:added', e => {
-    const obj = e.target as any
-    obj.id = uuidv4()
-    enableObjectIdSaving(obj)
-
-    saveState()
-  })
-}
-
-export function disableHistorySaving(c: Canvas) {
-  historySavingEvents.forEach(event => c.off(event))
-  c.off('erasing:end')
-  c.off('object:added')
-}
-
-export async function copyObjects(c: Canvas, options: any) {
-  const { refresh, setSelectedObjects, saveState, selectTool } = useDrawStore()
-  disableHistorySaving(c)
-  const objectsToCopy: fabric.Object[] = options['objects']
-  const clonedObjects: fabric.Object[] = []
-
-  const offsetX = 50 // define the offset here
-  const offsetY = 50
-
-  const clonePromises = objectsToCopy.map(objectToCopy => {
-    return new Promise<void>((resolve, reject) => {
-      objectToCopy.clone(function (cloned: fabric.Object) {
-        c.discardActiveObject()
-        cloned.set({ left: objectToCopy.left! + offsetX, top: objectToCopy.top! + offsetY })
-        cloned.id = uuidv4()
-        c.add(cloned)
-        enableObjectIdSaving(cloned)
-        clonedObjects.push(cloned)
-        resolve()
-      })
-    })
-  })
-
-  await Promise.all(clonePromises)
-
-  // TODO this is an annoying set of operations :(
-  selectTool(DrawTool.Select)
-  c!.setActiveObject(new fabric.ActiveSelection([], { canvas: c }))
-  c!.setActiveObject(new fabric.ActiveSelection(clonedObjects, { canvas: c }))
-  setSelectedObjects(clonedObjects)
-
-  saveState()
-  enableHistorySaving(c)
-  refresh()
-}
-
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
   checkCanvasBounds(c)
-}
-
-export function addShape(c: Canvas, options: any) {
-  const shape = options['shape'] as Shape
-  resetCanvasMode(c)
-  c.isDrawingMode = false
-  c.selection = false
-  const { setShapeCreationMode } = useDrawStore()
-
-  if (shape == Shape.Polyline || shape == Shape.Polygon) {
-    addShapeWithClick(c, shape)
-    setShapeCreationMode(ShapeCreationMode.Click)
-  } else {
-    addShapeWithDrag(c, shape)
-    setShapeCreationMode(ShapeCreationMode.Drag)
-  }
-}
-
-function addShapeWithDrag(c: Canvas, shape: Shape) {
-  const { refresh, saveState } = useDrawStore()
-  let createdShape: any
-  let startX: number
-  let startY: number
-  let drawingMode = false
-
-  c.on('mouse:down', o => {
-    disableHistorySaving(c)
-    const result = handleMouseDown(c, shape, o, createdShape)
-    startX = result.startX
-    startY = result.startY
-    createdShape = result.createdShape
-    drawingMode = true
-  })
-
-  c.on('mouse:move', o => (drawingMode ? handleMouseMove(c, shape, o, startX, startY, createdShape) : null))
-
-  c.on('mouse:up', () => {
-    saveState()
-    refresh()
-    enableHistorySaving(c)
-    drawingMode = false
-  })
-}
-
-function addShapeWithClick(c: Canvas, shape: Shape) {
-  const points: IPoint[] = []
-  let createdShape: any
-  disableHistorySaving(c)
-
-  c.on('mouse:down', o => {
-    const pointer = c.getPointer(o.e)
-    switch (shape) {
-      case Shape.Circle:
-      case Shape.Polyline:
-        points.push({ x: pointer.x, y: pointer.y })
-        if (createdShape) {
-          c.remove(createdShape)
-          createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
-          c.add(createdShape)
-        } else {
-          createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
-        }
-        break
-      case Shape.Polygon:
-        points.push({ x: pointer.x, y: pointer.y })
-        if (createdShape) {
-          c.remove(createdShape)
-          createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
-          c.add(createdShape)
-        } else {
-          createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
-        }
-        break
-      default:
-        break
-    }
-  })
-  c.renderAll()
-}
-
-function handleMouseDown(c: Canvas, shape: Shape, o: any, createdShape: any) {
-  const pointer = c.getPointer(o.e)
-  const startX = pointer.x
-  const startY = pointer.y
-
-  createdShape = createShape(shape, startX, startY)
-  c.add(createdShape)
-  // c.moveTo(createdShape, Layer.obj)
-  return { startX, startY, createdShape }
-}
-
-function handleMouseMove(c: Canvas, shape: Shape, o: any, startX: number, startY: number, createdShape: any) {
-  if (!createdShape) return
-  const pointer = c.getPointer(o.e)
-
-  updateShape(createdShape, shape, pointer, startX, startY)
-  c.renderAll()
-}
-
-function updateShape(createdShape: any, shape: Shape, pointer: any, startX: number, startY: number) {
-  switch (shape) {
-    case Shape.Circle:
-      const radius = Math.sqrt(Math.pow(startX - pointer.x, 2) + Math.pow(startY - pointer.y, 2))
-      createdShape.set({
-        left: startX - radius,
-        top: startY - radius,
-        radius: radius
-      })
-      break
-    case Shape.Ellipse:
-      // similar logic would apply to an ellipse, if you want it to grow from the center
-      const rx = Math.abs(startX - pointer.x) / 2
-      const ry = Math.abs(startY - pointer.y) / 2
-      createdShape.set({
-        left: startX - rx,
-        top: startY - ry,
-        rx: rx,
-        ry: ry
-      })
-      break
-    case Shape.Rectangle:
-    case Shape.Triangle:
-      const width = Math.abs(startX - pointer.x)
-      const height = Math.abs(startY - pointer.y)
-      createdShape.set({
-        left: Math.min(startX, pointer.x),
-        top: Math.min(startY, pointer.y),
-        width: width,
-        height: height
-      })
-      break
-    case Shape.Line:
-      createdShape.set({ x2: pointer.x, y2: pointer.y })
-      break
-    default:
-      break
-  }
-}
-
-function createShape(shape: Shape, startX: number, startY: number): any {
-  switch (shape) {
-    case Shape.Circle:
-      return new fabric.Circle({
-        left: startX,
-        top: startY,
-        stroke: 'black',
-        strokeWidth: 2,
-        fill: '',
-        radius: 1
-      })
-    case Shape.Ellipse:
-      return new fabric.Ellipse({
-        left: startX,
-        top: startY,
-        stroke: 'black',
-        strokeWidth: 2,
-        fill: '',
-        rx: 1,
-        ry: 1
-      })
-    case Shape.Rectangle:
-      return new fabric.Rect({
-        left: startX,
-        top: startY,
-        stroke: 'black',
-        strokeWidth: 2,
-        fill: '',
-        width: 1,
-        height: 1
-      })
-    case Shape.Triangle:
-      return new fabric.Triangle({
-        left: startX,
-        top: startY,
-        stroke: 'black',
-        strokeWidth: 2,
-        fill: '',
-        width: 1,
-        height: 1
-      })
-    case Shape.Line:
-      return new fabric.Line([startX, startY, startX, startY], {
-        stroke: 'black',
-        strokeWidth: 2
-      })
-  }
-}
-
-export function addText(c: Canvas) {
-  disableHistorySaving(c)
-  const text = new fabric.IText('', {
-    left: c.width! / 2,
-    top: c.height! / 4,
-    fontFamily: 'Arial',
-    lineHeight: 0.9,
-    originX: 'center',
-    originY: 'center',
-    selectable: true,
-    editable: true
-  })
-
-  c.add(text)
-  // c.moveTo(text, Layer.text)
-  enableHistorySaving(c)
-
-  text.enterEditing()
-  const { selectTool } = useDrawStore()
-  selectTool(DrawTool.Select)
-
-  // The timeout will make sure that the text object is fully added to the canvas before trying to edit it
-  setTimeout(() => {
-    text.hiddenTextarea!.focus() // This line is especially important for mobile
-  }, 300)
 }
 
 export function findObjectById(canvas: fabric.Canvas, id: string) {
@@ -501,82 +40,6 @@ export function enableObjectIdSaving(obj: fabric.Object) {
   })(obj.toObject)
 }
 
-export function renderIcon(icon: any) {
-  return function renderIcon(this: any, ctx: any, left: any, top: any, styleOverride: any, fabricObject: any) {
-    const size = this.cornerSize
-    ctx.save()
-    ctx.translate(left, top)
-    ctx.rotate(fabric.util.degreesToRadians(fabricObject.angle))
-    ctx.drawImage(icon, -size / 2, -size / 2, size, size)
-    ctx.restore()
-  }
-}
-
-export async function addSavedToCanvas(c: fabric.Canvas, options: any) {
-  const { saveState, refresh, setSelectedObjects, selectTool } = useDrawStore()
-  const json = options.json
-
-  disableHistorySaving(c!)
-
-  const objects = await new Promise<fabric.Object[]>(resolve => {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    fabric.util.enlivenObjects(json.objects, (enlivenedObjects: fabric.Object[]) => {
-      resolve(enlivenedObjects)
-    })
-  })
-
-  // Only load the objects
-  objects.forEach((object: fabric.Object) => {
-    object.id = uuidv4()
-    c!.add(object)
-    enableObjectIdSaving(object) // when we transform a canvas to json, save the object id as well
-  })
-
-  // TODO this is a lot of code. We need to first unselect everything since selectSelect() selects the last object
-  selectTool(DrawTool.Select)
-  c!.setActiveObject(new fabric.ActiveSelection([], { canvas: c }))
-  c!.setActiveObject(new fabric.ActiveSelection(objects, { canvas: c }))
-  setSelectedObjects(objects)
-
-  saveState()
-  enableHistorySaving(c!)
-  refresh()
-}
-
-export function mergeObjects(c: Canvas, options: any) {
-  const { saveState, setSelectedObjects } = useDrawStore()
-  disableHistorySaving(c)
-  const objects: fabric.Object[] = options['objects']
-  const shouldUnselectAfterCreation = options['unselect']
-
-  c.discardActiveObject()
-  const select = new fabric.ActiveSelection(objects, { canvas: c })
-  c.setActiveObject(select)
-  const group = select.toGroup()
-  if (shouldUnselectAfterCreation) {
-    c.discardActiveObject()
-    setSelectedObjects([])
-  } else {
-    // TODO ugly fix. I think it is related to the fact that we do a quick unselect/select which is done through a delay in setSelectedObjects
-    setTimeout(() => setSelectedObjects([group]), 100)
-  }
-
-  // objects.forEach(obj => c.remove(obj))
-
-  c.requestRenderAll()
-  saveState()
-  enableHistorySaving(c)
-}
-
-export function changeFabricBaseSettings() {
-  const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--ion-color-primary').trim()
-  fabric.Object.prototype.transparentCorners = false
-  fabric.Object.prototype.cornerColor = primaryColor
-  fabric.Object.prototype.cornerStyle = 'circle'
-  fabric.Object.prototype.cornerSize = 20 // Increase the size of the handles
-}
-
 export function fabricateTouchUp(c: any) {
   const evt = new TouchEvent('touchend', {
     bubbles: true,
@@ -584,4 +47,57 @@ export function fabricateTouchUp(c: any) {
     view: window
   })
   c.upperCanvasEl.dispatchEvent(evt)
+}
+
+export function setObjectSelection(obj: fabric.Object, enabled: boolean) {
+  obj.set({
+    hasBorders: enabled,
+    selectable: enabled,
+    hasControls: enabled,
+    evented: enabled
+  })
+}
+
+export function setSelectionForObjects(objects: fabric.Object[], enabled: boolean) {
+  objects.forEach(obj => setObjectSelection(obj, enabled))
+}
+
+export async function cloneObjects(objects: Array<SelectedObject>) {
+  return await Promise.all(
+    objects.map(
+      obj =>
+        new Promise<SelectedObject>(resolve => {
+          obj.clone((cloned: SelectedObject) => resolve(cloned))
+        })
+    )
+  )
+}
+
+export function disableEventsHelper(c: Canvas, events: string[]) {
+  events.forEach(e => c.off(e))
+}
+
+export function setObjectId(obj: any) {
+  if (!obj.id) obj.id = uuidv4()
+  enableObjectIdSaving(obj)
+}
+
+export async function enlivenObjects(objects: fabric.Object[]) {
+  return await new Promise<fabric.Object[]>(resolve => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    fabric.util.enlivenObjects(objects, (enlivenedObjects: fabric.Object[]) => {
+      resolve(enlivenedObjects)
+    })
+  })
+}
+
+export function isText(objects: fabric.Object[]) {
+  return objects.length == 1 && objects[0].type == Type.text
+}
+
+export function exitEditing(text: any) {
+  text.exitEditing()
+  const { isEditingText } = storeToRefs(useDrawStore())
+  isEditingText.value = false
 }

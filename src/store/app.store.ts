@@ -2,9 +2,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { CommentRes, InboxItem, NotificationType, User } from '@/types/server.types'
-import { useSocketService } from '@/service/socket.service'
+import { useSocketService } from '@/service/api/socket.service'
 import { getUser } from '@/helper/app.helper'
-import { useAPI } from '@/service/api.service'
+import { useAPI } from '@/service/api/api.service'
 import { Storage } from '@/types/storage.types'
 
 export const useAppStore = defineStore('app', () => {

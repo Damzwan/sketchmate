@@ -1,14 +1,12 @@
-import { Canvas } from 'fabric/fabric-impl'
+import { Canvas, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawTool } from '@/types/draw.types'
-import { exitEditing, setObjectSelection } from '@/helper/draw/draw.helper'
 import { useSelect } from '@/service/draw/tools/select.service'
 import { storeToRefs } from 'pinia'
 import FontFaceObserver from 'fontfaceobserver'
 import { useHistory } from '@/service/draw/history.service'
 import { popoverController } from '@ionic/vue'
-import { save } from 'ionicons/icons'
 
 export function addText(c: Canvas) {
   const { selectTool } = useDrawStore()
@@ -24,16 +22,6 @@ export function addText(c: Canvas) {
   })
 
   c.add(text)
-
-  text.on('editing:entered', () => {
-    const { isEditingText } = storeToRefs(useDrawStore())
-    isEditingText.value = true
-  })
-
-  text.on('editing:exited', () => {
-    text.set({ hasControls: true })
-    c.renderAll()
-  })
 
   selectTool(DrawTool.Select)
   text.set({ hasControls: false }) // this is necessary sadly
@@ -99,10 +87,20 @@ export async function changeTextAlign(c: Canvas, options: any) {
 export async function curveText(c: Canvas) {
   const { saveState } = useHistory()
   const { selectedObjectsRef } = useSelect()
-  const textObj = selectedObjectsRef[0] as fabric.IText
+  const text = selectedObjectsRef[0] as fabric.IText
 
-  const textWidth = textObj.width!
-  const textHeight = textObj.height!
+  if (text.isCurved) delete text.path
+  else applyCurve(text, c)
+
+  text.set({ isCurved: !text.isCurved })
+
+  saveState()
+  c.renderAll()
+}
+
+export function applyCurve(text: IText, c: Canvas) {
+  const textWidth = text.width!
+  const textHeight = text.height!
   const curvePathWidth = textWidth + 50 // Adjust the padding as needed
 
   // Calculate the control point for the quadratic Bezier curve
@@ -116,8 +114,7 @@ export async function curveText(c: Canvas) {
     stroke: ''
   })
 
-  textObj.set({ path: curvePath })
-
-  saveState()
+  // @ts-ignore
+  text.set({ path: curvePath })
   c.renderAll()
 }

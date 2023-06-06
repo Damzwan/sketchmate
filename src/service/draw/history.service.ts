@@ -1,11 +1,12 @@
 import { ref } from 'vue'
-import { disableEventsHelper, enableObjectIdSaving, findObjectById } from '@/helper/draw/draw.helper'
-import { Canvas } from 'fabric/fabric-impl'
+import { findObjectById } from '@/helper/draw/draw.helper'
+import { Canvas, IText } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.service'
 import { fabric } from 'fabric'
-import { DrawEvent, FabricEvent } from '@/types/draw.types'
+import { DrawEvent, FabricEvent, ObjectType } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
+import { applyCurve } from '@/helper/draw/actions/text.action'
 
 export const useHistory = defineStore('history', () => {
   let c: Canvas | undefined = undefined
@@ -85,13 +86,16 @@ export const useHistory = defineStore('history', () => {
     const newSelectedObjects = lastSelectedObjects
       .map((obj: any) => findObjectById(c!, obj.id)!)
       .filter((obj: any) => !!obj)
-    if (newSelectedObjects.length > 0) c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
+    if (newSelectedObjects.length > 1) c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
+    else if (newSelectedObjects.length == 1) c?.setActiveObject(newSelectedObjects[0])
   }
 
   function restoreCanvasFromHistory(previousState: any) {
     disableEvents()
     c!.loadFromJSON(previousState, () => {
-      c?.getObjects().forEach(obj => enableObjectIdSaving(obj)) // when we transform a canvas to json, save the object id as well
+      c?.getObjects()
+        .filter(obj => obj.type === ObjectType.text)
+        .forEach((text: any) => (text.isCurved ? applyCurve(text, c!) : undefined))
       prevCanvasState = previousState
       restoreSelectedObjects()
       enableEvents()

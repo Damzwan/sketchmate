@@ -1,6 +1,18 @@
 import { fabric } from 'fabric'
 import { Canvas } from 'fabric/fabric-impl'
-import { Ref } from 'vue'
+
+// We extend the original fabric js interfaces
+declare module 'fabric' {
+  namespace fabric {
+    interface IText {
+      isCurved?: boolean
+    }
+
+    interface Object {
+      id: string
+    }
+  }
+}
 
 export type SelectedObject = fabric.Object | fabric.Group
 
@@ -12,6 +24,11 @@ export interface SelectToolOptions {
 export interface ToolService {
   select: (c: Canvas) => void
   events: FabricEvent[]
+}
+
+export interface RestoreAction {
+  description: string
+  handler: (e: fabric.Object, c: Canvas) => void
 }
 
 export interface FabricEvent {

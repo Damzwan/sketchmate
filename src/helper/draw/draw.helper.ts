@@ -1,13 +1,10 @@
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawTool, SelectedObject, Shape, ShapeCreationMode, ObjectType } from '@/types/draw.types'
-import { checkCanvasBounds, enableZoomAndPan } from '@/helper/draw/gesture.helper'
-import { enableObjectCreationEvent } from '@/helper/draw/events.helper'
-import { useSelect } from '@/service/draw/tools/select.service'
+import { ObjectType, SelectedObject } from '@/types/draw.types'
+import { checkCanvasBounds } from '@/helper/draw/gesture.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
-import { useHistory } from '@/service/draw/history.service'
 
 const eventsToDisable = [
   'mouse:down',
@@ -28,17 +25,7 @@ export function resetZoom(c: Canvas) {
 }
 
 export function findObjectById(canvas: fabric.Canvas, id: string) {
-  return canvas.getObjects().find((obj: any) => obj.id === id)
-}
-
-export function enableObjectIdSaving(obj: fabric.Object) {
-  obj.toObject = (function (toObject) {
-    return function (this: any) {
-      return fabric.util.object.extend(toObject.call(this), {
-        id: this.id
-      })
-    }
-  })(obj.toObject)
+  return canvas.getObjects().find((obj: fabric.Object) => obj.id === id)
 }
 
 export function fabricateTouchUp(c: any) {
@@ -79,8 +66,7 @@ export function disableEventsHelper(c: Canvas, events: string[]) {
 }
 
 export function setObjectId(obj: any) {
-  if (!obj.id) obj.id = uuidv4()
-  enableObjectIdSaving(obj)
+  obj.id = uuidv4()
 }
 
 export async function enlivenObjects(objects: fabric.Object[]) {

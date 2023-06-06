@@ -6,7 +6,7 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { useAppStore } from '@/store/app.store'
 import { useAPI } from '@/service/api/api.service'
 import { useToast } from '@/service/toast.service'
-import { cloneObjects, enableObjectIdSaving, enlivenObjects } from '@/helper/draw/draw.helper'
+import { cloneObjects, enlivenObjects } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
 import { DrawTool } from '@/types/draw.types'
 
@@ -72,7 +72,6 @@ export async function addSavedToCanvas(c: fabric.Canvas, options: any) {
 
     // Only load objects
     objects.forEach((object: fabric.Object) => {
-      enableObjectIdSaving(object)
       c!.add(object)
     })
 

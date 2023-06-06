@@ -25,7 +25,9 @@
       <ion-button :class="{ selected: selectedTool == DrawTool.Select }" @click="selectTool(DrawTool.Select)">
         <ion-icon slot="icon-only" :icon="svg(mdiCursorMove)"></ion-icon>
       </ion-button>
+    </ion-buttons>
 
+    <ion-buttons slot="end" class="h-[40px]">
       <ion-button @click="undo" :disabled="undoStack.length == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
       </ion-button>
@@ -33,9 +35,7 @@
       <ion-button @click="redo" :disabled="redoStack.length == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
-    </ion-buttons>
 
-    <ion-buttons slot="end" class="h-[40px]">
       <ion-button @click="send">
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>

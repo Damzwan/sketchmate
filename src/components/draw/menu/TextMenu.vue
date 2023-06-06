@@ -19,7 +19,7 @@
                 <ion-icon :icon="svg(mdiFormatItalic)" />
               </div>
 
-              <div :class="{ 'bg-primary-shade': isItalic }" @click="selectAction(DrawAction.CurveText)">
+              <div :class="{ 'bg-primary-shade': isCurved }" @click="selectAction(DrawAction.CurveText)">
                 <ion-icon :icon="svg(mdiVectorCurve)" />
               </div>
             </div>
@@ -78,6 +78,7 @@ const text = computed(() => selectedObjectsRef.value[0] as IText)
 const isBold = computed(() => text.value.fontWeight === 'bold')
 const isItalic = computed(() => text.value.fontStyle === 'italic')
 const align = computed(() => text.value.textAlign)
+const isCurved = computed(() => text.value.isCurved)
 </script>
 
 <style scoped>

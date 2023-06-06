@@ -71,7 +71,7 @@ import {
 import { ref } from 'vue'
 import { DrawAction, Menu } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { Camera, CameraResultType } from '@capacitor/camera'
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
 
@@ -142,7 +142,9 @@ async function onImgClick() {
 async function onCameraClick() {
   const image = await Camera.getPhoto({
     quality: 100,
-    resultType: CameraResultType.Uri
+    resultType: CameraResultType.Uri,
+    source: CameraSource.Camera,
+    allowEditing: false
   })
 
   const blob = await fetch(image.webPath!).then(res => res.blob())
@@ -152,11 +154,11 @@ async function onCameraClick() {
 
   reader.readAsDataURL(compressedFile)
   imageActionSheetOpen.value = true
-  await closePopover()
+  await closePopover() // weird location but it does not work otherwise haha
 }
 
 async function onImgUpload(e: Event) {
-  closePopover()
+  closePopover() // TODO weird location but it does not work otherwise haha
   const file = (e.target as HTMLInputElement).files?.[0]
   imageActionSheetOpen.value = true
   if (file) {

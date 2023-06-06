@@ -142,7 +142,6 @@ async function onImgClick() {
 async function onCameraClick() {
   const image = await Camera.getPhoto({
     quality: 100,
-    allowEditing: true,
     resultType: CameraResultType.Uri
   })
 

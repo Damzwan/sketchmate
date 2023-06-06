@@ -35,6 +35,12 @@ export function changeFabricBaseSettings() {
     originalSetOptions.call(this, options)
     if (!this.id) this.id = uuidv4()
   }
+  fabric.Object.prototype.toObject = (function (toObject) {
+    return function (this: any, propertiesToInclude) {
+      propertiesToInclude = (propertiesToInclude || []).concat(['id'])
+      return toObject.apply(this, [propertiesToInclude])
+    }
+  })(fabric.Object.prototype.toObject)
 
   fabric.IText.prototype.isCurved = false
   fabric.IText.prototype.toObject = (function (toObject) {

@@ -1,7 +1,8 @@
-import { Canvas } from 'fabric/fabric-impl'
+import { Canvas, IText } from 'fabric/fabric-impl'
 import { useHistory } from '@/service/draw/history.service'
-import { cloneObjects, setObjectId } from '@/helper/draw/draw.helper'
+import { cloneObjects, isText, setObjectId } from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
+import { applyCurve, curveText } from '@/helper/draw/actions/text.action'
 
 export async function copyObjects(c: Canvas, options: any) {
   const { customSaveAction } = useHistory()
@@ -20,6 +21,13 @@ export async function copyObjects(c: Canvas, options: any) {
           new Promise<void>(resolve => {
             const cloned = clonedObjects[index]
             cloned.set({ left: original.left! + offsetX, top: original.top! + offsetY })
+
+            // TODO Maybe use with restore actions since this is repeated in history.service.js
+            if (isText([cloned])) {
+              const text = cloned as IText
+              if (text.isCurved) applyCurve(text, c)
+            }
+
             setObjectId(cloned)
             c.add(cloned)
             resolve()

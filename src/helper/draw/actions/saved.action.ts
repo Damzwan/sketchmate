@@ -1,4 +1,4 @@
-import { Canvas } from 'fabric/fabric-impl'
+import { Canvas, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { viewSavedButton } from '@/config/toast.config'
 import { storeToRefs } from 'pinia'
@@ -6,9 +6,10 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { useAppStore } from '@/store/app.store'
 import { useAPI } from '@/service/api/api.service'
 import { useToast } from '@/service/toast.service'
-import { cloneObjects, enlivenObjects } from '@/helper/draw/draw.helper'
+import { cloneObjects, enlivenObjects, isText, setObjectId } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
 import { DrawTool } from '@/types/draw.types'
+import { applyCurve } from '@/helper/draw/actions/text.action'
 
 export async function createSaved(c: Canvas, options: any) {
   const { loadingText } = storeToRefs(useDrawStore())
@@ -48,6 +49,7 @@ export async function createSaved(c: Canvas, options: any) {
       left: obj.left! - minX,
       top: obj.top! - minY
     })
+
     tempCanvas.add(obj)
   })
 
@@ -72,6 +74,13 @@ export async function addSavedToCanvas(c: fabric.Canvas, options: any) {
 
     // Only load objects
     objects.forEach((object: fabric.Object) => {
+      // TODO Maybe use with restore actions since this is repeated in history.service.js
+      if (isText([object])) {
+        const text = object as IText
+        if (text.isCurved) applyCurve(text, c)
+      }
+
+      setObjectId(object)
       c!.add(object)
     })
 

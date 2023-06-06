@@ -114,6 +114,7 @@ export function applyCurve(text: IText, c: Canvas) {
     stroke: ''
   })
 
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   text.set({ path: curvePath })
   c.renderAll()

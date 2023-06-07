@@ -14,7 +14,7 @@ interface Pen extends ToolService {
   brushColor: Ref<string>
 }
 
-const brushMapping: { [key in BrushType]: any } = {
+export const brushMapping: { [key in BrushType]: any } = {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   [BrushType.Circle]: (c: Canvas) => new fabric.CircleBrush(c),

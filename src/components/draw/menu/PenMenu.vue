@@ -1,20 +1,20 @@
 <template>
-  <ion-popover :is-open="penMenuOpen" :event="menuEvent" @didDismiss="penMenuOpen = false" @willPresent="renderPreview">
+  <ion-popover :is-open="penMenuOpen" :event="menuEvent" @didDismiss="onDismiss" @willPresent="renderPreview">
     <ion-content class="divide-y divide-primary">
       <!-- Stroke Preview -->
       <div class="relative">
-        <canvas id="preview-canvas" ref="ca" class="w-full h-16 bg-white"></canvas>
+        <canvas ref="preview_canvas"></canvas>
       </div>
 
       <!-- Brush Size Slider -->
-      <div class="brush-size px-1 pt-1">
-        <label for="slider" class="block text-sm font-medium text-gray-700">Size</label>
+      <div class="brush-size px-2 pt-1">
+        <label for="slider">Size</label>
         <ion-range aria-label="Volume" id="slider" v-model="brushSize" min="1" max="50" color="secondary"></ion-range>
       </div>
 
       <!-- Brush Type -->
-      <div class="py-2 px-1">
-        <label for="brush-type" class="block text-sm font-medium text-gray-700">Brush Type</label>
+      <div class="p-1">
+        <label for="brush-type">Brush Type</label>
         <div class="flex justify-between mt-1 px-6" id="brush-type">
           <div
             class="brush_option bg-green-400"
@@ -51,82 +51,135 @@
       </div>
 
       <!-- Color Picker -->
-      <div class="py-1 px-1">
-        <label for="color-picker" class="block text-sm font-medium text-gray-700">Color</label>
+      <div class="py-1 px-2">
+        <label for="color-picker">Color</label>
         <div class="color-swatches mt-1">
-          <div
-            v-for="(row, rowIndex) in COLORSWATCHES"
-            :key="'row-' + rowIndex"
-            class="color-row flex justify-between mb-2"
-          >
+          <div v-for="(row, rowIndex) in COLORSWATCHES" :key="'row-' + rowIndex" class="flex justify-between mb-2">
             <div
               v-for="(color, colorIndex) in row"
               :key="'color-' + colorIndex"
+              :class="{ brush_selected: brushColor == color }"
               :style="{ backgroundColor: color }"
-              class="color-swatch w-8 h-8 border border-gray-300 rounded-full cursor-pointer"
+              class="color_swatch"
               @click="brushColor = color"
             />
           </div>
         </div>
       </div>
+
+      <ion-item color="tertiary" class="px-2" :button="true" @click="brushColorPicker?.click()">
+        <div class="color_swatch" :style="{ backgroundColor: brushColor }" />
+        <p class="pl-3 text-base">Choose color</p>
+        <input type="color" v-model="brushColor" ref="brushColorPicker" class="hidden" />
+      </ion-item>
     </ion-content>
   </ion-popover>
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonIcon, IonPopover, IonRange } from '@ionic/vue'
+import { IonContent, IonIcon, IonItem, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { watch } from 'vue'
-import { COLORSWATCHES } from '@/config/draw.config'
-import { BrushType, DrawAction } from '@/types/draw.types'
+import { ref, watch } from 'vue'
+import { COLORSWATCHES, WHITE } from '@/config/draw.config'
+import { BrushType } from '@/types/draw.types'
 import { mdiBucketOutline, mdiCircleOutline, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
-import { usePen } from '@/service/draw/tools/pen.service'
+import { brushMapping, usePen } from '@/service/draw/tools/pen.service'
+import { Canvas } from 'fabric/fabric-impl'
+import { fabric } from 'fabric'
 
-const drawStore = useDrawStore()
 const { brushSize, brushColor, brushType } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
-const c = drawStore.getCanvas()
+const brushColorPicker = ref<HTMLInputElement>()
+const preview_canvas = ref<HTMLCanvasElement>()
+
+let canvas: Canvas | undefined
 
 const renderPreview = () => {
-  const canvas = document.getElementById('preview-canvas') as HTMLCanvasElement
-  const ctx = canvas.getContext('2d')
-  ctx!.clearRect(0, 0, canvas.width, canvas.height)
+  // Initialize canvas only once
+  if (!canvas) {
+    canvas = new fabric.Canvas(preview_canvas.value!, {
+      width: preview_canvas.value!.width,
+      height: 64,
+      isDrawingMode: true
+    })
+  } else {
+    canvas.clear() // clear canvas before re-drawing
+  }
 
-  ctx!.strokeStyle = brushColor.value
-  ctx!.lineWidth = brushSize.value
+  if (brushType.value == BrushType.Bucket) {
+    canvas.backgroundColor = brushColor.value
+    return
+  }
+  canvas.backgroundColor = WHITE
+
+  const brushColorValue = brushColor.value
+  const brushSizeValue = brushSize.value
+
+  // Assign the selected brush to the canvas
+  canvas.freeDrawingBrush = brushMapping[brushType.value](canvas)
+  const brush = canvas.freeDrawingBrush as any
+  brush.width = brushSizeValue
+  brush.color = brushColorValue
 
   const amplitude = 20
   const frequency = 0.05
-  const yOffset = canvas.height / 2
+  const yOffset = canvas.height! / 2
 
-  ctx!.beginPath()
-  ctx!.moveTo(0, yOffset)
-
-  for (let x = 1; x <= canvas.width; x++) {
+  // To create a custom path with the free drawing brush, we will need to simulate the mouse events.
+  const points = [[0, yOffset]]
+  for (let x = 1; x <= canvas.width!; x += 5) {
     const y = yOffset + amplitude * Math.sin(frequency * x)
-    ctx!.lineTo(x, y)
+    points.push([x, y])
   }
 
-  ctx!.stroke()
+  // Synthetic mousedown event
+  brush.onMouseDown(
+    {
+      x: points[0][0],
+      y: points[0][1]
+    },
+    {
+      e: new MouseEvent('mousedown')
+    }
+  )
+
+  // Synthetic mousemove events
+  for (let i = 1; i < points.length; i++) {
+    brush.onMouseMove(
+      {
+        x: points[i][0],
+        y: points[i][1]
+      },
+      {
+        e: new MouseEvent('mousemove')
+      }
+    )
+  }
+
+  // Synthetic mouseup event
+  brush.onMouseUp({
+    e: new MouseEvent('mouseup')
+  })
+
+  canvas.renderAll()
 }
 
-function onBucketClick() {
-  brushType.value = BrushType.Bucket
+function onDismiss() {
+  penMenuOpen.value = false
+  canvas = undefined
 }
 
-watch(brushSize, () => {
-  renderPreview()
-})
+watch(brushSize, renderPreview)
 watch(brushColor, renderPreview)
+watch(brushType, renderPreview)
 </script>
 
-<style>
+<style scoped>
 .brush_option {
-  @apply cursor-pointer rounded-full w-[32px] h-[32px] flex justify-center items-center;
+  @apply cursor-pointer rounded-full w-[38px] h-[38px] flex justify-center items-center;
 }
 
 .brush_option ion-icon {
@@ -134,6 +187,19 @@ watch(brushColor, renderPreview)
 }
 
 .brush_selected {
-  @apply border-2 border-secondary;
+  @apply border-[3px] border-secondary;
+}
+
+.color_swatch {
+  @apply w-8 h-8 rounded-full cursor-pointer;
+}
+
+ion-item {
+  --inner-padding-end: 0;
+  --padding-start: 0;
+}
+
+label {
+  @apply block text-sm font-medium text-gray-700;
 }
 </style>

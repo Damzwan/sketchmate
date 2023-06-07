@@ -42,7 +42,7 @@
 
           <div
             class="brush_option bg-purple-400"
-            @click="onBucketClick"
+            @click="brushType = BrushType.Bucket"
             :class="{ brush_selected: brushType === BrushType.Bucket }"
           >
             <ion-icon :icon="svg(mdiBucketOutline)" />

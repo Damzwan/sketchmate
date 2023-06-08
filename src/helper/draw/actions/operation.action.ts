@@ -2,7 +2,7 @@ import { Canvas, IText } from 'fabric/fabric-impl'
 import { useHistory } from '@/service/draw/history.service'
 import { cloneObjects, isText, setObjectId } from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
-import { applyCurve, curveText } from '@/helper/draw/actions/text.action'
+import { applyCurve } from '@/helper/draw/actions/text.action'
 
 export async function copyObjects(c: Canvas, options: any) {
   const { customSaveAction } = useHistory()

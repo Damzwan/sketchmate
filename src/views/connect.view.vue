@@ -48,14 +48,14 @@
 
 <script setup lang="ts">
 import {
+  IonButton,
+  IonButtons,
   IonContent,
   IonIcon,
   IonPage,
-  isPlatform,
-  onIonViewDidEnter,
   IonToolbar,
-  IonButtons,
-  IonButton
+  isPlatform,
+  onIonViewDidEnter
 } from '@ionic/vue'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import ConnectMethod from '@/components/connect/ConnectMethod.vue'

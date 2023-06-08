@@ -1,6 +1,4 @@
-import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
-import { an } from 'vitest/dist/types-94cfe4b4'
 import { InkBrush } from '@/utils/brushes/inkbrush'
 import { WatercolorBrush } from '@/utils/brushes/WaterColorBrush'
 
@@ -53,7 +51,7 @@ declare module 'fabric' {
 
 export function loadAdditionalBrushes() {
   fabric.util.trimCanvas = function (canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!
     let w = canvas.width
     let h = canvas.height
     const pix: any = { x: [], y: [] }

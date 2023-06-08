@@ -1,6 +1,5 @@
-import { BrushType, DrawAction, DrawTool, Eraser, RestoreAction } from '@/types/draw.types'
-import { fabric } from 'fabric'
-import { Canvas, IText } from 'fabric/fabric-impl'
+import { BrushType, DrawAction, DrawTool, Eraser } from '@/types/draw.types'
+import { Canvas } from 'fabric/fabric-impl'
 import {
   mdiBandage,
   mdiBucketOutline,
@@ -24,8 +23,6 @@ import {
   curveText
 } from '@/helper/draw/actions/text.action'
 import { setBackgroundColor, setFillColor, setStrokeColor } from '@/helper/draw/actions/color.action'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { storeToRefs } from 'pinia'
 
 export const COLORSWATCHES = [
   ['#000000', '#F3F1F9', '#FF0000', '#00FF00', '#0000FF', '#FFFF00'],

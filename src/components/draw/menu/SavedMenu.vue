@@ -59,11 +59,10 @@ import {
   IonSegment,
   IonSegmentButton,
   IonToolbar,
-  modalController,
-  popoverController
+  modalController
 } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import { mdiCancel, mdiDelete, mdiMinus, mdiPlus } from '@mdi/js'
+import { mdiCancel, mdiDelete, mdiMinus } from '@mdi/js'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
 import { ref } from 'vue'

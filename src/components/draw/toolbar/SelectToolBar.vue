@@ -51,25 +51,19 @@
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
 import {
-  mdiCancel,
   mdiClose,
-  mdiCursorText,
   mdiDotsVertical,
-  mdiFormatFont,
   mdiFormatText,
   mdiMenuSwapOutline,
   mdiPaletteOutline,
   mdiRedo,
-  mdiUndo,
-  mdiVectorCurve
+  mdiUndo
 } from '@mdi/js'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import FontMenu from '@/components/draw/menu/FontMenu.vue'
-import { IText } from 'fabric/fabric-impl'
 import SelectColorMenu from '@/components/draw/menu/SelectColorMenu.vue'
-import { fabric } from 'fabric'
 import SelectExtraOptions from '@/components/draw/menu/SelectExtraOptions.vue'
 import { useSelect } from '@/service/draw/tools/select.service'
 import { useHistory } from '@/service/draw/history.service'

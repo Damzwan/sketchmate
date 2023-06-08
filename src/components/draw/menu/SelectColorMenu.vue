@@ -47,8 +47,6 @@ import { svg } from '@/helper/general.helper'
 import { mdiBorderColor, mdiBucketOutline, mdiFormatColorFill } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { ref } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw/draw.store'
 import { BLACK } from '@/config/draw.config'
 
 const strokeColorPicker = ref<HTMLInputElement>()

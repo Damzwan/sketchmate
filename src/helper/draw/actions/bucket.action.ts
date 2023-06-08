@@ -1,6 +1,5 @@
-import { ColorRGBA, colorToRGBA } from 'q-floodfill'
+import { colorToRGBA } from 'q-floodfill'
 import { fabric } from 'fabric'
-import { useDrawStore } from '@/store/draw/draw.store'
 import { Canvas, IPoint } from 'fabric/fabric-impl'
 import { resetZoom } from '@/helper/draw/draw.helper'
 import { CustomFloodFill } from '@/utils/CustomFloodFill'

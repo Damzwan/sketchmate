@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { findObjectById } from '@/helper/draw/draw.helper'
-import { Canvas, IText } from 'fabric/fabric-impl'
+import { Canvas } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.service'
 import { fabric } from 'fabric'

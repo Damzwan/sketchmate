@@ -1,6 +1,6 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { DrawAction, DrawTool, Eraser, SelectToolOptions, ShapeCreationMode, ToolService } from '@/types/draw.types'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { actionMapping, ERASERS, WHITE } from '@/config/draw.config'
 import { Canvas } from 'fabric/fabric-impl'
 import { useAppStore } from '@/store/app.store'

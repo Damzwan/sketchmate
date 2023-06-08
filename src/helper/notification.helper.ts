@@ -4,7 +4,6 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import { PermissionStatus, PushNotifications } from '@capacitor/push-notifications'
 import { NotificationType } from '@/types/server.types'
-import { storeToRefs } from 'pinia'
 
 export async function requestNotifications() {
   const status = await PushNotifications.requestPermissions()

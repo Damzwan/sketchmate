@@ -10,20 +10,23 @@ export function useLoadService() {
     disableHistorySaving()
     const json = jsonToLoad.value as any
 
-    const scaleX = c.width! / json['width']
-    const scaleY = c.height! / json['height']
+    c.clear()
+    c.loadFromJSON(json, () => {
+      const scaleX = c.width! / json['width']
+      const scaleY = c.height! / json['height']
 
-    for (const obj of c.getObjects()) {
-      obj.scaleX! *= scaleX
-      obj.scaleY! *= scaleY
-      obj.left! *= scaleX
-      obj.top! *= scaleY
-    }
+      for (const obj of c.getObjects()) {
+        obj.scaleX! *= scaleX
+        obj.scaleY! *= scaleY
+        obj.left! *= scaleX
+        obj.top! *= scaleY
+      }
 
-    c!.setZoom(1) // Set zoom back to 1 after scaling
-    jsonToLoad.value = undefined
-    c!.renderAll() // Re-render the canvas
-    enableHistorySaving()
+      c!.setZoom(1) // Set zoom back to 1 after scaling
+      jsonToLoad.value = undefined
+      c!.renderAll() // Re-render the canvas
+      enableHistorySaving()
+    })
   }
 
   return {

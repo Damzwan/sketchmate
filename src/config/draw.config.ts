@@ -32,8 +32,7 @@ export const COLORSWATCHES = [
 export const BRUSHSIZE = 10
 export const BLACK = '#000000'
 export const WHITE = '#FFFFFF'
-export const TEXTSIZE = 25
-export const TEXTCOLOR = '#000000'
+export const BACKGROUND = '#FAF0E6'
 
 export const ERASERS = [DrawTool.MobileEraser, DrawTool.HealingEraser]
 export const PENS = [DrawTool.Pen]

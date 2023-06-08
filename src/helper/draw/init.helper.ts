@@ -1,4 +1,3 @@
-import { WHITE } from '@/config/draw.config'
 import { Canvas, ICanvasOptions } from 'fabric/fabric-impl'
 import Hammer from 'hammerjs'
 import { Ref } from 'vue'
@@ -6,13 +5,14 @@ import { fabric } from 'fabric'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { BACKGROUND } from '@/config/draw.config'
 
 export function initCanvasOptions(): ICanvasOptions {
   return {
     isDrawingMode: true,
     width: window.innerWidth,
     height: window.innerHeight - 46 - 50,
-    backgroundColor: WHITE,
+    backgroundColor: BACKGROUND,
     fireMiddleClick: true
   }
 }

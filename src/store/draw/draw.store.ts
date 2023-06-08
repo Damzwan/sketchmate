@@ -23,7 +23,7 @@ import { useEventManager } from '@/service/draw/eventManager.service'
 import { loadAdditionalBrushes } from '@/utils/brushes'
 
 export const useDrawStore = defineStore('draw', () => {
-  const { user } = storeToRefs(useAppStore())
+  const { user, isLoading } = storeToRefs(useAppStore())
   const api = useSocketService()
   const router = useRouter()
 
@@ -83,24 +83,26 @@ export const useDrawStore = defineStore('draw', () => {
   }
 
   async function initCanvas(canvas: HTMLCanvasElement) {
-    if (c) return
-    changeFabricBaseSettings()
-    loadAdditionalBrushes()
-    c = new fabric.Canvas(canvas, initCanvasOptions())
+    if (!c) {
+      changeFabricBaseSettings()
+      loadAdditionalBrushes()
+      c = new fabric.Canvas(canvas, initCanvasOptions())
+      initGestures(c, hammer)
+      eventManager.init(c)
+      history.init(c)
+      pen.init(c)
+      eraser.init(c)
+      healingEraser.init(c)
+      select.init(c)
+      selectTool(DrawTool.Pen)
+    }
     if (loadService.jsonToLoad.value) await loadService.loadCanvas(c)
-    initGestures(c, hammer)
-    eventManager.init(c)
-    history.init(c)
-    pen.init(c)
-    eraser.init(c)
-    healingEraser.init(c)
-    select.init(c)
-    selectTool(DrawTool.Pen)
   }
 
   async function send() {
     if (!c) return
     loadingText.value = 'Sending drawing...'
+    isLoading.value = true
     resetZoom(c)
     await api.send({
       _id: user.value!._id,

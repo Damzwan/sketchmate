@@ -113,7 +113,6 @@ export function createSocketService(): ExpandedSocketAPI {
   }
 
   async function send(params: SendParams): Promise<void> {
-    isLoading.value = true
     const encoder = new TextEncoder() // Use TextEncoder to convert string to Uint8Array
     const data = JSON.stringify(params)
     const compressedData = pako.deflate(encoder.encode(data))

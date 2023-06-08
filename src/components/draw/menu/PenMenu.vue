@@ -15,13 +15,21 @@
       <!-- Brush Type -->
       <div class="p-1">
         <label for="brush-type">Brush Type</label>
-        <div class="flex justify-between mt-1 px-6" id="brush-type">
+        <div class="flex justify-between mt-1 px-2" id="brush-type">
           <div
             class="brush_option bg-green-400"
             @click="brushType = BrushType.Pencil"
             :class="{ brush_selected: brushType === BrushType.Pencil }"
           >
             <ion-icon :icon="svg(mdiPencilOutline)" />
+          </div>
+
+          <div
+            class="brush_option bg-pink-400"
+            @click="brushType = BrushType.Ink"
+            :class="{ brush_selected: brushType === BrushType.Ink }"
+          >
+            <ion-icon :icon="svg(mdiLiquidSpot)" />
           </div>
 
           <div
@@ -82,12 +90,13 @@ import { storeToRefs } from 'pinia'
 import { ref, watch } from 'vue'
 import { COLORSWATCHES, WHITE } from '@/config/draw.config'
 import { BrushType } from '@/types/draw.types'
-import { mdiBucketOutline, mdiCircleOutline, mdiPencilOutline, mdiSpray } from '@mdi/js'
+import { mdiBucketOutline, mdiCircleOutline, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { brushMapping, usePen } from '@/service/draw/tools/pen.service'
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
+import { setObjectSelection } from '@/helper/draw/draw.helper'
 
 const { brushSize, brushColor, brushType } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
@@ -103,7 +112,7 @@ const renderPreview = () => {
     canvas = new fabric.Canvas(preview_canvas.value!, {
       width: preview_canvas.value!.width,
       height: 64,
-      isDrawingMode: true
+      selection: false
     })
   } else {
     canvas.clear() // clear canvas before re-drawing
@@ -111,6 +120,7 @@ const renderPreview = () => {
 
   if (brushType.value == BrushType.Bucket) {
     canvas.backgroundColor = brushColor.value
+    canvas.renderAll()
     return
   }
   canvas.backgroundColor = WHITE
@@ -130,7 +140,7 @@ const renderPreview = () => {
 
   // To create a custom path with the free drawing brush, we will need to simulate the mouse events.
   const points = [[0, yOffset]]
-  for (let x = 1; x <= canvas.width!; x += 5) {
+  for (let x = 1; x <= canvas.width!; x += 10) {
     const y = yOffset + amplitude * Math.sin(frequency * x)
     points.push([x, y])
   }
@@ -164,6 +174,9 @@ const renderPreview = () => {
     e: new MouseEvent('mouseup')
   })
 
+  canvas.getObjects().forEach(obj => {
+    setObjectSelection(obj, false)
+  })
   canvas.renderAll()
 }
 

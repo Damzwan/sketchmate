@@ -20,6 +20,7 @@ import { useEraser } from '@/service/draw/tools/eraser.service'
 import { useSelect } from '@/service/draw/tools/select.service'
 import { useHistory } from '@/service/draw/history.service'
 import { useEventManager } from '@/service/draw/eventManager.service'
+import { loadAdditionalBrushes } from '@/utils/brushes'
 
 export const useDrawStore = defineStore('draw', () => {
   const { user } = storeToRefs(useAppStore())
@@ -84,6 +85,7 @@ export const useDrawStore = defineStore('draw', () => {
   async function initCanvas(canvas: HTMLCanvasElement) {
     if (c) return
     changeFabricBaseSettings()
+    loadAdditionalBrushes()
     c = new fabric.Canvas(canvas, initCanvasOptions())
     if (loadService.jsonToLoad.value) await loadService.loadCanvas(c)
     initGestures(c, hammer)

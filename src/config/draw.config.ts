@@ -1,7 +1,15 @@
 import { BrushType, DrawAction, DrawTool, Eraser, RestoreAction } from '@/types/draw.types'
 import { fabric } from 'fabric'
 import { Canvas, IText } from 'fabric/fabric-impl'
-import { mdiBandage, mdiBucketOutline, mdiCircleOutline, mdiEraser, mdiPencilOutline, mdiSpray } from '@mdi/js'
+import {
+  mdiBandage,
+  mdiBucketOutline,
+  mdiCircleOutline,
+  mdiEraser,
+  mdiLiquidSpot,
+  mdiPencilOutline,
+  mdiSpray
+} from '@mdi/js'
 import { fullErase } from '@/helper/draw/actions/eraser.action'
 import { copyObjects, deleteObjects, mergeObjects } from '@/helper/draw/actions/operation.action'
 import { addSavedToCanvas, createSaved } from '@/helper/draw/actions/saved.action'
@@ -52,7 +60,8 @@ export const penIconMapping: { [key in BrushType]: string } = {
   [BrushType.Pencil]: mdiPencilOutline,
   [BrushType.Spray]: mdiSpray,
   [BrushType.Circle]: mdiCircleOutline,
-  [BrushType.Bucket]: mdiBucketOutline
+  [BrushType.Bucket]: mdiBucketOutline,
+  [BrushType.Ink]: mdiLiquidSpot
 }
 
 export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object) => void } = {

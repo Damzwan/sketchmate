@@ -22,6 +22,7 @@ export const brushMapping: { [key in BrushType]: any } = {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   [BrushType.Spray]: (c: Canvas) => new fabric.SprayBrush(c),
+  [BrushType.Ink]: (c: Canvas) => new fabric.InkBrush(c),
   [BrushType.Bucket]: (c: Canvas) => null
 }
 

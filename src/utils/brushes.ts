@@ -2,12 +2,14 @@ import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { an } from 'vitest/dist/types-94cfe4b4'
 import { InkBrush } from '@/utils/brushes/inkbrush'
+import { WatercolorBrush } from '@/utils/brushes/WaterColorBrush'
 
 declare module 'fabric' {
   namespace fabric {
     interface Canvas {
       contextTop: CanvasRenderingContext2D
     }
+
     interface IUtil {
       trimCanvas: (c: HTMLCanvasElement) => { x: number; y: number }
       colorValues: (color: string) => number[] | undefined
@@ -23,9 +25,14 @@ declare module 'fabric' {
 
     interface BaseBrush {
       convertToImg: () => void
+      canvas: Canvas
     }
 
-    class InkBrush extends fabric.BaseBrush {
+    class InkBrush {
+      constructor(canvas: Canvas)
+    }
+
+    class WaterColorBrush extends fabric.PencilBrush {
       constructor(canvas: Canvas)
     }
 
@@ -261,4 +268,5 @@ export function loadAdditionalBrushes() {
   })
 
   fabric.InkBrush = InkBrush
+  fabric.WaterColorBrush = WatercolorBrush
 }

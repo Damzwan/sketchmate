@@ -12,7 +12,7 @@ import {
 import { fullErase } from '@/helper/draw/actions/eraser.action'
 import { copyObjects, deleteObjects, mergeObjects } from '@/helper/draw/actions/operation.action'
 import { addSavedToCanvas, createSaved } from '@/helper/draw/actions/saved.action'
-import { addSticker, setBgImage } from '@/helper/draw/actions/image.action'
+import { addSticker, setBackgroundImage } from '@/helper/draw/actions/image.action'
 import { addShape } from '@/helper/draw/actions/shape.action'
 import {
   addText,
@@ -64,7 +64,7 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object)
   [DrawAction.FullErase]: fullErase,
   [DrawAction.Sticker]: addSticker,
   [DrawAction.CopyObject]: copyObjects,
-  [DrawAction.BackgroundImage]: setBgImage,
+  [DrawAction.BackgroundImage]: setBackgroundImage,
   [DrawAction.AddShape]: addShape,
   [DrawAction.AddText]: addText,
   [DrawAction.Merge]: mergeObjects,

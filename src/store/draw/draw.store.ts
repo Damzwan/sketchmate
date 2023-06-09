@@ -8,7 +8,7 @@ import { useSocketService } from '@/service/api/socket.service'
 import { InboxItem } from '@/types/server.types'
 import { useRouter } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { resetZoom } from '@/helper/draw/draw.helper'
+import { canvasToBuffer, resetZoom } from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
 import { EventBus } from '@/main'
 import { useMenuStore } from '@/store/draw/menu.store'
@@ -21,6 +21,7 @@ import { useSelect } from '@/service/draw/tools/select.service'
 import { useHistory } from '@/service/draw/history.service'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { loadAdditionalBrushes } from '@/utils/brushes'
+import { compressImg } from '@/helper/general.helper'
 
 export const useDrawStore = defineStore('draw', () => {
   const { user, isLoading } = storeToRefs(useAppStore())
@@ -108,7 +109,7 @@ export const useDrawStore = defineStore('draw', () => {
       _id: user.value!._id,
       mate_id: user.value!.mate!._id,
       drawing: JSON.stringify(c.toJSON(['width', 'height'])),
-      img: c.toDataURL({ format: 'png', multiplier: 2 }),
+      img: await canvasToBuffer(c.toDataURL()),
       name: user.value!.name
     })
   }

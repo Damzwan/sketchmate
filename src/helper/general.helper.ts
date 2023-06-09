@@ -1,5 +1,6 @@
 import { User } from '@/types/server.types'
 import Compressor from 'compressorjs'
+import { ToastOptions } from '@/types/toast.types'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -14,33 +15,44 @@ export function sortDates(arr: string[]) {
 
 // TODO does not work well for mobile
 
-export async function compressImg(file: File | Blob, maxSize = 500, quality = 0.6): Promise<File> {
-  return new Promise(resolve => {
-    new Compressor(file, {
-      quality: quality,
-      maxWidth: maxSize,
-      maxHeight: maxSize,
-      success(result) {
-        resolve(result as File)
-      },
-      error(err) {
-        console.log(err.message)
-      }
-    })
-  })
+type CompressImgReturnType = 'file' | 'blob'
+
+export interface CompressImgOptions {
+  size?: number
+  quality?: number
+  returnType?: CompressImgReturnType
 }
 
-export async function resizeImage(file: File | Blob, maxSize = 500): Promise<Blob | File> {
-  return new Promise(resolve => {
-    new Compressor(file, {
-      maxWidth: maxSize,
-      maxHeight: maxSize,
-      mimeType: 'image/png',
+const compressImgBaseSettings: CompressImgOptions = {
+  quality: 0.7,
+  returnType: 'file'
+}
+
+export async function compressImg(file: File | Blob | string, options?: CompressImgOptions): Promise<Blob | File> {
+  const o: CompressImgOptions = { ...compressImgBaseSettings, ...options }
+
+  if (typeof file === 'string') {
+    file = await fetch(file).then(res => res.blob())
+  }
+
+  return new Promise((resolve, reject) => {
+    new Compressor(file as Blob | File, {
+      quality: o.quality,
+      maxWidth: o.size,
+      maxHeight: o.size,
+      mimeType: 'image/webp',
       success(result) {
-        resolve(result)
+        if (o.returnType === 'file') {
+          resolve(result as File)
+        } else if (o.returnType === 'blob') {
+          resolve(result as Blob)
+        } else {
+          reject(new Error('Invalid returnType. Expected "blob" or "file".'))
+        }
       },
       error(err) {
         console.log(err.message)
+        reject(err)
       }
     })
   })

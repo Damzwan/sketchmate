@@ -147,16 +147,10 @@ export const useAPI = createGlobalState((): API => {
   async function createSaved(params: CreateSavedParams): Promise<Res<Saved>> {
     const url = `${baseUrl}${ENDPOINTS.saved}/${params._id}`
 
-    // const body = {
-    //   drawing: params.drawing,
-    //   img: params.img as string
-    // }
-
     const jsonBlob = new Blob([params.drawing], { type: 'application/json' })
     const jsonFile = new File([jsonBlob], 'drawing.json', { type: 'application/json' })
 
-    const imgBlob = await fetch(params.img).then(res => res.blob())
-    const imgFile = new File([imgBlob], 'img.png', { type: 'image/png' })
+    const imgFile = new File([params.img], 'img.webp', { type: 'image/webp' })
 
     const data = new FormData()
     data.append('img', imgFile)

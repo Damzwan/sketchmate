@@ -21,7 +21,7 @@ export function addSticker(c: Canvas, options?: any) {
   )
 }
 
-export function setBgImage(c: Canvas, options?: any) {
+export function setBackgroundImage(c: Canvas, options?: any) {
   if (!options) return
   const img: string = options['img']
   fabric.Image.fromURL(

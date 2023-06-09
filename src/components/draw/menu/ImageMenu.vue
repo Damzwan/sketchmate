@@ -33,7 +33,7 @@ async function onImgUpload(e: Event) {
   const { selectAction } = useDrawStore()
   const file = (e.target as HTMLInputElement).files?.[0]
   if (file) {
-    const compressedFile = await compressImg(file)
+    const compressedFile = await compressImg(file, { size: 500 })
     const reader = new FileReader()
     reader.onload = e => selectAction(DrawAction.Sticker, { img: e.target?.result?.toString() })
     reader.readAsDataURL(compressedFile)
@@ -45,7 +45,7 @@ async function onBgImgUpload(e: Event) {
   const { selectAction } = useDrawStore()
   const file = (e.target as HTMLInputElement).files?.[0]
   if (file) {
-    const compressedFile = await compressImg(file, 1280)
+    const compressedFile = await compressImg(file, { size: 1280 })
     const reader = new FileReader()
     reader.onload = e => selectAction(DrawAction.BackgroundImage, { img: e.target?.result?.toString() })
     reader.readAsDataURL(compressedFile)

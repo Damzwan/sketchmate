@@ -5,6 +5,7 @@ import { ObjectType, SelectedObject } from '@/types/draw.types'
 import { checkCanvasBounds } from '@/helper/draw/gesture.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
+import { compressImg } from '@/helper/general.helper'
 
 const eventsToDisable = [
   'mouse:down',
@@ -88,4 +89,8 @@ export function exitEditing(text: any) {
   text.exitEditing()
   const { isEditingText } = storeToRefs(useDrawStore())
   isEditingText.value = false
+}
+
+export async function canvasToBuffer(canvasDataUrl: string) {
+  return await (await compressImg(canvasDataUrl, { returnType: 'blob' })).arrayBuffer()
 }

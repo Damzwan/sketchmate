@@ -56,7 +56,7 @@ export interface SendParams {
   name: string
   mate_id: string
   drawing: string
-  img: string
+  img: any
 }
 
 export interface SendRes {
@@ -140,7 +140,7 @@ export interface CreateEmblemParams {
 export interface CreateSavedParams {
   _id: string
   img: any
-  drawing: string
+  drawing: any
 }
 
 export interface DeleteSavedParams {

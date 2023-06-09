@@ -114,17 +114,31 @@ export function createSocketService(): ExpandedSocketAPI {
 
   async function send(params: SendParams): Promise<void> {
     const encoder = new TextEncoder() // Use TextEncoder to convert string to Uint8Array
+
+    // Remove the img from params before stringify
+    const img = params.img
+    delete params.img
+
     const data = JSON.stringify(params)
     const compressedData = pako.deflate(encoder.encode(data))
 
     const chunkSize = 1024 // or whatever size you prefer
 
+    // Send the text data
     for (let i = 0; i < compressedData.length; i += chunkSize) {
       const chunk = compressedData.slice(i, i + chunkSize)
-      socket!.emit(`${SOCKET_ENDPONTS.send}chunk`, chunk)
+      socket!.emit(`${SOCKET_ENDPONTS.send}text_chunk`, chunk)
     }
 
-    socket!.emit(`${SOCKET_ENDPONTS.send}end`)
+    socket!.emit(`${SOCKET_ENDPONTS.send}text_end`)
+
+    // Now send the image data
+    for (let i = 0; i < img.byteLength; i += chunkSize) {
+      const chunk = img.slice(i, i + chunkSize)
+      socket!.emit(`${SOCKET_ENDPONTS.send}img_chunk`, chunk)
+    }
+
+    socket!.emit(`${SOCKET_ENDPONTS.send}img_end`)
   }
 
   async function comment(params: CommentParams): Promise<void> {

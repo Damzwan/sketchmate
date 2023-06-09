@@ -103,7 +103,7 @@ import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
 import { useToast } from '@/service/toast.service'
 import { storeToRefs } from 'pinia'
-import { resizeImage, svg } from '@/helper/general.helper'
+import { compressImg, svg } from '@/helper/general.helper'
 import { mdiCancel, mdiDelete, mdiMinus, mdiPlus } from '@mdi/js'
 import { computed, ref } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
@@ -132,7 +132,7 @@ const { stickerMenuOpen } = storeToRefs(useMenuStore())
 async function onUpload(e: any) {
   isLoading.value = true
   const file = e.target.files[0]
-  const img = (await resizeImage(file, 256)) as File
+  const img = (await compressImg(file, { size: 512 })) as File
   if (selectedSegment.value === '0') await createSticker(img)
   else await createEmblem(img)
   isLoading.value = false

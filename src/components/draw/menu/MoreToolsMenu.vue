@@ -148,7 +148,7 @@ async function onCameraClick() {
   })
 
   const blob = await fetch(image.webPath!).then(res => res.blob())
-  const compressedFile = await compressImg(blob, 1280) // TODO maybe too big
+  const compressedFile = await compressImg(blob, { size: 1280 }) // TODO maybe too big
   const reader = new FileReader()
   reader.onload = e => (compressedImgDataUrl.value = e.target?.result?.toString())
 
@@ -162,7 +162,7 @@ async function onImgUpload(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   imageActionSheetOpen.value = true
   if (file) {
-    const compressedFile = await compressImg(file, 1280) // TODO maybe too big
+    const compressedFile = await compressImg(file, { size: 1280 }) // TODO maybe too big
     const reader = new FileReader()
     reader.onload = e => (compressedImgDataUrl.value = e.target?.result?.toString())
     reader.readAsDataURL(compressedFile)

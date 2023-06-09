@@ -107,7 +107,7 @@ function close() {
 
 async function uploadImage(e: any) {
   const file = e.target.files[0]
-  const img = await compressImg(file, 256)
+  const img = await compressImg(file, { size: 512 })
   const imgUrl = await api.uploadProfileImg({
     _id: user.value!._id,
     mate_id: user.value?.mate?._id,

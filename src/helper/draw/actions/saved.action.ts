@@ -6,7 +6,7 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { useAppStore } from '@/store/app.store'
 import { useAPI } from '@/service/api/api.service'
 import { useToast } from '@/service/toast.service'
-import { cloneObjects, enlivenObjects, isText, setObjectId } from '@/helper/draw/draw.helper'
+import { canvasToBuffer, cloneObjects, enlivenObjects, isText, setObjectId } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
 import { DrawTool } from '@/types/draw.types'
 import { applyCurve } from '@/helper/draw/actions/text.action'
@@ -57,9 +57,9 @@ export async function createSaved(c: Canvas, options: any) {
 
   // Save canvas as JSON and DataURL
   const json = JSON.stringify(tempCanvas.toJSON())
-  const dataUrl = tempCanvas.toDataURL()
+  const img = await canvasToBuffer(tempCanvas.toDataURL())
 
-  const saved = await createSaved({ _id: user.value!._id, drawing: json, img: dataUrl })
+  const saved = await createSaved({ _id: user.value!._id, drawing: json, img: img })
   user.value?.saved.push(saved!)
   isLoading.value = false
   toast('Saved drawing', { buttons: [viewSavedButton] })

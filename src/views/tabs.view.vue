@@ -50,7 +50,7 @@ const route = useRoute()
 const show = computed(() => user.value && user.value.mate && route.path != `/${FRONTEND_ROUTES.tutorial}`)
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 ion-tab-button {
   --color: var(--ion-color-primary-contrast);
   --color-selected: var(--ion-color-secondary-shade);
@@ -58,5 +58,10 @@ ion-tab-button {
 
 ion-tab-bar {
   --background: var(--ion-color-primary);
+}
+
+ion-icon {
+  width: 55%;
+  height: 55%;
 }
 </style>

@@ -1,7 +1,7 @@
 import { Ref, ref, watch } from 'vue'
 import { BLACK, BRUSHSIZE } from '@/config/draw.config'
 import { BrushType, DrawEvent, FabricEvent, ToolService } from '@/types/draw.types'
-import { setObjectSelection } from '@/helper/draw/draw.helper'
+import { setObjectSelection, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { Canvas, IPoint } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
@@ -43,11 +43,8 @@ export const usePen = defineStore('pen', (): Pen => {
         const img = await bucketFill(c!, pointer)
         if (!img) return
         c!.add(img)
-        // c.moveTo(img, Layer.background)
-        c!.renderAll()
-        // const collidingObjects = c.getObjects().filter(obj => img.intersectsWithObject(obj))
-        // mergeObjects(c, { objects: [img, ...collidingObjects], unselect: true })
         setObjectSelection(img, false)
+        c!.renderAll()
       }
     }
   ]
@@ -59,6 +56,7 @@ export const usePen = defineStore('pen', (): Pen => {
   async function selectBucket(c: Canvas) {
     c.isDrawingMode = false
     c.selection = false
+    setSelectionForObjects(c.getObjects(), false) // TODO this should not be necessary
   }
 
   async function select(c: Canvas) {

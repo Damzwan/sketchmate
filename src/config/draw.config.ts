@@ -25,8 +25,44 @@ import {
 import { setBackgroundColor, setFillColor, setStrokeColor } from '@/helper/draw/actions/color.action'
 
 export const COLORSWATCHES = [
-  ['#000000', '#F3F1F9', '#FF0000', '#00FF00', '#0000FF', '#FFFF00'],
-  ['#FFA500', '#FF00FF', '#00FFFF', '#800080', '#808080', '#C0C0C0']
+  // Grayscale
+  [
+    '#000000',
+    '#808080',
+    '#C0C0C0',
+    '#FFFFFF',
+    // Reds
+    '#FF0000',
+    '#FF6347'
+  ],
+
+  // More Reds, Pinks
+  [
+    '#FF4500',
+    '#FFC0CB',
+    '#FF69B4',
+    '#FF1493',
+    // Oranges
+    '#FFA500',
+    '#FF8C00'
+  ],
+
+  // More Oranges, Yellows
+  [
+    '#FF7F50',
+    '#FFFF00',
+    '#FFD700',
+    '#FFDAB9',
+    // Greens
+    '#008000',
+    '#00FF00'
+  ],
+
+  // More Greens, Blues
+  ['#32CD32', '#ADFF2F', '#0000FF', '#00BFFF', '#1E90FF', '#ADD8E6'],
+
+  // Indigos, Violets
+  ['#4B0082', '#483D8B', '#6A5ACD', '#7B68EE', '#EE82EE', '#DA70D6']
 ]
 
 export const BRUSHSIZE = 10

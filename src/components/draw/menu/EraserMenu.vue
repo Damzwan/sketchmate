@@ -5,19 +5,19 @@
         <ion-item color="tertiary" @click="selectEraser" :button="true">
           <ion-icon :icon="svg(eraserIconMapping[DrawTool.MobileEraser])" />
           <p class="pl-2 text-sm">Mobile Eraser</p>
-          <div class="flex justify-center items-center pl-4">
+          <div class="flex justify-center items-center m-0" slot="end">
             <div
-              class="eraser_option w-[18px] h-[18px]"
+              class="eraser_option eraser_small"
               @click="selectEraserSize(EraserSize.small)"
               :class="{ eraser_selected: eraserSize === EraserSize.small && selectedTool == DrawTool.MobileEraser }"
             />
             <div
-              class="eraser_option w-[22px] h-[22px] ml-3"
+              class="eraser_option eraser_medium ml-3"
               @click="selectEraserSize(EraserSize.medium)"
               :class="{ eraser_selected: eraserSize === EraserSize.medium && selectedTool == DrawTool.MobileEraser }"
             />
             <div
-              class="eraser_option w-[28px] h-[28px] ml-3"
+              class="eraser_option eraser_large ml-3"
               @click="selectEraserSize(EraserSize.large)"
               :class="{ eraser_selected: eraserSize === EraserSize.large && selectedTool == DrawTool.MobileEraser }"
             />
@@ -27,23 +27,23 @@
         <ion-item color="tertiary" @click="selectHealingEraser" :button="true">
           <ion-icon :icon="svg(eraserIconMapping[DrawTool.HealingEraser])" />
           <p class="pl-2 text-sm">Healing Eraser</p>
-          <div class="flex justify-center items-center pl-4">
+          <div class="flex justify-center items-center m-0" slot="end">
             <div
-              class="eraser_option w-[18px] h-[18px]"
+              class="eraser_option eraser_small"
               @click="selectHealingEraserSize(EraserSize.small)"
               :class="{
                 eraser_selected: healingEraserSize === EraserSize.small && selectedTool == DrawTool.HealingEraser
               }"
             />
             <div
-              class="eraser_option w-[22px] h-[22px] ml-3"
+              class="eraser_option eraser_medium ml-3"
               @click="selectHealingEraserSize(EraserSize.medium)"
               :class="{
                 eraser_selected: healingEraserSize === EraserSize.medium && selectedTool == DrawTool.HealingEraser
               }"
             />
             <div
-              class="eraser_option w-[28px] h-[28px] ml-3"
+              class="eraser_option eraser_large ml-3"
               @click="selectHealingEraserSize(EraserSize.large)"
               :class="{
                 eraser_selected: healingEraserSize === EraserSize.large && selectedTool == DrawTool.HealingEraser
@@ -109,7 +109,7 @@ function close() {
 
 <style scoped>
 ion-item {
-  --inner-padding-end: 0;
+  --inner-padding-end: 5px;
   --padding-start: 10px;
 }
 
@@ -119,5 +119,17 @@ ion-item {
 
 .eraser_selected {
   @apply border-2 border-secondary;
+}
+
+.eraser_small {
+  @apply w-[22px] h-[22px];
+}
+
+.eraser_medium {
+  @apply w-[26px] h-[26px];
+}
+
+.eraser_large {
+  @apply w-[30px] h-[30px];
 }
 </style>

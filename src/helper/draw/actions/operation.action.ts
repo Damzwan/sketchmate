@@ -3,6 +3,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { cloneObjects, isText, setObjectId } from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
 import { applyCurve } from '@/helper/draw/actions/text.action'
+import { useSelect } from '@/service/draw/tools/select.service'
 
 export async function copyObjects(c: Canvas, options: any) {
   const { customSaveAction } = useHistory()
@@ -39,15 +40,18 @@ export async function copyObjects(c: Canvas, options: any) {
   })
 }
 
-export function mergeObjects(c: Canvas, options: any) {
+export async function mergeObjects(c: Canvas, options: any) {
   const { customSaveAction } = useHistory()
-  customSaveAction(async () => {
+  const { setSelectedObjects } = useSelect()
+  await customSaveAction(async () => {
     const objects: fabric.Object[] = options['objects']
     c.discardActiveObject()
     const select = new fabric.ActiveSelection(objects, { canvas: c })
     const group = select.toGroup()
-    c.setActiveObject(new fabric.ActiveSelection([group], { canvas: c }))
+
     objects.forEach(obj => c.remove(obj))
+    c.setActiveObject(group)
+    setSelectedObjects([group])
     c.renderAll()
   })
 }

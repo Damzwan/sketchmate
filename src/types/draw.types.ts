@@ -77,7 +77,8 @@ export enum Menu {
 export enum ObjectType {
   path = 'path',
   image = 'image',
-  text = 'i-text'
+  text = 'i-text',
+  group = 'group'
 }
 
 export type Eraser = DrawTool.MobileEraser | DrawTool.HealingEraser
@@ -103,8 +104,8 @@ export enum BrushType {
 
 export enum EraserSize {
   small = 10,
-  medium = 20,
-  large = 30
+  medium = 30,
+  large = 50
 }
 
 export enum ShapeCreationMode {

@@ -6,6 +6,9 @@
         @click="selectTool(DrawTool.Pen, { openMenu: true, e: $event })"
       >
         <ion-icon slot="icon-only" :icon="svg(penIconMapping[brushType])"></ion-icon>
+        <div class="selected_chevron" v-if="penMenuSelected">
+          <ion-icon :icon="svg(mdiChevronDown)" />
+        </div>
       </ion-button>
       <PenMenu />
       <ion-button
@@ -13,6 +16,9 @@
         @click="selectTool(lastSelectedEraserTool, { openMenu: true, e: $event })"
       >
         <ion-icon slot="icon-only" :icon="svg(eraserIconMapping[lastSelectedEraserTool])" size="large" />
+        <div class="selected_chevron" v-if="ERASERS.includes(selectedTool)">
+          <ion-icon :icon="svg(mdiChevronDown)" />
+        </div>
       </ion-button>
       <EraserMenu />
 
@@ -50,7 +56,7 @@ import { storeToRefs } from 'pinia'
 import { eraserIconMapping, ERASERS, penIconMapping, PENS } from '@/config/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import { mdiCursorMove, mdiPlus, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
+import { mdiChevronDown, mdiCursorMove, mdiPlus, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
 import PenMenu from '@/components/draw/menu/PenMenu.vue'
 import { computed } from 'vue'
 import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
@@ -58,6 +64,7 @@ import StickerMenu from '@/components/draw/menu/StickerMenu.vue'
 import MoreToolsMenu from '@/components/draw/menu/MoreToolsMenu.vue'
 import { usePen } from '@/service/draw/tools/pen.service'
 import { useHistory } from '@/service/draw/history.service'
+import pen from '@/assets/draw_icons/pen.svg'
 
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore
@@ -80,6 +87,10 @@ const penMenuSelected = computed(() => PENS.includes(selectedTool.value))
   width: 80%;
   height: 3px;
   background-color: var(--ion-color-secondary);
+}
+
+.selected_chevron {
+  @apply w-[15px] h-[15px] absolute right-[-10px] bottom-0;
 }
 
 ion-button {

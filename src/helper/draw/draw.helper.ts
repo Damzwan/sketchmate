@@ -1,4 +1,4 @@
-import { Canvas } from 'fabric/fabric-impl'
+import { Canvas, Group } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { ObjectType, SelectedObject } from '@/types/draw.types'
@@ -93,4 +93,11 @@ export function exitEditing(text: any) {
 
 export async function canvasToBuffer(canvasDataUrl: string) {
   return await (await compressImg(canvasDataUrl, { returnType: 'blob' })).arrayBuffer()
+}
+
+export function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>) {
+  objects.forEach(obj => {
+    if (obj.type == ObjectType.group) (obj as Group).forEachObject(groupObj => groupObj.set(options))
+    else obj.set(options)
+  })
 }

@@ -7,6 +7,7 @@ import { storeToRefs } from 'pinia'
 import FontFaceObserver from 'fontfaceobserver'
 import { useHistory } from '@/service/draw/history.service'
 import { popoverController } from '@ionic/vue'
+import { focusText } from '@/helper/draw/draw.helper'
 
 export function addText(c: Canvas) {
   const { selectTool } = useDrawStore()
@@ -47,6 +48,8 @@ export async function changeFont(c: Canvas, options: any) {
 
   popoverController.dismiss()
   saveState()
+
+  if (textObj.text == '') focusText(textObj)
   c.renderAll()
 }
 
@@ -70,6 +73,7 @@ export async function changeFontStyle(c: Canvas, options: any) {
   const textObj = selectedObjectsRef[0] as fabric.IText
   textObj.set({ fontStyle: style })
   saveState()
+  if (textObj.text == '') focusText(textObj)
   c.renderAll()
 }
 

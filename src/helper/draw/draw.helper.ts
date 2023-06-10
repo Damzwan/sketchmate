@@ -1,4 +1,4 @@
-import { Canvas, Group } from 'fabric/fabric-impl'
+import { Canvas, Group, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { ObjectType, SelectedObject } from '@/types/draw.types'
@@ -85,7 +85,7 @@ export function isText(objects: fabric.Object[]) {
 }
 
 export function exitEditing(text: any) {
-  if (text.type != ObjectType.text || !text.isEditing) return
+  if (text.type != ObjectType.text || !text.isEditing || text.text == '') return
   text.exitEditing()
   const { isEditingText } = storeToRefs(useDrawStore())
   isEditingText.value = false
@@ -100,4 +100,10 @@ export function setForSelectedObjects(objects: SelectedObject[], options: Partia
     if (obj.type == ObjectType.group) (obj as Group).forEachObject(groupObj => groupObj.set(options))
     else obj.set(options)
   })
+}
+
+export function focusText(text: IText) {
+  setTimeout(() => {
+    text.hiddenTextarea!.focus() // This line is especially important for mobile
+  }, 300)
 }

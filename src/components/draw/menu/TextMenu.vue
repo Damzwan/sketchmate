@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="text_options">
+  <ion-popover trigger="text_options" @didDismiss="onDismiss">
     <ion-content v-if="text">
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary">
@@ -70,6 +70,7 @@ import { useSelect } from '@/service/draw/tools/select.service'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { IText } from 'fabric/fabric-impl'
+import { focusText } from '@/helper/draw/draw.helper'
 
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())
@@ -79,6 +80,10 @@ const isBold = computed(() => text.value.fontWeight === 'bold')
 const isItalic = computed(() => text.value.fontStyle === 'italic')
 const align = computed(() => text.value.textAlign)
 const isCurved = computed(() => text.value.isCurved)
+
+function onDismiss() {
+  if (text.value.text == '') focusText(text.value)
+}
 </script>
 
 <style scoped>

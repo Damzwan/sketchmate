@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="select_color">
+  <ion-popover trigger="select_color" @didDismiss="onDismiss">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" @click="strokeColorPicker?.click()">
@@ -48,6 +48,9 @@ import { mdiBorderColor, mdiBucketOutline, mdiFormatColorFill } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { ref } from 'vue'
 import { BLACK } from '@/config/draw.config'
+import { focusText, isText } from '@/helper/draw/draw.helper'
+import { useSelect } from '@/service/draw/tools/select.service'
+import { IText } from 'fabric/fabric-impl'
 
 const strokeColorPicker = ref<HTMLInputElement>()
 const strokeColor = ref<string>(BLACK)
@@ -76,8 +79,12 @@ function onBackgroundColorChange() {
   emits('update:background-color', backgroundColor.value)
 }
 
-function close() {
-  popoverController.dismiss()
+function onDismiss() {
+  const { selectedObjectsRef } = useSelect()
+  if (isText(selectedObjectsRef)) {
+    const text = selectedObjectsRef[0] as IText
+    if (text.text == '') focusText(text)
+  }
 }
 </script>
 

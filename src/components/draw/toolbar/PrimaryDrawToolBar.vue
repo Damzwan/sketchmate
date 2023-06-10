@@ -90,7 +90,7 @@ const penMenuSelected = computed(() => PENS.includes(selectedTool.value))
 }
 
 .selected_chevron {
-  @apply w-[15px] h-[15px] absolute right-[-10px] bottom-0;
+  @apply w-[15px] h-[15px] absolute right-[-15px] bottom-0;
 }
 
 ion-button {

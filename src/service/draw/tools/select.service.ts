@@ -38,7 +38,21 @@ export const useSelect = defineStore('select', (): Select => {
     },
     {
       on: 'selection:cleared',
-      handler: () => setSelectedObjects([]),
+      handler: () => {
+        if (isText(selectedObjects)) {
+          const text = selectedObjects[0] as IText
+          const { isEditingText } = storeToRefs(useDrawStore())
+          if (isEditingText.value) {
+            if (text.text == '') c!.remove(text)
+            else {
+              c?.setActiveObject(text)
+              isEditingText.value = false
+            }
+            return
+          }
+        }
+        setSelectedObjects([])
+      },
       type: DrawEvent.SetSelectedObjects
     }
   ]
@@ -48,20 +62,12 @@ export const useSelect = defineStore('select', (): Select => {
     enableOnInitEvents()
   }
 
-  async function setSelectedObjects(objects: Array<SelectedObject> | undefined) {
+  function setSelectedObjects(objects: Array<SelectedObject> | undefined) {
     if (!objects) objects = []
     lastSelectedObjects.value = selectedObjects
 
     if (objects.length == 0) {
-      if (isText(lastSelectedObjects.value)) {
-        const text = lastSelectedObjects.value[0] as IText
-        const { isEditingText } = storeToRefs(useDrawStore())
-        if (isEditingText.value) {
-          c?.setActiveObject(text)
-          isEditingText.value = false
-          return
-        } else c?.discardActiveObject()
-      } else c?.discardActiveObject()
+      c?.discardActiveObject()
     }
     selectedObjects = objects
     selectedObjectsRef.value = objects
@@ -86,6 +92,17 @@ export const useSelect = defineStore('select', (): Select => {
         lastModifiedObjects.value = [obj]
       }
     })
+
+    subscribe({
+      type: DrawEvent.SetModified,
+      on: 'object:removed',
+      handler: e => {
+        const objects = c!.getObjects()
+        if (objects.length == 0) return
+        lastModifiedObjects.value = [objects[objects.length - 1]]
+        selectLastModifiedObjects(c!)
+      }
+    })
   }
 
   function selectLastModifiedObjects(c: Canvas) {
@@ -94,6 +111,7 @@ export const useSelect = defineStore('select', (): Select => {
     if (foundLastModifiedObjects.length == 1) c.setActiveObject(foundLastModifiedObjects[0])
     else if (foundLastModifiedObjects.length > 1)
       c.setActiveObject(new fabric.ActiveSelection(foundLastModifiedObjects, { canvas: c! }))
+    c.renderAll()
   }
 
   async function select(canvas: Canvas) {

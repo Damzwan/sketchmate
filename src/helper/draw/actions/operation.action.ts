@@ -4,6 +4,7 @@ import { cloneObjects, isText, setObjectId } from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
 import { applyCurve } from '@/helper/draw/actions/text.action'
 import { useSelect } from '@/service/draw/tools/select.service'
+import { SelectedObject } from '@/types/draw.types'
 
 export async function copyObjects(c: Canvas, options: any) {
   const { customSaveAction } = useHistory()
@@ -61,4 +62,14 @@ export function deleteObjects(c: Canvas, options: any) {
   c.discardActiveObject()
   const objects: fabric.Object[] = options['objects']
   customSaveAction(() => objects.forEach(obj => c?.remove(obj)))
+}
+
+export function bringToFront(c: Canvas, options: any) {
+  const objects: SelectedObject[] = options['objects']
+  objects.forEach(obj => c.bringToFront(obj))
+}
+
+export function bringToBack(c: Canvas, options: any) {
+  const objects: SelectedObject[] = options['objects']
+  objects.forEach(obj => c.sendToBack(obj))
 }

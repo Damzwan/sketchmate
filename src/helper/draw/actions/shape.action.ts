@@ -22,12 +22,12 @@ export function addShape(c: Canvas, options: any) {
 
 function addShapeWithClick(c: Canvas, shape: Shape) {
   const { disableHistorySaving } = useHistory()
-  const { subscribe } = useEventManager()
+  const { isolatedSubscribe } = useEventManager()
   const points: IPoint[] = []
   let createdShape: any
   disableHistorySaving()
 
-  subscribe({
+  isolatedSubscribe({
     type: DrawEvent.ShapeCreation,
     on: 'mouse:down',
     handler: (o: any) => {
@@ -63,13 +63,13 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 
 function addShapeWithDrag(c: Canvas, shape: Shape) {
   const { disableHistorySaving, enableHistorySaving, saveState } = useHistory()
-  const { subscribe } = useEventManager()
+  const { isolatedSubscribe } = useEventManager()
   let createdShape: any
   let startX: number
   let startY: number
   let drawingMode = false
 
-  subscribe({
+  isolatedSubscribe({
     type: DrawEvent.ShapeCreation,
     on: 'mouse:down',
     handler: o => {
@@ -82,13 +82,13 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
     }
   })
 
-  subscribe({
+  isolatedSubscribe({
     type: DrawEvent.ShapeCreation,
     on: 'mouse:move',
     handler: o => (drawingMode ? handleMouseMove(c, shape, o, startX, startY, createdShape) : null)
   })
 
-  subscribe({
+  isolatedSubscribe({
     type: DrawEvent.ShapeCreation,
     on: 'mouse:up',
     handler: () => {

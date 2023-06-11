@@ -10,7 +10,13 @@ import {
   mdiSpray
 } from '@mdi/js'
 import { fullErase } from '@/helper/draw/actions/eraser.action'
-import { copyObjects, deleteObjects, mergeObjects } from '@/helper/draw/actions/operation.action'
+import {
+  bringToBack,
+  bringToFront,
+  copyObjects,
+  deleteObjects,
+  mergeObjects
+} from '@/helper/draw/actions/operation.action'
 import { addSavedToCanvas, createSaved } from '@/helper/draw/actions/saved.action'
 import { addSticker, setBackgroundImage } from '@/helper/draw/actions/image.action'
 import { addShape } from '@/helper/draw/actions/shape.action'
@@ -114,5 +120,7 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object)
   [DrawAction.ChangeFontWeight]: changeFontWeight,
   [DrawAction.ChangeFontStyle]: changeFontStyle,
   [DrawAction.ChangeTextAlign]: changeTextAlign,
-  [DrawAction.CurveText]: curveText
+  [DrawAction.CurveText]: curveText,
+  [DrawAction.BringToFront]: bringToFront,
+  [DrawAction.BringToBack]: bringToBack
 }

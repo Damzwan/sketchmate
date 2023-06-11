@@ -17,6 +17,16 @@
           <p class="pl-2 text-base">Save</p>
         </ion-item>
 
+        <ion-item color="tertiary" :button="true" @click="bringToFront">
+          <ion-icon :icon="svg(mdiFlipToFront)" />
+          <p class="pl-2 text-base">Move to front</p>
+        </ion-item>
+
+        <ion-item color="tertiary" :button="true" @click="bringToBack">
+          <ion-icon :icon="svg(mdiFlipToBack)" />
+          <p class="pl-2 text-base">Move to back</p>
+        </ion-item>
+
         <ion-item color="tertiary" :button="true" @click="removeObjects">
           <ion-icon :icon="svg(mdiDeleteOutline)" />
           <p class="pl-2 text-base">Delete</p>
@@ -29,7 +39,7 @@
 <script lang="ts" setup>
 import { DrawAction } from '@/types/draw.types'
 import { svg } from '@/helper/general.helper'
-import { mdiContentCopy, mdiContentSave, mdiDeleteOutline, mdiMerge } from '@mdi/js'
+import { mdiContentCopy, mdiContentSave, mdiDeleteOutline, mdiFlipToBack, mdiFlipToFront, mdiMerge } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
@@ -56,6 +66,16 @@ function copyObjects() {
 
 function mergeObjects() {
   selectAction(DrawAction.Merge, { objects: getSelectedObjects() })
+  closePopover()
+}
+
+function bringToFront() {
+  selectAction(DrawAction.BringToFront, { objects: getSelectedObjects() })
+  closePopover()
+}
+
+function bringToBack() {
+  selectAction(DrawAction.BringToBack, { objects: getSelectedObjects() })
   closePopover()
 }
 

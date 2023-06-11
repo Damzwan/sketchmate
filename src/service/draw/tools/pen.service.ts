@@ -6,6 +6,7 @@ import { Canvas, IPoint } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
 import { bucketFill } from '@/helper/draw/actions/bucket.action'
+import { bringToBack } from '@/helper/draw/actions/operation.action'
 
 interface Pen extends ToolService {
   init: (c: Canvas) => void
@@ -44,6 +45,7 @@ export const usePen = defineStore('pen', (): Pen => {
         if (!img) return
         c!.add(img)
         setObjectSelection(img, false)
+        bringToBack(c!, { objects: [img] })
         c!.renderAll()
       }
     }

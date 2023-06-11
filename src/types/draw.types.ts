@@ -62,7 +62,9 @@ export enum DrawAction {
   ChangeFontWeight,
   ChangeFontStyle,
   ChangeTextAlign,
-  CurveText
+  CurveText,
+  BringToFront,
+  BringToBack
 }
 
 export enum Menu {

@@ -85,9 +85,9 @@ export const useDrawStore = defineStore('draw', () => {
 
   async function initCanvas(canvas: HTMLCanvasElement) {
     if (!c) {
-      changeFabricBaseSettings()
       loadAdditionalBrushes()
       c = new fabric.Canvas(canvas, initCanvasOptions())
+      changeFabricBaseSettings(c)
       initGestures(c, hammer)
       eventManager.init(c)
       history.init(c)

@@ -23,7 +23,7 @@ export function initGestures(c: Canvas, hammer: Ref<HammerManager | undefined>) 
   hammer.value.add(new Hammer.Pinch())
 }
 
-export function changeFabricBaseSettings() {
+export function changeFabricBaseSettings(c: Canvas) {
   const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--ion-color-primary').trim()
   fabric.Object.prototype.transparentCorners = false
   fabric.Object.prototype.cornerColor = primaryColor

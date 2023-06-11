@@ -1,13 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
+    namespace "ninja.sketchmate.app"
     compileSdkVersion rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "ninja.sketchmate.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20
-        versionName "1.9.9"
+        versionCode 21
+        versionName "1.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

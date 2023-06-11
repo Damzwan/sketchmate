@@ -1,7 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { DrawAction, DrawTool, Eraser, SelectToolOptions, ShapeCreationMode, ToolService } from '@/types/draw.types'
 import { ref } from 'vue'
-import { actionMapping, ERASERS, WHITE } from '@/config/draw.config'
+import { actionMapping, BACKGROUND, ERASERS, WHITE } from '@/config/draw.config'
 import { Canvas } from 'fabric/fabric-impl'
 import { useAppStore } from '@/store/app.store'
 import { useSocketService } from '@/service/api/socket.service'
@@ -126,7 +126,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   function reset() {
     c?.clear()
-    c!.backgroundColor = WHITE
+    c!.backgroundColor = BACKGROUND
 
     const { undoStack, redoStack } = storeToRefs(history)
     undoStack.value = []

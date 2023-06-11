@@ -10,19 +10,31 @@
     ></ion-toast>
     <FullScreenLoader v-show="notificationRouteLoading" class="z-50" />
     <ion-tabs>
-      <ion-router-outlet />
+      <ion-router-outlet :animation="fadeInAnimation" />
       <ion-tab-bar slot="bottom" v-if="show" mode="ios">
-        <ion-tab-button :tab="FRONTEND_ROUTES.draw" :href="`/${FRONTEND_ROUTES.draw}`">
+        <ion-tab-button
+          :tab="FRONTEND_ROUTES.draw"
+          :href="`/${FRONTEND_ROUTES.draw}`"
+          @click="r.push(FRONTEND_ROUTES.draw, fadeInAnimation)"
+        >
           <ion-icon :icon="pencil" />
           <ion-label>Draw</ion-label>
         </ion-tab-button>
 
-        <ion-tab-button :tab="FRONTEND_ROUTES.gallery" :href="`/${FRONTEND_ROUTES.gallery}`">
+        <ion-tab-button
+          :tab="FRONTEND_ROUTES.gallery"
+          :href="`/${FRONTEND_ROUTES.gallery}`"
+          @click="r.push(FRONTEND_ROUTES.gallery, fadeInAnimation)"
+        >
           <ion-icon :icon="imagesOutline" />
           <ion-label>Gallery</ion-label>
         </ion-tab-button>
 
-        <ion-tab-button :tab="FRONTEND_ROUTES.mate" :href="`/${FRONTEND_ROUTES.mate}`">
+        <ion-tab-button
+          :tab="FRONTEND_ROUTES.mate"
+          :href="`/${FRONTEND_ROUTES.mate}`"
+          @click="r.push(FRONTEND_ROUTES.mate, fadeInAnimation)"
+        >
           <ion-icon :icon="peopleCircleOutline" />
           <ion-label>My Mate</ion-label>
         </ion-tab-button>
@@ -32,7 +44,17 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon, IonLabel, IonPage, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs, IonToast } from '@ionic/vue'
+import {
+  IonIcon,
+  IonLabel,
+  IonPage,
+  IonRouterOutlet,
+  IonTabBar,
+  IonTabButton,
+  IonTabs,
+  IonToast,
+  useIonRouter
+} from '@ionic/vue'
 import { imagesOutline, pencil, peopleCircleOutline } from 'ionicons/icons'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { computed } from 'vue'
@@ -41,10 +63,12 @@ import { useAppStore } from '@/store/app.store'
 import { useRoute } from 'vue-router'
 import { useToast } from '@/service/toast.service'
 import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
+import { fadeInAnimation } from '@/helper/animation.helper'
 
 const { text, isOpen, dismiss, duration, color, buttons } = useToast()
+const r = useIonRouter()
 
-const { user, unreadMessages, isLoading, notificationRouteLoading } = storeToRefs(useAppStore())
+const { user, notificationRouteLoading } = storeToRefs(useAppStore())
 const route = useRoute()
 
 const show = computed(() => user.value && user.value.mate && route.path != `/${FRONTEND_ROUTES.tutorial}`)

@@ -31,44 +31,45 @@ import {
 import { setBackgroundColor, setFillColor, setStrokeColor } from '@/helper/draw/actions/color.action'
 
 export const COLORSWATCHES = [
-  // Grayscale
+  // Grayscale, Reds, Oranges
   [
-    '#000000',
-    '#808080',
-    '#C0C0C0',
-    '#FFFFFF',
-    // Reds
-    '#FF0000',
-    '#FF6347'
+    '#000000', // Black
+    '#808080', // Gray
+    '#C0C0C0', // Silver
+    '#FFFFFF', // White
+    '#FF0000', // Red
+    '#FF4500' // OrangeRed
   ],
 
-  // More Reds, Pinks
+  // Yellows, Greens
   [
-    '#FF4500',
-    '#FFC0CB',
-    '#FF69B4',
-    '#FF1493',
-    // Oranges
-    '#FFA500',
-    '#FF8C00'
+    '#FFA500', // Orange
+    '#FF8C00', // DarkOrange
+    '#FFFF00', // Yellow
+    '#008000', // Green
+    '#006400', // DarkGreen
+    '#808000' // Olive
   ],
 
-  // More Oranges, Yellows
+  // Turquoise, Blues
   [
-    '#FF7F50',
-    '#FFFF00',
-    '#FFD700',
-    '#FFDAB9',
-    // Greens
-    '#008000',
-    '#00FF00'
+    '#40E0D0', // Turquoise
+    '#00FFFF', // Cyan
+    '#00BFFF', // DeepSkyBlue
+    '#0000FF', // Blue
+    '#8A2BE2', // BlueViolet
+    '#800080' // Purple
   ],
 
-  // More Greens, Blues
-  ['#32CD32', '#ADFF2F', '#0000FF', '#00BFFF', '#1E90FF', '#ADD8E6'],
-
-  // Indigos, Violets
-  ['#4B0082', '#483D8B', '#6A5ACD', '#7B68EE', '#EE82EE', '#DA70D6']
+  // Pinks, Browns
+  [
+    '#FFC0CB', // Pink
+    '#FF1493', // DeepPink
+    '#A52A2A', // Brown
+    '#8B4513', // SaddleBrown
+    '#800000', // Maroon
+    '#835C3B'
+  ]
 ]
 
 export const BRUSHSIZE = 10

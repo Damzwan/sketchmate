@@ -3,7 +3,11 @@
     <div class="z-10 absolute w-full h-full flex justify-center items-center" v-if="isLoading">
       <ion-spinner color="primary" />
     </div>
-    <ion-img :src="src" class="w-full cursor-pointer object-fill relative" @ionImgDidLoad="isLoading = false" />
+    <ion-img
+      class="w-full cursor-pointer object-fill relative min-h-[150px]"
+      :src="src"
+      @ionImgDidLoad="isLoading = false"
+    />
   </div>
 </template>
 

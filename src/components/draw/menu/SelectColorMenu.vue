@@ -2,40 +2,34 @@
   <ion-popover trigger="select_color" @didDismiss="onDismiss">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
-        <ion-item color="tertiary" :button="true" @click="strokeColorPicker?.click()">
+        <ion-item color="tertiary" :button="true" id="stroke">
           <ion-icon :icon="svg(mdiBorderColor)" />
           <p class="pl-2 text-base">Stroke Colour</p>
-          <input
-            type="color"
-            v-model="strokeColor"
-            @change="() => onStrokeColorChange()"
-            ref="strokeColorPicker"
-            class="hidden"
-          />
+
+          <ion-popover trigger="stroke" side="right">
+            <ColorPicker v-model:color="strokeColor" @update:color="emits('update:stroke-color', strokeColor)" />
+          </ion-popover>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" @click="fillColorPicker?.click()">
+        <ion-item color="tertiary" :button="true" id="fill">
           <ion-icon :icon="svg(mdiFormatColorFill)" />
           <p class="pl-2 text-base">Fill Colour</p>
-          <input
-            type="color"
-            v-model="fillColor"
-            @change="() => onFillColorChange()"
-            ref="fillColorPicker"
-            class="hidden"
-          />
+
+          <ion-popover trigger="fill" side="right">
+            <ColorPicker v-model:color="fillColor" @update:color="emits('update:fill-color', fillColor)" />
+          </ion-popover>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" @click="backgroundColorPicker?.click()">
+        <ion-item color="tertiary" :button="true" id="background">
           <ion-icon :icon="svg(mdiBucketOutline)" />
           <p class="pl-2 text-base">Background Colour</p>
-          <input
-            type="color"
-            v-model="backgroundColor"
-            @change="() => onBackgroundColorChange()"
-            ref="backgroundColorPicker"
-            class="hidden"
-          />
+
+          <ion-popover trigger="background" side="right">
+            <ColorPicker
+              v-model:color="backgroundColor"
+              @update:color="emits('update:background-color', backgroundColor)"
+            />
+          </ion-popover>
         </ion-item>
       </ion-list>
     </ion-content>
@@ -45,20 +39,16 @@
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
 import { mdiBorderColor, mdiBucketOutline, mdiFormatColorFill } from '@mdi/js'
-import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
+import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { ref } from 'vue'
 import { BLACK } from '@/config/draw.config'
 import { focusText, isText } from '@/helper/draw/draw.helper'
 import { useSelect } from '@/service/draw/tools/select.service'
 import { IText } from 'fabric/fabric-impl'
+import ColorPicker from '@/components/draw/ColorPicker.vue'
 
-const strokeColorPicker = ref<HTMLInputElement>()
 const strokeColor = ref<string>(BLACK)
-
-const fillColorPicker = ref<HTMLInputElement>()
 const fillColor = ref<string>(BLACK)
-
-const backgroundColorPicker = ref<HTMLInputElement>()
 const backgroundColor = ref<string>(BLACK)
 
 const emits = defineEmits<{
@@ -66,18 +56,6 @@ const emits = defineEmits<{
   (e: 'update:fill-color', color: string): void
   (e: 'update:background-color', color: string): void
 }>()
-
-function onStrokeColorChange() {
-  emits('update:stroke-color', strokeColor.value)
-}
-
-function onFillColorChange() {
-  emits('update:fill-color', fillColor.value)
-}
-
-function onBackgroundColorChange() {
-  emits('update:background-color', backgroundColor.value)
-}
 
 function onDismiss() {
   const { selectedObjectsRef } = useSelect()

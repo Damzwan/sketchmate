@@ -24,3 +24,7 @@ export const modalPopAnimation = (baseEl: HTMLElement) => {
 export const leaveAnimation = (baseEl: HTMLElement) => {
   return modalPopAnimation(baseEl).direction('reverse')
 }
+
+export const fadeInAnimation = (baseEl: HTMLElement, opts?: any) => {
+  return createAnimation().addElement(opts.enteringEl).duration(100).easing('ease-in').fromTo('opacity', '0', '1')
+}

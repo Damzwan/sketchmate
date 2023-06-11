@@ -59,27 +59,7 @@
       </div>
 
       <!-- Color Picker -->
-      <div class="py-1 px-2">
-        <label for="color-picker">Color</label>
-        <div class="color-swatches mt-1">
-          <div v-for="(row, rowIndex) in COLORSWATCHES" :key="'row-' + rowIndex" class="flex justify-between mb-2">
-            <div
-              v-for="(color, colorIndex) in row"
-              :key="'color-' + colorIndex"
-              :class="{ brush_selected: brushColor == color }"
-              :style="{ backgroundColor: color }"
-              class="color_swatch"
-              @click="brushColor = color"
-            />
-          </div>
-        </div>
-      </div>
-
-      <ion-item color="tertiary" class="px-2" :button="true" @click="brushColorPicker?.click()">
-        <div class="color_swatch" :style="{ backgroundColor: brushColor }" />
-        <p class="pl-3 text-base">Choose color</p>
-        <input type="color" v-model="brushColor" ref="brushColorPicker" class="hidden" />
-      </ion-item>
+      <ColorPicker v-model:color="brushColor" />
     </ion-content>
   </ion-popover>
 </template>
@@ -88,7 +68,7 @@
 import { IonContent, IonIcon, IonItem, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { ref, watch } from 'vue'
-import { COLORSWATCHES, WHITE } from '@/config/draw.config'
+import { WHITE } from '@/config/draw.config'
 import { BrushType } from '@/types/draw.types'
 import { mdiBucketOutline, mdiCircleOutline, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
@@ -97,11 +77,11 @@ import { brushMapping, usePen } from '@/service/draw/tools/pen.service'
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { setObjectSelection } from '@/helper/draw/draw.helper'
+import ColorPicker from '@/components/draw/ColorPicker.vue'
 
 const { brushSize, brushColor, brushType } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
-const brushColorPicker = ref<HTMLInputElement>()
 const preview_canvas = ref<HTMLCanvasElement>()
 
 let canvas: Canvas | undefined

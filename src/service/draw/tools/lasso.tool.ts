@@ -65,6 +65,8 @@ export const useLasso = defineStore('lasso', (): Lasso => {
     isDrawing = false
     c?.remove(lasso)
     selectsObjectsInsideLasso()
+    const { enableHistorySaving } = useHistory()
+    enableHistorySaving()
   }
 
   function selectsObjectsInsideLasso() {

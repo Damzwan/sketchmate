@@ -122,21 +122,21 @@ PODS:
   - Protobuf (3.23.1)
 
 DEPENDENCIES:
-  - "Capacitor (from `../../node_modules/.pnpm/@capacitor+ios@5.0.5_@capacitor+core@5.0.5/node_modules/@capacitor/ios`)"
-  - "CapacitorApp (from `../../node_modules/.pnpm/@capacitor+app@5.0.3_@capacitor+core@5.0.5/node_modules/@capacitor/app`)"
-  - "CapacitorCamera (from `../../node_modules/.pnpm/@capacitor+camera@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/camera`)"
-  - "CapacitorClipboard (from `../../node_modules/.pnpm/@capacitor+clipboard@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/clipboard`)"
-  - "CapacitorCordova (from `../../node_modules/.pnpm/@capacitor+ios@5.0.5_@capacitor+core@5.0.5/node_modules/@capacitor/ios`)"
-  - "CapacitorFilesystem (from `../../node_modules/.pnpm/@capacitor+filesystem@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/filesystem`)"
-  - "CapacitorHaptics (from `../../node_modules/.pnpm/@capacitor+haptics@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/haptics`)"
-  - "CapacitorLocalNotifications (from `../../node_modules/.pnpm/@capacitor+local-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/local-notifications`)"
-  - "CapacitorMlkitBarcodeScanning (from `../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@5.0.0_@capacitor+core@5.0.5/node_modules/@capacitor-mlkit/barcode-scanning`)"
-  - "CapacitorPushNotifications (from `../../node_modules/.pnpm/@capacitor+push-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/push-notifications`)"
-  - "CapacitorShare (from `../../node_modules/.pnpm/@capacitor+share@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/share`)"
-  - "CapacitorStatusBar (from `../../node_modules/.pnpm/@capacitor+status-bar@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/status-bar`)"
-  - "CapacitorToast (from `../../node_modules/.pnpm/@capacitor+toast@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/toast`)"
+  - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
+  - "CapacitorCamera (from `../../node_modules/@capacitor/camera`)"
+  - "CapacitorClipboard (from `../../node_modules/@capacitor/clipboard`)"
+  - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
+  - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
+  - "CapacitorLocalNotifications (from `../../node_modules/@capacitor/local-notifications`)"
+  - "CapacitorMlkitBarcodeScanning (from `../../node_modules/@capacitor-mlkit/barcode-scanning`)"
+  - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
+  - "CapacitorShare (from `../../node_modules/@capacitor/share`)"
+  - "CapacitorStatusBar (from `../../node_modules/@capacitor/status-bar`)"
+  - "CapacitorToast (from `../../node_modules/@capacitor/toast`)"
   - Firebase/Messaging
-  - "HugotomaziCapacitorNavigationBar (from `../../node_modules/.pnpm/@hugotomazi+capacitor-navigation-bar@2.0.1_@capacitor+core@5.0.5/node_modules/@hugotomazi/capacitor-navigation-bar`)"
+  - "HugotomaziCapacitorNavigationBar (from `../../node_modules/@hugotomazi/capacitor-navigation-bar`)"
 
 SPEC REPOS:
   trunk:
@@ -161,33 +161,33 @@ SPEC REPOS:
 
 EXTERNAL SOURCES:
   Capacitor:
-    :path: "../../node_modules/.pnpm/@capacitor+ios@5.0.5_@capacitor+core@5.0.5/node_modules/@capacitor/ios"
+    :path: "../../node_modules/@capacitor/ios"
   CapacitorApp:
-    :path: "../../node_modules/.pnpm/@capacitor+app@5.0.3_@capacitor+core@5.0.5/node_modules/@capacitor/app"
+    :path: "../../node_modules/@capacitor/app"
   CapacitorCamera:
-    :path: "../../node_modules/.pnpm/@capacitor+camera@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/camera"
+    :path: "../../node_modules/@capacitor/camera"
   CapacitorClipboard:
-    :path: "../../node_modules/.pnpm/@capacitor+clipboard@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/clipboard"
+    :path: "../../node_modules/@capacitor/clipboard"
   CapacitorCordova:
-    :path: "../../node_modules/.pnpm/@capacitor+ios@5.0.5_@capacitor+core@5.0.5/node_modules/@capacitor/ios"
+    :path: "../../node_modules/@capacitor/ios"
   CapacitorFilesystem:
-    :path: "../../node_modules/.pnpm/@capacitor+filesystem@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/filesystem"
+    :path: "../../node_modules/@capacitor/filesystem"
   CapacitorHaptics:
-    :path: "../../node_modules/.pnpm/@capacitor+haptics@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/haptics"
+    :path: "../../node_modules/@capacitor/haptics"
   CapacitorLocalNotifications:
-    :path: "../../node_modules/.pnpm/@capacitor+local-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/local-notifications"
+    :path: "../../node_modules/@capacitor/local-notifications"
   CapacitorMlkitBarcodeScanning:
-    :path: "../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@5.0.0_@capacitor+core@5.0.5/node_modules/@capacitor-mlkit/barcode-scanning"
+    :path: "../../node_modules/@capacitor-mlkit/barcode-scanning"
   CapacitorPushNotifications:
-    :path: "../../node_modules/.pnpm/@capacitor+push-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/push-notifications"
+    :path: "../../node_modules/@capacitor/push-notifications"
   CapacitorShare:
-    :path: "../../node_modules/.pnpm/@capacitor+share@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/share"
+    :path: "../../node_modules/@capacitor/share"
   CapacitorStatusBar:
-    :path: "../../node_modules/.pnpm/@capacitor+status-bar@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/status-bar"
+    :path: "../../node_modules/@capacitor/status-bar"
   CapacitorToast:
-    :path: "../../node_modules/.pnpm/@capacitor+toast@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/toast"
+    :path: "../../node_modules/@capacitor/toast"
   HugotomaziCapacitorNavigationBar:
-    :path: "../../node_modules/.pnpm/@hugotomazi+capacitor-navigation-bar@2.0.1_@capacitor+core@5.0.5/node_modules/@hugotomazi/capacitor-navigation-bar"
+    :path: "../../node_modules/@hugotomazi/capacitor-navigation-bar"
 
 SPEC CHECKSUMS:
   Capacitor: b1248915663add1bd6567e2b67c1c1fa3abcf5e8
@@ -223,6 +223,6 @@ SPEC CHECKSUMS:
   PromisesObjC: 09985d6d70fbe7878040aa746d78236e6946d2ef
   Protobuf: 3dd214698ddb7afd832da281c777b2e9facef401
 
-PODFILE CHECKSUM: 378cf1903dac11863d60f4cfaa3401093fe02acb
+PODFILE CHECKSUM: d89e1c6f702547a53c04de62b1f25e329c7ead00
 
 COCOAPODS: 1.12.0

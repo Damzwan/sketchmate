@@ -42,7 +42,7 @@ import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 import { resetZoom } from '@/helper/draw/gesture.helper'
 import { svg } from '@/helper/general.helper'
 import { mdiMagnifyMinusOutline } from '@mdi/js'
-import { useSelect } from '@/service/draw/tools/select.service'
+import { useSelect } from '@/service/draw/tools/select.tool'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 

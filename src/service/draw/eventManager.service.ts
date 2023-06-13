@@ -18,15 +18,17 @@ export const useEventManager = defineStore('event manager', () => {
   }
 
   function onToolSwitch(c: Canvas, oldTool: ToolService, newTool: ToolService) {
-    c.isDrawingMode = false
-    c.selection = false
-    setSelectionForObjects(c.getObjects(), false)
-
     const oldToolEvents = oldTool.events
     const newToolEvents = newTool.events
 
     oldToolEvents.forEach(e => unsubscribe(e))
     newToolEvents.forEach(e => subscribe(e))
+
+    c.isDrawingMode = false
+    c.selection = false
+    setSelectionForObjects(c.getObjects(), false)
+
+    c.renderAll()
   }
 
   function subscribe(event: FabricEvent) {

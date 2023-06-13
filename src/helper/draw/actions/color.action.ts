@@ -1,4 +1,4 @@
-import { useSelect } from '@/service/draw/tools/select.service'
+import { useSelect } from '@/service/draw/tools/select.tool'
 import { exitEditing, isText, setForSelectedObjects } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
 import { Canvas } from 'fabric/fabric-impl'

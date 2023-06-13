@@ -70,8 +70,8 @@ import { mdiNuke } from '@mdi/js'
 import { DrawAction, DrawTool, EraserSize } from '@/types/draw.types'
 import { eraserIconMapping } from '@/config/draw.config'
 import { useMenuStore } from '@/store/draw/menu.store'
-import { useEraser } from '@/service/draw/tools/eraser.service'
-import { useHealingEraser } from '@/service/draw/tools/healingEraser.service'
+import { useEraser } from '@/service/draw/tools/eraser.tool'
+import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
 
 const drawStore = useDrawStore()
 const { selectedTool } = storeToRefs(drawStore)

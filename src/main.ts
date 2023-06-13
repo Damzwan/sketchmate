@@ -17,10 +17,11 @@ import mitt from 'mitt'
 import { App as CapApp } from '@capacitor/app'
 import App from '@/App.vue'
 import { useAppStore } from '@/store/app.store'
+import { fadeInAnimation } from '@/helper/animation.helper'
 
 const pinia = createPinia()
 export const EventBus = mitt()
-const app = createApp(App).use(IonicVue).use(pinia).use(router)
+const app = createApp(App).use(IonicVue, { animated: true, navAnimation: fadeInAnimation }).use(pinia).use(router)
 
 StatusBar.setBackgroundColor({ color: '#FFAD83' })
 // app.config.globalProperties.$statusBar.setBackgroundColor({ color: '#FFAD83' })

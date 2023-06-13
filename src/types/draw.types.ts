@@ -41,7 +41,8 @@ export enum DrawTool {
   Pen,
   MobileEraser,
   HealingEraser,
-  Select
+  Select,
+  Lasso
 }
 
 export enum DrawAction {
@@ -134,5 +135,6 @@ export enum DrawEvent {
   Gesture = 'gesture',
   BucketFill = 'on click with bucket',
   ShapeCreation = 'Creating shape',
-  SetModified = 'Creating shape'
+  SetModified = 'Creating shape',
+  Lasso = 'Using lasso'
 }

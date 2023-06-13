@@ -43,7 +43,7 @@ import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { ref } from 'vue'
 import { BLACK } from '@/config/draw.config'
 import { focusText, isText } from '@/helper/draw/draw.helper'
-import { useSelect } from '@/service/draw/tools/select.service'
+import { useSelect } from '@/service/draw/tools/select.tool'
 import { IText } from 'fabric/fabric-impl'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 

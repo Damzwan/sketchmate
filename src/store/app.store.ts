@@ -12,7 +12,7 @@ export const useAppStore = defineStore('app', () => {
   const inbox = ref<InboxItem[]>()
 
   const isLoggedIn = ref(false)
-  const isLoading = ref(true)
+  const isLoading = ref(false)
   const notificationRouteLoading = ref<NotificationType>()
   const storeReady = ref(false)
 
@@ -29,7 +29,6 @@ export const useAppStore = defineStore('app', () => {
       user.value = await getUser()
       const socketService = useSocketService()
       await socketService.login({ _id: user.value!._id })
-      isLoading.value = false
       isLoggedIn.value = true
     } catch (e) {
       error.value = e

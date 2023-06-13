@@ -39,7 +39,7 @@
       </ion-toolbar>
     </ion-header>
     <ion-content color="background" v-if="user">
-      <FullScreenLoader v-if="isLoading" class="h-[65%]" :text="`Creating ${loadingText}...`" />
+      <LinearLoader v-if="isLoading" class="h-[65%]" :dynamic-text="dynamicStickerLoading" />
       <div v-else class="h-full">
         <div v-if="selectedSegment == 0" class="h-full">
           <NoStickers v-if="user.stickers.length == 0" type="stickers" />
@@ -111,6 +111,8 @@ import { DrawAction } from '@/types/draw.types'
 import NoStickers from '@/components/draw/NoStickers.vue'
 import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
+import LinearLoader from '@/components/loaders/LinearLoader.vue'
+import { dynamicStickerLoading } from '@/config/draw.config'
 
 const api = useAPI()
 const { user } = storeToRefs(useAppStore())

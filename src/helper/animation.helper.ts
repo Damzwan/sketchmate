@@ -26,5 +26,5 @@ export const leaveAnimation = (baseEl: HTMLElement) => {
 }
 
 export const fadeInAnimation = (baseEl: HTMLElement, opts?: any) => {
-  return createAnimation().addElement(opts.enteringEl).duration(100).easing('ease-in').fromTo('opacity', '0', '1')
+  return createAnimation().addElement(opts.enteringEl).duration(150).easing('ease-in').fromTo('opacity', '0', '1')
 }

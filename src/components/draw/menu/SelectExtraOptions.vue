@@ -43,7 +43,7 @@ import { mdiContentCopy, mdiContentSave, mdiDeleteOutline, mdiFlipToBack, mdiFli
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
-import { useSelect } from '@/service/draw/tools/select.service'
+import { useSelect } from '@/service/draw/tools/select.tool'
 
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())

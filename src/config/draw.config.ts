@@ -29,6 +29,7 @@ import {
   curveText
 } from '@/helper/draw/actions/text.action'
 import { setBackgroundColor, setFillColor, setStrokeColor } from '@/helper/draw/actions/color.action'
+import { DynamicTextPart } from '@/types/loader.types'
 
 export const COLORSWATCHES = [
   // Grayscale, Reds, Oranges
@@ -125,3 +126,8 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object)
   [DrawAction.BringToFront]: bringToFront,
   [DrawAction.BringToBack]: bringToBack
 }
+
+export const dynamicStickerLoading: DynamicTextPart[] = [
+  { text: 'Uploading...', duration: 1000 },
+  { text: 'Creating Sticker...', duration: 2000 }
+]

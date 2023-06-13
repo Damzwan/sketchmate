@@ -66,7 +66,7 @@ import {
 import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction, TextAlign } from '@/types/draw.types'
-import { useSelect } from '@/service/draw/tools/select.service'
+import { useSelect } from '@/service/draw/tools/select.tool'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { IText } from 'fabric/fabric-impl'

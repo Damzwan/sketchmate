@@ -3,7 +3,7 @@ import { fabric } from 'fabric'
 import { Canvas, IPoint } from 'fabric/fabric-impl'
 import { resetZoom } from '@/helper/draw/draw.helper'
 import { CustomFloodFill } from '@/utils/CustomFloodFill'
-import { usePen } from '@/service/draw/tools/pen.service'
+import { usePen } from '@/service/draw/tools/pen.tool'
 
 export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
   let startTime = performance.now()

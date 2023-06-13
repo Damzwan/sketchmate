@@ -3,7 +3,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { cloneObjects, isText, setObjectId } from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
 import { applyCurve } from '@/helper/draw/actions/text.action'
-import { useSelect } from '@/service/draw/tools/select.service'
+import { useSelect } from '@/service/draw/tools/select.tool'
 import { SelectedObject } from '@/types/draw.types'
 
 export async function copyObjects(c: Canvas, options: any) {

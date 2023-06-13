@@ -31,6 +31,10 @@
       <ion-button :class="{ selected: selectedTool == DrawTool.Select }" @click="selectTool(DrawTool.Select)">
         <ion-icon slot="icon-only" :icon="svg(mdiCursorMove)"></ion-icon>
       </ion-button>
+
+      <ion-button :class="{ selected: selectedTool == DrawTool.Lasso }" @click="selectTool(DrawTool.Lasso)">
+        <ion-icon slot="icon-only" :icon="svg(mdiLasso)"></ion-icon>
+      </ion-button>
     </ion-buttons>
 
     <ion-buttons slot="end" class="h-[40px]">
@@ -56,13 +60,13 @@ import { storeToRefs } from 'pinia'
 import { eraserIconMapping, ERASERS, penIconMapping, PENS } from '@/config/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import { mdiChevronDown, mdiCursorMove, mdiPlus, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
+import { mdiChevronDown, mdiCursorMove, mdiLasso, mdiPlus, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
 import PenMenu from '@/components/draw/menu/PenMenu.vue'
 import { computed } from 'vue'
 import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
 import StickerMenu from '@/components/draw/menu/StickerMenu.vue'
 import MoreToolsMenu from '@/components/draw/menu/MoreToolsMenu.vue'
-import { usePen } from '@/service/draw/tools/pen.service'
+import { usePen } from '@/service/draw/tools/pen.tool'
 import { useHistory } from '@/service/draw/history.service'
 import pen from '@/assets/draw_icons/pen.svg'
 

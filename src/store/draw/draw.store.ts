@@ -14,14 +14,15 @@ import { EventBus } from '@/main'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useLoadService } from '@/service/draw/load.service'
 import { changeFabricBaseSettings, initCanvasOptions, initGestures } from '@/helper/draw/init.helper'
-import { usePen } from '@/service/draw/tools/pen.service'
-import { useHealingEraser } from '@/service/draw/tools/healingEraser.service'
-import { useEraser } from '@/service/draw/tools/eraser.service'
-import { useSelect } from '@/service/draw/tools/select.service'
+import { usePen } from '@/service/draw/tools/pen.tool'
+import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
+import { useEraser } from '@/service/draw/tools/eraser.tool'
+import { useSelect } from '@/service/draw/tools/select.tool'
 import { useHistory } from '@/service/draw/history.service'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { loadAdditionalBrushes } from '@/utils/brushes'
 import { compressImg } from '@/helper/general.helper'
+import { useLasso } from '@/service/draw/tools/lasso.tool'
 
 export const useDrawStore = defineStore('draw', () => {
   const { user, isLoading } = storeToRefs(useAppStore())
@@ -37,6 +38,7 @@ export const useDrawStore = defineStore('draw', () => {
   const eraser = useEraser()
   const healingEraser = useHealingEraser()
   const select = useSelect()
+  const lasso = useLasso()
 
   // Other services
   const loadService = useLoadService()
@@ -60,7 +62,8 @@ export const useDrawStore = defineStore('draw', () => {
     [DrawTool.Pen]: pen,
     [DrawTool.MobileEraser]: eraser,
     [DrawTool.HealingEraser]: healingEraser,
-    [DrawTool.Select]: select
+    [DrawTool.Select]: select,
+    [DrawTool.Lasso]: lasso
   }
 
   // We make use of events so we do not load the big draw.store in other views
@@ -95,6 +98,7 @@ export const useDrawStore = defineStore('draw', () => {
       eraser.init(c)
       healingEraser.init(c)
       select.init(c)
+      lasso.init(c)
       selectTool(DrawTool.Pen)
     }
     if (loadService.jsonToLoad.value) await loadService.loadCanvas(c)

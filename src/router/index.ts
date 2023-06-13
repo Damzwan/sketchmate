@@ -62,8 +62,10 @@ const router = createRouter({
 
 router.beforeEach(async (to, from, next) => {
   const app = useAppStore()
-  const { connect } = useSocketService()
-  if (!app.isLoggedIn) await connect().then(app.login)
+  if (!app.isLoggedIn) {
+    const { connect } = useSocketService()
+    await connect().then(app.login)
+  }
   next()
 })
 

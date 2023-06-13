@@ -13,8 +13,7 @@ export const useHistory = defineStore('history', () => {
   let prevCanvasState: any
   const undoStack = ref<any[]>([])
   const redoStack = ref<any[]>([])
-  const { subscribe, unsubscribe } = useEventManager()
-  const { enableEvents: selectEnableEvents, disableEvents: selectDisableEvents } = useSelect()
+  const { subscribe, unsubscribe, disableAllEvents, enableAllEvents } = useEventManager()
 
   // 'erasing:end', 'after:transform', 'object:removed', 'object:added', 'object:modified'
   const events: FabricEvent[] = [
@@ -52,12 +51,10 @@ export const useHistory = defineStore('history', () => {
   }
 
   function enableEvents() {
-    selectEnableEvents()
     events.forEach(e => subscribe(e))
   }
 
   function disableEvents() {
-    selectDisableEvents()
     events.forEach(e => unsubscribe(e))
   }
 
@@ -87,8 +84,8 @@ export const useHistory = defineStore('history', () => {
   }
 
   function restoreSelectedObjects() {
-    const { lastSelectedObjects } = useSelect()
-    const newSelectedObjects = lastSelectedObjects
+    const { getSelectedObjects } = useSelect()
+    const newSelectedObjects = getSelectedObjects()
       .map((obj: any) => findObjectById(c!, obj.id)!)
       .filter((obj: any) => !!obj)
     if (newSelectedObjects.length > 1) c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
@@ -96,14 +93,14 @@ export const useHistory = defineStore('history', () => {
   }
 
   function restoreCanvasFromHistory(previousState: any) {
-    disableEvents()
+    disableAllEvents()
     c!.loadFromJSON(previousState, () => {
       c?.getObjects()
         .filter(obj => obj.type === ObjectType.text)
         .forEach((text: any) => (text.isCurved ? applyCurve(text, c!) : undefined))
       prevCanvasState = previousState
       restoreSelectedObjects()
-      enableEvents()
+      enableAllEvents()
     })
   }
 

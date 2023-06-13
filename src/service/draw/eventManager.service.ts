@@ -10,7 +10,6 @@ export type EventObjectType = ObjectType | 'all'
 export const useEventManager = defineStore('event manager', () => {
   let c: Canvas | undefined
   const events = ref<Record<string, FabricEvent[]>>({})
-  const onRestoreActions = ref<Partial<Record<EventObjectType, RestoreAction[]>>>({})
 
   function init(canvas: Canvas) {
     c = canvas
@@ -53,12 +52,26 @@ export const useEventManager = defineStore('event manager', () => {
     c!.on(event.on, (e: any) => event.handler(e))
   }
 
+  function disableAllEvents() {
+    for (const [eventType, evs] of Object.entries(events.value)) {
+      c!.off(eventType)
+    }
+  }
+
+  function enableAllEvents() {
+    for (const [eventOn, evs] of Object.entries(events.value)) {
+      c!.on(eventOn, (e: any) => evs.forEach(ev => ev.handler(e)))
+    }
+  }
+
   return {
     init,
     subscribe,
     unsubscribe,
     onToolSwitch,
     events,
-    isolatedSubscribe
+    isolatedSubscribe,
+    disableAllEvents,
+    enableAllEvents
   }
 })

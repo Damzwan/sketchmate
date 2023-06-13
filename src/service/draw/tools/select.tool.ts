@@ -8,13 +8,10 @@ import { useEventManager } from '@/service/draw/eventManager.service'
 import { useDrawStore } from '@/store/draw/draw.store'
 
 interface Select extends ToolService {
-  lastSelectedObjects: Ref<Array<SelectedObject>>
   selectedObjectsRef: Ref<Array<SelectedObject>>
   lastModifiedObjects: Ref<Array<SelectedObject>>
   setSelectedObjects: (obj: SelectedObject[]) => void
   getSelectedObjects: () => SelectedObject[]
-  enableEvents: () => void
-  disableEvents: () => void
 }
 
 export const useSelect = defineStore('select', (): Select => {
@@ -23,7 +20,6 @@ export const useSelect = defineStore('select', (): Select => {
   let selectedObjects: Array<SelectedObject> = []
   const { subscribe, unsubscribe } = useEventManager()
   const selectedObjectsRef = ref<Array<SelectedObject>>([])
-  const lastSelectedObjects = ref<Array<SelectedObject>>([])
   const lastModifiedObjects = ref<Array<SelectedObject>>([])
 
   const events: FabricEvent[] = [
@@ -65,7 +61,6 @@ export const useSelect = defineStore('select', (): Select => {
 
   function setSelectedObjects(objects: Array<SelectedObject> | undefined) {
     if (!objects) objects = []
-    lastSelectedObjects.value = selectedObjects
 
     if (objects.length == 0) {
       c?.discardActiveObject()
@@ -127,24 +122,13 @@ export const useSelect = defineStore('select', (): Select => {
     return selectedObjects
   }
 
-  function enableEvents() {
-    events.forEach(e => subscribe(e))
-  }
-
-  function disableEvents() {
-    events.forEach(e => unsubscribe(e))
-  }
-
   return {
     init,
     selectedObjectsRef,
-    lastSelectedObjects,
     select,
     events,
     lastModifiedObjects,
     setSelectedObjects,
-    getSelectedObjects,
-    enableEvents,
-    disableEvents
+    getSelectedObjects
   }
 })

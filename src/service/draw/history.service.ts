@@ -14,6 +14,7 @@ export const useHistory = defineStore('history', () => {
   const undoStack = ref<any[]>([])
   const redoStack = ref<any[]>([])
   const { subscribe, unsubscribe } = useEventManager()
+  const { enableEvents: selectEnableEvents, disableEvents: selectDisableEvents } = useSelect()
 
   // 'erasing:end', 'after:transform', 'object:removed', 'object:added', 'object:modified'
   const events: FabricEvent[] = [
@@ -51,10 +52,12 @@ export const useHistory = defineStore('history', () => {
   }
 
   function enableEvents() {
+    selectEnableEvents()
     events.forEach(e => subscribe(e))
   }
 
   function disableEvents() {
+    selectDisableEvents()
     events.forEach(e => unsubscribe(e))
   }
 
@@ -71,6 +74,7 @@ export const useHistory = defineStore('history', () => {
     const previousState = undoStack.value.pop()
     restoreCanvasFromHistory(previousState)
     redoStack.value.push(currState)
+    c?.renderAll()
   }
 
   function redo() {
@@ -79,6 +83,7 @@ export const useHistory = defineStore('history', () => {
     const previousState = redoStack.value.pop()
     restoreCanvasFromHistory(previousState)
     undoStack.value.push(currState)
+    c?.renderAll()
   }
 
   function restoreSelectedObjects() {

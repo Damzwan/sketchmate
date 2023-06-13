@@ -2,11 +2,11 @@
   <ion-toolbar color="primary" class="h-[46px]" mode="md">
     <ion-buttons slot="start">
       <ion-button
-        :class="{ selected: penMenuSelected }"
-        @click="selectTool(DrawTool.Pen, { openMenu: true, e: $event })"
+        :class="{ selected: PENMENUTOOLS.includes(selectedTool) }"
+        @click="selectTool(lastSelectedPenMenuTool, { openMenu: true, e: $event })"
       >
-        <ion-icon slot="icon-only" :icon="svg(penIconMapping[brushType])"></ion-icon>
-        <div class="selected_chevron" v-if="penMenuSelected">
+        <ion-icon slot="icon-only" :icon="svg(penMenuIcon)"></ion-icon>
+        <div class="selected_chevron" v-if="PENMENUTOOLS.includes(selectedTool)">
           <ion-icon :icon="svg(mdiChevronDown)" />
         </div>
       </ion-button>
@@ -57,28 +57,39 @@
 import { DrawTool } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
-import { eraserIconMapping, ERASERS, penIconMapping, PENS } from '@/config/draw.config'
+import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/config/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import { mdiChevronDown, mdiCursorMove, mdiLasso, mdiPlus, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
+import {
+  mdiBucket,
+  mdiBucketOutline,
+  mdiChevronDown,
+  mdiCursorMove,
+  mdiLasso,
+  mdiPlus,
+  mdiRedo,
+  mdiSend,
+  mdiUndo
+} from '@mdi/js'
 import PenMenu from '@/components/draw/menu/PenMenu.vue'
-import { computed } from 'vue'
 import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
 import StickerMenu from '@/components/draw/menu/StickerMenu.vue'
 import MoreToolsMenu from '@/components/draw/menu/MoreToolsMenu.vue'
 import { usePen } from '@/service/draw/tools/pen.tool'
 import { useHistory } from '@/service/draw/history.service'
-import pen from '@/assets/draw_icons/pen.svg'
+import { computed } from 'vue'
 
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore
 const { brushType } = storeToRefs(usePen())
-const { selectedTool, lastSelectedEraserTool } = storeToRefs(drawStore)
+const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool } = storeToRefs(drawStore)
 
 const { undo, redo } = useHistory()
 const { undoStack, redoStack } = storeToRefs(useHistory())
 
-const penMenuSelected = computed(() => PENS.includes(selectedTool.value))
+const penMenuIcon = computed(() =>
+  lastSelectedPenMenuTool.value == DrawTool.Pen ? penIconMapping[brushType.value] : mdiBucketOutline
+)
 </script>
 
 <style scoped>

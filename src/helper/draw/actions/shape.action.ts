@@ -95,6 +95,7 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
       saveState()
       enableHistorySaving()
       drawingMode = false
+      createdShape.setCoords() // important to update the bounding box of the shape
       c.renderAll()
     }
   })
@@ -107,7 +108,6 @@ function handleMouseDown(c: Canvas, shape: Shape, o: any, createdShape: any) {
 
   createdShape = createShape(shape, startX, startY)
   c.add(createdShape)
-  // c.moveTo(createdShape, Layer.obj)
   return { startX, startY, createdShape }
 }
 
@@ -153,6 +153,21 @@ function updateShape(createdShape: any, shape: Shape, pointer: any, startX: numb
       break
     case Shape.Line:
       createdShape.set({ x2: pointer.x, y2: pointer.y })
+      break
+    case Shape.HEART:
+      const scalingSpeed = 200
+      const dx = pointer.x - startX
+      const dy = pointer.y - startY
+      const distance = Math.sqrt(dx * dx + dy * dy)
+      const scale = distance / scalingSpeed
+
+      createdShape.set({
+        left: Math.min(startX, pointer.x),
+        top: Math.min(startY, pointer.y),
+        scaleX: scale,
+        scaleY: scale,
+        strokeWidth: 4
+      })
       break
     default:
       break
@@ -205,5 +220,15 @@ function createShape(shape: Shape, startX: number, startY: number): any {
         stroke: 'black',
         strokeWidth: 2
       })
+    case Shape.HEART:
+      const pathString =
+        'M 272.70141,238.71731 C 206.46141,238.71731 152.70146,292.4773 152.70146,358.71731 C 152.70146,493.47282 288.63461,528.80461 381.26391,662.02535 C 468.83815,529.62199 609.82641,489.17075 609.82641,358.71731 C 609.82641,292.47731 556.06651,238.7173 489.82641,238.71731 C 441.77851,238.71731 400.42481,267.08774 381.26391,307.90481 C 362.10311,267.08773 320.74941,238.7173 272.70141,238.71731 z'
+
+      const heart = new fabric.Path(pathString)
+      heart.scaleToWidth(1)
+      heart.scaleToHeight(1)
+      heart.set({ left: startX, top: startY, originX: 'center', originY: 'center', stroke: 'black', fill: '' })
+
+      return heart
   }
 }

@@ -5,7 +5,6 @@ import { DrawTool, Menu } from '@/types/draw.types'
 export const useMenuStore = defineStore('menu', () => {
   const penMenuOpen = ref(false)
   const eraserMenuOpen = ref(false)
-  const bucketMenuOpen = ref(false)
   const stickerMenuOpen = ref(false)
   const savedMenuOpen = ref(false)
   const shapesMenuOpen = ref(false)
@@ -15,7 +14,6 @@ export const useMenuStore = defineStore('menu', () => {
   const menuMapping: { [key in Menu]: Ref<boolean> } = {
     [Menu.Pen]: penMenuOpen,
     [Menu.Eraser]: eraserMenuOpen,
-    [Menu.Bucket]: bucketMenuOpen,
     [Menu.Sticker]: stickerMenuOpen,
     [Menu.Saved]: savedMenuOpen,
     [Menu.Shapes]: shapesMenuOpen
@@ -23,8 +21,10 @@ export const useMenuStore = defineStore('menu', () => {
 
   const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
     [DrawTool.Pen]: Menu.Pen,
+    [DrawTool.Bucket]: Menu.Pen,
     [DrawTool.MobileEraser]: Menu.Eraser,
     [DrawTool.HealingEraser]: Menu.Eraser,
+    [DrawTool.Lasso]: undefined,
     [DrawTool.Select]: undefined
   }
 
@@ -41,7 +41,6 @@ export const useMenuStore = defineStore('menu', () => {
   return {
     penMenuOpen,
     eraserMenuOpen,
-    bucketMenuOpen,
     stickerMenuOpen,
     savedMenuOpen,
     shapesMenuOpen,

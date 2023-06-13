@@ -18,40 +18,40 @@
         <div class="flex justify-between mt-1 px-2" id="brush-type">
           <div
             class="brush_option bg-green-400"
-            @click="brushType = BrushType.Pencil"
-            :class="{ brush_selected: brushType === BrushType.Pencil }"
+            @click="selectBrushType(BrushType.Pencil)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.Pencil) }"
           >
             <ion-icon :icon="svg(mdiPencilOutline)" />
           </div>
 
           <div
             class="brush_option bg-pink-400"
-            @click="brushType = BrushType.Ink"
-            :class="{ brush_selected: brushType === BrushType.Ink }"
+            @click="selectBrushType(BrushType.Ink)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.Ink) }"
           >
             <ion-icon :icon="svg(mdiLiquidSpot)" />
           </div>
 
           <div
             class="brush_option bg-blue-400"
-            @click="brushType = BrushType.Spray"
-            :class="{ brush_selected: brushType === BrushType.Spray }"
+            @click="selectBrushType(BrushType.Spray)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.Spray) }"
           >
             <ion-icon :icon="svg(mdiSpray)" />
           </div>
 
           <div
             class="brush_option bg-yellow-400"
-            @click="brushType = BrushType.Circle"
-            :class="{ brush_selected: brushType === BrushType.Circle }"
+            @click="selectBrushType(BrushType.Circle)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.Circle) }"
           >
             <ion-icon :icon="svg(mdiCircleOutline)" />
           </div>
 
           <div
             class="brush_option bg-purple-400"
-            @click="brushType = BrushType.Bucket"
-            :class="{ brush_selected: brushType === BrushType.Bucket }"
+            @click="selectTool(DrawTool.Bucket)"
+            :class="{ brush_selected: selectedTool === DrawTool.Bucket }"
           >
             <ion-icon :icon="svg(mdiBucketOutline)" />
           </div>
@@ -68,8 +68,8 @@
 import { IonContent, IonIcon, IonItem, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { ref, watch } from 'vue'
-import { WHITE } from '@/config/draw.config'
-import { BrushType } from '@/types/draw.types'
+import { PENMENUTOOLS, WHITE } from '@/config/draw.config'
+import { BrushType, DrawTool } from '@/types/draw.types'
 import { mdiBucketOutline, mdiCircleOutline, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
@@ -78,7 +78,10 @@ import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { setObjectSelection } from '@/helper/draw/draw.helper'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
+import { useDrawStore } from '@/store/draw/draw.store'
 
+const { selectTool } = useDrawStore()
+const { selectedTool } = storeToRefs(useDrawStore())
 const { brushSize, brushColor, brushType } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
@@ -98,7 +101,7 @@ const renderPreview = () => {
     canvas.clear() // clear canvas before re-drawing
   }
 
-  if (brushType.value == BrushType.Bucket) {
+  if (selectedTool.value == DrawTool.Bucket) {
     canvas.backgroundColor = brushColor.value
     canvas.renderAll()
     return
@@ -165,9 +168,19 @@ function onDismiss() {
   canvas = undefined
 }
 
+function selectBrushType(newBrushType: BrushType) {
+  if (selectedTool.value != DrawTool.Pen) selectTool(DrawTool.Pen)
+  brushType.value = newBrushType
+  renderPreview()
+}
+
+function isBrushTypeSelected(type: BrushType) {
+  return brushType.value == type && selectedTool.value == DrawTool.Pen
+}
+
 watch(brushSize, renderPreview)
 watch(brushColor, renderPreview)
-watch(brushType, renderPreview)
+watch(selectedTool, () => (selectedTool.value && PENMENUTOOLS.includes(selectedTool.value) ? renderPreview() : null))
 </script>
 
 <style scoped>
@@ -181,10 +194,6 @@ watch(brushType, renderPreview)
 
 .brush_selected {
   @apply border-[3px] border-secondary;
-}
-
-.color_swatch {
-  @apply w-8 h-8 rounded-full cursor-pointer;
 }
 
 ion-item {

@@ -1,8 +1,8 @@
 <template>
   <ion-app>
+    <CircularLoader v-if="!canProceed" />
     <transition>
-      <CircularLoader v-if="!canProceed" />
-      <ion-router-outlet v-else />
+      <ion-router-outlet v-show="canProceed" />
     </transition>
   </ion-app>
 </template>

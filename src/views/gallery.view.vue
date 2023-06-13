@@ -1,7 +1,7 @@
 <template>
   <ion-page v-if="user && user.mate" id="page">
     <SettingsHeader title="Gallery" :presenting-element="page" />
-    <FullScreenLoader v-if="isLoading" />
+    <CircularLoader v-if="isLoading" />
     <ion-content v-else>
       <PhotoSwiper
         v-model:open="isPhotoSwiperOpen"
@@ -28,19 +28,7 @@
                 :key="i"
               >
                 <div @click="openPhotoSwiper(inboxItem)" class="relative">
-                  <Thumbnail :src="inboxItem.thumbnail" />
-                  <div class="absolute z-10 right-1 top-1 w-3/12">
-                    <ion-avatar class="flex justify-center items-center w-full h-full"
-                      ><img :src="senderImg(user, inboxItem.sender)" alt="" class="aspect-square"
-                    /></ion-avatar>
-                  </div>
-
-                  <div
-                    v-if="inboxItem.comments.length > 0"
-                    class="absolute z-10 right-1 bottom-1 w-3/12 flex justify-center items-center rounded-full comment_count aspect-square text-md"
-                  >
-                    {{ inboxItem.comments.length }}
-                  </div>
+                  <Thumbnail :inbox-item="inboxItem" :user="user!" />
                 </div>
               </ion-col>
             </ion-row>
@@ -65,8 +53,8 @@ import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import PhotoSwiper from '@/components/gallery/PhotoSwiper.vue'
 import { useRoute } from 'vue-router'
 import NoMessages from '@/components/gallery/NoMessages.vue'
-import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 import Thumbnail from '@/components/gallery/Thumbnail.vue'
+import CircularLoader from '@/components/loaders/CircularLoader.vue'
 
 const { getInbox, cleanUnreadMessages } = useAppStore()
 const { user, inbox, isLoading } = storeToRefs(useAppStore())
@@ -138,8 +126,4 @@ function removeItem() {
 }
 </script>
 
-<style scoped lang="scss">
-.comment_count {
-  background: var(--ion-color-secondary);
-}
-</style>
+<style scoped lang="scss"></style>

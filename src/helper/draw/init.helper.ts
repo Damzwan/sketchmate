@@ -6,6 +6,13 @@ import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { BACKGROUND } from '@/config/draw.config'
+import { DrawTool, ToolService } from '@/types/draw.types'
+import { usePen } from '@/service/draw/tools/pen.tool'
+import { useEraser } from '@/service/draw/tools/eraser.tool'
+import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
+import { useSelect } from '@/service/draw/tools/select.tool'
+import { useLasso } from '@/service/draw/tools/lasso.tool'
+import { useBucket } from '@/service/draw/tools/bucket.tool'
 
 export function initCanvasOptions(): ICanvasOptions {
   return {
@@ -71,5 +78,22 @@ export function changeFabricBaseSettings(c: Canvas) {
   fabric.IText.fromObject = function (object, callback) {
     delete object.path
     return og(object, callback)
+  }
+}
+
+export function createTools(): { [key in DrawTool]: ToolService } {
+  return {
+    [DrawTool.Pen]: usePen(),
+    [DrawTool.MobileEraser]: useEraser(),
+    [DrawTool.HealingEraser]: useHealingEraser(),
+    [DrawTool.Select]: useSelect(),
+    [DrawTool.Lasso]: useLasso(),
+    [DrawTool.Bucket]: useBucket()
+  }
+}
+
+export function initTools(c: Canvas, tools: { [key in DrawTool]: ToolService }) {
+  for (const [_, tool] of Object.entries(tools)) {
+    tool.init(c)
   }
 }

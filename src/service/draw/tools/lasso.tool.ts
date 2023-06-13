@@ -4,12 +4,9 @@ import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
 import { useHistory } from '@/service/draw/history.service'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { useSelect } from '@/service/draw/tools/select.tool'
 
-interface Lasso extends ToolService {
-  init: (c: Canvas) => void
-}
-
-export const useLasso = defineStore('lasso', (): Lasso => {
+export const useLasso = defineStore('lasso', (): ToolService => {
   let c: Canvas | undefined = undefined
   const events: FabricEvent[] = [
     {
@@ -77,6 +74,10 @@ export const useLasso = defineStore('lasso', (): Lasso => {
 
     if (objectsInsideLasso.length == 1) c!.setActiveObject(objectsInsideLasso[0])
     else c!.setActiveObject(new fabric.ActiveSelection(objectsInsideLasso, { canvas: c! }))
+
+    // TODO somehow doing an active selection will not allow you to merge since it is treated as a single object
+    const { setSelectedObjects } = useSelect()
+    setSelectedObjects(objectsInsideLasso)
   }
 
   function isInsideLasso(obj: fabric.Object) {

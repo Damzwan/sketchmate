@@ -4,8 +4,10 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { isPlatform } from '@ionic/vue'
 import { fabricateTouchUp } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
-import { DrawEvent, FabricEvent } from '@/types/draw.types'
+import { DrawEvent, DrawTool, FabricEvent } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
+import { ERASERS } from '@/config/draw.config'
+import { useToast } from '@/service/toast.service'
 
 export function enableZoomAndPan(c: any) {
   if (isPlatform('mobile') || isPlatform('capacitor') || isPlatform('android') || isPlatform('ios'))
@@ -61,14 +63,32 @@ export function enableMobileZoomAndPan(c: any) {
   })
 }
 
-function cancelPreviousAction(c: Canvas) {
-  setTimeout(() => {
-    fabricateTouchUp(c)
+function cancelEraserAction(c: Canvas) {
+  c.on('erasing:end', (e: any) => {
+    const targets = e.targets as fabric.Object[]
+    const path: fabric.Path = e.path
 
-    if (c.isDrawingMode) {
-      const lastObject = c.getObjects().pop()
-      if (lastObject) c.remove(lastObject)
-    }
+    console.log(e)
+    console.log(targets)
+    targets.forEach((target: any) => {
+      target.eraser._objects = target.eraser._objects.filter((obj: any) => obj.id !== path.id)
+    })
+
+    c.off('erasing:end')
+  })
+}
+
+function cancelPenAction(c: Canvas) {
+  const lastObject = c.getObjects().pop()
+  if (lastObject) c.remove(lastObject)
+}
+
+function cancelPreviousAction(c: Canvas) {
+  const { selectedTool } = useDrawStore()
+  setTimeout(() => {
+    if (ERASERS.includes(selectedTool)) cancelEraserAction(c) // needs to happen before touch up
+    fabricateTouchUp(c)
+    if (selectedTool == DrawTool.Pen) cancelPenAction(c) // needs to happen after touch up
     c.discardActiveObject()
     c.renderAll()
   }, 1)

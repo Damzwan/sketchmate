@@ -1,5 +1,5 @@
 <template>
-  <div class="flex justify-center h-full w-full items-center bg-black bg-opacity-50 flex-col">
+  <div class="flex justify-center h-full w-full items-center flex-col" :class="{ darken: darken }">
     <div class="w-3/5 w-max-[200px]">
       <ion-progress-bar color="primary" type="indeterminate" />
     </div>
@@ -18,6 +18,7 @@ const dynamicIndex = ref(0)
 const props = defineProps<{
   text?: string
   dynamicText?: DynamicTextPart[]
+  darken?: boolean
 }>()
 
 function setDynamicTextTimeOut() {
@@ -32,4 +33,8 @@ if (props.dynamicText) {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+.darken {
+  @apply bg-black bg-opacity-50;
+}
+</style>

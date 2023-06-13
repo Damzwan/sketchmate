@@ -24,6 +24,7 @@ export interface SelectToolOptions {
 export interface ToolService {
   select: (c: Canvas) => void
   events: FabricEvent[]
+  init: (c: Canvas) => void
 }
 
 export interface RestoreAction {
@@ -42,7 +43,8 @@ export enum DrawTool {
   MobileEraser,
   HealingEraser,
   Select,
-  Lasso
+  Lasso,
+  Bucket
 }
 
 export enum DrawAction {
@@ -71,7 +73,6 @@ export enum DrawAction {
 export enum Menu {
   Pen,
   Eraser,
-  Bucket,
   Sticker,
   Saved,
   Shapes
@@ -85,7 +86,7 @@ export enum ObjectType {
 }
 
 export type Eraser = DrawTool.MobileEraser | DrawTool.HealingEraser
-export type Pen = DrawTool.Pen
+export type PenMenuTool = DrawTool.Pen | DrawTool.Bucket
 
 export enum Shape {
   Circle,
@@ -94,14 +95,14 @@ export enum Shape {
   Triangle,
   Line,
   Polyline,
-  Polygon
+  Polygon,
+  HEART
 }
 
 export enum BrushType {
   Pencil,
   Circle,
   Spray,
-  Bucket,
   Ink
 }
 

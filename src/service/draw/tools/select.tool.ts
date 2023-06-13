@@ -11,16 +11,17 @@ interface Select extends ToolService {
   lastSelectedObjects: Ref<Array<SelectedObject>>
   selectedObjectsRef: Ref<Array<SelectedObject>>
   lastModifiedObjects: Ref<Array<SelectedObject>>
-  init: (c: Canvas) => void
   setSelectedObjects: (obj: SelectedObject[]) => void
   getSelectedObjects: () => SelectedObject[]
+  enableEvents: () => void
+  disableEvents: () => void
 }
 
 export const useSelect = defineStore('select', (): Select => {
   let c: Canvas | undefined = undefined
 
   let selectedObjects: Array<SelectedObject> = []
-  const { subscribe } = useEventManager()
+  const { subscribe, unsubscribe } = useEventManager()
   const selectedObjectsRef = ref<Array<SelectedObject>>([])
   const lastSelectedObjects = ref<Array<SelectedObject>>([])
   const lastModifiedObjects = ref<Array<SelectedObject>>([])
@@ -126,6 +127,14 @@ export const useSelect = defineStore('select', (): Select => {
     return selectedObjects
   }
 
+  function enableEvents() {
+    events.forEach(e => subscribe(e))
+  }
+
+  function disableEvents() {
+    events.forEach(e => unsubscribe(e))
+  }
+
   return {
     init,
     selectedObjectsRef,
@@ -134,6 +143,8 @@ export const useSelect = defineStore('select', (): Select => {
     events,
     lastModifiedObjects,
     setSelectedObjects,
-    getSelectedObjects
+    getSelectedObjects,
+    enableEvents,
+    disableEvents
   }
 })

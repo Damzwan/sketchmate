@@ -79,8 +79,7 @@ export const WHITE = '#FFFFFF'
 export const BACKGROUND = '#FAF0E6'
 
 export const ERASERS = [DrawTool.MobileEraser, DrawTool.HealingEraser]
-export const PENS = [DrawTool.Pen]
-
+export const PENMENUTOOLS = [DrawTool.Pen, DrawTool.Bucket]
 export const FONTS: string[] = [
   'Arial',
   'Anton',
@@ -100,7 +99,6 @@ export const penIconMapping: { [key in BrushType]: string } = {
   [BrushType.Pencil]: mdiPencilOutline,
   [BrushType.Spray]: mdiSpray,
   [BrushType.Circle]: mdiCircleOutline,
-  [BrushType.Bucket]: mdiBucketOutline,
   [BrushType.Ink]: mdiLiquidSpot
 }
 

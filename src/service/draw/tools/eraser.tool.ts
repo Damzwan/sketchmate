@@ -5,7 +5,6 @@ import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
 
 interface Eraser extends ToolService {
-  init: (c: Canvas) => void
   eraserSize: Ref<number>
 }
 

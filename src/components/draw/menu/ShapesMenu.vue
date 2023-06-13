@@ -22,6 +22,11 @@
           <p class="pl-2 text-base">Triangle</p>
         </ion-item>
 
+        <ion-item color="tertiary" :button="true" @click="addShape(Shape.HEART)">
+          <ion-icon :icon="svg(mdiHeartOutline)" />
+          <p class="pl-2 text-base">Heart</p>
+        </ion-item>
+
         <ion-item color="tertiary" :button="true" @click="addShape(Shape.Line)">
           <ion-icon :icon="svg(mdiVectorLine)" />
           <p class="pl-2 text-base">Line</p>
@@ -47,6 +52,7 @@ import { svg } from '@/helper/general.helper'
 import {
   mdiCircleOutline,
   mdiEllipseOutline,
+  mdiHeartOutline,
   mdiRectangleOutline,
   mdiTriangleOutline,
   mdiVectorBezier,

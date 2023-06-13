@@ -12,8 +12,8 @@ import { DrawTool } from '@/types/draw.types'
 import { applyCurve } from '@/helper/draw/actions/text.action'
 
 export async function createSaved(c: Canvas, options: any) {
-  const { loadingText } = storeToRefs(useDrawStore())
-  const { isLoading, user } = storeToRefs(useAppStore())
+  const { user } = useAppStore()
+  const { loadingText, isLoading } = storeToRefs(useDrawStore())
   const { createSaved } = useAPI()
   const { toast } = useToast()
 
@@ -59,8 +59,8 @@ export async function createSaved(c: Canvas, options: any) {
   const json = JSON.stringify(tempCanvas.toJSON())
   const img = await canvasToBuffer(tempCanvas.toDataURL())
 
-  const saved = await createSaved({ _id: user.value!._id, drawing: json, img: img })
-  user.value?.saved.push(saved!)
+  const saved = await createSaved({ _id: user!._id, drawing: json, img: img })
+  user!.saved.push(saved!)
   isLoading.value = false
   toast('Saved drawing', { buttons: [viewSavedButton] })
 }

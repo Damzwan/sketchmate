@@ -1,7 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { DrawAction, DrawTool, Eraser, SelectToolOptions, ShapeCreationMode, ToolService } from '@/types/draw.types'
+import { DrawAction, DrawTool, Eraser, PenMenuTool, SelectToolOptions, ShapeCreationMode } from '@/types/draw.types'
 import { ref } from 'vue'
-import { actionMapping, BACKGROUND, ERASERS, WHITE } from '@/config/draw.config'
+import { actionMapping, BACKGROUND, ERASERS, PENMENUTOOLS } from '@/config/draw.config'
 import { Canvas } from 'fabric/fabric-impl'
 import { useAppStore } from '@/store/app.store'
 import { useSocketService } from '@/service/api/socket.service'
@@ -13,19 +13,19 @@ import { fabric } from 'fabric'
 import { EventBus } from '@/main'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useLoadService } from '@/service/draw/load.service'
-import { changeFabricBaseSettings, initCanvasOptions, initGestures } from '@/helper/draw/init.helper'
-import { usePen } from '@/service/draw/tools/pen.tool'
-import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
-import { useEraser } from '@/service/draw/tools/eraser.tool'
-import { useSelect } from '@/service/draw/tools/select.tool'
+import {
+  changeFabricBaseSettings,
+  createTools,
+  initCanvasOptions,
+  initGestures,
+  initTools
+} from '@/helper/draw/init.helper'
 import { useHistory } from '@/service/draw/history.service'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { loadAdditionalBrushes } from '@/utils/brushes'
-import { compressImg } from '@/helper/general.helper'
-import { useLasso } from '@/service/draw/tools/lasso.tool'
 
 export const useDrawStore = defineStore('draw', () => {
-  const { user, isLoading } = storeToRefs(useAppStore())
+  const { user } = storeToRefs(useAppStore())
   const api = useSocketService()
   const router = useRouter()
 
@@ -34,11 +34,7 @@ export const useDrawStore = defineStore('draw', () => {
   let c: Canvas | undefined // needs to be a global variable
 
   // Tool services
-  const pen = usePen()
-  const eraser = useEraser()
-  const healingEraser = useHealingEraser()
-  const select = useSelect()
-  const lasso = useLasso()
+  const tools = createTools()
 
   // Other services
   const loadService = useLoadService()
@@ -47,6 +43,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   // Selected tools
   const selectedTool = ref<DrawTool>(DrawTool.MobileEraser)
+  const lastSelectedPenMenuTool = ref<PenMenuTool>(DrawTool.Pen)
   const lastSelectedEraserTool = ref<Eraser>(DrawTool.MobileEraser)
 
   // Hammer
@@ -57,14 +54,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   const canZoomOut = ref(false)
   const isEditingText = ref(false)
-
-  const toolMapping: { [key in DrawTool]: ToolService } = {
-    [DrawTool.Pen]: pen,
-    [DrawTool.MobileEraser]: eraser,
-    [DrawTool.HealingEraser]: healingEraser,
-    [DrawTool.Select]: select,
-    [DrawTool.Lasso]: lasso
-  }
+  const isLoading = ref(false)
 
   // We make use of events so we do not load the big draw.store in other views
   EventBus.on('reset-canvas', reset)
@@ -74,11 +64,12 @@ export const useDrawStore = defineStore('draw', () => {
     if (newTool != oldTool) {
       selectedTool.value = newTool
       if (ERASERS.includes(newTool)) lastSelectedEraserTool.value = newTool as Eraser
-      eventManager.onToolSwitch(c!, toolMapping[oldTool], toolMapping[newTool])
+      if (PENMENUTOOLS.includes(newTool)) lastSelectedPenMenuTool.value = newTool as PenMenuTool
+      eventManager.onToolSwitch(c!, tools[oldTool], tools[newTool])
     } else if (options && options.openMenu) {
       openToolMenu(newTool, options.e)
     }
-    toolMapping[newTool]?.select(c!)
+    tools[newTool]?.select(c!)
     c?.renderAll()
   }
 
@@ -88,17 +79,13 @@ export const useDrawStore = defineStore('draw', () => {
 
   async function initCanvas(canvas: HTMLCanvasElement) {
     if (!c) {
-      loadAdditionalBrushes()
       c = new fabric.Canvas(canvas, initCanvasOptions())
+      loadAdditionalBrushes()
       changeFabricBaseSettings(c)
       initGestures(c, hammer)
       eventManager.init(c)
       history.init(c)
-      pen.init(c)
-      eraser.init(c)
-      healingEraser.init(c)
-      select.init(c)
-      lasso.init(c)
+      initTools(c, tools)
       selectTool(DrawTool.Pen)
     }
     if (loadService.jsonToLoad.value) await loadService.loadCanvas(c)
@@ -113,7 +100,7 @@ export const useDrawStore = defineStore('draw', () => {
       _id: user.value!._id,
       mate_id: user.value!.mate!._id,
       drawing: JSON.stringify(c.toJSON(['width', 'height'])),
-      img: await canvasToBuffer(c.toDataURL()),
+      img: await canvasToBuffer(c.toDataURL({ multiplier: 2 })), // TODO multiplier 2 could be dangerous
       name: user.value!.name
     })
   }
@@ -129,6 +116,7 @@ export const useDrawStore = defineStore('draw', () => {
   }
 
   function reset() {
+    isLoading.value = false
     c?.clear()
     c!.backgroundColor = BACKGROUND
 
@@ -160,7 +148,8 @@ export const useDrawStore = defineStore('draw', () => {
     canZoomOut,
     setCanZoomOut,
     initCanvas,
-    toolMapping,
-    isEditingText
+    isEditingText,
+    isLoading,
+    lastSelectedPenMenuTool
   }
 })

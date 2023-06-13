@@ -9,7 +9,6 @@ import { bucketFill } from '@/helper/draw/actions/bucket.action'
 import { bringToBack } from '@/helper/draw/actions/operation.action'
 
 interface Pen extends ToolService {
-  init: (c: Canvas) => void
   brushSize: Ref<number>
   brushType: Ref<BrushType>
   brushColor: Ref<string>
@@ -23,8 +22,7 @@ export const brushMapping: { [key in BrushType]: any } = {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   [BrushType.Spray]: (c: Canvas) => new fabric.SprayBrush(c),
-  [BrushType.Ink]: (c: Canvas) => new fabric.InkBrush(c),
-  [BrushType.Bucket]: (c: Canvas) => null
+  [BrushType.Ink]: (c: Canvas) => new fabric.InkBrush(c)
 }
 
 export const usePen = defineStore('pen', (): Pen => {
@@ -32,41 +30,14 @@ export const usePen = defineStore('pen', (): Pen => {
   const brushSize = ref(BRUSHSIZE)
   const brushType = ref<BrushType>(BrushType.Pencil)
   const brushColor = ref(BLACK)
-  const events: FabricEvent[] = [
-    {
-      type: DrawEvent.BucketFill,
-      on: 'mouse:down',
-      handler: async (o: any) => {
-        const { brushType } = usePen()
-        if (brushType != BrushType.Bucket) return
-
-        const pointer: IPoint = c!.getPointer(o.e)
-        const img = await bucketFill(c!, pointer)
-        if (!img) return
-        c!.add(img)
-        setObjectSelection(img, false)
-        bringToBack(c!, { objects: [img] })
-        c!.renderAll()
-      }
-    }
-  ]
+  const events: FabricEvent[] = []
 
   function init(canvas: Canvas) {
     c = canvas
   }
 
-  async function selectBucket(c: Canvas) {
-    c.isDrawingMode = false
-    c.selection = false
-    setSelectionForObjects(c.getObjects(), false) // TODO this should not be necessary
-  }
-
   async function select(c: Canvas) {
     c.isDrawingMode = true
-    if (brushType.value == BrushType.Bucket) {
-      await selectBucket(c)
-      return
-    }
     const newBrush = brushMapping[brushType.value](c)
     c.freeDrawingBrush = newBrush!
     c.freeDrawingBrush.width = brushSize.value
@@ -83,10 +54,6 @@ export const usePen = defineStore('pen', (): Pen => {
   })
 
   watch(brushType, value => {
-    if (value == BrushType.Bucket) {
-      selectBucket(c!)
-      return
-    }
     select(c!)
   })
 

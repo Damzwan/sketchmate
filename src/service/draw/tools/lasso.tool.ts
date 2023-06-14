@@ -1,10 +1,13 @@
-import { DrawEvent, DrawTool, FabricEvent, ToolService } from '@/types/draw.types'
-import { Canvas, Point } from 'fabric/fabric-impl'
+import { DrawEvent, DrawTool, FabricEvent, ObjectType, Shape, ToolService } from '@/types/draw.types'
+import { Canvas, Circle, Ellipse, Path, Point } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
 import { useHistory } from '@/service/draw/history.service'
+import { svgPathProperties } from 'svg-path-properties'
+import inside from 'point-in-polygon'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { useSelect } from '@/service/draw/tools/select.tool'
+import { downSampleCircle, downSampleEllipse } from '@/helper/draw/lasso.helper'
 
 export const useLasso = defineStore('lasso', (): ToolService => {
   let c: Canvas | undefined = undefined
@@ -32,6 +35,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
 
   let lasso: fabric.Path
   let isDrawing = false
+
   function onMouseDown(o: fabric.IEvent) {
     const { disableHistorySaving } = useHistory()
     disableHistorySaving()
@@ -67,8 +71,17 @@ export const useLasso = defineStore('lasso', (): ToolService => {
   }
 
   function selectsObjectsInsideLasso() {
-    const objectsInsideLasso = c?.getObjects().filter(obj => isInsideLasso(obj))
+    const objectsInsideBoundingRect = c?.getObjects().filter(obj => isInsideLassoBoundingRect(obj))
+    if (!objectsInsideBoundingRect || objectsInsideBoundingRect.length == 0) return
+
+    const downSampledLasso = downSamplePath(lasso)
+    const pointRepresentation = objectsInsideBoundingRect.map(obj => getPointRepresentation(obj))
+    const objectsInsideLasso = objectsInsideBoundingRect.filter((obj, i) =>
+      isInsideLasso(pointRepresentation[i], downSampledLasso)
+    )
+
     if (!objectsInsideLasso || objectsInsideLasso.length == 0) return
+
     const { selectTool } = useDrawStore()
     selectTool(DrawTool.Select)
 
@@ -80,7 +93,11 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     setSelectedObjects(objectsInsideLasso)
   }
 
-  function isInsideLasso(obj: fabric.Object) {
+  function isInsideLasso(pointRepresentation: number[][], downSampledLasso: number[][]) {
+    return pointRepresentation.every(point => inside(point, downSampledLasso))
+  }
+
+  function isInsideLassoBoundingRect(obj: fabric.Object) {
     const objBox = obj.getBoundingRect(true)
     const lassoBox = lasso.getBoundingRect(true)
     return (
@@ -89,6 +106,47 @@ export const useLasso = defineStore('lasso', (): ToolService => {
       objBox.left + objBox.width <= lassoBox.left + lassoBox.width &&
       objBox.top + objBox.height <= lassoBox.top + lassoBox.height
     )
+  }
+
+  function getPointRepresentation(obj: fabric.Object) {
+    if (obj.type === ObjectType.path) return downSamplePath(obj as Path)
+    else if (obj.type === Shape.Circle) {
+      return downSampleCircle(obj as Circle)
+    } else if (obj.type === Shape.Ellipse) {
+      return downSampleEllipse(obj as Ellipse)
+    } else {
+      return obj.getCoords().map(p => [p.x, p.y])
+    }
+  }
+
+  function downSamplePath(path: fabric.Path, numPoints = 30): number[][] {
+    if (!path.path) return []
+
+    // Get the path's scale
+    const scaleX = path.scaleX || 1
+    const scaleY = path.scaleY || 1
+
+    let pathString = ''
+    for (let i = 0; i < path.path.length; i++) {
+      const command: any = path.path[i]
+      pathString += command[0] + command.slice(1).join(',')
+    }
+    const properties = new svgPathProperties(pathString)
+
+    const totalLength = properties.getTotalLength()
+
+    // Calculate the length between points
+    const lengthBetweenPoints = totalLength / numPoints
+
+    // Sample points along the path
+    const points: number[][] = []
+    for (let i = 0; i < totalLength; i += lengthBetweenPoints) {
+      const point = properties.getPointAtLength(i)
+      // Scale the points
+      points.push([point.x * scaleX, point.y * scaleY])
+    }
+
+    return points
   }
 
   function createSelectionLine(pathData: string | Point[]) {

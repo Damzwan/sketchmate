@@ -89,14 +89,14 @@ export type Eraser = DrawTool.MobileEraser | DrawTool.HealingEraser
 export type PenMenuTool = DrawTool.Pen | DrawTool.Bucket
 
 export enum Shape {
-  Circle,
-  Ellipse,
-  Rectangle,
-  Triangle,
-  Line,
-  Polyline,
-  Polygon,
-  HEART
+  Circle = 'circle',
+  Ellipse = 'ellipse',
+  Rectangle = 'rectangle',
+  Triangle = 'triangle',
+  Line = 'line',
+  Polyline = 'polyline',
+  Polygon = 'polygon',
+  HEART = 'heart'
 }
 
 export enum BrushType {

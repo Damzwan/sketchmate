@@ -11,6 +11,11 @@ declare module 'fabric' {
     interface Object {
       id: string
     }
+
+    interface Path {
+      originalLeft: number
+      originalTop: number
+    }
   }
 }
 

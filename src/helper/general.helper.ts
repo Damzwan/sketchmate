@@ -1,6 +1,8 @@
 import { User } from '@/types/server.types'
 import Compressor from 'compressorjs'
 import { ToastOptions } from '@/types/toast.types'
+import { Storage } from '@/types/storage.types'
+import router from '@/router'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -70,4 +72,14 @@ export function senderName(user: User | undefined, sender: string) {
 
 export function svg(path: string) {
   return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24"><path d="${path}"/></svg>`
+}
+
+export function checkMateCookieValidity(user: User) {
+  if (user.mate && !localStorage.getItem(Storage.mate)) {
+    localStorage.setItem(Storage.mate, 'true')
+    router.go(0)
+  } else if (!user.mate && localStorage.getItem(Storage.mate)) {
+    localStorage.removeItem(Storage.mate)
+    router.go(0)
+  }
 }

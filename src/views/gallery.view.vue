@@ -1,7 +1,7 @@
 <template>
-  <ion-page v-if="user && user.mate" id="page">
+  <ion-page id="page">
     <SettingsHeader title="Gallery" :presenting-element="page" />
-    <CircularLoader v-if="isLoading" />
+    <CircularLoader v-if="isLoading || !isLoggedIn" />
     <ion-content v-else>
       <PhotoSwiper
         v-model:open="isPhotoSwiperOpen"
@@ -40,13 +40,13 @@
 </template>
 
 <script lang="ts" setup>
-import { IonAvatar, IonCol, IonContent, IonPage, IonRow } from '@ionic/vue'
+import { IonCol, IonContent, IonPage, IonRow } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
 import { InboxItem } from '@/types/server.types'
 import dayjs from 'dayjs'
-import { senderImg, sortDates } from '@/helper/general.helper'
+import { sortDates } from '@/helper/general.helper'
 import router from '@/router'
 import { useToast } from '@/service/toast.service'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
@@ -57,11 +57,15 @@ import Thumbnail from '@/components/gallery/Thumbnail.vue'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
 
 const { getInbox, cleanUnreadMessages } = useAppStore()
-const { user, inbox, isLoading } = storeToRefs(useAppStore())
+const { user, inbox, isLoading, isLoggedIn } = storeToRefs(useAppStore())
 const { toast } = useToast()
 
-if (!inbox.value) getInbox().then(checkQueryParams)
 cleanUnreadMessages()
+
+fetchInbox()
+watch(isLoggedIn, () => {
+  fetchInbox()
+})
 
 const isPhotoSwiperOpen = ref<boolean>(false)
 const groupedInboxItems = computed(() => groupOnDate(inbox.value ? inbox.value : []))
@@ -87,6 +91,10 @@ const page = ref()
 onMounted(() => {
   page.value = document.getElementById('page')
 })
+
+function fetchInbox() {
+  if (!inbox.value && isLoggedIn.value) getInbox().then(checkQueryParams)
+}
 
 function checkQueryParams() {
   const query = router.currentRoute.value.query

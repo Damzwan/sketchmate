@@ -1,5 +1,5 @@
 <template>
-  <ion-page v-if="user">
+  <ion-page>
     <ion-content v-show="scanning" class="scanner-active" />
     <SettingsHeader title="Connect" v-if="!scanning" />
     <ion-content v-show="!scanning">
@@ -37,7 +37,7 @@
         </div>
 
         <div class="flex flex-col items-center justify-center w-full pb-12">
-          <qrcode-vue :value="user._id" :size="156" background="transparent" />
+          <qrcode-vue :value="user?._id" :size="156" background="transparent" />
           <p class="font-sans font-bold py-0.5">Connect with QR Code</p>
           <p class="font-sans font-light text-xs"> Let someone scan this code to become mates </p>
         </div>
@@ -89,11 +89,13 @@ const videoContainer = ref<HTMLElement>()
 const { isFullscreen, enter, exit } = useFullscreen(videoContainer)
 const isQRReaderOpen = ref(false)
 
-const { queryParams } = storeToRefs(appStore)
-
 onIonViewDidEnter(() => {
   appStore.consumeNotificationLoading(NotificationType.unmatch)
   checkQueryParams()
+})
+
+watch(user, () => {
+  if (user.value) checkQueryParams()
 })
 
 watch(isFullscreen, value => {
@@ -108,13 +110,14 @@ function createShareUrl() {
 }
 
 function checkQueryParams() {
+  if (!user.value) return
   const { queryParams, setQueryParams } = useAppStore()
   const mateId = queryParams ? queryParams.get('mate') : router.currentRoute.value.query.mate?.toString()
+  if (!mateId) return
   setQueryParams(undefined)
-  if (!(user.value && mateId)) return
   router.replace({ query: undefined })
-  if (mateId === user.value._id) toast('Do not use your own share link', { color: 'error' })
-  else if (user.value.mate) toast('You already have a mate', { color: 'error' })
+  if (mateId === user.value._id) toast('Do not use your own share link', { color: 'warning' })
+  else if (user.value.mate) toast('You already have a mate', { color: 'warning' })
   else match(mateId)
 }
 

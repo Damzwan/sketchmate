@@ -122,10 +122,6 @@ export const useLasso = defineStore('lasso', (): ToolService => {
   function downSamplePath(path: fabric.Path, numPoints = 30): number[][] {
     if (!path.path) return []
 
-    // Get the path's scale
-    const scaleX = path.scaleX || 1
-    const scaleY = path.scaleY || 1
-
     let pathString = ''
     for (let i = 0; i < path.path.length; i++) {
       const command: any = path.path[i]
@@ -138,12 +134,28 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     // Calculate the length between points
     const lengthBetweenPoints = totalLength / numPoints
 
+    // Calculate the translation
+    const deltaX = path.left - path.originalLeft
+    const deltaY = path.top - path.originalTop
+
     // Sample points along the path
     const points: number[][] = []
     for (let i = 0; i < totalLength; i += lengthBetweenPoints) {
       const point = properties.getPointAtLength(i)
-      // Scale the points
-      points.push([point.x * scaleX, point.y * scaleY])
+
+      // Create a point with the original coordinates
+      const originalPoint = new fabric.Point(point.x, point.y)
+
+      // Scale the point
+      const scaledPoint = originalPoint.multiply(new fabric.Point(path.scaleX, path.scaleY))
+
+      // Rotate the point
+      const angle = path.angle * (Math.PI / 180) // convert angle to radians
+      const rotatedPoint = fabric.util.rotatePoint(scaledPoint, new fabric.Point(0, 0), angle)
+
+      // Translate the point
+      const transformedPoint = new fabric.Point(rotatedPoint.x + deltaX, rotatedPoint.y + deltaY)
+      points.push([transformedPoint.x, transformedPoint.y])
     }
 
     return points

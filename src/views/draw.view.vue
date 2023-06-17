@@ -1,7 +1,7 @@
 <template>
   <ion-page>
     <LinearLoader :text="loadingText" class="absolute z-50" v-if="isLoading" :darken="true" />
-    <ion-header class="ion-no-border bg-white">
+    <ion-header class="ion-no-border">
       <ShapeCreationToolbar v-if="shapeCreationMode != undefined" />
       <div v-else>
         <!--        We use v-show instead of v-if due to a bug-->

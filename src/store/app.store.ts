@@ -6,6 +6,11 @@ import { useSocketService } from '@/service/api/socket.service'
 import { getUser } from '@/helper/app.helper'
 import { useAPI } from '@/service/api/api.service'
 import { Storage } from '@/types/storage.types'
+import { useRoute, useRouter } from 'vue-router'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { useIonRouter } from '@ionic/vue'
+import router from '@/router'
+import { checkMateCookieValidity } from '@/helper/general.helper'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
@@ -29,6 +34,7 @@ export const useAppStore = defineStore('app', () => {
       user.value = await getUser()
       const socketService = useSocketService()
       await socketService.login({ _id: user.value!._id })
+      checkMateCookieValidity(user.value)
       isLoggedIn.value = true
     } catch (e) {
       error.value = e

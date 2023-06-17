@@ -46,7 +46,7 @@
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
-      <ion-button @click="send">
+      <ion-button @click="send" :disabled="!isLoggedIn">
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>
     </ion-buttons>
@@ -60,17 +60,7 @@ import { storeToRefs } from 'pinia'
 import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/config/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import {
-  mdiBucket,
-  mdiBucketOutline,
-  mdiChevronDown,
-  mdiCursorMove,
-  mdiLasso,
-  mdiPlus,
-  mdiRedo,
-  mdiSend,
-  mdiUndo
-} from '@mdi/js'
+import { mdiBucketOutline, mdiChevronDown, mdiCursorMove, mdiLasso, mdiPlus, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
 import PenMenu from '@/components/draw/menu/PenMenu.vue'
 import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
 import StickerMenu from '@/components/draw/menu/StickerMenu.vue'
@@ -78,6 +68,7 @@ import MoreToolsMenu from '@/components/draw/menu/MoreToolsMenu.vue'
 import { usePen } from '@/service/draw/tools/pen.tool'
 import { useHistory } from '@/service/draw/history.service'
 import { computed } from 'vue'
+import { useAppStore } from '@/store/app.store'
 
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore
@@ -86,6 +77,8 @@ const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool } = storeT
 
 const { undo, redo } = useHistory()
 const { undoStack, redoStack } = storeToRefs(useHistory())
+
+const { isLoggedIn } = storeToRefs(useAppStore())
 
 const penMenuIcon = computed(() =>
   lastSelectedPenMenuTool.value == DrawTool.Pen ? penIconMapping[brushType.value] : mdiBucketOutline

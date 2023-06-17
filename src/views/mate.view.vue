@@ -1,24 +1,24 @@
 <template>
   <ion-page id="page">
     <SettingsHeader title="My Mate" :presenting-element="page" />
-    <ion-content v-if="user">
+    <ion-content>
       <div class="h-5/6 flex justify-center items-center">
         <div class="w-full">
           <div class="text-4xl font-bold text-center">You are mates!</div>
 
           <div class="py-5">
-            <div class="illustration-container" v-if="user.mate">
+            <div class="illustration-container" v-if="user?.mate">
               <ion-avatar class="left-img">
-                <img :src="user.img" class="aspect-square w-[50px]" alt="Profile picture" />
+                <img :src="user?.img" class="aspect-square w-[50px]" alt="Profile picture" />
               </ion-avatar>
               <ion-avatar class="right-img">
-                <img :src="user.mate.img" class="aspect-square w-[50px]" alt="Mate profiel picture" />
+                <img :src="user?.mate.img" class="aspect-square w-[50px]" alt="Mate profiel picture" />
               </ion-avatar>
               <img :src="matchImage" class="h-48" alt="Match iamge" />
             </div>
 
             <div class="w-full flex justify-center items-center py-2">
-              <div class="text-lg w-3/4 text-center"> Get ready to doodle with {{ user.mate?.name }}</div>
+              <div class="text-lg w-3/4 text-center"> Get ready to doodle with {{ user?.mate?.name }}</div>
             </div>
           </div>
 
@@ -35,6 +35,7 @@
 
           <div class="flex justify-center items-center">
             <ion-button
+              :disabled="!user"
               @click="unMatch"
               color="danger"
               fill="outline"

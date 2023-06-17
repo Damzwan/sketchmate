@@ -74,10 +74,20 @@ export function changeFabricBaseSettings(c: Canvas) {
     })
   }
 
+  // curve related
   const og = fabric.IText.fromObject
   fabric.IText.fromObject = function (object, callback) {
     delete object.path
     return og(object, callback)
+  }
+
+  // used for the lasso tool
+  const originalPathSetCoords = fabric.Path.prototype.setCoords
+  fabric.Path.prototype.setCoords = function () {
+    const p = originalPathSetCoords.call(this)
+    if (p.originalLeft === undefined) p.originalLeft = p.left!
+    if (p.originalTop === undefined) p.originalTop = p.top!
+    return p
   }
 }
 

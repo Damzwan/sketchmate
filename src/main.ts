@@ -18,6 +18,7 @@ import { App as CapApp } from '@capacitor/app'
 import App from '@/App.vue'
 import { useAppStore } from '@/store/app.store'
 import { fadeInAnimation } from '@/helper/animation.helper'
+import { addNotificationListeners } from '@/helper/notification.helper'
 
 const pinia = createPinia()
 export const EventBus = mitt()
@@ -28,6 +29,8 @@ StatusBar.setBackgroundColor({ color: '#FFAD83' })
 NavigationBar.setColor({ color: '#FFAD83' })
 
 app.mount('#app')
+
+addNotificationListeners()
 
 CapApp.addListener('appUrlOpen', (data: any) => {
   const url = new URL(data.url)

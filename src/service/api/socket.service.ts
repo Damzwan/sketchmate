@@ -17,27 +17,23 @@ import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useToast } from '@/service/toast.service'
-import { UseIonRouterResult } from '@ionic/vue'
-import router from '@/router'
 import { dismissButton, matchButton, viewCommentButton, viewDrawingButton } from '@/config/toast.config'
 import { ToastDuration } from '@/types/toast.types'
 import pako from 'pako'
 import { EventBus } from '@/main'
+import { Storage } from '@/types/storage.types'
+import router from '@/router'
 
 let socket: Socket | undefined
 
-export interface ExpandedSocketAPI extends SocketAPI {
-  provideRouter(router: UseIonRouterResult): void
-}
+let socketServiceInstance: SocketAPI | null = null
 
-let socketServiceInstance: ExpandedSocketAPI | null = null
-
-export function useSocketService(): ExpandedSocketAPI {
+export function useSocketService(): SocketAPI {
   if (!socketServiceInstance) socketServiceInstance = createSocketService()
   return socketServiceInstance
 }
 
-export function createSocketService(): ExpandedSocketAPI {
+export function createSocketService(): SocketAPI {
   const { increaseUnreadMessages, addComment } = useAppStore()
   const { user, isLoading, inbox, notificationRouteLoading } = storeToRefs(useAppStore())
   const { toast } = useToast()
@@ -52,19 +48,24 @@ export function createSocketService(): ExpandedSocketAPI {
       if (params) {
         user.value!.mate = params.mate
         toast('Matched!', { buttons: [matchButton, dismissButton], duration: 5000 })
+        localStorage.setItem(Storage.mate, 'true')
+
         router.push(FRONTEND_ROUTES.mate)
       } else toast('Failed to connect to mate', { color: 'error' })
     })
 
-    socket.on(SOCKET_ENDPONTS.unmatch, (success: boolean) => {
+    socket.on(SOCKET_ENDPONTS.unmatch, async (success: boolean) => {
       if (success) {
         toast('Unmatched', { color: 'warning' })
+        localStorage.removeItem(Storage.mate)
+        notificationRouteLoading.value = NotificationType.unmatch
+
+        await router.push(FRONTEND_ROUTES.connect)
+
         user.value!.mate = undefined
         inbox.value = []
         user.value!.inbox = []
-        router.push(FRONTEND_ROUTES.connect)
       } else toast('Failed to unmatch', { color: 'error' })
-      isLoading.value = false
     })
 
     socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {
@@ -145,10 +146,6 @@ export function createSocketService(): ExpandedSocketAPI {
     socket!.emit(SOCKET_ENDPONTS.comment, params)
   }
 
-  function provideRouter(new_router: UseIonRouterResult) {
-    // router.value = new_router
-  }
-
   return {
     connect,
     login,
@@ -156,7 +153,6 @@ export function createSocketService(): ExpandedSocketAPI {
     match,
     disconnect,
     send,
-    provideRouter,
     comment
   }
 }

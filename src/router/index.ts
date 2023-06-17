@@ -4,16 +4,15 @@ import TabsPage from '../views/tabs.view.vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useAppStore } from '@/store/app.store'
 import { useSocketService } from '@/service/api/socket.service'
+import { Storage } from '@/types/storage.types'
 
 const hasMateGuard: NavigationGuard = (to, from, next) => {
-  const { user } = useAppStore()
-  if (!user?.mate) next(FRONTEND_ROUTES.connect)
+  if (!localStorage.getItem(Storage.mate)) next(FRONTEND_ROUTES.connect)
   else next()
 }
 
 const hasNoMateGuard: NavigationGuard = (to, from, next) => {
-  const { user } = useAppStore()
-  if (user?.mate) next(FRONTEND_ROUTES.draw)
+  if (localStorage.getItem(Storage.mate)) next(FRONTEND_ROUTES.draw)
   else next()
 }
 
@@ -28,7 +27,7 @@ const routes: Array<RouteRecordRaw> = [
     children: [
       {
         path: '',
-        redirect: FRONTEND_ROUTES.connect
+        redirect: FRONTEND_ROUTES.draw
       },
       {
         path: FRONTEND_ROUTES.draw,
@@ -64,7 +63,7 @@ router.beforeEach(async (to, from, next) => {
   const app = useAppStore()
   if (!app.isLoggedIn) {
     const { connect } = useSocketService()
-    await connect().then(app.login)
+    connect().then(app.login)
   }
   next()
 })

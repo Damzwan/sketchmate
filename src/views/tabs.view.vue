@@ -60,18 +60,18 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
-import { useRoute } from 'vue-router'
 import { useToast } from '@/service/toast.service'
 import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 import { fadeInAnimation } from '@/helper/animation.helper'
+import { useRoute } from 'vue-router'
 
 const { text, isOpen, dismiss, duration, color, buttons } = useToast()
 const r = useIonRouter()
 
-const { user, notificationRouteLoading } = storeToRefs(useAppStore())
-const route = useRoute()
+const { notificationRouteLoading, user } = storeToRefs(useAppStore())
 
-const show = computed(() => user.value && user.value.mate && route.path != `/${FRONTEND_ROUTES.tutorial}`)
+const route = useRoute()
+const show = computed(() => route.path != `/${FRONTEND_ROUTES.connect}`)
 </script>
 
 <style lang="scss" scoped>

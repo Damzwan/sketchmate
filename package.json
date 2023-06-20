@@ -8,7 +8,7 @@
     "start": "ionic serve",
     "start_ios": "ionic capacitor run ios -l --external",
     "start_android": "ionic capacitor run android -l --external",
-    "build": "ionic build --prod && mkdir -p dist/.well-known && cp assetlinks.json dist/.well-known/assetlinks.json",
+    "build": "vite build && mkdir -p dist/.well-known && cp assetlinks.json dist/.well-known/assetlinks.json",
     "build_android": "ionic cap build android --prod",
     "preview": "vite preview",
     "test:e2e": "cypress run",

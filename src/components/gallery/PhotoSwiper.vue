@@ -3,13 +3,14 @@
     :is-open="open"
     @will-dismiss="close"
     @will-present="checkQueryParams"
-    @did-present="changeNavBarColor"
+    @did-present="onOpen"
     :enter-animation="modalPopAnimation"
     :leave-animation="leaveAnimation"
     @ionModalDidPresent="consumeNotification"
+    :keepContentsMounted="true"
     v-if="user"
   >
-    <div class="flex flex-col container max-w-full" v-if="currInboxItem">
+    <div class="flex flex-col container max-w-full">
       <ion-toolbar class="w-full h-[56px] flex">
         <ion-buttons slot="start">
           <ion-button @click="close" color="white">
@@ -44,11 +45,9 @@
           <swiper-slide
             v-for="(item, i) in props.inboxItems"
             :key="i"
-            lazy="true"
             class="flex justify-center items-center w-full beh"
           >
             <div class="swiper-zoom-container">
-              <!--              <img :src="item.thumbnail" alt="drawing" loading="lazy" class="object-contain w-full h-full absolute" />-->
               <img :src="item.image" alt="drawing" class="object-contain w-full h-full z-10" />
             </div>
           </swiper-slide>
@@ -113,13 +112,16 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { useToast } from '@/service/toast.service'
 import { arrowBack, eye, eyeOff } from 'ionicons/icons'
 import { leaveAnimation, modalPopAnimation } from '@/helper/animation.helper'
-import { senderImg, senderName, svg } from '@/helper/general.helper'
+import { senderImg, senderName, setAppColors, svg } from '@/helper/general.helper'
 import { mdiCommentOutline, mdiDeleteOutline, mdiReplyOutline, mdiShareVariantOutline } from '@mdi/js'
 import { shareImg } from '@/helper/share.helper'
 import CommentDrawer from '@/components/gallery/CommentDrawer.vue'
 import router from '@/router'
 import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
 import { StatusBar } from '@capacitor/status-bar'
+import { colorsPerRoute } from '@/config/routes.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { photoSwiperColorConfig } from '@/config/colors.config'
 
 const props = defineProps({
   open: {
@@ -151,9 +153,8 @@ function consumeNotification() {
   consumeNotificationLoading(NotificationType.message)
 }
 
-function changeNavBarColor() {
-  NavigationBar.setColor({ color: '#000000' })
-  StatusBar.setBackgroundColor({ color: '#000000' })
+function onOpen() {
+  setAppColors(photoSwiperColorConfig)
 }
 
 function checkQueryParams() {
@@ -172,8 +173,7 @@ function replyToDrawing() {
 }
 
 function close() {
-  NavigationBar.setColor({ color: '#FFAD83' })
-  StatusBar.setBackgroundColor({ color: '#FFAD83' })
+  setAppColors(colorsPerRoute[FRONTEND_ROUTES.gallery])
   emit('update:open', false)
 }
 

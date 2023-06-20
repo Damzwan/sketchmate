@@ -40,15 +40,20 @@ import SavedMenu from '@/components/draw/menu/SavedMenu.vue'
 import ShapeCreationToolbar from '@/components/draw/toolbar/ShapeCreationToolbar.vue'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 import { resetZoom } from '@/helper/draw/gesture.helper'
-import { svg } from '@/helper/general.helper'
+import { hideSplash, svg } from '@/helper/general.helper'
 import { mdiMagnifyMinusOutline } from '@mdi/js'
 import { useSelect } from '@/service/draw/tools/select.tool'
+import { SplashScreen } from '@capacitor/splash-screen'
+import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
+import { StatusBar } from '@capacitor/status-bar'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
 const drawStore = useDrawStore()
 const { loadingText, shapeCreationMode, canZoomOut, isLoading } = storeToRefs(drawStore)
 const { selectedObjectsRef } = storeToRefs(useSelect())
+
+hideSplash()
 
 onIonViewDidEnter(async () => {
   await drawStore.initCanvas(myCanvasRef.value!)

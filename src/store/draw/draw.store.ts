@@ -23,6 +23,7 @@ import {
 import { useHistory } from '@/service/draw/history.service'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { loadAdditionalBrushes } from '@/utils/brushes'
+import { SplashScreen } from '@capacitor/splash-screen'
 
 export const useDrawStore = defineStore('draw', () => {
   const { user } = storeToRefs(useAppStore())

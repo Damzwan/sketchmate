@@ -1,5 +1,5 @@
 <template>
-  <ion-popover :is-open="penMenuOpen" :event="menuEvent" @didDismiss="onDismiss" @willPresent="renderPreview">
+  <ion-popover :is-open="penMenuOpen" :event="menuEvent" @didDismiss="onDismiss" :keepContentsMounted="true">
     <ion-content class="divide-y divide-primary">
       <!-- Stroke Preview -->
       <div class="relative">
@@ -67,7 +67,7 @@
 <script lang="ts" setup>
 import { IonContent, IonIcon, IonItem, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { PENMENUTOOLS, WHITE } from '@/config/draw.config'
 import { BrushType, DrawTool } from '@/types/draw.types'
 import { mdiBucketOutline, mdiCircleOutline, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
@@ -88,6 +88,10 @@ const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 const preview_canvas = ref<HTMLCanvasElement>()
 
 let canvas: Canvas | undefined
+
+onMounted(() => {
+  renderPreview()
+})
 
 const renderPreview = () => {
   // Initialize canvas only once

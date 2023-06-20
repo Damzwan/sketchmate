@@ -37,7 +37,7 @@
         </div>
 
         <div class="flex flex-col items-center justify-center w-full pb-12">
-          <qrcode-vue :value="user?._id" :size="156" background="transparent" />
+          <qrcode-vue :value="user ? user._id : ''" :size="156" background="transparent" />
           <p class="font-sans font-bold py-0.5">Connect with QR Code</p>
           <p class="font-sans font-light text-xs"> Let someone scan this code to become mates </p>
         </div>
@@ -65,7 +65,7 @@ import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
 import QrcodeVue from 'qrcode.vue'
 import { shareUrl } from '@/helper/share.helper'
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSocketService } from '@/service/api/socket.service'
 import { useToast } from '@/service/toast.service'
@@ -75,6 +75,8 @@ import QrScanner from 'qr-scanner'
 import { useFullscreen } from '@vueuse/core'
 import { svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
+import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
+import { StatusBar } from '@capacitor/status-bar'
 
 const appStore = useAppStore()
 const socketService = useSocketService()

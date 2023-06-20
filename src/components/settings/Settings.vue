@@ -1,5 +1,10 @@
 <template>
-  <ion-modal :is-open="open" @will-dismiss="close" :presenting-element="presentingElement">
+  <ion-modal
+    :is-open="open"
+    @will-dismiss="close"
+    :presenting-element="presentingElement"
+    @will-present="() => setAppColors(settingsModalColorConfig)"
+  >
     <ion-header class="ion-no-border">
       <ion-toolbar color="tertiary">
         <ion-buttons slot="start">
@@ -72,7 +77,7 @@ import {
 } from '@ionic/vue'
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { compressImg, svg } from '@/helper/general.helper'
+import { compressImg, setAppColors, svg } from '@/helper/general.helper'
 import { useAPI } from '@/service/api/api.service'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
@@ -80,6 +85,10 @@ import { addOutline, arrowBack } from 'ionicons/icons'
 import { onBeforeRouteLeave } from 'vue-router'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { mdiBellRing } from '@mdi/js'
+import { photoSwiperColorConfig, settingsModalColorConfig } from '@/config/colors.config'
+import { colorsPerRoute } from '@/config/routes.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import router from '@/router'
 
 const { user } = storeToRefs(useAppStore())
 const api = useAPI()
@@ -102,6 +111,7 @@ defineProps({
 const emit = defineEmits(['update:open'])
 
 function close() {
+  setAppColors(colorsPerRoute[router.currentRoute.value.fullPath.split('/')[1] as FRONTEND_ROUTES])
   emit('update:open', false)
 }
 

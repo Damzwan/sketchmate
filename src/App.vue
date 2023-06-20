@@ -1,22 +1,26 @@
 <template>
   <ion-app>
-    <CircularLoader v-if="!routerReady" />
-    <ion-router-outlet v-else />
+    <CircularLoader class="z-10" v-if="!routerReady" />
+    <ion-router-outlet />
   </ion-app>
 </template>
 
 <script setup lang="ts">
 import { IonApp, IonRouterOutlet } from '@ionic/vue'
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
 import router from '@/router'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
+import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
+import { StatusBar } from '@capacitor/status-bar'
 
 const routerReady = ref(false)
 
-router.isReady().then(() => (routerReady.value = true))
+router.isReady().then(() => {
+  routerReady.value = true
+})
 
-onMounted(() => {
+onMounted(async () => {
   defineCustomElements(window)
 })
 </script>

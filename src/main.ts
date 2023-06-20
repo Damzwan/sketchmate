@@ -11,26 +11,19 @@ import './theme/variables.css'
 import '@/tailwind.css'
 
 import { createPinia } from 'pinia'
-import { StatusBar } from '@capacitor/status-bar'
-import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
 import mitt from 'mitt'
 import { App as CapApp } from '@capacitor/app'
 import App from '@/App.vue'
 import { useAppStore } from '@/store/app.store'
-import { fadeInAnimation } from '@/helper/animation.helper'
 import { addNotificationListeners } from '@/helper/notification.helper'
 
 const pinia = createPinia()
 export const EventBus = mitt()
-const app = createApp(App).use(IonicVue, { animated: true, navAnimation: fadeInAnimation }).use(pinia).use(router)
-
-StatusBar.setBackgroundColor({ color: '#FFAD83' })
-// app.config.globalProperties.$statusBar.setBackgroundColor({ color: '#FFAD83' })
-NavigationBar.setColor({ color: '#FFAD83' })
-
-app.mount('#app')
+const app = createApp(App).use(IonicVue).use(pinia).use(router)
 
 addNotificationListeners()
+
+app.mount('#app')
 
 CapApp.addListener('appUrlOpen', (data: any) => {
   const url = new URL(data.url)

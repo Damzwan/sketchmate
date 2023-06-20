@@ -4,7 +4,6 @@ const config: CapacitorConfig = {
   appId: 'ninja.sketchmate.app',
   appName: 'SketchMate',
   webDir: 'dist',
-  bundledWebRuntime: false,
   plugins: {
     LocalNotifications: {
       smallIcon: 'ic_stat_icon_config_sample',
@@ -13,6 +12,10 @@ const config: CapacitorConfig = {
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
+    },
+    SplashScreen: {
+      launchAutoHide: false,
+      launchFadeOutDuration: 0
     }
   }
 }

@@ -4,6 +4,7 @@
     <CircularLoader v-if="isLoading || !isLoggedIn" />
     <ion-content v-else>
       <PhotoSwiper
+        v-if="inboxItems.length > 0"
         v-model:open="isPhotoSwiperOpen"
         v-model:slide="selectedInboxItemIndex"
         :inbox-items="inboxItems"

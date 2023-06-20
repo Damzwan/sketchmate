@@ -21,6 +21,8 @@ PODS:
     - Capacitor
   - CapacitorShare (5.0.4):
     - Capacitor
+  - CapacitorSplashScreen (5.0.4):
+    - Capacitor
   - CapacitorStatusBar (5.0.4):
     - Capacitor
   - CapacitorToast (5.0.4):
@@ -133,6 +135,7 @@ DEPENDENCIES:
   - "CapacitorMlkitBarcodeScanning (from `../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@5.0.0_@capacitor+core@5.0.5/node_modules/@capacitor-mlkit/barcode-scanning`)"
   - "CapacitorPushNotifications (from `../../node_modules/.pnpm/@capacitor+push-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/push-notifications`)"
   - "CapacitorShare (from `../../node_modules/.pnpm/@capacitor+share@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/share`)"
+  - "CapacitorSplashScreen (from `../../node_modules/.pnpm/@capacitor+splash-screen@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/splash-screen`)"
   - "CapacitorStatusBar (from `../../node_modules/.pnpm/@capacitor+status-bar@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/status-bar`)"
   - "CapacitorToast (from `../../node_modules/.pnpm/@capacitor+toast@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/toast`)"
   - Firebase/Messaging
@@ -182,6 +185,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/.pnpm/@capacitor+push-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/push-notifications"
   CapacitorShare:
     :path: "../../node_modules/.pnpm/@capacitor+share@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/share"
+  CapacitorSplashScreen:
+    :path: "../../node_modules/.pnpm/@capacitor+splash-screen@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/splash-screen"
   CapacitorStatusBar:
     :path: "../../node_modules/.pnpm/@capacitor+status-bar@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/status-bar"
   CapacitorToast:
@@ -201,6 +206,7 @@ SPEC CHECKSUMS:
   CapacitorMlkitBarcodeScanning: 4c106aa2a7858a4776a955003c0591c05a47edaa
   CapacitorPushNotifications: 3704ac3dac68a9bfc669fb384cbc7beec9b1f100
   CapacitorShare: 427bba238a1e3f116b2b349019aec6ea7f42cebd
+  CapacitorSplashScreen: 93a389d4f7673c08214ae25bb6f21d867d5305c5
   CapacitorStatusBar: 190e0321b8734f4244d0c81baa183a00d5806ddf
   CapacitorToast: fcc4329f01d06cf02f190f8f5ce7f16509a2263c
   Firebase: bd152f0f3d278c4060c5c71359db08ebcfd5a3e2
@@ -223,6 +229,6 @@ SPEC CHECKSUMS:
   PromisesObjC: 09985d6d70fbe7878040aa746d78236e6946d2ef
   Protobuf: 3dd214698ddb7afd832da281c777b2e9facef401
 
-PODFILE CHECKSUM: 378cf1903dac11863d60f4cfaa3401093fe02acb
+PODFILE CHECKSUM: bcea18892b1457d9eebdc730f1865ca05d9151cc
 
 COCOAPODS: 1.12.0

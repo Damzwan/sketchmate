@@ -1,11 +1,12 @@
 import { Canvas, Group, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { ObjectType, SelectedObject } from '@/types/draw.types'
+import { DrawTool, ObjectType, SelectedObject } from '@/types/draw.types'
 import { checkCanvasBounds } from '@/helper/draw/gesture.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
 import { compressImg } from '@/helper/general.helper'
+import { useSelect } from '@/service/draw/tools/select.tool'
 
 const eventsToDisable = [
   'mouse:down',
@@ -106,4 +107,17 @@ export function focusText(text: IText) {
   setTimeout(() => {
     text.hiddenTextarea!.focus() // This line is especially important for mobile
   }, 300)
+}
+
+export function initSelectWithObjects(c: Canvas, objects: SelectedObject[]) {
+  // TODO create a helper for this
+  const { selectTool } = useDrawStore()
+  selectTool(DrawTool.Select)
+
+  if (objects.length == 1) c!.setActiveObject(objects[0])
+  else c!.setActiveObject(new fabric.ActiveSelection(objects, { canvas: c! }))
+
+  // TODO somehow doing an active selection will not allow you to merge since it is treated as a single object
+  const { setSelectedObjects } = useSelect()
+  setSelectedObjects(objects)
 }

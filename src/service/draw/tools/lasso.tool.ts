@@ -8,6 +8,7 @@ import inside from 'point-in-polygon'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { downSampleCircle, downSampleEllipse } from '@/helper/draw/lasso.helper'
+import { initSelectWithObjects } from '@/helper/draw/draw.helper'
 
 export const useLasso = defineStore('lasso', (): ToolService => {
   let c: Canvas | undefined = undefined
@@ -74,6 +75,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     const objectsInsideBoundingRect = c?.getObjects().filter(obj => isInsideLassoBoundingRect(obj))
     if (!objectsInsideBoundingRect || objectsInsideBoundingRect.length == 0) return
 
+    lasso.canvas = c!
     const downSampledLasso = downSamplePath(lasso)
     const pointRepresentation = objectsInsideBoundingRect.map(obj => getPointRepresentation(obj))
     const objectsInsideLasso = objectsInsideBoundingRect.filter((obj, i) =>
@@ -81,16 +83,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     )
 
     if (!objectsInsideLasso || objectsInsideLasso.length == 0) return
-
-    const { selectTool } = useDrawStore()
-    selectTool(DrawTool.Select)
-
-    if (objectsInsideLasso.length == 1) c!.setActiveObject(objectsInsideLasso[0])
-    else c!.setActiveObject(new fabric.ActiveSelection(objectsInsideLasso, { canvas: c! }))
-
-    // TODO somehow doing an active selection will not allow you to merge since it is treated as a single object
-    const { setSelectedObjects } = useSelect()
-    setSelectedObjects(objectsInsideLasso)
+    initSelectWithObjects(c!, objectsInsideLasso)
   }
 
   function isInsideLasso(pointRepresentation: number[][], downSampledLasso: number[][]) {
@@ -120,41 +113,38 @@ export const useLasso = defineStore('lasso', (): ToolService => {
   }
 
   function downSamplePath(path: fabric.Path, numPoints = 30): number[][] {
-    if (!path.path) return []
+    if (!path.path || !path.canvas) return []
 
     let pathString = ''
     for (let i = 0; i < path.path.length; i++) {
       const command: any = path.path[i]
       pathString += command[0] + command.slice(1).join(',')
     }
-    const properties = new svgPathProperties(pathString)
 
+    const properties = new svgPathProperties(pathString)
     const totalLength = properties.getTotalLength()
 
     // Calculate the length between points
     const lengthBetweenPoints = totalLength / numPoints
 
-    // Calculate the translation
-    const deltaX = path.left - path.originalLeft
-    const deltaY = path.top - path.originalTop
+    // Multiply the viewport transform with the path's transform matrix
+    const transformationMatrix = fabric.util.multiplyTransformMatrices(
+      path.canvas.viewportTransform!,
+      path.calcTransformMatrix()
+    )
 
     // Sample points along the path
     const points: number[][] = []
     for (let i = 0; i < totalLength; i += lengthBetweenPoints) {
       const point = properties.getPointAtLength(i)
 
-      // Create a point with the original coordinates
-      const originalPoint = new fabric.Point(point.x, point.y)
+      // https://medium.com/@luizzappa/how-to-find-out-the-coordinates-of-vertices-of-a-shape-in-fabric-js-a871109085c1
+      const correctedPoint = { x: point.x - path.pathOffset.x, y: point.y - path.pathOffset.y }
+      const transformedPoint = fabric.util.transformPoint(
+        new fabric.Point(correctedPoint.x, correctedPoint.y),
+        transformationMatrix
+      )
 
-      // Scale the point
-      const scaledPoint = originalPoint.multiply(new fabric.Point(path.scaleX, path.scaleY))
-
-      // Rotate the point
-      const angle = path.angle * (Math.PI / 180) // convert angle to radians
-      const rotatedPoint = fabric.util.rotatePoint(scaledPoint, new fabric.Point(0, 0), angle)
-
-      // Translate the point
-      const transformedPoint = new fabric.Point(rotatedPoint.x + deltaX, rotatedPoint.y + deltaY)
       points.push([transformedPoint.x, transformedPoint.y])
     }
 
@@ -167,7 +157,8 @@ export const useLasso = defineStore('lasso', (): ToolService => {
       stroke: '#333',
       strokeWidth: 0.5, // Make the line thinner
       strokeDashArray: [5, 5], // Make the line dashed
-      selectable: false
+      selectable: false,
+      evented: false
     })
   }
 

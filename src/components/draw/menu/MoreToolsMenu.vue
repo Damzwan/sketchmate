@@ -1,5 +1,9 @@
 <template>
-  <ion-popover trigger="more_tools">
+  <ion-popover
+    trigger="more_tools"
+    @will-present="setAppColors(popoverColorConfig)"
+    @will-dismiss="setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])"
+  >
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" id="stickers" @click="openStickerMenu" :detail="true">
@@ -57,7 +61,7 @@ import {
   IonPopover,
   popoverController
 } from '@ionic/vue'
-import { compressImg, svg } from '@/helper/general.helper'
+import { compressImg, setAppColors, svg } from '@/helper/general.helper'
 import {
   mdiCamera,
   mdiContentSave,
@@ -74,6 +78,9 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
+import { popoverColorConfig } from '@/config/colors.config'
+import { colorsPerRoute } from '@/config/routes.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()

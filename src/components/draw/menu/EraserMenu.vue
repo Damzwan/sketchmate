@@ -1,5 +1,11 @@
 <template>
-  <ion-popover :is-open="eraserMenuOpen" :event="menuEvent" @didDismiss="eraserMenuOpen = false">
+  <ion-popover
+    :is-open="eraserMenuOpen"
+    :event="menuEvent"
+    @didDismiss="eraserMenuOpen = false"
+    @will-present="setAppColors(popoverColorConfig)"
+    @will-dismiss="setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])"
+  >
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" @click="selectEraser" :button="true">
@@ -65,13 +71,16 @@
 import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { svg } from '@/helper/general.helper'
+import { setAppColors, svg } from '@/helper/general.helper'
 import { mdiNuke } from '@mdi/js'
 import { DrawAction, DrawTool, EraserSize } from '@/types/draw.types'
 import { eraserIconMapping } from '@/config/draw.config'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useEraser } from '@/service/draw/tools/eraser.tool'
 import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
+import { popoverColorConfig } from '@/config/colors.config'
+import { colorsPerRoute } from '@/config/routes.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const drawStore = useDrawStore()
 const { selectedTool } = storeToRefs(drawStore)

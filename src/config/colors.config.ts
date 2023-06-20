@@ -5,4 +5,5 @@ export const secondaryColor = '#D65239'
 export const backgroundColor = '#FFD4B2'
 
 export const photoSwiperColorConfig: AppColorConfig = { statusBar: '#000000', navigationBar: '#000000' }
+export const popoverColorConfig: AppColorConfig = { statusBar: '#ad7659', navigationBar: '#ad7659' }
 export const settingsModalColorConfig: AppColorConfig = { statusBar: backgroundColor, navigationBar: backgroundColor }

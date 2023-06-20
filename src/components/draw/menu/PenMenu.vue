@@ -1,5 +1,12 @@
 <template>
-  <ion-popover :is-open="penMenuOpen" :event="menuEvent" @didDismiss="onDismiss" :keepContentsMounted="true">
+  <ion-popover
+    :is-open="penMenuOpen"
+    :event="menuEvent"
+    @didDismiss="onDismiss"
+    :keepContentsMounted="true"
+    @will-present="setAppColors(popoverColorConfig)"
+    @will-dismiss="setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])"
+  >
     <ion-content class="divide-y divide-primary">
       <!-- Stroke Preview -->
       <div class="relative">
@@ -71,7 +78,7 @@ import { onMounted, ref, watch } from 'vue'
 import { PENMENUTOOLS, WHITE } from '@/config/draw.config'
 import { BrushType, DrawTool } from '@/types/draw.types'
 import { mdiBucketOutline, mdiCircleOutline, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { setAppColors, svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { brushMapping, usePen } from '@/service/draw/tools/pen.tool'
 import { Canvas } from 'fabric/fabric-impl'
@@ -79,6 +86,9 @@ import { fabric } from 'fabric'
 import { setObjectSelection } from '@/helper/draw/draw.helper'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { popoverColorConfig } from '@/config/colors.config'
+import { colorsPerRoute } from '@/config/routes.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const { selectTool } = useDrawStore()
 const { selectedTool } = storeToRefs(useDrawStore())

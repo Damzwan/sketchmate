@@ -11,8 +11,6 @@ import { onMounted, ref } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
 import router from '@/router'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
-import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
-import { StatusBar } from '@capacitor/status-bar'
 
 const routerReady = ref(false)
 

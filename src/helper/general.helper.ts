@@ -4,10 +4,9 @@ import { Storage } from '@/types/storage.types'
 import router from '@/router'
 import { StatusBar } from '@capacitor/status-bar'
 import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
-import { SplashScreen } from '@capacitor/splash-screen'
-import { AppColorConfig, colorsPerRoute } from '@/config/routes.config'
 import { isPlatform } from '@ionic/vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
+import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -89,23 +88,12 @@ export function checkMateCookieValidity(user: User) {
   }
 }
 
-export async function hideSplash() {
-  await SplashScreen.hide()
-  setTimeout(() => {
-    setAppColors(colorsPerRoute[getCurrentRoute()])
-  }, 100)
-}
-
 export function getCurrentRoute(): FRONTEND_ROUTES {
   return router.currentRoute.value.fullPath.split('/')[1] as FRONTEND_ROUTES
 }
 
 export function setAppColors(colorConfig: AppColorConfig) {
-  if (
-    !isPlatform('capacitor') ||
-    (getCurrentRoute() === FRONTEND_ROUTES.gallery && router.currentRoute.value.query.item)
-  )
-    return
+  if (!isPlatform('capacitor')) return
   NavigationBar.setColor({ color: colorConfig.navigationBar })
   StatusBar.setBackgroundColor({ color: colorConfig.statusBar })
 }

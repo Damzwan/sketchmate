@@ -106,7 +106,7 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object)
   [DrawAction.FullErase]: fullErase,
   [DrawAction.Sticker]: addSticker,
   [DrawAction.CopyObject]: copyObjects,
-  [DrawAction.BackgroundImage]: setBackgroundImage,
+  [DrawAction.AddBackgroundImage]: setBackgroundImage,
   [DrawAction.AddShape]: addShape,
   [DrawAction.AddText]: addText,
   [DrawAction.Merge]: mergeObjects,

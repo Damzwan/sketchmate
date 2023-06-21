@@ -47,7 +47,7 @@ async function onBgImgUpload(e: Event) {
   if (file) {
     const compressedFile = await compressImg(file, { size: 1280 })
     const reader = new FileReader()
-    reader.onload = e => selectAction(DrawAction.BackgroundImage, { img: e.target?.result?.toString() })
+    reader.onload = e => selectAction(DrawAction.AddBackgroundImage, { img: e.target?.result?.toString() })
     reader.readAsDataURL(compressedFile)
   }
   close()

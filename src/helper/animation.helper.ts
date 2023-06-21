@@ -1,4 +1,8 @@
 import { createAnimation } from '@ionic/vue'
+import { getCurrentRoute, setAppColors } from '@/helper/general.helper'
+import { colorsPerRoute } from '@/config/colors.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import router from '@/router'
 
 export const modalPopAnimation = (baseEl: HTMLElement) => {
   const root = baseEl.shadowRoot
@@ -25,6 +29,14 @@ export const leaveAnimation = (baseEl: HTMLElement) => {
   return modalPopAnimation(baseEl).direction('reverse')
 }
 
-export const fadeInAnimation = (baseEl: HTMLElement, opts?: any) => {
-  return createAnimation().addElement(opts.enteringEl).duration(150).easing('ease-in').fromTo('opacity', '0', '1')
+export const routerAnimation = (baseEl: HTMLElement, opts?: any) => {
+  return createAnimation()
+    .addElement(opts.enteringEl)
+    .duration(100)
+    .easing('ease-in')
+    .beforeAddWrite(() => {
+      const exception = getCurrentRoute() === FRONTEND_ROUTES.gallery && router.currentRoute.value.query.item
+      if (!exception) setTimeout(() => setAppColors(colorsPerRoute[getCurrentRoute()]), 50)
+    })
+    .fromTo('opacity', '0', '1')
 }

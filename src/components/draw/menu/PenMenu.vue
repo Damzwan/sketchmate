@@ -86,8 +86,7 @@ import { fabric } from 'fabric'
 import { setObjectSelection } from '@/helper/draw/draw.helper'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { popoverColorConfig } from '@/config/colors.config'
-import { colorsPerRoute } from '@/config/routes.config'
+import { colorsPerRoute, popoverColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const { selectTool } = useDrawStore()
@@ -179,7 +178,7 @@ const renderPreview = () => {
 
 function onDismiss() {
   penMenuOpen.value = false
-  canvas = undefined
+  // canvas = undefined
 }
 
 function selectBrushType(newBrushType: BrushType) {

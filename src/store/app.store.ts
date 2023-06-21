@@ -6,14 +6,7 @@ import { useSocketService } from '@/service/api/socket.service'
 import { getUser } from '@/helper/app.helper'
 import { useAPI } from '@/service/api/api.service'
 import { Storage } from '@/types/storage.types'
-import { useRoute, useRouter } from 'vue-router'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import { useIonRouter } from '@ionic/vue'
-import router from '@/router'
-import { checkMateCookieValidity, hideSplash } from '@/helper/general.helper'
-import { SplashScreen } from '@capacitor/splash-screen'
-import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
-import { StatusBar } from '@capacitor/status-bar'
+import { checkMateCookieValidity } from '@/helper/general.helper'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
@@ -39,11 +32,6 @@ export const useAppStore = defineStore('app', () => {
       await socketService.login({ _id: user.value!._id })
       checkMateCookieValidity(user.value)
       isLoggedIn.value = true
-      // SplashScreen.hide().then(() => {
-      //   NavigationBar.setColor({ color: '#FFAD83' })
-      //   StatusBar.setBackgroundColor({ color: '#FFAD83' })
-      // })
-      hideSplash()
     } catch (e) {
       error.value = e
     }

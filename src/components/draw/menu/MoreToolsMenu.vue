@@ -3,6 +3,7 @@
     trigger="more_tools"
     @will-present="setAppColors(popoverColorConfig)"
     @will-dismiss="setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])"
+    :keepContentsMounted="true"
   >
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
@@ -47,6 +48,7 @@
         :buttons="imageActionSheetButtons"
       />
     </ion-content>
+    <ImageCropper :img-url="compressedImgDataUrl" />
   </ion-popover>
 </template>
 
@@ -58,6 +60,7 @@ import {
   IonIcon,
   IonItem,
   IonList,
+  IonModal,
   IonPopover,
   popoverController
 } from '@ionic/vue'
@@ -78,9 +81,9 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
-import { popoverColorConfig } from '@/config/colors.config'
-import { colorsPerRoute } from '@/config/routes.config'
+import { colorsPerRoute, popoverColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
+import ImageCropper from '@/components/draw/ImageCropper.vue'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
@@ -114,7 +117,8 @@ const imageActionSheetButtons: ActionSheetButton[] = [
     text: 'Use image as background',
     icon: svg(mdiPanoramaVariantOutline),
     role: 'selected',
-    handler: addBackgroundImage
+    handler: () => openMenu(Menu.Cropper)
+    // handler: addBackgroundImage
   },
   {
     text: 'Cancel',
@@ -131,10 +135,6 @@ function closePopover() {
 
 function addImage() {
   selectAction(DrawAction.Sticker, { img: compressedImgDataUrl.value })
-}
-
-function addBackgroundImage() {
-  selectAction(DrawAction.BackgroundImage, { img: compressedImgDataUrl.value })
 }
 
 function onTextClick() {

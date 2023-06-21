@@ -1,7 +1,12 @@
 <template>
   <ion-modal
     :is-open="stickerMenuOpen"
-    @willPresent="selectedSegment = '0'"
+    @willPresent="
+      () => {
+        selectedSegment = '0'
+        setAppColors(drawModalColorConfig)
+      }
+    "
     :handle="false"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
@@ -103,7 +108,7 @@ import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
 import { useToast } from '@/service/toast.service'
 import { storeToRefs } from 'pinia'
-import { compressImg, svg } from '@/helper/general.helper'
+import { compressImg, setAppColors, svg } from '@/helper/general.helper'
 import { mdiCancel, mdiDelete, mdiMinus, mdiPlus } from '@mdi/js'
 import { computed, ref } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
@@ -113,6 +118,8 @@ import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
 import LinearLoader from '@/components/loaders/LinearLoader.vue'
 import { dynamicStickerLoading } from '@/config/draw.config'
+import { colorsPerRoute, drawModalColorConfig } from '@/config/colors.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const api = useAPI()
 const { user } = storeToRefs(useAppStore())
@@ -184,6 +191,7 @@ function selectImg(img: string) {
 function onDismiss() {
   stickerMenuOpen.value = false
   deleteMode.value = false
+  setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
 }
 </script>
 

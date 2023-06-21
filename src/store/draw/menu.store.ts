@@ -8,6 +8,7 @@ export const useMenuStore = defineStore('menu', () => {
   const stickerMenuOpen = ref(false)
   const savedMenuOpen = ref(false)
   const shapesMenuOpen = ref(false)
+  const cropperMenuOpen = ref(false)
 
   const menuEvent = ref<Event>()
 
@@ -16,7 +17,8 @@ export const useMenuStore = defineStore('menu', () => {
     [Menu.Eraser]: eraserMenuOpen,
     [Menu.Sticker]: stickerMenuOpen,
     [Menu.Saved]: savedMenuOpen,
-    [Menu.Shapes]: shapesMenuOpen
+    [Menu.Shapes]: shapesMenuOpen,
+    [Menu.Cropper]: cropperMenuOpen
   }
 
   const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
@@ -46,6 +48,7 @@ export const useMenuStore = defineStore('menu', () => {
     shapesMenuOpen,
     openMenu,
     openToolMenu,
-    menuEvent
+    menuEvent,
+    cropperMenuOpen
   }
 })

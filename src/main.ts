@@ -16,6 +16,10 @@ import { App as CapApp } from '@capacitor/app'
 import App from '@/App.vue'
 import { useAppStore } from '@/store/app.store'
 import { addNotificationListeners } from '@/helper/notification.helper'
+import { setAppColors } from '@/helper/general.helper'
+import { colorsPerRoute } from '@/config/colors.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { Storage } from '@/types/storage.types'
 
 const pinia = createPinia()
 export const EventBus = mitt()
@@ -30,3 +34,7 @@ CapApp.addListener('appUrlOpen', (data: any) => {
   const { setQueryParams } = useAppStore()
   setQueryParams(url.searchParams)
 })
+
+localStorage.getItem(Storage.mate)
+  ? setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
+  : setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])

@@ -1,1 +1,1 @@
-export type COLOR = "error" | "success" | "primary" | "secondary" | "warning";
+export type COLOR = 'danger' | 'success' | 'primary' | 'secondary' | 'warning'

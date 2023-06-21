@@ -119,9 +119,8 @@ import CommentDrawer from '@/components/gallery/CommentDrawer.vue'
 import router from '@/router'
 import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
 import { StatusBar } from '@capacitor/status-bar'
-import { colorsPerRoute } from '@/config/routes.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { photoSwiperColorConfig } from '@/config/colors.config'
+import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
 
 const props = defineProps({
   open: {
@@ -160,7 +159,9 @@ function onOpen() {
 function checkQueryParams() {
   const query = router.currentRoute.value.query
   isCommentDrawerOpen.value = query.comments === 'true'
-  router.replace({ query: undefined })
+
+  /// hack used to detect the exception in routerAnimation()
+  setTimeout(() => router.replace({ query: undefined }), 100)
 }
 
 const { toast } = useToast()

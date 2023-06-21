@@ -1,7 +1,7 @@
 <template>
   <div class="h-[46px] flex w-full bg-primary text-black">
     <ion-buttons slot="start" class="flex flex-grow">
-      <ion-button @click="setSelectedObjects([])" mode="md" color="black">
+      <ion-button @click="getCanvas().discardActiveObject()" mode="md" color="black">
         <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
       </ion-button>
 
@@ -72,7 +72,7 @@ import { DrawAction } from '@/types/draw.types'
 import TextMenu from '@/components/draw/menu/TextMenu.vue'
 import { exitEditing } from '@/helper/draw/draw.helper'
 
-const { selectAction } = useDrawStore()
+const { selectAction, getCanvas } = useDrawStore()
 const { saveState, undo, redo } = useHistory()
 const { undoStack, redoStack } = storeToRefs(useHistory())
 const { selectedObjectsRef } = storeToRefs(useSelect())

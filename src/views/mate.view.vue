@@ -63,6 +63,8 @@ import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import router from '@/router'
 import { onMounted, ref } from 'vue'
 import { NotificationType } from '@/types/server.types'
+import { setAppColors } from '@/helper/general.helper'
+import { colorsPerRoute } from '@/config/colors.config'
 
 const appStore = useAppStore()
 const { user } = storeToRefs(appStore)

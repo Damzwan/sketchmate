@@ -56,7 +56,7 @@ export enum DrawAction {
   FullErase,
   Sticker,
   CopyObject,
-  BackgroundImage,
+  AddBackgroundImage,
   AddShape,
   AddText,
   Merge,
@@ -80,7 +80,8 @@ export enum Menu {
   Eraser,
   Sticker,
   Saved,
-  Shapes
+  Shapes,
+  Cropper
 }
 
 export enum ObjectType {

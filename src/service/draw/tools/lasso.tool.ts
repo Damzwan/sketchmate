@@ -112,7 +112,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     }
   }
 
-  function downSamplePath(path: fabric.Path, numPoints = 30): number[][] {
+  function downSamplePath(path: fabric.Path, numPoints = 50): number[][] {
     if (!path.path || !path.canvas) return []
 
     let pathString = ''

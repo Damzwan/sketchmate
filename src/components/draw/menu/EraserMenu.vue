@@ -78,8 +78,7 @@ import { eraserIconMapping } from '@/config/draw.config'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useEraser } from '@/service/draw/tools/eraser.tool'
 import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
-import { popoverColorConfig } from '@/config/colors.config'
-import { colorsPerRoute } from '@/config/routes.config'
+import { colorsPerRoute, popoverColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const drawStore = useDrawStore()

@@ -43,6 +43,7 @@
         </div>
       </div>
     </ion-content>
+    <ion-button @click="t"></ion-button>
   </ion-page>
 </template>
 
@@ -65,7 +66,7 @@ import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
 import QrcodeVue from 'qrcode.vue'
 import { shareUrl } from '@/helper/share.helper'
-import { onMounted, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSocketService } from '@/service/api/socket.service'
 import { useToast } from '@/service/toast.service'
@@ -75,8 +76,6 @@ import QrScanner from 'qr-scanner'
 import { useFullscreen } from '@vueuse/core'
 import { svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
-import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
-import { StatusBar } from '@capacitor/status-bar'
 
 const appStore = useAppStore()
 const socketService = useSocketService()
@@ -91,6 +90,9 @@ const videoContainer = ref<HTMLElement>()
 const { isFullscreen, enter, exit } = useFullscreen(videoContainer)
 const isQRReaderOpen = ref(false)
 
+const { setQueryParams } = useAppStore()
+const { queryParams } = storeToRefs(useAppStore())
+
 onIonViewDidEnter(() => {
   appStore.consumeNotificationLoading(NotificationType.unmatch)
   checkQueryParams()
@@ -104,6 +106,10 @@ watch(isFullscreen, value => {
   if (!value) stopScanning()
 })
 
+watch(queryParams, value => {
+  if (value) checkQueryParams()
+})
+
 function createShareUrl() {
   let baseUrl
   if (isPlatform('ios') || isPlatform('android')) baseUrl = import.meta.env.VITE_FRONTEND as string
@@ -112,14 +118,14 @@ function createShareUrl() {
 }
 
 function checkQueryParams() {
+  console.log('running')
   if (!user.value) return
-  const { queryParams, setQueryParams } = useAppStore()
-  const mateId = queryParams ? queryParams.get('mate') : router.currentRoute.value.query.mate?.toString()
+  const mateId = queryParams.value ? queryParams.value.get('mate') : router.currentRoute.value.query.mate?.toString()
   if (!mateId) return
   setQueryParams(undefined)
   router.replace({ query: undefined })
   if (mateId === user.value._id) toast('Do not use your own share link', { color: 'warning' })
-  else if (user.value.mate) toast('You already have a mate', { color: 'warning' })
+  else if (user.value.mate) toast('You already have a mate', { color: 'danger' })
   else match(mateId)
 }
 

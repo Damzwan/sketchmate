@@ -41,13 +41,13 @@
 </template>
 
 <script lang="ts" setup>
-import { IonCol, IonContent, IonPage, IonRow } from '@ionic/vue'
+import { IonCol, IonContent, IonPage, IonRow, onIonViewDidEnter } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
 import { InboxItem } from '@/types/server.types'
 import dayjs from 'dayjs'
-import { sortDates } from '@/helper/general.helper'
+import { setAppColors, sortDates } from '@/helper/general.helper'
 import router from '@/router'
 import { useToast } from '@/service/toast.service'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
@@ -56,6 +56,8 @@ import { useRoute } from 'vue-router'
 import NoMessages from '@/components/gallery/NoMessages.vue'
 import Thumbnail from '@/components/gallery/Thumbnail.vue'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
+import { colorsPerRoute } from '@/config/colors.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const { getInbox, cleanUnreadMessages } = useAppStore()
 const { user, inbox, isLoading, isLoggedIn } = storeToRefs(useAppStore())

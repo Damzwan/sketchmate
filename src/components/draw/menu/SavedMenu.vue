@@ -4,6 +4,7 @@
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
     :is-open="savedMenuOpen"
+    @willPresent="setAppColors(drawModalColorConfig)"
     @willDismiss="onDismiss"
   >
     <ion-header class="py-1 bg-secondary">
@@ -61,7 +62,7 @@ import {
   IonToolbar,
   modalController
 } from '@ionic/vue'
-import { svg } from '@/helper/general.helper'
+import { setAppColors, svg } from '@/helper/general.helper'
 import { mdiCancel, mdiDelete, mdiMinus } from '@mdi/js'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
@@ -72,6 +73,8 @@ import { DrawAction } from '@/types/draw.types'
 import { useAPI } from '@/service/api/api.service'
 import NoStickers from '@/components/draw/NoStickers.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
+import { colorsPerRoute, drawModalColorConfig } from '@/config/colors.config'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const { user, isLoading } = storeToRefs(useAppStore())
 const { selectAction } = useDrawStore()
@@ -98,6 +101,7 @@ function onDelete(saved: Saved) {
 function onDismiss() {
   savedMenuOpen.value = false
   deleteMode.value = false
+  setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
 }
 </script>
 

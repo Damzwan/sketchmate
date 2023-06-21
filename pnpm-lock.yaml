@@ -14,7 +14,6 @@ specifiers:
   '@capacitor/local-notifications': ^5.0.4
   '@capacitor/push-notifications': ^5.0.4
   '@capacitor/share': ^5.0.4
-  '@capacitor/splash-screen': ^5.0.4
   '@capacitor/status-bar': ^5.0.4
   '@capacitor/toast': ^5.0.4
   '@hugotomazi/capacitor-navigation-bar': ^2.0.1
@@ -35,6 +34,7 @@ specifiers:
   autoprefixer: ^10.4.14
   browser-image-compression: ^2.0.2
   compressorjs: ^1.2.1
+  cropperjs: ^1.5.13
   cypress: ^12.14.0
   dayjs: ^1.11.8
   eslint: ^8.42.0
@@ -82,7 +82,6 @@ dependencies:
   '@capacitor/local-notifications': 5.0.4_@capacitor+core@5.0.5
   '@capacitor/push-notifications': 5.0.4_@capacitor+core@5.0.5
   '@capacitor/share': 5.0.4_@capacitor+core@5.0.5
-  '@capacitor/splash-screen': 5.0.4_@capacitor+core@5.0.5
   '@capacitor/status-bar': 5.0.4_@capacitor+core@5.0.5
   '@capacitor/toast': 5.0.4_@capacitor+core@5.0.5
   '@hugotomazi/capacitor-navigation-bar': 2.0.1_@capacitor+core@5.0.5
@@ -94,6 +93,7 @@ dependencies:
   autoprefixer: 10.4.14_postcss@8.4.24
   browser-image-compression: 2.0.2
   compressorjs: 1.2.1
+  cropperjs: 1.5.13
   dayjs: 1.11.8
   fabric: 5.3.0
   fontfaceobserver: 2.3.0
@@ -284,14 +284,6 @@ packages:
 
   /@capacitor/share/5.0.4_@capacitor+core@5.0.5:
     resolution: {integrity: sha512-Owkg6xmpWAoUZxu+joc+L5PxrWdGR/nAhKYGb2mVenf0Fljm1kwjKKJRySLmaO4uHiDD2JVwV2azV2w6ZC6DTg==}
-    peerDependencies:
-      '@capacitor/core': ^5.0.0
-    dependencies:
-      '@capacitor/core': 5.0.5
-    dev: false
-
-  /@capacitor/splash-screen/5.0.4_@capacitor+core@5.0.5:
-    resolution: {integrity: sha512-gWV6mSIDyT+4oSC7NKvCSHdBhDIZi8JK7xS/iknkL8bLTZp6/My/vvA+67fRNvmELzGrk3MmbGhLdLoLnsd5dA==}
     peerDependencies:
       '@capacitor/core': ^5.0.0
     dependencies:
@@ -1903,6 +1895,10 @@ packages:
   /core-util-is/1.0.2:
     resolution: {integrity: sha512-3lqz5YjWTYnW6dlDa5TLaTCcShfar1e40rmcJVwCBJC6mWlFuj0eCHIElmG1g5kyuJ/GD+8Wn4FFCcz4gJPfaQ==}
     dev: true
+
+  /cropperjs/1.5.13:
+    resolution: {integrity: sha512-by7jKAo73y5/Do0K6sxdTKHgndY0NMjG2bEdgeJxycbcmHuCiMXqw8sxy5C5Y5WTOTcDGmbT7Sr5CgKOXR06OA==}
+    dev: false
 
   /cross-spawn/7.0.3:
     resolution: {integrity: sha512-iRDPJKUPVEND7dHPO8rkbOnPpyDygcDFtWjpeWNCgy8WP2rXcxXL8TskReQl6OrB2G7+UJrags1q15Fudc7G6w==}

@@ -6,7 +6,8 @@ import { useAppStore } from '@/store/app.store'
 import { useSocketService } from '@/service/api/socket.service'
 import { Storage } from '@/types/storage.types'
 import { getCurrentRoute, setAppColors } from '@/helper/general.helper'
-import { colorsPerRoute } from '@/config/routes.config'
+
+import { colorsPerRoute } from '@/config/colors.config'
 
 const hasMateGuard: NavigationGuard = (to, from, next) => {
   if (!localStorage.getItem(Storage.mate)) next(FRONTEND_ROUTES.connect)
@@ -67,7 +68,6 @@ router.beforeEach(async (to, from, next) => {
     const { connect } = useSocketService()
     connect().then(app.login)
   }
-  setTimeout(() => setAppColors(colorsPerRoute[getCurrentRoute()]), 150)
   next()
 })
 

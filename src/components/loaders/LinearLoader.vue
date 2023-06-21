@@ -1,10 +1,11 @@
 <template>
   <div class="flex justify-center h-full w-full items-center flex-col" :class="{ darken: darken }">
-    <div class="w-3/5 w-max-[200px]">
-      <ion-progress-bar color="primary" type="indeterminate" />
+    <div class="w-2/5 w-max-[200px] mb-[-40px]">
+      <!--      <ion-progress-bar color="primary" type="indeterminate" />-->
+      <LottieAnimation :animation-data="loading_lottie" :auto-play="true" :loop="true" :speed="1" ref="anim" />
     </div>
-    <p class="text-lg pt-3" v-if="text">{{ text }}</p>
-    <p class="text-lg pt-3" v-else-if="dynamicText">{{ dynamicText[dynamicIndex].text }}</p>
+    <p class="text-lg" v-if="text">{{ text }}</p>
+    <p class="text-lg" v-else-if="dynamicText">{{ dynamicText[dynamicIndex].text }}</p>
   </div>
 </template>
 
@@ -12,6 +13,8 @@
 import { IonProgressBar } from '@ionic/vue'
 import { ref } from 'vue'
 import { DynamicTextPart } from '@/types/loader.types'
+import { LottieAnimation } from 'lottie-web-vue'
+import loading_lottie from '@/assets/lottie/loading_lottie.json'
 
 const dynamicIndex = ref(0)
 

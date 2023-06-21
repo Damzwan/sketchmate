@@ -44,7 +44,7 @@
       </ion-toolbar>
     </ion-header>
     <ion-content color="background" v-if="user">
-      <LinearLoader v-if="isLoading" class="h-[65%]" :dynamic-text="dynamicStickerLoading" />
+      <LinearLoader v-if="isLoading" class="h-[75%]" :dynamic-text="dynamicStickerLoading" />
       <div v-else class="h-full">
         <div v-if="selectedSegment == 0" class="h-full">
           <NoStickers v-if="user.stickers.length == 0" type="stickers" />
@@ -126,7 +126,6 @@ const { user } = storeToRefs(useAppStore())
 const { toast } = useToast()
 const isLoading = ref(false)
 const selectedSegment = ref('0')
-const loadingText = computed(() => (selectedSegment.value == '0' ? 'sticker' : 'emblem'))
 const deleteMode = ref(false)
 const isDisabled = computed(() => isLoading.value || deleteMode.value)
 

@@ -117,7 +117,6 @@ function createShareUrl() {
 }
 
 function checkQueryParams() {
-  console.log('running')
   if (!user.value) return
   const mateId = queryParams.value ? queryParams.value.get('mate') : router.currentRoute.value.query.mate?.toString()
   if (!mateId) return

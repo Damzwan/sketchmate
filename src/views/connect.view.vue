@@ -43,7 +43,6 @@
         </div>
       </div>
     </ion-content>
-    <ion-button @click="t"></ion-button>
   </ion-page>
 </template>
 

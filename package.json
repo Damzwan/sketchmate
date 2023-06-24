@@ -31,6 +31,7 @@
     "@capacitor/local-notifications": "^5.0.4",
     "@capacitor/push-notifications": "^5.0.4",
     "@capacitor/share": "^5.0.4",
+    "@capacitor/splash-screen": "^5.0.4",
     "@capacitor/status-bar": "^5.0.4",
     "@capacitor/toast": "^5.0.4",
     "@hugotomazi/capacitor-navigation-bar": "^2.0.1",

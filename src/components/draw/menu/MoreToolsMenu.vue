@@ -1,10 +1,5 @@
 <template>
-  <ion-popover
-    trigger="more_tools"
-    @will-present="setAppColors(popoverColorConfig)"
-    @will-dismiss="setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])"
-    :keepContentsMounted="true"
-  >
+  <ion-popover trigger="more_tools" :keepContentsMounted="true" :showBackdrop="false">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" id="stickers" @click="openStickerMenu" :detail="true">
@@ -192,9 +187,5 @@ ion-action-sheet.my-custom-class .action-sheet-cancel {
 
 ion-action-sheet.my-custom-class .action-sheet-cancel {
   --background: #e97223;
-}
-
-.cancel-button {
-  background: red;
 }
 </style>

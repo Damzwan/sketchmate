@@ -14,7 +14,6 @@
         <canvas ref="myCanvasRef" />
       </div>
       <SavedMenu />
-      <ShapesMenu />
 
       <div class="flex justify-center items-center absolute bottom-4 w-full">
         <ion-button v-if="canZoomOut" @click="resetZoom" color="secondary" shape="round">

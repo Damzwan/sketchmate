@@ -21,7 +21,7 @@ import { dismissButton, matchButton, viewCommentButton, viewDrawingButton } from
 import { ToastDuration } from '@/types/toast.types'
 import pako from 'pako'
 import { EventBus } from '@/main'
-import { Storage } from '@/types/storage.types'
+import { LocalStorage } from '@/types/storage.types'
 import router from '@/router'
 
 let socket: Socket | undefined
@@ -48,7 +48,7 @@ export function createSocketService(): SocketAPI {
       if (params) {
         user.value!.mate = params.mate
         toast('Matched!', { buttons: [matchButton, dismissButton], duration: 5000 })
-        localStorage.setItem(Storage.mate, 'true')
+        localStorage.setItem(LocalStorage.mate, 'true')
 
         router.push(FRONTEND_ROUTES.mate)
       } else toast('Failed to connect to mate', { color: 'error' })
@@ -57,7 +57,7 @@ export function createSocketService(): SocketAPI {
     socket.on(SOCKET_ENDPONTS.unmatch, async (success: boolean) => {
       if (success) {
         toast('Unmatched', { color: 'warning' })
-        localStorage.removeItem(Storage.mate)
+        localStorage.removeItem(LocalStorage.mate)
         notificationRouteLoading.value = NotificationType.unmatch
 
         await router.push(FRONTEND_ROUTES.connect)

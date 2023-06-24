@@ -64,12 +64,10 @@ export function deleteObjects(c: Canvas, options: any) {
   customSaveAction(() => objects.forEach(obj => c?.remove(obj)))
 }
 
-export function bringToFront(c: Canvas, options: any) {
-  const objects: SelectedObject[] = options['objects']
+export function bringToFront(c: Canvas, { objects }: { objects: SelectedObject[] }) {
   objects.forEach(obj => c.bringToFront(obj))
 }
 
-export function bringToBack(c: Canvas, options: any) {
-  const objects: SelectedObject[] = options['objects']
+export function bringToBack(c: Canvas, { objects }: { objects: SelectedObject[] }) {
   objects.forEach(obj => c.sendToBack(obj))
 }

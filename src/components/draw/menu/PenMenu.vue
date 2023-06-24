@@ -4,8 +4,7 @@
     :event="menuEvent"
     @didDismiss="onDismiss"
     :keepContentsMounted="true"
-    @will-present="setAppColors(popoverColorConfig)"
-    @will-dismiss="setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])"
+    :showBackdrop="false"
   >
     <ion-content class="divide-y divide-primary">
       <!-- Stroke Preview -->

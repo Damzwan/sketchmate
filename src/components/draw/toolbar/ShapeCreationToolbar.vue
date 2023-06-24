@@ -1,6 +1,14 @@
 <template>
   <ion-toolbar color="primary" class="h-[46px]" mode="md">
     <ion-buttons slot="end">
+      <ion-button @click="undo" :disabled="undoStack.length == 0">
+        <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
+      </ion-button>
+
+      <ion-button @click="redo" :disabled="redoStack.length == 0">
+        <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
+      </ion-button>
+
       <ion-button @click="openShapesMenu">
         <ion-icon slot="icon-only" :icon="svg(mdiShapeOutline)" />
       </ion-button>
@@ -14,7 +22,7 @@
 
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
-import { mdiCheck, mdiShapeOutline } from '@mdi/js'
+import { mdiCheck, mdiRedo, mdiShapeOutline, mdiUndo } from '@mdi/js'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw/draw.store'
@@ -28,6 +36,9 @@ const { unsubscribe } = useEventManager()
 const { saveState, enableHistorySaving } = useHistory()
 const { openMenu } = useMenuStore()
 const { shapeCreationMode } = storeToRefs(useDrawStore())
+
+const { undo, redo } = useHistory()
+const { undoStack, redoStack } = storeToRefs(useHistory())
 
 const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
 

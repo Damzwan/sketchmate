@@ -1,11 +1,5 @@
 <template>
-  <ion-popover
-    :is-open="eraserMenuOpen"
-    :event="menuEvent"
-    @didDismiss="eraserMenuOpen = false"
-    @will-present="setAppColors(popoverColorConfig)"
-    @will-dismiss="setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])"
-  >
+  <ion-popover :is-open="eraserMenuOpen" :event="menuEvent" @didDismiss="eraserMenuOpen = false" :showBackdrop="false">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" @click="selectEraser" :button="true">

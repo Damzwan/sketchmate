@@ -18,7 +18,7 @@ import {
   UploadProfileImgParams,
   User
 } from '@/types/server.types'
-import { Storage } from '@/types/storage.types'
+import { LocalStorage } from '@/types/storage.types'
 import { createGlobalState } from '@vueuse/core'
 
 enum REQUEST_TYPES {
@@ -49,7 +49,7 @@ export const useAPI = createGlobalState((): API => {
         method: REQUEST_TYPES.POST
       }).then(res => res.json())
       if (!user) throw new Error()
-      localStorage.setItem(Storage.user, user._id)
+      localStorage.setItem(LocalStorage.user, user._id)
       return user
     } catch (e) {
       console.log(e)

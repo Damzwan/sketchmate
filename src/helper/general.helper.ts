@@ -1,6 +1,6 @@
 import { User } from '@/types/server.types'
 import Compressor from 'compressorjs'
-import { Storage } from '@/types/storage.types'
+import { LocalStorage } from '@/types/storage.types'
 import router from '@/router'
 import { StatusBar } from '@capacitor/status-bar'
 import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
@@ -79,11 +79,11 @@ export function svg(path: string) {
 }
 
 export function checkMateCookieValidity(user: User) {
-  if (user.mate && !localStorage.getItem(Storage.mate)) {
-    localStorage.setItem(Storage.mate, 'true')
+  if (user.mate && !localStorage.getItem(LocalStorage.mate)) {
+    localStorage.setItem(LocalStorage.mate, 'true')
     router.go(0)
-  } else if (!user.mate && localStorage.getItem(Storage.mate)) {
-    localStorage.removeItem(Storage.mate)
+  } else if (!user.mate && localStorage.getItem(LocalStorage.mate)) {
+    localStorage.removeItem(LocalStorage.mate)
     router.go(0)
   }
 }

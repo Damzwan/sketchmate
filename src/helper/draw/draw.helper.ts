@@ -98,7 +98,7 @@ export async function canvasToBuffer(canvasDataUrl: string) {
 
 export function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>) {
   objects.forEach(obj => {
-    if (obj.type == ObjectType.group) (obj as Group).forEachObject(groupObj => groupObj.set(options))
+    if (obj.type == ObjectType.group) setForSelectedObjects((obj as Group).getObjects(), options)
     else obj.set(options)
   })
 }

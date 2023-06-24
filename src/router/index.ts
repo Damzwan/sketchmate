@@ -4,18 +4,18 @@ import TabsPage from '../views/tabs.view.vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useAppStore } from '@/store/app.store'
 import { useSocketService } from '@/service/api/socket.service'
-import { Storage } from '@/types/storage.types'
+import { LocalStorage } from '@/types/storage.types'
 import { getCurrentRoute, setAppColors } from '@/helper/general.helper'
 
 import { colorsPerRoute } from '@/config/colors.config'
 
 const hasMateGuard: NavigationGuard = (to, from, next) => {
-  if (!localStorage.getItem(Storage.mate)) next(FRONTEND_ROUTES.connect)
+  if (!localStorage.getItem(LocalStorage.mate)) next(FRONTEND_ROUTES.connect)
   else next()
 }
 
 const hasNoMateGuard: NavigationGuard = (to, from, next) => {
-  if (localStorage.getItem(Storage.mate)) next(FRONTEND_ROUTES.draw)
+  if (localStorage.getItem(LocalStorage.mate)) next(FRONTEND_ROUTES.draw)
   else next()
 }
 

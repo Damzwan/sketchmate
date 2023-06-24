@@ -5,8 +5,9 @@ import { CommentRes, InboxItem, NotificationType, User } from '@/types/server.ty
 import { useSocketService } from '@/service/api/socket.service'
 import { getUser } from '@/helper/app.helper'
 import { useAPI } from '@/service/api/api.service'
-import { Storage } from '@/types/storage.types'
+import { LocalStorage } from '@/types/storage.types'
 import { checkMateCookieValidity } from '@/helper/general.helper'
+import { SplashScreen } from '@capacitor/splash-screen'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
@@ -17,7 +18,7 @@ export const useAppStore = defineStore('app', () => {
   const notificationRouteLoading = ref<NotificationType>()
   const storeReady = ref(false)
 
-  const unreadMsg = localStorage.getItem(Storage.unread)
+  const unreadMsg = localStorage.getItem(LocalStorage.unread)
   const unreadMessages = ref(unreadMsg ? parseInt(unreadMsg) : 0)
 
   const error = ref()
@@ -32,6 +33,7 @@ export const useAppStore = defineStore('app', () => {
       await socketService.login({ _id: user.value!._id })
       checkMateCookieValidity(user.value)
       isLoggedIn.value = true
+      // await SplashScreen.hide()
     } catch (e) {
       error.value = e
     }
@@ -63,7 +65,7 @@ export const useAppStore = defineStore('app', () => {
 
   function cleanUnreadMessages() {
     unreadMessages.value = 0
-    localStorage.setItem(Storage.unread, '0')
+    localStorage.setItem(LocalStorage.unread, '0')
   }
 
   function setNotifications(token: string | undefined) {

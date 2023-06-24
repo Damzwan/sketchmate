@@ -8,9 +8,11 @@ export function setStrokeColor(c: Canvas, options: any) {
   const color = options['color']
   const { selectedObjectsRef } = useSelect()
   if (selectedObjectsRef.length == 0) return
+
   const { saveState } = useHistory()
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
   setForSelectedObjects(selectedObjectsRef, { stroke: color })
+
   saveState()
   c.renderAll()
   popoverController.dismiss()
@@ -20,9 +22,11 @@ export function setFillColor(c: Canvas, options: any) {
   const color = options['color']
   const { selectedObjectsRef } = useSelect()
   if (selectedObjectsRef.length == 0) return
+
   const { saveState } = useHistory()
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
   setForSelectedObjects(selectedObjectsRef, { fill: color })
+
   saveState()
   c.renderAll()
   popoverController.dismiss()
@@ -35,7 +39,8 @@ export function setBackgroundColor(c: Canvas, options: any) {
 
   const { saveState } = useHistory()
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  selectedObjectsRef.forEach(obj => obj.set({ selectionBackgroundColor: color }))
+  setForSelectedObjects(selectedObjectsRef, { fill: color })
+
   saveState()
   c.renderAll()
   popoverController.dismiss()

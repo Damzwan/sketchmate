@@ -1,5 +1,11 @@
 <template>
-  <ion-popover :is-open="shapesMenuOpen" side="left" @willDismiss="shapesMenuOpen = false" :event="menuEvent">
+  <ion-popover
+    :is-open="shapesMenuOpen"
+    side="left"
+    @willDismiss="shapesMenuOpen = false"
+    :event="menuEvent"
+    :showBackdrop="false"
+  >
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" @click="addShape(Shape.Circle)">
@@ -73,7 +79,7 @@ function addShape(shape: Shape) {
 }
 
 function closePopover() {
-  return popoverController.dismiss()
+  popoverController.dismiss()
 }
 </script>
 

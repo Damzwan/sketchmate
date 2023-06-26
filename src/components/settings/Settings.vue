@@ -116,7 +116,7 @@ function close() {
 
 async function uploadImage(e: any) {
   const file = e.target.files[0]
-  const img = await compressImg(file, { size: 512 })
+  const img = await compressImg(file, { size: 256 })
   const imgUrl = await api.uploadProfileImg({
     _id: user.value!._id,
     mate_id: user.value?.mate?._id,
@@ -159,7 +159,7 @@ onBeforeRouteLeave(() => close())
 .badge {
   background: var(--ion-color-secondary);
   position: absolute;
-  right: 3px;
+  right: 12px;
   bottom: 10px;
   z-index: 4;
 }

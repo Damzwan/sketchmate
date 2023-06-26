@@ -153,15 +153,21 @@ export interface ChangeNameRes {
   mate_name: string
 }
 
+export interface CreateUserParams {
+  name?: string
+  img?: any
+  subscription?: string
+}
+
 export interface Saved {
   drawing: string
   img: string
 }
 
-export type Res<T> = T | undefined | null
+export type Res<T> = T | undefined
 
 export interface API {
-  createUser(): Promise<Res<User>>
+  createUser(params: CreateUserParams): Promise<Res<User>>
 
   getUser(params: GetUserParams): Promise<Res<User>>
 

@@ -5,17 +5,21 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useAppStore } from '@/store/app.store'
 import { useSocketService } from '@/service/api/socket.service'
 import { LocalStorage } from '@/types/storage.types'
-import { getCurrentRoute, setAppColors } from '@/helper/general.helper'
+import { getCurrentRoute, hideLoading, setAppColors } from '@/helper/general.helper'
 
 import { colorsPerRoute } from '@/config/colors.config'
+import { Preferences } from '@capacitor/preferences'
 
-const hasMateGuard: NavigationGuard = (to, from, next) => {
-  if (!localStorage.getItem(LocalStorage.mate)) next(FRONTEND_ROUTES.connect)
+const hasMateGuard: NavigationGuard = async (to, from, next) => {
+  const mate = await Preferences.get({ key: LocalStorage.mate })
+  console.log(mate)
+  if (!mate.value) next(FRONTEND_ROUTES.connect)
   else next()
 }
 
-const hasNoMateGuard: NavigationGuard = (to, from, next) => {
-  if (localStorage.getItem(LocalStorage.mate)) next(FRONTEND_ROUTES.draw)
+const hasNoMateGuard: NavigationGuard = async (to, from, next) => {
+  const mate = await Preferences.get({ key: LocalStorage.mate })
+  if (mate.value) next(FRONTEND_ROUTES.draw)
   else next()
 }
 
@@ -66,7 +70,7 @@ router.beforeEach(async (to, from, next) => {
   const app = useAppStore()
   if (!app.isLoggedIn) {
     const { connect } = useSocketService()
-    connect().then(app.login)
+    connect().then(app.login).then(hideLoading)
   }
   next()
 })

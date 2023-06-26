@@ -10,7 +10,6 @@
 </template>
 
 <script lang="ts" setup>
-import { IonProgressBar } from '@ionic/vue'
 import { ref } from 'vue'
 import { DynamicTextPart } from '@/types/loader.types'
 import { LottieAnimation } from 'lottie-web-vue'

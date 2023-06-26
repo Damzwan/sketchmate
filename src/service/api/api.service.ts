@@ -4,6 +4,7 @@ import {
   CreateEmblemParams,
   CreateSavedParams,
   CreateStickerParams,
+  CreateUserParams,
   DeleteEmblemParams,
   DeleteSavedParams,
   DeleteStickerParams,
@@ -20,6 +21,7 @@ import {
 } from '@/types/server.types'
 import { LocalStorage } from '@/types/storage.types'
 import { createGlobalState } from '@vueuse/core'
+import { Preferences } from '@capacitor/preferences'
 
 enum REQUEST_TYPES {
   GET = 'GET',
@@ -38,18 +40,23 @@ export const useAPI = createGlobalState((): API => {
       })}`
       return await fetch(url, { method: REQUEST_TYPES.GET }).then(res => res.json())
     } catch (e) {
-      return await createUser()
+      console.log(e)
     }
   }
 
-  async function createUser(): Promise<Res<User>> {
+  async function createUser(params: CreateUserParams): Promise<Res<User>> {
     const url = `${baseUrl}${ENDPOINTS.user}`
     try {
+      const data = new FormData()
+      if (params.img) data.append('img', params.img)
+      data.append('user', JSON.stringify(params))
+
       const user: Res<User> = await fetch(url, {
-        method: REQUEST_TYPES.POST
+        method: REQUEST_TYPES.POST,
+        body: data
       }).then(res => res.json())
       if (!user) throw new Error()
-      localStorage.setItem(LocalStorage.user, user._id)
+      await Preferences.set({ key: LocalStorage.user, value: user._id })
       return user
     } catch (e) {
       console.log(e)

@@ -1,13 +1,12 @@
 // Utilities
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { CommentRes, InboxItem, NotificationType, User } from '@/types/server.types'
+import { CommentRes, CreateUserParams, InboxItem, NotificationType, User } from '@/types/server.types'
 import { useSocketService } from '@/service/api/socket.service'
-import { getUser } from '@/helper/app.helper'
 import { useAPI } from '@/service/api/api.service'
 import { LocalStorage } from '@/types/storage.types'
-import { checkMateCookieValidity } from '@/helper/general.helper'
-import { SplashScreen } from '@capacitor/splash-screen'
+import { Preferences } from '@capacitor/preferences'
+import { checkMateConsistency } from '@/helper/general.helper'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
@@ -26,16 +25,34 @@ export const useAppStore = defineStore('app', () => {
 
   const queryParams = ref<URLSearchParams>()
 
+  const localSubscription = ref<string>()
+
   async function login() {
     try {
-      user.value = await getUser()
+      const { value: user_id } = await Preferences.get({ key: LocalStorage.user })
+      if (!user_id) return
+
       const socketService = useSocketService()
+      user.value = await api.getUser({ _id: user_id })
       await socketService.login({ _id: user.value!._id })
-      checkMateCookieValidity(user.value)
+
+      checkMateConsistency(user.value!)
+
       isLoggedIn.value = true
-      // await SplashScreen.hide()
     } catch (e) {
       error.value = e
+    }
+  }
+
+  async function createUser(userData: CreateUserParams) {
+    try {
+      user.value = await api.createUser(userData)
+
+      const socketService = useSocketService()
+      await socketService.login({ _id: user.value!._id })
+      isLoggedIn.value = true
+    } catch (e) {
+      console.log(e)
     }
   }
 
@@ -69,6 +86,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function setNotifications(token: string | undefined) {
+    localSubscription.value = token
+
+    if (!user.value) return
     user.value!.subscription = token
     if (!token) api.unsubscribe({ _id: user.value!._id })
     else api.subscribe({ _id: user.value!._id, subscription: token })
@@ -112,6 +132,8 @@ export const useAppStore = defineStore('app', () => {
     setNotificationLoading,
     consumeNotificationLoading,
     queryParams,
-    setQueryParams
+    setQueryParams,
+    createUser,
+    localSubscription
   }
 })

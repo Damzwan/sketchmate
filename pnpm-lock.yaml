@@ -12,6 +12,7 @@ specifiers:
   '@capacitor/haptics': ^5.0.4
   '@capacitor/ios': ^5.0.5
   '@capacitor/local-notifications': ^5.0.4
+  '@capacitor/preferences': ^5.0.4
   '@capacitor/push-notifications': ^5.0.4
   '@capacitor/share': ^5.0.4
   '@capacitor/splash-screen': ^5.0.4
@@ -82,6 +83,7 @@ dependencies:
   '@capacitor/haptics': 5.0.4_@capacitor+core@5.0.5
   '@capacitor/ios': 5.0.5_@capacitor+core@5.0.5
   '@capacitor/local-notifications': 5.0.4_@capacitor+core@5.0.5
+  '@capacitor/preferences': 5.0.4_@capacitor+core@5.0.5
   '@capacitor/push-notifications': 5.0.4_@capacitor+core@5.0.5
   '@capacitor/share': 5.0.4_@capacitor+core@5.0.5
   '@capacitor/splash-screen': 5.0.4_@capacitor+core@5.0.5
@@ -272,6 +274,14 @@ packages:
 
   /@capacitor/local-notifications/5.0.4_@capacitor+core@5.0.5:
     resolution: {integrity: sha512-In+BNDun9lkJ/0nIl0KjbJrQjkopoF1lVC2oAdUYA0+xvorq7hq4SO2shljMkqdhzQcfy7uwjgDqToik1jtsRg==}
+    peerDependencies:
+      '@capacitor/core': ^5.0.0
+    dependencies:
+      '@capacitor/core': 5.0.5
+    dev: false
+
+  /@capacitor/preferences/5.0.4_@capacitor+core@5.0.5:
+    resolution: {integrity: sha512-GV3QysJ724GO/CE8KHRYdq8tpzCrJWKVtOJGkLoPt+qlr88SNN+ayNMXlZE1LCMJ5eevdWDreSjQXiYfkUvnoA==}
     peerDependencies:
       '@capacitor/core': ^5.0.0
     dependencies:

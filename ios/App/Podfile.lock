@@ -17,6 +17,8 @@ PODS:
   - CapacitorMlkitBarcodeScanning (5.0.0):
     - Capacitor
     - GoogleMLKit/BarcodeScanning (= 3.2.0)
+  - CapacitorPreferences (5.0.4):
+    - Capacitor
   - CapacitorPushNotifications (5.0.4):
     - Capacitor
   - CapacitorShare (5.0.4):
@@ -133,6 +135,7 @@ DEPENDENCIES:
   - "CapacitorHaptics (from `../../node_modules/.pnpm/@capacitor+haptics@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/haptics`)"
   - "CapacitorLocalNotifications (from `../../node_modules/.pnpm/@capacitor+local-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/local-notifications`)"
   - "CapacitorMlkitBarcodeScanning (from `../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@5.0.0_@capacitor+core@5.0.5/node_modules/@capacitor-mlkit/barcode-scanning`)"
+  - "CapacitorPreferences (from `../../node_modules/.pnpm/@capacitor+preferences@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/preferences`)"
   - "CapacitorPushNotifications (from `../../node_modules/.pnpm/@capacitor+push-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/push-notifications`)"
   - "CapacitorShare (from `../../node_modules/.pnpm/@capacitor+share@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/share`)"
   - "CapacitorSplashScreen (from `../../node_modules/.pnpm/@capacitor+splash-screen@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/splash-screen`)"
@@ -181,6 +184,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/.pnpm/@capacitor+local-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/local-notifications"
   CapacitorMlkitBarcodeScanning:
     :path: "../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@5.0.0_@capacitor+core@5.0.5/node_modules/@capacitor-mlkit/barcode-scanning"
+  CapacitorPreferences:
+    :path: "../../node_modules/.pnpm/@capacitor+preferences@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/preferences"
   CapacitorPushNotifications:
     :path: "../../node_modules/.pnpm/@capacitor+push-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/push-notifications"
   CapacitorShare:
@@ -204,6 +209,7 @@ SPEC CHECKSUMS:
   CapacitorHaptics: e36653b37326d71bb35ae42b944124037dbc3d97
   CapacitorLocalNotifications: 2c95d27ccf9cc28ecc59d69b54d29074c1740172
   CapacitorMlkitBarcodeScanning: 4c106aa2a7858a4776a955003c0591c05a47edaa
+  CapacitorPreferences: 82a9ecf5355283a3b3cf7ac217d8c5534c4dee8a
   CapacitorPushNotifications: 3704ac3dac68a9bfc669fb384cbc7beec9b1f100
   CapacitorShare: 427bba238a1e3f116b2b349019aec6ea7f42cebd
   CapacitorSplashScreen: 93a389d4f7673c08214ae25bb6f21d867d5305c5
@@ -229,6 +235,6 @@ SPEC CHECKSUMS:
   PromisesObjC: 09985d6d70fbe7878040aa746d78236e6946d2ef
   Protobuf: 3dd214698ddb7afd832da281c777b2e9facef401
 
-PODFILE CHECKSUM: bcea18892b1457d9eebdc730f1865ca05d9151cc
+PODFILE CHECKSUM: c30c0a4487f837c8782157dbb32de33a07e6ae9d
 
 COCOAPODS: 1.12.0

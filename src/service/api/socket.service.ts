@@ -23,6 +23,7 @@ import pako from 'pako'
 import { EventBus } from '@/main'
 import { LocalStorage } from '@/types/storage.types'
 import router from '@/router'
+import { Preferences } from '@capacitor/preferences'
 
 let socket: Socket | undefined
 
@@ -48,24 +49,29 @@ export function createSocketService(): SocketAPI {
       if (params) {
         user.value!.mate = params.mate
         toast('Matched!', { buttons: [matchButton, dismissButton], duration: 5000 })
-        localStorage.setItem(LocalStorage.mate, 'true')
+        Preferences.set({ key: LocalStorage.mate, value: 'true' })
 
         router.push(FRONTEND_ROUTES.mate)
-      } else toast('Failed to connect to mate', { color: 'error' })
+      } else {
+        toast('Failed to connect to mate', { color: 'danger' })
+
+        const appStore = useAppStore()
+        appStore.consumeNotificationLoading(NotificationType.match)
+      }
     })
 
     socket.on(SOCKET_ENDPONTS.unmatch, async (success: boolean) => {
       if (success) {
         toast('Unmatched', { color: 'warning' })
-        localStorage.removeItem(LocalStorage.mate)
+        Preferences.remove({ key: LocalStorage.mate })
         notificationRouteLoading.value = NotificationType.unmatch
-
-        await router.push(FRONTEND_ROUTES.connect)
 
         user.value!.mate = undefined
         inbox.value = []
         user.value!.inbox = []
-      } else toast('Failed to unmatch', { color: 'error' })
+
+        await router.push(FRONTEND_ROUTES.connect)
+      } else toast('Failed to unmatch', { color: 'danger' })
     })
 
     socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {

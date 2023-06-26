@@ -117,8 +117,6 @@ import { mdiCommentOutline, mdiDeleteOutline, mdiReplyOutline, mdiShareVariantOu
 import { shareImg } from '@/helper/share.helper'
 import CommentDrawer from '@/components/gallery/CommentDrawer.vue'
 import router from '@/router'
-import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
-import { StatusBar } from '@capacitor/status-bar'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
 

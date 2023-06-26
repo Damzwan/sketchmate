@@ -7,6 +7,8 @@ import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
 import { isPlatform } from '@ionic/vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
+import { SplashScreen } from '@capacitor/splash-screen'
+import { Preferences } from '@capacitor/preferences'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -78,16 +80,6 @@ export function svg(path: string) {
   return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24"><path d="${path}"/></svg>`
 }
 
-export function checkMateCookieValidity(user: User) {
-  if (user.mate && !localStorage.getItem(LocalStorage.mate)) {
-    localStorage.setItem(LocalStorage.mate, 'true')
-    router.go(0)
-  } else if (!user.mate && localStorage.getItem(LocalStorage.mate)) {
-    localStorage.removeItem(LocalStorage.mate)
-    router.go(0)
-  }
-}
-
 export function getCurrentRoute(): FRONTEND_ROUTES {
   return router.currentRoute.value.fullPath.split('/')[1] as FRONTEND_ROUTES
 }
@@ -96,4 +88,38 @@ export function setAppColors(colorConfig: AppColorConfig) {
   if (!isPlatform('capacitor')) return
   NavigationBar.setColor({ color: colorConfig.navigationBar })
   StatusBar.setBackgroundColor({ color: colorConfig.statusBar })
+}
+
+export async function hideLoading() {
+  await SplashScreen.hide()
+  const mate = await Preferences.get({ key: LocalStorage.mate })
+
+  mate.value
+    ? setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
+    : setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
+
+  // TODO kind of hacky
+  setTimeout(() => {
+    mate.value
+      ? setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
+      : setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
+  }, 50)
+
+  setTimeout(() => {
+    mate.value
+      ? setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
+      : setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
+  }, 100)
+}
+
+export async function checkMateConsistency(user: User) {
+  const mate = await Preferences.get({ key: LocalStorage.mate })
+
+  if (user.mate && !mate.value) {
+    await Preferences.set({ key: LocalStorage.mate, value: 'true' })
+    router.go(0)
+  } else if (!user.mate && mate.value) {
+    await Preferences.remove({ key: LocalStorage.mate })
+    router.go(0)
+  }
 }

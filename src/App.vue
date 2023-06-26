@@ -1,6 +1,6 @@
 <template>
   <ion-app>
-    <CircularLoader class="z-10" v-if="!isPlatform('capacitor') && !routerReady" />
+    <CircularLoader class="z-10" v-if="!isPlatform('capacitor') && !isRouterReady" />
     <ion-router-outlet />
   </ion-app>
 </template>
@@ -9,14 +9,11 @@
 import { IonApp, IonRouterOutlet, isPlatform } from '@ionic/vue'
 import { onMounted, ref } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
-import router from '@/router'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
+import router from '@/router'
 
-const routerReady = ref(false)
-
-router.isReady().then(() => {
-  routerReady.value = true
-})
+const isRouterReady = ref(false)
+router.isReady().then(() => (isRouterReady.value = true))
 
 onMounted(async () => {
   defineCustomElements(window)
@@ -28,5 +25,3 @@ ion-content {
   --background: var(--ion-color-background);
 }
 </style>
-
-<style scoped></style>

@@ -1,12 +1,8 @@
 <template>
-  <ion-card
-    color="transparent"
-    class="custom-card transition-opacity hover:opacity-70 active:opacity-70"
-    @click="action"
-  >
+  <ion-card color="transparent" class="custom-card" @click="action">
     <ion-img :src="img" alt="Big Image" />
-    <p class="font-sans font-light text-xl py-1">{{ title }}</p>
-    <p class="font-sans font-light text-xs text-center">
+    <p class="font-sans font-light text-2xl">{{ title }}</p>
+    <p class="font-sans font-light text-xm text-center">
       {{ subtitle }}
     </p>
   </ion-card>
@@ -37,18 +33,15 @@ defineProps({
 
 <style scoped>
 ion-img {
-  width: 128px;
-  height: 128px;
+  width: 116px;
+  height: 116px;
 }
 
 .custom-card {
-  width: 300px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 5px;
-  box-shadow: none;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  cursor: pointer;
+  @apply w-72 flex flex-col items-center p-1 shadow-sm
+    bg-gradient-to-r from-primary-light to-primary
+    border border-secondary-light
+    rounded-lg cursor-pointer
+    hover:shadow-lg;
 }
 </style>

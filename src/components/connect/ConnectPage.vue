@@ -4,7 +4,7 @@
 
     <SettingsHeader title="Connect" v-if="!scanning" />
     <ion-content v-show="!scanning">
-      <div class="flex flex-wrap flex-col h-full content-between pb-8">
+      <div class="flex flex-wrap flex-col h-full content-between pb-4">
         <div class="flex-grow justify-center flex flex-wrap content-evenly">
           <div class="w-full sm:w-1/2 md:w-1/3 flex justify-center items-center">
             <ConnectMethod
@@ -38,7 +38,7 @@
         </div>
 
         <div class="flex flex-col items-center justify-center w-full">
-          <qrcode-vue :value="user ? user._id : ''" :size="156" background="transparent" />
+          <qrcode-vue :value="user ? user._id : localUserId" :size="156" background="transparent" />
           <p class="font-sans font-bold py-0.5">Connect with QR Code</p>
           <p class="font-sans font-light text-xs"> Let someone scan this code to become mates </p>
         </div>
@@ -79,7 +79,7 @@ import { mdiClose } from '@mdi/js'
 
 const appStore = useAppStore()
 const socketService = useSocketService()
-const { user } = storeToRefs(appStore)
+const { user, localUserId } = storeToRefs(appStore)
 const route = useRoute()
 const router = useRouter()
 const { toast } = useToast()
@@ -97,7 +97,6 @@ watch(isFullscreen, value => {
   if (!value) stopScanning()
 })
 
-checkQueryParams()
 watch(isLoggedIn, checkQueryParams)
 
 watch(queryParams, value => {

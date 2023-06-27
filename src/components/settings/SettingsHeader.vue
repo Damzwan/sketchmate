@@ -5,7 +5,7 @@
       <ion-buttons slot="end">
         <ion-button fill="clear" @click="() => (open = true)">
           <ion-avatar class="flex justify-center items-center w-[35px]"
-            ><img :src="user?.img" alt="Profile picture" class="aspect-square"
+            ><img :src="user?.img || localUserImg" alt="Profile picture" class="aspect-square"
           /></ion-avatar>
         </ion-button>
       </ion-buttons>
@@ -23,7 +23,7 @@ import { ref } from 'vue'
 
 const open = ref(false)
 
-const { user } = storeToRefs(useAppStore())
+const { user, localUserImg } = storeToRefs(useAppStore())
 // const {goTo} = useRouterService()
 const props = defineProps({
   title: {

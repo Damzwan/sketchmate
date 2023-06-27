@@ -157,7 +157,7 @@ const imgInput = ref<HTMLInputElement>()
 
 const anim = ref<any>()
 
-const { isLoggedIn, localSubscription } = storeToRefs(useAppStore())
+const { isLoggedIn, localSubscription, localUserId, localUserImg } = storeToRefs(useAppStore())
 const swiper = ref<Swiper>()
 const lastSlide = ref(false)
 
@@ -167,7 +167,7 @@ function slideChange() {
   if (swiper.value?.activeIndex === swiper.value!.slides.length - 1) {
     lastSlide.value = true
     requestNotifications()
-  }
+  } else lastSlide.value = false
 }
 
 function initSwiper(e: any) {
@@ -178,13 +178,32 @@ function nextSlide(e: any) {
   swiper.value?.slideNext()
 }
 
+async function setLocalImg() {
+  let localImg = stock_img
+
+  if (img.value && imgInput.value?.files) {
+    new Promise<void>(resolve => {
+      const reader = new FileReader()
+      reader.onloadend = function () {
+        const dataUrl = reader.result
+        localImg = dataUrl!.toString()
+        resolve()
+      }
+      reader.readAsDataURL(imgInput.value!.files![0])
+    })
+  }
+  localUserImg.value = localImg
+}
+
 async function create() {
-  isLoggedIn.value = true // hack to show the connect page
+  await setLocalImg()
+  localUserId.value = 'ready' // hack to show the connect page
   const data: CreateUserParams = {}
 
   if (name.value) data.name = name.value
-  if (img.value && imgInput.value?.files)
+  if (img.value && imgInput.value?.files) {
     data.img = await compressImg(imgInput.value.files[0], { size: 256, returnType: 'file' })
+  }
   if (localSubscription.value) data.subscription = localSubscription.value
   createUser(data)
 }

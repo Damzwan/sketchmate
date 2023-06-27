@@ -6,7 +6,7 @@ import { useSocketService } from '@/service/api/socket.service'
 import { useAPI } from '@/service/api/api.service'
 import { LocalStorage } from '@/types/storage.types'
 import { Preferences } from '@capacitor/preferences'
-import { checkMateConsistency } from '@/helper/general.helper'
+import { checkPreferenceConsistency } from '@/helper/general.helper'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
@@ -26,6 +26,11 @@ export const useAppStore = defineStore('app', () => {
   const queryParams = ref<URLSearchParams>()
 
   const localSubscription = ref<string>()
+  const localUserId = ref<string>('')
+  const localUserImg = ref<string | null>(null)
+
+  Preferences.get({ key: LocalStorage.user }).then(res => (localUserId.value = res.value ? res.value : ''))
+  Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value))
 
   async function login() {
     try {
@@ -36,7 +41,7 @@ export const useAppStore = defineStore('app', () => {
       user.value = await api.getUser({ _id: user_id })
       await socketService.login({ _id: user.value!._id })
 
-      checkMateConsistency(user.value!)
+      checkPreferenceConsistency(user.value!)
 
       isLoggedIn.value = true
     } catch (e) {
@@ -85,13 +90,13 @@ export const useAppStore = defineStore('app', () => {
     localStorage.setItem(LocalStorage.unread, '0')
   }
 
-  function setNotifications(token: string | undefined) {
+  async function setNotifications(token: string | undefined) {
     localSubscription.value = token
 
     if (!user.value) return
+    if (!token) await api.unsubscribe({ _id: user.value!._id })
+    else await api.subscribe({ _id: user.value!._id, subscription: token })
     user.value!.subscription = token
-    if (!token) api.unsubscribe({ _id: user.value!._id })
-    else api.subscribe({ _id: user.value!._id, subscription: token })
   }
 
   function addComment(commentRes: CommentRes) {
@@ -134,6 +139,8 @@ export const useAppStore = defineStore('app', () => {
     queryParams,
     setQueryParams,
     createUser,
-    localSubscription
+    localSubscription,
+    localUserId,
+    localUserImg
   }
 })

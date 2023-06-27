@@ -38,23 +38,23 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: FRONTEND_ROUTES.draw,
-        component: () => import('@/views/draw.view.vue'),
+        component: () => import(/* webpackPrefetch: true */ '@/views/draw.view.vue'),
         beforeEnter: hasMateGuard
       },
       {
         path: FRONTEND_ROUTES.gallery,
-        component: () => import('@/views/gallery.view.vue'),
+        component: () => import(/* webpackPrefetch: true */ '@/views/gallery.view.vue'),
         beforeEnter: hasMateGuard
       },
       {
         path: FRONTEND_ROUTES.mate,
         name: 'Mate',
-        component: () => import('@/views/mate.view.vue'),
+        component: () => import(/* webpackPrefetch: true */ '@/views/mate.view.vue'),
         beforeEnter: hasMateGuard
       },
       {
         path: FRONTEND_ROUTES.connect,
-        component: () => import('@/views/connect.view.vue'),
+        component: () => import(/* webpackPrefetch: true */ '@/views/connect.view.vue'),
         beforeEnter: hasNoMateGuard
       }
     ]
@@ -70,7 +70,8 @@ router.beforeEach(async (to, from, next) => {
   const app = useAppStore()
   if (!app.isLoggedIn) {
     const { connect } = useSocketService()
-    connect().then(app.login).then(hideLoading)
+    connect()
+    app.login()
   }
   next()
 })

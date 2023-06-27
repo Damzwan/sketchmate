@@ -39,7 +39,7 @@ export function createSocketService(): SocketAPI {
   const { user, isLoading, inbox, notificationRouteLoading } = storeToRefs(useAppStore())
   const { toast } = useToast()
 
-  async function connect(): Promise<void> {
+  function connect(): void {
     if (socket) return
     socket = io(import.meta.env.VITE_BACKEND as string, {
       withCredentials: true

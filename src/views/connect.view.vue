@@ -1,12 +1,9 @@
 <template>
   <ion-page>
-    <CircularLoader v-if="loading" />
-    <template v-else>
-      <transition name="list">
-        <IntroPage v-if="!userCreated" class="z-10" />
-      </transition>
-      <ConnectPage />
-    </template>
+    <transition name="list">
+      <IntroPage v-if="localUserId === ''" class="z-10" />
+    </transition>
+    <ConnectPage />
   </ion-page>
 </template>
 
@@ -20,10 +17,9 @@ import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
 import { ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import CircularLoader from '@/components/loaders/CircularLoader.vue'
 
 const appStore = useAppStore()
-const { isLoggedIn } = storeToRefs(appStore)
+const { isLoggedIn, localUserId } = storeToRefs(appStore)
 
 const loading = ref(true)
 const userCreated = ref(false)

@@ -94,26 +94,24 @@ export async function hideLoading() {
   await SplashScreen.hide()
   const mate = await Preferences.get({ key: LocalStorage.mate })
 
-  mate.value
-    ? setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
-    : setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
+  const end = 300
+  const jump = 25
+  let start = 0
 
-  // TODO kind of hacky
-  setTimeout(() => {
+  const interval = setInterval(() => {
+    if (start >= end) clearInterval(interval)
+    start += jump
     mate.value
       ? setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
       : setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
-  }, 50)
-
-  setTimeout(() => {
-    mate.value
-      ? setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
-      : setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
-  }, 100)
+  }, jump)
 }
 
-export async function checkMateConsistency(user: User) {
-  const mate = await Preferences.get({ key: LocalStorage.mate })
+export async function checkPreferenceConsistency(user: User) {
+  const [mate, img] = await Promise.all([
+    Preferences.get({ key: LocalStorage.mate }),
+    Preferences.get({ key: LocalStorage.img })
+  ])
 
   if (user.mate && !mate.value) {
     await Preferences.set({ key: LocalStorage.mate, value: 'true' })
@@ -122,4 +120,6 @@ export async function checkMateConsistency(user: User) {
     await Preferences.remove({ key: LocalStorage.mate })
     router.go(0)
   }
+
+  if (!img.value) Preferences.set({ key: LocalStorage.img, value: user.img })
 }

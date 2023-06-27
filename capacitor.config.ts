@@ -14,7 +14,8 @@ const config: CapacitorConfig = {
       presentationOptions: ['badge', 'sound', 'alert']
     },
     SplashScreen: {
-      launchAutoHide: false
+      launchAutoHide: false,
+      launchFadeOutDuration: 100
     }
   }
 }

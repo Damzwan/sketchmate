@@ -46,7 +46,7 @@
             ></ion-input>
           </div>
 
-          <div class="w-full flex justify-center items-center pt-6">
+          <div class="w-full flex justify-center items-center pt-6" v-if="isPlatform('capacitor')">
             <ion-icon :icon="svg(mdiBellRing)" class="w-[28px] h-[28px] pr-3 fill-gray-600" />
             <ion-toggle
               :checked="Boolean(user.subscription)"
@@ -73,7 +73,8 @@ import {
   IonModal,
   IonTitle,
   IonToggle,
-  IonToolbar
+  IonToolbar,
+  isPlatform
 } from '@ionic/vue'
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'

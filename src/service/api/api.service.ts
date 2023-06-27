@@ -56,7 +56,8 @@ export const useAPI = createGlobalState((): API => {
         body: data
       }).then(res => res.json())
       if (!user) throw new Error()
-      await Preferences.set({ key: LocalStorage.user, value: user._id })
+      Preferences.set({ key: LocalStorage.user, value: user._id })
+      Preferences.set({ key: LocalStorage.img, value: user.img })
       return user
     } catch (e) {
       console.log(e)
@@ -105,10 +106,12 @@ export const useAPI = createGlobalState((): API => {
     }`
     const data = new FormData()
     data.append('file', params.img)
-    return await fetch(url, {
+    const newImg = await fetch(url, {
       method: REQUEST_TYPES.PUT,
       body: data
     }).then(async res => await res.text())
+    Preferences.set({ key: LocalStorage.img, value: newImg })
+    return newImg
   }
 
   async function createSticker(params: CreateStickerParams): Promise<Res<string>> {

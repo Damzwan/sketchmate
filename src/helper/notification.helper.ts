@@ -2,13 +2,25 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 import { useAppStore } from '@/store/app.store'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
-import { PermissionStatus, PushNotifications } from '@capacitor/push-notifications'
+import { PushNotifications } from '@capacitor/push-notifications'
 import { NotificationType } from '@/types/server.types'
+import { useToast } from '@/service/toast.service'
 
 export async function requestNotifications() {
-  const status = await PushNotifications.requestPermissions()
-  await requestLocalNotifications(status)
-  await requestPushNotifications(status)
+  let permStatus = await LocalNotifications.checkPermissions()
+
+  if (permStatus.display !== 'granted') {
+    permStatus = await LocalNotifications.requestPermissions()
+  }
+
+  if (permStatus.display !== 'granted') {
+    const { toast } = useToast()
+    toast('Please enable notifications from your device settings', { color: 'danger' })
+    throw new Error('User denied permissions!')
+  }
+
+  await requestLocalNotifications()
+  await requestPushNotifications()
 }
 
 export function disableNotifications() {
@@ -17,29 +29,23 @@ export function disableNotifications() {
   setNotifications(undefined)
 }
 
-async function requestLocalNotifications(status: PermissionStatus) {
-  if (status.receive == 'granted') {
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          title: 'SketchMate time!',
-          body: 'Surprise your mate with a nice drawing',
-          id: 1,
-          schedule: {
-            at: randomTimeBetween(14, 19),
-            repeats: true
-          }
+async function requestLocalNotifications() {
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        title: 'SketchMate time!',
+        body: 'Surprise your mate with a nice drawing',
+        id: 1,
+        schedule: {
+          at: randomTimeBetween(14, 19),
+          repeats: true
         }
-      ]
-    })
-  }
+      }
+    ]
+  })
 }
 
-async function requestPushNotifications(status: PermissionStatus) {
-  if (status.receive !== 'granted') {
-    throw new Error('User denied permissions!')
-  }
-
+async function requestPushNotifications() {
   await PushNotifications.register()
 }
 

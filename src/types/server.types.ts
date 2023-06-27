@@ -197,7 +197,7 @@ export interface API {
 }
 
 export interface SocketAPI {
-  connect: () => Promise<void>
+  connect: () => void
   disconnect: () => Promise<void>
   match: (params: MatchParams) => Promise<void>
   send: (params: SendParams) => Promise<void>

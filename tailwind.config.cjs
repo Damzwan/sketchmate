@@ -6,7 +6,9 @@ module.exports = {
       colors: {
         primary: "var(--ion-color-primary)",
         'primary-shade': "var(--ion-color-primary-shade)",
+        'primary-light': '#FFB995',
         secondary: "var(--ion-color-secondary)",
+        'secondary-light': '#E3745E',
         background: "var(--ion-color-background)"
       },
       keyframes: {

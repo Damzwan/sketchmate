@@ -32,27 +32,21 @@
           /></ion-avatar>
         </ion-buttons>
       </ion-toolbar>
-      <div class="flex bg-black">
-        <swiper-container
-          class="beh w-full relative"
-          :slides-per-view="1"
-          keyboard-enabled="true"
-          @slidechange="onSlideChange"
-          :initial-slide="slide"
-          lazyPreloadPrevNext="3"
-          :zoom="true"
-        >
-          <swiper-slide
-            v-for="(item, i) in props.inboxItems"
-            :key="i"
-            class="flex justify-center items-center w-full beh"
-          >
-            <div class="swiper-zoom-container">
-              <img :src="item.image" alt="drawing" class="object-contain w-full h-full z-10" />
-            </div>
-          </swiper-slide>
-        </swiper-container>
-      </div>
+      <swiper-container
+        class="w-full h-full relative flex-grow"
+        :slides-per-view="1"
+        keyboard-enabled="true"
+        @slidechange="onSlideChange"
+        :initial-slide="slide"
+        lazyPreloadPrevNext="3"
+        :zoom="true"
+      >
+        <swiper-slide v-for="(item, i) in props.inboxItems" :key="i" class="flex justify-center items-center">
+          <div class="swiper-zoom-container">
+            <img :src="item.image" alt="drawing" class="object-contain" />
+          </div>
+        </swiper-slide>
+      </swiper-container>
 
       <div v-if="currInboxItem && showComments" @click="isCommentDrawerOpen = true" class="comments cursor-pointer">
         <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i" class="rounded-full comment my-1">
@@ -218,9 +212,5 @@ ion-modal {
   --background: #000000;
   --height: 100%;
   --width: 100%;
-}
-
-.beh {
-  height: calc(100vh - 56px - 56px);
 }
 </style>

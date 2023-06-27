@@ -39,7 +39,7 @@ export function setBackgroundColor(c: Canvas, options: any) {
 
   const { saveState } = useHistory()
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { fill: color })
+  setForSelectedObjects(selectedObjectsRef, { backgroundColor: color })
 
   saveState()
   c.renderAll()

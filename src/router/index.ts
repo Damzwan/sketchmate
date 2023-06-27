@@ -12,7 +12,6 @@ import { Preferences } from '@capacitor/preferences'
 
 const hasMateGuard: NavigationGuard = async (to, from, next) => {
   const mate = await Preferences.get({ key: LocalStorage.mate })
-  console.log(mate)
   if (!mate.value) next(FRONTEND_ROUTES.connect)
   else next()
 }

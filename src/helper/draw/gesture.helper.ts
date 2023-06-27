@@ -68,8 +68,6 @@ function cancelEraserAction(c: Canvas) {
     const targets = e.targets as fabric.Object[]
     const path: fabric.Path = e.path
 
-    console.log(e)
-    console.log(targets)
     targets.forEach((target: any) => {
       target.eraser._objects = target.eraser._objects.filter((obj: any) => obj.id !== path.id)
     })

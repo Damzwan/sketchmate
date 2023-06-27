@@ -97,7 +97,8 @@ watch(isFullscreen, value => {
   if (!value) stopScanning()
 })
 
-watch(user, checkQueryParams)
+watch(isLoggedIn, checkQueryParams)
+onMounted(checkQueryParams)
 
 watch(queryParams, value => {
   if (value) checkQueryParams()

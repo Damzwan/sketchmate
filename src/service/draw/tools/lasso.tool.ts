@@ -72,7 +72,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
   }
 
   function selectsObjectsInsideLasso() {
-    const objectsInsideBoundingRect = c?.getObjects().filter(obj => isInsideLassoBoundingRect(obj))
+    const objectsInsideBoundingRect = c?.getObjects()
     if (!objectsInsideBoundingRect || objectsInsideBoundingRect.length == 0) return
 
     lasso.canvas = c!
@@ -89,18 +89,6 @@ export const useLasso = defineStore('lasso', (): ToolService => {
   function isInsideLasso(pointRepresentation: number[][], downSampledLasso: number[][]) {
     return pointRepresentation.every(point => inside(point, downSampledLasso))
   }
-
-  function isInsideLassoBoundingRect(obj: fabric.Object) {
-    const objBox = obj.getBoundingRect(true)
-    const lassoBox = lasso.getBoundingRect(true)
-    return (
-      objBox.left >= lassoBox.left &&
-      objBox.top >= lassoBox.top &&
-      objBox.left + objBox.width <= lassoBox.left + lassoBox.width &&
-      objBox.top + objBox.height <= lassoBox.top + lassoBox.height
-    )
-  }
-
   function getPointRepresentation(obj: fabric.Object) {
     if (obj.type === ObjectType.path) return downSamplePath(obj as Path)
     else if (obj.type === Shape.Circle) {
@@ -112,7 +100,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     }
   }
 
-  function downSamplePath(path: fabric.Path, numPoints = 50): number[][] {
+  function downSamplePath(path: fabric.Path, numPoints = 30): number[][] {
     if (!path.path || !path.canvas) return []
 
     let pathString = ''

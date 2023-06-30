@@ -4,4 +4,6 @@
     <string name="title_activity_main">SketchMate</string>
     <string name="package_name">ninja.sketchmate.app</string>
     <string name="custom_url_scheme">ninja.sketchmate.app</string>
+    <string name="add_widget">Add widget</string>
+    <string name="app_widget_description">See the latest drawing of your mate (notifications must be allowed!)</string>
 </resources>

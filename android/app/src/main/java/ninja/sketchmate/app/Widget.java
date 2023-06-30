@@ -1,9 +1,11 @@
 package ninja.sketchmate.app;
 
+import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.widget.RemoteViews;
@@ -30,7 +32,12 @@ public class Widget extends AppWidgetProvider {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            // Update the widget with the image
+
+            // Make the widget interactive
+            Intent intent = new Intent(context, MainActivity.class);
+            PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+            views.setOnClickPendingIntent(R.id.appwidget_image, pendingIntent);
+
             appWidgetManager.updateAppWidget(appWidgetId, views);
         }).start();
     }

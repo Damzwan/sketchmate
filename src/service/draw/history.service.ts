@@ -1,12 +1,13 @@
 import { ref } from 'vue'
-import { findObjectById } from '@/helper/draw/draw.helper'
+import { findObjectById, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { Canvas } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { fabric } from 'fabric'
-import { DrawEvent, FabricEvent, ObjectType } from '@/types/draw.types'
+import { DrawEvent, DrawTool, FabricEvent, ObjectType } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { applyCurve } from '@/helper/draw/actions/text.action'
+import { useDrawStore } from '@/store/draw/draw.store'
 
 export const useHistory = defineStore('history', () => {
   let c: Canvas | undefined = undefined
@@ -65,6 +66,12 @@ export const useHistory = defineStore('history', () => {
     enableEvents()
   }
 
+  async function actionWithoutHistory(action: () => void) {
+    disableEvents()
+    await action()
+    enableEvents()
+  }
+
   function undo() {
     if (undoStack.value.length == 0) return
     const currState = c!.toJSON()
@@ -99,6 +106,9 @@ export const useHistory = defineStore('history', () => {
         .filter(obj => obj.type === ObjectType.text)
         .forEach((text: any) => (text.isCurved ? applyCurve(text, c!) : undefined))
       prevCanvasState = previousState
+
+      const { selectedTool } = useDrawStore()
+      setSelectionForObjects(c!.getObjects(), selectedTool === DrawTool.Select)
       restoreSelectedObjects()
       enableAllEvents()
     })
@@ -111,6 +121,11 @@ export const useHistory = defineStore('history', () => {
     redoStack.value = []
   }
 
+  function clearHistory() {
+    undoStack.value = []
+    redoStack.value = []
+  }
+
   return {
     init,
     undoStack,
@@ -120,6 +135,8 @@ export const useHistory = defineStore('history', () => {
     redo,
     disableHistorySaving: disableEvents,
     enableHistorySaving: enableEvents,
-    saveState
+    saveState,
+    actionWithoutHistory,
+    clearHistory
   }
 })

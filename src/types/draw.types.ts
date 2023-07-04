@@ -6,6 +6,7 @@ declare module 'fabric' {
   namespace fabric {
     interface IText {
       isCurved?: boolean
+      originalTop?: number
     }
 
     interface Object {

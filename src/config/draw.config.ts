@@ -102,7 +102,7 @@ export const penIconMapping: { [key in BrushType]: string } = {
   [BrushType.Ink]: mdiLiquidSpot
 }
 
-export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object) => void } = {
+export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) => void } = {
   [DrawAction.FullErase]: fullErase,
   [DrawAction.Sticker]: addSticker,
   [DrawAction.CopyObject]: copyObjects,
@@ -127,6 +127,6 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: object)
 
 export const dynamicStickerLoading: DynamicTextPart[] = [
   { text: 'Uploading...', duration: 1000 },
-  { text: 'Questionable Sticker...', duration: 2000 },
+  { text: 'What a questionable Sticker...', duration: 2000 },
   { text: 'Creating...', duration: 2000 }
 ]

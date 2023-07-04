@@ -1,5 +1,6 @@
 <template>
   <ion-modal :isOpen="cropperMenuOpen" @willDismiss="close" @didPresent="init">
+    <CircularLoader v-if="loading" class="bg-black absolute z-10 w-full h-full" />
     <div class="flex flex-col h-full">
       <div class="flex-grow">
         <img id="image" :src="imgUrl" ref="imgRef" alt="cropper image" class="hidden" />
@@ -26,6 +27,7 @@ import Cropper from 'cropperjs'
 import { ref } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction } from '@/types/draw.types'
+import CircularLoader from '@/components/loaders/CircularLoader.vue'
 
 const { cropperMenuOpen } = storeToRefs(useMenuStore())
 const { getCanvas } = useDrawStore()
@@ -33,6 +35,7 @@ const { selectAction } = useDrawStore()
 
 let cropper: Cropper
 const imgRef = ref<HTMLImageElement>()
+const loading = ref(true)
 
 defineProps<{
   imgUrl: string | undefined
@@ -48,6 +51,7 @@ function close() {
 
 function init() {
   setAppColors(photoSwiperColorConfig)
+  imgRef.value?.addEventListener('ready', () => (loading.value = false))
   cropper = new Cropper(imgRef.value!, { aspectRatio: getCanvas().width! / getCanvas().height!, background: false })
 }
 

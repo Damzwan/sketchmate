@@ -88,7 +88,16 @@ export const useDrawStore = defineStore('draw', () => {
       initTools(c, tools)
       selectTool(DrawTool.Pen)
     }
-    if (loadService.jsonToLoad.value) await loadService.loadCanvas(c)
+    if (loadService.loading.value) await showLoading('Loading canvas')
+  }
+
+  function showLoading(text: string) {
+    loadingText.value = text
+    isLoading.value = true
+  }
+
+  function hideLoading() {
+    isLoading.value = false
   }
 
   async function send() {
@@ -107,7 +116,10 @@ export const useDrawStore = defineStore('draw', () => {
 
   async function reply(inboxItem: InboxItem | undefined) {
     if (!inboxItem) return
-    loadService.jsonToLoad.value = await fetch(inboxItem.drawing).then(res => res.json())
+    fetch(inboxItem.drawing)
+      .then(res => res.json())
+      .then(res => loadService.loadCanvas(c!, res))
+    loadService.loading.value = true
     await router.push(FRONTEND_ROUTES.draw)
   }
 
@@ -115,14 +127,13 @@ export const useDrawStore = defineStore('draw', () => {
     return c!
   }
 
-  function reset() {
-    isLoading.value = false
-    c?.clear()
-    c!.backgroundColor = BACKGROUND
-
-    const { undoStack, redoStack } = storeToRefs(history)
-    undoStack.value = []
-    redoStack.value = []
+  async function reset() {
+    await history.actionWithoutHistory(() => {
+      isLoading.value = false
+      c?.clear()
+      c!.backgroundColor = BACKGROUND
+    })
+    history.clearHistory()
   }
 
   function setShapeCreationMode(mode: ShapeCreationMode) {
@@ -150,6 +161,7 @@ export const useDrawStore = defineStore('draw', () => {
     initCanvas,
     isEditingText,
     isLoading,
-    lastSelectedPenMenuTool
+    lastSelectedPenMenuTool,
+    hideLoading
   }
 })

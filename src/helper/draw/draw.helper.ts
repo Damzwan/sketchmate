@@ -121,3 +121,35 @@ export function initSelectWithObjects(c: Canvas, objects: SelectedObject[]) {
   const { setSelectedObjects } = useSelect()
   setSelectedObjects(objects)
 }
+
+export function getTextWidth(text: string, fontSize: number, fontFace: string): number {
+  const canvas: HTMLCanvasElement = document.createElement('canvas')
+  const context: CanvasRenderingContext2D | null = canvas.getContext('2d')
+  if (context) {
+    context.font = fontSize + 'px ' + fontFace
+    return context.measureText(text).width
+  } else {
+    throw new Error('Could not get canvas context')
+  }
+}
+
+export function splitStringToWidth(text: string, fontSize: number, fontFace: string, maxWidth: number): string {
+  let result = ''
+  let line = ''
+
+  // Remove existing newlines
+  text = text.replace(/\n/g, '')
+
+  for (let i = 0; i < text.length; i++) {
+    const testLine: string = line + text.charAt(i)
+    const testWidth: number = getTextWidth(testLine, fontSize, fontFace)
+    if (testWidth > maxWidth) {
+      result += line + '\n'
+      line = text.charAt(i)
+    } else {
+      line = testLine
+    }
+  }
+  result += line
+  return result
+}

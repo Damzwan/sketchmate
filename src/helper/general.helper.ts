@@ -4,11 +4,12 @@ import { LocalStorage } from '@/types/storage.types'
 import router from '@/router'
 import { StatusBar } from '@capacitor/status-bar'
 import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
-import { isPlatform } from '@ionic/vue'
+import { isPlatform, useIonRouter } from '@ionic/vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { Preferences } from '@capacitor/preferences'
+import { useToast } from '@/service/toast.service'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -115,11 +116,26 @@ export async function checkPreferenceConsistency(user: User) {
 
   if (user.mate && !mate.value) {
     await Preferences.set({ key: LocalStorage.mate, value: 'true' })
-    router.go(0)
+    router.push(FRONTEND_ROUTES.draw)
   } else if (!user.mate && mate.value) {
     await Preferences.remove({ key: LocalStorage.mate })
-    router.go(0)
+
+    // Cannot be used immediately :(
+    setTimeout(() => {
+      const { toast } = useToast()
+      toast('You got unmatched', { color: 'danger' })
+    }, 500)
+
+    router.push(FRONTEND_ROUTES.connect)
   }
 
   if (!img.value) Preferences.set({ key: LocalStorage.img, value: user.img })
+}
+
+export function isMobile() {
+  return isPlatform('mobile') || isPlatform('capacitor') || isPlatform('android') || isPlatform('ios')
+}
+
+export function isNative() {
+  return isPlatform('capacitor')
 }

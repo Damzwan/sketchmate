@@ -12,6 +12,8 @@ PODS:
     - Capacitor
   - CapacitorHaptics (5.0.4):
     - Capacitor
+  - CapacitorKeyboard (5.0.5):
+    - Capacitor
   - CapacitorLocalNotifications (5.0.4):
     - Capacitor
   - CapacitorMlkitBarcodeScanning (5.0.0):
@@ -133,6 +135,7 @@ DEPENDENCIES:
   - "CapacitorCordova (from `../../node_modules/.pnpm/@capacitor+ios@5.0.5_@capacitor+core@5.0.5/node_modules/@capacitor/ios`)"
   - "CapacitorFilesystem (from `../../node_modules/.pnpm/@capacitor+filesystem@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/filesystem`)"
   - "CapacitorHaptics (from `../../node_modules/.pnpm/@capacitor+haptics@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/haptics`)"
+  - "CapacitorKeyboard (from `../../node_modules/.pnpm/@capacitor+keyboard@5.0.5_@capacitor+core@5.0.5/node_modules/@capacitor/keyboard`)"
   - "CapacitorLocalNotifications (from `../../node_modules/.pnpm/@capacitor+local-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/local-notifications`)"
   - "CapacitorMlkitBarcodeScanning (from `../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@5.0.0_@capacitor+core@5.0.5/node_modules/@capacitor-mlkit/barcode-scanning`)"
   - "CapacitorPreferences (from `../../node_modules/.pnpm/@capacitor+preferences@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/preferences`)"
@@ -180,6 +183,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/.pnpm/@capacitor+filesystem@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/filesystem"
   CapacitorHaptics:
     :path: "../../node_modules/.pnpm/@capacitor+haptics@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/haptics"
+  CapacitorKeyboard:
+    :path: "../../node_modules/.pnpm/@capacitor+keyboard@5.0.5_@capacitor+core@5.0.5/node_modules/@capacitor/keyboard"
   CapacitorLocalNotifications:
     :path: "../../node_modules/.pnpm/@capacitor+local-notifications@5.0.4_@capacitor+core@5.0.5/node_modules/@capacitor/local-notifications"
   CapacitorMlkitBarcodeScanning:
@@ -207,6 +212,7 @@ SPEC CHECKSUMS:
   CapacitorCordova: f8c06b897c74ee8f7701fe10e6443b40822bc83a
   CapacitorFilesystem: e1bdfab09b95b181c844c16abcfda45ec8e8ed6b
   CapacitorHaptics: e36653b37326d71bb35ae42b944124037dbc3d97
+  CapacitorKeyboard: ba4d618d80bf8caef4b9d8a971d714b9ca795e28
   CapacitorLocalNotifications: 2c95d27ccf9cc28ecc59d69b54d29074c1740172
   CapacitorMlkitBarcodeScanning: 4c106aa2a7858a4776a955003c0591c05a47edaa
   CapacitorPreferences: 82a9ecf5355283a3b3cf7ac217d8c5534c4dee8a
@@ -235,6 +241,6 @@ SPEC CHECKSUMS:
   PromisesObjC: 09985d6d70fbe7878040aa746d78236e6946d2ef
   Protobuf: 3dd214698ddb7afd832da281c777b2e9facef401
 
-PODFILE CHECKSUM: c30c0a4487f837c8782157dbb32de33a07e6ae9d
+PODFILE CHECKSUM: af6d7fb632b4e87b311b69c911c613847d568c1a
 
 COCOAPODS: 1.12.0

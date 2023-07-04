@@ -6,6 +6,7 @@ import { fabric } from 'fabric'
 import { defineStore, storeToRefs } from 'pinia'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { useHistory } from '@/service/draw/history.service'
 
 interface Select extends ToolService {
   selectedObjectsRef: Ref<Array<SelectedObject>>
@@ -21,6 +22,7 @@ export const useSelect = defineStore('select', (): Select => {
   const { subscribe, unsubscribe } = useEventManager()
   const selectedObjectsRef = ref<Array<SelectedObject>>([])
   const lastModifiedObjects = ref<Array<SelectedObject>>([])
+  const history = useHistory()
 
   const events: FabricEvent[] = [
     {
@@ -40,12 +42,12 @@ export const useSelect = defineStore('select', (): Select => {
           const text = selectedObjects[0] as IText
           const { isEditingText } = storeToRefs(useDrawStore())
           if (isEditingText.value) {
-            if (text.text == '') c!.remove(text)
+            if (text.text == '') history.actionWithoutHistory(() => c!.remove(text))
             else {
               c?.setActiveObject(text)
               isEditingText.value = false
+              return
             }
-            return
           }
         }
         setSelectedObjects([])

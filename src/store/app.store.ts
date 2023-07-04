@@ -7,6 +7,8 @@ import { useAPI } from '@/service/api/api.service'
 import { LocalStorage } from '@/types/storage.types'
 import { Preferences } from '@capacitor/preferences'
 import { checkPreferenceConsistency } from '@/helper/general.helper'
+import { useKeyboard } from '@ionic/vue'
+import { useToast } from '@/service/toast.service'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
@@ -20,14 +22,17 @@ export const useAppStore = defineStore('app', () => {
   const unreadMsg = localStorage.getItem(LocalStorage.unread)
   const unreadMessages = ref(unreadMsg ? parseInt(unreadMsg) : 0)
 
-  const error = ref()
   const api = useAPI()
 
   const queryParams = ref<URLSearchParams>()
 
+  // used to show assets even though we are not logged in yet
   const localSubscription = ref<string>()
   const localUserId = ref<string>('')
   const localUserImg = ref<string | null>(null)
+
+  const appHeight = ref(window.innerHeight)
+  const { keyboardHeight } = useKeyboard()
 
   Preferences.get({ key: LocalStorage.user }).then(res => (localUserId.value = res.value ? res.value : ''))
   Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value))
@@ -45,7 +50,7 @@ export const useAppStore = defineStore('app', () => {
 
       isLoggedIn.value = true
     } catch (e) {
-      error.value = e
+      console.log(e)
     }
   }
 
@@ -75,7 +80,7 @@ export const useAppStore = defineStore('app', () => {
       if (!retrievedInbox) throw new Error()
       inbox.value = retrievedInbox
     } catch (e) {
-      error.value = e
+      console.log(e)
     }
   }
 
@@ -123,7 +128,6 @@ export const useAppStore = defineStore('app', () => {
     user,
     login,
     isLoading,
-    error,
     isLoggedIn,
     inbox,
     getInbox,
@@ -141,6 +145,8 @@ export const useAppStore = defineStore('app', () => {
     createUser,
     localSubscription,
     localUserId,
-    localUserImg
+    localUserImg,
+    keyboardHeight,
+    appHeight
   }
 })

@@ -13,6 +13,10 @@ import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { useLasso } from '@/service/draw/tools/lasso.tool'
 import { useBucket } from '@/service/draw/tools/bucket.tool'
+import { isPlatform, useKeyboard } from '@ionic/vue'
+import { isMobile } from '@/helper/general.helper'
+import { useAppStore } from '@/store/app.store'
+import { splitStringToWidth } from '@/helper/draw/draw.helper'
 
 export function initCanvasOptions(): ICanvasOptions {
   return {
@@ -49,14 +53,7 @@ export function changeFabricBaseSettings(c: Canvas) {
     }
   })(fabric.Object.prototype.toObject)
 
-  fabric.IText.prototype.isCurved = false
-  fabric.IText.prototype.toObject = (function (toObject) {
-    return function (this: any, propertiesToInclude) {
-      propertiesToInclude = (propertiesToInclude || []).concat(['isCurved'])
-      return toObject.apply(this, [propertiesToInclude])
-    }
-  })(fabric.IText.prototype.toObject)
-
+  // Text editing
   const originalITextSetOptions = fabric.IText.prototype.setOptions
   fabric.IText.prototype.setOptions = function (options) {
     originalITextSetOptions.call(this, options)
@@ -66,29 +63,58 @@ export function changeFabricBaseSettings(c: Canvas) {
     this.off('editing:exited')
 
     this.on('editing:entered', () => {
+      if (isMobile()) {
+        setTimeout(() => {
+          const { keyboardHeight, appHeight } = useAppStore()
+
+          // Save original position
+          this.originalTop = this.top
+
+          if (this.top! + this.height! + keyboardHeight > appHeight) {
+            this.set({ top: this.top! - keyboardHeight })
+            c.renderAll()
+          }
+        }, 200)
+      }
       isEditingText.value = true
     })
 
     this.on('editing:exited', () => {
+      if (isMobile()) {
+        // Revert back to the original position
+        this.set({ top: this.originalTop })
+      }
       this.set({ hasControls: true })
+    })
+
+    this.on('changed', () => {
+      const deviceWidth: number = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+      if (this.width! > deviceWidth) {
+        const newString: string = splitStringToWidth(this.text!, this.fontSize!, this.fontFamily!, deviceWidth)
+        this.exitEditing() // exit editing mode while manipulating the text
+        this.set('text', newString)
+        this.enterEditing() // re-enter editing mode
+        this.setSelectionStart(newString.length)
+        this.setSelectionEnd(newString.length)
+        c.renderAll()
+      }
     })
   }
 
-  // curve related
+  // text curve
   const og = fabric.IText.fromObject
   fabric.IText.fromObject = function (object, callback) {
     delete object.path
     return og(object, callback)
   }
 
-  // used for the lasso tool
-  const originalPathSetCoords = fabric.Path.prototype.setCoords
-  fabric.Path.prototype.setCoords = function () {
-    const p = originalPathSetCoords.call(this)
-    if (p.originalLeft === undefined) p.originalLeft = p.left!
-    if (p.originalTop === undefined) p.originalTop = p.top!
-    return p
-  }
+  fabric.IText.prototype.isCurved = false
+  fabric.IText.prototype.toObject = (function (toObject) {
+    return function (this: any, propertiesToInclude) {
+      propertiesToInclude = (propertiesToInclude || []).concat(['isCurved'])
+      return toObject.apply(this, [propertiesToInclude])
+    }
+  })(fabric.IText.prototype.toObject)
 }
 
 export function createTools(): { [key in DrawTool]: ToolService } {

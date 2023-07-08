@@ -5,7 +5,7 @@ import { resetZoom } from '@/helper/draw/draw.helper'
 import { CustomFloodFill } from '@/utils/CustomFloodFill'
 import { usePen } from '@/service/draw/tools/pen.tool'
 
-export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
+export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.2) {
   let startTime = performance.now()
   const { brushColor } = usePen()
   const dpr = window.devicePixelRatio || 1
@@ -30,8 +30,8 @@ export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
   offscreenCanvas.height = modifiedImgData.height
   offscreenCtx!.putImageData(modifiedImgData, 0, 0)
 
-  downscaledCanvas.width = offscreenCanvas.width / (dpr * scale)
-  downscaledCanvas.height = offscreenCanvas.height / (dpr * scale)
+  downscaledCanvas.width = Math.ceil(offscreenCanvas.width / (dpr * scale))
+  downscaledCanvas.height = Math.ceil(offscreenCanvas.height / (dpr * scale))
   downscaledCtx!.drawImage(
     offscreenCanvas,
     0,

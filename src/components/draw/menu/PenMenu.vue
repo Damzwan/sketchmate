@@ -15,7 +15,7 @@
       <!-- Brush Size Slider -->
       <div class="brush-size px-2 pt-1">
         <label for="slider">Size</label>
-        <ion-range aria-label="Volume" id="slider" v-model="brushSize" min="1" max="50" color="secondary"></ion-range>
+        <ion-range aria-label="Volume" id="slider" v-model="brushSize" min="5" max="50" color="secondary"></ion-range>
       </div>
 
       <!-- Brush Type -->

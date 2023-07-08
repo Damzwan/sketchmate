@@ -76,45 +76,27 @@ export class CustomFloodFill {
   }
 
   private fillLineAt(x: number, y: number): [number, number] {
-    if (!this.isValidTarget({ x, y }) && !this.isPossibleAntiAliasedPixel({ x, y })) {
+    if (!this.isValidTarget({ x, y })) {
       return [-1, -1]
     }
     this.setPixelColor(this._newColor, { x, y })
     let minX = x
     let maxX = x
     let px = this.getPixelNeighbour('left', minX, y)
-    while (px && (this.isValidTarget(px) || this.isPossibleAntiAliasedPixel(px))) {
+    while (px && this.isValidTarget(px)) {
       this.setPixelColor(this._newColor, px)
       minX = px.x
       px = this.getPixelNeighbour('left', minX, y)
     }
+    if (px) this.setPixelColor(this._newColor, px)
     px = this.getPixelNeighbour('right', maxX, y)
-    while (px && (this.isValidTarget(px) || this.isPossibleAntiAliasedPixel(px))) {
+    while (px && this.isValidTarget(px)) {
       this.setPixelColor(this._newColor, px)
       maxX = px.x
       px = this.getPixelNeighbour('right', maxX, y)
     }
+    if (px) this.setPixelColor(this._newColor, px)
     return [minX, maxX]
-  }
-
-  private isPossibleAntiAliasedPixel(pixel: PixelCoords | null): boolean {
-    if (pixel === null) {
-      return false
-    }
-    const pixelColor = this.getColorAtPixel(this.imageData, pixel.x, pixel.y)
-
-    // Collect all neighbors
-    const neighbors = this.getPixelNeighbors(pixel)
-
-    // Define a function that checks if a pixel color is different from the current pixel's color
-    const isDifferentFromCurrentColor = (neighbor: PixelCoords): boolean => {
-      const neighborColor = this.getColorAtPixel(this.imageData, neighbor.x, neighbor.y)
-      return !this.isSameColor(neighborColor, pixelColor, 0)
-    }
-
-    // A pixel is possibly anti-aliased if at least 7 of its neighbors have a different color
-    const differentColorCount = neighbors.filter(isDifferentFromCurrentColor).length
-    return differentColorCount >= 6
   }
 
   // Add a method to get all neighboring pixels of a given pixel

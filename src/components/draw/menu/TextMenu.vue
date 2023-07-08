@@ -82,7 +82,8 @@ const align = computed(() => text.value.textAlign)
 const isCurved = computed(() => text.value.isCurved)
 
 function onDismiss() {
-  if (text.value.text == '') focusText(text.value)
+  const { isEditingText } = useDrawStore()
+  if (text.value.text == '' || isEditingText) focusText(text.value)
 }
 </script>
 

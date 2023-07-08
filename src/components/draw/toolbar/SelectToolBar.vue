@@ -14,12 +14,12 @@
         />
       </ion-button>
       <div v-if="isText" class="flex items-center flex-grow">
-        <ion-button id="text_options" @click="exitEditing(selectedObjectsRef[0])">
+        <ion-button id="text_options">
           <ion-icon slot="icon-only" :icon="svg(mdiFormatText)"></ion-icon>
         </ion-button>
         <TextMenu />
 
-        <ion-button id="font" class="font_text" @click="exitEditing(selectedObjectsRef[0])">
+        <ion-button id="font" class="font_text">
           <div class="flex justify-between w-full h-full items-center">
             <p class="text-xs truncate" :style="{ fontFamily: selectedObjectsRef[0]['fontFamily'] }">{{
               selectedObjectsRef[0]['fontFamily']

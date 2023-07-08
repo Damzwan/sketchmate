@@ -49,7 +49,6 @@ export async function changeFont(c: Canvas, options: any) {
   popoverController.dismiss()
   saveState()
 
-  if (textObj.text == '') focusText(textObj)
   c.renderAll()
 }
 
@@ -62,6 +61,7 @@ export async function changeFontWeight(c: Canvas, options: any) {
   textObj.set({ fontWeight: weight })
   selectedObjectsRef.value = [textObj]
   saveState()
+
   c.renderAll()
 }
 
@@ -73,7 +73,6 @@ export async function changeFontStyle(c: Canvas, options: any) {
   const textObj = selectedObjectsRef[0] as fabric.IText
   textObj.set({ fontStyle: style })
   saveState()
-  if (textObj.text == '') focusText(textObj)
   c.renderAll()
 }
 

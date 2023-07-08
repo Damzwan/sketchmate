@@ -106,7 +106,7 @@ export function setForSelectedObjects(objects: SelectedObject[], options: Partia
 export function focusText(text: IText) {
   setTimeout(() => {
     text.hiddenTextarea!.focus() // This line is especially important for mobile
-  }, 300)
+  }, 100)
 }
 
 export function initSelectWithObjects(c: Canvas, objects: SelectedObject[]) {

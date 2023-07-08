@@ -14,7 +14,7 @@ import { useSelect } from '@/service/draw/tools/select.tool'
 import { useLasso } from '@/service/draw/tools/lasso.tool'
 import { useBucket } from '@/service/draw/tools/bucket.tool'
 import { isPlatform, useKeyboard } from '@ionic/vue'
-import { isMobile } from '@/helper/general.helper'
+import { isMobile, isNative } from '@/helper/general.helper'
 import { useAppStore } from '@/store/app.store'
 import { splitStringToWidth } from '@/helper/draw/draw.helper'
 
@@ -63,37 +63,33 @@ export function changeFabricBaseSettings(c: Canvas) {
     this.off('editing:exited')
 
     this.on('editing:entered', () => {
-      if (isMobile()) {
-        setTimeout(() => {
-          const { keyboardHeight, appHeight } = useAppStore()
+      if (isNative()) {
+        const { keyboardHeight } = useAppStore()
 
-          // Save original position
-          this.originalTop = this.top
+        // Save original position
+        this.originalTop = this.top
 
-          if (this.top! + this.height! + keyboardHeight > appHeight) {
-            this.set({ top: this.top! - keyboardHeight })
-            c.renderAll()
-          }
-        }, 200)
+        if (this.top! + this.height! + keyboardHeight > window.innerHeight) {
+          this.set({ top: this.top! - keyboardHeight })
+        }
       }
       isEditingText.value = true
+      c.renderAll()
     })
 
     this.on('editing:exited', () => {
-      if (isMobile()) {
-        // Revert back to the original position
+      if (isNative()) {
         this.set({ top: this.originalTop })
       }
       this.set({ hasControls: true })
+      c.renderAll()
     })
 
     this.on('changed', () => {
       const deviceWidth: number = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
       if (this.width! > deviceWidth) {
         const newString: string = splitStringToWidth(this.text!, this.fontSize!, this.fontFamily!, deviceWidth)
-        this.exitEditing() // exit editing mode while manipulating the text
         this.set('text', newString)
-        this.enterEditing() // re-enter editing mode
         this.setSelectionStart(newString.length)
         this.setSelectionEnd(newString.length)
         c.renderAll()

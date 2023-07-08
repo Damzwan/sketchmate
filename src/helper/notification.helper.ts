@@ -37,7 +37,7 @@ async function requestLocalNotifications() {
         body: 'Surprise your mate with a nice drawing',
         id: 1,
         schedule: {
-          at: randomTimeBetween(14, 19),
+          at: next2pm(),
           repeats: true
         }
       }
@@ -99,16 +99,14 @@ export async function addNotificationListeners() {
   })
 }
 
-function randomTimeBetween(hoursStart: number, hoursEnd: number) {
-  const randomHour = Math.floor(Math.random() * (hoursEnd - hoursStart + 1)) + hoursStart
-  const randomMinute = Math.floor(Math.random() * 60)
-  const now = new Date()
-  const scheduledDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), randomHour, randomMinute)
+function next2pm() {
+  // Determine the next occurrence of 2:00 PM
+  let now = new Date()
+  let next2PM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 14, 0, 0)
 
-  // If the scheduled time is in the past, add one day to the date
-  if (scheduledDate < now) {
-    scheduledDate.setDate(scheduledDate.getDate() + 1)
+  // If we've already passed 2:00 PM today, schedule for tomorrow
+  if (now.getTime() > next2PM.getTime()) {
+    next2PM.setDate(next2PM.getDate() + 1)
   }
-
-  return scheduledDate
+  return next2PM
 }

@@ -6,9 +6,8 @@ import { useSocketService } from '@/service/api/socket.service'
 import { useAPI } from '@/service/api/api.service'
 import { LocalStorage } from '@/types/storage.types'
 import { Preferences } from '@capacitor/preferences'
-import { checkPreferenceConsistency } from '@/helper/general.helper'
-import { useKeyboard } from '@ionic/vue'
-import { useToast } from '@/service/toast.service'
+import { checkPreferenceConsistency, isNative } from '@/helper/general.helper'
+import { Keyboard } from '@capacitor/keyboard'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
@@ -31,8 +30,9 @@ export const useAppStore = defineStore('app', () => {
   const localUserId = ref<string>('')
   const localUserImg = ref<string | null>(null)
 
-  const appHeight = ref(window.innerHeight)
-  const { keyboardHeight } = useKeyboard()
+  const keyboardHeight = ref(0)
+
+  if (isNative()) Keyboard.addListener('keyboardWillShow', info => (keyboardHeight.value = info.keyboardHeight))
 
   Preferences.get({ key: LocalStorage.user }).then(res => (localUserId.value = res.value ? res.value : ''))
   Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value))
@@ -146,7 +146,6 @@ export const useAppStore = defineStore('app', () => {
     localSubscription,
     localUserId,
     localUserImg,
-    keyboardHeight,
-    appHeight
+    keyboardHeight
   }
 })

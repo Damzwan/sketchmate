@@ -44,10 +44,10 @@ export const useAppStore = defineStore('app', () => {
 
       const socketService = useSocketService()
 
-      // TODO combine
-      user.value = await api.getUser({ _id: user_id })
-      await socketService.login({ _id: user.value!._id })
+      // combine
+      const [userValue] = await Promise.all([api.getUser({ _id: user_id }), socketService.login({ _id: user_id })])
 
+      user.value = userValue
       checkPreferenceConsistency(user.value!)
 
       isLoggedIn.value = true

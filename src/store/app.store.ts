@@ -43,6 +43,8 @@ export const useAppStore = defineStore('app', () => {
       if (!user_id) return
 
       const socketService = useSocketService()
+
+      // TODO combine
       user.value = await api.getUser({ _id: user_id })
       await socketService.login({ _id: user.value!._id })
 

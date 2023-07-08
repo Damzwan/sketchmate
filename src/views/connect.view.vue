@@ -13,23 +13,10 @@ import ConnectPage from '@/components/connect/ConnectPage.vue'
 import IntroPage from '@/components/connect/IntroPage.vue'
 import { IonPage, onIonViewDidEnter } from '@ionic/vue'
 import { NotificationType } from '@/types/server.types'
-import { Preferences } from '@capacitor/preferences'
-import { LocalStorage } from '@/types/storage.types'
-import { ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 
 const appStore = useAppStore()
-const { isLoggedIn, localUserId } = storeToRefs(appStore)
-
-const loading = ref(true)
-const userCreated = ref(false)
-
-Preferences.get({ key: LocalStorage.user }).then(val => {
-  userCreated.value = !!val.value
-  loading.value = false
-})
-
-watch(isLoggedIn, () => (userCreated.value = true))
+const { localUserId } = storeToRefs(appStore)
 
 onIonViewDidEnter(() => {
   appStore.consumeNotificationLoading(NotificationType.unmatch)

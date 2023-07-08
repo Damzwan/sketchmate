@@ -5,7 +5,7 @@ import { resetZoom } from '@/helper/draw/draw.helper'
 import { CustomFloodFill } from '@/utils/CustomFloodFill'
 import { usePen } from '@/service/draw/tools/pen.tool'
 
-export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.2) {
+export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
   let startTime = performance.now()
   const { brushColor } = usePen()
   const dpr = window.devicePixelRatio || 1

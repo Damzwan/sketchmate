@@ -18,7 +18,6 @@ export const useBucket = defineStore('bucket', (): ToolService => {
         if (!img) return
         c!.add(img)
         setObjectSelection(img, false) // TODO should not be necessary
-        bringToBack(c!, { objects: [img] })
         c!.renderAll()
       }
     }

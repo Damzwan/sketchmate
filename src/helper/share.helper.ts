@@ -19,7 +19,8 @@ export async function shareUrl(url: string, title = '', dialogTitle = '') {
   } else if (isSupported.value) {
     await share({
       title: title,
-      text: url
+      text: url,
+      url: url
     })
   } else {
     await Clipboard.write({

@@ -7,7 +7,6 @@ import { storeToRefs } from 'pinia'
 import FontFaceObserver from 'fontfaceobserver'
 import { useHistory } from '@/service/draw/history.service'
 import { popoverController } from '@ionic/vue'
-import { focusText } from '@/helper/draw/draw.helper'
 
 export function addText(c: Canvas) {
   const { selectTool } = useDrawStore()

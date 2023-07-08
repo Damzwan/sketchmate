@@ -1,6 +1,6 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { DrawAction, DrawTool, Eraser, PenMenuTool, SelectToolOptions, ShapeCreationMode } from '@/types/draw.types'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { actionMapping, BACKGROUND, ERASERS, PENMENUTOOLS } from '@/config/draw.config'
 import { Canvas } from 'fabric/fabric-impl'
 import { useAppStore } from '@/store/app.store'
@@ -88,7 +88,10 @@ export const useDrawStore = defineStore('draw', () => {
       initTools(c, tools)
       selectTool(DrawTool.Pen)
     }
-    if (loadService.loading.value) await showLoading('Loading canvas')
+    if (loadService.loading.value) {
+      showLoading('Loading canvas')
+      if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
+    }
   }
 
   function showLoading(text: string) {
@@ -116,10 +119,13 @@ export const useDrawStore = defineStore('draw', () => {
 
   async function reply(inboxItem: InboxItem | undefined) {
     if (!inboxItem) return
+    loadService.loading.value = true
     fetch(inboxItem.drawing)
       .then(res => res.json())
-      .then(res => loadService.loadCanvas(c!, res))
-    loadService.loading.value = true
+      .then(res => {
+        loadService.canvasToLoad.value = res
+        if (c) loadService.loadCanvas(c)
+      })
     await router.push(FRONTEND_ROUTES.draw)
   }
 

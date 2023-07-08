@@ -5,10 +5,12 @@ import { useDrawStore } from '@/store/draw/draw.store'
 
 export function useLoadService() {
   const loading = ref(false)
+  const canvasToLoad = ref()
   const { disableHistorySaving, enableHistorySaving } = useHistory()
 
-  async function loadCanvas(c: fabric.Canvas, json: any) {
+  async function loadCanvas(c: fabric.Canvas) {
     disableHistorySaving()
+    const json = canvasToLoad.value!
 
     c.clear()
     c.loadFromJSON(json, () => {
@@ -33,6 +35,7 @@ export function useLoadService() {
 
   return {
     loadCanvas,
-    loading
+    loading,
+    canvasToLoad
   }
 }

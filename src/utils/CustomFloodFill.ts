@@ -99,23 +99,6 @@ export class CustomFloodFill {
     return [minX, maxX]
   }
 
-  // Add a method to get all neighboring pixels of a given pixel
-  private getPixelNeighbors(pixel: PixelCoords): PixelCoords[] {
-    const { x, y } = pixel
-    const neighbors = []
-
-    for (let i = -1; i <= 1; i++) {
-      for (let j = -1; j <= 1; j++) {
-        if (i === 0 && j === 0) continue // Skip the center pixel
-        if (x + i >= 0 && x + i < this.imageData.width && y + j >= 0 && y + j < this.imageData.height) {
-          neighbors.push({ x: x + i, y: y + j })
-        }
-      }
-    }
-
-    return neighbors
-  }
-
   private fillQueue(): void {
     let line = this.popFromQueue()
     while (line) {

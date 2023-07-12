@@ -5,7 +5,7 @@ import { DrawTool, ObjectType, SelectedObject } from '@/types/draw.types'
 import { checkCanvasBounds } from '@/helper/draw/gesture.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
-import { compressImg } from '@/helper/general.helper'
+import { compressImg, isMobile, isNative } from '@/helper/general.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
 
 const eventsToDisable = [
@@ -104,9 +104,17 @@ export function setForSelectedObjects(objects: SelectedObject[], options: Partia
 }
 
 export function focusText(text: IText) {
-  setTimeout(() => {
-    text.hiddenTextarea!.focus() // This line is especially important for mobile
-  }, 100)
+  if (isMobile()) {
+    setTimeout(() => {
+      text.enterEditing()
+      text.hiddenTextarea!.focus() // This line is especially important for mobile
+    }, 300)
+  } else {
+    setTimeout(() => {
+      text.enterEditing()
+      text.hiddenTextarea!.focus() // This line is especially important for mobile
+    }, 200)
+  }
 }
 
 export function initSelectWithObjects(c: Canvas, objects: SelectedObject[]) {

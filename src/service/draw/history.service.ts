@@ -1,10 +1,10 @@
-import { ref } from 'vue'
+import { Ref, ref } from 'vue'
 import { findObjectById, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { Canvas } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { fabric } from 'fabric'
-import { DrawEvent, DrawTool, FabricEvent, ObjectType } from '@/types/draw.types'
+import { DrawEvent, DrawTool, FabricEvent, ObjectType, SelectedObject } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { applyCurve } from '@/helper/draw/actions/text.action'
 import { useDrawStore } from '@/store/draw/draw.store'
@@ -72,34 +72,41 @@ export const useHistory = defineStore('history', () => {
     enableEvents()
   }
 
-  function undo() {
-    if (undoStack.value.length == 0) return
+  function executeUndoRedo(sourceStack: Ref<any[]>, destStack: Ref<any[]>) {
+    if (sourceStack.value.length == 0) return
+
+    const { getSelectedObjects } = useSelect()
+    const selectedObjects = getSelectedObjects()
+    c?.discardActiveObject()
+
     const currState = c!.toJSON()
-    const previousState = undoStack.value.pop()
-    restoreCanvasFromHistory(previousState)
-    redoStack.value.push(currState)
+    const previousState = sourceStack.value.pop()
+    restoreCanvasFromHistory(previousState, selectedObjects)
+    destStack.value.push(currState)
     c?.renderAll()
+  }
+
+  function undo() {
+    executeUndoRedo(undoStack, redoStack)
   }
 
   function redo() {
-    if (redoStack.value.length == 0) return
-    const currState = c!.toJSON()
-    const previousState = redoStack.value.pop()
-    restoreCanvasFromHistory(previousState)
-    undoStack.value.push(currState)
-    c?.renderAll()
+    executeUndoRedo(redoStack, undoStack)
   }
 
-  function restoreSelectedObjects() {
-    const { getSelectedObjects } = useSelect()
-    const newSelectedObjects = getSelectedObjects()
+  function restoreSelectedObjects(selectedObjects?: SelectedObject[]) {
+    if (!selectedObjects) {
+      const { getSelectedObjects } = useSelect()
+      selectedObjects = getSelectedObjects()
+    }
+    const newSelectedObjects = selectedObjects
       .map((obj: any) => findObjectById(c!, obj.id)!)
       .filter((obj: any) => !!obj)
     if (newSelectedObjects.length > 1) c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
     else if (newSelectedObjects.length == 1) c?.setActiveObject(newSelectedObjects[0])
   }
 
-  function restoreCanvasFromHistory(previousState: any) {
+  function restoreCanvasFromHistory(previousState: any, selectedObjects: SelectedObject[]) {
     disableAllEvents()
     c!.loadFromJSON(previousState, () => {
       c?.getObjects()
@@ -109,7 +116,7 @@ export const useHistory = defineStore('history', () => {
 
       const { selectedTool } = useDrawStore()
       setSelectionForObjects(c!.getObjects(), selectedTool === DrawTool.Select)
-      restoreSelectedObjects()
+      restoreSelectedObjects(selectedObjects)
       enableAllEvents()
     })
   }

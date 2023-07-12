@@ -12,10 +12,16 @@ export function useLoadService() {
     disableHistorySaving()
     const json = canvasToLoad.value!
 
+    const w = c.width!
+    const h = c.height!
+
     c.clear()
     c.loadFromJSON(json, () => {
-      const scaleX = c.width! / json['width']
-      const scaleY = c.height! / json['height']
+      c.width = w
+      c.height = h
+
+      const scaleX = w / json['width']
+      const scaleY = h / json['height']
 
       for (const obj of c.getObjects()) {
         obj.scaleX! *= scaleX

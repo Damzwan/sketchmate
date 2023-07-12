@@ -4,11 +4,13 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { useHistory } from '@/service/draw/history.service'
 import { fabric } from 'fabric'
 import { useEventManager } from '@/service/draw/eventManager.service'
+import { setSelectionForObjects } from '@/helper/draw/draw.helper'
 
 export function addShape(c: Canvas, options: any) {
   const shape = options['shape'] as Shape
   c.isDrawingMode = false
   c.selection = false
+  setSelectionForObjects(c.getObjects()!, false)
   const { setShapeCreationMode } = useDrawStore()
 
   if (shape == Shape.Polyline || shape == Shape.Polygon) {

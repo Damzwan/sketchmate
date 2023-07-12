@@ -73,10 +73,9 @@ import TextMenu from '@/components/draw/menu/TextMenu.vue'
 import { exitEditing } from '@/helper/draw/draw.helper'
 
 const { selectAction, getCanvas } = useDrawStore()
-const { saveState, undo, redo } = useHistory()
+const { undo, redo } = useHistory()
 const { undoStack, redoStack } = storeToRefs(useHistory())
 const { selectedObjectsRef } = storeToRefs(useSelect())
-const { setSelectedObjects } = useSelect()
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
 const isText = computed(() => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == 'i-text')

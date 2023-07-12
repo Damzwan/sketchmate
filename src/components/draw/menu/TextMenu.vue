@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="text_options" @didDismiss="onDismiss">
+  <ion-popover trigger="text_options" @willDismiss="onDismiss" @willPresent="onPresent">
     <ion-content v-if="text">
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary">
@@ -68,7 +68,7 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction, TextAlign } from '@/types/draw.types'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { IText } from 'fabric/fabric-impl'
 import { focusText } from '@/helper/draw/draw.helper'
 
@@ -81,9 +81,19 @@ const isItalic = computed(() => text.value.fontStyle === 'italic')
 const align = computed(() => text.value.textAlign)
 const isCurved = computed(() => text.value.isCurved)
 
+const shouldRefocusTextAfterClose = ref(false)
+
 function onDismiss() {
-  const { isEditingText } = useDrawStore()
-  if (text.value.text == '' || isEditingText) focusText(text.value)
+  if (shouldRefocusTextAfterClose.value) focusText(text.value)
+  shouldRefocusTextAfterClose.value = false
+}
+
+function onPresent() {
+  const { getCanvas, isEditingText } = useDrawStore()
+  if (text.value.text == '' || isEditingText) {
+    shouldRefocusTextAfterClose.value = true
+    getCanvas().discardActiveObject()
+  }
 }
 </script>
 

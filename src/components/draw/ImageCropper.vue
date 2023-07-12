@@ -2,8 +2,8 @@
   <ion-modal :isOpen="cropperMenuOpen" @willDismiss="close" @didPresent="init">
     <CircularLoader v-if="loading" class="bg-black absolute z-10 w-full h-full" />
     <div class="flex flex-col h-full">
-      <div class="flex-grow">
-        <img id="image" :src="imgUrl" ref="imgRef" alt="cropper image" class="hidden" />
+      <div class="flex-grow flex items-center">
+        <img :src="imgUrl" ref="imgRef" alt="cropper image" class="hidden" />
       </div>
 
       <div class="h-10 flex justify-between items-center">
@@ -22,7 +22,7 @@ import { setAppColors } from '@/helper/general.helper'
 import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 
-import 'cropperjs/dist/cropper.css'
+import 'cropperjs/dist/cropper.min.css'
 import Cropper from 'cropperjs'
 import { ref } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
@@ -43,16 +43,19 @@ defineProps<{
 
 function close() {
   cropperMenuOpen.value = false
+  loading.value = true
   setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
-  if (cropper) {
-    cropper.destroy()
-  }
+  if (cropper) cropper.destroy()
 }
 
 function init() {
   setAppColors(photoSwiperColorConfig)
   imgRef.value?.addEventListener('ready', () => (loading.value = false))
-  cropper = new Cropper(imgRef.value!, { aspectRatio: getCanvas().width! / getCanvas().height!, background: false })
+  cropper = new Cropper(imgRef.value!, {
+    aspectRatio: getCanvas().width! / getCanvas().height!,
+    background: false,
+    viewMode: 2
+  })
 }
 
 function apply() {
@@ -67,5 +70,48 @@ ion-modal {
   --background: #000000;
   --height: 100%;
   --width: 100%;
+}
+</style>
+
+<style>
+.cropper-view-box {
+  outline-color: var(--ion-color-primary);
+  outline: 1px solid var(--ion-color-primary);
+}
+
+.point-se {
+  background: var(--ion-color-primary);
+}
+
+.point-sw {
+  background: var(--ion-color-primary);
+}
+
+.point-nw {
+  background: var(--ion-color-primary);
+}
+
+.point-ne {
+  background: var(--ion-color-primary);
+}
+
+.point-w {
+  background: var(--ion-color-primary);
+}
+
+.point-s {
+  background: var(--ion-color-primary);
+}
+
+.point-n {
+  background: var(--ion-color-primary);
+}
+
+.point-e {
+  background: var(--ion-color-primary);
+}
+
+.cropper-line {
+  background: var(--ion-color-primary);
 }
 </style>

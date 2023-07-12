@@ -34,7 +34,6 @@
         </ion-item>
       </ion-list>
       <ion-action-sheet
-        header="Image actions"
         class="my-custom-class"
         color="background"
         mode="ios"
@@ -113,7 +112,6 @@ const imageActionSheetButtons: ActionSheetButton[] = [
     icon: svg(mdiPanoramaVariantOutline),
     role: 'selected',
     handler: () => openMenu(Menu.Cropper)
-    // handler: addBackgroundImage
   },
   {
     text: 'Cancel',
@@ -142,6 +140,8 @@ async function onImgClick() {
 }
 
 async function onCameraClick() {
+  await closePopover() // weird location but it does not work otherwise haha
+
   const image = await Camera.getPhoto({
     quality: 100,
     resultType: CameraResultType.Uri,
@@ -156,7 +156,6 @@ async function onCameraClick() {
 
   reader.readAsDataURL(compressedFile)
   imageActionSheetOpen.value = true
-  await closePopover() // weird location but it does not work otherwise haha
 }
 
 async function onImgUpload(e: Event) {

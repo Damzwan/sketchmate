@@ -161,3 +161,25 @@ export function splitStringToWidth(text: string, fontSize: number, fontFace: str
   result += line
   return result
 }
+
+// export function calculateSelectedObjectLength(selectedObjects: SelectedObject[]) {
+//   let length = 0
+//
+//   for (const obj of selectedObjects) {
+//     if (obj instanceof fabric.Group) length += obj.getObjects().length
+//     else length += 1
+//   }
+//
+//   return length
+// }
+//
+export function unpackSelectedObjects(selectedObjects: SelectedObject[]) {
+  const unpackedObjects: SelectedObject[] = []
+
+  for (const obj of selectedObjects) {
+    if (obj instanceof fabric.Group) unpackedObjects.push(...obj.getObjects())
+    else unpackedObjects.push(obj)
+  }
+
+  return unpackedObjects
+}

@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="select_color" @didDismiss="onDismiss">
+  <ion-popover trigger="select_color" @didDismiss="onDismiss" :showBackdrop="false">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" id="stroke">

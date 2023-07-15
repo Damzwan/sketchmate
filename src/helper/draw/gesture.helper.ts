@@ -1,57 +1,73 @@
 import { Canvas, IPoint } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { isPlatform } from '@ionic/vue'
 import { fabricateTouchUp } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
-import { DrawEvent, DrawTool, FabricEvent } from '@/types/draw.types'
+import { DrawEvent, DrawTool, FabricEvent, SelectedObject } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { ERASERS } from '@/config/draw.config'
+import { isMobile } from '@/helper/general.helper'
+import { storeToRefs } from 'pinia'
+import { an } from 'vitest/dist/types-94cfe4b4'
 import { useToast } from '@/service/toast.service'
+import { useSelect } from '@/service/draw/tools/select.tool'
 
 export function enableZoomAndPan(c: any) {
-  if (isPlatform('mobile') || isPlatform('capacitor') || isPlatform('android') || isPlatform('ios'))
-    enableMobileZoomAndPan(c)
-  else enablePCZoomAndPan(c)
+  if (isMobile()) enableMobileGestures(c)
+  else enablePCGestures(c)
 }
 
 // we are only using hammer events so they should not collide with other events. Not mandatory to store them in the event manager
-export function enableMobileZoomAndPan(c: any) {
+export function enableMobileGestures(c: any) {
   const { hammer, setCanZoomOut } = useDrawStore()
   const { disableHistorySaving, enableHistorySaving } = useHistory()
+  const { selectedObjectsRef } = storeToRefs(useSelect())
+
+  const { selectedTool } = storeToRefs(useDrawStore())
 
   let lastDelta = {
     x: 0,
     y: 0
   }
+  let lastEvent = { rotation: null, scale: 1 } // Initialize
 
   hammer!.on('pinchstart', () => {
     disableHistorySaving()
+    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
+      lastEvent = { rotation: null, scale: 1 }
+      return
+    }
     cancelPreviousAction(c)
   })
 
   hammer!.on('pinch', function (e) {
-    const panTolerance = 0.0001 // Change this as needed to refine the distinction
-    const isPanning = Math.abs(e.deltaX - lastDelta.x) > panTolerance || Math.abs(e.deltaY - lastDelta.y) > panTolerance
-
-    if (isPanning) {
-      // Handle panning
-      const delta = {
-        x: 2 * (e.deltaX - lastDelta.x),
-        y: 2 * (e.deltaY - lastDelta.y)
-      }
-      handlePan(delta, c)
-      lastDelta = {
-        x: e.deltaX,
-        y: e.deltaY
-      }
+    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
+      lastEvent = handleSelectMobilePinch(e, selectedObjectsRef.value, c, lastEvent)
     } else {
-      const scaleTolerance = 0 // Change this as needed to refine the distinction
-      if (Math.abs(1 - e.scale) > scaleTolerance) {
-        handleZoom(e.scale, e.center.x, e.center.y, c)
-        setCanZoomOut(c.getZoom() > 1)
+      const panTolerance = 0.0001 // Change this as needed to refine the distinction
+      const isPanning =
+        Math.abs(e.deltaX - lastDelta.x) > panTolerance || Math.abs(e.deltaY - lastDelta.y) > panTolerance
+
+      if (isPanning) {
+        // Handle panning
+        const delta = {
+          x: 2 * (e.deltaX - lastDelta.x),
+          y: 2 * (e.deltaY - lastDelta.y)
+        }
+        handlePan(delta, c)
+        lastDelta = {
+          x: e.deltaX,
+          y: e.deltaY
+        }
+      } else {
+        const scaleTolerance = 0 // Change this as needed to refine the distinction
+        if (Math.abs(1 - e.scale) > scaleTolerance) {
+          handleZoom(e.scale, e.center.x, e.center.y, c)
+          setCanZoomOut(c.getZoom() > 1)
+        }
       }
     }
+    c?.requestRenderAll()
   })
 
   hammer!.on('pinchend', function () {
@@ -61,6 +77,35 @@ export function enableMobileZoomAndPan(c: any) {
       y: 0
     }
   })
+}
+
+function handleSelectMobilePinch(e: any, selectedObjects: SelectedObject[], c: fabric.Canvas, lastEvent: any) {
+  if (!selectedObjects || selectedObjects.length === 0) return
+
+  const obj = c.getActiveObject()
+  if (!obj) return
+
+  const scaleDiff = e.scale - lastEvent.scale
+  obj.scaleX! *= 1 + scaleDiff
+  obj.scaleY! *= 1 + scaleDiff
+  lastEvent.scale = e.scale
+
+  let rotationDiff = 0
+  if (lastEvent.rotation !== null) {
+    rotationDiff = e.rotation - lastEvent.rotation
+  }
+
+  // Set the rotation directly
+  obj.angle = (obj.angle! + rotationDiff) % 360 // Keep rotation within [0,360) range
+  lastEvent.rotation = e.rotation
+
+  // Update the object's coordinates
+  obj.setCoords()
+
+  // Update the canvas
+  c.requestRenderAll()
+
+  return lastEvent
 }
 
 function cancelEraserAction(c: Canvas) {
@@ -85,14 +130,14 @@ function cancelPreviousAction(c: Canvas) {
   const { selectedTool } = useDrawStore()
   setTimeout(() => {
     if (ERASERS.includes(selectedTool)) cancelEraserAction(c) // needs to happen before touch up
+    c.discardActiveObject()
     fabricateTouchUp(c)
     if (selectedTool == DrawTool.Pen) cancelPenAction(c) // needs to happen after touch up
-    c.discardActiveObject()
     c.renderAll()
   }, 1)
 }
 
-export function enablePCZoomAndPan(c: any) {
+export function enablePCGestures(c: any) {
   const { subscribe } = useEventManager()
   const { setCanZoomOut } = useDrawStore()
   let panStartPoint: any = null

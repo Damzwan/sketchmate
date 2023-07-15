@@ -29,7 +29,7 @@
       <StickerMenu />
 
       <ion-button :class="{ selected: selectedTool == DrawTool.Select }" @click="selectTool(DrawTool.Select)">
-        <ion-icon slot="icon-only" :icon="svg(mdiCursorMove)"></ion-icon>
+        <ion-icon slot="icon-only" :icon="svg(mdiCursorDefaultClickOutline)"></ion-icon>
       </ion-button>
 
       <ion-button :class="{ selected: selectedTool == DrawTool.Lasso }" @click="selectTool(DrawTool.Lasso)">
@@ -60,7 +60,17 @@ import { storeToRefs } from 'pinia'
 import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/config/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar, onIonViewWillEnter } from '@ionic/vue'
 import { setAppColors, svg } from '@/helper/general.helper'
-import { mdiBucketOutline, mdiChevronDown, mdiCursorMove, mdiLasso, mdiPlus, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
+import {
+  mdiBucketOutline,
+  mdiChevronDown,
+  mdiCursorDefaultClickOutline,
+  mdiCursorMove,
+  mdiLasso,
+  mdiPlus,
+  mdiRedo,
+  mdiSend,
+  mdiUndo
+} from '@mdi/js'
 import PenMenu from '@/components/draw/menu/PenMenu.vue'
 import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
 import StickerMenu from '@/components/draw/menu/StickerMenu.vue'

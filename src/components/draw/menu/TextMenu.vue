@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="text_options" @willDismiss="onDismiss" @willPresent="onPresent">
+  <ion-popover trigger="text_options" @willDismiss="onDismiss" @willPresent="onPresent" :showBackdrop="false">
     <ion-content v-if="text">
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary">

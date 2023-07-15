@@ -4,9 +4,15 @@ import { Canvas } from 'fabric/fabric-impl'
 // We extend the original fabric js interfaces
 declare module 'fabric' {
   namespace fabric {
+    interface Canvas {
+      _rotateObjectByAngle?: () => void
+      _scaleObjectBy?: () => void
+    }
+
     interface IText {
       isCurved?: boolean
       originalTop?: number
+      mouseUpHandler: (o: any) => void
     }
 
     interface Object {

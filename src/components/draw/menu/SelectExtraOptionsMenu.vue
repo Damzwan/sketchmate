@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="select_extra_options">
+  <ion-popover trigger="select_extra_options" :showBackdrop="false">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" @click="copyObjects">

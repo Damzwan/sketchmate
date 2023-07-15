@@ -81,7 +81,6 @@ export const BACKGROUND = '#FAF0E6'
 export const ERASERS = [DrawTool.MobileEraser, DrawTool.HealingEraser]
 export const PENMENUTOOLS = [DrawTool.Pen, DrawTool.Bucket]
 export const FONTS: string[] = [
-  'Arial',
   'Anton',
   'Indie Flower',
   'Rubik Puddles',

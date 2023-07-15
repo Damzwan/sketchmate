@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="font" @willDismiss="onDismiss" @willPresent="onPresent">
+  <ion-popover trigger="font" @willDismiss="onDismiss" @willPresent="onPresent" :showBackdrop="false">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" v-for="font in FONTS" :key="font" @click="selectFont(font)">

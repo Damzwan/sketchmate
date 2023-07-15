@@ -1,4 +1,4 @@
-import { Canvas, ICanvasOptions } from 'fabric/fabric-impl'
+import { Canvas, ICanvasOptions, IText } from 'fabric/fabric-impl'
 import Hammer from 'hammerjs'
 import { Ref } from 'vue'
 import { fabric } from 'fabric'
@@ -16,7 +16,9 @@ import { useBucket } from '@/service/draw/tools/bucket.tool'
 import { isPlatform, useKeyboard } from '@ionic/vue'
 import { isMobile, isNative } from '@/helper/general.helper'
 import { useAppStore } from '@/store/app.store'
-import { splitStringToWidth } from '@/helper/draw/draw.helper'
+import { exitEditing, isText, splitStringToWidth } from '@/helper/draw/draw.helper'
+import { Haptics, ImpactStyle } from '@capacitor/haptics'
+import { useToast } from '@/service/toast.service'
 
 export function initCanvasOptions(): ICanvasOptions {
   return {
@@ -32,6 +34,7 @@ export function initGestures(c: Canvas, hammer: Ref<HammerManager | undefined>) 
   const upperCanvasEl = (c! as any).upperCanvasEl
   hammer.value = new Hammer.Manager(upperCanvasEl)
   hammer.value.add(new Hammer.Pinch())
+  hammer.value?.add(new Hammer.Rotate())
 }
 
 export function changeFabricBaseSettings(c: Canvas) {
@@ -40,6 +43,31 @@ export function changeFabricBaseSettings(c: Canvas) {
   fabric.Object.prototype.cornerColor = primaryColor
   fabric.Object.prototype.cornerStyle = 'circle'
   fabric.Object.prototype.cornerSize = 20 // Increase the size of the handles
+  fabric.Object.prototype.originX = 'center'
+  fabric.Object.prototype.originY = 'center'
+
+  // Activated because of the stupid gestures mixin
+  c._rotateObjectByAngle = undefined
+  c._scaleObjectBy = undefined
+
+  c.on('touch:longpress', e => {
+    const touchType = e.e.type
+    if (touchType != 'touchstart') return
+    const { selectedObjectsRef, setMultiSelectMode } = useSelect()
+
+    if (isText(selectedObjectsRef)) {
+      exitEditing(selectedObjectsRef[0] as IText)
+    }
+    if (selectedObjectsRef.length > 0) {
+      setMultiSelectMode(true)
+      Haptics.impact({ style: ImpactStyle.Medium })
+    }
+  })
+
+  c.on('mouse:down:before', function (options) {
+    const { setMouseClickTarget } = useSelect()
+    setMouseClickTarget(options.target)
+  })
 
   const originalSetOptions = fabric.Object.prototype.setOptions
   fabric.Object.prototype.setOptions = function (options) {
@@ -84,6 +112,13 @@ export function changeFabricBaseSettings(c: Canvas) {
       this.set({ hasControls: true })
       c.renderAll()
     })
+
+    const ogMouseUp = fabric.IText.prototype.mouseUpHandler
+    fabric.IText.prototype.mouseUpHandler = (o: any) => {
+      const { multiSelectMode } = useSelect()
+      if (multiSelectMode) return
+      ogMouseUp.call(this, o)
+    }
 
     this.on('changed', () => {
       const deviceWidth: number = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth

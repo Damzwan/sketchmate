@@ -1,7 +1,7 @@
 import { Ref, ref } from 'vue'
 import { DrawEvent, FabricEvent, SelectedObject, ToolService } from '@/types/draw.types'
-import { isText, setSelectionForObjects } from '@/helper/draw/draw.helper'
-import { Canvas, IText } from 'fabric/fabric-impl'
+import { isText, setSelectionForObjects, unpackSelectedObjects } from '@/helper/draw/draw.helper'
+import { Canvas, IText, log } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore, storeToRefs } from 'pinia'
 import { useEventManager } from '@/service/draw/eventManager.service'
@@ -13,31 +13,39 @@ interface Select extends ToolService {
   lastModifiedObjects: Ref<Array<SelectedObject>>
   setSelectedObjects: (obj: SelectedObject[]) => void
   getSelectedObjects: () => SelectedObject[]
+  setMultiSelectMode: (mode: boolean) => void
+  multiSelectMode: Ref<boolean>
+  setMouseClickTarget: (obj: fabric.Object | undefined) => void
 }
 
 export const useSelect = defineStore('select', (): Select => {
   let c: Canvas | undefined = undefined
 
   let selectedObjects: Array<SelectedObject> = []
-  const { subscribe, unsubscribe } = useEventManager()
+  const { subscribe } = useEventManager()
   const selectedObjectsRef = ref<Array<SelectedObject>>([])
+  const multiSelectMode = ref(false)
   const lastModifiedObjects = ref<Array<SelectedObject>>([])
   const history = useHistory()
+
+  let mouseClickTarget: fabric.Object | undefined = undefined
 
   const events: FabricEvent[] = [
     {
       on: 'selection:created',
-      handler: e => setSelectedObjects(e.selected),
+      handler: handleSelect,
       type: DrawEvent.SetSelectedObjects
     },
     {
       on: 'selection:updated',
-      handler: e => setSelectedObjects(e.selected),
+      handler: handleSelect,
       type: DrawEvent.SetSelectedObjects
     },
     {
       on: 'selection:cleared',
       handler: () => {
+        if (multiSelectMode.value && mouseClickTarget) return
+
         if (isText(selectedObjects)) {
           const text = selectedObjects[0] as IText
           const { isEditingText } = storeToRefs(useDrawStore())
@@ -50,6 +58,7 @@ export const useSelect = defineStore('select', (): Select => {
             }
           }
         }
+        setMultiSelectMode(false)
         setSelectedObjects([])
       },
       type: DrawEvent.SetSelectedObjects
@@ -59,6 +68,19 @@ export const useSelect = defineStore('select', (): Select => {
   function init(canvas: Canvas) {
     c = canvas
     enableOnInitEvents()
+  }
+
+  function handleSelect(e: any) {
+    let object: any = e.selected
+    const { actionWithoutEvents } = useEventManager()
+
+    if (multiSelectMode.value && object && selectedObjects) {
+      object = new fabric.ActiveSelection([...selectedObjects, ...object], { canvas: c })
+      actionWithoutEvents(() => c?.setActiveObject(object))
+    }
+
+    if (object instanceof fabric.Group) setSelectedObjects(object.getObjects())
+    else setSelectedObjects(object)
   }
 
   function setSelectedObjects(objects: Array<SelectedObject> | undefined) {
@@ -76,19 +98,13 @@ export const useSelect = defineStore('select', (): Select => {
     subscribe({
       type: DrawEvent.SetModified,
       on: 'object:added',
-      handler: e => {
-        const obj = e.target as fabric.Object
-        lastModifiedObjects.value = [obj]
-      }
+      handler: setModifiedObjects
     })
 
     subscribe({
       type: DrawEvent.SetModified,
       on: 'object:modified',
-      handler: e => {
-        const obj = e.target as fabric.Object
-        lastModifiedObjects.value = [obj]
-      }
+      handler: setModifiedObjects
     })
 
     subscribe({
@@ -101,6 +117,13 @@ export const useSelect = defineStore('select', (): Select => {
         selectLastModifiedObjects(c!)
       }
     })
+  }
+
+  function setModifiedObjects(e: any) {
+    if (!(e && e.target)) return
+    const obj = e.target as any
+    if (obj['_objects']) lastModifiedObjects.value = obj['_objects']
+    else lastModifiedObjects.value = [obj]
   }
 
   function selectLastModifiedObjects(c: Canvas) {
@@ -124,6 +147,14 @@ export const useSelect = defineStore('select', (): Select => {
     return selectedObjects
   }
 
+  function setMultiSelectMode(mode: boolean) {
+    multiSelectMode.value = mode
+  }
+
+  function setMouseClickTarget(obj: fabric.Object | undefined) {
+    mouseClickTarget = obj
+  }
+
   return {
     init,
     selectedObjectsRef,
@@ -131,6 +162,9 @@ export const useSelect = defineStore('select', (): Select => {
     events,
     lastModifiedObjects,
     setSelectedObjects,
-    getSelectedObjects
+    getSelectedObjects,
+    setMultiSelectMode,
+    multiSelectMode,
+    setMouseClickTarget
   }
 })

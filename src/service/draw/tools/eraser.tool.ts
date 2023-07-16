@@ -17,6 +17,10 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     c = canvas
   }
 
+  function destroy() {
+    c = undefined
+  }
+
   async function select(canvas: Canvas) {
     canvas.isDrawingMode = true
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -33,5 +37,5 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     c!.freeDrawingBrush.width = eraserSize.value
   })
 
-  return { init, select, eraserSize, events }
+  return { init, select, eraserSize, events, destroy }
 })

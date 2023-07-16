@@ -86,6 +86,12 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function refresh(e?: any) {
+    await login()
+    await getInbox()
+    if (e) e.target.complete()
+  }
+
   function increaseUnreadMessages() {
     // if (route.path === `/${FRONTEND_ROUTES.gallery}`) return
     // unreadMessages.value += 1
@@ -148,6 +154,7 @@ export const useAppStore = defineStore('app', () => {
     localSubscription,
     localUserId,
     localUserImg,
-    keyboardHeight
+    keyboardHeight,
+    refresh
   }
 })

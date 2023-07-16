@@ -29,7 +29,7 @@ declare module 'fabric' {
 export type SelectedObject = fabric.Object | fabric.Group
 
 export interface SelectToolOptions {
-  e: Event
+  e?: Event
   openMenu: boolean
 }
 
@@ -37,6 +37,7 @@ export interface ToolService {
   select: (c: Canvas) => void
   events: FabricEvent[]
   init: (c: Canvas) => void
+  destroy: () => void
 }
 
 export interface RestoreAction {

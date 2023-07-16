@@ -70,6 +70,10 @@ export const useSelect = defineStore('select', (): Select => {
     enableOnInitEvents()
   }
 
+  function destroy() {
+    c = undefined
+  }
+
   function handleSelect(e: any) {
     let object: any = e.selected
     const { actionWithoutEvents } = useEventManager()
@@ -165,6 +169,7 @@ export const useSelect = defineStore('select', (): Select => {
     getSelectedObjects,
     setMultiSelectMode,
     multiSelectMode,
-    setMouseClickTarget
+    setMouseClickTarget,
+    destroy
   }
 })

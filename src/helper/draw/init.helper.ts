@@ -164,3 +164,9 @@ export function initTools(c: Canvas, tools: { [key in DrawTool]: ToolService }) 
     tool.init(c)
   }
 }
+
+export function destroyTools(tools: { [key in DrawTool]: ToolService }) {
+  for (const [_, tool] of Object.entries(tools)) {
+    tool.destroy()
+  }
+}

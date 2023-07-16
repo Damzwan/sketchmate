@@ -36,6 +36,10 @@ export const usePen = defineStore('pen', (): Pen => {
     c = canvas
   }
 
+  function destroy() {
+    c = undefined
+  }
+
   async function select(c: Canvas) {
     c.isDrawingMode = true
     const newBrush = brushMapping[brushType.value](c)
@@ -57,5 +61,5 @@ export const usePen = defineStore('pen', (): Pen => {
     select(c!)
   })
 
-  return { select, init, brushSize, brushType, brushColor, events: events }
+  return { select, init, brushSize, brushType, brushColor, events: events, destroy }
 })

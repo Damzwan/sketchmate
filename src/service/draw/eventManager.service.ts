@@ -16,6 +16,11 @@ export const useEventManager = defineStore('event manager', () => {
     enableZoomAndPan(c)
   }
 
+  function destroy() {
+    c = undefined
+    events.value = {}
+  }
+
   function onToolSwitch(c: Canvas, oldTool: ToolService, newTool: ToolService) {
     const oldToolEvents = oldTool.events
     const newToolEvents = newTool.events
@@ -79,6 +84,7 @@ export const useEventManager = defineStore('event manager', () => {
     isolatedSubscribe,
     disableAllEvents,
     enableAllEvents,
-    actionWithoutEvents
+    actionWithoutEvents,
+    destroy
   }
 })

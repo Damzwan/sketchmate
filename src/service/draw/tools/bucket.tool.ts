@@ -27,11 +27,15 @@ export const useBucket = defineStore('bucket', (): ToolService => {
     c = canvas
   }
 
+  function destroy() {
+    c = undefined
+  }
+
   async function select(c: Canvas) {
     c.isDrawingMode = false
     c.selection = false
     setSelectionForObjects(c.getObjects(), false) // TODO this should not be necessary
   }
 
-  return { select, init, events: events }
+  return { select, init, events: events, destroy }
 })

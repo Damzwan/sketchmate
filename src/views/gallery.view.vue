@@ -3,6 +3,10 @@
     <SettingsHeader title="Gallery" :presenting-element="page" />
     <CircularLoader v-if="isLoading || !isLoggedIn" />
     <ion-content v-else>
+      <ion-refresher slot="fixed" @ionRefresh="refresh">
+        <ion-refresher-content></ion-refresher-content>
+      </ion-refresher>
+
       <PhotoSwiper
         v-if="inboxItems.length > 0"
         v-model:open="isPhotoSwiperOpen"
@@ -41,13 +45,13 @@
 </template>
 
 <script lang="ts" setup>
-import { IonCol, IonContent, IonPage, IonRow, onIonViewDidEnter } from '@ionic/vue'
+import { IonCol, IonContent, IonPage, IonRefresher, IonRefresherContent, IonRow } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
 import { InboxItem } from '@/types/server.types'
 import dayjs from 'dayjs'
-import { setAppColors, sortDates } from '@/helper/general.helper'
+import { sortDates } from '@/helper/general.helper'
 import router from '@/router'
 import { useToast } from '@/service/toast.service'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
@@ -56,11 +60,9 @@ import { useRoute } from 'vue-router'
 import NoMessages from '@/components/gallery/NoMessages.vue'
 import Thumbnail from '@/components/gallery/Thumbnail.vue'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
-import { colorsPerRoute } from '@/config/colors.config'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 
-const { getInbox, cleanUnreadMessages } = useAppStore()
-const { user, inbox, isLoading, isLoggedIn } = storeToRefs(useAppStore())
+const { getInbox, cleanUnreadMessages, refresh, setQueryParams } = useAppStore()
+const { user, inbox, isLoading, isLoggedIn, queryParams } = storeToRefs(useAppStore())
 const { toast } = useToast()
 
 cleanUnreadMessages()
@@ -88,6 +90,7 @@ watch(
 )
 
 watch(isLoading, checkQueryParams)
+watch(queryParams, checkQueryParams)
 
 const page = ref()
 
@@ -101,9 +104,10 @@ function fetchInbox() {
 
 function checkQueryParams() {
   const query = router.currentRoute.value.query
-  const item = query.item
+  const item = queryParams.value ? queryParams.value.get('item') : query.item
   const foundInboxIndex = inboxItems.value.findIndex(val => item === val._id)
   if (foundInboxIndex === -1) return
+  setQueryParams(undefined)
 
   selectedInboxItemIndex.value = foundInboxIndex
   isPhotoSwiperOpen.value = true

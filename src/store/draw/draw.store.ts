@@ -16,6 +16,7 @@ import { useLoadService } from '@/service/draw/load.service'
 import {
   changeFabricBaseSettings,
   createTools,
+  destroyTools,
   initCanvasOptions,
   initGestures,
   initTools
@@ -42,7 +43,7 @@ export const useDrawStore = defineStore('draw', () => {
   const history = useHistory()
 
   // Selected tools
-  const selectedTool = ref<DrawTool>(DrawTool.MobileEraser)
+  const selectedTool = ref<DrawTool>(DrawTool.Pen)
   const lastSelectedPenMenuTool = ref<PenMenuTool>(DrawTool.Pen)
   const lastSelectedEraserTool = ref<Eraser>(DrawTool.MobileEraser)
 
@@ -78,20 +79,42 @@ export const useDrawStore = defineStore('draw', () => {
   }
 
   async function initCanvas(canvas: HTMLCanvasElement) {
-    if (!c) {
-      c = new fabric.Canvas(canvas, initCanvasOptions())
-      loadAdditionalBrushes()
-      changeFabricBaseSettings(c)
-      initGestures(c, hammer)
-      eventManager.init(c)
-      history.init(c)
-      initTools(c, tools)
-      selectTool(DrawTool.Pen)
+    let json: any = undefined
+    if (c) {
+      json = c.toJSON()
+      destroyToolsAndServices()
+      c.dispose()
     }
+
+    c = new fabric.Canvas(canvas, initCanvasOptions())
+
+    if (json) {
+      await new Promise<void>(resolve => {
+        c!.loadFromJSON(json, () => {
+          resolve()
+        })
+      })
+    }
+
+    loadAdditionalBrushes()
+    changeFabricBaseSettings(c)
+    initGestures(c, hammer)
+    eventManager.init(c)
+    history.init(c)
+    initTools(c, tools)
+
+    selectTool(selectedTool.value, { openMenu: false })
+
     if (loadService.loading.value) {
       showLoading('Loading canvas')
       if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
     }
+  }
+
+  function destroyToolsAndServices() {
+    destroyTools(tools)
+    history.destroy()
+    eventManager.destroy()
   }
 
   function showLoading(text: string) {
@@ -134,8 +157,8 @@ export const useDrawStore = defineStore('draw', () => {
   }
 
   async function reset() {
+    isLoading.value = false
     await history.actionWithoutHistory(() => {
-      isLoading.value = false
       c?.clear()
       c!.backgroundColor = BACKGROUND
     })

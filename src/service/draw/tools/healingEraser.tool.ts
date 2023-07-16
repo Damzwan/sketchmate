@@ -17,6 +17,10 @@ export const useHealingEraser = defineStore('healing eraser', (): HealingEraser 
     c = canvas
   }
 
+  function destroy() {
+    c = undefined
+  }
+
   async function select(canvas: Canvas) {
     canvas.isDrawingMode = true
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -32,5 +36,5 @@ export const useHealingEraser = defineStore('healing eraser', (): HealingEraser 
     c!.freeDrawingBrush.width = healingEraserSize.value
   })
 
-  return { init, select, healingEraserSize, events }
+  return { init, select, healingEraserSize, events, destroy }
 })

@@ -63,9 +63,11 @@
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.LAUNCHER" />
 
                 <data
                     android:host="app.sketchmate.ninja"
+                    android:pathPattern="/.*"
                     android:scheme="https" />
             </intent-filter>
         </activity>

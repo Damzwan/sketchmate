@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.widget.RemoteViews;
 
 import java.io.InputStream;
@@ -19,7 +20,7 @@ import java.io.InputStream;
 public class Widget extends AppWidgetProvider {
 
     static void updateAppWidget(Context context, AppWidgetManager appWidgetManager,
-                                int appWidgetId, String imageUrl) {
+                                int appWidgetId, String imageUrl, String inboxId) {
         if (imageUrl.equals("")) return;
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget);
 
@@ -33,21 +34,25 @@ public class Widget extends AppWidgetProvider {
                 e.printStackTrace();
             }
 
+            String url = "https://app.sketchmate.ninja/gallery?item=" + inboxId;
+
             // Make the widget interactive
-            Intent intent = new Intent(context, MainActivity.class);
-            PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.setPackage(context.getPackageName());
+            PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_MUTABLE);
             views.setOnClickPendingIntent(R.id.appwidget_image, pendingIntent);
+
 
             appWidgetManager.updateAppWidget(appWidgetId, views);
         }).start();
     }
 
 
-    public static void updateWidget(Context context, String imageUrl) {
+    public static void updateWidget(Context context, String imageUrl, String inboxId) {
         AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
         int[] appWidgetIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, Widget.class));
         for (int appWidgetId : appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId, imageUrl);
+            updateAppWidget(context, appWidgetManager, appWidgetId, imageUrl, inboxId);
         }
     }
 
@@ -56,7 +61,7 @@ public class Widget extends AppWidgetProvider {
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
         // There may be multiple widgets active, so update all of them
         for (int appWidgetId : appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId, "");
+            updateAppWidget(context, appWidgetManager, appWidgetId, "", "");
         }
     }
 

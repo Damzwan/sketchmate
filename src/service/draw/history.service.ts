@@ -51,6 +51,12 @@ export const useHistory = defineStore('history', () => {
     enableEvents()
   }
 
+  function destroy() {
+    c = undefined
+    prevCanvasState = undefined
+    disableEvents()
+  }
+
   function enableEvents() {
     events.forEach(e => subscribe(e))
   }
@@ -131,6 +137,7 @@ export const useHistory = defineStore('history', () => {
   function clearHistory() {
     undoStack.value = []
     redoStack.value = []
+    prevCanvasState = c!.toJSON()
   }
 
   return {
@@ -144,6 +151,7 @@ export const useHistory = defineStore('history', () => {
     enableHistorySaving: enableEvents,
     saveState,
     actionWithoutHistory,
-    clearHistory
+    clearHistory,
+    destroy
   }
 })

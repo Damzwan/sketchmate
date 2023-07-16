@@ -34,6 +34,10 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     c = canvas
   }
 
+  function destroy() {
+    c = undefined
+  }
+
   let lasso: fabric.Path
   let isDrawing = false
 
@@ -154,5 +158,5 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     console.log('lasso tool selected')
   }
 
-  return { select, events, init }
+  return { select, events, init, destroy }
 })

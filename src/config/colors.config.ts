@@ -12,7 +12,7 @@ export const backgroundColor = '#FFD4B2'
 export const photoSwiperColorConfig: AppColorConfig = { statusBar: '#000000', navigationBar: '#000000' }
 export const popoverColorConfig: AppColorConfig = { statusBar: '#ad7659', navigationBar: '#ad7659' }
 export const settingsModalColorConfig: AppColorConfig = { statusBar: backgroundColor, navigationBar: backgroundColor }
-export const drawModalColorConfig: AppColorConfig = { statusBar: primaryColor, navigationBar: backgroundColor }
+export const drawModalColorConfig: AppColorConfig = { statusBar: primaryColor, navigationBar: primaryColor }
 export const colorsPerRoute: Record<FRONTEND_ROUTES, AppColorConfig> = {
   [FRONTEND_ROUTES.draw]: {
     statusBar: primaryColor,

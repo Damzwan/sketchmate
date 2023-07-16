@@ -26,7 +26,7 @@
         <ion-icon slot="icon-only" :icon="svg(mdiPlus)"></ion-icon>
       </ion-button>
       <MoreToolsMenu />
-      <StickerMenu />
+      <StickersEmblemsSavedMenu />
 
       <ion-button :class="{ selected: selectedTool == DrawTool.Select }" @click="selectTool(DrawTool.Select)">
         <ion-icon slot="icon-only" :icon="svg(mdiCursorDefaultClickOutline)"></ion-icon>
@@ -58,13 +58,12 @@ import { DrawTool } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/config/draw.config'
-import { IonButton, IonButtons, IonIcon, IonToolbar, onIonViewWillEnter } from '@ionic/vue'
-import { setAppColors, svg } from '@/helper/general.helper'
+import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
+import { svg } from '@/helper/general.helper'
 import {
   mdiBucketOutline,
   mdiChevronDown,
   mdiCursorDefaultClickOutline,
-  mdiCursorMove,
   mdiLasso,
   mdiPlus,
   mdiRedo,
@@ -73,14 +72,13 @@ import {
 } from '@mdi/js'
 import PenMenu from '@/components/draw/menu/PenMenu.vue'
 import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
-import StickerMenu from '@/components/draw/menu/StickerMenu.vue'
+import StickersEmblemsSavedMenu from '@/components/draw/menu/StickersEmblemsSavedMenu/StickersEmblemsSavedMenu.vue'
 import MoreToolsMenu from '@/components/draw/menu/MoreToolsMenu.vue'
 import { usePen } from '@/service/draw/tools/pen.tool'
 import { useHistory } from '@/service/draw/history.service'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { colorsPerRoute } from '@/config/colors.config'
-import { FRONTEND_ROUTES } from '@/types/router.types'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore

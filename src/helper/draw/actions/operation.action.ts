@@ -36,6 +36,10 @@ export async function copyObjects(c: Canvas, options: any) {
           })
       )
     )
+    // Multiselect hack :))
+    const { setMouseClickTarget } = useSelect()
+    setMouseClickTarget(undefined)
+
     c!.setActiveObject(new fabric.ActiveSelection(clonedObjects, { canvas: c }))
     c.renderAll()
   })
@@ -66,8 +70,10 @@ export function deleteObjects(c: Canvas, options: any) {
 
 export function bringToFront(c: Canvas, { objects }: { objects: SelectedObject[] }) {
   objects.forEach(obj => c.bringToFront(obj))
+  c.discardActiveObject()
 }
 
 export function bringToBack(c: Canvas, { objects }: { objects: SelectedObject[] }) {
   objects.forEach(obj => c.sendToBack(obj))
+  c.discardActiveObject()
 }

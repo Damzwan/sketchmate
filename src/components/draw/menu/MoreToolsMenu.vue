@@ -6,6 +6,11 @@
           <ion-icon :icon="svg(mdiStickerEmoji)" />
           <p class="pl-2 text-base">Stickers</p>
         </ion-item>
+
+        <ion-item color="tertiary" :button="true" id="stickers" @click="openEmblemMenu" :detail="true">
+          <ion-icon :icon="svg(mdiStickerCircleOutline)" />
+          <p class="pl-2 text-base">Emblems</p>
+        </ion-item>
         <ion-item color="tertiary" :button="true" @click="onImgClick" :detail="true">
           <input type="file" class="hidden" ref="imgInput" @change="onImgUpload" accept="image/*" />
           <ion-icon :icon="svg(mdiImage)" />
@@ -67,6 +72,7 @@ import {
   mdiImagePlusOutline,
   mdiPanoramaVariantOutline,
   mdiShapeOutline,
+  mdiStickerCircleOutline,
   mdiStickerEmoji
 } from '@mdi/js'
 import { ref } from 'vue'
@@ -78,6 +84,7 @@ import { useMenuStore } from '@/store/draw/menu.store'
 import { colorsPerRoute, popoverColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import ImageCropper from '@/components/draw/ImageCropper.vue'
+import { storeToRefs } from 'pinia'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
@@ -85,8 +92,17 @@ const imageActionSheetOpen = ref(false)
 const { selectAction } = useDrawStore()
 const { openMenu } = useMenuStore()
 
+const { stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore())
+
 function openStickerMenu() {
-  openMenu(Menu.Sticker)
+  openMenu(Menu.StickerEmblemSaved)
+  stickersEmblemsSavedSelectedTab.value = 'sticker'
+  closePopover()
+}
+
+function openEmblemMenu() {
+  openMenu(Menu.StickerEmblemSaved)
+  stickersEmblemsSavedSelectedTab.value = 'emblem'
   closePopover()
 }
 
@@ -95,7 +111,8 @@ function openShapesMenu(e: any) {
 }
 
 function openSavedMenu() {
-  openMenu(Menu.Saved)
+  openMenu(Menu.StickerEmblemSaved)
+  stickersEmblemsSavedSelectedTab.value = 'saved'
   closePopover()
 }
 

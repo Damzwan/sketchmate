@@ -131,6 +131,7 @@ export const useDrawStore = defineStore('draw', () => {
     loadingText.value = 'Sending drawing...'
     isLoading.value = true
     resetZoom(c)
+
     await api.send({
       _id: user.value!._id,
       mate_id: user.value!.mate!._id,

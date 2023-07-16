@@ -13,7 +13,6 @@
       <div>
         <canvas ref="myCanvasRef" />
       </div>
-      <SavedMenu />
 
       <div class="flex justify-center items-center absolute bottom-4 w-full">
         <ion-button v-if="canZoomOut" @click="resetZoom" color="secondary" shape="round">
@@ -34,14 +33,11 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
 import LinearLoader from '@/components/loaders/LinearLoader.vue'
-import SavedMenu from '@/components/draw/menu/SavedMenu.vue'
 import ShapeCreationToolbar from '@/components/draw/toolbar/ShapeCreationToolbar.vue'
-import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 import { resetZoom } from '@/helper/draw/gesture.helper'
 import { svg } from '@/helper/general.helper'
 import { mdiMagnifyMinusOutline } from '@mdi/js'
 import { useSelect } from '@/service/draw/tools/select.tool'
-import ImageCropper from '@/components/draw/ImageCropper.vue'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 

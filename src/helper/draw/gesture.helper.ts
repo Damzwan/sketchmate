@@ -35,9 +35,12 @@ export function enableMobileGestures(c: any) {
     disableHistorySaving()
     if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
       lastEvent = { rotation: null, scale: 1 }
+
+      const obj = c.getActiveObject()
+      obj.set({ lockMovementX: true, lockMovementY: true })
+
       return
-    }
-    cancelPreviousAction(c)
+    } else cancelPreviousAction(c)
   })
 
   hammer!.on('pinch', function (e) {
@@ -76,6 +79,13 @@ export function enableMobileGestures(c: any) {
       x: 0,
       y: 0
     }
+
+    // Without timeout the object will move to the last location of your fingers making it tp sometimes
+    setTimeout(() => {
+      const obj = c.getActiveObject()
+      obj.set({ lockMovementX: false, lockMovementY: false })
+    }, 100)
+    c.renderAll()
   })
 }
 
@@ -86,23 +96,26 @@ function handleSelectMobilePinch(e: any, selectedObjects: SelectedObject[], c: f
   if (!obj) return
 
   const scaleDiff = e.scale - lastEvent.scale
-  obj.scaleX! *= 1 + scaleDiff
-  obj.scaleY! *= 1 + scaleDiff
-  lastEvent.scale = e.scale
+  const rotationThreshold = 0.5 // Adjust the threshold as needed
 
-  let rotationDiff = 0
+  let rotationDiff = 0.1
   if (lastEvent.rotation !== null) {
     rotationDiff = e.rotation - lastEvent.rotation
   }
-
-  // Set the rotation directly
-  obj.angle = (obj.angle! + rotationDiff) % 360 // Keep rotation within [0,360) range
   lastEvent.rotation = e.rotation
+  lastEvent.scale = e.scale
 
-  // Update the object's coordinates
+  // Prioritize rotation if the absolute value of rotationDiff is greater than the threshold
+  if (Math.abs(rotationDiff) > rotationThreshold) {
+    obj.rotate((obj.angle! + rotationDiff) % 360)
+  } else {
+    obj._setOriginToCenter()
+    obj.scaleX! *= 1 + scaleDiff
+    obj.scaleY! *= 1 + scaleDiff
+    obj._resetOrigin()
+  }
+
   obj.setCoords()
-
-  // Update the canvas
   c.requestRenderAll()
 
   return lastEvent

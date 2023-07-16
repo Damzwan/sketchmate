@@ -43,8 +43,9 @@ export function changeFabricBaseSettings(c: Canvas) {
   fabric.Object.prototype.cornerColor = primaryColor
   fabric.Object.prototype.cornerStyle = 'circle'
   fabric.Object.prototype.cornerSize = 20 // Increase the size of the handles
-  fabric.Object.prototype.originX = 'center'
-  fabric.Object.prototype.originY = 'center'
+
+  // fabric.Object.prototype.originX = 'center'
+  // fabric.Object.prototype.originY = 'center'
 
   // Activated because of the stupid gestures mixin
   c._rotateObjectByAngle = undefined

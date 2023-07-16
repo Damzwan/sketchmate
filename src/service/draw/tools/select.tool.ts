@@ -78,7 +78,7 @@ export const useSelect = defineStore('select', (): Select => {
     let object: any = e.selected
     const { actionWithoutEvents } = useEventManager()
 
-    if (multiSelectMode.value && object && selectedObjects) {
+    if (multiSelectMode.value && object && selectedObjects && mouseClickTarget) {
       object = new fabric.ActiveSelection([...selectedObjects, ...object], { canvas: c })
       actionWithoutEvents(() => c?.setActiveObject(object))
     }

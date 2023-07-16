@@ -17,6 +17,8 @@ declare module 'fabric' {
 
     interface Object {
       id: string
+      _setOriginToCenter: () => void
+      _resetOrigin: () => void
     }
 
     interface Path {
@@ -86,8 +88,7 @@ export enum DrawAction {
 export enum Menu {
   Pen,
   Eraser,
-  Sticker,
-  Saved,
+  StickerEmblemSaved,
   Shapes,
   Cropper
 }
@@ -153,3 +154,5 @@ export enum DrawEvent {
   SetModified = 'Creating shape',
   Lasso = 'Using lasso'
 }
+
+export type StickersEmblemsSavedTabOptions = 'sticker' | 'emblem' | 'saved'

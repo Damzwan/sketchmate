@@ -1,22 +1,22 @@
 import { defineStore } from 'pinia'
 import { Ref, ref } from 'vue'
-import { DrawTool, Menu } from '@/types/draw.types'
+import { DrawTool, Menu, StickersEmblemsSavedTabOptions } from '@/types/draw.types'
 
 export const useMenuStore = defineStore('menu', () => {
   const penMenuOpen = ref(false)
   const eraserMenuOpen = ref(false)
   const stickerMenuOpen = ref(false)
-  const savedMenuOpen = ref(false)
   const shapesMenuOpen = ref(false)
   const cropperMenuOpen = ref(false)
+
+  const stickersEmblemsSavedSelectedTab = ref<StickersEmblemsSavedTabOptions>('sticker')
 
   const menuEvent = ref<Event>()
 
   const menuMapping: { [key in Menu]: Ref<boolean> } = {
     [Menu.Pen]: penMenuOpen,
     [Menu.Eraser]: eraserMenuOpen,
-    [Menu.Sticker]: stickerMenuOpen,
-    [Menu.Saved]: savedMenuOpen,
+    [Menu.StickerEmblemSaved]: stickerMenuOpen,
     [Menu.Shapes]: shapesMenuOpen,
     [Menu.Cropper]: cropperMenuOpen
   }
@@ -44,11 +44,11 @@ export const useMenuStore = defineStore('menu', () => {
     penMenuOpen,
     eraserMenuOpen,
     stickerMenuOpen,
-    savedMenuOpen,
     shapesMenuOpen,
     openMenu,
     openToolMenu,
     menuEvent,
-    cropperMenuOpen
+    cropperMenuOpen,
+    stickersEmblemsSavedSelectedTab
   }
 })

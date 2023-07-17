@@ -1,10 +1,17 @@
 <template>
   <ion-content v-if="user">
-    <NoStickers v-if="user.saved.length == 0" type="saved drawings" />
+    <NoItems v-if="user.saved.length == 0" class="h-full" title="You have no saved drawings yet...">
+      Select an object
+      <ion-icon :icon="svg(mdiCursorDefaultClickOutline)" />
+      and press the save button <br />
+      under <ion-icon :icon="svg(mdiDotsVertical)" />
+      in order to save it
+    </NoItems>
+
     <div class="saved-grid" v-else ref="grid">
-      <div v-for="saved in user.saved" :key="saved.img" class="image-container">
+      <div v-for="saved in user.saved" :key="saved.img" class="flex justify-center items-center">
         <div
-          class="relative cursor-pointer hover:opacity-80 image-frame"
+          class="relative cursor-pointer hover:opacity-80 h-[100px]"
           :class="{ 'animate-wiggle': deleteMode }"
           @click="emits('select-saved', saved)"
         >
@@ -26,12 +33,13 @@
 import { IonIcon, IonImg, IonContent } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
-import NoStickers from '@/components/draw/NoStickers.vue'
+import NoStickers from '@/components/draw/NoItems.vue'
 import { svg } from '@/helper/general.helper'
-import { mdiMinus } from '@mdi/js'
+import { mdiCursorDefaultClickOutline, mdiDotsVertical, mdiMinus } from '@mdi/js'
 import { Saved } from '@/types/server.types'
 import { onClickOutside, onLongPress } from '@vueuse/core'
 import { ref } from 'vue'
+import NoItems from '@/components/draw/NoItems.vue'
 
 const { user } = storeToRefs(useAppStore())
 
@@ -44,11 +52,11 @@ onLongPress(
   },
   { modifiers: { prevent: true } }
 )
-onClickOutside(grid, () => emits('update:delete-mode', false))
-
-defineProps<{
+const props = defineProps<{
   deleteMode: boolean
 }>()
+
+onClickOutside(grid, () => (props.deleteMode ? emits('update:delete-mode', false) : undefined))
 
 const emits = defineEmits<{
   (e: 'update:delete-mode', deleteMode: boolean): void

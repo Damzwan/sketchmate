@@ -14,32 +14,56 @@
     <ion-header>
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
-          <ion-button @click="deleteMode = !deleteMode" v-if="!emptyPage" fill="clear" :disabled="isLoading">
-            <ion-icon :icon="svg(deleteMode ? mdiCancel : mdiDeleteOutline)" slot="icon-only" /> </ion-button
-        ></ion-buttons>
+          <ion-button
+            @click="deleteMode = !deleteMode"
+            v-if="!emptyPage"
+            fill="clear"
+            :disabled="isLoading"
+            class="relative left-[-5px]"
+          >
+            <ion-icon :icon="svg(deleteMode ? mdiCancel : mdiDeleteOutline)" slot="icon-only" />
+          </ion-button>
+        </ion-buttons>
 
         <ion-buttons slot="end">
-          <ion-button @click="() => imgInput!.click()" v-if="isStickerOrEmblem" fill="clear" :disabled="isLoading">
-            <ion-icon :icon="svg(mdiPlus)" slot="icon-only" /> </ion-button
-        ></ion-buttons>
+          <ion-button
+            @click="() => imgInput!.click()"
+            v-if="isStickerOrEmblem"
+            fill="clear"
+            :disabled="isLoading"
+            class="relative right-[-5px]"
+            :class="{ 'animate-bounce': emptyPage && !isLoading }"
+          >
+            <ion-icon :icon="svg(mdiPlus)" slot="icon-only" />
+          </ion-button>
+        </ion-buttons>
 
         <input type="file" class="hidden" ref="imgInput" @change="onUpload" accept="image/*" />
       </ion-toolbar>
     </ion-header>
 
     <ion-content>
-      <LinearLoader v-if="isLoading" class="h-[75%]" :dynamic-text="dynamicStickerLoading" />
-      <StickersPage
-        v-if="stickersEmblemsSavedSelectedTab == 'sticker'"
-        v-model:delete-mode="deleteMode"
-        @select-sticker="selectSticker"
-      />
-      <EmblemsPage
-        v-else-if="stickersEmblemsSavedSelectedTab == 'emblem'"
-        v-model:deleteMode="deleteMode"
-        @select-emblem="selectEmblem"
-      />
-      <SavedPage v-else v-model:deleteMode="deleteMode" @select-saved="selectedSaved" />
+      <LinearLoader v-if="isLoading" class="h-[85%]" :dynamic-text="dynamicStickerLoading" />
+      <div class="h-full w-full" v-else>
+        <StickersPage
+          v-if="stickersEmblemsSavedSelectedTab == 'sticker'"
+          :delete-mode="deleteMode"
+          @select-sticker="selectSticker"
+          v-on:update:delete-mode="setDeleteModeDelayed"
+        />
+        <EmblemsPage
+          v-else-if="stickersEmblemsSavedSelectedTab == 'emblem'"
+          :deleteMode="deleteMode"
+          @select-emblem="selectEmblem"
+          v-on:update:delete-mode="setDeleteModeDelayed"
+        />
+        <SavedPage
+          v-else
+          :deleteMode="deleteMode"
+          @select-saved="selectedSaved"
+          v-on:update:delete-mode="setDeleteModeDelayed"
+        />
+      </div>
     </ion-content>
 
     <ion-footer>
@@ -192,6 +216,7 @@ async function createSticker(img: File) {
   user.value!.stickers.push(imgUrl!)
   toast('Sticker Created!')
 }
+
 //
 async function createEmblem(img: File) {
   const imgUrl = await api.createEmblem({
@@ -207,6 +232,11 @@ function onDismiss() {
   deleteMode.value = false
   setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
 }
+
+// We delay so that it does not interfere with the button (deletemode = !deletemode)
+function setDeleteModeDelayed(value: boolean) {
+  setTimeout(() => (deleteMode.value = value), 50)
+}
 </script>
 
 <style scoped>
@@ -215,20 +245,14 @@ ion-toolbar {
 }
 
 ion-modal {
-  --height: 50%;
+  --height: 60%;
 }
 
 ion-label {
   font-size: 0.75rem;
 }
 
-ion-segment-button {
-  height: 40px;
-  min-height: 35px;
-}
-
 ion-buttons {
-  height: 30px;
-  --padding-start: 50px;
+  height: 40px;
 }
 </style>

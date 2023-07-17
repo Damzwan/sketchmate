@@ -4,6 +4,7 @@ import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { Menu } from '@/types/draw.types'
+import { storeToRefs } from 'pinia'
 
 const { dismiss } = useToast()
 
@@ -55,6 +56,8 @@ export const viewSavedButton: ToastButton = {
   text: 'View',
   handler: () => {
     const { openMenu } = useMenuStore()
-    openMenu(Menu.Saved)
+    const { stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore())
+    stickersEmblemsSavedSelectedTab.value = 'saved'
+    openMenu(Menu.StickerEmblemSaved)
   }
 }

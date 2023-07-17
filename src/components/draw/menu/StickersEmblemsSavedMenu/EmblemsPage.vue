@@ -1,6 +1,8 @@
 <template>
   <ion-content>
-    <NoStickers v-if="user!.emblems.length == 0" type="emblems" />
+    <NoItems v-if="user && user.emblems.length == 0" class="h-full" title="You have no emblems yet...">
+      Press the add button <ion-icon class="pt-1" :icon="svg(mdiPlus)" /> to get started
+    </NoItems>
     <div v-else class="saved-grid" ref="grid">
       <div v-for="emblem in user!.emblems" :key="emblem">
         <div
@@ -22,11 +24,12 @@
 import { IonIcon, IonImg, IonContent } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
-import NoStickers from '@/components/draw/NoStickers.vue'
+import NoStickers from '@/components/draw/NoItems.vue'
 import { svg } from '@/helper/general.helper'
-import { mdiMinus } from '@mdi/js'
+import { mdiMinus, mdiPlus } from '@mdi/js'
 import { onClickOutside, onLongPress } from '@vueuse/core'
 import { ref } from 'vue'
+import NoItems from '@/components/draw/NoItems.vue'
 
 const grid = ref<HTMLElement>()
 
@@ -37,13 +40,12 @@ onLongPress(
   },
   { modifiers: { prevent: true } }
 )
-onClickOutside(grid, () => emits('update:delete-mode', false))
-
-const { user } = storeToRefs(useAppStore())
-
-defineProps<{
+const props = defineProps<{
   deleteMode: boolean
 }>()
+onClickOutside(grid, () => (props.deleteMode ? emits('update:delete-mode', false) : undefined))
+
+const { user } = storeToRefs(useAppStore())
 
 const emits = defineEmits<{
   (e: 'update:delete-mode', deleteMode: boolean): void

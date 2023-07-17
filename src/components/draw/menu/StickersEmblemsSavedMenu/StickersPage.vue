@@ -1,16 +1,18 @@
 <template>
   <ion-content>
-    <NoStickers v-if="user && user.stickers.length == 0" type="stickers" class="h-full" />
+    <NoItems v-if="user && user.stickers.length == 0" class="h-full" title="You have no stickers yet...">
+      Press the add button <ion-icon class="pt-1" :icon="svg(mdiPlus)" /> to get started
+    </NoItems>
     <div class="saved-grid" v-else-if="user" ref="grid">
       <div v-for="sticker in user.stickers" :key="sticker">
         <div
-          class="relative cursor-pointer hover:opacity-80"
+          class="relative cursor-pointer hover:opacity-80 h-[100px] flex justify-center items-center"
           :class="{ 'animate-wiggle': deleteMode }"
           @click="emits('select-sticker', sticker)"
         >
           <ion-img
             :src="sticker"
-            class="rounded-lg"
+            class="object-contain rounded-lg w-full h-full"
             :class="{ 'opacity-70': deleteMode, 'hover:brightness-90': deleteMode }"
           />
           <div class="absolute flex z-10 h-full w-full justify-center items-center top-0" v-if="deleteMode">
@@ -26,9 +28,9 @@
 import { IonIcon, IonContent, IonImg } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
-import NoStickers from '@/components/draw/NoStickers.vue'
+import NoItems from '@/components/draw/NoItems.vue'
 import { svg } from '@/helper/general.helper'
-import { mdiMinus } from '@mdi/js'
+import { mdiMinus, mdiPlus } from '@mdi/js'
 import { onMounted, Ref, ref } from 'vue'
 import { onClickOutside, onLongPress } from '@vueuse/core'
 
@@ -43,10 +45,10 @@ onLongPress(
   { modifiers: { prevent: true } }
 )
 
-defineProps<{
+const props = defineProps<{
   deleteMode: boolean
 }>()
-onClickOutside(grid, () => emits('update:delete-mode', false))
+onClickOutside(grid, () => (props.deleteMode ? emits('update:delete-mode', false) : undefined))
 
 const emits = defineEmits<{
   (e: 'update:delete-mode', deleteMode: boolean): void

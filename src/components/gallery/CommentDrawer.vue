@@ -16,19 +16,18 @@
           <div class="text-sm font-bold">{{ senderName(user, comment.sender) }}</div>
           <div class="text-sm">{{ comment.message }}</div>
         </div>
-        <div class="text-sm text-center mr-1">{{ dayjs(comment.date).format('MMM D') }}</div>
+        <div class="text-sm text-center mr-1">{{ dayjs(comment.date).format('MMM D, HH:mm') }}</div>
       </div>
 
       <div class="flex w-full justify-evenly items-center h-[50px]">
-        <ion-avatar class="flex justify-center items-center mx-2 w-[50px]"
-          ><img v-if="user" :src="user.img" alt="" class="aspect-square"
-        /></ion-avatar>
-        <ion-input placeholder="Say something..." id="input" v-model="commentBody" />
-        <ion-button fill="clear" color="primary" @click="comment">
+        <ion-avatar class="flex justify-center items-center mx-2 w-[40px]" style="flex-shrink: 0">
+          <img v-if="user" :src="user.img" alt="" class="aspect-square" />
+        </ion-avatar>
+        <ion-input placeholder="Say something..." ref="input" v-model="commentBody" />
+        <ion-button fill="clear" color="secondary" @click="comment" :icon="svg(mdiSend)">
           <ion-icon :icon="svg(mdiSend)" v-show="commentBody.length > 0" />
         </ion-button>
       </div>
-      <div class="bottom_notch_spacer" />
     </div>
   </ion-modal>
 </template>
@@ -66,10 +65,10 @@ const props = defineProps({
 const emit = defineEmits(['update:open', 'update:currInboxItem'])
 
 const commentBody = ref('')
+const input = ref<any>()
 
 function checkIfShouldAutoFocus() {
-  const elem: any = document.getElementById('input')
-  // if (props.currInboxItem?.comments.length === 0) elem.setFocus()
+  if (props.currInboxItem?.comments.length === 0) input.value.$el.setFocus()
 }
 
 async function comment() {

@@ -26,7 +26,8 @@ export function initCanvasOptions(): ICanvasOptions {
     width: window.innerWidth,
     height: window.innerHeight - 46 - 50,
     backgroundColor: BACKGROUND,
-    fireMiddleClick: true
+    fireMiddleClick: true,
+    selection: false
   }
 }
 

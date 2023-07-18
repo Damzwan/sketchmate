@@ -57,7 +57,7 @@
 import { DrawTool } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
-import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/config/draw.config'
+import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/config/draw/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
 import {

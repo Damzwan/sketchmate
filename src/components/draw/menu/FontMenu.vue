@@ -12,7 +12,7 @@
 
 <script lang="ts" setup>
 import { IonContent, IonItem, IonList, IonPopover } from '@ionic/vue'
-import { FONTS } from '@/config/draw.config'
+import { FONTS } from '@/config/draw/draw.config'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { focusText } from '@/helper/draw/draw.helper'
 import { storeToRefs } from 'pinia'

@@ -1,7 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { DrawAction, DrawTool, Eraser, PenMenuTool, SelectToolOptions, ShapeCreationMode } from '@/types/draw.types'
 import { ref, watch } from 'vue'
-import { actionMapping, BACKGROUND, ERASERS, PENMENUTOOLS } from '@/config/draw.config'
+import { actionMapping, BACKGROUND, ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
 import { Canvas } from 'fabric/fabric-impl'
 import { useAppStore } from '@/store/app.store'
 import { useSocketService } from '@/service/api/socket.service'

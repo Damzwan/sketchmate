@@ -74,7 +74,7 @@
 import { IonContent, IonIcon, IonItem, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
-import { PENMENUTOOLS, WHITE } from '@/config/draw.config'
+import { PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'
 import { BrushType, DrawTool } from '@/types/draw.types'
 import { mdiBucketOutline, mdiCircleOutline, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import { setAppColors, svg } from '@/helper/general.helper'

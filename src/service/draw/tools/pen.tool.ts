@@ -1,5 +1,5 @@
 import { Ref, ref, watch } from 'vue'
-import { BLACK, BRUSHSIZE } from '@/config/draw.config'
+import { BLACK, BRUSHSIZE } from '@/config/draw/draw.config'
 import { BrushType, DrawEvent, FabricEvent, ToolService } from '@/types/draw.types'
 import { setObjectSelection, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { Canvas, IPoint } from 'fabric/fabric-impl'

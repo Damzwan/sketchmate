@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="more_tools" :keepContentsMounted="true" :showBackdrop="false">
+  <ion-popover trigger="more_tools" :keepContentsMounted="true" :showBackdrop="false" ref="t">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" id="stickers" @click="openStickerMenu" :detail="true">
@@ -30,12 +30,17 @@
         <ion-item color="tertiary" :button="true" :detail="true" @click="openShapesMenu">
           <ion-icon :icon="svg(mdiShapeOutline)" />
           <p class="pl-2 text-base">Shapes</p>
-          <ShapesMenu />
         </ion-item>
 
         <ion-item color="tertiary" :button="true" :detail="true" @click="openSavedMenu">
           <ion-icon :icon="svg(mdiContentSave)" />
           <p class="pl-2 text-base">Saved Drawings</p>
+        </ion-item>
+
+        <ion-item color="tertiary" :button="true" :detail="true" id="docs" @click="popoverController.dismiss()">
+          <ion-icon :icon="svg(mdiHelp)" />
+          <p class="pl-2 text-base">Help</p>
+          <DocsMenu />
         </ion-item>
       </ion-list>
       <ion-action-sheet
@@ -59,15 +64,15 @@ import {
   IonIcon,
   IonItem,
   IonList,
-  IonModal,
   IonPopover,
   popoverController
 } from '@ionic/vue'
-import { compressImg, setAppColors, svg } from '@/helper/general.helper'
+import { compressImg, svg } from '@/helper/general.helper'
 import {
   mdiCamera,
   mdiContentSave,
   mdiFormatText,
+  mdiHelp,
   mdiImage,
   mdiImagePlusOutline,
   mdiPanoramaVariantOutline,
@@ -75,16 +80,15 @@ import {
   mdiStickerCircleOutline,
   mdiStickerEmoji
 } from '@mdi/js'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { DrawAction, Menu } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
-import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
-import { colorsPerRoute, popoverColorConfig } from '@/config/colors.config'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 import ImageCropper from '@/components/draw/ImageCropper.vue'
 import { storeToRefs } from 'pinia'
+import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
+import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
@@ -93,6 +97,15 @@ const { selectAction } = useDrawStore()
 const { openMenu } = useMenuStore()
 
 const { stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore())
+
+const { shapesMenuOpen } = storeToRefs(useMenuStore())
+const t = ref<any>()
+
+watch(shapesMenuOpen, () => {
+  if (!shapesMenuOpen.value) {
+    t.value.$el.dismiss()
+  }
+})
 
 function openStickerMenu() {
   openMenu(Menu.StickerEmblemSaved)

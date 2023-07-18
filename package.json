@@ -66,11 +66,13 @@
     "swiper": "^9.3.2",
     "uuid": "^9.0.0",
     "vue": "^3.3.4",
+    "vue-markdown-render": "^2.0.1",
     "vue-router": "^4.2.2"
   },
   "devDependencies": {
     "@capacitor/cli": "^5.0.5",
     "@mdi/js": "^7.2.96",
+    "@tailwindcss/typography": "^0.5.9",
     "@types/fabric": "^5.3.3",
     "@types/fontfaceobserver": "^2.1.0",
     "@types/pako": "^2.0.0",

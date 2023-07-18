@@ -16,8 +16,6 @@ import { App as CapApp } from '@capacitor/app'
 import App from '@/App.vue'
 import { useAppStore } from '@/store/app.store'
 import { addNotificationListeners } from '@/helper/notification.helper'
-import { useToast } from '@/service/toast.service'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const pinia = createPinia()
 export const EventBus = mitt()

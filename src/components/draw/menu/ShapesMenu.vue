@@ -74,12 +74,8 @@ const { selectAction } = useDrawStore()
 const { shapesMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 function addShape(shape: Shape) {
-  selectAction(DrawAction.AddShape, { shape: shape })
-  closePopover()
-}
-
-function closePopover() {
-  popoverController.dismiss()
+  setTimeout(() => selectAction(DrawAction.AddShape, { shape: shape }), 1) // TODO does not make any sense
+  shapesMenuOpen.value = false
 }
 </script>
 

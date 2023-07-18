@@ -122,7 +122,7 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction, StickersEmblemsSavedTabOptions } from '@/types/draw.types'
 import { Saved } from '@/types/server.types'
 import LinearLoader from '@/components/loaders/LinearLoader.vue'
-import { dynamicStickerLoading } from '@/config/draw.config'
+import { dynamicStickerLoading } from '@/config/draw/draw.config'
 
 const api = useAPI()
 const drawStore = useDrawStore()

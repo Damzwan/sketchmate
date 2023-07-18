@@ -10,6 +10,8 @@
       </div>
     </ion-header>
     <ion-content>
+      <ShapesMenu />
+
       <div>
         <canvas ref="myCanvasRef" />
       </div>
@@ -25,10 +27,10 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter } from '@ionic/vue'
+import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter, popoverController } from '@ionic/vue'
 import PrimaryDrawToolBar from '@/components/draw/toolbar/PrimaryDrawToolBar.vue'
 
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
@@ -38,6 +40,8 @@ import { resetZoom } from '@/helper/draw/gesture.helper'
 import { svg } from '@/helper/general.helper'
 import { mdiMagnifyMinusOutline } from '@mdi/js'
 import { useSelect } from '@/service/draw/tools/select.tool'
+import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 

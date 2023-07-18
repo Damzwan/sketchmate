@@ -37,7 +37,7 @@
 </template>
 
 <script lang="ts" setup>
-import { COLORSWATCHES } from '@/config/draw.config'
+import { COLORSWATCHES } from '@/config/draw/draw.config'
 import { IonItem } from '@ionic/vue'
 import { computed, ref } from 'vue'
 import { Preferences } from '@capacitor/preferences'

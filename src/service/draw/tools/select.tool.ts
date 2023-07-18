@@ -1,7 +1,7 @@
 import { Ref, ref } from 'vue'
-import { DrawEvent, FabricEvent, SelectedObject, ToolService } from '@/types/draw.types'
-import { isText, setSelectionForObjects, unpackSelectedObjects } from '@/helper/draw/draw.helper'
-import { Canvas, IText, log } from 'fabric/fabric-impl'
+import { DrawEvent, DrawTool, FabricEvent, SelectedObject, ToolService } from '@/types/draw.types'
+import { isText, setObjectSelection, setSelectionForObjects } from '@/helper/draw/draw.helper'
+import { Canvas, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore, storeToRefs } from 'pinia'
 import { useEventManager } from '@/service/draw/eventManager.service'
@@ -126,6 +126,9 @@ export const useSelect = defineStore('select', (): Select => {
   function setModifiedObjects(e: any) {
     if (!(e && e.target)) return
     const obj = e.target as any
+    const { selectedTool } = useDrawStore()
+
+    setObjectSelection(obj, selectedTool == DrawTool.Select)
     if (obj['_objects']) lastModifiedObjects.value = obj['_objects']
     else lastModifiedObjects.value = [obj]
   }

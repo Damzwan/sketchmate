@@ -13,12 +13,10 @@ import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { useLasso } from '@/service/draw/tools/lasso.tool'
 import { useBucket } from '@/service/draw/tools/bucket.tool'
-import { isPlatform, useKeyboard } from '@ionic/vue'
-import { isMobile, isNative } from '@/helper/general.helper'
+import { isNative } from '@/helper/general.helper'
 import { useAppStore } from '@/store/app.store'
 import { exitEditing, isText, splitStringToWidth } from '@/helper/draw/draw.helper'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
-import { useToast } from '@/service/toast.service'
 
 export function initCanvasOptions(): ICanvasOptions {
   return {
@@ -45,9 +43,6 @@ export function changeFabricBaseSettings(c: Canvas) {
   fabric.Object.prototype.cornerStyle = 'circle'
   fabric.Object.prototype.cornerSize = 20 // Increase the size of the handles
 
-  // fabric.Object.prototype.originX = 'center'
-  // fabric.Object.prototype.originY = 'center'
-
   // Activated because of the stupid gestures mixin
   c._rotateObjectByAngle = undefined
   c._scaleObjectBy = undefined
@@ -71,11 +66,24 @@ export function changeFabricBaseSettings(c: Canvas) {
     setMouseClickTarget(options.target)
   })
 
-  const originalSetOptions = fabric.Object.prototype.setOptions
-  fabric.Object.prototype.setOptions = function (options) {
-    originalSetOptions.call(this, options)
+  const originalInitialize = fabric.Object.prototype.initialize
+  fabric.Object.prototype.initialize = function (...args) {
+    originalInitialize.call(this, ...args)
+    this.setControlsVisibility({
+      bl: false,
+      br: true,
+      mb: false,
+      ml: false,
+      mr: false,
+      mt: false,
+      mtr: true,
+      tl: false,
+      tr: false
+    })
     if (!this.id) this.id = uuidv4()
+    return this
   }
+
   fabric.Object.prototype.toObject = (function (toObject) {
     return function (this: any, propertiesToInclude) {
       propertiesToInclude = (propertiesToInclude || []).concat(['id'])
@@ -83,14 +91,13 @@ export function changeFabricBaseSettings(c: Canvas) {
     }
   })(fabric.Object.prototype.toObject)
 
-  // Text editing
-  const originalITextSetOptions = fabric.IText.prototype.setOptions
-  fabric.IText.prototype.setOptions = function (options) {
-    originalITextSetOptions.call(this, options)
-    const { isEditingText } = storeToRefs(useDrawStore())
+  const originalITextInit = fabric.IText.prototype.initialize
 
+  fabric.IText.prototype.initialize = function (...args) {
+    originalITextInit.call(this, ...args)
     this.off('editing:entered')
     this.off('editing:exited')
+    const { isEditingText } = storeToRefs(useDrawStore())
 
     this.on('editing:entered', () => {
       if (isNative()) {
@@ -115,13 +122,6 @@ export function changeFabricBaseSettings(c: Canvas) {
       c.renderAll()
     })
 
-    const ogMouseUp = fabric.IText.prototype.mouseUpHandler
-    fabric.IText.prototype.mouseUpHandler = (o: any) => {
-      const { multiSelectMode } = useSelect()
-      if (multiSelectMode) return
-      ogMouseUp.call(this, o)
-    }
-
     this.on('changed', () => {
       const deviceWidth: number = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
       if (this.width! > deviceWidth) {
@@ -132,6 +132,15 @@ export function changeFabricBaseSettings(c: Canvas) {
         c.renderAll()
       }
     })
+    return this
+  }
+
+  const ogMouseUp = fabric.IText.prototype.mouseUpHandler
+  fabric.IText.prototype.mouseUpHandler = function (o) {
+    const { multiSelectMode } = useSelect()
+    const { isUsingGesture } = useDrawStore()
+    if (multiSelectMode || isUsingGesture) return
+    ogMouseUp.call(this, o)
   }
 
   // text curve

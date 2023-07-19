@@ -56,6 +56,7 @@ export const useDrawStore = defineStore('draw', () => {
   const canZoomOut = ref(false)
   const isEditingText = ref(false)
   const isLoading = ref(false)
+  const isUsingGesture = ref(false)
 
   // We make use of events so we do not load the big draw.store in other views
   EventBus.on('reset-canvas', reset)
@@ -193,6 +194,7 @@ export const useDrawStore = defineStore('draw', () => {
     isEditingText,
     isLoading,
     lastSelectedPenMenuTool,
-    hideLoading
+    hideLoading,
+    isUsingGesture
   }
 })

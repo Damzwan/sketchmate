@@ -44,23 +44,23 @@ const props = defineProps<{
   selectedSection: DocsItem
 }>()
 
-let backListener: any = undefined
+// let backListener: any = undefined
 
 onBeforeMount(async () => {
   if (!props.selectedSection.page) return
   const response = await fetch(props.selectedSection.page)
   sectionPageContent.value = await response.text()
 
-  backListener = await App.addListener('backButton', () => {
-    backBtn.value.$el.click()
-  })
+  // backListener = await App.addListener('backButton', () => {
+  //   backBtn.value.$el.click()
+  // })
 })
 
-onUnmounted(async () => {
-  if (backListener) {
-    await backListener.remove()
-  }
-})
+// onUnmounted(async () => {
+//   if (backListener) {
+//     await backListener.remove()
+//   }
+// })
 </script>
 
 <style scoped>

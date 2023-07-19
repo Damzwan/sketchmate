@@ -7,20 +7,6 @@ import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
 import { compressImg, isMobile, isNative } from '@/helper/general.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
-
-const eventsToDisable = [
-  'mouse:down',
-  'mouse:up',
-  'mouse:move',
-  'mouse:wheel',
-  'touch:gesture',
-  'touch:drag',
-  'mouse:down:before',
-  ''
-]
-
-const hammerEventsToDisable = ['pinch', 'pinchend', 'pinchstart']
-
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
   checkCanvasBounds(c)
@@ -160,26 +146,4 @@ export function splitStringToWidth(text: string, fontSize: number, fontFace: str
   }
   result += line
   return result
-}
-
-// export function calculateSelectedObjectLength(selectedObjects: SelectedObject[]) {
-//   let length = 0
-//
-//   for (const obj of selectedObjects) {
-//     if (obj instanceof fabric.Group) length += obj.getObjects().length
-//     else length += 1
-//   }
-//
-//   return length
-// }
-//
-export function unpackSelectedObjects(selectedObjects: SelectedObject[]) {
-  const unpackedObjects: SelectedObject[] = []
-
-  for (const obj of selectedObjects) {
-    if (obj instanceof fabric.Group) unpackedObjects.push(...obj.getObjects())
-    else unpackedObjects.push(obj)
-  }
-
-  return unpackedObjects
 }

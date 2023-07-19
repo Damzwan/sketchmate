@@ -1,5 +1,5 @@
 import { Ref, ref } from 'vue'
-import { findObjectById, setSelectionForObjects } from '@/helper/draw/draw.helper'
+import { exitEditing, findObjectById, isText, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { Canvas } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.tool'
@@ -83,6 +83,8 @@ export const useHistory = defineStore('history', () => {
 
     const { getSelectedObjects } = useSelect()
     const selectedObjects = getSelectedObjects()
+
+    if (isText(selectedObjects)) exitEditing(selectedObjects[0])
     c?.discardActiveObject()
 
     const currState = c!.toJSON()
@@ -100,11 +102,7 @@ export const useHistory = defineStore('history', () => {
     executeUndoRedo(redoStack, undoStack)
   }
 
-  function restoreSelectedObjects(selectedObjects?: SelectedObject[]) {
-    if (!selectedObjects) {
-      const { getSelectedObjects } = useSelect()
-      selectedObjects = getSelectedObjects()
-    }
+  function restoreSelectedObjects(selectedObjects: SelectedObject[]) {
     const newSelectedObjects = selectedObjects
       .map((obj: any) => findObjectById(c!, obj.id)!)
       .filter((obj: any) => !!obj)
@@ -115,6 +113,7 @@ export const useHistory = defineStore('history', () => {
   function restoreCanvasFromHistory(previousState: any, selectedObjects: SelectedObject[]) {
     disableAllEvents()
     c!.loadFromJSON(previousState, () => {
+      c?.renderAll()
       c?.getObjects()
         .filter(obj => obj.type === ObjectType.text)
         .forEach((text: any) => (text.isCurved ? applyCurve(text, c!) : undefined))
@@ -122,8 +121,9 @@ export const useHistory = defineStore('history', () => {
 
       const { selectedTool } = useDrawStore()
       setSelectionForObjects(c!.getObjects(), selectedTool === DrawTool.Select)
-      restoreSelectedObjects(selectedObjects)
+
       enableAllEvents()
+      restoreSelectedObjects(selectedObjects)
     })
   }
 

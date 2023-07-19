@@ -20,10 +20,10 @@ export function enableZoomAndPan(c: any) {
 // we are only using hammer events so they should not collide with other events. Not mandatory to store them in the event manager
 export function enableMobileGestures(c: any) {
   const { hammer, setCanZoomOut } = useDrawStore()
-  const { disableHistorySaving, enableHistorySaving } = useHistory()
+  const { disableHistorySaving, enableHistorySaving, saveState } = useHistory()
   const { selectedObjectsRef } = storeToRefs(useSelect())
 
-  const { selectedTool } = storeToRefs(useDrawStore())
+  const { selectedTool, isUsingGesture } = storeToRefs(useDrawStore())
 
   let lastDelta = {
     x: 0,
@@ -33,11 +33,14 @@ export function enableMobileGestures(c: any) {
 
   hammer!.on('pinchstart', () => {
     disableHistorySaving()
+
+    // rotation or scale gesture
     if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
       lastEvent = { rotation: null, scale: 1 }
 
       const obj = c.getActiveObject()
-      obj.set({ lockMovementX: true, lockMovementY: true })
+      obj.set({ lockMovementX: true, lockMovementY: true }) // we are only focused on rotation and scaling
+      isUsingGesture.value = true
 
       return
     } else cancelPreviousAction(c)
@@ -80,11 +83,15 @@ export function enableMobileGestures(c: any) {
       y: 0
     }
 
-    // Without timeout the object will move to the last location of your fingers making it tp sometimes
-    setTimeout(() => {
-      const obj = c.getActiveObject()
-      obj.set({ lockMovementX: false, lockMovementY: false })
-    }, 100)
+    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
+      // Without timeout the object will move to the last location of your fingers making it tp sometimes
+      setTimeout(() => {
+        const obj = c.getActiveObject()
+        obj.set({ lockMovementX: false, lockMovementY: false })
+        isUsingGesture.value = false
+        saveState()
+      }, 100)
+    }
     c.renderAll()
   })
 }
@@ -96,7 +103,7 @@ function handleSelectMobilePinch(e: any, selectedObjects: SelectedObject[], c: f
   if (!obj) return
 
   const scaleDiff = e.scale - lastEvent.scale
-  const rotationThreshold = 0.5 // Adjust the threshold as needed
+  const rotationThreshold = 0.25 // Adjust the threshold as needed
 
   let rotationDiff = 0.1
   if (lastEvent.rotation !== null) {
@@ -141,9 +148,11 @@ function cancelPenAction(c: Canvas) {
 
 function cancelPreviousAction(c: Canvas) {
   const { selectedTool } = useDrawStore()
+  const { setSelectedObjects } = useSelect()
   setTimeout(() => {
     if (ERASERS.includes(selectedTool)) cancelEraserAction(c) // needs to happen before touch up
     c.discardActiveObject()
+    setSelectedObjects([])
     fabricateTouchUp(c)
     if (selectedTool == DrawTool.Pen) cancelPenAction(c) // needs to happen after touch up
     c.renderAll()

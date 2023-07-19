@@ -164,6 +164,7 @@ export const useDrawStore = defineStore('draw', () => {
       c!.backgroundColor = BACKGROUND
     })
     history.clearHistory()
+    c?.renderAll()
   }
 
   function setShapeCreationMode(mode: ShapeCreationMode) {

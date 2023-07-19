@@ -87,7 +87,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { useMenuStore } from '@/store/draw/menu.store'
 import ImageCropper from '@/components/draw/ImageCropper.vue'
 import { storeToRefs } from 'pinia'
-import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
+import DocsMenu from '@/components/draw/menu/docs/DocsMenu.vue'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 
 const imgInput = ref<HTMLInputElement>()

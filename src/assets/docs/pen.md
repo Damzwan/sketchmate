@@ -1,5 +1,3 @@
-# Pen tool ✏️
-
 The pen tool lets you bring your imagination to the canvas. Here's how to use it:
 
 1. Select the pen tool to start drawing.

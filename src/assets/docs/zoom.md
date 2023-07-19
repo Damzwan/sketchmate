@@ -1,5 +1,3 @@
-# The Art of Zooming 🔎
-
 ## Zooming In
 
 To get a closer view of your canvas, follow these steps:
@@ -17,6 +15,5 @@ When you're zoomed in and want to navigate around:
 Ready to step back and view the bigger picture? Here's how:
 
 - On mobile, pinch your fingers together.
-- On a PC, nudge the scroll wheel downwards.
-
-Or, simply hit the reset zoom button to return to the original view.
+- On a PC, nudge the scroll wheel downwards. 
+- Or, simply hit the reset zoom button to return to the original view.

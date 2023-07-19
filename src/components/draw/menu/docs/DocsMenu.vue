@@ -3,7 +3,6 @@
     trigger="docs"
     @willDismiss="setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])"
     @willPresent="setAppColors(settingsModalColorConfig)"
-    :can-dismiss="canDismiss"
   >
     <ion-nav :root="MainPage" ref="nav" :swipeGesture="true" />
   </ion-modal>
@@ -19,10 +18,10 @@ import { ref } from 'vue'
 
 const nav = ref<any>()
 
-async function canDismiss() {
-  const canGoBack = await nav.value.$el.canGoBack()
-  return !isNative() || !canGoBack
-}
+// async function canDismiss() {
+//   const canGoBack = await nav.value.$el.canGoBack()
+//   return !isNative() || !canGoBack
+// }
 </script>
 
 <style scoped></style>

@@ -43,7 +43,7 @@
     </ion-header>
 
     <ion-content>
-      <LinearLoader v-if="isLoading" class="h-[85%]" :dynamic-text="dynamicStickerLoading" />
+      <LinearLoader v-if="isLoading" class="h-[80%]" :dynamic-text="dynamicStickerLoading" />
       <div class="h-full w-full" v-else>
         <StickersPage
           v-if="stickersEmblemsSavedSelectedTab == 'sticker'"
@@ -156,7 +156,6 @@ function onSegmentChange(e: any) {
 
 async function selectSticker(sticker: string) {
   if (deleteMode.value) {
-    console.log(user.value?.stickers, sticker)
     user.value!.stickers = user.value!.stickers.filter(item => item != sticker)
     api.deleteSticker({
       user_id: user.value!._id,
@@ -202,6 +201,7 @@ async function selectedSaved(saved: Saved) {
 async function onUpload(e: any) {
   isLoading.value = true
   const file = e.target.files[0]
+  e.target.value = ''
   const img = (await compressImg(file, { size: 512 })) as File
   if (stickersEmblemsSavedSelectedTab.value === 'sticker') await createSticker(img)
   else await createEmblem(img)

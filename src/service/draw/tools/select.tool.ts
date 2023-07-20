@@ -8,7 +8,7 @@ import { useEventManager } from '@/service/draw/eventManager.service'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { useHistory } from '@/service/draw/history.service'
 
-interface Select extends ToolService {
+export interface Select extends ToolService {
   selectedObjectsRef: Ref<Array<SelectedObject>>
   lastModifiedObjects: Ref<Array<SelectedObject>>
   setSelectedObjects: (obj: SelectedObject[]) => void
@@ -16,6 +16,7 @@ interface Select extends ToolService {
   setMultiSelectMode: (mode: boolean) => void
   multiSelectMode: Ref<boolean>
   setMouseClickTarget: (obj: fabric.Object | undefined) => void
+  setModifiedObjects: (e: any, enabled: boolean) => void
 }
 
 export const useSelect = defineStore('select', (): Select => {
@@ -95,7 +96,6 @@ export const useSelect = defineStore('select', (): Select => {
     }
     selectedObjects = objects
     selectedObjectsRef.value = objects
-
     c?.renderAll()
   }
 
@@ -124,12 +124,12 @@ export const useSelect = defineStore('select', (): Select => {
     })
   }
 
-  function setModifiedObjects(e: any) {
+  function setModifiedObjects(e: any, selection?: boolean) {
     if (!(e && e.target)) return
     const obj = e.target as any
     const { selectedTool } = useDrawStore()
 
-    setObjectSelection(obj, selectedTool == DrawTool.Select)
+    setObjectSelection(obj, selection || selectedTool == DrawTool.Select)
     if (obj['_objects']) lastModifiedObjects.value = obj['_objects']
     else lastModifiedObjects.value = [obj]
   }
@@ -174,6 +174,7 @@ export const useSelect = defineStore('select', (): Select => {
     setMultiSelectMode,
     multiSelectMode,
     setMouseClickTarget,
-    destroy
+    destroy,
+    setModifiedObjects
   }
 })

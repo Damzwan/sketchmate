@@ -64,6 +64,7 @@ import {
   mdiBucketOutline,
   mdiChevronDown,
   mdiCursorDefaultClickOutline,
+  mdiFormatColorFill,
   mdiLasso,
   mdiPlus,
   mdiRedo,
@@ -91,7 +92,7 @@ const { undoStack, redoStack } = storeToRefs(useHistory())
 const { isLoggedIn } = storeToRefs(useAppStore())
 
 const penMenuIcon = computed(() =>
-  lastSelectedPenMenuTool.value == DrawTool.Pen ? penIconMapping[brushType.value] : mdiBucketOutline
+  lastSelectedPenMenuTool.value == DrawTool.Pen ? penIconMapping[brushType.value] : mdiFormatColorFill
 )
 </script>
 

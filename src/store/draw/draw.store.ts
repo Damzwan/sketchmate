@@ -8,7 +8,7 @@ import { useSocketService } from '@/service/api/socket.service'
 import { InboxItem } from '@/types/server.types'
 import { useRouter } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { canvasToBuffer, resetZoom } from '@/helper/draw/draw.helper'
+import { canvasToBuffer, resetZoom, restoreSelectedObjects } from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
 import { EventBus } from '@/main'
 import { useMenuStore } from '@/store/draw/menu.store'
@@ -24,6 +24,7 @@ import {
 import { useHistory } from '@/service/draw/history.service'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { loadAdditionalBrushes } from '@/utils/brushes'
+import { Select } from '@/service/draw/tools/select.tool'
 
 export const useDrawStore = defineStore('draw', () => {
   const { user } = storeToRefs(useAppStore())
@@ -63,7 +64,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   function selectTool(newTool: DrawTool, options: SelectToolOptions | undefined = undefined) {
     const oldTool = selectedTool.value
-    if (newTool != oldTool) {
+    if ((options && options?.init) || newTool != oldTool) {
       selectedTool.value = newTool
       if (ERASERS.includes(newTool)) lastSelectedEraserTool.value = newTool as Eraser
       if (PENMENUTOOLS.includes(newTool)) lastSelectedPenMenuTool.value = newTool as PenMenuTool
@@ -79,6 +80,7 @@ export const useDrawStore = defineStore('draw', () => {
     actionMapping[action](c!, options)
   }
 
+  // TODO clean this up
   async function initCanvas(canvas: HTMLCanvasElement) {
     let json: any = undefined
     if (c) {
@@ -95,6 +97,9 @@ export const useDrawStore = defineStore('draw', () => {
           resolve()
         })
       })
+    } else if (loadService.loading.value) {
+      showLoading('Loading canvas')
+      if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
     }
 
     loadAdditionalBrushes()
@@ -104,11 +109,12 @@ export const useDrawStore = defineStore('draw', () => {
     history.init(c)
     initTools(c, tools)
 
-    selectTool(selectedTool.value, { openMenu: false })
+    const selected = (tools[DrawTool.Select] as Select).getSelectedObjects() // important that this is before selectTool
+    selectTool(selectedTool.value, { init: true })
 
-    if (loadService.loading.value) {
-      showLoading('Loading canvas')
-      if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
+    if (json) {
+      restoreSelectedObjects(c!, selected)
+      json = undefined
     }
   }
 
@@ -149,7 +155,10 @@ export const useDrawStore = defineStore('draw', () => {
       .then(res => res.json())
       .then(res => {
         loadService.canvasToLoad.value = res
-        if (c) loadService.loadCanvas(c)
+        if (c) {
+          loadService.loading.value = false
+          loadService.loadCanvas(c)
+        }
       })
     await router.push(FRONTEND_ROUTES.draw)
   }

@@ -32,7 +32,8 @@ export type SelectedObject = fabric.Object | fabric.Group
 
 export interface SelectToolOptions {
   e?: Event
-  openMenu: boolean
+  openMenu?: boolean
+  init?: boolean
 }
 
 export interface ToolService {

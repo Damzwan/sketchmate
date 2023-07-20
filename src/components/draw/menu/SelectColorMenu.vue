@@ -21,7 +21,7 @@
         </ion-item>
 
         <ion-item color="tertiary" :button="true" id="background">
-          <ion-icon :icon="svg(mdiBucketOutline)" />
+          <ion-icon :icon="svg(mdiPanoramaHorizontalOutline)" />
           <p class="pl-2 text-base">Background Colour</p>
 
           <ion-popover trigger="background" side="right">
@@ -38,7 +38,7 @@
 
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
-import { mdiBorderColor, mdiBucketOutline, mdiFormatColorFill } from '@mdi/js'
+import { mdiBorderColor, mdiBucketOutline, mdiFormatColorFill, mdiPanoramaHorizontalOutline } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { ref } from 'vue'
 import { BLACK } from '@/config/draw/draw.config'

@@ -1,5 +1,11 @@
 import { Ref, ref } from 'vue'
-import { exitEditing, findObjectById, isText, setSelectionForObjects } from '@/helper/draw/draw.helper'
+import {
+  exitEditing,
+  findObjectById,
+  isText,
+  restoreSelectedObjects,
+  setSelectionForObjects
+} from '@/helper/draw/draw.helper'
 import { Canvas } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.tool'
@@ -102,14 +108,6 @@ export const useHistory = defineStore('history', () => {
     executeUndoRedo(redoStack, undoStack)
   }
 
-  function restoreSelectedObjects(selectedObjects: SelectedObject[]) {
-    const newSelectedObjects = selectedObjects
-      .map((obj: any) => findObjectById(c!, obj.id)!)
-      .filter((obj: any) => !!obj)
-    if (newSelectedObjects.length > 1) c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
-    else if (newSelectedObjects.length == 1) c?.setActiveObject(newSelectedObjects[0])
-  }
-
   function restoreCanvasFromHistory(previousState: any, selectedObjects: SelectedObject[]) {
     disableAllEvents()
     c!.loadFromJSON(previousState, () => {
@@ -123,7 +121,7 @@ export const useHistory = defineStore('history', () => {
       setSelectionForObjects(c!.getObjects(), selectedTool === DrawTool.Select)
 
       enableAllEvents()
-      restoreSelectedObjects(selectedObjects)
+      restoreSelectedObjects(c!, selectedObjects)
     })
   }
 

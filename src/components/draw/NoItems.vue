@@ -1,5 +1,5 @@
 <template>
-  <div class="flex w-full h-[85%] justify-center items-center flex-col">
+  <div class="flex w-full h-[82%] justify-center items-center flex-col">
     <ion-icon :icon="svg(mdiStickerEmoji)" class="w-[80px] h-[80px]" />
     <p class="text-lg text-center pt-2" v-html="title" />
     <p class="text-sm text-center">

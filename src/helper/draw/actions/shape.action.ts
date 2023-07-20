@@ -5,6 +5,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { fabric } from 'fabric'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { setSelectionForObjects } from '@/helper/draw/draw.helper'
+import { useSelect } from '@/service/draw/tools/select.tool'
 
 export function addShape(c: Canvas, options: any) {
   const shape = options['shape'] as Shape
@@ -25,6 +26,8 @@ export function addShape(c: Canvas, options: any) {
 function addShapeWithClick(c: Canvas, shape: Shape) {
   const { disableHistorySaving } = useHistory()
   const { isolatedSubscribe } = useEventManager()
+  const { setModifiedObjects } = useSelect()
+
   const points: IPoint[] = []
   let createdShape: any
   disableHistorySaving()
@@ -59,6 +62,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
         default:
           break
       }
+      setModifiedObjects({ target: createdShape }, false)
     }
   })
 }
@@ -66,6 +70,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 function addShapeWithDrag(c: Canvas, shape: Shape) {
   const { disableHistorySaving, enableHistorySaving, saveState } = useHistory()
   const { isolatedSubscribe } = useEventManager()
+  const { setModifiedObjects } = useSelect()
   let createdShape: any
   let startX: number
   let startY: number
@@ -97,6 +102,7 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
       saveState()
       enableHistorySaving()
       drawingMode = false
+      setModifiedObjects({ target: createdShape }, false)
       createdShape.setCoords() // important to update the bounding box of the shape
       c.renderAll()
     }

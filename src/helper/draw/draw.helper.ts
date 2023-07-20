@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
 import { compressImg, isMobile, isNative } from '@/helper/general.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
+
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
   checkCanvasBounds(c)
@@ -146,4 +147,11 @@ export function splitStringToWidth(text: string, fontSize: number, fontFace: str
   }
   result += line
   return result
+}
+
+export function restoreSelectedObjects(c: Canvas, selectedObjects: SelectedObject[]) {
+  const newSelectedObjects = selectedObjects.map((obj: any) => findObjectById(c!, obj.id)!).filter((obj: any) => !!obj)
+  if (newSelectedObjects.length > 1) c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
+  else if (newSelectedObjects.length == 1) c?.setActiveObject(newSelectedObjects[0])
+  c.requestRenderAll()
 }

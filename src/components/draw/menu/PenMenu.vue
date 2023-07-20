@@ -59,7 +59,7 @@
             @click="selectTool(DrawTool.Bucket)"
             :class="{ brush_selected: selectedTool === DrawTool.Bucket }"
           >
-            <ion-icon :icon="svg(mdiBucketOutline)" />
+            <ion-icon :icon="svg(mdiFormatColorFill)" />
           </div>
         </div>
       </div>
@@ -76,7 +76,14 @@ import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'
 import { BrushType, DrawTool } from '@/types/draw.types'
-import { mdiBucketOutline, mdiCircleOutline, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
+import {
+  mdiBucketOutline,
+  mdiCircleOutline,
+  mdiFormatColorFill,
+  mdiLiquidSpot,
+  mdiPencilOutline,
+  mdiSpray
+} from '@mdi/js'
 import { setAppColors, svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { brushMapping, usePen } from '@/service/draw/tools/pen.tool'

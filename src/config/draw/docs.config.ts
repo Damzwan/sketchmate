@@ -8,7 +8,6 @@ import {
   mdiFlipToFront,
   mdiFormatColorFill,
   mdiFormatText,
-  mdiGesture,
   mdiGesturePinch,
   mdiGestureTapButton,
   mdiImage,
@@ -43,7 +42,7 @@ export interface DocsItem {
   key: string
   icon: string
   text: string
-  page?: string
+  page?: any
   children?: DocsItem[]
 }
 

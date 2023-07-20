@@ -61,17 +61,15 @@ export function createSocketService(): SocketAPI {
     })
 
     socket.on(SOCKET_ENDPONTS.unmatch, async (success: boolean) => {
-      if (success) {
-        toast('Unmatched', { color: 'warning' })
-        Preferences.remove({ key: LocalStorage.mate })
-        notificationRouteLoading.value = NotificationType.unmatch
+      toast('Unmatched', { color: 'warning' })
+      Preferences.remove({ key: LocalStorage.mate })
+      notificationRouteLoading.value = NotificationType.unmatch
 
-        user.value!.mate = undefined
-        inbox.value = []
-        user.value!.inbox = []
+      user.value!.mate = undefined
+      inbox.value = []
+      user.value!.inbox = []
 
-        await router.push(FRONTEND_ROUTES.connect)
-      } else toast('Failed to unmatch', { color: 'danger' })
+      await router.push(FRONTEND_ROUTES.connect)
     })
 
     socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {

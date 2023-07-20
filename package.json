@@ -65,6 +65,7 @@
     "svg-path-properties": "^1.2.0",
     "swiper": "^9.3.2",
     "uuid": "^9.0.0",
+    "vite-plugin-markdown": "^2.1.0",
     "vue": "^3.3.4",
     "vue-markdown-render": "^2.0.1",
     "vue-router": "^4.2.2"

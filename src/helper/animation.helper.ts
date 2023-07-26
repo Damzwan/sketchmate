@@ -35,6 +35,7 @@ export const routerAnimation = (baseEl: HTMLElement, opts?: any) => {
     .duration(100)
     .easing('ease-in')
     .beforeAddWrite(() => {
+      console.log(getCurrentRoute())
       const exception = getCurrentRoute() === FRONTEND_ROUTES.gallery && router.currentRoute.value.query.item
       if (!exception) setTimeout(() => setAppColors(colorsPerRoute[getCurrentRoute()]), 50)
     })

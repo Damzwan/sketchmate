@@ -4,6 +4,19 @@
 
     <SettingsHeader title="Connect" v-if="!scanning" />
     <ion-content v-show="!scanning">
+      <div v-show="isQRReaderOpen" ref="videoContainer">
+        <ion-toolbar color="transparent">
+          <ion-buttons>
+            <ion-button @click="stopScanning">
+              <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="fill-white"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+        <div class="w-full h-3/4 flash justify-center items-center grid">
+          <video ref="video" />
+        </div>
+      </div>
+
       <div class="flex flex-wrap flex-col h-full content-between pb-4">
         <div class="flex-grow justify-center flex flex-wrap content-evenly">
           <div class="w-full sm:w-1/2 md:w-1/3 flex justify-center items-center">
@@ -24,17 +37,10 @@
           </div>
         </div>
 
-        <div v-show="isQRReaderOpen" ref="videoContainer">
-          <ion-toolbar color="transparent">
-            <ion-buttons>
-              <ion-button @click="stopScanning">
-                <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="fill-white"></ion-icon>
-              </ion-button>
-            </ion-buttons>
-          </ion-toolbar>
-          <div class="w-full h-3/4 flash justify-center items-center grid">
-            <video ref="video" />
-          </div>
+        <div class="flex w-full justify-around flex-col py-2">
+          <ion-button fill="clear" color="secondary" id="connect_help">Help with Connection</ion-button>
+          <ConnectHelpModal />
+          <ion-button fill="clear" color="secondary" @click="enterTrialMode">Try Out Solo</ion-button>
         </div>
 
         <div class="flex flex-col items-center justify-center w-full">
@@ -48,16 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  IonButton,
-  IonButtons,
-  IonContent,
-  IonIcon,
-  IonPage,
-  IonToolbar,
-  isPlatform,
-  onIonViewDidEnter
-} from '@ionic/vue'
+import { IonButton, IonButtons, IonContent, IonIcon, IonPage, IonToolbar, isPlatform, useIonRouter } from '@ionic/vue'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import ConnectMethod from '@/components/connect/ConnectMethod.vue'
 import cameraImg from '@/assets/illustrations/camera.svg'
@@ -70,12 +67,14 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSocketService } from '@/service/api/socket.service'
 import { useToast } from '@/service/toast.service'
-import { NotificationType } from '@/types/server.types'
 import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
 import QrScanner from 'qr-scanner'
 import { useFullscreen } from '@vueuse/core'
-import { svg } from '@/helper/general.helper'
+import { setAppColors, svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
+import ConnectHelpModal from '@/components/connect/ConnectHelpModal.vue'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { colorsPerRoute } from '@/config/colors.config'
 
 const appStore = useAppStore()
 const socketService = useSocketService()
@@ -93,6 +92,8 @@ const isQRReaderOpen = ref(false)
 const { setQueryParams } = useAppStore()
 const { queryParams, isLoggedIn } = storeToRefs(useAppStore())
 
+const r = useIonRouter()
+
 watch(isFullscreen, value => {
   if (!value) stopScanning()
 })
@@ -109,6 +110,11 @@ function createShareUrl() {
   if (isPlatform('capacitor')) baseUrl = import.meta.env.VITE_FRONTEND as string
   else baseUrl = `${window.location.origin}`
   return `${baseUrl}${route.path}?mate=${user.value!._id}`
+}
+
+function enterTrialMode() {
+  setTimeout(() => setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw]), 1000)
+  router.push(`${FRONTEND_ROUTES.draw}?trial=true`)
 }
 
 function checkQueryParams() {

@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
 import { compressImg, isMobile, isNative } from '@/helper/general.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
+import { mergeObjects } from '@/helper/draw/actions/operation.action'
 
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
@@ -85,9 +86,23 @@ export async function canvasToBuffer(canvasDataUrl: string) {
 
 export function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>) {
   objects.forEach(obj => {
-    if (obj.type == ObjectType.group) setForSelectedObjects((obj as Group).getObjects(), options)
-    else obj.set(options)
+    if (obj.type == ObjectType.group) {
+      if (options.backgroundColor) fillBackGroundForGroup(obj, options)
+      else setForSelectedObjects((obj as Group).getObjects(), options)
+    } else obj.set(options)
   })
+}
+
+export function fillBackGroundForGroup(obj: fabric.Group, options: Partial<Group>) {
+  const backgroundRect = new fabric.Rect({
+    top: obj.top,
+    left: obj.left,
+    width: obj.width,
+    height: obj.height,
+    fill: options.backgroundColor
+  })
+  const { getCanvas } = useDrawStore()
+  mergeObjects(getCanvas(), { objects: [backgroundRect, obj], notSave: true })
 }
 
 export function focusText(text: IText) {
@@ -154,4 +169,13 @@ export function restoreSelectedObjects(c: Canvas, selectedObjects: SelectedObjec
   if (newSelectedObjects.length > 1) c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
   else if (newSelectedObjects.length == 1) c?.setActiveObject(newSelectedObjects[0])
   c.requestRenderAll()
+}
+
+export function isObjectSelected(c: Canvas, obj: SelectedObject): boolean {
+  if (obj instanceof fabric.ActiveSelection) {
+    const foundObjects = obj.getObjects().map(mappedObj => c.getActiveObjects().find(obj2 => obj2.id == mappedObj.id))
+    return foundObjects.every(o => !!o)
+  }
+
+  return !!c.getActiveObjects().find(obj2 => obj2.id == obj.id)
 }

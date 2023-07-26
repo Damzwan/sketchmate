@@ -14,6 +14,11 @@
 
       <div>
         <canvas ref="myCanvasRef" />
+        <div class="w-full h-[50px] bg-primary" v-if="isTrial">
+          <ion-button class="w-full h-full p-0 m-0" @click="router.push(FRONTEND_ROUTES.connect)">
+            Go back to connect page</ion-button
+          >
+        </div>
       </div>
 
       <div class="flex justify-center items-center absolute bottom-4 w-full">
@@ -30,7 +35,7 @@
 import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter, popoverController } from '@ionic/vue'
 import PrimaryDrawToolBar from '@/components/draw/toolbar/PrimaryDrawToolBar.vue'
 
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
@@ -42,6 +47,9 @@ import { mdiMagnifyMinusOutline } from '@mdi/js'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
+import { useRoute } from 'vue-router'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import router from '@/router'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
@@ -52,4 +60,7 @@ const { selectedObjectsRef } = storeToRefs(useSelect())
 onIonViewDidEnter(async () => {
   await drawStore.initCanvas(myCanvasRef.value!)
 })
+
+const route = useRoute()
+const isTrial = computed(() => route.query.trial)
 </script>

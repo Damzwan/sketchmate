@@ -1,5 +1,5 @@
 <template>
-  <ion-toolbar color="primary" class="h-[46px]" mode="md">
+  <ion-toolbar color="primary" class="h-[43px]" mode="md">
     <ion-buttons slot="start">
       <ion-button
         :class="{ selected: PENMENUTOOLS.includes(selectedTool) }"
@@ -35,6 +35,11 @@
       <ion-button :class="{ selected: selectedTool == DrawTool.Lasso }" @click="selectTool(DrawTool.Lasso)">
         <ion-icon slot="icon-only" :icon="svg(mdiLasso)"></ion-icon>
       </ion-button>
+
+      <ion-button id="docs">
+        <ion-icon slot="icon-only" :icon="svg(mdiHelp)"></ion-icon>
+      </ion-button>
+      <DocsMenu />
     </ion-buttons>
 
     <ion-buttons slot="end" class="h-[40px]">
@@ -46,7 +51,7 @@
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
-      <ion-button @click="send" :disabled="!isLoggedIn">
+      <ion-button @click="send" :disabled="!isLoggedIn || !hasMate">
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>
     </ion-buttons>
@@ -65,6 +70,7 @@ import {
   mdiChevronDown,
   mdiCursorDefaultClickOutline,
   mdiFormatColorFill,
+  mdiHelp,
   mdiLasso,
   mdiPlus,
   mdiRedo,
@@ -80,6 +86,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { computed, ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import { useMenuStore } from '@/store/draw/menu.store'
+import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
 
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore
@@ -89,7 +96,8 @@ const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool } = storeT
 const { undo, redo } = useHistory()
 const { undoStack, redoStack } = storeToRefs(useHistory())
 
-const { isLoggedIn } = storeToRefs(useAppStore())
+const { isLoggedIn, user } = storeToRefs(useAppStore())
+const hasMate = computed(() => user.value && user.value.mate)
 
 const penMenuIcon = computed(() =>
   lastSelectedPenMenuTool.value == DrawTool.Pen ? penIconMapping[brushType.value] : mdiFormatColorFill
@@ -113,8 +121,8 @@ const penMenuIcon = computed(() =>
 }
 
 ion-button {
-  width: 46px !important;
-  height: 46px !important;
+  width: 43px !important;
+  height: 43px !important;
 }
 
 ion-button ion-icon {
@@ -123,14 +131,14 @@ ion-button ion-icon {
 }
 
 ion-button::part(native) {
-  @apply p-3;
+  @apply p-[0.675rem];
 }
 
 ion-buttons {
-  @apply h-[46px] top-0 relative;
+  @apply h-[43px] top-0 relative;
 }
 
 ion-toolbar {
-  --min-height: 46px;
+  --min-height: 43px;
 }
 </style>

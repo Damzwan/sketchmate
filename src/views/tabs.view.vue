@@ -71,7 +71,7 @@ const r = useIonRouter()
 const { notificationRouteLoading, user } = storeToRefs(useAppStore())
 
 const route = useRoute()
-const show = computed(() => route.path != `/${FRONTEND_ROUTES.connect}`)
+const show = computed(() => route.path != `/${FRONTEND_ROUTES.connect}` && !route.query.trial)
 </script>
 
 <style lang="scss" scoped>

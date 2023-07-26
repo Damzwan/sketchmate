@@ -1,11 +1,11 @@
 <template>
-  <div class="h-[46px] flex w-full bg-primary text-black">
+  <ion-toolbar color="primary" class="h-[43px]" mode="md">
     <ion-buttons slot="start" class="flex flex-grow">
       <ion-button @click="unselectObjects" mode="md" color="black">
         <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
       </ion-button>
 
-      <div class="w-[20px] h-[46px] text-center flex justify-center items-center" v-if="multiSelectMode">
+      <div class="w-[20px] h-[43px] text-center flex justify-center items-center" v-if="multiSelectMode">
         <p class="text-xl">
           {{ selectedObjectsRef.length }}
         </p>
@@ -51,7 +51,7 @@
         <SelectExtraOptions />
       </ion-button>
     </ion-buttons>
-  </div>
+  </ion-toolbar>
 </template>
 
 <script lang="ts" setup>
@@ -96,8 +96,8 @@ function unselectObjects() {
 
 <style scoped>
 ion-button {
-  width: 46px !important;
-  height: 46px !important;
+  width: 43px !important;
+  height: 43px !important;
 }
 
 ion-button ion-icon {
@@ -107,7 +107,7 @@ ion-button ion-icon {
 }
 
 ion-button::part(native) {
-  @apply p-3;
+  @apply p-[0.675rem];
 }
 
 ion-toolbar .toolbar-container {
@@ -115,7 +115,7 @@ ion-toolbar .toolbar-container {
 }
 
 ion-toolbar {
-  --min-height: 46px;
+  --min-height: 43px;
 }
 
 .font_text {

@@ -46,9 +46,10 @@ export async function copyObjects(c: Canvas, options: any) {
 }
 
 export async function mergeObjects(c: Canvas, options: any) {
-  const { customSaveAction } = useHistory()
+  const { customSaveAction, actionWithoutHistory } = useHistory()
   const { setSelectedObjects } = useSelect()
-  await customSaveAction(async () => {
+  const notSave = options['notSave']
+  const fn = async () => {
     const objects: fabric.Object[] = options['objects']
     c.discardActiveObject()
     const select = new fabric.ActiveSelection(objects, { canvas: c })
@@ -58,7 +59,10 @@ export async function mergeObjects(c: Canvas, options: any) {
     c.setActiveObject(group)
     setSelectedObjects([group])
     c.renderAll()
-  })
+  }
+
+  if (notSave) await actionWithoutHistory(fn)
+  else await customSaveAction(fn)
 }
 
 export function deleteObjects(c: Canvas, options: any) {

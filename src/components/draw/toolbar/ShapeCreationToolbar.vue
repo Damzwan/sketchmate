@@ -1,5 +1,5 @@
 <template>
-  <ion-toolbar color="primary" class="h-[46px]" mode="md">
+  <ion-toolbar color="primary" class="h-[43px]" mode="md">
     <ion-buttons slot="end">
       <ion-button @click="undo" :disabled="undoStack.length == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
@@ -61,8 +61,8 @@ function openShapesMenu(e: any) {
 
 <style scoped>
 ion-button {
-  width: 46px !important;
-  height: 46px !important;
+  width: 43px !important;
+  height: 43px !important;
 }
 
 ion-button ion-icon {
@@ -71,14 +71,14 @@ ion-button ion-icon {
 }
 
 ion-button::part(native) {
-  @apply p-3;
+  @apply p-[0.675rem];
 }
 
 ion-buttons {
-  @apply h-[46px] top-0 relative;
+  @apply h-[43px] top-0 relative;
 }
 
 ion-toolbar {
-  --min-height: 46px;
+  --min-height: 43px;
 }
 </style>

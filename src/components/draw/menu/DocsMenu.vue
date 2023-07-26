@@ -102,9 +102,9 @@ async function onDismiss() {
   await backListener.remove()
 }
 
-function onPresent() {
+async function onPresent() {
   setAppColors(settingsModalColorConfig)
-  backListener = App.addListener('backButton', () => {
+  backListener = await App.addListener('backButton', () => {
     setTimeout(() => (selectedSection.value = undefined), 20)
   })
 }

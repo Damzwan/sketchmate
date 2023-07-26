@@ -14,7 +14,7 @@
           <div class="container">
             <img :src="matchDrawing" class="w-full h-[230px]" alt="Girl drawing" />
             <h1 class="title pt-12">Connect to a mate</h1>
-            <p class="subtitle">By scanning their qr code or sharing your personal link</p>
+            <p class="subtitle">By scanning their QR code or sharing your personal link</p>
           </div>
         </swiper-slide>
         <swiper-slide>
@@ -39,6 +39,14 @@
             <p class="subtitle">Your sketches are stored in a simple, elegant gallery</p>
           </div>
         </swiper-slide>
+        <swiper-slide>
+          <div class="container">
+            <img :src="widget" class="h-[350px] aspect-auto mx-auto" alt="Gallery drawing" />
+            <h1 class="title pt-12">Stay Connected</h1>
+            <p class="subtitle"> View your friend's latest sketch straight from your widget. </p>
+          </div>
+        </swiper-slide>
+
         <swiper-slide>
           <ion-header class="ion-no-border">
             <ion-toolbar color="tertiary">
@@ -75,9 +83,23 @@
               />
             </div>
 
+            <div class="p-6 text-gray-500 text-sm mx-auto flex flex-col items-center justify-center" v-if="isNative()">
+              <p class="text-lg -ml-12">Enable notifications to:</p>
+              <div>
+                <ul class="list-disc list-inside">
+                  <li>Receive sketches from your mate</li>
+                  <li>Get daily reminders</li>
+                  <li>Use the SketchMate widget</li>
+                </ul>
+              </div>
+            </div>
+
             <!-- Toggle Button -->
-            <div class="w-full flex justify-center items-center pt-6" v-if="isPlatform('capacitor')">
-              <ion-icon :icon="svg(mdiBellRing)" class="w-[28px] h-[28px] pr-3 fill-gray-600" />
+            <div class="w-full flex justify-center items-center pt-6" v-if="isNative()">
+              <ion-icon
+                :icon="svg(localSubscription ? mdiBellRing : mdiBellOff)"
+                class="w-[28px] h-[28px] pr-3 fill-gray-600"
+              />
               <ion-toggle
                 @ionChange="handleNotificationChange"
                 mode="ios"
@@ -98,8 +120,8 @@
           color="secondary"
           class="w-6/12 h-10 max-w-md rounded-full z-10"
           mode="ios"
-          >Start Sketching</ion-button
-        >
+          >Start Sketching
+        </ion-button>
         <ion-button
           v-else
           @click="nextSlide"
@@ -107,8 +129,8 @@
           fill="outline"
           class="w-6/12 h-10 max-w-md rounded-full z-10"
           mode="ios"
-          >Continue</ion-button
-        >
+          >Continue
+        </ion-button>
       </div>
     </ion-content>
   </ion-page>
@@ -131,8 +153,8 @@ import {
 
 import { onMounted, ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { compressImg, svg } from '@/helper/general.helper'
-import { mdiBellRing } from '@mdi/js'
+import { compressImg, isNative, svg } from '@/helper/general.helper'
+import { mdiBellOff, mdiBellRing } from '@mdi/js'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { storeToRefs } from 'pinia'
 import { register } from 'swiper/element/bundle'
@@ -140,6 +162,7 @@ import { CreateUserParams } from '@/types/server.types'
 import girlDrawing from '@/assets/illustrations/girl_drawing.svg'
 import matchDrawing from '@/assets/illustrations/match.svg'
 import gallery from '@/assets/illustrations/gallery.svg'
+import widget from '@/assets/illustrations/widget.webp'
 import { LottieAnimation } from 'lottie-web-vue'
 import sketching from '@/assets/lottie/sketching.json'
 import { Swiper } from 'swiper/types'
@@ -246,7 +269,7 @@ swiper-container {
 }
 
 .container {
-  @apply absolute bottom-[35%] w-full max-w-full;
+  @apply absolute bottom-[30%] w-full max-w-full;
 }
 
 .badge {

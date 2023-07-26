@@ -1,5 +1,6 @@
 import {
   mdiCompassOutline,
+  mdiConnection,
   mdiContentCopy,
   mdiContentSave,
   mdiCursorDefaultClickOutline,
@@ -37,6 +38,7 @@ import shapes from '@/assets/docs/shapes.md'
 import stickers from '@/assets/docs/stickers.md'
 import text from '@/assets/docs/text.md'
 import zoom from '@/assets/docs/zoom.md'
+import connect from '@/assets/docs/connect.md'
 
 export interface DocsItem {
   key: string
@@ -57,6 +59,12 @@ export const docsAccordionContent: DocsItem[] = [
         icon: mdiCompassOutline,
         text: 'Overview',
         page: overview
+      },
+      {
+        key: 'connection',
+        icon: mdiConnection,
+        text: 'Connecting',
+        page: connect
       },
       {
         key: 'zoom',

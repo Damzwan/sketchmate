@@ -71,7 +71,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonIcon, IonItem, IonPopover, IonRange } from '@ionic/vue'
+import { IonContent, IonIcon, IonItem, IonPopover, IonRange, popoverController } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'

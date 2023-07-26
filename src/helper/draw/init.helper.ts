@@ -13,16 +13,17 @@ import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { useLasso } from '@/service/draw/tools/lasso.tool'
 import { useBucket } from '@/service/draw/tools/bucket.tool'
-import { isNative } from '@/helper/general.helper'
+import { isNative, svg } from '@/helper/general.helper'
 import { useAppStore } from '@/store/app.store'
-import { exitEditing, isText, splitStringToWidth } from '@/helper/draw/draw.helper'
+import { exitEditing, isObjectSelected, isText, splitStringToWidth } from '@/helper/draw/draw.helper'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
+import { mdiApps, mdiCheckBold, mdiCheckCircle } from '@mdi/js'
 
 export function initCanvasOptions(): ICanvasOptions {
   return {
     isDrawingMode: true,
     width: window.innerWidth,
-    height: window.innerHeight - 46 - 50,
+    height: window.innerHeight - 43 - 50,
     backgroundColor: BACKGROUND,
     fireMiddleClick: true,
     selection: false
@@ -36,12 +37,38 @@ export function initGestures(c: Canvas, hammer: Ref<HammerManager | undefined>) 
   hammer.value?.add(new Hammer.Rotate())
 }
 
+function renderIcon(icon: any, c: any) {
+  return function renderIcon(this: any, ctx: any, left: any, top: any, styleOverride: any, fabricObject: any) {
+    const { multiSelectMode } = useSelect()
+    const shouldRender = multiSelectMode && isObjectSelected(c, fabricObject)
+    if (!shouldRender) return
+    const size = 22
+    ctx.save()
+    ctx.translate(left, top)
+    ctx.rotate(fabric.util.degreesToRadians(fabricObject.angle))
+    ctx.drawImage(icon, -size / 2, -size / 2, size, size)
+    ctx.restore()
+  }
+}
+
 export function changeFabricBaseSettings(c: Canvas) {
   const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--ion-color-primary').trim()
   fabric.Object.prototype.transparentCorners = false
   fabric.Object.prototype.cornerColor = primaryColor
   fabric.Object.prototype.cornerStyle = 'circle'
-  fabric.Object.prototype.cornerSize = 20 // Increase the size of the handles
+  fabric.Object.prototype.cornerSize = 22 // Increase the size of the handles
+
+  const deleteImg = document.createElement('img')
+  deleteImg.src = svg(mdiCheckCircle, 'green')
+
+  fabric.Object.prototype.controls.test = new fabric.Control({
+    x: 0.5,
+    y: -0.5,
+    offsetY: -12,
+    offsetX: 12,
+    cursorStyle: 'pointer',
+    render: renderIcon(deleteImg, c)
+  })
 
   // Activated because of the stupid gestures mixin
   c._rotateObjectByAngle = undefined
@@ -58,6 +85,7 @@ export function changeFabricBaseSettings(c: Canvas) {
     if (selectedObjectsRef.length > 0) {
       setMultiSelectMode(true)
       Haptics.impact({ style: ImpactStyle.Medium })
+      c.renderAll()
     }
   })
 

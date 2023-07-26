@@ -22,6 +22,12 @@ const hasNoMateGuard: NavigationGuard = async (to, from, next) => {
   else next()
 }
 
+const drawGuard: NavigationGuard = async (to, from, next) => {
+  const mate = await Preferences.get({ key: LocalStorage.mate })
+  if (!mate.value && !to.query.trial) next(FRONTEND_ROUTES.connect)
+  else next()
+}
+
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
@@ -38,7 +44,7 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: FRONTEND_ROUTES.draw,
         component: () => import(/* webpackPrefetch: true */ '@/views/draw.view.vue'),
-        beforeEnter: hasMateGuard
+        beforeEnter: drawGuard
       },
       {
         path: FRONTEND_ROUTES.gallery,

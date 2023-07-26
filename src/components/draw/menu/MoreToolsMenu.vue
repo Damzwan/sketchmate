@@ -36,12 +36,6 @@
           <ion-icon :icon="svg(mdiContentSave)" />
           <p class="pl-2 text-base">Saved Drawings</p>
         </ion-item>
-
-        <ion-item color="tertiary" :button="true" :detail="true" id="docs" @click="popoverController.dismiss()">
-          <ion-icon :icon="svg(mdiHelp)" />
-          <p class="pl-2 text-base">Help</p>
-          <DocsMenu />
-        </ion-item>
       </ion-list>
       <ion-action-sheet
         class="my-custom-class"

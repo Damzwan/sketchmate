@@ -46,7 +46,7 @@
             ></ion-input>
           </div>
 
-          <div class="w-full flex justify-center items-center pt-6" v-if="isPlatform('capacitor')">
+          <div class="w-full flex justify-center items-center pt-6" v-if="isNative()">
             <ion-icon :icon="svg(mdiBellRing)" class="w-[28px] h-[28px] pr-3 fill-gray-600" />
             <ion-toggle
               :checked="Boolean(user.subscription)"
@@ -56,6 +56,8 @@
             />
           </div>
         </div>
+
+        <SettingLinks class="pb-2" />
       </div>
     </ion-content>
   </ion-modal>
@@ -78,7 +80,7 @@ import {
 } from '@ionic/vue'
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { compressImg, setAppColors, svg } from '@/helper/general.helper'
+import { compressImg, isNative, setAppColors, svg } from '@/helper/general.helper'
 import { useAPI } from '@/service/api/api.service'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
@@ -89,6 +91,8 @@ import { mdiBellRing } from '@mdi/js'
 import { colorsPerRoute, photoSwiperColorConfig, settingsModalColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
+import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
+import SettingLinks from '@/components/settings/SettingLinks.vue'
 
 const { user } = storeToRefs(useAppStore())
 const api = useAPI()

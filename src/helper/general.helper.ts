@@ -77,12 +77,14 @@ export function senderName(user: User | undefined, sender: string) {
   return user._id == sender ? user.name : user.mate!.name
 }
 
-export function svg(path: string) {
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24"><path d="${path}"/></svg>`
+export function svg(path: string, fill?: string) {
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="${
+    fill ? fill : ''
+  }"><path d="${path}"/></svg>`
 }
 
 export function getCurrentRoute(): FRONTEND_ROUTES {
-  return router.currentRoute.value.fullPath.split('/')[1] as FRONTEND_ROUTES
+  return router.currentRoute.value.path.split('/')[1] as FRONTEND_ROUTES
 }
 
 export function setAppColors(colorConfig: AppColorConfig) {

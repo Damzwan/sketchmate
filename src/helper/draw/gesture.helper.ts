@@ -23,7 +23,7 @@ export function enableMobileGestures(c: any) {
   const { disableHistorySaving, enableHistorySaving, saveState } = useHistory()
   const { selectedObjectsRef } = storeToRefs(useSelect())
 
-  const { selectedTool, isUsingGesture } = storeToRefs(useDrawStore())
+  const { selectedTool, isUsingGesture, shapeCreationMode } = storeToRefs(useDrawStore())
 
   let lastDelta = {
     x: 0,
@@ -32,6 +32,7 @@ export function enableMobileGestures(c: any) {
   let lastEvent = { rotation: null, scale: 1 } // Initialize
 
   hammer!.on('pinchstart', () => {
+    if (shapeCreationMode.value) return
     disableHistorySaving()
 
     // rotation or scale gesture
@@ -47,10 +48,12 @@ export function enableMobileGestures(c: any) {
   })
 
   hammer!.on('pinch', function (e) {
-    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
+    if (shapeCreationMode.value) return
+
+    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0 && isUsingGesture.value) {
       lastEvent = handleSelectMobilePinch(e, selectedObjectsRef.value, c, lastEvent)
     } else {
-      const panTolerance = 0.0001 // Change this as needed to refine the distinction
+      const panTolerance = 0.0000000001 // Change this as needed to refine the distinction
       const isPanning =
         Math.abs(e.deltaX - lastDelta.x) > panTolerance || Math.abs(e.deltaY - lastDelta.y) > panTolerance
 
@@ -66,7 +69,7 @@ export function enableMobileGestures(c: any) {
           y: e.deltaY
         }
       } else {
-        const scaleTolerance = 0 // Change this as needed to refine the distinction
+        const scaleTolerance = 0.1 // Change this as needed to refine the distinction
         if (Math.abs(1 - e.scale) > scaleTolerance) {
           handleZoom(e.scale, e.center.x, e.center.y, c)
           setCanZoomOut(c.getZoom() > 1)
@@ -83,7 +86,7 @@ export function enableMobileGestures(c: any) {
       y: 0
     }
 
-    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
+    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0 && isUsingGesture.value) {
       // Without timeout the object will move to the last location of your fingers making it tp sometimes
       setTimeout(() => {
         const obj = c.getActiveObject()
@@ -237,8 +240,8 @@ export const checkCanvasBounds = (c: Canvas) => {
   }
 }
 export const handleZoom = (scale: number, centerX: number, centerY: number, c: Canvas) => {
-  // Calculate the new zoom level based on the scale
-  let newZoom = (Math.log(scale) / Math.log(2)) * 0.15 + c.getZoom() // Dampening factor of 0.1
+  const dampeningFactor = 0.3
+  let newZoom = (Math.log(scale) / Math.log(2)) * dampeningFactor + c.getZoom() // Dampening factor of 0.1
 
   // Limit the zoom level to the maximum and minimum values
   newZoom = Math.min(newZoom, 10)

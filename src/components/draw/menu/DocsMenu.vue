@@ -69,7 +69,7 @@ import {
   IonToolbar,
   modalController
 } from '@ionic/vue'
-import { isNative, setAppColors, svg } from '@/helper/general.helper'
+import { getCurrentRoute, isNative, setAppColors, svg } from '@/helper/general.helper'
 import { colorsPerRoute, settingsModalColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { computed, ref } from 'vue'
@@ -101,7 +101,7 @@ function onBack() {
 }
 
 async function onDismiss() {
-  setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
+  setAppColors(colorsPerRoute[getCurrentRoute()])
   selectedSection.value = undefined
   await backListener.remove()
 }

@@ -37,10 +37,10 @@ export function initGestures(c: Canvas, hammer: Ref<HammerManager | undefined>) 
   hammer.value?.add(new Hammer.Rotate())
 }
 
-function renderIcon(icon: any, c: any) {
+function renderIcon(icon: any) {
   return function renderIcon(this: any, ctx: any, left: any, top: any, styleOverride: any, fabricObject: any) {
-    const { multiSelectMode } = useSelect()
-    const shouldRender = multiSelectMode && isObjectSelected(c, fabricObject)
+    const { multiSelectMode, getSelectedObjects } = useSelect()
+    const shouldRender = multiSelectMode && isObjectSelected(getSelectedObjects(), fabricObject)
     if (!shouldRender) return
     const size = 22
     ctx.save()
@@ -51,7 +51,7 @@ function renderIcon(icon: any, c: any) {
   }
 }
 
-export function changeFabricBaseSettings(c: Canvas) {
+export function changeFabricBaseSettings() {
   const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--ion-color-primary').trim()
   fabric.Object.prototype.transparentCorners = false
   fabric.Object.prototype.cornerColor = primaryColor
@@ -67,31 +67,7 @@ export function changeFabricBaseSettings(c: Canvas) {
     offsetY: -12,
     offsetX: 12,
     cursorStyle: 'pointer',
-    render: renderIcon(deleteImg, c)
-  })
-
-  // Activated because of the stupid gestures mixin
-  c._rotateObjectByAngle = undefined
-  c._scaleObjectBy = undefined
-
-  c.on('touch:longpress', e => {
-    const touchType = e.e.type
-    if (touchType != 'touchstart') return
-    const { selectedObjectsRef, setMultiSelectMode } = useSelect()
-
-    if (isText(selectedObjectsRef)) {
-      exitEditing(selectedObjectsRef[0] as IText)
-    }
-    if (selectedObjectsRef.length > 0) {
-      setMultiSelectMode(true)
-      Haptics.impact({ style: ImpactStyle.Medium })
-      c.renderAll()
-    }
-  })
-
-  c.on('mouse:down:before', function (options) {
-    const { setMouseClickTarget } = useSelect()
-    setMouseClickTarget(options.target)
+    render: renderIcon(deleteImg)
   })
 
   const originalInitialize = fabric.Object.prototype.initialize
@@ -139,7 +115,7 @@ export function changeFabricBaseSettings(c: Canvas) {
         }
       }
       isEditingText.value = true
-      c.renderAll()
+      this.canvas?.requestRenderAll()
     })
 
     this.on('editing:exited', () => {
@@ -147,7 +123,7 @@ export function changeFabricBaseSettings(c: Canvas) {
         this.set({ top: this.originalTop })
       }
       this.set({ hasControls: true })
-      c.renderAll()
+      this.canvas?.requestRenderAll()
     })
 
     this.on('changed', () => {
@@ -157,7 +133,7 @@ export function changeFabricBaseSettings(c: Canvas) {
         this.set('text', newString)
         this.setSelectionStart(newString.length)
         this.setSelectionEnd(newString.length)
-        c.renderAll()
+        this.canvas?.renderAll()
       }
     })
     return this
@@ -185,6 +161,32 @@ export function changeFabricBaseSettings(c: Canvas) {
       return toObject.apply(this, [propertiesToInclude])
     }
   })(fabric.IText.prototype.toObject)
+}
+
+export function configureCanvasSpecificSettings(c: Canvas) {
+  // Activated because of the stupid gestures mixin
+  c._rotateObjectByAngle = undefined
+  c._scaleObjectBy = undefined
+
+  c.on('touch:longpress', e => {
+    const touchType = e.e.type
+    if (touchType != 'touchstart') return
+    const { selectedObjectsRef, setMultiSelectMode } = useSelect()
+
+    if (isText(selectedObjectsRef)) {
+      exitEditing(selectedObjectsRef[0] as IText)
+    }
+    if (selectedObjectsRef.length > 0) {
+      setMultiSelectMode(true)
+      Haptics.impact({ style: ImpactStyle.Medium })
+      c.renderAll()
+    }
+  })
+
+  c.on('mouse:down:before', function (options) {
+    const { setMouseClickTarget } = useSelect()
+    setMouseClickTarget(options.target)
+  })
 }
 
 export function createTools(): { [key in DrawTool]: ToolService } {

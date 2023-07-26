@@ -43,6 +43,8 @@
               ref="nameRef"
               @ionFocus="onNameFocus"
               @ionBlur="onNameBlur"
+              @keyup.enter="onEnter"
+              enterkeyhint="done"
             ></ion-input>
           </div>
 
@@ -80,7 +82,7 @@ import {
 } from '@ionic/vue'
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { compressImg, isNative, setAppColors, svg } from '@/helper/general.helper'
+import { blurIonInput, compressImg, isNative, setAppColors, svg } from '@/helper/general.helper'
 import { useAPI } from '@/service/api/api.service'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
@@ -117,6 +119,10 @@ const emit = defineEmits(['update:open'])
 function close() {
   setAppColors(colorsPerRoute[router.currentRoute.value.fullPath.split('/')[1] as FRONTEND_ROUTES])
   emit('update:open', false)
+}
+
+function onEnter() {
+  blurIonInput(nameRef.value)
 }
 
 async function uploadImage(e: any) {

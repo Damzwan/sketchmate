@@ -46,3 +46,23 @@ export function downSampleEllipse(ellipse: fabric.Ellipse, numberOfPoints = 30):
 
   return points
 }
+
+export function createPointRepresentationForBoundingRect(obj: fabric.Object) {
+  const coords = obj.getCoords()
+  const points = []
+
+  // Generate grid points within bounding box
+  const resolution = 15 // Change this to increase or decrease point count
+  const minX = Math.min(coords[0].x, coords[1].x, coords[2].x, coords[3].x)
+  const maxX = Math.max(coords[0].x, coords[1].x, coords[2].x, coords[3].x)
+  const minY = Math.min(coords[0].y, coords[1].y, coords[2].y, coords[3].y)
+  const maxY = Math.max(coords[0].y, coords[1].y, coords[2].y, coords[3].y)
+
+  for (let x = minX; x <= maxX; x += resolution) {
+    for (let y = minY; y <= maxY; y += resolution) {
+      points.push([x, y])
+    }
+  }
+
+  return points
+}

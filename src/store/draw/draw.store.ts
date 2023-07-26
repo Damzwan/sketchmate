@@ -15,6 +15,7 @@ import { useMenuStore } from '@/store/draw/menu.store'
 import { useLoadService } from '@/service/draw/load.service'
 import {
   changeFabricBaseSettings,
+  configureCanvasSpecificSettings,
   createTools,
   destroyTools,
   initCanvasOptions,
@@ -61,6 +62,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   // We make use of events so we do not load the big draw.store in other views
   EventBus.on('reset-canvas', reset)
+  changeFabricBaseSettings()
 
   function selectTool(newTool: DrawTool, options: SelectToolOptions | undefined = undefined) {
     const oldTool = selectedTool.value
@@ -86,24 +88,25 @@ export const useDrawStore = defineStore('draw', () => {
     if (c) {
       json = c.toJSON()
       destroyToolsAndServices()
+      isEditingText.value = false
       c.dispose()
     }
 
     c = new fabric.Canvas(canvas, initCanvasOptions())
 
-    if (json) {
+    if (loadService.loading.value) {
+      showLoading('Loading canvas')
+      if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
+    } else if (json) {
       await new Promise<void>(resolve => {
         c!.loadFromJSON(json, () => {
           resolve()
         })
       })
-    } else if (loadService.loading.value) {
-      showLoading('Loading canvas')
-      if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
     }
 
+    configureCanvasSpecificSettings(c)
     loadAdditionalBrushes()
-    changeFabricBaseSettings(c)
     initGestures(c, hammer)
     eventManager.init(c)
     history.init(c)
@@ -112,10 +115,8 @@ export const useDrawStore = defineStore('draw', () => {
     const selected = (tools[DrawTool.Select] as Select).getSelectedObjects() // important that this is before selectTool
     selectTool(selectedTool.value, { init: true })
 
-    if (json) {
-      restoreSelectedObjects(c!, selected)
-      json = undefined
-    }
+    if (json) restoreSelectedObjects(c!, selected)
+    json = undefined
   }
 
   function destroyToolsAndServices() {

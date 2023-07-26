@@ -8,8 +8,8 @@ import { SelectedObject } from '@/types/draw.types'
 
 export async function copyObjects(c: Canvas, options: any) {
   const { customSaveAction } = useHistory()
-  const offsetX = 50 // define the offset here
-  const offsetY = 50
+  const offsetX = 10 // define the offset here
+  const offsetY = 10
 
   await customSaveAction(async () => {
     const objectsToCopy: fabric.Object[] = options['objects']

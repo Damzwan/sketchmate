@@ -80,6 +80,9 @@
                 fill="outline"
                 placeholder="e.g. BiggusDickus"
                 v-model="name"
+                enterkeyhint="done"
+                ref="nameRef"
+                @keyup.enter="() => blurIonInput(nameRef)"
               />
             </div>
 
@@ -153,7 +156,7 @@ import {
 
 import { onMounted, ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { compressImg, isNative, svg } from '@/helper/general.helper'
+import { blurIonInput, compressImg, isNative, svg } from '@/helper/general.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { storeToRefs } from 'pinia'
@@ -177,6 +180,7 @@ const name = ref()
 
 const img = ref()
 const imgInput = ref<HTMLInputElement>()
+const nameRef = ref<any>()
 
 const anim = ref<any>()
 

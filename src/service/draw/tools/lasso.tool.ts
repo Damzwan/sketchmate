@@ -7,7 +7,11 @@ import { svgPathProperties } from 'svg-path-properties'
 import inside from 'point-in-polygon'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { useSelect } from '@/service/draw/tools/select.tool'
-import { downSampleCircle, downSampleEllipse } from '@/helper/draw/lasso.helper'
+import {
+  createPointRepresentationForBoundingRect,
+  downSampleCircle,
+  downSampleEllipse
+} from '@/helper/draw/lasso.helper'
 import { initSelectWithObjects } from '@/helper/draw/draw.helper'
 
 export const useLasso = defineStore('lasso', (): ToolService => {
@@ -48,6 +52,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     const pointer = c!.getPointer(o.e) as Point
     const pathData = `M ${pointer.x} ${pointer.y} `
     lasso = createSelectionLine(pathData)
+    lasso.objectCaching = false
     c!.add(lasso)
   }
 
@@ -57,14 +62,8 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     lasso.path.push(['L', pointer.x, pointer.y])
-
-    c?.remove(lasso)
-
-    lasso = createSelectionLine(lasso.path!)
-    c?.add(lasso)
-
-    // lasso.set({ path: pathData, dirty: true })
-    c!.renderAll()
+    lasso.dirty = true // This tells Fabric.js that the object has changed and needs re-rendering
+    c?.requestRenderAll()
   }
 
   function onMouseUp(o: fabric.IEvent) {
@@ -90,9 +89,16 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     initSelectWithObjects(c!, objectsInsideLasso)
   }
 
-  function isInsideLasso(pointRepresentation: number[][], downSampledLasso: number[][]) {
-    return pointRepresentation.every(point => inside(point, downSampledLasso))
+  function isInsideLasso(pointRepresentation: number[][], downSampledLasso: number[][]): boolean {
+    const insidePoints = pointRepresentation.filter(point => inside(point, downSampledLasso))
+
+    // Calculate the percentage of points inside the lasso
+    const percentageInside = (insidePoints.length / pointRepresentation.length) * 100
+
+    // Consider the object as inside the lasso if 85% or more of its points are inside
+    return percentageInside >= 85
   }
+
   function getPointRepresentation(obj: fabric.Object) {
     if (obj.type === ObjectType.path) return downSamplePath(obj as Path)
     else if (obj.type === Shape.Circle) {
@@ -100,7 +106,8 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     } else if (obj.type === Shape.Ellipse) {
       return downSampleEllipse(obj as Ellipse)
     } else {
-      return obj.getCoords().map(p => [p.x, p.y])
+      console.log(createPointRepresentationForBoundingRect(obj))
+      return createPointRepresentationForBoundingRect(obj)
     }
   }
 

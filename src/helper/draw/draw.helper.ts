@@ -165,17 +165,21 @@ export function splitStringToWidth(text: string, fontSize: number, fontFace: str
 }
 
 export function restoreSelectedObjects(c: Canvas, selectedObjects: SelectedObject[]) {
+  const { multiSelectMode, setMultiSelectMode } = useSelect()
+  const multi = multiSelectMode
+  setMultiSelectMode(false)
   const newSelectedObjects = selectedObjects.map((obj: any) => findObjectById(c!, obj.id)!).filter((obj: any) => !!obj)
   if (newSelectedObjects.length > 1) c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
   else if (newSelectedObjects.length == 1) c?.setActiveObject(newSelectedObjects[0])
+  setMultiSelectMode(multi)
   c.requestRenderAll()
 }
 
-export function isObjectSelected(c: Canvas, obj: SelectedObject): boolean {
+export function isObjectSelected(selectedObjects: SelectedObject[], obj: SelectedObject): boolean {
   if (obj instanceof fabric.ActiveSelection) {
-    const foundObjects = obj.getObjects().map(mappedObj => c.getActiveObjects().find(obj2 => obj2.id == mappedObj.id))
+    const foundObjects = obj.getObjects().map(mappedObj => selectedObjects.find(obj2 => obj2.id == mappedObj.id))
     return foundObjects.every(o => !!o)
   }
 
-  return !!c.getActiveObjects().find(obj2 => obj2.id == obj.id)
+  return !!selectedObjects.find(obj2 => obj2.id == obj.id)
 }

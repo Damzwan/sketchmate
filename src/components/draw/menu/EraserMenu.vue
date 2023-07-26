@@ -4,7 +4,7 @@
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" @click="selectEraser" :button="true">
           <ion-icon :icon="svg(eraserIconMapping[DrawTool.MobileEraser])" />
-          <p class="pl-2 text-sm">Mobile Eraser</p>
+          <p class="pl-2 text-sm">Eraser</p>
           <div class="flex justify-center items-center m-0" slot="end">
             <div
               class="eraser_option eraser_small"

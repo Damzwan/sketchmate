@@ -141,3 +141,7 @@ export function isMobile() {
 export function isNative() {
   return isPlatform('capacitor')
 }
+
+export function blurIonInput(ionInput: any) {
+  ionInput.$el.querySelector('input').blur()
+}

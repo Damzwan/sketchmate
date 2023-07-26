@@ -38,7 +38,7 @@ ion-img {
 }
 
 .custom-card {
-  @apply w-64 flex flex-col items-center p-2 shadow-sm
+  @apply w-64 flex flex-col items-center p-1 m-0 shadow-sm
     bg-gradient-to-r from-primary-light to-primary
     border border-secondary-light
     rounded-lg cursor-pointer

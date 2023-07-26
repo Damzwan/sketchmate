@@ -84,16 +84,16 @@ export async function canvasToBuffer(canvasDataUrl: string) {
   return await (await compressImg(canvasDataUrl, { returnType: 'blob' })).arrayBuffer()
 }
 
-export function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>) {
-  objects.forEach(obj => {
+export async function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>) {
+  for (const obj of objects) {
     if (obj.type == ObjectType.group) {
-      if (options.backgroundColor) fillBackGroundForGroup(obj, options)
+      if (options.backgroundColor) await fillBackGroundForGroup(obj, options)
       else setForSelectedObjects((obj as Group).getObjects(), options)
     } else obj.set(options)
-  })
+  }
 }
 
-export function fillBackGroundForGroup(obj: fabric.Group, options: Partial<Group>) {
+export async function fillBackGroundForGroup(obj: SelectedObject, options: Partial<Group>) {
   const backgroundRect = new fabric.Rect({
     top: obj.top,
     left: obj.left,
@@ -102,7 +102,7 @@ export function fillBackGroundForGroup(obj: fabric.Group, options: Partial<Group
     fill: options.backgroundColor
   })
   const { getCanvas } = useDrawStore()
-  mergeObjects(getCanvas(), { objects: [backgroundRect, obj], notSave: true })
+  await mergeObjects(getCanvas(), { objects: [backgroundRect, obj], notSave: true })
 }
 
 export function focusText(text: IText) {

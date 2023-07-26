@@ -1,7 +1,7 @@
 <template>
   <div class="w-full flex flex-col bottom-0">
-    <ion-button v-if="docs" fill="clear" color="secondary" id="docs">User Manual</ion-button>
-    <DocsMenu />
+    <ion-button v-if="docs" fill="clear" color="secondary" :id="id">User Manual</ion-button>
+    <DocsMenu :trigger="id" />
     <ion-button v-if="form" fill="clear" color="secondary" href="https://forms.gle/x6odhcdEJHx7Zm8N8" target="_blank"
       >Feedback Form
     </ion-button>
@@ -15,6 +15,8 @@
 </template>
 
 <script lang="ts" setup>
+import { v4 as uuidv4 } from 'uuid'
+
 export interface Props {
   docs?: boolean
   form?: boolean
@@ -28,6 +30,8 @@ withDefaults(defineProps<Props>(), {
   blog: true,
   contact: true
 })
+
+const id = uuidv4()
 
 import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
 import { IonButton } from '@ionic/vue'

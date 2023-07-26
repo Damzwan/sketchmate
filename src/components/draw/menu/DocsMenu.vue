@@ -1,5 +1,5 @@
 <template>
-  <ion-modal trigger="docs" @willDismiss="onDismiss" @willPresent="onPresent" :canDismiss="canDismiss">
+  <ion-modal :trigger="trigger" @willDismiss="onDismiss" @willPresent="onPresent" :canDismiss="canDismiss">
     <ion-header class="shadow-none">
       <ion-toolbar color="tertiary">
         <ion-title v-if="selectedSection">
@@ -84,6 +84,10 @@ const selectedSection = ref<DocsItem>()
 const sectionPageContent = ref()
 
 let backListener: any = undefined
+
+defineProps<{
+  trigger: string
+}>()
 
 async function loadPageForSection(item: DocsItem) {
   if (!item.page) return

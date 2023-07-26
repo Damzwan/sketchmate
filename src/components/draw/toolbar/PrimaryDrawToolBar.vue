@@ -39,7 +39,7 @@
       <ion-button id="docs">
         <ion-icon slot="icon-only" :icon="svg(mdiHelp)"></ion-icon>
       </ion-button>
-      <DocsMenu />
+      <DocsMenu trigger="docs" />
     </ion-buttons>
 
     <ion-buttons slot="end" class="h-[40px]">

@@ -21,6 +21,11 @@
           @update:background-color="color => selectAction(DrawAction.ChangeBackgroundColor, { color })"
         />
       </ion-button>
+
+      <ion-button @click="selectAction(DrawAction.EditPolygon)" v-if="isPolygon">
+        <ion-icon slot="icon-only" :icon="svg(selectedObjectsRef[0]['edit'] ? mdiCancel : mdiVectorPolygon)"></ion-icon>
+      </ion-button>
+
       <div v-if="isText" class="flex items-center flex-grow">
         <ion-button id="text_options">
           <ion-icon slot="icon-only" :icon="svg(mdiFormatText)"></ion-icon>
@@ -57,13 +62,16 @@
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
 import {
+  mdiAbjadHebrew,
+  mdiCancel,
   mdiClose,
   mdiDotsVertical,
   mdiFormatText,
   mdiMenuSwapOutline,
   mdiPaletteOutline,
   mdiRedo,
-  mdiUndo
+  mdiUndo,
+  mdiVectorPolygon
 } from '@mdi/js'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
@@ -74,7 +82,7 @@ import SelectExtraOptions from '@/components/draw/menu/SelectExtraOptionsMenu.vu
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { useHistory } from '@/service/draw/history.service'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawAction } from '@/types/draw.types'
+import { DrawAction, ObjectType } from '@/types/draw.types'
 import TextMenu from '@/components/draw/menu/TextMenu.vue'
 import { exitEditing } from '@/helper/draw/draw.helper'
 
@@ -86,7 +94,12 @@ const { setMouseClickTarget } = useSelect()
 const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect())
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
-const isText = computed(() => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == 'i-text')
+const isText = computed(
+  () => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == ObjectType.text
+)
+const isPolygon = computed(
+  () => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == ObjectType.polygon
+)
 
 function unselectObjects() {
   setMouseClickTarget(undefined) // small hack

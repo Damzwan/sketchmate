@@ -30,6 +30,7 @@ import {
 } from '@/helper/draw/actions/text.action'
 import { setBackgroundColor, setFillColor, setStrokeColor } from '@/helper/draw/actions/color.action'
 import { DynamicTextPart } from '@/types/loader.types'
+import { editPolygon } from '@/helper/draw/actions/polyEdit.action'
 
 export const COLORSWATCHES = [
   // Grayscale, Reds, Oranges
@@ -121,7 +122,8 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) =>
   [DrawAction.ChangeTextAlign]: changeTextAlign,
   [DrawAction.CurveText]: curveText,
   [DrawAction.BringToFront]: bringToFront,
-  [DrawAction.BringToBack]: bringToBack
+  [DrawAction.BringToBack]: bringToBack,
+  [DrawAction.EditPolygon]: editPolygon
 }
 
 export const dynamicStickerLoading: DynamicTextPart[] = [

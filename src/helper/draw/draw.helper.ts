@@ -1,4 +1,4 @@
-import { Canvas, Group, IText } from 'fabric/fabric-impl'
+import { Canvas, Group, IPoint, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawTool, ObjectType, SelectedObject } from '@/types/draw.types'
@@ -71,6 +71,10 @@ export async function enlivenObjects(objects: fabric.Object[]) {
 
 export function isText(objects: fabric.Object[]) {
   return objects.length == 1 && objects[0].type == ObjectType.text
+}
+
+export function isPolygon(objects: fabric.Object[]) {
+  return objects.length == 1 && objects[0].type == ObjectType.polygon
 }
 
 export function exitEditing(text: any) {
@@ -182,4 +186,14 @@ export function isObjectSelected(selectedObjects: SelectedObject[], obj: Selecte
   }
 
   return !!selectedObjects.find(obj2 => obj2.id == obj.id)
+}
+
+export function findNearestPoint(clickPoint: IPoint, points: IPoint[], clickTolerance = 10): IPoint | undefined {
+  for (const point of points) {
+    const dx = clickPoint.x - point.x
+    const dy = clickPoint.y - point.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    if (distance <= clickTolerance) return point
+  }
+  return undefined
 }

@@ -1,5 +1,6 @@
 <template>
   <ion-modal
+    mode="ios"
     :is-open="open"
     @will-dismiss="close"
     :presenting-element="presentingElement"
@@ -48,8 +49,22 @@
             ></ion-input>
           </div>
 
+          <div class="p-6 text-gray-500 text-sm mx-auto flex flex-col items-center justify-center" v-if="isNative()">
+            <p class="text-lg -ml-12">Enable notifications to:</p>
+            <div>
+              <ul class="list-disc list-inside">
+                <li>Receive sketches from your mate</li>
+                <li>Get daily reminders</li>
+                <li>Use the SketchMate widget</li>
+              </ul>
+            </div>
+          </div>
+
           <div class="w-full flex justify-center items-center pt-6" v-if="isNative()">
-            <ion-icon :icon="svg(mdiBellRing)" class="w-[28px] h-[28px] pr-3 fill-gray-600" />
+            <ion-icon
+              :icon="svg(user.subscription ? mdiBellRing : mdiBellOff)"
+              class="w-[28px] h-[28px] pr-3 fill-gray-600"
+            />
             <ion-toggle
               :checked="Boolean(user.subscription)"
               @ionChange="handleNotificationChange"
@@ -89,7 +104,7 @@ import { useToast } from '@/service/toast.service'
 import { addOutline, arrowBack } from 'ionicons/icons'
 import { onBeforeRouteLeave } from 'vue-router'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
-import { mdiBellRing } from '@mdi/js'
+import { mdiBellOff, mdiBellRing } from '@mdi/js'
 import { colorsPerRoute, photoSwiperColorConfig, settingsModalColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'

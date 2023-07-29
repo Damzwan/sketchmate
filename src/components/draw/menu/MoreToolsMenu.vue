@@ -182,9 +182,10 @@ async function onCameraClick() {
   imageActionSheetOpen.value = true
 }
 
-async function onImgUpload(e: Event) {
+async function onImgUpload(e: any) {
   closePopover() // TODO weird location but it does not work otherwise haha
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const file = e.target.files?.[0]
+  e.target.value = ''
   imageActionSheetOpen.value = true
   if (file) {
     const compressedFile = await compressImg(file, { size: 1280 }) // TODO maybe too big

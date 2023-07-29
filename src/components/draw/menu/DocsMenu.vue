@@ -1,5 +1,5 @@
 <template>
-  <ion-modal :trigger="trigger" @willDismiss="onDismiss" @willPresent="onPresent" :canDismiss="canDismiss">
+  <ion-modal :trigger="trigger" @willDismiss="onDismiss" @willPresent="onPresent" :canDismiss="canDismiss" mode="ios">
     <ion-header class="shadow-none">
       <ion-toolbar color="tertiary">
         <ion-title v-if="selectedSection">
@@ -71,7 +71,6 @@ import {
 } from '@ionic/vue'
 import { getCurrentRoute, isNative, setAppColors, svg } from '@/helper/general.helper'
 import { colorsPerRoute, settingsModalColorConfig } from '@/config/colors.config'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 import { computed, ref } from 'vue'
 import { mdiArrowLeft, mdiClose } from '@mdi/js'
 import { docsAccordionContent, DocsItem } from '@/config/draw/docs.config'

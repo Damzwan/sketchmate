@@ -82,7 +82,8 @@
         <ion-button fill="clear" color="white" @click="shareImg(currInboxItem.image)" class="flex-grow" size="large">
           <ion-icon :icon="svg(mdiShareVariantOutline)" />
         </ion-button>
-        <ion-button fill="clear" color="white" @click="removeFromInboxItem" class="flex-grow" size="large">
+        <ion-button fill="clear" color="white" id="delete-alert" class="flex-grow" size="large">
+          <ConfirmationAlert header="Are you sure?" trigger="delete-alert" @confirm="removeFromInboxItem" />
           <ion-icon :icon="svg(mdiDeleteOutline)" />
         </ion-button>
       </div>
@@ -113,6 +114,7 @@ import CommentDrawer from '@/components/gallery/CommentDrawer.vue'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
+import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 
 const props = defineProps({
   open: {

@@ -178,7 +178,7 @@ export const useDrawStore = defineStore('draw', () => {
     c?.renderAll()
   }
 
-  function setShapeCreationMode(mode: ShapeCreationMode) {
+  function setShapeCreationMode(mode: ShapeCreationMode | undefined) {
     shapeCreationMode.value = mode
   }
 

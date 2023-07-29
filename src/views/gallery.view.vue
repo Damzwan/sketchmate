@@ -1,6 +1,13 @@
 <template>
   <ion-page id="page">
-    <SettingsHeader title="Gallery" :presenting-element="page" />
+    <SettingsHeader
+      title="Gallery"
+      :presenting-element="page"
+      :selected-mode="multiSelectMode"
+      :selected-items="selectedItems"
+      @cancel="cancelMultiSelect"
+      @delete="deleteInboxItems"
+    />
     <CircularLoader v-if="isLoading || !isLoggedIn" />
     <ion-content v-else>
       <ion-refresher slot="fixed" @ionRefresh="refresh">
@@ -32,9 +39,14 @@
                 v-for="(inboxItem, i) in inboxItemsFromDateGroups(date).reverse()"
                 :key="i"
               >
-                <div @click="openPhotoSwiper(inboxItem)" class="relative">
-                  <Thumbnail :inbox-item="inboxItem" :user="user!" />
-                </div>
+                <Thumbnail
+                  :inbox-item="inboxItem"
+                  :user="user!"
+                  :multi-selected-items="selectedItems"
+                  :multi-select-mode="multiSelectMode"
+                  @long-press="() => onItemLongPress(inboxItem)"
+                  @click="() => onThumbnailClick(inboxItem)"
+                />
               </ion-col>
             </ion-row>
           </div>
@@ -45,7 +57,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonCol, IonContent, IonPage, IonRefresher, IonRefresherContent, IonRow } from '@ionic/vue'
+import { IonCol, IonContent, IonPage, IonRefresher, IonRefresherContent, IonRow, onIonViewWillLeave } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
@@ -60,7 +72,9 @@ import { useRoute } from 'vue-router'
 import NoMessages from '@/components/gallery/NoMessages.vue'
 import Thumbnail from '@/components/gallery/Thumbnail.vue'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
+import { useAPI } from '@/service/api/api.service'
 
+const api = useAPI()
 const { getInbox, cleanUnreadMessages, refresh, setQueryParams } = useAppStore()
 const { user, inbox, isLoading, isLoggedIn, queryParams } = storeToRefs(useAppStore())
 const { toast } = useToast()
@@ -80,6 +94,43 @@ const noMessages = computed(() => inboxItems.value.length === 0)
 
 const selectedInboxItemIndex = ref<number>(0)
 const route = useRoute()
+
+const multiSelectMode = ref(false)
+const selectedItems = ref<string[]>([])
+
+onIonViewWillLeave(cancelMultiSelect)
+
+function onItemLongPress(item: InboxItem) {
+  multiSelectMode.value = true
+  selectedItems.value.push(item._id)
+}
+
+function onThumbnailClick(item: InboxItem) {
+  if (!multiSelectMode.value) openPhotoSwiper(item)
+  else {
+    if (!selectedItems.value.includes(item._id)) selectedItems.value.push(item._id)
+    else selectedItems.value = selectedItems.value.filter(id => item._id != id)
+  }
+}
+
+function cancelMultiSelect() {
+  multiSelectMode.value = false
+  selectedItems.value = []
+}
+
+function deleteInboxItems() {
+  selectedItems.value.forEach(val => {
+    // TODO can be done with 1 request
+    api.removeFromInbox({
+      user_id: user.value!._id,
+      inbox_id: val
+    })
+  })
+
+  inbox.value = inbox.value?.filter(item => !selectedItems.value.includes(item._id))
+  cancelMultiSelect()
+  toast('Deleted items')
+}
 
 // TODO this is ugly
 watch(

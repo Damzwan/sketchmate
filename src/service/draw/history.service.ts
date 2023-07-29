@@ -14,6 +14,7 @@ import { DrawEvent, DrawTool, FabricEvent, ObjectType, SelectedObject } from '@/
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { applyCurve } from '@/helper/draw/actions/text.action'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { EventBus } from '@/main'
 
 export const useHistory = defineStore('history', () => {
   let c: Canvas | undefined = undefined
@@ -101,10 +102,12 @@ export const useHistory = defineStore('history', () => {
   }
 
   function undo() {
+    EventBus.emit('undo')
     executeUndoRedo(undoStack, redoStack)
   }
 
   function redo() {
+    EventBus.emit('redo')
     executeUndoRedo(redoStack, undoStack)
   }
 
@@ -112,6 +115,7 @@ export const useHistory = defineStore('history', () => {
     disableAllEvents()
     c!.loadFromJSON(previousState, () => {
       c?.renderAll()
+      c?.getObjects().forEach(obj => (obj.visual ? c?.remove(obj) : undefined)) // remove visual indicators
       c?.getObjects()
         .filter(obj => obj.type === ObjectType.text)
         .forEach((text: any) => (text.isCurved ? applyCurve(text, c!) : undefined))

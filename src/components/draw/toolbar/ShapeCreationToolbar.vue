@@ -30,10 +30,10 @@ import { DrawEvent, Menu, ShapeCreationMode } from '@/types/draw.types'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useHistory } from '@/service/draw/history.service'
 import { useEventManager } from '@/service/draw/eventManager.service'
+import { EventBus } from '@/main'
 
 const { selectTool } = useDrawStore()
-const { unsubscribe } = useEventManager()
-const { saveState, enableHistorySaving } = useHistory()
+const { unsubscribe, enableAllEvents } = useEventManager()
 const { openMenu } = useMenuStore()
 const { shapeCreationMode } = storeToRefs(useDrawStore())
 
@@ -44,10 +44,12 @@ const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
 
 function exitShapeCreationMode() {
   shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
-  if (shapeCreationMode.value == ShapeCreationMode.Click) {
-    saveState()
-    enableHistorySaving()
-  }
+  EventBus.emit('reset-shape-creation')
+  EventBus.off('reset-shape-creation')
+  EventBus.off('undo')
+  EventBus.off('redo')
+  if (shapeCreationMode.value == ShapeCreationMode.Click) enableAllEvents()
+
   shapeCreationMode.value = undefined
 
   const { selectedTool } = useDrawStore()

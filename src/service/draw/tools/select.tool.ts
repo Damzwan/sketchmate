@@ -1,12 +1,13 @@
 import { Ref, ref } from 'vue'
-import { DrawEvent, DrawTool, FabricEvent, SelectedObject, ToolService } from '@/types/draw.types'
-import { isText, setObjectSelection, setSelectionForObjects } from '@/helper/draw/draw.helper'
+import { DrawEvent, DrawTool, FabricEvent, ObjectType, SelectedObject, ToolService } from '@/types/draw.types'
+import { isPolygon, isText, setObjectSelection, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { Canvas, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore, storeToRefs } from 'pinia'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { useHistory } from '@/service/draw/history.service'
+import { disableEditing } from '@/helper/draw/actions/polyEdit.action'
 
 export interface Select extends ToolService {
   selectedObjectsRef: Ref<Array<SelectedObject>>
@@ -47,6 +48,7 @@ export const useSelect = defineStore('select', (): Select => {
       handler: () => {
         if (multiSelectMode.value && mouseClickTarget) return
 
+        if (isPolygon(selectedObjects)) disableEditing(selectedObjects[0] as fabric.Polygon)
         if (isText(selectedObjects)) {
           const text = selectedObjects[0] as IText
           const { isEditingText } = storeToRefs(useDrawStore())
@@ -130,8 +132,9 @@ export const useSelect = defineStore('select', (): Select => {
     const { selectedTool } = useDrawStore()
 
     setObjectSelection(obj, selection || selectedTool == DrawTool.Select)
-    if (obj['_objects']) lastModifiedObjects.value = obj['_objects']
-    else lastModifiedObjects.value = [obj]
+    if (obj.type == ObjectType.selection) {
+      lastModifiedObjects.value = obj['_objects']
+    } else lastModifiedObjects.value = [obj]
   }
 
   function selectLastModifiedObjects(c: Canvas) {

@@ -1,8 +1,8 @@
 <template>
   <ion-card color="transparent" class="custom-card" @click="action">
     <ion-img :src="img" alt="Big Image" />
-    <p class="font-sans font-light text-2xl py-1">{{ title }}</p>
-    <p class="font-sans font-light text-xm text-center">
+    <p class="title">{{ title }}</p>
+    <p class="subtitle">
       {{ subtitle }}
     </p>
   </ion-card>
@@ -33,8 +33,8 @@ defineProps({
 
 <style scoped>
 ion-img {
-  width: 96px;
-  height: 96px;
+  width: 86px;
+  height: 86px;
 }
 
 .custom-card {
@@ -43,5 +43,30 @@ ion-img {
     border border-secondary-light
     rounded-lg cursor-pointer
     hover:shadow-lg;
+}
+
+.custom-card .title {
+  @apply font-sans font-light text-lg py-1;
+}
+
+.custom-card .subtitle {
+  @apply font-sans font-light text-sm text-center;
+}
+
+@media screen and (max-height: 800px) {
+  ion-img {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+@media screen and (max-height: 700px) {
+  .custom-card .title {
+    @apply font-sans font-light text-base py-1;
+  }
+
+  .custom-card .subtitle {
+    @apply font-sans font-light text-sm text-center;
+  }
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div ref="el" @click="emits('click')">
     <div class="z-10 absolute w-full h-full flex justify-center items-center" v-if="isLoading">
       <ion-spinner color="primary" />
     </div>
@@ -23,19 +23,46 @@
     >
       {{ props.inboxItem.comments.length }}
     </div>
+
+    <div class="absolute z-10 left-1 top-1" v-if="multiSelectMode">
+      <ion-icon
+        size="large"
+        :icon="
+          svg(multiSelectedItems.includes(itemId) ? mdiCheckboxMarkedCircleOutline : mdiCheckboxBlankCircleOutline)
+        "
+        color="secondary"
+      />
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
-import { IonAvatar, IonImg, IonSpinner } from '@ionic/vue'
+import { computed, ref } from 'vue'
+import { IonAvatar, IonImg, IonSpinner, IonIcon } from '@ionic/vue'
 import { InboxItem, User } from '@/types/server.types'
-import { senderImg } from '@/helper/general.helper'
+import { senderImg, svg } from '@/helper/general.helper'
+import { onLongPress } from '@vueuse/core'
+import {
+  mdiCheckboxBlankCircleOutline,
+  mdiCheckboxBlankOutline,
+  mdiCheckboxMarkedCircleOutline,
+  mdiCheckboxMarkedOutline
+} from '@mdi/js'
+
+const itemId = computed(() => props.inboxItem._id)
 
 const props = defineProps<{
   inboxItem: InboxItem
   user: User
+  multiSelectMode: boolean
+  multiSelectedItems: string[]
 }>()
+
+const el = ref()
+
+onLongPress(el, () => emits('long-press'), { modifiers: { prevent: true }, delay: 500 })
+
+const emits = defineEmits(['long-press', 'click'])
 
 const isLoading = ref(true)
 </script>

@@ -19,11 +19,20 @@ declare module 'fabric' {
       id: string
       _setOriginToCenter: () => void
       _resetOrigin: () => void
+      visual?: boolean
     }
 
     interface Path {
       originalLeft: number
       originalTop: number
+    }
+
+    interface Polygon {
+      edit?: boolean
+    }
+
+    interface Control {
+      pointIndex: number
     }
   }
 }
@@ -83,7 +92,8 @@ export enum DrawAction {
   ChangeTextAlign,
   CurveText,
   BringToFront,
-  BringToBack
+  BringToBack,
+  EditPolygon
 }
 
 export enum Menu {
@@ -98,7 +108,9 @@ export enum ObjectType {
   path = 'path',
   image = 'image',
   text = 'i-text',
-  group = 'group'
+  group = 'group',
+  selection = 'activeSelection',
+  polygon = 'polygon'
 }
 
 export type Eraser = DrawTool.MobileEraser | DrawTool.HealingEraser
@@ -147,7 +159,6 @@ export enum Layer {
 
 export enum DrawEvent {
   SetSelectedObjects = 'set selected objects',
-  AddObjectIdOnCreated = 'add id on object creation',
   SaveHistory = 'save history',
   Gesture = 'gesture',
   BucketFill = 'on click with bucket',

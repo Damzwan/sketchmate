@@ -1,5 +1,5 @@
 <template>
-  <ion-modal trigger="connect_help" @willPresent="loadMD">
+  <ion-modal trigger="connect_help" @willPresent="loadMD" mode="ios">
     <ion-header class="shadow-none">
       <ion-toolbar color="tertiary">
         <ion-title>How To Connect</ion-title>

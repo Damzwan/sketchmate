@@ -8,8 +8,6 @@ import { useEventManager } from '@/service/draw/eventManager.service'
 import { ERASERS } from '@/config/draw/draw.config'
 import { isMobile } from '@/helper/general.helper'
 import { storeToRefs } from 'pinia'
-import { an } from 'vitest/dist/types-94cfe4b4'
-import { useToast } from '@/service/toast.service'
 import { useSelect } from '@/service/draw/tools/select.tool'
 
 export function enableZoomAndPan(c: any) {
@@ -44,7 +42,7 @@ export function enableMobileGestures(c: any) {
       isUsingGesture.value = true
 
       return
-    } else cancelPreviousAction(c)
+    } else if (selectedTool.value != DrawTool.Select) cancelPreviousAction(c)
   })
 
   hammer!.on('pinch', function (e) {
@@ -53,7 +51,8 @@ export function enableMobileGestures(c: any) {
     if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0 && isUsingGesture.value) {
       lastEvent = handleSelectMobilePinch(e, selectedObjectsRef.value, c, lastEvent)
     } else {
-      const panTolerance = 0.0000000001 // Change this as needed to refine the distinction
+      if (selectedTool.value == DrawTool.Select) return
+      const panTolerance = 0.0000000000001 // Change this as needed to refine the distinction
       const isPanning =
         Math.abs(e.deltaX - lastDelta.x) > panTolerance || Math.abs(e.deltaY - lastDelta.y) > panTolerance
 
@@ -69,7 +68,7 @@ export function enableMobileGestures(c: any) {
           y: e.deltaY
         }
       } else {
-        const scaleTolerance = 0.1 // Change this as needed to refine the distinction
+        const scaleTolerance = 0.03 // Change this as needed to refine the distinction
         if (Math.abs(1 - e.scale) > scaleTolerance) {
           handleZoom(e.scale, e.center.x, e.center.y, c)
           setCanZoomOut(c.getZoom() > 1)
@@ -106,7 +105,7 @@ function handleSelectMobilePinch(e: any, selectedObjects: SelectedObject[], c: f
   if (!obj) return
 
   const scaleDiff = e.scale - lastEvent.scale
-  const rotationThreshold = 0.25 // Adjust the threshold as needed
+  const rotationThreshold = 0.2 // Adjust the threshold as needed
 
   let rotationDiff = 0.1
   if (lastEvent.rotation !== null) {
@@ -240,7 +239,7 @@ export const checkCanvasBounds = (c: Canvas) => {
   }
 }
 export const handleZoom = (scale: number, centerX: number, centerY: number, c: Canvas) => {
-  const dampeningFactor = 0.3
+  const dampeningFactor = 0.2
   let newZoom = (Math.log(scale) / Math.log(2)) * dampeningFactor + c.getZoom() // Dampening factor of 0.1
 
   // Limit the zoom level to the maximum and minimum values

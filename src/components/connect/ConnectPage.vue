@@ -17,7 +17,7 @@
         </div>
       </div>
 
-      <div class="flex flex-col h-full space-y-4">
+      <div class="flex flex-col h-full space-y-2">
         <div class="flex flex-wrap justify-center items-center sm:space-x-16 flex-grow">
           <ConnectMethod
             class="w-full sm:w-1/2 md:w-1/3"
@@ -35,14 +35,14 @@
           />
         </div>
 
-        <div class="flex flex-col space-y-2 py-2">
+        <div class="flex flex-col links">
           <ion-button fill="clear" color="secondary" id="connect_help">Help with Connection</ion-button>
           <ConnectHelpModal />
           <ion-button fill="clear" color="secondary" @click="enterTrialMode">Test Drawing</ion-button>
         </div>
 
         <div class="flex flex-col items-center justify-center w-full pb-4">
-          <qrcode-vue :value="user ? user._id : localUserId" :size="156" background="transparent" />
+          <qrcode-vue :value="user ? user._id : localUserId" :size="128" background="transparent" />
           <p class="font-sans font-bold py-0.5">Connect with QR Code</p>
           <p class="font-sans font-light text-xs"> Let someone scan this code to become mates </p>
         </div>
@@ -188,5 +188,11 @@ ion-header {
 .scanner-active {
   --background: transparent;
   --ion-background-color: transparent;
+}
+
+@media screen and (max-height: 800px) {
+  .links ion-button {
+    height: 40px;
+  }
 }
 </style>

@@ -1,11 +1,12 @@
 import { Canvas, IPoint } from 'fabric/fabric-impl'
-import { DrawEvent, Shape, ShapeCreationMode } from '@/types/draw.types'
+import { DrawEvent, DrawTool, Shape, ShapeCreationMode } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { useHistory } from '@/service/draw/history.service'
 import { fabric } from 'fabric'
 import { useEventManager } from '@/service/draw/eventManager.service'
-import { setSelectionForObjects } from '@/helper/draw/draw.helper'
+import { findNearestPoint, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
+import { EventBus } from '@/main'
 
 export function addShape(c: Canvas, options: any) {
   const shape = options['shape'] as Shape
@@ -24,23 +25,67 @@ export function addShape(c: Canvas, options: any) {
 }
 
 function addShapeWithClick(c: Canvas, shape: Shape) {
-  const { disableHistorySaving } = useHistory()
-  const { isolatedSubscribe } = useEventManager()
+  const { saveState } = useHistory()
+  const { isolatedSubscribe, disableAllEvents } = useEventManager()
   const { setModifiedObjects } = useSelect()
 
   const points: IPoint[] = []
+  const pointCircles: fabric.Circle[] = []
   let createdShape: any
-  disableHistorySaving()
+  // disableHistorySaving()
+  disableAllEvents()
+
+  EventBus.on('undo', onUndoRedo)
+  EventBus.on('redo', onUndoRedo)
+  EventBus.on('reset-shape-creation', () => {
+    pointCircles.forEach(circle => c.remove(circle))
+  })
+
+  function onUndoRedo() {
+    points.pop()
+    pointCircles.pop()
+
+    createdShape =
+      shape == Shape.Polyline
+        ? new fabric.Polyline(points, {
+            fill: '',
+            stroke: 'black',
+            strokeWidth: 2
+          })
+        : (createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 }))
+    c.add(createdShape)
+  }
 
   isolatedSubscribe({
     type: DrawEvent.ShapeCreation,
     on: 'mouse:down',
     handler: (o: any) => {
       const pointer = c.getPointer(o.e)
+      let point: IPoint = { x: pointer.x, y: pointer.y }
+
+      const clickTolerance = 20
+      const nearestPoint = findNearestPoint(point, points, clickTolerance)
+      if (nearestPoint) point = nearestPoint
+      else {
+        const pointCircle = new fabric.Circle({
+          // Create a point marker
+          radius: clickTolerance / 2,
+          fill: 'red',
+          left: point.x,
+          top: point.y,
+          originX: 'center',
+          originY: 'center',
+          selectable: false,
+          evented: false
+        })
+        pointCircle.visual = true
+        c.add(pointCircle)
+        pointCircles.push(pointCircle) // Save the point marker
+      }
+
       switch (shape) {
-        case Shape.Circle:
         case Shape.Polyline:
-          points.push({ x: pointer.x, y: pointer.y })
+          points.push(point)
           if (createdShape) {
             c.remove(createdShape)
             createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
@@ -50,7 +95,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
           }
           break
         case Shape.Polygon:
-          points.push({ x: pointer.x, y: pointer.y })
+          points.push(point)
           if (createdShape) {
             c.remove(createdShape)
             createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
@@ -63,14 +108,17 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
           break
       }
       setModifiedObjects({ target: createdShape }, false)
+      saveState()
     }
   })
 }
 
 function addShapeWithDrag(c: Canvas, shape: Shape) {
   const { disableHistorySaving, enableHistorySaving, saveState } = useHistory()
-  const { isolatedSubscribe } = useEventManager()
+  const { isolatedSubscribe, unsubscribe } = useEventManager()
   const { setModifiedObjects } = useSelect()
+  const { setShapeCreationMode, selectTool } = useDrawStore()
+
   let createdShape: any
   let startX: number
   let startY: number
@@ -99,11 +147,16 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
     type: DrawEvent.ShapeCreation,
     on: 'mouse:up',
     handler: () => {
+      const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
+      shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
+
       saveState()
       enableHistorySaving()
       drawingMode = false
       setModifiedObjects({ target: createdShape }, false)
       createdShape.setCoords() // important to update the bounding box of the shape
+      setShapeCreationMode(undefined)
+      selectTool(DrawTool.Select)
       c.renderAll()
     }
   })

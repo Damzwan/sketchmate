@@ -10,20 +10,13 @@
 
     <div class="saved-grid" v-else ref="grid">
       <div v-for="saved in user.saved" :key="saved.img" class="flex justify-center items-center">
-        <div
-          class="relative cursor-pointer hover:opacity-80 h-[100px]"
-          :class="{ 'animate-wiggle': deleteMode }"
+        <StickerEmblemSavedItem
+          :img="saved.img"
+          :delete-mode="deleteMode"
           @click="emits('select-saved', saved)"
-        >
-          <ion-img
-            :src="saved.img"
-            class="object-contain rounded-lg w-full h-full"
-            :class="{ 'opacity-70': deleteMode, 'hover:brightness-90': deleteMode }"
-          />
-          <div class="absolute flex z-10 h-full w-full justify-center items-center top-0" v-if="deleteMode">
-            <ion-icon :icon="svg(mdiMinus)" class="fill-gray-300 w-full h-[40px]" />
-          </div>
-        </div>
+          @long-press="emits('update:delete-mode', true)"
+          @cancel-delete="emits('update:delete-mode', false)"
+        />
       </div>
     </div>
   </ion-content>
@@ -40,6 +33,7 @@ import { Saved } from '@/types/server.types'
 import { onClickOutside, onLongPress } from '@vueuse/core'
 import { ref } from 'vue'
 import NoItems from '@/components/draw/NoItems.vue'
+import StickerEmblemSavedItem from '@/components/draw/menu/StickersEmblemsSavedMenu/StickerEmblemSavedItem.vue'
 
 const { user } = storeToRefs(useAppStore())
 

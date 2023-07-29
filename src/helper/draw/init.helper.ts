@@ -56,7 +56,7 @@ export function changeFabricBaseSettings() {
   fabric.Object.prototype.transparentCorners = false
   fabric.Object.prototype.cornerColor = primaryColor
   fabric.Object.prototype.cornerStyle = 'circle'
-  fabric.Object.prototype.cornerSize = 22 // Increase the size of the handles
+  fabric.Object.prototype.cornerSize = 30 // Increase the size of the handles
 
   const deleteImg = document.createElement('img')
   deleteImg.src = svg(mdiCheckCircle, 'green')
@@ -90,7 +90,7 @@ export function changeFabricBaseSettings() {
 
   fabric.Object.prototype.toObject = (function (toObject) {
     return function (this: any, propertiesToInclude) {
-      propertiesToInclude = (propertiesToInclude || []).concat(['id'])
+      propertiesToInclude = (propertiesToInclude || []).concat(['id', 'visual'])
       return toObject.apply(this, [propertiesToInclude])
     }
   })(fabric.Object.prototype.toObject)

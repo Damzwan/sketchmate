@@ -5,16 +5,13 @@
     </NoItems>
     <div v-else class="saved-grid" ref="grid">
       <div v-for="emblem in user!.emblems" :key="emblem">
-        <div
-          class="relative cursor-pointer hover:opacity-80"
-          :class="{ 'animate-wiggle': deleteMode }"
+        <StickerEmblemSavedItem
+          :img="emblem"
+          :delete-mode="deleteMode"
           @click="emits('select-emblem', emblem)"
-        >
-          <ion-img :src="emblem" class="rounded-lg" :class="{ 'opacity-70': deleteMode }" />
-          <div class="absolute flex z-10 h-full w-full justify-center items-center top-0" v-if="deleteMode">
-            <ion-icon :icon="svg(mdiMinus)" class="fill-gray-300 w-full h-[40px]" />
-          </div>
-        </div>
+          @long-press="emits('update:delete-mode', true)"
+          @cancel-delete="emits('update:delete-mode', false)"
+        />
       </div>
     </div>
   </ion-content>
@@ -30,6 +27,7 @@ import { mdiMinus, mdiPlus } from '@mdi/js'
 import { onClickOutside, onLongPress } from '@vueuse/core'
 import { ref } from 'vue'
 import NoItems from '@/components/draw/NoItems.vue'
+import StickerEmblemSavedItem from '@/components/draw/menu/StickersEmblemsSavedMenu/StickerEmblemSavedItem.vue'
 
 const grid = ref<HTMLElement>()
 

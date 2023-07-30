@@ -14,7 +14,7 @@
     <ion-toolbar color="tertiary" v-else>
       <ion-buttons slot="start">
         <ion-button @click="emits('cancel')" size="large">
-          <ion-icon slot="icon-only" :icon="svg(mdiCancel)" />
+          <ion-icon slot="icon-only" :icon="svg(mdiClose)" />
         </ion-button>
         <p class="text-lg">
           {{ selectedItems.length }}
@@ -38,7 +38,7 @@ import { IonAvatar, IonButton, IonButtons, IonHeader, IonTitle, IonToolbar, IonI
 import Settings from '@/components/settings/Settings.vue'
 import { ref } from 'vue'
 import { svg } from '@/helper/general.helper'
-import { mdiCancel, mdiDeleteOutline } from '@mdi/js'
+import { mdiCancel, mdiClose, mdiCross, mdiDeleteOutline } from '@mdi/js'
 
 const open = ref(false)
 

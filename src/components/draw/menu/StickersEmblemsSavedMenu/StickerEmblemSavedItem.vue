@@ -11,7 +11,7 @@
       :class="{ 'opacity-70': deleteMode, 'hover:brightness-90': deleteMode }"
     />
     <div class="absolute flex z-10 h-full w-full justify-center items-center top-0" v-if="deleteMode">
-      <ion-icon :icon="svg(mdiMinus)" class="fill-gray-300 w-full h-[40px]" />
+      <ion-icon :icon="svg(mdiMinus)" class="fill-red-500 w-full h-[40px]" />
     </div>
   </div>
 </template>

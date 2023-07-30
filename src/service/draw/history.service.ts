@@ -102,13 +102,13 @@ export const useHistory = defineStore('history', () => {
   }
 
   function undo() {
-    EventBus.emit('undo')
     executeUndoRedo(undoStack, redoStack)
+    EventBus.emit('undo')
   }
 
   function redo() {
-    EventBus.emit('redo')
     executeUndoRedo(redoStack, undoStack)
+    EventBus.emit('redo')
   }
 
   function restoreCanvasFromHistory(previousState: any, selectedObjects: SelectedObject[]) {

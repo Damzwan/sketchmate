@@ -29,88 +29,77 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
   const { isolatedSubscribe, disableAllEvents } = useEventManager()
   const { setModifiedObjects } = useSelect()
 
-  const points: IPoint[] = []
-  const pointCircles: fabric.Circle[] = []
+  const clickTolerance = 20
+  let points: IPoint[] = []
+  let pointCircles: fabric.Circle[] = []
   let createdShape: any
-  // disableHistorySaving()
   disableAllEvents()
 
-  EventBus.on('undo', onUndoRedo)
-  EventBus.on('redo', onUndoRedo)
+  EventBus.on('undo', executeOnUndoRedo)
+  EventBus.on('redo', executeOnUndoRedo)
   EventBus.on('reset-shape-creation', () => {
+    createdShape.edit = false
     pointCircles.forEach(circle => c.remove(circle))
   })
 
-  function onUndoRedo() {
-    points.pop()
-    pointCircles.pop()
-
-    createdShape =
-      shape == Shape.Polyline
-        ? new fabric.Polyline(points, {
-            fill: '',
-            stroke: 'black',
-            strokeWidth: 2
-          })
-        : (createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 }))
-    c.add(createdShape)
+  async function executeOnUndoRedo() {
+    disableAllEvents()
+    const foundCreatedShape = c.getObjects().find((obj: any) => !!obj.edit)
+    if (foundCreatedShape) createdShape = foundCreatedShape
+    if (createdShape && createdShape.points) points = createdShape.points
+    else points.pop()
+    pointCircles = await rerenderVisualCircles(c, createdShape, clickTolerance)
+    enableShapeCreationClickEvents()
   }
 
-  isolatedSubscribe({
-    type: DrawEvent.ShapeCreation,
-    on: 'mouse:down',
-    handler: (o: any) => {
-      const pointer = c.getPointer(o.e)
-      let point: IPoint = { x: pointer.x, y: pointer.y }
+  function enableShapeCreationClickEvents() {
+    isolatedSubscribe({
+      type: DrawEvent.ShapeCreation,
+      on: 'mouse:down',
+      handler: (o: any) => {
+        const pointer = c.getPointer(o.e)
+        let point: IPoint = { x: pointer.x, y: pointer.y }
 
-      const clickTolerance = 20
-      const nearestPoint = findNearestPoint(point, points, clickTolerance)
-      if (nearestPoint) point = nearestPoint
-      else {
-        const pointCircle = new fabric.Circle({
-          // Create a point marker
-          radius: clickTolerance / 2,
-          fill: 'red',
-          left: point.x,
-          top: point.y,
-          originX: 'center',
-          originY: 'center',
-          selectable: false,
-          evented: false
-        })
-        pointCircle.visual = true
-        c.add(pointCircle)
-        pointCircles.push(pointCircle) // Save the point marker
-      }
+        const nearestPoint = findNearestPoint(point, points, clickTolerance)
+        if (nearestPoint) point = nearestPoint
+        else {
+          const pointCircle = createVisualCircle(clickTolerance, point)
+          c.add(pointCircle)
+          pointCircles.push(pointCircle) // Save the point marker
+        }
 
-      switch (shape) {
-        case Shape.Polyline:
-          points.push(point)
-          if (createdShape) {
-            c.remove(createdShape)
-            createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
-            c.add(createdShape)
-          } else {
-            createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
-          }
-          break
-        case Shape.Polygon:
-          points.push(point)
-          if (createdShape) {
-            c.remove(createdShape)
-            createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
-            c.add(createdShape)
-          } else {
-            createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
-          }
-          break
-        default:
-          break
+        switch (shape) {
+          case Shape.Polyline:
+            points.push(point)
+            if (createdShape) {
+              c.remove(createdShape)
+              createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+              c.add(createdShape)
+            } else {
+              createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+            }
+            break
+          case Shape.Polygon:
+            points.push(point)
+            if (createdShape) {
+              c.remove(createdShape)
+              createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+              c.add(createdShape)
+            } else {
+              createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+            }
+            break
+          default:
+            break
+        }
+        createdShape.edit = true
+        setModifiedObjects({ target: createdShape }, false)
+        saveState()
       }
-      setModifiedObjects({ target: createdShape }, false)
-      saveState()
-    }
-  })
+    })
+  }
+
+  enableShapeCreationClickEvents()
 }
 
 function addShapeWithDrag(c: Canvas, shape: Shape) {
@@ -292,4 +281,32 @@ function createShape(shape: Shape, startX: number, startY: number): any {
 
       return heart
   }
+}
+
+function createVisualCircle(clickTolerance: number, point: IPoint) {
+  const circle = new fabric.Circle({
+    radius: clickTolerance / 2,
+    fill: 'red',
+    left: point.x,
+    top: point.y,
+    originX: 'center',
+    originY: 'center',
+    selectable: false,
+    evented: false
+  })
+  circle.visual = true
+  return circle
+}
+
+async function rerenderVisualCircles(c: Canvas, shape: any, clickTolerance: number) {
+  const pointCircles: fabric.Circle[] = []
+
+  const points: IPoint[] = shape.points
+
+  points.forEach(point => {
+    const visualCircle = createVisualCircle(clickTolerance, point)
+    c.add(visualCircle)
+    pointCircles.push(visualCircle)
+  })
+  return pointCircles
 }

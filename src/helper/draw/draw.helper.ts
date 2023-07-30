@@ -103,8 +103,10 @@ export async function fillBackGroundForGroup(obj: SelectedObject, options: Parti
     left: obj.left,
     width: obj.width,
     height: obj.height,
-    fill: options.backgroundColor
+    fill: options.backgroundColor,
+    angle: obj.angle
   })
+
   const { getCanvas } = useDrawStore()
   await mergeObjects(getCanvas(), { objects: [backgroundRect, obj], notSave: true })
 }

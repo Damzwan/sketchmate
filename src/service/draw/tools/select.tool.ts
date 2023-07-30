@@ -47,6 +47,7 @@ export const useSelect = defineStore('select', (): Select => {
       on: 'selection:cleared',
       handler: () => {
         if (multiSelectMode.value && mouseClickTarget) return
+        mouseClickTarget = undefined
 
         if (isPolygon(selectedObjects)) disableEditing(selectedObjects[0] as fabric.Polygon)
         if (isText(selectedObjects)) {

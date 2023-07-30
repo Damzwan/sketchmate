@@ -67,6 +67,8 @@ export async function mergeObjects(c: Canvas, options: any) {
 
 export function deleteObjects(c: Canvas, options: any) {
   const { customSaveAction } = useHistory()
+  const { setMouseClickTarget } = useSelect()
+  setMouseClickTarget(undefined) // TODO fuck this bug
   c.discardActiveObject()
   const objects: fabric.Object[] = options['objects']
   customSaveAction(() => objects.forEach(obj => c?.remove(obj)))

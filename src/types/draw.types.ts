@@ -20,15 +20,12 @@ declare module 'fabric' {
       _setOriginToCenter: () => void
       _resetOrigin: () => void
       visual?: boolean
+      edit?: boolean
     }
 
     interface Path {
       originalLeft: number
       originalTop: number
-    }
-
-    interface Polygon {
-      edit?: boolean
     }
 
     interface Control {

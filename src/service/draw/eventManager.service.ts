@@ -53,7 +53,9 @@ export const useEventManager = defineStore('event manager', () => {
   function isolatedSubscribe(event: FabricEvent) {
     c!.off(event.on)
     if (!events.value[event.on]) events.value[event.on] = []
-    events.value[event.on].push(event)
+    if (!events.value[event.on].find(ev => ev.type == event.type)) {
+      events.value[event.on].push(event)
+    }
     c!.on(event.on, (e: any) => event.handler(e))
   }
 

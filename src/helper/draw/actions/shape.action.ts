@@ -45,9 +45,10 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
   async function executeOnUndoRedo() {
     disableAllEvents()
     const foundCreatedShape = c.getObjects().find((obj: any) => !!obj.edit)
-    if (foundCreatedShape) createdShape = foundCreatedShape
-    if (createdShape && createdShape.points) points = createdShape.points
-    else points.pop()
+    if (foundCreatedShape) {
+      createdShape = foundCreatedShape
+      points = createdShape.points
+    } else points.pop()
     pointCircles = await rerenderVisualCircles(c, createdShape, clickTolerance)
     enableShapeCreationClickEvents()
   }

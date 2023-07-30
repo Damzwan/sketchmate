@@ -266,5 +266,5 @@ export function loadAdditionalBrushes() {
   })
 
   fabric.InkBrush = InkBrush
-  fabric.WaterColorBrush = WatercolorBrush
+  // fabric.WaterColorBrush = WatercolorBrush
 }

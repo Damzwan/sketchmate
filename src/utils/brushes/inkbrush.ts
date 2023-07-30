@@ -1,6 +1,8 @@
 import { fabric } from 'fabric'
 import { Canvas } from 'fabric/fabric-impl'
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 export class InkBrush extends fabric.BaseBrush {
   color = '#000'
   opacity = 1
@@ -13,6 +15,8 @@ export class InkBrush extends fabric.BaseBrush {
   _strokes: fabric.Stroke[] | null = null
 
   constructor(private canvas: Canvas, opt?: any) {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     super(canvas)
 
     opt = opt || {}

@@ -19,7 +19,10 @@ import { addNotificationListeners } from '@/helper/notification.helper'
 
 const pinia = createPinia()
 export const EventBus = mitt()
-const app = createApp(App).use(IonicVue).use(pinia).use(router)
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import VueJsTour from '@globalhive/vuejs-tour'
+const app = createApp(App).use(IonicVue).use(pinia).use(VueJsTour).use(router)
 
 addNotificationListeners()
 

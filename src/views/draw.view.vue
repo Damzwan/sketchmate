@@ -16,8 +16,8 @@
         <canvas ref="myCanvasRef" />
         <div class="w-full h-[50px] bg-primary" v-if="isTrial">
           <ion-button class="w-full h-full p-0 m-0" @click="router.push(FRONTEND_ROUTES.connect)">
-            Go back to connect page</ion-button
-          >
+            Go back to connect page
+          </ion-button>
         </div>
       </div>
 
@@ -28,6 +28,7 @@
         </ion-button>
       </div>
     </ion-content>
+    <VTour :steps="steps" autoStart />
   </ion-page>
 </template>
 
@@ -35,7 +36,7 @@
 import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter, popoverController } from '@ionic/vue'
 import PrimaryDrawToolBar from '@/components/draw/toolbar/PrimaryDrawToolBar.vue'
 
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
@@ -46,10 +47,10 @@ import { svg } from '@/helper/general.helper'
 import { mdiMagnifyMinusOutline } from '@mdi/js'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
-import { useMenuStore } from '@/store/draw/menu.store'
 import { useRoute } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
+import '@/theme/custom_vuejs_tour.scss'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
@@ -63,4 +64,49 @@ onIonViewDidEnter(async () => {
 
 const route = useRoute()
 const isTrial = computed(() => route.query.trial)
+
+const steps = [
+  {
+    target: '[data-step="1"]',
+    content: `<div>
+    <p class="text-lg">Pen</p>
+    <p>Open the menu to adjust pen style and color.</p>
+  </div>`
+  },
+  {
+    target: '[data-step="2"]',
+    content: `<div>
+    <p class="text-lg">Eraser</p>
+    <p>Remove strokes, undo erases, or clear canvas.</p>
+  </div>`
+  },
+  {
+    target: '[data-step="3"]',
+    content: `<div>
+    <p class="text-lg">Add Elements</p>
+    <p>Include stickers, images, text, shapes and saved drawings.</p>
+  </div>`
+  },
+  {
+    target: '[data-step="4"]',
+    content: `<div>
+  <p class="text-lg">Selection</p>
+  <p>Select to move, rotate, resize, recolor objects. Includes copy, delete, save and merge.</p>
+</div>`
+  },
+  {
+    target: '[data-step="5"]',
+    content: `<div>
+    <p class="text-lg">Lasso</p>
+    <p>For precise control over selection.</p>
+  </div>`
+  },
+  {
+    target: '[data-step="6"]',
+    content: `<div>
+    <p class="text-lg">Need Help?</p>
+    <p>Press for tutorials on each section.</p>
+  </div>`
+  }
+]
 </script>

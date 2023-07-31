@@ -2,6 +2,7 @@
   <ion-toolbar color="primary" class="h-[43px]" mode="md">
     <ion-buttons slot="start">
       <ion-button
+        data-step="1"
         :class="{ selected: PENMENUTOOLS.includes(selectedTool) }"
         @click="selectTool(lastSelectedPenMenuTool, { openMenu: true, e: $event })"
       >
@@ -12,6 +13,7 @@
       </ion-button>
       <PenMenu />
       <ion-button
+        data-step="2"
         :class="{ selected: ERASERS.includes(selectedTool) }"
         @click="selectTool(lastSelectedEraserTool, { openMenu: true, e: $event })"
       >
@@ -22,21 +24,29 @@
       </ion-button>
       <EraserMenu />
 
-      <ion-button id="more_tools">
+      <ion-button id="more_tools" data-step="3">
         <ion-icon slot="icon-only" :icon="svg(mdiPlus)"></ion-icon>
       </ion-button>
       <MoreToolsMenu />
       <StickersEmblemsSavedMenu />
 
-      <ion-button :class="{ selected: selectedTool == DrawTool.Select }" @click="selectTool(DrawTool.Select)">
+      <ion-button
+        :class="{ selected: selectedTool == DrawTool.Select }"
+        @click="selectTool(DrawTool.Select)"
+        data-step="4"
+      >
         <ion-icon slot="icon-only" :icon="svg(mdiCursorDefaultClickOutline)"></ion-icon>
       </ion-button>
 
-      <ion-button :class="{ selected: selectedTool == DrawTool.Lasso }" @click="selectTool(DrawTool.Lasso)">
+      <ion-button
+        :class="{ selected: selectedTool == DrawTool.Lasso }"
+        @click="selectTool(DrawTool.Lasso)"
+        data-step="5"
+      >
         <ion-icon slot="icon-only" :icon="svg(mdiLasso)"></ion-icon>
       </ion-button>
 
-      <ion-button id="docs">
+      <ion-button id="docs" data-step="6">
         <ion-icon slot="icon-only" :icon="svg(mdiHelp)"></ion-icon>
       </ion-button>
       <DocsMenu trigger="docs" />
@@ -66,7 +76,6 @@ import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/conf
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
 import {
-  mdiBucketOutline,
   mdiChevronDown,
   mdiCursorDefaultClickOutline,
   mdiFormatColorFill,
@@ -83,9 +92,8 @@ import StickersEmblemsSavedMenu from '@/components/draw/menu/StickersEmblemsSave
 import MoreToolsMenu from '@/components/draw/menu/MoreToolsMenu.vue'
 import { usePen } from '@/service/draw/tools/pen.tool'
 import { useHistory } from '@/service/draw/history.service'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { useMenuStore } from '@/store/draw/menu.store'
 import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
 
 const drawStore = useDrawStore()

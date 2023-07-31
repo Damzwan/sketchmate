@@ -8,6 +8,7 @@ module.exports = {
     'eslint:recommended',
     '@vue/typescript/recommended'
   ],
+  plugins: ["unused-imports"],
   parserOptions: {
     ecmaVersion: 2020
   },
@@ -19,6 +20,8 @@ module.exports = {
     'vue/multi-word-component-names': 'off',
     '@typescript-eslint/no-non-null-assertion': 'off',
     "no-case-declarations": "off",
-    '@typescript-eslint/no-namespace': 'off'
+    '@typescript-eslint/no-namespace': 'off',
+    "no-unused-vars": "off", // or "@typescript-eslint/no-unused-vars": "off",
+    "unused-imports/no-unused-imports": "warn",
   }
 }

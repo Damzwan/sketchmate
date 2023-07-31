@@ -1,12 +1,10 @@
-import { DrawEvent, DrawTool, FabricEvent, ObjectType, Shape, ToolService } from '@/types/draw.types'
+import { DrawEvent, FabricEvent, ObjectType, Shape, ToolService } from '@/types/draw.types'
 import { Canvas, Circle, Ellipse, Path, Point } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
 import { useHistory } from '@/service/draw/history.service'
 import { svgPathProperties } from 'svg-path-properties'
 import inside from 'point-in-polygon'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { useSelect } from '@/service/draw/tools/select.tool'
 import {
   createPointRepresentationForBoundingRect,
   downSampleCircle,
@@ -66,7 +64,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     c?.requestRenderAll()
   }
 
-  function onMouseUp(o: fabric.IEvent) {
+  function onMouseUp() {
     isDrawing = false
     c?.remove(lasso)
     selectsObjectsInsideLasso()
@@ -161,7 +159,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     })
   }
 
-  async function select(canvas: Canvas) {
+  async function select() {
     console.log('lasso tool selected')
   }
 

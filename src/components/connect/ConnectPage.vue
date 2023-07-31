@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonButtons, IonContent, IonIcon, IonPage, IonToolbar, isPlatform, useIonRouter } from '@ionic/vue'
+import { IonButton, IonButtons, IonContent, IonIcon, IonPage, IonToolbar, isPlatform } from '@ionic/vue'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import ConnectMethod from '@/components/connect/ConnectMethod.vue'
 import cameraImg from '@/assets/illustrations/camera.svg'
@@ -68,11 +68,10 @@ import { useToast } from '@/service/toast.service'
 import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
 import QrScanner from 'qr-scanner'
 import { useFullscreen } from '@vueuse/core'
-import { setAppColors, svg } from '@/helper/general.helper'
+import { svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
 import ConnectHelpModal from '@/components/connect/ConnectHelpModal.vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { colorsPerRoute } from '@/config/colors.config'
 
 const appStore = useAppStore()
 const socketService = useSocketService()
@@ -89,8 +88,6 @@ const isQRReaderOpen = ref(false)
 
 const { setQueryParams } = useAppStore()
 const { queryParams, isLoggedIn } = storeToRefs(useAppStore())
-
-const r = useIonRouter()
 
 watch(isFullscreen, value => {
   if (!value) stopScanning()

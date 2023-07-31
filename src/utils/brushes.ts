@@ -1,6 +1,5 @@
 import { fabric } from 'fabric'
 import { InkBrush } from '@/utils/brushes/inkbrush'
-import { WatercolorBrush } from '@/utils/brushes/WaterColorBrush'
 
 declare module 'fabric' {
   namespace fabric {

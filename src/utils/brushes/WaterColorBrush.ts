@@ -35,7 +35,7 @@ export class WatercolorBrush extends fabric.BaseBrush {
   }
 
   _finalizeAndAddPath() {
-    const ctx = this.canvas.contextContainer
+    const ctx = (this.canvas as any).contextContainer
 
     this._points.forEach((point, i) => {
       ctx.beginPath() // start a new path for each point

@@ -65,15 +65,13 @@
 import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { setAppColors, svg } from '@/helper/general.helper'
+import { svg } from '@/helper/general.helper'
 import { mdiNuke } from '@mdi/js'
 import { DrawAction, DrawTool, EraserSize } from '@/types/draw.types'
 import { eraserIconMapping } from '@/config/draw/draw.config'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useEraser } from '@/service/draw/tools/eraser.tool'
 import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
-import { colorsPerRoute, popoverColorConfig } from '@/config/colors.config'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const drawStore = useDrawStore()
 const { selectedTool } = storeToRefs(drawStore)

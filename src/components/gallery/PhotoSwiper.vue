@@ -104,7 +104,6 @@ import { register } from 'swiper/element/bundle'
 import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { useToast } from '@/service/toast.service'
 import { arrowBack, eye, eyeOff } from 'ionicons/icons'
 import { leaveAnimation, modalPopAnimation } from '@/helper/animation.helper'
 import { senderImg, senderName, setAppColors, svg } from '@/helper/general.helper'
@@ -157,8 +156,6 @@ function checkQueryParams() {
   /// hack used to detect the exception in routerAnimation()
   setTimeout(() => router.replace({ query: undefined }), 100)
 }
-
-const { toast } = useToast()
 
 register()
 

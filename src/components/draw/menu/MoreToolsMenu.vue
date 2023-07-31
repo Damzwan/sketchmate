@@ -66,7 +66,6 @@ import {
   mdiCamera,
   mdiContentSave,
   mdiFormatText,
-  mdiHelp,
   mdiImage,
   mdiImagePlusOutline,
   mdiPanoramaVariantOutline,
@@ -81,8 +80,6 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { useMenuStore } from '@/store/draw/menu.store'
 import ImageCropper from '@/components/draw/ImageCropper.vue'
 import { storeToRefs } from 'pinia'
-import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
-import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()

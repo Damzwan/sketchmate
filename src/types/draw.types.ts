@@ -21,6 +21,7 @@ declare module 'fabric' {
       _resetOrigin: () => void
       visual?: boolean
       edit?: boolean
+      isCreating?: false
     }
 
     interface Path {

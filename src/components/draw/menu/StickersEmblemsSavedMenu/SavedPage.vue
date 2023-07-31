@@ -23,12 +23,11 @@
 </template>
 
 <script lang="ts" setup>
-import { IonIcon, IonImg, IonContent } from '@ionic/vue'
+import { IonIcon, IonContent } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
-import NoStickers from '@/components/draw/NoItems.vue'
 import { svg } from '@/helper/general.helper'
-import { mdiCursorDefaultClickOutline, mdiDotsVertical, mdiMinus } from '@mdi/js'
+import { mdiCursorDefaultClickOutline, mdiDotsVertical } from '@mdi/js'
 import { Saved } from '@/types/server.types'
 import { onClickOutside, onLongPress } from '@vueuse/core'
 import { ref } from 'vue'

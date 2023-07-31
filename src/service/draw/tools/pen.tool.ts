@@ -1,12 +1,9 @@
 import { Ref, ref, watch } from 'vue'
 import { BLACK, BRUSHSIZE } from '@/config/draw/draw.config'
-import { BrushType, DrawEvent, FabricEvent, ToolService } from '@/types/draw.types'
-import { setObjectSelection, setSelectionForObjects } from '@/helper/draw/draw.helper'
-import { Canvas, IPoint } from 'fabric/fabric-impl'
+import { BrushType, FabricEvent, ToolService } from '@/types/draw.types'
+import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
-import { bucketFill } from '@/helper/draw/actions/bucket.action'
-import { bringToBack } from '@/helper/draw/actions/operation.action'
 
 interface Pen extends ToolService {
   brushSize: Ref<number>
@@ -57,7 +54,7 @@ export const usePen = defineStore('pen', (): Pen => {
     c!.freeDrawingBrush.color = brushColor.value
   })
 
-  watch(brushType, value => {
+  watch(brushType, () => {
     select(c!)
   })
 

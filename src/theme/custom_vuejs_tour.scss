@@ -1,3 +1,5 @@
+@use "sass:math";
+
 $vjt__tooltip_color: #000;
 $vjt__tooltip_z_index: 9999;
 $vjt__tooltip_font_size: 13px;
@@ -36,27 +38,28 @@ $vjt__action_button_background: var(--ion-color-secondary);
 
 #vjt-tooltip[data-popper-placement^='top'] {
   #vjt-arrow {
-    bottom: -$vjt__tooltip_arrow_size/2;
+    bottom: math.div(-$vjt__tooltip_arrow_size, 2);
   }
 }
 
 #vjt-tooltip[data-popper-placement^='bottom'] {
   #vjt-arrow {
-    top: -$vjt__tooltip_arrow_size/2;
+    top: math.div(-$vjt__tooltip_arrow_size, 2);
   }
 }
 
 #vjt-tooltip[data-popper-placement^='left'] {
   #vjt-arrow {
-    right: -$vjt__tooltip_arrow_size/2;
+    right: math.div(-$vjt__tooltip_arrow_size, 2);
   }
 }
 
 #vjt-tooltip[data-popper-placement^='right'] {
   #vjt-arrow {
-    left: -$vjt__tooltip_arrow_size/2;
+    left: math.div(-$vjt__tooltip_arrow_size, 2);
   }
 }
+
 
 #vjt-arrow {
   width: $vjt__tooltip_arrow_size;

@@ -17,7 +17,7 @@ import { isNative, svg } from '@/helper/general.helper'
 import { useAppStore } from '@/store/app.store'
 import { exitEditing, isObjectSelected, isText, splitStringToWidth } from '@/helper/draw/draw.helper'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
-import { mdiApps, mdiCheckBold, mdiCheckCircle } from '@mdi/js'
+import { mdiCheckCircle } from '@mdi/js'
 
 export function initCanvasOptions(): ICanvasOptions {
   return {
@@ -90,7 +90,7 @@ export function changeFabricBaseSettings() {
 
   fabric.Object.prototype.toObject = (function (toObject) {
     return function (this: any, propertiesToInclude) {
-      propertiesToInclude = (propertiesToInclude || []).concat(['id', 'visual', 'edit'])
+      propertiesToInclude = (propertiesToInclude || []).concat(['id', 'visual', 'edit', 'isCreating'])
       return toObject.apply(this, [propertiesToInclude])
     }
   })(fabric.Object.prototype.toObject)
@@ -201,13 +201,13 @@ export function createTools(): { [key in DrawTool]: ToolService } {
 }
 
 export function initTools(c: Canvas, tools: { [key in DrawTool]: ToolService }) {
-  for (const [_, tool] of Object.entries(tools)) {
+  for (const [, tool] of Object.entries(tools)) {
     tool.init(c)
   }
 }
 
 export function destroyTools(tools: { [key in DrawTool]: ToolService }) {
-  for (const [_, tool] of Object.entries(tools)) {
+  for (const [, tool] of Object.entries(tools)) {
     tool.destroy()
   }
 }

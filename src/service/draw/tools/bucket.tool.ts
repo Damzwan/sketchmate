@@ -3,7 +3,6 @@ import { setObjectSelection, setSelectionForObjects } from '@/helper/draw/draw.h
 import { Canvas, IPoint } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { bucketFill } from '@/helper/draw/actions/bucket.action'
-import { bringToBack } from '@/helper/draw/actions/operation.action'
 
 export const useBucket = defineStore('bucket', (): ToolService => {
   let c: Canvas | undefined = undefined

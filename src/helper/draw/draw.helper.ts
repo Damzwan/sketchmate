@@ -5,7 +5,7 @@ import { DrawTool, ObjectType, SelectedObject } from '@/types/draw.types'
 import { checkCanvasBounds } from '@/helper/draw/gesture.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
-import { compressImg, isMobile, isNative } from '@/helper/general.helper'
+import { compressImg, isMobile } from '@/helper/general.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { mergeObjects } from '@/helper/draw/actions/operation.action'
 

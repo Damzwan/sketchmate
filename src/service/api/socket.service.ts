@@ -60,7 +60,7 @@ export function createSocketService(): SocketAPI {
       }
     })
 
-    socket.on(SOCKET_ENDPONTS.unmatch, async (success: boolean) => {
+    socket.on(SOCKET_ENDPONTS.unmatch, async () => {
       toast('Unmatched', { color: 'warning' })
       Preferences.remove({ key: LocalStorage.mate })
       notificationRouteLoading.value = NotificationType.unmatch

@@ -18,12 +18,11 @@
 </template>
 
 <script lang="ts" setup>
-import { IonIcon, IonImg, IonContent } from '@ionic/vue'
+import { IonIcon, IonContent } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
-import NoStickers from '@/components/draw/NoItems.vue'
 import { svg } from '@/helper/general.helper'
-import { mdiMinus, mdiPlus } from '@mdi/js'
+import { mdiPlus } from '@mdi/js'
 import { onClickOutside, onLongPress } from '@vueuse/core'
 import { ref } from 'vue'
 import NoItems from '@/components/draw/NoItems.vue'

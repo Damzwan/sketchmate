@@ -13,6 +13,7 @@ export function addShape(c: Canvas, options: any) {
   c.isDrawingMode = false
   c.selection = false
   setSelectionForObjects(c.getObjects()!, false)
+  c.getObjects().forEach(obj => obj.set({ isCreating: false }))
   const { setShapeCreationMode } = useDrawStore()
 
   if (shape == Shape.Polyline || shape == Shape.Polygon) {
@@ -38,13 +39,13 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
   EventBus.on('undo', executeOnUndoRedo)
   EventBus.on('redo', executeOnUndoRedo)
   EventBus.on('reset-shape-creation', () => {
-    createdShape.edit = false
+    createdShape.isCreating = false
     pointCircles.forEach(circle => c.remove(circle))
   })
 
   async function executeOnUndoRedo() {
     disableAllEvents()
-    const foundCreatedShape = c.getObjects().find((obj: any) => !!obj.edit)
+    const foundCreatedShape = c.getObjects().find((obj: any) => !!obj.isCreating)
     if (foundCreatedShape) {
       createdShape = foundCreatedShape
       points = createdShape.points
@@ -93,7 +94,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
           default:
             break
         }
-        createdShape.edit = true
+        createdShape.isCreating = true
         setModifiedObjects({ target: createdShape }, false)
         saveState()
       }

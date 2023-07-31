@@ -63,7 +63,7 @@ export async function addNotificationListeners() {
   })
 
   // Called when the app is active
-  await PushNotifications.addListener('pushNotificationReceived', notification => {
+  await PushNotifications.addListener('pushNotificationReceived', () => {
     // Hide the standard notification UI
     PushNotifications.getDeliveredNotifications().then(x => {
       PushNotifications.removeDeliveredNotifications(x)
@@ -101,8 +101,8 @@ export async function addNotificationListeners() {
 
 function next2pm() {
   // Determine the next occurrence of 2:00 PM
-  let now = new Date()
-  let next2PM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 14, 0, 0)
+  const now = new Date()
+  const next2PM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 14, 0, 0)
 
   // If we've already passed 2:00 PM today, schedule for tomorrow
   if (now.getTime() > next2PM.getTime()) {

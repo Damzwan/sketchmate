@@ -38,7 +38,7 @@ import { IonAvatar, IonButton, IonButtons, IonHeader, IonTitle, IonToolbar, IonI
 import Settings from '@/components/settings/Settings.vue'
 import { ref } from 'vue'
 import { svg } from '@/helper/general.helper'
-import { mdiCancel, mdiClose, mdiCross, mdiDeleteOutline } from '@mdi/js'
+import { mdiClose, mdiDeleteOutline } from '@mdi/js'
 
 const open = ref(false)
 

@@ -2,7 +2,6 @@ import { BrushType, DrawAction, DrawTool, Eraser } from '@/types/draw.types'
 import { Canvas } from 'fabric/fabric-impl'
 import {
   mdiBandage,
-  mdiBucketOutline,
   mdiCircleOutline,
   mdiEraser,
   mdiLiquidSpot,

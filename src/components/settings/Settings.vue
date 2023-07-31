@@ -92,8 +92,7 @@ import {
   IonModal,
   IonTitle,
   IonToggle,
-  IonToolbar,
-  isPlatform
+  IonToolbar
 } from '@ionic/vue'
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
@@ -105,10 +104,9 @@ import { addOutline, arrowBack } from 'ionicons/icons'
 import { onBeforeRouteLeave } from 'vue-router'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
-import { colorsPerRoute, photoSwiperColorConfig, settingsModalColorConfig } from '@/config/colors.config'
+import { colorsPerRoute, settingsModalColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
-import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
 import SettingLinks from '@/components/settings/SettingLinks.vue'
 
 const { user } = storeToRefs(useAppStore())

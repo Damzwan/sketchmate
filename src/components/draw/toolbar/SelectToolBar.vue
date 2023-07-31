@@ -62,7 +62,6 @@
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
 import {
-  mdiAbjadHebrew,
   mdiCancel,
   mdiClose,
   mdiDotsVertical,

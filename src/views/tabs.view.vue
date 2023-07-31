@@ -68,7 +68,7 @@ import { useRoute } from 'vue-router'
 const { text, isOpen, dismiss, duration, color, buttons } = useToast()
 const r = useIonRouter()
 
-const { notificationRouteLoading, user } = storeToRefs(useAppStore())
+const { notificationRouteLoading } = storeToRefs(useAppStore())
 
 const route = useRoute()
 const show = computed(() => route.path != `/${FRONTEND_ROUTES.connect}` && !route.query.trial)

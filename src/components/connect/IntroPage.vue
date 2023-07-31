@@ -150,11 +150,10 @@ import {
   IonPage,
   IonTitle,
   IonToggle,
-  IonToolbar,
-  isPlatform
+  IonToolbar
 } from '@ionic/vue'
 
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import { blurIonInput, compressImg, isNative, svg } from '@/helper/general.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
@@ -184,7 +183,7 @@ const nameRef = ref<any>()
 
 const anim = ref<any>()
 
-const { isLoggedIn, localSubscription, localUserId, localUserImg } = storeToRefs(useAppStore())
+const { localSubscription, localUserId, localUserImg } = storeToRefs(useAppStore())
 const swiper = ref<Swiper>()
 const lastSlide = ref(false)
 
@@ -201,7 +200,7 @@ function initSwiper(e: any) {
   swiper.value = e.detail[0]
 }
 
-function nextSlide(e: any) {
+function nextSlide() {
   swiper.value?.slideNext()
 }
 

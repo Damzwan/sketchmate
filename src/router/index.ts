@@ -5,9 +5,7 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useAppStore } from '@/store/app.store'
 import { useSocketService } from '@/service/api/socket.service'
 import { LocalStorage } from '@/types/storage.types'
-import { getCurrentRoute, hideLoading, setAppColors } from '@/helper/general.helper'
 
-import { colorsPerRoute } from '@/config/colors.config'
 import { Preferences } from '@capacitor/preferences'
 
 const hasMateGuard: NavigationGuard = async (to, from, next) => {

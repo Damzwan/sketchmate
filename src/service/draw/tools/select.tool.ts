@@ -118,7 +118,7 @@ export const useSelect = defineStore('select', (): Select => {
     subscribe({
       type: DrawEvent.SetModified,
       on: 'object:removed',
-      handler: e => {
+      handler: () => {
         const objects = c!.getObjects()
         if (objects.length == 0) return
         lastModifiedObjects.value = [objects[objects.length - 1]]

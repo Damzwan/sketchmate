@@ -14,9 +14,12 @@
     "test:e2e": "cypress run",
     "test:unit": "vitest",
     "lint": "eslint",
+    "lint_fix_and_add": "eslint --fix . && git add .",
     "heroku:start": "serve -s dist --single",
     "postinstall": "npm run build_fabric && npm run build",
-    "build_fabric": "cd node_modules/fabric && npm run build_with_gestures"
+    "build_fabric": "cd node_modules/fabric && npm run build_with_gestures",
+    "prepare": "husky install",
+    "heroku-prebuild": "echo 'force=true\nlegacy-peer-deps=true' > .npmrc"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^5.0.0",
@@ -84,7 +87,9 @@
     "@vue/test-utils": "^2.3.2",
     "cypress": "^12.14.0",
     "eslint": "^8.42.0",
+    "eslint-plugin-unused-imports": "^3.0.0",
     "eslint-plugin-vue": "^9.14.1",
+    "husky": "^8.0.3",
     "ionicons": "^7.1.2",
     "jsdom": "^21.1.2",
     "prettier": "^2.8.8",

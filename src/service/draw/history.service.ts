@@ -1,7 +1,6 @@
 import { Ref, ref } from 'vue'
 import {
   exitEditing,
-  findObjectById,
   isText,
   restoreSelectedObjects,
   setSelectionForObjects
@@ -9,7 +8,6 @@ import {
 import { Canvas } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.tool'
-import { fabric } from 'fabric'
 import { DrawEvent, DrawTool, FabricEvent, ObjectType, SelectedObject } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { applyCurve } from '@/helper/draw/actions/text.action'

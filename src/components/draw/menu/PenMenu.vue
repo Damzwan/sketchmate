@@ -71,20 +71,19 @@
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonIcon, IonItem, IonPopover, IonRange, popoverController } from '@ionic/vue'
+import { IonContent, IonIcon, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'
 import { BrushType, DrawTool } from '@/types/draw.types'
 import {
-  mdiBucketOutline,
   mdiCircleOutline,
   mdiFormatColorFill,
   mdiLiquidSpot,
   mdiPencilOutline,
   mdiSpray
 } from '@mdi/js'
-import { setAppColors, svg } from '@/helper/general.helper'
+import { svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { brushMapping, usePen } from '@/service/draw/tools/pen.tool'
 import { Canvas } from 'fabric/fabric-impl'
@@ -92,8 +91,6 @@ import { fabric } from 'fabric'
 import { setObjectSelection } from '@/helper/draw/draw.helper'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { colorsPerRoute, popoverColorConfig } from '@/config/colors.config'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const { selectTool } = useDrawStore()
 const { selectedTool } = storeToRefs(useDrawStore())

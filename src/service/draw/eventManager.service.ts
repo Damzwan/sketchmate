@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { FabricEvent, ObjectType, RestoreAction, ToolService } from '@/types/draw.types'
+import { FabricEvent, ObjectType, ToolService } from '@/types/draw.types'
 import { Canvas } from 'fabric/fabric-impl'
 import { setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { enableZoomAndPan } from '@/helper/draw/gesture.helper'
@@ -60,7 +60,7 @@ export const useEventManager = defineStore('event manager', () => {
   }
 
   function disableAllEvents() {
-    for (const [eventType, evs] of Object.entries(events.value)) {
+    for (const [eventType] of Object.entries(events.value)) {
       c!.off(eventType)
     }
   }

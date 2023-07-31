@@ -44,9 +44,7 @@ import { senderImg, svg } from '@/helper/general.helper'
 import { onLongPress } from '@vueuse/core'
 import {
   mdiCheckboxBlankCircleOutline,
-  mdiCheckboxBlankOutline,
-  mdiCheckboxMarkedCircleOutline,
-  mdiCheckboxMarkedOutline
+  mdiCheckboxMarkedCircleOutline
 } from '@mdi/js'
 
 const itemId = computed(() => props.inboxItem._id)

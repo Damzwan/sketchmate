@@ -53,7 +53,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
+import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
 import {
   mdiCircleOutline,

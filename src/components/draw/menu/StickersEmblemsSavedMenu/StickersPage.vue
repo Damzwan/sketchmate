@@ -30,7 +30,7 @@ import StickerEmblemSavedItem from '@/components/draw/menu/StickersEmblemsSavedM
 const { user } = storeToRefs(useAppStore())
 const grid = ref<HTMLElement>()
 
-const props = defineProps<{
+defineProps<{
   deleteMode: boolean
 }>()
 

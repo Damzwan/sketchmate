@@ -38,7 +38,7 @@
 
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
-import { mdiBorderColor, mdiBucketOutline, mdiFormatColorFill, mdiPanoramaHorizontalOutline } from '@mdi/js'
+import { mdiBorderColor, mdiFormatColorFill, mdiPanoramaHorizontalOutline } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { ref } from 'vue'
 import { BLACK } from '@/config/draw/draw.config'

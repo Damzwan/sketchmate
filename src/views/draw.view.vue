@@ -69,43 +69,43 @@ const steps = [
   {
     target: '[data-step="1"]',
     content: `<div>
-    <p class="text-lg">Pen</p>
-    <p>Open the menu to adjust pen style and color.</p>
+    <p class="text-xl">Pen</p>
+    <p class="text-base">Open the menu to adjust pen style and color.</p>
   </div>`
   },
   {
     target: '[data-step="2"]',
     content: `<div>
-    <p class="text-lg">Eraser</p>
-    <p>Remove strokes, undo erases, or clear canvas.</p>
+    <p class="text-xl">Eraser</p>
+    <p class="text-base">Remove strokes, undo erases, or clear canvas.</p>
   </div>`
   },
   {
     target: '[data-step="3"]',
     content: `<div>
-    <p class="text-lg">Add Elements</p>
-    <p>Include stickers, images, text, shapes and saved drawings.</p>
+    <p class="text-xl">Add Elements</p>
+    <p class="text-base">Include stickers, images, text, shapes and saved drawings.</p>
   </div>`
   },
   {
     target: '[data-step="4"]',
     content: `<div>
-  <p class="text-lg">Selection</p>
-  <p>Select to move, rotate, resize, recolor objects. Includes copy, delete, save and merge.</p>
+  <p class="text-xl">Selection</p>
+  <p class="text-base">Select to move, rotate, resize, recolor objects. Includes copy, delete, save and merge.</p>
 </div>`
   },
   {
     target: '[data-step="5"]',
     content: `<div>
-    <p class="text-lg">Lasso</p>
-    <p>For precise control over selection.</p>
+    <p class="text-xl">Lasso</p>
+    <p class="text-base">For precise control over selection.</p>
   </div>`
   },
   {
     target: '[data-step="6"]',
     content: `<div>
-    <p class="text-lg">Need Help?</p>
-    <p>Press for tutorials on each section.</p>
+    <p class="text-xl">Need Help?</p>
+    <p class="text-base">Press for tutorials on each section.</p>
   </div>`
   }
 ]

@@ -19,7 +19,6 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useToast } from '@/service/toast.service'
 import { dismissButton, matchButton, viewCommentButton, viewDrawingButton } from '@/config/toast.config'
 import { ToastDuration } from '@/types/toast.types'
-import pako from 'pako'
 import { EventBus } from '@/main'
 import { LocalStorage } from '@/types/storage.types'
 import router from '@/router'
@@ -83,7 +82,7 @@ export function createSocketService(): SocketAPI {
           duration: ToastDuration.medium
         })
         if (params.sender !== user.value?._id) increaseUnreadMessages()
-        EventBus.emit('reset-canvas')
+        else EventBus.emit('reset-canvas')
       }
     })
 
@@ -125,6 +124,8 @@ export function createSocketService(): SocketAPI {
     delete params.img
 
     const data = JSON.stringify(params)
+
+    const pako = await import('pako')
     const compressedData = pako.deflate(encoder.encode(data))
 
     const chunkSize = 1024 // or whatever size you prefer

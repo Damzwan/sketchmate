@@ -62,6 +62,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   // We make use of events so we do not load the big draw.store in other views
   EventBus.on('reset-canvas', reset)
+  EventBus.on('reply', reply as any)
   changeFabricBaseSettings()
 
   function selectTool(newTool: DrawTool, options: SelectToolOptions | undefined = undefined) {

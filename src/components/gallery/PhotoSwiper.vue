@@ -25,7 +25,7 @@
             class="pr-2"
             v-if="currInboxItem.comments.length > 0"
           >
-            <ion-icon :icon="showComments ? eye : eyeOff" />
+            <ion-icon :icon="svg(showComments ? mdiChatOutline : mdiChatRemoveOutline)" />
           </ion-button>
           <ion-avatar class="flex justify-center items-center w-[35px]"
             ><img :src="senderImg(user, currInboxItem.sender)" alt="" class="aspect-square"
@@ -104,17 +104,26 @@ import { register } from 'swiper/element/bundle'
 import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { arrowBack, eye, eyeOff } from 'ionicons/icons'
+import { arrowBack } from 'ionicons/icons'
 import { leaveAnimation, modalPopAnimation } from '@/helper/animation.helper'
 import { senderImg, senderName, setAppColors, svg } from '@/helper/general.helper'
-import { mdiCommentOutline, mdiDeleteOutline, mdiReplyOutline, mdiShareVariantOutline } from '@mdi/js'
+import {
+  mdiChatOutline,
+  mdiChatRemoveOutline,
+  mdiCommentOutline,
+  mdiDeleteOutline,
+  mdiReplyOutline,
+  mdiShareVariantOutline
+} from '@mdi/js'
 import { shareImg } from '@/helper/share.helper'
 import CommentDrawer from '@/components/gallery/CommentDrawer.vue'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import { EventBus } from '@/main'
 
+register()
 const props = defineProps({
   open: {
     type: Boolean,
@@ -157,11 +166,9 @@ function checkQueryParams() {
   setTimeout(() => router.replace({ query: undefined }), 100)
 }
 
-register()
-
 function replyToDrawing() {
   close()
-  reply(currInboxItem.value)
+  EventBus.emit('reply', currInboxItem.value) // we use Eventbus to avoid loading the dependencies of draw.view
 }
 
 function close() {

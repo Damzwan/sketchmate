@@ -5,7 +5,7 @@
     class="comment_count"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
-    @didPresent="checkIfShouldAutoFocus"
+    @didPresent="autoFocusInput"
   >
     <div class="block divide-y divide-secondary pt-2">
       <div v-for="(comment, i) in currInboxItem.comments" :key="i" class="px-2 py-2 flex items-center w-full">
@@ -23,7 +23,7 @@
         <ion-avatar class="flex justify-center items-center mx-2 w-[40px]" style="flex-shrink: 0">
           <img v-if="user" :src="user.img" alt="" class="aspect-square" />
         </ion-avatar>
-        <ion-input placeholder="Say something..." ref="input" v-model="commentBody" />
+        <ion-input placeholder="Say something..." ref="input" v-model="commentBody" autocapitalize="sentences" />
         <ion-button fill="clear" color="secondary" @click="comment" :icon="svg(mdiSend)">
           <ion-icon :icon="svg(mdiSend)" v-show="commentBody.length > 0" />
         </ion-button>
@@ -67,7 +67,7 @@ const emit = defineEmits(['update:open', 'update:currInboxItem'])
 const commentBody = ref('')
 const input = ref<any>()
 
-function checkIfShouldAutoFocus() {
+function autoFocusInput() {
   if (props.currInboxItem?.comments.length === 0) input.value.$el.setFocus()
 }
 

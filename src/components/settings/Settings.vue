@@ -46,21 +46,22 @@
               @ionBlur="onNameBlur"
               @keyup.enter="onEnter"
               enterkeyhint="done"
+              autocapitalize="sentences"
             ></ion-input>
           </div>
 
-          <div class="p-6 text-gray-500 text-sm mx-auto flex flex-col items-center justify-center" v-if="isNative()">
+          <div class="p-6 text-gray-500 text-sm mx-auto flex flex-col items-center justify-center">
             <p class="text-lg -ml-12">Enable notifications to:</p>
             <div>
               <ul class="list-disc list-inside">
                 <li>Receive sketches from your mate</li>
-                <li>Get daily reminders</li>
-                <li>Use the SketchMate widget</li>
+                <li v-if="isNative()">Get daily reminders</li>
+                <li v-if="isNative()">Use the SketchMate widget</li>
               </ul>
             </div>
           </div>
 
-          <div class="w-full flex justify-center items-center pt-6" v-if="isNative()">
+          <div class="w-full flex justify-center items-center pt-6">
             <ion-icon
               :icon="svg(user.subscription ? mdiBellRing : mdiBellOff)"
               class="w-[28px] h-[28px] pr-3 fill-gray-600"
@@ -191,5 +192,6 @@ onBeforeRouteLeave(() => close())
 ion-modal {
   --height: 100%;
   --width: 100%;
+  --max-width: 100%;
 }
 </style>

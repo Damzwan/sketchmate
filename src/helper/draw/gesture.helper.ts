@@ -34,7 +34,7 @@ export function enableMobileGestures(c: any) {
     disableHistorySaving()
 
     // rotation or scale gesture
-    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
+    if (selectedTool.value == DrawTool.Select) {
       lastEvent = { rotation: null, scale: 1 }
 
       const obj = c.getActiveObject()
@@ -42,13 +42,13 @@ export function enableMobileGestures(c: any) {
       isUsingGesture.value = true
 
       return
-    } else if (selectedTool.value != DrawTool.Select) cancelPreviousAction(c)
+    } else cancelPreviousAction(c)
   })
 
   hammer!.on('pinch', function (e) {
     if (shapeCreationMode.value) return
 
-    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0 && isUsingGesture.value) {
+    if (selectedTool.value == DrawTool.Select && isUsingGesture.value) {
       lastEvent = handleSelectMobilePinch(e, selectedObjectsRef.value, c, lastEvent)
     } else {
       if (selectedTool.value == DrawTool.Select) return
@@ -85,7 +85,7 @@ export function enableMobileGestures(c: any) {
       y: 0
     }
 
-    if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0 && isUsingGesture.value) {
+    if (selectedTool.value == DrawTool.Select && isUsingGesture.value) {
       // Without timeout the object will move to the last location of your fingers making it tp sometimes
       setTimeout(() => {
         const obj = c.getActiveObject()
@@ -150,14 +150,15 @@ function cancelPenAction(c: Canvas) {
 
 function cancelPreviousAction(c: Canvas) {
   const { selectedTool } = useDrawStore()
-  const { setSelectedObjects } = useSelect()
+  const { actionWithoutEvents } = useEventManager()
   setTimeout(() => {
-    if (ERASERS.includes(selectedTool)) cancelEraserAction(c) // needs to happen before touch up
-    c.discardActiveObject()
-    setSelectedObjects([])
-    fabricateTouchUp(c)
-    if (selectedTool == DrawTool.Pen) cancelPenAction(c) // needs to happen after touch up
-    c.renderAll()
+    actionWithoutEvents(() => {
+      if (ERASERS.includes(selectedTool)) cancelEraserAction(c) // needs to happen before touch up
+      c.discardActiveObject()
+      fabricateTouchUp(c)
+      if (selectedTool == DrawTool.Pen) cancelPenAction(c) // needs to happen after touch up
+      c.renderAll()
+    })
   }, 1)
 }
 

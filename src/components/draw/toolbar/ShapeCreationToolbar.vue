@@ -1,5 +1,5 @@
 <template>
-  <ion-toolbar color="primary" class="h-[43px]" mode="md">
+  <ion-toolbar color="primary" mode="md">
     <ion-buttons slot="end">
       <ion-button @click="undo" :disabled="undoStack.length == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
@@ -26,7 +26,7 @@ import { mdiCheck, mdiRedo, mdiShapeOutline, mdiUndo } from '@mdi/js'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawEvent, Menu, ShapeCreationMode } from '@/types/draw.types'
+import { DrawEvent, DrawTool, Menu, ShapeCreationMode } from '@/types/draw.types'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useHistory } from '@/service/draw/history.service'
 import { useEventManager } from '@/service/draw/eventManager.service'
@@ -42,6 +42,7 @@ const { undoStack, redoStack } = storeToRefs(useHistory())
 
 const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
 
+// TODO this code is a bit cursed haha
 function exitShapeCreationMode() {
   shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
   EventBus.emit('reset-shape-creation')
@@ -51,9 +52,7 @@ function exitShapeCreationMode() {
   if (shapeCreationMode.value == ShapeCreationMode.Click) enableAllEvents()
 
   shapeCreationMode.value = undefined
-
-  const { selectedTool } = useDrawStore()
-  selectTool(selectedTool)
+  selectTool(DrawTool.Select)
 }
 
 function openShapesMenu(e: any) {
@@ -63,8 +62,8 @@ function openShapesMenu(e: any) {
 
 <style scoped>
 ion-button {
-  width: 43px !important;
-  height: 43px !important;
+  width: var(--toolbar-height) !important;
+  height: var(--toolbar-height) !important;
 }
 
 ion-button ion-icon {
@@ -73,14 +72,15 @@ ion-button ion-icon {
 }
 
 ion-button::part(native) {
-  @apply p-[0.675rem];
+  @apply p-[11px];
 }
 
 ion-buttons {
-  @apply h-[43px] top-0 relative;
+  @apply h-[var(--toolbar-height)] top-0 relative;
 }
 
 ion-toolbar {
-  --min-height: 43px;
+  --min-height: var(--toolbar-height);
+  --height: var(--toolbar-height);
 }
 </style>

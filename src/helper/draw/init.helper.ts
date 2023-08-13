@@ -23,7 +23,7 @@ export function initCanvasOptions(): ICanvasOptions {
   return {
     isDrawingMode: true,
     width: window.innerWidth,
-    height: window.innerHeight - 43 - 50,
+    height: window.innerHeight - 41 - 50,
     backgroundColor: BACKGROUND,
     fireMiddleClick: true,
     selection: false

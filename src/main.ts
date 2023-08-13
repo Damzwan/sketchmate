@@ -22,9 +22,11 @@ export const EventBus = mitt()
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import VueJsTour from '@globalhive/vuejs-tour'
+import { initFirebase } from '@/helper/general.helper'
 const app = createApp(App).use(IonicVue).use(pinia).use(VueJsTour).use(router)
 
 addNotificationListeners()
+initFirebase()
 
 app.mount('#app')
 

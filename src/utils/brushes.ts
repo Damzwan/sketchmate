@@ -1,5 +1,4 @@
 import { fabric } from 'fabric'
-import { InkBrush } from '@/utils/brushes/inkbrush'
 
 declare module 'fabric' {
   namespace fabric {
@@ -264,6 +263,6 @@ export function loadAdditionalBrushes() {
     }
   })
 
-  fabric.InkBrush = InkBrush
+  // fabric.InkBrush = InkBrush
   // fabric.WaterColorBrush = WatercolorBrush
 }

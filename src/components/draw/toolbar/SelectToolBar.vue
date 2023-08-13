@@ -1,5 +1,5 @@
 <template>
-  <ion-toolbar color="primary" class="h-[43px]" mode="md">
+  <ion-toolbar color="primary" mode="md">
     <ion-buttons slot="start" class="flex flex-grow">
       <ion-button @click="unselectObjects" mode="md" color="black">
         <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
@@ -108,26 +108,26 @@ function unselectObjects() {
 
 <style scoped>
 ion-button {
-  width: 43px !important;
-  height: 43px !important;
+  width: var(--toolbar-height) !important;
+  height: var(--toolbar-height) !important;
 }
 
 ion-button ion-icon {
   width: 100% !important;
   height: 100% !important;
-  color: black;
 }
 
 ion-button::part(native) {
-  @apply p-[0.675rem];
+  @apply p-[11px];
 }
 
-ion-toolbar .toolbar-container {
-  @apply bg-red-600 z-10 !important;
+ion-buttons {
+  @apply h-[var(--toolbar-height)] top-0 relative;
 }
 
 ion-toolbar {
-  --min-height: 43px;
+  --min-height: var(--toolbar-height);
+  --height: var(--toolbar-height);
 }
 
 .font_text {

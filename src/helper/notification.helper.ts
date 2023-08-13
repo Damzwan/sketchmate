@@ -5,24 +5,42 @@ import router from '@/router'
 import { PushNotifications } from '@capacitor/push-notifications'
 import { NotificationType } from '@/types/server.types'
 import { useToast } from '@/service/toast.service'
+import { isNative } from '@/helper/general.helper'
+import { getMessaging, getToken } from 'firebase/messaging'
 
 export async function requestNotifications() {
-  let permStatus = await LocalNotifications.checkPermissions()
+  if (isNative()) {
+    let permStatus = await LocalNotifications.checkPermissions()
 
-  if (permStatus.display !== 'granted') {
-    permStatus = await LocalNotifications.requestPermissions()
-  }
+    if (permStatus.display !== 'granted') {
+      permStatus = await LocalNotifications.requestPermissions()
+    }
 
-  if (permStatus.display !== 'granted') {
-    const { toast } = useToast()
-    toast('Please enable notifications from your device settings', { color: 'danger' })
-    throw new Error('User denied permissions!')
-  }
+    if (permStatus.display !== 'granted') {
+      const { toast } = useToast()
+      toast('Please enable notifications from your device settings', { color: 'danger' })
+      throw new Error('User denied permissions!')
+    }
 
-  await requestLocalNotifications()
-  await requestPushNotifications()
+    await requestLocalNotifications()
+    await requestPushNotifications()
+  } else await PWARequestNotifications()
 }
 
+export async function PWARequestNotifications() {
+  const messaging = getMessaging()
+  const permission = await Notification.requestPermission()
+  if (permission != 'granted') return
+
+  const registration = await navigator.serviceWorker.ready
+  const token = await getToken(messaging, {
+    vapidKey: import.meta.env.VITE_VAPID_PUBLIC,
+    serviceWorkerRegistration: registration
+  })
+
+  const { setNotifications } = useAppStore()
+  setNotifications(token)
+}
 export function disableNotifications() {
   disableLocalNotifications()
   const { setNotifications } = useAppStore()
@@ -57,46 +75,55 @@ async function disableLocalNotifications() {
 }
 
 export async function addNotificationListeners() {
-  await PushNotifications.addListener('registration', token => {
-    const { setNotifications } = useAppStore()
-    setNotifications(token.value)
-  })
-
-  // Called when the app is active
-  await PushNotifications.addListener('pushNotificationReceived', () => {
-    // Hide the standard notification UI
-    PushNotifications.getDeliveredNotifications().then(x => {
-      PushNotifications.removeDeliveredNotifications(x)
+  if (isNative()) {
+    await PushNotifications.addListener('registration', token => {
+      const { setNotifications } = useAppStore()
+      setNotifications(token.value)
     })
-  })
 
-  await PushNotifications.addListener('pushNotificationActionPerformed', notification => {
-    const notificationType: NotificationType = notification.notification.data.type
-    const { setNotificationLoading } = useAppStore()
-    setNotificationLoading(notificationType)
-    if (notificationType === NotificationType.match) router.push(FRONTEND_ROUTES.mate)
-    else if (notificationType === NotificationType.unmatch) router.push(FRONTEND_ROUTES.connect)
-    if (notificationType === NotificationType.message) {
-      router.push({
-        path: FRONTEND_ROUTES.gallery,
-        query: {
-          item: notification.notification.data.inbox_id
-        }
+    // Called when the app is active
+    await PushNotifications.addListener('pushNotificationReceived', () => {
+      // Hide the standard notification UI
+      PushNotifications.getDeliveredNotifications().then(x => {
+        PushNotifications.removeDeliveredNotifications(x)
       })
-    } else if (notificationType === NotificationType.comment)
-      router.push({
-        path: FRONTEND_ROUTES.gallery,
-        query: {
-          item: notification.notification.data.inbox_id,
-          comments: 'true'
-        }
-      })
-  })
+    })
 
-  await LocalNotifications.addListener('localNotificationActionPerformed', notification => {
-    router.push(FRONTEND_ROUTES.draw)
-    LocalNotifications.removeDeliveredNotifications({ notifications: [notification.notification] })
-  })
+    await PushNotifications.addListener('pushNotificationActionPerformed', notification => {
+      const notificationType: NotificationType = notification.notification.data.type
+      const { setNotificationLoading } = useAppStore()
+      setNotificationLoading(notificationType)
+      if (notificationType === NotificationType.match) router.push(FRONTEND_ROUTES.mate)
+      else if (notificationType === NotificationType.unmatch) router.push(FRONTEND_ROUTES.connect)
+      if (notificationType === NotificationType.message) {
+        router.push({
+          path: FRONTEND_ROUTES.gallery,
+          query: {
+            item: notification.notification.data.inbox_id
+          }
+        })
+      } else if (notificationType === NotificationType.comment)
+        router.push({
+          path: FRONTEND_ROUTES.gallery,
+          query: {
+            item: notification.notification.data.inbox_id,
+            comments: 'true'
+          }
+        })
+    })
+
+    await LocalNotifications.addListener('localNotificationActionPerformed', notification => {
+      router.push(FRONTEND_ROUTES.draw)
+      LocalNotifications.removeDeliveredNotifications({ notifications: [notification.notification] })
+    })
+  } else {
+    const channel = new BroadcastChannel('pwa_sw')
+    channel.onmessage = function (event) {
+      const data = event.data
+      console.log(data)
+      router.push({ path: data.path, query: data.query })
+    }
+  }
 }
 
 function next2pm() {

@@ -10,6 +10,7 @@ import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { Preferences } from '@capacitor/preferences'
 import { useToast } from '@/service/toast.service'
+import { initializeApp } from 'firebase/app'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -144,4 +145,18 @@ export function isNative() {
 
 export function blurIonInput(ionInput: any) {
   ionInput.$el.querySelector('input').blur()
+}
+
+export function initFirebase() {
+  const firebaseConfig = {
+    apiKey: 'AIzaSyA0QXGKwWkDCMkyL4SEvdHGlaVQNyc7FUk',
+    authDomain: 'sketchmate-b5977.firebaseapp.com',
+    projectId: 'sketchmate-b5977',
+    storageBucket: 'sketchmate-b5977.appspot.com',
+    messagingSenderId: '454566721535',
+    appId: '1:454566721535:web:019875100e884ea61519ca',
+    measurementId: 'G-GD43HDZD3D'
+  }
+
+  initializeApp(firebaseConfig)
 }

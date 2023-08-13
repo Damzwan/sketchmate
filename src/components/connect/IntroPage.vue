@@ -19,15 +19,7 @@
         </swiper-slide>
         <swiper-slide>
           <div class="container">
-            <LottieAnimation
-              :animation-data="sketching"
-              :auto-play="false"
-              :loop="false"
-              :speed="1"
-              class="w-full h-[430px]"
-              alt="Girl drawing"
-              ref="anim"
-            />
+            <Lottie :json="sketching" :play="playLottie" class="w-full h-[430px]" />
             <h1 class="title -mt-10">Sketch at your own pace</h1>
             <p class="subtitle">Whether it's a few times a day or once in a while, no artistic skills required</p>
           </div>
@@ -82,11 +74,12 @@
                 v-model="name"
                 enterkeyhint="done"
                 ref="nameRef"
+                autocapitalize="sentences"
                 @keyup.enter="() => blurIonInput(nameRef)"
               />
             </div>
 
-            <div class="p-6 text-gray-500 text-sm mx-auto flex flex-col items-center justify-center" v-if="isNative()">
+            <div class="p-6 text-gray-500 text-sm mx-auto flex flex-col items-center justify-center">
               <p class="text-lg -ml-12">Enable notifications to:</p>
               <div>
                 <ul class="list-disc list-inside">
@@ -98,7 +91,7 @@
             </div>
 
             <!-- Toggle Button -->
-            <div class="w-full flex justify-center items-center pt-6" v-if="isNative()">
+            <div class="w-full flex justify-center items-center pt-6">
               <ion-icon
                 :icon="svg(localSubscription ? mdiBellRing : mdiBellOff)"
                 class="w-[28px] h-[28px] pr-3 fill-gray-600"
@@ -155,7 +148,7 @@ import {
 
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { blurIonInput, compressImg, isNative, svg } from '@/helper/general.helper'
+import { blurIonInput, compressImg, svg } from '@/helper/general.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { storeToRefs } from 'pinia'
@@ -165,10 +158,10 @@ import girlDrawing from '@/assets/illustrations/girl_drawing.svg'
 import matchDrawing from '@/assets/illustrations/match.svg'
 import gallery from '@/assets/illustrations/gallery.svg'
 import widget from '@/assets/illustrations/widget.webp'
-import { LottieAnimation } from 'lottie-web-vue'
 import sketching from '@/assets/lottie/sketching.json'
 import { Swiper } from 'swiper/types'
 import { addOutline } from 'ionicons/icons'
+import Lottie from '@/components/general/Lottie.vue'
 
 register()
 
@@ -181,14 +174,14 @@ const img = ref()
 const imgInput = ref<HTMLInputElement>()
 const nameRef = ref<any>()
 
-const anim = ref<any>()
+const playLottie = ref(false)
 
 const { localSubscription, localUserId, localUserImg } = storeToRefs(useAppStore())
 const swiper = ref<Swiper>()
 const lastSlide = ref(false)
 
 function slideChange() {
-  if (swiper.value?.activeIndex === 2) anim.value.play()
+  playLottie.value = swiper.value?.activeIndex === 2
 
   if (swiper.value?.activeIndex === swiper.value!.slides.length - 1) {
     lastSlide.value = true

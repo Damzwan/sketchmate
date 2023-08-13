@@ -122,6 +122,7 @@ export const useSelect = defineStore('select', (): Select => {
         const objects = c!.getObjects()
         if (objects.length == 0) return
         lastModifiedObjects.value = [objects[objects.length - 1]]
+
         selectLastModifiedObjects(c!)
       }
     })
@@ -141,6 +142,7 @@ export const useSelect = defineStore('select', (): Select => {
   function selectLastModifiedObjects(c: Canvas) {
     const ids: string[] = lastModifiedObjects.value.map((obj: any) => obj.id)
     const foundLastModifiedObjects = c.getObjects().filter((obj: any) => ids.includes(obj.id))
+
     if (foundLastModifiedObjects.length == 1) c.setActiveObject(foundLastModifiedObjects[0])
     else if (foundLastModifiedObjects.length > 1)
       c.setActiveObject(new fabric.ActiveSelection(foundLastModifiedObjects, { canvas: c! }))

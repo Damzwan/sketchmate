@@ -103,7 +103,6 @@ import { computed, ref } from 'vue'
 import { register } from 'swiper/element/bundle'
 import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
-import { useDrawStore } from '@/store/draw/draw.store'
 import { arrowBack } from 'ionicons/icons'
 import { leaveAnimation, modalPopAnimation } from '@/helper/animation.helper'
 import { senderImg, senderName, setAppColors, svg } from '@/helper/general.helper'
@@ -143,7 +142,6 @@ const emit = defineEmits(['update:open', 'update:slide', 'remove'])
 
 const api = useAPI()
 const { user, consumeNotificationLoading } = useAppStore()
-const { reply } = useDrawStore()
 
 const currInboxItem = computed<InboxItem>(() => props.inboxItems![props.slide!])
 const showComments = ref(true)

@@ -1,7 +1,7 @@
 <template>
   <ion-toolbar color="primary" mode="md">
     <ion-buttons slot="start" class="flex flex-grow">
-      <ion-button @click="unselectObjects" mode="md" color="black">
+      <ion-button @click="unselectObjects">
         <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
       </ion-button>
 

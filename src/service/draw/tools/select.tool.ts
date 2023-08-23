@@ -6,7 +6,6 @@ import { fabric } from 'fabric'
 import { defineStore, storeToRefs } from 'pinia'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { useHistory } from '@/service/draw/history.service'
 import { disableEditing } from '@/helper/draw/actions/polyEdit.action'
 
 export interface Select extends ToolService {
@@ -28,7 +27,7 @@ export const useSelect = defineStore('select', (): Select => {
   const selectedObjectsRef = ref<Array<SelectedObject>>([])
   const multiSelectMode = ref(false)
   const lastModifiedObjects = ref<Array<SelectedObject>>([])
-  const history = useHistory()
+  const { actionWithoutEvents } = useEventManager()
 
   let mouseClickTarget: fabric.Object | undefined = undefined
 
@@ -54,7 +53,7 @@ export const useSelect = defineStore('select', (): Select => {
           const text = selectedObjects[0] as IText
           const { isEditingText } = storeToRefs(useDrawStore())
           if (isEditingText.value) {
-            if (text.text == '') history.actionWithoutHistory(() => c!.remove(text))
+            if (text.text == '') actionWithoutEvents(() => c!.remove(text))
             else {
               c?.setActiveObject(text)
               isEditingText.value = false

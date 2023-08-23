@@ -43,11 +43,11 @@
         <FontMenu @font_selected="font => selectAction(DrawAction.ChangeFont, { font })" />
       </div>
 
-      <ion-button @click="undo" :disabled="undoStack.length == 0">
+      <ion-button @click="undo" :disabled="undoStackCounter == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
       </ion-button>
 
-      <ion-button @click="redo" :disabled="redoStack.length == 0">
+      <ion-button @click="redo" :disabled="redoStackCounter == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
@@ -87,7 +87,7 @@ import { exitEditing } from '@/helper/draw/draw.helper'
 
 const { selectAction, getCanvas } = useDrawStore()
 const { undo, redo } = useHistory()
-const { undoStack, redoStack } = storeToRefs(useHistory())
+const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 
 const { setMouseClickTarget } = useSelect()
 const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect())

@@ -66,6 +66,7 @@ export const useEventManager = defineStore('event manager', () => {
   }
 
   function enableAllEvents() {
+    disableAllEvents()
     for (const [eventOn, evs] of Object.entries(events.value)) {
       c!.on(eventOn, (e: any) => evs.forEach(ev => ev.handler(e)))
     }

@@ -1,13 +1,15 @@
 import { Canvas, Group, IPoint, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawTool, ObjectType, SelectedObject } from '@/types/draw.types'
+import { DrawEvent, DrawTool, ObjectType, SelectedObject } from '@/types/draw.types'
 import { checkCanvasBounds } from '@/helper/draw/gesture.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
 import { compressImg, isMobile } from '@/helper/general.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { mergeObjects } from '@/helper/draw/actions/operation.action'
+import { EventBus } from '@/main'
+import { useEventManager } from '@/service/draw/eventManager.service'
 
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
@@ -91,8 +93,8 @@ export async function canvasToBuffer(canvasDataUrl: string) {
 export async function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>) {
   for (const obj of objects) {
     if (obj.type == ObjectType.group) {
-      if (options.backgroundColor) await fillBackGroundForGroup(obj, options)
-      else setForSelectedObjects((obj as Group).getObjects(), options)
+      // if (options.backgroundColor) await fillBackGroundForGroup(obj, options) TODO enable this sometime
+      setForSelectedObjects((obj as Group).getObjects(), options)
     } else obj.set(options)
   }
 }
@@ -171,12 +173,17 @@ export function splitStringToWidth(text: string, fontSize: number, fontFace: str
 }
 
 export function restoreSelectedObjects(c: Canvas, selectedObjects: SelectedObject[]) {
-  const { multiSelectMode, setMultiSelectMode } = useSelect()
+  const { multiSelectMode, setMultiSelectMode, setSelectedObjects } = useSelect()
   const multi = multiSelectMode
   setMultiSelectMode(false)
   const newSelectedObjects = selectedObjects.map((obj: any) => findObjectById(c!, obj.id)!).filter((obj: any) => !!obj)
   if (newSelectedObjects.length > 1) c!.setActiveObject(new fabric.ActiveSelection(newSelectedObjects, { canvas: c }))
   else if (newSelectedObjects.length == 1) c?.setActiveObject(newSelectedObjects[0])
+  else {
+    // TODO kinda hacky
+    c.discardActiveObject()
+    setSelectedObjects([])
+  }
   setMultiSelectMode(multi)
   c.requestRenderAll()
 }
@@ -198,4 +205,35 @@ export function findNearestPoint(clickPoint: IPoint, points: IPoint[], clickTole
     if (distance <= clickTolerance) return point
   }
   return undefined
+}
+
+export function objectsFromTarget(target: any): fabric.Object[] {
+  return target.type == ObjectType.selection ? target._objects : [target]
+}
+
+export function exitShapeCreationMode() {
+  const { setShapeCreationMode } = useDrawStore()
+  const { unsubscribe, enableAllEvents } = useEventManager()
+
+  const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
+  shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
+  EventBus.emit('reset-shape-creation')
+  EventBus.off('reset-shape-creation')
+  EventBus.off('undo')
+  EventBus.off('redo')
+  enableAllEvents()
+  setShapeCreationMode(undefined)
+
+  const { selectTool } = useDrawStore()
+  selectTool(DrawTool.Select)
+}
+
+export function getStaticObjWithAbsolutePosition(obj: fabric.Object) {
+  const o = obj.toObject()
+  const dim = obj.group
+    ? fabric.util.transformPoint(obj.getPointByOrigin('left', 'top'), obj.group.calcTransformMatrix())
+    : { x: obj.left!, y: obj.top! }
+  o.left = dim.x
+  o.top = dim.y
+  return o
 }

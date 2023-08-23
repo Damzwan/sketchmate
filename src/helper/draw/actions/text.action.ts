@@ -3,7 +3,6 @@ import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawTool } from '@/types/draw.types'
 import { useSelect } from '@/service/draw/tools/select.tool'
-import { storeToRefs } from 'pinia'
 import FontFaceObserver from 'fontfaceobserver'
 import { useHistory } from '@/service/draw/history.service'
 import { popoverController } from '@ionic/vue'
@@ -20,6 +19,7 @@ export function addText(c: Canvas) {
     originX: 'center',
     originY: 'center'
   })
+  text.init = true
 
   c.add(text)
 
@@ -37,66 +37,70 @@ export function addText(c: Canvas) {
 
 export async function changeFont(c: Canvas, options: any) {
   const font = options['font']
-  const { saveState } = useHistory()
-  const { selectedObjectsRef } = useSelect()
+  const { addToUndoStack } = useHistory()
+  const { getSelectedObjects } = useSelect()
+  const selectedObjects = getSelectedObjects()
 
-  const textObj = selectedObjectsRef[0] as fabric.IText
+  const textObj = selectedObjects[0] as fabric.IText
   const fontFaceObserver = new FontFaceObserver(font)
   await fontFaceObserver.load()
+
+  addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
   textObj.set({ fontFamily: font })
 
   popoverController.dismiss()
-  saveState()
 
   c.renderAll()
 }
 
 export async function changeFontWeight(c: Canvas, options: any) {
-  const { saveState } = useHistory()
-  const { selectedObjectsRef } = storeToRefs(useSelect())
+  const { addToUndoStack } = useHistory()
+  const { getSelectedObjects } = useSelect()
+  const selectedObjects = getSelectedObjects()
   const weight = options['weight']
 
-  const textObj = selectedObjectsRef.value[0] as fabric.IText
+  const textObj = selectedObjects[0] as fabric.IText
+  addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
   textObj.set({ fontWeight: weight })
-  selectedObjectsRef.value = [textObj]
-  saveState()
 
   c.renderAll()
 }
 
 export async function changeFontStyle(c: Canvas, options: any) {
-  const { saveState } = useHistory()
-  const { selectedObjectsRef } = useSelect()
+  const { addToUndoStack } = useHistory()
+  const { getSelectedObjects } = useSelect()
+  const selectedObjects = getSelectedObjects()
   const style = options['style']
 
-  const textObj = selectedObjectsRef[0] as fabric.IText
+  const textObj = selectedObjects[0] as fabric.IText
+  addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
   textObj.set({ fontStyle: style })
-  saveState()
   c.renderAll()
 }
 
 export async function changeTextAlign(c: Canvas, options: any) {
-  const { saveState } = useHistory()
-  const { selectedObjectsRef } = useSelect()
+  const { addToUndoStack } = useHistory()
+  const { getSelectedObjects } = useSelect()
+  const selectedObjects = getSelectedObjects()
   const align = options['align']
 
-  const textObj = selectedObjectsRef[0] as fabric.IText
+  const textObj = selectedObjects[0] as fabric.IText
+  addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
   textObj.set({ textAlign: align })
-  saveState()
   c.renderAll()
 }
 
 export async function curveText(c: Canvas) {
-  const { saveState } = useHistory()
-  const { selectedObjectsRef } = useSelect()
-  const text = selectedObjectsRef[0] as fabric.IText
+  const { addToUndoStack } = useHistory()
+  const { getSelectedObjects } = useSelect()
+  const selectedObjects = getSelectedObjects()
+  const textObj = selectedObjects[0] as fabric.IText
 
-  if (text.isCurved) delete text.path
-  else applyCurve(text, c)
+  if (textObj.isCurved) delete textObj.path
+  else applyCurve(textObj, c)
 
-  text.set({ isCurved: !text.isCurved })
-
-  saveState()
+  addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
+  textObj.set({ isCurved: !textObj.isCurved })
   c.renderAll()
 }
 

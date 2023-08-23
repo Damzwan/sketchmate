@@ -4,7 +4,7 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { useHistory } from '@/service/draw/history.service'
 import { fabric } from 'fabric'
 import { useEventManager } from '@/service/draw/eventManager.service'
-import { findNearestPoint, setSelectionForObjects } from '@/helper/draw/draw.helper'
+import { exitShapeCreationMode, findNearestPoint, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { EventBus } from '@/main'
 
@@ -26,7 +26,7 @@ export function addShape(c: Canvas, options: any) {
 }
 
 function addShapeWithClick(c: Canvas, shape: Shape) {
-  const { saveState } = useHistory()
+  const { addToUndoStack } = useHistory()
   const { isolatedSubscribe, disableAllEvents } = useEventManager()
   const { setModifiedObjects } = useSelect()
 
@@ -50,8 +50,11 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
       createdShape = foundCreatedShape
       points = createdShape.points
     } else points.pop()
+    pointCircles.forEach(circle => c.remove(circle))
     pointCircles = await rerenderVisualCircles(c, createdShape, clickTolerance)
-    enableShapeCreationClickEvents()
+
+    if (points.length == 0) exitShapeCreationMode()
+    else enableShapeCreationClickEvents()
   }
 
   function enableShapeCreationClickEvents() {
@@ -75,7 +78,9 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
             points.push(point)
             if (createdShape) {
               c.remove(createdShape)
+              const id = createdShape.id
               createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+              createdShape.id = id
               c.add(createdShape)
             } else {
               createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
@@ -85,7 +90,9 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
             points.push(point)
             if (createdShape) {
               c.remove(createdShape)
+              const id = createdShape.id
               createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+              createdShape.id = id
               c.add(createdShape)
             } else {
               createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
@@ -94,9 +101,10 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
           default:
             break
         }
+
+        addToUndoStack([createdShape], 'polygon')
         createdShape.isCreating = true
         setModifiedObjects({ target: createdShape }, false)
-        saveState()
       }
     })
   }
@@ -105,7 +113,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 }
 
 function addShapeWithDrag(c: Canvas, shape: Shape) {
-  const { disableHistorySaving, enableHistorySaving, saveState } = useHistory()
+  const { disableHistorySaving, enableHistorySaving, addToUndoStack } = useHistory()
   const { isolatedSubscribe, unsubscribe } = useEventManager()
   const { setModifiedObjects } = useSelect()
   const { setShapeCreationMode, selectTool } = useDrawStore()
@@ -141,9 +149,9 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
       const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
       shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
 
-      saveState()
       enableHistorySaving()
       drawingMode = false
+      addToUndoStack([createdShape], 'object:added')
       setModifiedObjects({ target: createdShape }, false)
       createdShape.setCoords() // important to update the bounding box of the shape
       setShapeCreationMode(undefined)

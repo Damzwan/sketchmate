@@ -1,64 +1,341 @@
-import { Ref, ref } from 'vue'
+import { ref } from 'vue'
 import {
-  exitEditing,
+  getStaticObjWithAbsolutePosition,
+  enlivenObjects,
   isText,
-  restoreSelectedObjects,
-  setSelectionForObjects
+  objectsFromTarget,
+  restoreSelectedObjects
 } from '@/helper/draw/draw.helper'
-import { Canvas } from 'fabric/fabric-impl'
+import { Canvas, IText } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.tool'
-import { DrawEvent, DrawTool, FabricEvent, ObjectType, SelectedObject } from '@/types/draw.types'
+import { DrawAction, DrawEvent, FabricEvent, ObjectType } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
-import { applyCurve } from '@/helper/draw/actions/text.action'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { fabric } from 'fabric'
 import { EventBus } from '@/main'
+import { useDrawStore } from '@/store/draw/draw.store'
+
+type HistoryEvent =
+  | 'erasing:end'
+  | 'after:transform'
+  | 'object:removed'
+  | 'object:added'
+  | 'object:modified'
+  | 'layering'
+  | 'merge'
+  | 'backgroundImg'
+  | 'fullErase'
+  | 'polygon'
+
+interface HistoryAction {
+  type: HistoryEvent
+  objects: fabric.Object[]
+  options?: any
+}
 
 export const useHistory = defineStore('history', () => {
   let c: Canvas | undefined = undefined
-  let prevCanvasState: any
-  const undoStack = ref<any[]>([])
-  const redoStack = ref<any[]>([])
-  const { subscribe, unsubscribe, disableAllEvents, enableAllEvents } = useEventManager()
+  let prevCanvasObjects: any[] | undefined = []
 
-  // 'erasing:end', 'after:transform', 'object:removed', 'object:added', 'object:modified'
+  let undoStack: HistoryAction[] = []
+  let redoStack: HistoryAction[] = []
+  const undoStackCounter = ref(0)
+  const redoStackCounter = ref(0)
+
+  const { subscribe, unsubscribe, actionWithoutEvents } = useEventManager()
+  const { getSelectedObjects } = useSelect()
+
+  const undoMapping: Partial<Record<HistoryEvent, (objects: fabric.Object[], options?: any) => void>> = {
+    'object:added': undoObjectAdded,
+    'object:modified': undoObjectModified,
+    'object:removed': undoObjectDeleted,
+    layering: undoLayering,
+    merge: undoMerge,
+    backgroundImg: undoBackgroundImg,
+    fullErase: undoFullErase,
+    polygon: undoPolyPointAdded
+  }
+
+  const redoMapping: Partial<Record<HistoryEvent, (objects: fabric.Object[], options?: any) => void>> = {
+    'object:added': redoObjectAdded,
+    'object:modified': redoObjectModified,
+    'object:removed': redoObjectDeleted,
+    layering: redoLayering,
+    merge: redoMerge,
+    backgroundImg: redoBackgroundImg,
+    fullErase: redoFullErase,
+    polygon: redoPolyPointAdded
+  }
+
   const events: FabricEvent[] = [
     {
       type: DrawEvent.SaveHistory,
       on: 'erasing:end',
-      handler: (e: any) => (e.targets.length > 0 ? saveState() : undefined)
+      handler: (e: any) => {
+        if (e.targets.length == 0) return
+        let modifiedObjects = e.targets as fabric.Object[]
+        modifiedObjects = modifiedObjects.map(obj => prevCanvasObjects?.find(o => o.id == obj.id))
+        addToUndoStack(modifiedObjects, 'object:modified')
+      }
     },
     {
       type: DrawEvent.SaveHistory,
       on: 'after:transform',
-      handler: () => saveState()
-    },
-    {
-      type: DrawEvent.SaveHistory,
-      on: 'object:removed',
-      handler: () => saveState()
+      handler: (e: any) => console.log('TRANSFORM HISTORY EVENT WTF')
     },
     {
       type: DrawEvent.SaveHistory,
       on: 'object:added',
-      handler: () => saveState()
+      handler: (e: any) => {
+        addToUndoStack(objectsFromTarget(e.target), 'object:added')
+      }
     },
     {
       type: DrawEvent.SaveHistory,
       on: 'object:modified',
-      handler: () => saveState()
+      handler: async (e: any) => {
+        let modifiedObjects = objectsFromTarget(e.target)
+        if (isText(modifiedObjects) && (modifiedObjects[0] as IText).init) {
+          const text = modifiedObjects[0] as IText
+          text.init = false
+          addToUndoStack(modifiedObjects, 'object:added')
+        } else {
+          modifiedObjects = modifiedObjects.map(obj => prevCanvasObjects?.find(o => o.id == obj.id))
+          addToUndoStack(modifiedObjects, 'object:modified')
+        }
+      }
     }
   ]
 
+  function undoObjectAdded(objects: fabric.Object[]) {
+    objects.forEach(obj => {
+      const currObj = c?.getObjects().find(o => o.id == obj.id)
+      if (!currObj) return
+      c?.remove(currObj)
+    })
+    redoStack.push({ type: 'object:added', objects: objects })
+    restoreSelectedObjects(c!, getSelectedObjects())
+  }
+
+  async function undoObjectModified(objects: fabric.Object[], options: any) {
+    c?.discardActiveObject()
+    const modifiedObjects: fabric.Object[] = []
+    for (const obj of objects) {
+      const currObj = c?.getObjects().find(o => o.id == obj.id)
+      if (!currObj) continue
+      modifiedObjects.push(currObj.toObject())
+      const enlivenedObj = (await enlivenObjects([obj]))[0]
+
+      currObj.set({
+        left: obj.left!,
+        top: obj.top!,
+        angle: obj.angle!,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY,
+        eraser: enlivenedObj.eraser
+      })
+      if (options && options.color) {
+        currObj.set({
+          stroke: obj.stroke,
+          fill: obj.fill,
+          backgroundColor: obj.backgroundColor
+        })
+      }
+      if (currObj.type == ObjectType.text && options && options.textStyle)
+        (currObj as IText).set({
+          fontFamily: (enlivenedObj as IText).fontFamily,
+          fontWeight: (enlivenedObj as IText).fontWeight,
+          fontStyle: (enlivenedObj as IText).fontStyle,
+          textAlign: (enlivenedObj as IText).textAlign,
+          isCurved: (enlivenedObj as IText).isCurved
+        })
+
+      if (currObj.type == ObjectType.polygon) (currObj as any)._setPositionDimensions({})
+      currObj.dirty = true
+    }
+
+    redoStack.push({ type: 'object:modified', objects: modifiedObjects, options })
+    restoreSelectedObjects(c!, getSelectedObjects())
+    c?.renderAll()
+  }
+
+  function undoObjectDeleted(objects: fabric.Object[]) {
+    c?.add(...objects)
+    redoStack.push({ type: 'object:removed', objects: objects })
+  }
+
+  function undoLayering(objects: fabric.Object[]) {
+    redoStack.push({ type: 'layering', objects: c!.getObjects() })
+    for (let i = 0; i < objects.length; i++) {
+      const currObj = c?.getObjects().find(o => o.id == objects[i].id)
+      if (!currObj) continue
+      c?.moveTo(currObj, i)
+    }
+    c?.renderAll()
+  }
+
+  function undoMerge(objects: any) {
+    const group = objects[0] as fabric.Group
+    c?.remove(group)
+
+    group._restoreObjectsState()
+
+    c?.add(...group._objects)
+    group._objects.forEach(obj => {
+      obj.setCoords() // Refresh coordinates of the object
+    })
+
+    c?.setActiveObject(new fabric.ActiveSelection(group._objects, { canvas: c }))
+
+    c?.renderAll() // Refresh the canvas
+
+    redoStack.push({ type: 'merge', objects: group._objects })
+  }
+
+  function undoBackgroundImg(objects: any[]) {
+    const previousBackgroundImage = objects[0] as fabric.Image | undefined
+    redoStack.push({ type: 'backgroundImg', objects: [c?.backgroundImage as any] })
+    c!.backgroundImage = previousBackgroundImage
+    c?.renderAll()
+  }
+
+  function undoFullErase(objects: any[]) {
+    const prevCanvasJSON = objects[0]
+    c?.loadFromJSON(prevCanvasJSON, () => {
+      console.log('undo clear')
+    })
+    redoStack.push({ type: 'fullErase', objects: [] })
+  }
+
+  function undoPolyPointAdded(objects: any[]) {
+    const shape: any = objects[0]
+    redoStack.push({ type: 'polygon', objects: [shape.toObject()] })
+    const currObj: any = c?.getObjects().find(o => o.id == shape.id)
+    if (!currObj) return
+
+    const points = currObj.points
+    points.pop()
+
+    if (points.length == 0) {
+      restoreSelectedObjects(c!, []) // TODO kinda hacky
+      c?.remove(currObj)
+      return
+    }
+
+    // Calculate new width and height based on points
+    currObj.set({ points })
+    currObj._setPositionDimensions({})
+    currObj.dirty = true
+
+    c?.requestRenderAll()
+  }
+
+  async function redoPolyPointAdded(objects: any[]) {
+    const enlivenedObject = (await enlivenObjects(objects))[0]
+    undoStack.push({ type: 'polygon', objects: [enlivenedObject] })
+    const shape: any = objects[0]
+    const currObj: any = c?.getObjects().find(o => o.id == shape.id)
+    if (!currObj) {
+      c?.add(enlivenedObject)
+      return
+    }
+
+    const points = shape.points
+
+    currObj.set({ points })
+    currObj._setPositionDimensions({})
+    currObj.dirty = true
+    c?.requestRenderAll()
+  }
+
+  async function redoObjectModified(objects: fabric.Object[], options?: any) {
+    c?.discardActiveObject()
+    const modifiedObjects: fabric.Object[] = []
+    for (const obj of objects) {
+      const currObj = c?.getObjects().find(o => o.id == obj.id)
+      if (!currObj) continue
+      modifiedObjects.push(currObj.toObject())
+      const enlivenedObj = (await enlivenObjects([obj]))[0]
+
+      currObj.set({
+        left: obj.left!,
+        top: obj.top!,
+        angle: obj.angle!,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY,
+        eraser: enlivenedObj.eraser
+      })
+      if (options && options.color) {
+        currObj.set({
+          stroke: obj.stroke,
+          fill: obj.fill,
+          backgroundColor: obj.backgroundColor
+        })
+      }
+      if (currObj.type == ObjectType.text && options && options.textStyle)
+        (currObj as IText).set({
+          fontFamily: (enlivenedObj as IText).fontFamily,
+          fontWeight: (enlivenedObj as IText).fontWeight,
+          fontStyle: (enlivenedObj as IText).fontStyle,
+          textAlign: (enlivenedObj as IText).textAlign,
+          isCurved: (enlivenedObj as IText).isCurved
+        })
+      if (currObj.type == ObjectType.polygon) (currObj as any)._setPositionDimensions({})
+      currObj.dirty = true
+    }
+
+    undoStack.push({ type: 'object:modified', objects: modifiedObjects, options })
+    const { getSelectedObjects } = useSelect()
+    restoreSelectedObjects(c!, getSelectedObjects())
+    c?.renderAll()
+  }
+
+  function redoObjectAdded(objects: fabric.Object[]) {
+    c?.add(...objects)
+    undoStack.push({ type: 'object:added', objects: objects })
+    restoreSelectedObjects(c!, getSelectedObjects())
+  }
+
+  function redoObjectDeleted(objects: fabric.Object[]) {
+    c?.remove(...objects)
+    undoStack.push({ type: 'object:removed', objects: objects })
+  }
+
+  function redoLayering(objects: fabric.Object[]) {
+    undoStack.push({ type: 'layering', objects: c!.getObjects() })
+    for (let i = 0; i < objects.length; i++) {
+      const currObj = c?.getObjects().find(o => o.id == objects[i].id)
+      if (!currObj) continue
+      c?.moveTo(currObj, i)
+    }
+    c?.renderAll()
+  }
+
+  function redoMerge(objects: fabric.Object[]) {
+    const { selectAction } = useDrawStore()
+    selectAction(DrawAction.Merge, { objects: objects })
+  }
+
+  function redoBackgroundImg(objects: any[]) {
+    const previousBackgroundImage = objects[0] as fabric.Image | undefined
+    undoStack.push({ type: 'backgroundImg', objects: [c?.backgroundImage as any] })
+    c!.backgroundImage = previousBackgroundImage
+    c?.renderAll()
+  }
+
+  function redoFullErase(objects: any[]) {
+    const { selectAction } = useDrawStore()
+    selectAction(DrawAction.FullErase)
+  }
+
   function init(canvas: Canvas) {
     c = canvas
-    prevCanvasState = c.toJSON()
     enableEvents()
   }
 
   function destroy() {
     c = undefined
-    prevCanvasState = undefined
+    prevCanvasObjects = []
     disableEvents()
   }
 
@@ -70,88 +347,63 @@ export const useHistory = defineStore('history', () => {
     events.forEach(e => unsubscribe(e))
   }
 
-  async function customSaveAction(action: () => void) {
-    disableEvents()
-    await action()
-    saveState()
-    enableEvents()
-  }
-
   async function actionWithoutHistory(action: () => void) {
     disableEvents()
     await action()
     enableEvents()
   }
 
-  function executeUndoRedo(sourceStack: Ref<any[]>, destStack: Ref<any[]>) {
-    if (sourceStack.value.length == 0) return
-
-    const { getSelectedObjects } = useSelect()
-    const selectedObjects = getSelectedObjects()
-
-    if (isText(selectedObjects)) exitEditing(selectedObjects[0])
-    c?.discardActiveObject()
-
-    const currState = c!.toJSON()
-    const previousState = sourceStack.value.pop()
-    restoreCanvasFromHistory(previousState, selectedObjects)
-    destStack.value.push(currState)
-    c?.renderAll()
-  }
-
-  function undo() {
-    executeUndoRedo(undoStack, redoStack)
+  async function undo() {
+    await actionWithoutEvents(async () => {
+      const action = undoStack.pop()
+      if (!action) return
+      await undoMapping[action.type]!(action.objects, action.options)
+      prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
+      resetStackCounters()
+    })
     EventBus.emit('undo')
   }
 
-  function redo() {
-    executeUndoRedo(redoStack, undoStack)
+  function resetStackCounters() {
+    undoStackCounter.value = undoStack.length
+    redoStackCounter.value = redoStack.length
+  }
+
+  async function redo() {
+    await actionWithoutEvents(async () => {
+      const action = redoStack.pop()
+      if (!action) return
+      await redoMapping[action.type]!(action.objects, action.options)
+      prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
+      resetStackCounters()
+    })
     EventBus.emit('redo')
   }
 
-  function restoreCanvasFromHistory(previousState: any, selectedObjects: SelectedObject[]) {
-    disableAllEvents()
-    c!.loadFromJSON(previousState, () => {
-      c?.renderAll()
-      c?.getObjects().forEach(obj => (obj.visual ? c?.remove(obj) : undefined)) // remove visual indicators
-      c?.getObjects()
-        .filter(obj => obj.type === ObjectType.text)
-        .forEach((text: any) => (text.isCurved ? applyCurve(text, c!) : undefined))
-      prevCanvasState = previousState
-
-      const { selectedTool } = useDrawStore()
-      setSelectionForObjects(c!.getObjects(), selectedTool === DrawTool.Select)
-
-      enableAllEvents()
-      restoreSelectedObjects(c!, selectedObjects)
-    })
-  }
-
-  function saveState() {
-    console.log('saving state')
-    undoStack.value.push(prevCanvasState!)
-    prevCanvasState = c!.toJSON()
-    redoStack.value = []
-  }
-
   function clearHistory() {
-    undoStack.value = []
-    redoStack.value = []
-    prevCanvasState = c!.toJSON()
+    undoStack = []
+    redoStack = []
+    prevCanvasObjects = []
+  }
+
+  function addToUndoStack(objects: fabric.Object[], historyEvent: HistoryEvent, options?: any) {
+    console.log(`${historyEvent}`)
+    undoStack.push({ objects, type: historyEvent, options })
+    resetStackCounters()
+    prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
   }
 
   return {
     init,
-    undoStack,
-    redoStack,
-    customSaveAction,
     undo,
     redo,
     disableHistorySaving: disableEvents,
     enableHistorySaving: enableEvents,
-    saveState,
     actionWithoutHistory,
     clearHistory,
-    destroy
+    destroy,
+    undoStackCounter,
+    redoStackCounter,
+    addToUndoStack
   }
 })

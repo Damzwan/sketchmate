@@ -53,11 +53,11 @@
     </ion-buttons>
 
     <ion-buttons slot="end" class="h-[40px]">
-      <ion-button @click="undo" :disabled="undoStack.length == 0">
+      <ion-button @click="undo" :disabled="undoStackCounter == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
       </ion-button>
 
-      <ion-button @click="redo" :disabled="redoStack.length == 0">
+      <ion-button @click="redo" :disabled="redoStackCounter == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
@@ -102,7 +102,7 @@ const { brushType } = storeToRefs(usePen())
 const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool } = storeToRefs(drawStore)
 
 const { undo, redo } = useHistory()
-const { undoStack, redoStack } = storeToRefs(useHistory())
+const { undoStack, redoStack, undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 
 const { isLoggedIn, user } = storeToRefs(useAppStore())
 const hasMate = computed(() => user.value && user.value.mate)

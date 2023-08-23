@@ -24,12 +24,13 @@ export function addSticker(c: Canvas, options?: any) {
 export function setBackgroundImage(c: Canvas, options?: any) {
   if (!options) return
   const img: string = options['img']
+
+  const { addToUndoStack } = useHistory()
+  addToUndoStack([c.backgroundImage as any], 'backgroundImg')
+
   fabric.Image.fromURL(
     img,
     function (img) {
-      const { saveState } = useHistory()
-      saveState()
-
       // Set the image as the background and scale it to fit the canvas
       c.setBackgroundImage(
         img,

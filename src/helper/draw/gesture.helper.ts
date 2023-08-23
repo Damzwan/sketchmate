@@ -18,7 +18,7 @@ export function enableZoomAndPan(c: any) {
 // we are only using hammer events so they should not collide with other events. Not mandatory to store them in the event manager
 export function enableMobileGestures(c: any) {
   const { hammer, setCanZoomOut } = useDrawStore()
-  const { disableHistorySaving, enableHistorySaving, saveState } = useHistory()
+  const { disableHistorySaving, enableHistorySaving, addToUndoStack } = useHistory()
   const { selectedObjectsRef } = storeToRefs(useSelect())
 
   const { selectedTool, isUsingGesture, shapeCreationMode } = storeToRefs(useDrawStore())
@@ -91,7 +91,7 @@ export function enableMobileGestures(c: any) {
         const obj = c.getActiveObject()
         obj.set({ lockMovementX: false, lockMovementY: false })
         isUsingGesture.value = false
-        saveState()
+        addToUndoStack([obj], 'object:modified')
       }, 100)
     }
     c.renderAll()

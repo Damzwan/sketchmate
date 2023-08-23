@@ -1,47 +1,65 @@
 import { useSelect } from '@/service/draw/tools/select.tool'
-import { exitEditing, isText, setForSelectedObjects } from '@/helper/draw/draw.helper'
+import { getStaticObjWithAbsolutePosition, exitEditing, isText, setForSelectedObjects } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
 import { Canvas } from 'fabric/fabric-impl'
 import { popoverController } from '@ionic/vue'
 
 export function setStrokeColor(c: Canvas, options: any) {
   const color = options['color']
-  const { selectedObjectsRef } = useSelect()
-  if (selectedObjectsRef.length == 0) return
+  const { getSelectedObjects } = useSelect()
+  const { addToUndoStack } = useHistory()
 
-  const { saveState } = useHistory()
-  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { stroke: color })
+  const selectedObjects = getSelectedObjects()
+  if (selectedObjects.length == 0) return
 
-  saveState()
+  addToUndoStack(
+    selectedObjects.map(obj => getStaticObjWithAbsolutePosition(obj)),
+    'object:modified',
+    { color: true }
+  )
+  if (isText(selectedObjects)) exitEditing(selectedObjects[0])
+  setForSelectedObjects(selectedObjects, { stroke: color })
+
   c.renderAll()
   popoverController.dismiss()
 }
 
 export function setFillColor(c: Canvas, options: any) {
   const color = options['color']
-  const { selectedObjectsRef } = useSelect()
-  if (selectedObjectsRef.length == 0) return
+  const { getSelectedObjects } = useSelect()
+  const { addToUndoStack } = useHistory()
 
-  const { saveState } = useHistory()
-  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { fill: color })
+  const selectedObjects = getSelectedObjects()
+  if (selectedObjects.length == 0) return
+  addToUndoStack(
+    selectedObjects.map(obj => getStaticObjWithAbsolutePosition(obj)),
+    'object:modified',
+    { color: true }
+  )
 
-  saveState()
+  if (isText(selectedObjects)) exitEditing(selectedObjects[0])
+  setForSelectedObjects(selectedObjects, { fill: color })
+
   c.renderAll()
   popoverController.dismiss()
 }
 
 export function setBackgroundColor(c: Canvas, options: any) {
   const color = options['color']
-  const { selectedObjectsRef } = useSelect()
-  if (selectedObjectsRef.length == 0) return
+  const { getSelectedObjects } = useSelect()
+  const { addToUndoStack } = useHistory()
 
-  const { saveState } = useHistory()
-  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { backgroundColor: color })
+  const selectedObjects = getSelectedObjects()
+  if (selectedObjects.length == 0) return
 
-  saveState()
+  addToUndoStack(
+    selectedObjects.map(obj => getStaticObjWithAbsolutePosition(obj)),
+    'object:modified',
+    { color: true }
+  )
+  if (isText(selectedObjects)) exitEditing(selectedObjects[0])
+  setForSelectedObjects(selectedObjects, { backgroundColor: color })
+
   c.renderAll()
   popoverController.dismiss()
 }

@@ -1,11 +1,11 @@
 <template>
   <ion-toolbar color="primary" mode="md">
     <ion-buttons slot="end">
-      <ion-button @click="undo" :disabled="undoStack.length == 0">
+      <ion-button @click="undo" :disabled="undoStackCounter == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
       </ion-button>
 
-      <ion-button @click="redo" :disabled="redoStack.length == 0">
+      <ion-button @click="redo" :disabled="redoStackCounter == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
@@ -25,35 +25,15 @@ import { svg } from '@/helper/general.helper'
 import { mdiCheck, mdiRedo, mdiShapeOutline, mdiUndo } from '@mdi/js'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawEvent, DrawTool, Menu, ShapeCreationMode } from '@/types/draw.types'
+import { Menu } from '@/types/draw.types'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useHistory } from '@/service/draw/history.service'
-import { useEventManager } from '@/service/draw/eventManager.service'
-import { EventBus } from '@/main'
+import { exitShapeCreationMode } from '@/helper/draw/draw.helper'
 
-const { selectTool } = useDrawStore()
-const { unsubscribe, enableAllEvents } = useEventManager()
 const { openMenu } = useMenuStore()
-const { shapeCreationMode } = storeToRefs(useDrawStore())
 
 const { undo, redo } = useHistory()
-const { undoStack, redoStack } = storeToRefs(useHistory())
-
-const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
-
-// TODO this code is a bit cursed haha
-function exitShapeCreationMode() {
-  shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
-  EventBus.emit('reset-shape-creation')
-  EventBus.off('reset-shape-creation')
-  EventBus.off('undo')
-  EventBus.off('redo')
-  if (shapeCreationMode.value == ShapeCreationMode.Click) enableAllEvents()
-
-  shapeCreationMode.value = undefined
-  selectTool(DrawTool.Select)
-}
+const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 
 function openShapesMenu(e: any) {
   openMenu(Menu.Shapes, e)

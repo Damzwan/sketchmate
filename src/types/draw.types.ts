@@ -13,6 +13,7 @@ declare module 'fabric' {
       isCurved?: boolean
       originalTop?: number
       mouseUpHandler: (o: any) => void
+      init: boolean
     }
 
     interface Object {
@@ -22,6 +23,7 @@ declare module 'fabric' {
       visual?: boolean
       edit?: boolean
       isCreating?: false
+      eraser: any
     }
 
     interface Path {

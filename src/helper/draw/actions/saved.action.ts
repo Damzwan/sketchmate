@@ -66,9 +66,9 @@ export async function createSaved(c: Canvas, options: any) {
 }
 
 export async function addSavedToCanvas(c: fabric.Canvas, options: any) {
-  const { customSaveAction } = useHistory()
+  const { addToUndoStack, actionWithoutHistory } = useHistory()
   const { selectTool } = useDrawStore()
-  await customSaveAction(async () => {
+  await actionWithoutHistory(async () => {
     const json = options.json
     const objects = await enlivenObjects(json.objects)
 
@@ -85,6 +85,10 @@ export async function addSavedToCanvas(c: fabric.Canvas, options: any) {
     })
 
     selectTool(DrawTool.Select)
-    c!.setActiveObject(new fabric.ActiveSelection(objects, { canvas: c }))
+    addToUndoStack(objects, 'object:added')
+
+    c.discardActiveObject()
+    if (objects.length == 1) c.setActiveObject(objects[0])
+    else c!.setActiveObject(new fabric.ActiveSelection(objects, { canvas: c }))
   })
 }

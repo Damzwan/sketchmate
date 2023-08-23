@@ -102,7 +102,7 @@ const { brushType } = storeToRefs(usePen())
 const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool } = storeToRefs(drawStore)
 
 const { undo, redo } = useHistory()
-const { undoStack, redoStack, undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
+const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 
 const { isLoggedIn, user } = storeToRefs(useAppStore())
 const hasMate = computed(() => user.value && user.value.mate)

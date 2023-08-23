@@ -81,7 +81,7 @@ export const useHistory = defineStore('history', () => {
     {
       type: DrawEvent.SaveHistory,
       on: 'after:transform',
-      handler: (e: any) => console.log('TRANSFORM HISTORY EVENT WTF')
+      handler: () => console.log('TRANSFORM HISTORY EVENT WTF')
     },
     {
       type: DrawEvent.SaveHistory,
@@ -323,7 +323,7 @@ export const useHistory = defineStore('history', () => {
     c?.renderAll()
   }
 
-  function redoFullErase(objects: any[]) {
+  function redoFullErase() {
     const { selectAction } = useDrawStore()
     selectAction(DrawAction.FullErase)
   }
@@ -389,6 +389,7 @@ export const useHistory = defineStore('history', () => {
   function addToUndoStack(objects: fabric.Object[], historyEvent: HistoryEvent, options?: any) {
     console.log(`${historyEvent}`)
     undoStack.push({ objects, type: historyEvent, options })
+    redoStack = []
     resetStackCounters()
     prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
   }

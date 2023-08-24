@@ -5,13 +5,15 @@ import { BACKGROUND } from '@/config/draw/draw.config'
 import { DrawTool } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
 
-export function fullErase(c: Canvas) {
+export function fullErase(c: Canvas, options: any = {}) {
   const { selectTool } = useDrawStore()
   const { addToUndoStack } = useHistory()
   const { actionWithoutEvents } = useEventManager()
 
+  const noReset = options['noReset']
+
   actionWithoutEvents(() => {
-    addToUndoStack([c.toJSON() as any], 'fullErase')
+    addToUndoStack([c.toJSON() as any], 'fullErase', { noReset })
     c.clear()
     c.setBackgroundColor(BACKGROUND, () => {
       console.log('Background cleared')

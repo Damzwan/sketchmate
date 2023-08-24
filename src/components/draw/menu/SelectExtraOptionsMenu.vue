@@ -55,12 +55,12 @@ function removeObjects() {
 }
 
 function saveObjects() {
-  selectAction(DrawAction.CreateSaved, { objects: selectedObjectsRef.value })
+  selectAction(DrawAction.CreateSaved, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function copyObjects() {
-  selectAction(DrawAction.CopyObject, { objects: selectedObjectsRef.value })
+  selectAction(DrawAction.CopyObject, { objects: getSelectedObjects() })
   closePopover()
 }
 

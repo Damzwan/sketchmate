@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import {
-  getStaticObjWithAbsolutePosition,
   enlivenObjects,
+  getStaticObjWithAbsolutePosition,
   isText,
   objectsFromTarget,
   restoreSelectedObjects
@@ -14,6 +14,7 @@ import { useEventManager } from '@/service/draw/eventManager.service'
 import { fabric } from 'fabric'
 import { EventBus } from '@/main'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { undoColoring } from '@/helper/draw/actions/color.action'
 
 type HistoryEvent =
   | 'erasing:end'
@@ -113,7 +114,7 @@ export const useHistory = defineStore('history', () => {
       if (!currObj) return
       c?.remove(currObj)
     })
-    redoStack.push({ type: 'object:added', objects: objects })
+    redoStack.push({ type: 'object:added', objects: objects.map(o => getStaticObjWithAbsolutePosition(o)) })
     restoreSelectedObjects(c!, getSelectedObjects())
   }
 
@@ -124,7 +125,7 @@ export const useHistory = defineStore('history', () => {
       const currObj = c?.getObjects().find(o => o.id == obj.id)
       if (!currObj) continue
       modifiedObjects.push(currObj.toObject())
-      const enlivenedObj = (await enlivenObjects([obj]))[0]
+      const enlivenedObj: any = (await enlivenObjects([obj]))[0]
 
       currObj.set({
         left: obj.left!,
@@ -135,11 +136,7 @@ export const useHistory = defineStore('history', () => {
         eraser: enlivenedObj.eraser
       })
       if (options && options.color) {
-        currObj.set({
-          stroke: obj.stroke,
-          fill: obj.fill,
-          backgroundColor: obj.backgroundColor
-        })
+        await undoColoring(currObj, enlivenedObj)
       }
       if (currObj.type == ObjectType.text && options && options.textStyle)
         (currObj as IText).set({
@@ -175,21 +172,27 @@ export const useHistory = defineStore('history', () => {
   }
 
   function undoMerge(objects: any) {
-    const group = objects[0] as fabric.Group
+    const g = objects[0] as fabric.Group
+    const group: any = c?.getObjects().find(o => o.id == g.id)
+
     c?.remove(group)
 
     group._restoreObjectsState()
 
     c?.add(...group._objects)
-    group._objects.forEach(obj => {
+    group._objects.forEach((obj: any) => {
       obj.setCoords() // Refresh coordinates of the object
     })
 
-    c?.setActiveObject(new fabric.ActiveSelection(group._objects, { canvas: c }))
+    // c?.setActiveObject(new fabric.ActiveSelection(group._objects, { canvas: c }))
 
     c?.renderAll() // Refresh the canvas
 
-    redoStack.push({ type: 'merge', objects: group._objects })
+    redoStack.push({
+      type: 'merge',
+      objects: group._objects,
+      options: { id: group.id }
+    })
   }
 
   function undoBackgroundImg(objects: any[]) {
@@ -255,7 +258,7 @@ export const useHistory = defineStore('history', () => {
       const currObj = c?.getObjects().find(o => o.id == obj.id)
       if (!currObj) continue
       modifiedObjects.push(currObj.toObject())
-      const enlivenedObj = (await enlivenObjects([obj]))[0]
+      const enlivenedObj: any = (await enlivenObjects([obj]))[0]
 
       currObj.set({
         left: obj.left!,
@@ -266,11 +269,7 @@ export const useHistory = defineStore('history', () => {
         eraser: enlivenedObj.eraser
       })
       if (options && options.color) {
-        currObj.set({
-          stroke: obj.stroke,
-          fill: obj.fill,
-          backgroundColor: obj.backgroundColor
-        })
+        await undoColoring(currObj, enlivenedObj)
       }
       if (currObj.type == ObjectType.text && options && options.textStyle)
         (currObj as IText).set({
@@ -290,7 +289,9 @@ export const useHistory = defineStore('history', () => {
     c?.renderAll()
   }
 
-  function redoObjectAdded(objects: fabric.Object[]) {
+  async function redoObjectAdded(objects: fabric.Object[]) {
+    objects = await enlivenObjects(objects)
+
     c?.add(...objects)
     undoStack.push({ type: 'object:added', objects: objects })
     restoreSelectedObjects(c!, getSelectedObjects())
@@ -311,9 +312,16 @@ export const useHistory = defineStore('history', () => {
     c?.renderAll()
   }
 
-  function redoMerge(objects: fabric.Object[]) {
+  async function redoMerge(objects: fabric.Object[], options?: any) {
     const { selectAction } = useDrawStore()
-    selectAction(DrawAction.Merge, { objects: objects })
+    c?.discardActiveObject()
+
+    objects = objects.map(o => c?.getObjects().find(o2 => o2.id == o.id)) as any[]
+
+    await selectAction(DrawAction.Merge, { objects: objects, noReset: true })
+    const lastObject: any = c?.getObjects()[c?.getObjects().length - 1]
+    lastObject.id = options['id']
+    c?.discardActiveObject()
   }
 
   function redoBackgroundImg(objects: any[]) {
@@ -325,7 +333,12 @@ export const useHistory = defineStore('history', () => {
 
   function redoFullErase() {
     const { selectAction } = useDrawStore()
-    selectAction(DrawAction.FullErase)
+    const { setSelectedObjects } = useSelect()
+
+    c?.discardActiveObject()
+    setSelectedObjects([])
+
+    selectAction(DrawAction.FullErase, { noReset: true })
   }
 
   function init(canvas: Canvas) {
@@ -389,7 +402,7 @@ export const useHistory = defineStore('history', () => {
   function addToUndoStack(objects: fabric.Object[], historyEvent: HistoryEvent, options?: any) {
     console.log(`${historyEvent}`)
     undoStack.push({ objects, type: historyEvent, options })
-    redoStack = []
+    if (!options || (options && !options['noReset'])) redoStack = []
     resetStackCounters()
     prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
   }

@@ -8,11 +8,14 @@ import { SelectedObject } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
 
 export async function copyObjects(c: Canvas, options: any) {
-  const { actionWithoutHistory, addToUndoStack } = useHistory() // TODO should be replaced
+  const { addToUndoStack } = useHistory()
+  const { actionWithoutEvents } = useEventManager()
+  const { setSelectedObjects } = useSelect()
+
   const offsetX = 10 // define the offset here
   const offsetY = 10
 
-  await actionWithoutHistory(async () => {
+  await actionWithoutEvents(async () => {
     const objectsToCopy: fabric.Object[] = options['objects']
     c.discardActiveObject()
 
@@ -43,6 +46,7 @@ export async function copyObjects(c: Canvas, options: any) {
 
     if (clonedObjects.length == 1) c.setActiveObject(clonedObjects[0])
     else c!.setActiveObject(new fabric.ActiveSelection(clonedObjects, { canvas: c }))
+    setSelectedObjects(clonedObjects)
 
     addToUndoStack(clonedObjects, 'object:added')
     c.renderAll()
@@ -52,20 +56,25 @@ export async function copyObjects(c: Canvas, options: any) {
 export async function mergeObjects(c: Canvas, options: any) {
   const { addToUndoStack } = useHistory()
   const { actionWithoutEvents } = useEventManager()
+  const { setSelectedObjects } = useSelect()
 
   const notSave = options['notSave']
+  const noReset = options['noReset']
 
   const fn = async () => {
-    const objects: fabric.Object[] = options['objects']
     c.discardActiveObject()
+    const objects: fabric.Object[] = options['objects']
     const select = new fabric.ActiveSelection(objects, { canvas: c })
     const group = select.toGroup()
 
     objects.forEach(obj => c.remove(obj))
 
+    if (!notSave) addToUndoStack([group], 'merge', { noReset })
     c.setActiveObject(group)
-    if (!notSave) addToUndoStack([group], 'merge')
+    setSelectedObjects([group]) // Necessary since selections are not updated
+
     c.renderAll()
+    return objects
   }
   await actionWithoutEvents(fn)
 }

@@ -79,7 +79,7 @@ export const useDrawStore = defineStore('draw', () => {
     c?.renderAll()
   }
 
-  function selectAction(action: DrawAction, options?: object) {
+  async function selectAction(action: DrawAction, options?: object) {
     actionMapping[action](c!, options)
   }
 

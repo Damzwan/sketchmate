@@ -95,18 +95,22 @@ export const useHistory = defineStore('history', () => {
       type: DrawEvent.SaveHistory,
       on: 'object:modified',
       handler: async (e: any) => {
-        let modifiedObjects = objectsFromTarget(e.target)
+        const modifiedObjects = objectsFromTarget(e.target)
         if (isText(modifiedObjects) && (modifiedObjects[0] as IText).init) {
           const text = modifiedObjects[0] as IText
           text.init = false
           addToUndoStack(modifiedObjects, 'object:added')
         } else {
-          modifiedObjects = modifiedObjects.map(obj => prevCanvasObjects?.find(o => o.id == obj.id))
-          addToUndoStack(modifiedObjects, 'object:modified')
+          addPrevModifiedObjectsToStack(modifiedObjects)
         }
       }
     }
   ]
+
+  function addPrevModifiedObjectsToStack(modifiedObjects: fabric.Object[]) {
+    const prevModifiedObjects = modifiedObjects.map(obj => prevCanvasObjects?.find(o => o.id == obj.id))
+    addToUndoStack(prevModifiedObjects, 'object:modified')
+  }
 
   function undoObjectAdded(objects: fabric.Object[]) {
     objects.forEach(obj => {
@@ -344,12 +348,14 @@ export const useHistory = defineStore('history', () => {
   function init(canvas: Canvas) {
     c = canvas
     enableEvents()
+    prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
   }
 
   function destroy() {
     c = undefined
     prevCanvasObjects = []
     disableEvents()
+    clearHistory()
   }
 
   function enableEvents() {
@@ -397,6 +403,7 @@ export const useHistory = defineStore('history', () => {
     undoStack = []
     redoStack = []
     prevCanvasObjects = []
+    resetStackCounters()
   }
 
   function addToUndoStack(objects: fabric.Object[], historyEvent: HistoryEvent, options?: any) {
@@ -418,6 +425,7 @@ export const useHistory = defineStore('history', () => {
     destroy,
     undoStackCounter,
     redoStackCounter,
-    addToUndoStack
+    addToUndoStack,
+    addPrevModifiedObjectsToStack
   }
 })

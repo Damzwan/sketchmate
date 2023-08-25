@@ -94,6 +94,7 @@ export function setAppColors(colorConfig: AppColorConfig) {
   StatusBar.setBackgroundColor({ color: colorConfig.statusBar })
 }
 
+// TODO this is the uglies code ever xd
 export async function hideLoading() {
   await SplashScreen.hide()
   const mate = await Preferences.get({ key: LocalStorage.mate })

@@ -23,7 +23,13 @@
         <ion-avatar class="flex justify-center items-center mx-2 w-[40px]" style="flex-shrink: 0">
           <img v-if="user" :src="user.img" alt="" class="aspect-square" />
         </ion-avatar>
-        <ion-input placeholder="Say something..." ref="input" v-model="commentBody" autocapitalize="sentences" />
+        <ion-input
+          placeholder="Say something..."
+          ref="input"
+          v-model="commentBody"
+          autocapitalize="sentences"
+          @keyup.enter="comment"
+        />
         <ion-button fill="clear" color="secondary" @click="comment" :icon="svg(mdiSend)">
           <ion-icon :icon="svg(mdiSend)" v-show="commentBody.length > 0" />
         </ion-button>
@@ -34,7 +40,7 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue'
-import { IonAvatar, IonButton, IonIcon, IonInput, IonModal } from '@ionic/vue'
+import { IonAvatar, IonButton, IonIcon, IonInput, IonModal, modalController } from '@ionic/vue'
 
 import { InboxItem } from '@/types/server.types'
 import { useAppStore } from '@/store/app.store'
@@ -88,6 +94,7 @@ async function comment() {
 
 function close() {
   commentBody.value = ''
+  modalController.dismiss() // TODO check if this works with the fast back after placing a comment
   emit('update:open', false)
 }
 </script>

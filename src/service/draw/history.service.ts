@@ -352,9 +352,9 @@ export const useHistory = defineStore('history', () => {
   }
 
   function destroy() {
+    disableEvents()
     c = undefined
     prevCanvasObjects = []
-    disableEvents()
     clearHistory()
   }
 

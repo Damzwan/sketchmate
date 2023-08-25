@@ -6,7 +6,7 @@
       :selected-mode="multiSelectMode"
       :selected-items="selectedItems"
       @cancel="cancelMultiSelect"
-      @delete="deleteInboxItems"
+      @delete="alterTrigger.click()"
     />
     <CircularLoader v-if="isLoading || !isLoggedIn" />
     <ion-content v-else>
@@ -52,6 +52,13 @@
           </div>
         </div>
       </div>
+      <div id="delete-multiple-images-alert" class="hidden" ref="alterTrigger" />
+      <ConfirmationAlert
+        header="Are you sure?"
+        trigger="delete-multiple-images-alert"
+        message="These drawings will be deleted permanently"
+        @confirm="deleteInboxItems"
+      />
     </ion-content>
   </ion-page>
 </template>
@@ -73,6 +80,7 @@ import NoMessages from '@/components/gallery/NoMessages.vue'
 import Thumbnail from '@/components/gallery/Thumbnail.vue'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
 import { useAPI } from '@/service/api/api.service'
+import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 
 const api = useAPI()
 const { getInbox, cleanUnreadMessages, refresh, setQueryParams } = useAppStore()
@@ -97,6 +105,8 @@ const route = useRoute()
 
 const multiSelectMode = ref(false)
 const selectedItems = ref<string[]>([])
+
+const alterTrigger = ref<any>()
 
 onIonViewWillLeave(cancelMultiSelect)
 

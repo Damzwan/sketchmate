@@ -60,6 +60,11 @@
             </div>
           </div>
         </div>
+        <div v-if="currInboxItem.comments.length > 4" class="rounded-full comment my-1">
+          <p class="text-xs text-white py-1 pl-2">{{
+            `Click to see ${currInboxItem.comments.length - 4} more comments`
+          }}</p>
+        </div>
       </div>
 
       <div class="flex justify-evenly w-full items-center h-[56px]">
@@ -83,7 +88,12 @@
           <ion-icon :icon="svg(mdiShareVariantOutline)" />
         </ion-button>
         <ion-button fill="clear" color="white" id="delete-alert" class="flex-grow" size="large">
-          <ConfirmationAlert header="Are you sure?" trigger="delete-alert" @confirm="removeFromInboxItem" />
+          <ConfirmationAlert
+            header="Are you sure?"
+            trigger="delete-alert"
+            message="This drawing will be deleted permanently"
+            @confirm="removeFromInboxItem"
+          />
           <ion-icon :icon="svg(mdiDeleteOutline)" />
         </ion-button>
       </div>
@@ -120,7 +130,7 @@ import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
-import { EventBus } from '@/main'
+import { useDrawStore } from '@/store/draw/draw.store'
 
 register()
 const props = defineProps({
@@ -166,7 +176,8 @@ function checkQueryParams() {
 
 function replyToDrawing() {
   close()
-  EventBus.emit('reply', currInboxItem.value) // we use Eventbus to avoid loading the dependencies of draw.view
+  const { reply } = useDrawStore()
+  reply(currInboxItem.value)
 }
 
 function close() {

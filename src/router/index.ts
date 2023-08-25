@@ -16,6 +16,7 @@ const hasMateGuard: NavigationGuard = async (to, from, next) => {
 
 const hasNoMateGuard: NavigationGuard = async (to, from, next) => {
   const mate = await Preferences.get({ key: LocalStorage.mate })
+  console.log(mate.value)
   if (mate.value) next(FRONTEND_ROUTES.draw)
   else next()
 }

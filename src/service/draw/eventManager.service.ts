@@ -17,6 +17,7 @@ export const useEventManager = defineStore('event manager', () => {
   }
 
   function destroy() {
+    disableAllEvents()
     c = undefined
     events.value = {}
   }

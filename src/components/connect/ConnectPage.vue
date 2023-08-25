@@ -42,7 +42,7 @@
         </div>
 
         <div class="flex flex-col items-center justify-center w-full pb-4">
-          <qrcode-vue :value="user ? user._id : localUserId" :size="128" background="transparent" />
+          <qrcode-vue :value="`${currentPath}?mate=${user?._id}`" :size="128" background="transparent" />
           <p class="font-sans font-bold py-0.5">Connect with QR Code</p>
           <p class="font-sans font-light text-xs"> Let someone scan this code to become mates </p>
         </div>
@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonButtons, IonContent, IonIcon, IonPage, IonToolbar, isPlatform } from '@ionic/vue'
+import { IonButton, IonButtons, IonContent, IonIcon, IonPage, IonToolbar } from '@ionic/vue'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import ConnectMethod from '@/components/connect/ConnectMethod.vue'
 import cameraImg from '@/assets/illustrations/camera.svg'
@@ -68,7 +68,7 @@ import { useToast } from '@/service/toast.service'
 import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
 import QrScanner from 'qr-scanner'
 import { useFullscreen } from '@vueuse/core'
-import { svg } from '@/helper/general.helper'
+import { isNative, svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
 import ConnectHelpModal from '@/components/connect/ConnectHelpModal.vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
@@ -89,6 +89,8 @@ const isQRReaderOpen = ref(false)
 const { setQueryParams } = useAppStore()
 const { queryParams, isLoggedIn } = storeToRefs(useAppStore())
 
+const currentPath = router.currentRoute.value.path
+
 watch(isFullscreen, value => {
   if (!value) stopScanning()
 })
@@ -102,7 +104,7 @@ watch(queryParams, value => {
 
 function createShareUrl() {
   let baseUrl
-  if (isPlatform('capacitor')) baseUrl = import.meta.env.VITE_FRONTEND as string
+  if (isNative()) baseUrl = import.meta.env.VITE_FRONTEND as string
   else baseUrl = `${window.location.origin}`
   return `${baseUrl}${route.path}?mate=${user.value!._id}`
 }
@@ -133,7 +135,7 @@ function match(mate_id: string) {
 const scanning = ref(false)
 
 async function startScanning() {
-  if (isPlatform('capacitor')) {
+  if (isNative()) {
     const supported = await BarcodeScanner.isSupported()
 
     if (!supported.supported) {
@@ -146,7 +148,13 @@ async function startScanning() {
       const { barcodes } = await BarcodeScanner.scan({
         formats: [BarcodeFormat.QrCode]
       })
-      match(barcodes[0].rawValue)
+      const url = new URL(barcodes[0].rawValue)
+      const mateValue: string | null = url.searchParams.get('mate')
+      if (!mateValue) {
+        toast('Invalid sketchmate code', { color: 'danger' })
+        return
+      }
+      match(mateValue)
     } else toast('Camera permission not granted or not available', { color: 'warning' })
   } else {
     qrScanner.value = new QrScanner(video.value!, decode, { highlightScanRegion: true, returnDetailedScanResult: true })
@@ -165,6 +173,13 @@ function stopScanning() {
 function decode(code: any) {
   if (!isQRReaderOpen.value) return
   stopScanning()
+
+  const url = new URL(code.data)
+  const mateValue: string | null = url.searchParams.get('mate')
+  if (!mateValue) {
+    toast('Invalid sketchmate code', { color: 'danger' })
+    return
+  }
   match(code.data)
 }
 

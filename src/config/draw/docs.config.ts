@@ -1,4 +1,5 @@
 import {
+  mdiAccountSettings,
   mdiCompassOutline,
   mdiConnection,
   mdiContentCopy,
@@ -12,13 +13,15 @@ import {
   mdiGesturePinch,
   mdiGestureTapButton,
   mdiImage,
+  mdiImageMultiple,
   mdiLasso,
   mdiMerge,
   mdiPencilOutline,
   mdiShapeOutline,
   mdiStickerCircleOutline,
   mdiStickerEmoji,
-  mdiTools
+  mdiTools,
+  mdiUndo
 } from '@mdi/js'
 
 import color from '@/assets/docs/color.md'
@@ -39,6 +42,9 @@ import stickers from '@/assets/docs/stickers.md'
 import text from '@/assets/docs/text.md'
 import zoom from '@/assets/docs/zoom.md'
 import connect from '@/assets/docs/connect.md'
+import gallery from '@/assets/docs/gallery.md'
+import undoredo from '@/assets/docs/undoredo.md'
+import settings from '@/assets/docs/settings.md'
 
 export interface DocsItem {
   key: string
@@ -65,6 +71,18 @@ export const docsAccordionContent: DocsItem[] = [
         icon: mdiConnection,
         text: 'Connecting',
         page: connect
+      },
+      {
+        key: 'gallery',
+        icon: mdiImageMultiple,
+        text: 'Gallery',
+        page: gallery
+      },
+      {
+        key: 'settings',
+        icon: mdiAccountSettings,
+        text: 'Settings',
+        page: settings
       },
       {
         key: 'zoom',
@@ -110,6 +128,12 @@ export const docsAccordionContent: DocsItem[] = [
     icon: mdiGestureTapButton,
     text: 'Actions',
     children: [
+      {
+        key: 'undoredo',
+        icon: mdiUndo,
+        text: 'Undo/Redo',
+        page: undoredo
+      },
       {
         key: 'stickers',
         icon: mdiStickerEmoji,

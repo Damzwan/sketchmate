@@ -3,10 +3,10 @@
     <ion-header class="shadow-none">
       <ion-toolbar color="tertiary">
         <ion-title v-if="selectedSection">
-          {{ selectedSection.text }}
           <ion-icon :icon="svg(selectedSection.icon)" class="align-sub w-[25px] h-[25px]" />
+          {{ selectedSection.text }}
         </ion-title>
-        <ion-title v-else>Guide</ion-title>
+        <ion-title v-else>User Manual</ion-title>
         <ion-buttons slot="start">
           <ion-button @click="onBack">
             <ion-icon :icon="svg(backIcon)" slot="icon-only" />

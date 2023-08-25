@@ -38,7 +38,7 @@ export function createSocketService(): SocketAPI {
   const { user, isLoading, inbox, notificationRouteLoading } = storeToRefs(useAppStore())
   const { toast } = useToast()
 
-  function connect(): void {
+  async function connect(): Promise<void> {
     if (socket) return
     socket = io(import.meta.env.VITE_BACKEND as string, {
       withCredentials: true
@@ -50,7 +50,7 @@ export function createSocketService(): SocketAPI {
         toast('Matched!', { buttons: [matchButton, dismissButton], duration: 5000 })
         Preferences.set({ key: LocalStorage.mate, value: 'true' })
 
-        router.push(FRONTEND_ROUTES.mate)
+        router.replace(FRONTEND_ROUTES.mate)
       } else {
         toast('Failed to connect to mate', { color: 'danger' })
 
@@ -61,6 +61,7 @@ export function createSocketService(): SocketAPI {
 
     socket.on(SOCKET_ENDPONTS.unmatch, async () => {
       toast('Unmatched', { color: 'warning' })
+      isLoading.value = false
       Preferences.remove({ key: LocalStorage.mate })
       notificationRouteLoading.value = NotificationType.unmatch
 
@@ -68,7 +69,7 @@ export function createSocketService(): SocketAPI {
       inbox.value = []
       user.value!.inbox = []
 
-      await router.push(FRONTEND_ROUTES.connect)
+      await router.replace(FRONTEND_ROUTES.connect)
     })
 
     socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {

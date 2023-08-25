@@ -62,7 +62,6 @@ export const useDrawStore = defineStore('draw', () => {
 
   // We make use of events so we do not load the big draw.store in other views
   EventBus.on('reset-canvas', reset)
-  EventBus.on('reply', reply as any)
   changeFabricBaseSettings()
 
   function selectTool(newTool: DrawTool, options: SelectToolOptions | undefined = undefined) {
@@ -106,11 +105,12 @@ export const useDrawStore = defineStore('draw', () => {
       })
     }
 
+    // Important to init history after the canvas has been loaded to keep track off all objects
+    eventManager.init(c)
+    history.init(c)
     configureCanvasSpecificSettings(c)
     loadAdditionalBrushes()
     initGestures(c, hammer)
-    eventManager.init(c)
-    history.init(c)
     initTools(c, tools)
 
     const selected = (tools[DrawTool.Select] as Select).getSelectedObjects() // important that this is before selectTool
@@ -153,14 +153,15 @@ export const useDrawStore = defineStore('draw', () => {
   async function reply(inboxItem: InboxItem | undefined) {
     if (!inboxItem) return
     loadService.loading.value = true
-    fetch(inboxItem.drawing)
+    await fetch(inboxItem.drawing)
       .then(res => res.json())
       .then(res => {
         loadService.canvasToLoad.value = res
-        if (c) {
-          loadService.loading.value = false
-          loadService.loadCanvas(c)
-        }
+        // TODO doing things async breaks stuff :(
+        // if (c) {
+        //   loadService.loading.value = false
+        //   loadService.loadCanvas(c)
+        // }
       })
     await router.push(FRONTEND_ROUTES.draw)
   }

@@ -22,7 +22,7 @@
       </ion-buttons>
 
       <ion-buttons slot="end">
-        <ion-button @click="emits('delete')" size="large">
+        <ion-button @click="emits('delete')" size="large" v-if="selectedItems?.length > 0">
           <ion-icon slot="icon-only" :icon="svg(mdiDeleteOutline)" />
         </ion-button>
       </ion-buttons>

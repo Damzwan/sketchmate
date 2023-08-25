@@ -20,17 +20,7 @@
       <div class="flex flex-col h-full">
         <div class="flex-grow">
           <div class="w-full flex justify-center items-center pt-8">
-            <ion-avatar class="w-32 h-32 relative cursor-pointer" @click="() => imgInput!.click()">
-              <img alt="Profile picture" :src="user.img" class="object-fill w-full h-full" />
-              <ion-icon :icon="addOutline" class="badge rounded-full" />
-            </ion-avatar>
-            <input
-              type="file"
-              ref="imgInput"
-              style="display: none"
-              @change="uploadImage"
-              accept="image/png, image/jpeg"
-            />
+            <ProfilePictureSelector :img="user.img" @update:img="img => uploadImage(img)" />
           </div>
 
           <div class="w-full justify-center flex pt-8">
@@ -83,7 +73,6 @@
 
 <script setup lang="ts">
 import {
-  IonAvatar,
   IonButton,
   IonButtons,
   IonContent,
@@ -101,7 +90,7 @@ import { blurIonInput, compressImg, isNative, setAppColors, svg } from '@/helper
 import { useAPI } from '@/service/api/api.service'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
-import { addOutline, arrowBack } from 'ionicons/icons'
+import { arrowBack } from 'ionicons/icons'
 import { onBeforeRouteLeave } from 'vue-router'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
@@ -109,6 +98,7 @@ import { colorsPerRoute, settingsModalColorConfig } from '@/config/colors.config
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import SettingLinks from '@/components/settings/SettingLinks.vue'
+import ProfilePictureSelector from '@/components/general/ProfilePictureSelector.vue'
 
 const { user } = storeToRefs(useAppStore())
 const api = useAPI()
@@ -139,13 +129,12 @@ function onEnter() {
   blurIonInput(nameRef.value)
 }
 
-async function uploadImage(e: any) {
-  const file = e.target.files[0]
-  const img = await compressImg(file, { size: 256 })
+async function uploadImage(img: any) {
+  const compressedImg = await compressImg(img, { size: 256 })
   const imgUrl = await api.uploadProfileImg({
     _id: user.value!._id,
     mate_id: user.value?.mate?._id,
-    img: img,
+    img: compressedImg,
     previousImage: user.value?.img?.includes('aku') ? undefined : user.value?.img
   })
   user.value!.img = imgUrl!

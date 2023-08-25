@@ -1,7 +1,7 @@
 <template>
   <ion-page>
     <ion-content>
-      <swiper-container class="h-full" pagination="true" @init="initSwiper" @slidechange="slideChange">
+      <swiper-container class="h-full" :pagination="!keyboardActivated" @init="initSwiper" @slidechange="slideChange">
         <swiper-slide>
           <div class="container">
             <img :src="girlDrawing" class="w-full h-[230px]" alt="Girl drawing" />
@@ -27,15 +27,15 @@
         <swiper-slide>
           <div class="container">
             <img :src="gallery" class="w-full h-[230px]" alt="Gallery drawing" />
-            <h1 class="title pt-12">Personal Gallery</h1>
+            <h1 class="title pt-12">Personal gallery</h1>
             <p class="subtitle">Your sketches are stored in a simple, elegant gallery</p>
           </div>
         </swiper-slide>
         <swiper-slide>
           <div class="container">
             <img :src="widget" class="h-[350px] aspect-auto mx-auto" alt="Gallery drawing" />
-            <h1 class="title pt-12">Stay Connected</h1>
-            <p class="subtitle"> View your friend's latest sketch straight from your widget. </p>
+            <h1 class="title pt-12">Stay connected</h1>
+            <p class="subtitle"> View your friend's latest sketch straight from your widget</p>
           </div>
         </swiper-slide>
 
@@ -50,17 +50,7 @@
           <div class="flex-1">
             <!-- Avatar -->
             <div class="w-full flex justify-center items-center pt-8">
-              <ion-avatar class="w-32 h-32 relative cursor-pointer" @click="() => imgInput!.click()">
-                <img alt="Profile picture" :src="img || stock_img" class="object-fill w-full h-full" />
-                <input
-                  type="file"
-                  ref="imgInput"
-                  class="hidden"
-                  accept="image/png, image/jpeg"
-                  @change="onImageChange"
-                />
-                <ion-icon :icon="addOutline" class="badge rounded-full" />
-              </ion-avatar>
+              <ProfilePicture v-model:img="img" />
             </div>
 
             <!-- Name Input -->
@@ -70,12 +60,14 @@
                 helperText="Name"
                 type="text"
                 fill="outline"
-                placeholder="e.g. BiggusDickus"
+                placeholder="e.g. SketchMater"
                 v-model="name"
                 enterkeyhint="done"
                 ref="nameRef"
                 autocapitalize="sentences"
                 @keyup.enter="() => blurIonInput(nameRef)"
+                @ionFocus="onFocus"
+                @ionBlur="onBlur"
               />
             </div>
 
@@ -109,7 +101,7 @@
         </swiper-slide>
       </swiper-container>
 
-      <div class="w-full flex justify-center items-center absolute bottom-16">
+      <div class="w-full flex justify-center items-center absolute bottom-16" v-if="!keyboardActivated">
         <ion-button
           v-if="lastSlide"
           @click="create"
@@ -134,7 +126,6 @@
 
 <script lang="ts" setup>
 import {
-  IonAvatar,
   IonButton,
   IonContent,
   IonHeader,
@@ -148,7 +139,7 @@ import {
 
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { blurIonInput, compressImg, svg } from '@/helper/general.helper'
+import { blurIonInput, compressImg, isMobile, svg } from '@/helper/general.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { storeToRefs } from 'pinia'
@@ -160,8 +151,8 @@ import gallery from '@/assets/illustrations/gallery.svg'
 import widget from '@/assets/illustrations/widget.webp'
 import sketching from '@/assets/lottie/sketching.json'
 import { Swiper } from 'swiper/types'
-import { addOutline } from 'ionicons/icons'
 import Lottie from '@/components/general/Lottie.vue'
+import ProfilePicture from '@/components/general/ProfilePictureSelector.vue'
 
 register()
 
@@ -170,8 +161,7 @@ const stock_img = 'https://sketchmate.blob.core.windows.net/account/aku.jpg'
 const { createUser } = useAppStore()
 const name = ref()
 
-const img = ref()
-const imgInput = ref<HTMLInputElement>()
+const img = ref(stock_img)
 const nameRef = ref<any>()
 
 const playLottie = ref(false)
@@ -179,6 +169,8 @@ const playLottie = ref(false)
 const { localSubscription, localUserId, localUserImg } = storeToRefs(useAppStore())
 const swiper = ref<Swiper>()
 const lastSlide = ref(false)
+
+const keyboardActivated = ref(false)
 
 function slideChange() {
   playLottie.value = swiper.value?.activeIndex === 2
@@ -197,50 +189,17 @@ function nextSlide() {
   swiper.value?.slideNext()
 }
 
-async function setLocalImg() {
-  let localImg = stock_img
-
-  if (img.value && imgInput.value?.files) {
-    new Promise<void>(resolve => {
-      const reader = new FileReader()
-      reader.onloadend = function () {
-        const dataUrl = reader.result
-        localImg = dataUrl!.toString()
-        resolve()
-      }
-      reader.readAsDataURL(imgInput.value!.files![0])
-    })
-  }
-  localUserImg.value = localImg
-}
-
 async function create() {
-  await setLocalImg()
+  localUserImg.value = img.value
   localUserId.value = 'ready' // hack to show the connect page
   const data: CreateUserParams = {}
 
   if (name.value) data.name = name.value
-  if (img.value && imgInput.value?.files) {
-    data.img = await compressImg(imgInput.value.files[0], { size: 256, returnType: 'file' })
+  if (img.value && img.value != stock_img) {
+    data.img = await compressImg(img.value, { size: 256, returnType: 'file' })
   }
   if (localSubscription.value) data.subscription = localSubscription.value
-  createUser(data)
-}
-
-const onImageChange = (e: Event) => {
-  const target = e.target as HTMLInputElement
-
-  if (target.files && target.files[0]) {
-    const reader = new FileReader()
-
-    reader.onload = (e: ProgressEvent<FileReader>) => {
-      if (e.target) {
-        img.value = e.target.result as string
-      }
-    }
-
-    reader.readAsDataURL(target.files[0])
-  }
+  await createUser(data)
 }
 
 function handleNotificationChange() {
@@ -248,6 +207,14 @@ function handleNotificationChange() {
   if (localSubscription.value) {
     disableNotifications()
   } else requestNotifications()
+}
+
+function onFocus() {
+  if (isMobile()) keyboardActivated.value = true
+}
+
+function onBlur() {
+  if (isMobile()) setTimeout(() => (keyboardActivated.value = false), 150)
 }
 </script>
 
@@ -266,13 +233,5 @@ swiper-container {
 
 .container {
   @apply absolute bottom-[30%] w-full max-w-full;
-}
-
-.badge {
-  background: var(--ion-color-secondary);
-  position: absolute;
-  right: 12px;
-  bottom: 10px;
-  z-index: 4;
 }
 </style>

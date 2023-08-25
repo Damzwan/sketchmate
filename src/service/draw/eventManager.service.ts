@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { FabricEvent, ObjectType, ToolService } from '@/types/draw.types'
 import { Canvas } from 'fabric/fabric-impl'
 import { setSelectionForObjects } from '@/helper/draw/draw.helper'
-import { enableZoomAndPan } from '@/helper/draw/gesture.helper'
 import { ref } from 'vue'
 
 export type EventObjectType = ObjectType | 'all'
@@ -13,7 +12,6 @@ export const useEventManager = defineStore('event manager', () => {
 
   function init(canvas: Canvas) {
     c = canvas
-    enableZoomAndPan(c)
   }
 
   function destroy() {

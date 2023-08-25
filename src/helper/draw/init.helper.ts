@@ -18,6 +18,7 @@ import { useAppStore } from '@/store/app.store'
 import { exitEditing, isObjectSelected, isText, splitStringToWidth } from '@/helper/draw/draw.helper'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { mdiCheckCircle } from '@mdi/js'
+import { enableZoomAndPan } from '@/helper/draw/gesture.helper'
 
 export function initCanvasOptions(): ICanvasOptions {
   return {
@@ -35,6 +36,7 @@ export function initGestures(c: Canvas, hammer: Ref<HammerManager | undefined>) 
   hammer.value = new Hammer.Manager(upperCanvasEl)
   hammer.value.add(new Hammer.Pinch())
   hammer.value?.add(new Hammer.Rotate())
+  enableZoomAndPan(c)
 }
 
 function renderIcon(icon: any) {

@@ -127,4 +127,8 @@ async function canDismiss() {
 ion-accordion div ion-item {
   --padding-start: 25px;
 }
+
+ion-modal {
+  --backdrop-opacity: 0.4 !important;
+}
 </style>

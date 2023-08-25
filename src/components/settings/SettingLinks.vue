@@ -8,7 +8,7 @@
     <ion-button v-if="blog" fill="clear" color="secondary" href="https://sketchmate.ninja/blog/" target="_blank"
       >Blog</ion-button
     >
-    <ion-button v-if="contact" fill="clear" color="secondary" href="mailto:damian.vlaicu@gmail.com"
+    <ion-button v-if="contact" fill="clear" color="secondary" href="mailto:contact@sketchmate.ninja"
       >Contact Me</ion-button
     >
   </div>

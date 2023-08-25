@@ -22,6 +22,7 @@ import {
 import { LocalStorage } from '@/types/storage.types'
 import { createGlobalState } from '@vueuse/core'
 import { Preferences } from '@capacitor/preferences'
+import { stock_img } from '@/config/general.config'
 
 enum REQUEST_TYPES {
   GET = 'GET',
@@ -114,6 +115,11 @@ export const useAPI = createGlobalState((): API => {
     return newImg
   }
 
+  async function deleteProfileImg(params: any) {
+    const url = `${baseUrl}${ENDPOINTS.user}/img/${params._id}?stockImage=${stock_img}`
+    await fetch(url, { method: REQUEST_TYPES.DELETE })
+  }
+
   async function createSticker(params: CreateStickerParams): Promise<Res<string>> {
     const url = `${baseUrl}${ENDPOINTS.sticker}/${params._id}`
     const data = new FormData()
@@ -197,6 +203,7 @@ export const useAPI = createGlobalState((): API => {
     deleteSticker,
     deleteEmblem,
     createSaved,
-    deleteSaved
+    deleteSaved,
+    deleteProfileImg
   }
 })

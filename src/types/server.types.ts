@@ -127,6 +127,10 @@ export interface UploadProfileImgParams {
   previousImage?: string
 }
 
+export interface DeleteProfileImgParams {
+  _id: string
+}
+
 export interface CreateStickerParams {
   _id: string
   img: any
@@ -182,6 +186,7 @@ export interface API {
   changeUserName(params: ChangeUserNameParams): Promise<Res<void>>
 
   uploadProfileImg(params: UploadProfileImgParams): Promise<Res<string>>
+  deleteProfileImg(params: DeleteProfileImgParams): Promise<void>
 
   createSticker(params: CreateStickerParams): Promise<Res<string>>
 
@@ -197,7 +202,7 @@ export interface API {
 }
 
 export interface SocketAPI {
-  connect: () => void
+  connect: () => Promise<void>
   disconnect: () => Promise<void>
   match: (params: MatchParams) => Promise<void>
   send: (params: SendParams) => Promise<void>

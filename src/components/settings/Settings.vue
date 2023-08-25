@@ -1,6 +1,5 @@
 <template>
   <ion-modal
-    mode="ios"
     :is-open="open"
     @will-dismiss="close"
     :presenting-element="presentingElement"
@@ -28,6 +27,7 @@
               class="w-1/2 max-w-xs"
               helperText="Name"
               type="text"
+              maxlength="30"
               fill="outline"
               placeholder="e.g. BiggusDickus"
               v-model="name"
@@ -103,7 +103,6 @@ import ProfilePictureSelector from '@/components/general/ProfilePictureSelector.
 const { user } = storeToRefs(useAppStore())
 const api = useAPI()
 const { toast } = useToast()
-const imgInput = ref<HTMLInputElement>()
 
 const name = ref(user.value!.name)
 const nameRef = ref<HTMLIonInputElement>()
@@ -152,7 +151,7 @@ function changeName() {
 }
 
 function onNameFocus() {
-  name.value = ''
+  // name.value = ''
 }
 
 function onNameBlur() {

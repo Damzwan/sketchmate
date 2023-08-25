@@ -153,10 +153,9 @@ import sketching from '@/assets/lottie/sketching.json'
 import { Swiper } from 'swiper/types'
 import Lottie from '@/components/general/Lottie.vue'
 import ProfilePicture from '@/components/general/ProfilePictureSelector.vue'
+import { stock_img } from '@/config/general.config'
 
 register()
-
-const stock_img = 'https://sketchmate.blob.core.windows.net/account/aku.jpg'
 
 const { createUser } = useAppStore()
 const name = ref()

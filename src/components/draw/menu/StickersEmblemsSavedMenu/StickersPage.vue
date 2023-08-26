@@ -26,13 +26,16 @@ import { svg } from '@/helper/general.helper'
 import { mdiPlus } from '@mdi/js'
 import { ref } from 'vue'
 import StickerEmblemSavedItem from '@/components/draw/menu/StickersEmblemsSavedMenu/StickerEmblemSavedItem.vue'
+import { onClickOutside } from '@vueuse/core'
 
 const { user } = storeToRefs(useAppStore())
 const grid = ref<HTMLElement>()
 
-defineProps<{
+const props = defineProps<{
   deleteMode: boolean
 }>()
+
+onClickOutside(grid, () => (props.deleteMode ? emits('update:delete-mode', false) : undefined))
 
 const emits = defineEmits<{
   (e: 'update:delete-mode', deleteMode: boolean): void

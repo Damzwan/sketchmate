@@ -2,9 +2,9 @@
   <ion-page>
     <LinearLoader :text="loadingText" class="absolute z-50" v-if="isLoading" :darken="true" />
     <ion-header class="ion-no-border">
-      <ShapeCreationToolbar v-if="shapeCreationMode != undefined" />
-      <div v-else>
-        <!--        We use v-show instead of v-if due to a bug-->
+      <ShapeCreationToolbar v-show="shapeCreationMode !== undefined" />
+      <div v-show="shapeCreationMode === undefined">
+        <!--        We use v-show instead of v-show to keep the state of the component-->
         <SelectToolBar v-show="selectedObjectsRef.length > 0" class="z-[1000] absolute left-0 top-0" />
         <PrimaryDrawToolBar />
       </div>

@@ -7,6 +7,7 @@ import { useEventManager } from '@/service/draw/eventManager.service'
 import { exitShapeCreationMode, findNearestPoint, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { EventBus } from '@/main'
+import { storeToRefs } from 'pinia'
 
 export function addShape(c: Canvas, options: any) {
   const shape = options['shape'] as Shape
@@ -29,6 +30,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
   const { addToUndoStack } = useHistory()
   const { isolatedSubscribe, disableAllEvents } = useEventManager()
   const { setModifiedObjects } = useSelect()
+  const { shapeCreationSettings } = storeToRefs(useDrawStore())
 
   const clickTolerance = 20
   let points: IPoint[] = []
@@ -79,11 +81,21 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
             if (createdShape) {
               c.remove(createdShape)
               const id = createdShape.id
-              createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+              createdShape = new fabric.Polyline(points, {
+                fill: shapeCreationSettings.value.fill,
+                stroke: shapeCreationSettings.value.stroke,
+                backgroundColor: shapeCreationSettings.value.backgroundColor,
+                strokeWidth: shapeCreationSettings.value.strokeWidth
+              })
               createdShape.id = id
               c.add(createdShape)
             } else {
-              createdShape = new fabric.Polyline(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+              createdShape = new fabric.Polyline(points, {
+                fill: shapeCreationSettings.value.fill,
+                stroke: shapeCreationSettings.value.stroke,
+                backgroundColor: shapeCreationSettings.value.backgroundColor,
+                strokeWidth: shapeCreationSettings.value.strokeWidth
+              })
             }
             break
           case Shape.Polygon:
@@ -91,11 +103,21 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
             if (createdShape) {
               c.remove(createdShape)
               const id = createdShape.id
-              createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+              createdShape = new fabric.Polygon(points, {
+                fill: shapeCreationSettings.value.fill,
+                stroke: shapeCreationSettings.value.stroke,
+                backgroundColor: shapeCreationSettings.value.backgroundColor,
+                strokeWidth: 2
+              })
               createdShape.id = id
               c.add(createdShape)
             } else {
-              createdShape = new fabric.Polygon(points, { fill: '', stroke: 'black', strokeWidth: 2 })
+              createdShape = new fabric.Polygon(points, {
+                fill: shapeCreationSettings.value.fill,
+                stroke: shapeCreationSettings.value.stroke,
+                backgroundColor: shapeCreationSettings.value.backgroundColor,
+                strokeWidth: 2
+              })
             }
             break
           default:
@@ -182,20 +204,23 @@ function handleMouseMove(c: Canvas, shape: Shape, o: any, startX: number, startY
 function updateShape(createdShape: any, shape: Shape, pointer: any, startX: number, startY: number) {
   switch (shape) {
     case Shape.Circle:
-      const radius = Math.sqrt(Math.pow(startX - pointer.x, 2) + Math.pow(startY - pointer.y, 2))
+      const dxc = pointer.x - startX
+      const dyc = pointer.y - startY
+      const radius = Math.sqrt(Math.pow(dxc, 2) + Math.pow(dyc, 2)) / 2
       createdShape.set({
-        left: startX - radius,
-        top: startY - radius,
+        left: (startX + pointer.x) / 2 - radius,
+        top: (startY + pointer.y) / 2 - radius,
         radius: radius
       })
       break
     case Shape.Ellipse:
-      // similar logic would apply to an ellipse, if you want it to grow from the center
-      const rx = Math.abs(startX - pointer.x) / 2
-      const ry = Math.abs(startY - pointer.y) / 2
+      const dxEllipse = pointer.x - startX
+      const dyEllipse = pointer.y - startY
+      const rx = Math.abs(dxEllipse) / 2
+      const ry = Math.abs(dyEllipse) / 2
       createdShape.set({
-        left: startX - rx,
-        top: startY - ry,
+        left: (startX + pointer.x) / 2 - rx,
+        top: (startY + pointer.y) / 2 - ry,
         rx: rx,
         ry: ry
       })
@@ -225,8 +250,7 @@ function updateShape(createdShape: any, shape: Shape, pointer: any, startX: numb
         left: Math.min(startX, pointer.x),
         top: Math.min(startY, pointer.y),
         scaleX: scale,
-        scaleY: scale,
-        strokeWidth: 4
+        scaleY: scale
       })
       break
     default:
@@ -235,51 +259,43 @@ function updateShape(createdShape: any, shape: Shape, pointer: any, startX: numb
 }
 
 function createShape(shape: Shape, startX: number, startY: number): any {
+  const { shapeCreationSettings } = useDrawStore()
+  let o: fabric.Object | undefined = undefined
   switch (shape) {
     case Shape.Circle:
-      return new fabric.Circle({
+      o = new fabric.Circle({
         left: startX,
         top: startY,
-        stroke: 'black',
-        strokeWidth: 2,
-        fill: '',
         radius: 1
       })
+      break
     case Shape.Ellipse:
-      return new fabric.Ellipse({
+      o = new fabric.Ellipse({
         left: startX,
         top: startY,
-        stroke: 'black',
-        strokeWidth: 2,
-        fill: '',
         rx: 1,
         ry: 1
       })
+      break
     case Shape.Rectangle:
-      return new fabric.Rect({
+      o = new fabric.Rect({
         left: startX,
         top: startY,
-        stroke: 'black',
-        strokeWidth: 2,
-        fill: '',
         width: 1,
         height: 1
       })
+      break
     case Shape.Triangle:
-      return new fabric.Triangle({
+      o = new fabric.Triangle({
         left: startX,
         top: startY,
-        stroke: 'black',
-        strokeWidth: 2,
-        fill: '',
         width: 1,
         height: 1
       })
+      break
     case Shape.Line:
-      return new fabric.Line([startX, startY, startX, startY], {
-        stroke: 'black',
-        strokeWidth: 2
-      })
+      o = new fabric.Line([startX, startY, startX, startY])
+      break
     case Shape.HEART:
       const pathString =
         'M 272.70141,238.71731 C 206.46141,238.71731 152.70146,292.4773 152.70146,358.71731 C 152.70146,493.47282 288.63461,528.80461 381.26391,662.02535 C 468.83815,529.62199 609.82641,489.17075 609.82641,358.71731 C 609.82641,292.47731 556.06651,238.7173 489.82641,238.71731 C 441.77851,238.71731 400.42481,267.08774 381.26391,307.90481 C 362.10311,267.08773 320.74941,238.7173 272.70141,238.71731 z'
@@ -287,10 +303,18 @@ function createShape(shape: Shape, startX: number, startY: number): any {
       const heart = new fabric.Path(pathString)
       heart.scaleToWidth(1)
       heart.scaleToHeight(1)
-      heart.set({ left: startX, top: startY, originX: 'center', originY: 'center', stroke: 'black', fill: '' })
+      heart.set({ left: startX, top: startY, originX: 'center', originY: 'center' })
 
-      return heart
+      o = heart
+      break
   }
+  o?.set({
+    fill: shapeCreationSettings.fill,
+    stroke: shapeCreationSettings.stroke,
+    backgroundColor: shapeCreationSettings.backgroundColor,
+    strokeWidth: shapeCreationSettings.strokeWidth
+  })
+  return o
 }
 
 function createVisualCircle(clickTolerance: number, point: IPoint) {

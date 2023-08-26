@@ -32,9 +32,9 @@ function selectFont(font: string) {
 
 function onPresent() {
   const { getCanvas, isEditingText } = useDrawStore()
-  if (text.value.text == '' || isEditingText) {
+  if (isEditingText) {
     shouldRefocusTextAfterClose.value = true
-    getCanvas().discardActiveObject()
+    if (text.value.text != '') getCanvas().discardActiveObject() // TODO needed to activate history
   }
 }
 

@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="select_color" @didDismiss="onDismiss" :showBackdrop="false">
+  <ion-popover :trigger="trigger" @didDismiss="onDismiss" :showBackdrop="false" @willPresent="onPresent">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" id="stroke">
@@ -46,10 +46,16 @@ import { focusText, isText } from '@/helper/draw/draw.helper'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { IText } from 'fabric/fabric-impl'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
+import { useDrawStore } from '@/store/draw/draw.store'
+
+defineProps<{
+  trigger: string
+}>()
 
 const strokeColor = ref<string>(BLACK)
 const fillColor = ref<string>(BLACK)
 const backgroundColor = ref<string>(BLACK)
+const shouldRefocusTextAfterClose = ref(false)
 
 const emits = defineEmits<{
   (e: 'update:stroke-color', color: string): void
@@ -59,9 +65,19 @@ const emits = defineEmits<{
 
 function onDismiss() {
   const { selectedObjectsRef } = useSelect()
-  if (isText(selectedObjectsRef)) {
-    const text = selectedObjectsRef[0] as IText
-    if (text.text == '') focusText(text)
+  if (!isText(selectedObjectsRef)) return
+  if (shouldRefocusTextAfterClose.value) focusText(selectedObjectsRef[0] as IText)
+  shouldRefocusTextAfterClose.value = false
+}
+
+function onPresent() {
+  const { selectedObjectsRef } = useSelect()
+  if (!isText(selectedObjectsRef)) return
+
+  const { getCanvas, isEditingText } = useDrawStore()
+  if (isEditingText) {
+    shouldRefocusTextAfterClose.value = true
+    if ((selectedObjectsRef[0] as IText).text != '') getCanvas().discardActiveObject() // TODO needed to activate history
   }
 }
 </script>

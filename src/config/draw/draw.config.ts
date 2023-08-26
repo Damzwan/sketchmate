@@ -21,6 +21,7 @@ import {
   curveText
 } from '@/helper/draw/actions/text.action'
 import {
+  changeStrokeWidth,
   setBackgroundColor,
   setCanvasBackground,
   setFillColor,
@@ -121,7 +122,8 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) =>
   [DrawAction.BringToFront]: bringToFront,
   [DrawAction.BringToBack]: bringToBack,
   [DrawAction.EditPolygon]: editPolygon,
-  [DrawAction.SetCanvasBackground]: setCanvasBackground
+  [DrawAction.SetCanvasBackground]: setCanvasBackground,
+  [DrawAction.ChangeStrokeWidth]: changeStrokeWidth
 }
 
 export const dynamicStickerLoading: DynamicTextPart[] = [

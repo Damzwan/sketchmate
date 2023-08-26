@@ -7,19 +7,18 @@ import { ObjectType } from '@/types/draw.types'
 
 export function setStrokeColor(c: Canvas, options: any) {
   const color = options['color']
-  const { getSelectedObjects } = useSelect()
+  const { selectedObjectsRef } = useSelect()
   const { addToUndoStack } = useHistory()
 
-  const selectedObjects = getSelectedObjects()
-  if (selectedObjects.length == 0) return
+  if (selectedObjectsRef.length == 0) return
 
   addToUndoStack(
-    selectedObjects.map(obj => getStaticObjWithAbsolutePosition(obj)),
+    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
     'object:modified',
     { color: true }
   )
-  if (isText(selectedObjects)) exitEditing(selectedObjects[0])
-  setForSelectedObjects(selectedObjects, { stroke: color })
+  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
+  setForSelectedObjects(selectedObjectsRef, { stroke: color })
 
   c.renderAll()
   popoverController.dismiss()
@@ -27,19 +26,18 @@ export function setStrokeColor(c: Canvas, options: any) {
 
 export function setFillColor(c: Canvas, options: any) {
   const color = options['color']
-  const { getSelectedObjects } = useSelect()
+  const { selectedObjectsRef } = useSelect()
   const { addToUndoStack } = useHistory()
 
-  const selectedObjects = getSelectedObjects()
-  if (selectedObjects.length == 0) return
+  if (selectedObjectsRef.length == 0) return
   addToUndoStack(
-    selectedObjects.map(obj => getStaticObjWithAbsolutePosition(obj)),
+    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
     'object:modified',
     { color: true }
   )
 
-  if (isText(selectedObjects)) exitEditing(selectedObjects[0])
-  setForSelectedObjects(selectedObjects, { fill: color })
+  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
+  setForSelectedObjects(selectedObjectsRef, { fill: color })
 
   c.renderAll()
   popoverController.dismiss()
@@ -47,22 +45,39 @@ export function setFillColor(c: Canvas, options: any) {
 
 export function setBackgroundColor(c: Canvas, options: any) {
   const color = options['color']
-  const { getSelectedObjects } = useSelect()
+  const { selectedObjectsRef } = useSelect()
   const { addToUndoStack } = useHistory()
 
-  const selectedObjects = getSelectedObjects()
-  if (selectedObjects.length == 0) return
+  if (selectedObjectsRef.length == 0) return
 
   addToUndoStack(
-    selectedObjects.map(obj => getStaticObjWithAbsolutePosition(obj)),
+    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
     'object:modified',
     { color: true }
   )
-  if (isText(selectedObjects)) exitEditing(selectedObjects[0])
-  setForSelectedObjects(selectedObjects, { backgroundColor: color })
+  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
+  setForSelectedObjects(selectedObjectsRef, { backgroundColor: color })
 
   c.renderAll()
   popoverController.dismiss()
+}
+
+// TODO is not really a color haha
+export async function changeStrokeWidth(c: Canvas, options: any) {
+  const strokeWidth = options['strokeWidth']
+  const { selectedObjectsRef } = useSelect()
+  const { addToUndoStack } = useHistory()
+
+  if (selectedObjectsRef.length == 0) return
+  addToUndoStack(
+    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
+    'object:modified',
+    { color: true }
+  )
+  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
+  setForSelectedObjects(selectedObjectsRef, { strokeWidth })
+
+  c.renderAll()
 }
 
 // TODO nightmare code
@@ -75,14 +90,16 @@ export async function undoColoring(newObj: any, oldObj: any) {
         setForSelectedObjects([matchingObj], {
           stroke: o.stroke,
           fill: o.fill,
-          backgroundColor: o.backgroundColor
+          backgroundColor: o.backgroundColor,
+          strokeWidth: oldObj.strokeWidth
         })
     })
   } else
     await setForSelectedObjects([newObj], {
       stroke: oldObj.stroke,
       fill: oldObj.fill,
-      backgroundColor: oldObj.backgroundColor
+      backgroundColor: oldObj.backgroundColor,
+      strokeWidth: oldObj.strokeWidth
     })
 }
 

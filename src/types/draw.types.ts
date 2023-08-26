@@ -94,7 +94,8 @@ export enum DrawAction {
   BringToFront,
   BringToBack,
   EditPolygon,
-  SetCanvasBackground
+  SetCanvasBackground,
+  ChangeStrokeWidth
 }
 
 export enum Menu {

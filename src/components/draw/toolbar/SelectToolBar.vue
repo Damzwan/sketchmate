@@ -13,9 +13,19 @@
     </ion-buttons>
 
     <ion-buttons slot="end">
-      <ion-button id="select_color" v-if="!containsImage" @click="exitEditing(selectedObjectsRef[0])">
+      <ion-button id="line_width" v-if="!containsImage">
+        <ion-icon slot="icon-only" :icon="svg(mdiMinusThick)"></ion-icon>
+        <StrokeWidthMenu
+          trigger="line_width"
+          :strokeWidth="selectedObjectsRef[0]?.strokeWidth || 0"
+          @update:strokeWidth="strokeWidth => selectAction(DrawAction.ChangeStrokeWidth, { strokeWidth })"
+        />
+      </ion-button>
+
+      <ion-button id="select_color" v-if="!containsImage">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
         <SelectColorMenu
+          trigger="select_color"
           @update:stroke-color="color => selectAction(DrawAction.ChangeStrokeColour, { color })"
           @update:fill-color="color => selectAction(DrawAction.ChangeFillColour, { color })"
           @update:background-color="color => selectAction(DrawAction.ChangeBackgroundColor, { color })"
@@ -67,6 +77,7 @@ import {
   mdiDotsVertical,
   mdiFormatText,
   mdiMenuSwapOutline,
+  mdiMinusThick,
   mdiPaletteOutline,
   mdiRedo,
   mdiUndo,
@@ -83,7 +94,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction, ObjectType } from '@/types/draw.types'
 import TextMenu from '@/components/draw/menu/TextMenu.vue'
-import { exitEditing } from '@/helper/draw/draw.helper'
+import StrokeWidthMenu from '@/components/draw/menu/StrokeWidthMenu.vue'
 
 const { selectAction, getCanvas } = useDrawStore()
 const { undo, redo } = useHistory()

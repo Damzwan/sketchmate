@@ -77,6 +77,7 @@ const { selectedObjectsRef } = storeToRefs(useSelect())
 const text = computed(() => selectedObjectsRef.value[0] as IText)
 
 const isBold = computed(() => text.value.fontWeight === 'bold')
+
 const isItalic = computed(() => text.value.fontStyle === 'italic')
 const align = computed(() => text.value.textAlign)
 const isCurved = computed(() => text.value.isCurved)
@@ -90,9 +91,9 @@ function onDismiss() {
 
 function onPresent() {
   const { getCanvas, isEditingText } = useDrawStore()
-  if (text.value.text == '' || isEditingText) {
+  if (isEditingText) {
     shouldRefocusTextAfterClose.value = true
-    getCanvas().discardActiveObject()
+    if (text.value.text != '') getCanvas().discardActiveObject() // TODO needed to activate history
   }
 }
 </script>

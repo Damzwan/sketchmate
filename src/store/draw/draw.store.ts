@@ -60,6 +60,19 @@ export const useDrawStore = defineStore('draw', () => {
   const isLoading = ref(false)
   const isUsingGesture = ref(false)
 
+  // TODO I think we should transform shape creation into a store
+  const shapeCreationSettings = ref<{
+    stroke: string
+    fill?: string
+    backgroundColor?: string
+    strokeWidth: number
+  }>({
+    stroke: '#000000',
+    fill: undefined,
+    backgroundColor: undefined,
+    strokeWidth: 2
+  })
+
   // We make use of events so we do not load the big draw.store in other views
   EventBus.on('reset-canvas', reset)
   changeFabricBaseSettings()
@@ -87,7 +100,7 @@ export const useDrawStore = defineStore('draw', () => {
     let json: any = undefined
     if (c) {
       json = c.toJSON()
-      destroyToolsAndServices()
+      destroyToolsAndServices(!loadService.loading.value)
       isEditingText.value = false
       c.dispose()
     }
@@ -120,9 +133,9 @@ export const useDrawStore = defineStore('draw', () => {
     json = undefined
   }
 
-  function destroyToolsAndServices() {
+  function destroyToolsAndServices(maintainHistory: boolean) {
     destroyTools(tools)
-    history.destroy()
+    history.destroy(maintainHistory)
     eventManager.destroy()
   }
 
@@ -207,6 +220,7 @@ export const useDrawStore = defineStore('draw', () => {
     isLoading,
     lastSelectedPenMenuTool,
     hideLoading,
-    isUsingGesture
+    isUsingGesture,
+    shapeCreationSettings
   }
 })

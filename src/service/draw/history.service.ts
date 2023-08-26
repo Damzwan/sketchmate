@@ -15,6 +15,7 @@ import { fabric } from 'fabric'
 import { EventBus } from '@/main'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { undoColoring } from '@/helper/draw/actions/color.action'
+import { applyCurve, deleteCurve } from '@/helper/draw/actions/text.action'
 
 type HistoryEvent =
   | 'erasing:end'
@@ -145,8 +146,10 @@ export const useHistory = defineStore('history', () => {
       if (options && options.color) {
         await undoColoring(currObj, enlivenedObj)
       }
-      if (currObj.type == ObjectType.text && options && options.textStyle)
-        (currObj as IText).set({
+      if (currObj.type == ObjectType.text) (currObj as IText).set({ text: (enlivenedObj as IText).text })
+      if (currObj.type == ObjectType.text && options && options.textStyle) {
+        const o = currObj as IText
+        o.set({
           fontFamily: (enlivenedObj as IText).fontFamily,
           fontWeight: (enlivenedObj as IText).fontWeight,
           fontStyle: (enlivenedObj as IText).fontStyle,
@@ -154,7 +157,17 @@ export const useHistory = defineStore('history', () => {
           isCurved: (enlivenedObj as IText).isCurved
         })
 
-      if (currObj.type == ObjectType.polygon) (currObj as any)._setPositionDimensions({})
+        // TODO curve logic should be in the object logic itself imo
+        if (o && o.isCurved) applyCurve(o, c!)
+        else deleteCurve(o)
+      }
+
+      if (currObj.type == ObjectType.polygon) {
+        const o = currObj as any
+        o.set({ points: (obj as any).points })
+        o._setPositionDimensions({})
+      }
+      currObj.setCoords()
       currObj.dirty = true
     }
 
@@ -223,6 +236,11 @@ export const useHistory = defineStore('history', () => {
     const currObj: any = c?.getObjects().find(o => o.id == shape.id)
     if (!currObj) return
 
+    if (currObj.edit) {
+      const { setSelectedObjects } = useSelect()
+      c?.discardActiveObject()
+      setSelectedObjects([])
+    }
     const points = currObj.points
     points.pop()
 
@@ -292,15 +310,26 @@ export const useHistory = defineStore('history', () => {
       if (options && options.color) {
         await undoColoring(currObj, enlivenedObj)
       }
-      if (currObj.type == ObjectType.text && options && options.textStyle)
-        (currObj as IText).set({
+      if (currObj.type == ObjectType.text) (currObj as IText).set({ text: (enlivenedObj as IText).text })
+      if (currObj.type == ObjectType.text && options && options.textStyle) {
+        const o = currObj as IText
+        o.set({
           fontFamily: (enlivenedObj as IText).fontFamily,
           fontWeight: (enlivenedObj as IText).fontWeight,
           fontStyle: (enlivenedObj as IText).fontStyle,
           textAlign: (enlivenedObj as IText).textAlign,
           isCurved: (enlivenedObj as IText).isCurved
         })
-      if (currObj.type == ObjectType.polygon) (currObj as any)._setPositionDimensions({})
+
+        // TODO curve logic should be in the object logic itself imo
+        if (o && o.isCurved) applyCurve(o, c!)
+        else deleteCurve(o)
+      }
+      if (currObj.type == ObjectType.polygon) {
+        const o = currObj as any
+        o.set({ points: (obj as any).points })
+        o._setPositionDimensions({})
+      }
       currObj.dirty = true
     }
 
@@ -312,6 +341,8 @@ export const useHistory = defineStore('history', () => {
 
   async function redoObjectAdded(objects: fabric.Object[]) {
     objects = await enlivenObjects(objects)
+
+    if (isText(objects) && (objects[0] as IText).isCurved) applyCurve(objects[0] as IText, c!)
 
     c?.add(...objects)
     undoStack.push({ type: 'object:added', objects: objects })
@@ -368,11 +399,11 @@ export const useHistory = defineStore('history', () => {
     prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
   }
 
-  function destroy() {
+  function destroy(maintainHistory: boolean) {
     disableEvents()
     c = undefined
     prevCanvasObjects = []
-    clearHistory()
+    if (!maintainHistory) clearHistory()
   }
 
   function enableEvents() {

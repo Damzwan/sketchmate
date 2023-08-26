@@ -13,12 +13,12 @@
       </div>
 
       <!-- Brush Size Slider -->
-      <div class="brush-size px-2 pt-1">
+      <div class="px-2 pt-1">
         <label for="slider">Size</label>
         <ion-range aria-label="Volume" id="slider" v-model="brushSize" min="2" max="50" color="secondary" />
       </div>
 
-      <div class="brush-size px-2 pt-1">
+      <div class="px-2 pt-1">
         <label for="slider">Transparency</label>
         <ion-range aria-label="Volume" id="slider" v-model="opacity" min="0" max="100" color="secondary" />
       </div>

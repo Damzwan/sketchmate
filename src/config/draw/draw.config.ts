@@ -20,7 +20,12 @@ import {
   changeTextAlign,
   curveText
 } from '@/helper/draw/actions/text.action'
-import { setBackgroundColor, setFillColor, setStrokeColor } from '@/helper/draw/actions/color.action'
+import {
+  setBackgroundColor,
+  setCanvasBackground,
+  setFillColor,
+  setStrokeColor
+} from '@/helper/draw/actions/color.action'
 import { DynamicTextPart } from '@/types/loader.types'
 import { editPolygon } from '@/helper/draw/actions/polyEdit.action'
 
@@ -115,12 +120,13 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) =>
   [DrawAction.CurveText]: curveText,
   [DrawAction.BringToFront]: bringToFront,
   [DrawAction.BringToBack]: bringToBack,
-  [DrawAction.EditPolygon]: editPolygon
+  [DrawAction.EditPolygon]: editPolygon,
+  [DrawAction.SetCanvasBackground]: setCanvasBackground
 }
 
 export const dynamicStickerLoading: DynamicTextPart[] = [
   { text: 'Uploading...', duration: 1000 },
-  { text: 'What a questionable Sticker...', duration: 2000 },
+  { text: 'What a questionable sticker...', duration: 2000 },
   { text: 'Creating...', duration: 2000 }
 ]
 
@@ -150,7 +156,7 @@ export const tutorialSteps = [
     target: '[data-step="4"]',
     content: `<div>
   <p class="text-xl">Selection</p>
-  <p class="text-base">Select to move, rotate, resize, recolor objects. Includes copy, delete, save and merge.</p>
+  <p class="text-base">Select to move, rotate, resize and recolor objects. Includes copy, delete, save and merge.</p>
 </div>`
   },
   {
@@ -166,5 +172,18 @@ export const tutorialSteps = [
     <p class="text-xl">Need Help?</p>
     <p class="text-base">Press for tutorials on each section.</p>
   </div>`
+  },
+  {
+    target: '[data-step="7"]',
+    content: `<div>
+    <p class="text-xl">Undo/Redo Actions</p>
+    <p class="text-base">Made a mistake? Press "Undo". Want it back? Press "Redo".</p>  </div>`
+  },
+  {
+    target: '[data-step="8"]',
+    content: `<div>
+    <p class="text-xl">Send Sketch</p>
+    <p class="text-base">Once ready, press "Send". Your sketch will appear in the gallery.</p>
+      </div>`
   }
 ]

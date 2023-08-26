@@ -27,6 +27,7 @@ type HistoryEvent =
   | 'backgroundImg'
   | 'fullErase'
   | 'polygon'
+  | 'canvasBackground'
 
 interface HistoryAction {
   type: HistoryEvent
@@ -54,7 +55,8 @@ export const useHistory = defineStore('history', () => {
     merge: undoMerge,
     backgroundImg: undoBackgroundImg,
     fullErase: undoFullErase,
-    polygon: undoPolyPointAdded
+    polygon: undoPolyPointAdded,
+    canvasBackground: undoSetCanvasBackground
   }
 
   const redoMapping: Partial<Record<HistoryEvent, (objects: fabric.Object[], options?: any) => void>> = {
@@ -65,7 +67,8 @@ export const useHistory = defineStore('history', () => {
     merge: redoMerge,
     backgroundImg: redoBackgroundImg,
     fullErase: redoFullErase,
-    polygon: redoPolyPointAdded
+    polygon: redoPolyPointAdded,
+    canvasBackground: redoSetCanvasBackground
   }
 
   const events: FabricEvent[] = [
@@ -253,6 +256,20 @@ export const useHistory = defineStore('history', () => {
     currObj._setPositionDimensions({})
     currObj.dirty = true
     c?.requestRenderAll()
+  }
+
+  function undoSetCanvasBackground(objects: fabric.Object[], options?: any) {
+    const prevColor = options['prevColor']
+    redoStack.push({ type: 'canvasBackground', objects: [], options: { prevColor: c!.backgroundColor } })
+    c!.setBackgroundColor(prevColor, () => undefined)
+    c!.requestRenderAll()
+  }
+
+  function redoSetCanvasBackground(objects: fabric.Object[], options?: any) {
+    const prevColor = options['prevColor']
+    undoStack.push({ type: 'canvasBackground', objects: [], options: { prevColor: c!.backgroundColor } })
+    c!.setBackgroundColor(prevColor, () => undefined)
+    c!.requestRenderAll()
   }
 
   async function redoObjectModified(objects: fabric.Object[], options?: any) {

@@ -29,7 +29,7 @@ import { useAppStore } from '@/store/app.store'
 import { svg } from '@/helper/general.helper'
 import { mdiCursorDefaultClickOutline, mdiDotsVertical } from '@mdi/js'
 import { Saved } from '@/types/server.types'
-import { onClickOutside, onLongPress } from '@vueuse/core'
+import { onClickOutside } from '@vueuse/core'
 import { ref } from 'vue'
 import NoItems from '@/components/draw/NoItems.vue'
 import StickerEmblemSavedItem from '@/components/draw/menu/StickersEmblemsSavedMenu/StickerEmblemSavedItem.vue'
@@ -38,13 +38,6 @@ const { user } = storeToRefs(useAppStore())
 
 const grid = ref<HTMLElement>()
 
-onLongPress(
-  grid,
-  () => {
-    emits('update:delete-mode', true)
-  },
-  { modifiers: { prevent: true } }
-)
 const props = defineProps<{
   deleteMode: boolean
 }>()

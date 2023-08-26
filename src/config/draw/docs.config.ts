@@ -1,5 +1,5 @@
 import {
-  mdiAccountSettings,
+  mdiCogOutline,
   mdiCompassOutline,
   mdiConnection,
   mdiContentCopy,
@@ -13,7 +13,7 @@ import {
   mdiGesturePinch,
   mdiGestureTapButton,
   mdiImage,
-  mdiImageMultiple,
+  mdiImageMultipleOutline,
   mdiLasso,
   mdiMerge,
   mdiPencilOutline,
@@ -74,13 +74,13 @@ export const docsAccordionContent: DocsItem[] = [
       },
       {
         key: 'gallery',
-        icon: mdiImageMultiple,
+        icon: mdiImageMultipleOutline,
         text: 'Gallery',
         page: gallery
       },
       {
         key: 'settings',
-        icon: mdiAccountSettings,
+        icon: mdiCogOutline,
         text: 'Settings',
         page: settings
       },

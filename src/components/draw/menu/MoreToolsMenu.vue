@@ -2,6 +2,15 @@
   <ion-popover trigger="more_tools" :keepContentsMounted="true" :showBackdrop="false" ref="t">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
+        <ion-item color="tertiary" :button="true" :detail="true" id="background-color">
+          <ion-icon :icon="svg(mdiPaletteOutline)" />
+          <p class="pl-2 text-base">Background Color</p>
+
+          <ion-popover trigger="background-color" side="right">
+            <ColorPicker color="r" @update:color="onCanvasBackgroundChange" />
+          </ion-popover>
+        </ion-item>
+
         <ion-item color="tertiary" :button="true" id="stickers" @click="openStickerMenu" :detail="true">
           <ion-icon :icon="svg(mdiStickerEmoji)" />
           <p class="pl-2 text-base">Stickers</p>
@@ -68,6 +77,7 @@ import {
   mdiFormatText,
   mdiImage,
   mdiImagePlusOutline,
+  mdiPaletteOutline,
   mdiPanoramaVariantOutline,
   mdiShapeOutline,
   mdiStickerCircleOutline,
@@ -80,6 +90,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { useMenuStore } from '@/store/draw/menu.store'
 import ImageCropper from '@/components/draw/ImageCropper.vue'
 import { storeToRefs } from 'pinia'
+import ColorPicker from '@/components/draw/ColorPicker.vue'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
@@ -153,6 +164,11 @@ function addImage() {
 
 function onTextClick() {
   selectAction(DrawAction.AddText)
+  closePopover()
+}
+
+function onCanvasBackgroundChange(color: string) {
+  selectAction(DrawAction.SetCanvasBackground, { color })
   closePopover()
 }
 

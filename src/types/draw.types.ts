@@ -93,7 +93,8 @@ export enum DrawAction {
   CurveText,
   BringToFront,
   BringToBack,
-  EditPolygon
+  EditPolygon,
+  SetCanvasBackground
 }
 
 export enum Menu {

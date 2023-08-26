@@ -27,7 +27,8 @@ export function initCanvasOptions(): ICanvasOptions {
     height: window.innerHeight - 41 - 50,
     backgroundColor: BACKGROUND,
     fireMiddleClick: true,
-    selection: false
+    selection: false,
+    preserveObjectStacking: true
   }
 }
 
@@ -163,6 +164,22 @@ export function changeFabricBaseSettings() {
       return toObject.apply(this, [propertiesToInclude])
     }
   })(fabric.IText.prototype.toObject)
+
+  // We use preserveStacking such that selected object remains at the foreground but the bounding box of the selected object should be at the top
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  fabric.Canvas.prototype._originalFindTarget = fabric.Canvas.prototype.findTarget
+  fabric.Canvas.prototype.findTarget = function (e, skipGroup) {
+    const activeObject = this._activeObject
+
+    if (activeObject && activeObject.containsPoint(this.getPointer(e, true) as any)) {
+      return activeObject
+    }
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    return this._originalFindTarget(e, skipGroup)
+  }
 }
 
 export function configureCanvasSpecificSettings(c: Canvas) {

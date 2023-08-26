@@ -4,7 +4,7 @@
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" id="stroke">
           <ion-icon :icon="svg(mdiBorderColor)" />
-          <p class="pl-2 text-base">Stroke Colour</p>
+          <p class="pl-2 text-base">Stroke Color</p>
 
           <ion-popover trigger="stroke" side="right">
             <ColorPicker v-model:color="strokeColor" @update:color="emits('update:stroke-color', strokeColor)" />
@@ -13,7 +13,7 @@
 
         <ion-item color="tertiary" :button="true" id="fill">
           <ion-icon :icon="svg(mdiFormatColorFill)" />
-          <p class="pl-2 text-base">Fill Colour</p>
+          <p class="pl-2 text-base">Fill Color</p>
 
           <ion-popover trigger="fill" side="right">
             <ColorPicker v-model:color="fillColor" @update:color="emits('update:fill-color', fillColor)" />
@@ -22,7 +22,7 @@
 
         <ion-item color="tertiary" :button="true" id="background">
           <ion-icon :icon="svg(mdiPanoramaHorizontalOutline)" />
-          <p class="pl-2 text-base">Background Colour</p>
+          <p class="pl-2 text-base">Background Color</p>
 
           <ion-popover trigger="background" side="right">
             <ColorPicker

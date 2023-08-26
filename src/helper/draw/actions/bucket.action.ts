@@ -17,7 +17,7 @@ export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
 
   startTime = performance.now()
   const floodFill = new CustomFloodFill(imgData)
-  floodFill.fill(brushColor, Math.round(p.x * dpr * scale), Math.round(p.y * dpr * scale), 50)
+  floodFill.fill(brushColor, Math.round(p.x * dpr * scale), Math.round(p.y * dpr * scale), 10)
   const modifiedImgData = floodFill.getModifiedImageData(colorToRGBA(brushColor))
 
   if (floodFill.modifiedPixelsCount == 0) return null

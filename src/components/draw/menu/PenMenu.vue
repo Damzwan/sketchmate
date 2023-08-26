@@ -15,7 +15,12 @@
       <!-- Brush Size Slider -->
       <div class="brush-size px-2 pt-1">
         <label for="slider">Size</label>
-        <ion-range aria-label="Volume" id="slider" v-model="brushSize" min="5" max="50" color="secondary"></ion-range>
+        <ion-range aria-label="Volume" id="slider" v-model="brushSize" min="2" max="50" color="secondary" />
+      </div>
+
+      <div class="brush-size px-2 pt-1">
+        <label for="slider">Transparency</label>
+        <ion-range aria-label="Volume" id="slider" v-model="opacity" min="0" max="100" color="secondary" />
       </div>
 
       <!-- Brush Type -->
@@ -74,27 +79,26 @@
 import { IonContent, IonIcon, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
-import { PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'
+import { BLACK, PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'
 import { BrushType, DrawTool } from '@/types/draw.types'
-import {
-  mdiCircleOutline,
-  mdiFormatColorFill,
-  mdiLiquidSpot,
-  mdiPencilOutline,
-  mdiSpray
-} from '@mdi/js'
+import { mdiCircleOutline, mdiFormatColorFill, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { brushMapping, usePen } from '@/service/draw/tools/pen.tool'
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
-import { setObjectSelection } from '@/helper/draw/draw.helper'
+import {
+  isColorTooLight,
+  percentToAlphaHex,
+  setObjectSelection,
+  updateFreeDrawingCursor
+} from '@/helper/draw/draw.helper'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 
-const { selectTool } = useDrawStore()
+const { selectTool, getCanvas } = useDrawStore()
 const { selectedTool } = storeToRefs(useDrawStore())
-const { brushSize, brushColor, brushType } = storeToRefs(usePen())
+const { brushSize, brushColor, brushType, opacity } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 const preview_canvas = ref<HTMLCanvasElement>()
@@ -122,16 +126,20 @@ const renderPreview = () => {
     canvas.renderAll()
     return
   }
-  canvas.backgroundColor = WHITE
 
-  const brushColorValue = brushColor.value
+  const brushColorValue = brushColor.value + percentToAlphaHex(opacity.value)
   const brushSizeValue = brushSize.value
 
+  canvas.backgroundColor = isColorTooLight(brushColorValue) ? BLACK : WHITE
+
   // Assign the selected brush to the canvas
+  // TOOD this should be somewhere else
   canvas.freeDrawingBrush = brushMapping[brushType.value](canvas)
   const brush = canvas.freeDrawingBrush as any
   brush.width = brushSizeValue
   brush.color = brushColorValue
+
+  if (getCanvas()) updateFreeDrawingCursor(getCanvas(), brushSizeValue, brushColorValue)
 
   const amplitude = 20
   const frequency = 0.05
@@ -195,6 +203,7 @@ function isBrushTypeSelected(type: BrushType) {
 }
 
 watch(brushSize, renderPreview)
+watch(opacity, renderPreview)
 watch(brushColor, renderPreview)
 watch(selectedTool, () => (selectedTool.value && PENMENUTOOLS.includes(selectedTool.value) ? renderPreview() : null))
 </script>

@@ -4,11 +4,13 @@ import { BrushType, FabricEvent, ToolService } from '@/types/draw.types'
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
+import { percentToAlphaHex } from '@/helper/draw/draw.helper'
 
 interface Pen extends ToolService {
   brushSize: Ref<number>
   brushType: Ref<BrushType>
   brushColor: Ref<string>
+  opacity: Ref<number>
 }
 
 export const brushMapping: { [key in BrushType]: any } = {
@@ -27,6 +29,7 @@ export const usePen = defineStore('pen', (): Pen => {
   const brushSize = ref(BRUSHSIZE)
   const brushType = ref<BrushType>(BrushType.Pencil)
   const brushColor = ref(BLACK)
+  const opacity = ref(100)
   const events: FabricEvent[] = []
 
   function init(canvas: Canvas) {
@@ -47,16 +50,19 @@ export const usePen = defineStore('pen', (): Pen => {
 
   watch(brushSize, () => {
     c!.freeDrawingBrush.width = brushSize.value
-    // brush.value.width = brushSize.value
   })
 
   watch(brushColor, () => {
-    c!.freeDrawingBrush.color = brushColor.value
+    c!.freeDrawingBrush.color = brushColor.value + percentToAlphaHex(opacity.value)
+  })
+
+  watch(opacity, () => {
+    c!.freeDrawingBrush.color = brushColor.value + percentToAlphaHex(opacity.value)
   })
 
   watch(brushType, () => {
     select(c!)
   })
 
-  return { select, init, brushSize, brushType, brushColor, events: events, destroy }
+  return { select, init, brushSize, brushType, brushColor, events: events, destroy, opacity }
 })

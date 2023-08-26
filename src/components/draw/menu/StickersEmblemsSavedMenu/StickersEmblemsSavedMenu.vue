@@ -163,7 +163,7 @@ async function selectSticker(sticker: string) {
     })
     if (user.value?.stickers.length == 0) deleteMode.value = false
   } else {
-    drawStore.selectAction(DrawAction.Sticker, { img: sticker })
+    drawStore.selectAction(DrawAction.Sticker, { img: URL.createObjectURL(await compressImg(sticker)) })
     modalController.dismiss()
   }
 }
@@ -177,7 +177,7 @@ async function selectEmblem(emblem: string) {
     })
     if (user.value?.emblems.length == 0) deleteMode.value = false
   } else {
-    drawStore.selectAction(DrawAction.Sticker, { img: emblem })
+    drawStore.selectAction(DrawAction.Sticker, { img: URL.createObjectURL(await compressImg(emblem)) })
     modalController.dismiss()
   }
 }

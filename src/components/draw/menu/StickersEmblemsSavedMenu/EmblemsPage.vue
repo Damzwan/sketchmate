@@ -23,20 +23,13 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
 import { svg } from '@/helper/general.helper'
 import { mdiPlus } from '@mdi/js'
-import { onClickOutside, onLongPress } from '@vueuse/core'
+import { onClickOutside } from '@vueuse/core'
 import { ref } from 'vue'
 import NoItems from '@/components/draw/NoItems.vue'
 import StickerEmblemSavedItem from '@/components/draw/menu/StickersEmblemsSavedMenu/StickerEmblemSavedItem.vue'
 
 const grid = ref<HTMLElement>()
 
-onLongPress(
-  grid,
-  () => {
-    emits('update:delete-mode', true)
-  },
-  { modifiers: { prevent: true } }
-)
 const props = defineProps<{
   deleteMode: boolean
 }>()

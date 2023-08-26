@@ -7,6 +7,7 @@
       class="w-full cursor-pointer object-fill relative min-h-[150px]"
       :src="props.inboxItem.image"
       @ionImgDidLoad="isLoading = false"
+      @contextmenu.prevent
     />
   </div>
 
@@ -40,12 +41,9 @@
 import { computed, ref } from 'vue'
 import { IonAvatar, IonImg, IonSpinner, IonIcon } from '@ionic/vue'
 import { InboxItem, User } from '@/types/server.types'
-import { senderImg, svg } from '@/helper/general.helper'
+import { isMobile, senderImg, svg } from '@/helper/general.helper'
 import { onLongPress } from '@vueuse/core'
-import {
-  mdiCheckboxBlankCircleOutline,
-  mdiCheckboxMarkedCircleOutline
-} from '@mdi/js'
+import { mdiCheckboxBlankCircleOutline, mdiCheckboxMarkedCircleOutline } from '@mdi/js'
 
 const itemId = computed(() => props.inboxItem._id)
 
@@ -58,7 +56,7 @@ const props = defineProps<{
 
 const el = ref()
 
-onLongPress(el, () => emits('long-press'), { modifiers: { prevent: true }, delay: 500 })
+if (isMobile()) onLongPress(el, () => emits('long-press'), { modifiers: { prevent: true }, delay: 500 })
 
 const emits = defineEmits(['long-press', 'click'])
 

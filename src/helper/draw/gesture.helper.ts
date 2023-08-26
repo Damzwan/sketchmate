@@ -3,7 +3,7 @@ import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { fabricateTouchUp } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
-import { DrawEvent, DrawTool, FabricEvent, SelectedObject } from '@/types/draw.types'
+import { DrawEvent, DrawTool, FabricEvent, ObjectType, SelectedObject } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { ERASERS } from '@/config/draw/draw.config'
 import { isMobile } from '@/helper/general.helper'
@@ -91,7 +91,10 @@ export function enableMobileGestures(c: any) {
         const obj = c.getActiveObject()
         obj.set({ lockMovementX: false, lockMovementY: false })
         isUsingGesture.value = false
-        addPrevModifiedObjectsToStack([obj])
+
+        if (obj.type == ObjectType.selection)
+          addPrevModifiedObjectsToStack((obj as fabric.ActiveSelection).getObjects())
+        else addPrevModifiedObjectsToStack([obj])
       }, 100)
     }
     c.renderAll()

@@ -62,9 +62,9 @@ const emit = defineEmits(['update:color'])
 
 async function onCustomColorSelected(e: any) {
   emit('update:color', e.target.value)
+  if (colorHistory.value.includes(e.target.value) || COLORSWATCHES.some(arr => arr.includes(e.target.value))) return
   colorHistory.value.unshift(e.target.value)
   if (colorHistory.value.length > 6) colorHistory.value.pop()
-
   Preferences.set({ key: LocalStorage.color_history, value: JSON.stringify(colorHistory.value) })
 }
 </script>

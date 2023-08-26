@@ -3,6 +3,7 @@ import { EraserSize, FabricEvent, ToolService } from '@/types/draw.types'
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
+import { updateFreeDrawingCursor } from '@/helper/draw/draw.helper'
 
 interface HealingEraser extends ToolService {
   healingEraserSize: Ref<number>
@@ -30,10 +31,12 @@ export const useHealingEraser = defineStore('healing eraser', (): HealingEraser 
     // @ts-ignore
     canvas.freeDrawingBrush.inverted = true
     canvas.freeDrawingBrush.width = healingEraserSize.value
+    updateFreeDrawingCursor(c!, healingEraserSize.value, c!.backgroundColor as string, true)
   }
 
   watch(healingEraserSize, () => {
     c!.freeDrawingBrush.width = healingEraserSize.value
+    updateFreeDrawingCursor(c!, healingEraserSize.value, c!.backgroundColor as string, true)
   })
 
   return { init, select, healingEraserSize, events, destroy }

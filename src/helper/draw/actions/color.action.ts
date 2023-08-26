@@ -85,3 +85,12 @@ export async function undoColoring(newObj: any, oldObj: any) {
       backgroundColor: oldObj.backgroundColor
     })
 }
+
+export function setCanvasBackground(c: Canvas, options: any) {
+  const { addToUndoStack } = useHistory()
+
+  const color = options['color']
+  addToUndoStack([], 'canvasBackground', { prevColor: c.backgroundColor })
+  c.setBackgroundColor(color, () => undefined)
+  c.requestRenderAll()
+}

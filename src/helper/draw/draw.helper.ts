@@ -237,3 +237,50 @@ export function getStaticObjWithAbsolutePosition(obj: fabric.Object) {
   o.top = dim.y
   return o
 }
+
+export function updateFreeDrawingCursor(c: Canvas, size: number, color: string, eraser = false) {
+  const canvas: HTMLCanvasElement = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx: CanvasRenderingContext2D | null = canvas.getContext('2d')
+
+  if (!ctx) {
+    throw new Error('Failed to get canvas rendering context.')
+  }
+
+  // Draw the circle in the center
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI, false)
+  ctx.fillStyle = color
+  ctx.fill()
+
+  if (eraser) {
+    ctx.strokeStyle = '#000000'
+    ctx.lineWidth = 2 // Adjust this value for border thickness
+    ctx.stroke()
+  }
+
+  // Convert to data URL
+  const url = canvas.toDataURL('image/png')
+  c.freeDrawingCursor = `url(${url}) ${size / 2} ${size / 2}, crosshair`
+}
+
+export function isColorTooLight(hex: string) {
+  // Convert hex to RGB values
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
+
+  // Calculate the luminance
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+  // Set a threshold value (for instance, 0.7)
+  return luminance > 0.9
+}
+
+export function percentToAlphaHex(opacity: number) {
+  return Math.round((opacity * 255) / 100)
+    .toString(16)
+    .padStart(2, '0')
+    .toUpperCase()
+}

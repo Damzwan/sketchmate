@@ -202,9 +202,34 @@ export function configureCanvasSpecificSettings(c: Canvas) {
     }
   })
 
-  c.on('mouse:down:before', function (options) {
+  c.on('mouse:down:before', function (options: any) {
     const { setMouseClickTarget } = useSelect()
     setMouseClickTarget(options.target)
+    // TODO add static object
+  })
+
+  c.on('mouse:down', function (options: any) {
+    const { setMouseClickTarget, multiSelectMode, getSelectedObjects, getMouseClickTarget } = useSelect()
+
+    // TODO maybe not the best spot
+    if (options.target && multiSelectMode) {
+      const objectsThatContainPointer = c
+        .getObjects()
+        .filter((o: any) => o.containsPoint(options.pointer, o._getImageLines(o.oCoords), true))
+      const pointsNotInSelection = objectsThatContainPointer.filter(
+        o => !getSelectedObjects().find(o2 => o2.id == o.id)
+      )
+
+      if (pointsNotInSelection.length > 0) {
+        setMouseClickTarget(options.target)
+        c.setActiveObject(pointsNotInSelection[0])
+      } else {
+        const pointsInSelection = objectsThatContainPointer.filter(
+          o => !!getSelectedObjects().find(o2 => o2.id == o.id)
+        )
+        console.log(pointsInSelection)
+      }
+    }
   })
 }
 

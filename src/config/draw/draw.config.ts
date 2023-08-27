@@ -1,6 +1,15 @@
-import { BrushType, DrawAction, DrawTool, Eraser } from '@/types/draw.types'
+import { BrushType, DrawAction, DrawTool, Eraser, SelectTool } from '@/types/draw.types'
 import { Canvas } from 'fabric/fabric-impl'
-import { mdiBandage, mdiCircleOutline, mdiEraser, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
+import {
+  mdiBandage,
+  mdiCircleOutline,
+  mdiCursorDefaultClickOutline,
+  mdiEraser,
+  mdiLasso,
+  mdiLiquidSpot,
+  mdiPencilOutline,
+  mdiSpray
+} from '@mdi/js'
 import { fullErase } from '@/helper/draw/actions/eraser.action'
 import {
   bringToBack,
@@ -79,6 +88,7 @@ export const BACKGROUND = '#FAF0E6'
 
 export const ERASERS = [DrawTool.MobileEraser, DrawTool.HealingEraser]
 export const PENMENUTOOLS = [DrawTool.Pen, DrawTool.Bucket]
+export const SELECTMENUTOOLS = [DrawTool.Select, DrawTool.Lasso]
 export const FONTS: string[] = [
   'Anton',
   'Indie Flower',
@@ -91,6 +101,11 @@ export const FONTS: string[] = [
 export const eraserIconMapping: { [key in Eraser]: string } = {
   [DrawTool.MobileEraser]: mdiEraser,
   [DrawTool.HealingEraser]: mdiBandage
+}
+
+export const selectIconMapping: { [key in SelectTool]: string } = {
+  [DrawTool.Select]: mdiCursorDefaultClickOutline,
+  [DrawTool.Lasso]: mdiLasso
 }
 
 export const penIconMapping: { [key in BrushType]: string } = {

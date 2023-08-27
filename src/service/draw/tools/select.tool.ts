@@ -17,6 +17,7 @@ export interface Select extends ToolService {
   multiSelectMode: Ref<boolean>
   setMouseClickTarget: (obj: fabric.Object | undefined) => void
   setModifiedObjects: (e: any, enabled: boolean) => void
+  getMouseClickTarget: () => fabric.Object | undefined
 }
 
 export const useSelect = defineStore('select', (): Select => {
@@ -95,6 +96,9 @@ export const useSelect = defineStore('select', (): Select => {
 
     if (objects.length == 0) {
       c?.discardActiveObject()
+      const { lastSelectedSelectTool, selectTool } = useDrawStore()
+      // we switch back to lasso since it was the last selected tool but all logic lives in Select
+      if (lastSelectedSelectTool == DrawTool.Lasso) selectTool(DrawTool.Lasso)
     }
     selectedObjects = objects
     selectedObjectsRef.value = objects
@@ -122,7 +126,7 @@ export const useSelect = defineStore('select', (): Select => {
         if (objects.length == 0) return
         lastModifiedObjects.value = [objects[objects.length - 1]]
 
-        selectLastModifiedObjects(c!)
+        // selectLastModifiedObjects(c!)
       }
     })
   }
@@ -152,7 +156,7 @@ export const useSelect = defineStore('select', (): Select => {
     c!.isDrawingMode = false
     c!.selection = true
     setSelectionForObjects(c!.getObjects(), true)
-    selectLastModifiedObjects(canvas)
+    // selectLastModifiedObjects(canvas)
     c?.renderAll()
   }
 
@@ -168,6 +172,10 @@ export const useSelect = defineStore('select', (): Select => {
     mouseClickTarget = obj
   }
 
+  function getMouseClickTarget() {
+    return mouseClickTarget
+  }
+
   return {
     init,
     selectedObjectsRef,
@@ -180,6 +188,7 @@ export const useSelect = defineStore('select', (): Select => {
     multiSelectMode,
     setMouseClickTarget,
     destroy,
-    setModifiedObjects
+    setModifiedObjects,
+    getMouseClickTarget
   }
 })

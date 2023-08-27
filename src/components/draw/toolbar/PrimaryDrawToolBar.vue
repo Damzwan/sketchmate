@@ -31,20 +31,27 @@
       <StickersEmblemsSavedMenu />
 
       <ion-button
-        :class="{ selected: selectedTool == DrawTool.Select }"
-        @click="selectTool(DrawTool.Select)"
+        :class="{ selected: SELECTMENUTOOLS.includes(selectedTool) }"
+        @click="selectTool(lastSelectedSelectTool, { openMenu: true, e: $event })"
         data-step="4"
       >
-        <ion-icon slot="icon-only" :icon="svg(mdiCursorDefaultClickOutline)"></ion-icon>
+        <ion-icon slot="icon-only" :icon="svg(selectIconMapping[lastSelectedSelectTool])"></ion-icon>
+        <div class="selected_chevron" v-if="SELECTMENUTOOLS.includes(selectedTool)">
+          <ion-icon :icon="svg(mdiChevronDown)" />
+        </div>
+        <SelectMenu />
       </ion-button>
 
-      <ion-button
-        :class="{ selected: selectedTool == DrawTool.Lasso }"
-        @click="selectTool(DrawTool.Lasso)"
-        data-step="5"
-      >
-        <ion-icon slot="icon-only" :icon="svg(mdiLasso)"></ion-icon>
-      </ion-button>
+      <!--      <ion-button-->
+      <!--        :class="{ selected: selectedTool == DrawTool.Lasso }"-->
+      <!--        @click="selectTool(DrawTool.Lasso)"-->
+      <!--        data-step="5"-->
+      <!--      >-->
+      <!--        <ion-icon slot="icon-only" :icon="svg(selectIconMapping[lastSelectedSelectTool])"></ion-icon>-->
+      <!--        <div class="selected_chevron" v-if="ERASERS.includes(selectedTool)">-->
+      <!--          <ion-icon :icon="svg(mdiChevronDown)" />-->
+      <!--        </div>-->
+      <!--      </ion-button>-->
 
       <ion-button id="docs" data-step="6">
         <ion-icon slot="icon-only" :icon="svg(mdiHelp)"></ion-icon>
@@ -72,15 +79,20 @@
 import { DrawTool } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
-import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/config/draw/draw.config'
+import {
+  eraserIconMapping,
+  ERASERS,
+  penIconMapping,
+  PENMENUTOOLS,
+  selectIconMapping,
+  SELECTMENUTOOLS
+} from '@/config/draw/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
 import {
   mdiChevronDown,
-  mdiCursorDefaultClickOutline,
   mdiFormatColorFill,
   mdiHelp,
-  mdiLasso,
   mdiPlus,
   mdiRedo,
   mdiSend,
@@ -95,11 +107,12 @@ import { useHistory } from '@/service/draw/history.service'
 import { computed } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
+import SelectMenu from '@/components/draw/menu/SelectMenu.vue'
 
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore
 const { brushType } = storeToRefs(usePen())
-const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool } = storeToRefs(drawStore)
+const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool, lastSelectedSelectTool } = storeToRefs(drawStore)
 
 const { undo, redo } = useHistory()
 const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())

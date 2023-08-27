@@ -83,8 +83,8 @@ export function deleteObjects(c: Canvas, options: any) {
   const { addToUndoStack } = useHistory()
   const { setMouseClickTarget } = useSelect()
   setMouseClickTarget(undefined) // TODO fuck this bug
-  c.discardActiveObject()
   const objects: fabric.Object[] = options['objects']
+  c.discardActiveObject()
   c.remove(...objects)
   addToUndoStack(objects, 'object:removed')
 }

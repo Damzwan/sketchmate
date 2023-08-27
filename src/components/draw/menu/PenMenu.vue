@@ -189,7 +189,6 @@ const renderPreview = () => {
 
 function onDismiss() {
   penMenuOpen.value = false
-  // canvas = undefined
 }
 
 function selectBrushType(newBrushType: BrushType) {

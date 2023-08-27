@@ -45,7 +45,7 @@ export const usePen = defineStore('pen', (): Pen => {
     const newBrush = brushMapping[brushType.value](c)
     c.freeDrawingBrush = newBrush!
     c.freeDrawingBrush.width = brushSize.value
-    c.freeDrawingBrush.color = brushColor.value
+    c!.freeDrawingBrush.color = brushColor.value + percentToAlphaHex(opacity.value)
   }
 
   watch(brushSize, () => {

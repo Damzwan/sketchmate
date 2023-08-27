@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "start": "ionic serve",
+    "start": "ionic serve --external",
     "start_ios": "ionic capacitor run ios -l --external",
     "start_android": "ionic capacitor run android -l --external",
     "build": "vite build && mkdir -p dist/.well-known && cp assetlinks.json dist/.well-known/assetlinks.json",

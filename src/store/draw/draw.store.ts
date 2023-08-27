@@ -1,5 +1,13 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { DrawAction, DrawTool, Eraser, PenMenuTool, SelectToolOptions, ShapeCreationMode } from '@/types/draw.types'
+import {
+  DrawAction,
+  DrawTool,
+  Eraser,
+  PenMenuTool,
+  SelectTool,
+  SelectToolOptions,
+  ShapeCreationMode
+} from '@/types/draw.types'
 import { ref } from 'vue'
 import { actionMapping, BACKGROUND, ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
 import { Canvas } from 'fabric/fabric-impl'
@@ -48,6 +56,7 @@ export const useDrawStore = defineStore('draw', () => {
   const selectedTool = ref<DrawTool>(DrawTool.Pen)
   const lastSelectedPenMenuTool = ref<PenMenuTool>(DrawTool.Pen)
   const lastSelectedEraserTool = ref<Eraser>(DrawTool.MobileEraser)
+  const lastSelectedSelectTool = ref<SelectTool>(DrawTool.Select)
 
   // Hammer
   const hammer = ref<HammerManager>()
@@ -221,6 +230,7 @@ export const useDrawStore = defineStore('draw', () => {
     lastSelectedPenMenuTool,
     hideLoading,
     isUsingGesture,
-    shapeCreationSettings
+    shapeCreationSettings,
+    lastSelectedSelectTool
   }
 })

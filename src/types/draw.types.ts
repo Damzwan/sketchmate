@@ -103,7 +103,8 @@ export enum Menu {
   Eraser,
   StickerEmblemSaved,
   Shapes,
-  Cropper
+  Cropper,
+  Select
 }
 
 export enum ObjectType {
@@ -117,6 +118,7 @@ export enum ObjectType {
 
 export type Eraser = DrawTool.MobileEraser | DrawTool.HealingEraser
 export type PenMenuTool = DrawTool.Pen | DrawTool.Bucket
+export type SelectTool = DrawTool.Select | DrawTool.Lasso
 
 export enum Shape {
   Circle = 'circle',

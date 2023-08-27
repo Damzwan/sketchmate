@@ -16,7 +16,9 @@ import {
   bringToFront,
   copyObjects,
   deleteObjects,
-  mergeObjects
+  mergeObjects,
+  moveDownOneLayer,
+  moveUpOneLayer
 } from '@/helper/draw/actions/operation.action'
 import { addSavedToCanvas, createSaved } from '@/helper/draw/actions/saved.action'
 import { addSticker, setBackgroundImage } from '@/helper/draw/actions/image.action'
@@ -138,7 +140,9 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) =>
   [DrawAction.BringToBack]: bringToBack,
   [DrawAction.EditPolygon]: editPolygon,
   [DrawAction.SetCanvasBackground]: setCanvasBackground,
-  [DrawAction.ChangeStrokeWidth]: changeStrokeWidth
+  [DrawAction.ChangeStrokeWidth]: changeStrokeWidth,
+  [DrawAction.MoveUpOneLayer]: moveUpOneLayer,
+  [DrawAction.MoveDownOneLayer]: moveDownOneLayer
 }
 
 export const dynamicStickerLoading: DynamicTextPart[] = [

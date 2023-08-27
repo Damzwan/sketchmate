@@ -71,10 +71,11 @@ export const useEventManager = defineStore('event manager', () => {
     }
   }
 
-  async function actionWithoutEvents(action: () => void) {
+  async function actionWithoutEvents(action: () => any) {
     disableAllEvents()
-    await action()
+    const res = await action()
     enableAllEvents()
+    return res
   }
 
   return {

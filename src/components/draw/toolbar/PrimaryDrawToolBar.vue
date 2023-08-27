@@ -42,17 +42,6 @@
         <SelectMenu />
       </ion-button>
 
-      <!--      <ion-button-->
-      <!--        :class="{ selected: selectedTool == DrawTool.Lasso }"-->
-      <!--        @click="selectTool(DrawTool.Lasso)"-->
-      <!--        data-step="5"-->
-      <!--      >-->
-      <!--        <ion-icon slot="icon-only" :icon="svg(selectIconMapping[lastSelectedSelectTool])"></ion-icon>-->
-      <!--        <div class="selected_chevron" v-if="ERASERS.includes(selectedTool)">-->
-      <!--          <ion-icon :icon="svg(mdiChevronDown)" />-->
-      <!--        </div>-->
-      <!--      </ion-button>-->
-
       <ion-button id="docs" data-step="6">
         <ion-icon slot="icon-only" :icon="svg(mdiHelp)"></ion-icon>
       </ion-button>
@@ -68,9 +57,17 @@
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
-      <ion-button @click="send" :disabled="!isLoggedIn || !hasMate" data-step="8">
+      <ion-button id="send-drawing" :disabled="!isLoggedIn || !hasMate" data-step="8">
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>
+
+      <ConfirmationAlert
+        header="Is your drawing ready?"
+        message="Does not seem like it..."
+        trigger="send-drawing"
+        confirmationtext="Send"
+        @confirm="send"
+      />
     </ion-buttons>
   </ion-toolbar>
 </template>
@@ -89,15 +86,7 @@ import {
 } from '@/config/draw/draw.config'
 import { IonButton, IonButtons, IonIcon, IonToolbar } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import {
-  mdiChevronDown,
-  mdiFormatColorFill,
-  mdiHelp,
-  mdiPlus,
-  mdiRedo,
-  mdiSend,
-  mdiUndo
-} from '@mdi/js'
+import { mdiChevronDown, mdiFormatColorFill, mdiHelp, mdiPlus, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
 import PenMenu from '@/components/draw/menu/PenMenu.vue'
 import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
 import StickersEmblemsSavedMenu from '@/components/draw/menu/StickersEmblemsSavedMenu/StickersEmblemsSavedMenu.vue'
@@ -108,6 +97,7 @@ import { computed } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
 import SelectMenu from '@/components/draw/menu/SelectMenu.vue'
+import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore

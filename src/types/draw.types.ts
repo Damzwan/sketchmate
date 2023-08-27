@@ -24,6 +24,7 @@ declare module 'fabric' {
       edit?: boolean
       isCreating?: false
       eraser: any
+      backgroundObject: boolean // indicates that we should not color this object since it acts as a background color
     }
 
     interface Path {
@@ -93,6 +94,8 @@ export enum DrawAction {
   CurveText,
   BringToFront,
   BringToBack,
+  MoveUpOneLayer,
+  MoveDownOneLayer,
   EditPolygon,
   SetCanvasBackground,
   ChangeStrokeWidth

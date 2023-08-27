@@ -5,7 +5,6 @@ import { useHistory } from '@/service/draw/history.service'
 import { fabric } from 'fabric'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { exitShapeCreationMode, findNearestPoint, setSelectionForObjects } from '@/helper/draw/draw.helper'
-import { useSelect } from '@/service/draw/tools/select.tool'
 import { EventBus } from '@/main'
 import { storeToRefs } from 'pinia'
 
@@ -29,7 +28,6 @@ export function addShape(c: Canvas, options: any) {
 function addShapeWithClick(c: Canvas, shape: Shape) {
   const { addToUndoStack } = useHistory()
   const { isolatedSubscribe, disableAllEvents } = useEventManager()
-  const { setModifiedObjects } = useSelect()
   const { shapeCreationSettings } = storeToRefs(useDrawStore())
 
   const clickTolerance = 20
@@ -126,7 +124,6 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 
         addToUndoStack([createdShape], 'polygon')
         createdShape.isCreating = true
-        setModifiedObjects({ target: createdShape }, false)
       }
     })
   }
@@ -137,7 +134,6 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 function addShapeWithDrag(c: Canvas, shape: Shape) {
   const { disableHistorySaving, enableHistorySaving, addToUndoStack } = useHistory()
   const { isolatedSubscribe, unsubscribe } = useEventManager()
-  const { setModifiedObjects } = useSelect()
   const { setShapeCreationMode, selectTool } = useDrawStore()
 
   let createdShape: any
@@ -174,10 +170,10 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
       enableHistorySaving()
       drawingMode = false
       addToUndoStack([createdShape], 'object:added')
-      setModifiedObjects({ target: createdShape }, false)
       createdShape.setCoords() // important to update the bounding box of the shape
       setShapeCreationMode(undefined)
       selectTool(DrawTool.Select)
+      c.setActiveObject(createdShape)
       c.renderAll()
     }
   })

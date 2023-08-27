@@ -14,6 +14,9 @@
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
         <SelectColorMenu
           trigger="select_color_shape"
+          :stroke-color="shapeCreationSettings.stroke"
+          :fill-color="shapeCreationSettings.fill as string"
+          :backgroundColor-color="shapeCreationSettings.backgroundColor"
           @update:stroke-color="color => handleColorUpdate(color, 'stroke')"
           @update:fill-color="color => handleColorUpdate(color, 'fill')"
           @update:background-color="color => handleColorUpdate(color, 'background')"
@@ -52,8 +55,8 @@ const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 
 type ColorUpdate = 'stroke' | 'fill' | 'background'
 
-function handleColorUpdate(color: string, type: ColorUpdate) {
-  if (type === 'stroke') shapeCreationSettings.value.stroke = color
+function handleColorUpdate(color: string | undefined, type: ColorUpdate) {
+  if (type === 'stroke') shapeCreationSettings.value.stroke = color!
   if (type === 'fill') shapeCreationSettings.value.fill = color
   if (type === 'background') shapeCreationSettings.value.backgroundColor = color
 

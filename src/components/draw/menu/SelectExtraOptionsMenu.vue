@@ -22,14 +22,19 @@
           <p class="pl-2 text-base">Move to front</p>
         </ion-item>
 
+        <ion-item color="tertiary" :button="true" @click="moveUpOneLayer">
+          <ion-icon :icon="svg(mdiNumericPositive1)" />
+          <p class="pl-2 text-base">Move up 1 layer</p>
+        </ion-item>
+
         <ion-item color="tertiary" :button="true" @click="bringToBack">
           <ion-icon :icon="svg(mdiFlipToBack)" />
           <p class="pl-2 text-base">Move to back</p>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" @click="removeObjects">
-          <ion-icon :icon="svg(mdiDeleteOutline)" />
-          <p class="pl-2 text-base">Delete</p>
+        <ion-item color="tertiary" :button="true" @click="moveDownOneLayer">
+          <ion-icon :icon="svg(mdiNumericNegative1)" />
+          <p class="pl-2 text-base">Move down 1 layer</p>
         </ion-item>
       </ion-list>
     </ion-content>
@@ -39,7 +44,15 @@
 <script lang="ts" setup>
 import { DrawAction } from '@/types/draw.types'
 import { svg } from '@/helper/general.helper'
-import { mdiContentCopy, mdiContentSave, mdiDeleteOutline, mdiFlipToBack, mdiFlipToFront, mdiMerge } from '@mdi/js'
+import {
+  mdiContentCopy,
+  mdiContentSave,
+  mdiFlipToBack,
+  mdiFlipToFront,
+  mdiMerge,
+  mdiNumericNegative1,
+  mdiNumericPositive1
+} from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
@@ -76,6 +89,16 @@ function bringToFront() {
 
 function bringToBack() {
   selectAction(DrawAction.BringToBack, { objects: getSelectedObjects() })
+  closePopover()
+}
+
+function moveUpOneLayer() {
+  selectAction(DrawAction.MoveUpOneLayer, { objects: getSelectedObjects() })
+  closePopover()
+}
+
+function moveDownOneLayer() {
+  selectAction(DrawAction.MoveDownOneLayer, { objects: getSelectedObjects() })
   closePopover()
 }
 

@@ -90,16 +90,37 @@ export async function canvasToBuffer(canvasDataUrl: string) {
   return await (await compressImg(canvasDataUrl, { returnType: 'blob' })).arrayBuffer()
 }
 
-export async function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>) {
+export async function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>, magic = false) {
   for (const obj of objects) {
+    if (obj.backgroundObject) continue
     if (obj.type == ObjectType.group) {
-      // if (options.backgroundColor) await fillBackGroundForGroup(obj, options) TODO enable this sometime
-      setForSelectedObjects((obj as Group).getObjects(), options)
+      obj.set(options)
+      if (options.backgroundColor || magic)
+        await fillBackGroundForGroup(obj as fabric.Group, options) // TODO enable this sometime
+      else setForSelectedObjects((obj as Group).getObjects(), options)
     } else obj.set(options)
   }
 }
 
-export async function fillBackGroundForGroup(obj: SelectedObject, options: Partial<Group>) {
+export async function fillBackGroundForGroup(obj: fabric.Group, options: Partial<Group>) {
+  const { actionWithoutEvents } = useEventManager()
+  const { setSelectedObjects } = useSelect()
+
+  const existingBackgroundRect = obj.getObjects().find(o => o.backgroundObject)
+
+  if (existingBackgroundRect) {
+    await actionWithoutEvents(() => {
+      obj.removeWithUpdate(existingBackgroundRect)
+      obj.canvas!.remove(existingBackgroundRect)
+    })
+  }
+
+  if (!options.backgroundColor) {
+    obj.set({ backgroundColor: undefined })
+    obj.canvas?.renderAll()
+    return
+  }
+
   const backgroundRect = new fabric.Rect({
     top: obj.top,
     left: obj.left,
@@ -108,9 +129,18 @@ export async function fillBackGroundForGroup(obj: SelectedObject, options: Parti
     fill: options.backgroundColor,
     angle: obj.angle
   })
+  backgroundRect.backgroundObject = true
+  obj.set({ backgroundColor: options.backgroundColor })
 
   const { getCanvas } = useDrawStore()
-  await mergeObjects(getCanvas(), { objects: [backgroundRect, obj], notSave: true })
+  await actionWithoutEvents(() => {
+    obj._restoreObjectsState() // Restores each object state
+    obj.canvas?.remove(obj)
+  })
+  const newGroup = await mergeObjects(getCanvas(), { objects: [backgroundRect, ...obj.getObjects()], notSave: true })
+  newGroup.id = obj.id
+  newGroup.set({ backgroundColor: options.backgroundColor })
+  setSelectedObjects([newGroup]) // hack needed to update the property
 }
 
 export function focusText(text: IText) {
@@ -212,8 +242,10 @@ export function objectsFromTarget(target: any): fabric.Object[] {
 }
 
 export function exitShapeCreationMode() {
-  const { setShapeCreationMode } = useDrawStore()
+  const { setShapeCreationMode, getCanvas } = useDrawStore()
   const { unsubscribe, enableAllEvents } = useEventManager()
+
+  const c = getCanvas()
 
   const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
   shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
@@ -226,6 +258,7 @@ export function exitShapeCreationMode() {
 
   const { selectTool } = useDrawStore()
   selectTool(DrawTool.Select)
+  c.setActiveObject(c.getObjects().at(-1)!)
 }
 
 export function getStaticObjWithAbsolutePosition(obj: fabric.Object) {
@@ -283,4 +316,17 @@ export function percentToAlphaHex(opacity: number) {
     .toString(16)
     .padStart(2, '0')
     .toUpperCase()
+}
+
+export function distance(point1: { x: number; y: number }, point2: { x: number; y: number }) {
+  const dx = point2.x - point1.x
+  const dy = point2.y - point1.y
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+export function hexWithTransparencyToNormal(hex: string) {
+  if (hex.length === 9 && hex.startsWith('#')) {
+    return hex.substring(0, 7)
+  }
+  return hex // Return the original if it's not an 8-character hex color
 }

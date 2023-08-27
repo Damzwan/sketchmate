@@ -4,6 +4,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { Canvas } from 'fabric/fabric-impl'
 import { popoverController } from '@ionic/vue'
 import { ObjectType } from '@/types/draw.types'
+import { BLACK } from '@/config/draw/draw.config'
 
 export function setStrokeColor(c: Canvas, options: any) {
   const color = options['color']
@@ -18,7 +19,7 @@ export function setStrokeColor(c: Canvas, options: any) {
     { color: true }
   )
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { stroke: color })
+  setForSelectedObjects(selectedObjectsRef, { stroke: color || BLACK })
 
   c.renderAll()
   popoverController.dismiss()
@@ -83,8 +84,13 @@ export async function changeStrokeWidth(c: Canvas, options: any) {
 // TODO nightmare code
 export async function undoColoring(newObj: any, oldObj: any) {
   if (oldObj.type == ObjectType.group) {
+    if (oldObj.backgroundColor != newObj.backgroundColor) {
+      setForSelectedObjects([newObj], { backgroundColor: oldObj.backgroundColor }, true)
+      return
+    }
     oldObj.getObjects().forEach((o: any) => {
       const matchingObj = newObj.getObjects().find((oo: any) => oo.id == o.id)
+      if (!matchingObj) return
       if (oldObj.type == ObjectType.group) undoColoring(matchingObj, o)
       else
         setForSelectedObjects([matchingObj], {

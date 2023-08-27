@@ -39,26 +39,29 @@
 <script lang="ts" setup>
 import { COLORSWATCHES } from '@/config/draw/draw.config'
 import { IonItem } from '@ionic/vue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
 
 const colorHistory = ref<string[]>([])
-Preferences.get({ key: LocalStorage.color_history }).then(
-  res => (colorHistory.value = res.value ? JSON.parse(res.value) : [])
-)
 const emptySpaces = computed(() => 6 - colorHistory.value.length)
 
-const props = defineProps({
-  color: {
-    type: String,
-    required: true
-  }
-})
+getSavedColorHistory()
+
+const props = defineProps<{
+  color: string
+  reset?: boolean
+}>()
 
 const brushColorPicker = ref<HTMLInputElement>()
 
 const emit = defineEmits(['update:color'])
+
+function getSavedColorHistory() {
+  Preferences.get({ key: LocalStorage.color_history }).then(
+    res => (colorHistory.value = res.value ? JSON.parse(res.value) : [])
+  )
+}
 
 async function onCustomColorSelected(e: any) {
   emit('update:color', e.target.value)
@@ -67,6 +70,10 @@ async function onCustomColorSelected(e: any) {
   if (colorHistory.value.length > 6) colorHistory.value.pop()
   Preferences.set({ key: LocalStorage.color_history, value: JSON.stringify(colorHistory.value) })
 }
+
+watch(props, async () => {
+  if (props.reset) getSavedColorHistory()
+})
 </script>
 
 <style scoped>

@@ -1,5 +1,5 @@
 <template>
-  <div ref="el" @click="emits('click')">
+  <div ref="el" @click="onClick">
     <div class="z-10 absolute w-full h-full flex justify-center items-center" v-if="isLoading">
       <ion-spinner color="primary" />
     </div>
@@ -46,6 +46,12 @@ import { onLongPress } from '@vueuse/core'
 import { mdiCheckboxBlankCircleOutline, mdiCheckboxMarkedCircleOutline } from '@mdi/js'
 
 const itemId = computed(() => props.inboxItem._id)
+let cancelClick = false
+
+function onClick() {
+  if (cancelClick) cancelClick = false
+  else emits('click')
+}
 
 const props = defineProps<{
   inboxItem: InboxItem
@@ -56,7 +62,14 @@ const props = defineProps<{
 
 const el = ref()
 
-if (isMobile()) onLongPress(el, () => emits('long-press'), { modifiers: { prevent: true }, delay: 500 })
+onLongPress(
+  el,
+  () => {
+    if (!isMobile()) cancelClick = true
+    emits('long-press')
+  },
+  { modifiers: { prevent: true }, delay: 500 }
+)
 
 const emits = defineEmits(['long-press', 'click'])
 

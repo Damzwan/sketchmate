@@ -70,7 +70,7 @@
       </div>
 
       <!-- Color Picker -->
-      <ColorPicker v-model:color="brushColor" />
+      <ColorPicker v-model:color="brushColor" :reset="penMenuOpen" />
     </ion-content>
   </ion-popover>
 </template>

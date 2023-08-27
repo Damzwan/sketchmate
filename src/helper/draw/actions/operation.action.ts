@@ -66,6 +66,7 @@ export async function mergeObjects(c: Canvas, options: any) {
     const objects: fabric.Object[] = options['objects']
     const select = new fabric.ActiveSelection(objects, { canvas: c })
     const group = select.toGroup()
+    group.fill = undefined
 
     objects.forEach(obj => c.remove(obj))
 
@@ -74,9 +75,9 @@ export async function mergeObjects(c: Canvas, options: any) {
     setSelectedObjects([group]) // Necessary since selections are not updated
 
     c.renderAll()
-    return objects
+    return group
   }
-  await actionWithoutEvents(fn)
+  return await actionWithoutEvents(fn)
 }
 
 export function deleteObjects(c: Canvas, options: any) {
@@ -96,17 +97,62 @@ export function bringToFront(c: Canvas, { objects }: { objects: SelectedObject[]
 
   addToUndoStack(c.getObjects()!, 'layering')
 
-  objects.forEach(obj => c.bringToFront(obj))
-  c.discardActiveObject()
+  const sortedObjects = objects.sort((a, b) => {
+    return c.getObjects().indexOf(a) - c.getObjects().indexOf(b)
+  })
+
+  // Call bringToFront iteratively
+  sortedObjects.forEach(obj => c.bringToFront(obj))
+}
+
+export function moveUpOneLayer(c: Canvas, { objects }: { objects: SelectedObject[] }) {
+  const { addToUndoStack } = useHistory()
+  const { setMouseClickTarget } = useSelect()
+  setMouseClickTarget(undefined) // TODO fuck this bug
+  addToUndoStack(c.getObjects()!, 'layering')
+
+  const objectsLength = c.getObjects().length - 1
+
+  const sortedObjects = objects.sort((a, b) => {
+    return c.getObjects().indexOf(a) - c.getObjects().indexOf(b)
+  })
+
+  sortedObjects.forEach(obj => {
+    const currI = c.getObjects().indexOf(obj)
+    c.moveTo(obj, Math.min(currI + 1, objectsLength))
+  })
+}
+
+export function moveDownOneLayer(c: Canvas, { objects }: { objects: SelectedObject[] }) {
+  const { addToUndoStack } = useHistory()
+  const { setMouseClickTarget } = useSelect()
+  setMouseClickTarget(undefined) // TODO fuck this bug
+  addToUndoStack(c.getObjects()!, 'layering')
+
+  const sortedObjects = objects
+    .sort((a, b) => {
+      return c.getObjects().indexOf(a) - c.getObjects().indexOf(b)
+    })
+    .reverse() // Reverse the sorted array to process the highest layers first
+
+  sortedObjects.forEach(obj => {
+    const currI = c.getObjects().indexOf(obj)
+    c.moveTo(obj, Math.max(currI - 1, 0))
+  })
 }
 
 export function bringToBack(c: Canvas, { objects }: { objects: SelectedObject[] }) {
   const { addToUndoStack } = useHistory()
   const { setMouseClickTarget } = useSelect()
-  setMouseClickTarget(undefined) // TODO fuck this bug
+  setMouseClickTarget(undefined) // TODO fix this bug
 
   addToUndoStack(c.getObjects()!, 'layering')
 
-  objects.forEach(obj => c.sendToBack(obj))
-  c.discardActiveObject()
+  const sortedObjects = objects
+    .sort((a, b) => {
+      return c.getObjects().indexOf(a) - c.getObjects().indexOf(b)
+    })
+    .reverse() // Reverse the sorted array to process the highest layers first
+
+  sortedObjects.forEach(obj => c.sendToBack(obj))
 }

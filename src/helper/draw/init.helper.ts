@@ -1,4 +1,4 @@
-import { Canvas, ICanvasOptions, IText } from 'fabric/fabric-impl'
+import { Canvas, ICanvasOptions } from 'fabric/fabric-impl'
 import Hammer from 'hammerjs'
 import { Ref } from 'vue'
 import { fabric } from 'fabric'
@@ -15,8 +15,7 @@ import { useLasso } from '@/service/draw/tools/lasso.tool'
 import { useBucket } from '@/service/draw/tools/bucket.tool'
 import { isNative, svg } from '@/helper/general.helper'
 import { useAppStore } from '@/store/app.store'
-import { exitEditing, isObjectSelected, isText, splitStringToWidth } from '@/helper/draw/draw.helper'
-import { Haptics, ImpactStyle } from '@capacitor/haptics'
+import { isObjectSelected, splitStringToWidth } from '@/helper/draw/draw.helper'
 import { mdiCheckCircle } from '@mdi/js'
 import { enableZoomAndPan } from '@/helper/draw/gesture.helper'
 
@@ -186,51 +185,6 @@ export function configureCanvasSpecificSettings(c: Canvas) {
   // Activated because of the stupid gestures mixin
   c._rotateObjectByAngle = undefined
   c._scaleObjectBy = undefined
-
-  c.on('touch:longpress', e => {
-    const touchType = e.e.type
-    if (touchType != 'touchstart') return
-    const { selectedObjectsRef, setMultiSelectMode } = useSelect()
-
-    if (isText(selectedObjectsRef)) {
-      exitEditing(selectedObjectsRef[0] as IText)
-    }
-    if (selectedObjectsRef.length > 0) {
-      setMultiSelectMode(true)
-      Haptics.impact({ style: ImpactStyle.Medium })
-      c.renderAll()
-    }
-  })
-
-  c.on('mouse:down:before', function (options: any) {
-    const { setMouseClickTarget } = useSelect()
-    setMouseClickTarget(options.target)
-    // TODO add static object
-  })
-
-  c.on('mouse:down', function (options: any) {
-    const { setMouseClickTarget, multiSelectMode, getSelectedObjects, getMouseClickTarget } = useSelect()
-
-    // TODO maybe not the best spot
-    if (options.target && multiSelectMode) {
-      const objectsThatContainPointer = c
-        .getObjects()
-        .filter((o: any) => o.containsPoint(options.pointer, o._getImageLines(o.oCoords), true))
-      const pointsNotInSelection = objectsThatContainPointer.filter(
-        o => !getSelectedObjects().find(o2 => o2.id == o.id)
-      )
-
-      if (pointsNotInSelection.length > 0) {
-        setMouseClickTarget(options.target)
-        c.setActiveObject(pointsNotInSelection[0])
-      } else {
-        const pointsInSelection = objectsThatContainPointer.filter(
-          o => !!getSelectedObjects().find(o2 => o2.id == o.id)
-        )
-        console.log(pointsInSelection)
-      }
-    }
-  })
 }
 
 export function createTools(): { [key in DrawTool]: ToolService } {

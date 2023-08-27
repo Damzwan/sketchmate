@@ -45,7 +45,7 @@
                   :multi-selected-items="selectedItems"
                   :multi-select-mode="multiSelectMode"
                   @long-press="() => onItemLongPress(inboxItem)"
-                  @click="() => onThumbnailClick(inboxItem)"
+                  @click="onThumbnailClick(inboxItem)"
                 />
               </ion-col>
             </ion-row>

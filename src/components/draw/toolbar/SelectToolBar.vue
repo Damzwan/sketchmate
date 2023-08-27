@@ -25,6 +25,9 @@
       <ion-button id="select_color" v-if="!containsImage">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
         <SelectColorMenu
+          :stroke-color="selectedObjectsRef[0]?.stroke"
+          :fill-color="selectedObjectsRef[0]?.fill as string"
+          :background-color="selectedObjectsRef[0]?.backgroundColor"
           trigger="select_color"
           @update:stroke-color="color => selectAction(DrawAction.ChangeStrokeColour, { color })"
           @update:fill-color="color => selectAction(DrawAction.ChangeFillColour, { color })"
@@ -61,6 +64,10 @@
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
+      <ion-button @click="() => selectAction(DrawAction.Delete, { objects: getSelectedObjects() })">
+        <ion-icon slot="icon-only" :icon="svg(mdiDeleteOutline)"></ion-icon>
+      </ion-button>
+
       <ion-button id="select_extra_options">
         <ion-icon slot="icon-only" :icon="svg(mdiDotsVertical)" />
         <SelectExtraOptions />
@@ -74,6 +81,7 @@ import { svg } from '@/helper/general.helper'
 import {
   mdiCancel,
   mdiClose,
+  mdiDeleteOutline,
   mdiDotsVertical,
   mdiFormatText,
   mdiMenuSwapOutline,
@@ -100,7 +108,7 @@ const { selectAction, getCanvas } = useDrawStore()
 const { undo, redo } = useHistory()
 const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 
-const { setMouseClickTarget } = useSelect()
+const { setMouseClickTarget, getSelectedObjects } = useSelect()
 const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect())
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))

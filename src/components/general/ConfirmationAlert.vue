@@ -4,10 +4,11 @@
 
 <script lang="ts" setup>
 import { IonAlert } from '@ionic/vue'
-defineProps<{
+const props = defineProps<{
   trigger: string
   header: string
-  message: string
+  message?: string
+  confirmationtext?: string
 }>()
 
 const emits = defineEmits(['cancel', 'confirm'])
@@ -20,7 +21,7 @@ const alertButtons = [
     cssClass: 'alert-button-cancel'
   },
   {
-    text: 'OK',
+    text: props.confirmationtext || 'Ok',
     role: 'confirm',
     handler: () => emits('confirm'),
     cssClass: 'alert-button-confirm'

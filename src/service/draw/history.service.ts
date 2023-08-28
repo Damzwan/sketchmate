@@ -88,7 +88,7 @@ export const useHistory = defineStore('history', () => {
     {
       type: DrawEvent.SaveHistory,
       on: 'after:transform',
-      handler: () => console.log('TRANSFORM HISTORY EVENT WTF')
+      handler: onModified
     },
     {
       type: DrawEvent.SaveHistory,
@@ -108,32 +108,36 @@ export const useHistory = defineStore('history', () => {
     {
       type: DrawEvent.SaveHistory,
       on: 'object:modified',
-      handler: async (e: any) => {
-        const target = e.target
-        const threshold = 0.5
-
-        const modifyingObjectLeft = modifyingObject.left
-        const modifyingObjectTop = modifyingObject.top
-        modifyingObject = undefined
-
-        if (
-          Math.abs(target.left - modifyingObjectLeft) <= threshold &&
-          Math.abs(target.top - modifyingObjectTop) <= threshold
-        ) {
-          return
-        }
-
-        const modifiedObjects = objectsFromTarget(e.target)
-        if (isText(modifiedObjects) && (modifiedObjects[0] as IText).init) {
-          const text = modifiedObjects[0] as IText
-          text.init = false
-          addToUndoStack(modifiedObjects, 'object:added')
-        } else {
-          addPrevModifiedObjectsToStack(modifiedObjects)
-        }
-      }
+      handler: onModified
     }
   ]
+
+  function onModified(e: any) {
+    const target = e.target
+    const threshold = 0.5
+
+    if (modifyingObject) {
+      const modifyingObjectLeft = modifyingObject.left
+      const modifyingObjectTop = modifyingObject.top
+      modifyingObject = undefined
+
+      if (
+        Math.abs(target.left - modifyingObjectLeft) <= threshold &&
+        Math.abs(target.top - modifyingObjectTop) <= threshold
+      ) {
+        return
+      }
+    }
+
+    const modifiedObjects = objectsFromTarget(e.target)
+    if (isText(modifiedObjects) && (modifiedObjects[0] as IText).init) {
+      const text = modifiedObjects[0] as IText
+      text.init = false
+      addToUndoStack(modifiedObjects, 'object:added')
+    } else {
+      addPrevModifiedObjectsToStack(modifiedObjects)
+    }
+  }
 
   function addPrevModifiedObjectsToStack(modifiedObjects: fabric.Object[]) {
     const prevModifiedObjects = modifiedObjects.map(obj => prevCanvasObjects?.find(o => o.id == obj.id))

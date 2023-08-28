@@ -10,6 +10,7 @@ import { isText } from '@/helper/draw/draw.helper'
 
 export function addText(c: Canvas) {
   const { selectTool } = useDrawStore()
+  const { setSelectedObjects } = useSelect()
   const { disableHistorySaving, enableHistorySaving } = useHistory()
   disableHistorySaving()
   const text = new fabric.IText('', {
@@ -25,6 +26,8 @@ export function addText(c: Canvas) {
   c.add(text)
 
   selectTool(DrawTool.Select)
+  c.setActiveObject(text)
+
   text.set({ hasControls: false }) // this is necessary sadly
   c.renderAll()
 

@@ -80,7 +80,7 @@ export function createSocketService(): SocketAPI {
         const text = params.sender === user.value!._id ? 'Drawing sent!' : 'New drawing received'
         toast(text, {
           buttons: [viewDrawingButton(params._id)],
-          duration: ToastDuration.medium
+          duration: ToastDuration.long
         })
         if (params.sender !== user.value?._id) increaseUnreadMessages()
         else EventBus.emit('reset-canvas')

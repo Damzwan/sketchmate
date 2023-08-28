@@ -104,7 +104,7 @@ export async function setForSelectedObjects(objects: SelectedObject[], options: 
 
 export async function fillBackGroundForGroup(obj: fabric.Group, options: Partial<Group>) {
   const { actionWithoutEvents } = useEventManager()
-  const { setSelectedObjects } = useSelect()
+  const { setSelectedObjects, getSelectedObjects } = useSelect()
 
   const existingBackgroundRect = obj.getObjects().find(o => o.backgroundObject)
 
@@ -114,6 +114,8 @@ export async function fillBackGroundForGroup(obj: fabric.Group, options: Partial
       obj.canvas!.remove(existingBackgroundRect)
     })
   }
+
+  const shouldReselect = getSelectedObjects().length > 0
 
   if (!options.backgroundColor) {
     obj.set({ backgroundColor: undefined })
@@ -140,7 +142,9 @@ export async function fillBackGroundForGroup(obj: fabric.Group, options: Partial
   const newGroup = await mergeObjects(getCanvas(), { objects: [backgroundRect, ...obj.getObjects()], notSave: true })
   newGroup.id = obj.id
   newGroup.set({ backgroundColor: options.backgroundColor })
-  setSelectedObjects([newGroup]) // hack needed to update the property
+
+  if (shouldReselect) setSelectedObjects([newGroup]) // hack needed to update the property
+  newGroup.canvas.renderAll()
 }
 
 export function focusText(text: IText) {
@@ -250,9 +254,6 @@ export function exitShapeCreationMode() {
   const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
   shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
   EventBus.emit('reset-shape-creation')
-  EventBus.off('reset-shape-creation')
-  EventBus.off('undo')
-  EventBus.off('redo')
   enableAllEvents()
   setShapeCreationMode(undefined)
 

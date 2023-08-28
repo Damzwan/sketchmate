@@ -90,8 +90,7 @@ import { fabric } from 'fabric'
 import {
   isColorTooLight,
   percentToAlphaHex,
-  setObjectSelection,
-  updateFreeDrawingCursor
+  setObjectSelection
 } from '@/helper/draw/draw.helper'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
@@ -138,8 +137,6 @@ const renderPreview = () => {
   const brush = canvas.freeDrawingBrush as any
   brush.width = brushSizeValue
   brush.color = brushColorValue
-
-  if (getCanvas()) updateFreeDrawingCursor(getCanvas(), brushSizeValue, brushColorValue)
 
   const amplitude = 20
   const frequency = 0.05

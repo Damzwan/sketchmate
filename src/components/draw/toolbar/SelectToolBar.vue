@@ -13,6 +13,10 @@
     </ion-buttons>
 
     <ion-buttons slot="end">
+      <ion-button @click="() => selectAction(DrawAction.Delete, { objects: getSelectedObjects() })">
+        <ion-icon slot="icon-only" :icon="svg(mdiDeleteOutline)"></ion-icon>
+      </ion-button>
+
       <ion-button id="line_width" v-if="!containsImage">
         <ion-icon slot="icon-only" :icon="svg(mdiMinusThick)"></ion-icon>
         <StrokeWidthMenu
@@ -62,10 +66,6 @@
 
       <ion-button @click="redo" :disabled="redoStackCounter == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
-      </ion-button>
-
-      <ion-button @click="() => selectAction(DrawAction.Delete, { objects: getSelectedObjects() })">
-        <ion-icon slot="icon-only" :icon="svg(mdiDeleteOutline)"></ion-icon>
       </ion-button>
 
       <ion-button id="select_extra_options">

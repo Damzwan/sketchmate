@@ -36,11 +36,12 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
   let createdShape: any
   disableAllEvents()
 
-  EventBus.on('undo', executeOnUndoRedo)
-  EventBus.on('redo', executeOnUndoRedo)
   EventBus.on('reset-shape-creation', () => {
     createdShape.isCreating = false
     pointCircles.forEach(circle => c.remove(circle))
+    EventBus.off('undo', executeOnUndoRedo)
+    EventBus.off('redo', executeOnUndoRedo)
+    EventBus.off('reset-shape-creation')
   })
 
   async function executeOnUndoRedo() {

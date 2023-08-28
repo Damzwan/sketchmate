@@ -1,12 +1,6 @@
 import { Ref, ref } from 'vue'
 import { DrawEvent, DrawTool, FabricEvent, SelectedObject, ToolService } from '@/types/draw.types'
-import {
-  distance,
-  exitEditing,
-  isPolygon,
-  isText,
-  setSelectionForObjects
-} from '@/helper/draw/draw.helper'
+import { distance, exitEditing, isPolygon, isText, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { Canvas, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore, storeToRefs } from 'pinia'
@@ -23,8 +17,6 @@ export interface Select extends ToolService {
   multiSelectMode: Ref<boolean>
   setMouseClickTarget: (obj: fabric.Object | undefined) => void
   getMouseClickTarget: () => fabric.Object | undefined
-  removeObjectFromMultiSelect: (obj: fabric.Object) => void
-  objectCountBeforeNewSelect: Ref<number>
 }
 
 export const useSelect = defineStore('select', (): Select => {
@@ -34,8 +26,6 @@ export const useSelect = defineStore('select', (): Select => {
   const selectedObjectsRef = ref<Array<SelectedObject>>([])
   const multiSelectMode = ref(false)
   const { actionWithoutEvents } = useEventManager()
-
-  const objectCountBeforeNewSelect = ref(0)
 
   let mouseClickTarget: fabric.Object | undefined = undefined
 
@@ -126,32 +116,43 @@ export const useSelect = defineStore('select', (): Select => {
     {
       type: DrawEvent.SetModified,
       on: 'mouse:down',
-      handler: (o: any) => {
-        if (o.target && multiSelectMode.value) {
-          const objectsThatContainPointer = c!
-            .getObjects()
-            .filter((obj: any) => obj.containsPoint(o.pointer, obj._getImageLines(obj.oCoords), true))
-          const pointsNotInSelection = objectsThatContainPointer.filter(
-            o => !getSelectedObjects().find(o2 => o2.id == o.id)
-          )
-
-          if (pointsNotInSelection.length > 0) {
-            setMouseClickTarget(o.target)
-            c!.setActiveObject(pointsNotInSelection[0])
-          } else {
-            // TODO does not work when we move the active selection
-            // if (objectCountBeforeNewSelect.value != getSelectedObjects().length) return
-            // const pointsInSelection = objectsThatContainPointer.filter(
-            //   o => !!getSelectedObjects().find(o2 => o2.id == o.id)
-            // )
-            // removeTimeout = setTimeout(() => {
-            //   if (pointsInSelection.length > 0) {
-            //     console.log('fire!')
-            //     removeObjectFromMultiSelect(pointsInSelection[0])
-            //   }
-            // }, 200)
-          }
-        }
+      handler: async (o: any) => {
+        // TODO this logic is very broken sadly
+        // if (o.target && multiSelectMode.value) {
+        //   const objectsThatContainPointer = c!
+        //     .getObjects()
+        //     .filter((obj: any) => obj.containsPoint(o.pointer, obj._getImageLines(obj.oCoords), true))
+        //   const pointsNotInSelection = objectsThatContainPointer.filter(
+        //     o => !getSelectedObjects().find(o2 => o2.id == o.id)
+        //   )
+        //
+        //   if (pointsNotInSelection.length > 0) {
+        //     await actionWithoutEvents(() => {
+        //       const o = c!.getActiveObjects()
+        //       c?.discardActiveObject()
+        //       const newSelection = new fabric.ActiveSelection([...o, pointsNotInSelection[0]], {
+        //         canvas: c!
+        //       })
+        //       c?.setActiveObject(newSelection)
+        //       // setSelectedObjects(newSelection.getObjects())
+        //       c?.requestRenderAll()
+        //     })
+        //     // setMouseClickTarget(o.target)
+        //     // c!.setActiveObject(pointsNotInSelection[0])
+        //   } else {
+        //     // TODO does not work when we move the active selection
+        //     // if (objectCountBeforeNewSelect.value != getSelectedObjects().length) return
+        //     // const pointsInSelection = objectsThatContainPointer.filter(
+        //     //   o => !!getSelectedObjects().find(o2 => o2.id == o.id)
+        //     // )
+        //     // removeTimeout = setTimeout(() => {
+        //     //   if (pointsInSelection.length > 0) {
+        //     //     console.log('fire!')
+        //     //     removeObjectFromMultiSelect(pointsInSelection[0])
+        //     //   }
+        //     // }, 200)
+        //   }
+        // }
       }
     },
     {
@@ -169,7 +170,7 @@ export const useSelect = defineStore('select', (): Select => {
       on: 'mouse:down:before',
       handler: (o: any) => {
         setMouseClickTarget(o.target)
-        objectCountBeforeNewSelect.value = getSelectedObjects().length
+        // objectCountBeforeNewSelect.value = getSelectedObjects().length
       }
     },
     {
@@ -279,8 +280,6 @@ export const useSelect = defineStore('select', (): Select => {
     multiSelectMode,
     setMouseClickTarget,
     destroy,
-    getMouseClickTarget,
-    objectCountBeforeNewSelect,
-    removeObjectFromMultiSelect
+    getMouseClickTarget
   }
 })

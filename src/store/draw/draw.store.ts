@@ -34,6 +34,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { loadAdditionalBrushes } from '@/utils/brushes'
 import { Select } from '@/service/draw/tools/select.tool'
+import { useBackgroundSaver } from '@/service/draw/backgroundSaved.service'
 
 export const useDrawStore = defineStore('draw', () => {
   const { user } = storeToRefs(useAppStore())
@@ -50,6 +51,7 @@ export const useDrawStore = defineStore('draw', () => {
   // Other services
   const loadService = useLoadService()
   const eventManager = useEventManager()
+  const backgroundSaver = useBackgroundSaver()
   const history = useHistory()
 
   // Selected tools
@@ -101,12 +103,16 @@ export const useDrawStore = defineStore('draw', () => {
   }
 
   async function selectAction(action: DrawAction, options?: object) {
-    actionMapping[action](c!, options)
+    await actionMapping[action](c!, options)
   }
 
   // TODO clean this up
   async function initCanvas(canvas: HTMLCanvasElement) {
+    await backgroundSaver.init()
+
     let json: any = undefined
+    const prevJson = await backgroundSaver.get()
+
     if (c) {
       json = c.toJSON()
       destroyToolsAndServices(!loadService.loading.value)
@@ -119,6 +125,12 @@ export const useDrawStore = defineStore('draw', () => {
     if (loadService.loading.value) {
       showLoading('Loading canvas')
       if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
+    } else if (prevJson) {
+      await new Promise<void>(resolve => {
+        c!.loadFromJSON(prevJson, () => {
+          resolve()
+        })
+      })
     } else if (json) {
       await new Promise<void>(resolve => {
         c!.loadFromJSON(json, () => {
@@ -134,6 +146,7 @@ export const useDrawStore = defineStore('draw', () => {
     loadAdditionalBrushes()
     initGestures(c, hammer)
     initTools(c, tools)
+    backgroundSaver.startSaving(c)
 
     const selected = (tools[DrawTool.Select] as Select).getSelectedObjects() // important that this is before selectTool
     selectTool(selectedTool.value, { init: true })
@@ -145,6 +158,7 @@ export const useDrawStore = defineStore('draw', () => {
   function destroyToolsAndServices(maintainHistory: boolean) {
     destroyTools(tools)
     history.destroy(maintainHistory)
+    backgroundSaver.destroy()
     eventManager.destroy()
   }
 
@@ -199,6 +213,7 @@ export const useDrawStore = defineStore('draw', () => {
       c!.backgroundColor = BACKGROUND
     })
     history.clearHistory()
+    backgroundSaver.clear()
     c?.renderAll()
   }
 

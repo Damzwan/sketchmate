@@ -4,7 +4,7 @@ import { BrushType, FabricEvent, ToolService } from '@/types/draw.types'
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
-import { percentToAlphaHex } from '@/helper/draw/draw.helper'
+import { percentToAlphaHex, updateFreeDrawingCursor } from '@/helper/draw/draw.helper'
 
 interface Pen extends ToolService {
   brushSize: Ref<number>
@@ -46,18 +46,26 @@ export const usePen = defineStore('pen', (): Pen => {
     c.freeDrawingBrush = newBrush!
     c.freeDrawingBrush.width = brushSize.value
     c!.freeDrawingBrush.color = brushColor.value + percentToAlphaHex(opacity.value)
+    updatePenCursor()
+  }
+
+  function updatePenCursor() {
+    updateFreeDrawingCursor(c!, c!.freeDrawingBrush.width, c!.freeDrawingBrush.color)
   }
 
   watch(brushSize, () => {
     c!.freeDrawingBrush.width = brushSize.value
+    updatePenCursor()
   })
 
   watch(brushColor, () => {
     c!.freeDrawingBrush.color = brushColor.value + percentToAlphaHex(opacity.value)
+    updatePenCursor()
   })
 
   watch(opacity, () => {
     c!.freeDrawingBrush.color = brushColor.value + percentToAlphaHex(opacity.value)
+    updatePenCursor()
   })
 
   watch(brushType, () => {

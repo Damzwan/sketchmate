@@ -180,7 +180,7 @@ function decode(code: any) {
     toast('Invalid sketchmate code', { color: 'danger' })
     return
   }
-  match(code.data)
+  match(mateValue)
 }
 
 function shareLink() {

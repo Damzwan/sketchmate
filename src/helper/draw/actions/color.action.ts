@@ -85,20 +85,19 @@ export async function changeStrokeWidth(c: Canvas, options: any) {
 export async function undoColoring(newObj: any, oldObj: any) {
   if (oldObj.type == ObjectType.group) {
     if (oldObj.backgroundColor != newObj.backgroundColor) {
-      setForSelectedObjects([newObj], { backgroundColor: oldObj.backgroundColor }, true)
+      await setForSelectedObjects([newObj], { backgroundColor: oldObj.backgroundColor }, true)
       return
     }
+    newObj.set({
+      stroke: oldObj.stroke,
+      fill: oldObj.fill,
+      backgroundColor: oldObj.backgroundColor,
+      strokeWidth: oldObj.strokeWidth
+    })
     oldObj.getObjects().forEach((o: any) => {
       const matchingObj = newObj.getObjects().find((oo: any) => oo.id == o.id)
       if (!matchingObj) return
-      if (oldObj.type == ObjectType.group) undoColoring(matchingObj, o)
-      else
-        setForSelectedObjects([matchingObj], {
-          stroke: o.stroke,
-          fill: o.fill,
-          backgroundColor: o.backgroundColor,
-          strokeWidth: oldObj.strokeWidth
-        })
+      undoColoring(matchingObj, o)
     })
   } else
     await setForSelectedObjects([newObj], {

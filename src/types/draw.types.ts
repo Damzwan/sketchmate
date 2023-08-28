@@ -171,7 +171,8 @@ export enum DrawEvent {
   BucketFill = 'on click with bucket',
   ShapeCreation = 'Creating shape',
   SetModified = 'Creating shape',
-  Lasso = 'Using lasso'
+  Lasso = 'Using lasso',
+  CanvasSave = 'save in case we exit'
 }
 
 export type StickersEmblemsSavedTabOptions = 'sticker' | 'emblem' | 'saved'

@@ -45,6 +45,8 @@ export const useHistory = defineStore('history', () => {
   const undoStackCounter = ref(0)
   const redoStackCounter = ref(0)
 
+  let modifyingObject: any = undefined
+
   const { subscribe, unsubscribe, actionWithoutEvents } = useEventManager()
   const { getSelectedObjects } = useSelect()
 
@@ -92,13 +94,35 @@ export const useHistory = defineStore('history', () => {
       type: DrawEvent.SaveHistory,
       on: 'object:added',
       handler: (e: any) => {
+        c?.requestRenderAll()
         addToUndoStack(objectsFromTarget(e.target), 'object:added')
+      }
+    },
+    {
+      type: DrawEvent.SaveHistory,
+      on: 'object:moving',
+      handler: (options: any) => {
+        if (!modifyingObject) modifyingObject = options.target.toObject()
       }
     },
     {
       type: DrawEvent.SaveHistory,
       on: 'object:modified',
       handler: async (e: any) => {
+        const target = e.target
+        const threshold = 0.5
+
+        const modifyingObjectLeft = modifyingObject.left
+        const modifyingObjectTop = modifyingObject.top
+        modifyingObject = undefined
+
+        if (
+          Math.abs(target.left - modifyingObjectLeft) <= threshold &&
+          Math.abs(target.top - modifyingObjectTop) <= threshold
+        ) {
+          return
+        }
+
         const modifiedObjects = objectsFromTarget(e.target)
         if (isText(modifiedObjects) && (modifiedObjects[0] as IText).init) {
           const text = modifiedObjects[0] as IText
@@ -460,6 +484,9 @@ export const useHistory = defineStore('history', () => {
     if (!options || (options && !options['noReset'])) redoStack = []
     resetStackCounters()
     prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
+
+    // hack since the way addToUndoStack is implemented is that it can be called before the change
+    setTimeout(() => EventBus.emit('add_to_undo_stack'), 200)
   }
 
   return {

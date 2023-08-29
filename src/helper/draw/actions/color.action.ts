@@ -57,7 +57,7 @@ export function setBackgroundColor(c: Canvas, options: any) {
     { color: true }
   )
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { backgroundColor: color })
+  setForSelectedObjects(selectedObjectsRef, { backgroundColor: color }, !color)
 
   c.renderAll()
   popoverController.dismiss()

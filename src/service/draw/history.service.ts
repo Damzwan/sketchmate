@@ -163,14 +163,15 @@ export const useHistory = defineStore('history', () => {
       modifiedObjects.push(currObj.toObject())
       const enlivenedObj: any = (await enlivenObjects([obj]))[0]
 
-      currObj.set({
-        left: obj.left!,
-        top: obj.top!,
-        angle: obj.angle!,
-        scaleX: obj.scaleX,
-        scaleY: obj.scaleY,
-        eraser: enlivenedObj.eraser
-      })
+      if (!options)
+        currObj.set({
+          left: obj.left!,
+          top: obj.top!,
+          angle: obj.angle!,
+          scaleX: obj.scaleX,
+          scaleY: obj.scaleY,
+          eraser: enlivenedObj.eraser
+        })
       if (options && options.color) {
         await undoColoring(currObj, enlivenedObj)
       }

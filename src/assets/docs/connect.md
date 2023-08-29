@@ -1,31 +1,29 @@
 ## Matching
 
-To enjoy using SketchMate, start by connecting with someone. Here are two methods to get you started:
+Connect with someone to use **SketchMate**:
 
-### Method 1: Scan QR Code
+### Method 1: QR Code
 
-Follow these simple steps:
+1. Tap 'Scan QR code' to use your camera.
+2. Aim at your friend's QR code.
+3. Once scanned, you're mates!
 
-1. Tap the 'Scan QR code' button to open your camera.
-2. Point your camera towards your friend's QR code.
-3. Once the code is scanned, voila! You are now mates!
+> **Tip**: Scan the QR code using your camera app too!
 
-### Method 2: Share Connect Link
+### Method 2: Connect Link
 
-Here's another easy way to connect:
-
-1. Tap the 'Share connect link' button to generate your unique link.
-2. Share this link with a friend through any preferred method (text, email, social media, etc.).
-3. Once your friend opens the link, you're connected as mates!
+1. Tap 'Share connect link' for your unique link.
+2. Send the link to a friend (text, email, etc.).
+3. When they click it, you're connected!
 
 ## Unmatching
 
-In case you want to connect to a new person, you have to unmatch with your current mate:
+To match with someone new:
 
-1. Navigate to the "My Mate" page using the bottom navigation
-2. Press the unmatch button
-3. You can now start matching with another person
+1. Go to "My Mate" on the bottom menu.
+2. Tap the unmatch button.
+3. You're ready to match again.
 
 ## Connection Limit
 
-For the moment you can only share sketches with one person. If there is enough support (let me know!) I will definitely add this feature :)
+Currently, connect with just one person. If many want more connections, I'll add it. Let me know!

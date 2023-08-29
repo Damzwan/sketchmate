@@ -1,35 +1,32 @@
-## View your sketches in the gallery
+## Gallery Overview
 
-In the gallery you can find the drawings you sent and the ones of your mate. Some things to note:
+Your gallery displays both your sketches and your mate's. Key points:
 
-* In the upper right corner of a drawing you see who sent it
-* In the lower right corner you see the amount of comments placed by you and your mate
+- Upper right of a sketch: sender's profile picture.
+- Lower right: count of comments from both of you.
 
-The goal is to create an ever-growing memorable gallery of sketches just like a picture book.
+Think of it as a growing picture book of sketches.
 
-## Entering big picture mode
+## Big Picture Mode
 
-By clicking on an image you enter big picture mode. You can also zoom in on the sketch if you want. In the bottom bar
-you will see several options. These are from left to right:
+Click on a sketch to enlarge. Here's what you can do:
 
-* Start a drawing from this sketch
-* Open the comment drawer
-* Share the sketch through other social media platforms
-* Delete your image
+- **Bottom bar options** (left to right):
+    - Create a new drawing from this sketch.
+    - Access comments.
+    - Share on social media.
+    - Delete the sketch.
+- View the top 4 comments. To see all, open the comment drawer.
 
-You will also see the first four comments (you can also open the comment drawer by clicking on them) in big picture
-mode. To see all comments open the comment drawer.
+### Comments
 
-### Hiding comments
+- **Hide/Show**: Toggle the chatbox icon in the upper right.
 
-If there are comments placed on a sketch, and you want to hide them then press the chatbox icon in the upper right
-corner to hide them. Press it again to make them visible again
+## Bulk Delete Sketches
 
-## Deleting multiple sketches
+To remove multiple sketches:
 
-In case you want to delete multiple sketches at the same time:
-
-1. Go to the main gallery page
-2. Long tap on a sketch you want to delete to enter delete mode
-3. Tap any other sketches you want to delete
-4. Press the garbage button in the upper right corner to delete the images
+1. Visit the main gallery.
+2. Long-press a sketch to activate delete mode.
+3. Tap additional sketches to select them.
+4. Hit the trash icon in the upper right to confirm deletion.

@@ -2,7 +2,7 @@
   <div class="divide-y divide-primary bg-background">
     <div class="py-1 px-2">
       <label for="color-picker">Color</label>
-      <div class="color-swatches mt-1">
+      <div class="mt-1">
         <div v-for="(row, rowIndex) in COLORSWATCHES" :key="'row-' + rowIndex" class="flex justify-between mb-2">
           <div
             v-for="(color, colorIndex) in row"
@@ -28,10 +28,36 @@
       </div>
     </div>
 
+    <div class="py-1 px-2">
+      <label for="color-picker">Color recommendations</label>
+      <div class="mt-1">
+        <div
+          v-for="(row, rowIndex) in getColorRecommendations(color)"
+          :key="'row-' + rowIndex"
+          class="flex justify-between mb-2"
+        >
+          <div
+            v-for="(color, colorIndex) in row"
+            :key="'color-' + colorIndex"
+            :class="{ brush_selected: props.color == color }"
+            :style="{ backgroundColor: color }"
+            class="color_swatch"
+            @click="onCustomColorSelected(color)"
+          />
+        </div>
+      </div>
+    </div>
+
     <ion-item color="tertiary" class="px-2" :button="true" @click="brushColorPicker?.click()">
       <div class="color_swatch" :style="{ backgroundColor: color }" />
       <p class="pl-3 text-base">Choose color</p>
-      <input type="color" :value="props.color" @change="onCustomColorSelected" ref="brushColorPicker" class="hidden" />
+      <input
+        type="color"
+        :value="props.color"
+        @change="e => onCustomColorSelected(e.target.value)"
+        ref="brushColorPicker"
+        class="hidden"
+      />
     </ion-item>
   </div>
 </template>
@@ -42,6 +68,7 @@ import { IonItem } from '@ionic/vue'
 import { computed, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
+import { getColorRecommendations } from '@/helper/draw/draw.helper'
 
 const colorHistory = ref<string[]>([])
 const emptySpaces = computed(() => 6 - colorHistory.value.length)
@@ -63,10 +90,10 @@ function getSavedColorHistory() {
   )
 }
 
-async function onCustomColorSelected(e: any) {
-  emit('update:color', e.target.value)
-  if (colorHistory.value.includes(e.target.value) || COLORSWATCHES.some(arr => arr.includes(e.target.value))) return
-  colorHistory.value.unshift(e.target.value)
+async function onCustomColorSelected(c: string) {
+  emit('update:color', c)
+  if (colorHistory.value.includes(c) || COLORSWATCHES.some(arr => arr.includes(c))) return
+  colorHistory.value.unshift(c)
   if (colorHistory.value.length > 6) colorHistory.value.pop()
   Preferences.set({ key: LocalStorage.color_history, value: JSON.stringify(colorHistory.value) })
 }

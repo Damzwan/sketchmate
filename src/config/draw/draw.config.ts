@@ -190,21 +190,92 @@ export const tutorialSteps = [
   {
     target: '[data-step="6"]',
     content: `<div>
-    <p class="text-xl">Need Help?</p>
-    <p class="text-base">Press for tutorials on each section.</p>
-  </div>`
-  },
-  {
-    target: '[data-step="7"]',
-    content: `<div>
     <p class="text-xl">Undo/Redo Actions</p>
     <p class="text-base">Made a mistake? Press "Undo". Want it back? Press "Redo".</p>  </div>`
   },
   {
-    target: '[data-step="8"]',
+    target: '[data-step="7"]',
     content: `<div>
     <p class="text-xl">Send Sketch</p>
     <p class="text-base">Once ready, press "Send". Your sketch will appear in the gallery.</p>
       </div>`
+  },
+  {
+    target: '[data-step="8"]',
+    content: `<div>
+    <p class="text-xl">Need Help?</p>
+    <p class="text-base">Press for tutorials on each section.</p>
+  </div>`
+  }
+]
+
+export const tutorialSteps2 = [
+  {
+    target: '[data-step="t1"]',
+    content: `<div>
+    <p class="text-xl">Select mode</p>
+    <div class="px-3">
+    <li class="text-base">Drag to move.</li>
+    <li class="text-base">Upper handle to rotate.</li>
+    <li class="text-base">Lower right handle to resize.</li>
+</div>
+</p>
+  </div>`
+  },
+  {
+    target: '[data-step="t2"]',
+    content: `<div>
+    <p class="text-xl">Tips</p>
+    <div class="px-3">
+     <li class="text-base">Double-tap to <b>select object beneath</b> selected object.</li>
+     <li class="text-base">Long-press a selected object for <b>multi-select</b> mode (mobile).</li>
+</div>
+</p>
+  </div>`
+  },
+  {
+    target: '[data-step="t3"]',
+    content: `<div>
+    <p class="text-xl">Delete object</p>
+      </div>`
+  },
+  {
+    target: '[data-step="t4"]',
+    content: `<div>
+    <p class="text-xl">Change border width</p>
+      </div>`
+  },
+  {
+    target: '[data-step="t5"]',
+    content: `<div>
+    <p class="text-xl">Color Options</p>
+    <p class="text-base">Select: stroke, fill, or background color.</p>
+      </div>`
+  },
+  {
+    target: '[data-step="t6"]',
+    content: `<div>
+    <p class="text-xl">Undo/Redo Actions</p>
+    </div>`
+  },
+  {
+    target: '[data-step="t7"]',
+    content: `<div>
+    <p class="text-xl">Extended Options</p>
+    <p class="text-base">Choose from: copy, merge, save, or layer.</p>
+  </div>`
+  },
+  {
+    target: '[data-step="t8"]',
+    content: `<div>
+    <p class="text-xl">Exit Select Mode</p>
+    </div>`
+  },
+  {
+    target: '[data-step="t9"]',
+    content: `<div>
+    <p class="text-xl">Need Help?</p>
+    <p class="text-base">Go to the "Selection" section in the manual.</p>
+  </div>`
   }
 ]

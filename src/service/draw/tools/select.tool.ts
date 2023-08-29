@@ -73,7 +73,7 @@ export const useSelect = defineStore('select', (): Select => {
     {
       type: DrawEvent.SetModified,
       on: 'mouse:down',
-      handler: (o: any) => {
+      handler: async (o: any) => {
         const activeObject = c!.getActiveObject()
 
         if (!objectsStack.includes(activeObject)) objectsStack = []
@@ -108,6 +108,10 @@ export const useSelect = defineStore('select', (): Select => {
           if (objectsStack[0] === activeObject && objectsStack.length > 1) {
             currentObjectIndex = 1 // If the first object is the current one, choose the next closest
           }
+
+          // special edge case that probably collides with internal fabricjs logic
+          if (multiSelectMode.value && selectedObjects.length == 1)
+            await new Promise(resolve => setTimeout(resolve, 200))
 
           c!.setActiveObject(objectsStack[currentObjectIndex])
         }

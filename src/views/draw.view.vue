@@ -28,7 +28,7 @@
         </ion-button>
       </div>
     </ion-content>
-    <VTour :steps="tutorialSteps" autoStart />
+    <VTour :steps="currDataSteps" ref="tour" @onTourEnd="onTourEnd" />
   </ion-page>
 </template>
 
@@ -36,7 +36,7 @@
 import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter } from '@ionic/vue'
 import PrimaryDrawToolBar from '@/components/draw/toolbar/PrimaryDrawToolBar.vue'
 
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
@@ -51,7 +51,8 @@ import { useRoute } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import '@/theme/custom_vuejs_tour.scss'
-import { tutorialSteps } from '@/config/draw/draw.config'
+import { tutorialSteps, tutorialSteps2 } from '@/config/draw/draw.config'
+import { LocalStorage } from '@/types/storage.types'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
@@ -59,10 +60,33 @@ const drawStore = useDrawStore()
 const { loadingText, shapeCreationMode, canZoomOut, isLoading } = storeToRefs(drawStore)
 const { selectedObjectsRef } = storeToRefs(useSelect())
 
+const currDataSteps = ref(tutorialSteps)
+
 onIonViewDidEnter(async () => {
   await drawStore.initCanvas(myCanvasRef.value!)
 })
 
 const route = useRoute()
 const isTrial = computed(() => route.query.trial)
+
+const tour = ref()
+const isSelectTour = ref(false)
+
+onMounted(() => {
+  if (!localStorage.getItem(LocalStorage.tour1)) tour.value.resetTour()
+})
+
+if (!localStorage.getItem(LocalStorage.tour2)) {
+  watch(selectedObjectsRef, () => {
+    if (selectedObjectsRef.value.length > 0 && !localStorage.getItem(LocalStorage.tour2)) {
+      currDataSteps.value = tutorialSteps2
+      isSelectTour.value = true
+      tour.value.resetTour()
+    }
+  })
+}
+
+function onTourEnd() {
+  localStorage.setItem(isSelectTour.value ? LocalStorage.tour2 : LocalStorage.tour1, 'si')
+}
 </script>

@@ -1,33 +1,26 @@
-SketchMate offers various built-in shapes for precision drawing. Here's how to access and use them:
+## Shapes
 
-## Entering Shape Creation Mode
+Add built-in shapes to your sketches with ease.
 
-1. Click the add icon (+) on the toolbar and select "Shapes".
-2. Choose the shape you wish to create.
-3. You've now entered Shape Creation Mode, and your toolbar will adjust accordingly.
+### Accessing Shapes
+1. Tap the add icon (+) and pick "Shapes".
+2. Select your desired shape.
+3. The toolbar will change for shape creation.
 
-## Using Shape Creation Mode
+**TIP**: Adjust stroke width and color before creating the shape.
 
-Depending on the shape, there are different ways to create them:
+### Creating Basic Shapes (Circles, Ellipses, Rectangles, etc.)
+1. Tap to position.
+2. Drag to set size.
+3. Release to finalize.
 
-### Circles, Ellipses, Rectangles, Triangles, Hearts, and Lines
+### Creating Polyshapes (Polyline, Polygons)
+1. Tap to set start point.
+2. Keep tapping for additional points.
+3. Tap the "done" button (upper right) to finish.
 
-1. Tap on the canvas to set the shape's initial position.
-2. Drag to adjust the size of the shape.
-3. Release to finalize the shape.
-
-### Polyline and Polygons
-
-1. Tap on the canvas to set an initial point.
-2. Tap again to create a line segment from the previous point.
-3. Repeat the process to continue building the shape.
-4. Press the done button in the upper right corner to finish
-
-#### Editing polygons
-
-After creating a polygon you can edit its points:
-
-1. Select the polygon
-2. You will see a edit polygon button between the change color and undo button
-3. Press it to start editing the points of your polygon
-4. Once you are done you can press the same button again to exit or tap anywhere else
+### Editing Polygons
+1. Select your polygon.
+2. Tap the "edit" button (between color and undo).
+3. Adjust points as needed.
+4. Tap "edit" again or elsewhere to finish.

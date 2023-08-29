@@ -1,9 +1,14 @@
-The pen tool lets you bring your imagination to the canvas. Here's how to use it:
+## Pen Tool Guide
 
-1. Select the pen tool to start drawing.
-2. Want to change things up? Click the pen tool again to access the following settings:
-    - **Stroke width**: Make your lines thin as a whisper or bold as a shout.
-    - **Brush type**: Choose the style that suits your vision.
-    - **Stroke Color**: Pick the perfect shade to bring your creation to life.
+To draw with the pen tool:
 
-Once you're done tweaking, close the menu. Your settings will be saved and ready for your next masterpiece.
+1. Tap the pen tool to start.
+2. Adjust settings by tapping the pen tool again:
+   - **Stroke width**: Modify line thickness.
+   - **Transparency**: Adjust opacity.
+   - **Brush type**: Pick a style.
+   - **Stroke Color**: Select a color.
+
+**Tip**: On a PC, the cursor reflects the brush settings for precise drawing.
+
+Close the menu to retain your settings.

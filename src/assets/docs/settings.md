@@ -1,17 +1,18 @@
-In the settings menu you can:
+## Settings Overview
 
-* Change your profile picture
-* Change your name
-* Enable/Disable notifications
+In settings, you can:
 
-You will also find the following:
+- Update profile picture.
+- Modify your name.
+- Toggle notifications on/off.
 
-* The user manual
-* A feedback form which I'd greatly appreciate in case you fill it in
-* A link to the SketchMate blog
-* A button to contact SketchMate directly
+You'll also find:
 
-## Navigating to settings
+- User manual.
+- Feedback form (your input is valued!).
+- Link to the SketchMate blog.
+- Contact SketchMate button.
 
-Click on your profile picture on the upper right corner when on the gallery, my mate and connect page to open settings
+## Accessing Settings
 
+To open settings, tap your profile picture in the upper right on the gallery, my mate, or connect page.

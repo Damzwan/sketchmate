@@ -1,7 +1,7 @@
 <template>
   <ion-toolbar color="primary" mode="md">
     <ion-buttons slot="start" class="flex flex-grow">
-      <ion-button @click="unselectObjects">
+      <ion-button @click="unselectObjects" data-step="t8">
         <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
       </ion-button>
 
@@ -12,12 +12,16 @@
       </div>
     </ion-buttons>
 
+    <div class="absolute left-[50%] w-[41px] h-[41px] -z-10" data-step="t1" />
+    <div class="absolute left-[50%] w-[41px] h-[41px] -z-10" data-step="t2" />
+    <div class="absolute left-[50%] w-[41px] h-[41px] -z-10" data-step="t9" />
+
     <ion-buttons slot="end">
-      <ion-button @click="() => selectAction(DrawAction.Delete, { objects: getSelectedObjects() })">
+      <ion-button @click="() => selectAction(DrawAction.Delete, { objects: getSelectedObjects() })" data-step="t3">
         <ion-icon slot="icon-only" :icon="svg(mdiDeleteOutline)"></ion-icon>
       </ion-button>
 
-      <ion-button id="line_width" v-if="!containsImage">
+      <ion-button id="line_width" v-if="!containsImage" data-step="t4">
         <ion-icon slot="icon-only" :icon="svg(mdiMinusThick)"></ion-icon>
         <StrokeWidthMenu
           trigger="line_width"
@@ -26,7 +30,7 @@
         />
       </ion-button>
 
-      <ion-button id="select_color" v-if="!containsImage">
+      <ion-button id="select_color" v-if="!containsImage" data-step="t5">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
         <SelectColorMenu
           :stroke-color="selectedObjectsRef[0]?.stroke"
@@ -60,7 +64,7 @@
         <FontMenu @font_selected="font => selectAction(DrawAction.ChangeFont, { font })" />
       </div>
 
-      <ion-button @click="undo" :disabled="undoStackCounter == 0">
+      <ion-button @click="undo" :disabled="undoStackCounter == 0" data-step="t6">
         <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
       </ion-button>
 
@@ -68,7 +72,7 @@
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
-      <ion-button id="select_extra_options">
+      <ion-button id="select_extra_options" data-step="t7">
         <ion-icon slot="icon-only" :icon="svg(mdiDotsVertical)" />
         <SelectExtraOptions />
       </ion-button>
@@ -103,6 +107,7 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction, ObjectType } from '@/types/draw.types'
 import TextMenu from '@/components/draw/menu/TextMenu.vue'
 import StrokeWidthMenu from '@/components/draw/menu/StrokeWidthMenu.vue'
+import '@/theme/custom_vuejs_tour.scss'
 
 const { selectAction, getCanvas } = useDrawStore()
 const { undo, redo } = useHistory()

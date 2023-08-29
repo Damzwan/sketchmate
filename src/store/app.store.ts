@@ -1,6 +1,6 @@
 // Utilities
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { CommentRes, CreateUserParams, InboxItem, NotificationType, User } from '@/types/server.types'
 import { useSocketService } from '@/service/api/socket.service'
 import { useAPI } from '@/service/api/api.service'
@@ -8,6 +8,7 @@ import { LocalStorage } from '@/types/storage.types'
 import { Preferences } from '@capacitor/preferences'
 import { checkPreferenceConsistency, isNative } from '@/helper/general.helper'
 import { Keyboard } from '@capacitor/keyboard'
+import { useToast } from '@/service/toast.service'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
@@ -131,6 +132,17 @@ export const useAppStore = defineStore('app', () => {
   function setQueryParams(params: URLSearchParams | undefined) {
     queryParams.value = params
   }
+
+  watch(notificationRouteLoading, () => {
+    if (notificationRouteLoading.value)
+      setTimeout(() => {
+        if (notificationRouteLoading.value) {
+          const { toast } = useToast()
+          notificationRouteLoading.value = undefined
+          toast('Something went wrong, please try again', { color: 'warning' })
+        }
+      }, 4000)
+  })
 
   return {
     user,

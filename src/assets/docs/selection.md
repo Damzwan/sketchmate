@@ -1,31 +1,49 @@
-## Entering Select Mode
+## Enter Select Mode
 
-Click the select tool to highlight the last modified object. This action triggers 'Select Mode', causing the toolbar to switch to object editing options. You can identify a selected object by the border around it, which now is interactive.
+Tap the select button on the toolbar.
 
-Want to edit another object? Just tap it.
+### Move, Rotate, and Resize Objects
+- Drag to move objects.
+- Use the upper handle to rotate.
+- Use the lower right handle to resize.
 
-## Multiselecting Objects
+### New Toolbar Options
+- [Delete object](blob:delete.md)
+- [Change border width](blob:width.md)
+- [Change color](blob:color.md)
+- [Copy object](blob:copy.md)
+- [Save object](blob:save.md)
+- [Layer objects](blob:layer.md)
+- [Change text style](blob:text.md)
+- [Change polygon points](blob:shapes.md)
 
-Sometimes, you might want to manipulate several objects simultaneously. Here's how to do it:
+> **Tip**: Double-tap to select an object **beneath** the currently selected object.
 
-### Mobile
-- Long-press an object to enter the multiselect mode. You'll notice a small vibration and a number appearing on the toolbar. Now, each subsequent object you tap will join your selection.
-- Draw selection rectangles in an empty space. Once you lift your finger, all objects intersecting with this rectangle will be selected.
+### Multi-selection
 
-### PC
-- Draw selection rectangles in an empty space. Once you stop, all objects intersecting with this rectangle will join your selection.
-- Hold shift and click to select multiple objects.
+**Both:**
+- Hold and drag in an empty space to draw a selection rectangle for multiple objects.
 
-## Gestures
+**Mobile:**
+- Long-press an object to initiate multiselect mode (indicated by a toolbar number).
 
-Once you've selected an object, you can rotate and scale it using the controls around the border. If you're using a mobile device, gestures are your friends:
+**PC:**
+- Hold shift and click to add objects to your selection.
 
-- **Scaling**: Pinch with two fingers to adjust object size.
-- **Rotating**: Use two fingers to rotate the object to your desired angle.
+> **Tip**: Double-tap also works to multi-select an object under the currently selected object.
 
-## Exiting Select Mode
+### Mobile Gestures
+After selecting an object:
+- **Scaling**: Pinch to adjust size.
+- **Rotating**: Use two fingers to set the angle.
 
-Want to exit the Select Mode? You've got two options:
+### Exiting Select Mode
+- Tap the close button (upper left of the toolbar).
+- Or, simply tap an empty space on the canvas.
 
-- Tap the close button in the upper left corner of the toolbar.
-- Tap any empty space on the canvas.
+### Lasso Tool for Precise Selection
+For detailed selection control, especially on packed canvases:
+1. Double-tap the select tool.
+2. Choose the Lasso Tool.
+3. Encircle your desired objects.
+4. Release to automatically switch to Select Mode with the lassoed objects selected.

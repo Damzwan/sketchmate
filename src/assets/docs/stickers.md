@@ -1,27 +1,18 @@
-SketchMate may not come with pre-loaded stickers, but why settle for standard when you can create your own? Upload your images and turn them into personal stickers to liven up your sketches.
+## Stickers
 
-## Creating Stickers
+Turn your images into custom stickers for your sketches in SketchMate.
 
-Follow these steps to create your stickers:
+### Create Stickers
+1. Tap the add icon (+) on the toolbar > "Stickers".
+2. Click the add button on the top right.
+3. Choose an image and it will be converted into a sticker.
 
-1. Click the add icon (+) on the toolbar and select "Stickers".
-2. In the opening menu, you'll see options to create, select, and delete stickers.
-3. Press the add button in the upper right corner.
-4. Select an image.
-5. Wait for your sticker to be created, and voila!
+### Use Stickers
+Simply click on a sticker to add it to the canvas.
 
-## Selecting Stickers
-
-To use a sticker, click on it. It will be added to the canvas, ready for interaction like any other object.
-
-## Deleting Stickers
-
-Entering deletion mode allows you to delete stickers. You can do this by:
-
-- Clicking the delete mode button in the upper left corner, or
-- Long-tapping on a sticker (MOBILE).
-
-In deletion mode, click on any sticker to remove it. To exit this mode:
-
-- Click the button in the upper left corner again, or
-- Tap on a non-sticker area of the page.
+### Delete Stickers
+1. To delete, enter sticker deletion mode by:
+    - Tapping the delete mode button on the top left, or
+    - Long-pressing a sticker (MOBILE).
+2. Click on a sticker to remove it.
+3. Exit by clicking the top left button or tapping outside the sticker area.

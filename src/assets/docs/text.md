@@ -1,36 +1,21 @@
-## Add Text Objects
+## Text
 
-To incorporate text into your sketches:
+Add and modify text in your sketches easily.
 
-1. Click the add icon (+) on the toolbar and select "Text".
-2. An empty text object will appear at the center of your screen, triggering your keyboard to pop up. You're now in text
-   editing mode.
-3. Type the desired message.
+### Adding Text
+1. Tap the add icon (+) and choose "Text".
+2. Type your message in the centered text box.
 
-## Edit Existing Text Objects
+### Editing Text
+1. Access select mode.
+2. Double-tap the desired text object to edit.
 
-### Entering Text Editing Mode
+To exit editing:
+- Tap the cancel button (upper left of the toolbar) or
+- Tap an empty canvas space.
 
-If you want to revise the content of an existing text object:
-
-1. Enter select mode.
-2. Tap the text object you want to edit.
-3. Tap again to enter edit mode.
-
-### Exiting Text Editing Mode
-
-Once you've finished editing your message, exit the text editing mode by either:
-
-- Clicking the cancel button in the upper left corner of the toolbar, or
-- Tapping an empty space on the canvas.
-
-Note: After exiting text editing mode, the text object will remain selected and can be interacted with like any other
-object.
-
-## Customize Your Text
-
-With a text object selected, you'll see numerous text transformation options in the toolbar:
-
-- **Color:** Change the color of your text.
-- **Font:** Choose from a variety of fonts.
-- **Formatting Options:** Adjust font weight, italics, curvature, and alignment as per your preference.
+### Text Customization
+With text selected, the toolbar offers:
+- **Color:** Adjust text hue.
+- **Font:** Select from available fonts.
+- **Format:** Set weight, style, curvature, and alignment.

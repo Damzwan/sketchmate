@@ -1,12 +1,12 @@
-In SketchMate, you can personalize your creations by adding color to your objects. Here's how to do it:
+## Setting Colors in Objects
 
+Easily modify colors in your sketches for a personalized touch.
+
+### Changing Object Colors
 1. Enter select mode.
-2. Tap the object or group of objects you wish to recolor.
-3. Find and tap the paint icon (🎨) in the upper right corner.
-4. You'll now have the option to adjust the following:
-
-    - **Stroke Color:** Alter the color of your object's outlines. For text objects, this changes the color of the text
-      border.
-    - **Fill Color:** Add a solid color inside your object. For text objects, this changes the actual color of the text.
-    - **Background Color:** Add a background color to your objects. Useful for emphasizing or isolating certain elements
-      in your sketch.
+2. Choose your target object(s).
+3. Tap the paint icon (🎨) in the upper right.
+4. Adjust your preferences:
+   - **Stroke Color:** Modify the object's outline or text border.
+   - **Fill Color:** Change the inner color or text hue.
+   - **Background Color:** Add or adjust a background color.

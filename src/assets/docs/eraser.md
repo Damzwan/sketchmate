@@ -1,7 +1,11 @@
-The eraser tool allows you to delete content from your canvas. Here's how to use it:
+## Eraser Tool Guide
 
-1. Select the eraser tool to start erasing.
-2. Press the eraser tool again to open a menu with additional options:
-   - **Normal Eraser:** Removes content from the canvas with each stroke.
-   - **Healing Eraser:** Restores previously erased parts of the canvas.
-   - **Erase All (action):** Deletes all the content from your canvas.
+Use the eraser tool to remove content:
+
+1. Tap the eraser tool to begin erasing.
+2. For more options, tap the eraser tool again:
+   - **Normal Eraser**: Erases content stroke by stroke.
+   - **Healing Eraser**: Retrieves erased parts.
+   - **Erase All (action)**: Clears entire canvas.
+
+**Tip**: On a PC, the cursor shows the eraser size for accurate erasing.

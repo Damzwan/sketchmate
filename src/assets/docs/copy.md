@@ -1,6 +1,8 @@
-Follow these steps to copy an object:
+## Copying Objects
+
+Easily duplicate objects on your canvas:
 
 1. Enter select mode.
-2. Tap the object or selection of objects you want to copy.
-3. Click on the vertical three dots icon to open the options menu.
-4. Click the copy button.
+2. Choose the object(s) to copy.
+3. Tap the vertical three dots for options.
+4. Select "Copy".

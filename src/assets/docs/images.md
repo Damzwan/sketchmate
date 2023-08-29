@@ -1,8 +1,11 @@
-In SketchMate, you can enhance your sketches by adding images or setting them as background. Here's how:
+## Images
 
-1. Click the add icon (+) on the toolbar and select either "Image" or "Camera".
-2. Select an image from your device or take a new one with the camera.
-3. A popup will appear with two options:
+Easily integrate images into your sketches or use them as backgrounds.
 
-   - **Add the Image to the Canvas:** The image will be added as an object on your sketch, and you can interact with it just like any other object.
-   - **Set the Image as Background:** You'll be prompted to crop your image to fit the canvas size. The selected image will serve as the background for your sketch.
+### Add Images
+1. Tap the add icon (+) and choose "Image" or "Camera".
+2. Pick an image or capture a new one.
+
+### Image Options
+- **Add to Canvas:** Lets the image act like a standard object.
+- **Set as Background:** Crop to fit the canvas and use as the sketch backdrop.

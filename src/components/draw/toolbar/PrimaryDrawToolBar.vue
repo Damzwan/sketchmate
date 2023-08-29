@@ -42,14 +42,14 @@
         <SelectMenu />
       </ion-button>
 
-      <ion-button id="docs" data-step="6">
+      <ion-button id="docs" data-step="8">
         <ion-icon slot="icon-only" :icon="svg(mdiHelp)"></ion-icon>
       </ion-button>
       <DocsMenu trigger="docs" />
     </ion-buttons>
 
     <ion-buttons slot="end" class="h-[40px]">
-      <ion-button @click="undo" :disabled="undoStackCounter == 0" data-step="7">
+      <ion-button @click="undo" :disabled="undoStackCounter == 0" data-step="6">
         <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
       </ion-button>
 
@@ -57,7 +57,7 @@
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
-      <ion-button id="send-drawing" :disabled="!isLoggedIn || !hasMate" data-step="8">
+      <ion-button id="send-drawing" :disabled="!isLoggedIn || !hasMate" data-step="7">
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>
 

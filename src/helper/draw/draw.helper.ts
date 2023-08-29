@@ -10,6 +10,7 @@ import { useSelect } from '@/service/draw/tools/select.tool'
 import { mergeObjects } from '@/helper/draw/actions/operation.action'
 import { EventBus } from '@/main'
 import { useEventManager } from '@/service/draw/eventManager.service'
+import { DocsItem, DocsKey } from '@/config/draw/docs.config'
 
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
@@ -129,7 +130,9 @@ export async function fillBackGroundForGroup(obj: fabric.Group, options: Partial
     width: obj.width,
     height: obj.height,
     fill: options.backgroundColor,
-    angle: obj.angle
+    angle: obj.angle,
+    scaleX: obj.scaleX,
+    scaleY: obj.scaleY
   })
   backgroundRect.backgroundObject = true
   obj.set({ backgroundColor: options.backgroundColor })
@@ -330,4 +333,140 @@ export function hexWithTransparencyToNormal(hex: string) {
     return hex.substring(0, 7)
   }
   return hex // Return the original if it's not an 8-character hex color
+}
+
+export function generateNextPrevForDocsItem(item: DocsItem) {
+  if (!item.children) return {}
+  const nextPrev: Partial<Record<DocsKey, (DocsKey | undefined)[]>> = {}
+
+  for (let i = 0; i < item.children?.length; i++) {
+    nextPrev[item.children[i]] = [
+      i == 0 ? undefined : item.children[i - 1],
+      i == item.children.length - 1 ? undefined : item.children[i + 1]
+    ]
+  }
+
+  return nextPrev
+}
+
+const hexToRgb = (hex: string): [number, number, number] => {
+  const bigint = parseInt(hex.substring(1), 16)
+  const r = (bigint >> 16) & 255
+  const g = (bigint >> 8) & 255
+  const b = bigint & 255
+
+  return [r, g, b]
+}
+
+const rgbToHsl = (r: number, g: number, b: number): [number, number, number] => {
+  r /= 255
+  g /= 255
+  b /= 255
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b)
+  let h = 0
+  let s = 0
+  const l = (max + min) / 2
+
+  if (max === min) {
+    h = s = 0
+  } else {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0)
+        break
+      case g:
+        h = (b - r) / d + 2
+        break
+      case b:
+        h = (r - g) / d + 4
+        break
+    }
+    h /= 6
+  }
+
+  return [h * 360, s * 100, l * 100]
+}
+
+const hslToRgb = (h: number, s: number, l: number): [number, number, number] => {
+  let r, g, b
+
+  if (s === 0) {
+    r = g = b = l // achromatic
+  } else {
+    const hue2rgb = (p: number, q: number, t: number) => {
+      if (t < 0) t += 1
+      if (t > 1) t -= 1
+      if (t < 1 / 6) return p + (q - p) * 6 * t
+      if (t < 1 / 2) return q
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+      return p
+    }
+
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    r = hue2rgb(p, q, h + 1 / 3)
+    g = hue2rgb(p, q, h)
+    b = hue2rgb(p, q, h - 1 / 3)
+  }
+
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)]
+}
+
+const rgbToHex = (r: number, g: number, b: number): string => {
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()
+}
+
+export const getColorRecommendations = (hexColor: string): string[][] => {
+  const [r, g, b] = hexToRgb(hexColor)
+  const [h, s, l] = rgbToHsl(r, g, b)
+
+  const recommendations: string[][] = []
+
+  // Determine adaptive lightness variations
+  const adaptiveVariations =
+    l < 30 ? [10, 20, 30, 40, 50, 60] : l > 70 ? [-60, -50, -40, -30, -20, -10] : [-40, -30, -20, 10, 20, 30]
+
+  // Sort variations from light to dark
+  adaptiveVariations.sort((a, b) => b - a)
+
+  // Similar colors (adaptive based on lightness)
+  const similarColors = adaptiveVariations.map(variation => {
+    const adjustedLightness = l + variation
+    return [h, s, Math.max(0, Math.min(100, adjustedLightness))]
+  })
+
+  recommendations.push(similarColors.map(([h, s, l]) => rgbToHex(...hslToRgb(h / 360, s / 100, l / 100))))
+
+  // Gradient of complementary color (light to dark)
+  const complementaryHue = (h + 180) % 360
+  const complementaryGradient = [
+    [complementaryHue, s, 85],
+    [complementaryHue, s, 75],
+    [complementaryHue, s, 65],
+    [complementaryHue, s, 55],
+    [complementaryHue, s, 45],
+    [complementaryHue, s, 35]
+  ]
+
+  recommendations.push(complementaryGradient.map(([h, s, l]) => rgbToHex(...hslToRgb(h / 360, s / 100, l / 100))))
+
+  // Gradient of another complementary color (light to dark)
+  const shiftedHue = (h + 120) % 360 // Adding 120 degrees for a more distinct complementary color
+  const shiftedComplementaryGradient = [
+    [shiftedHue, s, 85],
+    [shiftedHue, s, 75],
+    [shiftedHue, s, 65],
+    [shiftedHue, s, 55],
+    [shiftedHue, s, 45],
+    [shiftedHue, s, 35]
+  ]
+
+  recommendations.push(
+    shiftedComplementaryGradient.map(([h, s, l]) => rgbToHex(...hslToRgb(h / 360, s / 100, l / 100)))
+  )
+
+  return recommendations
 }

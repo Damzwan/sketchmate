@@ -26,6 +26,7 @@
       </div>
 
       <div class="flex justify-center items-center absolute bottom-4 w-full">
+        <div id="clickOutside" />
         <ion-button v-if="canZoomOut" @click="resetZoom" color="secondary" shape="round">
           <ion-icon slot="start" :icon="svg(mdiMagnifyMinusOutline)" />
           Reset zoom

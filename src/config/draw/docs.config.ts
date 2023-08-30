@@ -13,6 +13,7 @@ import {
   mdiGestureTapButton,
   mdiImage,
   mdiImageMultipleOutline,
+  mdiKeyboardOutline,
   mdiMerge,
   mdiMinusThick,
   mdiPencilOutline,
@@ -44,6 +45,7 @@ import undoredo from '@/assets/docs/undoredo.md'
 import settings from '@/assets/docs/settings.md'
 import draw from '@/assets/docs/draw.md'
 import width from '@/assets/docs/width.md'
+import shortcut from '@/assets/docs/shortcut.md'
 
 export interface DocsItem {
   icon: string
@@ -77,12 +79,13 @@ export type DocsKey =
   | 'layer'
   | 'draw'
   | 'width'
+  | 'shortcut'
 
 export const docsMapping: Record<DocsKey, DocsItem> = {
   started: {
     icon: mdiCompassOutline,
     text: 'Getting started',
-    children: ['overview', 'connect', 'draw', 'gallery', 'settings']
+    children: ['overview', 'connect', 'draw', 'gallery', 'settings', 'shortcut']
   },
   tools: {
     icon: mdiTools,
@@ -212,6 +215,11 @@ export const docsMapping: Record<DocsKey, DocsItem> = {
     icon: mdiMinusThick,
     text: 'Border width',
     page: width
+  },
+  shortcut: {
+    icon: mdiKeyboardOutline,
+    text: 'Shortcuts',
+    page: shortcut
   }
 }
 

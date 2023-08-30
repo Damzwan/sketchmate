@@ -22,6 +22,7 @@ export async function requestNotifications() {
       throw new Error('User denied permissions!')
     }
 
+    disableNotifications()
     await requestLocalNotifications()
     await requestPushNotifications()
   } else await PWARequestNotifications()
@@ -46,7 +47,7 @@ export async function PWARequestNotifications() {
   setNotifications(token)
 }
 export function disableNotifications() {
-  disableLocalNotifications()
+  if (isNative()) disableLocalNotifications()
   const { setNotifications } = useAppStore()
   setNotifications(undefined)
 }

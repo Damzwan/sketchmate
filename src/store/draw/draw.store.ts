@@ -35,6 +35,7 @@ import { useEventManager } from '@/service/draw/eventManager.service'
 import { loadAdditionalBrushes } from '@/utils/brushes'
 import { Select } from '@/service/draw/tools/select.tool'
 import { useBackgroundSaver } from '@/service/draw/backgroundSaved.service'
+import { useShortcutManager } from '@/service/draw/shortcutManager'
 
 export const useDrawStore = defineStore('draw', () => {
   const { user } = storeToRefs(useAppStore())
@@ -52,6 +53,7 @@ export const useDrawStore = defineStore('draw', () => {
   const loadService = useLoadService()
   const eventManager = useEventManager()
   const backgroundSaver = useBackgroundSaver()
+  const shortcutManager = useShortcutManager()
   const history = useHistory()
 
   // Selected tools
@@ -147,6 +149,7 @@ export const useDrawStore = defineStore('draw', () => {
     initGestures(c, hammer)
     initTools(c, tools)
     backgroundSaver.startSaving(c)
+    shortcutManager.init(c)
 
     const selected = (tools[DrawTool.Select] as Select).getSelectedObjects() // important that this is before selectTool
     selectTool(selectedTool.value, { init: true })
@@ -160,6 +163,7 @@ export const useDrawStore = defineStore('draw', () => {
     history.destroy(maintainHistory)
     backgroundSaver.destroy()
     eventManager.destroy()
+    shortcutManager.destroy()
   }
 
   function showLoading(text: string) {

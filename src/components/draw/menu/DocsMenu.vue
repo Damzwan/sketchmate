@@ -171,6 +171,14 @@ ion-modal {
   list-style: none; /* Remove default bullets */
 }
 
+.prose-base code::before {
+  content: none;
+}
+
+.prose-base code::after {
+  content: none;
+}
+
 .prose-base ul > li::before {
   content: '\2022'; /* Add content: \2022 is the CSS Code/unicode for a bullet */
   color: var(--ion-color-secondary);

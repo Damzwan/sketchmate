@@ -2,6 +2,7 @@
   <ion-toolbar color="primary" mode="md">
     <ion-buttons slot="start">
       <ion-button
+        id="pen"
         data-step="1"
         :class="{ selected: PENMENUTOOLS.includes(selectedTool) }"
         @click="selectTool(lastSelectedPenMenuTool, { openMenu: true, e: $event })"
@@ -13,6 +14,7 @@
       </ion-button>
       <PenMenu />
       <ion-button
+        id="eraser"
         data-step="2"
         :class="{ selected: ERASERS.includes(selectedTool) }"
         @click="selectTool(lastSelectedEraserTool, { openMenu: true, e: $event })"
@@ -31,6 +33,7 @@
       <StickersEmblemsSavedMenu />
 
       <ion-button
+        id="select-tool"
         :class="{ selected: SELECTMENUTOOLS.includes(selectedTool) }"
         @click="selectTool(lastSelectedSelectTool, { openMenu: true, e: $event })"
         data-step="4"
@@ -49,11 +52,11 @@
     </ion-buttons>
 
     <ion-buttons slot="end" class="h-[40px]">
-      <ion-button @click="undo" :disabled="undoStackCounter == 0" data-step="6">
+      <ion-button @click="undo" id="undo" :disabled="undoStackCounter == 0" data-step="6">
         <ion-icon slot="icon-only" :icon="svg(mdiUndo)"></ion-icon>
       </ion-button>
 
-      <ion-button @click="redo" :disabled="redoStackCounter == 0">
+      <ion-button @click="redo" id="redo" :disabled="redoStackCounter == 0">
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 

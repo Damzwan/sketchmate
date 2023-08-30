@@ -470,3 +470,7 @@ export const getColorRecommendations = (hexColor: string): string[][] => {
 
   return recommendations
 }
+
+export function isMac() {
+  return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+}

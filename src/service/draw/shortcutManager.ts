@@ -79,30 +79,35 @@ export function useShortcutManager() {
     switch (event.key) {
       case Shortcut.pen:
         event.preventDefault()
+        if (isSelectMode.value) return
         document.getElementById('pen')!.click()
         dismissPopover()
         break
 
       case Shortcut.eraser:
         event.preventDefault()
+        if (isSelectMode.value) return
         document.getElementById('eraser')!.click()
         dismissPopover()
         break
 
       case Shortcut.moreTools:
         event.preventDefault()
+        if (isSelectMode.value) return
         document.getElementById('more_tools')!.click()
         dismissPopover()
         break
 
       case Shortcut.select:
         event.preventDefault()
+        if (isSelectMode.value) return
         document.getElementById('select-tool')!.click()
         dismissPopover()
         break
 
       case Shortcut.manual:
         event.preventDefault()
+        if (isSelectMode.value) return
         document.getElementById('docs')!.click()
         dismissPopover()
         const modal = await modalController.getTop()
@@ -120,6 +125,7 @@ export function useShortcutManager() {
 
       case Shortcut.send:
         event.preventDefault()
+        if (isSelectMode.value) return
         if (!document.getElementById('send-drawing')!.ariaDisabled) document.getElementById('send-drawing')!.click()
         dismissPopover()
         break
@@ -169,6 +175,13 @@ export function useShortcutManager() {
         event.preventDefault()
         if (!isSelectMode.value || selectedObjectsRef.value.length < 2) return
         selectAction(DrawAction.Merge, { objects: getSelectedObjects() })
+        dismissPopover()
+        break
+
+      case Shortcut.copy:
+        event.preventDefault()
+        if (!isSelectMode.value) return
+        selectAction(DrawAction.CopyObject, { objects: getSelectedObjects() })
         dismissPopover()
         break
 

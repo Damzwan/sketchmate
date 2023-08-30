@@ -185,6 +185,13 @@ export function useShortcutManager() {
         dismissPopover()
         break
 
+      case Shortcut.save:
+        event.preventDefault()
+        if (!isSelectMode.value) return
+        selectAction(DrawAction.CreateSaved, { objects: getSelectedObjects() })
+        dismissPopover()
+        break
+
       case Shortcut.layerUp:
         event.preventDefault()
         if (!isSelectMode.value) return

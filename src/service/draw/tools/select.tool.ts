@@ -74,9 +74,8 @@ export const useSelect = defineStore('select', (): Select => {
       type: DrawEvent.SetModified,
       on: 'mouse:down',
       handler: async (o: any) => {
+        if (removeTimeout) return
         const activeObject = c!.getActiveObject()
-
-        if (!objectsStack.includes(activeObject)) objectsStack = []
 
         const currentTimestamp = new Date().getTime()
         const isDoubleTap = currentTimestamp - lastTapTimestamp < 300 // e.g. 300 milliseconds
@@ -85,6 +84,7 @@ export const useSelect = defineStore('select', (): Select => {
         if (isDoubleTap && activeObject) {
           // Always compute the objects stack based on the currently active object
           objectsStack = c!.getObjects().filter(obj => activeObject.intersectsWithObject(obj))
+          if (objectsStack.length == 0) return
 
           const pointer = c!.getPointer(o.e)
 
@@ -110,62 +110,12 @@ export const useSelect = defineStore('select', (): Select => {
           }
 
           // special edge case that probably collides with internal fabricjs logic
-          if (multiSelectMode.value && selectedObjects.length == 1)
-            await new Promise(resolve => setTimeout(resolve, 200))
-
-          c!.setActiveObject(objectsStack[currentObjectIndex])
-        }
-      }
-    },
-    {
-      type: DrawEvent.SetModified,
-      on: 'mouse:down',
-      handler: async (o: any) => {
-        // TODO this logic is very broken sadly
-        // if (o.target && multiSelectMode.value) {
-        //   const objectsThatContainPointer = c!
-        //     .getObjects()
-        //     .filter((obj: any) => obj.containsPoint(o.pointer, obj._getImageLines(obj.oCoords), true))
-        //   const pointsNotInSelection = objectsThatContainPointer.filter(
-        //     o => !getSelectedObjects().find(o2 => o2.id == o.id)
-        //   )
-        //
-        //   if (pointsNotInSelection.length > 0) {
-        //     await actionWithoutEvents(() => {
-        //       const o = c!.getActiveObjects()
-        //       c?.discardActiveObject()
-        //       const newSelection = new fabric.ActiveSelection([...o, pointsNotInSelection[0]], {
-        //         canvas: c!
-        //       })
-        //       c?.setActiveObject(newSelection)
-        //       // setSelectedObjects(newSelection.getObjects())
-        //       c?.requestRenderAll()
-        //     })
-        //     // setMouseClickTarget(o.target)
-        //     // c!.setActiveObject(pointsNotInSelection[0])
-        //   } else {
-        //     // TODO does not work when we move the active selection
-        //     // if (objectCountBeforeNewSelect.value != getSelectedObjects().length) return
-        //     // const pointsInSelection = objectsThatContainPointer.filter(
-        //     //   o => !!getSelectedObjects().find(o2 => o2.id == o.id)
-        //     // )
-        //     // removeTimeout = setTimeout(() => {
-        //     //   if (pointsInSelection.length > 0) {
-        //     //     console.log('fire!')
-        //     //     removeObjectFromMultiSelect(pointsInSelection[0])
-        //     //   }
-        //     // }, 200)
-        //   }
-        // }
-      }
-    },
-    {
-      type: DrawEvent.SetModified,
-      on: 'object:moving',
-      handler: () => {
-        if (removeTimeout) {
-          clearTimeout(removeTimeout)
-          removeTimeout = null
+          if (multiSelectMode.value && selectedObjects.length == 1) {
+            removeTimeout = setTimeout(() => {
+              c!.setActiveObject(objectsStack[currentObjectIndex])
+              removeTimeout = null
+            }, 300)
+          } else c!.setActiveObject(objectsStack[currentObjectIndex])
         }
       }
     },
@@ -181,6 +131,7 @@ export const useSelect = defineStore('select', (): Select => {
       type: DrawEvent.SetModified,
       on: 'touch:longpress',
       handler: (o: any) => {
+        if (multiSelectMode.value) return
         const touchType = o.e.type
         if (touchType != 'touchstart') return
 

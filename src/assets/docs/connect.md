@@ -8,7 +8,7 @@ Connect with someone to use **SketchMate**:
 2. Aim at your friend's QR code.
 3. Once scanned, you're mates!
 
-> **Tip**: Scan the QR code using your camera app too!
+> **Tip**: You can scan the QR code using your camera app too!
 
 ### Method 2: Connect Link
 

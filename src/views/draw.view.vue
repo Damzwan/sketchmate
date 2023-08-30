@@ -1,19 +1,23 @@
 <template>
-  <ion-page>
+  <ion-page id="root">
     <LinearLoader :text="loadingText" class="absolute z-50" v-if="isLoading" :darken="true" />
     <ion-header class="ion-no-border">
-      <ShapeCreationToolbar v-show="shapeCreationMode !== undefined" />
-      <div v-show="shapeCreationMode === undefined">
-        <!--        We use v-show instead of v-show to keep the state of the component-->
-        <SelectToolBar v-show="selectedObjectsRef.length > 0" class="z-[1000] absolute left-0 top-0" />
-        <PrimaryDrawToolBar />
+      <div id="select">
+        <ShapeCreationToolbar v-show="shapeCreationMode !== undefined" />
+        <div v-show="shapeCreationMode === undefined">
+          <!--        We use v-show instead of v-show to keep the state of the component-->
+          <SelectToolBar v-show="selectedObjectsRef.length > 0" class="z-[1000] absolute left-0 top-0" />
+          <PrimaryDrawToolBar />
+        </div>
       </div>
     </ion-header>
     <ion-content>
       <ShapesMenu />
 
       <div>
-        <canvas ref="myCanvasRef" />
+        <div id="canvas">
+          <canvas ref="myCanvasRef" />
+        </div>
         <div class="w-full h-[50px] bg-primary bottom-0 absolute" v-if="isTrial">
           <ion-button class="w-full h-full p-0 m-0" @click="router.push(FRONTEND_ROUTES.connect)">
             Go back to connect page
@@ -79,6 +83,8 @@ onMounted(() => {
 if (!localStorage.getItem(LocalStorage.tour2)) {
   watch(selectedObjectsRef, () => {
     if (selectedObjectsRef.value.length > 0 && !localStorage.getItem(LocalStorage.tour2)) {
+      document.getElementById('canvas')!.style.pointerEvents = 'none'
+      document.getElementById('select')!.style.pointerEvents = 'none'
       currDataSteps.value = tutorialSteps2
       isSelectTour.value = true
       tour.value.resetTour()
@@ -88,5 +94,9 @@ if (!localStorage.getItem(LocalStorage.tour2)) {
 
 function onTourEnd() {
   localStorage.setItem(isSelectTour.value ? LocalStorage.tour2 : LocalStorage.tour1, 'si')
+  if (isSelectTour.value) {
+    document.getElementById('canvas')!.style.pointerEvents = 'auto'
+    document.getElementById('select')!.style.pointerEvents = 'auto'
+  }
 }
 </script>

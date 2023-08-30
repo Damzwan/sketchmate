@@ -4,14 +4,14 @@ Explore the SketchMate user interface with its top toolbar full of tools and act
 
 ### Tools vs Actions
 
-- **Tools 🛠️**:
-    - Continuous-use utilities.
-    - The selected tool shows a **red underline**.
-    - Some tools have a chevron symbol — tap them for more options.
+**Tools 🛠️**:
+- Continuous-use utilities.
+- The selected tool shows a **red underline**.
+- Some tools have a chevron symbol — tap them for more options.
 
-- **Actions ⚙️**:
-    - One-time commands.
-    - Deactivate after use.
+**Actions ⚙️**:
+- One-time commands.
+- Deactivate after use.
 
 Visit the specific pages for each tool and action to dive deeper.
 

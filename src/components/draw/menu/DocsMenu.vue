@@ -162,13 +162,20 @@ ion-modal {
 </style>
 
 <style>
-.vue-link {
-  color: blue;
-  text-decoration: underline;
-  cursor: pointer;
+.prose-base blockquote {
+  border-left-color: var(--ion-color-secondary);
+  quotes: none;
 }
 
-.vue-link:hover {
-  text-decoration: none;
+.prose-base ul {
+  list-style: none; /* Remove default bullets */
+}
+
+.prose-base ul > li::before {
+  content: '\2022'; /* Add content: \2022 is the CSS Code/unicode for a bullet */
+  color: var(--ion-color-secondary);
+  display: inline-block; /* Needed to add space between the bullet and the text */
+  width: 1em; /* Also needed for space (tweak if needed) */
+  margin-left: -1em; /* Also needed for space (tweak if needed) */
 }
 </style>

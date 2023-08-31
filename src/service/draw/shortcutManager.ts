@@ -205,6 +205,26 @@ export function useShortcutManager() {
         selectAction(DrawAction.MoveDownOneLayer, { objects: getSelectedObjects() })
         dismissPopover()
         break
+
+      case Shortcut.paste:
+        event.preventDefault()
+        if (isSelectMode.value) c?.discardActiveObject()
+        const items = await navigator.clipboard.read()
+
+        for (const item of items) {
+          for (const type of item.types) {
+            if (!type.includes('image')) continue
+            const blob = await item.getType(type)
+            const reader = new FileReader()
+            reader.onloadend = () => {
+              selectAction(DrawAction.Sticker, { img: reader.result })
+            }
+            reader.readAsDataURL(blob)
+            dismissPopover()
+            break
+          }
+        }
+        break
     }
   }
 

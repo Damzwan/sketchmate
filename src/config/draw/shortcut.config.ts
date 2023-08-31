@@ -18,5 +18,6 @@ export enum Shortcut {
   moveLeft = 'ArrowLeft',
   moveUp = 'ArrowUp',
   moveRight = 'ArrowRight',
-  moveDown = 'ArrowDown'
+  moveDown = 'ArrowDown',
+  paste = 'v'
 }

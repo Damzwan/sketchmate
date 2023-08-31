@@ -9,6 +9,7 @@ import { ERASERS } from '@/config/draw/draw.config'
 import { isMobile } from '@/helper/general.helper'
 import { storeToRefs } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.tool'
+import { EventBus } from '@/main'
 
 export function enableZoomAndPan(c: any) {
   if (isMobile()) enableMobileGestures(c)
@@ -230,17 +231,19 @@ export function enablePCGestures(c: any) {
 }
 
 export const checkCanvasBounds = (c: Canvas) => {
-  if (c.viewportTransform![4] >= 0) {
-    c.viewportTransform![4] = 0
-  } else if (c.viewportTransform![4] < c.getWidth() - c.getWidth() * c.getZoom()) {
-    c.viewportTransform![4] = c.getWidth() - c.getWidth() * c.getZoom()
+  const vpt = c.viewportTransform!
+  if (vpt[4] >= 0) {
+    vpt[4] = 0
+  } else if (vpt[4] < c.getWidth() - c.getWidth() * c.getZoom()) {
+    vpt[4] = c.getWidth() - c.getWidth() * c.getZoom()
   }
 
-  if (c.viewportTransform![5] >= 0) {
-    c.viewportTransform![5] = 0
-  } else if (c.viewportTransform![5] < c.getHeight() - c.getHeight() * c.getZoom()) {
-    c.viewportTransform![5] = c.getHeight() - c.getHeight() * c.getZoom()
+  if (vpt[5] >= 0) {
+    vpt[5] = 0
+  } else if (vpt[5] < c.getHeight() - c.getHeight() * c.getZoom()) {
+    vpt[5] = c.getHeight() - c.getHeight() * c.getZoom()
   }
+  c.setViewportTransform(vpt)
 }
 export const handleZoom = (scale: number, centerX: number, centerY: number, c: Canvas) => {
   const dampeningFactor = 0.2
@@ -264,9 +267,11 @@ export const handlePan = (delta: IPoint, c: Canvas) => {
 }
 
 export function resetZoom() {
-  const { getCanvas, setCanZoomOut } = useDrawStore()
+  const { getCanvas, setCanZoomOut, selectedTool } = useDrawStore()
   const c = getCanvas()
   c.setZoom(1)
   checkCanvasBounds(c)
   setCanZoomOut(false)
+  EventBus.emit('resetZoom')
+  c.renderAll()
 }

@@ -1,25 +1,18 @@
 <template>
   <ion-toolbar color="primary" mode="md">
     <ion-buttons slot="end">
-      <ion-button id="line_width_shape">
-        <ion-icon slot="icon-only" :icon="svg(mdiMinusThick)"></ion-icon>
-        <StrokeWidthMenu
-          trigger="line_width_shape"
-          :strokeWidth="shapeCreationSettings.strokeWidth!"
-          @update:strokeWidth="handleStrokeWidthUpdate"
-        />
-      </ion-button>
-
       <ion-button id="select_color_shape">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
         <SelectColorMenu
           trigger="select_color_shape"
+          :strokeWidth="shapeCreationSettings.strokeWidth!"
           :stroke-color="shapeCreationSettings.stroke"
           :fill-color="shapeCreationSettings.fill as string"
           :backgroundColor-color="shapeCreationSettings.backgroundColor"
           @update:stroke-color="color => handleColorUpdate(color, 'stroke')"
           @update:fill-color="color => handleColorUpdate(color, 'fill')"
           @update:background-color="color => handleColorUpdate(color, 'background')"
+          @update:strokeWidth="handleStrokeWidthUpdate"
         />
       </ion-button>
 
@@ -40,14 +33,13 @@
 
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
-import { mdiCheck, mdiMinusThick, mdiPaletteOutline, mdiRedo, mdiUndo } from '@mdi/js'
+import { mdiCheck, mdiPaletteOutline, mdiRedo, mdiUndo } from '@mdi/js'
 import { IonButton, IonButtons, IonIcon, IonToolbar, popoverController } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useHistory } from '@/service/draw/history.service'
 import { exitShapeCreationMode } from '@/helper/draw/draw.helper'
 import { useDrawStore } from '@/store/draw/draw.store'
 import SelectColorMenu from '@/components/draw/menu/SelectColorMenu.vue'
-import StrokeWidthMenu from '@/components/draw/menu/StrokeWidthMenu.vue'
 
 const { shapeCreationSettings } = storeToRefs(useDrawStore())
 const { undo, redo } = useHistory()

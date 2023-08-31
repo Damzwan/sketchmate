@@ -11,10 +11,13 @@ import { mergeObjects } from '@/helper/draw/actions/operation.action'
 import { EventBus } from '@/main'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { DocsItem, DocsKey } from '@/config/draw/docs.config'
+import { ColorRGBA } from 'q-floodfill'
 
+// TODO we should remove this one
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
   checkCanvasBounds(c)
+  c.renderAll()
 }
 
 export function findObjectById(canvas: fabric.Canvas, id: string) {
@@ -111,7 +114,7 @@ export async function fillBackGroundForGroup(obj: fabric.Group, options: Partial
 
   if (existingBackgroundRect) {
     await actionWithoutEvents(() => {
-      obj.removeWithUpdate(existingBackgroundRect)
+      obj.remove(existingBackgroundRect)
       obj.canvas!.remove(existingBackgroundRect)
     })
   }
@@ -124,13 +127,14 @@ export async function fillBackGroundForGroup(obj: fabric.Group, options: Partial
     return
   }
 
+  const a = obj.angle!
+  obj.rotate(0)
   const backgroundRect = new fabric.Rect({
     top: obj.top,
     left: obj.left,
     width: obj.width,
     height: obj.height,
     fill: options.backgroundColor,
-    angle: obj.angle,
     scaleX: obj.scaleX,
     scaleY: obj.scaleY
   })
@@ -145,6 +149,7 @@ export async function fillBackGroundForGroup(obj: fabric.Group, options: Partial
   const newGroup = await mergeObjects(getCanvas(), { objects: [backgroundRect, ...obj.getObjects()], notSave: true })
   newGroup.id = obj.id
   newGroup.set({ backgroundColor: options.backgroundColor })
+  newGroup.rotate(a)
 
   if (shouldReselect) setSelectedObjects([newGroup]) // hack needed to update the property
   newGroup.canvas.renderAll()
@@ -276,9 +281,11 @@ export function getStaticObjWithAbsolutePosition(obj: fabric.Object) {
 }
 
 export function updateFreeDrawingCursor(c: Canvas, size: number, color: string, eraser = false) {
+  const adjustedSize = size * c.getZoom()
+
   const canvas: HTMLCanvasElement = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
+  canvas.width = adjustedSize
+  canvas.height = adjustedSize
   const ctx: CanvasRenderingContext2D | null = canvas.getContext('2d')
 
   if (!ctx) {
@@ -287,7 +294,7 @@ export function updateFreeDrawingCursor(c: Canvas, size: number, color: string, 
 
   // Draw the circle in the center
   ctx.beginPath()
-  ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI, false)
+  ctx.arc(adjustedSize / 2, adjustedSize / 2, adjustedSize / 2, 0, 2 * Math.PI, false)
   ctx.fillStyle = color
   ctx.fill()
 
@@ -299,7 +306,8 @@ export function updateFreeDrawingCursor(c: Canvas, size: number, color: string, 
 
   // Convert to data URL
   const url = canvas.toDataURL('image/png')
-  c.freeDrawingCursor = `url(${url}) ${size / 2} ${size / 2}, crosshair`
+  c.freeDrawingCursor = `url(${url}) ${adjustedSize / 2} ${adjustedSize / 2}, crosshair`
+  c.setCursor(c.freeDrawingCursor)
 }
 
 export function isColorTooLight(hex: string) {
@@ -320,6 +328,18 @@ export function percentToAlphaHex(opacity: number) {
     .toString(16)
     .padStart(2, '0')
     .toUpperCase()
+}
+
+export function alphaHexToPercent(hex: string): number {
+  // Convert hex to integer (0-255)
+  const intValue = hex ? parseInt(hex, 16) : 255
+
+  // Convert to percentage and round it
+  return Math.round((intValue / 255) * 100)
+}
+
+export function hexWithOpacity(hex: string, opacityHex: string) {
+  return hex.substring(0, 7) + opacityHex
 }
 
 export function distance(point1: { x: number; y: number }, point2: { x: number; y: number }) {
@@ -473,4 +493,40 @@ export const getColorRecommendations = (hexColor: string): string[][] => {
 
 export function isMac() {
   return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+}
+
+export function hex2RGBA(hex: string): ColorRGBA {
+  let parsedHex = hex.startsWith('#') ? hex.slice(1) : hex
+
+  // Convert 4-digit hex (with alpha) to 8-digits and 3-digit hex to 6-digits.
+  if (parsedHex.length === 4) {
+    parsedHex =
+      parsedHex[0] +
+      parsedHex[0] +
+      parsedHex[1] +
+      parsedHex[1] +
+      parsedHex[2] +
+      parsedHex[2] +
+      parsedHex[3] +
+      parsedHex[3]
+  } else if (parsedHex.length === 3) {
+    parsedHex = parsedHex[0] + parsedHex[0] + parsedHex[1] + parsedHex[1] + parsedHex[2] + parsedHex[2]
+  }
+
+  // Check for valid lengths (either 6 without alpha or 8 with alpha)
+  if (parsedHex.length !== 6 && parsedHex.length !== 8) {
+    throw new Error(`Invalid HEX color ${parsedHex}.`)
+  }
+
+  const r = parseInt(parsedHex.slice(0, 2), 16)
+  const g = parseInt(parsedHex.slice(2, 4), 16)
+  const b = parseInt(parsedHex.slice(4, 6), 16)
+  const a = parsedHex.length === 8 ? parseInt(parsedHex.slice(6, 8), 16) : 255
+
+  return {
+    r,
+    g,
+    b,
+    a
+  }
 }

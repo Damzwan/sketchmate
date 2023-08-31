@@ -1,7 +1,18 @@
 <template>
   <ion-popover :trigger="trigger" @didDismiss="onDismiss" :showBackdrop="false" @willPresent="onPresent">
-    <ion-content>
-      <ion-list lines="none" class="divide-y divide-primary p-0">
+    <ion-content class="divide-y divide-primary">
+      <div class="px-2 pt-1">
+        <label for="slider">Stroke Width: {{ strokeWidth }}</label>
+        <ion-range
+          id="slider"
+          :value="strokeWidth"
+          @ionChange="(e: any) => emits('update:strokeWidth', e.detail.value)"
+          min="2"
+          max="50"
+          color="secondary"
+        />
+      </div>
+      <ion-list lines="none" class="p-0 divide-y divide-primary">
         <ion-item color="tertiary" :button="true" id="stroke">
           <ion-icon :icon="svg(mdiBorderColor)" />
           <p class="pl-2 text-base">Stroke Color</p>
@@ -11,17 +22,14 @@
             class="flex items-center -mr-2"
           >
             <div class="rounded-full w-[26px] h-[26px]" :style="{ backgroundColor: strokeColor }" />
-            <ion-icon
-              class="w-[32px] h-[32px]"
-              :icon="svg(mdiClose)"
-              color="danger"
-              @click="() => emits('update:stroke-color', BLACK)"
-              @click.stop
-            />
           </div>
 
           <ion-popover trigger="stroke" side="left">
-            <ColorPicker :color="strokeColor || BLACK" @update:color="c => emits('update:stroke-color', c)" />
+            <ColorPicker
+              :color="strokeColor || BLACK"
+              @update:color="c => emits('update:stroke-color', c)"
+              :show-opacity="true"
+            />
           </ion-popover>
         </ion-item>
 
@@ -40,7 +48,7 @@
           </div>
 
           <ion-popover trigger="fill" side="left">
-            <ColorPicker :color="fillColor || BLACK" @update:color="c => emits('update:fill-color', c)" />
+            <ColorPicker :color="fillColor" @update:color="c => emits('update:fill-color', c)" :show-opacity="true" />
           </ion-popover>
         </ion-item>
 
@@ -64,7 +72,11 @@
           </div>
 
           <ion-popover trigger="background" side="left">
-            <ColorPicker :color="backgroundColor || BLACK" @update:color="c => emits('update:background-color', c)" />
+            <ColorPicker
+              :color="backgroundColor || BLACK"
+              @update:color="c => emits('update:background-color', c)"
+              :show-opacity="true"
+            />
           </ion-popover>
         </ion-item>
       </ion-list>
@@ -75,7 +87,7 @@
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
 import { mdiBorderColor, mdiClose, mdiFormatColorFill, mdiPanoramaHorizontalOutline } from '@mdi/js'
-import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
+import { IonContent, IonIcon, IonItem, IonList, IonPopover, IonRange } from '@ionic/vue'
 import { ref } from 'vue'
 import { BLACK } from '@/config/draw/draw.config'
 import { focusText, hexWithTransparencyToNormal, isText } from '@/helper/draw/draw.helper'
@@ -89,6 +101,7 @@ defineProps<{
   strokeColor?: string
   fillColor?: string
   backgroundColor?: string
+  strokeWidth: number
 }>()
 
 const shouldRefocusTextAfterClose = ref(false)
@@ -97,6 +110,7 @@ const emits = defineEmits<{
   (e: 'update:stroke-color', color: string): void
   (e: 'update:fill-color', color: string | undefined): void
   (e: 'update:background-color', color: string | undefined): void
+  (e: 'update:strokeWidth', strokeWidth: number): void
 }>()
 
 function onDismiss() {

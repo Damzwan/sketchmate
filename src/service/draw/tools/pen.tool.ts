@@ -1,16 +1,19 @@
 import { Ref, ref, watch } from 'vue'
 import { BLACK, BRUSHSIZE } from '@/config/draw/draw.config'
-import { BrushType, FabricEvent, ToolService } from '@/types/draw.types'
+import { BrushType, DrawEvent, DrawTool, FabricEvent, ToolService } from '@/types/draw.types'
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
-import { percentToAlphaHex, updateFreeDrawingCursor } from '@/helper/draw/draw.helper'
+import { hexWithOpacity, percentToAlphaHex, updateFreeDrawingCursor } from '@/helper/draw/draw.helper'
+import { EventBus } from '@/main'
+import { useDrawStore } from '@/store/draw/draw.store'
 
 interface Pen extends ToolService {
   brushSize: Ref<number>
   brushType: Ref<BrushType>
   brushColor: Ref<string>
   opacity: Ref<number>
+  brushColorWithOpacity: () => string
 }
 
 export const brushMapping: { [key in BrushType]: any } = {
@@ -30,7 +33,18 @@ export const usePen = defineStore('pen', (): Pen => {
   const brushType = ref<BrushType>(BrushType.Pencil)
   const brushColor = ref(BLACK)
   const opacity = ref(100)
-  const events: FabricEvent[] = []
+  const events: FabricEvent[] = [
+    {
+      on: 'mouse:wheel',
+      type: DrawEvent.ShapeCreation,
+      handler: updatePenCursor
+    }
+  ]
+
+  EventBus.on('resetZoom', () => {
+    const { selectedTool } = useDrawStore()
+    if (selectedTool == DrawTool.Pen) updatePenCursor()
+  })
 
   function init(canvas: Canvas) {
     c = canvas
@@ -45,8 +59,12 @@ export const usePen = defineStore('pen', (): Pen => {
     const newBrush = brushMapping[brushType.value](c)
     c.freeDrawingBrush = newBrush!
     c.freeDrawingBrush.width = brushSize.value
-    c!.freeDrawingBrush.color = brushColor.value + percentToAlphaHex(opacity.value)
+    c!.freeDrawingBrush.color = brushColorWithOpacity()
     updatePenCursor()
+  }
+
+  function brushColorWithOpacity() {
+    return hexWithOpacity(brushColor.value.substring(0, 7), percentToAlphaHex(opacity.value))
   }
 
   function updatePenCursor() {
@@ -59,12 +77,12 @@ export const usePen = defineStore('pen', (): Pen => {
   })
 
   watch(brushColor, () => {
-    c!.freeDrawingBrush.color = brushColor.value + percentToAlphaHex(opacity.value)
+    c!.freeDrawingBrush.color = brushColorWithOpacity()
     updatePenCursor()
   })
 
   watch(opacity, () => {
-    c!.freeDrawingBrush.color = brushColor.value + percentToAlphaHex(opacity.value)
+    c!.freeDrawingBrush.color = brushColorWithOpacity()
     updatePenCursor()
   })
 
@@ -72,5 +90,5 @@ export const usePen = defineStore('pen', (): Pen => {
     select(c!)
   })
 
-  return { select, init, brushSize, brushType, brushColor, events: events, destroy, opacity }
+  return { select, init, brushSize, brushType, brushColor, events: events, destroy, opacity, brushColorWithOpacity }
 })

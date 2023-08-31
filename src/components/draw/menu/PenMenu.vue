@@ -14,12 +14,12 @@
 
       <!-- Brush Size Slider -->
       <div class="px-2 pt-1">
-        <label for="slider">Size</label>
+        <label for="slider">Stroke Width: {{ brushSize }}</label>
         <ion-range aria-label="Volume" id="slider" v-model="brushSize" min="2" max="50" color="secondary" />
       </div>
 
       <div class="px-2 pt-1">
-        <label for="slider">Transparency</label>
+        <label for="slider">Opacity: {{ opacity }}</label>
         <ion-range aria-label="Volume" id="slider" v-model="opacity" min="0" max="100" color="secondary" />
       </div>
 
@@ -87,11 +87,7 @@ import { useMenuStore } from '@/store/draw/menu.store'
 import { brushMapping, usePen } from '@/service/draw/tools/pen.tool'
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
-import {
-  isColorTooLight,
-  percentToAlphaHex,
-  setObjectSelection
-} from '@/helper/draw/draw.helper'
+import { hexWithOpacity, isColorTooLight, percentToAlphaHex, setObjectSelection } from '@/helper/draw/draw.helper'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 
@@ -120,13 +116,14 @@ const renderPreview = () => {
     canvas.clear() // clear canvas before re-drawing
   }
 
+  const brushColorValue = hexWithOpacity(brushColor.value, percentToAlphaHex(opacity.value))
+
   if (selectedTool.value == DrawTool.Bucket) {
-    canvas.backgroundColor = brushColor.value
+    canvas.backgroundColor = brushColorValue
     canvas.renderAll()
     return
   }
 
-  const brushColorValue = brushColor.value + percentToAlphaHex(opacity.value)
   const brushSizeValue = brushSize.value
 
   canvas.backgroundColor = isColorTooLight(brushColorValue) ? BLACK : WHITE

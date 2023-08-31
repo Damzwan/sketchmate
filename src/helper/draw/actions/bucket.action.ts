@@ -1,24 +1,24 @@
-import { colorToRGBA } from 'q-floodfill'
 import { fabric } from 'fabric'
 import { Canvas, IPoint } from 'fabric/fabric-impl'
-import { resetZoom } from '@/helper/draw/draw.helper'
+import { hex2RGBA, resetZoom } from '@/helper/draw/draw.helper'
 import { CustomFloodFill } from '@/utils/CustomFloodFill'
 import { usePen } from '@/service/draw/tools/pen.tool'
 
 export async function bucketFill(c: fabric.Canvas, p: IPoint, scale = 0.5) {
   let startTime = performance.now()
-  const { brushColor } = usePen()
+  const { brushColorWithOpacity } = usePen()
   const dpr = window.devicePixelRatio || 1
 
   const downscaledCanvas = createDownScaledCanvas(c, scale)
   const downscaledCtx = downscaledCanvas.getContext('2d')
 
   const imgData = downscaledCtx!.getImageData(0, 0, downscaledCanvas.width, downscaledCanvas.height)
+  const brushColor = brushColorWithOpacity()
 
   startTime = performance.now()
   const floodFill = new CustomFloodFill(imgData)
   floodFill.fill(brushColor, Math.round(p.x * dpr * scale), Math.round(p.y * dpr * scale), 10)
-  const modifiedImgData = floodFill.getModifiedImageData(colorToRGBA(brushColor))
+  const modifiedImgData = floodFill.getModifiedImageData(hex2RGBA(brushColor))
 
   if (floodFill.modifiedPixelsCount == 0) return null
 

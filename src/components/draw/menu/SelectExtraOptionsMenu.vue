@@ -22,14 +22,14 @@
           <p class="pl-2 text-base">Move to front</p>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" @click="moveUpOneLayer">
-          <ion-icon :icon="svg(mdiNumericPositive1)" />
-          <p class="pl-2 text-base">Move up 1 layer</p>
-        </ion-item>
-
         <ion-item color="tertiary" :button="true" @click="bringToBack">
           <ion-icon :icon="svg(mdiFlipToBack)" />
           <p class="pl-2 text-base">Move to back</p>
+        </ion-item>
+
+        <ion-item color="tertiary" :button="true" @click="moveUpOneLayer">
+          <ion-icon :icon="svg(mdiNumericPositive1)" />
+          <p class="pl-2 text-base">Move up 1 layer</p>
         </ion-item>
 
         <ion-item color="tertiary" :button="true" @click="moveDownOneLayer">

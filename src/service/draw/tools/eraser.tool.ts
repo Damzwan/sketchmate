@@ -1,9 +1,11 @@
 import { Ref, ref, watch } from 'vue'
-import { EraserSize, FabricEvent, ToolService } from '@/types/draw.types'
+import { DrawEvent, DrawTool, EraserSize, FabricEvent, ToolService } from '@/types/draw.types'
 import { Canvas } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore } from 'pinia'
 import { updateFreeDrawingCursor } from '@/helper/draw/draw.helper'
+import { EventBus } from '@/main'
+import { useDrawStore } from '@/store/draw/draw.store'
 
 interface Eraser extends ToolService {
   eraserSize: Ref<number>
@@ -12,7 +14,18 @@ interface Eraser extends ToolService {
 export const useEraser = defineStore('eraser', (): Eraser => {
   let c: Canvas | undefined = undefined
   const eraserSize = ref<EraserSize>(EraserSize.small)
-  const events: FabricEvent[] = []
+  const events: FabricEvent[] = [
+    {
+      on: 'mouse:wheel',
+      type: DrawEvent.ShapeCreation,
+      handler: updateEraserCursor
+    }
+  ]
+
+  EventBus.on('resetZoom', () => {
+    const { selectedTool } = useDrawStore()
+    if (selectedTool == DrawTool.MobileEraser) updateEraserCursor()
+  })
 
   function init(canvas: Canvas) {
     c = canvas
@@ -20,6 +33,10 @@ export const useEraser = defineStore('eraser', (): Eraser => {
 
   function destroy() {
     c = undefined
+  }
+
+  function updateEraserCursor() {
+    updateFreeDrawingCursor(c!, eraserSize.value, c!.backgroundColor as string, true)
   }
 
   async function select(c: Canvas) {
@@ -32,12 +49,12 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     // @ts-ignore
     c.freeDrawingBrush.inverted = false
     c.freeDrawingBrush.width = eraserSize.value
-    updateFreeDrawingCursor(c, eraserSize.value, c.backgroundColor as string, true)
+    updateEraserCursor()
   }
 
   watch(eraserSize, () => {
     c!.freeDrawingBrush.width = eraserSize.value
-    updateFreeDrawingCursor(c!, eraserSize.value, c!.backgroundColor as string, true)
+    updateEraserCursor()
   })
 
   return { init, select, eraserSize, events, destroy }

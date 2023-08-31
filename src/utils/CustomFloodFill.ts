@@ -1,4 +1,5 @@
-import { ColorRGBA, colorToRGBA, getColorAtPixel, isSameColor, setColorAtPixel } from 'q-floodfill'
+import { ColorRGBA, getColorAtPixel, isSameColor, setColorAtPixel } from 'q-floodfill'
+import { hex2RGBA } from '@/helper/draw/draw.helper'
 
 type PixelCoords = {
   x: number
@@ -15,7 +16,7 @@ export class CustomFloodFill {
   public isSameColor: typeof isSameColor
   public setColorAtPixel: typeof setColorAtPixel
   public getColorAtPixel: typeof getColorAtPixel
-  public colorToRGBA: typeof colorToRGBA
+  public colorToRGBA: typeof hex2RGBA
   public collectModifiedPixels = false
   public modifiedPixelsCount = 0
   public modifiedPixels: Set<string> = new Set()
@@ -29,7 +30,7 @@ export class CustomFloodFill {
   private queue: Array<LineQueued> = []
   private _replacedColor: ColorRGBA
   private _newColor: ColorRGBA
-  private baseColor = colorToRGBA('#000000')
+  private baseColor = hex2RGBA('#000000')
 
   constructor(imageData: ImageData) {
     this.imageData = imageData
@@ -39,14 +40,14 @@ export class CustomFloodFill {
     this.isSameColor = isSameColor
     this.setColorAtPixel = setColorAtPixel
     this.getColorAtPixel = getColorAtPixel
-    this.colorToRGBA = colorToRGBA
+    this.colorToRGBA = hex2RGBA
   }
 
   /**
    * color should be in CSS format - rgba, rgb, or HEX
    */
   public fill(color: string, x: number, y: number, tolerance: number): void {
-    this._newColor = this.colorToRGBA(color)
+    this._newColor = hex2RGBA(color)
     this._replacedColor = this.getColorAtPixel(this.imageData, x, y)
     this._tolerance = tolerance
     this.resetModifiedArea()

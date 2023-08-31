@@ -84,8 +84,8 @@ export const COLORSWATCHES = [
 ]
 
 export const BRUSHSIZE = 10
-export const BLACK = '#000000'
-export const WHITE = '#FFFFFF'
+export const BLACK = '#000000FF'
+export const WHITE = '#FFFFFFFF'
 export const BACKGROUND = '#FAF0E6'
 
 export const ERASERS = [DrawTool.MobileEraser, DrawTool.HealingEraser]
@@ -204,7 +204,7 @@ export const tutorialSteps = [
     target: '[data-step="8"]',
     content: `<div>
     <p class="text-xl">Need Help?</p>
-    <p class="text-base">Press for tutorials on each section.</p>
+    <p class="text-base">Press for tutorials on each section. Shortcuts (PC) can also be found here.</p>
   </div>`
   }
 ]
@@ -242,37 +242,31 @@ export const tutorialSteps2 = [
   {
     target: '[data-step="t4"]',
     content: `<div>
-    <p class="text-xl">Change border width</p>
+    <p class="text-xl">Style Options</p>
+    <p class="text-base">Change: border width, stroke, fill, or background color.</p>
       </div>`
   },
   {
     target: '[data-step="t5"]',
     content: `<div>
-    <p class="text-xl">Color Options</p>
-    <p class="text-base">Select: stroke, fill, or background color.</p>
-      </div>`
-  },
-  {
-    target: '[data-step="t6"]',
-    content: `<div>
     <p class="text-xl">Undo/Redo Actions</p>
     </div>`
   },
   {
-    target: '[data-step="t7"]',
+    target: '[data-step="t6"]',
     content: `<div>
     <p class="text-xl">Extended Options</p>
     <p class="text-base">Choose from: copy, merge, save, or layer.</p>
   </div>`
   },
   {
-    target: '[data-step="t8"]',
+    target: '[data-step="t7"]',
     content: `<div>
     <p class="text-xl">Exit Select Mode</p>
     </div>`
   },
   {
-    target: '[data-step="t9"]',
+    target: '[data-step="t8"]',
     content: `<div>
     <p class="text-xl">Need Help?</p>
     <p class="text-base">Go to the "Selection" section in the manual.</p>

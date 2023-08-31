@@ -1,5 +1,17 @@
 <template>
   <div class="divide-y divide-primary bg-background">
+    <div class="px-2 py-1" v-if="showOpacity && color">
+      <label for="slider">Opacity: {{ alphaHexToPercent(opacityHex) }}</label>
+      <ion-range
+        aria-label="Volume"
+        id="slider"
+        :value="alphaHexToPercent(opacityHex)"
+        @ionChange="(e: any) => emit('update:color', hexWithOpacity(c, percentToAlphaHex(e.target.value)))"
+        min="0"
+        max="100"
+        color="secondary"
+      />
+    </div>
     <div class="py-1 px-2">
       <label for="color-picker">Color</label>
       <div class="mt-1">
@@ -10,7 +22,7 @@
             :class="{ brush_selected: props.color == color }"
             :style="{ backgroundColor: color }"
             class="color_swatch"
-            @click="emit('update:color', color)"
+            @click="emit('update:color', hexWithOpacity(color, opacityHex))"
           />
         </div>
         <div class="flex mb-2 justify-between" v-if="colorHistory.length > 0">
@@ -32,7 +44,7 @@
       <label for="color-picker">Color recommendations</label>
       <div class="mt-1">
         <div
-          v-for="(row, rowIndex) in getColorRecommendations(color)"
+          v-for="(row, rowIndex) in getColorRecommendations(c)"
           :key="'row-' + rowIndex"
           class="flex justify-between mb-2"
         >
@@ -63,12 +75,17 @@
 </template>
 
 <script lang="ts" setup>
-import { COLORSWATCHES } from '@/config/draw/draw.config'
-import { IonItem } from '@ionic/vue'
+import { BLACK, COLORSWATCHES } from '@/config/draw/draw.config'
+import { IonItem, IonRange } from '@ionic/vue'
 import { computed, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
-import { getColorRecommendations } from '@/helper/draw/draw.helper'
+import {
+  alphaHexToPercent,
+  getColorRecommendations,
+  hexWithOpacity,
+  percentToAlphaHex
+} from '@/helper/draw/draw.helper'
 
 const colorHistory = ref<string[]>([])
 const emptySpaces = computed(() => 6 - colorHistory.value.length)
@@ -76,13 +93,17 @@ const emptySpaces = computed(() => 6 - colorHistory.value.length)
 getSavedColorHistory()
 
 const props = defineProps<{
-  color: string
+  color?: string
   reset?: boolean
+  showOpacity?: boolean
 }>()
 
 const brushColorPicker = ref<HTMLInputElement>()
 
 const emit = defineEmits(['update:color'])
+
+const c = computed(() => props?.color || BLACK)
+const opacityHex = computed(() => (c.value.substring(7, 9) != '' ? c.value.substring(7, 9) : 'FF'))
 
 function getSavedColorHistory() {
   Preferences.get({ key: LocalStorage.color_history }).then(
@@ -90,10 +111,10 @@ function getSavedColorHistory() {
   )
 }
 
-async function onCustomColorSelected(c: string) {
-  emit('update:color', c)
-  if (colorHistory.value.includes(c) || COLORSWATCHES.some(arr => arr.includes(c))) return
-  colorHistory.value.unshift(c)
+async function onCustomColorSelected(newColor: string) {
+  emit('update:color', hexWithOpacity(newColor, opacityHex.value))
+  if (colorHistory.value.includes(newColor) || COLORSWATCHES.some(arr => arr.includes(newColor))) return
+  colorHistory.value.unshift(newColor)
   if (colorHistory.value.length > 6) colorHistory.value.pop()
   Preferences.set({ key: LocalStorage.color_history, value: JSON.stringify(colorHistory.value) })
 }

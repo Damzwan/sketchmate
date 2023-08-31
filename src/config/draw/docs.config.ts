@@ -15,7 +15,6 @@ import {
   mdiImageMultipleOutline,
   mdiKeyboardOutline,
   mdiMerge,
-  mdiMinusThick,
   mdiPencilOutline,
   mdiShapeOutline,
   mdiStickerCircleOutline,
@@ -44,7 +43,6 @@ import gallery from '@/assets/docs/gallery.md'
 import undoredo from '@/assets/docs/undoredo.md'
 import settings from '@/assets/docs/settings.md'
 import draw from '@/assets/docs/draw.md'
-import width from '@/assets/docs/width.md'
 import shortcut from '@/assets/docs/shortcut.md'
 
 export interface DocsItem {
@@ -78,7 +76,6 @@ export type DocsKey =
   | 'delete'
   | 'layer'
   | 'draw'
-  | 'width'
   | 'shortcut'
 
 export const docsMapping: Record<DocsKey, DocsItem> = {
@@ -104,7 +101,6 @@ export const docsMapping: Record<DocsKey, DocsItem> = {
       'shapes',
       'save',
       'color',
-      'width',
       'copy',
       'merge',
       'delete',
@@ -210,11 +206,6 @@ export const docsMapping: Record<DocsKey, DocsItem> = {
     icon: mdiPencilOutline,
     text: 'Sketching',
     page: draw
-  },
-  width: {
-    icon: mdiMinusThick,
-    text: 'Border width',
-    page: width
   },
   shortcut: {
     icon: mdiKeyboardOutline,

@@ -3,14 +3,7 @@
     <ion-content class="divide-y divide-primary">
       <ion-list lines="none" class="p-0">
         <ion-item color="tertiary">
-          <ion-toggle
-            color="secondary"
-            :checked="isGrayScale"
-            @ionChange="
-              e => emits('add-filter', { filter: new fabric.Image.filters.Grayscale(), remove: !e.detail.checked })
-            "
-            >Black/White</ion-toggle
-          >
+          <ion-toggle color="secondary" :checked="isGrayScale" @ionChange="localChange">Black/White</ion-toggle>
         </ion-item>
         <ion-item color="tertiary">
           <ion-toggle
@@ -66,6 +59,10 @@ const props = defineProps<{
 const isGrayScale = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Grayscale'))
 const isSepia = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Sepia'))
 const isInvert = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Invert'))
+
+function localChange(e: any) {
+  emits('add-filter', { filter: new fabric.Image.filters.Grayscale(), remove: !e.detail.checked })
+}
 
 const emits = defineEmits<{
   (e: 'add-filter', options: any): void

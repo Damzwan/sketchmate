@@ -88,6 +88,7 @@ import {
   exitColorPickerMode,
   getColorRecommendations,
   hexWithOpacity,
+  hexWithoutOpacity,
   percentToAlphaHex,
   setSelectionForObjects
 } from '@/helper/draw/draw.helper'
@@ -124,6 +125,8 @@ function getSavedColorHistory() {
 }
 
 async function onCustomColorSelected(newColor: string) {
+  console.log(newColor)
+  newColor = hexWithoutOpacity(newColor)
   emit('update:color', hexWithOpacity(newColor, opacityHex.value))
   if (colorHistory.value.includes(newColor) || COLORSWATCHES.some(arr => arr.includes(newColor))) return
   colorHistory.value.unshift(newColor)
@@ -140,14 +143,14 @@ function colorPicker() {
   const lastSelectedObject = c.getActiveObject()
   colorPickerMode.value = true
 
+  setSelectionForObjects(
+    c.getObjects().filter(o => !c.getActiveObjects().includes(o)),
+    false
+  )
+
   if (selectedTool == DrawTool.Pen) {
     c.isDrawingMode = false
-    // c.setCursor(c.freeDrawingCursor!)
-  } else {
-    setSelectionForObjects(
-      c.getObjects().filter(o => !c.getActiveObjects().includes(o)),
-      false
-    )
+    c.setCursor(c.defaultCursor!)
   }
 
   popoverController.dismiss()

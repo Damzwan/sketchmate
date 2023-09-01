@@ -342,6 +342,10 @@ export function hexWithOpacity(hex: string, opacityHex: string) {
   return hex.substring(0, 7) + opacityHex
 }
 
+export function hexWithoutOpacity(hex: string) {
+  return hex.substring(0, 7)
+}
+
 export function distance(point1: { x: number; y: number }, point2: { x: number; y: number }) {
   const dx = point2.x - point1.x
   const dy = point2.y - point1.y

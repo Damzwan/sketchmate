@@ -395,6 +395,7 @@ export const useHistory = defineStore('history', () => {
 
   async function redoMerge(objects: fabric.Object[], options?: any) {
     const { selectAction } = useDrawStore()
+    const { setSelectedObjects } = useSelect()
     c?.discardActiveObject()
 
     objects = objects.map(o => c?.getObjects().find(o2 => o2.id == o.id)) as any[]
@@ -402,7 +403,11 @@ export const useHistory = defineStore('history', () => {
     await selectAction(DrawAction.Merge, { objects: objects, noReset: true })
     const lastObject: any = c?.getObjects()[c?.getObjects().length - 1]
     lastObject.id = options['id']
+
     c?.discardActiveObject()
+    setSelectedObjects([])
+
+    c?.requestRenderAll()
   }
 
   function redoBackgroundImg(objects: any[]) {

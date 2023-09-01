@@ -24,6 +24,8 @@ Quick commands for sketching:
 - `CMD/CTRL + C`: [Copy](blob:copy.md)
 - `CMD/CTRL + S`: [Save](blob:save.md)
 - `CMD/CTRL + M`: [Merge](blob:merge.md)
+- `CMD/CTRL + X`: [Flip X](blob:flip.md)
+- `CMD/CTRL + Y`: [Flip Y](blob:flip.md)
 - `CMD/CTRL + Backspace`: [Delete](blob:delete.md)
 - `CMD/CTRL + [`: Next object
 - `CMD/CTRL + ]`: Previous object

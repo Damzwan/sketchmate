@@ -24,7 +24,7 @@
       <ion-button id="img-style" v-if="isImg" data-step="t4">
         <!--        <Select :img="selectedObjectsRef[0]" @add  />-->
         <SelectImgStyleMenu
-          :img="selectedObjectsRef[0]"
+          :img="selectedObjectsRef[0] as any"
           @add-filter="options => selectAction(DrawAction.AddImgFilter, { object: selectedObjectsRef[0], ...options })"
         />
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>

@@ -73,12 +73,6 @@ import { useSelect } from '@/service/draw/tools/select.tool'
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const { getSelectedObjects } = useSelect()
-
-function removeObjects() {
-  selectAction(DrawAction.Delete, { objects: getSelectedObjects() })
-  closePopover()
-}
-
 function saveObjects() {
   selectAction(DrawAction.CreateSaved, { objects: getSelectedObjects() })
   closePopover()

@@ -7,6 +7,7 @@ import {
   mdiCursorDefaultClickOutline,
   mdiDeleteOutline,
   mdiEraser,
+  mdiFlipHorizontal,
   mdiFlipToFront,
   mdiFormatColorFill,
   mdiFormatText,
@@ -44,6 +45,7 @@ import undoredo from '@/assets/docs/undoredo.md'
 import settings from '@/assets/docs/settings.md'
 import draw from '@/assets/docs/draw.md'
 import shortcut from '@/assets/docs/shortcut.md'
+import flip from '@/assets/docs/flip.md'
 
 export interface DocsItem {
   icon: string
@@ -77,6 +79,7 @@ export type DocsKey =
   | 'layer'
   | 'draw'
   | 'shortcut'
+  | 'flip'
 
 export const docsMapping: Record<DocsKey, DocsItem> = {
   started: {
@@ -103,6 +106,7 @@ export const docsMapping: Record<DocsKey, DocsItem> = {
       'color',
       'copy',
       'merge',
+      'flip',
       'delete',
       'layer'
     ]
@@ -211,6 +215,11 @@ export const docsMapping: Record<DocsKey, DocsItem> = {
     icon: mdiKeyboardOutline,
     text: 'Shortcuts',
     page: shortcut
+  },
+  flip: {
+    icon: mdiFlipHorizontal,
+    text: 'Mirroring',
+    page: flip
   }
 }
 

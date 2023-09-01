@@ -206,6 +206,20 @@ export function useShortcutManager() {
         dismissPopover()
         break
 
+      case Shortcut.flipX:
+        event.preventDefault()
+        if (!isSelectMode.value) return
+        selectAction(DrawAction.Flip, { objects: getSelectedObjects(), flipX: true })
+        dismissPopover()
+        break
+
+      case Shortcut.flipY:
+        event.preventDefault()
+        if (!isSelectMode.value) return
+        selectAction(DrawAction.Flip, { objects: getSelectedObjects(), flipY: true })
+        dismissPopover()
+        break
+
       case Shortcut.paste:
         event.preventDefault()
         if (isSelectMode.value) c?.discardActiveObject()

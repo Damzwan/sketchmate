@@ -59,8 +59,6 @@ export function addFilterToImg(c: Canvas, options?: any) {
   const filter = options['filter'] as any
   const remove = options['remove']
 
-  console.log(filter.type)
-
   if (remove) {
     const filterIndexToFind = img.filters!.findIndex((f: any) => f.type == filter.type)
     if (filterIndexToFind == -1) return

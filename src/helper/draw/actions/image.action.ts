@@ -3,6 +3,7 @@ import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawTool } from '@/types/draw.types'
 import { useHistory } from '@/service/draw/history.service'
+import { popoverController } from '@ionic/vue'
 
 export function addSticker(c: Canvas, options?: any) {
   if (!options) return
@@ -50,4 +51,28 @@ export function setBackgroundImage(c: Canvas, options?: any) {
     },
     { crossOrigin: 'anonymous' }
   )
+}
+
+export function addFilterToImg(c: Canvas, options?: any) {
+  const { addToUndoStack } = useHistory()
+  const img = options['object'] as fabric.Image
+  const filter = options['filter'] as any
+  const remove = options['remove']
+
+  console.log(filter.type)
+
+  if (remove) {
+    const filterIndexToFind = img.filters!.findIndex((f: any) => f.type == filter.type)
+    if (filterIndexToFind == -1) return
+    const f = img.filters?.at(filterIndexToFind)
+    img.filters?.splice(filterIndexToFind, 1)
+    addToUndoStack([img.toObject()], 'imgFilter', { filter: f })
+  } else {
+    img.filters?.push(filter)
+    addToUndoStack([img.toObject()], 'imgFilter')
+  }
+
+  img.applyFilters()
+  c.requestRenderAll()
+  popoverController.dismiss()
 }

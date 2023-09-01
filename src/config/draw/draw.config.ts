@@ -21,7 +21,7 @@ import {
   moveUpOneLayer
 } from '@/helper/draw/actions/operation.action'
 import { addSavedToCanvas, createSaved } from '@/helper/draw/actions/saved.action'
-import { addSticker, setBackgroundImage } from '@/helper/draw/actions/image.action'
+import { addFilterToImg, addSticker, setBackgroundImage } from '@/helper/draw/actions/image.action'
 import { addShape } from '@/helper/draw/actions/shape.action'
 import {
   addText,
@@ -33,6 +33,7 @@ import {
 } from '@/helper/draw/actions/text.action'
 import {
   changeStrokeWidth,
+  flipObject,
   setBackgroundColor,
   setCanvasBackground,
   setFillColor,
@@ -142,7 +143,9 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) =>
   [DrawAction.SetCanvasBackground]: setCanvasBackground,
   [DrawAction.ChangeStrokeWidth]: changeStrokeWidth,
   [DrawAction.MoveUpOneLayer]: moveUpOneLayer,
-  [DrawAction.MoveDownOneLayer]: moveDownOneLayer
+  [DrawAction.MoveDownOneLayer]: moveDownOneLayer,
+  [DrawAction.AddImgFilter]: addFilterToImg,
+  [DrawAction.Flip]: flipObject
 }
 
 export const dynamicStickerLoading: DynamicTextPart[] = [

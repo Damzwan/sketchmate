@@ -116,3 +116,27 @@ export function setCanvasBackground(c: Canvas, options: any) {
   c.setBackgroundColor(color, () => undefined)
   c.requestRenderAll()
 }
+
+export function flipObject(c: Canvas, options: any) {
+  const flipX = options['flipX']
+  const flipY = options['flipY']
+  const { selectedObjectsRef } = useSelect()
+  const { addToUndoStack } = useHistory()
+
+  if (selectedObjectsRef.length == 0) return
+
+  addToUndoStack(
+    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
+    'object:modified',
+    { flip: true }
+  )
+
+  selectedObjectsRef.forEach(o =>
+    o.set({
+      flipX: flipX ? !o.flipX : o.flipX,
+      flipY: flipY ? !o.flipY : o.flipY
+    })
+  )
+
+  c.requestRenderAll()
+}

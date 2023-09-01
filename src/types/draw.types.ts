@@ -98,7 +98,9 @@ export enum DrawAction {
   MoveDownOneLayer,
   EditPolygon,
   SetCanvasBackground,
-  ChangeStrokeWidth
+  ChangeStrokeWidth,
+  AddImgFilter,
+  Flip
 }
 
 export enum Menu {

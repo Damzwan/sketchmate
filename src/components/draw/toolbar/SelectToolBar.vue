@@ -21,6 +21,15 @@
         <ion-icon slot="icon-only" :icon="svg(mdiDeleteOutline)"></ion-icon>
       </ion-button>
 
+      <ion-button id="img-style" v-if="isImg" data-step="t4">
+        <!--        <Select :img="selectedObjectsRef[0]" @add  />-->
+        <SelectImgStyleMenu
+          :img="selectedObjectsRef[0]"
+          @add-filter="options => selectAction(DrawAction.AddImgFilter, { object: selectedObjectsRef[0], ...options })"
+        />
+        <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
+      </ion-button>
+
       <ion-button id="select_color" v-if="!containsImage" data-step="t4">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
         <SelectColorMenu
@@ -99,6 +108,7 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction, ObjectType } from '@/types/draw.types'
 import TextMenu from '@/components/draw/menu/TextMenu.vue'
 import '@/theme/custom_vuejs_tour.scss'
+import SelectImgStyleMenu from '@/components/draw/menu/SelectImgStyleMenu.vue'
 
 const { selectAction, getCanvas } = useDrawStore()
 const { undo, redo } = useHistory()
@@ -113,6 +123,9 @@ const isText = computed(
 )
 const isPolygon = computed(
   () => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == ObjectType.polygon
+)
+const isImg = computed(
+  () => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == ObjectType.image
 )
 
 function unselectObjects() {

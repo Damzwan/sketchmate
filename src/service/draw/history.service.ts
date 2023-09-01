@@ -29,6 +29,7 @@ type HistoryEvent =
   | 'fullErase'
   | 'polygon'
   | 'canvasBackground'
+  | 'imgFilter'
 
 interface HistoryAction {
   type: HistoryEvent
@@ -59,7 +60,8 @@ export const useHistory = defineStore('history', () => {
     backgroundImg: undoBackgroundImg,
     fullErase: undoFullErase,
     polygon: undoPolyPointAdded,
-    canvasBackground: undoSetCanvasBackground
+    canvasBackground: undoSetCanvasBackground,
+    imgFilter: undoImgFilter
   }
 
   const redoMapping: Partial<Record<HistoryEvent, (objects: fabric.Object[], options?: any) => void>> = {
@@ -71,7 +73,8 @@ export const useHistory = defineStore('history', () => {
     backgroundImg: redoBackgroundImg,
     fullErase: redoFullErase,
     polygon: redoPolyPointAdded,
-    canvasBackground: redoSetCanvasBackground
+    canvasBackground: redoSetCanvasBackground,
+    imgFilter: redoImgFilter
   }
 
   const events: FabricEvent[] = [
@@ -154,6 +157,40 @@ export const useHistory = defineStore('history', () => {
     restoreSelectedObjects(c!, getSelectedObjects())
   }
 
+  function undoImgFilter(objects: fabric.Object[], options: any) {
+    const img = objects[0] as fabric.Image
+
+    const foundImg = c?.getObjects().find(o => o.id == img.id) as fabric.Image
+    if (!foundImg) return
+
+    if (options && options['filter']) {
+      foundImg.filters?.push(options['filter'])
+      redoStack.push({ type: 'imgFilter', objects })
+    } else {
+      redoStack.push({ type: 'imgFilter', objects, options: { filter: foundImg.filters?.pop() } })
+    }
+
+    foundImg.applyFilters()
+    c?.requestRenderAll()
+  }
+
+  function redoImgFilter(objects: fabric.Object[], options: any) {
+    const img = objects[0] as fabric.Image
+
+    const foundImg = c?.getObjects().find(o => o.id == img.id) as fabric.Image
+    if (!foundImg) return
+
+    if (options && options['filter']) {
+      foundImg.filters?.push(options['filter'])
+      undoStack.push({ type: 'imgFilter', objects })
+    } else {
+      undoStack.push({ type: 'imgFilter', objects, options: { filter: foundImg.filters?.pop() } })
+    }
+
+    foundImg.applyFilters()
+    c?.requestRenderAll()
+  }
+
   async function undoObjectModified(objects: fabric.Object[], options: any) {
     c?.discardActiveObject()
     const modifiedObjects: fabric.Object[] = []
@@ -170,8 +207,17 @@ export const useHistory = defineStore('history', () => {
           angle: obj.angle!,
           scaleX: obj.scaleX,
           scaleY: obj.scaleY,
-          eraser: enlivenedObj.eraser
+          eraser: enlivenedObj.eraser,
+          flipX: obj.flipX,
+          flipY: obj.flipY
         })
+
+      if (options && options.flip) {
+        currObj.set({
+          flipX: obj.flipX,
+          flipY: obj.flipY
+        })
+      }
       if (options && options.color) {
         await undoColoring(currObj, enlivenedObj)
       }
@@ -328,14 +374,22 @@ export const useHistory = defineStore('history', () => {
       modifiedObjects.push(currObj.toObject())
       const enlivenedObj: any = (await enlivenObjects([obj]))[0]
 
-      currObj.set({
-        left: obj.left!,
-        top: obj.top!,
-        angle: obj.angle!,
-        scaleX: obj.scaleX,
-        scaleY: obj.scaleY,
-        eraser: enlivenedObj.eraser
-      })
+      if (!options)
+        currObj.set({
+          left: obj.left!,
+          top: obj.top!,
+          angle: obj.angle!,
+          scaleX: obj.scaleX,
+          scaleY: obj.scaleY,
+          eraser: enlivenedObj.eraser
+        })
+      if (options && options.flip) {
+        currObj.set({
+          flipX: obj.flipX,
+          flipY: obj.flipY
+        })
+      }
+
       if (options && options.color) {
         await undoColoring(currObj, enlivenedObj)
       }

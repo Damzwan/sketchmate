@@ -106,6 +106,16 @@ export async function setForSelectedObjects(objects: SelectedObject[], options: 
   }
 }
 
+export async function setColorForImage(img: fabric.Image, color: string) {
+  img.filters?.push(
+    new fabric.Image.filters.BlendColor({
+      color: color,
+      mode: 'tint'
+    })
+  )
+  img.applyFilters()
+}
+
 export async function fillBackGroundForGroup(obj: fabric.Group, options: Partial<Group>) {
   const { actionWithoutEvents } = useEventManager()
   const { setSelectedObjects, getSelectedObjects } = useSelect()

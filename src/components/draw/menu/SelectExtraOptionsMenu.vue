@@ -17,6 +17,16 @@
           <p class="pl-2 text-base">Save</p>
         </ion-item>
 
+        <ion-item color="tertiary" :button="true" @click="flip(true, false)">
+          <ion-icon :icon="svg(mdiFlipHorizontal)" />
+          <p class="pl-2 text-base">Flip X</p>
+        </ion-item>
+
+        <ion-item color="tertiary" :button="true" @click="flip(false, true)">
+          <ion-icon :icon="svg(mdiFlipVertical)" />
+          <p class="pl-2 text-base">Flip Y</p>
+        </ion-item>
+
         <ion-item color="tertiary" :button="true" @click="bringToFront">
           <ion-icon :icon="svg(mdiFlipToFront)" />
           <p class="pl-2 text-base">Move to front</p>
@@ -51,7 +61,9 @@ import {
   mdiFlipToFront,
   mdiMerge,
   mdiNumericNegative1,
-  mdiNumericPositive1
+  mdiNumericPositive1,
+  mdiFlipHorizontal,
+  mdiFlipVertical
 } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { useDrawStore } from '@/store/draw/draw.store'
@@ -99,6 +111,11 @@ function moveUpOneLayer() {
 
 function moveDownOneLayer() {
   selectAction(DrawAction.MoveDownOneLayer, { objects: getSelectedObjects() })
+  closePopover()
+}
+
+function flip(flipX: boolean, flipY: boolean) {
+  selectAction(DrawAction.Flip, { objects: getSelectedObjects(), flipX, flipY })
   closePopover()
 }
 

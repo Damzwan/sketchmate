@@ -14,6 +14,7 @@ interface Pen extends ToolService {
   brushColor: Ref<string>
   opacity: Ref<number>
   brushColorWithOpacity: () => string
+  updatePenCursor: () => void
 }
 
 export const brushMapping: { [key in BrushType]: any } = {
@@ -90,5 +91,16 @@ export const usePen = defineStore('pen', (): Pen => {
     select(c!)
   })
 
-  return { select, init, brushSize, brushType, brushColor, events: events, destroy, opacity, brushColorWithOpacity }
+  return {
+    select,
+    init,
+    brushSize,
+    brushType,
+    brushColor,
+    events: events,
+    destroy,
+    opacity,
+    brushColorWithOpacity,
+    updatePenCursor
+  }
 })

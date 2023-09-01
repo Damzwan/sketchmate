@@ -172,7 +172,8 @@ export enum DrawEvent {
   ShapeCreation = 'Creating shape',
   SetModified = 'Creating shape',
   Lasso = 'Using lasso',
-  CanvasSave = 'save in case we exit'
+  CanvasSave = 'save in case we exit',
+  ColorPicker = 'Color picker'
 }
 
 export type StickersEmblemsSavedTabOptions = 'sticker' | 'emblem' | 'saved'

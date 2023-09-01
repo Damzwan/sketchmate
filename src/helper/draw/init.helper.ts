@@ -92,7 +92,13 @@ export function changeFabricBaseSettings() {
 
   fabric.Object.prototype.toObject = (function (toObject) {
     return function (this: any, propertiesToInclude) {
-      propertiesToInclude = (propertiesToInclude || []).concat(['id', 'visual', 'edit', 'isCreating'])
+      propertiesToInclude = (propertiesToInclude || []).concat([
+        'id',
+        'visual',
+        'edit',
+        'isCreating',
+        'backgroundObject'
+      ])
       return toObject.apply(this, [propertiesToInclude])
     }
   })(fabric.Object.prototype.toObject)

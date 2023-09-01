@@ -3,8 +3,8 @@
     <LinearLoader :text="loadingText" class="absolute z-50" v-if="isLoading" :darken="true" />
     <ion-header class="ion-no-border">
       <div id="select">
-        <ShapeCreationToolbar v-show="shapeCreationMode !== undefined" />
-        <div v-show="shapeCreationMode === undefined">
+        <ShapeCreationToolbar v-show="shapeCreationMode != undefined || colorPickerMode" />
+        <div v-show="shapeCreationMode === undefined && !colorPickerMode">
           <!--        We use v-show instead of v-show to keep the state of the component-->
           <SelectToolBar v-show="selectedObjectsRef.length > 0" class="z-[1000] absolute left-0 top-0" />
           <PrimaryDrawToolBar />
@@ -62,7 +62,7 @@ import { LocalStorage } from '@/types/storage.types'
 const myCanvasRef = ref<HTMLCanvasElement>()
 
 const drawStore = useDrawStore()
-const { loadingText, shapeCreationMode, canZoomOut, isLoading } = storeToRefs(drawStore)
+const { loadingText, shapeCreationMode, canZoomOut, isLoading, colorPickerMode } = storeToRefs(drawStore)
 const { selectedObjectsRef } = storeToRefs(useSelect())
 
 const currDataSteps = ref(tutorialSteps)

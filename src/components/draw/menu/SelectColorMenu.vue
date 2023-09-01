@@ -29,6 +29,7 @@
               :color="strokeColor || BLACK"
               @update:color="c => emits('update:stroke-color', c)"
               :show-opacity="true"
+              :color-picker-action="DrawAction.ChangeStrokeColour"
             />
           </ion-popover>
         </ion-item>
@@ -48,7 +49,12 @@
           </div>
 
           <ion-popover trigger="fill" side="left">
-            <ColorPicker :color="fillColor" @update:color="c => emits('update:fill-color', c)" :show-opacity="true" />
+            <ColorPicker
+              :color="fillColor"
+              @update:color="c => emits('update:fill-color', c)"
+              :show-opacity="true"
+              :color-picker-action="DrawAction.ChangeFillColour"
+            />
           </ion-popover>
         </ion-item>
 
@@ -76,6 +82,7 @@
               :color="backgroundColor || BLACK"
               @update:color="c => emits('update:background-color', c)"
               :show-opacity="true"
+              :color-picker-action="DrawAction.ChangeBackgroundColor"
             />
           </ion-popover>
         </ion-item>
@@ -95,6 +102,7 @@ import { useSelect } from '@/service/draw/tools/select.tool'
 import { IText } from 'fabric/fabric-impl'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { DrawAction } from '@/types/draw.types'
 
 defineProps<{
   trigger: string

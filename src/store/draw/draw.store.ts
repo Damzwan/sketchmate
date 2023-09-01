@@ -67,6 +67,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   const loadingText = ref('')
   const shapeCreationMode = ref<ShapeCreationMode>()
+  const colorPickerMode = ref(false)
 
   const canZoomOut = ref(false)
   const isEditingText = ref(false)
@@ -250,6 +251,7 @@ export const useDrawStore = defineStore('draw', () => {
     hideLoading,
     isUsingGesture,
     shapeCreationSettings,
-    lastSelectedSelectTool
+    lastSelectedSelectTool,
+    colorPickerMode
   }
 })

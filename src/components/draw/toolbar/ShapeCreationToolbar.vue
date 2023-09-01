@@ -1,6 +1,13 @@
 <template>
   <ion-toolbar color="primary" mode="md">
-    <ion-buttons slot="end">
+    <ion-buttons slot="start" v-if="colorPickerMode">
+      <ion-button @click="exitColorPickerMode">
+        <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
+      </ion-button>
+      <ion-title>Pick a color</ion-title>
+    </ion-buttons>
+
+    <ion-buttons slot="end" v-else>
       <ion-button id="select_color_shape">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
         <SelectColorMenu
@@ -33,15 +40,15 @@
 
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
-import { mdiCheck, mdiPaletteOutline, mdiRedo, mdiUndo } from '@mdi/js'
-import { IonButton, IonButtons, IonIcon, IonToolbar, popoverController } from '@ionic/vue'
+import { mdiCheck, mdiClose, mdiPaletteOutline, mdiRedo, mdiUndo } from '@mdi/js'
+import { IonButton, IonButtons, IonIcon, IonToolbar, popoverController, IonTitle } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useHistory } from '@/service/draw/history.service'
-import { exitShapeCreationMode } from '@/helper/draw/draw.helper'
+import { exitColorPickerMode, exitShapeCreationMode } from '@/helper/draw/draw.helper'
 import { useDrawStore } from '@/store/draw/draw.store'
 import SelectColorMenu from '@/components/draw/menu/SelectColorMenu.vue'
 
-const { shapeCreationSettings } = storeToRefs(useDrawStore())
+const { shapeCreationSettings, colorPickerMode } = storeToRefs(useDrawStore())
 const { undo, redo } = useHistory()
 const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 

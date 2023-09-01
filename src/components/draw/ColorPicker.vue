@@ -13,14 +13,18 @@
       />
     </div>
     <div class="py-1 px-2">
-      <label for="color-picker">Color</label>
+      <label for="color-picker" class="!flex justify-between items-center">
+        Color
+        <ion-icon :icon="svg(mdiEyedropper)" size="large" class="cursor-pointer" @click="colorPicker" />
+      </label>
+
       <div class="mt-1">
         <div v-for="(row, rowIndex) in COLORSWATCHES" :key="'row-' + rowIndex" class="flex justify-between mb-2">
           <div
             v-for="(color, colorIndex) in row"
             :key="'color-' + colorIndex"
-            :class="{ brush_selected: props.color == color }"
-            :style="{ backgroundColor: color }"
+            :class="{ brush_selected: props.color == hexWithOpacity(color, opacityHex) }"
+            :style="{ backgroundColor: hexWithOpacity(color, opacityHex) }"
             class="color_swatch"
             @click="emit('update:color', hexWithOpacity(color, opacityHex))"
           />
@@ -29,10 +33,10 @@
           <div
             v-for="(color, colorIndex) in colorHistory"
             :key="'color_history-' + colorIndex"
-            :class="{ brush_selected: props.color == color }"
-            :style="{ backgroundColor: color }"
+            :class="{ brush_selected: props.color == hexWithOpacity(color, opacityHex) }"
+            :style="{ backgroundColor: hexWithOpacity(color, opacityHex) }"
             class="color_swatch"
-            @click="emit('update:color', color)"
+            @click="emit('update:color', hexWithOpacity(color, opacityHex))"
           />
 
           <div v-for="i in emptySpaces" :key="'empty-' + i" class="color_swatch" />
@@ -51,7 +55,6 @@
           <div
             v-for="(color, colorIndex) in row"
             :key="'color-' + colorIndex"
-            :class="{ brush_selected: props.color == color }"
             :style="{ backgroundColor: color }"
             class="color_swatch"
             @click="onCustomColorSelected(color)"
@@ -76,16 +79,24 @@
 
 <script lang="ts" setup>
 import { BLACK, COLORSWATCHES } from '@/config/draw/draw.config'
-import { IonItem, IonRange } from '@ionic/vue'
+import { IonIcon, IonItem, IonRange, popoverController } from '@ionic/vue'
 import { computed, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
 import {
   alphaHexToPercent,
+  exitColorPickerMode,
   getColorRecommendations,
   hexWithOpacity,
-  percentToAlphaHex
+  percentToAlphaHex,
+  setSelectionForObjects
 } from '@/helper/draw/draw.helper'
+import { useEventManager } from '@/service/draw/eventManager.service'
+import { DrawAction, DrawEvent, DrawTool } from '@/types/draw.types'
+import { useDrawStore } from '@/store/draw/draw.store'
+import { storeToRefs } from 'pinia'
+import { svg } from '@/helper/general.helper'
+import { mdiEyedropper } from '@mdi/js'
 
 const colorHistory = ref<string[]>([])
 const emptySpaces = computed(() => 6 - colorHistory.value.length)
@@ -96,6 +107,7 @@ const props = defineProps<{
   color?: string
   reset?: boolean
   showOpacity?: boolean
+  colorPickerAction?: DrawAction
 }>()
 
 const brushColorPicker = ref<HTMLInputElement>()
@@ -117,6 +129,59 @@ async function onCustomColorSelected(newColor: string) {
   colorHistory.value.unshift(newColor)
   if (colorHistory.value.length > 6) colorHistory.value.pop()
   Preferences.set({ key: LocalStorage.color_history, value: JSON.stringify(colorHistory.value) })
+}
+
+function colorPicker() {
+  const { isolatedSubscribe } = useEventManager()
+  const { getCanvas, selectAction, selectedTool } = useDrawStore()
+  const { colorPickerMode } = storeToRefs(useDrawStore())
+  const c = getCanvas()
+
+  const lastSelectedObject = c.getActiveObject()
+  colorPickerMode.value = true
+
+  if (selectedTool == DrawTool.Pen) {
+    c.isDrawingMode = false
+    // c.setCursor(c.freeDrawingCursor!)
+  } else {
+    setSelectionForObjects(
+      c.getObjects().filter(o => !c.getActiveObjects().includes(o)),
+      false
+    )
+  }
+
+  popoverController.dismiss()
+  isolatedSubscribe({
+    on: 'mouse:down:before',
+    type: DrawEvent.ColorPicker,
+    handler: (options: any) => {
+      const pointer = c.getPointer(options.e)
+      const dpr = window.devicePixelRatio || 1
+      const x = pointer.x * dpr
+      const y = pointer.y * dpr
+
+      // Get pixel data
+      const ctx = c.getContext()
+      const pixel = ctx.getImageData(x, y, 1, 1).data
+
+      const hex =
+        '#' +
+        ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase() +
+        pixel[3].toString(16).toUpperCase().padStart(2, '0')
+
+      onCustomColorSelected(hex)
+      if (props.colorPickerAction) selectAction(props.colorPickerAction, { color: hex })
+      exitColorPickerMode()
+    }
+  })
+
+  isolatedSubscribe({
+    on: 'selection:cleared',
+    type: DrawEvent.ColorPicker,
+    handler: () => {
+      if (lastSelectedObject) c.setActiveObject(lastSelectedObject)
+    }
+  })
 }
 
 watch(props, async () => {

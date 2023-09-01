@@ -3,40 +3,18 @@
     <ion-content class="divide-y divide-primary">
       <ion-list lines="none" class="p-0">
         <ion-item color="tertiary">
-          <ion-toggle color="secondary" :checked="isGrayScale" @ionChange="localChange">Black/White</ion-toggle>
+          <ion-toggle color="secondary" :checked="isGrayScale" @ionChange="addGrayScaleFilter">Black/White</ion-toggle>
         </ion-item>
         <ion-item color="tertiary">
-          <ion-toggle
-            color="secondary"
-            :checked="isSepia"
-            @ionChange="
-              e => emits('add-filter', { filter: new fabric.Image.filters.Sepia(), remove: !e.detail.checked })
-            "
-            >Sepia</ion-toggle
-          >
+          <ion-toggle color="secondary" :checked="isSepia" @ionChange="addSepiaFilter">Sepia</ion-toggle>
         </ion-item>
         <ion-item color="tertiary">
-          <ion-toggle
-            color="secondary"
-            :checked="isInvert"
-            @ionChange="
-              e => emits('add-filter', { filter: new fabric.Image.filters.Invert(), remove: !e.detail.checked })
-            "
-            >Invert</ion-toggle
-          >
+          <ion-toggle color="secondary" :checked="isInvert" @ionChange="addInvertFilter">Invert</ion-toggle>
         </ion-item>
       </ion-list>
       <ion-list lines="none" class="p-0 divide-y divide-primary">
         <ColorPicker
-          @update:color="
-            c =>
-              emits('add-filter', {
-                filter: new fabric.Image.filters.BlendColor({
-                  color: c,
-                  mode: 'tint'
-                })
-              })
-          "
+          @update:color="addColorFilter"
           :show-opacity="true"
           :color-picker-action="DrawAction.ChangeBackgroundColor"
         />
@@ -60,8 +38,25 @@ const isGrayScale = computed(() => !!props.img.filters?.find((f: any) => f.type 
 const isSepia = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Sepia'))
 const isInvert = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Invert'))
 
-function localChange(e: any) {
+function addGrayScaleFilter(e: any) {
   emits('add-filter', { filter: new fabric.Image.filters.Grayscale(), remove: !e.detail.checked })
+}
+
+function addSepiaFilter(e: any) {
+  emits('add-filter', { filter: new fabric.Image.filters.Sepia(), remove: !e.detail.checked })
+}
+
+function addInvertFilter(e: any) {
+  emits('add-filter', { filter: new fabric.Image.filters.Invert(), remove: !e.detail.checked })
+}
+
+function addColorFilter(c: string) {
+  emits('add-filter', {
+    filter: new fabric.Image.filters.BlendColor({
+      color: c,
+      mode: 'tint'
+    })
+  })
 }
 
 const emits = defineEmits<{

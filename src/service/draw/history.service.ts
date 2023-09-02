@@ -207,9 +207,7 @@ export const useHistory = defineStore('history', () => {
           angle: obj.angle!,
           scaleX: obj.scaleX,
           scaleY: obj.scaleY,
-          eraser: enlivenedObj.eraser,
-          flipX: obj.flipX,
-          flipY: obj.flipY
+          eraser: enlivenedObj.eraser
         })
 
       if (options && options.flip) {

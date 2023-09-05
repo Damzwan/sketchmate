@@ -545,21 +545,23 @@ export function hex2RGBA(hex: string): ColorRGBA {
 }
 
 export function exitColorPickerMode() {
-  const { unsubscribe } = useEventManager()
+  const { unsubscribe, enableAllEvents } = useEventManager()
   const { getCanvas, selectedTool } = useDrawStore()
   const { colorPickerMode } = storeToRefs(useDrawStore())
 
   const c = getCanvas()
 
   unsubscribe({ type: DrawEvent.ColorPicker, on: 'mouse:down:before' })
-  setTimeout(() => unsubscribe({ type: DrawEvent.ColorPicker, on: 'selection:cleared' }), 50)
+  setTimeout(() => {
+    unsubscribe({ type: DrawEvent.ColorPicker, on: 'selection:cleared' })
+  }, 50)
 
   colorPickerMode.value = false
   if (selectedTool == DrawTool.Pen) {
     setTimeout(() => {
       c.isDrawingMode = true
     }, 50)
-  } else setSelectionForObjects(c.getObjects(), true)
+  } else if (selectedTool != DrawTool.Bucket) setSelectionForObjects(c.getObjects(), true)
   c.requestRenderAll()
 }
 

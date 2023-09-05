@@ -13,7 +13,7 @@ export const useBucket = defineStore('bucket', (): ToolService => {
   const events: FabricEvent[] = [
     {
       type: DrawEvent.BucketFill,
-      on: 'mouse:down',
+      on: 'mouse:down:before',
       handler: async (o: any) => {
         if (timeout) return
         timeout = setTimeout(async () => {

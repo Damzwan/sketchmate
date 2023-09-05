@@ -217,6 +217,7 @@ export function enablePCGestures(c: any) {
           const deltaY = event.pageY - panStartPoint.y
           panStartPoint = { x: event.pageX, y: event.pageY }
           handlePan(new fabric.Point(deltaX, deltaY), c)
+          c.requestRenderAll()
         }
       },
       type: DrawEvent.Gesture

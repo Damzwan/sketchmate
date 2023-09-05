@@ -90,6 +90,7 @@ import {
   hexWithOpacity,
   hexWithoutOpacity,
   percentToAlphaHex,
+  resetZoom,
   setSelectionForObjects
 } from '@/helper/draw/draw.helper'
 import { useEventManager } from '@/service/draw/eventManager.service'
@@ -125,7 +126,6 @@ function getSavedColorHistory() {
 }
 
 async function onCustomColorSelected(newColor: string) {
-  console.log(newColor)
   newColor = hexWithoutOpacity(newColor)
   emit('update:color', hexWithOpacity(newColor, opacityHex.value))
   if (colorHistory.value.includes(newColor) || COLORSWATCHES.some(arr => arr.includes(newColor))) return
@@ -135,7 +135,7 @@ async function onCustomColorSelected(newColor: string) {
 }
 
 function colorPicker() {
-  const { isolatedSubscribe } = useEventManager()
+  const { isolatedSubscribe, disableAllEvents } = useEventManager()
   const { getCanvas, selectAction, selectedTool } = useDrawStore()
   const { colorPickerMode } = storeToRefs(useDrawStore())
   const c = getCanvas()
@@ -160,12 +160,22 @@ function colorPicker() {
     handler: (options: any) => {
       const pointer = c.getPointer(options.e)
       const dpr = window.devicePixelRatio || 1
-      const x = pointer.x * dpr
-      const y = pointer.y * dpr
+      const x = Math.floor(pointer.x * dpr)
+      const y = Math.floor(pointer.y * dpr)
+
+      const oldZoom = c.getZoom()
+      const oldViewportTransform = c.viewportTransform
+
+      resetZoom(c)
+      c.renderAll()
 
       // Get pixel data
       const ctx = c.getContext()
       const pixel = ctx.getImageData(x, y, 1, 1).data
+
+      c.setViewportTransform(oldViewportTransform!)
+      c.setZoom(oldZoom)
+      c.renderAll()
 
       const hex =
         '#' +

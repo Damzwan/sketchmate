@@ -39,6 +39,17 @@
           </div>
         </swiper-slide>
 
+        <swiper-slide v-if="!isNative() && installPrompt">
+          <div class="container">
+            <img :src="download" class="w-full h-[460px] -mb-[120px]" alt="Girl drawing" />
+            <h1 class="title pt-12">Download SketchMate</h1>
+            <p class="subtitle">Download on the play store or download the Web App</p>
+            <div class="flex w-full justify-center items-center pt-3 absolute">
+              <ion-button color="secondary" @click="installPWA">Download SketchMate</ion-button>
+            </div>
+          </div>
+        </swiper-slide>
+
         <swiper-slide>
           <ion-header class="ion-no-border">
             <ion-toolbar color="tertiary">
@@ -139,7 +150,7 @@ import {
 
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { blurIonInput, compressImg, isMobile, svg } from '@/helper/general.helper'
+import { blurIonInput, compressImg, isMobile, isNative, svg } from '@/helper/general.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { storeToRefs } from 'pinia'
@@ -149,6 +160,7 @@ import girlDrawing from '@/assets/illustrations/girl_drawing.svg'
 import matchDrawing from '@/assets/illustrations/match.svg'
 import gallery from '@/assets/illustrations/gallery.svg'
 import widget from '@/assets/illustrations/widget.webp'
+import download from '@/assets/illustrations/download.svg'
 import sketching from '@/assets/lottie/sketching.json'
 import { Swiper } from 'swiper/types'
 import Lottie from '@/components/general/Lottie.vue'
@@ -170,6 +182,7 @@ const swiper = ref<Swiper>()
 const lastSlide = ref(false)
 
 const keyboardActivated = ref(false)
+const { installPrompt } = storeToRefs(useAppStore())
 
 function slideChange() {
   playLottie.value = swiper.value?.activeIndex === 2
@@ -214,6 +227,17 @@ function onFocus() {
 
 function onBlur() {
   if (isMobile()) setTimeout(() => (keyboardActivated.value = false), 150)
+}
+
+// TODO duplicate
+async function installPWA() {
+  if (installPrompt.value) {
+    installPrompt.value.prompt()
+    const { outcome } = await installPrompt.value.userChoice
+    if (outcome === 'accepted') {
+      installPrompt.value = null
+    }
+  }
 }
 </script>
 

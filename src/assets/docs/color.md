@@ -8,3 +8,4 @@
    - **Stroke Color:** Modify the object's outline or text border.
    - **Fill Color:** Change the inner color or text hue.
    - **Background Color:** Add or adjust a background color.
+   - **Filters:** Add or remove an image filter (images only)

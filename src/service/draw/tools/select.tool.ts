@@ -34,6 +34,8 @@ export const useSelect = defineStore('select', (): Select => {
   let currentObjectIndex = -1
 
   let removeTimeout: ReturnType<typeof setTimeout> | null = null
+  const doubleTapTimeout = 200
+  let unselectInMultiselectTimeout: any
 
   const events: FabricEvent[] = [
     {
@@ -78,10 +80,12 @@ export const useSelect = defineStore('select', (): Select => {
         const activeObject = c!.getActiveObject()
 
         const currentTimestamp = new Date().getTime()
-        const isDoubleTap = currentTimestamp - lastTapTimestamp < 300 // e.g. 300 milliseconds
+        const isDoubleTap = currentTimestamp - lastTapTimestamp < doubleTapTimeout
         lastTapTimestamp = currentTimestamp
 
         if (isDoubleTap && activeObject) {
+          clearTimeout(unselectInMultiselectTimeout)
+          unselectInMultiselectTimeout = undefined
           // Always compute the objects stack based on the currently active object
           objectsStack = c!.getObjects().filter(obj => activeObject.intersectsWithObject(obj))
           if (objectsStack.length == 0) return
@@ -116,6 +120,47 @@ export const useSelect = defineStore('select', (): Select => {
               removeTimeout = null
             }, 300)
           } else c!.setActiveObject(objectsStack[currentObjectIndex])
+        } else if (multiSelectMode.value && activeObject) {
+          if (unselectInMultiselectTimeout) return
+          unselectInMultiselectTimeout = setTimeout(() => {
+            actionWithoutEvents(async () => {
+              const a = c?.getActiveObjects()
+              c?.discardActiveObject()
+              c?.getObjects().forEach(o => o.setCoords())
+              unselectInMultiselectTimeout = undefined
+              const pointer = c!.getPointer(o.e)
+              const point = new fabric.Point(pointer.x, pointer.y)
+              const selectedObjectsInPointer = c!
+                .getObjects()
+                .filter(
+                  obj => obj.containsPoint(point, (obj as any)._getImageLines(obj.oCoords), true) && a!.includes(obj)
+                )
+
+              if (selectedObjectsInPointer.length == 0) return
+              selectedObjectsInPointer.sort((a, b) => {
+                const centerA = a.getCenterPoint()
+                const centerB = b.getCenterPoint()
+                const distanceA = distance({ x: centerA.x, y: centerA.y }, { x: pointer.x, y: pointer.y })
+                const distanceB = distance({ x: centerB.x, y: centerB.y }, { x: pointer.x, y: pointer.y })
+
+                return distanceA - distanceB
+              })
+              await removeObjectFromMultiSelect(selectedObjectsInPointer[0])
+            })
+          }, doubleTapTimeout)
+        }
+      }
+    },
+    {
+      type: DrawEvent.SetModified,
+      on: 'object:moving',
+      handler: o => {
+        if (unselectInMultiselectTimeout) {
+          const xChange = Math.abs(o.transform.original.left - o.target.left)
+          const yChange = Math.abs(o.transform.original.top - o.target.top)
+          if (xChange <= 0.5 && yChange <= 0.5) return
+          clearTimeout(unselectInMultiselectTimeout)
+          unselectInMultiselectTimeout = undefined
         }
       }
     },
@@ -136,6 +181,7 @@ export const useSelect = defineStore('select', (): Select => {
         if (touchType != 'touchstart') return
 
         if (isText(selectedObjectsRef.value)) {
+          console.log('si')
           exitEditing(selectedObjectsRef.value[0] as IText)
         }
         if (selectedObjectsRef.value.length > 0) {
@@ -170,7 +216,7 @@ export const useSelect = defineStore('select', (): Select => {
   }
 
   async function removeObjectFromMultiSelect(obj: fabric.Object) {
-    actionWithoutEvents(() => {
+    await actionWithoutEvents(() => {
       c?.discardActiveObject()
       const newSelection = new fabric.ActiveSelection(
         selectedObjects.filter(o => o.id != obj.id),

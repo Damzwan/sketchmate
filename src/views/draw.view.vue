@@ -11,7 +11,7 @@
         </div>
       </div>
     </ion-header>
-    <ion-content>
+    <ion-content :style="{ background: WHITE }">
       <ShapesMenu />
 
       <div>
@@ -56,16 +56,22 @@ import { useRoute } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import '@/theme/custom_vuejs_tour.scss'
-import { tutorialSteps, tutorialSteps2 } from '@/config/draw/draw.config'
+import { tutorialSteps, tutorialSteps2, WHITE } from '@/config/draw/draw.config'
 import { LocalStorage } from '@/types/storage.types'
+import { DrawTool } from '@/types/draw.types'
+import { useToast } from '@/service/toast.service'
+import { ToastDuration } from '@/types/toast.types'
+import { dismissButton } from '@/config/toast.config'
+import { checkForIntersections } from '@/helper/draw/draw.helper'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
 const drawStore = useDrawStore()
-const { loadingText, shapeCreationMode, canZoomOut, isLoading, colorPickerMode } = storeToRefs(drawStore)
+const { loadingText, shapeCreationMode, canZoomOut, isLoading, colorPickerMode, selectedTool } = storeToRefs(drawStore)
 const { selectedObjectsRef } = storeToRefs(useSelect())
 
 const currDataSteps = ref(tutorialSteps)
+const { toast, isOpen } = useToast()
 
 onIonViewDidEnter(async () => {
   await drawStore.initCanvas(myCanvasRef.value!)
@@ -76,6 +82,10 @@ const isTrial = computed(() => route.query.trial)
 
 const tour = ref()
 const isSelectTour = ref(false)
+
+let alreadyShownSelect = false
+let alreadyShownMulti = false
+let alreadyShownDouble = false
 
 onMounted(() => {
   if (!localStorage.getItem(LocalStorage.tour1)) tour.value.resetTour()
@@ -89,6 +99,79 @@ if (!localStorage.getItem(LocalStorage.tour2)) {
       currDataSteps.value = tutorialSteps2
       isSelectTour.value = true
       tour.value.resetTour()
+    }
+  })
+}
+
+if (!localStorage.getItem(LocalStorage.selectHint)) localStorage.setItem(LocalStorage.selectHint, '2')
+if (parseInt(localStorage.getItem(LocalStorage.selectHint)!) > 0) {
+  watch(selectedTool, () => {
+    if (alreadyShownSelect || parseInt(localStorage.getItem(LocalStorage.selectHint)!) == 0) return
+    if (selectedTool.value == DrawTool.Select)
+      if (drawStore.getCanvas().getObjects().length > 0) {
+        toast('Tap on an object to select it', {
+          duration: ToastDuration.long,
+          buttons: [dismissButton],
+          color: 'secondary'
+        })
+        localStorage.setItem(LocalStorage.selectHint, `${parseInt(localStorage.getItem(LocalStorage.selectHint)!) - 1}`)
+        alreadyShownSelect = true
+      } else {
+        toast('Create an object before you can select it', {
+          duration: ToastDuration.medium,
+          buttons: [dismissButton],
+          color: 'secondary'
+        })
+      }
+  })
+}
+
+if (!localStorage.getItem(LocalStorage.multiSelectHint)) localStorage.setItem(LocalStorage.multiSelectHint, '2')
+if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
+  watch(selectedObjectsRef, () => {
+    if (
+      alreadyShownMulti ||
+      parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) == 0 ||
+      !localStorage.getItem(LocalStorage.tour2)
+    )
+      return
+    if (selectedObjectsRef.value.length > 0 && drawStore.getCanvas().getObjects().length > 1 && !isOpen.value) {
+      toast('Long tap object to enter multi select mode', {
+        duration: ToastDuration.long,
+        buttons: [dismissButton],
+        color: 'secondary'
+      })
+      localStorage.setItem(
+        LocalStorage.multiSelectHint,
+        `${parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) - 1}`
+      )
+      alreadyShownMulti = true
+    }
+  })
+}
+
+if (!localStorage.getItem(LocalStorage.doubleTap)) localStorage.setItem(LocalStorage.doubleTap, '2')
+if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
+  watch(selectedObjectsRef, () => {
+    if (
+      alreadyShownDouble ||
+      parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0 ||
+      !localStorage.getItem(LocalStorage.tour2)
+    )
+      return
+    if (
+      selectedObjectsRef.value.length > 0 &&
+      drawStore.getCanvas().getObjects().length > 1 &&
+      checkForIntersections(drawStore.getCanvas()) &&
+      !isOpen.value
+    ) {
+      toast('Double tap object underneath selected object to select it', {
+        duration: ToastDuration.long,
+        buttons: [dismissButton],
+        color: 'secondary'
+      })
+      localStorage.setItem(LocalStorage.doubleTap, `${parseInt(localStorage.getItem(LocalStorage.doubleTap)!) - 1}`)
+      alreadyShownDouble = true
     }
   })
 }

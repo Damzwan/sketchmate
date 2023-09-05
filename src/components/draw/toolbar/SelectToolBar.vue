@@ -12,9 +12,8 @@
       </div>
     </ion-buttons>
 
-    <div class="absolute left-[50%] w-[41px] h-[21px] -z-10" data-step="t1" />
-    <div class="absolute left-[50%] w-[41px] h-[21px] -z-10" data-step="t2" />
-    <div class="absolute left-[50%] w-[41px] h-[21px] -z-10" data-step="t8" />
+    <div class="absolute left-[30%] w-[41px] h-[21px] -z-10" data-step="t1" />
+    <div class="absolute left-[30%] w-[41px] h-[21px] -z-10" data-step="t8" />
 
     <ion-buttons slot="end">
       <ion-button @click="() => selectAction(DrawAction.Delete, { objects: getSelectedObjects() })" data-step="t3">

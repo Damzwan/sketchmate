@@ -13,6 +13,10 @@
         </ion-item>
       </ion-list>
       <ion-list lines="none" class="p-0 divide-y divide-primary">
+        <ion-item color="tertiary" v-if="isColor" :button="true" @click="removeColorFilter">
+          <ion-icon :icon="svg(mdiClose)" color="danger" />
+          <p class="pl-2 text-sm">Remove color</p>
+        </ion-item>
         <ColorPicker
           @update:color="addColorFilter"
           :show-opacity="true"
@@ -24,11 +28,13 @@
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonList, IonPopover, IonToggle, IonItem } from '@ionic/vue'
+import { IonContent, IonList, IonPopover, IonToggle, IonItem, IonIcon } from '@ionic/vue'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { DrawAction } from '@/types/draw.types'
 import { fabric } from 'fabric'
 import { computed } from 'vue'
+import { svg } from '@/helper/general.helper'
+import { mdiClose } from '@mdi/js'
 
 const props = defineProps<{
   img: fabric.Image
@@ -37,6 +43,7 @@ const props = defineProps<{
 const isGrayScale = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Grayscale'))
 const isSepia = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Sepia'))
 const isInvert = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Invert'))
+const isColor = computed(() => !!props.img.filters?.find((f: any) => f.type == 'BlendColor'))
 
 function addGrayScaleFilter(e: any) {
   emits('add-filter', { filter: new fabric.Image.filters.Grayscale(), remove: !e.detail.checked })
@@ -48,6 +55,16 @@ function addSepiaFilter(e: any) {
 
 function addInvertFilter(e: any) {
   emits('add-filter', { filter: new fabric.Image.filters.Invert(), remove: !e.detail.checked })
+}
+
+function removeColorFilter() {
+  emits('add-filter', {
+    filter: new fabric.Image.filters.BlendColor({
+      color: '#000000',
+      mode: 'tint'
+    }),
+    remove: true
+  })
 }
 
 function addColorFilter(c: string) {

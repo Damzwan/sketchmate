@@ -17,7 +17,6 @@ import { ColorRGBA } from 'q-floodfill'
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
   checkCanvasBounds(c)
-  c.renderAll()
 }
 
 export function findObjectById(canvas: fabric.Canvas, id: string) {
@@ -562,4 +561,16 @@ export function exitColorPickerMode() {
     }, 50)
   } else setSelectionForObjects(c.getObjects(), true)
   c.requestRenderAll()
+}
+
+export function checkForIntersections(canvas: fabric.Canvas) {
+  const objects = canvas.getObjects()
+  for (let i = 0; i < objects.length; i++) {
+    for (let j = i + 1; j < objects.length; j++) {
+      if (objects[i].intersectsWithObject(objects[j])) {
+        return true
+      }
+    }
+  }
+  return false
 }

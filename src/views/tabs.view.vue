@@ -7,6 +7,7 @@
       @didDismiss="dismiss()"
       :buttons="buttons"
       :color="color"
+      :position="position"
     ></ion-toast>
     <FullScreenLoader v-show="notificationRouteLoading" class="z-50" />
     <ion-tabs>
@@ -65,7 +66,7 @@ import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 import { routerAnimation } from '@/helper/animation.helper'
 import { useRoute } from 'vue-router'
 
-const { text, isOpen, dismiss, duration, color, buttons } = useToast()
+const { text, isOpen, dismiss, duration, color, buttons, position } = useToast()
 const r = useIonRouter()
 
 const { notificationRouteLoading } = storeToRefs(useAppStore())

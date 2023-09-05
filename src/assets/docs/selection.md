@@ -26,6 +26,7 @@ Tap the select button on the toolbar.
 
 **Mobile:**
 - Long-press an object to initiate multiselect mode (indicated by a toolbar number).
+- Tap a multi-selected object to deselect it
 
 **PC:**
 - Hold shift and click to add objects to your selection.

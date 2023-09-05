@@ -9,11 +9,13 @@ export const useToast = createGlobalState(() => {
   const text = ref<string>('')
   const buttons = ref<ToastButton[]>([])
   const duration = ref(2000)
+  const position = ref('bottom')
 
   const defaultOptions: ToastOptions = {
     color: 'success',
     buttons: [],
-    duration: ToastDuration.short
+    duration: ToastDuration.short,
+    position: 'bottom'
   }
 
   function toast(new_text: string, options?: Partial<ToastOptions>): void {
@@ -24,11 +26,12 @@ export const useToast = createGlobalState(() => {
     text.value = new_text
     duration.value = mergedOptions.duration
     buttons.value = mergedOptions.buttons
+    position.value = mergedOptions.position
   }
 
   function dismiss() {
     isOpen.value = false
   }
 
-  return { isOpen, color, text, duration, toast, dismiss, buttons }
+  return { isOpen, color, text, duration, toast, dismiss, buttons, position }
 })

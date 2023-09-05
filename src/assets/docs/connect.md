@@ -26,4 +26,4 @@ To match with someone new:
 
 ## Connection Limit
 
-Currently, connect with just one person. If many want more connections, I'll add it. Let me know!
+Currently, you can connect with just one person. This limit will change in the future.

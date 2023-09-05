@@ -32,6 +32,7 @@ export const useAppStore = defineStore('app', () => {
   const localUserImg = ref<string | null>(null)
 
   const keyboardHeight = ref(0)
+  const installPrompt = ref<any>()
 
   if (isNative()) Keyboard.addListener('keyboardWillShow', info => (keyboardHeight.value = info.keyboardHeight))
 
@@ -167,6 +168,7 @@ export const useAppStore = defineStore('app', () => {
     localUserId,
     localUserImg,
     keyboardHeight,
-    refresh
+    refresh,
+    installPrompt
   }
 })

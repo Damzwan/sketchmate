@@ -85,6 +85,7 @@ function createDownScaledCanvas(c: Canvas, scale: number) {
 
   c.setViewportTransform(oldViewportTransform!)
   c.setZoom(oldZoom)
+  c.renderAll()
 
   return downscaledCanvas
 }

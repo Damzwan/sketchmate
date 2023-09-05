@@ -31,6 +31,7 @@ export function enableMobileGestures(c: any) {
   let lastEvent = { rotation: null, scale: 1 } // Initialize
 
   hammer!.on('pinchstart', () => {
+    c.getObjects().forEach((o: any) => (o.objectCaching = false))
     if (shapeCreationMode.value) return
     disableHistorySaving()
 
@@ -76,10 +77,13 @@ export function enableMobileGestures(c: any) {
         }
       }
     }
-    c?.requestRenderAll()
+
+    c.requestRenderAll()
   })
 
   hammer!.on('pinchend', function () {
+    c.getObjects().forEach((o: any) => (o.objectCaching = true))
+
     enableHistorySaving()
     lastDelta = {
       x: 0,
@@ -153,6 +157,7 @@ function cancelPenAction(c: Canvas) {
 }
 
 function cancelPreviousAction(c: Canvas) {
+  EventBus.emit('gesture') // used by the bucket tool
   const { selectedTool } = useDrawStore()
   const { actionWithoutEvents } = useEventManager()
   setTimeout(() => {
@@ -170,6 +175,7 @@ export function enablePCGestures(c: any) {
   const { subscribe } = useEventManager()
   const { setCanZoomOut } = useDrawStore()
   let panStartPoint: any = null
+
   const events: FabricEvent[] = [
     {
       on: 'mouse:wheel',
@@ -180,6 +186,8 @@ export function enablePCGestures(c: any) {
         const zoomFactor = Math.exp(-deltaY / 10)
         handleZoom(zoomFactor, e.e.offsetX, e.e.offsetY, c)
         setCanZoomOut(c.getZoom() > 1)
+
+        c.requestRenderAll()
         e.e.preventDefault()
         e.e.stopPropagation()
       },

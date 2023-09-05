@@ -226,17 +226,6 @@ export const tutorialSteps2 = [
   </div>`
   },
   {
-    target: '[data-step="t2"]',
-    content: `<div>
-    <p class="text-xl">Tips</p>
-    <div class="px-3">
-     <li class="text-base">Double-tap to <b>select object beneath</b> selected object.</li>
-     <li class="text-base">Long-press a selected object for <b>multi-select</b> mode (mobile).</li>
-</div>
-</p>
-  </div>`
-  },
-  {
     target: '[data-step="t3"]',
     content: `<div>
     <p class="text-xl">Delete object</p>

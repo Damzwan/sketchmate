@@ -6,16 +6,26 @@
       >Feedback Form
     </ion-button>
     <ion-button v-if="blog" fill="clear" color="secondary" href="https://sketchmate.ninja/blog/" target="_blank"
-      >Blog</ion-button
-    >
+      >Blog
+    </ion-button>
     <ion-button v-if="contact" fill="clear" color="secondary" href="mailto:contact@sketchmate.ninja"
-      >Contact Me</ion-button
-    >
+      >Contact Me
+    </ion-button>
+    <ion-button v-if="!isNative() && installPrompt" fill="clear" color="secondary" @click="installPWA"
+      >Download SketchMate
+    </ion-button>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { v4 as uuidv4 } from 'uuid'
+import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
+import { IonButton } from '@ionic/vue'
+import { useAppStore } from '@/store/app.store'
+import { storeToRefs } from 'pinia'
+import { isNative } from '@/helper/general.helper'
+
+const { installPrompt } = storeToRefs(useAppStore())
 
 export interface Props {
   docs?: boolean
@@ -33,6 +43,13 @@ withDefaults(defineProps<Props>(), {
 
 const id = uuidv4()
 
-import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
-import { IonButton } from '@ionic/vue'
+async function installPWA() {
+  if (installPrompt.value) {
+    installPrompt.value.prompt()
+    const { outcome } = await installPrompt.value.userChoice
+    if (outcome === 'accepted') {
+      installPrompt.value = null
+    }
+  }
+}
 </script>

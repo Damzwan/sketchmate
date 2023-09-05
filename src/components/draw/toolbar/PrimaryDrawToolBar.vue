@@ -64,13 +64,7 @@
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>
 
-      <ConfirmationAlert
-        header="Is your drawing ready?"
-        message="Does not seem like it..."
-        trigger="send-drawing"
-        confirmationtext="Send"
-        @confirm="send"
-      />
+      <ConfirmationAlert header="Ready to send?" trigger="send-drawing" confirmationtext="Send" @confirm="send" />
     </ion-buttons>
   </ion-toolbar>
 </template>

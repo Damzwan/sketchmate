@@ -29,7 +29,7 @@
               type="text"
               maxlength="30"
               fill="outline"
-              placeholder="e.g. BiggusDickus"
+              placeholder="e.g. SketchMater"
               v-model="name"
               ref="nameRef"
               @ionFocus="onNameFocus"

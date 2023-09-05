@@ -7,6 +7,7 @@ import FontFaceObserver from 'fontfaceobserver'
 import { useHistory } from '@/service/draw/history.service'
 import { popoverController } from '@ionic/vue'
 import { isText } from '@/helper/draw/draw.helper'
+import { BLACK } from '@/config/draw/draw.config'
 
 export function addText(c: Canvas) {
   const { selectTool } = useDrawStore()
@@ -19,7 +20,8 @@ export function addText(c: Canvas) {
     fontFamily: 'Arial',
     lineHeight: 0.9,
     originX: 'center',
-    originY: 'center'
+    originY: 'center',
+    fill: BLACK
   })
   text.init = true
 

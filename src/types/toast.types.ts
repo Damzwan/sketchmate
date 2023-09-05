@@ -5,6 +5,7 @@ export interface ToastOptions {
   color: COLOR
   buttons: ToastButton[]
   duration: number
+  position: 'top' | 'bottom' | 'middle'
 }
 
 export enum ToastDuration {

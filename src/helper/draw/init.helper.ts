@@ -27,7 +27,8 @@ export function initCanvasOptions(): ICanvasOptions {
     backgroundColor: BACKGROUND,
     fireMiddleClick: true,
     selection: false,
-    preserveObjectStacking: true
+    preserveObjectStacking: true,
+    renderOnAddRemove: false
   }
 }
 
@@ -151,7 +152,7 @@ export function changeFabricBaseSettings() {
   fabric.IText.prototype.mouseUpHandler = function (o) {
     const { multiSelectMode } = useSelect()
     const { isUsingGesture } = useDrawStore()
-    if (multiSelectMode || isUsingGesture) return
+    if (isUsingGesture) return // TODO check if no return multiSelectMode good
     ogMouseUp.call(this, o)
   }
 

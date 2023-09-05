@@ -3,27 +3,40 @@ import { setObjectSelection, setSelectionForObjects } from '@/helper/draw/draw.h
 import { Canvas, IPoint } from 'fabric/fabric-impl'
 import { defineStore } from 'pinia'
 import { bucketFill } from '@/helper/draw/actions/bucket.action'
+import { EventBus } from '@/main'
 
 export const useBucket = defineStore('bucket', (): ToolService => {
   let c: Canvas | undefined = undefined
+
+  let timeout: any
 
   const events: FabricEvent[] = [
     {
       type: DrawEvent.BucketFill,
       on: 'mouse:down',
       handler: async (o: any) => {
-        const pointer: IPoint = c!.getPointer(o.e)
-        const img = await bucketFill(c!, pointer)
-        if (!img) return
-        c!.add(img)
-        setObjectSelection(img, false) // TODO should not be necessary
-        c!.renderAll()
+        if (timeout) return
+        timeout = setTimeout(async () => {
+          timeout = undefined
+          const pointer: IPoint = c!.getPointer(o.e)
+          const img = await bucketFill(c!, pointer)
+          if (!img) return
+          c!.add(img)
+          setObjectSelection(img, false) // TODO should not be necessary
+          c!.renderAll()
+        }, 50)
       }
     }
   ]
 
   function init(canvas: Canvas) {
     c = canvas
+    EventBus.on('gesture', () => {
+      if (timeout) {
+        clearTimeout(timeout)
+        timeout = undefined
+      }
+    })
   }
 
   function destroy() {

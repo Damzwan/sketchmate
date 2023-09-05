@@ -103,6 +103,7 @@ export function bringToFront(c: Canvas, { objects }: { objects: SelectedObject[]
 
   // Call bringToFront iteratively
   sortedObjects.forEach(obj => c.bringToFront(obj))
+  c.requestRenderAll()
 }
 
 export function moveUpOneLayer(c: Canvas, { objects }: { objects: SelectedObject[] }) {
@@ -121,6 +122,7 @@ export function moveUpOneLayer(c: Canvas, { objects }: { objects: SelectedObject
     const currI = c.getObjects().indexOf(obj)
     c.moveTo(obj, Math.min(currI + 1, objectsLength))
   })
+  c.requestRenderAll()
 }
 
 export function moveDownOneLayer(c: Canvas, { objects }: { objects: SelectedObject[] }) {
@@ -139,6 +141,7 @@ export function moveDownOneLayer(c: Canvas, { objects }: { objects: SelectedObje
     const currI = c.getObjects().indexOf(obj)
     c.moveTo(obj, Math.max(currI - 1, 0))
   })
+  c.requestRenderAll()
 }
 
 export function bringToBack(c: Canvas, { objects }: { objects: SelectedObject[] }) {
@@ -155,4 +158,5 @@ export function bringToBack(c: Canvas, { objects }: { objects: SelectedObject[] 
     .reverse() // Reverse the sorted array to process the highest layers first
 
   sortedObjects.forEach(obj => c.sendToBack(obj))
+  c.requestRenderAll()
 }

@@ -22,6 +22,14 @@
             class="flex items-center -mr-2"
           >
             <div class="rounded-full w-[26px] h-[26px]" :style="{ backgroundColor: strokeColor }" />
+            <ion-icon
+              v-if="disableClear !== 'stroke'"
+              class="w-[32px] h-[32px]"
+              :icon="svg(mdiClose)"
+              color="danger"
+              @click="() => emits('update:stroke-color', undefined)"
+              @click.stop
+            />
           </div>
 
           <ion-popover trigger="stroke" side="left">
@@ -109,13 +117,14 @@ defineProps<{
   strokeColor?: string
   fillColor?: string
   backgroundColor?: string
+  disableClear?: 'stroke' | 'fill'
   strokeWidth: number
 }>()
 
 const shouldRefocusTextAfterClose = ref(false)
 
 const emits = defineEmits<{
-  (e: 'update:stroke-color', color: string): void
+  (e: 'update:stroke-color', color: string | undefined): void
   (e: 'update:fill-color', color: string | undefined): void
   (e: 'update:background-color', color: string | undefined): void
   (e: 'update:strokeWidth', strokeWidth: number): void

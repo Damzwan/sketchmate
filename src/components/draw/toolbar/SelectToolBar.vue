@@ -38,6 +38,7 @@
           :fill-color="selectedObjectsRef[0]?.fill as string"
           :background-color="selectedObjectsRef[0]?.backgroundColor"
           trigger="select_color"
+          :disable-clear="isText ? 'fill' : 'stroke'"
           @update:stroke-color="color => selectAction(DrawAction.ChangeStrokeColour, { color })"
           @update:fill-color="color => selectAction(DrawAction.ChangeFillColour, { color })"
           @update:background-color="color => selectAction(DrawAction.ChangeBackgroundColor, { color })"

@@ -4,7 +4,6 @@ import { useHistory } from '@/service/draw/history.service'
 import { Canvas } from 'fabric/fabric-impl'
 import { popoverController } from '@ionic/vue'
 import { ObjectType } from '@/types/draw.types'
-import { BLACK } from '@/config/draw/draw.config'
 
 export function setStrokeColor(c: Canvas, options: any) {
   const color = options['color']
@@ -19,7 +18,7 @@ export function setStrokeColor(c: Canvas, options: any) {
     { color: true }
   )
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { stroke: color || BLACK })
+  setForSelectedObjects(selectedObjectsRef, { stroke: color })
 
   c.renderAll()
   popoverController.dismiss()

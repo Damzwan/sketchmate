@@ -545,7 +545,7 @@ export function hex2RGBA(hex: string): ColorRGBA {
 }
 
 export function exitColorPickerMode() {
-  const { unsubscribe, enableAllEvents } = useEventManager()
+  const { unsubscribe } = useEventManager()
   const { getCanvas, selectedTool } = useDrawStore()
   const { colorPickerMode } = storeToRefs(useDrawStore())
 

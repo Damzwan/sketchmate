@@ -62,6 +62,7 @@ export function createSocketService(): SocketAPI {
     socket.on(SOCKET_ENDPONTS.unmatch, async () => {
       isLoading.value = false
       Preferences.remove({ key: LocalStorage.mate })
+      toast('Unmatched', { buttons: [dismissButton], duration: 5000, color: 'warning' })
 
       user.value!.mate = undefined
       inbox.value = []

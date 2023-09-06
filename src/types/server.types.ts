@@ -15,6 +15,7 @@ export interface InboxItem {
   sender: string
   reply?: InboxItem
   comments: Comment[]
+  aspect_ratio: number
 }
 
 export interface Comment {
@@ -57,6 +58,7 @@ export interface SendParams {
   mate_id: string
   drawing: string
   img: any
+  aspect_ratio: number
 }
 
 export interface SendRes {

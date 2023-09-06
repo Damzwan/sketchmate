@@ -6,7 +6,7 @@
           <div class="container">
             <img :src="girlDrawing" class="w-full h-[230px]" alt="Girl drawing" />
             <h1 class="title pt-12">Welcome to SketchMate</h1>
-            <p class="subtitle">A simple app that makes sketching and sharing a part of your everyday routine</p>
+            <p class="subtitle">A simple app that makes sketching and sharing a part of your routine</p>
           </div>
         </swiper-slide>
 
@@ -21,31 +21,37 @@
           <div class="container">
             <Lottie :json="sketching" :play="playLottie" class="w-full h-[430px]" />
             <h1 class="title -mt-10">Sketch at your own pace</h1>
-            <p class="subtitle">Whether it's a few times a day or once in a while, no artistic skills required</p>
+            <p class="subtitle">Whether it's a few times a day or once in a while</p>
           </div>
         </swiper-slide>
         <swiper-slide>
           <div class="container">
             <img :src="gallery" class="w-full h-[230px]" alt="Gallery drawing" />
             <h1 class="title pt-12">Personal gallery</h1>
-            <p class="subtitle">Your sketches are stored in a simple, elegant gallery</p>
+            <p class="subtitle">Store your sketches in a simple, elegant gallery</p>
           </div>
         </swiper-slide>
         <swiper-slide>
           <div class="container">
-            <img :src="widget" class="h-[350px] aspect-auto mx-auto" alt="Gallery drawing" />
+            <img :src="widget" class="h-[300px] aspect-auto mx-auto" alt="Gallery drawing" />
             <h1 class="title pt-12">Stay connected</h1>
-            <p class="subtitle"> View your friend's latest sketch straight from your widget</p>
+            <p class="subtitle">View your friend's latest sketch straight from your widget</p>
           </div>
         </swiper-slide>
 
-        <swiper-slide v-if="!isNative() && installPrompt">
+        <swiper-slide v-if="(!isNative() && installPrompt) || showIosSafariInstructions()">
           <div class="container">
             <img :src="download" class="w-full h-[460px] -mb-[120px]" alt="Girl drawing" />
-            <h1 class="title pt-12">Download SketchMate</h1>
-            <p class="subtitle">Download on the play store or download the Web App</p>
+            <h1 class="title pt-12">Install SketchMate</h1>
+            <p class="subtitle">Install on the play store or install the Web App</p>
             <div class="flex w-full justify-center items-center pt-3 absolute">
-              <ion-button color="secondary" @click="installPWA">Download SketchMate</ion-button>
+              <ion-button color="secondary" @click="installPWA" v-if="!isNative() && installPrompt"
+                >Install SketchMate
+              </ion-button>
+              <ion-button v-if="showIosSafariInstructions()" color="secondary" id="pwaIOS"
+                >Install Sketchmate
+              </ion-button>
+              <IosPwaInstructions trigger="pwaIOS" v-if="showIosSafariInstructions()" />
             </div>
           </div>
         </swiper-slide>
@@ -150,7 +156,14 @@ import {
 
 import { ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { blurIonInput, compressImg, isMobile, isNative, svg } from '@/helper/general.helper'
+import {
+  blurIonInput,
+  compressImg,
+  isMobile,
+  isNative,
+  showIosSafariInstructions,
+  svg
+} from '@/helper/general.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { storeToRefs } from 'pinia'
@@ -166,6 +179,7 @@ import { Swiper } from 'swiper/types'
 import Lottie from '@/components/general/Lottie.vue'
 import ProfilePicture from '@/components/general/ProfilePictureSelector.vue'
 import { stock_img } from '@/config/general.config'
+import IosPwaInstructions from '@/components/general/IosPwaInstructions.vue'
 
 register()
 

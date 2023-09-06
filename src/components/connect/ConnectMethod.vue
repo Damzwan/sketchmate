@@ -68,5 +68,18 @@ ion-img {
   .custom-card .subtitle {
     @apply font-sans font-light text-sm text-center;
   }
+
+  ion-img {
+    width: 54px;
+    height: 54px;
+  }
+
+  .custom-card .title {
+    @apply py-0.5;
+  }
+
+  .custom-card {
+    @apply p-0.5;
+  }
 }
 </style>

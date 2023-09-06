@@ -144,6 +144,18 @@ export function isNative() {
   return isPlatform('capacitor')
 }
 
+export function isIOS() {
+  return isPlatform('ios')
+}
+
+export function isSafari() {
+  const userAgentString = navigator.userAgent
+  const chromeAgent = userAgentString.indexOf('Chrome') > -1
+  let safariAgent = userAgentString.indexOf('Safari') > -1
+  if (chromeAgent && safariAgent) safariAgent = false
+  return safariAgent
+}
+
 export function blurIonInput(ionInput: any) {
   ionInput.$el.querySelector('input').blur()
 }
@@ -160,4 +172,12 @@ export function initFirebase() {
   }
 
   initializeApp(firebaseConfig)
+}
+
+export function isRunningStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches
+}
+
+export function showIosSafariInstructions() {
+  return isIOS() && isSafari() && !isRunningStandalone()
 }

@@ -23,21 +23,18 @@
       />
 
       <NoMessages v-if="noMessages" />
-      <div class="h-full px-4" v-else>
+      <div class="h-full px-2" v-else>
         <div class="h-full">
           <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-3">
             <div class="text-xl font-bold">
               {{ dayjs(date).format('ddd, MMM D') }}
             </div>
 
-            <ion-row class="w-full pt-3">
-              <ion-col
-                size="4"
-                size-md="2"
-                size-lg="1"
-                class="p-1"
+            <div class="grid grid-cols-4 md:grid-cols-12 lg:grid-cols-20 gap-1.5 pt-3">
+              <div
                 v-for="(inboxItem, i) in inboxItemsFromDateGroups(date).reverse()"
                 :key="i"
+                :class="inboxItem.aspect_ratio > 1 ? 'col-span-2' : 'col-span-1'"
               >
                 <Thumbnail
                   :inbox-item="inboxItem"
@@ -47,8 +44,8 @@
                   @long-press="() => onItemLongPress(inboxItem)"
                   @click="onThumbnailClick(inboxItem)"
                 />
-              </ion-col>
-            </ion-row>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -64,7 +61,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonCol, IonContent, IonPage, IonRefresher, IonRefresherContent, IonRow, onIonViewWillLeave } from '@ionic/vue'
+import { IonContent, IonPage, IonRefresher, IonRefresherContent, onIonViewWillLeave } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'

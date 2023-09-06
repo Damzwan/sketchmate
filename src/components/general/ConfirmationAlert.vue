@@ -1,9 +1,16 @@
 <template>
-  <ion-alert :trigger="trigger" :header="header" :message="message" :buttons="alertButtons" />
+  <ion-alert
+    :trigger="trigger"
+    :header="header"
+    :message="message"
+    :buttons="alertButtons"
+    @keyup.enter="confirm"
+    @keyup.delete="cancel"
+  />
 </template>
 
 <script lang="ts" setup>
-import { IonAlert } from '@ionic/vue'
+import { alertController, IonAlert } from '@ionic/vue'
 const props = defineProps<{
   trigger: string
   header: string
@@ -12,6 +19,16 @@ const props = defineProps<{
 }>()
 
 const emits = defineEmits(['cancel', 'confirm'])
+
+function confirm() {
+  emits('confirm')
+  alertController.dismiss()
+}
+
+function cancel() {
+  emits('cancel')
+  alertController.dismiss()
+}
 
 const alertButtons = [
   {

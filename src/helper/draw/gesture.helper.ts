@@ -33,6 +33,7 @@ export function enableMobileGestures(c: any) {
   hammer!.on('pinchstart', () => {
     c.getObjects().forEach((o: any) => (o.objectCaching = false))
     if (shapeCreationMode.value) return
+    EventBus.emit('gesture') // used by bucket tool
     disableHistorySaving()
 
     // rotation or scale gesture
@@ -48,6 +49,7 @@ export function enableMobileGestures(c: any) {
   })
 
   hammer!.on('pinch', function (e) {
+    EventBus.emit('gesture') // used by bucket tool
     if (shapeCreationMode.value) return
 
     if (selectedTool.value == DrawTool.Select && isUsingGesture.value) {
@@ -157,7 +159,6 @@ function cancelPenAction(c: Canvas) {
 }
 
 function cancelPreviousAction(c: Canvas) {
-  EventBus.emit('gesture') // used by the bucket tool
   const { selectedTool } = useDrawStore()
   const { actionWithoutEvents } = useEventManager()
   setTimeout(() => {

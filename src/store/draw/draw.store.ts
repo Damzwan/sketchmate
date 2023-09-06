@@ -187,7 +187,8 @@ export const useDrawStore = defineStore('draw', () => {
       mate_id: user.value!.mate!._id,
       drawing: JSON.stringify(c.toJSON(['width', 'height'])),
       img: await canvasToBuffer(c.toDataURL({ multiplier: 2 })), // TODO multiplier 2 could be dangerous
-      name: user.value!.name
+      name: user.value!.name,
+      aspect_ratio: c.width! / c.height!
     })
   }
 

@@ -1,45 +1,47 @@
 <template>
-  <div ref="el" @click="onClick">
+  <div ref="el" @click="onClick" class="relative h-full">
     <div class="z-10 absolute w-full h-full flex justify-center items-center" v-if="isLoading">
       <ion-spinner color="primary" />
     </div>
-    <ion-img
-      class="w-full cursor-pointer object-fill relative min-h-[150px]"
-      :src="props.inboxItem.image"
-      @ionImgDidLoad="isLoading = false"
+
+    <img
+      :src="props.inboxItem.thumbnail"
+      :alt="props.inboxItem.date"
       @contextmenu.prevent
+      @load="isLoading = false"
+      class="w-full cursor-pointer relative min-h-[150px] h-full object-fill rounded-xl"
     />
-  </div>
 
-  <div v-if="!isLoading">
-    <div class="absolute z-10 right-1 top-1 w-3/12">
-      <ion-avatar class="flex justify-center items-center w-full h-full"
-        ><img :src="senderImg(user, props.inboxItem.sender)" alt="" class="aspect-square"
-      /></ion-avatar>
-    </div>
+    <div v-if="!isLoading">
+      <div class="absolute z-10 right-0.5 top-0.5 w-[28px]">
+        <ion-avatar class="flex justify-center items-center w-full h-full"
+          ><img :src="senderImg(user, props.inboxItem.sender)" alt="" class="aspect-square"
+        /></ion-avatar>
+      </div>
 
-    <div
-      v-if="props.inboxItem.comments.length > 0"
-      class="absolute z-10 right-1 bottom-1 w-3/12 flex justify-center items-center rounded-full bg-secondary aspect-square text-md"
-    >
-      {{ props.inboxItem.comments.length }}
-    </div>
+      <div
+        v-if="props.inboxItem.comments.length > 0"
+        class="absolute z-10 right-0.5 bottom-0.5 w-[28px] flex justify-center items-center rounded-full bg-secondary aspect-square text-md"
+      >
+        {{ props.inboxItem.comments.length }}
+      </div>
 
-    <div class="absolute z-10 left-1 top-1" v-if="multiSelectMode">
-      <ion-icon
-        size="large"
-        :icon="
-          svg(multiSelectedItems.includes(itemId) ? mdiCheckboxMarkedCircleOutline : mdiCheckboxBlankCircleOutline)
-        "
-        color="secondary"
-      />
+      <div class="absolute z-10 left-0.5 top-0.5 w-[28px]" v-if="multiSelectMode">
+        <ion-icon
+          size="large"
+          :icon="
+            svg(multiSelectedItems.includes(itemId) ? mdiCheckboxMarkedCircleOutline : mdiCheckboxBlankCircleOutline)
+          "
+          color="secondary"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { computed, ref } from 'vue'
-import { IonAvatar, IonImg, IonSpinner, IonIcon } from '@ionic/vue'
+import { IonAvatar, IonSpinner, IonIcon } from '@ionic/vue'
 import { InboxItem, User } from '@/types/server.types'
 import { isMobile, senderImg, svg } from '@/helper/general.helper'
 import { onLongPress } from '@vueuse/core'

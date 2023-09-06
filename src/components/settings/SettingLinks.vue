@@ -12,8 +12,12 @@
       >Contact Me
     </ion-button>
     <ion-button v-if="!isNative() && installPrompt" fill="clear" color="secondary" @click="installPWA"
-      >Download SketchMate
+      >Install SketchMate
     </ion-button>
+    <ion-button v-if="showIosSafariInstructions()" fill="clear" color="secondary" :id="pwaInstructionId"
+      >Install Sketchmate</ion-button
+    >
+    <IosPwaInstructions :trigger="pwaInstructionId" v-if="showIosSafariInstructions()" />
   </div>
 </template>
 
@@ -23,9 +27,11 @@ import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
 import { IonButton } from '@ionic/vue'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
-import { isNative } from '@/helper/general.helper'
+import { isNative, showIosSafariInstructions } from '@/helper/general.helper'
+import IosPwaInstructions from '@/components/general/IosPwaInstructions.vue'
 
 const { installPrompt } = storeToRefs(useAppStore())
+const pwaInstructionId = uuidv4()
 
 export interface Props {
   docs?: boolean
@@ -53,3 +59,12 @@ async function installPWA() {
   }
 }
 </script>
+
+<style scoped>
+@media screen and (max-height: 700px) {
+  ion-button {
+    height: 35px !important;
+    min-height: 35px !important;
+  }
+}
+</style>

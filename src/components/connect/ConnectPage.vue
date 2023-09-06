@@ -202,9 +202,10 @@ ion-header {
   --ion-background-color: transparent;
 }
 
-@media screen and (max-height: 800px) {
-  .links ion-button {
-    height: 40px;
+@media screen and (max-height: 700px) {
+  ion-button {
+    height: 35px !important;
+    min-height: 35px !important;
   }
 }
 </style>

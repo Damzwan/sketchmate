@@ -154,16 +154,9 @@ import {
   IonToolbar
 } from '@ionic/vue'
 
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import {
-  blurIonInput,
-  compressImg,
-  isMobile,
-  isNative,
-  showIosSafariInstructions,
-  svg
-} from '@/helper/general.helper'
+import { blurIonInput, compressImg, isMobile, isNative, showIosSafariInstructions, svg } from '@/helper/general.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { storeToRefs } from 'pinia'
@@ -214,6 +207,11 @@ function initSwiper(e: any) {
 function nextSlide() {
   swiper.value?.slideNext()
 }
+
+// update the swiper in case we add the new slide
+watch(installPrompt, () => {
+  if (installPrompt.value) setTimeout(() => swiper.value?.update(), 1)
+})
 
 async function create() {
   localUserImg.value = img.value

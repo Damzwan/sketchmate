@@ -73,7 +73,7 @@ export const useSelect = defineStore('select', (): Select => {
       type: DrawEvent.SetSelectedObjects
     },
     {
-      type: DrawEvent.SetModified,
+      type: DrawEvent.SetSelectedObjects,
       on: 'mouse:down',
       handler: async (o: any) => {
         if (removeTimeout) return

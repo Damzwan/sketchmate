@@ -84,7 +84,7 @@ export function enableMobileGestures(c: any) {
   })
 
   hammer!.on('pinchend', function () {
-    c.getObjects().forEach((o: any) => (o.objectCaching = true))
+    if (!isUsingGesture.value) c.getObjects().forEach((o: any) => (o.objectCaching = true))
 
     enableHistorySaving()
     lastDelta = {
@@ -102,9 +102,10 @@ export function enableMobileGestures(c: any) {
         if (obj.type == ObjectType.selection)
           addPrevModifiedObjectsToStack((obj as fabric.ActiveSelection).getObjects())
         else addPrevModifiedObjectsToStack([obj])
+        c.requestRenderAll()
       }, 100)
     }
-    c.renderAll()
+    c.requestRenderAll()
   })
 }
 

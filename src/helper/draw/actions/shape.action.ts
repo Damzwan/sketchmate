@@ -1,5 +1,5 @@
 import { Canvas, IPoint } from 'fabric/fabric-impl'
-import { DrawEvent, DrawTool, Shape, ShapeCreationMode } from '@/types/draw.types'
+import { DrawEvent, Shape, ShapeCreationMode } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { useHistory } from '@/service/draw/history.service'
 import { fabric } from 'fabric'
@@ -56,6 +56,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 
     if (points.length == 0) exitShapeCreationMode()
     else enableShapeCreationClickEvents()
+    c.requestRenderAll()
   }
 
   function enableShapeCreationClickEvents() {
@@ -125,6 +126,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 
         addToUndoStack([createdShape], 'polygon')
         createdShape.isCreating = true
+        c.requestRenderAll()
       }
     })
   }
@@ -134,7 +136,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 
 function addShapeWithDrag(c: Canvas, shape: Shape) {
   const { disableHistorySaving, enableHistorySaving, addToUndoStack } = useHistory()
-  const { isolatedSubscribe, unsubscribe } = useEventManager()
+  const { isolatedSubscribe, unsubscribe, enableAllEvents } = useEventManager()
   const { setShapeCreationMode, selectTool } = useDrawStore()
 
   let createdShape: any
@@ -165,17 +167,9 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
     type: DrawEvent.ShapeCreation,
     on: 'mouse:up',
     handler: () => {
-      const shapeEvents = ['mouse:down', 'mouse:move', 'mouse:up']
-      shapeEvents.forEach(e => unsubscribe({ type: DrawEvent.ShapeCreation, on: e }))
-
-      enableHistorySaving()
-      drawingMode = false
       addToUndoStack([createdShape], 'object:added')
       createdShape.setCoords() // important to update the bounding box of the shape
-      setShapeCreationMode(undefined)
-      selectTool(DrawTool.Select)
-      c.setActiveObject(createdShape)
-      c.renderAll()
+      exitShapeCreationMode()
     }
   })
 }

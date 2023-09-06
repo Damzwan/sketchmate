@@ -277,6 +277,7 @@ export function exitShapeCreationMode() {
   const { selectTool } = useDrawStore()
   selectTool(DrawTool.Select)
   c.setActiveObject(c.getObjects().at(-1)!)
+  c.requestRenderAll()
 }
 
 export function getStaticObjWithAbsolutePosition(obj: fabric.Object) {

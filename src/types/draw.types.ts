@@ -172,7 +172,7 @@ export enum DrawEvent {
   Gesture = 'gesture',
   BucketFill = 'on click with bucket',
   ShapeCreation = 'Creating shape',
-  SetModified = 'Creating shape',
+  SetModified = 'Set Modified',
   Lasso = 'Using lasso',
   CanvasSave = 'save in case we exit',
   ColorPicker = 'Color picker'

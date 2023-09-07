@@ -567,5 +567,7 @@ export function exitColorPickerMode() {
 }
 
 export function checkForIntersectionsWithSelectedObject(canvas: fabric.Canvas) {
-  return canvas.getObjects().some(o => o.intersectsWithObject(canvas.getActiveObject()!))
+  return canvas
+    .getObjects()
+    .some(o => !canvas.getActiveObjects().includes(o) && o.intersectsWithObject(canvas.getActiveObject()!))
 }

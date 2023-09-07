@@ -142,44 +142,45 @@ if (parseInt(localStorage.getItem(LocalStorage.selectHint)!) > 0) {
   })
 }
 
+let t1: any
 if (!localStorage.getItem(LocalStorage.multiSelectHint)) localStorage.setItem(LocalStorage.multiSelectHint, '2')
 if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
+  clearTimeout(t1)
   watch(selectedObjectsRef, () => {
-    if (
-      didShowMultiSelectTip ||
-      parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) == 0 ||
-      !localStorage.getItem(LocalStorage.selectTip)
-    )
-      return
+    if (didShowMultiSelectTip || parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) == 0) return
     if (selectedObjectsRef.value.length == 1 && drawStore.getCanvas().getObjects().length > 1 && !showTipBox.value) {
-      showTip('Long tap object to enter multi select mode')
-      localStorage.setItem(
-        LocalStorage.multiSelectHint,
-        `${parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) - 1}`
-      )
-      didShowMultiSelectTip = true
+      t1 = setTimeout(() => {
+        if (showTipBox.value) return
+        showTip('Long tap object to enter multi select mode')
+        localStorage.setItem(
+          LocalStorage.multiSelectHint,
+          `${parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) - 1}`
+        )
+        didShowMultiSelectTip = true
+      }, 50)
     }
   })
 }
 
+let t: any
 if (!localStorage.getItem(LocalStorage.doubleTap)) localStorage.setItem(LocalStorage.doubleTap, '2')
 if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
   watch(selectedObjectsRef, () => {
-    if (
-      didShowDoubleTapTip ||
-      parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0 ||
-      !localStorage.getItem(LocalStorage.selectTip)
-    )
-      return
+    if (didShowDoubleTapTip || parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0) return
+    clearTimeout(t)
+    // stupid fix to not clash with previous tip
     if (
       selectedObjectsRef.value.length > 0 &&
       drawStore.getCanvas().getObjects().length > 1 &&
       checkForIntersectionsWithSelectedObject(drawStore.getCanvas()) &&
       !showTipBox.value
     ) {
-      showTip('Double-tap the object below the current selection to switch to it')
-      localStorage.setItem(LocalStorage.doubleTap, `${parseInt(localStorage.getItem(LocalStorage.doubleTap)!) - 1}`)
-      didShowDoubleTapTip = true
+      t = setTimeout(() => {
+        if (showTipBox.value) return
+        showTip('Double-tap the object below the current selection to switch to it')
+        localStorage.setItem(LocalStorage.doubleTap, `${parseInt(localStorage.getItem(LocalStorage.doubleTap)!) - 1}`)
+        didShowDoubleTapTip = true
+      }, 100)
     }
   })
 }

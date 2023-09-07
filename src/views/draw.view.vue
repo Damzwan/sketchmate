@@ -33,7 +33,7 @@
         </ion-button>
       </div>
     </ion-content>
-    <VTour :steps="currDataSteps" ref="tour" :autoStart="true"/>
+    <VTour :steps="currDataSteps" ref="tour" :autoStart="true" />
 
     <transition name="slide">
       <div class="w-[300px] absolute top-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black" v-if="showTipBox">
@@ -69,7 +69,7 @@ import '@/theme/custom_vuejs_tour.scss'
 import { tutorialSteps, WHITE } from '@/config/draw/draw.config'
 import { LocalStorage } from '@/types/storage.types'
 import { DrawTool } from '@/types/draw.types'
-import { checkForIntersections } from '@/helper/draw/draw.helper'
+import { checkForIntersectionsWithSelectedObject } from '@/helper/draw/draw.helper'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
@@ -97,7 +97,6 @@ let didShowDoubleTapTip = false
 
 let hideTipTimeout: any = undefined
 
-
 function showTip(content: string, title = 'Tip', duration = 5000) {
   clearTimeout(hideTipTimeout)
   showTipBox.value = true
@@ -112,17 +111,17 @@ function clearTip() {
   showTipBox.value = false
 }
 
-if (!localStorage.getItem(LocalStorage.tour2)) localStorage.setItem(LocalStorage.tour2, '2')
-if (parseInt(localStorage.getItem(LocalStorage.tour2)!) > 0) {
+if (!localStorage.getItem(LocalStorage.selectTip)) localStorage.setItem(LocalStorage.selectTip, '2')
+if (parseInt(localStorage.getItem(LocalStorage.selectTip)!) > 0) {
   watch(selectedObjectsRef, () => {
-    if (didShowSelectTip || parseInt(localStorage.getItem(LocalStorage.tour2)!) == 0) return
+    if (didShowSelectTip || parseInt(localStorage.getItem(LocalStorage.selectTip)!) == 0) return
     if (selectedObjectsRef.value.length > 0) {
       showTip(
         "Move, rotate, scale objects and more! Exit by tapping outside or pressing the 'X' in the upper left.",
         'Select Mode',
         7000
       )
-      localStorage.setItem(LocalStorage.tour2, `${parseInt(localStorage.getItem(LocalStorage.tour2)!) - 1}`)
+      localStorage.setItem(LocalStorage.selectTip, `${parseInt(localStorage.getItem(LocalStorage.selectTip)!) - 1}`)
       didShowSelectTip = true
     }
   })
@@ -148,10 +147,11 @@ if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
   watch(selectedObjectsRef, () => {
     if (
       didShowMultiSelectTip ||
-      parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) == 0
+      parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) == 0 ||
+      !localStorage.getItem(LocalStorage.selectTip)
     )
       return
-    if (selectedObjectsRef.value.length > 0 && drawStore.getCanvas().getObjects().length > 1 && !showTipBox.value) {
+    if (selectedObjectsRef.value.length == 1 && drawStore.getCanvas().getObjects().length > 1 && !showTipBox.value) {
       showTip('Long tap object to enter multi select mode')
       localStorage.setItem(
         LocalStorage.multiSelectHint,
@@ -167,13 +167,14 @@ if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
   watch(selectedObjectsRef, () => {
     if (
       didShowDoubleTapTip ||
-      parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0 
+      parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0 ||
+      !localStorage.getItem(LocalStorage.selectTip)
     )
       return
     if (
       selectedObjectsRef.value.length > 0 &&
       drawStore.getCanvas().getObjects().length > 1 &&
-      checkForIntersections(drawStore.getCanvas()) &&
+      checkForIntersectionsWithSelectedObject(drawStore.getCanvas()) &&
       !showTipBox.value
     ) {
       showTip('Double-tap the object below the current selection to switch to it')

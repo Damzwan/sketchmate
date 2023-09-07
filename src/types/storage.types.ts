@@ -5,7 +5,7 @@ export enum LocalStorage {
   mate = 'mate',
   color_history = 'color_history',
   tour1 = 'tour1',
-  tour2 = 'tour2',
+  selectTip = 'selectTip',
   selectHint = 'selectHint',
   multiSelectHint = 'multiSelectHint',
   doubleTap = 'doubleTapHint'

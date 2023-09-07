@@ -566,14 +566,6 @@ export function exitColorPickerMode() {
   c.requestRenderAll()
 }
 
-export function checkForIntersections(canvas: fabric.Canvas) {
-  const objects = canvas.getObjects()
-  for (let i = 0; i < objects.length; i++) {
-    for (let j = i + 1; j < objects.length; j++) {
-      if (objects[i].intersectsWithObject(objects[j])) {
-        return true
-      }
-    }
-  }
-  return false
+export function checkForIntersectionsWithSelectedObject(canvas: fabric.Canvas) {
+  return canvas.getObjects().some(o => o.intersectsWithObject(canvas.getActiveObject()!))
 }

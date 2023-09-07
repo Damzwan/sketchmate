@@ -33,13 +33,13 @@
         </ion-button>
       </div>
     </ion-content>
-    <VTour :steps="currDataSteps" ref="tour" @onTourEnd="onTourEnd" />
+    <VTour :steps="currDataSteps" ref="tour" :autoStart="true"/>
 
     <transition name="slide">
       <div class="w-[300px] absolute top-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black" v-if="showTipBox">
         <div class="flex justify-between">
-          <p class="text-xl font-semibold">Tip</p>
-          <ion-icon :icon="svg(mdiClose)" class="w-[20px] h-[20px] cursor-pointer" @click="showTipBox = false" />
+          <p class="text-xl font-semibold">{{ tipBoxTitle }}</p>
+          <ion-icon :icon="svg(mdiClose)" class="w-[20px] h-[20px] cursor-pointer" @click="clearTip" />
         </div>
         <p class="text-base">{{ tipBoxContent }}</p>
       </div>
@@ -51,7 +51,7 @@
 import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter } from '@ionic/vue'
 import PrimaryDrawToolBar from '@/components/draw/toolbar/PrimaryDrawToolBar.vue'
 
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
@@ -66,10 +66,9 @@ import { useRoute } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import '@/theme/custom_vuejs_tour.scss'
-import { tutorialSteps, tutorialSteps2, WHITE } from '@/config/draw/draw.config'
+import { tutorialSteps, WHITE } from '@/config/draw/draw.config'
 import { LocalStorage } from '@/types/storage.types'
 import { DrawTool } from '@/types/draw.types'
-import { useToast } from '@/service/toast.service'
 import { checkForIntersections } from '@/helper/draw/draw.helper'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
@@ -79,7 +78,6 @@ const { loadingText, shapeCreationMode, canZoomOut, isLoading, colorPickerMode, 
 const { selectedObjectsRef } = storeToRefs(useSelect())
 
 const currDataSteps = ref(tutorialSteps)
-const { toast, isOpen } = useToast()
 
 onIonViewDidEnter(async () => {
   await drawStore.initCanvas(myCanvasRef.value!)
@@ -88,33 +86,44 @@ onIonViewDidEnter(async () => {
 const route = useRoute()
 const isTrial = computed(() => route.query.trial)
 
-const tour = ref()
-const isSelectTour = ref(false)
 const showTipBox = ref(false)
 const tipBoxContent = ref('')
+const tipBoxTitle = ref('')
 
-let alreadyShownSelect = false
-let alreadyShownMulti = false
-let alreadyShownDouble = false
+let didShowEnterSelectTip = false
+let didShowSelectTip = false
+let didShowMultiSelectTip = false
+let didShowDoubleTapTip = false
 
-onMounted(() => {
-  if (!localStorage.getItem(LocalStorage.tour1)) tour.value.resetTour()
-})
+let hideTipTimeout: any = undefined
 
-function showTip(content: string) {
+
+function showTip(content: string, title = 'Tip', duration = 5000) {
+  clearTimeout(hideTipTimeout)
   showTipBox.value = true
   tipBoxContent.value = content
-  setTimeout(() => (showTipBox.value = false), 5000)
+  tipBoxTitle.value = title
+  hideTipTimeout = setTimeout(() => (showTipBox.value = false), duration)
 }
 
-if (!localStorage.getItem(LocalStorage.tour2)) {
+function clearTip() {
+  clearTimeout(hideTipTimeout)
+  hideTipTimeout = undefined
+  showTipBox.value = false
+}
+
+if (!localStorage.getItem(LocalStorage.tour2)) localStorage.setItem(LocalStorage.tour2, '2')
+if (parseInt(localStorage.getItem(LocalStorage.tour2)!) > 0) {
   watch(selectedObjectsRef, () => {
-    if (selectedObjectsRef.value.length > 0 && !localStorage.getItem(LocalStorage.tour2)) {
-      document.getElementById('canvas')!.style.pointerEvents = 'none'
-      document.getElementById('select')!.style.pointerEvents = 'none'
-      currDataSteps.value = tutorialSteps2
-      isSelectTour.value = true
-      tour.value.resetTour()
+    if (didShowSelectTip || parseInt(localStorage.getItem(LocalStorage.tour2)!) == 0) return
+    if (selectedObjectsRef.value.length > 0) {
+      showTip(
+        "Move, rotate, scale objects and more! Exit by tapping outside or pressing the 'X' in the upper left.",
+        'Select Mode',
+        7000
+      )
+      localStorage.setItem(LocalStorage.tour2, `${parseInt(localStorage.getItem(LocalStorage.tour2)!) - 1}`)
+      didShowSelectTip = true
     }
   })
 }
@@ -122,12 +131,12 @@ if (!localStorage.getItem(LocalStorage.tour2)) {
 if (!localStorage.getItem(LocalStorage.selectHint)) localStorage.setItem(LocalStorage.selectHint, '2')
 if (parseInt(localStorage.getItem(LocalStorage.selectHint)!) > 0) {
   watch(selectedTool, () => {
-    if (alreadyShownSelect || parseInt(localStorage.getItem(LocalStorage.selectHint)!) == 0) return
+    if (didShowEnterSelectTip || parseInt(localStorage.getItem(LocalStorage.selectHint)!) == 0) return
     if (selectedTool.value == DrawTool.Select)
       if (drawStore.getCanvas().getObjects().length > 0) {
         showTip('Tap on an object to select it')
         localStorage.setItem(LocalStorage.selectHint, `${parseInt(localStorage.getItem(LocalStorage.selectHint)!) - 1}`)
-        alreadyShownSelect = true
+        didShowEnterSelectTip = true
       } else {
         showTip('Create an object before you can select it')
       }
@@ -138,9 +147,8 @@ if (!localStorage.getItem(LocalStorage.multiSelectHint)) localStorage.setItem(Lo
 if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
   watch(selectedObjectsRef, () => {
     if (
-      alreadyShownMulti ||
-      parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) == 0 ||
-      !localStorage.getItem(LocalStorage.tour2)
+      didShowMultiSelectTip ||
+      parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) == 0
     )
       return
     if (selectedObjectsRef.value.length > 0 && drawStore.getCanvas().getObjects().length > 1 && !showTipBox.value) {
@@ -149,7 +157,7 @@ if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
         LocalStorage.multiSelectHint,
         `${parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) - 1}`
       )
-      alreadyShownMulti = true
+      didShowMultiSelectTip = true
     }
   })
 }
@@ -158,9 +166,8 @@ if (!localStorage.getItem(LocalStorage.doubleTap)) localStorage.setItem(LocalSto
 if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
   watch(selectedObjectsRef, () => {
     if (
-      alreadyShownDouble ||
-      parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0 ||
-      !localStorage.getItem(LocalStorage.tour2)
+      didShowDoubleTapTip ||
+      parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0 
     )
       return
     if (
@@ -171,23 +178,16 @@ if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
     ) {
       showTip('Double-tap the object below the current selection to switch to it')
       localStorage.setItem(LocalStorage.doubleTap, `${parseInt(localStorage.getItem(LocalStorage.doubleTap)!) - 1}`)
-      alreadyShownDouble = true
+      didShowDoubleTapTip = true
     }
   })
-}
-
-function onTourEnd() {
-  localStorage.setItem(isSelectTour.value ? LocalStorage.tour2 : LocalStorage.tour1, 'si')
-  if (isSelectTour.value) {
-    document.getElementById('canvas')!.style.pointerEvents = 'auto'
-    document.getElementById('select')!.style.pointerEvents = 'auto'
-  }
 }
 </script>
 
 <style scoped>
 /* Starting state (entering) */
-.slide-enter-active, .slide-leave-active {
+.slide-enter-active,
+.slide-leave-active {
   transition: opacity 0.5s ease, transform 0.5s ease;
 }
 

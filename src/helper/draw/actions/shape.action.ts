@@ -36,6 +36,9 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
   let createdShape: any
   disableAllEvents()
 
+  EventBus.on('undo', executeOnUndoRedo)
+  EventBus.on('redo', executeOnUndoRedo)
+
   EventBus.on('reset-shape-creation', () => {
     createdShape.isCreating = false
     pointCircles.forEach(circle => c.remove(circle))
@@ -124,7 +127,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
             break
         }
 
-        addToUndoStack([createdShape], 'polygon')
+        addToUndoStack([createdShape], 'polygon', { polyCreate: true })
         createdShape.isCreating = true
         c.requestRenderAll()
       }
@@ -169,6 +172,7 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
     handler: () => {
       addToUndoStack([createdShape], 'object:added')
       createdShape.setCoords() // important to update the bounding box of the shape
+      enableHistorySaving()
       exitShapeCreationMode()
     }
   })

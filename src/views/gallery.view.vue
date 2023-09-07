@@ -23,11 +23,11 @@
       />
 
       <NoMessages v-if="noMessages" />
-      <div class="h-full px-2" v-else>
+      <div class="h-full px-3" v-else>
         <div class="h-full">
           <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-3">
             <div class="text-xl font-bold">
-              {{ dayjs(date).format('ddd, MMM D') }}
+              {{ dayjs(date).format('MMMM') }}
             </div>
 
             <div class="grid grid-cols-4 md:grid-cols-12 lg:grid-cols-20 gap-1.5 pt-3">
@@ -92,7 +92,7 @@ watch(isLoggedIn, () => {
 })
 
 const isPhotoSwiperOpen = ref<boolean>(false)
-const groupedInboxItems = computed(() => groupOnDate(inbox.value ? inbox.value : []))
+const groupedInboxItems = computed(() => groupOnMonth(inbox.value ? inbox.value : []))
 const inboxItems = computed(() => (inbox.value ? inbox.value.slice().reverse() : []))
 
 const noMessages = computed(() => inboxItems.value.length === 0)
@@ -175,14 +175,20 @@ function inboxItemsFromDateGroups(date: string): InboxItem[] {
   return Object.values(groupedInboxItems.value[date])
 }
 
-function groupOnDate(inbox: InboxItem[]) {
-  const inboxPerDate: any = {}
+function groupOnMonth(inbox: InboxItem[]) {
+  const inboxPerMonth: { [key: string]: InboxItem[] } = {}
   inbox.forEach(item => {
-    const date = item.date.toString().split('T')[0]
-    if (date in inboxPerDate) inboxPerDate[date].push(item)
-    else inboxPerDate[date] = [item]
+    const date = new Date(item.date)
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1 // Months are 0-indexed, so add 1 to get the actual month
+    const key = `${year}-${month < 10 ? '0' + month : month}` // Format as YYYY-MM
+    if (key in inboxPerMonth) {
+      inboxPerMonth[key].push(item)
+    } else {
+      inboxPerMonth[key] = [item]
+    }
   })
-  return inboxPerDate
+  return inboxPerMonth
 }
 
 function openPhotoSwiper(inboxItem: InboxItem) {

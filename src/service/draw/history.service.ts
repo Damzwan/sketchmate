@@ -235,13 +235,14 @@ export const useHistory = defineStore('history', () => {
         else deleteCurve(o)
       }
 
-      if (currObj.type == ObjectType.polygon) {
+      if (options && options.polyCreate) {
         const o = currObj as any
         o.set({ points: (obj as any).points })
         o._setPositionDimensions({})
       }
       currObj.setCoords()
       currObj.dirty = true
+      c?.requestRenderAll()
     }
 
     redoStack.push({ type: 'object:modified', objects: modifiedObjects, options })
@@ -252,6 +253,7 @@ export const useHistory = defineStore('history', () => {
   function undoObjectDeleted(objects: fabric.Object[]) {
     c?.add(...objects)
     redoStack.push({ type: 'object:removed', objects: objects })
+    c?.requestRenderAll()
   }
 
   function undoLayering(objects: fabric.Object[]) {
@@ -292,7 +294,7 @@ export const useHistory = defineStore('history', () => {
     const previousBackgroundImage = objects[0] as fabric.Image | undefined
     redoStack.push({ type: 'backgroundImg', objects: [c?.backgroundImage as any] })
     c!.backgroundImage = previousBackgroundImage
-    c?.renderAll()
+    c?.requestRenderAll()
   }
 
   function undoFullErase(objects: any[]) {
@@ -406,18 +408,19 @@ export const useHistory = defineStore('history', () => {
         if (o && o.isCurved) applyCurve(o, c!)
         else deleteCurve(o)
       }
-      if (currObj.type == ObjectType.polygon) {
+      if (options && options.polyCreate) {
         const o = currObj as any
         o.set({ points: (obj as any).points })
         o._setPositionDimensions({})
       }
+      currObj.setCoords()
       currObj.dirty = true
     }
 
     undoStack.push({ type: 'object:modified', objects: modifiedObjects, options })
     const { getSelectedObjects } = useSelect()
     restoreSelectedObjects(c!, getSelectedObjects())
-    c?.renderAll()
+    c?.requestRenderAll()
   }
 
   async function redoObjectAdded(objects: fabric.Object[]) {
@@ -428,11 +431,13 @@ export const useHistory = defineStore('history', () => {
     c?.add(...objects)
     undoStack.push({ type: 'object:added', objects: objects })
     restoreSelectedObjects(c!, getSelectedObjects())
+    c?.requestRenderAll()
   }
 
   function redoObjectDeleted(objects: fabric.Object[]) {
     c?.remove(...objects)
     undoStack.push({ type: 'object:removed', objects: objects })
+    c?.requestRenderAll()
   }
 
   function redoLayering(objects: fabric.Object[]) {

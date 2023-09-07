@@ -88,6 +88,7 @@ export function deleteObjects(c: Canvas, options: any) {
   c.discardActiveObject()
   c.remove(...objects)
   addToUndoStack(objects, 'object:removed')
+  c.requestRenderAll()
 }
 
 export function bringToFront(c: Canvas, { objects }: { objects: SelectedObject[] }) {

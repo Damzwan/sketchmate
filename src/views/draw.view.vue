@@ -34,6 +34,16 @@
       </div>
     </ion-content>
     <VTour :steps="currDataSteps" ref="tour" @onTourEnd="onTourEnd" />
+
+    <transition name="slide">
+      <div class="w-[300px] absolute top-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black" v-if="showTipBox">
+        <div class="flex justify-between">
+          <p class="text-xl font-semibold">Tip</p>
+          <ion-icon :icon="svg(mdiClose)" class="w-[20px] h-[20px] cursor-pointer" @click="showTipBox = false" />
+        </div>
+        <p class="text-base">{{ tipBoxContent }}</p>
+      </div>
+    </transition>
   </ion-page>
 </template>
 
@@ -49,7 +59,7 @@ import LinearLoader from '@/components/loaders/LinearLoader.vue'
 import ShapeCreationToolbar from '@/components/draw/toolbar/ShapeCreationToolbar.vue'
 import { resetZoom } from '@/helper/draw/gesture.helper'
 import { svg } from '@/helper/general.helper'
-import { mdiMagnifyMinusOutline } from '@mdi/js'
+import { mdiClose, mdiMagnifyMinusOutline } from '@mdi/js'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
 import { useRoute } from 'vue-router'
@@ -60,8 +70,6 @@ import { tutorialSteps, tutorialSteps2, WHITE } from '@/config/draw/draw.config'
 import { LocalStorage } from '@/types/storage.types'
 import { DrawTool } from '@/types/draw.types'
 import { useToast } from '@/service/toast.service'
-import { ToastDuration } from '@/types/toast.types'
-import { dismissButton } from '@/config/toast.config'
 import { checkForIntersections } from '@/helper/draw/draw.helper'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
@@ -82,6 +90,8 @@ const isTrial = computed(() => route.query.trial)
 
 const tour = ref()
 const isSelectTour = ref(false)
+const showTipBox = ref(false)
+const tipBoxContent = ref('')
 
 let alreadyShownSelect = false
 let alreadyShownMulti = false
@@ -90,6 +100,12 @@ let alreadyShownDouble = false
 onMounted(() => {
   if (!localStorage.getItem(LocalStorage.tour1)) tour.value.resetTour()
 })
+
+function showTip(content: string) {
+  showTipBox.value = true
+  tipBoxContent.value = content
+  setTimeout(() => (showTipBox.value = false), 5000)
+}
 
 if (!localStorage.getItem(LocalStorage.tour2)) {
   watch(selectedObjectsRef, () => {
@@ -109,19 +125,11 @@ if (parseInt(localStorage.getItem(LocalStorage.selectHint)!) > 0) {
     if (alreadyShownSelect || parseInt(localStorage.getItem(LocalStorage.selectHint)!) == 0) return
     if (selectedTool.value == DrawTool.Select)
       if (drawStore.getCanvas().getObjects().length > 0) {
-        toast('Tap on an object to select it', {
-          duration: ToastDuration.long,
-          buttons: [dismissButton],
-          color: 'secondary'
-        })
+        showTip('Tap on an object to select it')
         localStorage.setItem(LocalStorage.selectHint, `${parseInt(localStorage.getItem(LocalStorage.selectHint)!) - 1}`)
         alreadyShownSelect = true
       } else {
-        toast('Create an object before you can select it', {
-          duration: ToastDuration.medium,
-          buttons: [dismissButton],
-          color: 'secondary'
-        })
+        showTip('Create an object before you can select it')
       }
   })
 }
@@ -135,12 +143,8 @@ if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
       !localStorage.getItem(LocalStorage.tour2)
     )
       return
-    if (selectedObjectsRef.value.length > 0 && drawStore.getCanvas().getObjects().length > 1 && !isOpen.value) {
-      toast('Long tap object to enter multi select mode', {
-        duration: ToastDuration.long,
-        buttons: [dismissButton],
-        color: 'secondary'
-      })
+    if (selectedObjectsRef.value.length > 0 && drawStore.getCanvas().getObjects().length > 1 && !showTipBox.value) {
+      showTip('Long tap object to enter multi select mode')
       localStorage.setItem(
         LocalStorage.multiSelectHint,
         `${parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) - 1}`
@@ -163,13 +167,9 @@ if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
       selectedObjectsRef.value.length > 0 &&
       drawStore.getCanvas().getObjects().length > 1 &&
       checkForIntersections(drawStore.getCanvas()) &&
-      !isOpen.value
+      !showTipBox.value
     ) {
-      toast('Double tap object underneath selected object to select it', {
-        duration: ToastDuration.long,
-        buttons: [dismissButton],
-        color: 'secondary'
-      })
+      showTip('Double-tap the object below the current selection to switch to it')
       localStorage.setItem(LocalStorage.doubleTap, `${parseInt(localStorage.getItem(LocalStorage.doubleTap)!) - 1}`)
       alreadyShownDouble = true
     }
@@ -184,3 +184,33 @@ function onTourEnd() {
   }
 }
 </script>
+
+<style scoped>
+/* Starting state (entering) */
+.slide-enter-active, .slide-leave-active {
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.slide-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* Enter end state */
+.slide-enter-to {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Leave start state */
+.slide-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Leave end state */
+.slide-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+</style>

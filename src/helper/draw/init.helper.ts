@@ -152,7 +152,7 @@ export function changeFabricBaseSettings() {
   fabric.IText.prototype.mouseUpHandler = function (o) {
     const { multiSelectMode } = useSelect()
     const { isUsingGesture } = useDrawStore()
-    if (isUsingGesture) return // TODO check if no return multiSelectMode good
+    if (isUsingGesture || multiSelectMode) return
     ogMouseUp.call(this, o)
   }
 
@@ -175,8 +175,14 @@ export function changeFabricBaseSettings() {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   fabric.Canvas.prototype._originalFindTarget = fabric.Canvas.prototype.findTarget
-  fabric.Canvas.prototype.findTarget = function (e, skipGroup) {
+  fabric.Canvas.prototype.findTarget = function (e: any, skipGroup) {
+    if (e.type != 'mousedown' || e.shiftKey) {
+       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+      return this._originalFindTarget(e, skipGroup)
+    }
     const activeObject = this._activeObject
+    
 
     if (activeObject && activeObject.containsPoint(this.getPointer(e, true) as any)) {
       return activeObject

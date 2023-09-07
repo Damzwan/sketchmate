@@ -118,16 +118,16 @@ export const useDrawStore = defineStore('draw', () => {
 
     if (c) {
       json = c.toJSON()
-      destroyToolsAndServices(!loadService.loading.value)
+      destroyToolsAndServices(!loadService.canvasToLoad.value)
       isEditingText.value = false
       c.dispose()
     }
 
     c = new fabric.Canvas(canvas, initCanvasOptions())
 
-    if (loadService.loading.value) {
+    if (loadService.canvasToLoad.value) {
       showLoading('Loading canvas')
-      if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
+      await loadService.loadCanvas(c)
     } else if (prevJson) {
       await new Promise<void>(resolve => {
         c!.loadFromJSON(prevJson, () => {
@@ -157,6 +157,7 @@ export const useDrawStore = defineStore('draw', () => {
 
     if (json) restoreSelectedObjects(c!, selected)
     json = undefined
+    hideLoading()
   }
 
   function destroyToolsAndServices(maintainHistory: boolean) {
@@ -194,17 +195,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   async function reply(inboxItem: InboxItem | undefined) {
     if (!inboxItem) return
-    loadService.loading.value = true
-    await fetch(inboxItem.drawing)
-      .then(res => res.json())
-      .then(res => {
-        loadService.canvasToLoad.value = res
-        // TODO doing things async breaks stuff :(
-        // if (c) {
-        //   loadService.loading.value = false
-        //   loadService.loadCanvas(c)
-        // }
-      })
+    loadService.canvasToLoad.value = inboxItem.drawing
     await router.push(FRONTEND_ROUTES.draw)
   }
 

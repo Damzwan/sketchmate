@@ -1,13 +1,12 @@
 import { ref } from 'vue'
 import { fabric } from 'fabric'
-import { useDrawStore } from '@/store/draw/draw.store'
 
 export function useLoadService() {
-  const loading = ref(false)
-  const canvasToLoad = ref()
+  const canvasToLoad = ref<string>()
 
   async function loadCanvas(c: fabric.Canvas) {
-    const json = canvasToLoad.value!
+    if (!canvasToLoad.value) return
+    const json = await fetch(canvasToLoad.value).then(res => res.json())
 
     const w = c.width!
     const h = c.height!
@@ -30,9 +29,7 @@ export function useLoadService() {
         }
 
         c!.setZoom(1) // Set zoom back to 1 after scaling
-        loading.value = false
-        const { hideLoading } = useDrawStore()
-        hideLoading()
+        canvasToLoad.value = undefined
         c!.renderAll() // Re-render the canvas
         resolve()
       })
@@ -41,7 +38,6 @@ export function useLoadService() {
 
   return {
     loadCanvas,
-    loading,
     canvasToLoad
   }
 }

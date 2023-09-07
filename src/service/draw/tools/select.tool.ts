@@ -203,7 +203,7 @@ export const useSelect = defineStore('select', (): Select => {
   }
 
   function handleSelect(e: any) {
-    let object: any = e.selected
+    let object: any = c?.getActiveObjects()
     const { actionWithoutEvents } = useEventManager()
 
     if (multiSelectMode.value && object && selectedObjects && mouseClickTarget) {

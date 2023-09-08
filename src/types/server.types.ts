@@ -16,6 +16,7 @@ export interface InboxItem {
   reply?: InboxItem
   comments: Comment[]
   aspect_ratio: number
+  height: number
 }
 
 export interface Comment {

@@ -30,7 +30,7 @@
               {{ dayjs(date).format('MMMM') }}
             </div>
 
-            <div class="grid grid-cols-4 md:grid-cols-10 lg:grid-cols-16 gap-1.5 pt-3">
+            <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-16 gap-1.5 pt-3">
               <div
                 v-for="(inboxItem, i) in inboxItemsFromDateGroups(date).reverse()"
                 :key="i"

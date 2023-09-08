@@ -1,13 +1,13 @@
 <template>
-  <div ref="el" @click="onClick" class="flex justify-center items-center h-full rounded-2xl">
-    <div class="relative">
+  <div ref="el" @click="onClick" class="flex justify-center items-center rounded-2xl h-full w-full">
+    <div class="relative w-full" :style="{ height: inboxItem.aspect_ratio ? `${renderHeight}px` : 'auto' }">
       <div class="z-10 absolute w-full h-full flex justify-center items-center" v-if="isLoading">
         <ion-spinner color="primary" />
       </div>
 
       <img
-        :src="props.inboxItem.thumbnail"
-        :alt="props.inboxItem.date"
+        :src="inboxItem.thumbnail"
+        :alt="inboxItem.date"
         @contextmenu.prevent
         @load="isLoading = false"
         class="w-full cursor-pointer relative object-contain rounded-2xl border-[1px] border-secondary-light"
@@ -42,7 +42,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { IonAvatar, IonSpinner, IonIcon } from '@ionic/vue'
 import { InboxItem, User } from '@/types/server.types'
 import { isMobile, senderImg, svg } from '@/helper/general.helper'
@@ -51,6 +51,20 @@ import { mdiCheckboxBlankCircleOutline, mdiCheckboxMarkedCircleOutline } from '@
 
 const itemId = computed(() => props.inboxItem._id)
 let cancelClick = false
+const renderHeight = ref(100)
+
+let resizeObserver
+onMounted(async () => {
+  resizeObserver = new ResizeObserver(entries => {
+    for (const entry of entries) {
+      const { width } = entry.contentRect
+      if (!props.inboxItem.aspect_ratio) return
+      renderHeight.value = width / props.inboxItem.aspect_ratio
+    }
+  })
+
+  if (el.value) resizeObserver.observe(el.value)
+})
 
 function onClick() {
   if (cancelClick) cancelClick = false

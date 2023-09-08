@@ -31,7 +31,6 @@ export const useSelect = defineStore('select', (): Select => {
 
   let lastTapTimestamp = 0
   let objectsStack: any[] = []
-  let currentObjectIndex = -1
 
   let removeTimeout: ReturnType<typeof setTimeout> | null = null
   const doubleTapTimeout = 200
@@ -86,11 +85,14 @@ export const useSelect = defineStore('select', (): Select => {
         if (isDoubleTap && activeObject) {
           clearTimeout(unselectInMultiselectTimeout)
           unselectInMultiselectTimeout = undefined
-          // Always compute the objects stack based on the currently active object
-          objectsStack = c!.getObjects().filter(obj => activeObject.intersectsWithObject(obj))
-          if (objectsStack.length == 0) return
-
           const pointer = c!.getPointer(o.e)
+
+          objectsStack = c!.getObjects().filter(obj => {
+            const isObjectNotSelected = !selectedObjects.includes(obj)
+            const isPointerWithinObject = obj.containsPoint(pointer as any)
+            return isPointerWithinObject && isObjectNotSelected
+          })
+          if (objectsStack.length == 0) return
 
           // Sort objects by distance to pointer from their midpoints
           objectsStack.sort((a, b) => {
@@ -106,20 +108,13 @@ export const useSelect = defineStore('select', (): Select => {
             return distance(aMidpoint, pointer) - distance(bMidpoint, pointer)
           })
 
-          // Set the closest object (after the active one) to be the active object
-          currentObjectIndex = 0 // The first object in the sorted list is the closest
-
-          if (objectsStack[0] === activeObject && objectsStack.length > 1) {
-            currentObjectIndex = 1 // If the first object is the current one, choose the next closest
-          }
-
           // special edge case that probably collides with internal fabricjs logic
           if (multiSelectMode.value && selectedObjects.length == 1) {
             removeTimeout = setTimeout(() => {
-              c!.setActiveObject(objectsStack[currentObjectIndex])
+              c!.setActiveObject(objectsStack[0])
               removeTimeout = null
             }, 300)
-          } else c!.setActiveObject(objectsStack[currentObjectIndex])
+          } else c!.setActiveObject(objectsStack[0])
         } else if (multiSelectMode.value && activeObject) {
           if (unselectInMultiselectTimeout) return
           unselectInMultiselectTimeout = setTimeout(() => {

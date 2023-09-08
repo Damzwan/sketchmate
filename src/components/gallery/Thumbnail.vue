@@ -10,7 +10,8 @@
         :alt="inboxItem.date"
         @contextmenu.prevent
         @load="isLoading = false"
-        class="w-full cursor-pointer relative object-contain rounded-2xl border-[1px] border-secondary-light"
+        class="w-full cursor-pointer relative object-contain rounded-2xl"
+        :class="{ 'border-[1px] border-secondary-light': !isLoading }"
       />
 
       <div v-if="!isLoading">

@@ -42,7 +42,7 @@
         </div>
 
         <div class="flex flex-col items-center justify-center w-full pb-4">
-          <qrcode-vue :value="`${fullUrl}?mate=${user?._id}`" :size="128" background="transparent" />
+          <qrcode-vue :value="`${fullUrl}?mate=${user?._id}`" :size="qrSize" background="transparent" />
           <p class="font-sans font-bold py-0.5">Connect with QR Code</p>
           <p class="font-sans font-light text-xs"> Let someone scan this code to become mates </p>
         </div>
@@ -90,6 +90,7 @@ const { setQueryParams } = useAppStore()
 const { queryParams, isLoggedIn } = storeToRefs(useAppStore())
 
 const fullUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`
+const qrSize = Math.min(window.innerHeight * 0.2, 256)
 
 watch(isFullscreen, value => {
   if (!value) stopScanning()

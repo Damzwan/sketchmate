@@ -3,144 +3,118 @@ import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { fabricateTouchUp } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
-import { DrawEvent, DrawTool, FabricEvent, ObjectType, SelectedObject } from '@/types/draw.types'
+import { DrawEvent, DrawTool, FabricEvent, ObjectType } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { ERASERS } from '@/config/draw/draw.config'
 import { isMobile } from '@/helper/general.helper'
 import { storeToRefs } from 'pinia'
-import { useSelect } from '@/service/draw/tools/select.tool'
 import { EventBus } from '@/main'
+import { gestureDetector } from '@/utils/gestureDetector'
 
-export function enableZoomAndPan(c: any) {
-  if (isMobile()) enableMobileGestures(c)
+export function enableZoomAndPan(c: any, upperCanvasEl: any) {
+  if (isMobile()) enableMobileGestures(c, upperCanvasEl)
   else enablePCGestures(c)
 }
 
 // we are only using hammer events so they should not collide with other events. Not mandatory to store them in the event manager
-export function enableMobileGestures(c: any) {
-  const { hammer, setCanZoomOut } = useDrawStore()
+export function enableMobileGestures(c: any, upperCanvasEl: any) {
+  const { setCanZoomOut } = useDrawStore()
   const { disableHistorySaving, enableHistorySaving, addPrevModifiedObjectsToStack } = useHistory()
-  const { selectedObjectsRef } = storeToRefs(useSelect())
 
   const { selectedTool, isUsingGesture, shapeCreationMode } = storeToRefs(useDrawStore())
 
-  let lastDelta = {
-    x: 0,
-    y: 0
-  }
-  let lastEvent = { rotation: null, scale: 1 } // Initialize
+  let isRotating = false
 
-  hammer!.on('pinchstart', () => {
-    c.getObjects().forEach((o: any) => (o.objectCaching = false))
-    if (shapeCreationMode.value) return
-    EventBus.emit('gesture') // used by bucket tool
-    disableHistorySaving()
+  gestureDetector(upperCanvasEl, {
+    onGestureStart: () => {
+      if (shapeCreationMode.value) return
+      EventBus.emit('gesture') // used by bucket tool
+      disableHistorySaving()
+      console.log('start')
 
-    // rotation or scale gesture
-    if (selectedTool.value == DrawTool.Select) {
-      lastEvent = { rotation: null, scale: 1 }
-
-      const obj = c.getActiveObject()
-      obj.set({ lockMovementX: true, lockMovementY: true }) // we are only focused on rotation and scaling
-      isUsingGesture.value = true
-
-      return
-    } else cancelPreviousAction(c)
-  })
-
-  hammer!.on('pinch', function (e) {
-    EventBus.emit('gesture') // used by bucket tool
-    if (shapeCreationMode.value) return
-
-    if (selectedTool.value == DrawTool.Select && isUsingGesture.value) {
-      lastEvent = handleSelectMobilePinch(e, selectedObjectsRef.value, c, lastEvent)
-    } else {
-      if (selectedTool.value == DrawTool.Select) return
-      const panTolerance = 0.0000000000001 // Change this as needed to refine the distinction
-      const isPanning =
-        Math.abs(e.deltaX - lastDelta.x) > panTolerance || Math.abs(e.deltaY - lastDelta.y) > panTolerance
-
-      if (isPanning) {
-        // Handle panning
-        const delta = {
-          x: 2 * (e.deltaX - lastDelta.x),
-          y: 2 * (e.deltaY - lastDelta.y)
-        }
-        handlePan(delta, c)
-        lastDelta = {
-          x: e.deltaX,
-          y: e.deltaY
-        }
-      } else {
-        const scaleTolerance = 0.03 // Change this as needed to refine the distinction
-        if (Math.abs(1 - e.scale) > scaleTolerance) {
-          handleZoom(e.scale, e.center.x, e.center.y, c)
-          setCanZoomOut(c.getZoom() > 1)
-        }
-      }
-    }
-
-    c.requestRenderAll()
-  })
-
-  hammer!.on('pinchend', function () {
-    if (!isUsingGesture.value) c.getObjects().forEach((o: any) => (o.objectCaching = true))
-
-    enableHistorySaving()
-    lastDelta = {
-      x: 0,
-      y: 0
-    }
-
-    if (selectedTool.value == DrawTool.Select && isUsingGesture.value) {
-      // Without timeout the object will move to the last location of your fingers making it tp sometimes
-      setTimeout(() => {
+      // rotation or scale gesture
+      if (selectedTool.value == DrawTool.Select) {
         const obj = c.getActiveObject()
-        obj.set({ lockMovementX: false, lockMovementY: false })
-        isUsingGesture.value = false
+        obj.set({ lockMovementX: true, lockMovementY: true }) // we are only focused on rotation and scaling
+        isUsingGesture.value = true
 
-        if (obj.type == ObjectType.selection)
-          addPrevModifiedObjectsToStack((obj as fabric.ActiveSelection).getObjects())
-        else addPrevModifiedObjectsToStack([obj])
+        return
+      } else {
+        console.log('start 2')
+        c.getObjects().forEach((o: any) => (o.objectCaching = false))
+        cancelPreviousAction(c)
+      }
+    },
+    onZoom: (scale: number, previousScale: number, center: IPoint) => {
+      if (selectedTool.value == DrawTool.Select) {
+        console.log(Math.abs(scale - previousScale))
+        if (isRotating) return
+        if (Math.abs(scale - previousScale) < 0.005) return
+
+        const scaleDiff = scale - previousScale
+        const obj = c.getActiveObject()
+
+        obj._setOriginToCenter()
+        obj.scaleX! *= 1 + scaleDiff
+        obj.scaleY! *= 1 + scaleDiff
+        obj._resetOrigin()
+        obj.setCoords()
         c.requestRenderAll()
-      }, 100)
+      } else {
+        if (Math.abs(scale - previousScale) < 0.005) return
+        handleZoom(scale, center.x, center.y, c, previousScale)
+        setCanZoomOut(c.getZoom() > 1)
+        c.requestRenderAll()
+      }
+    },
+    onRotate: (angleDifference: number, previousAngle: number) => {
+      if (!(selectedTool.value == DrawTool.Select && isUsingGesture.value)) return
+
+      const rotationThreshold = 0.2 // Adjust the threshold as needed
+      const obj = c.getActiveObject()
+
+      const rotationDiff = angleDifference * 1
+      isRotating = Math.abs(rotationDiff) > rotationThreshold
+      if (!isRotating) return
+
+      obj.rotate((obj.angle! + rotationDiff) % 360)
+      obj.setCoords()
+      c.requestRenderAll()
+    },
+    onDrag: (dx: number, dy: number, previousDx: number, previousDy: number, center: IPoint) => {
+      if (selectedTool.value == DrawTool.Select) return
+
+      const delta = {
+        x: 2 * (dx - previousDx),
+        y: 2 * (dy - previousDy)
+      }
+      handlePan(delta, c)
+      c.requestRenderAll()
+    },
+    onGestureEnd: (fingers: number) => {
+      if (fingers == 1) {
+        if (!isUsingGesture.value) c.getObjects().forEach((o: any) => (o.objectCaching = true))
+        enableHistorySaving()
+      }
+
+      if (selectedTool.value == DrawTool.Select && isUsingGesture.value && fingers == 0) {
+        const obj = c.getActiveObject()
+
+        // Without timeout the object will move to the last location of your fingers making it tp sometimes
+        setTimeout(() => {
+          obj.set({ lockMovementX: false, lockMovementY: false })
+          isUsingGesture.value = false
+
+          if (obj.type == ObjectType.selection)
+            addPrevModifiedObjectsToStack((obj as fabric.ActiveSelection).getObjects())
+          else addPrevModifiedObjectsToStack([obj])
+          c.requestRenderAll()
+        }, 100)
+      }
+      c.requestRenderAll()
     }
-    c.requestRenderAll()
   })
 }
-
-function handleSelectMobilePinch(e: any, selectedObjects: SelectedObject[], c: fabric.Canvas, lastEvent: any) {
-  if (!selectedObjects || selectedObjects.length === 0) return
-
-  const obj = c.getActiveObject()
-  if (!obj) return
-
-  const scaleDiff = e.scale - lastEvent.scale
-  const rotationThreshold = 0.2 // Adjust the threshold as needed
-
-  let rotationDiff = 0.1
-  if (lastEvent.rotation !== null) {
-    rotationDiff = e.rotation - lastEvent.rotation
-  }
-  lastEvent.rotation = e.rotation
-  lastEvent.scale = e.scale
-
-  // Prioritize rotation if the absolute value of rotationDiff is greater than the threshold
-  if (Math.abs(rotationDiff) > rotationThreshold) {
-    obj.rotate((obj.angle! + rotationDiff) % 360)
-  } else {
-    obj._setOriginToCenter()
-    obj.scaleX! *= 1 + scaleDiff
-    obj.scaleY! *= 1 + scaleDiff
-    obj._resetOrigin()
-  }
-
-  obj.setCoords()
-  c.requestRenderAll()
-
-  return lastEvent
-}
-
 function cancelEraserAction(c: Canvas) {
   c.on('erasing:end', (e: any) => {
     const targets = e.targets as fabric.Object[]
@@ -256,9 +230,13 @@ export const checkCanvasBounds = (c: Canvas) => {
   }
   c.setViewportTransform(vpt)
 }
-export const handleZoom = (scale: number, centerX: number, centerY: number, c: Canvas) => {
+export const handleZoom = (scale: number, centerX: number, centerY: number, c: Canvas, previousScale?: number) => {
   const dampeningFactor = 0.2
-  let newZoom = (Math.log(scale) / Math.log(2)) * dampeningFactor + c.getZoom() // Dampening factor of 0.1
+  let newZoom = previousScale
+    ? c.getZoom() * Math.pow(scale / previousScale, 1)
+    : (Math.log(scale) / Math.log(2)) * dampeningFactor + c.getZoom()
+
+  // Modify the new zoom level based on the delta scale and zoom rate
 
   // Limit the zoom level to the maximum and minimum values
   newZoom = Math.min(newZoom, 10)
@@ -278,7 +256,7 @@ export const handlePan = (delta: IPoint, c: Canvas) => {
 }
 
 export function resetZoom() {
-  const { getCanvas, setCanZoomOut, selectedTool } = useDrawStore()
+  const { getCanvas, setCanZoomOut } = useDrawStore()
   const c = getCanvas()
   c.setZoom(1)
   checkCanvasBounds(c)

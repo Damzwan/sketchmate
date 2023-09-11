@@ -1,5 +1,4 @@
 import { Canvas, ICanvasOptions } from 'fabric/fabric-impl'
-import Hammer from 'hammerjs'
 import { Ref } from 'vue'
 import { fabric } from 'fabric'
 import { v4 as uuidv4 } from 'uuid'
@@ -34,10 +33,7 @@ export function initCanvasOptions(): ICanvasOptions {
 
 export function initGestures(c: Canvas, hammer: Ref<HammerManager | undefined>) {
   const upperCanvasEl = (c! as any).upperCanvasEl
-  hammer.value = new Hammer.Manager(upperCanvasEl)
-  hammer.value.add(new Hammer.Pinch())
-  hammer.value?.add(new Hammer.Rotate())
-  enableZoomAndPan(c)
+  enableZoomAndPan(c, upperCanvasEl)
 }
 
 function renderIcon(icon: any) {

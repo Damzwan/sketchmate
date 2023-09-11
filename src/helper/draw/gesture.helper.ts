@@ -16,7 +16,6 @@ export function enableZoomAndPan(c: any, upperCanvasEl: any) {
   else enablePCGestures(c)
 }
 
-// we are only using hammer events so they should not collide with other events. Not mandatory to store them in the event manager
 export function enableMobileGestures(c: any, upperCanvasEl: any) {
   const { setCanZoomOut } = useDrawStore()
   const { disableHistorySaving, enableHistorySaving, addPrevModifiedObjectsToStack } = useHistory()
@@ -45,7 +44,6 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
     },
     onZoom: (scale: number, previousScale: number, center: IPoint) => {
       if (selectedTool.value == DrawTool.Select) {
-        console.log(Math.abs(scale - previousScale))
         if (isRotating) return
         if (Math.abs(scale - previousScale) < 0.005) return
 
@@ -57,6 +55,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
         obj.scaleY! *= 1 + scaleDiff
         obj._resetOrigin()
         obj.setCoords()
+        EventBus.emit('scaling')
         c.requestRenderAll()
       } else {
         if (Math.abs(scale - previousScale) < 0.005) return
@@ -68,14 +67,14 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
     onRotate: (angleDifference: number, previousAngle: number) => {
       if (!(selectedTool.value == DrawTool.Select && isUsingGesture.value)) return
 
-      const rotationThreshold = 0.2 // Adjust the threshold as needed
+      const rotationThreshold = 0.45 // Adjust the threshold as needed
       const obj = c.getActiveObject()
 
-      const rotationDiff = angleDifference * 1
-      isRotating = Math.abs(rotationDiff) > rotationThreshold
+      isRotating = Math.abs(angleDifference) > rotationThreshold
       if (!isRotating) return
 
-      obj.rotate((obj.angle! + rotationDiff) % 360)
+      EventBus.emit('rotating')
+      obj.rotate((obj.angle! + angleDifference) % 360)
       obj.setCoords()
       c.requestRenderAll()
     },

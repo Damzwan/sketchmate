@@ -8,6 +8,7 @@ import { useEventManager } from '@/service/draw/eventManager.service'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { disableEditing } from '@/helper/draw/actions/polyEdit.action'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
+import { EventBus } from '@/main'
 
 export interface Select extends ToolService {
   selectedObjectsRef: Ref<Array<SelectedObject>>
@@ -154,8 +155,7 @@ export const useSelect = defineStore('select', (): Select => {
           const xChange = Math.abs(o.transform.original.left - o.target.left)
           const yChange = Math.abs(o.transform.original.top - o.target.top)
           if (xChange <= 0.5 && yChange <= 0.5) return
-          clearTimeout(unselectInMultiselectTimeout)
-          unselectInMultiselectTimeout = undefined
+          clearUnSelectTimeout()
         }
       }
     },
@@ -191,6 +191,13 @@ export const useSelect = defineStore('select', (): Select => {
   function init(canvas: Canvas) {
     c = canvas
     enableOnInitEvents()
+    EventBus.on('rotating', clearUnSelectTimeout)
+    EventBus.on('scaling', clearUnSelectTimeout)
+  }
+
+  function clearUnSelectTimeout() {
+    clearTimeout(unselectInMultiselectTimeout)
+    unselectInMultiselectTimeout = undefined
   }
 
   function destroy() {

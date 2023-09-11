@@ -197,7 +197,7 @@ export const useSelect = defineStore('select', (): Select => {
     c = undefined
   }
 
-  function handleSelect(e: any) {
+  function handleSelect() {
     let object: any = c?.getActiveObjects()
     const { actionWithoutEvents } = useEventManager()
 

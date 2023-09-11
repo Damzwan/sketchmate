@@ -62,9 +62,6 @@ export const useDrawStore = defineStore('draw', () => {
   const lastSelectedEraserTool = ref<Eraser>(DrawTool.MobileEraser)
   const lastSelectedSelectTool = ref<SelectTool>(DrawTool.Select)
 
-  // Hammer
-  const hammer = ref<HammerManager>()
-
   const loadingText = ref('')
   const shapeCreationMode = ref<ShapeCreationMode>()
   const colorPickerMode = ref(false)
@@ -147,7 +144,7 @@ export const useDrawStore = defineStore('draw', () => {
     history.init(c)
     configureCanvasSpecificSettings(c)
     loadAdditionalBrushes()
-    initGestures(c, hammer)
+    initGestures(c)
     initTools(c, tools)
     backgroundSaver.startSaving(c)
     shortcutManager.init(c)
@@ -233,14 +230,12 @@ export const useDrawStore = defineStore('draw', () => {
     loadingText,
     shapeCreationMode,
     setShapeCreationMode,
-    hammer,
     canZoomOut,
     setCanZoomOut,
     initCanvas,
     isEditingText,
     isLoading,
     lastSelectedPenMenuTool,
-    hideLoading,
     isUsingGesture,
     shapeCreationSettings,
     lastSelectedSelectTool,

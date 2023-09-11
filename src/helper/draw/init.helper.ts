@@ -1,5 +1,4 @@
 import { Canvas, ICanvasOptions } from 'fabric/fabric-impl'
-import { Ref } from 'vue'
 import { fabric } from 'fabric'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
@@ -31,7 +30,7 @@ export function initCanvasOptions(): ICanvasOptions {
   }
 }
 
-export function initGestures(c: Canvas, hammer: Ref<HammerManager | undefined>) {
+export function initGestures(c: Canvas) {
   const upperCanvasEl = (c! as any).upperCanvasEl
   enableZoomAndPan(c, upperCanvasEl)
 }

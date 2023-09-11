@@ -30,7 +30,6 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
       if (shapeCreationMode.value) return
       EventBus.emit('gesture') // used by bucket tool
       disableHistorySaving()
-      console.log('start')
 
       // rotation or scale gesture
       if (selectedTool.value == DrawTool.Select) {
@@ -40,7 +39,6 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
 
         return
       } else {
-        console.log('start 2')
         c.getObjects().forEach((o: any) => (o.objectCaching = false))
         cancelPreviousAction(c)
       }

@@ -16,7 +16,8 @@ export interface InboxItem {
   reply?: InboxItem
   comments: Comment[]
   aspect_ratio: number
-  height: number
+  seen_by: string[]
+  comments_seen_by: string[]
 }
 
 export interface Comment {
@@ -156,10 +157,10 @@ export interface DeleteSavedParams {
   img_url: string
 }
 
-export interface ChangeNameRes {
-  mate_name: string
+export interface SeeInboxParams {
+  inbox_id: string
+  user_id: string
 }
-
 export interface CreateUserParams {
   name?: string
   img?: any
@@ -202,6 +203,7 @@ export interface API {
   createSaved(params: CreateSavedParams): Promise<Res<Saved>>
 
   deleteSaved(params: DeleteSavedParams): Promise<void>
+  seeInboxItem(params: SeeInboxParams): Promise<void>
 }
 
 export interface SocketAPI {

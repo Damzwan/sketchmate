@@ -20,6 +20,7 @@
         v-model:slide="selectedInboxItemIndex"
         :inbox-items="inboxItems"
         @remove="removeItem"
+        @see="seeItem"
       />
 
       <NoMessages v-if="noMessages" />
@@ -194,6 +195,11 @@ function groupOnMonth(inbox: InboxItem[]) {
 function openPhotoSwiper(inboxItem: InboxItem) {
   selectedInboxItemIndex.value = inboxItems.value.findIndex(val => inboxItem._id === val._id)
   isPhotoSwiperOpen.value = true
+}
+
+function seeItem() {
+  inboxItems.value[selectedInboxItemIndex.value].seen_by.push(user.value!._id)
+  inboxItems.value[selectedInboxItemIndex.value].comments_seen_by.push(user.value!._id)
 }
 
 function removeItem() {

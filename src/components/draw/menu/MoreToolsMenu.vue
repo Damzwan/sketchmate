@@ -11,12 +11,26 @@
           </ion-popover>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" id="stickers" @click="openStickerMenu" :detail="true">
+        <ion-item
+          color="tertiary"
+          :button="true"
+          id="stickers"
+          @click="openStickerMenu"
+          :detail="true"
+          :disabled="!user"
+        >
           <ion-icon :icon="svg(mdiStickerEmoji)" />
           <p class="pl-2 text-base">Stickers</p>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" id="stickers" @click="openEmblemMenu" :detail="true">
+        <ion-item
+          color="tertiary"
+          :button="true"
+          id="stickers"
+          @click="openEmblemMenu"
+          :detail="true"
+          :disabled="!user"
+        >
           <ion-icon :icon="svg(mdiStickerCircleOutline)" />
           <p class="pl-2 text-base">Emblems</p>
         </ion-item>
@@ -41,7 +55,7 @@
           <p class="pl-2 text-base">Shapes</p>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" :detail="true" @click="openSavedMenu">
+        <ion-item color="tertiary" :button="true" :detail="true" @click="openSavedMenu" :disabled="!user">
           <ion-icon :icon="svg(mdiContentSave)" />
           <p class="pl-2 text-base">Saved Drawings</p>
         </ion-item>
@@ -91,11 +105,13 @@ import { useMenuStore } from '@/store/draw/menu.store'
 import ImageCropper from '@/components/draw/ImageCropper.vue'
 import { storeToRefs } from 'pinia'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
+import { useAppStore } from '@/store/app.store'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
 const imageActionSheetOpen = ref(false)
 const { selectAction } = useDrawStore()
+const { user } = storeToRefs(useAppStore())
 const { openMenu } = useMenuStore()
 
 const { stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore())

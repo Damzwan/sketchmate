@@ -15,6 +15,7 @@ import {
   RemoveFromInboxParams,
   Res,
   Saved,
+  SeeInboxParams,
   SubscribeParams,
   UploadProfileImgParams,
   User
@@ -189,6 +190,15 @@ export const useAPI = createGlobalState((): API => {
     await fetch(url, { method: REQUEST_TYPES.DELETE })
   }
 
+  async function seeInboxItem(params: SeeInboxParams): Promise<void> {
+    const queryParams = new URLSearchParams({
+      user_id: params.user_id
+    })
+    const url = `${baseUrl}${ENDPOINTS.inbox}/see/${params.inbox_id}?${queryParams}`
+
+    await fetch(url, { method: REQUEST_TYPES.POST })
+  }
+
   return {
     createUser,
     getUser,
@@ -204,6 +214,7 @@ export const useAPI = createGlobalState((): API => {
     deleteEmblem,
     createSaved,
     deleteSaved,
-    deleteProfileImg
+    deleteProfileImg,
+    seeInboxItem
   }
 })

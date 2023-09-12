@@ -109,7 +109,7 @@
 <script lang="ts" setup>
 import { InboxItem, NotificationType } from '@/types/server.types'
 import { IonAvatar, IonBadge, IonButton, IonButtons, IonIcon, IonModal, IonToolbar } from '@ionic/vue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { register } from 'swiper/element/bundle'
 import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
@@ -148,7 +148,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:open', 'update:slide', 'remove'])
+const emit = defineEmits(['update:open', 'update:slide', 'remove', 'see'])
 
 const api = useAPI()
 const { user, consumeNotificationLoading } = useAppStore()
@@ -164,6 +164,7 @@ function consumeNotification() {
 
 function onOpen() {
   setAppColors(photoSwiperColorConfig)
+  seeItem()
 }
 
 function checkQueryParams() {
@@ -196,6 +197,21 @@ function removeFromInboxItem() {
   })
   emit('remove')
 }
+
+function seeItem() {
+  if (
+    props.open &&
+    (!currInboxItem.value.seen_by.includes(user!._id) || !currInboxItem.value.comments_seen_by.includes(user!._id))
+  ) {
+    api.seeInboxItem({
+      user_id: user!._id,
+      inbox_id: currInboxItem.value._id
+    })
+    emit('see')
+  }
+}
+
+watch(currInboxItem, seeItem)
 </script>
 
 <style scoped>

@@ -119,6 +119,7 @@ export const useAppStore = defineStore('app', () => {
     const index = inbox.value.findIndex(inboxItem => inboxItem._id === commentRes.inbox_item_id)
     if (index == -1) return
     inbox.value[index].comments.push(commentRes.comment)
+    inbox.value[index].comments_seen_by = []
   }
 
   function setNotificationLoading(type: NotificationType) {

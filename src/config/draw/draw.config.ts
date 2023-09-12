@@ -151,7 +151,9 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) =>
 export const dynamicStickerLoading: DynamicTextPart[] = [
   { text: 'Uploading...', duration: 1000 },
   { text: 'What a questionable sticker...', duration: 2000 },
-  { text: 'Creating...', duration: 2000 }
+  { text: 'Creating...', duration: 2000 },
+  { text: 'This is taking longer than expected...', duration: 2000 },
+  { text: 'I promise it will be faster next time :(', duration: 2000 }
 ]
 
 export const tutorialSteps = [

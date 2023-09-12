@@ -24,10 +24,15 @@ module.exports = {
         wiggle: {
           "0%, 100%": { transform: "rotate(-3deg)" },
           "50%": { transform: "rotate(3deg)" }
+        },
+        ping_slow: {
+          "25%": { transform: "scale(1)", opacity: "1" },
+          "50%, 100%": { transform: "scale(2)", opacity: "0" }
         }
       },
       animation: {
-        wiggle: "wiggle 1s ease-in-out infinite"
+        wiggle: "wiggle 1s ease-in-out infinite",
+        'ping-slow': 'ping_slow 3s cubic-bezier(0, 0, 0.2, 1) infinite',
       }
     }
   },

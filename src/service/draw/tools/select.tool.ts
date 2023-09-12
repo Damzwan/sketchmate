@@ -132,7 +132,11 @@ export const useSelect = defineStore('select', (): Select => {
                   obj => obj.containsPoint(point, (obj as any)._getImageLines(obj.oCoords), true) && a!.includes(obj)
                 )
 
-              if (selectedObjectsInPointer.length == 0) return
+              if (selectedObjectsInPointer.length == 0) {
+                c?.setActiveObject(new fabric.ActiveSelection(a, { canvas: c }))
+                c?.requestRenderAll()
+                return
+              }
               selectedObjectsInPointer.sort((a, b) => {
                 const centerA = a.getCenterPoint()
                 const centerB = b.getCenterPoint()
@@ -143,7 +147,7 @@ export const useSelect = defineStore('select', (): Select => {
               })
               await removeObjectFromMultiSelect(selectedObjectsInPointer[0])
             })
-          }, 300)
+          }, doubleTapTimeout)
         }
       }
     },

@@ -143,7 +143,7 @@ export const useSelect = defineStore('select', (): Select => {
               })
               await removeObjectFromMultiSelect(selectedObjectsInPointer[0])
             })
-          }, doubleTapTimeout)
+          }, 300)
         }
       }
     },

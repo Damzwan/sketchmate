@@ -13,9 +13,10 @@
         </ion-item>
       </ion-list>
       <ion-list lines="none" class="p-0 divide-y divide-primary">
-        <ion-item color="tertiary" v-if="isColor" :button="true" @click="removeColorFilter">
+        <ion-item color="tertiary" v-if="colorFilter" :button="true" :detail="false" @click="removeColorFilter">
           <ion-icon :icon="svg(mdiClose)" color="danger" />
-          <p class="pl-2 text-sm">Remove color</p>
+          <p class="px-2 text-sm">Remove color</p>
+          <div class="rounded-full w-[26px] h-[26px]" :style="{ backgroundColor: colorFilter.color }" />
         </ion-item>
         <ColorPicker
           @update:color="addColorFilter"
@@ -43,7 +44,7 @@ const props = defineProps<{
 const isGrayScale = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Grayscale'))
 const isSepia = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Sepia'))
 const isInvert = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Invert'))
-const isColor = computed(() => !!props.img.filters?.find((f: any) => f.type == 'BlendColor'))
+const colorFilter = computed(() => props.img.filters?.find((f: any) => f.type == 'BlendColor'))
 
 function addGrayScaleFilter(e: any) {
   emits('add-filter', { filter: new fabric.Image.filters.Grayscale(), remove: !e.detail.checked })

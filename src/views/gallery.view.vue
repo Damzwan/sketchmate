@@ -27,7 +27,7 @@
         <div class="h-full">
           <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-3">
             <div class="text-xl font-bold">
-              {{ dayjs(date).format('MMMM') }}
+              {{ dayjs(date).format('MMMM, YYYY') }}
             </div>
 
             <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-16 gap-1.5 pt-3">

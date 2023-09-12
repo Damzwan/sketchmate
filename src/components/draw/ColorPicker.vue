@@ -135,7 +135,7 @@ async function onCustomColorSelected(newColor: string) {
 }
 
 function colorPicker() {
-  const { isolatedSubscribe, disableAllEvents } = useEventManager()
+  const { isolatedSubscribe } = useEventManager()
   const { getCanvas, selectAction, selectedTool } = useDrawStore()
   const { colorPickerMode } = storeToRefs(useDrawStore())
   const c = getCanvas()

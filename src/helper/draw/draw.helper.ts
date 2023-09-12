@@ -384,7 +384,7 @@ export function generateNextPrevForDocsItem(item: DocsItem) {
 }
 
 const hexToRgb = (hex: string): [number, number, number] => {
-  const bigint = parseInt(hex.substring(1), 16)
+  const bigint = parseInt(hexWithoutOpacity(hex).substring(1), 16)
   const r = (bigint >> 16) & 255
   const g = (bigint >> 8) & 255
   const b = bigint & 255
@@ -459,48 +459,34 @@ export const getColorRecommendations = (hexColor: string): string[][] => {
 
   const recommendations: string[][] = []
 
-  // Determine adaptive lightness variations
-  const adaptiveVariations =
-    l < 30 ? [10, 20, 30, 40, 50, 60] : l > 70 ? [-60, -50, -40, -30, -20, -10] : [-40, -30, -20, 10, 20, 30]
+  // First row: Similar colors with lightness variations (adaptive based on lightness)
+  const offset = 10 // change according to how much variation you want
+  const similarColorsLightness = [
+    Math.min(100, l + 3 * offset),
+    Math.min(100, l + 2 * offset),
+    Math.min(100, l + offset),
+    Math.max(0, l - offset),
+    Math.max(0, l - 2 * offset),
+    Math.max(0, l - 3 * offset)
+  ]
 
-  // Sort variations from light to dark
-  adaptiveVariations.sort((a, b) => b - a)
-
-  // Similar colors (adaptive based on lightness)
-  const similarColors = adaptiveVariations.map(variation => {
-    const adjustedLightness = l + variation
-    return [h, s, Math.max(0, Math.min(100, adjustedLightness))]
+  const similarColors = similarColorsLightness.map(lightness => {
+    return [h, s, lightness]
   })
 
   recommendations.push(similarColors.map(([h, s, l]) => rgbToHex(...hslToRgb(h / 360, s / 100, l / 100))))
 
-  // Gradient of complementary color (light to dark)
-  const complementaryHue = (h + 180) % 360
-  const complementaryGradient = [
-    [complementaryHue, s, 85],
-    [complementaryHue, s, 75],
-    [complementaryHue, s, 65],
-    [complementaryHue, s, 55],
-    [complementaryHue, s, 45],
-    [complementaryHue, s, 35]
+  // Second row: Contrasting colors
+  const contrastingColors = [
+    [(h + 180) % 360, s, l], // Complementary color
+    [(h + 90) % 360, s, 50], // Perpendicular hue with mid lightness
+    [(h + 270) % 360, s, 50], // Another perpendicular hue with mid lightness
+    [(h + 120) % 360, s, 50], // Another hue with mid lightness
+    [(h + 240) % 360, s, 50], // Another hue with mid lightness
+    [(h + 60) % 360, s, 50] // Another hue with mid lightness
   ]
 
-  recommendations.push(complementaryGradient.map(([h, s, l]) => rgbToHex(...hslToRgb(h / 360, s / 100, l / 100))))
-
-  // Gradient of another complementary color (light to dark)
-  const shiftedHue = (h + 120) % 360 // Adding 120 degrees for a more distinct complementary color
-  const shiftedComplementaryGradient = [
-    [shiftedHue, s, 85],
-    [shiftedHue, s, 75],
-    [shiftedHue, s, 65],
-    [shiftedHue, s, 55],
-    [shiftedHue, s, 45],
-    [shiftedHue, s, 35]
-  ]
-
-  recommendations.push(
-    shiftedComplementaryGradient.map(([h, s, l]) => rgbToHex(...hslToRgb(h / 360, s / 100, l / 100)))
-  )
+  recommendations.push(contrastingColors.map(([h, s, l]) => rgbToHex(...hslToRgb(h / 360, s / 100, l / 100))))
 
   return recommendations
 }

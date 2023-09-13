@@ -71,7 +71,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
         c.requestRenderAll()
       }
     },
-    onRotate: (angleDifference: number, previousAngle: number) => {
+    onRotate: (angleDifference: number) => {
       if (!(selectedTool.value == DrawTool.Select && isUsingGesture.value)) return
 
       const rotationThreshold = 0.8 // Adjust the threshold as needed
@@ -84,7 +84,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
       obj.setCoords()
       c.requestRenderAll()
     },
-    onDrag: (dx: number, dy: number, previousDx: number, previousDy: number, center: IPoint) => {
+    onDrag: (dx: number, dy: number, previousDx: number, previousDy: number) => {
       if (selectedTool.value == DrawTool.Select) return
 
       const delta = {

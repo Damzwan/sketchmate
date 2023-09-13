@@ -94,7 +94,7 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
       const angleDifference = normalizeAngle(currentAngle - previousAngle)
 
       if (options.onRotate) {
-        options.onRotate(angleDifference, previousAngle, center)
+        options.onRotate(angleDifference, center)
       }
 
       if (options.onZoom) {
@@ -102,7 +102,7 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
       }
 
       if (options.onDrag) {
-        options.onDrag(dx, dy, previousDx, previousDy, center)
+        options.onDrag(dx, dy, previousDx, previousDy)
       }
 
       // Update previous values

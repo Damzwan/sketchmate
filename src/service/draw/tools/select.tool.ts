@@ -271,7 +271,7 @@ export const useSelect = defineStore('select', (): Select => {
     // empty
   }
 
-  async function select(canvas: Canvas) {
+  async function select() {
     c!.isDrawingMode = false
     c!.selection = true
     setSelectionForObjects(c!.getObjects(), true)

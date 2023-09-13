@@ -11,7 +11,6 @@ import { BLACK } from '@/config/draw/draw.config'
 
 export function addText(c: Canvas) {
   const { selectTool } = useDrawStore()
-  const { setSelectedObjects } = useSelect()
   const { disableHistorySaving, enableHistorySaving } = useHistory()
   disableHistorySaving()
   const text = new fabric.IText('', {

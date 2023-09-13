@@ -91,7 +91,7 @@ import { hexWithOpacity, isColorTooLight, percentToAlphaHex, setObjectSelection 
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 
-const { selectTool, getCanvas } = useDrawStore()
+const { selectTool } = useDrawStore()
 const { selectedTool } = storeToRefs(useDrawStore())
 const { brushSize, brushColor, brushType, opacity } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())

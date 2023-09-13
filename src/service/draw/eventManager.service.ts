@@ -39,14 +39,14 @@ export const useEventManager = defineStore('event manager', () => {
     if (!events.value[event.on]) events.value[event.on] = []
     events.value[event.on].push(event)
 
-    c!.on(event.on, (e: any) => events.value[event.on].forEach(ev => ev.handler()))
+    c!.on(event.on, (e: any) => events.value[event.on].forEach(ev => ev.handler(e)))
   }
 
   function unsubscribe(event: Omit<FabricEvent, 'handler'>) {
     c!.off(event.on)
     if (!events.value[event.on]) return
     events.value[event.on] = events.value[event.on].filter(e => e.type != event.type)
-    c!.on(event.on, (e: any) => events.value[event.on].forEach(ev => ev.handler()))
+    c!.on(event.on, (e: any) => events.value[event.on].forEach(ev => ev.handler(e)))
   }
 
   function isolatedSubscribe(event: FabricEvent) {
@@ -55,7 +55,7 @@ export const useEventManager = defineStore('event manager', () => {
     if (!events.value[event.on].find(ev => ev.type == event.type)) {
       events.value[event.on].push(event)
     }
-    c!.on(event.on, (e: any) => event.handler())
+    c!.on(event.on, (e: any) => event.handler(e))
   }
 
   function disableAllEvents() {
@@ -67,7 +67,7 @@ export const useEventManager = defineStore('event manager', () => {
   function enableAllEvents() {
     disableAllEvents()
     for (const [eventOn, evs] of Object.entries(events.value)) {
-      c!.on(eventOn, (e: any) => evs.forEach(ev => ev.handler()))
+      c!.on(eventOn, (e: any) => evs.forEach(ev => ev.handler(e)))
     }
   }
 

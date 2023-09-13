@@ -139,8 +139,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 
 function addShapeWithDrag(c: Canvas, shape: Shape) {
   const { disableHistorySaving, enableHistorySaving, addToUndoStack } = useHistory()
-  const { isolatedSubscribe, unsubscribe, enableAllEvents } = useEventManager()
-  const { setShapeCreationMode, selectTool } = useDrawStore()
+  const { isolatedSubscribe } = useEventManager()
 
   let createdShape: any
   let startX: number

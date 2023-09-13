@@ -75,7 +75,7 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const appStore = useAppStore()
 const socketService = useSocketService()
-const { user, localUserId } = storeToRefs(appStore)
+const { user } = storeToRefs(appStore)
 const route = useRoute()
 const router = useRouter()
 const { toast } = useToast()

@@ -2,6 +2,10 @@
 
 Connect with someone to use **SketchMate**:
 
+<a href="https://www.youtube.com/watch?v=cy0LfRuB2vk&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=2" target="_blank">
+Watch Video
+</a>
+
 ### Method 1: QR Code
 
 1. Tap 'Scan QR code' to use your camera.

@@ -1,5 +1,9 @@
 ## Stickers
 
+<a href="https://www.youtube.com/watch?v=9fwF7Hri1-I&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=5" target="_blank">
+Watch Video
+</a>
+
 Turn your images into custom stickers for your sketches in SketchMate.
 
 ### Create Stickers

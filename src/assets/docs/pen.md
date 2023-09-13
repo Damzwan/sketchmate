@@ -1,5 +1,9 @@
 ## Pen Tool Guide
 
+<a href="https://www.youtube.com/watch?v=I4Je1l6Zs70&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=3" target="_blank">
+Watch Video
+</a>
+
 To draw with the pen tool:
 
 1. Tap the pen tool to start.

@@ -1,5 +1,9 @@
 ## Emblems
 
+<a href="https://www.youtube.com/watch?v=9fwF7Hri1-I&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=5" target="_blank">
+Watch Video
+</a>
+
 Use emblems, or rounded images, to enhance your sketches.
 
 ### Create Emblems

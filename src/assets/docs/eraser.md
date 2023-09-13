@@ -1,5 +1,9 @@
 ## Eraser Tool Guide
 
+<a href="https://www.youtube.com/watch?v=0lR8cEuM3ws&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=4" target="_blank">
+Watch Video
+</a>
+
 Use the eraser tool to remove content:
 
 1. Tap the eraser tool to begin erasing.

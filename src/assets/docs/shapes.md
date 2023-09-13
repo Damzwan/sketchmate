@@ -1,5 +1,9 @@
 ## Shapes
 
+<a href="https://www.youtube.com/watch?v=ZtkFH_Jo28E&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=7" target="_blank">
+Watch Video
+</a>
+
 Add built-in shapes to your sketches with ease.
 
 ### Accessing Shapes

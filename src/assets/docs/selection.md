@@ -1,5 +1,9 @@
 ## Enter Select Mode
 
+<a href="https://www.youtube.com/watch?v=BxFixwPMHrY&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=12" target="_blank">
+Watch Video
+</a>
+
 Tap the select button on the toolbar.
 
 ### Move, Rotate, and Resize Objects

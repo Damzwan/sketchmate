@@ -1,5 +1,9 @@
 ## Object Flipping
 
+<a href="https://www.youtube.com/watch?v=gCHRVwKukRg&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=16" target="_blank">
+Watch Video
+</a>
+
 Flip objects amongst either the x-axis or y-axis:
 
 1. Enter select mode.

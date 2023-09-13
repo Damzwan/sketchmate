@@ -1,5 +1,9 @@
 ## Saving and Reusing Drawings
 
+<a href="https://www.youtube.com/watch?v=HlRd3oeg_-w&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=14" target="_blank">
+Watch Video
+</a>
+
 Effortlessly save and reuse specific drawings or objects in your sketches.
 
 ### Saving Objects

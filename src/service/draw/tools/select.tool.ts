@@ -165,6 +165,24 @@ export const useSelect = defineStore('select', (): Select => {
     },
     {
       type: DrawEvent.SetModified,
+      on: 'object:rotating',
+      handler: () => {
+        if (unselectInMultiselectTimeout) {
+          clearUnSelectTimeout()
+        }
+      }
+    },
+    {
+      type: DrawEvent.SetModified,
+      on: 'object:scaling',
+      handler: () => {
+        if (unselectInMultiselectTimeout) {
+          clearUnSelectTimeout()
+        }
+      }
+    },
+    {
+      type: DrawEvent.SetModified,
       on: 'mouse:down:before',
       handler: (o: any) => {
         setMouseClickTarget(o.target)

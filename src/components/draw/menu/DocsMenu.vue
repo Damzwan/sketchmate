@@ -17,7 +17,12 @@
 
     <ion-content ref="modalContent">
       <div v-if="selectedSection && sectionPageContent" @click="internalLink">
-        <vue-markdown :source="sectionPageContent" class="prose prose-base custom-prose p-4" :html="true" />
+        <vue-markdown
+          ref="m"
+          :source="sectionPageContent"
+          class="prose prose-base custom-prose p-4"
+          :options="{ html: true }"
+        />
         <div class="w-full flex justify-between">
           <ion-button v-if="prevSection" @click="loadPageForSection(prevSection)" fill="clear" color="secondary">
             <ion-icon slot="start" :icon="svg(mdiChevronLeft)" />
@@ -99,6 +104,7 @@ const prevNextSetup = Object.keys(docsMapping).reduce((acc: any, curr: any) => {
 
 const sectionPageContent = ref()
 const modalContent = ref()
+const m = ref()
 
 let backListener: any = undefined
 
@@ -114,6 +120,7 @@ async function loadPageForSection(section: DocsKey) {
   prevSection.value = prevNextSetup[section][0]
   nextSection.value = prevNextSetup[section][1]
   modalContent.value.$el.scrollToTop()
+  setTimeout(() => console.log(m.value), 100)
 }
 
 function onBack() {
@@ -142,7 +149,6 @@ async function canDismiss() {
 function internalLink(e: any) {
   if (!e.target.href) return
   const pageKey = e.target.href.substring(e.target.href.indexOf(':') + 1, e.target.href.lastIndexOf('.'))
-  console.log(pageKey)
   loadPageForSection(pageKey as DocsKey)
 }
 </script>

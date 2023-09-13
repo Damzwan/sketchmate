@@ -1,5 +1,9 @@
 ## Images
 
+<a href="https://www.youtube.com/watch?v=cd3CWg4M1os&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=6" target="_blank">
+Watch Video
+</a>
+
 Easily integrate images into your sketches or use them as backgrounds.
 
 ### Add Images

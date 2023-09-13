@@ -1,5 +1,9 @@
 ## Text
 
+<a href="https://www.youtube.com/watch?v=Cz0Uk2AXnTo&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=8" target="_blank">
+Watch Video
+</a>
+
 Add and modify text in your sketches easily.
 
 ### Adding Text

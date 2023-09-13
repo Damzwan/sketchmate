@@ -1,5 +1,9 @@
 ## Setting Object Style
 
+<a href="https://www.youtube.com/watch?v=efr_V3WurWM&list=PL59USjwdMIDkWNkVo4lP2UJODNKOnocsX&index=13" target="_blank">
+Watch Video
+</a>
+
 1. Enter select mode.
 2. Choose your target object(s).
 3. Tap the paint icon (🎨) in the upper right.

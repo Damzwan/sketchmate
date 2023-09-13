@@ -16,6 +16,13 @@ export function enableZoomAndPan(c: any, upperCanvasEl: any) {
   else enablePCGestures(c)
 }
 
+function setCacheForObjects(objects: fabric.Object[], enabled: boolean) {
+  objects.forEach(o => {
+    if (o.type == ObjectType.group) setCacheForObjects((o as fabric.Group).getObjects(), enabled)
+    o.objectCaching = enabled
+  })
+}
+
 export function enableMobileGestures(c: any, upperCanvasEl: any) {
   const { setCanZoomOut } = useDrawStore()
   const { disableHistorySaving, enableHistorySaving, addPrevModifiedObjectsToStack } = useHistory()
@@ -38,7 +45,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
 
         return
       } else {
-        c.getObjects().forEach((o: any) => (o.objectCaching = false))
+        setCacheForObjects(c.getObjects(), false)
         cancelPreviousAction(c)
       }
     },
@@ -67,11 +74,10 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
     onRotate: (angleDifference: number, previousAngle: number) => {
       if (!(selectedTool.value == DrawTool.Select && isUsingGesture.value)) return
 
-      const rotationThreshold = 0.45 // Adjust the threshold as needed
+      const rotationThreshold = 0.8 // Adjust the threshold as needed
       const obj = c.getActiveObject()
 
       isRotating = Math.abs(angleDifference) > rotationThreshold
-      if (!isRotating) return
 
       EventBus.emit('rotating')
       obj.rotate((obj.angle! + angleDifference) % 360)
@@ -90,7 +96,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
     },
     onGestureEnd: (fingers: number) => {
       if (fingers == 1) {
-        if (!isUsingGesture.value) c.getObjects().forEach((o: any) => (o.objectCaching = true))
+        if (!isUsingGesture.value) setCacheForObjects(c.getObjects(), true)
         enableHistorySaving()
       }
 

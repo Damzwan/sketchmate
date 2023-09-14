@@ -94,17 +94,6 @@ export const useAppStore = defineStore('app', () => {
     if (e) e.target.complete()
   }
 
-  function increaseUnreadMessages() {
-    // if (route.path === `/${FRONTEND_ROUTES.gallery}`) return
-    // unreadMessages.value += 1
-    // localStorage.setItem(Storage.unread, unreadMessages.value.toString())
-  }
-
-  function cleanUnreadMessages() {
-    unreadMessages.value = 0
-    localStorage.setItem(LocalStorage.unread, '0')
-  }
-
   async function setNotifications(token: string | undefined) {
     localSubscription.value = token
 
@@ -154,8 +143,6 @@ export const useAppStore = defineStore('app', () => {
     inbox,
     getInbox,
     unreadMessages,
-    increaseUnreadMessages,
-    cleanUnreadMessages,
     storeReady,
     setNotifications,
     addComment,

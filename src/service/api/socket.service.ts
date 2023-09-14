@@ -34,7 +34,7 @@ export function useSocketService(): SocketAPI {
 }
 
 export function createSocketService(): SocketAPI {
-  const { increaseUnreadMessages, addComment } = useAppStore()
+  const { addComment } = useAppStore()
   const { user, isLoading, inbox, notificationRouteLoading } = storeToRefs(useAppStore())
   const { toast } = useToast()
 
@@ -81,8 +81,7 @@ export function createSocketService(): SocketAPI {
           buttons: [viewDrawingButton(params._id)],
           duration: ToastDuration.long
         })
-        if (params.sender !== user.value?._id) increaseUnreadMessages()
-        else EventBus.emit('reset-canvas')
+        if (params.sender === user.value?._id) EventBus.emit('reset-canvas')
       }
     })
 

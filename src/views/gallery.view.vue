@@ -82,11 +82,9 @@ import { useAPI } from '@/service/api/api.service'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 
 const api = useAPI()
-const { getInbox, cleanUnreadMessages, refresh, setQueryParams } = useAppStore()
+const { getInbox, refresh, setQueryParams } = useAppStore()
 const { user, inbox, isLoading, isLoggedIn, queryParams } = storeToRefs(useAppStore())
 const { toast } = useToast()
-
-cleanUnreadMessages()
 
 fetchInbox()
 watch(isLoggedIn, () => {

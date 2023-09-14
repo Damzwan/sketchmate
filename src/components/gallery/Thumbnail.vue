@@ -1,5 +1,10 @@
 <template>
-  <div ref="el" @click="onClick" class="flex justify-center items-center rounded-2xl h-full w-full">
+  <div
+    ref="el"
+    @click="onClick"
+    class="flex justify-center items-center rounded-2xl h-full w-full"
+    @mouseover="emits('hover')"
+  >
     <div class="relative w-full" :style="{ height: inboxItem.aspect_ratio ? `${renderHeight}px` : 'auto' }">
       <div class="z-10 absolute w-full h-full flex justify-center items-center" v-if="isLoading">
         <ion-spinner color="primary" />
@@ -99,7 +104,7 @@ onLongPress(
   { modifiers: { prevent: true }, delay: 500 }
 )
 
-const emits = defineEmits(['long-press', 'click'])
+const emits = defineEmits(['long-press', 'click', 'hover'])
 
 const isNew = computed(() => !props.inboxItem.seen_by.includes(props.user._id))
 const isNewComment = computed(() => !props.inboxItem.comments_seen_by.includes(props.user._id))

@@ -108,9 +108,9 @@ export const useAppStore = defineStore('app', () => {
   async function setNotifications(token: string | undefined) {
     localSubscription.value = token
 
-    if (!user.value) return
+    if (!user.value || !user.value?.subscription) return
     if (!token) await api.unsubscribe({ _id: user.value!._id })
-    else await api.subscribe({ _id: user.value!._id, subscription: token })
+    else if (token) await api.subscribe({ _id: user.value!._id, subscription: token })
     user.value!.subscription = token
   }
 

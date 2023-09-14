@@ -203,10 +203,6 @@ function seeItem() {
     props.open &&
     (!currInboxItem.value.seen_by.includes(user!._id) || !currInboxItem.value.comments_seen_by.includes(user!._id))
   ) {
-    api.seeInboxItem({
-      user_id: user!._id,
-      inbox_id: currInboxItem.value._id
-    })
     emit('see')
   }
 }

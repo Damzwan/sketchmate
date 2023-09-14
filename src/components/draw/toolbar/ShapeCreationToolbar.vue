@@ -41,7 +41,7 @@
 <script lang="ts" setup>
 import { svg } from '@/helper/general.helper'
 import { mdiCheck, mdiClose, mdiPaletteOutline, mdiRedo, mdiUndo } from '@mdi/js'
-import { IonButton, IonButtons, IonIcon, IonToolbar, popoverController, IonTitle } from '@ionic/vue'
+import { IonButton, IonButtons, IonIcon, IonToolbar, IonTitle } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useHistory } from '@/service/draw/history.service'
 import { exitColorPickerMode, exitShapeCreationMode } from '@/helper/draw/draw.helper'
@@ -60,7 +60,7 @@ function handleColorUpdate(color: string | undefined, type: ColorUpdate) {
   if (type === 'background') shapeCreationSettings.value.backgroundColor = color
 
   // Call the popoverController.dismiss() after the settings are updated
-  popoverController.dismiss()
+  // popoverController.dismiss()
 }
 
 function handleStrokeWidthUpdate(strokeWidth: number) {

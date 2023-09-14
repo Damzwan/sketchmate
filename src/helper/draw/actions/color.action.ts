@@ -2,7 +2,6 @@ import { useSelect } from '@/service/draw/tools/select.tool'
 import { exitEditing, getStaticObjWithAbsolutePosition, isText, setForSelectedObjects } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
 import { Canvas } from 'fabric/fabric-impl'
-import { popoverController } from '@ionic/vue'
 import { ObjectType } from '@/types/draw.types'
 
 export function setStrokeColor(c: Canvas, options: any) {
@@ -20,8 +19,7 @@ export function setStrokeColor(c: Canvas, options: any) {
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
   setForSelectedObjects(selectedObjectsRef, { stroke: color })
 
-  c.renderAll()
-  popoverController.dismiss()
+  c.requestRenderAll()
 }
 
 export function setFillColor(c: Canvas, options: any) {
@@ -39,8 +37,7 @@ export function setFillColor(c: Canvas, options: any) {
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
   setForSelectedObjects(selectedObjectsRef, { fill: color })
 
-  c.renderAll()
-  popoverController.dismiss()
+  c.requestRenderAll()
 }
 
 export function setBackgroundColor(c: Canvas, options: any) {
@@ -59,7 +56,6 @@ export function setBackgroundColor(c: Canvas, options: any) {
   setForSelectedObjects(selectedObjectsRef, { backgroundColor: color }, !color)
 
   c.renderAll()
-  popoverController.dismiss()
 }
 
 // TODO is not really a color haha
@@ -77,7 +73,7 @@ export async function changeStrokeWidth(c: Canvas, options: any) {
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
   setForSelectedObjects(selectedObjectsRef, { strokeWidth })
 
-  c.renderAll()
+  c.requestRenderAll()
 }
 
 // TODO nightmare code

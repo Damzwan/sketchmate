@@ -31,7 +31,7 @@
               {{ dayjs(date).format('MMMM, YYYY') }}
             </div>
 
-            <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-16 gap-1.5 pt-3">
+            <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-1.5 pt-3">
               <div
                 v-for="(inboxItem, i) in inboxItemsFromDateGroups(date).reverse()"
                 :key="i"
@@ -44,6 +44,7 @@
                   :multi-select-mode="multiSelectMode"
                   @long-press="() => onItemLongPress(inboxItem)"
                   @click="onThumbnailClick(inboxItem)"
+                  @hover="seeItem(i)"
                 />
               </div>
             </div>
@@ -197,9 +198,15 @@ function openPhotoSwiper(inboxItem: InboxItem) {
   isPhotoSwiperOpen.value = true
 }
 
-function seeItem() {
-  inboxItems.value[selectedInboxItemIndex.value].seen_by.push(user.value!._id)
-  inboxItems.value[selectedInboxItemIndex.value].comments_seen_by.push(user.value!._id)
+function seeItem(index?: number) {
+  const indexOfItemToSee = index ? index : selectedInboxItemIndex.value
+  const item = inboxItems.value[indexOfItemToSee]
+  api.seeInboxItem({
+    user_id: user.value!._id,
+    inbox_id: item._id
+  })
+  inboxItems.value[indexOfItemToSee].seen_by.push(user.value!._id)
+  inboxItems.value[indexOfItemToSee].comments_seen_by.push(user.value!._id)
 }
 
 function removeItem() {

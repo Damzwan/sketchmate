@@ -36,7 +36,11 @@
     <VTour :steps="currDataSteps" ref="tour" :autoStart="true" />
 
     <transition name="slide">
-      <div class="w-[300px] absolute top-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black" v-if="showTipBox">
+      <div
+        class="w-[300px] absolute top-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black"
+        v-show="showTipBox"
+        ref="tooltip"
+      >
         <div class="flex justify-between">
           <p class="text-xl font-semibold">{{ tipBoxTitle }}</p>
           <ion-icon :icon="svg(mdiClose)" class="w-[20px] h-[20px] cursor-pointer" @click="clearTip" />
@@ -70,6 +74,7 @@ import { tutorialSteps, WHITE } from '@/config/draw/draw.config'
 import { LocalStorage } from '@/types/storage.types'
 import { DrawTool } from '@/types/draw.types'
 import { checkForIntersectionsWithSelectedObject } from '@/helper/draw/draw.helper'
+import { useSwipe } from '@vueuse/core'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
@@ -96,6 +101,13 @@ let didShowMultiSelectTip = false
 let didShowDoubleTapTip = false
 
 let hideTipTimeout: any = undefined
+
+const tooltip = ref()
+useSwipe(tooltip, {
+  onSwipeEnd() {
+    clearTip()
+  }
+})
 
 function showTip(content: string, title = 'Tip', duration = 5000) {
   clearTimeout(hideTipTimeout)

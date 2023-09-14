@@ -16,13 +16,14 @@ export async function requestNotifications() {
       permStatus = await LocalNotifications.requestPermissions()
     }
 
+    console.log(permStatus.display)
+
     if (permStatus.display !== 'granted') {
       const { toast } = useToast()
       toast('Please enable notifications from your device settings', { color: 'danger' })
-      throw new Error('User denied permissions!')
+      return
     }
 
-    await disableNotifications()
     await requestLocalNotifications()
     await requestPushNotifications()
   } else await PWARequestNotifications()
@@ -49,10 +50,11 @@ export async function PWARequestNotifications() {
 export async function disableNotifications() {
   if (isNative()) await disableLocalNotifications()
   const { setNotifications } = useAppStore()
-  setNotifications(undefined)
+  await setNotifications(undefined)
 }
 
 async function requestLocalNotifications() {
+  await disableLocalNotifications()
   await LocalNotifications.schedule({
     notifications: [
       {
@@ -74,6 +76,7 @@ async function requestPushNotifications() {
 
 async function disableLocalNotifications() {
   const pending = await LocalNotifications.getPending()
+  if (pending.notifications.length == 0) return
   await LocalNotifications.cancel({
     notifications: pending.notifications
   })

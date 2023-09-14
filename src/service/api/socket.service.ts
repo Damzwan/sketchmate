@@ -78,7 +78,7 @@ export function createSocketService(): SocketAPI {
         inbox.value?.push(params)
         const text = params.sender === user.value!._id ? 'Drawing sent!' : 'New drawing received'
         toast(text, {
-          buttons: [viewDrawingButton(params._id)],
+          buttons: [dismissButton, viewDrawingButton(params._id)],
           duration: ToastDuration.long
         })
         if (params.sender === user.value?._id) EventBus.emit('reset-canvas')

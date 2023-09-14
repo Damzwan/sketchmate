@@ -1,6 +1,7 @@
 <template>
   <ion-page>
     <ion-toast
+      ref="toast"
       :is-open="isOpen"
       :message="text"
       :duration="duration"
@@ -58,16 +59,24 @@ import {
 } from '@ionic/vue'
 import { imagesOutline, pencil, peopleCircleOutline } from 'ionicons/icons'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/store/app.store'
 import { useToast } from '@/service/toast.service'
 import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 import { routerAnimation } from '@/helper/animation.helper'
 import { useRoute } from 'vue-router'
+import { useSwipe } from '@vueuse/core'
 
 const { text, isOpen, dismiss, duration, color, buttons, position } = useToast()
 const r = useIonRouter()
+
+const toast = ref()
+useSwipe(toast, {
+  onSwipeEnd() {
+    dismiss()
+  }
+})
 
 const { notificationRouteLoading } = storeToRefs(useAppStore())
 

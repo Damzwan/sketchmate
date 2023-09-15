@@ -26,11 +26,7 @@
           /></ion-avatar>
         </div>
 
-        <div class="absolute z-10 left-0 top-0 w-3 h-3 bg-secondary rounded-full" v-if="isNew">
-          <span
-            class="animate-ping-slow absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"
-          ></span>
-        </div>
+        <div class="absolute z-10 left-0 top-0 w-3 h-3 bg-secondary rounded-full" v-if="isNew" />
         <div
           v-if="props.inboxItem.comments.length > 0"
           class="absolute z-10 right-1 bottom-1 w-[24px] flex justify-center items-center rounded-full bg-secondary aspect-square text-md"

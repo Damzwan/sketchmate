@@ -21,8 +21,12 @@ const hasNoMateGuard: NavigationGuard = async (to, from, next) => {
 }
 
 const drawGuard: NavigationGuard = async (to, from, next) => {
+  if (to.query.trial) {
+    next()
+    return
+  }
   const mate = await Preferences.get({ key: LocalStorage.mate })
-  if (!mate.value && !to.query.trial) next(FRONTEND_ROUTES.connect)
+  if (!mate.value) next(FRONTEND_ROUTES.connect)
   else next()
 }
 

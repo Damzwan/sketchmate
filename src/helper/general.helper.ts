@@ -7,10 +7,10 @@ import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
 import { isPlatform } from '@ionic/vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
-import { SplashScreen } from '@capacitor/splash-screen'
 import { Preferences } from '@capacitor/preferences'
 import { useToast } from '@/service/toast.service'
 import { initializeApp } from 'firebase/app'
+import { SplashScreen } from '@capacitor/splash-screen'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())

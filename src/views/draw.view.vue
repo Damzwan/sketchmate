@@ -11,7 +11,7 @@
         </div>
       </div>
     </ion-header>
-    <ion-content :style="{ background: WHITE }">
+    <ion-content>
       <ShapesMenu />
 
       <div>
@@ -70,7 +70,7 @@ import { useRoute } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import '@/theme/custom_vuejs_tour.scss'
-import { tutorialSteps, WHITE } from '@/config/draw/draw.config'
+import { tutorialSteps } from '@/config/draw/draw.config'
 import { LocalStorage } from '@/types/storage.types'
 import { DrawTool } from '@/types/draw.types'
 import { checkForIntersectionsWithSelectedObject } from '@/helper/draw/draw.helper'
@@ -199,6 +199,10 @@ if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
 </script>
 
 <style scoped>
+ion-content {
+  --background: #faf0e6;
+}
+
 /* Starting state (entering) */
 .slide-enter-active,
 .slide-leave-active {

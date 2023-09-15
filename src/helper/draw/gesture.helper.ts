@@ -142,10 +142,8 @@ function cancelPreviousAction(c: Canvas) {
   setTimeout(() => {
     actionWithoutEvents(() => {
       if (ERASERS.includes(selectedTool)) cancelEraserAction(c) // needs to happen before touch up
-      c.discardActiveObject()
       fabricateTouchUp(c)
       if (selectedTool == DrawTool.Pen) cancelPenAction(c) // needs to happen after touch up
-      c.renderAll()
     })
   }, 1)
 }

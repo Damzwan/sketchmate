@@ -12,7 +12,7 @@
     </ion-header>
 
     <ion-content>
-      <vue-markdown :source="md" class="prose prose-base custom-prose p-6" v-if="md" />
+      <vue-markdown :source="md" class="prose prose-base custom-prose p-6" v-if="md" :options="{ html: true }" />
     </ion-content>
   </ion-modal>
 </template>

@@ -85,6 +85,7 @@ const { selectedObjectsRef } = storeToRefs(useSelect())
 const currDataSteps = ref(tutorialSteps)
 
 onIonViewDidEnter(async () => {
+  import('pako') // preload pako to reduce lag on send
   await drawStore.initCanvas(myCanvasRef.value!)
 })
 

@@ -123,9 +123,14 @@ export function changeFabricBaseSettings() {
     })
 
     this.on('editing:exited', () => {
+      const { isEditingText } = storeToRefs(useDrawStore())
+
       if (isNative()) {
         this.set({ top: this.originalTop })
       }
+
+      // We need a timeout since this is called before selection clear. This should only be usedful in case we exit through the keyboard
+      setTimeout(() => (isEditingText.value = false), 100)
       this.set({ hasControls: true })
       this.canvas?.requestRenderAll()
     })

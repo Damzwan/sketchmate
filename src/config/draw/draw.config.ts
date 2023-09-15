@@ -151,9 +151,10 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) =>
 export const dynamicStickerLoading: DynamicTextPart[] = [
   { text: 'Uploading...', duration: 1000 },
   { text: 'What a questionable sticker...', duration: 2000 },
-  { text: 'Creating...', duration: 2000 },
-  { text: 'This is taking longer than expected...', duration: 2000 },
-  { text: 'I promise it will be faster next time :(', duration: 2000 }
+  { text: 'Creating...', duration: 3000 },
+  { text: '"To lose patience is to lose the battle"', duration: 3000 },
+  { text: '"Patience is bitter, but its fruit is sweet."', duration: 3000 },
+  { text: '"Knowing trees, I understand the meaning of patience."', duration: 3000 }
 ]
 
 export const tutorialSteps = [

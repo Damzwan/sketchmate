@@ -72,17 +72,16 @@ export async function addSavedToCanvas(c: fabric.Canvas, options: any) {
     const json = options.json
     const objects = await enlivenObjects(json.objects)
 
-    // Only load objects
-    objects.forEach((object: fabric.Object) => {
-      // TODO Maybe use with restore actions since this is repeated in history.service.js
-      if (isText([object])) {
-        const text = object as IText
+    for (let i = 0; i < objects.length; i++) {
+      if (isText([objects[i]])) {
+        const text = objects[i] as IText
         if (text.isCurved) applyCurve(text, c)
+        text.fill = json.objects[i].fill // fill gets reset for no apparent reason :(
       }
 
-      setObjectId(object)
-      c!.add(object)
-    })
+      setObjectId(objects[i])
+      c!.add(objects[i])
+    }
 
     selectTool(DrawTool.Select)
     addToUndoStack(objects, 'object:added')

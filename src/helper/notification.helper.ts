@@ -16,8 +16,6 @@ export async function requestNotifications() {
       permStatus = await LocalNotifications.requestPermissions()
     }
 
-    console.log(permStatus.display)
-
     if (permStatus.display !== 'granted') {
       const { toast } = useToast()
       toast('Please enable notifications from your device settings', { color: 'danger' })
@@ -30,22 +28,34 @@ export async function requestNotifications() {
 }
 
 export async function PWARequestNotifications() {
+  const { toast } = useToast()
+
+  if (!navigator.serviceWorker) {
+    toast('No service worker installed', { color: 'danger' })
+    return
+  }
+
   const messaging = getMessaging()
   const permission = await Notification.requestPermission()
+
   if (permission != 'granted') {
-    const { toast } = useToast()
     toast('Notifications are not allowed, enable them and try again', { color: 'danger' })
     return
   }
 
-  const registration = await navigator.serviceWorker.getRegistration()
-  const token = await getToken(messaging, {
-    vapidKey: import.meta.env.VITE_VAPID_PUBLIC,
-    serviceWorkerRegistration: registration
-  })
+  try {
+    const registration = await navigator.serviceWorker.getRegistration()
+    const token = await getToken(messaging, {
+      vapidKey: import.meta.env.VITE_VAPID_PUBLIC,
+      serviceWorkerRegistration: registration
+    })
 
-  const { setNotifications } = useAppStore()
-  setNotifications(token)
+    const { setNotifications } = useAppStore()
+    setNotifications(token)
+  } catch (e) {
+    toast(e as string, { color: 'danger' })
+    console.log(e)
+  }
 }
 export async function disableNotifications() {
   if (isNative()) await disableLocalNotifications()

@@ -1,58 +1,56 @@
 <template>
-  <ion-page>
-    <ion-content v-show="scanning" class="scanner-active" />
+  <ion-content v-show="scanning" class="scanner-active" />
 
-    <SettingsHeader title="Connect" v-if="!scanning" />
-    <ion-content v-show="!scanning">
-      <div v-show="isQRReaderOpen" ref="videoContainer">
-        <ion-toolbar color="transparent">
-          <ion-buttons>
-            <ion-button @click="stopScanning">
-              <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="fill-white"></ion-icon>
-            </ion-button>
-          </ion-buttons>
-        </ion-toolbar>
-        <div class="w-full h-3/4 flash justify-center items-center grid">
-          <video ref="video" />
-        </div>
+  <SettingsHeader title="Connect" v-if="!scanning" />
+  <ion-content v-show="!scanning">
+    <div v-show="isQRReaderOpen" ref="videoContainer">
+      <ion-toolbar color="transparent">
+        <ion-buttons>
+          <ion-button @click="stopScanning">
+            <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="fill-white"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+      <div class="w-full h-3/4 flash justify-center items-center grid">
+        <video ref="video" />
+      </div>
+    </div>
+
+    <div class="flex flex-col h-full space-y-2">
+      <div class="flex flex-wrap justify-center items-center sm:space-x-16 flex-grow">
+        <ConnectMethod
+          class="w-full sm:w-1/2 md:w-1/3"
+          title="Scan QR Code"
+          subtitle="Become mates by scanning the qr code of another user"
+          :img="cameraImg"
+          :action="startScanning"
+        />
+        <ConnectMethod
+          class="w-full sm:w-1/2 md:w-1/3"
+          title="Share connect link"
+          subtitle="The first person who clicks on this link will become your mate"
+          :img="shareImage"
+          :action="shareLink"
+        />
       </div>
 
-      <div class="flex flex-col h-full space-y-2">
-        <div class="flex flex-wrap justify-center items-center sm:space-x-16 flex-grow">
-          <ConnectMethod
-            class="w-full sm:w-1/2 md:w-1/3"
-            title="Scan QR Code"
-            subtitle="Become mates by scanning the qr code of another user"
-            :img="cameraImg"
-            :action="startScanning"
-          />
-          <ConnectMethod
-            class="w-full sm:w-1/2 md:w-1/3"
-            title="Share connect link"
-            subtitle="The first person who clicks on this link will become your mate"
-            :img="shareImage"
-            :action="shareLink"
-          />
-        </div>
-
-        <div class="flex flex-col links">
-          <ion-button fill="clear" color="secondary" id="connect_help">Help with Connection</ion-button>
-          <ConnectHelpModal />
-          <ion-button fill="clear" color="secondary" @click="enterTrialMode">Test Drawing</ion-button>
-        </div>
-
-        <div class="flex flex-col items-center justify-center w-full pb-4">
-          <qrcode-vue :value="`${fullUrl}?mate=${user?._id}`" :size="qrSize" background="transparent" />
-          <p class="font-sans font-bold py-0.5">Connect with QR Code</p>
-          <p class="font-sans font-light text-xs"> Let someone scan this code to become mates </p>
-        </div>
+      <div class="flex flex-col links">
+        <ion-button fill="clear" color="secondary" id="connect_help">Help with Connection</ion-button>
+        <ConnectHelpModal />
+        <ion-button fill="clear" color="secondary" @click="enterTrialMode">Test Drawing</ion-button>
       </div>
-    </ion-content>
-  </ion-page>
+
+      <div class="flex flex-col items-center justify-center w-full pb-4">
+        <qrcode-vue :value="`${fullUrl}?mate=${user?._id}`" :size="qrSize" background="transparent" />
+        <p class="font-sans font-bold py-0.5">Connect with QR Code</p>
+        <p class="font-sans font-light text-xs"> Let someone scan this code to become mates </p>
+      </div>
+    </div>
+  </ion-content>
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonButtons, IonContent, IonIcon, IonPage, IonToolbar } from '@ionic/vue'
+import { IonButton, IonButtons, IonContent, IonIcon, IonToolbar } from '@ionic/vue'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import ConnectMethod from '@/components/connect/ConnectMethod.vue'
 import cameraImg from '@/assets/illustrations/camera.svg'

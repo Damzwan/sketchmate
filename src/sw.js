@@ -43,16 +43,18 @@ function toGallery(event, item, comments) {
   handleNavigation(event, `/gallery`, { item, comments })
 }
 
-function handleNavigation(event, path, query) {
-  channel.postMessage({ path, query })
-
-  event.waitUntil(
+async function handleNavigation(event, path, query) {
+  await event.waitUntil(
     self.clients.matchAll({ type: 'window' }).then(clients => {
-      if (clients.length > 0) return clients[0].focus()
-      else
+      if (clients.length > 0) {
+        clients[0].focus()
+        channel.postMessage({ path, query })
+      } else {
         return self.clients.openWindow(path).then(client => {
           client.focus()
+          setTimeout(() => channel.postMessage({ path, query }), 150)
         })
+      }
     })
   )
 }

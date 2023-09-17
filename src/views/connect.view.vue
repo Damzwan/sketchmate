@@ -1,9 +1,9 @@
 <template>
   <ion-page>
     <transition name="list">
-      <IntroPage v-if="localUserId === ''" class="z-10" />
+      <IntroPage v-if="localUserId === ''" class="z-10 absolute" />
     </transition>
-    <ConnectPage />
+    <ConnectPage v-if="localUserId !== ''" />
   </ion-page>
 </template>
 

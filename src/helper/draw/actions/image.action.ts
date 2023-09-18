@@ -11,7 +11,7 @@ export function addSticker(c: Canvas, options?: any) {
   fabric.Image.fromURL(
     sticker,
     function (img) {
-      const maxDimension = 128 // Maximum width or height for scaling
+      const maxDimension = 256 // Maximum width or height for scaling
       img.scaleToWidth(maxDimension)
       c!.add(img)
       // c.moveTo(img, Layer.obj)

@@ -61,6 +61,7 @@
         </ion-item>
       </ion-list>
       <ion-action-sheet
+        id="action-sheet"
         class="my-custom-class"
         color="background"
         mode="ios"
@@ -88,6 +89,7 @@ import { compressImg, svg } from '@/helper/general.helper'
 import {
   mdiCamera,
   mdiContentSave,
+  mdiDraw,
   mdiFormatText,
   mdiImage,
   mdiImagePlusOutline,
@@ -106,6 +108,7 @@ import ImageCropper from '@/components/draw/ImageCropper.vue'
 import { storeToRefs } from 'pinia'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useAppStore } from '@/store/app.store'
+import { createSketchFromDataURL } from '@/helper/draw/draw.helper'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
@@ -156,6 +159,12 @@ const imageActionSheetButtons: ActionSheetButton[] = [
     handler: addImage
   },
   {
+    text: 'Create sketch from image',
+    role: 'selected',
+    icon: svg(mdiDraw),
+    handler: createSketchFromImage
+  },
+  {
     text: 'Use image as background',
     icon: svg(mdiPanoramaVariantOutline),
     role: 'selected',
@@ -176,6 +185,10 @@ function closePopover() {
 
 function addImage() {
   selectAction(DrawAction.Sticker, { img: compressedImgDataUrl.value })
+}
+
+async function createSketchFromImage() {
+  selectAction(DrawAction.Sticker, { img: await createSketchFromDataURL(compressedImgDataUrl.value!) })
 }
 
 function onTextClick() {

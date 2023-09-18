@@ -557,3 +557,61 @@ export function checkForIntersectionsWithSelectedObject(canvas: fabric.Canvas) {
     .getObjects()
     .some(o => !canvas.getActiveObjects().includes(o) && o.intersectsWithObject(canvas.getActiveObject()!))
 }
+
+export async function createSketchFromDataURL(dataURL: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    // Create an Image object from the Data URL
+    const img = new Image()
+    img.src = dataURL
+
+    img.onload = async () => {
+      // Function to apply filters to a canvas element
+      const filter = (bmp: ImageBitmap, filters = ''): HTMLCanvasElement => {
+        const canvas = Object.assign(document.createElement('canvas'), {
+          width: bmp.width,
+          height: bmp.height
+        }) as HTMLCanvasElement
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.filter = filters
+          ctx.drawImage(bmp, 0, 0)
+        }
+        return canvas
+      }
+
+      // Function to merge two canvases into one to generate a sketch-like image
+      const generateSketch = (bnw: HTMLCanvasElement, blur: HTMLCanvasElement): HTMLCanvasElement => {
+        const canvas = document.createElement('canvas')
+        canvas.width = bnw.width
+        canvas.height = bnw.height
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(bnw, 0, 0, canvas.width, canvas.height)
+          ctx.globalCompositeOperation = 'color-dodge'
+          ctx.drawImage(blur, 0, 0, canvas.width, canvas.height)
+        }
+        return canvas
+      }
+
+      // Create a bitmap from the loaded image
+      const bmp = await createImageBitmap(img)
+
+      // Generate a black & white and blur canvas using filter()
+      const bnw = filter(bmp, 'grayscale(1)')
+      const blur = filter(bmp, 'grayscale(1) invert(1) blur(5px)')
+
+      // Merge / combine `bnw` and `blur` canvas
+      const sketchImg = generateSketch(bnw, blur)
+
+      // Convert the canvas to Data URL
+      const sketchDataURL = sketchImg.toDataURL('image/png')
+
+      // Resolve the promise with the sketch Data URL
+      resolve(sketchDataURL)
+    }
+
+    img.onerror = () => {
+      reject(new Error('Failed to load image from Data URL'))
+    }
+  })
+}

@@ -62,7 +62,7 @@ import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
 import LinearLoader from '@/components/loaders/LinearLoader.vue'
 import ShapeCreationToolbar from '@/components/draw/toolbar/ShapeCreationToolbar.vue'
 import { resetZoom } from '@/helper/draw/gesture.helper'
-import { svg } from '@/helper/general.helper'
+import { isNative, svg } from '@/helper/general.helper'
 import { mdiClose, mdiMagnifyMinusOutline } from '@mdi/js'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
@@ -164,7 +164,8 @@ if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
     if (selectedObjectsRef.value.length == 1 && drawStore.getCanvas().getObjects().length > 1 && !showTipBox.value) {
       t1 = setTimeout(() => {
         if (showTipBox.value) return
-        showTip('Long tap object to enter multi select mode')
+        if (isNative()) showTip('Long tap object to enter multi select mode')
+        else showTip('Hold shift while tapping on an object to multi select')
         localStorage.setItem(
           LocalStorage.multiSelectHint,
           `${parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) - 1}`

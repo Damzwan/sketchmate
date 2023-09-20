@@ -4,7 +4,7 @@ interface GestureDetectorOptions {
   onGestureStart?: () => void
   onZoom?: (scale: number, previousScale: number, center: IPoint) => void
   onDrag?: (dx: number, dy: number, previousDx: number, previousDy: number, center: IPoint) => void
-  onRotate?: (angle: number, previousAngle: number, center: IPoint) => void
+  onRotate?: (angleDifference: number, center: IPoint) => void
   onGestureEnd?: (fingers: number) => void
 }
 
@@ -102,7 +102,7 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
       }
 
       if (options.onDrag) {
-        options.onDrag(dx, dy, previousDx, previousDy)
+        options.onDrag(dx, dy, previousDx, previousDy, center)
       }
 
       // Update previous values

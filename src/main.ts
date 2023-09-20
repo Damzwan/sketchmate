@@ -32,6 +32,7 @@ initFirebase()
 
 // lazy loading fabric js dependency for smooth transitions
 import('fabric')
+import('pako') // preload pako to reduce lag on send
 
 CapApp.addListener('appUrlOpen', (data: any) => {
   const url = new URL(data.url)

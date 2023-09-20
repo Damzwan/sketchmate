@@ -21,7 +21,6 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:hardwareAccelerated="true"
         android:theme="@style/AppTheme">
 
         <receiver
@@ -42,6 +41,7 @@
             android:exported="true"
             android:label="@string/title_activity_main"
             android:launchMode="singleTask"
+            android:hardwareAccelerated="true"
             android:theme="@style/AppTheme.NoActionBarLaunch">
             <tools:validation testUrl="https://app.sketchmate.ninja/connect?mate=6463bfd32cd5bf3b444297ff" />
 

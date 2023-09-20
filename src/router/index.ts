@@ -45,7 +45,7 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: FRONTEND_ROUTES.draw,
-        component: () => import(/* webpackPreload: true */ '@/views/draw.view.vue'),
+        component: () => import(/* webpackPrefetch: true */ '@/views/draw.view.vue'),
         beforeEnter: drawGuard
       },
       {

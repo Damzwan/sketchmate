@@ -13,4 +13,11 @@
         <item name="android:textColor">?android:attr/textColorPrimary</item>
         <item name="android:clipToOutline">true</item>
     </style>
+
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:windowSplashScreenBackground">
+            @color/SplashScreenColor
+        </item>
+        <item name="postSplashScreenTheme">@null</item>
+    </style>
 </resources>

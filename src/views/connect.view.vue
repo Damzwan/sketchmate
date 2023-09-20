@@ -3,7 +3,7 @@
     <transition name="list">
       <IntroPage v-if="localUserId === ''" class="z-10 absolute" />
     </transition>
-    <ConnectPage v-if="localUserId !== ''" />
+    <ConnectPage />
   </ion-page>
 </template>
 

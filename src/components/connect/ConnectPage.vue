@@ -1,7 +1,7 @@
 <template>
   <ion-content v-show="scanning" class="scanner-active" />
 
-  <SettingsHeader title="Connect" v-if="!scanning" />
+  <SettingsHeader title="Connect" v-if="!scanning && localUserId != ''" />
   <ion-content v-show="!scanning">
     <div v-show="isQRReaderOpen" ref="videoContainer">
       <ion-toolbar color="transparent">
@@ -85,7 +85,7 @@ const { isFullscreen, enter, exit } = useFullscreen(videoContainer)
 const isQRReaderOpen = ref(false)
 
 const { setQueryParams } = useAppStore()
-const { queryParams, isLoggedIn } = storeToRefs(useAppStore())
+const { queryParams, isLoggedIn, localUserId } = storeToRefs(useAppStore())
 
 const fullUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`
 const qrSize = Math.min(window.innerHeight * 0.2, 256)

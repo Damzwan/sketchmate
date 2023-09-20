@@ -21,10 +21,11 @@ const ionRouter = useIonRouter()
 const isRouterReady = ref(false)
 router.isReady().then(() => {
   isRouterReady.value = true
+  if (isNative()) hideLoading()
 })
 
 onMounted(async () => {
-  setTimeout(hideLoading, 200)
+  // this timeout is necessary to avoid flickering in the beginning (should not be there)
   defineCustomElements(window)
 })
 

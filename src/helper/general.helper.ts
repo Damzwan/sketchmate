@@ -88,16 +88,19 @@ export function getCurrentRoute(): FRONTEND_ROUTES {
   return router.currentRoute.value.path.split('/')[1] as FRONTEND_ROUTES
 }
 
-export function setAppColors(colorConfig: AppColorConfig) {
+export async function setAppColors(colorConfig: AppColorConfig) {
   if (!isPlatform('capacitor')) return
-  NavigationBar.setColor({ color: colorConfig.navigationBar })
-  StatusBar.setBackgroundColor({ color: colorConfig.statusBar })
+  await Promise.all([
+    NavigationBar.setColor({ color: colorConfig.navigationBar }),
+    StatusBar.setBackgroundColor({ color: colorConfig.statusBar })
+  ])
 }
 
 // TODO this is the uglies code ever xd
 export async function hideLoading() {
-  await SplashScreen.hide()
   const mate = await Preferences.get({ key: LocalStorage.mate })
+
+  SplashScreen.hide()
 
   const end = 300
   const jump = 25

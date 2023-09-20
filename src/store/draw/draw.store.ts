@@ -108,6 +108,7 @@ export const useDrawStore = defineStore('draw', () => {
 
   // TODO clean this up
   async function initCanvas(canvas: HTMLCanvasElement) {
+    canZoomOut.value = false
     await backgroundSaver.init()
 
     let json: any = undefined

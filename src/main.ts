@@ -19,7 +19,7 @@ import { addNotificationListeners } from '@/helper/notification.helper'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import VueJsTour from '@globalhive/vuejs-tour'
-import { initFirebase } from '@/helper/general.helper'
+import { initFirebase, isNative } from '@/helper/general.helper'
 
 const pinia = createPinia()
 const app = createApp(App).use(IonicVue).use(pinia).use(VueJsTour).use(router)
@@ -42,3 +42,13 @@ CapApp.addListener('appUrlOpen', (data: any) => {
   const path = url.pathname.substring(1)
   router.push(path)
 })
+
+if (!isNative()) {
+  window.addEventListener('load', () => {
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'client-ready'
+      })
+    }
+  })
+}

@@ -52,7 +52,7 @@ async function handleNavigation(event, path, query) {
       } else {
         return self.clients.openWindow(path).then(client => {
           client.focus()
-          setTimeout(() => channel.postMessage({ path, query }), 300)
+          setTimeout(() => channel.postMessage({ path, query }), 1000)
         })
       }
     })

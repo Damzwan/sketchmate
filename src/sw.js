@@ -46,6 +46,7 @@ function toGallery(event, item, comments) {
 let pendingMessages = []
 
 self.addEventListener('message', event => {
+  event.preventDefault()
   if (event.data && event.data.type === 'client-ready') {
     for (const message of pendingMessages) {
       channel.postMessage(message)

@@ -1,18 +1,19 @@
 <template>
-  <ion-content v-show="scanning" class="scanner-active" />
-
-  <SettingsHeader title="Connect" v-if="!scanning && localUserId != ''" />
-  <ion-content v-show="!scanning">
-    <div v-show="isQRReaderOpen" ref="videoContainer">
-      <ion-toolbar color="transparent">
-        <ion-buttons>
-          <ion-button @click="stopScanning">
-            <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="fill-white"></ion-icon>
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-      <div class="w-full h-3/4 flash justify-center items-center grid">
-        <video ref="video" />
+  <SettingsHeader title="Connect" v-if="!isQRReaderOpen && localUserId != ''" />
+  <ion-content>
+    <div v-show="isQRReaderOpen" ref="videoContainer" class="w-full h-full z-50 absolute left-0 top-0">
+      <div class="scanner-active" v-show="isNative()" />
+      <div class="w-full h-full bg-black" v-show="!isNative()">
+        <ion-toolbar color="transparent">
+          <ion-buttons>
+            <ion-button @click="stopScanning">
+              <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="fill-white"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+        <div class="w-full h-3/4 flash justify-center items-center grid">
+          <video ref="video" />
+        </div>
       </div>
     </div>
 
@@ -131,8 +132,6 @@ function match(mate_id: string) {
   })
 }
 
-const scanning = ref(false)
-
 async function startScanning() {
   if (isNative()) {
     const supported = await BarcodeScanner.isSupported()
@@ -156,10 +155,14 @@ async function startScanning() {
       match(mateValue)
     } else toast('Camera permission not granted or not available', { color: 'warning' })
   } else {
-    qrScanner.value = new QrScanner(video.value!, decode, { highlightScanRegion: true, returnDetailedScanResult: true })
-    enter()
+    if (!qrScanner.value)
+      qrScanner.value = new QrScanner(video.value!, decode, {
+        highlightScanRegion: true,
+        returnDetailedScanResult: true
+      })
     isQRReaderOpen.value = true
-    qrScanner.value?.start()
+    await qrScanner.value?.start()
+    enter()
   }
 }
 

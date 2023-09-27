@@ -101,6 +101,7 @@ export const useAppStore = defineStore('app', () => {
     const { value: user_id } = await Preferences.get({ key: LocalStorage.user })
     if (!user_id) return
     user.value = await api.getUser({ _id: user_id })
+    checkPreferenceConsistency(user.value!)
     await getInbox()
     if (e) e.target.complete()
   }

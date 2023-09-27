@@ -136,7 +136,6 @@ export async function addNotificationListeners() {
     const channel = new BroadcastChannel('pwa_sw')
     channel.onmessage = function (event) {
       const data = event.data
-      console.log(data)
       router.push({ path: data.path, query: data.query })
     }
   }

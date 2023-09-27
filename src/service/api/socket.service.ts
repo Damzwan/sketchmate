@@ -34,7 +34,7 @@ export function useSocketService(): SocketAPI {
 }
 
 export function createSocketService(): SocketAPI {
-  const { addComment, refresh } = useAppStore()
+  const { addComment } = useAppStore()
   const { user, isLoading, inbox, notificationRouteLoading } = storeToRefs(useAppStore())
   const { toast } = useToast()
 

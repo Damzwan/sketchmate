@@ -43,17 +43,28 @@ function toGallery(event, item, comments) {
   handleNavigation(event, `/gallery`, { item, comments })
 }
 
+let pendingMessages = []
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'client-ready') {
+    // When a client signals that it's ready, send all pending messages.
+    for (const message of pendingMessages) {
+      event.source.postMessage(message)
+    }
+    pendingMessages = []
+  }
+})
+
 async function handleNavigation(event, path, query) {
   await event.waitUntil(
     self.clients.matchAll({ type: 'window' }).then(clients => {
       if (clients.length > 0) {
         clients[0].focus()
-        channel.postMessage({ path, query })
+        clients[0].postMessage({ path, query })
       } else {
-        return self.clients.openWindow(path).then(client => {
-          setTimeout(() => channel.postMessage({ path, query }), 300)
-          client.focus()
-        })
+        // New client; save the message to be sent when the client is ready.
+        pendingMessages.push({ path, query })
+        return self.clients.openWindow(path)
       }
     })
   )

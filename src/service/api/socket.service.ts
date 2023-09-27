@@ -34,14 +34,21 @@ export function useSocketService(): SocketAPI {
 }
 
 export function createSocketService(): SocketAPI {
-  const { addComment } = useAppStore()
+  const { addComment, refresh } = useAppStore()
   const { user, isLoading, inbox, notificationRouteLoading } = storeToRefs(useAppStore())
   const { toast } = useToast()
 
   async function connect(): Promise<void> {
     if (socket) return
     socket = io(import.meta.env.VITE_BACKEND as string, {
-      withCredentials: true
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity
+    })
+
+    socket.io.on('reconnect', () => {
+      if (!user.value?._id) return
+      login({ _id: user.value._id })
     })
 
     socket.on(SOCKET_ENDPONTS.match, (params: Res<MatchRes>) => {

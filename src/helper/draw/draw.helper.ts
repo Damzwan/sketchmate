@@ -12,6 +12,7 @@ import { EventBus } from '@/main'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { DocsItem, DocsKey } from '@/config/draw/docs.config'
 import { ColorRGBA } from 'q-floodfill'
+import { ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
 
 // TODO we should remove this one
 export function resetZoom(c: Canvas) {
@@ -544,11 +545,29 @@ export function exitColorPickerMode() {
   }, 50)
 
   colorPickerMode.value = false
-  if (selectedTool == DrawTool.Pen) {
+  if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
     setTimeout(() => {
       c.isDrawingMode = true
     }, 50)
   } else if (selectedTool != DrawTool.Bucket) setSelectionForObjects(c.getObjects(), true)
+  c.requestRenderAll()
+}
+
+export function exitTextAddingMode() {
+  const { unsubscribe } = useEventManager()
+  const { getCanvas, selectedTool } = useDrawStore()
+  const { addTextMode } = storeToRefs(useDrawStore())
+
+  const c = getCanvas()
+
+  unsubscribe({ type: DrawEvent.AddText, on: 'mouse:down' })
+
+  addTextMode.value = false
+  if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
+    setTimeout(() => {
+      c.isDrawingMode = true
+    }, 50)
+  }
   c.requestRenderAll()
 }
 

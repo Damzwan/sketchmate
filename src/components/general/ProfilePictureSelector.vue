@@ -41,6 +41,8 @@ import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
+import { Preferences } from '@capacitor/preferences'
+import { LocalStorage } from '@/types/storage.types'
 
 const { deleteProfileImg } = useAPI()
 
@@ -104,7 +106,9 @@ function deleteProfileImage() {
   const { user } = storeToRefs(useAppStore())
   const { toast } = useToast()
 
+  Preferences.set({ key: LocalStorage.img, value: stock_img })
   deleteProfileImg({ _id: user.value!._id })
+
   user.value!.img = stock_img
   toast('Deleted profile image')
 }

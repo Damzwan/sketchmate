@@ -14,11 +14,7 @@
     <ion-tabs>
       <ion-router-outlet :animation="routerAnimation" />
       <ion-tab-bar slot="bottom" v-if="show" mode="ios">
-        <ion-tab-button
-          :tab="FRONTEND_ROUTES.draw"
-          :href="`/${FRONTEND_ROUTES.draw}`"
-          @click="r.push(FRONTEND_ROUTES.draw, routerAnimation)"
-        >
+        <ion-tab-button :tab="FRONTEND_ROUTES.draw" :href="`/${FRONTEND_ROUTES.draw}`" @click="onDrawClick">
           <ion-icon :icon="pencil" />
           <ion-label>Draw</ion-label>
         </ion-tab-button>
@@ -67,6 +63,7 @@ import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 import { routerAnimation } from '@/helper/animation.helper'
 import { useRoute } from 'vue-router'
 import { useSwipe } from '@vueuse/core'
+import { useDrawStore } from '@/store/draw/draw.store'
 
 const { text, isOpen, dismiss, duration, color, buttons, position } = useToast()
 const r = useIonRouter()
@@ -82,6 +79,11 @@ const { notificationRouteLoading } = storeToRefs(useAppStore())
 
 const route = useRoute()
 const show = computed(() => route.path != `/${FRONTEND_ROUTES.connect}` && !route.query.trial)
+
+function onDrawClick() {
+  if (route.path == `/${FRONTEND_ROUTES.draw}`) useDrawStore().getCanvas().discardActiveObject()
+  else r.push(FRONTEND_ROUTES.draw, routerAnimation)
+}
 </script>
 
 <style lang="scss" scoped>

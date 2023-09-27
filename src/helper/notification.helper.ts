@@ -85,10 +85,8 @@ async function requestPushNotifications() {
 }
 
 async function disableLocalNotifications() {
-  const pending = await LocalNotifications.getPending()
-  if (pending.notifications.length == 0) return
   await LocalNotifications.cancel({
-    notifications: pending.notifications
+    notifications: [{ id: 1 }] // TODO LocalNotifications.getPending is not working properly
   })
 }
 

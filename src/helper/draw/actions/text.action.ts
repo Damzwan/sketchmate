@@ -1,21 +1,44 @@
-import { Canvas, IText } from 'fabric/fabric-impl'
+import { Canvas, IPoint, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawTool } from '@/types/draw.types'
+import { DrawEvent, DrawTool } from '@/types/draw.types'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import FontFaceObserver from 'fontfaceobserver'
 import { useHistory } from '@/service/draw/history.service'
 import { popoverController } from '@ionic/vue'
-import { isText } from '@/helper/draw/draw.helper'
-import { BLACK } from '@/config/draw/draw.config'
+import { exitTextAddingMode } from '@/helper/draw/draw.helper'
+import { BLACK, ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
+import { useEventManager } from '@/service/draw/eventManager.service'
+import { storeToRefs } from 'pinia'
 
 export function addText(c: Canvas) {
+  const { isolatedSubscribe } = useEventManager()
+  const { selectedTool } = useDrawStore()
+  const { addTextMode } = storeToRefs(useDrawStore())
+
+  addTextMode.value = true
+
+  if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
+    c.isDrawingMode = false
+  }
+
+  isolatedSubscribe({
+    on: 'mouse:down',
+    type: DrawEvent.AddText,
+    handler: (options: any) => {
+      addTextHelper(c, options.absolutePointer as fabric.IPoint)
+      exitTextAddingMode()
+    }
+  })
+}
+
+async function addTextHelper(c: Canvas, location: IPoint) {
   const { selectTool } = useDrawStore()
   const { disableHistorySaving, enableHistorySaving } = useHistory()
   disableHistorySaving()
   const text = new fabric.IText('', {
-    left: c.width! / 2,
-    top: c.height! / 4,
+    left: location.x,
+    top: location.y,
     fontFamily: 'Arial',
     lineHeight: 0.9,
     originX: 'center',
@@ -25,22 +48,14 @@ export function addText(c: Canvas) {
   text.init = true
 
   c.add(text)
-
   selectTool(DrawTool.Select)
   c.setActiveObject(text)
-
   text.set({ hasControls: false }) // this is necessary sadly
-  c.renderAll()
 
-  // The timeout will make sure that the text object is fully added to the canvas before trying to edit it
-  setTimeout(() => {
-    const { selectedObjectsRef } = useSelect()
-    if (isText(selectedObjectsRef) && selectedObjectsRef[0].id == text.id) {
-      text.enterEditing()
-      text.hiddenTextarea!.focus() // This line is especially important for mobile
-      enableHistorySaving()
-    }
-  }, 300)
+  text.enterEditing()
+  text.hiddenTextarea!.focus()
+  c.requestRenderAll()
+  enableHistorySaving()
 }
 
 // it is important to use selectedObjectsRef for reactivity purposes

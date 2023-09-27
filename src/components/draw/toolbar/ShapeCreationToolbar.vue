@@ -7,6 +7,13 @@
       <ion-title>Pick a color</ion-title>
     </ion-buttons>
 
+    <ion-buttons slot="start" v-if="addTextMode">
+      <ion-button @click="exitTextAddingMode">
+        <ion-icon slot="icon-only" :icon="svg(mdiClose)"></ion-icon>
+      </ion-button>
+      <ion-title>Tap to add text</ion-title>
+    </ion-buttons>
+
     <ion-buttons slot="end" v-else>
       <ion-button id="select_color_shape">
         <ion-icon slot="icon-only" :icon="svg(mdiPaletteOutline)"></ion-icon>
@@ -44,11 +51,11 @@ import { mdiCheck, mdiClose, mdiPaletteOutline, mdiRedo, mdiUndo } from '@mdi/js
 import { IonButton, IonButtons, IonIcon, IonToolbar, IonTitle } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useHistory } from '@/service/draw/history.service'
-import { exitColorPickerMode, exitShapeCreationMode } from '@/helper/draw/draw.helper'
+import { exitColorPickerMode, exitShapeCreationMode, exitTextAddingMode } from '@/helper/draw/draw.helper'
 import { useDrawStore } from '@/store/draw/draw.store'
 import SelectColorMenu from '@/components/draw/menu/SelectColorMenu.vue'
 
-const { shapeCreationSettings, colorPickerMode } = storeToRefs(useDrawStore())
+const { shapeCreationSettings, colorPickerMode, addTextMode } = storeToRefs(useDrawStore())
 const { undo, redo } = useHistory()
 const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 

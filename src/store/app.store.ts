@@ -9,6 +9,7 @@ import { Preferences } from '@capacitor/preferences'
 import { checkPreferenceConsistency, isNative } from '@/helper/general.helper'
 import { Keyboard } from '@capacitor/keyboard'
 import { useToast } from '@/service/toast.service'
+import { ConnectionStatus, Network } from '@capacitor/network'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
@@ -34,10 +35,18 @@ export const useAppStore = defineStore('app', () => {
   const keyboardHeight = ref(0)
   const installPrompt = ref<any>()
 
+  const networkStatus = ref<ConnectionStatus>()
+
   if (isNative()) Keyboard.addListener('keyboardWillShow', info => (keyboardHeight.value = info.keyboardHeight))
 
   Preferences.get({ key: LocalStorage.user }).then(res => (localUserId.value = res.value ? res.value : ''))
   Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value))
+
+  Network.addListener('networkStatusChange', status => {
+    networkStatus.value = status
+    if (status.connected) refresh()
+  })
+  Network.getStatus().then(s => (networkStatus.value = s))
 
   async function login() {
     try {
@@ -89,7 +98,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function refresh(e?: any) {
-    await login()
+    const { value: user_id } = await Preferences.get({ key: LocalStorage.user })
+    if (!user_id) return
+    user.value = await api.getUser({ _id: user_id })
     await getInbox()
     if (e) e.target.complete()
   }
@@ -157,6 +168,7 @@ export const useAppStore = defineStore('app', () => {
     localUserImg,
     keyboardHeight,
     refresh,
-    installPrompt
+    installPrompt,
+    networkStatus
   }
 })

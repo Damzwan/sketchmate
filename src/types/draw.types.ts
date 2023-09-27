@@ -175,7 +175,8 @@ export enum DrawEvent {
   SetModified = 'Set Modified',
   Lasso = 'Using lasso',
   CanvasSave = 'save in case we exit',
-  ColorPicker = 'Color picker'
+  ColorPicker = 'Color picker',
+  AddText = 'Click to add text'
 }
 
 export type StickersEmblemsSavedTabOptions = 'sticker' | 'emblem' | 'saved'

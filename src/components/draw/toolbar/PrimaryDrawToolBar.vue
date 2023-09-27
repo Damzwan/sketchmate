@@ -60,7 +60,11 @@
         <ion-icon slot="icon-only" :icon="svg(mdiRedo)"></ion-icon>
       </ion-button>
 
-      <ion-button id="send-drawing" :disabled="!isLoggedIn || !hasMate" data-step="7">
+      <ion-button
+        id="send-drawing"
+        :disabled="!isLoggedIn || !hasMate || (!!networkStatus && !networkStatus.connected)"
+        data-step="7"
+      >
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>
 
@@ -99,6 +103,7 @@ import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore
 const { brushType } = storeToRefs(usePen())
+const { networkStatus } = storeToRefs(useAppStore())
 const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool, lastSelectedSelectTool } = storeToRefs(drawStore)
 
 const { undo, redo } = useHistory()

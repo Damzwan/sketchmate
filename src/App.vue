@@ -1,6 +1,10 @@
 <template>
   <ion-app>
     <CircularLoader class="z-50" v-if="!isRouterReady" />
+    <OfflinePage
+      class="z-50"
+      v-if="networkStatus && !networkStatus.connected && route.path != `/${FRONTEND_ROUTES.draw}`"
+    />
     <ion-router-outlet />
   </ion-app>
 </template>
@@ -15,8 +19,13 @@ import { hideLoading, isNative } from '@/helper/general.helper'
 import { App } from '@capacitor/app'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
+import OfflinePage from '@/components/general/OfflinePage.vue'
+import { useRoute } from 'vue-router'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const ionRouter = useIonRouter()
+const { networkStatus } = storeToRefs(useAppStore())
+const route = useRoute()
 
 const isRouterReady = ref(false)
 router.isReady().then(() => {

@@ -78,7 +78,7 @@
 </template>
 
 <script lang="ts" setup>
-import { BLACK, COLORSWATCHES } from '@/config/draw/draw.config'
+import { BLACK, COLORSWATCHES, ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
 import { IonIcon, IonItem, IonRange, popoverController } from '@ionic/vue'
 import { computed, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
@@ -94,7 +94,7 @@ import {
   setSelectionForObjects
 } from '@/helper/draw/draw.helper'
 import { useEventManager } from '@/service/draw/eventManager.service'
-import { DrawAction, DrawEvent, DrawTool } from '@/types/draw.types'
+import { DrawAction, DrawEvent } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import { svg } from '@/helper/general.helper'
@@ -148,7 +148,7 @@ function colorPicker() {
     false
   )
 
-  if (selectedTool == DrawTool.Pen) {
+  if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
     c.isDrawingMode = false
     c.setCursor(c.defaultCursor!)
   }

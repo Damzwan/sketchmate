@@ -3,8 +3,8 @@
     <LinearLoader :text="loadingText" class="absolute z-50" v-if="isLoading" :darken="true" />
     <ion-header class="ion-no-border">
       <div id="select">
-        <ShapeCreationToolbar v-show="shapeCreationMode != undefined || colorPickerMode" />
-        <div v-show="shapeCreationMode === undefined && !colorPickerMode">
+        <ShapeCreationToolbar v-show="shapeCreationMode != undefined || colorPickerMode || addTextMode" />
+        <div v-show="shapeCreationMode === undefined && !colorPickerMode && !addTextMode">
           <!--        We use v-show instead of v-show to keep the state of the component-->
           <SelectToolBar v-show="selectedObjectsRef.length > 0" class="z-[1000] absolute left-0 top-0" />
           <PrimaryDrawToolBar />
@@ -62,7 +62,7 @@ import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
 import LinearLoader from '@/components/loaders/LinearLoader.vue'
 import ShapeCreationToolbar from '@/components/draw/toolbar/ShapeCreationToolbar.vue'
 import { resetZoom } from '@/helper/draw/gesture.helper'
-import { isNative, svg } from '@/helper/general.helper'
+import { isMobile, svg } from '@/helper/general.helper'
 import { mdiClose, mdiMagnifyMinusOutline } from '@mdi/js'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
@@ -79,7 +79,8 @@ import { useSwipe } from '@vueuse/core'
 const myCanvasRef = ref<HTMLCanvasElement>()
 
 const drawStore = useDrawStore()
-const { loadingText, shapeCreationMode, canZoomOut, isLoading, colorPickerMode, selectedTool } = storeToRefs(drawStore)
+const { loadingText, shapeCreationMode, canZoomOut, isLoading, colorPickerMode, selectedTool, addTextMode } =
+  storeToRefs(drawStore)
 const { selectedObjectsRef } = storeToRefs(useSelect())
 
 const currDataSteps = ref(tutorialSteps)
@@ -109,7 +110,7 @@ useSwipe(tooltip, {
   }
 })
 
-function showTip(content: string, title = 'Tip', duration = 5000) {
+function showTip(content: string, title = 'Tip', duration = 8000) {
   clearTimeout(hideTipTimeout)
   showTipBox.value = true
   tipBoxContent.value = content
@@ -131,7 +132,7 @@ if (parseInt(localStorage.getItem(LocalStorage.selectTip)!) > 0) {
       showTip(
         "Move, rotate, scale objects and more! Exit by tapping outside or pressing the 'X' in the upper left.",
         'Select Mode',
-        7000
+        10000
       )
       localStorage.setItem(LocalStorage.selectTip, `${parseInt(localStorage.getItem(LocalStorage.selectTip)!) - 1}`)
       didShowSelectTip = true
@@ -163,7 +164,7 @@ if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
     if (selectedObjectsRef.value.length == 1 && drawStore.getCanvas().getObjects().length > 1 && !showTipBox.value) {
       t1 = setTimeout(() => {
         if (showTipBox.value) return
-        if (isNative()) showTip('Long tap object to enter multi select mode')
+        if (isMobile()) showTip('Long tap object to enter multi select mode')
         else showTip('Hold shift while tapping on an object to multi select')
         localStorage.setItem(
           LocalStorage.multiSelectHint,

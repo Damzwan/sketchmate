@@ -47,9 +47,8 @@ let pendingMessages = []
 
 self.addEventListener('message', event => {
   if (event.data && event.data.type === 'client-ready') {
-    // When a client signals that it's ready, send all pending messages.
     for (const message of pendingMessages) {
-      event.source.postMessage(message)
+      channel.postMessage(message)
     }
     pendingMessages = []
   }
@@ -60,9 +59,8 @@ async function handleNavigation(event, path, query) {
     self.clients.matchAll({ type: 'window' }).then(clients => {
       if (clients.length > 0) {
         clients[0].focus()
-        clients[0].postMessage({ path, query })
+        channel.postMessage({ path, query })
       } else {
-        // New client; save the message to be sent when the client is ready.
         pendingMessages.push({ path, query })
         return self.clients.openWindow(path)
       }

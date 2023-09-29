@@ -581,6 +581,8 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
   return new Promise<string>((resolve, reject) => {
     // Create an Image object from the Data URL
     const img = new Image()
+    img.crossOrigin = 'Anonymous'
+
     img.src = dataURL
 
     img.onload = async () => {

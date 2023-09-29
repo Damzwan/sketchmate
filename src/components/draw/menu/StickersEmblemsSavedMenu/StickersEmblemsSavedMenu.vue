@@ -163,7 +163,9 @@ async function selectSticker(sticker: string) {
     })
     if (user.value?.stickers.length == 0) deleteMode.value = false
   } else {
-    drawStore.selectAction(DrawAction.Sticker, { img: URL.createObjectURL(await compressImg(sticker)) })
+    const reader = new FileReader()
+    reader.onload = e => drawStore.selectAction(DrawAction.Sticker, { img: e.target?.result?.toString() })
+    reader.readAsDataURL(await compressImg(sticker, { quality: 1 }))
     modalController.dismiss()
   }
 }
@@ -177,7 +179,9 @@ async function selectEmblem(emblem: string) {
     })
     if (user.value?.emblems.length == 0) deleteMode.value = false
   } else {
-    drawStore.selectAction(DrawAction.Sticker, { img: URL.createObjectURL(await compressImg(emblem)) })
+    const reader = new FileReader()
+    reader.onload = e => drawStore.selectAction(DrawAction.Sticker, { img: e.target?.result?.toString() })
+    reader.readAsDataURL(await compressImg(emblem, { quality: 1 }))
     modalController.dismiss()
   }
 }

@@ -13,7 +13,7 @@ import { useLasso } from '@/service/draw/tools/lasso.tool'
 import { useBucket } from '@/service/draw/tools/bucket.tool'
 import { isNative, svg } from '@/helper/general.helper'
 import { useAppStore } from '@/store/app.store'
-import { isObjectSelected, splitStringToWidth } from '@/helper/draw/draw.helper'
+import { isObjectSelected, setSelectionForObjects, splitStringToWidth } from '@/helper/draw/draw.helper'
 import { mdiCheckCircle } from '@mdi/js'
 import { enableZoomAndPan } from '@/helper/draw/gesture.helper'
 
@@ -118,6 +118,7 @@ export function changeFabricBaseSettings() {
           this.set({ top: this.top! - keyboardHeight })
         }
       }
+      setSelectionForObjects(this.canvas!.getObjects(), false)
       isEditingText.value = true
       this.canvas?.requestRenderAll()
     })
@@ -131,6 +132,7 @@ export function changeFabricBaseSettings() {
 
       // We need a timeout since this is called before selection clear. This should only be usedful in case we exit through the keyboard
       setTimeout(() => (isEditingText.value = false), 100)
+      setSelectionForObjects(this.canvas!.getObjects(), true)
       this.set({ hasControls: true })
       this.canvas?.requestRenderAll()
     })

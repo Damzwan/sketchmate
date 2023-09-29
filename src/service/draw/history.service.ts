@@ -297,12 +297,14 @@ export const useHistory = defineStore('history', () => {
     c?.requestRenderAll()
   }
 
-  function undoFullErase(objects: any[]) {
+  async function undoFullErase(objects: any[]) {
     const prevCanvasJSON = objects[0]
-    c?.loadFromJSON(prevCanvasJSON, () => {
-      console.log('undo clear')
+    await new Promise<void>(resolve => {
+      c?.loadFromJSON(prevCanvasJSON, () => {
+        redoStack.push({ type: 'fullErase', objects: [] })
+        resolve()
+      })
     })
-    redoStack.push({ type: 'fullErase', objects: [] })
   }
 
   function undoPolyPointAdded(objects: any[]) {

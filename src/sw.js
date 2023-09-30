@@ -4,6 +4,7 @@ import { clientsClaim } from 'workbox-core'
 self.skipWaiting()
 clientsClaim()
 cleanupOutdatedCaches()
+precacheAndRoute(self.__WB_MANIFEST) // only start pre caching one the page has been loaded
 
 const channel = new BroadcastChannel('pwa_sw')
 self.addEventListener('push', event => {
@@ -47,7 +48,6 @@ let pendingMessages = []
 self.addEventListener('message', event => {
   event.preventDefault()
   if (event.data && event.data.type === 'client-ready') {
-    precacheAndRoute(self.__WB_MANIFEST) // only start pre caching one the page has been loaded
     for (const message of pendingMessages) {
       channel.postMessage(message)
     }

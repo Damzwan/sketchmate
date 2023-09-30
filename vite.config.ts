@@ -15,7 +15,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       injectManifest: {
         rollupFormat: 'iife',
-        globPatterns: ['**/*.{js,css,html,svg}']
+        globPatterns: ['**/*.{js,css,html,svg,md}']
       },
       srcDir: 'src',
       filename: 'sw.js',
@@ -24,7 +24,8 @@ export default defineConfig({
         type: 'module'
       },
       workbox: {
-        cleanupOutdatedCaches: true
+        cleanupOutdatedCaches: true,
+        globPatterns: ['**/*.{js,css,html,svg,md}']
       },
       manifest: {
         name: 'SketchMate',

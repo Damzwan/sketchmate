@@ -53,11 +53,11 @@
 
           <div class="w-full flex justify-center items-center pt-6">
             <ion-icon
-              :icon="svg(localSubscription ? mdiBellRing : mdiBellOff)"
+              :icon="svg(localSubscription || user.subscription ? mdiBellRing : mdiBellOff)"
               class="w-[28px] h-[28px] pr-3 fill-gray-600"
             />
             <ion-toggle
-              :checked="Boolean(user.subscription)"
+              :checked="Boolean(localSubscription || user?.subscription)"
               @ionChange="handleNotificationChange"
               mode="ios"
               :color="'secondary'"

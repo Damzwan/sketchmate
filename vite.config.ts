@@ -11,11 +11,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['src/assets/**/*'],
       strategies: 'injectManifest',
       injectManifest: {
-        rollupFormat: 'iife',
-        globPatterns: ['**/*.{js,css,html,svg,md}']
+        globPatterns: ['**/*.{js,css,html,svg}'],
+        rollupFormat: 'iife'
       },
       srcDir: 'src',
       filename: 'sw.js',
@@ -24,8 +23,7 @@ export default defineConfig({
         type: 'module'
       },
       workbox: {
-        cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,svg,md}']
+        cleanupOutdatedCaches: true
       },
       manifest: {
         name: 'SketchMate',

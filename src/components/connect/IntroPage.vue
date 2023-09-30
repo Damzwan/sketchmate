@@ -140,16 +140,7 @@
 </template>
 
 <script lang="ts" setup>
-import {
-  IonButton,
-  IonContent,
-  IonHeader,
-  IonIcon,
-  IonInput,
-  IonTitle,
-  IonToggle,
-  IonToolbar
-} from '@ionic/vue'
+import { IonButton, IonContent, IonHeader, IonIcon, IonInput, IonTitle, IonToggle, IonToolbar } from '@ionic/vue'
 
 import { ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'

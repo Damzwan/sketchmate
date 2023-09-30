@@ -4,13 +4,14 @@ import { Clipboard } from '@capacitor/clipboard'
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import { isPlatform } from '@ionic/vue'
 import { useShare } from '@vueuse/core'
+import { isNative } from '@/helper/general.helper'
 
 const { toast } = useToast()
 const { share, isSupported } = useShare()
 
 export async function shareUrl(url: string, title = '', dialogTitle = '') {
   const can_share = await Share.canShare()
-  if (isPlatform('capacitor') && can_share.value) {
+  if (isNative() && can_share.value) {
     await Share.share({
       title: title,
       text: url,
@@ -19,7 +20,6 @@ export async function shareUrl(url: string, title = '', dialogTitle = '') {
   } else if (isSupported.value) {
     await share({
       title: title,
-      text: url,
       url: url
     })
   } else {

@@ -13,6 +13,7 @@ export default defineConfig({
       injectRegister: 'auto',
       strategies: 'injectManifest',
       injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg}'],
         rollupFormat: 'iife'
       },
       srcDir: 'src',

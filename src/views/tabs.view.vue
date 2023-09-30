@@ -63,7 +63,6 @@ import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 import { routerAnimation } from '@/helper/animation.helper'
 import { useRoute } from 'vue-router'
 import { useSwipe } from '@vueuse/core'
-import { useDrawStore } from '@/store/draw/draw.store'
 
 const { text, isOpen, dismiss, duration, color, buttons, position } = useToast()
 const r = useIonRouter()
@@ -80,9 +79,11 @@ const { notificationRouteLoading } = storeToRefs(useAppStore())
 const route = useRoute()
 const show = computed(() => route.path != `/${FRONTEND_ROUTES.connect}` && !route.query.trial)
 
-function onDrawClick() {
-  if (route.path == `/${FRONTEND_ROUTES.draw}`) useDrawStore().getCanvas().discardActiveObject()
-  else r.push(FRONTEND_ROUTES.draw, routerAnimation)
+async function onDrawClick() {
+  if (route.path == `/${FRONTEND_ROUTES.draw}`) {
+    const { useDrawStore } = await import('@/store/draw/draw.store')
+    useDrawStore().getCanvas().discardActiveObject()
+  } else r.push(FRONTEND_ROUTES.draw, routerAnimation)
 }
 </script>
 

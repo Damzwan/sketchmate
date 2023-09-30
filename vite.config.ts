@@ -11,7 +11,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['src/assets/*'],
+      includeAssets: ['src/assets/**/*'],
       strategies: 'injectManifest',
       injectManifest: {
         rollupFormat: 'iife'

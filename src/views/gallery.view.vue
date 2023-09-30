@@ -163,6 +163,7 @@ function fetchInbox() {
 function checkQueryParams() {
   const query = router.currentRoute.value.query
   const item = queryParams.value ? queryParams.value.get('item') : query.item
+  if (!item) return
   const foundInboxIndex = inboxItems.value.findIndex(val => item === val._id)
   if (foundInboxIndex === -1) return
   setQueryParams(undefined)

@@ -1,5 +1,5 @@
 <template>
-  <ion-card color="transparent" class="custom-card" @click="action">
+  <ion-card color="transparent" class="custom-card select-none" @click="action">
     <ion-img :src="img" alt="Big Image" />
     <p class="title">{{ title }}</p>
     <p class="subtitle">

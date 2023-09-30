@@ -53,7 +53,7 @@
 
           <div class="w-full flex justify-center items-center pt-6">
             <ion-icon
-              :icon="svg(user.subscription ? mdiBellRing : mdiBellOff)"
+              :icon="svg(localSubscription ? mdiBellRing : mdiBellOff)"
               class="w-[28px] h-[28px] pr-3 fill-gray-600"
             />
             <ion-toggle
@@ -100,7 +100,7 @@ import router from '@/router'
 import SettingLinks from '@/components/settings/SettingLinks.vue'
 import ProfilePictureSelector from '@/components/general/ProfilePictureSelector.vue'
 
-const { user } = storeToRefs(useAppStore())
+const { user, localSubscription } = storeToRefs(useAppStore())
 const api = useAPI()
 const { toast } = useToast()
 

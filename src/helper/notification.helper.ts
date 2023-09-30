@@ -35,16 +35,16 @@ export async function PWARequestNotifications() {
     return
   }
 
-  const messaging = getMessaging()
   const permission = await Notification.requestPermission()
 
-  if (permission != 'granted') {
+  if (permission == 'denied') {
     toast('Notifications are not allowed, enable them and try again', { color: 'danger' })
     return
   }
 
   try {
     const registration = await navigator.serviceWorker.getRegistration()
+    const messaging = getMessaging()
     const token = await getToken(messaging, {
       vapidKey: import.meta.env.VITE_VAPID_PUBLIC,
       serviceWorkerRegistration: registration

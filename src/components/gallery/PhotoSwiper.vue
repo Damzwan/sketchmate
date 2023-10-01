@@ -7,10 +7,9 @@
     :enter-animation="modalPopAnimation"
     :leave-animation="leaveAnimation"
     @ionModalDidPresent="consumeNotification"
-    :keepContentsMounted="true"
-    v-if="user"
+    :can-dismiss="() => !isCommentDrawerOpen"
   >
-    <div class="flex flex-col container max-w-full">
+    <div class="flex flex-col container max-w-full" v-if="user && currInboxItem">
       <ion-toolbar class="w-full h-[56px] flex">
         <ion-buttons slot="start">
           <ion-button @click="close" color="white">
@@ -97,12 +96,12 @@
           <ion-icon :icon="svg(mdiDeleteOutline)" />
         </ion-button>
       </div>
+      <CommentDrawer
+        :index-of-curr-inbox-item="slide"
+        :curr-inbox-item="currInboxItem"
+        v-model:open="isCommentDrawerOpen"
+      />
     </div>
-    <CommentDrawer
-      :index-of-curr-inbox-item="slide"
-      :curr-inbox-item="currInboxItem"
-      v-model:open="isCommentDrawerOpen"
-    />
   </ion-modal>
 </template>
 
@@ -215,7 +214,7 @@ watch(currInboxItem, seeItem)
   position: absolute;
   right: 0;
   bottom: 60px;
-  z-index: 1000;
+  z-index: 100;
   width: 250px;
   padding: 10px;
 }

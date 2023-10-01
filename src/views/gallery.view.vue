@@ -8,7 +8,7 @@
       @cancel="cancelMultiSelect"
       @delete="alterTrigger.click()"
     />
-    <ion-content>
+    <ion-content v-if="user">
       <CircularLoader v-if="isLoading || !isLoggedIn" class="z-50" />
 
       <ion-refresher slot="fixed" @ionRefresh="refresh">
@@ -88,7 +88,7 @@ const { getInbox, refresh, setQueryParams } = useAppStore()
 const { user, inbox, isLoggedIn, queryParams } = storeToRefs(useAppStore())
 const { toast } = useToast()
 
-const isLoading = ref(true)
+const isLoading = ref(false)
 
 onMounted(fetchInbox)
 watch(isLoggedIn, () => {
@@ -204,7 +204,6 @@ function groupOnMonth(inbox: InboxItem[]) {
 }
 
 function openPhotoSwiper(inboxItem: InboxItem) {
-  if (isPhotoSwiperOpen.value) return
   selectedInboxItemIndex.value = inboxItems.value.findIndex(val => inboxItem._id === val._id)
   isPhotoSwiperOpen.value = true
 }

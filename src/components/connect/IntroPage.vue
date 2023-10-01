@@ -144,7 +144,15 @@ import { IonButton, IonContent, IonHeader, IonIcon, IonInput, IonTitle, IonToggl
 
 import { ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { blurIonInput, compressImg, isMobile, isNative, showIosSafariInstructions, svg } from '@/helper/general.helper'
+import {
+  blurIonInput,
+  compressImg,
+  getRandomStockAvatar,
+  isMobile,
+  isNative,
+  showIosSafariInstructions,
+  svg
+} from '@/helper/general.helper'
 import { mdiBellOff, mdiBellRing } from '@mdi/js'
 import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
 import { storeToRefs } from 'pinia'
@@ -159,7 +167,6 @@ import sketching from '@/assets/lottie/sketching.json'
 import { Swiper } from 'swiper/types'
 import Lottie from '@/components/general/Lottie.vue'
 import ProfilePicture from '@/components/general/ProfilePictureSelector.vue'
-import { stock_img } from '@/config/general.config'
 import IosPwaInstructions from '@/components/general/IosPwaInstructions.vue'
 
 register()
@@ -167,7 +174,7 @@ register()
 const { createUser } = useAppStore()
 const name = ref()
 
-const img = ref(stock_img)
+const img = ref(getRandomStockAvatar())
 const nameRef = ref<any>()
 
 const playLottie = ref(false)
@@ -207,7 +214,7 @@ async function create() {
   const data: CreateUserParams = {}
 
   if (name.value) data.name = name.value
-  if (img.value && img.value != stock_img) {
+  if (img.value && !img.value.includes('stock')) {
     data.img = await compressImg(img.value, { size: 256, returnType: 'file' })
   }
   if (localSubscription.value) data.subscription = localSubscription.value

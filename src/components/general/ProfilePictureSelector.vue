@@ -4,7 +4,7 @@
     <input type="file" ref="imgInput" class="hidden" accept="image/*" @change="onImageChange" />
     <ion-icon :icon="addOutline" class="add-icon rounded-full" @click="() => imgInput!.click()" />
     <ion-icon
-      v-if="img != stock_img"
+      v-if="!img.includes('stock')"
       :icon="svg(mdiClose)"
       class="absolute z-50 -right-5 -top-2 w-[30px] h-[30px] fill-gray-400 cursor-pointer"
       @click="deleteProfileImage"
@@ -31,12 +31,11 @@ import { addOutline } from 'ionicons/icons'
 import { IonAvatar, IonButton, IonIcon, IonModal } from '@ionic/vue'
 import { ref } from 'vue'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
-import { compressImg, setAppColors, svg } from '@/helper/general.helper'
+import { compressImg, getRandomStockAvatar, setAppColors, svg } from '@/helper/general.helper'
 import { photoSwiperColorConfig, settingsModalColorConfig } from '@/config/colors.config'
 import 'cropperjs/dist/cropper.min.css'
 import Cropper from 'cropperjs'
 import { mdiClose } from '@mdi/js'
-import { stock_img } from '@/config/general.config'
 import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
@@ -106,8 +105,9 @@ function deleteProfileImage() {
   const { user } = storeToRefs(useAppStore())
   const { toast } = useToast()
 
+  const stock_img = getRandomStockAvatar()
   Preferences.set({ key: LocalStorage.img, value: stock_img })
-  deleteProfileImg({ _id: user.value!._id })
+  deleteProfileImg({ _id: user.value!._id }, stock_img)
 
   user.value!.img = stock_img
   toast('Deleted profile image')

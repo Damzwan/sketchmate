@@ -11,6 +11,7 @@ import { Preferences } from '@capacitor/preferences'
 import { useToast } from '@/service/toast.service'
 import { initializeApp } from 'firebase/app'
 import { SplashScreen } from '@capacitor/splash-screen'
+import { account_blob } from '@/config/general.config'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -183,4 +184,10 @@ export function isRunningStandalone() {
 
 export function showIosSafariInstructions() {
   return isIOS() && isSafari() && !isRunningStandalone()
+}
+
+export function getRandomStockAvatar() {
+  const randomNum = Math.floor(Math.random() * 5) + 1
+  console.log(`${account_blob}/stock${randomNum}.webp`)
+  return `${account_blob}/stock_${randomNum}.webp`
 }

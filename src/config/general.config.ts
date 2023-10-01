@@ -1,1 +1,1 @@
-export const stock_img = 'https://sketchmate.blob.core.windows.net/account/aku.jpg'
+export const account_blob = 'https://sketchmate.blob.core.windows.net/account'

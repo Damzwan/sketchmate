@@ -190,7 +190,7 @@ export interface API {
   changeUserName(params: ChangeUserNameParams): Promise<Res<void>>
 
   uploadProfileImg(params: UploadProfileImgParams): Promise<Res<string>>
-  deleteProfileImg(params: DeleteProfileImgParams): Promise<void>
+  deleteProfileImg(params: DeleteProfileImgParams, stock_img: string): Promise<void>
 
   createSticker(params: CreateStickerParams): Promise<Res<string>>
 

@@ -216,7 +216,7 @@ async function create() {
   if (name.value) data.name = name.value
   if (img.value && !img.value.includes('stock')) {
     data.img = await compressImg(img.value, { size: 256, returnType: 'file' })
-  }
+  } else data.img = img.value
   if (localSubscription.value) data.subscription = localSubscription.value
   await createUser(data)
 }

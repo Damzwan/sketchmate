@@ -85,11 +85,9 @@ export const useAppStore = defineStore('app', () => {
         inbox.value = []
         return
       }
-      isLoading.value = true
       const retrievedInbox = await api.getInbox({
         _ids: user.value!.inbox
       })
-      isLoading.value = false
       if (!retrievedInbox) throw new Error()
       inbox.value = retrievedInbox
     } catch (e) {

@@ -1,5 +1,6 @@
 <template>
   <ion-modal
+    ref="modal"
     :is-open="open"
     @will-dismiss="close"
     class="comment_count"
@@ -40,12 +41,12 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue'
-import { IonAvatar, IonButton, IonIcon, IonInput, IonModal, modalController } from '@ionic/vue'
+import { IonAvatar, IonButton, IonIcon, IonInput, IonModal } from '@ionic/vue'
 
 import { InboxItem } from '@/types/server.types'
 import { useAppStore } from '@/store/app.store'
 import { useToast } from '@/service/toast.service'
-import { senderImg, senderName, svg } from '@/helper/general.helper'
+import { isMobile, senderImg, senderName, svg } from '@/helper/general.helper'
 import { mdiSend } from '@mdi/js'
 import dayjs from 'dayjs'
 import { useSocketService } from '@/service/api/socket.service'
@@ -53,6 +54,7 @@ import { useSocketService } from '@/service/api/socket.service'
 const socketService = useSocketService()
 const { user } = useAppStore()
 const { toast } = useToast()
+const modal = ref()
 
 const props = defineProps({
   open: {
@@ -79,6 +81,7 @@ function autoFocusInput() {
 
 async function comment() {
   if (commentBody.value.length == 0) return
+  input.value.$el.blur()
 
   socketService.comment({
     inbox_id: props.currInboxItem._id,
@@ -88,13 +91,12 @@ async function comment() {
     name: user!.name
   })
   toast('Comment placed')
-  // setTimeout(() => place_comment_ref.value?.blur(), 10)
-  close()
+  // weird bug related to virtual keyboard popping up in mobile
+  setTimeout(() => modal.value.$el.dismiss(), isMobile() ? 200 : 0)
 }
 
 function close() {
   commentBody.value = ''
-  modalController.dismiss() // TODO check if this works with the fast back after placing a comment
   emit('update:open', false)
 }
 </script>

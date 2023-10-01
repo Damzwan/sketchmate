@@ -45,6 +45,7 @@ export const useHistory = defineStore('history', () => {
   let redoStack: HistoryAction[] = []
   const undoStackCounter = ref(0)
   const redoStackCounter = ref(0)
+  const enabled = ref(true)
 
   let modifyingObject: any = undefined
 
@@ -500,10 +501,12 @@ export const useHistory = defineStore('history', () => {
   }
 
   function enableEvents() {
+    enabled.value = true
     events.forEach(e => subscribe(e))
   }
 
   function disableEvents() {
+    enabled.value = false
     events.forEach(e => unsubscribe(e))
   }
 
@@ -570,6 +573,7 @@ export const useHistory = defineStore('history', () => {
     undoStackCounter,
     redoStackCounter,
     addToUndoStack,
-    addPrevModifiedObjectsToStack
+    addPrevModifiedObjectsToStack,
+    enabled
   }
 })

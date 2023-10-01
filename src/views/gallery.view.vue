@@ -8,14 +8,16 @@
       @cancel="cancelMultiSelect"
       @delete="alterTrigger.click()"
     />
-    <CircularLoader v-if="isLoading || !isLoggedIn" />
-    <ion-content v-else>
+    <ion-content>
+      <CircularLoader v-if="isLoading || !isLoggedIn" class="z-50" />
+
       <ion-refresher slot="fixed" @ionRefresh="refresh">
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
 
       <PhotoSwiper
-        v-if="inboxItems.length > 0"
+        key="swiper"
+        v-show="inboxItems.length > 0"
         v-model:open="isPhotoSwiperOpen"
         v-model:slide="selectedInboxItemIndex"
         :inbox-items="inboxItems"
@@ -83,10 +85,12 @@ import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 
 const api = useAPI()
 const { getInbox, refresh, setQueryParams } = useAppStore()
-const { user, inbox, isLoading, isLoggedIn, queryParams } = storeToRefs(useAppStore())
+const { user, inbox, isLoggedIn, queryParams } = storeToRefs(useAppStore())
 const { toast } = useToast()
 
-fetchInbox()
+const isLoading = ref(true)
+
+onMounted(fetchInbox)
 watch(isLoggedIn, () => {
   fetchInbox()
 })
@@ -143,6 +147,7 @@ function deleteInboxItems() {
 watch(
   () => route.query,
   () => {
+    if (!route.query.item) return
     checkQueryParams()
   }
 )
@@ -156,11 +161,17 @@ onMounted(() => {
   page.value = document.getElementById('page')
 })
 
-function fetchInbox() {
-  if (!inbox.value && isLoggedIn.value) getInbox().then(checkQueryParams)
+async function fetchInbox() {
+  if (!inbox.value && isLoggedIn.value) {
+    isLoading.value = true
+    await getInbox()
+    isLoading.value = false
+    checkQueryParams()
+  }
 }
 
 function checkQueryParams() {
+  if (isPhotoSwiperOpen.value || isLoading.value) return
   const query = router.currentRoute.value.query
   const item = queryParams.value ? queryParams.value.get('item') : query.item
   if (!item) return
@@ -193,6 +204,7 @@ function groupOnMonth(inbox: InboxItem[]) {
 }
 
 function openPhotoSwiper(inboxItem: InboxItem) {
+  if (isPhotoSwiperOpen.value) return
   selectedInboxItemIndex.value = inboxItems.value.findIndex(val => inboxItem._id === val._id)
   isPhotoSwiperOpen.value = true
 }

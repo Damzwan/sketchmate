@@ -10,6 +10,7 @@ import { isMobile } from '@/helper/general.helper'
 import { storeToRefs } from 'pinia'
 import { EventBus } from '@/main'
 import { gestureDetector } from '@/utils/gestureDetector'
+import { useSelect } from '@/service/draw/tools/select.tool'
 
 export function enableZoomAndPan(c: any, upperCanvasEl: any) {
   if (isMobile()) enableMobileGestures(c, upperCanvasEl)
@@ -28,6 +29,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
   const { disableHistorySaving, enableHistorySaving, addPrevModifiedObjectsToStack } = useHistory()
 
   const { selectedTool, isUsingGesture, shapeCreationMode } = storeToRefs(useDrawStore())
+  const { selectedObjectsRef } = storeToRefs(useSelect())
 
   let isRotating = false
 
@@ -38,7 +40,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
       disableHistorySaving()
 
       // rotation or scale gesture
-      if (selectedTool.value == DrawTool.Select) {
+      if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
         const obj = c.getActiveObject()
         obj.set({ lockMovementX: true, lockMovementY: true }) // we are only focused on rotation and scaling
         isUsingGesture.value = true
@@ -50,7 +52,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
       }
     },
     onZoom: (scale: number, previousScale: number, center: IPoint) => {
-      if (selectedTool.value == DrawTool.Select) {
+      if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) {
         if (isRotating) return
         if (Math.abs(scale - previousScale) < 0.005) return
 
@@ -85,7 +87,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
       c.requestRenderAll()
     },
     onDrag: (dx: number, dy: number, previousDx: number, previousDy: number) => {
-      if (selectedTool.value == DrawTool.Select) return
+      if (selectedTool.value == DrawTool.Select && selectedObjectsRef.value.length > 0) return
 
       const delta = {
         x: 2 * (dx - previousDx),

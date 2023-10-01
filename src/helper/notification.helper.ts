@@ -37,8 +37,6 @@ export async function PWARequestNotifications() {
 
   const permission = await Notification.requestPermission()
 
-  console.log(permission)
-
   if (permission == 'denied') {
     toast('Notifications are not allowed, enable them and try again', { color: 'danger' })
     return

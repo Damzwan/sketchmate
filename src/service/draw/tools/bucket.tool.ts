@@ -5,6 +5,7 @@ import { defineStore } from 'pinia'
 import { bucketFill } from '@/helper/draw/actions/bucket.action'
 import { EventBus } from '@/main'
 import { isMobile } from '@/helper/general.helper'
+import { useHistory } from '@/service/draw/history.service'
 
 export const useBucket = defineStore('bucket', (): ToolService => {
   let c: Canvas | undefined = undefined
@@ -25,9 +26,13 @@ export const useBucket = defineStore('bucket', (): ToolService => {
             if (!img) return
             c!.add(img)
             setObjectSelection(img, false) // TODO should not be necessary
-            c!.renderAll()
+            setTimeout(() => {
+              const { enabled, addToUndoStack } = useHistory()
+              if (!enabled) addToUndoStack([img], 'object:added') // TODO this is a quick fix, fundamental changes need to be made
+            }, 50)
+            c!.requestRenderAll()
           },
-          isMobile() ? 100 : 0
+          isMobile() ? 200 : 0
         )
       }
     }

@@ -8,7 +8,6 @@ precacheAndRoute(self.__WB_MANIFEST) // only start pre caching one the page has 
 
 const channel = new BroadcastChannel('pwa_sw')
 self.addEventListener('push', event => {
-  console.log('received')
   const data = event.data.json()
   const payload = data.data
   if (payload.silent) return

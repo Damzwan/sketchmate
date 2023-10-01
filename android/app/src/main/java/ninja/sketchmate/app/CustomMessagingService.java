@@ -15,6 +15,7 @@ public class CustomMessagingService extends FirebaseMessagingService {
         if (remoteMessage.getData().size() > 0) {
             String type = remoteMessage.getData().get("type");
             if ("message".equals(type)) {
+                System.out.println("NEW MESSAGE");
                 String imageUrl = remoteMessage.getData().get("image_url");
                 String inboxId = remoteMessage.getData().get("inbox_id");
                 Widget.updateWidget(getApplicationContext(), imageUrl, inboxId);

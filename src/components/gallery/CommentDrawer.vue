@@ -92,7 +92,7 @@ async function comment() {
   })
   toast('Comment placed')
   // weird bug related to virtual keyboard popping up in mobile
-  setTimeout(() => modal.value.$el.dismiss(), isMobile() ? 200 : 0)
+  setTimeout(() => modal.value.$el.dismiss(), isMobile() ? 400 : 0)
 }
 
 function close() {

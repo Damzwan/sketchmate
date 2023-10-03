@@ -118,7 +118,10 @@ export function changeFabricBaseSettings() {
           this.set({ top: this.top! - keyboardHeight })
         }
       }
-      setSelectionForObjects(this.canvas!.getObjects(), false)
+      setSelectionForObjects(
+        this.canvas!.getObjects().filter(o => o.id != this.id),
+        false
+      )
       isEditingText.value = true
       this.canvas?.requestRenderAll()
     })

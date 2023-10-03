@@ -95,8 +95,6 @@ export const useSelect = defineStore('select', (): Select => {
           })
           if (objectsStack.length == 0) return
 
-          console.log(objectsStack)
-
           // Sort objects by distance to pointer from their midpoints
           objectsStack.sort((a, b) => {
             const aMidpoint = {
@@ -188,7 +186,6 @@ export const useSelect = defineStore('select', (): Select => {
       on: 'mouse:down:before',
       handler: (o: any) => {
         setMouseClickTarget(o.target)
-        // objectCountBeforeNewSelect.value = getSelectedObjects().length
       }
     },
     {

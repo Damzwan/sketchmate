@@ -20,10 +20,10 @@ export function editPolygon(c: Canvas): void {
       })
       return acc
     }, {})
+    poly.hasBorders = false
   } else {
     disableEditing(poly)
   }
-  poly.hasBorders = !poly.edit
   c.requestRenderAll()
 }
 
@@ -32,6 +32,7 @@ export function disableEditing(poly: fabric.Polygon) {
   poly.objectCaching = false
   poly.cornerColor = fabric.Object.prototype.cornerColor
   poly.controls = fabric.Object.prototype.controls
+  poly.hasBorders = true
 }
 
 function polygonPositionHandler(this: any, dim: any, finalMatrix: any, fabricObject: any) {

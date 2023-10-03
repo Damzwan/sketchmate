@@ -322,7 +322,7 @@ function createVisualCircle(clickTolerance: number, point: IPoint) {
     selectable: false,
     evented: false
   })
-  circle.visual = true
+  circle.visual = true // TODO bad name
   return circle
 }
 

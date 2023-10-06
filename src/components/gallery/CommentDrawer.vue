@@ -97,8 +97,8 @@ watch(
       window.addEventListener('keydown', escListener)
       autoFocusInput()
     } else {
-      await backListener.remove()
       window.removeEventListener('keydown', escListener)
+      backListener.remove()
     }
   }
 )

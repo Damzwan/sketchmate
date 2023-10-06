@@ -102,6 +102,7 @@ export const useAPI = createGlobalState((): API => {
   }
 
   async function uploadProfileImg(params: UploadProfileImgParams): Promise<Res<string>> {
+    if (params.previousImage?.includes('stock')) params.previousImage = undefined
     const url = `${baseUrl}${ENDPOINTS.user}/img/${params._id}?${params.mate_id ? `mate_id=${params.mate_id}` : ''}${
       params.previousImage ? `&previousImage=${params.previousImage}` : ''
     }`

@@ -73,7 +73,6 @@ import '@/theme/custom_vuejs_tour.scss'
 import { tutorialSteps } from '@/config/draw/draw.config'
 import { LocalStorage } from '@/types/storage.types'
 import { DrawTool } from '@/types/draw.types'
-import { checkForIntersectionsWithSelectedObject } from '@/helper/draw/draw.helper'
 import { useSwipe } from '@vueuse/core'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
@@ -99,7 +98,7 @@ const tipBoxTitle = ref('')
 let didShowEnterSelectTip = false
 let didShowSelectTip = false
 let didShowMultiSelectTip = false
-let didShowDoubleTapTip = false
+const didShowDoubleTapTip = false
 
 let hideTipTimeout: any = undefined
 
@@ -177,27 +176,27 @@ if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
 }
 
 let t: any
-if (!localStorage.getItem(LocalStorage.doubleTap)) localStorage.setItem(LocalStorage.doubleTap, '2')
-if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
-  watch(selectedObjectsRef, () => {
-    if (didShowDoubleTapTip || parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0) return
-    clearTimeout(t)
-    // stupid fix to not clash with previous tip
-    if (
-      selectedObjectsRef.value.length > 0 &&
-      drawStore.getCanvas().getObjects().length > 1 &&
-      checkForIntersectionsWithSelectedObject(drawStore.getCanvas()) &&
-      !showTipBox.value
-    ) {
-      t = setTimeout(() => {
-        if (showTipBox.value) return
-        showTip('Double-tap the object below the current selection to switch to it')
-        localStorage.setItem(LocalStorage.doubleTap, `${parseInt(localStorage.getItem(LocalStorage.doubleTap)!) - 1}`)
-        didShowDoubleTapTip = true
-      }, 100)
-    }
-  })
-}
+// if (!localStorage.getItem(LocalStorage.doubleTap)) localStorage.setItem(LocalStorage.doubleTap, '2')
+// if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
+//   watch(selectedObjectsRef, () => {
+//     if (didShowDoubleTapTip || parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0) return
+//     clearTimeout(t)
+//     // stupid fix to not clash with previous tip
+//     if (
+//       selectedObjectsRef.value.length > 0 &&
+//       drawStore.getCanvas().getObjects().length > 1 &&
+//       checkForIntersectionsWithSelectedObject(drawStore.getCanvas()) &&
+//       !showTipBox.value
+//     ) {
+//       t = setTimeout(() => {
+//         if (showTipBox.value) return
+//         showTip('Double-tap the object below the current selection to switch to it')
+//         localStorage.setItem(LocalStorage.doubleTap, `${parseInt(localStorage.getItem(LocalStorage.doubleTap)!) - 1}`)
+//         didShowDoubleTapTip = true
+//       }, 100)
+//     }
+//   })
+// }
 </script>
 
 <style scoped>

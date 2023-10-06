@@ -1,6 +1,6 @@
 import { Ref, ref } from 'vue'
 import { DrawEvent, DrawTool, FabricEvent, SelectedObject, ToolService } from '@/types/draw.types'
-import { distance, exitEditing, isPolygon, isText, setSelectionForObjects } from '@/helper/draw/draw.helper'
+import { exitEditing, isPolygon, isText, setSelectionForObjects } from '@/helper/draw/draw.helper'
 import { Canvas, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { defineStore, storeToRefs } from 'pinia'
@@ -34,8 +34,8 @@ export const useSelect = defineStore('select', (): Select => {
   let objectsStack: any[] = []
 
   let removeTimeout: ReturnType<typeof setTimeout> | null = null
-  const doubleTapTimeout = 200
   let unselectInMultiselectTimeout: any
+  let functionToCall: any
 
   const events: FabricEvent[] = [
     {
@@ -74,53 +74,53 @@ export const useSelect = defineStore('select', (): Select => {
     },
     {
       type: DrawEvent.SetSelectedObjects,
-      on: 'mouse:down',
+      on: 'mouse:up',
+      handler: async (o: any) => {
+        const currentTimestamp = new Date().getTime()
+        if (functionToCall && currentTimestamp - lastTapTimestamp < 200) await functionToCall()
+        functionToCall = undefined
+      }
+    },
+    {
+      type: DrawEvent.SetSelectedObjects,
+      on: 'mouse:down:before',
       handler: async (o: any) => {
         if (removeTimeout) return
         const activeObject = c!.getActiveObject()
 
-        const currentTimestamp = new Date().getTime()
-        const isDoubleTap = currentTimestamp - lastTapTimestamp < doubleTapTimeout
-        lastTapTimestamp = currentTimestamp
+        lastTapTimestamp = new Date().getTime()
 
-        if (isDoubleTap && activeObject) {
-          clearTimeout(unselectInMultiselectTimeout)
-          unselectInMultiselectTimeout = undefined
-          const pointer = c!.getPointer(o.e)
+        if (!multiSelectMode.value && activeObject) {
+          const a = c?.getActiveObjects()
+          functionToCall = () => {
+            if (!c?.getActiveObject()) return
+            const pointer = c!.getPointer(o.e)
 
-          objectsStack = c!.getObjects().filter(obj => {
-            const isObjectNotSelected = !selectedObjects.includes(obj)
-            const isPointerWithinObject = obj.containsPoint(pointer as any)
-            return isPointerWithinObject && isObjectNotSelected
-          })
-          if (objectsStack.length == 0) return
+            objectsStack = c!.getObjects().filter(obj => {
+              const isObjectNotSelected = !a?.includes(obj)
+              const isPointerWithinObject = obj.containsPoint(pointer as any)
+              return isPointerWithinObject && isObjectNotSelected
+            })
+            if (objectsStack.length == 0) return
 
-          // Sort objects by distance to pointer from their midpoints
-          objectsStack.sort((a, b) => {
-            const aMidpoint = {
-              x: a.left + a.width / 2,
-              y: a.top + a.height / 2
-            }
-            const bMidpoint = {
-              x: b.left + b.width / 2,
-              y: b.top + b.height / 2
-            }
+            objectsStack.sort((a, b) => {
+              return b.isContainedWithinObject(a) ? 1 : -1
+            })
 
-            return distance(aMidpoint, pointer) - distance(bMidpoint, pointer)
-          })
-
-          // special edge case that probably collides with internal fabricjs logic
-          if (multiSelectMode.value && selectedObjects.length == 1) {
-            removeTimeout = setTimeout(() => {
-              c!.setActiveObject(objectsStack[0])
-              removeTimeout = null
-            }, 300)
-          } else c!.setActiveObject(objectsStack[0])
-        } else if (multiSelectMode.value && activeObject) {
-          if (unselectInMultiselectTimeout) return
-          unselectInMultiselectTimeout = setTimeout(() => {
+            // special edge case that probably collides with internal fabricjs logic
+            if (multiSelectMode.value && selectedObjects.length == 1) {
+              removeTimeout = setTimeout(() => {
+                c!.setActiveObject(objectsStack[0])
+                removeTimeout = null
+              }, 300)
+            } else c!.setActiveObject(objectsStack[0])
+          }
+        } else if (multiSelectMode.value) {
+          const a = c?.getActiveObjects()
+          functionToCall = () => {
             actionWithoutEvents(async () => {
-              const a = c?.getActiveObjects()
+              if (!c?.getActiveObject()) return
+              const aa = c?.getActiveObjects()
               c?.discardActiveObject()
               c?.getObjects().forEach(o => o.setCoords())
               unselectInMultiselectTimeout = undefined
@@ -128,26 +128,40 @@ export const useSelect = defineStore('select', (): Select => {
               const point = new fabric.Point(pointer.x, pointer.y)
               const selectedObjectsInPointer = c!
                 .getObjects()
-                .filter(
-                  obj => obj.containsPoint(point, (obj as any)._getImageLines(obj.oCoords), true) && a!.includes(obj)
-                )
+                .filter(obj => obj.containsPoint(point, (obj as any)._getImageLines(obj.oCoords), true))
 
-              if (selectedObjectsInPointer.length == 0) {
-                c?.setActiveObject(new fabric.ActiveSelection(a, { canvas: c }))
+              const newObjectsToAdd = selectedObjectsInPointer.filter(
+                obj =>
+                  !a!.includes(obj) &&
+                  a?.every(obj2 =>
+                    obj2.containsPoint(point, (obj2 as any)._getImageLines(obj2.oCoords), true)
+                      ? obj.isContainedWithinObject(obj2)
+                      : true
+                  )
+              )
+
+              if (newObjectsToAdd.length > 0) {
+                newObjectsToAdd.sort((a, b) => {
+                  return b.isContainedWithinObject(a) ? 1 : -1
+                })
+                const newSelectedObjects = [...(a ? a : []), ...newObjectsToAdd.slice(0, 1)]
+                c?.setActiveObject(
+                  new fabric.ActiveSelection(newSelectedObjects, {
+                    canvas: c
+                  })
+                )
+                setSelectedObjects(newSelectedObjects)
                 c?.requestRenderAll()
                 return
               }
-              selectedObjectsInPointer.sort((a, b) => {
-                const centerA = a.getCenterPoint()
-                const centerB = b.getCenterPoint()
-                const distanceA = distance({ x: centerA.x, y: centerA.y }, { x: pointer.x, y: pointer.y })
-                const distanceB = distance({ x: centerB.x, y: centerB.y }, { x: pointer.x, y: pointer.y })
+              const objectsToUnselect = selectedObjectsInPointer.filter(obj => a!.includes(obj))
 
-                return distanceA - distanceB
+              objectsToUnselect.sort((a, b) => {
+                return b.isContainedWithinObject(a) ? 1 : -1
               })
-              await removeObjectFromMultiSelect(selectedObjectsInPointer[0])
+              await removeObjectFromMultiSelect(objectsToUnselect[0])
             })
-          }, doubleTapTimeout)
+          }
         }
       }
     },
@@ -219,6 +233,7 @@ export const useSelect = defineStore('select', (): Select => {
   function clearUnSelectTimeout() {
     clearTimeout(unselectInMultiselectTimeout)
     unselectInMultiselectTimeout = undefined
+    functionToCall = undefined
   }
 
   function destroy() {

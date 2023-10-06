@@ -21,8 +21,6 @@ Tap the select button on the toolbar.
 - [Change text style](blob:text.md)
 - [Change polygon points](blob:shapes.md)
 
-> **Tip**: Double-tap to select an object **beneath** the currently selected object.
-
 ### Multi-selection
 
 **Both:**
@@ -34,8 +32,6 @@ Tap the select button on the toolbar.
 
 **PC:**
 - Hold shift and click to add objects to your selection.
-
-> **Tip**: Double-tap also works to multi-select an object under the currently selected object.
 
 ### Mobile Gestures
 After selecting an object:

@@ -114,7 +114,7 @@ const { selectAction, getCanvas } = useDrawStore()
 const { undo, redo } = useHistory()
 const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 
-const { setMouseClickTarget, getSelectedObjects } = useSelect()
+const { setMouseClickTarget, getSelectedObjects, setSelectedObjects } = useSelect()
 const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect())
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
@@ -131,6 +131,7 @@ const isImg = computed(
 function unselectObjects() {
   setMouseClickTarget(undefined) // small hack
   getCanvas().discardActiveObject()
+  setSelectedObjects([])
 }
 </script>
 

@@ -134,7 +134,9 @@ export function changeFabricBaseSettings() {
       }
 
       // We need a timeout since this is called before selection clear. This should only be usedful in case we exit through the keyboard
-      setTimeout(() => (isEditingText.value = false), 100)
+      setTimeout(() => {
+        isEditingText.value = false
+      }, 100)
       setSelectionForObjects(this.canvas!.getObjects(), true)
       this.set({ hasControls: true })
       this.canvas?.requestRenderAll()

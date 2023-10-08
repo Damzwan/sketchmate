@@ -85,7 +85,9 @@ export const useSelect = defineStore('select', (): Select => {
       type: DrawEvent.SetSelectedObjects,
       on: 'mouse:down:before',
       handler: async (o: any) => {
-        if (removeTimeout) return
+        const { isEditingText } = useDrawStore()
+
+        if (removeTimeout || isEditingText) return
         const activeObject = c!.getActiveObject()
 
         lastTapTimestamp = new Date().getTime()
@@ -211,7 +213,6 @@ export const useSelect = defineStore('select', (): Select => {
         if (touchType != 'touchstart') return
 
         if (isText(selectedObjectsRef.value)) {
-          console.log('si')
           exitEditing(selectedObjectsRef.value[0] as IText)
         }
         if (selectedObjectsRef.value.length > 0) {

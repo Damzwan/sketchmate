@@ -461,7 +461,7 @@ export const getColorRecommendations = (hexColor: string): string[][] => {
   const recommendations: string[][] = []
 
   // First row: Similar colors with lightness variations (adaptive based on lightness)
-  const offset = 10 // change according to how much variation you want
+  const offset = 3 // change according to how much variation you want
   const similarColorsLightness = [
     Math.min(100, l + 3 * offset),
     Math.min(100, l + 2 * offset),

@@ -44,6 +44,7 @@ export function useBackgroundSaver() {
     events.forEach(e => {
       EventBus.on(e, save)
     })
+    save() // used for when we load a canvas
   }
 
   function save() {

@@ -96,7 +96,7 @@ export const useSelect = defineStore('select', (): Select => {
           const a = c?.getActiveObjects()
           functionToCall = () => {
             if (!c?.getActiveObject()) return
-            const pointer = c!.getPointer(o.e)
+            const pointer = c!.getPointer(o.e, true)
 
             objectsStack = c!.getObjects().filter(obj => {
               const isObjectNotSelected = !a?.includes(obj)
@@ -126,7 +126,7 @@ export const useSelect = defineStore('select', (): Select => {
               c?.discardActiveObject()
               c?.getObjects().forEach(o => o.setCoords())
               unselectInMultiselectTimeout = undefined
-              const pointer = c!.getPointer(o.e)
+              const pointer = c!.getPointer(o.e, true)
               const point = new fabric.Point(pointer.x, pointer.y)
               const selectedObjectsInPointer = c!
                 .getObjects()

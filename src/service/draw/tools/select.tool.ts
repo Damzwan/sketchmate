@@ -33,7 +33,7 @@ export const useSelect = defineStore('select', (): Select => {
   let lastTapTimestamp = 0
   let objectsStack: any[] = []
 
-  let removeTimeout: ReturnType<typeof setTimeout> | null = null
+  const removeTimeout: ReturnType<typeof setTimeout> | null = null
   let unselectInMultiselectTimeout: any
   let functionToCall: any
 
@@ -92,7 +92,7 @@ export const useSelect = defineStore('select', (): Select => {
 
         lastTapTimestamp = new Date().getTime()
 
-        if (!multiSelectMode.value && activeObject) {
+        if (!multiSelectMode.value && activeObject && !o.e.shiftKey) {
           const a = c?.getActiveObjects()
           functionToCall = () => {
             if (!c?.getActiveObject()) return
@@ -100,7 +100,11 @@ export const useSelect = defineStore('select', (): Select => {
 
             objectsStack = c!.getObjects().filter(obj => {
               const isObjectNotSelected = !a?.includes(obj)
-              const isPointerWithinObject = obj.containsPoint(pointer as any)
+              const isPointerWithinObject = obj.containsPoint(
+                pointer as any,
+                (obj as any)._getImageLines(obj.oCoords),
+                true
+              )
               return isPointerWithinObject && isObjectNotSelected
             })
             if (objectsStack.length == 0) return
@@ -110,12 +114,8 @@ export const useSelect = defineStore('select', (): Select => {
             })
 
             // special edge case that probably collides with internal fabricjs logic
-            if (multiSelectMode.value && selectedObjects.length == 1) {
-              removeTimeout = setTimeout(() => {
-                c!.setActiveObject(objectsStack[0])
-                removeTimeout = null
-              }, 300)
-            } else c!.setActiveObject(objectsStack[0])
+            // Only happens in pc mode
+            c!.setActiveObject(objectsStack[0])
           }
         } else if (multiSelectMode.value) {
           const a = c?.getActiveObjects()

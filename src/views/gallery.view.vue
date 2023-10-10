@@ -82,6 +82,7 @@ import Thumbnail from '@/components/gallery/Thumbnail.vue'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
 import { useAPI } from '@/service/api/api.service'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import { EventBus } from '@/main'
 
 const api = useAPI()
 const { getInbox, refresh, setQueryParams } = useAppStore()
@@ -171,7 +172,7 @@ async function fetchInbox() {
 }
 
 function checkQueryParams() {
-  if (isPhotoSwiperOpen.value || isLoading.value) return
+  if (isLoading.value) return
   const query = router.currentRoute.value.query
   const item = queryParams.value ? queryParams.value.get('item') : query.item
   if (!item) return
@@ -180,7 +181,9 @@ function checkQueryParams() {
   setQueryParams(undefined)
 
   selectedInboxItemIndex.value = foundInboxIndex
-  isPhotoSwiperOpen.value = true
+
+  if (isPhotoSwiperOpen.value) EventBus.emit('go_to_slide', foundInboxIndex)
+  else isPhotoSwiperOpen.value = true
 }
 
 function inboxItemsFromDateGroups(date: string): InboxItem[] {

@@ -90,11 +90,24 @@ export function getCurrentRoute(): FRONTEND_ROUTES {
 }
 
 export async function setAppColors(colorConfig: AppColorConfig) {
-  if (!isPlatform('capacitor')) return
+  if (!isNative()) return
   await Promise.all([
     NavigationBar.setColor({ color: colorConfig.navigationBar }),
     StatusBar.setBackgroundColor({ color: colorConfig.statusBar })
   ])
+}
+
+export async function checkColorsSet(colorConfig: AppColorConfig) {
+  if (!isNative()) return
+  const colors = await getAppColors()
+  if (!colors) return false
+
+  return colorConfig.navigationBar == colors[0].color && colorConfig.statusBar == colors[1].color
+}
+
+export async function getAppColors() {
+  if (!isNative()) return
+  return await Promise.all([NavigationBar.getColor(), StatusBar.getInfo()])
 }
 
 // TODO this is the uglies code ever xd
@@ -104,15 +117,20 @@ export async function hideLoading() {
   SplashScreen.hide()
 
   const end = 300
-  const jump = 25
+  const jump = 50
   let start = 0
 
-  const interval = setInterval(() => {
-    if (start >= end) clearInterval(interval)
+  const config = mate.value ? colorsPerRoute[FRONTEND_ROUTES.draw] : colorsPerRoute[FRONTEND_ROUTES.connect]
+
+  const interval = setInterval(async () => {
+    const colorsSet = await checkColorsSet(config)
+
+    if (start >= end || colorsSet) {
+      clearInterval(interval)
+      return
+    }
     start += jump
-    mate.value
-      ? setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
-      : setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
+    await setAppColors(config)
   }, jump)
 }
 

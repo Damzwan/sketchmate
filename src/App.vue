@@ -22,10 +22,12 @@ import { storeToRefs } from 'pinia'
 import OfflinePage from '@/components/general/OfflinePage.vue'
 import { useRoute } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
+import { useToast } from '@/service/toast.service'
 
 const ionRouter = useIonRouter()
 const { networkStatus } = storeToRefs(useAppStore())
 const route = useRoute()
+const { isOpen, dismiss } = useToast()
 
 const isRouterReady = ref(false)
 router.isReady().then(() => {
@@ -42,6 +44,11 @@ useBackButton(-1, () => {
   if (!ionRouter.canGoBack()) {
     App.exitApp()
   }
+})
+
+useBackButton(10, processNextHandler => {
+  if (isOpen.value) dismiss()
+  else processNextHandler()
 })
 
 if (!isNative()) {

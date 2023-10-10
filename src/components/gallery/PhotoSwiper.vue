@@ -39,6 +39,7 @@
         :initial-slide="slide"
         lazyPreloadPrevNext="3"
         :zoom="true"
+        ref="swiper"
       >
         <swiper-slide v-for="(item, i) in props.inboxItems" :key="i" class="flex justify-center items-center">
           <div class="swiper-zoom-container">
@@ -130,6 +131,8 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { useToast } from '@/service/toast.service'
+import { EventBus } from '@/main'
 
 register()
 const props = defineProps({
@@ -150,11 +153,23 @@ const props = defineProps({
 const emit = defineEmits(['update:open', 'update:slide', 'remove', 'see'])
 
 const api = useAPI()
+const swiper = ref<any>()
 const { user, consumeNotificationLoading } = useAppStore()
 
 const currInboxItem = computed<InboxItem>(() => props.inboxItems![props.slide!])
 const showComments = ref(true)
 const isCommentDrawerOpen = ref(false)
+
+const onNewMessage = () => {
+  emit('update:slide', props.slide + 1)
+  swiper.value?.swiper?.slideTo(props.slide + 1, 0)
+}
+
+watch(() => props.inboxItems, onNewMessage)
+
+const goToSlide = (index: any) => {
+  swiper.value?.swiper?.slideTo(index)
+}
 
 function consumeNotification() {
   consumeNotificationLoading(NotificationType.comment)
@@ -163,6 +178,9 @@ function consumeNotification() {
 
 function onOpen() {
   setAppColors(photoSwiperColorConfig)
+  EventBus.on('go_to_slide', goToSlide)
+  const { dismiss } = useToast()
+  dismiss()
   seeItem()
 }
 
@@ -182,6 +200,7 @@ function replyToDrawing() {
 
 function close() {
   setAppColors(colorsPerRoute[FRONTEND_ROUTES.gallery])
+  EventBus.off('go_to_slide', goToSlide)
   emit('update:open', false)
 }
 

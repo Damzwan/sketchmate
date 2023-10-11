@@ -1,6 +1,10 @@
 <template>
   <SettingsHeader title="Connect" v-if="!isQRReaderOpen && localUserId != ''" />
   <ion-content>
+    <ion-refresher slot="fixed" @ionRefresh="appStore.refresh">
+      <ion-refresher-content></ion-refresher-content>
+    </ion-refresher>
+
     <div v-show="isQRReaderOpen" ref="videoContainer" class="w-full h-full z-50 absolute left-0 top-0">
       <div class="scanner-active" v-show="isNative()" />
       <div class="w-full h-full bg-black" v-show="!isNative()">
@@ -51,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonButtons, IonContent, IonIcon, IonToolbar } from '@ionic/vue'
+import { IonButton, IonButtons, IonContent, IonIcon, IonRefresher, IonRefresherContent, IonToolbar } from '@ionic/vue'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import ConnectMethod from '@/components/connect/ConnectMethod.vue'
 import cameraImg from '@/assets/illustrations/camera.svg'

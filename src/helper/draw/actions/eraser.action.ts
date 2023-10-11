@@ -4,6 +4,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { BACKGROUND } from '@/config/draw/draw.config'
 import { DrawTool } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
+import { storeToRefs } from 'pinia'
 
 export async function fullErase(c: Canvas, options: any = {}) {
   const { selectTool } = useDrawStore()
@@ -20,6 +21,9 @@ export async function fullErase(c: Canvas, options: any = {}) {
     // Wait for setBackgroundColor to complete
     await new Promise<void>(resolve =>
       c.setBackgroundColor(BACKGROUND, () => {
+        const { backgroundColor } = storeToRefs(useDrawStore())
+        backgroundColor.value = BACKGROUND
+
         addToUndoStack([json as any], 'fullErase', { noReset })
         resolve()
       })

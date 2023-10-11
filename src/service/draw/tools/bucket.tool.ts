@@ -15,8 +15,9 @@ export const useBucket = defineStore('bucket', (): ToolService => {
   const events: FabricEvent[] = [
     {
       type: DrawEvent.BucketFill,
-      on: 'mouse:down:before',
+      on: 'mouse:down',
       handler: async (o: any) => {
+        // we use mouse:down to disable all click events in case we add text
         if (timeout) return
         timeout = setTimeout(
           async () => {

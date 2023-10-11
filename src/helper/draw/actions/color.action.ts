@@ -3,6 +3,8 @@ import { exitEditing, getStaticObjWithAbsolutePosition, isText, setForSelectedOb
 import { useHistory } from '@/service/draw/history.service'
 import { Canvas } from 'fabric/fabric-impl'
 import { ObjectType } from '@/types/draw.types'
+import { storeToRefs } from 'pinia'
+import { useDrawStore } from '@/store/draw/draw.store'
 
 export function setStrokeColor(c: Canvas, options: any) {
   const color = options['color']
@@ -55,7 +57,7 @@ export function setBackgroundColor(c: Canvas, options: any) {
   if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
   setForSelectedObjects(selectedObjectsRef, { backgroundColor: color }, !color)
 
-  c.renderAll()
+  c.requestRenderAll()
 }
 
 // TODO is not really a color haha
@@ -105,8 +107,10 @@ export async function undoColoring(newObj: any, oldObj: any) {
 
 export function setCanvasBackground(c: Canvas, options: any) {
   const { addToUndoStack } = useHistory()
+  const { backgroundColor } = storeToRefs(useDrawStore())
 
   const color = options['color']
+  backgroundColor.value = color
   addToUndoStack([], 'canvasBackground', { prevColor: c.backgroundColor })
   c.setBackgroundColor(color, () => undefined)
   c.requestRenderAll()

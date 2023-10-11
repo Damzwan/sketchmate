@@ -1,7 +1,10 @@
 <template>
   <ion-page id="page">
     <SettingsHeader title="My Mate" :presenting-element="page" />
-    <ion-content>
+    <ion-content v-if="user">
+      <ion-refresher slot="fixed" @ionRefresh="appStore.refresh">
+        <ion-refresher-content></ion-refresher-content>
+      </ion-refresher>
       <div class="h-full flex flex-col">
         <div class="w-full h-full flex justify-center items-center">
           <div class="w-full">
@@ -51,11 +54,20 @@
         <SettingLinks class="pb-2" :blog="false" :contact="false" />
       </div>
     </ion-content>
+    <ion-content v-else />
   </ion-page>
 </template>
 
 <script lang="ts" setup>
-import { IonAvatar, IonButton, IonContent, IonPage, onIonViewDidEnter } from '@ionic/vue'
+import {
+  IonAvatar,
+  IonButton,
+  IonContent,
+  IonPage,
+  IonRefresher,
+  IonRefresherContent,
+  onIonViewDidEnter
+} from '@ionic/vue'
 
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'

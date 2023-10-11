@@ -94,6 +94,7 @@ export const useSelect = defineStore('select', (): Select => {
 
         if (!multiSelectMode.value && activeObject && !o.e.shiftKey) {
           const a = c?.getActiveObjects()
+          if (!a || isText(a)) return
           functionToCall = () => {
             if (!c?.getActiveObject()) return
             const pointer = c!.getPointer(o.e, true)
@@ -153,6 +154,16 @@ export const useSelect = defineStore('select', (): Select => {
                   })
                 )
                 setSelectedObjects(newSelectedObjects)
+                c?.requestRenderAll()
+                return
+              }
+              if (selectedObjectsInPointer.length == 0) {
+                c?.setActiveObject(
+                  new fabric.ActiveSelection(aa, {
+                    canvas: c
+                  })
+                )
+                setSelectedObjects(aa)
                 c?.requestRenderAll()
                 return
               }

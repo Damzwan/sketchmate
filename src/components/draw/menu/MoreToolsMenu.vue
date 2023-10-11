@@ -7,7 +7,7 @@
           <p class="pl-2 text-base">Background Color</p>
 
           <ion-popover trigger="background-color" side="right">
-            <ColorPicker color="r" @update:color="onCanvasBackgroundChange" />
+            <ColorPicker :color="backgroundColor" @update:color="onCanvasBackgroundChange" :show-opacity="true" />
           </ion-popover>
         </ion-item>
 
@@ -116,10 +116,9 @@ const imageActionSheetOpen = ref(false)
 const { selectAction } = useDrawStore()
 const { user } = storeToRefs(useAppStore())
 const { openMenu } = useMenuStore()
+const { backgroundColor } = storeToRefs(useDrawStore())
 
-const { stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore())
-
-const { shapesMenuOpen } = storeToRefs(useMenuStore())
+const { shapesMenuOpen, stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore())
 const t = ref<any>()
 
 watch(shapesMenuOpen, () => {
@@ -198,7 +197,6 @@ function onTextClick() {
 
 function onCanvasBackgroundChange(color: string) {
   selectAction(DrawAction.SetCanvasBackground, { color })
-  closePopover()
 }
 
 async function onImgClick() {

@@ -61,6 +61,7 @@
         @confirm="deleteInboxItems"
       />
     </ion-content>
+    <ion-content v-else />
   </ion-page>
 </template>
 

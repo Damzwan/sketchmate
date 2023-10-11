@@ -71,6 +71,7 @@ export const useDrawStore = defineStore('draw', () => {
   const isEditingText = ref(false)
   const isLoading = ref(false)
   const isUsingGesture = ref(false)
+  const backgroundColor = ref(BACKGROUND) // use ref for reactivity :(
 
   // TODO I think we should transform shape creation into a store
   const shapeCreationSettings = ref<{
@@ -206,7 +207,8 @@ export const useDrawStore = defineStore('draw', () => {
     isLoading.value = false
     await history.actionWithoutHistory(() => {
       c?.clear()
-      c!.backgroundColor = BACKGROUND
+      backgroundColor.value = BACKGROUND
+      c!.backgroundColor = backgroundColor.value
     })
     history.clearHistory()
     backgroundSaver.clear()
@@ -242,6 +244,7 @@ export const useDrawStore = defineStore('draw', () => {
     shapeCreationSettings,
     lastSelectedSelectTool,
     colorPickerMode,
-    addTextMode
+    addTextMode,
+    backgroundColor
   }
 })

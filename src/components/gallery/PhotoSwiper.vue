@@ -43,7 +43,7 @@
       >
         <swiper-slide v-for="(item, i) in props.inboxItems" :key="i" class="flex justify-center items-center">
           <div class="swiper-zoom-container">
-            <img :src="item.image" alt="drawing" class="object-contain" />
+            <img :src="item.image" alt="drawing" class="object-contain bg-white" />
           </div>
         </swiper-slide>
       </swiper-container>

@@ -3,8 +3,8 @@
     <div class="w-full h-4/5 flex justify-center items-center">
       <div class="flex justify-center items-center flex-col">
         <img :src="offline" alt="offline image" class="h-[350px] aspect-square" />
-        <div class="text-3xl text-black">Your account has been deleted</div>
-        <div class="text-base text-black pt-1"
+        <div class="text-2xl text-black text-center">Your account has been deleted</div>
+        <div class="text-base text-black pt-1 text-center"
           >Sorry for the inconvenience, I work on this alone and sometimes I make mistakes :(
         </div>
 

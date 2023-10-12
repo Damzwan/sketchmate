@@ -32,7 +32,7 @@
       </swiper-slide>
       <swiper-slide>
         <div class="container">
-          <img :src="widget" class="h-[300px] aspect-auto mx-auto" alt="Gallery drawing" />
+          <img :src="widget" class="h-[350px] aspect-auto mx-auto -mb-10" alt="Gallery drawing" />
           <h1 class="title pt-12">Stay connected</h1>
           <p class="subtitle">View your friend's latest sketch straight from your widget</p>
         </div>

@@ -5,7 +5,7 @@
       class="z-50"
       v-if="networkStatus && !networkStatus.connected && route.path != `/${FRONTEND_ROUTES.draw}`"
     />
-    <UserDeletedPage class="z-50" v-if="userDeletedError" />
+    <UserDeletedPage class="z-50" v-else-if="userDeletedError" />
     <ion-router-outlet />
   </ion-app>
 </template>

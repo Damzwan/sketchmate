@@ -361,6 +361,83 @@ export function loadAdditionalBrushes() {
       const midPoint = p1.midPointFrom(p2)
       ctx.quadraticCurveTo(p1.x, p1.y, midPoint.x, midPoint.y)
       return midPoint
+    },
+    onMouseMove: function (pointer: Point, { e }: any) {
+      pointer = new fabric.Point(pointer.x, pointer.y)
+      if (!this.canvas._isMainEvent(e)) {
+        return
+      }
+      this.drawStraightLine = !!this.straightLineKey && e[this.straightLineKey]
+      if (this.limitedToCanvasSize === true && this._isOutSideCanvas(pointer)) {
+        return
+      }
+      const addedPoints = this._addPoint(pointer)
+      if (addedPoints.length > 0 && this._points.length > 1) {
+        if (this.needsFullRender()) {
+          this.canvas.clearContext(this.canvas.contextTop)
+          this._render()
+        } else {
+          const points = this._points,
+            length = points.length,
+            ctx = this.canvas.contextTop
+          // draw the curve update
+          this._saveAndTransform(ctx)
+          if (this.oldEnd) {
+            ctx.beginPath()
+            ctx.moveTo(this.oldEnd.x, this.oldEnd.y)
+          }
+          for (let i = 0; i < addedPoints.length - 1; i++) {
+            this.oldEnd = this.drawSegment(ctx, addedPoints[i], addedPoints[i + 1])
+          }
+          ctx.stroke()
+          ctx.restore()
+        }
+      }
+    },
+    addJaggednessBetweenPoints: function (p1: Point, p2: Point) {
+      const numberOfJaggedPoints = 4 // You can adjust this as per your needs
+      const jaggedPoints = []
+
+      for (let i = 1; i <= numberOfJaggedPoints; i++) {
+        const t = i / (numberOfJaggedPoints + 1)
+        const interpolatedX = p1.x + t * (p2.x - p1.x)
+        const interpolatedY = p1.y + t * (p2.y - p1.y)
+
+        const deviation = 5 // Adjust this value as per your needs
+        const jaggedX = interpolatedX + (Math.random() - 0.5) * deviation
+        const jaggedY = interpolatedY + (Math.random() - 0.5) * deviation
+
+        jaggedPoints.push(new fabric.Point(jaggedX, jaggedY))
+      }
+
+      return jaggedPoints
+    },
+    _addPoint: function (point: Point) {
+      const addedPoints = []
+
+      if (!(this._points.length > 1 && point.eq(this._points[this._points.length - 1]))) {
+        if (this.drawStraightLine && this._points.length > 1) {
+          this._hasStraightLine = true
+          this._points.pop()
+        }
+
+        // If the previous point exists
+        if (this._points.length > 0) {
+          const previousPoint = this._points[this._points.length - 1]
+
+          // Get jagged points between the previous point and the new point
+          const jaggedPoints = this.addJaggednessBetweenPoints(previousPoint, point)
+
+          // Insert the jagged points into _points array
+          this._points.push(...jaggedPoints)
+          addedPoints.push(...jaggedPoints)
+        }
+
+        this._points.push(point)
+        addedPoints.push(point)
+      }
+
+      return addedPoints
     }
   })
 }

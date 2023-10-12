@@ -2,13 +2,13 @@ import { BrushType, DrawAction, DrawTool, Eraser, SelectTool } from '@/types/dra
 import { Canvas } from 'fabric/fabric-impl'
 import {
   mdiBandage,
+  mdiBrush,
   mdiCircleOutline,
   mdiCursorDefaultClickOutline,
   mdiEraser,
   mdiLasso,
   mdiLiquidSpot,
-  mdiPencilOutline,
-  mdiSpray
+  mdiPencilOutline
 } from '@mdi/js'
 import { fullErase } from '@/helper/draw/actions/eraser.action'
 import {
@@ -113,7 +113,7 @@ export const selectIconMapping: { [key in SelectTool]: string } = {
 
 export const penIconMapping: { [key in BrushType]: string } = {
   [BrushType.Pencil]: mdiPencilOutline,
-  [BrushType.Spray]: mdiSpray,
+  [BrushType.WaterColor]: mdiBrush,
   [BrushType.Circle]: mdiCircleOutline,
   [BrushType.Ink]: mdiLiquidSpot
 }

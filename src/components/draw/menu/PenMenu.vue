@@ -45,10 +45,10 @@
 
           <div
             class="brush_option bg-blue-400"
-            @click="selectBrushType(BrushType.Spray)"
-            :class="{ brush_selected: isBrushTypeSelected(BrushType.Spray) }"
+            @click="selectBrushType(BrushType.WaterColor)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.WaterColor) }"
           >
-            <ion-icon :icon="svg(mdiSpray)" />
+            <ion-icon :icon="svg(mdiBrush)" />
           </div>
 
           <div
@@ -81,7 +81,7 @@ import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { BLACK, PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'
 import { BrushType, DrawTool } from '@/types/draw.types'
-import { mdiCircleOutline, mdiFormatColorFill, mdiLiquidSpot, mdiPencilOutline, mdiSpray } from '@mdi/js'
+import { mdiBrush, mdiCircleOutline, mdiFormatColorFill, mdiLiquidSpot, mdiPencilOutline } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { brushMapping, usePen } from '@/service/draw/tools/pen.tool'

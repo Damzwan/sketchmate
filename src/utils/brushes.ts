@@ -1,5 +1,8 @@
 import { fabric } from 'fabric'
 import { InkBrush } from '@/utils/brushes/inkbrush'
+import { PatternBrush, Point } from 'fabric/fabric-impl'
+import paperTexture from '@/assets/textures/paper2.jpg'
+import { opacityFromOpacityHex } from '@/helper/draw/draw.helper'
 
 declare module 'fabric' {
   namespace fabric {
@@ -29,7 +32,8 @@ declare module 'fabric' {
       constructor(canvas: Canvas)
     }
 
-    class WaterColorBrush extends fabric.PencilBrush {
+    class WaterColorBrush extends PatternBrush {
+      source: any
       constructor(canvas: Canvas)
     }
 
@@ -265,5 +269,98 @@ export function loadAdditionalBrushes() {
   })
 
   fabric.InkBrush = InkBrush
-  // fabric.WaterColorBrush = WatercolorBrush
+
+  const paperTextureImg = new Image()
+  paperTextureImg.src = paperTexture // Path to your grayscale watercolor texture
+
+  fabric.WaterColorBrush = fabric.util.createClass(fabric.PatternBrush, {
+    getPatternSrc: function () {
+      const patternCanvas = fabric.util.createCanvasElement(),
+        patternCtx = patternCanvas.getContext('2d')
+
+      patternCanvas.width = patternCanvas.height = 256
+
+      if (patternCtx) {
+        // Directly draw the water texture as a background
+        patternCtx.drawImage(paperTextureImg, 0, 0, patternCanvas.width, patternCanvas.height)
+
+        const solidColor = this.color.slice(0, -2)
+        const currentAlpha = parseInt(this.color.slice(-2), 16) / 255 // Convert the hex alpha to a ratio (0 to 1)
+        Math.max(currentAlpha - 0.3, 0.6)
+        Math.max(currentAlpha - 0.6, 0.3)
+        const reducedAlphaHex1 = Math.round(0.7 * 255)
+          .toString(16)
+          .padStart(2, '0') // Convert it back to hex
+        const reducedAlphaHex = Math.round(0.4 * 255)
+          .toString(16)
+          .padStart(2, '0') // Convert it back to hex
+
+        const reducedAlphaColor1 = `${solidColor}${reducedAlphaHex1}`
+        const reducedAlphaColor = `${solidColor}${reducedAlphaHex}`
+
+        const gradient = patternCtx.createRadialGradient(
+          patternCanvas.width / 2,
+          patternCanvas.height / 2,
+          0,
+          patternCanvas.width / 2,
+          patternCanvas.height / 2,
+          patternCanvas.width / 2
+        )
+        gradient.addColorStop(0, reducedAlphaColor1)
+        gradient.addColorStop(1, reducedAlphaColor)
+
+        patternCtx.fillStyle = gradient
+        patternCtx.globalCompositeOperation = 'multiply'
+        patternCtx.fillRect(0, 0, patternCanvas.width, patternCanvas.height)
+        patternCtx.globalCompositeOperation = 'source-over'
+      }
+      return patternCanvas
+    },
+    getPattern: function (ctx: CanvasRenderingContext2D) {
+      return ctx.createPattern(this.getPatternSrc(), 'repeat')
+    },
+    createPath: function (pathData: any) {
+      const path = this.callSuper('createPath', pathData),
+        topLeft = path._getLeftTopCoords().scalarAdd(path.strokeWidth / 2)
+
+      path.stroke = new fabric.Pattern({
+        source: this.getPatternSrc(),
+        offsetX: -topLeft.x,
+        offsetY: -topLeft.y
+      })
+
+      path.opacity = opacityFromOpacityHex(this.color)
+      return path
+    },
+    _render: function () {
+      const ctx = this.canvas.contextTop
+      let p1 = this._points[0],
+        p2 = this._points[1]
+      this._saveAndTransform(ctx)
+      ctx.beginPath()
+      ctx.globalAlpha = opacityFromOpacityHex(this.color)
+
+      if (this._points.length === 2 && p1.x === p2.x && p1.y === p2.y) {
+        const width = this.width / 1000
+        p1.x -= width
+        p2.x += width
+      }
+      ctx.moveTo(p1.x, p1.y)
+
+      for (let i = 1; i < this._points.length; i++) {
+        this.drawSegment(ctx, p1, p2)
+        p1 = this._points[i]
+        p2 = this._points[i + 1]
+      }
+
+      ctx.lineTo(p1.x, p1.y)
+      ctx.stroke()
+      ctx.restore()
+    },
+    drawSegment: function (ctx: CanvasRenderingContext2D, p1: Point, p2: Point) {
+      const midPoint = p1.midPointFrom(p2)
+      ctx.quadraticCurveTo(p1.x, p1.y, midPoint.x, midPoint.y)
+      return midPoint
+    }
+  })
 }

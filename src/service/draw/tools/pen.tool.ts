@@ -24,8 +24,12 @@ export const brushMapping: { [key in BrushType]: any } = {
   [BrushType.Pencil]: (c: Canvas) => new fabric.PencilBrush(c),
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
-  [BrushType.Spray]: (c: Canvas) => new fabric.SprayBrush(c),
-  [BrushType.Ink]: (c: Canvas) => new fabric.InkBrush(c)
+  [BrushType.Ink]: (c: Canvas) => new fabric.InkBrush(c),
+  [BrushType.WaterColor]: (c: Canvas) => {
+    const brush = new fabric.WaterColorBrush(c)
+    brush.source = new Image() // weird bug but necessary :c
+    return brush
+  }
 }
 
 export const usePen = defineStore('pen', (): Pen => {

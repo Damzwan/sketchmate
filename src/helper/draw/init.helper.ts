@@ -95,6 +95,7 @@ export function changeFabricBaseSettings() {
         'isCreating',
         'backgroundObject'
       ])
+      this.source = {}
       return toObject.apply(this, [propertiesToInclude])
     }
   })(fabric.Object.prototype.toObject)

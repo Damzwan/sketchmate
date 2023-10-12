@@ -636,3 +636,7 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
     }
   })
 }
+
+export function opacityFromOpacityHex(color: string) {
+  return parseInt(color.slice(-2), 16) / 255
+}

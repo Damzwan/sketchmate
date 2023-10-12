@@ -27,6 +27,10 @@ declare module 'fabric' {
       backgroundObject: boolean // indicates that we should not color this object since it acts as a background color
     }
 
+    interface PatternBrush {
+      source: any
+    }
+
     interface Path {
       originalLeft: number
       originalTop: number
@@ -139,7 +143,7 @@ export enum Shape {
 export enum BrushType {
   Pencil,
   Circle,
-  Spray,
+  WaterColor,
   Ink
 }
 

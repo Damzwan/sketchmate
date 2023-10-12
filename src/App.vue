@@ -5,6 +5,7 @@
       class="z-50"
       v-if="networkStatus && !networkStatus.connected && route.path != `/${FRONTEND_ROUTES.draw}`"
     />
+    <UserDeletedPage class="z-50" v-if="userDeletedError" />
     <ion-router-outlet />
   </ion-app>
 </template>
@@ -23,9 +24,10 @@ import OfflinePage from '@/components/general/OfflinePage.vue'
 import { useRoute } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useToast } from '@/service/toast.service'
+import UserDeletedPage from '@/components/general/UserDeletedPage.vue'
 
 const ionRouter = useIonRouter()
-const { networkStatus } = storeToRefs(useAppStore())
+const { networkStatus, userDeletedError } = storeToRefs(useAppStore())
 const route = useRoute()
 const { isOpen, dismiss } = useToast()
 

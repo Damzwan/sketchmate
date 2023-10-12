@@ -206,6 +206,5 @@ export function showIosSafariInstructions() {
 
 export function getRandomStockAvatar() {
   const randomNum = Math.floor(Math.random() * 5) + 1
-  console.log(`${account_blob}/stock${randomNum}.webp`)
   return `${account_blob}/stock_${randomNum}.webp`
 }

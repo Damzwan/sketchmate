@@ -34,6 +34,7 @@ export const useAppStore = defineStore('app', () => {
 
   const keyboardHeight = ref(0)
   const installPrompt = ref<any>()
+  const userDeletedError = ref(false)
 
   const networkStatus = ref<ConnectionStatus>()
 
@@ -57,6 +58,10 @@ export const useAppStore = defineStore('app', () => {
 
       // combine
       const [userValue] = await Promise.all([api.getUser({ _id: user_id }), socketService.login({ _id: user_id })])
+      if (!userValue) {
+        userDeletedError.value = true
+        return
+      }
 
       user.value = userValue
       checkPreferenceConsistency(user.value!)
@@ -170,6 +175,7 @@ export const useAppStore = defineStore('app', () => {
     keyboardHeight,
     refresh,
     installPrompt,
-    networkStatus
+    networkStatus,
+    userDeletedError
   }
 })

@@ -144,7 +144,8 @@ export enum BrushType {
   Pencil,
   Circle,
   WaterColor,
-  Ink
+  Ink,
+  Spray
 }
 
 export enum EraserSize {

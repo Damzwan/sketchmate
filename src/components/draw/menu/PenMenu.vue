@@ -26,13 +26,13 @@
       <!-- Brush Type -->
       <div class="p-1">
         <label for="brush-type">Brush Type</label>
-        <div class="flex justify-between mt-1 px-2" id="brush-type">
+        <div class="flex justify-between mt-1 px-1" id="brush-type">
           <div
             class="brush_option bg-green-400"
             @click="selectBrushType(BrushType.Pencil)"
             :class="{ brush_selected: isBrushTypeSelected(BrushType.Pencil) }"
           >
-            <ion-icon :icon="svg(mdiPencilOutline)" />
+            <ion-icon :icon="svg(penIconMapping[BrushType.Pencil])" />
           </div>
 
           <div
@@ -40,7 +40,7 @@
             @click="selectBrushType(BrushType.Ink)"
             :class="{ brush_selected: isBrushTypeSelected(BrushType.Ink) }"
           >
-            <ion-icon :icon="svg(mdiLiquidSpot)" />
+            <ion-icon :icon="svg(penIconMapping[BrushType.Ink])" />
           </div>
 
           <div
@@ -48,7 +48,15 @@
             @click="selectBrushType(BrushType.WaterColor)"
             :class="{ brush_selected: isBrushTypeSelected(BrushType.WaterColor) }"
           >
-            <ion-icon :icon="svg(mdiBrush)" />
+            <ion-icon :icon="svg(penIconMapping[BrushType.WaterColor])" />
+          </div>
+
+          <div
+            class="brush_option bg-blue-400"
+            @click="selectBrushType(BrushType.Spray)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.Spray) }"
+          >
+            <ion-icon :icon="svg(penIconMapping[BrushType.Spray])" />
           </div>
 
           <div
@@ -56,7 +64,7 @@
             @click="selectBrushType(BrushType.Circle)"
             :class="{ brush_selected: isBrushTypeSelected(BrushType.Circle) }"
           >
-            <ion-icon :icon="svg(mdiCircleOutline)" />
+            <ion-icon :icon="svg(penIconMapping[BrushType.Circle])" />
           </div>
 
           <div
@@ -79,9 +87,9 @@
 import { IonContent, IonIcon, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
-import { BLACK, PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'
+import { BLACK, penIconMapping, PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'
 import { BrushType, DrawTool } from '@/types/draw.types'
-import { mdiBrush, mdiCircleOutline, mdiFormatColorFill, mdiLiquidSpot, mdiPencilOutline } from '@mdi/js'
+import { mdiFormatColorFill } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { brushMapping, usePen } from '@/service/draw/tools/pen.tool'
@@ -203,7 +211,7 @@ watch(selectedTool, () => (selectedTool.value && PENMENUTOOLS.includes(selectedT
 
 <style scoped>
 .brush_option {
-  @apply cursor-pointer rounded-full w-[38px] h-[38px] flex justify-center items-center;
+  @apply cursor-pointer rounded-full w-[34px] h-[34px] flex justify-center items-center;
 }
 
 .brush_option ion-icon {

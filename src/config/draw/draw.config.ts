@@ -8,7 +8,8 @@ import {
   mdiEraser,
   mdiLasso,
   mdiLiquidSpot,
-  mdiPencilOutline
+  mdiPencilOutline,
+  mdiSpray
 } from '@mdi/js'
 import { fullErase } from '@/helper/draw/actions/eraser.action'
 import {
@@ -115,7 +116,8 @@ export const penIconMapping: { [key in BrushType]: string } = {
   [BrushType.Pencil]: mdiPencilOutline,
   [BrushType.WaterColor]: mdiBrush,
   [BrushType.Circle]: mdiCircleOutline,
-  [BrushType.Ink]: mdiLiquidSpot
+  [BrushType.Ink]: mdiLiquidSpot,
+  [BrushType.Spray]: mdiSpray
 }
 
 export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) => void } = {

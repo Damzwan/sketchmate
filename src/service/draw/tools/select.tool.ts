@@ -290,7 +290,7 @@ export const useSelect = defineStore('select', (): Select => {
     }
     selectedObjects = objects
     selectedObjectsRef.value = objects
-    c?.renderAll()
+    c?.requestRenderAll()
   }
 
   function enableOnInitEvents() {

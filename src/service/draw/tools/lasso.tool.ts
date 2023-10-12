@@ -70,6 +70,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     selectsObjectsInsideLasso()
     const { enableHistorySaving } = useHistory()
     enableHistorySaving()
+    c?.requestRenderAll()
   }
 
   function selectsObjectsInsideLasso() {
@@ -84,6 +85,24 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     )
 
     if (!objectsInsideLasso || objectsInsideLasso.length == 0) return
+
+    // console.log(lasso, objectsInsideLasso)
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    // const b = new fabric.EraserBrush(c)
+    // c!.freeDrawingBrush = b
+    //
+    // const pathData = b.convertPointsToSVGPath(downSampledLasso.map(p => new fabric.Point(p[0], p[1])))
+    // const path = b.createPath(pathData)
+    // path.fill = path.stroke
+    // path.setCoords()
+    // b.applyEraserToCanvas(path)
+    //
+    // c?.forEachObject(function (obj) {
+    //   b._addPathToObjectEraser(obj, path)
+    // })
+    //
+    // c?.requestRenderAll()
     initSelectWithObjects(c!, objectsInsideLasso)
   }
 
@@ -104,7 +123,6 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     } else if (obj.type === Shape.Ellipse) {
       return downSampleEllipse(obj as Ellipse)
     } else {
-      console.log(createPointRepresentationForBoundingRect(obj))
       return createPointRepresentationForBoundingRect(obj)
     }
   }

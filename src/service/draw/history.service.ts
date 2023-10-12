@@ -50,7 +50,7 @@ export const useHistory = defineStore('history', () => {
   let modifyingObject: any = undefined
 
   const { subscribe, unsubscribe, actionWithoutEvents } = useEventManager()
-  const { getSelectedObjects } = useSelect()
+  const { getSelectedObjects, setSelectedObjects } = useSelect()
 
   const undoMapping: Partial<Record<HistoryEvent, (objects: fabric.Object[], options?: any) => void>> = {
     'object:added': undoObjectAdded,
@@ -158,8 +158,9 @@ export const useHistory = defineStore('history', () => {
     restoreSelectedObjects(c!, getSelectedObjects())
   }
 
-  function undoImgFilter(objects: fabric.Object[], options: any) {
+  async function undoImgFilter(objects: fabric.Object[], options: any) {
     const img = objects[0] as fabric.Image
+    const enlivenedObj: any = (await enlivenObjects([img]))[0]
 
     const foundImg = c?.getObjects().find(o => o.id == img.id) as fabric.Image
     if (!foundImg) return
@@ -168,10 +169,18 @@ export const useHistory = defineStore('history', () => {
       foundImg.filters?.push(options['filter'])
       redoStack.push({ type: 'imgFilter', objects })
     } else {
-      redoStack.push({ type: 'imgFilter', objects, options: { filter: foundImg.filters?.pop() } })
+      redoStack.push({ type: 'imgFilter', objects, options: { filter: foundImg.filters?.at(-1) } })
     }
 
+    foundImg.filters = enlivenedObj.filters
     foundImg.applyFilters()
+
+    const selected = getSelectedObjects()
+    if (selected.length > 0 && selected[0].id == foundImg.id) {
+      // TODO: used to trigger changes in our ref. Can be done better
+      setSelectedObjects([foundImg, foundImg])
+      setTimeout(() => setSelectedObjects([foundImg]), 10)
+    }
     c?.requestRenderAll()
   }
 
@@ -182,6 +191,8 @@ export const useHistory = defineStore('history', () => {
     if (!foundImg) return
 
     if (options && options['filter']) {
+      const filter = options['filter']
+      if (filter.type == 'BlendColor') foundImg.filters = foundImg.filters?.filter((f: any) => f.type != 'BlendColor')
       foundImg.filters?.push(options['filter'])
       undoStack.push({ type: 'imgFilter', objects })
     } else {
@@ -189,6 +200,12 @@ export const useHistory = defineStore('history', () => {
     }
 
     foundImg.applyFilters()
+    const selected = getSelectedObjects()
+    if (selected.length > 0 && selected[0].id == foundImg.id) {
+      // TODO: used to trigger changes in our ref. Can be done better
+      setSelectedObjects([foundImg, foundImg])
+      setTimeout(() => setSelectedObjects([foundImg]), 10)
+    }
     c?.requestRenderAll()
   }
 

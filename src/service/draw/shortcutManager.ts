@@ -74,6 +74,13 @@ export function useShortcutManager() {
       handleMovement(event.key, activeObject, modifier, event)
     }
 
+    if (event.key == Shortcut.delete2) {
+      event.preventDefault()
+      if (!isSelectMode.value) return
+      selectAction(DrawAction.Delete, { objects: getSelectedObjects() })
+      dismissPopover()
+    }
+
     if (!modifier) return
 
     switch (event.key) {
@@ -231,7 +238,7 @@ export function useShortcutManager() {
             const blob = await item.getType(type)
             const reader = new FileReader()
             reader.onloadend = () => {
-              selectAction(DrawAction.Sticker, { img: reader.result })
+              selectAction(DrawAction.Sticker, { img: reader.result, ignoreResize: true })
             }
             reader.readAsDataURL(blob)
             dismissPopover()

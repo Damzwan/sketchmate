@@ -25,6 +25,9 @@ export const brushMapping: { [key in BrushType]: any } = {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   [BrushType.Ink]: (c: Canvas) => new fabric.InkBrush(c),
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  [BrushType.Spray]: (c: Canvas) => new fabric.SprayBrush(c),
   [BrushType.WaterColor]: (c: Canvas) => {
     const brush = new fabric.WaterColorBrush(c)
     brush.source = new Image() // weird bug but necessary :c

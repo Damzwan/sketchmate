@@ -3,7 +3,6 @@ import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawTool } from '@/types/draw.types'
 import { useHistory } from '@/service/draw/history.service'
-import { popoverController } from '@ionic/vue'
 
 export function addSticker(c: Canvas, options?: any) {
   if (!options) return
@@ -11,8 +10,13 @@ export function addSticker(c: Canvas, options?: any) {
   fabric.Image.fromURL(
     sticker,
     function (img) {
-      const maxDimension = 256 // Maximum width or height for scaling
-      img.scaleToWidth(maxDimension)
+      if (options.ignoreResize) {
+        if (img.width! > c.width!) img.scaleToWidth(c.width!)
+        if (img.height! > c.height!) img.scaleToHeight(c.height!)
+      } else {
+        const maxDimension = 256 // Maximum width or height for scaling
+        img.scaleToWidth(maxDimension)
+      }
       c!.add(img)
       // c.moveTo(img, Layer.obj)
       const { selectTool } = useDrawStore()
@@ -63,14 +67,15 @@ export function addFilterToImg(c: Canvas, options?: any) {
     const filterIndexToFind = img.filters!.findIndex((f: any) => f.type == filter.type)
     if (filterIndexToFind == -1) return
     const f = img.filters?.at(filterIndexToFind)
-    img.filters?.splice(filterIndexToFind, 1)
     addToUndoStack([img.toObject()], 'imgFilter', { filter: f })
+
+    img.filters?.splice(filterIndexToFind, 1)
   } else {
-    img.filters?.push(filter)
     addToUndoStack([img.toObject()], 'imgFilter')
+    if (filter.type == 'BlendColor') img.filters = img.filters?.filter((f: any) => f.type != 'BlendColor')
+    img.filters?.push(filter)
   }
 
   img.applyFilters()
   c.requestRenderAll()
-  popoverController.dismiss()
 }

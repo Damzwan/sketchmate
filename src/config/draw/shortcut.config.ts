@@ -8,6 +8,7 @@ export enum Shortcut {
   send = 'Enter',
   copy = 'd',
   delete = 'Backspace',
+  delete2 = 'Delete',
   selectNext = ']',
   selectPrev = '[',
   save = 's',

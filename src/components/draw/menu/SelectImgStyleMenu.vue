@@ -19,6 +19,7 @@
           <div class="rounded-full w-[26px] h-[26px]" :style="{ backgroundColor: colorFilter.color }" />
         </ion-item>
         <ColorPicker
+          :color="colorFilter?.color"
           @update:color="addColorFilter"
           :show-opacity="true"
           :color-picker-action="DrawAction.ChangeBackgroundColor"
@@ -36,6 +37,7 @@ import { fabric } from 'fabric'
 import { computed } from 'vue'
 import { svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
+import { opacityFromOpacityHex } from '@/helper/draw/draw.helper'
 
 const props = defineProps<{
   img: fabric.Image
@@ -72,7 +74,8 @@ function addColorFilter(c: string) {
   emits('add-filter', {
     filter: new fabric.Image.filters.BlendColor({
       color: c,
-      mode: 'tint'
+      mode: 'tint',
+      alpha: opacityFromOpacityHex(c)
     })
   })
 }

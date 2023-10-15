@@ -37,6 +37,7 @@ export const useAppStore = defineStore('app', () => {
   const userDeletedError = ref(false)
 
   const networkStatus = ref<ConnectionStatus>()
+  const updateSlide = ref(false)
 
   if (isNative()) Keyboard.addListener('keyboardWillShow', info => (keyboardHeight.value = info.keyboardHeight))
 
@@ -176,6 +177,7 @@ export const useAppStore = defineStore('app', () => {
     refresh,
     installPrompt,
     networkStatus,
-    userDeletedError
+    userDeletedError,
+    updateSlide
   }
 })

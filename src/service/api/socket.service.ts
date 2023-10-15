@@ -81,14 +81,19 @@ export function createSocketService(): SocketAPI {
     socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {
       isLoading.value = false
       if (params) {
+        if (params.sender === user.value?._id) EventBus.emit('reset-canvas')
+
+        const { updateSlide } = storeToRefs(useAppStore())
+        updateSlide.value = true
+
         user.value?.inbox.push(params._id)
         inbox.value?.push(params)
+
         const text = params.sender === user.value!._id ? 'Drawing sent!' : 'New drawing received'
         toast(text, {
           buttons: [dismissButton, viewDrawingButton(params._id)],
           duration: ToastDuration.long
         })
-        if (params.sender === user.value?._id) EventBus.emit('reset-canvas')
       }
     })
 

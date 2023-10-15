@@ -40,7 +40,11 @@
         lazyPreloadPrevNext="3"
         :zoom="true"
         ref="swiper"
+        @update="() => swiper.swiper.slideTo(slide + 1, 0)"
       >
+        <div class="w-full h-full absolute z-50 flex justify-center items-center bg-black" v-if="loading"
+          ><ion-spinner color="primary"
+        /></div>
         <swiper-slide v-for="(item, i) in props.inboxItems" :key="i" class="flex justify-center items-center">
           <div class="swiper-zoom-container">
             <img :src="item.image" alt="drawing" class="object-contain bg-white" />
@@ -109,7 +113,7 @@
 <script lang="ts" setup>
 import { InboxItem, NotificationType } from '@/types/server.types'
 import { IonAvatar, IonBadge, IonButton, IonButtons, IonIcon, IonModal, IonToolbar } from '@ionic/vue'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { register } from 'swiper/element/bundle'
 import { useAPI } from '@/service/api/api.service'
 import { useAppStore } from '@/store/app.store'
@@ -133,6 +137,7 @@ import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { useToast } from '@/service/toast.service'
 import { EventBus } from '@/main'
+import { storeToRefs } from 'pinia'
 
 register()
 const props = defineProps({
@@ -155,17 +160,20 @@ const emit = defineEmits(['update:open', 'update:slide', 'remove', 'see'])
 const api = useAPI()
 const swiper = ref<any>()
 const { user, consumeNotificationLoading } = useAppStore()
+const { updateSlide } = storeToRefs(useAppStore())
 
 const currInboxItem = computed<InboxItem>(() => props.inboxItems![props.slide!])
 const showComments = ref(true)
 const isCommentDrawerOpen = ref(false)
 
-const onNewMessage = () => {
-  emit('update:slide', props.slide + 1)
-  swiper.value?.swiper?.slideTo(props.slide + 1, 0)
-}
-
-watch(() => props.inboxItems, onNewMessage)
+watch(
+  () => props.inboxItems,
+  (first, second) => {
+    if (first?.length == second?.length || !updateSlide.value) return
+    nextTick(() => swiper.value?.swiper.update())
+    updateSlide.value = false
+  }
+)
 
 const goToSlide = (index: any) => {
   swiper.value?.swiper?.slideTo(index)

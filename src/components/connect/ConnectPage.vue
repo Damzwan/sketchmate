@@ -68,7 +68,11 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSocketService } from '@/service/api/socket.service'
 import { useToast } from '@/service/toast.service'
-import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
+import {
+  BarcodeFormat,
+  BarcodeScanner,
+  GoogleBarcodeScannerModuleInstallState
+} from '@capacitor-mlkit/barcode-scanning'
 import QrScanner from 'qr-scanner'
 import { useFullscreen } from '@vueuse/core'
 import { isNative, svg } from '@/helper/general.helper'
@@ -95,12 +99,31 @@ const { queryParams, isLoggedIn, localUserId } = storeToRefs(useAppStore())
 const fullUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`
 const qrSize = Math.min(window.innerHeight * 0.2, 256)
 
+const installingGoogleBarcode = ref(false)
+const installingGoogleBarcodeProgress = ref<number | undefined>(0)
+
 watch(isFullscreen, value => {
   if (!value) stopScanning()
 })
 
 watch(isLoggedIn, checkQueryParams)
-onMounted(checkQueryParams)
+onMounted(async () => {
+  checkQueryParams()
+  if (isNative()) {
+    const isGoogleBarcodeScannerModuleAvailable = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable()
+    if (!isGoogleBarcodeScannerModuleAvailable.available) {
+      installingGoogleBarcode.value = true
+      await BarcodeScanner.installGoogleBarcodeScannerModule()
+      BarcodeScanner.addListener('googleBarcodeScannerModuleInstallProgress', res => {
+        if (res.state == GoogleBarcodeScannerModuleInstallState.COMPLETED) {
+          installingGoogleBarcode.value = false
+          BarcodeScanner.removeAllListeners()
+        }
+        installingGoogleBarcodeProgress.value = res.progress
+      })
+    }
+  }
+})
 
 watch(queryParams, value => {
   if (value) checkQueryParams()
@@ -138,6 +161,12 @@ function match(mate_id: string) {
 
 async function startScanning() {
   if (isNative()) {
+    if (installingGoogleBarcode.value) {
+      toast(
+        `Still installing google barcode scanner, the status is ${installingGoogleBarcodeProgress.value}. Try again soon`
+      )
+      return
+    }
     const supported = await BarcodeScanner.isSupported()
 
     if (!supported.supported) {

@@ -14,7 +14,8 @@ self.addEventListener('push', event => {
 
   const options = {
     image: payload.img,
-    data: payload
+    data: payload,
+    icon: './favicon.png'
   }
 
   event.waitUntil(self.registration.showNotification(data.notification.title, options))

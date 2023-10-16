@@ -111,6 +111,7 @@ onMounted(async () => {
   checkQueryParams()
   if (isNative()) {
     const isGoogleBarcodeScannerModuleAvailable = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable()
+
     if (!isGoogleBarcodeScannerModuleAvailable.available) {
       installingGoogleBarcode.value = true
       await BarcodeScanner.installGoogleBarcodeScannerModule()

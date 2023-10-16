@@ -3,6 +3,12 @@
     <swiper-container class="h-full" :pagination="!keyboardActivated" @init="initSwiper" @slidechange="slideChange">
       <swiper-slide>
         <div class="container">
+          <ion-alert
+            :is-open="showAlert"
+            :header="'Install Our App!'"
+            :message="'For a better experience, install our app from the Android store.'"
+            :buttons="alertButtons"
+          />
           <img :src="girlDrawing" class="w-full h-[230px]" alt="Girl drawing" />
           <h1 class="title pt-12">Welcome to SketchMate</h1>
           <p class="subtitle">A simple app that makes sketching and sharing a part of your routine</p>
@@ -140,9 +146,20 @@
 </template>
 
 <script lang="ts" setup>
-import { IonButton, IonContent, IonHeader, IonIcon, IonInput, IonTitle, IonToggle, IonToolbar } from '@ionic/vue'
+import {
+  IonButton,
+  IonContent,
+  IonHeader,
+  IonIcon,
+  IonInput,
+  IonTitle,
+  IonToggle,
+  IonToolbar,
+  IonAlert,
+  isPlatform
+} from '@ionic/vue'
 
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import {
   blurIonInput,
@@ -170,6 +187,28 @@ import ProfilePicture from '@/components/general/ProfilePictureSelector.vue'
 import IosPwaInstructions from '@/components/general/IosPwaInstructions.vue'
 
 register()
+
+const alertButtons = [
+  {
+    text: 'Not Now',
+    role: 'cancel',
+    cssClass: 'alert-button-cancel'
+  },
+  {
+    text: 'Go to Store',
+    handler: () => {
+      window.location.href = 'https://play.google.com/store/apps/details?id=ninja.sketchmate.app'
+    },
+    cssClass: 'alert-button-confirm'
+  }
+]
+
+const showAlert = ref(false)
+onMounted(() => {
+  if (isNative() || !isPlatform('android')) return
+  const isAndroid = /Android/i.test(navigator.userAgent)
+  if (isAndroid) showAlert.value = true
+})
 
 const { createUser } = useAppStore()
 const name = ref()
@@ -263,5 +302,19 @@ swiper-container {
 
 .container {
   @apply absolute bottom-[30%] w-full max-w-full;
+}
+
+ion-alert {
+  --background: var(--ion-color-tertiary);
+}
+</style>
+
+<style>
+button.alert-button.alert-button-confirm {
+  color: var(--ion-color-secondary);
+}
+
+button.alert-button.alert-button-cancel {
+  color: var(--ion-color-secondary);
 }
 </style>

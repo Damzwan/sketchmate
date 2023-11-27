@@ -16,6 +16,9 @@ import { App as CapApp } from '@capacitor/app'
 import App from '@/App.vue'
 import { useAppStore } from '@/store/app.store'
 import { addNotificationListeners } from '@/helper/notification.helper'
+import dayjs from 'dayjs'
+import relativeTime from "dayjs/plugin/relativeTime"; 
+
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import VueJsTour from '@globalhive/vuejs-tour'
@@ -33,6 +36,8 @@ initFirebase()
 // lazy loading fabric js dependency for smooth transitions
 import('fabric')
 import('pako') // preload pako to reduce lag on send
+
+dayjs.extend(relativeTime)
 
 CapApp.addListener('appUrlOpen', (data: any) => {
   const url = new URL(data.url)

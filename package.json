@@ -48,6 +48,7 @@
     "@vueuse/core": "^10.1.2",
     "autoprefixer": "^10.4.14",
     "browser-image-compression": "^2.0.2",
+    "capacitor-rate-app": "^4.0.3",
     "compressorjs": "^1.2.1",
     "cropperjs": "^1.5.13",
     "dayjs": "^1.11.8",
@@ -70,6 +71,7 @@
     "svg-path-properties": "^1.2.0",
     "swiper": "^9.3.2",
     "uuid": "^9.0.0",
+    "vanilla-picker": "^2.12.2",
     "vue": "^3.3.4",
     "vue-markdown-render": "^2.0.1",
     "vue-router": "^4.2.2"

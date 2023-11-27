@@ -59,10 +59,10 @@ export const useAppStore = defineStore('app', () => {
 
       // combine
       const [userValue] = await Promise.all([api.getUser({ _id: user_id }), socketService.login({ _id: user_id })])
-      if (!userValue) {
-        userDeletedError.value = true
-        return
-      }
+      // if (!userValue) {
+      //   userDeletedError.value = true
+      //   return
+      // }
 
       user.value = userValue
       checkPreferenceConsistency(user.value!)

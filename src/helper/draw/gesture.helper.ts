@@ -5,7 +5,7 @@ import { fabricateTouchUp } from '@/helper/draw/draw.helper'
 import { useHistory } from '@/service/draw/history.service'
 import { DrawEvent, DrawTool, FabricEvent, ObjectType } from '@/types/draw.types'
 import { useEventManager } from '@/service/draw/eventManager.service'
-import { ERASERS } from '@/config/draw/draw.config'
+import { ERASERS, PANMARGIN } from '@/config/draw/draw.config'
 import { isMobile } from '@/helper/general.helper'
 import { storeToRefs } from 'pinia'
 import { EventBus } from '@/main'
@@ -219,20 +219,28 @@ export function enablePCGestures(c: any) {
 }
 
 export const checkCanvasBounds = (c: Canvas) => {
-  const vpt = c.viewportTransform!
-  if (vpt[4] >= 0) {
-    vpt[4] = 0
-  } else if (vpt[4] < c.getWidth() - c.getWidth() * c.getZoom()) {
-    vpt[4] = c.getWidth() - c.getWidth() * c.getZoom()
+  const vpt = c.viewportTransform!;
+  const canvasWidth = c.getWidth();
+  const canvasHeight = c.getHeight();
+  const zoomFactor = c.getZoom();
+
+  // Check left boundary
+  if (vpt[4] >= PANMARGIN) {
+    vpt[4] = PANMARGIN;
+  } else if (vpt[4] < canvasWidth - canvasWidth * zoomFactor - PANMARGIN) {
+    vpt[4] = canvasWidth - canvasWidth * zoomFactor - PANMARGIN;
   }
 
-  if (vpt[5] >= 0) {
-    vpt[5] = 0
-  } else if (vpt[5] < c.getHeight() - c.getHeight() * c.getZoom()) {
-    vpt[5] = c.getHeight() - c.getHeight() * c.getZoom()
+  // Check top boundary
+  if (vpt[5] >= PANMARGIN) {
+    vpt[5] = PANMARGIN;
+  } else if (vpt[5] < canvasHeight - canvasHeight * zoomFactor - PANMARGIN) {
+    vpt[5] = canvasHeight - canvasHeight * zoomFactor - PANMARGIN;
   }
-  c.setViewportTransform(vpt)
-}
+
+  c.setViewportTransform(vpt);
+};
+
 export const handleZoom = (scale: number, centerX: number, centerY: number, c: Canvas, previousScale?: number) => {
   const dampeningFactor = 0.2
   let newZoom = previousScale
@@ -254,15 +262,18 @@ export const handleZoom = (scale: number, centerX: number, centerY: number, c: C
   checkCanvasBounds(c)
 }
 export const handlePan = (delta: IPoint, c: Canvas) => {
+  const { setCanZoomOut } = useDrawStore()
+  const vpt = c.viewportTransform!;
   c.relativePan(delta)
   checkCanvasBounds(c)
+  if (isMobile()) setCanZoomOut(true)
 }
 
 export function resetZoom() {
   const { getCanvas, setCanZoomOut } = useDrawStore()
   const c = getCanvas()
   c.setZoom(1)
-  checkCanvasBounds(c)
+  c.setViewportTransform([1, 0, 0, 1, 0, 0]);
   setCanZoomOut(false)
   EventBus.emit('resetZoom')
   c.renderAll()

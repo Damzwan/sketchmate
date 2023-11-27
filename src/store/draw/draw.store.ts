@@ -16,7 +16,7 @@ import { useSocketService } from '@/service/api/socket.service'
 import { InboxItem } from '@/types/server.types'
 import { useRouter } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { canvasToBuffer, resetZoom, restoreSelectedObjects } from '@/helper/draw/draw.helper'
+import { activateRenderPanBoundaryListener, canvasToBuffer, disableRenderPanBoundaryListener, renderPanBoundary, resetZoom, restoreSelectedObjects } from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
 import { EventBus } from '@/main'
 import { useMenuStore } from '@/store/draw/menu.store'
@@ -36,6 +36,11 @@ import { loadAdditionalBrushes } from '@/utils/brushes'
 import { Select } from '@/service/draw/tools/select.tool'
 import { useBackgroundSaver } from '@/service/draw/backgroundSaved.service'
 import { useShortcutManager } from '@/service/draw/shortcutManager'
+import { RateApp } from 'capacitor-rate-app';
+import { isNative } from '@/helper/general.helper'
+import { Preferences } from '@capacitor/preferences'
+import { LocalStorage } from '@/types/storage.types'
+
 
 export const useDrawStore = defineStore('draw', () => {
   const { user } = storeToRefs(useAppStore())
@@ -151,6 +156,7 @@ export const useDrawStore = defineStore('draw', () => {
     initTools(c, tools)
     backgroundSaver.startSaving(c)
     shortcutManager.init(c)
+    activateRenderPanBoundaryListener(c)
 
     const selected = (tools[DrawTool.Select] as Select).getSelectedObjects() // important that this is before selectTool
     selectTool(selectedTool.value, { init: true })
@@ -166,6 +172,7 @@ export const useDrawStore = defineStore('draw', () => {
     backgroundSaver.destroy()
     eventManager.destroy()
     shortcutManager.destroy()
+    disableRenderPanBoundaryListener()
   }
 
   function showLoading(text: string) {
@@ -182,6 +189,20 @@ export const useDrawStore = defineStore('draw', () => {
     loadingText.value = 'Sending drawing...'
     isLoading.value = true
     resetZoom(c)
+
+    const lastPromptDateStr = await Preferences.get({ key: LocalStorage.reviewPromptDate });
+    const lastPromptDate = lastPromptDateStr ? new Date(lastPromptDateStr) : new Date();
+    const today = new Date();
+    
+    if (isNative() && user.value!.inbox.length % 5 == 0 && user.value!.inbox.length > 0) {
+      const daysSinceLastPrompt = Math.abs(today.getDate() - lastPromptDate.getDate());
+    
+      if (!lastPromptDateStr || daysSinceLastPrompt >= 7) {
+        RateApp.requestReview();
+        Preferences.set({ key: LocalStorage.reviewPromptDate, value: today.toString() });
+      }
+    }
+    
 
     await api.send({
       _id: user.value!._id,
@@ -209,6 +230,7 @@ export const useDrawStore = defineStore('draw', () => {
       c?.clear()
       backgroundColor.value = BACKGROUND
       c!.backgroundColor = backgroundColor.value
+      renderPanBoundary()
     })
     history.clearHistory()
     backgroundSaver.clear()

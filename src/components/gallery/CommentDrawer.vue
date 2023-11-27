@@ -12,10 +12,12 @@
             ><img :src="senderImg(user, comment.sender)" alt="" class="aspect-square"
           /></ion-avatar>
           <div class="flex-1 ml-2">
-            <div class="text-sm font-bold">{{ senderName(user, comment.sender) }}</div>
+            <div class="flex justify-between items-center">
+              <div class="text-sm font-bold">{{ senderName(user, comment.sender) }}</div>
+              <div class="text-sm text-center mr-1">{{ dayjs(comment.date).fromNow() }}</div>
+            </div>
             <div class="text-sm">{{ comment.message }}</div>
           </div>
-          <div class="text-sm text-center mr-1">{{ dayjs(comment.date).format('MMM D, HH:mm') }}</div>
         </div>
 
         <div class="flex w-full justify-evenly items-center h-[50px]">

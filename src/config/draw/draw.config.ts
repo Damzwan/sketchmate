@@ -42,6 +42,7 @@ import {
 } from '@/helper/draw/actions/color.action'
 import { DynamicTextPart } from '@/types/loader.types'
 import { editPolygon } from '@/helper/draw/actions/polyEdit.action'
+import { isMobile } from '@/helper/general.helper'
 
 export const COLORSWATCHES = [
   // Grayscale, Reds, Oranges
@@ -89,6 +90,7 @@ export const BRUSHSIZE = 10
 export const BLACK = '#000000FF'
 export const WHITE = '#FFFFFFFF'
 export const BACKGROUND = '#FAF0E6'
+export const PANMARGIN = isMobile() ? 50 : 0
 
 export const ERASERS = [DrawTool.MobileEraser, DrawTool.HealingEraser]
 export const PENMENUTOOLS = [DrawTool.Pen, DrawTool.Bucket]

@@ -24,7 +24,7 @@
             class="pr-2"
             v-if="currInboxItem.comments.length > 0"
           >
-            <ion-icon :icon="svg(showComments ? mdiChatOutline : mdiChatRemoveOutline)" />
+            <ion-icon :icon="svg(showComments ? mdiChatRemoveOutline : mdiChatOutline)" class="w-[25px] h-[25px]" />
           </ion-button>
           <ion-avatar class="flex justify-center items-center w-[35px]"
             ><img :src="senderImg(user, currInboxItem.sender)" alt="" class="aspect-square"
@@ -53,7 +53,7 @@
       </swiper-container>
 
       <div v-if="currInboxItem && showComments" @click="isCommentDrawerOpen = true" class="comments cursor-pointer">
-        <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i" class="rounded-full comment my-1">
+        <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i" class="rounded-full comment p-1">
           <div class="flex items-center pl-1">
             <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]"
               ><img :src="senderImg(user, comment.sender)" alt="" class="aspect-square"

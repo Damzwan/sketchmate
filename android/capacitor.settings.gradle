@@ -49,3 +49,6 @@ project(':capacitor-toast').projectDir = new File('../node_modules/.pnpm/@capaci
 
 include ':hugotomazi-capacitor-navigation-bar'
 project(':hugotomazi-capacitor-navigation-bar').projectDir = new File('../node_modules/.pnpm/@hugotomazi+capacitor-navigation-bar@2.0.1_@capacitor+core@5.3.0/node_modules/@hugotomazi/capacitor-navigation-bar/android')
+
+include ':capacitor-rate-app'
+project(':capacitor-rate-app').projectDir = new File('../node_modules/.pnpm/capacitor-rate-app@4.0.3_@capacitor+core@5.3.0/node_modules/capacitor-rate-app/android')

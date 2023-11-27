@@ -8,5 +8,6 @@ export enum LocalStorage {
   selectTip = 'selectTip',
   selectHint = 'selectHint',
   multiSelectHint = 'multiSelectHint',
-  doubleTap = 'doubleTapHint'
+  doubleTap = 'doubleTapHint',
+  reviewPromptDate='reviewPromptDate'
 }

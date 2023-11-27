@@ -2,7 +2,6 @@ import { Canvas, Group, IPoint, IText } from 'fabric/fabric-impl'
 import { fabric } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawEvent, DrawTool, ObjectType, SelectedObject } from '@/types/draw.types'
-import { checkCanvasBounds } from '@/helper/draw/gesture.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { storeToRefs } from 'pinia'
 import { compressImg, isMobile } from '@/helper/general.helper'
@@ -12,12 +11,12 @@ import { EventBus } from '@/main'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { DocsItem, DocsKey } from '@/config/draw/docs.config'
 import { ColorRGBA } from 'q-floodfill'
-import { ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
+import { ERASERS, PANMARGIN, PENMENUTOOLS } from '@/config/draw/draw.config'
 
 // TODO we should remove this one
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
-  checkCanvasBounds(c)
+  c.setViewportTransform([1, 0, 0, 1, 0, 0]);
 }
 
 export function findObjectById(canvas: fabric.Canvas, id: string) {
@@ -639,4 +638,43 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
 
 export function opacityFromOpacityHex(color: string) {
   return parseInt(color.slice(-2), 16) / 255
+}
+
+export function renderPanBoundary(){
+  const {getCanvas} = useDrawStore() 
+  const c = getCanvas()
+  const {actionWithoutEvents} = useEventManager()
+  actionWithoutEvents(() => {
+    c.remove(c.getObjects().find(o => o.id == 'boundary')!)
+    const rect = new fabric.Rect({
+      left: -PANMARGIN,
+      top: -PANMARGIN,
+      stroke: '#FF7F7F',
+      fill: undefined,
+      strokeWidth: PANMARGIN,
+      width: c!.width! + PANMARGIN,
+      height: c.height! + PANMARGIN,
+    })
+    rect.id = 'boundary'
+    c.add(rect)
+    c.requestRenderAll()
+    console.log('dead')
+  })
+}
+
+export function activateRenderPanBoundaryListener(c: Canvas){
+  const events = ['undo', 'redo', 'add_to_undo_stack']
+
+  events.forEach(e => {
+    EventBus.on(e, renderPanBoundary)
+  })
+  renderPanBoundary(c)
+}
+
+export function disableRenderPanBoundaryListener(){
+  const events = ['undo', 'redo', 'add_to_undo_stack']
+
+  events.forEach(e => {
+    EventBus.off(e, renderPanBoundary)
+  })
 }

@@ -29,7 +29,7 @@
         <div id="clickOutside" />
         <ion-button v-if="canZoomOut" @click="resetZoom" color="secondary" shape="round">
           <ion-icon slot="start" :icon="svg(mdiMagnifyMinusOutline)" />
-          Reset zoom
+          Reset view
         </ion-button>
       </div>
     </ion-content>

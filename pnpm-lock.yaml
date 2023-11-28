@@ -83,9 +83,6 @@ dependencies:
   browser-image-compression:
     specifier: ^2.0.2
     version: 2.0.2
-  capacitor-rate-app:
-    specifier: ^4.0.3
-    version: 4.0.3(@capacitor/core@5.3.0)
   compressorjs:
     specifier: ^1.2.1
     version: 1.2.1
@@ -3802,14 +3799,6 @@ packages:
       - supports-color
     dev: false
     optional: true
-
-  /capacitor-rate-app@4.0.3(@capacitor/core@5.3.0):
-    resolution: {integrity: sha512-HdTftIzBSfcNfbjQFCtvdvFU83MPCt11H/QXV4t7jctLelA8jXu3qee9MiZ4dqDc+kwNoufcQ95ncoCvn5viig==}
-    peerDependencies:
-      '@capacitor/core': ^5.0.0
-    dependencies:
-      '@capacitor/core': 5.3.0
-    dev: false
 
   /caseless@0.12.0:
     resolution: {integrity: sha512-4tYFyifaFfGacoiObjJegolkwSU4xQNGbVgUiNYVUxbQ2x2lUsFvY4hVgVzGiIe6WLOPqycWXA40l+PWsxthUw==}

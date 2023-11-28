@@ -6,7 +6,7 @@
           <ion-alert
             :is-open="showAlert"
             :header="'Install Our App!'"
-            :message="'For a better experience, install our app from the Android store.'"
+            :message="'For a better experience, install our app from the Play store.'"
             :buttons="alertButtons"
           />
           <img :src="girlDrawing" class="w-full h-[230px]" alt="Girl drawing" />

@@ -48,7 +48,6 @@
     "@vueuse/core": "^10.1.2",
     "autoprefixer": "^10.4.14",
     "browser-image-compression": "^2.0.2",
-    "capacitor-rate-app": "^4.0.3",
     "compressorjs": "^1.2.1",
     "cropperjs": "^1.5.13",
     "dayjs": "^1.11.8",

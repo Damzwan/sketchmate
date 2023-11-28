@@ -23,6 +23,7 @@ import { EventBus } from '@/main'
 import { LocalStorage } from '@/types/storage.types'
 import router from '@/router'
 import { Preferences } from '@capacitor/preferences'
+import { isNative } from '@/helper/general.helper'
 
 let socket: Socket | undefined
 
@@ -81,9 +82,22 @@ export function createSocketService(): SocketAPI {
     socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {
       isLoading.value = false
       if (params) {
-        if (params.sender === user.value?._id) EventBus.emit('reset-canvas')
+        const { updateSlide, reviewAppAlertOpen } = storeToRefs(useAppStore())
 
-        const { updateSlide } = storeToRefs(useAppStore())
+        if (params.sender === user.value?._id) {
+          EventBus.emit('reset-canvas')
+          const inboxCount = user.value.inbox.length + 1
+          Preferences.get({key: LocalStorage.reviewPromptCount}).then(reviewPromptCount => {
+            if (!isNative()) return
+            if (inboxCount % 5 == 0 && reviewPromptCount.value && parseInt(reviewPromptCount.value) > 0){
+            setTimeout(() => {
+              reviewAppAlertOpen.value = true;
+              Preferences.set({key: LocalStorage.reviewPromptCount, value: `${parseInt(reviewPromptCount.value!) - 1}`})
+            }, 1000)
+            }
+          })
+        }
+
         updateSlide.value = true
 
         user.value?.inbox.push(params._id)

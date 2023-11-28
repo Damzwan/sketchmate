@@ -6,6 +6,8 @@
       v-if="networkStatus && !networkStatus.connected && route.path != `/${FRONTEND_ROUTES.draw}`"
     />
     <UserDeletedPage class="z-50" v-else-if="userDeletedError" />
+    <ConfirmationAlert header="Enjoying SketchMate?" message="Support the solo developer behind SketchMate! Rate the app if you enjoy it." 
+  v-model:isOpen="reviewAppAlertOpen" confirmationtext="Rate" @confirm="openPlayStoreLink"/>
     <ion-router-outlet />
   </ion-app>
 </template>
@@ -25,11 +27,20 @@ import { useRoute } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useToast } from '@/service/toast.service'
 import UserDeletedPage from '@/components/general/UserDeletedPage.vue'
+import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import {app_store_link} from '@/config/general.config'
+import { LocalStorage } from '@/types/storage.types'
+import { Preferences } from '@capacitor/preferences'
 
 const ionRouter = useIonRouter()
-const { networkStatus, userDeletedError } = storeToRefs(useAppStore())
+const { networkStatus, userDeletedError, reviewAppAlertOpen } = storeToRefs(useAppStore())
 const route = useRoute()
 const { isOpen, dismiss } = useToast()
+
+function openPlayStoreLink(){
+  window.open(app_store_link)
+  Preferences.set({key: LocalStorage.reviewPromptCount, value: '0'})
+}
 
 const isRouterReady = ref(false)
 router.isReady().then(() => {

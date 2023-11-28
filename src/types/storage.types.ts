@@ -9,5 +9,5 @@ export enum LocalStorage {
   selectHint = 'selectHint',
   multiSelectHint = 'multiSelectHint',
   doubleTap = 'doubleTapHint',
-  reviewPromptDate='reviewPromptDate'
+  reviewPromptCount='reviewPromptCount'
 }

@@ -19,6 +19,7 @@ export const useAppStore = defineStore('app', () => {
   const isLoading = ref(false)
   const notificationRouteLoading = ref<NotificationType>()
   const storeReady = ref(false)
+  const reviewAppAlertOpen = ref(false)
 
   const unreadMsg = localStorage.getItem(LocalStorage.unread)
   const unreadMessages = ref(unreadMsg ? parseInt(unreadMsg) : 0)
@@ -68,6 +69,9 @@ export const useAppStore = defineStore('app', () => {
       checkPreferenceConsistency(user.value!)
 
       isLoggedIn.value = true
+
+      const reviewPromptCount = await Preferences.get({key: LocalStorage.reviewPromptCount})
+      if (!reviewPromptCount.value) Preferences.set({key: LocalStorage.reviewPromptCount, value: '2'})
     } catch (e) {
       console.log(e)
     }
@@ -178,6 +182,7 @@ export const useAppStore = defineStore('app', () => {
     installPrompt,
     networkStatus,
     userDeletedError,
-    updateSlide
+    updateSlide,
+    reviewAppAlertOpen
   }
 })

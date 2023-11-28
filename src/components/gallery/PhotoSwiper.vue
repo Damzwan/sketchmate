@@ -53,12 +53,12 @@
       </swiper-container>
 
       <div v-if="currInboxItem && showComments" @click="isCommentDrawerOpen = true" class="comments cursor-pointer">
-        <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i" class="rounded-full comment p-1">
+        <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i" class="rounded-full comment my-1 p-1">
           <div class="flex items-center pl-1">
             <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]"
               ><img :src="senderImg(user, comment.sender)" alt="" class="aspect-square"
             /></ion-avatar>
-            <div class="flex-1 ml-2">
+            <div class="flex-1 mx-2">
               <div class="text-xs font-bold text-white">{{ senderName(user, comment.sender) }}</div>
               <div class="text-xs text-white">{{ comment.message }}</div>
             </div>
@@ -267,3 +267,4 @@ ion-modal {
   --width: 100%;
 }
 </style>
+

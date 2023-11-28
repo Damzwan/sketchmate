@@ -1,24 +1,30 @@
 <template>
   <ion-alert
+  :is-open="isOpen"
     :trigger="trigger"
     :header="header"
     :message="message"
     :buttons="alertButtons"
     @keyup.enter="confirm"
     @keyup.delete="cancel"
+    @didDismiss="() => emits('update:isOpen', false)"
   />
 </template>
 
 <script lang="ts" setup>
 import { alertController, IonAlert } from '@ionic/vue'
-const props = defineProps<{
-  trigger: string
+
+const props = withDefaults(defineProps<{
+  trigger?: string
   header: string
   message?: string
   confirmationtext?: string
-}>()
+  isOpen?: boolean
+}>(), {
+  isOpen: false
+})
 
-const emits = defineEmits(['cancel', 'confirm'])
+const emits = defineEmits(['cancel', 'confirm', 'update:isOpen'])
 
 function confirm() {
   emits('confirm')

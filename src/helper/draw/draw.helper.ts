@@ -42,7 +42,7 @@ export function setObjectSelection(obj: fabric.Object, enabled: boolean) {
 }
 
 export function setSelectionForObjects(objects: fabric.Object[], enabled: boolean) {
-  objects.forEach(obj => setObjectSelection(obj, enabled))
+  objects.filter(o=> o.id != 'boundary').forEach(obj => setObjectSelection(obj, enabled))
 }
 
 export async function cloneObjects(objects: Array<SelectedObject>) {
@@ -654,11 +654,14 @@ export function renderPanBoundary(){
       strokeWidth: PANMARGIN,
       width: c!.width! + PANMARGIN,
       height: c.height! + PANMARGIN,
+      hasBorders: false,
+      selectable: false,
+      hasControls: false,
+      evented: false
     })
     rect.id = 'boundary'
     c.add(rect)
     c.requestRenderAll()
-    console.log('dead')
   })
 }
 

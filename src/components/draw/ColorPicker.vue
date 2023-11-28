@@ -211,3 +211,20 @@ ion-item {
   --padding-start: 0;
 }
 </style>
+
+<style>
+.picker_wrapper{
+  background: var(--ion-color-tertiary);
+}
+
+
+.picker_selector{
+  border: 2px solid var(--ion-color-primary);
+}
+
+.picker_done button{
+  background-image: none;
+  @apply bg-primary rounded-md hover:bg-primary-shade
+}
+</style>
+

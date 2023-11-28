@@ -65,6 +65,11 @@ export async function disableNotifications() {
 
 async function requestLocalNotifications() {
   await disableLocalNotifications()
+
+  // Wait for a short delay to ensure cancellation is complete
+  // TODO should not be necessary
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
   await LocalNotifications.schedule({
     notifications: [
       {
@@ -72,8 +77,10 @@ async function requestLocalNotifications() {
         body: 'Surprise your mate with a nice drawing',
         id: 1,
         schedule: {
-          at: next2pm(),
-          repeats: true
+          on: {
+            hour: 14,
+            minute: 0
+          }
         }
       }
     ]
@@ -139,16 +146,4 @@ export async function addNotificationListeners() {
       router.push({ path: data.path, query: data.query })
     }
   }
-}
-
-function next2pm() {
-  // Determine the next occurrence of 2:00 PM
-  const now = new Date()
-  const next2PM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 14, 0, 0)
-
-  // If we've already passed 2:00 PM today, schedule for tomorrow
-  if (now.getTime() > next2PM.getTime()) {
-    next2PM.setDate(next2PM.getDate() + 1)
-  }
-  return next2PM
 }

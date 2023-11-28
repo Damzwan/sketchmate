@@ -36,10 +36,6 @@ import { loadAdditionalBrushes } from '@/utils/brushes'
 import { Select } from '@/service/draw/tools/select.tool'
 import { useBackgroundSaver } from '@/service/draw/backgroundSaved.service'
 import { useShortcutManager } from '@/service/draw/shortcutManager'
-import { RateApp } from 'capacitor-rate-app';
-import { isNative } from '@/helper/general.helper'
-import { Preferences } from '@capacitor/preferences'
-import { LocalStorage } from '@/types/storage.types'
 
 
 export const useDrawStore = defineStore('draw', () => {
@@ -189,20 +185,6 @@ export const useDrawStore = defineStore('draw', () => {
     loadingText.value = 'Sending drawing...'
     isLoading.value = true
     resetZoom(c)
-
-    const lastPromptDateStr = await Preferences.get({ key: LocalStorage.reviewPromptDate });
-    const lastPromptDate = lastPromptDateStr ? new Date(lastPromptDateStr) : new Date();
-    const today = new Date();
-    
-    if (isNative() && user.value!.inbox.length % 5 == 0 && user.value!.inbox.length > 0) {
-      const daysSinceLastPrompt = Math.abs(today.getDate() - lastPromptDate.getDate());
-    
-      if (!lastPromptDateStr || daysSinceLastPrompt >= 7) {
-        RateApp.requestReview();
-        Preferences.set({ key: LocalStorage.reviewPromptDate, value: today.toString() });
-      }
-    }
-    
 
     await api.send({
       _id: user.value!._id,

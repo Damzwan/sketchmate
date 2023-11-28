@@ -214,17 +214,17 @@ ion-item {
 
 <style>
 .picker_wrapper{
-  background: var(--ion-color-tertiary);
+  background: var(--ion-color-tertiary) !important;
 }
 
 
 .picker_selector{
-  border: 2px solid var(--ion-color-primary);
+  border: 2px solid var(--ion-color-primary) !important;
 }
 
 .picker_done button{
-  background-image: none;
-  @apply bg-primary rounded-md hover:bg-primary-shade
+  background-image: none !important;
+  @apply bg-primary rounded-md hover:bg-primary-shade !important
 }
 </style>
 

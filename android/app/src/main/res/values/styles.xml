@@ -23,10 +23,6 @@
         <item name="android:windowSplashScreenBackground">
             @color/SplashScreenColor
         </item>
-        <item name="android:windowSplashScreenIconBackgroundColor">@color/SplashScreenColor</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/icon_max_res</item>
-        <item name="postSplashScreenTheme">@null</item>
-        <item name="android:windowSplashScreenBehavior">icon_preferred</item>
     </style>
 
     <style name="Widget.Android.AppWidget.Container" parent="android:Widget">

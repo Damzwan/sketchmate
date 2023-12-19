@@ -47,7 +47,7 @@
         /></div>
         <swiper-slide v-for="(item, i) in props.inboxItems" :key="i" class="flex justify-center items-center">
           <div class="swiper-zoom-container">
-            <img :src="item.image" alt="drawing" class="object-contain bg-white" />
+            <PhotoSwiperItem :item="item"/>
           </div>
         </swiper-slide>
       </swiper-container>
@@ -138,6 +138,7 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { useToast } from '@/service/toast.service'
 import { EventBus } from '@/main'
 import { storeToRefs } from 'pinia'
+import PhotoSwiperItem from '@/components/gallery/PhotoSwiperItem.vue'
 
 register()
 const props = defineProps({

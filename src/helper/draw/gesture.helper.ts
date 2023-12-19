@@ -224,18 +224,20 @@ export const checkCanvasBounds = (c: Canvas) => {
   const canvasHeight = c.getHeight();
   const zoomFactor = c.getZoom();
 
+  const pm = PANMARGIN
+
   // Check left boundary
-  if (vpt[4] >= PANMARGIN) {
-    vpt[4] = PANMARGIN;
-  } else if (vpt[4] < canvasWidth - canvasWidth * zoomFactor - PANMARGIN) {
-    vpt[4] = canvasWidth - canvasWidth * zoomFactor - PANMARGIN;
+  if (vpt[4] >= pm) {
+    vpt[4] = pm;
+  } else if (vpt[4] < canvasWidth - canvasWidth * zoomFactor - pm) {
+    vpt[4] = canvasWidth - canvasWidth * zoomFactor - pm;
   }
 
   // Check top boundary
-  if (vpt[5] >= PANMARGIN) {
-    vpt[5] = PANMARGIN;
-  } else if (vpt[5] < canvasHeight - canvasHeight * zoomFactor - PANMARGIN) {
-    vpt[5] = canvasHeight - canvasHeight * zoomFactor - PANMARGIN;
+  if (vpt[5] >= pm) {
+    vpt[5] = pm;
+  } else if (vpt[5] < canvasHeight - canvasHeight * zoomFactor - pm) {
+    vpt[5] = canvasHeight - canvasHeight * zoomFactor - pm;
   }
 
   c.setViewportTransform(vpt);
@@ -251,7 +253,7 @@ export const handleZoom = (scale: number, centerX: number, centerY: number, c: C
 
   // Limit the zoom level to the maximum and minimum values
   newZoom = Math.min(newZoom, 10)
-  newZoom = Math.max(newZoom, 1)
+  newZoom = Math.max(newZoom, isMobile() ? 0.8 : 1)
 
   // Get the center point of the gesture
   const gestureCenter = new fabric.Point(centerX, centerY)

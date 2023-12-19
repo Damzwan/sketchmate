@@ -16,7 +16,7 @@ import { ERASERS, PANMARGIN, PENMENUTOOLS } from '@/config/draw/draw.config'
 // TODO we should remove this one
 export function resetZoom(c: Canvas) {
   c.setZoom(1)
-  c.setViewportTransform([1, 0, 0, 1, 0, 0]);
+  c.setViewportTransform([1, 0, 0, 1, 0, 0])
 }
 
 export function findObjectById(canvas: fabric.Canvas, id: string) {
@@ -42,7 +42,7 @@ export function setObjectSelection(obj: fabric.Object, enabled: boolean) {
 }
 
 export function setSelectionForObjects(objects: fabric.Object[], enabled: boolean) {
-  objects.filter(o=> o.id != 'boundary').forEach(obj => setObjectSelection(obj, enabled))
+  objects.filter(o => o.id != 'boundary').forEach(obj => setObjectSelection(obj, enabled))
 }
 
 export async function cloneObjects(objects: Array<SelectedObject>) {
@@ -640,24 +640,26 @@ export function opacityFromOpacityHex(color: string) {
   return parseInt(color.slice(-2), 16) / 255
 }
 
-export function renderPanBoundary(){
-  const {getCanvas} = useDrawStore() 
+export function renderPanBoundary() {
+  const { getCanvas } = useDrawStore()
   const c = getCanvas()
-  const {actionWithoutEvents} = useEventManager()
+  const sizeMultiplier = 1.5 // used to counteract the conflicting behaviour of checkCanvasBoundary when our zoom is smaller than 1
+  const { actionWithoutEvents } = useEventManager()
   actionWithoutEvents(() => {
     c.remove(c.getObjects().find(o => o.id == 'boundary')!)
     const rect = new fabric.Rect({
-      left: -PANMARGIN,
-      top: -PANMARGIN,
+      left: -PANMARGIN * sizeMultiplier,
+      top: -PANMARGIN * sizeMultiplier,
       stroke: '#FF7F7F',
       fill: undefined,
-      strokeWidth: PANMARGIN,
-      width: c!.width! + PANMARGIN,
-      height: c.height! + PANMARGIN,
+      strokeWidth: PANMARGIN * sizeMultiplier,
+      width: c!.width! + PANMARGIN * sizeMultiplier,
+      height: c.height! + PANMARGIN * sizeMultiplier,
       hasBorders: false,
       selectable: false,
       hasControls: false,
-      evented: false
+      evented: false,
+      erasable: false
     })
     rect.id = 'boundary'
     c.add(rect)
@@ -665,7 +667,7 @@ export function renderPanBoundary(){
   })
 }
 
-export function activateRenderPanBoundaryListener(c: Canvas){
+export function activateRenderPanBoundaryListener(c: Canvas) {
   const events = ['undo', 'redo', 'add_to_undo_stack']
 
   events.forEach(e => {
@@ -674,7 +676,7 @@ export function activateRenderPanBoundaryListener(c: Canvas){
   renderPanBoundary(c)
 }
 
-export function disableRenderPanBoundaryListener(){
+export function disableRenderPanBoundaryListener() {
   const events = ['undo', 'redo', 'add_to_undo_stack']
 
   events.forEach(e => {

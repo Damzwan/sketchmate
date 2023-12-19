@@ -49,7 +49,7 @@
     </ion-item>
 
     <ion-popover :trigger="customColorPopoverId" :keep-contents-mounted="true" side="top">
-      <div id="parent" class="bg-primary"></div>
+      <div ref="customColorParent" class="bg-primary"></div>
     </ion-popover>
   </div>
 </template>
@@ -81,15 +81,15 @@ import Picker from 'vanilla-picker';
 
 const hmm = ref() // TODO hack to only close top popover
 const customColorPopoverId = uuidv4()
+const customColorParent = ref()
 const colorHistory = ref<string[]>([])
 const emptySpaces = computed(() => 6 - colorHistory.value.length)
 
 getSavedColorHistory()
 
 onMounted(() => {
-  const parent = document.querySelector('#parent') as any;
   const picker = new Picker({
-    parent: parent, popup: false, alpha: false, editor: false, color: props.color, onDone: async (c) => {
+    parent: customColorParent.value, popup: false, alpha: false, editor: false, color: props.color, onDone: async (c) => {
       onCustomColorSelected(c.hex)
       const popover = await popoverController.getTop()
       hmm.value.click()

@@ -1,6 +1,7 @@
 <template>
   <ion-page id="root">
-    <LinearLoader :text="loadingText" class="absolute z-50" v-if="isLoading" :darken="true" />
+    <!--    <LinearLoader :text="loadingText" class="absolute z-50" v-if="!isLoading" :darken="true" />-->
+    <ion-progress-bar type="indeterminate" class="absolute bottom-0 z-10 h-3" color="secondary" v-if="isLoading"/>
     <ion-header class="ion-no-border">
       <div id="select">
         <ShapeCreationToolbar v-show="shapeCreationMode != undefined || colorPickerMode || addTextMode" />
@@ -59,7 +60,6 @@ import { computed, ref, watch } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
-import LinearLoader from '@/components/loaders/LinearLoader.vue'
 import ShapeCreationToolbar from '@/components/draw/toolbar/ShapeCreationToolbar.vue'
 import { resetZoom } from '@/helper/draw/gesture.helper'
 import { isMobile, svg } from '@/helper/general.helper'
@@ -98,8 +98,6 @@ const tipBoxTitle = ref('')
 let didShowEnterSelectTip = false
 let didShowSelectTip = false
 let didShowMultiSelectTip = false
-const didShowDoubleTapTip = false
-
 let hideTipTimeout: any = undefined
 
 const tooltip = ref()
@@ -129,7 +127,7 @@ if (parseInt(localStorage.getItem(LocalStorage.selectTip)!) > 0) {
     if (didShowSelectTip || parseInt(localStorage.getItem(LocalStorage.selectTip)!) == 0) return
     if (selectedObjectsRef.value.length > 0) {
       showTip(
-        "Move, rotate, scale objects and more! Exit by tapping outside or pressing the 'X' in the upper left.",
+        'Move, rotate, scale objects and more! Exit by tapping outside or pressing the \'X\' in the upper left.',
         'Select Mode',
         10000
       )

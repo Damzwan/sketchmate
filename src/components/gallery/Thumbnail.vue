@@ -5,9 +5,9 @@
     class="flex justify-center items-center rounded-2xl h-full w-full"
     @mouseover="emits('hover')"
   >
-    <div class="relative w-full" :style="{ height: inboxItem.aspect_ratio ? `${renderHeight}px` : 'auto' }">
-      <div class="z-10 absolute w-full h-full flex justify-center items-center" v-if="isLoading">
-        <ion-spinner color="primary" />
+    <div class="relative w-full " :style="{ height: inboxItem.aspect_ratio ? `${renderHeight}px` : 'auto' }">
+      <div class="z-10 absolute w-full h-full flex justify-center items-center rounded-2xl bg-primary border-[1px] border-secondary-light" v-if="isLoading">
+          <ion-skeleton-text :animated="true" class="w-full h-full" />
       </div>
 
       <img
@@ -15,8 +15,9 @@
         :alt="inboxItem.date"
         @contextmenu.prevent
         @load="isLoading = false"
+        :loading="props.eager ? 'eager' : 'lazy' "
         class="w-full cursor-pointer relative object-contain rounded-2xl"
-        :class="{ 'border-[1px] border-secondary-light': !isLoading }"
+        :class="{'border-[1px] border-secondary-light': !isLoading}"
       />
 
       <div v-if="!isLoading">
@@ -31,10 +32,8 @@
           v-if="props.inboxItem.comments.length > 0"
           class="absolute z-10 right-1 bottom-1 w-[24px] flex justify-center items-center rounded-full bg-secondary aspect-square text-md"
         >
-          <span
-            class="animate-ping-slow absolute w-5/6 h-5/6 -z-10 rounded-full bg-secondary opacity-75"
-            v-if="isNewComment"
-          />
+          <div class="absolute z-10 left-0 top-0 w-2 h-2 bg-blue-400 rounded-full" v-if="isNewComment" />
+
           {{ props.inboxItem.comments.length }}
         </div>
 
@@ -54,7 +53,7 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
-import { IonAvatar, IonSpinner, IonIcon } from '@ionic/vue'
+import { IonAvatar, IonIcon, IonSkeletonText } from '@ionic/vue'
 import { InboxItem, User } from '@/types/server.types'
 import { isMobile, senderImg, svg } from '@/helper/general.helper'
 import { onLongPress } from '@vueuse/core'
@@ -87,6 +86,7 @@ const props = defineProps<{
   user: User
   multiSelectMode: boolean
   multiSelectedItems: string[]
+  eager: boolean
 }>()
 
 const el = ref()

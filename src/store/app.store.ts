@@ -18,8 +18,8 @@ export const useAppStore = defineStore('app', () => {
   const isLoggedIn = ref(false)
   const isLoading = ref(false)
   const notificationRouteLoading = ref<NotificationType>()
-  const storeReady = ref(false)
   const reviewAppAlertOpen = ref(false)
+  const showUpdateAppPrompt = ref(false)
 
   const unreadMsg = localStorage.getItem(LocalStorage.unread)
   const unreadMessages = ref(unreadMsg ? parseInt(unreadMsg) : 0)
@@ -43,7 +43,7 @@ export const useAppStore = defineStore('app', () => {
   if (isNative()) Keyboard.addListener('keyboardWillShow', info => (keyboardHeight.value = info.keyboardHeight))
 
   Preferences.get({ key: LocalStorage.user }).then(res => (localUserId.value = res.value ? res.value : ''))
-  Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value))
+  Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value!))
 
   Network.addListener('networkStatusChange', status => {
     networkStatus.value = status
@@ -60,18 +60,14 @@ export const useAppStore = defineStore('app', () => {
 
       // combine
       const [userValue] = await Promise.all([api.getUser({ _id: user_id }), socketService.login({ _id: user_id })])
-      // if (!userValue) {
-      //   userDeletedError.value = true
-      //   return
-      // }
 
-      user.value = userValue
+      user.value = userValue as User
       checkPreferenceConsistency(user.value!)
 
       isLoggedIn.value = true
 
-      const reviewPromptCount = await Preferences.get({key: LocalStorage.reviewPromptCount})
-      if (!reviewPromptCount.value) Preferences.set({key: LocalStorage.reviewPromptCount, value: '2'})
+      const reviewPromptCount = await Preferences.get({ key: LocalStorage.reviewPromptCount })
+      if (!reviewPromptCount.value) Preferences.set({ key: LocalStorage.reviewPromptCount, value: '2' })
     } catch (e) {
       console.log(e)
     }
@@ -125,10 +121,10 @@ export const useAppStore = defineStore('app', () => {
 
   function addComment(commentRes: CommentRes) {
     if (!inbox.value) return
-    const index = inbox.value.findIndex(inboxItem => inboxItem._id === commentRes.inbox_item_id)
+    const index = inbox.value!.findIndex(inboxItem => inboxItem._id === commentRes.inbox_item_id)
     if (index == -1) return
-    inbox.value[index].comments.push(commentRes.comment)
-    inbox.value[index].comments_seen_by = [
+    inbox.value![index].comments.push(commentRes.comment)
+    inbox.value![index].comments_seen_by = [
       commentRes.comment.sender == user.value!._id ? user.value!._id : user.value!.mate!._id
     ]
   }
@@ -165,7 +161,6 @@ export const useAppStore = defineStore('app', () => {
     inbox,
     getInbox,
     unreadMessages,
-    storeReady,
     setNotifications,
     addComment,
     notificationRouteLoading,

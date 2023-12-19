@@ -8,60 +8,62 @@
       @cancel="cancelMultiSelect"
       @delete="alterTrigger.click()"
     />
-    <ion-content v-if="user">
+    <ion-content>
       <CircularLoader v-if="isLoading || !isLoggedIn" class="z-50" />
 
-      <ion-refresher slot="fixed" @ionRefresh="refresh">
-        <ion-refresher-content></ion-refresher-content>
-      </ion-refresher>
+      <div v-if="user">
+        <ion-refresher slot="fixed" @ionRefresh="refresh">
+          <ion-refresher-content></ion-refresher-content>
+        </ion-refresher>
 
-      <PhotoSwiper
-        key="swiper"
-        v-show="inboxItems.length > 0"
-        v-model:open="isPhotoSwiperOpen"
-        v-model:slide="selectedInboxItemIndex"
-        :inbox-items="inboxItems"
-        @remove="removeItem"
-        @see="seeItem"
-      />
+        <PhotoSwiper
+          key="swiper"
+          v-show="inboxItems.length > 0"
+          v-model:open="isPhotoSwiperOpen"
+          v-model:slide="selectedInboxItemIndex"
+          :inbox-items="inboxItems"
+          @remove="removeItem"
+          @see="seeItem"
+        />
 
-      <NoMessages v-if="noMessages" />
-      <div class="h-full px-3" v-else>
-        <div class="h-full">
-          <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-3">
-            <div class="text-xl font-bold">
-              {{ dayjs(date).format('MMMM, YYYY') }}
-            </div>
+        <NoMessages v-if="noMessages" />
+        <div class="h-full px-3" v-else>
+          <div class="h-full">
+            <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-3">
+              <div class="text-xl font-bold">
+                {{ dayjs(date).format('MMMM, YYYY') }}
+              </div>
 
-            <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-1.5 pt-3">
-              <div
-                v-for="(inboxItem, i) in inboxItemsFromDateGroups(date).reverse()"
-                :key="i"
-                :class="inboxItem.aspect_ratio > 1 ? 'col-span-2' : 'col-span-1'"
-              >
-                <Thumbnail
-                  :inbox-item="inboxItem"
-                  :user="user!"
-                  :multi-selected-items="selectedItems"
-                  :multi-select-mode="multiSelectMode"
-                  @long-press="() => onItemLongPress(inboxItem)"
-                  @click="onThumbnailClick(inboxItem)"
-                  @hover="seeItem(i)"
-                />
+              <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-1.5 pt-3">
+                <div
+                  v-for="(inboxItem, i) in inboxItemsFromDateGroups(date).reverse()"
+                  :key="i"
+                  :class="inboxItem.aspect_ratio > 1 ? 'col-span-2' : 'col-span-1'"
+                >
+                  <Thumbnail
+                    :inbox-item="inboxItem"
+                    :user="user!"
+                    :multi-selected-items="selectedItems"
+                    :multi-select-mode="multiSelectMode"
+                    @long-press="() => onItemLongPress(inboxItem)"
+                    @click="onThumbnailClick(inboxItem)"
+                    @hover="seeItem(i)"
+                    :eager="i < 5"
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
+        <div id="delete-multiple-images-alert" class="hidden" ref="alterTrigger" />
+        <ConfirmationAlert
+          header="Are you sure?"
+          trigger="delete-multiple-images-alert"
+          message="These drawings will be deleted permanently"
+          @confirm="deleteInboxItems"
+        />
       </div>
-      <div id="delete-multiple-images-alert" class="hidden" ref="alterTrigger" />
-      <ConfirmationAlert
-        header="Are you sure?"
-        trigger="delete-multiple-images-alert"
-        message="These drawings will be deleted permanently"
-        @confirm="deleteInboxItems"
-      />
     </ion-content>
-    <ion-content v-else />
   </ion-page>
 </template>
 
@@ -215,6 +217,9 @@ function openPhotoSwiper(inboxItem: InboxItem) {
 function seeItem(index?: number) {
   const indexOfItemToSee = index ? index : selectedInboxItemIndex.value
   const item = inboxItems.value[indexOfItemToSee]
+
+  if (item.seen_by.includes(user.value!._id) && item.comments_seen_by.includes(user.value!._id)) return
+
   api.seeInboxItem({
     user_id: user.value!._id,
     inbox_id: item._id

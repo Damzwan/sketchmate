@@ -23,7 +23,6 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 // @ts-ignore
 import VueJsTour from '@globalhive/vuejs-tour'
 import { initFirebase, isNative } from '@/helper/general.helper'
-import { Preferences } from '@capacitor/preferences'
 
 const pinia = createPinia()
 const app = createApp(App).use(IonicVue).use(pinia).use(VueJsTour).use(router)
@@ -39,7 +38,6 @@ initFirebase()
 import('fabric')
 import('pako') // preload pako to reduce lag on send
 
-Preferences.set({ key: 'update', value: 'true' })
 dayjs.extend(relativeTime)
 
 CapApp.addListener('appUrlOpen', (data: any) => {

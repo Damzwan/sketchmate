@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter } from '@ionic/vue'
+import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter, IonProgressBar } from '@ionic/vue'
 import PrimaryDrawToolBar from '@/components/draw/toolbar/PrimaryDrawToolBar.vue'
 
 import { computed, ref, watch } from 'vue'

@@ -42,7 +42,6 @@ const route = useRoute()
 const { isOpen, dismiss } = useToast()
 const shouldUpdateApp = ref(false)
 if (isNative()) AppUpdate.getAppUpdateInfo().then(res => shouldUpdateApp.value = res.availableVersion == '98')
-// else Preferences.get({ key: 'update' }).then(res => shouldUpdateApp.value = res.value != null)
 
 function openPlayStoreLink() {
   window.open(app_store_link)

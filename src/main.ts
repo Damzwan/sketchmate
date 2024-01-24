@@ -34,8 +34,6 @@ const app = createApp(App).use(IonicVue).use(pinia).use(VueJsTour).use(router)
 
 app.mount('#app')
 
-Preferences.set({ key: LocalStorage.user, value: '65b0e190a336e2342dc3f504' })
-
 
 export const EventBus = mitt()
 addNotificationListeners()

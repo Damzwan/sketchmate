@@ -61,14 +61,25 @@
       </ion-button>
 
       <ion-button
+        v-show="hasMate"
         id="send-drawing"
-        :disabled="!isLoggedIn || !hasMate || (!!networkStatus && !networkStatus.connected)"
+        :disabled="!isLoggedIn || (!!networkStatus && !networkStatus.connected)"
         data-step="7"
       >
         <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
       </ion-button>
 
-      <ConfirmationAlert header="Ready to send?" trigger="send-drawing" confirmationtext="Send" @confirm="send" />
+      <ion-button
+        @click="() => toast('Connect to a friend first', {color: 'danger', duration: ToastDuration.long, buttons: [connectButton]})"
+        v-if="!hasMate"
+        :disabled="!isLoggedIn || (!!networkStatus && !networkStatus.connected)"
+        data-step="7"
+      >
+        <ion-icon slot="icon-only" :icon="svg(mdiSend)"></ion-icon>
+      </ion-button>
+
+      <SendDrawer :user="user" v-if="user" />
+      <!--      <ConfirmationAlert header="Ready to send?" trigger="send-drawing" confirmationtext="Send" @confirm="send" />-->
     </ion-buttons>
   </ion-toolbar>
 </template>
@@ -98,7 +109,10 @@ import { computed } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
 import SelectMenu from '@/components/draw/menu/SelectMenu.vue'
-import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import SendDrawer from '@/components/draw/SendDrawer.vue'
+import { useToast } from '@/service/toast.service'
+import { ToastDuration } from '@/types/toast.types'
+import { connectButton } from '@/config/toast.config'
 
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore
@@ -109,8 +123,10 @@ const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool, lastSelec
 const { undo, redo } = useHistory()
 const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
 
+const { toast } = useToast()
+
 const { isLoggedIn, user } = storeToRefs(useAppStore())
-const hasMate = computed(() => user.value && user.value.mate)
+const hasMate = computed(() => user.value && user.value.mates.length > 0)
 
 const penMenuIcon = computed(() =>
   lastSelectedPenMenuTool.value == DrawTool.Pen ? penIconMapping[brushType.value] : mdiFormatColorFill

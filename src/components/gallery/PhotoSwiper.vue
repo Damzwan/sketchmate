@@ -7,7 +7,7 @@
     :enter-animation="modalPopAnimation"
     :leave-animation="leaveAnimation"
     @ionModalDidPresent="consumeNotification"
-    :can-dismiss="() => !isCommentDrawerOpen"
+    :can-dismiss="() => !isCommentDrawerOpen && !isFollowerDrawerOpen"
   >
     <div class="flex flex-col container max-w-full" v-if="user && currInboxItem">
       <ion-toolbar class="w-full h-[56px] flex">
@@ -26,9 +26,20 @@
           >
             <ion-icon :icon="svg(showComments ? mdiChatRemoveOutline : mdiChatOutline)" class="w-[25px] h-[25px]" />
           </ion-button>
-          <ion-avatar class="flex justify-center items-center w-[35px]"
-            ><img :src="senderImg(user, currInboxItem.sender)" alt="" class="aspect-square"
-          /></ion-avatar>
+
+          <button class="flex -space-x-6" @click="isFollowerDrawerOpen=true">
+            <img :src="senderImg(findUserInInboxUsers(follower))" v-for="(follower, i) in currInboxItem.followers.slice(0, badgesCountToShow)"
+                 :key="follower"
+                 :alt="follower" class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px]"
+                 :style="{'zIndex':  i}">
+
+            <div
+              class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px] flex justify-center items-center bg-white"
+              :style="{'zIndex':  currInboxItem.followers.length + 1}"
+              v-if="currInboxItem.followers.slice(badgesCountToShow).length > 0">
+              <p class="text-gray-600">{{ currInboxItem.followers.slice(badgesCountToShow).length }}+</p>
+            </div>
+          </button>
         </ion-buttons>
       </ion-toolbar>
       <swiper-container
@@ -42,12 +53,9 @@
         ref="swiper"
         @update="() => swiper.swiper.slideTo(slide + 1, 0)"
       >
-        <div class="w-full h-full absolute z-50 flex justify-center items-center bg-black" v-if="loading"
-          ><ion-spinner color="primary"
-        /></div>
         <swiper-slide v-for="(item, i) in props.inboxItems" :key="i" class="flex justify-center items-center">
           <div class="swiper-zoom-container">
-            <PhotoSwiperItem :item="item"/>
+            <PhotoSwiperItem :item="item" />
           </div>
         </swiper-slide>
       </swiper-container>
@@ -56,18 +64,18 @@
         <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i" class="rounded-full comment my-1 p-1">
           <div class="flex items-center pl-1">
             <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]"
-              ><img :src="senderImg(user, comment.sender)" alt="" class="aspect-square"
+            ><img :src="senderImg(findUserInInboxUsers(comment.sender))" alt="" class="aspect-square"
             /></ion-avatar>
             <div class="flex-1 mx-2">
-              <div class="text-xs font-bold text-white">{{ senderName(user, comment.sender) }}</div>
+              <div class="text-xs font-bold text-white">{{ senderName(findUserInInboxUsers(comment.sender)) }}</div>
               <div class="text-xs text-white">{{ comment.message }}</div>
             </div>
           </div>
         </div>
         <div v-if="currInboxItem.comments.length > 4" class="rounded-full comment my-1">
           <p class="text-xs text-white py-1 pl-2">{{
-            `Click to see ${currInboxItem.comments.length - 4} more comments`
-          }}</p>
+              `Click to see ${currInboxItem.comments.length - 4} more comments`
+            }}</p>
         </div>
       </div>
 
@@ -85,7 +93,7 @@
         >
           <ion-icon :icon="svg(mdiCommentOutline)" />
           <ion-badge class="mb-[25px] absolute ml-[35px]" color="secondary"
-            >{{ currInboxItem.comments.length }}
+          >{{ currInboxItem.comments.length }}
           </ion-badge>
         </ion-button>
         <ion-button fill="clear" color="white" @click="shareImg(currInboxItem.image)" class="flex-grow" size="large">
@@ -105,7 +113,10 @@
         :index-of-curr-inbox-item="slide"
         :curr-inbox-item="currInboxItem"
         v-model:open="isCommentDrawerOpen"
+        :user="user"
       />
+      <PhotoSwiperFollowersDrawer :followers="currInboxItem.followers" :user="user"
+                                  v-model:open="isFollowerDrawerOpen" />
     </div>
   </ion-modal>
 </template>
@@ -139,6 +150,7 @@ import { useToast } from '@/service/toast.service'
 import { EventBus } from '@/main'
 import { storeToRefs } from 'pinia'
 import PhotoSwiperItem from '@/components/gallery/PhotoSwiperItem.vue'
+import PhotoSwiperFollowersDrawer from '@/components/gallery/PhotoSwiperFollowersDrawer.vue'
 
 register()
 const props = defineProps({
@@ -155,17 +167,19 @@ const props = defineProps({
     required: true
   }
 })
+const badgesCountToShow = 3
 
 const emit = defineEmits(['update:open', 'update:slide', 'remove', 'see'])
 
 const api = useAPI()
 const swiper = ref<any>()
-const { user, consumeNotificationLoading } = useAppStore()
+const { user, consumeNotificationLoading, findUserInInboxUsers } = useAppStore()
 const { updateSlide } = storeToRefs(useAppStore())
 
 const currInboxItem = computed<InboxItem>(() => props.inboxItems![props.slide!])
 const showComments = ref(true)
 const isCommentDrawerOpen = ref(false)
+const isFollowerDrawerOpen = ref(false)
 
 watch(
   () => props.inboxItems,

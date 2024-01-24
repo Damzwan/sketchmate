@@ -1,34 +1,7 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router'
-import { NavigationGuard, RouteRecordRaw } from 'vue-router'
+import { RouteRecordRaw } from 'vue-router'
 import TabsPage from '../views/tabs.view.vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { useAppStore } from '@/store/app.store'
-import { useSocketService } from '@/service/api/socket.service'
-import { LocalStorage } from '@/types/storage.types'
-
-import { Preferences } from '@capacitor/preferences'
-
-const hasMateGuard: NavigationGuard = async (to, from, next) => {
-  const mate = await Preferences.get({ key: LocalStorage.mate })
-  if (!mate.value) next(FRONTEND_ROUTES.connect)
-  else next()
-}
-
-const hasNoMateGuard: NavigationGuard = async (to, from, next) => {
-  const mate = await Preferences.get({ key: LocalStorage.mate })
-  if (mate.value) next(FRONTEND_ROUTES.draw)
-  else next()
-}
-
-const drawGuard: NavigationGuard = async (to, from, next) => {
-  if (to.query.trial) {
-    next()
-    return
-  }
-  const mate = await Preferences.get({ key: LocalStorage.mate })
-  if (!mate.value) next(FRONTEND_ROUTES.connect)
-  else next()
-}
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -45,24 +18,20 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: FRONTEND_ROUTES.draw,
-        component: () => import(/* webpackPrefetch: true */ '@/views/draw.view.vue'),
-        beforeEnter: drawGuard
+        component: () => import(/* webpackPrefetch: true */ '@/views/draw.view.vue')
       },
       {
         path: FRONTEND_ROUTES.gallery,
-        component: () => import(/* webpackPrefetch: true */ '@/views/gallery.view.vue'),
-        beforeEnter: hasMateGuard
-      },
-      {
-        path: FRONTEND_ROUTES.mate,
-        name: 'Mate',
-        component: () => import(/* webpackPrefetch: true */ '@/views/mate.view.vue'),
-        beforeEnter: hasMateGuard
+        component: () => import(/* webpackPrefetch: true */ '@/views/gallery.view.vue')
       },
       {
         path: FRONTEND_ROUTES.connect,
-        component: () => import(/* webpackPrefetch: true */ '@/views/connect.view.vue'),
-        beforeEnter: hasNoMateGuard
+        name: 'Connect',
+        component: () => import(/* webpackPrefetch: true */ '@/views/connections.view.vue')
+      },
+      {
+        path: FRONTEND_ROUTES.login,
+        component: () => import(/* webpackPrefetch: true */ '@/views/login.view.vue')
       }
     ]
   }
@@ -73,14 +42,5 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach(async (to, from, next) => {
-  const app = useAppStore()
-  if (!app.isLoggedIn) {
-    const { connect } = useSocketService()
-    connect()
-    app.login()
-  }
-  next()
-})
 
 export default router

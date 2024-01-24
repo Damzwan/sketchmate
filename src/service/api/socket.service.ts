@@ -4,9 +4,8 @@ import {
   CommentRes,
   InboxItem,
   MatchParams,
-  MatchRes,
-  NotificationType,
-  Res,
+  MatchRes, Mate,
+  Res, SendMateRequestParams,
   SendParams,
   SOCKET_ENDPONTS,
   SocketAPI,
@@ -15,15 +14,18 @@ import {
 } from '@/types/server.types'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useToast } from '@/service/toast.service'
-import { dismissButton, matchButton, viewCommentButton, viewDrawingButton } from '@/config/toast.config'
+import {
+  dismissButton,
+  matchButton,
+  viewDrawingButton,
+  viewMateRequestButton
+} from '@/config/toast.config'
 import { ToastDuration } from '@/types/toast.types'
-import { EventBus } from '@/main'
 import { LocalStorage } from '@/types/storage.types'
-import router from '@/router'
 import { Preferences } from '@capacitor/preferences'
 import { isNative } from '@/helper/general.helper'
+import { useAPI } from '@/service/api/api.service'
 
 let socket: Socket | undefined
 
@@ -36,7 +38,7 @@ export function useSocketService(): SocketAPI {
 
 export function createSocketService(): SocketAPI {
   const { addComment } = useAppStore()
-  const { user, isLoading, inbox, notificationRouteLoading } = storeToRefs(useAppStore())
+  const { user, friendRequestLoading, isLoading, inbox, friendRequestUsers, isLoggedIn } = storeToRefs(useAppStore())
   const { toast } = useToast()
 
   async function connect(): Promise<void> {
@@ -53,55 +55,76 @@ export function createSocketService(): SocketAPI {
     })
 
     socket.on(SOCKET_ENDPONTS.match, (params: Res<MatchRes>) => {
-      if (params) {
-        user.value!.mate = params.mate
-        toast('Matched!', { buttons: [matchButton, dismissButton], duration: 5000 })
-        Preferences.set({ key: LocalStorage.mate, value: 'true' })
-
-        router.replace(FRONTEND_ROUTES.mate)
+      isLoading.value = false
+      friendRequestLoading.value = false
+      if (!params) return
+      if (params.mate) {
+        user.value!.mates = [...user.value!.mates, params.mate]
+        user.value!.mate_requests_received = user.value!.mate_requests_received.filter(m => m != params.mate!._id)
+        user.value!.mate_requests_sent = user.value!.mate_requests_sent.filter(m => m != params.mate!._id)
+        toast(`Matched to ${params.mate.name}`, { buttons: [matchButton, dismissButton], duration: 5000 })
       } else {
-        toast('Failed to connect to mate', { color: 'danger' })
-
-        const appStore = useAppStore()
-        appStore.consumeNotificationLoading(NotificationType.match)
+        toast(`Failed to connect: ${params.error}`, { color: 'danger', duration: ToastDuration.long })
       }
     })
 
-    socket.on(SOCKET_ENDPONTS.unmatch, async () => {
+    socket.on(SOCKET_ENDPONTS.unmatch, async ({ unMatchedMateID, gotUnMatched }) => {
+      if (!isLoggedIn.value) return
       isLoading.value = false
-      Preferences.remove({ key: LocalStorage.mate })
-      toast('Unmatched', { buttons: [dismissButton], duration: 5000, color: 'warning' })
 
-      user.value!.mate = undefined
-      inbox.value = []
-      user.value!.inbox = []
+      const unMatchedMate = user.value!.mates.find(u => u._id == unMatchedMateID)
+      if (gotUnMatched) {
+        toast(`${unMatchedMate?.name} unmatched you`, {
+          buttons: [dismissButton],
+          duration: 5000,
+          color: 'warning'
+        })
+      } else {
+        toast(`Unmatched ${unMatchedMate?.name}`, {
+          buttons: [dismissButton],
+          duration: 5000,
+          color: 'warning'
+        })
+      }
 
-      await router.replace(FRONTEND_ROUTES.connect)
+      user.value!.mates = user.value!.mates.filter(el => el._id != unMatchedMate!._id)
     })
 
     socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {
       isLoading.value = false
       if (params) {
-        const { updateSlide, reviewAppAlertOpen } = storeToRefs(useAppStore())
+        const { updateSlide, reviewAppAlertOpen, inboxUsers } = storeToRefs(useAppStore())
 
         if (params.sender === user.value?._id) {
-          EventBus.emit('reset-canvas')
+          const {isSendingDrawing} = storeToRefs(useAppStore())
+          isSendingDrawing.value = false
           const inboxCount = user.value.inbox.length + 1
-          Preferences.get({key: LocalStorage.reviewPromptCount}).then(reviewPromptCount => {
+          Preferences.get({ key: LocalStorage.reviewPromptCount }).then(reviewPromptCount => {
             if (!isNative()) return
-            if (inboxCount % 5 == 0 && reviewPromptCount.value && parseInt(reviewPromptCount.value) > 0){
-            setTimeout(() => {
-              reviewAppAlertOpen.value = true;
-              Preferences.set({key: LocalStorage.reviewPromptCount, value: `${parseInt(reviewPromptCount.value!) - 1}`})
-            }, 1000)
+            if (inboxCount % 5 == 0 && reviewPromptCount.value && parseInt(reviewPromptCount.value) > 0) {
+              setTimeout(() => {
+                reviewAppAlertOpen.value = true
+                Preferences.set({
+                  key: LocalStorage.reviewPromptCount,
+                  value: `${parseInt(reviewPromptCount.value!) - 1}`
+                })
+              }, 1000)
             }
           })
         }
 
         updateSlide.value = true
-
         user.value?.inbox.push(params._id)
         inbox.value?.push(params)
+
+        const followersNotInInboxUsers = params.original_followers.reduce((acc: string[], curr) => !inboxUsers.value.some(m => m._id == curr) ? [...acc, curr] : acc, [])
+        if (followersNotInInboxUsers.length > 0) {
+          const { getPartialUsers } = useAPI()
+          getPartialUsers({ _ids: followersNotInInboxUsers }).then(res => {
+            if (res) inboxUsers.value = [...inboxUsers.value, ...res]
+          })
+        }
+
 
         const text = params.sender === user.value!._id ? 'Drawing sent!' : 'New drawing received'
         toast(text, {
@@ -114,11 +137,49 @@ export function createSocketService(): SocketAPI {
     socket.on(SOCKET_ENDPONTS.comment, (params: Res<CommentRes>) => {
       if (params) {
         addComment(params)
-        if (params.comment.sender != user.value!._id)
-          toast(`${user.value!.mate!.name} commented on a drawing`, {
-            buttons: [viewCommentButton(params.inbox_item_id)],
-            duration: ToastDuration.medium
-          })
+      }
+    })
+
+    socket.on(SOCKET_ENDPONTS.mate_request, async (params: SendMateRequestParams) => {
+      friendRequestLoading.value = false
+      if (params.sender == user.value!._id) {
+        toast('Request sent')
+        user.value!.mate_requests_sent.push(params.receiver)
+      } else {
+        user.value!.mate_requests_received.push(params.sender)
+
+        const { getPartialUsers } = useAPI()
+
+        const newFriendRequestUser = await getPartialUsers({ _ids: [params.sender] }) as Mate[]
+        friendRequestUsers.value = [...friendRequestUsers.value, ...newFriendRequestUser]
+
+
+        toast(`${params.sender_name} wants to become your friend`, {
+          buttons: [dismissButton, viewMateRequestButton()],
+          duration: ToastDuration.long
+        })
+      }
+    })
+
+
+    socket.on(SOCKET_ENDPONTS.cancel_mate_request, (params: SendMateRequestParams) => {
+      friendRequestLoading.value = false
+
+      if (params.sender == user.value!._id) {
+        toast('Friend request cancelled')
+        user.value!.mate_requests_sent = user.value!.mate_requests_sent.filter(m => m != params.receiver)
+      } else {
+        user.value!.mate_requests_received = user.value!.mate_requests_received.filter(m => m != params.sender)
+      }
+    })
+
+    socket.on(SOCKET_ENDPONTS.refuse_mate_request, (params: SendMateRequestParams) => {
+      friendRequestLoading.value = false
+      if (params.sender == user.value!._id) {
+        toast('Friend request declined')
+        user.value!.mate_requests_received = user.value!.mate_requests_received.filter(m => m != params.receiver)
+      } else {
+        user.value!.mate_requests_sent = user.value!.mate_requests_sent.filter(m => m != params.sender)
       }
     })
   }
@@ -132,12 +193,12 @@ export function createSocketService(): SocketAPI {
   }
 
   async function match(params: MatchParams): Promise<void> {
-    notificationRouteLoading.value = NotificationType.match
+    isLoading.value = true
     socket!.emit(SOCKET_ENDPONTS.match, params)
   }
 
   async function unMatch(params: UnMatchParams): Promise<void> {
-    notificationRouteLoading.value = NotificationType.unmatch
+    isLoading.value = true
     socket!.emit(SOCKET_ENDPONTS.unmatch, params)
   }
 
@@ -176,6 +237,24 @@ export function createSocketService(): SocketAPI {
     socket!.emit(SOCKET_ENDPONTS.comment, params)
   }
 
+  async function sendMateRequest(params: SendMateRequestParams): Promise<void> {
+    const { friendRequestLoading } = storeToRefs(useAppStore())
+    friendRequestLoading.value = true
+    socket!.emit(SOCKET_ENDPONTS.mate_request, params)
+  }
+
+  async function cancelSendMateRequest(params: SendMateRequestParams): Promise<void> {
+    const { friendRequestLoading } = storeToRefs(useAppStore())
+    friendRequestLoading.value = true
+    socket!.emit(SOCKET_ENDPONTS.cancel_mate_request, params)
+  }
+
+  async function refuseSendMateRequest(params: SendMateRequestParams): Promise<void> {
+    const { friendRequestLoading } = storeToRefs(useAppStore())
+    friendRequestLoading.value = true
+    socket!.emit(SOCKET_ENDPONTS.refuse_mate_request, params)
+  }
+
   return {
     connect,
     login,
@@ -183,6 +262,9 @@ export function createSocketService(): SocketAPI {
     match,
     disconnect,
     send,
-    comment
+    comment,
+    sendMateRequest,
+    cancelSendMateRequest,
+    refuseSendMateRequest
   }
 }

@@ -16,9 +16,15 @@ import { useSocketService } from '@/service/api/socket.service'
 import { InboxItem } from '@/types/server.types'
 import { useRouter } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { activateRenderPanBoundaryListener, canvasToBuffer, disableRenderPanBoundaryListener, renderPanBoundary, resetZoom, restoreSelectedObjects } from '@/helper/draw/draw.helper'
+import {
+  activateRenderPanBoundaryListener,
+  canvasToBuffer,
+  disableRenderPanBoundaryListener,
+  renderPanBoundary,
+  resetZoom,
+  restoreSelectedObjects
+} from '@/helper/draw/draw.helper'
 import { fabric } from 'fabric'
-import { EventBus } from '@/main'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useLoadService } from '@/service/draw/load.service'
 import {
@@ -39,7 +45,7 @@ import { useShortcutManager } from '@/service/draw/shortcutManager'
 
 
 export const useDrawStore = defineStore('draw', () => {
-  const { user } = storeToRefs(useAppStore())
+  const { user, isSendingDrawing } = storeToRefs(useAppStore())
   const api = useSocketService()
   const router = useRouter()
 
@@ -74,6 +80,7 @@ export const useDrawStore = defineStore('draw', () => {
   const isUsingGesture = ref(false)
   const backgroundColor = ref(BACKGROUND) // use ref for reactivity :(
 
+
   // TODO I think we should transform shape creation into a store
   const shapeCreationSettings = ref<{
     stroke: string
@@ -88,7 +95,6 @@ export const useDrawStore = defineStore('draw', () => {
   })
 
   // We make use of events so we do not load the big draw.store in other views
-  EventBus.on('reset-canvas', reset)
   changeFabricBaseSettings()
 
   function selectTool(newTool: DrawTool, options: SelectToolOptions | undefined = undefined) {
@@ -173,27 +179,28 @@ export const useDrawStore = defineStore('draw', () => {
 
   function showLoading(text: string) {
     loadingText.value = text
-    isLoading.value = true
+    isSendingDrawing.value = true
   }
 
   function hideLoading() {
-    isLoading.value = false
+    isSendingDrawing.value = false
   }
 
-  async function send() {
+  async function send(matesToSend: string[]) {
     if (!c) return
     loadingText.value = 'Sending drawing...'
-    isLoading.value = true
+    isSendingDrawing.value = true
     resetZoom(c)
 
     await api.send({
       _id: user.value!._id,
-      mate_id: user.value!.mate!._id,
+      followers: [user.value!._id, ...matesToSend],
       drawing: JSON.stringify(c.toJSON(['width', 'height'])),
       img: await canvasToBuffer(c.toDataURL({ multiplier: 2 })), // TODO multiplier 2 could be dangerous
       name: user.value!.name,
       aspect_ratio: c.width! / c.height!
     })
+    reset()
   }
 
   async function reply(inboxItem: InboxItem | undefined) {
@@ -207,7 +214,6 @@ export const useDrawStore = defineStore('draw', () => {
   }
 
   async function reset() {
-    isLoading.value = false
     await history.actionWithoutHistory(() => {
       c?.clear()
       backgroundColor.value = BACKGROUND

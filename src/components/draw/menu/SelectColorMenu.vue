@@ -13,7 +13,7 @@
         />
       </div>
       <ion-list lines="none" class="p-0 divide-y divide-primary">
-        <ion-item color="tertiary" :button="true" id="stroke" v-if="strokeColor?.type != 'pattern'">
+        <ion-item color="tertiary" :button="true" id="stroke" v-if="strokeColor != 'pattern'">
           <ion-icon :icon="svg(mdiBorderColor)" />
           <p class="pl-2 text-base">Stroke Color</p>
           <div

@@ -14,7 +14,15 @@
       },
       "oauth_client": [
         {
-          "client_id": "454566721535-e64bfoh9ch1u2a4lvsp09o74p7mghvuv.apps.googleusercontent.com",
+          "client_id": "454566721535-d3ue5t1sqfdvnr2thlijg97150i041ag.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "ninja.sketchmate.app",
+            "certificate_hash": "1c5154e0fa46eced3899c12605a0bfaaa5b01cee"
+          }
+        },
+        {
+          "client_id": "454566721535-nc656rb0fkeas8bbufk0co5o07o2g457.apps.googleusercontent.com",
           "client_type": 3
         }
       ],

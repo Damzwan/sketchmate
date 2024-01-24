@@ -120,7 +120,6 @@ async function loadPageForSection(section: DocsKey) {
   prevSection.value = prevNextSetup[section][0]
   nextSection.value = prevNextSetup[section][1]
   modalContent.value.$el.scrollToTop()
-  setTimeout(() => console.log(m.value), 100)
 }
 
 function onBack() {
@@ -156,6 +155,7 @@ function internalLink(e: any) {
 <style scoped>
 .accordion-header {
   --ion-background-color: #ffb995;
+  --background: var(--ion-color-tertiary);
 }
 
 ion-accordion div ion-item {

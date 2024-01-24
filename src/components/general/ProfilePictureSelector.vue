@@ -107,7 +107,7 @@ function deleteProfileImage() {
 
   const stock_img = getRandomStockAvatar()
   Preferences.set({ key: LocalStorage.img, value: stock_img })
-  deleteProfileImg({ _id: user.value!._id }, stock_img)
+  deleteProfileImg({ _id: user.value!._id, stock_img })
 
   user.value!.img = stock_img
   toast('Deleted profile image')

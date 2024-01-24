@@ -6,8 +6,10 @@
     @mouseover="emits('hover')"
   >
     <div class="relative w-full " :style="{ height: inboxItem.aspect_ratio ? `${renderHeight}px` : 'auto' }">
-      <div class="z-10 absolute w-full h-full flex justify-center items-center rounded-2xl bg-primary border-[1px] border-secondary-light" v-if="isLoading">
-          <ion-skeleton-text :animated="true" class="w-full h-full" />
+      <div
+        class="z-10 absolute w-full h-full flex justify-center items-center rounded-2xl bg-primary border-[1px] border-secondary-light"
+        v-if="isLoading">
+        <ion-skeleton-text :animated="true" class="w-full h-full" />
       </div>
 
       <img
@@ -21,16 +23,25 @@
       />
 
       <div v-if="!isLoading">
-        <div class="absolute z-10 right-1 top-1 w-[24px]">
-          <ion-avatar class="flex justify-center items-center w-full h-full"
-            ><img :src="senderImg(user, props.inboxItem.sender)" alt="" class="aspect-square"
-          /></ion-avatar>
+        <div class="absolute z-10 right-1 top-1 cursor-pointer">
+
+          <div class="flex -space-x-4">
+            <img :src="senderImg(findUserInInboxUsers(follower))" v-for="(follower, i) in inboxItem.followers.slice(0, badgesCountToShow)" :key="follower"
+                 :alt="follower" class="w-[32px] h-[32px] rounded-full border-secondary-light border-[1px] cursor-pointer"
+                 :style="{'zIndex':  i}">
+
+            <div
+              class="w-[32px] h-[32px] rounded-full border-secondary-light border-[1px] flex justify-center items-center bg-white cursor-pointer"
+              :style="{'zIndex':  inboxItem.followers.length + 1}" v-if="inboxItem.followers.slice(badgesCountToShow).length > 0">
+              <p class="text-gray-600">{{ inboxItem.followers.slice(badgesCountToShow).length }}+</p>
+            </div>
+          </div>
         </div>
 
         <div class="absolute z-10 left-0 top-0 w-3 h-3 bg-secondary rounded-full" v-if="isNew" />
         <div
           v-if="props.inboxItem.comments.length > 0"
-          class="absolute z-10 right-1 bottom-1 w-[24px] flex justify-center items-center rounded-full bg-secondary aspect-square text-md"
+          class="absolute z-10 right-1 bottom-1 w-[32px] flex justify-center items-center rounded-full bg-secondary aspect-square text-md cursor-pointer"
         >
           <div class="absolute z-10 left-0 top-0 w-2 h-2 bg-blue-400 rounded-full" v-if="isNewComment" />
 
@@ -53,15 +64,19 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
-import { IonAvatar, IonIcon, IonSkeletonText } from '@ionic/vue'
+import { IonIcon, IonSkeletonText } from '@ionic/vue'
 import { InboxItem, User } from '@/types/server.types'
 import { isMobile, senderImg, svg } from '@/helper/general.helper'
 import { onLongPress } from '@vueuse/core'
 import { mdiCheckboxBlankCircleOutline, mdiCheckboxMarkedCircleOutline } from '@mdi/js'
+import { useAppStore } from '@/store/app.store'
 
 const itemId = computed(() => props.inboxItem._id)
 let cancelClick = false
 const renderHeight = ref(100)
+
+const badgesCountToShow = 2
+const {findUserInInboxUsers} = useAppStore()
 
 let resizeObserver
 onMounted(async () => {

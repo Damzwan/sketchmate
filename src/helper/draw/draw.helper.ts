@@ -673,7 +673,7 @@ export function activateRenderPanBoundaryListener(c: Canvas) {
   events.forEach(e => {
     EventBus.on(e, renderPanBoundary)
   })
-  renderPanBoundary(c)
+  renderPanBoundary()
 }
 
 export function disableRenderPanBoundaryListener() {

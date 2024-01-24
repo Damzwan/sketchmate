@@ -1,17 +1,18 @@
-import { User } from '@/types/server.types'
+import { Mate } from '@/types/server.types'
 import Compressor from 'compressorjs'
-import { LocalStorage } from '@/types/storage.types'
 import router from '@/router'
 import { StatusBar } from '@capacitor/status-bar'
 import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
 import { isPlatform } from '@ionic/vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
-import { Preferences } from '@capacitor/preferences'
-import { useToast } from '@/service/toast.service'
 import { initializeApp } from 'firebase/app'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { account_blob } from '@/config/general.config'
+import avatar from '@/assets/avatar.svg'
+import { Device } from '@capacitor/device'
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
+import { Ref } from 'vue'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -69,14 +70,12 @@ export async function compressImg(file: File | Blob | string, options?: Compress
   })
 }
 
-export function senderImg(user: User | undefined, sender: string) {
-  if (!user) return ''
-  return user._id == sender ? user.img : user.mate!.img
+export function senderImg(mate: Mate | undefined) {
+  return mate ? mate.img : avatar
 }
 
-export function senderName(user: User | undefined, sender: string) {
-  if (!user) return ''
-  return user._id == sender ? user.name : user.mate!.name
+export function senderName(mate: Mate | undefined) {
+  return mate ? mate.name : 'Anonymous'
 }
 
 export function svg(path: string, fill?: string) {
@@ -112,15 +111,13 @@ export async function getAppColors() {
 
 // TODO this is the uglies code ever xd
 export async function hideLoading() {
-  const mate = await Preferences.get({ key: LocalStorage.mate })
-
-  SplashScreen.hide()
+  await SplashScreen.hide()
 
   const end = 300
   const jump = 50
   let start = 0
 
-  const config = mate.value ? colorsPerRoute[FRONTEND_ROUTES.draw] : colorsPerRoute[FRONTEND_ROUTES.connect]
+  const config = colorsPerRoute[router.currentRoute.value.path.substring(1) as FRONTEND_ROUTES]
 
   const interval = setInterval(async () => {
     const colorsSet = await checkColorsSet(config)
@@ -134,29 +131,6 @@ export async function hideLoading() {
   }, jump)
 }
 
-export async function checkPreferenceConsistency(user: User) {
-  const [mate, img] = await Promise.all([
-    Preferences.get({ key: LocalStorage.mate }),
-    Preferences.get({ key: LocalStorage.img })
-  ])
-
-  if (user.mate && !mate.value) {
-    await Preferences.set({ key: LocalStorage.mate, value: 'true' })
-    router.push(FRONTEND_ROUTES.draw)
-  } else if (!user.mate && mate.value) {
-    await Preferences.remove({ key: LocalStorage.mate })
-
-    // Cannot be used immediately :(
-    setTimeout(() => {
-      const { toast } = useToast()
-      toast('You got unmatched', { color: 'danger' })
-    }, 500)
-
-    router.push(FRONTEND_ROUTES.connect)
-  }
-
-  if (!img.value) Preferences.set({ key: LocalStorage.img, value: user.img })
-}
 
 export function isMobile() {
   return isPlatform('mobile') || isPlatform('capacitor') || isPlatform('android') || isPlatform('ios')
@@ -207,4 +181,48 @@ export function showIosSafariInstructions() {
 export function getRandomStockAvatar() {
   const randomNum = Math.floor(Math.random() * 5) + 1
   return `${account_blob}/stock_${randomNum}.webp`
+}
+
+export async function generateDeviceFingerprint() {
+  const info = await Device.getInfo()
+  const userAgent = navigator.userAgent
+
+  // Combine collected information to create a fingerprint
+  return `${userAgent}-${info.platform}-${info.model}`
+}
+
+export const getCurrentUser = async () => {
+  const result = await FirebaseAuthentication.getCurrentUser()
+  return result.user
+}
+
+export async function getCurrentAuthUser() {
+  const result = await FirebaseAuthentication.getCurrentUser()
+  return result.user
+}
+
+export function compareVersions(currentVersion: string, minimumVersion: string) {
+  const current = currentVersion.split('.').map(Number)
+  const minimum = minimumVersion.split('.').map(Number)
+
+
+  for (let i = 0; i < current.length; i++) {
+    if (current[i] < minimum[i]) {
+      return -1 // Current version is lower
+    } else if (current[i] > minimum[i]) {
+      return 1  // Current version is higher
+    }
+  }
+
+  return 0  // Versions are equal
+}
+
+export async function installPWA(installPrompt: Ref<any>) {
+  if (installPrompt.value) {
+    installPrompt.value.prompt()
+    const { outcome } = await installPrompt.value.userChoice
+    if (outcome === 'accepted') {
+      installPrompt.value = null
+    }
+  }
 }

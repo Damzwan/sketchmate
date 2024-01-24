@@ -1,7 +1,6 @@
 <template>
   <ion-page id="root">
     <!--    <LinearLoader :text="loadingText" class="absolute z-50" v-if="!isLoading" :darken="true" />-->
-    <ion-progress-bar type="indeterminate" class="absolute bottom-0 z-10 h-3" color="secondary" v-if="isLoading"/>
     <ion-header class="ion-no-border">
       <div id="select">
         <ShapeCreationToolbar v-show="shapeCreationMode != undefined || colorPickerMode || addTextMode" />
@@ -53,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter, IonProgressBar } from '@ionic/vue'
+import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter } from '@ionic/vue'
 import PrimaryDrawToolBar from '@/components/draw/toolbar/PrimaryDrawToolBar.vue'
 
 import { computed, ref, watch } from 'vue'

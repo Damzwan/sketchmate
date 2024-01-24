@@ -16,6 +16,10 @@ declare module 'fabric' {
       init: boolean
     }
 
+    interface IRectOptions {
+      erasable?: boolean
+    }
+
     interface Object {
       id: string
       _setOriginToCenter: () => void

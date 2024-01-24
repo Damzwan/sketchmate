@@ -1,5 +1,5 @@
 <template>
-  <ion-page id="page">
+  <ion-page>
     <SettingsHeader
       title="Gallery"
       :presenting-element="page"
@@ -11,7 +11,7 @@
     <ion-content>
       <CircularLoader v-if="isLoading || !isLoggedIn" class="z-50" />
 
-      <div v-if="user">
+      <div v-if="user" class="w-full h-full">
         <ion-refresher slot="fixed" @ionRefresh="refresh">
           <ion-refresher-content></ion-refresher-content>
         </ion-refresher>
@@ -26,8 +26,14 @@
           @see="seeItem"
         />
 
-        <NoMessages v-if="noMessages" />
-        <div class="h-full px-3" v-else>
+        <NoMessages v-if="noMessages && user.mates.length == 0" title="Start connecting"
+                    subtitle="Add a friend first before you can access your gallery"
+                    :img="friendsImage" btn-text="Add a friend" :btn-link="FRONTEND_ROUTES.connect" />
+
+        <NoMessages v-else-if="noMessages" title="No messages.."
+                    subtitle="Send a drawing to a friend to see it over here"
+                    :img="noMessagesImg" btn-text="Start drawing" :btn-link="FRONTEND_ROUTES.draw" />
+        <div class="h-full p-2" v-else>
           <div class="h-full">
             <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-3">
               <div class="text-xl font-bold">
@@ -68,7 +74,13 @@
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonPage, IonRefresher, IonRefresherContent, onIonViewWillLeave } from '@ionic/vue'
+import {
+  IonContent,
+  IonPage,
+  IonRefresher,
+  IonRefresherContent,
+  onIonViewWillLeave, useBackButton
+} from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/store/app.store'
 import { storeToRefs } from 'pinia'
@@ -85,7 +97,10 @@ import Thumbnail from '@/components/gallery/Thumbnail.vue'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
 import { useAPI } from '@/service/api/api.service'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import noMessagesImg from '@/assets/illustrations/no-messages.svg'
 import { EventBus } from '@/main'
+import friendsImage from '@/assets/illustrations/match.svg'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const api = useAPI()
 const { getInbox, refresh, setQueryParams } = useAppStore()
@@ -93,6 +108,12 @@ const { user, inbox, isLoggedIn, queryParams } = storeToRefs(useAppStore())
 const { toast } = useToast()
 
 const isLoading = ref(false)
+
+
+useBackButton(9999, (processNextHandler) => {
+  if (multiSelectMode.value) cancelMultiSelect()
+  else processNextHandler()
+})
 
 onMounted(fetchInbox)
 watch(isLoggedIn, () => {
@@ -103,7 +124,9 @@ const isPhotoSwiperOpen = ref<boolean>(false)
 const groupedInboxItems = computed(() => groupOnMonth(inbox.value ? inbox.value : []))
 const inboxItems = computed(() => (inbox.value ? inbox.value.slice().reverse() : []))
 
+
 const noMessages = computed(() => inboxItems.value.length === 0)
+
 
 const selectedInboxItemIndex = ref<number>(0)
 const route = useRoute()

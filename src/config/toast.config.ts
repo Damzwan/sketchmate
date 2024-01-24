@@ -1,4 +1,4 @@
-import { ToastButton } from '@ionic/vue'
+import { modalController, ToastButton } from '@ionic/vue'
 import { useToast } from '@/service/toast.service'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
@@ -18,7 +18,17 @@ export const dismissButton: ToastButton = {
 export const matchButton: ToastButton = {
   text: 'Start drawing',
   handler: () => {
+    modalController.getTop().then(top => top ? modalController.dismiss() : undefined)
     router.push(FRONTEND_ROUTES.draw)
+  },
+  cssClass: 'secondary'
+}
+
+export const connectButton: ToastButton = {
+  text: 'Connect',
+  handler: () => {
+    modalController.getTop().then(top => top ? modalController.dismiss() : undefined)
+    router.push(FRONTEND_ROUTES.connect)
   },
   cssClass: 'secondary'
 }
@@ -31,6 +41,21 @@ export const viewDrawingButton = (inboxItemId: string): ToastButton => {
         path: FRONTEND_ROUTES.gallery,
         query: {
           item: inboxItemId
+        }
+      })
+    }
+  }
+}
+
+export const viewMateRequestButton = (): ToastButton => {
+  return {
+    text: 'View',
+    handler: () => {
+      modalController.getTop().then(top => top ? modalController.dismiss() : undefined)
+      router.push({
+        path: FRONTEND_ROUTES.connect,
+        query: {
+          tab: 'request'
         }
       })
     }
@@ -51,6 +76,7 @@ export const viewCommentButton = (inboxItemId: string): ToastButton => {
     }
   }
 }
+
 
 export const viewSavedButton: ToastButton = {
   text: 'View',

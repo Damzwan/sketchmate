@@ -4,7 +4,7 @@ import { Clipboard } from '@capacitor/clipboard'
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import { isPlatform } from '@ionic/vue'
 import { useShare } from '@vueuse/core'
-import { isNative } from '@/helper/general.helper'
+import { isMobile, isNative } from '@/helper/general.helper'
 
 const { toast } = useToast()
 const { share, isSupported } = useShare()
@@ -17,12 +17,13 @@ export async function shareUrl(url: string, title = '', dialogTitle = '') {
       text: url,
       dialogTitle: dialogTitle
     })
-  } else if (isSupported.value) {
+  } else if (isSupported.value && isMobile()) {
     await share({
       title: title,
       url: url
     })
   } else {
+
     await Clipboard.write({
       string: url
     })
@@ -80,4 +81,11 @@ export async function shareImg(
       })
     }
   }
+}
+
+export function createPersonalShareLink(userID: string, connectRoute: string) {
+  let baseUrl
+  if (isNative()) baseUrl = import.meta.env.VITE_FRONTEND as string
+  else baseUrl = `${window.location.origin}`
+  return `${baseUrl}${connectRoute}?mate=${userID}`
 }

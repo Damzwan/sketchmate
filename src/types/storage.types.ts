@@ -1,13 +1,15 @@
 export enum LocalStorage {
-  user = 'user',
+  user = 'user', // this is a legacy value
+  user_id = 'user_id',
+  backend_url = 'backend_url',
   img = 'img',
   unread = 'unread',
   mate = 'mate',
   color_history = 'color_history',
-  tour1 = 'tour1',
   selectTip = 'selectTip',
   selectHint = 'selectHint',
   multiSelectHint = 'multiSelectHint',
-  doubleTap = 'doubleTapHint',
-  reviewPromptCount='reviewPromptCount'
+  reviewPromptCount='reviewPromptCount',
+  login='login',
+  emailForSignIn='emailForSignIn'
 }

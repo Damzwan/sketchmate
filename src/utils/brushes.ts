@@ -23,6 +23,7 @@ declare module 'fabric' {
       normalize(p: number): Point
     }
 
+
     interface BaseBrush {
       convertToImg: () => void
       canvas: Canvas
@@ -34,6 +35,7 @@ declare module 'fabric' {
 
     class WaterColorBrush extends PatternBrush {
       source: any
+
       constructor(canvas: Canvas)
     }
 
@@ -46,6 +48,7 @@ declare module 'fabric' {
         lineWidth: number,
         inkAmount: number
       )
+
       update: (pointer: fabric.Point, subtractPoint: fabric.Point, distance: number) => void
       draw: () => void
     }
@@ -53,7 +56,7 @@ declare module 'fabric' {
 }
 
 export function loadAdditionalBrushes() {
-  fabric.util.trimCanvas = function (canvas: HTMLCanvasElement) {
+  fabric.util.trimCanvas = function(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d', { willReadFrequently: true })!
     let w = canvas.width
     let h = canvas.height
@@ -99,7 +102,7 @@ export function loadAdditionalBrushes() {
    * @returns {(Array|undefined)} Example: [0,128,255,1]
    * @see https://gist.github.com/oriadam/396a4beaaad465ca921618f2f2444d49
    */
-  fabric.util.colorValues = function (color: string): number[] | undefined {
+  fabric.util.colorValues = function(color: string): number[] | undefined {
     if (!color) {
       return
     }
@@ -149,11 +152,11 @@ export function loadAdditionalBrushes() {
     }
   }
 
-  fabric.Point.prototype.angleBetween = function (that: fabric.Point): number {
+  fabric.Point.prototype.angleBetween = function(that: fabric.Point): number {
     return Math.atan2(this.x - that.x, this.y - that.y)
   }
 
-  fabric.Point.prototype.normalize = function (thickness?: number): fabric.Point {
+  fabric.Point.prototype.normalize = function(thickness?: number): fabric.Point {
     if (null === thickness || undefined === thickness) {
       thickness = 1
     }
@@ -172,7 +175,7 @@ export function loadAdditionalBrushes() {
    * Convert a brush drawing on the upperCanvas to an image on the fabric canvas.
    * This makes the drawing editable, it can be moved, rotated, scaled, skewed etc.
    */
-  fabric.BaseBrush.prototype.convertToImg = function (this: any): void {
+  fabric.BaseBrush.prototype.convertToImg = function(this: any): void {
     const pixelRatio = this.canvas.getRetinaScaling()
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
@@ -187,12 +190,12 @@ export function loadAdditionalBrushes() {
     this.canvas.clearContext(this.canvas.contextTop)
   }
 
-  fabric.util.getRandom = function (max: number, min?: number): number {
+  fabric.util.getRandom = function(max: number, min?: number): number {
     min = min ? min : 0
     return Math.random() * ((max ? max : 1) - min) + min
   }
 
-  fabric.util.clamp = function (n: number, max: number, min?: number): number {
+  fabric.util.clamp = function(n: number, max: number, min?: number): number {
     if (typeof min !== 'number') {
       min = 0
     }
@@ -210,7 +213,7 @@ export function loadAdditionalBrushes() {
     _lastPoint: null,
     _currentLineWidth: null,
 
-    initialize: function (
+    initialize: function(
       ctx: CanvasRenderingContext2D,
       pointer: fabric.Point,
       range: number,
@@ -236,7 +239,7 @@ export function loadAdditionalBrushes() {
       ctx.lineCap = 'round'
     },
 
-    update: function (pointer: fabric.Point, subtractPoint: fabric.Point, distance: number): void {
+    update: function(pointer: fabric.Point, subtractPoint: fabric.Point, distance: number): void {
       this._lastPoint = fabric.util.object.clone(this._point)
       this._point = this._point.addEquals({ x: subtractPoint.x, y: subtractPoint.y })
 
@@ -245,14 +248,14 @@ export function loadAdditionalBrushes() {
       this._currentLineWidth = this.lineWidth * per
     },
 
-    draw: function (): void {
+    draw: function(): void {
       const ctx = this.ctx
       ctx.save()
       this.line(ctx, this._lastPoint, this._point, this.color, this._currentLineWidth)
       ctx.restore()
     },
 
-    line: function (
+    line: function(
       ctx: CanvasRenderingContext2D,
       point1: fabric.Point,
       point2: fabric.Point,
@@ -274,7 +277,7 @@ export function loadAdditionalBrushes() {
   paperTextureImg.src = paperTexture // Path to your grayscale watercolor texture
 
   fabric.WaterColorBrush = fabric.util.createClass(fabric.PatternBrush, {
-    getPatternSrc: function () {
+    getPatternSrc: function() {
       const patternCanvas = fabric.util.createCanvasElement(),
         patternCtx = patternCanvas.getContext('2d')
 
@@ -316,10 +319,10 @@ export function loadAdditionalBrushes() {
       }
       return patternCanvas
     },
-    getPattern: function (ctx: CanvasRenderingContext2D) {
+    getPattern: function(ctx: CanvasRenderingContext2D) {
       return ctx.createPattern(this.getPatternSrc(), 'repeat')
     },
-    createPath: function (pathData: any) {
+    createPath: function(pathData: any) {
       const path = this.callSuper('createPath', pathData),
         topLeft = path._getLeftTopCoords().scalarAdd(path.strokeWidth / 2)
 
@@ -332,7 +335,7 @@ export function loadAdditionalBrushes() {
       path.opacity = opacityFromOpacityHex(this.color)
       return path
     },
-    _render: function () {
+    _render: function() {
       const ctx = this.canvas.contextTop
       let p1 = this._points[0],
         p2 = this._points[1]
@@ -357,12 +360,12 @@ export function loadAdditionalBrushes() {
       ctx.stroke()
       ctx.restore()
     },
-    drawSegment: function (ctx: CanvasRenderingContext2D, p1: Point, p2: Point) {
+    drawSegment: function(ctx: CanvasRenderingContext2D, p1: Point, p2: Point) {
       const midPoint = p1.midPointFrom(p2)
       ctx.quadraticCurveTo(p1.x, p1.y, midPoint.x, midPoint.y)
       return midPoint
     },
-    onMouseMove: function (pointer: Point, { e }: any) {
+    onMouseMove: function(pointer: Point, { e }: any) {
       pointer = new fabric.Point(pointer.x, pointer.y)
       if (!this.canvas._isMainEvent(e)) {
         return
@@ -394,7 +397,7 @@ export function loadAdditionalBrushes() {
         }
       }
     },
-    addJaggednessBetweenPoints: function (p1: Point, p2: Point) {
+    addJaggednessBetweenPoints: function(p1: Point, p2: Point) {
       const numberOfJaggedPoints = 4 // You can adjust this as per your needs
       const jaggedPoints = []
 
@@ -412,7 +415,7 @@ export function loadAdditionalBrushes() {
 
       return jaggedPoints
     },
-    _addPoint: function (point: Point) {
+    _addPoint: function(point: Point) {
       const addedPoints = []
 
       if (!(this._points.length > 1 && point.eq(this._points[this._points.length - 1]))) {

@@ -44,20 +44,20 @@
             <p class="text-lg -ml-12">Enable notifications to:</p>
             <div>
               <ul class="list-disc list-inside">
-                <li>Receive sketches from your mate</li>
+                <li>Receive sketches from your friends</li>
                 <li v-if="isNative()">Get daily reminders</li>
                 <li v-if="isNative()">Use the SketchMate widget</li>
               </ul>
             </div>
           </div>
 
-          <div class="w-full flex justify-center items-center pt-6">
+          <div class="w-full flex justify-center items-center py-3">
             <ion-icon
-              :icon="svg(localSubscription || user.subscription ? mdiBellRing : mdiBellOff)"
+              :icon="svg(deviceNotificationsAllowed ? mdiBellRing : mdiBellOff)"
               class="w-[28px] h-[28px] pr-3 fill-gray-600"
             />
             <ion-toggle
-              :checked="Boolean(localSubscription || user?.subscription)"
+              :checked="deviceNotificationsAllowed"
               @ionChange="handleNotificationChange"
               mode="ios"
               :color="'secondary'"
@@ -65,7 +65,7 @@
           </div>
         </div>
 
-        <SettingLinks class="pb-2" />
+        <SettingLinks />
       </div>
     </ion-content>
   </ion-modal>
@@ -84,9 +84,15 @@ import {
   IonToggle,
   IonToolbar
 } from '@ionic/vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useAppStore } from '@/store/app.store'
-import { blurIonInput, compressImg, isNative, setAppColors, svg } from '@/helper/general.helper'
+import {
+  blurIonInput,
+  compressImg,
+  isNative,
+  setAppColors,
+  svg
+} from '@/helper/general.helper'
 import { useAPI } from '@/service/api/api.service'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
@@ -99,13 +105,16 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import SettingLinks from '@/components/settings/SettingLinks.vue'
 import ProfilePictureSelector from '@/components/general/ProfilePictureSelector.vue'
+import { EventBus } from '@/main'
 
-const { user, localSubscription } = storeToRefs(useAppStore())
+const { user, deviceFingerprint } = storeToRefs(useAppStore())
 const api = useAPI()
 const { toast } = useToast()
 
 const name = ref(user.value!.name)
 const nameRef = ref<HTMLIonInputElement>()
+
+EventBus.on('reset-name', () => name.value = user.value!.name)
 
 defineProps({
   open: {
@@ -118,6 +127,7 @@ defineProps({
   }
 })
 const emit = defineEmits(['update:open'])
+const deviceNotificationsAllowed = computed(() => user.value?.subscriptions.some(s => s.fingerprint == deviceFingerprint.value))
 
 function close() {
   setAppColors(colorsPerRoute[router.currentRoute.value.fullPath.split('/')[1] as FRONTEND_ROUTES])
@@ -132,7 +142,6 @@ async function uploadImage(img: any) {
   const compressedImg = await compressImg(img, { size: 256 })
   const imgUrl = await api.uploadProfileImg({
     _id: user.value!._id,
-    mate_id: user.value?.mate?._id,
     img: compressedImg,
     previousImage: user.value?.img?.includes('aku') ? undefined : user.value?.img
   })
@@ -143,7 +152,6 @@ async function uploadImage(img: any) {
 function changeName() {
   api.changeUserName({
     _id: user.value!._id,
-    mate_id: user.value?.mate?._id,
     name: name.value
   })
   user.value!.name = name.value
@@ -160,9 +168,7 @@ function onNameBlur() {
 }
 
 function handleNotificationChange() {
-  if (user.value!.subscription) {
-    disableNotifications()
-  } else requestNotifications()
+  deviceNotificationsAllowed.value ? disableNotifications() : requestNotifications()
 }
 
 onBeforeRouteLeave(() => close())

@@ -1,6 +1,6 @@
 <template>
   <ion-header class="ion-no-border">
-    <ion-toolbar color="tertiary" v-if="!selectedMode">
+    <ion-toolbar color="tertiary" v-if="!selectedMode" class="shadow">
       <ion-title v-if="props.title">{{ props.title }}</ion-title>
       <ion-buttons slot="end">
         <ion-button fill="clear" @click="() => (open = true)">
@@ -11,7 +11,7 @@
       </ion-buttons>
     </ion-toolbar>
 
-    <ion-toolbar color="tertiary" v-else>
+    <ion-toolbar color="tertiary" v-else class="shadow">
       <ion-buttons slot="start">
         <ion-button @click="emits('cancel')" size="large">
           <ion-icon slot="icon-only" :icon="svg(mdiClose)" />

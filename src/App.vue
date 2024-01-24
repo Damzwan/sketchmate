@@ -1,12 +1,20 @@
 <template>
   <ion-app>
-    <CircularLoader class="z-50" v-if="!isRouterReady" />
+    <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" />
+    <ion-progress-bar type="indeterminate" class="absolute bottom-[50px] z-50 h-1.5" color="secondary"
+                      v-if="isSendingDrawing" />
+
+
+    <transition name="list">
+      <NewAccountModal v-if="user && showSettingsOnLoginModal" />
+    </transition>
 
     <UpdatePage v-if="shouldUpdateApp" class="z-50" />
     <OfflinePage
       class="z-50"
       v-if="networkStatus && !networkStatus.connected && route.path != `/${FRONTEND_ROUTES.draw}`"
     />
+    <ForceUpdateModal v-if="isNative() && showForceUpdateModal"/>
 
     <ConfirmationAlert header="Enjoying SketchMate?"
                        message="Support the solo developer behind SketchMate! Rate the app if you enjoy it."
@@ -16,8 +24,8 @@
 </template>
 
 <script setup lang="ts">
-import { IonApp, IonRouterOutlet, useBackButton, useIonRouter } from '@ionic/vue'
-import { onMounted, ref } from 'vue'
+import { IonApp, IonProgressBar, IonRouterOutlet, useBackButton, useIonRouter } from '@ionic/vue'
+import { onMounted, ref, watch } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
 import router from '@/router'
@@ -35,13 +43,24 @@ import { LocalStorage } from '@/types/storage.types'
 import { Preferences } from '@capacitor/preferences'
 import { AppUpdate } from '@capawesome/capacitor-app-update'
 import UpdatePage from '@/components/general/UpdatePage.vue'
+import NewAccountModal from '@/components/general/NewAccountModal.vue'
+import ForceUpdateModal from '@/components/general/ForceUpdateModal.vue'
 
 const ionRouter = useIonRouter()
-const { networkStatus, userDeletedError, reviewAppAlertOpen } = storeToRefs(useAppStore())
+const {
+  networkStatus,
+  reviewAppAlertOpen,
+  user,
+  showSettingsOnLoginModal,
+  isSendingDrawing,
+  isAuthLoading,
+  showForceUpdateModal
+} = storeToRefs(useAppStore())
 const route = useRoute()
 const { isOpen, dismiss } = useToast()
 const shouldUpdateApp = ref(false)
 if (isNative()) AppUpdate.getAppUpdateInfo().then(res => shouldUpdateApp.value = res.availableVersion == '98')
+
 
 function openPlayStoreLink() {
   window.open(app_store_link)
@@ -52,8 +71,13 @@ function openPlayStoreLink() {
 const isRouterReady = ref(false)
 router.isReady().then(() => {
   isRouterReady.value = true
-  if (isNative()) hideLoading()
 })
+
+if (isNative()) {
+  watch([isAuthLoading, isRouterReady], () => {
+    if (!isAuthLoading.value && isRouterReady.value) hideLoading()
+  })
+}
 
 onMounted(async () => {
   // this timeout is necessary to avoid flickering in the beginning (should not be there)
@@ -85,5 +109,16 @@ if (!isNative()) {
 <style lang="scss">
 ion-content {
   --background: var(--ion-color-background);
+}
+
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.5s ease;
+}
+
+.list-enter-from,
+.list-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
 }
 </style>

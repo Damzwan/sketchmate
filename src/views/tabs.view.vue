@@ -11,33 +11,33 @@
       :position="position"
     ></ion-toast>
     <FullScreenLoader v-show="notificationRouteLoading" class="z-50" />
-    <ion-tabs>
-      <ion-router-outlet :animation="routerAnimation" />
-      <ion-tab-bar slot="bottom" v-if="show" mode="ios">
-        <ion-tab-button :tab="FRONTEND_ROUTES.draw" :href="`/${FRONTEND_ROUTES.draw}`" @click="onDrawClick">
-          <ion-icon :icon="pencil" />
-          <ion-label>Draw</ion-label>
-        </ion-tab-button>
+      <ion-tabs>
+        <ion-router-outlet :animation="routerAnimation" />
+         <ion-tab-bar slot="bottom" v-if="show" mode="ios" class="relative">
+           <ion-tab-button :tab="FRONTEND_ROUTES.draw" :href="`/${FRONTEND_ROUTES.draw}`" @click="onDrawClick">
+             <ion-icon :icon="pencil" />
+             <ion-label>Draw</ion-label>
+           </ion-tab-button>
 
-        <ion-tab-button
-          :tab="FRONTEND_ROUTES.gallery"
-          :href="`/${FRONTEND_ROUTES.gallery}`"
-          @click="r.push(FRONTEND_ROUTES.gallery, routerAnimation)"
-        >
-          <ion-icon :icon="imagesOutline" />
-          <ion-label>Gallery</ion-label>
-        </ion-tab-button>
+           <ion-tab-button
+             :tab="FRONTEND_ROUTES.gallery"
+             :href="`/${FRONTEND_ROUTES.gallery}`"
+             @click="r.push(FRONTEND_ROUTES.gallery, routerAnimation)"
+           >
+             <ion-icon :icon="imagesOutline" />
+             <ion-label>Gallery</ion-label>
+           </ion-tab-button>
 
-        <ion-tab-button
-          :tab="FRONTEND_ROUTES.mate"
-          :href="`/${FRONTEND_ROUTES.mate}`"
-          @click="r.push(FRONTEND_ROUTES.mate, routerAnimation)"
-        >
-          <ion-icon :icon="peopleCircleOutline" />
-          <ion-label>My Mate</ion-label>
-        </ion-tab-button>
-      </ion-tab-bar>
-    </ion-tabs>
+           <ion-tab-button
+             :tab="FRONTEND_ROUTES.connect"
+             :href="`/${FRONTEND_ROUTES.connect}`"
+             @click="r.push(FRONTEND_ROUTES.connect, routerAnimation)"
+           >
+             <ion-icon :icon="peopleCircleOutline" />
+             <ion-label>Connect</ion-label>
+           </ion-tab-button>
+         </ion-tab-bar>
+      </ion-tabs>
   </ion-page>
 </template>
 
@@ -77,7 +77,7 @@ useSwipe(toast, {
 const { notificationRouteLoading } = storeToRefs(useAppStore())
 
 const route = useRoute()
-const show = computed(() => route.path != `/${FRONTEND_ROUTES.connect}` && !route.query.trial)
+const show = computed(() => route.path != `/${FRONTEND_ROUTES.login}` && !route.fullPath.includes('capacitor')) // capacitor due to redirect login url
 
 async function onDrawClick() {
   if (route.path == `/${FRONTEND_ROUTES.draw}`) {

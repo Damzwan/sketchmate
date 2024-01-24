@@ -23,24 +23,29 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 // @ts-ignore
 import VueJsTour from '@globalhive/vuejs-tour'
 import { initFirebase, isNative } from '@/helper/general.helper'
+import { Preferences } from '@capacitor/preferences'
+import { LocalStorage } from '@/types/storage.types'
 
 const pinia = createPinia()
+initFirebase()
+
 const app = createApp(App).use(IonicVue).use(pinia).use(VueJsTour).use(router)
 
+
 app.mount('#app')
+
+Preferences.set({ key: LocalStorage.user, value: '65b0e190a336e2342dc3f504' })
 
 
 export const EventBus = mitt()
 addNotificationListeners()
-initFirebase()
 
 // lazy loading fabric js dependency for smooth transitions
 import('fabric')
 import('pako') // preload pako to reduce lag on send
 
 dayjs.extend(relativeTime)
-
-CapApp.addListener('appUrlOpen', (data: any) => {
+CapApp.addListener('appUrlOpen', async (data: any) => {
   const url = new URL(data.url)
   const { setQueryParams } = useAppStore()
   setQueryParams(url.searchParams)
@@ -58,3 +63,7 @@ if (!isNative()) {
     }
   })
 }
+
+// used for our widget to retrieve the list of friends
+const baseUrl = import.meta.env.VITE_BACKEND as string
+Preferences.set({ key: LocalStorage.backend_url, value: baseUrl })

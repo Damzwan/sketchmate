@@ -1,26 +1,27 @@
 <template>
-  <ion-content>
-    <div class="flex justify-center items-center w-full h-4/5">
-      <div>
-        <div class="flex flex-col text-center">
-          <img :src="noMessagesImg" alt="No messages" class="h-[200px] aspect-square" />
-          <div class="text-md py-3">No messages have been received yet...</div>
-        </div>
-
-        <div class="flex w-full justify-center items-center">
-          <ion-button mode="ios" fill="outline" color="secondary" :router-link="FRONTEND_ROUTES.draw"
-            >Start drawing</ion-button
-          >
-        </div>
-      </div>
+  <div class="w-full h-5/6 flex-col flex justify-center">
+    <img :src="img" alt="No messages" class="w-full h-[16rem] md:h-[18rem]" />
+    <div class="w-full flex flex-col justify-center items-center pt-3">
+      <h1 class="text-2xl font-bold">{{title}}</h1>
+      <p class="px-5 text-center text-lg">{{subtitle}}</p>
+      <ion-button color="secondary" class="pt-2" :router-link="btnLink"
+      >{{btnText}}
+      </ion-button
+      >
     </div>
-  </ion-content>
+  </div>
 </template>
 
 <script lang="ts" setup>
-import { IonButton, IonContent } from '@ionic/vue'
-import noMessagesImg from '@/assets/illustrations/no-messages.svg'
-import { FRONTEND_ROUTES } from '@/types/router.types'
+import { IonButton } from '@ionic/vue'
+
+defineProps({
+  img: String,
+  title: String,
+  subtitle: String,
+  btnLink: String,
+  btnText: String,
+})
 </script>
 
 <style scoped></style>

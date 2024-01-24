@@ -1,25 +1,41 @@
 // Utilities
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { CommentRes, CreateUserParams, InboxItem, NotificationType, User } from '@/types/server.types'
+import { CommentRes, InboxItem, Mate, NotificationSubscription, NotificationType, User } from '@/types/server.types'
 import { useSocketService } from '@/service/api/socket.service'
 import { useAPI } from '@/service/api/api.service'
 import { LocalStorage } from '@/types/storage.types'
 import { Preferences } from '@capacitor/preferences'
-import { checkPreferenceConsistency, isNative } from '@/helper/general.helper'
+import { compareVersions, generateDeviceFingerprint, getCurrentAuthUser, isNative } from '@/helper/general.helper'
 import { Keyboard } from '@capacitor/keyboard'
 import { useToast } from '@/service/toast.service'
 import { ConnectionStatus, Network } from '@capacitor/network'
+import router from '@/router'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { viewCommentButton } from '@/config/toast.config'
+import { ToastDuration } from '@/types/toast.types'
+import { Device } from '@capacitor/device'
+import { useIonRouter } from '@ionic/vue'
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
+import { routerAnimation } from '@/helper/animation.helper'
+
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
   const inbox = ref<InboxItem[]>()
+  const inboxUsers = ref<Mate[]>([])
 
   const isLoggedIn = ref(false)
   const isLoading = ref(false)
+  const friendRequestLoading = ref(false)
+  const friendRequestUsers = ref<Mate[]>([])
+
+  const isSendingDrawing = ref(false)
+  const showForceUpdateModal = ref(false)
+
+
   const notificationRouteLoading = ref<NotificationType>()
   const reviewAppAlertOpen = ref(false)
-  const showUpdateAppPrompt = ref(false)
 
   const unreadMsg = localStorage.getItem(LocalStorage.unread)
   const unreadMessages = ref(unreadMsg ? parseInt(unreadMsg) : 0)
@@ -27,22 +43,46 @@ export const useAppStore = defineStore('app', () => {
   const api = useAPI()
 
   const queryParams = ref<URLSearchParams>()
+  const isNewAccount = ref(false)
+  const showSettingsOnLoginModal = ref(false)
 
   // used to show assets even though we are not logged in yet
   const localSubscription = ref<string>()
-  const localUserId = ref<string>('')
   const localUserImg = ref<string | null>(null)
 
   const keyboardHeight = ref(0)
   const installPrompt = ref<any>()
   const userDeletedError = ref(false)
 
+  const ionRouter = useIonRouter()
+
   const networkStatus = ref<ConnectionStatus>()
   const updateSlide = ref(false)
+  const deviceFingerprint = ref<string>()
+  const isAuthLoading = ref(true)
+  generateDeviceFingerprint().then(fingerprint => deviceFingerprint.value = fingerprint)
+
+
+  FirebaseAuthentication.addListener('authStateChange', async (status) => {
+    isAuthLoading.value = false
+    if (!status.user) await router.replace(`/${FRONTEND_ROUTES.login}`)
+    else {
+      const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
+      if (justLoggedIn.value) {
+        isAuthLoading.value = true
+        const user = await login()
+        if (user!.mates.length == 0) ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
+        else ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+      } else {
+        if (router.currentRoute.value.path == `/${FRONTEND_ROUTES.login}`) ionRouter.replace(`/${FRONTEND_ROUTES.draw}`, routerAnimation)
+        await login()
+      }
+    }
+  })
+
 
   if (isNative()) Keyboard.addListener('keyboardWillShow', info => (keyboardHeight.value = info.keyboardHeight))
 
-  Preferences.get({ key: LocalStorage.user }).then(res => (localUserId.value = res.value ? res.value : ''))
   Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value!))
 
   Network.addListener('networkStatusChange', status => {
@@ -53,37 +93,51 @@ export const useAppStore = defineStore('app', () => {
 
   async function login() {
     try {
-      const { value: user_id } = await Preferences.get({ key: LocalStorage.user })
-      if (!user_id) return
-
       const socketService = useSocketService()
+      socketService.connect()
 
-      // combine
-      const [userValue] = await Promise.all([api.getUser({ _id: user_id }), socketService.login({ _id: user_id })])
+      const { value: user_id } = await Preferences.get({ key: LocalStorage.user }) // we need this to sync older accounts :(
+      const authUser = await getCurrentAuthUser()
+      if (!authUser) return
 
-      user.value = userValue as User
-      checkPreferenceConsistency(user.value!)
 
+      const userValue = await api.getUser({ _id: user_id as string | undefined, auth_id: authUser.uid })
+      if (!userValue) throw new Error()
+
+      if (isNative() && compareVersions(__APP_VERSION__, userValue.minimum_supported_version) == -1) {
+        showForceUpdateModal.value = true
+        return
+      }
+
+      user.value = userValue.user as User
+
+      Preferences.get({ key: LocalStorage.login }).then(res => {
+        if (!res.value) return
+        api.onLoginEvent({ user_id: user.value!._id, fingerprint: deviceFingerprint.value!, loggedIn: true })
+        if (isNewAccount.value || !user.value!.subscriptions.some(s => s.fingerprint == deviceFingerprint.value)) showSettingsOnLoginModal.value = true
+
+        Preferences.remove({ key: LocalStorage.login })
+        isAuthLoading.value = false
+      })
+      isNewAccount.value = userValue.new_account
+
+      socketService.login({ _id: user.value!._id })
       isLoggedIn.value = true
 
-      const reviewPromptCount = await Preferences.get({ key: LocalStorage.reviewPromptCount })
-      if (!reviewPromptCount.value) Preferences.set({ key: LocalStorage.reviewPromptCount, value: '2' })
+      Preferences.set({ key: LocalStorage.img, value: user.value!.img })
+      Preferences.set({ key: LocalStorage.user_id, value: user.value!._id })
+
+      Preferences.get({ key: LocalStorage.reviewPromptCount }).then((reviewPromptCount) => {
+        if (!reviewPromptCount.value) Preferences.set({ key: LocalStorage.reviewPromptCount, value: '2' })
+      })
+
+
+      return user.value
     } catch (e) {
       console.log(e)
     }
   }
 
-  async function createUser(userData: CreateUserParams) {
-    try {
-      user.value = await api.createUser(userData)
-
-      const socketService = useSocketService()
-      await socketService.login({ _id: user.value!._id })
-      isLoggedIn.value = true
-    } catch (e) {
-      console.log(e)
-    }
-  }
 
   async function getInbox() {
     try {
@@ -95,7 +149,8 @@ export const useAppStore = defineStore('app', () => {
         _ids: user.value!.inbox
       })
       if (!retrievedInbox) throw new Error()
-      inbox.value = retrievedInbox
+      inbox.value = retrievedInbox.inboxItems
+      inboxUsers.value = [...inboxUsers.value, ...retrievedInbox.userInfo]
     } catch (e) {
       console.log(e)
     }
@@ -103,20 +158,34 @@ export const useAppStore = defineStore('app', () => {
 
   async function refresh(e?: any) {
     const { value: user_id } = await Preferences.get({ key: LocalStorage.user })
-    if (!user_id) return
-    user.value = await api.getUser({ _id: user_id })
-    checkPreferenceConsistency(user.value!)
+    const authUser = await getCurrentAuthUser()
+    if (!authUser) return
+    user.value = (await api.getUser({ _id: user_id as string | undefined, auth_id: authUser.uid }))!.user
     await getInbox()
     if (e) e.target.complete()
   }
 
   async function setNotifications(token: string | undefined) {
     localSubscription.value = token
+    const fingerprint = await generateDeviceFingerprint()
 
     if (!user.value) return
-    if (!token) await api.unsubscribe({ _id: user.value!._id })
-    else if (token) await api.subscribe({ _id: user.value!._id, subscription: token })
-    user.value!.subscription = token
+    if (!token) {
+      user.value!.subscriptions = user.value!.subscriptions.filter(s => s.fingerprint != fingerprint)
+      await api.unsubscribe({ user_id: user.value!._id, fingerprint: fingerprint })
+    } else if (token) {
+      const info = await Device.getInfo()
+      const subscription: NotificationSubscription = {
+        token: token,
+        fingerprint: fingerprint,
+        model: info.model,
+        platform: info.platform,
+        os: info.operatingSystem,
+        logged_in: true
+      }
+      user.value!.subscriptions.push(subscription)
+      await api.subscribe({ user_id: user.value!._id, subscription })
+    }
   }
 
   function addComment(commentRes: CommentRes) {
@@ -124,9 +193,17 @@ export const useAppStore = defineStore('app', () => {
     const index = inbox.value!.findIndex(inboxItem => inboxItem._id === commentRes.inbox_item_id)
     if (index == -1) return
     inbox.value![index].comments.push(commentRes.comment)
-    inbox.value![index].comments_seen_by = [
-      commentRes.comment.sender == user.value!._id ? user.value!._id : user.value!.mate!._id
-    ]
+    inbox.value![index].comments_seen_by = [user.value!._id]
+
+    if (commentRes.comment.sender == user.value!._id) return
+    const sender = findUserInInboxUsers(commentRes.comment.sender)
+    if (!sender) return
+
+    const { toast } = useToast()
+    toast(`${sender.name} commented on a drawing`, {
+      buttons: [viewCommentButton(commentRes.inbox_item_id)],
+      duration: ToastDuration.medium
+    })
   }
 
   function setNotificationLoading(type: NotificationType) {
@@ -142,6 +219,20 @@ export const useAppStore = defineStore('app', () => {
     queryParams.value = params
   }
 
+  function findUserInInboxUsers(user_id: string): Mate | undefined {
+    return inboxUsers.value.find(u => u._id == user_id)
+  }
+
+  async function retrieveFriendRequestUsers() {
+    if (!user.value) return
+    friendRequestUsers.value = friendRequestUsers.value.concat((await api.getPartialUsers({ _ids: user.value.mate_requests_received.concat(user.value.mate_requests_sent) }))!)
+  }
+
+  function findUserInFriendRequestUsers(user_id: string): Mate | undefined {
+    return friendRequestUsers.value.find(u => u._id == user_id)
+  }
+
+  // TODO we should remove this logic i think (should check)
   watch(notificationRouteLoading, () => {
     if (notificationRouteLoading.value)
       setTimeout(() => {
@@ -152,6 +243,15 @@ export const useAppStore = defineStore('app', () => {
         }
       }, 4000)
   })
+
+  function logout() {
+    isLoggedIn.value = false
+    api.onLoginEvent({ user_id: user.value!._id, fingerprint: deviceFingerprint.value!, loggedIn: false })
+
+    FirebaseAuthentication.signOut()
+    Preferences.remove({ key: LocalStorage.user_id })
+    router.replace(`/${FRONTEND_ROUTES.login}`)
+  }
 
   return {
     user,
@@ -168,9 +268,7 @@ export const useAppStore = defineStore('app', () => {
     consumeNotificationLoading,
     queryParams,
     setQueryParams,
-    createUser,
     localSubscription,
-    localUserId,
     localUserImg,
     keyboardHeight,
     refresh,
@@ -178,6 +276,19 @@ export const useAppStore = defineStore('app', () => {
     networkStatus,
     userDeletedError,
     updateSlide,
-    reviewAppAlertOpen
+    reviewAppAlertOpen,
+    friendRequestLoading,
+    inboxUsers,
+    findUserInInboxUsers,
+    friendRequestUsers,
+    retrieveFriendRequestUsers,
+    findUserInFriendRequestUsers,
+    deviceFingerprint,
+    isNewAccount,
+    showSettingsOnLoginModal,
+    isSendingDrawing,
+    isAuthLoading,
+    logout,
+    showForceUpdateModal
   }
 })

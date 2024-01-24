@@ -272,7 +272,9 @@ function initSwiper(e: any) {
 
 function onContinueButtonPress() {
   if (swiper.value?.activeIndex === swiper.value!.slides.length - 1) {
-    setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
+    const { user } = useAppStore()
+    if (user!.mates.length > 0) setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
+    else setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
     showSettingsOnLoginModal.value = false
   } else nextSlide()
 }

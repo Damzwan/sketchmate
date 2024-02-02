@@ -5,6 +5,7 @@ import { Directory, Filesystem } from '@capacitor/filesystem'
 import { isPlatform } from '@ionic/vue'
 import { useShare } from '@vueuse/core'
 import { isMobile, isNative } from '@/helper/general.helper'
+import { ToastDuration } from '@/types/toast.types'
 
 const { toast } = useToast()
 const { share, isSupported } = useShare()
@@ -27,7 +28,7 @@ export async function shareUrl(url: string, title = '', dialogTitle = '') {
     await Clipboard.write({
       string: url
     })
-    toast('Copied url!')
+    toast('Copied personal link. Share this with a friend to connect', {duration: ToastDuration.medium})
   }
 }
 

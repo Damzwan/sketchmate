@@ -11,7 +11,7 @@
           <div class="w-full flex flex-col justify-center items-center">
             <h1 class="text-2xl md:text-3xl font-bold">Welcome to SketchMate</h1>
 
-            <p class="px-5 text-center text-lg md:text-xl">Sketch your day, share with your friends</p>
+            <p class="px-5 text-center text-lg md:text-xl pb-2">Sketch your day, share with your friends</p>
             <ion-popover trigger="sign_phone" side="top" alignment="center" mode="md" @didDismiss="onDismiss"
                          :keep-contents-mounted="true">
               <div class="w-full h-full flex justify-center items-center z-50 bg-background absolute"

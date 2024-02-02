@@ -96,12 +96,11 @@ export const useAppStore = defineStore('app', () => {
       const socketService = useSocketService()
       socketService.connect()
 
-      const { value: user_id } = await Preferences.get({ key: LocalStorage.user }) // we need this to sync older accounts :(
       const authUser = await getCurrentAuthUser()
       if (!authUser) return
 
 
-      const userValue = await api.getUser({ _id: user_id as string | undefined, auth_id: authUser.uid })
+      const userValue = await api.getUser({ auth_id: authUser.uid })
       if (!userValue) throw new Error()
 
       if (isNative() && compareVersions(__APP_VERSION__, userValue.minimum_supported_version) == -1) {
@@ -157,10 +156,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function refresh(e?: any) {
-    const { value: user_id } = await Preferences.get({ key: LocalStorage.user })
     const authUser = await getCurrentAuthUser()
     if (!authUser) return
-    user.value = (await api.getUser({ _id: user_id as string | undefined, auth_id: authUser.uid }))!.user
+    user.value = (await api.getUser({ auth_id: authUser.uid }))!.user
     await getInbox()
     if (e) e.target.complete()
   }

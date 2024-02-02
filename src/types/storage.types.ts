@@ -1,5 +1,4 @@
 export enum LocalStorage {
-  user = 'user', // this is a legacy value
   user_id = 'user_id',
   backend_url = 'backend_url',
   img = 'img',

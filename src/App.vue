@@ -9,7 +9,6 @@
       <NewAccountModal v-if="user && showSettingsOnLoginModal" />
     </transition>
 
-    <UpdatePage v-if="shouldUpdateApp" class="z-50" />
     <OfflinePage
       class="z-50"
       v-if="networkStatus && !networkStatus.connected && route.path != `/${FRONTEND_ROUTES.draw}`"
@@ -41,8 +40,6 @@ import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import { app_store_link } from '@/config/general.config'
 import { LocalStorage } from '@/types/storage.types'
 import { Preferences } from '@capacitor/preferences'
-import { AppUpdate } from '@capawesome/capacitor-app-update'
-import UpdatePage from '@/components/general/UpdatePage.vue'
 import NewAccountModal from '@/components/general/NewAccountModal.vue'
 import ForceUpdateModal from '@/components/general/ForceUpdateModal.vue'
 
@@ -58,8 +55,6 @@ const {
 } = storeToRefs(useAppStore())
 const route = useRoute()
 const { isOpen, dismiss } = useToast()
-const shouldUpdateApp = ref(false)
-if (isNative()) AppUpdate.getAppUpdateInfo().then(res => shouldUpdateApp.value = res.availableVersion == '98')
 
 
 function openPlayStoreLink() {

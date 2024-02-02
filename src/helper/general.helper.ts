@@ -47,6 +47,7 @@ export async function compressImg(file: File | Blob | string, options?: Compress
     file = await fetch(file).then(res => res.blob())
   }
 
+
   return new Promise((resolve, reject) => {
     new Compressor(file as Blob | File, {
       quality: o.quality,

@@ -28,7 +28,8 @@
           </ion-button>
 
           <button class="flex -space-x-6" @click="isFollowerDrawerOpen=true">
-            <img :src="senderImg(findUserInInboxUsers(follower))" v-for="(follower, i) in currInboxItem.followers.slice(0, badgesCountToShow)"
+            <img :src="senderImg(findUserInInboxUsers(follower))"
+                 v-for="(follower, i) in [...currInboxItem.followers].reverse().slice(0, badgesCountToShow)"
                  :key="follower"
                  :alt="follower" class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px]"
                  :style="{'zIndex':  i}">

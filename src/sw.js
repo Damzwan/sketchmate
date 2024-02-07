@@ -28,7 +28,7 @@ self.addEventListener('notificationclick', function (event) {
   const payload = event.notification.data
   if (payload.type === 'message' || payload.type === 'comment')
     toGallery(event, payload.inbox_id, payload.type === 'comment')
-  else if (payload.type === 'match' || payload.type === 'unmatched') toConnect(event)
+  else if (payload.type === 'match' || payload.type === 'unmatched' || payload.type === "friend_request") toConnect(event)
   else toDraw()
 })
 

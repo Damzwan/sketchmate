@@ -57,6 +57,7 @@ export async function PWARequestNotifications() {
     console.log(e)
   }
 }
+
 export async function disableNotifications() {
   if (isNative()) await disableLocalNotifications()
   const { setNotifications } = useAppStore()
@@ -68,7 +69,7 @@ async function requestLocalNotifications() {
 
   // Wait for a short delay to ensure cancellation is complete
   // TODO should not be necessary
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  await new Promise((resolve) => setTimeout(resolve, 200))
 
   await LocalNotifications.schedule({
     notifications: [
@@ -112,26 +113,33 @@ export async function addNotificationListeners() {
       })
     })
 
-    await PushNotifications.addListener('pushNotificationActionPerformed', notification => {
+    await PushNotifications.addListener('pushNotificationActionPerformed', async (notification) => {
       const notificationType: NotificationType = notification.notification.data.type
       const { setNotificationLoading } = useAppStore()
       setNotificationLoading(notificationType)
-      if (notificationType === NotificationType.match) router.push(FRONTEND_ROUTES.mate)
-      else if (notificationType === NotificationType.unmatch) router.push(FRONTEND_ROUTES.connect)
-      if (notificationType === NotificationType.message) {
-        router.push({
+
+      await router.isReady()
+
+      if (notificationType === NotificationType.match) await router.push(FRONTEND_ROUTES.connect)
+      else if (notificationType === NotificationType.unmatch) await router.push(FRONTEND_ROUTES.connect)
+      else if (notificationType === NotificationType.message) {
+        await router.push({
           path: FRONTEND_ROUTES.gallery,
           query: {
             item: notification.notification.data.inbox_id
           }
         })
       } else if (notificationType === NotificationType.comment)
-        router.push({
+        await router.push({
           path: FRONTEND_ROUTES.gallery,
           query: {
             item: notification.notification.data.inbox_id,
             comments: 'true'
           }
+        })
+      else if (notificationType === NotificationType.friend_request)
+        await router.push({
+          path: FRONTEND_ROUTES.connect
         })
     })
 
@@ -141,7 +149,7 @@ export async function addNotificationListeners() {
     })
   } else {
     const channel = new BroadcastChannel('pwa_sw')
-    channel.onmessage = function (event) {
+    channel.onmessage = function(event) {
       const data = event.data
       router.push({ path: data.path, query: data.query })
     }

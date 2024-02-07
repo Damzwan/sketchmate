@@ -3,8 +3,9 @@
     <div class="px-2 py-1" v-if="showOpacity && color">
       <label for="slider">Opacity: {{ alphaHexToPercent(opacityHex) }}</label>
       <ion-range aria-label="Volume" id="slider" :value="alphaHexToPercent(opacityHex)"
-        @ionChange="(e: any) => emit('update:color', hexWithOpacity(c, percentToAlphaHex(e.target.value)))" min="0"
-        max="100" color="secondary" />
+                 @ionChange="(e: any) => emit('update:color', hexWithOpacity(c, percentToAlphaHex(e.target.value)))"
+                 min="0"
+                 max="100" color="secondary" />
     </div>
     <div class="py-1 px-2">
       <label for="color-picker" class="!flex justify-between items-center">
@@ -15,15 +16,15 @@
       <div class="mt-1">
         <div v-for="(row, rowIndex) in COLORSWATCHES" :key="'row-' + rowIndex" class="flex justify-between mb-2">
           <div v-for="(color, colorIndex) in row" :key="'color-' + colorIndex"
-            :class="{ brush_selected: props.color == hexWithOpacity(color, opacityHex) }"
-            :style="{ backgroundColor: hexWithOpacity(color, opacityHex) }" class="color_swatch"
-            @click="emit('update:color', hexWithOpacity(color, opacityHex))" />
+               :class="{ brush_selected: props.color == hexWithOpacity(color, opacityHex) }"
+               :style="{ backgroundColor: hexWithOpacity(color, opacityHex) }" class="color_swatch"
+               @click="emit('update:color', hexWithOpacity(color, opacityHex))" />
         </div>
         <div class="flex mb-2 justify-between" v-if="colorHistory.length > 0">
           <div v-for="(color, colorIndex) in colorHistory" :key="'color_history-' + colorIndex"
-            :class="{ brush_selected: props.color == hexWithOpacity(color, opacityHex) }"
-            :style="{ backgroundColor: hexWithOpacity(color, opacityHex) }" class="color_swatch"
-            @click="emit('update:color', hexWithOpacity(color, opacityHex))" />
+               :class="{ brush_selected: props.color == hexWithOpacity(color, opacityHex) }"
+               :style="{ backgroundColor: hexWithOpacity(color, opacityHex) }" class="color_swatch"
+               @click="emit('update:color', hexWithOpacity(color, opacityHex))" />
 
           <div v-for="i in emptySpaces" :key="'empty-' + i" class="color_swatch" />
         </div>
@@ -34,9 +35,9 @@
       <label for="color-picker">Color recommendations</label>
       <div class="mt-1">
         <div v-for="(row, rowIndex) in getColorRecommendations(c)" :key="'row-' + rowIndex"
-          class="flex justify-between mb-2">
+             class="flex justify-between mb-2">
           <div v-for="(color, colorIndex) in row" :key="'color-' + colorIndex" :style="{ backgroundColor: color }"
-            class="color_swatch" @click="onCustomColorSelected(color)" />
+               class="color_swatch" @click="onCustomColorSelected(color)" />
         </div>
       </div>
     </div>
@@ -44,11 +45,12 @@
     <ion-item color="tertiary" class="px-2" :button="true" :id="customColorPopoverId">
       <div class="color_swatch" :style="{ backgroundColor: color }" />
       <p class="pl-3 text-base">Choose color</p>
-      <input type="color" :value="props.color" @change="e => onCustomColorSelected(e.target.value)" ref="brushColorPicker"
-        class="hidden" />
+      <input type="color" :value="props.color" @change="e => onCustomColorSelected(e.target.value)"
+             ref="brushColorPicker"
+             class="hidden" />
     </ion-item>
 
-    <ion-popover :trigger="customColorPopoverId" :keep-contents-mounted="true" side="top">
+    <ion-popover :trigger="customColorPopoverId" :keep-contents-mounted="true" side="top" @willPresent="() => onCustomColorSelected(picker.color.hex)">
       <div ref="customColorParent" class="bg-primary"></div>
     </ion-popover>
   </div>
@@ -77,24 +79,29 @@ import { storeToRefs } from 'pinia'
 import { svg } from '@/helper/general.helper'
 import { mdiEyedropper } from '@mdi/js'
 import { v4 as uuidv4 } from 'uuid'
-import Picker from 'vanilla-picker';
+import Picker from 'vanilla-picker'
 
 const hmm = ref() // TODO hack to only close top popover
 const customColorPopoverId = uuidv4()
 const customColorParent = ref()
 const colorHistory = ref<string[]>([])
 const emptySpaces = computed(() => 6 - colorHistory.value.length)
+let picker: any
 
 getSavedColorHistory()
 
 onMounted(() => {
-  const picker = new Picker({
-    parent: customColorParent.value, popup: false, alpha: false, editor: false, color: props.color, onDone: async (c) => {
+  picker = new Picker({
+    parent: customColorParent.value,
+    popup: false,
+    alpha: false,
+    editor: false,
+    color: props.color,
+    onDone: async (c) => {
       onCustomColorSelected(c.hex)
-      const popover = await popoverController.getTop()
-      hmm.value.click()
+      hmm.value.click() // hack to close current popover
     }
-  });
+  })
 })
 
 const props = defineProps<{
@@ -213,16 +220,16 @@ ion-item {
 </style>
 
 <style>
-.picker_wrapper{
+.picker_wrapper {
   background: var(--ion-color-tertiary) !important;
 }
 
 
-.picker_selector{
+.picker_selector {
   border: 2px solid var(--ion-color-primary) !important;
 }
 
-.picker_done button{
+.picker_done button {
   background-image: none !important;
   @apply bg-primary rounded-md hover:bg-primary-shade !important
 }

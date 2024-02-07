@@ -3,10 +3,10 @@
     <ion-content>
 
       <CircularLoader v-if="loading" class="z-50" />
-      <div class="w-full h-full" v-else>
+      <div class="w-full h-full justify-center items-center flex" v-else>
         <img :src="blob1" class="absolute right-[-126px] top-[-135px]" alt="Girl drawing" width="400" />
 
-        <div class="w-full flex-col flex justify-center absolute bottom-48 login-container">
+        <div class="w-full flex-col flex justify-center">
           <img :src="girlDrawing" class="w-full md:h-[26rem] sm:h-[24rem]" alt="Girl drawing" />
           <div class="w-full flex flex-col justify-center items-center">
             <h1 class="text-2xl md:text-3xl font-bold">Welcome to SketchMate</h1>
@@ -168,7 +168,7 @@ import {
   IonSpinner,
   popoverController
 } from '@ionic/vue'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import CircularLoader from '@/components/loaders/CircularLoader.vue'
 import girlDrawing from '@/assets/illustrations/girl_drawing.svg'
 import blob1 from '@/assets/illustrations/blob1.svg'
@@ -182,8 +182,6 @@ import { mdiEmail, mdiSend } from '@mdi/js'
 import google from '@/assets/google.svg'
 import { email, minLength, required, sameAs } from '@vuelidate/validators'
 import { useVuelidate } from '@vuelidate/core'
-import { storeToRefs } from 'pinia'
-import { useAppStore } from '@/store/app.store'
 
 const { toast } = useToast()
 
@@ -215,13 +213,7 @@ const isLoginInValid = computed(() => v$.value.loginEmail.$invalid || v$.value.p
 const isForgetPasswordInvalid = computed(() => v$.value.loginEmail.$invalid)
 const isRegisterInvalid = computed(() => v$.value.loginEmail.$invalid || v$.value.password.$invalid || v$.value.confirmPassword.$invalid)
 const isRegistering = ref(false)
-const { queryParams } = storeToRefs(useAppStore())
 
-
-watch(queryParams, value => {
-  if (value) checkQueryParams()
-})
-onMounted(checkQueryParams)
 
 // reset the error messages
 watch([isRegistering, forgotPassword], () => {
@@ -229,29 +221,6 @@ watch([isRegistering, forgotPassword], () => {
   loginErrorMsg.value = ''
 })
 
-
-async function checkQueryParams() {
-  const emailLink = window.location.href
-  const { isSignInWithEmailLink } =
-    await FirebaseAuthentication.isSignInWithEmailLink({
-      emailLink
-    })
-
-  if (!isSignInWithEmailLink) {
-    return
-  }
-
-  const mail = await Preferences.get({ key: LocalStorage.emailForSignIn })
-  if (!mail.value) return
-
-
-  const result = await FirebaseAuthentication.signInWithEmailLink({
-    email: mail.value,
-    emailLink
-  })
-
-  await onLoginResult(result)
-}
 
 function onFormSubmit() {
   forgotPassword.value ? onPasswordForget() : onEmailLoginSubmit()

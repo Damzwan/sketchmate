@@ -91,12 +91,13 @@ export function createSocketService(): SocketAPI {
     })
 
     socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {
+      console.log("received")
       isLoading.value = false
       if (params) {
         const { updateSlide, reviewAppAlertOpen, inboxUsers } = storeToRefs(useAppStore())
 
         if (params.sender === user.value?._id) {
-          const {isSendingDrawing} = storeToRefs(useAppStore())
+          const { isSendingDrawing } = storeToRefs(useAppStore())
           isSendingDrawing.value = false
           const inboxCount = user.value.inbox.length + 1
           Preferences.get({ key: LocalStorage.reviewPromptCount }).then(reviewPromptCount => {
@@ -114,8 +115,8 @@ export function createSocketService(): SocketAPI {
         }
 
         updateSlide.value = true
-        user.value?.inbox.push(params._id)
-        inbox.value?.push(params)
+        user.value!.inbox = [...user.value!.inbox, params._id]
+        inbox.value = [...(inbox.value ? inbox.value : []), params]
 
         const followersNotInInboxUsers = params.original_followers.reduce((acc: string[], curr) => !inboxUsers.value.some(m => m._id == curr) ? [...acc, curr] : acc, [])
         if (followersNotInInboxUsers.length > 0) {

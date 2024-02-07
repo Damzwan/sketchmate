@@ -65,7 +65,16 @@ export const useAppStore = defineStore('app', () => {
 
   FirebaseAuthentication.addListener('authStateChange', async (status) => {
     isAuthLoading.value = false
-    if (!status.user) await router.replace(`/${FRONTEND_ROUTES.login}`)
+    if (!status.user) {
+      await router.isReady()
+      if (router.currentRoute.value.query.mate) {
+        setTimeout(() => {
+          const {toast} = useToast()
+          toast("Login first before using a connect link", {color: "warning", duration: ToastDuration.long})
+        }, 200) // cannot do immediately since page is not ready yet
+      }
+      await router.replace(`/${FRONTEND_ROUTES.login}`)
+    }
     else {
       const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
       if (justLoggedIn.value) {
@@ -73,6 +82,7 @@ export const useAppStore = defineStore('app', () => {
         const user = await login()
         if (user!.mates.length == 0) ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
         else ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+        setTimeout(() => isAuthLoading.value = false, 100)
       } else {
         if (router.currentRoute.value.path == `/${FRONTEND_ROUTES.login}`) ionRouter.replace(`/${FRONTEND_ROUTES.draw}`, routerAnimation)
         await login()
@@ -116,7 +126,6 @@ export const useAppStore = defineStore('app', () => {
         if (isNewAccount.value || !user.value!.subscriptions.some(s => s.fingerprint == deviceFingerprint.value)) showSettingsOnLoginModal.value = true
 
         Preferences.remove({ key: LocalStorage.login })
-        isAuthLoading.value = false
       })
       isNewAccount.value = userValue.new_account
 
@@ -242,13 +251,16 @@ export const useAppStore = defineStore('app', () => {
       }, 4000)
   })
 
-  function logout() {
+  async function logout() {
     isLoggedIn.value = false
     api.onLoginEvent({ user_id: user.value!._id, fingerprint: deviceFingerprint.value!, loggedIn: false })
 
     FirebaseAuthentication.signOut()
     Preferences.remove({ key: LocalStorage.user_id })
-    router.replace(`/${FRONTEND_ROUTES.login}`)
+    await router.replace(`/${FRONTEND_ROUTES.login}`)
+
+    inbox.value = undefined
+    user.value = undefined
   }
 
   return {

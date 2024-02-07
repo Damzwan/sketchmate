@@ -79,6 +79,7 @@ export const useDrawStore = defineStore('draw', () => {
   const isLoading = ref(false)
   const isUsingGesture = ref(false)
   const backgroundColor = ref(BACKGROUND) // use ref for reactivity :(
+  const showLoadingBackdrop = ref(false)
 
 
   // TODO I think we should transform shape creation into a store
@@ -134,7 +135,9 @@ export const useDrawStore = defineStore('draw', () => {
 
     if (loadService.canvasToLoad.value) {
       showLoading('Loading canvas')
+      showLoadingBackdrop.value = true
       await loadService.loadCanvas(c)
+      showLoadingBackdrop.value = false
     } else if (prevJson) {
       await new Promise<void>(resolve => {
         c!.loadFromJSON(prevJson, () => {
@@ -255,6 +258,7 @@ export const useDrawStore = defineStore('draw', () => {
     lastSelectedSelectTool,
     colorPickerMode,
     addTextMode,
-    backgroundColor
+    backgroundColor,
+    showLoadingBackdrop
   }
 })

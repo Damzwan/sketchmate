@@ -26,13 +26,16 @@
         <div class="absolute z-10 right-1 top-1 cursor-pointer">
 
           <div class="flex -space-x-4">
-            <img :src="senderImg(findUserInInboxUsers(follower))" v-for="(follower, i) in inboxItem.followers.slice(0, badgesCountToShow)" :key="follower"
-                 :alt="follower" class="w-[32px] h-[32px] rounded-full border-secondary-light border-[1px] cursor-pointer"
+            <img :src="senderImg(findUserInInboxUsers(follower))"
+                 v-for="(follower, i) in [...inboxItem.followers].reverse().slice(0, badgesCountToShow)" :key="follower"
+                 :alt="follower"
+                 class="w-[32px] h-[32px] rounded-full border-secondary-light border-[1px] cursor-pointer"
                  :style="{'zIndex':  i}">
 
             <div
               class="w-[32px] h-[32px] rounded-full border-secondary-light border-[1px] flex justify-center items-center bg-white cursor-pointer"
-              :style="{'zIndex':  inboxItem.followers.length + 1}" v-if="inboxItem.followers.slice(badgesCountToShow).length > 0">
+              :style="{'zIndex':  inboxItem.followers.length + 1}"
+              v-if="inboxItem.followers.slice(badgesCountToShow).length > 0">
               <p class="text-gray-600">{{ inboxItem.followers.slice(badgesCountToShow).length }}+</p>
             </div>
           </div>
@@ -76,7 +79,7 @@ let cancelClick = false
 const renderHeight = ref(100)
 
 const badgesCountToShow = 2
-const {findUserInInboxUsers} = useAppStore()
+const { findUserInInboxUsers } = useAppStore()
 
 let resizeObserver
 onMounted(async () => {

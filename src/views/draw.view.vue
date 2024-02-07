@@ -1,5 +1,6 @@
 <template>
   <ion-page id="root">
+
     <!--    <LinearLoader :text="loadingText" class="absolute z-50" v-if="!isLoading" :darken="true" />-->
     <ion-header class="ion-no-border">
       <div id="select">
@@ -13,6 +14,8 @@
     </ion-header>
     <ion-content>
       <ShapesMenu />
+      <div class="w-full h-full" v-if="showLoadingBackdrop"/>
+
 
       <div>
         <div id="canvas">
@@ -77,7 +80,7 @@ import { useSwipe } from '@vueuse/core'
 const myCanvasRef = ref<HTMLCanvasElement>()
 
 const drawStore = useDrawStore()
-const { loadingText, shapeCreationMode, canZoomOut, isLoading, colorPickerMode, selectedTool, addTextMode } =
+const { showLoadingBackdrop, shapeCreationMode, canZoomOut, isLoading, colorPickerMode, selectedTool, addTextMode } =
   storeToRefs(drawStore)
 const { selectedObjectsRef } = storeToRefs(useSelect())
 

@@ -23,17 +23,24 @@ self.addEventListener('push', event => {
 
 // })
 //
-self.addEventListener('notificationclick', function (event) {
+self.addEventListener('notificationclick', function(event) {
   event.notification.close()
   const payload = event.notification.data
   if (payload.type === 'message' || payload.type === 'comment')
     toGallery(event, payload.inbox_id, payload.type === 'comment')
-  else if (payload.type === 'match' || payload.type === 'unmatched' || payload.type === "friend_request") toConnect(event)
-  else toDraw()
+  else if (payload.type === 'match' || payload.type === 'unmatched') toConnect(event)
+  else if (payload.type === 'friend_request') toFriendRequest(event)
+  else
+    toDraw()
 })
 
 function toConnect(event) {
   handleNavigation(event, '/connect', {})
+}
+
+function toFriendRequest(event) {
+  handleNavigation(event, '/connect', { tab: 'request' })
+
 }
 
 function toDraw(event) {

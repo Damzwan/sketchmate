@@ -100,13 +100,14 @@ export const useSelect = defineStore('select', (): Select => {
             const pointer = c!.getPointer(o.e, true)
 
             objectsStack = c!.getObjects().filter(obj => {
+              const isNotBoundary = obj.id != 'boundary'
               const isObjectNotSelected = !a?.includes(obj)
               const isPointerWithinObject = obj.containsPoint(
                 pointer as any,
                 (obj as any)._getImageLines(obj.oCoords),
                 true
               )
-              return isPointerWithinObject && isObjectNotSelected
+              return isNotBoundary && isPointerWithinObject && isObjectNotSelected
             })
             if (objectsStack.length == 0) return
 

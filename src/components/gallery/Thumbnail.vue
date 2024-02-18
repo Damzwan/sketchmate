@@ -46,7 +46,7 @@
           v-if="props.inboxItem.comments.length > 0"
           class="absolute z-10 right-1 bottom-1 w-[32px] flex justify-center items-center rounded-full bg-secondary aspect-square text-md cursor-pointer"
         >
-          <div class="absolute z-10 left-0 top-0 w-2 h-2 bg-blue-400 rounded-full" v-if="isNewComment" />
+          <div class="absolute z-10 left-0 top-0 w-3 h-3 bg-blue-400 rounded-full" v-if="isNewComment" />
 
           {{ props.inboxItem.comments.length }}
         </div>

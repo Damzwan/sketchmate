@@ -6,7 +6,8 @@ import { PushNotifications } from '@capacitor/push-notifications'
 import { NotificationType } from '@/types/server.types'
 import { useToast } from '@/service/toast.service'
 import { isNative } from '@/helper/general.helper'
-import { getMessaging, getToken } from 'firebase/messaging'
+import { getMessaging, getToken, deleteToken } from 'firebase/messaging'
+import { storeToRefs } from 'pinia'
 
 export async function requestNotifications() {
   if (isNative()) {
@@ -25,6 +26,7 @@ export async function requestNotifications() {
     await requestLocalNotifications()
     await requestPushNotifications()
   } else await PWARequestNotifications()
+  setNotificationsAllowed()
 }
 
 export async function PWARequestNotifications() {
@@ -59,7 +61,12 @@ export async function PWARequestNotifications() {
 }
 
 export async function disableNotifications() {
-  if (isNative()) await disableLocalNotifications()
+
+  if (isNative()) {
+    Promise.all([PushNotifications.unregister(), disableLocalNotifications()])
+  } else {
+    deleteToken(getMessaging())
+  }
   const { setNotifications } = useAppStore()
   await setNotifications(undefined)
 }
@@ -89,6 +96,7 @@ async function requestLocalNotifications() {
 }
 
 async function requestPushNotifications() {
+  await PushNotifications.unregister()
   await PushNotifications.register()
 }
 
@@ -153,5 +161,16 @@ export async function addNotificationListeners() {
       const data = event.data
       router.push({ path: data.path, query: data.query })
     }
+  }
+}
+
+export async function setNotificationsAllowed() {
+  const { notificationsAllowed } = storeToRefs(useAppStore())
+  if (isNative()) {
+    const status = await PushNotifications.checkPermissions()
+    notificationsAllowed.value = status.receive == 'granted'
+  } else {
+    const status = await Notification.requestPermission()
+    notificationsAllowed.value = status == 'granted'
   }
 }

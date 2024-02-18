@@ -57,9 +57,13 @@ export const useAppStore = defineStore('app', () => {
   const ionRouter = useIonRouter()
 
   const networkStatus = ref<ConnectionStatus>()
+  const notificationsAllowed = ref(false)
+
+
   const updateSlide = ref(false)
   const deviceFingerprint = ref<string>()
   const isAuthLoading = ref(true)
+
   generateDeviceFingerprint().then(fingerprint => deviceFingerprint.value = fingerprint)
 
 
@@ -69,13 +73,12 @@ export const useAppStore = defineStore('app', () => {
       await router.isReady()
       if (router.currentRoute.value.query.mate) {
         setTimeout(() => {
-          const {toast} = useToast()
-          toast("Login first before using a connect link", {color: "warning", duration: ToastDuration.long})
+          const { toast } = useToast()
+          toast('Login first before using a connect link', { color: 'warning', duration: ToastDuration.long })
         }, 200) // cannot do immediately since page is not ready yet
       }
       await router.replace(`/${FRONTEND_ROUTES.login}`)
-    }
-    else {
+    } else {
       const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
       if (justLoggedIn.value) {
         isAuthLoading.value = true
@@ -190,7 +193,7 @@ export const useAppStore = defineStore('app', () => {
         os: info.operatingSystem,
         logged_in: true
       }
-      user.value!.subscriptions.push(subscription)
+      user.value!.subscriptions = [...user.value!.subscriptions.filter(sub => sub.fingerprint != subscription.fingerprint), subscription]
       await api.subscribe({ user_id: user.value!._id, subscription })
     }
   }
@@ -299,6 +302,7 @@ export const useAppStore = defineStore('app', () => {
     isSendingDrawing,
     isAuthLoading,
     logout,
-    showForceUpdateModal
+    showForceUpdateModal,
+    notificationsAllowed
   }
 })

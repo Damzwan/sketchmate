@@ -63,6 +63,29 @@
               :color="'secondary'"
             />
           </div>
+
+          <div class="w-full flex justify-center items-center">
+            <ConfirmationAlert header="Remove subscription"
+                               message="You will no longer receive notifications on this device"
+                               v-model:isOpen="deleteSubscriptionAlertOpen" confirmationtext="Delete"
+                               @confirm="deleteSubscription" />
+            <ion-accordion-group v-if="user.subscriptions.length > 0">
+              <ion-accordion value="first">
+                <ion-item slot="header">
+                  <ion-label>Active Devices
+                    {{ user.subscriptions.length > 0 ? `(${user.subscriptions.length})` : '' }}
+                  </ion-label>
+                </ion-item>
+                <div class="ion-padding" slot="content">
+                  <ion-item v-for="subscription of user.subscriptions" :key="subscription.fingerprint">
+                    <ion-icon aria-hidden="true" :icon="svg(mdiClose)" slot="end" class="fill-red-600 cursor-pointer"
+                              @click="openDeleteSubscriptionAlert(subscription)" />
+                    {{ subscription.model }}, {{ subscription.platform }}
+                  </ion-item>
+                </div>
+              </ion-accordion>
+            </ion-accordion-group>
+          </div>
         </div>
 
         <SettingLinks />
@@ -98,21 +121,28 @@ import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
 import { arrowBack } from 'ionicons/icons'
 import { onBeforeRouteLeave } from 'vue-router'
-import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
-import { mdiBellOff, mdiBellRing } from '@mdi/js'
+import { disableNotifications, requestNotifications, setNotificationsAllowed } from '@/helper/notification.helper'
+import { mdiBellOff, mdiBellRing, mdiClose } from '@mdi/js'
 import { colorsPerRoute, settingsModalColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import SettingLinks from '@/components/settings/SettingLinks.vue'
 import ProfilePictureSelector from '@/components/general/ProfilePictureSelector.vue'
 import { EventBus } from '@/main'
+import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import { NotificationSubscription } from '@/types/server.types'
 
-const { user, deviceFingerprint } = storeToRefs(useAppStore())
+const { user, deviceFingerprint, notificationsAllowed } = storeToRefs(useAppStore())
 const api = useAPI()
 const { toast } = useToast()
 
 const name = ref(user.value!.name)
 const nameRef = ref<HTMLIonInputElement>()
+
+const deleteSubscriptionAlertOpen = ref(false)
+const subscriptionToDelete = ref<NotificationSubscription>()
+
+setNotificationsAllowed()
 
 EventBus.on('reset-name', () => name.value = user.value!.name)
 
@@ -127,7 +157,7 @@ defineProps({
   }
 })
 const emit = defineEmits(['update:open'])
-const deviceNotificationsAllowed = computed(() => user.value?.subscriptions.some(s => s.fingerprint == deviceFingerprint.value))
+const deviceNotificationsAllowed = computed(() => user.value?.subscriptions.some(s => s.fingerprint == deviceFingerprint.value) && notificationsAllowed.value)
 
 function close() {
   setAppColors(colorsPerRoute[router.currentRoute.value.fullPath.split('/')[1] as FRONTEND_ROUTES])
@@ -171,7 +201,17 @@ function handleNotificationChange() {
   deviceNotificationsAllowed.value ? disableNotifications() : requestNotifications()
 }
 
+function deleteSubscription() {
+  api.unsubscribe({ user_id: user.value!._id, fingerprint: subscriptionToDelete.value!.fingerprint })
+  user.value!.subscriptions = user.value!.subscriptions.filter(sub => sub.fingerprint != subscriptionToDelete.value!.fingerprint)
+}
+
 onBeforeRouteLeave(() => close())
+
+function openDeleteSubscriptionAlert(subscription: NotificationSubscription) {
+  subscriptionToDelete.value = subscription
+  deleteSubscriptionAlertOpen.value = true
+}
 </script>
 
 <style scoped lang="scss">

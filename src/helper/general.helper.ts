@@ -188,9 +188,24 @@ export async function generateDeviceFingerprint() {
   const info = await Device.getInfo()
   const userAgent = navigator.userAgent
 
+  // Remove IP address from the user agent string
+
+  // Extract browser name from the user agent string
+  let browserName = 'Unknown'
+  if (/(Edge|Edg)\/(\d+)/.test(userAgent)) {
+    browserName = 'Microsoft Edge'
+  } else if (/Firefox\//.test(userAgent)) {
+    browserName = 'Firefox'
+  } else if (/Chrome\//.test(userAgent)) {
+    browserName = 'Chrome'
+  } else if (/Safari\//.test(userAgent)) {
+    browserName = 'Safari'
+  }
+
   // Combine collected information to create a fingerprint
-  return `${userAgent}-${info.platform}-${info.model}`
+  return `${browserName}-${info.platform}-${info.model}`
 }
+
 
 export const getCurrentUser = async () => {
   const result = await FirebaseAuthentication.getCurrentUser()

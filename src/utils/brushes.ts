@@ -241,7 +241,7 @@ export function loadAdditionalBrushes() {
 
     update: function(pointer: fabric.Point, subtractPoint: fabric.Point, distance: number): void {
       this._lastPoint = fabric.util.object.clone(this._point)
-      this._point = this._point.addEquals({ x: subtractPoint.x, y: subtractPoint.y })
+      this._point = this._point.addEquals({ x: subtractPoint.x , y: subtractPoint.y })
 
       const n = this.inkAmount / (distance + 1)
       const per = n > 0.3 ? 0.2 : n < 0 ? 0 : n
@@ -260,7 +260,7 @@ export function loadAdditionalBrushes() {
       point1: fabric.Point,
       point2: fabric.Point,
       color: string,
-      lineWidth: number
+      lineWidth: number,
     ): void {
       ctx.strokeStyle = color
       ctx.lineWidth = lineWidth

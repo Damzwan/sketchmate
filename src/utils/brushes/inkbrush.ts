@@ -29,6 +29,7 @@ export class InkBrush extends fabric.BaseBrush {
 
   _render(pointer: fabric.Point): void {
     const point = this.setPointer(pointer)
+
     const subtractPoint = point.subtract(this._lastPoint as fabric.Point)
     const distance = point.distanceFrom(this._lastPoint as fabric.Point)
 
@@ -87,6 +88,7 @@ export class InkBrush extends fabric.BaseBrush {
 
   _resetTip(pointer: fabric.Point): void {
     const point = this.setPointer(pointer)
+
 
     this._strokes = []
     this._range = this.width / 5 + this._baseWidth

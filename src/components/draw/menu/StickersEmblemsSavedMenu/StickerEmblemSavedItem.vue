@@ -5,11 +5,15 @@
     :class="{ 'animate-wiggle': deleteMode }"
     @click="emits('click')"
   >
+
+    <ion-skeleton-text :animated="true" class="w-4/5 absolute" v-if="isLoading"/>
+
     <ion-img
       :src="img"
       class="object-contain rounded-lg w-full h-full"
       :class="{ 'opacity-70': deleteMode, 'hover:brightness-90': deleteMode }"
       @contextmenu.prevent
+      @ionImgDidLoad="isLoading = false"
     />
     <div class="absolute flex z-10 h-full w-full justify-center items-center top-0" v-if="deleteMode">
       <ion-icon :icon="svg(mdiClose)" class="fill-red-500 w-full h-[40px]" />
@@ -25,6 +29,7 @@ import { IonIcon, IonImg } from '@ionic/vue'
 import { ref } from 'vue'
 
 const item = ref()
+const isLoading = ref(true)
 
 const props = defineProps<{
   deleteMode: boolean

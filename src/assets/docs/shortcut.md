@@ -3,6 +3,7 @@
 Quick commands for sketching:
 
 ### General Mode:
+
 - `CMD/CTRL + 1`: [Pen](blob:pen.md)
 - `CMD/CTRL + 2`: [Eraser](blob:eraser.md)
 - `CMD/CTRL + 3`: Tools menu
@@ -11,8 +12,11 @@ Quick commands for sketching:
 - `CMD/CTRL + Z`: [Undo](blob:undoredo.md)
 - `CMD/CTRL + SHIFT + Z`: [Redo](blob:undoredo.md)
 - `CMD/CTRL + Enter`: Send drawing
+- `CMD/CTRL + p`: Select pen brush
+- `CMD/CTRL + b`: Select bucket brush
 
 ### Select Mode:
+
 - `Escape`: Deselect
 - `Left`: Move left
 - `Up`: Move up

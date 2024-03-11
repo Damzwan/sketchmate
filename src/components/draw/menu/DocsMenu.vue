@@ -43,7 +43,7 @@
           :key="section"
           :toggle-icon="docsMapping[section].children ? chevronDown : ''"
         >
-          <ion-item slot="header" class="accordion-header">
+          <ion-item slot="header">
             <ion-icon :icon="svg(docsMapping[section].icon)" />
             <ion-label class="pl-4">{{ docsMapping[section].text }}</ion-label>
           </ion-item>
@@ -153,9 +153,9 @@ function internalLink(e: any) {
 </script>
 
 <style scoped>
-.accordion-header {
-  --ion-background-color: #ffb995;
-  --background: var(--ion-color-tertiary);
+
+ion-accordion ion-item[slot='header'] {
+  --background: var(--ion-color-primary);
 }
 
 ion-accordion div ion-item {

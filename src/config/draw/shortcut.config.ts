@@ -22,5 +22,7 @@ export enum Shortcut {
   moveDown = 'ArrowDown',
   paste = 'v',
   flipX = 'x',
-  flipY = 'y'
+  flipY = 'y',
+  bucket = 'b',
+  penBrush = 'p',
 }

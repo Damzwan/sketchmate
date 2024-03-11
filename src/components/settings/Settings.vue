@@ -105,7 +105,11 @@ import {
   IonModal,
   IonTitle,
   IonToggle,
-  IonToolbar
+  IonToolbar,
+  IonItem,
+  IonLabel,
+  IonAccordion,
+  IonAccordionGroup
 } from '@ionic/vue'
 import { computed, ref } from 'vue'
 import { useAppStore } from '@/store/app.store'

@@ -29,6 +29,7 @@ declare module 'fabric' {
       isCreating?: false
       eraser: any
       backgroundObject: boolean // indicates that we should not color this object since it acts as a background color
+      bucketFillObject?: boolean // used in order to move the newly created background fill to the right location
     }
 
     interface PatternBrush {
@@ -183,7 +184,6 @@ export enum DrawEvent {
   ShapeCreation = 'Creating shape',
   SetModified = 'Set Modified',
   Lasso = 'Using lasso',
-  CanvasSave = 'save in case we exit',
   ColorPicker = 'Color picker',
   AddText = 'Click to add text'
 }

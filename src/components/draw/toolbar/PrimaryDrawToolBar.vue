@@ -11,6 +11,7 @@
         <div class="selected_chevron" v-if="PENMENUTOOLS.includes(selectedTool)">
           <ion-icon :icon="svg(mdiChevronDown)" />
         </div>
+        <div class="w-2 h-2 rounded-full absolute bottom-[-5px] right-[-5px]" :style="{backgroundColor: brushColor}"/>
       </ion-button>
       <PenMenu />
       <ion-button
@@ -116,7 +117,7 @@ import { connectButton } from '@/config/toast.config'
 
 const drawStore = useDrawStore()
 const { selectTool, send } = drawStore
-const { brushType } = storeToRefs(usePen())
+const { brushType, brushColor } = storeToRefs(usePen())
 const { networkStatus } = storeToRefs(useAppStore())
 const { selectedTool, lastSelectedEraserTool, lastSelectedPenMenuTool, lastSelectedSelectTool } = storeToRefs(drawStore)
 

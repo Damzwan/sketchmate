@@ -120,6 +120,7 @@ export function enableMobileGestures(c: any, upperCanvasEl: any) {
     }
   })
 }
+
 function cancelEraserAction(c: Canvas) {
   c.on('erasing:end', (e: any) => {
     const targets = e.targets as fabric.Object[]
@@ -162,7 +163,7 @@ export function enablePCGestures(c: any) {
         const deltaY = e.e.deltaY
 
         // Convert deltaY into a zoom factor
-        const zoomFactor = Math.exp(-deltaY / 10)
+        const zoomFactor = Math.exp(-deltaY / 50)
         handleZoom(zoomFactor, e.e.offsetX, e.e.offsetY, c)
         setCanZoomOut(c.getZoom() > 1)
 
@@ -219,29 +220,29 @@ export function enablePCGestures(c: any) {
 }
 
 export const checkCanvasBounds = (c: Canvas) => {
-  const vpt = c.viewportTransform!;
-  const canvasWidth = c.getWidth();
-  const canvasHeight = c.getHeight();
-  const zoomFactor = c.getZoom();
+  const vpt = c.viewportTransform!
+  const canvasWidth = c.getWidth()
+  const canvasHeight = c.getHeight()
+  const zoomFactor = c.getZoom()
 
   const pm = PANMARGIN
 
   // Check left boundary
   if (vpt[4] >= pm) {
-    vpt[4] = pm;
+    vpt[4] = pm
   } else if (vpt[4] < canvasWidth - canvasWidth * zoomFactor - pm) {
-    vpt[4] = canvasWidth - canvasWidth * zoomFactor - pm;
+    vpt[4] = canvasWidth - canvasWidth * zoomFactor - pm
   }
 
   // Check top boundary
   if (vpt[5] >= pm) {
-    vpt[5] = pm;
+    vpt[5] = pm
   } else if (vpt[5] < canvasHeight - canvasHeight * zoomFactor - pm) {
-    vpt[5] = canvasHeight - canvasHeight * zoomFactor - pm;
+    vpt[5] = canvasHeight - canvasHeight * zoomFactor - pm
   }
 
-  c.setViewportTransform(vpt);
-};
+  c.setViewportTransform(vpt)
+}
 
 export const handleZoom = (scale: number, centerX: number, centerY: number, c: Canvas, previousScale?: number) => {
   const dampeningFactor = 0.2
@@ -265,7 +266,7 @@ export const handleZoom = (scale: number, centerX: number, centerY: number, c: C
 }
 export const handlePan = (delta: IPoint, c: Canvas) => {
   const { setCanZoomOut } = useDrawStore()
-  const vpt = c.viewportTransform!;
+  const vpt = c.viewportTransform!
   c.relativePan(delta)
   checkCanvasBounds(c)
   if (isMobile()) setCanZoomOut(true)
@@ -275,7 +276,7 @@ export function resetZoom() {
   const { getCanvas, setCanZoomOut } = useDrawStore()
   const c = getCanvas()
   c.setZoom(1)
-  c.setViewportTransform([1, 0, 0, 1, 0, 0]);
+  c.setViewportTransform([1, 0, 0, 1, 0, 0])
   setCanZoomOut(false)
   EventBus.emit('resetZoom')
   c.renderAll()

@@ -11,6 +11,7 @@ import {
   downSampleEllipse
 } from '@/helper/draw/lasso.helper'
 import { initSelectWithObjects } from '@/helper/draw/draw.helper'
+import { EventBus } from '@/main'
 
 export const useLasso = defineStore('lasso', (): ToolService => {
   let c: Canvas | undefined = undefined
@@ -72,6 +73,12 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     enableHistorySaving()
     c?.requestRenderAll()
   }
+
+  EventBus.on('gesture', () => {
+    isDrawing = false
+    c?.remove(lasso)
+    c?.requestRenderAll()
+  })
 
   function selectsObjectsInsideLasso() {
     const objectsInsideBoundingRect = c?.getObjects()

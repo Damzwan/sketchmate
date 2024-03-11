@@ -154,7 +154,7 @@ export const useHistory = defineStore('history', () => {
       if (!currObj) return
       c?.remove(currObj)
     })
-    redoStack.push({ type: 'object:added', objects: objects.map(o => getStaticObjWithAbsolutePosition(o)) })
+    redoStack.push({ type: 'object:added', objects: objects.map(o => getStaticObjWithAbsolutePosition(o, c?.getActiveObject())) })
     restoreSelectedObjects(c!, getSelectedObjects())
   }
 
@@ -269,7 +269,14 @@ export const useHistory = defineStore('history', () => {
   }
 
   function undoObjectDeleted(objects: fabric.Object[]) {
-    c?.add(...objects)
+    // c?.add(...objects)
+    objects.forEach(o => {
+      if (o.bucketFillObject) {
+        const highestZIndex = c!.getObjects().reduce((accumulator, currentValue, currentIndex) => currentValue.bucketFillObject && o.intersectsWithObject(currentValue) ? Math.max(currentIndex, accumulator) : accumulator, -1)
+        c?.add(o)
+        c!.moveTo(o, highestZIndex + 1)
+      } else c?.add(o)
+    })
     redoStack.push({ type: 'object:removed', objects: objects })
     c?.requestRenderAll()
   }
@@ -448,7 +455,13 @@ export const useHistory = defineStore('history', () => {
 
     if (isText(objects) && (objects[0] as IText).isCurved) applyCurve(objects[0] as IText, c!)
 
-    c?.add(...objects)
+    objects.forEach(o => {
+      if (o.bucketFillObject) {
+        const highestZIndex = c!.getObjects().reduce((accumulator, currentValue, currentIndex) => currentValue.bucketFillObject && o.intersectsWithObject(currentValue) ? Math.max(currentIndex, accumulator) : accumulator, -1)
+        c?.add(o)
+        c!.moveTo(o, highestZIndex + 1)
+      } else c?.add(o)
+    })
     undoStack.push({ type: 'object:added', objects: objects })
     restoreSelectedObjects(c!, getSelectedObjects())
     c?.requestRenderAll()
@@ -507,7 +520,7 @@ export const useHistory = defineStore('history', () => {
   function init(canvas: Canvas) {
     c = canvas
     enableEvents()
-    prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
+    prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj, c?.getActiveObject()))
   }
 
   function destroy(maintainHistory: boolean) {
@@ -538,7 +551,7 @@ export const useHistory = defineStore('history', () => {
       const action = undoStack.pop()
       if (!action) return
       await undoMapping[action.type]!(action.objects, action.options)
-      prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
+      prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj, c?.getActiveObject()))
       resetStackCounters()
     })
     EventBus.emit('undo')
@@ -554,7 +567,7 @@ export const useHistory = defineStore('history', () => {
       const action = redoStack.pop()
       if (!action) return
       await redoMapping[action.type]!(action.objects, action.options)
-      prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
+      prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj, c?.getActiveObject()))
       resetStackCounters()
     })
     EventBus.emit('redo')
@@ -572,7 +585,8 @@ export const useHistory = defineStore('history', () => {
     undoStack.push({ objects, type: historyEvent, options })
     if (!options || (options && !options['noReset'])) redoStack = []
     resetStackCounters()
-    prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj))
+
+    prevCanvasObjects = c?.getObjects().map(obj => getStaticObjWithAbsolutePosition(obj, c?.getActiveObject()))
 
     // hack since the way addToUndoStack is implemented is that it can be called before the change
     setTimeout(() => EventBus.emit('add_to_undo_stack'), 200)

@@ -31,7 +31,7 @@ export const useEventManager = defineStore('event manager', () => {
     c.selection = false
     setSelectionForObjects(c.getObjects(), false)
 
-    c.renderAll()
+    c.requestRenderAll()
   }
 
   function subscribe(event: FabricEvent) {

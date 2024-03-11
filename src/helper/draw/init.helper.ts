@@ -69,7 +69,7 @@ export function changeFabricBaseSettings() {
   })
 
   const originalInitialize = fabric.Object.prototype.initialize
-  fabric.Object.prototype.initialize = function (...args) {
+  fabric.Object.prototype.initialize = function(...args) {
     originalInitialize.call(this, ...args)
     this.setControlsVisibility({
       bl: false,
@@ -86,14 +86,15 @@ export function changeFabricBaseSettings() {
     return this
   }
 
-  fabric.Object.prototype.toObject = (function (toObject) {
-    return function (this: any, propertiesToInclude) {
+  fabric.Object.prototype.toObject = (function(toObject) {
+    return function(this: any, propertiesToInclude) {
       propertiesToInclude = (propertiesToInclude || []).concat([
         'id',
         'visual',
         'edit',
         'isCreating',
-        'backgroundObject'
+        'backgroundObject',
+        'bucketFillObject'
       ])
       this.source = {}
       return toObject.apply(this, [propertiesToInclude])
@@ -102,7 +103,7 @@ export function changeFabricBaseSettings() {
 
   const originalITextInit = fabric.IText.prototype.initialize
 
-  fabric.IText.prototype.initialize = function (...args) {
+  fabric.IText.prototype.initialize = function(...args) {
     originalITextInit.call(this, ...args)
     this.off('editing:entered')
     this.off('editing:exited')
@@ -157,7 +158,7 @@ export function changeFabricBaseSettings() {
   }
 
   const ogMouseUp = fabric.IText.prototype.mouseUpHandler
-  fabric.IText.prototype.mouseUpHandler = function (o) {
+  fabric.IText.prototype.mouseUpHandler = function(o) {
     const { multiSelectMode } = useSelect()
     const { isUsingGesture } = useDrawStore()
     if (isUsingGesture || multiSelectMode) return
@@ -166,14 +167,14 @@ export function changeFabricBaseSettings() {
 
   // text curve
   const og = fabric.IText.fromObject
-  fabric.IText.fromObject = function (object, callback) {
+  fabric.IText.fromObject = function(object, callback) {
     delete object.path
     return og(object, callback)
   }
 
   fabric.IText.prototype.isCurved = false
-  fabric.IText.prototype.toObject = (function (toObject) {
-    return function (this: any, propertiesToInclude) {
+  fabric.IText.prototype.toObject = (function(toObject) {
+    return function(this: any, propertiesToInclude) {
       propertiesToInclude = (propertiesToInclude || []).concat(['isCurved'])
       return toObject.apply(this, [propertiesToInclude])
     }
@@ -183,7 +184,7 @@ export function changeFabricBaseSettings() {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   fabric.Canvas.prototype._originalFindTarget = fabric.Canvas.prototype.findTarget
-  fabric.Canvas.prototype.findTarget = function (e: any, skipGroup) {
+  fabric.Canvas.prototype.findTarget = function(e: any, skipGroup) {
     if (e.shiftKey) {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore

@@ -50,7 +50,8 @@
              class="hidden" />
     </ion-item>
 
-    <ion-popover :trigger="customColorPopoverId" :keep-contents-mounted="true" side="top" @willPresent="() => onCustomColorSelected(picker.color.hex)">
+    <ion-popover :trigger="customColorPopoverId" :keep-contents-mounted="true" side="top"
+                 @willPresent="() => props.color ? picker.setColor(props.color) : null">
       <div ref="customColorParent" class="bg-primary"></div>
     </ion-popover>
   </div>
@@ -86,6 +87,7 @@ const customColorPopoverId = uuidv4()
 const customColorParent = ref()
 const colorHistory = ref<string[]>([])
 const emptySpaces = computed(() => 6 - colorHistory.value.length)
+
 let picker: any
 
 getSavedColorHistory()
@@ -153,7 +155,7 @@ function colorPicker() {
 
   popoverController.dismiss()
   isolatedSubscribe({
-    on: 'mouse:down:before',
+    on: 'mouse:down',
     type: DrawEvent.ColorPicker,
     handler: (options: any) => {
       const pointer = c.getPointer(options.e)

@@ -280,13 +280,20 @@ export function exitShapeCreationMode() {
   c.requestRenderAll()
 }
 
-export function getStaticObjWithAbsolutePosition(obj: fabric.Object) {
+export function getStaticObjWithAbsolutePosition(obj: fabric.Object, activeObject: any | undefined) {
   const o = obj.toObject()
   const dim = obj.group
     ? fabric.util.transformPoint(obj.getPointByOrigin('left', 'top'), obj.group.calcTransformMatrix())
     : { x: obj.left!, y: obj.top! }
   o.left = dim.x
   o.top = dim.y
+
+  // the new rotation and scale is only applied to the selection and not the individual objects...
+  if (activeObject && activeObject._objects && activeObject._objects.includes(obj)){
+    o.angle += activeObject.angle;
+    o.scaleX *= activeObject.scaleX;
+    o.scaleY *= activeObject.scaleY;
+  }
   return o
 }
 
@@ -538,13 +545,13 @@ export function exitColorPickerMode() {
 
   const c = getCanvas()
 
-  unsubscribe({ type: DrawEvent.ColorPicker, on: 'mouse:down:before' })
+  unsubscribe({ type: DrawEvent.ColorPicker, on: 'mouse:down' })
   setTimeout(() => {
     unsubscribe({ type: DrawEvent.ColorPicker, on: 'selection:cleared' })
   }, 50)
 
   colorPickerMode.value = false
-  if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
+  if (selectedTool == DrawTool.Pen || ERASERS.includes(selectedTool)) {
     setTimeout(() => {
       c.isDrawingMode = true
     }, 50)

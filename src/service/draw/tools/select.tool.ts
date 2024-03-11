@@ -285,9 +285,13 @@ export const useSelect = defineStore('select', (): Select => {
 
     if (objects.length == 0) {
       c?.discardActiveObject()
-      const { lastSelectedSelectTool, selectTool } = useDrawStore()
+      const { lastSelectedSelectTool, selectTool, selectedTool } = useDrawStore()
+
       // we switch back to lasso since it was the last selected tool but all logic lives in Select
-      if (lastSelectedSelectTool == DrawTool.Lasso) selectTool(DrawTool.Lasso)
+      // This behaviour occurs when we select through lasso but this selection makes us switch to the object select tool
+      // in case we exit it we want the lasso again to be selected
+      console.log(selectedTool)
+      if (selectedTool == DrawTool.Select && lastSelectedSelectTool == DrawTool.Lasso) selectTool(DrawTool.Lasso)
     }
     selectedObjects = objects
     selectedObjectsRef.value = objects

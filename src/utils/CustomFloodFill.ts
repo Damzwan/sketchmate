@@ -66,7 +66,7 @@ export class CustomFloodFill {
       this.setPixelColor(this._newColor, curX, curY)
 
       // Get all neighbors within radius and color them
-      const neighbors = this.getNeighboursWithinRadius(curX, curY, 1)
+      const neighbors = this.getNeighboursWithinRadius(curX, curY, 2)
       for (const { x: nX, y: nY } of neighbors) {
         if (!visited[nY][nX]) {
           if (this.isValidTarget(nX, nY)) {

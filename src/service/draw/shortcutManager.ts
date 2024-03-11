@@ -56,7 +56,7 @@ export function useShortcutManager() {
   }
 
   async function handleKeydown(event: any) {
-    const { selectAction, selectedTool } = useDrawStore()
+    const { selectAction, selectedTool, selectTool } = useDrawStore()
 
     const modifier = isMac() ? event.metaKey : event.ctrlKey
 
@@ -112,6 +112,20 @@ export function useShortcutManager() {
         dismissPopover()
         break
 
+      case Shortcut.bucket:
+        event.preventDefault()
+        if (isSelectMode.value) return
+        selectTool(DrawTool.Bucket)
+        dismissPopover()
+        break
+
+      case Shortcut.penBrush:
+        event.preventDefault()
+        if (isSelectMode.value) return
+        selectTool(DrawTool.Pen)
+        dismissPopover()
+        break
+
       case Shortcut.manual:
         event.preventDefault()
         if (isSelectMode.value) return
@@ -148,16 +162,18 @@ export function useShortcutManager() {
         event.preventDefault()
         if (selectedTool != DrawTool.Select || c?.getObjects().length == 0) return
 
+        const allObjectss = c!.getObjects().filter(o => o.id != 'boundary')
+
         selectIndex++
-        if (selectIndex >= c!.getObjects().length) selectIndex = 0
+        if (selectIndex >= allObjectss.length) selectIndex = 0
         if (
           c!._activeObject &&
-          c!.getObjects().length > 1 &&
-          c!.getObjects().at(selectIndex)!.id == c!._activeObject.id
+          allObjectss.length > 1 &&
+          allObjectss.at(selectIndex)!.id == c!._activeObject.id
         )
           selectIndex++
-        if (selectIndex < 0) selectIndex = c!.getObjects().length - 1
-        c!.setActiveObject(c!.getObjects().at(selectIndex)!)
+        if (selectIndex < 0) selectIndex = allObjectss.length - 1
+        c!.setActiveObject(allObjectss.at(selectIndex)!)
         dismissPopover()
         break
 
@@ -165,16 +181,18 @@ export function useShortcutManager() {
         event.preventDefault()
         if (selectedTool != DrawTool.Select || c?.getObjects().length == 0) return
 
+        const allObjects = c!.getObjects().filter(o => o.id != 'boundary')
+
         selectIndex--
-        if (selectIndex < 0) selectIndex = c!.getObjects().length - 1
+        if (selectIndex < 0) selectIndex = allObjects.length - 1
         if (
           c!._activeObject &&
-          c!.getObjects().length > 1 &&
-          c!.getObjects().at(selectIndex)!.id == c!._activeObject.id
+          allObjects.length > 1 &&
+          allObjects.at(selectIndex)!.id == c!._activeObject.id
         )
           selectIndex--
-        if (selectIndex < 0) selectIndex = c!.getObjects().length - 1
-        c!.setActiveObject(c!.getObjects().at(selectIndex)!)
+        if (selectIndex < 0) selectIndex = allObjects.length - 1
+        c!.setActiveObject(allObjects.at(selectIndex)!)
         dismissPopover()
         break
 

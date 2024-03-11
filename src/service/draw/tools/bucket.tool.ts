@@ -6,6 +6,7 @@ import { bucketFill } from '@/helper/draw/actions/bucket.action'
 import { EventBus } from '@/main'
 import { isMobile } from '@/helper/general.helper'
 import { useHistory } from '@/service/draw/history.service'
+import { useDrawStore } from '@/store/draw/draw.store'
 
 export const useBucket = defineStore('bucket', (): ToolService => {
   let c: Canvas | undefined = undefined
@@ -18,14 +19,23 @@ export const useBucket = defineStore('bucket', (): ToolService => {
       on: 'mouse:down',
       handler: async (o: any) => {
         // we use mouse:down to disable all click events in case we add text
+        const { colorPickerMode } = useDrawStore()
+        if (o.e.button !== 0 || colorPickerMode) return // only execute button fill for left click and now in colorpicker mode
         if (timeout) return
         timeout = setTimeout(
           async () => {
             timeout = undefined
+
             const pointer: IPoint = c!.getPointer(o.e)
             const img = await bucketFill(c!, pointer)
             if (!img) return
+
+
+            img.bucketFillObject = true
+            const highestZIndex = c!.getObjects().reduce((accumulator, currentValue, currentIndex) => currentValue.bucketFillObject && img.intersectsWithObject(currentValue) ? Math.max(currentIndex, accumulator) : accumulator, -1)
             c!.add(img)
+
+            c!.moveTo(img, highestZIndex + 1)
             setObjectSelection(img, false) // TODO should not be necessary
             setTimeout(() => {
               const { enabled, addToUndoStack } = useHistory()

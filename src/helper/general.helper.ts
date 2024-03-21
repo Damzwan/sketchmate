@@ -20,7 +20,7 @@ export async function imgUrlToFile(imgUrl: string) {
 }
 
 export function sortDates(arr: string[]) {
-  return arr.sort((a, b) => {
+  return (arr as any).toSorted((a: any, b: any) => {
     return new Date(b).getTime() - new Date(a).getTime()
   })
 }

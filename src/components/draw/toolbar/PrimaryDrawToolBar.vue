@@ -13,7 +13,7 @@
         </div>
         <div class="w-2 h-2 rounded-full absolute bottom-[-5px] right-[-5px]" :style="{backgroundColor: brushColor}"/>
       </ion-button>
-      <PenMenu />
+      <PenMenu/>
       <ion-button
         id="eraser"
         data-step="2"

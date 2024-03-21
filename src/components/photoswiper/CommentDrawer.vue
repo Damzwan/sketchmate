@@ -9,7 +9,7 @@
       <ion-popover :event="e" @didDismiss="accountPopoverOpen = false" :isOpen="accountPopoverOpen">
         <div class="w-full h-full flex flex-col justify-center items-center p-2" v-if="accountInfoToShow">
           <img :src="accountInfoToShow.img" :alt="accountInfoToShow.img" class="w-[128px] rounded-full">
-          <p class="text-2xl font-bold py-1">
+          <p class="text-2xl font-bold py-1 text-black">
             {{ `${accountInfoToShow.name} ${accountInfoToShow._id == user._id ? '(Me)' : ''}` }}</p>
           <div v-if="accountInfoToShow._id != user._id">
             <ion-button v-if="user.mates.some(m => m._id == accountInfoToShow?._id)" color="secondary" disabled>Already
@@ -43,10 +43,10 @@
           /></ion-avatar>
           <div class="flex-1 ml-2">
             <div class="flex justify-between items-center">
-              <div class="text-sm font-bold">{{ senderName(findUserInInboxUsers(comment.sender)) }}</div>
-              <div class="text-sm text-center mr-1">{{ dayjs(comment.date).fromNow() }}</div>
+              <div class="text-sm font-bold text-black">{{ senderName(findUserInInboxUsers(comment.sender)) }}</div>
+              <div class="text-sm text-center mr-1 text-black">{{ dayjs(comment.date).fromNow() }}</div>
             </div>
-            <div class="text-sm">{{ comment.message }}</div>
+            <div class="text-sm text-black">{{ comment.message }}</div>
           </div>
         </div>
 
@@ -60,6 +60,7 @@
             v-model="commentBody"
             autocapitalize="sentences"
             @keyup.enter="comment"
+            class="text-black"
           />
           <ion-button fill="clear" color="secondary" @click="comment" :icon="svg(mdiSend)">
             <ion-icon :icon="svg(mdiSend)" v-show="commentBody.length > 0" />

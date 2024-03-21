@@ -6,6 +6,7 @@ import { defineStore } from 'pinia'
 import { updateFreeDrawingCursor } from '@/helper/draw/draw.helper'
 import { EventBus } from '@/main'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { isMobile } from '@/helper/general.helper'
 
 interface HealingEraser extends ToolService {
   healingEraserSize: Ref<number>
@@ -19,6 +20,22 @@ export const useHealingEraser = defineStore('healing eraser', (): HealingEraser 
       on: 'mouse:wheel',
       type: DrawEvent.ShapeCreation,
       handler: updateEraserCursor
+    },
+    {
+      on: 'mouse:move',
+      type: DrawEvent.Gesture,
+      handler: (e) => {
+        if (!isMobile()) return
+        const pointer = e.pointer
+        const ctx = c!.contextTop
+
+        ctx.beginPath()
+
+        ctx.arc(pointer.x, pointer.y, (healingEraserSize.value * c!.getZoom()) / 2, 0, 2 * Math.PI)
+        ctx.strokeStyle = 'lightblue' // Adjust stroke color as needed
+        ctx.lineWidth = 1
+        ctx.stroke()
+      }
     }
   ]
 

@@ -28,6 +28,7 @@ declare module 'fabric' {
       edit?: boolean
       isCreating?: false
       eraser: any
+      erasable?: boolean
       backgroundObject: boolean // indicates that we should not color this object since it acts as a background color
       bucketFillObject?: boolean // used in order to move the newly created background fill to the right location
     }
@@ -154,9 +155,9 @@ export enum BrushType {
 }
 
 export enum EraserSize {
-  small = 10,
-  medium = 30,
-  large = 50
+  small = 20,
+  medium = 40,
+  large = 60
 }
 
 export enum ShapeCreationMode {

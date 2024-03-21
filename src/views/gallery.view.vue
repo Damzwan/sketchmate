@@ -16,15 +16,6 @@
           <ion-refresher-content></ion-refresher-content>
         </ion-refresher>
 
-        <PhotoSwiper
-          key="swiper"
-          v-show="inboxItems.length > 0"
-          v-model:open="isPhotoSwiperOpen"
-          v-model:slide="selectedInboxItemIndex"
-          :inbox-items="inboxItems"
-          @remove="removeItem"
-          @see="seeItem"
-        />
 
         <NoMessages v-if="noMessages && user.mates.length == 0" title="Start connecting"
                     subtitle="Add a friend first before you can access your gallery"
@@ -42,8 +33,8 @@
 
               <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-1.5 pt-3">
                 <div
-                  v-for="(inboxItem, i) in inboxItemsFromDateGroups(date).reverse()"
-                  :key="i"
+                  v-for="(inboxItem, i) in groupedInboxItems[date]"
+                  :key="inboxItem._id"
                   :class="inboxItem.aspect_ratio > 1 ? 'col-span-2' : 'col-span-1'"
                 >
                   <Thumbnail
@@ -90,7 +81,6 @@ import { sortDates } from '@/helper/general.helper'
 import router from '@/router'
 import { useToast } from '@/service/toast.service'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
-import PhotoSwiper from '@/components/gallery/PhotoSwiper.vue'
 import { useRoute } from 'vue-router'
 import NoMessages from '@/components/gallery/NoMessages.vue'
 import Thumbnail from '@/components/gallery/Thumbnail.vue'
@@ -101,10 +91,14 @@ import noMessagesImg from '@/assets/illustrations/no-messages.svg'
 import { EventBus } from '@/main'
 import friendsImage from '@/assets/illustrations/match.svg'
 import { FRONTEND_ROUTES } from '@/types/router.types'
+import { usePhotoSwiper } from '@/store/photoswiper.store'
 
 const api = useAPI()
 const { getInbox, refresh, setQueryParams } = useAppStore()
 const { user, inbox, isLoggedIn, queryParams } = storeToRefs(useAppStore())
+const { open, slide } = storeToRefs(usePhotoSwiper())
+const { seeItem } = usePhotoSwiper()
+
 const { toast } = useToast()
 
 const isLoading = ref(false)
@@ -120,15 +114,12 @@ watch(isLoggedIn, () => {
   fetchInbox()
 })
 
-const isPhotoSwiperOpen = ref<boolean>(false)
-const groupedInboxItems = computed(() => groupOnMonth(inbox.value ? inbox.value : []))
-const inboxItems = computed(() => (inbox.value ? inbox.value.slice().reverse() : []))
+const groupedInboxItems = computed(() => groupOnMonth(inbox.value))
 
 
-const noMessages = computed(() => inboxItems.value.length === 0)
+const noMessages = computed(() => inbox.value.length === 0)
 
 
-const selectedInboxItemIndex = ref<number>(0)
 const route = useRoute()
 
 const multiSelectMode = ref(false)
@@ -189,7 +180,7 @@ onMounted(() => {
 })
 
 async function fetchInbox() {
-  if (!inbox.value && isLoggedIn.value) {
+  if (inbox.value.length == 0 && isLoggedIn.value) {
     isLoading.value = true
     await getInbox()
     isLoading.value = false
@@ -202,18 +193,14 @@ function checkQueryParams() {
   const query = router.currentRoute.value.query
   const item = queryParams.value ? queryParams.value.get('item') : query.item
   if (!item) return
-  const foundInboxIndex = inboxItems.value.findIndex(val => item === val._id)
+  const foundInboxIndex = inbox.value.findIndex(val => item === val._id)
   if (foundInboxIndex === -1) return
   setQueryParams(undefined)
 
-  selectedInboxItemIndex.value = foundInboxIndex
 
-  if (isPhotoSwiperOpen.value) EventBus.emit('go_to_slide', foundInboxIndex)
-  else isPhotoSwiperOpen.value = true
-}
-
-function inboxItemsFromDateGroups(date: string): InboxItem[] {
-  return Object.values(groupedInboxItems.value[date])
+  slide.value = foundInboxIndex
+  open.value = true
+  EventBus.emit('goToSlide')
 }
 
 function groupOnMonth(inbox: InboxItem[]) {
@@ -233,31 +220,13 @@ function groupOnMonth(inbox: InboxItem[]) {
 }
 
 function openPhotoSwiper(inboxItem: InboxItem) {
-  selectedInboxItemIndex.value = inboxItems.value.findIndex(val => inboxItem._id === val._id)
-  isPhotoSwiperOpen.value = true
+  slide.value = inbox.value.findIndex(val => inboxItem._id === val._id)
+  EventBus.emit('goToSlide')
+  open.value = true
+
+
 }
 
-function seeItem(index?: number) {
-  const indexOfItemToSee = index ? index : selectedInboxItemIndex.value
-  const item = inboxItems.value[indexOfItemToSee]
-
-  if (item.seen_by.includes(user.value!._id) && item.comments_seen_by.includes(user.value!._id)) return
-
-  api.seeInboxItem({
-    user_id: user.value!._id,
-    inbox_id: item._id
-  })
-  inboxItems.value[indexOfItemToSee].seen_by.push(user.value!._id)
-  inboxItems.value[indexOfItemToSee].comments_seen_by.push(user.value!._id)
-}
-
-function removeItem() {
-  const tmp = selectedInboxItemIndex.value
-  selectedInboxItemIndex.value = Math.max(0, selectedInboxItemIndex.value - 1)
-  if (inboxItems.value?.length === 1) isPhotoSwiperOpen.value = false
-  inbox.value?.splice(inbox.value?.length - 1 - tmp, 1)
-  toast('Item deleted')
-}
 </script>
 
 <style scoped lang="scss"></style>

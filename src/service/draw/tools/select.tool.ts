@@ -9,6 +9,7 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { disableEditing } from '@/helper/draw/actions/polyEdit.action'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { EventBus } from '@/main'
+import { popoverController } from '@ionic/vue'
 
 export interface Select extends ToolService {
   selectedObjectsRef: Ref<Array<SelectedObject>>
@@ -50,14 +51,24 @@ export const useSelect = defineStore('select', (): Select => {
     },
     {
       on: 'selection:cleared',
-      handler: () => {
-        if (multiSelectMode.value && mouseClickTarget) return
+      handler: async () => {
+
+        // if a popover is open while the text
+        const top = await popoverController.getTop()
+        if (top) {
+          if (selectedObjects.length > 1) c?.setActiveObject(new fabric.ActiveSelection(selectedObjects, { canvas: c }))
+          else c?.setActiveObject(selectedObjects[0])
+          return
+        }
+
+        if ((multiSelectMode.value && mouseClickTarget)) return
         mouseClickTarget = undefined
 
         if (isPolygon(selectedObjects)) disableEditing(selectedObjects[0] as fabric.Polygon)
         if (isText(selectedObjects)) {
           const text = selectedObjects[0] as IText
           const { isEditingText } = storeToRefs(useDrawStore())
+
           if (isEditingText.value) {
             if (text.text == '') actionWithoutEvents(() => c!.remove(text))
             else {
@@ -290,7 +301,6 @@ export const useSelect = defineStore('select', (): Select => {
       // we switch back to lasso since it was the last selected tool but all logic lives in Select
       // This behaviour occurs when we select through lasso but this selection makes us switch to the object select tool
       // in case we exit it we want the lasso again to be selected
-      console.log(selectedTool)
       if (selectedTool == DrawTool.Select && lastSelectedSelectTool == DrawTool.Lasso) selectTool(DrawTool.Lasso)
     }
     selectedObjects = objects

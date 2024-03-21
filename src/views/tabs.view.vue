@@ -10,7 +10,9 @@
       :color="color"
       :position="position"
     ></ion-toast>
+    <FullScreenModal v-if="user && inbox.length > 0"/>
     <FullScreenLoader v-show="notificationRouteLoading" class="z-50" />
+
       <ion-tabs>
         <ion-router-outlet :animation="routerAnimation" />
          <ion-tab-bar slot="bottom" v-if="show" mode="ios" class="relative">
@@ -63,6 +65,7 @@ import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
 import { routerAnimation } from '@/helper/animation.helper'
 import { useRoute } from 'vue-router'
 import { useSwipe } from '@vueuse/core'
+import FullScreenModal from '@/components/photoswiper/PhotoSwiper.vue'
 
 const { text, isOpen, dismiss, duration, color, buttons, position } = useToast()
 const r = useIonRouter()
@@ -74,7 +77,7 @@ useSwipe(toast, {
   }
 })
 
-const { notificationRouteLoading } = storeToRefs(useAppStore())
+const { notificationRouteLoading, user, inbox } = storeToRefs(useAppStore())
 
 const route = useRoute()
 const show = computed(() => route.path != `/${FRONTEND_ROUTES.login}` && !route.fullPath.includes('capacitor')) // capacitor due to redirect login url

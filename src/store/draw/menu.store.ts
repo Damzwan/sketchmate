@@ -38,7 +38,7 @@ export const useMenuStore = defineStore('menu', () => {
   }
 
   function openMenu(menu: Menu, event: Event | undefined = undefined) {
-    menuMapping[menu].value = true
+    menuMapping[menu].value = !menuMapping[menu].value
     if (event) menuEvent.value = event
   }
 

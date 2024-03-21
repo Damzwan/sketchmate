@@ -22,7 +22,7 @@ import { routerAnimation } from '@/helper/animation.helper'
 
 export const useAppStore = defineStore('app', () => {
   const user = ref<User>()
-  const inbox = ref<InboxItem[]>()
+  const inbox = ref<InboxItem[]>([])
   const inboxUsers = ref<Mate[]>([])
 
   const isLoggedIn = ref(false)
@@ -160,7 +160,7 @@ export const useAppStore = defineStore('app', () => {
         _ids: user.value!.inbox
       })
       if (!retrievedInbox) throw new Error()
-      inbox.value = retrievedInbox.inboxItems
+      inbox.value = (retrievedInbox.inboxItems as any).toReversed() // toReversed not recognised
       inboxUsers.value = [...inboxUsers.value, ...retrievedInbox.userInfo]
     } catch (e) {
       console.log(e)
@@ -262,7 +262,7 @@ export const useAppStore = defineStore('app', () => {
     Preferences.remove({ key: LocalStorage.user_id })
     await router.replace(`/${FRONTEND_ROUTES.login}`)
 
-    inbox.value = undefined
+    inbox.value = []
     user.value = undefined
   }
 

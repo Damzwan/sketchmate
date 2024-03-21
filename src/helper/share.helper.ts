@@ -46,8 +46,8 @@ export async function shareImg(
   dialogTitle = 'Share image'
 ) {
   const can_share = await Share.canShare()
-  const base64 = await urlToBase64(img_url)
   if (isNative() && can_share.value) {
+    const base64 = await urlToBase64(img_url)
     const savedFile = await Filesystem.writeFile({
       path: 'sketchmate_img.png',
       data: base64.toString().split(',')[1],
@@ -61,21 +61,15 @@ export async function shareImg(
       dialogTitle: dialogTitle
     })
   } else if (isSupported.value) {
+    const base64 = await urlToBase64(img_url)
     const blob = await (await fetch(base64)).blob()
     const file = new File([blob], 'SketchMate_image.png', { type: blob.type })
     await share({ files: [file] })
   } else {
-    try {
-      await Clipboard.write({
-        image: base64.toString()
-      })
-      toast('Copied image!')
-    } catch (e) {
-      toast('Copied image link!')
-      await Clipboard.write({
-        string: img_url
-      })
-    }
+    toast('Copied image link!')
+    await Clipboard.write({
+      string: img_url
+    })
   }
 }
 

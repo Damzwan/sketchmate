@@ -91,7 +91,7 @@ export function createSocketService(): SocketAPI {
     })
 
     socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {
-      console.log("received")
+      console.log('received')
       isLoading.value = false
       if (params) {
         const { updateSlide, reviewAppAlertOpen, inboxUsers } = storeToRefs(useAppStore())
@@ -115,8 +115,8 @@ export function createSocketService(): SocketAPI {
         }
 
         updateSlide.value = true
-        user.value!.inbox = [...user.value!.inbox, params._id]
-        inbox.value = [...(inbox.value ? inbox.value : []), params]
+        user.value!.inbox = [params._id, ...user.value!.inbox]
+        inbox.value = [params, ...inbox.value]
 
         const followersNotInInboxUsers = params.original_followers.reduce((acc: string[], curr) => !inboxUsers.value.some(m => m._id == curr) ? [...acc, curr] : acc, [])
         if (followersNotInInboxUsers.length > 0) {

@@ -4,7 +4,7 @@
   </transition>
   <transition name="slide">
     <div class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0" v-show="open">
-      <h1 class="text-2xl pl-3 py-2">Followers</h1>
+      <h1 class="text-2xl pl-3 py-2 text-black">Followers</h1>
       <ion-list>
         <ion-item v-for="follower in followers" :key="follower">
           <img :src="senderImg(findUserInInboxUsers(follower))" :alt="follower" class="rounded-full w-[48px] my-2"

@@ -42,6 +42,7 @@ import { loadAdditionalBrushes } from '@/utils/brushes'
 import { Select } from '@/service/draw/tools/select.tool'
 import { useBackgroundSaver } from '@/service/draw/backgroundSaved.service'
 import { useShortcutManager } from '@/service/draw/shortcutManager'
+import { EventBus } from '@/main'
 
 
 export const useDrawStore = defineStore('draw', () => {
@@ -169,6 +170,8 @@ export const useDrawStore = defineStore('draw', () => {
     if (json) restoreSelectedObjects(c!, selected)
     json = undefined
     hideLoading()
+
+    EventBus.emit('canvas-ready')
   }
 
   function destroyToolsAndServices(maintainHistory: boolean) {

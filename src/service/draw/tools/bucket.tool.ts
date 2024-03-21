@@ -20,7 +20,7 @@ export const useBucket = defineStore('bucket', (): ToolService => {
       handler: async (o: any) => {
         // we use mouse:down to disable all click events in case we add text
         const { colorPickerMode } = useDrawStore()
-        if (o.e.button !== 0 || colorPickerMode) return // only execute button fill for left click and now in colorpicker mode
+        if ((!isMobile() && o.e.button !== 0) || colorPickerMode) return // only execute button fill for left click and now in colorpicker mode
         if (timeout) return
         timeout = setTimeout(
           async () => {

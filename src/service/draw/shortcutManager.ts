@@ -9,8 +9,6 @@ import { modalController, popoverController } from '@ionic/vue'
 import { Canvas } from 'fabric/fabric-impl'
 import { useHistory } from '@/service/draw/history.service'
 import { fabric } from 'fabric'
-import { EventBus } from '@/main'
-import { useVideoRecorder } from '@/service/draw/videoRecorder.service'
 
 export function useShortcutManager() {
   const { getSelectedObjects } = useSelect()
@@ -247,22 +245,6 @@ export function useShortcutManager() {
         dismissPopover()
         break
 
-      case Shortcut.video:
-        event.preventDefault()
-        const { createVideoDrawing } = useDrawStore()
-        const blob = await createVideoDrawing()
-
-        console.log(blob)
-        const url = URL.createObjectURL(blob!)
-
-        const link = document.createElement('a')
-        link.href = url
-        link.download = 'test.mp4'
-        link.style.display = 'none' // Hide the link
-
-        document.body.appendChild(link) // Add the link to the document (out of view)
-        link.click() // Simulate a click on the link to initiate download
-        break
 
       case Shortcut.paste:
         event.preventDefault()

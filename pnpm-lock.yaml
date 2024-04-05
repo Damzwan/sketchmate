@@ -119,9 +119,6 @@ dependencies:
   fabric:
     specifier: ^5.3.0
     version: 5.3.0
-  ffmpeg.js:
-    specifier: ^4.2.9003
-    version: 4.2.9003
   firebase:
     specifier: ^10.3.0
     version: 10.3.0
@@ -5041,10 +5038,6 @@ packages:
     dependencies:
       pend: 1.2.0
     dev: true
-
-  /ffmpeg.js@4.2.9003:
-    resolution: {integrity: sha512-l1JBr8HwnnJEaSwg5p8K3Ifbom8O2IDHsZp7UVyr6MzQ7gc32tt/2apoOuQAr/j76c+uDOjla799VSsBnRvSTg==}
-    dev: false
 
   /figures@3.2.0:
     resolution: {integrity: sha512-yaduQFRKLXYOGgEn6AZau90j3ggSOyiqXU0F9JZfeXYhNa+Jk4X+s45A2zg5jns87GAFa34BBm2kXw4XpNcbdg==}

@@ -43,8 +43,6 @@ import { Select } from '@/service/draw/tools/select.tool'
 import { useBackgroundSaver } from '@/service/draw/backgroundSaved.service'
 import { useShortcutManager } from '@/service/draw/shortcutManager'
 import { EventBus } from '@/main'
-import { useVideoRecorder } from '@/service/draw/videoRecorder.service'
-import { convertWebmToMp4 } from '@/helper/general.helper'
 
 
 export const useDrawStore = defineStore('draw', () => {
@@ -63,7 +61,6 @@ export const useDrawStore = defineStore('draw', () => {
   const loadService = useLoadService()
   const eventManager = useEventManager()
   const backgroundSaver = useBackgroundSaver()
-  const videoRecorder = useVideoRecorder()
   const shortcutManager = useShortcutManager()
   const history = useHistory()
 
@@ -84,9 +81,6 @@ export const useDrawStore = defineStore('draw', () => {
   const isUsingGesture = ref(false)
   const backgroundColor = ref(BACKGROUND) // use ref for reactivity :(
   const showLoadingBackdrop = ref(false)
-
-  let videoCreationPromise: Promise<ArrayBuffer | undefined>
-  const mp4VideoUrl = ref<string>()
 
 
   // TODO I think we should transform shape creation into a store
@@ -169,7 +163,6 @@ export const useDrawStore = defineStore('draw', () => {
     backgroundSaver.startSaving(c)
     shortcutManager.init(c)
     activateRenderPanBoundaryListener(c)
-    videoRecorder.init(c)
 
 
     const selected = (tools[DrawTool.Select] as Select).getSelectedObjects() // important that this is before selectTool
@@ -190,7 +183,6 @@ export const useDrawStore = defineStore('draw', () => {
     eventManager.destroy()
     shortcutManager.destroy()
     disableRenderPanBoundaryListener()
-    videoRecorder.destroy()
   }
 
   function showLoading(text: string) {
@@ -208,16 +200,13 @@ export const useDrawStore = defineStore('draw', () => {
     isSendingDrawing.value = true
     resetZoom(c)
 
-    const video = await videoCreationPromise
-
     await api.send({
       _id: user.value!._id,
       followers: [user.value!._id, ...matesToSend],
       drawing: JSON.stringify(c.toJSON(['width', 'height'])),
       img: await canvasToBuffer(c.toDataURL({ multiplier: 2 })), // TODO multiplier 2 could be dangerous
       name: user.value!.name,
-      aspect_ratio: c.width! / c.height!,
-      video: video ? await video : undefined
+      aspect_ratio: c.width! / c.height!
     })
     reset()
   }
@@ -252,17 +241,6 @@ export const useDrawStore = defineStore('draw', () => {
     canZoomOut.value = bool
   }
 
-  async function createVideoDrawing() {
-    videoCreationPromise = new Promise<ArrayBuffer | undefined>(resolve => {
-      videoRecorder.exportVideo().then(mp4Blob => {
-        if (!mp4Blob) resolve(undefined)
-        else {
-          mp4VideoUrl.value = URL.createObjectURL(mp4Blob)
-          mp4Blob.arrayBuffer().then(res => resolve(res))
-        }
-      })
-    })
-  }
 
   return {
     selectedTool,
@@ -287,8 +265,6 @@ export const useDrawStore = defineStore('draw', () => {
     colorPickerMode,
     addTextMode,
     backgroundColor,
-    showLoadingBackdrop,
-    createVideoDrawing,
-    mp4VideoUrl
+    showLoadingBackdrop
   }
 })

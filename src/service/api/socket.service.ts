@@ -216,9 +216,6 @@ export function createSocketService(): SocketAPI {
     const img = params.img
     delete params.img
 
-    const video = params.video
-    delete params.video
-
     const data = JSON.stringify(params)
 
     const pako = await import('pako')
@@ -242,14 +239,6 @@ export function createSocketService(): SocketAPI {
 
     socket!.emit(`${SOCKET_ENDPONTS.send}img_end`)
 
-
-    if (video) {
-      for (let i = 0; i < video.byteLength; i += chunkSize) {
-        const chunk = video.slice(i, i + chunkSize)
-        socket!.emit(`${SOCKET_ENDPONTS.send}video_chunk`, chunk)
-      }
-    }
-    socket!.emit(`${SOCKET_ENDPONTS.send}video_end`)
   }
 
   async function comment(params: CommentParams): Promise<void> {

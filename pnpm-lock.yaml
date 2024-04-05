@@ -119,6 +119,9 @@ dependencies:
   fabric:
     specifier: ^5.3.0
     version: 5.3.0
+  ffmpeg.js:
+    specifier: ^4.2.9003
+    version: 4.2.9003
   firebase:
     specifier: ^10.3.0
     version: 10.3.0
@@ -182,6 +185,9 @@ dependencies:
   vue-router:
     specifier: ^4.2.2
     version: 4.2.4(vue@3.3.4)
+  webm-writer:
+    specifier: ^1.0.0
+    version: 1.0.0
 
 devDependencies:
   '@capacitor/cli':
@@ -5036,6 +5042,10 @@ packages:
       pend: 1.2.0
     dev: true
 
+  /ffmpeg.js@4.2.9003:
+    resolution: {integrity: sha512-l1JBr8HwnnJEaSwg5p8K3Ifbom8O2IDHsZp7UVyr6MzQ7gc32tt/2apoOuQAr/j76c+uDOjla799VSsBnRvSTg==}
+    dev: false
+
   /figures@3.2.0:
     resolution: {integrity: sha512-yaduQFRKLXYOGgEn6AZau90j3ggSOyiqXU0F9JZfeXYhNa+Jk4X+s45A2zg5jns87GAFa34BBm2kXw4XpNcbdg==}
     engines: {node: '>=8'}
@@ -8441,6 +8451,10 @@ packages:
   /webidl-conversions@7.0.0:
     resolution: {integrity: sha512-VwddBukDzu71offAQR975unBIGqfKZpM+8ZX6ySk8nYhVoo5CYaZyzt3YBvYtRtO+aoGlqxPg/B87NGVZ/fu6g==}
     engines: {node: '>=12'}
+
+  /webm-writer@1.0.0:
+    resolution: {integrity: sha512-xafP4mzUqht03HBXP0Ov2YGsxfD08uncad9fQeshYwQXrcP6Z/4uxd1IUaGKqKigFPAgaD9xb6JEKA8SXLQMLA==}
+    dev: false
 
   /websocket-driver@0.7.4:
     resolution: {integrity: sha512-b17KeDIQVjvb0ssuSDF2cYXSg2iztliJ4B9WdsuB6J952qCPKmnVq4DyW5motImXHDC1cBT/1UezrJVsKw5zjg==}

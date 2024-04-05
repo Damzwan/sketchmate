@@ -1,6 +1,10 @@
 <template>
-  <ion-modal trigger="send-drawing" :initial-breakpoint="1" :breakpoints="[0, 1]" @didDismiss="onDismiss" :handle="false">
+  <ion-modal trigger="send-drawing" :initial-breakpoint="1" :breakpoints="[0, 1]" @didDismiss="onDismiss"
+             @willPresent="createVideoDrawing"
+             :keep-contents-mounted="true"
+             :handle="false">
     <div class="bg-background">
+      <video :src="mp4VideoUrl" width="300" loop :key="mp4VideoUrl" autoplay v-if="mp4VideoUrl"/>
       <h1 class="text-2xl pl-3 py-2">
         {{ selectedMates.length == 0 ? `Select mates` : `${selectedMates.length} mate${selectedMates.length > 1 ? `s` : ``} selected`
         }}</h1>
@@ -32,6 +36,7 @@ import SendDrawerMate from '@/components/draw/SendDrawerMate.vue'
 import { svg } from '@/helper/general.helper'
 import { mdiSend } from '@mdi/js'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { storeToRefs } from 'pinia'
 
 const props = defineProps<{
   user: User
@@ -40,7 +45,9 @@ const props = defineProps<{
 const showFab = ref(false)
 const selectedMates = ref<Mate[]>([])
 const selectedMatesLengthToShow = ref(0)
-const { send } = useDrawStore()
+const { send, createVideoDrawing } = useDrawStore()
+const { mp4VideoUrl } = storeToRefs(useDrawStore())
+
 
 function onMateClick(mate: Mate) {
   showFab.value = true

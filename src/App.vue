@@ -13,7 +13,7 @@
       class="z-50"
       v-if="networkStatus && !networkStatus.connected && route.path != `/${FRONTEND_ROUTES.draw}`"
     />
-    <ForceUpdateModal v-if="isNative() && showForceUpdateModal"/>
+    <ForceUpdateModal v-if="isNative() && showForceUpdateModal" />
 
     <ConfirmationAlert header="Enjoying SketchMate?"
                        message="Support the solo developer behind SketchMate! Rate the app if you enjoy it."
@@ -51,10 +51,14 @@ const {
   showSettingsOnLoginModal,
   isSendingDrawing,
   isAuthLoading,
-  showForceUpdateModal
+  showForceUpdateModal,
 } = storeToRefs(useAppStore())
+
+
 const route = useRoute()
 const { isOpen, dismiss } = useToast()
+
+const oui = ref(false)
 
 
 function openPlayStoreLink() {

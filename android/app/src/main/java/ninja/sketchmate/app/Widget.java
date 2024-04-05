@@ -125,6 +125,12 @@ public class Widget extends AppWidgetProvider {
             if (!preferences.getBoolean("friendSelected_" + appWidgetId, false)) {
                 retrieveFriends(context, appWidgetManager, appWidgetId);
                 preferences.edit().putBoolean("friendSelected_" + appWidgetId, true).apply();
+            } else if (hasFriendMapping(context, appWidgetId)) {
+                Mate mate = retrieveWidgetFriendMapping(context, appWidgetId);
+                retrieveLatestFriendDrawing(context, appWidgetManager, appWidgetId, mate.get_id(), mate.getName());
+            } else {
+                removeWidgetMapping(context, appWidgetId);
+                renderSomethingWrong(context, appWidgetManager, appWidgetId);
             }
         }
         super.onUpdate(context, appWidgetManager, appWidgetIds);
@@ -210,6 +216,11 @@ public class Widget extends AppWidgetProvider {
                                int appWidgetId, String friendID, String friendName, String friendImg) {
         renderLoading(context, appWidgetManager, appWidgetId);
         storeWidgetFriendMapping(context, appWidgetId, friendID, friendName, friendImg);
+        retrieveLatestFriendDrawing(context, appWidgetManager, appWidgetId, friendID, friendName);
+    }
+
+    private void retrieveLatestFriendDrawing(Context context, AppWidgetManager appWidgetManager,
+                                             int appWidgetId, String friendID, String friendName) {
         SharedPreferences preferences = context.getSharedPreferences("CapacitorStorage", Activity.MODE_PRIVATE);
         String backendURL = preferences.getString("backend_url", null);
         String userID = preferences.getString("user_id", null);
@@ -276,6 +287,14 @@ public class Widget extends AppWidgetProvider {
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }
 
+    private void renderSomethingWrong(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
+        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_error);
+        views.setTextViewText(R.id.widget_no_friends_text1, "Something went wrong");
+        views.setTextViewText(R.id.widget_no_friends_text2, "Please try again...");
+
+        appWidgetManager.updateAppWidget(appWidgetId, views);
+    }
+
     private static void renderUnmatchView(Context context, AppWidgetManager appWidgetManager, int appWidgetId, String friendName, boolean isUnmatcher) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_error);
         if (isUnmatcher)
@@ -326,12 +345,28 @@ public class Widget extends AppWidgetProvider {
         editor.apply(); // Commit the changes to SharedPreferences
     }
 
+
+    private void removeWidgetMapping(Context context, int appWidgetId) {
+        SharedPreferences preferences = context.getSharedPreferences("WidgetMappings", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.remove("widget_" + appWidgetId + "_friend_id");
+        editor.remove("widget_" + appWidgetId + "_friend_name");
+        editor.remove("widget_" + appWidgetId + "_friend_img");
+        editor.remove("friendSelected_" + appWidgetId);
+        editor.apply(); // Commit the changes to SharedPreferences
+    }
+
     private static Mate retrieveWidgetFriendMapping(Context context, int appWidgetId) {
         SharedPreferences preferences = context.getSharedPreferences("WidgetMappings", Context.MODE_PRIVATE);
         String friendID = preferences.getString("widget_" + appWidgetId + "_friend_id", null);
         String friendName = preferences.getString("widget_" + appWidgetId + "_friend_name", null);
         String friendImg = preferences.getString("widget_" + appWidgetId + "_friend_img", null);
         return new Mate(friendID, friendName, friendImg);
+    }
+
+    private static boolean hasFriendMapping(Context context, int appWidgetId) {
+        SharedPreferences preferences = context.getSharedPreferences("WidgetMappings", Context.MODE_PRIVATE);
+        return preferences.getString("widget_" + appWidgetId + "_friend_id", null) == null;
     }
 
 
@@ -352,13 +387,12 @@ public class Widget extends AppWidgetProvider {
         SharedPreferences.Editor editor = preferences.edit();
 
         for (int appWidgetId : appWidgetIds) {
-            editor.remove("friendSelected_" + appWidgetId);
+            removeWidgetMapping(context, appWidgetId);
         }
 
         editor.apply();
 
         super.onDeleted(context, appWidgetIds);
-        System.out.println("deleted");
     }
 
     private static Bitmap getRoundedCornerBitmap(Bitmap bitmap, int cornerRadius) {

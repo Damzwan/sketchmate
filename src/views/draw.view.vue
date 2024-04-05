@@ -14,7 +14,7 @@
     </ion-header>
     <ion-content>
       <ShapesMenu />
-      <div class="w-full h-full" v-if="showLoadingBackdrop"/>
+      <div class="w-full h-full" v-if="showLoadingBackdrop" />
 
 
       <div>
@@ -55,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter } from '@ionic/vue'
+import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter, IonInput } from '@ionic/vue'
 import PrimaryDrawToolBar from '@/components/draw/toolbar/PrimaryDrawToolBar.vue'
 
 import { computed, ref, watch } from 'vue'

@@ -110,16 +110,7 @@ export function changeFabricBaseSettings() {
     const { isEditingText } = storeToRefs(useDrawStore())
 
     this.on('editing:entered', () => {
-      if (isNative()) {
-        const { keyboardHeight } = useAppStore()
-
-        // Save original position
-        this.originalTop = this.top
-
-        if (this.top! + this.height! + keyboardHeight > window.innerHeight) {
-          this.set({ top: this.top! - keyboardHeight })
-        }
-      }
+      // should not be necessary...
       setSelectionForObjects(
         this.canvas!.getObjects().filter(o => o.id != this.id),
         false
@@ -131,10 +122,6 @@ export function changeFabricBaseSettings() {
     this.on('editing:exited', () => {
       const { isEditingText } = storeToRefs(useDrawStore())
 
-      if (isNative()) {
-        this.set({ top: this.originalTop })
-      }
-
       // We need a timeout since this is called before selection clear. This should only be usedful in case we exit through the keyboard
       setTimeout(() => {
         isEditingText.value = false
@@ -144,16 +131,7 @@ export function changeFabricBaseSettings() {
       this.canvas?.requestRenderAll()
     })
 
-    this.on('changed', () => {
-      const deviceWidth: number = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
-      if (this.width! > deviceWidth) {
-        const newString: string = splitStringToWidth(this.text!, this.fontSize!, this.fontFamily!, deviceWidth)
-        this.set('text', newString)
-        this.setSelectionStart(newString.length)
-        this.setSelectionEnd(newString.length)
-        this.canvas?.renderAll()
-      }
-    })
+
     return this
   }
 
@@ -163,6 +141,13 @@ export function changeFabricBaseSettings() {
     const { isUsingGesture } = useDrawStore()
     if (isUsingGesture || multiSelectMode) return
     ogMouseUp.call(this, o)
+
+    // This is a hack used to make the keyboard push the elements up in native mode
+    if (this.hiddenTextarea && isNative()) {
+      const canvas = document.getElementById('canvas')
+      canvas!.appendChild(this.hiddenTextarea)
+      this.hiddenTextarea.focus()
+    }
   }
 
   // text curve

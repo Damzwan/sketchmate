@@ -242,3 +242,41 @@ export async function installPWA(installPrompt: Ref<any>) {
     }
   }
 }
+
+export async function toDataUrl(blob: any) {
+  return new Promise(resolve => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result)
+    reader.readAsDataURL(blob)
+  })
+}
+
+export async function convertWebmToMp4(blob: Blob) {
+  const arr = await blob.arrayBuffer()
+  return new Promise<Blob>(resolve => {
+    const args = '-i input.webm -r 24 -c:v libx264 -crf 22 -pix_fmt yuv420p -threads 4 -rtbufsize 100M -b:a 128k -preset ultrafast output.mp4'.toString()
+    const worker = new Worker('ffmpeg-worker-mp4.js')
+    worker.onmessage = function(e) {
+      const msg = e.data
+      switch (msg.type) {
+        case 'ready':
+          worker.postMessage({
+            type: 'run',
+            arguments: args.split(' '),
+            MEMFS: [{ name: 'input.webm', data: new Uint8Array(arr) }]
+          })
+          break
+        case 'stdout':
+          break
+        case 'stderr':
+          break
+        case 'done':
+          const memfs = msg.data.MEMFS
+          resolve(new Blob([memfs[0].data], { type: 'video/mp4' }))
+      }
+    }
+  })
+
+}
+
+

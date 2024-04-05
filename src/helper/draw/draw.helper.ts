@@ -90,7 +90,7 @@ export function exitEditing(text: any) {
 }
 
 export async function canvasToBuffer(canvasDataUrl: string) {
-  return await (await compressImg(canvasDataUrl, { returnType: 'blob' })).arrayBuffer()
+  return await (await compressImg(canvasDataUrl, { returnType: 'blob', size: 1920 })).arrayBuffer()
 }
 
 export async function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>, magic = false) {
@@ -289,10 +289,10 @@ export function getStaticObjWithAbsolutePosition(obj: fabric.Object, activeObjec
   o.top = dim.y
 
   // the new rotation and scale is only applied to the selection and not the individual objects...
-  if (activeObject && activeObject._objects && activeObject._objects.includes(obj)){
-    o.angle += activeObject.angle;
-    o.scaleX *= activeObject.scaleX;
-    o.scaleY *= activeObject.scaleY;
+  if (activeObject && activeObject._objects && activeObject._objects.includes(obj)) {
+    o.angle += activeObject.angle
+    o.scaleX *= activeObject.scaleX
+    o.scaleY *= activeObject.scaleY
   }
   return o
 }

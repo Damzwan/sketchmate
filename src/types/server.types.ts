@@ -79,6 +79,7 @@ export interface SendParams {
   followers: string[];
   drawing: string;
   img: any;
+  video?: any;
   aspect_ratio: number;
 }
 

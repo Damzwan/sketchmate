@@ -32,10 +32,8 @@ export const useBucket = defineStore('bucket', (): ToolService => {
 
 
             img.bucketFillObject = true
-            const highestZIndex = c!.getObjects().reduce((accumulator, currentValue, currentIndex) => currentValue.bucketFillObject && img.intersectsWithObject(currentValue) ? Math.max(currentIndex, accumulator) : accumulator, -1)
             c!.add(img)
 
-            c!.moveTo(img, highestZIndex + 1)
             setObjectSelection(img, false) // TODO should not be necessary
             setTimeout(() => {
               const { enabled, addToUndoStack } = useHistory()

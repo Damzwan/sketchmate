@@ -15,7 +15,7 @@
 
       <ion-tabs>
         <ion-router-outlet :animation="routerAnimation" />
-         <ion-tab-bar slot="bottom" v-if="show" mode="ios" class="relative">
+         <ion-tab-bar slot="bottom" v-if="show" mode="ios">
            <ion-tab-button :tab="FRONTEND_ROUTES.draw" :href="`/${FRONTEND_ROUTES.draw}`" @click="onDrawClick">
              <ion-icon :icon="pencil" />
              <ion-label>Draw</ion-label>

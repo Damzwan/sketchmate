@@ -29,12 +29,12 @@ import { LocalStorage } from '@/types/storage.types'
 const pinia = createPinia()
 initFirebase()
 
+export const EventBus = mitt()
 const app = createApp(App).use(IonicVue).use(pinia).use(VueJsTour).use(router)
 
 app.mount('#app')
 
 
-export const EventBus = mitt()
 addNotificationListeners()
 
 // lazy loading fabric js dependency for smooth transitions

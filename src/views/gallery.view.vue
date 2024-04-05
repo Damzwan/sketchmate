@@ -162,6 +162,7 @@ function deleteInboxItems() {
 }
 
 // TODO this is ugly
+checkQueryParams()
 watch(
   () => route.query,
   () => {

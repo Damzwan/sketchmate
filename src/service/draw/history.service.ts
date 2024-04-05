@@ -134,7 +134,18 @@ export const useHistory = defineStore('history', () => {
     }
 
     const modifiedObjects = objectsFromTarget(e.target)
-    if (isText(modifiedObjects) && (modifiedObjects[0] as IText).init) {
+    // in case the new text value is empty we delete it
+    if (isText(modifiedObjects) && (modifiedObjects[0] as IText).text == '') {
+      const text = modifiedObjects[0] as any // TODO any hack
+      c!.remove(text)
+
+      // directly editing the text object causes for big problems :c
+      text.clone((clone: any) => {
+        clone.text = text._textBeforeEdit
+        addToUndoStack([clone], 'object:removed')
+      })
+    }
+    else if (isText(modifiedObjects) && (modifiedObjects[0] as IText).init) {
       const text = modifiedObjects[0] as IText
       text.init = false
       addToUndoStack(modifiedObjects, 'object:added')

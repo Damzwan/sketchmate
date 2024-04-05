@@ -25,7 +25,7 @@
 import { onLongPress } from '@vueuse/core'
 import { isMobile, svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
-import { IonIcon, IonImg } from '@ionic/vue'
+import { IonIcon, IonImg, IonSkeletonText } from '@ionic/vue'
 import { ref } from 'vue'
 
 const item = ref()

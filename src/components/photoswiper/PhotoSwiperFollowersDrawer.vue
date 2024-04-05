@@ -13,6 +13,7 @@
             {{ follower == user._id ? `${senderName(findUserInInboxUsers(follower))} (Me)` : senderName(findUserInInboxUsers(follower))
             }}</h2>
 
+
           <div v-if="follower != user._id && !user.mates.some(m1 => m1._id == follower)" slot="end">
             <ion-spinner color="secondary" v-if="friendRequestLoading && friendToBe==follower" />
             <ion-button color="secondary" fill="clear" v-else-if="user.mate_requests_sent.some(m => m == follower)"

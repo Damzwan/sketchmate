@@ -70,10 +70,14 @@ export const useSelect = defineStore('select', (): Select => {
           const { isEditingText } = storeToRefs(useDrawStore())
 
           if (isEditingText.value) {
-            if (text.text == '') actionWithoutEvents(() => c!.remove(text))
+            if (text.text == '') {
+              return
+            }
             else {
-              c?.setActiveObject(text)
-              isEditingText.value = false
+              setTimeout(() => {
+                c?.setActiveObject(text)
+                isEditingText.value = false
+              }, 50) // We should seriously rewrite the internal fabric js logic instead of using these hacks...
               return
             }
           }

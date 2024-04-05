@@ -14,7 +14,7 @@
     "test:e2e": "cypress run",
     "test:unit": "vitest",
     "lint": "eslint",
-    "lint_fix_and_add": "eslint --fix . && git add .",
+    "lint_fix_and_add": "git add .",
     "heroku:start": "node server.js",
     "postinstall": "npm run build_fabric && npm run build",
     "build_fabric": "cd node_modules/fabric && npm run build_with_gestures",
@@ -60,6 +60,7 @@
     "dayjs": "^1.11.8",
     "express": "^4.18.2",
     "fabric": "^5.3.0",
+    "ffmpeg.js": "^4.2.9003",
     "firebase": "^10.3.0",
     "fontfaceobserver": "^2.3.0",
     "lottie-web": "^5.12.2",
@@ -80,7 +81,8 @@
     "vanilla-picker": "^2.12.2",
     "vue": "^3.3.4",
     "vue-markdown-render": "^2.0.1",
-    "vue-router": "^4.2.2"
+    "vue-router": "^4.2.2",
+    "webm-writer": "^1.0.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^5.0.5",

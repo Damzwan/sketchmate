@@ -53,7 +53,6 @@ async function addTextHelper(c: Canvas, location: IPoint) {
   text.set({ hasControls: false }) // this is necessary sadly
 
   text.enterEditing()
-  text.hiddenTextarea?.focus()
   c.requestRenderAll()
   enableHistorySaving()
 }

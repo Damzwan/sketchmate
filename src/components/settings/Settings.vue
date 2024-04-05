@@ -32,7 +32,6 @@
               placeholder="e.g. SketchMater"
               v-model="name"
               ref="nameRef"
-              @ionFocus="onNameFocus"
               @ionBlur="onNameBlur"
               @keyup.enter="onEnter"
               enterkeyhint="done"
@@ -192,12 +191,8 @@ function changeName() {
   toast('Changed name')
 }
 
-function onNameFocus() {
-  // name.value = ''
-}
-
 function onNameBlur() {
-  if (name.value != '') changeName()
+  if (name.value != '' && name.value != user.value?.name) changeName()
   else name.value = user.value!.name
 }
 

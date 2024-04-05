@@ -26,6 +26,7 @@ import { LocalStorage } from '@/types/storage.types'
 import { Preferences } from '@capacitor/preferences'
 import { isNative } from '@/helper/general.helper'
 import { useAPI } from '@/service/api/api.service'
+import { useDrawStore } from '@/store/draw/draw.store'
 
 let socket: Socket | undefined
 
@@ -90,8 +91,7 @@ export function createSocketService(): SocketAPI {
       user.value!.mates = user.value!.mates.filter(el => el._id != unMatchedMate!._id)
     })
 
-    socket.on(SOCKET_ENDPONTS.send, (params: Res<InboxItem>) => {
-      console.log('received')
+    socket.on(SOCKET_ENDPONTS.send, async (params: Res<InboxItem>) => {
       isLoading.value = false
       if (params) {
         const { updateSlide, reviewAppAlertOpen, inboxUsers } = storeToRefs(useAppStore())
@@ -115,8 +115,14 @@ export function createSocketService(): SocketAPI {
         }
 
         updateSlide.value = true
+        if (user.value!.inbox.length != 0 && inbox.value.length == 0) {
+          const { getInbox } = useAppStore()
+          await getInbox()
+        }
+
         user.value!.inbox = [params._id, ...user.value!.inbox]
         inbox.value = [params, ...inbox.value]
+
 
         const followersNotInInboxUsers = params.original_followers.reduce((acc: string[], curr) => !inboxUsers.value.some(m => m._id == curr) ? [...acc, curr] : acc, [])
         if (followersNotInInboxUsers.length > 0) {
@@ -210,6 +216,9 @@ export function createSocketService(): SocketAPI {
     const img = params.img
     delete params.img
 
+    const video = params.video
+    delete params.video
+
     const data = JSON.stringify(params)
 
     const pako = await import('pako')
@@ -232,6 +241,15 @@ export function createSocketService(): SocketAPI {
     }
 
     socket!.emit(`${SOCKET_ENDPONTS.send}img_end`)
+
+
+    if (video) {
+      for (let i = 0; i < video.byteLength; i += chunkSize) {
+        const chunk = video.slice(i, i + chunkSize)
+        socket!.emit(`${SOCKET_ENDPONTS.send}video_chunk`, chunk)
+      }
+    }
+    socket!.emit(`${SOCKET_ENDPONTS.send}video_end`)
   }
 
   async function comment(params: CommentParams): Promise<void> {

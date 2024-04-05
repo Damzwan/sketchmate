@@ -186,7 +186,8 @@ export enum DrawEvent {
   SetModified = 'Set Modified',
   Lasso = 'Using lasso',
   ColorPicker = 'Color picker',
-  AddText = 'Click to add text'
+  AddText = 'Click to add text',
+  Video='video'
 }
 
 export type StickersEmblemsSavedTabOptions = 'sticker' | 'emblem' | 'saved'

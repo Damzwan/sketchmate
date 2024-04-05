@@ -176,6 +176,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function setNotifications(token: string | undefined) {
+    if (token && token == localSubscription.value) return
     localSubscription.value = token
     const fingerprint = await generateDeviceFingerprint()
 

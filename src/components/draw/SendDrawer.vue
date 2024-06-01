@@ -7,7 +7,7 @@
         {{ selectedMates.length == 0 ? `Select mates` : `${selectedMates.length} mate${selectedMates.length > 1 ? `s` : ``} selected`
         }}</h1>
       <ion-list>
-        <SendDrawerMate v-for="mate in user.mates" :mate="mate" @click="onMateClick(mate)" :key="mate._id" />
+        <SendDrawerItem v-for="mate in user.mates" :mate="mate" @click="onMateClick(mate)" :key="mate._id" :isSelected="selectedMates.some(m => m._id == mate._id)" />
       </ion-list>
 
       <ion-fab slot="fixed" vertical="bottom" horizontal="end" v-show="showFab"
@@ -30,7 +30,7 @@
 import { IonFab, IonFabButton, IonIcon, IonList, IonModal, modalController } from '@ionic/vue'
 import { Mate, User } from '@/types/server.types'
 import { ref } from 'vue'
-import SendDrawerMate from '@/components/draw/SendDrawerMate.vue'
+import SendDrawerItem from '@/components/draw/SendDrawerItem.vue'
 import { svg } from '@/helper/general.helper'
 import { mdiSend } from '@mdi/js'
 import { useDrawStore } from '@/store/draw/draw.store'

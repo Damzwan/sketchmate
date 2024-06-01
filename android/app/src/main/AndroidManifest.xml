@@ -110,9 +110,6 @@
             </intent-filter>
         </service>
 
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="your_default_channel_id" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

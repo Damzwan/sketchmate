@@ -10,5 +10,5 @@ export enum LocalStorage {
   multiSelectHint = 'multiSelectHint',
   reviewPromptCount='reviewPromptCount',
   login='login',
-  emailForSignIn='emailForSignIn'
+  notificationToken='notification_token'
 }

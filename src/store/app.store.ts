@@ -178,6 +178,10 @@ export const useAppStore = defineStore('app', () => {
   async function setNotifications(token: string | undefined) {
     if (token && token == localSubscription.value) return
     localSubscription.value = token
+    token ? Preferences.set({
+      key: LocalStorage.notificationToken,
+      value: token
+    }) : Preferences.remove({ key: LocalStorage.notificationToken })
     const fingerprint = await generateDeviceFingerprint()
 
     if (!user.value) return
@@ -279,7 +283,6 @@ export const useAppStore = defineStore('app', () => {
     addComment,
     notificationRouteLoading,
     setNotificationLoading,
-    consumeNotificationLoading,
     queryParams,
     setQueryParams,
     localSubscription,

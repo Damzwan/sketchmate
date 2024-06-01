@@ -108,7 +108,7 @@
 
               <div class="w-full flex justify-center items-center py-3">
                 <ion-icon
-                  :icon="svg(deviceNotificationsAllowed ? mdiBellRing : mdiBellOff)"
+                  :icon="svg((deviceNotificationsAllowed || localSubscription) ? mdiBellRing : mdiBellOff)"
                   class="w-[28px] h-[28px] pr-3 fill-gray-600"
                 />
                 <ion-toggle
@@ -178,7 +178,7 @@ import IosPwaInstructions from '@/components/general/IosPwaInstructions.vue'
 register()
 const lastSlide = ref(false)
 
-const { showSettingsOnLoginModal, isNewAccount, installPrompt } = storeToRefs(useAppStore())
+const { showSettingsOnLoginModal, isNewAccount, installPrompt, localSubscription } = storeToRefs(useAppStore())
 
 const { user, deviceFingerprint } = storeToRefs(useAppStore())
 const name = ref(user.value!.name)

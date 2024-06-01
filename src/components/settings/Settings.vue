@@ -52,7 +52,7 @@
 
           <div class="w-full flex justify-center items-center py-3">
             <ion-icon
-              :icon="svg(deviceNotificationsAllowed ? mdiBellRing : mdiBellOff)"
+              :icon="svg((deviceNotificationsAllowed || localSubscription) ? mdiBellRing : mdiBellOff)"
               class="w-[28px] h-[28px] pr-3 fill-gray-600"
             />
             <ion-toggle
@@ -68,14 +68,14 @@
                                message="You will no longer receive notifications on this device"
                                v-model:isOpen="deleteSubscriptionAlertOpen" confirmationtext="Delete"
                                @confirm="deleteSubscription" />
-            <ion-accordion-group v-if="user.subscriptions.length > 0">
+            <ion-accordion-group v-if="user?.subscriptions.length > 0">
               <ion-accordion value="first">
                 <ion-item slot="header">
                   <ion-label>Active Devices
-                    {{ user.subscriptions.length > 0 ? `(${user.subscriptions.length})` : '' }}
+                    {{ user?.subscriptions.length > 0 ? `(${user?.subscriptions.length})` : '' }}
                   </ion-label>
                 </ion-item>
-                <div class="ion-padding" slot="content">
+                <div class="ion-padding" slot="content" v-if="user?.subscriptions">
                   <ion-item v-for="subscription of user.subscriptions" :key="subscription.fingerprint">
                     <ion-icon aria-hidden="true" :icon="svg(mdiClose)" slot="end" class="fill-red-600 cursor-pointer"
                               @click="openDeleteSubscriptionAlert(subscription)" />
@@ -135,7 +135,7 @@ import { EventBus } from '@/main'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import { NotificationSubscription } from '@/types/server.types'
 
-const { user, deviceFingerprint, notificationsAllowed } = storeToRefs(useAppStore())
+const { user, deviceFingerprint, notificationsAllowed, localSubscription } = storeToRefs(useAppStore())
 const api = useAPI()
 const { toast } = useToast()
 
@@ -145,7 +145,7 @@ const nameRef = ref<HTMLIonInputElement>()
 const deleteSubscriptionAlertOpen = ref(false)
 const subscriptionToDelete = ref<NotificationSubscription>()
 
-setNotificationsAllowed()
+setNotificationsAllowed() //TODO should be integrated in a notifications service...
 
 EventBus.on('reset-name', () => name.value = user.value!.name)
 

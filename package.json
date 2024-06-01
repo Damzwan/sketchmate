@@ -84,7 +84,7 @@
     "webm-writer": "^1.0.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "^5.0.5",
+    "@capacitor/cli": "^5.3.0",
     "@mdi/js": "^7.2.96",
     "@tailwindcss/typography": "^0.5.9",
     "@types/express": "^4.17.17",

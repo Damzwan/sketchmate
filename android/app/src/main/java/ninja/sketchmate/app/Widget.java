@@ -121,10 +121,18 @@ public class Widget extends AppWidgetProvider {
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
         // There may be multiple widgets active, so update all of them
         for (int appWidgetId : appWidgetIds) {
-            SharedPreferences preferences = context.getSharedPreferences("widget_preferences", MODE_PRIVATE);
-            if (!preferences.getBoolean("friendSelected_" + appWidgetId, false)) {
+            SharedPreferences widgetPreferences = context.getSharedPreferences("widget_preferences", MODE_PRIVATE);
+            SharedPreferences capacitorPreferences = context.getSharedPreferences("CapacitorStorage", Activity.MODE_PRIVATE);
+
+
+            if (!capacitorPreferences.contains("notification_token")) {
+                renderNoNotifications(context, appWidgetManager, appWidgetId);
+                return;
+            }
+
+            if (!widgetPreferences.getBoolean("friendSelected_" + appWidgetId, false)) {
                 retrieveFriends(context, appWidgetManager, appWidgetId);
-                preferences.edit().putBoolean("friendSelected_" + appWidgetId, true).apply();
+                widgetPreferences.edit().putBoolean("friendSelected_" + appWidgetId, true).apply();
             } else if (hasFriendMapping(context, appWidgetId)) {
                 Mate mate = retrieveWidgetFriendMapping(context, appWidgetId);
                 retrieveLatestFriendDrawing(context, appWidgetManager, appWidgetId, mate.get_id(), mate.getName());
@@ -291,6 +299,14 @@ public class Widget extends AppWidgetProvider {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_error);
         views.setTextViewText(R.id.widget_no_friends_text1, "Something went wrong");
         views.setTextViewText(R.id.widget_no_friends_text2, "Please try again...");
+
+        appWidgetManager.updateAppWidget(appWidgetId, views);
+    }
+
+    private void renderNoNotifications(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
+        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_error);
+        views.setTextViewText(R.id.widget_no_friends_text1, "Notifications are disabled");
+        views.setTextViewText(R.id.widget_no_friends_text2, "Enable them and try again...");
 
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }

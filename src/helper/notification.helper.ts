@@ -98,6 +98,11 @@ async function requestLocalNotifications() {
 async function requestPushNotifications() {
   await PushNotifications.unregister()
   await PushNotifications.register()
+  const { localSubscription } = storeToRefs(useAppStore())
+  localSubscription.value = 'temp' // TODO hack to show notification bell earlier in settings menu as not to confuse the user
+
+  // In case the localSubscription value is still temp something went wrong during registration
+  setTimeout(() => localSubscription.value == 'temp' ? localSubscription.value = undefined : undefined, 5000)
 }
 
 async function disableLocalNotifications() {
@@ -108,6 +113,18 @@ async function disableLocalNotifications() {
 
 export async function addNotificationListeners() {
   if (isNative()) {
+
+    PushNotifications.listChannels().then(res => {
+      if (!res.channels.some(c => c.id == '1')) PushNotifications.createChannel({
+        id: '1',
+        importance: 5,
+        name: 'Drawings from friends',
+        visibility: 1,
+        vibration: true
+      })
+    })
+
+
     await PushNotifications.addListener('registration', token => {
       const { setNotifications } = useAppStore()
       setNotifications(token.value)

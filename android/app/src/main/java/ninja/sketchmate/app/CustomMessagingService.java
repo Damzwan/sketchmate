@@ -16,7 +16,6 @@ public class CustomMessagingService extends FirebaseMessagingService {
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         super.onMessageReceived(remoteMessage);
-//        PushNotificationsPlugin.sendRemoteMessage(remoteMessage);
         if (remoteMessage.getData().size() == 0) return;
         String type = remoteMessage.getData().get("type");
         String mateID = remoteMessage.getData().get("mate_id");

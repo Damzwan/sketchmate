@@ -43,7 +43,8 @@ import { useToast } from '@/service/toast.service'
 import notificationsImage from '@/assets/illustrations/notifications.webp'
 
 const ionRouter = useIonRouter()
-const navLink = ref<any>()
+
+// const navLink = ref<any>()
 
 
 async function enableNotifications() {
@@ -52,9 +53,10 @@ async function enableNotifications() {
     const { toast } = useToast()
     toast('Notifications are not enabled', { color: 'warning' })
   }
-  if (isNative()) {
-    navLink.value?.$el?.click()
-  } else navigateToConnectionScreen()
+  // if (isNative()) {
+  //   navLink.value?.$el?.click()
+  // } else
+  navigateToConnectionScreen()
 }
 
 

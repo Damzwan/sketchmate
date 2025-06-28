@@ -59,9 +59,9 @@ import { imagesOutline, pencil, peopleCircleOutline } from 'ionicons/icons'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/service/toast.service'
-import FullScreenLoader from '@/components/loaders/CircularLoader.vue'
+import FullScreenLoader from '@/components/general/loaders/CircularLoader.vue'
 import { routerAnimation } from '@/helper/animation.helper'
 import { useRoute } from 'vue-router'
 import { useSwipe } from '@vueuse/core'
@@ -77,7 +77,7 @@ useSwipe(toast, {
   }
 })
 
-const { notificationRouteLoading, user, inbox } = storeToRefs(useAppStore())
+const { notificationRouteLoading, user, inbox } = storeToRefs(useAuthStore())
 
 const route = useRoute()
 const show = computed(() => route.path != `/${FRONTEND_ROUTES.login}` && !route.fullPath.includes('capacitor')) // capacitor due to redirect login url

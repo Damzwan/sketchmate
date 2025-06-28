@@ -18,7 +18,6 @@ export function addSticker(c: Canvas, options?: any) {
         img.scaleToWidth(maxDimension)
       }
       c!.add(img)
-      // c.moveTo(img, Layer.obj)
       const { selectTool } = useDrawStore()
       selectTool(DrawTool.Select)
     },

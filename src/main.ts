@@ -3,18 +3,20 @@ import router from './router'
 
 import { IonicVue } from '@ionic/vue'
 
-/* Theme variables */
-import './theme/variables.css'
-import '@/tailwind.css'
-
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/vue/css/core.css'
+
+/* Theme variables */
+import './theme/fonts/fonts.css'
+import './theme/theme.scss'
+import '@/tailwind.css'
+
 
 import { createPinia } from 'pinia'
 import mitt from 'mitt'
 import { App as CapApp } from '@capacitor/app'
 import App from '@/App.vue'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { addNotificationListeners } from '@/helper/notification.helper'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -44,7 +46,7 @@ import('pako') // preload pako to reduce lag on send
 dayjs.extend(relativeTime)
 CapApp.addListener('appUrlOpen', async (data: any) => {
   const url = new URL(data.url)
-  const { setQueryParams } = useAppStore()
+  const { setQueryParams } = useAuthStore()
   setQueryParams(url.searchParams)
 
   const path = url.pathname.substring(1)

@@ -1,31 +1,13 @@
 <template>
-  <ion-page id="root">
-
-    <!--    <LinearLoader :text="loadingText" class="absolute z-50" v-if="!isLoading" :darken="true" />-->
-    <ion-header class="ion-no-border">
-      <div id="select">
-        <ShapeCreationToolbar v-show="shapeCreationMode != undefined || colorPickerMode || addTextMode" />
-        <div v-show="shapeCreationMode === undefined && !colorPickerMode && !addTextMode">
-          <!--        We use v-show instead of v-show to keep the state of the component-->
-          <SelectToolBar v-show="selectedObjectsRef.length > 0" class="z-[1000] absolute left-0 top-0" />
-          <PrimaryDrawToolBar />
-        </div>
-      </div>
-    </ion-header>
+  <ion-page>
     <ion-content>
-      <ShapesMenu />
+      <Toolbars />
+      <DrawMenus/>
       <div class="w-full h-full" v-if="showLoadingBackdrop" />
 
 
-      <div>
-        <div id="canvas">
-          <canvas ref="myCanvasRef" />
-        </div>
-        <div class="w-full h-[50px] bg-primary bottom-0 absolute" v-if="isTrial">
-          <ion-button class="w-full h-full p-0 m-0" @click="router.push(FRONTEND_ROUTES.connect)">
-            Go back to connect page
-          </ion-button>
-        </div>
+      <div id="canvas">
+        <canvas ref="myCanvasRef" />
       </div>
 
       <div class="flex justify-center items-center absolute bottom-4 w-full">
@@ -35,6 +17,9 @@
           Reset view
         </ion-button>
       </div>
+
+      <ion-progress-bar type="indeterminate" class="absolute bottom-[0] z-50 h-1.5" color="secondary"
+                        v-if="isSendingDrawing" />
     </ion-content>
     <VTour :steps="currDataSteps" ref="tour" :autoStart="true" />
 
@@ -55,33 +40,30 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonHeader, IonIcon, IonPage, onIonViewDidEnter, IonInput } from '@ionic/vue'
-import PrimaryDrawToolBar from '@/components/draw/toolbar/PrimaryDrawToolBar.vue'
+import { IonButton, IonContent, IonIcon, IonPage, IonProgressBar, onIonViewDidEnter } from '@ionic/vue'
 
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
-import SelectToolBar from '@/components/draw/toolbar/SelectToolBar.vue'
-import ShapeCreationToolbar from '@/components/draw/toolbar/ShapeCreationToolbar.vue'
 import { resetZoom } from '@/helper/draw/gesture.helper'
 import { isMobile, svg } from '@/helper/general.helper'
 import { mdiClose, mdiMagnifyMinusOutline } from '@mdi/js'
 import { useSelect } from '@/service/draw/tools/select.tool'
-import ShapesMenu from '@/components/draw/menu/ShapesMenu.vue'
-import { useRoute } from 'vue-router'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import router from '@/router'
 import '@/theme/custom_vuejs_tour.scss'
 import { tutorialSteps } from '@/config/draw/draw.config'
 import { LocalStorage } from '@/types/storage.types'
 import { DrawTool } from '@/types/draw.types'
 import { useSwipe } from '@vueuse/core'
+import { useAuthStore } from '@/store/auth.store'
+import Toolbars from '@/components/draw/toolbar/Toolbars.vue'
+import DrawMenus from '@/components/draw/menu/DrawMenus.vue'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
 const drawStore = useDrawStore()
-const { showLoadingBackdrop, shapeCreationMode, canZoomOut, isLoading, colorPickerMode, selectedTool, addTextMode } =
+const { showLoadingBackdrop, canZoomOut, selectedTool } =
   storeToRefs(drawStore)
+const { isSendingDrawing } = storeToRefs(useAuthStore())
 const { selectedObjectsRef } = storeToRefs(useSelect())
 
 const currDataSteps = ref(tutorialSteps)
@@ -90,8 +72,6 @@ onIonViewDidEnter(async () => {
   await drawStore.initCanvas(myCanvasRef.value!)
 })
 
-const route = useRoute()
-const isTrial = computed(() => route.query.trial)
 
 const showTipBox = ref(false)
 const tipBoxContent = ref('')
@@ -174,29 +154,6 @@ if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
     }
   })
 }
-
-let t: any
-// if (!localStorage.getItem(LocalStorage.doubleTap)) localStorage.setItem(LocalStorage.doubleTap, '2')
-// if (parseInt(localStorage.getItem(LocalStorage.doubleTap)!) > 0) {
-//   watch(selectedObjectsRef, () => {
-//     if (didShowDoubleTapTip || parseInt(localStorage.getItem(LocalStorage.doubleTap)!) == 0) return
-//     clearTimeout(t)
-//     // stupid fix to not clash with previous tip
-//     if (
-//       selectedObjectsRef.value.length > 0 &&
-//       drawStore.getCanvas().getObjects().length > 1 &&
-//       checkForIntersectionsWithSelectedObject(drawStore.getCanvas()) &&
-//       !showTipBox.value
-//     ) {
-//       t = setTimeout(() => {
-//         if (showTipBox.value) return
-//         showTip('Double-tap the object below the current selection to switch to it')
-//         localStorage.setItem(LocalStorage.doubleTap, `${parseInt(localStorage.getItem(LocalStorage.doubleTap)!) - 1}`)
-//         didShowDoubleTapTip = true
-//       }, 100)
-//     }
-//   })
-// }
 </script>
 
 <style scoped>

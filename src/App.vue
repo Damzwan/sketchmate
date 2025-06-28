@@ -1,13 +1,7 @@
 <template>
   <ion-app>
     <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" />
-    <ion-progress-bar type="indeterminate" class="absolute bottom-[50px] z-50 h-1.5" color="secondary"
-                      v-if="isSendingDrawing" />
 
-
-    <transition name="list">
-      <NewAccountModal v-if="user && showSettingsOnLoginModal" />
-    </transition>
 
     <OfflinePage
       class="z-50"
@@ -15,56 +9,41 @@
     />
     <ForceUpdateModal v-if="isNative() && showForceUpdateModal" />
 
-    <ConfirmationAlert header="Enjoying SketchMate?"
-                       message="Support the solo developer behind SketchMate! Rate the app if you enjoy it."
-                       v-model:isOpen="reviewAppAlertOpen" confirmationtext="Rate" @confirm="openPlayStoreLink" />
+    <FeedbackMenu />
+
     <ion-router-outlet />
   </ion-app>
 </template>
 
 <script setup lang="ts">
-import { IonApp, IonProgressBar, IonRouterOutlet, useBackButton, useIonRouter } from '@ionic/vue'
+import { IonApp, IonRouterOutlet, useBackButton, useIonRouter } from '@ionic/vue'
 import { onMounted, ref, watch } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
-import CircularLoader from '@/components/loaders/CircularLoader.vue'
+import CircularLoader from "@/components/general/loaders/CircularLoader.vue"
 import router from '@/router'
 import { hideLoading, isNative } from '@/helper/general.helper'
 import { App } from '@capacitor/app'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import OfflinePage from '@/components/general/OfflinePage.vue'
 import { useRoute } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useToast } from '@/service/toast.service'
-import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
-import { app_store_link } from '@/config/general.config'
-import { LocalStorage } from '@/types/storage.types'
-import { Preferences } from '@capacitor/preferences'
-import NewAccountModal from '@/components/general/NewAccountModal.vue'
 import ForceUpdateModal from '@/components/general/ForceUpdateModal.vue'
+import FeedbackMenu from '@/components/draw/menu/FeedbackMenu.vue'
 
 const ionRouter = useIonRouter()
+const { initIonRouter } = useAuthStore()
+initIonRouter(ionRouter)
 const {
   networkStatus,
-  reviewAppAlertOpen,
-  user,
-  showSettingsOnLoginModal,
-  isSendingDrawing,
   isAuthLoading,
-  showForceUpdateModal,
-} = storeToRefs(useAppStore())
+  showForceUpdateModal
+} = storeToRefs(useAuthStore())
 
 
 const route = useRoute()
 const { isOpen, dismiss } = useToast()
-
-const oui = ref(false)
-
-
-function openPlayStoreLink() {
-  window.open(app_store_link)
-  Preferences.set({ key: LocalStorage.reviewPromptCount, value: '0' })
-}
 
 
 const isRouterReady = ref(false)
@@ -96,7 +75,7 @@ useBackButton(10, processNextHandler => {
 
 if (!isNative()) {
   window.addEventListener('beforeinstallprompt', e => {
-    const { installPrompt } = storeToRefs(useAppStore())
+    const { installPrompt } = storeToRefs(useAuthStore())
     installPrompt.value = e
     if (window.matchMedia('(display-mode: standalone)').matches) {
       installPrompt.value = undefined
@@ -108,16 +87,5 @@ if (!isNative()) {
 <style lang="scss">
 ion-content {
   --background: var(--ion-color-background);
-}
-
-.list-enter-active,
-.list-leave-active {
-  transition: all 0.5s ease;
-}
-
-.list-enter-from,
-.list-leave-to {
-  transform: translateX(100%);
-  opacity: 0;
 }
 </style>

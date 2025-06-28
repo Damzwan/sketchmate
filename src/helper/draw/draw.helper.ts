@@ -11,7 +11,7 @@ import { EventBus } from '@/main'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import { DocsItem, DocsKey } from '@/config/draw/docs.config'
 import { ColorRGBA } from 'q-floodfill'
-import { ERASERS, PANMARGIN, PENMENUTOOLS } from '@/config/draw/draw.config'
+import { BACKGROUND, ERASERS, PANMARGIN, PENMENUTOOLS } from '@/config/draw/draw.config'
 
 // TODO we should remove this one
 export function resetZoom(c: Canvas) {
@@ -648,7 +648,7 @@ export function opacityFromOpacityHex(color: string) {
 }
 
 export function renderPanBoundary() {
-  const { getCanvas } = useDrawStore()
+  const { getCanvas, backgroundColor } = useDrawStore()
   const c = getCanvas()
   const sizeMultiplier = 1.5 // used to counteract the conflicting behaviour of checkCanvasBoundary when our zoom is smaller than 1
   const { actionWithoutEvents } = useEventManager()
@@ -657,7 +657,7 @@ export function renderPanBoundary() {
     const rect = new fabric.Rect({
       left: -PANMARGIN * sizeMultiplier,
       top: -PANMARGIN * sizeMultiplier,
-      stroke: '#FF7F7F',
+      stroke: backgroundColor,
       fill: undefined,
       strokeWidth: PANMARGIN * sizeMultiplier,
       width: c!.width! + PANMARGIN * sizeMultiplier,

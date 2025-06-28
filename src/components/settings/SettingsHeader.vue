@@ -3,9 +3,13 @@
     <ion-toolbar color="tertiary" v-if="!selectedMode" class="shadow">
       <ion-title v-if="props.title">{{ props.title }}</ion-title>
       <ion-buttons slot="end">
+        <ion-button @click="() => openMenu(Menu.FeedbackMenu)" size="large">
+          <ion-icon slot="icon-only" :icon="svg(mdiMessageAlertOutline)" />
+        </ion-button>
+
         <ion-button fill="clear" @click="() => (open = true)">
           <ion-avatar class="flex justify-center items-center w-[35px]"
-            ><img :src="user?.img || localUserImg" alt="Profile picture" class="aspect-square"
+          ><img :src="user?.img || localUserImg" alt="Profile picture" class="aspect-square"
           /></ion-avatar>
         </ion-button>
       </ion-buttons>
@@ -33,16 +37,20 @@
 
 <script lang="ts" setup>
 import { storeToRefs } from 'pinia'
-import { useAppStore } from '@/store/app.store'
-import { IonAvatar, IonButton, IonButtons, IonHeader, IonTitle, IonToolbar, IonIcon } from '@ionic/vue'
+import { useAuthStore } from '@/store/auth.store'
+import { IonAvatar, IonButton, IonButtons, IonHeader, IonIcon, IonTitle, IonToolbar } from '@ionic/vue'
 import Settings from '@/components/settings/Settings.vue'
 import { ref } from 'vue'
 import { svg } from '@/helper/general.helper'
-import { mdiClose, mdiDeleteOutline } from '@mdi/js'
+import { mdiClose, mdiDeleteOutline, mdiMessageAlertOutline } from '@mdi/js'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { Menu } from '@/types/draw.types'
 
 const open = ref(false)
 
-const { user, localUserImg } = storeToRefs(useAppStore())
+const { openMenu } = useMenuStore()
+
+const { user, localUserImg } = storeToRefs(useAuthStore())
 // const {goTo} = useRouterService()
 const props = defineProps({
   title: {

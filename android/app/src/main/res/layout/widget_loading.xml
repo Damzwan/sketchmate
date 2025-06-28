@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#FFD4B2"
-    android:foregroundTint="#FFAD83"
+    android:foregroundTint="#FAE0C2"
     android:foregroundTintMode="add"
     android:gravity="center">
 
@@ -13,7 +13,7 @@
         style="?android:attr/progressBarStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:indeterminateTint="#FFAD83"
+        android:indeterminateTint="#FAE0C2"
         android:indeterminateTintMode="src_atop"
         android:progressTint="#2196F3" />
 </RelativeLayout>

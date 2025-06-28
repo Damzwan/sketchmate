@@ -27,7 +27,7 @@ import Cropper from 'cropperjs'
 import { ref } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction } from '@/types/draw.types'
-import CircularLoader from '@/components/loaders/CircularLoader.vue'
+import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 
 const { cropperMenuOpen } = storeToRefs(useMenuStore())
 const { getCanvas } = useDrawStore()

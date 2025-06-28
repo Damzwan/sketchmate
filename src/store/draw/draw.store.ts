@@ -11,7 +11,7 @@ import {
 import { ref } from 'vue'
 import { actionMapping, BACKGROUND, ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
 import { Canvas } from 'fabric/fabric-impl'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { useSocketService } from '@/service/api/socket.service'
 import { InboxItem } from '@/types/server.types'
 import { useRouter } from 'vue-router'
@@ -46,7 +46,7 @@ import { EventBus } from '@/main'
 
 
 export const useDrawStore = defineStore('draw', () => {
-  const { user, isSendingDrawing } = storeToRefs(useAppStore())
+  const { user, isSendingDrawing } = storeToRefs(useAuthStore())
   const api = useSocketService()
   const router = useRouter()
 

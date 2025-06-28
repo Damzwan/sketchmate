@@ -5,9 +5,9 @@ export interface AppColorConfig {
   navigationBar: string
 }
 
-export const primaryColor = '#FFAD83'
-export const secondaryColor = '#D65239'
-export const backgroundColor = '#FFD4B2'
+export const primaryColor = '#FAE0C2'
+export const secondaryColor = '#B9463A'
+export const backgroundColor = '#FFF2E4'
 
 export const photoSwiperColorConfig: AppColorConfig = { statusBar: '#000000', navigationBar: '#000000' }
 export const popoverColorConfig: AppColorConfig = { statusBar: '#ad7659', navigationBar: '#ad7659' }
@@ -20,14 +20,10 @@ export const colorsPerRoute: Record<FRONTEND_ROUTES, AppColorConfig> = {
     navigationBar: primaryColor
   },
   [FRONTEND_ROUTES.login]: {
-    statusBar: backgroundColor,
-    navigationBar: backgroundColor
-  },
-  [FRONTEND_ROUTES.gallery]: {
-    statusBar: backgroundColor,
+    statusBar: primaryColor,
     navigationBar: primaryColor
   },
-  [FRONTEND_ROUTES.mate]: {
+  [FRONTEND_ROUTES.gallery]: {
     statusBar: backgroundColor,
     navigationBar: primaryColor
   },

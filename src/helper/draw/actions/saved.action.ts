@@ -3,7 +3,7 @@ import { fabric } from 'fabric'
 import { viewSavedButton } from '@/config/toast.config'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { useAPI } from '@/service/api/api.service'
 import { useToast } from '@/service/toast.service'
 import { canvasToBuffer, cloneObjects, enlivenObjects, isText, setObjectId } from '@/helper/draw/draw.helper'
@@ -12,7 +12,7 @@ import { DrawTool } from '@/types/draw.types'
 import { applyCurve } from '@/helper/draw/actions/text.action'
 
 export async function createSaved(c: Canvas, options: any) {
-  const { user } = useAppStore()
+  const { user } = useAuthStore()
   const { loadingText, isLoading } = storeToRefs(useDrawStore())
   const { createSaved } = useAPI()
   const { toast } = useToast()

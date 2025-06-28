@@ -43,6 +43,10 @@ import {
 import { DynamicTextPart } from '@/types/loader.types'
 import { editPolygon } from '@/helper/draw/actions/polyEdit.action'
 import { isMobile } from '@/helper/general.helper'
+import { useHistory } from '@/service/draw/history.service'
+import { useDrawStore } from '@/store/draw/draw.store'
+import { useSelect } from '@/service/draw/tools/select.tool'
+import { exitColorPickerMode, exitShapeCreationMode, exitTextAddingMode } from '@/helper/draw/draw.helper'
 
 export const COLORSWATCHES = [
   // Grayscale, Reds, Oranges
@@ -149,7 +153,25 @@ export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) =>
   [DrawAction.MoveUpOneLayer]: moveUpOneLayer,
   [DrawAction.MoveDownOneLayer]: moveDownOneLayer,
   [DrawAction.AddImgFilter]: addFilterToImg,
-  [DrawAction.Flip]: flipObject
+  [DrawAction.Flip]: flipObject,
+  [DrawAction.Undo]: () => {
+    const { undo } = useHistory()
+    void undo()
+  },
+  [DrawAction.Redo]: () => {
+    const { redo } = useHistory()
+    void redo()
+  }, [DrawAction.UnselectObjects]: () => {
+    // TODO hacky
+    const {getCanvas} = useDrawStore()
+    const {setMouseClickTarget, setSelectedObjects} = useSelect()
+    setMouseClickTarget(undefined) // small hack
+    getCanvas().discardActiveObject()
+    setSelectedObjects([])
+  },
+  [DrawAction.ExitShapeCreationMode]: () => exitShapeCreationMode(),
+  [DrawAction.ExitColorPickerMode]: () => exitColorPickerMode(),
+  [DrawAction.ExitTextAddingMode]: () => exitTextAddingMode(),
 }
 
 export const dynamicStickerLoading: DynamicTextPart[] = [
@@ -194,28 +216,21 @@ export const tutorialSteps = [
   {
     target: '[data-step="5"]',
     content: `<div>
-    <p class="text-xl">Lasso</p>
-    <p class="text-base">For precise control over selection.</p>
-  </div>`
-  },
-  {
-    target: '[data-step="6"]',
-    content: `<div>
     <p class="text-xl">Undo/Redo Actions</p>
     <p class="text-base">Made a mistake? Press "Undo". Want it back? Press "Redo".</p>  </div>`
   },
   {
-    target: '[data-step="7"]',
+    target: '[data-step="6"]',
     content: `<div>
     <p class="text-xl">Send Sketch</p>
     <p class="text-base">Once ready, press "Send". Your sketch will appear in the gallery.</p>
       </div>`
   },
   {
-    target: '[data-step="8"]',
+    target: '[data-step="7"]',
     content: `<div>
-    <p class="text-xl">Need Help?</p>
-    <p class="text-base">Press for tutorials on each section. Shortcuts (PC) can also be found here.</p>
+    <p class="text-xl">Any Questions?</p>
+    <p class="text-base">Contact me or go through the manual</p>
   </div>`
   }
 ]

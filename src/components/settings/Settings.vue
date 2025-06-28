@@ -15,29 +15,18 @@
         <ion-title>Settings</ion-title>
       </ion-toolbar>
     </ion-header>
-    <ion-content v-if="user">
+    <ion-content v-if="user" class="bg-background">
       <div class="flex flex-col h-full">
         <div class="flex-grow">
-          <div class="w-full flex justify-center items-center pt-8">
-            <ProfilePictureSelector :img="user.img" @update:img="img => uploadImage(img)" />
+
+          <div class="w-full bg-warning mx-auto rounded-md p-4" v-if="firebaseUser.currentUser?.isAnonymous">
+            <p class="cabin-sketch-regular text-lg">Upgrade your account</p>
+            <p class="text-sm">You're using a guest profile. Create an account to save your progress.</p>
+            <ion-button fill="outline" color="dark" class="pt-4" id="openUpgradeAccountModal">Upgrade</ion-button>
+            <UpgradeAccountModal/>
           </div>
 
-          <div class="w-full justify-center flex pt-8">
-            <ion-input
-              class="w-1/2 max-w-xs"
-              helperText="Name"
-              type="text"
-              maxlength="30"
-              fill="outline"
-              placeholder="e.g. SketchMater"
-              v-model="name"
-              ref="nameRef"
-              @ionBlur="onNameBlur"
-              @keyup.enter="onEnter"
-              enterkeyhint="done"
-              autocapitalize="sentences"
-            ></ion-input>
-          </div>
+          <ProfileCustomization />
 
           <div class="p-6 text-gray-500 text-sm mx-auto flex flex-col items-center justify-center">
             <p class="text-lg -ml-12">Enable notifications to:</p>
@@ -50,18 +39,7 @@
             </div>
           </div>
 
-          <div class="w-full flex justify-center items-center py-3">
-            <ion-icon
-              :icon="svg((deviceNotificationsAllowed || localSubscription) ? mdiBellRing : mdiBellOff)"
-              class="w-[28px] h-[28px] pr-3 fill-gray-600"
-            />
-            <ion-toggle
-              :checked="deviceNotificationsAllowed"
-              @ionChange="handleNotificationChange"
-              mode="ios"
-              :color="'secondary'"
-            />
-          </div>
+          <NotificationSwitch />
 
           <div class="w-full flex justify-center items-center">
             <ConfirmationAlert header="Remove subscription"
@@ -70,13 +48,13 @@
                                @confirm="deleteSubscription" />
             <ion-accordion-group v-if="user?.subscriptions.length > 0">
               <ion-accordion value="first">
-                <ion-item slot="header">
+                <ion-item slot="header" color="tertiary">
                   <ion-label>Active Devices
                     {{ user?.subscriptions.length > 0 ? `(${user?.subscriptions.length})` : '' }}
                   </ion-label>
                 </ion-item>
                 <div class="ion-padding" slot="content" v-if="user?.subscriptions">
-                  <ion-item v-for="subscription of user.subscriptions" :key="subscription.fingerprint">
+                  <ion-item v-for="subscription of user.subscriptions" :key="subscription.fingerprint" color="tertiary">
                     <ion-icon aria-hidden="true" :icon="svg(mdiClose)" slot="end" class="fill-red-600 cursor-pointer"
                               @click="openDeleteSubscriptionAlert(subscription)" />
                     {{ subscription.model }}, {{ subscription.platform }}
@@ -95,59 +73,50 @@
 
 <script setup lang="ts">
 import {
+  IonAccordion,
+  IonAccordionGroup,
   IonButton,
   IonButtons,
   IonContent,
   IonHeader,
   IonIcon,
-  IonInput,
-  IonModal,
-  IonTitle,
-  IonToggle,
-  IonToolbar,
   IonItem,
   IonLabel,
-  IonAccordion,
-  IonAccordionGroup
+  IonModal,
+  IonTitle,
+  IonToolbar
 } from '@ionic/vue'
-import { computed, ref } from 'vue'
-import { useAppStore } from '@/store/app.store'
-import {
-  blurIonInput,
-  compressImg,
-  isNative,
-  setAppColors,
-  svg
-} from '@/helper/general.helper'
+import { ref } from 'vue'
+import { useAuthStore } from '@/store/auth.store'
+import { isNative, setAppColors, svg } from '@/helper/general.helper'
 import { useAPI } from '@/service/api/api.service'
 import { storeToRefs } from 'pinia'
-import { useToast } from '@/service/toast.service'
 import { arrowBack } from 'ionicons/icons'
 import { onBeforeRouteLeave } from 'vue-router'
-import { disableNotifications, requestNotifications, setNotificationsAllowed } from '@/helper/notification.helper'
-import { mdiBellOff, mdiBellRing, mdiClose } from '@mdi/js'
+import { setNotificationsAllowed } from '@/helper/notification.helper'
+import { mdiClose } from '@mdi/js'
 import { colorsPerRoute, settingsModalColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import SettingLinks from '@/components/settings/SettingLinks.vue'
-import ProfilePictureSelector from '@/components/general/ProfilePictureSelector.vue'
-import { EventBus } from '@/main'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import { NotificationSubscription } from '@/types/server.types'
+import ProfileCustomization from '@/components/account/ProfileCustomization.vue'
+import NotificationSwitch from '@/components/general/NotificationSwitch.vue'
+import UpgradeAccountModal from '@/components/settings/UpgradeAccountModal.vue'
+import { getAuth } from 'firebase/auth'
 
-const { user, deviceFingerprint, notificationsAllowed, localSubscription } = storeToRefs(useAppStore())
+const { user} = storeToRefs(useAuthStore())
 const api = useAPI()
-const { toast } = useToast()
 
-const name = ref(user.value!.name)
-const nameRef = ref<HTMLIonInputElement>()
+const firebaseUser = getAuth()
+
 
 const deleteSubscriptionAlertOpen = ref(false)
 const subscriptionToDelete = ref<NotificationSubscription>()
 
 setNotificationsAllowed() //TODO should be integrated in a notifications service...
 
-EventBus.on('reset-name', () => name.value = user.value!.name)
 
 defineProps({
   open: {
@@ -160,45 +129,12 @@ defineProps({
   }
 })
 const emit = defineEmits(['update:open'])
-const deviceNotificationsAllowed = computed(() => user.value?.subscriptions.some(s => s.fingerprint == deviceFingerprint.value) && notificationsAllowed.value)
 
 function close() {
   setAppColors(colorsPerRoute[router.currentRoute.value.fullPath.split('/')[1] as FRONTEND_ROUTES])
   emit('update:open', false)
 }
 
-function onEnter() {
-  blurIonInput(nameRef.value)
-}
-
-async function uploadImage(img: any) {
-  const compressedImg = await compressImg(img, { size: 256 })
-  const imgUrl = await api.uploadProfileImg({
-    _id: user.value!._id,
-    img: compressedImg,
-    previousImage: user.value?.img?.includes('aku') ? undefined : user.value?.img
-  })
-  user.value!.img = imgUrl!
-  toast('Changed profile picture')
-}
-
-function changeName() {
-  api.changeUserName({
-    _id: user.value!._id,
-    name: name.value
-  })
-  user.value!.name = name.value
-  toast('Changed name')
-}
-
-function onNameBlur() {
-  if (name.value != '' && name.value != user.value?.name) changeName()
-  else name.value = user.value!.name
-}
-
-function handleNotificationChange() {
-  deviceNotificationsAllowed.value ? disableNotifications() : requestNotifications()
-}
 
 function deleteSubscription() {
   api.unsubscribe({ user_id: user.value!._id, fingerprint: subscriptionToDelete.value!.fingerprint })

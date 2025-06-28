@@ -1,156 +1,187 @@
 PODS:
-  - Capacitor (5.3.0):
+  - Capacitor (7.2.0):
     - CapacitorCordova
-  - CapacitorApp (5.0.6):
+  - CapacitorApp (7.0.1):
     - Capacitor
-  - CapacitorCamera (5.0.7):
+  - CapacitorBrowser (7.0.1):
     - Capacitor
-  - CapacitorClipboard (5.0.6):
+  - CapacitorCamera (7.0.1):
     - Capacitor
-  - CapacitorCordova (5.3.0)
-  - CapacitorFilesystem (5.1.3):
+  - CapacitorClipboard (7.0.1):
     - Capacitor
-  - CapacitorHaptics (5.0.6):
+  - CapacitorCordova (7.2.0)
+  - CapacitorDevice (7.0.1):
     - Capacitor
-  - CapacitorKeyboard (5.0.6):
+  - CapacitorFilesystem (7.0.1):
     - Capacitor
-  - CapacitorLocalNotifications (5.0.6):
+  - CapacitorFirebaseAuthentication (7.2.0):
     - Capacitor
-  - CapacitorMlkitBarcodeScanning (5.1.0):
+    - CapacitorFirebaseAuthentication/Lite (= 7.2.0)
+    - FirebaseAuth (~> 11.7.0)
+  - CapacitorFirebaseAuthentication/Lite (7.2.0):
     - Capacitor
-    - GoogleMLKit/BarcodeScanning (= 4.0.0)
-  - CapacitorNetwork (5.0.6):
+    - FirebaseAuth (~> 11.7.0)
+  - CapacitorHaptics (7.0.1):
     - Capacitor
-  - CapacitorPreferences (5.0.6):
+  - CapacitorKeyboard (7.0.1):
     - Capacitor
-  - CapacitorPushNotifications (5.0.6):
+  - CapacitorLocalNotifications (7.0.1):
     - Capacitor
-  - CapacitorShare (5.0.6):
+  - CapacitorMlkitBarcodeScanning (7.2.1):
     - Capacitor
-  - CapacitorSplashScreen (5.0.6):
+    - GoogleMLKit/BarcodeScanning (= 7.0.0)
+  - CapacitorNetwork (7.0.1):
     - Capacitor
-  - CapacitorStatusBar (5.0.6):
+  - CapacitorPreferences (7.0.1):
     - Capacitor
-  - CapacitorToast (5.0.6):
+  - CapacitorPushNotifications (7.0.1):
     - Capacitor
-  - Firebase/CoreOnly (10.9.0):
-    - FirebaseCore (= 10.9.0)
-  - Firebase/Messaging (10.9.0):
+  - CapacitorShare (7.0.1):
+    - Capacitor
+  - CapacitorSplashScreen (7.0.1):
+    - Capacitor
+  - CapacitorStatusBar (7.0.1):
+    - Capacitor
+  - CapacitorToast (7.0.1):
+    - Capacitor
+  - CapawesomeCapacitorAppUpdate (7.0.1):
+    - Capacitor
+  - CapgoCapacitorNavigationBar (7.1.2):
+    - Capacitor
+  - Firebase/CoreOnly (11.7.0):
+    - FirebaseCore (~> 11.7.0)
+  - Firebase/Messaging (11.7.0):
     - Firebase/CoreOnly
-    - FirebaseMessaging (~> 10.9.0)
-  - FirebaseCore (10.9.0):
-    - FirebaseCoreInternal (~> 10.0)
-    - GoogleUtilities/Environment (~> 7.8)
-    - GoogleUtilities/Logger (~> 7.8)
-  - FirebaseCoreInternal (10.9.0):
-    - "GoogleUtilities/NSData+zlib (~> 7.8)"
-  - FirebaseInstallations (10.9.0):
-    - FirebaseCore (~> 10.0)
-    - GoogleUtilities/Environment (~> 7.8)
-    - GoogleUtilities/UserDefaults (~> 7.8)
-    - PromisesObjC (~> 2.1)
-  - FirebaseMessaging (10.9.0):
-    - FirebaseCore (~> 10.0)
-    - FirebaseInstallations (~> 10.0)
-    - GoogleDataTransport (~> 9.2)
-    - GoogleUtilities/AppDelegateSwizzler (~> 7.8)
-    - GoogleUtilities/Environment (~> 7.8)
-    - GoogleUtilities/Reachability (~> 7.8)
-    - GoogleUtilities/UserDefaults (~> 7.8)
-    - nanopb (< 2.30910.0, >= 2.30908.0)
-  - GoogleDataTransport (9.2.2):
-    - GoogleUtilities/Environment (~> 7.7)
-    - nanopb (< 2.30910.0, >= 2.30908.0)
-    - PromisesObjC (< 3.0, >= 1.2)
-  - GoogleMLKit/BarcodeScanning (4.0.0):
+    - FirebaseMessaging (~> 11.7.0)
+  - FirebaseAppCheckInterop (11.12.0)
+  - FirebaseAuth (11.7.0):
+    - FirebaseAppCheckInterop (~> 11.0)
+    - FirebaseAuthInterop (~> 11.0)
+    - FirebaseCore (~> 11.7.0)
+    - FirebaseCoreExtension (~> 11.7.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 8.0)
+    - GoogleUtilities/Environment (~> 8.0)
+    - GTMSessionFetcher/Core (< 5.0, >= 3.4)
+    - RecaptchaInterop (~> 100.0)
+  - FirebaseAuthInterop (11.12.0)
+  - FirebaseCore (11.7.0):
+    - FirebaseCoreInternal (~> 11.7.0)
+    - GoogleUtilities/Environment (~> 8.0)
+    - GoogleUtilities/Logger (~> 8.0)
+  - FirebaseCoreExtension (11.7.0):
+    - FirebaseCore (~> 11.7.0)
+  - FirebaseCoreInternal (11.7.0):
+    - "GoogleUtilities/NSData+zlib (~> 8.0)"
+  - FirebaseInstallations (11.7.0):
+    - FirebaseCore (~> 11.7.0)
+    - GoogleUtilities/Environment (~> 8.0)
+    - GoogleUtilities/UserDefaults (~> 8.0)
+    - PromisesObjC (~> 2.4)
+  - FirebaseMessaging (11.7.0):
+    - FirebaseCore (~> 11.7.0)
+    - FirebaseInstallations (~> 11.0)
+    - GoogleDataTransport (~> 10.0)
+    - GoogleUtilities/AppDelegateSwizzler (~> 8.0)
+    - GoogleUtilities/Environment (~> 8.0)
+    - GoogleUtilities/Reachability (~> 8.0)
+    - GoogleUtilities/UserDefaults (~> 8.0)
+    - nanopb (~> 3.30910.0)
+  - GoogleDataTransport (10.1.0):
+    - nanopb (~> 3.30910.0)
+    - PromisesObjC (~> 2.4)
+  - GoogleMLKit/BarcodeScanning (7.0.0):
     - GoogleMLKit/MLKitCore
-    - MLKitBarcodeScanning (~> 3.0.0)
-  - GoogleMLKit/MLKitCore (4.0.0):
-    - MLKitCommon (~> 9.0.0)
-  - GoogleToolboxForMac/DebugUtils (2.3.2):
-    - GoogleToolboxForMac/Defines (= 2.3.2)
-  - GoogleToolboxForMac/Defines (2.3.2)
-  - GoogleToolboxForMac/Logger (2.3.2):
-    - GoogleToolboxForMac/Defines (= 2.3.2)
-  - "GoogleToolboxForMac/NSData+zlib (2.3.2)":
-    - GoogleToolboxForMac/Defines (= 2.3.2)
-  - "GoogleToolboxForMac/NSDictionary+URLArguments (2.3.2)":
-    - GoogleToolboxForMac/DebugUtils (= 2.3.2)
-    - GoogleToolboxForMac/Defines (= 2.3.2)
-    - "GoogleToolboxForMac/NSString+URLArguments (= 2.3.2)"
-  - "GoogleToolboxForMac/NSString+URLArguments (2.3.2)"
-  - GoogleUtilities/AppDelegateSwizzler (7.11.1):
+    - MLKitBarcodeScanning (~> 6.0.0)
+  - GoogleMLKit/MLKitCore (7.0.0):
+    - MLKitCommon (~> 12.0.0)
+  - GoogleToolboxForMac/Defines (4.2.1)
+  - GoogleToolboxForMac/Logger (4.2.1):
+    - GoogleToolboxForMac/Defines (= 4.2.1)
+  - "GoogleToolboxForMac/NSData+zlib (4.2.1)":
+    - GoogleToolboxForMac/Defines (= 4.2.1)
+  - GoogleUtilities/AppDelegateSwizzler (8.0.2):
     - GoogleUtilities/Environment
     - GoogleUtilities/Logger
     - GoogleUtilities/Network
-  - GoogleUtilities/Environment (7.11.1):
-    - PromisesObjC (< 3.0, >= 1.2)
-  - GoogleUtilities/Logger (7.11.1):
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Environment (8.0.2):
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Logger (8.0.2):
     - GoogleUtilities/Environment
-  - GoogleUtilities/Network (7.11.1):
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Network (8.0.2):
     - GoogleUtilities/Logger
     - "GoogleUtilities/NSData+zlib"
+    - GoogleUtilities/Privacy
     - GoogleUtilities/Reachability
-  - "GoogleUtilities/NSData+zlib (7.11.1)"
-  - GoogleUtilities/Reachability (7.11.1):
+  - "GoogleUtilities/NSData+zlib (8.0.2)":
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Privacy (8.0.2)
+  - GoogleUtilities/Reachability (8.0.2):
     - GoogleUtilities/Logger
-  - GoogleUtilities/UserDefaults (7.11.1):
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/UserDefaults (8.0.2):
     - GoogleUtilities/Logger
-  - GoogleUtilitiesComponents (1.1.0):
-    - GoogleUtilities/Logger
-  - GTMSessionFetcher/Core (2.3.0)
-  - HugotomaziCapacitorNavigationBar (2.0.1):
-    - Capacitor
-  - MLImage (1.0.0-beta4)
-  - MLKitBarcodeScanning (3.0.0):
-    - MLKitCommon (~> 9.0)
-    - MLKitVision (~> 5.0)
-  - MLKitCommon (9.0.0):
-    - GoogleDataTransport (~> 9.0)
-    - GoogleToolboxForMac/Logger (~> 2.1)
-    - "GoogleToolboxForMac/NSData+zlib (~> 2.1)"
-    - "GoogleToolboxForMac/NSDictionary+URLArguments (~> 2.1)"
-    - GoogleUtilities/UserDefaults (~> 7.0)
-    - GoogleUtilitiesComponents (~> 1.0)
-    - GTMSessionFetcher/Core (< 3.0, >= 1.1)
-  - MLKitVision (5.0.0):
-    - GoogleToolboxForMac/Logger (~> 2.1)
-    - "GoogleToolboxForMac/NSData+zlib (~> 2.1)"
-    - GTMSessionFetcher/Core (< 3.0, >= 1.1)
-    - MLImage (= 1.0.0-beta4)
-    - MLKitCommon (~> 9.0)
-  - nanopb (2.30909.0):
-    - nanopb/decode (= 2.30909.0)
-    - nanopb/encode (= 2.30909.0)
-  - nanopb/decode (2.30909.0)
-  - nanopb/encode (2.30909.0)
-  - PromisesObjC (2.2.0)
+    - GoogleUtilities/Privacy
+  - GTMSessionFetcher/Core (3.5.0)
+  - MLImage (1.0.0-beta6)
+  - MLKitBarcodeScanning (6.0.0):
+    - MLKitCommon (~> 12.0)
+    - MLKitVision (~> 8.0)
+  - MLKitCommon (12.0.0):
+    - GoogleDataTransport (~> 10.0)
+    - GoogleToolboxForMac/Logger (< 5.0, >= 4.2.1)
+    - "GoogleToolboxForMac/NSData+zlib (< 5.0, >= 4.2.1)"
+    - GoogleUtilities/Logger (~> 8.0)
+    - GoogleUtilities/UserDefaults (~> 8.0)
+    - GTMSessionFetcher/Core (< 4.0, >= 3.3.2)
+  - MLKitVision (8.0.0):
+    - GoogleToolboxForMac/Logger (< 5.0, >= 4.2.1)
+    - "GoogleToolboxForMac/NSData+zlib (< 5.0, >= 4.2.1)"
+    - GTMSessionFetcher/Core (< 4.0, >= 3.3.2)
+    - MLImage (= 1.0.0-beta6)
+    - MLKitCommon (~> 12.0)
+  - nanopb (3.30910.0):
+    - nanopb/decode (= 3.30910.0)
+    - nanopb/encode (= 3.30910.0)
+  - nanopb/decode (3.30910.0)
+  - nanopb/encode (3.30910.0)
+  - PromisesObjC (2.4.0)
+  - RecaptchaInterop (100.0.0)
 
 DEPENDENCIES:
-  - "Capacitor (from `../../node_modules/.pnpm/@capacitor+ios@5.3.0_@capacitor+core@5.3.0/node_modules/@capacitor/ios`)"
-  - "CapacitorApp (from `../../node_modules/.pnpm/@capacitor+app@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/app`)"
-  - "CapacitorCamera (from `../../node_modules/.pnpm/@capacitor+camera@5.0.7_@capacitor+core@5.3.0/node_modules/@capacitor/camera`)"
-  - "CapacitorClipboard (from `../../node_modules/.pnpm/@capacitor+clipboard@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/clipboard`)"
-  - "CapacitorCordova (from `../../node_modules/.pnpm/@capacitor+ios@5.3.0_@capacitor+core@5.3.0/node_modules/@capacitor/ios`)"
-  - "CapacitorFilesystem (from `../../node_modules/.pnpm/@capacitor+filesystem@5.1.3_@capacitor+core@5.3.0/node_modules/@capacitor/filesystem`)"
-  - "CapacitorHaptics (from `../../node_modules/.pnpm/@capacitor+haptics@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/haptics`)"
-  - "CapacitorKeyboard (from `../../node_modules/.pnpm/@capacitor+keyboard@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/keyboard`)"
-  - "CapacitorLocalNotifications (from `../../node_modules/.pnpm/@capacitor+local-notifications@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/local-notifications`)"
-  - "CapacitorMlkitBarcodeScanning (from `../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@5.1.0_@capacitor+core@5.3.0/node_modules/@capacitor-mlkit/barcode-scanning`)"
-  - "CapacitorNetwork (from `../../node_modules/.pnpm/@capacitor+network@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/network`)"
-  - "CapacitorPreferences (from `../../node_modules/.pnpm/@capacitor+preferences@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/preferences`)"
-  - "CapacitorPushNotifications (from `../../node_modules/.pnpm/@capacitor+push-notifications@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/push-notifications`)"
-  - "CapacitorShare (from `../../node_modules/.pnpm/@capacitor+share@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/share`)"
-  - "CapacitorSplashScreen (from `../../node_modules/.pnpm/@capacitor+splash-screen@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/splash-screen`)"
-  - "CapacitorStatusBar (from `../../node_modules/.pnpm/@capacitor+status-bar@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/status-bar`)"
-  - "CapacitorToast (from `../../node_modules/.pnpm/@capacitor+toast@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/toast`)"
+  - "Capacitor (from `../../node_modules/.pnpm/@capacitor+ios@7.2.0_@capacitor+core@7.2.0/node_modules/@capacitor/ios`)"
+  - "CapacitorApp (from `../../node_modules/.pnpm/@capacitor+app@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/app`)"
+  - "CapacitorBrowser (from `../../node_modules/.pnpm/@capacitor+browser@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/browser`)"
+  - "CapacitorCamera (from `../../node_modules/.pnpm/@capacitor+camera@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/camera`)"
+  - "CapacitorClipboard (from `../../node_modules/.pnpm/@capacitor+clipboard@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/clipboard`)"
+  - "CapacitorCordova (from `../../node_modules/.pnpm/@capacitor+ios@7.2.0_@capacitor+core@7.2.0/node_modules/@capacitor/ios`)"
+  - "CapacitorDevice (from `../../node_modules/.pnpm/@capacitor+device@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/device`)"
+  - "CapacitorFilesystem (from `../../node_modules/.pnpm/@capacitor+filesystem@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/filesystem`)"
+  - "CapacitorFirebaseAuthentication (from `../../node_modules/.pnpm/@capacitor-firebase+authentication@7.2.0_@capacitor+core@7.2.0_firebase@11.6.1/node_modules/@capacitor-firebase/authentication`)"
+  - "CapacitorHaptics (from `../../node_modules/.pnpm/@capacitor+haptics@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/haptics`)"
+  - "CapacitorKeyboard (from `../../node_modules/.pnpm/@capacitor+keyboard@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/keyboard`)"
+  - "CapacitorLocalNotifications (from `../../node_modules/.pnpm/@capacitor+local-notifications@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/local-notifications`)"
+  - "CapacitorMlkitBarcodeScanning (from `../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@7.2.1_@capacitor+core@7.2.0/node_modules/@capacitor-mlkit/barcode-scanning`)"
+  - "CapacitorNetwork (from `../../node_modules/.pnpm/@capacitor+network@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/network`)"
+  - "CapacitorPreferences (from `../../node_modules/.pnpm/@capacitor+preferences@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/preferences`)"
+  - "CapacitorPushNotifications (from `../../node_modules/.pnpm/@capacitor+push-notifications@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/push-notifications`)"
+  - "CapacitorShare (from `../../node_modules/.pnpm/@capacitor+share@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/share`)"
+  - "CapacitorSplashScreen (from `../../node_modules/.pnpm/@capacitor+splash-screen@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/splash-screen`)"
+  - "CapacitorStatusBar (from `../../node_modules/.pnpm/@capacitor+status-bar@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/status-bar`)"
+  - "CapacitorToast (from `../../node_modules/.pnpm/@capacitor+toast@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/toast`)"
+  - "CapawesomeCapacitorAppUpdate (from `../../node_modules/.pnpm/@capawesome+capacitor-app-update@7.0.1_@capacitor+core@7.2.0/node_modules/@capawesome/capacitor-app-update`)"
+  - "CapgoCapacitorNavigationBar (from `../../node_modules/.pnpm/@capgo+capacitor-navigation-bar@7.1.2_@capacitor+core@7.2.0/node_modules/@capgo/capacitor-navigation-bar`)"
   - Firebase/Messaging
-  - "HugotomaziCapacitorNavigationBar (from `../../node_modules/.pnpm/@hugotomazi+capacitor-navigation-bar@2.0.1_@capacitor+core@5.3.0/node_modules/@hugotomazi/capacitor-navigation-bar`)"
 
 SPEC REPOS:
   trunk:
     - Firebase
+    - FirebaseAppCheckInterop
+    - FirebaseAuth
+    - FirebaseAuthInterop
     - FirebaseCore
+    - FirebaseCoreExtension
     - FirebaseCoreInternal
     - FirebaseInstallations
     - FirebaseMessaging
@@ -158,7 +189,6 @@ SPEC REPOS:
     - GoogleMLKit
     - GoogleToolboxForMac
     - GoogleUtilities
-    - GoogleUtilitiesComponents
     - GTMSessionFetcher
     - MLImage
     - MLKitBarcodeScanning
@@ -166,82 +196,99 @@ SPEC REPOS:
     - MLKitVision
     - nanopb
     - PromisesObjC
+    - RecaptchaInterop
 
 EXTERNAL SOURCES:
   Capacitor:
-    :path: "../../node_modules/.pnpm/@capacitor+ios@5.3.0_@capacitor+core@5.3.0/node_modules/@capacitor/ios"
+    :path: "../../node_modules/.pnpm/@capacitor+ios@7.2.0_@capacitor+core@7.2.0/node_modules/@capacitor/ios"
   CapacitorApp:
-    :path: "../../node_modules/.pnpm/@capacitor+app@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/app"
+    :path: "../../node_modules/.pnpm/@capacitor+app@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/app"
+  CapacitorBrowser:
+    :path: "../../node_modules/.pnpm/@capacitor+browser@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/browser"
   CapacitorCamera:
-    :path: "../../node_modules/.pnpm/@capacitor+camera@5.0.7_@capacitor+core@5.3.0/node_modules/@capacitor/camera"
+    :path: "../../node_modules/.pnpm/@capacitor+camera@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/camera"
   CapacitorClipboard:
-    :path: "../../node_modules/.pnpm/@capacitor+clipboard@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/clipboard"
+    :path: "../../node_modules/.pnpm/@capacitor+clipboard@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/clipboard"
   CapacitorCordova:
-    :path: "../../node_modules/.pnpm/@capacitor+ios@5.3.0_@capacitor+core@5.3.0/node_modules/@capacitor/ios"
+    :path: "../../node_modules/.pnpm/@capacitor+ios@7.2.0_@capacitor+core@7.2.0/node_modules/@capacitor/ios"
+  CapacitorDevice:
+    :path: "../../node_modules/.pnpm/@capacitor+device@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/device"
   CapacitorFilesystem:
-    :path: "../../node_modules/.pnpm/@capacitor+filesystem@5.1.3_@capacitor+core@5.3.0/node_modules/@capacitor/filesystem"
+    :path: "../../node_modules/.pnpm/@capacitor+filesystem@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/filesystem"
+  CapacitorFirebaseAuthentication:
+    :path: "../../node_modules/.pnpm/@capacitor-firebase+authentication@7.2.0_@capacitor+core@7.2.0_firebase@11.6.1/node_modules/@capacitor-firebase/authentication"
   CapacitorHaptics:
-    :path: "../../node_modules/.pnpm/@capacitor+haptics@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/haptics"
+    :path: "../../node_modules/.pnpm/@capacitor+haptics@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/haptics"
   CapacitorKeyboard:
-    :path: "../../node_modules/.pnpm/@capacitor+keyboard@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/keyboard"
+    :path: "../../node_modules/.pnpm/@capacitor+keyboard@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/keyboard"
   CapacitorLocalNotifications:
-    :path: "../../node_modules/.pnpm/@capacitor+local-notifications@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/local-notifications"
+    :path: "../../node_modules/.pnpm/@capacitor+local-notifications@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/local-notifications"
   CapacitorMlkitBarcodeScanning:
-    :path: "../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@5.1.0_@capacitor+core@5.3.0/node_modules/@capacitor-mlkit/barcode-scanning"
+    :path: "../../node_modules/.pnpm/@capacitor-mlkit+barcode-scanning@7.2.1_@capacitor+core@7.2.0/node_modules/@capacitor-mlkit/barcode-scanning"
   CapacitorNetwork:
-    :path: "../../node_modules/.pnpm/@capacitor+network@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/network"
+    :path: "../../node_modules/.pnpm/@capacitor+network@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/network"
   CapacitorPreferences:
-    :path: "../../node_modules/.pnpm/@capacitor+preferences@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/preferences"
+    :path: "../../node_modules/.pnpm/@capacitor+preferences@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/preferences"
   CapacitorPushNotifications:
-    :path: "../../node_modules/.pnpm/@capacitor+push-notifications@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/push-notifications"
+    :path: "../../node_modules/.pnpm/@capacitor+push-notifications@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/push-notifications"
   CapacitorShare:
-    :path: "../../node_modules/.pnpm/@capacitor+share@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/share"
+    :path: "../../node_modules/.pnpm/@capacitor+share@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/share"
   CapacitorSplashScreen:
-    :path: "../../node_modules/.pnpm/@capacitor+splash-screen@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/splash-screen"
+    :path: "../../node_modules/.pnpm/@capacitor+splash-screen@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/splash-screen"
   CapacitorStatusBar:
-    :path: "../../node_modules/.pnpm/@capacitor+status-bar@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/status-bar"
+    :path: "../../node_modules/.pnpm/@capacitor+status-bar@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/status-bar"
   CapacitorToast:
-    :path: "../../node_modules/.pnpm/@capacitor+toast@5.0.6_@capacitor+core@5.3.0/node_modules/@capacitor/toast"
-  HugotomaziCapacitorNavigationBar:
-    :path: "../../node_modules/.pnpm/@hugotomazi+capacitor-navigation-bar@2.0.1_@capacitor+core@5.3.0/node_modules/@hugotomazi/capacitor-navigation-bar"
+    :path: "../../node_modules/.pnpm/@capacitor+toast@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/toast"
+  CapawesomeCapacitorAppUpdate:
+    :path: "../../node_modules/.pnpm/@capawesome+capacitor-app-update@7.0.1_@capacitor+core@7.2.0/node_modules/@capawesome/capacitor-app-update"
+  CapgoCapacitorNavigationBar:
+    :path: "../../node_modules/.pnpm/@capgo+capacitor-navigation-bar@7.1.2_@capacitor+core@7.2.0/node_modules/@capgo/capacitor-navigation-bar"
 
 SPEC CHECKSUMS:
-  Capacitor: 1ac9165943bc4f2137642d218c5ba05df811de69
-  CapacitorApp: 024e1b1bea5f883d79f6330d309bc441c88ad04a
-  CapacitorCamera: 084b0b228bba7d00587910337b1c89e93b1d32ab
-  CapacitorClipboard: 77edf49827ea21da2a9c05c690a4a6a4d07199c4
-  CapacitorCordova: b9374d68e63ce29e96ab5db994cf14fbefd722c9
-  CapacitorFilesystem: 9b4641db3d6d62b6cc1bf0a6a09681ebaea696b7
-  CapacitorHaptics: 1fffc1217c7e64a472d7845be50fb0c2f7d4204c
-  CapacitorKeyboard: b978154b024a5f65e044908e37d15b7de58b9d12
-  CapacitorLocalNotifications: c2d8b14794064fd4814b1d6c4ddbac8029afa295
-  CapacitorMlkitBarcodeScanning: 0fb9b254b6c9624e14ffee5b3f2139720bd15d4c
-  CapacitorNetwork: d80b3e79bef6ec37640ee2806c19771f07ff2d0c
-  CapacitorPreferences: f03954bcb0ff09c792909e46bff88e3183c16b10
-  CapacitorPushNotifications: 7eb70469f1fcc3dec07126336d4896520e4991db
-  CapacitorShare: cd41743331cb71d217c029de54b681cbd91e0fcc
-  CapacitorSplashScreen: 5fa2ab5e46cf5cc530cf16a51c80c7a986579ccd
-  CapacitorStatusBar: 565c0a1ebd79bb40d797606a8992b4a105885309
-  CapacitorToast: bb0d79b78d9c27c0199b57f735dd50b8fc363489
-  Firebase: bd152f0f3d278c4060c5c71359db08ebcfd5a3e2
-  FirebaseCore: b68d3616526ec02e4d155166bbafb8eca64af557
-  FirebaseCoreInternal: d2b4acb827908e72eca47a9fd896767c3053921e
-  FirebaseInstallations: c58489c9caacdbf27d1da60891a87318e20218e0
-  FirebaseMessaging: 6b7052cc3da7bc8e5f72bef871243e8f04a14eed
-  GoogleDataTransport: 8378d1fa8ac49753ea6ce70d65a7cb70ce5f66e6
-  GoogleMLKit: 2bd0dc6253c4d4f227aad460f69215a504b2980e
-  GoogleToolboxForMac: 8bef7c7c5cf7291c687cf5354f39f9db6399ad34
-  GoogleUtilities: 9aa0ad5a7bc171f8bae016300bfcfa3fb8425749
-  GoogleUtilitiesComponents: 679b2c881db3b615a2777504623df6122dd20afe
-  GTMSessionFetcher: 3a63d75eecd6aa32c2fc79f578064e1214dfdec2
-  HugotomaziCapacitorNavigationBar: 9220af908152f38caa3963b8de23c36bf43d2468
-  MLImage: 7bb7c4264164ade9bf64f679b40fb29c8f33ee9b
-  MLKitBarcodeScanning: 04e264482c5f3810cb89ebc134ef6b61e67db505
-  MLKitCommon: c1b791c3e667091918d91bda4bba69a91011e390
-  MLKitVision: 8baa5f46ee3352614169b85250574fde38c36f49
-  nanopb: b552cce312b6c8484180ef47159bc0f65a1f0431
-  PromisesObjC: 09985d6d70fbe7878040aa746d78236e6946d2ef
+  Capacitor: 03bc7cbdde6a629a8b910a9d7d78c3cc7ed09ea7
+  CapacitorApp: febecbb9582cb353aed037e18ec765141f880fe9
+  CapacitorBrowser: 6299776d496e968505464884d565992faa20444a
+  CapacitorCamera: 6e73f1fc6c629a672658705a02409b60854bc0f1
+  CapacitorClipboard: 70bfdb42b877b320a6e511ab94fa7a6a55d57ecb
+  CapacitorCordova: 5967b9ba03915ef1d585469d6e31f31dc49be96f
+  CapacitorDevice: c6f6d587dd310527f8a48bf09c4e7b4a4cf14329
+  CapacitorFilesystem: e6261c410436f54908c11f94336c5b58286b1db0
+  CapacitorFirebaseAuthentication: 99646ed67e49b21cf4cf55911ed53c7dc32c3e53
+  CapacitorHaptics: 1f1e17041f435d8ead9ff2a34edd592c6aa6a8d6
+  CapacitorKeyboard: 09fd91dcde4f8a37313e7f11bde553ad1ed52036
+  CapacitorLocalNotifications: c2212755b33d2513b8bb325096ce3a64d4039ae3
+  CapacitorMlkitBarcodeScanning: 147c172f6e423618b156e050f715cfb963680ef4
+  CapacitorNetwork: 15cb4385f0913a8ceb5e9a4d7af1ec554bdb8de8
+  CapacitorPreferences: 6c98117d4d7508034a4af9db64d6b26fc75d7b94
+  CapacitorPushNotifications: 6a2794788c583dd89215f1805ca4bced1b13dbdf
+  CapacitorShare: e573823f511f260f598d0423c33b1e3d7bbe5fd1
+  CapacitorSplashScreen: 1d67815a422a9b61539c94f283c08ed56667c0fc
+  CapacitorStatusBar: 6e7af040d8fc4dd655999819625cae9c2d74c36f
+  CapacitorToast: ddfc4b36080dbe3634c9faf510b20f6ddcff9330
+  CapawesomeCapacitorAppUpdate: d1f04c1c870388248889908cf2ca960c7fdbf0ef
+  CapgoCapacitorNavigationBar: 3924b761f44960458d2df426bd2a45b6606545f9
+  Firebase: a64bf6a8546e6eab54f1c715cd6151f39d2329f4
+  FirebaseAppCheckInterop: 73b173e5ec45192e2d522ad43f526a82ad10b852
+  FirebaseAuth: 77e25aa24f3e1c626c5babd3338551fc1669ee0e
+  FirebaseAuthInterop: b583210c039a60ed3f1e48865e1f3da44a796595
+  FirebaseCore: 3227e35f4197a924206fbcdc0349325baf4f5de4
+  FirebaseCoreExtension: 206c1b399f0d103055207c16f299b28e3dbd1949
+  FirebaseCoreInternal: d6c17dafc8dc33614733a8b52df78fcb4394c881
+  FirebaseInstallations: 9347e719c3d52d8d7b9074b2c32407dd027305e9
+  FirebaseMessaging: 00ece041b71ddb52a2862ffdee73fb6e9824bd0c
+  GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
+  GoogleMLKit: eff9e23ec1d90ea4157a1ee2e32a4f610c5b3318
+  GoogleToolboxForMac: d1a2cbf009c453f4d6ded37c105e2f67a32206d8
+  GoogleUtilities: 26a3abef001b6533cf678d3eb38fd3f614b7872d
+  GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
+  MLImage: 0ad1c5f50edd027672d8b26b0fee78a8b4a0fc56
+  MLKitBarcodeScanning: 0a3064da0a7f49ac24ceb3cb46a5bc67496facd2
+  MLKitCommon: 07c2c33ae5640e5380beaaa6e4b9c249a205542d
+  MLKitVision: 45e79d68845a2de77e2dd4d7f07947f0ed157b0e
+  nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
+  PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
+  RecaptchaInterop: 7d1a4a01a6b2cb1610a47ef3f85f0c411434cb21
 
-PODFILE CHECKSUM: 0084ae5b6a28ec42099891290a83fefa95a2737f
+PODFILE CHECKSUM: 1becf00e0b2d8f6cc8f7389f27a6f7a119c98ecf
 
-COCOAPODS: 1.12.1
+COCOAPODS: 1.16.2

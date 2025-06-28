@@ -2,14 +2,14 @@
   <div class="w-full flex flex-col bottom-0">
     <ion-button v-if="docs" fill="clear" color="secondary" :id="id">User Manual</ion-button>
     <DocsMenu :trigger="id" />
-    <ion-button v-if="form" fill="clear" color="secondary" href="https://forms.gle/x6odhcdEJHx7Zm8N8" target="_blank"
-    >Feedback Form
+    <ion-button v-if="form" fill="clear" color="secondary" @click="openMenu(Menu.FeedbackMenu)"
+    >Feedback
+    </ion-button>
+    <ion-button v-if="contact" fill="clear" color="secondary" :href="discord_link" target="_blank"
+    >Contact
     </ion-button>
     <ion-button v-if="blog" fill="clear" color="secondary" href="https://sketchmate.ninja/blog/" target="_blank"
     >Blog
-    </ion-button>
-    <ion-button v-if="contact" fill="clear" color="secondary" href="mailto:contact@sketchmate.ninja"
-    >Contact
     </ion-button>
     <ion-button v-if="!isNative() && installPrompt && !isIOS()" fill="clear" color="secondary"
                 @click="onInstallPWAClick"
@@ -30,13 +30,18 @@
 import { v4 as uuidv4 } from 'uuid'
 import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
 import { IonButton } from '@ionic/vue'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import { installPWA, isIOS, isNative, showIosSafariInstructions } from '@/helper/general.helper'
 import IosPwaInstructions from '@/components/general/IosPwaInstructions.vue'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { Menu } from '@/types/draw.types'
+import { discord_link } from '@/config/general.config'
 
-const { installPrompt } = storeToRefs(useAppStore())
-const { logout } = useAppStore()
+const { installPrompt } = storeToRefs(useAuthStore())
+const { logout } = useAuthStore()
+
+const { openMenu } = useMenuStore()
 
 const pwaInstructionId = uuidv4()
 

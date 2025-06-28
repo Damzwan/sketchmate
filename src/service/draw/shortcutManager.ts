@@ -9,6 +9,7 @@ import { modalController, popoverController } from '@ionic/vue'
 import { Canvas } from 'fabric/fabric-impl'
 import { useHistory } from '@/service/draw/history.service'
 import { fabric } from 'fabric'
+import { ToolbarIds } from '@/config/draw/toolbar.config'
 
 export function useShortcutManager() {
   const { getSelectedObjects } = useSelect()
@@ -87,28 +88,28 @@ export function useShortcutManager() {
       case Shortcut.pen:
         event.preventDefault()
         if (isSelectMode.value) return
-        document.getElementById('pen')!.click()
+        document.getElementById(ToolbarIds.pen)!.click()
         dismissPopover()
         break
 
       case Shortcut.eraser:
         event.preventDefault()
         if (isSelectMode.value) return
-        document.getElementById('eraser')!.click()
+        document.getElementById(ToolbarIds.eraser)!.click()
         dismissPopover()
         break
 
       case Shortcut.moreTools:
         event.preventDefault()
         if (isSelectMode.value) return
-        document.getElementById('more_tools')!.click()
+        document.getElementById(ToolbarIds.moreTools)!.click()
         dismissPopover()
         break
 
       case Shortcut.select:
         event.preventDefault()
         if (isSelectMode.value) return
-        document.getElementById('select-tool')!.click()
+        document.getElementById(ToolbarIds.select)!.click()
         dismissPopover()
         break
 
@@ -138,16 +139,16 @@ export function useShortcutManager() {
       case Shortcut.undoredo:
         event.preventDefault()
         if (event.shiftKey) {
-          if (!document.getElementById('redo')!.ariaDisabled) document.getElementById('redo')!.click()
+          if (!document.getElementById(ToolbarIds.redo)!.ariaDisabled) document.getElementById(ToolbarIds.redo)!.click()
           break
-        } else if (!document.getElementById('undo')!.ariaDisabled) document.getElementById('undo')!.click()
+        } else if (!document.getElementById(ToolbarIds.undo)!.ariaDisabled) document.getElementById(ToolbarIds.undo)!.click()
         dismissPopover()
         break
 
       case Shortcut.send:
         event.preventDefault()
         if (isSelectMode.value) return
-        if (!document.getElementById('send-drawing')!.ariaDisabled) document.getElementById('send-drawing')!.click()
+        if (!document.getElementById(ToolbarIds.send)!.ariaDisabled) document.getElementById(ToolbarIds.send)!.click()
         dismissPopover()
         break
 

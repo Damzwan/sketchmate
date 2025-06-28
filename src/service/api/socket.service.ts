@@ -4,29 +4,25 @@ import {
   CommentRes,
   InboxItem,
   MatchParams,
-  MatchRes, Mate,
-  Res, SendMateRequestParams,
+  MatchRes,
+  Mate,
+  Res,
+  SendMateRequestParams,
   SendParams,
   SOCKET_ENDPONTS,
   SocketAPI,
   SocketLoginParams,
   UnMatchParams
 } from '@/types/server.types'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
-import {
-  dismissButton,
-  matchButton,
-  viewDrawingButton,
-  viewMateRequestButton
-} from '@/config/toast.config'
+import { dismissButton, matchButton, viewDrawingButton, viewMateRequestButton } from '@/config/toast.config'
 import { ToastDuration } from '@/types/toast.types'
-import { LocalStorage } from '@/types/storage.types'
-import { Preferences } from '@capacitor/preferences'
-import { isNative } from '@/helper/general.helper'
 import { useAPI } from '@/service/api/api.service'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { showFeedbackMilestones } from '@/config/general.config'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { Menu } from '@/types/draw.types'
 
 let socket: Socket | undefined
 
@@ -38,8 +34,8 @@ export function useSocketService(): SocketAPI {
 }
 
 export function createSocketService(): SocketAPI {
-  const { addComment } = useAppStore()
-  const { user, friendRequestLoading, isLoading, inbox, friendRequestUsers, isLoggedIn } = storeToRefs(useAppStore())
+  const { addComment } = useAuthStore()
+  const { user, friendRequestLoading, isLoading, inbox, friendRequestUsers, isLoggedIn } = storeToRefs(useAuthStore())
   const { toast } = useToast()
 
   async function connect(): Promise<void> {
@@ -94,29 +90,11 @@ export function createSocketService(): SocketAPI {
     socket.on(SOCKET_ENDPONTS.send, async (params: Res<InboxItem>) => {
       isLoading.value = false
       if (params) {
-        const { updateSlide, reviewAppAlertOpen, inboxUsers } = storeToRefs(useAppStore())
-
-        if (params.sender === user.value?._id) {
-          const { isSendingDrawing } = storeToRefs(useAppStore())
-          isSendingDrawing.value = false
-          const inboxCount = user.value.inbox.length + 1
-          Preferences.get({ key: LocalStorage.reviewPromptCount }).then(reviewPromptCount => {
-            if (!isNative()) return
-            if (inboxCount % 5 == 0 && reviewPromptCount.value && parseInt(reviewPromptCount.value) > 0) {
-              setTimeout(() => {
-                reviewAppAlertOpen.value = true
-                Preferences.set({
-                  key: LocalStorage.reviewPromptCount,
-                  value: `${parseInt(reviewPromptCount.value!) - 1}`
-                })
-              }, 1000)
-            }
-          })
-        }
+        const { updateSlide, inboxUsers } = storeToRefs(useAuthStore())
 
         updateSlide.value = true
         if (user.value!.inbox.length != 0 && inbox.value.length == 0) {
-          const { getInbox } = useAppStore()
+          const { getInbox } = useAuthStore()
           await getInbox()
         }
 
@@ -130,6 +108,18 @@ export function createSocketService(): SocketAPI {
           getPartialUsers({ _ids: followersNotInInboxUsers }).then(res => {
             if (res) inboxUsers.value = [...inboxUsers.value, ...res]
           })
+        }
+
+        if (params.sender === user.value?._id) {
+          const { isSendingDrawing } = storeToRefs(useAuthStore())
+          isSendingDrawing.value = false
+          const sentDrawingsCount = inbox.value.reduce((acc: number, curr) =>
+              acc + (curr.sender == user.value!._id ? 1 : 0),
+            0)
+          if (showFeedbackMilestones.includes(sentDrawingsCount)) {
+            const { openMenu } = useMenuStore()
+            openMenu(Menu.FeedbackMenu)
+          }
         }
 
 
@@ -223,7 +213,7 @@ export function createSocketService(): SocketAPI {
 
     const chunkSize = 1024 // or whatever size you prefer
 
-    // Send the text data
+    // send the text data
     for (let i = 0; i < compressedData.length; i += chunkSize) {
       const chunk = compressedData.slice(i, i + chunkSize)
       socket!.emit(`${SOCKET_ENDPONTS.send}text_chunk`, chunk)
@@ -246,19 +236,19 @@ export function createSocketService(): SocketAPI {
   }
 
   async function sendMateRequest(params: SendMateRequestParams): Promise<void> {
-    const { friendRequestLoading } = storeToRefs(useAppStore())
+    const { friendRequestLoading } = storeToRefs(useAuthStore())
     friendRequestLoading.value = true
     socket!.emit(SOCKET_ENDPONTS.mate_request, params)
   }
 
   async function cancelSendMateRequest(params: SendMateRequestParams): Promise<void> {
-    const { friendRequestLoading } = storeToRefs(useAppStore())
+    const { friendRequestLoading } = storeToRefs(useAuthStore())
     friendRequestLoading.value = true
     socket!.emit(SOCKET_ENDPONTS.cancel_mate_request, params)
   }
 
   async function refuseSendMateRequest(params: SendMateRequestParams): Promise<void> {
-    const { friendRequestLoading } = storeToRefs(useAppStore())
+    const { friendRequestLoading } = storeToRefs(useAuthStore())
     friendRequestLoading.value = true
     socket!.emit(SOCKET_ENDPONTS.refuse_mate_request, params)
   }

@@ -82,9 +82,9 @@ export async function mergeObjects(c: Canvas, options: any) {
 
 export function deleteObjects(c: Canvas, options: any) {
   const { addToUndoStack } = useHistory()
-  const { setMouseClickTarget } = useSelect()
+  const { setMouseClickTarget, getSelectedObjects } = useSelect()
   setMouseClickTarget(undefined) // TODO fuck this bug
-  const objects: fabric.Object[] = options['objects']
+  const objects: fabric.Object[] = options ? options['objects'] : getSelectedObjects() // TODO fix
   c.discardActiveObject()
   c.remove(...objects)
   addToUndoStack(objects, 'object:removed')

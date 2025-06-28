@@ -8,7 +8,7 @@
       @cancel="cancelMultiSelect"
       @delete="alterTrigger.click()"
     />
-    <ion-content>
+    <ion-content class="bg-background">
       <CircularLoader v-if="isLoading || !isLoggedIn" class="z-50" />
 
       <div v-if="user" class="w-full h-full">
@@ -19,7 +19,7 @@
 
         <NoMessages v-if="noMessages && user.mates.length == 0" title="Start connecting"
                     subtitle="Add a friend first before you can access your gallery"
-                    :img="friendsImage" btn-text="Add a friend" :btn-link="FRONTEND_ROUTES.connect" />
+                    :img="connectImage" btn-text="Add a friend" :btn-link="FRONTEND_ROUTES.connect" />
 
         <NoMessages v-else-if="noMessages" title="No messages.."
                     subtitle="Send a drawing to a friend to see it over here"
@@ -73,7 +73,7 @@ import {
   onIonViewWillLeave, useBackButton
 } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import { InboxItem } from '@/types/server.types'
 import dayjs from 'dayjs'
@@ -84,18 +84,18 @@ import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import { useRoute } from 'vue-router'
 import NoMessages from '@/components/gallery/NoMessages.vue'
 import Thumbnail from '@/components/gallery/Thumbnail.vue'
-import CircularLoader from '@/components/loaders/CircularLoader.vue'
+import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 import { useAPI } from '@/service/api/api.service'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import noMessagesImg from '@/assets/illustrations/no-messages.svg'
 import { EventBus } from '@/main'
-import friendsImage from '@/assets/illustrations/match.svg'
+import connectImage from '@/assets/illustrations/connect.webp'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { usePhotoSwiper } from '@/store/photoswiper.store'
 
 const api = useAPI()
-const { getInbox, refresh, setQueryParams } = useAppStore()
-const { user, inbox, isLoggedIn, queryParams } = storeToRefs(useAppStore())
+const { getInbox, refresh, setQueryParams } = useAuthStore()
+const { user, inbox, isLoggedIn, queryParams } = storeToRefs(useAuthStore())
 const { open, slide } = storeToRefs(usePhotoSwiper())
 const { seeItem } = usePhotoSwiper()
 

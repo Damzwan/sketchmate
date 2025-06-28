@@ -61,6 +61,7 @@
             autocapitalize="sentences"
             @keyup.enter="comment"
             class="text-black"
+            color="secondary"
           />
           <ion-button fill="clear" color="secondary" @click="comment" :icon="svg(mdiSend)">
             <ion-icon :icon="svg(mdiSend)" v-show="commentBody.length > 0" />
@@ -76,7 +77,7 @@ import { ref, watch } from 'vue'
 import { IonAvatar, IonButton, IonIcon, IonInput, IonPopover, IonSpinner, useBackButton } from '@ionic/vue'
 
 import { InboxItem, Mate, User } from '@/types/server.types'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/service/toast.service'
 import { senderImg, senderName, svg } from '@/helper/general.helper'
 import { mdiSend } from '@mdi/js'
@@ -87,8 +88,8 @@ import { storeToRefs } from 'pinia'
 const socketService = useSocketService()
 const { cancelSendMateRequest } = useSocketService()
 const { toast } = useToast()
-const { friendRequestLoading } = storeToRefs(useAppStore())
-const { findUserInInboxUsers } = useAppStore()
+const { friendRequestLoading } = storeToRefs(useAuthStore())
+const { findUserInInboxUsers } = useAuthStore()
 
 const props = defineProps({
   open: {
@@ -199,7 +200,7 @@ function close() {
 }
 
 ion-popover {
-  --background: var(--ion-color-background);
+  --background: var(--ion-color-primary);
 }
 
 .block {

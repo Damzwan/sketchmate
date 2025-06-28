@@ -1,6 +1,7 @@
 <template>
-  <ion-popover trigger="text_options" @willDismiss="onDismiss" @willPresent="onPresent" :showBackdrop="false">
-    <ion-content v-if="text">
+  <ion-popover @willDismiss="onDismiss" @willPresent="onPresent" :showBackdrop="false" :event="menuEvent"
+               :is-open="textMenuOpen">
+    <ion-content v-if="text" class="bg-background">
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary">
           <div class="flex justify-between w-full">
@@ -71,6 +72,7 @@ import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import { IText } from 'fabric/fabric-impl'
 import { focusText } from '@/helper/draw/draw.helper'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())
@@ -82,11 +84,14 @@ const isItalic = computed(() => text.value.fontStyle === 'italic')
 const align = computed(() => text.value.textAlign)
 const isCurved = computed(() => text.value.isCurved)
 
+const { textMenuOpen, menuEvent } = storeToRefs(useMenuStore())
+
 const shouldRefocusTextAfterClose = ref(false)
 
 function onDismiss() {
   if (shouldRefocusTextAfterClose.value) focusText(text.value)
   shouldRefocusTextAfterClose.value = false
+  textMenuOpen.value = false
 }
 
 function onPresent() {

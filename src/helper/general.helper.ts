@@ -2,7 +2,7 @@ import { Mate } from '@/types/server.types'
 import Compressor from 'compressorjs'
 import router from '@/router'
 import { StatusBar } from '@capacitor/status-bar'
-import { NavigationBar } from '@hugotomazi/capacitor-navigation-bar'
+import { NavigationBar } from '@capgo/capacitor-navigation-bar'
 import { isPlatform } from '@ionic/vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
@@ -92,7 +92,7 @@ export function getCurrentRoute(): FRONTEND_ROUTES {
 export async function setAppColors(colorConfig: AppColorConfig) {
   if (!isNative()) return
   await Promise.all([
-    NavigationBar.setColor({ color: colorConfig.navigationBar }),
+    NavigationBar.setNavigationBarColor({ color: colorConfig.navigationBar }),
     StatusBar.setBackgroundColor({ color: colorConfig.statusBar })
   ])
 }
@@ -107,29 +107,12 @@ export async function checkColorsSet(colorConfig: AppColorConfig) {
 
 export async function getAppColors() {
   if (!isNative()) return
-  return await Promise.all([NavigationBar.getColor(), StatusBar.getInfo()])
+  return await Promise.all([NavigationBar.getNavigationBarColor(), StatusBar.getInfo()])
 }
 
-// TODO this is the uglies code ever xd
 export async function hideLoading() {
   await SplashScreen.hide()
-
-  const end = 300
-  const jump = 50
-  let start = 0
-
-  const config = colorsPerRoute[router.currentRoute.value.path.substring(1) as FRONTEND_ROUTES]
-
-  const interval = setInterval(async () => {
-    const colorsSet = await checkColorsSet(config)
-
-    if (start >= end || colorsSet) {
-      clearInterval(interval)
-      return
-    }
-    start += jump
-    await setAppColors(config)
-  }, jump)
+  void setAppColors(colorsPerRoute[router.currentRoute.value.path.substring(1) as FRONTEND_ROUTES])
 }
 
 
@@ -249,5 +232,14 @@ export async function toDataUrl(blob: any) {
     reader.onloadend = () => resolve(reader.result)
     reader.readAsDataURL(blob)
   })
+}
+
+export function shuffleArray<T = string>(array: any[]): Array<T> {
+  const arr = [...array] // to avoid mutating original array
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  return arr
 }
 

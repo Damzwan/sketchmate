@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="font" @willDismiss="onDismiss" @willPresent="onPresent" :showBackdrop="false">
+  <ion-popover trigger="font" @willDismiss="onDismiss" @willPresent="onPresent" :showBackdrop="false" :is-open="fontMenuOpen" :event="menuEvent" >
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" v-for="font in FONTS" :key="font" @click="selectFont(font)">
@@ -19,12 +19,15 @@ import { storeToRefs } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.tool'
 import { IText } from 'fabric/fabric-impl'
 import { computed, ref } from 'vue'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const text = computed(() => selectedObjectsRef.value[0] as IText)
 const emits = defineEmits(['font_selected'])
 
 const shouldRefocusTextAfterClose = ref(false)
+
+const {fontMenuOpen, menuEvent} = storeToRefs(useMenuStore())
 
 function selectFont(font: string) {
   emits('font_selected', font)
@@ -41,6 +44,7 @@ function onPresent() {
 function onDismiss() {
   if (shouldRefocusTextAfterClose.value) focusText(text.value)
   shouldRefocusTextAfterClose.value = false
+  fontMenuOpen.value = false
 }
 </script>
 

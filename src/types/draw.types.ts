@@ -110,7 +110,13 @@ export enum DrawAction {
   SetCanvasBackground,
   ChangeStrokeWidth,
   AddImgFilter,
-  Flip
+  Flip,
+  Undo,
+  Redo,
+  UnselectObjects,
+  ExitShapeCreationMode,
+  ExitColorPickerMode,
+  ExitTextAddingMode,
 }
 
 export enum Menu {
@@ -119,7 +125,15 @@ export enum Menu {
   StickerEmblemSaved,
   Shapes,
   Cropper,
-  Select
+  Select,
+  Send,
+  MoreTools,
+  SelectMoreOptions,
+  SelectColor,
+  Font,
+  Text,
+  SelectImgStyle,
+  FeedbackMenu,
 }
 
 export enum ObjectType {

@@ -12,16 +12,19 @@ import { useSelect } from '@/service/draw/tools/select.tool'
 import { useLasso } from '@/service/draw/tools/lasso.tool'
 import { useBucket } from '@/service/draw/tools/bucket.tool'
 import { isNative, svg } from '@/helper/general.helper'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { isObjectSelected, setSelectionForObjects, splitStringToWidth } from '@/helper/draw/draw.helper'
 import { mdiCheckCircle } from '@mdi/js'
 import { enableZoomAndPan } from '@/helper/draw/gesture.helper'
+
+const BOTTOM_NAV_HEIGHT = 50
+const TOP_TOOLBAR_HEIGHT = 48
 
 export function initCanvasOptions(): ICanvasOptions {
   return {
     isDrawingMode: true,
     width: window.innerWidth,
-    height: window.innerHeight - 41 - 50,
+    height: window.innerHeight - BOTTOM_NAV_HEIGHT - TOP_TOOLBAR_HEIGHT, // TODO fix this
     backgroundColor: BACKGROUND,
     fireMiddleClick: true,
     selection: false,

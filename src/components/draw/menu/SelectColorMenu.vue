@@ -1,7 +1,8 @@
 <template>
-  <ion-popover :trigger="trigger" @didDismiss="onDismiss" :showBackdrop="false" @willPresent="onPresent">
+  <ion-popover @didDismiss="onDismiss" :showBackdrop="false" @willPresent="onPresent" :is-open="selectColorMenuOpen"
+               :event="menuEvent">
     <ion-content class="divide-y divide-primary">
-      <div class="px-2 pt-1">
+      <div class="px-2 pt-1 bg-background">
         <label for="slider">Stroke Width: {{ strokeWidth }}</label>
         <ion-range
           id="slider"
@@ -111,15 +112,18 @@ import { IText } from 'fabric/fabric-impl'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction } from '@/types/draw.types'
+import { storeToRefs } from 'pinia'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 defineProps<{
-  trigger: string
   strokeColor?: string
   fillColor?: string
   backgroundColor?: string
   disableClear?: 'stroke' | 'fill'
   strokeWidth: number
 }>()
+
+const { selectColorMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 const shouldRefocusTextAfterClose = ref(false)
 
@@ -132,6 +136,7 @@ const emits = defineEmits<{
 
 function onDismiss() {
   const { selectedObjectsRef } = useSelect()
+  selectColorMenuOpen.value = false
   if (!isText(selectedObjectsRef)) return
   if (shouldRefocusTextAfterClose.value) focusText(selectedObjectsRef[0] as IText)
   shouldRefocusTextAfterClose.value = false

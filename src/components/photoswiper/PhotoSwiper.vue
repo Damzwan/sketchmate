@@ -4,7 +4,7 @@
       <div class="flex flex-col w-full h-full">
         <ion-toolbar class="w-full h-[56px] flex">
           <ion-buttons slot="start">
-            <ion-button @click="close" color="white">
+            <ion-button @click="close" color="light">
               <ion-icon :icon="arrowBack" />
             </ion-button>
           </ion-buttons>
@@ -12,7 +12,7 @@
           <ion-buttons slot="end">
             <ion-button
               @click="showComments = !showComments"
-              color="white"
+              color="light"
               class="pr-2"
               v-if="currInboxItem.comments.length > 0"
             >
@@ -48,8 +48,8 @@
           @update="() => swiper.swiper.slideTo(slide + 1, 0)"
         >
           <swiper-slide v-for="(item, i) in inbox" :key="i">
-            <div class="swiper-zoom-container">
-              <PhotoSwiperItem :thumbnail="item.thumbnail" :image="item.image" :switch-to-image="slide == i"/>
+            <div class="swiper-zoom-container" v-if="Math.abs(slide - i) < 3">
+              <PhotoSwiperItem :thumbnail="item.thumbnail" :image="item.image" :switch-to-image="slide == i" />
             </div>
           </swiper-slide>
         </swiper-container>
@@ -77,13 +77,13 @@
 
 
         <div class="flex justify-evenly w-full items-center h-[56px]">
-          <ion-button fill="clear" color="white" @click="replyToDrawing" class="flex-grow" size="large">
+          <ion-button fill="clear" color="light" @click="replyToDrawing" class="flex-grow" size="large">
             <ion-icon :icon="svg(mdiReplyOutline)" />
           </ion-button>
 
           <ion-button
             fill="clear"
-            color="white"
+            color="light"
             @click="() => (isCommentDrawerOpen = true)"
             class="flex-grow"
             size="large"
@@ -93,10 +93,10 @@
             >{{ currInboxItem.comments.length }}
             </ion-badge>
           </ion-button>
-          <ion-button fill="clear" color="white" @click="shareImg(currInboxItem.image)" class="flex-grow" size="large">
+          <ion-button fill="clear" color="light" @click="shareImg(currInboxItem.image)" class="flex-grow" size="large">
             <ion-icon :icon="svg(mdiShareVariantOutline)" />
           </ion-button>
-          <ion-button fill="clear" color="white" id="delete-alert" class="flex-grow" size="large">
+          <ion-button fill="clear" color="light" id="delete-alert" class="flex-grow" size="large">
             <ConfirmationAlert
               header="Are you sure?"
               trigger="delete-alert"
@@ -138,7 +138,7 @@ import {
 } from '@mdi/js'
 import { IonAvatar, IonBadge, IonButton, IonButtons, IonIcon, IonToolbar, useBackButton } from '@ionic/vue'
 import { InboxItem } from '@/types/server.types'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { register } from 'swiper/element/bundle'
 import { shareImg } from '@/helper/share.helper'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
@@ -159,8 +159,8 @@ const { open, slide } = storeToRefs(usePhotoSwiper())
 const { seeItem } = usePhotoSwiper()
 
 
-const { inbox } = storeToRefs(useAppStore())
-const { user, findUserInInboxUsers } = useAppStore()
+const { inbox } = storeToRefs(useAuthStore())
+const { user, findUserInInboxUsers } = useAuthStore()
 const { toast, dismiss } = useToast()
 
 
@@ -175,7 +175,7 @@ const badgesCountToShow = 3
 const swiper = ref<any>()
 const api = useAPI()
 
-const { updateSlide } = storeToRefs(useAppStore())
+const { updateSlide } = storeToRefs(useAuthStore())
 watch(
   inbox,
   (first, second) => {

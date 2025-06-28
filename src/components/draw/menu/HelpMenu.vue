@@ -1,0 +1,59 @@
+<template>
+  <ion-action-sheet
+    trigger="helpMenu"
+    color="background"
+    mode="ios"
+    :buttons="helpActionSheetButtons"
+  />
+  <ion-button id="docsMenu" class="invisible absolute" />
+
+</template>
+
+<script setup lang="ts">
+import { ActionSheetButton, IonActionSheet, IonButton} from '@ionic/vue'
+import { svg } from '@/helper/general.helper'
+import { mdiBookOpenOutline, mdiMessageAlertOutline } from '@mdi/js'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { Menu } from '@/types/draw.types'
+
+const { openMenu } = useMenuStore()
+
+const helpActionSheetButtons: ActionSheetButton[] = [
+  {
+    text: 'Manual',
+    role: 'selected',
+    icon: svg(mdiBookOpenOutline),
+    handler: () => {
+      document.getElementById('docsMenu')?.click()
+    }
+  },
+  {
+    text: 'Feedback',
+    role: 'selected',
+    icon: svg(mdiMessageAlertOutline),
+    handler: () => openMenu(Menu.FeedbackMenu)
+  },
+  {
+    text: 'Cancel',
+    role: 'cancel',
+    data: {
+      action: 'cancel'
+    }
+  }
+]
+</script>
+
+
+<style scoped>
+ion-action-sheet {
+  --background: var(--ion-color-primary);
+  --button-background-selected: var(--ion-color-primary);
+  --button-color: var(--ion-color-dark);
+}
+
+ion-action-sheet.my-custom-class .action-sheet-cancel {
+  color: var(--ion-color-secondary); /* Custom color for cancel button text */
+}
+
+
+</style>

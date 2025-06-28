@@ -2,19 +2,19 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { ref } from 'vue'
 import { useAPI } from '@/service/api/api.service'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 
 
 export const usePhotoSwiper = defineStore('photoswiper', () => {
   const open = ref(false)
   const slide = ref(0)
-  const { inbox } = storeToRefs(useAppStore())
+  const { inbox } = storeToRefs(useAuthStore())
   const api = useAPI()
 
   function seeItem(index?: number) {
     const indexOfItemToSee = index != undefined ? index : slide.value
 
-    const { user } = useAppStore()
+    const { user } = useAuthStore()
     const item = inbox.value[indexOfItemToSee]
 
 

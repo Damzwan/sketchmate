@@ -5,8 +5,8 @@
   <transition name="slide">
     <div class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0" v-show="open">
       <h1 class="text-2xl pl-3 py-2 text-black">Followers</h1>
-      <ion-list>
-        <ion-item v-for="follower in followers" :key="follower">
+      <ion-list class="bg-background">
+        <ion-item v-for="follower in followers" :key="follower" color="tertiary">
           <img :src="senderImg(findUserInInboxUsers(follower))" :alt="follower" class="rounded-full w-[48px] my-2"
                slot="start">
           <h2 class="font-medium text-lg">
@@ -40,7 +40,7 @@ import { User } from '@/types/server.types'
 import { ref, watch } from 'vue'
 import { useSocketService } from '@/service/api/socket.service'
 import { storeToRefs } from 'pinia'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { senderImg, senderName } from '@/helper/general.helper'
 
 const props = defineProps<{
@@ -51,8 +51,8 @@ const props = defineProps<{
 const emit = defineEmits(['update:open'])
 
 const { cancelSendMateRequest, sendMateRequest, match } = useSocketService()
-const { friendRequestLoading } = storeToRefs(useAppStore())
-const { findUserInInboxUsers } = useAppStore()
+const { friendRequestLoading } = storeToRefs(useAuthStore())
+const { findUserInInboxUsers } = useAuthStore()
 
 const friendToBe = ref<string>()
 

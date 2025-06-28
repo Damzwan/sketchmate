@@ -15,7 +15,7 @@
       </ion-toolbar>
     </ion-header>
 
-    <ion-content ref="modalContent">
+    <ion-content ref="modalContent" class="bg-background">
       <div v-if="selectedSection && sectionPageContent" @click="internalLink">
         <vue-markdown
           ref="m"

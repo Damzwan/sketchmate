@@ -1,0 +1,12 @@
+@font-face {
+    font-family: "Cabin Sketch";
+    src: url('./CabinSketch-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+}
+
+
+.cabin-sketch-regular {
+    font-family: "Cabin Sketch", sans-serif;
+    font-weight: 400;
+}

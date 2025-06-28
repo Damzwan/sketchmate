@@ -1,5 +1,5 @@
 import { LocalNotifications } from '@capacitor/local-notifications'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import { PushNotifications } from '@capacitor/push-notifications'
@@ -26,7 +26,7 @@ export async function requestNotifications() {
     await requestLocalNotifications()
     await requestPushNotifications()
   } else await PWARequestNotifications()
-  setNotificationsAllowed()
+  return await setNotificationsAllowed()
 }
 
 export async function PWARequestNotifications() {
@@ -52,7 +52,7 @@ export async function PWARequestNotifications() {
       serviceWorkerRegistration: registration
     })
 
-    const { setNotifications } = useAppStore()
+    const { setNotifications } = useAuthStore()
     setNotifications(token)
   } catch (e) {
     toast(e as string, { color: 'danger' })
@@ -67,7 +67,7 @@ export async function disableNotifications() {
   } else {
     deleteToken(getMessaging())
   }
-  const { setNotifications } = useAppStore()
+  const { setNotifications } = useAuthStore()
   await setNotifications(undefined)
 }
 
@@ -98,7 +98,7 @@ async function requestLocalNotifications() {
 async function requestPushNotifications() {
   await PushNotifications.unregister()
   await PushNotifications.register()
-  const { localSubscription } = storeToRefs(useAppStore())
+  const { localSubscription } = storeToRefs(useAuthStore())
   localSubscription.value = 'temp' // TODO hack to show notification bell earlier in settings menu as not to confuse the user
 
   // In case the localSubscription value is still temp something went wrong during registration
@@ -126,7 +126,7 @@ export async function addNotificationListeners() {
 
 
     await PushNotifications.addListener('registration', token => {
-      const { setNotifications } = useAppStore()
+      const { setNotifications } = useAuthStore()
       setNotifications(token.value)
     })
 
@@ -140,7 +140,7 @@ export async function addNotificationListeners() {
 
     await PushNotifications.addListener('pushNotificationActionPerformed', async (notification) => {
       const notificationType: NotificationType = notification.notification.data.type
-      const { setNotificationLoading } = useAppStore()
+      const { setNotificationLoading } = useAuthStore()
       setNotificationLoading(notificationType)
 
       await router.isReady()
@@ -182,7 +182,7 @@ export async function addNotificationListeners() {
 }
 
 export async function setNotificationsAllowed() {
-  const { notificationsAllowed } = storeToRefs(useAppStore())
+  const { notificationsAllowed } = storeToRefs(useAuthStore())
   if (isNative()) {
     const status = await PushNotifications.checkPermissions()
     notificationsAllowed.value = status.receive == 'granted'
@@ -190,4 +190,5 @@ export async function setNotificationsAllowed() {
     const status = await Notification.requestPermission()
     notificationsAllowed.value = status == 'granted'
   }
+  return notificationsAllowed.value;
 }

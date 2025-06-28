@@ -1,5 +1,6 @@
 <template>
-  <ion-popover trigger="img-style" :showBackdrop="false">
+  <ion-popover trigger="img-style" :showBackdrop="false" :is-open="selectImgStyleMenuOpen" :event="menuEvent"
+               @didDismiss="selectImgStyleMenuOpen=false">
     <ion-content class="divide-y divide-primary">
       <ion-list lines="none" class="p-0">
         <ion-item color="tertiary">
@@ -38,6 +39,10 @@ import { computed } from 'vue'
 import { svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
 import { opacityFromOpacityHex } from '@/helper/draw/draw.helper'
+import { storeToRefs } from 'pinia'
+import { useMenuStore } from '@/store/draw/menu.store'
+
+const { selectImgStyleMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 const props = defineProps<{
   img: fabric.Image

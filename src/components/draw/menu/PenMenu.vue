@@ -6,7 +6,7 @@
     :keepContentsMounted="true"
     :showBackdrop="false"
   >
-    <ion-content class="divide-y divide-primary">
+    <ion-content class="divide-y divide-primary bg-background">
       <!-- Stroke Preview -->
       <div class="relative">
         <canvas ref="preview_canvas"></canvas>

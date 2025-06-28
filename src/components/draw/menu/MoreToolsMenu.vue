@@ -1,5 +1,6 @@
 <template>
-  <ion-popover trigger="more_tools" :keepContentsMounted="true" :showBackdrop="false" ref="t">
+  <ion-popover :keepContentsMounted="true" :showBackdrop="false" ref="t" :is-open="moreToolsMenuOpen" :event="menuEvent"
+               @didDismiss="moreToolsMenuOpen = false">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" :detail="true" id="background-color">
@@ -107,18 +108,18 @@ import { useMenuStore } from '@/store/draw/menu.store'
 import ImageCropper from '@/components/draw/ImageCropper.vue'
 import { storeToRefs } from 'pinia'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { createSketchFromDataURL } from '@/helper/draw/draw.helper'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
 const imageActionSheetOpen = ref(false)
 const { selectAction } = useDrawStore()
-const { user } = storeToRefs(useAppStore())
+const { user } = storeToRefs(useAuthStore())
 const { openMenu } = useMenuStore()
 const { backgroundColor } = storeToRefs(useDrawStore())
 
-const { shapesMenuOpen, stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore())
+const { shapesMenuOpen, stickersEmblemsSavedSelectedTab, moreToolsMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 const t = ref<any>()
 
 watch(shapesMenuOpen, () => {
@@ -236,13 +237,11 @@ async function onImgUpload(e: any) {
 }
 </script>
 
-<style>
+<style scoped>
 ion-action-sheet.my-custom-class {
-  --background: var(--ion-color-background);
-  --button-background-selected: var(--ion-color-background);
-  --button-color: var(--ion-color-contrast-2);
-  --button-background-cancel: #ff0000; /* Custom color for cancel button background */
-  --button-color-cancel: #ffffff; /* Custom color for cancel button text */
+  --background: var(--ion-color-primary);
+  --button-background-selected: var(--ion-color-primary);
+  --button-color: var(--ion-color-dark);
 }
 
 ion-action-sheet.my-custom-class .action-sheet-cancel {

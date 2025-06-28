@@ -1,5 +1,5 @@
 <template>
-  <ion-popover trigger="select_extra_options" :showBackdrop="false">
+  <ion-popover :showBackdrop="false" :is-open="selectMoreOptionsMenuOpen" :event="menuEvent" @didDismiss="selectMoreOptionsMenuOpen=false">
     <ion-content>
       <ion-list lines="none" class="divide-y divide-primary p-0">
         <ion-item color="tertiary" :button="true" @click="copyObjects">
@@ -69,10 +69,13 @@ import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } 
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import { useSelect } from '@/service/draw/tools/select.tool'
+import { useMenuStore } from '@/store/draw/menu.store'
 
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const { getSelectedObjects } = useSelect()
+const {selectMoreOptionsMenuOpen, menuEvent} = storeToRefs(useMenuStore())
+
 function saveObjects() {
   selectAction(DrawAction.CreateSaved, { objects: getSelectedObjects() })
   closePopover()

@@ -23,14 +23,14 @@
       <div class="w-full h-full" v-else>
         <CircularLoader v-show="isLoading" class="absolute w-full h-full z-50" />
 
-        <div class="w-full h-full" v-if="segment == Segments.friends">
+        <div class="w-full h-full" v-show="segment == Segments.friends">
 
           <div class="w-full h-5/6 flex-col flex justify-center" v-if="user.mates.length == 0">
-            <img :src="friendsImage" class="w-full h-[16rem] md:h-[18rem]" alt="friends connect" />
+            <img :src="connectImage" class="md:w-[50%] max-w-[600px] w-[90%] mx-auto" alt="friends connect" />
             <div class="w-full flex flex-col justify-center items-center pt-3">
               <h1 class="text-2xl font-bold">Start connecting</h1>
               <p class="px-5 text-center text-lg">Add a friend to start sending sketches to each other</p>
-              <ion-button color="secondary" @click="isConnectSheetOpen = true" class="pt-2">Add friend
+              <ion-button color="secondary" @click="isConnectSheetOpen = true" class="pt-2 w-64" shape="round" size="large">Add friend
               </ion-button>
             </div>
           </div>
@@ -38,12 +38,12 @@
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 p-2">
             <button v-for="mate of user!.mates" :key="mate" @click="openUnMatchSheet(mate)"
                     class="hover:bg-primary-shade border-secondary-light border-2 bg-primary col-span-1 shadow rounded-2xl">
-             <ConnectUserItem :mate="mate"/>
+              <ConnectUserItem :mate="mate" />
             </button>
           </div>
         </div>
 
-        <div v-else class="w-full h-full">
+        <div v-if="segment == Segments.requests" class="w-full h-full">
           <CircularLoader v-if="loadingFriendRequests" class="w-full h-full z-50" />
           <div v-else class="w-full h-5/6">
             <div v-if="requestsSize == 0" class="flex flex-col justify-center w-full h-full">
@@ -52,7 +52,7 @@
               <div class="w-full flex justify-center items-center flex-col pt-3">
                 <h1 class="text-2xl font-bold">No friend requests...</h1>
                 <p class="px-5 text-center text-lg">Over here you can manage your received and sent friend requests</p>
-                <ion-button color="secondary" @click="segment = Segments.friends" class="pt-2">Go back
+                <ion-button color="secondary" @click="segment = Segments.friends" class="pt-2 w-64" shape="round" size="large">Go back
                 </ion-button>
               </div>
             </div>
@@ -136,7 +136,7 @@
 import noMessagesImg from '@/assets/illustrations/no-messages.svg'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import { storeToRefs } from 'pinia'
-import CircularLoader from '@/components/loaders/CircularLoader.vue'
+import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 import {
   IonActionSheet,
   IonButton,
@@ -154,7 +154,7 @@ import {
   IonToolbar,
   onIonViewDidLeave, IonRefresherContent, IonRefresher
 } from '@ionic/vue'
-import { useAppStore } from '@/store/app.store'
+import { useAuthStore } from '@/store/auth.store'
 import { add } from 'ionicons/icons'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Mate } from '@/types/server.types'
@@ -166,7 +166,7 @@ import QRPage from '@/components/connect/QRPage.vue'
 import { useSocketService } from '@/service/api/socket.service'
 import router from '@/router'
 import { useToast } from '@/service/toast.service'
-import friendsImage from '@/assets/illustrations/match.svg'
+import connectImage from '@/assets/illustrations/connect.webp'
 import ConnectUserItem from '@/components/connect/ConnectUserItem.vue'
 
 enum Segments {
@@ -174,8 +174,8 @@ enum Segments {
   requests = 'request'
 }
 
-const { user, queryParams, isLoading, friendRequestLoading, friendRequestUsers } = storeToRefs(useAppStore())
-const { setQueryParams, retrieveFriendRequestUsers, findUserInFriendRequestUsers, refresh } = useAppStore()
+const { user, queryParams, isLoading, friendRequestLoading, friendRequestUsers } = storeToRefs(useAuthStore())
+const { setQueryParams, retrieveFriendRequestUsers, findUserInFriendRequestUsers, refresh } = useAuthStore()
 
 const route = useRoute()
 
@@ -228,7 +228,7 @@ const connectSheetButtons = [
     data: {
       action: 'delete'
     },
-    handler: () => shareUrl(createPersonalShareLink(user.value!._id, route.path), 'Become my mate on Sketchmate', 'Send connect link')
+    handler: () => shareUrl(createPersonalShareLink(user.value!._id, route.path), 'Become my mate on Sketchmate', 'send connect link')
   },
   {
     text: 'QR Code',
@@ -285,20 +285,21 @@ async function fetchFriendRequests() {
 ion-segment {
   --background: var(--ion-color-background);
 }
+
+ion-action-sheet {
+  --background: var(--ion-color-primary);
+  --button-background: var(--ion-color-primary);
+  --button-color: var(--ion-color-dark);
+  --button-background-selected-opacity: 0.2;
+}
+
 </style>
 
 <style>
-ion-action-sheet.custom-action-sheet {
-  --background: var(--ion-color-background);
-  --button-background-selected: var(--ion-color-background);
-  --button-color: var(--ion-color-contrast-2);
-}
 
 ion-action-sheet.custom-action-sheet .action-sheet-title {
-  @apply text-gray-600
+  @apply text-black
 }
 
-ion-action-sheet.custom-action-sheet .action-sheet-cancel {
-  @apply hover:text-secondary-light text-secondary
-}
+
 </style>

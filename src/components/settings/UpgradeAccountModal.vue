@@ -13,7 +13,7 @@
     <ion-content color="tertiary">
       <div class="flex flex-col w-full h-full">
         <div class="flex flex-col flex-grow text-center px-4 py-4 justify-center">
-          <img :src="connectImage" class="md:w-[50%] max-w-[600px] w-[90%] mx-auto" alt="friends connect" />
+          <img :src="connectImage" class="md:w-[50%] max-w-[400px] w-[90%] mx-auto" alt="friends connect" />
           <p class="text-2xl font-semibold mb-1">Connect Your Account</p>
           <p class="text-sm max-w-md mx-auto">
             Connect your guest account to avoid losing your progress.

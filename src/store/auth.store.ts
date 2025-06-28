@@ -85,12 +85,16 @@ export const useAuthStore = defineStore('auth', () => {
       await ionRouter.replace(FRONTEND_ROUTES.login, routerAnimation)
     } else {
       firebaseUser.value = status.user
-      console.log(firebaseUser.value.isAnonymous)
       const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
       if (justLoggedIn.value) {
         const result = await login()
 
-        if (!result) return
+        if (!result) {
+          const { toast } = useToast()
+          toast('Something went wrong, please try again', { color: 'warning' })
+          return
+        }
+
         const [user, isNewAccount, showEnableNotificationsAfterLoginTmp] = result
         isAuthLoading.value = false
 
@@ -107,8 +111,16 @@ export const useAuthStore = defineStore('auth', () => {
 
 
       } else {
-        if (router.currentRoute.value.path == `/${FRONTEND_ROUTES.login}`) ionRouter.replace(`/${FRONTEND_ROUTES.draw}`, routerAnimation)
-        await login()
+        const result = await login()
+        if (!result) {
+          const { toast } = useToast()
+          toast('Something went wrong, please try again', { color: 'warning' })
+          return
+
+        }
+        const [user, _, __] = result
+        if (user.mates.length == 0) ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
+        else ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
         isAuthLoading.value = false
 
       }

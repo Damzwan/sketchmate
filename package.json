@@ -16,8 +16,8 @@
     "lint": "eslint",
     "lint_fix_and_add": "git add .",
     "heroku:start": "node server.js",
-    "postinstall": "npm run build_fabric && npm run build",
-    "build_fabric": "cd node_modules/fabric && npm run build_with_gestures",
+    "postinstall": "pnpm build_fabric && pnpm build",
+    "build_fabric": "cd node_modules/fabric && pnpm build_with_gestures",
     "prepare": "husky install"
   },
   "dependencies": {

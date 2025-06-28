@@ -15,13 +15,14 @@ import { viewCommentButton } from '@/config/toast.config'
 import { ToastDuration } from '@/types/toast.types'
 import { Device } from '@capacitor/device'
 import { modalController, useIonRouter, UseIonRouterResult } from '@ionic/vue'
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
+import { FirebaseAuthentication, User as FirebaseUser } from '@capacitor-firebase/authentication'
 import { routerAnimation } from '@/helper/animation.helper'
 import { Nullable } from 'vitest'
 
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User>()
+  const firebaseUser = ref<FirebaseUser>()
   const inbox = ref<InboxItem[]>([])
   const inboxUsers = ref<Mate[]>([])
 
@@ -83,6 +84,8 @@ export const useAuthStore = defineStore('auth', () => {
       }
       await ionRouter.replace(FRONTEND_ROUTES.login, routerAnimation)
     } else {
+      firebaseUser.value = status.user
+      console.log(firebaseUser.value.isAnonymous)
       const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
       if (justLoggedIn.value) {
         const result = await login()
@@ -322,6 +325,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     showForceUpdateModal,
     notificationsAllowed,
-    initIonRouter
+    initIonRouter,
+    firebaseUser
   }
 })

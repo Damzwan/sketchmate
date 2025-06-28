@@ -18,11 +18,8 @@
     <ion-content v-if="user" class="bg-background">
       <div class="flex flex-col h-full">
         <div class="flex-grow">
-          <p>{{ firebaseUser.currentUser?.uid }}</p>
-          <p>{{ firebaseUser.currentUser?.isAnonymous }}</p>
 
-
-          <div class="w-full bg-warning mx-auto rounded-md p-4" v-if="firebaseUser.currentUser?.isAnonymous">
+          <div class="w-full bg-warning mx-auto rounded-md p-4" v-if="firebaseUser?.isAnonymous">
             <p class="cabin-sketch-regular text-lg">Upgrade your account</p>
             <p class="text-sm">You're using a guest profile. Create an account to save your progress.</p>
             <ion-button fill="outline" color="dark" class="pt-4" id="openUpgradeAccountModal">Upgrade</ion-button>
@@ -107,12 +104,9 @@ import { NotificationSubscription } from '@/types/server.types'
 import ProfileCustomization from '@/components/account/ProfileCustomization.vue'
 import NotificationSwitch from '@/components/general/NotificationSwitch.vue'
 import UpgradeAccountModal from '@/components/settings/UpgradeAccountModal.vue'
-import { getAuth } from 'firebase/auth'
 
-const { user } = storeToRefs(useAuthStore())
+const { user, firebaseUser } = storeToRefs(useAuthStore())
 const api = useAPI()
-
-const firebaseUser = getAuth()
 
 
 const deleteSubscriptionAlertOpen = ref(false)

@@ -31,7 +31,7 @@ app.use('/assets', setCache, express.static(`${__dirname}/dist/assets`))
 app.use(express.static(`${__dirname}/dist`))
 
 // Fallback to index.html for Single Page Applications
-app.get('*', (req, res) => {
+app.get(/.*/, (req, res) => {
   res.sendFile(`${__dirname}/dist/index.html`)
 })
 

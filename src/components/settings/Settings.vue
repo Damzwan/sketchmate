@@ -29,7 +29,7 @@
           <ProfileCustomization />
 
           <div class="p-6 text-gray-500 text-sm mx-auto flex flex-col items-center justify-center">
-            <p class="text-lg -ml-12">Enable notifications to fuck my ass:</p>
+            <p class="text-lg -ml-12">Enable notifications to:</p>
             <div>
               <ul class="list-disc list-inside">
                 <li>Receive sketches from your friends</li>

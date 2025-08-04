@@ -1,22 +1,26 @@
 <template>
   <ion-action-sheet
+    :is-open="helpMenuOpen"
     trigger="helpMenu"
     color="background"
     mode="ios"
     :buttons="helpActionSheetButtons"
+    @didDismiss="() => helpMenuOpen = false"
   />
   <ion-button id="docsMenu" class="invisible absolute" />
 
 </template>
 
 <script setup lang="ts">
-import { ActionSheetButton, IonActionSheet, IonButton} from '@ionic/vue'
+import { ActionSheetButton, IonActionSheet, IonButton } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
 import { mdiBookOpenOutline, mdiMessageAlertOutline } from '@mdi/js'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { Menu } from '@/types/draw.types'
+import { storeToRefs } from 'pinia'
 
 const { openMenu } = useMenuStore()
+const { helpMenuOpen } = storeToRefs(useMenuStore())
 
 const helpActionSheetButtons: ActionSheetButton[] = [
   {

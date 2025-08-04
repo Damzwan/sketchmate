@@ -30,7 +30,8 @@
             <div class="w-full flex flex-col justify-center items-center pt-3">
               <h1 class="text-2xl font-bold">Start connecting</h1>
               <p class="px-5 text-center text-lg">Add a friend to start sending sketches to each other</p>
-              <ion-button color="secondary" @click="isConnectSheetOpen = true" class="pt-2 w-64" shape="round" size="large">Add friend
+              <ion-button color="secondary" @click="isConnectSheetOpen = true" class="pt-2 w-64" shape="round"
+                          size="large">Add friend
               </ion-button>
             </div>
           </div>
@@ -48,11 +49,12 @@
           <div v-else class="w-full h-5/6">
             <div v-if="requestsSize == 0" class="flex flex-col justify-center w-full h-full">
 
-              <img :src="noMessagesImg" alt="No messages" class="h-[16rem] md:h-[18rem] aspect-square" />
+              <img :src="noMessagesImg" alt="No messages" class="md:w-[40%] max-w-[600px] w-[70%] mx-auto" />
               <div class="w-full flex justify-center items-center flex-col pt-3">
                 <h1 class="text-2xl font-bold">No friend requests...</h1>
                 <p class="px-5 text-center text-lg">Over here you can manage your received and sent friend requests</p>
-                <ion-button color="secondary" @click="segment = Segments.friends" class="pt-2 w-64" shape="round" size="large">Go back
+                <ion-button color="secondary" @click="segment = Segments.friends" class="pt-2 w-64" shape="round"
+                            size="large">Go back
                 </ion-button>
               </div>
             </div>
@@ -133,7 +135,7 @@
 
 <script setup lang="ts">
 
-import noMessagesImg from '@/assets/illustrations/no-messages.svg'
+import noMessagesImg from '@/assets/illustrations/no_messages.webp'
 import SettingsHeader from '@/components/settings/SettingsHeader.vue'
 import { storeToRefs } from 'pinia'
 import CircularLoader from '@/components/general/loaders/CircularLoader.vue'

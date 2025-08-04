@@ -134,6 +134,7 @@ export enum Menu {
   Text,
   SelectImgStyle,
   FeedbackMenu,
+  HelpMenu
 }
 
 export enum ObjectType {

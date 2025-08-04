@@ -24,6 +24,9 @@ const setCache = (req, res, next) => {
   next()
 }
 
+// Serve .well-known files explicitly, used for deep linking
+app.use('/.well-known', express.static(`${__dirname}/dist/.well-known`))
+
 // Use the cache middleware for static assets
 app.use('/assets', setCache, express.static(`${__dirname}/dist/assets`))
 

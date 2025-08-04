@@ -145,7 +145,7 @@ export function getToolbarConfig(
         {
           type: 'button',
           icon: mdiChatQuestionOutline,
-          id: 'helpMenu',
+          menu: Menu.HelpMenu,
           tour_step: '7'
         },
         {

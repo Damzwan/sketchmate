@@ -119,8 +119,14 @@ export const useAuthStore = defineStore('auth', () => {
 
         }
         const [user, _, __] = result
+
         if (user.mates.length == 0) ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
-        else ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+        else {
+          const path = router.currentRoute.value.path.split('/')[1]
+          if (Object.values(FRONTEND_ROUTES).filter(p => p != FRONTEND_ROUTES.login).includes(path as FRONTEND_ROUTES)) {
+            ionRouter.replace(path, routerAnimation)
+          } else ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+        }
         isAuthLoading.value = false
 
       }
@@ -154,6 +160,7 @@ export const useAuthStore = defineStore('auth', () => {
         showForceUpdateModal.value = true
         return
       }
+
 
       user.value = userValue.user as User
 

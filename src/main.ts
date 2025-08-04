@@ -20,9 +20,6 @@ import { useAuthStore } from '@/store/auth.store'
 import { addNotificationListeners } from '@/helper/notification.helper'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
 import VueJsTour from '@globalhive/vuejs-tour'
 import { initFirebase, isNative } from '@/helper/general.helper'
 import { Preferences } from '@capacitor/preferences'

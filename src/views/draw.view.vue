@@ -1,5 +1,6 @@
 <template>
   <ion-page>
+    <ion-header></ion-header>
     <ion-content>
       <Toolbars />
       <DrawMenus/>
@@ -40,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonIcon, IonPage, IonProgressBar, onIonViewDidEnter } from '@ionic/vue'
+import { IonButton, IonContent, IonIcon, IonPage, IonProgressBar, onIonViewDidEnter, IonHeader } from '@ionic/vue'
 
 import { ref, watch } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'

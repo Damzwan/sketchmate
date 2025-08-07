@@ -27,6 +27,8 @@ import { Menu } from '@/types/draw.types'
 let socket: Socket | undefined
 
 let socketServiceInstance: SocketAPI | null = null
+let socketLoggedInPromise: Promise<void>
+let resolveSocketLoggedIn: () => void = null
 
 export function useSocketService(): SocketAPI {
   if (!socketServiceInstance) socketServiceInstance = createSocketService()
@@ -46,16 +48,25 @@ export function createSocketService(): SocketAPI {
       reconnectionAttempts: Infinity
     })
 
+    socketLoggedInPromise = new Promise<void>((resolve) => {
+      resolveSocketLoggedIn = resolve as any // TODO fix the any...
+    })
+
     socket.io.on('reconnect', () => {
       if (!user.value?._id) return
       login({ _id: user.value._id })
     })
 
+    socket.on(SOCKET_ENDPONTS.login, () => {
+      resolveSocketLoggedIn?.()
+    })
+
+
     socket.on(SOCKET_ENDPONTS.match, (params: Res<MatchRes>) => {
       isLoading.value = false
       friendRequestLoading.value = false
       if (!params) return
-      if (params.mate) {
+      if (params.mate && params.mate._id != user._id) {
         user.value!.mates = [...user.value!.mates, params.mate]
         user.value!.mate_requests_received = user.value!.mate_requests_received.filter(m => m != params.mate!._id)
         user.value!.mate_requests_sent = user.value!.mate_requests_sent.filter(m => m != params.mate!._id)
@@ -190,6 +201,7 @@ export function createSocketService(): SocketAPI {
   }
 
   async function match(params: MatchParams): Promise<void> {
+    await socketLoggedInPromise // make sure the user Id to socket mapping in the backend exists
     isLoading.value = true
     socket!.emit(SOCKET_ENDPONTS.match, params)
   }

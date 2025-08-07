@@ -82,7 +82,7 @@ export const useAuthStore = defineStore('auth', () => {
           toast('Login first before using a connect link', { color: 'warning', duration: ToastDuration.long })
         }, 200) // cannot do immediately since page is not ready yet
       }
-      await ionRouter.replace(FRONTEND_ROUTES.login, routerAnimation)
+      await ionRouter.replace(FRONTEND_ROUTES.login, routerAnimation!)
     } else {
       firebaseUser.value = status.user
       const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
@@ -111,10 +111,15 @@ export const useAuthStore = defineStore('auth', () => {
 
 
       } else {
+        isAuthLoading.value = false
         const result = await login()
         if (!result) {
           const { toast } = useToast()
-          toast('Something went wrong, please try again', { color: 'warning' })
+          ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+          toast('You’re offline. Local drawing is still available. Try again by reopening the app.', {
+            color: 'warning',
+            duration: ToastDuration.long
+          })
           return
 
         }
@@ -127,7 +132,6 @@ export const useAuthStore = defineStore('auth', () => {
             ionRouter.replace(path, routerAnimation)
           } else ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
         }
-        isAuthLoading.value = false
 
       }
     }
@@ -207,10 +211,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function refresh(e?: any) {
+    isLoading.value = true
     const authUser = await getCurrentAuthUser()
     if (!authUser) return
     user.value = (await api.getUser({ auth_id: authUser.uid }))!.user
     await getInbox()
+    isLoading.value = false // TODO we should not use a global loading state...
     if (e) e.target.complete()
   }
 

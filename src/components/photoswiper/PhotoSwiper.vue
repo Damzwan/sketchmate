@@ -49,7 +49,7 @@
         >
           <swiper-slide v-for="(item, i) in inbox" :key="i">
             <div class="swiper-zoom-container" v-if="Math.abs(slide - i) < 3">
-              <PhotoSwiperItem :thumbnail="item.thumbnail" :image="item.image" :switch-to-image="slide == i" />
+              <PhotoSwiperItem :thumbnail="item.thumbnail" :image="item.image" :switch-to-image="Math.abs(slide - i) < 3" />
             </div>
           </swiper-slide>
         </swiper-container>

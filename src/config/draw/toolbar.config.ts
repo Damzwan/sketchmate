@@ -97,7 +97,8 @@ export function getToolbarConfig(
   isUndoDisabled: boolean,
   isRedoDisabled: boolean,
   isOffline: boolean,
-  hasMate: boolean
+  hasMate: boolean,
+  isLoggedIn: boolean
 ): ToolbarConfig {
   const penMenuIcon =
     lastSelectedPenMenuTool == DrawTool.Pen
@@ -145,6 +146,7 @@ export function getToolbarConfig(
         {
           type: 'button',
           icon: mdiChatQuestionOutline,
+          isDisabled: !isLoggedIn,
           menu: Menu.HelpMenu,
           tour_step: '7'
         },
@@ -176,13 +178,14 @@ export function getToolbarConfig(
           },
           id: ToolbarIds.send,
           isVisibleCondition: !hasMate,
+          isDisabled: !isLoggedIn,
           tour_step: '6'
         }, {
           type: 'button',
           icon: mdiSend,
           menu: Menu.Send,
           id: ToolbarIds.send,
-          isDisabled: isOffline,
+          isDisabled: !isLoggedIn,
           isVisibleCondition: hasMate,
           tour_step: '6'
         }

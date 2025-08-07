@@ -101,8 +101,9 @@ public class Widget extends AppWidgetProvider {
         int[] appWidgetIds = appWidgetManager.getAppWidgetIds(new ComponentName(context, Widget.class));
         for (int appWidgetId : appWidgetIds) {
             Mate mate = retrieveWidgetFriendMapping(context, appWidgetId);
-            if (mate.get_id().equals(friendID))
+            if (mate.get_id() != null && mate.get_id().equals(friendID)) {
                 displayInboxItem(context, appWidgetManager, appWidgetId, imageUrl, inboxId);
+            }
         }
     }
 

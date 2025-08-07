@@ -1,16 +1,8 @@
 <template>
   <ion-app>
     <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" />
-
-
-    <OfflinePage
-      class="z-50"
-      v-if="networkStatus && !networkStatus.connected && route.path != `/${FRONTEND_ROUTES.draw}`"
-    />
     <ForceUpdateModal v-if="isNative() && showForceUpdateModal" />
-
     <FeedbackMenu />
-
     <ion-router-outlet />
   </ion-app>
 </template>
@@ -19,7 +11,7 @@
 import { IonApp, IonRouterOutlet, useBackButton, useIonRouter } from '@ionic/vue'
 import { onMounted, ref, watch } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
-import CircularLoader from "@/components/general/loaders/CircularLoader.vue"
+import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 import router from '@/router'
 import { hideLoading, isNative } from '@/helper/general.helper'
 import { App } from '@capacitor/app'
@@ -53,7 +45,7 @@ router.isReady().then(() => {
 
 if (isNative()) {
   watch([isAuthLoading, isRouterReady], () => {
-    if (!isAuthLoading.value && isRouterReady.value) hideLoading()
+    if (isRouterReady.value) hideLoading()
   })
 }
 

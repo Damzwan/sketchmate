@@ -37,7 +37,7 @@ const {
 const { brushType } = storeToRefs(usePen())
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
-const { networkStatus, user } = storeToRefs(useAuthStore())
+const { networkStatus, user, isLoggedIn } = storeToRefs(useAuthStore())
 
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
@@ -73,6 +73,7 @@ const toolbarConfig = computed(() =>
     redoStackDisabled.value,
     isOffline.value,
     hasMate.value,
+    isLoggedIn.value
 ))
 
 

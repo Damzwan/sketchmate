@@ -141,8 +141,17 @@ export const useAuthStore = defineStore('auth', () => {
   Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value!))
 
   Network.addListener('networkStatusChange', status => {
+    if (status.connected && !networkStatus.value?.connected) {
+      refresh().then(() => {
+        const { toast } = useToast()
+        toast('You are now online', { color: 'success', duration: ToastDuration.long })
+      })
+    } else if (!status.connected) {
+      isLoggedIn.value = false
+      const { toast } = useToast()
+      toast('You are now offline', { color: 'danger', duration: ToastDuration.long })
+    }
     networkStatus.value = status
-    if (status.connected) refresh()
   })
   Network.getStatus().then(s => (networkStatus.value = s))
 
@@ -212,9 +221,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refresh(e?: any) {
     isLoading.value = true
-    const authUser = await getCurrentAuthUser()
-    if (!authUser) return
-    user.value = (await api.getUser({ auth_id: authUser.uid }))!.user
+    await login()
     await getInbox()
     isLoading.value = false // TODO we should not use a global loading state...
     if (e) e.target.complete()

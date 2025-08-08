@@ -74,6 +74,8 @@ import QrScanner from 'qr-scanner'
 import { useToast } from '@/service/toast.service'
 import { colorsPerRoute, qrModalColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
+import { createPersonalShareLink } from '@/helper/share.helper'
+import { useAuthStore } from '@/store/auth.store'
 
 enum Segments {
   code,
@@ -97,7 +99,8 @@ const installingGoogleBarcodeProgress = ref<number | undefined>(0)
 
 const qrScanner = ref<QrScanner>()
 const video = ref<HTMLVideoElement>()
-const qrURL = `${window.location.protocol}//${window.location.host}${window.location.pathname}?mate=${props._id}`
+const { user } = useAuthStore()
+const qrURL = createPersonalShareLink(user!._id, '/connect')
 
 const { toast } = useToast()
 
@@ -140,7 +143,7 @@ async function startScanning() {
       document.querySelector('body')?.classList.add('barcode-scanner-active')
 
 
-      if (isNative())  setTimeout(() => segment.value = Segments.code, 200)// hack in case the user presses the close button
+      if (isNative()) setTimeout(() => segment.value = Segments.code, 200)// hack in case the user presses the close button
       const { barcodes } = await BarcodeScanner.scan(
         {
           formats: [BarcodeFormat.QrCode]

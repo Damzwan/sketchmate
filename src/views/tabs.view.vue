@@ -36,10 +36,15 @@
           :tab="FRONTEND_ROUTES.connect"
           :href="`/${FRONTEND_ROUTES.connect}`"
           @click="r.push(FRONTEND_ROUTES.connect, routerAnimation)"
+          class="relative"
         >
           <ion-icon :icon="peopleCircleOutline" />
           <ion-label>Connect</ion-label>
+          <ion-badge class="ml-2" color="secondary" v-if="user && user.mate_requests_received.length > 0">
+            {{ user.mate_requests_received.length }}
+          </ion-badge>
         </ion-tab-button>
+
       </ion-tab-bar>
     </ion-tabs>
   </ion-page>
@@ -55,7 +60,8 @@ import {
   IonTabButton,
   IonTabs,
   IonToast,
-  useIonRouter
+  useIonRouter,
+  IonBadge
 } from '@ionic/vue'
 import { imagesOutline, pencil, peopleCircleOutline } from 'ionicons/icons'
 import { FRONTEND_ROUTES } from '@/types/router.types'
@@ -71,6 +77,7 @@ import FullScreenModal from '@/components/photoswiper/PhotoSwiper.vue'
 
 const { text, isOpen, dismiss, duration, color, buttons, position } = useToast()
 const r = useIonRouter()
+
 
 const toast = ref()
 useSwipe(toast, {

@@ -10,8 +10,15 @@
             <ion-label>My mates {{ user?.mates.length > 0 ? `(${user?.mates.length})` : '' }}</ion-label>
           </ion-segment-button>
           <ion-segment-button :value="Segments.requests" @click="fetchFriendRequests">
-            <ion-label>Requests {{ requestsSize > 0 ? `(${requestsSize})` : '' }}</ion-label>
+            <div class="relative inline-flex items-center">
+              <ion-label>Requests {{ requestsSize > 0 ? `(${requestsSize})` : '' }}</ion-label>
+              <span
+                v-if="user.mate_requests_received.length > 0"
+                class="ml-2 w-2 h-2 bg-secondary rounded-full"
+              />
+            </div>
           </ion-segment-button>
+
         </ion-segment>
       </ion-toolbar>
     </div>
@@ -62,8 +69,8 @@
             <div v-else class="p-2">
               <div v-if="user && user?.mate_requests_received.length > 0">
                 <h1 class="text-lg font-bold pl-3">Received ({{ user.mate_requests_received.length }})</h1>
-                <ion-list>
-                  <ion-item v-for="mateRequest in user.mate_requests_received" :key="mateRequest">
+                <ion-list class="p-0">
+                  <ion-item v-for="mateRequest in user.mate_requests_received" :key="mateRequest" color="background">
                     <img :src="senderImg(findUserInFriendRequestUsers(mateRequest))" :alt="mateRequest"
                          class="rounded-full w-[48px] my-2" slot="start">
                     <h2 class="font-medium text-lg">{{ senderName(findUserInFriendRequestUsers(mateRequest)) }}</h2>
@@ -88,8 +95,8 @@
 
               <div v-if="user && user?.mate_requests_sent.length > 0">
                 <h1 class="text-lg font-bold pl-3">Sent ({{ user.mate_requests_sent.length }})</h1>
-                <ion-list>
-                  <ion-item v-for="mateRequest in user.mate_requests_sent" :key="mateRequest">
+                <ion-list class="p-0">
+                  <ion-item v-for="mateRequest in user.mate_requests_sent" :key="mateRequest" color="background">
                     <img :src="senderImg(findUserInFriendRequestUsers(mateRequest))" :alt="mateRequest"
                          class="rounded-full w-[48px] my-2" slot="start">
                     <h2 class="font-medium text-lg">{{ senderName(findUserInFriendRequestUsers(mateRequest)) }}</h2>
@@ -126,6 +133,8 @@
                         class="custom-action-sheet"
                         :buttons="connectSheetButtons" mode="ios" header="Connect to a mate" />
 
+      <SearchNameModal />
+
     </ion-content>
     <QRPage v-model:open="showQRPage" :_id="user._id" :img="user.img" :name="user.name" v-if="user"
             @scan="(mateID: string) => match({_id: user!._id, mate_id: mateID})" />
@@ -161,7 +170,7 @@ import { add } from 'ionicons/icons'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Mate } from '@/types/server.types'
 import { senderImg, senderName, svg } from '@/helper/general.helper'
-import { mdiLink, mdiQrcode } from '@mdi/js'
+import { mdiLink, mdiMagnify, mdiQrcode } from '@mdi/js'
 import { createPersonalShareLink, shareUrl } from '@/helper/share.helper'
 import { useRoute } from 'vue-router'
 import QRPage from '@/components/connect/QRPage.vue'
@@ -170,6 +179,7 @@ import router from '@/router'
 import { useToast } from '@/service/toast.service'
 import connectImage from '@/assets/illustrations/connect.webp'
 import ConnectUserItem from '@/components/connect/ConnectUserItem.vue'
+import SearchNameModal from '@/components/connect/SearchNameModal.vue'
 
 enum Segments {
   friends = 'friends',
@@ -240,6 +250,15 @@ const connectSheetButtons = [
       action: 'delete'
     },
     handler: () => showQRPage.value = true
+  },
+  {
+    text: 'Search a name',
+    role: 'selected',
+    icon: svg(mdiMagnify),
+    id: 'search-name',
+    data: {
+      action: 'delete'
+    }
   },
   {
     text: 'Cancel',

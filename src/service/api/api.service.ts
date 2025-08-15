@@ -15,7 +15,7 @@ import {
   Saved,
   SeeInboxParams,
   RegisterNotificationParams,
-  UploadProfileImgParams, UnRegisterNotificationParams, GetUserRes, OnLoginEventParams
+  UploadProfileImgParams, UnRegisterNotificationParams, GetUserRes, OnLoginEventParams, SearchMateParams
 } from '@/types/server.types'
 import { LocalStorage } from '@/types/storage.types'
 import { createGlobalState } from '@vueuse/core'
@@ -194,6 +194,15 @@ export const useAPI = createGlobalState((): API => {
     await fetch(url, { method: REQUEST_TYPES.PUT, body: JSON.stringify(params) })
   }
 
+  async function searchMate(params: SearchMateParams): Promise<Res<Mate[]>> {
+    const queryParams = new URLSearchParams({
+      mateName: params.mateName,
+      user_id: params.user_id
+    })
+    const url = `${baseUrl}${ENDPOINTS.user}/search_mate?${queryParams}`
+    return await fetch(url, { method: REQUEST_TYPES.GET }).then(res => res.json())
+  }
+
   return {
     getUser,
     subscribe,
@@ -211,6 +220,7 @@ export const useAPI = createGlobalState((): API => {
     deleteProfileImg,
     seeInboxItem,
     getPartialUsers,
-    onLoginEvent
+    onLoginEvent,
+    searchMate
   }
 })

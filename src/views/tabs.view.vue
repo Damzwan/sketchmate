@@ -40,8 +40,8 @@
         >
           <ion-icon :icon="peopleCircleOutline" />
           <ion-label>Connect</ion-label>
-          <ion-badge class="ml-2" color="secondary" v-if="user && user.mate_requests_received.length > 0">
-            {{ user.mate_requests_received.length }}
+          <ion-badge class="ml-2" color="secondary" v-if="notificationBadgeCount > 0">
+            {{ notificationBadgeCount }}
           </ion-badge>
         </ion-tab-button>
 
@@ -87,6 +87,13 @@ useSwipe(toast, {
 })
 
 const { notificationRouteLoading, user, inbox, isLoggedIn } = storeToRefs(useAuthStore())
+
+const notificationBadgeCount = computed(() => {
+  return user.value
+    ? (user.value.mate_requests_received?.length ?? 0) + (user.value.balloon?.received ? 1 : 0)
+    : 0
+})
+
 
 const route = useRoute()
 const show = computed(() => route.path != `/${FRONTEND_ROUTES.login}` && !route.fullPath.includes('capacitor')) // capacitor due to redirect login url

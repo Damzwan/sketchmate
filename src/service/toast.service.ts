@@ -14,7 +14,7 @@ export const useToast = createGlobalState(() => {
   const defaultOptions: ToastOptions = {
     color: 'success',
     buttons: [],
-    duration: ToastDuration.short,
+    duration: ToastDuration.medium,
     position: 'bottom'
   }
 

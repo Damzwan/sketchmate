@@ -64,6 +64,7 @@ import discordSvg from '@/assets/discord.svg'
 import { addDoc, collection, getFirestore, serverTimestamp } from '@firebase/firestore'
 import { useAuthStore } from '@/store/auth.store'
 import { discord_link } from '@/config/general.config'
+import { AppReview } from '@capawesome/capacitor-app-review'
 
 enum FeedbackOptions {
   like = 'like',
@@ -78,16 +79,30 @@ const likeText = ref('')
 const dislikeText = ref('')
 const score = ref<FeedbackOptions>(FeedbackOptions.empty)
 
+const isSubmitting = ref(false)
+
 async function submit() {
+  if (isSubmitting.value) return // prevent duplicate submits
+  isSubmitting.value = true
+
   const { toast } = useToast()
-  if (likeText.value == '' && dislikeText.value == '' && score.value == FeedbackOptions.empty) {
+  if (
+    likeText.value == '' &&
+    dislikeText.value == '' &&
+    score.value == FeedbackOptions.empty
+  ) {
     toast('Fill at least one field', { color: 'warning' })
+    isSubmitting.value = false
     return
   }
+
   const db = getFirestore()
   const { user } = useAuthStore()
 
-  if (!user) return
+  if (!user) {
+    isSubmitting.value = false
+    return
+  }
 
   try {
     await addDoc(collection(db, 'feedback'), {
@@ -97,15 +112,22 @@ async function submit() {
       timestamp: serverTimestamp(),
       userId: user.auth_id
     })
-    toast('Thank you for your feedback!', { color: 'success' })
+    toast('Thank you for your feedback :)', { color: 'success' })
+
+    if (score.value == FeedbackOptions.like) {
+      await AppReview.requestReview()
+    }
+
     modalController.dismiss()
     resetForm()
   } catch (e) {
     console.error('Error adding feedback: ', e)
     modalController.dismiss()
+  } finally {
+    isSubmitting.value = false
   }
-
 }
+
 
 function resetForm() {
   dislikeText.value = ''

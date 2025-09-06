@@ -20,7 +20,7 @@ import { enableZoomAndPan } from '@/helper/draw/gesture.helper'
 const BOTTOM_NAV_HEIGHT = 50
 const TOP_TOOLBAR_HEIGHT = 48
 
-export function initCanvasOptions(): ICanvasOptions {
+export function initCanvasOptions(initOptions?: ICanvasOptions): ICanvasOptions {
   return {
     isDrawingMode: true,
     width: window.innerWidth,
@@ -29,7 +29,8 @@ export function initCanvasOptions(): ICanvasOptions {
     fireMiddleClick: true,
     selection: false,
     preserveObjectStacking: true,
-    renderOnAddRemove: false
+    renderOnAddRemove: false,
+    ...initOptions
   }
 }
 

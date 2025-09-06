@@ -164,29 +164,12 @@ export function getToolbarConfig(
           id: ToolbarIds.redo,
           action: DrawAction.Redo,
           isDisabled: isRedoDisabled
-        },
-        {
-          type: 'button',
-          icon: mdiSend,
-          customAction: () => {
-            const { toast } = useToast()
-            toast('Connect to a friend first', {
-              color: 'danger',
-              duration: ToastDuration.long,
-              buttons: [connectButton]
-            })
-          },
-          id: ToolbarIds.send,
-          isVisibleCondition: !hasMate,
-          isDisabled: !isLoggedIn,
-          tour_step: '6'
         }, {
           type: 'button',
           icon: mdiSend,
           menu: Menu.Send,
           id: ToolbarIds.send,
           isDisabled: !isLoggedIn,
-          isVisibleCondition: hasMate,
           tour_step: '6'
         }
       ] as ToolbarItem[]

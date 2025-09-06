@@ -3,7 +3,8 @@ export enum NotificationType {
   unmatch = 'unmatch',
   message = 'message',
   comment = 'comment',
-  friend_request = 'friend_request'
+  friend_request = 'friend_request',
+  balloon = 'balloon',
 }
 
 export interface InboxItem {
@@ -51,6 +52,40 @@ export interface User {
   mate_requests_sent: string[];
   mate_requests_received: string[];
   subscriptions: NotificationSubscription[];
+  balloon?: {
+    sent?: string,
+    received?: string,
+  };
+}
+
+export type BalloonStatus = 'pending' | 'paired' | 'accepted';
+
+export interface Balloon {
+  _id: string;
+  sender: string,
+  message: string,
+  drawingJsonUrl: string,
+  img: string,
+  thumbnail: string,
+  aspect_ratio: number,
+  status: BalloonStatus,
+  createdAt: Date,
+  matchedAt?: Date,
+  pairedUser?: string,
+  pairedBalloon?: string,
+  cancelledBalloons: string[]
+}
+
+export interface CreateBalloonPostParams {
+  sender: string,
+  message: string,
+  drawing: string,
+  img: any,
+  aspect_ratio: number,
+}
+
+export interface CreateBalloonPostRes {
+  balloon: Balloon,
 }
 
 export interface Mate {
@@ -136,6 +171,32 @@ export interface SendMateRequestParams {
   receiver: string;
 }
 
+export interface AcceptBalloonParams {
+  user_id: string;
+  balloon_id: string;
+  sender: string;
+}
+
+export interface AcceptBalloonRes {
+  isMatch: boolean;
+  acceptor: string;
+}
+
+export interface RejectBalloonRes {
+  refuser: string;
+}
+
+
+export interface CancelBalloonParams {
+  user_id: string;
+  balloon_id: string;
+}
+
+export interface MatchBalloonRes {
+  received_balloon: Balloon;
+}
+
+
 export interface DeleteEmblemParams {
   user_id: string;
   emblem_url: string;
@@ -217,7 +278,7 @@ export interface SearchMateParams {
 }
 
 
-export type Res<T> = T | undefined;
+export type Res<T> = T | undefined | null;
 
 export interface API {
 
@@ -256,6 +317,10 @@ export interface API {
   onLoginEvent(params: OnLoginEventParams): Promise<void>;
 
   searchMate(params: SearchMateParams): Promise<Res<Mate[]>>;
+
+  createBalloon(params: CreateBalloonPostParams): Promise<Res<CreateBalloonPostRes>>;
+
+  getBalloon(params: { balloonId: string }): Promise<Res<Balloon>>;
 }
 
 export interface SocketAPI {
@@ -275,6 +340,12 @@ export interface SocketAPI {
   cancelSendMateRequest(params: SendMateRequestParams): Promise<void>;
 
   refuseSendMateRequest(params: SendMateRequestParams): Promise<void>;
+
+  acceptBalloon(params: AcceptBalloonParams): Promise<void>;
+
+  rejectBalloon(params: AcceptBalloonParams): Promise<void>;
+
+  cancelBalloon(params: CancelBalloonParams): Promise<void>;
 }
 
 export enum ENDPOINTS {
@@ -286,6 +357,7 @@ export enum ENDPOINTS {
   sticker = '/sticker',
   emblem = '/emblem',
   saved = '/saved',
+  balloon = '/balloon'
 }
 
 export enum SOCKET_ENDPONTS {
@@ -298,4 +370,10 @@ export enum SOCKET_ENDPONTS {
   mate_request = 'mate_request',
   cancel_mate_request = 'cancel_mate_request',
   refuse_mate_request = 'refuse_mate_request',
+  accept_balloon = 'accept_balloon',
+  refuse_balloon = 'refuse_balloon ',
+  cancel_balloon = 'cancel-balloon ',
+  match_balloon = 'match-balloon ',
+  balloon_match_expired = 'balloon-match-expired ',
+  balloon_expired = 'balloon-expired ',
 }

@@ -1,41 +1,47 @@
 <template>
-  <div ref="l" />
+  <div ref="lottieRef" />
 </template>
 
 <script lang="ts" setup>
 import { onMounted, ref, watch } from 'vue'
 import lottie from 'lottie-web/build/player/lottie_light.min.js'
 
-const l = ref()
+const lottieRef = ref()
 let animationInstance: any = null
 
 const props = defineProps({
   loop: {
-    defaultValue: false,
-    type: Boolean
+    type: Boolean,
+    default: false
   },
   autoplay: {
-    defaultValue: true,
-    type: Boolean
+    type: Boolean,
+    default: true
   },
   play: {
-    defaultValue: false,
-    type: Boolean
+    type: Boolean,
+    default: false
+  },
+  speed: {
+    type: Number,
+    default: 1
   },
   json: {
-    required: true,
-    type: Object
+    type: Object,
+    required: true
   }
 })
 
+
 onMounted(() => {
   animationInstance = lottie.loadAnimation({
-    container: l.value,
+    container: lottieRef.value,
     renderer: 'svg',
     loop: props.loop,
     autoplay: props.loop,
     animationData: props.json
   })
+  animationInstance.setSpeed(props.speed)
 })
 
 watch(

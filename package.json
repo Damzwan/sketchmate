@@ -42,6 +42,7 @@
     "@capacitor/splash-screen": "^7.0.1",
     "@capacitor/status-bar": "^7.0.1",
     "@capacitor/toast": "^7.0.1",
+    "@capawesome/capacitor-app-review": "^7.0.1",
     "@capawesome/capacitor-app-update": "^7.0.1",
     "@capgo/capacitor-navigation-bar": "^7.1.2",
     "@erase2d/fabric": "^1.1.7",

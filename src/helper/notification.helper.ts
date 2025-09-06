@@ -154,7 +154,7 @@ export async function addNotificationListeners() {
             item: notification.notification.data.inbox_id
           }
         })
-      } else if (notificationType === NotificationType.comment)
+      } else if (notificationType === NotificationType.comment) {
         await router.push({
           path: FRONTEND_ROUTES.gallery,
           query: {
@@ -162,10 +162,16 @@ export async function addNotificationListeners() {
             comments: 'true'
           }
         })
-      else if (notificationType === NotificationType.friend_request)
+      } else if (notificationType === NotificationType.friend_request) {
         await router.push({
           path: FRONTEND_ROUTES.connect
         })
+      } else if (notificationType === NotificationType.balloon) {
+        await router.push({
+          path: FRONTEND_ROUTES.connect
+        })
+      }
+
     })
 
     await LocalNotifications.addListener('localNotificationActionPerformed', notification => {
@@ -190,5 +196,5 @@ export async function setNotificationsAllowed() {
     const status = await Notification.requestPermission()
     notificationsAllowed.value = status == 'granted'
   }
-  return notificationsAllowed.value;
+  return notificationsAllowed.value
 }

@@ -134,7 +134,9 @@ export enum Menu {
   Text,
   SelectImgStyle,
   FeedbackMenu,
-  HelpMenu
+  HelpMenu,
+  ReceiveBalloon,
+  SendBalloon,
 }
 
 export enum ObjectType {
@@ -202,7 +204,7 @@ export enum DrawEvent {
   Lasso = 'Using lasso',
   ColorPicker = 'Color picker',
   AddText = 'Click to add text',
-  Video='video'
+  Video = 'video'
 }
 
 export type StickersEmblemsSavedTabOptions = 'sticker' | 'emblem' | 'saved'

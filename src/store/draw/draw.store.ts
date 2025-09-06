@@ -10,10 +10,10 @@ import {
 } from '@/types/draw.types'
 import { ref } from 'vue'
 import { actionMapping, BACKGROUND, ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
-import { Canvas } from 'fabric/fabric-impl'
+import { Canvas, ICanvasOptions } from 'fabric/fabric-impl'
 import { useAuthStore } from '@/store/auth.store'
 import { useSocketService } from '@/service/api/socket.service'
-import { InboxItem } from '@/types/server.types'
+import { CreateBalloonPostRes, InboxItem, Res } from '@/types/server.types'
 import { useRouter } from 'vue-router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import {
@@ -43,11 +43,13 @@ import { Select } from '@/service/draw/tools/select.tool'
 import { useBackgroundSaver } from '@/service/draw/backgroundSaved.service'
 import { useShortcutManager } from '@/service/draw/shortcutManager'
 import { EventBus } from '@/main'
+import { useAPI } from '@/service/api/api.service'
 
 
 export const useDrawStore = defineStore('draw', () => {
   const { user, isSendingDrawing } = storeToRefs(useAuthStore())
-  const api = useSocketService()
+  const socketApi = useSocketService()
+  const api = useAPI()
   const router = useRouter()
 
   const { openToolMenu } = useMenuStore()
@@ -118,7 +120,7 @@ export const useDrawStore = defineStore('draw', () => {
   }
 
   // TODO clean this up
-  async function initCanvas(canvas: HTMLCanvasElement) {
+  async function initCanvas(canvas: HTMLCanvasElement, initOptions?: ICanvasOptions) {
     canZoomOut.value = false
     await backgroundSaver.init()
 
@@ -132,7 +134,7 @@ export const useDrawStore = defineStore('draw', () => {
       c.dispose()
     }
 
-    c = new fabric.Canvas(canvas, initCanvasOptions())
+    c = new fabric.Canvas(canvas, initCanvasOptions(initOptions))
 
     if (loadService.canvasToLoad.value) {
       showLoading('Loading canvas')
@@ -200,7 +202,7 @@ export const useDrawStore = defineStore('draw', () => {
     isSendingDrawing.value = true
     resetZoom(c)
 
-    await api.send({
+    await socketApi.send({
       _id: user.value!._id,
       followers: [user.value!._id, ...matesToSend],
       drawing: JSON.stringify(c.toJSON(['width', 'height'])),
@@ -209,6 +211,18 @@ export const useDrawStore = defineStore('draw', () => {
       aspect_ratio: c.width! / c.height!
     })
     reset()
+  }
+
+  async function createBalloon(message: string): Promise<Res<CreateBalloonPostRes>> {
+    if (!c) return
+
+    return await api.createBalloon({
+      sender: user.value!._id,
+      message,
+      aspect_ratio: c.width! / c.height!,
+      drawing: JSON.stringify(c.toJSON(['width', 'height'])),
+      img: await canvasToBuffer(c.toDataURL({ multiplier: 2 }))
+    })
   }
 
   async function reply(inboxItem: InboxItem | undefined) {
@@ -265,6 +279,7 @@ export const useDrawStore = defineStore('draw', () => {
     colorPickerMode,
     addTextMode,
     backgroundColor,
-    showLoadingBackdrop
+    showLoadingBackdrop,
+    createBalloon
   }
 })

@@ -33,6 +33,27 @@ export const connectButton: ToastButton = {
   cssClass: 'secondary'
 }
 
+export const balloonButton: ToastButton = {
+  text: 'View',
+  handler: () => {
+    modalController.getTop().then(top => top ? modalController.dismiss() : undefined)
+    router.push(FRONTEND_ROUTES.connect)
+  },
+  cssClass: 'secondary'
+}
+
+export const matchBalloonButton: ToastButton = {
+  text: 'View',
+  handler: () => {
+    router.push(FRONTEND_ROUTES.connect)
+    const { openMenu } = useMenuStore()
+    setTimeout(() => {
+      openMenu(Menu.ReceiveBalloon)
+    }, 500)
+  },
+  cssClass: 'secondary'
+}
+
 export const viewDrawingButton = (inboxItemId: string): ToastButton => {
   return {
     text: 'View',

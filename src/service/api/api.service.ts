@@ -4,22 +4,31 @@ import {
   CreateEmblemParams,
   CreateSavedParams,
   CreateStickerParams,
-  DeleteEmblemParams, DeleteProfileImgParams,
+  DeleteEmblemParams,
+  DeleteProfileImgParams,
   DeleteSavedParams,
   DeleteStickerParams,
   ENDPOINTS,
-  GetInboxItemsParams, GetInboxRes,
-  GetUserParams, Mate,
+  GetInboxItemsParams,
+  GetInboxRes,
+  GetUserParams,
+  Mate,
   RemoveFromInboxParams,
   Res,
   Saved,
   SeeInboxParams,
   RegisterNotificationParams,
-  UploadProfileImgParams, UnRegisterNotificationParams, GetUserRes, OnLoginEventParams, SearchMateParams
+  UploadProfileImgParams,
+  UnRegisterNotificationParams,
+  GetUserRes,
+  OnLoginEventParams,
+  SearchMateParams,
+  CreateBalloonPostParams, Balloon, CreateBalloonPostRes
 } from '@/types/server.types'
 import { LocalStorage } from '@/types/storage.types'
 import { createGlobalState } from '@vueuse/core'
 import { Preferences } from '@capacitor/preferences'
+import { balloon } from 'ionicons/icons'
 
 enum REQUEST_TYPES {
   GET = 'GET',
@@ -203,6 +212,37 @@ export const useAPI = createGlobalState((): API => {
     return await fetch(url, { method: REQUEST_TYPES.GET }).then(res => res.json())
   }
 
+  async function createBalloon(params: CreateBalloonPostParams): Promise<Res<CreateBalloonPostRes>> {
+    const url = `${baseUrl}${ENDPOINTS.balloon}`
+
+    // prepare files
+    const pako = await import('pako')
+    const compressed = pako.deflate(JSON.stringify(params.drawing))
+    const blob = new Blob([compressed], { type: 'application/octet-stream' })
+    const compressedFile = new File([blob], 'drawing.deflate', { type: 'application/octet-stream' })
+    const imgFile = new File([params.img], 'img.webp', { type: 'image/webp' })
+
+    const data = new FormData()
+    data.append('img', imgFile)
+    data.append('drawing', compressedFile)
+
+    // add extra fields
+    data.append('sender', params.sender)
+    data.append('message', params.message)
+    data.append('aspect_ratio', String(params.aspect_ratio))
+
+    return await fetch(url, {
+      method: REQUEST_TYPES.POST,
+      body: data
+    }).then(res => res.json())
+  }
+
+
+  async function getBalloon(params: { balloonId: string }): Promise<Res<Balloon>> {
+    const url = `${baseUrl}${ENDPOINTS.balloon}/${params.balloonId}`
+    return await fetch(url, { method: REQUEST_TYPES.GET }).then(res => res.json())
+  }
+
   return {
     getUser,
     subscribe,
@@ -221,6 +261,8 @@ export const useAPI = createGlobalState((): API => {
     seeInboxItem,
     getPartialUsers,
     onLoginEvent,
-    searchMate
+    searchMate,
+    createBalloon,
+    getBalloon
   }
 })

@@ -1,7 +1,15 @@
 // Utilities
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { CommentRes, InboxItem, Mate, NotificationSubscription, NotificationType, User } from '@/types/server.types'
+import {
+  Balloon,
+  CommentRes,
+  InboxItem,
+  Mate,
+  NotificationSubscription,
+  NotificationType,
+  User
+} from '@/types/server.types'
 import { useSocketService } from '@/service/api/socket.service'
 import { useAPI } from '@/service/api/api.service'
 import { LocalStorage } from '@/types/storage.types'
@@ -63,6 +71,9 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthLoading = ref(true)
 
   let ionRouter: UseIonRouterResult | undefined = undefined
+
+  const sentBalloon = ref<Balloon>()
+  const receivedBalloon = ref<Balloon>()
 
 
   generateDeviceFingerprint().then(fingerprint => deviceFingerprint.value = fingerprint)
@@ -358,6 +369,8 @@ export const useAuthStore = defineStore('auth', () => {
     showForceUpdateModal,
     notificationsAllowed,
     initIonRouter,
-    firebaseUser
+    firebaseUser,
+    sentBalloon,
+    receivedBalloon,
   }
 })

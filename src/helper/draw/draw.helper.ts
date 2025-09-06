@@ -89,8 +89,8 @@ export function exitEditing(text: any) {
   isEditingText.value = false
 }
 
-export async function canvasToBuffer(canvasDataUrl: string) {
-  return await (await compressImg(canvasDataUrl, { returnType: 'blob', size: 1920 })).arrayBuffer()
+export async function canvasToBuffer(canvasDataUrl: string, size = 1920) {
+  return await (await compressImg(canvasDataUrl, { returnType: 'blob', size: size })).arrayBuffer()
 }
 
 export async function setForSelectedObjects(objects: SelectedObject[], options: Partial<Group>, magic = false) {

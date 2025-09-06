@@ -1,12 +1,30 @@
 <template>
   <ion-modal :is-open="sendMenuOpen" :initial-breakpoint="1" :breakpoints="[0, 1]" @didDismiss="onDismiss"
-             @willPresent="fetchUser"
+
              :keep-contents-mounted="true"
              :handle="false">
     <div class="bg-primary" v-if="user">
       <p class="text-2xl pl-3 py-2 cabin-sketch-regular">
         {{ selectedMates.length == 0 ? `Select mates` : `${selectedMates.length} mate${selectedMates.length > 1 ? `s` : ``} selected`
         }}</p>
+
+
+      <SendBalloonBanner/>
+
+
+      <div class="flex flex-col px-4 py-2 w-full justify-center items-center" v-if="user.mates.length === 0">
+        <p class="cabin-sketch-regular text-xl mb-2">
+          You don’t have any mates yet. Add one to start sending drawings!
+        </p>
+        <ion-button size="sm" class="w-[200px]" color="secondary" @click="() => {
+          r.push(`/${FRONTEND_ROUTES.connect}`);
+          sendMenuOpen = false;
+        }">
+          Add a mate
+        </ion-button>
+      </div>
+
+
       <ion-list class="bg-primary">
         <SendDrawerItem v-for="mate in user.mates" :mate="mate" @click="onMateClick(mate)" :key="mate._id"
                         :isSelected="selectedMates.some(m => m._id == mate._id)" />
@@ -29,8 +47,8 @@
 
 <script setup lang="ts">
 
-import { IonFab, IonFabButton, IonIcon, IonList, IonModal, modalController } from '@ionic/vue'
-import { Mate, User } from '@/types/server.types'
+import { IonButton, IonFab, IonFabButton, IonIcon, IonList, IonModal, modalController, useIonRouter } from '@ionic/vue'
+import { Mate } from '@/types/server.types'
 import { ref } from 'vue'
 import SendDrawerItem from '@/components/draw/menu/send/SendDrawerItem.vue'
 import { svg } from '@/helper/general.helper'
@@ -39,15 +57,19 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { useAuthStore } from '@/store/auth.store'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import SendBalloonBanner from '@/components/draw/menu/send/SendBalloonBanner.vue'
 
 const { sendMenuOpen } = storeToRefs(useMenuStore())
+
+const r = useIonRouter()
+const { user } = storeToRefs(useAuthStore())
 
 
 const showFab = ref(false)
 const selectedMates = ref<Mate[]>([])
 const selectedMatesLengthToShow = ref(0)
-const { send } = useDrawStore()
-const user = ref<User | undefined>(undefined)
+const { send, createBalloon } = useDrawStore()
 
 
 function onMateClick(mate: Mate) {
@@ -65,10 +87,6 @@ function onMateClick(mate: Mate) {
   else selectedMatesLengthToShow.value = selectedMates.value.length
 }
 
-function fetchUser() {
-  const authStore = useAuthStore()
-  user.value = authStore.user
-}
 
 function onDismiss() {
   showFab.value = false
@@ -88,4 +106,6 @@ function onSendClick() {
 ion-modal {
   --height: auto;
 }
+
+
 </style>

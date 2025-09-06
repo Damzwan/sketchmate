@@ -71,6 +71,9 @@ importers:
       '@capacitor/toast':
         specifier: ^7.0.1
         version: 7.0.1(@capacitor/core@7.2.0)
+      '@capawesome/capacitor-app-review':
+        specifier: ^7.0.1
+        version: 7.0.1(@capacitor/core@7.2.0)
       '@capawesome/capacitor-app-update':
         specifier: ^7.0.1
         version: 7.0.1(@capacitor/core@7.2.0)
@@ -936,6 +939,11 @@ packages:
 
   '@capacitor/toast@7.0.1':
     resolution: {integrity: sha512-3GFhejVwKqUjosYnpQVfq5eml7X6B97jcVpncY75lBDiTlCYJeRanj63OChZPuw1KWudkBTYZMcXdRYWguJdKw==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
+
+  '@capawesome/capacitor-app-review@7.0.1':
+    resolution: {integrity: sha512-J7SJPsazjG529t8+KHqbOXSWeLPaqquDln9SlnVAkhtKAQx71KZYYzkHyFWiNqnDjMBWuD0D45AhXZOKeJDQ8Q==}
     peerDependencies:
       '@capacitor/core': '>=7.0.0'
 
@@ -6075,6 +6083,10 @@ snapshots:
       '@capacitor/core': 7.2.0
 
   '@capacitor/toast@7.0.1(@capacitor/core@7.2.0)':
+    dependencies:
+      '@capacitor/core': 7.2.0
+
+  '@capawesome/capacitor-app-review@7.0.1(@capacitor/core@7.2.0)':
     dependencies:
       '@capacitor/core': 7.2.0
 

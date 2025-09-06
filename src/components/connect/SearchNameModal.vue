@@ -3,6 +3,7 @@
     trigger="search-name"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
+    :expand-to-scroll="false"
   >
     <div class="bg-primary p-4">
       <!-- Title -->
@@ -47,7 +48,7 @@
 
       <!-- Results Section -->
       <div
-        class="h-96 overflow-y-auto rounded-lg p-2"
+        class="max-h-96 overflow-y-auto rounded-lg p-2"
       >
         <ion-list class="p-0">
           <ion-item
@@ -55,7 +56,7 @@
             :key="mate._id"
             color="background"
             lines="full"
-            class="hover:bg-black hover:bg-opacity-5 transition-colors rounded-lg"
+            class="hover:bg-black hover:bg-opacity-5 transition-colors"
           >
             <!-- Avatar -->
             <img
@@ -94,13 +95,23 @@
               </ion-button>
 
               <ion-button
+                v-else-if="user.mate_requests_received.some(m => m == mate._id)"
+                color="secondary"
+                fill="clear"
+                size="small"
+                @click="() => match({_id: user._id, mate_id: mate._id})"
+              >
+                Accept request
+              </ion-button>
+
+              <ion-button
                 v-else
                 color="secondary"
                 fill="clear"
                 size="small"
                 @click="sendMateRequest({ sender: user._id, sender_name: user.name, receiver: mate._id })"
               >
-                Become friends
+                Send request
               </ion-button>
             </div>
           </ion-item>
@@ -145,7 +156,6 @@ async function searchUsers() {
     toast('Something went wrong', { color: 'danger' })
     return
   }
-  console.log(res, user.value!._id)
   foundMates.value = res
 }
 

@@ -18,6 +18,8 @@ export const useMenuStore = defineStore('menu', () => {
   const selectImgStyleMenuOpen = ref(false)
   const feedbackMenuOpen = ref(false)
   const helpMenuOpen = ref(false)
+  const receiveBalloonModalOpen = ref(false)
+  const sendBalloonModalOpen = ref(false)
 
   const stickersEmblemsSavedSelectedTab = ref<StickersEmblemsSavedTabOptions>('sticker')
 
@@ -38,7 +40,9 @@ export const useMenuStore = defineStore('menu', () => {
     [Menu.Text]: textMenuOpen,
     [Menu.SelectImgStyle]: selectImgStyleMenuOpen,
     [Menu.FeedbackMenu]: feedbackMenuOpen,
-    [Menu.HelpMenu]: helpMenuOpen
+    [Menu.HelpMenu]: helpMenuOpen,
+    [Menu.ReceiveBalloon]: receiveBalloonModalOpen,
+    [Menu.SendBalloon]: sendBalloonModalOpen
   }
 
   const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
@@ -79,6 +83,8 @@ export const useMenuStore = defineStore('menu', () => {
     textMenuOpen,
     fontMenuOpen,
     feedbackMenuOpen,
-    helpMenuOpen
+    helpMenuOpen,
+    receiveBalloonModalOpen,
+    sendBalloonModalOpen
   }
 })

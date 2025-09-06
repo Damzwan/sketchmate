@@ -23,16 +23,18 @@
       </ion-toolbar>
     </div>
     <ion-content color="tertiary">
-      <ion-refresher slot="fixed" @ionRefresh="refresh">
-        <ion-refresher-content></ion-refresher-content>
-      </ion-refresher>
       <CircularLoader v-if="!user " />
-      <div class="w-full h-full" v-else>
+      <div class="w-full h-full top-0" v-else>
         <CircularLoader v-show="isLoading" class="absolute w-full h-full z-50" />
 
         <div class="w-full h-full" v-show="segment == Segments.friends">
+          <ion-refresher slot="fixed" @ionRefresh="refresh">
+            <ion-refresher-content></ion-refresher-content>
+          </ion-refresher>
 
-          <div class="w-full h-5/6 flex-col flex justify-center" v-if="user.mates.length == 0">
+          <BalloonBanner class="py-4" />
+
+          <div class="w-full flex-col flex justify-center" v-if="user.mates.length == 0">
             <img :src="connectImage" class="md:w-[50%] max-w-[600px] w-[90%] mx-auto" alt="friends connect" />
             <div class="w-full flex flex-col justify-center items-center pt-3">
               <h1 class="text-2xl font-bold">Start connecting</h1>
@@ -43,6 +45,7 @@
             </div>
           </div>
 
+
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 p-2">
             <button v-for="mate of user!.mates" :key="mate" @click="openUnMatchSheet(mate)"
                     class="hover:bg-primary-shade border-secondary-light border-2 bg-primary col-span-1 shadow rounded-2xl">
@@ -51,7 +54,7 @@
           </div>
         </div>
 
-        <div v-if="segment == Segments.requests" class="w-full h-full">
+        <div v-show="segment == Segments.requests" class="w-full h-full">
           <CircularLoader v-if="loadingFriendRequests" class="w-full h-full z-50" />
           <div v-else class="w-full h-5/6">
             <div v-if="requestsSize == 0" class="flex flex-col justify-center w-full h-full">
@@ -118,12 +121,14 @@
           </div>
         </div>
 
-        <ion-fab slot="fixed" vertical="bottom" horizontal="end">
-          <ion-fab-button color="secondary" @click="isConnectSheetOpen = true">
-            <ion-icon :icon="add"></ion-icon>
-          </ion-fab-button>
-        </ion-fab>
+
       </div>
+
+      <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+        <ion-fab-button color="secondary" @click="isConnectSheetOpen = true">
+          <ion-icon :icon="add"></ion-icon>
+        </ion-fab-button>
+      </ion-fab>
 
       <ion-action-sheet :is-open="isUnMatchSheetOpen" @didDismiss="isUnMatchSheetOpen = false"
                         class="custom-action-sheet"
@@ -134,6 +139,8 @@
                         :buttons="connectSheetButtons" mode="ios" header="Connect to a mate" />
 
       <SearchNameModal />
+      <SendBalloonModal />
+      <ReceiveBalloonModal />
 
     </ion-content>
     <QRPage v-model:open="showQRPage" :_id="user._id" :img="user.img" :name="user.name" v-if="user"
@@ -170,7 +177,7 @@ import { add } from 'ionicons/icons'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Mate } from '@/types/server.types'
 import { senderImg, senderName, svg } from '@/helper/general.helper'
-import { mdiLink, mdiMagnify, mdiQrcode } from '@mdi/js'
+import { mdiBalloon, mdiLink, mdiMagnify, mdiQrcode } from '@mdi/js'
 import { createPersonalShareLink, shareUrl } from '@/helper/share.helper'
 import { useRoute } from 'vue-router'
 import QRPage from '@/components/connect/QRPage.vue'
@@ -180,6 +187,13 @@ import { useToast } from '@/service/toast.service'
 import connectImage from '@/assets/illustrations/connect.webp'
 import ConnectUserItem from '@/components/connect/ConnectUserItem.vue'
 import SearchNameModal from '@/components/connect/SearchNameModal.vue'
+import SendBalloonModal from '@/components/connect/balloon/SendBalloonModal.vue'
+import { useAPI } from '@/service/api/api.service'
+import ReceiveBalloonModal from '@/components/connect/balloon/ReceiveBalloonModal.vue'
+import UpgradeAccountModal from '@/components/settings/UpgradeAccountModal.vue'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { Menu } from '@/types/draw.types'
+import BalloonBanner from '@/components/connect/balloon/BalloonBanner.vue'
 
 enum Segments {
   friends = 'friends',
@@ -198,6 +212,7 @@ const showQRPage = ref(false)
 const { match, unMatch, refuseSendMateRequest, cancelSendMateRequest } = useSocketService()
 
 const { toast } = useToast()
+const { openMenu } = useMenuStore()
 const requestsSize = computed(() => user.value ? user.value.mate_requests_received.length + user.value.mate_requests_sent.length : 0)
 
 const loadingFriendRequests = ref(false)
@@ -212,6 +227,7 @@ watch(user, checkQueryParams)
 watch(route, checkQueryParams)
 
 const segment = ref<Segments>(route.query && route.query.tab == 'request' ? Segments.requests : Segments.friends)
+
 
 const unMatchSheetButtons = [
   {
@@ -256,6 +272,15 @@ const connectSheetButtons = [
     role: 'selected',
     icon: svg(mdiMagnify),
     id: 'search-name',
+    data: {
+      action: 'delete'
+    }
+  },
+  {
+    text: 'Send a balloon',
+    role: 'selected',
+    icon: svg(mdiBalloon),
+    handler: () => openMenu(Menu.SendBalloon),
     data: {
       action: 'delete'
     }

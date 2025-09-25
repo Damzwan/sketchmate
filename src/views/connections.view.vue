@@ -188,9 +188,7 @@ import connectImage from '@/assets/illustrations/connect.webp'
 import ConnectUserItem from '@/components/connect/ConnectUserItem.vue'
 import SearchNameModal from '@/components/connect/SearchNameModal.vue'
 import SendBalloonModal from '@/components/connect/balloon/SendBalloonModal.vue'
-import { useAPI } from '@/service/api/api.service'
 import ReceiveBalloonModal from '@/components/connect/balloon/ReceiveBalloonModal.vue'
-import UpgradeAccountModal from '@/components/settings/UpgradeAccountModal.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { Menu } from '@/types/draw.types'
 import BalloonBanner from '@/components/connect/balloon/BalloonBanner.vue'
@@ -200,7 +198,14 @@ enum Segments {
   requests = 'request'
 }
 
-const { user, queryParams, isLoading, friendRequestLoading, friendRequestUsers } = storeToRefs(useAuthStore())
+const {
+  user,
+  queryParams,
+  isLoading,
+  friendRequestLoading,
+  friendRequestUsers,
+  socialFeaturesAllowed
+} = storeToRefs(useAuthStore())
 const { setQueryParams, retrieveFriendRequestUsers, findUserInFriendRequestUsers, refresh } = useAuthStore()
 
 const route = useRoute()
@@ -248,23 +253,23 @@ const unMatchSheetButtons = [
 ]
 
 const isConnectSheetOpen = ref(false)
-const connectSheetButtons = [
+const connectSheetButtons = computed(() => [
   {
     text: 'Share Link',
     role: 'selected',
     icon: svg(mdiLink),
-    data: {
-      action: 'delete'
-    },
-    handler: () => shareUrl(createPersonalShareLink(user.value!._id, route.path), 'Become my mate on Sketchmate', 'send connect link')
+    data: { action: 'delete' },
+    handler: () => shareUrl(
+      createPersonalShareLink(user.value!._id, route.path),
+      'Become my mate on Sketchmate',
+      'send connect link'
+    )
   },
   {
     text: 'QR Code',
     role: 'selected',
     icon: svg(mdiQrcode),
-    data: {
-      action: 'delete'
-    },
+    data: { action: 'delete' },
     handler: () => showQRPage.value = true
   },
   {
@@ -272,27 +277,22 @@ const connectSheetButtons = [
     role: 'selected',
     icon: svg(mdiMagnify),
     id: 'search-name',
-    data: {
-      action: 'delete'
-    }
+    data: { action: 'delete' }
   },
-  {
+  socialFeaturesAllowed.value ? {
     text: 'Send a balloon',
     role: 'selected',
     icon: svg(mdiBalloon),
     handler: () => openMenu(Menu.SendBalloon),
-    data: {
-      action: 'delete'
-    }
-  },
+    data: { action: 'delete' }
+  } : undefined,
   {
     text: 'Cancel',
     role: 'cancel',
-    data: {
-      action: 'cancel'
-    }
+    data: { action: 'cancel' }
   }
-]
+].filter(Boolean)) // remove undefined entries
+
 
 function checkQueryParams() {
   if (!user.value) return
@@ -329,7 +329,7 @@ async function fetchFriendRequests() {
 
 <style scoped>
 ion-segment {
-  --background: var(--ion-color-background);
+  --background: var(--ion-color-tertiary);
 }
 
 ion-action-sheet {

@@ -3,6 +3,7 @@
     <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" />
     <ForceUpdateModal v-if="isNative() && showForceUpdateModal" />
     <FeedbackMenu />
+    <DateOfBirthConfirmation />
     <ion-router-outlet />
   </ion-app>
 </template>
@@ -11,18 +12,17 @@
 import { IonApp, IonRouterOutlet, useBackButton, useIonRouter } from '@ionic/vue'
 import { onMounted, ref, watch } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
-import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 import router from '@/router'
 import { hideLoading, isNative } from '@/helper/general.helper'
 import { App } from '@capacitor/app'
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
-import OfflinePage from '@/components/general/OfflinePage.vue'
 import { useRoute } from 'vue-router'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useToast } from '@/service/toast.service'
 import ForceUpdateModal from '@/components/general/ForceUpdateModal.vue'
 import FeedbackMenu from '@/components/draw/menu/FeedbackMenu.vue'
+import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
+import DateOfBirthConfirmation from '@/components/general/DateOfBirthConfirmation.vue'
 
 const ionRouter = useIonRouter()
 const { initIonRouter } = useAuthStore()
@@ -43,9 +43,12 @@ router.isReady().then(() => {
   isRouterReady.value = true
 })
 
+
 if (isNative()) {
   watch([isAuthLoading, isRouterReady], () => {
-    if (isRouterReady.value) hideLoading()
+    if (isRouterReady.value && !isAuthLoading.value) {
+      hideLoading()
+    }
   })
 }
 
@@ -80,4 +83,6 @@ if (!isNative()) {
 ion-content {
   --background: var(--ion-color-background);
 }
+
+
 </style>

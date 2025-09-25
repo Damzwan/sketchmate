@@ -9,7 +9,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-console.log("loading")
 const isLoading = ref(true)
 
 const props = defineProps({

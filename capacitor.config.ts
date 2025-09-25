@@ -4,6 +4,7 @@ import { KeyboardResize } from '@capacitor/keyboard'
 const config: CapacitorConfig = {
   appId: 'ninja.sketchmate.app',
   appName: 'SketchMate',
+  backgroundColor: '#FAE0C2',
   webDir: 'dist',
   plugins: {
     LocalNotifications: {
@@ -23,7 +24,9 @@ const config: CapacitorConfig = {
       resizeOnFullScreen: true
     },
     StatusBar: {
-      'overlaysWebView': false
+      overlaysWebView: false,
+      style: 'LIGHT',
+      backgroundColor: '#FAE0C2'
     }
   }
 }

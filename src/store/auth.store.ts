@@ -1,6 +1,6 @@
 // Utilities
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import {
   Balloon,
   CommentRes,
@@ -14,7 +14,13 @@ import { useSocketService } from '@/service/api/socket.service'
 import { useAPI } from '@/service/api/api.service'
 import { LocalStorage } from '@/types/storage.types'
 import { Preferences } from '@capacitor/preferences'
-import { compareVersions, generateDeviceFingerprint, getCurrentAuthUser, isNative } from '@/helper/general.helper'
+import {
+  compareVersions,
+  generateDeviceFingerprint,
+  getCurrentAuthUser,
+  isNative,
+  isOldEnough
+} from '@/helper/general.helper'
 import { useToast } from '@/service/toast.service'
 import { ConnectionStatus, Network } from '@capacitor/network'
 import router from '@/router'
@@ -75,6 +81,9 @@ export const useAuthStore = defineStore('auth', () => {
   const sentBalloon = ref<Balloon>()
   const receivedBalloon = ref<Balloon>()
 
+  const shouldShowDateOfBirthConfirmation = computed(() => user.value ? user.value.date_of_birth == undefined : false)
+  const socialFeaturesAllowed = computed(() => (user.value && user.value.date_of_birth) ? isOldEnough(user.value.date_of_birth) : true)
+
 
   generateDeviceFingerprint().then(fingerprint => deviceFingerprint.value = fingerprint)
 
@@ -86,7 +95,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
     if (!status.user) {
       await router.isReady()
-      isAuthLoading.value = false
       if (router.currentRoute.value.query.mate) {
         setTimeout(() => {
           const { toast } = useToast()
@@ -94,6 +102,7 @@ export const useAuthStore = defineStore('auth', () => {
         }, 200) // cannot do immediately since page is not ready yet
       }
       await ionRouter.replace(FRONTEND_ROUTES.login, routerAnimation!)
+      setTimeout(() => isAuthLoading.value = false, 2000)
     } else {
       firebaseUser.value = status.user
       const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
@@ -179,6 +188,10 @@ export const useAuthStore = defineStore('auth', () => {
 
       const userValue = await api.getUser({ auth_id: authUser.uid })
       if (!userValue) throw new Error()
+
+      if (userValue.user.date_of_birth){
+        userValue.user.date_of_birth = new Date(userValue.user.date_of_birth);
+      }
 
       if (isNative() && compareVersions(__APP_VERSION__, userValue.minimum_supported_version) == -1) {
         showForceUpdateModal.value = true
@@ -372,5 +385,7 @@ export const useAuthStore = defineStore('auth', () => {
     firebaseUser,
     sentBalloon,
     receivedBalloon,
+    shouldShowDateOfBirthConfirmation,
+    socialFeaturesAllowed
   }
 })

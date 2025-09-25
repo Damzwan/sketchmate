@@ -61,6 +61,8 @@ import DrawMenus from '@/components/draw/menu/DrawMenus.vue'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
+console.log("Loaded")
+
 const drawStore = useDrawStore()
 const { showLoadingBackdrop, canZoomOut, selectedTool } =
   storeToRefs(drawStore)

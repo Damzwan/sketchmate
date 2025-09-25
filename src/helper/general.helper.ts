@@ -7,12 +7,19 @@ import { isPlatform } from '@ionic/vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
 import { initializeApp } from 'firebase/app'
-import { SplashScreen } from '@capacitor/splash-screen'
-import { account_blob } from '@/config/general.config'
+import { account_blob, minimum_age_social_features } from '@/config/general.config'
 import avatar from '@/assets/avatar.svg'
 import { Device } from '@capacitor/device'
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
 import { Ref } from 'vue'
+import { SplashScreen } from '@capacitor/splash-screen'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { Menu } from '@/types/draw.types'
+import { useAPI } from '@/service/api/api.service'
+import { useAuthStore } from '@/store/auth.store'
+import { useToast } from '@/service/toast.service'
+import { ToastDuration } from '@/types/toast.types'
+import { storeToRefs } from 'pinia'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -111,8 +118,8 @@ export async function getAppColors() {
 }
 
 export async function hideLoading() {
-  await SplashScreen.hide()
   void setAppColors(colorsPerRoute[router.currentRoute.value.path.substring(1) as FRONTEND_ROUTES])
+  await SplashScreen.hide()
 }
 
 
@@ -242,4 +249,68 @@ export function shuffleArray<T = string>(array: any[]): Array<T> {
   }
   return arr
 }
+
+export async function getDateOfBirthConfirmationResponse(): Promise<boolean> {
+  const { openMenu } = useMenuStore()
+  const { updateUser } = useAPI()
+  const { user } = storeToRefs(useAuthStore())
+  const { toast } = useToast()
+
+
+  openMenu(Menu.DateOfBirth)
+
+  return new Promise((resolve) => {
+
+    const listener = async (event: CustomEvent) => {
+      document.removeEventListener('dateofbirth-response', listener as any)
+
+      const dob = event.detail.response as Date | null
+
+      if (!dob) return resolve(false) // user cancelled
+
+      try {
+        if (!user.value) return false
+        await updateUser({ _id: user.value._id, date_of_birth: dob })
+        user.value.date_of_birth = dob
+
+        if (!isOldEnough(dob)) {
+          toast('You must be at least 13 to use social features. Stay safe online!', {
+            color: 'danger',
+            duration: ToastDuration.long
+          })
+
+          resolve(false)
+        } else {
+          resolve(true)
+        }
+      } catch (err) {
+        console.error('Failed to update DOB', err)
+        resolve(false)
+      }
+    }
+
+    document.addEventListener('dateofbirth-response', listener as any)
+  })
+}
+
+/**
+ * Calculate age in years based on a Date of Birth
+ * @param dob Date of birth
+ * @returns age in years (floating point)
+ */
+export function calculateAge(dob: Date): number {
+  const ageMs = Date.now() - dob.getTime()
+  return ageMs / (1000 * 60 * 60 * 24 * 365.25)
+}
+
+/**
+ * Check if the age meets a minimum requirement
+ * @param dob Date of birth
+ * @returns true if age >= minimumAge, false otherwise
+ */
+export function isOldEnough(dob: Date): boolean {
+  return calculateAge(dob) >= minimum_age_social_features
+}
+
+
 

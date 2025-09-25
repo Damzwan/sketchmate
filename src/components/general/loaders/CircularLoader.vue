@@ -1,5 +1,8 @@
 <template>
-  <div class="flex justify-center h-full items-center bg-background flex-col">
+  <div
+    class="flex justify-center h-full items-center flex-col"
+    :class="bgColor ?? 'bg-primary'"
+  >
     <ion-spinner color="secondary" />
     <p class="text-lg pt-3">{{ text }}</p>
   </div>
@@ -10,6 +13,7 @@ import { IonSpinner } from '@ionic/vue'
 
 defineProps<{
   text?: string
+  bgColor?: string
 }>()
 </script>
 

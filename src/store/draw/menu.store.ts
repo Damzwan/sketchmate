@@ -20,6 +20,7 @@ export const useMenuStore = defineStore('menu', () => {
   const helpMenuOpen = ref(false)
   const receiveBalloonModalOpen = ref(false)
   const sendBalloonModalOpen = ref(false)
+  const dateOfBirthConfirmationOpen = ref(false)
 
   const stickersEmblemsSavedSelectedTab = ref<StickersEmblemsSavedTabOptions>('sticker')
 
@@ -42,7 +43,8 @@ export const useMenuStore = defineStore('menu', () => {
     [Menu.FeedbackMenu]: feedbackMenuOpen,
     [Menu.HelpMenu]: helpMenuOpen,
     [Menu.ReceiveBalloon]: receiveBalloonModalOpen,
-    [Menu.SendBalloon]: sendBalloonModalOpen
+    [Menu.SendBalloon]: sendBalloonModalOpen,
+    [Menu.DateOfBirth]: dateOfBirthConfirmationOpen
   }
 
   const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
@@ -85,6 +87,7 @@ export const useMenuStore = defineStore('menu', () => {
     feedbackMenuOpen,
     helpMenuOpen,
     receiveBalloonModalOpen,
-    sendBalloonModalOpen
+    sendBalloonModalOpen,
+    dateOfBirthConfirmationOpen
   }
 })

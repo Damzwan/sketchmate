@@ -137,6 +137,7 @@ export enum Menu {
   HelpMenu,
   ReceiveBalloon,
   SendBalloon,
+  DateOfBirth,
 }
 
 export enum ObjectType {

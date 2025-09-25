@@ -154,7 +154,7 @@ import { useHistory } from '@/service/draw/history.service'
 import { useEraser } from '@/service/draw/tools/eraser.tool'
 import { mdiChevronDown, mdiFormatColorFill, mdiMagnifyMinusOutline, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
 import { useDrawStore } from '@/store/draw/draw.store'
-import { svg } from '@/helper/general.helper'
+import { getDateOfBirthConfirmationResponse, svg } from '@/helper/general.helper'
 import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
 import { useEventManager } from '@/service/draw/eventManager.service'
 import balloon from '@/assets/lottie/balloon.json'
@@ -171,7 +171,7 @@ enum State {
 }
 
 const { toast } = useToast()
-const { user, sentBalloon, receivedBalloon } = storeToRefs(useAuthStore())
+const { user, sentBalloon, receivedBalloon, shouldShowDateOfBirthConfirmation } = storeToRefs(useAuthStore())
 
 const history = useHistory()
 const { undoStackCounter, redoStackCounter } = storeToRefs(history)
@@ -255,6 +255,15 @@ function onEraserClick(e: MouseEvent) {
 }
 
 async function sendBalloon() {
+
+  if (shouldShowDateOfBirthConfirmation.value) {
+    const canSendBalloon = await getDateOfBirthConfirmationResponse()
+    if (!canSendBalloon) {
+      sendBalloonModalOpen.value = false
+      return
+    }
+  }
+
   state.value = State.sending
   drawingImg.value = drawStore.getCanvas().toDataURL({ format: 'jpeg', quality: 0.7 })
 

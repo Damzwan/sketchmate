@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-2">
+  <div class="mx-2" v-if="socialFeaturesAllowed">
     <!-- Case: received a balloon -->
     <div
       v-if="user && user.balloon && receivedBalloon && receivedBalloon.status==='accepted'"
@@ -105,7 +105,7 @@ import Lottie from '@/components/general/Lottie.vue'
 import { useAPI } from '@/service/api/api.service'
 
 const { openMenu } = useMenuStore()
-const { user, sentBalloon, receivedBalloon } = storeToRefs(useAuthStore())
+const { user, sentBalloon, receivedBalloon, socialFeaturesAllowed } = storeToRefs(useAuthStore())
 
 
 const api = useAPI()

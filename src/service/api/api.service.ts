@@ -23,7 +23,7 @@ import {
   GetUserRes,
   OnLoginEventParams,
   SearchMateParams,
-  CreateBalloonPostParams, Balloon, CreateBalloonPostRes
+  CreateBalloonPostParams, Balloon, CreateBalloonPostRes, UpdateUserParams
 } from '@/types/server.types'
 import { LocalStorage } from '@/types/storage.types'
 import { createGlobalState } from '@vueuse/core'
@@ -243,6 +243,11 @@ export const useAPI = createGlobalState((): API => {
     return await fetch(url, { method: REQUEST_TYPES.GET }).then(res => res.json())
   }
 
+  async function updateUser(params: UpdateUserParams): Promise<Res<void>> {
+    const url = `${baseUrl}${ENDPOINTS.user}/update`
+    await fetch(url, { method: REQUEST_TYPES.PUT, body: JSON.stringify(params) })
+  }
+
   return {
     getUser,
     subscribe,
@@ -263,6 +268,7 @@ export const useAPI = createGlobalState((): API => {
     onLoginEvent,
     searchMate,
     createBalloon,
-    getBalloon
+    getBalloon,
+    updateUser
   }
 })

@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="user && !user.balloon?.sent"
+    v-if="user && !user.balloon?.sent && socialFeaturesAllowed"
     class="card bg-warning mb-4 hover:cursor-pointer" @click="isExpanded = !isExpanded"
   >
     <div v-if="isExpanded">
@@ -63,16 +63,21 @@ import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/store/auth.store'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { mdiChevronDown } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { getDateOfBirthConfirmationResponse, svg } from '@/helper/general.helper'
 
-const { sentBalloon, user } = storeToRefs(useAuthStore())
+const { sentBalloon, user, socialFeaturesAllowed, shouldShowDateOfBirthConfirmation } = storeToRefs(useAuthStore())
 const { createBalloon } = useDrawStore()
 
 const balloonDescription = ref('')
 const sendingBalloon = ref(false)
 const isExpanded = ref(false)
 
-function sendBalloon() {
+async function sendBalloon() {
+  if (shouldShowDateOfBirthConfirmation.value) {
+    const canSendBalloon = await getDateOfBirthConfirmationResponse()
+    if (!canSendBalloon) return
+  }
+
   sendingBalloon.value = true
   createBalloon(balloonDescription.value).then(res => {
     sendingBalloon.value = false

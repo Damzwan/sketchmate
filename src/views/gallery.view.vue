@@ -9,7 +9,7 @@
       @delete="alterTrigger.click()"
     />
     <ion-content class="bg-background">
-      <CircularLoader v-if="isLoading || !isLoggedIn" class="z-50" />
+      <CircularLoader v-if="isLoading || !isLoggedIn" class="z-50" bgColor="bg-background" />
 
       <div v-if="user" class="w-full h-full">
         <ion-refresher slot="fixed" @ionRefresh="refresh">

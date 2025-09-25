@@ -30,7 +30,6 @@ initFirebase()
 
 export const EventBus = mitt()
 const app = createApp(App).use(IonicVue).use(pinia).use(VueJsTour).use(router)
-
 app.mount('#app')
 
 

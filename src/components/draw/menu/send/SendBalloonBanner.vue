@@ -75,7 +75,7 @@ const isExpanded = ref(false)
 async function sendBalloon() {
   if (shouldShowDateOfBirthConfirmation.value) {
     const canSendBalloon = await getDateOfBirthConfirmationResponse()
-    if (!canSendBalloon) return
+    if (canSendBalloon == 'cancel' || canSendBalloon == 'notAllowed') return
   }
 
   sendingBalloon.value = true

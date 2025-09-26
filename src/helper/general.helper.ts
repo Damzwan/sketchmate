@@ -250,7 +250,9 @@ export function shuffleArray<T = string>(array: any[]): Array<T> {
   return arr
 }
 
-export async function getDateOfBirthConfirmationResponse(): Promise<boolean> {
+export type DateOfBirthResponse = 'cancel' | 'allowed' | 'notAllowed'
+
+export async function getDateOfBirthConfirmationResponse(): Promise<DateOfBirthResponse> {
   const { openMenu } = useMenuStore()
   const { updateUser } = useAPI()
   const { user } = storeToRefs(useAuthStore())
@@ -266,11 +268,11 @@ export async function getDateOfBirthConfirmationResponse(): Promise<boolean> {
 
       const dob = event.detail.response as Date | null
 
-      if (!dob) return resolve(false) // user cancelled
+      if (!dob) return resolve('cancel') // user cancelled
 
       try {
         if (!user.value) return false
-        await updateUser({ _id: user.value._id, date_of_birth: dob })
+        void updateUser({ _id: user.value._id, date_of_birth: dob })
         user.value.date_of_birth = dob
 
         if (!isOldEnough(dob)) {
@@ -279,13 +281,13 @@ export async function getDateOfBirthConfirmationResponse(): Promise<boolean> {
             duration: ToastDuration.long
           })
 
-          resolve(false)
+          resolve('notAllowed')
         } else {
-          resolve(true)
+          resolve('allowed')
         }
       } catch (err) {
         console.error('Failed to update DOB', err)
-        resolve(false)
+        resolve('cancel')
       }
     }
 

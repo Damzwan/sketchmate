@@ -14,7 +14,7 @@
       </p>
 
       <!-- Safety Information with border -->
-      <div class="p-2 rounded-md shadow-sm max-h-48 overflow-y-auto cabin-sketch-regular border border-gray-400">
+      <div class="p-2 rounded-md shadow-sm  overflow-y-auto cabin-sketch-regular border border-gray-400">
         <p>Please read carefully before continuing:</p>
         <ul class="list-disc ml-4">
           <li>Do not share personal information with strangers online.</li>
@@ -96,7 +96,8 @@ const confirm = () => {
 <style scoped>
 ion-modal {
   --width: fit-content;
-  --min-width: 350px;
+  --min-width: 250px;
+  --max-width: 80%;
   --height: fit-content;
   --background: var(--ion-color-tertiary);
   border-radius: 16px;

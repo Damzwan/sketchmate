@@ -258,8 +258,8 @@ async function sendBalloon() {
 
   if (shouldShowDateOfBirthConfirmation.value) {
     const canSendBalloon = await getDateOfBirthConfirmationResponse()
-    if (!canSendBalloon) {
-      sendBalloonModalOpen.value = false
+    if (canSendBalloon == 'cancel' || canSendBalloon == 'notAllowed') {
+      if (canSendBalloon == 'notAllowed') sendBalloonModalOpen.value = false
       return
     }
   }

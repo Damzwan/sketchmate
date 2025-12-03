@@ -4,8 +4,8 @@
       <label for="slider">Opacity: {{ alphaHexToPercent(opacityHex) }}</label>
       <ion-range aria-label="Volume" id="slider" :value="alphaHexToPercent(opacityHex)"
                  @ionChange="(e: any) => emit('update:color', hexWithOpacity(c, percentToAlphaHex(e.target.value)))"
-                 min="0"
-                 max="100" color="secondary" />
+                 :min="0"
+                 :max="100" color="secondary" />
     </div>
     <div class="py-1 px-2">
       <label for="color-picker" class="!flex justify-between items-center">
@@ -63,17 +63,7 @@ import { IonIcon, IonItem, IonRange, popoverController, IonPopover } from '@ioni
 import { computed, onMounted, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
-import {
-  alphaHexToPercent,
-  exitColorPickerMode,
-  getColorRecommendations,
-  hexWithOpacity,
-  hexWithoutOpacity,
-  percentToAlphaHex,
-  resetZoom,
-  setSelectionForObjects
-} from '@/helper/draw/draw.helper'
-import { useEventManager } from '@/service/draw/eventManager.service'
+
 import { DrawAction, DrawEvent } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
@@ -81,6 +71,13 @@ import { svg } from '@/helper/general.helper'
 import { mdiEyedropper } from '@mdi/js'
 import { v4 as uuidv4 } from 'uuid'
 import Picker from 'vanilla-picker'
+import {
+  alphaHexToPercent,
+  getColorRecommendations,
+  hexWithOpacity,
+  hexWithoutOpacity,
+  percentToAlphaHex
+} from '@/helper/draw/draw.helper'
 
 const hmm = ref() // TODO hack to only close top popover
 const customColorPopoverId = uuidv4()
@@ -135,7 +132,6 @@ async function onCustomColorSelected(newColor: string) {
 }
 
 function colorPicker() {
-  const { isolatedSubscribe } = useEventManager()
   const { getCanvas, selectAction, selectedTool } = useDrawStore()
   const { colorPickerMode } = storeToRefs(useDrawStore())
   const c = getCanvas()
@@ -143,10 +139,10 @@ function colorPicker() {
   const lastSelectedObject = c.getActiveObject()
   colorPickerMode.value = true
 
-  setSelectionForObjects(
-    c.getObjects().filter(o => !c.getActiveObjects().includes(o)),
-    false
-  )
+  // setSelectionForObjects(
+  //   c.getObjects().filter(o => !c.getActiveObjects().includes(o)),
+  //   false
+  // )
 
   if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
     c.isDrawingMode = false
@@ -154,47 +150,47 @@ function colorPicker() {
   }
 
   popoverController.dismiss()
-  isolatedSubscribe({
-    on: 'mouse:down',
-    type: DrawEvent.ColorPicker,
-    handler: (options: any) => {
-      const pointer = c.getPointer(options.e)
-      const dpr = window.devicePixelRatio || 1
-      const x = Math.floor(pointer.x * dpr)
-      const y = Math.floor(pointer.y * dpr)
-
-      const oldZoom = c.getZoom()
-      const oldViewportTransform = c.viewportTransform
-
-      resetZoom(c)
-      c.renderAll()
-
-      // Get pixel data
-      const ctx = c.getContext()
-      const pixel = ctx.getImageData(x, y, 1, 1).data
-
-      c.setViewportTransform(oldViewportTransform!)
-      c.setZoom(oldZoom)
-      c.renderAll()
-
-      const hex =
-        '#' +
-        ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase() +
-        pixel[3].toString(16).toUpperCase().padStart(2, '0')
-
-      onCustomColorSelected(hex)
-      if (props.colorPickerAction) selectAction(props.colorPickerAction, { color: hex })
-      exitColorPickerMode()
-    }
-  })
-
-  isolatedSubscribe({
-    on: 'selection:cleared',
-    type: DrawEvent.ColorPicker,
-    handler: () => {
-      if (lastSelectedObject) c.setActiveObject(lastSelectedObject)
-    }
-  })
+  // isolatedSubscribe({
+  //   on: 'mouse:down',
+  //   type: DrawEvent.ColorPicker,
+  //   handler: (options: any) => {
+  //     const pointer = c.getPointer(options.e)
+  //     const dpr = window.devicePixelRatio || 1
+  //     const x = Math.floor(pointer.x * dpr)
+  //     const y = Math.floor(pointer.y * dpr)
+  //
+  //     const oldZoom = c.getZoom()
+  //     const oldViewportTransform = c.viewportTransform
+  //
+  //     resetZoom(c)
+  //     c.renderAll()
+  //
+  //     // Get pixel data
+  //     const ctx = c.getContext()
+  //     const pixel = ctx.getImageData(x, y, 1, 1).data
+  //
+  //     c.setViewportTransform(oldViewportTransform!)
+  //     c.setZoom(oldZoom)
+  //     c.renderAll()
+  //
+  //     const hex =
+  //       '#' +
+  //       ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase() +
+  //       pixel[3].toString(16).toUpperCase().padStart(2, '0')
+  //
+  //     onCustomColorSelected(hex)
+  //     if (props.colorPickerAction) selectAction(props.colorPickerAction, { color: hex })
+  //     exitColorPickerMode()
+  //   }
+  // })
+  //
+  // isolatedSubscribe({
+  //   on: 'selection:cleared',
+  //   type: DrawEvent.ColorPicker,
+  //   handler: () => {
+  //     if (lastSelectedObject) c.setActiveObject(lastSelectedObject)
+  //   }
+  // })
 }
 
 watch(props, async () => {
@@ -203,6 +199,7 @@ watch(props, async () => {
 </script>
 
 <style scoped>
+@reference "@/theme/main.css";
 .brush_selected {
   @apply border-[3px] border-secondary;
 }
@@ -222,18 +219,20 @@ ion-item {
 </style>
 
 <style>
+@reference "@/theme/main.css";
+
 .picker_wrapper {
-  background: var(--ion-color-tertiary) !important;
+  background: var(--ion-color-tertiary)
 }
 
 
 .picker_selector {
-  border: 2px solid var(--ion-color-primary) !important;
+  border: 2px solid var(--ion-color-primary)
 }
 
 .picker_done button {
   background-image: none !important;
-  @apply bg-primary rounded-md hover:bg-primary-shade !important
+  @apply bg-primary rounded-md hover:bg-primary-shade
 }
 </style>
 

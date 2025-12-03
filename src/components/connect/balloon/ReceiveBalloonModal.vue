@@ -16,16 +16,16 @@
         class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
       />
 
-      <!-- Animated Balloon -->
+      <!-- Animated balloon -->
       <div
         v-else
         class="flex flex-col items-center w-full"
       >
         <div class="relative w-full h-[500px] flex justify-center">
-          <!-- Floating Balloon -->
+          <!-- Floating balloon -->
           <div class="absolute animate-float bottom-2">
             <div class="relative">
-              <!-- Balloon Drawing + Lottie -->
+              <!-- balloon Drawing + Lottie -->
               <Lottie
                 :json="balloonLottie"
                 :loop="true"
@@ -34,7 +34,7 @@
 
               <!-- Sender Profile attached -->
               <div class="animate-wiggle animate-duration-[2000ms] flex flex-col items-center relative">
-                <!-- Balloon Image with better aspect ratio handling -->
+                <!-- balloon Image with better aspect ratio handling -->
                 <div class="relative w-[250px] h-[250px] flex items-center justify-center">
                   <img
                     :src="receivedBalloon.thumbnail"

@@ -1,5 +1,5 @@
 <template>
-  <ion-content class="bg-primary">
+  <ion-content class="bg-background">
     <div class="w-full h-full p-4 flex flex-col justify-between">
       <div>
         <div class="w-full flex justify-center items-center gap-2">

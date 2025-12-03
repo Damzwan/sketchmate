@@ -1,78 +1,74 @@
 <template>
   <ion-page>
-    <ion-header></ion-header>
-    <ion-content>
+    <ion-header>
       <Toolbars />
-      <DrawMenus/>
-      <div class="w-full h-full" v-if="showLoadingBackdrop" />
-
-
-      <div id="canvas">
+    </ion-header>
+    <ion-content>
+      <div class="flex flex-col w-full h-full">
         <canvas ref="myCanvasRef" />
       </div>
+      <!--      <div class="w-full h-full" v-if="showLoadingBackdrop" />-->
 
-      <div class="flex justify-center items-center absolute bottom-4 w-full">
-        <div id="clickOutside" />
-        <ion-button v-if="canZoomOut" @click="resetZoom" color="secondary" shape="round">
-          <ion-icon slot="start" :icon="svg(mdiMagnifyMinusOutline)" />
-          Reset view
-        </ion-button>
-      </div>
 
-      <ion-progress-bar type="indeterminate" class="absolute bottom-[0] z-50 h-1.5" color="secondary"
-                        v-if="isSendingDrawing" />
+      <!--      <div class="flex justify-center items-center absolute bottom-4 w-full">-->
+      <!--        &lt;!&ndash;        <div id="clickOutside" />&ndash;&gt;-->
+      <!--        &lt;!&ndash;        <ion-button v-if="canZoomOut" @click="resetZoom" color="secondary" shape="round">&ndash;&gt;-->
+      <!--        &lt;!&ndash;          <ion-icon slot="start" :icon="svg(mdiMagnifyMinusOutline)" />&ndash;&gt;-->
+      <!--        &lt;!&ndash;          Reset view&ndash;&gt;-->
+      <!--        &lt;!&ndash;        </ion-button>&ndash;&gt;-->
+      <!--      </div>-->
+
+      <!--      <ion-progress-bar type="indeterminate" class="absolute bottom-[0] z-50 h-1.5" color="secondary"-->
+      <!--                        v-if="isSendingDrawing" />-->
     </ion-content>
-    <VTour :steps="currDataSteps" ref="tour" :autoStart="true" />
+    <!--    <VTour :steps="currDataSteps" ref="tour" :autoStart="true" />-->
 
-    <transition name="slide">
-      <div
-        class="w-[300px] absolute top-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black"
-        v-show="showTipBox"
-        ref="tooltip"
-      >
-        <div class="flex justify-between">
-          <p class="text-xl font-semibold">{{ tipBoxTitle }}</p>
-          <ion-icon :icon="svg(mdiClose)" class="w-[20px] h-[20px] cursor-pointer" @click="clearTip" />
-        </div>
-        <p class="text-base">{{ tipBoxContent }}</p>
-      </div>
-    </transition>
+    <!--    <transition name="slide">-->
+    <!--      <div-->
+    <!--        class="w-[300px] absolute top-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black"-->
+    <!--        v-show="showTipBox"-->
+    <!--        ref="tooltip"-->
+    <!--      >-->
+    <!--        <div class="flex justify-between">-->
+    <!--          <p class="text-xl font-semibold">{{ tipBoxTitle }}</p>-->
+    <!--          <ion-icon :icon="svg(mdiClose)" class="w-[20px] h-[20px] cursor-pointer" @click="clearTip" />-->
+    <!--        </div>-->
+    <!--        <p class="text-base">{{ tipBoxContent }}</p>-->
+    <!--      </div>-->
+    <!--    </transition>-->
+    <DrawMenus />
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonIcon, IonPage, IonProgressBar, onIonViewDidEnter, IonHeader } from '@ionic/vue'
+import { IonContent, IonHeader, IonPage, onIonViewDidEnter } from '@ionic/vue'
 
-import { ref, watch } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
-import { resetZoom } from '@/helper/draw/gesture.helper'
-import { isMobile, svg } from '@/helper/general.helper'
-import { mdiClose, mdiMagnifyMinusOutline } from '@mdi/js'
-import { useSelect } from '@/service/draw/tools/select.tool'
+import { svg } from '@/helper/general.helper'
+import { mdiClose } from '@mdi/js'
 import '@/theme/custom_vuejs_tour.scss'
 import { tutorialSteps } from '@/config/draw/draw.config'
-import { LocalStorage } from '@/types/storage.types'
-import { DrawTool } from '@/types/draw.types'
 import { useSwipe } from '@vueuse/core'
 import { useAuthStore } from '@/store/auth.store'
 import Toolbars from '@/components/draw/toolbar/Toolbars.vue'
-import DrawMenus from '@/components/draw/menu/DrawMenus.vue'
+import DrawMenus from '@/components/draw/menus/DrawMenus.vue'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 
-console.log("Loaded")
-
 const drawStore = useDrawStore()
-const { showLoadingBackdrop, canZoomOut, selectedTool } =
-  storeToRefs(drawStore)
+// const { showLoadingBackdrop, canZoomOut, selectedTool } =
+//   storeToRefs(drawStore)
 const { isSendingDrawing } = storeToRefs(useAuthStore())
-const { selectedObjectsRef } = storeToRefs(useSelect())
 
 const currDataSteps = ref(tutorialSteps)
 
-onIonViewDidEnter(async () => {
-  await drawStore.initCanvas(myCanvasRef.value!)
+// onIonViewDidEnter(async () => {
+// })
+
+onMounted(() => {
+  drawStore.initCanvas(myCanvasRef.value!)
 })
 
 
@@ -106,57 +102,58 @@ function clearTip() {
   showTipBox.value = false
 }
 
-if (!localStorage.getItem(LocalStorage.selectTip)) localStorage.setItem(LocalStorage.selectTip, '2')
-if (parseInt(localStorage.getItem(LocalStorage.selectTip)!) > 0) {
-  watch(selectedObjectsRef, () => {
-    if (didShowSelectTip || parseInt(localStorage.getItem(LocalStorage.selectTip)!) == 0) return
-    if (selectedObjectsRef.value.length > 0) {
-      showTip(
-        'Move, rotate, scale objects and more! Exit by tapping outside or pressing the \'X\' in the upper left.',
-        'Select Mode',
-        10000
-      )
-      localStorage.setItem(LocalStorage.selectTip, `${parseInt(localStorage.getItem(LocalStorage.selectTip)!) - 1}`)
-      didShowSelectTip = true
-    }
-  })
-}
-
-if (!localStorage.getItem(LocalStorage.selectHint)) localStorage.setItem(LocalStorage.selectHint, '2')
-if (parseInt(localStorage.getItem(LocalStorage.selectHint)!) > 0) {
-  watch(selectedTool, () => {
-    if (didShowEnterSelectTip || parseInt(localStorage.getItem(LocalStorage.selectHint)!) == 0) return
-    if (selectedTool.value == DrawTool.Select)
-      if (drawStore.getCanvas().getObjects().length > 0) {
-        showTip('Tap on an object to select it')
-        localStorage.setItem(LocalStorage.selectHint, `${parseInt(localStorage.getItem(LocalStorage.selectHint)!) - 1}`)
-        didShowEnterSelectTip = true
-      } else {
-        showTip('Create an object before you can select it')
-      }
-  })
-}
-
-let t1: any
-if (!localStorage.getItem(LocalStorage.multiSelectHint)) localStorage.setItem(LocalStorage.multiSelectHint, '2')
-if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
-  clearTimeout(t1)
-  watch(selectedObjectsRef, () => {
-    if (didShowMultiSelectTip || parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) == 0) return
-    if (selectedObjectsRef.value.length == 1 && drawStore.getCanvas().getObjects().length > 1 && !showTipBox.value) {
-      t1 = setTimeout(() => {
-        if (showTipBox.value) return
-        if (isMobile()) showTip('Long tap object to enter multi select mode')
-        else showTip('Hold shift while tapping on an object to multi select')
-        localStorage.setItem(
-          LocalStorage.multiSelectHint,
-          `${parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) - 1}`
-        )
-        didShowMultiSelectTip = true
-      }, 50)
-    }
-  })
-}
+//
+// if (!localStorage.getItem(LocalStorage.selectTip)) localStorage.setItem(LocalStorage.selectTip, '2')
+// if (parseInt(localStorage.getItem(LocalStorage.selectTip)!) > 0) {
+//   watch(selectedObjectsRef, () => {
+//     if (didShowSelectTip || parseInt(localStorage.getItem(LocalStorage.selectTip)!) == 0) return
+//     if (selectedObjectsRef.value.length > 0) {
+//       showTip(
+//         'Move, rotate, scale objects and more! Exit by tapping outside or pressing the \'X\' in the upper left.',
+//         'Select Mode',
+//         10000
+//       )
+//       localStorage.setItem(LocalStorage.selectTip, `${parseInt(localStorage.getItem(LocalStorage.selectTip)!) - 1}`)
+//       didShowSelectTip = true
+//     }
+//   })
+// }
+//
+// if (!localStorage.getItem(LocalStorage.selectHint)) localStorage.setItem(LocalStorage.selectHint, '2')
+// if (parseInt(localStorage.getItem(LocalStorage.selectHint)!) > 0) {
+//   watch(selectedTool, () => {
+//     if (didShowEnterSelectTip || parseInt(localStorage.getItem(LocalStorage.selectHint)!) == 0) return
+//     if (selectedTool.value == DrawTool.Select)
+//       if (drawStore.getCanvas().getObjects().length > 0) {
+//         showTip('Tap on an object to select it')
+//         localStorage.setItem(LocalStorage.selectHint, `${parseInt(localStorage.getItem(LocalStorage.selectHint)!) - 1}`)
+//         didShowEnterSelectTip = true
+//       } else {
+//         showTip('Create an object before you can select it')
+//       }
+//   })
+// }
+//
+// let t1: any
+// if (!localStorage.getItem(LocalStorage.multiSelectHint)) localStorage.setItem(LocalStorage.multiSelectHint, '2')
+// if (parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) > 0) {
+//   clearTimeout(t1)
+//   watch(selectedObjectsRef, () => {
+//     if (didShowMultiSelectTip || parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) == 0) return
+//     if (selectedObjectsRef.value.length == 1 && drawStore.getCanvas().getObjects().length > 1 && !showTipBox.value) {
+//       t1 = setTimeout(() => {
+//         if (showTipBox.value) return
+//         if (isMobile()) showTip('Long tap object to enter multi select mode')
+//         else showTip('Hold shift while tapping on an object to multi select')
+//         localStorage.setItem(
+//           LocalStorage.multiSelectHint,
+//           `${parseInt(localStorage.getItem(LocalStorage.multiSelectHint)!) - 1}`
+//         )
+//         didShowMultiSelectTip = true
+//       }, 50)
+//     }
+//   })
+// }
 </script>
 
 <style scoped>

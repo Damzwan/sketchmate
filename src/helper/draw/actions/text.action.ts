@@ -1,42 +1,40 @@
-import { Canvas, IPoint, IText } from 'fabric/fabric-impl'
-import { fabric } from 'fabric'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawEvent, DrawTool } from '@/types/draw.types'
-import { useSelect } from '@/service/draw/tools/select.tool'
-import FontFaceObserver from 'fontfaceobserver'
-import { useHistory } from '@/service/draw/history.service'
-import { popoverController } from '@ionic/vue'
-import { exitTextAddingMode } from '@/helper/draw/draw.helper'
-import { BLACK, ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
-import { useEventManager } from '@/service/draw/eventManager.service'
+import { BLACK } from '@/config/draw/draw.config'
 import { storeToRefs } from 'pinia'
+import { useDrawStore } from '@/store/draw/draw.store'
+import { Canvas, Point, IText } from 'fabric'
+import { useDrawEventManager } from '@/store/draw/drawEventManager.store'
+import { DrawTool } from '@/types/draw.types'
+import { useSelect } from '@/store/draw/tools/select.store'
+import FontFaceObserver from 'fontfaceobserver'
 
-export function addText(c: Canvas) {
-  const { isolatedSubscribe } = useEventManager()
-  const { selectedTool } = useDrawStore()
+export function addText() {
+  const { getCanvas } = useDrawStore()
+  const { prevDrawingMode } = storeToRefs(useDrawStore())
+  const { addEventsOfService, removeEventsOfService } = useDrawEventManager()
   const { addTextMode } = storeToRefs(useDrawStore())
 
+  const c = getCanvas()
+
   addTextMode.value = true
+  prevDrawingMode.value = c.isDrawingMode
+  c.isDrawingMode = false
 
-  if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
-    c.isDrawingMode = false
-  }
-
-  isolatedSubscribe({
-    on: 'mouse:down',
-    type: DrawEvent.AddText,
-    handler: (options: any) => {
-      addTextHelper(c, options.absolutePointer as fabric.IPoint)
-      exitTextAddingMode()
+  addEventsOfService('text', [{
+    on: 'mouse:down', handler: (options: any) => {
+      addTextMode.value = false
+      if (prevDrawingMode) c.isDrawingMode = true
+      removeEventsOfService('text')
+      void addTextHelper(c, options.absolutePointer as
+        Point)
     }
-  })
+  }])
 }
 
-async function addTextHelper(c: Canvas, location: IPoint) {
+async function addTextHelper(c: Canvas, location: Point) {
   const { selectTool } = useDrawStore()
-  const { disableHistorySaving, enableHistorySaving } = useHistory()
-  disableHistorySaving()
-  const text = new fabric.IText('', {
+  const { actionWithoutEvents } = useDrawEventManager()
+
+  const text = new IText('', {
     left: location.x,
     top: location.y,
     fontFamily: 'Arial',
@@ -47,103 +45,101 @@ async function addTextHelper(c: Canvas, location: IPoint) {
   })
   text.init = true
 
-  c.add(text)
+  await actionWithoutEvents(() => {
+    c.add(text)
+  })
+
   selectTool(DrawTool.Select)
   c.setActiveObject(text)
   text.set({ hasControls: false }) // this is necessary sadly
 
   text.enterEditing()
   c.requestRenderAll()
-  enableHistorySaving()
 }
 
-// it is important to use selectedObjectsRef for reactivity purposes
-export async function changeFont(c: Canvas, options: any) {
+export async function changeFont(options: any) {
   const font = options['font']
-  const { addToUndoStack } = useHistory()
   const { selectedObjectsRef } = useSelect()
 
-  const textObj = selectedObjectsRef[0] as fabric.IText
+  const { getCanvas } = useDrawStore()
+  const c = getCanvas()
+
+
+  const textObj = selectedObjectsRef[0] as IText
   const fontFaceObserver = new FontFaceObserver(font)
   await fontFaceObserver.load()
 
-  if (textObj.text != '') addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
+  const prevStyle = {
+    fontFamily: textObj.fontFamily
+  }
+
   textObj.set({ fontFamily: font })
 
-  popoverController.dismiss()
+  c.fire('textStyleChanged', { target: [textObj], prevStyle })
 
-  c.renderAll()
+  c.requestRenderAll()
 }
 
-export async function changeFontWeight(c: Canvas, options: any) {
-  const { addToUndoStack } = useHistory()
+export async function changeFontWeight(options: any) {
   const { selectedObjectsRef } = useSelect()
   const weight = options['weight']
 
-  const textObj = selectedObjectsRef[0] as fabric.IText
-  if (textObj.text != '') addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
+  const { getCanvas } = useDrawStore()
+  const c = getCanvas()
+
+  const textObj = selectedObjectsRef[0] as IText
+
+  const prevStyle = {
+    fontWeight: textObj.fontWeight
+  }
   textObj.set({ fontWeight: weight })
+  c.fire('textStyleChanged', { target: [textObj], prevStyle })
 
-  c.renderAll()
+  c.requestRenderAll()
 }
 
-export async function changeFontStyle(c: Canvas, options: any) {
-  const { addToUndoStack } = useHistory()
-  const { selectedObjectsRef } = useSelect()
-  const style = options['style']
-
-  const textObj = selectedObjectsRef[0] as fabric.IText
-  if (textObj.text != '') addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
-  textObj.set({ fontStyle: style })
-  c.renderAll()
-}
-
-export async function changeTextAlign(c: Canvas, options: any) {
-  const { addToUndoStack } = useHistory()
+export async function changeTextAlign(options: any) {
   const { selectedObjectsRef } = useSelect()
   const align = options['align']
 
-  const textObj = selectedObjectsRef[0] as fabric.IText
-  if (textObj.text != '') addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
+  const { getCanvas } = useDrawStore()
+  const c = getCanvas()
+
+  const textObj = selectedObjectsRef[0] as IText
+
+  const prevStyle = {
+    fontWeight: textObj.fontWeight
+  }
   textObj.set({ textAlign: align })
-  c.renderAll()
+  c.fire('textStyleChanged', { target: [textObj], prevStyle })
+  c.requestRenderAll()
 }
 
-export async function curveText(c: Canvas) {
-  const { addToUndoStack } = useHistory()
+export async function changeFontStyle(options: any) {
   const { selectedObjectsRef } = useSelect()
-  const textObj = selectedObjectsRef[0] as fabric.IText
+  const style = options['style']
 
-  if (textObj.isCurved) delete textObj.path
-  else applyCurve(textObj, c)
+  const { getCanvas } = useDrawStore()
+  const c = getCanvas()
 
-  if (textObj.text != '') addToUndoStack([textObj.toObject()], 'object:modified', { textStyle: true })
-  textObj.set({ isCurved: !textObj.isCurved })
-  c.renderAll()
+  const textObj = selectedObjectsRef[0] as IText
+  const prevStyle = {
+    fontStyle: textObj.fontStyle
+  }
+  textObj.set({ fontStyle: style })
+  c.fire('textStyleChanged', { target: [textObj], prevStyle })
+  c.requestRenderAll()
 }
 
-export function deleteCurve(text: IText) {
-  delete text.path
-}
+export function exitTextAddingMode() {
+  const { getCanvas, prevDrawingMode } = useDrawStore()
+  const { removeEventsOfService } = useDrawEventManager()
+  const { addTextMode } = storeToRefs(useDrawStore())
 
-export function applyCurve(text: IText, c: Canvas) {
-  const textWidth = text.width!
-  const textHeight = text.height!
-  const curvePathWidth = textWidth + 50 // Adjust the padding as needed
+  const c = getCanvas()
 
-  // Calculate the control point for the quadratic Bezier curve
-  const controlPointX = 0
-  const controlPointY = -textHeight
+  c.isDrawingMode = prevDrawingMode
+  addTextMode.value = false
 
-  const curvePathCommands = `M ${-curvePathWidth / 2} 0 Q ${controlPointX} ${controlPointY} ${curvePathWidth / 2} 0`
-
-  const curvePath = new fabric.Path(curvePathCommands, {
-    fill: '',
-    stroke: ''
-  })
-
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  text.set({ path: curvePath })
-  c.renderAll()
+  removeEventsOfService('text')
 }

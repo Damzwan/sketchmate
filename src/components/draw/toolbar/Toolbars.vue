@@ -6,7 +6,7 @@
              :selectedTool="selectedTool" />
     <Toolbar v-else-if="shapeCreationMode != undefined " :config="toolbarConfig.shape"
              :selectedTool="selectedTool" />
-    <Toolbar v-else-if="selectedObjectsRef && selectedObjectsRef.length > 0" :config="toolbarConfig.select"
+    <Toolbar v-else-if="isSelectActive" :config="toolbarConfig.select"
              :selectedTool="selectedTool" />
     <Toolbar v-else :config="toolbarConfig.drawing" :selectedTool="selectedTool" />
   </div>
@@ -17,26 +17,26 @@
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { getToolbarConfig } from '@/config/draw/toolbar.config'
-import { usePen } from '@/service/draw/tools/pen.tool'
 import Toolbar from '@/components/draw/toolbar/Toolbar.vue'
-import { useSelect } from '@/service/draw/tools/select.tool'
-import { computed, watch } from 'vue'
-import { ObjectType } from '@/types/draw.types'
-import { useHistory } from '@/service/draw/history.service'
+import { computed, ref, watch } from 'vue'
+import { DrawTool, ObjectType, PenMenuTool, SelectTool } from '@/types/draw.types'
 import { useAuthStore } from '@/store/auth.store'
+import { PENMENUTOOLS, SELECTMENUTOOLS } from '@/config/draw/draw.config'
+import { usePen } from '@/store/draw/tools/pen.store'
+import { useSelect } from '@/store/draw/tools/select.store'
+import { useDrawHistoryManager } from '@/store/draw/drawHistoryManager.store'
 
 const {
-  lastSelectedSelectTool,
-  lastSelectedEraserTool,
   lastSelectedPenMenuTool,
+  lastSelectedSelectTool,
   shapeCreationMode,
   colorPickerMode,
   addTextMode,
   selectedTool
 } = storeToRefs(useDrawStore())
 const { brushType } = storeToRefs(usePen())
-const { selectedObjectsRef } = storeToRefs(useSelect())
-const { undoStackCounter, redoStackCounter } = storeToRefs(useHistory())
+const { isSelectActive, selectedObjectsRef } = storeToRefs(useSelect())
+const { undoStackCounter, redoStackCounter } = storeToRefs(useDrawHistoryManager())
 const { networkStatus, user, isLoggedIn } = storeToRefs(useAuthStore())
 
 
@@ -61,7 +61,6 @@ const hasMate = computed(() => !!user.value && user.value.mates.length > 0)
 const toolbarConfig = computed(() =>
   getToolbarConfig(
     lastSelectedPenMenuTool.value,
-    lastSelectedEraserTool.value,
     lastSelectedSelectTool.value,
     brushType.value,
     isText.value,
@@ -74,7 +73,7 @@ const toolbarConfig = computed(() =>
     isOffline.value,
     hasMate.value,
     isLoggedIn.value
-))
+  ))
 
 
 </script>

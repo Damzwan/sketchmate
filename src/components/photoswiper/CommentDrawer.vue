@@ -43,10 +43,10 @@
           /></ion-avatar>
           <div class="flex-1 ml-2">
             <div class="flex justify-between items-center">
-              <div class="text-sm font-bold text-black">{{ senderName(findUserInInboxUsers(comment.sender)) }}</div>
-              <div class="text-sm text-center mr-1 text-black">{{ dayjs(comment.date).fromNow() }}</div>
+              <div class="text-sm font-bold text-black cabin-sketch-regular">{{ senderName(findUserInInboxUsers(comment.sender)) }}</div>
+              <div class="text-sm text-center mr-1 text-black cabin-sketch-regular">{{ dayjs(comment.date).fromNow() }}</div>
             </div>
-            <div class="text-sm text-black">{{ comment.message }}</div>
+            <div class="text-sm text-black cabin-sketch-regular">{{ comment.message }}</div>
           </div>
         </div>
 

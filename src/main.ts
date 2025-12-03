@@ -9,56 +9,34 @@ import '@ionic/vue/css/core.css'
 /* Theme variables */
 import './theme/fonts/fonts.css'
 import './theme/theme.scss'
-import '@/tailwind.css'
-
+import '@/theme/main.css'
 
 import { createPinia } from 'pinia'
 import mitt from 'mitt'
-import { App as CapApp } from '@capacitor/app'
 import App from '@/App.vue'
-import { useAuthStore } from '@/store/auth.store'
 import { addNotificationListeners } from '@/helper/notification.helper'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import VueJsTour from '@globalhive/vuejs-tour'
-import { initFirebase, isNative } from '@/helper/general.helper'
-import { Preferences } from '@capacitor/preferences'
-import { LocalStorage } from '@/types/storage.types'
+import {
+  initFirebase,
+  lazyLoadDrawingModules,
+  setupDeeplinkListener,
+  setupPwa,
+  setupWidget
+} from '@/helper/general.helper'
 
 const pinia = createPinia()
 initFirebase()
 
+dayjs.extend(relativeTime)
+
 export const EventBus = mitt()
-const app = createApp(App).use(IonicVue).use(pinia).use(VueJsTour).use(router)
+const app = createApp(App).use(IonicVue).use(pinia).use(router)
 app.mount('#app')
 
 
 addNotificationListeners()
-
-// lazy loading fabric js dependency for smooth transitions
-import('fabric')
-import('pako') // preload pako to reduce lag on send
-
-dayjs.extend(relativeTime)
-CapApp.addListener('appUrlOpen', async (data: any) => {
-  const url = new URL(data.url)
-  const { setQueryParams } = useAuthStore()
-  setQueryParams(url.searchParams)
-
-  const path = url.pathname.substring(1)
-  router.push(path)
-})
-
-if (!isNative()) {
-  window.addEventListener('load', () => {
-    if (navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'client-ready'
-      })
-    }
-  })
-}
-
-// used for our widget to retrieve the list of friends
-const baseUrl = import.meta.env.VITE_BACKEND as string
-Preferences.set({ key: LocalStorage.backend_url, value: baseUrl })
+lazyLoadDrawingModules()
+setupDeeplinkListener()
+setupPwa()
+setupWidget()

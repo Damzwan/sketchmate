@@ -35,7 +35,9 @@ if (props.dynamicText) {
 </script>
 
 <style scoped>
+@reference "@/theme/main.css";
+
 .darken {
-  @apply bg-black bg-opacity-50;
+  @apply bg-black opacity-50;
 }
 </style>

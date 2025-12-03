@@ -1,5 +1,5 @@
-import { fabric } from 'fabric'
 import { Canvas } from 'fabric/fabric-impl'
+import { Point } from 'fabric'
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -24,7 +24,7 @@ export class InkBrush extends fabric.BaseBrush {
     this.color = opt.color || canvas.freeDrawingBrush.color
     this.opacity = opt.opacity || canvas.contextTop.globalAlpha
 
-    this._point = new fabric.Point(0, 0)
+    this._point = new Point(0, 0)
   }
 
   _render(pointer: fabric.Point): void {

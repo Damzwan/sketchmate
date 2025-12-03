@@ -1,10 +1,10 @@
-import { IPoint } from 'fabric/fabric-impl'
+import { Point } from 'fabric/fabric-impl'
 
 interface GestureDetectorOptions {
   onGestureStart?: () => void
-  onZoom?: (scale: number, previousScale: number, center: IPoint) => void
-  onDrag?: (dx: number, dy: number, previousDx: number, previousDy: number, center: IPoint) => void
-  onRotate?: (angleDifference: number, center: IPoint) => void
+  onZoom?: (scale: number, previousScale: number, center: Point) => void
+  onDrag?: (dx: number, dy: number, previousDx: number, previousDy: number, center: Point) => void
+  onRotate?: (angleDifference: number, center: Point) => void
   onGestureEnd?: (fingers: number) => void
 }
 
@@ -74,7 +74,7 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
       const currentX = (x1 + x2) / 2
       const currentY = (y1 + y2) / 2
 
-      const center: IPoint = {
+      const center: Point = {
         x: currentX,
         y: currentY
       }

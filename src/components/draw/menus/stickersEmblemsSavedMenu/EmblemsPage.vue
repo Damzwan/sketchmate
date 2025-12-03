@@ -1,0 +1,53 @@
+<template>
+  <ion-content>
+    <NoStickerItems v-if="user && user.emblems.length == 0" class="h-full" title="You have no emblems yet...">
+      Press the add button
+      <ion-icon class="pt-1" :icon="svg(mdiPlus)" />
+      to get started
+    </NoStickerItems>
+    <div v-else class="saved-grid" ref="grid">
+      <div v-for="emblem in user!.emblems" :key="emblem">
+        <StickerEmblemSavedItem
+          :img="emblem"
+          :delete-mode="deleteMode"
+          @click="emits('select-emblem', emblem)"
+          @long-press="emits('update:delete-mode', true)"
+          @cancel-delete="emits('update:delete-mode', false)"
+        />
+      </div>
+    </div>
+  </ion-content>
+</template>
+
+<script lang="ts" setup>
+import { IonIcon, IonContent } from '@ionic/vue'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/store/auth.store'
+import { svg } from '@/helper/general.helper'
+import { mdiPlus } from '@mdi/js'
+import { onClickOutside } from '@vueuse/core'
+import { ref } from 'vue'
+import StickerEmblemSavedItem from '@/components/draw/menus/stickersEmblemsSavedMenu/StickerEmblemSavedItem.vue'
+import NoStickerItems from '@/components/draw/menus/stickersEmblemsSavedMenu/NoStickerItems.vue'
+
+const grid = ref<HTMLElement>()
+
+const props = defineProps<{
+  deleteMode: boolean
+}>()
+onClickOutside(grid, () => (props.deleteMode ? emits('update:delete-mode', false) : undefined))
+
+const { user } = storeToRefs(useAuthStore())
+
+const emits = defineEmits<{
+  (e: 'update:delete-mode', deleteMode: boolean): void
+  (e: 'select-emblem', selectedEmblem: string): void
+}>()
+</script>
+
+<style scoped>
+@reference "@/theme/main.css";
+.saved-grid {
+  @apply grid grid-cols-4 md:grid-cols-4 lg:grid-cols-6 gap-4 p-4;
+}
+</style>

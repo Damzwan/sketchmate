@@ -85,9 +85,9 @@
       <div v-if="state === State.sending"
            class="h-[550px] w-full relative overflow-hidden flex flex-col">
 
-        <!-- Floating Balloon + Drawing -->
+        <!-- Floating balloon + Drawing -->
         <div class="relative h-[400px] flex justify-center items-end animate-float w-full">
-          <!-- Lottie Balloon -->
+          <!-- Lottie balloon -->
           <Lottie
             :json="balloon"
             :loop="true"
@@ -291,7 +291,7 @@ async function sendBalloon() {
 
   setTimeout(() => {
     sendBalloonModalOpen.value = false
-    toast('Balloon sent!', { duration: ToastDuration.long })
+    toast('balloon sent!', { duration: ToastDuration.long })
   }, timeout)
 }
 

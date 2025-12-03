@@ -1,285 +1,179 @@
 import { defineStore, storeToRefs } from 'pinia'
 import {
-  DrawAction,
-  DrawTool,
-  Eraser,
-  PenMenuTool,
-  SelectTool,
-  SelectToolOptions,
-  ShapeCreationMode
-} from '@/types/draw.types'
-import { ref } from 'vue'
-import { actionMapping, BACKGROUND, ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
-import { Canvas, ICanvasOptions } from 'fabric/fabric-impl'
-import { useAuthStore } from '@/store/auth.store'
-import { useSocketService } from '@/service/api/socket.service'
-import { CreateBalloonPostRes, InboxItem, Res } from '@/types/server.types'
-import { useRouter } from 'vue-router'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import {
-  activateRenderPanBoundaryListener,
-  canvasToBuffer,
-  disableRenderPanBoundaryListener,
-  renderPanBoundary,
-  resetZoom,
-  restoreSelectedObjects
-} from '@/helper/draw/draw.helper'
-import { fabric } from 'fabric'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { useLoadService } from '@/service/draw/load.service'
-import {
-  changeFabricBaseSettings,
-  configureCanvasSpecificSettings,
-  createTools,
-  destroyTools,
+  changeFabricSettings,
+  createToolsMapping,
+  enableGestures,
   initCanvasOptions,
-  initGestures,
-  initTools
-} from '@/helper/draw/init.helper'
-import { useHistory } from '@/service/draw/history.service'
-import { useEventManager } from '@/service/draw/eventManager.service'
-import { loadAdditionalBrushes } from '@/utils/brushes'
-import { Select } from '@/service/draw/tools/select.tool'
-import { useBackgroundSaver } from '@/service/draw/backgroundSaved.service'
-import { useShortcutManager } from '@/service/draw/shortcutManager'
-import { EventBus } from '@/main'
+  makeCanvasContainerFitWindow
+} from '@/helper/draw/drawInit.helper'
+import { Canvas } from 'fabric'
+import { useDrawEventManager } from '@/store/draw/drawEventManager.store'
+import { DrawAction, DrawTool, PenMenuTool, SelectTool, SelectToolOptions, ShapeCreationMode } from '@/types/draw.types'
+import { ref, watch } from 'vue'
+import { useDrawHistoryManager } from '@/store/draw/drawHistoryManager.store'
+import { BACKGROUND, PENMENUTOOLS, SELECTMENUTOOLS } from '@/config/draw/draw.config'
+import { useMenuStore } from '@/store/draw/menu.store'
+import { backgroundColor } from '@/config/colors.config'
+import { CreateBalloonPostRes, Res } from '@/types/server.types'
+import { canvasToBuffer, resetZoom } from '@/helper/draw/draw.helper'
 import { useAPI } from '@/service/api/api.service'
-
+import { useSocketService } from '@/service/api/socket.service'
+import { useAuthStore } from '@/store/auth.store'
+import { drawActionMapping } from '@/config/draw/drawAction.config'
 
 export const useDrawStore = defineStore('draw', () => {
-  const { user, isSendingDrawing } = storeToRefs(useAuthStore())
-  const socketApi = useSocketService()
-  const api = useAPI()
-  const router = useRouter()
+    let c: Canvas | undefined // needs to be a global variable
 
-  const { openToolMenu } = useMenuStore()
+    const drawEventManager = useDrawEventManager()
+    const drawHistoryManager = useDrawHistoryManager()
 
-  let c: Canvas | undefined // needs to be a global variable
+    const lastSelectedPenMenuTool = ref<PenMenuTool>(DrawTool.Pen)
+    const lastSelectedSelectTool = ref<SelectTool>(DrawTool.Select)
+    const selectedTool = ref<DrawTool>(DrawTool.Lasso)
 
-  // Tool services
-  const tools = createTools()
+    const colorPickerMode = ref(false)
+    const addTextMode = ref(false)
+    const isEditingText = ref(false)
+    const shapeCreationMode = ref<ShapeCreationMode>()
 
-  // Other services
-  const loadService = useLoadService()
-  const eventManager = useEventManager()
-  const backgroundSaver = useBackgroundSaver()
-  const shortcutManager = useShortcutManager()
-  const history = useHistory()
+    const toolsMapping = createToolsMapping()
 
-  // Selected tools
-  const selectedTool = ref<DrawTool>(DrawTool.Pen)
-  const lastSelectedPenMenuTool = ref<PenMenuTool>(DrawTool.Pen)
-  const lastSelectedEraserTool = ref<Eraser>(DrawTool.MobileEraser)
-  const lastSelectedSelectTool = ref<SelectTool>(DrawTool.Select)
+    const backgroundColor = ref(BACKGROUND) // use ref for reactivity :(
+    const isSendingDrawing = ref(false)
+    const prevDrawingMode = ref(false) // ugly but used in case we cancel text adding mode
 
-  const loadingText = ref('')
-  const shapeCreationMode = ref<ShapeCreationMode>()
-  const colorPickerMode = ref(false)
-  const addTextMode = ref(false)
+    const api = useAPI()
+    const socketAPI = useSocketService()
 
-  const canZoomOut = ref(false)
-  const isEditingText = ref(false)
-  const isLoading = ref(false)
-  const isUsingGesture = ref(false)
-  const backgroundColor = ref(BACKGROUND) // use ref for reactivity :(
-  const showLoadingBackdrop = ref(false)
+    // TODO migrate these properties to where they belong...
+    const isLoading = ref(false)
+    const loadingText = ref('')
+
+    const { user } = storeToRefs(useAuthStore())
+
+    // TODO move this
+    const shapeCreationSettings = ref<{
+      stroke: string
+      fill?: string
+      backgroundColor?: string
+      strokeWidth: number
+    }>({
+      stroke: '#000000',
+      fill: undefined,
+      backgroundColor: undefined,
+      strokeWidth: 2
+    })
+
+    const { openToolMenu } = useMenuStore()
 
 
-  // TODO I think we should transform shape creation into a store
-  const shapeCreationSettings = ref<{
-    stroke: string
-    fill?: string
-    backgroundColor?: string
-    strokeWidth: number
-  }>({
-    stroke: '#000000',
-    fill: undefined,
-    backgroundColor: undefined,
-    strokeWidth: 2
-  })
+    async function initCanvas(canvas: HTMLCanvasElement) {
+      changeFabricSettings()
+      c = new Canvas(canvas, initCanvasOptions())
+      makeCanvasContainerFitWindow() // hide the actual size of the canvas...
 
-  // We make use of events so we do not load the big draw.store in other views
-  changeFabricBaseSettings()
+      drawEventManager.init(c)
+      drawHistoryManager.init(c)
+      enableGestures(c)
 
-  function selectTool(newTool: DrawTool, options: SelectToolOptions | undefined = undefined) {
-    const oldTool = selectedTool.value
-    if ((options && options?.init) || newTool != oldTool) {
-      selectedTool.value = newTool
-      if (ERASERS.includes(newTool)) lastSelectedEraserTool.value = newTool as Eraser
-      if (PENMENUTOOLS.includes(newTool)) lastSelectedPenMenuTool.value = newTool as PenMenuTool
-      eventManager.onToolSwitch(c!, tools[oldTool], tools[newTool])
-    } else if (options && options.openMenu) {
-      openToolMenu(newTool, options.e)
-    }
-    tools[newTool]?.select(c!)
-    c?.renderAll()
-  }
+      for (const [, tool] of Object.entries(toolsMapping)) {
+        tool.init(c)
+      }
 
-  async function selectAction(action: DrawAction, options?: object) {
-    await actionMapping[action](c!, options)
-  }
 
-  // TODO clean this up
-  async function initCanvas(canvas: HTMLCanvasElement, initOptions?: ICanvasOptions) {
-    canZoomOut.value = false
-    await backgroundSaver.init()
-
-    let json: any = undefined
-    const prevJson = await backgroundSaver.get()
-
-    if (c) {
-      json = c.toJSON()
-      destroyToolsAndServices(!loadService.canvasToLoad.value)
-      isEditingText.value = false
-      c.dispose()
+      selectTool(DrawTool.Pen)
+      c.requestRenderAll()
     }
 
-    c = new fabric.Canvas(canvas, initCanvasOptions(initOptions))
+    function getCanvas() {
+      return c!
+    }
 
-    if (loadService.canvasToLoad.value) {
-      showLoading('Loading canvas')
-      showLoadingBackdrop.value = true
-      await loadService.loadCanvas(c)
-      showLoadingBackdrop.value = false
-    } else if (prevJson) {
-      await new Promise<void>(resolve => {
-        c!.loadFromJSON(prevJson, () => {
-          resolve()
-        })
+    function selectTool(newTool: DrawTool, options: SelectToolOptions | undefined = undefined) {
+      const oldTool = selectedTool.value
+      if (oldTool === newTool) {
+        openToolMenu(newTool, options?.e)
+      } else {
+        selectedTool.value = newTool
+        toolsMapping[newTool].select()
+        drawEventManager.switchToolEvents(toolsMapping[newTool])
+      }
+    }
+
+    async function selectAction(action: DrawAction, options?: any) {
+      await drawActionMapping[action](options)
+    }
+
+    async function send(matesToSend: string[]) {
+      if (!c) return
+      isSendingDrawing.value = true
+      resetZoom(c)
+
+      await socketAPI.send({
+        _id: user.value!._id,
+        followers: [user.value!._id, ...matesToSend],
+        drawing: JSON.stringify(c.toJSON()),
+        img: await canvasToBuffer(c.toDataURL({ multiplier: 2 })), // TODO multiplier 2 could be dangerous
+        name: user.value!.name,
+        aspect_ratio: c.width! / c.height!
       })
-    } else if (json) {
-      await new Promise<void>(resolve => {
-        c!.loadFromJSON(json, () => {
-          resolve()
-        })
+      reset()
+    }
+
+    async function createBalloon(message: string): Promise<Res<CreateBalloonPostRes>> {
+      if (!c) return
+
+      return await api.createBalloon({
+        sender: user.value!._id,
+        message,
+        aspect_ratio: c.width! / c.height!,
+        drawing: JSON.stringify(c.toJSON()),
+        img: await canvasToBuffer(c.toDataURL({ multiplier: 2 }))
       })
     }
 
-    // Important to init history after the canvas has been loaded to keep track off all objects
-    eventManager.init(c)
-    history.init(c)
-    configureCanvasSpecificSettings(c)
-    loadAdditionalBrushes()
-    initGestures(c)
-    initTools(c, tools)
-    backgroundSaver.startSaving(c)
-    shortcutManager.init(c)
-    activateRenderPanBoundaryListener(c)
+    async function reset() {
+      // await drawHistoryManager.actionWithoutHistory(() => {
+      //   c?.clear()
+      //   backgroundColor.value = BACKGROUND
+      //   c!.backgroundColor = backgroundColor.value
+      // })
+      // drawHistoryManager.clearHistory()
+      // backgroundSaver.clear()
+      c?.renderAll()
+    }
+
+    function setShapeCreationMode(mode: ShapeCreationMode | undefined) {
+      shapeCreationMode.value = mode
+    }
 
 
-    const selected = (tools[DrawTool.Select] as Select).getSelectedObjects() // important that this is before selectTool
-    selectTool(selectedTool.value, { init: true })
-
-    if (json) restoreSelectedObjects(c!, selected)
-    json = undefined
-    hideLoading()
-
-
-    EventBus.emit('canvas-ready')
-  }
-
-  function destroyToolsAndServices(maintainHistory: boolean) {
-    destroyTools(tools)
-    history.destroy(maintainHistory)
-    backgroundSaver.destroy()
-    eventManager.destroy()
-    shortcutManager.destroy()
-    disableRenderPanBoundaryListener()
-  }
-
-  function showLoading(text: string) {
-    loadingText.value = text
-    isSendingDrawing.value = true
-  }
-
-  function hideLoading() {
-    isSendingDrawing.value = false
-  }
-
-  async function send(matesToSend: string[]) {
-    if (!c) return
-    loadingText.value = 'Sending drawing...'
-    isSendingDrawing.value = true
-    resetZoom(c)
-
-    await socketApi.send({
-      _id: user.value!._id,
-      followers: [user.value!._id, ...matesToSend],
-      drawing: JSON.stringify(c.toJSON(['width', 'height'])),
-      img: await canvasToBuffer(c.toDataURL({ multiplier: 2 })), // TODO multiplier 2 could be dangerous
-      name: user.value!.name,
-      aspect_ratio: c.width! / c.height!
+    watch(selectedTool, () => {
+      if (PENMENUTOOLS.includes(selectedTool.value)) lastSelectedPenMenuTool.value = selectedTool.value as PenMenuTool
+      else if (SELECTMENUTOOLS.includes(selectedTool.value)) lastSelectedSelectTool.value = selectedTool.value as SelectTool
     })
-    reset()
+
+
+    return {
+      initCanvas,
+      getCanvas,
+      selectTool,
+      selectedTool,
+      colorPickerMode,
+      addTextMode,
+      shapeCreationMode,
+      selectAction,
+      shapeCreationSettings,
+      lastSelectedPenMenuTool,
+      lastSelectedSelectTool,
+      isEditingText,
+      send,
+      createBalloon,
+      backgroundColor,
+      isLoading,
+      loadingText,
+      setShapeCreationMode,
+      prevDrawingMode
+    }
   }
-
-  async function createBalloon(message: string): Promise<Res<CreateBalloonPostRes>> {
-    if (!c) return
-
-    return await api.createBalloon({
-      sender: user.value!._id,
-      message,
-      aspect_ratio: c.width! / c.height!,
-      drawing: JSON.stringify(c.toJSON(['width', 'height'])),
-      img: await canvasToBuffer(c.toDataURL({ multiplier: 2 }))
-    })
-  }
-
-  async function reply(inboxItem: InboxItem | undefined) {
-    if (!inboxItem) return
-    loadService.canvasToLoad.value = inboxItem.drawing
-    await router.push(FRONTEND_ROUTES.draw)
-  }
-
-  function getCanvas() {
-    return c!
-  }
-
-  async function reset() {
-    await history.actionWithoutHistory(() => {
-      c?.clear()
-      backgroundColor.value = BACKGROUND
-      c!.backgroundColor = backgroundColor.value
-      renderPanBoundary()
-    })
-    history.clearHistory()
-    backgroundSaver.clear()
-    c?.renderAll()
-  }
-
-  function setShapeCreationMode(mode: ShapeCreationMode | undefined) {
-    shapeCreationMode.value = mode
-  }
-
-  function setCanZoomOut(bool: boolean) {
-    canZoomOut.value = bool
-  }
-
-
-  return {
-    selectedTool,
-    selectTool,
-    lastSelectedEraserTool,
-    send,
-    reply,
-    selectAction,
-    getCanvas,
-    loadingText,
-    shapeCreationMode,
-    setShapeCreationMode,
-    canZoomOut,
-    setCanZoomOut,
-    initCanvas,
-    isEditingText,
-    isLoading,
-    lastSelectedPenMenuTool,
-    isUsingGesture,
-    shapeCreationSettings,
-    lastSelectedSelectTool,
-    colorPickerMode,
-    addTextMode,
-    backgroundColor,
-    showLoadingBackdrop,
-    createBalloon
-  }
-})
+)

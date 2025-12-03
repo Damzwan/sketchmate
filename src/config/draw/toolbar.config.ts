@@ -1,9 +1,11 @@
 import {
-  mdiCancel, mdiChatQuestionOutline,
+  mdiCancel,
+  mdiChatQuestionOutline,
   mdiCheck,
   mdiClose,
   mdiDeleteOutline,
   mdiDotsVertical,
+  mdiEraser,
   mdiFormatColorFill,
   mdiFormatText,
   mdiMenuSwapOutline,
@@ -14,18 +16,8 @@ import {
   mdiUndo,
   mdiVectorPolygon
 } from '@mdi/js'
-import { BrushType, DrawAction, DrawTool, Eraser, Menu, PenMenuTool, SelectTool } from '@/types/draw.types'
-import {
-  eraserIconMapping,
-  ERASERS,
-  penIconMapping,
-  PENMENUTOOLS,
-  selectIconMapping,
-  SELECTMENUTOOLS
-} from '@/config/draw/draw.config'
-import { useToast } from '@/service/toast.service'
-import { ToastDuration } from '@/types/toast.types'
-import { connectButton } from '@/config/toast.config'
+import { BrushType, DrawAction, DrawTool, Menu, PenMenuTool, SelectTool } from '@/types/draw.types'
+import { ERASERS, penIconMapping, PENMENUTOOLS, selectIconMapping, SELECTMENUTOOLS } from '@/config/draw/draw.config'
 
 export enum Toolbars {
   drawing = 'drawing',
@@ -86,7 +78,6 @@ export type ToolbarConfig = {
 
 export function getToolbarConfig(
   lastSelectedPenMenuTool: PenMenuTool,
-  lastSelectedEraserTool: Eraser,
   lastSelectedSelectTool: SelectTool,
   brushType: BrushType,
   isText: boolean,
@@ -113,14 +104,15 @@ export function getToolbarConfig(
           type: 'button',
           icon: penMenuIcon,
           tool: lastSelectedPenMenuTool,
+          menu: Menu.Pen,
           tools: PENMENUTOOLS,
           id: ToolbarIds.pen,
           tour_step: '1'
         },
         {
           type: 'button',
-          icon: eraserIconMapping[lastSelectedEraserTool],
-          tool: lastSelectedEraserTool,
+          icon: mdiEraser,
+          tool: DrawTool.MobileEraser,
           tools: ERASERS,
           id: ToolbarIds.eraser,
           tour_step: '2'
@@ -192,7 +184,7 @@ export function getToolbarConfig(
         {
           type: 'button',
           icon: mdiDeleteOutline,
-          action: DrawAction.Delete
+          action: DrawAction.RemoveSelectedObjects
         },
         {
           type: 'button',
@@ -205,12 +197,6 @@ export function getToolbarConfig(
           isVisibleCondition: !containsImage,
           icon: mdiPaletteOutline,
           menu: Menu.SelectColor
-        },
-        {
-          type: 'button',
-          isVisibleCondition: isPolygon,
-          action: DrawAction.EditPolygon,
-          icon: isEditingPolygon ? mdiCancel : mdiVectorPolygon
         },
         {
           type: 'button',
@@ -271,7 +257,7 @@ export function getToolbarConfig(
         },
         {
           type: 'button',
-          action: DrawAction.Delete,
+          action: DrawAction.ConfirmShapeCreation,
           icon: mdiCheck
         }
       ] as ToolbarItem[]

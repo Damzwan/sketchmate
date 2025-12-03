@@ -1,54 +1,11 @@
-import { fabric } from 'fabric'
-import { Canvas } from 'fabric/fabric-impl'
+import type { Canvas, CanvasEvents } from 'fabric'
 
-// We extend the original fabric js interfaces
-declare module 'fabric' {
-  namespace fabric {
-    interface Canvas {
-      _rotateObjectByAngle?: () => void
-      _scaleObjectBy?: () => void
-    }
 
-    interface IText {
-      isCurved?: boolean
-      originalTop?: number
-      mouseUpHandler: (o: any) => void
-      init: boolean
-    }
-
-    interface IRectOptions {
-      erasable?: boolean
-    }
-
-    interface Object {
-      id: string
-      _setOriginToCenter: () => void
-      _resetOrigin: () => void
-      visual?: boolean
-      edit?: boolean
-      isCreating?: false
-      eraser: any
-      erasable?: boolean
-      backgroundObject: boolean // indicates that we should not color this object since it acts as a background color
-      bucketFillObject?: boolean // used in order to move the newly created background fill to the right location
-    }
-
-    interface PatternBrush {
-      source: any
-    }
-
-    interface Path {
-      originalLeft: number
-      originalTop: number
-    }
-
-    interface Control {
-      pointIndex: number
-    }
-  }
+export interface ToolService {
+  select: () => void
+  events: FabricEvent[]
+  init: (c: Canvas) => void
 }
-
-export type SelectedObject = fabric.Object | fabric.Group
 
 export interface SelectToolOptions {
   e?: Event
@@ -56,67 +13,57 @@ export interface SelectToolOptions {
   init?: boolean
 }
 
-export interface ToolService {
-  select: (c: Canvas) => void
-  events: FabricEvent[]
-  init: (c: Canvas) => void
-  destroy: () => void
-}
-
-export interface RestoreAction {
-  description: string
-  handler: (e: fabric.Object, c: Canvas) => void
-}
 
 export interface FabricEvent {
-  on: string
-  type: DrawEvent
+  on: keyof CanvasEvents
   handler: (e: any) => void
 }
 
 export enum DrawTool {
   Pen,
   MobileEraser,
-  HealingEraser,
   Select,
   Lasso,
-  Bucket
+  Bucket,
+  Pan
 }
 
 export enum DrawAction {
   FullErase,
-  Sticker,
+  AddObject,
+  RemoveObjectsByID,
+  TransformObject,
+  SetPropertiesOfObject,
   CopyObject,
-  AddBackgroundImage,
-  AddShape,
   AddText,
   Merge,
-  CreateSaved,
-  AddSavedToCanvas,
-  Delete,
+  RemoveSelectedObjects,
   ChangeFont,
-  ChangeFillColour,
-  ChangeBackgroundColor,
-  ChangeStrokeColour,
+  SetFillColor,
+  SetBackgroundColor,
+  SetStrokeColor,
   ChangeFontWeight,
   ChangeFontStyle,
   ChangeTextAlign,
-  CurveText,
-  BringToFront,
-  BringToBack,
-  MoveUpOneLayer,
-  MoveDownOneLayer,
-  EditPolygon,
+  MoveObjectToFront,
+  MoveObjectToBack,
+  MoveObjectUpOneLayer,
+  MoveObjectDownOneLayer,
   SetCanvasBackground,
   ChangeStrokeWidth,
-  AddImgFilter,
-  Flip,
+  FlipX,
+  FlipY,
   Undo,
   Redo,
   UnselectObjects,
-  ExitShapeCreationMode,
   ExitColorPickerMode,
   ExitTextAddingMode,
+  AddImage,
+  AddSavedDrawingToCanvas,
+  saveFabricObject,
+  AddShape,
+  ConfirmShapeCreation,
+  AddImgFilter,
 }
 
 export enum Menu {
@@ -149,7 +96,7 @@ export enum ObjectType {
   polygon = 'polygon'
 }
 
-export type Eraser = DrawTool.MobileEraser | DrawTool.HealingEraser
+export type Eraser = DrawTool.MobileEraser
 export type PenMenuTool = DrawTool.Pen | DrawTool.Bucket
 export type SelectTool = DrawTool.Select | DrawTool.Lasso
 

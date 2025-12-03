@@ -1,112 +1,111 @@
 <template>
   <transition name="expand">
-    <div class="fixed w-full h-full bg-black z-50" v-show="open">
-      <div class="flex flex-col w-full h-full">
-        <ion-toolbar class="w-full h-[56px] flex">
-          <ion-buttons slot="start">
-            <ion-button @click="close" color="light">
-              <ion-icon :icon="arrowBack" />
-            </ion-button>
-          </ion-buttons>
-
-          <ion-buttons slot="end">
-            <ion-button
-              @click="showComments = !showComments"
-              color="light"
-              class="pr-2"
-              v-if="currInboxItem.comments.length > 0"
-            >
-              <ion-icon :icon="svg(showComments ? mdiChatRemoveOutline : mdiChatOutline)" class="w-[25px] h-[25px]" />
-            </ion-button>
-
-            <button class="flex -space-x-6" @click="isFollowerDrawerOpen=true">
-              <img :src="senderImg(findUserInInboxUsers(follower))"
-                   v-for="(follower, i) in [...currInboxItem.followers].reverse().slice(0, badgesCountToShow)"
-                   :key="follower"
-                   :alt="follower" class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px]"
-                   :style="{'zIndex':  i}">
-
-              <div
-                class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px] flex justify-center items-center bg-white"
-                :style="{'zIndex':  currInboxItem.followers.length + 1}"
-                v-if="currInboxItem.followers.slice(badgesCountToShow).length > 0">
-                <p class="text-gray-600">{{ currInboxItem.followers.slice(badgesCountToShow).length }}+</p>
-              </div>
-            </button>
-          </ion-buttons>
-        </ion-toolbar>
-
-        <swiper-container
-          class="w-full flex-grow"
-          :slides-per-view="1"
-          keyboard-enabled="true"
-          @slidechange="(x: any) => slide = x.target.swiper.activeIndex"
-          :initial-slide="slide"
-          lazyPreloadPrevNext="3"
-          :zoom="{maxRatio: 3}"
-          ref="swiper"
-          @update="() => swiper.swiper.slideTo(slide + 1, 0)"
-        >
-          <swiper-slide v-for="(item, i) in inbox" :key="i">
-            <div class="swiper-zoom-container" v-if="Math.abs(slide - i) < 3">
-              <PhotoSwiperItem :thumbnail="item.thumbnail" :image="item.image" :switch-to-image="Math.abs(slide - i) < 3" />
-            </div>
-          </swiper-slide>
-        </swiper-container>
-
-
-        <div v-if="currInboxItem && showComments" @click="isCommentDrawerOpen = true" class="comments cursor-pointer">
-          <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i"
-               class="rounded-full comment my-1 p-1">
-            <div class="flex items-center pl-1">
-              <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]"
-              ><img :src="senderImg(findUserInInboxUsers(comment.sender))" alt="" class="aspect-square"
-              /></ion-avatar>
-              <div class="flex-1 mx-2">
-                <div class="text-xs font-bold text-white">{{ senderName(findUserInInboxUsers(comment.sender)) }}</div>
-                <div class="text-xs text-white">{{ comment.message }}</div>
-              </div>
-            </div>
-          </div>
-          <div v-if="currInboxItem.comments.length > 4" class="rounded-full comment my-1">
-            <p class="text-xs text-white py-1 pl-2">{{
-                `Click to see ${currInboxItem.comments.length - 4} more comments`
-              }}</p>
-          </div>
-        </div>
-
-
-        <div class="flex justify-evenly w-full items-center h-[56px]">
-          <ion-button fill="clear" color="light" @click="replyToDrawing" class="flex-grow" size="large">
-            <ion-icon :icon="svg(mdiReplyOutline)" />
+    <div class="fixed w-full h-full bg-black z-50 flex flex-col" v-show="open">
+      <ion-toolbar class="w-full h-14 flex">
+        <ion-buttons slot="start">
+          <ion-button @click="close" color="light">
+            <ion-icon :icon="arrowBack" />
           </ion-button>
+        </ion-buttons>
 
+        <ion-buttons slot="end">
           <ion-button
-            fill="clear"
+            @click="showComments = !showComments"
             color="light"
-            @click="() => (isCommentDrawerOpen = true)"
-            class="flex-grow"
-            size="large"
+            class="pr-2"
+            v-if="currInboxItem.comments.length > 0"
           >
-            <ion-icon :icon="svg(mdiCommentOutline)" />
-            <ion-badge class="mb-[25px] absolute ml-[35px]" color="secondary"
-            >{{ currInboxItem.comments.length }}
-            </ion-badge>
+            <ion-icon :icon="svg(showComments ? mdiChatRemoveOutline : mdiChatOutline)" class="w-[25px] h-[25px]" />
           </ion-button>
-          <ion-button fill="clear" color="light" @click="shareImg(currInboxItem.image)" class="flex-grow" size="large">
-            <ion-icon :icon="svg(mdiShareVariantOutline)" />
-          </ion-button>
-          <ion-button fill="clear" color="light" id="delete-alert" class="flex-grow" size="large">
-            <ConfirmationAlert
-              header="Are you sure?"
-              trigger="delete-alert"
-              message="This drawing will be deleted permanently"
-              @confirm="removeFromInboxItem"
-            />
-            <ion-icon :icon="svg(mdiDeleteOutline)" />
-          </ion-button>
-        </div>
 
+          <button class="flex -space-x-6" @click="isFollowerDrawerOpen=true">
+            <img :src="senderImg(findUserInInboxUsers(follower))"
+                 v-for="(follower, i) in [...currInboxItem.followers].reverse().slice(0, badgesCountToShow)"
+                 :key="follower"
+                 :alt="follower" class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px]"
+                 :style="{'zIndex':  i}">
+
+            <div
+              class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px] flex justify-center items-center bg-white"
+              :style="{'zIndex':  currInboxItem.followers.length + 1}"
+              v-if="currInboxItem.followers.slice(badgesCountToShow).length > 0">
+              <p class="text-gray-600">{{ currInboxItem.followers.slice(badgesCountToShow).length }}+</p>
+            </div>
+          </button>
+        </ion-buttons>
+      </ion-toolbar>
+
+      <swiper-container
+        class="w-full grow"
+        :slides-per-view="1"
+        keyboard-enabled="true"
+        @swiperslidechange="(x: any) => slide = x.target.swiper.activeIndex"
+        :initial-slide="slide"
+        lazyPreloadPrevNext="3"
+        :zoom="{maxRatio: 3}"
+        ref="swiper"
+        @update="() => swiper.swiper.slideTo(slide + 1, 0)"
+      >
+        <swiper-slide v-for="(item, i) in inbox" :key="i">
+          <div class="swiper-zoom-container"
+               v-if="Math.abs(slide - i) < 3">
+            <PhotoSwiperItem :thumbnail="item.thumbnail" :image="item.image"
+                             :switch-to-image="Math.abs(slide - i) < 3" />
+          </div>
+        </swiper-slide>
+      </swiper-container>
+
+
+      <div v-if="currInboxItem && showComments" @click="isCommentDrawerOpen = true" class="comments cursor-pointer">
+        <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i"
+             class="rounded-full comment my-1 p-1">
+          <div class="flex items-center pl-1">
+            <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]"
+            ><img :src="senderImg(findUserInInboxUsers(comment.sender))" alt="" class="aspect-square"
+            /></ion-avatar>
+            <div class="flex-1 mx-2">
+              <div class="text-sm font-bold text-white cabin-sketch-regular">{{ senderName(findUserInInboxUsers(comment.sender)) }}</div>
+              <div class="text-sm text-white cabin-sketch-regular">{{ comment.message }}</div>
+            </div>
+          </div>
+        </div>
+        <div v-if="currInboxItem.comments.length > 4" class="rounded-full comment my-1">
+          <p class="text-sm text-white py-1 pl-2 cabin-sketch-regular">{{
+              `Click to see ${currInboxItem.comments.length - 4} more comments`
+            }}</p>
+        </div>
+      </div>
+
+
+      <div class="flex justify-evenly w-full items-center h-14">
+        <ion-button fill="clear" color="light" @click="replyToDrawing" class="grow" size="large">
+          <ion-icon :icon="svg(mdiReplyOutline)" />
+        </ion-button>
+
+        <ion-button
+          fill="clear"
+          color="light"
+          @click="() => (isCommentDrawerOpen = true)"
+          class="flex-grow"
+          size="large"
+        >
+          <ion-icon :icon="svg(mdiCommentOutline)" />
+          <ion-badge class="mb-[25px] absolute ml-[35px]" color="secondary"
+          >{{ currInboxItem.comments.length }}
+          </ion-badge>
+        </ion-button>
+        <ion-button fill="clear" color="light" @click="shareImg(currInboxItem.image)" class="flex-grow" size="large">
+          <ion-icon :icon="svg(mdiShareVariantOutline)" />
+        </ion-button>
+        <ion-button fill="clear" color="light" id="delete-alert" class="flex-grow" size="large">
+          <ConfirmationAlert
+            header="Are you sure?"
+            trigger="delete-alert"
+            message="This drawing will be deleted permanently"
+            @confirm="removeFromInboxItem"
+          />
+          <ion-icon :icon="svg(mdiDeleteOutline)" />
+        </ion-button>
       </div>
 
 

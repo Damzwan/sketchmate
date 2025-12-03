@@ -1,7 +1,5 @@
-import { BrushType, DrawAction, DrawTool, Eraser, SelectTool } from '@/types/draw.types'
-import { Canvas } from 'fabric/fabric-impl'
+import { BrushType, DrawTool, Eraser, SelectTool } from '@/types/draw.types'
 import {
-  mdiBandage,
   mdiBrush,
   mdiCircleOutline,
   mdiCursorDefaultClickOutline,
@@ -11,42 +9,10 @@ import {
   mdiPencilOutline,
   mdiSpray
 } from '@mdi/js'
-import { fullErase } from '@/helper/draw/actions/eraser.action'
-import {
-  bringToBack,
-  bringToFront,
-  copyObjects,
-  deleteObjects,
-  mergeObjects,
-  moveDownOneLayer,
-  moveUpOneLayer
-} from '@/helper/draw/actions/operation.action'
-import { addSavedToCanvas, createSaved } from '@/helper/draw/actions/saved.action'
-import { addFilterToImg, addSticker, setBackgroundImage } from '@/helper/draw/actions/image.action'
-import { addShape } from '@/helper/draw/actions/shape.action'
-import {
-  addText,
-  changeFont,
-  changeFontStyle,
-  changeFontWeight,
-  changeTextAlign,
-  curveText
-} from '@/helper/draw/actions/text.action'
-import {
-  changeStrokeWidth,
-  flipObject,
-  setBackgroundColor,
-  setCanvasBackground,
-  setFillColor,
-  setStrokeColor
-} from '@/helper/draw/actions/color.action'
 import { DynamicTextPart } from '@/types/loader.types'
-import { editPolygon } from '@/helper/draw/actions/polyEdit.action'
 import { isMobile } from '@/helper/general.helper'
-import { useHistory } from '@/service/draw/history.service'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { useSelect } from '@/service/draw/tools/select.tool'
-import { exitColorPickerMode, exitShapeCreationMode, exitTextAddingMode } from '@/helper/draw/draw.helper'
+import { BaseBrush, type Canvas, CircleBrush, PencilBrush, SprayBrush } from 'fabric'
+
 
 export const COLORSWATCHES = [
   // Grayscale, Reds, Oranges
@@ -90,13 +56,14 @@ export const COLORSWATCHES = [
   ]
 ]
 
-export const BRUSHSIZE = 10
+export const BASE_BRUSH_SIZE = 10
 export const BLACK = '#000000FF'
 export const WHITE = '#FFFFFFFF'
 export const BACKGROUND = '#FAF0E6'
-export const PANMARGIN = isMobile() ? 80 : 0
+export const PAN_MARGIN = isMobile() ? 80 : 0
 
-export const ERASERS = [DrawTool.MobileEraser, DrawTool.HealingEraser]
+
+export const ERASERS = [DrawTool.MobileEraser]
 export const PENMENUTOOLS = [DrawTool.Pen, DrawTool.Bucket]
 export const SELECTMENUTOOLS = [DrawTool.Select, DrawTool.Lasso]
 export const FONTS: string[] = [
@@ -109,13 +76,18 @@ export const FONTS: string[] = [
   'Krub'
 ]
 export const eraserIconMapping: { [key in Eraser]: string } = {
-  [DrawTool.MobileEraser]: mdiEraser,
-  [DrawTool.HealingEraser]: mdiBandage
+  [DrawTool.MobileEraser]: mdiEraser
 }
 
 export const selectIconMapping: { [key in SelectTool]: string } = {
   [DrawTool.Select]: mdiCursorDefaultClickOutline,
   [DrawTool.Lasso]: mdiLasso
+}
+
+export const penBrushMapping: { [key in BrushType]: (c: Canvas) => BaseBrush } = {
+  [BrushType.Circle]: (c: Canvas) => new CircleBrush(c),
+  [BrushType.Pencil]: (c: Canvas) => new PencilBrush(c),
+  [BrushType.Spray]: (c: Canvas) => new SprayBrush(c)
 }
 
 export const penIconMapping: { [key in BrushType]: string } = {
@@ -126,53 +98,6 @@ export const penIconMapping: { [key in BrushType]: string } = {
   [BrushType.Spray]: mdiSpray
 }
 
-export const actionMapping: { [key in DrawAction]: (c: Canvas, options?: any) => void } = {
-  [DrawAction.FullErase]: fullErase,
-  [DrawAction.Sticker]: addSticker,
-  [DrawAction.CopyObject]: copyObjects,
-  [DrawAction.AddBackgroundImage]: setBackgroundImage,
-  [DrawAction.AddShape]: addShape,
-  [DrawAction.AddText]: addText,
-  [DrawAction.Merge]: mergeObjects,
-  [DrawAction.CreateSaved]: createSaved,
-  [DrawAction.AddSavedToCanvas]: addSavedToCanvas,
-  [DrawAction.Delete]: deleteObjects,
-  [DrawAction.ChangeStrokeColour]: setStrokeColor,
-  [DrawAction.ChangeFillColour]: setFillColor,
-  [DrawAction.ChangeBackgroundColor]: setBackgroundColor,
-  [DrawAction.ChangeFont]: changeFont,
-  [DrawAction.ChangeFontWeight]: changeFontWeight,
-  [DrawAction.ChangeFontStyle]: changeFontStyle,
-  [DrawAction.ChangeTextAlign]: changeTextAlign,
-  [DrawAction.CurveText]: curveText,
-  [DrawAction.BringToFront]: bringToFront,
-  [DrawAction.BringToBack]: bringToBack,
-  [DrawAction.EditPolygon]: editPolygon,
-  [DrawAction.SetCanvasBackground]: setCanvasBackground,
-  [DrawAction.ChangeStrokeWidth]: changeStrokeWidth,
-  [DrawAction.MoveUpOneLayer]: moveUpOneLayer,
-  [DrawAction.MoveDownOneLayer]: moveDownOneLayer,
-  [DrawAction.AddImgFilter]: addFilterToImg,
-  [DrawAction.Flip]: flipObject,
-  [DrawAction.Undo]: () => {
-    const { undo } = useHistory()
-    void undo()
-  },
-  [DrawAction.Redo]: () => {
-    const { redo } = useHistory()
-    void redo()
-  }, [DrawAction.UnselectObjects]: () => {
-    // TODO hacky
-    const {getCanvas} = useDrawStore()
-    const {setMouseClickTarget, setSelectedObjects} = useSelect()
-    setMouseClickTarget(undefined) // small hack
-    getCanvas().discardActiveObject()
-    setSelectedObjects([])
-  },
-  [DrawAction.ExitShapeCreationMode]: () => exitShapeCreationMode(),
-  [DrawAction.ExitColorPickerMode]: () => exitColorPickerMode(),
-  [DrawAction.ExitTextAddingMode]: () => exitTextAddingMode(),
-}
 
 export const dynamicStickerLoading: DynamicTextPart[] = [
   { text: 'Uploading...', duration: 1000 },
@@ -234,3 +159,4 @@ export const tutorialSteps = [
   </div>`
   }
 ]
+

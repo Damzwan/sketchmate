@@ -1,11 +1,21 @@
 <template>
-  <img :src="props.thumbnail" :alt="`Drawing ${props.thumbnail}`" loading="eager"
-       class="object-fill  absolute w-full z-50" v-if="isLoading">
-  <img :src="props.image" :alt="`Drawing ${props.image}`" @load="() => isLoading = false" loading="lazy"
-       v-if="props.switchToImage"
-       class="object-contain bg-white z-10">
-</template>
+  <div class="relative w-full h-full">
+    <!-- Thumbnail always visible initially -->
+    <img
+      :src="props.thumbnail"
+      :alt="`Drawing ${props.thumbnail}`"
+      class="object-contain absolute w-full h-full z-10"
+    />
 
+    <!-- Real image -->
+    <img
+      :src="props.image"
+      :alt="`Drawing ${props.image}`"
+      @load="isLoading = false"
+      class="object-contain absolute w-full h-full z-20 "
+    />
+  </div>
+</template>
 <script setup lang="ts">
 import { ref } from 'vue'
 

@@ -38,11 +38,13 @@ PODS:
     - Capacitor
   - CapacitorShare (7.0.1):
     - Capacitor
-  - CapacitorSplashScreen (7.0.1):
+  - CapacitorSplashScreen (7.0.3):
     - Capacitor
   - CapacitorStatusBar (7.0.1):
     - Capacitor
   - CapacitorToast (7.0.1):
+    - Capacitor
+  - CapawesomeCapacitorAppReview (7.0.1):
     - Capacitor
   - CapawesomeCapacitorAppUpdate (7.0.1):
     - Capacitor
@@ -167,9 +169,10 @@ DEPENDENCIES:
   - "CapacitorPreferences (from `../../node_modules/.pnpm/@capacitor+preferences@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/preferences`)"
   - "CapacitorPushNotifications (from `../../node_modules/.pnpm/@capacitor+push-notifications@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/push-notifications`)"
   - "CapacitorShare (from `../../node_modules/.pnpm/@capacitor+share@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/share`)"
-  - "CapacitorSplashScreen (from `../../node_modules/.pnpm/@capacitor+splash-screen@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/splash-screen`)"
+  - "CapacitorSplashScreen (from `../../node_modules/.pnpm/@capacitor+splash-screen@7.0.3_@capacitor+core@7.2.0/node_modules/@capacitor/splash-screen`)"
   - "CapacitorStatusBar (from `../../node_modules/.pnpm/@capacitor+status-bar@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/status-bar`)"
   - "CapacitorToast (from `../../node_modules/.pnpm/@capacitor+toast@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/toast`)"
+  - "CapawesomeCapacitorAppReview (from `../../node_modules/.pnpm/@capawesome+capacitor-app-review@7.0.1_@capacitor+core@7.2.0/node_modules/@capawesome/capacitor-app-review`)"
   - "CapawesomeCapacitorAppUpdate (from `../../node_modules/.pnpm/@capawesome+capacitor-app-update@7.0.1_@capacitor+core@7.2.0/node_modules/@capawesome/capacitor-app-update`)"
   - "CapgoCapacitorNavigationBar (from `../../node_modules/.pnpm/@capgo+capacitor-navigation-bar@7.1.2_@capacitor+core@7.2.0/node_modules/@capgo/capacitor-navigation-bar`)"
   - Firebase/Messaging
@@ -234,11 +237,13 @@ EXTERNAL SOURCES:
   CapacitorShare:
     :path: "../../node_modules/.pnpm/@capacitor+share@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/share"
   CapacitorSplashScreen:
-    :path: "../../node_modules/.pnpm/@capacitor+splash-screen@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/splash-screen"
+    :path: "../../node_modules/.pnpm/@capacitor+splash-screen@7.0.3_@capacitor+core@7.2.0/node_modules/@capacitor/splash-screen"
   CapacitorStatusBar:
     :path: "../../node_modules/.pnpm/@capacitor+status-bar@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/status-bar"
   CapacitorToast:
     :path: "../../node_modules/.pnpm/@capacitor+toast@7.0.1_@capacitor+core@7.2.0/node_modules/@capacitor/toast"
+  CapawesomeCapacitorAppReview:
+    :path: "../../node_modules/.pnpm/@capawesome+capacitor-app-review@7.0.1_@capacitor+core@7.2.0/node_modules/@capawesome/capacitor-app-review"
   CapawesomeCapacitorAppUpdate:
     :path: "../../node_modules/.pnpm/@capawesome+capacitor-app-update@7.0.1_@capacitor+core@7.2.0/node_modules/@capawesome/capacitor-app-update"
   CapgoCapacitorNavigationBar:
@@ -262,9 +267,10 @@ SPEC CHECKSUMS:
   CapacitorPreferences: 6c98117d4d7508034a4af9db64d6b26fc75d7b94
   CapacitorPushNotifications: 6a2794788c583dd89215f1805ca4bced1b13dbdf
   CapacitorShare: e573823f511f260f598d0423c33b1e3d7bbe5fd1
-  CapacitorSplashScreen: 1d67815a422a9b61539c94f283c08ed56667c0fc
+  CapacitorSplashScreen: e388b8e0ed0e982a9d3a40417f478e7a018a8763
   CapacitorStatusBar: 6e7af040d8fc4dd655999819625cae9c2d74c36f
   CapacitorToast: ddfc4b36080dbe3634c9faf510b20f6ddcff9330
+  CapawesomeCapacitorAppReview: ee9cb9d34e59534efcdb120dbef4d7166421e2ee
   CapawesomeCapacitorAppUpdate: d1f04c1c870388248889908cf2ca960c7fdbf0ef
   CapgoCapacitorNavigationBar: 3924b761f44960458d2df426bd2a45b6606545f9
   Firebase: a64bf6a8546e6eab54f1c715cd6151f39d2329f4
@@ -289,6 +295,6 @@ SPEC CHECKSUMS:
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   RecaptchaInterop: 7d1a4a01a6b2cb1610a47ef3f85f0c411434cb21
 
-PODFILE CHECKSUM: 1becf00e0b2d8f6cc8f7389f27a6f7a119c98ecf
+PODFILE CHECKSUM: 3c65700db6255f652dd25577733f300dfd4ff2cc
 
 COCOAPODS: 1.16.2

@@ -1,6 +1,6 @@
 <template>
   <ion-app>
-    <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" />
+    <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" bg-color="bg-background" />
     <ForceUpdateModal v-if="isNative() && showForceUpdateModal" />
     <FeedbackMenu />
     <DateOfBirthConfirmation />
@@ -9,74 +9,36 @@
 </template>
 
 <script setup lang="ts">
-import { IonApp, IonRouterOutlet, useBackButton, useIonRouter } from '@ionic/vue'
-import { onMounted, ref, watch } from 'vue'
+import { IonApp, IonRouterOutlet, useIonRouter } from '@ionic/vue'
+import { onMounted, ref } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
-import router from '@/router'
-import { hideLoading, isNative } from '@/helper/general.helper'
-import { App } from '@capacitor/app'
+import { isNative, setupBackButtonBehavior, setupPWAPromptListener, setupReadyWatcher } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
-import { useRoute } from 'vue-router'
-import { useToast } from '@/service/toast.service'
 import ForceUpdateModal from '@/components/general/ForceUpdateModal.vue'
-import FeedbackMenu from '@/components/draw/menu/FeedbackMenu.vue'
 import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 import DateOfBirthConfirmation from '@/components/general/DateOfBirthConfirmation.vue'
+import FeedbackMenu from '@/components/general/FeedbackMenu.vue'
 
 const ionRouter = useIonRouter()
 const { initIonRouter } = useAuthStore()
 initIonRouter(ionRouter)
+
 const {
-  networkStatus,
   isAuthLoading,
   showForceUpdateModal
 } = storeToRefs(useAuthStore())
 
-
-const route = useRoute()
-const { isOpen, dismiss } = useToast()
-
-
 const isRouterReady = ref(false)
-router.isReady().then(() => {
-  isRouterReady.value = true
-})
-
-
-if (isNative()) {
-  watch([isAuthLoading, isRouterReady], () => {
-    if (isRouterReady.value && !isAuthLoading.value) {
-      hideLoading()
-    }
-  })
-}
 
 onMounted(async () => {
-  // this timeout is necessary to avoid flickering in the beginning (should not be there)
-  defineCustomElements(window)
+  defineCustomElements(window)  // this timeout is necessary to avoid flickering in the beginning (should not be there)
 })
 
-useBackButton(-1, () => {
-  if (!ionRouter.canGoBack()) {
-    App.exitApp()
-  }
-})
 
-useBackButton(10, processNextHandler => {
-  if (isOpen.value) dismiss()
-  else processNextHandler()
-})
-
-if (!isNative()) {
-  window.addEventListener('beforeinstallprompt', e => {
-    const { installPrompt } = storeToRefs(useAuthStore())
-    installPrompt.value = e
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      installPrompt.value = undefined
-    }
-  })
-}
+setupReadyWatcher(isRouterReady, isAuthLoading)
+setupBackButtonBehavior()
+setupPWAPromptListener()
 </script>
 
 <style lang="scss">

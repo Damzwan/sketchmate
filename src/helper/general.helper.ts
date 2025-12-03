@@ -3,7 +3,7 @@ import Compressor from 'compressorjs'
 import router from '@/router'
 import { StatusBar } from '@capacitor/status-bar'
 import { NavigationBar } from '@capgo/capacitor-navigation-bar'
-import { isPlatform } from '@ionic/vue'
+import { isPlatform, useBackButton } from '@ionic/vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
 import { initializeApp } from 'firebase/app'
@@ -11,7 +11,7 @@ import { account_blob, minimum_age_social_features } from '@/config/general.conf
 import avatar from '@/assets/avatar.svg'
 import { Device } from '@capacitor/device'
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
-import { Ref } from 'vue'
+import { Ref, watch } from 'vue'
 import { SplashScreen } from '@capacitor/splash-screen'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { Menu } from '@/types/draw.types'
@@ -20,6 +20,9 @@ import { useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/service/toast.service'
 import { ToastDuration } from '@/types/toast.types'
 import { storeToRefs } from 'pinia'
+import { App } from '@capacitor/app'
+import { Preferences } from '@capacitor/preferences'
+import { LocalStorage } from '@/types/storage.types'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -314,5 +317,85 @@ export function isOldEnough(dob: Date): boolean {
   return calculateAge(dob) >= minimum_age_social_features
 }
 
+export function setupDeeplinkListener() {
+  App.addListener('appUrlOpen', async (data: any) => {
+    const url = new URL(data.url)
+    const { setQueryParams } = useAuthStore()
+    setQueryParams(url.searchParams)
 
+    const path = url.pathname.substring(1)
+    router.push(path)
+  })
+}
+
+export function setupPwa() {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.controller?.postMessage({
+      type: 'client-ready'
+    })
+  })
+}
+
+export function setupWidget() {
+  Preferences.set({
+    key: LocalStorage.backend_url,
+    value: import.meta.env.VITE_BACKEND as string
+  })
+}
+
+export async function lazyLoadDrawingModules() {
+  await Promise.all([import ('fabric'), import('pako')])
+}
+
+export function setupBackButtonBehavior() {
+  const { isOpen, dismiss } = useToast()
+
+
+  // Default handler: exit the app
+  useBackButton(-1, () => {
+    if (!window.history.state?.back) {
+      App.exitApp()
+    }
+  })
+
+  // Toast handler: close toast first
+  useBackButton(10, next => {
+
+    if (isOpen.value) dismiss()
+    else next()
+  })
+}
+
+export function setupPWAPromptListener() {
+  if (isNative()) return
+
+  const { installPrompt } = storeToRefs(useAuthStore())
+
+  window.addEventListener('beforeinstallprompt', e => {
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      installPrompt.value = undefined
+      return
+    }
+    installPrompt.value = e
+  })
+}
+
+export function setupReadyWatcher(
+  isRouterReady: Ref<boolean>,
+  isAuthLoading: Ref<boolean>
+) {
+  // Wait for route system
+  router.isReady().then(() => {
+    isRouterReady.value = true
+  })
+
+  // On native: hide splash when both ready
+  if (isNative()) {
+    watch([isAuthLoading, isRouterReady], () => {
+      if (isRouterReady.value && !isAuthLoading.value) {
+        hideLoading()
+      }
+    })
+  }
+}
 

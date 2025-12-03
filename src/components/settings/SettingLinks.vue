@@ -28,7 +28,6 @@
 
 <script lang="ts" setup>
 import { v4 as uuidv4 } from 'uuid'
-import DocsMenu from '@/components/draw/menu/DocsMenu.vue'
 import { IonButton } from '@ionic/vue'
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
@@ -37,6 +36,7 @@ import IosPwaInstructions from '@/components/general/IosPwaInstructions.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { Menu } from '@/types/draw.types'
 import { discord_link } from '@/config/general.config'
+import DocsMenu from '@/components/draw/menus/DocsMenu.vue'
 
 const { installPrompt } = storeToRefs(useAuthStore())
 const { logout } = useAuthStore()

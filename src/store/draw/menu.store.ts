@@ -51,7 +51,6 @@ export const useMenuStore = defineStore('menu', () => {
     [DrawTool.Pen]: Menu.Pen,
     [DrawTool.Bucket]: Menu.Pen,
     [DrawTool.MobileEraser]: Menu.Eraser,
-    [DrawTool.HealingEraser]: Menu.Eraser,
     [DrawTool.Lasso]: Menu.Select,
     [DrawTool.Select]: Menu.Select
   }

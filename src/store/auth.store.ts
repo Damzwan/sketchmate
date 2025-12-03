@@ -102,7 +102,7 @@ export const useAuthStore = defineStore('auth', () => {
         }, 200) // cannot do immediately since page is not ready yet
       }
       await ionRouter.replace(FRONTEND_ROUTES.login, routerAnimation!)
-      setTimeout(() => isAuthLoading.value = false, 2000)
+      isAuthLoading.value = false
     } else {
       firebaseUser.value = status.user
       const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
@@ -189,8 +189,8 @@ export const useAuthStore = defineStore('auth', () => {
       const userValue = await api.getUser({ auth_id: authUser.uid })
       if (!userValue) throw new Error()
 
-      if (userValue.user.date_of_birth){
-        userValue.user.date_of_birth = new Date(userValue.user.date_of_birth);
+      if (userValue.user.date_of_birth) {
+        userValue.user.date_of_birth = new Date(userValue.user.date_of_birth)
       }
 
       if (isNative() && compareVersions(__APP_VERSION__, userValue.minimum_supported_version) == -1) {

@@ -16,7 +16,7 @@
     <ion-tabs>
       <ion-router-outlet :animation="routerAnimation" />
       <ion-tab-bar slot="bottom" v-if="show" mode="ios">
-        <ion-tab-button :tab="FRONTEND_ROUTES.draw" :href="`/${FRONTEND_ROUTES.draw}`" @click="onDrawClick">
+        <ion-tab-button :tab="FRONTEND_ROUTES.draw" :href="`/${FRONTEND_ROUTES.draw}`">
           <ion-icon :icon="pencil" />
           <ion-label>Draw</ion-label>
         </ion-tab-button>
@@ -98,12 +98,7 @@ const notificationBadgeCount = computed(() => {
 const route = useRoute()
 const show = computed(() => route.path != `/${FRONTEND_ROUTES.login}` && !route.fullPath.includes('capacitor')) // capacitor due to redirect login url
 
-async function onDrawClick() {
-  if (route.path == `/${FRONTEND_ROUTES.draw}`) {
-    const { useDrawStore } = await import('@/store/draw/draw.store')
-    useDrawStore().getCanvas().discardActiveObject()
-  } else r.push(FRONTEND_ROUTES.draw, routerAnimation)
-}
+
 </script>
 
 <style lang="scss" scoped>

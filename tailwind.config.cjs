@@ -12,16 +12,6 @@ module.exports = {
       fontSize: {
         sm2: '0.6rem'
       },
-
-      colors: {
-        primary: 'var(--ion-color-primary)',
-        'primary-shade': 'var(--ion-color-primary-shade)',
-        'primary-light': 'var(--ion-color-primary-tint)',
-        secondary: 'var(--ion-color-secondary)',
-        'secondary-light': 'var(--ion-color-secondary-shade)',
-        background: 'var(--ion-color-tertiary)',
-        warning: 'var(--ion-color-warning)',
-      },
       keyframes: {
         wiggle: {
           '0%, 100%': { transform: 'rotate(-3deg)' },

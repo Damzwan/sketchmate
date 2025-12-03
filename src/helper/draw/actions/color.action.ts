@@ -1,141 +1,85 @@
-import { useSelect } from '@/service/draw/tools/select.tool'
-import { exitEditing, getStaticObjWithAbsolutePosition, isText, setForSelectedObjects } from '@/helper/draw/draw.helper'
-import { useHistory } from '@/service/draw/history.service'
-import { Canvas } from 'fabric/fabric-impl'
-import { ObjectType } from '@/types/draw.types'
-import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/store/draw/draw.store'
+import { storeToRefs } from 'pinia'
+import { useSelect } from '@/store/draw/tools/select.store'
+import { exitEditing, isText } from '@/helper/draw/draw.helper'
 
-export function setStrokeColor(c: Canvas, options: any) {
-  const color = options['color']
-  const { selectedObjectsRef } = useSelect()
-  const { addToUndoStack } = useHistory()
-
-  if (selectedObjectsRef.length == 0) return
-
-  addToUndoStack(
-    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
-    'object:modified',
-    { color: true }
-  )
-  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { stroke: color })
-
-  c.requestRenderAll()
-}
-
-export function setFillColor(c: Canvas, options: any) {
-  const color = options['color']
-  const { selectedObjectsRef } = useSelect()
-  const { addToUndoStack } = useHistory()
-
-  if (selectedObjectsRef.length == 0) return
-  addToUndoStack(
-    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
-    'object:modified',
-    { color: true }
-  )
-
-  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { fill: color })
-
-  c.requestRenderAll()
-}
-
-export function setBackgroundColor(c: Canvas, options: any) {
-  const color = options['color']
-  const { selectedObjectsRef } = useSelect()
-  const { addToUndoStack } = useHistory()
-
-  if (selectedObjectsRef.length == 0) return
-
-  addToUndoStack(
-    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
-    'object:modified',
-    { color: true }
-  )
-  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { backgroundColor: color }, !color)
-
-  c.requestRenderAll()
-}
-
-// TODO is not really a color haha
-export async function changeStrokeWidth(c: Canvas, options: any) {
-  const strokeWidth = options['strokeWidth']
-  const { selectedObjectsRef } = useSelect()
-  const { addToUndoStack } = useHistory()
-
-  if (selectedObjectsRef.length == 0) return
-  addToUndoStack(
-    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
-    'object:modified',
-    { color: true }
-  )
-  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
-  setForSelectedObjects(selectedObjectsRef, { strokeWidth })
-
-  c.requestRenderAll()
-}
-
-// TODO nightmare code
-export async function undoColoring(newObj: any, oldObj: any) {
-  if (oldObj.type == ObjectType.group) {
-    if (oldObj.backgroundColor != newObj.backgroundColor) {
-      await setForSelectedObjects([newObj], { backgroundColor: oldObj.backgroundColor }, true)
-      return
-    }
-    newObj.set({
-      stroke: oldObj.stroke,
-      fill: oldObj.fill,
-      backgroundColor: oldObj.backgroundColor,
-      strokeWidth: oldObj.strokeWidth
-    })
-    oldObj.getObjects().forEach((o: any) => {
-      const matchingObj = newObj.getObjects().find((oo: any) => oo.id == o.id)
-      if (!matchingObj) return
-      undoColoring(matchingObj, o)
-    })
-  } else
-    await setForSelectedObjects([newObj], {
-      stroke: oldObj.stroke,
-      fill: oldObj.fill,
-      backgroundColor: oldObj.backgroundColor,
-      strokeWidth: oldObj.strokeWidth
-    })
-}
-
-export function setCanvasBackground(c: Canvas, options: any) {
-  const { addToUndoStack } = useHistory()
+export async function setCanvasBackground(params: any) {
+  const { getCanvas } = useDrawStore()
   const { backgroundColor } = storeToRefs(useDrawStore())
 
-  const color = options['color']
-  backgroundColor.value = color
-  addToUndoStack([], 'canvasBackground', { prevColor: c.backgroundColor })
-  c.setBackgroundColor(color, () => undefined)
+  const c = getCanvas()
+  const previousColour = c.backgroundColor
+
+  backgroundColor.value = params.color
+  c.backgroundColor = backgroundColor.value
+  c.fire('backgroundColorChanged', { previousColor: previousColour })
   c.requestRenderAll()
 }
 
-export function flipObject(c: Canvas, options: any) {
-  const flipX = options['flipX']
-  const flipY = options['flipY']
+function applyStyle(options: {
+  style: Record<string, any>
+}) {
+  const { getCanvas } = useDrawStore()
+  const c = getCanvas()
   const { selectedObjectsRef } = useSelect()
-  const { addToUndoStack } = useHistory()
+  const { style = false } = options
 
-  if (selectedObjectsRef.length == 0) return
+  if (!selectedObjectsRef.length) return
 
-  addToUndoStack(
-    selectedObjectsRef.map(obj => getStaticObjWithAbsolutePosition(obj)),
-    'object:modified',
-    { flip: true }
-  )
+  // Save previous styles for event
+  const prevStyles = selectedObjectsRef.map(obj => {
+    const saved = {}
+    for (const key in style) saved[key] = obj[key]
+    return saved
+  })
 
-  selectedObjectsRef.forEach(o =>
-    o.set({
-      flipX: flipX ? !o.flipX : o.flipX,
-      flipY: flipY ? !o.flipY : o.flipY
-    })
-  )
+  // Exit text edit mode if needed
+  if (isText(selectedObjectsRef)) exitEditing(selectedObjectsRef[0])
+
+  // Apply style to each object
+  selectedObjectsRef.forEach(obj => {
+    for (const key in style) {
+      const val = style[key]
+      obj.set(key, val)
+    }
+  })
+
+  // Use Fabric’s new event method
+  c.fire('objectStyleChanged', {
+    target: selectedObjectsRef,
+    prevStyles
+  })
 
   c.requestRenderAll()
 }
+
+export function setStrokeColor(options: any) {
+  const color = options.color
+  applyStyle({ style: { stroke: color } })
+}
+
+export function setFillColor(options: any) {
+  const color = options.color
+  applyStyle({ style: { fill: color } })
+}
+
+export function setBackgroundColor(options: any) {
+  const color = options.color
+  applyStyle({
+    style: { backgroundColor: color },
+    allowUnset: true
+  })
+}
+
+export function changeStrokeWidth(options: any) {
+  const strokeWidth = options.strokeWidth
+  applyStyle({ style: { strokeWidth } })
+}
+
+export function exitColorPickerMode() {
+  const {colorPickerMode} = storeToRefs(useDrawStore())
+  colorPickerMode.value = false
+}
+
+
+

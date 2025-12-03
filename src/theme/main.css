@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@import "tailwindcss-animated";
+
+@theme {
+    --color-primary: var(--ion-color-primary);
+    --color-primary-shade: var(--ion-color-primary-shade);
+    --color-primary-light: var(--ion-color-primary-tint);
+    --color-secondary: var(--ion-color-secondary);
+    --color-secondary-light: var(--ion-color-secondary-shade);
+    --color-background: var(--ion-color-tertiary);
+    --color-warning: var(--ion-color-warning);
+}

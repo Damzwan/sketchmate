@@ -1,6 +1,6 @@
 <template>
   <ion-header class="ion-no-border">
-    <ion-toolbar color="tertiary" v-if="!selectedMode" class="shadow">
+    <ion-toolbar color="tertiary" v-if="!selectedMode" class="shadow px-2">
       <ion-title v-if="props.title">{{ props.title }}</ion-title>
       <ion-buttons slot="end">
         <ion-button @click="() => openMenu(Menu.FeedbackMenu)" size="large">

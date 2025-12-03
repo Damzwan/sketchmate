@@ -32,7 +32,7 @@
             <ion-refresher-content></ion-refresher-content>
           </ion-refresher>
 
-          <BalloonBanner class="py-4" />
+          <!--          <BalloonBanner class="py-4" />-->
 
           <div class="w-full flex-col flex justify-center" v-if="user.mates.length == 0">
             <img :src="connectImage" class="md:w-[50%] max-w-[600px] w-[90%] mx-auto" alt="friends connect" />
@@ -139,8 +139,8 @@
                         :buttons="connectSheetButtons" mode="ios" header="Connect to a mate" />
 
       <SearchNameModal />
-      <SendBalloonModal />
-      <ReceiveBalloonModal />
+      <!--      <SendBalloonModal />-->
+      <!--      <ReceiveBalloonModal />-->
 
     </ion-content>
     <QRPage v-model:open="showQRPage" :_id="user._id" :img="user.img" :name="user.name" v-if="user"
@@ -161,16 +161,18 @@ import {
   IonContent,
   IonFab,
   IonFabButton,
-  IonSpinner,
   IonIcon,
   IonItem,
   IonLabel,
   IonList,
   IonPage,
+  IonRefresher,
+  IonRefresherContent,
   IonSegment,
   IonSegmentButton,
+  IonSpinner,
   IonToolbar,
-  onIonViewDidLeave, IonRefresherContent, IonRefresher
+  onIonViewDidLeave
 } from '@ionic/vue'
 import { useAuthStore } from '@/store/auth.store'
 import { add } from 'ionicons/icons'
@@ -187,11 +189,8 @@ import { useToast } from '@/service/toast.service'
 import connectImage from '@/assets/illustrations/connect.webp'
 import ConnectUserItem from '@/components/connect/ConnectUserItem.vue'
 import SearchNameModal from '@/components/connect/SearchNameModal.vue'
-import SendBalloonModal from '@/components/connect/balloon/SendBalloonModal.vue'
-import ReceiveBalloonModal from '@/components/connect/balloon/ReceiveBalloonModal.vue'
 import { useMenuStore } from '@/store/draw/menu.store'
 import { Menu } from '@/types/draw.types'
-import BalloonBanner from '@/components/connect/balloon/BalloonBanner.vue'
 
 enum Segments {
   friends = 'friends',
@@ -339,12 +338,16 @@ ion-action-sheet {
   --button-background-selected-opacity: 0.2;
 }
 
+
+ion-list {
+  padding: 0;
+}
 </style>
 
 <style>
 
 ion-action-sheet.custom-action-sheet .action-sheet-title {
-  @apply text-black
+  @apply text-balance
 }
 
 

@@ -17,9 +17,12 @@
     "skipLibCheck": true,
     "noEmit": true,
     "baseUrl": ".",
+    "types": [
+      "vite/client"
+    ],
     "paths": {
       "@/*": [
-        "./src/*"
+        "src/*"
       ]
     }
   },
@@ -27,7 +30,6 @@
     "src/**/*.ts",
     "src/**/*.d.ts",
     "src/**/*.tsx",
-    "src/**/*.vue",
     "src/**/*.vue"
   ],
   "references": [

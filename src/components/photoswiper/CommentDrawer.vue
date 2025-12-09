@@ -1,6 +1,6 @@
 <template>
   <transition name="fade">
-    <div @click="close" class="fixed inset-0 bg-black opacity-50 z-[999]" v-if="open"/>
+    <div @click="close" class="fixed inset-0 bg-black opacity-50 z-[999]" v-if="open" />
   </transition>
 
   <!-- Modal Content -->
@@ -43,8 +43,12 @@
           /></ion-avatar>
           <div class="flex-1 ml-2">
             <div class="flex justify-between items-center">
-              <div class="text-sm font-bold text-black cabin-sketch-regular">{{ senderName(findUserInInboxUsers(comment.sender)) }}</div>
-              <div class="text-sm text-center mr-1 text-black cabin-sketch-regular">{{ dayjs(comment.date).fromNow() }}</div>
+              <div class="text-sm font-bold text-black cabin-sketch-regular">
+                {{ senderName(findUserInInboxUsers(comment.sender)) }}
+              </div>
+              <div class="text-sm text-center mr-1 text-black cabin-sketch-regular">{{ dayjs(comment.date).fromNow()
+                }}
+              </div>
             </div>
             <div class="text-sm text-black cabin-sketch-regular">{{ comment.message }}</div>
           </div>
@@ -60,7 +64,6 @@
             v-model="commentBody"
             autocapitalize="sentences"
             @keyup.enter="comment"
-            class="text-black"
             color="secondary"
           />
           <ion-button fill="clear" color="secondary" @click="comment" :icon="svg(mdiSend)">
@@ -165,8 +168,8 @@ async function comment() {
     followers: props.currInboxItem.followers,
     name: props.user.name
   })
-  toast('Comment placed')
-  close()
+  commentBody.value = ''
+  input.value?.$el.blur()
 }
 
 function closeWithTimeout(time: number) {
@@ -194,6 +197,10 @@ function close() {
 </script>
 
 <style scoped lang="scss">
+ion-input {
+  --color: black;
+}
+
 .comment_count {
   --background: var(--ion-color-background);
   --height: auto;

@@ -121,7 +121,6 @@ export async function getAppColors() {
 }
 
 export async function hideLoading() {
-  void setAppColors(colorsPerRoute[router.currentRoute.value.path.substring(1) as FRONTEND_ROUTES])
   await SplashScreen.hide()
 }
 

@@ -4,22 +4,21 @@
       <Toolbars />
     </ion-header>
     <ion-content>
-      <div class="flex flex-col w-full h-full">
-        <canvas ref="myCanvasRef" />
+      <div class="absolute inset-0 flex m-0 pointer-none:">
+        <canvas ref="myCanvasRef" class="w-full h-full " />
       </div>
-      <!--      <div class="w-full h-full" v-if="showLoadingBackdrop" />-->
 
 
-      <!--      <div class="flex justify-center items-center absolute bottom-4 w-full">-->
-      <!--        &lt;!&ndash;        <div id="clickOutside" />&ndash;&gt;-->
-      <!--        &lt;!&ndash;        <ion-button v-if="canZoomOut" @click="resetZoom" color="secondary" shape="round">&ndash;&gt;-->
-      <!--        &lt;!&ndash;          <ion-icon slot="start" :icon="svg(mdiMagnifyMinusOutline)" />&ndash;&gt;-->
-      <!--        &lt;!&ndash;          Reset view&ndash;&gt;-->
-      <!--        &lt;!&ndash;        </ion-button>&ndash;&gt;-->
-      <!--      </div>-->
+      <div class="flex justify-center items-center absolute bottom-4 w-full">
+        <div id="clickOutside" />
+        <ion-button v-if="canResetView" @click="resetZoom" color="secondary" shape="round">
+          <ion-icon slot="start" :icon="svg(mdiMagnifyMinusOutline)" />
+          Reset view
+        </ion-button>
+      </div>
 
-      <!--      <ion-progress-bar type="indeterminate" class="absolute bottom-[0] z-50 h-1.5" color="secondary"-->
-      <!--                        v-if="isSendingDrawing" />-->
+      <ion-progress-bar type="indeterminate" class="absolute bottom-[0] z-50 h-1.5" color="secondary"
+                        v-if="isSendingDrawing" />
     </ion-content>
     <!--    <VTour :steps="currDataSteps" ref="tour" :autoStart="true" />-->
 
@@ -41,34 +40,39 @@
 </template>
 
 <script setup lang="ts">
-import { IonContent, IonHeader, IonPage, onIonViewDidEnter } from '@ionic/vue'
+import { IonContent, IonHeader, IonPage, IonIcon, IonProgressBar } from '@ionic/vue'
 
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import { svg } from '@/helper/general.helper'
-import { mdiClose } from '@mdi/js'
+import { mdiClose, mdiMagnifyMinusOutline } from '@mdi/js'
 import '@/theme/custom_vuejs_tour.scss'
 import { tutorialSteps } from '@/config/draw/draw.config'
 import { useSwipe } from '@vueuse/core'
 import { useAuthStore } from '@/store/auth.store'
 import Toolbars from '@/components/draw/toolbar/Toolbars.vue'
 import DrawMenus from '@/components/draw/menus/DrawMenus.vue'
+import { useToast } from '@/service/toast.service'
+import { resetZoom } from '@/helper/draw/drawInit.helper'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
+const { toast } = useToast()
 
 const drawStore = useDrawStore()
-// const { showLoadingBackdrop, canZoomOut, selectedTool } =
-//   storeToRefs(drawStore)
+const { canResetView, showLoadingBackdrop } = storeToRefs(drawStore)
+
+
 const { isSendingDrawing } = storeToRefs(useAuthStore())
 
 const currDataSteps = ref(tutorialSteps)
 
-// onIonViewDidEnter(async () => {
-// })
 
 onMounted(() => {
-  drawStore.initCanvas(myCanvasRef.value!)
+  // Ionic sometimes needs two frames for style + layout to settle, otherwise the width and height are empty
+  requestAnimationFrame(() => {
+    drawStore.initCanvas(myCanvasRef.value!)
+  })
 })
 
 
@@ -158,7 +162,7 @@ function clearTip() {
 
 <style scoped>
 ion-content {
-  --background: #faf0e6;
+  --background: var(--ion-color-primary);
 }
 
 /* Starting state (entering) */

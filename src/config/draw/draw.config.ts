@@ -10,8 +10,8 @@ import {
   mdiSpray
 } from '@mdi/js'
 import { DynamicTextPart } from '@/types/loader.types'
-import { isMobile } from '@/helper/general.helper'
 import { BaseBrush, type Canvas, CircleBrush, PencilBrush, SprayBrush } from 'fabric'
+import { WaterColorBrush } from '@/utils/brushes/WaterColorBrush'
 
 
 export const COLORSWATCHES = [
@@ -60,7 +60,7 @@ export const BASE_BRUSH_SIZE = 10
 export const BLACK = '#000000FF'
 export const WHITE = '#FFFFFFFF'
 export const BACKGROUND = '#FAF0E6'
-export const PAN_MARGIN = isMobile() ? 80 : 0
+export const CANVAS_SIZE = 5000
 
 
 export const ERASERS = [DrawTool.MobileEraser]
@@ -87,14 +87,16 @@ export const selectIconMapping: { [key in SelectTool]: string } = {
 export const penBrushMapping: { [key in BrushType]: (c: Canvas) => BaseBrush } = {
   [BrushType.Circle]: (c: Canvas) => new CircleBrush(c),
   [BrushType.Pencil]: (c: Canvas) => new PencilBrush(c),
-  [BrushType.Spray]: (c: Canvas) => new SprayBrush(c)
+  [BrushType.Spray]: (c: Canvas) => new SprayBrush(c),
+  [BrushType.WaterColor]: (c: Canvas) => new WaterColorBrush(c),
+  // [BrushType.Ink]: (c: Canvas) => new InkBrush(c)
 }
 
 export const penIconMapping: { [key in BrushType]: string } = {
   [BrushType.Pencil]: mdiPencilOutline,
   [BrushType.WaterColor]: mdiBrush,
   [BrushType.Circle]: mdiCircleOutline,
-  [BrushType.Ink]: mdiLiquidSpot,
+  // [BrushType.Ink]: mdiLiquidSpot,
   [BrushType.Spray]: mdiSpray
 }
 

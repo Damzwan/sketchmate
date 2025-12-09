@@ -7,6 +7,7 @@ import { DrawAction, FabricEvent } from '@/types/draw.types'
 import { useSelect } from '@/store/draw/tools/select.store'
 import { isText } from '@/helper/draw/draw.helper'
 import { redoActionMapping, undoActionMapping } from '@/config/draw/undoredo.config'
+import { EventBus } from '@/main'
 
 // TODO should create custom events instead of copying fabric js
 export type HistoryEvent =
@@ -220,6 +221,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
     unSelect()
     await actionWithoutEvents(async () => await undoActionMapping[action.type](action))
     undoStackCounter.value = undoStack.length
+    EventBus.emit('undo', action)
   }
 
   async function redo() {
@@ -230,7 +232,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
     unSelect()
     await actionWithoutEvents(async () => await redoActionMapping[action.type](action))
     redoStackCounter.value = redoStack.length
-
+    EventBus.emit('redo', action)
   }
 
   function init(canvas: Canvas) {
@@ -238,6 +240,11 @@ export const useDrawHistoryManager = defineStore('history', () => {
 
     const drawEventManager = useDrawEventManager()
     drawEventManager.addEventsOfService('history', events)
+  }
+
+  function resetUndoStack() {
+    undoStack = []
+    undoStackCounter.value = 0
   }
 
   function resetRedoStack() {
@@ -249,6 +256,8 @@ export const useDrawHistoryManager = defineStore('history', () => {
     console.log('addToUndoStack', action) // TODO only dev
     undoStack.push(action)
     undoStackCounter.value = undoStack.length
+    EventBus.emit('add_to_undo_stack', action)
+
   }
 
   function addToRedoStack(action: HistoryAction) {
@@ -261,6 +270,11 @@ export const useDrawHistoryManager = defineStore('history', () => {
     redoStack = redoStack.filter((historyAction: HistoryAction) => historyAction.type !== 'polygonCreation')
   }
 
+  function reset() {
+    resetUndoStack()
+    resetRedoStack()
+  }
+
   return {
     undo,
     redo,
@@ -269,6 +283,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
     redoStackCounter,
     addToUndoStack,
     addToRedoStack,
-    clearStackOfPolygonHistory
+    clearStackOfPolygonHistory,
+    reset
   }
 })

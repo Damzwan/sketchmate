@@ -1,5 +1,6 @@
 <template>
   <ion-modal :is-open="sendMenuOpen" :initial-breakpoint="1" :breakpoints="[0, 1]" @didDismiss="onDismiss"
+             @willPresent="onOpen"
 
              :keep-contents-mounted="true"
              :handle="false">
@@ -9,6 +10,7 @@
         }}</p>
 
 
+      <PreviewDrawing :src="preview" class="pb-4" />
       <SendBalloonBanner />
 
 
@@ -26,13 +28,15 @@
 
 
       <ion-list class="bg-primary">
+        <SendDrawerItem :key="user._id" :mate="{_id: user._id, img: user.img, name: `${user.name} (me)`}"
+                        :isSelected="true" :isDisabled="true" />
         <SendDrawerItem v-for="mate in user.mates" :mate="mate" @click="onMateClick(mate)" :key="mate._id"
-                        :isSelected="selectedMates.some(m => m._id == mate._id)" />
+                        :isSelected="selectedMates.some(m => m._id == mate._id)" :isDisabled="false" />
       </ion-list>
 
-      <ion-fab slot="fixed" vertical="bottom" horizontal="end" v-show="showFab"
+      <ion-fab slot="fixed" vertical="bottom" horizontal="end"
                class="animate-once animate-duration-300"
-               :class="{'animate-jump-in': selectedMates.length > 0, 'animate-jump-out': selectedMates.length == 0}">
+      >
         <ion-fab-button color="secondary" @click="onSendClick">
           <ion-icon :icon="svg(mdiSend)"></ion-icon>
         </ion-fab-button>
@@ -59,6 +63,8 @@ import { useAuthStore } from '@/store/auth.store'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import SendBalloonBanner from '@/components/balloon/SendBalloonBanner.vue'
 import SendDrawerItem from '@/components/draw/SendDrawerItem.vue'
+import { exportBoundingBoxImage } from '@/helper/draw/draw.helper'
+import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
 
 const { sendMenuOpen } = storeToRefs(useMenuStore())
 
@@ -68,12 +74,13 @@ const { user } = storeToRefs(useAuthStore())
 
 const showFab = ref(false)
 const selectedMates = ref<Mate[]>([])
-const selectedMatesLengthToShow = ref(0)
+const selectedMatesLengthToShow = ref(1)
 const { send, createBalloon } = useDrawStore()
+
+const preview = ref<string>()
 
 
 function onMateClick(mate: Mate) {
-  showFab.value = true
   const foundMateIndex = selectedMates.value.findIndex(m => m._id == mate._id)
 
   if (foundMateIndex == -1) selectedMates.value.push(mate)
@@ -82,9 +89,7 @@ function onMateClick(mate: Mate) {
     ...selectedMates.value.slice(foundMateIndex + 1)
   ]
 
-  // Trick due to fadeout animation of ion-fab
-  if (selectedMates.value.length == 0) setTimeout(() => selectedMatesLengthToShow.value = selectedMates.value.length, 300)
-  else selectedMatesLengthToShow.value = selectedMates.value.length
+  selectedMatesLengthToShow.value = selectedMates.value.length + 1
 }
 
 
@@ -92,11 +97,20 @@ function onDismiss() {
   showFab.value = false
   selectedMates.value = []
   sendMenuOpen.value = false
+  preview.value = undefined
 }
 
 function onSendClick() {
   send(selectedMates.value.map(m => m._id))
   modalController.dismiss()
+}
+
+async function onOpen() {
+  const { getCanvas } = useDrawStore()
+  exportBoundingBoxImage(getCanvas()).then(url => {
+    if (!url) return
+    preview.value = url.img
+  })
 }
 
 </script>
@@ -107,7 +121,7 @@ ion-modal {
   --height: auto;
 }
 
-ion-list{
+ion-list {
   padding: 0;
 }
 

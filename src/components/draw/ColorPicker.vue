@@ -10,7 +10,9 @@
     <div class="py-1 px-2">
       <label for="color-picker" class="!flex justify-between items-center">
         Color
-        <ion-icon :icon="svg(mdiEyedropper)" size="large" class="cursor-pointer" @click="colorPicker" />
+        <ion-button @click="pickColor" size="small" fill="clear" class="text-black">
+          <ion-icon :icon="svg(mdiEyedropper)" size="large" />
+        </ion-button>
       </label>
 
       <div class="mt-1">
@@ -58,16 +60,16 @@
 </template>
 
 <script lang="ts" setup>
-import { BLACK, COLORSWATCHES, ERASERS, PENMENUTOOLS } from '@/config/draw/draw.config'
+import { BLACK, COLORSWATCHES, ERASERS, PENMENUTOOLS, SELECTMENUTOOLS } from '@/config/draw/draw.config'
 import { IonIcon, IonItem, IonRange, popoverController, IonPopover } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
 
-import { DrawAction, DrawEvent } from '@/types/draw.types'
+import { DrawAction } from '@/types/draw.types'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
-import { svg } from '@/helper/general.helper'
+import { isMobile, svg } from '@/helper/general.helper'
 import { mdiEyedropper } from '@mdi/js'
 import { v4 as uuidv4 } from 'uuid'
 import Picker from 'vanilla-picker'
@@ -76,8 +78,13 @@ import {
   getColorRecommendations,
   hexWithOpacity,
   hexWithoutOpacity,
-  percentToAlphaHex
+  percentToAlphaHex, resetZoom
 } from '@/helper/draw/draw.helper'
+import { useSelect } from '@/store/draw/tools/select.store'
+import { useDrawEventManager } from '@/store/draw/drawEventManager.store'
+import { exitColorPickerMode } from '@/helper/draw/actions/color.action'
+import { disableSelection, enableSelection } from '@/helper/draw/select.helper'
+import { useToast } from '@/service/toast.service'
 
 const hmm = ref() // TODO hack to only close top popover
 const customColorPopoverId = uuidv4()
@@ -131,66 +138,145 @@ async function onCustomColorSelected(newColor: string) {
   Preferences.set({ key: LocalStorage.color_history, value: JSON.stringify(colorHistory.value) })
 }
 
-function colorPicker() {
+function pickColor(e: any) {
   const { getCanvas, selectAction, selectedTool } = useDrawStore()
+  const { activateExclusiveEvents } = useDrawEventManager()
   const { colorPickerMode } = storeToRefs(useDrawStore())
   const c = getCanvas()
+
 
   const lastSelectedObject = c.getActiveObject()
   colorPickerMode.value = true
 
-  // setSelectionForObjects(
-  //   c.getObjects().filter(o => !c.getActiveObjects().includes(o)),
-  //   false
-  // )
+
+  disableSelection()
 
   if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
     c.isDrawingMode = false
-    c.setCursor(c.defaultCursor!)
   }
 
+
+  function updateColorIndicator(color: string, e?: any, size = isMobile() ? 80 : 32) {
+    const zoom = c.getZoom()
+    const adjustedSize = size * zoom
+
+    if (!isMobile()) {
+      // --- Desktop: set custom cursor ---
+      const canvas = document.createElement('canvas')
+      canvas.width = adjustedSize
+      canvas.height = adjustedSize
+      const ctx = canvas.getContext('2d')!
+
+      const center = adjustedSize / 2
+      const radius = adjustedSize / 2 - 1
+
+      // Main circle
+      ctx.beginPath()
+      ctx.arc(center, center, radius, 0, Math.PI * 2)
+      ctx.fillStyle = color
+      ctx.fill()
+
+      // Border
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // Crosshair (dual stroke)
+      ctx.lineWidth = 2
+      ctx.strokeStyle = '#000'
+      ctx.beginPath()
+      ctx.moveTo(center, 0)
+      ctx.lineTo(center, adjustedSize)
+      ctx.moveTo(0, center)
+      ctx.lineTo(adjustedSize, center)
+      ctx.stroke()
+
+      ctx.lineWidth = 1
+      ctx.strokeStyle = '#fff'
+      ctx.beginPath()
+      ctx.moveTo(center, 0)
+      ctx.lineTo(center, adjustedSize)
+      ctx.moveTo(0, center)
+      ctx.lineTo(adjustedSize, center)
+      ctx.stroke()
+
+      const url = canvas.toDataURL('image/png')
+      c.freeDrawingCursor = `url(${url}) ${center} ${center}, crosshair`
+      c.setCursor(c.freeDrawingCursor)
+
+    } else if (e) {
+      const pointer = e.pointer
+      const ctx = c.contextTop
+
+      ctx.clearRect(0, 0, c.width, c.height) // Clear previous indicator
+
+      const offsetY = -60 * zoom // shift circle above finger
+      const centerX = pointer.x
+      const centerY = pointer.y + offsetY
+      const radius = adjustedSize / 2
+
+      // Outer stroke (black for visibility)
+      ctx.beginPath()
+      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 3
+      ctx.stroke()
+
+      // Inner stroke (white for contrast)
+      ctx.beginPath()
+      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
+      ctx.strokeStyle = '#fff'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+
+      // Fill circle
+      ctx.beginPath()
+      ctx.arc(centerX, centerY, radius - 2, 0, 2 * Math.PI)
+      ctx.fillStyle = color
+      ctx.fill()
+    }
+  }
+
+
+  activateExclusiveEvents([
+    {
+      on: 'mouse:up', handler: (options: any) => {
+        exitColorPickerMode(lastSelectedObject)
+        const pointer = options.pointer
+        const dpr = window.devicePixelRatio || 1
+        const ctx = c.getContext()
+        const pixel = ctx.getImageData(pointer.x * dpr, pointer.y * dpr, 1, 1).data
+
+        const hex =
+          '#' +
+          ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase() +
+          pixel[3].toString(16).toUpperCase().padStart(2, '0')
+
+        onCustomColorSelected(hex)
+        if (props.colorPickerAction) selectAction(props.colorPickerAction, { color: hex })
+
+        c.freeDrawingCursor = 'default'
+        c.requestRenderAll()
+
+        if (c.contextTop) {
+          c.contextTop.clearRect(0, 0, c.width, c.height)
+        }
+      }
+    },
+    {
+      on: 'mouse:move', handler: (options: any) => {
+        const pointer = c.getViewportPoint(options.e)
+        const dpr = window.devicePixelRatio || 1
+        const ctx = c.getContext()
+        const pixel = ctx.getImageData(pointer.x * dpr, pointer.y * dpr, 1, 1).data
+        const color = `rgba(${pixel[0]},${pixel[1]},${pixel[2]},${pixel[3] / 255})`
+        updateColorIndicator(color, options)
+      }
+    }
+  ])
+
   popoverController.dismiss()
-  // isolatedSubscribe({
-  //   on: 'mouse:down',
-  //   type: DrawEvent.ColorPicker,
-  //   handler: (options: any) => {
-  //     const pointer = c.getPointer(options.e)
-  //     const dpr = window.devicePixelRatio || 1
-  //     const x = Math.floor(pointer.x * dpr)
-  //     const y = Math.floor(pointer.y * dpr)
-  //
-  //     const oldZoom = c.getZoom()
-  //     const oldViewportTransform = c.viewportTransform
-  //
-  //     resetZoom(c)
-  //     c.renderAll()
-  //
-  //     // Get pixel data
-  //     const ctx = c.getContext()
-  //     const pixel = ctx.getImageData(x, y, 1, 1).data
-  //
-  //     c.setViewportTransform(oldViewportTransform!)
-  //     c.setZoom(oldZoom)
-  //     c.renderAll()
-  //
-  //     const hex =
-  //       '#' +
-  //       ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase() +
-  //       pixel[3].toString(16).toUpperCase().padStart(2, '0')
-  //
-  //     onCustomColorSelected(hex)
-  //     if (props.colorPickerAction) selectAction(props.colorPickerAction, { color: hex })
-  //     exitColorPickerMode()
-  //   }
-  // })
-  //
-  // isolatedSubscribe({
-  //   on: 'selection:cleared',
-  //   type: DrawEvent.ColorPicker,
-  //   handler: () => {
-  //     if (lastSelectedObject) c.setActiveObject(lastSelectedObject)
-  //   }
-  // })
+
 }
 
 watch(props, async () => {

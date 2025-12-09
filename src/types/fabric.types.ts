@@ -81,5 +81,8 @@ declare module 'fabric' {
       target: FabricObject[]
       prevFilter: any
     }
+
+    zoomReset: Partial<TEvent>
+    gestureStart: Partial<TEvent>
   }
 }

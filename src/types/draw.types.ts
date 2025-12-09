@@ -115,7 +115,6 @@ export enum BrushType {
   Pencil,
   Circle,
   WaterColor,
-  Ink,
   Spray
 }
 

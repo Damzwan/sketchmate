@@ -66,7 +66,7 @@ import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DrawAction, TextAlign } from '@/types/draw.types'
 import { storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { IText } from 'fabric/fabric-impl'
 import { focusText } from '@/helper/draw/draw.helper'
 import { useMenuStore } from '@/store/draw/menu.store'
@@ -74,12 +74,12 @@ import { useSelect } from '@/store/draw/tools/select.store'
 
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())
+
+
 const text = computed(() => selectedObjectsRef.value[0] as IText)
-
-const isBold = computed(() => text.value.fontWeight === 'bold')
-
-const isItalic = computed(() => text.value.fontStyle === 'italic')
-const align = computed(() => text.value.textAlign)
+const isBold = computed(() => (selectedObjectsRef.value[0] as IText).fontWeight === 'bold')
+const isItalic = computed(() => (selectedObjectsRef.value[0] as IText).fontStyle === 'italic')
+const align = computed(() => (selectedObjectsRef.value[0] as IText).textAlign)
 
 const { textMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
@@ -118,7 +118,7 @@ ion-popover {
   --width: 300px; /* Set this to the desired width */
 }
 
-ion-list{
+ion-list {
   padding: 0;
 }
 </style>

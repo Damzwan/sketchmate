@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, Ref, watch } from 'vue'
+import { computed, ref, Ref, watch } from 'vue'
 import { BrushType, FabricEvent, ToolService } from '@/types/draw.types'
 import { Canvas } from 'fabric'
 import { BASE_BRUSH_SIZE, BLACK, penBrushMapping } from '@/config/draw/draw.config'
@@ -10,6 +10,8 @@ interface Pen extends ToolService {
   brushType: Ref<BrushType>
   brushColor: Ref<string>
   opacity: Ref<number>
+  updatePenCursor: () => void
+  brushColorWithOpacity: () => string
 }
 
 export const usePen = defineStore('pen', (): Pen => {
@@ -26,12 +28,15 @@ export const usePen = defineStore('pen', (): Pen => {
     {
       on: 'mouse:wheel',
       handler: updatePenCursor
+    },
+    {
+      on: 'zoomReset',
+      handler: (e: any) => {
+        updatePenCursor()
+      }
     }
   ]
 
-  // EventBus.on('resetZoom', () => {
-  //   updatePenCursor()
-  // })
 
   function init(canvas: Canvas) {
     c = canvas
@@ -82,6 +87,8 @@ export const usePen = defineStore('pen', (): Pen => {
     brushType,
     brushColor,
     events,
-    opacity
+    opacity,
+    updatePenCursor,
+    brushColorWithOpacity
   }
 })

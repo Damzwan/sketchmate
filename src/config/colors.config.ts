@@ -6,7 +6,6 @@ export interface AppColorConfig {
 }
 
 export const primaryColor = '#FAE0C2'
-export const secondaryColor = '#B9463A'
 export const backgroundColor = '#FFF2E4'
 
 export const photoSwiperColorConfig: AppColorConfig = { statusBar: '#000000', navigationBar: '#000000' }
@@ -30,5 +29,5 @@ export const colorsPerRoute: Record<FRONTEND_ROUTES, AppColorConfig> = {
   [FRONTEND_ROUTES.connect]: {
     statusBar: backgroundColor,
     navigationBar: primaryColor
-  },
+  }
 }

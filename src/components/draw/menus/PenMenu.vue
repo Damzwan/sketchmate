@@ -35,13 +35,13 @@
             <ion-icon :icon="svg(penIconMapping[BrushType.Pencil])" />
           </div>
 
-          <div
-            class="brush_option bg-pink-400"
-            @click="selectBrushType(BrushType.Ink)"
-            :class="{ brush_selected: isBrushTypeSelected(BrushType.Ink) }"
-          >
-            <ion-icon :icon="svg(penIconMapping[BrushType.Ink])" />
-          </div>
+<!--          <div-->
+<!--            class="brush_option bg-pink-400"-->
+<!--            @click="selectBrushType(BrushType.Ink)"-->
+<!--            :class="{ brush_selected: isBrushTypeSelected(BrushType.Ink) }"-->
+<!--          >-->
+<!--            <ion-icon :icon="svg(penIconMapping[BrushType.Ink])" />-->
+<!--          </div>-->
 
           <div
             class="brush_option bg-blue-400"

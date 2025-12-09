@@ -2,6 +2,12 @@ import { useDrawStore } from '@/store/draw/draw.store'
 import { storeToRefs } from 'pinia'
 import { useSelect } from '@/store/draw/tools/select.store'
 import { exitEditing, isText } from '@/helper/draw/draw.helper'
+import { useDrawEventManager } from '@/store/draw/drawEventManager.store'
+import { ERASERS, PENMENUTOOLS, SELECTMENUTOOLS } from '@/config/draw/draw.config'
+import { enableSelection } from '@/helper/draw/select.helper'
+import { FabricObject } from 'fabric'
+import { usePen } from '@/store/draw/tools/pen.store'
+import { DrawTool } from '@/types/draw.types'
 
 export async function setCanvasBackground(params: any) {
   const { getCanvas } = useDrawStore()
@@ -76,9 +82,25 @@ export function changeStrokeWidth(options: any) {
   applyStyle({ style: { strokeWidth } })
 }
 
-export function exitColorPickerMode() {
-  const {colorPickerMode} = storeToRefs(useDrawStore())
+export function exitColorPickerMode(lastSelectedObject?: FabricObject) {
+  const { colorPickerMode } = storeToRefs(useDrawStore())
+  const { selectedTool, getCanvas } = useDrawStore()
+  const { updatePenCursor } = usePen()
+  const { deActivateExclusiveEvents } = useDrawEventManager()
   colorPickerMode.value = false
+  deActivateExclusiveEvents()
+
+  const c = getCanvas()
+
+  if (selectedTool === DrawTool.Pen || ERASERS.includes(selectedTool)) {
+    c.isDrawingMode = true
+    if (selectedTool === DrawTool.Pen) {
+      updatePenCursor()
+    }
+  } else if (SELECTMENUTOOLS.includes(selectedTool)) {
+    enableSelection()
+    if (lastSelectedObject) c.setActiveObject(lastSelectedObject)
+  }
 }
 
 

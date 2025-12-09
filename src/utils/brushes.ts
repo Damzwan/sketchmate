@@ -1,5 +1,5 @@
 import { fabric } from 'fabric'
-import { InkBrush } from '@/utils/brushes/inkbrush'
+import { InkBrush } from '@/utils/brushes/InkBrush\''
 import { PatternBrush, Point } from 'fabric/fabric-impl'
 import paperTexture from '@/assets/textures/paper2.jpg'
 import { opacityFromOpacityHex } from '@/helper/draw/draw.helper'

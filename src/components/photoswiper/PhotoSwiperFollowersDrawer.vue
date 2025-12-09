@@ -119,4 +119,8 @@ function close() {
 .slide-leave-to {
   transform: translateY(100%); /* slides down completely, off-screen */
 }
+
+ion-list{
+  padding: 0
+}
 </style>

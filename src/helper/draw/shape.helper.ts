@@ -4,6 +4,7 @@ import { DrawTool } from '@/types/draw.types'
 import { EventBus } from '@/main'
 import { Point } from 'fabric'
 import { useDrawHistoryManager } from '@/store/draw/drawHistoryManager.store'
+import { setSelectionForObjects } from '@/helper/draw/draw.helper'
 
 
 export function exitClickShapeCreationMode(isNewShape: boolean = true) {
@@ -17,6 +18,8 @@ export function exitClickShapeCreationMode(isNewShape: boolean = true) {
   clearStackOfPolygonHistory()
   EventBus.emit('reset-shape-creation')
   setShapeCreationMode(undefined)
+
+  setSelectionForObjects(c.getObjects(), true)
 
 
   const lastObject = c.getObjects().at(-1)!
@@ -44,6 +47,8 @@ export function exitDragShapeCreationMode() {
   if (selectedTool !== DrawTool.Select) {
     selectTool(DrawTool.Select)
   }
+  setSelectionForObjects(c.getObjects(), true)
+
   c.setActiveObject(c.getObjects().at(-1)!)
   c.requestRenderAll()
 }

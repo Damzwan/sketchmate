@@ -10,7 +10,7 @@ import FontFaceObserver from 'fontfaceobserver'
 export function addText() {
   const { getCanvas } = useDrawStore()
   const { prevDrawingMode } = storeToRefs(useDrawStore())
-  const { addEventsOfService, removeEventsOfService } = useDrawEventManager()
+  const { activateExclusiveEvents, deActivateExclusiveEvents } = useDrawEventManager()
   const { addTextMode } = storeToRefs(useDrawStore())
 
   const c = getCanvas()
@@ -19,11 +19,10 @@ export function addText() {
   prevDrawingMode.value = c.isDrawingMode
   c.isDrawingMode = false
 
-  addEventsOfService('text', [{
+  activateExclusiveEvents([{
     on: 'mouse:down', handler: (options: any) => {
       addTextMode.value = false
-      if (prevDrawingMode) c.isDrawingMode = true
-      removeEventsOfService('text')
+      deActivateExclusiveEvents()
       void addTextHelper(c, options.absolutePointer as
         Point)
     }
@@ -31,7 +30,7 @@ export function addText() {
 }
 
 async function addTextHelper(c: Canvas, location: Point) {
-  const { selectTool } = useDrawStore()
+  const { selectTool, selectedTool } = useDrawStore()
   const { actionWithoutEvents } = useDrawEventManager()
 
   const text = new IText('', {
@@ -49,11 +48,21 @@ async function addTextHelper(c: Canvas, location: Point) {
     c.add(text)
   })
 
-  selectTool(DrawTool.Select)
+  if (selectedTool !== DrawTool.Select) selectTool(DrawTool.Select)
   c.setActiveObject(text)
-  text.set({ hasControls: false }) // this is necessary sadly
 
   text.enterEditing()
+
+  text.on('editing:exited', () => {
+    if (text.text === '') {
+      const { unSelect } = useSelect()
+      actionWithoutEvents(() => {
+        unSelect()
+        c.remove(text)
+      })
+    }
+  })
+
   c.requestRenderAll()
 }
 
@@ -108,7 +117,7 @@ export async function changeTextAlign(options: any) {
   const textObj = selectedObjectsRef[0] as IText
 
   const prevStyle = {
-    fontWeight: textObj.fontWeight
+    textAlign: textObj.textAlign
   }
   textObj.set({ textAlign: align })
   c.fire('textStyleChanged', { target: [textObj], prevStyle })
@@ -133,7 +142,7 @@ export async function changeFontStyle(options: any) {
 
 export function exitTextAddingMode() {
   const { getCanvas, prevDrawingMode } = useDrawStore()
-  const { removeEventsOfService } = useDrawEventManager()
+  const { deActivateExclusiveEvents } = useDrawEventManager()
   const { addTextMode } = storeToRefs(useDrawStore())
 
   const c = getCanvas()
@@ -141,5 +150,5 @@ export function exitTextAddingMode() {
   c.isDrawingMode = prevDrawingMode
   addTextMode.value = false
 
-  removeEventsOfService('text')
+  deActivateExclusiveEvents()
 }

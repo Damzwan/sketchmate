@@ -1,9 +1,12 @@
-import { Canvas, FabricObject, IText } from 'fabric'
+import { Canvas, FabricObject, IText, Rect, StaticCanvas } from 'fabric'
 import { useDrawStore } from '@/store/draw/draw.store'
 import { DocsItem, DocsKey } from '@/config/draw/docs.config'
 import { compressImg, isMobile } from '../general.helper'
 import { ObjectType } from '@/types/draw.types'
 import { storeToRefs } from 'pinia'
+import { ColorRGBA } from 'q-floodfill'
+import { initCanvasOptions } from '@/helper/draw/drawInit.helper'
+import { BACKGROUND } from '@/config/draw/draw.config'
 
 export function hexWithOpacity(hex: string, opacityHex: string) {
   return hex.substring(0, 7) + opacityHex
@@ -359,3 +362,102 @@ export function exitEditing(text: any) {
   const { isEditingText } = storeToRefs(useDrawStore())
   isEditingText.value = false
 }
+
+export function hex2RGBA(hex: string): ColorRGBA {
+  let parsedHex = hex.startsWith('#') ? hex.slice(1) : hex
+
+  // Convert 4-digit hex (with alpha) to 8-digits and 3-digit hex to 6-digits.
+  if (parsedHex.length === 4) {
+    parsedHex =
+      parsedHex[0] +
+      parsedHex[0] +
+      parsedHex[1] +
+      parsedHex[1] +
+      parsedHex[2] +
+      parsedHex[2] +
+      parsedHex[3] +
+      parsedHex[3]
+  } else if (parsedHex.length === 3) {
+    parsedHex = parsedHex[0] + parsedHex[0] + parsedHex[1] + parsedHex[1] + parsedHex[2] + parsedHex[2]
+  }
+
+  // Check for valid lengths (either 6 without alpha or 8 with alpha)
+  if (parsedHex.length !== 6 && parsedHex.length !== 8) {
+    throw new Error(`Invalid HEX color ${parsedHex}.`)
+  }
+
+  const r = parseInt(parsedHex.slice(0, 2), 16)
+  const g = parseInt(parsedHex.slice(2, 4), 16)
+  const b = parseInt(parsedHex.slice(4, 6), 16)
+  const a = parsedHex.length === 8 ? parseInt(parsedHex.slice(6, 8), 16) : 255
+
+  return {
+    r,
+    g,
+    b,
+    a
+  }
+}
+
+export async function exportBoundingBoxImage(canvas: Canvas) {
+  if (!canvas) return null
+
+  if (canvas.getObjects().length === 0) {
+    return { img: canvas.toDataURL({ multiplier: 2 }), aspect_ratio: canvas.width / canvas.height }
+  }
+
+  // Initialize bounding box extremes
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+
+  // Iterate over all objects to find the bounding box
+  canvas.getObjects().forEach(obj => {
+    const bounds = obj.getBoundingRect()
+    minX = Math.min(minX, bounds.left)
+    minY = Math.min(minY, bounds.top)
+    maxX = Math.max(maxX, bounds.left + bounds.width)
+    maxY = Math.max(maxY, bounds.top + bounds.height)
+  })
+
+  const width = maxX - minX
+  const height = maxY - minY
+
+
+  if (width <= 0 || height <= 0) return null
+
+
+  const tempCanvas = new StaticCanvas(undefined, {
+    backgroundColor: canvas.backgroundColor,
+    width: width,
+    height: height
+  })
+
+
+  const clonedItems = await Promise.all(canvas.getObjects().map(async obj => {
+    const cloned = await obj.clone()
+    cloned.set({
+      left: cloned.left - minX,
+      top: cloned.top - minY
+    })
+    return cloned
+  }))
+  tempCanvas.add(...clonedItems)
+
+  tempCanvas.renderAll()
+
+  const minTargetSize = 2000 // or 2500 for even higher quality
+
+  const multiplierX = minTargetSize / width
+  const multiplierY = minTargetSize / height
+
+  const multiplier = Math.min(multiplierX, multiplierY, 6)
+
+
+  return { img: tempCanvas.toDataURL({ multiplier: multiplier }), aspect_ratio: width / height }
+
+}
+
+export function isMac() {
+  return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+}
+
+

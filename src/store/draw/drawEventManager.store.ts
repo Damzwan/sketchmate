@@ -16,6 +16,28 @@ export const useDrawEventManager = defineStore('draw-event-manager', () => {
     events.forEach((ev) => c!.on(ev.on, ev.handler))
   }
 
+  function addPermanentEvents(events: FabricEvent[]) {
+    events.forEach((ev) => c!.on(ev.on, ev.handler))
+  }
+
+  function activateExclusiveEvents(events: FabricEvent[]) {
+    for (const key in eventsMapping) {
+      eventsMapping[key].forEach((ev) => c!.off(ev.on, ev.handler))
+    }
+    events.forEach((ev) => c!.on(ev.on, ev.handler))
+    eventsMapping['exclusive'] = events
+  }
+
+  function deActivateExclusiveEvents() {
+    for (const key in eventsMapping) {
+      eventsMapping[key].forEach((ev) => c!.off(ev.on, ev.handler))
+    }
+    removeEventsOfService('exclusive')
+    for (const key in eventsMapping) {
+      eventsMapping[key].forEach((ev) => c!.on(ev.on, ev.handler))
+    }
+  }
+
   function removeEventsOfService(name: string) {
     if (!eventsMapping[name]) return
     const events = eventsMapping[name]
@@ -39,5 +61,14 @@ export const useDrawEventManager = defineStore('draw-event-manager', () => {
     }
   }
 
-  return { init, addEventsOfService, removeEventsOfService, switchToolEvents, actionWithoutEvents }
+  return {
+    init,
+    addEventsOfService,
+    removeEventsOfService,
+    switchToolEvents,
+    actionWithoutEvents,
+    activateExclusiveEvents,
+    deActivateExclusiveEvents,
+    addPermanentEvents
+  }
 })

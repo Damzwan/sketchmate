@@ -244,10 +244,21 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function refresh(e?: any) {
-    isLoading.value = true
-    await login()
+    const authUser = await getCurrentAuthUser()
+    const { toast } = useToast()
+
+    if (!authUser) {
+      toast('Something went wrong, please try again.', { color: 'danger' })
+      return
+    }
+    const userValue = await api.getUser({ auth_id: authUser.uid })
+    if (!userValue) {
+      toast('Something went wrong, please try again.', { color: 'danger' })
+      return
+    }
+
+    user.value = userValue.user
     await getInbox()
-    isLoading.value = false // TODO we should not use a global loading state...
     if (e) e.target.complete()
   }
 

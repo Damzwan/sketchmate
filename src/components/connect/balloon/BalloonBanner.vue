@@ -27,7 +27,7 @@
     </div>
 
     <div
-      v-else-if="user && user.balloon && user.balloon.received"
+      v-else-if="user && user.balloon && receivedBalloon"
       class="card bg-green-400"
     >
       <div class="flex-1 pr-3">
@@ -44,7 +44,8 @@
           Open Balloon
         </ion-button>
       </div>
-      <Lottie :json="balloonLottie" :loop="true" :speed="0.5" class="w-28 h-28 animate-fade-down animate-duration-[2000ms]" />
+      <Lottie :json="balloonLottie" :loop="true" :speed="0.5"
+              class="w-28 h-28 animate-fade-down animate-duration-2000" />
     </div>
 
     <!-- Case: already sent a balloon -->
@@ -52,7 +53,7 @@
       v-else-if="user && user.balloon && user.balloon.sent && sentBalloon"
       class="card bg-blue-400 "
     >
-      <Lottie :json="balloonLottie" :loop="true" :speed="0.5" class="w-28 h-28 animate-flip-up"  />
+      <Lottie :json="balloonLottie" :loop="true" :speed="0.5" class="w-28 h-28 animate-flip-up" />
       <div class="flex-1 pl-3">
         <p class="cabin-sketch-regular text-xl font-bold">Your balloon is flying!</p>
         <p class="text-sm cabin-sketch-regular mt-1 text-gray-800">

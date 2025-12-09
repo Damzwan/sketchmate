@@ -14,7 +14,7 @@ const routes: Array<RouteRecordRaw> = [
     children: [
       {
         path: '',
-        redirect: FRONTEND_ROUTES.draw
+        redirect: FRONTEND_ROUTES.login
       },
       {
         path: FRONTEND_ROUTES.draw,

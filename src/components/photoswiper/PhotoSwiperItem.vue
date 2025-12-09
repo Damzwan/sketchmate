@@ -1,7 +1,7 @@
 <template>
   <div class="relative w-full h-full">
-    <!-- Thumbnail always visible initially -->
     <img
+      v-if="isLoading"
       :src="props.thumbnail"
       :alt="`Drawing ${props.thumbnail}`"
       class="object-contain absolute w-full h-full z-10"

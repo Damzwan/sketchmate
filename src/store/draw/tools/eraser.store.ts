@@ -1,21 +1,22 @@
-import type { Canvas } from 'fabric'
+import { Canvas } from 'fabric'
 import { ref, type Ref, watch } from 'vue'
-import { isMobile } from '@/helper/general.helper'
 import { EraserSize, FabricEvent, ToolService } from '@/types/draw.types'
 import { defineStore } from 'pinia'
-import { isMobileDevice } from '../../../../../sketchmate-canvas/src/helpers/general.helper'
 import { updateFreeDrawingCursor } from '@/helper/draw/draw.helper'
-import { EraserBrush } from '@erase2d/fabric'
+import { CustomEraserBrush } from '@/utils/brushes/CustomEraserBrush'
+import { isMobile } from '@/helper/general.helper'
 
 
 interface Eraser extends ToolService {
   eraserSize: Ref<number>
+  cancelErase: () => void
 }
 
 export const useEraser = defineStore('eraser', (): Eraser => {
   let c: Canvas | undefined = undefined
 
   const eraserSize = ref<EraserSize>(EraserSize.small)
+  let isCancelling = false
 
   const events: FabricEvent[] = [
     {
@@ -25,7 +26,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     {
       on: 'mouse:move',
       handler: (e: any) => {
-        if (!isMobileDevice()) return
+        if (!isMobile()) return
         const pointer = e.pointer
         const ctx = c!.contextTop
 
@@ -33,40 +34,69 @@ export const useEraser = defineStore('eraser', (): Eraser => {
 
         ctx.arc(pointer.x, pointer.y, (eraserSize.value * c!.getZoom()) / 2, 0, 2 * Math.PI)
         ctx.strokeStyle = 'lightblue' // Adjust stroke color as needed
+
+        const og = ctx.lineWidth
         ctx.lineWidth = 1
         ctx.stroke()
+        ctx.lineWidth = og
+      }
+    },
+    {
+      on: 'zoomReset',
+      handler: (e: any) => {
+        updateEraserCursor()
       }
     }
   ]
 
-  // EventBus.on('resetZoom', () => {
-  //   const { selectedTool } = useDrawStore()
-  //   if (selectedTool == DrawTool.MobileEraser) updateEraserCursor()
-  // })
 
   function init(canvas: Canvas) {
     c = canvas
-    // TODO remove
-    // c.on('mouse:wheel', o => {
-    //   o.stopPropagation()
-    // })
   }
 
   function updateEraserCursor() {
     updateFreeDrawingCursor(c!, eraserSize.value, c!.backgroundColor as string, true)
   }
 
+
+  function cancelErase() {
+    if (!c) return
+    const brush = c.freeDrawingBrush as CustomEraserBrush
+    if (!brush) return
+    // isCancelling = true
+    //
+    // const fakeEvent: any = { pointer: new fabric.Point(0, 0), e: { isPrimary: true } }
+    // brush.onMouseDown(fakeEvent.pointer, fakeEvent)
+    // brush.onMouseUp(fakeEvent)
+    // c.requestRenderAll()
+
+    brush.cancel()
+  }
+
+
   async function select() {
     c!.isDrawingMode = true
     c!.selection = false
-    // disableSelection()
 
-    const b = new EraserBrush(c!)
+    const b = new CustomEraserBrush(c!)
+
     b.width = eraserSize.value
     b.on('end', async (e) => {
       await b.commit(e.detail)
-      c!.fire('erasing:end', e as any)
+      if (isCancelling) {
+        isCancelling = false
+        console.log('cancelling')
+
+        // e.detail.targets.forEach(target => {
+        //   console.log()
+        //   target.set('clipPath', null)
+        // })
+        // c.requestRenderAll()
+      } else {
+        c!.fire('erasing:end', e as any)
+      }
     })
+
 
     // Needed for undo/redo to work
     b.on('start', async () => {
@@ -86,5 +116,5 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     updateEraserCursor()
   })
 
-  return { init, select, eraserSize, events }
+  return { init, select, eraserSize, events, cancelErase }
 })

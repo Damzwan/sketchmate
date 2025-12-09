@@ -11,6 +11,7 @@ import { useDrawHistoryManager } from '@/store/draw/drawHistoryManager.store'
 export function confirmShapeCreation() {
   const { shapeCreationMode } = useDrawStore()
 
+
   if (shapeCreationMode === ShapeCreationMode.Click) {
     exitClickShapeCreationMode()
   } else if (shapeCreationMode === ShapeCreationMode.Drag) {

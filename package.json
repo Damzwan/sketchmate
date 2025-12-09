@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^7.4.0",
-    "@capacitor-mlkit/barcode-scanning": "^7.3.0",
+    "@capacitor-mlkit/barcode-scanning": "^7.4.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/app": "^7.1.0",
     "@capacitor/browser": "^7.0.2",

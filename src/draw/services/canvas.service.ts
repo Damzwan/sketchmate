@@ -1,33 +1,45 @@
 import { Canvas } from 'fabric'
-import { CANVAS_SIZE, BACKGROUND } from '@/draw/config/canvas.config'
-import { initCanvasOptions, changeFabricSettings } from '@/draw/helpers/fabricDefaults.helper'
+import {
+  initCanvasOptions,
+  changeFabricSettings,
+  overrideFindTarget,
+  initBorderRenderer
+} from '@/draw/helpers/fabricDefaults.helper'
 import { enableGestures } from '@/draw/helpers/gestures.helper'
-import { resetZoom } from '@/draw/helpers/viewport.helper'
+import { initViewport, resetZoom } from '@/draw/helpers/viewport.helper'
+import { CANVAS_SIZE, BACKGROUND } from '@/draw/config/canvas.config'
 
 export function useCanvasService() {
   let c: Canvas | null = null
 
-  function getCanvas(): Canvas {
-    return c!
+  function getCanvas(): Canvas | null {
+    return c
   }
 
   function destroyCanvas() {
     if (c) {
+      try {
+        c.dispose?.() // fabric >= x may have dispose
+      } catch (e) {
+        // ignore
+      }
       c.destroy()
       c = null
     }
   }
 
-  function createCanvas(el: HTMLCanvasElement) {
-    const bbox = el.getBoundingClientRect()
-    c = new Canvas(el, initCanvasOptions(bbox.width, bbox.height))
+  function createCanvas(canvasEl: HTMLCanvasElement): Canvas {
+    destroyCanvas()
+
+    const bbox = canvasEl.getBoundingClientRect()
+    c = new Canvas(canvasEl, initCanvasOptions(bbox.width, bbox.height))
+
     changeFabricSettings()
-
-    const initX = (c.width - CANVAS_SIZE) / 2
-    const initY = (c.height - CANVAS_SIZE) / 2
-    c.setViewportTransform([1, 0, 0, 1, initX, initY])
-
+    overrideFindTarget(c)
+    initViewport(c)
+    initBorderRenderer(c)
     enableGestures(c)
+
     return c
   }
 
@@ -39,8 +51,13 @@ export function useCanvasService() {
     const initX = (c.width - CANVAS_SIZE) / 2
     const initY = (c.height - CANVAS_SIZE) / 2
     c.setViewportTransform([1, 0, 0, 1, initX, initY])
-    c.renderAll()
+    c.requestRenderAll()
   }
 
-  return { getCanvas, createCanvas, destroyCanvas, resetCanvas }
+  return {
+    getCanvas,
+    createCanvas,
+    destroyCanvas,
+    resetCanvas
+  }
 }

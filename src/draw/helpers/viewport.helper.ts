@@ -4,6 +4,12 @@ import { storeToRefs } from 'pinia'
 import { isMobile } from '@/helper/general.helper'
 import { CANVAS_SIZE } from '@/draw/config/canvas.config'
 
+export function initViewport(c: Canvas) {
+  const initX = (c.width - CANVAS_SIZE) / 2
+  const initY = (c.height - CANVAS_SIZE) / 2
+  c.setViewportTransform([1, 0, 0, 1, initX, initY])
+}
+
 export function centerObjectInViewport(
   canvas: Canvas,
   object: FabricObject,

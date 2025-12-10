@@ -56,15 +56,16 @@ import { Mate } from '@/types/server.types'
 import { ref } from 'vue'
 import { svg } from '@/helper/general.helper'
 import { mdiSend } from '@mdi/js'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/draw/menu.store'
+import { useMenuStore } from '@/store/menu.store'
 import { useAuthStore } from '@/store/auth.store'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import SendBalloonBanner from '@/components/balloon/SendBalloonBanner.vue'
 import SendDrawerItem from '@/components/draw/SendDrawerItem.vue'
-import { exportBoundingBoxImage } from '@/helper/draw/draw.helper'
 import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
+
+import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 
 const { sendMenuOpen } = storeToRefs(useMenuStore())
 

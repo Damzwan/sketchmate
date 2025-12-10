@@ -8,7 +8,7 @@
   <StickersEmblemsSavedMenu />
   <SelectExtraOptionsMenu />
   <SelectImgStyleMenu :img="selectedObjectsRef[0] as any"
-                      @add-filter="options => selectAction(DrawAction.AddImgFilter, { object: selectedObjectsRef[0], ...options })" />
+                      @add-filter="options => selectAction(DrawAction.AddImgFilter, { image: selectedObjectsRef[0], ...options })" />
 
   <SelectColorMenu
     :strokeWidth="shapeCreationMode != undefined  ? shapeCreationSettings.strokeWidth : selectedObjectsRef[0]?.strokeWidth || 0"
@@ -16,9 +16,9 @@
     :fill-color="shapeCreationMode != undefined  ? shapeCreationSettings.fill : selectedObjectsRef[0]?.fill as string"
     :background-color="shapeCreationMode != undefined  ? shapeCreationSettings.backgroundColor : selectedObjectsRef[0]?.backgroundColor"
     :disable-clear="isText ? 'fill' : 'stroke'"
-    @update:stroke-color="color => shapeCreationMode != undefined ? shapeCreationSettings.stroke = color : selectAction(DrawAction.SetStrokeColor, { color })"
-    @update:fill-color="color => shapeCreationMode != undefined ? shapeCreationSettings.fill = color : selectAction(DrawAction.SetFillColor, { color })"
-    @update:background-color="color => shapeCreationMode != undefined ? shapeCreationSettings.backgroundColor = color : selectAction(DrawAction.SetBackgroundColor, { color })"
+    @update:stroke-color="color => shapeCreationMode != undefined ? shapeCreationSettings.stroke = color : selectAction(DrawAction.SetObjectStrokeColor, { color })"
+    @update:fill-color="color => shapeCreationMode != undefined ? shapeCreationSettings.fill = color : selectAction(DrawAction.SetObjectFillColor, { color })"
+    @update:background-color="color => shapeCreationMode != undefined ? shapeCreationSettings.backgroundColor = color : selectAction(DrawAction.SetObjectBackgroundColor, { color })"
     @update:strokeWidth="strokeWidth => shapeCreationMode != undefined ? shapeCreationSettings.strokeWidth = strokeWidth : selectAction(DrawAction.ChangeStrokeWidth, { strokeWidth })"
   />
   <TextMenu />
@@ -28,12 +28,12 @@
 </template>
 
 <script setup lang="ts">
-import { DrawAction, ObjectType } from '@/types/draw.types'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { DrawAction, ObjectType } from '@/draw/types/draw.types'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import PenMenu from '@/components/draw/menus/PenMenu.vue'
-import { useSelect } from '@/store/draw/tools/select.store'
+import { useSelect } from '@/draw/store/tools/select.store'
 import EraserMenu from '@/components/draw/menus/EraserMenu.vue'
 import SelectMenu from '@/components/draw/menus/SelectMenu.vue'
 import DocsMenu from '@/components/draw/menus/DocsMenu.vue'

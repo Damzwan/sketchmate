@@ -26,10 +26,10 @@
 import { svg } from '@/helper/general.helper'
 import { mdiCursorDefaultClickOutline, mdiLasso } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
-import { useMenuStore } from '@/store/draw/menu.store'
+import { useMenuStore } from '@/store/menu.store'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawTool, SelectTool } from '@/types/draw.types'
+import { useDrawStore } from '@/draw/store/draw.store'
+import { DrawTool, SelectTool } from '@/draw/types/draw.types'
 
 const { selectMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 const { selectTool } = useDrawStore()

@@ -19,8 +19,8 @@
 
 <script setup lang="ts">
 
-import { ToolbarSection } from '@/config/draw/toolbar.config'
-import { DrawTool } from '@/types/draw.types'
+import { ToolbarSection } from '@/draw/config/toolbar.config'
+import { DrawTool } from '@/draw/types/draw.types'
 import ToolbarItems from '@/components/draw/toolbar/ToolbarItems.vue'
 
 defineProps<{

@@ -2,8 +2,8 @@ import { modalController, ToastButton } from '@ionic/vue'
 import { useToast } from '@/service/toast.service'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { Menu } from '@/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { Menu } from '@/draw/types/draw.types'
 import { storeToRefs } from 'pinia'
 
 const { dismiss } = useToast()

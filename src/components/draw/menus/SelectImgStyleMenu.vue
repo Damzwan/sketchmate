@@ -23,7 +23,7 @@
           :color="colorFilter?.color"
           @update:color="addColorFilter"
           :show-opacity="true"
-          :color-picker-action="DrawAction.SetBackgroundColor"
+          :color-picker-action="DrawAction.SetObjectBackgroundColor"
         />
       </ion-list>
     </ion-content>
@@ -33,15 +33,15 @@
 <script lang="ts" setup>
 import { IonContent, IonList, IonPopover, IonToggle, IonItem, IonIcon } from '@ionic/vue'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { DrawAction } from '@/types/draw.types'
+import { DrawAction } from '@/draw/types/draw.types'
 import { computed } from 'vue'
 import { svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
 import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/draw/menu.store'
+import { useMenuStore } from '@/store/menu.store'
 import { FabricImage } from 'fabric'
-import { opacityFromOpacityHex } from '@/helper/draw/draw.helper'
 import * as fabric from 'fabric'
+import { opacityFromOpacityHex } from '@/draw/utils/color.utils'
 
 
 const { selectImgStyleMenuOpen, menuEvent } = storeToRefs(useMenuStore())

@@ -44,17 +44,17 @@
 
 <script setup lang="ts">
 
-import { ToolbarButton, ToolbarCustomUI, ToolbarIds, ToolbarItem, ToolbarSection } from '@/config/draw/toolbar.config'
+import { ToolbarButton, ToolbarCustomUI, ToolbarIds, ToolbarItem, ToolbarSection } from '@/draw/config/toolbar.config'
 import { svg } from '@/helper/general.helper'
 import { IonButton, IonIcon } from '@ionic/vue'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { useMenuStore } from '@/store/menu.store'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { mdiChevronDown, mdiMenuSwapOutline } from '@mdi/js'
-import { DrawTool, ObjectType } from '@/types/draw.types'
+import { DrawTool, ObjectType } from '@/draw/types/draw.types'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
-import { usePen } from '@/store/draw/tools/pen.store'
-import { useSelect } from '@/store/draw/tools/select.store'
+import { usePen } from '@/draw/store/tools/pen.store'
+import { useSelect } from '@/draw/store/tools/select.store'
 
 defineProps<{
   toolbarItems: ToolbarItem[]
@@ -76,7 +76,7 @@ const fontFamily = computed(() => selectedObjectsRef.value[0] ? selectedObjectsR
 function onClick(item: ToolbarButton, e: any) {
   if (item.menu) openMenu(item.menu, e)
   else if (item.customAction) item.customAction()
-  else if (item.action) selectAction(item.action)
+  else if (item.action) selectAction(item.action, undefined)
   else if (item.tool != undefined && !!item.tools) {
     selectTool(item.tool, { openMenu: true, e })
   }

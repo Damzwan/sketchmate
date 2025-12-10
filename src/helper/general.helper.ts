@@ -5,7 +5,7 @@ import { StatusBar } from '@capacitor/status-bar'
 import { NavigationBar } from '@capgo/capacitor-navigation-bar'
 import { isPlatform, useBackButton } from '@ionic/vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { AppColorConfig, colorsPerRoute } from '@/config/colors.config'
+import { AppColorConfig } from '@/config/colors.config'
 import { initializeApp } from 'firebase/app'
 import { account_blob, minimum_age_social_features } from '@/config/general.config'
 import avatar from '@/assets/avatar.svg'
@@ -13,8 +13,8 @@ import { Device } from '@capacitor/device'
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
 import { Ref, watch } from 'vue'
 import { SplashScreen } from '@capacitor/splash-screen'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { Menu } from '@/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { Menu } from '@/draw/types/draw.types'
 import { useAPI } from '@/service/api/api.service'
 import { useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/service/toast.service'
@@ -398,3 +398,6 @@ export function setupReadyWatcher(
   }
 }
 
+export function isMac() {
+  return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+}

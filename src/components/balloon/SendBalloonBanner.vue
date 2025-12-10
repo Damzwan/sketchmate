@@ -61,7 +61,7 @@ import { balloonButton } from '@/config/toast.config'
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/store/auth.store'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { mdiChevronDown } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 

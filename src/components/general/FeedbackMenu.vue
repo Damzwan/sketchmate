@@ -56,7 +56,7 @@
 import { useToast } from '@/service/toast.service'
 import { IonButton, IonIcon, IonModal, IonRadio, IonRadioGroup, IonTextarea, modalController } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/draw/menu.store'
+import { useMenuStore } from '@/store/menu.store'
 import { mdiClose } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { ref } from 'vue'

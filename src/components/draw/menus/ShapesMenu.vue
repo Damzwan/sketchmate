@@ -65,10 +65,10 @@ import {
   mdiVectorLine,
   mdiVectorPolygon
 } from '@mdi/js'
-import { DrawAction, Shape } from '@/types/draw.types'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { DrawAction, Shape } from '@/draw/types/draw.types'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/draw/menu.store'
+import { useMenuStore } from '@/store/menu.store'
 
 const { selectAction } = useDrawStore()
 const { shapesMenuOpen, menuEvent } = storeToRefs(useMenuStore())

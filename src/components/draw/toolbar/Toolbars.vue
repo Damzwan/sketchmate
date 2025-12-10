@@ -15,16 +15,16 @@
 <script setup lang="ts">
 
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { getToolbarConfig } from '@/config/draw/toolbar.config'
+import { useDrawStore } from '@/draw/store/draw.store'
+import { getToolbarConfig } from '@/draw/config/toolbar.config'
 import Toolbar from '@/components/draw/toolbar/Toolbar.vue'
 import { computed, ref, watch } from 'vue'
-import { DrawTool, ObjectType, PenMenuTool, SelectTool } from '@/types/draw.types'
+import { DrawTool, ObjectType, PenMenuTool, SelectTool } from '@/draw/types/draw.types'
 import { useAuthStore } from '@/store/auth.store'
-import { PENMENUTOOLS, SELECTMENUTOOLS } from '@/config/draw/draw.config'
-import { usePen } from '@/store/draw/tools/pen.store'
-import { useSelect } from '@/store/draw/tools/select.store'
-import { useDrawHistoryManager } from '@/store/draw/drawHistoryManager.store'
+import { usePen } from '@/draw/store/tools/pen.store'
+import { useSelect } from '@/draw/store/tools/select.store'
+import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
+import { PENMENUTOOLS, SELECTMENUTOOLS } from '@/draw/config/tools.config'
 
 const {
   lastSelectedPenMenuTool,

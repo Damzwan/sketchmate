@@ -60,7 +60,7 @@ import { IonDatetime, IonModal, IonButton } from '@ionic/vue'
 import { ref } from 'vue'
 
 import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/draw/menu.store'
+import { useMenuStore } from '@/store/menu.store'
 
 const { dateOfBirthConfirmationOpen } = storeToRefs(useMenuStore())
 

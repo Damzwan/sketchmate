@@ -38,7 +38,7 @@
               :color="strokeColor || BLACK"
               @update:color="c => emits('update:stroke-color', c)"
               :show-opacity="true"
-              :color-picker-action="DrawAction.SetStrokeColor"
+              :color-picker-action="DrawAction.SetObjectStrokeColor"
             />
           </ion-popover>
         </ion-item>
@@ -62,7 +62,7 @@
               :color="fillColor"
               @update:color="c => emits('update:fill-color', c)"
               :show-opacity="true"
-              :color-picker-action="DrawAction.SetFillColor"
+              :color-picker-action="DrawAction.SetObjectFillColor"
             />
           </ion-popover>
         </ion-item>
@@ -91,7 +91,7 @@
               :color="backgroundColor || BLACK"
               @update:color="c => emits('update:background-color', c)"
               :show-opacity="true"
-              :color-picker-action="DrawAction.SetBackgroundColor"
+              :color-picker-action="DrawAction.SetObjectBackgroundColor"
             />
           </ion-popover>
         </ion-item>
@@ -105,15 +105,16 @@ import { svg } from '@/helper/general.helper'
 import { mdiBorderColor, mdiClose, mdiFormatColorFill, mdiPanoramaHorizontalOutline } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, IonRange } from '@ionic/vue'
 import { ref } from 'vue'
-import { BLACK } from '@/config/draw/draw.config'
-import { focusText, hexWithTransparencyToNormal, isText } from '@/helper/draw/draw.helper'
 import { IText } from 'fabric/fabric-impl'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawAction } from '@/types/draw.types'
+import { useDrawStore } from '@/draw/store/draw.store'
+import { DrawAction } from '@/draw/types/draw.types'
 import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { useSelect } from '@/store/draw/tools/select.store'
+import { useMenuStore } from '@/store/menu.store'
+import { useSelect } from '@/draw/store/tools/select.store'
+import { focusText, isText } from '@/draw/helpers/text.helper'
+import { hexWithTransparencyToNormal } from '@/draw/utils/color.utils'
+import { BLACK } from '@/draw/config/canvas.config'
 
 defineProps<{
   strokeColor?: string

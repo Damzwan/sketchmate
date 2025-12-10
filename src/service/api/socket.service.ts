@@ -33,8 +33,8 @@ import {
 import { ToastDuration } from '@/types/toast.types'
 import { useAPI } from '@/service/api/api.service'
 import { showFeedbackMilestones } from '@/config/general.config'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { Menu } from '@/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { Menu } from '@/draw/types/draw.types'
 
 let socket: Socket | undefined
 

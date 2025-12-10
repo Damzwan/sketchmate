@@ -53,7 +53,7 @@
 </template>
 
 <script lang="ts" setup>
-import { DrawAction } from '@/types/draw.types'
+import { DrawAction } from '@/draw/types/draw.types'
 import { svg } from '@/helper/general.helper'
 import {
   mdiContentCopy,
@@ -67,10 +67,10 @@ import {
   mdiFlipVertical
 } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { useSelect } from '@/store/draw/tools/select.store'
+import { useMenuStore } from '@/store/menu.store'
+import { useSelect } from '@/draw/store/tools/select.store'
 
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())
@@ -78,7 +78,7 @@ const { getSelectedObjects } = useSelect()
 const { selectMoreOptionsMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 function saveObjects() {
-  selectAction(DrawAction.saveFabricObject, { objects: getSelectedObjects() })
+  selectAction(DrawAction.SaveFabricObject, { objects: getSelectedObjects() })
   closePopover()
 }
 

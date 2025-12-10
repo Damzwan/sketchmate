@@ -96,9 +96,9 @@
 </template>
 
 <script setup lang="ts">
-import { Menu } from '@/types/draw.types'
+import { Menu } from '@/draw/types/draw.types'
 import { IonButton } from '@ionic/vue'
-import { useMenuStore } from '@/store/draw/menu.store'
+import { useMenuStore } from '@/store/menu.store'
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import balloonLottie from '@/assets/lottie/balloon.json'

@@ -144,16 +144,15 @@ import { useToast } from '@/service/toast.service'
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import { fabric } from 'fabric'
-import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/config/draw/draw.config'
 import PenMenu from '@/components/draw/menu/PenMenu.vue'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { DrawAction, DrawEvent, DrawTool } from '@/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { DrawAction, DrawEvent, DrawTool } from '@/draw/types/draw.types'
 import { usePen } from '@/service/draw/tools/pen.tool'
 import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
 import { useHistory } from '@/service/draw/history.service'
 import { useEraser } from '@/service/draw/tools/eraser.tool'
 import { mdiChevronDown, mdiFormatColorFill, mdiMagnifyMinusOutline, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { getDateOfBirthConfirmationResponse, svg } from '@/helper/general.helper'
 import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
 import { useEventManager } from '@/service/draw/eventManager.service'
@@ -163,6 +162,7 @@ import { ToastDuration } from '@/types/toast.types'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import { useSocketService } from '@/service/api/socket.service'
 import { resetZoom } from '@/helper/draw/gesture.helper'
+import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/draw/config/tools.config'
 
 enum State {
   create,
@@ -241,7 +241,7 @@ async function initCanvas() {
     }
   })
 
-  drawStore.selectAction(DrawAction.FullErase)
+  drawStore.selectAction(DrawAction.FullErase, undefined)
 
 
 }
@@ -297,7 +297,7 @@ async function sendBalloon() {
 
 
 function onDismiss() {
-  if (drawStore.getCanvas()) drawStore.selectAction(DrawAction.FullErase)
+  if (drawStore.getCanvas()) drawStore.selectAction(DrawAction.FullErase, undefined)
   sendBalloonModalOpen.value = false
 }
 

@@ -43,8 +43,8 @@ import Settings from '@/components/settings/Settings.vue'
 import { ref } from 'vue'
 import { svg } from '@/helper/general.helper'
 import { mdiClose, mdiDeleteOutline, mdiMessageAlertOutline } from '@mdi/js'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { Menu } from '@/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { Menu } from '@/draw/types/draw.types'
 
 const open = ref(false)
 

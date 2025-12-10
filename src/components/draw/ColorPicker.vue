@@ -60,31 +60,30 @@
 </template>
 
 <script lang="ts" setup>
-import { BLACK, COLORSWATCHES, ERASERS, PENMENUTOOLS, SELECTMENUTOOLS } from '@/config/draw/draw.config'
-import { IonIcon, IonItem, IonRange, popoverController, IonPopover } from '@ionic/vue'
+import { IonIcon, IonItem, IonPopover, IonRange, popoverController } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
 
-import { DrawAction } from '@/types/draw.types'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { DrawAction } from '@/draw/types/draw.types'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { isMobile, svg } from '@/helper/general.helper'
 import { mdiEyedropper } from '@mdi/js'
 import { v4 as uuidv4 } from 'uuid'
 import Picker from 'vanilla-picker'
+import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
+import { exitColorPickerMode } from '@/draw/actions/color.action'
+import { disableSelection } from '@/draw/helpers/select.helper'
 import {
   alphaHexToPercent,
   getColorRecommendations,
   hexWithOpacity,
   hexWithoutOpacity,
-  percentToAlphaHex, resetZoom
-} from '@/helper/draw/draw.helper'
-import { useSelect } from '@/store/draw/tools/select.store'
-import { useDrawEventManager } from '@/store/draw/drawEventManager.store'
-import { exitColorPickerMode } from '@/helper/draw/actions/color.action'
-import { disableSelection, enableSelection } from '@/helper/draw/select.helper'
-import { useToast } from '@/service/toast.service'
+  percentToAlphaHex
+} from '@/draw/utils/color.utils'
+import { BLACK, COLORSWATCHES } from '@/draw/config/canvas.config'
+import { ERASERS, PENMENUTOOLS } from '@/draw/config/tools.config'
 
 const hmm = ref() // TODO hack to only close top popover
 const customColorPopoverId = uuidv4()
@@ -241,7 +240,7 @@ function pickColor(e: any) {
   activateExclusiveEvents([
     {
       on: 'mouse:up', handler: (options: any) => {
-        exitColorPickerMode(lastSelectedObject)
+        exitColorPickerMode({ lastSelectedObjectRef: lastSelectedObject })
         const pointer = options.pointer
         const dpr = window.devicePixelRatio || 1
         const ctx = c.getContext()

@@ -16,7 +16,7 @@
 
 <script lang="ts" setup>
 import { IonModal, IonButton } from '@ionic/vue'
-import { useMenuStore } from '@/store/draw/menu.store'
+import { useMenuStore } from '@/store/menu.store'
 import { storeToRefs } from 'pinia'
 import { setAppColors } from '@/helper/general.helper'
 import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
@@ -25,8 +25,8 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import 'cropperjs/dist/cropper.min.css'
 import Cropper from 'cropperjs'
 import { ref } from 'vue'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawAction } from '@/types/draw.types'
+import { useDrawStore } from '@/draw/store/draw.store'
+import { DrawAction } from '@/draw/types/draw.types'
 import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 
 const { cropperMenuOpen } = storeToRefs(useMenuStore())
@@ -60,7 +60,7 @@ function init() {
 
 function apply() {
   const imgUrl = cropper.getCroppedCanvas().toDataURL()
-  selectAction(DrawAction.AddBackgroundImage, { img: imgUrl })
+  // selectAction(DrawAction.AddBackgroundImage, { img: imgUrl })
   close()
 }
 </script>

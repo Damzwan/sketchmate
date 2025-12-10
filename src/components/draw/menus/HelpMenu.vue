@@ -15,8 +15,8 @@
 import { ActionSheetButton, IonActionSheet, IonButton } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
 import { mdiBookOpenOutline, mdiMessageAlertOutline } from '@mdi/js'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { Menu } from '@/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { Menu } from '@/draw/types/draw.types'
 import { storeToRefs } from 'pinia'
 
 const { openMenu } = useMenuStore()

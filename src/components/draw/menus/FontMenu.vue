@@ -13,15 +13,15 @@
 
 <script lang="ts" setup>
 import { IonContent, IonItem, IonList, IonPopover } from '@ionic/vue'
-import { FONTS } from '@/config/draw/draw.config'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { focusText } from '@/helper/draw/draw.helper'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { useSelect } from '@/store/draw/tools/select.store'
-import { DrawAction } from '@/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { useSelect } from '@/draw/store/tools/select.store'
+import { DrawAction } from '@/draw/types/draw.types'
 import { IText } from 'fabric'
+import { focusText } from '@/draw/helpers/text.helper'
+import { FONTS } from '@/draw/config/fonts.config'
 
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const text = computed(() => selectedObjectsRef.value[0] as IText)

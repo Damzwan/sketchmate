@@ -87,16 +87,17 @@
 import { IonContent, IonIcon, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
-import { BLACK, penBrushMapping, penIconMapping, PENMENUTOOLS, WHITE } from '@/config/draw/draw.config'
-import { BrushType, DrawTool } from '@/types/draw.types'
+import { BrushType, DrawTool } from '@/draw/types/draw.types'
 import { mdiFormatColorFill } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { hexWithOpacity, isColorTooLight, percentToAlphaHex } from '@/helper/draw/draw.helper'
+import { useMenuStore } from '@/store/menu.store'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { usePen } from '@/store/draw/tools/pen.store'
+import { useDrawStore } from '@/draw/store/draw.store'
+import { usePen } from '@/draw/store/tools/pen.store'
 import { Canvas, Point } from 'fabric'
+import { hexWithOpacity, isColorTooLight, percentToAlphaHex } from '@/draw/utils/color.utils'
+import { BLACK, WHITE } from '@/draw/config/canvas.config'
+import { penBrushMapping, penIconMapping, PENMENUTOOLS } from '@/draw/config/tools.config'
 
 const { selectTool } = useDrawStore()
 const { selectedTool } = storeToRefs(useDrawStore())

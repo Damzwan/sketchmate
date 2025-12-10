@@ -101,15 +101,17 @@ import {
   mdiStickerEmoji
 } from '@mdi/js'
 import { ref, watch } from 'vue'
-import { DrawAction, Menu } from '@/types/draw.types'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { DrawAction, Menu } from '@/draw/types/draw.types'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
-import { useMenuStore } from '@/store/draw/menu.store'
+import { useMenuStore } from '@/store/menu.store'
 import ImageCropper from '@/components/draw/ImageCropper.vue'
 import { storeToRefs } from 'pinia'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useAuthStore } from '@/store/auth.store'
-import { createSketchFromDataURL } from '@/helper/draw/draw.helper'
+
+
+import { createSketchFromDataURL } from '@/draw/helpers/export.helper'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()
@@ -185,15 +187,16 @@ function closePopover() {
 }
 
 function addImage() {
-  selectAction(DrawAction.AddImage, { img: compressedImgDataUrl.value })
+  if (!compressedImgDataUrl.value) return
+  selectAction(DrawAction.AddImage, { imageUrl: compressedImgDataUrl.value })
 }
 
 async function createSketchFromImage() {
-  selectAction(DrawAction.AddImage, { img: await createSketchFromDataURL(compressedImgDataUrl.value!) })
+  selectAction(DrawAction.AddImage, { imageUrl: await createSketchFromDataURL(compressedImgDataUrl.value!) })
 }
 
 function onTextClick() {
-  selectAction(DrawAction.AddText)
+  selectAction(DrawAction.AddText, undefined)
   closePopover()
 }
 

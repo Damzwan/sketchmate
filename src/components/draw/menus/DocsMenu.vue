@@ -88,11 +88,12 @@ import { getCurrentRoute, isNative, setAppColors, svg } from '@/helper/general.h
 import { colorsPerRoute, settingsModalColorConfig } from '@/config/colors.config'
 import { computed, ref } from 'vue'
 import { mdiArrowLeft, mdiChevronLeft, mdiChevronRight, mdiClose } from '@mdi/js'
-import { docsAccordionContent, DocsKey, docsMapping } from '@/config/draw/docs.config'
+import { docsAccordionContent, DocsKey, docsMapping } from '@/draw/config/docs.config'
 import { chevronDown } from 'ionicons/icons'
 import VueMarkdown from 'vue-markdown-render'
 import { App } from '@capacitor/app'
-import { generateNextPrevForDocsItem } from '@/helper/draw/draw.helper'
+
+import { generateNextPrevForDocsItem } from '@/draw/helpers/docs.helper'
 
 const selectedSection = ref<DocsKey>()
 const nextSection = ref<DocsKey>()

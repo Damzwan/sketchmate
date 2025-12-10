@@ -37,13 +37,13 @@
 <script lang="ts" setup>
 import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/store/draw/draw.store'
+import { useDrawStore } from '@/draw/store/draw.store'
 import { svg } from '@/helper/general.helper'
 import { mdiNuke } from '@mdi/js'
-import { DrawAction, DrawTool, EraserSize } from '@/types/draw.types'
-import { eraserIconMapping } from '@/config/draw/draw.config'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { useEraser } from '@/store/draw/tools/eraser.store'
+import { DrawAction, DrawTool, EraserSize } from '@/draw/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { useEraser } from '@/draw/store/tools/eraser.store'
+import { eraserIconMapping } from '@/draw/config/tools.config'
 
 
 const drawStore = useDrawStore()

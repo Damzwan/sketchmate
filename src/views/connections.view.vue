@@ -189,8 +189,8 @@ import { useToast } from '@/service/toast.service'
 import connectImage from '@/assets/illustrations/connect.webp'
 import ConnectUserItem from '@/components/connect/ConnectUserItem.vue'
 import SearchNameModal from '@/components/connect/SearchNameModal.vue'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { Menu } from '@/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { Menu } from '@/draw/types/draw.types'
 
 enum Segments {
   friends = 'friends',

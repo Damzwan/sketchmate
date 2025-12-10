@@ -15,7 +15,7 @@
 
               <div
                 :class="{ 'bg-primary-shade': isItalic }"
-                @click="selectAction(DrawAction.ChangeFontStyle, { style: isItalic ? 'normal' : 'italic' })"
+                @click="selectAction(DrawAction.ChangeFontStyle, { fontStyle: isItalic ? 'normal' : 'italic' })"
               >
                 <ion-icon :icon="svg(mdiFormatItalic)" />
               </div>
@@ -63,14 +63,14 @@ import {
   mdiVectorCurve
 } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
-import { useDrawStore } from '@/store/draw/draw.store'
-import { DrawAction, TextAlign } from '@/types/draw.types'
+import { useDrawStore } from '@/draw/store/draw.store'
+import { DrawAction, TextAlign } from '@/draw/types/draw.types'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { IText } from 'fabric/fabric-impl'
-import { focusText } from '@/helper/draw/draw.helper'
-import { useMenuStore } from '@/store/draw/menu.store'
-import { useSelect } from '@/store/draw/tools/select.store'
+import { useMenuStore } from '@/store/menu.store'
+import { useSelect } from '@/draw/store/tools/select.store'
+import { focusText } from '@/draw/helpers/text.helper'
 
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())

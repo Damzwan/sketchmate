@@ -345,6 +345,7 @@ export function undoMerge(action: HistoryAction<HistoryEvent.Merge>) {
   // Find merged group object on canvas
   const objects = getObjectsById(action.params.objectIds)
   const mergedObject = objects[0] as fabric.Group
+  let mergedObjectIndex = c.getObjects().indexOf(mergedObject)
 
 
   const newObjectsIds: string[] = []
@@ -352,9 +353,9 @@ export function undoMerge(action: HistoryAction<HistoryEvent.Merge>) {
   c.remove(mergedObject)
 
   // Add all child objects back to canvas with absolute positions
-  mergedObject.forEachObject(obj => {
+  mergedObject.forEachObject((obj, i) => {
     mergedObject.remove(obj)
-    c.add(obj)
+    c.insertAt(mergedObjectIndex + i, obj)
     obj.setCoords()
     newObjectsIds.push(obj.id)
   })
@@ -380,8 +381,8 @@ export async function redoMerge(action: HistoryAction<HistoryEvent.Merge>) {
   const canvasObjects = getObjectsById(action.params.objectIds)
   const [enlivenedGroup] = await fabric.util.enlivenObjects<Group>([group])
 
-
-  c.add(enlivenedGroup)
+  const highestIndex = Math.max(...canvasObjects.map(obj => c.getObjects().indexOf(obj)))
+  c.insertAt(highestIndex - canvasObjects.length + 1, enlivenedGroup)
 
   for (const obj of canvasObjects) {
     if (!obj) return

@@ -51,17 +51,15 @@
                 />
 
                 <!-- Message Bubble -->
-                <div
-                  v-if="receivedBalloon.message != ''"
-                  class="ml-4"
-                >
+                <div v-if="receivedBalloon.message != ''" class="ml-4">
                   <div
                     class="bg-background text-black px-4 py-2 rounded-2xl shadow-md w-[150px] max-w-md
-               cabin-sketch-regular break-words"
+           cabin-sketch-regular wrap-break-word overflow-hidden line-clamp-3"
                   >
                     {{ receivedBalloon.message }}
                   </div>
                 </div>
+
               </div>
             </div>
 

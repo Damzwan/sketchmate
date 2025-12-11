@@ -156,7 +156,6 @@ export async function copyObjects(params: DrawActionParams[DrawAction.CopyObject
   c.requestRenderAll()
 }
 
-// TODO this triggers bad events
 export async function mergeObjects(params: DrawActionParams[DrawAction.Merge]) {
   const { getCanvas } = useDrawStore()
   const c = getCanvas()
@@ -168,9 +167,11 @@ export async function mergeObjects(params: DrawActionParams[DrawAction.Merge]) {
     c.discardActiveObject()
 
     const group = new Group(params.objects, { canvas: c })
+    const highestIndex = Math.max(...params.objects.map(obj => c.getObjects().indexOf(obj)))
+
     group.id = uuidv4()
     params.objects.forEach((obj: any) => c.remove(obj))
-    c.add(group)
+    c.insertAt(highestIndex - params.objects.length + 1, group)
     c.setActiveObject(group)
 
 

@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
 
 export function changeFabricSettings() {
-  FabricObject.customProperties = ['id', 'erasable', 'prevClipPath', 'oldText'];
+  FabricObject.customProperties = ['id', 'erasable', 'prevClipPath', 'oldText', 'layer'];
 
   (FabricObject as any).ownDefaults!['erasable'] = true
   // (FabricObject as any).ownDefaults!['id'] = uuidv4(); // cannot use this because it needs to be dynamic :c
@@ -20,7 +20,9 @@ export function changeFabricSettings() {
     return originalAdd.call(this, ...objects)
   }
 
+
   const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--ion-color-primary').trim()
+
 
   fabric.InteractiveFabricObject.ownDefaults = {
     ...fabric.InteractiveFabricObject.ownDefaults,

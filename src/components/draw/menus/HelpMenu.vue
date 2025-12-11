@@ -7,7 +7,7 @@
     :buttons="helpActionSheetButtons"
     @didDismiss="() => helpMenuOpen = false"
   />
-  <ion-button id="docsMenu" class="invisible absolute" />
+  <ion-button id="docsMenu" class="hidden absolute" />
 
 </template>
 
@@ -28,6 +28,7 @@ const helpActionSheetButtons: ActionSheetButton[] = [
     role: 'selected',
     icon: svg(mdiBookOpenOutline),
     handler: () => {
+      const {openMenu} = useMenuStore()
       document.getElementById('docsMenu')?.click()
     }
   },

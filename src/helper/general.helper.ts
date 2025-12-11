@@ -23,6 +23,7 @@ import { storeToRefs } from 'pinia'
 import { App } from '@capacitor/app'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
+import { useSessionStore } from '@/store/session.store'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -319,7 +320,7 @@ export function isOldEnough(dob: Date): boolean {
 export function setupDeeplinkListener() {
   App.addListener('appUrlOpen', async (data: any) => {
     const url = new URL(data.url)
-    const { setQueryParams } = useAuthStore()
+    const { setQueryParams } = useSessionStore()
     setQueryParams(url.searchParams)
 
     const path = url.pathname.substring(1)
@@ -368,7 +369,7 @@ export function setupBackButtonBehavior() {
 export function setupPWAPromptListener() {
   if (isNative()) return
 
-  const { installPrompt } = storeToRefs(useAuthStore())
+  const { installPrompt } = storeToRefs(useSessionStore())
 
   window.addEventListener('beforeinstallprompt', e => {
     if (window.matchMedia('(display-mode: standalone)').matches) {

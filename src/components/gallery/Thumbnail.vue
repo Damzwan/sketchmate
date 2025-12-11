@@ -73,13 +73,14 @@ import { isMobile, senderImg, svg } from '@/helper/general.helper'
 import { onLongPress } from '@vueuse/core'
 import { mdiCheckboxBlankCircleOutline, mdiCheckboxMarkedCircleOutline } from '@mdi/js'
 import { useAuthStore } from '@/store/auth.store'
+import { useInboxStore } from '@/store/inbox.store'
 
 const itemId = computed(() => props.inboxItem._id)
 let cancelClick = false
 const renderHeight = ref(100)
 
 const badgesCountToShow = 2
-const { findUserInInboxUsers } = useAuthStore()
+const { findUserInInboxUsers } = useInboxStore()
 
 let resizeObserver
 onMounted(async () => {

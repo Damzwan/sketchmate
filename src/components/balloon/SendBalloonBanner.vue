@@ -54,7 +54,7 @@
 <script setup lang="ts">
 
 import balloonLottie from '@/assets/lottie/balloon.json'
-import { IonButton, IonTextarea, IonIcon, IonSpinner } from '@ionic/vue'
+import { IonButton, IonIcon, IonSpinner, IonTextarea } from '@ionic/vue'
 import Lottie from '@/components/general/Lottie.vue'
 import { useToast } from '@/service/toast.service'
 import { balloonButton } from '@/config/toast.config'
@@ -64,19 +64,22 @@ import { useAuthStore } from '@/store/auth.store'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { mdiChevronDown } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
+import { useBalloonStore } from '@/store/balloon.store'
 
-const { sentBalloon, user } = storeToRefs(useAuthStore())
+const { sentBalloon } = storeToRefs(useBalloonStore())
 const { createBalloon } = useDrawStore()
 
 const balloonDescription = ref('')
 const sendingBalloon = ref(false)
 const isExpanded = ref(false)
 
+const { user } = storeToRefs(useAuthStore())
+
 function sendBalloon() {
   sendingBalloon.value = true
   createBalloon(balloonDescription.value).then(res => {
+    if (!res || !user.value) return
     sendingBalloon.value = false
-    if (!user.value || !res) return
     sentBalloon.value = res.balloon
     if (!user.value.balloon) user.value.balloon = {}
     user.value!.balloon.sent = res.balloon._id

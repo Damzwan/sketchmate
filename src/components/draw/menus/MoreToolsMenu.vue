@@ -112,6 +112,7 @@ import { useAuthStore } from '@/store/auth.store'
 
 
 import { createSketchFromDataURL } from '@/draw/helpers/export.helper'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()

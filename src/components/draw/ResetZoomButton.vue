@@ -14,10 +14,10 @@ import { storeToRefs } from 'pinia'
 import { mdiMagnifyMinusOutline } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { resetZoom } from '@/draw/helpers/viewport.helper'
-import { useDrawStore } from '@/draw/store/draw.store'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 
-const { canResetView } = storeToRefs(useDrawStore())
+const { canResetView } = storeToRefs(useDrawUIStore())
 
 </script>
 

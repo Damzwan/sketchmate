@@ -2,13 +2,12 @@
   <ion-modal
     :initial-breakpoint="1"
     :breakpoints="[1]"
-    @willPresent="initCanvas"
     @willDismiss="onDismiss"
     :is-open="sendBalloonModalOpen"
     :handle="false"
   >
     <div class="bg-primary p-4">
-      <div v-show="state == State.create">
+      <div v-show="!sentBalloon &&  state == State.create">
         <p class="text-2xl font-semibold cabin-sketch-regular">
           Send a balloon
         </p>
@@ -28,61 +27,36 @@
           v-model="balloonDescription"
         />
 
-        <PenMenu />
-        <EraserMenu />
 
-        <div class="mx-auto w-[300px]">
-          <div class="flex justify-between items-center w-full bg-primary-shade h-[42px] px-1">
-            <div class="flex gap-5">
-              <button @click="onPenClick" class="h-full aspect-square flex justify-center items-center relative"
-                      :class="{selected: PENMENUTOOLS.includes(selectedTool)}">
-                <ion-icon :icon="svg(penMenuIcon)" class="fill-black h-[28px] w-[28px]" />
-                <div class="w-2 h-2 rounded-full absolute bottom-[1px] right-[-5px]"
-                     :style="{backgroundColor: brushColor}" />
+        <div class="flex w-full justify-center items-center">
+          <img
+            v-if="canvasPreview"
+            :src="canvasPreview"
+            @click="() => openMenu(Menu.DrawMenu)"
+            class="max-w-64 max-h-64 object-contain rounded-lg cursor-pointer shadow"
+          />
 
-                <div class="selected_chevron"
-                     v-if="PENMENUTOOLS.includes(selectedTool)">
-                  <ion-icon :icon="svg(mdiChevronDown)" class="w-[20px] h-[20px]" />
-                </div>
-              </button>
-
-              <button @click="onEraserClick" class="h-full aspect-square flex justify-center items-center relative"
-                      :class="{selected: ERASERS.includes(selectedTool)}">
-                <ion-icon :icon="svg(eraserMenuIcon)" class="fill-black h-[28px] w-[28px]" />
-
-                <div class="selected_chevron"
-                     v-if="ERASERS.includes(selectedTool)">
-                  <ion-icon :icon="svg(mdiChevronDown)" class="w-[20px] h-[20px]" />
-                </div>
-              </button>
-            </div>
-
-            <div class="flex">
-              <ion-button fill="clear" @click="() => history.undo()" :disabled="undoStackCounter === 0">
-                <ion-icon :icon="svg(mdiUndo)" class="fill-black h-[28px] w-[28px]" slot="icon-only" />
-
-              </ion-button>
-
-              <ion-button fill="clear" @click="() => history.redo()" :disabled="redoStackCounter === 0">
-                <ion-icon :icon="svg(mdiRedo)" class="fill-black h-[28px] w-[28px]" slot="icon-only" />
-
-              </ion-button>
-
-            </div>
+          <div
+            v-else
+            @click="() => {
+              openMenu(Menu.DrawMenu)
+              didStartDrawing = true
+            }"
+            class="w-64 h-64 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 cursor-pointer shadow hover:border-gray-500 transition bg-gray-50"
+          >
+            <ion-icon :icon="pencil" class="text-gray-400 text-4xl mb-2"></ion-icon>
+            <span class="text-gray-500 text-center">Click to draw</span>
           </div>
-          <canvas ref="myCanvasRef" />
-
-
         </div>
-        <div class="flex justify-center items-center absolute bottom-8 w-full mx-auto">
-          <ion-button v-if="canZoomOut" @click="resetZoom" color="secondary" shape="round">
-            <ion-icon slot="start" :icon="svg(mdiMagnifyMinusOutline)" />
-            Reset view
-          </ion-button>
-        </div>
+
+        <ion-fab class="bottom-4 right-4" @click="sendBalloon">
+          <ion-fab-button color="secondary" :disabled="!didStartDrawing">
+            <ion-icon :icon="svg(mdiSend)"></ion-icon>
+          </ion-fab-button>
+        </ion-fab>
       </div>
 
-      <div v-if="state === State.sending"
+      <div v-if=" state === State.sending"
            class="h-[550px] w-full relative overflow-hidden flex flex-col">
 
         <!-- Floating balloon + Drawing -->
@@ -96,8 +70,8 @@
 
           <!-- Drawing Image -->
           <img
-            v-if="drawingImg"
-            :src="drawingImg"
+            v-if="canvasPreview"
+            :src="canvasPreview"
             alt="drawing"
             class=" max-h-[250px] max-w-[80%] animate-wiggle animate-duration-1000"
           />
@@ -112,7 +86,7 @@
       </div>
 
 
-      <div v-else-if="state === State.sent" class=" w-full relative flex flex-col items-center">
+      <div v-else-if="sentBalloon" class=" w-full relative flex flex-col items-center">
         <p class="text-3xl cabin-sketch-regular font-bold text-center ">You already sent a balloon</p>
         <p class="text-xl cabin-sketch-regular font-bold text-center">Wait a bit longer to receive one from a
           stranger!</p>
@@ -126,11 +100,7 @@
       </div>
 
     </div>
-    <ion-fab class="bottom-4 right-4" @click="sendBalloon" v-if="state === State.create">
-      <ion-fab-button color="secondary" :disabled="!didStartDrawing">
-        <ion-icon :icon="svg(mdiSend)"></ion-icon>
-      </ion-fab-button>
-    </ion-fab>
+
   </ion-modal>
 </template>
 
@@ -139,120 +109,52 @@
 
 import Lottie from '@/components/general/Lottie.vue'
 import { IonButton, IonFab, IonFabButton, IonIcon, IonModal, IonTextarea, modalController } from '@ionic/vue'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useToast } from '@/service/toast.service'
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
-import { fabric } from 'fabric'
-import PenMenu from '@/components/draw/menu/PenMenu.vue'
 import { useMenuStore } from '@/store/menu.store'
-import { DrawAction, DrawEvent, DrawTool } from '@/draw/types/draw.types'
-import { usePen } from '@/service/draw/tools/pen.tool'
-import EraserMenu from '@/components/draw/menu/EraserMenu.vue'
-import { useHistory } from '@/service/draw/history.service'
-import { useEraser } from '@/service/draw/tools/eraser.tool'
-import { mdiChevronDown, mdiFormatColorFill, mdiMagnifyMinusOutline, mdiRedo, mdiSend, mdiUndo } from '@mdi/js'
+import { DrawAction, Menu } from '@/draw/types/draw.types'
+import { mdiSend } from '@mdi/js'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { getDateOfBirthConfirmationResponse, svg } from '@/helper/general.helper'
-import { useHealingEraser } from '@/service/draw/tools/healingEraser.tool'
-import { useEventManager } from '@/service/draw/eventManager.service'
 import balloon from '@/assets/lottie/balloon.json'
-import { useAPI } from '@/service/api/api.service'
 import { ToastDuration } from '@/types/toast.types'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import { useSocketService } from '@/service/api/socket.service'
-import { resetZoom } from '@/helper/draw/gesture.helper'
-import { eraserIconMapping, ERASERS, penIconMapping, PENMENUTOOLS } from '@/draw/config/tools.config'
+import { useBalloonStore } from '@/store/balloon.store'
+import { EventBus } from '@/main'
+import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
+import { pencil } from 'ionicons/icons'
 
 enum State {
   create,
   sending,
-  sent
 }
 
 const { toast } = useToast()
-const { user, sentBalloon, receivedBalloon, shouldShowDateOfBirthConfirmation } = storeToRefs(useAuthStore())
-
-const history = useHistory()
-const { undoStackCounter, redoStackCounter } = storeToRefs(history)
-const pen = usePen()
-const { brushType, brushColor } = storeToRefs(pen)
-const eraser = useEraser()
-const healingEraser = useHealingEraser()
+const { user, shouldShowDateOfBirthConfirmation } = storeToRefs(useAuthStore())
+const { sentBalloon, receivedBalloon } = storeToRefs(useBalloonStore())
+const { sendBalloonModalOpen } = storeToRefs(useMenuStore())
+const { openMenu } = useMenuStore()
+const { cancelBalloon } = useSocketService()
+const drawStore = useDrawStore()
 
 
 const state = ref<State>(State.create)
-
-const myCanvasRef = ref<HTMLCanvasElement>()
-let c: fabric.Canvas | null = null
-
-const { openMenu } = useMenuStore()
-const { selectedTool, lastSelectedPenMenuTool, lastSelectedEraserTool, canZoomOut } = storeToRefs(useDrawStore())
-const drawStore = useDrawStore()
-
-const eventManager = useEventManager()
 const didStartDrawing = ref(false)
 
-const drawingImg = ref<string | null>(null)
 const balloonDescription = ref('')
 
-const { getBalloon } = useAPI()
-const { sendBalloonModalOpen } = storeToRefs(useMenuStore())
+const canvasPreview = ref('')
 
-const { cancelBalloon } = useSocketService()
-
-
-const penMenuIcon = computed(() => lastSelectedPenMenuTool.value == DrawTool.Pen
-  ? penIconMapping[brushType.value]
-  : mdiFormatColorFill)
-
-
-const eraserMenuIcon = computed(() => eraserIconMapping[lastSelectedEraserTool.value])
-
-
-async function initCanvas() {
-  if (user.value!.balloon && user.value!.balloon.sent) {
-    state.value = State.sent
-    sentBalloon.value = await getBalloon({ balloonId: user.value!.balloon.sent })
-    return
-  }
-
-  state.value = State.create
-  if (!myCanvasRef.value) return
-
-  await drawStore.initCanvas(myCanvasRef.value, { width: 300, height: 400 })
-
-  eventManager.subscribe({
-    type: DrawEvent.AddText, on: 'mouse:down', handler: (options) => {
-      didStartDrawing.value = true
-
-      if (options.e) {
-        options.e.stopPropagation()
-      }
-    }
+EventBus.on('drawModalClosed', () => {
+  exportBoundingBoxImage(drawStore.getCanvas()).then(url => {
+    if (!url) return
+    canvasPreview.value = url.img
   })
+})
 
-  eventManager.subscribe({
-    type: DrawEvent.AddText, on: 'touch:start', handler: (options) => {
-      didStartDrawing.value = true
-      if (options.e) {
-        options.e.stopPropagation()
-      }
-    }
-  })
-
-  drawStore.selectAction(DrawAction.FullErase, undefined)
-
-
-}
-
-function onPenClick(e: MouseEvent) {
-  drawStore.selectTool(lastSelectedPenMenuTool.value, { e, openMenu: true })
-}
-
-function onEraserClick(e: MouseEvent) {
-  drawStore.selectTool(lastSelectedEraserTool.value, { e, openMenu: true })
-}
 
 async function sendBalloon() {
 
@@ -265,10 +167,7 @@ async function sendBalloon() {
   }
 
   state.value = State.sending
-  drawingImg.value = drawStore.getCanvas().toDataURL({ format: 'jpeg', quality: 0.7 })
-
   const startTime = performance.now()
-
   const res = await drawStore.createBalloon(balloonDescription.value)
 
   const endTime = performance.now()
@@ -297,8 +196,8 @@ async function sendBalloon() {
 
 
 function onDismiss() {
-  if (drawStore.getCanvas()) drawStore.selectAction(DrawAction.FullErase, undefined)
   sendBalloonModalOpen.value = false
+  state.value = State.create
 }
 
 function cancelBalloonHelper() {
@@ -306,8 +205,8 @@ function cancelBalloonHelper() {
   cancelBalloon({ user_id: user.value!._id, balloon_id: user.value!.balloon!.sent })
   user.value!.balloon = undefined
   receivedBalloon.value = undefined
+  sentBalloon.value = undefined
   state.value = State.create
-  initCanvas()
 }
 
 
@@ -316,21 +215,6 @@ function cancelBalloonHelper() {
 <style scoped>
 ion-modal {
   --height: auto;
-}
-
-.selected_chevron {
-  @apply cursor-pointer w-[20px] h-[20px] absolute right-[-15px] bottom-[5px];
-}
-
-.selected::after {
-  content: '';
-  display: block;
-  position: absolute;
-  bottom: -2px;
-  left: 10%;
-  width: 80%;
-  height: 3px;
-  background-color: var(--ion-color-secondary);
 }
 
 @keyframes float {

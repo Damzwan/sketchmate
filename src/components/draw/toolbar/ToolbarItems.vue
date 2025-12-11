@@ -23,13 +23,14 @@
         </ion-button>
       </div>
 
-      <ion-button fill="clear" :id="item.id" v-else :disabled="item.isDisabled" :data-step="item.tour_step"
+      <ion-button fill="clear" :id="item.isDisabled ? null : item.id" v-else :disabled="item.isDisabled"
+                  :data-step="item.tour_step"
                   :class="{ selected: item && item.tool != undefined && item.tools != undefined && item.tools.includes(selectedTool) }">
         <ion-icon slot="icon-only" :icon="svg(item.icon)" class="fill-black" />
 
       </ion-button>
 
-      <div class="w-2 h-2 rounded-full absolute bottom-[10px] right-2.5"
+      <div class="w-2 h-2 rounded-full absolute bottom-2.5 right-2.5"
            :style="{backgroundColor: brushColor}" v-if="item.id == ToolbarIds.pen" />
 
       <div class="selected_chevron"
@@ -55,14 +56,16 @@ import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { usePen } from '@/draw/store/tools/pen.store'
 import { useSelect } from '@/draw/store/tools/select.store'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
 defineProps<{
   toolbarItems: ToolbarItem[]
 }>()
 
 const { openMenu } = useMenuStore()
-const { selectAction, selectTool } = useDrawStore()
-const { selectedTool } = storeToRefs(useDrawStore())
+const { selectTool } = useToolSelection()
+const { selectAction } = useDrawStore()
+const { selectedTool } = storeToRefs(useToolSelection())
 
 const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect())
 const { brushColor } = storeToRefs(usePen())
@@ -74,6 +77,9 @@ const isText = computed(
 const fontFamily = computed(() => selectedObjectsRef.value[0] ? selectedObjectsRef.value[0]['fontFamily'] as string : undefined)
 
 function onClick(item: ToolbarButton, e: any) {
+  if (item.isDisabled) {
+    return
+  }
   if (item.menu) openMenu(item.menu, e)
   else if (item.customAction) item.customAction()
   else if (item.action) selectAction(item.action, undefined)

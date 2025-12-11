@@ -10,6 +10,9 @@ import { gestureDetector } from '@/draw/utils/gestureDetector'
 import { handlePan, handleZoom } from '@/draw/helpers/viewport.helper'
 import { cancelPreviousAction } from '@/draw/helpers/tools/cancelTools.helper'
 import { setCacheForObjects } from '@/draw/helpers/object.helper'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { useShapeCreation } from '@/draw/store/shapeCreation.store'
 
 export function enableGestures(c: Canvas) {
   if (isMobile()) enableMobileGestures(c, c.upperCanvasEl)
@@ -18,7 +21,7 @@ export function enableGestures(c: Canvas) {
 
 export function enablePCGestures(c: Canvas) {
   const { addEventsOfService } = useDrawEventManager()
-  const { canResetView } = storeToRefs(useDrawStore())
+  const { canResetView } = storeToRefs(useDrawUIStore())
   let panStartPoint: any = null
   const events: FabricEvent[] = [
     {
@@ -83,7 +86,8 @@ export function enablePCGestures(c: Canvas) {
 
 export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
-  const { selectedTool, shapeCreationMode, canResetView } = storeToRefs(useDrawStore())
+  const { selectedTool } = storeToRefs(useToolSelection())
+  const { shapeCreationMode, canResetView } = storeToRefs(useDrawUIStore())
   const { shouldModifyObjectsWithGestures, unSelect } = useSelect()
 
   let isRotating = false

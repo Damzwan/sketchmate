@@ -1,17 +1,19 @@
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/draw/store/draw.store'
-import { Canvas, Point, IText } from 'fabric'
+import { Canvas, IText, Point } from 'fabric'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { DrawAction, DrawActionParams, DrawTool } from '@/draw/types/draw.types'
 import { useSelect } from '@/draw/store/tools/select.store'
 import FontFaceObserver from 'fontfaceobserver'
 import { BLACK } from '@/draw/config/canvas.config'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 export function addText() {
   const { getCanvas } = useDrawStore()
   const { prevDrawingMode } = storeToRefs(useDrawStore())
   const { activateExclusiveEvents, deActivateExclusiveEvents } = useDrawEventManager()
-  const { addTextMode } = storeToRefs(useDrawStore())
+  const { addTextMode } = storeToRefs(useDrawUIStore())
 
   const c = getCanvas()
 
@@ -30,7 +32,7 @@ export function addText() {
 }
 
 async function addTextHelper(c: Canvas, location: Point) {
-  const { selectTool, selectedTool } = useDrawStore()
+  const { selectTool, selectedTool } = useToolSelection()
   const { actionWithoutEvents } = useDrawEventManager()
 
   const text = new IText('', {
@@ -143,7 +145,7 @@ export async function changeFontStyle(params: DrawActionParams[DrawAction.Change
 export function exitTextAddingMode() {
   const { getCanvas, prevDrawingMode } = useDrawStore()
   const { deActivateExclusiveEvents } = useDrawEventManager()
-  const { addTextMode } = storeToRefs(useDrawStore())
+  const { addTextMode } = storeToRefs(useDrawUIStore())
 
   const c = getCanvas()
 

@@ -7,7 +7,12 @@ import { useDrawEventManager } from '../drawEventManager.store'
 import { ref, watch } from 'vue'
 import { Canvas } from 'fabric'
 
-export const useToolSelectionStore = defineStore('toolSelection', () => {
+type SelectToolOption = {
+  skipOpenMenu?: boolean
+  e?: any
+}
+
+export const useToolSelection = defineStore('toolSelection', () => {
   const selectedTool = ref(DrawTool.MobileEraser)
   const lastSelectedPenMenuTool = ref<PenMenuTool>(DrawTool.Pen)
   const lastSelectedSelectTool = ref<SelectTool>(DrawTool.Select)
@@ -22,7 +27,7 @@ export const useToolSelectionStore = defineStore('toolSelection', () => {
     }
   }
 
-  function selectTool(newTool: DrawTool, options?: any) {
+  function selectTool(newTool: DrawTool, options?: SelectToolOption) {
     if (selectedTool.value === newTool && !options?.skipOpenMenu) {
       openToolMenu(newTool, options?.e)
       return

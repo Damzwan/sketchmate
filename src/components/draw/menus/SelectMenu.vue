@@ -30,9 +30,10 @@ import { useMenuStore } from '@/store/menu.store'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawTool, SelectTool } from '@/draw/types/draw.types'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
 const { selectMenuOpen, menuEvent } = storeToRefs(useMenuStore())
-const { selectTool } = useDrawStore()
+const { selectTool } = useToolSelection()
 
 function select(tool: SelectTool) {
   selectTool(tool)

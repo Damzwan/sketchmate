@@ -2,6 +2,7 @@ import { useDrawStore } from '@/draw/store/draw.store'
 import * as fabric from 'fabric'
 import { DrawAction, DrawActionParams, DrawTool } from '@/draw/types/draw.types'
 import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
 
 export async function addImageToCanvas(params: DrawActionParams[DrawAction.AddImage]) {
@@ -15,7 +16,7 @@ export async function addImageToCanvas(params: DrawActionParams[DrawAction.AddIm
   centerObjectInViewport(c, fabricImg)
 
   c.add(fabricImg)
-  const { selectTool, selectedTool } = useDrawStore()
+  const { selectTool, selectedTool } = useToolSelection()
   if (selectedTool !== DrawTool.Select) {
     selectTool(DrawTool.Select)
   }

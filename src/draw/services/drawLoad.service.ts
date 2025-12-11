@@ -2,11 +2,9 @@ import { ref } from 'vue'
 import { ActiveSelection, Canvas } from 'fabric'
 import { EventBus } from '@/main'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
 
-export function useLoader() {
-  const { addStartingCanvasObjects } = useDrawObjectManager()
+export function useLoadService() {
   const canvasToLoad = ref<string>()
 
   async function loadCanvas(c: Canvas) {
@@ -27,7 +25,6 @@ export function useLoader() {
 
       c.clear()
       await c.loadFromJSON(json)
-      addStartingCanvasObjects()
       canvasToLoad.value = undefined
 
       // add backwards compatability

@@ -30,9 +30,10 @@ import { DrawTool } from '@/draw/types/draw.types'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { storeToRefs } from 'pinia'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
 const drawStore = useDrawStore()
-const { selectedTool } = storeToRefs(drawStore)
+const { selectedTool } = storeToRefs(useToolSelection())
 const { selectedObjectsRef } = storeToRefs(useSelect())
 
 const showTipBox = ref(false)

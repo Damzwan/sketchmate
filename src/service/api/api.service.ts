@@ -238,9 +238,24 @@ export const useAPI = createGlobalState((): API => {
   }
 
 
-  async function getBalloon(params: { balloonId: string }): Promise<Res<Balloon>> {
+  async function getBalloon(params: { balloonId: string }): Promise<Res<Balloon> | null> {
     const url = `${baseUrl}${ENDPOINTS.balloon}/${params.balloonId}`
-    return await fetch(url, { method: REQUEST_TYPES.GET }).then(res => res.json())
+    const res = await fetch(url, { method: REQUEST_TYPES.GET })
+
+    if (!res.ok) {
+      console.error('Failed to fetch balloon:', res.status, await res.text())
+      return null
+    }
+
+    const text = await res.text()
+    if (!text) return null
+
+    try {
+      return JSON.parse(text) as Res<Balloon>
+    } catch (e) {
+      console.error('Failed to parse JSON:', e, 'Response text:', text)
+      return null
+    }
   }
 
   async function updateUser(params: UpdateUserParams): Promise<Res<void>> {

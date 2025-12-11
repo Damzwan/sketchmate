@@ -3,6 +3,7 @@ import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { isMobile } from '@/helper/general.helper'
 import { CANVAS_SIZE } from '@/draw/config/canvas.config'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 export function initViewport(c: Canvas) {
   const initX = (c.width - CANVAS_SIZE) / 2
@@ -15,16 +16,10 @@ export function centerObjectInViewport(
   object: FabricObject,
   containerSelector = '.canvas-container'
 ) {
-  let rect: DOMRect | null = null
 
-  const container = document.querySelector(containerSelector) as HTMLDivElement
-  if (container) {
-    rect = container.getBoundingClientRect()
-  } else {
-    // fallback to canvas element if container doesn't exist
-    const canvasEl = canvas.upperCanvasEl as HTMLCanvasElement
-    rect = canvasEl.getBoundingClientRect()
-  }
+
+  const canvasEl = canvas.upperCanvasEl as HTMLCanvasElement
+  const rect = canvasEl.getBoundingClientRect()
 
   if (!rect) return
 
@@ -84,7 +79,7 @@ export const handleZoom = (
 
   // Limit the zoom level to the maximum and minimum values
   newZoom = Math.min(newZoom, 10)
-  newZoom = Math.max(newZoom, isMobile() ? 0.8 : 0.5)
+  newZoom = Math.max(newZoom, 0.5)
 
   // Get the center point of the gesture
   const gestureCenter = new Point(centerX, centerY)
@@ -102,7 +97,7 @@ export const handlePan = (delta: Point, c: Canvas) => {
 
 export function resetZoom() {
   const { getCanvas } = useDrawStore()
-  const { canResetView } = storeToRefs(useDrawStore())
+  const { canResetView } = storeToRefs(useDrawUIStore())
   const c = getCanvas()
   c.setZoom(1)
   const initX = (c.width - CANVAS_SIZE) / 2

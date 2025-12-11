@@ -1,30 +1,11 @@
 <template>
   <ion-popover :is-open="eraserMenuOpen" :event="menuEvent" @didDismiss="eraserMenuOpen = false" :showBackdrop="false">
-    <ion-content class="bg-primary">
+    <ion-content class="bg-background divide-y divide-primary">
+      <div class="px-2 pt-1">
+        <label for="slider">Eraser Size: {{ eraserSize }}</label>
+        <ion-range aria-label="Volume" id="slider" v-model="eraserSize" :min="1" :max="100" color="secondary" />
+      </div>
       <ion-list lines="none" class="divide-y divide-primary" color="tertiary">
-        <ion-item color="tertiary" @click="selectEraser" :button="true">
-          <ion-icon :icon="svg(eraserIconMapping[DrawTool.MobileEraser])" />
-          <p class="pl-2 text-sm">Eraser</p>
-          <div class="flex justify-center items-center m-0" slot="end">
-            <div
-              class="eraser_option eraser_small"
-              @click="selectEraserSize(EraserSize.small)"
-              :class="{ eraser_selected: eraserSize === EraserSize.small && selectedTool == DrawTool.MobileEraser }"
-            />
-            <div
-              class="eraser_option eraser_medium ml-3"
-              @click="selectEraserSize(EraserSize.medium)"
-              :class="{ eraser_selected: eraserSize === EraserSize.medium && selectedTool == DrawTool.MobileEraser }"
-            />
-            <div
-              class="eraser_option eraser_large ml-3"
-              @click="selectEraserSize(EraserSize.large)"
-              :class="{ eraser_selected: eraserSize === EraserSize.large && selectedTool == DrawTool.MobileEraser }"
-            />
-          </div>
-        </ion-item>
-
-
         <ion-item color="tertiary" :button="true" @click="clearAll">
           <ion-icon :icon="svg(mdiNuke)" />
           <p class="pl-2 text-sm">Clear all</p>
@@ -35,7 +16,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
+import { IonContent, IonIcon, IonItem, IonList, IonPopover, IonRange } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { svg } from '@/helper/general.helper'
@@ -43,16 +24,16 @@ import { mdiNuke } from '@mdi/js'
 import { DrawAction, DrawTool, EraserSize } from '@/draw/types/draw.types'
 import { useMenuStore } from '@/store/menu.store'
 import { useEraser } from '@/draw/store/tools/eraser.store'
-import { eraserIconMapping } from '@/draw/config/tools.config'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
 
 const drawStore = useDrawStore()
-const { selectedTool } = storeToRefs(drawStore)
+const { selectTool } = useToolSelection()
 const { eraserSize } = storeToRefs(useEraser())
 const { eraserMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 function clearAll() {
-  drawStore.selectAction(DrawAction.FullErase)
+  drawStore.selectAction(DrawAction.FullErase, undefined)
   close()
 }
 
@@ -62,7 +43,7 @@ function selectEraserSize(size: EraserSize) {
 
 
 function selectEraser() {
-  drawStore.selectTool(DrawTool.MobileEraser)
+  selectTool(DrawTool.MobileEraser)
   close()
 }
 
@@ -79,27 +60,12 @@ ion-item {
   --padding-start: 10px;
 }
 
-ion-list{
+ion-list {
   padding: 0;
 }
 
-.eraser_option {
-  @apply bg-primary rounded-full cursor-pointer hover:brightness-90;
-}
 
-.eraser_selected {
-  @apply border-2 border-secondary;
-}
-
-.eraser_small {
-  @apply w-[22px] h-[22px];
-}
-
-.eraser_medium {
-  @apply w-[26px] h-[26px];
-}
-
-.eraser_large {
-  @apply w-[30px] h-[30px];
+label {
+  @apply block text-sm font-medium text-gray-700;
 }
 </style>

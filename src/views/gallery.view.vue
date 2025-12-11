@@ -92,11 +92,18 @@ import { EventBus } from '@/main'
 import connectImage from '@/assets/illustrations/connect.webp'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { usePhotoSwiper } from '@/store/photoswiper.store'
+import { useSessionStore } from '@/store/session.store'
+import { useInboxStore } from '@/store/inbox.store'
 
 const api = useAPI()
-const { getInbox, refresh, setQueryParams } = useAuthStore()
-const { user, inbox, isLoggedIn, queryParams } = storeToRefs(useAuthStore())
+const { refresh } = useAuthStore()
+const { user, isLoggedIn } = storeToRefs(useAuthStore())
+const { queryParams } = storeToRefs(useSessionStore())
+const { setQueryParams } = useSessionStore()
 const { open, slide } = storeToRefs(usePhotoSwiper())
+const { inbox } = storeToRefs(useInboxStore())
+const { getInbox } = useInboxStore()
+
 const { seeItem } = usePhotoSwiper()
 
 const { toast } = useToast()

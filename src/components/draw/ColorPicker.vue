@@ -84,6 +84,8 @@ import {
 } from '@/draw/utils/color.utils'
 import { BLACK, COLORSWATCHES } from '@/draw/config/canvas.config'
 import { ERASERS, PENMENUTOOLS } from '@/draw/config/tools.config'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
 const hmm = ref() // TODO hack to only close top popover
 const customColorPopoverId = uuidv4()
@@ -138,9 +140,10 @@ async function onCustomColorSelected(newColor: string) {
 }
 
 function pickColor(e: any) {
-  const { getCanvas, selectAction, selectedTool } = useDrawStore()
+  const { getCanvas, selectAction } = useDrawStore()
   const { activateExclusiveEvents } = useDrawEventManager()
-  const { colorPickerMode } = storeToRefs(useDrawStore())
+  const { selectedTool } = useToolSelection()
+  const { colorPickerMode } = storeToRefs(useDrawUIStore())
   const c = getCanvas()
 
 

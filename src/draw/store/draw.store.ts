@@ -4,63 +4,99 @@ import { useDrawProgressSaver } from './tools/drawProgressSaver'
 import { useDrawSendService } from '@/draw/services/drawSend.service'
 import { DrawAction, DrawActionParams, DrawTool } from '@/draw/types/draw.types'
 import { useCanvasService } from '@/draw/services/canvas.service'
-import { useToolSelectionStore } from '@/draw/store/tools/toolSelection.store'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useShapeCreationStore } from '@/draw/store/shapeCreation.store'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { drawActionMapping } from '@/draw/config/action.config'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { useShortcutManager } from '@/draw/services/shortcut.service'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
+import { useLoadService } from '@/draw/services/drawLoad.service'
+import { enableGestures } from '@/draw/helpers/gestures.helper'
+import router from '@/router'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { InboxItem } from '@/types/server.types'
+import { ref } from 'vue'
 
 export const useDrawStore = defineStore('draw', () => {
-  const canvasSvc = useCanvasService()
-  const toolSelection = useToolSelectionStore()
-  const ui = useDrawUIStore()
-  const shape = useShapeCreationStore()
-  const drawObjectManager = useDrawObjectManager()
-  const shortcutManager = useShortcutManager()
-  const drawEventManager = useDrawEventManager()
-  // const loadService = useLoadService()
+    const canvasSvc = useCanvasService()
+    const toolSelection = useToolSelection()
+    const drawObjectManager = useDrawObjectManager()
+    const shortcutManager = useShortcutManager()
+    const drawEventManager = useDrawEventManager()
+    const loadService = useLoadService()
 
-  const drawHistory = useDrawHistoryManager()
-  const progressSaver = useDrawProgressSaver()
+    const drawHistory = useDrawHistoryManager()
+    const progressSaver = useDrawProgressSaver()
 
-  const { send, createBalloon } = useDrawSendService(canvasSvc.getCanvas)
+    const { send, createBalloon, isSendingDrawing } = useDrawSendService(canvasSvc.getCanvas)
 
-  async function initCanvas(el: HTMLCanvasElement) {
-    canvasSvc.destroyCanvas()
-    const c = canvasSvc.createCanvas(el)
-    drawEventManager.init(c)
-    toolSelection.init(c)
-    progressSaver.init(c)
-    drawHistory.init(c)
-    drawObjectManager.init(c)
-    shortcutManager.init(c)
+    const isModal = ref(false)
+    const prevDrawingMode = ref(false) // TODO think of something better
+
+    async function initCanvas(el: HTMLCanvasElement, isAModal?: boolean) {
+      isModal.value = !!isAModal
+      canvasSvc.destroyCanvas()
+      const c = canvasSvc.createCanvas(el)
+
+      await progressSaver.init(c)
+
+      const prevJson = await progressSaver.get()
+      if (loadService.canvasToLoad.value) {
+        isSendingDrawing.value = true
+        await loadService.loadCanvas(c)
+        isSendingDrawing.value = false
+      } else if (prevJson) {
+        await c.loadFromJSON(prevJson)
+      }
+
+      drawEventManager.init(c)
+      enableGestures(c)
+      toolSelection.init(c)
+      drawHistory.init(c)
+      drawObjectManager.init(c)
+      shortcutManager.init(c)
+      progressSaver.startSaving(c)
 
 
-    toolSelection.selectTool(DrawTool.Pen)
-    c.requestRenderAll()
+      toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true })
+      c.requestRenderAll()
+    }
+
+    async function selectAction<A extends DrawAction>(action: A, params: DrawActionParams[A]) {
+      await drawActionMapping[action](params)
+    }
+
+    function reset() {
+      canvasSvc.resetCanvas()
+      drawHistory.reset()
+      progressSaver.clear()
+    }
+
+    // TODO this should not be here
+    async function reply(inboxItem: InboxItem) {
+      loadService.canvasToLoad.value = inboxItem.drawing
+      const c = canvasSvc.getCanvas()
+      await router.push(FRONTEND_ROUTES.draw)
+      if (c) {
+        reset()
+        isSendingDrawing.value = true
+        await loadService.loadCanvas(c)
+        isSendingDrawing.value = false
+        c.requestRenderAll()
+      }
+    }
+
+    return {
+      isModal,
+      initCanvas,
+      reset,
+      send,
+      createBalloon,
+      selectAction,
+      getCanvas: canvasSvc.getCanvas,
+      backgroundColor: canvasSvc.backgroundColor,
+      reply,
+      prevDrawingMode,
+      isSendingDrawing
+    }
   }
-
-  async function selectAction<A extends DrawAction>(action: A, params: DrawActionParams[A]) {
-    await drawActionMapping[action](params)
-  }
-
-  function reset() {
-    canvasSvc.resetCanvas()
-    drawHistory.reset()
-    progressSaver.clear()
-  }
-
-  return {
-    initCanvas,
-    reset,
-    send,
-    createBalloon,
-    getCanvas: canvasSvc.getCanvas,
-
-    ...toolSelection,
-    ...ui,
-    ...shape
-  }
-})
+)

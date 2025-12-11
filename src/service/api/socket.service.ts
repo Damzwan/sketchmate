@@ -35,12 +35,17 @@ import { useAPI } from '@/service/api/api.service'
 import { showFeedbackMilestones } from '@/config/general.config'
 import { useMenuStore } from '@/store/menu.store'
 import { Menu } from '@/draw/types/draw.types'
+import { useInboxStore } from '@/store/inbox.store'
+import { useSessionStore } from '@/store/session.store'
+import { useBalloonStore } from '@/store/balloon.store'
+import { useFriendStore } from '@/store/friend.store'
+import { useDrawStore } from '@/draw/store/draw.store'
 
 let socket: Socket | undefined
 
 let socketServiceInstance: SocketAPI | null = null
 let socketLoggedInPromise: Promise<void>
-let resolveSocketLoggedIn: () => void = null
+let resolveSocketLoggedIn: () => void
 
 export function useSocketService(): SocketAPI {
   if (!socketServiceInstance) socketServiceInstance = createSocketService()
@@ -48,17 +53,16 @@ export function useSocketService(): SocketAPI {
 }
 
 export function createSocketService(): SocketAPI {
-  const { addComment, refresh } = useAuthStore()
+  const { refresh } = useAuthStore()
+  const { addComment } = useInboxStore()
   const {
     user,
-    friendRequestLoading,
     isLoading,
-    inbox,
-    friendRequestUsers,
-    isLoggedIn,
-    sentBalloon,
-    receivedBalloon
+    isLoggedIn
   } = storeToRefs(useAuthStore())
+  const { inbox } = storeToRefs(useInboxStore())
+  const { sentBalloon, receivedBalloon } = storeToRefs(useBalloonStore())
+  const { friendRequestUsers, friendRequestLoading } = storeToRefs(useFriendStore())
   const { toast } = useToast()
 
   async function connect(): Promise<void> {
@@ -87,7 +91,7 @@ export function createSocketService(): SocketAPI {
       isLoading.value = false
       friendRequestLoading.value = false
       if (!params) return
-      if (params.mate && params.mate._id != user._id) {
+      if (params.mate && params.mate._id != user.value?._id) {
         user.value!.mates = [...user.value!.mates, params.mate]
         user.value!.mate_requests_received = user.value!.mate_requests_received.filter(m => m != params.mate!._id)
         user.value!.mate_requests_sent = user.value!.mate_requests_sent.filter(m => m != params.mate!._id)
@@ -122,11 +126,12 @@ export function createSocketService(): SocketAPI {
     socket.on(SOCKET_ENDPONTS.send, async (params: Res<InboxItem>) => {
       isLoading.value = false
       if (params) {
-        const { updateSlide, inboxUsers } = storeToRefs(useAuthStore())
+        const { inboxUsers } = storeToRefs(useInboxStore())
+        const { updateSlide } = storeToRefs(useSessionStore())
 
         updateSlide.value = true
         if (user.value!.inbox.length != 0 && inbox.value.length == 0) {
-          const { getInbox } = useAuthStore()
+          const { getInbox } = useInboxStore()
           await getInbox()
         }
 
@@ -143,7 +148,7 @@ export function createSocketService(): SocketAPI {
         }
 
         if (params.sender === user.value?._id) {
-          const { isSendingDrawing } = storeToRefs(useAuthStore())
+          const { isSendingDrawing } = storeToRefs(useDrawStore())
           isSendingDrawing.value = false
           const sentDrawingsCount = inbox.value.reduce((acc: number, curr) =>
               acc + (curr.sender == user.value!._id ? 1 : 0),
@@ -215,11 +220,11 @@ export function createSocketService(): SocketAPI {
     socket.on(SOCKET_ENDPONTS.accept_balloon, (params: AcceptBalloonRes) => {
       if (params.isMatch) {
         toast('You both accepted each other\'s balloon', { duration: ToastDuration.long })
-        user.value.balloon = {}
-        refresh()
+        user.value!.balloon = {}
+        refresh() // TODO kind of ugly no?
 
-        sentBalloon.value = null
-        receivedBalloon.value = null
+        sentBalloon.value = undefined
+        receivedBalloon.value = undefined
         return
       }
 
@@ -235,8 +240,8 @@ export function createSocketService(): SocketAPI {
       if (params.refuser === user.value!._id) {
         toast('Refused balloon, you will be matched to another stranger', { duration: ToastDuration.long })
       } else {
-        user.value.balloon.received = null
-        receivedBalloon.value = null
+        if (user.value && user.value.balloon) user.value.balloon.received = undefined
+        receivedBalloon.value = undefined
 
         toast('A stranger refused your balloon, you will be matched to another stranger', {
           duration: ToastDuration.long,
@@ -249,8 +254,8 @@ export function createSocketService(): SocketAPI {
       if (params.refuser === user.value!._id) {
         toast('Cancelled balloonr', { duration: ToastDuration.long })
       } else {
-        user.value.balloon.received = null
-        receivedBalloon.value = null
+        if (user.value && user.value.balloon) user.value.balloon.received = undefined
+        receivedBalloon.value = undefined
 
         toast('A stranger refused your balloon, you will be matched to another stranger', {
           duration: ToastDuration.long,
@@ -265,7 +270,7 @@ export function createSocketService(): SocketAPI {
         return
       }
       receivedBalloon.value = params.received_balloon
-      user.value.balloon.received = params.received_balloon._id
+      if (user.value?.balloon) user.value.balloon.received = params.received_balloon._id
       toast('You have received a balloon from a stranger', {
         duration: ToastDuration.long,
         buttons: [matchBalloonButton]
@@ -274,8 +279,8 @@ export function createSocketService(): SocketAPI {
     })
 
     socket.on(SOCKET_ENDPONTS.balloon_match_expired, () => {
-      receivedBalloon.value = null
-      user.value.balloon.received = null
+      receivedBalloon.value = undefined
+      if (user.value?.balloon) user.value.balloon.received = undefined
       toast('Your balloon has expired, you will be matched to another stranger', {
         duration: ToastDuration.long,
         color: 'warning'
@@ -283,8 +288,8 @@ export function createSocketService(): SocketAPI {
     })
 
     socket.on(SOCKET_ENDPONTS.balloon_expired, () => {
-      sentBalloon.value = null
-      user.value.balloon.sent = null
+      sentBalloon.value = undefined
+      if (user.value?.balloon) user.value.balloon.sent = undefined
       toast('Your balloon has expired, create another one!', {
         duration: ToastDuration.long,
         color: 'warning'
@@ -349,19 +354,19 @@ export function createSocketService(): SocketAPI {
   }
 
   async function sendMateRequest(params: SendMateRequestParams): Promise<void> {
-    const { friendRequestLoading } = storeToRefs(useAuthStore())
+    const { friendRequestLoading } = storeToRefs(useFriendStore())
     friendRequestLoading.value = true
     socket!.emit(SOCKET_ENDPONTS.mate_request, params)
   }
 
   async function cancelSendMateRequest(params: SendMateRequestParams): Promise<void> {
-    const { friendRequestLoading } = storeToRefs(useAuthStore())
+    const { friendRequestLoading } = storeToRefs(useFriendStore())
     friendRequestLoading.value = true
     socket!.emit(SOCKET_ENDPONTS.cancel_mate_request, params)
   }
 
   async function refuseSendMateRequest(params: SendMateRequestParams): Promise<void> {
-    const { friendRequestLoading } = storeToRefs(useAuthStore())
+    const { friendRequestLoading } = storeToRefs(useFriendStore())
     friendRequestLoading.value = true
     socket!.emit(SOCKET_ENDPONTS.refuse_mate_request, params)
   }

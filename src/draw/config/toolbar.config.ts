@@ -33,7 +33,6 @@ export enum ToolbarIds {
   undo = 'undo',
   redo = 'redo',
   send = 'send',
-  moreOptions = 'moreOptions'
 }
 
 export enum ToolbarCustomUI {
@@ -87,7 +86,8 @@ export function getToolbarConfig(
   isRedoDisabled: boolean,
   isOffline: boolean,
   hasMate: boolean,
-  isLoggedIn: boolean
+  isLoggedIn: boolean,
+  isModal: boolean,
 ): ToolbarConfig {
   const penMenuIcon =
     lastSelectedPenMenuTool == DrawTool.Pen
@@ -159,7 +159,7 @@ export function getToolbarConfig(
           icon: mdiSend,
           menu: Menu.Send,
           id: ToolbarIds.send,
-          isDisabled: !isLoggedIn,
+          isDisabled: !isLoggedIn || isModal,
           tour_step: '6'
         }
       ] as ToolbarItem[]

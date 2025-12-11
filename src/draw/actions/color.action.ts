@@ -8,6 +8,8 @@ import { usePen } from '@/draw/store/tools/pen.store'
 import { DrawAction, DrawActionParams, DrawTool } from '@/draw/types/draw.types'
 import { exitEditing, isText } from '@/draw/helpers/text.helper'
 import { ERASERS, PENMENUTOOLS, SELECTMENUTOOLS } from '@/draw/config/tools.config'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 export async function setCanvasBackground(params: DrawActionParams[DrawAction.SetCanvasBackground]) {
   const { getCanvas } = useDrawStore()
@@ -86,8 +88,9 @@ export function changeStrokeWidth(params: DrawActionParams[DrawAction.ChangeStro
 }
 
 export function exitColorPickerMode(params: DrawActionParams[DrawAction.ExitColorPickerMode]) {
-  const { colorPickerMode } = storeToRefs(useDrawStore())
-  const { selectedTool, getCanvas } = useDrawStore()
+  const { colorPickerMode } = storeToRefs(useDrawUIStore())
+  const { getCanvas } = useDrawStore()
+  const { selectedTool } = useToolSelection()
   const { updatePenCursor } = usePen()
   const { deActivateExclusiveEvents } = useDrawEventManager()
   colorPickerMode.value = false

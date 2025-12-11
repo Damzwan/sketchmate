@@ -23,7 +23,7 @@
       </ion-toolbar>
     </div>
     <ion-content color="tertiary">
-      <CircularLoader v-if="!user " />
+      <CircularLoader v-if="!user " bg-color="tertiary" />
       <div class="w-full h-full top-0" v-else>
         <CircularLoader v-show="isLoading" class="absolute w-full h-full z-50" />
 
@@ -32,7 +32,7 @@
             <ion-refresher-content></ion-refresher-content>
           </ion-refresher>
 
-          <!--          <BalloonBanner class="py-4" />-->
+          <BalloonBanner class="py-4" />
 
           <div class="w-full flex-col flex justify-center" v-if="user.mates.length == 0">
             <img :src="connectImage" class="md:w-[50%] max-w-[600px] w-[90%] mx-auto" alt="friends connect" />
@@ -139,8 +139,8 @@
                         :buttons="connectSheetButtons" mode="ios" header="Connect to a mate" />
 
       <SearchNameModal />
-      <!--      <SendBalloonModal />-->
-      <!--      <ReceiveBalloonModal />-->
+      <SendBalloonModal />
+      <ReceiveBalloonModal />
 
     </ion-content>
     <QRPage v-model:open="showQRPage" :_id="user._id" :img="user.img" :name="user.name" v-if="user"
@@ -191,6 +191,11 @@ import ConnectUserItem from '@/components/connect/ConnectUserItem.vue'
 import SearchNameModal from '@/components/connect/SearchNameModal.vue'
 import { useMenuStore } from '@/store/menu.store'
 import { Menu } from '@/draw/types/draw.types'
+import { useSessionStore } from '@/store/session.store'
+import { useFriendStore } from '@/store/friend.store'
+import BalloonBanner from '@/components/connect/balloon/BalloonBanner.vue'
+import ReceiveBalloonModal from '@/components/connect/balloon/ReceiveBalloonModal.vue'
+import SendBalloonModal from '@/components/connect/balloon/SendBalloonModal.vue'
 
 enum Segments {
   friends = 'friends',
@@ -199,13 +204,18 @@ enum Segments {
 
 const {
   user,
-  queryParams,
   isLoading,
-  friendRequestLoading,
-  friendRequestUsers,
   socialFeaturesAllowed
 } = storeToRefs(useAuthStore())
-const { setQueryParams, retrieveFriendRequestUsers, findUserInFriendRequestUsers, refresh } = useAuthStore()
+
+const {
+  friendRequestLoading,
+  friendRequestUsers
+} = storeToRefs(useFriendStore())
+const { queryParams } = storeToRefs(useSessionStore())
+const { setQueryParams } = useSessionStore()
+const { refresh } = useAuthStore()
+const { retrieveFriendRequestUsers, findUserInFriendRequestUsers } = useFriendStore()
 
 const route = useRoute()
 

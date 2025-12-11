@@ -1,6 +1,6 @@
 <template>
   <ion-modal :is-open="sendMenuOpen" :initial-breakpoint="1" :breakpoints="[0, 1]" @didDismiss="onDismiss"
-             @willPresent="onOpen"
+             @didPresent="onOpen"
 
              :keep-contents-mounted="true"
              :handle="false">
@@ -63,9 +63,9 @@ import { useAuthStore } from '@/store/auth.store'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import SendBalloonBanner from '@/components/balloon/SendBalloonBanner.vue'
 import SendDrawerItem from '@/components/draw/SendDrawerItem.vue'
-import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
 
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
+import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
 
 const { sendMenuOpen } = storeToRefs(useMenuStore())
 

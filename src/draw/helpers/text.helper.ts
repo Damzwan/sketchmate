@@ -3,6 +3,7 @@ import { isMobile } from '@/helper/general.helper'
 import { ObjectType } from '@/draw/types/draw.types'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/draw/store/draw.store'
+import { useSelect } from '@/draw/store/tools/select.store'
 
 export function focusText(text: IText) {
   if (isMobile()) {
@@ -25,7 +26,7 @@ export function isText(objects: FabricObject[]) {
 export function exitEditing(text: any) {
   if (text.type != ObjectType.text || !text.isEditing || text.text == '') return
   text.exitEditing()
-  const { isEditingText } = storeToRefs(useDrawStore())
+  const { isEditingText } = storeToRefs(useSelect())
   isEditingText.value = false
 }
 

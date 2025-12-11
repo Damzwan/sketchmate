@@ -15,29 +15,29 @@
 <script setup lang="ts">
 
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/draw/store/draw.store'
 import { getToolbarConfig } from '@/draw/config/toolbar.config'
 import Toolbar from '@/components/draw/toolbar/Toolbar.vue'
-import { computed, ref, watch } from 'vue'
-import { DrawTool, ObjectType, PenMenuTool, SelectTool } from '@/draw/types/draw.types'
+import { computed } from 'vue'
+import { ObjectType } from '@/draw/types/draw.types'
 import { useAuthStore } from '@/store/auth.store'
 import { usePen } from '@/draw/store/tools/pen.store'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
-import { PENMENUTOOLS, SELECTMENUTOOLS } from '@/draw/config/tools.config'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { useNetworkStore } from '@/store/network.store'
+import { useDrawStore } from '@/draw/store/draw.store'
 
-const {
-  lastSelectedPenMenuTool,
-  lastSelectedSelectTool,
-  shapeCreationMode,
-  colorPickerMode,
-  addTextMode,
-  selectedTool
-} = storeToRefs(useDrawStore())
+
+const { lastSelectedPenMenuTool, lastSelectedSelectTool, selectedTool } = storeToRefs(useToolSelection())
+const { shapeCreationMode, colorPickerMode, addTextMode } = storeToRefs(useDrawUIStore())
+
 const { brushType } = storeToRefs(usePen())
 const { isSelectActive, selectedObjectsRef } = storeToRefs(useSelect())
 const { undoStackCounter, redoStackCounter } = storeToRefs(useDrawHistoryManager())
-const { networkStatus, user, isLoggedIn } = storeToRefs(useAuthStore())
+const { user, isLoggedIn } = storeToRefs(useAuthStore())
+const { networkStatus } = storeToRefs(useNetworkStore())
+const {isModal} = storeToRefs(useDrawStore())
 
 
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
@@ -72,7 +72,8 @@ const toolbarConfig = computed(() =>
     redoStackDisabled.value,
     isOffline.value,
     hasMate.value,
-    isLoggedIn.value
+    isLoggedIn.value,
+    isModal.value,
   ))
 
 

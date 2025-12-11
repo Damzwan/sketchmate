@@ -92,7 +92,8 @@ function onDismiss() {
 }
 
 function onPresent() {
-  const { getCanvas, isEditingText } = useDrawStore()
+  const { isEditingText } = useSelect()
+  const { getCanvas } = useDrawStore()
   if (isEditingText) {
     shouldRefocusTextAfterClose.value = true
     if (text.value.text != '') getCanvas().discardActiveObject() // TODO needed to activate history

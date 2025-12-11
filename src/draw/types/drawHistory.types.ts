@@ -31,7 +31,7 @@ export type HistoryParamsMap = {
     activeObjectId?: string | null
     diff: any
   }
-  [HistoryEvent.Erasing]: { objectIds: string[] }
+  [HistoryEvent.Erasing]: { objectIds: string[], prevClipPaths: (object | undefined)[] }
   [HistoryEvent.FullErase]: { prevCanvasJSON: any }
   [HistoryEvent.MoveObjectToFront]: { objectIds: string[]; prevObjectPositions: number[] }
   [HistoryEvent.MoveObjectToBack]: { objectIds: string[]; prevObjectPositions: number[] }

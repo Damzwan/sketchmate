@@ -115,6 +115,7 @@ import { useSelect } from '@/draw/store/tools/select.store'
 import { focusText, isText } from '@/draw/helpers/text.helper'
 import { hexWithTransparencyToNormal } from '@/draw/utils/color.utils'
 import { BLACK } from '@/draw/config/canvas.config'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 defineProps<{
   strokeColor?: string
@@ -147,7 +148,8 @@ function onPresent() {
   const { selectedObjectsRef } = useSelect()
   if (!isText(selectedObjectsRef)) return
 
-  const { getCanvas, isEditingText } = useDrawStore()
+  const { getCanvas } = useDrawStore()
+  const { isEditingText } = useDrawUIStore()
   if (isEditingText) {
     shouldRefocusTextAfterClose.value = true
     if ((selectedObjectsRef[0] as IText).text != '') getCanvas().discardActiveObject() // TODO needed to activate history
@@ -156,7 +158,7 @@ function onPresent() {
 </script>
 
 <style scoped>
-ion-list{
+ion-list {
   padding: 0;
 }
 </style>

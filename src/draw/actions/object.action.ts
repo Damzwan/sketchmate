@@ -16,6 +16,8 @@ import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { HistoryEvent } from '@/draw/types/drawHistory.types'
 import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
 import { canvasToBuffer } from '@/draw/helpers/export.helper'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 
 export async function removeObjects(objects: FabricObject[]) {
@@ -198,7 +200,7 @@ export async function unselectObjects() {
 
 export async function saveFabricObject(params: DrawActionParams[DrawAction.SaveFabricObject]) {
   const { user } = useAuthStore()
-  const { loadingText, isLoading } = storeToRefs(useDrawStore())
+  const { loadingText, isLoading } = storeToRefs(useDrawUIStore())
   const { createSaved } = useAPI()
   const { toast } = useToast()
 
@@ -265,10 +267,12 @@ export async function saveFabricObject(params: DrawActionParams[DrawAction.SaveF
 }
 
 export async function addSavedFabricObjectToCanvas(params: DrawActionParams[DrawAction.AddSavedDrawingToCanvas]) {
-  const { getCanvas, selectTool, selectedTool } = useDrawStore()
+  const { getCanvas } = useDrawStore()
+  const { selectTool, selectedTool } = useToolSelection()
   const { actionWithoutEvents } = useDrawEventManager()
 
   const c = getCanvas()
+  if (!c) return
   const json = params.json
 
   // Enliven

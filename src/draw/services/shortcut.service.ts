@@ -1,13 +1,15 @@
 import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
-import { DrawAction, DrawTool } from '@/draw/types/draw.types'
+import { DrawAction, DrawTool, Menu } from '@/draw/types/draw.types'
 import { Shortcut } from '@/draw/config/shortcut.config'
 import { modalController, popoverController } from '@ionic/vue'
 import { Canvas } from 'fabric/fabric-impl'
 import { ToolbarIds } from '@/draw/config/toolbar.config'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { isMac } from '@/helper/general.helper'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { useMenuStore } from '@/store/menu.store'
 
 export function useShortcutManager() {
   const { getSelectedObjects } = useSelect()
@@ -65,7 +67,8 @@ export function useShortcutManager() {
   }
 
   async function handleKeydown(event: any) {
-    const { selectAction, selectedTool, selectTool } = useDrawStore()
+    const { selectAction } = useDrawStore()
+    const { selectedTool, selectTool } = useToolSelection()
 
     const modifier = isMac() ? event.metaKey : event.ctrlKey
 
@@ -138,7 +141,8 @@ export function useShortcutManager() {
       case Shortcut.manual:
         event.preventDefault()
         if (isSelectMode.value) return
-        document.getElementById('docs')!.click()
+        const { openMenu } = useMenuStore()
+        openMenu(Menu.HelpMenu)
         dismissPopover()
         const modal = await modalController.getTop()
         if (modal) modalController.dismiss()
@@ -155,7 +159,8 @@ export function useShortcutManager() {
 
       case Shortcut.send:
         event.preventDefault()
-        if (isSelectMode.value) return
+        const {isModal} = useDrawStore()
+        if (isSelectMode.value || isModal) return
         if (!document.getElementById(ToolbarIds.send)!.ariaDisabled) document.getElementById(ToolbarIds.send)!.click()
         dismissPopover()
         break
@@ -171,7 +176,7 @@ export function useShortcutManager() {
         event.preventDefault()
         if (selectedTool != DrawTool.Select || c?.getObjects().length == 0) return
 
-        const allObjectss = c!.getObjects().filter(o => o.id != 'boundary')
+        const allObjectss = c!.getObjects()
 
         selectIndex++
         if (selectIndex >= allObjectss.length) selectIndex = 0
@@ -190,7 +195,7 @@ export function useShortcutManager() {
         event.preventDefault()
         if (selectedTool != DrawTool.Select || c?.getObjects().length == 0) return
 
-        const allObjects = c!.getObjects().filter(o => o.id != 'boundary')
+        const allObjects = c!.getObjects()
 
         selectIndex--
         if (selectIndex < 0) selectIndex = allObjects.length - 1

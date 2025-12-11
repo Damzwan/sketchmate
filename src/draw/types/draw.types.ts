@@ -24,7 +24,6 @@ export enum DrawTool {
   Select,
   Lasso,
   Bucket,
-  Pan
 }
 
 export enum DrawAction {
@@ -81,6 +80,7 @@ export enum Menu {
   ReceiveBalloon,
   SendBalloon,
   DateOfBirth,
+  DrawMenu,
 }
 
 export enum ObjectType {
@@ -184,7 +184,7 @@ export type DrawActionParams = {
   [DrawAction.ExitColorPickerMode]: { lastSelectedObjectRef?: FabricObject };
   [DrawAction.ExitTextAddingMode]: undefined;
   [DrawAction.AddImage]: { imageUrl: string };
-  [DrawAction.AddSavedDrawingToCanvas]: DrawActionObjectParams & { json: any };
+  [DrawAction.AddSavedDrawingToCanvas]: { json: any };
   [DrawAction.SaveFabricObject]: DrawActionObjectParams;
   [DrawAction.AddShape]: {shape: Shape};
   [DrawAction.ConfirmShapeCreation]: undefined;

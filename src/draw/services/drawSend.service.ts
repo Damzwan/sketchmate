@@ -5,11 +5,15 @@ import { storeToRefs } from 'pinia'
 import { Canvas } from 'fabric'
 import { canvasToBuffer, exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import { CreateBalloonPostRes, Res } from '@/types/server.types'
+import { ref } from 'vue'
+import { useDrawStore } from '@/draw/store/draw.store'
 
 export function useDrawSendService(c: () => Canvas | null) {
   const api = useAPI()
   const socketAPI = useSocketService()
-  const { user, isSendingDrawing } = storeToRefs(useAuthStore())
+  const isSendingDrawing = ref(false)
+  const { user } = storeToRefs(useAuthStore())
+  const drawStore = useDrawStore()
 
   async function send(mates: string[]) {
     const canvas = c()
@@ -28,7 +32,7 @@ export function useDrawSendService(c: () => Canvas | null) {
       aspect_ratio: img.aspect_ratio
     })
 
-    isSendingDrawing.value = false
+    drawStore.reset()
   }
 
   async function createBalloon(message: string): Promise<Res<CreateBalloonPostRes>> {
@@ -47,5 +51,5 @@ export function useDrawSendService(c: () => Canvas | null) {
     })
   }
 
-  return { send, createBalloon }
+  return { send, createBalloon, isSendingDrawing }
 }

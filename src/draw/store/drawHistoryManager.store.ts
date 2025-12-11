@@ -31,21 +31,10 @@ export const useDrawHistoryManager = defineStore('history', () => {
       handler: (e: any) => {
         if (e.detail.targets.length == 0) return
         const targets = e.detail.targets as FabricObject[]
-        addToUndoStackWithResetRedo({ type: HistoryEvent.Erasing, params: { objectIds: toObjectsIds(targets) } })
-      }
-    },
-    {
-      on: 'object:added',
-      handler: (e: any) => {
-        addToUndoStackWithResetRedo({ type: HistoryEvent.ObjectsAdded, params: { objectsJSON: [e.target.toJSON()] } })
-      }
-    },
-    {
-      on: 'objects:added',
-      handler: (e: any) => {
-        const targets = e.target as FabricObject[]
-
-        addToUndoStackWithResetRedo({ type: HistoryEvent.ObjectsAdded, params: { objectsJSON: toJSON(targets) } })
+        addToUndoStackWithResetRedo({
+          type: HistoryEvent.Erasing,
+          params: { objectIds: toObjectsIds(targets), prevClipPaths: targets.map(item => item.prevClipPath) }
+        })
       }
     },
     {

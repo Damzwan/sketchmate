@@ -64,7 +64,9 @@
             ><img :src="senderImg(findUserInInboxUsers(comment.sender))" alt="" class="aspect-square"
             /></ion-avatar>
             <div class="flex-1 mx-2">
-              <div class="text-sm font-bold text-white cabin-sketch-regular">{{ senderName(findUserInInboxUsers(comment.sender)) }}</div>
+              <div class="text-sm font-bold text-white cabin-sketch-regular">
+                {{ senderName(findUserInInboxUsers(comment.sender)) }}
+              </div>
               <div class="text-sm text-white cabin-sketch-regular">{{ comment.message }}</div>
             </div>
           </div>
@@ -151,6 +153,8 @@ import CommentDrawer from '@/components/photoswiper/CommentDrawer.vue'
 import PhotoSwiperFollowersDrawer from '@/components/photoswiper/PhotoSwiperFollowersDrawer.vue'
 import router from '@/router'
 import PhotoSwiperItem from '@/components/photoswiper/PhotoSwiperItem.vue'
+import { useInboxStore } from '@/store/inbox.store'
+import { useSessionStore } from '@/store/session.store'
 
 register()
 
@@ -158,8 +162,9 @@ const { open, slide } = storeToRefs(usePhotoSwiper())
 const { seeItem } = usePhotoSwiper()
 
 
-const { inbox } = storeToRefs(useAuthStore())
-const { user, findUserInInboxUsers } = useAuthStore()
+const { inbox } = storeToRefs(useInboxStore())
+const { user } = useAuthStore()
+const { findUserInInboxUsers } = useInboxStore()
 const { toast, dismiss } = useToast()
 
 
@@ -174,7 +179,7 @@ const badgesCountToShow = 3
 const swiper = ref<any>()
 const api = useAPI()
 
-const { updateSlide } = storeToRefs(useAuthStore())
+const { updateSlide } = storeToRefs(useSessionStore())
 watch(
   inbox,
   (first, second) => {

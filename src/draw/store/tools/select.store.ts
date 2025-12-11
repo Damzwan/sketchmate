@@ -16,6 +16,7 @@ interface Select extends ToolService {
   selectedObjectsRef: Ref<FabricObject[]>
   multiSelectMode: Ref<boolean>
   shouldModifyObjectsWithGestures: () => boolean
+  isEditingText: Ref<boolean>
 }
 
 export const useSelect = defineStore('select', (): Select => {
@@ -33,6 +34,8 @@ export const useSelect = defineStore('select', (): Select => {
 
   let wasDragging = false
   let pointerDownPos: Point | null = null
+
+  let useGestures = false
 
   // ----------------- Helper Functions -----------------
   function getObjectsUnderPointer(pointer: Point) {
@@ -98,17 +101,26 @@ export const useSelect = defineStore('select', (): Select => {
       handler: (e: any) => {
         if (c!._activeObject && c!._activeObject.isType('activeselection')) c!._activeObject.id = v4()
         isSelectActive.value = true
-        clicksAfterSelectionActive = 0
+        clicksAfterSelectionActive = 1
         selectedObjects = e.selected
         selectedObjectsRef.value = [...e.selected]
+        useGestures = false
+        setTimeout(() => {
+          useGestures = true
+        }, 100)
       }
     },
     {
       on: 'selection:updated',
       handler: (e: any) => {
+        isSelectActive.value = true
         selectedObjects = e.selected
         selectedObjectsRef.value = [...e.selected]
-        clicksAfterSelectionActive = 0
+        clicksAfterSelectionActive = 1
+        useGestures = false
+        setTimeout(() => {
+          useGestures = true
+        }, 100)
       }
     },
     {
@@ -144,7 +156,6 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'mouse:up',
       handler: () => {
-        clicksAfterSelectionActive++
         if (wasDragging || !pointerDownPos) return
 
         if (!isSelectActive.value) return
@@ -157,7 +168,10 @@ export const useSelect = defineStore('select', (): Select => {
           } else {
             cycleSelection(pointerDownPos)
           }
+        } else {
+          clicksAfterSelectionActive++
         }
+        pointerDownPos = null
       }
 
     },
@@ -218,7 +232,8 @@ export const useSelect = defineStore('select', (): Select => {
   }
 
   function shouldModifyObjectsWithGestures() {
-    return clicksAfterSelectionActive > 0 && selectedObjects.length > 0
+    if (selectedObjects.length === 0) return false
+    else return useGestures
   }
 
   return {
@@ -230,6 +245,7 @@ export const useSelect = defineStore('select', (): Select => {
     getSelectedObjects,
     selectedObjectsRef,
     multiSelectMode,
-    shouldModifyObjectsWithGestures
+    shouldModifyObjectsWithGestures,
+    isEditingText
   }
 })

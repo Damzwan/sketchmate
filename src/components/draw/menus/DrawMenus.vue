@@ -47,6 +47,8 @@ import SelectExtraOptionsMenu from '@/components/draw/menus/SelectExtraOptionsMe
 import ShapesMenu from '@/components/draw/menus/ShapesMenu.vue'
 import SelectImgStyleMenu from '@/components/draw/menus/SelectImgStyleMenu.vue'
 import SelectColorMenu from '@/components/draw/menus/SelectColorMenu.vue'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { useShapeCreation } from '@/draw/store/shapeCreation.store'
 
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const { selectAction } = useDrawStore()
@@ -56,7 +58,8 @@ const isText = computed(
 )
 
 
-const { shapeCreationSettings, shapeCreationMode } = storeToRefs(useDrawStore())
+const { shapeCreationMode } = storeToRefs(useDrawUIStore())
+const { shapeCreationSettings } = storeToRefs(useShapeCreation())
 
 
 </script>

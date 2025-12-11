@@ -1,8 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export const useShapeCreationStore = defineStore('shapeCreation', () => {
-  const shapeCreationSettings = ref({
+interface ShapeCreationSettings {
+  stroke?: string
+  fill?: string
+  backgroundColor?: string
+  strokeWidth?: number
+}
+
+
+export const useShapeCreation = defineStore('shapeCreation', () => {
+  const shapeCreationSettings = ref<ShapeCreationSettings>({
     stroke: '#000000',
     fill: undefined,
     backgroundColor: undefined,

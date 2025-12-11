@@ -44,6 +44,7 @@ export function useDrawProgressSaver() {
   function startSaving(canvas: Canvas) {
     c = canvas
     events.forEach(e => {
+      EventBus.off(e, save)
       EventBus.on(e, save)
     })
   }
@@ -56,7 +57,6 @@ export function useDrawProgressSaver() {
     saveTimeout = setTimeout(() => {
       if (c && db) {
         const json = c.toJSON()
-        json.objects = json.objects.filter(o => !o.visual) // remove visual indicators
         const transaction = db.transaction([objectStoreName], 'readwrite')
 
         transaction.onerror = event => {

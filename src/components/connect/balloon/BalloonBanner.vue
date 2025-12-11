@@ -104,32 +104,18 @@ import { storeToRefs } from 'pinia'
 import balloonLottie from '@/assets/lottie/balloon.json'
 import Lottie from '@/components/general/Lottie.vue'
 import { useAPI } from '@/service/api/api.service'
+import { useBalloonStore } from '@/store/balloon.store'
 
 const { openMenu } = useMenuStore()
-const { user, sentBalloon, receivedBalloon, socialFeaturesAllowed } = storeToRefs(useAuthStore())
-
-
-const api = useAPI()
-
-
-async function setup() {
-  if (!sentBalloon.value && user.value?.balloon?.sent) {
-    sentBalloon.value = await api.getBalloon({ balloonId: user.value.balloon.sent })
-  }
-
-  if (!receivedBalloon.value && user.value?.balloon?.received) {
-    receivedBalloon.value = await api.getBalloon({ balloonId: user.value.balloon.received })
-  }
-
-}
-
-setup()
+const { user, socialFeaturesAllowed } = storeToRefs(useAuthStore())
+const { sentBalloon, receivedBalloon } = storeToRefs(useBalloonStore())
 
 
 </script>
 
 
 <style scoped>
+@reference "@/theme/main.css";
 .card {
   @apply w-full mx-auto rounded-xl p-4 max-w-96  flex justify-between items-center shadow-md;
 }

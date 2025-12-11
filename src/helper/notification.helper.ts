@@ -8,6 +8,7 @@ import { useToast } from '@/service/toast.service'
 import { isNative } from '@/helper/general.helper'
 import { getMessaging, getToken, deleteToken } from 'firebase/messaging'
 import { storeToRefs } from 'pinia'
+import { useNotificationStore } from '@/store/notification.store'
 
 export async function requestNotifications() {
   if (isNative()) {
@@ -52,7 +53,7 @@ export async function PWARequestNotifications() {
       serviceWorkerRegistration: registration
     })
 
-    const { setNotifications } = useAuthStore()
+    const { setNotifications } = useNotificationStore()
     setNotifications(token)
   } catch (e) {
     toast(e as string, { color: 'danger' })
@@ -67,7 +68,7 @@ export async function disableNotifications() {
   } else {
     deleteToken(getMessaging())
   }
-  const { setNotifications } = useAuthStore()
+  const { setNotifications } = useNotificationStore()
   await setNotifications(undefined)
 }
 
@@ -98,7 +99,7 @@ async function requestLocalNotifications() {
 async function requestPushNotifications() {
   await PushNotifications.unregister()
   await PushNotifications.register()
-  const { localSubscription } = storeToRefs(useAuthStore())
+  const { localSubscription } = storeToRefs(useNotificationStore())
   localSubscription.value = 'temp' // TODO hack to show notification bell earlier in settings menu as not to confuse the user
 
   // In case the localSubscription value is still temp something went wrong during registration
@@ -126,7 +127,7 @@ export async function addNotificationListeners() {
 
 
     await PushNotifications.addListener('registration', token => {
-      const { setNotifications } = useAuthStore()
+      const { setNotifications } = useNotificationStore()
       setNotifications(token.value)
     })
 
@@ -140,7 +141,7 @@ export async function addNotificationListeners() {
 
     await PushNotifications.addListener('pushNotificationActionPerformed', async (notification) => {
       const notificationType: NotificationType = notification.notification.data.type
-      const { setNotificationLoading } = useAuthStore()
+      const { setNotificationLoading } = useNotificationStore()
       setNotificationLoading(notificationType)
 
       await router.isReady()
@@ -188,7 +189,7 @@ export async function addNotificationListeners() {
 }
 
 export async function setNotificationsAllowed() {
-  const { notificationsAllowed } = storeToRefs(useAuthStore())
+  const { notificationsAllowed } = storeToRefs(useNotificationStore())
   if (isNative()) {
     const status = await PushNotifications.checkPermissions()
     notificationsAllowed.value = status.receive == 'granted'

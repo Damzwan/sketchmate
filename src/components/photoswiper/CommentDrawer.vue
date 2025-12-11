@@ -80,19 +80,20 @@ import { ref, watch } from 'vue'
 import { IonAvatar, IonButton, IonIcon, IonInput, IonPopover, IonSpinner, useBackButton } from '@ionic/vue'
 
 import { InboxItem, Mate, User } from '@/types/server.types'
-import { useAuthStore } from '@/store/auth.store'
 import { useToast } from '@/service/toast.service'
 import { senderImg, senderName, svg } from '@/helper/general.helper'
 import { mdiSend } from '@mdi/js'
 import dayjs from 'dayjs'
 import { useSocketService } from '@/service/api/socket.service'
 import { storeToRefs } from 'pinia'
+import { useFriendStore } from '@/store/friend.store'
+import { useInboxStore } from '@/store/inbox.store'
 
 const socketService = useSocketService()
 const { cancelSendMateRequest } = useSocketService()
 const { toast } = useToast()
-const { friendRequestLoading } = storeToRefs(useAuthStore())
-const { findUserInInboxUsers } = useAuthStore()
+const { friendRequestLoading } = storeToRefs(useFriendStore())
+const { findUserInInboxUsers } = useInboxStore()
 
 const props = defineProps({
   open: {

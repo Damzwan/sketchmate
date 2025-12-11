@@ -9,8 +9,8 @@
       :buttons="buttons"
       :color="color"
       :position="position"
-    ></ion-toast>
-    <FullScreenModal v-if="user && inbox.length > 0" />
+    />
+    <PhotoSwiper v-if="user && inbox.length > 0" />
     <FullScreenLoader v-show="notificationRouteLoading" class="z-50" />
 
     <ion-tabs>
@@ -74,7 +74,9 @@ import FullScreenLoader from '@/components/general/loaders/CircularLoader.vue'
 import { routerAnimation } from '@/helper/animation.helper'
 import { useRoute } from 'vue-router'
 import { useSwipe } from '@vueuse/core'
-import FullScreenModal from '@/components/photoswiper/PhotoSwiper.vue'
+import PhotoSwiper from '@/components/photoswiper/PhotoSwiper.vue'
+import { useInboxStore } from '@/store/inbox.store'
+import { useNotificationStore } from '@/store/notification.store'
 
 const { text, isOpen, dismiss, duration, color, buttons, position } = useToast()
 const r = useIonRouter()
@@ -87,7 +89,9 @@ useSwipe(toast, {
   }
 })
 
-const { notificationRouteLoading, user, inbox, isLoggedIn } = storeToRefs(useAuthStore())
+const { user, isLoggedIn } = storeToRefs(useAuthStore())
+const { inbox } = storeToRefs(useInboxStore())
+const { notificationRouteLoading } = storeToRefs(useNotificationStore())
 
 const notificationBadgeCount = computed(() => {
   return user.value

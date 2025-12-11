@@ -36,7 +36,8 @@ function selectFont(font: string) {
 }
 
 function onPresent() {
-  const { getCanvas, isEditingText } = useDrawStore()
+  const { getCanvas } = useDrawStore()
+  const { isEditingText } = useSelect()
   if (isEditingText) {
     shouldRefocusTextAfterClose.value = true
     if (text.value.text != '') getCanvas().discardActiveObject() // TODO needed to activate history
@@ -60,7 +61,7 @@ function onDismiss() {
 @import url('https://fonts.googleapis.com/css2?family=Amatic+SC&family=Chokokutai&family=Dancing+Script&family=Rubik+Puddles&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Amatic+SC&family=Chokokutai&family=Dancing+Script&family=Krub&family=Rubik+Puddles&display=swap');
 
-ion-list{
+ion-list {
   padding: 0;
 }
 </style>

@@ -2,15 +2,21 @@ import { DrawAction, DrawActionParams, Shape, ShapeCreationMode } from '@/draw/t
 import { useDrawStore } from '@/draw/store/draw.store'
 import { EventBus } from '@/main'
 import { storeToRefs } from 'pinia'
-import { exitClickShapeCreationMode, exitDragShapeCreationMode, findNearestPoint } from '@/draw/helpers/actions/shape.helper'
+import {
+  exitClickShapeCreationMode,
+  exitDragShapeCreationMode,
+  findNearestPoint
+} from '@/draw/helpers/actions/shape.helper'
 import { Canvas, Circle, Ellipse, FabricObject, Line, Path, Point, Polygon, Polyline, Rect, Triangle } from 'fabric'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { HistoryEvent } from '@/draw/types/drawHistory.types'
 import { setSelectionForObjects } from '@/draw/helpers/select.helper'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { useShapeCreation } from '@/draw/store/shapeCreation.store'
 
 export function confirmShapeCreation() {
-  const { shapeCreationMode } = useDrawStore()
+  const { shapeCreationMode } = useDrawUIStore()
 
 
   if (shapeCreationMode === ShapeCreationMode.Click) {
@@ -28,22 +34,22 @@ export function addShape(params: DrawActionParams[DrawAction.AddShape]) {
   c.selection = false
   setSelectionForObjects(c.getObjects(), false)
   c.getObjects().forEach(obj => obj.set({ isCreating: false }))
-  const { setShapeCreationMode } = useDrawStore()
+  const { shapeCreationMode } = storeToRefs(useDrawUIStore())
 
 
   if (shape == Shape.Polyline || shape == Shape.Polygon) {
     addShapeWithClick(c, shape)
-    setShapeCreationMode(ShapeCreationMode.Click)
+    shapeCreationMode.value = ShapeCreationMode.Click
   } else {
     addShapeWithDrag(c, shape)
-    setShapeCreationMode(ShapeCreationMode.Drag)
+    shapeCreationMode.value = ShapeCreationMode.Drag
   }
 }
 
 function addShapeWithClick(c: Canvas, shape: Shape) {
   const { addToUndoStackWithResetRedo } = useDrawHistoryManager()
   const { actionWithoutEvents, addEventsOfService } = useDrawEventManager()
-  const { shapeCreationSettings } = storeToRefs(useDrawStore())
+  const { shapeCreationSettings } = storeToRefs(useShapeCreation())
 
   const clickTolerance = 20
   let points: Point[] = []
@@ -261,7 +267,7 @@ function updateShape(createdShape: any, shape: Shape, pointer: any, startX: numb
 }
 
 function createShape(shape: Shape, startX: number, startY: number): FabricObject {
-  const { shapeCreationSettings } = useDrawStore()
+  const { shapeCreationSettings } = useShapeCreation()
   let o: FabricObject | undefined = undefined
   switch (shape) {
     case Shape.Circle:

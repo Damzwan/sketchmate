@@ -81,11 +81,11 @@
           <!-- Buttons -->
           <div class="flex flex-col gap-2 mt-4" :class="{'animate-fade-up animate-delay-[2500ms]': showText}"
                v-if="receivedBalloon">
-            <ion-button color="secondary" fill="solid" shape="rounded"
+            <ion-button color="secondary" fill="solid" shape="round"
                         @click="acceptBalloonHelper">
               Accept
             </ion-button>
-            <ion-button color="secondary" fill="clear" shape="rounded" @click="rejectBalloonHelper">Refuse</ion-button>
+            <ion-button color="secondary" fill="clear" shape="round" @click="rejectBalloonHelper">Refuse</ion-button>
           </div>
         </div>
       </div>
@@ -105,8 +105,10 @@ import { useToast } from '@/service/toast.service'
 import Lottie from '@/components/general/Lottie.vue'
 import balloonLottie from '@/assets/lottie/balloon.json'
 import { useSocketService } from '@/service/api/socket.service'
+import { useBalloonStore } from '@/store/balloon.store'
 
-const { user, receivedBalloon } = storeToRefs(useAuthStore())
+const { user } = storeToRefs(useAuthStore())
+const { receivedBalloon } = storeToRefs(useBalloonStore())
 const { receiveBalloonModalOpen } = storeToRefs(useMenuStore())
 const api = useAPI()
 const { toast } = useToast()
@@ -124,17 +126,10 @@ let timeout: any = null
 
 async function fetchBalloon() {
   if (!receivedBalloon.value) {
-    loading.value = true
-
-    const fetchedBalloon = await api.getBalloon({ balloonId: user.value!.balloon!.received! })
-    if (!fetchedBalloon) {
-      toast('Something went wrong', { color: 'danger' })
-      loading.value = false
-      return
-    }
-
-    receivedBalloon.value = fetchedBalloon
+    return
   }
+  loading.value = true
+
 
   const mates = await api.getPartialUsers({ _ids: [receivedBalloon.value.sender] })
   if (!mates || mates.length === 0) {

@@ -6,13 +6,18 @@ import { Point } from 'fabric'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 
 import { setSelectionForObjects } from '@/draw/helpers/select.helper'
+import { storeToRefs } from 'pinia'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
 
 export function exitClickShapeCreationMode(isNewShape: boolean = true) {
-  const { setShapeCreationMode, getCanvas } = useDrawStore()
+  const { getCanvas } = useDrawStore()
+  const { shapeCreationMode } = storeToRefs(useDrawUIStore())
+
   const { removeEventsOfService } = useDrawEventManager()
   const { clearStackOfPolygonHistory } = useDrawHistoryManager()
-  const { selectTool, selectedTool } = useDrawStore()
+  const { selectTool, selectedTool } = useToolSelection()
 
 
   const c = getCanvas()
@@ -20,8 +25,7 @@ export function exitClickShapeCreationMode(isNewShape: boolean = true) {
   removeEventsOfService('shapeCreation')
   clearStackOfPolygonHistory()
   EventBus.emit('reset-shape-creation')
-  setShapeCreationMode(undefined)
-
+  shapeCreationMode.value = undefined
 
   setSelectionForObjects(c.getObjects(), true)
 
@@ -29,10 +33,10 @@ export function exitClickShapeCreationMode(isNewShape: boolean = true) {
 
   if (isNewShape && lastObject) {
     c.fire('object:added', { target: lastObject })
-    selectTool(DrawTool.Select, {skipOpenMenu: true})
+    selectTool(DrawTool.Select, { skipOpenMenu: true })
     c.setActiveObject(lastObject)
   } else {
-    selectTool(selectedTool, {skipOpenMenu: true})
+    selectTool(selectedTool, { skipOpenMenu: true })
     c.remove(lastObject)
     c.discardActiveObject()
   }
@@ -40,14 +44,15 @@ export function exitClickShapeCreationMode(isNewShape: boolean = true) {
 }
 
 export function exitDragShapeCreationMode() {
-  const { setShapeCreationMode, getCanvas } = useDrawStore()
+  const { getCanvas } = useDrawStore()
+  const { shapeCreationMode } = storeToRefs(useDrawUIStore())
   const { removeEventsOfService } = useDrawEventManager()
 
   const c = getCanvas()
   removeEventsOfService('shapeCreation')
-  setShapeCreationMode(undefined)
+  shapeCreationMode.value = undefined
 
-  const { selectTool, selectedTool } = useDrawStore()
+  const { selectTool, selectedTool } = useToolSelection()
   if (selectedTool !== DrawTool.Select) {
     selectTool(DrawTool.Select)
   }

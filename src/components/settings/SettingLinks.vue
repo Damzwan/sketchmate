@@ -37,8 +37,9 @@ import { useMenuStore } from '@/store/menu.store'
 import { Menu } from '@/draw/types/draw.types'
 import { discord_link } from '@/config/general.config'
 import DocsMenu from '@/components/draw/menus/DocsMenu.vue'
+import { useSessionStore } from '@/store/session.store'
 
-const { installPrompt } = storeToRefs(useAuthStore())
+const { installPrompt } = storeToRefs(useSessionStore())
 const { logout } = useAuthStore()
 
 const { openMenu } = useMenuStore()

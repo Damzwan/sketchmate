@@ -12,6 +12,7 @@ declare module 'fabric' {
     erasable?: boolean
     prevClipPath?: object
     oldText?: string
+    layer: number
     init?: boolean // hacky property for text initialization
     visual?: boolean // hacky property for shape creations
   }
@@ -20,7 +21,6 @@ declare module 'fabric' {
   interface SerializedObjectProps {
     id?: string
     erasable?: boolean
-    prevClipPath?: FabricObject
   }
 
   interface BaseBrush {
@@ -82,7 +82,7 @@ declare module 'fabric' {
     }
 
     imgFilterChanged: Partial<TEvent> & {
-      target: FabricObject[]
+      target: FabricObject
       prevFilter: any
     }
 

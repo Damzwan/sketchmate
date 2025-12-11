@@ -40,8 +40,9 @@ import { User } from '@/types/server.types'
 import { ref, watch } from 'vue'
 import { useSocketService } from '@/service/api/socket.service'
 import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/store/auth.store'
 import { senderImg, senderName } from '@/helper/general.helper'
+import { useFriendStore } from '@/store/friend.store'
+import { useInboxStore } from '@/store/inbox.store'
 
 const props = defineProps<{
   followers: string[],
@@ -51,8 +52,8 @@ const props = defineProps<{
 const emit = defineEmits(['update:open'])
 
 const { cancelSendMateRequest, sendMateRequest, match } = useSocketService()
-const { friendRequestLoading } = storeToRefs(useAuthStore())
-const { findUserInInboxUsers } = useAuthStore()
+const { friendRequestLoading } = storeToRefs(useFriendStore())
+const { findUserInInboxUsers } = useInboxStore()
 
 const friendToBe = ref<string>()
 
@@ -120,7 +121,7 @@ function close() {
   transform: translateY(100%); /* slides down completely, off-screen */
 }
 
-ion-list{
+ion-list {
   padding: 0
 }
 </style>

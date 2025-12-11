@@ -164,7 +164,10 @@ async function selectSticker(sticker: string) {
     if (user.value?.stickers.length == 0) deleteMode.value = false
   } else {
     const reader = new FileReader()
-    reader.onload = e => drawStore.selectAction(DrawAction.AddImage, { img: e.target?.result?.toString() })
+    reader.onload = e => {
+      if (!e.target?.result?.toString()) return
+      drawStore.selectAction(DrawAction.AddImage, { imageUrl: e.target.result.toString() })
+    }
     reader.readAsDataURL(await compressImg(sticker, { quality: 1 }))
     modalController.dismiss()
   }
@@ -180,7 +183,10 @@ async function selectEmblem(emblem: string) {
     if (user.value?.emblems.length == 0) deleteMode.value = false
   } else {
     const reader = new FileReader()
-    reader.onload = e => drawStore.selectAction(DrawAction.AddImage, { img: e.target?.result?.toString() })
+    reader.onload = e => {
+      if (!e.target?.result?.toString()) return
+      drawStore.selectAction(DrawAction.AddImage, { imageUrl: e.target.result.toString() })
+    }
     reader.readAsDataURL(await compressImg(emblem, { quality: 1 }))
     modalController.dismiss()
   }

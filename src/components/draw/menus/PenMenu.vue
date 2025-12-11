@@ -35,13 +35,13 @@
             <ion-icon :icon="svg(penIconMapping[BrushType.Pencil])" />
           </div>
 
-<!--          <div-->
-<!--            class="brush_option bg-pink-400"-->
-<!--            @click="selectBrushType(BrushType.Ink)"-->
-<!--            :class="{ brush_selected: isBrushTypeSelected(BrushType.Ink) }"-->
-<!--          >-->
-<!--            <ion-icon :icon="svg(penIconMapping[BrushType.Ink])" />-->
-<!--          </div>-->
+          <!--          <div-->
+          <!--            class="brush_option bg-pink-400"-->
+          <!--            @click="selectBrushType(BrushType.Ink)"-->
+          <!--            :class="{ brush_selected: isBrushTypeSelected(BrushType.Ink) }"-->
+          <!--          >-->
+          <!--            <ion-icon :icon="svg(penIconMapping[BrushType.Ink])" />-->
+          <!--          </div>-->
 
           <div
             class="brush_option bg-blue-400"
@@ -98,9 +98,10 @@ import { Canvas, Point } from 'fabric'
 import { hexWithOpacity, isColorTooLight, percentToAlphaHex } from '@/draw/utils/color.utils'
 import { BLACK, WHITE } from '@/draw/config/canvas.config'
 import { penBrushMapping, penIconMapping, PENMENUTOOLS } from '@/draw/config/tools.config'
+import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
-const { selectTool } = useDrawStore()
-const { selectedTool } = storeToRefs(useDrawStore())
+const { selectTool } = useToolSelection()
+const { selectedTool } = storeToRefs(useToolSelection())
 const { brushSize, brushColor, brushType, opacity } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 

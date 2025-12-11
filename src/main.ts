@@ -32,6 +32,7 @@ dayjs.extend(relativeTime)
 
 export const EventBus = mitt()
 const app = createApp(App).use(IonicVue).use(pinia).use(router)
+
 app.mount('#app')
 
 

@@ -23,6 +23,8 @@ export const useDrawHistoryManager = defineStore('history', () => {
   const undoStackCounter = ref(0)
   const redoStackCounter = ref(0)
 
+  const MAX_HISTORY = 5
+
   const { unSelect } = useSelect()
 
   const events: FabricEvent[] = [
@@ -222,7 +224,11 @@ export const useDrawHistoryManager = defineStore('history', () => {
 
   function addToUndoStack<T extends HistoryEvent>(action: HistoryAction<T>) {
     console.log('addToUndoStack', action.type)
+
     undoStack.push(action)
+    if (undoStack.length > MAX_HISTORY) {
+      undoStack.shift()
+    }
     undoStackCounter.value = undoStack.length
     EventBus.emit('add_to_undo_stack', action)
 

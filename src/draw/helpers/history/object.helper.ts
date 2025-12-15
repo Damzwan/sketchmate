@@ -64,6 +64,10 @@ export function undoSingleObject(
   })
 
   targetObject.setCoords()
+
+  const { updateQuadTree, updateVisibility } = useDrawObjectManager()
+  updateQuadTree(targetObject)
+  updateVisibility()
 }
 
 export async function redoObjectModified(action: HistoryAction<HistoryEvent.ObjectModified>): Promise<void> {

@@ -88,7 +88,7 @@ export enum ObjectType {
   image = 'image',
   text = 'i-text',
   group = 'group',
-  selection = 'activeSelection',
+  selection = 'activeselection',
   polygon = 'polygon'
 }
 

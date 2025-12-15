@@ -60,7 +60,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonIcon, IonItem, IonPopover, IonRange, popoverController } from '@ionic/vue'
+import { IonIcon, IonItem, IonPopover, IonRange, popoverController, IonButton } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'

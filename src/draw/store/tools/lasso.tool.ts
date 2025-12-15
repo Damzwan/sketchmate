@@ -12,6 +12,7 @@ import {
 import { disableSelection } from '@/draw/helpers/select.helper'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { isMobile } from '@/helper/general.helper'
 
 export const useLasso = defineStore('lasso', (): ToolService => {
   let c: Canvas | undefined = undefined
@@ -47,7 +48,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
   let isDrawing = false
 
   function onMouseDown(o: any) {
-    if (o.e.button !== 0) return
+    if (!isMobile() && o.e.button !== 0) return
     isDrawing = true
     const pointer = c!.getViewportPoint(o.e) as Point
     const pathData = `M ${pointer.x} ${pointer.y}`
@@ -90,7 +91,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
 
     if (!objectsInsideLasso || objectsInsideLasso.length == 0) return
 
-    const {selectTool} = useToolSelection()
+    const { selectTool } = useToolSelection()
     selectTool(DrawTool.Select)
     if (objectsInsideLasso.length > 1) {
       const activeSelection = new ActiveSelection(objectsInsideLasso, { canvas: c })
@@ -170,6 +171,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
       strokeDashArray: [5, 5], // Make the line dashed
       selectable: false,
       evented: false,
+      strokeUniform: true,
       left: -vpt[4],
       top: -vpt[5]
     })

@@ -12,8 +12,10 @@ import { markRaw, ref, watch } from 'vue'
 import LoginMainPage from '@/components/login/LoginMainPage.vue'
 import LoginAccountCustomizationPage from '@/components/login/LoginAccountCustomizationPage.vue'
 import LoginNotificationPage from '@/components/login/LoginNotificationPage.vue'
+import { useNotificationStore } from '@/store/notification.store'
 
-const { isNewAccount, showEnableNotificationsAfterLogin } = storeToRefs(useAuthStore())
+const { isNewAccount } = storeToRefs(useAuthStore())
+const { showEnableNotificationsAfterLogin } = storeToRefs(useNotificationStore())
 const nav = ref<any>()
 
 watch(isNewAccount, () => {

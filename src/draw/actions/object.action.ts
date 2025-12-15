@@ -136,24 +136,28 @@ export async function copyObjects(params: DrawActionParams[DrawAction.CopyObject
   const offsetX = 10
   const offsetY = 10
 
-  c.discardActiveObject()
 
-  const clonedObjects = await Promise.all(params.objects.map((obj: FabricObject) => obj.clone()))
+  let clonedObjects: FabricObject[] = []
+  await actionWithoutEvents(async () => {
+    c.discardActiveObject()
+    clonedObjects = await Promise.all(params.objects.map((obj: FabricObject) => obj.clone()))
 
-  for (const obj of clonedObjects) {
-    obj.set({ left: obj.left! + offsetX, top: obj.top! + offsetY })
-    obj.id = uuidv4()
-    await actionWithoutEvents(() => {
+    for (const obj of clonedObjects) {
+      obj.set({ left: obj.left! + offsetX, top: obj.top! + offsetY })
+      obj.id = uuidv4()
       c.add(obj)
-    })
-  }
+    }
 
-  c.fire('objectsCopied', { target: clonedObjects })
+  })
 
   const newActiveObject =
     clonedObjects.length == 1 ? clonedObjects[0] : new ActiveSelection(clonedObjects, { canvas: c })
   c.setActiveObject(newActiveObject) // TODO
   c.requestRenderAll()
+
+  c.fire('objectsCopied', { target: clonedObjects })
+
+
 }
 
 export async function mergeObjects(params: DrawActionParams[DrawAction.Merge]) {

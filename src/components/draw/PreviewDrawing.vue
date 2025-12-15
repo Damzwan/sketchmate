@@ -42,7 +42,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { IonHeader, IonIcon, IonModal, IonSkeletonText, IonToolbar } from '@ionic/vue'
+import { IonHeader, IonIcon, IonModal, IonSkeletonText, IonToolbar, IonButton } from '@ionic/vue'
 
 // MDI icons
 import { mdiClose, mdiFullscreen } from '@mdi/js'

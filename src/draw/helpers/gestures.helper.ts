@@ -2,7 +2,6 @@ import { Canvas, FabricObject, Point } from 'fabric'
 import { isMobile } from '@/helper/general.helper'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawTool, FabricEvent } from '@/draw/types/draw.types'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { ref } from 'vue'
@@ -12,7 +11,8 @@ import { cancelPreviousAction } from '@/draw/helpers/tools/cancelTools.helper'
 import { setCacheForObjects } from '@/draw/helpers/object.helper'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
-import { useShapeCreation } from '@/draw/store/shapeCreation.store'
+import { disableSelection, enableSelection } from '@/draw/helpers/select.helper'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 
 export function enableGestures(c: Canvas) {
   if (isMobile()) enableMobileGestures(c, c.upperCanvasEl)
@@ -22,11 +22,15 @@ export function enableGestures(c: Canvas) {
 export function enablePCGestures(c: Canvas) {
   const { addEventsOfService } = useDrawEventManager()
   const { canResetView } = storeToRefs(useDrawUIStore())
+
+  const { updateVisibility } = useDrawObjectManager()
   let panStartPoint: any = null
   const events: FabricEvent[] = [
     {
       on: 'mouse:wheel',
       handler: (e: any) => {
+        const { selectedTool } = useToolSelection()
+        disableSelection()
         const deltaY = e.e.deltaY
 
         // Convert deltaY into a zoom factor
@@ -34,9 +38,14 @@ export function enablePCGestures(c: Canvas) {
         handleZoom(zoomFactor, e.e.offsetX, e.e.offsetY, c)
         canResetView.value = true
 
+        if (selectedTool === DrawTool.Select) enableSelection()
+
+        updateVisibility()
+
         c.requestRenderAll()
         e.e.preventDefault()
         e.e.stopPropagation()
+
       }
     },
     {
@@ -46,7 +55,10 @@ export function enablePCGestures(c: Canvas) {
         // Check if the middle button is pressed
 
         if (event.buttons === 4) {
+
           // If it is, start the panning
+          disableSelection()
+
           panStartPoint = { x: event.pageX, y: event.pageY }
           event.preventDefault()
           event.stopPropagation()
@@ -64,6 +76,7 @@ export function enablePCGestures(c: Canvas) {
           panStartPoint = { x: event.pageX, y: event.pageY }
           handlePan(new Point(deltaX, deltaY), c)
           canResetView.value = true
+          updateVisibility()
           c.requestRenderAll()
 
         }
@@ -74,7 +87,10 @@ export function enablePCGestures(c: Canvas) {
       handler: (o: any) => {
         // If we were panning, stop it
         if (panStartPoint) {
+          const { selectedTool } = useToolSelection()
           panStartPoint = null
+          if (selectedTool === DrawTool.Select) enableSelection()
+          updateVisibility()
           o.e.preventDefault()
           o.e.stopPropagation()
         }
@@ -93,6 +109,9 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
   let isRotating = false
   let originalState: any = null
   const isUsingGesture = ref(false)
+
+  const { updateVisibility } = useDrawObjectManager()
+
 
   gestureDetector(upperCanvasEl, {
     onGestureStart: () => {
@@ -119,9 +138,9 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       }
       // Zoom and pan
       else {
-        c.selection = false
+        disableSelection()
         unSelect()
-        setCacheForObjects(c.getObjects(), false)
+        // setCacheForObjects(c.getObjects(), false)
 
         cancelPreviousAction(c)
       }
@@ -144,6 +163,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
         if (Math.abs(scale - previousScale) < 0.005) return
         handleZoom(scale, center.x, center.y, c, previousScale)
         canResetView.value = true
+        updateVisibility()
         c.requestRenderAll()
       }
     },
@@ -165,13 +185,16 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
       const delta: Point = new Point({ x: 2 * (dx - previousDx), y: 2 * (dy - previousDy) })
       handlePan(delta, c)
+      updateVisibility()
       c.requestRenderAll()
     },
     onGestureEnd: (fingers: number) => {
       if (fingers == 1) {
         if (!isUsingGesture.value) {
-          setCacheForObjects(c.getObjects(), true)
-          if (selectedTool.value === DrawTool.Select) c.selection = true
+          // setCacheForObjects(c.getObjects(), true)
+          if (selectedTool.value === DrawTool.Select) {
+            enableSelection()
+          }
         }
       }
 
@@ -194,6 +217,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
           c.requestRenderAll()
         }, 100)
       }
+      updateVisibility()
       c.requestRenderAll()
     }
   })

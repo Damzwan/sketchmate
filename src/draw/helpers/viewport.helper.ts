@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { isMobile } from '@/helper/general.helper'
 import { CANVAS_SIZE } from '@/draw/config/canvas.config'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 
 export function initViewport(c: Canvas) {
   const initX = (c.width - CANVAS_SIZE) / 2
@@ -98,12 +99,16 @@ export const handlePan = (delta: Point, c: Canvas) => {
 export function resetZoom() {
   const { getCanvas } = useDrawStore()
   const { canResetView } = storeToRefs(useDrawUIStore())
+  const { updateVisibility } = useDrawObjectManager()
+
   const c = getCanvas()
   c.setZoom(1)
   const initX = (c.width - CANVAS_SIZE) / 2
   const initY = (c.height - CANVAS_SIZE) / 2
   c.setViewportTransform([1, 0, 0, 1, initX, initY])
   canResetView.value = false
+
+  updateVisibility()
   c.fire('zoomReset')
   c.requestRenderAll()
 }

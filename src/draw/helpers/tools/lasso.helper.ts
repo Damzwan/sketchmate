@@ -1,4 +1,5 @@
-import { Circle, Ellipse, FabricObject } from 'fabric'
+import { Circle, Ellipse, FabricObject, Point } from 'fabric'
+import { useDrawStore } from '@/draw/store/draw.store'
 
 export function downSampleCircle(circle: Circle, numberOfPoints = 30): number[][] {
   // Get the circle's center, radius, and scale
@@ -48,11 +49,12 @@ export function downSampleEllipse(ellipse: Ellipse, numberOfPoints = 30): number
 }
 
 export function createPointRepresentationForBoundingRect(obj: FabricObject) {
+  const { getCanvas } = useDrawStore()
+  const vpt = getCanvas().viewportTransform
+
   const coords = obj.getCoords()
   const points = []
-
-  // Generate grid points within bounding box
-  const resolution = 15 // Change this to increase or decrease point count
+  const resolution = 30
   const minX = Math.min(coords[0].x, coords[1].x, coords[2].x, coords[3].x)
   const maxX = Math.max(coords[0].x, coords[1].x, coords[2].x, coords[3].x)
   const minY = Math.min(coords[0].y, coords[1].y, coords[2].y, coords[3].y)
@@ -60,9 +62,8 @@ export function createPointRepresentationForBoundingRect(obj: FabricObject) {
 
   for (let x = minX; x <= maxX; x += resolution) {
     for (let y = minY; y <= maxY; y += resolution) {
-      points.push([x, y])
+      points.push([x + vpt[4], y + vpt[5]])
     }
   }
-
   return points
 }

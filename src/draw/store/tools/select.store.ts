@@ -99,14 +99,15 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'selection:created',
       handler: (e: any) => {
-        if (c!._activeObject && c!._activeObject.isType('activeselection')) c!._activeObject.id = v4()
+        if (c!._activeObject && c!._activeObject.isType('activeselection')) c!._activeObject.id = v4() // TODO seems a bit hacky
         isSelectActive.value = true
-        clicksAfterSelectionActive = 1
+        clicksAfterSelectionActive = 0
         selectedObjects = e.selected
         selectedObjectsRef.value = [...e.selected]
         useGestures = false
         setTimeout(() => {
           useGestures = true
+          clicksAfterSelectionActive++ // TODO kind of a dirty hack
         }, 100)
       }
     },
@@ -116,10 +117,11 @@ export const useSelect = defineStore('select', (): Select => {
         isSelectActive.value = true
         selectedObjects = e.selected
         selectedObjectsRef.value = [...e.selected]
-        clicksAfterSelectionActive = 1
+        clicksAfterSelectionActive = 0
         useGestures = false
         setTimeout(() => {
           useGestures = true
+          clicksAfterSelectionActive++
         }, 100)
       }
     },
@@ -141,6 +143,7 @@ export const useSelect = defineStore('select', (): Select => {
       handler: (e) => {
         pointerDownPos = c!.getPointer(e.e)
         wasDragging = false
+        clicksAfterSelectionActive++
       }
     },
     {
@@ -160,6 +163,7 @@ export const useSelect = defineStore('select', (): Select => {
 
         if (!isSelectActive.value) return
 
+
         if (clicksAfterSelectionActive > 1) {
           if (multiSelectMode.value) {
             handleMultiSelect(pointerDownPos)
@@ -169,7 +173,6 @@ export const useSelect = defineStore('select', (): Select => {
             cycleSelection(pointerDownPos)
           }
         } else {
-          clicksAfterSelectionActive++
         }
         pointerDownPos = null
       }
@@ -235,6 +238,7 @@ export const useSelect = defineStore('select', (): Select => {
     if (selectedObjects.length === 0) return false
     else return useGestures
   }
+
 
   return {
     select,

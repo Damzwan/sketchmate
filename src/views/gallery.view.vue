@@ -11,7 +11,7 @@
     <ion-content class="bg-background">
       <CircularLoader v-if="isLoading || !isLoggedIn" class="z-50" bgColor="bg-background" />
 
-      <div v-if="user" class="w-full h-full">
+      <div v-else-if="user" class="w-full h-full">
         <ion-refresher slot="fixed" @ionRefresh="refresh">
           <ion-refresher-content></ion-refresher-content>
         </ion-refresher>
@@ -108,7 +108,7 @@ const { seeItem } = usePhotoSwiper()
 
 const { toast } = useToast()
 
-const isLoading = ref(false)
+const isLoading = ref(true)
 
 
 useBackButton(9999, (processNextHandler) => {

@@ -58,6 +58,10 @@ export function useCanvasService() {
     c.requestRenderAll()
   }
 
+  function getCanvasSizeInMb() {
+    if (!c) return 0
+  }
+
   return {
     getCanvas,
     createCanvas,

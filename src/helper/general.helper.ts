@@ -47,7 +47,7 @@ export interface CompressImgOptions {
 }
 
 const compressImgBaseSettings: CompressImgOptions = {
-  quality: 0.7,
+  quality: 0.6,
   returnType: 'file'
 }
 

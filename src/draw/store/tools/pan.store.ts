@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { type Canvas, Point } from 'fabric'
 import { FabricEvent, ToolService } from '@/draw/types/draw.types'
-import { disableSelection2 } from '@/draw/helpers/select.helper'
+import { disableSelection } from '@/draw/helpers/select.helper'
 import { handlePan } from '@/draw/helpers/viewport.helper'
 
 
@@ -55,7 +55,7 @@ export const usePan = defineStore('pan', (): ToolService => {
   async function select() {
     c!.isDrawingMode = false
     c!.selection = false
-    disableSelection2()
+    disableSelection()
     c!.requestRenderAll()
   }
 

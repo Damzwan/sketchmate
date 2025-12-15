@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
-import { computed, ref, Ref, watch } from 'vue'
+import { ref, Ref, watch } from 'vue'
 import { BrushType, FabricEvent, ToolService } from '@/draw/types/draw.types'
 import { Canvas } from 'fabric'
 import { hexWithOpacity, percentToAlphaHex } from '@/draw/utils/color.utils'
-import { disableSelection2 } from '@/draw/helpers/select.helper'
+import { disableObjectSelection, disableSelection } from '@/draw/helpers/select.helper'
 import { updateFreeDrawingCursor } from '@/draw/helpers/tools/cursor.helper'
 import { BASE_BRUSH_SIZE, BLACK } from '@/draw/config/canvas.config'
 import { penBrushMapping } from '@/draw/config/tools.config'
@@ -37,6 +37,11 @@ export const usePen = defineStore('pen', (): Pen => {
       handler: (e: any) => {
         updatePenCursor()
       }
+    },
+    {
+      on: 'path:created', handler: (e) => {
+        disableObjectSelection(e.path)
+      }
     }
   ]
 
@@ -48,7 +53,7 @@ export const usePen = defineStore('pen', (): Pen => {
 
   async function select() {
     c!.isDrawingMode = true
-    disableSelection2()
+    disableSelection()
     c!.selection = false
     c!.freeDrawingBrush = penBrushMapping[brushType.value](c!)
     c!.freeDrawingBrush.width = brushSize.value

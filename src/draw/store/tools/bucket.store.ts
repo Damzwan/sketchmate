@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { isMobile } from '@/helper/general.helper'
 import { bucketFill } from '@/draw/helpers/tools/bucket.helper'
 import { Canvas, Point } from 'fabric'
-import { disableSelection } from '@/draw/helpers/select.helper'
+import { disableObjectSelection, disableSelection } from '@/draw/helpers/select.helper'
 
 export const useBucket = defineStore('bucket', (): ToolService => {
   let c: Canvas | undefined = undefined
@@ -21,6 +21,8 @@ export const useBucket = defineStore('bucket', (): ToolService => {
         const pointer: Point = c!.getViewportPoint(o.e)
         const img = await bucketFill(c!, pointer)
         if (!img) return
+        disableObjectSelection(img)
+
         c!.add(img)
         c!.requestRenderAll()
       }

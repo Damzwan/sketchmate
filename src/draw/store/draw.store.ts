@@ -85,6 +85,7 @@ export const useDrawStore = defineStore('draw', () => {
       }
     }
 
+
     return {
       isModal,
       initCanvas,

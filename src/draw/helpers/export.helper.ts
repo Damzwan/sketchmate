@@ -102,7 +102,8 @@ export async function exportBoundingBoxImage(canvas: Canvas) {
     const cloned = await obj.clone()
     cloned.set({
       left: cloned.left - minX,
-      top: cloned.top - minY
+      top: cloned.top - minY,
+      visible: true
     })
     return cloned
   }))
@@ -110,12 +111,12 @@ export async function exportBoundingBoxImage(canvas: Canvas) {
 
   tempCanvas.renderAll()
 
-  const minTargetSize = 2000 // or 2500 for even higher quality
+  const minTargetSize = 2000
 
   const multiplierX = minTargetSize / width
   const multiplierY = minTargetSize / height
 
-  const multiplier = Math.min(multiplierX, multiplierY, 6)
+  const multiplier = Math.min(multiplierX, multiplierY, 2)
 
 
   return { img: tempCanvas.toDataURL({ multiplier: multiplier }), aspect_ratio: width / height }

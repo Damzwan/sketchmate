@@ -66,12 +66,17 @@ export const useNotificationStore = defineStore('notification', () => {
     setTimeout(() => (notificationRouteLoading.value = undefined), 3000)
   }
 
-  async function init(user: User) {
+  async function init(user: User, arrivedFromLogin: boolean = false) {
     const token = localSubscription.value
     let hasValidSubscription = !!(token && user.subscriptions.some(s => s.token === token))
 
     const permissionStatus = isNative() ? await PushNotifications.checkPermissions() : { receive: false }
     const hasPermission = permissionStatus.receive === 'granted'
+
+    if (arrivedFromLogin) {
+      const { deviceFingerprint } = useAuthStore()
+      showEnableNotificationsAfterLogin.value = !(user?.subscriptions.some(s => s.fingerprint === deviceFingerprint) && notificationsAllowed.value)
+    }
 
     notificationsAllowed.value = hasValidSubscription && hasPermission
   }

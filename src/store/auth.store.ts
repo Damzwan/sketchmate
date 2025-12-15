@@ -1,5 +1,5 @@
 // src/stores/auth.store.ts
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import { ref, computed } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { FirebaseAuthentication, User as FirebaseUser } from '@capacitor-firebase/authentication'
@@ -36,8 +36,6 @@ export const useAuthStore = defineStore('auth', () => {
   const isNewAccount = ref(false)
   const showForceUpdateModal = ref(false)
   const deviceFingerprint = ref<string>()
-
-  const showEnableNotificationsAfterLogin = ref(false)
 
   let ionRouter: UseIonRouterResult | undefined = undefined
 
@@ -94,7 +92,7 @@ export const useAuthStore = defineStore('auth', () => {
         return
       }
 
-      const [authUser, newAcc, showEnableNotification] = result
+      const [authUser, newAcc] = result
       isAuthLoading.value = false
 
       if (newAcc) {
@@ -102,10 +100,6 @@ export const useAuthStore = defineStore('auth', () => {
         return
       }
 
-      if (showEnableNotification) {
-        showEnableNotificationsAfterLogin.value = true
-        return
-      }
 
       // Logged in normally → route to draw or connect
       if (authUser.mates.length === 0) {
@@ -132,13 +126,13 @@ export const useAuthStore = defineStore('auth', () => {
 
       // Determine current route or push user to draw
       const path = router.currentRoute.value.path.split('/')[1]
+      const allowedRoutes = Object.values(FRONTEND_ROUTES).filter(
+        p => p !== FRONTEND_ROUTES.login
+      ) as Partial<FRONTEND_ROUTES>[]
 
       if (authUser.mates.length === 0) {
         ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
-      } else if (Object.values(FRONTEND_ROUTES)
-        .filter(p => p !== FRONTEND_ROUTES.login)
-        .includes(path as FRONTEND_ROUTES)
-      ) {
+      } else if (allowedRoutes.includes(path as FRONTEND_ROUTES)) {
         ionRouter.replace(path, routerAnimation)
       } else {
         ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
@@ -146,10 +140,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
   })
 
-  // ---------------------------------------------------------------------------
-  // Login Logic (much cleaner)
-  // ---------------------------------------------------------------------------
-  async function login(): Promise<[User, boolean, boolean] | null> {
+
+  async function login(): Promise<[User, boolean] | null> {
     try {
       const socketService = useSocketService()
       socketService.connect()
@@ -174,6 +166,9 @@ export const useAuthStore = defineStore('auth', () => {
         return null
       }
 
+      const arrivedFromLogin = await Preferences.get({ key: LocalStorage.login })
+
+
       user.value = userValue.user
       isLoggedIn.value = true
       isNewAccount.value = userValue.new_account
@@ -187,8 +182,6 @@ export const useAuthStore = defineStore('auth', () => {
       Preferences.set({ key: LocalStorage.user_id, value: user.value!._id })
       Preferences.set({ key: LocalStorage.img, value: user.value!.img })
 
-      const arrivedFromLogin = await Preferences.get({ key: LocalStorage.login })
-      let showEnableNotifications = false
 
       if (arrivedFromLogin.value && deviceFingerprint.value) {
         api.onLoginEvent({
@@ -200,7 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       Preferences.remove({ key: LocalStorage.login })
 
-      return [user.value, isNewAccount.value, showEnableNotifications]
+      return [user.value, isNewAccount.value]
     } catch (e) {
       console.error(e)
       return null
@@ -235,6 +228,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     isLoggedIn.value = false
     user.value = undefined
+
+    // TODO can be done better
+    const { showEnableNotificationsAfterLogin } = storeToRefs(useNotificationStore())
     showEnableNotificationsAfterLogin.value = false
 
     Preferences.remove({ key: LocalStorage.user_id })
@@ -251,7 +247,6 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthLoading,
     isNewAccount,
     showForceUpdateModal,
-    showEnableNotificationsAfterLogin,
     isLoading,
     shouldShowDateOfBirthConfirmation,
     socialFeaturesAllowed,

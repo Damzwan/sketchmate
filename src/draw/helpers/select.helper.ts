@@ -6,10 +6,14 @@ export function enableSelection() {
   const c: Canvas = getCanvas()
   c.selection = true // Enable group selection
   c.forEachObject((obj) => {
-    obj.set('selectable', true)
-    obj.set('evented', true)
-    obj.set('hasControls', true)
-    obj.set('hasBorders', true)
+    const visible = obj.isOnScreen()
+
+    obj.set({
+      selectable: visible,
+      evented: visible,
+      hasControls: visible,
+      hasBorders: visible
+    })
   })
   c.requestRenderAll()
 }
@@ -27,25 +31,12 @@ export function disableSelection() {
   c.requestRenderAll()
 }
 
-export function disableSelection2() {
-  const { getCanvas } = useDrawStore()
-  const c: Canvas = getCanvas()
-  c.selection = false
-  c.forEachObject((obj) => {
-    obj.selectable = false
-  })
-  c.requestRenderAll()
-}
 
-export function setObjectSelection(obj: FabricObject, enabled: boolean) {
+export function disableObjectSelection(obj: FabricObject) {
   obj.set({
-    hasBorders: enabled,
-    selectable: enabled,
-    hasControls: enabled,
-    evented: enabled
+    hasBorders: false,
+    selectable: false,
+    hasControls: false,
+    evented: false
   })
-}
-
-export function setSelectionForObjects(objects: FabricObject[], enabled: boolean) {
-  objects.forEach(obj => setObjectSelection(obj, enabled))
 }

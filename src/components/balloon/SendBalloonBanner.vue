@@ -22,7 +22,7 @@
           color="secondary"
           fill="outline"
           placeholder="I am a very friendly person 🦀"
-          class="py-3 bg-secondary"
+          class="pt-2 bg-secondary"
           v-model="balloonDescription"
           @click.stop
         />
@@ -35,7 +35,7 @@
           @click.stop
         >
           Send Balloon
-          <ion-spinner name="crescent" slot="end" class="ml-2" color="secondary" v-if="sendingBalloon" />
+          <ion-spinner name="crescent" slot="end" class="ml-3" color="secondary" v-if="sendingBalloon" />
         </ion-button>
       </div>
     </div>
@@ -93,6 +93,7 @@ function sendBalloon() {
 <style scoped>
 @reference "@/theme/main.css";
 .card {
-  @apply w-full mx-auto rounded-xl p-4 max-w-96 flex shadow-md;
+  @apply w-full mx-auto rounded-xl p-2 max-w-96 flex shadow-md;
 }
+
 </style>

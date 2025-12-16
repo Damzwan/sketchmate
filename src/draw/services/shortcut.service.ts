@@ -284,6 +284,7 @@ export function useShortcutManager() {
   }
 
   function init(canvas: Canvas) {
+    destroy()
     c = canvas
     window.addEventListener('keydown', handleKeydown)
   }

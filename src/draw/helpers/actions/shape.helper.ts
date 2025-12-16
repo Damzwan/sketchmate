@@ -4,8 +4,6 @@ import { DrawTool } from '@/draw/types/draw.types'
 import { EventBus } from '@/main'
 import { Point } from 'fabric'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
-
-import { enableSelection, setSelectionForObjects } from '@/draw/helpers/select.helper'
 import { storeToRefs } from 'pinia'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
@@ -27,7 +25,11 @@ export function exitClickShapeCreationMode(isNewShape: boolean = true) {
   EventBus.emit('reset-shape-creation')
   shapeCreationMode.value = undefined
 
-  enableSelection()
+  if (selectedTool === DrawTool.Select) {
+    c.selection = true
+    c.skipTargetFind = false
+  }
+
 
   const lastObject = c.getObjects().at(-1)!
 
@@ -53,10 +55,13 @@ export function exitDragShapeCreationMode() {
   shapeCreationMode.value = undefined
 
   const { selectTool, selectedTool } = useToolSelection()
-  if (selectedTool !== DrawTool.Select) {
+  if (selectedTool === DrawTool.Select) {
+    c.selection = true
+    c.skipTargetFind = false
+  } else {
     selectTool(DrawTool.Select)
   }
-  enableSelection()
+
 
   c.setActiveObject(c.getObjects().at(-1)!)
   c.requestRenderAll()

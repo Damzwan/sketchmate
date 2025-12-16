@@ -1,6 +1,6 @@
 <template>
   <div class="w-full h-12 top-0 flex justify-center">
-    <div class="w-full bg-primary h-full z-50 rounded-b-lg flex justify-center items-center">
+    <div class="w-full bg-primary h-full z-50 flex justify-center items-center">
       <div class="h-full w-full flex items-center">
         <ToolbarItems :toolbarItems="config.left" v-if="config.left" />
       </div>

@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
 
 export function changeFabricSettings() {
-  FabricObject.customProperties = ['id', 'erasable', 'prevClipPath', 'oldText', 'layer'];
+  FabricObject.customProperties = ['id', 'erasable', 'prevClipPath', 'oldText', 'isBucketFill', 'insertedIndex'];
 
   (FabricObject as any).ownDefaults!['erasable'] = true
   // (FabricObject as any).ownDefaults!['id'] = uuidv4(); // cannot use this because it needs to be dynamic :c
@@ -18,6 +18,16 @@ export function changeFabricSettings() {
       }
     })
     return originalAdd.call(this, ...objects)
+  }
+
+  const originalInsertAt = Canvas.prototype.insertAt
+  Canvas.prototype.insertAt = function(i, ...objects: any[]) {
+    objects.forEach((obj) => {
+      if (!obj.id) {
+        obj.id = uuidv4() // Assign unique ID
+      }
+    })
+    return originalInsertAt.call(this, i, ...objects)
   }
 
 

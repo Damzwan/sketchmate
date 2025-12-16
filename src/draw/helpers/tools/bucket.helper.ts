@@ -51,6 +51,7 @@ export async function bucketFill(c: Canvas, p: Point, scale = 0.5) {
   img.set({
     originX: 'center',
     originY: 'center',
+    isBucketFill: true,
     left: ((modifiedArea.minX + modifiedArea.width / 2) / (scale * dpr) - offsetX) / c.getZoom(),
     top: ((modifiedArea.minY + (modifiedArea.height / 2)) / (scale * dpr) - offsetY) / c.getZoom()
   })

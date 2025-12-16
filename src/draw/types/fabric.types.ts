@@ -15,12 +15,16 @@ declare module 'fabric' {
     layer: number
     init?: boolean // hacky property for text initialization
     visual?: boolean // hacky property for shape creations
+    isBucketFill?: boolean
+    insertedIndex?: number
   }
 
   // to have the properties typed in the exported object
   interface SerializedObjectProps {
     id?: string
     erasable?: boolean
+    insertedIndex?: number
+    isBucketFill?: boolean
   }
 
   interface BaseBrush {

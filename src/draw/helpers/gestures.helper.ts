@@ -6,13 +6,12 @@ import { DrawTool, FabricEvent } from '@/draw/types/draw.types'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { ref } from 'vue'
 import { gestureDetector } from '@/draw/utils/gestureDetector'
-import { handlePan, handleZoom } from '@/draw/helpers/viewport.helper'
+import { applyZoomDelta, handlePan, handleZoom } from '@/draw/helpers/viewport.helper'
 import { cancelPreviousAction } from '@/draw/helpers/tools/cancelTools.helper'
-import { setCacheForObjects } from '@/draw/helpers/object.helper'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
-import { disableSelection, enableSelection } from '@/draw/helpers/select.helper'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { setCacheForObjects } from '@/draw/helpers/object.helper'
 
 export function enableGestures(c: Canvas) {
   if (isMobile()) enableMobileGestures(c, c.upperCanvasEl)
@@ -23,77 +22,71 @@ export function enablePCGestures(c: Canvas) {
   const { addEventsOfService } = useDrawEventManager()
   const { canResetView } = storeToRefs(useDrawUIStore())
 
-  const { updateVisibility } = useDrawObjectManager()
-  let panStartPoint: any = null
   const events: FabricEvent[] = [
     {
       on: 'mouse:wheel',
       handler: (e: any) => {
-        const { selectedTool } = useToolSelection()
-        disableSelection()
-        const deltaY = e.e.deltaY
+        enterPCGesture(c)
 
-        // Convert deltaY into a zoom factor
+        const deltaY = e.e.deltaY
         const zoomFactor = Math.exp(-deltaY / 50)
+
         handleZoom(zoomFactor, e.e.offsetX, e.e.offsetY, c)
         canResetView.value = true
 
-        if (selectedTool === DrawTool.Select) enableSelection()
+        scheduleViewportUpdate(c)
 
-        updateVisibility()
-
-        c.requestRenderAll()
         e.e.preventDefault()
         e.e.stopPropagation()
 
+        clearTimeout(pcWheelTimeout)
+        pcWheelTimeout = setTimeout(() => exitPCGesture(c), 250)
       }
     },
     {
       on: 'mouse:down',
       handler: (o: any) => {
-        const event = o.e
-        // Check if the middle button is pressed
+        const e = o.e
+        if (e.buttons !== 4) return
+        enterPCGesture(c)
 
-        if (event.buttons === 4) {
 
-          // If it is, start the panning
-          disableSelection()
+        panActive = true
+        lastPanPoint = { x: e.pageX, y: e.pageY }
 
-          panStartPoint = { x: event.pageX, y: event.pageY }
-          event.preventDefault()
-          event.stopPropagation()
-        }
+        enterPanZoomMode(c) // selection=false, skipTargetFind=true
+
+        e.preventDefault()
+        e.stopPropagation()
       }
     },
     {
       on: 'mouse:move',
       handler: (o: any) => {
-        if (panStartPoint) {
-          // If we are panning, calculate the delta and pan the canvas
-          const event = o.e
-          const deltaX = event.pageX - panStartPoint.x
-          const deltaY = event.pageY - panStartPoint.y
-          panStartPoint = { x: event.pageX, y: event.pageY }
-          handlePan(new Point(deltaX, deltaY), c)
-          canResetView.value = true
-          updateVisibility()
-          c.requestRenderAll()
+        if (!panActive || !lastPanPoint) return
 
-        }
+        const e = o.e
+        panDelta.x += e.pageX - lastPanPoint.x
+        panDelta.y += e.pageY - lastPanPoint.y
+        lastPanPoint = { x: e.pageX, y: e.pageY }
+
+        schedulePanFrame(c)
       }
     },
     {
       on: 'mouse:up',
       handler: (o: any) => {
-        // If we were panning, stop it
-        if (panStartPoint) {
-          const { selectedTool } = useToolSelection()
-          panStartPoint = null
-          if (selectedTool === DrawTool.Select) enableSelection()
-          updateVisibility()
-          o.e.preventDefault()
-          o.e.stopPropagation()
-        }
+        if (!panActive) return
+
+        panActive = false
+        lastPanPoint = null
+
+        exitPanZoomMode(c)
+        schedulePanFrame(c)
+
+        o.e.preventDefault()
+        o.e.stopPropagation()
+        exitPCGesture(c)
       }
     }
   ]
@@ -119,11 +112,16 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
       c.fire('gestureStart')
 
-      // rotation or scale gesture
-      if (selectedTool.value == DrawTool.Select && shouldModifyObjectsWithGestures()) {
+      if (
+        selectedTool.value === DrawTool.Select &&
+        shouldModifyObjectsWithGestures()
+      ) {
         const obj = c.getActiveObject()
         if (!obj) return
-        obj.set({ lockMovementX: true, lockMovementY: true }) // we are only focused on rotation and scaling
+
+        obj.lockMovementX = true
+        obj.lockMovementY = true
+
         originalState = {
           left: obj.left,
           top: obj.top,
@@ -133,92 +131,239 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
         }
 
         isUsingGesture.value = true
-
-        return
-      }
-      // Zoom and pan
-      else {
-        disableSelection()
+      } else {
+        enterPanZoomMode(c)
+        setCacheForObjects(c.getObjects(), false)
         unSelect()
-        // setCacheForObjects(c.getObjects(), false)
-
         cancelPreviousAction(c)
       }
     },
-    onZoom: (scale: number, previousScale: number, center: Point) => {
-      if (selectedTool.value == DrawTool.Select && isUsingGesture.value) {
-        if (isRotating) return
+    onZoom: (scale, previousScale, center) => {
+
+      if (selectedTool.value === DrawTool.Select && isUsingGesture.value) {
         if (Math.abs(scale - previousScale) < 0.005) return
 
-        const obj = c.getActiveObject() as FabricObject
-
-        obj.set({
-          scaleX: obj.scaleX! * (scale / previousScale),
-          scaleY: obj.scaleY! * (scale / previousScale)
-        })
-        obj.setCoords()
-        c.requestRenderAll()
-
-      } else {
-        if (Math.abs(scale - previousScale) < 0.005) return
-        handleZoom(scale, center.x, center.y, c, previousScale)
-        canResetView.value = true
-        updateVisibility()
-        c.requestRenderAll()
-      }
-    },
-    onRotate: (angleDifference: number) => {
-      if (!(selectedTool.value == DrawTool.Select && isUsingGesture.value)) return
-
-      const rotationThreshold = 0.8 // Adjust the threshold as needed
-      const obj = c.getActiveObject()
-      if (!obj) return
-
-      isRotating = Math.abs(angleDifference) > rotationThreshold
-
-      obj.rotate((obj.angle! + angleDifference) % 360)
-      obj.setCoords()
-      c.requestRenderAll()
-    },
-    onDrag: (dx: number, dy: number, previousDx: number, previousDy: number) => {
-      if (selectedTool.value == DrawTool.Select && isUsingGesture.value) return
-
-      const delta: Point = new Point({ x: 2 * (dx - previousDx), y: 2 * (dy - previousDy) })
-      handlePan(delta, c)
-      updateVisibility()
-      c.requestRenderAll()
-    },
-    onGestureEnd: (fingers: number) => {
-      if (fingers == 1) {
-        if (!isUsingGesture.value) {
-          // setCacheForObjects(c.getObjects(), true)
-          if (selectedTool.value === DrawTool.Select) {
-            enableSelection()
-          }
-        }
-      }
-
-      if (selectedTool.value == DrawTool.Select && isUsingGesture.value && fingers == 0) {
         const obj = c.getActiveObject()
         if (!obj) return
 
-        // Without timeout the object will move to the last location of your fingers making it tp sometimes
+        const factor = scale / previousScale
+        obj.scaleX! *= factor
+        obj.scaleY! *= factor
+        obj.setCoords()
+
+        scheduleGestureFrame(c)
+      } else {
+        if (Math.abs(scale - previousScale) < 0.01) return
+
+        const delta = scale / previousScale
+        gestureState.zoomDelta *= delta
+        gestureState.zoomCenter = center
+
+        scheduleGestureFrame(c)
+      }
+
+      canResetView.value = true
+    },
+    onRotate: (angleDifference) => {
+      if (
+        selectedTool.value !== DrawTool.Select ||
+        !isUsingGesture.value
+      ) return
+
+      if (Math.abs(angleDifference) < 0.8) return
+
+      gestureState.rotateDelta += angleDifference
+      scheduleGestureFrame(c)
+    },
+    onDrag: (dx, dy, prevDx, prevDy) => {
+      if (selectedTool.value === DrawTool.Select && isUsingGesture.value) return
+
+      gestureState.pan.x += 2 * (dx - prevDx)
+      gestureState.pan.y += 2 * (dy - prevDy)
+
+      scheduleGestureFrame(c)
+    },
+    onGestureEnd: (fingers) => {
+      if (
+        selectedTool.value === DrawTool.Select &&
+        isUsingGesture.value &&
+        fingers === 0
+      ) {
+        const obj = c.getActiveObject()
+        if (!obj) return
+
         setTimeout(() => {
-          obj.set({ lockMovementX: false, lockMovementY: false })
+          obj.lockMovementX = false
+          obj.lockMovementY = false
           isUsingGesture.value = false
 
-          const transform: any = {
+          c.fire('object:modified', {
             target: obj,
-            original: originalState
-          }
+            transform: {
+              target: obj,
+              original: originalState
+            } as any
+          })
 
-          // Fire the event with transform + target
-          c.fire('object:modified', { target: obj, transform })
-          c.requestRenderAll()
+
+          scheduleGestureFrame(c)
         }, 100)
       }
-      updateVisibility()
-      c.requestRenderAll()
+
+      if (!isUsingGesture.value) {
+        setCacheForObjects(c.getObjects(), true)
+        exitPanZoomMode(c)
+      }
+
+      scheduleGestureFrame(c)
     }
+
   })
+}
+
+let panZoomActive = false
+let frameScheduled = false
+let panActive = false
+let lastPanPoint: { x: number; y: number } | null = null
+let panDelta = { x: 0, y: 0 }
+
+
+function enterPanZoomMode(c: Canvas) {
+  if (panZoomActive) return
+  panZoomActive = true
+
+  c.selection = false
+  c.skipTargetFind = true
+}
+
+function exitPanZoomMode(c: Canvas) {
+  // optionally delay exit until wheel stops
+  const { selectedTool } = useToolSelection()
+  if (selectedTool === DrawTool.Select) {
+    c.selection = true
+    c.skipTargetFind = false
+  }
+  panZoomActive = false
+}
+
+
+function scheduleViewportUpdate(c: Canvas) {
+  const { updateVisibility } = useDrawObjectManager()
+
+  if (frameScheduled) return
+  frameScheduled = true
+
+  requestAnimationFrame(() => {
+    frameScheduled = false
+
+    enterPanZoomMode(c)
+    updateVisibility()
+    exitPanZoomMode(c)
+
+    c.requestRenderAll()
+  })
+}
+
+let panFrameScheduled = false
+
+function schedulePanFrame(c: Canvas) {
+  if (panFrameScheduled) return
+  panFrameScheduled = true
+
+  const { updateVisibility } = useDrawObjectManager()
+  const { canResetView } = storeToRefs(useDrawUIStore())
+
+
+  requestAnimationFrame(() => {
+    panFrameScheduled = false
+
+    if (panDelta.x !== 0 || panDelta.y !== 0) {
+      handlePan(new Point(panDelta.x, panDelta.y), c)
+      panDelta.x = 0
+      panDelta.y = 0
+      canResetView.value = true
+    }
+
+    updateVisibility()
+    c.requestRenderAll()
+  })
+}
+
+let gestureFrameScheduled = false
+
+const gestureState = {
+  zoomDelta: 1,
+  pan: { x: 0, y: 0 },
+  zoomScale: 1,
+  rotateDelta: 0,
+  zoomCenter: null as Point | null,
+  needsCull: false
+}
+
+function scheduleGestureFrame(c: Canvas) {
+  const { updateVisibility } = useDrawObjectManager()
+
+  if (gestureFrameScheduled) return
+  gestureFrameScheduled = true
+
+  requestAnimationFrame(() => {
+    gestureFrameScheduled = false
+
+    // PAN
+    if (gestureState.pan.x || gestureState.pan.y) {
+      handlePan(
+        new Point(gestureState.pan.x, gestureState.pan.y),
+        c
+      )
+      gestureState.pan.x = 0
+      gestureState.pan.y = 0
+      gestureState.needsCull = true
+    }
+
+    // ZOOM
+    if (gestureState.zoomDelta !== 1 && gestureState.zoomCenter) {
+      applyZoomDelta(
+        gestureState.zoomDelta,
+        gestureState.zoomCenter,
+        c
+      )
+
+      gestureState.zoomDelta = 1
+      gestureState.zoomCenter = null
+      gestureState.needsCull = true
+    }
+
+    // ROTATE (object)
+    if (gestureState.rotateDelta !== 0) {
+      const obj = c.getActiveObject()
+      if (obj) {
+        obj.rotate((obj.angle! + gestureState.rotateDelta) % 360)
+        obj.setCoords()
+      }
+      gestureState.rotateDelta = 0
+    }
+
+    if (gestureState.needsCull) {
+      updateVisibility()
+      gestureState.needsCull = false
+    }
+
+    c.requestRenderAll()
+  })
+}
+
+
+let pcGestureActive = false
+let pcWheelTimeout: any = null
+
+function enterPCGesture(c: Canvas) {
+  if (pcGestureActive) return
+  pcGestureActive = true
+  setCacheForObjects(c.getObjects(), false)
+}
+
+function exitPCGesture(c: Canvas) {
+  if (!pcGestureActive) return
+  pcGestureActive = false
+  setCacheForObjects(c.getObjects(), true)
 }

@@ -14,8 +14,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   const quadtree = new Quadtree<FabricObject>(
     new Rect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
   )
-
   const entryMap = new Map<string, QuadtreeEntry<FabricObject>>()
+  let lastVisible = new Set<string>()
+  let visibilityScheduled = false
 
 
   const events: FabricEvent[] = [
@@ -74,19 +75,44 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
 
   function addStartingCanvasObjects() {
     objectMap = new Map<string, FabricObject>()
+    lastVisible = new Set<string>()
+    quadtree.clear()
     c!.getObjects().forEach(obj => {
       objectMap.set(obj.id!, obj)
       addToQuadTree(obj)
     })
+
     updateVisibility()
   }
 
   function updateVisibility(): void {
-    const viewport = getViewportRect(c!)
-    c!.getObjects().forEach(o => (o.visible = false))
-    const visible = quadtree.query(viewport)
-    visible.forEach(e => objectMap.get(e.id)!.visible = true)
-    c!.requestRenderAll()
+    if (visibilityScheduled) return
+    visibilityScheduled = true
+
+    requestAnimationFrame(() => {
+      visibilityScheduled = false
+      const viewport = getViewportRect(c!)
+      const visible = quadtree.query(viewport)
+
+
+      const nextVisible = new Set<string>()
+
+      for (const e of visible) {
+        nextVisible.add(e.id)
+        if (!lastVisible.has(e.id)) {
+          objectMap.get(e.id)!.visible = true
+        }
+      }
+
+      for (const id of lastVisible) {
+        if (!nextVisible.has(id)) {
+          if (!objectMap.has(id)) continue
+          objectMap.get(id)!.visible = false
+        }
+      }
+
+      lastVisible = nextVisible
+    })
   }
 
   function addToQuadTree(obj: FabricObject) {
@@ -120,14 +146,20 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     quadtree.update(entry)
   }
 
+  function getVisibleObjects(): FabricObject[] {
+    const viewport = getViewportRect(c!)
+    const visible = quadtree.query(viewport)
+    return visible.map(item => objectMap.get(item.id)).filter(i => !!i)
+  }
+
 
   return {
     init,
     getObjectsById,
     getObjectById,
-    getDrawObjectMap,
-    addStartingCanvasObjects,
     updateVisibility,
-    updateQuadTree
+    updateQuadTree,
+    addStartingCanvasObjects,
+    getVisibleObjects
   }
 })

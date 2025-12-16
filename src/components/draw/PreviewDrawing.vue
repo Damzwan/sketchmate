@@ -22,7 +22,7 @@
     </div>
 
     <!-- Fullscreen Modal -->
-    <IonModal :is-open="isOpen" @didDismiss="closeModal">
+    <ion-modal :is-open="isOpen" @didDismiss="closeModal">
       <ion-header>
         <ion-toolbar class="bg-black" color="black">
           <ion-button fill="clear" class="text-white" @click="closeModal" slot="end">
@@ -30,19 +30,25 @@
           </ion-button>
         </ion-toolbar>
       </ion-header>
-      <div class="w-full h-full bg-black flex items-center justify-center p-4 relative" @click="closeModal">
-        <img
-          :src="src"
-          class="max-h-full max-w-full object-contain"
-        />
-      </div>
-    </IonModal>
+      <ion-content>
+        <div
+          class="w-full h-full bg-black flex items-center justify-center p-4 relative"
+          @click="closeModal"
+        >
+          <img
+            :src="src"
+            class="max-w-full max-h-full object-contain"
+          />
+        </div>
+      </ion-content>
+
+    </ion-modal>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { IonHeader, IonIcon, IonModal, IonSkeletonText, IonToolbar, IonButton } from '@ionic/vue'
+import { IonButton, IonContent, IonHeader, IonIcon, IonModal, IonSkeletonText, IonToolbar } from '@ionic/vue'
 
 // MDI icons
 import { mdiClose, mdiFullscreen } from '@mdi/js'
@@ -63,3 +69,10 @@ const isOpen = ref(false)
 const openModal = () => (isOpen.value = true)
 const closeModal = () => (isOpen.value = false)
 </script>
+
+<style scoped>
+ion-modal {
+  --height: 100%;
+  --width: 100%;
+}
+</style>

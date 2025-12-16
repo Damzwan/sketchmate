@@ -9,7 +9,6 @@ import {
   downSampleCircle,
   downSampleEllipse
 } from '@/draw/helpers/tools/lasso.helper'
-import { disableSelection } from '@/draw/helpers/select.helper'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { isMobile } from '@/helper/general.helper'
@@ -50,8 +49,9 @@ export const useLasso = defineStore('lasso', (): ToolService => {
   function onMouseDown(o: any) {
     if (!isMobile() && o.e.button !== 0) return
     isDrawing = true
+    const zoom = c!.getZoom()
     const pointer = c!.getViewportPoint(o.e) as Point
-    const pathData = `M ${pointer.x} ${pointer.y}`
+    const pathData = `M ${pointer.x / zoom} ${pointer.y / zoom}`
 
     lasso = createSelectionLine(pathData, c!)
     lasso.objectCaching = false
@@ -62,8 +62,9 @@ export const useLasso = defineStore('lasso', (): ToolService => {
 
   function onMouseMove(o: any) {
     if (!isDrawing || !lasso) return
+    const zoom = c.getZoom()
     const pointer = c!.getViewportPoint(o.e)
-    lasso.path?.push(['L', pointer.x, pointer.y])
+    lasso.path?.push(['L', pointer.x / zoom, pointer.y / zoom])
     lasso.set({ dirty: true }) // ensure Fabric knows it changed
     lasso.setCoords()          // update internal coordinates
     c?.requestRenderAll()
@@ -164,6 +165,8 @@ export const useLasso = defineStore('lasso', (): ToolService => {
 
   function createSelectionLine(pathData: string, c: Canvas) {
     const vpt = c.viewportTransform
+    const zoom = c.getZoom()
+
     return new Path(pathData, {
       fill: 'rgba(0,0,0,0)',
       stroke: '#333',
@@ -172,15 +175,16 @@ export const useLasso = defineStore('lasso', (): ToolService => {
       selectable: false,
       evented: false,
       strokeUniform: true,
-      left: -vpt[4],
-      top: -vpt[5]
+      left: -vpt[4] / zoom,
+      top: -vpt[5] / zoom
     })
   }
 
   async function select() {
     c!.selection = false
     c!.isDrawingMode = false
-    disableSelection()
+    c!.skipTargetFind = true
+
   }
 
   return { select, events, init }

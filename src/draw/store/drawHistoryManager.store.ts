@@ -23,7 +23,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
   const undoStackCounter = ref(0)
   const redoStackCounter = ref(0)
 
-  const MAX_HISTORY = 5
+  const MAX_HISTORY = 50
 
   const { unSelect } = useSelect()
 

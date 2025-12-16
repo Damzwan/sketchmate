@@ -3,12 +3,14 @@ import { ActiveSelection, Canvas } from 'fabric'
 import { EventBus } from '@/main'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 
 export function useLoadService() {
   const canvasToLoad = ref<string>()
 
   async function loadCanvas(c: Canvas) {
     if (!canvasToLoad.value) return
+
     const { actionWithoutEvents } = useDrawEventManager()
     const json = await fetch(canvasToLoad.value).then(res => res.json())
 

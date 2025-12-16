@@ -16,6 +16,7 @@ import {
 } from '@mdi/js'
 import { BrushType, DrawAction, DrawTool, Menu, PenMenuTool, SelectTool } from '@/draw/types/draw.types'
 import { ERASERS, penIconMapping, PENMENUTOOLS, selectIconMapping, SELECTMENUTOOLS } from '@/draw/config/tools.config'
+import { modalController } from '@ionic/vue'
 
 export enum Toolbars {
   drawing = 'drawing',
@@ -87,7 +88,7 @@ export function getToolbarConfig(
   isOffline: boolean,
   hasMate: boolean,
   isLoggedIn: boolean,
-  isModal: boolean,
+  isModal: boolean
 ): ToolbarConfig {
   const penMenuIcon =
     lastSelectedPenMenuTool == DrawTool.Pen
@@ -154,14 +155,22 @@ export function getToolbarConfig(
           id: ToolbarIds.redo,
           action: DrawAction.Redo,
           isDisabled: isRedoDisabled
-        }, {
+        },
+        ...[isModal ? {
+          type: 'button',
+          icon: mdiClose,
+          customAction: () => {
+            modalController.dismiss()
+          }
+        } : {
           type: 'button',
           icon: mdiSend,
           menu: Menu.Send,
           id: ToolbarIds.send,
-          isDisabled: !isLoggedIn || isModal,
+          isDisabled: !isLoggedIn,
           tour_step: '6'
-        }
+        }]
+
       ] as ToolbarItem[]
     },
     [Toolbars.select]: {

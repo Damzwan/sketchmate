@@ -21,7 +21,8 @@ const config: CapacitorConfig = {
       providers: ['google.com', 'phone']
     },
     Keyboard: {
-      resizeOnFullScreen: true
+      resize: KeyboardResize.None
+
     },
     StatusBar: {
       overlaysWebView: false,

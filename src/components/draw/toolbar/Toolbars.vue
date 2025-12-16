@@ -1,5 +1,4 @@
 <template>
-  <div>
     <Toolbar v-if="addTextMode" :config="toolbarConfig.addText"
              :selectedTool="selectedTool" />
     <Toolbar v-else-if="colorPickerMode" :config="toolbarConfig.colorPicker"
@@ -9,7 +8,6 @@
     <Toolbar v-else-if="isSelectActive" :config="toolbarConfig.select"
              :selectedTool="selectedTool" />
     <Toolbar v-else :config="toolbarConfig.drawing" :selectedTool="selectedTool" />
-  </div>
 </template>
 
 <script setup lang="ts">

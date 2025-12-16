@@ -2,14 +2,6 @@
   <ion-modal @didPresent="init" :is-open="drawMenuOpen" @didDismiss="drawMenuOpen = false"
              @willDismiss="() => { EventBus.emit('drawModalClosed')}">
     <ion-header>
-      <div class="w-full h-12 top-0 flex justify-end bg-primary">
-        <ion-button fill="clear" @click="() => {
-          modalController.dismiss()
-
-        }">
-          <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-black" />
-        </ion-button>
-      </div>
       <Toolbars />
     </ion-header>
     <ion-content>
@@ -47,5 +39,8 @@ function init() {
 </script>
 
 <style scoped>
-
+ion-modal {
+  --height: 100%;
+  --width: 100%;
+}
 </style>

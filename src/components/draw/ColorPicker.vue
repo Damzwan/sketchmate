@@ -60,7 +60,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonIcon, IonItem, IonPopover, IonRange, popoverController, IonButton } from '@ionic/vue'
+import { IonButton, IonIcon, IonItem, IonPopover, IonRange, popoverController } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
@@ -74,7 +74,6 @@ import { v4 as uuidv4 } from 'uuid'
 import Picker from 'vanilla-picker'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { exitColorPickerMode } from '@/draw/actions/color.action'
-import { disableSelection } from '@/draw/helpers/select.helper'
 import {
   alphaHexToPercent,
   getColorRecommendations,
@@ -151,7 +150,8 @@ function pickColor(e: any) {
   colorPickerMode.value = true
 
 
-  disableSelection()
+  c.selection = false
+  c.skipTargetFind = true
 
   if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
     c.isDrawingMode = false

@@ -90,8 +90,23 @@ export const handleZoom = (
 
   checkCanvasBounds(c)
 }
+
+export function applyZoomDelta(
+  delta: number,
+  center: Point,
+  c: Canvas
+) {
+  let newZoom = c.getZoom() * delta
+
+  // Clamp
+  newZoom = Math.min(10, Math.max(0.5, newZoom))
+
+  c.zoomToPoint(center, newZoom)
+  checkCanvasBounds(c)
+}
+
+
 export const handlePan = (delta: Point, c: Canvas) => {
-  c.viewportTransform
   c.relativePan(delta)
   checkCanvasBounds(c)
 }

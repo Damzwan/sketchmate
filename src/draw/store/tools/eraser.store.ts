@@ -17,6 +17,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
 
   const eraserSize = ref<EraserSize>(EraserSize.small)
   let isCancelling = false
+  let cancelCircle = false
 
   const events: FabricEvent[] = [
     {
@@ -26,7 +27,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     {
       on: 'mouse:move',
       handler: (e: any) => {
-        if (!isMobile()) return
+        if (!isMobile() || cancelCircle) return
         const pointer = e.pointer
         const ctx = c!.contextTop
 
@@ -45,6 +46,17 @@ export const useEraser = defineStore('eraser', (): Eraser => {
       on: 'zoomReset',
       handler: (e: any) => {
         updateEraserCursor()
+      }
+    }, {
+      on: 'gestureStart',
+      handler: (e: any) => {
+        cancelCircle = true
+      }
+    },
+    {
+      on: 'mouse:up',
+      handler: (e: any) => {
+        cancelCircle = false
       }
     }
   ]
@@ -70,6 +82,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
   async function select() {
     c!.isDrawingMode = true
     c!.selection = false
+    c!.skipTargetFind = true
 
     const b = new CustomEraserBrush(c!)
 

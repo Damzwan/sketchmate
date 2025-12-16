@@ -35,7 +35,11 @@ export async function redoObjectsAdded(action: HistoryAction<HistoryEvent.Object
 
   const enlivened = await fabric.util.enlivenObjects<FabricObject>(objectsToRedo)
 
-  c.add(...enlivened)
+  enlivened.forEach(enlivened => {
+    // When insertedIndex is 0, this condition evaluates to false, because 0 is a falsy value in JavaScript.
+    if (enlivened.insertedIndex !== undefined && enlivened.insertedIndex !== null) c.insertAt(enlivened.insertedIndex, enlivened) // used for bucket fill
+    else c.add(enlivened)
+  })
   c.requestRenderAll()
 
   addToUndoStack(action)

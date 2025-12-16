@@ -3,7 +3,6 @@ import * as fabric from 'fabric'
 import { type Canvas, type FabricObject, IText, Point } from 'fabric'
 import { type Ref, ref } from 'vue'
 import { v4 } from 'uuid'
-import { enableSelection } from '@/draw/helpers/select.helper'
 import { FabricEvent, ToolService } from '@/draw/types/draw.types'
 import { isNative } from '@/helper/general.helper'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
@@ -211,7 +210,8 @@ export const useSelect = defineStore('select', (): Select => {
 
   async function select() {
     c!.isDrawingMode = false
-    enableSelection()
+    c!.skipTargetFind = false
+    c!.selection = true
     c!.requestRenderAll()
   }
 

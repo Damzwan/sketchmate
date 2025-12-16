@@ -2,7 +2,6 @@ import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { enableSelection } from '@/draw/helpers/select.helper'
 import { FabricObject } from 'fabric'
 import { usePen } from '@/draw/store/tools/pen.store'
 import { DrawAction, DrawActionParams, DrawTool } from '@/draw/types/draw.types'
@@ -103,8 +102,10 @@ export function exitColorPickerMode(params: DrawActionParams[DrawAction.ExitColo
     if (selectedTool === DrawTool.Pen) {
       updatePenCursor()
     }
-  } else if (SELECTMENUTOOLS.includes(selectedTool)) {
-    enableSelection()
+  } else if (selectedTool === DrawTool.Select) {
+    c.selection = true
+    c.skipTargetFind = false
+
     if (params.lastSelectedObjectRef) c.setActiveObject(params.lastSelectedObjectRef)
   }
 }

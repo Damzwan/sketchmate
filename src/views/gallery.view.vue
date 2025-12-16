@@ -188,11 +188,14 @@ onMounted(() => {
 })
 
 async function fetchInbox() {
-  if (inbox.value.length == 0 && isLoggedIn.value) {
+  if (inbox.value.length !== user.value?.inbox.length && isLoggedIn.value) {
     isLoading.value = true
     await getInbox()
     isLoading.value = false
     checkQueryParams()
+  }
+  else {
+    isLoading.value = false
   }
 }
 

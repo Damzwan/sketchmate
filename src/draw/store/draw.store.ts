@@ -38,6 +38,7 @@ export const useDrawStore = defineStore('draw', () => {
       const c = canvasSvc.createCanvas(el)
 
       await progressSaver.init(c)
+      progressSaver.startSaving(c)
 
       const prevJson = await progressSaver.get()
       if (loadService.canvasToLoad.value) {
@@ -54,11 +55,12 @@ export const useDrawStore = defineStore('draw', () => {
       drawHistory.init(c)
       drawObjectManager.init(c)
       shortcutManager.init(c)
-      progressSaver.startSaving(c)
 
 
       toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true })
-      c.requestRenderAll()
+      requestAnimationFrame(() => {
+        c.requestRenderAll()
+      })
     }
 
     async function selectAction<A extends DrawAction>(action: A, params: DrawActionParams[A]) {
@@ -74,15 +76,7 @@ export const useDrawStore = defineStore('draw', () => {
     // TODO this should not be here
     async function reply(inboxItem: InboxItem) {
       loadService.canvasToLoad.value = inboxItem.drawing
-      const c = canvasSvc.getCanvas()
       await router.push(FRONTEND_ROUTES.draw)
-      if (c) {
-        reset()
-        isSendingDrawing.value = true
-        await loadService.loadCanvas(c)
-        isSendingDrawing.value = false
-        c.requestRenderAll()
-      }
     }
 
 

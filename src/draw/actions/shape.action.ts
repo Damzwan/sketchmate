@@ -11,7 +11,6 @@ import { Canvas, Circle, Ellipse, FabricObject, Line, Path, Point, Polygon, Poly
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { HistoryEvent } from '@/draw/types/drawHistory.types'
-import { disableSelection, setSelectionForObjects } from '@/draw/helpers/select.helper'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useShapeCreation } from '@/draw/store/shapeCreation.store'
 
@@ -32,7 +31,7 @@ export function addShape(params: DrawActionParams[DrawAction.AddShape]) {
   const shape = params.shape
   c.isDrawingMode = false
   c.selection = false
-  disableSelection()
+  c.skipTargetFind = true
   c.getObjects().forEach(obj => obj.set({ isCreating: false }))
   const { shapeCreationMode } = storeToRefs(useDrawUIStore())
 

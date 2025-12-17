@@ -40,8 +40,9 @@ import { useSessionStore } from '@/store/session.store'
 import { useBalloonStore } from '@/store/balloon.store'
 import { useFriendStore } from '@/store/friend.store'
 import { useDrawStore } from '@/draw/store/draw.store'
+import { registerDrawSyncingHandlers } from '@/service/api/socket/drawSyncing'
 
-let socket: Socket | undefined
+export let socket: Socket | undefined
 
 let socketServiceInstance: SocketAPI | null = null
 let socketLoggedInPromise: Promise<void>
@@ -76,6 +77,9 @@ export function createSocketService(): SocketAPI {
     socketLoggedInPromise = new Promise<void>((resolve) => {
       resolveSocketLoggedIn = resolve as any // TODO fix the any...
     })
+
+
+    registerDrawSyncingHandlers(socket)
 
     socket.io.on('reconnect', () => {
       if (!user.value?._id) return

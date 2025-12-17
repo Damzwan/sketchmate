@@ -1,4 +1,5 @@
 import {
+  mdiAccountGroupOutline,
   mdiChatQuestionOutline,
   mdiCheck,
   mdiClose,
@@ -134,6 +135,13 @@ export function getToolbarConfig(
         }
       ] as ToolbarItem[],
       right: [
+        ...(isModal ? [] : [{
+          type: 'button',
+          icon: mdiAccountGroupOutline,
+          isDisabled: !isLoggedIn,
+          menu: Menu.DrawRoomMenu,
+          tour_step: '8'
+        }]),
         {
           type: 'button',
           icon: mdiChatQuestionOutline,

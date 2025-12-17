@@ -78,6 +78,5 @@ export const redoActionMapping: {
   [HistoryEvent.PolygonCreation]: redoPolygonCreation,
   [HistoryEvent.ObjectStyleChanged]: redoObjectStyle,
   [HistoryEvent.ImgFilterChanged]: redoImgFilter,
-  // if you have extra events like 'merge', add here with correct typing
   [HistoryEvent.Merge]: redoMerge
 }

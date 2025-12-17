@@ -23,7 +23,7 @@ import { routerAnimation } from '@/helper/animation.helper'
 import { useNotificationStore } from '@/store/notification.store'
 import { useBalloonStore } from '@/store/balloon.store'
 import { useInboxStore } from '@/store/inbox.store'
-import { useSocketService } from '@/service/api/socket.service'
+import { useSocketService } from '@/service/api/socket/socket.service'
 
 export const useAuthStore = defineStore('auth', () => {
   const api = useAPI()

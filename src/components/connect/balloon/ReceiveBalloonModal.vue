@@ -102,7 +102,7 @@ import { useAPI } from '@/service/api/api.service'
 import { useToast } from '@/service/toast.service'
 import Lottie from '@/components/general/Lottie.vue'
 import balloonLottie from '@/assets/lottie/balloon.json'
-import { useSocketService } from '@/service/api/socket.service'
+import { useSocketService } from '@/service/api/socket/socket.service'
 import { useBalloonStore } from '@/store/balloon.store'
 
 const { user } = storeToRefs(useAuthStore())

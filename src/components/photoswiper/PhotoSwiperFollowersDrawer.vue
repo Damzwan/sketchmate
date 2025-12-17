@@ -38,7 +38,7 @@
 import { IonButton, IonItem, IonList, IonSpinner, useBackButton } from '@ionic/vue'
 import { User } from '@/types/server.types'
 import { ref, watch } from 'vue'
-import { useSocketService } from '@/service/api/socket.service'
+import { useSocketService } from '@/service/api/socket/socket.service'
 import { storeToRefs } from 'pinia'
 import { senderImg, senderName } from '@/helper/general.helper'
 import { useFriendStore } from '@/store/friend.store'

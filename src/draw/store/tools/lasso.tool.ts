@@ -62,7 +62,7 @@ export const useLasso = defineStore('lasso', (): ToolService => {
 
   function onMouseMove(o: any) {
     if (!isDrawing || !lasso) return
-    const zoom = c.getZoom()
+    const zoom = c!.getZoom()
     const pointer = c!.getViewportPoint(o.e)
     lasso.path?.push(['L', pointer.x / zoom, pointer.y / zoom])
     lasso.set({ dirty: true }) // ensure Fabric knows it changed

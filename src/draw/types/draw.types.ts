@@ -81,6 +81,7 @@ export enum Menu {
   SendBalloon,
   DateOfBirth,
   DrawMenu,
+  DrawRoomMenu,
 }
 
 export enum ObjectType {
@@ -163,19 +164,19 @@ export type DrawActionParams = {
   [DrawAction.AddText]: undefined;
   [DrawAction.Merge]: DrawActionObjectParams;
   [DrawAction.RemoveSelectedObjects]: undefined;
-  [DrawAction.ChangeFont]: {font: string};
+  [DrawAction.ChangeFont]: { font: string };
   [DrawAction.SetObjectFillColor]: { color: string | undefined };
   [DrawAction.SetObjectBackgroundColor]: { color: string | undefined };
-  [DrawAction.SetObjectStrokeColor]: { color: string  | undefined};
-  [DrawAction.ChangeFontWeight]: {weight: string};
-  [DrawAction.ChangeFontStyle]: {fontStyle: string};
-  [DrawAction.ChangeTextAlign]: {align: string};
+  [DrawAction.SetObjectStrokeColor]: { color: string | undefined };
+  [DrawAction.ChangeFontWeight]: { weight: string };
+  [DrawAction.ChangeFontStyle]: { fontStyle: string };
+  [DrawAction.ChangeTextAlign]: { align: string };
   [DrawAction.MoveObjectToFront]: DrawActionObjectParams;
   [DrawAction.MoveObjectToBack]: DrawActionObjectParams;
   [DrawAction.MoveObjectUpOneLayer]: DrawActionObjectParams;
   [DrawAction.MoveObjectDownOneLayer]: DrawActionObjectParams;
   [DrawAction.SetCanvasBackground]: { color: string };
-  [DrawAction.ChangeStrokeWidth]: {strokeWidth: number};
+  [DrawAction.ChangeStrokeWidth]: { strokeWidth: number };
   [DrawAction.FlipX]: DrawActionObjectParams;
   [DrawAction.FlipY]: DrawActionObjectParams;
   [DrawAction.Undo]: undefined;
@@ -186,7 +187,7 @@ export type DrawActionParams = {
   [DrawAction.AddImage]: { imageUrl: string };
   [DrawAction.AddSavedDrawingToCanvas]: { json: any };
   [DrawAction.SaveFabricObject]: DrawActionObjectParams;
-  [DrawAction.AddShape]: {shape: Shape};
+  [DrawAction.AddShape]: { shape: Shape };
   [DrawAction.ConfirmShapeCreation]: undefined;
   [DrawAction.AddImgFilter]: { filter: any; image: FabricImage; remove: boolean };
 };

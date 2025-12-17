@@ -25,6 +25,7 @@
   <FontMenu />
   <DocsMenu trigger="docsMenu" />
   <HelpMenu />
+  <RoomMenu/>
 </template>
 
 <script setup lang="ts">
@@ -49,6 +50,7 @@ import SelectImgStyleMenu from '@/components/draw/menus/SelectImgStyleMenu.vue'
 import SelectColorMenu from '@/components/draw/menus/SelectColorMenu.vue'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useShapeCreation } from '@/draw/store/shapeCreation.store'
+import RoomMenu from '@/components/draw/menus/RoomMenu.vue'
 
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const { selectAction } = useDrawStore()

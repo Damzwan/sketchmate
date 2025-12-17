@@ -121,7 +121,7 @@ import { getDateOfBirthConfirmationResponse, svg } from '@/helper/general.helper
 import balloon from '@/assets/lottie/balloon.json'
 import { ToastDuration } from '@/types/toast.types'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
-import { useSocketService } from '@/service/api/socket.service'
+import { useSocketService } from '@/service/api/socket/socket.service'
 import { useBalloonStore } from '@/store/balloon.store'
 import { EventBus } from '@/main'
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'

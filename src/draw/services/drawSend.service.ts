@@ -1,5 +1,5 @@
 import { useAPI } from '@/service/api/api.service'
-import { useSocketService } from '@/service/api/socket.service'
+import { useSocketService } from '@/service/api/socket/socket.service'
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import { Canvas } from 'fabric'

@@ -132,7 +132,7 @@ import { Mate } from '@/types/server.types'
 import { useToast } from '@/service/toast.service'
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
-import { useSocketService } from '@/service/api/socket.service'
+import { useSocketService } from '@/service/api/socket/socket.service'
 
 const { searchMate } = useAPI()
 const { toast } = useToast()

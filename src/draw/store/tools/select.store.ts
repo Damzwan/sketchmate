@@ -113,6 +113,10 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'selection:updated',
       handler: (e: any) => {
+        if (isText(selectedObjects) && isEditingText.value) {
+          c!.discardActiveObject()
+          return
+        }
         isSelectActive.value = true
         selectedObjects = e.selected
         selectedObjectsRef.value = [...e.selected]
@@ -127,7 +131,8 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'selection:cleared',
       handler: () => {
-        if (isText(selectedObjectsRef.value) && isEditingText.value) {
+        console.log("clear")
+        if (isText(selectedObjects) && isEditingText.value) {
           c!.setActiveObject(selectedObjects[0])
           isEditingText.value = false
           return

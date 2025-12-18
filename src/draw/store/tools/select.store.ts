@@ -18,6 +18,8 @@ interface Select extends ToolService {
   isEditingText: Ref<boolean>
 }
 
+const TEXT_JUMP_Y_VALUE = window.innerHeight / 2 // in case we select the text on the bottom half of the screen on mobile it becomes buggy, we need to push it up while editing
+
 export const useSelect = defineStore('select', (): Select => {
   let c: Canvas | undefined = undefined
   const isSelectActive = ref(false)
@@ -34,7 +36,7 @@ export const useSelect = defineStore('select', (): Select => {
   let wasDragging = false
   let pointerDownPos: Point | null = null
 
-  let useGestures = false
+  let useGestures = false // means that when we zoom or rotate we edit the object instead of zooming/panning the canvas
 
   // ----------------- Helper Functions -----------------
   function getObjectsUnderPointer(pointer: Point) {
@@ -46,7 +48,7 @@ export const useSelect = defineStore('select', (): Select => {
     const objsUnderPointer = getObjectsUnderPointer(pointer)
     const nextObj = objsUnderPointer.find(obj => !selectedObjects.includes(obj))
     if (nextObj) {
-      actionWithoutEvents(() => {
+      void actionWithoutEvents(() => {
         c!.setActiveObject(nextObj)
         selectedObjects = [nextObj]
         selectedObjectsRef.value = [nextObj]
@@ -72,7 +74,7 @@ export const useSelect = defineStore('select', (): Select => {
     )
 
     if (newObjects.length) {
-      actionWithoutEvents(() => {
+      void actionWithoutEvents(() => {
         const newSelection = [...currentSelection, ...newObjects.slice(0, 1)]
         c!.setActiveObject(new fabric.ActiveSelection(newSelection, { canvas: c }))
         selectedObjects = newSelection
@@ -83,7 +85,7 @@ export const useSelect = defineStore('select', (): Select => {
       // If click on selected object, unselect it
       const toUnselect = objectsUnderPointer.filter(obj => currentSelection.includes(obj))
       if (toUnselect.length) {
-        actionWithoutEvents(() => {
+        void actionWithoutEvents(() => {
           c!.setActiveObject(new fabric.ActiveSelection(currentSelection.filter(o => !toUnselect.includes(o)), { canvas: c }))
           selectedObjects = c!.getActiveObjects() || []
           selectedObjectsRef.value = [...selectedObjects]
@@ -98,16 +100,11 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'selection:created',
       handler: (e: any) => {
-        if (c!._activeObject && c!._activeObject.isType('activeselection')) c!._activeObject.id = v4() // TODO seems a bit hacky
-        isSelectActive.value = true
-        clicksAfterSelectionActive = 0
-        selectedObjects = e.selected
-        selectedObjectsRef.value = [...e.selected]
-        useGestures = false
-        setTimeout(() => {
-          useGestures = true
-          clicksAfterSelectionActive++ // TODO kind of a dirty hack
-        }, 100)
+        const active = c!._activeObject
+        if (active?.isType('activeselection')) active.id = v4() // TODO is this necessary?
+
+        setSelection(e.selected)
+        temporarilyDisableGestures()
       }
     },
     {
@@ -117,70 +114,45 @@ export const useSelect = defineStore('select', (): Select => {
           c!.discardActiveObject()
           return
         }
-        isSelectActive.value = true
-        selectedObjects = e.selected
-        selectedObjectsRef.value = [...e.selected]
-        clicksAfterSelectionActive = 0
-        useGestures = false
-        setTimeout(() => {
-          useGestures = true
-          clicksAfterSelectionActive++
-        }, 100)
+
+        setSelection(e.selected)
+        temporarilyDisableGestures()
       }
     },
     {
       on: 'selection:cleared',
       handler: () => {
-        console.log("clear")
         if (isText(selectedObjects) && isEditingText.value) {
           c!.setActiveObject(selectedObjects[0])
           isEditingText.value = false
           return
         }
-        isSelectActive.value = false
-        selectedObjects = []
-        selectedObjectsRef.value = []
+
+        clearSelection()
       }
     },
     {
       on: 'mouse:down',
       handler: (e) => {
-        pointerDownPos = c!.getPointer(e.e)
-        wasDragging = false
+        startPointerTracking(c!.getPointer(e.e))
         clicksAfterSelectionActive++
       }
     },
     {
       on: 'mouse:move',
       handler: (e) => {
-        if (!pointerDownPos) return
-        const p = c!.getPointer(e.e)
-        const dx = p.x - pointerDownPos.x
-        const dy = p.y - pointerDownPos.y
-        if (Math.sqrt(dx * dx + dy * dy) > 5) wasDragging = true
+        updatePointerTracking(c!.getPointer(e.e))
       }
     },
     {
       on: 'mouse:up',
       handler: () => {
-        if (wasDragging || !pointerDownPos) return
+        if (!isSelectActive.value || !isClick()) return
+        if (clicksAfterSelectionActive <= 1) return
 
-        if (!isSelectActive.value) return
-
-
-        if (clicksAfterSelectionActive > 1) {
-          if (multiSelectMode.value) {
-            handleMultiSelect(pointerDownPos)
-          } else if (isText(selectedObjects) && !isEditingText.value) {
-            (selectedObjects[0] as IText).enterEditing()
-          } else {
-            cycleSelection(pointerDownPos)
-          }
-        } else {
-        }
+        handleSelectionClick(pointerDownPos!)
         pointerDownPos = null
       }
-
     },
     {
       on: 'text:editing:entered',
@@ -191,7 +163,7 @@ export const useSelect = defineStore('select', (): Select => {
           const p = new fabric.Point(text.left, text.top)
           const screenPoint = fabric.util.transformPoint(p, c!.viewportTransform)
           isBottomHalf.value = screenPoint.y > window.innerHeight / 2
-          if (isBottomHalf.value) text.top -= 250
+          if (isBottomHalf.value) text.top -= TEXT_JUMP_Y_VALUE
           c?.requestRenderAll()
         }
       }
@@ -201,7 +173,7 @@ export const useSelect = defineStore('select', (): Select => {
       handler: () => {
         if (isNative() && isBottomHalf.value && isText(selectedObjects)) {
           const text = selectedObjects[0] as IText
-          text.top += 250
+          text.top += TEXT_JUMP_Y_VALUE
           c?.requestRenderAll()
         }
       }
@@ -242,6 +214,58 @@ export const useSelect = defineStore('select', (): Select => {
   function shouldModifyObjectsWithGestures() {
     if (selectedObjects.length === 0) return false
     else return useGestures
+  }
+
+  function setSelection(objects: FabricObject[]) {
+    selectedObjects = objects
+    selectedObjectsRef.value = [...objects]
+    isSelectActive.value = objects.length > 0
+  }
+
+  function clearSelection() {
+    selectedObjects = []
+    selectedObjectsRef.value = []
+    isSelectActive.value = false
+  }
+
+  function handleSelectionClick(pointer: Point) {
+    if (multiSelectMode.value) {
+      handleMultiSelect(pointer)
+      return
+    }
+
+    if (isText(selectedObjects) && !isEditingText.value) {
+      (selectedObjects[0] as IText).enterEditing()
+      return
+    }
+
+    cycleSelection(pointer)
+  }
+
+  function startPointerTracking(pointer: Point) {
+    pointerDownPos = pointer
+    wasDragging = false
+  }
+
+  function updatePointerTracking(pointer: Point) {
+    if (!pointerDownPos) return
+    const dx = pointer.x - pointerDownPos.x
+    const dy = pointer.y - pointerDownPos.y
+    wasDragging ||= Math.hypot(dx, dy) > 5
+  }
+
+  function isClick() {
+    return !!pointerDownPos && !wasDragging
+  }
+
+  function temporarilyDisableGestures() {
+    useGestures = false
+    clicksAfterSelectionActive = 0
+
+    setTimeout(() => {
+      useGestures = true
+      clicksAfterSelectionActive++
+    }, 100)
   }
 
 

@@ -159,7 +159,7 @@ export function useShortcutManager() {
 
       case Shortcut.send:
         event.preventDefault()
-        const {isModal} = useDrawStore()
+        const { isModal } = useDrawStore()
         if (isSelectMode.value || isModal) return
         if (!document.getElementById(ToolbarIds.send)!.ariaDisabled) document.getElementById(ToolbarIds.send)!.click()
         dismissPopover()
@@ -174,40 +174,12 @@ export function useShortcutManager() {
 
       case Shortcut.selectNext:
         event.preventDefault()
-        if (selectedTool != DrawTool.Select || c?.getObjects().length == 0) return
-
-        const allObjectss = c!.getObjects()
-
-        selectIndex++
-        if (selectIndex >= allObjectss.length) selectIndex = 0
-        if (
-          c!._activeObject &&
-          allObjectss.length > 1 &&
-          allObjectss.at(selectIndex)!.id == c!._activeObject.id
-        )
-          selectIndex++
-        if (selectIndex < 0) selectIndex = allObjectss.length - 1
-        c!.setActiveObject(allObjectss.at(selectIndex)!)
-        dismissPopover()
+        moveSelection(1, selectedTool)
         break
 
       case Shortcut.selectPrev:
         event.preventDefault()
-        if (selectedTool != DrawTool.Select || c?.getObjects().length == 0) return
-
-        const allObjects = c!.getObjects()
-
-        selectIndex--
-        if (selectIndex < 0) selectIndex = allObjects.length - 1
-        if (
-          c!._activeObject &&
-          allObjects.length > 1 &&
-          allObjects.at(selectIndex)!.id == c!._activeObject.id
-        )
-          selectIndex--
-        if (selectIndex < 0) selectIndex = allObjects.length - 1
-        c!.setActiveObject(allObjects.at(selectIndex)!)
-        dismissPopover()
+        moveSelection(-1, selectedTool)
         break
 
       case Shortcut.merge:
@@ -282,6 +254,35 @@ export function useShortcutManager() {
         break
     }
   }
+
+  function wrapIndex(index: number, length: number) {
+    return (index + length) % length
+  }
+
+
+  function moveSelection(delta: 1 | -1, selectedTool: DrawTool) {
+    if (selectedTool !== DrawTool.Select) return
+    const objects = c?.getObjects()
+    if (!objects || objects.length === 0) return
+
+    const active = c!._activeObject
+    let nextIndex = wrapIndex(selectIndex + delta, objects.length)
+
+    // skip currently active object if possible
+    if (
+      active &&
+      objects.length > 1 &&
+      objects[nextIndex].id === active.id
+    ) {
+      nextIndex = wrapIndex(nextIndex + delta, objects.length)
+    }
+
+    selectIndex = nextIndex
+    c!.setActiveObject(objects[selectIndex])
+    c!.requestRenderAll()
+    dismissPopover()
+  }
+
 
   function init(canvas: Canvas) {
     destroy()

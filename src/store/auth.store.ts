@@ -95,11 +95,12 @@ export const useAuthStore = defineStore('auth', () => {
       const [authUser, newAcc] = result
       isAuthLoading.value = false
 
-      if (newAcc) {
+      const { showEnableNotificationsAfterLogin } = useNotificationStore()
+
+      if (newAcc || showEnableNotificationsAfterLogin) {
         // new user is routed in login.view.vue
         return
       }
-
 
       // Logged in normally → route to draw or connect
       if (authUser.mates.length === 0) {
@@ -110,6 +111,7 @@ export const useAuthStore = defineStore('auth', () => {
     } else {
       // Auto-login (no login intent)
       isAuthLoading.value = false
+
       const result = await login()
 
       if (!result) {
@@ -174,8 +176,8 @@ export const useAuthStore = defineStore('auth', () => {
       isNewAccount.value = userValue.new_account
 
       socketService.login({ _id: user.value!._id })
-      notificationStore.init(user.value)
       balloonStore.init(user.value)
+      await notificationStore.init(user.value, !!arrivedFromLogin.value)
 
 
       // Store user id locally

@@ -4,14 +4,18 @@ import { EventBus } from '@/main'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { storeToRefs } from 'pinia'
+import { useDrawStore } from '@/draw/store/draw.store'
 
 export function useLoadService() {
   const canvasToLoad = ref<string>()
 
   async function loadCanvas(c: Canvas) {
     if (!canvasToLoad.value) return
-
+    const { isSendingDrawing } = storeToRefs(useDrawStore())
     const { actionWithoutEvents } = useDrawEventManager()
+
+    isSendingDrawing.value = true
     const json = await fetch(canvasToLoad.value).then(res => res.json())
 
 
@@ -39,6 +43,8 @@ export function useLoadService() {
 
       EventBus.emit('saveDrawing', {})
     })
+
+    isSendingDrawing.value = false
 
   }
 

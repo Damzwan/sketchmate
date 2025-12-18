@@ -32,7 +32,19 @@ export const useDrawStore = defineStore('draw', () => {
     const isModal = ref(false)
     const prevDrawingMode = ref(false) // TODO think of something better
 
+    let canvasID = ''
+
     async function initCanvas(el: HTMLCanvasElement, isAModal?: boolean) {
+      // in case we return to the same canvas we do not need to reload the whole canvas, it causes for flickering
+      if (canvasID === el.id) {
+        const c = canvasSvc.getCanvas()
+        if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
+        c.requestRenderAll()
+        return
+      }
+
+      canvasID = el.id
+
       isModal.value = !!isAModal
       canvasSvc.destroyCanvas()
       const c = canvasSvc.createCanvas(el)
@@ -42,9 +54,7 @@ export const useDrawStore = defineStore('draw', () => {
 
       const prevJson = await progressSaver.get()
       if (loadService.canvasToLoad.value) {
-        isSendingDrawing.value = true
         await loadService.loadCanvas(c)
-        isSendingDrawing.value = false
       } else if (prevJson) {
         await c.loadFromJSON(prevJson)
       }

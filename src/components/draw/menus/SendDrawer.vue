@@ -53,8 +53,9 @@
           <ion-icon :icon="svg(mdiSend)"></ion-icon>
         </ion-fab-button>
         <div
-          class="bg-secondary absolute w-[25px] h-[25px] flex justify-center items-center rounded-full right-[-5px] bottom-[-5px] z-[1000]">
-          <p class="text-white font-semibold">{{ selectedMatesLengthToShow }}</p>
+          class="bg-secondary absolute w-[25px] h-[25px] flex justify-center items-center rounded-full right-[-5px] bottom-[-5px] z-1000"
+          v-if="selectedMates.length > 0">
+          <p class="text-white font-semibold">{{ selectedMates.length }}</p>
         </div>
       </ion-fab>
     </div>
@@ -88,7 +89,6 @@ const { user } = storeToRefs(useAuthStore())
 
 const showFab = ref(false)
 const selectedMates = ref<Mate[]>([])
-const selectedMatesLengthToShow = ref(1)
 const { send } = useDrawStore()
 
 const preview = ref<string>()
@@ -118,7 +118,6 @@ function onMateClick(mate: Mate) {
     ...selectedMates.value.slice(foundMateIndex + 1)
   ]
 
-  selectedMatesLengthToShow.value = selectedMates.value.length + 1
 }
 
 
@@ -154,22 +153,5 @@ ion-list {
   padding: 0;
 }
 
-.scrollbar::-webkit-scrollbar {
-  background-color: var(--ion-color-primary);;
-  width: 8px;
-}
-
-.scrollbar::-webkit-scrollbar-track {
-  border-radius: 8px;
-}
-
-.scrollbar::-webkit-scrollbar-thumb {
-  background-color: var(--ion-color-secondary);
-  border-radius: 8px;
-}
-
-.scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: var(--ion-color-secondary);
-}
 
 </style>

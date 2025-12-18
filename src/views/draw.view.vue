@@ -5,7 +5,7 @@
     </ion-header>
     <ion-content>
       <div class="absolute inset-0 flex m-0 pointer-none:">
-        <canvas ref="myCanvasRef" class="w-full h-full " />
+        <canvas ref="myCanvasRef" class="w-full h-full " id="mainCanvas" />
       </div>
 
 

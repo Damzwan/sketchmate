@@ -246,28 +246,28 @@ export function useShortcutManager() {
         break
 
       case Shortcut.flipX:
-        event.preventDefault()
         if (!isSelectMode.value) return
+        event.preventDefault()
         selectAction(DrawAction.FlipX, { objects: getSelectedObjects() })
         dismissPopover()
         break
 
       case Shortcut.flipY:
-        event.preventDefault()
         if (!isSelectMode.value) return
+        event.preventDefault()
         selectAction(DrawAction.FlipY, { objects: getSelectedObjects() })
         dismissPopover()
         break
 
 
       case Shortcut.paste:
-        event.preventDefault()
         if (isSelectMode.value) c?.discardActiveObject()
         const items = await navigator.clipboard.read()
 
         for (const item of items) {
           for (const type of item.types) {
             if (!type.includes('image')) continue
+            event.preventDefault()
             const blob = await item.getType(type)
             const reader = new FileReader()
             reader.onloadend = () => {

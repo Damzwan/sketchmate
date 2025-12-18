@@ -6,7 +6,7 @@
     </ion-header>
     <ion-content>
       <div class="absolute inset-0 flex m-0 pointer-none " :style="{background: BACKGROUND}">
-        <canvas ref="myCanvasRef" class="w-full h-full " />
+        <canvas ref="myCanvasRef" class="w-full h-full " id="modalCanvas"/>
       </div>
 
       <ResetZoomButton />

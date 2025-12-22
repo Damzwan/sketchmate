@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-2" v-if="socialFeaturesAllowed">
+  <div class="mx-2" >
     <!-- Case: received a balloon -->
     <div
       v-if="user && user.balloon && receivedBalloon && receivedBalloon.status==='accepted'"
@@ -107,7 +107,7 @@ import { useAPI } from '@/service/api/api.service'
 import { useBalloonStore } from '@/store/balloon.store'
 
 const { openMenu } = useMenuStore()
-const { user, socialFeaturesAllowed } = storeToRefs(useAuthStore())
+const { user } = storeToRefs(useAuthStore())
 const { sentBalloon, receivedBalloon } = storeToRefs(useBalloonStore())
 
 

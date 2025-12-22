@@ -50,12 +50,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Derived
   const shouldShowDateOfBirthConfirmation = computed(
-    () => user.value ? user.value.date_of_birth == undefined : false
-  )
-  const socialFeaturesAllowed = computed(
-    () => (user.value && user.value.date_of_birth)
-      ? isOldEnough(user.value.date_of_birth)
-      : true
+    () => user.value ? user.value.date_of_birth == undefined || !isOldEnough(user.value.date_of_birth) : false
   )
 
   generateDeviceFingerprint().then(fingerprint => deviceFingerprint.value = fingerprint)
@@ -251,7 +246,6 @@ export const useAuthStore = defineStore('auth', () => {
     showForceUpdateModal,
     isLoading,
     shouldShowDateOfBirthConfirmation,
-    socialFeaturesAllowed,
     deviceFingerprint,
     localUserImg,
 

@@ -204,8 +204,7 @@ enum Segments {
 
 const {
   user,
-  isLoading,
-  socialFeaturesAllowed
+  isLoading
 } = storeToRefs(useAuthStore())
 
 const {
@@ -288,13 +287,13 @@ const connectSheetButtons = computed(() => [
     id: 'search-name',
     data: { action: 'delete' }
   },
-  socialFeaturesAllowed.value ? {
+  {
     text: 'Send a balloon',
     role: 'selected',
     icon: svg(mdiBalloon),
     handler: () => openMenu(Menu.SendBalloon),
     data: { action: 'delete' }
-  } : undefined,
+  },
   {
     text: 'Cancel',
     role: 'cancel',

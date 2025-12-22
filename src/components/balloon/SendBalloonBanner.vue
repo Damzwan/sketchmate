@@ -63,7 +63,7 @@ import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/store/auth.store'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { mdiChevronDown } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { getDateOfBirthConfirmationResponse, svg } from '@/helper/general.helper'
 import { useBalloonStore } from '@/store/balloon.store'
 
 const { sentBalloon } = storeToRefs(useBalloonStore())
@@ -73,9 +73,16 @@ const balloonDescription = ref('')
 const sendingBalloon = ref(false)
 const isExpanded = ref(false)
 
-const { user } = storeToRefs(useAuthStore())
+const { user, shouldShowDateOfBirthConfirmation } = storeToRefs(useAuthStore())
 
-function sendBalloon() {
+async function sendBalloon() {
+  if (shouldShowDateOfBirthConfirmation.value) {
+    const canSendBalloon = await getDateOfBirthConfirmationResponse()
+    if (canSendBalloon == 'cancel' || canSendBalloon == 'notAllowed') {
+      return
+    }
+  }
+
   sendingBalloon.value = true
   createBalloon(balloonDescription.value).then(res => {
     if (!res || !user.value) return

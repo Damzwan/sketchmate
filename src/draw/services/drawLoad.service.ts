@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/draw/store/draw.store'
 
 export function useLoadService() {
-  const canvasToLoad = ref<string>()
+  const canvasToLoad = ref<string | JSON>()
 
   async function loadCanvas(c: Canvas) {
     if (!canvasToLoad.value) return
@@ -16,7 +16,11 @@ export function useLoadService() {
     const { actionWithoutEvents } = useDrawEventManager()
 
     isSendingDrawing.value = true
-    const json = await fetch(canvasToLoad.value).then(res => res.json())
+
+    let json: any = canvasToLoad.value
+    if (typeof json == 'string') {
+      json = await fetch(canvasToLoad.value as string).then(res => res.json())
+    }
 
 
     // add backwards compatability

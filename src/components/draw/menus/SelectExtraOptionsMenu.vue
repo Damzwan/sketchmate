@@ -71,6 +71,7 @@ import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { useMenuStore } from '@/store/menu.store'
 import { useSelect } from '@/draw/store/tools/select.store'
+import { toObjectsIds } from '@/draw/helpers/object.helper'
 
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())
@@ -78,47 +79,47 @@ const { getSelectedObjects } = useSelect()
 const { selectMoreOptionsMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 function saveObjects() {
-  selectAction(DrawAction.SaveFabricObject, { objects: getSelectedObjects() })
+  selectAction(DrawAction.SaveFabricObject, { objectIds: toObjectsIds(getSelectedObjects()) })
   closePopover()
 }
 
 function copyObjects() {
-  selectAction(DrawAction.CopyObject, { objects: getSelectedObjects() })
+  selectAction(DrawAction.CopyObject, { objectIds: toObjectsIds(getSelectedObjects()) })
   closePopover()
 }
 
 function mergeObjects() {
-  selectAction(DrawAction.Merge, { objects: getSelectedObjects() })
+  selectAction(DrawAction.Merge, { objectIds: toObjectsIds(getSelectedObjects()) })
   closePopover()
 }
 
 function bringToFront() {
-  selectAction(DrawAction.MoveObjectToFront, { objects: getSelectedObjects() })
+  selectAction(DrawAction.MoveObjectToFront, { objectIds: toObjectsIds(getSelectedObjects()) })
   closePopover()
 }
 
 function bringToBack() {
-  selectAction(DrawAction.MoveObjectToBack, { objects: getSelectedObjects() })
+  selectAction(DrawAction.MoveObjectToBack, { objectIds: toObjectsIds(getSelectedObjects()) })
   closePopover()
 }
 
 function moveUpOneLayer() {
-  selectAction(DrawAction.MoveObjectUpOneLayer, { objects: getSelectedObjects() })
+  selectAction(DrawAction.MoveObjectUpOneLayer, { objectIds: toObjectsIds(getSelectedObjects()) })
   closePopover()
 }
 
 function moveDownOneLayer() {
-  selectAction(DrawAction.MoveObjectDownOneLayer, { objects: getSelectedObjects() })
+  selectAction(DrawAction.MoveObjectDownOneLayer, { objectIds: toObjectsIds(getSelectedObjects()) })
   closePopover()
 }
 
 function flipX() {
-  selectAction(DrawAction.FlipX, { objects: getSelectedObjects() })
+  selectAction(DrawAction.FlipX, { objectIds: toObjectsIds(getSelectedObjects()) })
   closePopover()
 }
 
 function flipY() {
-  selectAction(DrawAction.FlipY, { objects: getSelectedObjects() })
+  selectAction(DrawAction.FlipY, { objectIds: toObjectsIds(getSelectedObjects()) })
   closePopover()
 }
 
@@ -128,7 +129,7 @@ function closePopover() {
 </script>
 
 <style scoped>
-ion-list{
+ion-list {
   padding: 0;
 }
 </style>

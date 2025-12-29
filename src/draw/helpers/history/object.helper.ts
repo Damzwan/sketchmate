@@ -45,7 +45,7 @@ export async function redoObjectsAdded(action: HistoryAction<HistoryEvent.Object
   addToUndoStack(action)
 }
 
-export function undoSingleObject(
+export function applyObjectModification(
   canvas: Canvas,
   obj: FabricObject,
   diff: { left: number; top: number; scaleX: number; scaleY: number; angle: number }
@@ -69,9 +69,8 @@ export function undoSingleObject(
 
   targetObject.setCoords()
 
-  const { updateQuadTree, updateVisibility } = useDrawObjectManager()
+  const { updateQuadTree } = useDrawObjectManager()
   updateQuadTree(targetObject)
-  updateVisibility()
 }
 
 export async function redoObjectModified(action: HistoryAction<HistoryEvent.ObjectModified>): Promise<void> {
@@ -79,6 +78,8 @@ export async function redoObjectModified(action: HistoryAction<HistoryEvent.Obje
   const { addToUndoStack } = useDrawHistoryManager()
   const { getObjectsById } = useDrawObjectManager()
   const canvas = getCanvas()
+
+  const { updateVisibility } = useDrawObjectManager()
 
   const params = action.params
 
@@ -99,12 +100,12 @@ export async function redoObjectModified(action: HistoryAction<HistoryEvent.Obje
   }
 
   objects.forEach(object => {
-    undoSingleObject(canvas, object, diff)
+    applyObjectModification(canvas, object, diff)
   })
 
 
+  updateVisibility()
   canvas.requestRenderAll()
-
   addToUndoStack(action)
 }
 
@@ -181,15 +182,28 @@ export async function redoFlipY(action: HistoryAction<HistoryEvent.FlipY>): Prom
   addToUndoStack(action)
 }
 
-export function getObjectDiff(obj: FabricObject, original: Partial<FabricObjectProps>) {
-  return {
-    left: obj.left - original.left!,
-    top: obj.top - original.top!,
-    scaleX: obj.scaleX - original.scaleX!,
-    scaleY: obj.scaleY - original.scaleY!,
-    angle: obj.angle - original.angle!
+export function getObjectDiff(
+  obj: FabricObject,
+  original: Partial<FabricObjectProps>,
+  reverse = false
+) {
+  const diff = {
+    left: (obj.left ?? 0) - (original.left ?? 0),
+    top: (obj.top ?? 0) - (original.top ?? 0),
+    scaleX: (obj.scaleX ?? 1) - (original.scaleX ?? 1),
+    scaleY: (obj.scaleY ?? 1) - (original.scaleY ?? 1),
+    angle: (obj.angle ?? 0) - (original.angle ?? 0)
   }
+
+  if (reverse) {
+    (Object.keys(diff) as (keyof typeof diff)[]).forEach((key) => {
+      diff[key] = -diff[key]
+    })
+  }
+
+  return diff
 }
+
 
 export function undoObjectAdded(action: HistoryAction<HistoryEvent.ObjectAdded>) {
   const { getCanvas } = useDrawStore()
@@ -241,6 +255,8 @@ export async function undoObjectModified(action: HistoryAction<HistoryEvent.Obje
   const { getCanvas } = useDrawStore()
   const { addToRedoStack } = useDrawHistoryManager()
   const { getObjectsById } = useDrawObjectManager()
+  const { updateVisibility } = useDrawObjectManager()
+
 
   const canvas = getCanvas()
 
@@ -255,10 +271,11 @@ export async function undoObjectModified(action: HistoryAction<HistoryEvent.Obje
   if (!objectsToUndo) return
 
   objectsToUndo.forEach((obj) => {
-    undoSingleObject(canvas, obj, diff)
+    applyObjectModification(canvas, obj, diff)
   })
 
 
+  updateVisibility()
   canvas.requestRenderAll()
 
   addToRedoStack(action)

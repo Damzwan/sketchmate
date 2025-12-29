@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { useDrawSyncer } from '@/draw/store/drawSyncer.store'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useMenuStore } from '@/store/menu.store'
 import { useAuthStore } from '@/store/auth.store'
 import {
@@ -103,7 +103,7 @@ import {
   IonButtons
 } from '@ionic/vue'
 import { ref } from 'vue'
-import { leaveRoom, socketJoinRoom } from '@/service/api/socket/drawSyncing'
+import { leaveRoom, socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { mdiClose } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 
@@ -124,7 +124,6 @@ function joinRoom() {
 
 function joinRoomWithIntent(intent: 'create' | 'join') {
   if (!user.value && intent === 'create') return
-  isTryingToJoin.value = true
   const roomId = intent === 'create' ? user.value!._id : roomInput.value
   socketJoinRoom({ roomId, intent })
 }

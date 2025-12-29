@@ -15,6 +15,7 @@ import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { InboxItem } from '@/types/server.types'
 import { ref } from 'vue'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 export const useDrawStore = defineStore('draw', () => {
     const canvasSvc = useCanvasService()
@@ -26,6 +27,8 @@ export const useDrawStore = defineStore('draw', () => {
 
     const drawHistory = useDrawHistoryManager()
     const progressSaver = useDrawProgressSaver()
+    const drawSyncer = useDrawSyncer()
+
 
     const { send, createBalloon, isSendingDrawing } = useDrawSendService(canvasSvc.getCanvas)
 
@@ -65,6 +68,7 @@ export const useDrawStore = defineStore('draw', () => {
       drawHistory.init(c)
       drawObjectManager.init(c)
       shortcutManager.init(c)
+      drawSyncer.init()
 
 
       toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true })
@@ -83,10 +87,15 @@ export const useDrawStore = defineStore('draw', () => {
       progressSaver.clear()
     }
 
+    async function loadCanvas(canvasJson: any) {
+      loadService.canvasToLoad.value = canvasJson
+      await loadService.loadCanvas(canvasSvc.getCanvas())
+    }
+
     // TODO this should not be here
     async function reply(inboxItem: InboxItem) {
       loadService.canvasToLoad.value = inboxItem.drawing
-      await router.push(FRONTEND_ROUTES.draw)
+      await router.push(FRONTEND_ROUTES.draw) // this will trigger the init logic again which will load in the canvas
     }
 
 
@@ -101,7 +110,8 @@ export const useDrawStore = defineStore('draw', () => {
       backgroundColor: canvasSvc.backgroundColor,
       reply,
       prevDrawingMode,
-      isSendingDrawing
+      isSendingDrawing,
+      loadCanvas
     }
   }
 )

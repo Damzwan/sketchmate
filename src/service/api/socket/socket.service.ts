@@ -40,7 +40,7 @@ import { useSessionStore } from '@/store/session.store'
 import { useBalloonStore } from '@/store/balloon.store'
 import { useFriendStore } from '@/store/friend.store'
 import { useDrawStore } from '@/draw/store/draw.store'
-import { registerDrawSyncingHandlers } from '@/service/api/socket/drawSyncing'
+import { registerDrawSyncingHandlers } from '@/service/api/socket/drawSyncing.socket'
 
 export let socket: Socket | undefined
 

@@ -22,10 +22,10 @@ async function syncObjectsAdded(params: DrawSyncingParams<DrawSyncingEvent.added
   const objectsToRedo = params.objectJSONS
   if (!objectsToRedo || objectsToRedo.length === 0) return
 
+  console.log(objectsToRedo[0].fill, objectsToRedo[0].stroke)
   const enlivened = await fabric.util.enlivenObjects<FabricObject>(objectsToRedo)
 
-  enlivened.forEach(enlivened => {
-    // When insertedIndex is 0, this condition evaluates to false, because 0 is a falsy value in JavaScript.
+  enlivened.forEach((enlivened, index) => {
     if (enlivened.insertedIndex !== undefined && enlivened.insertedIndex !== null) c.insertAt(enlivened.insertedIndex, enlivened) // used for bucket fill
     else c.add(enlivened)
   })

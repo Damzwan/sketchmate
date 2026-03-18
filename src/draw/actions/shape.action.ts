@@ -103,7 +103,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
               c.remove(createdShape)
               const id = createdShape.id
               createdShape = new Polyline(points, {
-                fill: shapeCreationSettings.value.fill,
+                fill: shapeCreationSettings.value.fill || null,
                 stroke: shapeCreationSettings.value.stroke,
                 backgroundColor: shapeCreationSettings.value.backgroundColor,
                 strokeWidth: shapeCreationSettings.value.strokeWidth
@@ -112,7 +112,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
               c.add(createdShape)
             } else {
               createdShape = new Polyline(points, {
-                fill: shapeCreationSettings.value.fill,
+                fill: shapeCreationSettings.value.fill || null,
                 stroke: shapeCreationSettings.value.stroke,
                 backgroundColor: shapeCreationSettings.value.backgroundColor,
                 strokeWidth: shapeCreationSettings.value.strokeWidth
@@ -125,7 +125,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
               c.remove(createdShape)
               const id = createdShape.id
               createdShape = new Polygon(points, {
-                fill: shapeCreationSettings.value.fill,
+                fill: shapeCreationSettings.value.fill || null,
                 stroke: shapeCreationSettings.value.stroke,
                 backgroundColor: shapeCreationSettings.value.backgroundColor,
                 strokeWidth: 2
@@ -134,7 +134,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
               c.add(createdShape)
             } else {
               createdShape = new Polygon(points, {
-                fill: shapeCreationSettings.value.fill,
+                fill: shapeCreationSettings.value.fill || null,
                 stroke: shapeCreationSettings.value.stroke,
                 backgroundColor: shapeCreationSettings.value.backgroundColor,
                 strokeWidth: 2
@@ -316,7 +316,7 @@ function createShape(shape: Shape, startX: number, startY: number): FabricObject
       break
   }
   o?.set({
-    fill: shapeCreationSettings.fill,
+    fill: shapeCreationSettings.fill || null,
     stroke: shapeCreationSettings.stroke,
     backgroundColor: shapeCreationSettings.backgroundColor,
     strokeWidth: shapeCreationSettings.strokeWidth

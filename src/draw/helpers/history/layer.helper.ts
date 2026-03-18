@@ -2,7 +2,6 @@ import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { HistoryContext } from '@/draw/config/drawHistory.config'
 import { drawActionMapping } from '@/draw/config/action.config'
 import { DrawAction } from '@/draw/types/draw.types'
-import { type Canvas } from 'fabric'
 
 // --- Internal Helper ---
 function moveObjectsToOriginalPosition(
@@ -36,12 +35,10 @@ export async function redoMoveObjectsToFront(
 
   drawActionMapping[DrawAction.MoveObjectToFront]({ objects });
 
-  const nextAction = {
+  return {
     ...action,
     params: { ...action.params, prevObjectPositions }
   };
-
-  return nextAction;
 }
 
 export async function redoMoveObjectsToBack(
@@ -53,12 +50,10 @@ export async function redoMoveObjectsToBack(
 
   drawActionMapping[DrawAction.MoveObjectToBack]({ objects });
 
-  const nextAction = {
+  return {
     ...action,
     params: { ...action.params, prevObjectPositions }
   };
-
-  return nextAction;
 }
 
 export async function redoMoveObjectsUpOneLayer(

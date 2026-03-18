@@ -89,11 +89,14 @@ export function moveObjectToBack(params: DrawActionParams[DrawAction.MoveObjectT
 
   const prevObjectPositions: number[] = []
 
+
   sortedObjects.forEach((obj: any) => {
     const currI = c.getObjects().indexOf(obj)
     prevObjectPositions.push(currI)
     c.sendObjectToBack(obj)
   })
+
+
   c.requestRenderAll()
   c.fire('layer:changed', {
     target: params.objects,
@@ -105,7 +108,7 @@ export function moveObjectToBack(params: DrawActionParams[DrawAction.MoveObjectT
 export function moveObjectUpOneLayer(params: DrawActionParams[DrawAction.MoveObjectUpOneLayer]) {
   const { getCanvas } = useDrawStore()
   const c = getCanvas()
-  const sortedObjects = sortObjectsByLayer(params.objects, c)
+  const sortedObjects = sortObjectsByLayer(params.objects, c, true)
   const objectsLength = c.getObjects().length - 1
 
   sortedObjects.forEach((obj: any) => {
@@ -119,7 +122,8 @@ export function moveObjectUpOneLayer(params: DrawActionParams[DrawAction.MoveObj
 export function moveObjectDownOneLayer(params: DrawActionParams[DrawAction.MoveObjectUpOneLayer]) {
   const { getCanvas } = useDrawStore()
   const c = getCanvas()
-  const sortedObjects = sortObjectsByLayer(params.objects, c, true)
+
+  const sortedObjects = sortObjectsByLayer(params.objects, c, false)
 
   sortedObjects.forEach((obj: any) => {
     const currI = c.getObjects().indexOf(obj)
@@ -350,7 +354,3 @@ export async function addSavedFabricObjectToCanvas(params: DrawActionParams[Draw
 
   c.requestRenderAll()
 }
-
-
-
-

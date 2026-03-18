@@ -82,24 +82,30 @@ export function initCanvasOptions(width: number, height: number): Partial<Canvas
 
 
 export function overrideFindTarget(c: Canvas) {
-  c.findTarget = (function(originalFn: Function) {
-    return function(e?: any) {
-      // @ts-ignore
-      const canvasThis: any = this
-      const active = canvasThis._activeObject
+  const originalFindTarget = c.findTarget.bind(c);
 
-      if (active && canvasThis._isClick) {
-        const pointerEvent = e || canvasThis._mouseDownEvent
-        const pointer = canvasThis.getPointer(pointerEvent)
-        if (active.containsPoint(pointer)) {
-          return active
-        }
+  // @ts-ignore
+  c.findTarget = function(e: MouseEvent) {
+    const active = this._activeObject;
+
+    // Check if we should manually return the active object
+    // @ts-ignore
+    if (active && this._isClick) {
+      const pointerEvent = e || (this as any)._mouseDownEvent;
+      const pointer = this.getScenePoint(pointerEvent);
+
+      if (active.containsPoint(pointer)) {
+        // Return the new required object structure
+        return {
+          target: active,
+          subTargets: [] // Crucial: prevents the 'length' of undefined error
+        };
       }
-
-      // @ts-ignore
-      return originalFn.apply(this, arguments)
     }
-  })(c.findTarget)
+
+    // Call original with the correct context and arguments
+    return originalFindTarget(e);
+  };
 }
 
 export function initBorderRenderer(c: Canvas) {

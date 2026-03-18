@@ -83,10 +83,10 @@ export async function changeFont(params: DrawActionParams[DrawAction.ChangeFont]
   const prevStyle = {
     fontFamily: textObj.fontFamily
   }
+  const newStyle = { fontFamily: font }
+  textObj.set(newStyle)
 
-  textObj.set({ fontFamily: font })
-
-  c.fire('textStyleChanged', { target: [textObj], prevStyle })
+  c.fire('textStyleChanged', { target: [textObj], prevStyle, style: newStyle })
 
   c.requestRenderAll()
 }
@@ -103,8 +103,9 @@ export async function changeFontWeight(params: DrawActionParams[DrawAction.Chang
   const prevStyle = {
     fontWeight: textObj.fontWeight
   }
-  textObj.set({ fontWeight: weight })
-  c.fire('textStyleChanged', { target: [textObj], prevStyle })
+  const newStyle = { fontWeight: weight }
+  textObj.set(newStyle)
+  c.fire('textStyleChanged', { target: [textObj], prevStyle, style: newStyle })
 
   c.requestRenderAll()
 }
@@ -121,8 +122,10 @@ export async function changeTextAlign(params: DrawActionParams[DrawAction.Change
   const prevStyle = {
     textAlign: textObj.textAlign
   }
-  textObj.set({ textAlign: align })
-  c.fire('textStyleChanged', { target: [textObj], prevStyle })
+  const newStyle = { textAlign: align }
+
+  textObj.set(newStyle)
+  c.fire('textStyleChanged', { target: [textObj], prevStyle, style: newStyle })
   c.requestRenderAll()
 }
 
@@ -137,8 +140,10 @@ export async function changeFontStyle(params: DrawActionParams[DrawAction.Change
   const prevStyle = {
     fontStyle: textObj.fontStyle
   }
-  textObj.set({ fontStyle: fontStyle })
-  c.fire('textStyleChanged', { target: [textObj], prevStyle })
+  const newStyle = { fontStyle: fontStyle }
+
+  textObj.set(newStyle)
+  c.fire('textStyleChanged', { target: [textObj], prevStyle, style: newStyle })
   c.requestRenderAll()
 }
 

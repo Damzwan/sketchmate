@@ -6,6 +6,8 @@ const config: CapacitorConfig = {
   appName: 'SketchMate',
   backgroundColor: '#FFF2E4',
   webDir: 'dist',
+  ios: {
+  },
   plugins: {
     LocalNotifications: {
       smallIcon: 'ic_stat_name'

@@ -82,7 +82,7 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
   function enableShapeCreationClickEvents() {
     addEventsOfService('shapeCreation', [{
       on: 'mouse:down', handler: o => {
-        const pointer = c.getPointer(o.e)
+        const pointer = c.getScenePoint(o.e)
         let point: Point = new Point({ x: pointer.x, y: pointer.y })
 
         const nearestPoint = findNearestPoint(point, points, clickTolerance)
@@ -189,7 +189,7 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
 
 function handleMouseDown(c: Canvas, shape: Shape, o: any, createdShape: any) {
   const { actionWithoutEvents } = useDrawEventManager()
-  const pointer = c.getPointer(o.e)
+  const pointer = c.getScenePoint(o.e)
   const startX = pointer.x
   const startY = pointer.y
 
@@ -202,7 +202,7 @@ function handleMouseDown(c: Canvas, shape: Shape, o: any, createdShape: any) {
 
 function handleMouseMove(c: Canvas, shape: Shape, o: any, startX: number, startY: number, createdShape: any) {
   if (!createdShape) return
-  const pointer = c.getPointer(o.e)
+  const pointer = c.getScenePoint(o.e)
 
   updateShape(createdShape, shape, pointer, startX, startY)
   c.renderAll()

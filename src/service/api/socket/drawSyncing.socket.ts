@@ -86,7 +86,7 @@ export function leaveRoom() {
   roomId.value = undefined
 }
 
-export function emitDrawSyncingActionHelper(action: DrawSyncingAction) {
+export function emitDrawSyncingEvent(action: DrawSyncingAction) {
   const { roomId } = useDrawSyncer()
   socket!.emit('draw-event', { roomId: roomId, action })
 }

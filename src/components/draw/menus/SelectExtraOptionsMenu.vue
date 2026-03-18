@@ -79,47 +79,47 @@ const { getSelectedObjects } = useSelect()
 const { selectMoreOptionsMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 function saveObjects() {
-  selectAction(DrawAction.SaveFabricObject, { objectIds: toObjectsIds(getSelectedObjects()) })
+  selectAction(DrawAction.SaveFabricObject, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function copyObjects() {
-  selectAction(DrawAction.CopyObject, { objectIds: toObjectsIds(getSelectedObjects()) })
+  selectAction(DrawAction.CopyObject, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function mergeObjects() {
-  selectAction(DrawAction.Merge, { objectIds: toObjectsIds(getSelectedObjects()) })
+  selectAction(DrawAction.Merge, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function bringToFront() {
-  selectAction(DrawAction.MoveObjectToFront, { objectIds: toObjectsIds(getSelectedObjects()) })
+  selectAction(DrawAction.MoveObjectToFront, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function bringToBack() {
-  selectAction(DrawAction.MoveObjectToBack, { objectIds: toObjectsIds(getSelectedObjects()) })
+  selectAction(DrawAction.MoveObjectToBack, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function moveUpOneLayer() {
-  selectAction(DrawAction.MoveObjectUpOneLayer, { objectIds: toObjectsIds(getSelectedObjects()) })
+  selectAction(DrawAction.MoveObjectUpOneLayer, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function moveDownOneLayer() {
-  selectAction(DrawAction.MoveObjectDownOneLayer, { objectIds: toObjectsIds(getSelectedObjects()) })
+  selectAction(DrawAction.MoveObjectDownOneLayer, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function flipX() {
-  selectAction(DrawAction.FlipX, { objectIds: toObjectsIds(getSelectedObjects()) })
+  selectAction(DrawAction.FlipX, { objects: getSelectedObjects() })
   closePopover()
 }
 
 function flipY() {
-  selectAction(DrawAction.FlipY, { objectIds: toObjectsIds(getSelectedObjects()) })
+  selectAction(DrawAction.FlipY, { objects: getSelectedObjects() })
   closePopover()
 }
 

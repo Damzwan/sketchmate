@@ -65,10 +65,12 @@ declare module 'fabric' {
 
     backgroundColorChanged: Partial<TEvent> & {
       previousColor: string
+      color: string
     }
 
     textStyleChanged: Partial<TEvent> & {
       prevStyle: object
+      style: object
       target: FabricObject[]
     }
 
@@ -83,11 +85,13 @@ declare module 'fabric' {
     'objectStyleChanged': Partial<TEvent> & {
       target: FabricObject[]
       prevStyles: object[]
+      style: object
     }
 
     imgFilterChanged: Partial<TEvent> & {
       target: FabricObject
       prevFilter: any
+      filter: any
     }
 
     zoomReset: Partial<TEvent>

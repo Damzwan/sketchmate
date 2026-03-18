@@ -14,26 +14,25 @@ export function initViewport(c: Canvas) {
 
 export function centerObjectInViewport(
   canvas: Canvas,
-  object: FabricObject,
-  containerSelector = '.canvas-container'
+  object: FabricObject
 ) {
+  const canvasEl = canvas.upperCanvasEl
+  if (!canvasEl) return
 
-
-  const canvasEl = canvas.upperCanvasEl as HTMLCanvasElement
   const rect = canvasEl.getBoundingClientRect()
 
-  if (!rect) return
-
-  // center of visible screen
+  // 1. Calculate the center of the canvas element in the browser viewport
   const clientCenter = {
-    clientX: rect.left + rect.width / 2,
-    clientY: rect.top + rect.height / 2
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2
   }
 
-  // Convert screen coords -> canvas coords
-  const pointer = canvas.getPointer(clientCenter as any)
+  const pointer = canvas.getScenePoint({
+    clientX: clientCenter.x,
+    clientY: clientCenter.y
+  } as MouseEvent)
 
-  // Position object in canvas space
+  // 3. Position the object
   object.set({
     left: pointer.x,
     top: pointer.y,
@@ -41,6 +40,8 @@ export function centerObjectInViewport(
     originY: 'center'
   })
 
+  object.setCoords()
+  canvas.requestRenderAll()
 }
 
 export const checkCanvasBounds = (c: Canvas) => {

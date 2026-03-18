@@ -4,13 +4,15 @@ import { Mate } from '@/types/server.types'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawSyncingAction, DrawSyncingEvent } from '@/draw/types/drawSyncing.types'
 import { drawSyncingMapping } from '@/draw/config/drawSyncing.config'
-import { FabricEvent } from '@/draw/types/draw.types'
+import { DrawAction, FabricEvent } from '@/draw/types/draw.types'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { emitDrawSyncingActionHelper } from '@/service/api/socket/drawSyncing.socket'
+import { emitDrawSyncingEvent } from '@/service/api/socket/drawSyncing.socket'
 import { FabricObject } from 'fabric'
-import { toObjectsIds } from '@/draw/helpers/object.helper'
+import { toJSON, toObjectsIds } from '@/draw/helpers/object.helper'
 import { isText } from '@/draw/helpers/text.helper'
 import { getObjectDiff } from '@/draw/helpers/history/object.helper'
+import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
+import { EventBus } from '@/main'
 
 
 export const useDrawSyncer = defineStore('drawSyncer', () => {
@@ -21,7 +23,6 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   const isLoadingCanvas = ref(false)
 
   const actionQueue: DrawSyncingAction[] = []
-
 
   watch(roomId, () => {
     const { addEventsOfService, removeEventsOfService } = useDrawEventManager()
@@ -35,14 +36,14 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       on: 'object:added',
       handler: (e: any) => {
         const target = e.target as FabricObject
-        emitDrawSyncingActionHelper({ type: DrawSyncingEvent.added, params: { objectJSONS: [target.toJSON()] } })
+        emitDrawSyncingEvent({ type: DrawSyncingEvent.added, params: { objectJSONS: [target.toJSON()] } })
       }
     },
     {
       on: 'objectsDeleted',
       handler: (e: any) => {
         const targets = e.target as FabricObject[]
-        emitDrawSyncingActionHelper({ type: DrawSyncingEvent.removed, params: { objectIds: toObjectsIds(targets) } })
+        emitDrawSyncingEvent({ type: DrawSyncingEvent.removed, params: { objectIds: toObjectsIds(targets) } })
       }
     },
     {
@@ -61,14 +62,126 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
         const original = e.transform.original
         const diff = getObjectDiff(obj, original, true)
 
-        emitDrawSyncingActionHelper({
+        emitDrawSyncingEvent({
             type: DrawSyncingEvent.modified,
             params: { objectIds: toObjectsIds(getCanvas().getActiveObjects()), transform: diff }
           }
         )
       }
+    },
+    {
+      on: 'fullErase',
+      handler: () => {
+        emitDrawSyncingEvent({
+            type: DrawSyncingEvent.fullErase,
+            params: undefined
+          }
+        )
+      }
+    },
+    {
+      on: 'layer:changed',
+      handler: (e: any) => {
+        const type = e.type as
+          | DrawAction.MoveObjectUpOneLayer
+          | DrawAction.MoveObjectDownOneLayer
+          | DrawAction.MoveObjectToBack
+          | DrawAction.MoveObjectToFront
+
+        const typeMapping: Partial<Record<DrawAction, DrawSyncingEvent>> = {
+          [DrawAction.MoveObjectUpOneLayer]: DrawSyncingEvent.MoveObjectUpOneLayer,
+          [DrawAction.MoveObjectDownOneLayer]: DrawSyncingEvent.MoveObjectDownOneLayer,
+          [DrawAction.MoveObjectToFront]: DrawSyncingEvent.MoveObjectToFront,
+          [DrawAction.MoveObjectToBack]: DrawSyncingEvent.MoveObjectToBack
+        }
+
+        emitDrawSyncingEvent({
+            type: typeMapping[type]!,
+            params: { objectIds: toObjectsIds(e.target) }
+          }
+        )
+      }
+    },
+    {
+      on: 'flip',
+      handler: (e: any) => {
+        if (e.direction == HistoryEvent.FlipX) {
+          emitDrawSyncingEvent({
+              type: DrawSyncingEvent.FlipX,
+              params: { objectIds: toObjectsIds(e.target) }
+            }
+          )
+        } else if (e.direction == HistoryEvent.FlipY) {
+          emitDrawSyncingEvent({
+              type: DrawSyncingEvent.FlipY,
+              params: { objectIds: toObjectsIds(e.target) }
+            }
+          )
+        }
+
+      }
+    },
+    {
+      on: 'objectsCopied',
+      handler: (e: any) => {
+        emitDrawSyncingEvent({
+          type: DrawSyncingEvent.ObjectsCopied,
+          params: { objectsJSON: toJSON(e.target) }
+        })
+      }
+    }, {
+      on: 'backgroundColorChanged',
+      handler: (e: any) => {
+        emitDrawSyncingEvent({
+          type: DrawSyncingEvent.BackgroundColorChanged,
+          params: { color: e.color }
+        })
+      }
+    },
+    {
+      on: 'textStyleChanged',
+      handler: (e: any) => {
+        emitDrawSyncingEvent({
+          type: DrawSyncingEvent.TextStyleChanged,
+          params: { style: e.style, objectId: toObjectsIds(e.target)[0] }
+        })
+      }
+    },
+    {
+      on: 'objectStyleChanged',
+      handler: (e: any) => {
+        emitDrawSyncingEvent({
+          type: DrawSyncingEvent.ObjectStyleChanged,
+          params: { style: e.style, objectIds: toObjectsIds(e.target) }
+        })
+      }
+    }, {
+      on: 'imgFilterChanged',
+      handler: (e: any) => {
+        emitDrawSyncingEvent({
+          type: DrawSyncingEvent.ImgFilterChanged,
+          params: { filter: e.filter?.toJSON(), objectId: e.target.id }
+        })
+      }
     }
+
   ]
+
+  EventBus.on('undo', (params: any) => {
+    if (!roomId.value) return
+    emitDrawSyncingEvent({
+      type: DrawSyncingEvent.Undo,
+      params: params as HistoryAction
+    })
+  })
+
+  EventBus.on('redo', (params: any) => {
+    if (!roomId.value) return
+    emitDrawSyncingEvent({
+      type: DrawSyncingEvent.Redo,
+      params: params as HistoryAction
+    })
+  })
 
   function init() {
   }
@@ -91,15 +204,15 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   }
 
   async function executeDrawSyncingAction(action: DrawSyncingAction) {
+    const { getCanvas } = useDrawStore()
+
     const { actionWithoutEvents } = useDrawEventManager()
     await actionWithoutEvents(async () => {
-      await drawSyncingMapping[action.type](action.params as any) // TODO fix typing
+      await drawSyncingMapping[action.type](action.params) // TODO fix typing
     })
+    getCanvas().requestRenderAll() // TODO we should only call it here and not for every action...
   }
 
-  function emitDrawSyncingAction(action: DrawSyncingAction) {
-    emitDrawSyncingActionHelper(action)
-  }
 
   return {
     roomMembers,
@@ -110,7 +223,6 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     isLoadingCanvas,
     addToDrawSyncingActionQueue,
     executeDrawSyncingAction,
-    init,
-    emitDrawSyncingAction
+    init
   }
 })

@@ -129,7 +129,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
           })
         } else if (e.direction == HistoryEvent.FlipY) {
           addToUndoStackWithResetRedo({
-            type: HistoryEvent.FlipX,
+            type: HistoryEvent.FlipY,
             params: { objectIds: toObjectsIds(e.target) }
           })
         }
@@ -231,7 +231,6 @@ export const useDrawHistoryManager = defineStore('history', () => {
     }
     undoStackCounter.value = undoStack.length
     EventBus.emit('add_to_undo_stack', action)
-
   }
 
   function addToRedoStack<T extends HistoryEvent>(action: HistoryAction<T>) {

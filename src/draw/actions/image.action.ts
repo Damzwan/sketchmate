@@ -38,11 +38,11 @@ export function addFilterToImg(params: DrawActionParams[DrawAction.AddImgFilter]
     const filterIndexToFind = img.filters!.findIndex((f: any) => f.type == filter.type)
     if (filterIndexToFind == -1) return
     const f = img.filters?.at(filterIndexToFind)
-    c.fire('imgFilterChanged', { target: img, prevFilter: f })
+    c.fire('imgFilterChanged', { target: img, prevFilter: f, filter: null })
 
     img.filters?.splice(filterIndexToFind, 1)
   } else {
-    c.fire('imgFilterChanged', { target: img, prevFilter: null })
+    c.fire('imgFilterChanged', { target: img, prevFilter: null, filter: filter })
     if (filter.type == 'BlendColor') img.filters = img.filters?.filter((f: any) => f.type != 'BlendColor')
     img.filters?.push(filter)
   }

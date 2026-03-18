@@ -134,14 +134,14 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'mouse:down',
       handler: (e) => {
-        startPointerTracking(c!.getPointer(e.e))
+        startPointerTracking(c!.getScenePoint(e.e))
         clicksAfterSelectionActive++
       }
     },
     {
       on: 'mouse:move',
       handler: (e) => {
-        updatePointerTracking(c!.getPointer(e.e))
+        updatePointerTracking(c!.getScenePoint(e.e))
       }
     },
     {

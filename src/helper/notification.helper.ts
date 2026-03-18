@@ -1,12 +1,11 @@
 import { LocalNotifications } from '@capacitor/local-notifications'
-import { useAuthStore } from '@/store/auth.store'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import router from '@/router'
 import { PushNotifications } from '@capacitor/push-notifications'
 import { NotificationType } from '@/types/server.types'
 import { useToast } from '@/service/toast.service'
 import { isNative } from '@/helper/general.helper'
-import { getMessaging, getToken, deleteToken } from 'firebase/messaging'
+import { deleteToken, getMessaging, getToken } from 'firebase/messaging'
 import { storeToRefs } from 'pinia'
 import { useNotificationStore } from '@/store/notification.store'
 

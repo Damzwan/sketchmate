@@ -19,7 +19,7 @@ export async function setCanvasBackground(params: DrawActionParams[DrawAction.Se
 
   backgroundColor.value = params.color
   c.backgroundColor = backgroundColor.value
-  c.fire('backgroundColorChanged', { previousColor: previousColour })
+  c.fire('backgroundColorChanged', { previousColor: previousColour, color: params.color })
   c.requestRenderAll()
 }
 
@@ -58,7 +58,8 @@ function applyStyle<T extends FabricObject = FabricObject>(options: StyleOptions
   // Fire Fabric event
   canvas.fire('objectStyleChanged', {
     target: selectedObjectsRef,
-    prevStyles
+    prevStyles,
+    style: style
   })
 
   canvas.requestRenderAll()

@@ -10,6 +10,8 @@ import { DrawAction } from '@/draw/types/draw.types'
 import { setCanvasBackground } from '@/draw/actions/color.action'
 import { redoActionMapping, undoActionMapping } from '@/draw/config/drawHistory.config'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
+import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
+import { mergeHelper } from '@/draw/actions/object.action'
 
 // TODO duplicate logic from history... think!
 async function syncObjectsAdded(params: DrawSyncingParams<DrawSyncingEvent.added>) {
@@ -42,17 +44,18 @@ async function syncObjectsRemoved(params: DrawSyncingParams<DrawSyncingEvent.rem
 
 async function syncObjectsModified(params: DrawSyncingParams<DrawSyncingEvent.modified>) {
   const { getCanvas } = useDrawStore()
-  const { getObjectsById, updateVisibility } = useDrawObjectManager()
-  const c = getCanvas()
-  const objects = getObjectsById(params.objectIds)
+  const { getObjectById, updateVisibility, updateQuadTree } = useDrawObjectManager()
+  const { createHistoryContext } = useDrawHistoryManager()
 
-  objects.forEach(object => {
-    applyObjectModification(c, object, params.transform)
+
+  params.changes.forEach(({ id, backward }) => {
+    const obj = getObjectById(id)
+    if (!obj) return
+    applyObjectModification(createHistoryContext(), obj, backward)
   })
 
-
   updateVisibility()
-  c.requestRenderAll()
+  getCanvas().requestRenderAll()
 }
 
 async function syncFullErase() {
@@ -149,13 +152,21 @@ async function syncImgFilterChanged(params: DrawSyncingParams<DrawSyncingEvent.I
 }
 
 async function syncUndo(params: DrawSyncingParams<DrawSyncingEvent.Undo>) {
-  const { actionWithoutEvents } = useDrawEventManager()
-  await actionWithoutEvents(async () => await undoActionMapping[params.type](params as any))
+  const { createHistoryContext } = useDrawHistoryManager()
+  await undoActionMapping[params.type](createHistoryContext(), params as any)
 }
 
 async function syncRedo(params: DrawSyncingParams<DrawSyncingEvent.Undo>) {
-  const { actionWithoutEvents } = useDrawEventManager()
-  await actionWithoutEvents(async () => await redoActionMapping[params.type](params as any))
+  const { createHistoryContext } = useDrawHistoryManager()
+  await redoActionMapping[params.type](createHistoryContext(), params as any)
+}
+
+
+async function syncObjectsMerged(params: DrawSyncingParams<DrawSyncingEvent.ObjectsMerged>) {
+  const { getObjectsById } = useDrawObjectManager()
+  const objects = getObjectsById(params.mergedObjectIds)
+  const { getCanvas } = useDrawStore()
+  mergeHelper(getCanvas(), objects, params.groupId)
 }
 
 
@@ -178,5 +189,6 @@ export const drawSyncingMapping: {
   [DrawSyncingEvent.ObjectStyleChanged]: syncObjectStyleChanged,
   [DrawSyncingEvent.ImgFilterChanged]: syncImgFilterChanged,
   [DrawSyncingEvent.Undo]: syncUndo,
-  [DrawSyncingEvent.Redo]: syncRedo
+  [DrawSyncingEvent.Redo]: syncRedo,
+  [DrawSyncingEvent.ObjectsMerged]: syncObjectsMerged
 }

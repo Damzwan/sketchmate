@@ -8,11 +8,12 @@ import { DrawAction, FabricEvent } from '@/draw/types/draw.types'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { emitDrawSyncingEvent } from '@/service/api/socket/drawSyncing.socket'
 import { FabricObject } from 'fabric'
-import { toJSON, toObjectsIds } from '@/draw/helpers/object.helper'
+import { getAbsoluteState, toJSON, toObjectsIds } from '@/draw/helpers/object.helper'
 import { isText } from '@/draw/helpers/text.helper'
 import { getObjectDiff } from '@/draw/helpers/history/object.helper'
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { EventBus } from '@/main'
+import { useSelect } from '@/draw/store/tools/select.store'
 
 
 export const useDrawSyncer = defineStore('drawSyncer', () => {
@@ -53,18 +54,30 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
 
         const obj = e.target
 
-        // handle text differently
         if (!e.transform && isText([obj])) {
           return
         }
 
-        // Handle normal transform
-        const original = e.transform.original
-        const diff = getObjectDiff(obj, original, true)
+        const { getSelectedObjectOriginalStates } = useSelect()
+        const originalStates = getSelectedObjectOriginalStates()
+
+        const objects = getCanvas().getActiveObjects()
+
+        const changes = objects.map(obj => {
+          const original = originalStates.get(obj.id)
+          const current = getAbsoluteState(obj)
+
+          return {
+            id: obj.id,
+            forward: getObjectDiff(current, original),
+            backward: getObjectDiff(original, current)
+          }
+        })
+
 
         emitDrawSyncingEvent({
             type: DrawSyncingEvent.modified,
-            params: { objectIds: toObjectsIds(getCanvas().getActiveObjects()), transform: diff }
+            params: { changes: changes }
           }
         )
       }
@@ -126,7 +139,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       handler: (e: any) => {
         emitDrawSyncingEvent({
           type: DrawSyncingEvent.ObjectsCopied,
-          params: { objectsJSON: toJSON(e.target) }
+          params: { objectsJSON: e.target }
         })
       }
     }, {
@@ -161,6 +174,15 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
         emitDrawSyncingEvent({
           type: DrawSyncingEvent.ImgFilterChanged,
           params: { filter: e.filter?.toJSON(), objectId: e.target.id }
+        })
+      }
+    },
+    {
+      on: 'objectsMerged',
+      handler: (e) => {
+        emitDrawSyncingEvent({
+          type: DrawSyncingEvent.ObjectsMerged,
+          params: { mergedObjectIds: e.mergedObjectIds, groupId: e.objectIds[0] }
         })
       }
     }
@@ -208,6 +230,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
 
     const { actionWithoutEvents } = useDrawEventManager()
     await actionWithoutEvents(async () => {
+      // @ts-ignore
       await drawSyncingMapping[action.type](action.params) // TODO fix typing
     })
     getCanvas().requestRenderAll() // TODO we should only call it here and not for every action...

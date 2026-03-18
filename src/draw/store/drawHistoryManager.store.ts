@@ -4,13 +4,16 @@ import { ref } from 'vue'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { DrawAction, FabricEvent } from '@/draw/types/draw.types'
 import { useSelect } from '@/draw/store/tools/select.store'
-import { redoActionMapping, undoActionMapping } from '@/draw/config/drawHistory.config'
+import { HistoryContext, redoActionMapping, undoActionMapping } from '@/draw/config/drawHistory.config'
 import { EventBus } from '@/main'
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { isText } from '@/draw/helpers/text.helper'
-import { toJSON, toObjectsIds } from '@/draw/helpers/object.helper'
+import { getAbsoluteState, toJSON, toObjectsIds } from '@/draw/helpers/object.helper'
 import { handleTextModification } from '@/draw/helpers/history/text.helper'
 import { getObjectDiff } from '@/draw/helpers/history/object.helper'
+import { useDrawStore } from '@/draw/store/draw.store'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import * as fabric from 'fabric'
 
 
 export const useDrawHistoryManager = defineStore('history', () => {
@@ -25,6 +28,8 @@ export const useDrawHistoryManager = defineStore('history', () => {
 
   const MAX_HISTORY = 50
 
+
+  const { updateQuadTree, updateVisibility, getObjectById, getObjectsById } = useDrawObjectManager()
   const { unSelect } = useSelect()
 
   const events: FabricEvent[] = [
@@ -67,22 +72,33 @@ export const useDrawHistoryManager = defineStore('history', () => {
 
         // Handle text objects without a transform
         if (!e.transform && isText([obj])) {
-          handleTextModification(obj)
+          const action = handleTextModification(obj)
+          addToUndoStack(action)
           return
         }
 
-        // Handle normal transform
-        const original = e.transform.original
-        const diff = getObjectDiff(obj, original)
 
         const activeObject = c!.getActiveObject()!
 
+        const objects = c!.getActiveObjects()
+
+        const { getSelectedObjectOriginalStates } = useSelect()
+        const originalStates = getSelectedObjectOriginalStates()
+
+        const changes = objects.map(obj => {
+          const original = originalStates.get(obj.id)
+          const current = getAbsoluteState(obj)
+          return {
+            id: obj.id,
+            forward: getObjectDiff(current, original),
+            backward: getObjectDiff(original, current)
+          }
+        })
 
         addToUndoStackWithResetRedo({
           type: HistoryEvent.ObjectModified,
           params: {
-            objectIds: toObjectsIds(c!.getActiveObjects()),
-            diff: diff,
+            changes: changes,
             activeObjectId: activeObject?.id ?? null
           }
         })
@@ -139,7 +155,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
     {
       on: 'objectsCopied',
       handler: (e: any) => {
-        addToUndoStackWithResetRedo({ type: HistoryEvent.ObjectsCopied, params: { objectsJSON: toJSON(e.target) } })
+        addToUndoStackWithResetRedo({ type: HistoryEvent.ObjectsCopied, params: { objectsJSON: e.target } })
       }
     }, {
       on: 'backgroundColorChanged',
@@ -175,6 +191,11 @@ export const useDrawHistoryManager = defineStore('history', () => {
           params: { prevFilter: e.prevFilter, objectId: e.target.id, newFilter: null }
         })
       }
+    }, {
+      on: 'objectsMerged',
+      handler: (e: any) => {
+        addToUndoStackWithResetRedo({ type: HistoryEvent.Merge, params: e })
+      }
     }
 
 
@@ -182,12 +203,31 @@ export const useDrawHistoryManager = defineStore('history', () => {
 
   const { actionWithoutEvents } = useDrawEventManager()
 
+  function createHistoryContext(): HistoryContext {
+    const { getCanvas } = useDrawStore()
+
+    return {
+      canvas: getCanvas(),
+      updateQuadTree,
+      updateVisibility,
+      unSelect,
+      getObjectById,
+      getObjectsById
+    }
+  }
+
   async function undo() {
     if (undoStack.length == 0) return
+
     const action = undoStack.pop() as HistoryAction
+
     unSelect()
-    await actionWithoutEvents(async () => await undoActionMapping[action.type](action as any))
+    await actionWithoutEvents(async () => {
+      const newAction = await undoActionMapping[action.type](createHistoryContext(), action as any)
+      addToRedoStack(newAction)
+    })
     undoStackCounter.value = undoStack.length
+
     EventBus.emit('undo', action)
   }
 
@@ -195,7 +235,10 @@ export const useDrawHistoryManager = defineStore('history', () => {
     if (redoStack.length == 0) return
     const action = redoStack.pop() as HistoryAction
     unSelect()
-    await actionWithoutEvents(async () => await redoActionMapping[action.type](action as any))
+    await actionWithoutEvents(async () => {
+      const newAction = await redoActionMapping[action.type](createHistoryContext(), action as any)
+      addToUndoStack(newAction)
+    })
     redoStackCounter.value = redoStack.length
     EventBus.emit('redo', action)
   }
@@ -262,6 +305,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
     addToRedoStack,
     clearStackOfPolygonHistory,
     reset,
-    addToUndoStackWithResetRedo
+    addToUndoStackWithResetRedo,
+    createHistoryContext
   }
 })

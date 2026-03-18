@@ -56,7 +56,13 @@ declare module 'fabric' {
     }
 
     objectsCopied: Partial<TEvent> & {
-      target: FabricObject[]
+      target: string[]
+    }
+
+    objectsMerged: Partial<TEvent> & {
+      objectIds: string[]
+      group: any // TODO what is this,
+      mergedObjectIds: string[]
     }
 
     objectsDeleted: Partial<TEvent> & {

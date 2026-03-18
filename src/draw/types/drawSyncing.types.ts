@@ -1,4 +1,5 @@
 import { HistoryAction } from '@/draw/types/drawHistory.types'
+import { FabricObjectProps } from 'fabric'
 
 export enum DrawSyncingEvent {
   added = 'added',
@@ -18,12 +19,15 @@ export enum DrawSyncingEvent {
   ImgFilterChanged = 'ImgFilterChanged',
   Undo = 'Undo',
   Redo = 'Redo',
+  ObjectsMerged = 'ObjectsMerged',
 }
 
 export type DrawSyncingMap = {
   [DrawSyncingEvent.added]: { objectJSONS: any[] }
   [DrawSyncingEvent.removed]: { objectIds: string[] }
-  [DrawSyncingEvent.modified]: { objectIds: string[], transform: any },
+  [DrawSyncingEvent.modified]: {
+    changes: { id: string, forward: Partial<FabricObjectProps>, backward: Partial<FabricObjectProps> }[]
+  },
   [DrawSyncingEvent.fullErase]: undefined,
   [DrawSyncingEvent.MoveObjectUpOneLayer]: { objectIds: string[] },
   [DrawSyncingEvent.MoveObjectDownOneLayer]: { objectIds: string[] },
@@ -38,6 +42,7 @@ export type DrawSyncingMap = {
   [DrawSyncingEvent.ImgFilterChanged]: { filter: any, objectId: string },
   [DrawSyncingEvent.Undo]: HistoryAction,
   [DrawSyncingEvent.Redo]: HistoryAction,
+  [DrawSyncingEvent.ObjectsMerged]: { mergedObjectIds: string[], groupId: string },
 }
 
 

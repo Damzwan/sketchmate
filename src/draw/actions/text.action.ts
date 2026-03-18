@@ -9,6 +9,7 @@ import { BLACK } from '@/draw/config/canvas.config'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
+
 export function addText() {
   const { getCanvas } = useDrawStore()
   const { prevDrawingMode } = storeToRefs(useDrawStore())
@@ -16,17 +17,19 @@ export function addText() {
   const { addTextMode } = storeToRefs(useDrawUIStore())
 
   const c = getCanvas()
+  if (!c) return
 
   addTextMode.value = true
   prevDrawingMode.value = c.isDrawingMode
   c.isDrawingMode = false
 
   activateExclusiveEvents([{
-    on: 'mouse:down', handler: (options: any) => {
+    on: 'mouse:down',
+    handler: (options: any) => {
       addTextMode.value = false
       deActivateExclusiveEvents()
-      void addTextHelper(c, options.absolutePointer as
-        Point)
+      const pointer = c.getScenePoint(options.e)
+      void addTextHelper(c, pointer as Point)
     }
   }])
 }

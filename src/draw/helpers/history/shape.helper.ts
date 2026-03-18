@@ -1,51 +1,60 @@
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { HistoryContext } from '@/draw/config/drawHistory.config'
 import { EventBus } from '@/main'
 
-export async function redoPolygonCreation(action: HistoryAction<HistoryEvent.PolygonCreation>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
+export async function redoPolygonCreation(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.PolygonCreation>
+): Promise<HistoryAction<HistoryEvent.PolygonCreation>> {
+  const { canvas, getObjectById } = ctx;
 
-  const c = getCanvas()
-  const shape: any = c.getObjects().find((obj: any) => !!obj.isCreating)
+  // Find the object currently being created on the canvas
+  const shape: any = canvas.getObjects().find((obj: any) => !!obj.isCreating);
+  if (!shape) return action;
 
+  const currObj: any = getObjectById(shape.id);
+  if (!currObj || !currObj.points) return action;
 
-  const currObj: any = getObjectById(shape.id)
-  const points = currObj.points
-  const lastPoint = action.params.lastPoint
-  points.push(lastPoint)
+  // Restore the point from history
+  const points = [...currObj.points];
+  const lastPoint = action.params.lastPoint;
+  points.push(lastPoint);
 
-  currObj.set({ points })
-  currObj.dirty = true
+  currObj.set({ points });
+  currObj.dirty = true;
 
-  c?.requestRenderAll()
-  EventBus.emit('rerenderPolygon')
-  addToUndoStack(action)
+  canvas.requestRenderAll();
+
+  // Notify UI that the polygon points have changed
+  EventBus.emit('rerenderPolygon');
+
+  return action;
 }
 
-export async function undoPolygonCreation(action: HistoryAction<HistoryEvent.PolygonCreation>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
+export async function undoPolygonCreation(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.PolygonCreation>
+): Promise<HistoryAction<HistoryEvent.PolygonCreation>> {
+  const { canvas, getObjectById } = ctx;
 
+  const shape: any = canvas.getObjects().find((obj: any) => !!obj.isCreating);
+  if (!shape) return action;
 
-  const c = getCanvas()
-  const shape: any = c.getObjects().find((obj: any) => !!obj.isCreating)
+  const currObj: any = getObjectById(shape.id);
+  if (!currObj || !currObj.points || currObj.points.length === 0) return action;
 
+  // Remove the last point and save it into the action for redo
+  const points = [...currObj.points];
+  const lastPoint = points.pop();
 
-  const currObj: any = getObjectById(shape.id)
-  const points = currObj.points
-  const lastPoint = points[points.length - 1]
-  points.pop()
+  currObj.set({ points });
+  currObj.dirty = true;
 
-  currObj.set({ points })
-  currObj.dirty = true
-  action.params.lastPoint = lastPoint
+  // Store the popped point so Redo knows what to put back
+  action.params.lastPoint = lastPoint;
 
-  c?.requestRenderAll()
-  EventBus.emit('rerenderPolygon')
-  addToRedoStack({ ...action })
+  canvas.requestRenderAll();
+  EventBus.emit('rerenderPolygon');
+
+  return action;
 }

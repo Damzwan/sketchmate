@@ -1,52 +1,58 @@
-import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { FabricImage } from 'fabric'
+import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
+import { HistoryContext } from '@/draw/config/drawHistory.config'
 
-export function redoImgFilter(action: HistoryAction<HistoryEvent.ImgFilterChanged>) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
+export async function redoImgFilter(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.ImgFilterChanged>
+): Promise<HistoryAction<HistoryEvent.ImgFilterChanged>> {
+  const { canvas, getObjectById } = ctx
 
+  const img = getObjectById(action.params.objectId) as FabricImage
+  if (!img) return action
 
   const prevFilter = action.params.prevFilter
-  const img = getObjectById(action.params.objectId) as FabricImage
 
   if (prevFilter) {
-    img.filters?.push(prevFilter)
-    addToUndoStack({ ...action, params: { ...action.params, prevFilter: null } })
-  } else {
-    const f = img.filters?.pop()
-    addToUndoStack({ ...action, params: { ...action.params, prevFilter: f } })
-  }
-
-  img.applyFilters()
-  c.requestRenderAll()
-}
-
-export function undoImgFilter(action: HistoryAction<HistoryEvent.ImgFilterChanged>) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
-
-
-  const prevFilter = action.params.prevFilter
-  const img = getObjectById(action.params.objectId) as FabricImage
-
-  if (prevFilter) {
+    // If we have a filter to restore, push it
     img.filters?.push(prevFilter)
     action.params.prevFilter = null
   } else {
-    const f = img.filters?.pop()
-    action.params.prevFilter = f
+    // Otherwise, we are redoing a "removal" (pop)
+    const poppedFilter = img.filters?.pop()
+    action.params.prevFilter = poppedFilter || null
   }
 
+  // applyFilters is essential for visual updates in Fabric
+  await img.applyFilters()
+  canvas.requestRenderAll()
 
-  img.applyFilters()
-  c.requestRenderAll()
-  addToRedoStack({ ...action })
+  return action
+}
 
+export async function undoImgFilter(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.ImgFilterChanged>
+): Promise<HistoryAction<HistoryEvent.ImgFilterChanged>> {
+  const { canvas, getObjectById } = ctx
+
+  const img = getObjectById(action.params.objectId) as FabricImage
+  if (!img) return action
+
+  const prevFilter = action.params.prevFilter
+
+  if (prevFilter) {
+    // If we have a filter to put back, push it
+    img.filters?.push(prevFilter)
+    action.params.prevFilter = null
+  } else {
+    // If we are undoing an addition, pop it
+    const poppedFilter = img.filters?.pop()
+    action.params.prevFilter = poppedFilter || null
+  }
+
+  await img.applyFilters()
+  canvas.requestRenderAll()
+
+  return action
 }

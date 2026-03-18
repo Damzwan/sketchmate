@@ -1,63 +1,19 @@
-import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import * as fabric from 'fabric'
-import { type Canvas, FabricObject, FabricObjectProps, Group } from 'fabric'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { FabricObject, FabricObjectProps, Group } from 'fabric'
+import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
+import { HistoryContext } from '@/draw/config/drawHistory.config'
 import { drawActionMapping } from '@/draw/config/action.config'
 import { DrawAction } from '@/draw/types/draw.types'
-import { useSelect } from '@/draw/store/tools/select.store'
 import { toObjectsIds } from '@/draw/helpers/object.helper'
 
-export async function redoObjectAdded(action: HistoryAction<HistoryEvent.ObjectAdded>) {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const c = getCanvas()
-
-  const objectsToRedo = action.params.objectJSON
-  if (!objectsToRedo || !objectsToRedo) return
-
-  const [enlivened] = await fabric.util.enlivenObjects<FabricObject>(objectsToRedo)
-
-  c.add(enlivened)
-  c.requestRenderAll()
-
-  addToUndoStack(action)
-}
-
-export async function redoObjectsAdded(action: HistoryAction<HistoryEvent.ObjectsAdded>) {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const c = getCanvas()
-
-  const objectsToRedo = action.params.objectsJSON
-  if (!objectsToRedo || objectsToRedo.length === 0) return
-
-  const enlivened = await fabric.util.enlivenObjects<FabricObject>(objectsToRedo)
-
-  enlivened.forEach(enlivened => {
-    // When insertedIndex is 0, this condition evaluates to false, because 0 is a falsy value in JavaScript.
-    if (enlivened.insertedIndex !== undefined && enlivened.insertedIndex !== null) c.insertAt(enlivened.insertedIndex, enlivened) // used for bucket fill
-    else c.add(enlivened)
-  })
-  c.requestRenderAll()
-
-  addToUndoStack(action)
-}
-
+// --- Utility ---
 export function applyObjectModification(
-  canvas: Canvas,
+  ctx: HistoryContext,
   obj: FabricObject,
-  diff: { left: number; top: number; scaleX: number; scaleY: number; angle: number }
+  diff: any
 ): void {
-  const targetObject: FabricObject | undefined = canvas
-    .getObjects()
-    .find((canvasObj) => (canvasObj as any).id === (obj as any).id)
-
-  if (!targetObject) {
-    console.error('No objects to redo')
-    return
-  }
+  const targetObject = ctx.getObjectById((obj as any).id)
+  if (!targetObject) return
 
   targetObject.set({
     left: (targetObject.left ?? 0) - diff.left,
@@ -68,125 +24,262 @@ export function applyObjectModification(
   })
 
   targetObject.setCoords()
-
-  const { updateQuadTree } = useDrawObjectManager()
-  updateQuadTree(targetObject)
+  ctx.updateQuadTree(targetObject)
 }
 
-export async function redoObjectModified(action: HistoryAction<HistoryEvent.ObjectModified>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-  const canvas = getCanvas()
+// --- Redo Helpers ---
 
-  const { updateVisibility } = useDrawObjectManager()
+export async function redoObjectAdded(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectAdded>) {
+  const objectsToRedo = action.params.objectJSON
+  if (!objectsToRedo) return action
 
-  const params = action.params
+  const [enlivened] = await fabric.util.enlivenObjects<FabricObject>([objectsToRedo])
+  ctx.canvas.add(enlivened)
+  ctx.canvas.requestRenderAll()
 
-  const objects = getObjectsById(params.objectIds)
+  return action
+}
 
-  if (!objects) {
-    console.error('No objects to undo')
-    return
+export async function redoObjectsAdded(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectsAdded>) {
+  const objectsToRedo = action.params.objectsJSON
+  if (!objectsToRedo?.length) return action
+
+  const enlivened = await fabric.util.enlivenObjects<FabricObject>(objectsToRedo)
+  enlivened.forEach(obj => {
+    if ((obj as any).insertedIndex !== undefined && (obj as any).insertedIndex !== null) {
+      ctx.canvas.insertAt((obj as any).insertedIndex, obj)
+    } else {
+      ctx.canvas.add(obj)
+    }
+  })
+  ctx.canvas.requestRenderAll()
+
+  return action
+}
+
+export async function redoObjectModified(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectModified>) {
+  action.params.changes.forEach(({ id, backward }) => {
+    const obj = ctx.getObjectById(id)
+    if (!obj) return
+    applyObjectModification(ctx, obj, backward)
+  })
+
+  ctx.updateVisibility()
+  ctx.canvas.requestRenderAll()
+  return action
+}
+
+export async function redoObjectsCopied(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectsCopied>) {
+  const enlivened = await fabric.util.enlivenObjects<FabricObject>(action.params.objectsJSON)
+  ctx.canvas.add(...enlivened)
+  ctx.canvas.requestRenderAll()
+  return action
+}
+
+export async function redoObjectsDeleted(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectsDeleted>) {
+  const objects = ctx.getObjectsById(action.params.objectsJSON.map(item => item.id))
+  ctx.canvas.remove(...objects)
+  ctx.canvas.requestRenderAll()
+
+  return action
+}
+
+export async function redoObjectStyle(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectStyleChanged>) {
+  const { canvas, getObjectsById } = ctx
+  const prevStyles = action.params.prevStyles
+  const canvasObjects = getObjectsById(action.params.objectIds)
+
+  const newPrevStyles = canvasObjects.map((item) => {
+    const style: any = {}
+    Object.keys(prevStyles[0]).forEach(key => style[key] = (item as any)[key])
+    return style
+  })
+
+  canvasObjects.forEach((obj, i) => obj?.set(prevStyles[i]))
+  canvas.requestRenderAll()
+  return { ...action, params: { ...action.params, prevStyles: newPrevStyles } }
+}
+
+// --- Undo Helpers ---
+
+export async function undoObjectAdded(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectAdded>) {
+  const object = ctx.getObjectById(action.params.objectJSON.id)
+  if (object) {
+    ctx.canvas.remove(object)
+    ctx.canvas.requestRenderAll()
   }
+  return action
+}
 
-  let diff = params.diff
-  diff = {
-    left: -diff.left,
-    top: -diff.top,
-    angle: -diff.angle,
-    scaleX: -diff.scaleX,
-    scaleY: -diff.scaleY
-  }
+export async function undoObjectsAdded(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectsAdded>) {
+  ctx.unSelect()
+  action.params.objectsJSON?.forEach(obj => {
+    const canvasObj = ctx.getObjectById(obj.id)
+    if (canvasObj) ctx.canvas.remove(canvasObj)
+  })
+  ctx.canvas.requestRenderAll()
+  return action
+}
 
-  objects.forEach(object => {
-    applyObjectModification(canvas, object, diff)
+export async function undoObjectModified(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectModified>) {
+  action.params.changes.forEach(({ id, forward }) => {
+    const obj = ctx.getObjectById(id)
+    if (!obj) return
+    applyObjectModification(ctx, obj, forward)
+  })
+
+  ctx.updateVisibility()
+  ctx.canvas.requestRenderAll()
+  return action
+}
+
+export async function undoObjectsDeleted(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectsDeleted>) {
+  const enlivened = await fabric.util.enlivenObjects<FabricObject>(action.params.objectsJSON)
+  ctx.canvas.add(...enlivened)
+  ctx.canvas.requestRenderAll()
+  return action
+}
+
+export async function undoMerge(ctx: HistoryContext, action: HistoryAction<HistoryEvent.Merge>) {
+  const objects = ctx.getObjectsById(action.params.objectIds)
+  const mergedObject = objects[0] as Group
+  if (!mergedObject) return action
+
+  const index = ctx.canvas.getObjects().indexOf(mergedObject)
+  const newIds: string[] = []
+
+  ctx.canvas.remove(mergedObject)
+  mergedObject.forEachObject((obj, i) => {
+    mergedObject.remove(obj)
+    ctx.canvas.insertAt(index + i, obj)
+    obj.setCoords()
+    newIds.push((obj as any).id)
   })
 
 
-  updateVisibility()
+  ctx.canvas.requestRenderAll()
+  return { ...action, params: { ...action.params, group: mergedObject.toJSON(), objectIds: newIds } }
+}
+
+export async function redoMerge(ctx: HistoryContext, action: HistoryAction<HistoryEvent.Merge>) {
+  const canvasObjects = ctx.getObjectsById(action.params.objectIds)
+  const [enlivenedGroup] = await fabric.util.enlivenObjects<Group>([action.params.group])
+
+  const highestIndex = Math.max(...canvasObjects.map(obj => ctx.canvas.getObjects().indexOf(obj)))
+  ctx.canvas.insertAt(highestIndex - canvasObjects.length + 1, enlivenedGroup)
+
+  canvasObjects.forEach(obj => {
+    ctx.canvas.remove(obj)
+    enlivenedGroup.add(obj)
+  })
+
+  ctx.canvas.setActiveObject(enlivenedGroup)
+  ctx.canvas.requestRenderAll()
+  return { ...action, params: { ...action.params, objectIds: [(enlivenedGroup as any).id] } }
+}
+
+export async function redoFlipX(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.FlipX>
+): Promise<HistoryAction<HistoryEvent.FlipX>> {
+  const objects = ctx.getObjectsById(action.params.objectIds)
+
+  // Use the central drawActionMapping to perform the actual canvas flip
+  drawActionMapping[DrawAction.FlipX]({ objects })
+
+
+  return action
+}
+
+export async function redoFlipY(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.FlipY>
+): Promise<HistoryAction<HistoryEvent.FlipY>> {
+  const objects = ctx.getObjectsById(action.params.objectIds)
+  drawActionMapping[DrawAction.FlipY]({ objects })
+
+
+  return action
+}
+
+export async function undoFlipX(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.FlipX>
+): Promise<HistoryAction<HistoryEvent.FlipX>> {
+  const objects = ctx.getObjectsById(action.params.objectIds)
+  drawActionMapping[DrawAction.FlipX]({ objects })
+
+  return action
+}
+
+export async function undoFlipY(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.FlipY>
+): Promise<HistoryAction<HistoryEvent.FlipY>> {
+  const objects = ctx.getObjectsById(action.params.objectIds)
+  drawActionMapping[DrawAction.FlipY]({ objects })
+
+  return action
+}
+
+// --- Copy & Style Helpers ---
+
+export async function undoObjectsCopied(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.ObjectsCopied>
+): Promise<HistoryAction<HistoryEvent.ObjectsCopied>> {
+  const { canvas, getObjectsById, unSelect } = ctx
+
+  unSelect() // TODO necessary?
+
+  const ids = toObjectsIds(action.params.objectsJSON as FabricObject[])
+  const canvasObjects = getObjectsById(ids)
+
+  canvas.remove(...canvasObjects)
   canvas.requestRenderAll()
-  addToUndoStack(action)
+
+  return action
 }
 
-export async function redoObjectsCopied(action: HistoryAction<HistoryEvent.ObjectsCopied>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const c = getCanvas()
-  const enlivenedObjects = await fabric.util.enlivenObjects<FabricObject>(action.params.objectsJSON)
-  c.add(...enlivenedObjects)
-  c.requestRenderAll()
-  addToUndoStack(action)
-}
-
-export async function redoObjectsDeleted(action: HistoryAction<HistoryEvent.ObjectsDeleted>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-  const c = getCanvas()
-  const objects = getObjectsById(action.params.objectsJSON.map(item => item.id))
-  c.remove(...objects)
-  c.requestRenderAll()
-  addToUndoStack(action)
-}
-
-export async function redoObjectStyle(action: HistoryAction<HistoryEvent.ObjectStyleChanged>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const { getObjectsById } = useDrawObjectManager()
-  const { addToUndoStack } = useDrawHistoryManager()
+export async function undoObjectStyle(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.ObjectStyleChanged>
+): Promise<HistoryAction<HistoryEvent.ObjectStyleChanged>> {
+  const { canvas, getObjectsById } = ctx
 
   const prevStyles = action.params.prevStyles
-
   const canvasObjects = getObjectsById(action.params.objectIds)
-  const newPrevStyles = canvasObjects.map((item) => {
-    const newPrevStyle: any = {}
-    Object.entries(prevStyles[0]).forEach(([key, value]) => {
-      // @ts-ignore
-      newPrevStyle[key] = item[key]
+
+  // Capture current state to swap into redo
+  const nextPrevStyles = canvasObjects.map((item) => {
+    const currentStyle: any = {}
+    // Use the first style object keys to know what properties to swap
+    Object.keys(prevStyles[0]).forEach((key) => {
+      currentStyle[key] = (item as any)[key]
     })
-    return newPrevStyle
+    return currentStyle
   })
 
-  for (let i = 0; i < canvasObjects.length; i++) {
-    const canvasObject = canvasObjects[i]
-    if (!canvasObject) return
-    const style = prevStyles[i]
-    canvasObject.set(style)
+  // Apply the historical styles
+  canvasObjects.forEach((obj, i) => {
+    if (obj) {
+      obj.set(prevStyles[i])
+    }
+  })
+
+  canvas.requestRenderAll()
+
+  return {
+    ...action,
+    params: { ...action.params, prevStyles: nextPrevStyles }
   }
-
-  c.requestRenderAll()
-
-  addToUndoStack({ ...action, params: { ...action.params, prevStyles: newPrevStyles } })
-}
-
-export async function redoFlipX(action: HistoryAction<HistoryEvent.FlipX>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-  const c = getCanvas()
-
-  const objects = getObjectsById(action.params.objectIds)
-  drawActionMapping[DrawAction.FlipX]({ objects: objects })
-  addToUndoStack(action)
-}
-
-export async function redoFlipY(action: HistoryAction<HistoryEvent.FlipY>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-  const c = getCanvas()
-
-  const objects = getObjectsById(action.params.objectIds)
-  drawActionMapping[DrawAction.FlipY]({ objects: objects })
-  addToUndoStack(action)
 }
 
 export function getObjectDiff(
-  obj: FabricObject,
+  obj: Partial<FabricObjectProps>,
   original: Partial<FabricObjectProps>,
   reverse = false
-) {
+): Partial<FabricObjectProps> {
   const diff = {
     left: (obj.left ?? 0) - (original.left ?? 0),
     top: (obj.top ?? 0) - (original.top ?? 0),
@@ -202,222 +295,4 @@ export function getObjectDiff(
   }
 
   return diff
-}
-
-
-export function undoObjectAdded(action: HistoryAction<HistoryEvent.ObjectAdded>) {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
-  const c = getCanvas()
-
-
-  const objectsToUndoJSON = action.params.objectJSON
-  if (!objectsToUndoJSON) return
-
-  const object = getObjectById(objectsToUndoJSON.id)
-  if (!object) return
-  c?.remove(object)
-
-
-  c?.requestRenderAll()
-
-  addToRedoStack(action)
-}
-
-export function undoObjectsAdded(action: HistoryAction<HistoryEvent.ObjectsAdded>) {
-  const { getCanvas } = useDrawStore()
-  const { unSelect } = useSelect()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
-  const c = getCanvas()
-
-  unSelect()
-
-  const objectsToUndoJSON = action.params.objectsJSON
-
-
-  if (!objectsToUndoJSON || objectsToUndoJSON.length === 0) return
-
-  // Remove each matching object by ID
-  objectsToUndoJSON.forEach((obj) => {
-    const canvasObj = getObjectById(obj.id)
-    if (!canvasObj) return
-    c?.remove(canvasObj)
-  })
-
-  c?.requestRenderAll()
-
-  addToRedoStack(action)
-}
-
-export async function undoObjectModified(action: HistoryAction<HistoryEvent.ObjectModified>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-  const { updateVisibility } = useDrawObjectManager()
-
-
-  const canvas = getCanvas()
-
-  if (!action.params.objectIds) {
-    console.error('No objects to undo')
-    return
-  }
-
-  const objectsToUndo = getObjectsById(action.params.objectIds)
-  const diff = action.params.diff
-
-  if (!objectsToUndo) return
-
-  objectsToUndo.forEach((obj) => {
-    applyObjectModification(canvas, obj, diff)
-  })
-
-
-  updateVisibility()
-  canvas.requestRenderAll()
-
-  addToRedoStack(action)
-}
-
-export async function undoFlipX(action: HistoryAction<HistoryEvent.FlipX>): Promise<void> {
-  const { getObjectsById } = useDrawObjectManager()
-
-  const { addToRedoStack } = useDrawHistoryManager()
-  const canvasObjects = getObjectsById(action.params.objectIds)
-  drawActionMapping[DrawAction.FlipX]({ objects: canvasObjects })
-  addToRedoStack(action)
-}
-
-export async function undoFlipY(action: HistoryAction<HistoryEvent.FlipY>): Promise<void> {
-  const { getObjectsById } = useDrawObjectManager()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const canvasObjects = getObjectsById(action.params.objectIds)
-  drawActionMapping[DrawAction.FlipY]({ objects: canvasObjects })
-  addToRedoStack(action)
-}
-
-export async function undoObjectsCopied(action: HistoryAction<HistoryEvent.ObjectsCopied>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-
-  const { unSelect } = useSelect()
-  const c = getCanvas()
-  const canvasObjects = getObjectsById(toObjectsIds(action.params.objectsJSON as FabricObject[]))
-  c.remove(...canvasObjects)
-  unSelect()
-  c.requestRenderAll()
-  addToRedoStack(action)
-}
-
-export async function undoObjectsDeleted(action: HistoryAction<HistoryEvent.ObjectsDeleted>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-
-  const c = getCanvas()
-
-  const objects = action.params.objectsJSON
-
-  const enlivenedObjects = await fabric.util.enlivenObjects<FabricObject>(objects)
-  c.add(...enlivenedObjects)
-  c.requestRenderAll()
-  addToRedoStack(action)
-}
-
-export async function undoObjectStyle(action: HistoryAction<HistoryEvent.ObjectStyleChanged>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-
-
-  const prevStyles = action.params.prevStyles
-
-  const canvasObjects = getObjectsById(action.params.objectIds)
-  const newPrevStyles = canvasObjects.map((item) => {
-    const newPrevStyle: any = {}
-    Object.entries(prevStyles[0]).forEach(([key, value]) => {
-      // @ts-ignore
-      newPrevStyle[key] = item[key]
-    })
-    return newPrevStyle
-  })
-
-  for (let i = 0; i < canvasObjects.length; i++) {
-    const canvasObject = canvasObjects[i]
-    if (!canvasObject) return
-    const style = prevStyles[i]
-    canvasObject.set(style)
-  }
-
-  action.params.prevStyles = newPrevStyles
-
-  c.requestRenderAll()
-
-
-  addToRedoStack({ ...action })
-}
-
-export function undoMerge(action: HistoryAction<HistoryEvent.Merge>) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-
-
-  // Find merged group object on canvas
-  const objects = getObjectsById(action.params.objectIds)
-  const mergedObject = objects[0] as fabric.Group
-  let mergedObjectIndex = c.getObjects().indexOf(mergedObject)
-
-
-  const newObjectsIds: string[] = []
-
-  c.remove(mergedObject)
-
-  // Add all child objects back to canvas with absolute positions
-  mergedObject.forEachObject((obj, i) => {
-    mergedObject.remove(obj)
-    c.insertAt(mergedObjectIndex + i, obj)
-    obj.setCoords()
-    newObjectsIds.push(obj.id)
-  })
-
-
-  action.params.group = mergedObject.toJSON()
-  action.params.objectIds = newObjectsIds
-
-
-  // Prepare redo entry with absolute coordinates
-  addToRedoStack({ ...action })
-  c.requestRenderAll()
-}
-
-export async function redoMerge(action: HistoryAction<HistoryEvent.Merge>) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-
-
-  const group = action.params.group
-  const canvasObjects = getObjectsById(action.params.objectIds)
-  const [enlivenedGroup] = await fabric.util.enlivenObjects<Group>([group])
-
-  const highestIndex = Math.max(...canvasObjects.map(obj => c.getObjects().indexOf(obj)))
-  c.insertAt(highestIndex - canvasObjects.length + 1, enlivenedGroup)
-
-  for (const obj of canvasObjects) {
-    if (!obj) return
-    c.remove(obj)
-    enlivenedGroup.add(obj)
-  }
-
-
-  c.setActiveObject(enlivenedGroup)
-  c.requestRenderAll()
-
-  addToUndoStack({ ...action, params: { ...action.params, objectIds: [enlivenedGroup.id] } })
 }

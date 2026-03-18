@@ -1,124 +1,124 @@
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { HistoryContext } from '@/draw/config/drawHistory.config'
 import { drawActionMapping } from '@/draw/config/action.config'
 import { DrawAction } from '@/draw/types/draw.types'
-import type { Canvas } from 'fabric'
+import { type Canvas } from 'fabric'
 
-export async function redoMoveObjectsToFront(action: HistoryAction<HistoryEvent.MoveObjectToFront>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-  const c = getCanvas()
-
-  const objects = getObjectsById(action.params.objectIds)
-
-  const prevObjectPositions = objects.map((o) => c.getObjects().indexOf(o!))
-  drawActionMapping[DrawAction.MoveObjectToFront]({ objects: objects })
-
-  addToUndoStack({
-    type: HistoryEvent.MoveObjectToFront,
-    params: { prevObjectPositions, objectIds: action.params.objectIds }
-  })
-}
-
-export async function redoMoveObjectsToBack(action: HistoryAction<HistoryEvent.MoveObjectToBack>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-  const c = getCanvas()
-
-  const objects = getObjectsById(action.params.objectIds)
-
-  const prevObjectPositions = objects.map((o) => c.getObjects().indexOf(o!))
-  drawActionMapping[DrawAction.MoveObjectToBack]({ objects: objects })
-
-  addToUndoStack({
-    type: HistoryEvent.MoveObjectToBack,
-    params: { prevObjectPositions, objectIds: action.params.objectIds }
-  })
-}
-
-export async function redoMoveObjectsUpOneLayer(action: HistoryAction<HistoryEvent.MoveObjectUpOneLayer>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-  const c = getCanvas()
-
-  const objects = getObjectsById(action.params.objectIds)
-
-  const prevObjectPositions = objects.map((o) => c.getObjects().indexOf(o!))
-  drawActionMapping[DrawAction.MoveObjectUpOneLayer]({ objects: objects })
-
-  addToUndoStack({
-    type: HistoryEvent.MoveObjectUpOneLayer,
-    params: { prevObjectPositions, objectIds: action.params.objectIds }
-  })
-}
-
-export async function redoMoveObjectsDownOneLayer(action: HistoryAction<HistoryEvent.MoveObjectDownOneLayer>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
-  const c = getCanvas()
-
-  const objects = getObjectsById(action.params.objectIds)
-
-  const prevObjectPositions = objects.map((o) => c.getObjects().indexOf(o!))
-  drawActionMapping[DrawAction.MoveObjectDownOneLayer]({ objects: objects })
-
-  addToUndoStack({
-    type: HistoryEvent.MoveObjectDownOneLayer,
-    params: { prevObjectPositions, objectIds: action.params.objectIds }
-  })
-}
-
-export function moveObjectsToOriginalPosition(c: Canvas, action: HistoryAction<HistoryEvent.MoveObjectToFront> |
-  HistoryAction<HistoryEvent.MoveObjectToBack>) {
-  const { getObjectsById } = useDrawObjectManager()
-  const prevObjectPositions = action.params.prevObjectPositions
-
-  const canvasObjects = getObjectsById(action.params.objectIds)
+// --- Internal Helper ---
+function moveObjectsToOriginalPosition(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.MoveObjectToFront | HistoryEvent.MoveObjectToBack>
+) {
+  const { canvas, getObjectsById } = ctx;
+  const prevObjectPositions = action.params.prevObjectPositions;
+  const canvasObjects = getObjectsById(action.params.objectIds);
 
   for (let i = 0; i < canvasObjects.length; i++) {
-    const obj = canvasObjects[i]
-    c.moveObjectTo(obj!, prevObjectPositions[i])
+    const obj = canvasObjects[i];
+    if (obj) {
+      canvas.moveObjectTo(obj, prevObjectPositions[i]);
+    }
   }
 
-  c.requestRenderAll()
+  canvas.requestRenderAll();
 }
 
-export async function undoMoveObjectsToFront(action: HistoryAction<HistoryEvent.MoveObjectToFront>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const c = getCanvas()
-  moveObjectsToOriginalPosition(c, action)
-  addToRedoStack(action)
+// --- Redo Helpers ---
+
+export async function redoMoveObjectsToFront(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.MoveObjectToFront>
+): Promise<HistoryAction<HistoryEvent.MoveObjectToFront>> {
+  const objects = ctx.getObjectsById(action.params.objectIds);
+
+  // Capture current indices before moving
+  const prevObjectPositions = objects.map((o) => ctx.canvas.getObjects().indexOf(o!));
+
+  drawActionMapping[DrawAction.MoveObjectToFront]({ objects });
+
+  const nextAction = {
+    ...action,
+    params: { ...action.params, prevObjectPositions }
+  };
+
+  return nextAction;
 }
 
-export async function undoMoveObjectsToBack(action: HistoryAction<HistoryEvent.MoveObjectToBack>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const c = getCanvas()
-  moveObjectsToOriginalPosition(c, action)
-  addToRedoStack(action)
+export async function redoMoveObjectsToBack(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.MoveObjectToBack>
+): Promise<HistoryAction<HistoryEvent.MoveObjectToBack>> {
+  const objects = ctx.getObjectsById(action.params.objectIds);
+  const prevObjectPositions = objects.map((o) => ctx.canvas.getObjects().indexOf(o!));
+
+  drawActionMapping[DrawAction.MoveObjectToBack]({ objects });
+
+  const nextAction = {
+    ...action,
+    params: { ...action.params, prevObjectPositions }
+  };
+
+  return nextAction;
 }
 
-export async function undoMoveObjectsUpOneLayer(action: HistoryAction<HistoryEvent.MoveObjectUpOneLayer>): Promise<void> {
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
+export async function redoMoveObjectsUpOneLayer(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.MoveObjectUpOneLayer>
+): Promise<HistoryAction<HistoryEvent.MoveObjectUpOneLayer>> {
+  const objects = ctx.getObjectsById(action.params.objectIds);
+  drawActionMapping[DrawAction.MoveObjectUpOneLayer]({ objects });
 
-  const canvasObjects = getObjectsById(action.params.objectIds)
-  drawActionMapping[DrawAction.MoveObjectDownOneLayer]({ objects: canvasObjects })
-  addToRedoStack(action)
+  
+  return action;
 }
 
-export async function undoMoveObjectsDownOneLayer(action: HistoryAction<HistoryEvent.MoveObjectDownOneLayer>): Promise<void> {
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectsById } = useDrawObjectManager()
+export async function redoMoveObjectsDownOneLayer(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.MoveObjectDownOneLayer>
+): Promise<HistoryAction<HistoryEvent.MoveObjectDownOneLayer>> {
+  const objects = ctx.getObjectsById(action.params.objectIds);
+  drawActionMapping[DrawAction.MoveObjectDownOneLayer]({ objects });
 
-  const canvasObjects = getObjectsById(action.params.objectIds)
-  drawActionMapping[DrawAction.MoveObjectUpOneLayer]({ objects: canvasObjects })
-  addToRedoStack(action)
+  
+  return action;
+}
+
+// --- Undo Helpers ---
+
+export async function undoMoveObjectsToFront(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.MoveObjectToFront>
+): Promise<HistoryAction<HistoryEvent.MoveObjectToFront>> {
+  moveObjectsToOriginalPosition(ctx, action);
+  return action;
+}
+
+export async function undoMoveObjectsToBack(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.MoveObjectToBack>
+): Promise<HistoryAction<HistoryEvent.MoveObjectToBack>> {
+  moveObjectsToOriginalPosition(ctx, action);
+  return action;
+}
+
+export async function undoMoveObjectsUpOneLayer(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.MoveObjectUpOneLayer>
+): Promise<HistoryAction<HistoryEvent.MoveObjectUpOneLayer>> {
+  const objects = ctx.getObjectsById(action.params.objectIds);
+  // Undo "Up" by moving "Down"
+  drawActionMapping[DrawAction.MoveObjectDownOneLayer]({ objects });
+
+  return action;
+}
+
+export async function undoMoveObjectsDownOneLayer(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.MoveObjectDownOneLayer>
+): Promise<HistoryAction<HistoryEvent.MoveObjectDownOneLayer>> {
+  const objects = ctx.getObjectsById(action.params.objectIds);
+  // Undo "Down" by moving "Up"
+  drawActionMapping[DrawAction.MoveObjectUpOneLayer]({ objects });
+
+  return action;
 }

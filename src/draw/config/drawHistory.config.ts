@@ -29,9 +29,22 @@ import {
   undoTextChanged,
   undoTextStyleChanged
 } from '@/draw/helpers/history/text.helper'
+import { Canvas, FabricObject } from 'fabric'
+
+export interface HistoryContext {
+  canvas: Canvas;
+  getObjectById: (id: string) => FabricObject | undefined;
+  getObjectsById: (ids: string[]) => FabricObject[];
+  updateVisibility: () => void;
+  updateQuadTree: (obj: FabricObject) => void;
+  unSelect: () => void;
+}
+
+export type HistoryHandler<K extends HistoryEvent> =
+  (ctx: HistoryContext, action: HistoryAction<K>) => Promise<HistoryAction<K>>;
 
 export const undoActionMapping: {
-  [K in HistoryEvent]: (params: HistoryAction<K>) => Promise<void> | void
+  [K in HistoryEvent]: HistoryHandler<K>
 } = {
   [HistoryEvent.ObjectAdded]: undoObjectAdded,
   [HistoryEvent.ObjectsAdded]: undoObjectsAdded, // TODO unify with ObjectAdded if needed
@@ -57,7 +70,7 @@ export const undoActionMapping: {
 
 
 export const redoActionMapping: {
-  [K in HistoryEvent]: (params: HistoryAction<K>) => Promise<void> | void
+  [K in HistoryEvent]: HistoryHandler<K>
 } = {
   [HistoryEvent.ObjectAdded]: redoObjectAdded,
   [HistoryEvent.ObjectsAdded]: redoObjectsAdded,

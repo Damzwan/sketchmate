@@ -1,52 +1,63 @@
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
+import { HistoryContext } from '@/draw/config/drawHistory.config'
 import { fullErase } from '@/draw/actions/erase.action'
 
-export async function redoChangeBackgroundColor(action: HistoryAction<HistoryEvent.BackgroundColorChanged>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
+export async function redoChangeBackgroundColor(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.BackgroundColorChanged>
+): Promise<HistoryAction<HistoryEvent.BackgroundColorChanged>> {
+  const { canvas } = ctx
 
+  // Swap current color with the one in history
+  const currentColor = canvas.backgroundColor as string
+  canvas.backgroundColor = action.params.previousColor
 
-  const c = getCanvas()
-  const previousColor = c.backgroundColor
-  c.backgroundColor = action.params.previousColor
-  action.params.previousColor = previousColor as string
+  canvas.requestRenderAll()
 
-  c.requestRenderAll()
-  addToUndoStack(action)
+  return { ...action, params: { previousColor: currentColor } }
+
 }
 
-export async function redoFullErase(action: HistoryAction<HistoryEvent.FullErase>) {
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
+export async function redoFullErase(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.FullErase>
+): Promise<HistoryAction<HistoryEvent.FullErase>> {
+  const { canvas } = ctx
 
-  const prevCanvasJSON = c.toJSON() // we have to do this since events are not registered in undo/redo
+  // Capture state before erasing to allow for undoing this redo
+  const prevCanvasJSON = canvas.toJSON()
+
+  // Execute the erase action
   fullErase()
-  addToUndoStack({ ...action, params: { prevCanvasJSON } })
+
+  return { ...action, params: { prevCanvasJSON } }
 }
 
-export async function undoFullErase(action: HistoryAction<HistoryEvent.FullErase>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const c = getCanvas()
+export async function undoFullErase(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.FullErase>
+): Promise<HistoryAction<HistoryEvent.FullErase>> {
+  const { canvas } = ctx
 
-  await c.loadFromJSON(action.params.prevCanvasJSON)
-  c.requestRenderAll()
-  addToRedoStack(action)
+  // In Fabric 6+, loadFromJSON is typically handled via the util or directly
+  // and returns a promise.
+  await canvas.loadFromJSON(action.params.prevCanvasJSON)
+
+  canvas.requestRenderAll()
+
+  return action
 }
 
-export async function undoChangeBackgroundColor(action: HistoryAction<HistoryEvent.BackgroundColorChanged>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
+export async function undoChangeBackgroundColor(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.BackgroundColorChanged>
+): Promise<HistoryAction<HistoryEvent.BackgroundColorChanged>> {
+  const { canvas } = ctx
 
+  const currentColor = canvas.backgroundColor as string
+  canvas.backgroundColor = action.params.previousColor
 
-  const c = getCanvas()
-  const previousColor = c.backgroundColor
-  c.backgroundColor = action.params.previousColor
-  action.params.previousColor = previousColor as string
+  canvas.requestRenderAll()
 
-  c.requestRenderAll()
-  addToRedoStack({ ...action })
+  return { ...action, params: { previousColor: currentColor } }
 }

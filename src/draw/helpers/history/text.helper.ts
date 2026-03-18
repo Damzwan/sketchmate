@@ -1,105 +1,117 @@
 import { IText } from 'fabric'
-import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { HistoryContext } from '@/draw/config/drawHistory.config'
 
-export function handleTextModification(obj: IText) {
-  const { addToUndoStack } = useDrawHistoryManager()
-
+/**
+ * Triggered after text editing is complete.
+ * This determines if the text is new (ObjectAdded) or modified (TextChanged).
+ */
+export function handleTextModification(obj: any) {
   if (obj.init) {
-    addToUndoStack({
+    obj.init = false
+    return {
       type: HistoryEvent.ObjectAdded,
       params: { objectJSON: obj.toJSON() }
-    })
-    obj.init = false
+    }
   } else {
-    // @ts-ignore
-    obj.oldText = obj._textBeforeEdit
-    addToUndoStack({
+    // Fabric 6/7 stores the previous text state during editing in _textBeforeEdit
+    const oldText = obj._textBeforeEdit || ''
+    return {
       type: HistoryEvent.TextChanged,
       params: {
         objectId: obj.id,
-        prevText: obj.oldText!,
+        prevText: oldText,
         newText: obj.text
       }
-    })
+    }
+
   }
 }
 
-export async function undoTextChanged(action: HistoryAction<HistoryEvent.TextChanged>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
-
-
-  const c = getCanvas()
+export async function undoTextChanged(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.TextChanged>
+): Promise<HistoryAction<HistoryEvent.TextChanged>> {
+  const { canvas, getObjectById } = ctx
   const textObject = getObjectById(action.params.objectId) as IText
 
-  const prevText = textObject.text
-  textObject.set('text', action.params.prevText)
-  action.params.prevText = prevText
+  if (textObject) {
+    const currentText = textObject.text
+    textObject.set('text', action.params.prevText)
 
+    // Swap for the next redo
+    action.params.prevText = currentText
 
-  c.requestRenderAll()
-  addToRedoStack({ ...action })
+    canvas.requestRenderAll()
+  }
+
+  return action
 }
 
-export async function undoTextStyleChanged(action: HistoryAction<HistoryEvent.TextStyleChanged>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToRedoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
-
-
-  const c = getCanvas()
+export async function redoTextChanged(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.TextChanged>
+): Promise<HistoryAction<HistoryEvent.TextChanged>> {
+  const { canvas, getObjectById } = ctx
   const textObject = getObjectById(action.params.objectId) as IText
 
-  const prevStyle: any = {}
+  if (textObject) {
+    const currentText = textObject.text
+    textObject.set('text', action.params.prevText)
 
-  Object.entries(action.params.prevStyle).forEach(([key, value]) => {
-    // @ts-ignore
-    prevStyle[key] = textObject[key]
-    textObject.set(key, value)
-  })
-  action.params.prevStyle = prevStyle
+    // Swap for the next undo
+    action.params.prevText = currentText
 
-  c.requestRenderAll()
-  addToRedoStack({ ...action })
+    canvas.requestRenderAll()
+  }
+
+  return action
 }
 
-export async function redoTextStyleChanged(action: HistoryAction<HistoryEvent.TextStyleChanged>): Promise<void> {
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
-
-
+export async function undoTextStyleChanged(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.TextStyleChanged>
+): Promise<HistoryAction<HistoryEvent.TextStyleChanged>> {
+  const { canvas, getObjectById } = ctx
   const textObject = getObjectById(action.params.objectId) as any
 
-  const prevStyle: any = {}
+  if (textObject) {
+    const currentStyles: any = {}
 
-  Object.entries(action.params.prevStyle).forEach(([key, value]) => {
-    prevStyle[key] = textObject[key]
-    textObject.set(key, value)
-  })
+    Object.entries(action.params.prevStyle).forEach(([key, value]) => {
+      // Capture current style before overriding
+      currentStyles[key] = textObject[key]
+      textObject.set(key as any, value)
+    })
 
-  addToUndoStack({ ...action, params: { ...action.params, prevStyle } })
+    // Store the captured styles back into the action for redo
+    action.params.prevStyle = currentStyles
 
+    canvas.requestRenderAll()
+  }
+
+  return action
 }
 
-export async function redoTextChanged(action: HistoryAction<HistoryEvent.TextChanged>): Promise<void> {
-  const { getCanvas } = useDrawStore()
-  const { addToUndoStack } = useDrawHistoryManager()
-  const { getObjectById } = useDrawObjectManager()
+export async function redoTextStyleChanged(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.TextStyleChanged>
+): Promise<HistoryAction<HistoryEvent.TextStyleChanged>> {
+  const { canvas, getObjectById } = ctx
+  const textObject = getObjectById(action.params.objectId) as any
 
+  if (textObject) {
+    const currentStyles: any = {}
 
-  const c = getCanvas()
-  const textObject = getObjectById(action.params.objectId) as IText
+    Object.entries(action.params.prevStyle).forEach(([key, value]) => {
+      currentStyles[key] = textObject[key]
+      textObject.set(key as any, value)
+    })
 
+    action.params.prevStyle = currentStyles
 
-  const prevText = textObject.text
-  textObject.set('text', action.params.prevText)
-  action.params.prevText = prevText
+    canvas.requestRenderAll()
+  }
 
-
-  c.requestRenderAll()
-  addToUndoStack({ ...action })
+  return action
 }

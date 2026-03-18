@@ -1,3 +1,5 @@
+import { FabricObjectProps } from 'fabric'
+
 export enum HistoryEvent {
   ObjectAdded = 'object:added',
   ObjectsAdded = 'objects:added',
@@ -27,9 +29,8 @@ export type HistoryParamsMap = {
   [HistoryEvent.ObjectsAdded]: { objectsJSON: any[] }
   [HistoryEvent.ObjectsDeleted]: { objectsJSON: any[] }
   [HistoryEvent.ObjectModified]: {
-    objectIds: string[]
     activeObjectId?: string | null
-    diff: any
+    changes: { id: string, forward: Partial<FabricObjectProps>, backward: Partial<FabricObjectProps> }[]
   }
   [HistoryEvent.Erasing]: { objectIds: string[], prevClipPaths: (object | undefined)[] }
   [HistoryEvent.FullErase]: { prevCanvasJSON: any }

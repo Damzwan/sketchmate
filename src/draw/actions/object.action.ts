@@ -18,6 +18,7 @@ import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
 import { canvasToBuffer } from '@/draw/helpers/export.helper'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { toJSON, toObjectsIds } from '@/draw/helpers/object.helper'
 
 
 export async function removeObjects(objects: FabricObject[]) {
@@ -150,37 +151,62 @@ export async function copyObjects(params: DrawActionParams[DrawAction.CopyObject
 
   })
 
+  const clonedJsons = toJSON(clonedObjects)
+
   const newActiveObject =
     clonedObjects.length == 1 ? clonedObjects[0] : new ActiveSelection(clonedObjects, { canvas: c })
+
   c.setActiveObject(newActiveObject) // TODO
   c.requestRenderAll()
 
-  c.fire('objectsCopied', { target: clonedObjects })
 
+  c.fire('objectsCopied', { target: clonedJsons })
 
 }
+
+export function mergeHelper(
+  canvas: Canvas,
+  objects: FabricObject[],
+  groupId = uuidv4()
+): Group {
+  const highestIndex = Math.max(...objects.map(obj => canvas.getObjects().indexOf(obj)))
+
+  const group = new Group(objects, {
+    canvas: canvas,
+    id: groupId
+  } as any)
+
+  objects.forEach((obj) => canvas.remove(obj))
+
+  const targetIndex = Math.max(0, highestIndex - objects.length + 1)
+  canvas.insertAt(targetIndex, group)
+
+  canvas.requestRenderAll()
+
+  return group
+}
+
 
 export async function mergeObjects(params: DrawActionParams[DrawAction.Merge]) {
   const { getCanvas } = useDrawStore()
   const c = getCanvas()
 
   const { actionWithoutEvents } = useDrawEventManager()
-  const { addToUndoStackWithResetRedo } = useDrawHistoryManager()
 
-  await actionWithoutEvents(() => {
+
+  let createdGroup: Group | undefined
+  await actionWithoutEvents(async () => {
     c.discardActiveObject()
+    createdGroup = mergeHelper(c, params.objects)
+    c.setActiveObject(createdGroup)
+  })
 
-    const group = new Group(params.objects, { canvas: c })
-    const highestIndex = Math.max(...params.objects.map(obj => c.getObjects().indexOf(obj)))
+  if (!createdGroup) return
 
-    group.id = uuidv4()
-    params.objects.forEach((obj: any) => c.remove(obj))
-    c.insertAt(highestIndex - params.objects.length + 1, group)
-    c.setActiveObject(group)
-
-
-    addToUndoStackWithResetRedo({ type: HistoryEvent.Merge, params: { objectIds: [group.id], group: null } })
-    c.requestRenderAll()
+  c.fire('objectsMerged', {
+    objectIds: [createdGroup.id],
+    group: null,
+    mergedObjectIds: toObjectsIds(params.objects)
   })
 }
 

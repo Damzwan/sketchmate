@@ -7,6 +7,7 @@ import { FabricEvent, ToolService } from '@/draw/types/draw.types'
 import { isNative } from '@/helper/general.helper'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { isText } from '@/draw/helpers/text.helper'
+import { getAbsoluteState } from '@/draw/helpers/object.helper'
 
 interface Select extends ToolService {
   unSelect: () => void
@@ -16,6 +17,7 @@ interface Select extends ToolService {
   multiSelectMode: Ref<boolean>
   shouldModifyObjectsWithGestures: () => boolean
   isEditingText: Ref<boolean>
+  getSelectedObjectOriginalStates: () => Map<string, any>
 }
 
 const TEXT_JUMP_Y_VALUE = window.innerHeight / 2 // in case we select the text on the bottom half of the screen on mobile it becomes buggy, we need to push it up while editing
@@ -37,6 +39,8 @@ export const useSelect = defineStore('select', (): Select => {
   let pointerDownPos: Point | null = null
 
   let useGestures = false // means that when we zoom or rotate we edit the object instead of zooming/panning the canvas
+
+  const originalStates = new Map<string, any>()
 
   // ----------------- Helper Functions -----------------
   function getObjectsUnderPointer(pointer: Point) {
@@ -136,6 +140,15 @@ export const useSelect = defineStore('select', (): Select => {
       handler: (e) => {
         startPointerTracking(c!.getScenePoint(e.e))
         clicksAfterSelectionActive++
+      }
+    },
+    {
+      on: 'before:transform',
+      handler: () => {
+        originalStates.clear()
+        c!.getActiveObjects().forEach(obj => {
+          originalStates.set(obj.id, getAbsoluteState(obj))
+        })
       }
     },
     {
@@ -268,6 +281,10 @@ export const useSelect = defineStore('select', (): Select => {
     }, 100)
   }
 
+  function getSelectedObjectOriginalStates() {
+    return originalStates
+  }
+
 
   return {
     select,
@@ -279,6 +296,7 @@ export const useSelect = defineStore('select', (): Select => {
     selectedObjectsRef,
     multiSelectMode,
     shouldModifyObjectsWithGestures,
-    isEditingText
+    isEditingText,
+    getSelectedObjectOriginalStates
   }
 })

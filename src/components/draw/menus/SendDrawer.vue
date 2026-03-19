@@ -153,5 +153,9 @@ ion-list {
   padding: 0;
 }
 
+ion-fab {
+  margin-bottom: env(safe-area-inset-bottom);
+  margin-right: env(safe-area-inset-right);
+}
 
 </style>

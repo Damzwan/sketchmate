@@ -24,6 +24,7 @@ import { useNotificationStore } from '@/store/notification.store'
 import { useBalloonStore } from '@/store/balloon.store'
 import { useInboxStore } from '@/store/inbox.store'
 import { useSocketService } from '@/service/api/socket/socket.service'
+import { useSessionStore } from '@/store/session.store'
 
 export const useAuthStore = defineStore('auth', () => {
   const api = useAPI()
@@ -120,20 +121,31 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       const [authUser] = result
-
-      // Determine current route or push user to draw
-      const path = router.currentRoute.value.path.split('/')[1]
       const allowedRoutes = Object.values(FRONTEND_ROUTES).filter(
         p => p !== FRONTEND_ROUTES.login
       ) as Partial<FRONTEND_ROUTES>[]
 
       if (authUser.mates.length === 0) {
         ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
-      } else if (allowedRoutes.includes(path as FRONTEND_ROUTES)) {
+        return
+      }
+
+      // 2. Check if the user was trying to reach a specific room/page
+      const { redirectIntent } = useSessionStore()
+      if (redirectIntent) {
+        ionRouter.replace(redirectIntent, routerAnimation)
+        return
+      }
+
+      // 3. Fallback: Stay where you are if it's allowed, otherwise go to draw
+      const path = router.currentRoute.value.path.split('/')[1]
+      if (allowedRoutes.includes(path as FRONTEND_ROUTES)) {
         ionRouter.replace(path, routerAnimation)
       } else {
         ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
       }
+
+
     }
   })
 

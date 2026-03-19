@@ -1,6 +1,6 @@
 <template>
   <transition name="expand">
-    <div class="fixed w-full h-full bg-black z-50 flex flex-col" v-show="open">
+    <div class="fixed w-full h-full bg-black z-50 flex flex-col safe-area" v-show="open" v-if="user">
       <ion-toolbar class="w-full h-14 flex">
         <ion-buttons slot="start">
           <ion-button @click="close" color="light">
@@ -56,30 +56,31 @@
       </swiper-container>
 
 
-      <div v-if="currInboxItem && showComments" @click="isCommentDrawerOpen = true" class="comments cursor-pointer">
-        <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i"
-             class="rounded-full comment my-1 p-1">
-          <div class="flex items-center pl-1">
-            <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]"
-            ><img :src="senderImg(findUserInInboxUsers(comment.sender))" alt="" class="aspect-square"
-            /></ion-avatar>
-            <div class="flex-1 mx-2">
-              <div class="text-sm font-bold text-white cabin-sketch-regular">
-                {{ senderName(findUserInInboxUsers(comment.sender)) }}
+      <div class="flex justify-evenly w-full items-center h-14 relative">
+        <div v-if="currInboxItem && showComments" @click="isCommentDrawerOpen = true" class="comments cursor-pointer">
+          <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i"
+               class="rounded-full comment my-1 p-1">
+            <div class="flex items-center pl-1">
+              <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]"
+              ><img :src="senderImg(findUserInInboxUsers(comment.sender))" alt="" class="aspect-square"
+              /></ion-avatar>
+              <div class="flex-1 mx-2">
+                <div class="text-sm font-bold text-white cabin-sketch-regular">
+                  {{ senderName(findUserInInboxUsers(comment.sender)) }}
+                </div>
+                <div class="text-sm text-white cabin-sketch-regular">{{ comment.message }}</div>
               </div>
-              <div class="text-sm text-white cabin-sketch-regular">{{ comment.message }}</div>
             </div>
           </div>
+          <div v-if="currInboxItem.comments.length > 4" class="rounded-full comment my-1">
+            <p class="text-sm text-white py-1 pl-2 cabin-sketch-regular">{{
+                `Click to see ${currInboxItem.comments.length - 4} more comments`
+              }}</p>
+          </div>
         </div>
-        <div v-if="currInboxItem.comments.length > 4" class="rounded-full comment my-1">
-          <p class="text-sm text-white py-1 pl-2 cabin-sketch-regular">{{
-              `Click to see ${currInboxItem.comments.length - 4} more comments`
-            }}</p>
-        </div>
-      </div>
 
 
-      <div class="flex justify-evenly w-full items-center h-14">
+
         <ion-button fill="clear" color="light" @click="replyToDrawing" class="grow" size="large">
           <ion-icon :icon="svg(mdiReplyOutline)" />
         </ion-button>
@@ -128,7 +129,7 @@ import { usePhotoSwiper } from '@/store/photoswiper.store'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, watch } from 'vue'
 import { arrowBack } from 'ionicons/icons'
-import { senderImg, senderName, setAppColors, svg } from '@/helper/general.helper'
+import { senderImg, senderName, svg } from '@/helper/general.helper'
 import {
   mdiChatOutline,
   mdiChatRemoveOutline,
@@ -146,9 +147,7 @@ import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { useAPI } from '@/service/api/api.service'
 import { useToast } from '@/service/toast.service'
-import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
 import { EventBus } from '@/main'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 import CommentDrawer from '@/components/photoswiper/CommentDrawer.vue'
 import PhotoSwiperFollowersDrawer from '@/components/photoswiper/PhotoSwiperFollowersDrawer.vue'
 import router from '@/router'
@@ -207,14 +206,12 @@ function close() {
   open.value = false
   swiper.value?.swiper.zoom.out()
   window.removeEventListener('keydown', escListener)
-  setAppColors(colorsPerRoute[FRONTEND_ROUTES.gallery])
 }
 
 watch(
   open,
   async () => {
     if (open.value) {
-      setAppColors(photoSwiperColorConfig)
       dismiss()
       window.addEventListener('keydown', escListener)
     } else {

@@ -15,6 +15,46 @@ import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { EventBus } from '@/main'
 import { useSelect } from '@/draw/store/tools/select.store'
 
+export interface DrawInvitation {
+  friend: Mate,
+  roomId: string
+}
+
+export type LobbyChatItem =
+  | {
+  type: 'message'
+  member: Mate
+  message: string
+  _id: string
+  timestamp: string
+}
+  | {
+  type: 'join'
+  member: Mate
+  _id: string
+  timestamp: string
+}
+  | {
+  type: 'leave'
+  member: Mate
+  _id: string
+  timestamp: string
+}
+
+
+export interface LobbyChatEnterMessage {
+  member: Mate,
+  _id: string
+  timestamp: string
+}
+
+export interface PublicLobby {
+  id: string;
+  name: string;
+  users: number;
+  maxUsers: number;
+}
+
 
 export const useDrawSyncer = defineStore('drawSyncer', () => {
   const roomMembers = ref<Mate[]>([])
@@ -22,6 +62,14 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   const isCreator = ref<boolean>(false)
   const isTryingToJoin = ref<boolean>(false)
   const isLoadingCanvas = ref(false)
+  const invitations = ref<DrawInvitation[]>([])
+  const invitedFriends = ref<string[]>([])
+  const lobbyChatMessages = ref<LobbyChatItem[]>([])
+  const publicLobbies = ref<PublicLobby[]>([])
+  const isWatchingPublicLobbies = ref<boolean>(false)
+  const isPublicLobby = ref<boolean>(false)
+  const publicLobbyName = ref<string>('')
+
 
   const actionQueue: DrawSyncingAction[] = []
 
@@ -33,6 +81,17 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   })
 
   const events: FabricEvent[] = [
+    {
+      on: 'erasing:end',
+      handler: (e: any) => {
+        if (e.detail.targets.length == 0) return
+        const targets = e.detail.targets as FabricObject[]
+        emitDrawSyncingEvent({
+          type: DrawSyncingEvent.ErasingEnd,
+          params: { objectIds: toObjectsIds(targets), clipPaths: targets.map(o => o.clipPath?.toJSON()) }
+        })
+      }
+    },
     {
       on: 'object:added',
       handler: (e: any) => {
@@ -246,6 +305,13 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     isLoadingCanvas,
     addToDrawSyncingActionQueue,
     executeDrawSyncingAction,
-    init
+    init,
+    invitations,
+    invitedFriends,
+    lobbyChatMessages,
+    publicLobbies,
+    isWatchingPublicLobbies,
+    isPublicLobby,
+    publicLobbyName
   }
 })

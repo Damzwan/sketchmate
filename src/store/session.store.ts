@@ -6,6 +6,7 @@ export const useSessionStore = defineStore('session', () => {
   const installPrompt = ref<any>()
   const updateSlide = ref(false)
   const userDeletedError = ref(false)
+  const redirectIntent = ref("")
 
   function setQueryParams(params: URLSearchParams | undefined) {
     queryParams.value = params
@@ -32,6 +33,7 @@ export const useSessionStore = defineStore('session', () => {
     setQueryParams,
     setInstallPrompt,
     setUpdateSlide,
-    setUserDeletedError
+    setUserDeletedError,
+    redirectIntent
   }
 })

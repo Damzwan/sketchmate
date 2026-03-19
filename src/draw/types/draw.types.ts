@@ -82,6 +82,7 @@ export enum Menu {
   DateOfBirth,
   DrawMenu,
   DrawRoomMenu,
+  ChatMenuOpen,
 }
 
 export enum ObjectType {

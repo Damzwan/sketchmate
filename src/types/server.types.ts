@@ -72,6 +72,7 @@ export interface Balloon {
   status: BalloonStatus,
   createdAt: Date,
   matchedAt?: Date,
+  lastActivityAt: Date,
   pairedUser?: string,
   pairedBalloon?: string,
   cancelledBalloons: string[]
@@ -384,4 +385,5 @@ export enum SOCKET_ENDPONTS {
   match_balloon = 'match-balloon ',
   balloon_match_expired = 'balloon-match-expired ',
   balloon_expired = 'balloon-expired ',
+  friend_invitation = 'friend-invitation ',
 }

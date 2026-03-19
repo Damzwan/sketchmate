@@ -1,5 +1,5 @@
 <template>
-  <ion-content class="bg-primary">
+  <ion-content class="bg-primary my-safe-area">
     <div class="w-full h-full p-4 flex flex-col justify-between">
       <div>
         <div class="w-full flex justify-center items-center gap-2">
@@ -393,5 +393,4 @@ async function onLoginResult(result: SignInResult) {
 .fade-enter-to {
   opacity: 1;
 }
-
 </style>

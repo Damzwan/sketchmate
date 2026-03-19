@@ -24,6 +24,8 @@ import { App } from '@capacitor/app'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
 import { useSessionStore } from '@/store/session.store'
+import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
+import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -106,19 +108,6 @@ export async function setAppColors(colorConfig: AppColorConfig) {
     NavigationBar.setNavigationBarColor({ color: colorConfig.navigationBar }),
     StatusBar.setBackgroundColor({ color: colorConfig.statusBar })
   ])
-}
-
-export async function checkColorsSet(colorConfig: AppColorConfig) {
-  if (!isNative()) return
-  const colors = await getAppColors()
-  if (!colors) return false
-
-  return colorConfig.navigationBar == colors[0].color && colorConfig.statusBar == colors[1].color
-}
-
-export async function getAppColors() {
-  if (!isNative()) return
-  return await Promise.all([NavigationBar.getNavigationBarColor(), StatusBar.getInfo()])
 }
 
 export async function hideLoading() {
@@ -326,6 +315,19 @@ export function setupDeeplinkListener() {
     const path = url.pathname.substring(1)
     router.push(path)
   })
+}
+
+export async function handleWebDeeplink() {
+  const url = new URL(window.location.href)
+  const roomId = url.searchParams.get('room_id')
+
+  const { redirectIntent } = storeToRefs(useSessionStore())
+
+  if (roomId) {
+    redirectIntent.value = window.location.pathname + window.location.search
+    await socketLoggedInPromise
+    socketJoinRoom({ roomId, intent: 'join' })
+  }
 }
 
 export function setupPwa() {

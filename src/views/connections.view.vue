@@ -1,5 +1,6 @@
 <template>
   <ion-page>
+
     <SettingsHeader title="My Mates" v-if="!user" />
     <div v-else class="z-10 shadow">
       <SettingsHeader title="My Mates" />

@@ -22,7 +22,6 @@ async function syncObjectsAdded(params: DrawSyncingParams<DrawSyncingEvent.added
   const objectsToRedo = params.objectJSONS
   if (!objectsToRedo || objectsToRedo.length === 0) return
 
-  console.log(objectsToRedo[0].fill, objectsToRedo[0].stroke)
   const enlivened = await fabric.util.enlivenObjects<FabricObject>(objectsToRedo)
 
   enlivened.forEach((enlivened, index) => {
@@ -169,6 +168,24 @@ async function syncObjectsMerged(params: DrawSyncingParams<DrawSyncingEvent.Obje
   mergeHelper(getCanvas(), objects, params.groupId)
 }
 
+async function syncErasingEnd(params: DrawSyncingParams<DrawSyncingEvent.ErasingEnd>) {
+  const { getObjectsById } = useDrawObjectManager()
+  const { getCanvas } = useDrawStore()
+  const c = getCanvas()
+
+  const objects = getObjectsById(params.objectIds)
+  const enlivenedClipPaths = await fabric.util.enlivenObjects<FabricObject>(params.clipPaths)
+
+  objects.forEach((o, i) => {
+    if (o && enlivenedClipPaths[i]) {
+      const clipPath = enlivenedClipPaths[i]
+      o.set('clipPath', clipPath)
+    }
+  })
+
+  c.requestRenderAll()
+}
+
 
 export const drawSyncingMapping: {
   [K in DrawSyncingEvent]: (params: DrawSyncingParams<K>) => Promise<void> | void
@@ -190,5 +207,6 @@ export const drawSyncingMapping: {
   [DrawSyncingEvent.ImgFilterChanged]: syncImgFilterChanged,
   [DrawSyncingEvent.Undo]: syncUndo,
   [DrawSyncingEvent.Redo]: syncRedo,
-  [DrawSyncingEvent.ObjectsMerged]: syncObjectsMerged
+  [DrawSyncingEvent.ObjectsMerged]: syncObjectsMerged,
+  [DrawSyncingEvent.ErasingEnd]: syncErasingEnd
 }

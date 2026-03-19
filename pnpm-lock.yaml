@@ -78,8 +78,8 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0(@capacitor/core@8.2.0)
       '@capgo/capacitor-navigation-bar':
-        specifier: ^7.3.18
-        version: 7.3.18(@capacitor/core@8.2.0)
+        specifier: ^8.0.25
+        version: 8.0.25(@capacitor/core@8.2.0)
       '@erase2d/fabric':
         specifier: ^1.2.1
         version: 1.2.1(fabric@7.2.0)
@@ -947,10 +947,10 @@ packages:
     peerDependencies:
       '@capacitor/core': '>=7.0.0'
 
-  '@capgo/capacitor-navigation-bar@7.3.18':
-    resolution: {integrity: sha512-FMeesHKfjPHbw6+AoF8gBMpdMAVNqdRQy1r3z4NyQSv9HIRBVbxqQ6twOemTOq3FNSI1s1niJ7bIwo0Ysc6+PQ==}
+  '@capgo/capacitor-navigation-bar@8.0.25':
+    resolution: {integrity: sha512-iQDNIWsx4giBwZORs89DvFoDqV5+qvskpV5CXZ1tWQZfNwMdfL4ILUI7yiyN4GfK201tAf9oqFP0x1zKt/YFVA==}
     peerDependencies:
-      '@capacitor/core': '>=7.0.0'
+      '@capacitor/core': '>=8.0.0'
 
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
@@ -6434,7 +6434,7 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.2.0
 
-  '@capgo/capacitor-navigation-bar@7.3.18(@capacitor/core@8.2.0)':
+  '@capgo/capacitor-navigation-bar@8.0.25(@capacitor/core@8.2.0)':
     dependencies:
       '@capacitor/core': 8.2.0
 

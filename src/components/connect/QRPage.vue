@@ -1,7 +1,8 @@
 <template>
   <ion-modal :isOpen="open"
              @did-present="() => setAppColors(qrModalColorConfig)" @didDismiss="onDismiss">
-    <ion-content>
+    <TopSafeArea :color="primaryColor" />
+    <div class="w-full h-full flex flex-col safe-area">
       <div class="shadow">
         <ion-toolbar color="primary">
           <ion-buttons slot="start">
@@ -23,28 +24,30 @@
         </ion-segment>
       </div>
 
-      <div class="w-full h-4/5 flex flex-col justify-center items-center" v-if="segment == Segments.code">
-        <div class="pt-3 px-12 pb-5 bg-primary rounded-2xl flex flex-col justify-center items-center relative">
-          <div class="w-full absolute left-0 top-[-40px] flex justify-center">
-            <img :src="img" alt="QR img" width="64" class="rounded-full">
+      <ion-content>
+        <div class="w-full h-4/5 flex flex-col justify-center items-center" v-if="segment == Segments.code">
+          <div class="pt-3 px-12 pb-5 bg-primary rounded-2xl flex flex-col justify-center items-center relative">
+            <div class="w-full absolute left-0 top-[-40px] flex justify-center">
+              <img :src="img" alt="QR img" width="64" class="rounded-full">
+            </div>
+            <p class="py-3 text-black font-bold text-xl">{{ name }}</p>
+            <div class="bg-white rounded-2xl p-2">
+              <qrcode-vue :value="qrURL" :size="156" background="white" />
+            </div>
           </div>
-          <p class="py-3 text-black font-bold text-xl">{{ name }}</p>
-          <div class="bg-white rounded-2xl p-2">
-            <qrcode-vue :value="qrURL" :size="156" background="white" />
-          </div>
+
+          <p class="font-light text-base text-gray-700 pt-3">Let someone scan this code to become mates</p>
         </div>
 
-        <p class="font-light text-base text-gray-700 pt-3">Let someone scan this code to become mates</p>
-      </div>
-
-      <div v-show="segment == Segments.scan" class="w-full h-4/5 flex flex-col justify-center items-center">
-        <div class="w-full h-full flex justify-center items-center" v-show="!isNative()">
-          <div class="max-w-[50rem]">
-            <video ref="video" class="w-full h-full" />
+        <div v-show="segment == Segments.scan" class="w-full h-4/5 flex flex-col justify-center items-center">
+          <div class="w-full h-full flex justify-center items-center" v-show="!isNative()">
+            <div class="max-w-[50rem]">
+              <video ref="video" class="w-full h-full" />
+            </div>
           </div>
         </div>
-      </div>
-    </ion-content>
+      </ion-content>
+    </div>
   </ion-modal>
 </template>
 
@@ -72,10 +75,11 @@ import {
 } from '@capacitor-mlkit/barcode-scanning'
 import QrScanner from 'qr-scanner'
 import { useToast } from '@/service/toast.service'
-import { colorsPerRoute, qrModalColorConfig } from '@/config/colors.config'
+import { colorsPerRoute, primaryColor, qrModalColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { createPersonalShareLink } from '@/helper/share.helper'
 import { useAuthStore } from '@/store/auth.store'
+import TopSafeArea from '@/components/general/TopSafeArea.vue'
 
 enum Segments {
   code,

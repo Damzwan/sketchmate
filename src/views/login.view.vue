@@ -35,5 +35,4 @@ watch(showEnableNotificationsAfterLogin, () => {
 
 <style scoped>
 
-
 </style>

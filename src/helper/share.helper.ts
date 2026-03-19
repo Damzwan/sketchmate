@@ -6,11 +6,12 @@ import { useShare } from '@vueuse/core'
 import { isMobile, isNative } from '@/helper/general.helper'
 import { ToastDuration } from '@/types/toast.types'
 import { CapacitorHttp } from '@capacitor/core'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const { toast } = useToast()
 const { share, isSupported } = useShare()
 
-export async function shareUrl(url: string, title = '', dialogTitle = '') {
+export async function shareUrl(url: string, title = '', dialogTitle = '', toastMessage = 'Copied personal link. Share this with a friend to connect') {
   const can_share = await Share.canShare()
   if (isNative() && can_share.value) {
     await Share.share({
@@ -28,7 +29,7 @@ export async function shareUrl(url: string, title = '', dialogTitle = '') {
     await Clipboard.write({
       string: url
     })
-    toast('Copied personal link. Share this with a friend to connect', { duration: ToastDuration.medium })
+    toast(toastMessage, { duration: ToastDuration.medium })
   }
 }
 
@@ -79,3 +80,11 @@ export function createPersonalShareLink(userID: string, connectRoute: string) {
   else baseUrl = `${window.location.origin}`
   return `${baseUrl}${connectRoute}?mate=${userID}`
 }
+
+export function createRoomLink(roomId: string) {
+  let baseUrl
+  if (isNative()) baseUrl = import.meta.env.VITE_FRONTEND as string
+  else baseUrl = `${window.location.origin}`
+  return `${baseUrl}/${FRONTEND_ROUTES.draw}?room_id=${roomId}`
+}
+

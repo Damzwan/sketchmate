@@ -6,8 +6,7 @@ const config: CapacitorConfig = {
   appName: 'SketchMate',
   backgroundColor: '#FFF2E4',
   webDir: 'dist',
-  ios: {
-  },
+  ios: {},
   plugins: {
     LocalNotifications: {
       smallIcon: 'ic_stat_name'
@@ -23,14 +22,13 @@ const config: CapacitorConfig = {
       providers: ['google.com', 'phone']
     },
     Keyboard: {
-      resize: KeyboardResize.None
+      resize: KeyboardResize.None,
+      resizeOnFullScreen: false
 
     },
-    StatusBar: {
-      overlaysWebView: false,
-      style: 'LIGHT',
-      backgroundColor: '#FFF2E4'
-    }
+    // SystemBars: {
+    //   insetsHandling: 'disable'
+    // }
   }
 }
 

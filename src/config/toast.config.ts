@@ -1,10 +1,13 @@
-import { modalController, ToastButton } from '@ionic/vue'
+import { modalController, ToastButton, toastController } from '@ionic/vue'
 import { useToast } from '@/service/toast.service'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useMenuStore } from '@/store/menu.store'
 import { Menu } from '@/draw/types/draw.types'
 import { storeToRefs } from 'pinia'
+import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { ToastDuration } from '@/types/toast.types'
 
 const { dismiss } = useToast()
 
@@ -106,5 +109,36 @@ export const viewSavedButton: ToastButton = {
     const { stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore())
     stickersEmblemsSavedSelectedTab.value = 'saved'
     openMenu(Menu.StickerEmblemSaved)
+  }
+}
+
+
+export function createJoinRoomButton(code: string): ToastButton {
+  return {
+    text: 'Join',
+    handler: () => {
+      const { invitations, roomId } = storeToRefs(useDrawSyncer())
+      invitations.value = invitations.value.filter(inv => inv.roomId != code)
+
+      if (roomId.value) {
+        toastController.dismiss().then(() => {
+          const { toast } = useToast()
+          toast('You are already in a room, leave it first', { color: 'danger', duration: ToastDuration.medium })
+        })
+        return
+      }
+      socketJoinRoom({ roomId: code, intent: 'join' })
+      router.push({
+        path: FRONTEND_ROUTES.draw
+      })
+    }
+  }
+}
+
+export const joinedRoomButton: ToastButton = {
+  text: 'View',
+  handler: () => {
+    const { openMenu } = useMenuStore()
+    openMenu(Menu.DrawRoomMenu)
   }
 }

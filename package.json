@@ -42,7 +42,7 @@
     "@capacitor/toast": "^8.0.1",
     "@capawesome/capacitor-app-review": "^7.0.1",
     "@capawesome/capacitor-app-update": "^7.2.0",
-    "@capgo/capacitor-navigation-bar": "^7.3.18",
+    "@capgo/capacitor-navigation-bar": "^8.0.25",
     "@erase2d/fabric": "^1.2.1",
     "@firebase/firestore": "^4.12.0",
     "@globalhive/vuejs-tour": "^2.6.2",

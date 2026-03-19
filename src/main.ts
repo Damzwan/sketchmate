@@ -18,6 +18,7 @@ import { addNotificationListeners } from '@/helper/notification.helper'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import {
+  handleWebDeeplink,
   initFirebase,
   lazyLoadDrawingModules,
   setupDeeplinkListener,
@@ -39,5 +40,6 @@ app.mount('#app')
 addNotificationListeners()
 lazyLoadDrawingModules()
 setupDeeplinkListener()
+handleWebDeeplink()
 setupPwa()
 setupWidget()

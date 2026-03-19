@@ -25,7 +25,8 @@
   <FontMenu />
   <DocsMenu trigger="docsMenu" />
   <HelpMenu />
-  <RoomMenu/>
+  <RoomMenu />
+  <DrawChatMenu v-if="roomId" />
 </template>
 
 <script setup lang="ts">
@@ -51,9 +52,13 @@ import SelectColorMenu from '@/components/draw/menus/SelectColorMenu.vue'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useShapeCreation } from '@/draw/store/shapeCreation.store'
 import RoomMenu from '@/components/draw/menus/RoomMenu.vue'
+import DrawChatMenu from '@/components/draw/menus/DrawChatMenu.vue'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const { selectAction } = useDrawStore()
+const { roomId } = storeToRefs(useDrawSyncer())
+
 
 const isText = computed(
   () => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == ObjectType.text

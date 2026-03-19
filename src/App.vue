@@ -5,6 +5,7 @@
     <FeedbackMenu />
     <DateOfBirthConfirmation />
     <DrawMenus />
+
     <DrawModal />
     <ion-router-outlet />
   </ion-app>
@@ -53,6 +54,5 @@ networkStore.init()
 ion-content {
   --background: var(--ion-color-background);
 }
-
 
 </style>

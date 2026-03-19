@@ -114,6 +114,7 @@ ion-tab-button {
 
 ion-tab-bar {
   --background: var(--ion-color-primary);
+  padding-bottom: var(--ion-safe-area-bottom, 0);
 }
 
 ion-icon {

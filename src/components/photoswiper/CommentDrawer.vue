@@ -5,7 +5,7 @@
 
   <!-- Modal Content -->
   <transition name="slide">
-    <div class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0 max-h-[80%]" v-show="open">
+    <div class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0 max-h-[80%] safe-area-bottom" v-show="open">
       <ion-popover :event="e" @didDismiss="accountPopoverOpen = false" :isOpen="accountPopoverOpen">
         <div class="w-full h-full flex flex-col justify-center items-center p-2" v-if="accountInfoToShow">
           <img :src="accountInfoToShow.img" :alt="accountInfoToShow.img" class="w-[128px] rounded-full">

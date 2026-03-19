@@ -45,8 +45,10 @@ import { registerDrawSyncingHandlers } from '@/service/api/socket/drawSyncing.so
 export let socket: Socket | undefined
 
 let socketServiceInstance: SocketAPI | null = null
-let socketLoggedInPromise: Promise<void>
 let resolveSocketLoggedIn: () => void
+export const socketLoggedInPromise = new Promise<void>((resolve) => {
+  resolveSocketLoggedIn = resolve
+})
 
 export function useSocketService(): SocketAPI {
   if (!socketServiceInstance) socketServiceInstance = createSocketService()
@@ -74,10 +76,6 @@ export function createSocketService(): SocketAPI {
       reconnectionAttempts: Infinity
     })
 
-    socketLoggedInPromise = new Promise<void>((resolve) => {
-      resolveSocketLoggedIn = resolve as any // TODO fix the any...
-    })
-
 
     registerDrawSyncingHandlers(socket)
 
@@ -85,6 +83,7 @@ export function createSocketService(): SocketAPI {
       if (!user.value?._id) return
       login({ _id: user.value._id })
     })
+
 
     socket.on(SOCKET_ENDPONTS.login, () => {
       resolveSocketLoggedIn?.()

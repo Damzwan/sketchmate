@@ -1,6 +1,6 @@
 import { createGlobalState } from '@vueuse/core'
 import { ref } from 'vue'
-import { ToastButton } from '@ionic/vue'
+import { ToastButton, toastController } from '@ionic/vue'
 import { ToastDuration, ToastOptions } from '@/types/toast.types'
 
 export const useToast = createGlobalState(() => {
@@ -18,8 +18,12 @@ export const useToast = createGlobalState(() => {
     position: 'bottom'
   }
 
-  function toast(new_text: string, options?: Partial<ToastOptions>): void {
+  async function toast(new_text: string, options?: Partial<ToastOptions>): Promise<void> {
     const mergedOptions: ToastOptions = { ...defaultOptions, ...options }
+
+    if (isOpen.value) {
+      await toastController.dismiss()
+    }
 
     isOpen.value = true
     color.value = mergedOptions.color

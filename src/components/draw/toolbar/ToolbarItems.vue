@@ -30,6 +30,10 @@
 
       </ion-button>
 
+      <div class="w-4 h-4 rounded-full bg-secondary text-white text-xs text-center absolute bottom-0.5 -right-1.25" v-if="item.badge">
+        {{item.badge}}
+      </div>
+
       <div class="w-2 h-2 rounded-full absolute bottom-2.5 right-2.5"
            :style="{backgroundColor: brushColor}" v-if="item.id == ToolbarIds.pen" />
 
@@ -37,6 +41,8 @@
            v-if="item && item.tool != undefined && item.tools != undefined && item.tools.includes(selectedTool)">
         <ion-icon :icon="svg(mdiChevronDown)" class="w-5 h-5 fill-black" />
       </div>
+
+
     </div>
   </div>
 

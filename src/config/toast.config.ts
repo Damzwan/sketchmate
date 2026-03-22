@@ -118,7 +118,6 @@ export function createJoinRoomButton(code: string): ToastButton {
     text: 'Join',
     handler: () => {
       const { invitations, roomId } = storeToRefs(useDrawSyncer())
-      invitations.value = invitations.value.filter(inv => inv.roomId != code)
 
       if (roomId.value) {
         toastController.dismiss().then(() => {
@@ -127,6 +126,8 @@ export function createJoinRoomButton(code: string): ToastButton {
         })
         return
       }
+      invitations.value = invitations.value.filter(inv => inv.roomId != code)
+
       socketJoinRoom({ roomId: code, intent: 'join' })
       router.push({
         path: FRONTEND_ROUTES.draw

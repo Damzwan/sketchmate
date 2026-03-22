@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { Device } from '@capacitor/device'
 import { useAPI } from '@/service/api/api.service'
-import { NotificationSubscription, NotificationType, User } from '@/types/server.types'
+import { NotificationSubscription, User } from '@/types/server.types'
 import { LocalStorage } from '@/types/storage.types'
 import { generateDeviceFingerprint, isNative } from '@/helper/general.helper'
 import { PushNotifications } from '@capacitor/push-notifications'
@@ -13,7 +13,6 @@ export const useNotificationStore = defineStore('notification', () => {
   const localSubscription = ref<string>()
   const notificationsAllowed = ref(false)
   const showEnableNotificationsAfterLogin = ref(false)
-  const notificationRouteLoading = ref<NotificationType>()
 
 
   const deviceNotificationsAllowed = computed(() => {
@@ -61,10 +60,6 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
-  function setNotificationLoading(type: NotificationType) {
-    notificationRouteLoading.value = type
-    setTimeout(() => (notificationRouteLoading.value = undefined), 3000)
-  }
 
   async function init(user: User, arrivedFromLogin: boolean = false) {
     const { deviceFingerprint } = useAuthStore()
@@ -92,11 +87,9 @@ export const useNotificationStore = defineStore('notification', () => {
     localSubscription,
     notificationsAllowed,
     showEnableNotificationsAfterLogin,
-    notificationRouteLoading,
     deviceNotificationsAllowed,
 
     setNotifications,
-    setNotificationLoading,
     init
   }
 })

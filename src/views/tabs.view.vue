@@ -11,7 +11,6 @@
       :position="position"
     />
     <PhotoSwiper v-if="user && inbox.length > 0" />
-    <FullScreenLoader v-show="notificationRouteLoading" class="z-50" />
 
     <ion-tabs>
       <ion-router-outlet :animation="routerAnimation" />
@@ -91,7 +90,6 @@ useSwipe(toast, {
 
 const { user, isLoggedIn } = storeToRefs(useAuthStore())
 const { inbox } = storeToRefs(useInboxStore())
-const { notificationRouteLoading } = storeToRefs(useNotificationStore())
 
 const notificationBadgeCount = computed(() => {
   return user.value

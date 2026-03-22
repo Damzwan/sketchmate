@@ -5,6 +5,7 @@ export enum NotificationType {
   comment = 'comment',
   friend_request = 'friend_request',
   balloon = 'balloon',
+  lobby_invitation = 'lobby_invitation',
 }
 
 export interface InboxItem {

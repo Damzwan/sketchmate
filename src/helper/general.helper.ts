@@ -309,6 +309,19 @@ export function isOldEnough(dob: Date): boolean {
 export function setupDeeplinkListener() {
   App.addListener('appUrlOpen', async (data: any) => {
     const url = new URL(data.url)
+    const { redirectIntent } = storeToRefs(useSessionStore())
+
+
+    // TODO i think we should come with a more clever approach to handle deep links, this is very messy. I think it is better to handle them here instead of at their respective page
+    const roomId = url.searchParams.get('room_id')
+    if (roomId) {
+      const {} = useAuthStore()
+      redirectIntent.value = window.location.pathname + window.location.search
+      await socketLoggedInPromise // TODO only not crashing because of this part
+      socketJoinRoom({ roomId, intent: 'join' })
+      return
+    }
+
     const { setQueryParams } = useSessionStore()
     setQueryParams(url.searchParams)
 

@@ -426,6 +426,7 @@ async function handleJoinPublicLobby(lobby: PublicLobby) {
   }
 }
 
+// TODO copy from weblink handler
 async function startScanningHelper() {
   const code = await startScanning()
   if (!code) return

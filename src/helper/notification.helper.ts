@@ -8,6 +8,8 @@ import { isNative } from '@/helper/general.helper'
 import { deleteToken, getMessaging, getToken } from 'firebase/messaging'
 import { storeToRefs } from 'pinia'
 import { useNotificationStore } from '@/store/notification.store'
+import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
+import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 
 export async function requestNotifications() {
   if (isNative()) {
@@ -140,8 +142,6 @@ export async function addNotificationListeners() {
 
     await PushNotifications.addListener('pushNotificationActionPerformed', async (notification) => {
       const notificationType: NotificationType = notification.notification.data.type
-      const { setNotificationLoading } = useNotificationStore()
-      setNotificationLoading(notificationType)
 
       await router.isReady()
 
@@ -170,6 +170,13 @@ export async function addNotificationListeners() {
         await router.push({
           path: FRONTEND_ROUTES.connect
         })
+      } else if (notificationType === NotificationType.lobby_invitation) {
+        await router.push({
+          path: FRONTEND_ROUTES.draw
+        })
+        await socketLoggedInPromise
+        const lobbyId = notification.notification.data.lobby_id
+        socketJoinRoom({ roomId: lobbyId, intent: 'join' })
       }
 
     })

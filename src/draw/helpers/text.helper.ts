@@ -2,8 +2,10 @@ import { FabricObject, IText } from 'fabric'
 import { isMobile } from '@/helper/general.helper'
 import { ObjectType } from '@/draw/types/draw.types'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/draw/store/draw.store'
 import { useSelect } from '@/draw/store/tools/select.store'
+import FontFaceObserver from 'fontfaceobserver'
+
+import { FONTS } from '@/draw/config/fonts.config'
 
 export function focusText(text: IText) {
   if (isMobile()) {
@@ -30,3 +32,13 @@ export function exitEditing(text: any) {
   isEditingText.value = false
 }
 
+export async function loadFonts() {
+  const observers = FONTS.map(font => new FontFaceObserver(font).load())
+
+  try {
+    await Promise.all(observers)
+    console.log('Fonts loaded')
+  } catch (err) {
+    console.warn('Some fonts timed out, but we can still start drawing.')
+  }
+}

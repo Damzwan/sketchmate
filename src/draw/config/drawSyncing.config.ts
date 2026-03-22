@@ -1,6 +1,6 @@
 import { DrawSyncingEvent, DrawSyncingParams } from '@/draw/types/drawSyncing.types'
 import * as fabric from 'fabric'
-import { FabricImage, FabricObject } from 'fabric'
+import { FabricImage, FabricObject, IText } from 'fabric'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { applyObjectModification } from '@/draw/helpers/history/object.helper'
@@ -186,6 +186,17 @@ async function syncErasingEnd(params: DrawSyncingParams<DrawSyncingEvent.Erasing
   c.requestRenderAll()
 }
 
+async function syncTextChanged(params: DrawSyncingParams<DrawSyncingEvent.TextChanged>) {
+  const { getCanvas } = useDrawStore()
+  const c = getCanvas()
+
+  const { getObjectsById } = useDrawObjectManager()
+  const objects = getObjectsById([params.objectId])
+  const text = objects[0] as IText
+  text.set('text', params.newText)
+  c.requestRenderAll()
+}
+
 
 export const drawSyncingMapping: {
   [K in DrawSyncingEvent]: (params: DrawSyncingParams<K>) => Promise<void> | void
@@ -208,5 +219,6 @@ export const drawSyncingMapping: {
   [DrawSyncingEvent.Undo]: syncUndo,
   [DrawSyncingEvent.Redo]: syncRedo,
   [DrawSyncingEvent.ObjectsMerged]: syncObjectsMerged,
-  [DrawSyncingEvent.ErasingEnd]: syncErasingEnd
+  [DrawSyncingEvent.ErasingEnd]: syncErasingEnd,
+  [DrawSyncingEvent.TextChanged]: syncTextChanged
 }

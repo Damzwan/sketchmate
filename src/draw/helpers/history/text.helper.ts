@@ -1,12 +1,15 @@
 import { IText } from 'fabric'
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { HistoryContext } from '@/draw/config/drawHistory.config'
+import { DrawSyncingEvent } from '@/draw/types/drawSyncing.types'
+import { toJSON } from '@/draw/helpers/object.helper'
 
 /**
  * Triggered after text editing is complete.
  * This determines if the text is new (ObjectAdded) or modified (TextChanged).
  */
 export function handleTextModification(obj: any) {
+
   if (obj.init) {
     obj.init = false
     return {
@@ -28,6 +31,27 @@ export function handleTextModification(obj: any) {
   }
 }
 
+// TODO draw history and syncer are similar
+// TODO hacky now
+export function handleTextModificationSync(obj: any) {
+  const oldText = obj._textBeforeEdit
+  if (oldText === '') {
+    return {
+      type: DrawSyncingEvent.added,
+      params: { objectJSONS: toJSON([obj]) }
+    }
+  } else {
+    return {
+      type: DrawSyncingEvent.TextChanged,
+      params: {
+        objectId: obj.id,
+        newText: obj.text
+      }
+    }
+
+  }
+}
+
 export async function undoTextChanged(
   ctx: HistoryContext,
   action: HistoryAction<HistoryEvent.TextChanged>
@@ -35,17 +59,14 @@ export async function undoTextChanged(
   const { canvas, getObjectById } = ctx
   const textObject = getObjectById(action.params.objectId) as IText
 
+  let currentText = ''
   if (textObject) {
-    const currentText = textObject.text
+    currentText = textObject.text
     textObject.set('text', action.params.prevText)
-
-    // Swap for the next redo
-    action.params.prevText = currentText
-
     canvas.requestRenderAll()
   }
 
-  return action
+  return { ...action, params: { ...action.params, prevText: currentText } }
 }
 
 export async function redoTextChanged(
@@ -55,17 +76,14 @@ export async function redoTextChanged(
   const { canvas, getObjectById } = ctx
   const textObject = getObjectById(action.params.objectId) as IText
 
+  let currentText = ''
   if (textObject) {
-    const currentText = textObject.text
+    currentText = textObject.text
     textObject.set('text', action.params.prevText)
-
-    // Swap for the next undo
-    action.params.prevText = currentText
-
     canvas.requestRenderAll()
   }
 
-  return action
+  return { ...action, params: { ...action.params, prevText: currentText } }
 }
 
 export async function undoTextStyleChanged(
@@ -74,23 +92,26 @@ export async function undoTextStyleChanged(
 ): Promise<HistoryAction<HistoryEvent.TextStyleChanged>> {
   const { canvas, getObjectById } = ctx
   const textObject = getObjectById(action.params.objectId) as any
+  const currentStyles: any = {}
 
   if (textObject) {
-    const currentStyles: any = {}
-
     Object.entries(action.params.prevStyle).forEach(([key, value]) => {
       // Capture current style before overriding
       currentStyles[key] = textObject[key]
       textObject.set(key as any, value)
     })
 
-    // Store the captured styles back into the action for redo
-    action.params.prevStyle = currentStyles
-
     canvas.requestRenderAll()
   }
 
-  return action
+  // Return a new object rather than modifying 'action'
+  return {
+    ...action,
+    params: {
+      ...action.params,
+      prevStyle: currentStyles
+    }
+  }
 }
 
 export async function redoTextStyleChanged(
@@ -99,19 +120,24 @@ export async function redoTextStyleChanged(
 ): Promise<HistoryAction<HistoryEvent.TextStyleChanged>> {
   const { canvas, getObjectById } = ctx
   const textObject = getObjectById(action.params.objectId) as any
+  const currentStyles: any = {}
 
   if (textObject) {
-    const currentStyles: any = {}
-
     Object.entries(action.params.prevStyle).forEach(([key, value]) => {
+      // Capture current style before overriding
       currentStyles[key] = textObject[key]
       textObject.set(key as any, value)
     })
 
-    action.params.prevStyle = currentStyles
-
     canvas.requestRenderAll()
   }
 
-  return action
+  // Return a new object rather than modifying 'action'
+  return {
+    ...action,
+    params: {
+      ...action.params,
+      prevStyle: currentStyles
+    }
+  }
 }

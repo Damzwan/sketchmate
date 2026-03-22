@@ -3,6 +3,7 @@ import { changeFabricSettings, initCanvasOptions, overrideFindTarget } from '@/d
 import { initViewport, resetZoom } from '@/draw/helpers/viewport.helper'
 import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
 import { ref } from 'vue'
+import { loadFonts } from '@/draw/helpers/text.helper'
 
 export function useCanvasService() {
   let c: Canvas | null = null
@@ -32,10 +33,11 @@ export function useCanvasService() {
     const bbox = canvasEl.getBoundingClientRect()
     c = new Canvas(canvasEl, initCanvasOptions(bbox.width, bbox.height))
 
-    c.skipOffscreen = false
+    // c.skipOffscreen = false TODO needed for rotations
     changeFabricSettings()
     overrideFindTarget(c)
     initViewport(c)
+    loadFonts()
 
     return c
   }

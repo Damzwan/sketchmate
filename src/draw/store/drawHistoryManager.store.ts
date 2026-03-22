@@ -54,7 +54,6 @@ export const useDrawHistoryManager = defineStore('history', () => {
       on: 'objects:added',
       handler: (e: any) => {
         const targets = e.target as FabricObject[]
-
         addToUndoStackWithResetRedo({ type: HistoryEvent.ObjectsAdded, params: { objectsJSON: toJSON(targets) } })
       }
     },

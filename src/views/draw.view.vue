@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonContent, IonPage, IonProgressBar, onIonViewDidEnter, IonHeader } from '@ionic/vue'
+import { IonContent, IonPage, IonProgressBar, onIonViewDidEnter } from '@ionic/vue'
 
 import { ref } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'
@@ -47,7 +47,6 @@ const { isSendingDrawing } = storeToRefs(useDrawStore())
 
 onIonViewDidEnter(() => {
   requestAnimationFrame(() => {
-    console.log(myCanvasRef.value)
     initCanvas(myCanvasRef.value!)
   })
 })

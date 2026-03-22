@@ -8,6 +8,7 @@ import { LocalStorage } from '@/types/storage.types'
 import { generateDeviceFingerprint, isNative } from '@/helper/general.helper'
 import { PushNotifications } from '@capacitor/push-notifications'
 import { useAuthStore } from '@/store/auth.store'
+import { disableNotifications } from '@/helper/notification.helper'
 
 export const useNotificationStore = defineStore('notification', () => {
   const localSubscription = ref<string>()
@@ -63,18 +64,22 @@ export const useNotificationStore = defineStore('notification', () => {
 
   async function init(user: User, arrivedFromLogin: boolean = false) {
     const { deviceFingerprint } = useAuthStore()
-    let hasValidSubscription = user?.subscriptions.some(s => s.fingerprint === deviceFingerprint)
+    const fingerprint = await generateDeviceFingerprint() // Ensure consistency
 
     let permissionStatus
-
     if (isNative()) {
       const res = await PushNotifications.checkPermissions()
       permissionStatus = res.receive
     } else {
       permissionStatus = Notification.permission
     }
+    const hasPermission = permissionStatus === 'granted'
 
-    const hasPermission = permissionStatus == 'granted'
+    const hasValidSubscription = user?.subscriptions.some(s => s.fingerprint === deviceFingerprint)
+
+    if (hasValidSubscription && !hasPermission) {
+      disableNotifications()
+    }
 
     notificationsAllowed.value = hasValidSubscription && hasPermission
 

@@ -95,7 +95,7 @@ const { user, isLoggedIn } = storeToRefs(useAuthStore())
 const { queryParams } = storeToRefs(useSessionStore())
 const { setQueryParams } = useSessionStore()
 const { open, slide } = storeToRefs(usePhotoSwiper())
-const { inbox } = storeToRefs(useInboxStore())
+const { inbox, hasFetchedInbox } = storeToRefs(useInboxStore())
 const { getInbox } = useInboxStore()
 
 const { seeItem } = usePhotoSwiper()
@@ -172,8 +172,7 @@ watch(
   }
 )
 
-watch(isLoading, checkQueryParams)
-watch(queryParams, checkQueryParams)
+watch([hasFetchedInbox, queryParams], checkQueryParams)
 
 const page = ref()
 
@@ -187,16 +186,15 @@ async function fetchInbox() {
     await getInbox()
     isLoading.value = false
     checkQueryParams()
-  }
-  else {
+  } else {
     isLoading.value = false
   }
 }
 
 function checkQueryParams() {
-  if (isLoading.value) return
+  if (!hasFetchedInbox.value) return
   const query = router.currentRoute.value.query
-  const item = queryParams.value ? queryParams.value.get('item') : query.item
+  const item = query?.item ? query.item : queryParams.value?.get('item')
   if (!item) return
   const foundInboxIndex = inbox.value.findIndex(val => item === val._id)
   if (foundInboxIndex === -1) return

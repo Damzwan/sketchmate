@@ -21,6 +21,7 @@ export enum DrawSyncingEvent {
   Redo = 'Redo',
   ObjectsMerged = 'ObjectsMerged',
   ErasingEnd = 'ErasingEnd',
+  TextChanged = 'TextChanged'
 }
 
 export type DrawSyncingMap = {
@@ -45,6 +46,7 @@ export type DrawSyncingMap = {
   [DrawSyncingEvent.Redo]: HistoryAction,
   [DrawSyncingEvent.ObjectsMerged]: { mergedObjectIds: string[], groupId: string },
   [DrawSyncingEvent.ErasingEnd]: { objectIds: string[], clipPaths: string[] },
+  [DrawSyncingEvent.TextChanged]: { objectId: string, newText: string },
 }
 
 

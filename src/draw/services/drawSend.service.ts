@@ -7,6 +7,7 @@ import { canvasToBuffer, exportBoundingBoxImage } from '@/draw/helpers/export.he
 import { CreateBalloonPostRes, Res } from '@/types/server.types'
 import { ref } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 export function useDrawSendService(c: () => Canvas | null) {
   const api = useAPI()
@@ -31,6 +32,10 @@ export function useDrawSendService(c: () => Canvas | null) {
       name: user.value!.name,
       aspect_ratio: img.aspect_ratio
     })
+
+
+    const { roomId } = useDrawSyncer()
+    if (roomId) return // when we are collaborating we should not reset the canvas
 
     drawStore.reset()
   }

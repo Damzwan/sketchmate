@@ -52,7 +52,6 @@ function onDismiss() {
 </script>
 
 <style scoped>
-/*Fonts*/
 @import url('https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Rubik+Puddles&display=swap');

@@ -79,9 +79,10 @@ export async function changeFont(params: DrawActionParams[DrawAction.ChangeFont]
   const c = getCanvas()
 
 
+  // TODO should no longer be necessary, we preload now
   const textObj = selectedObjectsRef[0] as IText
-  const fontFaceObserver = new FontFaceObserver(font)
-  await fontFaceObserver.load()
+  // const fontFaceObserver = new FontFaceObserver(font)
+  // await fontFaceObserver.load()
 
   const prevStyle = {
     fontFamily: textObj.fontFamily

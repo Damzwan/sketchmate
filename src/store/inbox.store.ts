@@ -12,6 +12,7 @@ export const useInboxStore = defineStore('inbox', () => {
   const inboxUsers = ref<Mate[]>([])
 
   const isInboxLoading = ref(false)
+  const hasFetchedInbox = ref(false)
 
 
   const api = useAPI()
@@ -41,6 +42,8 @@ export const useInboxStore = defineStore('inbox', () => {
           inboxUsers.value.push(u)
         }
       }
+
+      hasFetchedInbox.value = true
     } catch (e) {
       console.error(e)
     } finally {
@@ -49,7 +52,9 @@ export const useInboxStore = defineStore('inbox', () => {
   }
 
   async function addComment(commentRes: CommentRes) {
-    if (!inbox.value.length) return
+    if (!inbox.value.length) {
+      await getInbox()
+    }
 
     const index = inbox.value.findIndex(i => i._id === commentRes.inbox_item_id)
     if (index === -1) return
@@ -87,6 +92,7 @@ export const useInboxStore = defineStore('inbox', () => {
 
     getInbox,
     addComment,
-    findUserInInboxUsers
+    findUserInInboxUsers,
+    hasFetchedInbox
   }
 })

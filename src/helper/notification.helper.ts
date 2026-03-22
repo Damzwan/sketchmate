@@ -10,6 +10,7 @@ import { storeToRefs } from 'pinia'
 import { useNotificationStore } from '@/store/notification.store'
 import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
 import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
+import { useSessionStore } from '@/store/session.store'
 
 export async function requestNotifications() {
   if (isNative()) {
@@ -155,6 +156,14 @@ export async function addNotificationListeners() {
           }
         })
       } else if (notificationType === NotificationType.comment) {
+        const {setQueryParams} = useSessionStore()
+
+        // TODO WE NEED TO rethink how we do deeplinks nad notification links, they are colliding since we are removing the link params at times
+        const searchParams = new URLSearchParams({
+          item: notification.notification.data.inbox_id,
+          comments: 'true'
+        })
+        setQueryParams(searchParams)
         await router.push({
           path: FRONTEND_ROUTES.gallery,
           query: {

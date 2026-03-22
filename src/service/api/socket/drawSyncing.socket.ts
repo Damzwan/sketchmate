@@ -7,6 +7,8 @@ import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawSyncingAction } from '@/draw/types/drawSyncing.types'
 import { SOCKET_ENDPONTS } from '@/types/server.types'
 import { createJoinRoomButton } from '@/config/toast.config'
+import { useRoute, useRouter } from 'vue-router'
+import router from '@/router'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   socket.on('room-joined', async ({ roomId, users, isCreator }) => {
@@ -56,8 +58,12 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const { toast } = useToast()
 
     if (reason === 'ROOM_FULL') toast(`Room is full, try again later`, { color: 'danger' })
-    else if (reason === 'ROOM_NOT_FOUND') toast(`Room does not exist`, { color: 'danger' })
-    else toast(`Unknown error, try again later`, { color: 'danger' })
+    else if (reason === 'ROOM_NOT_FOUND') {
+      const query = { ...router.currentRoute.value.query }
+      delete query.room_id
+      router.replace({ query })
+      toast(`Room does not exist`, { color: 'danger' })
+    } else toast(`Unknown error, try again later`, { color: 'danger' })
 
     isTryingToJoin.value = false
   })
@@ -94,6 +100,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
   socket.on(SOCKET_ENDPONTS.friend_invitation, async (data) => {
     const { invitations } = storeToRefs(useDrawSyncer())
+    invitations.value = invitations.value.filter(inv => inv.friend._id === data.friend.id)
     invitations.value.push(data)
     const { toast } = useToast()
     toast(`${data.friend.name} has invited you to draw`, { buttons: [createJoinRoomButton(data.roomId)] })

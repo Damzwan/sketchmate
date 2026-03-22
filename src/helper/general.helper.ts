@@ -336,6 +336,9 @@ export async function handleWebDeeplink() {
 
   const { redirectIntent } = storeToRefs(useSessionStore())
 
+  const { setQueryParams } = useSessionStore()
+  setQueryParams(url.searchParams)
+
   if (roomId) {
     redirectIntent.value = window.location.pathname + window.location.search
     await socketLoggedInPromise

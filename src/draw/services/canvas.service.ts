@@ -1,13 +1,7 @@
 import { Canvas } from 'fabric'
-import {
-  initCanvasOptions,
-  changeFabricSettings,
-  overrideFindTarget,
-  initBorderRenderer
-} from '@/draw/helpers/fabricDefaults.helper'
-import { enableGestures } from '@/draw/helpers/gestures.helper'
+import { changeFabricSettings, initCanvasOptions, overrideFindTarget } from '@/draw/helpers/fabricDefaults.helper'
 import { initViewport, resetZoom } from '@/draw/helpers/viewport.helper'
-import { CANVAS_SIZE, BACKGROUND } from '@/draw/config/canvas.config'
+import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
 import { ref } from 'vue'
 
 export function useCanvasService() {
@@ -38,10 +32,10 @@ export function useCanvasService() {
     const bbox = canvasEl.getBoundingClientRect()
     c = new Canvas(canvasEl, initCanvasOptions(bbox.width, bbox.height))
 
+    c.skipOffscreen = false
     changeFabricSettings()
     overrideFindTarget(c)
     initViewport(c)
-    initBorderRenderer(c)
 
     return c
   }

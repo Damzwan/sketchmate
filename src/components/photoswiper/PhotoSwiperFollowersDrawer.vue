@@ -3,7 +3,7 @@
     <div @click="close" class="fixed inset-0 bg-black opacity-50 z-[999]" v-if="open"></div>
   </transition>
   <transition name="slide">
-    <div class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0 safe-area-bottom" v-show="open">
+    <div class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0 bot-safe" v-show="open">
       <h1 class="text-2xl pl-3 py-2 text-black">Followers</h1>
       <ion-list class="bg-background">
         <ion-item v-for="follower in followers" :key="follower" color="tertiary">

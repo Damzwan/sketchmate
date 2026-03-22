@@ -1,4 +1,4 @@
-import { Canvas, FabricObject, Point } from 'fabric'
+import { Canvas, FabricObject, Point, TMat2D } from 'fabric'
 import { isMobile } from '@/helper/general.helper'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { storeToRefs } from 'pinia'
@@ -6,16 +6,44 @@ import { DrawTool, FabricEvent } from '@/draw/types/draw.types'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { ref } from 'vue'
 import { gestureDetector } from '@/draw/utils/gestureDetector'
-import { applyZoomDelta, handlePan, handleZoom } from '@/draw/helpers/viewport.helper'
+import { applyZoomDelta, checkCanvasBounds, handlePan, handleZoom } from '@/draw/helpers/viewport.helper'
 import { cancelPreviousAction } from '@/draw/helpers/tools/cancelTools.helper'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { setCacheForObjects } from '@/draw/helpers/object.helper'
+import * as fabric from 'fabric'
 
 export function enableGestures(c: Canvas) {
   if (isMobile()) enableMobileGestures(c, c.upperCanvasEl)
   else enablePCGestures(c)
+}
+
+
+let deg = 0
+
+export function rotateView(c: fabric.Canvas, deltaDeg: number, centerPoint: Point) {
+  const rad = fabric.util.degreesToRadians(deltaDeg)
+
+  // Removed the snapping function so slow, smooth rotations actually register!
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+
+  // 1. Setup pure rotation matrix
+  const rotate: TMat2D = [cos, sin, -sin, cos, 0, 0]
+
+  const translate: TMat2D = [1, 0, 0, 1, centerPoint.x, centerPoint.y]
+  const translateInv: TMat2D = [1, 0, 0, 1, -centerPoint.x, -centerPoint.y]
+
+  const vpt = c.viewportTransform
+
+  // 3. Multiply in the correct order: Translate -> Rotate -> TranslateInv -> OldVpt
+  // This applies the rotation strictly to the camera/screen, avoiding all logical distortion.
+  let newVpt = fabric.util.multiplyTransformMatrices(translate, rotate)
+  newVpt = fabric.util.multiplyTransformMatrices(newVpt, translateInv)
+  newVpt = fabric.util.multiplyTransformMatrices(newVpt, vpt)
+
+  c.setViewportTransform(newVpt)
 }
 
 export function enablePCGestures(c: Canvas) {
@@ -164,22 +192,27 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
       canResetView.value = true
     },
-    onRotate: (angleDifference) => {
+    onRotate: (angleDifference, center) => {
       if (
         selectedTool.value !== DrawTool.Select ||
         !isUsingGesture.value
-      ) return
+      ) {
+        gestureState.canvasRotateDelta = angleDifference
+        gestureState.zoomCenter = center
+        scheduleGestureFrame(c)
+        return
+      }
 
       if (Math.abs(angleDifference) < 0.8) return
 
       gestureState.rotateDelta += angleDifference
       scheduleGestureFrame(c)
     },
-    onDrag: (dx, dy, prevDx, prevDy) => {
+    onDrag: (movementX, movementY) => {
       if (selectedTool.value === DrawTool.Select && isUsingGesture.value) return
 
-      gestureState.pan.x += 2 * (dx - prevDx)
-      gestureState.pan.y += 2 * (dy - prevDy)
+      gestureState.pan.x += 2 * movementX
+      gestureState.pan.y += 2 * movementY
 
       scheduleGestureFrame(c)
     },
@@ -297,7 +330,8 @@ const gestureState = {
   zoomScale: 1,
   rotateDelta: 0,
   zoomCenter: null as Point | null,
-  needsCull: false
+  needsCull: false,
+  canvasRotateDelta: 0
 }
 
 function scheduleGestureFrame(c: Canvas) {
@@ -331,6 +365,13 @@ function scheduleGestureFrame(c: Canvas) {
       gestureState.zoomDelta = 1
       gestureState.zoomCenter = null
       gestureState.needsCull = true
+    }
+
+    if (gestureState.canvasRotateDelta !== 0 && gestureState.zoomCenter) {
+      // rotateView(c, gestureState.canvasRotateDelta, gestureState.zoomCenter)
+      // gestureState.canvasRotateDelta = 0
+      // gestureState.zoomCenter = null
+      // gestureState.needsCull = true
     }
 
     // ROTATE (object)

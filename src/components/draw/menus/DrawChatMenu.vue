@@ -1,7 +1,7 @@
 <template>
   <!-- Floating preview + button -->
   <div
-    class="absolute top-14 right-2 z-50 pointer-events-auto"
+    class="absolute top-safe mt-14 right-2 z-50 pointer-events-auto"
     @click="chatMenuOpen = true"
   >
     <div class="comment rounded-xl px-2 py-1.5 w-[180px] shadow-md cursor-pointer">
@@ -265,7 +265,7 @@ const handleSendMessage = () => {
 const visiblePreviewMessages = ref<any[]>([])
 
 watch(lobbyChatMessages, (messages) => {
-  if (chatMenuOpen.value) return
+  // if (chatMenuOpen.value) return
   const latest = messages[messages.length - 1]
   if (!latest) return
 

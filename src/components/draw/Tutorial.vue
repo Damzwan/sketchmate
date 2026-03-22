@@ -3,7 +3,7 @@
 
   <transition name="slide">
     <div
-      class="w-[300px] absolute top-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black"
+      class="w-[300px] absolute top-safe mt-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black"
       v-show="showTipBox"
       ref="tooltip"
     >

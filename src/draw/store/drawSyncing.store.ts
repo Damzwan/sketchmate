@@ -69,15 +69,42 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   const isWatchingPublicLobbies = ref<boolean>(false)
   const isPublicLobby = ref<boolean>(false)
   const publicLobbyName = ref<string>('')
+  const disconnectedRoomId = ref<string>()
 
 
   const actionQueue: DrawSyncingAction[] = []
 
-  watch(roomId, () => {
+  watch(roomId, (newRoomId) => {
     const { addEventsOfService, removeEventsOfService } = useDrawEventManager()
 
-    if (roomId.value !== null) addEventsOfService('actionSyncer', events)
-    else removeEventsOfService('actionSyncer')
+    const handleUndo = (params: any) => {
+      if (!roomId.value) return
+      emitDrawSyncingEvent({
+        type: DrawSyncingEvent.Undo,
+        params: params as HistoryAction
+      })
+    }
+
+    const handleRedo = (params: any) => {
+      if (!roomId.value) return
+      emitDrawSyncingEvent({
+        type: DrawSyncingEvent.Redo,
+        params: params as HistoryAction
+      })
+    }
+
+    if (newRoomId !== null) {
+      EventBus.off('undo', handleUndo)
+      EventBus.off('redo', handleRedo)
+
+      EventBus.on('undo', handleUndo)
+      EventBus.on('redo', handleRedo)
+      addEventsOfService('actionSyncer', events)
+    } else {
+      EventBus.off('undo', handleUndo)
+      EventBus.off('redo', handleRedo)
+      removeEventsOfService('actionSyncer')
+    }
   })
 
   const events: FabricEvent[] = [
@@ -248,23 +275,9 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
 
   ]
 
-  EventBus.on('undo', (params: any) => {
-    if (!roomId.value) return
-    emitDrawSyncingEvent({
-      type: DrawSyncingEvent.Undo,
-      params: params as HistoryAction
-    })
-  })
-
-  EventBus.on('redo', (params: any) => {
-    if (!roomId.value) return
-    emitDrawSyncingEvent({
-      type: DrawSyncingEvent.Redo,
-      params: params as HistoryAction
-    })
-  })
 
   function init() {
+
   }
 
 
@@ -312,6 +325,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     publicLobbies,
     isWatchingPublicLobbies,
     isPublicLobby,
-    publicLobbyName
+    publicLobbyName,
+    disconnectedRoomId
   }
 })

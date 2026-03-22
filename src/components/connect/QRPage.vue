@@ -18,7 +18,7 @@
           <ion-segment-button :value="Segments.code" @close="stopScanning" mode="md">
             <ion-label>My code</ion-label>
           </ion-segment-button>
-          <ion-segment-button :value="Segments.scan" @click="startScanning" mode="md">
+          <ion-segment-button :value="Segments.scan" @click="startScanningHelper" mode="md">
             <ion-label>Scan code</ion-label>
           </ion-segment-button>
         </ion-segment>
@@ -57,22 +57,17 @@ import { arrowBack } from 'ionicons/icons'
 import {
   IonButton,
   IonButtons,
+  IonContent,
   IonIcon,
-  IonTitle,
-  IonToolbar,
-  IonSegment,
-  IonSegmentButton,
   IonLabel,
   IonModal,
-  IonContent
+  IonSegment,
+  IonSegmentButton,
+  IonTitle,
+  IonToolbar
 } from '@ionic/vue'
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { isNative, setAppColors } from '@/helper/general.helper'
-import {
-  BarcodeFormat,
-  BarcodeScanner,
-  GoogleBarcodeScannerModuleInstallState
-} from '@capacitor-mlkit/barcode-scanning'
 import QrScanner from 'qr-scanner'
 import { useToast } from '@/service/toast.service'
 import { colorsPerRoute, primaryColor, qrModalColorConfig } from '@/config/colors.config'
@@ -80,6 +75,7 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { createPersonalShareLink } from '@/helper/share.helper'
 import { useAuthStore } from '@/store/auth.store'
 import TopSafeArea from '@/components/general/TopSafeArea.vue'
+import { useScanner } from '@/service/scanner.service'
 
 enum Segments {
   code,
@@ -97,83 +93,23 @@ const emits = defineEmits(['update:open', 'scan'])
 
 const segment = ref<Segments>(Segments.code)
 
-const installingGoogleBarcode = ref(false)
-const installingGoogleBarcodeProgress = ref<number | undefined>(0)
-
 
 const qrScanner = ref<QrScanner>()
 const video = ref<HTMLVideoElement>()
+const { startScanning, stopScanning, resetScanning } = useScanner(video)
+
 const { user } = useAuthStore()
 const qrURL = createPersonalShareLink(user!._id, '/connect')
 
 const { toast } = useToast()
 
-onMounted(async () => {
-  if (isNative()) {
-    const isGoogleBarcodeScannerModuleAvailable = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable()
 
-    if (!isGoogleBarcodeScannerModuleAvailable.available) {
-      installingGoogleBarcode.value = true
-      await BarcodeScanner.installGoogleBarcodeScannerModule()
-      BarcodeScanner.addListener('googleBarcodeScannerModuleInstallProgress', res => {
-        if (res.state == GoogleBarcodeScannerModuleInstallState.COMPLETED) {
-          installingGoogleBarcode.value = false
-          BarcodeScanner.removeAllListeners()
-        }
-        installingGoogleBarcodeProgress.value = res.progress
-      })
-    }
-  }
-})
-
-async function startScanning() {
-
-  if (isNative()) {
-    if (installingGoogleBarcode.value) {
-      toast(
-        `Still installing google barcode scanner, the status is ${installingGoogleBarcodeProgress.value}. Try again soon`
-      )
-      return
-    }
-    const supported = await BarcodeScanner.isSupported()
-
-    if (!supported.supported) {
-      toast('Camera not supported', { color: 'warning' })
-      return
-    }
-
-    const status = await BarcodeScanner.requestPermissions()
-    if (status.camera == 'granted') {
-      document.querySelector('body')?.classList.add('barcode-scanner-active')
-
-
-      if (isNative()) setTimeout(() => segment.value = Segments.code, 200)// hack in case the user presses the close button
-      const { barcodes } = await BarcodeScanner.scan(
-        {
-          formats: [BarcodeFormat.QrCode]
-        }
-      )
-
-      if (barcodes.length == 0) {
-        stopScanning()
-        return
-      }
-      decode(new URL(barcodes[0].rawValue))
-    } else toast('Camera permission not granted or not available', { color: 'warning' })
-  } else {
-    if (!qrScanner.value)
-      qrScanner.value = new QrScanner(video.value!, (code: any) => decode(new URL(code.data)), {
-        highlightScanRegion: true,
-        returnDetailedScanResult: true
-      })
-    await qrScanner.value?.start()
-  }
+async function startScanningHelper() {
+  const code = await startScanning()
+  if (!code) return
+  decode(new URL(code))
 }
 
-function stopScanning() {
-  if (!isNative()) qrScanner.value?.stop()
-  else BarcodeScanner.stopScan()
-}
 
 async function close() {
   stopScanning()
@@ -192,6 +128,7 @@ function decode(url: any) {
 
 function onDismiss() {
   setAppColors(colorsPerRoute[FRONTEND_ROUTES.connect])
+  resetScanning()
   segment.value = Segments.code
   qrScanner.value?.destroy()
   qrScanner.value = undefined

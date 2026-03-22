@@ -25,6 +25,7 @@ import { useBalloonStore } from '@/store/balloon.store'
 import { useInboxStore } from '@/store/inbox.store'
 import { useSocketService } from '@/service/api/socket/socket.service'
 import { useSessionStore } from '@/store/session.store'
+import { useDrawStore } from '@/draw/store/draw.store'
 
 export const useAuthStore = defineStore('auth', () => {
   const api = useAPI()
@@ -68,8 +69,17 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = undefined
       firebaseUser.value = undefined
 
-      await ionRouter.replace(FRONTEND_ROUTES.login, routerAnimation!)
+
+      await router.replace(FRONTEND_ROUTES.login!)
+
+      // TODO think of something better
+      // when we login on mobile we first go to the draw page, which initializes the canvas and then we go to thre login. Because it happens so fast, something goes wrong during the init
+      const { resetCanvasID } = useDrawStore()
+      resetCanvasID()
+
       isAuthLoading.value = false
+
+
       return
     }
 

@@ -5,7 +5,7 @@
     :initial-breakpoint="1" :breakpoints="[0, 1]"
     handle-behavior="cycle"
   >
-    <div class="p-4 safe-area-bottom w-full h-full bg-primary">
+    <div class="p-4 bot-safe w-full h-full bg-primary">
       <div v-if="roomId" class="space-y-2">
         <div v-if="isPublicLobby">
           <h1 class="text-3xl text-secondary cabin-sketch-regular font-black tracking-tighter leading-none">
@@ -26,7 +26,7 @@
                 fill="clear"
                 size="small"
                 class="text-secondary h-8 w-8"
-                @click="shareUrl(roomIdLink, '', '', 'Room link shared')"
+                @click="shareUrl(roomIdLink, '', '', 'Room link copied')"
               >
                 <ion-icon slot="icon-only" :icon="svg(mdiShareVariant)" class="text-2xl" />
               </ion-button>
@@ -200,7 +200,7 @@
 
               <div class="text-body font-medium">OR</div>
 
-              <ion-button @click="scanQR" color="secondary" fill="outline" class="h-12">
+              <ion-button @click="startScanningHelper" color="secondary" fill="outline" class="h-12" v-if="isNative()">
                 <ion-icon slot="icon-only" :icon="svg(mdiCamera)" />
               </ion-button>
             </div>
@@ -269,7 +269,7 @@
         <hr class="my-2 opacity-20" />
 
         <!-- 3️⃣ Create a room section -->
-        <section class="space-y-3">
+        <section class="space-y-3 pb-3">
           <h3 class="text-sm font-bold text-secondary cabin-sketch-regular uppercase tracking-widest">
             Create a New Room
           </h3>
@@ -298,11 +298,16 @@ import {
   startWatchingLobbies
 } from '@/service/api/socket/drawSyncing.socket'
 import { mdiCamera, mdiShareVariant } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { isNative, svg } from '@/helper/general.helper'
 import { createRoomLink, shareUrl } from '@/helper/share.helper'
 import QrcodeVue from 'qrcode.vue'
-import { useSocketService } from '@/service/api/socket/socket.service'
+import { socketLoggedInPromise, useSocketService } from '@/service/api/socket/socket.service'
 import { useFriendStore } from '@/store/friend.store'
+import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
+import QrScanner from 'qr-scanner'
+import { useScanner } from '@/service/scanner.service'
+import { useToast } from '@/service/toast.service'
+import { useSessionStore } from '@/store/session.store'
 
 
 const {
@@ -319,6 +324,7 @@ const {
 } = storeToRefs(useDrawSyncer())
 const { roomMenuOpen } = storeToRefs(useMenuStore())
 const { user } = storeToRefs(useAuthStore())
+const { startScanning, stopScanning, resetScanning } = useScanner()
 
 const code = ref(['', '', '', ''])
 const codeString = computed(() => code.value.join(''))
@@ -379,10 +385,6 @@ const handlePaste = (event: any) => {
   }
 }
 
-function scanQR() {
-
-}
-
 
 function inviteFriend(friend: string) {
   if (!roomId.value) return
@@ -423,6 +425,19 @@ async function handleJoinPublicLobby(lobby: PublicLobby) {
     joiningLobbyId.value = null
   }
 }
+
+async function startScanningHelper() {
+  const code = await startScanning()
+  if (!code) return
+
+  const url = new URL(code)
+  const roomId = url.searchParams.get('room_id')
+
+  if (roomId) {
+    socketJoinRoom({ roomId, intent: 'join' })
+  }
+}
+
 
 </script>
 

@@ -84,6 +84,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const { isLoadingCanvas } = storeToRefs(useDrawSyncer())
     const { addToDrawSyncingActionQueue, executeDrawSyncingAction } = useDrawSyncer()
 
+
     if (isLoadingCanvas.value) {
       addToDrawSyncingActionQueue(data.action)
     } else {
@@ -108,6 +109,24 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       _id: id
     })
 
+  })
+
+  socket.on('disconnect', () => {
+    const store = useDrawSyncer()
+    store.disconnectedRoomId = store.roomId
+  })
+
+  // this will only trigger after relogging in aka reconnect
+  socket.on(SOCKET_ENDPONTS.login, () => {
+    const store = useDrawSyncer()
+    if (store.disconnectedRoomId) {
+      socketJoinRoom({
+        roomId: store.disconnectedRoomId,
+        intent: store.isCreator ? 'create' : 'join'
+      })
+
+      store.disconnectedRoomId = undefined
+    }
   })
 }
 

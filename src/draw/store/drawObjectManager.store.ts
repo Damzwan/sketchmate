@@ -86,6 +86,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
   function updateVisibility(): void {
+    return // TODO
     if (visibilityScheduled) return
     visibilityScheduled = true
 

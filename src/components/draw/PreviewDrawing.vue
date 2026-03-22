@@ -23,24 +23,25 @@
 
     <!-- Fullscreen Modal -->
     <ion-modal :is-open="isOpen" @didDismiss="closeModal">
-      <ion-header>
+      <div class="w-full h-full flex flex-col safe-area bg-black">
         <ion-toolbar class="bg-black" color="black">
           <ion-button fill="clear" class="text-white" @click="closeModal" slot="end">
             <IonIcon :icon="svg(mdiClose)" class="w-5 h-5" />
           </ion-button>
         </ion-toolbar>
-      </ion-header>
-      <ion-content>
-        <div
-          class="w-full h-full bg-black flex items-center justify-center p-4 relative"
-          @click="closeModal"
-        >
-          <img
-            :src="src"
-            class="max-w-full max-h-full object-contain"
-          />
-        </div>
-      </ion-content>
+
+        <ion-content>
+          <div
+            class="w-full h-full bg-black flex items-center justify-center p-4 relative"
+            @click="closeModal"
+          >
+            <img
+              :src="src"
+              class="max-w-full max-h-full object-contain"
+            />
+          </div>
+        </ion-content>
+      </div>
 
     </ion-modal>
   </div>
@@ -48,7 +49,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { IonButton, IonContent, IonHeader, IonIcon, IonModal, IonSkeletonText, IonToolbar } from '@ionic/vue'
+import { IonButton, IonContent, IonIcon, IonModal, IonSkeletonText, IonToolbar } from '@ionic/vue'
 
 // MDI icons
 import { mdiClose, mdiFullscreen } from '@mdi/js'

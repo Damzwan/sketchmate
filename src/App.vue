@@ -1,13 +1,14 @@
 <template>
   <ion-app>
     <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" bg-color="bg-background" />
+    <ion-router-outlet />
+
     <ForceUpdateModal v-if="isNative() && showForceUpdateModal" />
     <FeedbackMenu />
     <DateOfBirthConfirmation />
     <DrawMenus />
 
     <DrawModal />
-    <ion-router-outlet />
   </ion-app>
 </template>
 

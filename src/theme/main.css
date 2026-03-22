@@ -8,8 +8,16 @@
     padding-right: var(--ion-safe-area-right, 0);
 }
 
-.safe-area-bottom {
+.bot-safe {
     padding-bottom: var(--ion-safe-area-bottom, 0);
+}
+
+.top-safe {
+    top: var(--ion-safe-area-top, 0);
+}
+
+.right-safe {
+    top: var(--ion-safe-area-right, 0);
 }
 
 ion-content.my-safe-area::part(scroll) {

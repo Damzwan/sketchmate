@@ -1,21 +1,21 @@
 <template>
-  <ion-modal @didPresent="init" :is-open="drawMenuOpen" @didDismiss="drawMenuOpen = false"
+  <ion-modal @didPresent="init" :is-open="drawMenuOpen" @didDismiss="drawMenuOpen = false" :keep-contents-mounted="true"
              @willDismiss="() => { EventBus.emit('drawModalClosed')}">
-    <ion-content class="safe-area">
+    <div class="w-full h-full flex flex-col safe-area">
+      <TopSafeArea :color="primaryColor" />
       <Toolbars />
       <div class="absolute inset-0 flex m-0 pointer-none " :style="{background: BACKGROUND}">
         <canvas ref="myCanvasRef" class="w-full h-full " id="modalCanvas" />
       </div>
-
       <ResetZoomButton />
 
-    </ion-content>
+    </div>
   </ion-modal>
 </template>
 
 <script setup lang="ts">
 
-import { IonContent, IonHeader, IonModal } from '@ionic/vue'
+import { IonModal } from '@ionic/vue'
 import Toolbars from '@/components/draw/toolbar/Toolbars.vue'
 import { ref } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'
@@ -24,6 +24,8 @@ import { useMenuStore } from '@/store/menu.store'
 import { BACKGROUND } from '@/draw/config/canvas.config'
 import { EventBus } from '@/main'
 import ResetZoomButton from '@/components/draw/ResetZoomButton.vue'
+import { primaryColor } from '@/config/colors.config'
+import TopSafeArea from '@/components/general/TopSafeArea.vue'
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 const { initCanvas } = useDrawStore()

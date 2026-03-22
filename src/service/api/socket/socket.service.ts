@@ -46,7 +46,7 @@ export let socket: Socket | undefined
 
 let socketServiceInstance: SocketAPI | null = null
 let resolveSocketLoggedIn: () => void
-export const socketLoggedInPromise = new Promise<void>((resolve) => {
+export let socketLoggedInPromise = new Promise<void>((resolve) => {
   resolveSocketLoggedIn = resolve
 })
 

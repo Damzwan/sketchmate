@@ -98,6 +98,10 @@ export const useDrawStore = defineStore('draw', () => {
       await router.push(FRONTEND_ROUTES.draw) // this will trigger the init logic again which will load in the canvas
     }
 
+    function resetCanvasID() {
+      canvasID = ''
+    }
+
 
     return {
       isModal,
@@ -111,7 +115,8 @@ export const useDrawStore = defineStore('draw', () => {
       reply,
       prevDrawingMode,
       isSendingDrawing,
-      loadCanvas
+      loadCanvas,
+      resetCanvasID
     }
   }
 )

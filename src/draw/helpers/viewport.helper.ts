@@ -1,10 +1,10 @@
 import { Canvas, FabricObject, Point, TMat2D } from 'fabric'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
-import { isMobile } from '@/helper/general.helper'
 import { CANVAS_SIZE } from '@/draw/config/canvas.config'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import * as fabric from 'fabric'
 
 export function initViewport(c: Canvas) {
   const initX = (c.width - CANVAS_SIZE) / 2
@@ -45,26 +45,45 @@ export function centerObjectInViewport(
 }
 
 export const checkCanvasBounds = (c: Canvas) => {
-  const zoom = c.getZoom()
+  const vpt = [...c.viewportTransform!] as TMat2D
+
+  // 1. Cure the Ghost Zoom: Extract true scale from the matrix
+  const trueZoom = Math.sqrt(vpt[0] * vpt[0] + vpt[1] * vpt[1])
+
   const canvasWidth = c.getWidth()
   const canvasHeight = c.getHeight()
   const worldSize = CANVAS_SIZE
 
-  const minX = -(worldSize * zoom - canvasWidth)
-  const maxX = 0
+  // 2. Find the logical center of your world
+  const logicalCenter = new Point(worldSize / 2, worldSize / 2)
 
-  const minY = -(worldSize * zoom - canvasHeight)
-  const maxY = 0
+  // 3. Transform that logical center into physical screen coordinates
+  const screenCenter = fabric.util.transformPoint(logicalCenter, vpt)
 
+  // 4. Define the physical boundaries (the browser viewport)
+  // We allow the center to go to the edges, but not beyond.
+  const minX = 0
+  const maxX = canvasWidth
+  const minY = 0
+  const maxY = canvasHeight
 
-  // Clone the VPT to avoid side effects
-  const vpt = [...c.viewportTransform!] as TMat2D
+  let correctiveDx = 0
+  let correctiveDy = 0
 
-  vpt[4] = Math.min(Math.max(vpt[4], minX), maxX)
-  vpt[5] = Math.min(Math.max(vpt[5], minY), maxY)
+  // 5. Calculate the corrective dosage if the center drifts out of bounds
+  if (screenCenter.x < minX) correctiveDx = minX - screenCenter.x
+  if (screenCenter.x > maxX) correctiveDx = maxX - screenCenter.x
+  if (screenCenter.y < minY) correctiveDy = minY - screenCenter.y
+  if (screenCenter.y > maxY) correctiveDy = maxY - screenCenter.y
 
-  c.setViewportTransform(vpt)
+  // 6. Apply the corrective translation to the matrix
+  if (correctiveDx !== 0 || correctiveDy !== 0) {
+    vpt[4] += correctiveDx
+    vpt[5] += correctiveDy
+    c.setViewportTransform(vpt)
+  }
 }
+
 export const handleZoom = (
   scale: number,
   centerX: number,
@@ -89,27 +108,39 @@ export const handleZoom = (
   // Zoom the canvas to the new zoom level while maintaining the gesture center point
   c.zoomToPoint(gestureCenter, newZoom)
 
-  checkCanvasBounds(c)
+  // checkCanvasBounds(c)
 }
 
-export function applyZoomDelta(
-  delta: number,
-  center: Point,
-  c: Canvas
-) {
-  let newZoom = c.getZoom() * delta
+export function applyZoomDelta(delta: number, centerPoint: Point, c: Canvas) {
+  const vpt = c.viewportTransform
 
-  // Clamp
-  newZoom = Math.min(10, Math.max(0.5, newZoom))
+  if (!vpt) return
 
-  c.zoomToPoint(center, newZoom)
-  checkCanvasBounds(c)
+  const currentScale = Math.sqrt(vpt[0] * vpt[0] + vpt[1] * vpt[1])
+
+  let targetScale = currentScale * delta
+  targetScale = Math.min(10, Math.max(0.5, targetScale))
+
+  const effectiveDelta = targetScale / currentScale
+
+  if (effectiveDelta === 1) return
+
+  const scaleMatrix: TMat2D = [effectiveDelta, 0, 0, effectiveDelta, 0, 0]
+
+  const translate: TMat2D = [1, 0, 0, 1, centerPoint.x, centerPoint.y]
+  const translateInv: TMat2D = [1, 0, 0, 1, -centerPoint.x, -centerPoint.y]
+
+  let newVpt = fabric.util.multiplyTransformMatrices(translate, scaleMatrix)
+  newVpt = fabric.util.multiplyTransformMatrices(newVpt, translateInv)
+  newVpt = fabric.util.multiplyTransformMatrices(newVpt, vpt)
+
+  c.setViewportTransform(newVpt)
 }
 
 
 export const handlePan = (delta: Point, c: Canvas) => {
   c.relativePan(delta)
-  checkCanvasBounds(c)
+  // checkCanvasBounds(c)
 }
 
 export function resetZoom() {

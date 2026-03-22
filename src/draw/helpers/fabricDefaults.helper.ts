@@ -30,6 +30,13 @@ export function changeFabricSettings() {
     return originalInsertAt.call(this, i, ...objects)
   }
 
+  fabric.Canvas.prototype.getZoom = function() {
+    const decomposition = fabric.util.qrDecompose(this.viewportTransform)
+    // qrDecompose separates scale, translation, rotation, and skew.
+    // We just return the true scale factor.
+    return decomposition.scaleX
+  }
+
 
   const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--ion-color-primary').trim()
 
@@ -82,60 +89,29 @@ export function initCanvasOptions(width: number, height: number): Partial<Canvas
 
 
 export function overrideFindTarget(c: Canvas) {
-  const originalFindTarget = c.findTarget.bind(c);
+  const originalFindTarget = c.findTarget.bind(c)
 
   // @ts-ignore
   c.findTarget = function(e: MouseEvent) {
-    const active = this._activeObject;
+    const active = this._activeObject
 
     // Check if we should manually return the active object
     // @ts-ignore
     if (active && this._isClick) {
-      const pointerEvent = e || (this as any)._mouseDownEvent;
-      const pointer = this.getScenePoint(pointerEvent);
+      const pointerEvent = e || (this as any)._mouseDownEvent
+      const pointer = this.getScenePoint(pointerEvent)
 
       if (active.containsPoint(pointer)) {
         // Return the new required object structure
         return {
           target: active,
           subTargets: [] // Crucial: prevents the 'length' of undefined error
-        };
+        }
       }
     }
 
     // Call original with the correct context and arguments
-    return originalFindTarget(e);
-  };
+    return originalFindTarget(e)
+  }
 }
 
-export function initBorderRenderer(c: Canvas) {
-  c.on('after:render', () => {
-    if (!c) return
-    const ctx = c.getContext()
-    if (!ctx) return
-
-    const dpr = window.devicePixelRatio || 1
-
-    ctx.save()
-
-    if (c.viewportTransform) {
-      const v = c.viewportTransform
-      ctx.setTransform(
-        v[0] * dpr,
-        v[1] * dpr,
-        v[2] * dpr,
-        v[3] * dpr,
-        v[4] * dpr,
-        v[5] * dpr
-      )
-    } else {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    }
-
-    ctx.strokeStyle = '#B9463A'
-    ctx.lineWidth = 10
-    ctx.strokeRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
-
-    ctx.restore()
-  })
-}

@@ -144,6 +144,7 @@ async function syncImgFilterChanged(params: DrawSyncingParams<DrawSyncingEvent.I
     img.filters?.pop()
   } else {
     const [filter] = await fabric.util.enlivenObjects<any>([params.filter]) // TODO typing
+    if (filter.type == 'BlendColor') img.filters = img.filters?.filter((f: any) => f.type != 'BlendColor')
     img.filters?.push(filter)
   }
 

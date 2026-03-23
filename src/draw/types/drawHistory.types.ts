@@ -50,7 +50,7 @@ export type HistoryParamsMap = {
     prevStyles: Record<string, any>;
     newStyles: Record<string, any> | null
   }
-  [HistoryEvent.ImgFilterChanged]: { objectId: string; prevFilter: any; newFilter: any }
+  [HistoryEvent.ImgFilterChanged]: { objectId: string; prevFilter: any; newFilter: any, prevBlendColorFilter: any }
   [HistoryEvent.Merge]: { group: any | undefined, objectIds: string[] }
 }
 

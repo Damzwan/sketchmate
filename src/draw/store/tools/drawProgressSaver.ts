@@ -66,7 +66,7 @@ export function useDrawProgressSaver() {
         const store = transaction.objectStore(objectStoreName)
         store.put(json, fixedKey)
         saveTimeout = undefined
-        console.log('saving canvas to local db')
+        // console.log('saving canvas to local db')
       }
     }, 200)
   }

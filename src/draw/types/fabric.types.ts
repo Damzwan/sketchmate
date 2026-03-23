@@ -98,6 +98,7 @@ declare module 'fabric' {
       target: FabricObject
       prevFilter: any
       filter: any
+      prevBlendColorFilter?: any
     }
 
     zoomReset: Partial<TEvent>

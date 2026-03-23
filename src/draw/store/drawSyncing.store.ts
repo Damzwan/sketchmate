@@ -128,6 +128,13 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       }
     },
     {
+      on: 'objects:added',
+      handler: (e: any) => {
+        const targets = e.target as FabricObject[]
+        emitDrawSyncingEvent({ type: DrawSyncingEvent.added, params: { objectJSONS: toJSON(targets) } })
+      }
+    },
+    {
       on: 'objectsDeleted',
       handler: (e: any) => {
         const targets = e.target as FabricObject[]

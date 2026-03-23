@@ -1,33 +1,41 @@
 import { FabricImage } from 'fabric'
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { HistoryContext } from '@/draw/config/drawHistory.config'
+import * as fabric from 'fabric'
 
 export async function redoImgFilter(
   ctx: HistoryContext,
   action: HistoryAction<HistoryEvent.ImgFilterChanged>
 ): Promise<HistoryAction<HistoryEvent.ImgFilterChanged>> {
   const { canvas, getObjectById } = ctx
-
   const img = getObjectById(action.params.objectId) as FabricImage
+
   if (!img) return action
 
-  const prevFilter = action.params.prevFilter
+  let updatedPrevFilter = action.params.prevFilter
 
-  if (prevFilter) {
-    // If we have a filter to restore, push it
-    img.filters?.push(prevFilter)
-    action.params.prevFilter = null
+  if (action.params.prevFilter) {
+    if (action.params.prevFilter.type == 'BlendColor') img.filters = img.filters?.filter((f: any) => f.type != 'BlendColor')
+    const [filterAlive] =  await fabric.util.enlivenObjects<any>([action.params.prevFilter]) // TODO mismatch between undo/redo sync (json instaed of object) and normal
+    img.filters?.push(filterAlive)
+    updatedPrevFilter = null
   } else {
-    // Otherwise, we are redoing a "removal" (pop)
+    // Redo a removal (pop)
     const poppedFilter = img.filters?.pop()
-    action.params.prevFilter = poppedFilter || null
+    updatedPrevFilter = poppedFilter || null
   }
 
-  // applyFilters is essential for visual updates in Fabric
   await img.applyFilters()
   canvas.requestRenderAll()
 
-  return action
+  // Return a new object with updated params
+  return {
+    ...action,
+    params: {
+      ...action.params,
+      prevFilter: updatedPrevFilter
+    }
+  }
 }
 
 export async function undoImgFilter(
@@ -35,24 +43,37 @@ export async function undoImgFilter(
   action: HistoryAction<HistoryEvent.ImgFilterChanged>
 ): Promise<HistoryAction<HistoryEvent.ImgFilterChanged>> {
   const { canvas, getObjectById } = ctx
-
   const img = getObjectById(action.params.objectId) as FabricImage
+
   if (!img) return action
 
-  const prevFilter = action.params.prevFilter
+  const { prevFilter, prevBlendColorFilter } = action.params
+  let nextPrevFilter = prevFilter
 
   if (prevFilter) {
-    // If we have a filter to put back, push it
+    // Restore previous filter
     img.filters?.push(prevFilter)
-    action.params.prevFilter = null
+    nextPrevFilter = null
   } else {
-    // If we are undoing an addition, pop it
+    // Undo an addition (pop)
     const poppedFilter = img.filters?.pop()
-    action.params.prevFilter = poppedFilter || null
+
+    if (prevBlendColorFilter) {
+      const [prevBlendColorFilterAlive] = await fabric.util.enlivenObjects<any>([prevBlendColorFilter]) // TODO mismatch between undo/redo sync (json instaed of object) and normal
+      img.filters.push(prevBlendColorFilterAlive)
+    }
+    nextPrevFilter = poppedFilter || null
   }
 
   await img.applyFilters()
   canvas.requestRenderAll()
 
-  return action
+  // Return a new object with updated params
+  return {
+    ...action,
+    params: {
+      ...action.params,
+      prevFilter: nextPrevFilter
+    }
+  }
 }

@@ -187,7 +187,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
       handler: (e: any) => {
         addToUndoStackWithResetRedo({
           type: HistoryEvent.ImgFilterChanged,
-          params: { prevFilter: e.prevFilter, objectId: e.target.id, newFilter: null }
+          params: { prevFilter: e.prevFilter, objectId: e.target.id, newFilter: null, prevBlendColorFilter: e.prevBlendColorFilter }
         })
       }
     }, {

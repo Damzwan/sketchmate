@@ -42,7 +42,12 @@ export function addFilterToImg(params: DrawActionParams[DrawAction.AddImgFilter]
 
     img.filters?.splice(filterIndexToFind, 1)
   } else {
-    c.fire('imgFilterChanged', { target: img, prevFilter: null, filter: filter })
+    c.fire('imgFilterChanged', {
+      target: img,
+      prevFilter: null,
+      filter: filter,
+      prevBlendColorFilter: img.filters.find(f => f.type == 'BlendColor')
+    })
     if (filter.type == 'BlendColor') img.filters = img.filters?.filter((f: any) => f.type != 'BlendColor')
     img.filters?.push(filter)
   }

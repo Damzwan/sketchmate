@@ -61,6 +61,8 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     else if (reason === 'ROOM_NOT_FOUND') {
       removeRoomIdFromUrl()
       toast(`Room does not exist`, { color: 'danger' })
+    } else if (reason === 'USER_ALREADY_IN_LOBBY') {
+      toast('Already active on another device', { color: 'danger' })
     } else toast(`Unknown error, try again later`, { color: 'danger' })
 
     isTryingToJoin.value = false

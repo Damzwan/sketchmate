@@ -13,7 +13,6 @@ import { handleTextModification } from '@/draw/helpers/history/text.helper'
 import { getObjectDiff } from '@/draw/helpers/history/object.helper'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
-import * as fabric from 'fabric'
 
 
 export const useDrawHistoryManager = defineStore('history', () => {

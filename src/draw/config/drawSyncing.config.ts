@@ -9,7 +9,6 @@ import { fullErase } from '@/draw/actions/erase.action'
 import { DrawAction } from '@/draw/types/draw.types'
 import { setCanvasBackground } from '@/draw/actions/color.action'
 import { redoActionMapping, undoActionMapping } from '@/draw/config/drawHistory.config'
-import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { mergeHelper } from '@/draw/actions/object.action'
 
@@ -65,42 +64,44 @@ async function syncFullErase() {
 async function syncMoveObjectToFront(params: DrawSyncingParams<DrawSyncingEvent.MoveObjectToFront>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
-  drawActionMapping[DrawAction.MoveObjectToFront]({ objects: objects })
+  await drawActionMapping[DrawAction.MoveObjectToFront]({ objects: objects })
 }
 
 async function syncMoveObjectToBack(params: DrawSyncingParams<DrawSyncingEvent.MoveObjectToFront>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
-  drawActionMapping[DrawAction.MoveObjectToBack]({ objects: objects })
+  await drawActionMapping[DrawAction.MoveObjectToBack]({ objects: objects })
 }
 
 
 async function syncMoveObjectDownOneLayer(params: DrawSyncingParams<DrawSyncingEvent.MoveObjectToFront>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
-  drawActionMapping[DrawAction.MoveObjectDownOneLayer]({ objects: objects })
+  await drawActionMapping[DrawAction.MoveObjectDownOneLayer]({ objects: objects })
 }
 
 async function syncMoveObjectUpOneLayer(params: DrawSyncingParams<DrawSyncingEvent.MoveObjectToFront>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
-  drawActionMapping[DrawAction.MoveObjectUpOneLayer]({ objects: objects })
+  await drawActionMapping[DrawAction.MoveObjectUpOneLayer]({ objects: objects })
 }
 
 async function syncFlipX(params: DrawSyncingParams<DrawSyncingEvent.FlipX>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
-  drawActionMapping[DrawAction.FlipX]({ objects: objects })
+  await drawActionMapping[DrawAction.FlipX]({ objects: objects })
 }
 
 async function syncFlipY(params: DrawSyncingParams<DrawSyncingEvent.FlipY>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
-  drawActionMapping[DrawAction.FlipY]({ objects: objects })
+  await drawActionMapping[DrawAction.FlipY]({ objects: objects })
 }
 
 async function syncObjectsCopied(params: DrawSyncingParams<DrawSyncingEvent.ObjectsCopied>) {
-  await syncObjectsAdded({ objectJSONS: params.objectsJSON })
+  const { getObjectsById } = useDrawObjectManager()
+  const objects = getObjectsById(params.objectIds)
+  await drawActionMapping[DrawAction.CopyObject]({ objects: objects, newObjectIds: params.newObjectIds })
 }
 
 async function syncBackgroundColorChanged(params: DrawSyncingParams<DrawSyncingEvent.BackgroundColorChanged>) {

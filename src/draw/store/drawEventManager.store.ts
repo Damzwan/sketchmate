@@ -51,13 +51,27 @@ export const useDrawEventManager = defineStore('draw-event-manager', () => {
     eventsMapping['tool'].forEach((ev) => c!.on(ev.on, ev.handler))
   }
 
+  let deactivationStack = 0
+
   async function actionWithoutEvents(action: () => Promise<void> | void) {
-    for (const key in eventsMapping) {
-      eventsMapping[key].forEach((ev) => c!.off(ev.on, ev.handler))
+    deactivationStack++
+
+    if (deactivationStack === 1) {
+      for (const key in eventsMapping) {
+        eventsMapping[key].forEach((ev) => c!.off(ev.on, ev.handler))
+      }
     }
-    await action()
-    for (const key in eventsMapping) {
-      eventsMapping[key].forEach((ev) => c!.on(ev.on, ev.handler))
+
+    try {
+      await action()
+    } finally {
+      deactivationStack--
+
+      if (deactivationStack === 0) {
+        for (const key in eventsMapping) {
+          eventsMapping[key].forEach((ev) => c!.on(ev.on, ev.handler))
+        }
+      }
     }
   }
 

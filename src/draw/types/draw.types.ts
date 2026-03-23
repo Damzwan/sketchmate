@@ -161,7 +161,7 @@ export interface DrawActionObjectParams {
 export type DrawActionParams = {
   [DrawAction.FullErase]: undefined;
   [DrawAction.SetPropertiesOfObject]: DrawActionObjectParams & { properties: any };
-  [DrawAction.CopyObject]: DrawActionObjectParams;
+  [DrawAction.CopyObject]: DrawActionObjectParams & { newObjectIds: string[] };
   [DrawAction.AddText]: undefined;
   [DrawAction.Merge]: DrawActionObjectParams;
   [DrawAction.RemoveSelectedObjects]: undefined;

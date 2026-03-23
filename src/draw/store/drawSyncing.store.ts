@@ -236,7 +236,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       handler: (e: any) => {
         emitDrawSyncingEvent({
           type: DrawSyncingEvent.ObjectsCopied,
-          params: { objectsJSON: e.target }
+          params: { objectIds: e.objectIdsToClone, newObjectIds: e.newObjectIds }
         })
       }
     }, {
@@ -316,6 +316,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       // @ts-ignore
       await drawSyncingMapping[action.type](action.params) // TODO fix typing
     })
+
     getCanvas().requestRenderAll() // TODO we should only call it here and not for every action...
   }
 

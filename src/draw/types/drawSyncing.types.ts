@@ -37,7 +37,7 @@ export type DrawSyncingMap = {
   [DrawSyncingEvent.MoveObjectToBack]: { objectIds: string[] },
   [DrawSyncingEvent.FlipX]: { objectIds: string[] },
   [DrawSyncingEvent.FlipY]: { objectIds: string[] },
-  [DrawSyncingEvent.ObjectsCopied]: { objectsJSON: any },
+  [DrawSyncingEvent.ObjectsCopied]: { objectIds: string[], newObjectIds: string[] },
   [DrawSyncingEvent.BackgroundColorChanged]: { color: string },
   [DrawSyncingEvent.TextStyleChanged]: { style: any, objectId: string },
   [DrawSyncingEvent.ObjectStyleChanged]: { style: any, objectIds: string[] },

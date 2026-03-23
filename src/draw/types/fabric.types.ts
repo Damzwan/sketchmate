@@ -57,6 +57,8 @@ declare module 'fabric' {
 
     objectsCopied: Partial<TEvent> & {
       target: string[]
+      objectIdsToClone: string[]
+      newObjectIds: string[]
     }
 
     objectsMerged: Partial<TEvent> & {

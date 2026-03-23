@@ -1,7 +1,10 @@
 <template>
   <ion-modal
     :is-open="roomMenuOpen"
-    @did-dismiss="roomMenuOpen = false"
+    @did-dismiss="() => {
+      roomMenuOpen = false
+      code = ['', '', '', '']
+    }"
     :initial-breakpoint="1" :breakpoints="[0, 1]"
     handle-behavior="cycle"
   >

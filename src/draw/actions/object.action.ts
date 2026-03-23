@@ -147,25 +147,31 @@ export async function copyObjects(params: DrawActionParams[DrawAction.CopyObject
     c.discardActiveObject()
     clonedObjects = await Promise.all(params.objects.map((obj: FabricObject) => obj.clone()))
 
-    for (const obj of clonedObjects) {
+    clonedObjects.forEach((obj: FabricObject, i) => {
       obj.set({ left: obj.left! + offsetX, top: obj.top! + offsetY })
-      obj.id = uuidv4()
+      obj.id = params.newObjectIds ? params.newObjectIds[i] : uuidv4()
       c.add(obj)
-    }
-
+    })
   })
 
   const clonedJsons = toJSON(clonedObjects)
 
-  const newActiveObject =
-    clonedObjects.length == 1 ? clonedObjects[0] : new ActiveSelection(clonedObjects, { canvas: c })
+  // normal scenario, not when syncing events
+  if (!params.newObjectIds) {
+    const newActiveObject =
+      clonedObjects.length == 1 ? clonedObjects[0] : new ActiveSelection(clonedObjects, { canvas: c })
 
-  c.setActiveObject(newActiveObject) // TODO
+    c.setActiveObject(newActiveObject)
+  }
+
   c.requestRenderAll()
 
 
-  c.fire('objectsCopied', { target: clonedJsons })
-
+  c.fire('objectsCopied', {
+    target: clonedJsons,
+    objectIdsToClone: params.objects.map((obj: FabricObject) => obj.id),
+    newObjectIds: clonedObjects.map((obj: FabricObject) => obj.id)
+  })
 }
 
 export function mergeHelper(

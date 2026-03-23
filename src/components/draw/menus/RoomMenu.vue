@@ -37,7 +37,7 @@
           </div>
 
           <div class="p-1.5 bg-white rounded-lg ring-1 ring-black/5">
-            <qrcode-vue :value="roomIdLink" :size="64" background="white" foreground="#000" />
+            <qrcode-vue :value="roomIdLink" :size="96" background="white" foreground="#000" />
           </div>
         </div>
 
@@ -304,13 +304,9 @@ import { mdiCamera, mdiShareVariant } from '@mdi/js'
 import { isNative, svg } from '@/helper/general.helper'
 import { createRoomLink, shareUrl } from '@/helper/share.helper'
 import QrcodeVue from 'qrcode.vue'
-import { socketLoggedInPromise, useSocketService } from '@/service/api/socket/socket.service'
+import { useSocketService } from '@/service/api/socket/socket.service'
 import { useFriendStore } from '@/store/friend.store'
-import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
-import QrScanner from 'qr-scanner'
 import { useScanner } from '@/service/scanner.service'
-import { useToast } from '@/service/toast.service'
-import { useSessionStore } from '@/store/session.store'
 
 
 const {
@@ -392,6 +388,9 @@ const handlePaste = (event: any) => {
 function inviteFriend(friend: string) {
   if (!roomId.value) return
   invitedFriends.value.push(friend)
+  setTimeout(() => {
+    invitedFriends.value = invitedFriends.value.filter(item => item !== friend)
+  }, 5000)
   inviteFriendToRoom(friend, roomId.value)
 }
 

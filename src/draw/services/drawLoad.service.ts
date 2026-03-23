@@ -45,7 +45,7 @@ export function useLoadService() {
         selection.dispose()
       }
 
-      EventBus.emit('saveDrawing', {})
+      EventBus.emit('saveDrawing')
     })
 
     isSendingDrawing.value = false

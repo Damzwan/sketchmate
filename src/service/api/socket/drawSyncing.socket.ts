@@ -159,6 +159,13 @@ export function leaveRoom() {
 
 export function emitDrawSyncingEvent(action: DrawSyncingAction) {
   const { roomId } = useDrawSyncer()
+
+  const json = JSON.stringify(action)
+  const sizeBytes = new Blob([json]).size
+  const sizeMB = sizeBytes / (1024 * 1024)
+
+  console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
+
   socket!.emit('draw-event', { roomId: roomId, action })
 }
 

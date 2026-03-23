@@ -12,6 +12,10 @@
     padding-bottom: var(--ion-safe-area-bottom, 0);
 }
 
+.top-pad-safe {
+    padding-top: var(--ion-safe-area-top, 0);
+}
+
 .top-safe {
     top: var(--ion-safe-area-top, 0);
 }

@@ -11,6 +11,7 @@ import { setCanvasBackground } from '@/draw/actions/color.action'
 import { redoActionMapping, undoActionMapping } from '@/draw/config/drawHistory.config'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { mergeHelper } from '@/draw/actions/object.action'
+import { CustomEraserBrush, eraseObject } from '@/draw/utils/brushes/CustomEraserBrush'
 
 // TODO duplicate logic from history... think!
 async function syncObjectsAdded(params: DrawSyncingParams<DrawSyncingEvent.added>) {
@@ -42,7 +43,7 @@ async function syncObjectsRemoved(params: DrawSyncingParams<DrawSyncingEvent.rem
 
 async function syncObjectsModified(params: DrawSyncingParams<DrawSyncingEvent.modified>) {
   const { getCanvas } = useDrawStore()
-  const { getObjectById, updateVisibility, updateQuadTree } = useDrawObjectManager()
+  const { getObjectById, updateVisibility } = useDrawObjectManager()
   const { createHistoryContext } = useDrawHistoryManager()
 
 
@@ -175,15 +176,12 @@ async function syncErasingEnd(params: DrawSyncingParams<DrawSyncingEvent.Erasing
   const { getCanvas } = useDrawStore()
   const c = getCanvas()
 
-  const objects = getObjectsById(params.objectIds)
-  const enlivenedClipPaths = await fabric.util.enlivenObjects<FabricObject>(params.clipPaths)
+  const enlivenedPath = await fabric.util.enlivenObjects<fabric.Path>([params.erasePath])
+  const newStroke = enlivenedPath[0]
 
-  objects.forEach((o, i) => {
-    if (o && enlivenedClipPaths[i]) {
-      const clipPath = enlivenedClipPaths[i]
-      o.set('clipPath', clipPath)
-    }
-  })
+  const objects = getObjectsById(params.objectIds)
+
+  await Promise.all(objects.map(async (o) => eraseObject(o, newStroke)))
 
   c.requestRenderAll()
 }

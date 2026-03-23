@@ -496,7 +496,7 @@ export class CustomEraserBrush extends PencilBrush {
       this._afterRenderHandler = undefined
     }
 
-    return true
+    return false
   }
 
   /**

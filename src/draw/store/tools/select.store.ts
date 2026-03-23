@@ -176,7 +176,7 @@ export const useSelect = defineStore('select', (): Select => {
           const p = new fabric.Point(text.left, text.top)
           const screenPoint = fabric.util.transformPoint(p, c!.viewportTransform)
           isBottomHalf.value = screenPoint.y > window.innerHeight / 2
-          if (isBottomHalf.value) text.top -= TEXT_JUMP_Y_VALUE
+          // if (isBottomHalf.value) text.top -= TEXT_JUMP_Y_VALUE
           c?.requestRenderAll()
         }
       }
@@ -186,7 +186,7 @@ export const useSelect = defineStore('select', (): Select => {
       handler: () => {
         if (isNative() && isBottomHalf.value && isText(selectedObjects)) {
           const text = selectedObjects[0] as IText
-          text.top += TEXT_JUMP_Y_VALUE
+          // text.top += TEXT_JUMP_Y_VALUE
           c?.requestRenderAll()
         }
       }

@@ -7,11 +7,23 @@
     <div class="comment rounded-xl px-2 py-1.5 w-[180px] shadow-md cursor-pointer">
 
       <!-- Header -->
-      <div class="flex items-center gap-1.5 mb-1">
-        <div class="w-6 h-6 flex items-center justify-center rounded-full bg-white/10">
-          <ion-icon :icon="svg(mdiChatOutline)" class="text-white text-xs" />
+      <div class="flex flex-col gap-2 w-full mb-2">
+        <div class="flex items-center gap-1.5">
+          <div class="w-6 h-6 flex items-center justify-center rounded-full bg-white/10">
+            <ion-icon :icon="svg(mdiChatOutline)" class="text-white text-xs" />
+          </div>
+          <span class="text-white text-xs font-medium opacity-80">Chat</span>
         </div>
-        <span class="text-white text-xs font-medium opacity-80">Chat</span>
+
+        <div
+          v-if="disconnectedRoomId"
+          class="flex items-center gap-1.5 animate-pulse pl-1"
+        >
+          <div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+          <span class="text-amber-400 text-[10px] font-bold uppercase tracking-wide">
+      Reconnecting...
+    </span>
+        </div>
       </div>
 
       <!-- Messages -->
@@ -66,6 +78,7 @@
   <!-- Modal -->
   <ion-modal
     :is-open="chatMenuOpen"
+    @did-present="() => scrollToBottom()"
     @did-dismiss="chatMenuOpen = false"
     :initial-breakpoint="1" :breakpoints="[0, 1]"
     handle-behavior="cycle"
@@ -217,7 +230,7 @@ import { Mate } from '@/types/server.types'
 
 // Stores
 const drawSyncerStore = useDrawSyncer()
-const { lobbyChatMessages } = storeToRefs(drawSyncerStore)
+const { lobbyChatMessages, disconnectedRoomId } = storeToRefs(drawSyncerStore)
 const { chatMenuOpen } = storeToRefs(useMenuStore())
 const { user } = storeToRefs(useAuthStore())
 

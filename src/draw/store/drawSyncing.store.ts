@@ -114,9 +114,14 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       handler: (e: any) => {
         if (e.detail.targets.length == 0) return
         const targets = e.detail.targets as FabricObject[]
+        const path = e.detail.path
+
         emitDrawSyncingEvent({
           type: DrawSyncingEvent.ErasingEnd,
-          params: { objectIds: toObjectsIds(targets), clipPaths: targets.map(o => o.clipPath?.toJSON()) }
+          params: {
+            objectIds: toObjectsIds(targets),
+            erasePath: path.toJSON(['globalCompositeOperation', 'opacity', 'stroke'])
+          }
         })
       }
     },

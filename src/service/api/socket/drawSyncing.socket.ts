@@ -7,7 +7,6 @@ import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawSyncingAction } from '@/draw/types/drawSyncing.types'
 import { SOCKET_ENDPONTS } from '@/types/server.types'
 import { createJoinRoomButton } from '@/config/toast.config'
-import { useRoute, useRouter } from 'vue-router'
 import router from '@/router'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
@@ -18,6 +17,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     cr.value = isCreator
     isTryingToJoin.value = false
     stopWatchingLobbies()
+    addRoomIdToUrl(roomId)
 
 
     if (!isCreator) {
@@ -59,9 +59,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
     if (reason === 'ROOM_FULL') toast(`Room is full, try again later`, { color: 'danger' })
     else if (reason === 'ROOM_NOT_FOUND') {
-      const query = { ...router.currentRoute.value.query }
-      delete query.room_id
-      router.replace({ query })
+      removeRoomIdFromUrl()
       toast(`Room does not exist`, { color: 'danger' })
     } else toast(`Unknown error, try again later`, { color: 'danger' })
 
@@ -152,6 +150,7 @@ export function leaveRoom() {
   roomMembers.value = []
   invitedFriends.value = []
   socket!.emit('leave-room', { roomId: roomId.value })
+  removeRoomIdFromUrl()
   roomId.value = undefined
   isPublicLobby.value = false
 }
@@ -190,3 +189,17 @@ function handleLobbyUpdate(lobbies: PublicLobby[]) {
   publicLobbies.value = lobbies
 }
 
+function removeRoomIdFromUrl() {
+  const query = { ...router.currentRoute.value.query }
+  delete query.room_id
+  router.replace({ query })
+}
+
+function addRoomIdToUrl(roomId: string) {
+  const query = {
+    ...router.currentRoute.value.query,
+    room_id: roomId
+  }
+
+  router.replace({ query })
+}

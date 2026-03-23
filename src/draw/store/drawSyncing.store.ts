@@ -94,7 +94,8 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       })
     }
 
-    if (newRoomId !== null) {
+
+    if (!!newRoomId) {
       EventBus.off('undo', handleUndo)
       EventBus.off('redo', handleRedo)
 

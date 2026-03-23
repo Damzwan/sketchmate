@@ -129,7 +129,7 @@
         <div class="pt-4 px-1">
           <ion-button expand="block" color="danger" fill="clear"
                       class="text-xs font-bold cabin-sketch-regular uppercase"
-                      @click="leaveRoom">
+                      @click="() => leaveRoom()">
             Leave room
           </ion-button>
         </div>

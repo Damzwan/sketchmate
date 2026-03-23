@@ -8,6 +8,7 @@ import { DrawSyncingAction } from '@/draw/types/drawSyncing.types'
 import { SOCKET_ENDPONTS } from '@/types/server.types'
 import { createJoinRoomButton } from '@/config/toast.config'
 import router from '@/router'
+import { ToastDuration } from '@/types/toast.types'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   socket.on('room-joined', async ({ roomId, users, isCreator }) => {
@@ -54,7 +55,6 @@ export function registerDrawSyncingHandlers(socket: Socket) {
   })
 
   socket.on('join-error', async ({ reason }) => {
-    const { isTryingToJoin } = storeToRefs(useDrawSyncer())
     const { toast } = useToast()
 
     if (reason === 'ROOM_FULL') toast(`Room is full, try again later`, { color: 'danger' })
@@ -65,7 +65,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       toast('Already active on another device', { color: 'danger' })
     } else toast(`Unknown error, try again later`, { color: 'danger' })
 
-    isTryingToJoin.value = false
+    leaveRoom(true)
   })
 
   socket.on('request-canvas-state', ({ targetSocketId }) => {
@@ -146,15 +146,16 @@ export function socketJoinRoom({ roomId, intent }: {
   socket!.emit('join-room', { roomId, intent })
 }
 
-export function leaveRoom() {
+export function leaveRoom(skipEmit = false) {
   const { roomId, roomMembers, invitedFriends, isPublicLobby } = storeToRefs(useDrawSyncer())
   if (!roomId.value) return
   roomMembers.value = []
   invitedFriends.value = []
-  socket!.emit('leave-room', { roomId: roomId.value })
   removeRoomIdFromUrl()
-  roomId.value = undefined
   isPublicLobby.value = false
+
+  if (!skipEmit) socket!.emit('leave-room', { roomId: roomId.value })
+  roomId.value = undefined
 }
 
 export function emitDrawSyncingEvent(action: DrawSyncingAction) {
@@ -165,6 +166,13 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
   const sizeMB = sizeBytes / (1024 * 1024)
 
   console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
+
+  if (sizeMB >= 0.6) {
+    const { toast } = useToast()
+    toast('Kicked out of lobby, operation too big', { color: 'danger', duration: ToastDuration.long })
+    leaveRoom()
+    return
+  }
 
   socket!.emit('draw-event', { roomId: roomId, action })
 }

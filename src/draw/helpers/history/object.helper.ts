@@ -33,6 +33,7 @@ export async function redoObjectAdded(ctx: HistoryContext, action: HistoryAction
   const objectsToRedo = action.params.objectJSON
   if (!objectsToRedo) return action
 
+
   const [enlivened] = await fabric.util.enlivenObjects<FabricObject>([objectsToRedo])
   ctx.canvas.add(enlivened)
   ctx.canvas.requestRenderAll()
@@ -45,6 +46,7 @@ export async function redoObjectsAdded(ctx: HistoryContext, action: HistoryActio
   if (!objectsToRedo?.length) return action
 
   const enlivened = await fabric.util.enlivenObjects<FabricObject>(objectsToRedo)
+
   enlivened.forEach(obj => {
     if ((obj as any).insertedIndex !== undefined && (obj as any).insertedIndex !== null) {
       ctx.canvas.insertAt((obj as any).insertedIndex, obj)

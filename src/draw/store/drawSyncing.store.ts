@@ -56,6 +56,20 @@ export interface PublicLobby {
   maxUsers: number;
 }
 
+const handleUndo = (params: any) => {
+  emitDrawSyncingEvent({
+    type: DrawSyncingEvent.Undo,
+    params: params as HistoryAction
+  })
+}
+
+const handleRedo = (params: any) => {
+  emitDrawSyncingEvent({
+    type: DrawSyncingEvent.Redo,
+    params: params as HistoryAction
+  })
+}
+
 
 export const useDrawSyncer = defineStore('drawSyncer', () => {
   const roomMembers = ref<Mate[]>([])
@@ -71,30 +85,14 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   const isPublicLobby = ref<boolean>(false)
   const publicLobbyName = ref<string>('')
   const disconnectedRoomId = ref<string>()
+  const isProcessingQueue = ref(false)
 
 
   const actionQueue: DrawSyncingAction[] = []
 
+
   watch(roomId, (newRoomId) => {
     const { addEventsOfService, removeEventsOfService } = useDrawEventManager()
-
-    const handleUndo = (params: any) => {
-      if (!roomId.value) return
-      emitDrawSyncingEvent({
-        type: DrawSyncingEvent.Undo,
-        params: params as HistoryAction
-      })
-    }
-
-    const handleRedo = (params: any) => {
-      if (!roomId.value) return
-      emitDrawSyncingEvent({
-        type: DrawSyncingEvent.Redo,
-        params: params as HistoryAction
-      })
-    }
-
-
     if (!!newRoomId) {
       EventBus.off('undo', handleUndo)
       EventBus.off('redo', handleRedo)
@@ -303,6 +301,11 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     reset()
     await loadCanvas(canvasJSON)
 
+
+    if (actionQueue.length > 0) {
+      await processActionQueue()
+    }
+
     for (const action of actionQueue.reverse()) {
       await executeDrawSyncingAction(action)
     }
@@ -314,16 +317,40 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     actionQueue.push(action)
   }
 
+
   async function executeDrawSyncingAction(action: DrawSyncingAction) {
+    actionQueue.push(action)
+
+    // Only trigger processing if not already processing AND canvas is fully loaded
+    if (!isProcessingQueue.value && !isLoadingCanvas.value) {
+      processActionQueue()
+    }
+  }
+
+  async function processActionQueue() {
+    isProcessingQueue.value = true
+
     const { getCanvas } = useDrawStore()
-
     const { actionWithoutEvents } = useDrawEventManager()
-    await actionWithoutEvents(async () => {
-      // @ts-ignore
-      await drawSyncingMapping[action.type](action.params) // TODO fix typing
-    })
 
-    getCanvas().requestRenderAll() // TODO we should only call it here and not for every action...
+    try {
+      while (actionQueue.length > 0) {
+        // shift() removes and returns the first element (FIFO)
+        const action = actionQueue.shift()
+        if (!action) continue
+
+        await actionWithoutEvents(async () => {
+          // @ts-ignore
+          await drawSyncingMapping[action.type](action.params) // TODO fix typing
+        })
+      }
+    } catch (error) {
+      console.error('Error executing synced action:', error)
+    } finally {
+      // Call requestRenderAll exactly once per batch
+      getCanvas().requestRenderAll()
+      isProcessingQueue.value = false
+    }
   }
 
 

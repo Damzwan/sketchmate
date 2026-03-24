@@ -9,6 +9,8 @@ import { SOCKET_ENDPONTS } from '@/types/server.types'
 import { createJoinRoomButton } from '@/config/toast.config'
 import router from '@/router'
 import { ToastDuration } from '@/types/toast.types'
+import { getDateOfBirthConfirmationResponse } from '@/helper/general.helper'
+import { useAuthStore } from '@/store/auth.store'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   socket.on('room-joined', async ({ roomId, users, isCreator }) => {
@@ -61,8 +63,8 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     else if (reason === 'ROOM_NOT_FOUND') {
       removeRoomIdFromUrl()
       toast(`Room does not exist`, { color: 'danger' })
-    } else if (reason === 'USER_ALREADY_IN_LOBBY') {
-      toast('Already active on another device', { color: 'danger' })
+    } else if (reason === 'DOUBLE_JOIN') {
+      toast('Joined from another device', { color: 'danger' })
     } else toast(`Unknown error, try again later`, { color: 'danger' })
 
     leaveRoom(true)
@@ -165,7 +167,7 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
   const sizeBytes = new Blob([json]).size
   const sizeMB = sizeBytes / (1024 * 1024)
 
-  console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
+  // console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
 
   if (sizeMB >= 0.6) {
     const { toast } = useToast()
@@ -173,6 +175,9 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
     leaveRoom()
     return
   }
+
+  console.log('sending')
+
 
   socket!.emit('draw-event', { roomId: roomId, action })
 }
@@ -186,7 +191,15 @@ export function sendLobbyMessage(message: string) {
   socket!.emit('lobby-message', { roomId, message })
 }
 
-export function startWatchingLobbies() {
+export async function startWatchingLobbies() {
+  const { shouldShowDateOfBirthConfirmation } = useAuthStore()
+  if (shouldShowDateOfBirthConfirmation) {
+    const socialFeatureResult = await getDateOfBirthConfirmationResponse()
+    if (socialFeatureResult == 'cancel' || socialFeatureResult == 'notAllowed') {
+      return
+    }
+  }
+
   const { isWatchingPublicLobbies } = storeToRefs(useDrawSyncer())
   isWatchingPublicLobbies.value = true
   socket!.emit('watch-public-lobbies')

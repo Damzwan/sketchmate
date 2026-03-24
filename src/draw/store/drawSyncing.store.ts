@@ -14,7 +14,7 @@ import { getObjectDiff } from '@/draw/helpers/history/object.helper'
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { EventBus } from '@/main'
 import { useSelect } from '@/draw/store/tools/select.store'
-import { handleTextModification, handleTextModificationSync } from '@/draw/helpers/history/text.helper'
+import { handleTextModificationSync } from '@/draw/helpers/history/text.helper'
 
 export interface DrawInvitation {
   friend: Mate,

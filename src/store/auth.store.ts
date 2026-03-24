@@ -26,6 +26,7 @@ import { useInboxStore } from '@/store/inbox.store'
 import { useSocketService } from '@/service/api/socket/socket.service'
 import { useSessionStore } from '@/store/session.store'
 import { useDrawStore } from '@/draw/store/draw.store'
+import { leaveRoom } from '@/service/api/socket/drawSyncing.socket'
 
 export const useAuthStore = defineStore('auth', () => {
   const api = useAPI()
@@ -245,9 +246,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
-    isLoggedIn.value = false
-    user.value = undefined
-
     // TODO can be done better
     const { showEnableNotificationsAfterLogin } = storeToRefs(useNotificationStore())
     showEnableNotificationsAfterLogin.value = false
@@ -255,8 +253,21 @@ export const useAuthStore = defineStore('auth', () => {
     Preferences.remove({ key: LocalStorage.user_id })
     Preferences.remove({ key: LocalStorage.notificationToken })
 
+    const { logout: socketLogout } = useSocketService()
+    socketLogout()
+    if (deviceFingerprint.value) {
+      api.onLoginEvent({
+        user_id: user.value!._id,
+        fingerprint: deviceFingerprint.value,
+        loggedIn: false
+      })
+    }
+
+    leaveRoom()
+
     await FirebaseAuthentication.signOut()
-    // authStateChange listener will redirect
+    isLoggedIn.value = false
+    user.value = undefined
   }
 
   return {

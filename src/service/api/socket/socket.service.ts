@@ -309,6 +309,10 @@ export function createSocketService(): SocketAPI {
     socket!.emit(SOCKET_ENDPONTS.login, params)
   }
 
+  async function logout(): Promise<void> {
+    socket?.disconnect()
+  }
+
   async function match(params: MatchParams): Promise<void> {
     await socketLoggedInPromise // make sure the user Id to socket mapping in the backend exists
     isLoading.value = true
@@ -399,6 +403,7 @@ export function createSocketService(): SocketAPI {
     refuseSendMateRequest,
     acceptBalloon,
     rejectBalloon,
-    cancelBalloon
+    cancelBalloon,
+    logout
   }
 }

@@ -4,6 +4,7 @@
     @did-dismiss="() => {
       roomMenuOpen = false
       code = ['', '', '', '']
+      stopWatchingLobbies()
     }"
     :initial-breakpoint="1" :breakpoints="[0, 1]"
     handle-behavior="cycle"
@@ -298,7 +299,7 @@ import {
   inviteFriendToRoom,
   leaveRoom,
   socketJoinRoom,
-  startWatchingLobbies
+  startWatchingLobbies, stopWatchingLobbies
 } from '@/service/api/socket/drawSyncing.socket'
 import { mdiCamera, mdiShareVariant } from '@mdi/js'
 import { isNative, svg } from '@/helper/general.helper'

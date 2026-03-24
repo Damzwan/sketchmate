@@ -8,7 +8,7 @@
 
       <div
         class="grow flex m-0 pointer-none"
-        :class="{ 'pointer-events-none opacity-50': disconnectedRoomId }"
+        :class="{ 'pointer-events-none opacity-50': disconnectedRoomId || isLoadingCanvas }"
       >
         <canvas ref="myCanvasRef" class="w-full h-full" id="mainCanvas" />
       </div>
@@ -45,7 +45,7 @@ import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 const myCanvasRef = ref<HTMLCanvasElement>()
 const { initCanvas } = useDrawStore()
 const { isSendingDrawing } = storeToRefs(useDrawStore())
-const {disconnectedRoomId} = storeToRefs(useDrawSyncer())
+const {disconnectedRoomId, isLoadingCanvas} = storeToRefs(useDrawSyncer())
 
 
 onIonViewDidEnter(() => {

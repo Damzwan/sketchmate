@@ -149,12 +149,13 @@ export function socketJoinRoom({ roomId, intent }: {
 }
 
 export function leaveRoom(skipEmit = false) {
-  const { roomId, roomMembers, invitedFriends, isPublicLobby } = storeToRefs(useDrawSyncer())
+  const { roomId, roomMembers, invitedFriends, isPublicLobby, isLoadingCanvas } = storeToRefs(useDrawSyncer())
   if (!roomId.value) return
   roomMembers.value = []
   invitedFriends.value = []
   removeRoomIdFromUrl()
   isPublicLobby.value = false
+  isLoadingCanvas.value = false
 
   if (!skipEmit) socket!.emit('leave-room', { roomId: roomId.value })
   roomId.value = undefined

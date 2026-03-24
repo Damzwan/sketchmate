@@ -9,7 +9,7 @@
     :initial-breakpoint="1" :breakpoints="[0, 1]"
     handle-behavior="cycle"
   >
-    <div class="p-4 bot-safe w-full h-full bg-primary">
+    <div class="p-4 bot-pad-safe w-full h-full bg-primary">
       <div v-if="roomId" class="space-y-2">
         <div v-if="isPublicLobby">
           <h1 class="text-3xl text-secondary cabin-sketch-regular font-black tracking-tighter leading-none">
@@ -136,14 +136,32 @@
         </div>
       </div>
 
-      <div v-else class="space-y-6 px-2">
+      <div v-else class="space-y-2 px-2">
 
-        <!-- Page header -->
         <div class="ion-text-center ion-margin-bottom">
-          <h2 class="text-2xl font-bold cabin-sketch-regular">Collaborative Drawing</h2>
-          <p class="text-gray-500 cabin-sketch-regular">
+          <h2 class="text-2xl font-bold cabin-sketch-regular">
+            Collaborative Drawing <span class="text-amber-500 text-lg ml-1">Beta</span>
+          </h2>
+
+          <p class="text-gray-500 cabin-sketch-regular mb-2">
             Draw with friends in real-time. Join a room via code, start your own, or play with strangers.
           </p>
+
+          <div class="mx-auto max-w-sm p-2  rounded-lg border border-gray-200 shadow-sm bg-background">
+            <p class="text-sm text-gray-600 cabin-sketch-regular mb-2 leading-tight">
+              This feature is still in beta. If things act weird or break, let me know so I can fix it!
+            </p>
+
+            <ion-button
+              @click="() => openMenu(Menu.FeedbackMenu)"
+              color="dark"
+              fill="outline"
+              size="small"
+            >
+              <ion-icon slot="end" :icon="svg(mdiBug)"/>
+              Report a Bug / Feedback
+            </ion-button>
+          </div>
         </div>
 
         <hr class="my-2 opacity-20" />
@@ -301,20 +319,19 @@ import {
   socketJoinRoom,
   startWatchingLobbies, stopWatchingLobbies
 } from '@/service/api/socket/drawSyncing.socket'
-import { mdiCamera, mdiShareVariant } from '@mdi/js'
+import { mdiBug, mdiCamera, mdiShareVariant } from '@mdi/js'
 import { isNative, svg } from '@/helper/general.helper'
 import { createRoomLink, shareUrl } from '@/helper/share.helper'
 import QrcodeVue from 'qrcode.vue'
 import { useSocketService } from '@/service/api/socket/socket.service'
 import { useFriendStore } from '@/store/friend.store'
 import { useScanner } from '@/service/scanner.service'
+import { Menu } from '@/draw/types/draw.types'
 
 
 const {
   roomId,
   roomMembers,
-  isCreator,
-  isTryingToJoin,
   invitations,
   invitedFriends,
   isWatchingPublicLobbies,
@@ -324,7 +341,8 @@ const {
 } = storeToRefs(useDrawSyncer())
 const { roomMenuOpen } = storeToRefs(useMenuStore())
 const { user } = storeToRefs(useAuthStore())
-const { startScanning, stopScanning, resetScanning } = useScanner()
+const { startScanning } = useScanner()
+const { openMenu } = useMenuStore()
 
 const code = ref(['', '', '', ''])
 const codeString = computed(() => code.value.join(''))

@@ -4,7 +4,7 @@
 
              :keep-contents-mounted="true"
              :handle="true">
-    <div class="bg-primary" v-if="user">
+    <div class="bg-primary bot-pad-safe" v-if="user">
       <p class="text-2xl pl-3 py-2 cabin-sketch-regular">
         {{ selectedMates.length == 0 ? `Select mates` : `${selectedMates.length} mate${selectedMates.length > 1 ? `s` : ``} selected`
         }}</p>

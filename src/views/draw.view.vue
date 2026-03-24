@@ -28,9 +28,9 @@
 </template>
 
 <script setup lang="ts">
-import { IonContent, IonPage, IonProgressBar, onIonViewDidEnter } from '@ionic/vue'
+import { IonContent, IonPage, IonProgressBar, onIonViewDidEnter, onIonViewDidLeave } from '@ionic/vue'
 
-import { ref } from 'vue'
+import { onUnmounted, ref } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import '@/theme/custom_vuejs_tour.scss'
@@ -40,18 +40,24 @@ import ResetZoomButton from '@/components/draw/ResetZoomButton.vue'
 import TopSafeArea from '@/components/general/TopSafeArea.vue'
 import { primaryColor } from '@/config/colors.config'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { leaveRoom } from '@/service/api/socket/drawSyncing.socket'
 
 
 const myCanvasRef = ref<HTMLCanvasElement>()
-const { initCanvas } = useDrawStore()
+const { initCanvas, resetCanvasID } = useDrawStore()
 const { isSendingDrawing } = storeToRefs(useDrawStore())
-const {disconnectedRoomId, isLoadingCanvas} = storeToRefs(useDrawSyncer())
+const { disconnectedRoomId, isLoadingCanvas } = storeToRefs(useDrawSyncer())
 
 
 onIonViewDidEnter(() => {
   requestAnimationFrame(() => {
     initCanvas(myCanvasRef.value!)
   })
+})
+
+onUnmounted(() => {
+  resetCanvasID()
+  leaveRoom()
 })
 
 

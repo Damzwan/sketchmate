@@ -8,7 +8,7 @@
     padding-right: var(--ion-safe-area-right, 0);
 }
 
-.bot-safe {
+.bot-pad-safe {
     padding-bottom: var(--ion-safe-area-bottom, 0);
 }
 

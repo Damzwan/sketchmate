@@ -3,6 +3,7 @@
     :initial-breakpoint="1"
     :breakpoints="[1]"
     @willDismiss="onDismiss"
+    @willPresent="onPresent"
     :is-open="sendBalloonModalOpen"
     :handle="false"
   >
@@ -126,6 +127,9 @@ import { useBalloonStore } from '@/store/balloon.store'
 import { EventBus } from '@/main'
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import { pencil } from 'ionicons/icons'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { leaveRoom } from '@/service/api/socket/drawSyncing.socket'
+import { performRoomExit } from '@/draw/helpers/drawSyncing.helper'
 
 enum State {
   create,
@@ -209,6 +213,10 @@ function cancelBalloonHelper() {
   state.value = State.create
 }
 
+
+function onPresent() {
+  performRoomExit()
+}
 
 </script>
 

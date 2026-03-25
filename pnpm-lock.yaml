@@ -101,6 +101,15 @@ importers:
       '@ionic/vue-router':
         specifier: ^8.8.1
         version: 8.8.1(@stencil/core@4.43.2)(vue-router@4.6.4(vue@3.5.30(typescript@5.9.3)))(vue@3.5.30(typescript@5.9.3))
+      '@revenuecat/purchases-capacitor':
+        specifier: ^12.3.0
+        version: 12.3.0(@capacitor/core@8.2.0)
+      '@revenuecat/purchases-capacitor-ui':
+        specifier: ^12.3.0
+        version: 12.3.0(@capacitor/core@8.2.0)
+      '@revenuecat/purchases-js':
+        specifier: ^1.29.1
+        version: 1.29.1
       '@vuelidate/core':
         specifier: ^2.0.3
         version: 2.0.3(vue@3.5.30(typescript@5.9.3))
@@ -1796,6 +1805,30 @@ packages:
 
   '@protobufjs/utf8@1.1.0':
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
+
+  '@revenuecat/purchases-capacitor-ui@12.3.0':
+    resolution: {integrity: sha512-71frOBEhtopY0LYXnWRFJ9FY5EvpB4wV2qqIszDyf3yVz5ixbikdR+I0cUDBWayMlnEU5O/zzvGmdK2jXP8XHQ==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@revenuecat/purchases-capacitor@10.4.0':
+    resolution: {integrity: sha512-205im5Bs1BY8wLt+qaS0O2GTWtSHUMFc3Z8U2QaVx4EN0hHOk9gqx2bNaUEH+cOWTUPlNz9yikdiMUSTjJzwyA==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
+
+  '@revenuecat/purchases-capacitor@12.3.0':
+    resolution: {integrity: sha512-TvtEYPMiE+9s2tT1KUl5QqgUd0H96YCrRhpXv3ZWR30ve63Apl53xHYU3mf4vOInXc3wm1oEDJKz+1thuiTTBA==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@revenuecat/purchases-js@1.29.1':
+    resolution: {integrity: sha512-e/zrC/AGih4NeayqaYD+NLLh0dn1kFhxf6vvQiDIKXiQ0qOnslQYhGCDo1+8Hn8CnSDxESSE1MWBXb2c+sCTXw==}
+
+  '@revenuecat/purchases-typescript-internal-esm@14.3.0':
+    resolution: {integrity: sha512-7mkuBupATfPvBw+skTE/chY6UEux9ZidTbKBOcZ/MgALKJdcww7LgSbChdyoGdQlSJXBFf1zRPzHH+RB7y+LQA==}
+
+  '@revenuecat/purchases-typescript-internal-esm@17.52.0':
+    resolution: {integrity: sha512-xB75VkbgJVotnbnK/OoYLyyCqLgi3Qm/7T8NUBG6e3OvxUOVkF2XQLMbNz1e/1MJjcQxVWXY4RxnA4MHl0TxcA==}
 
   '@rolldown/pluginutils@1.0.0-rc.2':
     resolution: {integrity: sha512-izyXV/v+cHiRfozX62W9htOAvwMo4/bXKDrQ+vom1L1qRuexPock/7VZDAhnpHCLNejd3NJ6hiab+tO0D44Rgw==}
@@ -7310,6 +7343,28 @@ snapshots:
   '@protobufjs/pool@1.1.0': {}
 
   '@protobufjs/utf8@1.1.0': {}
+
+  '@revenuecat/purchases-capacitor-ui@12.3.0(@capacitor/core@8.2.0)':
+    dependencies:
+      '@capacitor/core': 8.2.0
+      '@revenuecat/purchases-capacitor': 10.4.0(@capacitor/core@8.2.0)
+      '@revenuecat/purchases-typescript-internal-esm': 17.52.0
+
+  '@revenuecat/purchases-capacitor@10.4.0(@capacitor/core@8.2.0)':
+    dependencies:
+      '@capacitor/core': 8.2.0
+      '@revenuecat/purchases-typescript-internal-esm': 14.3.0
+
+  '@revenuecat/purchases-capacitor@12.3.0(@capacitor/core@8.2.0)':
+    dependencies:
+      '@capacitor/core': 8.2.0
+      '@revenuecat/purchases-typescript-internal-esm': 17.52.0
+
+  '@revenuecat/purchases-js@1.29.1': {}
+
+  '@revenuecat/purchases-typescript-internal-esm@14.3.0': {}
+
+  '@revenuecat/purchases-typescript-internal-esm@17.52.0': {}
 
   '@rolldown/pluginutils@1.0.0-rc.2': {}
 

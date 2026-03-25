@@ -147,14 +147,14 @@
             Draw with friends in real-time. Join a room via code, start your own, or play with strangers.
           </p>
 
-          <div class="mx-auto max-w-sm p-2  rounded-lg border border-gray-200 shadow-sm bg-background">
-            <p class="text-sm text-gray-600 cabin-sketch-regular mb-2 leading-tight">
+          <div class="mx-auto max-w-sm p-2 rounded-lg border border-secondary shadow-sm bg-background">
+            <p class="text-gray-600 cabin-sketch-regular mb-2 leading-tight">
               This feature is still in beta. If things act weird or break, let me know so I can fix it!
             </p>
 
             <ion-button
               @click="() => openMenu(Menu.FeedbackMenu)"
-              color="dark"
+              color="secondary"
               fill="outline"
               size="small"
             >

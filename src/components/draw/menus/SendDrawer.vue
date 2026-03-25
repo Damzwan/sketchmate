@@ -73,13 +73,13 @@ import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { useMenuStore } from '@/store/menu.store'
 import { useAuthStore } from '@/store/auth.store'
-import { FRONTEND_ROUTES } from '@/types/router.types'
 import SendBalloonBanner from '@/components/balloon/SendBalloonBanner.vue'
 import SendDrawerItem from '@/components/draw/SendDrawerItem.vue'
 
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
 import { Keyboard } from '@capacitor/keyboard'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const { sendMenuOpen } = storeToRefs(useMenuStore())
 

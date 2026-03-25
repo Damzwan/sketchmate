@@ -9,6 +9,8 @@
       @delete="alterTrigger.click()"
     />
     <ion-content class="bg-background">
+      <SubscriptionCard class="mt-4"/>
+
       <CircularLoader v-if="isLoading || !isLoggedIn" class="z-50" bgColor="bg-background" />
 
       <div v-else-if="user" class="w-full h-full">
@@ -88,6 +90,7 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { usePhotoSwiper } from '@/store/photoswiper.store'
 import { useSessionStore } from '@/store/session.store'
 import { useInboxStore } from '@/store/inbox.store'
+import SubscriptionCard from '@/components/subscription/SubscriptionCard.vue'
 
 const api = useAPI()
 const { refresh } = useAuthStore()

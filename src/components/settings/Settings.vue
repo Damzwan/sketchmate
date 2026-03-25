@@ -17,8 +17,11 @@
 
       <!-- SCROLLABLE -->
       <ion-content v-if="user" class="bg-background">
+
         <div class="flex flex-col h-full">
           <div class="grow">
+            <SupporterCard />
+            <SubscriptionCard/>
 
             <div class="w-full bg-warning mx-auto rounded-md p-4" v-if="firebaseUser?.isAnonymous">
               <p class="cabin-sketch-regular text-lg">Upgrade your account</p>
@@ -103,6 +106,8 @@ import { NotificationSubscription } from '@/types/server.types'
 import ProfileCustomization from '@/components/account/ProfileCustomization.vue'
 import NotificationSwitch from '@/components/general/NotificationSwitch.vue'
 import UpgradeAccountModal from '@/components/settings/UpgradeAccountModal.vue'
+import SupporterCard from '@/components/subscription/SupporterCard.vue'
+import SubscriptionCard from '@/components/subscription/SubscriptionCard.vue'
 
 const { user, firebaseUser } = storeToRefs(useAuthStore())
 const api = useAPI()

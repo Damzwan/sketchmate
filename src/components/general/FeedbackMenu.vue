@@ -36,11 +36,19 @@
         <br />
       </ion-radio-group>
 
+      <div class="flex flex-col mt-2">
+        <ion-button size="small" fill="clear" class="pt-3" :href="discord_link" target="_blank">
+          <ion-icon slot="start" :icon="discordSvg" class="pr-2" />
+          <p class="cabin-sketch-regular text-black">Chat with me on Discord</p>
+        </ion-button>
 
-      <ion-button size="small" fill="clear" class="pt-3" :href="discord_link" target="_blank">
-        <ion-icon slot="start" :icon="discordSvg"></ion-icon>
-        <p class="cabin-sketch-regular text-black">Chat with me on Discord</p>
-      </ion-button>
+        <ion-button size="small" fill="clear" class="pt-3" @click="subscriptionStore.presentPaywall()"
+                    v-if="!isPro && isNative()">
+          <ion-icon slot="start" :icon="svg(mdiGiftOffOutline)" class="text-black pr-2" />
+          <p class="cabin-sketch-regular text-black">Donate</p>
+        </ion-button>
+      </div>
+
 
       <div class="flex justify-end">
         <ion-button color="secondary" @click="submit">Submit</ion-button>
@@ -57,14 +65,15 @@ import { useToast } from '@/service/toast.service'
 import { IonButton, IonIcon, IonModal, IonRadio, IonRadioGroup, IonTextarea, modalController } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { useMenuStore } from '@/store/menu.store'
-import { mdiClose } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { mdiClose, mdiGiftOffOutline, mdiHelp } from '@mdi/js'
+import { isNative, svg } from '@/helper/general.helper'
 import { ref } from 'vue'
 import discordSvg from '@/assets/discord.svg'
 import { addDoc, collection, getFirestore, serverTimestamp } from '@firebase/firestore'
 import { useAuthStore } from '@/store/auth.store'
 import { discord_link } from '@/config/general.config'
 import { AppReview } from '@capawesome/capacitor-app-review'
+import { useSubscriptionStore } from '@/store/subscription.store'
 
 enum FeedbackOptions {
   like = 'like',
@@ -78,6 +87,9 @@ const { feedbackMenuOpen } = storeToRefs(useMenuStore())
 const likeText = ref('')
 const dislikeText = ref('')
 const score = ref<FeedbackOptions>(FeedbackOptions.empty)
+
+const subscriptionStore = useSubscriptionStore()
+const { isPro } = storeToRefs(subscriptionStore)
 
 const isSubmitting = ref(false)
 

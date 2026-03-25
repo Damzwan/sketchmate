@@ -3,7 +3,7 @@
     <ProfilePictureSelector :img="user.img" @update:img="img => uploadImage(img)" />
   </div>
 
-  <div class="w-full justify-center flex pt-8">
+  <div class="w-full justify-center flex pt-6">
     <ion-input
       class="w-1/2 max-w-xs"
       color="secondary"

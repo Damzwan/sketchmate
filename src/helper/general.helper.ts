@@ -26,6 +26,7 @@ import { LocalStorage } from '@/types/storage.types'
 import { useSessionStore } from '@/store/session.store'
 import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
+import { Purchases } from '@revenuecat/purchases-capacitor'
 
 export async function imgUrlToFile(imgUrl: string) {
   const blob = await fetch(imgUrl).then(res => res.blob())
@@ -419,4 +420,23 @@ export function setupReadyWatcher(
 
 export function isMac() {
   return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+}
+
+export async function initBilling() {
+  if (!isNative()) return
+
+  const env = import.meta.env.VITE_ENVIRONMENT
+  const testKey = env === 'prod' ? import.meta.env.VITE_REVENUECAT_ANDROID_KEY : import.meta.env.VITE_REVENUECAT_TEST_KEY
+
+  if (!testKey) {
+    console.error('Missing RevenueCat Test Key! Check your .env file.')
+    return
+  }
+
+  try {
+    await Purchases.configure({ apiKey: testKey })
+    console.log('RevenueCat configured successfully with Test Key!')
+  } catch (error) {
+    console.error('Error configuring RevenueCat:', error)
+  }
 }

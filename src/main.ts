@@ -18,13 +18,14 @@ import { addNotificationListeners } from '@/helper/notification.helper'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import {
-  handleWebDeeplink,
+  handleWebDeeplink, initBilling,
   initFirebase,
   lazyLoadDrawingModules,
   setupDeeplinkListener,
   setupPwa,
   setupWidget
 } from '@/helper/general.helper'
+import { useSubscriptionStore } from '@/store/subscription.store'
 
 const pinia = createPinia()
 initFirebase()
@@ -34,8 +35,11 @@ dayjs.extend(relativeTime)
 export const EventBus = mitt()
 const app = createApp(App).use(IonicVue).use(pinia).use(router)
 
-app.mount('#app')
-
+initBilling().then(() => {
+  const {checkProStatus} = useSubscriptionStore()
+  checkProStatus()
+  app.mount('#app')
+})
 
 addNotificationListeners()
 lazyLoadDrawingModules()

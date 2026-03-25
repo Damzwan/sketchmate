@@ -24,6 +24,7 @@
       </ion-toolbar>
     </div>
     <ion-content color="tertiary">
+      <SubscriptionCard class="mt-4"/>
       <CircularLoader v-if="!user " bg-color="tertiary" />
       <div class="w-full h-full top-0" v-else>
         <CircularLoader v-show="isLoading" class="absolute w-full h-full z-50" />
@@ -197,6 +198,7 @@ import { useFriendStore } from '@/store/friend.store'
 import BalloonBanner from '@/components/connect/balloon/BalloonBanner.vue'
 import ReceiveBalloonModal from '@/components/connect/balloon/ReceiveBalloonModal.vue'
 import SendBalloonModal from '@/components/connect/balloon/SendBalloonModal.vue'
+import SubscriptionCard from '@/components/subscription/SubscriptionCard.vue'
 
 enum Segments {
   friends = 'friends',

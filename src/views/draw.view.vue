@@ -3,7 +3,7 @@
     <TopSafeArea :color="primaryColor" />
 
 
-    <div class="flex flex-col h-full safe-area">
+    <div class="flex flex-col h-full top-pad-safe">
       <Toolbars />
 
       <div
@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonContent, IonPage, IonProgressBar, onIonViewDidEnter, onIonViewDidLeave } from '@ionic/vue'
+import { IonPage, IonProgressBar, onIonViewDidEnter } from '@ionic/vue'
 
 import { onUnmounted, ref } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'
@@ -40,7 +40,7 @@ import ResetZoomButton from '@/components/draw/ResetZoomButton.vue'
 import TopSafeArea from '@/components/general/TopSafeArea.vue'
 import { primaryColor } from '@/config/colors.config'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { leaveRoom } from '@/service/api/socket/drawSyncing.socket'
+import { performRoomExit } from '@/draw/helpers/drawSyncing.helper'
 
 
 const myCanvasRef = ref<HTMLCanvasElement>()
@@ -57,7 +57,7 @@ onIonViewDidEnter(() => {
 
 onUnmounted(() => {
   resetCanvasID()
-  leaveRoom()
+  performRoomExit()
 })
 
 

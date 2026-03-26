@@ -8,6 +8,7 @@ import { isNative } from '@/helper/general.helper'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { isText } from '@/draw/helpers/text.helper'
 import { getAbsoluteState } from '@/draw/helpers/object.helper'
+import { useToast } from '@/service/toast.service'
 
 interface Select extends ToolService {
   unSelect: () => void
@@ -41,6 +42,8 @@ export const useSelect = defineStore('select', (): Select => {
   let useGestures = false // means that when we zoom or rotate we edit the object instead of zooming/panning the canvas
 
   const originalStates = new Map<string, any>()
+
+  let isUsingGestures = false
 
   // ----------------- Helper Functions -----------------
   function getObjectsUnderPointer(pointer: Point) {
@@ -160,7 +163,7 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'mouse:up',
       handler: () => {
-        if (!isSelectActive.value || !isClick()) return
+        if (!isSelectActive.value || !isClick() || isUsingGestures) return
         if (clicksAfterSelectionActive <= 1) return
 
         handleSelectionClick(pointerDownPos!)
@@ -189,6 +192,18 @@ export const useSelect = defineStore('select', (): Select => {
           // text.top += TEXT_JUMP_Y_VALUE
           c?.requestRenderAll()
         }
+      }
+    },
+    {
+      on: 'gestureStart',
+      handler: () => {
+        isUsingGestures = true
+      }
+    },
+    {
+      on: 'gestureEnd',
+      handler: () => {
+        isUsingGestures = false
       }
     }
   ]

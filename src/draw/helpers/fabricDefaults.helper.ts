@@ -37,6 +37,35 @@ export function changeFabricSettings() {
     return decomposition.scaleX
   }
 
+  fabric.IText.prototype.mouseUpHandler = function({ e, transform }: any) {
+    const didDrag = this.draggableTextDelegate && this.draggableTextDelegate.end(e)
+
+    if (this.canvas) {
+      this.canvas.textEditingManager && this.canvas.textEditingManager.unregister(this)
+
+      const activeObject = this.canvas._activeObject
+      if (activeObject && activeObject !== this) {
+        return
+      }
+    }
+
+    const notALeftClick = (e: Event) => !!(e as MouseEvent).button
+
+    if (
+      !this.editable ||
+      (this.group && !this.group.interactive) ||
+      (transform && transform.actionPerformed) ||
+      notALeftClick(e) ||
+      didDrag
+    ) {
+      return
+    }
+
+    if (this.selected && !this.getActiveControl()) {
+      // We copied this function from the github repo to have control over the enter editing logic
+    }
+  }
+
 
   const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--ion-color-primary').trim()
 

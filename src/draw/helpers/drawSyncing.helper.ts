@@ -11,3 +11,8 @@ export function performRoomExit() {
 
   }
 }
+
+export function isInRoom() {
+  const { roomId } = useDrawSyncer()
+  return !!roomId
+}

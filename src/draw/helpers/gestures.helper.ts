@@ -222,6 +222,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
         isUsingGesture.value &&
         fingers === 0
       ) {
+        c.fire('gestureEnd')
         const obj = c.getActiveObject()
         if (!obj) return
 

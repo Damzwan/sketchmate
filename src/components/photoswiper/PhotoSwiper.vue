@@ -80,7 +80,6 @@
         </div>
 
 
-
         <ion-button fill="clear" color="light" @click="replyToDrawing" class="grow" size="large">
           <ion-icon :icon="svg(mdiReplyOutline)" />
         </ion-button>
@@ -154,6 +153,7 @@ import router from '@/router'
 import PhotoSwiperItem from '@/components/photoswiper/PhotoSwiperItem.vue'
 import { useInboxStore } from '@/store/inbox.store'
 import { useSessionStore } from '@/store/session.store'
+import { isInRoom } from '@/draw/helpers/drawSyncing.helper'
 
 register()
 
@@ -234,6 +234,11 @@ function goToSlide() {
 
 
 function replyToDrawing() {
+  if (isInRoom()) {
+    toast('Not allowed when in a lobby', { color: 'warning' })
+    return
+  }
+
   close()
   const { reply } = useDrawStore()
   reply(currInboxItem.value)

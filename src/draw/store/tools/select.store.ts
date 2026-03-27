@@ -8,7 +8,6 @@ import { isNative } from '@/helper/general.helper'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { isText } from '@/draw/helpers/text.helper'
 import { getAbsoluteState } from '@/draw/helpers/object.helper'
-import { useToast } from '@/service/toast.service'
 
 interface Select extends ToolService {
   unSelect: () => void
@@ -21,7 +20,6 @@ interface Select extends ToolService {
   getSelectedObjectOriginalStates: () => Map<string, any>
 }
 
-const TEXT_JUMP_Y_VALUE = window.innerHeight / 2 // in case we select the text on the bottom half of the screen on mobile it becomes buggy, we need to push it up while editing
 
 export const useSelect = defineStore('select', (): Select => {
   let c: Canvas | undefined = undefined
@@ -180,16 +178,6 @@ export const useSelect = defineStore('select', (): Select => {
           const screenPoint = fabric.util.transformPoint(p, c!.viewportTransform)
           isBottomHalf.value = screenPoint.y > window.innerHeight / 2
           // if (isBottomHalf.value) text.top -= TEXT_JUMP_Y_VALUE
-          c?.requestRenderAll()
-        }
-      }
-    },
-    {
-      on: 'text:editing:exited',
-      handler: () => {
-        if (isNative() && isBottomHalf.value && isText(selectedObjects)) {
-          const text = selectedObjects[0] as IText
-          // text.top += TEXT_JUMP_Y_VALUE
           c?.requestRenderAll()
         }
       }

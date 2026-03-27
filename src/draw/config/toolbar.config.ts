@@ -18,9 +18,6 @@ import {
 import { BrushType, DrawAction, DrawTool, Menu, PenMenuTool, SelectTool } from '@/draw/types/draw.types'
 import { ERASERS, penIconMapping, PENMENUTOOLS, selectIconMapping, SELECTMENUTOOLS } from '@/draw/config/tools.config'
 import { modalController } from '@ionic/vue'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { storeToRefs } from 'pinia'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 
 export enum Toolbars {

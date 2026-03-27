@@ -24,7 +24,7 @@
       </ion-toolbar>
     </div>
     <ion-content color="tertiary">
-      <SubscriptionCard class="mt-4"/>
+      <SubscriptionCard class="mt-4" />
       <CircularLoader v-if="!user " bg-color="tertiary" />
       <div class="w-full h-full top-0" v-else>
         <CircularLoader v-show="isLoading" class="absolute w-full h-full z-50" />
@@ -34,7 +34,10 @@
             <ion-refresher-content></ion-refresher-content>
           </ion-refresher>
 
-          <BalloonBanner class="py-4" />
+          <div class="py-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <BalloonBanner />
+            <CollaborativeDrawingBanner />
+          </div>
 
           <div class="w-full flex-col flex justify-center" v-if="user.mates.length == 0">
             <img :src="connectImage" class="md:w-[50%] max-w-[600px] w-[90%] mx-auto" alt="friends connect" />
@@ -199,6 +202,7 @@ import BalloonBanner from '@/components/connect/balloon/BalloonBanner.vue'
 import ReceiveBalloonModal from '@/components/connect/balloon/ReceiveBalloonModal.vue'
 import SendBalloonModal from '@/components/connect/balloon/SendBalloonModal.vue'
 import SubscriptionCard from '@/components/subscription/SubscriptionCard.vue'
+import CollaborativeDrawingBanner from '@/components/connect/balloon/CollaborativeDrawingBanner.vue'
 
 enum Segments {
   friends = 'friends',

@@ -58,6 +58,7 @@ export interface User {
     received?: string,
   };
   date_of_birth?: Date;
+  last_seen_version?: string;
 }
 
 export type BalloonStatus = 'pending' | 'paired' | 'accepted';

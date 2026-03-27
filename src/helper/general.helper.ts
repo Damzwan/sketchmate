@@ -200,20 +200,21 @@ export async function getCurrentAuthUser() {
   return result.user
 }
 
-export function compareVersions(currentVersion: string, minimumVersion: string) {
+export function compareVersions(currentVersion: string, minimumVersion: string): number {
   const current = currentVersion.split('.').map(Number)
   const minimum = minimumVersion.split('.').map(Number)
 
+  const maxLength = Math.max(current.length, minimum.length)
 
-  for (let i = 0; i < current.length; i++) {
-    if (current[i] < minimum[i]) {
-      return -1 // Current version is lower
-    } else if (current[i] > minimum[i]) {
-      return 1  // Current version is higher
-    }
+  for (let i = 0; i < maxLength; i++) {
+    const v1 = current[i] || 0
+    const v2 = minimum[i] || 0
+
+    if (v1 < v2) return -1 // Current is older
+    if (v1 > v2) return 1  // Current is newer
   }
 
-  return 0  // Versions are equal
+  return 0 // Exactly the same
 }
 
 export async function installPWA(installPrompt: Ref<any>) {

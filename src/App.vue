@@ -7,6 +7,7 @@
     <FeedbackMenu />
     <DateOfBirthConfirmation />
     <DrawMenus />
+    <WhatsNewModal />
 
     <DrawModal />
   </ion-app>
@@ -26,6 +27,7 @@ import { useNetworkStore } from '@/store/network.store'
 import { useAuthStore } from '@/store/auth.store'
 import DrawMenus from '@/components/draw/menus/DrawMenus.vue'
 import DrawModal from '@/components/draw/DrawModal.vue'
+import WhatsNewModal from '@/components/general/WhatsNewModal.vue'
 
 const ionRouter = useIonRouter()
 const { initIonRouter } = useAuthStore()

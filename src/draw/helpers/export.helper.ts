@@ -68,15 +68,16 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
 export async function exportBoundingBoxImage(canvas: Canvas) {
   if (!canvas) return null
 
-  if (canvas.getObjects().length === 0) {
+  const objects = canvas.getObjects()
+  if (objects.length === 0) {
     return { img: canvas.toDataURL({ multiplier: 2 }), aspect_ratio: canvas.width / canvas.height }
   }
 
-  // Initialize bounding box extremes
+  // 1. Initialize bounding box extremes
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
 
-  // Iterate over all objects to find the bounding box
-  canvas.getObjects().forEach(obj => {
+  // 2. Iterate over all objects to find the bounding box
+  objects.forEach(obj => {
     const bounds = obj.getBoundingRect()
     minX = Math.min(minX, bounds.left)
     minY = Math.min(minY, bounds.top)
@@ -87,38 +88,22 @@ export async function exportBoundingBoxImage(canvas: Canvas) {
   const width = maxX - minX
   const height = maxY - minY
 
-
   if (width <= 0 || height <= 0) return null
 
-
-  const tempCanvas = new StaticCanvas(undefined, {
-    backgroundColor: canvas.backgroundColor,
-    width: width,
-    height: height
-  })
-
-
-  const clonedItems = await Promise.all(canvas.getObjects().map(async obj => {
-    const cloned = await obj.clone()
-    cloned.set({
-      left: cloned.left - minX,
-      top: cloned.top - minY,
-      visible: true
-    })
-    return cloned
-  }))
-  tempCanvas.add(...clonedItems)
-
-  tempCanvas.renderAll()
-
+  // 3. Calculate multiplier
   const minTargetSize = 2000
-
   const multiplierX = minTargetSize / width
   const multiplierY = minTargetSize / height
-
   const multiplier = Math.min(multiplierX, multiplierY, 2)
 
+  // 4. Export directly from the original canvas using cropping properties
+  const img = canvas.toDataURL({
+    left: minX,
+    top: minY,
+    width: width,
+    height: height,
+    multiplier: multiplier
+  })
 
-  return { img: tempCanvas.toDataURL({ multiplier: multiplier }), aspect_ratio: width / height }
-
+  return { img, aspect_ratio: width / height }
 }

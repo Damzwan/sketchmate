@@ -1,6 +1,9 @@
 import {
   API,
+  Balloon,
   ChangeUserNameParams,
+  CreateBalloonPostParams,
+  CreateBalloonPostRes,
   CreateEmblemParams,
   CreateSavedParams,
   CreateStickerParams,
@@ -12,23 +15,22 @@ import {
   GetInboxItemsParams,
   GetInboxRes,
   GetUserParams,
+  GetUserRes,
   Mate,
+  OnLoginEventParams,
+  RegisterNotificationParams,
   RemoveFromInboxParams,
   Res,
   Saved,
-  SeeInboxParams,
-  RegisterNotificationParams,
-  UploadProfileImgParams,
-  UnRegisterNotificationParams,
-  GetUserRes,
-  OnLoginEventParams,
   SearchMateParams,
-  CreateBalloonPostParams, Balloon, CreateBalloonPostRes, UpdateUserParams
+  SeeInboxParams,
+  UnRegisterNotificationParams,
+  UpdateUserParams,
+  UploadProfileImgParams
 } from '@/types/server.types'
 import { LocalStorage } from '@/types/storage.types'
 import { createGlobalState } from '@vueuse/core'
 import { Preferences } from '@capacitor/preferences'
-import { balloon } from 'ionicons/icons'
 
 enum REQUEST_TYPES {
   GET = 'GET',

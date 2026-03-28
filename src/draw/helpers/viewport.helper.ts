@@ -99,8 +99,8 @@ export const handleZoom = (
   // Modify the new zoom level based on the delta scale and zoom rate
 
   // Limit the zoom level to the maximum and minimum values
-  newZoom = Math.min(newZoom, 10)
-  newZoom = Math.max(newZoom, 0.5)
+  newZoom = Math.min(newZoom, 20)
+  newZoom = Math.max(newZoom, 0.1)
 
   // Get the center point of the gesture
   const gestureCenter = new Point(centerX, centerY)

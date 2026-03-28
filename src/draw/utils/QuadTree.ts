@@ -31,7 +31,7 @@ export class Rect {
 export interface QuadtreeEntry<T> {
   id: string;
   bounds: Rect;
-  __node?: Quadtree<T>;
+  __nodes?: Quadtree<T>[]; // Must be an array
 }
 
 export class Quadtree<T> {
@@ -56,30 +56,10 @@ export class Quadtree<T> {
     const hw = w / 2
     const hh = h / 2
 
-    this.nw = new Quadtree(
-      new Rect(x, y, hw, hh),
-      this.capacity,
-      this.depth + 1,
-      this.maxDepth
-    )
-    this.ne = new Quadtree(
-      new Rect(x + hw, y, hw, hh),
-      this.capacity,
-      this.depth + 1,
-      this.maxDepth
-    )
-    this.sw = new Quadtree(
-      new Rect(x, y + hh, hw, hh),
-      this.capacity,
-      this.depth + 1,
-      this.maxDepth
-    )
-    this.se = new Quadtree(
-      new Rect(x + hw, y + hh, hw, hh),
-      this.capacity,
-      this.depth + 1,
-      this.maxDepth
-    )
+    this.nw = new Quadtree(new Rect(x, y, hw, hh), this.capacity, this.depth + 1, this.maxDepth)
+    this.ne = new Quadtree(new Rect(x + hw, y, hw, hh), this.capacity, this.depth + 1, this.maxDepth)
+    this.sw = new Quadtree(new Rect(x, y + hh, hw, hh), this.capacity, this.depth + 1, this.maxDepth)
+    this.se = new Quadtree(new Rect(x + hw, y + hh, hw, hh), this.capacity, this.depth + 1, this.maxDepth)
 
     this.divided = true
   }
@@ -87,41 +67,48 @@ export class Quadtree<T> {
   insert(entry: QuadtreeEntry<T>): boolean {
     if (!this.boundary.intersects(entry.bounds)) return false
 
-    // If we are under capacity or maxDepth, store here
+    // 1. If we have space, or hit max depth, store it in THIS node
     if (this.objects.length < this.capacity || this.depth >= this.maxDepth) {
       this.objects.push(entry)
-      entry.__node = this
+      if (!entry.__nodes) entry.__nodes = []
+      entry.__nodes.push(this) // Push this node to the array
       return true
     }
 
     if (!this.divided) this.subdivide()
 
-    // Try to push into children only if fully contained
+    // 2. Try to push into children only if fully contained
     const pushedToChild =
       (this.nw!.boundary.contains(entry.bounds) && this.nw!.insert(entry)) ||
       (this.ne!.boundary.contains(entry.bounds) && this.ne!.insert(entry)) ||
       (this.sw!.boundary.contains(entry.bounds) && this.sw!.insert(entry)) ||
       (this.se!.boundary.contains(entry.bounds) && this.se!.insert(entry))
 
+    // 3. Overlaps multiple children: stay in this parent node
     if (!pushedToChild) {
-      // Overlaps multiple children: stay in this node
       this.objects.push(entry)
-      entry.__node = this
+      if (!entry.__nodes) entry.__nodes = []
+      entry.__nodes.push(this) // Push this node to the array
     }
 
     return true
   }
 
-
   remove(entry: QuadtreeEntry<T>): boolean {
-    const node = entry.__node
-    if (!node) return false
+    if (!entry.__nodes) return false
 
-    const idx = node.objects.indexOf(entry)
-    if (idx !== -1) {
-      node.objects.splice(idx, 1)
-      entry.__node = undefined
-      return true
+    // 1. Check if THIS node is in the entry's tracked nodes
+    const nodeIdx = entry.__nodes.indexOf(this)
+    if (nodeIdx !== -1) {
+      // Untrack it
+      entry.__nodes.splice(nodeIdx, 1)
+
+      // 2. Remove the object from this node's internal array
+      const objIdx = this.objects.findIndex(o => o.id === entry.id)
+      if (objIdx !== -1) {
+        this.objects.splice(objIdx, 1)
+        return true
+      }
     }
 
     return false
@@ -150,7 +137,6 @@ export class Quadtree<T> {
     return found
   }
 
-
   clear(): void {
     this.objects.length = 0
 
@@ -162,6 +148,96 @@ export class Quadtree<T> {
     }
 
     this.divided = false
+  }
+}
+
+export class InfiniteQuadtreeManager<T> {
+  private chunks = new Map<string, Quadtree<T>>()
+
+  constructor(
+    private readonly chunkSize = 4096, // Tune this based on your average zoom level
+    private readonly capacity = 8,
+    private readonly maxDepth = 8
+  ) {
+  }
+
+  // Helper to find all grid coordinates a rectangle overlaps
+  private getOverlappingChunkKeys(bounds: Rect): string[] {
+    const startX = Math.floor(bounds.x / this.chunkSize)
+    const startY = Math.floor(bounds.y / this.chunkSize)
+    const endX = Math.floor((bounds.x + bounds.w) / this.chunkSize)
+    const endY = Math.floor((bounds.y + bounds.h) / this.chunkSize)
+
+    const keys = []
+    for (let x = startX; x <= endX; x++) {
+      for (let y = startY; y <= endY; y++) {
+        keys.push(`${x},${y}`)
+      }
+    }
+    return keys
+  }
+
+  insert(entry: QuadtreeEntry<T>) {
+    const keys = this.getOverlappingChunkKeys(entry.bounds)
+
+    for (const key of keys) {
+      // If a chunk is drawn into for the first time, create a Quadtree for it
+      if (!this.chunks.has(key)) {
+        const [cx, cy] = key.split(',').map(Number)
+        const chunkBounds = new Rect(
+          cx * this.chunkSize,
+          cy * this.chunkSize,
+          this.chunkSize,
+          this.chunkSize
+        )
+        this.chunks.set(key, new Quadtree(chunkBounds, this.capacity, 0, this.maxDepth))
+      }
+
+      this.chunks.get(key)!.insert(entry)
+    }
+  }
+
+  update(entry: QuadtreeEntry<T>) {
+    this.remove(entry)
+    this.insert(entry)
+  }
+
+  remove(entry: QuadtreeEntry<T>) {
+    // Because we updated __nodes to be an array, we just tell every node
+    // that holds this object to remove it.
+    if (entry.__nodes) {
+      // Clone the array because the remove() method mutates it
+      const nodesToClear = [...entry.__nodes]
+      for (const node of nodesToClear) {
+        node.remove(entry)
+      }
+    }
+  }
+
+  query(range: Rect): QuadtreeEntry<T>[] {
+    const keys = this.getOverlappingChunkKeys(range)
+    const foundMap = new Map<string, QuadtreeEntry<T>>() // Used to deduplicate
+
+    for (const key of keys) {
+      const chunk = this.chunks.get(key)
+      if (chunk) {
+        const items = chunk.query(range)
+        // Deduplicate objects that span across multiple chunks
+        for (const item of items) {
+          foundMap.set(item.id, item)
+        }
+      }
+    }
+
+    return Array.from(foundMap.values())
+  }
+
+  clear(): void {
+    for (const chunk of this.chunks.values()) {
+      chunk.clear()
+    }
+
+    this.chunks.clear()
   }
 }
 

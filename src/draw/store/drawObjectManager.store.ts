@@ -2,7 +2,14 @@ import { defineStore } from 'pinia'
 import { ActiveSelection, Canvas, FabricObject } from 'fabric'
 import { FabricEvent, ObjectType } from '@/draw/types/draw.types'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { fabricObjectToEntry, getViewportRect, Quadtree, QuadtreeEntry, Rect } from '@/draw/utils/QuadTree'
+import {
+  fabricObjectToEntry,
+  getViewportRect,
+  InfiniteQuadtreeManager,
+  Quadtree,
+  QuadtreeEntry,
+  Rect
+} from '@/draw/utils/QuadTree'
 import { CANVAS_SIZE } from '@/draw/config/canvas.config'
 
 export const useDrawObjectManager = defineStore('drawObjectManager', () => {
@@ -11,10 +18,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let objectMap = new Map<string, FabricObject>()
 
 
-  const quadtree = new Quadtree<FabricObject>(
-    new Rect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
-  )
+  const quadtree = new InfiniteQuadtreeManager<FabricObject>()
   const entryMap = new Map<string, QuadtreeEntry<FabricObject>>()
+
   let lastVisible = new Set<string>()
   let visibilityScheduled = false
 
@@ -86,7 +92,6 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
   function updateVisibility(): void {
-    return // TODO
     if (visibilityScheduled) return
     visibilityScheduled = true
 
@@ -94,7 +99,6 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       visibilityScheduled = false
       const viewport = getViewportRect(c!)
       const visible = quadtree.query(viewport)
-
 
       const nextVisible = new Set<string>()
 

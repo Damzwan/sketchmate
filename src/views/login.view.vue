@@ -25,7 +25,7 @@ watch(isNewAccount, () => {
 })
 
 watch(showEnableNotificationsAfterLogin, () => {
-  if (showEnableNotificationsAfterLogin.value && nav.value) {
+  if (showEnableNotificationsAfterLogin.value && nav.value && !isNewAccount.value) {
     nav.value.$el.push(markRaw(LoginNotificationPage))
   }
 })

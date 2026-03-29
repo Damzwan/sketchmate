@@ -74,14 +74,17 @@ import { useAuthStore } from '@/store/auth.store'
 import { compareVersions, svg } from '@/helper/general.helper'
 import { useAPI } from '@/service/api/api.service'
 import { mdiAccountGroupOutline } from '@mdi/js'
+import { useRoute } from 'vue-router'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const isOpen = ref(false)
 const { user } = storeToRefs(useAuthStore())
 const api = useAPI()
+const route = useRoute()
 const appVersion = __APP_VERSION__
 
 watchEffect(() => {
-  if (isOpen.value || !user.value) return
+  if (isOpen.value || !user.value || route.path === `/${FRONTEND_ROUTES.login}`) return
 
   const lastSeen = user.value.last_seen_version || '0.0.0'
 

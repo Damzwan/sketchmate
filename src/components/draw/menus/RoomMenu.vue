@@ -136,7 +136,7 @@
         <div class="text-center pt-2">
           <h2 class="flex items-center justify-center gap-2 text-3xl text-secondary font-bold cabin-sketch-regular">
             Collaborative Drawing
-            <ion-icon :icon="svg(mdiAccountGroupOutline)" size="large" class="text-black"/>
+            <ion-icon :icon="svg(mdiAccountGroupOutline)" size="large" class="text-black" />
           </h2>
 
           <p class="text-gray-500 mt-1 flex items-center justify-center gap-1">
@@ -349,7 +349,9 @@ const { openMenu } = useMenuStore()
 const activeTab = ref('private')
 
 watch(activeTab, () => {
-  if (activeTab.value === 'public' && !isWatchingPublicLobbies.value) startWatchingLobbies()
+  if (activeTab.value === 'public' && !isWatchingPublicLobbies.value) {
+    startWatchingLobbies()
+  }
 })
 
 const code = ref(['', '', '', ''])
@@ -365,6 +367,7 @@ function createRoom() {
 
 function joinRoom(code: string) {
   if (code == '') return
+  activeTab.value = 'private'
   socketJoinRoom({ roomId: code, intent: 'join' })
 }
 
@@ -459,7 +462,7 @@ async function startScanningHelper() {
   const roomId = url.searchParams.get('room_id')
 
   if (roomId) {
-    socketJoinRoom({ roomId, intent: 'join' })
+    joinRoom(roomId)
   }
 }
 

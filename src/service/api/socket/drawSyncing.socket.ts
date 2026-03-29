@@ -208,9 +208,10 @@ export async function startWatchingLobbies() {
 }
 
 export function stopWatchingLobbies() {
-  const { isWatchingPublicLobbies } = storeToRefs(useDrawSyncer())
+  const { isWatchingPublicLobbies, publicLobbies } = storeToRefs(useDrawSyncer())
   if (!isWatchingPublicLobbies.value) return
   isWatchingPublicLobbies.value = false
+  publicLobbies.value = []
   socket!.emit('unwatch-public-lobbies')
   socket!.off('public-lobbies-update', handleLobbyUpdate)
 }

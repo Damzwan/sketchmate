@@ -42,5 +42,5 @@ export const COLORSWATCHES = [
 export const BASE_BRUSH_SIZE = 10
 export const BLACK = '#000000FF'
 export const WHITE = '#FFFFFFFF'
-export const BACKGROUND = '#FAF0E6'
+export const BACKGROUND = '#FAF0E6FF'
 export const CANVAS_SIZE = 1000

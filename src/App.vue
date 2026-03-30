@@ -10,6 +10,9 @@
     <WhatsNewModal />
 
     <DrawModal />
+    <Confetti/>
+
+
   </ion-app>
 </template>
 
@@ -28,6 +31,7 @@ import { useAuthStore } from '@/store/auth.store'
 import DrawMenus from '@/components/draw/menus/DrawMenus.vue'
 import DrawModal from '@/components/draw/DrawModal.vue'
 import WhatsNewModal from '@/components/general/WhatsNewModal.vue'
+import Confetti from '@/components/subscription/Confetti.vue'
 
 const ionRouter = useIonRouter()
 const { initIonRouter } = useAuthStore()

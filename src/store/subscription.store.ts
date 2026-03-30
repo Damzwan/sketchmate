@@ -7,6 +7,7 @@ import { PAYWALL_RESULT, RevenueCatUI } from '@revenuecat/purchases-capacitor-ui
 export const useSubscriptionStore = defineStore('subscription', () => {
   const isPro = ref(false)
   const isLoading = ref(true)
+  const showConfetti = ref(false)
 
   async function checkProStatus() {
     if (!isNative()) return
@@ -36,6 +37,10 @@ export const useSubscriptionStore = defineStore('subscription', () => {
       PAYWALL_RESULT.RESTORED
     ]
 
+    if (successStates.includes(result)) {
+      showConfetti.value = true
+    }
+
     return successStates.includes(result)
   }
 
@@ -48,12 +53,14 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     }
   }
 
+
   return {
     isPro,
     isLoading,
     checkProStatus,
     clearSubscriptionState,
     presentPaywall,
-    manageSubscription
+    manageSubscription,
+    showConfetti
   }
 })

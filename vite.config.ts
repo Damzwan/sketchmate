@@ -54,7 +54,7 @@ export default defineConfig({
       }
     })
   ],
-  assetsInclude: ['**/*.md'],
+  assetsInclude: ['**/*.md', '**/*.lottie'],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')

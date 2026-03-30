@@ -101,6 +101,9 @@ importers:
       '@ionic/vue-router':
         specifier: ^8.8.1
         version: 8.8.1(@stencil/core@4.43.2)(vue-router@4.6.4(vue@3.5.30(typescript@5.9.3)))(vue@3.5.30(typescript@5.9.3))
+      '@lottiefiles/dotlottie-vue':
+        specifier: ^0.11.8
+        version: 0.11.8(vue@3.5.30(typescript@5.9.3))
       '@revenuecat/purchases-capacitor':
         specifier: ^12.3.0
         version: 12.3.0(@capacitor/core@8.2.0)
@@ -1674,6 +1677,14 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@lottiefiles/dotlottie-vue@0.11.8':
+    resolution: {integrity: sha512-aoT+WC/byhgPh4GXlE8Z01SbDSkPRJJdExr89uu2Zof36zYIKn+Ym64AJr7AhUmmVDdRMccvjoTYSNmToi+aZQ==}
+    peerDependencies:
+      vue: ^3.3.4
+
+  '@lottiefiles/dotlottie-web@0.68.0':
+    resolution: {integrity: sha512-trxJccn9EGm/i1cLetbxXVN6HAoH9mSpt2qJJCDpRGtpCG/SGd+u8QPEsYzc54H5dr3WZD9bqczEAzHjgBe90w==}
 
   '@mdi/js@7.4.47':
     resolution: {integrity: sha512-KPnNOtm5i2pMabqZxpUz7iQf+mfrYZyKCZ8QNz85czgEt7cuHcGorWfdzUMWYA0SD+a6Hn4FmJ+YhzzzjkTZrQ==}
@@ -7255,6 +7266,13 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@lottiefiles/dotlottie-vue@0.11.8(vue@3.5.30(typescript@5.9.3))':
+    dependencies:
+      '@lottiefiles/dotlottie-web': 0.68.0
+      vue: 3.5.30(typescript@5.9.3)
+
+  '@lottiefiles/dotlottie-web@0.68.0': {}
 
   '@mdi/js@7.4.47': {}
 

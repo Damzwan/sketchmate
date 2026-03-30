@@ -208,10 +208,11 @@ export async function mergeObjects(params: DrawActionParams[DrawAction.Merge]) {
   await actionWithoutEvents(async () => {
     c.discardActiveObject()
     createdGroup = mergeHelper(c, params.objects)
-    c.setActiveObject(createdGroup)
   })
 
   if (!createdGroup) return
+
+  c.setActiveObject(createdGroup)
 
   c.fire('objectsMerged', {
     objectIds: [createdGroup.id],

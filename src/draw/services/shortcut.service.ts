@@ -11,6 +11,7 @@ import { isMac } from '@/helper/general.helper'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useMenuStore } from '@/store/menu.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
+import { interactiveObjectInspector } from '@/utils/fabricDebug'
 
 export function useShortcutManager() {
   const { getSelectedObjects } = useSelect()
@@ -233,6 +234,12 @@ export function useShortcutManager() {
         if (!isSelectMode.value) return
         event.preventDefault()
         selectAction(DrawAction.FlipY, { objects: getSelectedObjects(), setActiveObject: true })
+        dismissPopover()
+        break
+
+      case Shortcut.inspect:
+        event.preventDefault()
+        interactiveObjectInspector(c!)
         dismissPopover()
         break
 

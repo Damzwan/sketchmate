@@ -69,22 +69,29 @@ export async function exportBoundingBoxImage(canvas: Canvas) {
   if (!canvas) return null
 
   const objects = canvas.getObjects()
-  if (objects.length === 0) {
-    return { img: canvas.toDataURL({ multiplier: 2 }), aspect_ratio: canvas.width / canvas.height }
-  }
+  if (objects.length === 0) return null
 
-  // 1. Save the user's current zoom and pan state
-  const originalVpt: any = canvas.viewportTransform ? [...canvas.viewportTransform] : [1, 0, 0, 1, 0, 0]
+  // 1. Save original states
+  const originalVpt = [...canvas.viewportTransform] as any
+  const originalSkipOffscreen = canvas.skipOffscreen
 
-  // 2. Reset to absolute 1:1 scale and 0,0 pan
+  // Create a Map to store which objects were manually hidden vs culled
+  const visibilityStates = new Map()
+
+  // 2. Force all objects to be visible for the export
+  objects.forEach(obj => {
+    visibilityStates.set(obj, obj.visible)
+    obj.visible = true // Temporary override
+    obj.setCoords()    // Update coordinates in "World Space"
+  })
+
   canvas.setViewportTransform([1, 0, 0, 1, 0, 0])
 
-  // 3. Initialize bounding box extremes
+  // 3. Calculate Absolute Bounds
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
 
-  // 4. Iterate over all objects to find the absolute bounding box
   objects.forEach(obj => {
-    const bounds = obj.getBoundingRect() // Now returns clean, un-zoomed coordinates
+    const bounds = obj.getBoundingRect()
     minX = Math.min(minX, bounds.left)
     minY = Math.min(minY, bounds.top)
     maxX = Math.max(maxX, bounds.left + bounds.width)
@@ -94,18 +101,17 @@ export async function exportBoundingBoxImage(canvas: Canvas) {
   const width = maxX - minX
   const height = maxY - minY
 
-  // 5. Important: Restore viewport before returning if invalid!
   if (width <= 0 || height <= 0) {
+    // Restore and exit if empty
+    objects.forEach(obj => obj.visible = visibilityStates.get(obj))
     canvas.setViewportTransform(originalVpt)
     return null
   }
 
+  // 4. Export Logic
   const minTargetSize = 2000
-  const multiplierX = minTargetSize / width
-  const multiplierY = minTargetSize / height
-  const multiplier = Math.min(multiplierX, multiplierY, 2)
+  const multiplier = Math.min(minTargetSize / width, minTargetSize / height, 2)
 
-  // 6. Export directly with the clean coordinates
   const img = canvas.toDataURL({
     left: minX,
     top: minY,
@@ -114,8 +120,18 @@ export async function exportBoundingBoxImage(canvas: Canvas) {
     multiplier: multiplier
   })
 
-  // 7. Snap the user's zoom and pan back to exactly how they had it
+  // 5. Cleanup & Restoration
+  // Restore the custom culling/visibility states
+  objects.forEach(obj => {
+    obj.visible = visibilityStates.get(obj)
+  })
+
+  canvas.skipOffscreen = originalSkipOffscreen
   canvas.setViewportTransform(originalVpt)
+
+  // Re-run your custom culling logic here if necessary,
+  // or simply re-render to let the current frame reflect the UI
+  canvas.requestRenderAll()
 
   return { img, aspect_ratio: width / height }
 }

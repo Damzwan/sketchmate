@@ -130,36 +130,33 @@
           <!-- NORMAL MESSAGE -->
           <div
             v-else
-            class="flex items-start gap-2 px-1"
+            class="flex items-start gap-3 px-2 py-1"
             :class="{ 'flex-row-reverse': msg.member._id === user?._id }"
           >
             <img
               :src="msg.member.img"
-              class="w-9 h-9 rounded-full border shadow-sm shrink-0"
+              class="w-8 h-8 rounded-full border border-gray-100 shadow-sm shrink-0 mt-1"
             />
 
             <div
-              class="flex flex-col"
+              class="flex flex-col max-w-[75%]"
               :class="{ 'items-end': msg.member._id === user?._id }"
             >
-              <!-- Name -->
-              <span class="text-[10px] font-semibold text-gray-400 mb-0.5 px-0.5">
-          {{ msg.member.name }}
-        </span>
+    <span class="text-[11px] font-medium text-gray-500 mb-0.5 px-1 uppercase tracking-wider">
+      {{ msg.member.name }}
+    </span>
 
-              <!-- Message bubble -->
               <div
-                class="p-2 rounded-2xl max-w-[85%] text-sm"
+                class="py-2 px-3.5 rounded-2xl text-sm leading-relaxed shadow-sm break-words cabin-sketch-regular"
                 :class="msg.member._id === user?._id
-            ? 'bg-primary  rounded-tr-none shadow-md'
+          ? 'bg-primary  rounded-tr-none shadow-md'
             : 'bg-primary-light  rounded-tl-none shadow-sm'"
               >
                 {{ msg.message }}
               </div>
 
-              <!-- Timestamp -->
               <div
-                class="text-[9px] text-gray-400 mt-0.5"
+                class="text-[10px] text-gray-400 mt-1 px-1"
                 :class="{ 'text-right': msg.member._id === user?._id }"
               >
                 {{ dayjs(msg.timestamp).fromNow() }}
@@ -179,6 +176,7 @@
           <ion-input
             placeholder="Say something..."
             ref="input"
+            class="cabin-sketch-regular"
             v-model="newMessage"
             autocapitalize="sentences"
             @keyup.enter="handleSendMessage()"

@@ -25,4 +25,5 @@ export enum Shortcut {
   flipY = 'y',
   bucket = 'b',
   penBrush = 'p',
+  inspect = '/',
 }

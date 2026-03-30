@@ -1,16 +1,8 @@
 import { defineStore } from 'pinia'
-import { ActiveSelection, Canvas, FabricObject } from 'fabric'
+import { Canvas, FabricObject } from 'fabric'
 import { FabricEvent, ObjectType } from '@/draw/types/draw.types'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import {
-  fabricObjectToEntry,
-  getViewportRect,
-  InfiniteQuadtreeManager,
-  Quadtree,
-  QuadtreeEntry,
-  Rect
-} from '@/draw/utils/QuadTree'
-import { CANVAS_SIZE } from '@/draw/config/canvas.config'
+import { fabricObjectToEntry, getViewportRect, InfiniteQuadtreeManager, QuadtreeEntry } from '@/draw/utils/QuadTree'
 
 export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let c: Canvas | undefined = undefined

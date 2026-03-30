@@ -28,11 +28,6 @@ import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
 import { Purchases } from '@revenuecat/purchases-capacitor'
 
-export async function imgUrlToFile(imgUrl: string) {
-  const blob = await fetch(imgUrl).then(res => res.blob())
-  return new File([blob], 'image.jpg', { type: blob.type })
-}
-
 export function sortDates(arr: string[]) {
   return (arr as any).toSorted((a: any, b: any) => {
     return new Date(b).getTime() - new Date(a).getTime()

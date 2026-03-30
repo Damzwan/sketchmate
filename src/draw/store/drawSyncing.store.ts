@@ -100,6 +100,8 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       EventBus.on('undo', handleUndo)
       EventBus.on('redo', handleRedo)
       addEventsOfService('actionSyncer', events)
+
+
     } else {
       EventBus.off('undo', handleUndo)
       EventBus.off('redo', handleRedo)

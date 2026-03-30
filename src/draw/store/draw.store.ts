@@ -16,8 +16,7 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { InboxItem } from '@/types/server.types'
 import { ref } from 'vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { fullErase } from '@/draw/actions/erase.action'
-import { ActiveSelection } from 'fabric'
+import { interactiveObjectInspector } from '@/utils/fabricDebug'
 
 export const useDrawStore = defineStore('draw', () => {
     const canvasSvc = useCanvasService()

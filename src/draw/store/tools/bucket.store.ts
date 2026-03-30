@@ -4,6 +4,7 @@ import { isMobile } from '@/helper/general.helper'
 import { bucketFill } from '@/draw/helpers/tools/bucket.helper'
 import { Canvas, Point } from 'fabric'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { bucketFill2 } from '@/draw/helpers/tools/bucket2.helper'
 
 export const useBucket = defineStore('bucket', (): ToolService => {
   let c: Canvas | undefined = undefined
@@ -19,7 +20,7 @@ export const useBucket = defineStore('bucket', (): ToolService => {
         }
         if ((!isMobile() && o.e.button !== 0)) return // only execute button fill for left click
         const pointer: Point = c!.getViewportPoint(o.e)
-        const img = await bucketFill(c!, pointer)
+        const img = await bucketFill2(c!, pointer)
         if (!img) return
 
         const { getVisibleObjects } = useDrawObjectManager()

@@ -61,6 +61,7 @@
     "browser-image-compression": "^2.0.2",
     "compressorjs": "^1.2.1",
     "cropperjs": "^1.6.2",
+    "d3-contour": "^4.0.2",
     "dayjs": "^1.11.20",
     "express": "^5.2.1",
     "fabric": "^7.2.0",

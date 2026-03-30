@@ -5,7 +5,7 @@ import { hex2RGBA } from '@/draw/utils/color.utils'
 
 import { resetZoom2 } from '@/draw/helpers/viewport.helper'
 
-export async function bucketFill(c: Canvas, p: Point, scale = 0.5) {
+export async function bucketFill(c: Canvas, p: Point, scale = 1) {
   const { brushColorWithOpacity } = usePen()
   const dpr = window.devicePixelRatio || 1
 
@@ -59,7 +59,7 @@ export async function bucketFill(c: Canvas, p: Point, scale = 0.5) {
   return img
 }
 
-function createDownScaledCanvas(c: Canvas, scale: number) {
+export function createDownScaledCanvas(c: Canvas, scale: number) {
   const helper = c as any
   const lowerCanvas = helper.lowerCanvasEl as HTMLCanvasElement // this canvas contains the drawing data
 

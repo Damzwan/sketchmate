@@ -78,11 +78,7 @@ export const useDrawStore = defineStore('draw', () => {
         c.requestRenderAll()
       })
 
-      setTimeout(() => {
-        c.selection = false
-        const selection = new ActiveSelection(c.getObjects(), { canvas: c })
-        c.setActiveObject(selection)
-      }, 2000)
+
     }
 
     async function selectAction<A extends DrawAction>(action: A, params: DrawActionParams[A]) {

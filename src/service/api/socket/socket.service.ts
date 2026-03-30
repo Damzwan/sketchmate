@@ -76,7 +76,6 @@ export function createSocketService(): SocketAPI {
       reconnectionAttempts: Infinity
     })
 
-
     registerDrawSyncingHandlers(socket)
 
     socket.io.on('reconnect', () => {
@@ -303,15 +302,13 @@ export function createSocketService(): SocketAPI {
 
   async function disconnect(): Promise<void> {
     socket!.disconnect()
+    socket = undefined
   }
 
   async function login(params: SocketLoginParams): Promise<void> {
     socket!.emit(SOCKET_ENDPONTS.login, params)
   }
 
-  async function logout(): Promise<void> {
-    socket?.disconnect()
-  }
 
   async function match(params: MatchParams): Promise<void> {
     await socketLoggedInPromise // make sure the user Id to socket mapping in the backend exists
@@ -403,7 +400,6 @@ export function createSocketService(): SocketAPI {
     refuseSendMateRequest,
     acceptBalloon,
     rejectBalloon,
-    cancelBalloon,
-    logout
+    cancelBalloon
   }
 }

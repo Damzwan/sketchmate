@@ -256,8 +256,7 @@ export const useAuthStore = defineStore('auth', () => {
     Preferences.remove({ key: LocalStorage.user_id })
     Preferences.remove({ key: LocalStorage.notificationToken })
 
-    const { logout: socketLogout } = useSocketService()
-    socketLogout()
+    const { disconnect } = useSocketService()
     if (deviceFingerprint.value) {
       api.onLoginEvent({
         user_id: user.value!._id,
@@ -267,6 +266,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     leaveRoom()
+    disconnect()
+
 
     await FirebaseAuthentication.signOut()
     isLoggedIn.value = false

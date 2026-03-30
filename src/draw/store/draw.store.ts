@@ -16,6 +16,8 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { InboxItem } from '@/types/server.types'
 import { ref } from 'vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { fullErase } from '@/draw/actions/erase.action'
+import { ActiveSelection } from 'fabric'
 
 export const useDrawStore = defineStore('draw', () => {
     const canvasSvc = useCanvasService()
@@ -75,16 +77,22 @@ export const useDrawStore = defineStore('draw', () => {
       requestAnimationFrame(() => {
         c.requestRenderAll()
       })
+
+      setTimeout(() => {
+        c.selection = false
+        const selection = new ActiveSelection(c.getObjects(), { canvas: c })
+        c.setActiveObject(selection)
+      }, 2000)
     }
 
     async function selectAction<A extends DrawAction>(action: A, params: DrawActionParams[A]) {
       await drawActionMapping[action](params)
     }
 
-    function reset() {
+    function reset(resetProgressSaver = true) {
       canvasSvc.resetCanvas()
       drawHistory.reset()
-      progressSaver.clear()
+      if (resetProgressSaver) progressSaver.clear()
     }
 
     async function loadCanvas(canvasJson: any) {
@@ -102,6 +110,18 @@ export const useDrawStore = defineStore('draw', () => {
       canvasID = ''
     }
 
+    // TODO maybe not best place but has all the references :c
+    async function restoreLocalCanvas() {
+      const prevJson = await progressSaver.get()
+      if (!prevJson) {
+        canvasSvc.resetCanvas()
+        return
+      }
+      await canvasSvc.getCanvas().loadFromJSON(prevJson)
+      canvasSvc.getCanvas().requestRenderAll()
+      drawHistory.reset()
+    }
+
 
     return {
       isModal,
@@ -116,7 +136,10 @@ export const useDrawStore = defineStore('draw', () => {
       prevDrawingMode,
       isSendingDrawing,
       loadCanvas,
-      resetCanvasID
+      resetCanvasID,
+      stopSaving: progressSaver.stopSaving,
+      startSaving: progressSaver.startSaving,
+      restoreLocalCanvas
     }
   }
 )

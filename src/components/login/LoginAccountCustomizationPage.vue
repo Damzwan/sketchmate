@@ -3,7 +3,7 @@
     <div class="w-full h-full flex flex-col justify-between items-center">
       <div class="py-4 px-6">
         <p class="cabin-sketch-regular text-4xl text-center">Let's create your profile</p>
-        <ProfileCustomization />
+        <ProfileCustomization :skip-toast="true"/>
       </div>
       <ion-nav-link router-direction="forward" :component="LoginNotificationPage">
         <ion-button shape="round" color="secondary" size="large" class="pb-12"

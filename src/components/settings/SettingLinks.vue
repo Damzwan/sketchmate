@@ -19,10 +19,18 @@
     >Install Sketchmate
     </ion-button
     >
-    <ion-button v-if="form" fill="clear" color="secondary" @click="logout"
+    <ion-button v-if="form" fill="clear" color="secondary" @click="logoutHelper"
     >Logout
     </ion-button>
     <IosPwaInstructions :trigger="pwaInstructionId" v-if="showIosSafariInstructions()" />
+
+    <ConfirmationAlert
+      v-model:is-open="logoutWarningOpen"
+      confirmationtext="Logout"
+      header="Wait! Don't Lose Your Art"
+      message="You're drawing as a guest. Logging out will delete your progress forever! Are you sure?"
+      @confirm="logout"
+    />
   </div>
 </template>
 
@@ -38,13 +46,17 @@ import { Menu } from '@/draw/types/draw.types'
 import { discord_link } from '@/config/general.config'
 import DocsMenu from '@/components/draw/menus/DocsMenu.vue'
 import { useSessionStore } from '@/store/session.store'
+import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import { ref } from 'vue'
 
 const { installPrompt } = storeToRefs(useSessionStore())
 const { logout } = useAuthStore()
+const { firebaseUser } = storeToRefs(useAuthStore())
 
 const { openMenu } = useMenuStore()
 
 const pwaInstructionId = uuidv4()
+const logoutWarningOpen = ref(false)
 
 export interface Props {
   docs?: boolean
@@ -65,6 +77,11 @@ const id = uuidv4()
 
 function onInstallPWAClick() {
   installPWA(installPrompt)
+}
+
+function logoutHelper() {
+  if (firebaseUser.value?.isAnonymous) logoutWarningOpen.value = true
+  else logout()
 }
 
 

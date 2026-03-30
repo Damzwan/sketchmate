@@ -50,7 +50,7 @@
       <div
         class="max-h-96 overflow-y-auto rounded-lg p-2"
       >
-        <ion-list class="p-0">
+        <ion-list color="tertiary" class="bg-background">
           <ion-item
             v-for="mate in foundMates"
             :key="mate._id"
@@ -167,5 +167,8 @@ ion-modal {
   --height: auto;
 }
 
+ion-list{
+  padding: 0;
+}
 
 </style>

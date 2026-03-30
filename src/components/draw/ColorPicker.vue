@@ -244,7 +244,8 @@ function pickColor(e: any) {
     {
       on: 'mouse:up', handler: (options: any) => {
         exitColorPickerMode({ lastSelectedObjectRef: lastSelectedObject })
-        const pointer = options.pointer
+        const pointer = c.getViewportPoint(options.e)
+
         const dpr = window.devicePixelRatio || 1
         const ctx = c.getContext()
         const pixel = ctx.getImageData(pointer.x * dpr, pointer.y * dpr, 1, 1).data

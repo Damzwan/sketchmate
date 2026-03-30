@@ -6,6 +6,7 @@
     <div class="flex flex-col h-full top-pad-safe">
       <Toolbars />
 
+
       <div
         class="grow flex m-0 pointer-none"
         :class="{ 'pointer-events-none opacity-50': disconnectedRoomId || isLoadingCanvas }"
@@ -46,7 +47,7 @@ import { performRoomExit } from '@/draw/helpers/drawSyncing.helper'
 const myCanvasRef = ref<HTMLCanvasElement>()
 const { initCanvas, resetCanvasID } = useDrawStore()
 const { isSendingDrawing } = storeToRefs(useDrawStore())
-const { disconnectedRoomId, isLoadingCanvas } = storeToRefs(useDrawSyncer())
+const { disconnectedRoomId, isLoadingCanvas, roomMembers } = storeToRefs(useDrawSyncer())
 
 
 onIonViewDidEnter(() => {

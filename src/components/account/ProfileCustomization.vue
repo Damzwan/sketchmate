@@ -34,6 +34,10 @@ import { useToast } from '@/service/toast.service'
 import { blurIonInput, compressImg } from '@/helper/general.helper'
 import { EventBus } from '@/main'
 
+const props = defineProps<{
+  skipToast?: boolean
+}>()
+
 const { user } = storeToRefs(useAuthStore())
 const api = useAPI()
 const { toast } = useToast()
@@ -47,7 +51,7 @@ function changeName() {
     name: name.value
   })
   user.value!.name = name.value
-  toast('Changed name')
+  if (!props.skipToast) toast('Changed name')
 }
 
 function onNameBlur() {

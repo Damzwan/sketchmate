@@ -63,8 +63,11 @@ async function enableNotifications() {
 function navigateToConnectionScreen() {
   const { user } = useAuthStore()
   if (!user) return
-  if (user.mates.length == 0) ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
-  else ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+  // if (user.mates.length == 0) ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
+  // else ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+
+  // TODO testing whether this is better
+  ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
 }
 
 </script>

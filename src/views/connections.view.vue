@@ -27,8 +27,6 @@
       <SubscriptionCard class="mt-4" />
       <CircularLoader v-if="!user " bg-color="tertiary" />
       <div class="w-full h-full top-0" v-else>
-        <CircularLoader v-show="isLoading" class="absolute w-full h-full z-50" />
-
         <div class="w-full h-full" v-show="segment == Segments.friends">
           <ion-refresher slot="fixed" @ionRefresh="refresh">
             <ion-refresher-content></ion-refresher-content>
@@ -80,7 +78,7 @@
                 <ion-list class="p-0">
                   <ion-item v-for="mateRequest in user.mate_requests_received" :key="mateRequest" color="background">
                     <img :src="senderImg(findUserInFriendRequestUsers(mateRequest))" :alt="mateRequest"
-                         class="rounded-full w-[48px] my-2" slot="start">
+                         class="rounded-full w-[48px] my-2 mr-4" slot="start">
                     <h2 class="font-medium text-lg">{{ senderName(findUserInFriendRequestUsers(mateRequest)) }}</h2>
 
                     <div slot="end">

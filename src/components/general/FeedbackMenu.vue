@@ -28,11 +28,13 @@
 
       <p class="cabin-sketch-regular pt-4">Do you like SketchMate?</p>
       <ion-radio-group v-model="score" mode="md">
-        <ion-radio :value="FeedbackOptions.like" color="secondary">I like it</ion-radio>
+        <ion-radio :value="FeedbackOptions.like" class="cabin-sketch-regular" color="secondary">I like it</ion-radio>
         <br />
-        <ion-radio :value="FeedbackOptions.neutral" color="secondary">No strong opinion</ion-radio>
+        <ion-radio :value="FeedbackOptions.neutral" class="cabin-sketch-regular" color="secondary">No strong opinion
+        </ion-radio>
         <br />
-        <ion-radio :value="FeedbackOptions.dislike" color="secondary">I do not like it</ion-radio>
+        <ion-radio :value="FeedbackOptions.dislike" class="cabin-sketch-regular" color="secondary">I do not like it
+        </ion-radio>
         <br />
       </ion-radio-group>
 

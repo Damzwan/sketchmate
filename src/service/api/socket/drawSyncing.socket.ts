@@ -22,6 +22,9 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     stopWatchingLobbies()
     addRoomIdToUrl(roomId)
 
+    const { stopSaving } = useDrawStore()
+    stopSaving()
+
 
     if (!isCreator) {
       isLoadingCanvas.value = true
@@ -148,6 +151,7 @@ export function socketJoinRoom({ roomId, intent }: {
   socket!.emit('join-room', { roomId, intent })
 }
 
+// TODO maybe move to the story?
 export function leaveRoom(skipEmit = false) {
   const {
     roomId,
@@ -165,8 +169,12 @@ export function leaveRoom(skipEmit = false) {
   isLoadingCanvas.value = false
   lobbyChatMessages.value = []
 
+
   if (!skipEmit) socket!.emit('leave-room', { roomId: roomId.value })
   roomId.value = undefined
+
+  const { restoreLocalCanvas, startSaving, getCanvas } = useDrawStore()
+  restoreLocalCanvas().then(() => startSaving(getCanvas()))
 }
 
 export function emitDrawSyncingEvent(action: DrawSyncingAction) {

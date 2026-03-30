@@ -44,7 +44,7 @@
           <!--          </div>-->
 
           <div
-            class="brush_option bg-blue-400"
+            class="brush_option bg-red-400"
             @click="selectBrushType(BrushType.WaterColor)"
             :class="{ brush_selected: isBrushTypeSelected(BrushType.WaterColor) }"
           >

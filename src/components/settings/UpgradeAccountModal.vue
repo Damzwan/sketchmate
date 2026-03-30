@@ -1,5 +1,5 @@
 <template>
-  <ion-modal ref="modal" trigger="openUpgradeAccountModal" @willDismiss="onWillDismiss">
+  <ion-modal ref="modal" trigger="openUpgradeAccountModal">
     <ion-header>
       <ion-toolbar color="tertiary">
         <ion-buttons slot="start">

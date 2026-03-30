@@ -8,20 +8,31 @@
     <div class="comment rounded-xl px-2 py-1.5 w-45 shadow-md cursor-pointer">
 
       <!-- Header -->
-      <div class="flex flex-col gap-2 w-full mb-2">
-        <div class="flex items-center gap-1.5">
-          <div class="w-6 h-6 flex items-center justify-center rounded-full bg-white/10">
-            <ion-icon :icon="svg(mdiChatOutline)" class="text-white text-xs" />
+      <div class="flex flex-col gap-1 w-full mb-3">
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 shadow-inner">
+              <ion-icon :icon="svg(mdiChatOutline)" class="text-white text-sm" />
+            </div>
+
+            <div class="flex flex-col">
+              <span class="text-white text-xs font-bold tracking-wide uppercase opacity-90">Chat</span>
+              <div class="flex items-center gap-1">
+                <div class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
+                <span class="text-white/60 text-[10px] font-medium">
+            {{ roomMembers.length }} members
+          </span>
+              </div>
+            </div>
           </div>
-          <span class="text-white text-xs font-medium opacity-80">Chat</span>
         </div>
 
         <div
           v-if="disconnectedRoomId"
-          class="flex items-center gap-1.5 animate-pulse pl-1"
+          class="flex items-center gap-1.5 mt-1 animate-pulse px-1"
         >
           <div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div>
-          <span class="text-amber-400 text-[10px] font-bold uppercase tracking-wide">
+          <span class="text-amber-400 text-[9px] font-black uppercase tracking-widest">
       Reconnecting...
     </span>
         </div>
@@ -79,7 +90,7 @@
   <!-- Modal -->
   <ion-modal
     :is-open="chatMenuOpen"
-    @did-present="() => scrollToBottom()"
+    @will-present="() => scrollToBottom(false)"
     @did-dismiss="chatMenuOpen = false"
     :initial-breakpoint="1" :breakpoints="[0, 1]"
     handle-behavior="cycle"
@@ -233,7 +244,7 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 
 // Stores
 const drawSyncerStore = useDrawSyncer()
-const { lobbyChatMessages, disconnectedRoomId } = storeToRefs(drawSyncerStore)
+const { lobbyChatMessages, disconnectedRoomId, roomMembers } = storeToRefs(drawSyncerStore)
 const { chatMenuOpen } = storeToRefs(useMenuStore())
 const { user } = storeToRefs(useAuthStore())
 

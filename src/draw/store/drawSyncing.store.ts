@@ -298,7 +298,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
 
   async function loadRoomCanvas(canvasJSON: any) {
     const { reset, loadCanvas, getCanvas } = useDrawStore()
-    reset()
+    reset(false)
     await loadCanvas(canvasJSON)
 
 

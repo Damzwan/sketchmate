@@ -15,7 +15,7 @@ export function useLoadService() {
     const { isSendingDrawing } = storeToRefs(useDrawStore())
     const { actionWithoutEvents } = useDrawEventManager()
 
-    isSendingDrawing.value = true
+    isSendingDrawing.value = true // loading indicator
 
     let json: any = canvasToLoad.value
     if (typeof json == 'string') {

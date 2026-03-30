@@ -1,10 +1,12 @@
 <template>
   <ion-modal
     :is-open="roomMenuOpen"
-    @did-dismiss="() => {
+    @did-dismiss="
+() => {
       roomMenuOpen = false
       code = ['', '', '', '']
       stopWatchingLobbies()
+      activeTab = 'private'
     }"
     :initial-breakpoint="1" :breakpoints="[0, 1]"
     handle-behavior="cycle"
@@ -150,10 +152,10 @@
 
         <ion-segment v-model="activeTab" color="secondary" class="rounded-xl border border-default-light p-1 shadow-sm">
           <ion-segment-button value="private">
-            <ion-label class="cabin-sketch-regular font-bold text-base tracking-wide">Play with Friends</ion-label>
+            <ion-label class="cabin-sketch-regular font-bold text-base tracking-wide">Friends</ion-label>
           </ion-segment-button>
           <ion-segment-button value="public">
-            <ion-label class="cabin-sketch-regular font-bold text-base tracking-wide">Play with Strangers</ion-label>
+            <ion-label class="cabin-sketch-regular font-bold text-base tracking-wide">Strangers</ion-label>
           </ion-segment-button>
         </ion-segment>
 
@@ -330,6 +332,7 @@ import { useSocketService } from '@/service/api/socket/socket.service'
 import { useFriendStore } from '@/store/friend.store'
 import { useScanner } from '@/service/scanner.service'
 import { Menu } from '@/draw/types/draw.types'
+
 
 const {
   roomId,

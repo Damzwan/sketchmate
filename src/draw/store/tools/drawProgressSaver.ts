@@ -49,6 +49,12 @@ export function useDrawProgressSaver() {
     })
   }
 
+  function stopSaving() {
+    events.forEach(e => {
+      EventBus.off(e, save)
+    })
+  }
+
   function save() {
     if (saveTimeout !== undefined) {
       clearTimeout(saveTimeout)
@@ -114,5 +120,5 @@ export function useDrawProgressSaver() {
     })
   }
 
-  return { init, destroy, clear, get, startSaving }
+  return { init, destroy, clear, get, startSaving, stopSaving }
 }

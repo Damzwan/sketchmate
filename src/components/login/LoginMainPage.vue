@@ -4,7 +4,7 @@
       <div>
         <div class="w-full flex justify-center items-center gap-2">
           <p class="cabin-sketch-regular text-5xl">SketchMate</p>
-<!--          <img :src="pencil" alt="sketchmate logo" height="40" width="40" />-->
+          <!--          <img :src="pencil" alt="sketchmate logo" height="40" width="40" />-->
         </div>
 
         <div class="w-full flex flex-col gap-4 pt-4">
@@ -23,15 +23,18 @@
         <Transition name="fade">
           <div v-if="showLoginScreen" class="w-full">
             <form v-if="!isPasswordForgotten" class="flex flex-col gap-3 mx-auto max-w-md"
-                  @keyup.enter="onEmailLoginSubmit">
+                  @submit.prevent="onEmailLoginSubmit">
+              <button type="submit" class="hidden" style="display: none;"></button>
               <div :class="{ error: v$.loginEmail.$errors.length }" class="flex flex-col">
 
                 <ion-input
                   color="secondary"
                   fill="outline"
+                  autocomplete="username"
                   v-model="state.loginEmail"
                   @ionBlur="v$.loginEmail.$validate()"
                   ref="mailInput"
+                  name="email"
                   type="email" placeholder="sketcher@gmail.com">
                   <ion-icon slot="start" :icon="svg(mdiEmailOutline)" aria-hidden="true" size="large"
                             class="fill-gray-500" />
@@ -48,6 +51,8 @@
                     @ionBlur="v$.password.$validate()"
                     color="secondary"
                     placeholder="Password"
+                    autocomplete="current-password"
+                    name="password"
                     fill="outline"
                     type="password">
                     <ion-icon slot="start" :icon="svg(mdiLockOutline)" aria-hidden="true" size="large"
@@ -76,6 +81,7 @@
                     v-model="state.confirmPassword"
                     @ionBlur="v$.confirmPassword.$validate()"
                     placeholder="Confirm Password"
+                    autocomplete="new-password"
                     color="secondary"
                     fill="outline"
                     type="password">
@@ -135,14 +141,14 @@
 
         <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md" @click="showLoginScreen=true"
                     v-if="!showLoginScreen">
-          <ion-icon slot="start" :icon="svg(mdiEmail)" />
+          <ion-icon slot="start" class="mr-2" :icon="svg(mdiEmail)" />
           Sign in
         </ion-button>
 
         <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md" @click="onEmailLoginSubmit"
                     v-else-if="showLoginScreen && !isPasswordForgotten">
 
-          <ion-icon slot="end" :icon="svg(mdiSend)" v-if="!loginLoading" />
+          <ion-icon slot="end" class="ml-2" :icon="svg(mdiSend)" v-if="!loginLoading" />
           <ion-spinner name="crescent" slot="end" class="ml-2 text-white" v-else />
           {{ isRegistering ? 'Sign up' : 'Sign in' }}
         </ion-button>
@@ -150,7 +156,7 @@
         <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md" @click="onPasswordForget"
                     v-else-if="showLoginScreen && isPasswordForgotten">
 
-          <ion-icon slot="end" :icon="svg(mdiSend)" v-if="!loginLoading" />
+          <ion-icon slot="end" class="ml-2" :icon="svg(mdiSend)" v-if="!loginLoading" />
           <ion-spinner name="crescent" slot="end" class="ml-2 text-white" v-else />
 
           Reset password
@@ -158,7 +164,7 @@
 
         <ion-button shape="round" color="secondary" size="large" class="w-5/6 max-w-md" fill="outline"
                     @click="onGoogleLogin">
-          <ion-icon slot="start" :icon="svg(mdiGoogle)" />
+          <ion-icon slot="start" class="mr-2" :icon="svg(mdiGoogle)" />
           <ion-spinner name="crescent" slot="end" class="ml-2 text-secondary" v-if="googleloading" />
           Continue With Google
         </ion-button>

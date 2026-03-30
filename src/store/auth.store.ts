@@ -110,11 +110,13 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       // Logged in normally → route to draw or connect
-      if (authUser.mates.length === 0) {
-        ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
-      } else {
-        ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
-      }
+      // if (authUser.mates.length === 0) {
+      //   ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
+      // } else {
+      //   ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+      // }
+      // TODO testing whether this is better
+      ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
     } else {
       // Auto-login (no login intent)
       isAuthLoading.value = false
@@ -136,10 +138,11 @@ export const useAuthStore = defineStore('auth', () => {
         p => p !== FRONTEND_ROUTES.login
       ) as Partial<FRONTEND_ROUTES>[]
 
-      if (authUser.mates.length === 0) {
-        ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
-        return
-      }
+      // if (authUser.mates.length === 0) {
+      //   ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation) // TODO testing whether this is better
+      //   // ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
+      //   return
+      // }
 
       // 2. Check if the user was trying to reach a specific room/page
       const { redirectIntent } = useSessionStore()

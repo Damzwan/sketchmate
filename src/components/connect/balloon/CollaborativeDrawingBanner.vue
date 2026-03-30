@@ -2,11 +2,14 @@
   <div class="mx-2">
     <div class="card bg-purple-300">
       <div class="flex-1 pr-3">
-        <p class="cabin-sketch-regular text-xl font-bold">
-          Draw Together!
+        <p class="cabin-sketch-regular text-xl font-bold flex items-center gap-2">
+          Live Drawing!
+          <span class="bg-secondary text-white text-[10px] px-2 py-0.5 rounded-full uppercase italic">
+    New
+  </span>
         </p>
         <p class="text-sm cabin-sketch-regular mt-1 text-gray-800">
-          Draw together with friends or strangers
+          Collaborate on a canvas in real time
         </p>
 
         <ion-button

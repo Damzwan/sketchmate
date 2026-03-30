@@ -35,8 +35,9 @@ export const useBucket = defineStore('bucket', (): ToolService => {
         }
         const lowestIndex = Math.min(...indexes)
 
-        img.insertedIndex = lowestIndex
-        c!.insertAt(lowestIndex, img)
+        // img.insertedIndex = lowestIndex
+        // c!.insertAt(lowestIndex, img)
+        c.add(img)
         c!.requestRenderAll()
       }
     },

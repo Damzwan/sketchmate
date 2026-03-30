@@ -20,15 +20,15 @@
 
         <div class="flex flex-col h-full">
           <div class="grow">
-            <SupporterCard />
-            <SubscriptionCard/>
-
             <div class="w-full bg-warning mx-auto rounded-md p-4" v-if="firebaseUser?.isAnonymous">
               <p class="cabin-sketch-regular text-lg">Upgrade your account</p>
               <p class="text-sm">You're using a guest profile. Create an account to save your progress.</p>
               <ion-button fill="outline" color="dark" class="pt-4" id="openUpgradeAccountModal">Upgrade</ion-button>
               <UpgradeAccountModal />
             </div>
+
+            <SupporterCard class="mt-4" />
+            <SubscriptionCard class="mt-4"/>
 
             <ProfileCustomization />
 

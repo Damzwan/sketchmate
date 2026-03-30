@@ -1,5 +1,5 @@
 <template>
-  <ion-content class="bg-primary">
+  <ion-content class="bg-primary my-safe-area">
     <div class="w-full h-full flex flex-col justify-between items-center">
       <div class="py-4 px-6">
         <p class="cabin-sketch-regular text-4xl text-center">Let's create your profile</p>

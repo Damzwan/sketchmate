@@ -39,6 +39,7 @@ export const useSelect = defineStore('select', (): Select => {
 
   let useGestures = false // means that when we zoom or rotate we edit the object instead of zooming/panning the canvas
 
+
   const originalStates = new Map<string, any>()
 
   let isUsingGestures = false
@@ -115,16 +116,16 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'selection:updated',
       handler: (e: any) => {
-        const currentSelection = c!.getActiveObjects();
+        const currentSelection = c!.getActiveObjects()
 
-        // Use your full selection array for checks
-        if (isText(currentSelection) && isEditingText.value) {
-          c!.discardActiveObject();
-          return;
+        if (isText(e.deselected) && isEditingText.value) {
+          c!.setActiveObject(selectedObjects[0])
+          isEditingText.value = false
+          return
         }
 
-        setSelection(currentSelection);
-        temporarilyDisableGestures();
+        setSelection(currentSelection)
+        temporarilyDisableGestures()
       }
     },
     {

@@ -278,6 +278,7 @@ export async function flipYObjects(params: DrawActionParams[DrawAction.FlipX]) {
 export async function unselectObjects() {
   const { unSelect } = useSelect()
   unSelect()
+  unSelect()
 }
 
 export async function saveFabricObject(params: DrawActionParams[DrawAction.SaveFabricObject]) {

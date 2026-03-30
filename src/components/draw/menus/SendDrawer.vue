@@ -14,19 +14,6 @@
       <SendBalloonBanner />
 
 
-      <div class="flex flex-col px-4 py-2 w-full justify-center items-center" v-if="user.mates.length === 0">
-        <p class="cabin-sketch-regular text-xl mb-2">
-          You don’t have any mates yet. Add one to start sending drawings!
-        </p>
-        <ion-button size="small" class="w-[200px]" color="secondary" @click="() => {
-          r.push(`/${FRONTEND_ROUTES.connect}`);
-          sendMenuOpen = false;
-        }">
-          Add a mate
-        </ion-button>
-      </div>
-
-
       <ion-list class="bg-primary max-h-96 overflow-y-auto scrollbar" v-if="!hideMatesList">
         <SendDrawerItem
           :key="user._id"

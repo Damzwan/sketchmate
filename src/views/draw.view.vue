@@ -21,7 +21,7 @@
       type="indeterminate"
       class="absolute bottom-0 z-50 h-1.5"
       color="secondary"
-      v-if="isSendingDrawing"
+      v-if="isSendingDrawing || isLoadingCanvas"
     />
 
     <Tutorial />
@@ -47,7 +47,7 @@ import { performRoomExit } from '@/draw/helpers/drawSyncing.helper'
 const myCanvasRef = ref<HTMLCanvasElement>()
 const { initCanvas, resetCanvasID } = useDrawStore()
 const { isSendingDrawing } = storeToRefs(useDrawStore())
-const { disconnectedRoomId, isLoadingCanvas, roomMembers } = storeToRefs(useDrawSyncer())
+const { disconnectedRoomId, isLoadingCanvas } = storeToRefs(useDrawSyncer())
 
 
 onIonViewDidEnter(() => {

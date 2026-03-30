@@ -75,19 +75,25 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
   socket.on('request-canvas-state', ({ targetSocketId }) => {
     const { getCanvas } = useDrawStore()
-    const json = getCanvas()?.toJSON()
+    const canvas = getCanvas()
+    if (!canvas) return
+
+    const canvasString = JSON.stringify(canvas.toJSON())
+    const sizeKB = canvasString.length / 1024
 
     socket.emit('send-canvas-state', {
       targetSocketId,
-      canvasState: json
+      canvasState: canvasString, // Send as string
+      sizeKB: Math.round(sizeKB)
     })
   })
 
   socket.on('initial-canvas-state', async ({ canvasState }) => {
     const { loadRoomCanvas } = useDrawSyncer()
     const { isLoadingCanvas } = storeToRefs(useDrawSyncer())
+    const json = JSON.parse(canvasState)
 
-    await loadRoomCanvas(canvasState)
+    await loadRoomCanvas(json)
     isLoadingCanvas.value = false
   })
 

@@ -23,7 +23,6 @@ export function useLoadService() {
     }
 
 
-    // add backwards compatability
     if (json.version === '5.5.2') {
       delete json.width
       delete json.height

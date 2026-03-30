@@ -149,13 +149,21 @@ export function socketJoinRoom({ roomId, intent }: {
 }
 
 export function leaveRoom(skipEmit = false) {
-  const { roomId, roomMembers, invitedFriends, isPublicLobby, isLoadingCanvas } = storeToRefs(useDrawSyncer())
+  const {
+    roomId,
+    roomMembers,
+    invitedFriends,
+    isPublicLobby,
+    isLoadingCanvas,
+    lobbyChatMessages
+  } = storeToRefs(useDrawSyncer())
   if (!roomId.value) return
   roomMembers.value = []
   invitedFriends.value = []
   removeRoomIdFromUrl()
   isPublicLobby.value = false
   isLoadingCanvas.value = false
+  lobbyChatMessages.value = []
 
   if (!skipEmit) socket!.emit('leave-room', { roomId: roomId.value })
   roomId.value = undefined
@@ -168,7 +176,7 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
   const sizeBytes = new Blob([json]).size
   const sizeMB = sizeBytes / (1024 * 1024)
 
-  // console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
+  console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
 
   if (sizeMB >= 0.6) {
     const { toast } = useToast()
@@ -176,8 +184,6 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
     leaveRoom()
     return
   }
-
-  console.log('sending')
 
 
   socket!.emit('draw-event', { roomId: roomId, action })

@@ -10,10 +10,12 @@ import { useSelect } from '@/draw/store/tools/select.store'
 import { isMac } from '@/helper/general.helper'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useMenuStore } from '@/store/menu.store'
+import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 
 export function useShortcutManager() {
   const { getSelectedObjects } = useSelect()
   const { selectedObjectsRef } = storeToRefs(useSelect())
+  const historyManager = useDrawHistoryManager()
 
   const isSelectMode = computed(() => selectedObjectsRef.value.length > 0)
   let selectIndex = 0
@@ -93,9 +95,10 @@ export function useShortcutManager() {
       dismissPopover()
     }
 
+
     if (!modifier) return
 
-    switch (event.key) {
+    switch (event.key.toLowerCase()) {
       case Shortcut.pen:
         event.preventDefault()
         if (isSelectMode.value) return
@@ -151,9 +154,9 @@ export function useShortcutManager() {
       case Shortcut.undoredo:
         event.preventDefault()
         if (event.shiftKey) {
-          if (!document.getElementById(ToolbarIds.redo)!.ariaDisabled) document.getElementById(ToolbarIds.redo)!.click()
+          historyManager.redo()
           break
-        } else if (!document.getElementById(ToolbarIds.undo)!.ariaDisabled) document.getElementById(ToolbarIds.undo)!.click()
+        } else historyManager.undo()
         dismissPopover()
         break
 
@@ -220,14 +223,14 @@ export function useShortcutManager() {
       case Shortcut.flipX:
         if (!isSelectMode.value) return
         event.preventDefault()
-        selectAction(DrawAction.FlipX, { objects: getSelectedObjects() })
+        selectAction(DrawAction.FlipX, { objects: getSelectedObjects(), setActiveObject: true })
         dismissPopover()
         break
 
       case Shortcut.flipY:
         if (!isSelectMode.value) return
         event.preventDefault()
-        selectAction(DrawAction.FlipY, { objects: getSelectedObjects() })
+        selectAction(DrawAction.FlipY, { objects: getSelectedObjects(), setActiveObject: true })
         dismissPopover()
         break
 

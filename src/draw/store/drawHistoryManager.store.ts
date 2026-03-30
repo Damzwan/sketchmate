@@ -35,11 +35,19 @@ export const useDrawHistoryManager = defineStore('history', () => {
     {
       on: 'erasing:end',
       handler: (e: any) => {
-        if (e.detail.targets.length == 0) return
+        if (e.detail.targets.length === 0) return
+
         const targets = e.detail.targets as FabricObject[]
+        // Assuming you can access the newly created eraser path from the event or brush
+        const eraserStroke = e.detail.path
+
         addToUndoStackWithResetRedo({
           type: HistoryEvent.Erasing,
-          params: { objectIds: toObjectsIds(targets), prevClipPaths: targets.map(item => item.prevClipPath) }
+          params: {
+            objectIds: toObjectsIds(targets),
+            strokeJSON: eraserStroke.toJSON(),
+            strokeId: eraserStroke.id
+          }
         })
       }
     },

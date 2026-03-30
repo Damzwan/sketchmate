@@ -1,6 +1,7 @@
 import * as fabric from 'fabric'
 import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { HistoryContext } from '@/draw/config/drawHistory.config'
+import { eraseObject } from '@/draw/utils/brushes/CustomEraserBrush'
 
 export async function handleErasedAction(
   ctx: HistoryContext,
@@ -8,38 +9,43 @@ export async function handleErasedAction(
   actionType: 'undo' | 'redo'
 ): Promise<HistoryAction<HistoryEvent.Erasing>> {
   const { canvas, getObjectsById } = ctx
-
   const objects = getObjectsById(action.params.objectIds)
-  const prevClipPaths = action.params.prevClipPaths
+  const { strokeJSON, strokeId } = action.params
 
-  // Map current clipPaths to JSON to swap them into the history record
-  const newPrevClipPaths = objects.map(obj => obj.clipPath?.toJSON())
+  if (actionType === 'redo') {
+    // REDO: Leverage the plugin's native logic
+    const [enlivenedStroke] = await fabric.util.enlivenObjects<fabric.Path>([strokeJSON])
 
-  for (let i = 0; i < objects.length; i++) {
-    const canvasObj = objects[i]
-    if (!canvasObj) continue
+    await Promise.all(objects.map(async (canvasObj) => {
+      if (!canvasObj) return
+      await eraseObject(canvasObj, enlivenedStroke)
+    }))
 
-    let targetClipPathJSON = prevClipPaths[i]
-    let restoredClipPath = null
+  } else {
+    // UNDO: Manually pluck the stroke out of the existing mask
+    for (let canvasObj of objects) {
+      if (!canvasObj || !canvasObj.clipPath) continue
 
-    if (targetClipPathJSON) {
-      // Fabric 7.2.0: enlivenObjects returns a Promise
-      const [enlivened] = await fabric.util.enlivenObjects([targetClipPathJSON])
-      restoredClipPath = enlivened
+      const currentClipPath = canvasObj.clipPath as any
+
+      if (currentClipPath && currentClipPath._objects) {
+        // Filter out Player 1's specific stroke by its ID
+        currentClipPath._objects = currentClipPath._objects.filter(
+          (obj: any) => obj.id !== strokeId
+        )
+
+        // If that was the only stroke in the clipping mask, we can safely remove the shell
+        if (currentClipPath._objects.length === 0) {
+          canvasObj.set({ clipPath: undefined })
+        }
+      }
+
+      canvasObj.dirty = true
     }
-
-    canvasObj.set({
-      clipPath: restoredClipPath
-    })
   }
 
   canvas.requestRenderAll()
-
-  // Prepare the next action with the swapped clipPath states
-  return {
-    ...action,
-    params: { ...action.params, prevClipPaths: newPrevClipPaths }
-  }
+  return action
 }
 
 export async function redoErased(

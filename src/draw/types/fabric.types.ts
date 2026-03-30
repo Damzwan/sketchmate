@@ -10,7 +10,6 @@ declare module 'fabric' {
   interface FabricObject {
     id: string
     erasable?: boolean
-    prevClipPath?: object
     oldText?: string
     layer: number
     init?: boolean // hacky property for text initialization

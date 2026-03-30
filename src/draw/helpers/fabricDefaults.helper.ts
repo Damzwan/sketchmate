@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
 
 export function changeFabricSettings() {
-  FabricObject.customProperties = ['id', 'erasable', 'prevClipPath', 'oldText', 'isBucketFill', 'insertedIndex'];
+  FabricObject.customProperties = ['id', 'erasable', 'oldText', 'isBucketFill', 'insertedIndex'];
 
   (FabricObject as any).ownDefaults!['erasable'] = true
   // (FabricObject as any).ownDefaults!['id'] = uuidv4(); // cannot use this because it needs to be dynamic :c

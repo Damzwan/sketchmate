@@ -114,12 +114,12 @@ function moveDownOneLayer() {
 }
 
 function flipX() {
-  selectAction(DrawAction.FlipX, { objects: getSelectedObjects() })
+  selectAction(DrawAction.FlipX, { objects: getSelectedObjects(), setActiveObject: true })
   closePopover()
 }
 
 function flipY() {
-  selectAction(DrawAction.FlipY, { objects: getSelectedObjects() })
+  selectAction(DrawAction.FlipY, { objects: getSelectedObjects(), setActiveObject: true })
   closePopover()
 }
 

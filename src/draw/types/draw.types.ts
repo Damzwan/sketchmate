@@ -178,8 +178,8 @@ export type DrawActionParams = {
   [DrawAction.MoveObjectDownOneLayer]: DrawActionObjectParams;
   [DrawAction.SetCanvasBackground]: { color: string };
   [DrawAction.ChangeStrokeWidth]: { strokeWidth: number };
-  [DrawAction.FlipX]: DrawActionObjectParams;
-  [DrawAction.FlipY]: DrawActionObjectParams;
+  [DrawAction.FlipX]: DrawActionObjectParams & { setActiveObject?: boolean };
+  [DrawAction.FlipY]: DrawActionObjectParams & { setActiveObject?: boolean };
   [DrawAction.Undo]: undefined;
   [DrawAction.Redo]: undefined;
   [DrawAction.UnselectObjects]: undefined;

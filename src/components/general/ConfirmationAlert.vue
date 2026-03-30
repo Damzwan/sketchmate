@@ -61,9 +61,11 @@ ion-alert {
 <style>
 button.alert-button.alert-button-confirm {
   color: var(--ion-color-secondary);
+  cursor: pointer;
 }
 
 button.alert-button.alert-button-cancel {
   color: var(--ion-color-secondary);
+  cursor: pointer;
 }
 </style>

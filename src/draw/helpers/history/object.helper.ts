@@ -114,7 +114,7 @@ export async function undoObjectAdded(ctx: HistoryContext, action: HistoryAction
 }
 
 export async function undoObjectsAdded(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectsAdded>) {
-  ctx.unSelect()
+  // ctx.unSelect() TODO was this necessary?
   action.params.objectsJSON?.forEach(obj => {
     const canvasObj = ctx.getObjectById(obj.id)
     if (canvasObj) ctx.canvas.remove(canvasObj)

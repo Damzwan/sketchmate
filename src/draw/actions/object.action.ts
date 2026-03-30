@@ -223,15 +223,55 @@ export async function mergeObjects(params: DrawActionParams[DrawAction.Merge]) {
 export async function flipXObjects(params: DrawActionParams[DrawAction.FlipX]) {
   const { getCanvas } = useDrawStore()
   const c = getCanvas()
-  setPropertiesOfObjects({ objects: params.objects, properties: { flipX: !params.objects[0].flipX } })
-  c.fire('flip', { direction: 'flipX', target: params.objects })
+  const objects = params.objects
+
+  if (objects.length === 1) {
+    objects[0].set('flipX', !objects[0].flipX)
+    objects[0].setCoords()
+  } else {
+    const tempSelection = new fabric.ActiveSelection(objects, { canvas: c })
+
+    const prevActiveObject = c.getActiveObject()
+    c.setActiveObject(tempSelection)
+
+    tempSelection.set('flipX', !tempSelection.flipX)
+    tempSelection.setCoords()
+
+    if (!params.setActiveObject) {
+      c.discardActiveObject()
+      if (prevActiveObject) c.setActiveObject(prevActiveObject)
+    }
+  }
+
+  c.requestRenderAll()
+  c.fire('flip', { direction: 'flipX', target: objects })
 }
 
-export async function flipYObjects(params: DrawActionParams[DrawAction.FlipY]) {
+export async function flipYObjects(params: DrawActionParams[DrawAction.FlipX]) {
   const { getCanvas } = useDrawStore()
   const c = getCanvas()
-  setPropertiesOfObjects({ objects: params.objects, properties: { flipY: !params.objects[0].flipY } })
-  c.fire('flip', { direction: 'flipY', target: params.objects })
+  const objects = params.objects
+
+  if (objects.length === 1) {
+    objects[0].set('flipY', !objects[0].flipX)
+    objects[0].setCoords()
+  } else {
+    const tempSelection = new fabric.ActiveSelection(objects, { canvas: c })
+
+    const prevActiveObject = c.getActiveObject()
+    c.setActiveObject(tempSelection)
+
+    tempSelection.set('flipY', !tempSelection.flipX)
+    tempSelection.setCoords()
+
+    if (!params.setActiveObject) {
+      c.discardActiveObject()
+      if (prevActiveObject) c.setActiveObject(prevActiveObject)
+    }
+  }
+
+  c.requestRenderAll()
+  c.fire('flip', { direction: 'flipY', target: objects })
 }
 
 export async function unselectObjects() {

@@ -1,10 +1,11 @@
 <template>
   <!-- Floating preview + button -->
   <div
-    class="absolute top-safe mt-14 right-2 z-50 pointer-events-auto"
+    class="absolute top-safe right-2 z-50 pointer-events-auto"
+    :class="topMargin"
     @click="chatMenuOpen = true"
   >
-    <div class="comment rounded-xl px-2 py-1.5 w-[180px] shadow-md cursor-pointer">
+    <div class="comment rounded-xl px-2 py-1.5 w-45 shadow-md cursor-pointer">
 
       <!-- Header -->
       <div class="flex flex-col gap-2 w-full mb-2">
@@ -214,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useMenuStore } from '@/store/menu.store'
@@ -227,6 +228,8 @@ import dayjs from 'dayjs'
 import { useFriendStore } from '@/store/friend.store'
 import { useSocketService } from '@/service/api/socket/socket.service'
 import { Mate } from '@/types/server.types'
+import { useRoute } from 'vue-router'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 // Stores
 const drawSyncerStore = useDrawSyncer()
@@ -237,6 +240,17 @@ const { user } = storeToRefs(useAuthStore())
 // State
 const newMessage = ref('')
 const chatContent = ref<HTMLElement | null>(null)
+
+const route = useRoute()
+const topMargin = computed(() => {
+  const mapping: any = {
+    [`/${FRONTEND_ROUTES.draw}`]: 'mt-14',
+    [`/${FRONTEND_ROUTES.gallery}`]: 'mt-16',
+    [`/${FRONTEND_ROUTES.connect}`]: 'mt-32'
+  }
+
+  return mapping[route.path] || 'mt-14'
+})
 
 // Scroll logic
 const scrollToBottom = async (smooth = true) => {

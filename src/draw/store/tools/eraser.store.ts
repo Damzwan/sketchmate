@@ -5,6 +5,7 @@ import { defineStore } from 'pinia'
 import { CustomEraserBrush } from '@/draw/utils/brushes/CustomEraserBrush'
 import { isMobile } from '@/helper/general.helper'
 import { updateFreeDrawingCursor } from '@/draw/helpers/tools/cursor.helper'
+import { v4 } from 'uuid'
 
 
 interface Eraser extends ToolService {
@@ -88,6 +89,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
 
     b.width = eraserSize.value
     b.on('end', async (e) => {
+      e.detail.path.id = v4()
       await b.commit(e.detail)
       if (isCancelling) {
         isCancelling = false
@@ -96,14 +98,6 @@ export const useEraser = defineStore('eraser', (): Eraser => {
       }
     })
 
-    // Needed for undo/redo to work
-    b.on('start', async () => {
-      c?.getObjects().forEach((obj) => {
-        obj.set({
-          prevClipPath: obj.clipPath?.toJSON()
-        })
-      })
-    })
 
     c!.freeDrawingBrush = b
     updateEraserCursor()

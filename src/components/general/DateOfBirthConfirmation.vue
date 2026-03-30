@@ -114,6 +114,7 @@ const confirm = () => {
   if (!dateTimeValue.value) {
     return
   }
+
   document.dispatchEvent(
     new CustomEvent('dateofbirth-response', { detail: { response: new Date(dateTimeValue.value) } })
   )

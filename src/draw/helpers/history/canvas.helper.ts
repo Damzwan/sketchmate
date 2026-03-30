@@ -39,8 +39,6 @@ export async function undoFullErase(
 ): Promise<HistoryAction<HistoryEvent.FullErase>> {
   const { canvas } = ctx
 
-  // In Fabric 6+, loadFromJSON is typically handled via the util or directly
-  // and returns a promise.
   await canvas.loadFromJSON(action.params.prevCanvasJSON)
 
   canvas.requestRenderAll()

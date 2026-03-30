@@ -115,13 +115,16 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'selection:updated',
       handler: (e: any) => {
-        if (isText(selectedObjects) && isEditingText.value) {
-          c!.discardActiveObject()
-          return
+        const currentSelection = c!.getActiveObjects();
+
+        // Use your full selection array for checks
+        if (isText(currentSelection) && isEditingText.value) {
+          c!.discardActiveObject();
+          return;
         }
 
-        setSelection(e.selected)
-        temporarilyDisableGestures()
+        setSelection(currentSelection);
+        temporarilyDisableGestures();
       }
     },
     {

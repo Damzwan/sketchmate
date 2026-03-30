@@ -1,6 +1,6 @@
 <template>
   <div class="w-full flex justify-center items-center pt-4">
-    <ProfilePictureSelector :img="user.img" @update:img="img => uploadImage(img)" />
+    <ProfilePictureSelector :img="user!.img" @update:img="img => uploadImage(img)" />
   </div>
 
   <div class="w-full justify-center flex pt-6">
@@ -9,7 +9,7 @@
       color="secondary"
       helperText="Name"
       type="text"
-      maxlength="30"
+      :maxlength="30"
       fill="outline"
       placeholder="e.g. SketchMater"
       v-model="name"

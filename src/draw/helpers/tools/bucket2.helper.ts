@@ -3,8 +3,9 @@ import { CustomFloodFill } from '@/draw/utils/CustomFloodFill'
 import { createDownScaledCanvas } from './bucket.helper'
 import { usePen } from '@/draw/store/tools/pen.store'
 import { hex2RGBA } from '@/draw/utils/color.utils'
+// @ts-ignore
 import { contours } from 'd3-contour'
-import { Path } from 'fabric' // or just use fabric.Path depending on your import style
+import { Path } from 'fabric'
 
 type Point = { x: number, y: number }
 
@@ -57,6 +58,9 @@ export async function bucketFill2(c: Canvas, p: Point, scale = 1) {
   // multiPolygon is a deeply nested array: Polygon[] -> Ring[] -> Point[]
   for (const polygon of multiPolygon) {
     for (const ring of polygon) {
+
+      let lastX = -99999, lastY = -99999 // Track last added point
+
       for (let i = 0; i < ring.length; i++) {
         const pt = ring[i]
 
@@ -64,11 +68,24 @@ export async function bucketFill2(c: Canvas, p: Point, scale = 1) {
         const x = (pt[0] * trueScale - offsetX) / zoom
         const y = (pt[1] * trueScale - offsetY) / zoom
 
+        // --- THE SPEED FIX: POINT SIMPLIFICATION ---
+        // Skip intermediate points that are virtually sitting on top of the last point.
+        // This stops Fabric from rendering useless geometry.
+        if (i > 0 && i < ring.length - 1) {
+          const distSq = (x - lastX) * (x - lastX) + (y - lastY) * (y - lastY)
+          // If the point is less than 1 pixel squared away from the last point, toss it
+          if (distSq < 1.0) continue
+        }
+
         if (i === 0) {
           svgPath += `M ${x} ${y} ` // Move to start
         } else {
           svgPath += `L ${x} ${y} ` // Draw line
         }
+
+        // Update last recorded point
+        lastX = x
+        lastY = y
       }
       svgPath += 'Z ' // Close the ring
     }

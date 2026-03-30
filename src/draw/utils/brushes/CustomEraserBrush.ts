@@ -1,8 +1,6 @@
 import * as fabric from 'fabric'
 import { Canvas, FabricObject, Group, Path, PencilBrush } from 'fabric'
 import { ClippingGroup } from '@erase2d/fabric'
-import { isMobile } from '@/helper/general.helper'
-import { useToast } from '@/service/toast.service'
 
 function isPrimaryPointer(ev: Event | undefined): boolean {
   if (!ev) return true

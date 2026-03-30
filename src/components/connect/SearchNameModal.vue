@@ -5,7 +5,7 @@
     :breakpoints="[0, 1]"
     :expand-to-scroll="false"
   >
-    <div class="bg-primary p-4">
+    <div class="bg-primary p-4" v-if="user">
       <!-- Title -->
       <p class="text-2xl font-semibold cabin-sketch-regular">
         Search for a mate
@@ -99,7 +99,7 @@
                 color="secondary"
                 fill="clear"
                 size="small"
-                @click="() => match({_id: user._id, mate_id: mate._id})"
+                @click="() => match({_id: user!._id, mate_id: mate._id})"
               >
                 Accept request
               </ion-button>

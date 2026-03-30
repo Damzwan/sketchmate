@@ -98,7 +98,9 @@ export function useShortcutManager() {
 
     if (!modifier) return
 
-    switch (event.key.toLowerCase()) {
+    const keyToMatch = event.key.length === 1 ? event.key.toLowerCase() : event.key
+
+    switch (keyToMatch) {
       case Shortcut.pen:
         event.preventDefault()
         if (isSelectMode.value) return

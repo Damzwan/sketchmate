@@ -16,26 +16,36 @@ export function useDrawSendService(c: () => Canvas | null) {
   const { user } = storeToRefs(useAuthStore())
   const drawStore = useDrawStore()
 
-  async function send(mates: string[]) {
+  async function send(
+    mates: string[],
+    optionalData?: { img?: ArrayBuffer; canvas?: string }
+  ) {
     const canvas = c()
     if (!canvas) return
 
     isSendingDrawing.value = true
-    const img = await exportBoundingBoxImage(canvas)
-    if (!img) return
+
+    let finalImg = optionalData?.img
+
+    if (!finalImg) {
+      const exported = await exportBoundingBoxImage(canvas)
+      if (!exported) return
+      finalImg = await canvasToBuffer(exported.img)
+    }
+
+    // Use provided JSON or stringify the current canvas
+    const drawingData = JSON.stringify(optionalData?.canvas ?? canvas.toJSON())
 
     await socketAPI.send({
       _id: user.value!._id,
       followers: [user.value!._id, ...mates],
-      drawing: JSON.stringify(canvas.toJSON()),
-      img: await canvasToBuffer(img.img),
-      name: user.value!.name,
-      aspect_ratio: img.aspect_ratio
+      drawing: drawingData,
+      img: finalImg,
+      name: user.value!.name
     })
 
-
     const { roomId } = useDrawSyncer()
-    if (roomId) return // when we are collaborating we should not reset the canvas
+    if (roomId) return
 
     drawStore.reset()
   }

@@ -35,13 +35,6 @@
             <ion-icon :icon="svg(penIconMapping[BrushType.Pencil])" />
           </div>
 
-          <!--          <div-->
-          <!--            class="brush_option bg-pink-400"-->
-          <!--            @click="selectBrushType(BrushType.Ink)"-->
-          <!--            :class="{ brush_selected: isBrushTypeSelected(BrushType.Ink) }"-->
-          <!--          >-->
-          <!--            <ion-icon :icon="svg(penIconMapping[BrushType.Ink])" />-->
-          <!--          </div>-->
 
           <div
             class="brush_option bg-red-400"
@@ -74,6 +67,35 @@
           >
             <ion-icon :icon="svg(mdiFormatColorFill)" />
           </div>
+        </div>
+
+        <div class="flex justify-between mt-1 px-1" id="brush-type">
+          <div
+            class="brush_option bg-emerald-400"
+            @click="selectBrushType(BrushType.Pixel)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.Pixel) }"
+          >
+            <ion-icon :icon="svg(penIconMapping[BrushType.Pixel])" />
+          </div>
+
+
+          <div
+            class="brush_option bg-orange-400"
+            @click="selectBrushType(BrushType.Crayon)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.Crayon) }"
+          >
+            <ion-icon :icon="svg(penIconMapping[BrushType.Crayon])" />
+          </div>
+
+          <div
+            class="brush_option bg-fuchsia-400"
+            @click="selectBrushType(BrushType.Charcoal)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.Charcoal) }"
+          >
+            <ion-icon :icon="svg(penIconMapping[BrushType.Charcoal])" />
+          </div>
+
+
         </div>
       </div>
 

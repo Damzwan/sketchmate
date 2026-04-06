@@ -45,6 +45,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
           type: HistoryEvent.Erasing,
           params: {
             objectIds: toObjectsIds(targets),
+            deletedObjectsJSON: toJSON(e.detail.deletedObjects),
             strokeJSON: eraserStroke.toJSON(),
             strokeId: eraserStroke.id
           }

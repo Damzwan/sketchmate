@@ -83,7 +83,7 @@
           </div>
         </section>
 
-        <section class="px-1 max-h-48 overflow-y-auto" v-if="friendsToInvite?.length">
+        <section class="px-1 max-h-48 overflow-y-auto" @touchmove.stop v-if="friendsToInvite?.length">
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-sm font-bold text-secondary cabin-sketch-regular uppercase tracking-widest">
               Invite Friends <span class="ml-1 opacity-40">{{ friendsToInvite.length }}</span>
@@ -269,6 +269,7 @@
             <div
               v-for="lobby in publicLobbies"
               :key="lobby.id"
+              @touchmove.stop
               class="flex items-center justify-between p-3 rounded-2xl border border-default-light bg-background shadow-sm hover:border-secondary transition-colors"
             >
               <div class="flex items-center gap-3 min-w-0">

@@ -17,6 +17,7 @@ import { InboxItem } from '@/types/server.types'
 import { ref } from 'vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { interactiveObjectInspector } from '@/utils/fabricDebug'
+import { StaticCanvas } from 'fabric'
 
 export const useDrawStore = defineStore('draw', () => {
     const canvasSvc = useCanvasService()
@@ -134,7 +135,7 @@ export const useDrawStore = defineStore('draw', () => {
       resetCanvasID,
       stopSaving: progressSaver.stopSaving,
       startSaving: progressSaver.startSaving,
-      restoreLocalCanvas
+      restoreLocalCanvas,
     }
   }
 )

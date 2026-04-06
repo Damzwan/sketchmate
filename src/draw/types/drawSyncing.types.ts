@@ -45,7 +45,7 @@ export type DrawSyncingMap = {
   [DrawSyncingEvent.Undo]: HistoryAction,
   [DrawSyncingEvent.Redo]: HistoryAction,
   [DrawSyncingEvent.ObjectsMerged]: { mergedObjectIds: string[], groupId: string },
-  [DrawSyncingEvent.ErasingEnd]: { objectIds: string[], erasePath: any },
+  [DrawSyncingEvent.ErasingEnd]: { objectIds: string[], erasePath: any, deletedObjectIds: string[] },
   [DrawSyncingEvent.TextChanged]: { objectId: string, newText: string },
 }
 

@@ -23,7 +23,7 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg}'],
         rollupFormat: 'iife',
-        maximumFileSizeToCacheInBytes: 3097152
+        maximumFileSizeToCacheInBytes: 5097152
       },
       srcDir: 'src',
       filename: 'sw.js',

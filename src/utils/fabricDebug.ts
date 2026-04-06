@@ -26,7 +26,8 @@ export async function interactiveObjectInspector(c: Canvas) {
     .slice(0, 20)
 
   // 3. Print Summary Table
-  console.log(`%c 📊 CANVAS SIZE REPORT: ${totalSizeMB} MB `, 'background: #bada55; color: #222; font-weight: bold; font-size: 16px')
+  console.log(`%c 📊 CANVAS SIZE REPORT: ${totalSizeMB} MB `)
+  console.log(`OBJECT COUNT ${c.getObjects().length}`)
   console.table(sortedReport.map(item => ({
     Type: item.type,
     'Size (KB)': item.sizeKB,
@@ -36,19 +37,10 @@ export async function interactiveObjectInspector(c: Canvas) {
   let currentIndex = 0
 
   function inspectObject(index: number) {
-    // Reset previous highlights
-    sortedReport.forEach(item => {
-      item.obj.set({ stroke: item.originalStroke, strokeWidth: item.originalStrokeWidth })
-    })
 
     const item = sortedReport[index]
     const target = item.obj
 
-    // Highlight and Focus
-    target.set({
-      stroke: '#ff0000',
-      strokeWidth: 4 / c.getZoom()
-    })
 
     c.setActiveObject(target)
     c.requestRenderAll()

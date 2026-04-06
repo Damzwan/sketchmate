@@ -22,13 +22,14 @@ export const usePen = defineStore('pen', (): Pen => {
   const brushType = ref<BrushType>(BrushType.Pencil)
   const brushColor = ref(BLACK)
   const opacity = ref(100)
+
   const events: FabricEvent[] = [
     {
       on: 'mouse:down',
       handler: updatePenCursor
     },
     {
-      on: 'mouse:wheel',
+      on: 'zoomChanged',
       handler: updatePenCursor
     },
     {

@@ -1,4 +1,4 @@
-import { Canvas } from 'fabric'
+import { Canvas, FabricObject } from 'fabric'
 import { ref, type Ref, watch } from 'vue'
 import { EraserSize, FabricEvent, ToolService } from '@/draw/types/draw.types'
 import { defineStore } from 'pinia'
@@ -6,6 +6,7 @@ import { CustomEraserBrush } from '@/draw/utils/brushes/CustomEraserBrush'
 import { isMobile } from '@/helper/general.helper'
 import { updateFreeDrawingCursor } from '@/draw/helpers/tools/cursor.helper'
 import { v4 } from 'uuid'
+import { isCompletelyErased } from '@/draw/helpers/tools/eraser.helper'
 
 
 interface Eraser extends ToolService {
@@ -22,7 +23,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
 
   const events: FabricEvent[] = [
     {
-      on: 'mouse:wheel',
+      on: 'zoomChanged',
       handler: updateEraserCursor
     },
     {
@@ -88,16 +89,26 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     const b = new CustomEraserBrush(c!)
 
     b.width = eraserSize.value
-    b.on('end', async (e) => {
+    b.on('end', async (e: any) => {
       e.detail.path.id = v4()
       await b.commit(e.detail)
+
       if (isCancelling) {
         isCancelling = false
       } else {
+        const targets = e.detail.targets || []
+        const deleted: FabricObject[] = []
+        targets.forEach((obj: any) => {
+          if (isCompletelyErased(obj)) {
+            c!.remove(obj)
+            deleted.push(obj)
+          }
+        })
+
+        e.detail.deletedObjects = deleted
         c!.fire('erasing:end', e as any)
       }
     })
-
 
     c!.freeDrawingBrush = b
     updateEraserCursor()

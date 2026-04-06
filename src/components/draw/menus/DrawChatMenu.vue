@@ -105,6 +105,7 @@
       <!-- Messages -->
       <div
         ref="chatContent"
+        @touchmove.stop
         class="overflow-y-auto max-h-72 px-3 py-2 space-y-1.5"
       >
         <div v-for="msg in lobbyChatMessages" :key="msg._id" class="w-full cursor-pointer" @click="(ev) => {

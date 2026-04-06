@@ -1,14 +1,20 @@
 import * as fabric from 'fabric'
-import { Canvas, CanvasOptions, FabricObject } from 'fabric'
+import { Canvas, CanvasOptions, classRegistry, FabricObject } from 'fabric'
 import { v4 as uuidv4 } from 'uuid'
 
 import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
+import { PixelStroke } from '@/draw/utils/brushes/PixelBrush'
+import { CharcoalStroke } from '@/draw/utils/brushes/CharcoalBrush'
 
 export function changeFabricSettings() {
   FabricObject.customProperties = ['id', 'erasable', 'oldText', 'isBucketFill', 'insertedIndex'];
 
   (FabricObject as any).ownDefaults!['erasable'] = true
   // (FabricObject as any).ownDefaults!['id'] = uuidv4(); // cannot use this because it needs to be dynamic :c
+
+  PixelStroke.type = 'PixelStroke'
+  classRegistry.setClass(PixelStroke, 'PixelStroke')
+  classRegistry.setClass(CharcoalStroke, 'CharcoalStroke')
 
   const originalAdd = Canvas.prototype.add
   Canvas.prototype.add = function(...objects: any[]) {

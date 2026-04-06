@@ -1,5 +1,6 @@
-import { Canvas, StaticCanvas } from 'fabric'
+import { ActiveSelection, Canvas, StaticCanvas } from 'fabric'
 import { compressImg } from '@/helper/general.helper'
+import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
 
 export async function canvasToBuffer(canvasDataUrl: string, size = 1920) {
   return await (await compressImg(canvasDataUrl, { returnType: 'blob', size: size })).arrayBuffer()
@@ -69,7 +70,9 @@ export async function exportBoundingBoxImage(canvas: Canvas) {
   if (!canvas) return null
 
   const objects = canvas.getObjects()
-  if (objects.length === 0) return null
+  if (objects.length === 0) {
+    return { img: canvas.toDataURL(), aspect_ration: 1 }
+  }
 
   // 1. Save original states
   const originalVpt = [...canvas.viewportTransform] as any
@@ -105,7 +108,7 @@ export async function exportBoundingBoxImage(canvas: Canvas) {
     // Restore and exit if empty
     objects.forEach(obj => obj.visible = visibilityStates.get(obj))
     canvas.setViewportTransform(originalVpt)
-    return null
+    return { img: canvas.toDataURL(), aspect_ration: 1 }
   }
 
   // 4. Export Logic
@@ -134,4 +137,111 @@ export async function exportBoundingBoxImage(canvas: Canvas) {
   canvas.requestRenderAll()
 
   return { img, aspect_ratio: width / height }
+}
+
+export async function cloneCanvas(canvas: any) {
+  const cloned = new StaticCanvas(undefined, {
+    width: canvas.width,
+    height: canvas.height
+  })
+
+  await cloned.loadFromJSON(canvas.toJSON())
+  cloned.getObjects().forEach(obj => {
+    obj.visible = true
+    obj.setCoords()
+  })
+  cloned.renderAll()
+  return cloned
+}
+
+export function computeBounds(objects: any[]) {
+  let minX = Infinity, minY = Infinity
+  let maxX = -Infinity, maxY = -Infinity
+
+  for (const obj of objects) {
+    const { left, top, width, height } = obj.getBoundingRect()
+
+    minX = Math.min(minX, left)
+    minY = Math.min(minY, top)
+    maxX = Math.max(maxX, left + width)
+    maxY = Math.max(maxY, top + height)
+  }
+
+  return {
+    minX,
+    minY,
+    width: maxX - minX,
+    height: maxY - minY
+  }
+}
+
+export function relativeToAbsolute(bounds: any, rect: any) {
+  return {
+    x: bounds.minX + rect.x * bounds.width,
+    y: bounds.minY + rect.y * bounds.height,
+    w: rect.width * bounds.width,
+    h: rect.height * bounds.height
+  }
+}
+
+export function toDataURL(c: any, bounds: any, multiplier = 2) {
+  return c.toDataURL({
+    left: bounds.minX,
+    top: bounds.minY,
+    width: bounds.width,
+    height: bounds.height,
+    multiplier
+  })
+}
+
+export async function cropCanvas(canvas: StaticCanvas, rect: any, threshold = 0.3) {
+  const objects = canvas.getObjects()
+
+  const bounds = computeBounds(objects)
+  const abs = relativeToAbsolute(bounds, rect)
+
+
+  const keepObjects = objects.filter(obj => {
+    const b = obj.getBoundingRect()
+    const xOverlap = Math.max(0, Math.min(b.left + b.width, abs.x + abs.w) - Math.max(b.left, abs.x))
+    const yOverlap = Math.max(0, Math.min(b.top + b.height, abs.y + abs.h) - Math.max(b.top, abs.y))
+    const intersectionArea = xOverlap * yOverlap
+    const objArea = b.width * b.height
+    return (intersectionArea / objArea) >= threshold
+  })
+
+  if (keepObjects.length === 0) return { image: '', json: null }
+
+  const filteredBounds = computeBounds(keepObjects)
+
+  const tempCanvasEl = document.createElement('canvas')
+  const tempCanvas = new StaticCanvas(tempCanvasEl, {
+    width: filteredBounds.width,
+    height: filteredBounds.height,
+    backgroundColor: canvas.backgroundColor
+  })
+
+  const clonedObjects = await Promise.all(keepObjects.map((obj: any) =>
+    obj.clone()
+  ))
+
+
+  clonedObjects.forEach(obj => {
+    obj.left = obj.left - filteredBounds.minX
+    obj.top = obj.top - filteredBounds.minY
+
+    obj.visible = true
+    tempCanvas.add(obj)
+  })
+
+  tempCanvas.renderAll()
+
+  const minTargetSize = 2000
+  const multiplier = Math.min(minTargetSize / tempCanvas.width, minTargetSize / tempCanvas.height, 2)
+
+
+  return {
+    image: toDataURL(tempCanvas, computeBounds(clonedObjects), multiplier),
+    json: tempCanvas
+  }
 }

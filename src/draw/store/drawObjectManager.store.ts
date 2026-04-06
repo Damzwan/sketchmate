@@ -83,11 +83,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     updateVisibility()
   }
 
-  function updateVisibility(): void {
-    if (visibilityScheduled) return
-    visibilityScheduled = true
-
-    requestAnimationFrame(() => {
+  function updateVisibility(runSync = false): void {
+    const execute = () => {
       visibilityScheduled = false
       const viewport = getViewportRect(c!)
       const visible = quadtree.query(viewport)
@@ -109,7 +106,18 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       }
 
       lastVisible = nextVisible
-    })
+
+      c?.requestRenderAll()
+    }
+
+    // Bypass the scheduling queue entirely if this is a sync request
+    if (!runSync) {
+      execute()
+    } else {
+      if (visibilityScheduled) return
+      visibilityScheduled = true
+      requestAnimationFrame(execute)
+    }
   }
 
   function addToQuadTree(obj: FabricObject) {

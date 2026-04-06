@@ -32,7 +32,7 @@ export type HistoryParamsMap = {
     activeObjectId?: string | null
     changes: { id: string, forward: Partial<FabricObjectProps>, backward: Partial<FabricObjectProps> }[]
   }
-  [HistoryEvent.Erasing]: { objectIds: string[], strokeId: string, strokeJSON: any }
+  [HistoryEvent.Erasing]: { objectIds: string[], strokeId: string, strokeJSON: any, deletedObjectsJSON: any[] }
   [HistoryEvent.FullErase]: { prevCanvasJSON: any }
   [HistoryEvent.MoveObjectToFront]: { objectIds: string[]; prevObjectPositions: number[] }
   [HistoryEvent.MoveObjectToBack]: { objectIds: string[]; prevObjectPositions: number[] }

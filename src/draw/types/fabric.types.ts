@@ -103,6 +103,7 @@ declare module 'fabric' {
     }
 
     zoomReset: Partial<TEvent>
+    zoomChanged: Partial<TEvent>
     gestureStart: Partial<TEvent>
     gestureEnd: Partial<TEvent>
   }

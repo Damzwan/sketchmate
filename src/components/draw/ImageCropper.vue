@@ -22,7 +22,7 @@ import { setAppColors } from '@/helper/general.helper'
 import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 
-import 'cropperjs/dist/cropper.min.css'
+// import 'cropperjs/dist/cropper.min.css'
 import Cropper from 'cropperjs'
 import { ref } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'

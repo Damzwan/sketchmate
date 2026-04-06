@@ -180,8 +180,15 @@ async function syncErasingEnd(params: DrawSyncingParams<DrawSyncingEvent.Erasing
   const newStroke = enlivenedPath[0]
 
   const objects = getObjectsById(params.objectIds)
+  const deletedObjects = getObjectsById(params.deletedObjectIds || [])
 
-  await Promise.all(objects.map(async (o) => eraseObject(o, newStroke)))
+  await Promise.all(objects.map(async (o) => {
+    if (o) await eraseObject(o, newStroke)
+  }))
+
+  if (deletedObjects.length > 0) {
+    c.remove(...deletedObjects)
+  }
 
   c.requestRenderAll()
 }

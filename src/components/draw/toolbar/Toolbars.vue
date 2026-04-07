@@ -29,7 +29,7 @@ import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 
 const { lastSelectedPenMenuTool, lastSelectedSelectTool, selectedTool } = storeToRefs(useToolSelection())
-const { shapeCreationMode, colorPickerMode, addTextMode } = storeToRefs(useDrawUIStore())
+const { shapeCreationMode, colorPickerMode, addTextMode, isMiniMapOpen } = storeToRefs(useDrawUIStore())
 
 const { brushType } = storeToRefs(usePen())
 const { isSelectActive, selectedObjectsRef } = storeToRefs(useSelect())
@@ -75,7 +75,8 @@ const toolbarConfig = computed(() =>
     hasMate.value,
     isLoggedIn.value,
     isModal.value,
-    roomMembers.value
+    roomMembers.value,
+    isMiniMapOpen.value
   ))
 
 

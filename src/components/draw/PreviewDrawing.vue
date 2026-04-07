@@ -63,7 +63,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { IonButton, IonContent, IonIcon, IonModal, IonSkeletonText, IonToolbar } from '@ionic/vue'
+import { IonButton, IonContent, IonIcon, IonModal, IonSkeletonText, IonToolbar, modalController } from '@ionic/vue'
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
 
@@ -97,6 +97,7 @@ const closeModal = () => {
 }
 
 const initCropper = () => {
+  shouldCrop = false
   if (imageRef.value) {
     // Reset readiness state just in case
     isCropperReady.value = false
@@ -161,10 +162,9 @@ const autoZoomToSelection = () => {
 
 const handleModalDismiss = () => {
   isOpen.value = false
-}
 
-function crop() {
-  if (cropperInstance) {
+  // We do this here to prevent lagg since the crop operation is heavvy!
+  if (cropperInstance && shouldCrop) {
     const cropData = cropperInstance.getData(true)
     const imageData = cropperInstance.getImageData()
 
@@ -181,14 +181,23 @@ function crop() {
     isCropperReady.value = false
 
 
+    if (relativeBoundary.x === 0 && relativeBoundary.y === 0 && relativeBoundary.width === 1 && relativeBoundary.height === 1) return
     emit('crop-completed', relativeBoundary)
   }
-  handleModalDismiss()
+}
+
+let shouldCrop = false
+
+function crop() {
+  modalController.dismiss()
+  shouldCrop = true
 }
 
 // Add these to your script setup to track velocity/state
 let isProcessingSync = false
 
+// Define this outside your function/event listener so it persists
+let previousBoxArea = 0
 const syncImageToCrop = (event) => {
   if (!cropperInstance || isProcessingSync) return
 
@@ -204,7 +213,15 @@ const syncImageToCrop = (event) => {
   if (event.detail.action !== 'all') {
     const coverage = Math.max(box.width / container.width, box.height / container.height)
 
-    if (coverage > 0.85) {
+    // Calculate current area to determine if we are expanding or shrinking
+    const currentBoxArea = box.width * box.height
+    const isExpanding = currentBoxArea > previousBoxArea
+
+    // Update the previous area for the next frame
+    previousBoxArea = currentBoxArea
+
+    // ONLY zoom out if coverage is high AND the user is making the box bigger
+    if (coverage > 0.85 && isExpanding) {
       // Calculate the new zoom ratio (zooming out by 1%)
       const canvasData = cropperInstance.getCanvasData()
       const imageData = cropperInstance.getImageData()
@@ -247,7 +264,7 @@ const syncImageToCrop = (event) => {
 
 // 2. REFINED DAMPENED PANNING (The "Elastic" feel)
   // Reduced threshold to 10% so it feels like a true boundary
-  const threshold = 0.10
+  const threshold = 0.05
   const edgeLeft = container.width * threshold
   const edgeTop = container.height * threshold
   const edgeRight = container.width * (1 - threshold)
@@ -266,11 +283,11 @@ const syncImageToCrop = (event) => {
     isProcessingSync = true
 
     // LOWER multiplier: 0.05 at 60fps is too fast. 0.015 gives a tighter, heavier feel.
-    const speedMultiplier = 0.015
+    const speedMultiplier = 0.100
 
     // SPEED LIMIT: Cap the movement to a maximum of 3 pixels per frame.
     // This prevents the "runaway" sliding effect if the user moves the mouse aggressively.
-    const maxSpeed = 3
+    const maxSpeed = 10
 
     const deltaX = Math.max(-maxSpeed, Math.min(maxSpeed, moveX * speedMultiplier))
     const deltaY = Math.max(-maxSpeed, Math.min(maxSpeed, moveY * speedMultiplier))
@@ -295,7 +312,8 @@ ion-modal {
 <style>
 /* 1. Use Secondary Color for the Selection Outline */
 .cropper-view-box {
-  outline: 2px solid var(--ion-color-secondary) !important;
+  /* Increased thickness of the main box outline */
+  outline: 3px solid var(--ion-color-secondary) !important;
 }
 
 /* 2. Hide all the non-corner elements */
@@ -309,47 +327,56 @@ ion-modal {
 
 /* 3. Massive Touch Targets for Corners */
 .cropper-point {
-  width: 40px !important; /* Large area for fingers */
-  height: 40px !important;
+  width: 100px !important; /* Huge invisible area for better mobile UX */
+  height: 100px !important;
   opacity: 1 !important;
   background-color: transparent !important;
 }
 
-/* 4. Bold "L" Brackets (Thicker borders) */
+/* 4. Extra-Bold "L" Brackets */
+/* Using 10px borders for high visibility */
+.point-nw, .point-ne, .point-sw, .point-se {
+}
+
 .point-nw {
-  border-left: 6px solid var(--ion-color-secondary) !important;
-  border-top: 6px solid var(--ion-color-secondary) !important;
-  left: -4px !important;
-  top: -4px !important;
+  border-left: 10px solid var(--ion-color-secondary) !important;
+  border-top: 10px solid var(--ion-color-secondary) !important;
+  left: -6px !important;
+  top: -6px !important;
 }
 
 .point-ne {
-  border-right: 6px solid var(--ion-color-secondary) !important;
-  border-top: 6px solid var(--ion-color-secondary) !important;
-  right: -4px !important;
-  top: -4px !important;
+  border-right: 10px solid var(--ion-color-secondary) !important;
+  border-top: 10px solid var(--ion-color-secondary) !important;
+  right: -6px !important;
+  top: -6px !important;
 }
 
 .point-sw {
-  border-left: 6px solid var(--ion-color-secondary) !important;
-  border-bottom: 6px solid var(--ion-color-secondary) !important;
-  left: -4px !important;
-  bottom: -4px !important;
+  border-left: 10px solid var(--ion-color-secondary) !important;
+  border-bottom: 10px solid var(--ion-color-secondary) !important;
+  left: -6px !important;
+  bottom: -6px !important;
 }
 
 .point-se {
-  border-right: 6px solid var(--ion-color-secondary) !important;
-  border-bottom: 6px solid var(--ion-color-secondary) !important;
-  right: -4px !important;
-  bottom: -4px !important;
-  /* Extra width for the primary drag corner */
-  width: 48px !important;
-  height: 48px !important;
+  border-right: 10px solid var(--ion-color-secondary) !important;
+  border-bottom: 10px solid var(--ion-color-secondary) !important;
+  right: -8px !important;
+  bottom: -8px !important;
+  /* Visual cue: slightly larger than other corners */
+  width: 70px !important;
+  height: 70px !important;
 }
 
-/* 5. Optional: Darken the outside area to make selection pop */
+/* 5. Darken the outside area heavily */
 .cropper-modal {
-  opacity: 0.8 !important;
+  opacity: 0.9 !important;
   background-color: #000 !important;
+}
+
+/* 6. Optional: Add a subtle glow to the selection so it pops on dark photos */
+.cropper-view-box {
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
 }
 </style>

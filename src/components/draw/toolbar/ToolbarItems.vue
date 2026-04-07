@@ -25,13 +25,13 @@
 
       <ion-button fill="clear" :id="item.isDisabled ? null : item.id" v-else :disabled="item.isDisabled"
                   :data-step="item.tour_step"
-                  :class="{ selected: item && item.tool != undefined && item.tools != undefined && item.tools.includes(selectedTool) }">
+                  :class="{ selected: item && item.isActive || (item.tool != undefined && item.tools != undefined && item.tools.includes(selectedTool) )}">
         <ion-icon slot="icon-only" :icon="svg(item.icon)" class="fill-black" />
 
       </ion-button>
 
       <p class="absolute bottom-0.75 -right-0.5 text-xl cabin-sketch-regular text-black" v-if="item.badge">
-        {{item.badge}}
+        {{ item.badge }}
       </p>
 
       <div class="w-2 h-2 rounded-full absolute bottom-2.5 right-2.5"

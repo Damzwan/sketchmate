@@ -23,6 +23,18 @@
         <ion-range aria-label="Volume" id="slider" v-model="opacity" :min="0" :max="100" color="secondary" />
       </div>
 
+      <tempate v-if="brushType === BrushType.Spray">
+        <div class="px-2 pt-1">
+          <label for="slider">Density: {{ density }}</label>
+          <ion-range aria-label="Volume" id="slider" v-model="density" :min="1" :max="100" color="secondary" />
+        </div>
+
+        <div class="px-2 pt-1">
+          <label for="slider">DotWidth: {{ dotWidth }}</label>
+          <ion-range aria-label="Volume" id="slider" v-model="dotWidth" :min="0.5" :max="5" color="secondary" />
+        </div>
+      </tempate>
+
       <!-- Brush Type -->
       <div class="p-1">
         <label for="brush-type">Brush Type</label>
@@ -71,7 +83,7 @@
 
         <div class="flex justify-between mt-1 px-1" id="brush-type">
           <div
-            class="brush_option bg-emerald-400"
+            class="brush_option bg-emerald-500"
             @click="selectBrushType(BrushType.Pixel)"
             :class="{ brush_selected: isBrushTypeSelected(BrushType.Pixel) }"
           >
@@ -88,11 +100,27 @@
           </div>
 
           <div
-            class="brush_option bg-fuchsia-400"
+            class="brush_option bg-neutral-600"
             @click="selectBrushType(BrushType.Charcoal)"
             :class="{ brush_selected: isBrushTypeSelected(BrushType.Charcoal) }"
           >
             <ion-icon :icon="svg(penIconMapping[BrushType.Charcoal])" />
+          </div>
+
+          <div
+            class="brush_option bg-indigo-500"
+            @click="selectBrushPaywall(BrushType.Neon)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.Neon) }"
+          >
+            <ion-icon :icon="svg(penIconMapping[BrushType.Neon])" />
+          </div>
+
+          <div
+            class="brush_option bg-sky-400"
+            @click="selectBrushPaywall(BrushType.CalliGraphy)"
+            :class="{ brush_selected: isBrushTypeSelected(BrushType.CalliGraphy) }"
+          >
+            <ion-icon :icon="svg(penIconMapping[BrushType.CalliGraphy])" />
           </div>
 
 
@@ -111,20 +139,20 @@ import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { BrushType, DrawTool } from '@/draw/types/draw.types'
 import { mdiFormatColorFill } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { isNative, svg } from '@/helper/general.helper'
 import { useMenuStore } from '@/store/menu.store'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { useDrawStore } from '@/draw/store/draw.store'
 import { usePen } from '@/draw/store/tools/pen.store'
 import { Canvas, Point } from 'fabric'
 import { hexWithOpacity, isColorTooLight, percentToAlphaHex } from '@/draw/utils/color.utils'
 import { BLACK, WHITE } from '@/draw/config/canvas.config'
 import { penBrushMapping, penIconMapping, PENMENUTOOLS } from '@/draw/config/tools.config'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { useSubscriptionStore } from '@/store/subscription.store'
 
 const { selectTool } = useToolSelection()
 const { selectedTool } = storeToRefs(useToolSelection())
-const { brushSize, brushColor, brushType, opacity } = storeToRefs(usePen())
+const { brushSize, brushColor, brushType, opacity, density, dotWidth } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 
 
@@ -158,14 +186,20 @@ const renderPreview = () => {
 
   const brushSizeValue = brushSize.value
 
+
   canvas.backgroundColor = isColorTooLight(brushColorValue) ? BLACK : WHITE
 
   // Assign the selected brush to the canvas
   // TOOD this should be somewhere else
   canvas.freeDrawingBrush = penBrushMapping[brushType.value](canvas)
   const brush = canvas.freeDrawingBrush as any
-  brush.width = brushSizeValue
   brush.color = brushColorValue
+  if (brushType.value === BrushType.Spray) {
+    brush.density = density.value
+    brush.dotWidth = dotWidth.value
+  }
+  brush.width = brushSizeValue
+
 
   const amplitude = 20
   const frequency = 0.05
@@ -217,9 +251,17 @@ function isBrushTypeSelected(type: BrushType) {
   return brushType.value == type && selectedTool.value == DrawTool.Pen
 }
 
+function selectBrushPaywall(type: BrushType) {
+  const { isPro, presentPaywall } = useSubscriptionStore()
+  if (!isPro && isNative()) presentPaywall()
+  else selectBrushType(type)
+}
+
 watch(brushSize, renderPreview)
 watch(opacity, renderPreview)
 watch(brushColor, renderPreview)
+watch(density, renderPreview)
+watch(dotWidth, renderPreview)
 watch(selectedTool, () => (selectedTool.value && PENMENUTOOLS.includes(selectedTool.value) ? renderPreview() : null))
 </script>
 

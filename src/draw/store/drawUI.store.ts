@@ -10,6 +10,7 @@ export const useDrawUIStore = defineStore('drawUI', () => {
   const isLoading = ref(false)
   const loadingText = ref('')
   const canResetView = ref(false)
+  const isMiniMapOpen = ref(false)
 
   return {
     colorPickerMode,
@@ -18,6 +19,7 @@ export const useDrawUIStore = defineStore('drawUI', () => {
     shapeCreationMode,
     isLoading,
     loadingText,
-    canResetView
+    canResetView,
+    isMiniMapOpen
   }
 })

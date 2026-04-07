@@ -27,6 +27,7 @@
   <HelpMenu />
   <RoomMenu />
   <DrawChatMenu v-if="roomId" />
+  <MiniMap/>
 </template>
 
 <script setup lang="ts">
@@ -54,6 +55,7 @@ import { useShapeCreation } from '@/draw/store/shapeCreation.store'
 import RoomMenu from '@/components/draw/menus/RoomMenu.vue'
 import DrawChatMenu from '@/components/draw/menus/DrawChatMenu.vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import MiniMap from '@/components/draw/MiniMap.vue'
 
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const { selectAction } = useDrawStore()

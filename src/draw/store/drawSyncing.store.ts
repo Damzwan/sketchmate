@@ -7,7 +7,7 @@ import { drawSyncingMapping } from '@/draw/config/drawSyncing.config'
 import { DrawAction, FabricEvent } from '@/draw/types/draw.types'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { emitDrawSyncingEvent } from '@/service/api/socket/drawSyncing.socket'
-import { FabricObject } from 'fabric'
+import { FabricObject, Point } from 'fabric'
 import { getAbsoluteState, toJSON, toObjectsIds } from '@/draw/helpers/object.helper'
 import { isText } from '@/draw/helpers/text.helper'
 import { getObjectDiff } from '@/draw/helpers/history/object.helper'
@@ -15,6 +15,8 @@ import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { EventBus } from '@/main'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { handleTextModificationSync } from '@/draw/helpers/history/text.helper'
+import { useAuthStore } from '@/store/auth.store'
+import * as fabric from 'fabric'
 
 export interface DrawInvitation {
   friend: Mate,
@@ -54,6 +56,11 @@ export interface PublicLobby {
   name: string;
   users: number;
   maxUsers: number;
+}
+
+interface ActiveAvatar {
+  pos: { x: number; y: number }
+  img: string
 }
 
 const handleUndo = (params: any) => {

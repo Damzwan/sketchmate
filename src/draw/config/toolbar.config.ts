@@ -8,6 +8,7 @@ import {
   mdiEraser,
   mdiFormatColorFill,
   mdiFormatText,
+  mdiMapOutline,
   mdiMenuSwapOutline,
   mdiPaletteOutline,
   mdiPlus,
@@ -18,6 +19,7 @@ import {
 import { BrushType, DrawAction, DrawTool, Menu, PenMenuTool, SelectTool } from '@/draw/types/draw.types'
 import { ERASERS, penIconMapping, PENMENUTOOLS, selectIconMapping, SELECTMENUTOOLS } from '@/draw/config/tools.config'
 import { modalController } from '@ionic/vue'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 
 export enum Toolbars {
@@ -56,7 +58,8 @@ export type ToolbarButton = {
   isDisabled?: boolean;
   custom?: ToolbarCustomUI;
   tour_step?: string;
-  badge: number
+  badge: number,
+  isActive?: boolean,
 };
 
 export type ToolbarTitle = {
@@ -92,7 +95,8 @@ export function getToolbarConfig(
   hasMate: boolean,
   isLoggedIn: boolean,
   isModal: boolean,
-  roomMembers: any[]
+  roomMembers: any[],
+  isMiniMapOpen: boolean,
 ): ToolbarConfig {
   const penMenuIcon =
     lastSelectedPenMenuTool == DrawTool.Pen
@@ -138,6 +142,16 @@ export function getToolbarConfig(
         }
       ] as ToolbarItem[],
       right: [
+        {
+          type: 'button',
+          icon: mdiMapOutline,
+          customAction: () => {
+            const drawUI = useDrawUIStore()
+            drawUI.isMiniMapOpen = !drawUI.isMiniMapOpen
+          },
+          isActive: isMiniMapOpen,
+          tour_step: '9'
+        },
         ...(isModal ? [] : [{
           type: 'button',
           icon: mdiAccountGroupOutline,

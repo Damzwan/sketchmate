@@ -18,7 +18,7 @@ export function useDrawSendService(c: () => Canvas | null) {
 
   async function send(
     mates: string[],
-    optionalData?: { img?: ArrayBuffer; canvas?: string }
+    optionalData?: { img?: ArrayBuffer; canvas?: string, aspect_ratio?: number }
   ) {
     const canvas = c()
     if (!canvas) return
@@ -26,10 +26,12 @@ export function useDrawSendService(c: () => Canvas | null) {
     isSendingDrawing.value = true
 
     let finalImg = optionalData?.img
+    let aspect_ratio = optionalData?.aspect_ratio
 
     if (!finalImg) {
       const exported = await exportBoundingBoxImage(canvas)
-      if (!exported) return
+      if (!exported) return // TODO necessary?
+      aspect_ratio = exported.aspect_ratio
       finalImg = await canvasToBuffer(exported.img)
     }
 
@@ -41,7 +43,8 @@ export function useDrawSendService(c: () => Canvas | null) {
       followers: [user.value!._id, ...mates],
       drawing: drawingData,
       img: finalImg,
-      name: user.value!.name
+      name: user.value!.name,
+      aspect_ratio: aspect_ratio ?? 1
     })
 
     const { roomId } = useDrawSyncer()
@@ -50,19 +53,33 @@ export function useDrawSendService(c: () => Canvas | null) {
     drawStore.reset()
   }
 
-  async function createBalloon(message: string): Promise<Res<CreateBalloonPostRes>> {
+  async function createBalloon(message: string, optionalData?: {
+    img?: ArrayBuffer;
+    canvas?: string
+    aspect_ratio?: number
+  }): Promise<Res<CreateBalloonPostRes>> {
     const canvas = c()
     if (!canvas) return
 
-    const img = await exportBoundingBoxImage(canvas)
-    if (!img) return
+    let finalImg = optionalData?.img
+    let aspect_ratio = optionalData?.aspect_ratio
+
+    if (!finalImg) {
+      const exported = await exportBoundingBoxImage(canvas)
+      if (!exported) return // TODO necessary?
+      aspect_ratio = exported.aspect_ratio
+      finalImg = await canvasToBuffer(exported.img)
+    }
+
+    const drawingData = JSON.stringify(optionalData?.canvas ?? canvas.toJSON())
+
 
     return await api.createBalloon({
       sender: user.value!._id,
       message,
-      aspect_ratio: img.aspect_ratio,
-      drawing: JSON.stringify(canvas.toJSON()),
-      img: await canvasToBuffer(img.img)
+      aspect_ratio: aspect_ratio ?? 1,
+      drawing: drawingData,
+      img: finalImg
     })
   }
 

@@ -75,6 +75,14 @@ const isExpanded = ref(false)
 
 const { user, shouldShowDateOfBirthConfirmation } = storeToRefs(useAuthStore())
 
+const props = defineProps<{
+  getDataToSend: () => Promise<{
+    aspect_ratio?: number;
+    img: ArrayBuffer;
+    canvas: any
+  }>
+}>()
+
 async function sendBalloon() {
   if (shouldShowDateOfBirthConfirmation.value) {
     const canSendBalloon = await getDateOfBirthConfirmationResponse()
@@ -84,7 +92,8 @@ async function sendBalloon() {
   }
 
   sendingBalloon.value = true
-  createBalloon(balloonDescription.value).then(res => {
+  const data = await props.getDataToSend()
+  createBalloon(balloonDescription.value, data).then(res => {
     if (!res || !user.value) return
     sendingBalloon.value = false
     sentBalloon.value = res.balloon

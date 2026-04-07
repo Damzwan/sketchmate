@@ -242,6 +242,7 @@ export async function cropCanvas(canvas: StaticCanvas, rect: any, threshold = 0.
 
   return {
     image: toDataURL(tempCanvas, computeBounds(clonedObjects), multiplier),
-    json: tempCanvas
+    json: tempCanvas,
+    aspect_ratio: tempCanvas.width / tempCanvas.height
   }
 }

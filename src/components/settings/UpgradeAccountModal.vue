@@ -131,8 +131,13 @@ import { EmailAuthProvider, getAuth, GoogleAuthProvider, linkWithCredential } fr
 import { ToastDuration } from '@/types/toast.types'
 import { useToast } from '@/service/toast.service'
 import connectImage from '@/assets/illustrations/connect.webp'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/store/auth.store'
 
 const { toast } = useToast()
+
+const { firebaseUser } = storeToRefs(useAuthStore())
+
 
 const state = reactive({
   loginEmail: '',
@@ -161,28 +166,34 @@ async function onEmailLoginSubmit() {
 
   try {
     loginLoading.value = true
-    const auth = getAuth()
-    const user = auth.currentUser
 
-    const credential = EmailAuthProvider.credential(
-      state.loginEmail,
-      state.password
-    )
+    // 1. Check if there is a current anonymous user
+    const { user } = await FirebaseAuthentication.getCurrentUser()
 
+    const params = {
+      email: state.loginEmail,
+      password: state.password
+    }
 
     if (user && user.isAnonymous) {
-      await linkWithCredential(user, credential)
-      modalController.dismiss()
-      toast('Account linked')
-    }
+      // 2. Link the anonymous account to email credentials
+      await FirebaseAuthentication.linkWithEmailAndPassword(params)
 
+      modalController.dismiss()
+      firebaseUser.value!.isAnonymous = false
+      toast('Account linked')
+
+    }
 
   } catch (e: any) {
-    if (e.code === 'auth/email-already-in-use') {
+    // Capacitor plugin errors usually return a 'code' property
+    if (e.code === 'auth/email-already-in-use' || e.message?.includes('email-already-in-use')) {
       loginErrorMsg.value = 'Account already exists, try logging in instead.'
     } else {
-      loginErrorMsg.value = 'Something went wrong, please try again later. If this issue persists, contact me.'
+      console.error('Auth Error:', e)
+      loginErrorMsg.value = 'Something went wrong. Please try again later.'
     }
+  } finally {
     loginLoading.value = false
   }
 }
@@ -200,6 +211,7 @@ async function onGoogleLogin() {
 
     await linkWithCredential(user, googleCredential)
     modalController.dismiss()
+    firebaseUser.value!.isAnonymous = false
     toast('Account linked')
 
   } catch (e) {

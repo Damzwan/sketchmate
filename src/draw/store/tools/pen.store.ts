@@ -9,6 +9,8 @@ import { penBrushMapping } from '@/draw/config/tools.config'
 
 interface Pen extends ToolService {
   brushSize: Ref<number>
+  density: Ref<number>
+  dotWidth: Ref<number>
   brushType: Ref<BrushType>
   brushColor: Ref<string>
   opacity: Ref<number>
@@ -22,6 +24,9 @@ export const usePen = defineStore('pen', (): Pen => {
   const brushType = ref<BrushType>(BrushType.Pencil)
   const brushColor = ref(BLACK)
   const opacity = ref(100)
+
+  const density = ref(20)
+  const dotWidth = ref(1)
 
   const events: FabricEvent[] = [
     {
@@ -53,6 +58,14 @@ export const usePen = defineStore('pen', (): Pen => {
     c!.selection = false
     c!.freeDrawingBrush = penBrushMapping[brushType.value](c!)
     c!.freeDrawingBrush.width = brushSize.value
+
+    // TODO think of something
+    // @ts-ignore
+    c!.freeDrawingBrush.density = density.value
+    // @ts-ignore
+
+    c!.freeDrawingBrush.dotWidth = dotWidth.value
+
     c!.freeDrawingBrush.color = brushColorWithOpacity()
     updatePenCursor()
   }
@@ -80,6 +93,16 @@ export const usePen = defineStore('pen', (): Pen => {
     updatePenCursor()
   })
 
+  watch(density, () => {
+    (c!.freeDrawingBrush! as any).density = density.value
+  })
+
+
+  watch(dotWidth, () => {
+    (c!.freeDrawingBrush! as any).dotWidth = dotWidth.value
+  })
+
+
   watch(brushType, () => {
     select()
   })
@@ -93,6 +116,8 @@ export const usePen = defineStore('pen', (): Pen => {
     events,
     opacity,
     updatePenCursor,
-    brushColorWithOpacity
+    brushColorWithOpacity,
+    density,
+    dotWidth
   }
 })

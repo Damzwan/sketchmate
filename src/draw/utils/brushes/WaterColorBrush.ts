@@ -1,151 +1,176 @@
-import { PatternBrush, Point, Canvas, Path, Shadow, Pattern } from 'fabric'
-import paperTexture from '@/assets/textures/paper2.jpg'
+import { BaseBrush, Point, Canvas, Path, Shadow } from 'fabric'
 import * as fabric from 'fabric'
 import { opacityFromOpacityHex } from '@/draw/utils/color.utils'
 
-export class WaterColorBrush extends PatternBrush {
-  declare protected _points: Point[]
-  declare protected oldEnd?: Point
-
-  private paperTextureImg: HTMLImageElement
+export class WaterColorBrush extends BaseBrush {
+  declare protected _basePoints: Point[]
+  declare protected _bristlePoints: Point[][]
 
   constructor(canvas: Canvas) {
     super(canvas)
     this.canvas = canvas
-    this._points = []
-    this.paperTextureImg = new Image()
-    this.paperTextureImg.src = paperTexture
+    this._basePoints = []
+    this._bristlePoints = [[], [], []]
   }
 
-  /**
-   * Returns a canvas with the watercolor pattern applied
-   */
-  getPatternSrc(): HTMLCanvasElement {
-    const patternCanvas = document.createElement('canvas')
-    const ctx = patternCanvas.getContext('2d')!
-    patternCanvas.width = patternCanvas.height = 256
+  onMouseDown(pointer: Point) {
+    this._basePoints = []
+    this._bristlePoints = [[], [], []]
 
-    // Draw paper texture
-    ctx.drawImage(this.paperTextureImg, 0, 0, 256, 256)
-
-    // Alpha gradient overlay
-    const solidColor = this.color.slice(0, -2)
-    const reducedAlpha1 = Math.round(0.7 * 255).toString(16).padStart(2, '0')
-    const reducedAlpha2 = Math.round(0.4 * 255).toString(16).padStart(2, '0')
-
-    const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128)
-    gradient.addColorStop(0, `${solidColor}${reducedAlpha1}`)
-    gradient.addColorStop(1, `${solidColor}${reducedAlpha2}`)
-
-    ctx.globalCompositeOperation = 'multiply'
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, 256, 256)
-    ctx.globalCompositeOperation = 'source-over'
-
-    return patternCanvas
-  }
-
-  /**
-   * Returns the actual pattern instance
-   */
-  getPattern(ctx: CanvasRenderingContext2D) {
-    return ctx.createPattern(this.getPatternSrc(), 'repeat')
-  }
-
-  /**
-   * Create a Path object using the pattern
-   */
-  createPath(pathData: fabric.util.TSimplePathData): Path {
-    const path = super.createPath(pathData)
-    const topLeft = path._getLeftTopCoords().scalarAdd(path.strokeWidth / 2)
-
-    path.stroke = new Pattern({
-      source: this.getPatternSrc(),
-      offsetX: -topLeft.x,
-      offsetY: -topLeft.y
-    })
-
-    path.opacity = opacityFromOpacityHex(this.color)
-
-    if (this.shadow) {
-      this.shadow.affectStroke = true
-      path.shadow = new Shadow(this.shadow)
+    // Live Blending Injection
+    if (this.canvas.contextTop?.canvas) {
+      (this.canvas.contextTop.canvas as HTMLElement).style.mixBlendMode = 'multiply'
     }
 
-    return path
-  }
-
-  /**
-   * Draw the path as a smooth watercolor line on top canvas
-   */
-  onMouseDown(pointer: Point) {
-    this._points = []
     this._addPoint(pointer)
     this._render()
   }
 
   onMouseMove(pointer: Point) {
-    if (this._addPoint(pointer) && this._points.length > 1) {
+    if (this._addPoint(pointer) && this._basePoints.length > 1) {
       this.canvas.clearContext(this.canvas.contextTop)
       this._render()
     }
   }
 
   onMouseUp() {
-    this._finalizeAndAddPath()
-    return false
+    const originalRenderOnAddRemove = this.canvas.renderOnAddRemove;
+    this.canvas.renderOnAddRemove = false;
+
+    let pathString = '';
+
+    for (let b = 0; b < this._bristlePoints.length; b++) {
+      const points = this._bristlePoints[b];
+      if (points.length > 0) {
+        let p1 = points[0];
+        pathString += `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} `;
+
+        for (let i = 1; i < points.length; i++) {
+          const p2 = points[i];
+          const mid = p1.midPointFrom(p2);
+          pathString += `Q ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} ${mid.x.toFixed(2)} ${mid.y.toFixed(2)} `;
+          p1 = p2;
+        }
+        pathString += `L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} `;
+      }
+    }
+
+    if (pathString) {
+      const baseOpacity = opacityFromOpacityHex(this.color) || 0.6;
+      const bristleOpacity = baseOpacity * 0.5;
+
+      const path = new Path(pathString, {
+        fill: '',
+        stroke: this.color,
+        strokeWidth: this.width * 0.8,
+        strokeLineCap: 'round',
+        strokeLineJoin: 'round',
+        opacity: bristleOpacity,
+        globalCompositeOperation: 'multiply',
+        objectCaching: true,
+        interactive: false
+      });
+
+      path.set('shadow', new Shadow({
+        color: this.color,
+        blur: this.width * 0.4, // Tightened the blur slightly for a crisper wet edge
+        offsetX: 0,
+        offsetY: 0,
+        affectStroke: true
+      }));
+
+      this.canvas.fire('before:path:created', { path });
+      this.canvas.add(path);
+      this.canvas.fire('path:created', { path });
+    }
+
+    this.canvas.clearContext(this.canvas.contextTop);
+
+    if (this.canvas.contextTop?.canvas) {
+      (this.canvas.contextTop.canvas as HTMLElement).style.mixBlendMode = 'normal'
+    }
+
+    this.canvas.renderOnAddRemove = originalRenderOnAddRemove;
+    this.canvas.requestRenderAll();
+
+    this._basePoints = [];
+    this._bristlePoints = [[], [], []];
+    return false;
   }
 
   private _addPoint(point: Point) {
-    if (this._points.length > 1 && point.eq(this._points[this._points.length - 1])) {
-      return false
+    if (this._basePoints.length > 0 && point.eq(this._basePoints[this._basePoints.length - 1])) {
+      return false;
     }
 
-    // Add jagged points
-    if (this._points.length > 0) {
-      const prev = this._points[this._points.length - 1]
-      const jagged = this._addJaggedness(prev, point)
-      this._points.push(...jagged)
+    // 1. Calculate the velocity of the patient's hand
+    let dist = 0;
+    if (this._basePoints.length > 0) {
+      const prev = this._basePoints[this._basePoints.length - 1];
+      dist = prev.distanceFrom(point);
     }
+    this._basePoints.push(point);
 
-    // Add the main point
-    this._points.push(point)
+    // 2. Velocity Pigment Pooling Math
+    // If moving fast (> 20px per frame), speedFactor approaches 1. If slow, approaches 0.
+    const speedFactor = Math.min(1, dist / 20);
+    // Slower hand = wider spread (pools). Faster hand = tighter spread (thins out).
+    const spreadMultiplier = 1.2 - (speedFactor * 0.7);
 
-    return true
-  }
+    const numBristles = 3;
 
+    for (let b = 0; b < numBristles; b++) {
+      const index = this._basePoints.length;
 
-  private _addJaggedness(p1: Point, p2: Point) {
-    const jaggedPoints: Point[] = []
-    const num = 4
-    for (let i = 1; i <= num; i++) {
-      const t = i / (num + 1)
-      const x = p1.x + t * (p2.x - p1.x) + (Math.random() - 0.5) * 5
-      const y = p1.y + t * (p2.y - p1.y) + (Math.random() - 0.5) * 5
-      jaggedPoints.push(new Point(x, y))
+      // Apply the spreadMultiplier to our organic tissue generation
+      const wave = Math.sin(index * 0.5 + b) * (this.width * 0.15 * spreadMultiplier);
+      const noiseX = (Math.random() - 0.5) * (this.width * 0.2 * spreadMultiplier);
+      const noiseY = (Math.random() - 0.5) * (this.width * 0.2 * spreadMultiplier);
+
+      this._bristlePoints[b].push(new Point(
+        point.x + wave + noiseX,
+        point.y + wave + noiseY
+      ));
     }
-    return jaggedPoints
+    return true;
   }
 
   _render(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
-    if (!this._points.length) return
+    if (!this._basePoints.length) return;
 
-    this._saveAndTransform(ctx)
-    ctx.beginPath()
-    ctx.strokeStyle = this.getPattern(ctx) as unknown as string
-    ctx.lineWidth = this.width
+    this._saveAndTransform(ctx);
 
-    let p1 = this._points[0]
-    for (let i = 1; i < this._points.length; i++) {
-      const p2 = this._points[i]
-      const mid = p1.midPointFrom(p2)
-      ctx.quadraticCurveTo(p1.x, p1.y, mid.x, mid.y)
-      p1 = p2
+    const baseOpacity = opacityFromOpacityHex(this.color) || 0.6;
+    ctx.globalAlpha = baseOpacity * 0.5;
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = this.width * 0.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = this.width * 0.4;
+
+    // The Intensity Bug Cure: We open ONE path for all bristles
+    ctx.beginPath();
+
+    for (let b = 0; b < this._bristlePoints.length; b++) {
+      const points = this._bristlePoints[b];
+      if (points.length === 0) continue;
+
+      let p1 = points[0];
+      ctx.moveTo(p1.x, p1.y);
+
+      for (let i = 1; i < points.length; i++) {
+        const p2 = points[i];
+        const mid = p1.midPointFrom(p2);
+        ctx.quadraticCurveTo(p1.x, p1.y, mid.x, mid.y);
+        p1 = p2;
+      }
+      ctx.lineTo(p1.x, p1.y);
     }
 
-    ctx.stroke()
-    ctx.restore()
+    // We strike the canvas ONCE, ensuring the live preview perfectly matches the final geometry
+    ctx.stroke();
+    ctx.restore();
   }
-
-
 }

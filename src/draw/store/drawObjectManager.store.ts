@@ -83,7 +83,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     updateVisibility()
   }
 
-  function updateVisibility(runSync = false): void {
+  function updateVisibility(runSync = true): void {
     const execute = () => {
       visibilityScheduled = false
       const viewport = getViewportRect(c!)
@@ -108,6 +108,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       lastVisible = nextVisible
 
       c?.requestRenderAll()
+
     }
 
     // Bypass the scheduling queue entirely if this is a sync request

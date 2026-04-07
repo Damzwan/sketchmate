@@ -28,6 +28,8 @@ async function syncObjectsAdded(params: DrawSyncingParams<DrawSyncingEvent.added
     if (enlivened.insertedIndex !== undefined && enlivened.insertedIndex !== null) c.insertAt(enlivened.insertedIndex, enlivened) // used for bucket fill
     else c.add(enlivened)
   })
+
+
   c.requestRenderAll()
 }
 

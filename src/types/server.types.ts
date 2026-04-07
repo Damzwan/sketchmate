@@ -118,6 +118,7 @@ export interface SendParams {
   followers: string[];
   drawing: string;
   img: any;
+  aspect_ratio: number;
 }
 
 export interface SendRes {

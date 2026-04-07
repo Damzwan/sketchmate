@@ -1,16 +1,19 @@
 <template>
   <!-- Floating preview + button -->
   <div
-    class="absolute top-safe right-2 z-50 pointer-events-auto"
-    :class="topMargin"
-    @click="chatMenuOpen = true"
+    class="fixed z-50 pointer-events-auto touch-none select-none"
+    :style="style"
+    ref="chatPreviewRef"
   >
-    <div class="comment rounded-xl px-2 py-1.5 w-45 shadow-md cursor-pointer">
+    <div class="comment rounded-xl px-2 py-1.5 w-45 shadow-md cursor-grab active:cursor-grabbing" ref="handleRef">
 
       <!-- Header -->
       <div class="flex flex-col gap-1 w-full mb-3">
         <div class="flex items-center justify-between w-full">
           <div class="flex items-center gap-2">
+            <div class="flex items-center text-white/40 -ml-1">
+              <ion-icon :icon="svg(mdiDrag)" class="text-lg" />
+            </div>
             <div class="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 shadow-inner">
               <ion-icon :icon="svg(mdiChatOutline)" class="text-white text-sm" />
             </div>
@@ -225,21 +228,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useMenuStore } from '@/store/menu.store'
 import { useAuthStore } from '@/store/auth.store'
-import { IonIcon, IonModal, IonButton, IonAvatar, IonInput, IonSpinner, IonPopover } from '@ionic/vue'
+import { IonAvatar, IonButton, IonIcon, IonInput, IonModal, IonPopover, IonSpinner } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import { mdiChat, mdiChatOutline, mdiSend } from '@mdi/js'
+import { mdiChatOutline, mdiDrag, mdiDragVertical, mdiSelectDrag, mdiSend } from '@mdi/js'
 import { sendLobbyMessage } from '@/service/api/socket/drawSyncing.socket'
 import dayjs from 'dayjs'
 import { useFriendStore } from '@/store/friend.store'
 import { useSocketService } from '@/service/api/socket/socket.service'
 import { Mate } from '@/types/server.types'
-import { useRoute } from 'vue-router'
-import { FRONTEND_ROUTES } from '@/types/router.types'
+import { useDraggable } from '@vueuse/core'
 
 // Stores
 const drawSyncerStore = useDrawSyncer()
@@ -251,16 +253,43 @@ const { user } = storeToRefs(useAuthStore())
 const newMessage = ref('')
 const chatContent = ref<HTMLElement | null>(null)
 
-const route = useRoute()
-const topMargin = computed(() => {
-  const mapping: any = {
-    [`/${FRONTEND_ROUTES.draw}`]: 'mt-14',
-    [`/${FRONTEND_ROUTES.gallery}`]: 'mt-16',
-    [`/${FRONTEND_ROUTES.connect}`]: 'mt-32'
-  }
+const chatPreviewRef = ref<HTMLElement | null>(null)
+const handleRef = ref<HTMLElement | null>(null)
 
-  return mapping[route.path] || 'mt-14'
+let isDragging = false
+let startX = 0
+let startY = 0
+
+// TODO make reusable
+const getSafeTop = () => {
+  const safeTop = getComputedStyle(document.documentElement)
+    .getPropertyValue('--ion-safe-area-top')
+    .trim()
+
+  return parseFloat(safeTop) || 0
+}
+
+const { style, x, y } = useDraggable(chatPreviewRef, {
+  initialValue: { x: window.innerWidth - 190, y: 60 + getSafeTop() },
+  handle: handleRef,
+  onStart: (pos) => {
+    startX = x.value
+    startY = y.value
+  },
+  onMove: (pos, event) => {
+    const distance = Math.sqrt(
+      Math.pow(pos.x - startX, 2) + Math.pow(pos.y - startY, 2)
+    )
+    if (distance > 1) {
+      isDragging = true
+    }
+  },
+  onEnd: () => {
+    if (!isDragging) chatMenuOpen.value = true
+    isDragging = false
+  }
 })
+
 
 // Scroll logic
 const scrollToBottom = async (smooth = true) => {

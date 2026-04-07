@@ -22,10 +22,10 @@
         @crop-completed="onCropCompleted"
       />
 
-      <SendBalloonBanner />
+      <SendBalloonBanner :getDataToSend="getDataToSend" />
 
       <!-- Mates List -->
-      <ion-list v-if="!hideMatesList" class="bg-primary max-h-96 overflow-y-auto scrollbar">
+      <ion-list v-if="!hideMatesList" class="bg-primary max-h-96 overflow-y-auto scrollbar" @touchmove.stop>
         <!-- Current user -->
         <SendDrawerItem
           :key="user._id"

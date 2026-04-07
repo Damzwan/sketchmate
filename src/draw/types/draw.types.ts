@@ -116,7 +116,9 @@ export enum BrushType {
   Spray,
   Crayon,
   Charcoal,
-  Pixel
+  Pixel,
+  Neon,
+  CalliGraphy
 }
 
 export enum EraserSize {

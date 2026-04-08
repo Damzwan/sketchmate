@@ -1,68 +1,79 @@
 <template>
-  <div class="flex justify-center items-center">
-    <div class="relative" v-if="props.src">
+  <div
+    class="relative w-full max-w-44 max-h-44 group mx-auto flex items-center justify-center mb-4"
+    :style="{ aspectRatio: newAspectRatio || props.aspectRatio }"
+  >
+    <div
+      v-if="!isLoaded"
+      class="absolute inset-0 z-10 rounded-lg shadow overflow-hidden"
+    >
+      <ion-skeleton-text :animated="true" class="w-full h-full m-0" />
+    </div>
+
+    <div
+      v-show="props.src && isLoaded"
+      class="relative w-full h-full transition-opacity duration-300"
+    >
       <img
-        :src="newPreview ? newPreview : props.src"
+        :src="newPreview || props.src"
+        @load="isLoaded = true"
         @click="openModal"
-        class="max-w-44 max-h-44 object-contain rounded-lg cursor-pointer shadow"
+        class="w-full h-full object-contain rounded-lg cursor-pointer shadow"
       />
 
       <button
         @click="openModal"
-        class="absolute bottom-1 right-1 bg-black/60 text-white rounded-full p-1 flex items-center justify-center cursor-pointer"
+        class="absolute bottom-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 flex items-center justify-center cursor-pointer"
       >
         <IonIcon :icon="svg(mdiFullscreen)" class="w-4 h-4" />
       </button>
     </div>
-    <div v-else class="w-44 h-44 rounded-lg shadow">
-      <ion-skeleton-text :animated="true" class="w-full h-full" />
-    </div>
-
-    <ion-modal :is-open="isOpen" @didPresent="initCropper" @didDismiss="handleModalDismiss">
-      <div class="w-full h-full flex flex-col safe-area bg-black">
-        <ion-toolbar class="bg-black" color="black">
-          <ion-button
-            slot="end"
-            fill="clear"
-            class="font-bold text-white"
-            @click="crop"
-          >
-            Crop
-          </ion-button>
-
-          <ion-button
-            slot="end"
-            fill="clear"
-            class="text-white text-lg"
-            @click="closeModal"
-          >
-            <IonIcon :icon="svg(mdiClose)" class="w-6 h-6" />
-          </ion-button>
-        </ion-toolbar>
-
-        <ion-content>
-          <div class="w-full h-full bg-black flex items-center justify-center relative">
-            <div
-              class="transition-opacity duration-300"
-              :class="isCropperReady ? 'opacity-100' : 'opacity-0'"
-              style="max-width: 90%; max-height: 80%;"
-            >
-              <img
-                ref="imageRef"
-                :src="props.src"
-                class="block max-w-full"
-                crossorigin="anonymous"
-              />
-            </div>
-          </div>
-        </ion-content>
-      </div>
-    </ion-modal>
   </div>
+
+  <ion-modal :is-open="isOpen" @didPresent="initCropper" @didDismiss="handleModalDismiss">
+    <div class="w-full h-full flex flex-col safe-area bg-black">
+      <ion-toolbar class="bg-black" color="black">
+        <ion-button
+          slot="end"
+          fill="clear"
+          class="font-bold text-white"
+          @click="crop"
+        >
+          Crop
+        </ion-button>
+
+        <ion-button
+          slot="end"
+          fill="clear"
+          class="text-white text-lg"
+          @click="closeModal"
+        >
+          <IonIcon :icon="svg(mdiClose)" class="w-6 h-6" />
+        </ion-button>
+      </ion-toolbar>
+
+      <ion-content>
+        <div class="w-full h-full bg-black flex items-center justify-center relative">
+          <div
+            class="transition-opacity duration-300"
+            :class="isCropperReady ? 'opacity-100' : 'opacity-0'"
+            style="max-width: 90%; max-height: 80%;"
+          >
+            <img
+              ref="imageRef"
+              :src="props.src"
+              class="block max-w-full"
+              crossorigin="anonymous"
+            />
+          </div>
+        </div>
+      </ion-content>
+    </div>
+  </ion-modal>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { IonButton, IonContent, IonIcon, IonModal, IonSkeletonText, IonToolbar, modalController } from '@ionic/vue'
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
@@ -80,6 +91,10 @@ const props = defineProps({
     type: String,
     required: false,
     default: null
+  }, aspectRatio: {
+    type: Number,
+    required: true,
+    default: 1
   }
 })
 
@@ -89,8 +104,18 @@ const isOpen = ref(false)
 const imageRef = ref(null)
 const isCropperReady = ref(false) // Tracks when Cropper is fully initialized
 let cropperInstance = null
+const isLoaded = ref(false)
+
+const newAspectRatio = ref()
 
 const openModal = () => (isOpen.value = true)
+
+watch(
+  () => [props.src],
+  ([]) => {
+    isLoaded.value = false
+  }
+)
 
 const closeModal = () => {
   isOpen.value = false
@@ -174,6 +199,9 @@ const handleModalDismiss = () => {
       width: cropData.width / imageData.naturalWidth,
       height: cropData.height / imageData.naturalHeight
     }
+
+    isLoaded.value = false
+    newAspectRatio.value = cropData.width / cropData.height
 
 
     cropperInstance.destroy()

@@ -44,7 +44,7 @@ export const useDrawStore = defineStore('draw', () => {
       if (canvasID === el.id) {
         const c = canvasSvc.getCanvas()
         if (loadService.canvasToLoad.value) await loadService.loadCanvas(c)
-        c.requestRenderAll()
+        drawObjectManager.updateVisibility(true)
         return
       }
 

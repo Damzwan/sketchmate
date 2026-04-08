@@ -1,6 +1,6 @@
-import { ActiveSelection, Canvas, StaticCanvas } from 'fabric'
+import { Canvas, StaticCanvas } from 'fabric'
 import { compressImg } from '@/helper/general.helper'
-import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
+import { CANVAS_SIZE } from '@/draw/config/canvas.config'
 
 export async function canvasToBuffer(canvasDataUrl: string, size = 1920) {
   return await (await compressImg(canvasDataUrl, { returnType: 'blob', size: size })).arrayBuffer()
@@ -66,78 +66,78 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
   })
 }
 
-export async function exportBoundingBoxImage(canvas: Canvas) {
-  if (!canvas) return null
+export async function exportBoundingBoxImage(canvas: Canvas): Promise<{ img: string, aspect_ratio: number } | null> {
+  const objects = canvas?.getObjects()
+  if (!canvas || !objects || objects.length === 0) return null
 
-  const objects = canvas.getObjects()
-  if (objects.length === 0) {
-    return { img: canvas.toDataURL(), aspect_ration: 1 }
-  }
-
-  // 1. Save original states
-  const originalVpt = [...canvas.viewportTransform] as any
-  const originalSkipOffscreen = canvas.skipOffscreen
-
-  // Create a Map to store which objects were manually hidden vs culled
-  const visibilityStates = new Map()
-
-  // 2. Force all objects to be visible for the export
-  objects.forEach(obj => {
-    visibilityStates.set(obj, obj.visible)
-    obj.visible = true // Temporary override
-    obj.setCoords()    // Update coordinates in "World Space"
-  })
-
-  canvas.setViewportTransform([1, 0, 0, 1, 0, 0])
-
-  // 3. Calculate Absolute Bounds
+  // 1. CALCULATE ABSOLUTE BOUNDS
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
 
   objects.forEach(obj => {
-    const bounds = obj.getBoundingRect()
-    minX = Math.min(minX, bounds.left)
-    minY = Math.min(minY, bounds.top)
-    maxX = Math.max(maxX, bounds.left + bounds.width)
-    maxY = Math.max(maxY, bounds.top + bounds.height)
+    // @ts-ignore
+    const bound = obj.getBoundingRect(true)
+    minX = Math.min(minX, bound.left)
+    minY = Math.min(minY, bound.top)
+    maxX = Math.max(maxX, bound.left + bound.width)
+    maxY = Math.max(maxY, bound.top + bound.height)
   })
+
+  const padding = 10
+  minX -= padding
+  minY -= padding
+  maxX += padding
+  maxY += padding
 
   const width = maxX - minX
   const height = maxY - minY
 
-  if (width <= 0 || height <= 0) {
-    // Restore and exit if empty
-    objects.forEach(obj => obj.visible = visibilityStates.get(obj))
-    canvas.setViewportTransform(originalVpt)
-    return { img: canvas.toDataURL(), aspect_ration: 1 }
-  }
+  if (width <= 0 || height <= 0) return null
 
-  // 4. Export Logic
-  const minTargetSize = 2000
-  const multiplier = Math.min(minTargetSize / width, minTargetSize / height, 2)
+  const maxPreviewTarget = 2000
+  const scale = Math.min(maxPreviewTarget / width, maxPreviewTarget / height)
 
-  const img = canvas.toDataURL({
-    left: minX,
-    top: minY,
-    width: width,
-    height: height,
-    multiplier: multiplier
-  })
+  const exportWidth = width * scale
+  const exportHeight = height * scale
 
-  // 5. Cleanup & Restoration
-  // Restore the custom culling/visibility states
+  const nativeCanvas = document.createElement('canvas')
+  nativeCanvas.width = exportWidth
+  nativeCanvas.height = exportHeight
+  const ctx = nativeCanvas.getContext('2d', { alpha: true })
+  if (!ctx) return null
+
+  ctx.fillStyle = canvas.backgroundColor as any
+  ctx.fillRect(0, 0, nativeCanvas.width, nativeCanvas.height)
+
+  ctx.save()
+  ctx.scale(scale, scale)
+  ctx.translate(-minX, -minY)
+
+  canvas.skipOffscreen = false
   objects.forEach(obj => {
-    obj.visible = visibilityStates.get(obj)
+    const wasVisible = obj.visible
+    obj.visible = true
+    obj.objectCaching = false
+    obj.render(ctx)
+    obj.objectCaching = true
+    obj.visible = wasVisible
   })
+  canvas.skipOffscreen = true
 
-  canvas.skipOffscreen = originalSkipOffscreen
-  canvas.setViewportTransform(originalVpt)
+  ctx.restore()
 
-  // Re-run your custom culling logic here if necessary,
-  // or simply re-render to let the current frame reflect the UI
-  canvas.requestRenderAll()
+  // OFF-THREAD ENCODING
+  return new Promise((resolve) => {
+    nativeCanvas.toBlob((blob) => {
+      if (!blob) return resolve(null)
 
-  return { img, aspect_ratio: width / height }
+      resolve({
+        img: URL.createObjectURL(blob),
+        aspect_ratio: width / height
+      })
+    }, 'image/webp', 0.8)
+  })
 }
+
 
 export async function cloneCanvas(canvas: any) {
   const cloned = new StaticCanvas(undefined, {
@@ -177,72 +177,131 @@ export function computeBounds(objects: any[]) {
 
 export function relativeToAbsolute(bounds: any, rect: any) {
   return {
-    x: bounds.minX + rect.x * bounds.width,
-    y: bounds.minY + rect.y * bounds.height,
-    w: rect.width * bounds.width,
-    h: rect.height * bounds.height
+    left: bounds.minX + rect.x * bounds.width,
+    top: bounds.minY + rect.y * bounds.height,
+    width: rect.width * bounds.width,
+    height: rect.height * bounds.height
   }
 }
 
-export function toDataURL(c: any, bounds: any, multiplier = 2) {
-  return c.toDataURL({
-    left: bounds.minX,
-    top: bounds.minY,
-    width: bounds.width,
-    height: bounds.height,
-    multiplier
+
+export async function cropCanvas(canvas: StaticCanvas, relativeRect: any): Promise<{
+  img: string,
+  aspect_ratio: number
+} | null> {
+  const objects = canvas?.getObjects()
+  if (!canvas || !objects || objects.length === 0) return null
+
+  // Step A: Convert the relative UI rect into an absolute World rect
+  const totalBounds = computeBounds(objects)
+  const absCrop = relativeToAbsolute(totalBounds, relativeRect)
+
+  if (absCrop.width <= 0 || absCrop.height <= 0) return null
+
+  // Step B: Set up the native clipping canvas
+  const maxPreviewTarget = 2000
+  const scale = Math.min(maxPreviewTarget / absCrop.width, maxPreviewTarget / absCrop.height)
+
+  const nativeCanvas = document.createElement('canvas')
+  nativeCanvas.width = absCrop.width * scale
+  nativeCanvas.height = absCrop.height * scale
+
+  const ctx = nativeCanvas.getContext('2d', { alpha: true })
+  if (!ctx) return null
+
+  ctx.fillStyle = canvas.backgroundColor as any
+  ctx.fillRect(0, 0, nativeCanvas.width, nativeCanvas.height)
+
+  // Step C: Shift the camera to target ONLY the crop area
+  ctx.save()
+  ctx.scale(scale, scale)
+  // Shift the origin so the top-left of the crop box is exactly at [0, 0]
+  ctx.translate(-absCrop.left, -absCrop.top)
+
+  // Step D: The blind render loop
+  canvas.skipOffscreen = false
+  objects.forEach(obj => {
+    const wasVisible = obj.visible
+    obj.visible = true
+    obj.objectCaching = false
+    obj.render(ctx)
+    obj.objectCaching = true
+    obj.visible = wasVisible
+  })
+
+  ctx.restore()
+  canvas.skipOffscreen = true
+
+  // Step E: Off-thread encoding
+  return new Promise((resolve) => {
+    nativeCanvas.toBlob((blob) => {
+      if (!blob) return resolve(null)
+
+      resolve({
+        img: URL.createObjectURL(blob),
+        aspect_ratio: absCrop.width / absCrop.height
+      })
+    }, 'image/webp', 0.8)
   })
 }
 
-export async function cropCanvas(canvas: StaticCanvas, rect: any, threshold = 0.3) {
-  const objects = canvas.getObjects()
+export async function exportCroppedJson(canvas: Canvas | StaticCanvas, relativeRect: any, threshold = 0.3) {
+  const objects = canvas?.getObjects()
+  if (!canvas || !objects || objects.length === 0) return null
 
-  const bounds = computeBounds(objects)
-  const abs = relativeToAbsolute(bounds, rect)
+  // 1. Map the relative UI crop to absolute world coordinates
+  const totalBounds = computeBounds(objects)
+  const absCrop = relativeToAbsolute(totalBounds, relativeRect)
 
-
+  // 2. Mathematical Intersection Filtering
   const keepObjects = objects.filter(obj => {
-    const b = obj.getBoundingRect()
-    const xOverlap = Math.max(0, Math.min(b.left + b.width, abs.x + abs.w) - Math.max(b.left, abs.x))
-    const yOverlap = Math.max(0, Math.min(b.top + b.height, abs.y + abs.h) - Math.max(b.top, abs.y))
+    // @ts-ignore
+    const b = obj.getBoundingRect(true)
+
+    const xOverlap = Math.max(0, Math.min(b.left + b.width, absCrop.left + absCrop.width) - Math.max(b.left, absCrop.left))
+    const yOverlap = Math.max(0, Math.min(b.top + b.height, absCrop.top + absCrop.height) - Math.max(b.top, absCrop.top))
+
     const intersectionArea = xOverlap * yOverlap
     const objArea = b.width * b.height
+
     return (intersectionArea / objArea) >= threshold
   })
 
-  if (keepObjects.length === 0) return { image: '', json: null }
+  if (keepObjects.length === 0) return null
 
-  const filteredBounds = computeBounds(keepObjects)
-
-  const tempCanvasEl = document.createElement('canvas')
-  const tempCanvas = new StaticCanvas(tempCanvasEl, {
-    width: filteredBounds.width,
-    height: filteredBounds.height,
+  const tempCanvas = new StaticCanvas(undefined, {
+    width: absCrop.width,
+    height: absCrop.height,
     backgroundColor: canvas.backgroundColor
   })
 
-  const clonedObjects = await Promise.all(keepObjects.map((obj: any) =>
-    obj.clone()
-  ))
+  const clonedObjects = await Promise.all(
+    keepObjects.map(obj => obj.clone())
+  )
 
+  // 2. CALCULATE THE SHIFT TO CENTER
+  // Find the exact center of the cropped area
+  const cropCenterX = absCrop.left + (absCrop.width / 2)
+  const cropCenterY = absCrop.top + (absCrop.height / 2)
+
+  // The spot we want the crop to land on (the center of the workspace)
+  const targetCenterX = CANVAS_SIZE / 2
+  const targetCenterY = CANVAS_SIZE / 2
+
+  // The delta distance to move every object
+  const shiftX = targetCenterX - cropCenterX
+  const shiftY = targetCenterY - cropCenterY
 
   clonedObjects.forEach(obj => {
-    obj.left = obj.left - filteredBounds.minX
-    obj.top = obj.top - filteredBounds.minY
-
-    obj.visible = true
+    obj.set({
+      left: obj.left + shiftX,
+      top: obj.top + shiftY
+    })
     tempCanvas.add(obj)
   })
 
-  tempCanvas.renderAll()
+  const jsonOutput = tempCanvas.toJSON()
+  tempCanvas.dispose()
 
-  const minTargetSize = 2000
-  const multiplier = Math.min(minTargetSize / tempCanvas.width, minTargetSize / tempCanvas.height, 2)
-
-
-  return {
-    image: toDataURL(tempCanvas, computeBounds(clonedObjects), multiplier),
-    json: tempCanvas,
-    aspect_ratio: tempCanvas.width / tempCanvas.height
-  }
+  return jsonOutput
 }

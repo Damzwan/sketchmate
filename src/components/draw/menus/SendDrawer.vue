@@ -18,8 +18,8 @@
       <PreviewDrawing
         :newPreview="newPreview"
         :src="preview"
-        class="pb-4"
         @crop-completed="onCropCompleted"
+        :aspectRatio="getCanvas().height/getCanvas().width"
       />
 
       <SendBalloonBanner :getDataToSend="getDataToSend" />
@@ -105,7 +105,7 @@ function onDismiss() {
 }
 
 async function onOpen() {
-  await init()
+  init()
 }
 
 async function onCropCompleted(event: any) {

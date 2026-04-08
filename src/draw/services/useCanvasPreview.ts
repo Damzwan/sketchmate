@@ -1,14 +1,21 @@
 import { Canvas, StaticCanvas } from 'fabric'
 import { ref } from 'vue'
-import { canvasToBuffer, cloneCanvas, cropCanvas, exportBoundingBoxImage } from '@/draw/helpers/export.helper'
+import {
+  canvasToBuffer,
+  cloneCanvas,
+  cropCanvas,
+  exportBoundingBoxImage,
+  exportCroppedJson
+} from '@/draw/helpers/export.helper'
 
 export function useCanvasPreview(getCanvas: () => Canvas) {
   const preview = ref<string>()
   const newPreview = ref<string>()
   const isLoading = ref<boolean>()
 
+  let croppedRect: any
+
   let cachedCanvas: StaticCanvas | null = null
-  let newCachedCanvas: StaticCanvas | null = null
   let aspect_ratio: number | undefined = undefined
 
   async function init() {
@@ -27,10 +34,11 @@ export function useCanvasPreview(getCanvas: () => Canvas) {
   async function crop(rect: any) {
     if (!cachedCanvas) return
 
+    croppedRect = rect
     isLoading.value = true
     const result = await cropCanvas(cachedCanvas, rect)
-    newPreview.value = result.image
-    newCachedCanvas = result.json
+    if (!result) return
+    newPreview.value = result.img
     aspect_ratio = result.aspect_ratio
     isLoading.value = false
   }
@@ -39,14 +47,14 @@ export function useCanvasPreview(getCanvas: () => Canvas) {
     preview.value = undefined
     newPreview.value = undefined
     cachedCanvas = null
-    newCachedCanvas = null
+    croppedRect = undefined
   }
 
   async function getDataToSend() {
 
-    if (newCachedCanvas && newPreview.value) {
-      const img = await canvasToBuffer(newPreview.value)
-      return { canvas: newCachedCanvas.toJSON(), img , aspect_ratio}
+    if (croppedRect && cachedCanvas && newPreview.value) {
+      const [img, croppedCanvasJSON] = await Promise.all([canvasToBuffer(newPreview.value), exportCroppedJson(cachedCanvas, croppedRect)])
+      return { canvas: croppedCanvasJSON, img, aspect_ratio }
     } else if (cachedCanvas && preview.value) {
       const img = await canvasToBuffer(preview.value)
       return { canvas: cachedCanvas.toJSON(), img, aspect_ratio }

@@ -111,11 +111,13 @@
         @touchmove.stop
         class="overflow-y-auto max-h-72 px-3 py-2 space-y-1.5"
       >
-        <div v-for="msg in lobbyChatMessages" :key="msg._id" class="w-full cursor-pointer" @click="(ev) => {
-          openFriendPopover(ev, msg.member)
-        }">
+        <div
+          v-for="(msg, index) in lobbyChatMessages"
+          :key="msg._id"
+          class="w-full cursor-pointer"
+          @click="(ev) => openFriendPopover(ev, msg.member)"
+        >
 
-          <!-- SYSTEM MESSAGE -->
           <div
             v-if="msg.type !== 'message'"
             class="flex items-center gap-1.5 justify-center opacity-70 text-[11px] italic text-gray-500"
@@ -131,39 +133,50 @@
       </span>
           </div>
 
-          <!-- NORMAL MESSAGE -->
           <div
             v-else
             class="flex items-start gap-3 px-2 py-1"
-            :class="{ 'flex-row-reverse': msg.member._id === user?._id }"
+            :class="{
+        'flex-row-reverse': msg.member._id === user?._id,
+        'mt-[-4px]': index > 0 && lobbyChatMessages[index - 1].type === 'message' && lobbyChatMessages[index - 1].member?._id === msg.member._id
+      }"
           >
-            <img
-              :src="msg.member.img"
-              class="w-8 h-8 rounded-full border border-gray-100 shadow-sm shrink-0 mt-1"
-            />
+            <div class="w-8 h-8 shrink-0">
+              <img
+                v-if="index === 0 || lobbyChatMessages[index - 1].type !== 'message' || lobbyChatMessages[index - 1].member?._id !== msg.member._id"
+                :src="msg.member.img"
+                class="w-8 h-8 rounded-full border border-gray-100 shadow-sm mt-1"
+              />
+            </div>
 
             <div
-              class="flex flex-col max-w-[75%]"
+              class="flex flex-col max-w-[75%] relative"
               :class="{ 'items-end': msg.member._id === user?._id }"
             >
-    <span class="text-[11px] font-medium text-gray-500 mb-0.5 px-1 uppercase tracking-wider">
-      {{ msg.member.name }}
-    </span>
-
               <div
-                class="py-2 px-3.5 rounded-2xl text-sm leading-relaxed shadow-sm break-words cabin-sketch-regular"
+                class="py-2 px-3.5 rounded-2xl text-base leading-relaxed shadow-sm break-words cabin-sketch-regular relative"
                 :class="msg.member._id === user?._id
-          ? 'bg-primary  rounded-tr-none shadow-md'
-            : 'bg-primary-light  rounded-tl-none shadow-sm'"
+            ? 'bg-primary rounded-tr-none shadow-md'
+            : 'bg-primary-light rounded-tl-none shadow-sm'"
               >
-                {{ msg.message }}
-              </div>
+                <div
+                  v-if="index === 0 || lobbyChatMessages[index - 1].type !== 'message' || lobbyChatMessages[index - 1].member?._id !== msg.member._id"
+                  class="text-[10px] font-medium mb-0.5 uppercase tracking-wider opacity-70"
+                  :class="msg.member._id === user?._id ? 'text-gray-800' : 'text-gray-500'"
+                >
+                  {{ msg.member.name }}
+                </div>
 
-              <div
-                class="text-[10px] text-gray-400 mt-1 px-1"
-                :class="{ 'text-right': msg.member._id === user?._id }"
-              >
-                {{ dayjs(msg.timestamp).fromNow() }}
+                <div class="pr-10">
+                  {{ msg.message }}
+                </div>
+
+                <div
+                  class="absolute bottom-1 right-2 text-[9px] opacity-50 font-sans"
+                  :class="msg.member._id === user?._id ? 'text-gray-800' : 'text-gray-500'"
+                >
+                  {{ dayjs(msg.timestamp).format('HH:mm') }}
+                </div>
               </div>
             </div>
           </div>

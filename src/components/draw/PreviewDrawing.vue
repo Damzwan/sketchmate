@@ -1,33 +1,40 @@
 <template>
-  <div
-    class="relative w-full max-w-44 max-h-44 group mx-auto flex items-center justify-center mb-4"
-    :style="{ aspectRatio: newAspectRatio || props.aspectRatio }"
-  >
+  <div class="flex flex-col items-center justify-center mb-4">
     <div
-      v-if="!isLoaded"
-      class="absolute inset-0 z-10 rounded-lg shadow overflow-hidden"
+      class="relative w-full max-w-44 max-h-44 group mx-auto flex items-center justify-center"
+      :style="{ aspectRatio: newAspectRatio || props.aspectRatio }"
     >
-      <ion-skeleton-text :animated="true" class="w-full h-full m-0" />
-    </div>
-
-    <div
-      v-show="props.src && isLoaded"
-      class="relative w-full h-full transition-opacity duration-300"
-    >
-      <img
-        :src="newPreview || props.src"
-        @load="isLoaded = true"
-        @click="openModal"
-        class="w-full h-full object-contain rounded-lg cursor-pointer shadow"
-      />
-
-      <button
-        @click="openModal"
-        class="absolute bottom-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 flex items-center justify-center cursor-pointer"
+      <div
+        v-if="!isLoaded"
+        class="absolute inset-0 z-10 rounded-lg shadow overflow-hidden"
       >
-        <IonIcon :icon="svg(mdiFullscreen)" class="w-4 h-4" />
-      </button>
+        <ion-skeleton-text :animated="true" class="w-full h-full m-0" />
+      </div>
+
+      <div
+        v-show="props.src && isLoaded"
+        class="relative w-full h-full transition-opacity duration-300"
+      >
+        <img
+          :src="newPreview || props.src"
+          @load="isLoaded = true"
+          @click="openModal"
+          class="w-full h-full object-contain rounded-lg cursor-pointer shadow hover:opacity-90 transition-opacity"
+        />
+      </div>
     </div>
+
+    <ion-button
+      v-if="isLoaded"
+      fill="clear"
+      size="small"
+      color="secondary"
+      @click="openModal"
+      class="mt-1"
+    >
+      <IonIcon slot="end" :icon="svg(mdiCrop)" class="ml-2 w-4 h-4" />
+      Crop Image
+    </ion-button>
   </div>
 
   <ion-modal :is-open="isOpen" @didPresent="initCropper" @didDismiss="handleModalDismiss">
@@ -78,7 +85,7 @@ import { IonButton, IonContent, IonIcon, IonModal, IonSkeletonText, IonToolbar, 
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
 
-import { mdiClose, mdiFullscreen } from '@mdi/js'
+import { mdiClose, mdiCrop, mdiFullscreen } from '@mdi/js'
 import { svg } from '@/helper/general.helper.ts'
 
 const props = defineProps({
@@ -200,7 +207,7 @@ const handleModalDismiss = () => {
       height: cropData.height / imageData.naturalHeight
     }
 
-    isLoaded.value = false
+    isLoaded.value = relativeBoundary.x === 0 && relativeBoundary.y === 0 && relativeBoundary.width === 1 && relativeBoundary.height === 1
     newAspectRatio.value = cropData.width / cropData.height
 
 
@@ -208,8 +215,6 @@ const handleModalDismiss = () => {
     cropperInstance = null
     isCropperReady.value = false
 
-
-    if (relativeBoundary.x === 0 && relativeBoundary.y === 0 && relativeBoundary.width === 1 && relativeBoundary.height === 1) return
     emit('crop-completed', relativeBoundary)
   }
 }

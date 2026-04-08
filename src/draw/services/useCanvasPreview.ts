@@ -34,6 +34,12 @@ export function useCanvasPreview(getCanvas: () => Canvas) {
   async function crop(rect: any) {
     if (!cachedCanvas) return
 
+    if (rect.x === 0 && rect.y === 0 && rect.width === 1 && rect.height === 1) {
+      newPreview.value = undefined
+      croppedRect = undefined
+      return
+    }
+
     croppedRect = rect
     isLoading.value = true
     const result = await cropCanvas(cachedCanvas, rect)

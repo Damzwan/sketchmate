@@ -15,6 +15,7 @@ import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
 import { EventBus } from '@/main'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { handleTextModificationSync } from '@/draw/helpers/history/text.helper'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 
 export interface DrawInvitation {
   friend: Mate,
@@ -91,28 +92,38 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   const publicLobbyName = ref<string>('')
   const disconnectedRoomId = ref<string>()
   const isProcessingQueue = ref(false)
+  const lastProcessedSequenceId = ref<number | undefined>(undefined)
+  const currentSessionId = ref<string | undefined>(undefined)
 
 
   const actionQueue: DrawSyncingAction[] = []
 
 
-  watch(roomId, (newRoomId) => {
+  watch([roomId, isLoadingCanvas], ([newRoomId, loading]) => {
     const { addEventsOfService, removeEventsOfService } = useDrawEventManager()
-    if (!!newRoomId) {
+
+    // CASE 1: Joined a room and FINISHED loading the canvas
+    if (newRoomId && !loading) {
+      // Standard cleanup first to prevent double-binding
       EventBus.off('undo', handleUndo)
       EventBus.off('redo', handleRedo)
 
       EventBus.on('undo', handleUndo)
       EventBus.on('redo', handleRedo)
+
+      // Only attach the 'actionSyncer' events (drawing, moving, etc.)
+      // now that the canvas is quiet and ready for input
       addEventsOfService('actionSyncer', events)
+    }
 
-
-    } else {
+    // CASE 2: Left a room or started a fresh load
+    // We remove events if we lose the roomId OR if we start a new loading phase
+    if (!newRoomId || loading) {
       EventBus.off('undo', handleUndo)
       EventBus.off('redo', handleRedo)
       removeEventsOfService('actionSyncer')
     }
-  })
+  }, { immediate: true })
 
   const events: FabricEvent[] = [
     {
@@ -310,10 +321,9 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
 
 
   async function loadRoomCanvas(canvasJSON: any) {
-    const { reset, loadCanvas, getCanvas } = useDrawStore()
+    const { reset, loadCanvas } = useDrawStore()
     reset(false)
     await loadCanvas(canvasJSON)
-
 
     if (actionQueue.length > 0) {
       await processActionQueue()
@@ -323,7 +333,8 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       await executeDrawSyncingAction(action)
     }
 
-    getCanvas().requestRenderAll()
+    const { updateVisibility } = useDrawObjectManager()
+    updateVisibility()
   }
 
   function addToDrawSyncingActionQueue(action: DrawSyncingAction) {
@@ -335,8 +346,8 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     actionQueue.push(action)
 
     // Only trigger processing if not already processing AND canvas is fully loaded
-    if (!isProcessingQueue.value && !isLoadingCanvas.value) {
-      processActionQueue()
+    if (!isProcessingQueue.value) {
+      await processActionQueue()
     }
   }
 
@@ -384,6 +395,8 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     isWatchingPublicLobbies,
     isPublicLobby,
     publicLobbyName,
-    disconnectedRoomId
+    disconnectedRoomId,
+    lastProcessedSequenceId,
+    currentSessionId
   }
 })

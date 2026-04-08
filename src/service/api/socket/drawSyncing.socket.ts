@@ -1,7 +1,7 @@
 import { Socket } from 'socket.io-client'
 import { socket } from '@/service/api/socket/socket.service'
 import { storeToRefs } from 'pinia'
-import { PublicLobby, useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { LobbyChatItem, PublicLobby, useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useToast } from '@/service/toast.service'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawSyncingAction } from '@/draw/types/drawSyncing.types'
@@ -13,22 +13,15 @@ import { getDateOfBirthConfirmationResponse } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
-  socket.on('room-joined', async ({ roomId, users, isCreator }) => {
-    const { roomId: rm, roomMembers, isCreator: cr, isTryingToJoin, isLoadingCanvas } = storeToRefs(useDrawSyncer())
+  socket.on('room-joined', async ({ roomId, users, isCreator, sessionId }) => {
+    const { roomId: rm, roomMembers, isCreator: cr, isTryingToJoin, currentSessionId } = storeToRefs(useDrawSyncer())
     rm.value = roomId
     roomMembers.value = users
     cr.value = isCreator
     isTryingToJoin.value = false
+    currentSessionId.value = sessionId
     stopWatchingLobbies()
     addRoomIdToUrl(roomId)
-
-    const { stopSaving } = useDrawStore()
-    stopSaving()
-
-
-    if (!isCreator) {
-      isLoadingCanvas.value = true
-    }
   })
 
   socket.on('user-joined', ({ user, timestamp, id }) => {
@@ -73,39 +66,81 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     leaveRoom(true)
   })
 
-  socket.on('request-canvas-state', ({ targetSocketId }) => {
+  socket.on('request-canvas-state', ({ targetSocketId, snapshotSequenceId, isBackgroundUpdate }) => {
     const { getCanvas } = useDrawStore()
     const canvas = getCanvas()
     if (!canvas) return
 
+    // Note: If you ever notice a slight stutter when this runs in the background,
+    // it's because JSON.stringify on a massive canvas is synchronous.
+    // For now, it will work perfectly.
     const canvasString = JSON.stringify(canvas.toJSON())
     const sizeKB = canvasString.length / 1024
 
     socket.emit('send-canvas-state', {
       targetSocketId,
-      canvasState: canvasString, // Send as string
-      sizeKB: Math.round(sizeKB)
+      canvasState: canvasString,
+      sizeKB: Math.round(sizeKB),
+      snapshotSequenceId, // <-- Return the timestamp to the server
+      isBackgroundUpdate  // <-- Tell the server this was a background sync
     })
   })
 
-  socket.on('initial-canvas-state', async ({ canvasState }) => {
-    const { loadRoomCanvas } = useDrawSyncer()
-    const { isLoadingCanvas } = storeToRefs(useDrawSyncer())
-    const json = JSON.parse(canvasState)
+  socket.on('initial-canvas-state', async ({ canvasState, sequenceId, missedActions }) => {
+    const store = useDrawSyncer()
+    const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
 
-    await loadRoomCanvas(json)
+    // Set our baseline time
+    if (sequenceId !== undefined) {
+      lastProcessedSequenceId.value = sequenceId
+    }
+
+    const json = JSON.parse(canvasState)
+    await store.loadRoomCanvas(json)
+
+    // Process any actions that occurred while the snapshot was uploading
+
+    if (missedActions && missedActions.length > 0) {
+      for (const item of missedActions) {
+        lastProcessedSequenceId.value = item.sequenceId
+        await store.executeDrawSyncingAction(item)
+      }
+    }
+
+    isLoadingCanvas.value = false
+  })
+
+  socket.on('missed-actions', async ({ actions, isInitialSync }) => {
+    const store = useDrawSyncer()
+    const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
+
+    if (isInitialSync) {
+      const { reset } = useDrawStore()
+      reset(false)
+    }
+
+
+    for (const item of actions) {
+      lastProcessedSequenceId.value = item.sequenceId
+      await store.executeDrawSyncingAction(item)
+    }
+
     isLoadingCanvas.value = false
   })
 
   socket.on('draw-event', async (data) => {
-    const { isLoadingCanvas } = storeToRefs(useDrawSyncer())
-    const { addToDrawSyncingActionQueue, executeDrawSyncingAction } = useDrawSyncer()
+    const store = useDrawSyncer()
+    const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
 
+    // Update our local time tracker
+    if (data.sequenceId !== undefined) {
+      lastProcessedSequenceId.value = data.sequenceId
+    }
 
     if (isLoadingCanvas.value) {
-      addToDrawSyncingActionQueue(data.action)
+      store.addToDrawSyncingActionQueue(data.action)
     } else {
-      await executeDrawSyncingAction(data.action)
+      await store.executeDrawSyncingAction(data.action)
     }
   })
 
@@ -132,6 +167,15 @@ export function registerDrawSyncingHandlers(socket: Socket) {
   socket.on('disconnect', () => {
     const store = useDrawSyncer()
     store.disconnectedRoomId = store.roomId
+    console.log('disconnected')
+  })
+
+  socket.on('missed-lobby-messages', (missedMessages: LobbyChatItem[]) => {
+    const { lobbyChatMessages } = storeToRefs(useDrawSyncer())
+    lobbyChatMessages.value.push(...missedMessages)
+    lobbyChatMessages.value.sort((a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )
   })
 
   // this will only trigger after relogging in aka reconnect
@@ -142,7 +186,6 @@ export function registerDrawSyncingHandlers(socket: Socket) {
         roomId: store.disconnectedRoomId,
         intent: store.isCreator ? 'create' : 'join'
       })
-
       store.disconnectedRoomId = undefined
     }
   })
@@ -152,9 +195,23 @@ export function socketJoinRoom({ roomId, intent }: {
   roomId: string
   intent: 'create' | 'join'
 }) {
-  const { isTryingToJoin } = storeToRefs(useDrawSyncer())
+  const { isTryingToJoin, lastProcessedSequenceId, isLoadingCanvas, currentSessionId } = storeToRefs(useDrawSyncer())
   isTryingToJoin.value = true
-  socket!.emit('join-room', { roomId, intent })
+
+  if (intent === 'join') {
+    isLoadingCanvas.value = true
+  }
+
+  const { stopSaving } = useDrawStore()
+  stopSaving()
+
+
+  socket!.emit('join-room', {
+    roomId,
+    intent,
+    lastSequenceId: lastProcessedSequenceId.value,
+    lastSessionId: currentSessionId.value
+  })
 }
 
 // TODO maybe move to the story?
@@ -165,16 +222,19 @@ export function leaveRoom(skipEmit = false) {
     invitedFriends,
     isPublicLobby,
     isLoadingCanvas,
-    lobbyChatMessages
+    lobbyChatMessages,
+    lastProcessedSequenceId // <-- Added this
   } = storeToRefs(useDrawSyncer())
+
   if (!roomId.value) return
+
   roomMembers.value = []
   invitedFriends.value = []
   removeRoomIdFromUrl()
   isPublicLobby.value = false
   isLoadingCanvas.value = false
   lobbyChatMessages.value = []
-
+  lastProcessedSequenceId.value = undefined // <-- Reset time on leave
 
   if (!skipEmit) socket!.emit('leave-room', { roomId: roomId.value })
   roomId.value = undefined

@@ -33,7 +33,8 @@ export function useLoadService() {
     await actionWithoutEvents(async () => {
 
       c.clear()
-      await c.loadFromJSON(json)
+      await c.loadFromJSON(json).then(() => {
+      })
       canvasToLoad.value = undefined
 
       // add backwards compatability
@@ -46,6 +47,7 @@ export function useLoadService() {
 
       EventBus.emit('saveDrawing')
     })
+
 
     isSendingDrawing.value = false
 

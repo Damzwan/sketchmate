@@ -73,7 +73,10 @@ export function createSocketService(): SocketAPI {
     socket = io(import.meta.env.VITE_BACKEND as string, {
       withCredentials: true,
       reconnection: true,
-      reconnectionAttempts: Infinity
+      reconnectionAttempts: Infinity,
+      query: {
+        clientVersion: '2'
+      }
     })
 
     registerDrawSyncingHandlers(socket)

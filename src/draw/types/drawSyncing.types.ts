@@ -24,10 +24,12 @@ export enum DrawSyncingEvent {
   TextChanged = 'TextChanged'
 }
 
+type ShowAvatarActionParams = { creator: string }
+
 export type DrawSyncingMap = {
-  [DrawSyncingEvent.added]: { objectJSONS: any[] }
-  [DrawSyncingEvent.removed]: { objectIds: string[] }
-  [DrawSyncingEvent.modified]: {
+  [DrawSyncingEvent.added]: ShowAvatarActionParams & { objectJSONS: any[] }
+  [DrawSyncingEvent.removed]: ShowAvatarActionParams & { objectIds: string[] }
+  [DrawSyncingEvent.modified]: ShowAvatarActionParams & {
     changes: { id: string, forward: Partial<FabricObjectProps>, backward: Partial<FabricObjectProps> }[]
   },
   [DrawSyncingEvent.fullErase]: undefined,

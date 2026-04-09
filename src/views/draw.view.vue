@@ -14,6 +14,7 @@
         <canvas ref="myCanvasRef" class="w-full h-full" id="mainCanvas" />
       </div>
 
+      <MultiplayerAvatars v-if="roomId" />
       <ResetZoomButton />
     </div>
 
@@ -42,12 +43,13 @@ import TopSafeArea from '@/components/general/TopSafeArea.vue'
 import { primaryColor } from '@/config/colors.config'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { performRoomExit } from '@/draw/helpers/drawSyncing.helper'
+import MultiplayerAvatars from '@/components/draw/MultiplayerAvatars.vue'
 
 
 const myCanvasRef = ref<HTMLCanvasElement>()
 const { initCanvas, resetCanvasID } = useDrawStore()
 const { isSendingDrawing } = storeToRefs(useDrawStore())
-const { disconnectedRoomId, isLoadingCanvas } = storeToRefs(useDrawSyncer())
+const { disconnectedRoomId, isLoadingCanvas, roomId } = storeToRefs(useDrawSyncer())
 
 
 onIonViewDidEnter(() => {

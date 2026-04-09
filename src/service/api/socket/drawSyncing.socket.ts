@@ -11,6 +11,8 @@ import router from '@/router'
 import { ToastDuration } from '@/types/toast.types'
 import { getDateOfBirthConfirmationResponse } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
+import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
+import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   socket.on('room-joined', async ({ roomId, users, isCreator, sessionId }) => {
@@ -137,6 +139,11 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       lastProcessedSequenceId.value = data.sequenceId
     }
 
+    // Kind of hacky but that way i do not need to rewrite the signature of the functions
+    if (data.action.params) {
+      data.action.params.creator = data.creator
+    }
+
     if (isLoadingCanvas.value) {
       store.addToDrawSyncingActionQueue(data.action)
     } else {
@@ -250,12 +257,17 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
   const sizeBytes = new Blob([json]).size
   const sizeMB = sizeBytes / (1024 * 1024)
 
-  console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
 
   if (sizeMB >= 0.6) {
     const { toast } = useToast()
-    toast('Kicked out of lobby, operation too big', { color: 'danger', duration: ToastDuration.long })
-    leaveRoom()
+    toast('Operation too big, cancelled', { color: 'danger', duration: ToastDuration.long })
+    const { silentUndo, silentRedo, lastActionType } = useDrawHistoryManager()
+    const { actionWithoutEvents } = useDrawEventManager()
+
+    if (lastActionType === 'redo' || lastActionType === 'normal') {
+      silentUndo()
+    } else silentRedo()
+
     return
   }
 

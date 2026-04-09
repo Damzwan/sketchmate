@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-2" >
+  <div class="mx-2">
     <!-- Case: received a balloon -->
     <div
       v-if="user && user.balloon && receivedBalloon && receivedBalloon.status==='accepted'"
@@ -17,7 +17,7 @@
           fill="outline"
           color="dark"
           class="mt-3"
-          @click="openMenu(Menu.SendBalloon)"
+          @click="openBalloonMenu"
         >
           See your balloon
         </ion-button>
@@ -39,7 +39,7 @@
           fill="outline"
           color="dark"
           class="mt-3"
-          @click="openMenu(Menu.ReceiveBalloon)"
+          @click="openBalloonMenu"
         >
           Open Balloon
         </ion-button>
@@ -63,7 +63,7 @@
           fill="outline"
           color="dark"
           class="mt-3"
-          @click="openMenu(Menu.SendBalloon)"
+          @click="openBalloonMenu"
         >
           View Sent Balloon
         </ion-button>
@@ -103,12 +103,23 @@ import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import balloonLottie from '@/assets/lottie/balloon.json'
 import Lottie from '@/components/general/Lottie.vue'
-import { useAPI } from '@/service/api/api.service'
 import { useBalloonStore } from '@/store/balloon.store'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { useToast } from '@/service/toast.service'
 
 const { openMenu } = useMenuStore()
 const { user } = storeToRefs(useAuthStore())
 const { sentBalloon, receivedBalloon } = storeToRefs(useBalloonStore())
+
+function openBalloonMenu() {
+  const { roomId } = useDrawSyncer()
+  if (roomId) {
+    const { toast } = useToast()
+    toast('You cannot do this while in a lobby', { color: 'warning' })
+    return
+  }
+  openMenu(Menu.SendBalloon)
+}
 
 
 </script>

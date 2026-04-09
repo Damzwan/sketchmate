@@ -12,6 +12,7 @@ import { redoActionMapping, undoActionMapping } from '@/draw/config/drawHistory.
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { mergeHelper } from '@/draw/actions/object.action'
 import { CustomEraserBrush, eraseObject } from '@/draw/utils/brushes/CustomEraserBrush'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 // TODO duplicate logic from history... think!
 async function syncObjectsAdded(params: DrawSyncingParams<DrawSyncingEvent.added>) {
@@ -29,6 +30,11 @@ async function syncObjectsAdded(params: DrawSyncingParams<DrawSyncingEvent.added
     else c.add(enlivened)
   })
 
+  if (params.creator && enlivened.length > 0) {
+    const {showOrUpdateAvatar} = useDrawUIStore()
+    const firstObj = enlivened[0]
+    showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+  }
 
   c.requestRenderAll()
 }

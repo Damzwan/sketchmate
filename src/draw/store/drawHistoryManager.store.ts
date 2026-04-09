@@ -25,6 +25,8 @@ export const useDrawHistoryManager = defineStore('history', () => {
   const undoStackCounter = ref(0)
   const redoStackCounter = ref(0)
 
+  const lastActionType = ref<'normal' | 'undo' | 'redo'>()
+
   const MAX_HISTORY = 50
 
 
@@ -240,6 +242,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
     })
     undoStackCounter.value = undoStack.length
 
+    lastActionType.value = 'undo' // important that it needs to be before the emit
     EventBus.emit('undo', action)
   }
 
@@ -252,7 +255,25 @@ export const useDrawHistoryManager = defineStore('history', () => {
       addToUndoStack(newAction)
     })
     redoStackCounter.value = redoStack.length
+    lastActionType.value = 'redo'
     EventBus.emit('redo', action)
+  }
+
+  // used when we want to cancel the last action for multiplayer, used in the syncing logic only
+  async function silentUndo() {
+    const action = undoStack.pop() as HistoryAction
+    await actionWithoutEvents(async () => {
+      await undoActionMapping[action.type](createHistoryContext(), action as any)
+    })
+    reset()
+  }
+
+  async function silentRedo() {
+    const action = redoStack.pop() as HistoryAction
+    await actionWithoutEvents(async () => {
+      await redoActionMapping[action.type](createHistoryContext(), action as any)
+    })
+    reset()
   }
 
   function init(canvas: Canvas) {
@@ -273,6 +294,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
   }
 
   function addToUndoStackWithResetRedo<T extends HistoryEvent>(action: HistoryAction<T>) {
+    lastActionType.value = 'normal'
     resetRedoStack()
     addToUndoStack(action)
   }
@@ -318,6 +340,9 @@ export const useDrawHistoryManager = defineStore('history', () => {
     clearStackOfPolygonHistory,
     reset,
     addToUndoStackWithResetRedo,
-    createHistoryContext
+    createHistoryContext,
+    lastActionType,
+    silentUndo,
+    silentRedo
   }
 })

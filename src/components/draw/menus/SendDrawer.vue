@@ -1,5 +1,6 @@
 <template>
   <ion-modal
+    v-if="isCanvasInit"
     :is-open="sendMenuOpen"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
@@ -85,6 +86,7 @@ import { useCanvasPreview } from '@/draw/services/useCanvasPreview'
 const { sendMenuOpen } = storeToRefs(useMenuStore())
 const { user } = storeToRefs(useAuthStore())
 const { send, getCanvas } = useDrawStore()
+const { isCanvasInit } = storeToRefs(useDrawStore()) // TODO let us be more clever about this
 
 // ---- Composables ----
 const { selected, toggle, count, reset } = useMateSelection()

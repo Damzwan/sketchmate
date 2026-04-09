@@ -18,6 +18,7 @@ import { ref } from 'vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { interactiveObjectInspector } from '@/utils/fabricDebug'
 import { StaticCanvas } from 'fabric'
+import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 export const useDrawStore = defineStore('draw', () => {
     const canvasSvc = useCanvasService()
@@ -30,6 +31,9 @@ export const useDrawStore = defineStore('draw', () => {
     const drawHistory = useDrawHistoryManager()
     const progressSaver = useDrawProgressSaver()
     const drawSyncer = useDrawSyncer()
+    const drawUI = useDrawUIStore()
+
+    const isCanvasInit = ref(false)
 
 
     const { send, createBalloon, isSendingDrawing } = useDrawSendService(canvasSvc.getCanvas)
@@ -47,6 +51,8 @@ export const useDrawStore = defineStore('draw', () => {
         drawObjectManager.updateVisibility(true)
         return
       }
+
+      isCanvasInit.value = false
 
       canvasID = el.id
 
@@ -71,6 +77,7 @@ export const useDrawStore = defineStore('draw', () => {
       drawObjectManager.init(c)
       shortcutManager.init(c)
       drawSyncer.init()
+      drawUI.init()
 
 
       toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true })
@@ -79,6 +86,7 @@ export const useDrawStore = defineStore('draw', () => {
       })
 
 
+      isCanvasInit.value = true
     }
 
     async function selectAction<A extends DrawAction>(action: A, params: DrawActionParams[A]) {
@@ -136,6 +144,7 @@ export const useDrawStore = defineStore('draw', () => {
       stopSaving: progressSaver.stopSaving,
       startSaving: progressSaver.startSaving,
       restoreLocalCanvas,
+      isCanvasInit
     }
   }
 )

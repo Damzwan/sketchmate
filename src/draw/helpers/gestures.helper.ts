@@ -81,10 +81,11 @@ function commitCssTransform(c: Canvas, isFinal: boolean = true) {
   vpt[5] = cssTransform.translateY + (vpt[5] * cssTransform.scale)
 
   c.setViewportTransform(vpt)
+  c.fire('viewport:changed');
   cssTransform = { ...initialCssTransform }
 
   const { updateVisibility } = useDrawObjectManager()
-  updateVisibility(false )
+  updateVisibility(false)
 
   if (c.wrapperEl) {
     c.wrapperEl.style.transform = ''
@@ -196,9 +197,6 @@ function enablePCGestures(c: Canvas) {
         attemptThrottledCommit(c)
 
         c.fire('zoomChanged')
-
-
-
         clearTimeout(pcWheelTimeout)
         pcWheelTimeout = setTimeout(() => {
           isWheeling = false
@@ -234,7 +232,6 @@ function enablePCGestures(c: Canvas) {
       on: 'mouse:move',
       handler: (o: any) => {
         if (!panActive || !lastPanPoint) return
-        c.fire("pan")
 
         const e = o.e
         const dx = e.pageX - lastPanPoint.x

@@ -5,12 +5,14 @@ import { v4 as uuidv4 } from 'uuid'
 import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
 import { PixelStroke } from '@/draw/utils/brushes/PixelBrush'
 import { CharcoalStroke } from '@/draw/utils/brushes/CharcoalBrush'
+import { useAuthStore } from '@/store/auth.store'
 
 export function changeFabricSettings() {
-  FabricObject.customProperties = ['id', 'erasable', 'oldText', 'isBucketFill', 'insertedIndex'];
+  FabricObject.customProperties = ['id', 'erasable', 'oldText', 'isBucketFill', 'insertedIndex', 'userId'];
 
   (FabricObject as any).ownDefaults!['erasable'] = true
   // (FabricObject as any).ownDefaults!['id'] = uuidv4(); // cannot use this because it needs to be dynamic :c
+  
 
   PixelStroke.type = 'PixelStroke'
   classRegistry.setClass(PixelStroke, 'PixelStroke')
@@ -22,6 +24,10 @@ export function changeFabricSettings() {
       if (!obj.id) {
         obj.id = uuidv4() // Assign unique ID
       }
+      if (!obj.userId) {
+        const { user } = useAuthStore()
+        obj.userId = user?._id
+      }
     })
     return originalAdd.call(this, ...objects)
   }
@@ -31,6 +37,10 @@ export function changeFabricSettings() {
     objects.forEach((obj) => {
       if (!obj.id) {
         obj.id = uuidv4() // Assign unique ID
+      }
+      if (!obj.userId) {
+        const { user } = useAuthStore()
+        obj.userId = user?._id
       }
     })
     return originalInsertAt.call(this, i, ...objects)

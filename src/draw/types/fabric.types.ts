@@ -16,6 +16,7 @@ declare module 'fabric' {
     visual?: boolean // hacky property for shape creations
     isBucketFill?: boolean
     insertedIndex?: number
+    userId: string
   }
 
   // to have the properties typed in the exported object
@@ -101,6 +102,8 @@ declare module 'fabric' {
       filter: any
       prevBlendColorFilter?: any
     }
+
+    'viewport:changed': Partial<TEvent> & {}
 
     zoomReset: Partial<TEvent>
     zoomChanged: Partial<TEvent>

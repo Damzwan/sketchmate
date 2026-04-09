@@ -28,6 +28,16 @@ export const useDrawUIStore = defineStore('drawUI', () => {
       handler: () => {
         handleCanvasNavigation()
       }
+    }, {
+      on: 'pan',
+      handler: () => {
+        handleCanvasNavigation()
+      }
+    }, {
+      on: 'zoom',
+      handler: () => {
+        handleCanvasNavigation()
+      }
     }
   ]
 

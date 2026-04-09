@@ -156,7 +156,7 @@ export async function addNotificationListeners() {
           }
         })
       } else if (notificationType === NotificationType.comment) {
-        const {setQueryParams} = useSessionStore()
+        const { setQueryParams } = useSessionStore()
 
         // TODO WE NEED TO rethink how we do deeplinks nad notification links, they are colliding since we are removing the link params at times
         const searchParams = new URLSearchParams({

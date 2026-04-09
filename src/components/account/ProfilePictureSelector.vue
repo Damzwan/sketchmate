@@ -6,21 +6,21 @@
     <ion-icon
       v-if="!img.includes('stock')"
       :icon="svg(mdiClose)"
-      class="absolute z-50 -right-5 -top-2 w-[30px] h-[30px] fill-gray-400 cursor-pointer"
+      class="absolute z-50 -right-5 -top-2 w-7.5 h-7.5 fill-gray-400 cursor-pointer"
       @click="deleteProfileImage"
     />
   </ion-avatar>
 
   <ion-modal :isOpen="cropperMenuOpen" @willDismiss="closeCropper" @didPresent="initCropper">
     <CircularLoader v-if="cropperLoading" class="bg-black absolute z-10 w-full h-full" />
-    <div class="flex flex-col h-full">
-      <div class="flex-grow flex items-center">
+    <div class="flex flex-col h-full safe-area">
+      <div class="grow flex items-center">
         <img :src="localImgUrl" ref="imgRef" alt="cropper image" class="hidden" />
       </div>
 
       <div class="h-10 flex justify-between items-center">
-        <ion-button fill="clear" size="small" class="text-white" @click="closeCropper">Cancel</ion-button>
-        <ion-button fill="clear" size="small" class="text-white" @click="apply">Apply</ion-button>
+        <ion-button fill="clear" size="default" class="text-white" @click="closeCropper">Cancel</ion-button>
+        <ion-button fill="clear" size="default" class="text-white" @click="apply">Apply</ion-button>
       </div>
     </div>
   </ion-modal>

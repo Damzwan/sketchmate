@@ -41,6 +41,7 @@ import { useBalloonStore } from '@/store/balloon.store'
 import { useFriendStore } from '@/store/friend.store'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { registerDrawSyncingHandlers } from '@/service/api/socket/drawSyncing.socket'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 export let socket: Socket | undefined
 
@@ -84,6 +85,11 @@ export function createSocketService(): SocketAPI {
     socket.io.on('reconnect', () => {
       if (!user.value?._id) return
       login({ _id: user.value._id })
+    })
+
+    socket.on('disconnect', () => {
+      const store = useAuthStore()
+      store.refreshNeeded = true
     })
 
 

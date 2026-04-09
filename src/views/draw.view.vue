@@ -2,19 +2,17 @@
   <ion-page>
     <TopSafeArea :color="primaryColor" />
 
-
     <div class="flex flex-col h-full top-pad-safe">
       <Toolbars />
 
-
       <div
-        class="grow flex m-0 pointer-none"
+        class="relative grow flex m-0 pointer-none"
         :class="{ 'pointer-events-none opacity-50': disconnectedRoomId || isLoadingCanvas }"
       >
         <canvas ref="myCanvasRef" class="w-full h-full" id="mainCanvas" />
+        <MultiplayerAvatars v-if="roomId" />
       </div>
 
-      <MultiplayerAvatars v-if="roomId" />
       <ResetZoomButton />
     </div>
 

@@ -109,16 +109,16 @@
       <div
         ref="chatContent"
         @touchmove.stop
-        class="overflow-y-auto max-h-72 px-3 py-2 space-y-1.5"
+        class="overflow-y-auto max-h-96 px-3 py-2 space-y-1.5"
       >
         <div
           v-for="(msg, index) in lobbyChatMessages"
           :key="msg._id"
           class="w-full cursor-pointer"
-          @click="(ev) => openFriendPopover(ev, msg.member)"
         >
 
           <div
+            @click="(ev) => openFriendPopover(ev, msg.member)"
             v-if="msg.type !== 'message'"
             class="flex items-center gap-1.5 justify-center opacity-70 text-[11px] italic text-gray-500"
           >
@@ -143,9 +143,10 @@
           >
             <div class="w-8 h-8 shrink-0">
               <img
+                @click="(ev) => openFriendPopover(ev, msg.member)"
                 v-if="index === 0 || lobbyChatMessages[index - 1].type !== 'message' || lobbyChatMessages[index - 1].member?._id !== msg.member._id"
                 :src="msg.member.img"
-                class="w-8 h-8 rounded-full border border-gray-100 shadow-sm mt-1"
+                class="w-12 h-12 rounded-full border border-gray-100 shadow-sm mt-1 cursor-pointer"
               />
             </div>
 
@@ -199,7 +200,7 @@
             @keyup.enter="handleSendMessage()"
             color="secondary"
           />
-          <ion-button fill="clear" color="secondary" @click="handleSendMessage()" :icon="svg(mdiSend)"
+          <ion-button fill="clear" color="secondary" @mousedown.prevent @click="handleSendMessage()" :icon="svg(mdiSend)"
                       v-show="newMessage.length > 0">
             <ion-icon :icon="svg(mdiSend)" />
           </ion-button>

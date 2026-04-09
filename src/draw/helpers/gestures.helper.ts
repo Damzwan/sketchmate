@@ -320,6 +320,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       cssTransform.translateX += movementX * 2
       cssTransform.translateY += movementY * 2
 
+      c.fire("pan")
       requestAnimationFrame(() => {
         if (c.wrapperEl) {
           c.wrapperEl.style.transform = `matrix(${cssTransform.scale}, 0, 0, ${cssTransform.scale}, ${cssTransform.translateX}, ${cssTransform.translateY})`
@@ -366,6 +367,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       cssTransform.translateX = center.x - (center.x - cssTransform.translateX) * actualZoomFactor
       cssTransform.translateY = center.y - (center.y - cssTransform.translateY) * actualZoomFactor
 
+      c.fire("zoom")
       requestAnimationFrame(() => {
         if (c.wrapperEl) {
           c.wrapperEl.style.transform = `matrix(${cssTransform.scale}, 0, 0, ${cssTransform.scale}, ${cssTransform.translateX}, ${cssTransform.translateY})`

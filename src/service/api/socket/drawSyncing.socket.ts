@@ -88,7 +88,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     })
   })
 
-  socket.on('initial-canvas-state', async ({ canvasState, sequenceId, missedActions }) => {
+  socket.on('initial-canvas-state', async ({ canvasState, sequenceId, missedActions, isInitialSync }) => {
     const store = useDrawSyncer()
     const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
 
@@ -98,7 +98,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     }
 
     const json = JSON.parse(canvasState)
-    await store.loadRoomCanvas(json)
+    await store.loadRoomCanvas(json, isInitialSync)
 
     // Process any actions that occurred while the snapshot was uploading
 
@@ -174,7 +174,6 @@ export function registerDrawSyncingHandlers(socket: Socket) {
   socket.on('disconnect', () => {
     const store = useDrawSyncer()
     store.disconnectedRoomId = store.roomId
-    console.log('disconnected')
   })
 
   socket.on('missed-lobby-messages', (missedMessages: LobbyChatItem[]) => {

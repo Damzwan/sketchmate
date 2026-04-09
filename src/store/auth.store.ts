@@ -46,6 +46,8 @@ export const useAuthStore = defineStore('auth', () => {
   const balloonStore = useBalloonStore()
   const localUserImg = ref<string>()
 
+  const refreshNeeded = ref(false) // only needed when socket disconnects
+
   Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value!))
 
   // TODO Bad name, used for matching
@@ -289,6 +291,7 @@ export const useAuthStore = defineStore('auth', () => {
     initIonRouter,
     login,
     logout,
-    refresh
+    refresh,
+    refreshNeeded
   }
 })

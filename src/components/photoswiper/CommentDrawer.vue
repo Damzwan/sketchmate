@@ -5,7 +5,9 @@
 
   <!-- Modal Content -->
   <transition name="slide">
-    <div class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0 max-h-[80%] bot-pad-safe" v-show="open">
+    <div ref="scrollContainer"
+         class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0 max-h-[80%] bot-pad-safe"
+         v-show="open">
       <ion-popover :event="e" @didDismiss="accountPopoverOpen = false" :isOpen="accountPopoverOpen">
         <div class="w-full h-full flex flex-col justify-center items-center p-2" v-if="accountInfoToShow">
           <img :src="accountInfoToShow.img" :alt="accountInfoToShow.img" class="w-[128px] rounded-full">
@@ -66,7 +68,7 @@
             @keyup.enter="comment"
             color="secondary"
           />
-          <ion-button fill="clear" color="secondary" @click="comment" :icon="svg(mdiSend)">
+          <ion-button fill="clear" color="secondary" @mousedown.prevent @click="comment" :icon="svg(mdiSend)">
             <ion-icon :icon="svg(mdiSend)" v-show="commentBody.length > 0" />
           </ion-button>
         </div>
@@ -76,7 +78,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { IonAvatar, IonButton, IonIcon, IonInput, IonPopover, IonSpinner, useBackButton } from '@ionic/vue'
 
 import { InboxItem, Mate, User } from '@/types/server.types'
@@ -91,9 +93,9 @@ import { useInboxStore } from '@/store/inbox.store'
 
 const socketService = useSocketService()
 const { cancelSendMateRequest } = useSocketService()
-const { toast } = useToast()
 const { friendRequestLoading } = storeToRefs(useFriendStore())
 const { findUserInInboxUsers } = useInboxStore()
+const scrollContainer = ref<HTMLElement | null>(null)
 
 const props = defineProps({
   open: {
@@ -153,11 +155,23 @@ watch(
     if (props.open) {
       window.addEventListener('keydown', escListener)
       autoFocusInput()
+      scrollToBottom() // <-- Add this here
+
     } else {
       window.removeEventListener('keydown', escListener)
     }
   }
 )
+
+watch(
+  () => props.currInboxItem?.comments?.length,
+  (newLength, oldLength) => {
+    if (props.open && newLength !== undefined && oldLength !== undefined && newLength > oldLength) {
+      scrollToBottom()
+    }
+  }
+)
+
 
 async function comment() {
   if (commentBody.value.length == 0) return
@@ -170,7 +184,7 @@ async function comment() {
     name: props.user.name
   })
   commentBody.value = ''
-  input.value?.$el.blur()
+  // input.value?.$el.blur()
 }
 
 function closeWithTimeout(time: number) {
@@ -195,6 +209,15 @@ function close() {
   input.value?.$el.blur()
   commentBody.value = ''
 }
+
+const scrollToBottom = async () => {
+  await nextTick()
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
+  }
+}
+
+
 </script>
 
 <style scoped lang="scss">

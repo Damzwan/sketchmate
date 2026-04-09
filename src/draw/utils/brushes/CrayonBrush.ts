@@ -7,8 +7,20 @@ export class CrayonBrush extends PatternBrush {
 
   constructor(canvas: Canvas) {
     super(canvas)
-    // TREATMENT 2: Disable path smoothing to preserve the raw, dense micro-movements
+    // TREATMENT 1: Disable path smoothing to preserve raw micro-movements
     this.decimate = 0
+  }
+
+  // TREATMENT 2: Disable incremental segment drawing.
+  // Forces Fabric to safely wipe and redraw the entire continuous stroke every frame,
+  // eliminating alpha accumulation during slow micro-movements while preserving zoom/pan.
+  needsFullRender() {
+    return true
+  }
+
+  // (Included as a safety net for complete compatibility with older Fabric versions)
+  _needsFullRender() {
+    return true
   }
 
   getPatternSrc(): HTMLCanvasElement {
@@ -22,7 +34,6 @@ export class CrayonBrush extends PatternBrush {
     patternCanvas.width = patternCanvas.height = size
 
     for (let i = 0; i < 400; i++) {
-      // The transparency is safely absorbed here during texture generation
       ctx.fillStyle = this.color
       ctx.globalAlpha = Math.random() * 0.6 + 0.1
       ctx.fillRect(Math.random() * size, Math.random() * size, 1, 2)

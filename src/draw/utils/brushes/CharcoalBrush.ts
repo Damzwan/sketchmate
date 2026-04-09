@@ -8,30 +8,36 @@ export class CharcoalBrush extends BaseBrush {
   private _lastPoint?: Point
 
   private _drawnDistance: number = 0
-  // Slashed the dosage: The charcoal will now run out much faster
   public maxDistance: number = 600
 
   constructor(canvas: Canvas) {
     super(canvas)
   }
 
+  // TREATMENT 1: Core Density Injection
   private _generateStamp() {
     this._stampSize = this.width * 2
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = this._stampSize
     const ctx = canvas.getContext('2d')!
 
+    // A. Lay down a soft, semi-transparent core tissue to give the stroke weight
+    ctx.beginPath()
+    ctx.arc(this._stampSize / 2, this._stampSize / 2, this.width / 2.5, 0, Math.PI * 2)
     ctx.fillStyle = this.color
-    const coreOffset = this.width / 2
+    ctx.globalAlpha = 0.15
+    ctx.fill()
 
-    // Generate a harsh, blocky, irregular charcoal grain
-    for (let i = 0; i < (this.width * 15); i++) {
-      const x = Math.random() * this.width + (this._stampSize - this.width) / 2
-      const y = Math.random() * this.width + (this._stampSize - this.width) / 2
+    // B. Generate the harsh grain using a center-weighted distribution
+    // This clusters the heaviest flakes near the center, simulating physical pressure
+    for (let i = 0; i < (this.width * 20); i++) {
+      const radius = (Math.random() * Math.random()) * (this.width / 1.2)
+      const angle = Math.random() * Math.PI * 2
+      const x = (this._stampSize / 2) + Math.cos(angle) * radius
+      const y = (this._stampSize / 2) + Math.sin(angle) * radius
 
-      ctx.globalAlpha = Math.random() * 0.7 + 0.1
-      // Using rectangles instead of arcs for a crunchier, flakier texture
-      const grainSize = Math.random() * 2 + 1
+      ctx.globalAlpha = Math.random() * 0.8 + 0.2
+      const grainSize = Math.random() * 1.5 + 0.5
       ctx.fillRect(x, y, grainSize, grainSize)
     }
     this._stampCanvas = canvas
@@ -54,14 +60,11 @@ export class CharcoalBrush extends BaseBrush {
 
   onMouseUp() {
     if (this._trace.length > 0) {
-      // We pass everything inside one options object to keep the constructor consistent
       const stroke = new CharcoalStroke({
-        trace: [...this._trace], // Spread to create a copy of the array
+        trace: [...this._trace],
         stampCanvas: this._stampCanvas,
         stampSize: this._stampSize,
         fill: this.color,
-        // Optional: Save the dataURL immediately if you want to avoid
-        // generating it repeatedly during multiple clones
         stampDataUrl: this._stampCanvas.toDataURL()
       })
 
@@ -75,6 +78,7 @@ export class CharcoalBrush extends BaseBrush {
     return false
   }
 
+  // TREATMENT 2: Sustained Frictional Fade
   private _addPoint(pointer: Point, isFirstPoint = false) {
     if (isFirstPoint) {
       this._trace.push({ x: pointer.x, y: pointer.y, opacity: 1, offsetX: 0, offsetY: 0 })
@@ -84,29 +88,30 @@ export class CharcoalBrush extends BaseBrush {
     if (!this._lastPoint) return false
 
     const distance = this._lastPoint.distanceFrom(pointer)
-    // The spacing dictates how close the interpolated stamps are.
-    // Tighter spacing = denser line.
     const spacing = Math.max(1, this.width / 5)
 
-    if (distance < spacing) return false // Prevent blood clots (buildup) when stationary
+    if (distance < spacing) return false
 
-    // --- THE SUTURES: Linear Interpolation ---
     const steps = Math.floor(distance / spacing)
     let pointsAdded = false
 
     for (let i = 1; i <= steps; i++) {
       this._drawnDistance += spacing
-      const fadeRatio = Math.max(0, 1 - (this._drawnDistance / this.maxDistance))
 
-      if (fadeRatio <= 0) break // The charcoal stick is empty
+      // Calculate how depleted the charcoal is (0 = fresh, 1 = max distance reached)
+      const depletion = Math.min(1, this._drawnDistance / this.maxDistance)
 
-      // Calculate the exact coordinate between the last point and current mouse position
+      // The stroke tapers down to a 20% opacity baseline, it never completely dies
+      const fadeRatio = 1 - (depletion * 0.8)
+
       const t = i / steps
       const x = this._lastPoint.x + (pointer.x - this._lastPoint.x) * t
       const y = this._lastPoint.y + (pointer.y - this._lastPoint.y) * t
 
-      // Micro-jitter to ensure the edge looks slightly crumbly
-      const jitter = this.width / 6
+      // As the charcoal runs dry (depletion increases), it skips across the paper's tooth more erratically
+      const dryFrictionMultiplier = 1 + (depletion * 2.5)
+      const jitter = (this.width / 6) * dryFrictionMultiplier
+
       const offsetX = (Math.random() - 0.5) * jitter
       const offsetY = (Math.random() - 0.5) * jitter
 
@@ -135,7 +140,6 @@ export class CharcoalBrush extends BaseBrush {
     ctx.restore()
   }
 }
-
 
 interface CharcoalPoint {
   x: number

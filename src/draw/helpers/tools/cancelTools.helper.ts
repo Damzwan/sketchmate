@@ -24,23 +24,40 @@ function cancelPenAction(c: Canvas) {
       pointer: new fabric.Point(0, 0),
       e: { isPrimary: true }
     }
-    brush._reset()
+
+    // Call internal reset safely if it exists on the brush prototype
+    if (typeof (brush as any)._reset === 'function') {
+      (brush as any)._reset()
+    }
+
+    // 1. Snapshot the patient's canvas state BEFORE faking the mouse up
+    const objectsBeforeCount = c.getObjects().length
+
+    // 2. Trigger the brush's end sequence (this handles mixBlendMode and point resets)
     brush.onMouseUp(fakeEvent as any)
 
-    const lastObject = c.getObjects().pop()
-    if (lastObject) c.remove(lastObject)
+    // 3. Check if the brush actually committed new objects during the fake mouseUp
+    const currentObjects = c.getObjects()
+    if (currentObjects.length > objectsBeforeCount) {
+      // Slice out any newly created "junk" strokes and remove them properly
+      const objectsToRemove = currentObjects.slice(objectsBeforeCount)
+      objectsToRemove.forEach(obj => c.remove(obj))
+    }
 
+    // 4. Scrub the top layer clean in case the custom brush left pigment mid-stroke
+    if (c.contextTop) {
+      c.clearContext(c.contextTop)
+    }
+
+    // 5. Temporarily disable movement tracking until the physical finger lifts
     const originalMove = brush.onMouseMove
     const originalUp = brush.onMouseUp
-    brush.onMouseMove = () => {
-    }
+    brush.onMouseMove = () => {}
     brush.onMouseUp = () => {
       brush.onMouseUp = originalUp
       brush.onMouseMove = originalMove
     }
-
   })
-
 }
 
 export function cancelPreviousAction(c: Canvas) {

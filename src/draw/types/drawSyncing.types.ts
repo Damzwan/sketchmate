@@ -33,22 +33,26 @@ export type DrawSyncingMap = {
     changes: { id: string, forward: Partial<FabricObjectProps>, backward: Partial<FabricObjectProps> }[]
   },
   [DrawSyncingEvent.fullErase]: undefined,
-  [DrawSyncingEvent.MoveObjectUpOneLayer]: { objectIds: string[] },
-  [DrawSyncingEvent.MoveObjectDownOneLayer]: { objectIds: string[] },
-  [DrawSyncingEvent.MoveObjectToFront]: { objectIds: string[] },
-  [DrawSyncingEvent.MoveObjectToBack]: { objectIds: string[] },
-  [DrawSyncingEvent.FlipX]: { objectIds: string[] },
-  [DrawSyncingEvent.FlipY]: { objectIds: string[] },
-  [DrawSyncingEvent.ObjectsCopied]: { objectIds: string[], newObjectIds: string[] },
+  [DrawSyncingEvent.MoveObjectUpOneLayer]: ShowAvatarActionParams & { objectIds: string[] },
+  [DrawSyncingEvent.MoveObjectDownOneLayer]: ShowAvatarActionParams & { objectIds: string[] },
+  [DrawSyncingEvent.MoveObjectToFront]: ShowAvatarActionParams & { objectIds: string[] },
+  [DrawSyncingEvent.MoveObjectToBack]: ShowAvatarActionParams & { objectIds: string[] },
+  [DrawSyncingEvent.FlipX]: ShowAvatarActionParams & { objectIds: string[] },
+  [DrawSyncingEvent.FlipY]: ShowAvatarActionParams & { objectIds: string[] },
+  [DrawSyncingEvent.ObjectsCopied]: ShowAvatarActionParams & { objectIds: string[], newObjectIds: string[] },
   [DrawSyncingEvent.BackgroundColorChanged]: { color: string },
-  [DrawSyncingEvent.TextStyleChanged]: { style: any, objectId: string },
-  [DrawSyncingEvent.ObjectStyleChanged]: { style: any, objectIds: string[] },
-  [DrawSyncingEvent.ImgFilterChanged]: { filter: any, objectId: string },
+  [DrawSyncingEvent.TextStyleChanged]: ShowAvatarActionParams & { style: any, objectId: string },
+  [DrawSyncingEvent.ObjectStyleChanged]: ShowAvatarActionParams & { style: any, objectIds: string[] },
+  [DrawSyncingEvent.ImgFilterChanged]: ShowAvatarActionParams & { filter: any, objectId: string },
   [DrawSyncingEvent.Undo]: HistoryAction,
   [DrawSyncingEvent.Redo]: HistoryAction,
   [DrawSyncingEvent.ObjectsMerged]: { mergedObjectIds: string[], groupId: string },
-  [DrawSyncingEvent.ErasingEnd]: { objectIds: string[], erasePath: any, deletedObjectIds: string[] },
-  [DrawSyncingEvent.TextChanged]: { objectId: string, newText: string },
+  [DrawSyncingEvent.ErasingEnd]: ShowAvatarActionParams & {
+    objectIds: string[],
+    erasePath: any,
+    deletedObjectIds: string[]
+  },
+  [DrawSyncingEvent.TextChanged]: ShowAvatarActionParams & { objectId: string, newText: string },
 }
 
 

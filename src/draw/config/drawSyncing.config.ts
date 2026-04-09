@@ -31,7 +31,7 @@ async function syncObjectsAdded(params: DrawSyncingParams<DrawSyncingEvent.added
   })
 
   if (params.creator && enlivened.length > 0) {
-    const {showOrUpdateAvatar} = useDrawUIStore()
+    const { showOrUpdateAvatar } = useDrawUIStore()
     const firstObj = enlivened[0]
     showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
   }
@@ -47,13 +47,18 @@ async function syncObjectsRemoved(params: DrawSyncingParams<DrawSyncingEvent.rem
 
   c.remove(...objects)
   c.requestRenderAll()
+
+  if (params.creator && objects.length > 0) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstObj = objects[0]
+    showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+  }
 }
 
 async function syncObjectsModified(params: DrawSyncingParams<DrawSyncingEvent.modified>) {
   const { getCanvas } = useDrawStore()
   const { getObjectById, updateVisibility } = useDrawObjectManager()
   const { createHistoryContext } = useDrawHistoryManager()
-
 
   params.changes.forEach(({ id, backward }) => {
     const obj = getObjectById(id)
@@ -63,6 +68,16 @@ async function syncObjectsModified(params: DrawSyncingParams<DrawSyncingEvent.mo
 
   updateVisibility()
   getCanvas().requestRenderAll()
+
+  if (params.creator && params.changes.length > 0) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstChange = params.changes[0]
+    const firstObj = getObjectById(firstChange.id)
+
+    if (firstObj) {
+      showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+    }
+  }
 }
 
 async function syncFullErase() {
@@ -74,12 +89,24 @@ async function syncMoveObjectToFront(params: DrawSyncingParams<DrawSyncingEvent.
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
   await drawActionMapping[DrawAction.MoveObjectToFront]({ objects: objects })
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstObj = objects[0]
+    showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+  }
 }
 
 async function syncMoveObjectToBack(params: DrawSyncingParams<DrawSyncingEvent.MoveObjectToFront>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
   await drawActionMapping[DrawAction.MoveObjectToBack]({ objects: objects })
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstObj = objects[0]
+    showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+  }
 }
 
 
@@ -87,30 +114,60 @@ async function syncMoveObjectDownOneLayer(params: DrawSyncingParams<DrawSyncingE
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
   await drawActionMapping[DrawAction.MoveObjectDownOneLayer]({ objects: objects })
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstObj = objects[0]
+    showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+  }
 }
 
 async function syncMoveObjectUpOneLayer(params: DrawSyncingParams<DrawSyncingEvent.MoveObjectToFront>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
   await drawActionMapping[DrawAction.MoveObjectUpOneLayer]({ objects: objects })
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstObj = objects[0]
+    showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+  }
 }
 
 async function syncFlipX(params: DrawSyncingParams<DrawSyncingEvent.FlipX>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
   await drawActionMapping[DrawAction.FlipX]({ objects: objects })
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstObj = objects[0]
+    showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+  }
 }
 
 async function syncFlipY(params: DrawSyncingParams<DrawSyncingEvent.FlipY>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
   await drawActionMapping[DrawAction.FlipY]({ objects: objects })
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstObj = objects[0]
+    showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+  }
 }
 
 async function syncObjectsCopied(params: DrawSyncingParams<DrawSyncingEvent.ObjectsCopied>) {
   const { getObjectsById } = useDrawObjectManager()
   const objects = getObjectsById(params.objectIds)
   await drawActionMapping[DrawAction.CopyObject]({ objects: objects, newObjectIds: params.newObjectIds })
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstObj = objects[0]
+    showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+  }
 }
 
 async function syncBackgroundColorChanged(params: DrawSyncingParams<DrawSyncingEvent.BackgroundColorChanged>) {
@@ -144,6 +201,16 @@ async function syncObjectStyleChanged(params: DrawSyncingParams<DrawSyncingEvent
   canvasObjects.forEach((canvasObject) => {
     canvasObject.set(params.style)
   })
+
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    const firstObj = canvasObjects[0]
+
+    if (firstObj) {
+      showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
+    }
+  }
 }
 
 async function syncImgFilterChanged(params: DrawSyncingParams<DrawSyncingEvent.ImgFilterChanged>) {
@@ -159,6 +226,11 @@ async function syncImgFilterChanged(params: DrawSyncingParams<DrawSyncingEvent.I
   }
 
   img.applyFilters()
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    showOrUpdateAvatar(params.creator, img.left || 0, img.top || 0)
+  }
 }
 
 async function syncUndo(params: DrawSyncingParams<DrawSyncingEvent.Undo>) {
@@ -198,6 +270,11 @@ async function syncErasingEnd(params: DrawSyncingParams<DrawSyncingEvent.Erasing
     c.remove(...deletedObjects)
   }
 
+  if (params.creator && newStroke) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    showOrUpdateAvatar(params.creator, newStroke.left || 0, newStroke.top || 0)
+  }
+
   c.requestRenderAll()
 }
 
@@ -210,6 +287,11 @@ async function syncTextChanged(params: DrawSyncingParams<DrawSyncingEvent.TextCh
   const text = objects[0] as IText
   text.set('text', params.newText)
   c.requestRenderAll()
+
+  if (params.creator) {
+    const { showOrUpdateAvatar } = useDrawUIStore()
+    showOrUpdateAvatar(params.creator, text.left || 0, text.top || 0)
+  }
 }
 
 

@@ -233,7 +233,6 @@ export function leaveRoom(skipEmit = false) {
     lastProcessedSequenceId // <-- Added this
   } = storeToRefs(useDrawSyncer())
 
-  if (!roomId.value) return
 
   roomMembers.value = []
   invitedFriends.value = []
@@ -242,6 +241,8 @@ export function leaveRoom(skipEmit = false) {
   isLoadingCanvas.value = false
   lobbyChatMessages.value = []
   lastProcessedSequenceId.value = undefined // <-- Reset time on leave
+
+  console.log('leave')
 
   if (!skipEmit) socket!.emit('leave-room', { roomId: roomId.value })
   roomId.value = undefined

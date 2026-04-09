@@ -24,7 +24,7 @@ export enum DrawSyncingEvent {
   TextChanged = 'TextChanged'
 }
 
-type ShowAvatarActionParams = { creator: string }
+type ShowAvatarActionParams = { creator?: string }
 
 export type DrawSyncingMap = {
   [DrawSyncingEvent.added]: ShowAvatarActionParams & { objectJSONS: any[] }

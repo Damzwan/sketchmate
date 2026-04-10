@@ -27,6 +27,7 @@ import { useSocketService } from '@/service/api/socket/socket.service'
 import { useSessionStore } from '@/store/session.store'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { leaveRoom } from '@/service/api/socket/drawSyncing.socket'
+import { mixpanelIdentify } from '@/service/mixpanel'
 
 export const useAuthStore = defineStore('auth', () => {
   const api = useAPI()
@@ -204,10 +205,11 @@ export const useAuthStore = defineStore('auth', () => {
 
 
       // Store user id locally
+      // TODO maybe remove
       Preferences.set({ key: LocalStorage.user_id, value: user.value!._id })
       Preferences.set({ key: LocalStorage.img, value: user.value!.img })
 
-
+      mixpanelIdentify(user.value._id)
       if (arrivedFromLogin.value && deviceFingerprint.value) {
         api.onLoginEvent({
           user_id: user.value!._id,
@@ -269,6 +271,8 @@ export const useAuthStore = defineStore('auth', () => {
 
     leaveRoom()
     disconnect()
+    const { clearSavedCanvas } = useDrawStore()
+    clearSavedCanvas()
 
 
     await FirebaseAuthentication.signOut()

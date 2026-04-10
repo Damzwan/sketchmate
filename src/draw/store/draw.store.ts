@@ -144,7 +144,8 @@ export const useDrawStore = defineStore('draw', () => {
       stopSaving: progressSaver.stopSaving,
       startSaving: progressSaver.startSaving,
       restoreLocalCanvas,
-      isCanvasInit
+      isCanvasInit,
+      clearSavedCanvas: progressSaver.clear
     }
   }
 )

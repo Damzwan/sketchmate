@@ -28,6 +28,9 @@ import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
 import { Purchases } from '@revenuecat/purchases-capacitor'
 
+export const IS_PROD = import.meta.env.VITE_ENVIRONMENT === 'prod'
+export const IS_DEV = !IS_PROD
+
 export function sortDates(arr: string[]) {
   return (arr as any).toSorted((a: any, b: any) => {
     return new Date(b).getTime() - new Date(a).getTime()

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { Purchases } from '@revenuecat/purchases-capacitor'
 import { isNative } from '@/helper/general.helper'
 import { PAYWALL_RESULT, RevenueCatUI } from '@revenuecat/purchases-capacitor-ui'
+import { mixpanelEvents, trackEvent } from '@/service/mixpanel'
 
 export const useSubscriptionStore = defineStore('subscription', () => {
   const isPro = ref(false)
@@ -29,6 +30,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
   }
 
   async function presentPaywall(): Promise<boolean> {
+    trackEvent(mixpanelEvents.presentPaywall)
     const { result } = await RevenueCatUI.presentPaywall()
     void checkProStatus()
 

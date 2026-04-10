@@ -149,11 +149,14 @@ import { BLACK, WHITE } from '@/draw/config/canvas.config'
 import { penBrushMapping, penIconMapping, PENMENUTOOLS } from '@/draw/config/tools.config'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useSubscriptionStore } from '@/store/subscription.store'
+import { useBrushTrial } from '@/service/draw/brushTrial'
 
 const { selectTool } = useToolSelection()
 const { selectedTool } = storeToRefs(useToolSelection())
 const { brushSize, brushColor, brushType, opacity, density, dotWidth } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
+const { useBrush, remainingUses } = useBrushTrial()
+const subStore = useSubscriptionStore()
 
 
 const preview_canvas = ref<HTMLCanvasElement>()
@@ -165,7 +168,6 @@ onMounted(() => {
 })
 
 const renderPreview = () => {
-  // Initialize canvas only once
   if (!canvas) {
     canvas = new Canvas(preview_canvas.value!, {
       width: 256, // TODO hardcoded bad :c
@@ -173,7 +175,7 @@ const renderPreview = () => {
       selection: false
     })
   } else {
-    canvas.clear() // clear canvas before re-drawing
+    canvas.clear()
   }
 
   const brushColorValue = hexWithOpacity(brushColor.value, percentToAlphaHex(opacity.value))
@@ -251,10 +253,24 @@ function isBrushTypeSelected(type: BrushType) {
   return brushType.value == type && selectedTool.value == DrawTool.Pen
 }
 
-function selectBrushPaywall(type: BrushType) {
-  const { isPro, presentPaywall } = useSubscriptionStore()
-  if (!isPro && isNative()) presentPaywall()
-  else selectBrushType(type)
+async function selectBrushPaywall(type: BrushType) {
+  if (!isNative()) {
+    selectBrushType(type)
+  } else {
+    if (subStore.isPro) {
+      selectBrushType(type)
+      return
+    }
+
+    const allowed = await useBrush(type)
+
+    if (allowed) {
+      selectBrushType(type)
+    } else {
+      await subStore.presentPaywall()
+    }
+  }
+
 }
 
 watch(brushSize, renderPreview)

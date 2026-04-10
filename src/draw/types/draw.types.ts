@@ -110,15 +110,15 @@ export enum Shape {
 }
 
 export enum BrushType {
-  Pencil,
-  Circle,
-  WaterColor,
-  Spray,
-  Crayon,
-  Charcoal,
-  Pixel,
-  Neon,
-  CalliGraphy
+  Pencil = 'pencil',
+  Circle = 'circle',
+  WaterColor = 'water_color',
+  Spray = 'spray',
+  Crayon = 'crayon',
+  Charcoal = 'charcoal',
+  Pixel = 'pixel',
+  Neon = 'neon',
+  CalliGraphy = 'calligraphy'
 }
 
 export enum EraserSize {

@@ -26,6 +26,7 @@ import {
   setupWidget
 } from '@/helper/general.helper'
 import { useSubscriptionStore } from '@/store/subscription.store'
+import { initMixpanel } from '@/service/mixpanel'
 
 const pinia = createPinia()
 initFirebase()
@@ -47,3 +48,4 @@ setupDeeplinkListener()
 handleWebDeeplink()
 setupPwa()
 setupWidget()
+initMixpanel()

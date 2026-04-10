@@ -4,7 +4,7 @@
     <p v-if="item.type == 'title' " class="text-lg text-black cabin-sketch-regular">{{ item.title }}</p>
 
 
-    <div v-else-if="item.type =='button' &&  item.isVisibleCondition == undefined || item.isVisibleCondition">
+    <div v-else-if="item.type =='button' &&  item.isVisibleCondition == undefined || item.isVisibleCondition"  :data-step="item.tour_step">
       <div v-if="item.custom != undefined">
         <div class="w-5 h-[43px] text-center flex justify-center items-center"
              v-if="item.custom == ToolbarCustomUI.multiSelectCount &&  multiSelectMode">
@@ -24,7 +24,6 @@
       </div>
 
       <ion-button fill="clear" :id="item.isDisabled ? null : item.id" v-else :disabled="item.isDisabled"
-                  :data-step="item.tour_step"
                   :class="{ selected: item && item.isActive || (item.tool != undefined && item.tools != undefined && item.tools.includes(selectedTool) )}">
         <ion-icon slot="icon-only" :icon="svg(item.icon)" class="fill-black" />
 

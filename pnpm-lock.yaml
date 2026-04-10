@@ -86,9 +86,6 @@ importers:
       '@firebase/firestore':
         specifier: ^4.12.0
         version: 4.12.0(@firebase/app@0.13.2)
-      '@globalhive/vuejs-tour':
-        specifier: ^2.6.2
-        version: 2.6.2(vue@3.5.30(typescript@5.9.3))
       '@ionic/core':
         specifier: 8.7.10
         version: 8.7.10
@@ -1570,11 +1567,6 @@ packages:
 
   '@firebase/webchannel-wrapper@1.0.5':
     resolution: {integrity: sha512-+uGNN7rkfn41HLO0vekTFhTxk61eKa8mTpRGLO0QSqlQdKvIoGAvLp3ppdVIWbTGYJWM6Kp0iN+PjMIOcnVqTw==}
-
-  '@globalhive/vuejs-tour@2.6.2':
-    resolution: {integrity: sha512-YmjUHU7GY1E1YqwFUzc0PcMCJr7R0JLD0Gjo3o9tsYJiBc3KVepL6fzwM0x8HfO84x7f+dpIMmvymuX8XCBIFg==}
-    peerDependencies:
-      vue: ^3.5.22
 
   '@grpc/grpc-js@1.9.15':
     resolution: {integrity: sha512-nqE7Hc0AzI+euzUwDAy0aY5hCp10r734gMGRdU+qOPX0XSceI2ULrcXB5U2xSc5VkWwalCj4M7GzCAygZl2KoQ==}
@@ -4013,9 +4005,6 @@ packages:
     resolution: {integrity: sha512-gqXddjPqQ6G40VdnI6T6yObEC+pDNvyP95wdQhkWkg7crHH3km5qP1FsOXEkzEQwnz6gz5qGTn1c2Y52wP3OyQ==}
     engines: {'0': node >=0.6.0}
 
-  jump.js@1.0.2:
-    resolution: {integrity: sha512-oUkJJ/Y4ATU5qjkXBntCZSKctbSyS3ewe2jrLaUu/cc9jsQiAn0fnTUxQnZz3mJdDdem1Q279zrD6h3n+Cgxtg==}
-
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
@@ -4301,9 +4290,6 @@ packages:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
-
-  nanopop@2.4.2:
-    resolution: {integrity: sha512-NzOgmMQ+elxxHeIha+OG/Pv3Oc3p4RU2aBhwWwAqDpXrdTbtRylbRLQztLy8dMMwfl6pclznBdfUhccEn9ZIzw==}
 
   napi-build-utils@2.0.0:
     resolution: {integrity: sha512-GEbrYkbfF7MoNaoh2iGG84Mnf/WZfB0GdGEsM8wz7Expx/LlWf5U8t9nvJKXSp3qr5IsEbK04cBGhol/KwOsWA==}
@@ -7175,12 +7161,6 @@ snapshots:
 
   '@firebase/webchannel-wrapper@1.0.5': {}
 
-  '@globalhive/vuejs-tour@2.6.2(vue@3.5.30(typescript@5.9.3))':
-    dependencies:
-      jump.js: 1.0.2
-      nanopop: 2.4.2
-      vue: 3.5.30(typescript@5.9.3)
-
   '@grpc/grpc-js@1.9.15':
     dependencies:
       '@grpc/proto-loader': 0.7.15
@@ -9870,8 +9850,6 @@ snapshots:
       json-schema: 0.4.0
       verror: 1.10.0
 
-  jump.js@1.0.2: {}
-
   keyv@4.5.4:
     dependencies:
       json-buffer: 3.0.1
@@ -10115,8 +10093,6 @@ snapshots:
   muggle-string@0.4.1: {}
 
   nanoid@3.3.11: {}
-
-  nanopop@2.4.2: {}
 
   napi-build-utils@2.0.0:
     optional: true

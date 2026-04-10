@@ -48,6 +48,7 @@ export const useAuthStore = defineStore('auth', () => {
   const localUserImg = ref<string>()
 
   const refreshNeeded = ref(false) // only needed when socket disconnects
+  const showTutorial = ref(false)
 
   Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value!))
 
@@ -178,6 +179,9 @@ export const useAuthStore = defineStore('auth', () => {
       const userValue = await api.getUser({ auth_id: authUser.uid })
       if (!userValue) throw new Error()
 
+      showTutorial.value = !userValue.user.last_seen_version
+
+
       // Parse DOB
       if (userValue.user.date_of_birth) {
         userValue.user.date_of_birth = new Date(userValue.user.date_of_birth)
@@ -291,6 +295,7 @@ export const useAuthStore = defineStore('auth', () => {
     shouldShowDateOfBirthConfirmation,
     deviceFingerprint,
     localUserImg,
+    showTutorial,
 
     initIonRouter,
     login,

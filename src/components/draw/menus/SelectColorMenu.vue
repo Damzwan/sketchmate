@@ -105,7 +105,6 @@ import { svg } from '@/helper/general.helper'
 import { mdiBorderColor, mdiClose, mdiFormatColorFill, mdiPanoramaHorizontalOutline } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, IonRange } from '@ionic/vue'
 import { ref } from 'vue'
-import { IText } from 'fabric/fabric-impl'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawAction } from '@/draw/types/draw.types'
@@ -116,6 +115,7 @@ import { focusText, isText } from '@/draw/helpers/text.helper'
 import { hexWithTransparencyToNormal } from '@/draw/utils/color.utils'
 import { BLACK } from '@/draw/config/canvas.config'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { IText } from 'fabric'
 
 defineProps<{
   strokeColor?: string

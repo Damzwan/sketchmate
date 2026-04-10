@@ -1,5 +1,6 @@
 <template>
   <ion-app>
+
     <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" bg-color="bg-background" />
     <ion-router-outlet />
 
@@ -35,6 +36,7 @@ import WhatsNewModal from '@/components/general/WhatsNewModal.vue'
 import Confetti from '@/components/subscription/Confetti.vue'
 import { useActiveViewSync } from '@/service/activeViewSync'
 import ReceivedBalloon from '@/components/connect/balloon/ReceivedBalloon.vue'
+
 
 const ionRouter = useIonRouter()
 const { initIonRouter } = useAuthStore()

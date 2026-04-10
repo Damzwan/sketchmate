@@ -1,6 +1,5 @@
 <template>
-  <VTour :steps="tutorialSteps" ref="tour" :autoStart="true" />
-
+  <DrawOnboarding @close="showTutorial = false" v-if="showTutorial" />
   <transition name="slide">
     <div
       class="w-[300px] absolute top-safe mt-[50px] right-2 bg-primary z-10 rounded-md p-3 text-black"
@@ -21,8 +20,6 @@
 import { svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'
 import { IonIcon } from '@ionic/vue'
-import { tutorialSteps } from '@/draw/config/tutorial.config'
-import { VTour } from '@globalhive/vuejs-tour'
 import { ref, watch } from 'vue'
 import { useSwipe } from '@vueuse/core/index'
 import { LocalStorage } from '@/types/storage.types'
@@ -32,9 +29,15 @@ import { useSelect } from '@/draw/store/tools/select.store'
 import { storeToRefs } from 'pinia'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
+// @ts-ignore
+import DrawOnboarding from '@/components/draw/DrawOnboarding.vue'
+import { useAuthStore } from '@/store/auth.store'
+
+
 const drawStore = useDrawStore()
 const { selectedTool } = storeToRefs(useToolSelection())
 const { selectedObjectsRef } = storeToRefs(useSelect())
+const { showTutorial } = storeToRefs(useAuthStore())
 
 const showTipBox = ref(false)
 const tipBoxTitle = ref('')

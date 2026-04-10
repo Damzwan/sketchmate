@@ -19,7 +19,10 @@
                         @click="r.push(FRONTEND_ROUTES.draw, routerAnimation)">
           <ion-icon :icon="pencil" />
           <ion-label>Draw</ion-label>
+          <div id="lol"></div>
+
         </ion-tab-button>
+
 
         <ion-tab-button
           :disabled="!isLoggedIn"

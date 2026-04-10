@@ -59,6 +59,7 @@ export function createSocketService(): SocketAPI {
   async function connect(): Promise<void> {
     if (socket) return
     socket = io(import.meta.env.VITE_BACKEND as string, {
+      transports: ['websocket'],
       withCredentials: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -226,7 +227,7 @@ export function createSocketService(): SocketAPI {
   }
 
   async function login(params: SocketLoginParams): Promise<void> {
-    socket!.emit(SOCKET_ENDPONTS.login, {...params, version: __APP_VERSION__})
+    socket!.emit(SOCKET_ENDPONTS.login, { ...params, version: __APP_VERSION__ })
   }
 
 
@@ -242,35 +243,33 @@ export function createSocketService(): SocketAPI {
   }
 
   async function send(params: SendParams): Promise<void> {
-    const encoder = new TextEncoder() // Use TextEncoder to convert string to Uint8Array
-
-    // Remove the img from params before stringify
     const img = params.img
     delete params.img
 
     const data = JSON.stringify(params)
 
-    const pako = await import('pako')
-    const compressedData = pako.deflate(encoder.encode(data))
+    // NATIVE COMPRESSION PROCEDURE (Matches V1 pako format)
+    const stream = new Blob([data]).stream().pipeThrough(new CompressionStream('deflate'))
+    const compressedBuffer = await new Response(stream).arrayBuffer()
+    const compressedData = new Uint8Array(compressedBuffer)
 
-    const chunkSize = 1024 // or whatever size you prefer
+    // INCREASE CHUNK SIZE: 64KB reduces socket spam by 64x!
+    const chunkSize = 1024 * 64
 
     // send the text data
     for (let i = 0; i < compressedData.length; i += chunkSize) {
       const chunk = compressedData.slice(i, i + chunkSize)
       socket!.emit(`${SOCKET_ENDPONTS.send}text_chunk`, chunk)
     }
-
     socket!.emit(`${SOCKET_ENDPONTS.send}text_end`)
 
     // Now send the image data
-    for (let i = 0; i < img.byteLength; i += chunkSize) {
-      const chunk = img.slice(i, i + chunkSize)
+    const imgData = new Uint8Array(img) // Ensure img is easily sliceable
+    for (let i = 0; i < imgData.length; i += chunkSize) {
+      const chunk = imgData.slice(i, i + chunkSize)
       socket!.emit(`${SOCKET_ENDPONTS.send}img_chunk`, chunk)
     }
-
     socket!.emit(`${SOCKET_ENDPONTS.send}img_end`)
-
   }
 
   async function comment(params: CommentParams): Promise<void> {

@@ -15,7 +15,7 @@ export default defineConfig({
   plugins: [
     vue(),
     tailwindcss(),
-    visualizer({ gzipSize: true }) as any,
+    visualizer() as any,
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',

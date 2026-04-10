@@ -217,12 +217,12 @@ export const useAPI = createGlobalState((): API => {
   async function createBalloon(params: CreateBalloonPostParams): Promise<Res<CreateBalloonPostRes>> {
     const url = `${baseUrl}${ENDPOINTS.balloon}/v2`
 
-    // prepare files
-    const pako = await import('pako')
-    const compressed = pako.deflate(JSON.stringify(params.drawing))
-    const blob = new Blob([compressed], { type: 'application/octet-stream' })
-    const compressedFile = new File([blob], 'drawing.deflate', { type: 'application/octet-stream' })
     const imgFile = new File([params.img], 'img.webp', { type: 'image/webp' })
+
+    const jsonString = JSON.stringify(params.drawing)
+    const stream = new Blob([jsonString]).stream().pipeThrough(new CompressionStream('gzip'))
+    const compressedBlob = await new Response(stream).blob()
+    const compressedFile = new File([compressedBlob], 'drawing.gz', { type: 'application/gzip' })
 
     const data = new FormData()
     data.append('img', imgFile)
@@ -287,6 +287,6 @@ export const useAPI = createGlobalState((): API => {
     searchMate,
     createBalloon,
     getBalloon,
-    updateUser,
+    updateUser
   }
 })

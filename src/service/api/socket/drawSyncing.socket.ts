@@ -73,23 +73,25 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     leaveRoom(true)
   })
 
-  socket.on('request-canvas-state', ({ targetSocketId, snapshotSequenceId, isBackgroundUpdate }) => {
+  socket.on('request-canvas-state', async ({ targetSocketId, snapshotSequenceId, isBackgroundUpdate }) => {
     const { getCanvas } = useDrawStore()
     const canvas = getCanvas()
     if (!canvas) return
 
-    // Note: If you ever notice a slight stutter when this runs in the background,
-    // it's because JSON.stringify on a massive canvas is synchronous.
-    // For now, it will work perfectly.
     const canvasString = JSON.stringify(canvas.toJSON())
-    const sizeKB = canvasString.length / 1024
+
+    const stream = new Blob([canvasString]).stream()
+      .pipeThrough(new CompressionStream('gzip'))
+
+    const compressedBuffer = await new Response(stream).arrayBuffer()
+    const sizeKB = compressedBuffer.byteLength / 1024
 
     socket.emit('send-canvas-state', {
       targetSocketId,
-      canvasState: canvasString,
+      canvasState: compressedBuffer,
       sizeKB: Math.round(sizeKB),
-      snapshotSequenceId, // <-- Return the timestamp to the server
-      isBackgroundUpdate  // <-- Tell the server this was a background sync
+      snapshotSequenceId,
+      isBackgroundUpdate
     })
   })
 
@@ -102,10 +104,14 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       lastProcessedSequenceId.value = sequenceId
     }
 
-    const json = JSON.parse(canvasState)
+    const stream = new Blob([canvasState]).stream()
+      .pipeThrough(new DecompressionStream('gzip'))
+
+    const decompressedString = await new Response(stream).text()
+
+    const json = JSON.parse(decompressedString)
     await store.loadRoomCanvas(json, isInitialSync)
 
-    // Process any actions that occurred while the snapshot was uploading
 
     if (missedActions && missedActions.length > 0) {
       for (const item of missedActions) {
@@ -260,8 +266,7 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
   const { roomId } = useDrawSyncer()
 
   const json = JSON.stringify(action)
-  const sizeBytes = new Blob([json]).size
-  const sizeMB = sizeBytes / (1024 * 1024)
+  const sizeMB = json.length / (1024 * 1024)
 
   console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
   if (sizeMB >= 0.6) {

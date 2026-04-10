@@ -362,7 +362,7 @@ export function setupWidget() {
 }
 
 export async function lazyLoadDrawingModules() {
-  await Promise.all([import ('fabric'), import('pako')])
+  await Promise.all([import ('fabric')])
 }
 
 export function setupBackButtonBehavior() {

@@ -59,10 +59,10 @@
 
         <div v-show="segment == Segments.requests" class="w-full h-full">
           <CircularLoader v-if="loadingFriendRequests" class="w-full h-full z-50" />
-          <div v-else class="w-full h-5/6">
+          <div v-else class="w-full h-6/6">
             <div v-if="requestsSize == 0" class="flex flex-col justify-center w-full h-full">
 
-              <img :src="noMessagesImg" alt="No messages" class="md:w-[40%] max-w-[600px] w-[70%] mx-auto" />
+              <img :src="noMessagesImg" alt="No messages" class="md:w-[30%] max-w-[600px] w-[70%] mx-auto" />
               <div class="w-full flex justify-center items-center flex-col pt-3">
                 <h1 class="text-2xl font-bold">No friend requests...</h1>
                 <p class="px-5 text-center text-lg">Over here you can manage your received and sent friend requests</p>

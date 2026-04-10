@@ -127,7 +127,7 @@ export function generateCalligraphyImage(
   endTime: number = Date.now()
 ): FabricImage | null {
   if (rawPoints.length < 2) return null
-
+w
   // Step 1: Calculate bounds first so we can size the offscreen canvas
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   const padding = baseWidth

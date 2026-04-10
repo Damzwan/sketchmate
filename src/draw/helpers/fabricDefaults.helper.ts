@@ -6,17 +6,29 @@ import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
 import { PixelStroke } from '@/draw/utils/brushes/PixelBrush'
 import { CharcoalStroke } from '@/draw/utils/brushes/CharcoalBrush'
 import { useAuthStore } from '@/store/auth.store'
+import { WaterColorStroke } from '@/draw/utils/brushes/WaterColorBrush'
+import { CalligraphyStroke } from '@/draw/utils/brushes/CalligraphyBrush'
+import { CircleStroke } from '@/draw/utils/brushes/CustomCircleBrush'
+import { BucketFillPath } from '@/draw/utils/BucketFillPath'
+import { OptimizedPencilStroke } from '@/draw/utils/brushes/CustomPencilBrush'
+import { OptimizedEraserStroke } from '@/draw/utils/brushes/CustomEraserBrush'
+import { ClippingGroup } from '@erase2d/fabric'
 
 export function changeFabricSettings() {
   FabricObject.customProperties = ['id', 'erasable', 'oldText', 'isBucketFill', 'insertedIndex', 'userId'];
 
   (FabricObject as any).ownDefaults!['erasable'] = true
   // (FabricObject as any).ownDefaults!['id'] = uuidv4(); // cannot use this because it needs to be dynamic :c
-  
 
-  PixelStroke.type = 'PixelStroke'
+
+  classRegistry.setClass(OptimizedEraserStroke, 'OptimizedEraserStroke')
   classRegistry.setClass(PixelStroke, 'PixelStroke')
   classRegistry.setClass(CharcoalStroke, 'CharcoalStroke')
+  classRegistry.setClass(WaterColorStroke, 'WaterColorStroke')
+  classRegistry.setClass(CalligraphyStroke, 'CalligraphyStroke')
+  classRegistry.setClass(CircleStroke, CircleStroke.type)
+  classRegistry.setClass(BucketFillPath, 'BucketFillPath')
+  classRegistry.setClass(OptimizedPencilStroke, 'OptimizedPencilStroke')
 
   const originalAdd = Canvas.prototype.add
   Canvas.prototype.add = function(...objects: any[]) {

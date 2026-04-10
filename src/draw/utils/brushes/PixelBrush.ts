@@ -1,4 +1,5 @@
 import { BaseBrush, Point, Canvas, FabricObject } from 'fabric'
+import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
 
 export class PixelBrush extends BaseBrush {
   private _points: Point[] = []
@@ -246,6 +247,7 @@ export class PixelStroke extends FabricObject {
   }
 
   static async fromObject(object: any) {
-    return new PixelStroke(object)
+    const enlivenedProps = await enlivenStrokeProps(object)
+    return new PixelStroke(enlivenedProps)
   }
 }

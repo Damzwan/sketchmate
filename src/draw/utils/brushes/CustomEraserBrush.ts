@@ -334,7 +334,7 @@ export class CustomEraserBrush extends PencilBrush {
    * When set to `true` the brush will create a visual effect of undoing erasing
    */
   inverted = false
-
+  decimate = 1.5
   effectContext: CanvasRenderingContext2D
 
   private eventEmitter: EventTarget
@@ -509,10 +509,19 @@ export class CustomEraserBrush extends PencilBrush {
   /**
    * @override
    */
+  // @ts-ignore
   createPath(pathData: fabric.util.TSimplePathData) {
-    const path = super.createPath(pathData)
-    path.set(
-      this.inverted
+    // We instantiate our synced class directly instead of using super.createPath()
+    const path = new OptimizedEraserStroke(pathData, {
+      fill: null,
+      strokeWidth: this.width,
+      strokeLineCap: this.strokeLineCap,
+      strokeMiterLimit: this.strokeMiterLimit,
+      strokeLineJoin: this.strokeLineJoin,
+      strokeDashArray: this.strokeDashArray,
+
+      // Inject the @erase2d specific logic
+      ...(this.inverted
         ? {
           globalCompositeOperation: 'source-over',
           stroke: 'white'
@@ -521,8 +530,15 @@ export class CustomEraserBrush extends PencilBrush {
           globalCompositeOperation: 'destination-out',
           stroke: 'black',
           opacity: new fabric.Color(this.color).getAlpha()
-        }
-    )
+        })
+    })
+
+    if (this.shadow) {
+      // @ts-ignore - Fabric typing workaround
+      this.shadow.affectStroke = true
+      path.shadow = new fabric.Shadow(this.shadow)
+    }
+
     return path
   }
 
@@ -636,5 +652,100 @@ export class CustomEraserBrush extends PencilBrush {
     canvas.width = canvas.height = 0
     // release ref?
     // delete this.effectContext
+  }
+}
+
+export class OptimizedEraserStroke extends Path {
+  static type = 'OptimizedEraserStroke'
+
+  constructor(path: string | any[], options: any) {
+    super(path, options)
+  }
+
+  // @ts-ignore
+  toObject(additionalProperties: string[] = []) {
+    // Preserve the composite operation essential for the masking effect
+    const baseObj = super.toObject(['globalCompositeOperation', ...additionalProperties] as any)
+
+    // DEFLATION: Compress the parsed path array
+    const compressedTrace: (number | string)[] = []
+    let lastX = 0, lastY = 0
+
+    for (const cmd of this.path) {
+      const type = cmd[0]
+
+      if (type === 'M' || type === 'L') {
+        const ix = Math.round((cmd[1] as number) * 10)
+        const iy = Math.round((cmd[2] as number) * 10)
+
+        if (type === 'M') {
+          compressedTrace.push('M', ix, iy)
+        } else {
+          compressedTrace.push('L', ix - lastX, iy - lastY)
+        }
+        lastX = ix
+        lastY = iy
+
+      } else if (type === 'Q') {
+        const icpx = Math.round((cmd[1] as number) * 10)
+        const icpy = Math.round((cmd[2] as number) * 10)
+        const ix = Math.round((cmd[3] as number) * 10)
+        const iy = Math.round((cmd[4] as number) * 10)
+
+        compressedTrace.push('Q', icpx - lastX, icpy - lastY, ix - lastX, iy - lastY)
+        lastX = ix
+        lastY = iy
+      }
+    }
+
+    delete (baseObj as any).path
+    return {
+      ...baseObj,
+      compressedTrace
+    }
+  }
+
+  static async fromObject(object: any) {
+    // INFLATION: Convert the flat delta array back into an SVG string
+    if (object.compressedTrace && !object.path) {
+      let svg = ''
+      let lastX = 0, lastY = 0
+      const trace = object.compressedTrace
+
+      for (let i = 0; i < trace.length;) {
+        const cmd = trace[i]
+
+        if (cmd === 'M' || cmd === 'L') {
+          let ix, iy
+          if (cmd === 'M') {
+            ix = trace[i + 1] as number
+            iy = trace[i + 2] as number
+          } else {
+            ix = (trace[i + 1] as number) + lastX
+            iy = (trace[i + 2] as number) + lastY
+          }
+          svg += `${cmd} ${ix / 10} ${iy / 10} `
+          lastX = ix
+          lastY = iy
+          i += 3
+
+        } else if (cmd === 'Q') {
+          const icpx = (trace[i + 1] as number) + lastX
+          const icpy = (trace[i + 2] as number) + lastY
+          const ix = (trace[i + 3] as number) + lastX
+          const iy = (trace[i + 4] as number) + lastY
+
+          svg += `Q ${icpx / 10} ${icpy / 10} ${ix / 10} ${iy / 10} `
+          lastX = ix
+          lastY = iy
+          i += 5
+
+        } else {
+          i++
+        }
+      }
+      object.path = svg.trim()
+    }
+    return new OptimizedEraserStroke(object.path, object)
   }
 }

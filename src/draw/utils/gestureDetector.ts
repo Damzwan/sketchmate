@@ -1,4 +1,4 @@
-import { Point } from 'fabric/fabric-impl'
+import { Point } from 'fabric'
 
 interface GestureDetectorOptions {
   onGestureStart?: () => void
@@ -93,7 +93,7 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
       const currentX = (x1 + x2) / 2
       const currentY = (y1 + y2) / 2
 
-      const center: Point = {
+      const center: any = {
         x: currentX,
         y: currentY
       }

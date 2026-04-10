@@ -16,8 +16,6 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { InboxItem } from '@/types/server.types'
 import { ref } from 'vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { interactiveObjectInspector } from '@/utils/fabricDebug'
-import { StaticCanvas } from 'fabric'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { computeBounds } from '@/draw/helpers/export.helper'
 

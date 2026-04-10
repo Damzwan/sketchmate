@@ -13,7 +13,7 @@ import {
   mdiPencilOutline,
   mdiSpray
 } from '@mdi/js'
-import { Canvas, CircleBrush, PencilBrush } from 'fabric'
+import { Canvas } from 'fabric'
 import { WaterColorBrush } from '@/draw/utils/brushes/WaterColorBrush'
 import { BaseBrush } from 'fabric/fabric-impl'
 import { CrayonBrush } from '@/draw/utils/brushes/CrayonBrush'
@@ -22,6 +22,8 @@ import { PixelBrush } from '@/draw/utils/brushes/PixelBrush'
 import { FastSprayBrush } from '@/draw/utils/brushes/CustomSprayBrush'
 import { NeonBrush } from '@/draw/utils/brushes/NeonSignBrush'
 import { CalligraphyBrush } from '@/draw/utils/brushes/CalligraphyBrush'
+import { CustomCircleBrush } from '@/draw/utils/brushes/CustomCircleBrush'
+import { OptimizedPencilBrush } from '@/draw/utils/brushes/CustomPencilBrush'
 
 export const ERASERS = [DrawTool.MobileEraser]
 export const PENMENUTOOLS = [DrawTool.Pen, DrawTool.Bucket]
@@ -34,9 +36,9 @@ export const selectIconMapping: { [key in SelectTool]: string } = {
   [DrawTool.Lasso]: mdiLasso
 }
 export const penBrushMapping: { [key in BrushType]: (c: Canvas) => BaseBrush } = {
-  [BrushType.Pencil]: (c: Canvas) => new PencilBrush(c),
+  [BrushType.Pencil]: (c: Canvas) => new OptimizedPencilBrush(c),
   [BrushType.Spray]: (c: Canvas) => new FastSprayBrush(c),
-  [BrushType.Circle]: (c: Canvas) => new CircleBrush(c),
+  [BrushType.Circle]: (c: Canvas) => new CustomCircleBrush(c),
   [BrushType.WaterColor]: (c: Canvas) => new WaterColorBrush(c),
   [BrushType.Charcoal]: (c: Canvas) => new CharcoalBrush(c),
   [BrushType.Crayon]: (c: Canvas) => new CrayonBrush(c),

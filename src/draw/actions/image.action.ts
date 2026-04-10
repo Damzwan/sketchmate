@@ -37,7 +37,7 @@ export function addFilterToImg(params: DrawActionParams[DrawAction.AddImgFilter]
   if (params.remove) {
     const filterIndexToFind = img.filters!.findIndex((f: any) => f.type == filter.type)
     if (filterIndexToFind == -1) return
-    const f = img.filters?.at(filterIndexToFind)
+    const f = (img.filters as any)?.at(filterIndexToFind)
     c.fire('imgFilterChanged', { target: img, prevFilter: f, filter: null })
 
     img.filters?.splice(filterIndexToFind, 1)

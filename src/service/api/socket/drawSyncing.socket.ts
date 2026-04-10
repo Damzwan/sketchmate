@@ -260,7 +260,7 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
   const sizeBytes = new Blob([json]).size
   const sizeMB = sizeBytes / (1024 * 1024)
 
-
+  console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
   if (sizeMB >= 0.6) {
     const { toast } = useToast()
     toast('Operation too big, cancelled', { color: 'danger', duration: ToastDuration.long })

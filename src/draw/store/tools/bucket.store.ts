@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { isMobile } from '@/helper/general.helper'
 import { Canvas } from 'fabric'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
-import { bucketFill2 } from '@/draw/helpers/tools/bucket2.helper'
+import { bucketFill2 } from '@/draw/helpers/tools/bucket.helper'
 
 export const useBucket = defineStore('bucket', (): ToolService => {
   let c: Canvas | undefined = undefined

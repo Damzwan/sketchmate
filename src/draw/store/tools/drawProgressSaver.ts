@@ -10,7 +10,7 @@ export function useDrawProgressSaver() {
   let db: IDBDatabase | undefined
   const fixedKey = 1 // Using 1 as a fixed key to always overwrite the same record
 
-  let saveTimeout: NodeJS.Timeout | undefined
+  let saveTimeout: any | undefined
 
   async function init(c: Canvas) {
     if (db) return

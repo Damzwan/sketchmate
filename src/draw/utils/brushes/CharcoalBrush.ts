@@ -1,5 +1,6 @@
 import { BaseBrush, Point, Canvas, FabricObject } from 'fabric'
 import * as fabric from 'fabric'
+import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
 
 export class CharcoalBrush extends BaseBrush {
   private _trace: CharcoalPoint[] = []
@@ -152,27 +153,51 @@ interface CharcoalPoint {
 export class CharcoalStroke extends FabricObject {
   static type = 'CharcoalStroke'
 
-  // Include custom properties in cache check
   static cacheProperties = [...FabricObject.cacheProperties, 'trace', 'stampSize', 'stampDataUrl', 'minX', 'minY']
 
   public trace: any[]
   public stampCanvas?: HTMLCanvasElement
   public stampSize: number
   public stampDataUrl?: string
-
-  // These are the "Anchors" that prevent the shifting bug
   public minX: number = 0
   public minY: number = 0
 
   constructor(options: any) {
     super(options)
 
-    this.trace = options.trace || []
+    if (options.compressedTrace && Array.isArray(options.compressedTrace)) {
+      this.trace = []
+      let lastX = 0
+      let lastY = 0
+
+      for (let i = 0; i < options.compressedTrace.length; i += 5) {
+        let ix = options.compressedTrace[i]
+        let iy = options.compressedTrace[i + 1]
+
+        // Reverse the Delta Encoding
+        if (i > 0) {
+          ix += lastX
+          iy += lastY
+        }
+        lastX = ix
+        lastY = iy
+
+        // Reverse the Integer Scaling (divide by 100)
+        this.trace.push({
+          x: ix / 100,
+          y: iy / 100,
+          opacity: options.compressedTrace[i + 2] / 100,
+          offsetX: options.compressedTrace[i + 3] / 100,
+          offsetY: options.compressedTrace[i + 4] / 100
+        })
+      }
+    } else {
+      this.trace = options.trace || []
+    }
+
     this.stampSize = options.stampSize || 0
     this.stampCanvas = options.stampCanvas
     this.stampDataUrl = options.stampDataUrl
-
-    // Restore anchors if they exist (cloning/JSON), otherwise they'll be set in _calcDimensions
     this.minX = options.minX || 0
     this.minY = options.minY || 0
 
@@ -180,7 +205,6 @@ export class CharcoalStroke extends FabricObject {
     this.originY = 'top'
     this.objectCaching = true
 
-    // ONLY calculate dimensions if we don't have them (initial creation)
     if (typeof options.left !== 'number') {
       this._calcDimensions()
     }
@@ -215,38 +239,58 @@ export class CharcoalStroke extends FabricObject {
   }
 
   _render(ctx: CanvasRenderingContext2D) {
-    if (!this.stampCanvas) return;
+    if (!this.stampCanvas) return
 
-    const halfWidth = this.width / 2;
-    const halfHeight = this.height / 2;
+    const halfWidth = this.width / 2
+    const halfHeight = this.height / 2
 
     // CRITICAL: Save the state so eraser settings don't bleed into stamps
-    ctx.save();
+    ctx.save()
 
     for (const p of this.trace) {
-      const localX = (p.x + p.offsetX - this.minX) - halfWidth;
-      const localY = (p.y + p.offsetY - this.minY) - halfHeight;
+      const localX = (p.x + p.offsetX - this.minX) - halfWidth
+      const localY = (p.y + p.offsetY - this.minY) - halfHeight
 
       // We set alpha per-stamp. ctx.save/restore isn't needed inside the loop
       // but we MUST ensure we don't multiply alpha if the context already has one.
-      ctx.globalAlpha = p.opacity;
-      ctx.drawImage(this.stampCanvas, localX, localY);
+      ctx.globalAlpha = p.opacity
+      ctx.drawImage(this.stampCanvas, localX, localY)
     }
 
-    ctx.restore();
+    ctx.restore()
   }
 
   toObject(additionalProperties: string[] = []) {
-    return super.toObject([
-      'left',
-      'top',
-      'trace',
-      'stampSize',
-      'stampDataUrl',
-      'minX',
-      'minY', // Crucial: save the anchors!
-      ...additionalProperties
+    const flatTrace: number[] = []
+    let lastX = 0
+    let lastY = 0
+
+    for (let i = 0; i < this.trace.length; i++) {
+      const p = this.trace[i]
+
+      // 1. Integer Scaling (multiply by 100, round to whole number)
+      const ix = Math.round(p.x * 100)
+      const iy = Math.round(p.y * 100)
+      const iOpacity = Math.round(p.opacity * 100)
+      const iOffsetX = Math.round(p.offsetX * 100)
+      const iOffsetY = Math.round(p.offsetY * 100)
+
+      // 2. Delta Encoding for X and Y
+      if (i === 0) {
+        flatTrace.push(ix, iy, iOpacity, iOffsetX, iOffsetY)
+      } else {
+        flatTrace.push(ix - lastX, iy - lastY, iOpacity, iOffsetX, iOffsetY)
+      }
+
+      lastX = ix
+      lastY = iy
+    }
+
+    const baseObject = super.toObject([
+      'left', 'top', 'width', 'height', 'fill', 'stampSize', 'stampDataUrl', 'minX', 'minY', ...additionalProperties
     ])
+
+    return { ...baseObject, compressedTrace: flatTrace }
   }
 
   static async fromObject(object: any) {
@@ -257,7 +301,7 @@ export class CharcoalStroke extends FabricObject {
       canvas.getContext('2d')?.drawImage(img, 0, 0)
       object.stampCanvas = canvas
     }
-    return new CharcoalStroke(object)
+    const enlivenedProps = await enlivenStrokeProps(object)
+    return new CharcoalStroke(enlivenedProps)
   }
 }
-

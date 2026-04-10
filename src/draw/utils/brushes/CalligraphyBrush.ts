@@ -1,5 +1,5 @@
 import { BaseBrush, Canvas, FabricImage, Point } from 'fabric'
-import * as fabric from "fabric"
+import * as fabric from 'fabric'
 import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
 
 // ------------------------------------------------------------------
@@ -144,7 +144,7 @@ export function generateCalligraphyImage(
   maxX += padding
   maxY += padding
 
-  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1
+  const dpr = 1
   const canvas = document.createElement('canvas')
   canvas.width = (maxX - minX) * dpr
   canvas.height = (maxY - minY) * dpr

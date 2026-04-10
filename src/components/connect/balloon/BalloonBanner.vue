@@ -35,7 +35,7 @@
           fill="outline"
           color="dark"
           class="mt-3"
-          @click="openMenu(Menu.SendBalloon)"
+          @click="openBalloonMenu"
         >
           Send Balloon
         </ion-button>

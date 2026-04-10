@@ -1,51 +1,53 @@
 <template>
   <div>
+    <!-- BACKDROP -->
     <Transition name="fade">
       <div
         v-if="balloonStore.receivedBalloon && hasLanded"
-        class="fixed safe-area inset-0 z-40 flex flex-col items-center justify-between bg-primary/95 backdrop-blur-md pb-6 pt-10 sm:pb-12 sm:pt-12 overflow-y-auto"
+        class="fixed inset-0 z-40 flex flex-col bg-primary/95 backdrop-blur-md pt-8 safe-area overflow-hidden"
       >
-        <div class="flex flex-col items-center text-center px-4 shrink-0 mt-4">
-          <p class="text-3xl sm:text-4xl cabin-sketch-regular font-bold text-black mb-1 sm:mb-2">
+        <!-- HEADER -->
+        <div class="text-center px-4 shrink-0">
+          <p
+            class="mt-3"
+            :class="[
+              'cabin-sketch-regular font-bold text-black',
+              isSuperShortScreen ? 'text-xl' : 'text-3xl sm:text-4xl'
+            ]"
+          >
             You caught a balloon from {{ balloonStore.senderInfo?.name || 'a fellow patient' }}!
           </p>
 
-          <div class="w-48 sm:w-56 h-1.5 sm:h-2 bg-black/10 rounded-full mt-2 overflow-hidden">
+          <div
+            :class="[
+              'bg-black/10 rounded-full mt-3 mx-auto overflow-hidden',
+              isSuperShortScreen ? 'w-32 h-1.5' : 'w-48 sm:w-56 h-2'
+            ]"
+          >
             <div class="h-full bg-red-400 timer-shrink"></div>
           </div>
         </div>
 
+        <!-- FLEX CONTENT -->
+        <div class="flex flex-col items-center justify-center flex-1 min-h-0 px-4" />
+
+        <!-- ACTIONS -->
         <Transition name="fade-up">
-          <div v-if="showButtons"
-               class="flex flex-col gap-2 sm:gap-3 items-center w-full px-4 shrink-0 pb-safe z-50 pointer-events-auto mt-auto pt-4">
-            <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full justify-center max-w-sm">
-              <ion-button
-                shape="round"
-                color="medium"
-                fill="outline"
-                @click="balloonStore.refuseReceived"
-                class="flex-1 cabin-sketch-regular font-bold text-base sm:text-lg m-0"
-              >
+          <div
+            v-if="showButtons"
+            class="shrink-0 px-4 pt-3 pb-safe flex flex-col items-center gap-2"
+          >
+            <div class="flex flex-col sm:flex-row gap-2 w-full max-w-sm">
+              <ion-button shape="round" color="secondary" fill="outline" @click="balloonStore.refuseReceived"
+                          class="flex-1">
                 Let it float
               </ion-button>
-
-              <ion-button
-                shape="round"
-                color="secondary"
-                @click="balloonStore.acceptReceived"
-                class="flex-1 cabin-sketch-regular font-bold text-base sm:text-lg shadow-lg m-0"
-              >
+              <ion-button shape="round" color="secondary" @click="balloonStore.acceptReceived" class="flex-1">
                 Catch it!
               </ion-button>
             </div>
 
-            <ion-button
-              shape="round"
-              fill="clear"
-              color="dark"
-              class="mt-1 cabin-sketch-regular text-xs sm:text-sm normal-case opacity-70 m-0"
-              @click="disableConfirmationOpen = true"
-            >
+            <ion-button fill="clear" color="secondary" class="opacity-70" @click="disableConfirmationOpen = true">
               Stop receiving balloons
             </ion-button>
           </div>
@@ -53,64 +55,89 @@
       </div>
     </Transition>
 
-    <Transition
-      name="float-down"
-      @after-enter="handleLanded"
-      @before-leave="handleBalloonLeave"
-    >
+    <!-- FLOATING BALLOON -->
+    <Transition name="float-down" @after-enter="handleLanded" @before-leave="handleBalloonLeave">
       <div
         v-if="balloonStore.receivedBalloon"
-        class="fixed inset-0 z-50 pointer-events-none flex items-center justify-center"
+        :class="[isSuperShortScreen ? 'items-center' : 'items-end']"
+        class="fixed inset-0 z-50 flex  justify-center pointer-events-none"
       >
         <div
-          class="relative flex flex-col items-center animate-float w-full max-w-[85%] sm:max-w-[60%] mt-[-15vh] sm:mt-[-5%]">
+          :class="[
+            'flex flex-col items-center w-full max-w-[500px] px-4 mt-10',
+            isSuperShortScreen ? 'h-[70vh]' : 'h-[80vh]'
+          ]"
+        >
 
+          <!-- BALLOON -->
           <Lottie
             :json="balloonLottie"
             :loop="true"
             :speed="0.5"
-            class="h-[15vh] min-h-[100px] max-h-[150px] absolute left-[45%] -translate-x-1/2 -top-[12vh]"
+            :class="[
+              isSuperShortScreen
+                ? 'h-[10vh]'
+                : (isVertical ? 'h-[14vh]' : 'h-[18vh]')
+            ]"
           />
 
-          <div class="relative w-full flex justify-center z-10">
-            <img
-              v-if="balloonStore.receivedBalloon.img"
-              :src="balloonStore.receivedBalloon.img"
-              alt="drawing from another patient"
-              class="max-h-[30vh] sm:max-h-[250px] max-w-full animate-wiggle animate-duration-1000 drop-shadow-xl object-contain rounded-2xl border-2 border-black/10 bg-white/50"
-            />
-          </div>
+          <!-- FLEX AREA -->
+          <div class="flex flex-col items-center w-full flex-1 min-h-0">
 
-          <Transition name="fade-up">
-            <div
-              v-if="showDetails && balloonStore.receivedBalloon.message"
-              class="absolute top-full mt-3 sm:mt-4 flex flex-col items-center transform rotate-2 w-full z-20 pointer-events-auto"
-            >
+            <!-- IMAGE -->
+            <div class="w-full flex justify-center shrink min-h-0">
               <img
-                v-if="balloonStore.senderInfo?.img"
-                :src="balloonStore.senderInfo.img"
-                alt="Sender Avatar"
-                class="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-black object-cover shadow-md z-30 bg-white relative -mb-5 sm:-mb-6"
+                v-if="balloonStore.receivedBalloon.img"
+                :src="balloonStore.receivedBalloon.img"
+                alt="drawing"
+                :class="[
+                  'object-contain rounded-2xl border-4 border-white bg-white shadow-xl',
+                  'max-w-full w-auto h-auto',
+                  isSuperShortScreen
+                    ? 'max-h-[20vh]'
+                    : (isVertical ? 'max-h-[30vh]' : 'max-h-[40vh]')
+                ]"
               />
+            </div>
 
+            <!-- MESSAGE -->
+            <Transition name="fade-up">
               <div
-                class="text-base sm:text-lg cabin-sketch-regular font-bold text-black bg-white/95 border-2 border-black rounded-2xl shadow-md w-full overflow-hidden"
+                v-if="showDetails && balloonStore.receivedBalloon.message"
+                class="flex flex-col items-center w-full mt-2 min-h-0"
               >
+                <img
+                  v-if="balloonStore.senderInfo?.img"
+                  :src="balloonStore.senderInfo.img"
+                  class="w-10 h-10 rounded-full border-2 border-black object-cover bg-white -mb-5 z-10"
+                />
+
                 <div
-                  class="max-h-32 sm:max-h-24 overflow-y-auto px-4 pt-6 pb-2 sm:px-5 sm:pt-8 sm:pb-3 scroll-container text-center">
-                  "{{ balloonStore.receivedBalloon.message }}"
+                  :class="[
+        'cabin-sketch-regular font-bold text-black bg-white border-2 border-black rounded-2xl shadow-lg w-full max-w-[280px]',
+        'flex flex-col flex-1 min-h-0',
+        isSuperShortScreen ? 'text-sm' : 'text-base sm:text-lg'
+      ]"
+                >
+                  <!-- ✅ FIXED SCROLL CONTAINER -->
+                  <div
+                    class="flex-1 min-h-12.5 max-h-24 overflow-y-auto overflow-x-hidden px-4 pt-6 pb-3 text-center wrap-break-word pointer-events-auto"
+                  >
+                    "{{ balloonStore.receivedBalloon.message }}"
+                  </div>
                 </div>
               </div>
-            </div>
-          </Transition>
+            </Transition>
 
+          </div>
         </div>
       </div>
     </Transition>
 
+    <!-- CONFIRMATION -->
     <ConfirmationAlert
       header="Stop Receiving Balloons?"
-      message="You won't see new balloons float by, but you can turn this back on in settings anytime."
+      message="You won't see new balloons float by, but you can turn this back on anytime."
       @confirm="balloonStore.disableBalloons"
       v-model:is-open="disableConfirmationOpen"
     />
@@ -118,20 +145,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useBalloonStore } from '@/store/balloon.store'
 import balloonLottie from '@/assets/lottie/balloon.json'
 import Lottie from '@/components/general/Lottie.vue'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import { IonButton } from '@ionic/vue'
 
 const balloonStore = useBalloonStore()
 const disableConfirmationOpen = ref(false)
 
-// Consolidated reveal states
 const hasLanded = ref(false)
-const showDetails = ref(false) // Controls BOTH message and avatar
+const showDetails = ref(false)
 const showButtons = ref(false)
+const isVertical = ref(false)
+const isSuperShortScreen = ref(false)
 
+// detect small screens
+function checkScreenHeight() {
+  isSuperShortScreen.value = window.innerHeight < 700
+}
+
+onMounted(() => {
+  checkScreenHeight()
+  window.addEventListener('resize', checkScreenHeight)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkScreenHeight)
+})
+
+// detect image orientation
+function checkImageOrientation(src: string) {
+  const img = new Image()
+  img.onload = () => {
+    isVertical.value = img.height > img.width
+  }
+  img.src = src
+}
+
+watch(() => balloonStore.receivedBalloon, (val) => {
+  if (val?.img) checkImageOrientation(val.img)
+})
 
 function handleLanded() {
   if (!balloonStore.receivedBalloon) return
@@ -141,13 +196,11 @@ function handleLanded() {
 
   setTimeout(() => {
     showDetails.value = true
-  }, 1000)
+  }, 800)
 
-
-  const buttonDelay = hasMessage ? 2500 : 1000
   setTimeout(() => {
     showButtons.value = true
-  }, buttonDelay)
+  }, hasMessage ? 2000 : 1000)
 }
 
 function handleBalloonLeave() {
@@ -157,14 +210,18 @@ function handleBalloonLeave() {
 }
 </script>
 
-
 <style scoped>
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}
+
+/* FLOAT */
 .float-down-enter-active {
-  transition: all 5s linear;
+  transition: all 4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .float-down-leave-active {
-  transition: all 0.5s ease-in;
+  transition: all 0.4s ease-in;
 }
 
 .float-down-enter-from {
@@ -179,12 +236,13 @@ function handleBalloonLeave() {
 
 .float-down-leave-to {
   opacity: 0;
-  transform: translateY(-100px) scale(0.8);
+  transform: translateY(-80px) scale(0.85);
 }
 
+/* FADE */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.8s ease;
+  transition: opacity 0.6s ease;
 }
 
 .fade-enter-from,
@@ -192,17 +250,14 @@ function handleBalloonLeave() {
   opacity: 0;
 }
 
+/* FADE UP */
 .fade-up-enter-active {
-  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.fade-up-leave-active {
-  transition: all 0.3s ease-in;
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .fade-up-enter-from {
   opacity: 0;
-  transform: translateY(20px) scale(0.95);
+  transform: translateY(15px) scale(0.95);
 }
 
 .fade-up-enter-to {
@@ -210,11 +265,7 @@ function handleBalloonLeave() {
   transform: translateY(0) scale(1);
 }
 
-.fade-up-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
+/* TIMER */
 .timer-shrink {
   width: 100%;
   transform-origin: left;
@@ -222,15 +273,11 @@ function handleBalloonLeave() {
 }
 
 @keyframes shrink-bar {
-  0% {
+  from {
     width: 100%;
   }
-  100% {
+  to {
     width: 0%;
   }
-}
-
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 1rem);
 }
 </style>

@@ -1,21 +1,34 @@
-import { BaseBrush, Point, Canvas, FabricObject } from 'fabric'
+import { BaseBrush, Canvas, FabricObject, Point } from 'fabric'
 import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
+import * as fabric from 'fabric'
 
 export class PixelBrush extends BaseBrush {
   private _points: Point[] = []
   public pixelSize: number = 5
-  // Notice we removed opacity; it's just a solid layout of blocks now
-  private _currentBrushTip: { dx: number, dy: number }[] = []
+
+  // Vital signs: tracking the stamp instead of coordinates
+  private _stampCanvas!: HTMLCanvasElement
+  private _stampSize: number = 0
 
   constructor(canvas: Canvas) {
     super(canvas)
   }
 
-  private _generateBrushTip() {
-    const tip = []
+  // TREATMENT: Generate a single bitmap stamp of the brush tip
+  private _generateBrushTipCanvas() {
     const radius = this.width / 2
     const step = this.pixelSize
 
+    // Calculate the safe dimensions for the stamp
+    const gridMax = Math.ceil(radius / step) * step
+    this._stampSize = (gridMax * 2) + step
+
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = this._stampSize
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = this.color as string
+
+    const center = this._stampSize / 2
     const start = -Math.floor(radius / step) * step
     const end = Math.floor(radius / step) * step
 
@@ -23,25 +36,24 @@ export class PixelBrush extends BaseBrush {
       for (let dy = start; dy <= end; dy += step) {
         const distance = Math.sqrt(dx * dx + dy * dy)
         if (distance <= radius) {
-          // The magic pixel dust: solid core, scattered edges
-          // We square the fraction to keep the center dense and edges sparse
           const probability = 1 - Math.pow(distance / radius, 3)
-
           if (Math.random() < probability || distance <= step) {
-            tip.push({ dx, dy })
+            // Draw relative to the center of our tiny stamp canvas
+            ctx.fillRect(center + dx - (step / 2), center + dy - (step / 2), step, step)
           }
         }
       }
     }
-    return tip
+    return canvas
   }
 
   onMouseDown(pointer: Point) {
     this._points = []
-    this._currentBrushTip = this._generateBrushTip()
-    this._addPoint(pointer, true) // Force add the first point
+    this._stampCanvas = this._generateBrushTipCanvas() // Bake the stamp!
+    this._addPoint(pointer, true)
   }
 
+  // RE-ATTACHED ORGAN: The mouse move handler
   onMouseMove(pointer: Point) {
     if (this._addPoint(pointer)) {
       this.canvas.clearContext(this.canvas.contextTop)
@@ -54,7 +66,9 @@ export class PixelBrush extends BaseBrush {
       const stroke = new PixelStroke(this._points, {
         fill: this.color,
         pixelSize: this.pixelSize,
-        brushTip: this._currentBrushTip
+        stampCanvas: this._stampCanvas,
+        stampSize: this._stampSize,
+        stampDataUrl: this._stampCanvas.toDataURL() // Keep for syncing/saving
       })
       this.canvas.add(stroke)
       this.canvas.clearContext(this.canvas.contextTop)
@@ -64,6 +78,7 @@ export class PixelBrush extends BaseBrush {
     return false
   }
 
+  // RE-ATTACHED ORGAN: Bresenham's Line Algorithm (The Sutures)
   private _addPoint(pointer: Point, isFirstPoint = false) {
     const targetX = Math.floor(pointer.x / this.pixelSize) * this.pixelSize
     const targetY = Math.floor(pointer.y / this.pixelSize) * this.pixelSize
@@ -79,8 +94,6 @@ export class PixelBrush extends BaseBrush {
       return false // Mouse hasn't moved to a new pixel cell yet
     }
 
-    // --- BRESENHAM'S LINE ALGORITHM (The Sutures) ---
-    // Interpolate points between lastPoint and current target
     let x0 = lastPoint.x
     let y0 = lastPoint.y
     const x1 = targetX
@@ -95,7 +108,6 @@ export class PixelBrush extends BaseBrush {
     let pointsAdded = false
 
     while (true) {
-      // Don't duplicate the very first point of the line
       if (x0 !== lastPoint.x || y0 !== lastPoint.y) {
         this._points.push(new Point(x0, y0))
         pointsAdded = true
@@ -126,34 +138,32 @@ export class PixelBrush extends BaseBrush {
       ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
     }
 
-    ctx.fillStyle = this.color
+    const offset = this._stampSize / 2
 
+    // Look how healthy this loop is now!
     for (const p of this._points) {
-      for (const block of this._currentBrushTip) {
-        // No more opacity! Just pure, healthy, solid pixels.
-        ctx.fillRect(p.x + block.dx, p.y + block.dy, this.pixelSize, this.pixelSize)
-      }
+      ctx.drawImage(this._stampCanvas, p.x - offset, p.y - offset)
     }
 
     ctx.restore()
   }
 }
 
-
 export class PixelStroke extends FabricObject {
   static type = 'PixelStroke'
 
-  // Track minX/minY as "anchors" to keep the pixels locked in place
-  static cacheProperties = [...FabricObject.cacheProperties, 'points', 'pixelSize', 'brushTip', 'minX', 'minY']
+  // Update cache properties to track the stamp
+  static cacheProperties = [...FabricObject.cacheProperties, 'points', 'pixelSize', 'stampSize', 'stampDataUrl', 'minX', 'minY']
 
   public points: Point[]
   public pixelSize: number
-  public brushTip: { dx: number; dy: number }[]
+  public stampCanvas?: HTMLCanvasElement
+  public stampSize: number
+  public stampDataUrl?: string
   public minX: number = 0
   public minY: number = 0
 
   constructor(pointsOrOptions: Point[] | any, options: any = {}) {
-    // Handle both styles: new PixelStroke(points, options) AND new PixelStroke(options)
     const isInitialEntry = Array.isArray(pointsOrOptions)
     const data = isInitialEntry ? options : pointsOrOptions
     const points = isInitialEntry ? pointsOrOptions : (data.points || [])
@@ -162,14 +172,15 @@ export class PixelStroke extends FabricObject {
 
     this.points = points
     this.pixelSize = data.pixelSize || 5
-    this.brushTip = data.brushTip || []
+    this.stampCanvas = data.stampCanvas
+    this.stampSize = data.stampSize || 0
+    this.stampDataUrl = data.stampDataUrl
     this.minX = data.minX || 0
     this.minY = data.minY || 0
 
     this.originX = 'left'
     this.originY = 'top'
 
-    // Only calculate if we are creating from scratch (not cloning)
     if (typeof data.left !== 'number') {
       this._calcDimensions()
     }
@@ -181,12 +192,6 @@ export class PixelStroke extends FabricObject {
     let minX = this.points[0].x, maxX = this.points[0].x
     let minY = this.points[0].y, maxY = this.points[0].y
 
-    let maxDx = 0, maxDy = 0
-    for (const block of this.brushTip) {
-      if (Math.abs(block.dx) > maxDx) maxDx = Math.abs(block.dx)
-      if (Math.abs(block.dy) > maxDy) maxDy = Math.abs(block.dy)
-    }
-
     for (const p of this.points) {
       if (p.x < minX) minX = p.x
       if (p.x > maxX) maxX = p.x
@@ -194,42 +199,29 @@ export class PixelStroke extends FabricObject {
       if (p.y > maxY) maxY = p.y
     }
 
-    // Set our anchors
     this.minX = minX
     this.minY = minY
 
-    this.width = (maxX - minX) + (maxDx * 2) + this.pixelSize
-    this.height = (maxY - minY) + (maxDy * 2) + this.pixelSize
-    this.left = minX - maxDx
-    this.top = minY - maxDy
+    // Padding is just the size of our stamp!
+    this.width = (maxX - minX) + this.stampSize
+    this.height = (maxY - minY) + this.stampSize
+    this.left = minX - (this.stampSize / 2)
+    this.top = minY - (this.stampSize / 2)
   }
 
   _render(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = this.fill as string
+    if (!this.stampCanvas) return
 
     const halfWidth = this.width / 2
     const halfHeight = this.height / 2
+    const offset = this.stampSize / 2
 
-    // Use a fixed calculation relative to the internal bounds
-    // maxDx is the padding we applied in _calcDimensions
-    const maxDx = (this.width - (this.pixelSize + (Math.max(...this.points.map(p => p.x)) - this.minX))) / 2
-
+    // The nested loop is entirely gone.
     for (const p of this.points) {
-      for (const block of this.brushTip) {
-        // We subtract the static minX anchor instead of the dynamic this.left
-        const localX = (p.x - this.minX) - halfWidth + block.dx + (this.width / 2 - (this.width / 2 - maxDx))
-        const localY = (p.y - this.minY) - halfHeight + block.dy + (this.height / 2 - (this.height / 2 - maxDx))
+      const renderX = (p.x - this.minX) - halfWidth - offset + (this.stampSize / 2)
+      const renderY = (p.y - this.minY) - halfHeight - offset + (this.stampSize / 2)
 
-        // Simplified: (Point Position - Anchor) - HalfDimension + Jitter
-        const finalX = (p.x - this.minX) - halfWidth + (this.width - (Math.max(...this.points.map(pt => pt.x)) - this.minX + this.pixelSize)) / 2 + block.dx
-        const finalY = (p.y - this.minY) - halfHeight + (this.height - (Math.max(...this.points.map(pt => pt.y)) - this.minY + this.pixelSize)) / 2 + block.dy
-
-        // Cleanest version for your specific math:
-        const renderX = (p.x - this.minX) - halfWidth + (this.width / 2 - ((Math.max(...this.points.map(pt => pt.x)) - this.minX) / 2)) - (this.pixelSize / 2) + block.dx
-        const renderY = (p.y - this.minY) - halfHeight + (this.height / 2 - ((Math.max(...this.points.map(pt => pt.y)) - this.minY) / 2)) - (this.pixelSize / 2) + block.dy
-
-        ctx.fillRect(renderX, renderY, this.pixelSize, this.pixelSize)
-      }
+      ctx.drawImage(this.stampCanvas, renderX, renderY)
     }
   }
 
@@ -239,7 +231,8 @@ export class PixelStroke extends FabricObject {
       'top',
       'points',
       'pixelSize',
-      'brushTip',
+      'stampDataUrl',
+      'stampSize',
       'minX',
       'minY',
       ...additionalProperties
@@ -247,7 +240,20 @@ export class PixelStroke extends FabricObject {
   }
 
   static async fromObject(object: any) {
+    if (object.stampDataUrl && !object.stampCanvas) {
+      const img = await fabric.util.loadImage(object.stampDataUrl)
+
+      const canvas = document.createElement('canvas')
+      canvas.width = canvas.height = object.stampSize
+      canvas.getContext('2d')?.drawImage(img, 0, 0)
+
+      // Inject the newly created canvas back into the options object
+      object.stampCanvas = canvas
+    }
+
+    // 2. Proceed with normal enlivenment
     const enlivenedProps = await enlivenStrokeProps(object)
     return new PixelStroke(enlivenedProps)
   }
+
 }

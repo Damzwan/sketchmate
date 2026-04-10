@@ -1,7 +1,7 @@
 <template>
   <div
     @click="handleTap"
-    class="fixed inset-0 z-[100] cursor-pointer pointer-events-auto select-none"
+    class="fixed inset-0 z-[100] cursor-pointer pointer-events-auto select-none safe-area top-safe"
     style="font-family: 'Cabin Sketch', cursive;"
   >
     <div class="absolute inset-0 bg-slate-900/5" />

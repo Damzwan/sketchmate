@@ -130,7 +130,7 @@ export function generateCalligraphyImage(
 
   // Step 1: Calculate bounds first so we can size the offscreen canvas
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  const padding = 100 // Safe padding for pools, splatters, and wide nibs
+  const padding = baseWidth
 
   rawPoints.forEach(p => {
     if (p.x < minX) minX = p.x

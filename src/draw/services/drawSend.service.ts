@@ -79,7 +79,7 @@ export function useDrawSendService(c: () => Canvas | null) {
       message,
       aspect_ratio: aspect_ratio ?? 1,
       drawing: drawingData,
-      img: finalImg,
+      img: finalImg
     })
   }
 

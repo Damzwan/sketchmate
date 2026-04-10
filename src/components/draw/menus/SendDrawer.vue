@@ -89,7 +89,8 @@ import { computeBounds } from '@/draw/helpers/export.helper'
 const { sendMenuOpen } = storeToRefs(useMenuStore())
 const { user } = storeToRefs(useAuthStore())
 const { send, getCanvas, getAspectRatio } = useDrawStore()
-const { isCanvasInit } = storeToRefs(useDrawStore()) // TODO let us be more clever about this
+const { isCanvasInit, isSendingDrawing } = storeToRefs(useDrawStore()) // TODO let us be more clever about this
+
 
 // ---- Composables ----
 const { selected, toggle, count, reset } = useMateSelection()
@@ -104,8 +105,10 @@ if (isNative()) {
 
 // ---- Modal actions ----
 function onDismiss() {
-  reset()
-  resetPreview()
+  if (!isSendingDrawing.value) {
+    reset()
+    resetPreview()
+  }
   sendMenuOpen.value = false
 }
 
@@ -118,9 +121,23 @@ async function onCropCompleted(event: any) {
 }
 
 async function onSendClick() {
-  const data = await getDataToSend()
-  send(Array.from(selected.value), data)
-  modalController.dismiss()
+  isSendingDrawing.value = true
+  await modalController.dismiss()
+
+  //  DEFER: Use requestAnimationFrame or a 0ms timeout to ensure the modal's "closing" animation is finished before the CPU spikes.
+  await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)))
+
+  try {
+    const processedData = await getDataToSend()
+    const sendCopy = Array.from(selected.value)
+    reset()
+    resetPreview()
+    await send(sendCopy, processedData)
+  } catch (error) {
+    console.error('Sketch send failed:', error)
+  } finally {
+    onDismiss()
+  }
 }
 </script>
 

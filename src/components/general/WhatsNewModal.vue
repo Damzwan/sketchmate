@@ -131,6 +131,7 @@ ion-modal.whats-new-modal {
   --border-radius: 28px;
 }
 
+
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -141,7 +142,7 @@ ion-modal.whats-new-modal {
 }
 
 .bg-background {
-  border-radius: inherit;
+  border-radius: 28px;
   border: 3px solid var(--ion-color-secondary); /* Thicker for the 'sketch' feel */
 }
 </style>

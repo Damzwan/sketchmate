@@ -2,12 +2,12 @@
   <div
     v-if="uiStore.isMiniMapOpen"
     ref="el"
-    class="fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 select-none touch-none overflow-hidden"
+    class="fixed z-[9999] bg-white rounded-xl shadow-2xl select-none touch-none overflow-hidden"
     :style="style"
   >
     <div
       ref="handle"
-      class="flex items-center justify-between px-3 py-2.5 bg-gray-50 border-b border-gray-200 cursor-grab active:cursor-grabbing"
+      class="flex items-center justify-between px-3 py-2.5 bg-primary border-b cursor-grab active:cursor-grabbing"
     >
       <div class="flex items-center pointer-events-none text-[10px] font-extrabold tracking-wider text-gray-500 uppercase">
         <span class="mr-2 text-sm text-gray-400">⠿</span> MINIMAP

@@ -70,7 +70,13 @@ function emptyCanvasImage(c: Canvas) {
   return { img: c.toDataURL(), aspect_ratio: 1 }
 }
 
-export async function exportBoundingBoxImage(canvas: Canvas): Promise<{ img: string, aspect_ratio: number } | null> {
+export async function exportBoundingBoxImage(
+  canvas: Canvas,
+  options: { maxSize?: number; asBuffer?: boolean; quality?: number } = {}
+): Promise<{ img: string | ArrayBuffer, aspect_ratio: number } | null> {
+  // Set defaults: 2000px for normal saves, but we can override for thumbnails
+  const { maxSize = 2000, asBuffer = false, quality = 0.8 } = options
+
   const objects = canvas?.getObjects()
   if (!canvas || !objects || objects.length === 0) return emptyCanvasImage(canvas)
 
@@ -97,8 +103,8 @@ export async function exportBoundingBoxImage(canvas: Canvas): Promise<{ img: str
 
   if (width <= 0 || height <= 0) return emptyCanvasImage(canvas)
 
-  const maxPreviewTarget = 2000
-  const scale = Math.min(maxPreviewTarget / width, maxPreviewTarget / height)
+  // Use the passed-in maxSize
+  const scale = Math.min(maxSize / width, maxSize / height)
 
   const exportWidth = width * scale
   const exportHeight = height * scale
@@ -131,14 +137,24 @@ export async function exportBoundingBoxImage(canvas: Canvas): Promise<{ img: str
 
   // OFF-THREAD ENCODING
   return new Promise((resolve) => {
-    nativeCanvas.toBlob((blob) => {
+    nativeCanvas.toBlob(async (blob) => {
       if (!blob) return resolve(null)
 
-      resolve({
-        img: URL.createObjectURL(blob),
-        aspect_ratio: width / height
-      })
-    }, 'image/webp', 0.8)
+      // If requested for the server, return an ArrayBuffer
+      if (asBuffer) {
+        const buffer = await blob.arrayBuffer()
+        resolve({
+          img: buffer,
+          aspect_ratio: width / height
+        })
+      } else {
+        // Otherwise, return the local UI string like before
+        resolve({
+          img: URL.createObjectURL(blob),
+          aspect_ratio: width / height
+        })
+      }
+    }, 'image/webp', quality) // Use dynamic quality
   })
 }
 

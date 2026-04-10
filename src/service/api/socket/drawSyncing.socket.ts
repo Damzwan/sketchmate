@@ -12,6 +12,7 @@ import { ToastDuration } from '@/types/toast.types'
 import { getDateOfBirthConfirmationResponse } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
+import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   socket.on('room-joined', async ({ roomId, users, isCreator, sessionId }) => {
@@ -92,6 +93,28 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       sizeKB: Math.round(sizeKB),
       snapshotSequenceId,
       isBackgroundUpdate
+    })
+  })
+
+  socket.on('request-lobby-thumbnail', async () => {
+    const { getCanvas } = useDrawStore()
+    const { roomId } = useDrawSyncer()
+    const canvas = getCanvas()
+    if (!canvas || !roomId) return
+
+    // 1. Generate a small, highly compressed buffer specifically for the network
+    const result = await exportBoundingBoxImage(canvas, {
+      maxSize: 400, // Small dimensions for a thumbnail
+      asBuffer: true,
+      quality: 0.6
+    })
+
+    if (!result) return
+
+    socket.emit('send-lobby-thumbnail', {
+      thumbnailBuffer: result.img,
+      aspectRatio: result.aspect_ratio,
+      roomId
     })
   })
 

@@ -86,7 +86,7 @@ export async function exportBoundingBoxImage(canvas: Canvas): Promise<{ img: str
     maxY = Math.max(maxY, bound.top + bound.height)
   })
 
-  const padding = 10
+  const padding = 50
   minX -= padding
   minY -= padding
   maxX += padding

@@ -19,6 +19,7 @@ import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { interactiveObjectInspector } from '@/utils/fabricDebug'
 import { StaticCanvas } from 'fabric'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { computeBounds } from '@/draw/helpers/export.helper'
 
 export const useDrawStore = defineStore('draw', () => {
     const canvasSvc = useCanvasService()
@@ -126,6 +127,13 @@ export const useDrawStore = defineStore('draw', () => {
       drawHistory.reset()
     }
 
+    function getAspectRatio(): number {
+      const c = canvasSvc.getCanvas()
+      if (!c) return 0
+      const bounds = computeBounds(c.getObjects())
+      return bounds.width / bounds.height
+    }
+
 
     return {
       isModal,
@@ -145,7 +153,8 @@ export const useDrawStore = defineStore('draw', () => {
       startSaving: progressSaver.startSaving,
       restoreLocalCanvas,
       isCanvasInit,
-      clearSavedCanvas: progressSaver.clear
+      clearSavedCanvas: progressSaver.clear,
+      getAspectRatio
     }
   }
 )

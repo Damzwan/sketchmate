@@ -1,27 +1,25 @@
 <template>
-  <div class="flex flex-col items-center justify-center mb-4">
+  <div class="flex flex-col items-center justify-center mb-6 w-full">
     <div
-      class="relative w-full max-w-44 max-h-44 group mx-auto flex items-center justify-center"
-      :style="{ aspectRatio: newAspectRatio || props.aspectRatio }"
+      class="relative flex items-center justify-center rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer"
+      :style="{
+        aspectRatio: newAspectRatio || props.aspectRatio,
+        width: `min(11rem, calc(11rem * ${newAspectRatio || props.aspectRatio}))`
+      }"
+      @click="openModal"
     >
-      <div
-        v-if="!isLoaded"
-        class="absolute inset-0 z-10 rounded-lg shadow overflow-hidden"
-      >
+      <div v-if="!isLoaded" class="absolute inset-0 z-20">
         <ion-skeleton-text :animated="true" class="w-full h-full m-0" />
       </div>
 
-      <div
-        v-show="props.src && isLoaded"
-        class="relative w-full h-full transition-opacity duration-300"
-      >
-        <img
-          :src="newPreview || props.src"
-          @load="isLoaded = true"
-          @click="openModal"
-          class="w-full h-full object-contain rounded-lg cursor-pointer shadow hover:opacity-90 transition-opacity"
-        />
-      </div>
+      <img
+        v-show="props.src || newPreview"
+        :src="newPreview || props.src"
+        @load="isLoaded = true"
+        class="w-full h-full object-cover block transition-opacity duration-500"
+        :class="isLoaded ? 'opacity-100' : 'opacity-0'"
+        alt="Canvas Preview"
+      />
     </div>
 
     <ion-button
@@ -30,7 +28,7 @@
       size="small"
       color="secondary"
       @click="openModal"
-      class="mt-8"
+      class="mt-4 font-semibold"
     >
       <IonIcon slot="end" :icon="svg(mdiCrop)" class="ml-2 w-4 h-4" />
       Crop Image
@@ -120,6 +118,7 @@ const openModal = () => (isOpen.value = true)
 watch(
   () => [props.src],
   ([]) => {
+    if (!props.src) newAspectRatio.value = undefined
     isLoaded.value = false
   }
 )

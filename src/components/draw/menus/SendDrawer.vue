@@ -20,7 +20,7 @@
         :newPreview="newPreview"
         :src="preview"
         @crop-completed="onCropCompleted"
-        :aspectRatio="getCanvas().height/getCanvas().width"
+        :aspectRatio="getAspectRatio()"
       />
 
       <SendBalloonBanner :getDataToSend="getDataToSend" />
@@ -83,11 +83,12 @@ import { useCanvasPreview } from '@/draw/services/useCanvasPreview'
 
 // @ts-ignore
 import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
+import { computeBounds } from '@/draw/helpers/export.helper'
 
 // ---- Stores ----
 const { sendMenuOpen } = storeToRefs(useMenuStore())
 const { user } = storeToRefs(useAuthStore())
-const { send, getCanvas } = useDrawStore()
+const { send, getCanvas, getAspectRatio } = useDrawStore()
 const { isCanvasInit } = storeToRefs(useDrawStore()) // TODO let us be more clever about this
 
 // ---- Composables ----

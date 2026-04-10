@@ -92,13 +92,12 @@ watchEffect(() => {
     setTimeout(() => {
       if (!user.value) return
       isOpen.value = true
-
-      user.value.last_seen_version = appVersion
-      void api.updateUser({
-        _id: user.value._id,
-        last_seen_version: appVersion
-      })
     }, 2000)
+    user.value.last_seen_version = appVersion
+    void api.updateUser({
+      _id: user.value._id,
+      last_seen_version: appVersion
+    })
   }
 })
 </script>

@@ -12,7 +12,6 @@ import { ToastDuration } from '@/types/toast.types'
 import { getDateOfBirthConfirmationResponse } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
-import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   socket.on('room-joined', async ({ roomId, users, isCreator, sessionId }) => {
@@ -54,16 +53,22 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     })
   })
 
-  socket.on('join-error', async ({ reason }) => {
+  socket.on('join-error', async ({ reason, message }) => {
     const { toast } = useToast()
 
-    if (reason === 'ROOM_FULL') toast(`Room is full, try again later`, { color: 'danger' })
-    else if (reason === 'ROOM_NOT_FOUND') {
+    // 1. Handle predefined technical codes
+    if (reason === 'ROOM_FULL') {
+      toast(`Room is full, try again later`, { color: 'danger' })
+    } else if (reason === 'ROOM_NOT_FOUND') {
       removeRoomIdFromUrl()
       toast(`Room does not exist`, { color: 'danger' })
     } else if (reason === 'DOUBLE_JOIN') {
       toast('Joined from another device', { color: 'danger' })
-    } else toast(`Unknown error, try again later`, { color: 'danger' })
+    } else if (reason && message) {
+      toast(message, { color: 'danger', duration: ToastDuration.long })
+    } else {
+      toast(`Unknown error: ${reason || 'Connection failed'}`, { color: 'danger' })
+    }
 
     leaveRoom(true)
   })
@@ -244,8 +249,6 @@ export function leaveRoom(skipEmit = false) {
   lobbyChatMessages.value = []
   lastProcessedSequenceId.value = undefined // <-- Reset time on leave
 
-  console.log('leave')
-
   if (!skipEmit) socket!.emit('leave-room', { roomId: roomId.value })
   roomId.value = undefined
 
@@ -265,7 +268,6 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
     const { toast } = useToast()
     toast('Operation too big, cancelled', { color: 'danger', duration: ToastDuration.long })
     const { silentUndo, silentRedo, lastActionType } = useDrawHistoryManager()
-    const { actionWithoutEvents } = useDrawEventManager()
 
     if (lastActionType === 'redo' || lastActionType === 'normal') {
       silentUndo()

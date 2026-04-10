@@ -226,7 +226,7 @@ export function createSocketService(): SocketAPI {
   }
 
   async function login(params: SocketLoginParams): Promise<void> {
-    socket!.emit(SOCKET_ENDPONTS.login, params)
+    socket!.emit(SOCKET_ENDPONTS.login, {...params, version: __APP_VERSION__})
   }
 
 

@@ -66,9 +66,13 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
   })
 }
 
+function emptyCanvasImage(c: Canvas) {
+  return { img: c.toDataURL(), aspect_ratio: 1 }
+}
+
 export async function exportBoundingBoxImage(canvas: Canvas): Promise<{ img: string, aspect_ratio: number } | null> {
   const objects = canvas?.getObjects()
-  if (!canvas || !objects || objects.length === 0) return null
+  if (!canvas || !objects || objects.length === 0) return emptyCanvasImage(canvas)
 
   // 1. CALCULATE ABSOLUTE BOUNDS
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -91,7 +95,7 @@ export async function exportBoundingBoxImage(canvas: Canvas): Promise<{ img: str
   const width = maxX - minX
   const height = maxY - minY
 
-  if (width <= 0 || height <= 0) return null
+  if (width <= 0 || height <= 0) return emptyCanvasImage(canvas)
 
   const maxPreviewTarget = 2000
   const scale = Math.min(maxPreviewTarget / width, maxPreviewTarget / height)
@@ -103,7 +107,7 @@ export async function exportBoundingBoxImage(canvas: Canvas): Promise<{ img: str
   nativeCanvas.width = exportWidth
   nativeCanvas.height = exportHeight
   const ctx = nativeCanvas.getContext('2d', { alpha: true })
-  if (!ctx) return null
+  if (!ctx) return emptyCanvasImage(canvas)
 
   ctx.fillStyle = canvas.backgroundColor as any
   ctx.fillRect(0, 0, nativeCanvas.width, nativeCanvas.height)

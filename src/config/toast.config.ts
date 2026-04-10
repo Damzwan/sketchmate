@@ -5,9 +5,11 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useMenuStore } from '@/store/menu.store'
 import { Menu } from '@/draw/types/draw.types'
 import { storeToRefs } from 'pinia'
-import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
+import { inviteFriendToRoom, socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { ToastDuration } from '@/types/toast.types'
+import { generateRandomCode } from '@/helper/general.helper'
+import { useAuthStore } from '@/store/auth.store'
 
 const { dismiss } = useToast()
 
@@ -46,12 +48,27 @@ export const balloonButton: ToastButton = {
 }
 
 export const matchBalloonButton: ToastButton = {
-  text: 'View',
+  text: 'Draw Together',
   handler: () => {
-    router.push(FRONTEND_ROUTES.connect)
+    router.push(FRONTEND_ROUTES.draw)
     const { openMenu } = useMenuStore()
     setTimeout(() => {
-      openMenu(Menu.ReceiveBalloon)
+      openMenu(Menu.DrawRoomMenu)
+      const { roomId } = useDrawSyncer()
+      const { user } = useAuthStore()
+      if (!user || user.mates.length === 0) return
+      const newmate = user.mates[user.mates.length - 1]
+      if (!roomId) {
+        socketJoinRoom({ roomId: generateRandomCode(), intent: 'create' })
+        setTimeout(() => {
+          const { roomId: newRoomId } = useDrawSyncer()
+          if (!newRoomId) return
+          inviteFriendToRoom(newmate._id, newRoomId)
+        }, 1000)
+      }
+      else {
+        inviteFriendToRoom(newmate._id, roomId)
+      }
     }, 500)
   },
   cssClass: 'secondary'

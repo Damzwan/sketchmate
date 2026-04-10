@@ -3,7 +3,6 @@
     :initial-breakpoint="1"
     :breakpoints="[1]"
     @willDismiss="onDismiss"
-    @willPresent="onPresent"
     :is-open="sendBalloonModalOpen"
     :handle="false"
   >
@@ -139,9 +138,9 @@ enum State {
 const { toast } = useToast()
 const { user, shouldShowDateOfBirthConfirmation } = storeToRefs(useAuthStore())
 const { sentBalloon, receivedBalloon } = storeToRefs(useBalloonStore())
+const balloonStore = useBalloonStore()
 const { sendBalloonModalOpen } = storeToRefs(useMenuStore())
 const { openMenu } = useMenuStore()
-const { cancelBalloon } = useSocketService()
 const drawStore = useDrawStore()
 
 
@@ -206,17 +205,11 @@ function onDismiss() {
 
 function cancelBalloonHelper() {
   if (!user.value?.balloon?.sent) return
-  cancelBalloon({ user_id: user.value!._id, balloon_id: user.value!.balloon!.sent })
+  balloonStore.cancelSent()
   user.value!.balloon = undefined
-  receivedBalloon.value = undefined
-  sentBalloon.value = undefined
   state.value = State.create
 }
 
-
-function onPresent() {
-  performRoomExit()
-}
 
 </script>
 

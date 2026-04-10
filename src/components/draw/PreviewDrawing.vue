@@ -30,7 +30,7 @@
       size="small"
       color="secondary"
       @click="openModal"
-      class="mt-1"
+      class="mt-8"
     >
       <IonIcon slot="end" :icon="svg(mdiCrop)" class="ml-2 w-4 h-4" />
       Crop Image

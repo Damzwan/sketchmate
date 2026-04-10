@@ -11,6 +11,7 @@
 
     <DrawModal />
     <Confetti/>
+    <ReceivedBalloon/>
 
 
   </ion-app>
@@ -33,6 +34,7 @@ import DrawModal from '@/components/draw/DrawModal.vue'
 import WhatsNewModal from '@/components/general/WhatsNewModal.vue'
 import Confetti from '@/components/subscription/Confetti.vue'
 import { useActiveViewSync } from '@/service/activeViewSync'
+import ReceivedBalloon from '@/components/connect/balloon/ReceivedBalloon.vue'
 
 const ionRouter = useIonRouter()
 const { initIonRouter } = useAuthStore()

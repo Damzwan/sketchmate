@@ -1,16 +1,13 @@
 import { io, Socket } from 'socket.io-client'
 import {
   AcceptBalloonParams,
-  AcceptBalloonRes,
   CancelBalloonParams,
   CommentParams,
   CommentRes,
   InboxItem,
-  MatchBalloonRes,
   MatchParams,
   MatchRes,
   Mate,
-  RejectBalloonRes,
   Res,
   SendMateRequestParams,
   SendParams,
@@ -22,14 +19,7 @@ import {
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
-import {
-  balloonButton,
-  dismissButton,
-  matchBalloonButton,
-  matchButton,
-  viewDrawingButton,
-  viewMateRequestButton
-} from '@/config/toast.config'
+import { dismissButton, matchButton, viewDrawingButton, viewMateRequestButton } from '@/config/toast.config'
 import { ToastDuration } from '@/types/toast.types'
 import { useAPI } from '@/service/api/api.service'
 import { showFeedbackMilestones } from '@/config/general.config'
@@ -41,7 +31,6 @@ import { useBalloonStore } from '@/store/balloon.store'
 import { useFriendStore } from '@/store/friend.store'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { registerDrawSyncingHandlers } from '@/service/api/socket/drawSyncing.socket'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 export let socket: Socket | undefined
 
@@ -57,7 +46,6 @@ export function useSocketService(): SocketAPI {
 }
 
 export function createSocketService(): SocketAPI {
-  const { refresh } = useAuthStore()
   const { addComment } = useInboxStore()
   const {
     user,
@@ -65,7 +53,6 @@ export function createSocketService(): SocketAPI {
     isLoggedIn
   } = storeToRefs(useAuthStore())
   const { inbox } = storeToRefs(useInboxStore())
-  const { sentBalloon, receivedBalloon } = storeToRefs(useBalloonStore())
   const { friendRequestUsers, friendRequestLoading } = storeToRefs(useFriendStore())
   const { toast } = useToast()
 
@@ -81,6 +68,8 @@ export function createSocketService(): SocketAPI {
     })
 
     registerDrawSyncingHandlers(socket)
+    const { setupSocketListeners } = useBalloonStore()
+    setupSocketListeners()
 
     socket.io.on('reconnect', () => {
       if (!user.value?._id) return
@@ -228,84 +217,6 @@ export function createSocketService(): SocketAPI {
       }
     })
 
-    socket.on(SOCKET_ENDPONTS.accept_balloon, (params: AcceptBalloonRes) => {
-      if (params.isMatch) {
-        toast('You both accepted each other\'s balloon', { duration: ToastDuration.long })
-        user.value!.balloon = {}
-        refresh() // TODO kind of ugly no?
-
-        sentBalloon.value = undefined
-        receivedBalloon.value = undefined
-        return
-      }
-
-      if (params.acceptor !== user.value!._id) {
-        toast('A stranger accepted your balloon, accept theirs to start drawing together', {
-          duration: ToastDuration.long,
-          buttons: [balloonButton]
-        })
-      }
-    })
-
-    socket.on(SOCKET_ENDPONTS.refuse_balloon, (params: RejectBalloonRes) => {
-      if (params.refuser === user.value!._id) {
-        toast('Refused balloon, you will be matched to another stranger', { duration: ToastDuration.long })
-      } else {
-        if (user.value && user.value.balloon) user.value.balloon.received = undefined
-        receivedBalloon.value = undefined
-
-        toast('A stranger refused your balloon, you will be matched to another stranger', {
-          duration: ToastDuration.long,
-          color: 'warning'
-        })
-      }
-    })
-
-    socket.on(SOCKET_ENDPONTS.cancel_balloon, (params: RejectBalloonRes) => {
-      if (params.refuser === user.value!._id) {
-        toast('Cancelled balloonr', { duration: ToastDuration.long })
-      } else {
-        if (user.value && user.value.balloon) user.value.balloon.received = undefined
-        receivedBalloon.value = undefined
-
-        toast('A stranger refused your balloon, you will be matched to another stranger', {
-          duration: ToastDuration.long,
-          color: 'warning'
-        })
-      }
-    })
-
-    socket.on(SOCKET_ENDPONTS.match_balloon, (params: MatchBalloonRes) => {
-      if (!params.received_balloon) {
-        console.error('Received balloon is null')
-        return
-      }
-      receivedBalloon.value = params.received_balloon
-      if (user.value?.balloon) user.value.balloon.received = params.received_balloon._id
-      toast('You have received a balloon from a stranger', {
-        duration: ToastDuration.long,
-        buttons: [matchBalloonButton]
-      })
-
-    })
-
-    socket.on(SOCKET_ENDPONTS.balloon_match_expired, () => {
-      receivedBalloon.value = undefined
-      if (user.value?.balloon) user.value.balloon.received = undefined
-      toast('Your balloon has expired, you will be matched to another stranger', {
-        duration: ToastDuration.long,
-        color: 'warning'
-      })
-    })
-
-    socket.on(SOCKET_ENDPONTS.balloon_expired, () => {
-      sentBalloon.value = undefined
-      if (user.value?.balloon) user.value.balloon.sent = undefined
-      toast('Your balloon has expired, create another one!', {
-        duration: ToastDuration.long,
-        color: 'warning'
-      })
-    })
 
   }
 
@@ -384,17 +295,6 @@ export function createSocketService(): SocketAPI {
     socket!.emit(SOCKET_ENDPONTS.refuse_mate_request, params)
   }
 
-  async function acceptBalloon(params: AcceptBalloonParams): Promise<void> {
-    socket!.emit(SOCKET_ENDPONTS.accept_balloon, params)
-  }
-
-  async function rejectBalloon(params: AcceptBalloonParams): Promise<void> {
-    socket!.emit(SOCKET_ENDPONTS.refuse_balloon, params)
-  }
-
-  async function cancelBalloon(params: CancelBalloonParams): Promise<void> {
-    socket!.emit(SOCKET_ENDPONTS.cancel_balloon, params)
-  }
 
   return {
     connect,
@@ -406,9 +306,6 @@ export function createSocketService(): SocketAPI {
     comment,
     sendMateRequest,
     cancelSendMateRequest,
-    refuseSendMateRequest,
-    acceptBalloon,
-    rejectBalloon,
-    cancelBalloon
+    refuseSendMateRequest
   }
 }

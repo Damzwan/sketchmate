@@ -32,20 +32,9 @@
 
             <ProfileCustomization />
 
-            <div class="p-6 text-gray-500 text-sm mx-auto flex flex-col items-center justify-center">
-              <p class="text-lg -ml-12">Enable notifications to:</p>
-              <div>
-                <ul class="list-disc list-inside">
-                  <li>Receive sketches from your friends</li>
-                  <li v-if="isNative()">Get daily reminders</li>
-                  <li v-if="isNative()">Use the SketchMate widget</li>
-                </ul>
-              </div>
-            </div>
+            <SettingSwitches class="my-4" />
 
-            <NotificationSwitch />
-
-            <div class="w-full flex justify-center items-center">
+            <div class="w-full flex justify-center items-center mt-4">
               <ConfirmationAlert header="Remove subscription"
                                  message="You will no longer receive notifications on this device"
                                  v-model:isOpen="deleteSubscriptionAlertOpen" confirmationtext="Delete"
@@ -83,7 +72,6 @@ import {
   IonButton,
   IonButtons,
   IonContent,
-  IonHeader,
   IonIcon,
   IonItem,
   IonLabel,
@@ -104,7 +92,7 @@ import SettingLinks from '@/components/settings/SettingLinks.vue'
 import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
 import { NotificationSubscription } from '@/types/server.types'
 import ProfileCustomization from '@/components/account/ProfileCustomization.vue'
-import NotificationSwitch from '@/components/general/NotificationSwitch.vue'
+import SettingSwitches from '@/components/general/SettingSwitches.vue'
 import UpgradeAccountModal from '@/components/settings/UpgradeAccountModal.vue'
 import SupporterCard from '@/components/subscription/SupporterCard.vue'
 import SubscriptionCard from '@/components/subscription/SubscriptionCard.vue'

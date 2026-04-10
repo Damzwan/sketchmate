@@ -436,3 +436,8 @@ export async function initBilling() {
     console.error('Error configuring RevenueCat:', error)
   }
 }
+
+export function generateRandomCode() {
+  const code = Math.floor(Math.random() * 10000)
+  return String(code).padStart(4, '0')
+}

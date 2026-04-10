@@ -6,7 +6,7 @@
       <SettingsHeader title="My Mates" />
       <ion-toolbar color="tertiary">
         <ion-segment :value="segment" mode="md"
-                     @ionChange="(e) => segment = e.detail.value" color="secondary">
+                     @ionChange="(e) => segment = e.detail.value as any" color="secondary">
           <ion-segment-button :value="Segments.friends">
             <ion-label>My mates {{ user?.mates.length > 0 ? `(${user?.mates.length})` : '' }}</ion-label>
           </ion-segment-button>
@@ -50,7 +50,7 @@
 
 
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 p-2">
-            <button v-for="mate of user!.mates" :key="mate" @click="openUnMatchSheet(mate)"
+            <button v-for="mate of user!.mates" :key="mate._id" @click="openUnMatchSheet(mate)"
                     class="hover:bg-primary-shade border-secondary-light border-2 bg-primary col-span-1 shadow rounded-2xl">
               <ConnectUserItem :mate="mate" />
             </button>
@@ -143,7 +143,6 @@
 
       <SearchNameModal />
       <SendBalloonModal />
-      <ReceiveBalloonModal />
 
     </ion-content>
     <QRPage v-model:open="showQRPage" :_id="user._id" :img="user.img" :name="user.name" v-if="user"
@@ -197,7 +196,6 @@ import { Menu } from '@/draw/types/draw.types'
 import { useSessionStore } from '@/store/session.store'
 import { useFriendStore } from '@/store/friend.store'
 import BalloonBanner from '@/components/connect/balloon/BalloonBanner.vue'
-import ReceiveBalloonModal from '@/components/connect/balloon/ReceiveBalloonModal.vue'
 import SendBalloonModal from '@/components/connect/balloon/SendBalloonModal.vue'
 import SubscriptionCard from '@/components/subscription/SubscriptionCard.vue'
 import CollaborativeDrawingBanner from '@/components/connect/balloon/CollaborativeDrawingBanner.vue'

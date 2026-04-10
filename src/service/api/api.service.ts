@@ -215,7 +215,7 @@ export const useAPI = createGlobalState((): API => {
   }
 
   async function createBalloon(params: CreateBalloonPostParams): Promise<Res<CreateBalloonPostRes>> {
-    const url = `${baseUrl}${ENDPOINTS.balloon}`
+    const url = `${baseUrl}${ENDPOINTS.balloon}/v2`
 
     // prepare files
     const pako = await import('pako')
@@ -265,6 +265,7 @@ export const useAPI = createGlobalState((): API => {
     await fetch(url, { method: REQUEST_TYPES.PUT, body: JSON.stringify(params) })
   }
 
+
   return {
     getUser,
     subscribe,
@@ -286,6 +287,6 @@ export const useAPI = createGlobalState((): API => {
     searchMate,
     createBalloon,
     getBalloon,
-    updateUser
+    updateUser,
   }
 })

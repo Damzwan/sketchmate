@@ -56,6 +56,8 @@ export interface User {
   balloon?: {
     sent?: string,
     received?: string,
+    disabled?: boolean,
+    last_received_at?: Date,
   };
   date_of_birth?: Date;
   last_seen_version?: string;
@@ -78,6 +80,7 @@ export interface Balloon {
   pairedUser?: string,
   pairedBalloon?: string,
   cancelledBalloons: string[]
+  version?: number
 }
 
 export interface CreateBalloonPostParams {
@@ -86,6 +89,7 @@ export interface CreateBalloonPostParams {
   drawing: string,
   img: any,
   aspect_ratio: number,
+  version?: number
 }
 
 export interface CreateBalloonPostRes {
@@ -351,12 +355,6 @@ export interface SocketAPI {
   cancelSendMateRequest(params: SendMateRequestParams): Promise<void>;
 
   refuseSendMateRequest(params: SendMateRequestParams): Promise<void>;
-
-  acceptBalloon(params: AcceptBalloonParams): Promise<void>;
-
-  rejectBalloon(params: AcceptBalloonParams): Promise<void>;
-
-  cancelBalloon(params: CancelBalloonParams): Promise<void>;
 }
 
 export enum ENDPOINTS {
@@ -381,11 +379,24 @@ export enum SOCKET_ENDPONTS {
   mate_request = 'mate_request',
   cancel_mate_request = 'cancel_mate_request',
   refuse_mate_request = 'refuse_mate_request',
+
+  // Balloon Events
   accept_balloon = 'accept_balloon',
-  refuse_balloon = 'refuse_balloon ',
-  cancel_balloon = 'cancel-balloon ',
-  match_balloon = 'match-balloon ',
-  balloon_match_expired = 'balloon-match-expired ',
+  refuse_balloon = 'refuse_balloon',
+  cancel_balloon = 'cancel-balloon',
+  match_balloon = 'match-balloon',
+  balloon_match_expired = 'balloon-match-expired',
   balloon_expired = 'balloon-expired ',
-  friend_invitation = 'friend-invitation ',
+
+  // NEW v2 Events
+  receive_new_balloon = 'receive_new_balloon', // Triggers the UI popup for v2
+  balloon_missed = 'balloon_missed',           // Triggers UI close when hot potato timer ends
+  v2_accept_balloon = 'v2_accept_balloon',
+  v2_refuse_balloon = 'v2_refuse_balloon',
+  v2_cancel_balloon = 'v2_cancel_balloon',
+  balloon_check = 'balloon_check',
+
+  // Collaborative drawing
+  friend_invitation = 'friend-invitation',
+
 }

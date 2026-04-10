@@ -1,56 +1,7 @@
 <template>
   <div class="mx-2">
-    <!-- Case: received a balloon -->
     <div
-      v-if="user && user.balloon && receivedBalloon && receivedBalloon.status==='accepted'"
-      class="card bg-green-400"
-    >
-      <div class="flex-1 pr-3">
-        <p class="cabin-sketch-regular text-xl font-bold">
-          You’ve accepted a balloon!
-        </p>
-        <p class="text-sm cabin-sketch-regular mt-1 text-gray-800">
-          The stranger hasn’t accepted yours yet — hang tight!
-        </p>
-
-        <ion-button
-          fill="outline"
-          color="dark"
-          class="mt-3"
-          @click="openBalloonMenu"
-        >
-          See your balloon
-        </ion-button>
-      </div>
-      <Lottie :json="balloonLottie" :loop="true" :speed="0.5" class="w-28 h-28" />
-      <Lottie :json="balloonLottie" :loop="true" :speed="0.5" class="w-28 h-28" />
-    </div>
-
-    <div
-      v-else-if="user && user.balloon && receivedBalloon"
-      class="card bg-green-400"
-    >
-      <div class="flex-1 pr-3">
-        <p class="cabin-sketch-regular text-xl font-bold"> A stranger sent you a balloon!</p>
-        <p class="text-sm cabin-sketch-regular mt-1 text-gray-800">
-          Open it to see their message and become mates.
-        </p>
-        <ion-button
-          fill="outline"
-          color="dark"
-          class="mt-3"
-          @click="openBalloonMenu"
-        >
-          Open Balloon
-        </ion-button>
-      </div>
-      <Lottie :json="balloonLottie" :loop="true" :speed="0.5"
-              class="w-28 h-28 animate-fade-down animate-duration-2000" />
-    </div>
-
-    <!-- Case: already sent a balloon -->
-    <div
-      v-else-if="user && user.balloon && user.balloon.sent && sentBalloon"
+      v-if="user && user.balloon && user.balloon.sent && sentBalloon"
       class="card bg-blue-400 "
     >
       <Lottie :json="balloonLottie" :loop="true" :speed="0.5" class="w-28 h-28 animate-flip-up" />
@@ -109,7 +60,7 @@ import { useToast } from '@/service/toast.service'
 
 const { openMenu } = useMenuStore()
 const { user } = storeToRefs(useAuthStore())
-const { sentBalloon, receivedBalloon } = storeToRefs(useBalloonStore())
+const { sentBalloon } = storeToRefs(useBalloonStore())
 
 function openBalloonMenu() {
   const { roomId } = useDrawSyncer()

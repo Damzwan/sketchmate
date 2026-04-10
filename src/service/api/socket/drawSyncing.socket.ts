@@ -156,7 +156,10 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     invitations.value = invitations.value.filter(inv => inv.friend._id === data.friend.id)
     invitations.value.push(data)
     const { toast } = useToast()
-    toast(`${data.friend.name} has invited you to draw`, { buttons: [createJoinRoomButton(data.roomId)] })
+    toast(`${data.friend.name} has invited you to draw`, {
+      buttons: [createJoinRoomButton(data.roomId)],
+      duration: ToastDuration.long
+    })
   })
 
   socket.on('lobby-message', async ({ message, member, timestamp, id }) => {

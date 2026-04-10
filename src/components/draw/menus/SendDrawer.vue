@@ -75,12 +75,14 @@ import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { svg, isNative } from '@/helper/general.helper'
 
-import SendBalloonBanner from '@/components/balloon/SendBalloonBanner.vue'
+import SendBalloonBanner from '@/components/connect/balloon/SendBalloonBanner.vue'
 import SendDrawerItem from '@/components/draw/SendDrawerItem.vue'
-import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
 
 import { useMateSelection } from '@/draw/services/useMateSelection'
 import { useCanvasPreview } from '@/draw/services/useCanvasPreview'
+
+// @ts-ignore
+import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
 
 // ---- Stores ----
 const { sendMenuOpen } = storeToRefs(useMenuStore())

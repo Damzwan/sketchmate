@@ -326,7 +326,7 @@ import {
   stopWatchingLobbies
 } from '@/service/api/socket/drawSyncing.socket'
 import { mdiAccountGroupOutline, mdiCamera, mdiShareVariant } from '@mdi/js'
-import { isNative, svg } from '@/helper/general.helper'
+import { generateRandomCode, isNative, svg } from '@/helper/general.helper'
 import { createRoomLink, shareUrl } from '@/helper/share.helper'
 import QrcodeVue from 'qrcode.vue'
 import { useSocketService } from '@/service/api/socket/socket.service'
@@ -375,10 +375,7 @@ function joinRoom(code: string) {
   socketJoinRoom({ roomId: code, intent: 'join' })
 }
 
-function generateRandomCode() {
-  const code = Math.floor(Math.random() * 10000)
-  return String(code).padStart(4, '0')
-}
+
 
 // Check if all 4 digits are filled
 const isCodeComplete = computed(() => {

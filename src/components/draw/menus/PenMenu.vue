@@ -15,7 +15,7 @@
       <!-- Brush Size Slider -->
       <div class="px-2 pt-1">
         <label for="slider">Stroke Width: {{ brushSize }}</label>
-        <ion-range aria-label="Volume" id="slider" v-model="brushSize" :min="2" :max="50" color="secondary" />
+        <ion-range aria-label="Volume" id="slider" v-model="brushSize" :min="0.1" :step="0.1" :max="50" color="secondary" />
       </div>
 
       <div class="px-2 pt-1">
@@ -155,7 +155,7 @@ const { selectTool } = useToolSelection()
 const { selectedTool } = storeToRefs(useToolSelection())
 const { brushSize, brushColor, brushType, opacity, density, dotWidth } = storeToRefs(usePen())
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore())
-const { useBrush, remainingUses } = useBrushTrial()
+const { useBrush } = useBrushTrial()
 const subStore = useSubscriptionStore()
 
 

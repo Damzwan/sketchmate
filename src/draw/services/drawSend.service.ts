@@ -32,7 +32,7 @@ export function useDrawSendService(c: () => Canvas | null) {
       const exported = await exportBoundingBoxImage(canvas)
       if (!exported) return // TODO necessary?
       aspect_ratio = exported.aspect_ratio
-      finalImg = await canvasToBuffer(exported.img)
+      finalImg = await canvasToBuffer(exported.img as any)
     }
 
     // Use provided JSON or stringify the current canvas
@@ -68,7 +68,7 @@ export function useDrawSendService(c: () => Canvas | null) {
       const exported = await exportBoundingBoxImage(canvas)
       if (!exported) return // TODO necessary?
       aspect_ratio = exported.aspect_ratio
-      finalImg = await canvasToBuffer(exported.img)
+      finalImg = await canvasToBuffer(exported.img as any)
     }
 
     const drawingData = JSON.stringify(optionalData?.canvas ?? canvas.toJSON())

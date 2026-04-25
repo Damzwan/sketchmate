@@ -250,7 +250,12 @@ export const useAuthStore = defineStore('auth', () => {
       return
     }
 
+    if (userValue.user.date_of_birth) {
+      userValue.user.date_of_birth = new Date(userValue.user.date_of_birth)
+    }
     user.value = userValue.user
+
+
     const { getInbox } = useInboxStore()
     await getInbox()
     if (e) e.target.complete()

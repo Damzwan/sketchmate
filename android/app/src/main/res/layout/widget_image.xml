@@ -2,45 +2,60 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#FFF2E4">
 
-    <LinearLayout
+    <RelativeLayout
         android:id="@+id/topRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
-        android:layout_marginStart="2dp"
-        android:layout_marginBottom="4dp"
-        android:orientation="horizontal">
+        android:padding="6dp"
+        android:background="#FAE0C2">
 
-        <ImageView
-            android:id="@+id/widget_image_avatar"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
-            android:src="@drawable/avatar" />
-
-        <TextView
-            android:id="@+id/widget_image_user"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:layout_marginStart="8dp"
-            android:text="Friend"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:orientation="horizontal">
 
-    </LinearLayout>
+            <ImageView
+                android:id="@+id/widget_image_avatar"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/avatar" />
+
+            <TextView
+                android:id="@+id/widget_image_user"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="8dp"
+                android:text="Friend"
+                android:textColor="#B9463A"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/widget_button_next"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:padding="4dp"
+            android:src="@android:drawable/ic_media_next"
+            android:tint="#B9463A" /> </RelativeLayout>
 
     <ImageView
         android:id="@+id/widget_image_drawing"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/topRow"
-        android:contentDescription="@string/add_widget"
-        android:cropToPadding="true"
-        android:scaleType="fitCenter"
+        android:contentDescription="Latest Sketchmate Drawing"
         android:src="@drawable/cat"
-        app:srcCompat="@drawable/cat" />
+        app:srcCompat="@drawable/cat"
+        android:scaleType="fitCenter" />
 
 </RelativeLayout>

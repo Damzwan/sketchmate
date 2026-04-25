@@ -58,7 +58,7 @@ function simplifyPath(points: number[][], tolerance: number): number[][] {
   return simplified
 }
 
-export async function bucketFill2(c: Canvas, p: Point, scale = 1) {
+export async function bucketFill(c: Canvas, p: Point, scale = 1) {
   const { brushColorWithOpacity } = usePen()
   const dpr = window.devicePixelRatio || 1
 

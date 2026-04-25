@@ -3,7 +3,7 @@
     <ion-content class="bg-background divide-y divide-primary">
       <div class="px-2 pt-1">
         <label for="slider">Eraser Size: {{ eraserSize }}</label>
-        <ion-range aria-label="Volume" id="slider" v-model="eraserSize" :min="1" :max="100" color="secondary" />
+        <ion-range aria-label="Volume" id="slider" v-model="eraserSize" :min="0.5" :step="0.5" :max="150" color="secondary" />
       </div>
       <ion-list lines="none" class="divide-y divide-primary" color="tertiary">
         <ion-item color="tertiary" :button="true" @click="clearAll">

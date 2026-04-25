@@ -637,7 +637,7 @@ export class CustomEraserBrush extends PencilBrush {
         },
         cancelable: true
       })
-    ) && this.commit({ path, targets })
+    )
 
     this.canvas.clearContext(this.canvas.contextTop)
 

@@ -17,6 +17,7 @@ import { canvasToBuffer } from '@/draw/helpers/export.helper'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { toJSON, toObjectsIds } from '@/draw/helpers/object.helper'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 
 export async function removeObjects(objects: FabricObject[]) {
@@ -34,6 +35,17 @@ export async function removeObjects(objects: FabricObject[]) {
 export async function removeSelectedObjects() {
   const { getSelectedObjects, unSelect } = useSelect()
   const selected = getSelectedObjects()
+
+  const { isPublicLobby } = useDrawSyncer()
+  if (isPublicLobby) {
+    const { user } = useAuthStore()
+    if (selected.find(o => o.userId !== user?._id)) {
+      const { toast } = useToast()
+      toast('Cannot deleted objects from other user', { color: 'warning' })
+      return
+    }
+  }
+
   unSelect()
   await removeObjects(selected)
 }
@@ -136,6 +148,13 @@ export async function copyObjects(params: DrawActionParams[DrawAction.CopyObject
   const { actionWithoutEvents } = useDrawEventManager()
   const c = getCanvas()
 
+  if (params.objects.length > 200){
+    const {toast} = useToast()
+    toast("Cannot copy more than 200 objects", {color: 'warning'})
+    return
+  }
+
+
   const offsetX = 10
   const offsetY = 10
 
@@ -160,6 +179,8 @@ export async function copyObjects(params: DrawActionParams[DrawAction.CopyObject
       clonedObjects.length == 1 ? clonedObjects[0] : new ActiveSelection(clonedObjects, { canvas: c })
 
     c.setActiveObject(newActiveObject)
+    c.clearContext(c.getTopContext())
+    newActiveObject._renderControls(c.getTopContext())
   }
 
   c.requestRenderAll()
@@ -211,6 +232,8 @@ export async function mergeObjects(params: DrawActionParams[DrawAction.Merge]) {
   if (!createdGroup) return
 
   c.setActiveObject(createdGroup)
+  c.clearContext(c.getTopContext())
+  createdGroup._renderControls(c.getTopContext())
 
   c.fire('objectsMerged', {
     objectIds: [createdGroup.id],
@@ -275,7 +298,6 @@ export async function flipYObjects(params: DrawActionParams[DrawAction.FlipX]) {
 
 export async function unselectObjects() {
   const { unSelect } = useSelect()
-  unSelect()
   unSelect()
 }
 

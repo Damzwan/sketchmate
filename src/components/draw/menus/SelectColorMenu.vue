@@ -2,7 +2,7 @@
   <ion-popover @didDismiss="onDismiss" :showBackdrop="false" @willPresent="onPresent" :is-open="selectColorMenuOpen"
                :event="menuEvent">
     <ion-content class="divide-y divide-primary">
-      <div class="px-2 pt-1 bg-background">
+      <div class="px-2 pt-1 bg-background" v-if="!isGroup">
         <label for="slider">Stroke Width: {{ strokeWidth }}</label>
         <ion-range
           id="slider"
@@ -14,7 +14,7 @@
         />
       </div>
       <ion-list lines="none" class="p-0 divide-y divide-primary">
-        <ion-item color="tertiary" :button="true" id="stroke" v-if="strokeColor != 'pattern'">
+        <ion-item color="tertiary" :button="true" id="stroke" v-if="strokeColor != 'pattern' && !isGroup" >
           <ion-icon :icon="svg(mdiBorderColor)" />
           <p class="pl-2 text-base">Stroke Color</p>
           <div
@@ -43,7 +43,7 @@
           </ion-popover>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" id="fill">
+        <ion-item color="tertiary" :button="true" id="fill" v-if="!isGroup">
           <ion-icon :icon="svg(mdiFormatColorFill)" />
           <p class="pl-2 text-base">Fill Color</p>
           <div slot="end" v-show="fillColor" class="flex items-center -mr-2">
@@ -104,7 +104,7 @@
 import { svg } from '@/helper/general.helper'
 import { mdiBorderColor, mdiClose, mdiFormatColorFill, mdiPanoramaHorizontalOutline } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, IonRange } from '@ionic/vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawAction } from '@/draw/types/draw.types'
@@ -117,12 +117,13 @@ import { BLACK } from '@/draw/config/canvas.config'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { IText } from 'fabric'
 
-defineProps<{
+const props = defineProps<{
   strokeColor?: string
   fillColor?: string
   backgroundColor?: string
   disableClear?: 'stroke' | 'fill'
   strokeWidth: number
+  objectType?: string
 }>()
 
 const { selectColorMenuOpen, menuEvent } = storeToRefs(useMenuStore())
@@ -135,6 +136,8 @@ const emits = defineEmits<{
   (e: 'update:background-color', color: string | undefined): void
   (e: 'update:strokeWidth', strokeWidth: number): void
 }>()
+
+const isGroup = computed(() => props.objectType && props.objectType === 'group')
 
 function onDismiss() {
   const { selectedObjectsRef } = useSelect()

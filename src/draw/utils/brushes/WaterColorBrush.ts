@@ -1,10 +1,34 @@
 import { BaseBrush, Canvas, Path, Point, Shadow } from 'fabric'
 import { opacityFromOpacityHex } from '@/draw/utils/color.utils'
-import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
+import { enlivenStrokeProps, simplifyPathDouglasPeucker } from '@/draw/utils/brushes/brush.helpers'
+
+// ==========================================
+// DETERMINISTIC NOISE HELPER
+// ==========================================
+// Generates consistent pseudo-random noise based on coordinates.
+// Ensures bristles look identical during preview, final render, and JSON reload.
+function getDeterministicNoise(x: number, y: number, b: number): { nx: number, ny: number } {
+  const seedX = x * 12.9898 + y * 78.233 + b * 13.5;
+  const seedY = x * 78.233 + y * 12.9898 + b * 31.7;
+  const nx = (Math.abs(Math.sin(seedX) * 43758.5453) % 1) - 0.5;
+  const ny = (Math.abs(Math.sin(seedY) * 43758.5453) % 1) - 0.5;
+  return { nx, ny };
+}
+
+// ==========================================
+// THE OPTIMIZED WATERCOLOR BRUSH
+// ==========================================
 
 export class WaterColorBrush extends BaseBrush {
   declare protected _basePoints: Point[]
   declare protected _bristlePoints: Point[][]
+  protected _totalDistance: number = 0;
+
+  /**
+   * Real-time decimation: captures fewer points during the move event
+   * to keep the live preview performant.
+   */
+  public decimate = 0.3;
 
   constructor(canvas: Canvas) {
     super(canvas)
@@ -13,6 +37,8 @@ export class WaterColorBrush extends BaseBrush {
   onMouseDown(pointer: Point) {
     this._basePoints = []
     this._bristlePoints = [[], [], []]
+    this._totalDistance = 0;
+
     if (this.canvas.contextTop?.canvas) {
       (this.canvas.contextTop.canvas as HTMLElement).style.mixBlendMode = 'multiply'
     }
@@ -21,6 +47,13 @@ export class WaterColorBrush extends BaseBrush {
   }
 
   onMouseMove(pointer: Point) {
+    // Distance-based decimation check
+    if (this.decimate > 0 && this._basePoints.length > 0) {
+      const lastPoint = this._basePoints[this._basePoints.length - 1]
+      const distance = Math.hypot(pointer.x - lastPoint.x, pointer.y - lastPoint.y)
+      if (distance < this.decimate) return
+    }
+
     if (this._addPoint(pointer) && this._basePoints.length > 1) {
       this.canvas.clearContext(this.canvas.contextTop)
       this._render()
@@ -28,8 +61,16 @@ export class WaterColorBrush extends BaseBrush {
   }
 
   onMouseUp() {
-    // Use the static helper to get the path string
-    const pathString = WaterColorStroke.buildPathString(this._basePoints, this.width)
+    if (this._basePoints.length < 2) {
+      this.canvas.clearContext(this.canvas.contextTop)
+      return false
+    }
+
+    // 1. POST-PROCESSING: Simplify the raw points using Douglas-Peucker.
+    const simplifiedPoints = this._simplifyBasePoints(this._basePoints, 0.2)
+
+    // 2. Build geometry from the clean dataset
+    const pathString = WaterColorStroke.buildPathString(simplifiedPoints, this.width)
 
     if (pathString) {
       const baseOpacity = opacityFromOpacityHex(this.color) || 0.6
@@ -44,7 +85,7 @@ export class WaterColorBrush extends BaseBrush {
         globalCompositeOperation: 'multiply',
         objectCaching: true,
         interactive: false,
-        basePoints: [...this._basePoints] // Store the raw points for syncing
+        basePoints: simplifiedPoints
       })
 
       path.set('shadow', new Shadow({
@@ -65,34 +106,39 @@ export class WaterColorBrush extends BaseBrush {
     return false
   }
 
+  private _simplifyBasePoints(points: Point[], tolerance: number): Point[] {
+    if (points.length <= 2) return points
+
+    const pathData = points.map((p, i) => [i === 0 ? 'M' : 'L', p.x, p.y])
+    const simplifiedData = simplifyPathDouglasPeucker(pathData as any, tolerance)
+
+    return simplifiedData.map((cmd: any) => new Point(cmd[1], cmd[2]))
+  }
+
   private _addPoint(point: Point) {
     if (this._basePoints.length > 0 && point.eq(this._basePoints[this._basePoints.length - 1])) {
       return false
     }
 
-    // 1. Calculate the velocity of the patient's hand
     let dist = 0
     if (this._basePoints.length > 0) {
       const prev = this._basePoints[this._basePoints.length - 1]
       dist = prev.distanceFrom(point)
     }
+
+    this._totalDistance += dist;
     this._basePoints.push(point)
 
-    // 2. Velocity Pigment Pooling Math
-    // If moving fast (> 20px per frame), speedFactor approaches 1. If slow, approaches 0.
     const speedFactor = Math.min(1, dist / 20)
-    // Slower hand = wider spread (pools). Faster hand = tighter spread (thins out).
     const spreadMultiplier = 1.2 - (speedFactor * 0.7)
 
-    const numBristles = 3
+    for (let b = 0; b < 3; b++) {
+      // Swapped array index for accumulated distance (multiplier 0.05 keeps standard scale)
+      const wave = Math.sin(this._totalDistance * 0.05 + b) * (this.width * 0.15 * spreadMultiplier)
 
-    for (let b = 0; b < numBristles; b++) {
-      const index = this._basePoints.length
-
-      // Apply the spreadMultiplier to our organic tissue generation
-      const wave = Math.sin(index * 0.5 + b) * (this.width * 0.15 * spreadMultiplier)
-      const noiseX = (Math.random() - 0.5) * (this.width * 0.2 * spreadMultiplier)
-      const noiseY = (Math.random() - 0.5) * (this.width * 0.2 * spreadMultiplier)
+      const { nx, ny } = getDeterministicNoise(point.x, point.y, b);
+      const noiseX = nx * (this.width * 0.2 * spreadMultiplier)
+      const noiseY = ny * (this.width * 0.2 * spreadMultiplier)
 
       this._bristlePoints[b].push(new Point(
         point.x + wave + noiseX,
@@ -117,9 +163,7 @@ export class WaterColorBrush extends BaseBrush {
     ctx.shadowColor = this.color
     ctx.shadowBlur = this.width * 0.4
 
-    // The Intensity Bug Cure: We open ONE path for all bristles
     ctx.beginPath()
-
     for (let b = 0; b < this._bristlePoints.length; b++) {
       const points = this._bristlePoints[b]
       if (points.length === 0) continue
@@ -136,16 +180,17 @@ export class WaterColorBrush extends BaseBrush {
       ctx.lineTo(p1.x, p1.y)
     }
 
-    // We strike the canvas ONCE, ensuring the live preview perfectly matches the final geometry
     ctx.stroke()
     ctx.restore()
   }
 }
 
+// ==========================================
+// THE OPTIMIZED WATERCOLOR STROKE
+// ==========================================
+
 export class WaterColorStroke extends Path {
   static type = 'WaterColorStroke'
-
-  // We add basePoints to the cache so Fabric knows they are part of the object state
   static cacheProperties = [...Path.cacheProperties, 'basePoints']
 
   public basePoints: Point[]
@@ -153,11 +198,10 @@ export class WaterColorStroke extends Path {
   constructor(path: string | any[], options: any) {
     super(path, options)
 
-    // INFLATION: Convert the tiny delta integers back into real Points
+    // INFLATION
     if (options.compressedTrace && Array.isArray(options.compressedTrace)) {
       this.basePoints = []
-      let lastX = 0
-      let lastY = 0
+      let lastX = 0, lastY = 0
       for (let i = 0; i < options.compressedTrace.length; i += 2) {
         let ix = options.compressedTrace[i]
         let iy = options.compressedTrace[i + 1]
@@ -168,8 +212,6 @@ export class WaterColorStroke extends Path {
         }
         lastX = ix
         lastY = iy
-
-        // Divide by 10 to restore the decimal precision we saved
         this.basePoints.push(new Point(ix / 10, iy / 10))
       }
     } else {
@@ -179,10 +221,9 @@ export class WaterColorStroke extends Path {
 
   // @ts-ignore
   toObject(additionalProperties: string[] = []) {
-    // DEFLATION: Turn Points into small relative integers
+    // DEFLATION
     const flatTrace: number[] = []
-    let lastX = 0
-    let lastY = 0
+    let lastX = 0, lastY = 0
 
     for (let i = 0; i < this.basePoints.length; i++) {
       const p = this.basePoints[i]
@@ -198,11 +239,7 @@ export class WaterColorStroke extends Path {
       lastY = iy
     }
 
-    // @ts-ignore
-    const baseObj = super.toObject([...additionalProperties])
-
-    // CRITICAL: Strip the massive 'path' array to save 90% space
-    // The receiver will rebuild it in fromObject
+    const baseObj = super.toObject([...additionalProperties] as any)
     delete (baseObj as any).path
 
     return {
@@ -212,36 +249,36 @@ export class WaterColorStroke extends Path {
   }
 
   static async fromObject(object: any) {
-    // If we received a synced object with no path, we rebuild the path string locally
     if (!object.path || object.path.length === 0) {
-      // We create a temporary instance to handle the inflation logic
       const tempInstance = new WaterColorStroke([], object)
-
-      // We need a way to generate the path string.
-      // Since we aren't using seeds, we'll use a standard Math.random here.
       object.path = WaterColorStroke.buildPathString(tempInstance.basePoints, object.strokeWidth / 0.8)
     }
     const enlivenedProps = await enlivenStrokeProps(object)
     return new WaterColorStroke(object.path, enlivenedProps)
   }
 
-  // Shared logic to turn basePoints into the watercolor bristle geometry
   static buildPathString(basePoints: Point[], width: number): string {
     const bristlePoints: Point[][] = [[], [], []]
+    let totalDist = 0;
 
     for (let i = 0; i < basePoints.length; i++) {
       const point = basePoints[i]
       let dist = 0
-      if (i > 0) dist = basePoints[i - 1].distanceFrom(point)
+      if (i > 0) {
+        dist = basePoints[i - 1].distanceFrom(point)
+        totalDist += dist;
+      }
 
       const speedFactor = Math.min(1, dist / 20)
       const spreadMultiplier = 1.2 - (speedFactor * 0.7)
 
       for (let b = 0; b < 3; b++) {
-        const index = i
-        const wave = Math.sin(index * 0.5 + b) * (width * 0.15 * spreadMultiplier)
-        const noiseX = (Math.random() - 0.5) * (width * 0.2 * spreadMultiplier)
-        const noiseY = (Math.random() - 0.5) * (width * 0.2 * spreadMultiplier)
+        // Same formula as _addPoint to guarantee synchronization
+        const wave = Math.sin(totalDist * 0.05 + b) * (width * 0.15 * spreadMultiplier)
+
+        const { nx, ny } = getDeterministicNoise(point.x, point.y, b);
+        const noiseX = nx * (width * 0.2 * spreadMultiplier)
+        const noiseY = ny * (width * 0.2 * spreadMultiplier)
 
         bristlePoints[b].push(new Point(point.x + wave + noiseX, point.y + wave + noiseY))
       }

@@ -7,7 +7,7 @@ import { IonicVue } from '@ionic/vue'
 import '@ionic/vue/css/core.css'
 
 /* Theme variables */
-import './theme/fonts/fonts.css'
+import './theme/fonts.css'
 import './theme/theme.scss'
 import '@/theme/main.css'
 

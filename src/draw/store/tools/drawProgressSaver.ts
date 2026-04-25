@@ -1,3 +1,4 @@
+import { isCanvasHealthy } from '../../helpers/healthChecker.helper'
 import { EventBus } from '@/main'
 import { Canvas } from 'fabric'
 
@@ -8,9 +9,10 @@ export function useDrawProgressSaver() {
   const dbName = 'canvasDB'
   const objectStoreName = 'canvasHistory'
   let db: IDBDatabase | undefined
-  const fixedKey = 1 // Using 1 as a fixed key to always overwrite the same record
+  const fixedKey = 1
 
-  let saveTimeout: any | undefined
+  let saveTimeout: ReturnType<typeof setTimeout> | undefined
+  let idleCallbackId: number | undefined
 
   async function init(c: Canvas) {
     if (db) return
@@ -36,7 +38,6 @@ export function useDrawProgressSaver() {
         }
       })
     } catch (error) {
-      // Handle the error (or throw it, or propagate it, depending on your needs)
       console.error('Failed to initialize IndexedDB:', error)
     }
   }
@@ -56,24 +57,45 @@ export function useDrawProgressSaver() {
   }
 
   function save() {
+    // 1. Clear any pending debounce timeouts
     if (saveTimeout !== undefined) {
       clearTimeout(saveTimeout)
     }
 
+    // 2. Clear any pending idle callbacks to prevent stale saves
+    if (idleCallbackId !== undefined && 'cancelIdleCallback' in window) {
+      window.cancelIdleCallback(idleCallbackId)
+    }
+
+    // 3. Debounce rapid events first
     saveTimeout = setTimeout(() => {
-      if (c && db) {
-        const json = c.toJSON()
-        const transaction = db.transaction([objectStoreName], 'readwrite')
 
-        transaction.onerror = event => {
-          console.error('Error writing to IndexedDB:', event)
+      const performSave = () => {
+        if (c && db) {
+          const json = c.toJSON() // Heavy operation deferred until idle
+          const transaction = db.transaction([objectStoreName], 'readwrite')
+
+          transaction.onerror = event => {
+            console.error('Error writing to IndexedDB:', event)
+          }
+
+          const store = transaction.objectStore(objectStoreName)
+          store.put(json, fixedKey)
+
+          // Cleanup references
+          saveTimeout = undefined
+          idleCallbackId = undefined
         }
-
-        const store = transaction.objectStore(objectStoreName)
-        store.put(json, fixedKey)
-        saveTimeout = undefined
-        // console.log('saving canvas to local db')
       }
+
+      // 4. Wait for the main thread to be idle before saving
+      if ('requestIdleCallback' in window) {
+        idleCallbackId = window.requestIdleCallback(performSave, { timeout: 2000 })
+      } else {
+        // Fallback for unsupported browsers
+        performSave()
+      }
+
     }, 200)
   }
 
@@ -115,6 +137,9 @@ export function useDrawProgressSaver() {
 
   function destroy() {
     c = undefined
+    if (saveTimeout !== undefined) clearTimeout(saveTimeout)
+    if (idleCallbackId !== undefined && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleCallbackId)
+
     events.forEach(e => {
       EventBus.off(e, save)
     })

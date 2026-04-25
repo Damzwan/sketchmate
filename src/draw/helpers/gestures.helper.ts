@@ -11,12 +11,20 @@ import { cancelPreviousAction } from '@/draw/helpers/tools/cancelTools.helper'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import {
+  finalizeLayeredRender,
+  isLayeredRenderActive,
+  prepareLayeredBuffers,
+  renderLayeredBuffers
+} from '@/draw/helpers/customTransform.helper'
+import { useDrawStore } from '@/draw/store/draw.store'
+import { Rect } from '@/draw/utils/QuadTree'
 
 // ==========================================
 // CONSTANTS
 // ==========================================
 const MIN_ZOOM = 0.2
-const MAX_ZOOM = 20
+const MAX_ZOOM = 50
 const COMMIT_INTERVAL_MS = 200
 
 const initialCssTransform = {
@@ -28,7 +36,6 @@ const initialCssTransform = {
 // ==========================================
 // SHARED STATE VARIABLES
 // ==========================================
-let cssTransform = { ...initialCssTransform }
 let lastCommitTime = 0
 let isWheeling = false
 let pcWheelTimeout: any = null
@@ -46,13 +53,50 @@ const gestureState = {
   rotateDelta: 0,
   zoomCenter: null as Point | null,
   needsCull: false,
-  canvasRotateDelta: 0
+  canvasRotateDelta: 0,
+  originalObjectState: null as any | null
 }
 
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
-function cssTransformChanged(transform: typeof cssTransform) {
+function getMinZoomToFitAll(canvas: fabric.Canvas, padding = 0.9) {
+  const objects = canvas.getObjects()
+  if (objects.length === 0) return 0.5
+
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+
+  // Single O(n) pass to find the absolute boundaries
+  for (let i = 0; i < objects.length; i++) {
+    // getBoundingRect returns the actual visual bounds,
+    // accounting for stroke width, scaling, and rotation
+    const bound = objects[i].getBoundingRect()
+
+    if (bound.left < minX) minX = bound.left
+    if (bound.top < minY) minY = bound.top
+    if (bound.left + bound.width > maxX) maxX = bound.left + bound.width
+    if (bound.top + bound.height > maxY) maxY = bound.top + bound.height
+  }
+
+  const contentWidth = maxX - minX
+  const contentHeight = maxY - minY
+
+  const canvasWidth = canvas.getWidth()
+  const canvasHeight = canvas.getHeight()
+
+  // Prevent division by zero if objects have no dimensions
+  const scaleX = canvasWidth / (contentWidth || 1)
+  const scaleY = canvasHeight / (contentHeight || 1)
+
+  const fitZoom = Math.min(scaleX, scaleY) * padding
+
+  return Math.min(fitZoom, MIN_ZOOM)
+}
+
+function cssTransformChanged(transform: any) {
   return (
     transform.scale !== initialCssTransform.scale ||
     transform.translateX !== initialCssTransform.translateX ||
@@ -68,53 +112,75 @@ function attemptThrottledCommit(c: Canvas) {
   }
 }
 
+// Define this outside the function (e.g., in your component or store)
+let debounceCacheTimeout: any = null
+
 function commitCssTransform(c: Canvas, isFinal: boolean = true) {
   const { canResetView } = storeToRefs(useDrawUIStore())
+  const { cssTransform } = storeToRefs(useDrawStore())
   canResetView.value = true
 
-  let vpt = c.viewportTransform
-  if (!vpt) return
+  // 1. Snapshot the transformation before clearing the DOM
+  const scale = cssTransform.value.scale
+  const tx = cssTransform.value.translateX
+  const ty = cssTransform.value.translateY
 
-  vpt[0] *= cssTransform.scale
-  vpt[3] *= cssTransform.scale
-  vpt[4] = cssTransform.translateX + (vpt[4] * cssTransform.scale)
-  vpt[5] = cssTransform.translateY + (vpt[5] * cssTransform.scale)
+  // DIAGNOSTIC CHECK: Are we zooming (scale changed) or just panning?
+  const isZooming = scale !== 1
 
-  c.setViewportTransform(vpt)
-  c.fire('viewport:changed');
-  cssTransform = { ...initialCssTransform }
-
-  const { updateVisibility } = useDrawObjectManager()
-  updateVisibility(false)
-
+  // 2. IMMEDIATE DOM CLEANUP (Crucial for the "Shrinking Bug")
   if (c.wrapperEl) {
     c.wrapperEl.style.transform = ''
+    c.wrapperEl.style.transformOrigin = ''
     if (isFinal) {
       c.wrapperEl.style.willChange = 'auto'
     }
   }
-}
 
-function scheduleGestureFrame(c: Canvas) {
-  if (gestureFrameScheduled) return
-  gestureFrameScheduled = true
+  // 3. Update Fabric's Viewport Transform
+  let vpt = [...c.viewportTransform!]
 
-  requestAnimationFrame(() => {
-    gestureFrameScheduled = false
+  vpt[0] *= scale
+  vpt[3] *= scale
+  vpt[4] = tx + (vpt[4] * scale)
+  vpt[5] = ty + (vpt[5] * scale)
 
-    if (gestureState.rotateDelta !== 0) {
-      const obj = c.getActiveObject()
-      if (obj) {
-        obj.rotate((obj.angle! + gestureState.rotateDelta) % 360)
-        obj.setCoords()
-      }
-      gestureState.rotateDelta = 0
+  c.setViewportTransform(vpt as any)
+  c.calcOffset()
+
+  // 5. Reset tracking state
+  cssTransform.value = { ...initialCssTransform }
+
+  // 6. UI & Rendering Logic
+  c.fire('viewport:changed')
+  const { updateVisibility, setVisibleObjectsState } = useDrawObjectManager()
+
+  // ADMINISTER CACHE DROP ONLY IF ZOOMING
+  if (isZooming) {
+    setVisibleObjectsState('interaction')
+  }
+  updateVisibility(false)
+
+  if (isFinal) {
+    clearTimeout(debounceCacheTimeout)
+
+    if (isZooming) {
+      // Patient has stopped zooming. 300ms recovery time before re-caching.
+      debounceCacheTimeout = setTimeout(() => {
+        window.requestIdleCallback?.(() => {
+          setVisibleObjectsState('static')
+          c.requestRenderAll()
+        })
+      }, 2000)
+    } else {
+      // Panning finished, no cache recovery needed, just render.
       c.requestRenderAll()
     }
-
+  } else {
     c.requestRenderAll()
-  })
+  }
 }
+
 
 function rotateView(c: fabric.Canvas, deltaDeg: number, centerPoint: Point) {
   const rad = fabric.util.degreesToRadians(deltaDeg)
@@ -143,8 +209,62 @@ export function enableGestures(c: Canvas) {
   else enablePCGestures(c)
 }
 
-function enablePCGestures(c: Canvas) {
+let dynamicMinZoom = MIN_ZOOM // fallback
+
+export function enablePCGestures(c: Canvas) {
   const { addEventsOfService } = useDrawEventManager()
+  const { ghostBoxes, cssTransform, isGesturing } = storeToRefs(useDrawStore())
+  const { query } = useDrawObjectManager()
+
+
+  function clearGhostBuffer() {
+    isGesturing.value = false
+    ghostBoxes.value = []
+  }
+
+  function administerGhostBuffer() {
+    if (isGesturing.value) return // Prevent double-dosing if already active
+
+    isGesturing.value = true
+
+    const vpt = c.viewportTransform
+    if (vpt) {
+      const zoom = c.getZoom()
+      const currentViewWidth = c.width! / zoom
+      const currentViewHeight = c.height! / zoom
+
+      const vLeft = -vpt[4] / zoom
+      const vTop = -vpt[5] / zoom
+
+      const bufferX = currentViewWidth * 1.5
+      const bufferY = currentViewHeight * 1.5
+
+      // Using your updated Rect logic
+      const expandedSearchArea = new Rect(
+        vLeft - bufferX,
+        vTop - bufferY,
+        currentViewWidth + (bufferX * 2),
+        currentViewHeight + (bufferY * 2)
+      )
+
+      ghostBoxes.value = query(expandedSearchArea)
+        .filter((obj: any) => !obj.isOnScreen())
+        .map((obj: any) => {
+          const bound = obj.getBoundingRect(true, true)
+          return {
+            id: obj.name || obj.id || Math.random().toString(),
+            // 🚨 CONVERT TO SCREEN COORDINATES 🚨
+            left: (bound.left * zoom) + vpt[4],
+            top: (bound.top * zoom) + vpt[5],
+            width: bound.width * zoom,
+            height: bound.height * zoom,
+            type: obj.type
+          }
+        })
+    }
+  }
+
+  // ==========================================
 
   const events: FabricEvent[] = [
     {
@@ -156,45 +276,49 @@ function enablePCGestures(c: Canvas) {
 
         if (!isWheeling) {
           isWheeling = true
+          dynamicMinZoom = getMinZoomToFitAll(c)
+
           if (c.wrapperEl) {
             c.wrapperEl.style.transformOrigin = '0 0'
             c.wrapperEl.style.willChange = 'transform'
           }
+          administerGhostBuffer()
         }
 
         const deltaY = e.deltaY
         const rawZoomFactor = Math.exp(-deltaY / 50)
         const baseFabricZoom = c.getZoom()
-        const proposedCssScale = cssTransform.scale * rawZoomFactor
+
+        // Added .value to all cssTransform reads
+        const proposedCssScale = cssTransform.value.scale * rawZoomFactor
         const proposedEffectiveZoom = baseFabricZoom * proposedCssScale
 
         let actualZoomFactor = rawZoomFactor
 
+        // Added .value to all cssTransform mutations
         if (proposedEffectiveZoom > MAX_ZOOM) {
           const allowedCssScale = MAX_ZOOM / baseFabricZoom
-          actualZoomFactor = allowedCssScale / cssTransform.scale
-          cssTransform.scale = allowedCssScale
-        } else if (proposedEffectiveZoom < MIN_ZOOM) {
-          const allowedCssScale = MIN_ZOOM / baseFabricZoom
-          actualZoomFactor = allowedCssScale / cssTransform.scale
-          cssTransform.scale = allowedCssScale
+          actualZoomFactor = allowedCssScale / cssTransform.value.scale
+          cssTransform.value.scale = allowedCssScale
+        } else if (proposedEffectiveZoom < dynamicMinZoom) {
+          const allowedCssScale = dynamicMinZoom / baseFabricZoom
+          actualZoomFactor = allowedCssScale / cssTransform.value.scale
+          cssTransform.value.scale = allowedCssScale
         } else {
-          cssTransform.scale = proposedCssScale
+          cssTransform.value.scale = proposedCssScale
         }
 
         const pointerX = e.offsetX
         const pointerY = e.offsetY
 
-        cssTransform.translateX = pointerX - (pointerX - cssTransform.translateX) * actualZoomFactor
-        cssTransform.translateY = pointerY - (pointerY - cssTransform.translateY) * actualZoomFactor
+        cssTransform.value.translateX = pointerX - (pointerX - cssTransform.value.translateX) * actualZoomFactor
+        cssTransform.value.translateY = pointerY - (pointerY - cssTransform.value.translateY) * actualZoomFactor
 
         requestAnimationFrame(() => {
           if (c.wrapperEl) {
-            c.wrapperEl.style.transform = `matrix(${cssTransform.scale}, 0, 0, ${cssTransform.scale}, ${cssTransform.translateX}, ${cssTransform.translateY})`
+            c.wrapperEl.style.transform = `matrix(${cssTransform.value.scale}, 0, 0, ${cssTransform.value.scale}, ${cssTransform.value.translateX}, ${cssTransform.value.translateY})`
           }
         })
-
-        attemptThrottledCommit(c)
 
         c.fire('zoomChanged')
         clearTimeout(pcWheelTimeout)
@@ -203,14 +327,16 @@ function enablePCGestures(c: Canvas) {
           commitCssTransform(c, true)
           c.fire('zoomChanged')
 
-        }, 250)
+          // 🧹 Clean up ghost buffer on zoom end
+          clearGhostBuffer()
+        }, 150)
       }
     },
     {
       on: 'mouse:down',
       handler: (o: any) => {
         const e = o.e
-        if (e.buttons !== 4) return
+        if (e.buttons !== 4) return // Middle click check
 
         panActive = true
         lastPanPoint = { x: e.pageX, y: e.pageY }
@@ -223,6 +349,8 @@ function enablePCGestures(c: Canvas) {
 
         c.selection = false
         c.skipTargetFind = true
+
+        administerGhostBuffer()
 
         e.preventDefault()
         e.stopPropagation()
@@ -239,16 +367,15 @@ function enablePCGestures(c: Canvas) {
 
         lastPanPoint = { x: e.pageX, y: e.pageY }
 
-        cssTransform.translateX += dx
-        cssTransform.translateY += dy
+        // Added .value mutations
+        cssTransform.value.translateX += dx
+        cssTransform.value.translateY += dy
 
         requestAnimationFrame(() => {
           if (c.wrapperEl) {
-            c.wrapperEl.style.transform = `matrix(${cssTransform.scale}, 0, 0, ${cssTransform.scale}, ${cssTransform.translateX}, ${cssTransform.translateY})`
+            c.wrapperEl.style.transform = `matrix(${cssTransform.value.scale}, 0, 0, ${cssTransform.value.scale}, ${cssTransform.value.translateX}, ${cssTransform.value.translateY})`
           }
         })
-
-        attemptThrottledCommit(c)
       }
     },
     {
@@ -259,13 +386,16 @@ function enablePCGestures(c: Canvas) {
         panActive = false
         lastPanPoint = null
 
-        const { selectedTool } = useToolSelection()
-        if (selectedTool === DrawTool.Select) {
+        const { selectedTool } = storeToRefs(useToolSelection()) // Ensure this is unwrapped if it's a ref!
+        if (selectedTool.value === DrawTool.Select) {
           c.selection = true
           c.skipTargetFind = false
         }
 
         commitCssTransform(c, true)
+
+        // 🧹 Clean up ghost buffer on pan end
+        clearGhostBuffer()
 
         o.e.preventDefault()
         o.e.stopPropagation()
@@ -275,143 +405,442 @@ function enablePCGestures(c: Canvas) {
   addEventsOfService('gestures', events)
 }
 
-export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
-  const { selectedTool } = storeToRefs(useToolSelection())
-  const { shapeCreationMode } = storeToRefs(useDrawUIStore())
-  const { shouldModifyObjectsWithGestures, unSelect } = useSelect()
 
-  let originalState: any = null
+export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
+
+  const { selectedTool } = storeToRefs(useToolSelection())
+
+  const { shapeCreationMode } = storeToRefs(useDrawUIStore())
+
+  const { shouldModifyObjectsWithGestures } = useSelect()
+
+  const { ghostBoxes, cssTransform, isGesturing } = storeToRefs(useDrawStore())
+
+  const { query } = useDrawObjectManager()
+
+
   const isUsingGesture = ref(false)
 
+
+// State variables for smooth gesture tracking & disambiguation
+
+  let isCanvasZooming = false
+
+  let canvasPanDistance = 0
+
+  let isObjectScaling = false
+
+  let totalObjectAngleDelta = 0
+
+  let gestureFrameScheduled = false
+
+
+  function scheduleGestureFrame() {
+
+    if (gestureFrameScheduled) return
+
+    gestureFrameScheduled = true
+
+
+    requestAnimationFrame(() => {
+
+      gestureFrameScheduled = false
+
+
+      const obj = c.getActiveObject()
+
+      if (!obj || !gestureState.originalObjectState) return
+
+
+      const newAngle = (gestureState.originalObjectState.angle + totalObjectAngleDelta) % 360
+
+      obj.set('angle', newAngle)
+
+      obj.setCoords()
+
+
+      if (isLayeredRenderActive) {
+
+        renderLayeredBuffers(c, obj)
+
+      } else {
+
+        c.requestRenderAll()
+
+      }
+
+    })
+
+  }
+
+
   gestureDetector(upperCanvasEl, {
+
     onGestureStart: () => {
+
+      isCanvasZooming = false
+
+      canvasPanDistance = 0
+
+      isObjectScaling = false
+
+      totalObjectAngleDelta = 0
+
+
       if (shapeCreationMode.value) return
+
       c.fire('gestureStart')
 
+
       if (selectedTool.value === DrawTool.Select && shouldModifyObjectsWithGestures()) {
+
         const obj = c.getActiveObject()
+
         if (!obj) return
+
 
         obj.lockMovementX = true
+
         obj.lockMovementY = true
 
-        originalState = {
+
+        gestureState.originalObjectState = {
+
           left: obj.left, top: obj.top,
+
           scaleX: obj.scaleX, scaleY: obj.scaleY, angle: obj.angle
+
         }
+
+
         isUsingGesture.value = true
+
+        prepareLayeredBuffers(c, obj)
+
+
       } else {
+
         isUsingGesture.value = false
-        unSelect()
+
+        c.selection = false
+
+        c.skipTargetFind = true
+
         cancelPreviousAction(c)
 
+        dynamicMinZoom = getMinZoomToFitAll(c)
+
+
         if (c.wrapperEl) {
+
           c.wrapperEl.style.transformOrigin = '0 0'
+
           c.wrapperEl.style.willChange = 'transform'
+
         }
-        c.selection = false
-        c.skipTargetFind = true
+
+
+        isGesturing.value = true
+
+
+        const vpt = c.viewportTransform
+
+        if (vpt) {
+
+          const zoom = c.getZoom()
+
+          const currentViewWidth = c.width! / zoom
+
+          const currentViewHeight = c.height! / zoom
+
+
+          const vLeft = -vpt[4] / zoom
+
+          const vTop = -vpt[5] / zoom
+
+
+          const bufferX = currentViewWidth * 1.5
+
+          const bufferY = currentViewHeight * 1.5
+
+
+          const expandedSearchArea = new Rect(vLeft - bufferX, vTop - bufferY, currentViewWidth + (bufferX * 2), currentViewHeight + (bufferY * 2))
+
+
+          ghostBoxes.value = query(expandedSearchArea)
+
+            .filter((obj: any) => !obj.isOnScreen())
+
+            .map((obj: any) => {
+
+              const bound = obj.getBoundingRect(true, true)
+
+              return {
+
+                id: obj.name || obj.id || Math.random().toString(),
+
+                left: (bound.left * zoom) + vpt[4],
+
+                top: (bound.top * zoom) + vpt[5],
+
+                width: bound.width * zoom,
+
+                height: bound.height * zoom,
+
+                type: obj.type
+
+              }
+
+            })
+
+        }
+
       }
+
     },
+
 
     onDrag: (movementX, movementY) => {
+
+      canvasPanDistance += Math.hypot(movementX, movementY)
+
+
       if (selectedTool.value === DrawTool.Select && isUsingGesture.value) return
 
-      cssTransform.translateX += movementX * 2
-      cssTransform.translateY += movementY * 2
 
-      c.fire("pan")
+      cssTransform.value.translateX += movementX * 2
+
+      cssTransform.value.translateY += movementY * 2
+
+
+      c.fire('pan')
+
       requestAnimationFrame(() => {
+
         if (c.wrapperEl) {
-          c.wrapperEl.style.transform = `matrix(${cssTransform.scale}, 0, 0, ${cssTransform.scale}, ${cssTransform.translateX}, ${cssTransform.translateY})`
+
+          c.wrapperEl.style.transform = `translate3d(${cssTransform.value.translateX}px, ${cssTransform.value.translateY}px, 0) scale3d(${cssTransform.value.scale}, ${cssTransform.value.scale}, 1)`
+
         }
+
       })
+
     },
 
+
     onZoom: (scale, previousScale, center) => {
+
       if (selectedTool.value === DrawTool.Select && isUsingGesture.value) {
-        if (Math.abs(scale - previousScale) < 0.005) return
+
+        if (!isObjectScaling) {
+
+          const isHeavyRotating = Math.abs(totalObjectAngleDelta) > 10
+
+          const dynamicObjThreshold = isHeavyRotating ? 0.15 : 0.03
+
+          const totalScaleChange = Math.abs(1 - scale)
+
+          if (totalScaleChange < dynamicObjThreshold) return
+
+
+          isObjectScaling = true
+
+        }
+
+
         const obj = c.getActiveObject()
-        if (!obj) return
 
-        const factor = scale / previousScale
-        obj.scaleX! *= factor
-        obj.scaleY! *= factor
-        obj.setCoords()
+        if (!obj || !gestureState.originalObjectState) return
 
-        scheduleGestureFrame(c)
+
+        const orig = gestureState.originalObjectState
+
+        obj.set({
+
+          scaleX: orig.scaleX * scale,
+
+          scaleY: orig.scaleY * scale
+
+        })
+
+
+        scheduleGestureFrame()
+
         return
+
       }
 
-      if (Math.abs(scale - previousScale) < 0.01) return
 
-      const rawZoomFactor = scale / previousScale
+// --- CANVAS ZOOM LOGIC REWRITTEN ---
+
+
+      if (!isCanvasZooming) {
+
+        const isHeavyPanning = canvasPanDistance > 30
+
+// FIX 1: Lowered threshold from 0.25 to 0.08 to prevent severe delta loss
+
+        const dynamicThreshold = isHeavyPanning ? 0.08 : 0.03
+
+        const totalCanvasScaleChange = Math.abs(1 - scale)
+
+        if (totalCanvasScaleChange < dynamicThreshold) return
+
+
+        isCanvasZooming = true
+
+      }
+
+
+      let rawZoomFactor = scale / previousScale
+
+
+// FIX 2: Anti-Jitter logic to stabilize heavy panning
+
+      if (isCanvasZooming && canvasPanDistance > 30) {
+
+        const frameDelta = Math.abs(1 - rawZoomFactor)
+
+// If the scale change is less than 0.2% this frame, treat it as finger wiggle and ignore it
+
+        if (frameDelta < 0.002) {
+
+          rawZoomFactor = 1
+
+        }
+
+      }
+
+
       const baseFabricZoom = c.getZoom()
-      const proposedCssScale = cssTransform.scale * rawZoomFactor
+
+
+      const proposedCssScale = cssTransform.value.scale * rawZoomFactor
+
       const proposedEffectiveZoom = baseFabricZoom * proposedCssScale
+
 
       let actualZoomFactor = rawZoomFactor
 
+
       if (proposedEffectiveZoom > MAX_ZOOM) {
-        const allowedCssScale = MAX_ZOOM / baseFabricZoom
-        actualZoomFactor = allowedCssScale / cssTransform.scale
-        cssTransform.scale = allowedCssScale
-      } else if (proposedEffectiveZoom < MIN_ZOOM) {
-        const allowedCssScale = MIN_ZOOM / baseFabricZoom
-        actualZoomFactor = allowedCssScale / cssTransform.scale
-        cssTransform.scale = allowedCssScale
+
+        actualZoomFactor = (MAX_ZOOM / baseFabricZoom) / cssTransform.value.scale
+
+        cssTransform.value.scale = MAX_ZOOM / baseFabricZoom
+
+      } else if (proposedEffectiveZoom < dynamicMinZoom) {
+
+        actualZoomFactor = (dynamicMinZoom / baseFabricZoom) / cssTransform.value.scale
+
+        cssTransform.value.scale = dynamicMinZoom / baseFabricZoom
+
       } else {
-        cssTransform.scale = proposedCssScale
+
+        cssTransform.value.scale = proposedCssScale
+
       }
 
-      cssTransform.translateX = center.x - (center.x - cssTransform.translateX) * actualZoomFactor
-      cssTransform.translateY = center.y - (center.y - cssTransform.translateY) * actualZoomFactor
 
-      c.fire("zoom")
+      cssTransform.value.translateX = center.x - (center.x - cssTransform.value.translateX) * actualZoomFactor
+
+      cssTransform.value.translateY = center.y - (center.y - cssTransform.value.translateY) * actualZoomFactor
+
+
+      c.fire('zoom')
+
+
       requestAnimationFrame(() => {
+
         if (c.wrapperEl) {
-          c.wrapperEl.style.transform = `matrix(${cssTransform.scale}, 0, 0, ${cssTransform.scale}, ${cssTransform.translateX}, ${cssTransform.translateY})`
+
+          c.wrapperEl.style.transform = `translate3d(${cssTransform.value.translateX}px, ${cssTransform.value.translateY}px, 0) scale3d(${cssTransform.value.scale}, ${cssTransform.value.scale}, 1)`
+
         }
+
       })
 
     },
 
-    onRotate: (angleDifference, center) => {
-      if (selectedTool.value !== DrawTool.Select || !isUsingGesture.value) return
-      if (Math.abs(angleDifference) < 0.8) return
 
-      gestureState.rotateDelta += angleDifference
-      scheduleGestureFrame(c)
+    onRotate: (angleDifference, center) => {
+
+      if (selectedTool.value !== DrawTool.Select || !isUsingGesture.value) return
+
+      totalObjectAngleDelta += angleDifference
+
+      scheduleGestureFrame()
+
     },
 
+
     onGestureEnd: (fingers) => {
+
+      isCanvasZooming = false
+
+      isObjectScaling = false
+
+
       c.fire('gestureEnd')
+
+
       if (selectedTool.value === DrawTool.Select && isUsingGesture.value && fingers === 0) {
+
         const obj = c.getActiveObject()
+
         if (!obj) return
 
+
         setTimeout(() => {
+
           obj.lockMovementX = false
+
           obj.lockMovementY = false
+
           isUsingGesture.value = false
 
+
           c.fire('object:modified', {
+
             target: obj,
-            transform: { target: obj, original: originalState } as any
+
+            transform: { target: obj, original: gestureState.originalObjectState } as any
+
           })
-          scheduleGestureFrame(c)
+
+
+          finalizeLayeredRender(c)
+
         }, 100)
+
       }
 
-      if (!isUsingGesture.value && fingers === 0 && cssTransformChanged(cssTransform)) {
+
+      if (!isUsingGesture.value && fingers === 0 && cssTransformChanged(cssTransform.value)) {
+
         if (selectedTool.value === DrawTool.Select) {
+
           setTimeout(() => {
+
             c.selection = true
+
             c.skipTargetFind = false
+
           }, 50)
+
         }
+
         commitCssTransform(c, true)
+
+
+        isGesturing.value = false
+
+        ghostBoxes.value = []
+
       }
+
     }
+
   })
+
 }

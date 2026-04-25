@@ -58,7 +58,8 @@ export const useSelect = defineStore('select', (): Select => {
         c!.setActiveObject(nextObj)
         selectedObjects = [nextObj]
         selectedObjectsRef.value = [nextObj]
-        c!.requestRenderAll()
+        c!.clearContext(c!.getTopContext())
+        nextObj._renderControls(c!.getTopContext())
       })
     }
   }
@@ -134,6 +135,8 @@ export const useSelect = defineStore('select', (): Select => {
         if (isText(selectedObjects) && isEditingText.value) {
           c!.setActiveObject(selectedObjects[0])
           isEditingText.value = false
+          c!.clearContext(c!.getTopContext())
+          selectedObjects[0]._renderControls(c!.getTopContext())
           return
         }
 
@@ -143,6 +146,7 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'mouse:down',
       handler: (e) => {
+        c!.skipTargetFind = true
         startPointerTracking(c!.getScenePoint(e.e))
         clicksAfterSelectionActive++
       }
@@ -165,8 +169,10 @@ export const useSelect = defineStore('select', (): Select => {
     {
       on: 'mouse:up',
       handler: () => {
+        c!.skipTargetFind = false
         if (!isSelectActive.value || !isClick() || isUsingGestures) return
         if (clicksAfterSelectionActive <= 1) return
+
 
         handleSelectionClick(pointerDownPos!)
         pointerDownPos = null
@@ -181,7 +187,6 @@ export const useSelect = defineStore('select', (): Select => {
           const p = new fabric.Point(text.left, text.top)
           const screenPoint = fabric.util.transformPoint(p, c!.viewportTransform)
           isBottomHalf.value = screenPoint.y > window.innerHeight / 2
-          // if (isBottomHalf.value) text.top -= TEXT_JUMP_Y_VALUE
           c?.requestRenderAll()
         }
       }
@@ -209,19 +214,23 @@ export const useSelect = defineStore('select', (): Select => {
     c!.isDrawingMode = false
     c!.skipTargetFind = false
     c!.selection = true
-    c!.requestRenderAll()
   }
 
   function unSelect() {
     if (isText(selectedObjectsRef.value) && isEditingText.value) {
       const text = selectedObjects[0] as IText
-      c!.setActiveObject(selectedObjects[0])
       text.exitEditing()
       isEditingText.value = false
+      c!.setActiveObject(text)
+      c!.clearContext(c!.getTopContext())
+      text._renderControls(c!.getTopContext())
       return
     }
-    c!.discardActiveObject()
-    c!.requestRenderAll()
+    if (c!.getActiveObject()) {
+      c!.discardActiveObject()
+      c!.clearContext(c!.contextTop)
+    }
+
     isSelectActive.value = false
     selectedObjects = []
     selectedObjectsRef.value = []
@@ -246,6 +255,7 @@ export const useSelect = defineStore('select', (): Select => {
     selectedObjects = []
     selectedObjectsRef.value = []
     isSelectActive.value = false
+    c!.clearContext(c!.contextTop)
   }
 
   function handleSelectionClick(pointer: Point) {

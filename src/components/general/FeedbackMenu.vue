@@ -118,25 +118,33 @@ async function submit() {
     return
   }
 
+  modalController.dismiss()
+
+  const feedbackData = {
+    likeText: likeText.value,
+    dislikeText: dislikeText.value,
+    score: score.value,
+    userId: user.auth_id,
+    version: __APP_VERSION__
+  }
+
+  resetForm()
+  isSubmitting.value = true
+
   try {
     await addDoc(collection(db, 'feedback'), {
-      likeText: likeText.value,
-      dislikeText: dislikeText.value,
-      score: score.value,
-      timestamp: serverTimestamp(),
-      userId: user.auth_id
+      ...feedbackData,
+      timestamp: serverTimestamp()
     })
+
     toast('Thank you for your feedback :)', { color: 'success' })
 
-    if (score.value == FeedbackOptions.like) {
+    if (feedbackData.score === FeedbackOptions.like) {
       await AppReview.requestReview()
     }
-
-    modalController.dismiss()
-    resetForm()
   } catch (e) {
     console.error('Error adding feedback: ', e)
-    modalController.dismiss()
+    toast('Failed to send feedback. Please try again later.', { color: 'danger' })
   } finally {
     isSubmitting.value = false
   }

@@ -1,21 +1,22 @@
 import type { TSimplePathData } from 'fabric'
 import { Path, PencilBrush, Shadow } from 'fabric'
-import * as fabric from 'fabric'
-import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
+import { enlivenStrokeProps, simplifyPathDouglasPeucker } from '@/draw/utils/brushes/brush.helpers'
+
+// ==========================================
+// THE OPTIMIZED BRUSH
+// ==========================================
+
 
 export class OptimizedPencilBrush extends PencilBrush {
+  decimate = 0.3
 
-  // Fabric defaults decimate to 0.4.
-  // Bumping it to 1.0 or 1.2 is highly recommended for collaborative drawing.
-  // It removes vastly more points with almost zero visual difference.
-  decimate = 1.2
 
-  /**
-   * Override the native path creation to use our sync-friendly class
-   */
   // @ts-ignore
   createPath(pathData: TSimplePathData) {
-    const path = new OptimizedPencilStroke(pathData, {
+    // 1. SURGICAL EXTRACTION: Run DP on the raw data to permanently remove bloat.
+    const optimizedData = simplifyPathDouglasPeucker(pathData, 0.3)
+
+    const path = new OptimizedPencilStroke(optimizedData, {
       fill: null,
       stroke: this.color,
       strokeWidth: this.width,
@@ -26,21 +27,59 @@ export class OptimizedPencilBrush extends PencilBrush {
     })
 
     if (this.shadow) {
-      // @ts-ignore - Fabric's typings can sometimes be strict here
+      // @ts-ignore
       this.shadow.affectStroke = true
       path.shadow = new Shadow(this.shadow)
     }
 
     return path
   }
+
+  _finalizeAndAddPath() {
+    // 1. Get the TOP context (temporary drawing layer) just to close and clear it
+    const topCtx = this.canvas.contextTop
+    topCtx.closePath()
+
+    const pathData = this.convertPointsToSVGPath(this._points)
+    const path = this.createPath(pathData)
+
+    // Clear the temporary drawing buffer
+    this.canvas.clearContext(topCtx)
+    this.canvas.fire('before:path:created', { path: path })
+
+    this.canvas.add(path)
+    path.setCoords()
+
+    // 3. THE FIX: Grab the MAIN lower canvas context
+    const mainCtx = this.canvas.getContext()
+
+    // 4. THE FIX: Apply the viewport transform so it renders correctly when zoomed/panned
+    mainCtx.save()
+    const vpt = this.canvas.viewportTransform
+    if (vpt) {
+      mainCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
+    }
+
+    // 5. Render directly to the main canvas
+    path.render(mainCtx)
+
+    // Clean up the context state
+    mainCtx.restore()
+    this._resetShadow()
+
+    // Fire the final event
+    this.canvas.fire('path:created', { path: path })
+  }
 }
+
+// ==========================================
+// THE OPTIMIZED STROKE
+// ==========================================
 
 export class OptimizedPencilStroke extends Path {
   static type = 'OptimizedPencilStroke'
 
   constructor(path: any, options: any) {
-    // If we have a compressedTrace but no path, we must inflate it
-    // BEFORE calling super so Fabric sees a valid path immediately.
     let inflatedPath = path
     if (options?.compressedTrace && (!path || path.length === 0)) {
       inflatedPath = OptimizedPencilStroke.inflateTrace(options.compressedTrace)
@@ -49,7 +88,9 @@ export class OptimizedPencilStroke extends Path {
     super(inflatedPath, options)
   }
 
-  // Helper to turn the flat delta array back into Fabric's internal path format
+  // Note: The custom _render method has been amputated.
+  // Fabric will handle the drawing natively and efficiently.
+
   static inflateTrace(trace: (number | string)[]): any[] {
     const inflated: any[] = []
     let lastX = 0, lastY = 0
@@ -89,7 +130,7 @@ export class OptimizedPencilStroke extends Path {
     const compressedTrace: (number | string)[] = []
     let lastX = 0, lastY = 0
 
-    // Use this.path (which is the inflated array) to build the compressed trace
+    // Loop through the active path
     for (const cmd of this.path) {
       const type = cmd[0]
       if (type === 'M' || type === 'L') {
@@ -113,6 +154,7 @@ export class OptimizedPencilStroke extends Path {
       }
     }
 
+
     delete (baseObj as any).path
     return { ...baseObj, compressedTrace }
   }
@@ -121,4 +163,6 @@ export class OptimizedPencilStroke extends Path {
     const enlivenedProps = await enlivenStrokeProps(object)
     return new OptimizedPencilStroke(enlivenedProps.path, enlivenedProps)
   }
+
+
 }

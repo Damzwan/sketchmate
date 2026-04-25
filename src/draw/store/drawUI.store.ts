@@ -3,7 +3,7 @@ import { FabricEvent, ShapeCreationMode } from '@/draw/types/draw.types'
 import { ref } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'
 import * as fabric from 'fabric'
-import { Point } from 'fabric'
+import { Canvas, Point } from 'fabric'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { useDebounceFn } from '@vueuse/core'
@@ -21,6 +21,7 @@ export const useDrawUIStore = defineStore('drawUI', () => {
   const isMiniMapOpen = ref(false)
   const activeAvatars = ref(new Map())
   const isCanvasNavigating = ref(false)
+
 
   const events: FabricEvent[] = [
     {
@@ -94,9 +95,12 @@ export const useDrawUIStore = defineStore('drawUI', () => {
     })
   }
 
-  function init() {
+  function init(c: Canvas) {
     const { addPermanentEvents } = useDrawEventManager()
     addPermanentEvents(events)
+  }
+
+  function destroy() {
   }
 
 
@@ -113,6 +117,7 @@ export const useDrawUIStore = defineStore('drawUI', () => {
     recalculateAvatarPositions,
     activeAvatars,
     init,
-    isCanvasNavigating
+    isCanvasNavigating,
+    destroy
   }
 })

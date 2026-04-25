@@ -25,12 +25,12 @@
     <ion-button
       v-if="isLoaded"
       fill="clear"
-      size="small"
+      size="large"
       color="secondary"
       @click="openModal"
       class="mt-4 font-semibold"
     >
-      <IonIcon slot="end" :icon="svg(mdiCrop)" class="ml-2 w-4 h-4" />
+      <IonIcon slot="end" :icon="svg(mdiCrop)" class="ml-2 w-6 h-6" />
       Crop Image
     </ion-button>
   </div>

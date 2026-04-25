@@ -11,7 +11,7 @@ import { setCanvasBackground } from '@/draw/actions/color.action'
 import { redoActionMapping, undoActionMapping } from '@/draw/config/drawHistory.config'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { mergeHelper } from '@/draw/actions/object.action'
-import { CustomEraserBrush, eraseObject } from '@/draw/utils/brushes/CustomEraserBrush'
+import { eraseObject } from '@/draw/utils/brushes/CustomEraserBrush'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 
 // TODO duplicate logic from history... think!
@@ -36,7 +36,6 @@ async function syncObjectsAdded(params: DrawSyncingParams<DrawSyncingEvent.added
     showOrUpdateAvatar(params.creator, firstObj.left || 0, firstObj.top || 0)
   }
 
-  c.requestRenderAll()
 }
 
 async function syncObjectsRemoved(params: DrawSyncingParams<DrawSyncingEvent.removed>) {
@@ -46,7 +45,6 @@ async function syncObjectsRemoved(params: DrawSyncingParams<DrawSyncingEvent.rem
   const objects = getObjectsById(params.objectIds)
 
   c.remove(...objects)
-  c.requestRenderAll()
 
   if (params.creator && objects.length > 0) {
     const { showOrUpdateAvatar } = useDrawUIStore()
@@ -56,7 +54,6 @@ async function syncObjectsRemoved(params: DrawSyncingParams<DrawSyncingEvent.rem
 }
 
 async function syncObjectsModified(params: DrawSyncingParams<DrawSyncingEvent.modified>) {
-  const { getCanvas } = useDrawStore()
   const { getObjectById, updateVisibility } = useDrawObjectManager()
   const { createHistoryContext } = useDrawHistoryManager()
 
@@ -67,7 +64,6 @@ async function syncObjectsModified(params: DrawSyncingParams<DrawSyncingEvent.mo
   })
 
   updateVisibility()
-  getCanvas().requestRenderAll()
 
   if (params.creator && params.changes.length > 0) {
     const { showOrUpdateAvatar } = useDrawUIStore()
@@ -189,7 +185,6 @@ async function syncTextStyleChanged(params: DrawSyncingParams<DrawSyncingEvent.T
     textObject.set(key, value)
   })
 
-  c.requestRenderAll()
 }
 
 
@@ -275,7 +270,6 @@ async function syncErasingEnd(params: DrawSyncingParams<DrawSyncingEvent.Erasing
     showOrUpdateAvatar(params.creator, newStroke.left || 0, newStroke.top || 0)
   }
 
-  c.requestRenderAll()
 }
 
 async function syncTextChanged(params: DrawSyncingParams<DrawSyncingEvent.TextChanged>) {
@@ -286,7 +280,6 @@ async function syncTextChanged(params: DrawSyncingParams<DrawSyncingEvent.TextCh
   const objects = getObjectsById([params.objectId])
   const text = objects[0] as IText
   text.set('text', params.newText)
-  c.requestRenderAll()
 
   if (params.creator) {
     const { showOrUpdateAvatar } = useDrawUIStore()

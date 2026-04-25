@@ -14,10 +14,20 @@ import { enableGestures } from '@/draw/helpers/gestures.helper'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { InboxItem } from '@/types/server.types'
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { computeBounds } from '@/draw/helpers/export.helper'
+import { attemptPartialRecovery } from '../helpers/healthChecker.helper'
+import { EventBus } from '@/main'
+import { leaveRoom, socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
+import { useHealthChecker } from '../services/healthChecker'
+
+const initialCssTransform = {
+  scale: 1,
+  translateX: 0,
+  translateY: 0
+}
 
 export const useDrawStore = defineStore('draw', () => {
     const canvasSvc = useCanvasService()
@@ -31,8 +41,13 @@ export const useDrawStore = defineStore('draw', () => {
     const progressSaver = useDrawProgressSaver()
     const drawSyncer = useDrawSyncer()
     const drawUI = useDrawUIStore()
+    const healthChecker = useHealthChecker()
 
     const isCanvasInit = ref(false)
+
+    const isGesturing = ref(false)
+    const ghostBoxes = shallowRef<{ id: string; left: number; top: number; width: number; height: number }[]>([])
+    const cssTransform = ref<any>({ ...initialCssTransform })
 
 
     const { send, createBalloon, isSendingDrawing } = useDrawSendService(canvasSvc.getCanvas)
@@ -57,17 +72,26 @@ export const useDrawStore = defineStore('draw', () => {
 
       isModal.value = !!isAModal
       canvasSvc.destroyCanvas()
+      healthChecker.stopMonitoring()
+      drawUI.destroy()
+
       const c = canvasSvc.createCanvas(el)
 
+      healthChecker.startMonitoring(c)
       await progressSaver.init(c)
       progressSaver.startSaving(c)
 
       const prevJson = await progressSaver.get()
-      if (loadService.canvasToLoad.value) {
-        await loadService.loadCanvas(c)
-      } else if (prevJson) {
-        await c.loadFromJSON(prevJson)
+      try {
+        if (loadService.canvasToLoad.value) {
+          await loadService.loadCanvas(c)
+        } else if (prevJson) {
+          await c.loadFromJSON(prevJson)
+        }
+      } catch (error) {
+        await attemptPartialRecovery(c, prevJson, progressSaver)
       }
+      canvasSvc.backgroundColor.value = c.backgroundColor as string
 
       drawEventManager.init(c)
       enableGestures(c)
@@ -76,14 +100,13 @@ export const useDrawStore = defineStore('draw', () => {
       drawObjectManager.init(c)
       shortcutManager.init(c)
       drawSyncer.init()
-      drawUI.init()
+      drawUI.init(c)
 
 
       toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true })
       requestAnimationFrame(() => {
         c.requestRenderAll()
       })
-
 
       isCanvasInit.value = true
     }
@@ -132,6 +155,28 @@ export const useDrawStore = defineStore('draw', () => {
       return bounds.width / bounds.height
     }
 
+    async function handleEmergencyRecovery() {
+      canvasSvc.destroyCanvas()
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+      const canvasEl = document.getElementById(canvasID) as HTMLCanvasElement
+
+      if (canvasEl) {
+        canvasID = ''
+        await initCanvas(canvasEl, isModal.value)
+      } else {
+        console.error('CRITICAL: Could not find canvas element in the DOM to recover.')
+      }
+
+      const { roomId } = useDrawSyncer()
+      if (roomId) {
+        leaveRoom()
+        socketJoinRoom({ roomId, intent: 'join' })
+      }
+    }
+
+    EventBus.on('trigger_canvas_recovery', handleEmergencyRecovery)
+
 
     return {
       isModal,
@@ -152,7 +197,10 @@ export const useDrawStore = defineStore('draw', () => {
       restoreLocalCanvas,
       isCanvasInit,
       clearSavedCanvas: progressSaver.clear,
-      getAspectRatio
+      getAspectRatio,
+      isGesturing,
+      ghostBoxes,
+      cssTransform
     }
   }
 )

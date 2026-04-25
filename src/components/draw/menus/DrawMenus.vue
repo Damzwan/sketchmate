@@ -11,6 +11,7 @@
                       @add-filter="options => selectAction(DrawAction.AddImgFilter, { image: selectedObjectsRef[0], ...options })" />
 
   <SelectColorMenu
+    :objectType="selectedObjectsRef[0]?.type"
     :strokeWidth="shapeCreationMode != undefined  ? shapeCreationSettings.strokeWidth : selectedObjectsRef[0]?.strokeWidth || 0"
     :stroke-color="shapeCreationMode != undefined  ? shapeCreationSettings.stroke: selectedObjectsRef[0]?.stroke"
     :fill-color="shapeCreationMode != undefined  ? shapeCreationSettings.fill : selectedObjectsRef[0]?.fill as string"

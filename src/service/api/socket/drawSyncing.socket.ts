@@ -15,8 +15,15 @@ import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
-  socket.on('room-joined', async ({ roomId, users, isCreator, sessionId }) => {
-    const { roomId: rm, roomMembers, isCreator: cr, isTryingToJoin, currentSessionId } = storeToRefs(useDrawSyncer())
+  socket.on('room-joined', async ({ roomId, users, isCreator, sessionId, isPublic }) => {
+    const {
+      roomId: rm,
+      roomMembers,
+      isCreator: cr,
+      isTryingToJoin,
+      currentSessionId,
+      isPublicLobby
+    } = storeToRefs(useDrawSyncer())
     rm.value = roomId
     roomMembers.value = users
     cr.value = isCreator
@@ -24,6 +31,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     currentSessionId.value = sessionId
     stopWatchingLobbies()
     addRoomIdToUrl(roomId)
+    isPublicLobby.value = isPublic
   })
 
   socket.on('user-joined', ({ user, timestamp, id }) => {
@@ -328,8 +336,12 @@ export async function startWatchingLobbies() {
 
   const { isWatchingPublicLobbies } = storeToRefs(useDrawSyncer())
   isWatchingPublicLobbies.value = true
+
+  socket!.off('public-lobbies-update', handleLobbyUpdate)
+
   socket!.emit('watch-public-lobbies')
   socket!.on('public-lobbies-update', handleLobbyUpdate)
+
 }
 
 export function stopWatchingLobbies() {
@@ -341,7 +353,7 @@ export function stopWatchingLobbies() {
   socket!.off('public-lobbies-update', handleLobbyUpdate)
 }
 
-function handleLobbyUpdate(lobbies: PublicLobby[]) {
+export function handleLobbyUpdate(lobbies: PublicLobby[]) {
   const { publicLobbies } = storeToRefs(useDrawSyncer())
   publicLobbies.value = lobbies
 }

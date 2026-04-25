@@ -352,7 +352,6 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   async function processActionQueue() {
     isProcessingQueue.value = true
 
-    const { getCanvas } = useDrawStore()
     const { actionWithoutEvents } = useDrawEventManager()
 
     try {
@@ -370,8 +369,10 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       console.error('Error executing synced action:', error)
     } finally {
       // Call requestRenderAll exactly once per batch
-      getCanvas().requestRenderAll()
+      const {updateVisibility} = useDrawObjectManager()
+      updateVisibility()
       isProcessingQueue.value = false
+      EventBus.emit("drawSyncing")
     }
   }
 

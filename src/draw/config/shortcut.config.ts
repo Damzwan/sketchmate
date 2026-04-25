@@ -26,4 +26,5 @@ export enum Shortcut {
   bucket = 'b',
   penBrush = 'p',
   inspect = '/',
+  inspect2 = '.',
 }

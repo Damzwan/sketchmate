@@ -28,15 +28,12 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="FRIENDCLICK" />
+                <action android:name="ninja.sketchmate.app.ACTION_NEXT" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info" />
         </receiver>
-        <service
-            android:name=".WidgetGridService"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
@@ -89,13 +86,6 @@
                 <data android:scheme="@string/custom_url_scheme" />
             </intent-filter>
         </activity>
-        <service
-            android:name=".CustomMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -51,6 +51,7 @@ export class CrayonBrush extends PatternBrush {
 
   createPath(pathData: fabric.util.TSimplePathData): Path {
     const path = super.createPath(pathData)
+    path.objectCaching = false
     const topLeft = path._getLeftTopCoords().scalarAdd(path.strokeWidth / 2)
 
     path.stroke = new Pattern({

@@ -1,5 +1,10 @@
 import { Canvas } from 'fabric'
-import { changeFabricSettings, initCanvasOptions, overrideFindTarget } from '@/draw/helpers/fabricDefaults.helper'
+import {
+  changeFabricSettings,
+  initCanvasOptions,
+  overrideFindTarget, overrideMouseDown, overrideMouseUp,
+  overrideTransform
+} from '@/draw/helpers/fabricDefaults.helper'
 import { initViewport, resetZoom } from '@/draw/helpers/viewport.helper'
 import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
 import { ref } from 'vue'
@@ -36,6 +41,9 @@ export function useCanvasService() {
     // c.skipOffscreen = false TODO needed for rotations
     changeFabricSettings()
     overrideFindTarget(c)
+    overrideTransform(c)
+    overrideMouseUp(c)
+    overrideMouseDown(c)
     initViewport(c)
     loadFonts()
 

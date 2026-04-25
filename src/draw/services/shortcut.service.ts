@@ -11,7 +11,7 @@ import { isMac } from '@/helper/general.helper'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useMenuStore } from '@/store/menu.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
-import { interactiveObjectInspector } from '@/utils/fabricDebug'
+import { interactiveObjectInspector, setupCanvasVitalsMonitor } from '@/utils/fabricDebug'
 
 export function useShortcutManager() {
   const { getSelectedObjects } = useSelect()
@@ -198,7 +198,7 @@ export function useShortcutManager() {
       case Shortcut.copy:
         event.preventDefault()
         if (!isSelectMode.value) return
-        selectAction(DrawAction.CopyObject, { objects: getSelectedObjects() })
+        selectAction(DrawAction.CopyObject, { objects: getSelectedObjects()})
         dismissPopover()
         break
 
@@ -240,6 +240,12 @@ export function useShortcutManager() {
       case Shortcut.inspect:
         event.preventDefault()
         interactiveObjectInspector(c!)
+        dismissPopover()
+        break
+
+      case Shortcut.inspect2:
+        event.preventDefault()
+        setupCanvasVitalsMonitor(c!)
         dismissPopover()
         break
 

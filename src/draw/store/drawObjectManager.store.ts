@@ -2,7 +2,13 @@ import { defineStore } from 'pinia'
 import { Canvas, FabricObject } from 'fabric'
 import { FabricEvent, ObjectType } from '@/draw/types/draw.types'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { fabricObjectToEntry, getViewportRect, InfiniteQuadtreeManager, QuadtreeEntry } from '@/draw/utils/QuadTree'
+import {
+  fabricObjectToEntry,
+  getViewportRect,
+  InfiniteQuadtreeManager,
+  QuadtreeEntry,
+  Rect
+} from '@/draw/utils/QuadTree'
 
 export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let c: Canvas | undefined = undefined
@@ -158,6 +164,48 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     return visible.map(item => objectMap.get(item.id)).filter(i => !!i)
   }
 
+  function query(rect: Rect): FabricObject [] {
+    const o = quadtree.query(rect)
+    return o.map(item => objectMap.get(item.id)).filter(i => !!i)
+  }
+
+  const RASTERIZE_THRESHOLD = 70
+
+  function setVisibleObjectsState(mode: 'interaction' | 'static') {
+    const visibleObjects = getVisibleObjects()
+
+    visibleObjects.forEach((obj: any) => {
+      // 1. Natural Immunity: Images and text don't need viewport cache toggling
+      if (obj.type === 'image' || obj.type === 'i-text' || obj.type === 'textbox') {
+        return
+      }
+
+      if (!!(obj as any)?.stroke?.source) {
+        obj.objectCaching = false
+        return
+      }
+
+
+      // @ts-ignore
+      if (obj.path || (obj?.compressedTrace && obj.compressedTrace?.length)) {
+
+        // Assess complexity: Are there enough points to justify the RAM cost?
+        const isComplex = obj?.compressedTrace
+          ? (obj.compressedTrace && obj.compressedTrace.length > RASTERIZE_THRESHOLD)
+          : (obj.path && obj.path.length > RASTERIZE_THRESHOLD)
+
+        if (mode === 'interaction') {
+          // Drop the cache during zooming to prevent massive CPU spikes
+          obj.objectCaching = false
+        } else {
+          // Patient has stabilized. Re-enable cache only if the path is heavy enough.
+          obj.objectCaching = isComplex
+          obj.dirty = isComplex
+        }
+      }
+    })
+  }
+
 
   return {
     init,
@@ -166,6 +214,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     updateVisibility,
     updateQuadTree,
     addStartingCanvasObjects,
-    getVisibleObjects
+    getVisibleObjects,
+    setVisibleObjectsState,
+    query
   }
 })

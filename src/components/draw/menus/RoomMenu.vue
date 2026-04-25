@@ -333,6 +333,7 @@ import { useSocketService } from '@/service/api/socket/socket.service'
 import { useFriendStore } from '@/store/friend.store'
 import { useScanner } from '@/service/scanner.service'
 import { Menu } from '@/draw/types/draw.types'
+import { useToast } from '@/service/toast.service'
 
 
 const {
@@ -374,7 +375,6 @@ function joinRoom(code: string) {
   activeTab.value = 'private'
   socketJoinRoom({ roomId: code, intent: 'join' })
 }
-
 
 
 // Check if all 4 digits are filled

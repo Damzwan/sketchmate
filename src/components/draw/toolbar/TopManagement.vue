@@ -1,5 +1,6 @@
 <template>
-  <div class="flex items-center p-1 rounded-2xl border border-primary/60 bg-primary/40 backdrop-blur-md shadow-lg space-x-1">
+  <div
+    class="flex items-center p-1 rounded-2xl border border-primary/60 bg-primary/40 backdrop-blur-md shadow-lg space-x-1">
 
     <ToolButton
       :icon="svg(mdiFullscreen)"
@@ -36,7 +37,7 @@
       :icon="svg(mdiSend)"
       custom-class="bg-secondary shadow-md border-secondary ml-1"
       icon-class="text-white"
-      @click="openMenu(Menu.Send, $event)"
+      @click="startSendFlow"
     />
 
   </div>
@@ -48,15 +49,11 @@ import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useMenuStore } from '@/store/menu.store'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import ToolButton from './ToolButton.vue'
-import {
-  mdiSend,
-  mdiFullscreen,
-  mdiAccountGroupOutline,
-  mdiMapOutline,
-  mdiChatQuestionOutline
-} from '@mdi/js'
+import { mdiAccountGroupOutline, mdiChatQuestionOutline, mdiFullscreen, mdiMapOutline, mdiSend } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { Menu } from '@/draw/types/draw.types'
+import SendHub from '../send/SendHub.vue'
+import { useDrawStore } from '@/draw/store/draw.store'
 
 defineEmits(['toggle-fullscreen'])
 
@@ -67,5 +64,10 @@ const { isMiniMapOpen } = storeToRefs(drawUIStore)
 
 const toggleMinimap = () => {
   drawUIStore.isMiniMapOpen = !drawUIStore.isMiniMapOpen
+}
+
+const startSendFlow = async (e: Event) => {
+  const nav = (e.target as HTMLElement).closest('ion-nav')
+  nav?.push(SendHub)
 }
 </script>

@@ -335,11 +335,11 @@ export async function handleWebDeeplink() {
   const { setQueryParams } = useSessionStore()
   setQueryParams(url.searchParams)
 
-  if (roomId) {
-    redirectIntent.value = window.location.pathname + window.location.search
-    await socketLoggedInPromise
-    socketJoinRoom({ roomId, intent: 'join' })
-  }
+  // if (roomId) {
+  //   redirectIntent.value = window.location.pathname + window.location.search
+  //   await socketLoggedInPromise
+  //   socketJoinRoom({ roomId, intent: 'join' })
+  // }
 }
 
 export function setupPwa() {

@@ -1,7 +1,7 @@
 <template>
   <ion-page>
     <ion-tabs>
-      <ion-router-outlet :animation="routerAnimation" />
+      <ion-router-outlet :animation="masterAnimation" />
 
       <ion-tab-bar
         slot="bottom"
@@ -45,7 +45,7 @@ import { onMounted, ref } from 'vue'
 import { IonIcon, IonPage, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs, useIonRouter } from '@ionic/vue'
 import { chatbubbleOutline, homeOutline, imagesOutline, personOutline } from 'ionicons/icons'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { routerAnimation } from '@/helper/animation.helper'
+import { masterAnimation, routerAnimation } from '@/helper/animation.helper'
 import { useRoute } from 'vue-router'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
@@ -70,7 +70,7 @@ const isTabActive = (tabRoute: string) => route.path.includes(tabRoute)
 
 const handleTabClick = (tabRoute: string) => {
   if (isTabActive(tabRoute)) return
-  router.push(`/${tabRoute}`, routerAnimation)
+  router.push(`/${tabRoute}`)
 }
 </script>
 

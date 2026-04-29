@@ -7,19 +7,24 @@ import {
   exportBoundingBoxImage,
   exportCroppedJson
 } from '@/draw/helpers/export.helper'
+import { useDrawStore } from '@/draw/store/draw.store'
 
-export function useCanvasPreview(getCanvas: () => Canvas) {
+export function useCanvasPreview() {
   const preview = ref<string>()
   const newPreview = ref<string>()
   const isLoading = ref<boolean>()
+
 
   let croppedRect: any
 
   let cachedCanvas: StaticCanvas | null = null
   let aspect_ratio: number | undefined = undefined
 
-  async function init() {
+  async function createPreview() {
+    reset()
     isLoading.value = true
+
+    const { getCanvas } = useDrawStore()
     const canvas = getCanvas()
 
     exportBoundingBoxImage(canvas).then(res => {
@@ -66,6 +71,8 @@ export function useCanvasPreview(getCanvas: () => Canvas) {
       return { canvas: cachedCanvas.toJSON(), img, aspect_ratio }
     } else {
       const img = await canvasToBuffer(preview.value!)
+      const { getCanvas } = useDrawStore()
+
       return {
         canvas: getCanvas().toJSON(), img: img, aspect_ratio
       }
@@ -74,5 +81,5 @@ export function useCanvasPreview(getCanvas: () => Canvas) {
 
   }
 
-  return { preview, newPreview, init, crop, reset, getDataToSend, isLoading }
+  return { preview, newPreview, createPreview, crop, reset, getDataToSend, isLoading }
 }

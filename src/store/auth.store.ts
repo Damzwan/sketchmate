@@ -77,10 +77,6 @@ export const useAuthStore = defineStore('auth', () => {
 
       await router.replace(FRONTEND_ROUTES.login!)
 
-      // TODO think of something better
-      // when we login on mobile we first go to the draw page, which initializes the canvas and then we go to thre login. Because it happens so fast, something goes wrong during the init
-      const { resetCanvasID } = useDrawStore()
-      resetCanvasID()
 
       isAuthLoading.value = false
 
@@ -113,14 +109,9 @@ export const useAuthStore = defineStore('auth', () => {
         return
       }
 
-      // Logged in normally → route to draw or connect
-      // if (authUser.mates.length === 0) {
-      //   ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
-      // } else {
-      //   ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
-      // }
+
       // TODO testing whether this is better
-      ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+      ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation)
     } else {
       // Auto-login (no login intent)
       isAuthLoading.value = false
@@ -133,7 +124,7 @@ export const useAuthStore = defineStore('auth', () => {
           'You’re offline. Local drawing is still available. Reopen the app to retry.',
           { color: 'warning' }
         )
-        ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+        ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation)
         return
       }
 
@@ -142,11 +133,6 @@ export const useAuthStore = defineStore('auth', () => {
         p => p !== FRONTEND_ROUTES.login
       ) as Partial<FRONTEND_ROUTES>[]
 
-      // if (authUser.mates.length === 0) {
-      //   ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation) // TODO testing whether this is better
-      //   // ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
-      //   return
-      // }
 
       // 2. Check if the user was trying to reach a specific room/page
       const { redirectIntent } = useSessionStore()

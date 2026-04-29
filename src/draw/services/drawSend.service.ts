@@ -40,17 +40,13 @@ export function useDrawSendService(c: () => Canvas | null) {
 
     await socketAPI.send({
       _id: user.value!._id,
-      followers: [user.value!._id, ...mates],
+      followers: [...mates],
       drawing: drawingData,
       img: finalImg,
       name: user.value!.name,
       aspect_ratio: aspect_ratio ?? 1
     })
 
-    const { roomId } = useDrawSyncer()
-    if (roomId) return
-
-    drawStore.reset()
   }
 
   async function createBalloon(message: string, optionalData?: {

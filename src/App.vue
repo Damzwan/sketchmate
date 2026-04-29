@@ -6,7 +6,7 @@
     <WhatsNewModal />
 
     <GlobalToast />
-    <PhotoSwiper v-if="user && inbox && inbox.length > 0" />
+    <PhotoSwiper />
 
     <FeedbackMenu />
     <DateOfBirthConfirmation />
@@ -19,11 +19,15 @@
 import { IonApp, IonRouterOutlet, useIonRouter } from '@ionic/vue'
 import { defineAsyncComponent, onMounted, ref } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
-import { isNative, setupBackButtonBehavior, setupPWAPromptListener, setupRouterReadyWatcher } from '@/helper/general.helper'
+import {
+  isNative,
+  setupBackButtonBehavior,
+  setupPWAPromptListener,
+  setupRouterReadyWatcher
+} from '@/helper/general.helper'
 import { storeToRefs } from 'pinia'
 import { useNetworkStore } from '@/store/network.store'
 import { useAuthStore } from '@/store/auth.store'
-import { useInboxStore } from '@/store/inbox.store'
 import { useActiveViewSync } from '@/service/activeViewSync'
 
 // Eagerly loaded components
@@ -40,12 +44,11 @@ const Confetti = defineAsyncComponent(() => import('@/components/subscription/Co
 const ReceivedBalloon = defineAsyncComponent(() => import('@/components/connect/balloon/ReceivedBalloon.vue'))
 
 const ionRouter = useIonRouter()
-const { initIonRouter, user } = useAuthStore()
+const { initIonRouter } = useAuthStore()
 initIonRouter(ionRouter)
 useActiveViewSync()
 
 const { isAuthLoading, showForceUpdateModal } = storeToRefs(useAuthStore())
-const { inbox } = storeToRefs(useInboxStore()) // Added to check inbox length for PhotoSwiper
 const networkStore = useNetworkStore()
 
 const isRouterReady = ref(false)

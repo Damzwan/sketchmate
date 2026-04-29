@@ -27,6 +27,7 @@ useSwipe(toastRef, {
     dismiss()
   }
 })
+
 </script>
 
 <style lang="scss">

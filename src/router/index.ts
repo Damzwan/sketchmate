@@ -33,7 +33,10 @@ const routes: Array<RouteRecordRaw> = [
   // Full-screen views MUST have a leading slash
   {
     path: `/${FRONTEND_ROUTES.draw}`,
-    component: () => import('@/views/draw.view.vue')
+    component: () => import('@/views/draw.view.vue'),
+    meta: {
+      useSlideTransition: true
+    }
   },
   {
     path: `/${FRONTEND_ROUTES.settings}`,

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col items-center justify-center mb-6 w-full">
+  <div class="flex flex-col items-center justify-center w-full">
     <div
       class="relative flex items-center justify-center rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer"
       :style="{

@@ -81,11 +81,25 @@ export const useAPI = createGlobalState((): API => {
     })
   }
 
-  async function getInbox(params: GetInboxItemsParams): Promise<GetInboxRes> {
-    const url = `${baseUrl}${ENDPOINTS.inbox}?${new URLSearchParams({
-      _ids: params._ids.join()
-    })}`
-    return await fetch(url, { method: REQUEST_TYPES.GET }).then(res => res.json())
+  async function getInbox(params: any): Promise<GetInboxRes> {
+    const query: Record<string, string> = {
+      user_id: params.user_id,
+      limit: params.limit.toString()
+    }
+
+    if (params.lastDate) {
+      query.lastDate = new Date(params.lastDate).toISOString()
+    }
+
+    const queryString = new URLSearchParams(query).toString()
+    const url = `${baseUrl}/v2/inbox?${queryString}`
+
+    return await fetch(url, {
+      method: REQUEST_TYPES.GET
+    }).then(res => {
+      if (!res.ok) throw new Error('Gallery fetch failed')
+      return res.json()
+    })
   }
 
   async function removeFromInbox(params: RemoveFromInboxParams): Promise<Res<void>> {

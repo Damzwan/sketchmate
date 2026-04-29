@@ -22,6 +22,7 @@ import { attemptPartialRecovery } from '../helpers/healthChecker.helper'
 import { EventBus } from '@/main'
 import { leaveRoom, socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { useHealthChecker } from '../services/healthChecker'
+import { useCanvasPreview } from '@/draw/services/useCanvasPreview'
 
 const initialCssTransform = {
   scale: 1,
@@ -48,6 +49,16 @@ export const useDrawStore = defineStore('draw', () => {
     const isGesturing = ref(false)
     const ghostBoxes = shallowRef<{ id: string; left: number; top: number; width: number; height: number }[]>([])
     const cssTransform = ref<any>({ ...initialCssTransform })
+
+    const {
+      createPreview,
+      preview,
+      newPreview,
+      crop,
+      reset: resetPreview,
+      getDataToSend,
+      isLoading: isLoadingPreview
+    } = useCanvasPreview()
 
 
     const { send, createBalloon, isSendingDrawing } = useDrawSendService(canvasSvc.getCanvas)
@@ -200,7 +211,14 @@ export const useDrawStore = defineStore('draw', () => {
       getAspectRatio,
       isGesturing,
       ghostBoxes,
-      cssTransform
+      cssTransform,
+      createPreview,
+      preview,
+      newPreview,
+      crop,
+      resetPreview,
+      getDataToSend,
+      isLoadingPreview
     }
   }
 )

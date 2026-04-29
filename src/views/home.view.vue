@@ -23,28 +23,11 @@
           </div>
         </section>
 
-        <section>
-          <h2 class="text-base font-black text-black mb-3 px-1">Active Lobbies</h2>
-
-          <div class="flex overflow-x-auto gap-4 pb-2 snap-x snap-mandatory hide-scrollbar">
-            <div
-              v-for="lobby in activeLobbies"
-              :key="lobby.id"
-              class="min-w-[170px] max-w-[170px] bg-primary/40 rounded-3xl overflow-hidden snap-start flex-shrink-0 border border-primary/60"
-            >
-              <div class="h-28 bg-background/50 w-full relative border-b border-primary/40">
-                <div
-                  class="absolute top-2 right-2 px-2 py-1 bg-secondary rounded-full text-[10px] text-white flex items-center font-black">
-                  <span class="w-1.5 h-1.5 rounded-full bg-green-400 mr-1 animate-pulse"></span>
-                  {{ lobby.playerCount }}
-                </div>
-              </div>
-              <div class="p-3">
-                <h3 class="text-xs font-bold text-black truncate">{{ lobby.title }}</h3>
-              </div>
-            </div>
-          </div>
-        </section>
+        <ActiveLobbies
+          :lobbies="publicLobbies"
+          @join="joinLobby"
+          :loading="publicLobbies.length === 0"
+        />
 
         <section>
           <h2 class="text-base font-black text-black mb-4 px-1">Community Highlights</h2>
@@ -88,26 +71,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { IonPage, IonContent, useIonRouter } from '@ionic/vue'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { IonPage, IonContent, useIonRouter, onIonViewDidEnter, onIonViewDidLeave } from '@ionic/vue'
+import { storeToRefs } from 'pinia'
 import TopBar from '../components/general/TopBar.vue'
+import ActiveLobbies from '../components/home/ActiveLobbies.vue' // <-- Import the organ
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { slideTransition } from '@/helper/animation.helper'
+import { masterAnimation } from '@/helper/animation.helper'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { startWatchingLobbies, stopWatchingLobbies } from '@/service/api/socket/drawSyncing.socket'
+import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
 
 const r = useIonRouter()
+
+const drawSyncerStore = useDrawSyncer()
+const { publicLobbies, isWatchingPublicLobbies } = storeToRefs(drawSyncerStore)
 
 const quickActions = ref([
   { id: 'draw_alone', label: 'Draw Alone', iconFallback: '✏️' },
   { id: 'draw_friend', label: 'With Friend', iconFallback: '👋' },
   { id: 'balloon', label: 'Send Balloon', iconFallback: '🎈' },
   { id: 'public_post', label: 'Public Post', iconFallback: '🌍' }
-])
-
-const activeLobbies = ref([
-  { id: '1', title: 'Late Night Doodles', playerCount: 12 },
-  { id: '2', title: 'Anime Sketching', playerCount: 8 },
-  { id: '3', title: 'Abstract Chaos', playerCount: 34 },
-  { id: '4', title: 'Chill Vibes Only', playerCount: 5 }
 ])
 
 const communityHighlights = ref([
@@ -117,9 +101,26 @@ const communityHighlights = ref([
 
 const handleQuickAction = (actionId: string) => {
   if (actionId === 'draw_alone') {
-    r.push(FRONTEND_ROUTES.draw, slideTransition)
+    r.push(FRONTEND_ROUTES.draw, masterAnimation)
   }
 }
+
+const joinLobby = (lobbyId: string) => {
+  r.push(`${FRONTEND_ROUTES.draw}?room_id=${lobbyId}`, masterAnimation)
+}
+
+
+onIonViewDidEnter(() => {
+  socketLoggedInPromise.then(() => {
+    startWatchingLobbies()
+  })
+})
+
+onIonViewDidLeave(() => {
+  stopWatchingLobbies()
+})
+
+
 </script>
 
 <style scoped>

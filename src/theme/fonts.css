@@ -3,6 +3,7 @@
 .cabin-sketch-regular {
     font-family: "Cabin Sketch", sans-serif;
     font-weight: 400;
+    /* This makes the font render thinner and cleaner on mobile screens */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;

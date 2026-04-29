@@ -36,7 +36,7 @@ import { IonButton, IonContent, useIonRouter } from '@ionic/vue'
 import { isNative } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { routerAnimation } from '@/helper/animation.helper'
+import { masterAnimation, routerAnimation } from '@/helper/animation.helper'
 import { ref } from 'vue'
 import { requestNotifications } from '@/helper/notification.helper'
 import { useToast } from '@/service/toast.service'
@@ -63,11 +63,7 @@ async function enableNotifications() {
 function navigateToConnectionScreen() {
   const { user } = useAuthStore()
   if (!user) return
-  // if (user.mates.length == 0) ionRouter.replace(FRONTEND_ROUTES.connect, routerAnimation)
-  // else ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
-
-  // TODO testing whether this is better
-  ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+  ionRouter.replace(FRONTEND_ROUTES.home, masterAnimation)
 }
 
 </script>

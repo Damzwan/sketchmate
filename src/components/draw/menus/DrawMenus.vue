@@ -3,7 +3,6 @@
   <EraserMenu />
   <SelectMenu />
   <ShapesMenu />
-  <SendDrawer />
   <MoreToolsMenu />
   <StickersEmblemsSavedMenu />
   <SelectExtraOptionsMenu />
@@ -43,7 +42,6 @@ import SelectMenu from '@/components/draw/menus/SelectMenu.vue'
 import DocsMenu from '@/components/draw/menus/DocsMenu.vue'
 import TextMenu from '@/components/draw/menus/TextMenu.vue'
 import FontMenu from '@/components/draw/menus/FontMenu.vue'
-import SendDrawer from '@/components/draw/menus/SendDrawer.vue'
 import MoreToolsMenu from '@/components/draw/menus/MoreToolsMenu.vue'
 import StickersEmblemsSavedMenu from '@/components/draw/menus/stickersEmblemsSavedMenu/StickersEmblemsSavedMenu.vue'
 import HelpMenu from '@/components/draw/menus/HelpMenu.vue'

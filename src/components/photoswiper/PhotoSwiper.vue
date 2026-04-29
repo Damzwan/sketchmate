@@ -157,6 +157,7 @@ import { isInRoom } from '@/draw/helpers/drawSyncing.helper'
 
 register()
 
+
 const { open, slide } = storeToRefs(usePhotoSwiper())
 const { seeItem } = usePhotoSwiper()
 

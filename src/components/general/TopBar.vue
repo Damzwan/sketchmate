@@ -1,23 +1,23 @@
 <template>
-  <ion-header class="ion-no-border bg-transparent absolute top-0 left-0 w-full z-50">
-    <div class="flex items-center justify-between px-2 py-2">
+  <ion-header class="ion-no-border bg-transparent relative w-full z-50 top-pad-safe">
+    <div class="flex items-center justify-between px-4 py-2">
 
-     <div class="flex items-center space-x-4">
-       <p class="cabin-sketch-regular text-2xl font-light text-black  ">
-         {{title}}
-       </p>
+      <div class="flex items-center space-x-4">
+        <p class="cabin-sketch-regular text-2xl font-light text-black  ">
+          {{ title }}
+        </p>
 
-       <ion-button
-         fill="outline"
-         class="sketch-button-rounded h-9 m-0"
-         @click="openProMenu"
-       >
-         <div class="flex items-center space-x-1 px-1">
-           <ion-icon :icon="sparklesOutline" class="text-black text-[12px]" />
-           <span class="cabin-sketch-regular text-black text-[17px] font-bold lowercase">plus+</span>
-         </div>
-       </ion-button>
-     </div>
+        <ion-button
+          fill="outline"
+          class="sketch-button-rounded h-9 m-0"
+          @click="openProMenu"
+        >
+          <div class="flex items-center space-x-1 px-1">
+            <ion-icon :icon="sparklesOutline" class="text-black text-[12px]" />
+            <span class="cabin-sketch-regular text-black text-[17px] font-bold lowercase">plus+</span>
+          </div>
+        </ion-button>
+      </div>
 
       <div class="flex items-center space-x-4 pr-2">
 

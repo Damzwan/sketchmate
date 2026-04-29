@@ -42,19 +42,12 @@ export type LobbyChatItem =
   _id: string
   timestamp: string
 }
-
-
-export interface LobbyChatEnterMessage {
-  member: Mate,
-  _id: string
-  timestamp: string
-}
-
 export interface PublicLobby {
   id: string;
   name: string;
   users: number;
   maxUsers: number;
+  thumbnailUrl?: string;
 }
 
 interface ActiveAvatar {

@@ -337,20 +337,26 @@ export async function startWatchingLobbies() {
   const { isWatchingPublicLobbies } = storeToRefs(useDrawSyncer())
   isWatchingPublicLobbies.value = true
 
+  // Clean up any existing listeners before attaching new ones
   socket!.off('public-lobbies-update', handleLobbyUpdate)
+  socket!.off('lobby-thumbnail-pulsed', handleThumbnailPulse)
 
   socket!.emit('watch-public-lobbies')
-  socket!.on('public-lobbies-update', handleLobbyUpdate)
 
+  socket!.on('public-lobbies-update', handleLobbyUpdate)
+  socket!.on('lobby-thumbnail-pulsed', handleThumbnailPulse)
 }
 
 export function stopWatchingLobbies() {
   const { isWatchingPublicLobbies, publicLobbies } = storeToRefs(useDrawSyncer())
   if (!isWatchingPublicLobbies.value) return
+
   isWatchingPublicLobbies.value = false
   publicLobbies.value = []
+
   socket!.emit('unwatch-public-lobbies')
   socket!.off('public-lobbies-update', handleLobbyUpdate)
+  socket!.off('lobby-thumbnail-pulsed', handleThumbnailPulse)
 }
 
 export function handleLobbyUpdate(lobbies: PublicLobby[]) {
@@ -362,6 +368,15 @@ function removeRoomIdFromUrl() {
   const query = { ...router.currentRoute.value.query }
   delete query.room_id
   router.replace({ query })
+}
+
+export function handleThumbnailPulse({ roomId, thumbnailUrl }: { roomId: string, thumbnailUrl: string }) {
+  const { publicLobbies } = storeToRefs(useDrawSyncer())
+  const index = publicLobbies.value.findIndex(l => l.id === roomId)
+
+  if (index !== -1) {
+    publicLobbies.value[index].thumbnailUrl = thumbnailUrl
+  }
 }
 
 function addRoomIdToUrl(roomId: string) {

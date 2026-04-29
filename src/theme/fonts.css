@@ -3,6 +3,9 @@
 .cabin-sketch-regular {
     font-family: "Cabin Sketch", sans-serif;
     font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
 }
 
 

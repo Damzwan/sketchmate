@@ -1,125 +1,111 @@
 <template>
   <ion-page>
-    <ion-toast
-      ref="toast"
-      :is-open="isOpen"
-      :message="text"
-      :duration="duration"
-      @didDismiss="dismiss()"
-      :buttons="buttons"
-      :color="color"
-      :position="position"
-    />
-    <PhotoSwiper v-if="user && inbox.length > 0" />
-
     <ion-tabs>
       <ion-router-outlet :animation="routerAnimation" />
-      <ion-tab-bar slot="bottom" v-if="show" mode="ios">
-        <ion-tab-button :tab="FRONTEND_ROUTES.draw" :href="`/${FRONTEND_ROUTES.draw}`"
-                        @click="r.push(FRONTEND_ROUTES.draw, routerAnimation)">
-          <ion-icon :icon="pencil" />
-          <ion-label>Draw</ion-label>
-          <div id="lol"></div>
 
-        </ion-tab-button>
-
-
+      <ion-tab-bar
+        slot="bottom"
+        mode="ios"
+        class="h-12 border-t border-black/5 pb-[var(--ion-safe-area-bottom,0)] shadow-lg"
+      >
         <ion-tab-button
-          :disabled="!isLoggedIn"
-          :tab="FRONTEND_ROUTES.gallery"
-          :href="`/${FRONTEND_ROUTES.gallery}`"
-          @click="r.push(FRONTEND_ROUTES.gallery, routerAnimation)"
+          v-for="tab in tabs"
+          :key="tab.route"
+          :tab="tab.route"
+          :href="`/${tab.route}`"
+          @click.stop.prevent="handleTabClick(tab.route)"
+          class="bg-transparent"
+          :class="{ 'tab-selected': isTabActive(tab.route) }"
         >
-          <ion-icon :icon="imagesOutline" />
-          <ion-label>Gallery</ion-label>
-        </ion-tab-button>
+          <template v-if="tab.route === FRONTEND_ROUTES.profile">
+            <div
+              class="w-7 h-7 rounded-full border-2 transition-all duration-200 overflow-hidden flex justify-center items-center"
+              :class="isTabActive(tab.route) ? 'border-[var(--ion-color-secondary)] scale-110' : 'border-black/20'"
+            >
+              <img v-if="profileImg" :src="profileImg" class="w-full h-full object-cover" />
+              <ion-icon v-else :icon="personOutline" class="text-[20px]" />
+            </div>
+          </template>
 
-        <ion-tab-button
-          :disabled="!isLoggedIn"
-          :tab="FRONTEND_ROUTES.connect"
-          :href="`/${FRONTEND_ROUTES.connect}`"
-          @click="r.push(FRONTEND_ROUTES.connect, routerAnimation)"
-          class="relative"
-        >
-          <ion-icon :icon="peopleCircleOutline" />
-          <ion-label>Connect</ion-label>
-          <ion-badge class="ml-2" color="secondary" v-if="notificationBadgeCount > 0">
-            {{ notificationBadgeCount }}
-          </ion-badge>
+          <template v-else>
+            <ion-icon
+              :icon="tab.icon"
+              class="text-[28px] transition-all duration-200"
+              :class="isTabActive(tab.route) ? 'text-secondary-glow' : ''"
+            />
+          </template>
         </ion-tab-button>
-
       </ion-tab-bar>
     </ion-tabs>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import {
-  IonIcon,
-  IonLabel,
-  IonPage,
-  IonRouterOutlet,
-  IonTabBar,
-  IonTabButton,
-  IonTabs,
-  IonToast,
-  useIonRouter,
-  IonBadge
-} from '@ionic/vue'
-import { imagesOutline, pencil, peopleCircleOutline } from 'ionicons/icons'
+import { onMounted, ref } from 'vue'
+import { IonIcon, IonPage, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs, useIonRouter } from '@ionic/vue'
+import { chatbubbleOutline, homeOutline, imagesOutline, personOutline } from 'ionicons/icons'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { computed, ref } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/store/auth.store'
-import { useToast } from '@/service/toast.service'
-import FullScreenLoader from '@/components/general/loaders/CircularLoader.vue'
 import { routerAnimation } from '@/helper/animation.helper'
 import { useRoute } from 'vue-router'
-import { useSwipe } from '@vueuse/core'
-import PhotoSwiper from '@/components/photoswiper/PhotoSwiper.vue'
-import { useInboxStore } from '@/store/inbox.store'
-import { useNotificationStore } from '@/store/notification.store'
+import { Preferences } from '@capacitor/preferences'
+import { LocalStorage } from '@/types/storage.types'
 
-const { text, isOpen, dismiss, duration, color, buttons, position } = useToast()
-const r = useIonRouter()
-
-
-const toast = ref()
-useSwipe(toast, {
-  onSwipeEnd() {
-    dismiss()
-  }
-})
-
-const { user, isLoggedIn } = storeToRefs(useAuthStore())
-const { inbox } = storeToRefs(useInboxStore())
-
-const notificationBadgeCount = computed(() => {
-  return user.value
-    ? (user.value.mate_requests_received?.length ?? 0) + (user.value.balloon?.received ? 1 : 0)
-    : 0
-})
-
-
+const router = useIonRouter()
 const route = useRoute()
-const show = computed(() => route.path != `/${FRONTEND_ROUTES.login}` && !route.fullPath.includes('capacitor')) // capacitor due to redirect login url
+const profileImg = ref<string | null>(null)
 
+const tabs = [
+  { route: FRONTEND_ROUTES.home, icon: homeOutline },
+  { route: FRONTEND_ROUTES.gallery, icon: imagesOutline },
+  { route: FRONTEND_ROUTES.chat, icon: chatbubbleOutline },
+  { route: FRONTEND_ROUTES.profile, icon: personOutline }
+]
 
+onMounted(async () => {
+  const { value } = await Preferences.get({ key: LocalStorage.img })
+  profileImg.value = value
+})
+
+const isTabActive = (tabRoute: string) => route.path.includes(tabRoute)
+
+const handleTabClick = (tabRoute: string) => {
+  if (isTabActive(tabRoute)) return
+  router.push(`/${tabRoute}`, routerAnimation)
+}
 </script>
 
 <style lang="scss" scoped>
-ion-tab-button {
-  --color: var(--ion-color-primary-contrast);
-  --color-selected: var(--ion-color-secondary-shade);
-}
-
 ion-tab-bar {
   --background: var(--ion-color-primary);
-  padding-bottom: var(--ion-safe-area-bottom, 0);
 }
 
-ion-icon {
-  width: 55%;
-  height: 55%;
+ion-tab-button {
+  --color: rgba(0, 0, 0, 0.4);
+  --color-selected: var(--ion-color-secondary);
+
+  /* The bounce animation triggers when our Vue logic adds the class */
+  &.tab-selected ion-icon {
+    animation: spotifyBounce 0.45s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+    color: var(--ion-color-secondary);
+  }
+}
+
+.text-secondary-glow {
+  filter: drop-shadow(0 0 2px rgba(var(--ion-color-secondary-rgb), 0.2));
+}
+
+@keyframes spotifyBounce {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(0.8);
+  }
+  60% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 </style>

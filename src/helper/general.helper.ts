@@ -109,10 +109,6 @@ export async function setAppColors(colorConfig: AppColorConfig) {
   ])
 }
 
-export async function hideLoading() {
-  await SplashScreen.hide()
-}
-
 
 export function isMobile() {
   return isPlatform('mobile') || isPlatform('capacitor') || isPlatform('android') || isPlatform('ios')
@@ -398,22 +394,25 @@ export function setupPWAPromptListener() {
   })
 }
 
-export function setupReadyWatcher(
+export function setupRouterReadyWatcher(
   isRouterReady: Ref<boolean>,
   isAuthLoading: Ref<boolean>
 ) {
-  // Wait for route system
   router.isReady().then(() => {
     isRouterReady.value = true
   })
 
-  // On native: hide splash when both ready
   if (isNative()) {
-    watch([isAuthLoading, isRouterReady], () => {
-      if (isRouterReady.value && !isAuthLoading.value) {
-        hideLoading()
-      }
-    })
+    const unwatch = watch(
+      [isAuthLoading, isRouterReady],
+      ([authLoading, routerReady]) => {
+        if (routerReady && !authLoading) {
+          SplashScreen.hide({ fadeOutDuration: 200 })
+          unwatch()
+        }
+      },
+      { immediate: true }
+    )
   }
 }
 
@@ -448,9 +447,9 @@ export function generateRandomCode() {
 // A tiny seeded random helper
 export const mulberry32 = (a: number) => {
   return () => {
-    let t = a += 0x6D2B79F5;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
+    let t = a += 0x6D2B79F5
+    t = Math.imul(t ^ t >>> 15, t | 1)
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61)
+    return ((t ^ t >>> 14) >>> 0) / 4294967296
+  }
 }

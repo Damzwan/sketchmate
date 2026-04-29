@@ -5,13 +5,22 @@ import { DrawAction, DrawTool, Menu } from '@/draw/types/draw.types'
 import { Shortcut } from '@/draw/config/shortcut.config'
 import { modalController, popoverController } from '@ionic/vue'
 import { Canvas } from 'fabric/fabric-impl'
-import { ToolbarIds } from '@/draw/config/toolbar.config'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { isMac } from '@/helper/general.helper'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useMenuStore } from '@/store/menu.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { interactiveObjectInspector, setupCanvasVitalsMonitor } from '@/utils/fabricDebug'
+
+export enum ToolbarIds {
+  pen = 'pen',
+  eraser = 'eraser',
+  moreTools = 'moreTools',
+  select = 'select',
+  undo = 'undo',
+  redo = 'redo',
+  send = 'send',
+}
 
 export function useShortcutManager() {
   const { getSelectedObjects } = useSelect()

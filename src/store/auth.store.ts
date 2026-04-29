@@ -160,7 +160,7 @@ export const useAuthStore = defineStore('auth', () => {
       if (allowedRoutes.includes(path as FRONTEND_ROUTES)) {
         ionRouter.replace(path, routerAnimation)
       } else {
-        ionRouter.replace(FRONTEND_ROUTES.draw, routerAnimation)
+        ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation)
       }
 
 

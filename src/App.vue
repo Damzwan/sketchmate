@@ -1,71 +1,67 @@
 <template>
   <ion-app>
-
     <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" bg-color="bg-background" />
     <ion-router-outlet />
-
     <ForceUpdateModal v-if="isNative() && showForceUpdateModal" />
-    <FeedbackMenu />
-    <DateOfBirthConfirmation />
-    <DrawMenus />
     <WhatsNewModal />
 
-    <DrawModal />
-    <Confetti/>
-    <ReceivedBalloon/>
+    <GlobalToast />
+    <PhotoSwiper v-if="user && inbox && inbox.length > 0" />
 
-
+    <FeedbackMenu />
+    <DateOfBirthConfirmation />
+    <Confetti />
+    <ReceivedBalloon />
   </ion-app>
 </template>
 
 <script setup lang="ts">
 import { IonApp, IonRouterOutlet, useIonRouter } from '@ionic/vue'
-import { onMounted, ref } from 'vue'
+import { defineAsyncComponent, onMounted, ref } from 'vue'
 import { defineCustomElements } from '@ionic/pwa-elements/loader'
-import { isNative, setupBackButtonBehavior, setupPWAPromptListener, setupReadyWatcher } from '@/helper/general.helper'
+import { isNative, setupBackButtonBehavior, setupPWAPromptListener, setupRouterReadyWatcher } from '@/helper/general.helper'
 import { storeToRefs } from 'pinia'
-import ForceUpdateModal from '@/components/general/ForceUpdateModal.vue'
-import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
-import DateOfBirthConfirmation from '@/components/general/DateOfBirthConfirmation.vue'
-import FeedbackMenu from '@/components/general/FeedbackMenu.vue'
 import { useNetworkStore } from '@/store/network.store'
 import { useAuthStore } from '@/store/auth.store'
-import DrawMenus from '@/components/draw/menus/DrawMenus.vue'
-import DrawModal from '@/components/draw/DrawModal.vue'
-import WhatsNewModal from '@/components/general/WhatsNewModal.vue'
-import Confetti from '@/components/subscription/Confetti.vue'
+import { useInboxStore } from '@/store/inbox.store'
 import { useActiveViewSync } from '@/service/activeViewSync'
-import ReceivedBalloon from '@/components/connect/balloon/ReceivedBalloon.vue'
 
+// Eagerly loaded components
+import ForceUpdateModal from '@/components/general/ForceUpdateModal.vue'
+import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
+import WhatsNewModal from '@/components/general/WhatsNewModal.vue'
+
+// LAZY LOADED COMPONENTS (Will create separate js chunks)
+const GlobalToast = defineAsyncComponent(() => import('@/components/general/GlobalToast.vue'))
+const PhotoSwiper = defineAsyncComponent(() => import('@/components/photoswiper/PhotoSwiper.vue'))
+const FeedbackMenu = defineAsyncComponent(() => import('@/components/general/FeedbackMenu.vue'))
+const DateOfBirthConfirmation = defineAsyncComponent(() => import('@/components/general/DateOfBirthConfirmation.vue'))
+const Confetti = defineAsyncComponent(() => import('@/components/subscription/Confetti.vue'))
+const ReceivedBalloon = defineAsyncComponent(() => import('@/components/connect/balloon/ReceivedBalloon.vue'))
 
 const ionRouter = useIonRouter()
-const { initIonRouter } = useAuthStore()
+const { initIonRouter, user } = useAuthStore()
 initIonRouter(ionRouter)
 useActiveViewSync()
 
-const {
-  isAuthLoading,
-  showForceUpdateModal
-} = storeToRefs(useAuthStore())
+const { isAuthLoading, showForceUpdateModal } = storeToRefs(useAuthStore())
+const { inbox } = storeToRefs(useInboxStore()) // Added to check inbox length for PhotoSwiper
 const networkStore = useNetworkStore()
 
 const isRouterReady = ref(false)
 
 onMounted(async () => {
-  defineCustomElements(window)  // this timeout is necessary to avoid flickering in the beginning (should not be there)
+  defineCustomElements(window)
 })
 
-
-setupReadyWatcher(isRouterReady, isAuthLoading)
+setupRouterReadyWatcher(isRouterReady, isAuthLoading)
 setupBackButtonBehavior()
 setupPWAPromptListener()
 networkStore.init()
-
 </script>
 
 <style lang="scss">
 ion-content {
   --background: var(--ion-color-background);
 }
-
 </style>

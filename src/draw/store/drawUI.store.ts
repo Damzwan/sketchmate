@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 import { FabricEvent, ShapeCreationMode } from '@/draw/types/draw.types'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'
 import * as fabric from 'fabric'
 import { Canvas, Point } from 'fabric'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { useDebounceFn } from '@vueuse/core'
+import { useSelect } from '@/draw/store/tools/select.store'
 
 const AVATAR_DISAPPEAR_TIMEOUT_MS = 3000
 

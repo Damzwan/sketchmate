@@ -2,5 +2,9 @@ export enum FRONTEND_ROUTES {
   draw = 'draw',
   gallery = 'gallery',
   connect = 'connect',
-  login='login'
+  login='login',
+  home='home',
+  chat='chat',
+  profile='profile',
+  settings='settings',
 }

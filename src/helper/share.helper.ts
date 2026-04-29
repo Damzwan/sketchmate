@@ -61,11 +61,6 @@ export async function shareImg(
       files: [savedFile.uri],
       dialogTitle: dialogTitle
     })
-  } else if (isSupported.value) {
-    const base64 = await urlToBase64(img_url)
-    const blob = await (await fetch(base64)).blob()
-    const file = new File([blob], 'SketchMate_image.png', { type: blob.type })
-    await share({ files: [file] })
   } else {
     toast('Copied image link!')
     await Clipboard.write({
@@ -88,3 +83,35 @@ export function createRoomLink(roomId: string) {
   return `${baseUrl}/${FRONTEND_ROUTES.draw}?room_id=${roomId}`
 }
 
+export async function shareImages(
+  img_urls: string[],
+  title = 'Check out my sketches!',
+  dialogTitle = 'Share images'
+) {
+  const can_share = await Share.canShare()
+
+  if (isNative() && can_share.value) {
+    const fileUris = []
+
+    // Convert and save all images to device cache
+    for (let i = 0; i < img_urls.length; i++) {
+      const base64 = await urlToBase64(img_urls[i])
+      const savedFile = await Filesystem.writeFile({
+        path: `sketchmate_share_${i}.png`,
+        data: base64.toString().split(',')[1],
+        directory: Directory.Cache
+      })
+      fileUris.push(savedFile.uri)
+    }
+
+    await Share.share({
+      title: title,
+      files: fileUris,
+      dialogTitle: dialogTitle
+    })
+  } else {
+    // Ultimate fallback if sharing is totally unsupported
+    toast(`Copied ${img_urls.length} image links!`)
+    await Clipboard.write({ string: img_urls.join('\n') })
+  }
+}

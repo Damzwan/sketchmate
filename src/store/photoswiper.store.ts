@@ -1,39 +1,50 @@
-// Utilities
-import { defineStore, storeToRefs } from 'pinia'
-import { ref } from 'vue'
-import { useAPI } from '@/service/api/api.service'
-import { useAuthStore } from '@/store/auth.store'
-import { useInboxStore } from '@/store/inbox.store'
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
 
+export interface SwiperConfig {
+  onSeen?: (item: any) => void
+  onDelete?: (item: any) => void
+  onReply?: (item: any) => void
+  userLookup?: (userId: string) => any // Function to resolve user details (name, avatar)
+  canDelete?: (item: any, user: any) => boolean // Custom delete logic
+  canReply?: boolean // Toggle reply button
+}
 
 export const usePhotoSwiper = defineStore('photoswiper', () => {
   const open = ref(false)
   const slide = ref(0)
-  const { inbox } = storeToRefs(useInboxStore())
-  const api = useAPI()
+  const collection = ref<any[]>([])
+  const config = ref<SwiperConfig>({})
 
-  function seeItem(index?: number) {
-    const indexOfItemToSee = index != undefined ? index : slide.value
+  const currentItem = computed(() => collection.value[slide.value])
 
-    const { user } = useAuthStore()
-    const item = inbox.value[indexOfItemToSee]
+  /**
+   * @param items - The array of items to swipe through
+   * @param startIndex - Which index to start on
+   * @param swiperConfig - Configuration and callbacks for decoupling
+   */
+  function openSwiper(items: any[], startIndex = 0, swiperConfig: SwiperConfig = {}) {
+    collection.value = items
+    slide.value = startIndex
+    config.value = swiperConfig
+    open.value = true
+  }
 
+  function seeItem() {
+    if (!currentItem.value) return
 
-    if (!item) return
-
-    if (item.seen_by.includes(user!._id) && item.comments_seen_by.includes(user!._id)) return
-
-    api.seeInboxItem({
-      user_id: user!._id,
-      inbox_id: item._id
-    })
-    inbox.value![indexOfItemToSee].seen_by.push(user!._id)
-    inbox.value[indexOfItemToSee].comments_seen_by.push(user!._id)
+    if (config.value.onSeen) {
+      config.value.onSeen(currentItem.value)
+    }
   }
 
   return {
     open,
     slide,
+    collection,
+    currentItem,
+    config,
+    openSwiper,
     seeItem
   }
 })

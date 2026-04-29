@@ -1,124 +1,55 @@
 <template>
   <transition name="expand">
-    <div class="fixed w-full h-full bg-black z-50 flex flex-col safe-area" v-show="open" v-if="user">
-      <ion-toolbar class="w-full h-14 flex">
-        <ion-buttons slot="start">
-          <ion-button @click="close" color="light">
-            <ion-icon :icon="arrowBack" />
-          </ion-button>
-        </ion-buttons>
+    <div class="fixed w-full h-full bg-black z-50 flex flex-col safe-area" v-show="open" v-if="user && currItem">
 
-        <ion-buttons slot="end">
-          <ion-button
-            @click="showComments = !showComments"
-            color="light"
-            class="pr-2"
-            v-if="currInboxItem.comments.length > 0"
-          >
-            <ion-icon :icon="svg(showComments ? mdiChatRemoveOutline : mdiChatOutline)" class="w-[25px] h-[25px]" />
-          </ion-button>
-
-          <button class="flex -space-x-6" @click="isFollowerDrawerOpen=true">
-            <img :src="senderImg(findUserInInboxUsers(follower))"
-                 v-for="(follower, i) in [...currInboxItem.followers].reverse().slice(0, badgesCountToShow)"
-                 :key="follower"
-                 :alt="follower" class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px]"
-                 :style="{'zIndex':  i}">
-
-            <div
-              class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px] flex justify-center items-center bg-white"
-              :style="{'zIndex':  currInboxItem.followers.length + 1}"
-              v-if="currInboxItem.followers.slice(badgesCountToShow).length > 0">
-              <p class="text-gray-600">{{ currInboxItem.followers.slice(badgesCountToShow).length }}+</p>
-            </div>
-          </button>
-        </ion-buttons>
-      </ion-toolbar>
+      <PhotoSwiperHeader
+        :curr-item="currItem"
+        v-model:show-comments="showComments"
+        @close="close"
+        @open-followers="isFollowerDrawerOpen = true"
+        :user-lookup="config.userLookup"
+      />
 
       <swiper-container
         class="w-full grow"
-        :slides-per-view="1"
-        keyboard-enabled="true"
-        @swiperslidechange="(x: any) => slide = x.target.swiper.activeIndex"
         :initial-slide="slide"
-        lazyPreloadPrevNext="3"
-        :zoom="{maxRatio: 3}"
+        @swiperslidechange="(x: any) => slide = x.target.swiper.activeIndex"
         ref="swiper"
-        @update="() => swiper.swiper.slideTo(slide + 1, 0)"
       >
-        <swiper-slide v-for="(item, i) in inbox" :key="i">
-          <div class="swiper-zoom-container"
-               v-if="Math.abs(slide - i) < 3">
-            <PhotoSwiperItem :thumbnail="item.thumbnail" :image="item.image"
-                             :switch-to-image="Math.abs(slide - i) < 3" />
+        <swiper-slide v-for="(item, i) in collection" :key="item._id || i">
+          <div class="swiper-zoom-container" v-if="Math.abs(slide - i) < 3">
+            <PhotoSwiperItem
+              :thumbnail="item.thumbnail"
+              :image="item.image"
+              :switch-to-image="Math.abs(slide - i) < 3"
+            />
           </div>
         </swiper-slide>
       </swiper-container>
 
-
-      <div class="flex justify-evenly w-full items-center h-14 relative">
-        <div v-if="currInboxItem && showComments" @click="isCommentDrawerOpen = true" class="comments cursor-pointer">
-          <div v-for="(comment, i) in currInboxItem.comments.slice(0, 4)" :key="i"
-               class="rounded-full comment my-1 p-1">
-            <div class="flex items-center pl-1">
-              <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]"
-              ><img :src="senderImg(findUserInInboxUsers(comment.sender))" alt="" class="aspect-square"
-              /></ion-avatar>
-              <div class="flex-1 mx-2">
-                <div class="text-sm font-bold text-white cabin-sketch-regular">
-                  {{ senderName(findUserInInboxUsers(comment.sender)) }}
-                </div>
-                <div class="text-sm text-white cabin-sketch-regular">{{ comment.message }}</div>
-              </div>
-            </div>
-          </div>
-          <div v-if="currInboxItem.comments.length > 4" class="rounded-full comment my-1">
-            <p class="text-sm text-white py-1 pl-2 cabin-sketch-regular">{{
-                `Click to see ${currInboxItem.comments.length - 4} more comments`
-              }}</p>
-          </div>
-        </div>
-
-
-        <ion-button fill="clear" color="light" @click="replyToDrawing" class="grow" size="large">
-          <ion-icon :icon="svg(mdiReplyOutline)" />
-        </ion-button>
-
-        <ion-button
-          fill="clear"
-          color="light"
-          @click="() => (isCommentDrawerOpen = true)"
-          class="flex-grow"
-          size="large"
-        >
-          <ion-icon :icon="svg(mdiCommentOutline)" />
-          <ion-badge class="mb-[25px] absolute ml-[35px]" color="secondary"
-          >{{ currInboxItem.comments.length }}
-          </ion-badge>
-        </ion-button>
-        <ion-button fill="clear" color="light" @click="shareImg(currInboxItem.image)" class="flex-grow" size="large">
-          <ion-icon :icon="svg(mdiShareVariantOutline)" />
-        </ion-button>
-        <ion-button fill="clear" color="light" id="delete-alert" class="flex-grow" size="large">
-          <ConfirmationAlert
-            header="Are you sure?"
-            trigger="delete-alert"
-            message="This drawing will be deleted permanently"
-            @confirm="removeFromInboxItem"
-          />
-          <ion-icon :icon="svg(mdiDeleteOutline)" />
-        </ion-button>
-      </div>
-
+      <PhotoSwiperFooter
+        :curr-item="currItem"
+        :show-comments="showComments"
+        :can-reply="config.canReply"
+        :can-delete="canDelete"
+        :user-lookup="config.userLookup"
+        @open-comments="isCommentDrawerOpen = true"
+        @reply="handleReply"
+        @delete="handleDelete"
+      />
 
       <CommentDrawer
         :index-of-curr-inbox-item="slide"
-        :curr-inbox-item="currInboxItem"
+        :curr-inbox-item="currItem"
         v-model:open="isCommentDrawerOpen"
         :user="user"
       />
-      <PhotoSwiperFollowersDrawer :followers="currInboxItem.followers" :user="user"
-                                  v-model:open="isFollowerDrawerOpen" />
+      <PhotoSwiperFollowersDrawer
+        v-if="currItem"
+        :followers="currItem.followers || []"
+        :user="user"
+        v-model:open="isFollowerDrawerOpen"
+      />
     </div>
   </transition>
 </template>
@@ -127,74 +58,64 @@
 import { usePhotoSwiper } from '@/store/photoswiper.store'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, watch } from 'vue'
-import { arrowBack } from 'ionicons/icons'
-import { senderImg, senderName, svg } from '@/helper/general.helper'
-import {
-  mdiChatOutline,
-  mdiChatRemoveOutline,
-  mdiCommentOutline,
-  mdiDeleteOutline,
-  mdiReplyOutline,
-  mdiShareVariantOutline
-} from '@mdi/js'
-import { IonAvatar, IonBadge, IonButton, IonButtons, IonIcon, IonToolbar, useBackButton } from '@ionic/vue'
-import { InboxItem } from '@/types/server.types'
+import { useBackButton } from '@ionic/vue'
 import { useAuthStore } from '@/store/auth.store'
 import { register } from 'swiper/element/bundle'
-import { shareImg } from '@/helper/share.helper'
-import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useAPI } from '@/service/api/api.service'
-import { useToast } from '@/service/toast.service'
 import { EventBus } from '@/main'
+import router from '@/router'
+import { useSessionStore } from '@/store/session.store'
+
+// Components
+import PhotoSwiperItem from '@/components/photoswiper/PhotoSwiperItem.vue'
+import PhotoSwiperHeader from '@/components/photoswiper/PhotoSwiperHeader.vue'
+import PhotoSwiperFooter from '@/components/photoswiper/PhotoSwiperFooter.vue'
 import CommentDrawer from '@/components/photoswiper/CommentDrawer.vue'
 import PhotoSwiperFollowersDrawer from '@/components/photoswiper/PhotoSwiperFollowersDrawer.vue'
-import router from '@/router'
-import PhotoSwiperItem from '@/components/photoswiper/PhotoSwiperItem.vue'
-import { useInboxStore } from '@/store/inbox.store'
-import { useSessionStore } from '@/store/session.store'
-import { isInRoom } from '@/draw/helpers/drawSyncing.helper'
 
 register()
 
+const swiperStore = usePhotoSwiper()
+const { open, slide, collection, config } = storeToRefs(swiperStore)
+const { seeItem } = swiperStore
+const { user } = storeToRefs(useAuthStore())
+const { updateSlide } = storeToRefs(useSessionStore())
 
-const { open, slide } = storeToRefs(usePhotoSwiper())
-const { seeItem } = usePhotoSwiper()
-
-
-const { inbox } = storeToRefs(useInboxStore())
-const { user } = useAuthStore()
-const { findUserInInboxUsers } = useInboxStore()
-const { toast, dismiss } = useToast()
-
-
-const currInboxItem = computed<InboxItem>(() => inbox.value![slide.value])
-
+const currItem = computed(() => collection.value[slide.value] || null)
 
 const showComments = ref(true)
 const isCommentDrawerOpen = ref(false)
 const isFollowerDrawerOpen = ref(false)
-const badgesCountToShow = 3
-
 const swiper = ref<any>()
-const api = useAPI()
 
-const { updateSlide } = storeToRefs(useSessionStore())
+const canDelete = computed(() => {
+  if (!user.value || !currItem.value) return false
+  if (config.value.canDelete) return config.value.canDelete(currItem.value, user.value)
+  return currItem.value.sender === user.value._id || currItem.value.creator_id === user.value._id
+})
+
 watch(
-  inbox,
+  collection,
   (first, second) => {
     if (first?.length == second?.length || !updateSlide.value) return
-    nextTick(() => swiper.value?.swiper.update())
+    nextTick(() => swiper.value?.swiper?.update())
     updateSlide.value = false
-  }
+  },
+  { deep: true }
 )
 
-
-const escListener = (event: KeyboardEvent) => {
+// FIX: Added Keyboard Navigation Logic back
+const keyboardListener = (event: KeyboardEvent) => {
   event.stopPropagation()
+
+  // Disable keyboard navigation if drawers are open to prevent accidental swipes
   if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return
-  if (event.key === 'Escape' || event.keyCode === 27) {
-    open.value = false
+
+  if (event.key === 'Escape') {
+    close()
+  } else if (event.key === 'ArrowRight') {
+    swiper.value?.swiper?.slideNext()
+  } else if (event.key === 'ArrowLeft') {
+    swiper.value?.swiper?.slidePrev()
   }
 }
 
@@ -205,107 +126,61 @@ useBackButton(9000, (processNextHandler) => {
 
 function close() {
   open.value = false
-  swiper.value?.swiper.zoom.out()
-  window.removeEventListener('keydown', escListener)
+  swiper.value?.swiper?.zoom?.out()
+  window.removeEventListener('keydown', keyboardListener)
 }
 
-watch(
-  open,
-  async () => {
-    if (open.value) {
-      dismiss()
-      window.addEventListener('keydown', escListener)
-    } else {
-      close()
-    }
+watch(open, async () => {
+  if (open.value) {
+    window.addEventListener('keydown', keyboardListener)
+    nextTick(() => {
+      if (swiper.value?.swiper) {
+        swiper.value.swiper.slideTo(slide.value, 0, false)
+      }
+    })
+  } else {
+    close()
   }
-)
-watch(currInboxItem, () => {
-  if (!currInboxItem.value || !open.value) return
+})
+
+watch(currItem, () => {
+  if (!currItem.value || !open.value) return
   seeItem()
 })
 
-EventBus.on('goToSlide', goToSlide)
-
-function goToSlide() {
+// TODO remove
+EventBus.on('goToSlide', () => {
   nextTick(() => swiper.value?.swiper?.slideTo(slide.value, 0))
   seeItem()
   checkQueryParams()
-}
+})
 
-
-function replyToDrawing() {
-  if (isInRoom()) {
-    toast('Not allowed when in a lobby', { color: 'warning' })
-    return
+function handleReply() {
+  if (config.value.onReply) {
+    close()
+    config.value.onReply(currItem.value)
   }
-
-  close()
-  const { reply } = useDrawStore()
-  reply(currInboxItem.value)
 }
 
-function removeFromInboxItem() {
-  api.removeFromInbox({
-    user_id: user!._id,
-    inbox_id: currInboxItem.value._id
-  })
-
-  const tmp = slide.value
-  slide.value = Math.max(0, slide.value - 1)
-  if (inbox.value?.length === 1) open.value = false
-  inbox.value = (inbox.value as any)?.toSpliced(tmp, 1)
-  toast('Item deleted')
+function handleDelete() {
+  if (config.value.onDelete) {
+    config.value.onDelete(currItem.value)
+    const tmp = slide.value
+    slide.value = Math.max(0, slide.value - 1)
+    if (collection.value?.length === 1) open.value = false
+  }
 }
 
 function checkQueryParams() {
   const query = router.currentRoute.value.query
   isCommentDrawerOpen.value = query.comments === 'true'
-
   setTimeout(() => router.replace({ query: undefined }), 100)
 }
-
 </script>
 
 <style scoped>
-ion-toolbar {
-  --background: #000000;
-}
-
-.expand-enter-active {
-  opacity: 0;
-  transform: scale(0.8); /* Start at 90% scale */
-  transition: all 0.1s ease-out;
-}
-
-.expand-enter-to {
-  opacity: 1;
-  transform: scale(1); /* End at 100% scale */
-}
-
-.expand-leave-active {
-  opacity: 1;
-  transform: scale(1);
-  transition: all 0.1s ease-in;
-}
-
-.expand-leave-to {
-  opacity: 0;
-  transform: scale(0.8); /* Shrink back to 90% scale */
-}
-
-.comments {
-  position: absolute;
-  right: 0;
-  bottom: 60px;
-  z-index: 100;
-  width: 250px;
-  padding: 10px;
-}
-
-.comment {
-  background-color: rgba(0, 0, 0, 0.6) !important;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
+.expand-enter-active { opacity: 0; transform: scale(0.8); transition: all 0.1s ease-out; }
+.expand-enter-to { opacity: 1; transform: scale(1); }
+.expand-leave-active { opacity: 1; transform: scale(1); transition: all 0.1s ease-in; }
+.expand-leave-to { opacity: 0; transform: scale(0.8); }
 </style>

@@ -5,7 +5,6 @@
     :breakpoints="[0, 1]"
     handle-behavior="cycle"
     class="action-sheet-modal"
-    @didDismiss="emits('cancel')"
     :backdropDismiss="false"
     :backdropBreakpoint="1"
   >
@@ -24,12 +23,18 @@
       </div>
 
       <ion-list lines="none" color="tertiary">
-        <ion-item color="tertiary" :button="true" @click="emits('share')">
+        <ion-item color="tertiary" :button="true" @click="() => {
+          modalController.dismiss()
+          emits('share')
+        }">
           <ion-icon :icon="svg(mdiShareVariantOutline)" />
           <p class="pl-2 text-sm">Share</p>
         </ion-item>
 
-        <ion-item color="tertiary" :button="true" @click="emits('delete')">
+        <ion-item color="tertiary" :button="true" @click="() => {
+          modalController.dismiss()
+          emits('delete')
+        }">
           <ion-icon :icon="svg(mdiDeleteOutline)" />
           <p class="pl-2 text-sm">Delete</p>
         </ion-item>
@@ -41,9 +46,9 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonIcon, IonList, IonItem } from '@ionic/vue'
+import { IonIcon, IonItem, IonList, IonModal, modalController } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
-import { mdiClose, mdiDeleteOutline, mdiNuke, mdiShareVariantOutline } from '@mdi/js'
+import { mdiClose, mdiDeleteOutline, mdiShareVariantOutline } from '@mdi/js'
 
 defineProps<{
   selectedMode: boolean;

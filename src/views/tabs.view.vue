@@ -30,7 +30,7 @@
           <template v-else>
             <ion-icon
               :icon="tab.icon"
-              class="text-[28px] transition-all duration-200"
+              class="text-[28px] transition-all text-black duration-200"
               :class="isTabActive(tab.route) ? 'text-secondary-glow' : ''"
             />
           </template>

@@ -16,19 +16,19 @@
         v-show="props.src || newPreview"
         :src="newPreview || props.src"
         @load="isLoaded = true"
-        class="w-full h-full object-cover block transition-opacity duration-500"
+        class="absolute inset-0 w-full h-full object-cover block transition-opacity duration-500"
         :class="isLoaded ? 'opacity-100' : 'opacity-0'"
         alt="Canvas Preview"
       />
     </div>
 
     <ion-button
-      v-if="isLoaded"
       fill="clear"
       size="large"
       color="secondary"
       @click="openModal"
-      class="mt-4 font-semibold"
+      class="mt-4 font-semibold transition-opacity duration-500"
+      :class="isLoaded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'"
     >
       <IonIcon slot="end" :icon="svg(mdiCrop)" class="ml-2 w-6 h-6" />
       Crop Image

@@ -71,27 +71,25 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
-import { IonPage, IonContent, useIonRouter, onIonViewDidEnter, onIonViewDidLeave } from '@ionic/vue'
+import { ref } from 'vue'
+import { IonContent, IonPage, onIonViewDidEnter, useIonRouter } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import TopBar from '../components/general/TopBar.vue'
 import ActiveLobbies from '../components/home/ActiveLobbies.vue' // <-- Import the organ
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { masterAnimation } from '@/helper/animation.helper'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { startWatchingLobbies, stopWatchingLobbies } from '@/service/api/socket/drawSyncing.socket'
+import { startWatchingLobbies } from '@/service/api/socket/drawSyncing.socket'
 import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
 
 const r = useIonRouter()
 
 const drawSyncerStore = useDrawSyncer()
-const { publicLobbies, isWatchingPublicLobbies } = storeToRefs(drawSyncerStore)
+const { publicLobbies } = storeToRefs(drawSyncerStore)
 
 const quickActions = ref([
-  { id: 'draw_alone', label: 'Draw Alone', iconFallback: '✏️' },
-  { id: 'draw_friend', label: 'With Friend', iconFallback: '👋' },
-  { id: 'balloon', label: 'Send Balloon', iconFallback: '🎈' },
-  { id: 'public_post', label: 'Public Post', iconFallback: '🌍' }
+  { id: 'draw_alone', label: 'Draw', iconFallback: '✏️' },
+  { id: 'draw_friend', label: 'Draw together', iconFallback: '👋' }
 ])
 
 const communityHighlights = ref([
@@ -114,10 +112,6 @@ onIonViewDidEnter(() => {
   socketLoggedInPromise.then(() => {
     startWatchingLobbies()
   })
-})
-
-onIonViewDidLeave(() => {
-  stopWatchingLobbies()
 })
 
 

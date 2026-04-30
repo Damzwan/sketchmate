@@ -1,9 +1,8 @@
 <template>
-  <ion-header class="ion-no-border bg-transparent relative w-full z-50 top-pad-safe">
-    <div class="flex items-center justify-between px-4 py-2">
-
+  <ion-header class="ion-no-border bg-background relative w-full z-50 top-pad-safe shadow-none">
+    <div class="flex items-center justify-between px-4 h-[50px]">
       <div class="flex items-center space-x-4">
-        <p class="cabin-sketch-regular text-2xl font-light text-black  ">
+        <p class="cabin-sketch-regular text-2xl font-light text-black w-[80px]">
           {{ title }}
         </p>
 
@@ -20,12 +19,11 @@
       </div>
 
       <div class="flex items-center space-x-4 pr-2">
-
         <button class="relative flex items-center p-1 active:scale-90 transition-transform group">
           <ion-icon :icon="peopleOutline" class="text-[30px] text-black" />
           <span class="cabin-sketch-regular text-[13px] font-bold text-black leading-none">
-              142
-            </span>
+            142
+          </span>
           <div class="w-1.5 h-1.5 bg-green-500 rounded-full ml-1 animate-pulse"></div>
         </button>
 
@@ -42,8 +40,8 @@
         >
           <ion-icon :icon="notificationsOutline" class="text-[26px] text-black" />
         </button>
-
       </div>
+
     </div>
   </ion-header>
 </template>

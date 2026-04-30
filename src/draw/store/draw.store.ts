@@ -23,6 +23,7 @@ import { EventBus } from '@/main'
 import { leaveRoom, socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { useHealthChecker } from '../services/healthChecker'
 import { useCanvasPreview } from '@/draw/services/useCanvasPreview'
+import { resetZoom } from '@/draw/helpers/viewport.helper'
 
 const initialCssTransform = {
   scale: 1,
@@ -115,9 +116,7 @@ export const useDrawStore = defineStore('draw', () => {
 
 
       toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true })
-      requestAnimationFrame(() => {
-        c.requestRenderAll()
-      })
+      resetZoom()
 
       isCanvasInit.value = true
     }

@@ -6,9 +6,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { IonNav, IonPage, useBackButton } from '@ionic/vue'
+import { IonNav, IonPage, onIonViewWillLeave, useBackButton } from '@ionic/vue'
 import DrawMain from '@/components/draw/DrawMain.vue'
 import { slideTransition } from '@/helper/animation.helper'
+import { performRoomExit } from '@/draw/helpers/drawSyncing.helper'
+import { useDrawStore } from '@/draw/store/draw.store'
 
 const navRef = ref<InstanceType<typeof IonNav> | null>(null)
 
@@ -25,5 +27,12 @@ useBackButton(10, async (processNextHandler) => {
   } else {
     processNextHandler()
   }
+})
+
+onIonViewWillLeave(() => {
+  performRoomExit()
+
+  const { resetCanvasID } = useDrawStore()
+  resetCanvasID()
 })
 </script>

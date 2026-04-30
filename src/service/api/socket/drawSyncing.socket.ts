@@ -29,7 +29,6 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     cr.value = isCreator
     isTryingToJoin.value = false
     currentSessionId.value = sessionId
-    stopWatchingLobbies()
     addRoomIdToUrl(roomId)
     isPublicLobby.value = isPublic
   })
@@ -274,8 +273,14 @@ export function leaveRoom(skipEmit = false) {
     isPublicLobby,
     isLoadingCanvas,
     lobbyChatMessages,
-    lastProcessedSequenceId // <-- Added this
+    lastProcessedSequenceId,
+    publicLobbies
   } = storeToRefs(useDrawSyncer())
+
+
+  if (isPublicLobby.value) {
+    publicLobbies.value = publicLobbies.value.map(i => i.id === roomId.value ? { ...i, users: i.users - 1 } : i)
+  }
 
 
   roomMembers.value = []

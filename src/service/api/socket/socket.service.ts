@@ -1,7 +1,5 @@
 import { io, Socket } from 'socket.io-client'
 import {
-  AcceptBalloonParams,
-  CancelBalloonParams,
   CommentParams,
   CommentRes,
   InboxItem,
@@ -19,7 +17,7 @@ import {
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import { useToast } from '@/service/toast.service'
-import { dismissButton, matchButton, viewDrawingButton, viewMateRequestButton } from '@/config/toast.config'
+import { dismissButton, matchButton, viewMateRequestButton } from '@/config/toast.config'
 import { ToastDuration } from '@/types/toast.types'
 import { useAPI } from '@/service/api/api.service'
 import { showFeedbackMilestones } from '@/config/general.config'
@@ -31,6 +29,7 @@ import { useBalloonStore } from '@/store/balloon.store'
 import { useFriendStore } from '@/store/friend.store'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { registerDrawSyncingHandlers } from '@/service/api/socket/drawSyncing.socket'
+import { usePhotoSwiper } from '@/store/photoswiper.store'
 
 export let socket: Socket | undefined
 
@@ -126,47 +125,63 @@ export function createSocketService(): SocketAPI {
 
     socket.on(SOCKET_ENDPONTS.send, async (params: Res<InboxItem>) => {
       isLoading.value = false
-      if (params) {
-        const { inboxUsers } = storeToRefs(useInboxStore())
-        const { updateSlide } = storeToRefs(useSessionStore())
+      if (!params) return
 
-        updateSlide.value = true
-        if (user.value!.inbox.length != 0 && inbox.value.length == 0) {
-          const { getInbox } = useInboxStore()
-          await getInbox()
-        }
+      const { user } = storeToRefs(useAuthStore())
+      const { inbox, inboxUsers } = storeToRefs(useInboxStore())
+      const { updateSlide } = storeToRefs(useSessionStore())
 
-        user.value!.inbox = [params._id, ...user.value!.inbox]
+      updateSlide.value = true
+
+      if (inbox.value.length > 0) {
         inbox.value = [params, ...inbox.value]
+      }
 
+      // 2. BACKGROUND DATA SYNC (Missing Users)
+      const missingFollowers = params.original_followers.filter(
+        id => !inboxUsers.value.some(u => u._id === id)
+      )
 
-        const followersNotInInboxUsers = params.original_followers.reduce((acc: string[], curr) => !inboxUsers.value.some(m => m._id == curr) ? [...acc, curr] : acc, [])
-        if (followersNotInInboxUsers.length > 0) {
-          const { getPartialUsers } = useAPI()
-          getPartialUsers({ _ids: followersNotInInboxUsers }).then(res => {
-            if (res) inboxUsers.value = [...inboxUsers.value, ...res]
-          })
-        }
-
-        if (params.sender === user.value?._id) {
-          const { isSendingDrawing } = storeToRefs(useDrawStore())
-          isSendingDrawing.value = false
-          const sentDrawingsCount = inbox.value.reduce((acc: number, curr) =>
-              acc + (curr.sender == user.value!._id ? 1 : 0),
-            0)
-          if (showFeedbackMilestones.includes(sentDrawingsCount)) {
-            const { openMenu } = useMenuStore()
-            openMenu(Menu.FeedbackMenu)
-          }
-        }
-
-
-        const text = params.sender === user.value!._id ? 'Drawing sent!' : 'New drawing received'
-        toast(text, {
-          buttons: [dismissButton, viewDrawingButton(params._id)],
-          duration: ToastDuration.long
+      if (missingFollowers.length > 0) {
+        const { getPartialUsers } = useAPI()
+        getPartialUsers({ _ids: missingFollowers }).then(res => {
+          if (res) inboxUsers.value = [...inboxUsers.value, ...res]
         })
       }
+
+      // 3. SENDER LOGIC & MILESTONES
+      if (params.sender === user.value?._id) {
+        const { isSendingDrawing } = storeToRefs(useDrawStore())
+        isSendingDrawing.value = false
+
+        // Use the user.inbox ID array length to check milestones, or rely on a user stat counter
+        const sentCount = inbox.value.filter(item => item.sender === user.value?._id).length
+
+        if (showFeedbackMilestones.includes(sentCount)) {
+          const { openMenu } = useMenuStore()
+          openMenu(Menu.FeedbackMenu)
+        }
+      }
+
+      // 4. THE DECOUPLED NOTIFICATION
+      const isSender = params.sender === user.value?._id
+
+      toast(isSender ? 'Drawing sent!' : 'New drawing received', {
+        buttons: [
+          dismissButton,
+          {
+            text: 'View',
+            handler: () => {
+              const { openSwiper } = usePhotoSwiper()
+              openSwiper([params], 0, {
+                canReply: !isSender,
+                canDelete: () => true
+              })
+            }
+          }
+        ],
+        duration: ToastDuration.long
+      })
     })
 
     socket.on(SOCKET_ENDPONTS.comment, (params: Res<CommentRes>) => {

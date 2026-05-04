@@ -19,43 +19,14 @@ import {
 } from '@/draw/helpers/customTransform.helper'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { Rect } from '@/draw/utils/QuadTree'
+import { useGestureStore } from '@/draw/store/tools/gesture.store'
+import { useToast } from '@/service/toast.service'
 
 // ==========================================
 // CONSTANTS
 // ==========================================
 const MIN_ZOOM = 0.2
-const MAX_ZOOM = 50
-const COMMIT_INTERVAL_MS = 200
 
-const initialCssTransform = {
-  scale: 1,
-  translateX: 0,
-  translateY: 0
-}
-
-// ==========================================
-// SHARED STATE VARIABLES
-// ==========================================
-let lastCommitTime = 0
-let isWheeling = false
-let pcWheelTimeout: any = null
-
-let panActive = false
-let lastPanPoint: { x: number; y: number } | null = null
-
-let gestureFrameScheduled = false
-let deg = 0
-
-const gestureState = {
-  zoomDelta: 1,
-  pan: { x: 0, y: 0 },
-  zoomScale: 1,
-  rotateDelta: 0,
-  zoomCenter: null as Point | null,
-  needsCull: false,
-  canvasRotateDelta: 0,
-  originalObjectState: null as any | null
-}
 
 // ==========================================
 // HELPER FUNCTIONS
@@ -96,76 +67,64 @@ function getMinZoomToFitAll(canvas: fabric.Canvas, padding = 0.9) {
   return Math.min(fitZoom, MIN_ZOOM)
 }
 
-function cssTransformChanged(transform: any) {
-  return (
-    transform.scale !== initialCssTransform.scale ||
-    transform.translateX !== initialCssTransform.translateX ||
-    transform.translateY !== initialCssTransform.translateY
-  )
-}
-
-function attemptThrottledCommit(c: Canvas) {
-  const now = Date.now()
-  if (now - lastCommitTime > COMMIT_INTERVAL_MS) {
-    lastCommitTime = now
-    commitCssTransform(c, false)
-  }
-}
-
 // Define this outside the function (e.g., in your component or store)
 let debounceCacheTimeout: any = null
 
 function commitCssTransform(c: Canvas, isFinal: boolean = true) {
   const { canResetView } = storeToRefs(useDrawUIStore())
-  const { cssTransform } = storeToRefs(useDrawStore())
   canResetView.value = true
 
-  // 1. Snapshot the transformation before clearing the DOM
-  const scale = cssTransform.value.scale
-  const tx = cssTransform.value.translateX
-  const ty = cssTransform.value.translateY
 
-  // DIAGNOSTIC CHECK: Are we zooming (scale changed) or just panning?
+  const { cssTransform, pendingCssTransform } = storeToRefs(useDrawStore())
+
+  const cur = cssTransform.value
+  const scale = cssTransform.value.scale
   const isZooming = scale !== 1
 
-  // 2. IMMEDIATE DOM CLEANUP (Crucial for the "Shrinking Bug")
-  if (c.wrapperEl) {
-    c.wrapperEl.style.transform = ''
-    c.wrapperEl.style.transformOrigin = ''
-    if (isFinal) {
-      c.wrapperEl.style.willChange = 'auto'
-    }
-  }
 
-  // 3. Update Fabric's Viewport Transform
+  const p = pendingCssTransform.value
+
+  // 1. Calculate what the NEW total Fabric viewport transform should be
   let vpt = [...c.viewportTransform!]
 
-  vpt[0] *= scale
-  vpt[3] *= scale
-  vpt[4] = tx + (vpt[4] * scale)
-  vpt[5] = ty + (vpt[5] * scale)
+  // The new scale is the current scale * the gesture scale
+  const newScale = vpt[0] * cur.scale
 
-  c.setViewportTransform(vpt as any)
+  // The translation handoff:
+  // We need to move the Fabric Vpt by the amount of the current session's CSS pan
+  // adjusted by the existing Fabric scale.
+  const newTx = (vpt[4] * cur.scale) + cur.translateX
+  const newTy = (vpt[5] * cur.scale) + cur.translateY
+
+  c.setViewportTransform([newScale, 0, 0, newScale, newTx, newTy])
+
+  // 2. CRITICAL: Re-sync Fabric's internal element position cache
   c.calcOffset()
 
-  // 5. Reset tracking state
-  cssTransform.value = { ...initialCssTransform }
-
-  // 6. UI & Rendering Logic
-  c.fire('viewport:changed')
-  const { updateVisibility, setVisibleObjectsState } = useDrawObjectManager()
-
-  // ADMINISTER CACHE DROP ONLY IF ZOOMING
-  if (isZooming) {
-    setVisibleObjectsState('interaction')
+  // 3. Update the "Pending" state for the next gesture session
+  pendingCssTransform.value = {
+    scale: p.scale * cur.scale,
+    translateX: p.translateX + (p.scale * cur.translateX),
+    translateY: p.translateY + (p.scale * cur.translateY)
   }
-  updateVisibility(false)
+
+  // 4. Reset the "Current Session" transform
+  cssTransform.value = { scale: 1, translateX: 0, translateY: 0 }
+
+  if (c.wrapperEl && isFinal) {
+    c.wrapperEl.style.willChange = 'auto'
+  }
+
+  c.fire('viewport:changed')
+
+  const { setVisibleObjectsState } = useDrawObjectManager()
+  if (isZooming) setVisibleObjectsState('interaction')
+  scheduleVisibilityUpdate()
 
   if (isFinal) {
     clearTimeout(debounceCacheTimeout)
 
     if (isZooming) {
-      // Patient has stopped zooming. 300ms recovery time before re-caching.
       debounceCacheTimeout = setTimeout(() => {
         window.requestIdleCallback?.(() => {
           setVisibleObjectsState('static')
@@ -173,14 +132,21 @@ function commitCssTransform(c: Canvas, isFinal: boolean = true) {
         })
       }, 2000)
     } else {
-      // Panning finished, no cache recovery needed, just render.
-      c.requestRenderAll()
     }
   } else {
-    c.requestRenderAll()
   }
 }
 
+let visibilityTimeout: any = null
+
+function scheduleVisibilityUpdate() {
+  clearTimeout(visibilityTimeout)
+
+  visibilityTimeout = setTimeout(() => {
+    const { updateVisibility } = useDrawObjectManager()
+    updateVisibility(true)
+  }, 1000)
+}
 
 function rotateView(c: fabric.Canvas, deltaDeg: number, centerPoint: Point) {
   const rad = fabric.util.degreesToRadians(deltaDeg)
@@ -212,20 +178,19 @@ export function enableGestures(c: Canvas) {
 let dynamicMinZoom = MIN_ZOOM // fallback
 
 export function enablePCGestures(c: Canvas) {
+  const gestureStore = useGestureStore()
+  const { getStableCanvas, query } = useDrawObjectManager()
+  const { ghostBoxes } = storeToRefs(useDrawStore())
   const { addEventsOfService } = useDrawEventManager()
-  const { ghostBoxes, cssTransform, isGesturing } = storeToRefs(useDrawStore())
-  const { query } = useDrawObjectManager()
 
+  let isWheeling = false
+  let pcWheelTimeout: any = null
+  let panActive = false
+  let lastPanPoint: { x: number; y: number } | null = null
 
-  function clearGhostBuffer() {
-    isGesturing.value = false
-    ghostBoxes.value = []
-  }
-
+  // Fills the edges with low-res boxes if we pan off the rendered canvas
   function administerGhostBuffer() {
-    if (isGesturing.value) return // Prevent double-dosing if already active
-
-    isGesturing.value = true
+    if (gestureStore.isGesturing) return
 
     const vpt = c.viewportTransform
     if (vpt) {
@@ -239,7 +204,6 @@ export function enablePCGestures(c: Canvas) {
       const bufferX = currentViewWidth * 1.5
       const bufferY = currentViewHeight * 1.5
 
-      // Using your updated Rect logic
       const expandedSearchArea = new Rect(
         vLeft - bufferX,
         vTop - bufferY,
@@ -253,7 +217,6 @@ export function enablePCGestures(c: Canvas) {
           const bound = obj.getBoundingRect(true, true)
           return {
             id: obj.name || obj.id || Math.random().toString(),
-            // 🚨 CONVERT TO SCREEN COORDINATES 🚨
             left: (bound.left * zoom) + vpt[4],
             top: (bound.top * zoom) + vpt[5],
             width: bound.width * zoom,
@@ -264,7 +227,55 @@ export function enablePCGestures(c: Canvas) {
     }
   }
 
-  // ==========================================
+  function clearGhostBuffer() {
+    ghostBoxes.value = []
+  }
+
+  function syncVisuals() {
+    const physWidth = c.getElement().width
+    const physHeight = c.getElement().height
+
+    const stableCanvas = getStableCanvas(physWidth, physHeight)
+    gestureStore.fastBlit(c, stableCanvas as any, ghostBoxes.value)
+  }
+
+  // Wraps up the gesture procedure and triggers a high-res re-render
+  function endGesture(isZooming: boolean = false) {
+    const { setVisibleObjectsState, updateVisibility } = useDrawObjectManager()
+    const gestureStore = useGestureStore()
+
+    gestureStore.isGesturing = false
+    c.fire('gestureEnd')
+    c.fire('viewport:changed')
+
+    clearGhostBuffer()
+
+    if (isZooming) {
+      setVisibleObjectsState('interaction')
+    }
+
+    // 2. Debounce the high-res chunked render
+    // This allows the user to chain a pan immediately after a zoom without stuttering
+    clearTimeout(visibilityTimeout)
+    visibilityTimeout = setTimeout(() => {
+      if (!gestureStore.isGesturing) {
+        updateVisibility(false)
+      }
+    }, 150)
+
+    // 3. The Idle Cache Bake
+    if (isZooming) {
+      clearTimeout(debounceCacheTimeout)
+      debounceCacheTimeout = setTimeout(() => {
+        window.requestIdleCallback?.(() => {
+          if (!gestureStore.isGesturing) {
+            setVisibleObjectsState('static')
+            updateVisibility(false)
+          }
+        })
+      }, 5000)
+    }
+  }
 
   const events: FabricEvent[] = [
     {
@@ -276,59 +287,36 @@ export function enablePCGestures(c: Canvas) {
 
         if (!isWheeling) {
           isWheeling = true
+
+          // 1. Calculate the boundary at the exact start of the gesture
           dynamicMinZoom = getMinZoomToFitAll(c)
 
-          if (c.wrapperEl) {
-            c.wrapperEl.style.transformOrigin = '0 0'
-            c.wrapperEl.style.willChange = 'transform'
-          }
           administerGhostBuffer()
+          gestureStore.isGesturing = true
+          c.fire('gestureStart')
         }
 
-        const deltaY = e.deltaY
-        const rawZoomFactor = Math.exp(-deltaY / 50)
-        const baseFabricZoom = c.getZoom()
+        // 2. Calculate proposed Zoom
+        const rawZoomFactor = Math.exp(-e.deltaY / 50)
+        let newZoom = c.getZoom() * rawZoomFactor
 
-        // Added .value to all cssTransform reads
-        const proposedCssScale = cssTransform.value.scale * rawZoomFactor
-        const proposedEffectiveZoom = baseFabricZoom * proposedCssScale
+        // 3. Clamp using your dynamic boundary
+        newZoom = Math.max(dynamicMinZoom, Math.min(newZoom, gestureStore.maxZoom))
 
-        let actualZoomFactor = rawZoomFactor
+        // 4. Fabric handles the focal point translation automatically
+        c.zoomToPoint(new Point(e.offsetX, e.offsetY), newZoom)
 
-        // Added .value to all cssTransform mutations
-        if (proposedEffectiveZoom > MAX_ZOOM) {
-          const allowedCssScale = MAX_ZOOM / baseFabricZoom
-          actualZoomFactor = allowedCssScale / cssTransform.value.scale
-          cssTransform.value.scale = allowedCssScale
-        } else if (proposedEffectiveZoom < dynamicMinZoom) {
-          const allowedCssScale = dynamicMinZoom / baseFabricZoom
-          actualZoomFactor = allowedCssScale / cssTransform.value.scale
-          cssTransform.value.scale = allowedCssScale
-        } else {
-          cssTransform.value.scale = proposedCssScale
-        }
-
-        const pointerX = e.offsetX
-        const pointerY = e.offsetY
-
-        cssTransform.value.translateX = pointerX - (pointerX - cssTransform.value.translateX) * actualZoomFactor
-        cssTransform.value.translateY = pointerY - (pointerY - cssTransform.value.translateY) * actualZoomFactor
-
-        requestAnimationFrame(() => {
-          if (c.wrapperEl) {
-            c.wrapperEl.style.transform = `matrix(${cssTransform.value.scale}, 0, 0, ${cssTransform.value.scale}, ${cssTransform.value.translateX}, ${cssTransform.value.translateY})`
-          }
-        })
+        // 5. Hardware-accelerated visual sync
+        requestAnimationFrame(syncVisuals)
 
         c.fire('zoomChanged')
+
+        // 6. Debounce the end of the wheel gesture
         clearTimeout(pcWheelTimeout)
         pcWheelTimeout = setTimeout(() => {
           isWheeling = false
-          commitCssTransform(c, true)
+          endGesture(true) // true because this is a zoom event
           c.fire('zoomChanged')
-
-          // 🧹 Clean up ghost buffer on zoom end
-          clearGhostBuffer()
         }, 150)
       }
     },
@@ -340,17 +328,13 @@ export function enablePCGestures(c: Canvas) {
 
         panActive = true
         lastPanPoint = { x: e.pageX, y: e.pageY }
-        lastCommitTime = Date.now()
-
-        if (c.wrapperEl) {
-          c.wrapperEl.style.transformOrigin = '0 0'
-          c.wrapperEl.style.willChange = 'transform'
-        }
 
         c.selection = false
         c.skipTargetFind = true
 
         administerGhostBuffer()
+        gestureStore.isGesturing = true
+        c.fire('gestureStart')
 
         e.preventDefault()
         e.stopPropagation()
@@ -364,18 +348,16 @@ export function enablePCGestures(c: Canvas) {
         const e = o.e
         const dx = e.pageX - lastPanPoint.x
         const dy = e.pageY - lastPanPoint.y
-
         lastPanPoint = { x: e.pageX, y: e.pageY }
 
-        // Added .value mutations
-        cssTransform.value.translateX += dx
-        cssTransform.value.translateY += dy
+        // 1. Update Fabric's viewport transform directly
+        const vpt = c.viewportTransform!
+        vpt[4] += dx
+        vpt[5] += dy
+        c.setViewportTransform(vpt)
 
-        requestAnimationFrame(() => {
-          if (c.wrapperEl) {
-            c.wrapperEl.style.transform = `matrix(${cssTransform.value.scale}, 0, 0, ${cssTransform.value.scale}, ${cssTransform.value.translateX}, ${cssTransform.value.translateY})`
-          }
-        })
+        // 2. Hardware-accelerated visual sync
+        requestAnimationFrame(syncVisuals)
       }
     },
     {
@@ -386,461 +368,290 @@ export function enablePCGestures(c: Canvas) {
         panActive = false
         lastPanPoint = null
 
-        const { selectedTool } = storeToRefs(useToolSelection()) // Ensure this is unwrapped if it's a ref!
+        const { selectedTool } = storeToRefs(useToolSelection())
         if (selectedTool.value === DrawTool.Select) {
           c.selection = true
           c.skipTargetFind = false
         }
 
-        commitCssTransform(c, true)
-
-        // 🧹 Clean up ghost buffer on pan end
-        clearGhostBuffer()
+        endGesture()
 
         o.e.preventDefault()
         o.e.stopPropagation()
       }
     }
   ]
+
   addEventsOfService('gestures', events)
 }
 
 
 export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
-
   const { selectedTool } = storeToRefs(useToolSelection())
-
   const { shapeCreationMode } = storeToRefs(useDrawUIStore())
+  const { ghostBoxes } = storeToRefs(useDrawStore())
 
   const { shouldModifyObjectsWithGestures } = useSelect()
-
-  const { ghostBoxes, cssTransform, isGesturing } = storeToRefs(useDrawStore())
-
-  const { query } = useDrawObjectManager()
-
+  const { query, getStableCanvas, setVisibleObjectsState, updateVisibility } = useDrawObjectManager()
+  const gestureStore = useGestureStore()
 
   const isUsingGesture = ref(false)
 
-
-// State variables for smooth gesture tracking & disambiguation
-
+  // State variables for smooth gesture tracking & disambiguation
   let isCanvasZooming = false
-
   let canvasPanDistance = 0
-
   let isObjectScaling = false
-
   let totalObjectAngleDelta = 0
-
   let gestureFrameScheduled = false
+  let dynamicMinZoom = gestureStore.minZoom
 
+  // --- SHARED HELPERS (Consider moving to a shared file later) ---
+  function syncVisuals() {
+    const physWidth = c.getElement().width
+    const physHeight = c.getElement().height
 
-  function scheduleGestureFrame() {
-
-    if (gestureFrameScheduled) return
-
-    gestureFrameScheduled = true
-
-
-    requestAnimationFrame(() => {
-
-      gestureFrameScheduled = false
-
-
-      const obj = c.getActiveObject()
-
-      if (!obj || !gestureState.originalObjectState) return
-
-
-      const newAngle = (gestureState.originalObjectState.angle + totalObjectAngleDelta) % 360
-
-      obj.set('angle', newAngle)
-
-      obj.setCoords()
-
-
-      if (isLayeredRenderActive) {
-
-        renderLayeredBuffers(c, obj)
-
-      } else {
-
-        c.requestRenderAll()
-
-      }
-
-    })
-
+    const stableCanvas = getStableCanvas(physWidth, physHeight)
+    gestureStore.fastBlit(c, stableCanvas as any, ghostBoxes.value)
   }
 
+  let visibilityTimeout: any = null
+  let debounceCacheTimeout: any = null
+
+  function endCanvasGesture(wasZooming: boolean) {
+    gestureStore.isGesturing = false
+    c.fire('gestureEnd')
+    c.fire('viewport:changed')
+    ghostBoxes.value = []
+
+    if (wasZooming) setVisibleObjectsState('interaction')
+
+    clearTimeout(visibilityTimeout)
+    visibilityTimeout = setTimeout(() => {
+      if (!gestureStore.isGesturing) updateVisibility(false)
+    }, 250)
+
+    if (wasZooming) {
+      clearTimeout(debounceCacheTimeout)
+      debounceCacheTimeout = setTimeout(() => {
+        window.requestIdleCallback?.(() => {
+          if (!gestureStore.isGesturing) {
+            setVisibleObjectsState('static')
+            updateVisibility(false)
+          }
+        })
+      }, 2000)
+    }
+  }
+
+  // --------------------------------------------------------------
+
+  function scheduleGestureFrame() {
+    if (gestureFrameScheduled) return
+    gestureFrameScheduled = true
+
+    requestAnimationFrame(() => {
+      gestureFrameScheduled = false
+      const obj = c.getActiveObject()
+      if (!obj || !gestureState.originalObjectState) return
+
+      const newAngle = (gestureState.originalObjectState.angle + totalObjectAngleDelta) % 360
+      obj.set('angle', newAngle)
+      obj.setCoords()
+
+      if (isLayeredRenderActive) {
+        renderLayeredBuffers(c, obj)
+      } else {
+        c.requestRenderAll()
+      }
+    })
+  }
+
+  const gestureState = {
+    originalObjectState: null as any | null
+  }
 
   gestureDetector(upperCanvasEl, {
-
     onGestureStart: () => {
-
       isCanvasZooming = false
-
       canvasPanDistance = 0
-
       isObjectScaling = false
-
       totalObjectAngleDelta = 0
-
 
       if (shapeCreationMode.value) return
 
       c.fire('gestureStart')
 
-
       if (selectedTool.value === DrawTool.Select && shouldModifyObjectsWithGestures()) {
-
+        // Object gesture path
         const obj = c.getActiveObject()
-
         if (!obj) return
 
-
         obj.lockMovementX = true
-
         obj.lockMovementY = true
 
-
         gestureState.originalObjectState = {
-
           left: obj.left, top: obj.top,
-
           scaleX: obj.scaleX, scaleY: obj.scaleY, angle: obj.angle
-
         }
 
-
         isUsingGesture.value = true
-
         prepareLayeredBuffers(c, obj)
 
-
       } else {
-
+        // Canvas gesture path
         isUsingGesture.value = false
-
         c.selection = false
-
         c.skipTargetFind = true
+        c.isDrawingMode = false
 
         cancelPreviousAction(c)
 
         dynamicMinZoom = getMinZoomToFitAll(c)
+        gestureStore.isGesturing = true
 
+        // Ghost box calculation deferred to idle
+        const vpt = [...c.viewportTransform!]
+        const zoom = c.getZoom()
 
-        if (c.wrapperEl) {
-
-          c.wrapperEl.style.transformOrigin = '0 0'
-
-          c.wrapperEl.style.willChange = 'transform'
-
-        }
-
-
-        isGesturing.value = true
-
-
-        const vpt = c.viewportTransform
-
-        if (vpt) {
-
-          const zoom = c.getZoom()
-
+        window.requestIdleCallback?.(() => {
           const currentViewWidth = c.width! / zoom
-
           const currentViewHeight = c.height! / zoom
-
-
           const vLeft = -vpt[4] / zoom
-
           const vTop = -vpt[5] / zoom
-
-
           const bufferX = currentViewWidth * 1.5
-
           const bufferY = currentViewHeight * 1.5
 
-
-          const expandedSearchArea = new Rect(vLeft - bufferX, vTop - bufferY, currentViewWidth + (bufferX * 2), currentViewHeight + (bufferY * 2))
-
+          const expandedSearchArea = new Rect(
+            vLeft - bufferX, vTop - bufferY,
+            currentViewWidth + bufferX * 2, currentViewHeight + bufferY * 2
+          )
 
           ghostBoxes.value = query(expandedSearchArea)
-
             .filter((obj: any) => !obj.isOnScreen())
-
             .map((obj: any) => {
-
               const bound = obj.getBoundingRect(true, true)
-
               return {
-
                 id: obj.name || obj.id || Math.random().toString(),
-
                 left: (bound.left * zoom) + vpt[4],
-
                 top: (bound.top * zoom) + vpt[5],
-
                 width: bound.width * zoom,
-
                 height: bound.height * zoom,
-
                 type: obj.type
-
               }
-
             })
-
-        }
-
+        }, { timeout: 500 })
       }
-
     },
 
-
     onDrag: (movementX, movementY) => {
-
       canvasPanDistance += Math.hypot(movementX, movementY)
-
 
       if (selectedTool.value === DrawTool.Select && isUsingGesture.value) return
 
-
-      cssTransform.value.translateX += movementX * 2
-
-      cssTransform.value.translateY += movementY * 2
-
+      // 1. Direct Fabric Viewport Math
+      // (Kept your * 2 multiplier if that was your preferred mobile drag sensitivity)
+      const vpt = c.viewportTransform!
+      vpt[4] += movementX * 2
+      vpt[5] += movementY * 2
+      c.setViewportTransform(vpt)
 
       c.fire('pan')
 
-      requestAnimationFrame(() => {
-
-        if (c.wrapperEl) {
-
-          c.wrapperEl.style.transform = `translate3d(${cssTransform.value.translateX}px, ${cssTransform.value.translateY}px, 0) scale3d(${cssTransform.value.scale}, ${cssTransform.value.scale}, 1)`
-
-        }
-
-      })
-
+      // 2. Hardware-accelerated sync
+      requestAnimationFrame(syncVisuals)
     },
 
-
     onZoom: (scale, previousScale, center) => {
-
       if (selectedTool.value === DrawTool.Select && isUsingGesture.value) {
-
         if (!isObjectScaling) {
-
           const isHeavyRotating = Math.abs(totalObjectAngleDelta) > 10
-
           const dynamicObjThreshold = isHeavyRotating ? 0.15 : 0.03
-
           const totalScaleChange = Math.abs(1 - scale)
-
           if (totalScaleChange < dynamicObjThreshold) return
-
-
           isObjectScaling = true
-
         }
 
-
         const obj = c.getActiveObject()
-
         if (!obj || !gestureState.originalObjectState) return
 
-
         const orig = gestureState.originalObjectState
-
-        obj.set({
-
-          scaleX: orig.scaleX * scale,
-
-          scaleY: orig.scaleY * scale
-
-        })
-
-
+        obj.set({ scaleX: orig.scaleX * scale, scaleY: orig.scaleY * scale })
         scheduleGestureFrame()
-
         return
-
       }
 
-
-// --- CANVAS ZOOM LOGIC REWRITTEN ---
-
-
+      // Disambiguate panning vs zooming
       if (!isCanvasZooming) {
-
         const isHeavyPanning = canvasPanDistance > 30
-
-// FIX 1: Lowered threshold from 0.25 to 0.08 to prevent severe delta loss
-
         const dynamicThreshold = isHeavyPanning ? 0.08 : 0.03
-
         const totalCanvasScaleChange = Math.abs(1 - scale)
-
         if (totalCanvasScaleChange < dynamicThreshold) return
-
-
         isCanvasZooming = true
-
       }
-
 
       let rawZoomFactor = scale / previousScale
 
-
-// FIX 2: Anti-Jitter logic to stabilize heavy panning
-
       if (isCanvasZooming && canvasPanDistance > 30) {
-
-        const frameDelta = Math.abs(1 - rawZoomFactor)
-
-// If the scale change is less than 0.2% this frame, treat it as finger wiggle and ignore it
-
-        if (frameDelta < 0.002) {
-
-          rawZoomFactor = 1
-
-        }
-
+        if (Math.abs(1 - rawZoomFactor) < 0.002) rawZoomFactor = 1
       }
 
+      // 1. Calculate & Clamp Zoom
+      let newZoom = c.getZoom() * rawZoomFactor
+      newZoom = Math.max(dynamicMinZoom, Math.min(newZoom, gestureStore.maxZoom))
 
-      const baseFabricZoom = c.getZoom()
-
-
-      const proposedCssScale = cssTransform.value.scale * rawZoomFactor
-
-      const proposedEffectiveZoom = baseFabricZoom * proposedCssScale
-
-
-      let actualZoomFactor = rawZoomFactor
-
-
-      if (proposedEffectiveZoom > MAX_ZOOM) {
-
-        actualZoomFactor = (MAX_ZOOM / baseFabricZoom) / cssTransform.value.scale
-
-        cssTransform.value.scale = MAX_ZOOM / baseFabricZoom
-
-      } else if (proposedEffectiveZoom < dynamicMinZoom) {
-
-        actualZoomFactor = (dynamicMinZoom / baseFabricZoom) / cssTransform.value.scale
-
-        cssTransform.value.scale = dynamicMinZoom / baseFabricZoom
-
-      } else {
-
-        cssTransform.value.scale = proposedCssScale
-
-      }
-
-
-      cssTransform.value.translateX = center.x - (center.x - cssTransform.value.translateX) * actualZoomFactor
-
-      cssTransform.value.translateY = center.y - (center.y - cssTransform.value.translateY) * actualZoomFactor
-
+      // 2. Let Fabric handle the focal pivot translation
+      c.zoomToPoint(new Point(center.x, center.y), newZoom)
 
       c.fire('zoom')
 
-
-      requestAnimationFrame(() => {
-
-        if (c.wrapperEl) {
-
-          c.wrapperEl.style.transform = `translate3d(${cssTransform.value.translateX}px, ${cssTransform.value.translateY}px, 0) scale3d(${cssTransform.value.scale}, ${cssTransform.value.scale}, 1)`
-
-        }
-
-      })
-
+      // 3. Hardware-accelerated sync
+      requestAnimationFrame(syncVisuals)
     },
-
 
     onRotate: (angleDifference, center) => {
-
       if (selectedTool.value !== DrawTool.Select || !isUsingGesture.value) return
-
       totalObjectAngleDelta += angleDifference
-
       scheduleGestureFrame()
-
     },
 
-
     onGestureEnd: (fingers) => {
+      // Capture the state before resetting it
+      const wasZooming = isCanvasZooming
 
       isCanvasZooming = false
-
       isObjectScaling = false
 
-
-      c.fire('gestureEnd')
-
-
       if (selectedTool.value === DrawTool.Select && isUsingGesture.value && fingers === 0) {
-
         const obj = c.getActiveObject()
-
         if (!obj) return
 
-
         setTimeout(() => {
-
           obj.lockMovementX = false
-
           obj.lockMovementY = false
-
           isUsingGesture.value = false
 
-
           c.fire('object:modified', {
-
             target: obj,
-
             transform: { target: obj, original: gestureState.originalObjectState } as any
-
           })
 
-
           finalizeLayeredRender(c)
-
         }, 100)
-
       }
 
-
-      if (!isUsingGesture.value && fingers === 0 && cssTransformChanged(cssTransform.value)) {
-
-        if (selectedTool.value === DrawTool.Select) {
-
-          setTimeout(() => {
-
+      // Canvas gesture completion
+      if (!isUsingGesture.value && fingers === 0) {
+        setTimeout(() => {
+          if (selectedTool.value === DrawTool.Select) {
             c.selection = true
-
             c.skipTargetFind = false
+          } else if (selectedTool.value === DrawTool.Pen || selectedTool.value === DrawTool.MobileEraser) {
+            c.isDrawingMode = true
+          }
+        }, 50)
 
-          }, 50)
-
-        }
-
-        commitCssTransform(c, true)
-
-
-        isGesturing.value = false
-
-        ghostBoxes.value = []
-
+        endCanvasGesture(wasZooming)
       }
-
     }
-
   })
-
 }

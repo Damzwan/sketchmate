@@ -42,6 +42,7 @@ export type LobbyChatItem =
   _id: string
   timestamp: string
 }
+
 export interface PublicLobby {
   id: string;
   name: string;
@@ -87,6 +88,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   const isProcessingQueue = ref(false)
   const lastProcessedSequenceId = ref<number | undefined>(undefined)
   const currentSessionId = ref<string | undefined>(undefined)
+  const isUsingGestures = ref(false)
 
 
   const actionQueue: DrawSyncingAction[] = []
@@ -303,8 +305,23 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
           params: { mergedObjectIds: e.mergedObjectIds, groupId: e.objectIds[0] }
         })
       }
-    }
+    },
+    {
+      on: 'gestureStart',
+      handler: () => {
+        isUsingGestures.value = true
+      }
+    },
+    {
+      on: 'gestureEnd',
+      handler: async () => {
+        isUsingGestures.value = false
 
+        if (!isProcessingQueue.value && actionQueue.length > 0) {
+          await processActionQueue()
+        }
+      }
+    }
   ]
 
   function init() {
@@ -336,8 +353,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   async function executeDrawSyncingAction(action: DrawSyncingAction) {
     actionQueue.push(action)
 
-    // Only trigger processing if not already processing AND canvas is fully loaded
-    if (!isProcessingQueue.value) {
+    if (!isProcessingQueue.value && !isUsingGestures.value) {
       await processActionQueue()
     }
   }
@@ -361,11 +377,12 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     } catch (error) {
       console.error('Error executing synced action:', error)
     } finally {
-      // Call requestRenderAll exactly once per batch
-      const {updateVisibility} = useDrawObjectManager()
-      updateVisibility()
       isProcessingQueue.value = false
-      EventBus.emit("drawSyncing")
+      if (!isUsingGestures.value) {
+        const { updateVisibility } = useDrawObjectManager()
+        updateVisibility()
+        EventBus.emit('drawSyncing')
+      }
     }
   }
 

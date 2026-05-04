@@ -399,6 +399,7 @@ export function overrideMouseUp(c: Canvas) {
     } else { // @ts-ignore
       if (!isClick && !this._activeObject && !(this._activeObject as IText)?.isEditing) {
             this.renderTop()
+
           }
     }
   }

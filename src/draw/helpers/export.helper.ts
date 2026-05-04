@@ -66,25 +66,44 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
   })
 }
 
-function emptyCanvasImage(c: Canvas) {
-  return { img: c.toDataURL(), aspect_ratio: 1 }
-}
-
 export async function exportBoundingBoxImage(
   canvas: Canvas,
-  options: { maxSize?: number; asBuffer?: boolean; quality?: number } = {}
+  options: { maxSize?: number; asBuffer?: boolean; quality?: number, signal?: AbortSignal } = {}
+) {
+  const settings = {
+    maxSize: options.maxSize || 2000,
+    asBuffer: options.asBuffer || false,
+    quality: options.quality || 0.8,
+    signal: options.signal
+  }
+
+  const mode: string = 'main'
+
+  let result
+  if (mode === 'worker') {
+    // result = await exportWithWebWorker(canvas, settings)
+  } else {
+    result = await exportWithMainThreadChunking(canvas, settings)
+  }
+
+
+  return result
+}
+
+/**
+ * VERSION 1: Main Thread with RequestAnimationFrame Chunking
+ * Focus: Prevents UI lockup by yielding control every few objects.
+ */
+async function exportWithMainThreadChunking(
+  canvas: Canvas,
+  options: { maxSize: number; asBuffer: boolean; quality: number; signal?: AbortSignal }
 ): Promise<{ img: string | ArrayBuffer, aspect_ratio: number } | null> {
-  // Set defaults: 2000px for normal saves, but we can override for thumbnails
-  const { maxSize = 2000, asBuffer = false, quality = 0.8 } = options
+  const { signal } = options
+  const objects = canvas.getObjects()
 
-  const objects = canvas?.getObjects()
-  if (!canvas || !objects || objects.length === 0) return emptyCanvasImage(canvas)
-
-  // 1. CALCULATE ABSOLUTE BOUNDS
+  // Calculate Bounds
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-
   objects.forEach(obj => {
-    // @ts-ignore
     const bound = obj.getBoundingRect(true)
     minX = Math.min(minX, bound.left)
     minY = Math.min(minY, bound.top)
@@ -93,71 +112,129 @@ export async function exportBoundingBoxImage(
   })
 
   const padding = 50
-  minX -= padding
-  minY -= padding
-  maxX += padding
-  maxY += padding
-
-  const width = maxX - minX
-  const height = maxY - minY
-
-  if (width <= 0 || height <= 0) return emptyCanvasImage(canvas)
-
-  // Use the passed-in maxSize
-  const scale = Math.min(maxSize / width, maxSize / height)
-
-  const exportWidth = width * scale
-  const exportHeight = height * scale
+  const width = (maxX + padding) - (minX - padding)
+  const height = (maxY + padding) - (minY - padding)
+  const scale = Math.min(options.maxSize / width, options.maxSize / height)
 
   const nativeCanvas = document.createElement('canvas')
-  nativeCanvas.width = exportWidth
-  nativeCanvas.height = exportHeight
+  nativeCanvas.width = width * scale
+  nativeCanvas.height = height * scale
   const ctx = nativeCanvas.getContext('2d', { alpha: true })
-  if (!ctx) return emptyCanvasImage(canvas)
+  if (!ctx) return null
 
   ctx.fillStyle = canvas.backgroundColor as any
   ctx.fillRect(0, 0, nativeCanvas.width, nativeCanvas.height)
-
   ctx.save()
   ctx.scale(scale, scale)
-  ctx.translate(-minX, -minY)
+  ctx.translate(-(minX - padding), -(minY - padding))
 
   canvas.skipOffscreen = false
-  objects.forEach(obj => {
-    const wasVisible = obj.visible
-    obj.visible = true
-    obj.objectCaching = false
-    obj.render(ctx)
-    obj.objectCaching = true
-    obj.visible = wasVisible
-  })
-  canvas.skipOffscreen = true
+  const chunkSize = 30
 
+  for (let i = 0; i < objects.length; i += chunkSize) {
+    if (signal?.aborted) {
+      return null
+    }
+
+    const chunk = objects.slice(i, i + chunkSize)
+
+    chunk.forEach(obj => {
+      const wasVisible = obj.visible
+      obj.visible = true
+      obj.objectCaching = false
+      obj.render(ctx)
+      obj.objectCaching = true
+      obj.visible = wasVisible
+    })
+
+    // 2. Yield and wait for next frame
+    await new Promise(resolve => requestAnimationFrame(resolve))
+  }
+
+  if (signal?.aborted) {
+    return null
+  }
+
+  canvas.skipOffscreen = true
   ctx.restore()
 
-  // OFF-THREAD ENCODING
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    // Handle late aborts during blob generation
+    if (signal) {
+      signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+    }
+
     nativeCanvas.toBlob(async (blob) => {
       if (!blob) return resolve(null)
+      const result = options.asBuffer
+        ? await blob.arrayBuffer()
+        : URL.createObjectURL(blob)
 
-      // If requested for the server, return an ArrayBuffer
-      if (asBuffer) {
-        const buffer = await blob.arrayBuffer()
-        resolve({
-          img: buffer,
-          aspect_ratio: width / height
-        })
-      } else {
-        // Otherwise, return the local UI string like before
-        resolve({
-          img: URL.createObjectURL(blob),
-          aspect_ratio: width / height
-        })
-      }
-    }, 'image/webp', quality) // Use dynamic quality
+      resolve({ img: result, aspect_ratio: width / height })
+    }, 'image/webp', options.quality)
   })
 }
 
+/**
+ * VERSION 2: Off-Thread via Web Worker
+ * Focus: Moves heavy rendering logic entirely off the main thread.
+ */
+async function exportWithWebWorker(
+  canvas: Canvas,
+  options: { maxSize: number; asBuffer: boolean; quality: number }
+): Promise<{ img: string | ArrayBuffer, aspect_ratio: number } | null> {
+  const objects = canvas.getObjects()
+
+  // 1. Serialization (The main thread cost)
+  const serialStart = performance.now()
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  objects.forEach(obj => {
+    const bound = obj.getBoundingRect(true)
+    minX = Math.min(minX, bound.left)
+    minY = Math.min(minY, bound.top)
+    maxX = Math.max(maxX, bound.left + bound.width)
+    maxY = Math.max(maxY, bound.top + bound.height)
+  })
+
+  const padding = 50
+  const width = (maxX + padding) - (minX - padding)
+  const height = (maxY + padding) - (minY - padding)
+  const scale = Math.min(options.maxSize / width, options.maxSize / height)
+
+  const serializedObjects = objects.map(obj => {
+    const json = obj.toObject()
+    json.left -= (minX - padding)
+    json.top -= (minY - padding)
+    return json
+  })
+  const serialTime = performance.now() - serialStart
+  console.log(`[Metric] Worker Serialization Time: ${serialTime.toFixed(2)}ms`)
+
+  // 2. Worker Execution
+  return new Promise((resolve) => {
+    const worker = new Worker(new URL('./preview.worker.ts', import.meta.url), { type: 'module' })
+
+    worker.onmessage = async (e) => {
+      worker.terminate()
+      if (e.data.error) return resolve(null)
+
+      const blob = e.data.blob
+      const result = options.asBuffer
+        ? await blob.arrayBuffer()
+        : URL.createObjectURL(blob)
+
+      resolve({ img: result, aspect_ratio: width / height })
+    }
+
+    worker.postMessage({
+      objects: serializedObjects,
+      width,
+      height,
+      scale,
+      backgroundColor: canvas.backgroundColor
+    })
+  })
+}
 
 export async function cloneCanvas(canvas: any) {
   const cloned = new StaticCanvas(undefined, {

@@ -5,11 +5,7 @@
       class="absolute inset-0 z-0 flex"
       :class="{ 'pointer-events-none opacity-50': disconnectedRoomId || isLoadingCanvas }"
     >
-      <GhostLayer
-        :is-gesturing="isGesturing"
-        :css-transform="cssTransform"
-        :ghost-boxes="ghostBoxes"
-      />
+
       <canvas ref="myCanvasRef" class="w-full h-full touch-none" id="mainCanvas" />
       <MultiplayerAvatars v-if="roomId" />
     </div>
@@ -35,7 +31,6 @@
 </template>
 
 <script setup lang="ts">
-import { IonProgressBar } from '@ionic/vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -44,7 +39,6 @@ import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 import Toolbars from '@/components/draw/toolbar/Toolbars.vue'
 import MultiplayerAvatars from '@/components/draw/MultiplayerAvatars.vue'
-import GhostLayer from '@/components/draw/GhostLayer.vue'
 import DrawMenus from '@/components/draw/menus/DrawMenus.vue'
 import { useSessionStore } from '@/store/session.store'
 import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'

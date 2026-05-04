@@ -14,7 +14,6 @@ export function useDrawSendService(c: () => Canvas | null) {
   const socketAPI = useSocketService()
   const isSendingDrawing = ref(false)
   const { user } = storeToRefs(useAuthStore())
-  const drawStore = useDrawStore()
 
   async function send(
     mates: string[],

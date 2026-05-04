@@ -50,6 +50,7 @@ export const useDrawStore = defineStore('draw', () => {
     const isGesturing = ref(false)
     const ghostBoxes = shallowRef<{ id: string; left: number; top: number; width: number; height: number }[]>([])
     const cssTransform = ref<any>({ ...initialCssTransform })
+    const pendingCssTransform = ref<any>({ ...initialCssTransform })
 
     const {
       createPreview,
@@ -90,10 +91,11 @@ export const useDrawStore = defineStore('draw', () => {
       const c = canvasSvc.createCanvas(el)
 
       healthChecker.startMonitoring(c)
-      await progressSaver.init(c)
-      progressSaver.startSaving(c)
+      // await progressSaver.init(c)
+      // progressSaver.startSaving(c)
 
-      const prevJson = await progressSaver.get()
+      // const prevJson = await progressSaver.get()
+      const prevJson = null
       try {
         if (loadService.canvasToLoad.value) {
           await loadService.loadCanvas(c)
@@ -217,7 +219,8 @@ export const useDrawStore = defineStore('draw', () => {
       crop,
       resetPreview,
       getDataToSend,
-      isLoadingPreview
+      isLoadingPreview,
+      pendingCssTransform
     }
   }
 )

@@ -114,8 +114,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { IonPage, IonIcon, IonSpinner, IonToggle, IonButton } from '@ionic/vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { IonPage, IonIcon, IonSpinner, IonToggle, IonButton, onIonViewDidEnter } from '@ionic/vue'
 import { mdiChevronLeft, mdiCheck } from '@mdi/js'
 import { storeToRefs } from 'pinia'
 import { svg } from '@/helper/general.helper'
@@ -131,7 +131,7 @@ import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
 const { user } = storeToRefs(useAuthStore())
 const drawStore = useDrawStore()
 const { preview, newPreview, isSendingDrawing } = storeToRefs(drawStore)
-const { send, getDataToSend, createBalloon, getAspectRatio, crop, createPreview } = drawStore
+const { send, getDataToSend, createBalloon, getAspectRatio, crop, createPreview, resetPreview } = drawStore
 
 const { selected, toggle, count, reset: resetMates } = useMateSelection()
 const { toast } = useToast()
@@ -144,10 +144,15 @@ const isBalloon = ref(false)
 const balloonNote = ref('')
 const isLoading = ref(false)
 
+
 onMounted(() => {
   setTimeout(() => {
     createPreview()
   }, 50)
+})
+
+onUnmounted(() => {
+  resetPreview()
 })
 
 // Validation: At least one main toggle must be active

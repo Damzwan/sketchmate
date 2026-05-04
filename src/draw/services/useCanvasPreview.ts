@@ -1,4 +1,4 @@
-import { Canvas, StaticCanvas } from 'fabric'
+import { StaticCanvas } from 'fabric'
 import { ref } from 'vue'
 import {
   canvasToBuffer,
@@ -16,24 +16,50 @@ export function useCanvasPreview() {
 
 
   let croppedRect: any
+  let abortController: AbortController | null = null
 
   let cachedCanvas: StaticCanvas | null = null
   let aspect_ratio: number | undefined = undefined
 
   async function createPreview() {
-    reset()
+    if (abortController) {
+      abortController.abort()
+    }
+
+    // 2. Create a new controller for this specific execution
+    abortController = new AbortController()
+    const { signal } = abortController
+
+    reset(false)
     isLoading.value = true
 
     const { getCanvas } = useDrawStore()
     const canvas = getCanvas()
 
-    exportBoundingBoxImage(canvas).then(res => {
-      preview.value = res?.img
-      aspect_ratio = res?.aspect_ratio
-    })
+    try {
+      // Pass the signal into your helper
+      const res = await exportBoundingBoxImage(canvas, { signal })
 
+      // If we got here, the task wasn't aborted
+      if (res) {
+        preview.value = res.img as any
+        aspect_ratio = res?.aspect_ratio
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('Successfully cancelled preview generation.')
+      } else {
+        console.error('Preview error:', err)
+      }
+    } finally {
+      // Only hide loading if this is still the active controller
+      if (!signal.aborted) {
+        isLoading.value = false
+      }
+    }
+
+    // Still need to clone for cropping
     cachedCanvas = await cloneCanvas(canvas)
-    isLoading.value = false
   }
 
   async function crop(rect: any) {
@@ -54,7 +80,8 @@ export function useCanvasPreview() {
     isLoading.value = false
   }
 
-  function reset() {
+  function reset(handleAbort=true) {
+    if (abortController && handleAbort) abortController.abort()
     preview.value = undefined
     newPreview.value = undefined
     cachedCanvas = null

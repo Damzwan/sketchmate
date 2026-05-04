@@ -107,14 +107,13 @@ import { IonIcon } from '@ionic/vue'
 const { lastSelectedPenMenuTool, lastSelectedSelectTool, selectedTool } = storeToRefs(useToolSelection())
 const { selectTool } = useToolSelection()
 const { brushType, brushColor } = storeToRefs(usePen())
-const { undoStackCounter, redoStackCounter } = storeToRefs(useDrawHistoryManager())
+const { undoDisabled, redoDisabled } = storeToRefs(useDrawHistoryManager())
 const { selectAction } = useDrawStore()
 const { openMenu } = useMenuStore()
 
 const isMinimized = ref(false)
 
-const undoDisabled = computed(() => undoStackCounter.value === 0)
-const redoDisabled = computed(() => redoStackCounter.value === 0)
+
 const undo = () => selectAction(DrawAction.Undo, undefined)
 const redo = () => selectAction(DrawAction.Redo, undefined)
 

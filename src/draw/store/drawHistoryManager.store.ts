@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { type Canvas, type FabricObject } from 'fabric'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { DrawAction, FabricEvent } from '@/draw/types/draw.types'
 import { useSelect } from '@/draw/store/tools/select.store'
@@ -24,6 +24,9 @@ export const useDrawHistoryManager = defineStore('history', () => {
   // instead of reffing the whole undo stack we only provide counters
   const undoStackCounter = ref(0)
   const redoStackCounter = ref(0)
+
+  const undoDisabled = computed(() => undoStackCounter.value === 0)
+  const redoDisabled = computed(() => redoStackCounter.value === 0)
 
   const lastActionType = ref<'normal' | 'undo' | 'redo'>()
 
@@ -343,6 +346,8 @@ export const useDrawHistoryManager = defineStore('history', () => {
     createHistoryContext,
     lastActionType,
     silentUndo,
-    silentRedo
+    silentRedo,
+    undoDisabled,
+    redoDisabled,
   }
 })

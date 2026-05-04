@@ -50,12 +50,17 @@
       </button>
     </template>
 
-    <div class="w-[2px] h-6 bg-primary-shade mx-1 rounded-full"></div>
-
     <ToolButton
       :icon="svg(mdiDotsVertical)"
       @click="openMenu(Menu.SelectMoreOptions, $event)"
     />
+
+    <div class="w-[2px] h-6 bg-primary-shade mx-1 rounded-full"></div>
+
+    <ToolButton :icon="svg(mdiUndo)" :disabled="undoDisabled" @click="undo" />
+    <ToolButton :icon="svg(mdiRedo)" :disabled="redoDisabled" @click="redo" />
+
+
   </div>
 </template>
 
@@ -74,14 +79,17 @@ import {
   mdiPaletteOutline,
   mdiFormatText,
   mdiMenuSwapOutline,
-  mdiDotsVertical
+  mdiDotsVertical, mdiUndo, mdiRedo
 } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { DrawAction, Menu, ObjectType } from '@/draw/types/draw.types'
+import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 
 const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect())
 const { selectAction } = useDrawStore()
 const { openMenu } = useMenuStore()
+const { undoDisabled, redoDisabled } = storeToRefs(useDrawHistoryManager())
+
 
 // Localized Computed Logic
 const containsImage = computed(() => selectedObjectsRef.value.map(obj => obj.type).includes('image'))
@@ -94,4 +102,7 @@ const fontFamily = computed(() => selectedObjectsRef.value[0] ? selectedObjectsR
 // Actions
 const unselectObjects = () => selectAction(DrawAction.UnselectObjects, undefined)
 const removeSelected = () => selectAction(DrawAction.RemoveSelectedObjects, undefined)
+
+const undo = () => selectAction(DrawAction.Undo, undefined)
+const redo = () => selectAction(DrawAction.Redo, undefined)
 </script>

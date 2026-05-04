@@ -29,6 +29,13 @@
           :loading="publicLobbies.length === 0"
         />
 
+        <MyDrafts
+          :drafts="localDrafts"
+          :loading="isLoadingDrafts"
+          @open="openDraft"
+          @delete="handleDeleteDraft"
+        />
+
         <section>
           <h2 class="text-base font-black text-black mb-4 px-1">Community Highlights</h2>
           <div class="space-y-6">
@@ -71,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { IonContent, IonPage, onIonViewDidEnter, useIonRouter } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import TopBar from '../components/general/TopBar.vue'
@@ -81,11 +88,17 @@ import { masterAnimation } from '@/helper/animation.helper'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { startWatchingLobbies } from '@/service/api/socket/drawSyncing.socket'
 import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
+import MyDrafts from '@/components/home/MyDrafts.vue'
+import { DrawingDraft, useDrawLoadStore } from '@/draw/store/drawLoad.store'
 
 const r = useIonRouter()
 
 const drawSyncerStore = useDrawSyncer()
 const { publicLobbies } = storeToRefs(drawSyncerStore)
+
+const loadStore = useDrawLoadStore()
+const localDrafts = ref<DrawingDraft[]>([])
+const isLoadingDrafts = ref(true)
 
 const quickActions = ref([
   { id: 'draw_alone', label: 'Draw', iconFallback: '✏️' },
@@ -97,6 +110,20 @@ const communityHighlights = ref([
   { id: '102', author: 'DoodleKid', timeAgo: '4h ago', likes: 89, comments: 4 }
 ])
 
+onIonViewDidEnter(() => {
+  fetchDrafts()
+  socketLoggedInPromise.then(() => {
+    startWatchingLobbies()
+  })
+})
+
+onMounted(async () => {
+  try {
+    await import('@/views/draw.view.vue')
+  } catch (error) {
+  }
+})
+
 const handleQuickAction = (actionId: string) => {
   if (actionId === 'draw_alone') {
     r.push(FRONTEND_ROUTES.draw, masterAnimation)
@@ -107,12 +134,28 @@ const joinLobby = (lobbyId: string) => {
   r.push(`${FRONTEND_ROUTES.draw}?room_id=${lobbyId}`, masterAnimation)
 }
 
+const fetchDrafts = async () => {
+  isLoadingDrafts.value = true
+  try {
+    // This calls the IndexedDB getAllDrafts we wrote in the load store
+    localDrafts.value = await loadStore.getAllDrafts()
+  } finally {
+    isLoadingDrafts.value = false
+  }
+}
 
-onIonViewDidEnter(() => {
-  socketLoggedInPromise.then(() => {
-    startWatchingLobbies()
-  })
-})
+const handleDeleteDraft = async (id: string) => {
+  try {
+    await loadStore.removeDraft(id)
+    localDrafts.value = localDrafts.value.filter(d => d.id !== id)
+  } catch (error) {
+  }
+}
+
+const openDraft = (id: string) => {
+  // Navigate to draw page with the draft ID as a query param
+  r.push(`${FRONTEND_ROUTES.draw}?id=${id}`, masterAnimation)
+}
 
 
 </script>

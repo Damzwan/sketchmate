@@ -266,8 +266,6 @@ export const useAuthStore = defineStore('auth', () => {
 
     leaveRoom()
     disconnect()
-    const { clearSavedCanvas } = useDrawStore()
-    clearSavedCanvas()
 
 
     await FirebaseAuthentication.signOut()

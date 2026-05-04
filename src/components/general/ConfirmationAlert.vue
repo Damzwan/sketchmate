@@ -1,6 +1,6 @@
 <template>
   <ion-alert
-  :is-open="isOpen"
+    :is-open="isOpen"
     :trigger="trigger"
     :header="header"
     :message="message"
@@ -18,6 +18,7 @@ const props = withDefaults(defineProps<{
   trigger?: string
   header: string
   message?: string
+  cancelText?: string
   confirmationtext?: string
   isOpen?: boolean
 }>(), {
@@ -38,7 +39,7 @@ function cancel() {
 
 const alertButtons = [
   {
-    text: 'Cancel',
+    text: props.cancelText || 'Cancel',
     role: 'cancel',
     handler: () => emits('cancel'),
     cssClass: 'alert-button-cancel'

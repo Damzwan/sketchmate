@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Mate } from '@/types/server.types'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawSyncingAction, DrawSyncingEvent } from '@/draw/types/drawSyncing.types'
@@ -89,6 +89,8 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   const lastProcessedSequenceId = ref<number | undefined>(undefined)
   const currentSessionId = ref<string | undefined>(undefined)
   const isUsingGestures = ref(false)
+
+  const isLobby = computed(() => !!roomId.value)
 
 
   const actionQueue: DrawSyncingAction[] = []
@@ -388,6 +390,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     publicLobbyName,
     disconnectedRoomId,
     lastProcessedSequenceId,
-    currentSessionId
+    currentSessionId,
+    isLobby
   }
 })

@@ -68,11 +68,12 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
 
 export async function exportBoundingBoxImage(
   canvas: Canvas,
-  options: { maxSize?: number; asBuffer?: boolean; quality?: number, signal?: AbortSignal } = {}
+  options: { maxSize?: number; asBuffer?: boolean; quality?: number, signal?: AbortSignal, asDataUrl?: boolean } = {}
 ) {
   const settings = {
     maxSize: options.maxSize || 2000,
     asBuffer: options.asBuffer || false,
+    asDataUrl: options.asDataUrl || false,
     quality: options.quality || 0.8,
     signal: options.signal
   }
@@ -96,7 +97,7 @@ export async function exportBoundingBoxImage(
  */
 async function exportWithMainThreadChunking(
   canvas: Canvas,
-  options: { maxSize: number; asBuffer: boolean; quality: number; signal?: AbortSignal }
+  options: { maxSize: number; asBuffer: boolean; quality: number; signal?: AbortSignal, asDataUrl?: boolean }
 ): Promise<{ img: string | ArrayBuffer, aspect_ratio: number } | null> {
   const { signal } = options
   const objects = canvas.getObjects()
@@ -183,12 +184,22 @@ async function exportWithMainThreadChunking(
 
     nativeCanvas.toBlob(async (blob) => {
       if (!blob) return resolve(null)
-      const result = options.asBuffer
-        ? await blob.arrayBuffer()
-        : URL.createObjectURL(blob)
 
-      resolve({ img: result, aspect_ratio: width / height })
-    }, 'image/webp', options.quality)
+      if (options.asBuffer) {
+        return resolve({ img: await blob.arrayBuffer(), aspect_ratio: width / height })
+      }
+
+      if (options.asDataUrl) { // 👈 New option
+        const reader = new FileReader()
+        // @ts-ignore
+        reader.onloadend = () => resolve({ img: reader.result, aspect_ratio: width / height })
+        reader.readAsDataURL(blob)
+        return
+      }
+
+
+      resolve({ img: URL.createObjectURL(blob), aspect_ratio: width / height })
+    }, options.asDataUrl ? 'image/png' : 'image/webp', options.quality)
   })
 }
 
@@ -206,6 +217,7 @@ async function exportWithWebWorker(
   const serialStart = performance.now()
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   objects.forEach(obj => {
+    // @ts-ignore
     const bound = obj.getBoundingRect(true)
     minX = Math.min(minX, bound.left)
     minY = Math.min(minY, bound.top)

@@ -127,6 +127,7 @@ import { useToast } from '@/service/toast.service'
 
 // @ts-ignore
 import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
+import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 
 const { user } = storeToRefs(useAuthStore())
 const drawStore = useDrawStore()
@@ -206,6 +207,10 @@ async function executeShares() {
 
     // Fire all selected actions concurrently
     await Promise.all(actions)
+
+
+    const loadStore = useDrawLoadStore()
+    void loadStore.removeDraft()
 
     resetMates()
   } catch (error) {

@@ -295,7 +295,7 @@ export function leaveRoom(skipEmit = false) {
   roomId.value = undefined
 
   const { restoreLocalCanvas, startSaving, getCanvas } = useDrawStore()
-  restoreLocalCanvas().then(() => startSaving(getCanvas()))
+  // restoreLocalCanvas().then(() => startSaving(getCanvas()))
 }
 
 export function emitDrawSyncingEvent(action: DrawSyncingAction) {

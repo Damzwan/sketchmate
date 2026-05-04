@@ -174,8 +174,7 @@ export function useShortcutManager() {
 
       case Shortcut.send:
         event.preventDefault()
-        const { isModal } = useDrawStore()
-        if (isSelectMode.value || isModal) return
+        if (isSelectMode.value) return
         if (!document.getElementById(ToolbarIds.send)!.ariaDisabled) document.getElementById(ToolbarIds.send)!.click()
         dismissPopover()
         break

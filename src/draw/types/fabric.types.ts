@@ -6,6 +6,10 @@ declare module 'fabric' {
     isDrawingMode?: boolean
   }
 
+  interface Canvas{
+    version: number
+  }
+
   // to have the properties recognized on the instance and in the constructor
   interface FabricObject {
     id: string

@@ -31,8 +31,5 @@ useBackButton(10, async (processNextHandler) => {
 
 onIonViewWillLeave(() => {
   performRoomExit()
-
-  const { resetCanvasID } = useDrawStore()
-  resetCanvasID()
 })
 </script>

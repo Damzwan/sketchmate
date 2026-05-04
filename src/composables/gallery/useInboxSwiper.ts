@@ -5,7 +5,8 @@ import { useToast } from '@/service/toast.service'
 import { useAuthStore } from '@/store/auth.store'
 import { useInboxStore } from '@/store/inbox.store'
 import { isInRoom } from '@/draw/helpers/drawSyncing.helper'
-import { useDrawStore } from '@/draw/store/draw.store'
+import router from '@/router'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 export function useInboxSwiper() {
   const swiperStore = usePhotoSwiper()
@@ -45,8 +46,13 @@ export function useInboxSwiper() {
           toast('Not allowed when in a lobby', { color: 'warning' })
           return
         }
-        const { reply } = useDrawStore()
-        reply(item)
+        router.push({
+          path: FRONTEND_ROUTES.draw,
+          query: {
+            canvas_url: item.drawing,
+            mode: 'solo'
+          }
+        })
       },
 
       userLookup: (userId: string) => findUserInInboxUsers(userId),

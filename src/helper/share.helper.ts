@@ -62,10 +62,21 @@ export async function shareImg(
       dialogTitle: dialogTitle
     })
   } else {
-    toast('Copied image link!')
-    await Clipboard.write({
-      string: img_url
-    })
+    try {
+      const response = await fetch(img_url, {});
+      const blob = await response.blob();
+
+      const item = new ClipboardItem({ [blob.type]: blob });
+      await navigator.clipboard.write([item]);
+      toast('Copied image')
+    }
+    catch (e) {
+      await Clipboard.write({
+        string: img_url
+      })
+      toast('Copied image link!')
+
+    }
   }
 }
 

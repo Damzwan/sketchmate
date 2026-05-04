@@ -86,7 +86,6 @@ export const useSelect = defineStore('select', (): Select => {
         c!.setActiveObject(new fabric.ActiveSelection(newSelection, { canvas: c }))
         selectedObjects = newSelection
         selectedObjectsRef.value = [...newSelection]
-        c!.requestRenderAll()
       })
     } else {
       // If click on selected object, unselect it
@@ -96,7 +95,6 @@ export const useSelect = defineStore('select', (): Select => {
           c!.setActiveObject(new fabric.ActiveSelection(currentSelection.filter(o => !toUnselect.includes(o)), { canvas: c }))
           selectedObjects = c!.getActiveObjects() || []
           selectedObjectsRef.value = [...selectedObjects]
-          c!.requestRenderAll()
         })
       }
     }
@@ -187,7 +185,6 @@ export const useSelect = defineStore('select', (): Select => {
           const p = new fabric.Point(text.left, text.top)
           const screenPoint = fabric.util.transformPoint(p, c!.viewportTransform)
           isBottomHalf.value = screenPoint.y > window.innerHeight / 2
-          c?.requestRenderAll()
         }
       }
     },

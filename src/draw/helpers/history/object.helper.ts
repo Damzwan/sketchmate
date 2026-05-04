@@ -5,6 +5,7 @@ import { HistoryContext } from '@/draw/config/drawHistory.config'
 import { drawActionMapping } from '@/draw/config/action.config'
 import { DrawAction } from '@/draw/types/draw.types'
 import { toObjectsIds } from '@/draw/helpers/object.helper'
+import { Rect } from '@/draw/utils/QuadTree'
 
 // --- Utility ---
 export function applyObjectModification(
@@ -15,6 +16,10 @@ export function applyObjectModification(
   const targetObject = ctx.getObjectById((obj as any).id)
   if (!targetObject) return
 
+  // @ts-ignore
+  const oldRect = targetObject.getBoundingRect(true, true)
+
+
   targetObject.set({
     left: (targetObject.left ?? 0) - diff.left,
     top: (targetObject.top ?? 0) - diff.top,
@@ -24,7 +29,15 @@ export function applyObjectModification(
   })
 
   targetObject.setCoords()
-  ctx.updateQuadTree(targetObject)
+  // ctx.updateQuadTree(targetObject)
+
+  const canvas = targetObject.canvas
+  if (canvas) {
+    canvas.fire('render:patchModifiedObject', {
+      target: targetObject,
+      oldRect: new Rect(oldRect.left, oldRect.top, oldRect.width, oldRect.height)
+    })
+  }
 }
 
 // --- Redo Helpers ---
@@ -36,7 +49,7 @@ export async function redoObjectAdded(ctx: HistoryContext, action: HistoryAction
 
   const [enlivened] = await fabric.util.enlivenObjects<FabricObject>([objectsToRedo])
   ctx.canvas.add(enlivened)
-  ctx.canvas.requestRenderAll()
+
 
   return action
 }
@@ -55,7 +68,6 @@ export async function redoObjectsAdded(ctx: HistoryContext, action: HistoryActio
       ctx.canvas.add(obj)
     }
   })
-  ctx.canvas.requestRenderAll()
 
 
   return action
@@ -68,23 +80,18 @@ export async function redoObjectModified(ctx: HistoryContext, action: HistoryAct
     applyObjectModification(ctx, obj, backward)
   })
 
-  ctx.updateVisibility()
-  ctx.canvas.requestRenderAll()
   return action
 }
 
 export async function redoObjectsCopied(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectsCopied>) {
   const enlivened = await fabric.util.enlivenObjects<FabricObject>(action.params.objectsJSON)
   ctx.canvas.add(...enlivened)
-  ctx.canvas.requestRenderAll()
   return action
 }
 
 export async function redoObjectsDeleted(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectsDeleted>) {
   const objects = ctx.getObjectsById(action.params.objectsJSON.map(item => item.id))
   ctx.canvas.remove(...objects)
-  ctx.canvas.requestRenderAll()
-
   return action
 }
 
@@ -110,7 +117,7 @@ export async function undoObjectAdded(ctx: HistoryContext, action: HistoryAction
   const object = ctx.getObjectById(action.params.objectJSON.id)
   if (object) {
     ctx.canvas.remove(object)
-    ctx.canvas.requestRenderAll()
+
   }
   return action
 }
@@ -121,7 +128,7 @@ export async function undoObjectsAdded(ctx: HistoryContext, action: HistoryActio
     const canvasObj = ctx.getObjectById(obj.id)
     if (canvasObj) ctx.canvas.remove(canvasObj)
   })
-  ctx.canvas.requestRenderAll()
+
   return action
 }
 
@@ -132,15 +139,12 @@ export async function undoObjectModified(ctx: HistoryContext, action: HistoryAct
     applyObjectModification(ctx, obj, forward)
   })
 
-  ctx.updateVisibility()
-  ctx.canvas.requestRenderAll()
   return action
 }
 
 export async function undoObjectsDeleted(ctx: HistoryContext, action: HistoryAction<HistoryEvent.ObjectsDeleted>) {
   const enlivened = await fabric.util.enlivenObjects<FabricObject>(action.params.objectsJSON)
   ctx.canvas.add(...enlivened)
-  ctx.canvas.requestRenderAll()
   return action
 }
 
@@ -161,7 +165,6 @@ export async function undoMerge(ctx: HistoryContext, action: HistoryAction<Histo
   })
 
 
-  ctx.canvas.requestRenderAll()
   return { ...action, params: { ...action.params, group: mergedObject.toJSON(), objectIds: newIds } }
 }
 
@@ -178,7 +181,7 @@ export async function redoMerge(ctx: HistoryContext, action: HistoryAction<Histo
   })
 
   ctx.canvas.setActiveObject(enlivenedGroup)
-  ctx.canvas.requestRenderAll()
+
   return { ...action, params: { ...action.params, objectIds: [(enlivenedGroup as any).id] } }
 }
 

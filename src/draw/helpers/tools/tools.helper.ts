@@ -2,7 +2,6 @@ import { DrawTool, ToolService } from '@/draw/types/draw.types'
 import { usePen } from '@/draw/store/tools/pen.store'
 import { useEraser } from '@/draw/store/tools/eraser.store'
 import { useSelect } from '@/draw/store/tools/select.store'
-import { usePan } from '@/draw/store/tools/pan.store'
 import { useBucket } from '@/draw/store/tools/bucket.store'
 import { useLasso } from '@/draw/store/tools/lasso.tool'
 
@@ -12,7 +11,6 @@ export function createToolsMapping(): { [key in DrawTool]: ToolService } {
     [DrawTool.MobileEraser]: useEraser(),
     [DrawTool.Select]: useSelect(),
     [DrawTool.Lasso]: useLasso(),
-    [DrawTool.Pan]: usePan(),
     [DrawTool.Bucket]: useBucket()
   }
 }

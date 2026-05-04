@@ -158,7 +158,6 @@ export const useLasso = defineStore('lasso', (): ToolService => {
 
     lassoPolygonPoints = []
     ghostHighlighted = []
-    c?.requestRenderAll()
   }
 
   // ─── Logic ───────────────────────────────────────────────────────────────────

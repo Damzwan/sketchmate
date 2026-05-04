@@ -111,5 +111,10 @@ declare module 'fabric' {
     zoomChanged: Partial<TEvent>
     gestureStart: Partial<TEvent>
     gestureEnd: Partial<TEvent>
+    invalidateCanvas: Partial<TEvent>
+    'render:patchModifiedObject': Partial<TEvent>
+
+    undo: any
+    redo: any
   }
 }

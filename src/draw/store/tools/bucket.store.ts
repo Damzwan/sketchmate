@@ -56,7 +56,6 @@ export const useBucket = defineStore('bucket', (): ToolService => {
         }
 
 
-        c!.requestRenderAll()
       }
     },
     {

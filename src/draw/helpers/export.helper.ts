@@ -1,5 +1,5 @@
 import { Canvas, StaticCanvas } from 'fabric'
-import { compressImg } from '@/helper/general.helper'
+import { compressImg, yieldToMain } from '@/helper/general.helper'
 import { CANVAS_SIZE } from '@/draw/config/canvas.config'
 
 export async function canvasToBuffer(canvasDataUrl: string, size = 1920) {
@@ -101,16 +101,34 @@ async function exportWithMainThreadChunking(
   const { signal } = options
   const objects = canvas.getObjects()
 
-  // Calculate Bounds
+  if (objects.length === 0) return null
+
+  const TIME_BUDGET_MS = 8
+
+  await yieldToMain()
+
+  // 2. 🧮 TIME-BUDGETED BOUNDING BOX CALCULATION
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  objects.forEach(obj => {
-    const bound = obj.getBoundingRect(true)
+  let frameStartTime = performance.now()
+
+  for (let i = 0; i < objects.length; i++) {
+    if (signal?.aborted) return null
+
+    // @ts-ignore
+    const bound = objects[i].getBoundingRect(true)
     minX = Math.min(minX, bound.left)
     minY = Math.min(minY, bound.top)
     maxX = Math.max(maxX, bound.left + bound.width)
     maxY = Math.max(maxY, bound.top + bound.height)
-  })
 
+    // Yield if we've spent too much time doing math
+    if (performance.now() - frameStartTime > TIME_BUDGET_MS) {
+      await yieldToMain()
+      frameStartTime = performance.now() // Reset timer
+    }
+  }
+
+  // Calculate Canvas Dimensions
   const padding = 50
   const width = (maxX + padding) - (minX - padding)
   const height = (maxY + padding) - (minY - padding)
@@ -129,37 +147,36 @@ async function exportWithMainThreadChunking(
   ctx.translate(-(minX - padding), -(minY - padding))
 
   canvas.skipOffscreen = false
-  const chunkSize = 30
 
-  for (let i = 0; i < objects.length; i += chunkSize) {
-    if (signal?.aborted) {
-      return null
+  // 3. 🎨 TIME-BUDGETED RENDERING
+  // Instead of a fixed chunk size of 30, we render as many as we can in 8ms.
+  frameStartTime = performance.now()
+
+  for (let i = 0; i < objects.length; i++) {
+    if (signal?.aborted) return null
+
+    const obj = objects[i]
+    const wasVisible = obj.visible
+    obj.visible = true
+    obj.objectCaching = false // Critical for clean high-res export
+    obj.render(ctx)
+    obj.objectCaching = true
+    obj.visible = wasVisible
+
+    // Yield if this object pushed us over our 8ms budget
+    if (performance.now() - frameStartTime > TIME_BUDGET_MS) {
+      await yieldToMain()
+      frameStartTime = performance.now() // Reset timer
     }
-
-    const chunk = objects.slice(i, i + chunkSize)
-
-    chunk.forEach(obj => {
-      const wasVisible = obj.visible
-      obj.visible = true
-      obj.objectCaching = false
-      obj.render(ctx)
-      obj.objectCaching = true
-      obj.visible = wasVisible
-    })
-
-    // 2. Yield and wait for next frame
-    await new Promise(resolve => requestAnimationFrame(resolve))
   }
 
-  if (signal?.aborted) {
-    return null
-  }
+  if (signal?.aborted) return null
 
   canvas.skipOffscreen = true
   ctx.restore()
 
+  // 4. GENERATE BLOB
   return new Promise((resolve, reject) => {
-    // Handle late aborts during blob generation
     if (signal) {
       signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
     }

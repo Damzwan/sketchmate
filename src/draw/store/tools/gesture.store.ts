@@ -29,13 +29,15 @@ export const useGestureStore = defineStore('gestureStore', () => {
 
     mainCtx.clearRect(0, 0, c.width!, c.height!)
 
-    // Begin hardware-accelerated transform block
     mainCtx.save()
     mainCtx.translate(txRel, tyRel)
     mainCtx.scale(zRel, zRel)
 
-    // 1. Draw the high-res stabilized image
-    mainCtx.drawImage(offCanvas, 0, 0)
+    mainCtx.drawImage(
+      offCanvas,
+      0, 0, offCanvas.width, offCanvas.height,
+      0, 0, c.width!, c.height!
+    )
 
     // 2. Draw the low-res ghost boxes right on top of it
     if (ghostBoxes.length > 0) {
@@ -44,6 +46,8 @@ export const useGestureStore = defineStore('gestureStore', () => {
 
     mainCtx.restore()
   }
+
+
   function drawGhosts(ctx: CanvasRenderingContext2D, boxes: any[], relativeScale: number) {
     const globalAlpha = 0.6 + Math.sin(Date.now() / 300) * 0.3
     ctx.globalAlpha = globalAlpha
@@ -90,6 +94,6 @@ export const useGestureStore = defineStore('gestureStore', () => {
     minZoom,
     maxZoom,
     setRenderedVpt,
-    fastBlit,
+    fastBlit
   }
 })

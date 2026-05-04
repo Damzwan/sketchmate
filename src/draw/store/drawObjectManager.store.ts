@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { Canvas, FabricObject } from 'fabric'
+import { Canvas, FabricObject, util } from 'fabric'
 import { FabricEvent, ObjectType } from '@/draw/types/draw.types'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import {
@@ -33,7 +33,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         if (!obj.id) return
         objectMap.set(obj.id, obj)
         addToQuadTree(obj)
-        stampObjectToStable(c!, obj)
+        scheduleInvalidation(obj) // 👈 Batched
       }
     },
     {
@@ -41,9 +41,11 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       handler: (e: any) => {
         const obj = e.target as FabricObject
         if (!obj.id) return
+
+        scheduleInvalidation(obj)
+
         objectMap.delete(obj.id)
         removeFromQuadTree(obj)
-        removeObjectFromStable(c!, obj, quadtree)
       }
     },
     {
@@ -52,15 +54,139 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         const obj = e.target as FabricObject
         const transform = e.transform
 
+        // 1. Sync the QuadTree for the NEW position
         if (obj.type == ObjectType.selection) {
-          c!.getActiveObjects().forEach(o => {
-            updateQuadTree(o)
-          })
-        } else updateQuadTree(obj)
-        applyModificationPatch(c!, obj, transform.original, quadtree)
+          c!.getActiveObjects().forEach(o => updateQuadTree(o))
+        } else {
+          updateQuadTree(obj)
+        }
+
+        if (transform?.original) {
+          // 🚀 THE O(1) OLD RECT CALCULATION (No deep cloning!)
+          // Save current math state
+          const currentState = {
+            left: obj.left, top: obj.top,
+            scaleX: obj.scaleX, scaleY: obj.scaleY,
+            skewX: obj.skewX, skewY: obj.skewY,
+            angle: obj.angle,
+            flipX: obj.flipX, flipY: obj.flipY,
+            originX: obj.originX, originY: obj.originY
+          }
+
+          // Briefly revert to original state to measure the bounding box
+          obj.set(transform.original)
+          obj.setCoords()
+          // @ts-ignore
+          const oldBound = obj.getBoundingRect(true, true)
+          const oldRect = new Rect(oldBound.left, oldBound.top, oldBound.width, oldBound.height)
+
+          // Instantly restore current state
+          obj.set(currentState)
+          obj.setCoords()
+
+          // 2. Schedule the raw coordinates of where it used to be
+          scheduleRectInvalidation(oldRect)
+
+          // 3. Schedule the object in its new position
+          scheduleInvalidation(obj)
+        } else {
+          // If there was no transform (e.g., standard style/text change),
+          // just push it to the batcher.
+          scheduleInvalidation(obj)
+        }
+      }
+    },
+    {
+      on: 'fullErase',
+      handler: () => {
+        // 🚀 FAST PATH: O(1) Canvas Wipe
+        const physWidth = c!.getElement().width
+        const physHeight = c!.getElement().height
+        const stableCanvas = getStableCanvas(physWidth, physHeight)
+        const stableCtx = stableCanvas.getContext('2d')!
+
+        stableCtx.save()
+        stableCtx.setTransform(1, 0, 0, 1, 0, 0)
+        stableCtx.clearRect(0, 0, physWidth, physHeight)
+
+        if (c!.backgroundColor) {
+          stableCtx.fillStyle = c!.backgroundColor as string
+          stableCtx.fillRect(0, 0, physWidth, physHeight)
+        }
+        stableCtx.restore()
+        c!.requestRenderAll()
+      }
+    },
+    {
+      on: 'textStyleChanged',
+      handler: (e: any) => scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
+    },
+    {
+      on: 'objectStyleChanged',
+      handler: (e: any) => scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
+    },
+    {
+      on: 'imgFilterChanged',
+      handler: (e: any) => scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
+    },
+    {
+      on: 'flip',
+      handler: (e: any) => scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
+    },
+    {
+      on: 'layer:changed',
+      handler: (e: any) => scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
+    },
+    {
+      on: 'erasing:end',
+      handler: (e: any) => scheduleInvalidation(Array.isArray(e.detail.targets) ? e.detail.targets : [e.detail.targets])
+    },
+    {
+      on: 'objectsMerged',
+      handler: (e: any) => {
+        scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
+      }
+    },
+    {
+      on: 'backgroundColorChanged',
+      handler: (e: any) => {
+        const physWidth = c!.getElement().width
+        const physHeight = c!.getElement().height
+
+        // 1. Update the stable background buffer
+        const stableCanvas = getStableCanvas(physWidth, physHeight)
+        const stableCtx = stableCanvas.getContext('2d')!
+
+        // Wipe the whole thing and refill with the new global color
+        stableCtx.save()
+        stableCtx.setTransform(1, 0, 0, 1, 0, 0)
+        stableCtx.clearRect(0, 0, physWidth, physHeight)
+        if (e.color) {
+          stableCtx.fillStyle = e.color
+          stableCtx.fillRect(0, 0, physWidth, physHeight)
+        }
+        stableCtx.restore()
+        updateVisibility()
+      }
+    },
+    {
+      on: 'invalidateCanvas',
+      handler: (e: any) => {
+        scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
+      }
+    },
+    {
+      on: 'render:patchModifiedObject',
+      handler: (e: any) => {
+        const obj = e.target as FabricObject
+        const oldRect = e.oldRect as Rect
+
+        if (!obj || !oldRect) return
+        updateQuadTree(obj)
+        scheduleRectInvalidation(oldRect)
+        scheduleInvalidation(obj)
       }
     }
-
   ]
 
 
@@ -187,6 +313,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     const targetVpt = [...canvas.viewportTransform!] as number[]
     const frozenBg = canvas.backgroundColor
 
+    const dpr = canvas.getRetinaScaling ? canvas.getRetinaScaling() : (window.devicePixelRatio || 1)
     workingCtx.clearRect(0, 0, workingCanvas.width, workingCanvas.height)
     if (frozenBg) {
       workingCtx.fillStyle = frozenBg as string
@@ -194,6 +321,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     }
 
     workingCtx.save()
+    workingCtx.setTransform(1, 0, 0, 1, 0, 0)
+
+    workingCtx.scale(dpr, dpr)
     workingCtx.transform(
       targetVpt[0], targetVpt[1],
       targetVpt[2], targetVpt[3],
@@ -238,9 +368,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       stableCtx.clearRect(0, 0, stableCanvas.width, stableCanvas.height)
       stableCtx.drawImage(workingCanvas as CanvasImageSource, 0, 0)
 
-      mainCtx.clearRect(0, 0, stableCanvas.width, stableCanvas.height)
-      mainCtx.drawImage(stableCanvas as CanvasImageSource, 0, 0)
-      canvas.fire('after:render', { ctx: mainCtx })
+      commitToMainScreen(canvas)
     }
   }
 
@@ -323,93 +451,101 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     })
   }
 
-  function stampObjectToStable(canvas: Canvas, obj: FabricObject) {
-    const physWidth = canvas.getElement().width
-    const physHeight = canvas.getElement().height
+  function isObjectInViewport(canvas: Canvas, obj: FabricObject): boolean {
+    const vptRect = getViewportRect(canvas)
+    // Get absolute bounding box of the object
+    // @ts-ignore
+    const b = obj.getBoundingRect(true, true)
 
-    const stableCanvas = getStableCanvas(physWidth, physHeight)
-    const stableCtx = stableCanvas.getContext('2d')!
-    const vpt = canvas.viewportTransform!
-
-    stableCtx.save()
-    stableCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
-    obj.render(stableCtx as CanvasRenderingContext2D)
-    stableCtx.restore()
+    // Standard AABB (Axis-Aligned Bounding Box) intersection test
+    return !(
+      b.left > vptRect.x + vptRect.w ||
+      b.left + b.width < vptRect.x ||
+      b.top > vptRect.y + vptRect.h ||
+      b.top + b.height < vptRect.y
+    )
   }
 
-// 2. HOLE PUNCH (Dirty Rectangle): Erases an object's footprint and redraws neighbors
-  function removeObjectFromStable(canvas: Canvas, obj: FabricObject, quadtree: any) {
+  function isRectInViewport(canvas: Canvas, r: Rect): boolean {
+    const vptRect = getViewportRect(canvas)
+    return !(
+      r.x > vptRect.x + vptRect.w ||
+      r.x + r.w < vptRect.x ||
+      r.y > vptRect.y + vptRect.h ||
+      r.y + r.h < vptRect.y
+    )
+  }
+
+  function invalidateRegion(canvas: Canvas, objects: FabricObject[], rects: Rect[] = []) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    let anyVisible = false
+
+    // 1. Add raw Rect boundaries (from Undo/Redo old spots)
+    for (const r of rects) {
+      if (!isRectInViewport(canvas, r)) continue
+      anyVisible = true
+      minX = Math.min(minX, r.x)
+      maxX = Math.max(maxX, r.x + r.w)
+      minY = Math.min(minY, r.y)
+      maxY = Math.max(maxY, r.y + r.h)
+    }
+
+    // 2. Add FabricObject boundaries (from new spots)
+    for (const obj of objects) {
+      updateQuadTree(obj)
+      if (!isObjectInViewport(canvas, obj)) continue
+
+      anyVisible = true
+      // @ts-ignore
+      const b = obj.getBoundingRect(true, true)
+      minX = Math.min(minX, b.left)
+      maxX = Math.max(maxX, b.left + b.width)
+      minY = Math.min(minY, b.top)
+      maxY = Math.max(maxY, b.top + b.height)
+    }
+
+    if (!anyVisible) return
+
+    const padding = 20 // Generous buffer for visual styles
+    const x = minX - padding
+    const y = minY - padding
+    const w = (maxX - minX) + padding * 2
+    const h = (maxY - minY) + padding * 2
+
     const physWidth = canvas.getElement().width
     const physHeight = canvas.getElement().height
-
     const stableCanvas = getStableCanvas(physWidth, physHeight)
     const stableCtx = stableCanvas.getContext('2d')!
     const vpt = canvas.viewportTransform!
-
-    // 1. Calculate the exact logical bounding box from the object's absolute corners
-    const aCoords = obj.aCoords || obj.calcACoords()
-    const minX = Math.min(aCoords.tl.x, aCoords.tr.x, aCoords.bl.x, aCoords.br.x)
-    const maxX = Math.max(aCoords.tl.x, aCoords.tr.x, aCoords.bl.x, aCoords.br.x)
-    const minY = Math.min(aCoords.tl.y, aCoords.tr.y, aCoords.bl.y, aCoords.br.y)
-    const maxY = Math.max(aCoords.tl.y, aCoords.tr.y, aCoords.bl.y, aCoords.br.y)
-
-    const logicalWidth = maxX - minX
-    const logicalHeight = maxY - minY
-    const padding = 10 // Generous buffer for stroke widths and shadows
+    const dpr = canvas.getRetinaScaling ? canvas.getRetinaScaling() : (window.devicePixelRatio || 1)
 
     stableCtx.save()
-
-    // 2. Force reset the transform to prevent lingering matrix states
     stableCtx.setTransform(1, 0, 0, 1, 0, 0)
-
-    // 3. Apply the exact viewport transform used to stamp the object
+    stableCtx.scale(dpr, dpr)
     stableCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
 
-    // 4. Erase the precise logical area.
-    // Because we applied VPT, this maps perfectly to the offscreen buffer!
-    stableCtx.clearRect(
-      minX - padding,
-      minY - padding,
-      logicalWidth + padding * 2,
-      logicalHeight + padding * 2
-    )
-
-    // 🚨 CRITICAL: If your canvas has a background color, you must patch the hole!
-    // clearRect makes the pixels transparent. If you don't refill the color,
-    // fastBlit will draw a transparent hole over the screen.
+    // 2. Punch the union hole
+    stableCtx.clearRect(x, y, w, h)
     if (canvas.backgroundColor) {
       stableCtx.fillStyle = canvas.backgroundColor as string
-      stableCtx.fillRect(
-        minX - padding,
-        minY - padding,
-        logicalWidth + padding * 2,
-        logicalHeight + padding * 2
-      )
+      stableCtx.fillRect(x, y, w, h)
     }
 
-    // 5. Create a clipping mask in logical space
     stableCtx.beginPath()
-    stableCtx.rect(
-      minX - padding,
-      minY - padding,
-      logicalWidth + padding * 2,
-      logicalHeight + padding * 2
-    )
+    stableCtx.rect(x, y, w, h)
     stableCtx.clip()
 
-    // 6. Ask the QuadTree using logical coordinates (No Division Needed!)
-    const queryRect = new Rect(
-      minX - padding,
-      minY - padding,
-      logicalWidth + padding * 2,
-      logicalHeight + padding * 2
-    )
+    // 3. Query all intersecting objects
+    const queryRect = new Rect(x, y, w, h)
+    const neighbors = query(queryRect)
 
-    const neighbors = quadtree.query(queryRect)
+    // 4. CRITICAL: Sort by internal Fabric Z-Index
+    const canvasObjects = canvas.getObjects()
+    neighbors.sort((a, b) => canvasObjects.indexOf(a) - canvasObjects.indexOf(b))
 
-    // 7. Redraw intersecting objects inside the hole
+    // 5. Redraw perfectly in order
     for (const neighbor of neighbors) {
-      if (neighbor.id !== obj.id) {
+      if (neighbor.visible !== false) {
         neighbor.render(stableCtx as CanvasRenderingContext2D)
       }
     }
@@ -417,34 +553,89 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     stableCtx.restore()
   }
 
-  function applyModificationPatch(
-    canvas: Canvas,
-    obj: FabricObject,
-    originalState: Record<string, any>,
-    quadtree: any
-  ) {
-    // 1. Save the NEW (current) state so we don't lose it
-    const newState = {
-      left: obj.left, top: obj.top,
-      scaleX: obj.scaleX, scaleY: obj.scaleY,
-      skewX: obj.skewX, skewY: obj.skewY,
-      angle: obj.angle,
-      flipX: obj.flipX, flipY: obj.flipY,
-      originX: obj.originX, originY: obj.originY
+  const dirtyObjects = new Set<FabricObject>()
+  const dirtyRects = new Set<Rect>() // 👈 NEW: Accepts raw coordinates
+  let isBatchScheduled = false
+
+  function scheduleInvalidation(target: FabricObject | FabricObject[]) {
+    const objects = Array.isArray(target) ? target : [target]
+    objects.forEach(o => dirtyObjects.add(o))
+    triggerBatch()
+  }
+
+  function scheduleRectInvalidation(rect: Rect) {
+    dirtyRects.add(rect)
+    triggerBatch()
+  }
+
+  function triggerBatch() {
+    if (isBatchScheduled) return
+    isBatchScheduled = true
+
+    queueMicrotask(() => {
+      isBatchScheduled = false
+      const batchObjects = Array.from(dirtyObjects)
+      const batchRects = Array.from(dirtyRects)
+
+      dirtyObjects.clear()
+      dirtyRects.clear()
+
+      if (batchObjects.length === 0 && batchRects.length === 0) return
+
+      if (batchObjects.length + batchRects.length > 50) {
+        updateVisibility(false) // Full-screen chunk fallback
+        return
+      }
+
+      invalidateRegion(c!, batchObjects, batchRects) // Pass both to the patcher
+      commitToMainScreen(c!)
+    })
+  }
+
+  function commitToMainScreen(canvas: Canvas) {
+    const gestureStore = useGestureStore()
+    // If the user is actively panning/zooming, fastBlit handles the screen
+    if (gestureStore.isGesturing) return
+
+    const mainCtx = canvas.getContext()
+    const physWidth = canvas.getElement().width
+    const physHeight = canvas.getElement().height
+    const stableCanvas = getStableCanvas(physWidth, physHeight)
+    const targetVpt = [...canvas.viewportTransform!] as number[]
+    const activeObjects = canvas.getActiveObjects()
+    const dpr = canvas.getRetinaScaling ? canvas.getRetinaScaling() : (window.devicePixelRatio || 1)
+
+    // 1. Wipe the DOM Canvas and paste the pre-rendered background
+    mainCtx.save()
+    mainCtx.setTransform(1, 0, 0, 1, 0, 0)
+    mainCtx.scale(dpr, dpr)
+    mainCtx.clearRect(0, 0, physWidth, physHeight)
+    // Use 9-argument drawImage to ensure crisp Retina mapping
+    mainCtx.drawImage(
+      stableCanvas as CanvasImageSource,
+      0, 0, physWidth, physHeight,
+      0, 0, canvas.width!, canvas.height!
+    )
+    mainCtx.restore()
+
+    // 2. Render active objects (like selection handles or the active pen brush) cleanly ON TOP
+    if (activeObjects.length > 0) {
+      mainCtx.save()
+      mainCtx.transform(
+        targetVpt[0], targetVpt[1], targetVpt[2],
+        targetVpt[3], targetVpt[4], targetVpt[5]
+      )
+      for (const activeObj of activeObjects) {
+        activeObj.render(mainCtx)
+      }
+      mainCtx.restore()
     }
 
-    // 2. TIME TRAVEL: Revert to the original state
-    obj.set(originalState)
-    obj.setCoords()
+    // 3. Draw Fabric UI controls
+    // @ts-ignore
+    if (!canvas.skipControlsDrawing) canvas.drawControls(mainCtx)
 
-    removeObjectFromStable(canvas, obj, quadtree)
-
-    obj.set(newState)
-    obj.setCoords()
-
-    updateQuadTree(obj)
-
-    stampObjectToStable(canvas, obj)
+    canvas.fire('after:render', { ctx: mainCtx })
   }
 
 

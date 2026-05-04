@@ -54,7 +54,7 @@ async function syncObjectsRemoved(params: DrawSyncingParams<DrawSyncingEvent.rem
 }
 
 async function syncObjectsModified(params: DrawSyncingParams<DrawSyncingEvent.modified>) {
-  const { getObjectById, updateVisibility } = useDrawObjectManager()
+  const { getObjectById } = useDrawObjectManager()
   const { createHistoryContext } = useDrawHistoryManager()
 
   params.changes.forEach(({ id, backward }) => {
@@ -63,7 +63,6 @@ async function syncObjectsModified(params: DrawSyncingParams<DrawSyncingEvent.mo
     applyObjectModification(createHistoryContext(), obj, backward)
   })
 
-  updateVisibility()
 
   if (params.creator && params.changes.length > 0) {
     const { showOrUpdateAvatar } = useDrawUIStore()
@@ -185,10 +184,14 @@ async function syncTextStyleChanged(params: DrawSyncingParams<DrawSyncingEvent.T
     textObject.set(key, value)
   })
 
+  // @ts-ignore
+  c.fire('textStyleChanged', { target: textObject })
 }
 
 
 async function syncObjectStyleChanged(params: DrawSyncingParams<DrawSyncingEvent.ObjectStyleChanged>) {
+  const { getCanvas } = useDrawStore()
+  const c = getCanvas()
   const { getObjectsById } = useDrawObjectManager()
 
   const canvasObjects = getObjectsById(params.objectIds)
@@ -197,6 +200,8 @@ async function syncObjectStyleChanged(params: DrawSyncingParams<DrawSyncingEvent
     canvasObject.set(params.style)
   })
 
+  // @ts-ignore
+  c.fire('objectStyleChanged', { target: canvasObjects })
 
   if (params.creator) {
     const { showOrUpdateAvatar } = useDrawUIStore()
@@ -221,6 +226,11 @@ async function syncImgFilterChanged(params: DrawSyncingParams<DrawSyncingEvent.I
   }
 
   img.applyFilters()
+
+  const { getCanvas } = useDrawStore()
+  const c = getCanvas()
+  // @ts-ignore
+  c.fire('imgFilterChanged', { target: img })
 
   if (params.creator) {
     const { showOrUpdateAvatar } = useDrawUIStore()
@@ -259,6 +269,8 @@ async function syncErasingEnd(params: DrawSyncingParams<DrawSyncingEvent.Erasing
 
   await Promise.all(objects.map(async (o) => {
     if (o) await eraseObject(o, newStroke)
+    // @ts-ignore
+    c.fire('invalidateCanvas', { target: o })
   }))
 
   if (deletedObjects.length > 0) {
@@ -280,6 +292,8 @@ async function syncTextChanged(params: DrawSyncingParams<DrawSyncingEvent.TextCh
   const objects = getObjectsById([params.objectId])
   const text = objects[0] as IText
   text.set('text', params.newText)
+
+  c.fire('object:modified', { target: text })
 
   if (params.creator) {
     const { showOrUpdateAvatar } = useDrawUIStore()

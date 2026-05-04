@@ -99,13 +99,6 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
 
     // CASE 1: Joined a room and FINISHED loading the canvas
     if (newRoomId && !loading) {
-      // Standard cleanup first to prevent double-binding
-      EventBus.off('undo', handleUndo)
-      EventBus.off('redo', handleRedo)
-
-      EventBus.on('undo', handleUndo)
-      EventBus.on('redo', handleRedo)
-
       // Only attach the 'actionSyncer' events (drawing, moving, etc.)
       // now that the canvas is quiet and ready for input
       addEventsOfService('actionSyncer', events)
@@ -307,20 +300,12 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
       }
     },
     {
-      on: 'gestureStart',
-      handler: () => {
-        isUsingGestures.value = true
-      }
+      on: 'undo',
+      handler: handleUndo
     },
     {
-      on: 'gestureEnd',
-      handler: async () => {
-        isUsingGestures.value = false
-
-        if (!isProcessingQueue.value && actionQueue.length > 0) {
-          await processActionQueue()
-        }
-      }
+      on: 'redo',
+      handler: handleRedo
     }
   ]
 
@@ -379,9 +364,6 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     } finally {
       isProcessingQueue.value = false
       if (!isUsingGestures.value) {
-        const { updateVisibility } = useDrawObjectManager()
-        updateVisibility()
-        EventBus.emit('drawSyncing')
       }
     }
   }

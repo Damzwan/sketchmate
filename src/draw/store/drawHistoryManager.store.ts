@@ -246,7 +246,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
     undoStackCounter.value = undoStack.length
 
     lastActionType.value = 'undo' // important that it needs to be before the emit
-    EventBus.emit('undo', action)
+    c!.fire('undo', action)
   }
 
   async function redo() {
@@ -259,7 +259,7 @@ export const useDrawHistoryManager = defineStore('history', () => {
     })
     redoStackCounter.value = redoStack.length
     lastActionType.value = 'redo'
-    EventBus.emit('redo', action)
+    c!.fire('redo', action)
   }
 
   // used when we want to cancel the last action for multiplayer, used in the syncing logic only

@@ -8,7 +8,7 @@ export async function redoChangeBackgroundColor(
   ctx: HistoryContext,
   action: HistoryAction<HistoryEvent.BackgroundColorChanged>
 ): Promise<HistoryAction<HistoryEvent.BackgroundColorChanged>> {
-  const {backgroundColor} = storeToRefs(useDrawStore())
+  const { backgroundColor } = storeToRefs(useDrawStore())
 
   const { canvas } = ctx
 
@@ -17,7 +17,7 @@ export async function redoChangeBackgroundColor(
   canvas.backgroundColor = action.params.previousColor
   backgroundColor.value = canvas.backgroundColor
 
-  canvas.requestRenderAll()
+  canvas.fire('backgroundColorChanged', { previousColor: currentColor, color: canvas.backgroundColor })
 
   return { ...action, params: { previousColor: currentColor } }
 
@@ -55,14 +55,14 @@ export async function undoChangeBackgroundColor(
   ctx: HistoryContext,
   action: HistoryAction<HistoryEvent.BackgroundColorChanged>
 ): Promise<HistoryAction<HistoryEvent.BackgroundColorChanged>> {
-  const {backgroundColor} = storeToRefs(useDrawStore())
+  const { backgroundColor } = storeToRefs(useDrawStore())
   const { canvas } = ctx
 
   const currentColor = canvas.backgroundColor as string
   canvas.backgroundColor = action.params.previousColor
-  backgroundColor.value =  canvas.backgroundColor
+  backgroundColor.value = canvas.backgroundColor
 
-  canvas.requestRenderAll()
+  canvas.fire('backgroundColorChanged', { previousColor: currentColor, color: canvas.backgroundColor })
 
   return { ...action, params: { previousColor: currentColor } }
 }

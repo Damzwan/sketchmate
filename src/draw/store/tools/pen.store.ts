@@ -48,7 +48,6 @@ export const usePen = defineStore('pen', (): Pen => {
 
   function init(canvas: Canvas) {
     c = canvas
-    c.requestRenderAll()
   }
 
   async function select() {

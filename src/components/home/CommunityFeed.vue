@@ -124,37 +124,52 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { actionSheetController, IonIcon, IonPopover } from '@ionic/vue'
 import { mdiDotsHorizontal, mdiFlagVariantOutline } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
-import { fetchFeed, toggleReaction as apiReact } from '@/service/api/post.api'
 import { useAuthStore } from '@/store/auth.store'
+import { usePostStore } from '@/store/post.store' // New import
 import { storeToRefs } from 'pinia'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { usePostSwiper } from '@/composables/home/usePostSwiper'
 import { FeedPost } from '@/types/server.types'
+import { reactionImages } from '@/config/post.config'
 
 dayjs.extend(relativeTime)
 
-const posts = ref<FeedPost[]>([])
+// --- STORE LOGIC ---
+const authStore = useAuthStore()
+const postStore = usePostStore()
+const { user } = storeToRefs(authStore)
+const { feedPosts: posts, isFeedDirty } = storeToRefs(postStore)
+const { openPostSwiper } = usePostSwiper()
+
 const loading = ref(true)
 const isRefreshing = ref(false)
 const imageLoaded = ref<Record<string, boolean>>({})
 
-const { user } = storeToRefs(useAuthStore())
-const { openPostSwiper } = usePostSwiper()
-
-const reactionImages: Record<string, string> = {
-  heart: 'https://cdn-icons-png.flaticon.com/512/833/833472.png',
-  fire: 'https://cdn-icons-png.flaticon.com/512/785/785116.png',
-  wow: 'https://cdn-icons-png.flaticon.com/512/6686/6686119.png',
-  laugh: 'https://cdn-icons-png.flaticon.com/512/6686/6686154.png',
-  d: 'https://cdn-icons-png.flaticon.com/512/6686/6686154.png'
+const loadFeed = async () => {
+  if (!user.value) return
+  isRefreshing.value = !loading.value
+  try {
+    await postStore.getFeed()
+  } finally {
+    loading.value = false
+    isRefreshing.value = false
+  }
 }
 
-// --- Snappier Interaction Logic ---
+const toggleReaction = async (post: FeedPost, type: string) => {
+  try {
+    await postStore.toggleReactionLocally(post._id, type)
+  } catch (e) {
+    console.error('Reaction sync failed', e)
+  }
+}
+
+// --- Interaction Logic (Keep as is) ---
 let clickTimer: ReturnType<typeof setTimeout> | null = null
 const popoverOpen = ref(false)
 const popoverEvent = ref<Event | null>(null)
@@ -169,17 +184,14 @@ const handleCanvasClick = (e: MouseEvent | TouchEvent, post: FeedPost, index: nu
     clickTimer = setTimeout(() => {
       clickTimer = null
       openPostSwiper(posts.value, index)
-    }, 180) // 180ms is the sweet spot for responsiveness
+    }, 180)
   }
 }
 
 const openReactionPopover = (e: any, post: FeedPost) => {
   activePopoverPost.value = post
-
-  // Persist the coordinates from Mouse or Touch events
   const x = e.clientX || (e.touches && e.touches[0].clientX)
   const y = e.clientY || (e.touches && e.touches[0].clientY)
-
   popoverEvent.value = {
     target: {
       getBoundingClientRect: () => ({
@@ -192,9 +204,9 @@ const openReactionPopover = (e: any, post: FeedPost) => {
       })
     }
   } as any
-
   popoverOpen.value = true
 }
+
 const selectReaction = async (type: string) => {
   popoverOpen.value = false
   if (activePopoverPost.value) {
@@ -204,46 +216,10 @@ const selectReaction = async (type: string) => {
 
 const getActiveReactions = (post: FeedPost) => {
   if (!post.reaction_counts) return []
-  return Object.keys(post.reaction_counts)
-    .filter(key => post.reaction_counts[key] > 0)
-    .slice(0, 3)
+  return Object.keys(post.reaction_counts).filter(key => post.reaction_counts[key] > 0).slice(0, 3)
 }
 
-const getTotalReactions = (counts: Record<string, number>) => {
-  return Object.values(counts || {}).reduce((a, b) => a + b, 0)
-}
-
-const toggleReaction = async (post: FeedPost, type: string) => {
-  const isRemoving = post.user_reaction === type
-  const previousReaction = post.user_reaction
-
-  if (isRemoving) {
-    post.user_reaction = null
-    post.reaction_counts[type]--
-  } else {
-    if (previousReaction) post.reaction_counts[previousReaction]--
-    post.user_reaction = type
-    post.reaction_counts[type] = (post.reaction_counts[type] || 0) + 1
-  }
-
-  try {
-    await apiReact(post._id, type)
-  } catch (e) {
-    console.error('Reaction failed', e)
-  }
-}
-
-const loadFeed = async () => {
-  if (!user.value) return
-  isRefreshing.value = !loading.value
-  try {
-    const res = await fetchFeed(20)
-    posts.value = res.feed
-  } finally {
-    loading.value = false
-    isRefreshing.value = false
-  }
-}
+const getTotalReactions = (counts: Record<string, number>) => Object.values(counts || {}).reduce((a, b) => a + b, 0)
 
 const presentActionSheet = async (post: FeedPost) => {
   const actionSheet = await actionSheetController.create({
@@ -263,8 +239,17 @@ const presentActionSheet = async (post: FeedPost) => {
 }
 
 watch(user, (newVal) => {
-  if (newVal) loadFeed()
+  if (newVal) {
+    // Initial load OR refresh if dirty
+    if (posts.value.length === 0 || isFeedDirty.value) {
+      loadFeed()
+    } else {
+      loading.value = false // Already has data
+    }
+  }
 }, { immediate: true })
+
+
 </script>
 
 <style scoped>

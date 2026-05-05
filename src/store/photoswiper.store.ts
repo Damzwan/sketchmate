@@ -11,7 +11,7 @@ export interface SwiperConfig {
   imageResolver?: (item: any) => string;
   thumbnailResolver?: (item: any) => string;
   onComment?: (item: any, message: string) => Promise<void>
-  onReact?: (item: any) => Promise<void>
+  onReact?: (item: any, type: string) => Promise<void>
 }
 
 export const usePhotoSwiper = defineStore('photoswiper', () => {

@@ -1,102 +1,93 @@
 <template>
-  <div class="flex justify-evenly w-full items-center h-14 relative">
+  <!-- Reduced height to h-16 for a sleeker look, increased px-6 for better spacing -->
+  <CommentPreview
+    :comments="currItem.comments || []"
+    @open-comments="$emit('open-comments')"
+    :resolveUser="resolveUser"
+  />
 
-    <div
-      v-if="currItem && showComments && (currItem.comments || []).length > 0"
-      @click="$emit('open-comments')"
-      class="comments cursor-pointer"
-    >
-      <div
-        v-for="(comment, i) in (currItem.comments || []).slice(0, 4)"
-        :key="i"
-        class="rounded-full comment my-1 p-1"
-      >
-        <div class="flex items-center pl-1">
-          <ion-avatar class="flex justify-center items-center w-[30px] h-[30px]">
-            <!-- Prioritize hydrated author, fallback to resolver -->
-            <img :src="comment.author?.img || senderImg(resolveUser(comment.sender || comment.author_id))" alt=""
-                 class="aspect-square" />
-          </ion-avatar>
-          <div class="flex-1 mx-2">
-            <div class="text-sm font-bold text-white cabin-sketch-regular">
-              {{ comment.author?.name || senderName(resolveUser(comment.sender || comment.author_id)) }}
-            </div>
-            <!-- Added truncate to prevent long comments from breaking the preview bubble -->
-            <div class="text-sm text-white cabin-sketch-regular truncate">{{ comment.message }}</div>
-          </div>
+  <div class="flex justify-between w-full items-center h-16 relative px-6 bg-black/60 backdrop-blur-xl">
+    <div class="flex items-center w-full justify-between max-w-lg mx-auto">
+
+      <!-- 1. REACTIONS (Colored heart logic inside) -->
+      <PhotoSwiperReactions
+        v-if="isPost"
+        :item="currItem"
+        :reactionImages="reactionImages"
+        @open-popover="openReactionPopover"
+      />
+
+      <!-- 2. REPLY -->
+      <button v-if="canReply" @click="$emit('reply')" class="swiper-action-btn">
+        <ion-icon :icon="svg(mdiPencilOutline)" />
+      </button>
+
+      <!-- 3. COMMENTS (Nicer Badge) -->
+      <button @click="$emit('open-comments')" class="swiper-action-btn relative">
+        <ion-icon :icon="svg(mdiCommentOutline)" />
+        <div
+          v-if="displayCommentCount > 0"
+          class="absolute -top-0.5 -right-0.5 bg-secondary text-white text-[11px] font-black min-w-[20px] h-[20px] rounded-full flex items-center justify-center px-1 border-2 border-black shadow-md transform rotate-3"
+        >
+          {{ displayCommentCount }}
         </div>
-      </div>
+      </button>
 
-      <div v-if="(currItem.comments || []).length > 4" class="rounded-full comment my-1">
-        <p class="text-sm text-white py-1 pl-2 cabin-sketch-regular">
-          Click to see {{ currItem.comments.length - 4 }} more comments
-        </p>
+      <!-- 4. SHARE -->
+      <button @click="handleShare" class="swiper-action-btn">
+        <ion-icon :icon="svg(mdiShareVariantOutline)" />
+      </button>
+
+      <!-- 5. DELETE -->
+      <div v-if="canDelete" class="relative">
+        <button id="delete-alert-swiper" class="swiper-action-btn text-white/40 hover:text-red-400">
+          <ion-icon :icon="svg(mdiDeleteOutline)" />
+        </button>
+        <ConfirmationAlert
+          header="Delete Sketch?"
+          trigger="delete-alert-swiper"
+          message="This action cannot be undone."
+          @confirm="$emit('delete')"
+        />
       </div>
     </div>
 
-    <!-- Floating Preview Comments (Only works if comments array exists) -->
-    <div
-      v-if="currItem && showComments && (currItem.comments || []).length > 0"
-      @click="$emit('open-comments')"
-      class="comments cursor-pointer"
+    <ion-popover
+      :is-open="popoverOpen"
+      :event="popoverEvent"
+      @didDismiss="popoverOpen = false"
+      :show-backdrop="false"
+      class="liquid-popover"
+      side="top"
+      :arrow="false"
+      alignment="center"
     >
-      <!-- ... your existing floating comment loop ... -->
-    </div>
-
-    <!-- 1. SOCIAL REACTIONS (Only for Public Posts) -->
-    <ion-button v-if="isPost" fill="clear" color="light" @click="$emit('react')" class="grow" size="large">
-      <div class="relative flex items-center justify-center">
-        <span class="text-2xl" :class="{ 'filter grayscale-[0.5]': !userHasReacted }">❤️</span>
-        <ion-badge v-if="totalReactions > 0" class="mb-[25px] absolute ml-[35px]" color="secondary">
-          {{ totalReactions }}
-        </ion-badge>
+      <div class="bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-[2rem] flex items-center px-4 py-3 space-x-3 animate-pop-in shadow-2xl">
+        <button
+          v-for="(imgSrc, type) in reactionImages"
+          :key="type"
+          @click="selectReaction(type)"
+          class="group relative w-11 h-11 p-1 transition-all duration-300 hover:scale-125 active:scale-90"
+        >
+          <img :src="imgSrc" class="h-full w-full object-contain drop-shadow-md group-hover:-translate-y-2 transition-transform" />
+          <div v-if="currItem.user_reaction === type"
+               class="absolute -bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-secondary shadow-[0_0_8px_rgba(var(--ion-color-secondary-rgb),0.6)]" />
+        </button>
       </div>
-    </ion-button>
-
-    <!-- 2. REPLY BUTTON -->
-    <ion-button v-if="canReply" fill="clear" color="light" @click="$emit('reply')" class="grow" size="large">
-      <ion-icon :icon="svg(mdiReplyOutline)" />
-    </ion-button>
-
-    <!-- 3. COMMENTS BUTTON (Uses generalized commentCount) -->
-    <ion-button
-      fill="clear"
-      color="light"
-      @click="$emit('open-comments')"
-      class="flex-grow relative"
-      size="large"
-    >
-      <ion-icon :icon="svg(mdiCommentOutline)" />
-      <ion-badge
-        v-if="displayCommentCount > 0"
-        class="mb-[25px] absolute ml-[35px]"
-        color="secondary"
-      >
-        {{ displayCommentCount }}
-      </ion-badge>
-    </ion-button>
-
-    <!-- 4. SHARE BUTTON -->
-    <ion-button fill="clear" color="light" @click="handleShare" class="flex-grow" size="large">
-      <ion-icon :icon="svg(mdiShareVariantOutline)" />
-    </ion-button>
-
-    <!-- 5. DELETE BUTTON -->
-    <ion-button v-if="canDelete" fill="clear" color="light" id="delete-swiper-item" class="flex-grow" size="large">
-      <!-- ... your existing delete alert ... -->
-    </ion-button>
-
+    </ion-popover>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { IonBadge, IonButton, IonIcon } from '@ionic/vue'
-import { mdiCommentOutline, mdiReplyOutline, mdiShareVariantOutline } from '@mdi/js'
-import { senderImg, senderName, svg } from '@/helper/general.helper'
+import { ref, computed } from 'vue'
+import { IonIcon, IonPopover } from '@ionic/vue'
+import { mdiCommentOutline, mdiDeleteOutline, mdiPencilOutline, mdiReplyOutline, mdiShareVariantOutline } from '@mdi/js'
+import { svg } from '@/helper/general.helper'
 import { shareImg } from '@/helper/share.helper'
-import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/store/auth.store'
+import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import CommentPreview from '@/components/photoswiper/CommentPreview.vue'
+import PhotoSwiperReactions from '@/components/photoswiper/PhotoSwiperReactions.vue'
+import { reactionImages } from '@/config/post.config'
 
 const props = defineProps<{
   currItem: any
@@ -106,57 +97,57 @@ const props = defineProps<{
   userLookup?: (userId: string) => any
 }>()
 
-
-// Generalized Comment Count
-const displayCommentCount = computed(() => {
-  if (isPost.value) return props.currItem.comment_count || 0
-  return props.currItem.comments?.length || 0
-})
 const emit = defineEmits(['open-comments', 'reply', 'delete', 'react'])
-const { user } = storeToRefs(useAuthStore())
 
-// Logic to determine if this is a Public Post or Private InboxItem
 const isPost = computed(() => !!props.currItem.author_id)
+const displayCommentCount = computed(() => isPost.value ? props.currItem.comment_count || 0 : props.currItem.comments?.length || 0)
 
-const totalReactions = computed(() => {
-  if (!props.currItem.reactions) return 0
-  return Object.values(props.currItem.reactions).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0)
-})
+const popoverOpen = ref(false)
+const popoverEvent = ref<Event | null>(null)
 
-const userHasReacted = computed(() => {
-  if (!props.currItem.reactions || !user.value) return false
-  return Object.values(props.currItem.reactions).some((uids: any) => uids.includes(user.value!._id))
-})
+function openReactionPopover(e: any) {
+  popoverEvent.value = e
+  popoverOpen.value = true
+}
+
+function selectReaction(type: string) {
+  popoverOpen.value = false
+  emit('react', type)
+}
 
 function resolveUser(userId: string) {
   return props.userLookup ? props.userLookup(userId) : userId
 }
 
 function handleShare() {
-  // Support both image (Private) and image_url (Public)
   const imgUrl = props.currItem.image_url || props.currItem.image
-  if (imgUrl) {
-    shareImg(imgUrl)
-  }
+  if (imgUrl) shareImg(imgUrl)
 }
 </script>
 
 <style scoped>
-/* Floating comments styles remain same */
-.comments {
-  position: absolute;
-  right: 0;
-  bottom: 60px;
-  z-index: 100;
-  width: 250px;
-  padding: 10px;
-  pointer-events: none; /* Prevents blocking swiper interaction */
+@reference "@/theme/main.css";
+
+.swiper-action-btn {
+  @apply flex items-center justify-center p-2.5 rounded-2xl text-white text-[28px] transition-all active:scale-75;
 }
 
-.comment {
-  pointer-events: auto;
-  background-color: rgba(0, 0, 0, 0.6) !important;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(4px);
+ion-popover.liquid-popover {
+  --background: transparent;
+  --box-shadow: none;
+}
+
+ion-popover.liquid-popover::part(content) {
+  background: transparent;
+  box-shadow: none;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.8) translateY(15px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-pop-in {
+  animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.2) forwards;
 }
 </style>

@@ -108,8 +108,6 @@ declare module 'fabric' {
     }
 
     'viewport:changed': Partial<TEvent> & {}
-    'pan': Partial<TEvent> & {}
-    'zoom': Partial<TEvent> & {}
 
     zoomReset: Partial<TEvent>
     zoomChanged: Partial<TEvent>

@@ -207,9 +207,9 @@ function resolveThumbnail(item: any) {
   return config.value.thumbnailResolver ? config.value.thumbnailResolver(item) : (item.thumbnail_url || item.thumbnail)
 }
 
-function handleReact() {
+function handleReact(type: string) {
   if (config.value.onReact) {
-    config.value.onReact(currItem.value)
+    config.value.onReact(currItem.value, type)
   }
 }
 </script>

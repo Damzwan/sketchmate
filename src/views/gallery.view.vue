@@ -129,17 +129,24 @@
 
 <script lang="ts" setup>
 import {
-  IonContent, IonPage, IonRefresher, IonRefresherContent,
-  IonInfiniteScroll, IonInfiniteScrollContent,
-  onIonViewWillLeave, useBackButton, IonIcon, IonButton
+  IonButton,
+  IonContent,
+  IonIcon,
+  IonInfiniteScroll,
+  IonInfiniteScrollContent,
+  IonPage,
+  IonRefresher,
+  IonRefresherContent,
+  onIonViewWillLeave,
+  useBackButton
 } from '@ionic/vue'
-import { onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import dayjs from 'dayjs'
 
 import { isNative, sortDates, svg } from '@/helper/general.helper'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { mdiChevronDown, mdiClose } from '@mdi/js'
+import { mdiClose } from '@mdi/js'
 
 import TopBar from '@/components/general/TopBar.vue'
 import GalleryActionSheet from '@/components/gallery/GalleryActionSheet.vue'

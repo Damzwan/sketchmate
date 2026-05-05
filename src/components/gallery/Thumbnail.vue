@@ -97,7 +97,7 @@
 import { computed, onMounted, ref, onUnmounted, watch } from 'vue'
 import { IonIcon, IonSkeletonText } from '@ionic/vue'
 import { InboxItem, User } from '@/types/server.types'
-import { isMobile, senderImg, svg } from '@/helper/general.helper'
+import { isMobile, isNative, senderImg, svg } from '@/helper/general.helper'
 import { onLongPress } from '@vueuse/core'
 import { mdiCheckboxBlankCircleOutline, mdiCheckboxMarkedCircleOutline } from '@mdi/js'
 import { useInboxStore } from '@/store/inbox.store'
@@ -118,7 +118,7 @@ const itemId = computed(() => props.inboxItem._id)
 // Haptics selection watch
 watch(() => props.multiSelectedItems.includes(itemId.value), (isSelected, oldVal) => {
   if (props.multiSelectMode && oldVal !== undefined) {
-    Haptics.impact({ style: isSelected ? ImpactStyle.Medium : ImpactStyle.Light })
+    if (isNative()) Haptics.impact({ style: isSelected ? ImpactStyle.Medium : ImpactStyle.Light })
   }
 })
 
@@ -148,7 +148,7 @@ async function onClick() {
     cancelClick = false
     return
   }
-  await Haptics.impact({ style: ImpactStyle.Light })
+  if (isNative()) await Haptics.impact({ style: ImpactStyle.Light })
   emits('click')
 }
 
@@ -156,7 +156,7 @@ onLongPress(
   el,
   async () => {
     if (!isMobile()) cancelClick = true
-    await Haptics.impact({ style: ImpactStyle.Heavy })
+    if (isNative()) await Haptics.impact({ style: ImpactStyle.Heavy })
     emits('long-press')
   },
   {

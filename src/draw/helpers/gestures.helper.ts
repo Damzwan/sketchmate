@@ -115,8 +115,6 @@ function commitCssTransform(c: Canvas, isFinal: boolean = true) {
     c.wrapperEl.style.willChange = 'auto'
   }
 
-  c.fire('viewport:changed')
-
   const { setVisibleObjectsState } = useDrawObjectManager()
   if (isZooming) setVisibleObjectsState('interaction')
   scheduleVisibilityUpdate()
@@ -246,7 +244,6 @@ export function enablePCGestures(c: Canvas) {
 
     gestureStore.isGesturing = false
     c.fire('gestureEnd')
-    c.fire('viewport:changed')
 
     clearGhostBuffer()
 
@@ -420,7 +417,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
   function endCanvasGesture(wasZooming: boolean) {
     gestureStore.isGesturing = false
     c.fire('gestureEnd')
-    c.fire('viewport:changed')
     ghostBoxes.value = []
 
     if (wasZooming) setVisibleObjectsState('interaction')
@@ -555,7 +551,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       vpt[5] += movementY * 2
       c.setViewportTransform(vpt)
 
-      c.fire('pan')
 
       // 2. Hardware-accelerated sync
       requestAnimationFrame(syncVisuals)
@@ -602,7 +597,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       // 2. Let Fabric handle the focal pivot translation
       c.zoomToPoint(new Point(center.x, center.y), newZoom)
 
-      c.fire('zoom')
 
       // 3. Hardware-accelerated sync
       requestAnimationFrame(syncVisuals)

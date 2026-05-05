@@ -2,6 +2,7 @@
   <div class="relative w-32 h-32 group/avatar">
     <!-- Liquid Glass Avatar Wrapper -->
     <div
+      @click="() => imgInput!.click()"
       class="cursor-pointer w-full h-full rounded-[2.5rem] bg-primary/40 backdrop-blur-xl border border-primary/40 shadow-lg overflow-hidden transition-all duration-300 z-20 relative group-hover/avatar:scale-105 group-hover/avatar:shadow-primary/20 group-hover/avatar:shadow-2xl"
     >
       <img

@@ -1,13 +1,12 @@
 import { defineStore } from 'pinia'
-import { FabricEvent, ShapeCreationMode } from '@/draw/types/draw.types'
-import { computed, ref } from 'vue'
+import { ShapeCreationMode } from '@/draw/types/draw.types'
+import { ref, watch } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'
 import * as fabric from 'fabric'
 import { Canvas, Point } from 'fabric'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { useDebounceFn } from '@vueuse/core'
-import { useSelect } from '@/draw/store/tools/select.store'
+import { useGestureStore } from '@/draw/store/tools/gesture.store'
 
 const AVATAR_DISAPPEAR_TIMEOUT_MS = 3000
 
@@ -23,41 +22,29 @@ export const useDrawUIStore = defineStore('drawUI', () => {
   const activeAvatars = ref(new Map())
   const isCanvasNavigating = ref(false)
 
+  const gestureStore = useGestureStore()
 
-  const events: FabricEvent[] = [
-    {
-      on: 'viewport:changed',
-      handler: () => {
-        handleCanvasNavigation()
-      }
-    }, {
-      on: 'pan',
-      handler: () => {
-        handleCanvasNavigation()
-      }
-    }, {
-      on: 'zoom',
-      handler: () => {
-        handleCanvasNavigation()
-      }
-    }
-  ]
 
   const resumeRendering = useDebounceFn(() => {
-    isCanvasNavigating.value = false
+    if (!gestureStore.isGesturing) {
+      isCanvasNavigating.value = false
+    }
   }, 300)
 
-  function handleCanvasNavigation() {
-    isCanvasNavigating.value = true
-    setTimeout(() => {
+
+  watch(() => gestureStore.isGesturing, (isGesturing) => {
+    if (isGesturing) {
+      isCanvasNavigating.value = true
       recalculateAvatarPositions()
-    }, 250)
-    resumeRendering()
-  }
+    } else {
+      resumeRendering()
+    }
+  })
 
   function showOrUpdateAvatar(userId: string, canvasX: number, canvasY: number) {
     const { getCanvas } = useDrawStore()
     const canvas = getCanvas()
+    if (!canvas) return
 
     const canvasPoint = new Point(canvasX, canvasY)
     const screenPoint = canvasPoint.transform(canvas.viewportTransform)
@@ -67,7 +54,7 @@ export const useDrawUIStore = defineStore('drawUI', () => {
     if (!user) return
 
     const existing = activeAvatars.value.get(user._id)
-    if (existing && existing.timeoutId) {
+    if (existing?.timeoutId) {
       clearTimeout(existing.timeoutId)
     }
 
@@ -86,24 +73,21 @@ export const useDrawUIStore = defineStore('drawUI', () => {
   function recalculateAvatarPositions() {
     const { getCanvas } = useDrawStore()
     const canvas = getCanvas()
+    if (!canvas || !canvas.viewportTransform) return
 
-    activeAvatars.value.forEach((avatar, id) => {
-      const canvasPoint = new fabric.Point(avatar.canvasX, avatar.canvasY)
+    activeAvatars.value.forEach((avatar) => {
+      const canvasPoint = new Point(avatar.canvasX, avatar.canvasY)
       const screenPoint = canvasPoint.transform(canvas.viewportTransform)
-
       avatar.x = screenPoint.x
       avatar.y = screenPoint.y
     })
   }
 
   function init(c: Canvas) {
-    const { addPermanentEvents } = useDrawEventManager()
-    addPermanentEvents(events)
   }
 
   function destroy() {
   }
-
 
   return {
     colorPickerMode,

@@ -25,6 +25,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let visibilityScheduled = false
 
 
+
   const events: FabricEvent[] = [
     {
       on: 'object:added',

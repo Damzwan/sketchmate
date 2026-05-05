@@ -1,16 +1,15 @@
-import { storeToRefs } from 'pinia'
 import { usePhotoSwiper } from '@/store/photoswiper.store'
 import { useToast } from '@/service/toast.service'
-import { useAuthStore } from '@/store/auth.store'
 import { isInRoom } from '@/draw/helpers/drawSyncing.helper'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { postComment } from '@/service/api/post.api'
+import { deletePost, postComment } from '@/service/api/post.api'
+import { usePostStore } from '@/store/post.store'
 
 export function usePostSwiper() {
   const swiperStore = usePhotoSwiper()
   const { toast } = useToast()
-  const { user } = storeToRefs(useAuthStore())
+  const postStore = usePostStore()
 
   function openPostSwiper(posts: any[], index: number) {
     swiperStore.openSwiper(posts, index, {
@@ -48,11 +47,21 @@ export function usePostSwiper() {
         return item.author_id === currentUser._id
       },
 
-      // Look up author info instead of followers
       userLookup: (userId: string) => {
-        // If the item has the author object hydrated, return it
-        // This matches our feed hydration logic
-        return null // Implement based on how you store author cache
+        return null
+      },
+      onDelete: async (item) => {
+        try {
+          swiperStore.open = false
+          await deletePost(item._id)
+          toast('Post deleted', { color: 'success' })
+          postStore.removePostLocally(item._id)
+        } catch (e) {
+          toast('Failed to delete post', { color: 'danger' })
+        }
+      },
+      onReact: async (item, type) => {
+        await postStore.toggleReactionLocally(item._id, type)
       }
     })
   }

@@ -127,6 +127,7 @@ import { useToast } from '@/service/toast.service'
 import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import { createPost } from '@/service/api/post.api'
+import { usePostStore } from '@/store/post.store'
 
 const { user } = storeToRefs(useAuthStore())
 const drawStore = useDrawStore()
@@ -234,8 +235,10 @@ async function executeShares() {
         aspect_ratio: processedData.aspect_ratio || 1,
         description: postCaption.value
       }).then(() => {
-        const {toast} = useToast()
-        toast("Post created")
+        const postStore = usePostStore()
+        postStore.isProfileDirty = true
+        const { toast } = useToast()
+        toast('Post created')
       }))
     }
 

@@ -24,30 +24,13 @@
           <!-- Profile Card -->
           <section
             class="mt-16 bg-primary/20 backdrop-blur-2xl rounded-[3rem] border border-primary/30 shadow-lg relative px-6 pb-8 pt-4">
-
-            <!-- Action Group: Anchored to right to prevent shifting -->
             <div class="absolute top-4 right-4 flex flex-row-reverse items-center z-50">
-
-              <!-- Edit / Save Button (Always on the far right) -->
-              <ion-button
-                fill="clear"
-                class="ml-3"
-                color="secondary"
-                :class="{ 'confirm-mode-btn': isEditing }"
-                @click="toggleEdit"
-              >
-                <ion-icon slot="icon-only" :class="isEditing ? 'text-white' : 'text-black'"
-                          :icon="svg(isEditing ? mdiCheck : mdiPencil)" />
+              <ion-button fill="clear" class="ml-3" color="secondary" @click="toggleEdit">
+                <ion-icon slot="icon-only" class="text-black" :icon="svg(isEditing ? mdiCheck : mdiPencil)" />
               </ion-button>
 
-              <!-- Settings Button (Fades out without moving the Edit button) -->
               <transition name="fade">
-                <ion-button
-                  v-if="!isEditing"
-                  fill="clear"
-                  color="secondary"
-                  @click="goToSettings"
-                >
+                <ion-button v-if="!isEditing" fill="clear" color="secondary" @click="goToSettings">
                   <ion-icon slot="icon-only" class="text-black" :icon="svg(mdiCog)" />
                 </ion-button>
               </transition>
@@ -66,17 +49,10 @@
 
               <!-- Edit Mode -->
               <div v-else class="w-full mt-6 space-y-4">
-                <input
-                  v-model="editForm.name"
-                  placeholder="Artist Name"
-                  class="w-full bg-white/40 border border-primary/20 rounded-2xl px-4 py-3 text-lg font-black text-black shadow-inner focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
-                />
-                <textarea
-                  v-model="editForm.description"
-                  placeholder="A little about your art..."
-                  rows="3"
-                  class="w-full bg-white/40 border border-primary/20 rounded-2xl px-4 py-3 text-sm font-bold text-black italic shadow-inner focus:outline-none focus:ring-2 focus:ring-secondary transition-all resize-none"
-                ></textarea>
+                <input v-model="editForm.name" placeholder="Artist Name"
+                       class="w-full bg-white/40 border border-primary/20 rounded-2xl px-4 py-3 text-lg font-black text-black shadow-inner focus:outline-none focus:ring-2 focus:ring-secondary transition-all" />
+                <textarea v-model="editForm.description" placeholder="A little about your art..." rows="3"
+                          class="w-full bg-white/40 border border-primary/20 rounded-2xl px-4 py-3 text-sm font-bold text-black italic shadow-inner focus:outline-none focus:ring-2 focus:ring-secondary transition-all resize-none"></textarea>
               </div>
 
               <!-- Stats Bar -->
@@ -88,9 +64,7 @@
                     }}</span>
                   <span class="text-[10px] font-bold text-black/50 uppercase tracking-widest">Followers</span>
                 </button>
-
                 <div class="w-px h-8 bg-black/10 rounded-full"></div>
-
                 <button @click="goToNetwork('following')"
                         class="flex flex-col items-center cursor-pointer active:scale-90 hover:-translate-y-1 hover:bg-black/5 transition-all duration-300 px-4 py-2 rounded-2xl">
                   <span
@@ -109,6 +83,7 @@
               <span class="text-sm font-bold text-black/40">{{ userPosts.length }} Sketches</span>
             </div>
 
+            <!-- Loader for Store actions -->
             <div v-if="loadingPosts && userPosts.length === 0" class="grid grid-cols-2 gap-3">
               <div v-for="i in 4" :key="i"
                    class="aspect-square bg-primary/10 rounded-[2rem] animate-pulse border border-primary/20"></div>
@@ -143,7 +118,7 @@
             </div>
           </section>
 
-          <ion-infinite-scroll @ionInfinite="loadMorePosts" :disabled="!hasMorePosts">
+          <ion-infinite-scroll @ionInfinite="loadMorePosts" :disabled="!hasMoreUserPosts">
             <ion-infinite-scroll-content loading-spinner="bubbles"></ion-infinite-scroll-content>
           </ion-infinite-scroll>
         </div>
@@ -153,98 +128,99 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import {
-  IonPage,
+  IonButton,
   IonContent,
-  onIonViewDidEnter,
   IonIcon,
   IonInfiniteScroll,
   IonInfiniteScrollContent,
-  IonButton, useIonRouter
+  IonPage,
+  onIonViewDidEnter,
+  useIonRouter
 } from '@ionic/vue'
-import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/store/auth.store'
+import { usePostStore } from '@/store/post.store'
 import { svg } from '@/helper/general.helper'
-import { mdiPencil, mdiCheck, mdiHeart, mdiComment, mdiCog } from '@mdi/js'
+import { mdiCheck, mdiCog, mdiHeart, mdiPencil } from '@mdi/js'
 import TopBar from '@/components/general/TopBar.vue'
 import ProfilePictureSelector from '@/components/account/ProfilePictureSelector.vue'
 import { usePostSwiper } from '@/composables/home/usePostSwiper'
 import { useToast } from '@/service/toast.service'
-import { fetchUserPosts, updateProfile, uploadProfileImg } from '@/service/api/user.api'
-import { FeedPost } from '@/types/server.types'
+import { updateProfile, uploadProfileImg } from '@/service/api/user.api'
 import { masterAnimation } from '@/helper/animation.helper'
 
 const router = useIonRouter()
 const authStore = useAuthStore()
+const postStore = usePostStore()
+
 const { user } = storeToRefs(authStore)
+const { userPosts, hasMoreUserPosts, isProfileDirty } = storeToRefs(postStore)
 const { toast } = useToast()
 const { openPostSwiper } = usePostSwiper()
 
 const loadingAccount = ref(true)
+const loadingPosts = ref(false)
 const isEditing = ref(false)
 const editForm = reactive({ name: '', description: '' })
-const userPosts = ref<FeedPost[]>([])
-const loadingPosts = ref(false)
-const page = ref(1)
-const limit = 20
-const hasMorePosts = ref(true)
 
-const loadGallery = async (isInitial = false) => {
-  if (!user.value || (loadingPosts.value && isInitial)) return
+/**
+ * Handle initial data fetch or dirty-state refresh
+ */
+const handleInitialLoad = async () => {
+  if (!user.value) return
   loadingPosts.value = true
-  if (isInitial) page.value = 1
   try {
-    const res = await fetchUserPosts(user.value._id, page.value, limit)
-    userPosts.value = res.posts || []
-    hasMorePosts.value = userPosts.value.length === limit
+    await postStore.getUserPosts(user.value._id, true)
+  } catch (e) {
+    toast('Failed to load sketches', { color: 'danger' })
   } finally {
     loadingPosts.value = false
   }
 }
 
+/**
+ * Paginated loading
+ */
 const loadMorePosts = async (e: any) => {
-  if (!user.value || !hasMorePosts.value) return e.target.complete()
-  page.value++
+  if (!user.value) return e.target.complete()
   try {
-    const res = await fetchUserPosts(user.value._id, page.value, limit)
-    const newPosts = res.posts || []
-    userPosts.value.push(...newPosts)
-    hasMorePosts.value = newPosts.length === limit
+    await postStore.getUserPosts(user.value._id, false)
   } finally {
     e.target.complete()
   }
 }
 
-watch(user, (val) => {
-  if (val && loadingAccount.value) {
-    loadingAccount.value = false
-    loadGallery(true)
-  }
-}, { immediate: true })
 
 onIonViewDidEnter(() => {
   if (user.value) {
     loadingAccount.value = false
-    if (userPosts.value.length === 0) loadGallery(true)
+    if (userPosts.value.length === 0 || isProfileDirty.value) {
+      handleInitialLoad()
+    }
   }
 })
+
+watch(user, (val) => {
+  if (val && loadingAccount.value) {
+    loadingAccount.value = false
+    handleInitialLoad()
+  }
+}, { immediate: true })
 
 const toggleEdit = async () => {
   if (isEditing.value) {
     const newName = editForm.name.trim()
     const newDesc = editForm.description.trim()
 
-    if (!newName) {
-      return toast('Name cannot be empty', { color: 'warning' })
-    }
+    if (!newName) return toast('Name cannot be empty', { color: 'warning' })
+
     const hasChanged = newName !== user.value?.name || newDesc !== (user.value?.description || '')
 
     if (hasChanged) {
       try {
         await updateProfile({ name: newName, description: newDesc })
-
         if (user.value) {
           user.value.name = newName
           user.value.description = newDesc
@@ -253,13 +229,11 @@ const toggleEdit = async () => {
       } catch (e) {
         return toast('Failed to update profile', { color: 'danger' })
       }
-    } else {
     }
   } else {
     editForm.name = user.value?.name || ''
     editForm.description = user.value?.description || ''
   }
-
   isEditing.value = !isEditing.value
 }
 
@@ -287,19 +261,6 @@ const formatNumber = (num: number) => num >= 1000 ? (num / 1000).toFixed(1) + 'k
 <style scoped>
 @reference "@/theme/main.css";
 
-
-/* Obvious styling for the Confirm/Save button */
-.confirm-mode-btn {
-  --background: var(--ion-color-secondary);
-  transform: scale(1.1); /* Subtle pop when in edit mode */
-}
-
-.confirm-mode-btn::part(native) {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 20px rgba(var(--ion-color-secondary-rgb), 0.4);
-}
-
-/* Transitions */
 .liquid-fade-enter-active, .liquid-fade-leave-active {
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }

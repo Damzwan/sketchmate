@@ -3,20 +3,23 @@
     <SubPageBar title="Settings" />
 
     <ion-content class="bg-background">
-      <!-- Increased max-width for a more expansive feel -->
-      <div class="max-w-3xl px-8 pt-6 bot-pad-safe flex flex-col min-h-full">
+      <div class="w-full max-w-3xl mx-auto px-6 pt-6 bot-pad-safe flex flex-col min-h-full">
 
         <div class="grow space-y-8">
 
-          <section class="bg-primary/5 rounded-[2.5rem] p-4 border border-black/5 shadow-sm transition-all">
-            <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-2 uppercase tracking-wider">
+          <!-- Preferences Section -->
+          <section class="bg-primary/5 rounded-[2.5rem] p-6 border border-black/5 shadow-sm transition-all">
+            <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-4 uppercase tracking-wider">
               Preferences
             </h3>
             <SettingSwitches />
           </section>
 
-          <section v-if="user?.subscriptions?.length" class="animate-fade-in bg-primary/5 rounded-[2.5rem] p-4 border border-black/5 shadow-sm transition-all">
-            <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-2 uppercase tracking-wider">
+          <!-- Network Sync Section -->
+          <section v-if="user?.subscriptions?.length"
+                   class="animate-fade-in bg-primary/5 rounded-[2.5rem] p-6 border border-black/5 shadow-sm transition-all"
+          >
+            <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-4 uppercase tracking-wider">
               Network Sync
             </h3>
             <SubscriptionManager
@@ -27,8 +30,8 @@
 
         </div>
 
-        <!-- Links moved to the bottom -->
-        <div class="mt-auto pt-12 pb-6 flex justify-center">
+        <!-- Links at the bottom -->
+        <div class="mt-auto pt-12 pb-8 flex justify-center">
           <SettingLinks />
         </div>
       </div>
@@ -59,10 +62,6 @@ const handleDeleteSubscription = async (sub: any) => {
     toast('Could not remove device', { color: 'danger' })
   }
 }
-
-const logout = () => {
-  authStore.logout()
-}
 </script>
 
 <style scoped>
@@ -77,14 +76,15 @@ const logout = () => {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/*
+   Pro Tip: Ensure the inner items of the switches/manager
+   don't add extra horizontal padding that makes the 'card' look cramped
+*/
 ion-item {
   --background: transparent;
   --border-color: rgba(0, 0, 0, 0.05);
-  --inner-padding-end: 0;
-}
-
-ion-accordion {
-  --background: transparent;
+  --padding-start: 8px;
+  --inner-padding-end: 8px;
 }
 
 ion-content::part(scroll) {

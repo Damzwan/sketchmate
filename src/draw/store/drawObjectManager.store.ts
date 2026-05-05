@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { Canvas, FabricObject, util } from 'fabric'
+import { Canvas, FabricObject } from 'fabric'
 import { FabricEvent, ObjectType } from '@/draw/types/draw.types'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import {
@@ -15,17 +15,61 @@ import { yieldToMain } from '@/helper/general.helper'
 export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let c: Canvas | undefined = undefined
 
+  // ─── Object Registry ──────────────────────────────────────────────────────
+  // Fast O(1) lookup by ID for all objects on the canvas.
   let objectMap = new Map<string, FabricObject>()
 
-
+  // ─── Spatial Index ────────────────────────────────────────────────────────
+  // The quadtree powers viewport culling: only objects intersecting the current
+  // viewport are rendered. entryMap holds references to each object's quadtree
+  // entry so we can update or remove them in O(log n).
   const quadtree = new InfiniteQuadtreeManager<FabricObject>()
   const entryMap = new Map<string, QuadtreeEntry<FabricObject>>()
 
+  // Tracks which object IDs were visible in the last render pass, so we can
+  // diff against the next pass and toggle .visible only on changed objects.
   let lastVisible = new Set<string>()
   let visibilityScheduled = false
 
+  // ─── Render Pipeline State ────────────────────────────────────────────────
+  //
+  // There are two render paths that must never write to the stable canvas
+  // simultaneously:
+  //
+  //   1. renderCanvasChunked — a full viewport re-render, chunked across
+  //      multiple frames to avoid blocking the main thread. Triggered after
+  //      gestures (pan/zoom) end, or after a large batch of changes.
+  //
+  //   2. invalidateRegion (via triggerBatch) — a surgical patch that redraws
+  //      only the dirty bounding box on the stable canvas. Triggered by
+  //      individual object mutations (add, modify, remove, style change…).
+  //
+  // The three flags below coordinate safe handoff between these two paths:
+
+  // Set while renderCanvasChunked holds exclusive write access to the stable
+  // canvas. triggerBatch will not call invalidateRegion while this is true;
+  // it defers via pendingBatchAfterRender instead.
+  let isChunkedRenderRunning = false
+
+  // Set when triggerBatch wanted to flush but isChunkedRenderRunning was true.
+  // renderCanvasChunked checks this in its finally block and calls
+  // flushPendingBatch() to drain whatever accumulated while it was running.
+  let pendingBatchAfterRender = false
+
+  // Set by onGestureEnd() to signal that a full re-render is imminent (the
+  // 150ms debounce in endGesture). triggerBatch microtasks that fire in this
+  // window must NOT call invalidateRegion — the stable canvas still holds the
+  // pre-gesture viewport transform, so any patch would be drawn at the wrong
+  // position. Instead they leave their objects in dirtyObjects/dirtyRects and
+  // return. The flag is cleared once renderCanvasChunked actually commits,
+  // after which flushPendingBatch() replays anything that accumulated.
+  let pendingFullRerender = false
 
 
+  // ─── Canvas Event Handlers ────────────────────────────────────────────────
+  // Every mutation that changes what the canvas looks like funnels through
+  // scheduleInvalidation / scheduleRectInvalidation, which batch-coalesce
+  // multiple synchronous mutations into a single invalidateRegion call.
   const events: FabricEvent[] = [
     {
       on: 'object:added',
@@ -34,7 +78,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         if (!obj.id) return
         objectMap.set(obj.id, obj)
         addToQuadTree(obj)
-        scheduleInvalidation(obj) // 👈 Batched
+        scheduleInvalidation(obj)
       }
     },
     {
@@ -42,9 +86,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       handler: (e: any) => {
         const obj = e.target as FabricObject
         if (!obj.id) return
-
+        // Schedule before removing — invalidateRegion needs the object to
+        // still be in the quadtree to calculate the dirty rect correctly.
         scheduleInvalidation(obj)
-
         objectMap.delete(obj.id)
         removeFromQuadTree(obj)
       }
@@ -55,7 +99,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         const obj = e.target as FabricObject
         const transform = e.transform
 
-        // 1. Sync the QuadTree for the NEW position
+        // Keep the quadtree in sync with the object's new position.
         if (obj.type == ObjectType.selection) {
           c!.getActiveObjects().forEach(o => updateQuadTree(o))
         } else {
@@ -63,8 +107,10 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         }
 
         if (transform?.original) {
-          // 🚀 THE O(1) OLD RECT CALCULATION (No deep cloning!)
-          // Save current math state
+          // The object moved: we need to repaint both where it was (old rect)
+          // and where it is now (current position). We calculate the old rect
+          // without cloning by briefly reverting the transform math, sampling
+          // the bounding box, then restoring — O(1), no heap allocation.
           const currentState = {
             left: obj.left, top: obj.top,
             scaleX: obj.scaleX, scaleY: obj.scaleY,
@@ -74,33 +120,27 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
             originX: obj.originX, originY: obj.originY
           }
 
-          // Briefly revert to original state to measure the bounding box
           obj.set(transform.original)
           obj.setCoords()
           // @ts-ignore
           const oldBound = obj.getBoundingRect(true, true)
           const oldRect = new Rect(oldBound.left, oldBound.top, oldBound.width, oldBound.height)
 
-          // Instantly restore current state
           obj.set(currentState)
           obj.setCoords()
 
-          // 2. Schedule the raw coordinates of where it used to be
           scheduleRectInvalidation(oldRect)
-
-          // 3. Schedule the object in its new position
           scheduleInvalidation(obj)
         } else {
-          // If there was no transform (e.g., standard style/text change),
-          // just push it to the batcher.
+          // Style / text change: only the current bounding box is dirty.
           scheduleInvalidation(obj)
         }
       }
     },
     {
+      // Wipes the entire stable canvas and requests a full Fabric re-render.
       on: 'fullErase',
       handler: () => {
-        // 🚀 FAST PATH: O(1) Canvas Wipe
         const physWidth = c!.getElement().width
         const physHeight = c!.getElement().height
         const stableCanvas = getStableCanvas(physWidth, physHeight)
@@ -109,7 +149,6 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         stableCtx.save()
         stableCtx.setTransform(1, 0, 0, 1, 0, 0)
         stableCtx.clearRect(0, 0, physWidth, physHeight)
-
         if (c!.backgroundColor) {
           stableCtx.fillStyle = c!.backgroundColor as string
           stableCtx.fillRect(0, 0, physWidth, physHeight)
@@ -118,6 +157,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         c!.requestRenderAll()
       }
     },
+    // All of the following just funnel their target(s) into scheduleInvalidation.
     {
       on: 'textStyleChanged',
       handler: (e: any) => scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
@@ -143,16 +183,15 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       handler: (e: any) => scheduleInvalidation(Array.isArray(e.detail.targets) ? e.detail.targets : [e.detail.targets])
     },
     {
+      // Background color change requires a full stable canvas repaint since
+      // every pixel's background is affected, then a visibility refresh.
       on: 'backgroundColorChanged',
       handler: (e: any) => {
         const physWidth = c!.getElement().width
         const physHeight = c!.getElement().height
-
-        // 1. Update the stable background buffer
         const stableCanvas = getStableCanvas(physWidth, physHeight)
         const stableCtx = stableCanvas.getContext('2d')!
 
-        // Wipe the whole thing and refill with the new global color
         stableCtx.save()
         stableCtx.setTransform(1, 0, 0, 1, 0, 0)
         stableCtx.clearRect(0, 0, physWidth, physHeight)
@@ -166,16 +205,15 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     },
     {
       on: 'invalidateCanvas',
-      handler: (e: any) => {
-        scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
-      }
+      handler: (e: any) => scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
     },
     {
+      // Used by undo/redo: provides the old rect explicitly so we don't have
+      // to reverse-engineer it from transform history.
       on: 'render:patchModifiedObject',
       handler: (e: any) => {
         const obj = e.target as FabricObject
         const oldRect = e.oldRect as Rect
-
         if (!obj || !oldRect) return
         updateQuadTree(obj)
         scheduleRectInvalidation(oldRect)
@@ -185,15 +223,18 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   ]
 
 
+  // ─── Public Accessors ─────────────────────────────────────────────────────
+
   function getObjectById(id: string): FabricObject | undefined {
     return objectMap.get(id)
   }
-
 
   function getObjectsById(ids: string[]): FabricObject[] {
     return ids.map(id => getObjectById(id)).filter(obj => !!obj)
   }
 
+
+  // ─── Initialisation ───────────────────────────────────────────────────────
 
   function init(canvas: Canvas) {
     const { addPermanentEvents } = useDrawEventManager()
@@ -210,10 +251,16 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       objectMap.set(obj.id!, obj)
       addToQuadTree(obj)
     })
-
     updateVisibility()
   }
 
+
+  // ─── Visibility & Full Re-render ──────────────────────────────────────────
+
+  // Queries the quadtree for the current viewport, diffs against lastVisible
+  // to toggle .visible flags, then kicks off a chunked render of all visible
+  // objects. This is the "heavy" path — only called after gestures or large
+  // batch changes, never for individual object mutations.
   function updateVisibility(runSync = true): void {
     const execute = () => {
       visibilityScheduled = false
@@ -237,14 +284,14 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       }
 
       lastVisible = nextVisible
-
       renderCanvasChunked(c!, getObjectsById(Array.from(nextVisible)))
     }
 
-    // Bypass the scheduling queue entirely if this is a sync request
     if (!runSync) {
       execute()
     } else {
+      // Deduplicate: if a visibility update is already queued for the next
+      // animation frame, don't queue another one.
       if (visibilityScheduled) return
       visibilityScheduled = true
       requestAnimationFrame(execute)
@@ -252,18 +299,27 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
 
-  let currentRenderId = 0
+  // ─── Offscreen Canvas Buffers ─────────────────────────────────────────────
+  //
+  // Two offscreen buffers keep the render pipeline non-destructive:
+  //
+  //   workingCanvas — renderCanvasChunked draws into this scratch buffer
+  //                   frame-by-frame. The main screen is never touched until
+  //                   the full render is complete.
+  //
+  //   stableCanvas  — the last fully-committed frame. commitToMainScreen blits
+  //                   this to the DOM canvas. invalidateRegion also patches
+  //                   directly into this buffer for surgical updates.
 
+  let currentRenderId = 0
   let stableOffscreenCanvas: HTMLCanvasElement | OffscreenCanvas | null = null
   let workingOffscreenCanvas: HTMLCanvasElement | OffscreenCanvas | null = null
 
   function getStableCanvas(width: number, height: number) {
     if (!stableOffscreenCanvas) {
-      if (typeof OffscreenCanvas !== 'undefined') {
-        stableOffscreenCanvas = new OffscreenCanvas(width, height)
-      } else {
-        stableOffscreenCanvas = document.createElement('canvas')
-      }
+      stableOffscreenCanvas = typeof OffscreenCanvas !== 'undefined'
+        ? new OffscreenCanvas(width, height)
+        : document.createElement('canvas')
     }
     if (stableOffscreenCanvas.width !== width || stableOffscreenCanvas.height !== height) {
       stableOffscreenCanvas.width = width
@@ -274,11 +330,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
 
   function getWorkingCanvas(width: number, height: number) {
     if (!workingOffscreenCanvas) {
-      if (typeof OffscreenCanvas !== 'undefined') {
-        workingOffscreenCanvas = new OffscreenCanvas(width, height)
-      } else {
-        workingOffscreenCanvas = document.createElement('canvas')
-      }
+      workingOffscreenCanvas = typeof OffscreenCanvas !== 'undefined'
+        ? new OffscreenCanvas(width, height)
+        : document.createElement('canvas')
     }
     if (workingOffscreenCanvas.width !== width || workingOffscreenCanvas.height !== height) {
       workingOffscreenCanvas.width = width
@@ -288,84 +342,205 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
 
+  // ─── Chunked Full Render ───────────────────────────────────────────────────
+  //
+  // Renders all visible objects into the working canvas in 8ms time-sliced
+  // chunks, yielding between chunks so the main thread stays responsive.
+  // Once complete, atomically copies the working canvas into the stable canvas
+  // and blits to the DOM.
+  //
+  // Abort conditions (stale renderId or gesture started mid-render) cleanly
+  // exit without touching the stable canvas, leaving the last good frame
+  // intact on screen.
   async function renderCanvasChunked(canvas: Canvas, objects: FabricObject[]) {
     const renderId = ++currentRenderId
     const gestureStore = useGestureStore()
 
-    // 🛡️ THE MICROTASK SHIELD 🛡️
-    await yieldToMain() // Using your polyfill
-    if (renderId !== currentRenderId || gestureStore.isGesturing) return
+    // Yield immediately so that any synchronous state changes (e.g. the gesture
+    // flag being cleared by onGestureEnd) have settled before we proceed.
+    await yieldToMain()
 
-    const mainCtx = canvas.getContext()
-
-    // Use the physical element dimensions to preserve Retina scaling
-    const physWidth = canvas.getElement().width
-    const physHeight = canvas.getElement().height
-
-    const workingCanvas = getWorkingCanvas(physWidth, physHeight)
-    const workingCtx = workingCanvas.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
-
-    const targetVpt = [...canvas.viewportTransform!] as number[]
-    const frozenBg = canvas.backgroundColor
-
-    const dpr = canvas.getRetinaScaling ? canvas.getRetinaScaling() : (window.devicePixelRatio || 1)
-    workingCtx.clearRect(0, 0, workingCanvas.width, workingCanvas.height)
-    if (frozenBg) {
-      workingCtx.fillStyle = frozenBg as string
-      workingCtx.fillRect(0, 0, workingCanvas.width, workingCanvas.height)
+    if (renderId !== currentRenderId || gestureStore.isGesturing) {
+      // A newer render was requested, or a gesture started — abort immediately.
+      // Clear the cooldown flag so triggerBatch can operate normally again
+      // once things settle.
+      pendingFullRerender = false
+      isChunkedRenderRunning = false
+      flushPendingBatch()
+      return
     }
 
-    workingCtx.save()
-    workingCtx.setTransform(1, 0, 0, 1, 0, 0)
+    // From this point we own the stable canvas. Block triggerBatch from
+    // calling invalidateRegion until we commit (see finally block).
+    pendingFullRerender = false
+    isChunkedRenderRunning = true
 
-    workingCtx.scale(dpr, dpr)
-    workingCtx.transform(
-      targetVpt[0], targetVpt[1],
-      targetVpt[2], targetVpt[3],
-      targetVpt[4], targetVpt[5]
-    )
+    try {
+      const physWidth = canvas.getElement().width
+      const physHeight = canvas.getElement().height
+      const workingCanvas = getWorkingCanvas(physWidth, physHeight)
+      const workingCtx = workingCanvas.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+      const targetVpt = [...canvas.viewportTransform!] as number[]
+      const frozenBg = canvas.backgroundColor
+      const dpr = canvas.getRetinaScaling ? canvas.getRetinaScaling() : (window.devicePixelRatio || 1)
 
-    let i = 0
-    const TIME_BUDGET_MS = 8
+      // Paint background into the working canvas.
+      workingCtx.clearRect(0, 0, workingCanvas.width, workingCanvas.height)
+      if (frozenBg) {
+        workingCtx.fillStyle = frozenBg as string
+        workingCtx.fillRect(0, 0, workingCanvas.width, workingCanvas.height)
+      }
 
-    while (i < objects.length) {
-      // Check for aborts between chunks
-      if (renderId !== currentRenderId || gestureStore.isGesturing) {
-        workingCtx.restore()
-        console.log('Surgery aborted cleanly via user input or newer render.')
+      // Apply the viewport transform once; all object renders inherit it.
+      workingCtx.save()
+      workingCtx.setTransform(1, 0, 0, 1, 0, 0)
+      workingCtx.scale(dpr, dpr)
+      workingCtx.transform(
+        targetVpt[0], targetVpt[1],
+        targetVpt[2], targetVpt[3],
+        targetVpt[4], targetVpt[5]
+      )
+
+      let i = 0
+      const TIME_BUDGET_MS = 8
+
+      while (i < objects.length) {
+        // Check for abort between chunks — a gesture may have started, or a
+        // newer updateVisibility call may have superseded this render.
+        if (renderId !== currentRenderId || gestureStore.isGesturing) {
+          workingCtx.restore()
+          pendingFullRerender = false
+          isChunkedRenderRunning = false
+          flushPendingBatch()
+          return
+        }
+
+        const frameStartTime = performance.now()
+        while (i < objects.length && (performance.now() - frameStartTime) < TIME_BUDGET_MS) {
+          objects[i].render(workingCtx as CanvasRenderingContext2D)
+          i++
+        }
+
+        if (i < objects.length) await yieldToMain()
+      }
+
+      workingCtx.restore()
+      // @ts-ignore
+      if (!canvas.skipControlsDrawing) canvas.drawControls(workingCtx as CanvasRenderingContext2D)
+
+      // Final abort check before committing — we don't want to overwrite the
+      // stable canvas if a gesture snuck in during the last chunk.
+      if (renderId === currentRenderId && !gestureStore.isGesturing) {
+        gestureStore.setRenderedVpt(targetVpt)
+
+        // Atomic commit: copy working → stable, then blit stable → DOM.
+        const stableCanvas = getStableCanvas(physWidth, physHeight)
+        const stableCtx = stableCanvas.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+        stableCtx.clearRect(0, 0, stableCanvas.width, stableCanvas.height)
+        stableCtx.drawImage(workingCanvas as CanvasImageSource, 0, 0)
+
+        commitToMainScreen(canvas)
+      }
+    } finally {
+      // Always release the lock, even on exception. Then replay any surgical
+      // patches that were deferred while we held the stable canvas.
+      isChunkedRenderRunning = false
+      flushPendingBatch()
+    }
+  }
+
+
+  // ─── Surgical Patch Pipeline ──────────────────────────────────────────────
+  //
+  // For individual object mutations we avoid a full re-render by painting only
+  // the union bounding box of all dirty objects directly onto the stable canvas,
+  // then blitting to the DOM. This is the "fast path" for live edits.
+
+  const dirtyObjects = new Set<FabricObject>()
+  const dirtyRects = new Set<Rect>()   // Raw rects for undo/redo old positions
+  let isBatchScheduled = false
+
+  // Adds an object (or array of objects) to the dirty set and schedules a
+  // microtask to flush them. Multiple synchronous calls coalesce into one flush.
+  function scheduleInvalidation(target: FabricObject | FabricObject[]) {
+    const objects = Array.isArray(target) ? target : [target]
+    objects.forEach(o => dirtyObjects.add(o))
+    triggerBatch()
+  }
+
+  // Same as scheduleInvalidation but for a raw Rect (used when we know the old
+  // bounding box of a moved object but no longer have the FabricObject at that
+  // position).
+  function scheduleRectInvalidation(rect: Rect) {
+    dirtyRects.add(rect)
+    triggerBatch()
+  }
+
+  // Schedules a single microtask to flush all currently dirty objects/rects.
+  // Guards against running while a chunked render or post-gesture cooldown is
+  // active — in those cases it marks pendingBatchAfterRender and returns,
+  // letting the chunked render's finally block replay the flush.
+  function triggerBatch() {
+    if (isBatchScheduled) return
+    isBatchScheduled = true
+
+    queueMicrotask(() => {
+      isBatchScheduled = false
+      const gestureStore = useGestureStore()
+
+      // During a gesture the viewport transform changes every frame. Any patch
+      // we drew would immediately be at the wrong position. Just accumulate.
+      if (gestureStore.isGesturing) return
+
+      // A full re-render is imminent (post-gesture cooldown). The stable canvas
+      // still holds the old viewport transform — don't patch it. Accumulate and
+      // let renderCanvasChunked's finally block flush after it commits.
+      if (pendingFullRerender) return
+
+      // The stable canvas is being rewritten by renderCanvasChunked. Mark the
+      // pending flag so its finally block replays our flush once it's done.
+      if (isChunkedRenderRunning) {
+        pendingBatchAfterRender = true
         return
       }
 
-      const frameStartTime = performance.now()
-
-      while (i < objects.length && (performance.now() - frameStartTime) < TIME_BUDGET_MS) {
-        objects[i].render(workingCtx as CanvasRenderingContext2D)
-        i++
-      }
-
-      if (i < objects.length) {
-        await yieldToMain()
-      }
-    }
-
-    workingCtx.restore()
-
-    // @ts-ignore
-    if (!canvas.skipControlsDrawing) canvas.drawControls(workingCtx as CanvasRenderingContext2D)
-
-    // Final check before committing the procedure to the main screen
-    if (renderId === currentRenderId && !gestureStore.isGesturing) {
-      gestureStore.setRenderedVpt(targetVpt)
-
-      const stableCanvas = getStableCanvas(physWidth, physHeight)
-      const stableCtx = stableCanvas.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
-
-      stableCtx.clearRect(0, 0, stableCanvas.width, stableCanvas.height)
-      stableCtx.drawImage(workingCanvas as CanvasImageSource, 0, 0)
-
-      commitToMainScreen(canvas)
-    }
+      flushDirtyBatch()
+    })
   }
+
+  // Drains dirtyObjects and dirtyRects into a single invalidateRegion call.
+  // Falls back to a full updateVisibility if the batch is too large (> 50
+  // items) — at that scale a full re-render is cheaper than a giant union rect.
+  function flushDirtyBatch() {
+    if (dirtyObjects.size === 0 && dirtyRects.size === 0) return
+
+    const gestureStore = useGestureStore()
+    if (gestureStore.isGesturing) return
+
+    const batchObjects = Array.from(dirtyObjects)
+    const batchRects = Array.from(dirtyRects)
+    dirtyObjects.clear()
+    dirtyRects.clear()
+
+    if (batchObjects.length + batchRects.length > 50) {
+      updateVisibility(false)
+      return
+    }
+
+    invalidateRegion(c!, batchObjects, batchRects)
+    commitToMainScreen(c!)
+  }
+
+  // Called from renderCanvasChunked's finally block. Replays any batch that
+  // was deferred while the chunked render held the stable canvas.
+  function flushPendingBatch() {
+    if (!pendingBatchAfterRender) return
+    pendingBatchAfterRender = false
+    flushDirtyBatch()
+  }
+
+
+  // ─── Quadtree Helpers ─────────────────────────────────────────────────────
 
   function addToQuadTree(obj: FabricObject) {
     const entry = fabricObjectToEntry(obj)
@@ -373,72 +548,67 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     quadtree.insert(entry)
   }
 
-  function removeFromQuadTree(
-    obj: FabricObject
-  ): void {
+  function removeFromQuadTree(obj: FabricObject): void {
     const entry = entryMap.get(obj.id)
     if (entry) {
       quadtree.remove(entry)
       entryMap.delete(obj.id)
     }
-
   }
 
   function updateQuadTree(obj: FabricObject): void {
     const entry = entryMap.get(obj.id)
     if (!entry) return
-
     const b = obj.getBoundingRect()
-
     entry.bounds.x = b.left
     entry.bounds.y = b.top
     entry.bounds.w = b.width
     entry.bounds.h = b.height
-
     quadtree.update(entry)
   }
 
   function getVisibleObjects(): FabricObject[] {
     const viewport = getViewportRect(c!)
-    const visible = quadtree.query(viewport)
-    return visible.map(item => objectMap.get(item.id)).filter(i => !!i)
+    return quadtree.query(viewport)
+      .map(item => objectMap.get(item.id))
+      .filter(i => !!i)
   }
 
-  function query(rect: Rect): FabricObject [] {
-    const o = quadtree.query(rect)
-    return o.map(item => objectMap.get(item.id)).filter(i => !!i)
+  function query(rect: Rect): FabricObject[] {
+    return quadtree.query(rect)
+      .map(item => objectMap.get(item.id))
+      .filter(i => !!i)
   }
+
+
+  // ─── Object Caching Heuristic ─────────────────────────────────────────────
+  //
+  // During interaction (pan/zoom) we disable Fabric's per-object raster cache
+  // to avoid expensive cache invalidations on every frame. Once the interaction
+  // settles we selectively re-enable it for complex paths where the cache pays
+  // for itself in render time.
 
   const RASTERIZE_THRESHOLD = 70
 
   function setVisibleObjectsState(mode: 'interaction' | 'static') {
-    const visibleObjects = getVisibleObjects()
+    getVisibleObjects().forEach((obj: any) => {
+      // Images and text manage their own caching — don't interfere.
+      if (obj.type === 'image' || obj.type === 'i-text' || obj.type === 'textbox') return
 
-    visibleObjects.forEach((obj: any) => {
-      // 1. Natural Immunity: Images and text don't need viewport cache toggling
-      if (obj.type === 'image' || obj.type === 'i-text' || obj.type === 'textbox') {
-        return
-      }
-
+      // Pattern strokes can't be cached.
       if (!!(obj as any)?.stroke?.source) {
         obj.objectCaching = false
         return
       }
 
-
-      // @ts-ignore
       if (obj.path || (obj?.compressedTrace && obj.compressedTrace?.length)) {
-
-        // Assess complexity: Are there enough points to justify the RAM cost?
         const isComplex = obj?.compressedTrace
-          ? (obj.compressedTrace && obj.compressedTrace.length > RASTERIZE_THRESHOLD)
-          : (obj.path && obj.path.length > RASTERIZE_THRESHOLD)
+          ? obj.compressedTrace.length > RASTERIZE_THRESHOLD
+          : obj.path.length > RASTERIZE_THRESHOLD
 
         if (mode === 'interaction') {
-          // Drop the cache during zooming to prevent massive CPU spikes
           obj.objectCaching = false
         } else {
-          // Patient has stabilized. Re-enable cache only if the path is heavy enough.
           obj.objectCaching = isComplex
           obj.dirty = isComplex
         }
@@ -446,62 +616,63 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     })
   }
 
+
+  // ─── Viewport Intersection Tests ──────────────────────────────────────────
+
   function isObjectInViewport(canvas: Canvas, obj: FabricObject): boolean {
-    const vptRect = getViewportRect(canvas)
-    // Get absolute bounding box of the object
+    const vpt = getViewportRect(canvas)
     // @ts-ignore
     const b = obj.getBoundingRect(true, true)
-
-    // Standard AABB (Axis-Aligned Bounding Box) intersection test
     return !(
-      b.left > vptRect.x + vptRect.w ||
-      b.left + b.width < vptRect.x ||
-      b.top > vptRect.y + vptRect.h ||
-      b.top + b.height < vptRect.y
+      b.left > vpt.x + vpt.w ||
+      b.left + b.width < vpt.x ||
+      b.top > vpt.y + vpt.h ||
+      b.top + b.height < vpt.y
     )
   }
 
   function isRectInViewport(canvas: Canvas, r: Rect): boolean {
-    const vptRect = getViewportRect(canvas)
+    const vpt = getViewportRect(canvas)
     return !(
-      r.x > vptRect.x + vptRect.w ||
-      r.x + r.w < vptRect.x ||
-      r.y > vptRect.y + vptRect.h ||
-      r.y + r.h < vptRect.y
+      r.x > vpt.x + vpt.w ||
+      r.x + r.w < vpt.x ||
+      r.y > vpt.y + vpt.h ||
+      r.y + r.h < vpt.y
     )
   }
 
+
+  // ─── Surgical Region Invalidation ─────────────────────────────────────────
+  //
+  // Repaints the union bounding box of all dirty objects and rects directly
+  // onto the stable canvas. Only objects that intersect the dirty region are
+  // re-rendered, sorted by Fabric's Z-order to preserve layer correctness.
   function invalidateRegion(canvas: Canvas, objects: FabricObject[], rects: Rect[] = []) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     let anyVisible = false
 
-    // 1. Add raw Rect boundaries (from Undo/Redo old spots)
     for (const r of rects) {
       if (!isRectInViewport(canvas, r)) continue
       anyVisible = true
-      minX = Math.min(minX, r.x)
-      maxX = Math.max(maxX, r.x + r.w)
-      minY = Math.min(minY, r.y)
-      maxY = Math.max(maxY, r.y + r.h)
+      minX = Math.min(minX, r.x);        maxX = Math.max(maxX, r.x + r.w)
+      minY = Math.min(minY, r.y);        maxY = Math.max(maxY, r.y + r.h)
     }
 
-    // 2. Add FabricObject boundaries (from new spots)
     for (const obj of objects) {
       updateQuadTree(obj)
       if (!isObjectInViewport(canvas, obj)) continue
-
       anyVisible = true
       // @ts-ignore
       const b = obj.getBoundingRect(true, true)
-      minX = Math.min(minX, b.left)
-      maxX = Math.max(maxX, b.left + b.width)
-      minY = Math.min(minY, b.top)
-      maxY = Math.max(maxY, b.top + b.height)
+      minX = Math.min(minX, b.left);     maxX = Math.max(maxX, b.left + b.width)
+      minY = Math.min(minY, b.top);      maxY = Math.max(maxY, b.top + b.height)
     }
 
     if (!anyVisible) return
 
-    const padding = 20 // Generous buffer for visual styles
+    // Generous padding absorbs thick strokes and shadow blur that extend
+    // beyond the geometric bounding box.
+    const padding = 20
     const x = minX - padding
     const y = minY - padding
     const w = (maxX - minX) + padding * 2
@@ -519,26 +690,26 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     stableCtx.scale(dpr, dpr)
     stableCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
 
-    // 2. Punch the union hole
+    // Punch the dirty rect: clear it and refill with the background color so
+    // we're painting onto a clean slate before re-rendering neighbors.
     stableCtx.clearRect(x, y, w, h)
     if (canvas.backgroundColor) {
       stableCtx.fillStyle = canvas.backgroundColor as string
       stableCtx.fillRect(x, y, w, h)
     }
 
+    // Clip to the dirty rect so neighboring objects can't bleed outside it.
     stableCtx.beginPath()
     stableCtx.rect(x, y, w, h)
     stableCtx.clip()
 
-    // 3. Query all intersecting objects
-    const queryRect = new Rect(x, y, w, h)
-    const neighbors = query(queryRect)
-
-    // 4. CRITICAL: Sort by internal Fabric Z-Index
+    // Query the quadtree for all objects that overlap the dirty rect, sort by
+    // Fabric Z-order, and redraw. This ensures overlapping objects composite
+    // correctly without re-rendering the whole canvas.
+    const neighbors = query(new Rect(x, y, w, h))
     const canvasObjects = canvas.getObjects()
     neighbors.sort((a, b) => canvasObjects.indexOf(a) - canvasObjects.indexOf(b))
 
-    // 5. Redraw perfectly in order
     for (const neighbor of neighbors) {
       if (neighbor.visible !== false) {
         neighbor.render(stableCtx as CanvasRenderingContext2D)
@@ -548,63 +719,15 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     stableCtx.restore()
   }
 
-  const dirtyObjects = new Set<FabricObject>()
-  const dirtyRects = new Set<Rect>() // 👈 NEW: Accepts raw coordinates
-  let isBatchScheduled = false
 
-  function scheduleInvalidation(target: FabricObject | FabricObject[]) {
-    const gestureStore = useGestureStore()
-    if (gestureStore.isGesturing) return
-
-    const objects = Array.isArray(target) ? target : [target]
-    objects.forEach(o => dirtyObjects.add(o))
-    triggerBatch()
-  }
-
-  function scheduleRectInvalidation(rect: Rect) {
-    const gestureStore = useGestureStore()
-    if (gestureStore.isGesturing) return
-
-    dirtyRects.add(rect)
-    triggerBatch()
-  }
-
-  function triggerBatch() {
-    if (isBatchScheduled) return
-    isBatchScheduled = true
-
-    queueMicrotask(() => {
-      isBatchScheduled = false
-      const gestureStore = useGestureStore()
-
-      if (gestureStore.isGesturing) {
-        dirtyObjects.clear()
-        dirtyRects.clear()
-        return
-      }
-
-      const batchObjects = Array.from(dirtyObjects)
-      const batchRects = Array.from(dirtyRects)
-
-      dirtyObjects.clear()
-      dirtyRects.clear()
-
-      if (batchObjects.length === 0 && batchRects.length === 0) return
-
-      if (batchObjects.length + batchRects.length > 50) {
-        updateVisibility(false) // Full-screen chunk fallback
-        return
-      }
-
-      invalidateRegion(c!, batchObjects, batchRects) // Pass both to the patcher
-      commitToMainScreen(c!)
-    })
-  }
-
+  // ─── DOM Blit ─────────────────────────────────────────────────────────────
+  //
+  // Copies the stable canvas to the visible DOM canvas and draws any active
+  // selection handles on top. This is the only function that writes to the
+  // DOM canvas (outside of fastBlit during gestures).
   function commitToMainScreen(canvas: Canvas) {
     const gestureStore = useGestureStore()
-    // If the user is actively panning/zooming, fastBlit handles the screen
-    if (gestureStore.isGesturing) return
+    if (gestureStore.isGesturing) return  // fastBlit owns the screen during gestures
 
     const mainCtx = canvas.getContext()
     const physWidth = canvas.getElement().width
@@ -614,12 +737,11 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     const activeObjects = canvas.getActiveObjects()
     const dpr = canvas.getRetinaScaling ? canvas.getRetinaScaling() : (window.devicePixelRatio || 1)
 
-    // 1. Wipe the DOM Canvas and paste the pre-rendered background
     mainCtx.save()
     mainCtx.setTransform(1, 0, 0, 1, 0, 0)
     mainCtx.scale(dpr, dpr)
     mainCtx.clearRect(0, 0, physWidth, physHeight)
-    // Use 9-argument drawImage to ensure crisp Retina mapping
+    // 9-argument form maps physical pixels correctly on Retina displays.
     mainCtx.drawImage(
       stableCanvas as CanvasImageSource,
       0, 0, physWidth, physHeight,
@@ -627,24 +749,35 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     )
     mainCtx.restore()
 
-    // 2. Render active objects (like selection handles or the active pen brush) cleanly ON TOP
+    // Active objects (selection box, transform handles) are drawn on top of
+    // the stable canvas contents so they're always crisp and up-to-date.
     if (activeObjects.length > 0) {
       mainCtx.save()
-      mainCtx.transform(
-        targetVpt[0], targetVpt[1], targetVpt[2],
-        targetVpt[3], targetVpt[4], targetVpt[5]
-      )
+      mainCtx.transform(targetVpt[0], targetVpt[1], targetVpt[2], targetVpt[3], targetVpt[4], targetVpt[5])
       for (const activeObj of activeObjects) {
         activeObj.render(mainCtx)
       }
       mainCtx.restore()
     }
 
-    // 3. Draw Fabric UI controls
     // @ts-ignore
     if (!canvas.skipControlsDrawing) canvas.drawControls(mainCtx)
 
     canvas.fire('after:render', { ctx: mainCtx })
+  }
+
+
+  // ─── Gesture Coordination ─────────────────────────────────────────────────
+  //
+  // Called synchronously by endGesture() immediately after isGesturing is set
+  // to false. Sets pendingFullRerender to block triggerBatch microtasks from
+  // calling invalidateRegion while the stable canvas still holds the pre-gesture
+  // viewport transform. The block is lifted once renderCanvasChunked commits
+  // its first post-gesture frame.
+  function onGestureEnd() {
+    pendingFullRerender = true
+    pendingBatchAfterRender = false
+    isBatchScheduled = false
   }
 
 
@@ -657,6 +790,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     getVisibleObjects,
     setVisibleObjectsState,
     query,
-    getStableCanvas
+    getStableCanvas,
+    onGestureEnd
   }
 })

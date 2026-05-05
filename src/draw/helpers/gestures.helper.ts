@@ -239,12 +239,12 @@ export function enablePCGestures(c: Canvas) {
 
   // Wraps up the gesture procedure and triggers a high-res re-render
   function endGesture(isZooming: boolean = false) {
-    const { setVisibleObjectsState, updateVisibility } = useDrawObjectManager()
+    const { setVisibleObjectsState, updateVisibility, onGestureEnd } = useDrawObjectManager()
     const gestureStore = useGestureStore()
 
     gestureStore.isGesturing = false
+    onGestureEnd()
     c.fire('gestureEnd')
-
     clearGhostBuffer()
 
     if (isZooming) {
@@ -389,7 +389,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
   const { ghostBoxes } = storeToRefs(useDrawStore())
 
   const { shouldModifyObjectsWithGestures } = useSelect()
-  const { query, getStableCanvas, setVisibleObjectsState, updateVisibility } = useDrawObjectManager()
+  const { query, getStableCanvas, setVisibleObjectsState, updateVisibility, onGestureEnd } = useDrawObjectManager()
   const gestureStore = useGestureStore()
 
   const isUsingGesture = ref(false)
@@ -416,6 +416,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
   function endCanvasGesture(wasZooming: boolean) {
     gestureStore.isGesturing = false
+    onGestureEnd()
     c.fire('gestureEnd')
     ghostBoxes.value = []
 

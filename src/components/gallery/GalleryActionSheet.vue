@@ -1,52 +1,58 @@
 <template>
-  <ion-modal
-    :is-open="selectedMode"
-    :initial-breakpoint="1"
-    :breakpoints="[0, 1]"
-    handle-behavior="cycle"
-    class="action-sheet-modal"
-    :backdropDismiss="false"
-    :backdropBreakpoint="1"
-  >
-    <div class="p-6 bg-primary/80 h-full">
-      <div class="flex items-center justify-between mb-6">
-        <div class="flex flex-col">
-          <span class="text-2xl font-black text-black">{{ count }}</span>
-          <span class="text-xs font-bold text-black/40 uppercase tracking-widest">Items Selected</span>
-        </div>
-        <button
-          @click="emits('cancel')"
-          class="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-        >
-          <ion-icon :icon="svg(mdiClose)" class="text-xl" />
-        </button>
+  <transition name="dock-pop">
+    <div
+      v-if="selectedMode"
+      class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center p-1.5 rounded-[22px] border border-primary/80 bg-primary/60 backdrop-blur-lg shadow-xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+    >
+      <!-- Selection Info Section -->
+      <div class="px-5 py-2.5 flex flex-col items-center justify-center border-r border-primary-shade/40">
+        <span class="text-2xl font-black text-black leading-none tabular-nums">{{ count }}</span>
+        <span class="text-[10px] font-black text-black/50 uppercase tracking-[0.18em] mt-1">Items</span>
       </div>
 
-      <ion-list lines="none" color="tertiary">
-        <ion-item color="tertiary" :button="true" @click="() => {
-          modalController.dismiss()
-          emits('share')
-        }">
-          <ion-icon :icon="svg(mdiShareVariantOutline)" />
-          <p class="pl-2 text-sm">Share</p>
-        </ion-item>
+      <!-- Action Row -->
+      <div class="flex items-center space-x-1.5 px-2">
+        <!-- Share Action -->
+        <ion-button
+          fill="clear"
+          @click="emits('share')"
+          class="gallery-action-btn"
+        >
+          <div class="flex flex-col items-center py-1">
+            <ion-icon :icon="svg(mdiShareVariantOutline)" class="text-2xl text-black" />
+            <span class="text-[10px] font-black uppercase tracking-wider mt-1 text-black/80">Share</span>
+          </div>
+        </ion-button>
 
-        <ion-item color="tertiary" :button="true" @click="() => {
-          modalController.dismiss()
-          emits('delete')
-        }">
-          <ion-icon :icon="svg(mdiDeleteOutline)" />
-          <p class="pl-2 text-sm">Delete</p>
-        </ion-item>
-      </ion-list>
+        <!-- Delete Action -->
+        <ion-button
+          fill="clear"
+          @click="emits('delete')"
+          class="gallery-action-btn"
+        >
+          <div class="flex flex-col items-center py-1">
+            <ion-icon :icon="svg(mdiDeleteOutline)" class="text-2xl text-black" />
+            <span class="text-[10px] font-black uppercase tracking-wider mt-1 text-black/80">Delete</span>
+          </div>
+        </ion-button>
 
+        <div class="w-[2.5px] h-8 bg-primary-shade mx-2 rounded-full opacity-50"></div>
 
+        <!-- Close Action -->
+        <ion-button
+          fill="clear"
+          @click="emits('cancel')"
+          class="gallery-close-btn"
+        >
+          <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="text-xl text-black/70" />
+        </ion-button>
+      </div>
     </div>
-  </ion-modal>
+  </transition>
 </template>
 
 <script setup lang="ts">
-import { IonIcon, IonItem, IonList, IonModal, modalController } from '@ionic/vue'
+import { IonIcon, IonButton } from '@ionic/vue'
 import { svg } from '@/helper/general.helper'
 import { mdiClose, mdiDeleteOutline, mdiShareVariantOutline } from '@mdi/js'
 
@@ -59,10 +65,46 @@ const emits = defineEmits(['cancel', 'delete', 'share'])
 </script>
 
 <style scoped>
-.action-sheet-modal {
-  --height: auto;
+.gallery-action-btn {
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --border-radius: 16px;
+  --color: black;
+  --background-activated: rgba(var(--ion-color-primary-rgb), 0.3);
+  margin: 0;
+  height: 56px;
+  min-width: 68px;
 }
-ion-list {
-  padding: 0;
+
+.gallery-close-btn {
+  --padding-start: 0;
+  --padding-end: 0;
+  --border-radius: 50%;
+  --background-activated: rgba(0, 0, 0, 0.1);
+  margin: 0;
+  width: 44px;
+  height: 44px;
+}
+
+/* Entrance Animation matching your tool selection logic */
+.dock-pop-enter-active {
+  transition: all 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.dock-pop-leave-active {
+  transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.dock-pop-enter-from,
+.dock-pop-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 60px) scale(0.8);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+ion-icon {
+  flex-shrink: 0;
 }
 </style>

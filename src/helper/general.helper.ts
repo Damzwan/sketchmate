@@ -351,10 +351,14 @@ export function setupPwa() {
 }
 
 export function setupWidget() {
-  Preferences.set({
-    key: LocalStorage.backend_url,
-    value: import.meta.env.VITE_BACKEND as string
-  })
+  try {
+    Preferences.set({
+      key: LocalStorage.backend_url,
+      value: import.meta.env.VITE_BACKEND as string
+    })
+  } catch (error) {
+    console.error(error)
+  }
 }
 
 export async function lazyLoadDrawingModules() {

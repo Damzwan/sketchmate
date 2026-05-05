@@ -1,14 +1,31 @@
 <template>
-  <ion-toolbar class="w-full h-14 flex">
-    <ion-buttons slot="start">
+  <ion-toolbar class="w-full min-h-14 flex items-start pt-1 pb-1">
+    <ion-buttons slot="start" class="self-start mt-1">
       <ion-button @click="$emit('close')" color="light">
         <ion-icon :icon="arrowBack" />
       </ion-button>
     </ion-buttons>
 
-    <ion-buttons slot="end">
+    <!-- PUBLIC POST: Author & Description -->
+    <div v-if="isPost" class="flex flex-col justify-center flex-1 px-2 text-white mt-1 mb-1">
+      <div class="flex items-center space-x-2 mb-1">
+        <img
+          :src="currItem.author?.img || senderImg(currItem.author_id)"
+          class="w-6 h-6 rounded-full object-cover border border-white/20"
+        />
+        <span class="text-sm font-bold cabin-sketch-regular">
+          {{ currItem.author?.name || 'Sketcher' }}
+        </span>
+      </div>
+      <p v-if="currItem.description" class="text-xs cabin-sketch-regular opacity-80 line-clamp-2 leading-tight">
+        {{ currItem.description }}
+      </p>
+    </div>
+
+    <ion-buttons slot="end" class="self-start mt-1">
+      <!-- Toggle Comments Button -->
       <ion-button
-        v-if="(currItem.comments || []).length > 0"
+        v-if="displayCommentCount > 0"
         @click="$emit('update:showComments', !showComments)"
         color="light"
         class="pr-2"
@@ -16,8 +33,9 @@
         <ion-icon :icon="svg(showComments ? mdiChatRemoveOutline : mdiChatOutline)" class="w-[25px] h-[25px]" />
       </ion-button>
 
+      <!-- PRIVATE INBOX: Followers Badges -->
       <button
-        v-if="currItem.followers && currItem.followers.length > 0"
+        v-if="!isPost && currItem.followers && currItem.followers.length > 0"
         class="flex -space-x-6 pr-2"
         @click="$emit('open-followers')"
       >
@@ -29,7 +47,6 @@
           class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px]"
           :style="{ zIndex: i }"
         >
-
         <div
           v-if="currItem.followers.slice(badgesCountToShow).length > 0"
           class="w-[36px] h-[36px] rounded-full border-secondary-light border-[1px] flex justify-center items-center bg-white"
@@ -43,6 +60,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { IonToolbar, IonButtons, IonButton, IonIcon } from '@ionic/vue'
 import { arrowBack } from 'ionicons/icons'
 import { mdiChatOutline, mdiChatRemoveOutline } from '@mdi/js'
@@ -57,6 +75,12 @@ const props = defineProps<{
 defineEmits(['close', 'open-followers', 'update:showComments'])
 
 const badgesCountToShow = 3
+const isPost = computed(() => !!props.currItem?.author_id)
+
+const displayCommentCount = computed(() => {
+  if (isPost.value) return props.currItem?.comment_count || 0
+  return props.currItem?.comments?.length || 0
+})
 
 function resolveUser(userId: string) {
   return props.userLookup ? props.userLookup(userId) : userId
@@ -65,6 +89,6 @@ function resolveUser(userId: string) {
 
 <style scoped>
 ion-toolbar {
-  --background: #000000;
+  --background: rgba(0, 0, 0, 0.85); /* Slightly transparent for a modern overlay look */
 }
 </style>

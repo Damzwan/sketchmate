@@ -6,208 +6,197 @@
   <!-- Modal Content -->
   <transition name="slide">
     <div ref="scrollContainer"
-         class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0 max-h-[80%] bot-pad-safe"
-         v-show="open">
-      <ion-popover :event="e" @didDismiss="accountPopoverOpen = false" :isOpen="accountPopoverOpen">
-        <div class="w-full h-full flex flex-col justify-center items-center p-2" v-if="accountInfoToShow">
-          <img :src="accountInfoToShow.img" :alt="accountInfoToShow.img" class="w-[128px] rounded-full">
-          <p class="text-2xl font-bold py-1 text-black">
-            {{ `${accountInfoToShow.name} ${accountInfoToShow._id == user._id ? '(Me)' : ''}` }}</p>
-          <div v-if="accountInfoToShow._id != user._id">
-            <ion-button v-if="user.mates.some(m => m._id == accountInfoToShow?._id)" color="secondary" disabled>Already
-              friends
-            </ion-button>
+         class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0 max-h-[80%" v-show="open">
 
-            <div v-else>
-              <ion-spinner color="secondary" v-if="friendRequestLoading" />
-              <ion-button color="secondary"
-                          v-else-if="user.mate_requests_sent.some(m => m == accountInfoToShow?._id)"
-                          @click="cancelSendMateRequest({sender: user._id, sender_name: user.name, receiver: accountInfoToShow._id})">
-                Undo request
-              </ion-button>
+      <!-- Loading State for API Comments -->
+      <div v-if="isLoadingComments" class="flex justify-center p-8">
+        <ion-spinner color="secondary"></ion-spinner>
+      </div>
 
-              <ion-button color="secondary" v-else
-                          @click="becomeFriends(accountInfoToShow._id)">
-                Become friends
-              </ion-button>
-            </div>
+      <div class="block divide-y divide-secondary pt-2" v-else>
+        <div v-for="(comment, i) in displayComments" :key="i"
+             class="px-2 py-3 flex items-start w-full cursor-pointer"
+             @click="(ev) => showAccountInfo(ev, comment.author_id || comment.sender)">
 
-          </div>
-          <ion-button @click="accountPopoverOpen = false" color="secondary" fill="clear">Close</ion-button>
-        </div>
-      </ion-popover>
-      <div class="block divide-y divide-secondary pt-2">
-        <div v-for="(comment, i) in currInboxItem.comments" :key="i"
-             class="px-2 py-2 flex items-center w-full cursor-pointer"
-             @click="(ev) => showAccountInfo(ev, currInboxItem.original_followers.find(m => m == comment.sender))">
-          <ion-avatar class="flex justify-center items-center h-[40px] w-[40px]"
-          ><img :src="senderImg(findUserInInboxUsers(comment.sender))" alt="" class="aspect-square"
-          /></ion-avatar>
-          <div class="flex-1 ml-2">
-            <div class="flex justify-between items-center">
-              <div class="text-sm font-bold text-black cabin-sketch-regular">
-                {{ senderName(findUserInInboxUsers(comment.sender)) }}
-              </div>
-              <div class="text-sm text-center mr-1 text-black cabin-sketch-regular">{{ dayjs(comment.date).fromNow()
-                }}
-              </div>
-            </div>
-            <div class="text-sm text-black cabin-sketch-regular">{{ comment.message }}</div>
-          </div>
-        </div>
-
-        <div class="flex w-full justify-evenly items-center h-[50px]">
-          <ion-avatar class="flex justify-center items-center mx-2 w-[40px]" style="flex-shrink: 0">
-            <img v-if="user" :src="user.img" alt="" class="aspect-square" />
+          <ion-avatar class="flex-shrink-0 h-[40px] w-[40px]">
+            <img :src="comment.author?.img || senderImg(resolveUser(comment.sender))" alt="" class="aspect-square" />
           </ion-avatar>
+
+          <div class="flex-1 ml-3">
+            <div class="flex justify-between items-center">
+              <div class="text-sm font-black text-black cabin-sketch-regular">
+                {{ comment.author?.name || senderName(resolveUser(comment.sender)) }}
+              </div>
+              <div class="text-[10px] text-center mr-1 text-black/50 font-bold uppercase">
+                {{ dayjs(comment.date || comment.createdAt).fromNow() }}
+              </div>
+            </div>
+            <div class="text-sm text-black cabin-sketch-regular mt-0.5">{{ comment.message }}</div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div v-if="displayComments.length === 0" class="py-10 text-center opacity-40">
+          <p class="font-bold cabin-sketch-regular text-black">No comments yet. Start the conversation!</p>
+        </div>
+
+        <!-- Input Area -->
+        <div
+          class="flex w-full justify-evenly items-center h-[60px] bg-background sticky bottom-0 border-t border-secondary px-2">
+          <ion-avatar class="flex-shrink-0 h-[35px] w-[35px]">
+            <img v-if="user" :src="user.img" alt="Me" class="aspect-square" />
+          </ion-avatar>
+
           <ion-input
             placeholder="Say something..."
             ref="input"
             v-model="commentBody"
             autocapitalize="sentences"
-            @keyup.enter="comment"
+            @keyup.enter="submitComment"
             color="secondary"
+            class="mx-2"
           />
-          <ion-button fill="clear" color="secondary" @mousedown.prevent @click="comment" :icon="svg(mdiSend)">
+
+          <ion-button fill="clear" color="secondary" @mousedown.prevent @click="submitComment">
             <ion-icon :icon="svg(mdiSend)" v-show="commentBody.length > 0" />
           </ion-button>
         </div>
       </div>
     </div>
   </transition>
+
+  <!-- User Info Popover -->
+  <ion-popover :event="popoverEvent" @didDismiss="accountPopoverOpen = false" :isOpen="accountPopoverOpen">
+    <div class="w-full flex flex-col justify-center items-center p-4 bg-primary" v-if="accountInfoToShow">
+      <img :src="accountInfoToShow.img" class="w-[80px] rounded-full border-4 border-white shadow-sm">
+      <p class="text-xl font-black py-2 text-black">
+        {{ accountInfoToShow.name }} {{ accountInfoToShow._id === user._id ? '(Me)' : '' }}
+      </p>
+
+      <div v-if="accountInfoToShow._id !== user._id">
+        <ion-button v-if="user.mates.some((m: any) => m._id === accountInfoToShow?._id)" color="secondary" disabled
+                    fill="solid" shape="round">
+          Friends
+        </ion-button>
+        <div v-else>
+          <ion-spinner color="secondary" v-if="friendRequestLoading" />
+          <ion-button v-else color="secondary" fill="solid" shape="round" @click="becomeFriends(accountInfoToShow._id)">
+            {{ user.mate_requests_sent.includes(accountInfoToShow._id) ? 'Undo Request' : 'Become Friends' }}
+          </ion-button>
+        </div>
+      </div>
+      <ion-button @click="accountPopoverOpen = false" color="black" fill="clear" size="small">Close</ion-button>
+    </div>
+  </ion-popover>
 </template>
 
 <script lang="ts" setup>
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, ref, watch, computed } from 'vue'
 import { IonAvatar, IonButton, IonIcon, IonInput, IonPopover, IonSpinner, useBackButton } from '@ionic/vue'
-
-import { InboxItem, Mate, User } from '@/types/server.types'
-import { useToast } from '@/service/toast.service'
-import { senderImg, senderName, svg } from '@/helper/general.helper'
-import { mdiSend } from '@mdi/js'
-import dayjs from 'dayjs'
-import { useSocketService } from '@/service/api/socket/socket.service'
 import { storeToRefs } from 'pinia'
-import { useFriendStore } from '@/store/friend.store'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { mdiSend } from '@mdi/js'
+
+import { useAuthStore } from '@/store/auth.store'
 import { useInboxStore } from '@/store/inbox.store'
+import { useFriendStore } from '@/store/friend.store'
+import { usePhotoSwiper } from '@/store/photoswiper.store'
+import { useSocketService } from '@/service/api/socket/socket.service'
+import { fetchPostComments } from '@/service/api/post.api'
+import { senderImg, senderName, svg } from '@/helper/general.helper'
 
-const socketService = useSocketService()
-const { cancelSendMateRequest } = useSocketService()
-const { friendRequestLoading } = storeToRefs(useFriendStore())
-const { findUserInInboxUsers } = useInboxStore()
-const scrollContainer = ref<HTMLElement | null>(null)
+dayjs.extend(relativeTime)
 
-const props = defineProps({
-  open: {
-    required: true,
-    type: Boolean
-  },
-  user: {
-    required: true,
-    type: Object as () => User
-  },
-  currInboxItem: {
-    required: true,
-    type: Object as () => InboxItem
-  },
-  indexOfCurrInboxItem: {
-    required: true,
-    type: Number
-  }
-})
+const props = defineProps<{
+  open: boolean;
+  user: any;
+  currInboxItem: any;
+  indexOfCurrInboxItem: number;
+}>()
+
 const emit = defineEmits(['update:open', 'update:currInboxItem'])
 
-const e: any = ref()
-const accountPopoverOpen = ref(false)
-const accountInfoToShow = ref<Mate>()
+const socketService = useSocketService()
+const { friendRequestLoading } = storeToRefs(useFriendStore())
+const { findUserInInboxUsers } = useInboxStore()
+const { config } = storeToRefs(usePhotoSwiper())
 
+const scrollContainer = ref<HTMLElement | null>(null)
 const commentBody = ref('')
 const input = ref<any>()
+const isLoadingComments = ref(false)
+const localPostComments = ref<any[]>([])
+const lastFetchedId = ref<string | null>(null)
 
-const escListener = (event: KeyboardEvent) => {
-  event.stopPropagation()
-  if (event.key === 'Escape' || event.keyCode === 27) {
-    closeWithTimeout(20)
-  }
-}
+const popoverEvent = ref<any>(null)
+const accountPopoverOpen = ref(false)
+const accountInfoToShow = ref<any>(null)
 
-function showAccountInfo(ev: any, mate_id?: string) {
-  if (!mate_id) return
-  e.value = ev
-  accountPopoverOpen.value = true
-  accountInfoToShow.value = findUserInInboxUsers(mate_id)
-}
+const isPost = computed(() => !!props.currInboxItem?.author_id)
 
-function autoFocusInput() {
-  // fucking ionic timeout needed
-  if (props.currInboxItem?.comments.length === 0) setTimeout(() => input.value.$el.setFocus(), 100)
-}
-
-useBackButton(9999, (processNextHandler) => {
-  if (props.open) close()
-  else processNextHandler()
+const displayComments = computed(() => {
+  if (isPost.value) return localPostComments.value
+  return props.currInboxItem?.comments || []
 })
 
-
-watch(
-  () => props.open,
-  async () => {
-    if (props.open) {
-      window.addEventListener('keydown', escListener)
-      autoFocusInput()
-      scrollToBottom() // <-- Add this here
-
-    } else {
-      window.removeEventListener('keydown', escListener)
-    }
+function resolveUser(userId: string) {
+  if (config.value.userLookup) {
+    const found = config.value.userLookup(userId)
+    if (found) return found
   }
-)
+  return findUserInInboxUsers(userId) || userId
+}
 
-watch(
-  () => props.currInboxItem?.comments?.length,
-  (newLength, oldLength) => {
-    if (props.open && newLength !== undefined && oldLength !== undefined && newLength > oldLength) {
-      scrollToBottom()
+async function submitComment() {
+  if (commentBody.value.trim().length === 0) return
+  const message = commentBody.value
+  commentBody.value = ''
+
+  if (config.value.onComment) {
+    try {
+      await config.value.onComment(props.currInboxItem, message)
+      localPostComments.value.push({
+        author_id: props.user._id,
+        author: {
+          _id: props.user._id,
+          name: props.user.name,
+          img: props.user.img
+        },
+        message: message,
+        createdAt: new Date().toISOString()
+      })
+      if (props.currInboxItem) props.currInboxItem.comment_count++
+    } catch (e) {
+      console.error('Failed to post comment')
     }
+  } else {
+    socketService.comment({
+      inbox_id: props.currInboxItem._id,
+      sender: props.user._id,
+      message: message,
+      followers: props.currInboxItem.followers,
+      name: props.user.name
+    })
   }
-)
-
-
-async function comment() {
-  if (commentBody.value.length == 0) return
-
-  socketService.comment({
-    inbox_id: props.currInboxItem._id,
-    sender: props.user._id,
-    message: commentBody.value,
-    followers: props.currInboxItem.followers,
-    name: props.user.name
-  })
-  commentBody.value = ''
-  // input.value?.$el.blur()
+  scrollToBottom()
 }
 
-function closeWithTimeout(time: number) {
-  setTimeout(close, time)
+function showAccountInfo(ev: any, userId?: string) {
+  if (!userId) return
+  popoverEvent.value = ev
+  accountInfoToShow.value = resolveUser(userId)
+  accountPopoverOpen.value = true
 }
 
-function becomeFriends(follower: string) {
-  if (props.user.mate_requests_received.some(m => m == follower)) socketService.match({
-    _id: props.user._id,
-    mate_id: follower
-  })
-  else socketService.sendMateRequest({
-    sender: props.user._id, sender_name: props.user.name,
-    receiver: follower
-  })
-
-}
-
-function close() {
-  emit('update:open', false)
-
-  input.value?.$el.blur()
-  commentBody.value = ''
+function becomeFriends(followerId: string) {
+  if (props.user.mate_requests_received.includes(followerId)) {
+    socketService.match({ _id: props.user._id, mate_id: followerId })
+  } else if (props.user.mate_requests_sent.includes(followerId)) {
+    socketService.cancelSendMateRequest({ sender: props.user._id, sender_name: props.user.name, receiver: followerId })
+  } else {
+    socketService.sendMateRequest({ sender: props.user._id, sender_name: props.user.name, receiver: followerId })
+  }
 }
 
 const scrollToBottom = async () => {
@@ -217,55 +206,71 @@ const scrollToBottom = async () => {
   }
 }
 
+const escListener = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') close()
+}
 
+function close() {
+  emit('update:open', false)
+  commentBody.value = ''
+}
+
+// Watch for changes to the active item in the swiper
+watch(() => props.currInboxItem?._id, (newId) => {
+  // If the item changes, we MUST reset the cache for public posts
+  // This handles the case where user swipes, closes, and reopens on a new item
+  if (isPost.value) {
+    localPostComments.value = []
+    lastFetchedId.value = null
+  }
+})
+
+watch(() => props.open, async (isOpen) => {
+  if (isOpen) {
+    window.addEventListener('keydown', escListener)
+
+    if (isPost.value) {
+      const currentId = props.currInboxItem?._id
+      // CACHE CHECK: Only fetch if we haven't loaded this specific post yet
+      if (currentId && lastFetchedId.value !== currentId) {
+        isLoadingComments.value = true
+        try {
+          const res = await fetchPostComments(currentId)
+          localPostComments.value = res.comments || []
+          lastFetchedId.value = currentId
+        } catch (e) {
+          console.error('Failed to load post comments', e)
+        } finally {
+          isLoadingComments.value = false
+        }
+      }
+    }
+
+    scrollToBottom()
+    if (displayComments.value.length === 0) {
+      setTimeout(() => input.value?.$el?.setFocus(), 300)
+    }
+  } else {
+    window.removeEventListener('keydown', escListener)
+  }
+})
+
+watch(() => props.currInboxItem?.comments?.length, (newVal, oldVal) => {
+  if (props.open && newVal > oldVal) scrollToBottom()
+})
+
+useBackButton(9999, (processNextHandler) => {
+  if (props.open) close()
+  else processNextHandler()
+})
 </script>
 
 <style scoped lang="scss">
-ion-input {
-  --color: black;
-}
-
-.comment_count {
-  --background: var(--ion-color-background);
-  --height: auto;
-}
-
-ion-popover {
-  --background: var(--ion-color-primary);
-}
-
-.block {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.5s;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* Slide-up/slide-down transition for modal content */
-.slide-enter-active {
-  transition: transform 0.1s ease-out;
-}
-
-.slide-leave-active {
-  transition: transform 0.1s ease-in;
-}
-
-.slide-enter-from {
-  transform: translateY(100%); /* starts from the bottom, off-screen */
-}
-
-.slide-leave-to {
-  transform: translateY(100%); /* slides down completely, off-screen */
-}
+ion-input { --color: black; --placeholder-color: rgba(0, 0, 0, 0.3); }
+ion-popover { --background: var(--ion-color-primary); --width: 280px; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.slide-enter-active { transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+.slide-leave-active { transition: transform 0.2s ease-in; }
+.slide-enter-from, .slide-leave-to { transform: translateY(100%); }
 </style>

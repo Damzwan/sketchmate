@@ -1,13 +1,15 @@
 <template>
   <ion-page id="page">
+    <!-- Top Bar: Smooth slide-out when multi-selecting -->
     <div
-      class="absolute top-0 left-0 right-0 z-[200] h-[56px] transition-all duration-400 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--ion-color-tertiary)]"
+      class="top-0 left-0 right-0 z-[200] h-[56px] transition-all duration-400 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--ion-color-tertiary)]"
       :class="{ '-translate-y-full opacity-0 pointer-events-none': multiSelectMode }"
     >
       <TopBar title="Gallery" />
     </div>
 
-    <ion-content class="bg-background">
+    <ion-content >
+      <!-- Multi-Select Contextual Header -->
       <transition
         enter-active-class="transition-opacity duration-200"
         enter-from-class="opacity-0"
@@ -17,7 +19,7 @@
         <div
           v-if="multiSelectMode"
           @click="cancelMultiSelect"
-          class="absolute top-0 left-0 right-0 z-[150] cursor-pointer flex items-center h-[56px] bg-[var(--ion-background-color)] border-b border-white/10 px-4"
+          class="fixed top-safe left-2 right-0 z-[150] cursor-pointer flex items-center h-[56px] bg-[var(--ion-background-color)] border-b border-white/10 px-4"
         >
           <div class="flex items-center bg-secondary rounded-full -ml-2 transition-transform active:scale-95">
             <ion-button fill="clear" class="h-9 w-9 --padding-start-0 --padding-end-0">
@@ -30,14 +32,21 @@
         </div>
       </transition>
 
-      <div class="pt-[56px]">
+      <div :class="{'pt-[56px]': isNative()}" class="h-full">
         <CircularLoader v-if="isLoading && inbox.length === 0" class="z-50" bgColor="bg-background" />
 
         <div v-else-if="user" class="w-full h-full">
-          <ion-refresher slot="fixed" @ionRefresh="handleRefresh">
-            <ion-refresher-content></ion-refresher-content>
+          <ion-refresher
+            slot="fixed"
+            @ionRefresh="handleRefresh"
+            class="z-[300]"
+          >
+            <ion-refresher-content
+              refreshing-spinner="circular"
+            />
           </ion-refresher>
 
+          <!-- Empty States -->
           <NoMessages
             v-if="noMessages && user.mates.length === 0"
             title="Start connecting"
@@ -56,6 +65,7 @@
             :btn-link="FRONTEND_ROUTES.draw"
           />
 
+          <!-- Gallery Grid -->
           <div class="h-full p-2" v-else>
             <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-3">
               <div class="text-xl font-bold px-2">
@@ -82,13 +92,22 @@
               </div>
             </div>
 
-            <ion-infinite-scroll @ionInfinite="loadMore" :disabled="allLoaded">
-              <ion-infinite-scroll-content loading-spinner="crescent" loading-text="Looking back in time..." />
+            <ion-infinite-scroll
+              @ionInfinite="loadMore"
+              :disabled="allLoaded"
+              threshold="50%"
+              position="bottom"
+            >
+              <ion-infinite-scroll-content
+                loading-spinner="crescent"
+                loading-text="Looking back in time..."
+              />
             </ion-infinite-scroll>
           </div>
         </div>
       </div>
 
+      <!-- Actions & Alerts -->
       <GalleryActionSheet
         :selected-mode="multiSelectMode"
         :count="selectedItems.length"
@@ -112,15 +131,15 @@
 import {
   IonContent, IonPage, IonRefresher, IonRefresherContent,
   IonInfiniteScroll, IonInfiniteScrollContent,
-  onIonViewWillLeave, useBackButton, IonIcon
+  onIonViewWillLeave, useBackButton, IonIcon, IonButton
 } from '@ionic/vue'
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import dayjs from 'dayjs'
 
-import { sortDates, svg } from '@/helper/general.helper'
+import { isNative, sortDates, svg } from '@/helper/general.helper'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { mdiClose } from '@mdi/js'
+import { mdiChevronDown, mdiClose } from '@mdi/js'
 
 import TopBar from '@/components/general/TopBar.vue'
 import GalleryActionSheet from '@/components/gallery/GalleryActionSheet.vue'
@@ -160,10 +179,32 @@ const {
 
 onMounted(fetchInitialInbox)
 
+// Handle native hardware back button
 useBackButton(9999, (processNextHandler) => {
   if (multiSelectMode.value) cancelMultiSelect()
   else processNextHandler()
 })
 
+// Clean up selection state when navigating away
 onIonViewWillLeave(cancelMultiSelect)
 </script>
+
+<style scoped>
+/* Ensure tabular numbers for the selection counter so it doesn't jump */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Background refinement for the ion-content */
+ion-content {
+  --background: var(--ion-background-color);
+}
+
+ion-refresher {
+  --color: var(--ion-color-secondary);
+}
+
+ion-refresher-content {
+  --ion-color-primary: var(--ion-color-secondary);
+}
+</style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="px-8 pb-4 exit-modal-container bg-tertiary">
+  <div class="px-8 mb-4 bot-pad-safe exit-modal-container bg-tertiary">
     <!-- Visual Header -->
     <div class="text-center mb-4 mt-6">
       <h2 class="text-3xl cabin-sketch-regular font-black text-black tracking-tight">

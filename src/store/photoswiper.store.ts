@@ -8,6 +8,10 @@ export interface SwiperConfig {
   userLookup?: (userId: string) => any // Function to resolve user details (name, avatar)
   canDelete?: (item: any, user: any) => boolean // Custom delete logic
   canReply?: boolean // Toggle reply button
+  imageResolver?: (item: any) => string;
+  thumbnailResolver?: (item: any) => string;
+  onComment?: (item: any, message: string) => Promise<void>
+  onReact?: (item: any) => Promise<void>
 }
 
 export const usePhotoSwiper = defineStore('photoswiper', () => {
@@ -18,16 +22,11 @@ export const usePhotoSwiper = defineStore('photoswiper', () => {
 
   const currentItem = computed(() => collection.value[slide.value])
 
-  /**
-   * @param items - The array of items to swipe through
-   * @param startIndex - Which index to start on
-   * @param swiperConfig - Configuration and callbacks for decoupling
-   */
   function openSwiper(items: any[], startIndex = 0, swiperConfig: SwiperConfig = {}) {
+    config.value = swiperConfig
     collection.value = items
     slide.value = startIndex
-    config.value = swiperConfig
-    open.value = true
+    open.value = true // Triggers the v-if to mount a fresh Swiper!
   }
 
   function seeItem() {

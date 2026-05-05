@@ -10,7 +10,6 @@ import { IonNav, IonPage, onIonViewWillLeave, useBackButton } from '@ionic/vue'
 import DrawMain from '@/components/draw/DrawMain.vue'
 import { slideTransition } from '@/helper/animation.helper'
 import { performRoomExit } from '@/draw/helpers/drawSyncing.helper'
-import { useDrawStore } from '@/draw/store/draw.store'
 
 const navRef = ref<InstanceType<typeof IonNav> | null>(null)
 

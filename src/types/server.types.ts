@@ -44,9 +44,10 @@ export interface User {
   _id: string;
   auth_id: string;
   name: string;
+  description?: string;
   img: string;
   mates: Mate[];
-  inbox: string[];
+  inbox: string[]; // @deprecated
   stickers: string[];
   emblems: string[];
   saved: Saved[];
@@ -61,6 +62,8 @@ export interface User {
   };
   date_of_birth?: Date;
   last_seen_version?: string;
+  following: string[];
+  followers: string[];
 }
 
 export type BalloonStatus = 'pending' | 'paired' | 'accepted';
@@ -81,6 +84,7 @@ export interface Balloon {
   pairedBalloon?: string,
   cancelledBalloons: string[]
   version?: number
+  rejected_by: string[]
 }
 
 export interface CreateBalloonPostParams {
@@ -291,6 +295,70 @@ export interface SearchMateParams {
 }
 
 
+export interface BasePost {
+  _id: string;
+  author_id: string;
+  description?: string;
+  drawing_url: string;
+  image_url: string;
+  thumbnail_url: string;
+  aspect_ratio: number;
+  comment_count: number;
+  reports_count: number;
+  status: 'active' | 'under_review' | 'removed';
+  reaction_counts: Record<string, number>;
+}
+
+export interface BasePostComment {
+  _id: string;
+  post_id: string;
+  author_id: string;
+  message: string;
+}
+
+export interface BasePostReaction {
+  _id: string;
+  post_id: string;
+  user_id: string;
+  reaction_type: string;
+}
+
+export interface PostDocument extends BasePost {
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PostCommentDocument extends BasePostComment {
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PostReactionDocument extends BasePostReaction {
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// --- Frontend Types (Hydrated versions) ---
+
+export type FeedPost = Omit<BasePost, 'createdAt' | 'updatedAt'> & {
+  author: { _id: string; name: string; img: string };
+  user_reaction: string | null;
+  comments: any[];
+  createdAt: string;
+  updatedAt: string;
+  commentsLoaded?: boolean;
+}
+
+export interface Report {
+  _id: string;
+  reporter_id: string;
+  target_id: string; // ID of the Post or Comment
+  target_type: 'post' | 'comment' | 'user';
+  reason: 'spam' | 'nsfw' | 'harassment';
+  created_at: Date;
+}
+
+
 export type Res<T> = T | undefined | null;
 
 export interface API {
@@ -383,7 +451,7 @@ export enum SOCKET_ENDPONTS {
   // Balloon Events
   accept_balloon = 'accept_balloon',
   refuse_balloon = 'refuse_balloon',
-  cancel_balloon = 'cancel-balloon',
+  cancel_balloon = 'cancel-balloon ',
   match_balloon = 'match-balloon',
   balloon_match_expired = 'balloon-match-expired',
   balloon_expired = 'balloon-expired ',

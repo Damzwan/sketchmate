@@ -1,6 +1,6 @@
 <template>
   <transition name="expand">
-    <div class="fixed w-full h-full bg-black z-50 flex flex-col safe-area" v-show="open" v-if="user && currItem">
+    <div class="fixed w-full h-full bg-black z-50 flex flex-col safe-area" v-if="open && user && currItem">
 
       <PhotoSwiperHeader
         :curr-item="currItem"
@@ -13,19 +13,21 @@
       <swiper-container
         class="w-full grow"
         :initial-slide="slide"
-        @swiperslidechange="(x: any) => slide = x.target.swiper.activeIndex"
+        :zoom="{maxRatio: 3}"
+        @swiperslidechange="handleSlideChange"
         ref="swiper"
       >
         <swiper-slide v-for="(item, i) in collection" :key="item._id || i">
           <div class="swiper-zoom-container" v-if="Math.abs(slide - i) < 3">
             <PhotoSwiperItem
-              :thumbnail="item.thumbnail"
-              :image="item.image"
+              :thumbnail="resolveThumbnail(item)"
+              :image="resolveImage(item)"
               :switch-to-image="Math.abs(slide - i) < 3"
             />
           </div>
         </swiper-slide>
       </swiper-container>
+
 
       <PhotoSwiperFooter
         :curr-item="currItem"
@@ -36,8 +38,8 @@
         @open-comments="isCommentDrawerOpen = true"
         @reply="handleReply"
         @delete="handleDelete"
+        @react="handleReact"
       />
-
       <CommentDrawer
         :index-of-curr-inbox-item="slide"
         :curr-inbox-item="currItem"
@@ -71,6 +73,7 @@ import PhotoSwiperHeader from '@/components/photoswiper/PhotoSwiperHeader.vue'
 import PhotoSwiperFooter from '@/components/photoswiper/PhotoSwiperFooter.vue'
 import CommentDrawer from '@/components/photoswiper/CommentDrawer.vue'
 import PhotoSwiperFollowersDrawer from '@/components/photoswiper/PhotoSwiperFollowersDrawer.vue'
+import { fetchPostComments } from '@/service/api/post.api'
 
 register()
 
@@ -92,6 +95,11 @@ const canDelete = computed(() => {
   if (config.value.canDelete) return config.value.canDelete(currItem.value, user.value)
   return currItem.value.sender === user.value._id || currItem.value.creator_id === user.value._id
 })
+
+function handleSlideChange(event: any) {
+  if (!open.value || !event.target.swiper) return
+  slide.value = event.target.swiper.activeIndex
+}
 
 watch(
   collection,
@@ -133,19 +141,33 @@ function close() {
 watch(open, async () => {
   if (open.value) {
     window.addEventListener('keydown', keyboardListener)
-    nextTick(() => {
-      if (swiper.value?.swiper) {
-        swiper.value.swiper.slideTo(slide.value, 0, false)
-      }
-    })
+
+    await nextTick()
+    await nextTick()
+
+    if (swiper.value?.swiper) {
+      const s = swiper.value.swiper
+      s.update() // Force swiper to recalculate slide count
+      s.slideTo(slide.value, 0, false)
+    }
   } else {
     close()
   }
 })
 
-watch(currItem, () => {
+watch(currItem, async () => {
   if (!currItem.value || !open.value) return
   seeItem()
+
+  if (currItem.value.author_id && !currItem.value.commentsLoaded) {
+    try {
+      const res = await fetchPostComments(currItem.value._id, 1, 5)
+      currItem.value.comments = res.comments || []
+      currItem.value.commentsLoaded = true
+    } catch (e) {
+      console.error('Failed to pre-fetch comments for preview', e)
+    }
+  }
 })
 
 // TODO remove
@@ -176,11 +198,42 @@ function checkQueryParams() {
   isCommentDrawerOpen.value = query.comments === 'true'
   setTimeout(() => router.replace({ query: undefined }), 100)
 }
+
+function resolveImage(item: any) {
+  return config.value.imageResolver ? config.value.imageResolver(item) : (item.image_url || item.image)
+}
+
+function resolveThumbnail(item: any) {
+  return config.value.thumbnailResolver ? config.value.thumbnailResolver(item) : (item.thumbnail_url || item.thumbnail)
+}
+
+function handleReact() {
+  if (config.value.onReact) {
+    config.value.onReact(currItem.value)
+  }
+}
 </script>
 
 <style scoped>
-.expand-enter-active { opacity: 0; transform: scale(0.8); transition: all 0.1s ease-out; }
-.expand-enter-to { opacity: 1; transform: scale(1); }
-.expand-leave-active { opacity: 1; transform: scale(1); transition: all 0.1s ease-in; }
-.expand-leave-to { opacity: 0; transform: scale(0.8); }
+.expand-enter-active {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.1s ease-out;
+}
+
+.expand-enter-to {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.expand-leave-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: all 0.1s ease-in;
+}
+
+.expand-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
 </style>

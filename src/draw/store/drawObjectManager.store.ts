@@ -142,12 +142,6 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       handler: (e: any) => scheduleInvalidation(Array.isArray(e.detail.targets) ? e.detail.targets : [e.detail.targets])
     },
     {
-      on: 'objectsMerged',
-      handler: (e: any) => {
-        scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
-      }
-    },
-    {
       on: 'backgroundColorChanged',
       handler: (e: any) => {
         const physWidth = c!.getElement().width
@@ -558,12 +552,18 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let isBatchScheduled = false
 
   function scheduleInvalidation(target: FabricObject | FabricObject[]) {
+    const gestureStore = useGestureStore()
+    if (gestureStore.isGesturing) return
+
     const objects = Array.isArray(target) ? target : [target]
     objects.forEach(o => dirtyObjects.add(o))
     triggerBatch()
   }
 
   function scheduleRectInvalidation(rect: Rect) {
+    const gestureStore = useGestureStore()
+    if (gestureStore.isGesturing) return
+
     dirtyRects.add(rect)
     triggerBatch()
   }
@@ -574,6 +574,14 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
 
     queueMicrotask(() => {
       isBatchScheduled = false
+      const gestureStore = useGestureStore()
+
+      if (gestureStore.isGesturing) {
+        dirtyObjects.clear()
+        dirtyRects.clear()
+        return
+      }
+
       const batchObjects = Array.from(dirtyObjects)
       const batchRects = Array.from(dirtyRects)
 

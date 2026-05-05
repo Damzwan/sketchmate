@@ -36,41 +36,7 @@
           @delete="handleDeleteDraft"
         />
 
-        <section>
-          <h2 class="text-base font-black text-black mb-4 px-1">Community Highlights</h2>
-          <div class="space-y-6">
-            <div
-              v-for="post in communityHighlights"
-              :key="post.id"
-              class="bg-primary/40 rounded-[2.5rem] overflow-hidden border border-primary/60"
-            >
-              <div class="flex items-center p-4">
-                <div
-                  class="w-8 h-8 bg-background rounded-full mr-3 flex items-center justify-center text-xs font-black text-secondary border border-primary/40">
-                  {{ post.author.charAt(0) }}
-                </div>
-                <div class="flex-1">
-                  <p class="text-sm font-black text-black">{{ post.author }}</p>
-                  <p class="text-[10px] text-black/40 font-bold uppercase tracking-tighter">{{ post.timeAgo }}</p>
-                </div>
-              </div>
-
-              <div class="aspect-square bg-background w-full border-y border-primary/40">
-              </div>
-
-              <div class="flex items-center justify-around p-4">
-                <button class="flex items-center space-x-2 active:scale-125 transition-transform group">
-                  <span class="text-xl">❤️</span>
-                  <span class="text-xs font-black text-black">{{ post.likes }}</span>
-                </button>
-                <button class="flex items-center space-x-2 active:scale-125 transition-transform group">
-                  <span class="text-xl">💬</span>
-                  <span class="text-xs font-black text-black">{{ post.comments }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
+        <CommunityFeed />
 
       </div>
     </ion-content>
@@ -90,6 +56,7 @@ import { startWatchingLobbies } from '@/service/api/socket/drawSyncing.socket'
 import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
 import MyDrafts from '@/components/home/MyDrafts.vue'
 import { DrawingDraft, useDrawLoadStore } from '@/draw/store/drawLoad.store'
+import CommunityFeed from '@/components/home/CommunityFeed.vue'
 
 const r = useIonRouter()
 

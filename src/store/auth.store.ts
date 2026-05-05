@@ -242,8 +242,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = userValue.user
 
 
-    const { getInbox } = useInboxStore()
-    await getInbox()
+    const { getInboxBatch } = useInboxStore()
+    await getInboxBatch(true)
     if (e) e.target.complete()
   }
 

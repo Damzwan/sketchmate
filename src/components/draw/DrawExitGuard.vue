@@ -1,62 +1,70 @@
 <script setup lang="ts">
-import { onBeforeRouteLeave, useRouter } from 'vue-router'
-import { modalController, useBackButton } from '@ionic/vue'
+import { onBeforeRouteLeave } from 'vue-router'
+import { modalController, useBackButton, useIonRouter } from '@ionic/vue'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import DrawExitModal from '@/components/draw/DrawExitModal.vue'
+import { ref } from 'vue'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { slideTransition } from '@/helper/animation.helper' // Assuming you have your routes here
 
 const props = defineProps<{
   draftId: string
   isLobby: boolean
 }>()
 
-const router = useRouter()
+const router = useIonRouter()
 const loadStore = useDrawLoadStore()
 
 let isNavigationConfirmed = false
+const isExiting = ref(false)
+
+
+const executeExitNavigation = () => {
+  isNavigationConfirmed = true
+  loadStore.stopAutosave()
+
+  if (router.canGoBack()) {
+    router.back()
+  } else {
+    router.replace(FRONTEND_ROUTES.home, slideTransition)
+  }
+}
 
 const showExitUI = async (): Promise<boolean> => {
+  if (isExiting.value) return false
+
+  // If canvas is empty and not a lobby, just let them leave
   if (!loadStore.hasContent() && !props.isLobby) {
     return true
   }
 
-  // 2. OPEN DYNAMIC MODAL
+  isExiting.value = true
+
   const modal = await modalController.create({
     component: DrawExitModal,
-    componentProps: {
-      isLobby: props.isLobby
-    },
+    componentProps: { isLobby: props.isLobby },
     cssClass: 'draw-exit-modal',
     breakpoints: [0, 1],
-    initialBreakpoint: 1,
-    handle: true,
-    canDismiss: true,
-    backdropDismiss: true
+    initialBreakpoint: 1
   })
 
   await modal.present()
-
   const { role } = await modal.onWillDismiss()
+  isExiting.value = false
 
-  // 3. LOGIC HANDLERS
   switch (role) {
     case 'save':
       await loadStore.forceSave()
       return true
-
     case 'leave':
     case 'discard':
-      if (!props.isLobby) {
-        await loadStore.removeDraft(props.draftId)
-      }
+      if (!props.isLobby) await loadStore.removeDraft(props.draftId)
       return true
-
-    case 'cancel':
     default:
-      // User backed out or swiped the modal away
       return false
   }
 }
+
 
 onBeforeRouteLeave(async (to, from, next) => {
   if (isNavigationConfirmed) return next()
@@ -71,16 +79,13 @@ onBeforeRouteLeave(async (to, from, next) => {
   }
 })
 
-useBackButton(10, async () => {
+
+useBackButton(1, async () => {
+  if (isNavigationConfirmed) return
+
   const shouldLeave = await showExitUI()
   if (shouldLeave) {
-    isNavigationConfirmed = true
-    loadStore.stopAutosave()
-    router.back()
+    executeExitNavigation()
   }
 })
 </script>
-
-<template>
-  <div style="display: none" />
-</template>

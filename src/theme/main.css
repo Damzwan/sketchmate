@@ -40,3 +40,16 @@ ion-content.my-safe-area::part(scroll) {
     --color-background: var(--ion-color-tertiary);
     --color-warning: var(--ion-color-warning);
 }
+
+ion-alert.liquid-alert {
+    --background: var(--ion-color-tertiary);
+    --backdrop-opacity: 0.2;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+
+button.alert-button.alert-button-confirm,
+button.alert-button.alert-button-cancel,
+button.alert-button.alert-button-destructive {
+    color: var(--ion-color-secondary) !important;
+}

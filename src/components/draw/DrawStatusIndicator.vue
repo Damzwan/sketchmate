@@ -2,11 +2,25 @@
   <transition name="pop-down">
     <div
       v-if="isActive"
-      class="absolute top-18 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex items-center px-4 py-2.5 bg-white/80 backdrop-blur-md border-2 border-primary/40 rounded-full shadow-lg"
+      class="absolute mt-18 top-safe left-1/2 -translate-x-1/2 z-50 pointer-events-none flex items-center px-4 py-2.5 bg-background backdrop-blur-md rounded-full shadow-lg"
     >
-      <svg class="w-5 h-5 mr-3 text-secondary animate-spin-slow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10" class="sketch-circle" />
+      <svg
+        class="w-5 h-5 mr-3 text-secondary animate-spin-slow"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <!-- dasharray="45 20" creates the gap so you can actually see it spin -->
+        <circle
+          cx="12"
+          cy="12"
+          r="10"
+          class="sketch-circle"
+          stroke-dasharray="45 20"
+        />
       </svg>
       <span class="text-sm font-bold text-black tracking-widest uppercase cabin-sketch-regular pt-0.5">
         {{ message }}
@@ -37,6 +51,20 @@ const message = computed(() => {
 </script>
 
 <style scoped>
+/* Define the slow spin specifically for this component */
+.animate-spin-slow {
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .pop-down-enter-active,
 .pop-down-leave-active {
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -45,6 +73,7 @@ const message = computed(() => {
 .pop-down-enter-from,
 .pop-down-leave-to {
   opacity: 0;
+  /* Maintain the -50% to keep it centered during the transition */
   transform: translate(-50%, -20px) scale(0.95);
 }
 </style>

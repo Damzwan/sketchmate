@@ -148,9 +148,9 @@ export async function copyObjects(params: DrawActionParams[DrawAction.CopyObject
   const { actionWithoutEvents } = useDrawEventManager()
   const c = getCanvas()
 
-  if (params.objects.length > 200){
-    const {toast} = useToast()
-    toast("Cannot copy more than 200 objects", {color: 'warning'})
+  if (params.objects.length > 200) {
+    const { toast } = useToast()
+    toast('Cannot copy more than 200 objects', { color: 'warning' })
     return
   }
 
@@ -209,8 +209,6 @@ export function mergeHelper(
 
   const targetIndex = Math.max(0, highestIndex - objects.length + 1)
   canvas.insertAt(targetIndex, group)
-
-  canvas.requestRenderAll()
 
   return group
 }

@@ -27,6 +27,8 @@ export function useInboxSwiper() {
 
   function openInboxSwiper(inboxItems: any[], index: number) {
     swiperStore.openSwiper(inboxItems, index, {
+      imageResolver: (item) => item.image,
+      thumbnailResolver: (item) => item.thumbnail,
       onSeen: seeItem,
 
       onDelete: async (item) => {

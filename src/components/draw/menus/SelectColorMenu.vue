@@ -8,8 +8,7 @@
           id="slider"
           :value="strokeWidth"
           @ionChange="(e: any) => emits('update:strokeWidth', e.detail.value)"
-          :min="2"
-          :max="50"
+          :min="0.1" :step="0.1" :max="50"
           color="secondary"
         />
       </div>
@@ -33,7 +32,7 @@
             />
           </div>
 
-          <ion-popover trigger="stroke" side="left">
+          <ion-popover trigger="stroke" side="left" alignment="end">
             <ColorPicker
               :color="strokeColor || BLACK"
               @update:color="c => emits('update:stroke-color', c)"
@@ -57,7 +56,7 @@
             />
           </div>
 
-          <ion-popover trigger="fill" side="left">
+          <ion-popover trigger="fill" side="left" alignment="end">
             <ColorPicker
               :color="fillColor"
               @update:color="c => emits('update:fill-color', c)"
@@ -86,7 +85,7 @@
             />
           </div>
 
-          <ion-popover trigger="background" side="left">
+          <ion-popover trigger="background" side="left" alignment="end">
             <ColorPicker
               :color="backgroundColor || BLACK"
               @update:color="c => emits('update:background-color', c)"

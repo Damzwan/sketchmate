@@ -263,7 +263,6 @@ export async function flipXObjects(params: DrawActionParams[DrawAction.FlipX]) {
     }
   }
 
-  c.requestRenderAll()
   c.fire('flip', { direction: 'flipX', target: objects })
 }
 
@@ -273,7 +272,7 @@ export async function flipYObjects(params: DrawActionParams[DrawAction.FlipX]) {
   const objects = params.objects
 
   if (objects.length === 1) {
-    objects[0].set('flipY', !objects[0].flipX)
+    objects[0].set('flipY', !objects[0].flipY)
     objects[0].setCoords()
   } else {
     const tempSelection = new fabric.ActiveSelection(objects, { canvas: c })
@@ -281,7 +280,7 @@ export async function flipYObjects(params: DrawActionParams[DrawAction.FlipX]) {
     const prevActiveObject = c.getActiveObject()
     c.setActiveObject(tempSelection)
 
-    tempSelection.set('flipY', !tempSelection.flipX)
+    tempSelection.set('flipY', !tempSelection.flipY)
     tempSelection.setCoords()
 
     if (!params.setActiveObject) {
@@ -290,7 +289,6 @@ export async function flipYObjects(params: DrawActionParams[DrawAction.FlipX]) {
     }
   }
 
-  c.requestRenderAll()
   c.fire('flip', { direction: 'flipY', target: objects })
 }
 

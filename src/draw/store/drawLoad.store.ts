@@ -99,10 +99,19 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     try {
       // --- REMOTE SOURCE ---
       if (options.canvasUrl) {
-        const response = await fetch(options.canvasUrl)
-        if (!response.ok) throw new Error('Failed to fetch remote canvas')
-        json = await response.json()
-        isExternalLoad = true
+        const response = await fetch(options.canvasUrl);
+        if (!response.ok) throw new Error('Failed to fetch remote canvas');
+        const isGzipped = options.canvasUrl.endsWith('.gzip')
+        if (isGzipped) {
+          const ds = new DecompressionStream('gzip');
+          const decompressedStream = response.body?.pipeThrough(ds);
+          const decompressedResponse = new Response(decompressedStream);
+          json = await decompressedResponse.json();
+        } else {
+          json = await response.json();
+        }
+
+        isExternalLoad = true;
       }
 
       // --- INTERNAL REF SOURCE ---

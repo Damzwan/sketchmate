@@ -93,7 +93,6 @@ onMounted(() => {
       draftId: draftId.value,
       canvasUrl: canvasUrl
     }).then(async () => {
-      // 3. Socket / Multiplayer Handshake
       await socketLoggedInPromise
 
       const { queryParams } = useSessionStore()

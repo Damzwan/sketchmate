@@ -46,3 +46,14 @@ export async function uploadProfileImg(blob: Blob, previousImageUrl?: string) {
     body: formData
   });
 }
+
+export async function blockUser(blockId: string) {
+  return await request('/users/block', {
+    method: 'POST',
+    body: JSON.stringify({ block_id: blockId })
+  })
+}
+
+export async function fetchOnlineFriends() {
+  return await request<string[]>('/user/online-friends'); // Adjust path to match your Koa prefix
+}

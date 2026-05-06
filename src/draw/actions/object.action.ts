@@ -27,7 +27,7 @@ export async function removeObjects(objects: FabricObject[]) {
   if (objects.length === 0) return
 
   c.remove(...objects)
-  c.requestRenderAll()
+  
 
   c.fire('objectsDeleted', { target: objects })
 }
@@ -60,7 +60,7 @@ export function setPropertiesOfObjects(params: DrawActionParams[DrawAction.SetPr
   params.objects.forEach((obj: any) => {
     obj.set(params.properties)
   })
-  c.requestRenderAll()
+  
   c.fire('objects:changed', { target: params.objects, parameters: params.properties })
 }
 
@@ -84,7 +84,7 @@ export function moveObjectToFront(params: DrawActionParams[DrawAction.MoveObject
     prevObjectPositions.push(currI)
     c.bringObjectToFront(obj)
   })
-  c.requestRenderAll()
+  
   c.fire('layer:changed', {
     target: params.objects,
     type: DrawAction.MoveObjectToFront,
@@ -107,7 +107,7 @@ export function moveObjectToBack(params: DrawActionParams[DrawAction.MoveObjectT
   })
 
 
-  c.requestRenderAll()
+  
   c.fire('layer:changed', {
     target: params.objects,
     type: DrawAction.MoveObjectToBack,
@@ -125,7 +125,7 @@ export function moveObjectUpOneLayer(params: DrawActionParams[DrawAction.MoveObj
     const currI = c.getObjects().indexOf(obj)
     c.moveObjectTo(obj, Math.min(currI + 1, objectsLength))
   })
-  c.requestRenderAll()
+  
   c.fire('layer:changed', { target: params.objects, type: DrawAction.MoveObjectUpOneLayer })
 }
 
@@ -139,7 +139,7 @@ export function moveObjectDownOneLayer(params: DrawActionParams[DrawAction.MoveO
     const currI = c.getObjects().indexOf(obj)
     c.moveObjectTo(obj, Math.max(currI - 1, 0))
   })
-  c.requestRenderAll()
+  
   c.fire('layer:changed', { target: params.objects, type: DrawAction.MoveObjectDownOneLayer })
 }
 
@@ -183,7 +183,7 @@ export async function copyObjects(params: DrawActionParams[DrawAction.CopyObject
     newActiveObject._renderControls(c.getTopContext())
   }
 
-  c.requestRenderAll()
+  
 
 
   c.fire('objectsCopied', {
@@ -362,7 +362,7 @@ export async function saveFabricObject(params: DrawActionParams[DrawAction.SaveF
   toast('Saved drawing', { buttons: [viewSavedButton], duration: ToastDuration.medium })
 
 
-  c.requestRenderAll()
+  
 }
 
 export async function addSavedFabricObjectToCanvas(params: DrawActionParams[DrawAction.AddSavedDrawingToCanvas]) {
@@ -416,5 +416,5 @@ export async function addSavedFabricObjectToCanvas(params: DrawActionParams[Draw
   }
 
 
-  c.requestRenderAll()
+  
 }

@@ -1,41 +1,86 @@
+// --- friend.store.ts ---
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { Mate } from '@/types/server.types'
+import { Mate, PopulatedConversation, User } from '@/types/server.types'
+import { computed, ref } from 'vue'
 import { useAPI } from '@/service/api/api.service'
-import { useAuthStore } from '@/store/auth.store'
+import { getPendingRequests } from '@/service/api/chat.api'
+import { fetchOnlineFriends } from '@/service/api/user.api'
 
 export const useFriendStore = defineStore('friend', () => {
-  const friendRequestUsers = ref<Mate[]>([])
+  const friends = ref<Mate[]>([])
+  const onlineFriendIds = ref<Set<string>>(new Set())
+  const pendingRequests = ref<PopulatedConversation[]>([])
   const friendRequestLoading = ref(false)
 
-  const api = useAPI()
+  const isFriendOnline = computed(() => (userId: string) => {
+    return onlineFriendIds.value.has(userId)
+  })
 
-  async function retrieveFriendRequestUsers() {
-    const { user } = useAuthStore()
-    if (!user || user.mate_requests_received.length === 0) return
+  // 1. Unified entry point for AuthStore
+  async function initializeSocialGraph(user: User) {
+    await Promise.all([
+      fetchFriends(user), // Hydrate the names/images
+      fetchPendingRequests(),
+      fetchInitialOnlineFriends()
+    ])
+  }
+
+  // 2. Hydrate the Mate objects (Names/Images)
+  async function fetchFriends(user: User) {
+    // Check both friends (new) and mates (legacy fallback)
+    const idsToFetch = user.friends?.length ? user.friends : (user.mates as any[] || [])
+
+    if (idsToFetch.length > 0) {
+      try {
+        const api = useAPI()
+        // Map to strings just in case they are objects
+        const cleanIds = idsToFetch.map(id => typeof id === 'string' ? id : id._id)
+        const fullMates = await api.getPartialUsers({ _ids: cleanIds })
+        if (!fullMates) return
+        friends.value = fullMates
+      } catch (e) {
+        console.error('Failed to hydrate friends list', e)
+      }
+    }
+  }
+
+  async function fetchPendingRequests() {
     friendRequestLoading.value = true
     try {
-      const users = await api.getPartialUsers({ _ids: user.mate_requests_received })
-      if (users) {
-        // merge unique users
-        const newUsers = users.filter(u => !friendRequestUsers.value.find(x => x._id === u._id))
-        friendRequestUsers.value.push(...newUsers)
-      }
+      const requests = await getPendingRequests()
+      pendingRequests.value = requests
     } catch (e) {
-      console.error(e)
+      console.error('Failed to fetch pending requests:', e)
     } finally {
       friendRequestLoading.value = false
     }
   }
 
-  function findUserInFriendRequestUsers(user_id: string): Mate | undefined {
-    return friendRequestUsers.value.find(u => u._id === user_id)
+  async function fetchInitialOnlineFriends() {
+    try {
+      const onlineIds = await fetchOnlineFriends()
+      onlineFriendIds.value = new Set(onlineIds)
+    } catch (e) {
+      console.error('Failed to fetch initial online friends', e)
+    }
+  }
+
+  function setFriendOnlineStatus(userId: string, isOnline: boolean) {
+    if (isOnline) {
+      onlineFriendIds.value.add(userId)
+    } else {
+      onlineFriendIds.value.delete(userId)
+    }
   }
 
   return {
-    friendRequestUsers,
+    friends,
+    onlineFriendIds,
+    pendingRequests,
     friendRequestLoading,
-    retrieveFriendRequestUsers,
-    findUserInFriendRequestUsers
+    isFriendOnline,
+    initializeSocialGraph,
+    setFriendOnlineStatus,
+    fetchPendingRequests // Exposed so UI can refresh it manually
   }
 })

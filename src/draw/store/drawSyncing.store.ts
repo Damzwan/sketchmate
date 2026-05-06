@@ -16,6 +16,7 @@ import { EventBus } from '@/main'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { handleTextModificationSync } from '@/draw/helpers/history/text.helper'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 
 export interface DrawInvitation {
   friend: Mate,
@@ -316,9 +317,12 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   }
 
   async function loadRoomCanvas(canvasJSON: any, isInitialSync: boolean) {
-    const { reset, loadCanvas } = useDrawStore()
-    if (isInitialSync) reset(false)
-    await loadCanvas(canvasJSON)
+    const { reset } = useDrawStore()
+    const {loadCanvas} = useDrawLoadStore()
+    const {getCanvas} = useDrawStore()
+
+    if (isInitialSync) reset()
+    await loadCanvas(getCanvas(), {json: canvasJSON, isLobby: true})
 
     if (actionQueue.length > 0) {
       await processActionQueue()

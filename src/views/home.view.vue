@@ -69,7 +69,7 @@ const isLoadingDrafts = ref(true)
 
 const quickActions = ref([
   { id: 'draw_alone', label: 'Draw', iconFallback: '✏️' },
-  { id: 'draw_friend', label: 'Draw together', iconFallback: '👋' }
+  { id: 'draw_together', label: 'Draw together', iconFallback: '👋' }
 ])
 
 const communityHighlights = ref([
@@ -94,6 +94,11 @@ onMounted(async () => {
 const handleQuickAction = (actionId: string) => {
   if (actionId === 'draw_alone') {
     r.push(FRONTEND_ROUTES.draw, masterAnimation)
+  } else if (actionId === 'draw_together') {
+    r.push({
+      path: FRONTEND_ROUTES.draw,
+      query: { together: 'true' }
+    }, masterAnimation)
   }
 }
 

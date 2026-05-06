@@ -27,7 +27,6 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
 
   // --- Reactive State ---
   const currentDraftId = ref<string | undefined>() // 🚀 Added: The source of truth
-  const canvasToLoad = ref<string | any>()
   const isSaving = ref(false)
   const isDirty = ref(false)
 
@@ -87,6 +86,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     isLobby: boolean;
     draftId?: string;
     canvasUrl?: string;
+    json?: any;
   }) {
     drawSyncer.isLoadingCanvas = true
 
@@ -94,39 +94,36 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     currentDraftId.value = finalId
 
     let json: any = null
-    let isExternalLoad = false // 🚀 Track if we are bringing in outside data
+    let isExternalLoad = false
 
     try {
-      // --- REMOTE SOURCE ---
-      if (options.canvasUrl) {
-        const response = await fetch(options.canvasUrl);
-        if (!response.ok) throw new Error('Failed to fetch remote canvas');
-        const isGzipped = options.canvasUrl.endsWith('.gzip')
-        if (isGzipped) {
-          const ds = new DecompressionStream('gzip');
-          const decompressedStream = response.body?.pipeThrough(ds);
-          const decompressedResponse = new Response(decompressedStream);
-          json = await decompressedResponse.json();
-        } else {
-          json = await response.json();
-        }
-
-        isExternalLoad = true;
-      }
-
-      // --- INTERNAL REF SOURCE ---
-      else if (canvasToLoad.value) {
-        let raw = canvasToLoad.value
-        if (typeof raw === 'string') {
-          const response = await fetch(raw)
-          raw = await response.json()
-        }
-        json = raw
-        canvasToLoad.value = undefined
+      if (options.json) {
+        json = options.json
         isExternalLoad = true
       }
 
-      // --- LOCAL SOURCE (No need to mark dirty yet) ---
+      // --- REMOTE SOURCE ---
+      else if (options.canvasUrl) {
+        const response = await fetch(options.canvasUrl)
+        if (!response.ok) throw new Error('Failed to fetch remote canvas')
+
+        // Note: check for .gz or .gzip depending on your naming convention
+        const isGzipped = options.canvasUrl.endsWith('.gz') || options.canvasUrl.endsWith('.gzip')
+
+        if (isGzipped) {
+          const ds = new DecompressionStream('gzip')
+          const decompressedStream = response.body?.pipeThrough(ds)
+          const decompressedResponse = new Response(decompressedStream)
+          json = await decompressedResponse.json()
+        } else {
+          json = await response.json()
+        }
+
+        isExternalLoad = true
+      }
+
+
+      // --- LOCAL SOURCE (IndexedDB) ---
       else if (!options.isLobby && options.draftId) {
         await initDB()
         const draft = await getDraft(options.draftId)
@@ -137,6 +134,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
 
       // --- APPLY DATA TO CANVAS ---
       if (json) {
+        // Logic for legacy version cleaning
         if (json.version === '5.5.2') {
           delete json.width
           delete json.height
@@ -153,17 +151,16 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
             selection.removeAll()
             selection.dispose()
           }
-          c.renderAll()
         })
       }
 
       if (!options.isLobby) {
         startAutosave(c, finalId)
 
-        // 🚀 If we imported external data, force an initial save
+        // Force background save if data came from outside the local DB
         if (isExternalLoad && hasContent()) {
           markAsDirty()
-          performSave() // Fires in background
+          performSave()
         }
       }
 
@@ -243,7 +240,14 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
 
   const markAsDirty = () => isDirty.value = true
   const forceSave = async () => {
-    if (isDirty.value) await performSave()
+    if (!currentDraftId.value) {
+      currentDraftId.value = uuidv4()
+    }
+
+    if (hasContent()) {
+      markAsDirty()
+      await performSave()
+    }
   }
 
   // ==========================================
@@ -294,7 +298,6 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
 
   return {
     currentDraftId, // 🚀 Exported
-    canvasToLoad,
     isSaving,
     isDirty,
     loadCanvas,

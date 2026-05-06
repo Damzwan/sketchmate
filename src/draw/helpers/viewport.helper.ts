@@ -40,7 +40,6 @@ export function centerObjectInViewport(
   })
 
   object.setCoords()
-  canvas.requestRenderAll()
 }
 
 

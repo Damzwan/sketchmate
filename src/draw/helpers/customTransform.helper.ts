@@ -117,6 +117,5 @@ export function finalizeLayeredRender(c: Canvas) {
   if (isLayeredRenderActive && hasMoved) {
     hasMoved = false
     isLayeredRenderActive = false
-    c.requestRenderAll()
   }
 }

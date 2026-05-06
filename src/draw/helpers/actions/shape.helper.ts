@@ -42,7 +42,6 @@ export function exitClickShapeCreationMode(isNewShape: boolean = true) {
     c.remove(lastObject)
     c.discardActiveObject()
   }
-  c.requestRenderAll()
 }
 
 export function exitDragShapeCreationMode() {
@@ -64,7 +63,6 @@ export function exitDragShapeCreationMode() {
 
 
   c.setActiveObject(c.getObjects().at(-1)!)
-  c.requestRenderAll()
 }
 
 export function findNearestPoint(clickPoint: Point, points: Point[], clickTolerance = 10): Point | undefined {

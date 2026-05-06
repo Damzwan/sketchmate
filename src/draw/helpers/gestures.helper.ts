@@ -69,82 +69,7 @@ function getMinZoomToFitAll(canvas: fabric.Canvas, padding = 0.9) {
 
 // Define this outside the function (e.g., in your component or store)
 let debounceCacheTimeout: any = null
-
-function commitCssTransform(c: Canvas, isFinal: boolean = true) {
-  const { canResetView } = storeToRefs(useDrawUIStore())
-  canResetView.value = true
-
-
-  const { cssTransform, pendingCssTransform } = storeToRefs(useDrawStore())
-
-  const cur = cssTransform.value
-  const scale = cssTransform.value.scale
-  const isZooming = scale !== 1
-
-
-  const p = pendingCssTransform.value
-
-  // 1. Calculate what the NEW total Fabric viewport transform should be
-  let vpt = [...c.viewportTransform!]
-
-  // The new scale is the current scale * the gesture scale
-  const newScale = vpt[0] * cur.scale
-
-  // The translation handoff:
-  // We need to move the Fabric Vpt by the amount of the current session's CSS pan
-  // adjusted by the existing Fabric scale.
-  const newTx = (vpt[4] * cur.scale) + cur.translateX
-  const newTy = (vpt[5] * cur.scale) + cur.translateY
-
-  c.setViewportTransform([newScale, 0, 0, newScale, newTx, newTy])
-
-  // 2. CRITICAL: Re-sync Fabric's internal element position cache
-  c.calcOffset()
-
-  // 3. Update the "Pending" state for the next gesture session
-  pendingCssTransform.value = {
-    scale: p.scale * cur.scale,
-    translateX: p.translateX + (p.scale * cur.translateX),
-    translateY: p.translateY + (p.scale * cur.translateY)
-  }
-
-  // 4. Reset the "Current Session" transform
-  cssTransform.value = { scale: 1, translateX: 0, translateY: 0 }
-
-  if (c.wrapperEl && isFinal) {
-    c.wrapperEl.style.willChange = 'auto'
-  }
-
-  const { setVisibleObjectsState } = useDrawObjectManager()
-  if (isZooming) setVisibleObjectsState('interaction')
-  scheduleVisibilityUpdate()
-
-  if (isFinal) {
-    clearTimeout(debounceCacheTimeout)
-
-    if (isZooming) {
-      debounceCacheTimeout = setTimeout(() => {
-        window.requestIdleCallback?.(() => {
-          setVisibleObjectsState('static')
-          c.requestRenderAll()
-        })
-      }, 2000)
-    } else {
-    }
-  } else {
-  }
-}
-
 let visibilityTimeout: any = null
-
-function scheduleVisibilityUpdate() {
-  clearTimeout(visibilityTimeout)
-
-  visibilityTimeout = setTimeout(() => {
-    const { updateVisibility } = useDrawObjectManager()
-    updateVisibility(true)
-  }, 1000)
-}
 
 function rotateView(c: fabric.Canvas, deltaDeg: number, centerPoint: Point) {
   const rad = fabric.util.degreesToRadians(deltaDeg)
@@ -458,7 +383,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       if (isLayeredRenderActive) {
         renderLayeredBuffers(c, obj)
       } else {
-        c.requestRenderAll()
       }
     })
   }

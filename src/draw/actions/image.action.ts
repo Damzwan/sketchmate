@@ -24,7 +24,6 @@ export async function addImageToCanvas(params: DrawActionParams[DrawAction.AddIm
   c.setActiveObject(fabricImg)
 
 
-  c.requestRenderAll()
 }
 
 export function addFilterToImg(params: DrawActionParams[DrawAction.AddImgFilter]) {
@@ -53,7 +52,6 @@ export function addFilterToImg(params: DrawActionParams[DrawAction.AddImgFilter]
   }
 
   img.applyFilters()
-  c.requestRenderAll()
 }
 
 

@@ -108,21 +108,6 @@ export const useDrawStore = defineStore('draw', () => {
       drawHistory.reset()
     }
 
-    async function loadCanvas(canvasJson: any) {
-      // loadService.canvasToLoad.value = canvasJson
-      // await loadService.loadCanvas(canvasSvc.getCanvas())
-    }
-
-    // TODO this should not be here
-    async function reply(inboxItem: InboxItem) {
-      // loadService.canvasToLoad.value = inboxItem.drawing
-      // await router.push(FRONTEND_ROUTES.draw) // this will trigger the init logic again which will load in the canvas
-    }
-
-    function resetCanvasID() {
-      canvasID = ''
-    }
-
 
     function getAspectRatio(): number {
       const c = canvasSvc.getCanvas()
@@ -162,15 +147,8 @@ export const useDrawStore = defineStore('draw', () => {
       selectAction,
       getCanvas: canvasSvc.getCanvas,
       backgroundColor: canvasSvc.backgroundColor,
-      reply,
       prevDrawingMode,
       isSendingDrawing,
-      loadCanvas,
-      resetCanvasID,
-      stopSaving: () => {
-      },
-      startSaving: () => {
-      },
       getAspectRatio,
       isGesturing,
       ghostBoxes,

@@ -259,7 +259,6 @@ function pickColor(e: any) {
         if (props.colorPickerAction) selectAction(props.colorPickerAction, { color: hex })
 
         c.freeDrawingCursor = 'default'
-        c.requestRenderAll()
 
         if (c.contextTop) {
           c.contextTop.clearRect(0, 0, c.width, c.height)

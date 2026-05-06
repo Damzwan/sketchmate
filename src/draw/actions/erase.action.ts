@@ -23,7 +23,6 @@ export function fullErase() {
     const prevCanvasJSON = c.toJSON()
     c.clear()
     c.backgroundColor = BACKGROUND
-    // c.requestRenderAll()
     c.fire('fullErase', { prevCanvasJSON })
 
     if (selectedTool !== DrawTool.Pen) {

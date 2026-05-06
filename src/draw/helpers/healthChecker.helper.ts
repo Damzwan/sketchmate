@@ -79,7 +79,6 @@ export async function attemptPartialRecovery(c: Canvas, savedJson: string, progr
       }
     }
 
-    c.requestRenderAll()
     console.log('Partial recovery successful.')
 
   } catch (fatalError) {

@@ -68,7 +68,6 @@ async function addTextHelper(c: Canvas, location: Point) {
     }
   })
 
-  c.requestRenderAll()
 }
 
 export async function changeFont(params: DrawActionParams[DrawAction.ChangeFont]) {
@@ -92,7 +91,6 @@ export async function changeFont(params: DrawActionParams[DrawAction.ChangeFont]
 
   c.fire('textStyleChanged', { target: [textObj], prevStyle, style: newStyle })
 
-  c.requestRenderAll()
 }
 
 export async function changeFontWeight(params: DrawActionParams[DrawAction.ChangeFontWeight]) {
@@ -111,7 +109,6 @@ export async function changeFontWeight(params: DrawActionParams[DrawAction.Chang
   textObj.set(newStyle)
   c.fire('textStyleChanged', { target: [textObj], prevStyle, style: newStyle })
 
-  c.requestRenderAll()
 }
 
 export async function changeTextAlign(params: DrawActionParams[DrawAction.ChangeTextAlign]) {
@@ -130,7 +127,6 @@ export async function changeTextAlign(params: DrawActionParams[DrawAction.Change
 
   textObj.set(newStyle)
   c.fire('textStyleChanged', { target: [textObj], prevStyle, style: newStyle })
-  c.requestRenderAll()
 }
 
 export async function changeFontStyle(params: DrawActionParams[DrawAction.ChangeFontStyle]) {
@@ -148,7 +144,6 @@ export async function changeFontStyle(params: DrawActionParams[DrawAction.Change
 
   textObj.set(newStyle)
   c.fire('textStyleChanged', { target: [textObj], prevStyle, style: newStyle })
-  c.requestRenderAll()
 }
 
 export function exitTextAddingMode() {

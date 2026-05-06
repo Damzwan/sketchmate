@@ -49,6 +49,8 @@ import DrawExitGuard from '@/components/draw/DrawExitGuard.vue'
 // Services & Sockets
 import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
+import { useMenuStore } from '@/store/menu.store'
+import { Menu } from '@/draw/types/draw.types'
 
 const route = useRoute()
 const router = useRouter()
@@ -70,6 +72,10 @@ const isLobby = computed(() => {
   const { queryParams } = useSessionStore()
   return !!route.query.room_id || !!queryParams?.get('room_id')
 })
+const drawTogether = computed(() => {
+  const { queryParams } = useSessionStore()
+  return !!route.query.together || !!queryParams?.get('together')
+})
 
 // Draft ID Management
 const draftId = ref(route.query.id as string)
@@ -89,20 +95,25 @@ onMounted(() => {
     if (!myCanvasRef.value) return
 
     initCanvas(myCanvasRef.value, {
-      isLobby: isLobby.value,
+      isLobby: isLobby.value || drawTogether.value,
       draftId: draftId.value,
       canvasUrl: canvasUrl
     }).then(async () => {
-      await socketLoggedInPromise
+      if (drawTogether.value) {
+        const { openMenu } = useMenuStore()
+        openMenu(Menu.DrawRoomMenu)
+      } else {
+        await socketLoggedInPromise
 
-      const { queryParams } = useSessionStore()
-      const roomIdFromStore = queryParams?.get('room_id')
-      const roomIdFromUrl = route.query.room_id as string
+        const { queryParams } = useSessionStore()
+        const roomIdFromStore = queryParams?.get('room_id')
+        const roomIdFromUrl = route.query.room_id as string
 
-      const targetRoomId = roomIdFromStore || roomIdFromUrl
+        const targetRoomId = roomIdFromStore || roomIdFromUrl
 
-      if (targetRoomId) {
-        socketJoinRoom({ roomId: targetRoomId, intent: 'join' })
+        if (targetRoomId) {
+          socketJoinRoom({ roomId: targetRoomId, intent: 'join' })
+        }
       }
     })
   })

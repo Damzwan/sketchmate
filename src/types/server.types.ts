@@ -64,6 +64,8 @@ export interface User {
   last_seen_version?: string;
   following: string[];
   followers: string[];
+  friends: string[];
+  blocked_users: string[];
 }
 
 export type BalloonStatus = 'pending' | 'paired' | 'accepted';
@@ -104,6 +106,7 @@ export interface Mate {
   _id: string;
   name: string;
   img: string;
+  last_seen_version?: string;
 }
 
 export interface SocketLoginParams {
@@ -356,6 +359,34 @@ export interface Report {
   target_type: 'post' | 'comment' | 'user';
   reason: 'spam' | 'nsfw' | 'harassment';
   created_at: Date;
+}
+
+export interface BaseMessage {
+  _id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  is_invite: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 2. The Raw Conversation (Unpopulated)
+export interface BaseConversation {
+  _id: string;
+  participants: string[];
+  status: 'active' | 'pending' | 'blocked';
+  initiator_id?: string;
+  last_message?: string;
+  // IMPORTANT: Mongoose Maps become standard JSON objects over HTTP
+  unread_counts: Record<string, number>;
+  createdAt: string; // Added
+  updatedAt: string; // Added
+}
+
+export interface PopulatedConversation extends Omit<BaseConversation, 'participants' | 'last_message'> {
+  participants: Mate[];
+  last_message?: BaseMessage;
 }
 
 

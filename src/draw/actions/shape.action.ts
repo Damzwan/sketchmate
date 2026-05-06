@@ -76,7 +76,6 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
     pointCircles = await rerenderVisualCircles(c, createdShape, clickTolerance)
 
     if (points.length == 0) exitClickShapeCreationMode(false)
-    c.requestRenderAll()
   }
 
   function enableShapeCreationClickEvents() {
@@ -147,7 +146,6 @@ function addShapeWithClick(c: Canvas, shape: Shape) {
 
         addToUndoStackWithResetRedo({ type: HistoryEvent.PolygonCreation, params: { lastPoint: null } })
         createdShape.isCreating = true
-        c.requestRenderAll()
       }
     }])
 

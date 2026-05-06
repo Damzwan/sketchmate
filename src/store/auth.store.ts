@@ -1,6 +1,6 @@
 // src/stores/auth.store.ts
 import { defineStore, storeToRefs } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { FirebaseAuthentication, User as FirebaseUser } from '@capacitor-firebase/authentication'
 import { UseIonRouterResult } from '@ionic/vue'
@@ -25,9 +25,10 @@ import { useBalloonStore } from '@/store/balloon.store'
 import { useInboxStore } from '@/store/inbox.store'
 import { useSocketService } from '@/service/api/socket/socket.service'
 import { useSessionStore } from '@/store/session.store'
-import { useDrawStore } from '@/draw/store/draw.store'
 import { leaveRoom } from '@/service/api/socket/drawSyncing.socket'
 import { mixpanelIdentify } from '@/service/mixpanel'
+import { useFriendStore } from '@/store/friend.store'
+import { useChatStore } from '@/store/chat.store'
 
 export const useAuthStore = defineStore('auth', () => {
   const api = useAPI()
@@ -193,6 +194,10 @@ export const useAuthStore = defineStore('auth', () => {
       balloonStore.init(user.value)
       await notificationStore.init(user.value, !!arrivedFromLogin.value)
 
+      const friendStore = useFriendStore()
+      const chatStore = useChatStore()
+      friendStore.initializeSocialGraph(user.value)
+      chatStore.loadActiveChats()
 
       // Store user id locally
       // TODO maybe remove

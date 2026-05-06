@@ -22,7 +22,7 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: FRONTEND_ROUTES.chat,
-        component: () => import('@/views/chat.view.vue')
+        component: () => import('@/views/chat/chat.view.vue')
       },
       {
         path: FRONTEND_ROUTES.profile,
@@ -30,13 +30,26 @@ const routes: Array<RouteRecordRaw> = [
       }
     ]
   },
-  // Full-screen views MUST have a leading slash
+
+  // --- Chat Sub-Views (Full Screen) ---
+  {
+    path: `/${FRONTEND_ROUTES.chat}/new`,
+    component: () => import('@/views/chat/select_friend.view.vue')
+  },
+  {
+    path: `/${FRONTEND_ROUTES.chat}/requests`,
+    component: () => import('@/views/chat/requests.view.vue')
+  },
+  {
+    path: `/${FRONTEND_ROUTES.chat}/:id`,
+    component: () => import('@/views/chat/conversation.view.vue')
+  },
+
+  // --- Main Full Screen Views ---
   {
     path: `/${FRONTEND_ROUTES.draw}`,
     component: () => import('@/views/draw.view.vue'),
-    meta: {
-      useSlideTransition: true
-    }
+    meta: { useSlideTransition: true }
   },
   {
     path: `/${FRONTEND_ROUTES.settings}`,
@@ -47,6 +60,7 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('@/views/login.view.vue')
   }
 ]
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes

@@ -13,6 +13,7 @@ import { getDateOfBirthConfirmationResponse } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
+import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   socket.on('room-joined', async ({ roomId, users, isCreator, sessionId, isPublic }) => {
@@ -86,6 +87,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const canvas = getCanvas()
     if (!canvas) return
 
+
     const canvasString = JSON.stringify(canvas.toJSON())
 
     const stream = new Blob([canvasString]).stream()
@@ -142,7 +144,6 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const json = JSON.parse(decompressedString)
     await store.loadRoomCanvas(json, isInitialSync)
 
-
     if (missedActions && missedActions.length > 0) {
       for (const item of missedActions) {
         lastProcessedSequenceId.value = item.sequenceId
@@ -159,7 +160,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
     if (isInitialSync) {
       const { reset } = useDrawStore()
-      reset(false)
+      reset()
     }
 
 
@@ -252,9 +253,9 @@ export function socketJoinRoom({ roomId, intent }: {
     isLoadingCanvas.value = true
   }
 
-  const { stopSaving } = useDrawStore()
-  stopSaving()
-
+  const { stopAutosave, removeDraft} = useDrawLoadStore()
+  stopAutosave()
+  removeDraft()
 
   socket!.emit('join-room', {
     roomId,
@@ -293,9 +294,6 @@ export function leaveRoom(skipEmit = false) {
 
   if (!skipEmit) socket!.emit('leave-room', { roomId: roomId.value })
   roomId.value = undefined
-
-  const { restoreLocalCanvas, startSaving, getCanvas } = useDrawStore()
-  // restoreLocalCanvas().then(() => startSaving(getCanvas()))
 }
 
 export function emitDrawSyncingEvent(action: DrawSyncingAction) {

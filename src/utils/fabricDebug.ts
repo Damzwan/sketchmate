@@ -43,7 +43,6 @@ export async function interactiveObjectInspector(c: Canvas) {
 
 
     c.setActiveObject(target)
-    c.requestRenderAll()
 
     console.log('---')
     console.log(`%c 🔍 Inspecting [${index + 1} / ${sortedReport.length}] `, 'background: #222; color: #fff; font-size: 12px')
@@ -65,7 +64,6 @@ export async function interactiveObjectInspector(c: Canvas) {
         item.obj.set({ stroke: item.originalStroke, strokeWidth: item.originalStrokeWidth })
       })
       c.discardActiveObject()
-      c.requestRenderAll()
       console.log('%c ✅ Inspection Finished ', 'color: #bada55; font-weight: bold')
     }
   }

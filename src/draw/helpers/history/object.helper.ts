@@ -36,7 +36,7 @@ export function applyObjectModification(
     canvas.fire('render:patchModifiedObject', {
       target: targetObject,
       oldRect: new Rect(oldRect.left, oldRect.top, oldRect.width, oldRect.height)
-    })
+    } as any)
   }
 }
 

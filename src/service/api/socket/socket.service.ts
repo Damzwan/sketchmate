@@ -30,6 +30,7 @@ import { useFriendStore } from '@/store/friend.store'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { registerDrawSyncingHandlers } from '@/service/api/socket/drawSyncing.socket'
 import { usePhotoSwiper } from '@/store/photoswiper.store'
+import { registerChatHandlers } from '@/service/api/socket/chat.socket'
 
 export let socket: Socket | undefined
 
@@ -51,7 +52,6 @@ export function createSocketService(): SocketAPI {
     isLoading,
     isLoggedIn
   } = storeToRefs(useAuthStore())
-  const { inbox } = storeToRefs(useInboxStore())
   const { friendRequestUsers, friendRequestLoading } = storeToRefs(useFriendStore())
   const { toast } = useToast()
 
@@ -68,6 +68,7 @@ export function createSocketService(): SocketAPI {
     })
 
     registerDrawSyncingHandlers(socket)
+    registerChatHandlers(socket)
     const { setupSocketListeners } = useBalloonStore()
     setupSocketListeners()
 

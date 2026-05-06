@@ -23,12 +23,22 @@ export const useGestureStore = defineStore('gestureStore', () => {
     const targetVpt = c.viewportTransform!
     const rVpt = renderedVpt.value
 
+    // Support Retina displays correctly
+    const physWidth = c.getElement().width
+    const physHeight = c.getElement().height
+
+    // 1. Wipe the physical canvas screen
+    mainCtx.save()
+    mainCtx.setTransform(1, 0, 0, 1, 0, 0)
+    mainCtx.clearRect(0, 0, physWidth, physHeight)
+    mainCtx.restore()
+
+    // 2. Calculate the relative difference for the stable canvas
     const zRel = targetVpt[0] / (rVpt[0] || 1)
     const txRel = targetVpt[4] - (zRel * rVpt[4])
     const tyRel = targetVpt[5] - (zRel * rVpt[5])
 
-    mainCtx.clearRect(0, 0, c.width!, c.height!)
-
+    // 3. Draw the Stable Bitmap Image
     mainCtx.save()
     mainCtx.translate(txRel, tyRel)
     mainCtx.scale(zRel, zRel)
@@ -38,13 +48,17 @@ export const useGestureStore = defineStore('gestureStore', () => {
       0, 0, offCanvas.width, offCanvas.height,
       0, 0, c.width!, c.height!
     )
-
-    // 2. Draw the low-res ghost boxes right on top of it
-    if (ghostBoxes.length > 0) {
-      drawGhosts(mainCtx, ghostBoxes, zRel)
-    }
-
     mainCtx.restore()
+
+    // 4. Draw the logical ghost boxes perfectly synced to the live viewport
+    if (ghostBoxes.length > 0) {
+      mainCtx.save()
+      mainCtx.translate(targetVpt[4], targetVpt[5]) // Live Pan
+      mainCtx.scale(targetVpt[0], targetVpt[0])     // Live Zoom
+
+      drawGhosts(mainCtx, ghostBoxes, targetVpt[0])
+      mainCtx.restore()
+    }
   }
 
 
@@ -53,6 +67,9 @@ export const useGestureStore = defineStore('gestureStore', () => {
     ctx.globalAlpha = globalAlpha
     ctx.fillStyle = 'rgba(120, 120, 128, 0.1)'
     ctx.strokeStyle = 'rgba(120, 120, 128, 0.14)'
+
+    // Keeps the border exactly 1 pixel thick on the user's screen
+    ctx.lineWidth = 1 / relativeScale
 
     if (boxes.length > 200) {
       // 🚨 HIGH-DENSITY EMERGENCY MODE
@@ -64,17 +81,26 @@ export const useGestureStore = defineStore('gestureStore', () => {
       ctx.stroke()
     } else {
       // 🟢 NORMAL MODE
+      const cornerRadius = 8 / relativeScale
+
       for (const box of boxes) {
         ctx.beginPath()
-        ctx.roundRect(box.left, box.top, box.width, box.height, 8)
+        ctx.roundRect(box.left, box.top, box.width, box.height, cornerRadius)
         ctx.fill()
         ctx.stroke()
 
         if (box.type?.includes('text')) {
           ctx.fillStyle = 'rgba(120, 120, 128, 0.28)'
-          // Use relativeScale to keep the text line proportionate
-          const lineH = 6 / relativeScale
-          ctx.fillRect(box.left + 10, box.top + box.height / 2 - 4, box.width * 0.7, Math.max(lineH, 2))
+          const lineH = Math.max(6 / relativeScale, 2 / relativeScale)
+          const padX = 10 / relativeScale
+          const padY = 4 / relativeScale
+
+          ctx.fillRect(
+            box.left + padX,
+            box.top + box.height / 2 - padY,
+            box.width * 0.7,
+            lineH
+          )
           ctx.fillStyle = 'rgba(120, 120, 128, 0.1)'
         } else if (box.type === 'image') {
           ctx.strokeStyle = 'rgba(120, 120, 128, 0.3)'

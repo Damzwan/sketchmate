@@ -112,42 +112,49 @@ export function enablePCGestures(c: Canvas) {
   let lastPanPoint: { x: number; y: number } | null = null
 
   // Fills the edges with low-res boxes if we pan off the rendered canvas
+  // Fills the edges with low-res boxes if we pan off the rendered canvas
   function administerGhostBuffer() {
     if (gestureStore.isGesturing) return
 
-    const vpt = c.viewportTransform
-    if (vpt) {
-      const zoom = c.getZoom()
-      const currentViewWidth = c.width! / zoom
-      const currentViewHeight = c.height! / zoom
+    const rVpt = gestureStore.renderedVpt
+    const zoom = rVpt[0]
+    const currentViewWidth = c.width! / zoom
+    const currentViewHeight = c.height! / zoom
+    const vLeft = -rVpt[4] / zoom
+    const vTop = -rVpt[5] / zoom
 
-      const vLeft = -vpt[4] / zoom
-      const vTop = -vpt[5] / zoom
+    // We fetch a 1.5x buffer around the visible area
+    const bufferX = currentViewWidth * 1.5
+    const bufferY = currentViewHeight * 1.5
 
-      const bufferX = currentViewWidth * 1.5
-      const bufferY = currentViewHeight * 1.5
+    const expandedSearchArea = new Rect(
+      vLeft - bufferX, vTop - bufferY,
+      currentViewWidth + bufferX * 2, currentViewHeight + bufferY * 2
+    )
 
-      const expandedSearchArea = new Rect(
-        vLeft - bufferX,
-        vTop - bufferY,
-        currentViewWidth + (bufferX * 2),
-        currentViewHeight + (bufferY * 2)
-      )
-
-      ghostBoxes.value = query(expandedSearchArea)
-        .filter((obj: any) => !obj.isOnScreen())
-        .map((obj: any) => {
-          const bound = obj.getBoundingRect(true, true)
-          return {
-            id: obj.name || obj.id || Math.random().toString(),
-            left: (bound.left * zoom) + vpt[4],
-            top: (bound.top * zoom) + vpt[5],
-            width: bound.width * zoom,
-            height: bound.height * zoom,
-            type: obj.type
-          }
-        })
-    }
+    // 🩺 THE CURE: Synchronous calculation. Instant results.
+    ghostBoxes.value = query(expandedSearchArea)
+      .filter((obj: any) => {
+        const bound = obj.getBoundingRect(true, true)
+        const isPaintedOnStableCanvas = !(
+          bound.left > vLeft + currentViewWidth ||
+          bound.left + bound.width < vLeft ||
+          bound.top > vTop + currentViewHeight ||
+          bound.top + bound.height < vTop
+        )
+        return !isPaintedOnStableCanvas
+      })
+      .map((obj: any) => {
+        const bound = obj.getBoundingRect(true, true)
+        return {
+          id: obj.name || obj.id || Math.random().toString(),
+          left: bound.left,
+          top: bound.top,
+          width: bound.width,
+          height: bound.height,
+          type: obj.type
+        }
+      })
   }
 
   function clearGhostBuffer() {
@@ -314,7 +321,15 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
   const { ghostBoxes } = storeToRefs(useDrawStore())
 
   const { shouldModifyObjectsWithGestures } = useSelect()
-  const { query, getStableCanvas, setVisibleObjectsState, updateVisibility, onGestureEnd, flushDirtyBatch } = useDrawObjectManager()
+  const {
+    query,
+    getStableCanvas,
+    setVisibleObjectsState,
+    updateVisibility,
+    onGestureEnd,
+    flushDirtyBatch,
+    onGestureStart
+  } = useDrawObjectManager()
   const gestureStore = useGestureStore()
 
   const isUsingGesture = ref(false)
@@ -423,46 +438,59 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
         isUsingGesture.value = false
         c.selection = false
         c.skipTargetFind = true
-
-        flushDirtyBatch()
         c.isDrawingMode = false
-
         cancelPreviousAction(c)
-
         dynamicMinZoom = getMinZoomToFitAll(c)
+        onGestureStart()
         gestureStore.isGesturing = true
+        flushDirtyBatch(true)
 
-        // Ghost box calculation deferred to idle
-        const vpt = [...c.viewportTransform!]
-        const zoom = c.getZoom()
+        const rVpt = gestureStore.renderedVpt
+        if (!gestureStore.isGesturing) return
 
-        window.requestIdleCallback?.(() => {
-          const currentViewWidth = c.width! / zoom
-          const currentViewHeight = c.height! / zoom
-          const vLeft = -vpt[4] / zoom
-          const vTop = -vpt[5] / zoom
-          const bufferX = currentViewWidth * 1.5
-          const bufferY = currentViewHeight * 1.5
+        const zoom = rVpt[0]
 
-          const expandedSearchArea = new Rect(
-            vLeft - bufferX, vTop - bufferY,
-            currentViewWidth + bufferX * 2, currentViewHeight + bufferY * 2
-          )
+        // These variables define the exact boundaries of your frozen stableCanvas
+        const vLeft = -rVpt[4] / zoom
+        const vTop = -rVpt[5] / zoom
+        const currentViewWidth = c.width! / zoom
+        const currentViewHeight = c.height! / zoom
 
-          ghostBoxes.value = query(expandedSearchArea)
-            .filter((obj: any) => !obj.isOnScreen())
-            .map((obj: any) => {
-              const bound = obj.getBoundingRect(true, true)
-              return {
-                id: obj.name || obj.id || Math.random().toString(),
-                left: (bound.left * zoom) + vpt[4],
-                top: (bound.top * zoom) + vpt[5],
-                width: bound.width * zoom,
-                height: bound.height * zoom,
-                type: obj.type
-              }
-            })
-        }, { timeout: 500 })
+        const bufferX = currentViewWidth * 1.5
+        const bufferY = currentViewHeight * 1.5
+
+        const expandedSearchArea = new Rect(
+          vLeft - bufferX, vTop - bufferY,
+          currentViewWidth + bufferX * 2, currentViewHeight + bufferY * 2
+        )
+
+        ghostBoxes.value = query(expandedSearchArea)
+          .filter((obj: any) => {
+            // 🩺 THE CURE: Do NOT use Fabric's live isOnScreen()
+            // Instead, check if the absolute bounding box is outside the frozen stableCanvas bounds.
+            const bound = obj.getBoundingRect(true, true)
+
+            const isPaintedOnStableCanvas = !(
+              bound.left > vLeft + currentViewWidth ||
+              bound.left + bound.width < vLeft ||
+              bound.top > vTop + currentViewHeight ||
+              bound.top + bound.height < vTop
+            )
+
+            // If it IS NOT painted on the stable canvas, it MUST be a ghost box
+            return !isPaintedOnStableCanvas
+          })
+          .map((obj: any) => {
+            const bound = obj.getBoundingRect(true, true)
+            return {
+              id: obj.name || obj.id || Math.random().toString(),
+              left: bound.left,
+              top: bound.top,
+              width: bound.width,
+              height: bound.height,
+              type: obj.type
+            }
+          })
       }
     },
 

@@ -18,15 +18,29 @@ function cancelSelect(c: Canvas) {
 }
 
 
-function cancelPenAction(c: Canvas) {
-  const brush = c.freeDrawingBrush
+export function cancelPenAction(c: Canvas) {
+  const brush = c.freeDrawingBrush as any
+
   if (!brush) return
 
-  // Call internal reset safely if it exists on the brush prototype
-  if (typeof (brush as any)._reset === 'function') {
-    (brush as any)._reset()
+  // 1. Wipe the coordinate memory to stop the current path
+  brush._points = []
+
+  // 2. THE CURE: Surgically remove the lingering state that Fabric's _reset() misses
+  brush.oldEnd = undefined
+  brush._hasStraightLine = false
+
+  // 3. Run the brush's native reset for styles and shadows
+  if (typeof brush._reset === 'function') {
+    brush._reset()
   }
 
+  // 4. Force Fabric's canvas to drop the drawing lock.
+  // This prevents lingering touchmove events from resurrecting the line
+  // before the physical finger lifts.
+  ;(c as any)._isCurrentlyDrawing = false
+
+  // 5. Scrub the top layer clean of any visual remnants
   if (c.contextTop) {
     c.clearContext(c.contextTop)
   }

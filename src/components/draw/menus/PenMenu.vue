@@ -5,8 +5,9 @@
     @didDismiss="onDismiss"
     :keepContentsMounted="true"
     :showBackdrop="false"
+    side="top" alignment="center"
   >
-    <ion-content class="divide-y divide-primary bg-background">
+    <ion-content class="divide-y divide-primary bg-background menu-scroll-container">
       <!-- Stroke Preview -->
       <div class="relative">
         <canvas ref="preview_canvas"></canvas>
@@ -15,7 +16,8 @@
       <!-- Brush Size Slider -->
       <div class="px-2 pt-1">
         <label for="slider">Stroke Width: {{ brushSize }}</label>
-        <ion-range aria-label="Volume" id="slider" v-model="brushSize" :min="0.1" :step="0.1" :max="50" color="secondary" />
+        <ion-range aria-label="Volume" id="slider" v-model="brushSize" :min="0.1" :step="0.1" :max="50"
+                   color="secondary" />
       </div>
 
       <div class="px-2 pt-1">
@@ -303,5 +305,16 @@ ion-item {
 
 label {
   @apply block text-sm font-medium text-gray-700;
+}
+
+.menu-scroll-container {
+  /* Set your desired maximum height */
+  --max-height: 70vh;
+  height: var(--max-height);
+}
+
+/* Ensure the underlying scroll element respects the height */
+ion-content::part(scroll) {
+  max-height: var(--max-height);
 }
 </style>

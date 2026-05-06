@@ -59,11 +59,6 @@ export function useCanvasService() {
     const initX = (c.width - CANVAS_SIZE) / 2
     const initY = (c.height - CANVAS_SIZE) / 2
     c.setViewportTransform([1, 0, 0, 1, initX, initY])
-    c.requestRenderAll()
-  }
-
-  function getCanvasSizeInMb() {
-    if (!c) return 0
   }
 
   return {

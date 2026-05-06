@@ -84,6 +84,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     {
       on: 'object:removed',
       handler: (e: any) => {
+        console.log('removed')
         const obj = e.target as FabricObject
         if (!obj.id) return
         // Schedule before removing — invalidateRegion needs the object to
@@ -511,11 +512,20 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   // Drains dirtyObjects and dirtyRects into a single invalidateRegion call.
   // Falls back to a full updateVisibility if the batch is too large (> 50
   // items) — at that scale a full re-render is cheaper than a giant union rect.
-  function flushDirtyBatch() {
+  function flushDirtyBatch(force: boolean = false) {
     if (dirtyObjects.size === 0 && dirtyRects.size === 0) return
 
     const gestureStore = useGestureStore()
-    if (gestureStore.isGesturing) return
+
+    if (!force && gestureStore.isGesturing) return
+
+    // ✅ FIX: Even when forced, don't patch the stable canvas while a chunked
+    // render is running or a full re-render is imminent. The stable canvas is
+    // in an inconsistent state. Just accumulate.
+    if (force && (isChunkedRenderRunning || pendingFullRerender)) {
+      pendingBatchAfterRender = true
+      return
+    }
 
     const batchObjects = Array.from(dirtyObjects)
     const batchRects = Array.from(dirtyRects)
@@ -682,7 +692,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     const physHeight = canvas.getElement().height
     const stableCanvas = getStableCanvas(physWidth, physHeight)
     const stableCtx = stableCanvas.getContext('2d')!
-    const vpt = canvas.viewportTransform!
+    const gestureStore = useGestureStore()
+    const vpt = gestureStore.renderedVpt
+
     const dpr = canvas.getRetinaScaling ? canvas.getRetinaScaling() : (window.devicePixelRatio || 1)
 
     stableCtx.save()
@@ -728,6 +740,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   function commitToMainScreen(canvas: Canvas) {
     const gestureStore = useGestureStore()
     if (gestureStore.isGesturing) return  // fastBlit owns the screen during gestures
+    if (pendingFullRerender) return
 
     const mainCtx = canvas.getContext()
     const physWidth = canvas.getElement().width
@@ -782,6 +795,15 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     }
   }
 
+  function onGestureStart() {
+    // Cancel any pending full re-render that was queued from a previous gesture.
+    // Without this, the visibilityTimeout's updateVisibility() can fire mid-gesture
+    // and commit a chunked render with a stale viewport into the stable canvas.
+    pendingFullRerender = false
+    pendingBatchAfterRender = false
+    // Do NOT clear dirtyObjects/dirtyRects — accumulate them for after the gesture.
+  }
+
 
   return {
     init,
@@ -794,6 +816,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     query,
     getStableCanvas,
     onGestureEnd,
-    flushDirtyBatch
+    flushDirtyBatch,
+    onGestureStart
   }
 })

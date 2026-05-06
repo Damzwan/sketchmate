@@ -43,17 +43,46 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
   // ==========================================
   async function initDB() {
     if (db.value) return
-    db.value = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open(dbName, 2)
-      request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
-        const localDb = (event.target as IDBOpenDBRequest).result
-        if (!localDb.objectStoreNames.contains(objectStoreName)) {
+
+    const open = () =>
+      new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open(dbName, 2)
+
+        request.onupgradeneeded = (event) => {
+          const localDb = (event.target as IDBOpenDBRequest).result
+
+          if (localDb.objectStoreNames.contains(objectStoreName)) {
+            localDb.deleteObjectStore(objectStoreName)
+          }
+
           localDb.createObjectStore(objectStoreName, { keyPath: 'id' })
         }
-      }
-      request.onsuccess = (e) => resolve((e.target as IDBOpenDBRequest).result)
-      request.onerror = () => reject(new Error('Error opening IndexedDB'))
-    })
+
+        request.onsuccess = (e) => resolve((e.target as IDBOpenDBRequest).result)
+        request.onerror = () => reject(new Error('Error opening IndexedDB'))
+      })
+
+    let database = await open()
+
+    if (!validateSchema(database)) {
+      database = await open()
+    }
+
+    db.value = database
+  }
+
+  function validateSchema(db: IDBDatabase) {
+    const tx = db.transaction([objectStoreName], 'readonly')
+    const store = tx.objectStore(objectStoreName)
+
+    if (store.keyPath !== 'id') {
+      console.warn('❌ Invalid schema detected. Rebuilding DB...')
+      db.close()
+      indexedDB.deleteDatabase(dbName)
+      return false
+    }
+
+    return true
   }
 
   async function generateChunkedJSON(canvas: Canvas, signal: AbortSignal) {
@@ -262,18 +291,25 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
   }
 
   async function removeDraft(id?: string): Promise<void> {
-    const targetId = id || currentDraftId.value // 🚀 Default to current if no ID provided
+    const targetId = id || currentDraftId.value
     if (!targetId) return
 
     await initDB()
-    return new Promise((resolve) => {
-      const req = db.value!.transaction([objectStoreName], 'readwrite').objectStore(objectStoreName).delete(targetId)
-      req.onsuccess = () => {
-        if (targetId === currentDraftId.value) {
-          resetToNewDraft()
-        }
-        resolve()
-      }
+
+    const tx = db.value!.transaction([objectStoreName], 'readwrite')
+    const store = tx.objectStore(objectStoreName)
+
+    // 🔥 Delete ALL matching manually (fallback safety)
+    const all = await getAllDrafts()
+    const matches = all.filter(d => d.id === targetId)
+
+    for (const match of matches) {
+      store.delete(match.id)
+    }
+
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(null)
+      tx.onerror = () => reject(tx.error)
     })
   }
 
@@ -297,7 +333,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
   }
 
   return {
-    currentDraftId, // 🚀 Exported
+    currentDraftId,
     isSaving,
     isDirty,
     loadCanvas,

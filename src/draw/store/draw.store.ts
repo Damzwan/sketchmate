@@ -9,7 +9,6 @@ import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { useShortcutManager } from '@/draw/services/shortcut.service'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { enableGestures } from '@/draw/helpers/gestures.helper'
-import { InboxItem } from '@/types/server.types'
 import { ref, shallowRef } from 'vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
@@ -20,6 +19,7 @@ import { useHealthChecker } from '../services/healthChecker'
 import { useCanvasPreview } from '@/draw/services/useCanvasPreview'
 import { resetZoom } from '@/draw/helpers/viewport.helper'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
+import { useGestureStore } from '@/draw/store/tools/gesture.store'
 
 const initialCssTransform = {
   scale: 1,
@@ -106,6 +106,9 @@ export const useDrawStore = defineStore('draw', () => {
     function reset() {
       canvasSvc.resetCanvas()
       drawHistory.reset()
+
+      const gestureStore = useGestureStore()
+      gestureStore.setRenderedVpt(canvasSvc.getCanvas().viewportTransform)
     }
 
 

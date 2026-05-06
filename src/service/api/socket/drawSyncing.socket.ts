@@ -158,10 +158,10 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const store = useDrawSyncer()
     const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
 
-    if (isInitialSync) {
-      const { reset } = useDrawStore()
-      reset()
-    }
+    // if (isInitialSync) {
+    //   const { reset } = useDrawStore()
+    //   reset()
+    // }
 
 
     for (const item of actions) {

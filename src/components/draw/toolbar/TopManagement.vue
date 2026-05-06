@@ -34,6 +34,7 @@
     />
 
     <ToolButton
+      :disabled="!isLoggedIn"
       :icon="svg(mdiSend)"
       custom-class="bg-secondary shadow-md border-secondary ml-1"
       icon-class="text-white"
@@ -54,6 +55,7 @@ import { svg } from '@/helper/general.helper'
 import { Menu } from '@/draw/types/draw.types'
 import SendHub from '../send/SendHub.vue'
 import { useDrawStore } from '@/draw/store/draw.store'
+import { useAuthStore } from '@/store/auth.store'
 
 defineEmits(['toggle-fullscreen'])
 
@@ -61,6 +63,7 @@ const { roomMembers } = storeToRefs(useDrawSyncer())
 const { openMenu } = useMenuStore()
 const drawUIStore = useDrawUIStore()
 const { isMiniMapOpen } = storeToRefs(drawUIStore)
+const {isLoggedIn} = storeToRefs(useAuthStore())
 
 const toggleMinimap = () => {
   drawUIStore.isMiniMapOpen = !drawUIStore.isMiniMapOpen

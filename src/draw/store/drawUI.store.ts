@@ -23,6 +23,11 @@ export const useDrawUIStore = defineStore('drawUI', () => {
   const isCanvasNavigating = ref(false)
 
   const gestureStore = useGestureStore()
+  const exitRequested = ref(0)
+
+  const triggerManualExit = () => {
+    exitRequested.value++
+  }
 
 
   const resumeRendering = useDebounceFn(() => {
@@ -99,10 +104,11 @@ export const useDrawUIStore = defineStore('drawUI', () => {
     canResetView,
     isMiniMapOpen,
     showOrUpdateAvatar,
-    recalculateAvatarPositions,
     activeAvatars,
     init,
     isCanvasNavigating,
-    destroy
+    destroy,
+    exitRequested,
+    triggerManualExit,
   }
 })

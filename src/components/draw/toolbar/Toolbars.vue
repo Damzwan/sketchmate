@@ -53,8 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { mdiChevronLeft, mdiFullscreenExit } from '@mdi/js'
@@ -66,12 +65,12 @@ import ToolDockSelect from '@/components/draw/toolbar/ToolDockSelect.vue'
 import ToolDockDraw from '@/components/draw/toolbar/ToolDockDraw.vue'
 import ToolButton from '@/components/draw/toolbar/ToolButton.vue'
 
-const router = useRouter()
 const { addTextMode } = storeToRefs(useDrawUIStore())
+const { triggerManualExit } = useDrawUIStore()
 const { isSelectActive } = storeToRefs(useSelect())
 
 const isFullscreen = ref(false)
-const goBack = () => router.back()
+const goBack = () => triggerManualExit()
 
 const activeDockComponent = computed(() => {
   if (addTextMode.value) return ToolDockText

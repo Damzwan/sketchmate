@@ -776,8 +776,10 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   // its first post-gesture frame.
   function onGestureEnd() {
     pendingFullRerender = true
-    pendingBatchAfterRender = false
     isBatchScheduled = false
+    if (!isChunkedRenderRunning) {
+      pendingBatchAfterRender = false
+    }
   }
 
 
@@ -791,6 +793,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     setVisibleObjectsState,
     query,
     getStableCanvas,
-    onGestureEnd
+    onGestureEnd,
+    flushDirtyBatch
   }
 })

@@ -314,7 +314,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
   const { ghostBoxes } = storeToRefs(useDrawStore())
 
   const { shouldModifyObjectsWithGestures } = useSelect()
-  const { query, getStableCanvas, setVisibleObjectsState, updateVisibility, onGestureEnd } = useDrawObjectManager()
+  const { query, getStableCanvas, setVisibleObjectsState, updateVisibility, onGestureEnd, flushDirtyBatch } = useDrawObjectManager()
   const gestureStore = useGestureStore()
 
   const isUsingGesture = ref(false)
@@ -423,6 +423,8 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
         isUsingGesture.value = false
         c.selection = false
         c.skipTargetFind = true
+
+        flushDirtyBatch()
         c.isDrawingMode = false
 
         cancelPreviousAction(c)

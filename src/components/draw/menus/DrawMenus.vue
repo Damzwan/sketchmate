@@ -26,7 +26,7 @@
   <DocsMenu trigger="docsMenu" />
   <HelpMenu />
   <RoomMenu />
-  <DrawChatMenu v-if="roomId" />
+<!--  <DrawChatMenu v-if="roomId" />-->
   <MiniMap/>
 </template>
 

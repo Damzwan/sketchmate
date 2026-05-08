@@ -20,7 +20,6 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import {
   handleWebDeeplink, initBilling,
   initFirebase,
-  lazyLoadDrawingModules,
   setupDeeplinkListener,
   setupPwa,
   setupWidget
@@ -37,13 +36,12 @@ export const EventBus = mitt()
 const app = createApp(App).use(IonicVue).use(pinia).use(router)
 
 initBilling().then(() => {
-  const {checkProStatus} = useSubscriptionStore()
+  const { checkProStatus } = useSubscriptionStore()
   checkProStatus()
   app.mount('#app')
 })
 
 addNotificationListeners()
-lazyLoadDrawingModules()
 setupDeeplinkListener()
 handleWebDeeplink()
 setupPwa()

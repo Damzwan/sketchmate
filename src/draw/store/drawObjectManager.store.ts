@@ -84,11 +84,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     {
       on: 'object:removed',
       handler: (e: any) => {
-        console.log('removed')
         const obj = e.target as FabricObject
         if (!obj.id) return
-        // Schedule before removing — invalidateRegion needs the object to
-        // still be in the quadtree to calculate the dirty rect correctly.
         scheduleInvalidation(obj)
         objectMap.delete(obj.id)
         removeFromQuadTree(obj)
@@ -482,6 +479,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   // active — in those cases it marks pendingBatchAfterRender and returns,
   // letting the chunked render's finally block replay the flush.
   function triggerBatch() {
+
     if (isBatchScheduled) return
     isBatchScheduled = true
 
@@ -519,9 +517,6 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
 
     if (!force && gestureStore.isGesturing) return
 
-    // ✅ FIX: Even when forced, don't patch the stable canvas while a chunked
-    // render is running or a full re-render is imminent. The stable canvas is
-    // in an inconsistent state. Just accumulate.
     if (force && (isChunkedRenderRunning || pendingFullRerender)) {
       pendingBatchAfterRender = true
       return
@@ -664,8 +659,10 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     for (const r of rects) {
       if (!isRectInViewport(canvas, r)) continue
       anyVisible = true
-      minX = Math.min(minX, r.x);        maxX = Math.max(maxX, r.x + r.w)
-      minY = Math.min(minY, r.y);        maxY = Math.max(maxY, r.y + r.h)
+      minX = Math.min(minX, r.x)
+      maxX = Math.max(maxX, r.x + r.w)
+      minY = Math.min(minY, r.y)
+      maxY = Math.max(maxY, r.y + r.h)
     }
 
     for (const obj of objects) {
@@ -674,8 +671,10 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       anyVisible = true
       // @ts-ignore
       const b = obj.getBoundingRect(true, true)
-      minX = Math.min(minX, b.left);     maxX = Math.max(maxX, b.left + b.width)
-      minY = Math.min(minY, b.top);      maxY = Math.max(maxY, b.top + b.height)
+      minX = Math.min(minX, b.left)
+      maxX = Math.max(maxX, b.left + b.width)
+      minY = Math.min(minY, b.top)
+      maxY = Math.max(maxY, b.top + b.height)
     }
 
     if (!anyVisible) return
@@ -741,6 +740,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     const gestureStore = useGestureStore()
     if (gestureStore.isGesturing) return  // fastBlit owns the screen during gestures
     if (pendingFullRerender) return
+
 
     const mainCtx = canvas.getContext()
     const physWidth = canvas.getElement().width

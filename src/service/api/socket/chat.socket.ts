@@ -2,10 +2,12 @@ import { Socket } from 'socket.io-client'
 import { useFriendStore } from '@/store/friend.store'
 import { useChatStore } from '@/store/chat.store' // Added this
 import { BaseMessage, PopulatedConversation } from '@/types/server.types'
+import { useChatWidgetStore } from '@/store/chatWidget.store'
 
 export function registerChatHandlers(socket: Socket) {
   const friendStore = useFriendStore()
   const chatStore = useChatStore()
+  const widgetStore = useChatWidgetStore()
 
   // --- SOCIAL STATUS ---
   socket.on('friend:online', (payload: { user_id: string }) => {
@@ -22,9 +24,8 @@ export function registerChatHandlers(socket: Socket) {
     conversation: PopulatedConversation,
     conversation_id: string
   }) => {
-    console.log('New message received:', payload.message.content)
-    // This updates the message list and bumps the conversation to the top
     chatStore.addIncomingMessage(payload.conversation_id, payload.message)
+    widgetStore.triggerNewMessageAlert(payload.conversation_id)
   })
 
   // --- TYPING STATUS ---

@@ -564,7 +564,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
     },
 
     onGestureEnd: (fingers) => {
-      // Capture the state before resetting it
       const wasZooming = isCanvasZooming
 
       isCanvasZooming = false

@@ -26,12 +26,14 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
   let previousAngle = 0
   let previousScale = 1
   let previousCenterX = 0, previousCenterY = 0
+  let gestureStart = false
 
   let touch1Id: number | null = null
   let touch2Id: number | null = null
 
   function onTouchStart(e: TouchEvent) {
     if (e.touches.length === 2) {
+      gestureStart = true
       touch1Id = e.touches[0].identifier
       touch2Id = e.touches[1].identifier
 
@@ -92,8 +94,11 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
     if (e.touches.length < 2) {
       touch1Id = null
       touch2Id = null
+      if (gestureStart) {
+        options.onGestureEnd?.(e.touches.length)
+        gestureStart = false
+      }
     }
-    options.onGestureEnd?.(e.touches.length)
   }
 
   el.addEventListener('touchstart', onTouchStart, { passive: true })

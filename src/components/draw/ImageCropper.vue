@@ -15,7 +15,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonModal, IonButton } from '@ionic/vue'
+import { IonButton, IonModal } from '@ionic/vue'
 import { useMenuStore } from '@/store/menu.store'
 import { storeToRefs } from 'pinia'
 import { setAppColors } from '@/helper/general.helper'
@@ -26,12 +26,10 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 import Cropper from 'cropperjs'
 import { ref } from 'vue'
 import { useDrawStore } from '@/draw/store/draw.store'
-import { DrawAction } from '@/draw/types/draw.types'
 import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 
 const { cropperMenuOpen } = storeToRefs(useMenuStore())
 const { getCanvas } = useDrawStore()
-const { selectAction } = useDrawStore()
 
 let cropper: Cropper
 const imgRef = ref<HTMLImageElement>()

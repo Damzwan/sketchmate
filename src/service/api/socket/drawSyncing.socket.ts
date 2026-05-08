@@ -131,6 +131,8 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const store = useDrawSyncer()
     const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
 
+    console.log('initial canvas state')
+
     // Set our baseline time
     if (sequenceId !== undefined) {
       lastProcessedSequenceId.value = sequenceId
@@ -158,11 +160,11 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const store = useDrawSyncer()
     const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
 
-    // if (isInitialSync) {
-    //   const { reset } = useDrawStore()
-    //   reset()
-    // }
 
+    if (isInitialSync) {
+      const { reset } = useDrawStore()
+      reset()
+    }
 
     for (const item of actions) {
       lastProcessedSequenceId.value = item.sequenceId
@@ -253,7 +255,7 @@ export function socketJoinRoom({ roomId, intent }: {
     isLoadingCanvas.value = true
   }
 
-  const { stopAutosave, removeDraft} = useDrawLoadStore()
+  const { stopAutosave, removeDraft } = useDrawLoadStore()
   stopAutosave()
   removeDraft()
 

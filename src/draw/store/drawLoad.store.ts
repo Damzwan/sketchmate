@@ -296,19 +296,20 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
 
     await initDB()
 
-    const tx = db.value!.transaction([objectStoreName], 'readwrite')
-    const store = tx.objectStore(objectStoreName)
-
-    // 🔥 Delete ALL matching manually (fallback safety)
     const all = await getAllDrafts()
     const matches = all.filter(d => d.id === targetId)
+
+    const tx = db.value!.transaction([objectStoreName], 'readwrite')
+    const store = tx.objectStore(objectStoreName)
 
     for (const match of matches) {
       store.delete(match.id)
     }
 
     await new Promise((resolve, reject) => {
-      tx.oncomplete = () => resolve(null)
+      tx.oncomplete = () => {
+        resolve(null)
+      }
       tx.onerror = () => reject(tx.error)
     })
   }

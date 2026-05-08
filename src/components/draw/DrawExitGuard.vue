@@ -3,7 +3,7 @@ import { onBeforeRouteLeave } from 'vue-router'
 import { modalController, useBackButton, useIonRouter } from '@ionic/vue'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import DrawExitModal from '@/components/draw/DrawExitModal.vue'
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { slideTransition } from '@/helper/animation.helper'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
@@ -101,8 +101,20 @@ onBeforeRouteLeave(async (to, from, next) => {
 })
 
 
-useBackButton(10, async () => {
-  if (isNavigationConfirmed) return
+let backButtonSubscription: any | undefined
+
+backButtonSubscription = useBackButton(1, async (processNextHandler) => {
+  if (isNavigationConfirmed) {
+    processNextHandler() // Let the system handle the back movement
+    return
+  }
+
   await handleManualExit()
+})
+
+onUnmounted(() => {
+  if (backButtonSubscription) {
+    backButtonSubscription.unregister()
+  }
 })
 </script>

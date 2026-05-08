@@ -1,11 +1,11 @@
 <template>
   <div class="flex flex-col items-center justify-center w-full">
     <div
-      class="relative flex items-center justify-center rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-[1.02] cursor-pointer"
+      class="relative flex items-center justify-center rounded-2xl shadow-lg overflow-hidden"
       :style="{
-        aspectRatio: newAspectRatio || props.aspectRatio,
-        width: `min(11rem, calc(11rem * ${newAspectRatio || props.aspectRatio}))`
-      }"
+    aspectRatio: newAspectRatio || props.aspectRatio || 1,
+    width: `min(11rem, calc(11rem * ${newAspectRatio || props.aspectRatio || 1}))`
+  }"
       @click="openModal"
     >
       <div v-if="!isLoaded" class="absolute inset-0 z-20">
@@ -21,6 +21,7 @@
         alt="Canvas Preview"
       />
     </div>
+
 
     <ion-button
       fill="clear"

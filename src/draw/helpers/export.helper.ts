@@ -102,7 +102,34 @@ async function exportWithMainThreadChunking(
   const { signal } = options
   const objects = canvas.getObjects()
 
-  if (objects.length === 0) return null
+  if (objects.length === 0) {
+    const size = options.maxSize
+    const nativeCanvas = document.createElement('canvas')
+    nativeCanvas.width = size
+    nativeCanvas.height = size
+    const ctx = nativeCanvas.getContext('2d')
+
+    if (ctx) {
+      ctx.fillStyle = canvas.backgroundColor as any
+      ctx.fillRect(0, 0, size, size)
+    }
+
+
+    return new Promise((resolve) => {
+      nativeCanvas.toBlob(async (blob) => {
+        if (!blob) return resolve(null)
+        if (options.asBuffer) {
+          resolve({ img: await blob.arrayBuffer(), aspect_ratio: 1 })
+        } else if (options.asDataUrl) {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve({ img: reader.result as string, aspect_ratio: 1 })
+          reader.readAsDataURL(blob)
+        } else {
+          resolve({ img: URL.createObjectURL(blob), aspect_ratio: 1 })
+        }
+      }, options.asDataUrl ? 'image/png' : 'image/webp', options.quality)
+    })
+  }
 
   const TIME_BUDGET_MS = 8
 

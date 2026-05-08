@@ -80,7 +80,7 @@ export function useCanvasPreview() {
     isLoading.value = false
   }
 
-  function reset(handleAbort=true) {
+  function reset(handleAbort = true) {
     if (abortController && handleAbort) abortController.abort()
     preview.value = undefined
     newPreview.value = undefined

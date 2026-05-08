@@ -12,6 +12,8 @@ export const useFriendStore = defineStore('friend', () => {
   const pendingRequests = ref<PopulatedConversation[]>([])
   const friendRequestLoading = ref(false)
 
+  const onlineFriends = computed(() => friends.value.filter(f => isFriendOnline.value(f._id)))
+
   const isFriendOnline = computed(() => (userId: string) => {
     return onlineFriendIds.value.has(userId)
   })
@@ -79,6 +81,7 @@ export const useFriendStore = defineStore('friend', () => {
     pendingRequests,
     friendRequestLoading,
     isFriendOnline,
+    onlineFriends,
     initializeSocialGraph,
     setFriendOnlineStatus,
     fetchPendingRequests // Exposed so UI can refresh it manually

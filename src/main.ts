@@ -26,6 +26,8 @@ import {
 } from '@/helper/general.helper'
 import { useSubscriptionStore } from '@/store/subscription.store'
 import { initMixpanel } from '@/service/mixpanel'
+import { Capacitor } from '@capacitor/core'
+import { StatusBar, Style } from '@capacitor/status-bar'
 
 const pinia = createPinia()
 initFirebase()
@@ -47,3 +49,7 @@ handleWebDeeplink()
 setupPwa()
 setupWidget()
 initMixpanel()
+
+if (Capacitor.isNativePlatform()) {
+  StatusBar.setStyle({ style: Style.Light })
+}

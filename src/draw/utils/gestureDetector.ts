@@ -96,9 +96,9 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
       touch2Id = null
       if (gestureStart) {
         options.onGestureEnd?.(e.touches.length)
-        gestureStart = false
       }
     }
+    gestureStart = false
   }
 
   el.addEventListener('touchstart', onTouchStart, { passive: true })

@@ -4,7 +4,10 @@
 
     <ToolButton
       :icon="svg(mdiFullscreen)"
-      @click="$emit('toggle-fullscreen')"
+      @click="() => {
+      toast('Fullscreen: Messages Silenced')
+      $emit('toggle-fullscreen')
+      }"
       custom-class="hover:bg-primary/20"
     />
 
@@ -16,12 +19,23 @@
     />
 
     <ToolButton
-      :icon="svg(mdiChatQuestionOutline)"
+      :icon="megaphoneOutline"
       @click="openMenu(Menu.HelpMenu, $event)"
       custom-class="hover:bg-primary/20"
     />
 
     <div class="w-[2px] h-6 bg-primary-shade mx-1 rounded-full"></div>
+
+    <ToolButton
+      :disabled="!isLoggedIn"
+      :icon="chatbubblesOutline"
+      @click="openPanel"
+      :badge="totalUnreadCount"
+    >
+      <!-- Just a pulse dot in the corner to show "people are online" -->
+      <div
+        class="absolute top-1 left-1 w-2 h-2 bg-green-500 rounded-full border border-white shadow-[0_0_5px_rgba(34,197,94,0.6)]"></div>
+    </ToolButton>
 
     <ToolButton
       :icon="svg(mdiAccountGroupOutline)"
@@ -50,12 +64,15 @@ import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useMenuStore } from '@/store/menu.store'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import ToolButton from './ToolButton.vue'
-import { mdiAccountGroupOutline, mdiChatQuestionOutline, mdiFullscreen, mdiMapOutline, mdiSend } from '@mdi/js'
+import { mdiAccountGroupOutline, mdiFullscreen, mdiMapOutline, mdiSend } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { Menu } from '@/draw/types/draw.types'
 import SendHub from '../send/SendHub.vue'
-import { useDrawStore } from '@/draw/store/draw.store'
 import { useAuthStore } from '@/store/auth.store'
+import { chatbubblesOutline, megaphoneOutline } from 'ionicons/icons'
+import { useChatWidgetStore } from '@/store/chatWidget.store'
+import { useChatStore } from '@/store/chat.store'
+import { useToast } from '@/service/toast.service'
 
 defineEmits(['toggle-fullscreen'])
 
@@ -63,7 +80,12 @@ const { roomMembers } = storeToRefs(useDrawSyncer())
 const { openMenu } = useMenuStore()
 const drawUIStore = useDrawUIStore()
 const { isMiniMapOpen } = storeToRefs(drawUIStore)
-const {isLoggedIn} = storeToRefs(useAuthStore())
+const { isLoggedIn } = storeToRefs(useAuthStore())
+const { openPanel } = useChatWidgetStore()
+
+const { totalUnreadCount } = storeToRefs(useChatStore())
+const { toast } = useToast()
+
 
 const toggleMinimap = () => {
   drawUIStore.isMiniMapOpen = !drawUIStore.isMiniMapOpen

@@ -65,11 +65,10 @@ import ToolDockSelect from '@/components/draw/toolbar/ToolDockSelect.vue'
 import ToolDockDraw from '@/components/draw/toolbar/ToolDockDraw.vue'
 import ToolButton from '@/components/draw/toolbar/ToolButton.vue'
 
-const { addTextMode } = storeToRefs(useDrawUIStore())
+const { addTextMode, isFullscreen } = storeToRefs(useDrawUIStore())
 const { triggerManualExit } = useDrawUIStore()
 const { isSelectActive } = storeToRefs(useSelect())
 
-const isFullscreen = ref(false)
 const goBack = () => triggerManualExit()
 
 const activeDockComponent = computed(() => {

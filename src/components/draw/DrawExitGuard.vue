@@ -7,7 +7,6 @@ import { onUnmounted, ref, watch } from 'vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { slideTransition } from '@/helper/animation.helper'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useToast } from '@/service/toast.service'
 
 const props = defineProps<{
   draftId: string

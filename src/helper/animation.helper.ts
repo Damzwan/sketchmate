@@ -1,26 +1,12 @@
 import { createAnimation, Animation } from '@ionic/vue'
 
 
-export const routerAnimation = (_baseEl: HTMLElement, opts?: any) => {
-  const rootAnimation = createAnimation()
-    .duration(150)
-    .easing('ease-in-out')
-
-  const enteringAnimation = createAnimation()
+export const routerAnimation = (baseEl: HTMLElement, opts?: any) => {
+  return createAnimation()
     .addElement(opts.enteringEl)
+    .duration(100)
+    .easing('ease-in')
     .fromTo('opacity', '0', '1')
-
-  rootAnimation.addAnimation(enteringAnimation)
-
-  if (opts.leavingEl) {
-    const leavingAnimation = createAnimation()
-      .addElement(opts.leavingEl)
-      .fromTo('opacity', '1', '0')
-
-    rootAnimation.addAnimation(leavingAnimation)
-  }
-
-  return rootAnimation
 }
 
 

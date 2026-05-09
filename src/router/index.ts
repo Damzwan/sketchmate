@@ -21,10 +21,28 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('@/views/gallery.view.vue')
       },
       {
+        path: FRONTEND_ROUTES.chat,
+        component: () => import('@/views/chat/chat.view.vue')
+      },
+      {
         path: FRONTEND_ROUTES.profile,
         component: () => import('@/views/profile.view.vue')
       }
     ]
+  },
+
+  // --- Chat Sub-Views (Full Screen) ---
+  {
+    path: `/${FRONTEND_ROUTES.chat}/new`,
+    component: () => import('@/views/chat/select_friend.view.vue')
+  },
+  {
+    path: `/${FRONTEND_ROUTES.chat}/requests`,
+    component: () => import('@/views/chat/requests.view.vue')
+  },
+  {
+    path: `/${FRONTEND_ROUTES.chat}/:id`,
+    component: () => import('@/views/chat/conversation.view.vue')
   },
 
   // --- Main Full Screen Views ---

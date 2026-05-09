@@ -4,7 +4,7 @@
     <ion-router-outlet />
     <ForceUpdateModal v-if="isNative() && showForceUpdateModal" />
     <WhatsNewModal />
-    <ChatBubble />
+    <ChatBubble/>
 
     <GlobalToast />
     <PhotoSwiper />
@@ -35,11 +35,11 @@ import { useActiveViewSync } from '@/service/activeViewSync'
 import ForceUpdateModal from '@/components/general/ForceUpdateModal.vue'
 import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 import WhatsNewModal from '@/components/general/WhatsNewModal.vue'
+import ChatBubble from '@/components/chat/ChatBubble.vue'
 
 // LAZY LOADED COMPONENTS (Will create separate js chunks)
 const GlobalToast = defineAsyncComponent(() => import('@/components/general/GlobalToast.vue'))
 const PhotoSwiper = defineAsyncComponent(() => import('@/components/photoswiper/PhotoSwiper.vue'))
-const ChatBubble = defineAsyncComponent(() => import('@/components/chat/ChatBubble.vue'))
 const FeedbackMenu = defineAsyncComponent(() => import('@/components/general/FeedbackMenu.vue'))
 const DateOfBirthConfirmation = defineAsyncComponent(() => import('@/components/general/DateOfBirthConfirmation.vue'))
 const Confetti = defineAsyncComponent(() => import('@/components/subscription/Confetti.vue'))

@@ -31,7 +31,7 @@
         </div>
 
         <!-- Links at the bottom -->
-        <div class="mt-auto pt-12 flex justify-center">
+        <div class="mt-auto pt-12 pb-8 flex justify-center">
           <SettingLinks />
         </div>
       </div>

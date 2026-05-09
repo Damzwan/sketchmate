@@ -26,9 +26,9 @@ const config: CapacitorConfig = {
       resizeOnFullScreen: false
 
     },
-    StatusBar: {
-      style: 'LIGHT'
-    }
+    // SystemBars: {
+    //   insetsHandling: 'disable'
+    // }
   }
 }
 

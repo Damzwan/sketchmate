@@ -21,8 +21,6 @@ export const useDrawUIStore = defineStore('drawUI', () => {
   const isMiniMapOpen = ref(false)
   const activeAvatars = ref(new Map())
   const isCanvasNavigating = ref(false)
-  const isFullscreen = ref(false)
-
 
   const gestureStore = useGestureStore()
   const exitRequested = ref(0)
@@ -112,6 +110,5 @@ export const useDrawUIStore = defineStore('drawUI', () => {
     destroy,
     exitRequested,
     triggerManualExit,
-    isFullscreen
   }
 })

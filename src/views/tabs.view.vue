@@ -57,6 +57,7 @@ const profileImg = ref<string | null>(null)
 const tabs = [
   { route: FRONTEND_ROUTES.home, icon: homeOutline },
   { route: FRONTEND_ROUTES.gallery, icon: imagesOutline },
+  { route: FRONTEND_ROUTES.chat, icon: chatbubbleOutline },
   { route: FRONTEND_ROUTES.profile, icon: personOutline }
 ]
 

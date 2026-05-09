@@ -26,14 +26,14 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
   let previousAngle = 0
   let previousScale = 1
   let previousCenterX = 0, previousCenterY = 0
-  let gestureStart = false
 
   let touch1Id: number | null = null
   let touch2Id: number | null = null
+  let isGesturing = false
 
   function onTouchStart(e: TouchEvent) {
     if (e.touches.length === 2) {
-      gestureStart = true
+      isGesturing = true
       touch1Id = e.touches[0].identifier
       touch2Id = e.touches[1].identifier
 
@@ -52,7 +52,9 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
   }
 
   function onTouchMove(e: TouchEvent) {
-    if (e.touches.length !== 2) return
+    if (!isGesturing || e.touches.length !== 2) return
+
+    // Prevent default scrolling/behavior during an active gesture
     e.preventDefault()
 
     let t1 = e.touches[0], t2 = e.touches[1]
@@ -73,7 +75,6 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
     const currentAngle = calculateAngle(x1, y1, x2, y2)
     const angleDifference = normalizeAngle(currentAngle - previousAngle)
 
-    // Emit everything — caller decides what to use
     options.onZoom?.(scale, previousScale, center)
     options.onRotate?.(angleDifference, center)
     options.onDrag?.(
@@ -91,26 +92,28 @@ export function gestureDetector(el: HTMLElement, options: GestureDetectorOptions
   }
 
   function onTouchEnd(e: TouchEvent) {
+    // If we weren't in a 2-finger gesture, ignore the end event
+    if (!isGesturing) return
+
     if (e.touches.length < 2) {
+      isGesturing = false
       touch1Id = null
       touch2Id = null
-      if (gestureStart) {
-        options.onGestureEnd?.(e.touches.length)
-      }
+      options.onGestureEnd?.(e.touches.length)
     }
-    gestureStart = false
   }
 
   el.addEventListener('touchstart', onTouchStart, { passive: true })
   el.addEventListener('touchmove', onTouchMove, { passive: false })
   el.addEventListener('touchend', onTouchEnd, { passive: true })
+  el.addEventListener('touchcancel', onTouchEnd, { passive: true })
 
   return {
     destroy() {
       el.removeEventListener('touchstart', onTouchStart)
       el.removeEventListener('touchmove', onTouchMove)
       el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchEnd)
     }
   }
 }
-

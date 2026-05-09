@@ -20,6 +20,7 @@ import {
 } from '@/draw/helpers/customTransform.helper'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { Rect } from '@/draw/utils/QuadTree'
+import { useToast } from '@/service/toast.service'
 
 export function changeFabricSettings() {
   FabricObject.customProperties = ['id', 'erasable', 'oldText', 'isBucketFill', 'insertedIndex', 'userId'];
@@ -398,9 +399,9 @@ export function overrideMouseUp(c: Canvas) {
       this.requestRenderAll()
     } else { // @ts-ignore
       if (!isClick && !this._activeObject && !(this._activeObject as IText)?.isEditing) {
-            this.renderTop()
+        this.renderTop()
 
-          }
+      }
     }
   }
 }
@@ -428,7 +429,6 @@ export function overrideMouseDown(c: Canvas) {
     }
 
     if (button === 1) return
-
 
 
     if (this.isDrawingMode) {
@@ -559,7 +559,6 @@ export function overrideTransform(canvas: Canvas) {
       if (isLayeredRenderActive) {
         renderLayeredBuffers(this, target)
       } else {
-        this.requestRenderAll()
       }
     }
   }

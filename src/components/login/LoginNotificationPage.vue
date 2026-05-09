@@ -33,11 +33,9 @@
 
 <script setup lang="ts">
 import { IonButton, IonContent, useIonRouter } from '@ionic/vue'
-import { isNative } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
 import { FRONTEND_ROUTES } from '@/types/router.types'
-import { masterAnimation, routerAnimation } from '@/helper/animation.helper'
-import { ref } from 'vue'
+import { slideTransition } from '@/helper/animation.helper'
 import { requestNotifications } from '@/helper/notification.helper'
 import { useToast } from '@/service/toast.service'
 import notificationsImage from '@/assets/illustrations/notifications.webp'
@@ -63,7 +61,7 @@ async function enableNotifications() {
 function navigateToConnectionScreen() {
   const { user } = useAuthStore()
   if (!user) return
-  ionRouter.replace(FRONTEND_ROUTES.home, masterAnimation)
+  ionRouter.replace(FRONTEND_ROUTES.home, slideTransition)
 }
 
 </script>

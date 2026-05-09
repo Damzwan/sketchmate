@@ -65,6 +65,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   // after which flushPendingBatch() replays anything that accumulated.
   let pendingFullRerender = false
 
+  let zIndexMap = new Map<FabricObject, number>()
+  let isZIndexDirty = true
+
 
   // ─── Canvas Event Handlers ────────────────────────────────────────────────
   // Every mutation that changes what the canvas looks like funnels through
@@ -79,6 +82,15 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         objectMap.set(obj.id, obj)
         addToQuadTree(obj)
         scheduleInvalidation(obj)
+
+        if (!isZIndexDirty) {
+          const allObjects = c!.getObjects()
+          if (allObjects[allObjects.length - 1].id === obj.id) {
+            zIndexMap.set(obj, allObjects.length - 1)
+          } else {
+            invalidateZIndex()
+          }
+        }
       }
     },
     {
@@ -89,6 +101,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         scheduleInvalidation(obj)
         objectMap.delete(obj.id)
         removeFromQuadTree(obj)
+        invalidateZIndex()
       }
     },
     {
@@ -173,8 +186,11 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       handler: (e: any) => scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
     },
     {
-      on: 'layer:changed',
-      handler: (e: any) => scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
+      on: 'layer:changed', // You already have this perfect event!
+      handler: (e: any) => {
+        scheduleInvalidation(Array.isArray(e.target) ? e.target : [e.target])
+        invalidateZIndex()
+      }
     },
     {
       on: 'erasing:end',
@@ -282,7 +298,17 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       }
 
       lastVisible = nextVisible
-      renderCanvasChunked(c!, getObjectsById(Array.from(nextVisible)))
+
+      const visibleObjects = getObjectsById(Array.from(nextVisible))
+      const currentZIndexMap = getZIndexMap()
+
+      visibleObjects.sort((a, b) => {
+        const zA = currentZIndexMap.get(a) ?? 0
+        const zB = currentZIndexMap.get(b) ?? 0
+        return zA - zB
+      })
+
+      renderCanvasChunked(c!, visibleObjects)
     }
 
     if (!runSync) {
@@ -503,6 +529,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         return
       }
 
+
       flushDirtyBatch()
     })
   }
@@ -710,16 +737,23 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     }
 
     // Clip to the dirty rect so neighboring objects can't bleed outside it.
+    const scale = vpt[0]
+    const clipSlop = 2 / scale  // 2 physical pixels, back-projected to world space
+
     stableCtx.beginPath()
-    stableCtx.rect(x, y, w, h)
+    stableCtx.rect(x - clipSlop, y - clipSlop, w + clipSlop * 2, h + clipSlop * 2)
     stableCtx.clip()
 
     // Query the quadtree for all objects that overlap the dirty rect, sort by
     // Fabric Z-order, and redraw. This ensures overlapping objects composite
     // correctly without re-rendering the whole canvas.
     const neighbors = query(new Rect(x, y, w, h))
-    const canvasObjects = canvas.getObjects()
-    neighbors.sort((a, b) => canvasObjects.indexOf(a) - canvasObjects.indexOf(b))
+    const currentZIndexMap = getZIndexMap()
+    neighbors.sort((a, b) => {
+      const zA = currentZIndexMap.get(a) ?? 0
+      const zB = currentZIndexMap.get(b) ?? 0
+      return zA - zB
+    })
 
     for (const neighbor of neighbors) {
       if (neighbor.visible !== false) {
@@ -746,8 +780,6 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     const physWidth = canvas.getElement().width
     const physHeight = canvas.getElement().height
     const stableCanvas = getStableCanvas(physWidth, physHeight)
-    const targetVpt = [...canvas.viewportTransform!] as number[]
-    const activeObjects = canvas.getActiveObjects()
     const dpr = canvas.getRetinaScaling ? canvas.getRetinaScaling() : (window.devicePixelRatio || 1)
 
     mainCtx.save()
@@ -761,17 +793,6 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       0, 0, canvas.width!, canvas.height!
     )
     mainCtx.restore()
-
-    // Active objects (selection box, transform handles) are drawn on top of
-    // the stable canvas contents so they're always crisp and up-to-date.
-    if (activeObjects.length > 0) {
-      mainCtx.save()
-      mainCtx.transform(targetVpt[0], targetVpt[1], targetVpt[2], targetVpt[3], targetVpt[4], targetVpt[5])
-      for (const activeObj of activeObjects) {
-        activeObj.render(mainCtx)
-      }
-      mainCtx.restore()
-    }
 
     // @ts-ignore
     if (!canvas.skipControlsDrawing) canvas.drawControls(mainCtx)
@@ -802,6 +823,22 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     pendingFullRerender = false
     pendingBatchAfterRender = false
     // Do NOT clear dirtyObjects/dirtyRects — accumulate them for after the gesture.
+  }
+
+  function invalidateZIndex() {
+    isZIndexDirty = true
+  }
+
+  function getZIndexMap() {
+    if (isZIndexDirty) {
+      zIndexMap.clear()
+      const canvasObjects = c!.getObjects()
+      for (let i = 0; i < canvasObjects.length; i++) {
+        zIndexMap.set(canvasObjects[i], i)
+      }
+      isZIndexDirty = false
+    }
+    return zIndexMap
   }
 
 

@@ -569,7 +569,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       isCanvasZooming = false
       isObjectScaling = false
 
-      if (selectedTool.value === DrawTool.Select && isUsingGesture.value && fingers === 0) {
+      if (selectedTool.value === DrawTool.Select && isUsingGesture.value) {
         const obj = c.getActiveObject()
         if (!obj) return
 
@@ -577,18 +577,18 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
           obj.lockMovementX = false
           obj.lockMovementY = false
           isUsingGesture.value = false
+          gestureStore.isGesturing = false
 
           c.fire('object:modified', {
             target: obj,
             transform: { target: obj, original: gestureState.originalObjectState } as any
           })
 
-          finalizeLayeredRender(c)
         }, 100)
       }
 
       // Canvas gesture completion
-      if (!isUsingGesture.value && fingers === 0) {
+      if (!isUsingGesture.value) {
         setTimeout(() => {
           if (selectedTool.value === DrawTool.Select) {
             c.selection = true
@@ -597,6 +597,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
             c.isDrawingMode = true
           }
         }, 50)
+
 
         endCanvasGesture(wasZooming)
       }

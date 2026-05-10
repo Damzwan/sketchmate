@@ -22,3 +22,29 @@ export async function markAsRead(conversationId: string): Promise<void> {
     method: 'POST'
   })
 }
+
+export async function respondToChatRequest(conversationId: string, action: 'accept' | 'decline') {
+  return await request(`/chats/${conversationId}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ action })
+  })
+}
+
+export async function requestMatership(conversationId: string) {
+  return await request(`/chats/${conversationId}/mate-request`, {
+    method: 'POST'
+  })
+}
+
+
+export async function acceptMatership(conversationId: string) {
+  return await request(`/chats/${conversationId}/mate-accept`, {
+    method: 'POST'
+  })
+}
+
+export async function declineMatership(conversationId: string) {
+  return await request(`/chats/${conversationId}/mate-decline`, {
+    method: 'POST'
+  });
+}

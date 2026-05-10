@@ -299,30 +299,3 @@ ion-popover.liquid-popover::part(content) {
   max-height: 50vh;
 }
 </style>
-
-<style>
-.liquid-action-sheet {
-  --background: rgba(var(--ion-color-tertiary-rgb, 250, 224, 194), 0.4);
-  --backdrop-opacity: 0;
-}
-
-.liquid-action-sheet .action-sheet-wrapper {
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-  border-radius: 32px 32px 0 0;
-  box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.05);
-}
-
-.liquid-action-sheet .action-sheet-title {
-  font-family: 'Cabin Sketch', cursive;
-  font-weight: bold;
-  color: rgba(var(--ion-color-dark-rgb, 0, 0, 0), 0.7);
-  font-size: 1.1rem;
-}
-
-.liquid-action-sheet .action-sheet-button {
-  background: transparent;
-  color: var(--ion-color-dark);
-  font-weight: bold;
-}
-</style>

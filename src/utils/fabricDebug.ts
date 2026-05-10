@@ -1,172 +1,182 @@
 import { Canvas, FabricObject } from 'fabric'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 
-export async function interactiveObjectInspector(c: Canvas) {
-  const objects = c.getObjects()
+/**
+ * 🎨 EZPZ Canvas Debugger (Advanced Edition)
+ * Controls:
+ * [Ctrl+Shift+D] - Open Manual / Inspect Objects
+ * [→] / [←]      - Navigate Top 30 Heaviest Objects
+ * [Delete]       - Delete object from canvas
+ * [T]            - Run Chunked Loading Benchmark
+ * [R]            - Manual Re-render
+ * [Esc]          - Close Manual
+ */
+export function setupCanvasDebugger(canvas: Canvas) {
+  const syncer = useDrawSyncer()
+  const loadStore = useDrawLoadStore()
 
-  // 1. Calculate Total Canvas Size
-  const totalRaw = JSON.stringify(c.toObject()).length
-  const totalSizeMB = (totalRaw / (1024 * 1024)).toFixed(2)
+  let pipelineStart = 0, framesTaken = 0, isInspecting = false
+  let sortedReport: any[] = [], currentIndex = 0
 
-  // 2. Map and Sort
-  const reportData = objects.map((obj, index) => {
-    const json = JSON.stringify(obj)
-    return {
-      index,
-      type: obj.type,
-      sizeBytes: json.length,
-      sizeKB: (json.length / 1024).toFixed(2),
-      obj,
-      originalStroke: obj.stroke,
-      originalStrokeWidth: obj.strokeWidth
-    }
-  })
+  // --- 📈 1. PERFORMANCE MONITORING ---
 
-  const sortedReport = [...reportData]
-    .sort((a, b) => b.sizeBytes - a.sizeBytes)
-    .slice(0, 20)
+  const onPipelineStart = () => { pipelineStart = performance.now(); framesTaken = 0 }
+  const onPipelineChunk = () => { framesTaken++ }
+  const onPipelineEnd = () => {
+    const duration = performance.now() - pipelineStart
+    const objects = canvas.getObjects()
+    const color = duration > 500 ? '#F44336' : (duration > 100 ? '#FF9800' : '#4CAF50')
 
-  // 3. Print Summary Table
-  console.log(`%c 📊 CANVAS SIZE REPORT: ${totalSizeMB} MB `)
-  console.log(`OBJECT COUNT ${c.getObjects().length}`)
-  console.table(sortedReport.map(item => ({
-    Type: item.type,
-    'Size (KB)': item.sizeKB,
-    'ID/Index': item.index
-  })))
+    console.log(
+      `%c ⚡ PIPELINE %c ${duration.toFixed(2)}ms | ${framesTaken} chunks | Objs: ${objects.length} `,
+      `background: ${color}; color: white; padding: 2px; font-weight: bold; border-radius: 3px 0 0 3px;`,
+      `background: #333; color: white; padding: 2px; border-radius: 0 3px 3px 0;`
+    )
+  }
 
-  let currentIndex = 0
+  // Hook for the sync queue telemetry we discussed
+  const onSyncActionDone = (e: any) => {
+    const { type, duration } = e
+    const color = duration > 16 ? '#F44336' : '#2196F3'
+    console.log(
+      `%c 🛰️ SYNC %c ${type} %c ${duration.toFixed(2)}ms `,
+      `background: #333; color: #00ebff; padding: 2px;`,
+      `background: #444; color: white; padding: 2px;`,
+      `background: ${color}; color: white; padding: 2px; font-weight: bold;`
+    )
+  }
 
-  function inspectObject(index: number) {
+  // --- 🧪 2. BENCHMARKING ---
 
-    const item = sortedReport[index]
-    const target = item.obj
+  const runLoadingBenchmark = async () => {
+    console.log('%c 🧪 BENCHMARK: Testing Chunked Loading Performance... ', 'background: #FF9800; color: white; padding: 4px;')
+    const currentData = canvas.toObject(['id', 'userId'])
+    const startTime = performance.now()
 
+    // This triggers your actual production async/time-slivered loader
+    await loadStore.loadCanvas(canvas, { json: currentData, isLobby: true })
 
-    c.setActiveObject(target)
+    const endTime = performance.now()
+    console.log(`%c 🏁 DONE: Canvas reloaded in ${(endTime - startTime).toFixed(2)}ms `, 'background: #4CAF50; color: white; padding: 4px;')
+  }
+
+  // --- 🛠️ 3. INTERACTIVE MANUAL ---
+
+  const renderCurrentInspection = () => {
+    const item = sortedReport[currentIndex]
+    if (!item) return
+
+    canvas.setActiveObject(item.obj)
+    canvas.requestRenderAll()
+
+    // Measure Total JSON footprint
+    const totalRaw = JSON.stringify(canvas.toObject(['id', 'userId'])).length
+    const totalSizeMB = (totalRaw / (1024 * 1024)).toFixed(2)
+
+    console.clear()
+    console.log(`%c 🕹️ DEBUG MANUAL [${currentIndex + 1}/${sortedReport.length}] `, 'background: #673ab7; color: white; padding: 5px; font-size: 16px; font-weight: bold;')
+
+    console.log(
+      `%c 📊 TOTAL CANVAS SIZE: ${totalSizeMB} MB %c 📡 SYNC: ${syncer.roomId ? 'ROOM ACTIVE' : 'LOCAL'} `,
+      'color: #E91E63; font-weight: bold;', 'color: #00BCD4; font-weight: bold;'
+    )
+
+    console.log(
+      `%c CONTROLS: %c [→/←] Nav %c [Del] Remove %c [T] Benchmark %c [R] Render %c [Esc] Quit `,
+      'font-weight: bold;',
+      'color: #2196F3;', 'color: #F44336;', 'color: #FF9800;', 'color: #4CAF50;', 'color: #9E9E9E;'
+    )
 
     console.log('---')
-    console.log(`%c 🔍 Inspecting [${index + 1} / ${sortedReport.length}] `, 'background: #222; color: #fff; font-size: 12px')
-    console.log(`Type: ${target.type} | Size: ${item.sizeKB} KB`)
-    console.log('Object Data (Click to expand):', target) // This lets you see the .path array
-    console.log('Commands: [→] Next | [←] Prev | [Esc] Exit')
+    console.log(`%cObject: %c${item.type} (ID: ${item.id})`, 'font-weight: bold;', 'color: #FFC107;')
+    console.log(`%cWeight: %c${item.complexity} nodes | ${item.sizeKB} KB`, 'font-weight: bold;', 'color: #03A9F4;')
+    console.log(`%cVisible: %c${item.obj.visible ? 'YES' : 'NO (Culled by Manager)'}`, 'font-weight: bold;', item.obj.visible ? 'color: #4CAF50;' : 'color: #F44336;')
+    console.log('---')
+    console.log('Full Instance Trace:', item.obj)
   }
+
+  const startInspection = () => {
+    isInspecting = true
+    const objects = canvas.getObjects()
+    sortedReport = objects.map(obj => {
+      const complexity = (obj as any).path?.length || (obj as any)._objects?.length || 0
+      const json = JSON.stringify(obj.toObject(['id', 'userId']))
+      return { id: obj.id, type: obj.type, complexity, sizeKB: (json.length / 1024).toFixed(2), obj }
+    })
+      .sort((a, b) => b.complexity - a.complexity)
+      .slice(0, 30)
+
+    currentIndex = 0
+    renderCurrentInspection()
+  }
+
+  // --- ⌨️ 4. INPUT HANDLING ---
 
   const handleKeys = (e: KeyboardEvent) => {
-    if (e.key === 'ArrowRight') {
-      currentIndex = (currentIndex + 1) % sortedReport.length
-      inspectObject(currentIndex)
-    } else if (e.key === 'ArrowLeft') {
-      currentIndex = (currentIndex - 1 + sortedReport.length) % sortedReport.length
-      inspectObject(currentIndex)
-    } else if (e.key === 'Escape') {
-      window.removeEventListener('keydown', handleKeys)
-      sortedReport.forEach(item => {
-        item.obj.set({ stroke: item.originalStroke, strokeWidth: item.originalStrokeWidth })
-      })
-      c.discardActiveObject()
-      console.log('%c ✅ Inspection Finished ', 'color: #bada55; font-weight: bold')
+    // Open Shortcut
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') return startInspection()
+
+    if (!isInspecting) return
+
+    switch (e.key) {
+      case 'ArrowRight':
+        currentIndex = (currentIndex + 1) % sortedReport.length
+        break
+      case 'ArrowLeft':
+        currentIndex = (currentIndex - 1 + sortedReport.length) % sortedReport.length
+        break
+      case 'Delete':
+        canvas.remove(sortedReport[currentIndex].obj)
+        sortedReport.splice(currentIndex, 1)
+        if (sortedReport.length === 0) { isInspecting = false; console.log('Canvas Cleared!'); return; }
+        break
+      case 't':
+      case 'T':
+        runLoadingBenchmark()
+        return // Don't re-render manual yet
+      case 'r':
+      case 'R':
+        canvas.requestRenderAll()
+        break
+      case 'Escape':
+        isInspecting = false
+        canvas.discardActiveObject()
+        canvas.requestRenderAll()
+        console.log('%c ✅ Debugger Closed ', 'color: #bada55; font-weight: bold')
+        return
+      default:
+        return
     }
+    renderCurrentInspection()
   }
 
-  window.addEventListener('keydown', handleKeys)
-  inspectObject(0)
-}
+  // --- 🚀 5. LIFECYCLE ---
 
-export function setupCanvasVitalsMonitor(canvas: Canvas) {
-  let renderCount = 0
-  let renderStartTime = 0
-  let lastLogTime = performance.now()
-  let isEnabled = false
+  const enable = () => {
+    // Pipeline events from drawObjectManager
+    canvas.on('render:pipeline:start' as any, onPipelineStart)
+    canvas.on('render:pipeline:chunk' as any, onPipelineChunk)
+    canvas.on('render:pipeline:end' as any, onPipelineEnd)
 
-  const onBeforeRender = () => {
-    renderStartTime = performance.now()
+    // Sync events from useDrawSyncer
+    canvas.on('sync:action:done' as any, onSyncActionDone)
+
+    window.addEventListener('keydown', handleKeys)
+
+    console.log('%c 🩺 EZPZ DEBUGGER LOADED ', 'background: #4CAF50; color: white; padding: 4px; font-weight: bold; border-radius: 4px;')
+    console.log('Use %cCtrl+Shift+D%c to open the control panel.', 'color: #2196F3; font-weight: bold;', '')
   }
 
-  const onAfterRender = () => {
-    const renderDuration = performance.now() - renderStartTime
-    renderCount++
+  enable()
 
-    const now = performance.now()
-
-    // Log vitals every 1000ms
-    if (now - lastLogTime >= 1000) {
-      logVitals(renderDuration)
-      renderCount = 0
-      lastLogTime = now
-    }
-  }
-
-  /**
-   * Tracks the "weight" of a newly added object in the system.
-   */
-  const onObjectAdded = (options: { target: FabricObject }) => {
-    const obj = options.target
-    // Serialize to measure the data weight (approx bytes)
-    const jsonString = JSON.stringify(obj.toObject())
-    const sizeInBytes = new Blob([jsonString]).size
-    const sizeInKb = (sizeInBytes / 1024).toFixed(2)
-
-    console.log(
-      `📦 %cObject Added: ${obj.type} | Size: ${sizeInKb} KB`,
-      'color: #2196F3; font-weight: bold;'
-    )
-
-    if (sizeInBytes > 51200) { // Warning if a single stroke is > 50KB
-      console.warn('⚠️ High-density object detected. Check Douglas-Peucker optimization!')
-    }
-  }
-
-  const logVitals = (lastRenderDuration: number) => {
-    const objectCount = canvas.getObjects().length
-
-    let color = 'color: #4CAF50' // Healthy Green (< 16ms)
-    if (lastRenderDuration > 16) color = 'color: #FF9800' // Warning Orange (> 60fps drop)
-    if (lastRenderDuration > 50) color = 'color: #F44336' // Critical Red (ANR Risk)
-
-    console.log(
-      `%c[Vitals] 📈 Renders/sec: ${renderCount} | ⏱️ Last Render: ${lastRenderDuration.toFixed(2)}ms | 📦 Total Objects: ${objectCount}`,
-      `${color}; font-weight: bold;`
-    )
-  }
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      vitals.disable()
-      console.log('🛑 Performance monitoring terminated.')
-    }
-    if (e.key === 'r') {
-      canvas.renderAll()
-    }
-  }
-
-  const vitals = {
-    enable: () => {
-      if (isEnabled) return
-      isEnabled = true
-
-      canvas.on('before:render', onBeforeRender)
-      canvas.on('after:render', onAfterRender)
-      canvas.on('object:added', onObjectAdded)
-      window.addEventListener('keydown', onKeyDown)
-
-      console.log('🩺 %cCanvas Vitals Monitor: Connected', 'color: #4CAF50; font-weight: bold;')
-      console.log('⌨️  Press [ESC] to stop monitoring.')
-    },
+  return {
     disable: () => {
-      if (!isEnabled) return
-      isEnabled = false
-
-      canvas.off('before:render', onBeforeRender)
-      canvas.off('after:render', onAfterRender)
-      canvas.off('object:added', onObjectAdded)
-      window.removeEventListener('keydown', onKeyDown)
-
-      console.log('🩺 Canvas Vitals Monitor: Disconnected')
+      canvas.off('render:pipeline:start' as any)
+      canvas.off('render:pipeline:chunk' as any)
+      canvas.off('render:pipeline:end' as any)
+      canvas.off('sync:action:done' as any)
+      window.removeEventListener('keydown', handleKeys)
     }
   }
-
-  // Auto-enable upon initialization
-  vitals.enable()
-
-  return vitals
 }

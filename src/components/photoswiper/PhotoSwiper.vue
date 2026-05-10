@@ -1,6 +1,6 @@
 <template>
   <transition name="expand">
-    <div class="fixed w-full h-full bg-black z-50 flex flex-col safe-area" v-if="open && user && currItem">
+    <div class="fixed w-full h-full bg-black z-[99999999] flex flex-col safe-area" v-if="open && user && currItem">
 
       <PhotoSwiperHeader
         :curr-item="currItem"

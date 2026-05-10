@@ -12,7 +12,6 @@ import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import {
-  finalizeLayeredRender,
   isLayeredRenderActive,
   prepareLayeredBuffers,
   renderLayeredBuffers
@@ -20,7 +19,6 @@ import {
 import { useDrawStore } from '@/draw/store/draw.store'
 import { Rect } from '@/draw/utils/QuadTree'
 import { useGestureStore } from '@/draw/store/tools/gesture.store'
-import { useToast } from '@/service/toast.service'
 
 // ==========================================
 // CONSTANTS

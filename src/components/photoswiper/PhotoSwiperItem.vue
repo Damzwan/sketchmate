@@ -27,6 +27,7 @@ const props = defineProps({
   image: String,
   switchToImage: Boolean
 })
+
 const onImageLoad = () => {
   isLoading.value = false
   setTimeout(() => {

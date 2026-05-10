@@ -8,6 +8,8 @@ import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import { v4 as uuidv4 } from 'uuid'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { enlivenObjectsTimeSlivered, generateChunkedJSON } from '@/draw/helpers/drawload.helper'
 
 export interface DrawingDraft {
   id: string
@@ -85,31 +87,6 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     return true
   }
 
-  async function generateChunkedJSON(canvas: Canvas, signal: AbortSignal) {
-    const json: any = {
-      version: canvas.version,
-      objects: [],
-      background: canvas.backgroundColor
-    }
-    if (canvas.clipPath) json.clipPath = canvas.clipPath.toJSON()
-    if (canvas.backgroundImage) json.backgroundImage = canvas.backgroundImage.toJSON()
-
-    const objects = canvas.getObjects()
-    const TIME_BUDGET_MS = 8
-    let frameStartTime = performance.now()
-
-    for (let i = 0; i < objects.length; i++) {
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      json.objects.push(objects[i].toJSON())
-
-      if (performance.now() - frameStartTime > TIME_BUDGET_MS) {
-        await yieldToMain()
-        frameStartTime = performance.now()
-      }
-    }
-    return json
-  }
-
 
   async function loadCanvas(c: Canvas, options: {
     isLobby: boolean;
@@ -117,6 +94,9 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     canvasUrl?: string;
     json?: any;
   }) {
+    const drawSyncer = useDrawSyncer()
+    const objectManager = useDrawObjectManager()
+
     drawSyncer.isLoadingCanvas = true
 
     const finalId = options.draftId || currentDraftId.value || uuidv4()
@@ -126,17 +106,14 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     let isExternalLoad = false
 
     try {
+      // 1. DATA SOURCE SELECTION
       if (options.json) {
         json = options.json
         isExternalLoad = true
-      }
-
-      // --- REMOTE SOURCE ---
-      else if (options.canvasUrl) {
+      } else if (options.canvasUrl) {
         const response = await fetch(options.canvasUrl)
         if (!response.ok) throw new Error('Failed to fetch remote canvas')
 
-        // Note: check for .gz or .gzip depending on your naming convention
         const isGzipped = options.canvasUrl.endsWith('.gz') || options.canvasUrl.endsWith('.gzip')
 
         if (isGzipped) {
@@ -147,13 +124,8 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
         } else {
           json = await response.json()
         }
-
         isExternalLoad = true
-      }
-
-
-      // --- LOCAL SOURCE (IndexedDB) ---
-      else if (!options.isLobby && options.draftId) {
+      } else if (!options.isLobby && options.draftId) {
         await initDB()
         const draft = await getDraft(options.draftId)
         if (draft) {
@@ -161,9 +133,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
         }
       }
 
-      // --- APPLY DATA TO CANVAS ---
       if (json) {
-        // Logic for legacy version cleaning
         if (json.version === '5.5.2') {
           delete json.width
           delete json.height
@@ -172,21 +142,28 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
 
         await actionWithoutEvents(async () => {
           c.clear()
-          await c.loadFromJSON(json)
 
+          if (json.objects && json.objects.length > 0) {
+            await enlivenObjectsTimeSlivered(json.objects, (obj) => {
+              c.add(obj)
+            })
+          }
+
+          // Post-load legacy adjustments
           if (json.version === '5.5.2' && c.getObjects().length > 0) {
             const selection = new ActiveSelection(c.getObjects(), { canvas: c })
             centerObjectInViewport(c, selection)
             selection.removeAll()
             selection.dispose()
           }
+
         })
       }
 
+      // 3. PERSISTENCE & AUTOSAVE
       if (!options.isLobby) {
         startAutosave(c, finalId)
 
-        // Force background save if data came from outside the local DB
         if (isExternalLoad && hasContent()) {
           markAsDirty()
           performSave()

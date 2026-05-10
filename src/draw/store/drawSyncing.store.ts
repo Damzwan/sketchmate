@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { Mate } from '@/types/server.types'
 import { useDrawStore } from '@/draw/store/draw.store'
@@ -17,6 +17,7 @@ import { useSelect } from '@/draw/store/tools/select.store'
 import { handleTextModificationSync } from '@/draw/helpers/history/text.helper'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
+import { useAuthStore } from '@/store/auth.store'
 
 export interface DrawInvitation {
   friend: Mate,
@@ -90,6 +91,16 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
   const lastProcessedSequenceId = ref<number | undefined>(undefined)
   const currentSessionId = ref<string | undefined>(undefined)
   const isUsingGestures = ref(false)
+  const { user } = storeToRefs(useAuthStore())
+
+  const blockedMap = computed(() => {
+    const dict = new Map<string, boolean>()
+    user.value?.blocked_users?.forEach(id => {
+      dict.set(id.toString(), true)
+    })
+    return dict
+  })
+
 
   const isLobby = computed(() => !!roomId.value)
 
@@ -318,11 +329,11 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
 
   async function loadRoomCanvas(canvasJSON: any, isInitialSync: boolean) {
     const { reset } = useDrawStore()
-    const {loadCanvas} = useDrawLoadStore()
-    const {getCanvas} = useDrawStore()
+    const { loadCanvas } = useDrawLoadStore()
+    const { getCanvas } = useDrawStore()
 
     if (isInitialSync) reset()
-    await loadCanvas(getCanvas(), {json: canvasJSON, isLobby: true})
+    await loadCanvas(getCanvas(), { json: canvasJSON, isLobby: true })
 
     if (actionQueue.length > 0) {
       await processActionQueue()
@@ -351,29 +362,44 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
 
   async function processActionQueue() {
     isProcessingQueue.value = true
-
     const { actionWithoutEvents } = useDrawEventManager()
+    const { getCanvas } = useDrawStore()
+    const canvas = getCanvas()
+
+    // 🛰️ FIRE DEBUG START
+    canvas.fire('sync:queue:start' as any)
 
     try {
       while (actionQueue.length > 0) {
-        // shift() removes and returns the first element (FIFO)
         const action = actionQueue.shift()
         if (!action) continue
 
+        // ⏱️ TIME INDIVIDUAL ACTION
+        const start = performance.now()
+
         await actionWithoutEvents(async () => {
-          // @ts-ignore
-          await drawSyncingMapping[action.type](action.params) // TODO fix typing
+          await drawSyncingMapping[action.type](action.params)
+        })
+
+        // 🛰️ FIRE DEBUG INDIVIDUAL
+        canvas.fire('sync:action:done' as any, {
+          type: action.type,
+          duration: performance.now() - start
         })
       }
-    } catch (error) {
-      console.error('Error executing synced action:', error)
     } finally {
       isProcessingQueue.value = false
-      if (!isUsingGestures.value) {
-      }
+      // 🛰️ FIRE DEBUG END
+      canvas.fire('sync:queue:end' as any)
     }
   }
 
+  const isBlocked = (creator: any): boolean => {
+    if (!creator) return false
+    // Handle both object and string IDs
+    const id = (typeof creator === 'object' ? creator._id || creator.id : creator).toString()
+    return blockedMap.value.has(id)
+  }
 
   return {
     roomMembers,
@@ -395,6 +421,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     disconnectedRoomId,
     lastProcessedSequenceId,
     currentSessionId,
-    isLobby
+    isLobby,
+    isBlocked
   }
 })

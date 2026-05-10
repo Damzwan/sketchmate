@@ -8,6 +8,7 @@
 
     <GlobalToast />
     <PhotoSwiper />
+    <ViewProfileMenu />
 
     <FeedbackMenu />
     <DateOfBirthConfirmation />
@@ -39,11 +40,12 @@ import WhatsNewModal from '@/components/general/WhatsNewModal.vue'
 // LAZY LOADED COMPONENTS (Will create separate js chunks)
 const GlobalToast = defineAsyncComponent(() => import('@/components/general/GlobalToast.vue'))
 const PhotoSwiper = defineAsyncComponent(() => import('@/components/photoswiper/PhotoSwiper.vue'))
-const ChatBubble = defineAsyncComponent(() => import('@/components/chat/ChatBubble.vue'))
+const ChatBubble = defineAsyncComponent(() => import('./components/chat/ChatWidget.vue'))
 const FeedbackMenu = defineAsyncComponent(() => import('@/components/general/FeedbackMenu.vue'))
 const DateOfBirthConfirmation = defineAsyncComponent(() => import('@/components/general/DateOfBirthConfirmation.vue'))
 const Confetti = defineAsyncComponent(() => import('@/components/subscription/Confetti.vue'))
 const ReceivedBalloon = defineAsyncComponent(() => import('@/components/connect/balloon/ReceivedBalloon.vue'))
+const ViewProfileMenu = defineAsyncComponent(() => import('@/components/profile/ViewProfileMenu.vue'))
 
 const ionRouter = useIonRouter()
 const { initIonRouter } = useAuthStore()

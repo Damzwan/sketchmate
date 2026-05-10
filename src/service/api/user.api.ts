@@ -1,5 +1,5 @@
 import { request } from './http'
-import { User, Mate, FeedPost } from '@/types/server.types'
+import { User, Mate, FeedPost, UserProfileData } from '@/types/server.types'
 
 export async function toggleFollow(targetId: string) {
   return await request(`/user/follow/${targetId}`, { method: 'PUT' })
@@ -48,12 +48,28 @@ export async function uploadProfileImg(blob: Blob, previousImageUrl?: string) {
 }
 
 export async function blockUser(blockId: string) {
-  return await request('/users/block', {
+  return await request('/user/block', {
     method: 'POST',
     body: JSON.stringify({ block_id: blockId })
   })
 }
 
+export async function unblockUser(blockId: string) {
+  return await request('/user/unblock', {
+    method: 'POST',
+    body: JSON.stringify({ block_id: blockId })
+  })
+}
+
+
 export async function fetchOnlineFriends() {
   return await request<string[]>('/user/online-friends'); // Adjust path to match your Koa prefix
+}
+
+export async function fetchUserProfile(userId: string) {
+  return await request<UserProfileData>(`/user/${userId}/profile`);
+}
+
+export async function unfriendUser(targetId: string) {
+  return await request(`/user/unfriend/${targetId}`, { method: 'PUT' });
 }

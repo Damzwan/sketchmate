@@ -24,6 +24,7 @@ export const useMenuStore = defineStore('menu', () => {
   const drawMenuOpen = ref(false)
   const roomMenuOpen = ref(false)
   const chatMenuOpen = ref(false)
+  const viewProfileMenuOpen = ref(false)
 
   const stickersEmblemsSavedSelectedTab = ref<StickersEmblemsSavedTabOptions>('sticker')
 
@@ -50,7 +51,8 @@ export const useMenuStore = defineStore('menu', () => {
     [Menu.DateOfBirth]: dateOfBirthConfirmationOpen,
     [Menu.DrawMenu]: drawMenuOpen,
     [Menu.DrawRoomMenu]: roomMenuOpen,
-    [Menu.ChatMenuOpen]: chatMenuOpen
+    [Menu.ChatMenuOpen]: chatMenuOpen,
+    [Menu.ViewProfileMenu]: viewProfileMenuOpen,
   }
 
   const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
@@ -96,6 +98,7 @@ export const useMenuStore = defineStore('menu', () => {
     dateOfBirthConfirmationOpen,
     drawMenuOpen,
     roomMenuOpen,
-    chatMenuOpen
+    chatMenuOpen,
+    viewProfileMenuOpen,
   }
 })

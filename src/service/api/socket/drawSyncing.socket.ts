@@ -14,8 +14,12 @@ import { useAuthStore } from '@/store/auth.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
+import { generateChunkedJSON } from '@/draw/helpers/drawload.helper'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
+  const { isBlocked } = useDrawSyncer()
+
+
   socket.on('room-joined', async ({ roomId, users, isCreator, sessionId, isPublic }) => {
     const {
       roomId: rm,
@@ -88,7 +92,8 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     if (!canvas) return
 
 
-    const canvasString = JSON.stringify(canvas.toJSON())
+    const json = await generateChunkedJSON(canvas)
+    const canvasString = JSON.stringify(json)
 
     const stream = new Blob([canvasString]).stream()
       .pipeThrough(new CompressionStream('gzip'))
@@ -131,8 +136,6 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const store = useDrawSyncer()
     const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
 
-    console.log('initial canvas state')
-
     // Set our baseline time
     if (sequenceId !== undefined) {
       lastProcessedSequenceId.value = sequenceId
@@ -148,6 +151,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
     if (missedActions && missedActions.length > 0) {
       for (const item of missedActions) {
+        if (isBlocked(item.userId)) continue
         lastProcessedSequenceId.value = item.sequenceId
         await store.executeDrawSyncingAction(item)
       }
@@ -167,6 +171,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     }
 
     for (const item of actions) {
+      if (isBlocked(item.userId)) continue
       lastProcessedSequenceId.value = item.sequenceId
       await store.executeDrawSyncingAction(item)
     }
@@ -178,12 +183,13 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const store = useDrawSyncer()
     const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
 
-    // Update our local time tracker
+    if (isBlocked(data.creator)) return
+
     if (data.sequenceId !== undefined) {
       lastProcessedSequenceId.value = data.sequenceId
     }
 
-    // Kind of hacky but that way i do not need to rewrite the signature of the functions
+    // Inject creator into params for the rendering engine
     if (data.action.params) {
       data.action.params.creator = data.creator
     }
@@ -199,15 +205,15 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const { invitations } = storeToRefs(useDrawSyncer())
     invitations.value = invitations.value.filter(inv => inv.friend._id === data.friend.id)
     invitations.value.push(data)
-    const { toast } = useToast()
-    toast(`${data.friend.name} has invited you to draw`, {
-      buttons: [createJoinRoomButton(data.roomId)],
-      duration: ToastDuration.long
-    })
   })
 
   socket.on('lobby-message', async ({ message, member, timestamp, id }) => {
     const { lobbyChatMessages } = storeToRefs(useDrawSyncer())
+
+    if (isBlocked(member.user_id || member._id)) {
+      return
+    }
+
     lobbyChatMessages.value.push({
       type: 'message',
       message,
@@ -215,7 +221,6 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       timestamp,
       _id: id
     })
-
   })
 
   socket.on('disconnect', () => {

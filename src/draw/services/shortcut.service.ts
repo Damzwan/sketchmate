@@ -10,7 +10,7 @@ import { isMac } from '@/helper/general.helper'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useMenuStore } from '@/store/menu.store'
 import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
-import { interactiveObjectInspector, setupCanvasVitalsMonitor } from '@/utils/fabricDebug'
+import { setupCanvasDebugger } from '@/utils/fabricDebug'
 
 export enum ToolbarIds {
   pen = 'pen',
@@ -206,7 +206,7 @@ export function useShortcutManager() {
       case Shortcut.copy:
         event.preventDefault()
         if (!isSelectMode.value) return
-        selectAction(DrawAction.CopyObject, { objects: getSelectedObjects()})
+        selectAction(DrawAction.CopyObject, { objects: getSelectedObjects() })
         dismissPopover()
         break
 
@@ -247,13 +247,7 @@ export function useShortcutManager() {
 
       case Shortcut.inspect:
         event.preventDefault()
-        interactiveObjectInspector(c!)
-        dismissPopover()
-        break
-
-      case Shortcut.inspect2:
-        event.preventDefault()
-        setupCanvasVitalsMonitor(c!)
+        setupCanvasDebugger(c!)
         dismissPopover()
         break
 

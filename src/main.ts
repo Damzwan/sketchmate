@@ -10,6 +10,7 @@ import '@ionic/vue/css/core.css'
 import './theme/fonts.css'
 import './theme/theme.scss'
 import '@/theme/main.css'
+import '@/theme/liquid-glass.css'
 
 import { createPinia } from 'pinia'
 import mitt from 'mitt'

@@ -56,7 +56,7 @@ export interface User {
   subscriptions: NotificationSubscription[];
   balloon?: {
     sent?: string,
-    received?: string,
+    received?: string, // @deprecated
     disabled?: boolean,
     last_received_at?: Date,
   };
@@ -372,21 +372,54 @@ export interface BaseMessage {
 }
 
 // 2. The Raw Conversation (Unpopulated)
+export type ConversationStatus =
+  | 'active'
+  | 'pending'
+  | 'blocked'
+  | 'temporary'
+  | 'mate_pending'
+  | 'expired';
+
 export interface BaseConversation {
   _id: string;
-  participants: string[];
-  status: 'active' | 'pending' | 'blocked';
+  participants: string[]; // Array of User IDs
+  status: ConversationStatus;
   initiator_id?: string;
-  last_message?: string;
-  // IMPORTANT: Mongoose Maps become standard JSON objects over HTTP
+  last_message?: string; // ID of the message
   unread_counts: Record<string, number>;
-  createdAt: string; // Added
-  updatedAt: string; // Added
+  createdAt: string;
+  updatedAt: string;
+  trial_expires_at?: string;
+  cooldown_until?: string; // Added for the unfriend cooldown logic
 }
 
 export interface PopulatedConversation extends Omit<BaseConversation, 'participants' | 'last_message'> {
   participants: Mate[];
   last_message?: BaseMessage;
+}
+
+export interface UserProfileData {
+  profile: {
+    _id: string;
+    name: string;
+    description: string;
+    img: string;
+    stats: {
+      followers: number;
+      following: number;
+      friends: number;
+      posts: number;
+    };
+    relationship: {
+      isFollowing: boolean;
+      isFriend: boolean;
+    };
+  };
+  posts: Array<{
+    _id: string;
+    thumbnail_url: string;
+    aspect_ratio: number;
+  }>;
 }
 
 

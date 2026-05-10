@@ -5,83 +5,195 @@ import { hex2RGBA } from '@/draw/utils/color.utils'
 // @ts-ignore
 import { contours } from 'd3-contour'
 import { BucketFillPath } from '@/draw/utils/BucketFillPath'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { Rect } from '@/draw/utils/QuadTree'
+import { useToast } from '@/service/toast.service'
 
 type Point = { x: number; y: number }
 
-/**
- * Ramer-Douglas-Peucker algorithm to simplify a set of points.
- * Greatly reduces the number of points in a path while maintaining its shape.
- */
-function simplifyPath(points: number[][], tolerance: number): number[][] {
+const MAX_OFFSCREEN_DIM = 4096
+const RDP_TOLERANCE = 1.5
+const MAX_WORLD_AREA = 4000000
+
+function simplifyPathIterative(points: number[][], tolerance: number): number[][] {
   if (points.length <= 2) return points
+  const sqTol = tolerance * tolerance
+  const stack: [number, number][] = [[0, points.length - 1]]
+  const keep = new Uint8Array(points.length)
+  keep[0] = 1
+  keep[points.length - 1] = 1
 
-  const sqTolerance = tolerance * tolerance
+  while (stack.length > 0) {
+    const [first, last] = stack.pop()!
+    let maxSqDist = 0
+    let index = -1
 
-  function getSqSegDist(p: number[], p1: number[], p2: number[]) {
-    let x = p1[0], y = p1[1], dx = p2[0] - x, dy = p2[1] - y
-    if (dx !== 0 || dy !== 0) {
-      let t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy)
-      if (t > 1) {
-        x = p2[0]
-        y = p2[1]
-      } else if (t > 0) {
-        x += dx * t
-        y += dy * t
-      }
-    }
-    dx = p[0] - x
-    dy = p[1] - y
-    return dx * dx + dy * dy
-  }
+    const [x1, y1] = points[first]
+    const [x2, y2] = points[last]
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const lenSq = dx * dx + dy * dy
 
-  function simplifyStep(points: number[][], first: number, last: number, sqTolerance: number, simplified: number[]) {
-    let maxSqDist = sqTolerance, index = -1
     for (let i = first + 1; i < last; i++) {
-      const sqDist = getSqSegDist(points[i], points[first], points[last])
+      const [px, py] = points[i]
+      let sqDist: number
+      if (lenSq === 0) {
+        const ex = px - x1, ey = py - y1
+        sqDist = ex * ex + ey * ey
+      } else {
+        const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq))
+        const ex = px - (x1 + t * dx)
+        const ey = py - (y1 + t * dy)
+        sqDist = ex * ex + ey * ey
+      }
       if (sqDist > maxSqDist) {
-        index = i
         maxSqDist = sqDist
+        index = i
       }
     }
-    if (maxSqDist > sqTolerance) {
-      if (index - first > 1) simplifyStep(points, first, index, sqTolerance, simplified)
-      // @ts-ignore
-      simplified.push(points[index])
-      if (last - index > 1) simplifyStep(points, index, last, sqTolerance, simplified)
+
+    if (maxSqDist > sqTol && index !== -1) {
+      keep[index] = 1
+      if (index - first > 1) stack.push([first, index])
+      if (last - index > 1) stack.push([index, last])
     }
   }
 
-  const simplified = [points[0]]
-  // @ts-ignore
-  simplifyStep(points, 0, points.length - 1, sqTolerance, simplified)
-  simplified.push(points[points.length - 1])
-  return simplified
+  const result: number[][] = []
+  for (let i = 0; i < points.length; i++) {
+    if (keep[i]) result.push(points[i])
+  }
+  return result
 }
 
-export async function bucketFill(c: Canvas, p: Point, scale = 1) {
+function buildSmartOffscreenCanvas(c: Canvas, scale: number, dpr: number) {
+  const { query, getZIndexMap } = useDrawObjectManager()
+  const vpt = c.viewportTransform!
+  const zoom = c.getZoom()
+  const screenW = c.width!
+  const screenH = c.height!
+
+  const vpLeft = -vpt[4] / zoom
+  const vpTop = -vpt[5] / zoom
+  const vpRight = (screenW - vpt[4]) / zoom
+  const vpBottom = (screenH - vpt[5]) / zoom
+  const vpWidth = vpRight - vpLeft
+  const vpHeight = vpBottom - vpTop
+
+  const viewportRect = new Rect(vpLeft, vpTop, vpWidth, vpHeight)
+  const nearbyObjects = query(viewportRect)
+
+  let expandLeft = vpLeft
+  let expandTop = vpTop
+  let expandRight = vpRight
+  let expandBottom = vpBottom
+
+  for (const obj of nearbyObjects) {
+    // @ts-ignore
+    const b = obj.getBoundingRect(true, true)
+    const oL = b.left, oT = b.top
+    const oR = b.left + b.width, oB = b.top + b.height
+
+    if (oL < expandLeft) expandLeft = oL
+    if (oT < expandTop) expandTop = oT
+    if (oR > expandRight) expandRight = oR
+    if (oB > expandBottom) expandBottom = oB
+  }
+
+  const pxPerWorldUnit = zoom * dpr * scale
+  const maxWorldDim = MAX_OFFSCREEN_DIM / pxPerWorldUnit
+  let worldW = expandRight - expandLeft
+  let worldH = expandBottom - expandTop
+
+  if (worldW > maxWorldDim) {
+    const cx = (expandLeft + expandRight) / 2
+    expandLeft = cx - maxWorldDim / 2
+    expandRight = cx + maxWorldDim / 2
+    worldW = maxWorldDim
+  }
+  if (worldH > maxWorldDim) {
+    const cy = (expandTop + expandBottom) / 2
+    expandTop = cy - maxWorldDim / 2
+    expandBottom = cy + maxWorldDim / 2
+    worldH = maxWorldDim
+  }
+
+  const offW = Math.min(Math.floor(worldW * pxPerWorldUnit), MAX_OFFSCREEN_DIM)
+  const offH = Math.min(Math.floor(worldH * pxPerWorldUnit), MAX_OFFSCREEN_DIM)
+
+  const effectiveScale = Math.min(offW / (worldW * zoom * dpr), offH / (worldH * zoom * dpr))
+  const pxScale = zoom * dpr * effectiveScale
+
+  const offscreen = document.createElement('canvas')
+  offscreen.width = offW
+  offscreen.height = offH
+  const ctx = offscreen.getContext('2d', { alpha: false })!
+
+  ctx.fillStyle = (c.backgroundColor as string) || '#ffffff'
+  ctx.fillRect(0, 0, offW, offH)
+
+  ctx.setTransform(pxScale, 0, 0, pxScale, -expandLeft * pxScale, -expandTop * pxScale)
+
+  const renderRect = new Rect(expandLeft, expandTop, worldW, worldH)
+  const objectsToRender = query(renderRect)
+  const zIndexMap = getZIndexMap()
+
+  objectsToRender.sort((a, b) => (zIndexMap.get(a) ?? 0) - (zIndexMap.get(b) ?? 0))
+
+  for (const obj of objectsToRender) {
+    obj.render(ctx)
+  }
+
+  return {
+    offscreen,
+    worldRect: { x: expandLeft, y: expandTop, w: worldW, h: worldH },
+    effectiveScale,
+    dpr
+  }
+}
+
+export async function bucketFill(c: Canvas, p: Point, scale = 1): Promise<BucketFillPath | null> {
   const { brushColorWithOpacity } = usePen()
   const dpr = window.devicePixelRatio || 1
+  const zoom = c.getZoom()
 
-  // Set global serialization precision to 1 decimal place (massive space saver)
   // @ts-ignore
   FabricObject.NUM_FRACTION_DIGITS = 1
 
-  const downscaledCanvas = createDownScaledCanvas(c, scale)
-  const downscaledCtx = downscaledCanvas.getContext('2d')
-  if (!downscaledCtx) return null
+  const { offscreen, worldRect, effectiveScale } = buildSmartOffscreenCanvas(c, scale, dpr)
 
-  const imgData = downscaledCtx.getImageData(0, 0, downscaledCanvas.width, downscaledCanvas.height)
+  const pxScale = zoom * dpr * effectiveScale
+  const fillX = Math.round((p.x - worldRect.x) * pxScale)
+  const fillY = Math.round((p.y - worldRect.y) * pxScale)
+
+  if (fillX < 0 || fillY < 0 || fillX >= offscreen.width || fillY >= offscreen.height) {
+    return null
+  }
+
+  const offCtx = offscreen.getContext('2d')!
+  const imgData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height)
   const brushColor = brushColorWithOpacity()
 
   const floodFill = new CustomFloodFill(imgData)
-  // 10 is the tolerance for the flood fill match
-  floodFill.fill(brushColor, Math.round(p.x * dpr * scale), Math.round(p.y * dpr * scale), 10)
+  floodFill.fill(brushColor, fillX, fillY, 10)
 
-  const modifiedImgData = floodFill.getModifiedImageData(hex2RGBA(brushColor))
+  // Guard against massive fills that would crash the vectorizer
+  const modifiedArea = floodFill.getModifiedArea()
+  const worldArea = (modifiedArea.width / pxScale) * (modifiedArea.height / pxScale)
+
   if (floodFill.modifiedPixelsCount === 0) return null
 
-  // --- VECTORIZATION ---
+  const { toast } = useToast()
+  if (worldArea > MAX_WORLD_AREA) {
+    toast('Area too large, Please zoom in or close the shape to fill.', { color: 'warning' })
+    return null
+  }
+
+  const modifiedImgData = floodFill.getModifiedImageData(hex2RGBA(brushColor))
   const { width, height, data } = modifiedImgData
+
+  await new Promise<void>(r => setTimeout(r, 0))
+
   const values = new Float32Array(width * height)
   for (let i = 0, j = 0; i < data.length; i += 4, j++) {
     values[j] = data[i + 3] > 0 ? 1 : 0
@@ -90,80 +202,50 @@ export async function bucketFill(c: Canvas, p: Point, scale = 1) {
   const contourGenerator = contours().size([width, height]).thresholds([0.5])
   const contourData = contourGenerator(values)
 
-  if (contourData.length === 0 || contourData[0].coordinates.length === 0) return null
+  if (!contourData.length || !contourData[0].coordinates.length) return null
 
-  let svgPath = ''
-  const multiPolygon = contourData[0].coordinates
+  const toWorldX = (offPx: number) => offPx / pxScale + worldRect.x
+  const toWorldY = (offPx: number) => offPx / pxScale + worldRect.y
 
-  const vpt = c.viewportTransform!
-  const offsetX = vpt[4]
-  const offsetY = vpt[5]
-  const zoom = c.getZoom()
-  const trueScale = 1 / (scale * dpr)
+  const pathParts: string[] = []
 
-  for (const polygon of multiPolygon) {
+  for (const polygon of contourData[0].coordinates) {
     for (const ring of polygon) {
-      // 1. Map to absolute coordinates
-      const absPoints = ring.map((pt: any) => [
-        (pt[0] * trueScale - offsetX) / zoom,
-        (pt[1] * trueScale - offsetY) / zoom
-      ])
+      const pts = ring as [number, number][]
+      if (pts.length < 2) continue
 
-      // 2. RDP Simplification (1.2 is a good balance between speed and quality)
-      const simplifiedPoints = simplifyPath(absPoints, 1.2)
+      const worldPoints = pts.map(([px, py]) => [toWorldX(px), toWorldY(py)])
+      const simplified = simplifyPathIterative(worldPoints, RDP_TOLERANCE)
+      if (simplified.length < 2) continue
 
-      // 3. Build SVG String with Coordinate Rounding (1 decimal)
-      simplifiedPoints.forEach((pt, i) => {
-        const x = Math.round(pt[0] * 10) / 10
-        const y = Math.round(pt[1] * 10) / 10
-
-        if (i === 0) svgPath += `M ${x} ${y} `
-        else svgPath += `L ${x} ${y} `
-      })
-      svgPath += 'Z '
+      const cmds = new Array(simplified.length)
+      cmds[0] = `M ${(simplified[0][0] * 10 | 0) / 10} ${(simplified[0][1] * 10 | 0) / 10}`
+      for (let i = 1; i < simplified.length; i++) {
+        cmds[i] = `L ${(simplified[i][0] * 10 | 0) / 10} ${(simplified[i][1] * 10 | 0) / 10}`
+      }
+      pathParts.push(cmds.join(' ') + ' Z')
     }
   }
 
+  const svgPath = pathParts.join(' ')
   if (!svgPath) return null
 
-  const modifiedArea = floodFill.getModifiedArea()
+  const centerX = toWorldX(modifiedArea.minX + modifiedArea.width / 2)
+  const centerY = toWorldY(modifiedArea.minY + modifiedArea.height / 2)
 
-  // 4. Create the native Fabric Path
-  const vectorFill = new BucketFillPath(svgPath, {
+  const physicalBleed = 5;
+  const expansionAmount = Math.max(0.5, physicalBleed / zoom);
+
+  return new BucketFillPath(svgPath, {
     fill: brushColor,
-    stroke: 'transparent',
-    strokeWidth: 0,
+    stroke: brushColor, // Same as fill to bleed under edges
+    strokeWidth: expansionAmount,
+    strokeLineJoin: 'round',
+    strokeLineCap: 'round',
     isBucketFill: true,
-    left: ((modifiedArea.minX + modifiedArea.width / 2) / (scale * dpr) - offsetX) / c.getZoom(),
-    top: ((modifiedArea.minY + (modifiedArea.height / 2)) / (scale * dpr) - offsetY) / c.getZoom(),
-    fillRule: 'evenodd'
+    left: centerX,
+    top: centerY,
+    fillRule: 'evenodd',
+    paintFirst: 'stroke' // Ensures the stroke doesn't shrink the inner holes
   })
-
-  return vectorFill
-}
-
-export function createDownScaledCanvas(c: Canvas, scale: number) {
-  const helper = c as any
-  const lowerCanvas = helper.lowerCanvasEl as HTMLCanvasElement // this canvas contains the drawing data
-
-
-  // Create a downscaled version of the original image
-  const downscaledCanvas = document.createElement('canvas')
-  downscaledCanvas.width = lowerCanvas.width * scale
-  downscaledCanvas.height = lowerCanvas.height * scale
-  const downscaledCtx = downscaledCanvas.getContext('2d')
-  downscaledCtx!.drawImage(
-    lowerCanvas,
-    0,
-    0,
-    lowerCanvas.width,
-    lowerCanvas.height,
-    0,
-    0,
-    downscaledCanvas.width,
-    downscaledCanvas.height
-  )
-
-
-  return downscaledCanvas
 }

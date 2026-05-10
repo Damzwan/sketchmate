@@ -11,6 +11,7 @@ import {
 } from '@/draw/utils/QuadTree'
 import { useGestureStore } from '@/draw/store/tools/gesture.store'
 import { yieldToMain } from '@/helper/general.helper'
+import { useAuthStore } from '@/store/auth.store'
 
 export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let c: Canvas | undefined = undefined
@@ -204,7 +205,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         const physWidth = c!.getElement().width
         const physHeight = c!.getElement().height
         const stableCanvas = getStableCanvas(physWidth, physHeight)
-        const stableCtx = stableCanvas.getContext('2d')!
+        const stableCtx = stableCanvas.getContext('2d')! as any
 
         stableCtx.save()
         stableCtx.setTransform(1, 0, 0, 1, 0, 0)
@@ -251,21 +252,37 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   // ─── Initialisation ───────────────────────────────────────────────────────
 
   function init(canvas: Canvas) {
-    const { addPermanentEvents } = useDrawEventManager()
-    addPermanentEvents(events)
     c = canvas
     addStartingCanvasObjects()
+    const { addPermanentEvents } = useDrawEventManager()
+    addPermanentEvents(events)
   }
 
   function addStartingCanvasObjects() {
+    const authStore = useAuthStore()
+    const blockedIds = authStore.user?.blocked_users || []
+
+    // Reset indices
     objectMap = new Map<string, FabricObject>()
     lastVisible = new Set<string>()
     quadtree.clear()
-    c!.getObjects().forEach(obj => {
-      objectMap.set(obj.id!, obj)
-      addToQuadTree(obj)
-    })
-    updateVisibility()
+
+    const allObjects = c!.getObjects()
+
+    for (let i = allObjects.length - 1; i >= 0; i--) {
+      const obj = allObjects[i]
+      const creatorId = obj.userId
+
+      if (blockedIds.includes(creatorId)) {
+        c?.remove(obj)
+        continue
+      }
+
+      if (obj.id) {
+        objectMap.set(obj.id, obj)
+        addToQuadTree(obj)
+      }
+    }
   }
 
 
@@ -399,6 +416,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     pendingFullRerender = false
     isChunkedRenderRunning = true
 
+    canvas.fire('render:pipeline:start' as any)
     try {
       const physWidth = canvas.getElement().width
       const physHeight = canvas.getElement().height
@@ -465,6 +483,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
 
         commitToMainScreen(canvas)
       }
+      canvas.fire('render:pipeline:end' as any)
     } finally {
       // Always release the lock, even on exception. Then replay any surgical
       // patches that were deferred while we held the stable canvas.
@@ -842,6 +861,36 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
 
+  function purgeBlockedObjects() {
+    const { user } = useAuthStore()
+    const blockedIds = user?.blocked_users || []
+
+    if (blockedIds.length === 0) return
+
+    const objectsToRemove: FabricObject[] = []
+
+    // 1. Identify all objects in the map belonging to blocked users
+    objectMap.forEach((obj) => {
+      const creatorId = obj.userId
+      if (blockedIds.includes(creatorId)) {
+        objectsToRemove.push(obj)
+      }
+    })
+
+    if (objectsToRemove.length === 0) return
+
+    objectsToRemove.forEach(obj => {
+      if (obj.id) {
+        objectMap.delete(obj.id)
+        removeFromQuadTree(obj)
+      }
+      c?.remove(obj)
+    })
+
+    updateVisibility(true)
+  }
+
+
   return {
     init,
     getObjectsById,
@@ -854,6 +903,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     getStableCanvas,
     onGestureEnd,
     flushDirtyBatch,
-    onGestureStart
+    onGestureStart,
+    purgeBlockedObjects,
+    getZIndexMap
   }
 })

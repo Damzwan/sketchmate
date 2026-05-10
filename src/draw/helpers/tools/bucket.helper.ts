@@ -13,7 +13,7 @@ type Point = { x: number; y: number }
 
 const MAX_OFFSCREEN_DIM = 4096
 const RDP_TOLERANCE = 1.5
-const MAX_WORLD_AREA = 4000000
+const MAX_WORLD_AREA = 2000000
 
 function simplifyPathIterative(points: number[][], tolerance: number): number[][] {
   if (points.length <= 2) return points

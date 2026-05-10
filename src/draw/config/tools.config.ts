@@ -26,7 +26,7 @@ import { CustomCircleBrush } from '@/draw/utils/brushes/CustomCircleBrush'
 import { OptimizedPencilBrush } from '@/draw/utils/brushes/CustomPencilBrush'
 
 export const ERASERS = [DrawTool.MobileEraser]
-export const PENMENUTOOLS = [DrawTool.Pen, DrawTool.Bucket]
+export const PENMENUTOOLS = [DrawTool.Pen]
 export const SELECTMENUTOOLS = [DrawTool.Select, DrawTool.Lasso]
 export const eraserIconMapping: { [key in Eraser]: string } = {
   [DrawTool.MobileEraser]: mdiEraser

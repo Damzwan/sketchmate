@@ -10,13 +10,13 @@ export const useBucket = defineStore('bucket', (): ToolService => {
   let c: Canvas | undefined = undefined
   let gestureStart = false
   let fillInProgress = false
-  const { isGesturing } = storeToRefs(useGestureStore())
 
   const events: FabricEvent[] = [
     {
       on: 'mouse:up',
       handler: async (o: any) => {
-        if (isGesturing.value) {
+        if (gestureStart && isMobile()) {
+          gestureStart = false
           return
         }
         if (fillInProgress) return
@@ -52,14 +52,6 @@ export const useBucket = defineStore('bucket', (): ToolService => {
           y: (screenPoint.y - vpt[5]) / zoom
         }
 
-        console.log('[BucketStore] click', {
-          screenPoint,
-          worldPoint,
-          sampledHex: hex,
-          backgroundColor: c!.backgroundColor,
-          isBackground,
-          zoom
-        })
 
         // ── Run fill ──────────────────────────────────────────────────────
         fillInProgress = true
@@ -97,6 +89,12 @@ export const useBucket = defineStore('bucket', (): ToolService => {
         } finally {
           fillInProgress = false
         }
+      }
+    },
+    {
+      on: 'gestureStart',
+      handler: () => {
+        gestureStart = true
       }
     }
   ]

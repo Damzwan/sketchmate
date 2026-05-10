@@ -230,6 +230,9 @@ export const useLasso = defineStore('lasso', (): ToolService => {
     } else {
       c!.setActiveObject(objects[0])
     }
+    const topCtx = c!.getTopContext()
+    const activeObject = c!.getActiveObject()
+    activeObject?._renderControls(topCtx)
   }
 
   async function select() {

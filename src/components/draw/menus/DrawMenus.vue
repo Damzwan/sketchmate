@@ -1,5 +1,6 @@
 <template>
   <PenMenu />
+  <BucketMenu />
   <EraserMenu />
   <SelectMenu />
   <ShapesMenu />
@@ -55,6 +56,7 @@ import RoomMenu from '@/components/draw/menus/RoomMenu.vue'
 import DrawChatMenu from '@/components/draw/menus/DrawChatMenu.vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import MiniMap from '@/components/draw/MiniMap.vue'
+import BucketMenu from '@/components/draw/menus/BucketMenu.vue'
 
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const { selectAction } = useDrawStore()

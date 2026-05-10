@@ -74,13 +74,6 @@
             <ion-icon :icon="svg(penIconMapping[BrushType.Circle])" />
           </div>
 
-          <div
-            class="brush_option bg-purple-400"
-            @click="selectTool(DrawTool.Bucket)"
-            :class="{ brush_selected: selectedTool === DrawTool.Bucket }"
-          >
-            <ion-icon :icon="svg(mdiFormatColorFill)" />
-          </div>
         </div>
 
         <div class="flex justify-between mt-1 px-1" id="brush-type">
@@ -181,12 +174,6 @@ const renderPreview = () => {
   }
 
   const brushColorValue = hexWithOpacity(brushColor.value, percentToAlphaHex(opacity.value))
-
-  if (selectedTool.value == DrawTool.Bucket) {
-    canvas.backgroundColor = brushColorValue
-    canvas.renderAll()
-    return
-  }
 
   const brushSizeValue = brushSize.value
 

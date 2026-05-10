@@ -1,14 +1,12 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { Canvas, ActiveSelection } from 'fabric'
+import { ActiveSelection, Canvas } from 'fabric'
 import { EventBus } from '@/main'
-import { yieldToMain } from '@/helper/general.helper'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
+import { centerObjectInViewport, precalculateAndSetViewport, zoomToFitAllObjects } from '@/draw/helpers/viewport.helper'
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import { v4 as uuidv4 } from 'uuid'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { enlivenObjectsTimeSlivered, generateChunkedJSON } from '@/draw/helpers/drawload.helper'
 
 export interface DrawingDraft {
@@ -95,7 +93,6 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     json?: any;
   }) {
     const drawSyncer = useDrawSyncer()
-    const objectManager = useDrawObjectManager()
 
     drawSyncer.isLoadingCanvas = true
 
@@ -134,6 +131,10 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
       }
 
       if (json) {
+        if (json.objects && json.objects.length > 0) {
+          precalculateAndSetViewport(c, json.objects);
+        }
+
         if (json.version === '5.5.2') {
           delete json.width
           delete json.height
@@ -169,6 +170,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
           performSave()
         }
       }
+
 
     } catch (error) {
       console.error('❌ loadCanvas Failed:', error)

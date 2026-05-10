@@ -53,18 +53,12 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
     }
   }
 
-  let lobbyPreviewTimer: any = null
-  const triggerLobbyPreview = () => {
-    if (isExpanded.value && activeTab.value === 'lobby') return
-    showLobbyPreview.value = true
-    if (lobbyPreviewTimer) clearTimeout(lobbyPreviewTimer)
-    lobbyPreviewTimer = setTimeout(() => { showLobbyPreview.value = false }, 5000)
-  }
+
 
   return {
     isVisible, isExpanded, activeTab, activeChatHeads, bouncingBubbles, showLobbyPreview,
     showWidget, hideWidget, openPanel, closePanel, togglePanel,
     openOverview, openLobby, openPrivateChat, addChatHead, removeChatHead,
-    triggerNewMessageAlert, triggerLobbyPreview
+    triggerNewMessageAlert
   }
 })

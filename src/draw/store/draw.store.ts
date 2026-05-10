@@ -17,7 +17,7 @@ import { EventBus } from '@/main'
 import { leaveRoom, socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { useHealthChecker } from '../services/healthChecker'
 import { useCanvasPreview } from '@/draw/services/useCanvasPreview'
-import { resetZoom } from '@/draw/helpers/viewport.helper'
+import { resetZoom, zoomToFitAllObjects } from '@/draw/helpers/viewport.helper'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import { useGestureStore } from '@/draw/store/tools/gesture.store'
 
@@ -96,7 +96,7 @@ export const useDrawStore = defineStore('draw', () => {
 
 
       toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true })
-      resetZoom()
+      drawObjectManager.updateVisibility(true)
     }
 
     async function selectAction<A extends DrawAction>(action: A, params: DrawActionParams[A]) {

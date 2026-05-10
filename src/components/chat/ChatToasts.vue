@@ -3,6 +3,10 @@
   <div v-if="!isExpanded && !isFullscreen"
        class="fixed top-safe mt-20 right-4 z-[100] flex flex-col gap-2 w-64 pointer-events-none">
     <TransitionGroup name="chat-toast">
+      <!--
+        We keep using group.tabId as the key.
+        Because we are now sending 'lobby-USERID', Vue will see these as distinct items.
+      -->
       <div
         v-for="group in notifications"
         :key="group.tabId"
@@ -16,7 +20,7 @@
         <div class="relative shrink-0 ml-1">
           <img :src="group.img" class="w-8 h-8 rounded-lg object-cover border border-white/10 shadow-md" />
 
-          <!-- Mini Icon Overlay (Trial Clock or Mate Heart) -->
+          <!-- Mini Icon Overlay -->
           <div v-if="group.isTrial || group.isMateProposal"
                class="absolute -bottom-1 -right-1 rounded-full p-0.5 border border-zinc-900"
                :class="group.isMateProposal ? 'bg-secondary' : 'bg-secondary'">
@@ -53,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { IonIcon } from '@ionic/vue'
 import { mdiClockOutline, mdiHeart } from '@mdi/js'
@@ -82,35 +86,28 @@ let isInitialLobbyLoad = true
 /**
  * WATCHER: Lobby Messages
  */
-/**
- * WATCHER: Lobby Messages
- */
 watch(lobbyChatMessages, (messages) => {
-  // If the array is empty, nothing to do
   if (messages.length === 0) return
 
   const latest = messages[messages.length - 1] as any
+  const senderId = latest.member?._id || 'system'
 
   // 1. HANDLE SYSTEM EVENTS (Join/Leave)
-  // We want to see these even if it's us, or if it's the first thing that happens
   if (latest.type === 'join' || latest.type === 'leave') {
     const isMe = latest.member?._id === user.value?._id
 
-    // If it's a join event and it's ME, we show the "You joined" toast
-    // even if it's the initial load.
     const text = latest.type === 'join'
       ? (isMe ? 'You hopped into the room!' : `${latest.member?.name} hopped in!`)
       : 'left the room.'
 
-    // If it's a message from someone else, we skip initial load.
-    // But if it's a JOIN event, we let it through once.
     if (isInitialLobbyLoad && latest.type !== 'join') {
       isInitialLobbyLoad = false
       return
     }
 
     chatStore.addNotification({
-      tabId: 'lobby',
+      // Crucial: unique tabId per sender/event so they don't merge
+      tabId: `lobby-${senderId}-${latest.type}`,
       subtitle: isMe ? 'System' : (latest.member?.name || 'Lobby'),
       text,
       img: latest.member?.img || '',
@@ -123,20 +120,18 @@ watch(lobbyChatMessages, (messages) => {
   }
 
   // 2. HANDLE REGULAR MESSAGES
-  // Block initial history dump
   if (isInitialLobbyLoad) {
     isInitialLobbyLoad = false
     return
   }
 
-  // Don't toast if we are already looking at the lobby
   if (activeTab.value === 'lobby' && isExpanded.value) return
-
-  // Don't toast our own text messages
   if (latest.member?._id === user.value?._id) return
 
   chatStore.addNotification({
-    tabId: 'lobby',
+    // By using 'lobby-' + senderId, User A and User B get separate toasts.
+    // User A's subsequent messages will still group in User A's toast.
+    tabId: `lobby-${senderId}`,
     subtitle: latest.member?.name || 'Lobby',
     text: latest.content || latest.message,
     img: latest.member?.img || '',
@@ -163,21 +158,23 @@ watch(invitations, (newInvites, oldInvites) => {
   })
 }, { deep: true })
 
-/**
- * Visual language for Relationship progression
- */
 const getBorderColor = (group: any) => {
-  if (group.tabId === 'lobby') return 'bg-cyan-400'
-  if (group.isMateProposal) return 'bg-secondary animate-pulse' // Match the heart color
+  // Use startsWith since our tabId is now dynamic (e.g., lobby-123)
+  if (group.tabId.startsWith('lobby')) return 'bg-cyan-400'
+  if (group.isMateProposal) return 'bg-secondary animate-pulse'
   if (group.isRequest) return 'bg-secondary'
   if (group.isTrial) return 'bg-amber-400'
   return 'bg-secondary'
 }
 
 const openFromNotification = (tabId: string) => {
+  // Remove the specific notification (lobby-userA, etc)
   chatStore.removeNotification(tabId)
+
   chatWidget.openPanel()
-  if (tabId === 'lobby') {
+
+  // If it's any lobby variant, redirect to the general lobby tab
+  if (tabId.startsWith('lobby')) {
     activeTab.value = 'lobby'
   } else {
     chatWidget.openPrivateChat(tabId)

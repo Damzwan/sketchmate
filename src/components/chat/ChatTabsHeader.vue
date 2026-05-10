@@ -1,5 +1,6 @@
 <template>
-  <div class="flex items-center gap-3 px-4 pt-4 pb-3 overflow-x-auto hide-scrollbar border-b border-primary/40 bg-white/20 rounded-t-[2.5rem] shrink-0">
+  <div
+    class="flex items-center gap-3 px-4 pt-4 pb-3 overflow-x-auto hide-scrollbar border-b border-primary/40 bg-white/20 rounded-t-[2.5rem] shrink-0">
 
     <!-- Overview Tab -->
     <div @click="activeTab = 'overview'"
@@ -17,6 +18,11 @@
          class="relative shrink-0 w-12 h-12 rounded-[1.2rem] flex items-center justify-center border transition-all cursor-pointer"
          :class="activeTab === 'lobby' ? 'bg-cyan-400 shadow-lg border-white text-white scale-105' : 'bg-cyan-400/20 border-cyan-400/40 text-cyan-600'">
       <ion-icon :icon="svg(mdiEarth)" class="text-2xl" />
+      <!-- Updated unread logic for Lobby -->
+      <div v-if="unreadLobbyCount > 0 && activeTab !== 'lobby'"
+           class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-background flex items-center justify-center text-[9px] font-black text-white">
+        {{ unreadLobbyCount }}
+      </div>
     </div>
 
     <!-- Dynamic Chat Heads -->
@@ -24,7 +30,6 @@
          class="relative shrink-0 w-12 h-12 rounded-[1.2rem] transition-all cursor-pointer"
          :class="activeTab === head.id ? 'shadow-lg border-2 border-white scale-105' : 'opacity-60 border border-transparent'">
 
-      <!-- Improved Resolver: Checks if partner info exists before rendering img -->
       <template v-if="getPartner(head.id)">
         <img
           :src="getPartner(head.id).img"
@@ -32,7 +37,6 @@
           :class="{ 'grayscale opacity-60': isExpired(head.id) }"
         />
 
-        <!-- Online Status Indicator (Only if not expired) -->
         <div v-if="isPartnerOnline(head.id) && !isExpired(head.id)"
              class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm z-30">
         </div>
@@ -58,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { IonIcon } from '@ionic/vue'
 import { chatbubblesOutline } from 'ionicons/icons'
@@ -79,17 +83,34 @@ const authStore = useAuthStore()
 const { activeTab, activeChatHeads } = storeToRefs(chatWidget)
 const { activeChats } = storeToRefs(chatStore)
 const { user } = storeToRefs(authStore)
-const { roomMembers } = storeToRefs(useDrawSyncer())
+const { roomMembers, lobbyChatMessages } = storeToRefs(useDrawSyncer())
 
 const isInLobby = computed(() => !!roomMembers.value?.length)
 
-// Helper to check if a conversation is expired
+const interestingLobbyMessages = computed(() =>
+  lobbyChatMessages.value.filter(msg => msg.type === 'message')
+)
+const unreadLobbyCount = ref(0)
+
+watch(
+  [() => interestingLobbyMessages.value.length, activeTab],
+  ([newLen, newTab], [oldLen]) => {
+    if (newTab === 'lobby') {
+      unreadLobbyCount.value = 0
+      return
+    }
+
+    if (newTab !== 'lobby' && oldLen !== undefined && newLen > oldLen) {
+      unreadLobbyCount.value += (newLen - oldLen)
+    }
+  }
+)
+
 const isExpired = (chatId: string) => {
   const chat = activeChats.value.find(c => c._id === chatId)
   return chat?.status === 'expired'
 }
 
-// Combined unread logic for both active and pending lists
 const unreadConversationsCount = computed(() => {
   const me = user.value?._id || ''
   const activeCount = activeChats.value.filter(c => (c.unread_counts?.[me] || 0) > 0).length
@@ -99,7 +120,6 @@ const unreadConversationsCount = computed(() => {
 
 const getPartner = (id: string) => friendStore.resolvePartnerInfo(id)
 
-// Checks online status based on resolved partner ID
 const isPartnerOnline = (chatId: string) => {
   const partner = getPartner(chatId)
   return partner ? friendStore.isFriendOnline(partner._id) : false
@@ -107,11 +127,9 @@ const isPartnerOnline = (chatId: string) => {
 
 const getUnreadCount = (chatId: string) => {
   const me = user.value?._id || ''
-  // Check active chats
   const chat = activeChats.value.find(c => c._id === chatId)
   if (chat) return chat.unread_counts?.[me] || 0
 
-  // Check pending requests
   const pending = friendStore.pendingRequests.find(c => c._id === chatId)
   return pending?.unread_counts?.[me] || 0
 }
@@ -121,6 +139,7 @@ const getUnreadCount = (chatId: string) => {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;

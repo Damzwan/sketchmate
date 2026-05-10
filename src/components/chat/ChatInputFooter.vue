@@ -33,7 +33,7 @@
           <ion-icon :icon="svg(mdiSend)" class="text-white text-lg ml-0.5" />
         </button>
 
-        <div v-else class="w-10 h-10 flex items-center justify-center opacity-30">
+        <div v-else class="w-10 h-10 flex items-center center opacity-30">
           <ion-icon :icon="svg(mdiClockOutline)" class="text-secondary text-lg" />
         </div>
       </div>
@@ -44,7 +44,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { actionSheetController, IonIcon, IonInput, useIonRouter } from '@ionic/vue'
+import { actionSheetController, alertController, IonIcon, IonInput, useIonRouter } from '@ionic/vue'
 import {
   mdiAccountMultiplePlusOutline,
   mdiAccountPlusOutline,
@@ -59,7 +59,12 @@ import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { useChatStore } from '@/store/chat.store'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useFriendStore } from '@/store/friend.store'
-import { inviteFriendToRoom, sendLobbyMessage, socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
+import {
+  inviteFriendToRoom,
+  leaveRoom,
+  sendLobbyMessage,
+  socketJoinRoom
+} from '@/service/api/socket/drawSyncing.socket'
 
 const emit = defineEmits(['sent', 'open-invite-popover'])
 
@@ -70,7 +75,7 @@ const drawSyncer = useDrawSyncer()
 const router = useIonRouter()
 
 const { activeTab } = storeToRefs(chatWidget)
-const { roomId, roomMembers } = storeToRefs(drawSyncer)
+const { roomId } = storeToRefs(drawSyncer)
 
 const inputText = ref('')
 
@@ -83,7 +88,6 @@ const handleInviteClick = (ev: Event) => {
 }
 
 const openPrivateInviteSheet = async () => {
-  // Resolve using the unified store function
   const partner = friendStore.resolvePartnerInfo(activeTab.value)
   if (!partner) return
 
@@ -91,7 +95,14 @@ const openPrivateInviteSheet = async () => {
     {
       text: 'Start drawing together',
       icon: svg(mdiDraw),
-      handler: () => startDrawingTogether(partner._id)
+      handler: () => {
+        // If already in a lobby, warn before starting a new private session
+        if (roomId.value) {
+          confirmNewSession(partner._id, partner.name)
+        } else {
+          startDrawingTogether(partner._id)
+        }
+      }
     }
   ]
 
@@ -101,11 +112,9 @@ const openPrivateInviteSheet = async () => {
       icon: svg(mdiLoginVariant),
       handler: async () => {
         inviteFriendToRoom(partner._id, roomId.value!)
-        chatStore.sendMessage(partner._id, `INVITE_TO_DRAW:${roomId.value}`)
       }
     })
   }
-
 
   const actionSheet = await actionSheetController.create({
     header: `Session with ${partner.name}`,
@@ -113,6 +122,35 @@ const openPrivateInviteSheet = async () => {
     buttons
   })
   await actionSheet.present()
+}
+
+/**
+ * Shows an alert warning the user that they will leave their current lobby
+ */
+const confirmNewSession = async (friendId: string, name: string) => {
+  const alert = await alertController.create({
+    header: 'Start New Session?',
+    subHeader: 'This will leave your current lobby.',
+    message: `You are about to start a private drawing session with ${name}.`,
+    cssClass: 'liquid-unfriend-alert',
+    buttons: [
+      {
+        text: 'Cancel',
+        role: 'cancel',
+        cssClass: 'alert-button-confirm'
+      },
+      {
+        text: 'Confirm',
+        cssClass: 'alert-button-confirm',
+        handler: () => {
+          leaveRoom()
+          setTimeout(() => startDrawingTogether(friendId), 100)
+        }
+      }
+    ]
+  })
+
+  await alert.present()
 }
 
 const startDrawingTogether = async (friendId: string) => {
@@ -123,7 +161,7 @@ const startDrawingTogether = async (friendId: string) => {
   setTimeout(() => {
     socketJoinRoom({ roomId: newRoomId, intent: 'create' })
     inviteFriendToRoom(friendId, newRoomId)
-  }, 600)
+  }, 400)
 }
 
 const handleSend = async () => {
@@ -143,3 +181,7 @@ const handleSend = async () => {
   inputText.value = ''
 }
 </script>
+
+<style scoped>
+/* Added scoped styles if needed, though most classes are global/utility */
+</style>

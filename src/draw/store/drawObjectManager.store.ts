@@ -300,17 +300,25 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
 
       const nextVisible = new Set<string>()
 
+      // Loop 1: Handle objects entering the viewport
       for (const e of visible) {
-        nextVisible.add(e.id)
+        const obj = objectMap.get(e.id);
+        if (!obj) {
+          const entry = entryMap.get(e.id);
+          if (entry) quadtree.remove(entry);
+          continue;
+        }
+
+        nextVisible.add(e.id);
         if (!lastVisible.has(e.id)) {
-          objectMap.get(e.id)!.visible = true
+          obj.visible = true;
         }
       }
 
       for (const id of lastVisible) {
         if (!nextVisible.has(id)) {
-          if (!objectMap.has(id)) continue
-          objectMap.get(id)!.visible = false
+          const obj = objectMap.get(id);
+          if (obj) obj.visible = false;
         }
       }
 

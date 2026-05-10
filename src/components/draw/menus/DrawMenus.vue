@@ -27,7 +27,6 @@
   <DocsMenu trigger="docsMenu" />
   <HelpMenu />
   <RoomMenu />
-<!--  <DrawChatMenu v-if="roomId" />-->
   <MiniMap/>
 </template>
 
@@ -53,7 +52,6 @@ import SelectColorMenu from '@/components/draw/menus/SelectColorMenu.vue'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useShapeCreation } from '@/draw/store/shapeCreation.store'
 import RoomMenu from '@/components/draw/menus/RoomMenu.vue'
-import DrawChatMenu from '@/components/draw/menus/DrawChatMenu.vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import MiniMap from '@/components/draw/MiniMap.vue'
 import BucketMenu from '@/components/draw/menus/BucketMenu.vue'

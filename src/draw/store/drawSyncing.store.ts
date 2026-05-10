@@ -18,6 +18,7 @@ import { handleTextModificationSync } from '@/draw/helpers/history/text.helper'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import { useAuthStore } from '@/store/auth.store'
+import { zoomToFitAllObjects } from '@/draw/helpers/viewport.helper'
 
 export interface DrawInvitation {
   friend: Mate,
@@ -342,6 +343,7 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     for (const action of actionQueue.reverse()) {
       await executeDrawSyncingAction(action)
     }
+
 
     const { updateVisibility } = useDrawObjectManager()
     updateVisibility()

@@ -216,6 +216,8 @@ import LobbyInvitePopover from '@/components/chat/LobbyInvitePopover.vue'
 import ActiveLobbies from '@/components/home/ActiveLobbies.vue'
 import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
 import { useUserActions } from '@/composables/profile/useUserActions'
+import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
+import { useToast } from '@/service/toast.service'
 
 const drawSyncerStore = useDrawSyncer()
 const {
@@ -272,8 +274,14 @@ function createRoom() {
   socketJoinRoom({ roomId: generateRandomCode(), intent: 'create' })
 }
 
-function joinRoom(joinCode: string) {
+async function joinRoom(joinCode: string) {
   if (joinCode == '') return
+  const { forceSave, hasContent } = useDrawLoadStore()
+  if (hasContent()) {
+    const { toast } = useToast()
+    toast('Saving draft before joining...')
+    await forceSave()
+  }
   socketJoinRoom({ roomId: joinCode, intent: 'join' })
 }
 

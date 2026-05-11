@@ -3,6 +3,7 @@ import { HistoryContext } from '@/draw/config/drawHistory.config'
 import { fullErase } from '@/draw/actions/erase.action'
 import { storeToRefs } from 'pinia'
 import { useDrawStore } from '@/draw/store/draw.store'
+import { Canvas } from 'fabric'
 
 export async function redoChangeBackgroundColor(
   ctx: HistoryContext,
@@ -65,4 +66,8 @@ export async function undoChangeBackgroundColor(
   canvas.fire('backgroundColorChanged', { previousColor: currentColor, color: canvas.backgroundColor })
 
   return { ...action, params: { previousColor: currentColor } }
+}
+
+export function hasContent(c: Canvas) {
+  return c.getObjects().length > 0
 }

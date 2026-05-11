@@ -21,7 +21,6 @@
     <DrawMenus />
 
     <DrawExitGuard
-      v-if="draftId || isLobby"
       :draft-id="draftId"
       :is-lobby="isLobby"
     />
@@ -55,10 +54,8 @@ import { Menu } from '@/draw/types/draw.types'
 const route = useRoute()
 const router = useRouter()
 
-// Element Reference
 const myCanvasRef = ref<HTMLCanvasElement>()
 
-// Store State
 const drawStore = useDrawStore()
 const { initCanvas } = drawStore
 const { backgroundColor } = storeToRefs(drawStore)
@@ -66,7 +63,6 @@ const { backgroundColor } = storeToRefs(drawStore)
 const drawSyncer = useDrawSyncer()
 const { disconnectedRoomId, isLoadingCanvas, roomId } = storeToRefs(drawSyncer)
 
-// Computed Properties
 const currentMode = computed(() => (route.query.mode as string) || 'solo')
 const isLobby = computed(() => {
   const { queryParams } = useSessionStore()
@@ -77,15 +73,20 @@ const drawTogether = computed(() => {
   return !!route.query.together || !!queryParams?.get('together')
 })
 
-// Draft ID Management
+
 const draftId = ref(route.query.id as string)
 
 onMounted(() => {
   if (!isLobby.value && !draftId.value) {
     draftId.value = uuidv4()
-    router.replace({
-      query: { ...route.query, id: draftId.value }
-    })
+  }
+  if (draftId.value){
+    // TODO should not remove params in the beginning... then this would be way cleaner
+    setTimeout(() => {
+      router.replace({
+        query: { ...route.query, id: draftId.value }
+      })
+    }, 200)
   }
 
   // 2. Canvas Bootstrapping

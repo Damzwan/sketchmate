@@ -154,6 +154,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
           }
 
         })
+        c.backgroundColor = json.background
       }
 
       // 3. PERSISTENCE & AUTOSAVE
@@ -176,9 +177,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     }
   }
 
-  // ==========================================
-  // 📤 SAVING
-  // ==========================================
+
   async function performSave() {
     if (!activeCanvas || !currentDraftId.value || !db.value || !isDirty.value || !hasContent()) {
       return
@@ -223,8 +222,11 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     }
   }
 
+  function init(c: Canvas) {
+    activeCanvas = c
+  }
+
   function startAutosave(canvas: Canvas, drawingId: string) {
-    activeCanvas = canvas
     currentDraftId.value = drawingId // 🚀 Ensure it's in sync
 
     saveEvents.forEach(e => EventBus.on(e, markAsDirty))
@@ -237,7 +239,6 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     saveEvents.forEach(e => EventBus.off(e, markAsDirty))
     if (saveInterval) clearInterval(saveInterval)
     if (abortController) abortController.abort()
-    // Note: We usually don't clear currentDraftId here to allow forceSave on exit
   }
 
   const markAsDirty = () => isDirty.value = true
@@ -252,9 +253,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     }
   }
 
-  // ==========================================
-  // 🗄️ DB ACCESSORS
-  // ==========================================
+
   async function getDraft(id: string): Promise<DrawingDraft | undefined> {
     await initDB()
     return new Promise((resolve) => {
@@ -317,6 +316,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     getDraft,
     removeDraft,
     getAllDrafts,
-    hasContent
+    hasContent,
+    init
   }
 })

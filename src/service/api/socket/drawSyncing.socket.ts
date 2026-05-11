@@ -6,7 +6,6 @@ import { useToast } from '@/service/toast.service'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { DrawSyncingAction } from '@/draw/types/drawSyncing.types'
 import { SOCKET_ENDPONTS } from '@/types/server.types'
-import { createJoinRoomButton } from '@/config/toast.config'
 import router from '@/router'
 import { ToastDuration } from '@/types/toast.types'
 import { getDateOfBirthConfirmationResponse } from '@/helper/general.helper'
@@ -16,6 +15,7 @@ import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import { generateChunkedJSON } from '@/draw/helpers/drawload.helper'
 import { v4 as uuidv4 } from 'uuid'
+import { fitAndCenterAllActualObjects } from '@/draw/helpers/viewport.helper'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   const { isBlocked } = useDrawSyncer()
@@ -158,6 +158,8 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       }
     }
 
+    const {getCanvas} = useDrawStore()
+    fitAndCenterAllActualObjects(getCanvas())
     isLoadingCanvas.value = false
   })
 
@@ -177,6 +179,8 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       await store.executeDrawSyncingAction(item)
     }
 
+    const {getCanvas} = useDrawStore()
+    fitAndCenterAllActualObjects(getCanvas())
     isLoadingCanvas.value = false
   })
 
@@ -281,9 +285,8 @@ export function socketJoinRoom({ roomId, intent }: {
     isLoadingCanvas.value = true
   }
 
-  const { stopAutosave, removeDraft } = useDrawLoadStore()
+  const { stopAutosave } = useDrawLoadStore()
   stopAutosave()
-  removeDraft()
 
   socket!.emit('join-room', {
     roomId,

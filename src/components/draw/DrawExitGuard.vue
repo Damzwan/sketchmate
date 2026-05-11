@@ -46,7 +46,6 @@ const executeExitNavigation = () => {
   if (router.canGoBack()) {
     router.back()
   } else {
-    // If we started the app on the draw page, we "go back" to Home
     router.replace(FRONTEND_ROUTES.home, slideTransition)
   }
 }

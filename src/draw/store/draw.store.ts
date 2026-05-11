@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import { useDrawHistoryManager } from './drawHistoryManager.store'
 import { useDrawSendService } from '@/draw/services/drawSend.service'
 import { DrawAction, DrawActionParams, DrawTool } from '@/draw/types/draw.types'
@@ -66,7 +66,8 @@ export const useDrawStore = defineStore('draw', () => {
       el: HTMLCanvasElement,
       options: { isLobby: boolean; draftId?: string, canvasUrl?: string }
     ) {
-      // 1. Basic state cleanup
+      const {isLoadingCanvas} = storeToRefs(useDrawSyncer()) // TODO fking ugly :c
+      isLoadingCanvas.value = true
       canvasID = el.id
 
       canvasSvc.destroyCanvas()
@@ -79,6 +80,7 @@ export const useDrawStore = defineStore('draw', () => {
 
       // 3. Access our unified Load Store
       const loadStore = useDrawLoadStore()
+      loadStore.init(c)
       await loadStore.loadCanvas(c, options)
 
       // Sync the reactive background color to the store
@@ -97,6 +99,7 @@ export const useDrawStore = defineStore('draw', () => {
 
       toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true })
       drawObjectManager.updateVisibility(true)
+      isLoadingCanvas.value = false
     }
 
     async function selectAction<A extends DrawAction>(action: A, params: DrawActionParams[A]) {

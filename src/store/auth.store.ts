@@ -269,10 +269,7 @@ export const useAuthStore = defineStore('auth', () => {
       })
     }
 
-    leaveRoom()
     disconnect()
-
-
     await FirebaseAuthentication.signOut()
     isLoggedIn.value = false
     user.value = undefined

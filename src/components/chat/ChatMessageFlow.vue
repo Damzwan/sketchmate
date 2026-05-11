@@ -89,22 +89,38 @@
         </div>
       </div>
 
-      <!-- 3. MESSAGE FLOW with TransitionGroup -->
-      <!-- 3. MESSAGE FLOW with TransitionGroup -->
+      <div
+        v-if="activeTab !== 'lobby' && chatStore.hasMoreMessagesByChat[activeTab] !== false"
+        ref="topSentinel"
+        class="w-full flex  justify-center py-4 shrink-0"
+      >
+        <ion-spinner name="bubbles" color="secondary" class="opacity-60"></ion-spinner>
+      </div>
+
       <TransitionGroup
         name="msg-bubble"
         tag="div"
         class="flex flex-col gap-2 w-full"
+        :class="{ 'is-fetching-history': isFetchingHistory }"
       >
         <div
           v-for="(msg, index) in messages"
           :key="msg.localKey || msg._id || index"
           class="w-full"
-          :class="{ 'skip-anim': msg.isOptimistic !== true }"
+          :class="{ 'skip-anim': msg.isOptimistic !== true || isFetchingHistory}"
         >
           <!-- System Messages -->
           <div v-if="msg.type && msg.type !== 'message'" class="flex justify-center w-full my-2">
-            <!-- ... existing system message code ... -->
+            <div
+              @click="$emit('inspect-profile', $event, msg.member || partner)"
+              class="flex items-center gap-1.5 px-2 py-1 cursor-pointer active:opacity-60 transition-opacity"
+            >
+              <img :src="msg.member?.img || partner?.img" class="w-6 h-6 rounded-full object-cover opacity-80" />
+              <span class="text-[11px] font-bold cabin-sketch-regular text-black/40 uppercase">
+                <span class="text-black/60">{{ msg.member?.name || partner?.name }}</span>
+                <span class="ml-1">{{ msg.type === 'join' ? 'joined' : 'left' }}</span>
+              </span>
+            </div>
           </div>
 
           <!-- User Messages -->
@@ -285,13 +301,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { storeToRefs } from 'pinia'
-import { IonIcon, IonButton } from '@ionic/vue'
-import { closeCircle } from 'ionicons/icons'
-import { mdiDraw, mdiHeart, mdiClockOutline, mdiLockOutline, mdiAccountOff } from '@mdi/js'
+import { IonButton, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent } from '@ionic/vue' // Add this to your Ionic imports
+import { alertCircleOutline, checkmarkDoneOutline, closeCircle, timeOutline } from 'ionicons/icons'
+import { mdiAccountOff, mdiClockOutline, mdiDraw, mdiHeart, mdiLockOutline } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 
 import { useAuthStore } from '@/store/auth.store'
@@ -299,15 +315,15 @@ import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useChatStore } from '@/store/chat.store'
 import { useFriendStore } from '@/store/friend.store'
-import { requestMatership, acceptMatership, declineMatership } from '@/service/api/chat.api'
+import { acceptMatership, declineMatership, requestMatership } from '@/service/api/chat.api'
 import { PopulatedConversation } from '@/types/server.types'
 import { useUserActions } from '@/composables/profile/useUserActions'
-import { checkmarkDoneOutline, timeOutline, alertCircleOutline } from 'ionicons/icons'
+import { useIntersectionObserver } from '@vueuse/core'
 
 dayjs.extend(relativeTime)
 
-const props = defineProps<{ messages: any[] }>()
-const emit = defineEmits(['inspect-profile', 'join-session'])
+const props = defineProps<{ messages: any[], isFetchingHistory: boolean }>()
+const emit = defineEmits(['inspect-profile', 'join-session', 'load-more'])
 
 const authStore = useAuthStore()
 const chatWidgetStore = useChatWidgetStore()
@@ -321,6 +337,25 @@ const { activeTab } = storeToRefs(chatWidgetStore)
 const { invitations } = storeToRefs(drawSyncer)
 const { activeChats } = storeToRefs(chatStore)
 const { pendingRequests } = storeToRefs(friendStore)
+const topSentinel = ref<HTMLElement | null>(null)
+
+useIntersectionObserver(
+  topSentinel,
+  ([{ isIntersecting }]) => {
+    if (
+      isIntersecting &&
+      activeTab.value !== 'lobby' &&
+      chatStore.hasMoreMessagesByChat[activeTab.value] !== false
+    ) {
+      emit('load-more')
+    }
+  },
+  {
+    // Trigger the load slightly before the user actually hits the exact top
+    // for a more seamless UX
+    rootMargin: '150px'
+  }
+)
 
 const currentChat = computed(() => {
   return [...activeChats.value, ...pendingRequests.value].find(c => c._id === activeTab.value)
@@ -438,6 +473,16 @@ const isCompact = (msg: any, index: number) => {
   const prevSender = prev.sender_id || prev.member?._id
   return currentSender === prevSender && prev.type !== 'join' && prev.type !== 'leave'
 }
+
+const loadMoreMessages = async (event: any) => {
+  console.log('was')
+  if (activeTab.value === 'lobby') {
+    event.target.complete()
+    return
+  }
+  await chatStore.loadMessages(activeTab.value, false)
+  event.target.complete()
+}
 </script>
 
 <style scoped>
@@ -499,5 +544,20 @@ const isCompact = (msg: any, index: number) => {
 
 .msg-bubble-move {
   transition: transform 0.3s ease;
+}
+
+.skip-anim {
+  transition: none !important;
+  animation: none !important;
+}
+
+.is-fetching .msg-bubble-move {
+  transition: none !important;
+}
+
+.is-fetching-history > * {
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
 }
 </style>

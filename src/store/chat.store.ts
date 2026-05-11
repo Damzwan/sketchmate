@@ -328,10 +328,9 @@ export const useChatStore = defineStore('chat', () => {
     const before = !isInitial && currentMessages.length > 0 ? currentMessages[0].createdAt : undefined
 
     try {
-      const history = await getChatMessages(conversationId, before)
-
-      // NEW: Track if there are more messages available to fetch (assuming your backend limit is 50)
-      hasMoreMessagesByChat.value[conversationId] = history.length === 50
+      const response = await getChatMessages(conversationId, before) as any
+      const history = response.data
+      hasMoreMessagesByChat.value[conversationId] = response.hasMore
 
       if (isInitial) {
         messagesByChat.value[conversationId] = history

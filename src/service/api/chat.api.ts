@@ -10,10 +10,9 @@ export async function getPendingRequests() {
 }
 
 
-export async function getChatMessages(conversationId: string, before?: string): Promise<BaseMessage[]> {
-  const url = before
-    ? `/chats/${conversationId}/messages?before=${before}`
-    : `/chats/${conversationId}/messages`
+export async function getChatMessages(conversationId: string, before?: string, limit = 30): Promise<any> {
+  let url = `/chats/${conversationId}/messages?limit=${limit}`
+  if (before) url += `&before=${before}`
   return await request<BaseMessage[]>(url)
 }
 
@@ -46,5 +45,5 @@ export async function acceptMatership(conversationId: string) {
 export async function declineMatership(conversationId: string) {
   return await request(`/chats/${conversationId}/mate-decline`, {
     method: 'POST'
-  });
+  })
 }

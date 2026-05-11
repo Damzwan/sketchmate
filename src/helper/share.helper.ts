@@ -25,7 +25,6 @@ export async function shareUrl(url: string, title = '', dialogTitle = '', toastM
       url: url
     })
   } else {
-
     await Clipboard.write({
       string: url
     })

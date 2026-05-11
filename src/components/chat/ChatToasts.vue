@@ -3,10 +3,6 @@
   <div v-if="!isExpanded && !isFullscreen"
        class="fixed top-safe mt-20 right-4 z-[100] flex flex-col gap-2 w-64 pointer-events-none">
     <TransitionGroup name="chat-toast">
-      <!--
-        We keep using group.tabId as the key.
-        Because we are now sending 'lobby-USERID', Vue will see these as distinct items.
-      -->
       <div
         v-for="group in notifications"
         :key="group.tabId"

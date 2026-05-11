@@ -85,6 +85,7 @@ export enum Menu {
   ChatMenuOpen,
   ViewProfileMenu,
   Bucket,
+  ConnectionMenu,
 }
 
 export enum ObjectType {

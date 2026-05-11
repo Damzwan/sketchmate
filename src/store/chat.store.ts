@@ -312,41 +312,62 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function loadMessages(conversationId: string, isInitial = true) {
-    const currentMessages = messagesByChat.value[conversationId] || []
+  async function switchToConversation(conversationId: string) {
+    if (conversationId === 'lobby' || conversationId === 'overview') return
 
-    if (isInitial && currentMessages.length > 0) {
-      markAsRead(conversationId)
-      const chat = activeChats.value.find(c => c._id === conversationId)
-      if (chat && authStore.user) {
-        if (!chat.unread_counts) chat.unread_counts = {}
-        chat.unread_counts[authStore.user._id] = 0
-      }
-      return currentMessages.length
+    const chat = activeChats.value.find(c => c._id === conversationId)
+    if (!chat) return
+
+    if (!messagesByChat.value[conversationId]?.length) {
+      await loadMessages(conversationId, true)
     }
 
-    const before = !isInitial && currentMessages.length > 0 ? currentMessages[0].createdAt : undefined
+    clearUnreads(conversationId)
+  }
+
+  function getBeforeCursor(conversationId: string): string | undefined {
+    const msgs = messagesByChat.value[conversationId]
+    return msgs?.length ? msgs[0].createdAt : undefined
+  }
+
+  async function loadMessages(conversationId: string, isInitial = true) {
+    const existing = messagesByChat.value[conversationId] || []
+    if (isInitial && existing.length > 0) return existing.length
 
     try {
-      const response = await getChatMessages(conversationId, before) as any
-      const history = response.data
-      hasMoreMessagesByChat.value[conversationId] = response.hasMore
+      const response = await getChatMessages(
+        conversationId,
+        isInitial ? undefined : getBeforeCursor(conversationId)
+      ) as any
 
-      if (isInitial) {
-        messagesByChat.value[conversationId] = history
-        await markAsRead(conversationId)
-        const chat = activeChats.value.find(c => c._id === conversationId)
-        if (chat && authStore.user) {
-          if (!chat.unread_counts) chat.unread_counts = {}
-          chat.unread_counts[authStore.user._id] = 0
-        }
-      } else {
-        messagesByChat.value[conversationId] = [...history, ...currentMessages]
-      }
-      return history.length
+      hasMoreMessagesByChat.value[conversationId] = response.hasMore
+      messagesByChat.value[conversationId] = isInitial
+        ? response.data
+        : [...response.data, ...existing]
+
+      return response.data.length
     } catch (e) {
       console.error('History sync failed:', e)
       return 0
+    }
+  }
+
+  async function clearUnreads(conversationId: string) {
+    const chat = activeChats.value.find(c => c._id === conversationId)
+    if (!chat || !authStore.user) return
+
+    // 1. Optimistic UI update (feels instant to the user)
+    if (!chat.unread_counts) chat.unread_counts = {}
+
+    // If it's already 0, skip the network request
+    if (chat.unread_counts[authStore.user._id] === 0) return
+
+    chat.unread_counts[authStore.user._id] = 0
+
+    try {
+      await markAsRead(conversationId)
+    } catch (e) {
+      console.error('Failed to mark as read on server:', e)
     }
   }
 
@@ -556,6 +577,8 @@ export const useChatStore = defineStore('chat', () => {
     handleMateDeclined,
     handleMateUnfriended,
     handleMateRequested,
-    hasMoreMessagesByChat
+    hasMoreMessagesByChat,
+    clearUnreads,
+    switchToConversation
   }
 })

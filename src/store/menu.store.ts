@@ -26,6 +26,7 @@ export const useMenuStore = defineStore('menu', () => {
   const chatMenuOpen = ref(false)
   const viewProfileMenuOpen = ref(false)
   const bucketMenuOpen = ref(false)
+  const connectionMenuOpen = ref(false)
 
   const stickersEmblemsSavedSelectedTab = ref<StickersEmblemsSavedTabOptions>('sticker')
 
@@ -54,7 +55,8 @@ export const useMenuStore = defineStore('menu', () => {
     [Menu.DrawRoomMenu]: roomMenuOpen,
     [Menu.ChatMenuOpen]: chatMenuOpen,
     [Menu.ViewProfileMenu]: viewProfileMenuOpen,
-    [Menu.Bucket]: bucketMenuOpen
+    [Menu.Bucket]: bucketMenuOpen,
+    [Menu.ConnectionMenu]: connectionMenuOpen
   }
 
   const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
@@ -102,6 +104,7 @@ export const useMenuStore = defineStore('menu', () => {
     roomMenuOpen,
     chatMenuOpen,
     viewProfileMenuOpen,
-    bucketMenuOpen
+    bucketMenuOpen,
+    connectionMenuOpen
   }
 })

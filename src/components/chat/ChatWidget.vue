@@ -3,7 +3,7 @@
 
   <ion-modal
     :is-open="isVisible && isExpanded"
-    @did-present="scrollToBottom(true)"
+    @will-present="scrollToBottom(true)"
     @did-dismiss="chatWidget.closePanel()"
     :keepContentsMounted="true"
     :initial-breakpoint="1"
@@ -80,6 +80,7 @@ import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
 import { masterAnimation } from '@/helper/animation.helper'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { useUserActions } from '@/composables/profile/useUserActions'
+import { useScrollAnchor } from '@/composables/general/useScrollAnchor'
 
 const chatWidget = useChatWidgetStore()
 const { isVisible, isExpanded, activeTab } = storeToRefs(chatWidget)
@@ -97,6 +98,10 @@ const chatStore = useChatStore()
 
 const router = useIonRouter()
 
+const isFetchingHistory = ref(false)
+const { scrollToBottom, captureScrollState, restoreScrollState } = useScrollAnchor(messageContainer)
+
+
 // --- Computed ---
 const currentMessages = computed(() => {
   return activeTab.value === 'lobby'
@@ -104,24 +109,32 @@ const currentMessages = computed(() => {
     : (messagesByChat.value[activeTab.value] || [])
 })
 
+watch([activeTab, isExpanded], async ([tab, expanded], [prevTab]) => {
+  if (!expanded) return
+  if (tab == 'lobby' || tab == 'overview') return
 
-// --- Methods ---
+  const tabChanged = tab !== prevTab
+
+  if (tabChanged) {
+    await chatStore.switchToConversation(tab)
+    scrollToBottom(true)
+  } else {
+    chatStore.clearUnreads(tab)
+  }
+}, { immediate: true })
+
+watch(currentMessages, () => {
+  if (!isFetchingHistory.value && isVisible.value && isExpanded.value) {
+    scrollToBottom(false)
+  }
+}, { deep: true })
+
+
 const openLobbyInvitePopover = (ev: Event) => {
   inviteEvent.value = ev
   invitePopoverOpen.value = true
 }
 
-
-const scrollToBottom = async (instant = false) => {
-  await nextTick()
-  const el = messageContainer.value
-  if (!el) return
-
-  el.scrollTo({
-    top: el.scrollHeight,
-    behavior: instant ? 'auto' : 'smooth'
-  })
-}
 
 function joinSession(roomId: string) {
   invitations.value = invitations.value.filter(inv => inv.roomId !== roomId)
@@ -134,49 +147,30 @@ function joinSession(roomId: string) {
   }, 200)
 }
 
-const isFetchingHistory = ref(false)
 
 const handleLoadMore = async () => {
   if (isFetchingHistory.value) return
 
   const el = messageContainer.value
-  if (!el || el.scrollTop > 200) return // Only trigger if near the top
+  if (!el || el.scrollTop > 200) return
+  if (!chatStore.messagesByChat[activeTab.value]?.length) return
+  if (!chatStore.hasMoreMessagesByChat[activeTab.value]) return // use the flag!
 
   isFetchingHistory.value = true
-
-  // 1. Snapshot the current scroll position and height
-  const oldScrollHeight = el.scrollHeight
-  const oldScrollTop = el.scrollTop
+  const snapshot = captureScrollState()
 
   try {
     await chatStore.loadMessages(activeTab.value, false)
     await nextTick()
-
-    // 2. Calculate the new height
-    const newScrollHeight = el.scrollHeight
-
-    // 3. Perform the jump instantly
-    // We use scrollTo with 'auto' to ensure there is zero "smooth" animation
-    el.scrollTo({
-      top: oldScrollTop + (newScrollHeight - oldScrollHeight),
-      behavior: 'auto'
-    })
+    if (snapshot) restoreScrollState(snapshot)
   } finally {
-    // 4. Use a slightly longer timeout to ensure DOM painting is 100% done
-    // before allowing the auto-scroller to take over again
     setTimeout(() => {
       isFetchingHistory.value = false
     }, 200)
   }
 }
 
-watch(currentMessages, async () => {
-  if (isFetchingHistory.value) return
 
-  if (isVisible.value && isExpanded.value) {
-    scrollToBottom(false)
-  }
-}, { deep: true })
 </script>
 
 <style scoped>

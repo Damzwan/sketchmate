@@ -66,6 +66,7 @@ export interface User {
   followers: string[];
   friends: string[];
   blocked_users: string[];
+  customization: any
 }
 
 export type BalloonStatus = 'pending' | 'paired' | 'accepted';

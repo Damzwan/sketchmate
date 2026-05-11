@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { IonContent, IonPage, onIonViewDidEnter, useIonRouter } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import TopBar from '../components/general/TopBar.vue'
@@ -57,11 +57,17 @@ import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
 import MyDrafts from '@/components/home/MyDrafts.vue'
 import { DrawingDraft, useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import CommunityFeed from '@/components/home/CommunityFeed.vue'
+import { useMenuStore } from '@/store/menu.store'
+import { Menu } from '@/draw/types/draw.types'
+import { useSessionStore } from '@/store/session.store'
+import router from '@/router'
+import { useProfileInspector } from '@/composables/profile/useProfileInspector'
 
 const r = useIonRouter()
 
 const drawSyncerStore = useDrawSyncer()
 const { publicLobbies } = storeToRefs(drawSyncerStore)
+const { openMenu } = useMenuStore()
 
 const loadStore = useDrawLoadStore()
 const localDrafts = ref<DrawingDraft[]>([])
@@ -69,13 +75,10 @@ const isLoadingDrafts = ref(true)
 
 const quickActions = ref([
   { id: 'draw_alone', label: 'Draw', iconFallback: '✏️' },
-  { id: 'draw_together', label: 'Draw together', iconFallback: '👋' }
+  { id: 'draw_together', label: 'Draw together', iconFallback: '👋' },
+  { id: 'share', label: 'Add a Mate', iconFallback: '🤝' }
 ])
 
-const communityHighlights = ref([
-  { id: '101', author: 'SketchMaster99', timeAgo: '2h ago', likes: 142, comments: 12 },
-  { id: '102', author: 'DoodleKid', timeAgo: '4h ago', likes: 89, comments: 4 }
-])
 
 onIonViewDidEnter(() => {
   fetchDrafts()
@@ -91,6 +94,7 @@ onMounted(async () => {
   }
 })
 
+
 const handleQuickAction = (actionId: string) => {
   if (actionId === 'draw_alone') {
     r.push(FRONTEND_ROUTES.draw, masterAnimation)
@@ -99,6 +103,8 @@ const handleQuickAction = (actionId: string) => {
       path: FRONTEND_ROUTES.draw,
       query: { together: 'true' }
     }, masterAnimation)
+  } else if (actionId === 'share') {
+    openMenu(Menu.ConnectionMenu)
   }
 }
 

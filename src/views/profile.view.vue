@@ -37,7 +37,19 @@
             </div>
 
             <div class="flex flex-col items-center -mt-20 relative z-20">
-              <ProfilePictureSelector :img="user.img" @update:img="handleImgUpdate" />
+              <div class="relative">
+                <ProfilePictureSelector :img="user.img" @update:img="handleImgUpdate" />
+
+                <transition name="fade">
+                  <button
+                    v-if="!isEditing"
+                    @click="connectionMenuOpen = true"
+                    class="absolute -bottom-1 -left-1 w-10 h-10 bg-secondary text-white rounded-xl shadow-lg flex items-center justify-center active:scale-90 transition-transform border-4 border-white/20 z-30"
+                  >
+                    <ion-icon :icon="svg(mdiShareOutline)" class="text-xl" />
+                  </button>
+                </transition>
+              </div>
 
               <!-- Display Mode -->
               <div v-if="!isEditing" class="text-center mt-4 w-full">
@@ -48,28 +60,39 @@
               </div>
 
               <!-- Edit Mode -->
-              <div v-else class="w-full mt-6 space-y-4">
+              <div v-else class="w-full mt-6 space-y-4 px-2">
                 <input v-model="editForm.name" placeholder="Artist Name"
                        class="w-full bg-white/40 border border-primary/20 rounded-2xl px-4 py-3 text-lg font-black text-black shadow-inner focus:outline-none focus:ring-2 focus:ring-secondary transition-all" />
                 <textarea v-model="editForm.description" placeholder="A little about your art..." rows="3"
                           class="w-full bg-white/40 border border-primary/20 rounded-2xl px-4 py-3 text-sm font-bold text-black italic shadow-inner focus:outline-none focus:ring-2 focus:ring-secondary transition-all resize-none"></textarea>
               </div>
 
-              <!-- Stats Bar -->
-              <div class="flex items-center justify-center space-x-6 mt-8 w-full border-t border-black/5 pt-6">
+              <!-- Stats Bar: Mathematical Grid Centering -->
+              <div class="grid grid-cols-3 w-full mt-8 border-t border-black/5 pt-6">
+                <!-- Mates -->
+                <button @click="goToNetwork('mates')"
+                        class="flex flex-col items-center group active:scale-90 transition-transform">
+                  <span class="block text-2xl font-black text-secondary drop-shadow-sm">
+                    {{ formatNumber(user.mates?.length || 0) }}
+                  </span>
+                  <span class="text-[10px] font-bold text-black/50 uppercase tracking-widest">Mates</span>
+                </button>
+
+                <!-- Followers: Exactly Centered -->
                 <button @click="goToNetwork('followers')"
-                        class="flex flex-col items-center cursor-pointer active:scale-90 hover:-translate-y-1 hover:bg-black/5 transition-all duration-300 px-4 py-2 rounded-2xl">
-                  <span
-                    class="block text-2xl font-black text-black drop-shadow-sm">{{ formatNumber(user.followers?.length || 0)
-                    }}</span>
+                        class="flex flex-col items-center group active:scale-90 transition-transform border-x border-black/5">
+                  <span class="block text-2xl font-black text-black drop-shadow-sm">
+                    {{ formatNumber(user.followers?.length || 0) }}
+                  </span>
                   <span class="text-[10px] font-bold text-black/50 uppercase tracking-widest">Followers</span>
                 </button>
-                <div class="w-px h-8 bg-black/10 rounded-full"></div>
+
+                <!-- Following -->
                 <button @click="goToNetwork('following')"
-                        class="flex flex-col items-center cursor-pointer active:scale-90 hover:-translate-y-1 hover:bg-black/5 transition-all duration-300 px-4 py-2 rounded-2xl">
-                  <span
-                    class="block text-2xl font-black text-black drop-shadow-sm">{{ formatNumber(user.following?.length || 0)
-                    }}</span>
+                        class="flex flex-col items-center group active:scale-90 transition-transform">
+                  <span class="block text-2xl font-black text-black drop-shadow-sm">
+                    {{ formatNumber(user.following?.length || 0) }}
+                  </span>
                   <span class="text-[10px] font-bold text-black/50 uppercase tracking-widest">Following</span>
                 </button>
               </div>
@@ -142,8 +165,9 @@ import {
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/store/auth.store'
 import { usePostStore } from '@/store/post.store'
+import { useMenuStore } from '@/store/menu.store'
 import { svg } from '@/helper/general.helper'
-import { mdiCheck, mdiCog, mdiHeart, mdiPencil } from '@mdi/js'
+import { mdiCheck, mdiCog, mdiHeart, mdiPencil, mdiShareOutline } from '@mdi/js'
 import TopBar from '@/components/general/TopBar.vue'
 import ProfilePictureSelector from '@/components/account/ProfilePictureSelector.vue'
 import { usePostSwiper } from '@/composables/home/usePostSwiper'
@@ -154,9 +178,11 @@ import { masterAnimation } from '@/helper/animation.helper'
 const router = useIonRouter()
 const authStore = useAuthStore()
 const postStore = usePostStore()
+const menuStore = useMenuStore()
 
 const { user } = storeToRefs(authStore)
 const { userPosts, hasMoreUserPosts, isProfileDirty } = storeToRefs(postStore)
+const { connectionMenuOpen } = storeToRefs(menuStore)
 const { toast } = useToast()
 const { openPostSwiper } = usePostSwiper()
 

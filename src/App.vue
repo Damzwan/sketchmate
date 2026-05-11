@@ -14,6 +14,7 @@
     <DateOfBirthConfirmation />
     <Confetti />
     <ReceivedBalloon />
+    <ConnectionHub />
   </ion-app>
 </template>
 
@@ -36,6 +37,8 @@ import { useActiveViewSync } from '@/service/activeViewSync'
 import ForceUpdateModal from '@/components/general/ForceUpdateModal.vue'
 import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 import WhatsNewModal from '@/components/general/WhatsNewModal.vue'
+import { useSessionStore } from '@/store/session.store'
+import { useProfileInspector } from '@/composables/profile/useProfileInspector'
 
 // LAZY LOADED COMPONENTS (Will create separate js chunks)
 const GlobalToast = defineAsyncComponent(() => import('@/components/general/GlobalToast.vue'))
@@ -46,6 +49,7 @@ const DateOfBirthConfirmation = defineAsyncComponent(() => import('@/components/
 const Confetti = defineAsyncComponent(() => import('@/components/subscription/Confetti.vue'))
 const ReceivedBalloon = defineAsyncComponent(() => import('@/components/connect/balloon/ReceivedBalloon.vue'))
 const ViewProfileMenu = defineAsyncComponent(() => import('@/components/profile/ViewProfileMenu.vue'))
+const ConnectionHub = defineAsyncComponent(() => import('@/components/general/ConnectionHub.vue'))
 
 const ionRouter = useIonRouter()
 const { initIonRouter } = useAuthStore()
@@ -56,9 +60,16 @@ const { isAuthLoading, showForceUpdateModal } = storeToRefs(useAuthStore())
 const networkStore = useNetworkStore()
 
 const isRouterReady = ref(false)
+const { inspect } = useProfileInspector()
 
 onMounted(async () => {
   defineCustomElements(window)
+
+  const { queryParams } = useSessionStore()
+  const mate = queryParams?.get('mate')
+  if (mate) {
+    inspect(mate)
+  }
 })
 
 setupRouterReadyWatcher(isRouterReady, isAuthLoading)

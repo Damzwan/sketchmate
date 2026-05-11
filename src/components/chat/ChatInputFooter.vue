@@ -26,6 +26,7 @@
         />
 
         <button
+          @mousedown.prevent
           v-if="chatStore.canSendMessage(activeTab)"
           @click="handleSend"
           class="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center active:scale-90 transition-all shadow-md"
@@ -174,7 +175,7 @@ const handleSend = async () => {
   } else {
     const partner = friendStore.resolvePartnerInfo(activeTab.value)
     if (partner?._id) {
-      await chatStore.sendMessage(partner._id, text)
+      await chatStore.sendMessage(partner._id, text, activeTab.value)
       emit('sent')
     }
   }

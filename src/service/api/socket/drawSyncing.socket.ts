@@ -15,6 +15,7 @@ import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import { generateChunkedJSON } from '@/draw/helpers/drawload.helper'
+import { v4 as uuidv4 } from 'uuid'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   const { isBlocked } = useDrawSyncer()
@@ -207,19 +208,39 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     invitations.value.push(data)
   })
 
-  socket.on('lobby-message', async ({ message, member, timestamp, id }) => {
-    const { lobbyChatMessages } = storeToRefs(useDrawSyncer())
+  socket.on('lobby-message', async ({ message, member, timestamp, id, }) => {
+    const drawSyncer = useDrawSyncer()
+    const authStore = useAuthStore()
 
     if (isBlocked(member.user_id || member._id)) {
       return
     }
 
-    lobbyChatMessages.value.push({
+    const isMe = member._id === authStore.user?._id
+
+    if (isMe && id) {
+      drawSyncer.resolveOptimisticLobbyMessage(id, {
+        type: 'message',
+        message,
+        member,
+        timestamp,
+        createdAt: timestamp,
+        _id: id,
+        status: 'sent',
+        isOptimistic: true
+      })
+      return
+    }
+
+    // If it's a message from someone else, just push it normally
+    drawSyncer.lobbyChatMessages.push({
       type: 'message',
       message,
       member,
       timestamp,
-      _id: id
+      createdAt: timestamp,
+      _id: id,
+      isOptimistic: false
     })
   })
 
@@ -331,8 +352,38 @@ export function inviteFriendToRoom(friendId: string, roomId: string) {
 }
 
 export function sendLobbyMessage(message: string) {
-  const { roomId } = useDrawSyncer()
-  socket!.emit('lobby-message', { roomId, message })
+  const drawSyncer = useDrawSyncer()
+  const authStore = useAuthStore()
+
+  if (!drawSyncer.roomId || !authStore.user) return
+
+  // 1. Create a temporary Optimistic Message
+  const tempId = uuidv4()
+  const optimisticMessage = {
+    _id: tempId,
+    type: 'message',
+    message: message,
+    member: authStore.user,
+    createdAt: new Date().toISOString(),
+    status: 'sending',
+    isOptimistic: true
+  }
+
+  drawSyncer.addOptimisticLobbyMessage(optimisticMessage)
+
+  socket!.emit('lobby-message', {
+    roomId: drawSyncer.roomId,
+    message,
+    tempId
+  })
+
+  // Optional: Set a timeout to mark as error if the server never responds
+  setTimeout(() => {
+    const msg = drawSyncer.lobbyChatMessages.find(m => m._id === tempId)
+    if (msg && msg.type == 'message' && msg.status === 'sending') {
+      drawSyncer.updateLobbyMessageStatus(tempId, 'error')
+    }
+  }, 5000)
 }
 
 export async function startWatchingLobbies() {

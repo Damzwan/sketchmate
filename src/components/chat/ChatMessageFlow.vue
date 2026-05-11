@@ -5,7 +5,8 @@
   >
     <!-- 0. BLOCKED STATE (High Priority Firewall) -->
     <div v-if="isBlocked" class="flex-1 flex flex-col items-center justify-center p-8 animate-fade-in">
-      <div class="bg-white/40 border border-white/60 p-8 rounded-[3rem] backdrop-blur-md shadow-xl text-center w-full max-w-xs">
+      <div
+        class="bg-white/40 border border-white/60 p-8 rounded-[3rem] backdrop-blur-md shadow-xl text-center w-full max-w-xs">
         <div class="relative inline-block mb-4">
           <img
             :src="partner?.img"
@@ -88,54 +89,66 @@
         </div>
       </div>
 
-      <!-- 3. MESSAGE FLOW -->
-      <div v-for="(msg, index) in messages" :key="msg._id || index" class="w-full">
-        <div v-if="msg.type && msg.type !== 'message'" class="flex justify-center w-full my-2">
-          <div
-            @click="$emit('inspect-profile', $event, msg.member || partner)"
-            class="flex items-center gap-1.5 px-2 py-1 cursor-pointer active:opacity-60 transition-opacity"
-          >
-            <img :src="msg.member?.img || partner?.img" class="w-6 h-6 rounded-full object-cover opacity-80" />
-            <span class="text-[11px] font-bold cabin-sketch-regular text-black/40 uppercase">
-              <span class="text-black/60">{{ msg.member?.name || partner?.name }}</span>
-              <span class="ml-1">{{ msg.type === 'join' ? 'joined' : 'left' }}</span>
-            </span>
-          </div>
-        </div>
-
+      <!-- 3. MESSAGE FLOW with TransitionGroup -->
+      <!-- 3. MESSAGE FLOW with TransitionGroup -->
+      <TransitionGroup
+        name="msg-bubble"
+        tag="div"
+        class="flex flex-col gap-2 w-full"
+      >
         <div
-          v-else
-          class="flex items-start gap-2.5 px-1 py-0.5"
-          :class="{'flex-row-reverse': isMe(msg), 'mt-[-6px]': isCompact(msg, index)}"
+          v-for="(msg, index) in messages"
+          :key="msg.localKey || msg._id || index"
+          class="w-full"
+          :class="{ 'skip-anim': msg.isOptimistic !== true }"
         >
-          <div class="w-8 h-8 shrink-0 flex items-end" v-if="!isMe(msg) && !isCompact(msg, index)">
-            <img
-              @click="$emit('inspect-profile', $event, msg.member || partner)"
-              :src="msg.member?.img || partner?.img"
-              class="w-8 h-8 rounded-xl border border-white shadow-sm object-cover"
-            />
+          <!-- System Messages -->
+          <div v-if="msg.type && msg.type !== 'message'" class="flex justify-center w-full my-2">
+            <!-- ... existing system message code ... -->
           </div>
-          <div v-else-if="!isMe(msg)" class="w-8 shrink-0"></div>
 
-          <div class="flex flex-col max-w-[75%]" :class="{ 'items-end': isMe(msg) }">
-            <div
-              class="py-2 px-3.5 text-[15px] shadow-sm cabin-sketch-regular tracking-wide"
-              :class="isMe(msg)
-                ? 'bg-secondary text-white rounded-2xl rounded-tr-sm'
-                : 'bg-white/80 text-black rounded-2xl rounded-tl-sm border border-white/60'"
-            >
-              <div v-if="!isCompact(msg, index) && !isMe(msg) && activeTab === 'lobby'"
-                   class="text-[8px] font-black mb-1 opacity-50 uppercase font-sans">
-                {{ msg.member?.name || partner?.name }}
-              </div>
-              <div class="font-bold">{{ msg.content || msg.message }}</div>
-              <div class="text-[8px] mt-1 font-sans opacity-60 text-right">
-                {{ dayjs(msg.createdAt).format('HH:mm') }}
+          <!-- User Messages -->
+          <div
+            v-else
+            class="flex items-start gap-2.5 px-1 py-0.5"
+            :class="{'flex-row-reverse': isMe(msg), 'mt-[-6px]': isCompact(msg, index)}"
+          >
+            <div class="w-8 h-8 shrink-0 flex items-end" v-if="!isMe(msg) && !isCompact(msg, index)">
+              <!-- ... existing avatar code ... -->
+            </div>
+            <div v-else-if="!isMe(msg)" class="w-8 shrink-0"></div>
+
+            <div class="flex flex-col max-w-[75%]" :class="{ 'items-end': isMe(msg) }">
+              <div
+                class="py-2 px-3.5 text-[15px] shadow-sm cabin-sketch-regular tracking-wide"
+                :class="isMe(msg)
+            ? 'bg-secondary text-white rounded-2xl rounded-tr-sm'
+            : 'bg-white/80 text-black rounded-2xl rounded-tl-sm border border-white/60'"
+              >
+                <div v-if="!isCompact(msg, index) && !isMe(msg) && activeTab === 'lobby'"
+                     class="text-[8px] font-black mb-1 opacity-50 uppercase font-sans">
+                  {{ msg.member?.name || partner?.name }}
+                </div>
+
+                <div class="font-bold">{{ msg.content || msg.message }}</div>
+
+                <!-- UPDATED: Timestamp & Checkmarks -->
+                <div class="text-[8px] mt-1 font-sans opacity-80 flex justify-end items-center gap-1">
+                  <span>{{ dayjs(msg.createdAt).format('HH:mm') }}</span>
+
+                  <!-- Checkmarks only for normal private messages sent by the user -->
+                  <span v-if="isMe(msg) && activeTab !== 'lobby'" class="text-[11px] flex items-center">
+              <ion-icon v-if="msg.status === 'sending'" :icon="timeOutline" class="opacity-60" />
+              <ion-icon v-else-if="msg.status === 'error'" :icon="alertCircleOutline" class="text-red-300" />
+              <ion-icon v-else :icon="checkmarkDoneOutline" class="text-white" />
+            </span>
+                </div>
+
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </TransitionGroup>
 
       <!-- 4. RELATIONSHIP STATUS BANNER -->
       <div v-if="showStatusBanner && partner" class="flex justify-center w-full mt-4 px-1">
@@ -251,7 +264,8 @@
 
           <div class="text-center">
             <p class="text-[13px] font-bold text-black italic cabin-sketch-regular leading-tight">
-              <span class="text-secondary font-black not-italic uppercase text-sm">{{ activeInvite.friend?.name }}</span>
+              <span class="text-secondary font-black not-italic uppercase text-sm">{{ activeInvite.friend?.name
+                }}</span>
               <br />invited you to draw!
             </p>
           </div>
@@ -288,6 +302,7 @@ import { useFriendStore } from '@/store/friend.store'
 import { requestMatership, acceptMatership, declineMatership } from '@/service/api/chat.api'
 import { PopulatedConversation } from '@/types/server.types'
 import { useUserActions } from '@/composables/profile/useUserActions'
+import { checkmarkDoneOutline, timeOutline, alertCircleOutline } from 'ionicons/icons'
 
 dayjs.extend(relativeTime)
 
@@ -316,13 +331,11 @@ const partner = computed(() => {
   return currentChat.value?.participants.find((p: any) => p._id !== user.value?._id)
 })
 
-// --- Blocked Logic ---
 const isBlocked = computed(() => {
   if (!partner.value) return false
   return user.value?.blocked_users?.includes(partner.value._id)
 })
 
-// --- Chat Lifecycle Computeds ---
 const isIncomingRequest = computed(() =>
   currentChat.value?.status === 'pending' &&
   currentChat.value.initiator_id !== user.value?._id
@@ -355,7 +368,6 @@ const isMateProposalReceived = computed(() =>
   isMatePending.value && currentChat.value?.initiator_id !== user.value?._id
 )
 
-// --- Cooldown Logic ---
 const isUnderCooldown = computed(() => {
   if (!currentChat.value?.cooldown_until) return false
   return dayjs().isBefore(dayjs(currentChat.value.cooldown_until))
@@ -365,7 +377,6 @@ const formattedCooldown = computed(() => {
   return dayjs(currentChat.value?.cooldown_until).fromNow()
 })
 
-// --- Actions ---
 async function handleMateRequest() {
   if (!currentChat.value) return
   try {
@@ -434,6 +445,21 @@ const isCompact = (msg: any, index: number) => {
   --border-radius: 1rem;
 }
 
+/* --- Bubble Animation Logic --- */
+.msg-bubble-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.9);
+}
+
+.msg-bubble-enter-active {
+  transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.msg-bubble-enter-to {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
 .animate-tab-in {
   animation: tabIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
@@ -460,5 +486,18 @@ const isCompact = (msg: any, index: number) => {
   to {
     opacity: 1;
   }
+}
+
+.skip-anim.msg-bubble-enter-active,
+.skip-anim.msg-bubble-enter-from,
+.skip-anim.msg-bubble-enter-to {
+  transition: none !important;
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.msg-bubble-move {
+  transition: transform 0.3s ease;
 }
 </style>

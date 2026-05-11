@@ -25,26 +25,28 @@ export interface DrawInvitation {
   roomId: string
 }
 
+export type MessageStatus = 'sending' | 'sent' | 'error';
+
+interface BaseLobbyItem {
+  _id: string
+  timestamp: string
+  member: Mate
+}
+
 export type LobbyChatItem =
-  | {
+  | (BaseLobbyItem & {
   type: 'message'
-  member: Mate
   message: string
-  _id: string
-  timestamp: string
-}
-  | {
+  isOptimistic?: boolean
+  status?: MessageStatus
+  createdAt?: string
+})
+  | (BaseLobbyItem & {
   type: 'join'
-  member: Mate
-  _id: string
-  timestamp: string
-}
-  | {
+})
+  | (BaseLobbyItem & {
   type: 'leave'
-  member: Mate
-  _id: string
-  timestamp: string
-}
+});
 
 export interface PublicLobby {
   id: string;
@@ -403,6 +405,24 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     return blockedMap.value.has(id)
   }
 
+  function addOptimisticLobbyMessage(message: any) {
+    lobbyChatMessages.value.push(message)
+  }
+
+  function resolveOptimisticLobbyMessage(tempId: string, resolvedMessage: any) {
+    const index = lobbyChatMessages.value.findIndex((msg) => msg._id === tempId)
+    if (index !== -1) {
+      lobbyChatMessages.value[index] = resolvedMessage
+    }
+  }
+
+  function updateLobbyMessageStatus(tempId: string, status: 'sending' | 'sent' | 'error') {
+    const message = lobbyChatMessages.value.find((msg) => msg._id === tempId)
+    if (message && message.type === 'message') {
+      message.status = status
+    }
+  }
+
   return {
     roomMembers,
     roomId,
@@ -424,6 +444,9 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     lastProcessedSequenceId,
     currentSessionId,
     isLobby,
-    isBlocked
+    isBlocked,
+    addOptimisticLobbyMessage,
+    resolveOptimisticLobbyMessage,
+    updateLobbyMessageStatus
   }
 })

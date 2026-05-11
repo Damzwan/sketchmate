@@ -12,6 +12,7 @@ import {
 import { useGestureStore } from '@/draw/store/tools/gesture.store'
 import { yieldToMain } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let c: Canvas | undefined = undefined
@@ -31,6 +32,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   // diff against the next pass and toggle .visible only on changed objects.
   let lastVisible = new Set<string>()
   let visibilityScheduled = false
+
 
   // ─── Render Pipeline State ────────────────────────────────────────────────
   //
@@ -69,6 +71,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let zIndexMap = new Map<FabricObject, number>()
   let isZIndexDirty = true
 
+  const drawSyncer = useDrawSyncer()
+
 
   // ─── Canvas Event Handlers ────────────────────────────────────────────────
   // Every mutation that changes what the canvas looks like funnels through
@@ -84,6 +88,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         addToQuadTree(obj)
         scheduleInvalidation(obj)
 
+        if (drawSyncer.isLoadingCanvas) return
         if (!isZIndexDirty) {
           const allObjects = c!.getObjects()
           if (allObjects[allObjects.length - 1].id === obj.id) {
@@ -302,23 +307,23 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
 
       // Loop 1: Handle objects entering the viewport
       for (const e of visible) {
-        const obj = objectMap.get(e.id);
+        const obj = objectMap.get(e.id)
         if (!obj) {
-          const entry = entryMap.get(e.id);
-          if (entry) quadtree.remove(entry);
-          continue;
+          const entry = entryMap.get(e.id)
+          if (entry) quadtree.remove(entry)
+          continue
         }
 
-        nextVisible.add(e.id);
+        nextVisible.add(e.id)
         if (!lastVisible.has(e.id)) {
-          obj.visible = true;
+          obj.visible = true
         }
       }
 
       for (const id of lastVisible) {
         if (!nextVisible.has(id)) {
-          const obj = objectMap.get(id);
-          if (obj) obj.visible = false;
+          const obj = objectMap.get(id)
+          if (obj) obj.visible = false
         }
       }
 

@@ -3,8 +3,7 @@ import { defineStore } from 'pinia'
 import { ActiveSelection, Canvas } from 'fabric'
 import { EventBus } from '@/main'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { centerObjectInViewport, precalculateAndSetViewport, zoomToFitAllObjects } from '@/draw/helpers/viewport.helper'
+import { centerObjectInViewport, precalculateAndSetViewport } from '@/draw/helpers/viewport.helper'
 import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { enlivenObjectsTimeSlivered, generateChunkedJSON } from '@/draw/helpers/drawload.helper'
@@ -18,7 +17,6 @@ export interface DrawingDraft {
 
 export const useDrawLoadStore = defineStore('drawLoad', () => {
   const { actionWithoutEvents } = useDrawEventManager()
-  const drawSyncer = useDrawSyncer()
 
   // --- Database Config ---
   const db = ref<IDBDatabase | undefined>()
@@ -92,9 +90,6 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     canvasUrl?: string;
     json?: any;
   }) {
-    const drawSyncer = useDrawSyncer()
-
-    drawSyncer.isLoadingCanvas = true
 
     const finalId = options.draftId || currentDraftId.value || uuidv4()
     currentDraftId.value = finalId
@@ -132,7 +127,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
 
       if (json) {
         if (json.objects && json.objects.length > 0) {
-          precalculateAndSetViewport(c, json.objects);
+          precalculateAndSetViewport(c, json.objects)
         }
 
         if (json.version === '5.5.2') {
@@ -175,7 +170,6 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     } catch (error) {
       console.error('❌ loadCanvas Failed:', error)
     } finally {
-      drawSyncer.isLoadingCanvas = false
       if (!isExternalLoad) {
         isDirty.value = false
       }

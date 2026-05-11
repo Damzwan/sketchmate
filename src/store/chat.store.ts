@@ -8,13 +8,21 @@ import { socket } from '@/service/api/socket/socket.service'
 import { useAuthStore } from '@/store/auth.store'
 import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { useFriendStore } from '@/store/friend.store'
+import { v4 as uuidv4 } from 'uuid'
+
+type FrontendMessage = BaseMessage & {
+  isOptimistic?: boolean
+  localKey?: string
+}
+
 
 export const useChatStore = defineStore('chat', () => {
   const activeChats = ref<PopulatedConversation[]>([])
-  const messagesByChat = ref<Record<string, BaseMessage[]>>({})
+  const messagesByChat = ref<Record<string, FrontendMessage[]>>({})
   const typingStatuses = ref<Record<string, boolean>>({})
   const authStore = useAuthStore()
   const notifications = ref<any[]>([])
+  const hasMoreMessagesByChat = ref<Record<string, boolean>>({})
 
   // --- COMPUTED ---
 
@@ -103,7 +111,7 @@ export const useChatStore = defineStore('chat', () => {
       'Sent a Mate proposal! 💖',
       'Sent a new Mate proposal! Let\'s try again? 🎨',
       'SYSTEM_MATE_REQUEST'
-    ]
+    ] // TODO should not be necessary
     if (systemStrings.includes(message.content)) return
 
     if (!messagesByChat.value[conversation_id]) {
@@ -160,7 +168,7 @@ export const useChatStore = defineStore('chat', () => {
 
   async function respondToRequest(conversationId: string, action: 'accept' | 'decline') {
     try {
-      const response = await respondToChatRequest(conversationId, action)
+      const response = await respondToChatRequest(conversationId, action) as any
       const friendStore = useFriendStore()
       const widgetStore = useChatWidgetStore()
 
@@ -184,20 +192,115 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function sendMessage(receiver_id: string, content: string) {
-    if (!socket) throw new Error('Socket not connected')
-    const response = await emitSendMessage(socket, receiver_id, content)
-    if (response.success && response.message && response.conversation) {
-      const chatWidget = useChatWidgetStore()
-      addIncomingMessage(response.conversation._id, response.message, response.conversation)
-      if (chatWidget.activeTab === receiver_id) {
-        chatWidget.addChatHead(response.conversation._id, 'chat')
-        chatWidget.activeTab = response.conversation._id
-        chatWidget.removeChatHead(receiver_id)
-      }
-      return response
+  function addOptimisticMessage(chatId: string, message: any) {
+    if (!messagesByChat.value[chatId]) {
+      messagesByChat.value[chatId] = []
     }
-    throw new Error('Failed to send message')
+    // Push the temp message so it renders immediately
+    messagesByChat.value[chatId].push(message)
+  }
+
+  function resolveOptimisticMessage(chatId: string, tempId: string, resolvedMessage: any, actualConversationId?: string) {
+    const targetId = actualConversationId || chatId
+
+    // Ensure the target array exists
+    if (!messagesByChat.value[targetId]) {
+      messagesByChat.value[targetId] = []
+    }
+
+    const chatMessages = messagesByChat.value[chatId]
+    if (!chatMessages) return
+
+    const index = chatMessages.findIndex((msg) => msg._id === tempId)
+    if (index !== -1) {
+      // Transfer the stable key to the new message
+      resolvedMessage.localKey = chatMessages[index].localKey || tempId
+
+      // RACE CONDITION CHECK: Did the socket already push the real message?
+      const targetArray = messagesByChat.value[targetId]
+      const duplicateIndex = targetArray.findIndex(m => m._id === resolvedMessage._id)
+
+      if (duplicateIndex !== -1 && targetArray[duplicateIndex]._id !== tempId) {
+        // The socket already added the official message!
+        // 1. Remove our temporary one
+        chatMessages.splice(index, 1)
+        // 2. Make sure the socket-added one has the UI state we need
+        targetArray[duplicateIndex].status = 'sent'
+        targetArray[duplicateIndex].localKey = resolvedMessage.localKey
+        targetArray[duplicateIndex].isOptimistic = true
+      } else {
+        // Normal Flow (HTTP won the race)
+        if (actualConversationId && actualConversationId !== chatId) {
+          // Move to the new conversation ID array
+          chatMessages.splice(index, 1)
+          messagesByChat.value[targetId].push(resolvedMessage)
+        } else {
+          // Swap out the temp message for the real one in place smoothly
+          chatMessages.splice(index, 1, resolvedMessage)
+        }
+      }
+    }
+  }
+
+  function updateMessageStatus(chatId: string, tempId: string, status: 'sending' | 'sent' | 'error') {
+    const chatMessages = messagesByChat.value[chatId]
+    if (!chatMessages) return
+
+    const message = chatMessages.find((msg) => msg._id === tempId)
+    if (message) {
+      message.status = status
+    }
+  }
+
+  async function sendMessage(receiver_id: string, content: string, chat_id: string) {
+    if (!socket) throw new Error('Socket not connected')
+
+    const chatWidget = useChatWidgetStore()
+
+    // 1. Create a temporary Optimistic Message WITH a stable localKey
+    const tempId = uuidv4()
+    const optimisticMessage = {
+      _id: tempId,
+      localKey: tempId, // <-- ADD THIS: It will never change
+      content,
+      sender_id: authStore.user?._id,
+      createdAt: new Date().toISOString(),
+      status: 'sending',
+      isOptimistic: true
+    }
+
+    // 2. Inject immediately
+    addOptimisticMessage(chat_id, optimisticMessage)
+
+    try {
+      // 3. Emit to server
+      const response = await emitSendMessage(socket, receiver_id, content)
+
+      if (response.success && response.message && response.conversation) {
+        const convId = response.conversation._id
+
+        // 4. Resolve the message, passing the localKey forward
+        resolveOptimisticMessage(chat_id, tempId, {
+          ...response.message,
+          localKey: tempId, // <-- ADD THIS: Keep the same key on the resolved message
+          status: 'sent',
+          isOptimistic: true
+        }, convId)
+
+        // 5. Update UI Tabs
+        if (chatWidget.activeTab === receiver_id) {
+          chatWidget.addChatHead(convId, 'chat')
+          chatWidget.activeTab = convId
+          if (receiver_id !== convId) {
+            chatWidget.removeChatHead(receiver_id)
+          }
+        }
+        return response
+      }
+    } catch (error) {
+      updateMessageStatus(chat_id, tempId, 'error')
+      throw new Error('Failed to send message')
+    }
   }
 
   function setTypingStatus(sender_id: string, is_typing: boolean) {
@@ -211,6 +314,7 @@ export const useChatStore = defineStore('chat', () => {
 
   async function loadMessages(conversationId: string, isInitial = true) {
     const currentMessages = messagesByChat.value[conversationId] || []
+
     if (isInitial && currentMessages.length > 0) {
       markAsRead(conversationId)
       const chat = activeChats.value.find(c => c._id === conversationId)
@@ -220,9 +324,15 @@ export const useChatStore = defineStore('chat', () => {
       }
       return currentMessages.length
     }
+
     const before = !isInitial && currentMessages.length > 0 ? currentMessages[0].createdAt : undefined
+
     try {
       const history = await getChatMessages(conversationId, before)
+
+      // NEW: Track if there are more messages available to fetch (assuming your backend limit is 50)
+      hasMoreMessagesByChat.value[conversationId] = history.length === 50
+
       if (isInitial) {
         messagesByChat.value[conversationId] = history
         await markAsRead(conversationId)
@@ -367,20 +477,20 @@ export const useChatStore = defineStore('chat', () => {
     conversation_id: string,
     conversation: PopulatedConversation
   }) {
-    const friendStore = useFriendStore();
-    const authStore = useAuthStore();
-    const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id);
+    const friendStore = useFriendStore()
+    const authStore = useAuthStore()
+    const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id)
 
     // Optimistic: We do NOT remove locally to preserve history access
-    const index = activeChats.value.findIndex(c => c._id === payload.conversation_id);
+    const index = activeChats.value.findIndex(c => c._id === payload.conversation_id)
     if (index !== -1) {
       activeChats.value[index] = {
         ...activeChats.value[index],
         ...payload.conversation,
         status: 'expired'
-      };
+      }
     } else {
-      activeChats.value.unshift(payload.conversation);
+      activeChats.value.unshift(payload.conversation)
     }
 
     addNotification({
@@ -389,7 +499,7 @@ export const useChatStore = defineStore('chat', () => {
       text: `Matership with ${partner?.name || 'Artist'} has ended.`,
       img: partner?.img || '',
       isTrial: false
-    });
+    })
   }
 
   function handleMateRequested(payload: {
@@ -397,29 +507,29 @@ export const useChatStore = defineStore('chat', () => {
     conversation: PopulatedConversation,
     wasExpired: boolean
   }) {
-    const index = activeChats.value.findIndex(c => c._id === payload.conversation_id);
+    const index = activeChats.value.findIndex(c => c._id === payload.conversation_id)
 
     if (index !== -1) {
       activeChats.value[index] = {
         ...activeChats.value[index],
         ...payload.conversation,
         status: 'mate_pending'
-      };
+      }
     } else {
-      activeChats.value.unshift(payload.conversation);
+      activeChats.value.unshift(payload.conversation)
     }
 
-    const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id);
+    const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id)
     addNotification({
       tabId: payload.conversation_id,
       subtitle: partner?.name || 'New Request',
-      text: payload.wasExpired ? "Wants to re-match as Mates! 🎨" : "Wants to be Mates! 💖",
+      text: payload.wasExpired ? 'Wants to re-match as Mates! 🎨' : 'Wants to be Mates! 💖',
       img: partner?.img || '',
       isMateProposal: true
-    });
+    })
 
-    const widgetStore = useChatWidgetStore();
-    widgetStore.triggerNewMessageAlert(payload.conversation_id);
+    const widgetStore = useChatWidgetStore()
+    widgetStore.triggerNewMessageAlert(payload.conversation_id)
   }
 
   return {
@@ -446,6 +556,7 @@ export const useChatStore = defineStore('chat', () => {
     handleMateMatched,
     handleMateDeclined,
     handleMateUnfriended,
-    handleMateRequested
+    handleMateRequested,
+    hasMoreMessagesByChat
   }
 })

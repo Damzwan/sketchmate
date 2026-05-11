@@ -369,6 +369,7 @@ export interface BaseMessage {
   is_invite: boolean;
   createdAt: string;
   updatedAt: string;
+  status?: string
 }
 
 // 2. The Raw Conversation (Unpopulated)
@@ -382,15 +383,16 @@ export type ConversationStatus =
 
 export interface BaseConversation {
   _id: string;
-  participants: string[]; // Array of User IDs
+  participants: string[];
   status: ConversationStatus;
   initiator_id?: string;
-  last_message?: string; // ID of the message
+  last_message?: string;
   unread_counts: Record<string, number>;
   createdAt: string;
   updatedAt: string;
   trial_expires_at?: string;
-  cooldown_until?: string; // Added for the unfriend cooldown logic
+  cooldown_until?: string; // 48h re-match lock
+  deleted_at?: string;     // 30-day cleanup timer
 }
 
 export interface PopulatedConversation extends Omit<BaseConversation, 'participants' | 'last_message'> {

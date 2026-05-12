@@ -8,7 +8,7 @@
     handle-behavior="cycle"
     class="liquid-color-modal"
   >
-    <div class="h-full flex flex-col p-5 bot-pad-safe bg-background cabin-sketch-regular overflow-hidden">
+    <div class="h-full flex flex-col p-5 bot-pad-safe bg-background cabin-sketch-regular overflow-hidden"  @touchmove.stop>
       <!-- Header -->
       <div class="shrink-0 pt-2 mb-4 text-center relative">
         <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
@@ -18,10 +18,13 @@
 
       <div class="flex-1 overflow-y-auto px-1 space-y-4 hide-scrollbar flex flex-col items-center pt-2">
         <!-- LIVE PREVIEW CARD -->
-        <div class="w-full h-16 rounded-3xl border-4 border-white shadow-md flex items-center justify-center transition-colors duration-200 shrink-0 relative overflow-hidden">
-          <div class="absolute inset-0 opacity-10" style="background-image: repeating-conic-gradient(#000 0% 25%, #fff 0% 50%); background-size: 10px 10px;"></div>
+        <div
+          class="w-full h-16 rounded-3xl border-4 border-white shadow-md flex items-center justify-center transition-colors duration-200 shrink-0 relative overflow-hidden">
+          <div class="absolute inset-0 opacity-10"
+               style="background-image: repeating-conic-gradient(#000 0% 25%, #fff 0% 50%); background-size: 10px 10px;"></div>
           <div class="absolute inset-0" :style="{ backgroundColor: localColor }"></div>
-          <span class="relative z-10 px-4 py-1 bg-black/20 backdrop-blur-md rounded-full text-white font-black text-[10px] uppercase tracking-widest">
+          <span
+            class="relative z-10 px-4 py-1 bg-black/20 backdrop-blur-md rounded-full text-white font-black text-[10px] uppercase tracking-widest">
             {{ localColor }}
           </span>
         </div>
@@ -49,10 +52,11 @@
       </div>
 
       <div class="pt-4 pb-2 shrink-0">
-        <ion-button expand="block" color="secondary" shape="round" class="h-16 font-black uppercase tracking-widest shadow-lg" @click="confirmSelection">
+        <ion-button expand="block" color="secondary" shape="round" @click="confirmSelection">
           Confirm Color
         </ion-button>
-        <ion-button fill="clear" color="dark" expand="block" class="font-black uppercase tracking-widest text-xs mt-2 opacity-60" @click="handleDismiss">
+        <ion-button fill="clear" color="dark" expand="block"
+                    class="font-black uppercase tracking-widest text-xs mt-2 opacity-60" @click="handleDismiss">
           Cancel
         </ion-button>
       </div>
@@ -154,7 +158,9 @@ ion-modal.liquid-color-modal::part(handle) {
   width: 40px;
 }
 
-.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
 :deep(.IroSliderHandle), :deep(.IroHandle) {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2) !important;

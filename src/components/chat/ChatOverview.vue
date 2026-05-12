@@ -1,13 +1,13 @@
 <!-- components/chat/ChatOverview.vue -->
 <template>
   <div class="flex flex-col h-full">
-    <!-- 1. DRAWING INVITES (Live Session Invites) -->
+    <!-- 1. DRAWING INVITES -->
     <InviteList
       :invitations="invitations"
       @join="(roomId) => $emit('join-session', roomId)"
     />
 
-    <!-- 2. MATE PROPOSALS (Pinned to top for urgency) -->
+    <!-- 2. MATE PROPOSALS -->
     <div v-if="incomingMateRequests.length > 0" class="px-2 mb-6 animate-fade-in">
       <div class="flex items-center gap-2 mb-2 px-1">
         <div class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"></div>
@@ -17,7 +17,6 @@
       </div>
 
       <div class="space-y-2">
-        <!-- We use the standard ConversationItem here so it looks familiar but stays pinned -->
         <ConversationItem
           v-for="request in incomingMateRequests"
           :key="'proposal-' + request._id"
@@ -30,34 +29,19 @@
       </div>
     </div>
 
-    <!-- 3. CREATE CHAT STATE (Friend Picker) -->
-    <div v-if="isCreatingChat" class="animate-fade-in space-y-6 pb-20 px-2">
-      <div class="flex items-center justify-between p-2">
-        <span class="text-sm font-black italic cabin-sketch-regular">New Sketchmate</span>
-        <button @click="isCreatingChat = false" class="text-xs font-black text-secondary uppercase tracking-widest">
-          Cancel
-        </button>
-      </div>
-
-      <div v-if="eligibleMates.length > 0" class="space-y-2">
-        <p class="text-[10px] font-black text-black/30 uppercase px-2 tracking-widest">Your Mates</p>
-        <button
-          v-for="friend in eligibleMates"
-          :key="friend._id"
-          @click="startChatWithFriend(friend)"
-          class="w-full flex items-center p-3 bg-white/40 rounded-3xl border border-white/60 active:scale-95 transition-all shadow-sm"
-        >
-          <img :src="friend.img" class="w-11 h-11 rounded-xl object-cover border border-white/40 shadow-sm" />
-          <span class="ml-4 text-base font-bold text-black">{{ friend.name }}</span>
-          <div v-if="isFriendOnline(friend._id)" class="ml-auto w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-        </button>
-      </div>
-    </div>
+    <!-- 3. CREATE CHAT STATE (Modularized) -->
+    <ChatFriendPicker
+      v-if="isCreatingChat"
+      :friends="friends"
+      :min-chat-version="MIN_CHAT_VERSION"
+      :is-friend-online="isFriendOnline"
+      @cancel="isCreatingChat = false"
+      @select-friend="startChatWithFriend"
+    />
 
     <!-- 4. OVERVIEW STATE -->
     <div v-else class="animate-fade-in pb-24 overflow-y-auto hide-scrollbar">
 
-      <!-- LOBBY ITEM -->
       <LobbyConversationItem
         v-if="isInLobby"
         :unreadCount="lobbyUnreadCount"
@@ -84,8 +68,9 @@
         </div>
       </div>
 
-      <div class="px-2 mb-3 text-base cabin-sketch-regular">Conversations</div>
-
+      <div class="px-2 mb-4 text-2xl font-normal cabin-sketch-regular text-black">
+        Conversations
+      </div>
       <div class="space-y-2 px-2">
         <!-- EMPTY STATE -->
         <div v-if="combinedConversations.length === 0 && !isInLobby"
@@ -95,7 +80,6 @@
           </p>
         </div>
 
-        <!-- CONVERSATION LIST (Proposals still appear here so history is never lost) -->
         <ConversationItem
           v-for="chat in combinedConversations"
           :key="chat._id"
@@ -108,7 +92,7 @@
       </div>
     </div>
 
-    <!-- FLOATING ACTION BUTTON (Shadow removed for a cleaner look) -->
+    <!-- FLOATING ACTION BUTTON -->
     <ion-fab v-show="!isCreatingChat" slot="fixed" vertical="bottom" horizontal="end" class="absolute bottom-6 right-2">
       <ion-fab-button color="secondary" @click="isCreatingChat = true" class="shadow-none">
         <ion-icon :icon="svg(mdiChatPlusOutline)" class="text-2xl text-white" />
@@ -121,12 +105,13 @@
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { IonFab, IonFabButton, IonIcon } from '@ionic/vue'
-import { mdiChatPlusOutline, mdiHeart } from '@mdi/js'
-import { compareVersions, svg } from '@/helper/general.helper'
+import { mdiChatPlusOutline } from '@mdi/js'
+import { svg } from '@/helper/general.helper'
 
 import LobbyConversationItem from './LobbyConversationItem.vue'
 import ConversationItem from './ConversationItem.vue'
 import InviteList from '@/components/chat/InviteList.vue'
+import ChatFriendPicker from './ChatFriendPicker.vue' // <-- Added Import
 
 import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { useChatStore } from '@/store/chat.store'
@@ -153,10 +138,6 @@ const isCreatingChat = ref(false)
 const isInLobby = computed(() => !!roomMembers.value?.length)
 const lobbyUnreadCount = ref(0)
 
-/**
- * MATE PROPOSALS:
- * List of people who sent a Mate request to the current user.
- */
 const incomingMateRequests = computed(() => {
   return activeChats.value.filter(chat =>
     chat.status === 'mate_pending' &&
@@ -164,14 +145,8 @@ const incomingMateRequests = computed(() => {
   )
 })
 
-/**
- * UNIFIED CONVERSATION LIST:
- * We show EVERYTHING here so chat history is never lost.
- */
 const combinedConversations = computed(() => {
   const all = [...activeChats.value, ...pendingRequests.value]
-
-  // We sort by updatedAt so the most recent interactions (proposals included) are at the top
   return all.sort((a, b) => {
     const dateA = new Date(a.updatedAt || 0).getTime()
     const dateB = new Date(b.updatedAt || 0).getTime()
@@ -183,9 +158,7 @@ const onlineMates = computed(() =>
   friends.value.filter(f => isFriendOnline.value(f._id))
 )
 
-const eligibleMates = computed(() =>
-  friends.value.filter(f => f.last_seen_version && compareVersions(f.last_seen_version, MIN_CHAT_VERSION) !== -1)
-)
+// Note: `eligibleMates` was removed here because `ChatFriendPicker` handles it internally now.
 
 const lastLobbyMessage = computed(() => {
   const lastChatMessage = lobbyChatMessages.value.findLast(
@@ -216,6 +189,7 @@ const startChatWithFriend = (friend: any) => {
 </script>
 
 <style scoped>
+/* (Keep your existing styles here) */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -244,12 +218,4 @@ const startChatWithFriend = (friend: any) => {
   padding-bottom: 6rem;
 }
 
-.cabin-sketch-regular {
-  font-family: 'cabin-sketch-regular', sans-serif;
-}
-
-/* Remove default shadow from ion-fab-button if needed via deep selector */
-::v-deep(ion-fab-button) {
-  --box-shadow: none;
-}
 </style>

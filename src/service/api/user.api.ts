@@ -1,5 +1,5 @@
 import { request } from './http'
-import { User, Mate, FeedPost, UserProfileData } from '@/types/server.types'
+import { User, Mate, FeedPost, UserProfileData, UpdateProfilePayload } from '@/types/server.types'
 
 export async function toggleFollow(targetId: string) {
   return await request(`/user/follow/${targetId}`, { method: 'PUT' })
@@ -27,24 +27,24 @@ export interface UpdateProfileParams {
   description: string;
 }
 
-export async function updateProfile(params: UpdateProfileParams) {
+export async function updateProfile(payload: UpdateProfilePayload) {
   return await request('/user/profile', {
     method: 'PUT',
-    body: JSON.stringify(params)
+    body: JSON.stringify(payload)
   })
 }
 
 export async function uploadProfileImg(blob: Blob, previousImageUrl?: string) {
-  const formData = new FormData();
-  formData.append('img', blob, 'profile.webp');
+  const formData = new FormData()
+  formData.append('img', blob, 'profile.webp')
   if (previousImageUrl) {
-    formData.append('previousImage', previousImageUrl);
+    formData.append('previousImage', previousImageUrl)
   }
 
   return await request<{ url: string }>('/user/upload-image', {
     method: 'POST',
     body: formData
-  });
+  })
 }
 
 export async function blockUser(blockId: string) {
@@ -63,13 +63,13 @@ export async function unblockUser(blockId: string) {
 
 
 export async function fetchOnlineFriends() {
-  return await request<string[]>('/user/online-friends'); // Adjust path to match your Koa prefix
+  return await request<string[]>('/user/online-friends') // Adjust path to match your Koa prefix
 }
 
 export async function fetchUserProfile(userId: string) {
-  return await request<UserProfileData>(`/user/${userId}/profile`);
+  return await request<UserProfileData>(`/user/${userId}/profile`)
 }
 
 export async function unfriendUser(targetId: string) {
-  return await request(`/user/unfriend/${targetId}`, { method: 'PUT' });
+  return await request(`/user/unfriend/${targetId}`, { method: 'PUT' })
 }

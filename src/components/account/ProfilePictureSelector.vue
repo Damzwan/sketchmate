@@ -1,27 +1,30 @@
 <template>
-  <div class="relative w-32 h-32 group/avatar">
-    <!-- Liquid Glass Avatar Wrapper -->
+  <div class="relative w-32 h-32 group/avatar mx-auto">
+    <!-- Liquid Glass Avatar Wrapper (Now aware of Customizations) -->
     <div
       @click="() => imgInput!.click()"
-      class="cursor-pointer w-full h-full rounded-[2.5rem] bg-primary/40 backdrop-blur-xl border border-primary/40 shadow-lg overflow-hidden transition-all duration-300 z-20 relative group-hover/avatar:scale-105 group-hover/avatar:shadow-primary/20 group-hover/avatar:shadow-2xl"
+      class="cursor-pointer w-full h-full rounded-[2.5rem] bg-primary/40 backdrop-blur-xl border-2 shadow-lg overflow-hidden transition-all duration-300 z-20 relative flex items-center justify-center group-hover/avatar:scale-105 group-hover/avatar:shadow-primary/20 group-hover/avatar:shadow-2xl"
+      :style="{ borderColor: customization?.borderColor || 'rgba(0,0,0,0.1)' }"
     >
+      <!-- Image scaled down slightly inside the border, or full bleed -->
       <img
         alt="Profile picture"
         :src="img"
         class="object-cover w-full h-full transition-transform duration-500 group-hover/avatar:scale-110"
       />
-
     </div>
 
+    <!-- Hidden Input -->
     <input type="file" ref="imgInput" class="hidden" accept="image/*" @change="onImageChange" />
 
+    <!-- Edit Camera Badge -->
     <div
       class="absolute -bottom-1 -right-1 w-10 h-10 bg-primary/80 backdrop-blur-md border border-primary/60 rounded-2xl shadow-lg flex items-center justify-center transition-all duration-300 z-40 group-hover/avatar:translate-x-1 group-hover/avatar:translate-y-1 pointer-events-none"
     >
       <ion-icon :icon="svg(mdiCameraPlus)" class="text-xl text-black" />
     </div>
 
-    <!-- Delete Button (Reverted to clean button with specific group) -->
+    <!-- Delete Button -->
     <button
       v-if="!img.includes('stock')"
       class="absolute cursor-pointer -top-1 -right-1 w-8 h-8 bg-black/10 backdrop-blur-md border border-black/5 rounded-xl shadow-sm flex items-center justify-center hover:bg-red-500/20 active:scale-90 transition-all duration-300 z-50 group/delete group-hover/avatar:-translate-x-1 group-hover/avatar:-translate-y-1"
@@ -31,6 +34,7 @@
     </button>
   </div>
 
+  <!-- Cropper Modal (Unchanged) -->
   <ion-modal :isOpen="cropperMenuOpen" @willDismiss="closeCropper" @didPresent="initCropper">
     <CircularLoader v-if="cropperLoading" class="bg-black absolute z-10 w-full h-full" />
     <div class="flex flex-col h-full safe-area">
@@ -63,6 +67,14 @@ import { LocalStorage } from '@/types/storage.types'
 
 const { deleteProfileImg } = useAPI()
 
+// NEW: Accept customization object to preview the border while editing
+defineProps<{
+  img: string;
+  customization?: any;
+}>()
+
+const emits = defineEmits(['update:img'])
+
 let cropper: Cropper
 const cropperMenuOpen = ref(false)
 const cropperLoading = ref(true)
@@ -70,9 +82,6 @@ const cropperLoading = ref(true)
 const imgInput = ref<HTMLInputElement>()
 const localImgUrl = ref()
 const imgRef = ref<HTMLImageElement>()
-
-defineProps<{ img: string }>()
-const emits = defineEmits(['update:img'])
 
 const onImageChange = async (e: Event) => {
   const target = e.target as HTMLInputElement
@@ -142,18 +151,10 @@ ion-modal {
   --height: 100%;
   --width: 100%;
 }
-
-.avatar-overlay-button::part(native) {
-  padding: 0;
-  cursor: pointer;
-}
-
-/* Ensure the delete button is always on top and blocks parent hover effects if needed */
 button.z-50:hover ~ .rounded-\[2\.5rem\] {
   background-color: transparent !important;
 }
 </style>
-
 <style>
 .cropper-view-box { outline-color: var(--ion-color-primary); outline: 1px solid var(--ion-color-primary); }
 .point-se, .point-sw, .point-nw, .point-ne, .point-w, .point-s, .point-n, .point-e, .cropper-line { background: var(--ion-color-primary); }

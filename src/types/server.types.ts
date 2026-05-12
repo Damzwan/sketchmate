@@ -46,7 +46,8 @@ export interface User {
   name: string;
   description?: string;
   img: string;
-  mates: Mate[];
+  subscription_tier?: string;
+  mates: Mate[]; // @deprecated
   inbox: string[]; // @deprecated
   stickers: string[];
   emblems: string[];
@@ -66,7 +67,37 @@ export interface User {
   followers: string[];
   friends: string[];
   blocked_users: string[];
-  customization: any
+  customization: UserCustomization;
+  last_name_change?: string;
+}
+
+export interface UserCustomization {
+  // Selection IDs
+  titleId?: string;       // ID from the TITLES array
+  fontFamily?: string;    // ID from the FONTS array
+  fontEffect?: string;    // ID from the EFFECTS array
+  cardBg?: string;        // ID for the Tailwind class (frost, blush, etc.)
+
+  // Raw Values (Hex/Paths)
+  cardBgColor?: string;       // Custom hex for canvas
+  nameColor?: string;         // Custom hex for text
+  descColor?: string;         // Custom hex for bio
+  avatarBorderColor?: string; // Custom hex for avatar ring
+  cardBorderColor?: string;   // Custom hex for card border
+  signatureColor?: string;    // Custom hex for ink
+
+  signaturePath?: string;     // The SVG "d" attribute string
+  signatureViewBox?: string;  // The original canvas dimensions for scaling
+
+  // Inventory
+  unlocked_items?: string[];  // List of IDs user has purchased or earned
+}
+
+export interface UpdateProfilePayload {
+  name?: string;
+  description?: string;
+  customization?: UserCustomization;
+  subscription_tier?: string;
 }
 
 export type BalloonStatus = 'pending' | 'paired' | 'accepted';
@@ -370,7 +401,7 @@ export interface BaseMessage {
   is_invite: boolean;
   createdAt: string;
   updatedAt: string;
-  status?: string
+  status?: string;
 }
 
 // 2. The Raw Conversation (Unpopulated)

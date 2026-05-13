@@ -46,7 +46,6 @@ export function centerObjectInViewport(
 export function resetZoom() {
   const { getCanvas } = useDrawStore()
   const { canResetView } = storeToRefs(useDrawUIStore())
-  const { updateVisibility } = useDrawObjectManager()
 
   const c = getCanvas()
   c.setZoom(1)
@@ -55,7 +54,6 @@ export function resetZoom() {
   c.setViewportTransform([1, 0, 0, 1, initX, initY])
   canResetView.value = false
 
-  updateVisibility()
   c.fire('zoomReset')
 }
 

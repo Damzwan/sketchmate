@@ -1,6 +1,6 @@
-import { util, FabricObject, Canvas } from 'fabric'
+import { Canvas, FabricObject, util } from 'fabric'
 import { yieldToMain } from '@/helper/general.helper'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { useFriendStore } from '@/store/friend.store'
 
 /**
  * Enlivens Fabric objects from JSON in time-slices to avoid main-thread blocking,
@@ -12,7 +12,7 @@ export async function enlivenObjectsTimeSlivered(
 ): Promise<void> {
   if (!objectsJson || objectsJson.length === 0) return
 
-  const { isBlocked } = useDrawSyncer()
+  const { isBlocked } = useFriendStore()
   const TIME_BUDGET_MS = 8
   let i = 0
 

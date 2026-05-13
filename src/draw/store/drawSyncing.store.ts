@@ -344,10 +344,6 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     for (const action of actionQueue.reverse()) {
       await executeDrawSyncingAction(action)
     }
-
-
-    const { updateVisibility } = useDrawObjectManager()
-    updateVisibility()
   }
 
   function addToDrawSyncingActionQueue(action: DrawSyncingAction) {

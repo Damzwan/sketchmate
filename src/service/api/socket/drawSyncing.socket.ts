@@ -17,6 +17,7 @@ import { generateChunkedJSON } from '@/draw/helpers/drawload.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { fitAndCenterAllActualObjects } from '@/draw/helpers/viewport.helper'
 import { useFriendStore } from '@/store/friend.store'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
   const { isBlocked } = useFriendStore()
@@ -136,6 +137,8 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
   socket.on('initial-canvas-state', async ({ canvasState, sequenceId, missedActions, isInitialSync }) => {
     const store = useDrawSyncer()
+    const { setPendingFullRerender } = useDrawObjectManager()
+    setPendingFullRerender(true)
     const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
 
     // Set our baseline time
@@ -151,6 +154,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     const json = JSON.parse(decompressedString)
     await store.loadRoomCanvas(json, isInitialSync)
 
+
     if (missedActions && missedActions.length > 0) {
       for (const item of missedActions) {
         if (isBlocked(item.userId)) continue
@@ -161,12 +165,17 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
     const { getCanvas } = useDrawStore()
     fitAndCenterAllActualObjects(getCanvas())
+
+    const { updateVisibility } = useDrawObjectManager()
+    updateVisibility()
     isLoadingCanvas.value = false
   })
 
   socket.on('missed-actions', async ({ actions, isInitialSync }) => {
     const store = useDrawSyncer()
     const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
+    const { setPendingFullRerender } = useDrawObjectManager()
+    setPendingFullRerender(true)
 
 
     if (isInitialSync) {
@@ -182,6 +191,9 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
     const { getCanvas } = useDrawStore()
     fitAndCenterAllActualObjects(getCanvas())
+
+    const { updateVisibility } = useDrawObjectManager()
+    updateVisibility()
     isLoadingCanvas.value = false
   })
 

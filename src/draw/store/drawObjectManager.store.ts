@@ -13,6 +13,7 @@ import { useGestureStore } from '@/draw/store/tools/gesture.store'
 import { yieldToMain } from '@/helper/general.helper'
 import { useAuthStore } from '@/store/auth.store'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { ref } from 'vue'
 
 export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   let c: Canvas | undefined = undefined
@@ -903,6 +904,10 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     updateVisibility(true)
   }
 
+  function setPendingFullRerender(value: boolean) {
+    pendingFullRerender = value
+  }
+
 
   return {
     init,
@@ -918,6 +923,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     flushDirtyBatch,
     onGestureStart,
     purgeBlockedObjects,
-    getZIndexMap
+    getZIndexMap,
+    setPendingFullRerender
   }
 })

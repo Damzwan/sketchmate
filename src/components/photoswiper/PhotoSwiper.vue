@@ -40,18 +40,18 @@
         @delete="handleDelete"
         @react="handleReact"
       />
-      <CommentDrawer
-        :index-of-curr-inbox-item="slide"
-        :curr-inbox-item="currItem"
-        v-model:open="isCommentDrawerOpen"
-        :user="user"
-      />
-      <PhotoSwiperFollowersDrawer
-        v-if="currItem"
-        :followers="currItem.followers || []"
-        :user="user"
-        v-model:open="isFollowerDrawerOpen"
-      />
+<!--      <CommentDrawer-->
+<!--        :index-of-curr-inbox-item="slide"-->
+<!--        :curr-inbox-item="currItem"-->
+<!--        v-model:open="isCommentDrawerOpen"-->
+<!--        :user="user"-->
+<!--      />-->
+<!--      <PhotoSwiperFollowersDrawer-->
+<!--        v-if="currItem"-->
+<!--        :followers="currItem.followers || []"-->
+<!--        :user="user"-->
+<!--        v-model:open="isFollowerDrawerOpen"-->
+<!--      />-->
     </div>
   </transition>
 </template>
@@ -71,8 +71,6 @@ import { useSessionStore } from '@/store/session.store'
 import PhotoSwiperItem from '@/components/photoswiper/PhotoSwiperItem.vue'
 import PhotoSwiperHeader from '@/components/photoswiper/PhotoSwiperHeader.vue'
 import PhotoSwiperFooter from '@/components/photoswiper/PhotoSwiperFooter.vue'
-import CommentDrawer from '@/components/photoswiper/CommentDrawer.vue'
-import PhotoSwiperFollowersDrawer from '@/components/photoswiper/PhotoSwiperFollowersDrawer.vue'
 import { fetchPostComments } from '@/service/api/post.api'
 
 register()

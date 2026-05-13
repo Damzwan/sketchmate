@@ -39,6 +39,10 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('@/views/settings.view.vue')
   },
   {
+    path: `/${FRONTEND_ROUTES.network}`,
+    component: () => import('@/views/network.view.vue')
+  },
+  {
     path: `/${FRONTEND_ROUTES.login}`,
     component: () => import('@/views/login.view.vue')
   }

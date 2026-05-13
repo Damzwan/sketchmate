@@ -16,9 +16,10 @@ import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import { generateChunkedJSON } from '@/draw/helpers/drawload.helper'
 import { v4 as uuidv4 } from 'uuid'
 import { fitAndCenterAllActualObjects } from '@/draw/helpers/viewport.helper'
+import { useFriendStore } from '@/store/friend.store'
 
 export function registerDrawSyncingHandlers(socket: Socket) {
-  const { isBlocked } = useDrawSyncer()
+  const { isBlocked } = useFriendStore()
 
 
   socket.on('room-joined', async ({ roomId, users, isCreator, sessionId, isPublic }) => {
@@ -158,7 +159,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       }
     }
 
-    const {getCanvas} = useDrawStore()
+    const { getCanvas } = useDrawStore()
     fitAndCenterAllActualObjects(getCanvas())
     isLoadingCanvas.value = false
   })
@@ -179,7 +180,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
       await store.executeDrawSyncingAction(item)
     }
 
-    const {getCanvas} = useDrawStore()
+    const { getCanvas } = useDrawStore()
     fitAndCenterAllActualObjects(getCanvas())
     isLoadingCanvas.value = false
   })
@@ -212,7 +213,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     invitations.value.push(data)
   })
 
-  socket.on('lobby-message', async ({ message, member, timestamp, id, }) => {
+  socket.on('lobby-message', async ({ message, member, timestamp, id }) => {
     const drawSyncer = useDrawSyncer()
     const authStore = useAuthStore()
 

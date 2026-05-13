@@ -1,17 +1,14 @@
 import { useAPI } from '@/service/api/api.service'
-import { useSocketService } from '@/service/api/socket/socket.service'
 import { useAuthStore } from '@/store/auth.store'
 import { storeToRefs } from 'pinia'
 import { Canvas } from 'fabric'
 import { canvasToBuffer, exportBoundingBoxImage } from '@/draw/helpers/export.helper'
 import { CreateBalloonPostRes, Res } from '@/types/server.types'
 import { ref } from 'vue'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { socketSend } from '@/service/api/socket/socket.service'
 
 export function useDrawSendService(c: () => Canvas | null) {
   const api = useAPI()
-  const socketAPI = useSocketService()
   const isSendingDrawing = ref(false)
   const { user } = storeToRefs(useAuthStore())
 
@@ -37,7 +34,7 @@ export function useDrawSendService(c: () => Canvas | null) {
     // Use provided JSON or stringify the current canvas
     const drawingData = JSON.stringify(optionalData?.canvas ?? canvas.toJSON())
 
-    await socketAPI.send({
+    await socketSend({
       _id: user.value!._id,
       followers: [...mates],
       drawing: drawingData,

@@ -246,20 +246,19 @@ export async function getDateOfBirthConfirmationResponse(): Promise<DateOfBirthR
   const { user } = storeToRefs(useAuthStore())
   const { toast } = useToast()
 
-
   openMenu(Menu.DateOfBirth)
 
   return new Promise((resolve) => {
-
     const listener = async (event: CustomEvent) => {
       document.removeEventListener('dateofbirth-response', listener as any)
 
-      const dob = event.detail.response as Date | null
+      const dob = event.detail.response as string | null
 
-      if (!dob) return resolve('cancel') // user cancelled
+      if (!dob) return resolve('cancel')
 
       try {
-        if (!user.value) return false
+        if (!user.value) return resolve('cancel')
+
         void updateUser({ _id: user.value._id, date_of_birth: dob })
         user.value.date_of_birth = dob
 
@@ -268,7 +267,6 @@ export async function getDateOfBirthConfirmationResponse(): Promise<DateOfBirthR
             color: 'danger',
             duration: ToastDuration.long
           })
-
           resolve('notAllowed')
         } else {
           resolve('allowed')
@@ -283,23 +281,32 @@ export async function getDateOfBirthConfirmationResponse(): Promise<DateOfBirthR
   })
 }
 
-/**
- * Calculate age in years based on a Date of Birth
- * @param dob Date of birth
- * @returns age in years (floating point)
- */
-export function calculateAge(dob: Date): number {
-  const ageMs = Date.now() - dob.getTime()
-  return ageMs / (1000 * 60 * 60 * 24 * 365.25)
+
+export function calculateAge(dob: Date | string): number {
+  const birthDate = typeof dob === 'string' ? new Date(dob) : dob
+
+  if (isNaN(birthDate.getTime())) return 0
+
+  const today = new Date()
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const monthDiff = today.getMonth() - birthDate.getMonth()
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--
+  }
+
+  return age
 }
 
-/**
- * Check if the age meets a minimum requirement
- * @param dob Date of birth
- * @returns true if age >= minimumAge, false otherwise
- */
-export function isOldEnough(dob: Date): boolean {
-  return calculateAge(dob) >= minimum_age_social_features
+export function isOldEnough(dob: Date | string): boolean {
+  const dateObj = typeof dob === 'string' ? new Date(dob) : dob
+
+  // Handle invalid date strings gracefully
+  if (isNaN(dateObj.getTime())) {
+    return false
+  }
+
+  return calculateAge(dateObj) >= minimum_age_social_features
 }
 
 export function setupDeeplinkListener() {

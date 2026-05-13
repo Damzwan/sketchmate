@@ -1,72 +1,69 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import dayjs from 'dayjs'
-import { BaseMessage, PopulatedConversation } from '@/types/server.types'
-import { getActiveChats, getChatMessages, markAsRead, respondToChatRequest } from '@/service/api/chat.api'
+import { BaseMessage, Mate, PopulatedConversation, ChatStatus } from '@/types/server.types'
+import { getActiveChats, getChatMessages, markAsRead } from '@/service/api/chat.api'
 import { emitSendMessage, emitTypingStatus } from '@/service/api/socket/chat.socket'
 import { socket } from '@/service/api/socket/socket.service'
 import { useAuthStore } from '@/store/auth.store'
 import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { useFriendStore } from '@/store/friend.store'
 import { v4 as uuidv4 } from 'uuid'
+import { respondToRelationship } from '@/service/api/relationship.api'
 
 type FrontendMessage = BaseMessage & {
   isOptimistic?: boolean
   localKey?: string
+  status?: 'sending' | 'sent' | 'error'
 }
 
-
 export const useChatStore = defineStore('chat', () => {
+  // --- STATE ---
   const activeChats = ref<PopulatedConversation[]>([])
   const messagesByChat = ref<Record<string, FrontendMessage[]>>({})
   const typingStatuses = ref<Record<string, boolean>>({})
-  const authStore = useAuthStore()
-  const notifications = ref<any[]>([])
   const hasMoreMessagesByChat = ref<Record<string, boolean>>({})
+  const notifications = ref<any[]>([])
 
-  // --- COMPUTED ---
+  const authStore = useAuthStore()
+  const friendStore = useFriendStore()
+  const chatWidget = useChatWidgetStore()
+
+  // --- GETTERS ---
 
   const totalUnreadCount = computed(() => {
     if (!authStore.user) return 0
     const userId = authStore.user._id
-    const friendStore = useFriendStore()
-
     const activeSum = activeChats.value.reduce((total, chat) => total + (chat.unread_counts?.[userId] || 0), 0)
     const pendingSum = friendStore.pendingRequests.reduce((total, chat) => total + (chat.unread_counts?.[userId] || 0), 0)
-
     return activeSum + pendingSum
   })
 
   const canSendMessage = computed(() => (tabId: string) => {
-    if (tabId === 'lobby' || tabId === 'overview') return true
+    if (tabId === 'lobby') return true
     const me = authStore.user?._id
     if (!me) return false
-
     const friendStore = useFriendStore()
-    const chat = activeChats.value.find(c => c._id === tabId) || friendStore.pendingRequests.find(c => c._id === tabId)
-
-    if (chat?.status === 'expired') return false
+    const chat = activeChats.value.find(c => c._id === tabId)
+      || friendStore.pendingRequests.find(c => c._id === tabId)
     if (!chat) return true
-    if (chat.status === 'pending') return false
 
+    if (chat.status === 'expired') return false
+    if (chat.status === 'pending_invite') return false  // blocks both sides
     if (chat.status === 'temporary' && chat.trial_expires_at) {
       if (dayjs().isAfter(dayjs(chat.trial_expires_at))) return false
     }
-
     return true
   })
 
   const chatInputPlaceholder = computed(() => (tabId: string) => {
     if (tabId === 'lobby') return 'Sketch a message...'
-
     const me = authStore.user?._id
-    const friendStore = useFriendStore()
     const chat = activeChats.value.find(c => c._id === tabId) || friendStore.pendingRequests.find(c => c._id === tabId)
 
     if (chat) {
-      if (chat.status === 'pending') {
-        return chat.initiator_id === me ? 'Waiting for response...' : 'Accept request to reply...'
-      }
+      // FIX: Using standardized ChatStatus
+      if (chat.status === 'pending_invite') return chat.initiator_id === me ? 'Waiting for response...' : 'Accept request to reply...'
       if (chat.status === 'expired') return 'Chat locked. Re-match to continue.'
       if (chat.status === 'temporary' && chat.trial_expires_at) {
         if (dayjs().isAfter(dayjs(chat.trial_expires_at))) return 'Trial ended. Send Mate request!'
@@ -74,23 +71,24 @@ export const useChatStore = defineStore('chat', () => {
         return hoursLeft > 0 ? `Message... (${hoursLeft}h trial left)` : 'Message... (Trial ending soon)'
       }
     }
-
     return 'Write a message...'
   })
 
   const isMate = computed(() => (tabId: string) => {
     const chat = activeChats.value.find(c => c._id === tabId)
-    return chat?.status === 'active'
+    // FIX: Using 'mate' instead of 'active'
+    return chat?.status === 'mate'
   })
 
   const mateRequestStatus = computed(() => (tabId: string) => {
     const me = authStore.user?._id
     const chat = activeChats.value.find(c => c._id === tabId)
-    if (chat?.status !== 'mate_pending') return null
+    // FIX: Using 'pending_mate' instead of 'mate_pending'
+    if (chat?.status !== 'pending_mate') return null
     return chat.initiator_id === me ? 'sent' : 'received'
   })
 
-  // --- ACTIONS ---
+  // --- CORE ACTIONS ---
 
   async function loadActiveChats() {
     try {
@@ -101,64 +99,44 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function addIncomingMessage(
-    conversation_id: string,
-    message: BaseMessage,
-    fullConversation?: PopulatedConversation
-  ) {
-    // 1. Filter out system status strings to keep bubbles clean
-    const systemStrings = [
-      'Sent a Mate proposal! 💖',
-      'Sent a new Mate proposal! Let\'s try again? 🎨',
-      'SYSTEM_MATE_REQUEST'
-    ] // TODO should not be necessary
-    if (systemStrings.includes(message.content)) return
-
-    if (!messagesByChat.value[conversation_id]) {
-      messagesByChat.value[conversation_id] = []
-    }
-
+  function addIncomingMessage(conversation_id: string, message: BaseMessage, fullConversation?: PopulatedConversation) {
+    if (!messagesByChat.value[conversation_id]) messagesByChat.value[conversation_id] = []
     if (!messagesByChat.value[conversation_id].some(m => m._id === message._id)) {
-      messagesByChat.value[conversation_id].push(message)
+      messagesByChat.value[conversation_id].push(message as FrontendMessage)
     }
 
-    const friendStore = useFriendStore()
-
-    const updateConv = (chat: PopulatedConversation) => {
+    const updateConvMeta = (chat: PopulatedConversation) => {
       chat.last_message = message
       chat.updatedAt = message.createdAt
-
       if (fullConversation) {
-        chat.status = fullConversation.status
-        chat.trial_expires_at = fullConversation.trial_expires_at
-        chat.unread_counts = fullConversation.unread_counts
-        chat.initiator_id = fullConversation.initiator_id
-        chat.cooldown_until = fullConversation.cooldown_until
+        Object.assign(chat, {
+          status: fullConversation.status,
+          trial_expires_at: fullConversation.trial_expires_at,
+          unread_counts: fullConversation.unread_counts,
+          initiator_id: fullConversation.initiator_id,
+          participants: fullConversation.participants,
+          relationship_id: fullConversation.relationship_id
+        })
+      }
 
-        const hasPopulatedParticipants = fullConversation.participants?.some(p => typeof p === 'object' && p.name)
-        if (hasPopulatedParticipants) {
-          chat.participants = fullConversation.participants
-        }
+      // If the widget is open on this exact conversation, zero out unreads immediately
+      const userId = authStore.user?._id
+      if (userId && chatWidget.isExpanded && chatWidget.activeTab === conversation_id) {
+        if (!chat.unread_counts) chat.unread_counts = {}
+        chat.unread_counts[userId] = 0
+        markAsRead(conversation_id).catch(console.error)
       }
     }
 
     const activeIdx = activeChats.value.findIndex(c => c._id === conversation_id)
-    const pendingIdx = friendStore.pendingRequests.findIndex(c => c._id === conversation_id)
 
     if (activeIdx > -1) {
       const [chat] = activeChats.value.splice(activeIdx, 1)
-      updateConv(chat)
+      updateConvMeta(chat)
       activeChats.value.unshift(chat)
-    } else if (pendingIdx > -1) {
-      const [chat] = friendStore.pendingRequests.splice(pendingIdx, 1)
-      updateConv(chat)
-      if (chat.status !== 'pending') {
-        activeChats.value.unshift(chat)
-      } else {
-        friendStore.pendingRequests.unshift(chat)
-      }
     } else if (fullConversation) {
-      if (fullConversation.status === 'pending') {
+      const me = authStore.user?._id
+      if (fullConversation.status === 'pending_invite' && fullConversation.initiator_id !== me) {
         friendStore.pendingRequests.unshift(fullConversation)
       } else {
         activeChats.value.unshift(fullConversation)
@@ -166,102 +144,15 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function respondToRequest(conversationId: string, action: 'accept' | 'decline') {
-    try {
-      const response = await respondToChatRequest(conversationId, action) as any
-      const friendStore = useFriendStore()
-      const widgetStore = useChatWidgetStore()
+  // --- MESSAGING & OPTIMISTIC ENGINE ---
 
-      if (action === 'accept') {
-        const chat = friendStore.pendingRequests.find(c => c._id === conversationId)
-        if (chat) {
-          chat.status = 'temporary'
-          chat.trial_expires_at = response.trial_expires_at
-          activeChats.value.unshift(chat)
-        }
-      } else {
-        widgetStore.removeChatHead(conversationId)
-        if (widgetStore.activeTab === conversationId) {
-          widgetStore.activeTab = 'overview'
-        }
-      }
-
-      friendStore.pendingRequests = friendStore.pendingRequests.filter(c => c._id !== conversationId)
-    } catch (e) {
-      console.error('Failed to respond to request', e)
-    }
-  }
-
-  function addOptimisticMessage(chatId: string, message: any) {
-    if (!messagesByChat.value[chatId]) {
-      messagesByChat.value[chatId] = []
-    }
-    // Push the temp message so it renders immediately
-    messagesByChat.value[chatId].push(message)
-  }
-
-  function resolveOptimisticMessage(chatId: string, tempId: string, resolvedMessage: any, actualConversationId?: string) {
-    const targetId = actualConversationId || chatId
-
-    // Ensure the target array exists
-    if (!messagesByChat.value[targetId]) {
-      messagesByChat.value[targetId] = []
-    }
-
-    const chatMessages = messagesByChat.value[chatId]
-    if (!chatMessages) return
-
-    const index = chatMessages.findIndex((msg) => msg._id === tempId)
-    if (index !== -1) {
-      // Transfer the stable key to the new message
-      resolvedMessage.localKey = chatMessages[index].localKey || tempId
-
-      // RACE CONDITION CHECK: Did the socket already push the real message?
-      const targetArray = messagesByChat.value[targetId]
-      const duplicateIndex = targetArray.findIndex(m => m._id === resolvedMessage._id)
-
-      if (duplicateIndex !== -1 && targetArray[duplicateIndex]._id !== tempId) {
-        // The socket already added the official message!
-        // 1. Remove our temporary one
-        chatMessages.splice(index, 1)
-        // 2. Make sure the socket-added one has the UI state we need
-        targetArray[duplicateIndex].status = 'sent'
-        targetArray[duplicateIndex].localKey = resolvedMessage.localKey
-        targetArray[duplicateIndex].isOptimistic = true
-      } else {
-        // Normal Flow (HTTP won the race)
-        if (actualConversationId && actualConversationId !== chatId) {
-          // Move to the new conversation ID array
-          chatMessages.splice(index, 1)
-          messagesByChat.value[targetId].push(resolvedMessage)
-        } else {
-          // Swap out the temp message for the real one in place smoothly
-          chatMessages.splice(index, 1, resolvedMessage)
-        }
-      }
-    }
-  }
-
-  function updateMessageStatus(chatId: string, tempId: string, status: 'sending' | 'sent' | 'error') {
-    const chatMessages = messagesByChat.value[chatId]
-    if (!chatMessages) return
-
-    const message = chatMessages.find((msg) => msg._id === tempId)
-    if (message) {
-      message.status = status
-    }
-  }
-
-  async function sendMessage(receiver_id: string, content: string, chat_id: string) {
+  async function sendMessage(receiver_id: string, content: string, currentTabId: string) {
     if (!socket) throw new Error('Socket not connected')
-
-    const chatWidget = useChatWidgetStore()
-
-    // 1. Create a temporary Optimistic Message WITH a stable localKey
     const tempId = uuidv4()
+
     const optimisticMessage = {
       _id: tempId,
-      localKey: tempId, // <-- ADD THIS: It will never change
+      localKey: tempId,
       content,
       sender_id: authStore.user?._id,
       createdAt: new Date().toISOString(),
@@ -269,39 +160,82 @@ export const useChatStore = defineStore('chat', () => {
       isOptimistic: true
     }
 
-    // 2. Inject immediately
-    addOptimisticMessage(chat_id, optimisticMessage)
+    addOptimisticMessage(currentTabId, optimisticMessage)
 
     try {
-      // 3. Emit to server
       const response = await emitSendMessage(socket, receiver_id, content)
 
       if (response.success && response.message && response.conversation) {
-        const convId = response.conversation._id
+        const realChatId = response.conversation._id
 
-        // 4. Resolve the message, passing the localKey forward
-        resolveOptimisticMessage(chat_id, tempId, {
-          ...response.message,
-          localKey: tempId, // <-- ADD THIS: Keep the same key on the resolved message
-          status: 'sent',
-          isOptimistic: true
-        }, convId)
+        if (currentTabId !== realChatId) {
+          const tempMsgs = messagesByChat.value[currentTabId] || []
+          messagesByChat.value[realChatId] = [
+            ...(messagesByChat.value[realChatId] || []),
+            ...tempMsgs
+          ]
+          delete messagesByChat.value[currentTabId]
 
-        // 5. Update UI Tabs
-        if (chatWidget.activeTab === receiver_id) {
-          chatWidget.addChatHead(convId, 'chat')
-          chatWidget.activeTab = convId
-          if (receiver_id !== convId) {
-            chatWidget.removeChatHead(receiver_id)
+          if (!activeChats.value.some(c => c._id === realChatId)) {
+            activeChats.value.unshift(response.conversation as PopulatedConversation)
           }
         }
+
+        resolveOptimisticMessage(realChatId, tempId, {
+          ...response.message,
+          localKey: tempId,
+          status: 'sent',
+          isOptimistic: true
+        }, realChatId)
+
+        if (chatWidget.activeTab === currentTabId) {
+          chatWidget.addChatHead(realChatId, 'chat')
+          chatWidget.activeTab = realChatId
+          if (currentTabId !== realChatId) chatWidget.removeChatHead(currentTabId)
+        }
+
         return response
       }
     } catch (error) {
-      updateMessageStatus(chat_id, tempId, 'error')
-      throw new Error('Failed to send message')
+      const msgs = messagesByChat.value[currentTabId]
+      if (msgs) {
+        const m = msgs.find(msg => msg._id === tempId)
+        if (m) m.status = 'error'
+      }
+      throw error
     }
   }
+
+  function addOptimisticMessage(chatId: string, message: any) {
+    if (!messagesByChat.value[chatId]) messagesByChat.value[chatId] = []
+    messagesByChat.value[chatId].push(message)
+  }
+
+  function resolveOptimisticMessage(chatId: string, tempId: string, resolvedMessage: any, actualConversationId?: string) {
+    const targetId = actualConversationId || chatId
+    if (!messagesByChat.value[targetId]) messagesByChat.value[targetId] = []
+    const chatMessages = messagesByChat.value[chatId]
+    if (!chatMessages) return
+    const index = chatMessages.findIndex((msg) => msg._id === tempId)
+    if (index !== -1) {
+      resolvedMessage.localKey = chatMessages[index].localKey || tempId
+      const targetArray = messagesByChat.value[targetId]
+      const duplicateIndex = targetArray.findIndex(m => m._id === resolvedMessage._id && m._id !== tempId)
+      if (duplicateIndex !== -1) {
+        chatMessages.splice(index, 1)
+        targetArray[duplicateIndex].status = 'sent'
+        targetArray[duplicateIndex].localKey = resolvedMessage.localKey
+      } else {
+        if (actualConversationId && actualConversationId !== chatId) {
+          chatMessages.splice(index, 1)
+          if (!messagesByChat.value[targetId]) messagesByChat.value[targetId] = []
+          messagesByChat.value[targetId].push(resolvedMessage)
+        } else chatMessages.splice(index, 1, resolvedMessage)
+      }
+    }
+  }
+
+  // --- TYPING STATUS ---
 
   function setTypingStatus(sender_id: string, is_typing: boolean) {
     typingStatuses.value[sender_id] = is_typing
@@ -312,39 +246,20 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function switchToConversation(conversationId: string) {
-    if (conversationId === 'lobby' || conversationId === 'overview') return
-
-    const chat = activeChats.value.find(c => c._id === conversationId)
-    if (!chat) return
-
-    if (!messagesByChat.value[conversationId]?.length) {
-      await loadMessages(conversationId, true)
-    }
-
-    clearUnreads(conversationId)
+  function sendTypingIndicator(receiver_id: string, is_typing: boolean) {
+    if (socket) emitTypingStatus(socket, receiver_id, is_typing)
   }
 
-  function getBeforeCursor(conversationId: string): string | undefined {
-    const msgs = messagesByChat.value[conversationId]
-    return msgs?.length ? msgs[0].createdAt : undefined
-  }
+  // --- HISTORY & READ STATUS ---
 
   async function loadMessages(conversationId: string, isInitial = true) {
     const existing = messagesByChat.value[conversationId] || []
     if (isInitial && existing.length > 0) return existing.length
-
     try {
-      const response = await getChatMessages(
-        conversationId,
-        isInitial ? undefined : getBeforeCursor(conversationId)
-      ) as any
-
+      const before = !isInitial && existing.length ? existing[0].createdAt : undefined
+      const response = await getChatMessages(conversationId, before) as any
       hasMoreMessagesByChat.value[conversationId] = response.hasMore
-      messagesByChat.value[conversationId] = isInitial
-        ? response.data
-        : [...response.data, ...existing]
-
+      messagesByChat.value[conversationId] = isInitial ? response.data : [...response.data, ...existing]
       return response.data.length
     } catch (e) {
       console.error('History sync failed:', e)
@@ -355,34 +270,26 @@ export const useChatStore = defineStore('chat', () => {
   async function clearUnreads(conversationId: string) {
     const chat = activeChats.value.find(c => c._id === conversationId)
     if (!chat || !authStore.user) return
-
-    // 1. Optimistic UI update (feels instant to the user)
     if (!chat.unread_counts) chat.unread_counts = {}
-
-    // If it's already 0, skip the network request
     if (chat.unread_counts[authStore.user._id] === 0) return
-
     chat.unread_counts[authStore.user._id] = 0
-
     try {
       await markAsRead(conversationId)
     } catch (e) {
-      console.error('Failed to mark as read on server:', e)
+      console.error('Failed to mark as read:', e)
     }
   }
 
-  function addNotification(notif: {
-    tabId: string,
-    subtitle: string,
-    text: string,
-    isMateProposal?: boolean,
-    img: string,
-    isTrial?: boolean,
-    isRequest?: boolean
-  }) {
-    const chatWidget = useChatWidgetStore()
-    if (chatWidget.isExpanded && chatWidget.activeTab === notif.tabId) return
+  async function switchToConversation(conversationId: string) {
+    if (['lobby', 'overview'].includes(conversationId)) return
+    if (!messagesByChat.value[conversationId]?.length) await loadMessages(conversationId, true)
+    clearUnreads(conversationId)
+  }
 
+  // --- NOTIFICATIONS ---
+
+  function addNotification(notif: any) {
+    if (chatWidget.isExpanded && chatWidget.activeTab === notif.tabId) return
     const existing = notifications.value.find(n => n.tabId === notif.tabId)
     if (existing) {
       existing.lines.push({ id: Date.now(), text: notif.text })
@@ -390,12 +297,11 @@ export const useChatStore = defineStore('chat', () => {
       clearTimeout(existing.timer)
       existing.timer = setTimeout(() => removeNotification(notif.tabId), 8000)
     } else {
-      const newGroup = {
+      notifications.value.push({
         ...notif,
         lines: [{ id: Date.now(), text: notif.text }],
         timer: setTimeout(() => removeNotification(notif.tabId), 8000)
-      }
-      notifications.value.push(newGroup)
+      })
     }
   }
 
@@ -403,14 +309,16 @@ export const useChatStore = defineStore('chat', () => {
     notifications.value = notifications.value.filter(n => n.tabId !== tabId)
   }
 
-  // --- SOCKET HANDLERS ---
+  // --- SOCKET HANDLERS (RELATIONSHIP LIFECYCLE) ---
 
   function handleRequestAccepted(payload: { conversation: PopulatedConversation }) {
-    const friendStore = useFriendStore()
-    friendStore.pendingRequests = friendStore.pendingRequests.filter(c => c._id !== payload.conversation._id)
-    if (!activeChats.value.some(c => c._id === payload.conversation._id)) {
+    const idx = activeChats.value.findIndex(c => c._id === payload.conversation._id)
+    if (idx !== -1) {
+      activeChats.value[idx] = { ...activeChats.value[idx], ...payload.conversation }
+    } else {
       activeChats.value.unshift(payload.conversation)
     }
+
     const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id)
     addNotification({
       tabId: payload.conversation._id,
@@ -422,97 +330,77 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function handleRequestDeclined(payload: { conversation_id: string }) {
-    const friendStore = useFriendStore()
     const widgetStore = useChatWidgetStore()
+    const chat = activeChats.value.find(c => c._id === payload.conversation_id)
+    const partner = chat?.participants.find(p => p._id !== authStore.user?._id)
+
     activeChats.value = activeChats.value.filter(c => c._id !== payload.conversation_id)
-    friendStore.pendingRequests = friendStore.pendingRequests.filter(c => c._id !== payload.conversation_id)
+
     if (widgetStore.activeTab === payload.conversation_id) {
       widgetStore.activeTab = 'overview'
       widgetStore.removeChatHead(payload.conversation_id)
     }
+
+    addNotification({
+      tabId: 'overview',
+      subtitle: partner?.name || 'Artist',
+      text: 'Not ready to connect yet. Keep sketching!',
+      img: partner?.img || '',
+      isRequest: false
+    })
   }
 
   function handleMateMatched(payload: { conversation: PopulatedConversation }) {
-    const friendStore = useFriendStore()
     const index = activeChats.value.findIndex(c => c._id === payload.conversation._id)
-
-    if (index !== -1) {
-      activeChats.value[index] = {
-        ...activeChats.value[index],
-        ...payload.conversation,
-        status: 'active'
-      }
+    if (index !== -1) activeChats.value[index] = {
+      ...activeChats.value[index], ...payload.conversation,
+      status: 'mate' // FIX: 'active' -> 'mate'
     }
-
-    const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id)
-    if (partner) {
-      friendStore.addFriendLocally(partner)
-    }
-
+    const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id) as Mate
+    if (partner) friendStore.addFriendLocally(partner as any)
     addNotification({
       tabId: payload.conversation._id,
       subtitle: 'New Mate!',
-      text: `You and ${partner?.name} are now Mates forever! 🎨✨`,
+      text: `You and ${partner?.name} are now Mates! 🎨✨`,
       img: partner?.img || '',
       isMateProposal: true
     })
   }
 
-  function sendTypingIndicator(receiver_id: string, is_typing: boolean) {
-    if (socket) emitTypingStatus(socket, receiver_id, is_typing)
-  }
-
   function handleMateDeclined(payload: {
     conversation_id: string,
     conversation: PopulatedConversation,
-    status: 'temporary' | 'expired'
+    status: ChatStatus // Typed strictly now
   }) {
     const index = activeChats.value.findIndex(c => c._id === payload.conversation_id)
-
     if (index !== -1) {
       activeChats.value[index] = {
-        ...activeChats.value[index],
-        ...payload.conversation,
+        ...activeChats.value[index], ...payload.conversation,
         status: payload.status,
         initiator_id: undefined
       }
     }
-
     const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id)
     const isExpired = payload.status === 'expired'
-
     addNotification({
       tabId: payload.conversation_id,
       subtitle: 'Proposal Update',
-      text: isExpired
-        ? `${partner?.name} isn't ready to re-match yet.`
-        : `${partner?.name} wants to stay in the trial phase.`,
+      text: isExpired ? `${partner?.name} isn't ready to re-match yet.` : `${partner?.name} wants to stay in the trial phase.`,
       img: partner?.img || '',
       isTrial: !isExpired,
       isRequest: false
     })
   }
 
-  function handleMateUnfriended(payload: {
-    conversation_id: string,
-    conversation: PopulatedConversation
-  }) {
-    const friendStore = useFriendStore()
-    const authStore = useAuthStore()
+  function handleMateUnfriended(payload: { conversation_id: string, conversation: PopulatedConversation }) {
     const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id)
-
-    // Optimistic: We do NOT remove locally to preserve history access
     const index = activeChats.value.findIndex(c => c._id === payload.conversation_id)
     if (index !== -1) {
-      activeChats.value[index] = {
-        ...activeChats.value[index],
-        ...payload.conversation,
-        status: 'expired'
-      }
+      activeChats.value[index] = { ...activeChats.value[index], ...payload.conversation, status: 'expired' }
     } else {
       activeChats.value.unshift(payload.conversation)
     }
-
+    if (partner) friendStore.removeFriendLocally(partner._id)
     addNotification({
       tabId: payload.conversation_id,
       subtitle: 'Connection Ended',
@@ -528,17 +416,11 @@ export const useChatStore = defineStore('chat', () => {
     wasExpired: boolean
   }) {
     const index = activeChats.value.findIndex(c => c._id === payload.conversation_id)
-
-    if (index !== -1) {
-      activeChats.value[index] = {
-        ...activeChats.value[index],
-        ...payload.conversation,
-        status: 'mate_pending'
-      }
-    } else {
-      activeChats.value.unshift(payload.conversation)
+    if (index !== -1) activeChats.value[index] = {
+      ...activeChats.value[index], ...payload.conversation,
+      status: 'pending_mate'
     }
-
+    else activeChats.value.unshift(payload.conversation)
     const partner = payload.conversation.participants.find(p => p._id !== authStore.user?._id)
     addNotification({
       tabId: payload.conversation_id,
@@ -547,38 +429,68 @@ export const useChatStore = defineStore('chat', () => {
       img: partner?.img || '',
       isMateProposal: true
     })
+    useChatWidgetStore().triggerNewMessageAlert(payload.conversation_id)
+  }
 
-    const widgetStore = useChatWidgetStore()
-    widgetStore.triggerNewMessageAlert(payload.conversation_id)
+  async function respondToRequest(conversationId: string, action: 'accept' | 'decline') {
+    const chat =
+      friendStore.pendingRequests.find(c => c._id === conversationId) ||
+      activeChats.value.find(c => c._id === conversationId)
+
+    if (!chat?.relationship_id) {
+      console.error('Missing relationship_id', conversationId)
+      return
+    }
+
+    try {
+      const response = await respondToRelationship(chat.relationship_id, action) as any
+      const widgetStore = useChatWidgetStore()
+
+      if (action === 'accept') {
+        const conversation = response.conversation as PopulatedConversation
+        friendStore.pendingRequests = friendStore.pendingRequests.filter(c => c._id !== conversationId)
+        activeChats.value = activeChats.value.filter(c => c._id !== conversationId)
+        activeChats.value.unshift(conversation)
+        widgetStore.addChatHead(conversation._id, 'chat')
+        widgetStore.activeTab = conversation._id
+      } else {
+        friendStore.pendingRequests = friendStore.pendingRequests.filter(c => c._id !== conversationId)
+        activeChats.value = activeChats.value.filter(c => c._id !== conversationId)
+        widgetStore.removeChatHead(conversationId)
+        if (widgetStore.activeTab === conversationId) widgetStore.activeTab = 'overview'
+      }
+    } catch (e) {
+      console.error('Failed to respond to request:', e)
+    }
   }
 
   return {
     activeChats,
     messagesByChat,
     typingStatuses,
-    loadActiveChats,
-    addIncomingMessage,
-    setTypingStatus,
-    sendMessage,
-    sendTypingIndicator,
-    loadMessages,
+    notifications,
+    hasMoreMessagesByChat,
     totalUnreadCount,
     canSendMessage,
     chatInputPlaceholder,
-    respondToRequest,
-    handleRequestAccepted,
-    handleRequestDeclined,
-    addNotification,
-    removeNotification,
-    notifications,
     isMate,
     mateRequestStatus,
+    loadActiveChats,
+    addIncomingMessage,
+    sendMessage,
+    loadMessages,
+    clearUnreads,
+    switchToConversation,
+    addNotification,
+    removeNotification,
+    handleRequestAccepted,
+    handleRequestDeclined,
     handleMateMatched,
     handleMateDeclined,
     handleMateUnfriended,
     handleMateRequested,
-    hasMoreMessagesByChat,
-    clearUnreads,
-    switchToConversation
+    setTypingStatus,
+    sendTypingIndicator,
+    respondToRequest
   }
 })

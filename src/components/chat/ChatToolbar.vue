@@ -17,8 +17,8 @@
             :class="isExpired ? 'border-zinc-300 grayscale-[0.4]' : 'border-white'"
           />
 
-          <!-- Interaction Chevron (Always visible, but pops on hover) -->
-          <div class="absolute -right-1.5 -bottom-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-md border border-zinc-100 transition-transform group-hover:scale-110">
+          <div
+            class="absolute -right-1.5 -bottom-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-md border border-zinc-100 transition-transform group-hover:scale-110">
             <ion-icon :icon="svg(mdiChevronRight)" class="text-[12px] text-secondary" />
           </div>
         </div>
@@ -110,11 +110,22 @@ const emit = defineEmits(['inspect-profile', 'open-report'])
 
 const partner = computed(() => {
   if (activeTab.value === 'overview' || activeTab.value === 'lobby') return null
+
+  // Safe resolution (Handles both ChatID and UserID)
+  const chat = [...activeChats.value, ...friendStore.pendingRequests].find(
+    c => c._id === activeTab.value
+  )
+  if (chat) {
+    return chat.participants.find((p: any) => p._id !== user.value?._id)
+  }
   return friendStore.resolvePartnerInfo(activeTab.value)
 })
 
 const isExpired = computed(() => {
-  const chat = activeChats.value.find(c => c._id === activeTab.value)
+  const chat = [...activeChats.value, ...friendStore.pendingRequests].find(c => {
+    if (c._id === activeTab.value) return true
+    return c.participants.some(p => p._id === activeTab.value)
+  })
   return chat?.status === 'expired'
 })
 
@@ -122,12 +133,17 @@ const panelTitle = computed(() => {
   if (activeTab.value === 'lobby') {
     return isPublicLobby.value ? publicLobbyName.value : 'Session Lobby'
   }
+  const chat = [...activeChats.value, ...friendStore.pendingRequests].find(c => c._id === activeTab.value)
+  if (!chat && partner.value) {
+    return `New Chat: ${partner.value.name.split(' ')[0]}`
+  }
+
   return partner.value?.name || 'Chat'
 })
 
 const isOnline = computed(() => {
   if (!partner.value || isExpired.value) return false
-  return friendStore.onlineFriendIds.has(partner.value._id)
+  return friendStore.isFriendOnline(partner.value._id) // Use store method for Set lookup
 })
 
 const handleHeaderClick = (event: Event) => {

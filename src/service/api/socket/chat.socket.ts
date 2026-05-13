@@ -1,9 +1,9 @@
 import { Socket } from 'socket.io-client'
 import { useFriendStore } from '@/store/friend.store'
 import { useChatStore } from '@/store/chat.store'
-import { BaseMessage, PopulatedConversation } from '@/types/server.types'
 import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { useAuthStore } from '@/store/auth.store'
+import { BaseMessage, PopulatedConversation, ChatStatus } from '@/types/server.types'
 
 /**
  * registerChatHandlers
@@ -15,7 +15,6 @@ export function registerChatHandlers(socket: Socket) {
   const widgetStore = useChatWidgetStore()
   const authStore = useAuthStore()
 
-  // --- 1. SOCIAL STATUS ---
   socket.on('friend:online', (payload: { user_id: string }) => {
     friendStore.setFriendOnlineStatus(payload.user_id, true)
   })
@@ -24,20 +23,21 @@ export function registerChatHandlers(socket: Socket) {
     friendStore.setFriendOnlineStatus(payload.user_id, false)
   })
 
-  // --- 2. INCOMING MESSAGES & SYSTEM UPDATES ---
   socket.on('chat:receive_message', (payload: {
     message: BaseMessage,
     conversation: PopulatedConversation,
     conversation_id: string
   }) => {
-    // Sync store data (Handles hydration for new or status-changing chats)
+    const me = authStore.user?._id
+    if (payload.message.sender_id === me) return
+
+    // 1. Sync store data (Handles hydration for new or status-changing chats)
     chatStore.addIncomingMessage(payload.conversation_id, payload.message, payload.conversation)
 
-    // Trigger UI animations/alerts
+    // 2. Trigger UI alerts (Chat heads/Animations)
     widgetStore.triggerNewMessageAlert(payload.conversation_id)
 
-    // Show Toast if the message isn't from the current user
-    const me = authStore.user?._id
+    // 3. Show Notification Toast if the message isn't from the current user
     if (payload.message.sender_id !== me) {
       const partner = payload.conversation.participants.find(p => p._id !== me)
 
@@ -46,56 +46,62 @@ export function registerChatHandlers(socket: Socket) {
         subtitle: partner?.name || 'New Message',
         text: payload.message.content || 'Sent a sketch',
         img: partner?.img || '',
+        // FIX: Updated to match standardized ChatStatus literals
         isTrial: payload.conversation.status === 'temporary',
-        isRequest: payload.conversation.status === 'pending',
-        isMateProposal: payload.conversation.status === 'mate_pending'
+        isRequest: payload.conversation.status === 'pending_invite',
+        isMateProposal: payload.conversation.status === 'pending_mate'
       })
     }
   })
 
-  // --- 3. TYPING INDICATORS ---
   socket.on('chat:typing_status', (payload: { sender_id: string, is_typing: boolean }) => {
     chatStore.setTypingStatus(payload.sender_id, payload.is_typing)
   })
 
-  // --- 4. RELATIONSHIP LIFECYCLE ---
-
-  // Trial started: Move from 'Pending' list to 'Active' list
   socket.on('chat:request_accepted', (payload: { conversation: PopulatedConversation }) => {
     chatStore.handleRequestAccepted(payload)
   })
 
-  // Initial Request Declined: Remove the chat head and pending entry
   socket.on('chat:request_declined', (payload: { conversation_id: string }) => {
     chatStore.handleRequestDeclined(payload)
   })
 
-  // Mate Request Accepted: Permanent unlock + Social Graph update
   socket.on('chat:mate_matched', (payload: { conversation: PopulatedConversation }) => {
     chatStore.handleMateMatched(payload)
   })
 
-  socket.on('chat:mate_declined', (payload) => chatStore.handleMateDeclined(payload))
+  socket.on('chat:mate_declined', (payload: {
+    conversation_id: string,
+    conversation: PopulatedConversation,
+    status: ChatStatus // FIX: Aligned with the chatStore method signature
+  }) => {
+    chatStore.handleMateDeclined(payload)
+  })
 
   socket.on('chat:mate_unfriended', (payload: {
     conversation_id: string,
     conversation: PopulatedConversation
   }) => {
-    chatStore.handleMateUnfriended(payload);
-  });
+    chatStore.handleMateUnfriended(payload)
+    // Clear friend from friendStore list locally
+    const me = authStore.user?._id
+    const partner = payload.conversation.participants.find(p => p._id !== me)
+    if (partner) friendStore.removeFriendLocally(partner._id)
+  })
 
   socket.on('chat:mate_requested', (payload: {
     conversation_id: string,
     conversation: PopulatedConversation,
     wasExpired: boolean
   }) => {
-    chatStore.handleMateRequested(payload);
-  });
+    chatStore.handleMateRequested(payload)
+  })
 }
 
-// --- 5. EMIT HELPERS ---
-
-export function emitSendMessage(socket: Socket, receiver_id: string, content: string): Promise<any> {
+/**
+ * Sends a message and returns the server's acknowledgment (with the real DB _id)
+ */
+export function emitSendMessage(socket: any, receiver_id: string, content: string): Promise<any> {
   return new Promise((resolve, reject) => {
     if (!socket?.connected) return reject(new Error('Socket disconnected'))
 
@@ -109,7 +115,10 @@ export function emitSendMessage(socket: Socket, receiver_id: string, content: st
   })
 }
 
-export function emitTypingStatus(socket: Socket, receiver_id: string, is_typing: boolean) {
+/**
+ * Throttled typing indicator emit
+ */
+export function emitTypingStatus(socket: any, receiver_id: string, is_typing: boolean) {
   if (socket?.connected) {
     socket.emit('chat:typing', { receiver_id, is_typing })
   }

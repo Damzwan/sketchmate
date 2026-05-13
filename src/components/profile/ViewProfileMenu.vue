@@ -19,7 +19,6 @@
 
       <!-- Profile Content -->
       <div v-else-if="targetProfile" class="p-6 pb-20 animate-fade-in">
-
         <section
           class="mt-12 bg-white/40 border border-white/60 rounded-[3rem] relative px-6 pb-8 pt-4 backdrop-blur-md"
         >
@@ -45,13 +44,18 @@
                    That's You!
                  </span>
                 <template v-else>
-                  <span v-if="targetProfile.relationship?.isFriend"
+                  <span v-if="relationshipStatus === 'mate'"
                         class="bg-secondary/10 text-secondary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-secondary/20">
                     Mates
                   </span>
-                  <span v-else-if="targetProfile.relationship?.isFollowing"
+                  <span v-else-if="relationshipStatus === 'temporary' || relationshipStatus === 'pending_mate'"
+                        class="bg-secondary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse shadow-sm">
+                    Trial Active
+                  </span>
+                  <!-- Show Follower indicator if they follow you but you don't follow back -->
+                  <span v-if="targetProfile.relationship?.areFollowingMe && !isFollowing"
                         class="bg-black/5 text-black/40 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
-                      Following
+                      Follows You
                   </span>
                 </template>
               </div>
@@ -85,21 +89,22 @@
               <ion-button
                 @click="handleToggleFollow"
                 color="secondary"
-                :fill="targetProfile.relationship?.isFollowing ? 'outline' : 'solid'"
+                :fill="isFollowing ? 'outline' : 'solid'"
                 class="h-12 text-sm font-black uppercase tracking-widest ion-no-shadow"
                 style="--border-radius: 1.25rem;"
               >
-                {{ targetProfile.relationship?.isFollowing ? 'Unfollow' : 'Follow' }}
+                {{ isFollowing ? 'Unfollow' : 'Follow' }}
               </ion-button>
 
               <ion-button
                 @click="startChat"
-                color="secondary"
+                :color="!hasRequiredVersion ? 'medium' : 'secondary'"
+                :disabled="!hasRequiredVersion"
                 class="h-12 text-sm font-black uppercase tracking-widest"
                 style="--border-radius: 1.25rem;"
               >
                 <ion-icon slot="start" :icon="svg(mdiChatOutline)" />
-                Message
+                {{ chatButtonText }}
               </ion-button>
             </div>
           </div>
@@ -111,10 +116,7 @@
             <h3 class="text-xl font-black text-black italic">Portfolio</h3>
           </div>
 
-          <div
-            v-if="targetPosts.length"
-            class="grid grid-cols-2 gap-4 px-1"
-          >
+          <div v-if="targetPosts.length" class="grid grid-cols-2 gap-4 px-1">
             <div
               v-for="(post, index) in targetPosts"
               :key="post._id"
@@ -129,7 +131,6 @@
             <p class="text-sm font-bold text-black/30 italic">No public sketches yet.</p>
           </div>
         </section>
-
       </div>
     </div>
   </ion-modal>
@@ -140,7 +141,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { IonModal, IonButton, IonIcon, IonSpinner } from '@ionic/vue'
 import { mdiChatOutline } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { svg, compareVersions } from '@/helper/general.helper'
 
 import { useMenuStore } from '@/store/menu.store'
 import { useFriendStore } from '@/store/friend.store'
@@ -148,13 +149,13 @@ import { useAuthStore } from '@/store/auth.store'
 import { useChatStore } from '@/store/chat.store'
 import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { usePostSwiper } from '@/composables/home/usePostSwiper'
-import { toggleFollow } from '@/service/api/user.api'
 import { useToast } from '@/service/toast.service'
+
+const MIN_CHAT_VERSION = '0.4.3'
 
 const menuStore = useMenuStore()
 const friendStore = useFriendStore()
 const authStore = useAuthStore()
-const chatStore = useChatStore()
 const chatWidget = useChatWidgetStore()
 
 const { toast } = useToast()
@@ -163,44 +164,75 @@ const { openPostSwiper } = usePostSwiper()
 const { viewProfileMenuOpen } = storeToRefs(menuStore)
 const { targetProfile, targetPosts, loadingProfile, isFriendOnline } = storeToRefs(friendStore)
 const { user } = storeToRefs(authStore)
-const { activeChats } = storeToRefs(chatStore)
 
 const isMe = computed(() => targetProfile.value?._id === user.value?._id)
 
+/**
+ * Priority 1: Use chat_status returned from the profile fetch
+ * Priority 2: Use resolvePartnerInfo if navigating from a different context
+ */
+const relationshipStatus = computed(() => {
+  if (!targetProfile.value?._id) return 'none'
+  return targetProfile.value.chat_status || friendStore.resolvePartnerInfo(targetProfile.value._id)?.chat_status || 'none'
+})
+
+/**
+ * Check if following. We prioritize the relationship flag from the specific profile fetch
+ * but fallback to the store's global following list.
+ */
+const isFollowing = computed(() => {
+  if (!targetProfile.value?._id) return false
+
+  // If we just fetched the profile, use the backend flag
+  if (targetProfile.value.relationship) {
+    return targetProfile.value.relationship.isFollowing
+  }
+
+  return friendStore.networkLists.following.some(f => f._id === targetProfile.value?._id)
+})
+
+/**
+ * Version Guard
+ */
+const hasRequiredVersion = computed(() => {
+  if (!targetProfile.value?.last_seen_version) return false
+  return compareVersions(targetProfile.value.last_seen_version, MIN_CHAT_VERSION) !== -1
+})
+
+/**
+ * Dynamic labeling
+ */
+const chatButtonText = computed(() => {
+  if (!hasRequiredVersion.value) return 'Update Required'
+  const status = relationshipStatus.value
+  if (status === 'mate') return 'Message'
+  if (status === 'temporary' || status === 'pending_mate') return 'Continue'
+  return 'Send Invite'
+})
+
 async function handleToggleFollow() {
   if (!targetProfile.value || isMe.value) return
-  try {
-    await toggleFollow(targetProfile.value._id)
-    // Update local state for immediate feedback
-    if (targetProfile.value.relationship) {
-      targetProfile.value.relationship.isFollowing = !targetProfile.value.relationship.isFollowing
 
-      // Manually adjust follower count locally for the vibe
-      if (targetProfile.value.stats) {
-        targetProfile.value.stats.followers += targetProfile.value.relationship.isFollowing ? 1 : -1
-      }
+  const artistName = targetProfile.value.name
+
+  try {
+    const isFollowingNow = await friendStore.toggleFollowUser(targetProfile.value)
+
+    // Sync the flag in the targetProfile object so the UI button updates
+    if (targetProfile.value.relationship) {
+      targetProfile.value.relationship.isFollowing = isFollowingNow
     }
+
+    toast(isFollowingNow ? `Following ${artistName}` : `Unfollowed ${artistName}`)
   } catch (e) {
-    toast('Action failed', { color: 'danger' })
+    toast('Connection failed', { color: 'danger' })
   }
 }
 
 function startChat() {
-  if (!targetProfile.value) return
-  const targetId = targetProfile.value._id
+  if (!targetProfile.value || !hasRequiredVersion.value) return
 
-  const existingChat = activeChats.value.find(c =>
-    c.participants.some(p => p._id === targetId)
-  )
-
-  if (existingChat) {
-    chatWidget.openPrivateChat(existingChat._id)
-  } else {
-    chatWidget.addChatHead(targetId, 'friend')
-    chatWidget.activeTab = targetId
-    chatWidget.openPanel()
-  }
-
+  chatWidget.openChatWithUser(targetProfile.value._id)
   viewProfileMenuOpen.value = false
 }
 </script>
@@ -239,5 +271,4 @@ ion-modal.liquid-profile-modal {
     transform: translateY(0);
   }
 }
-
 </style>

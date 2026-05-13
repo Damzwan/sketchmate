@@ -1,131 +1,157 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { Mate, FeedPost, User, PopulatedConversation } from '@/types/server.types'
-import { useAPI } from '@/service/api/api.service'
+import { ChatStatus, FeedPost, NetworkUser, PopulatedConversation, User } from '@/types/server.types'
 import { getPendingRequests } from '@/service/api/chat.api'
 import { fetchOnlineFriends, fetchUserProfile } from '@/service/api/user.api'
+import { fetchNetworkType, getBlockedIds, toggleFollow } from '@/service/api/relationship.api'
 import { useChatStore } from '@/store/chat.store'
 import { useAuthStore } from '@/store/auth.store'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
 export const useFriendStore = defineStore('friend', () => {
+  const authStore = useAuthStore()
+
   // --- STATE ---
-  const friends = ref<Mate[]>([])
   const onlineFriendIds = ref<Set<string>>(new Set())
+  const onlineCache = ref<Map<string, NetworkUser>>(new Map())
   const pendingRequests = ref<PopulatedConversation[]>([])
   const friendRequestLoading = ref(false)
+  const blockedUserIds = ref<Set<string>>(new Set())
 
-  // Profile Viewing State
-  const targetProfile = ref<any>(null)
+  // myStats now mirrors the authStore user stats for convenience
+  const myStats = computed(() => authStore.user?.stats || {
+    mates: 0,
+    followers: 0,
+    following: 0,
+    posts: 0
+  })
+
+  const networkLists = ref<{
+    mates: NetworkUser[];
+    following: NetworkUser[];
+    followers: NetworkUser[];
+  }>({
+    mates: [],
+    following: [],
+    followers: []
+  })
+
+  const networkLoading = ref(false)
+  const hasMore = ref(true)
+  const targetProfile = ref<NetworkUser | null>(null)
   const targetPosts = ref<FeedPost[]>([])
   const loadingProfile = ref(false)
 
-  // --- GETTERS (Computed) ---
-  const onlineFriends = computed(() => {
-    const chatStore = useChatStore()
-    const authStore = useAuthStore()
-    const me = authStore.user?._id
-
-    if (!me) return []
-
-    const activePartners = chatStore.activeChats
-      .filter(chat => chat.status !== 'expired') // <--- The critical filter
-      .map(chat => {
-        return chat.participants.find(p => p._id !== me)
-      })
-      .filter((p): p is Mate => !!p)
-
-    const uniquePartnersMap = new Map<string, Mate>()
-
-    friends.value.forEach(f => uniquePartnersMap.set(f._id, f))
-
-    activePartners.forEach(p => uniquePartnersMap.set(p._id, p))
-
-    return Array.from(uniquePartnersMap.values()).filter(partner =>
-      onlineFriendIds.value.has(partner._id)
-    )
-  })
+  // --- GETTERS ---
 
   const isFriendOnline = computed(() => (userId: string) => {
-    const isConnected = onlineFriendIds.value.has(userId)
-    if (!isConnected) return false
-    const chatStore = useChatStore()
-    const chat = chatStore.activeChats.find(c =>
-      c.participants.some(p => p._id === userId)
-    )
-    if (!chat || chat.status === 'expired') {
-      const isMate = friends.value.some(f => f._id === userId)
-      return isMate
-    }
+    return onlineFriendIds.value.has(userId)
+  })
 
-    return true
+  const onlineFriends = computed(() => {
+    return Array.from(onlineFriendIds.value)
+      .map(id => resolvePartnerInfo(id))
+      .filter(Boolean) as NetworkUser[]
   })
 
   const allConnectedPartners = computed(() => {
     const chatStore = useChatStore()
-    const authStore = useAuthStore()
     const me = authStore.user?._id
-
     if (!me) return []
 
-    const uniquePartnersMap = new Map<string, Mate>()
+    const uniqueMap = new Map<string, NetworkUser>()
+    networkLists.value.mates.forEach(m => uniqueMap.set(m._id, m))
 
-    // 1. Add established Mates
-    friends.value.forEach(f => uniquePartnersMap.set(f._id, f))
-
-    // 2. Add partners from active chats ONLY if not expired
     chatStore.activeChats.forEach(chat => {
-      // We only allow inviting people in 'active', 'temporary', or 'mate_pending' states
-      const isInvitable = ['active', 'temporary', 'mate_pending'].includes(chat.status)
-
-      if (isInvitable) {
-        const partner = chat.participants.find(p => p._id !== me)
-        if (partner) uniquePartnersMap.set(partner._id, partner as Mate)
-      }
+      const partner = chat.participants.find(p => p._id !== me)
+      if (partner) uniqueMap.set(partner._id, partner as any)
     })
 
-    return Array.from(uniquePartnersMap.values())
+    return Array.from(uniqueMap.values())
   })
 
-  // --- ACTIONS ---
+  const isBlocked = computed(() => (userId: string) => {
+    return blockedUserIds.value.has(userId.toString())
+  })
 
-  /**
-   * Main entry point to setup the social graph on login/app start
-   */
-  async function initializeSocialGraph(user: User) {
+  // --- METHODS ---
+
+  const resolvePartnerInfo = (id: string): NetworkUser | null => {
+    const drawSyncer = useDrawSyncer()
+    const chatStore = useChatStore()
+
+    let baseProfile: any =
+      onlineCache.value.get(id) ||
+      networkLists.value.mates.find(m => m._id === id) ||
+      drawSyncer.roomMembers.find(m => m._id === id) ||
+      (targetProfile.value?._id === id ? targetProfile.value : null)
+
+
+    const allConvos = [...chatStore.activeChats, ...pendingRequests.value]
+    const chat = allConvos.find(c => c.participants.some(p => p._id === id))
+
+    if (!baseProfile && chat) {
+      baseProfile = chat.participants.find(p => p._id !== authStore.user?._id)
+    }
+
+    if (!baseProfile) return null
+
+    const normalizedProfile = {
+      ...baseProfile,
+      last_seen_version: baseProfile.last_seen_version || baseProfile.version
+    }
+
+    if (isBlocked.value(id)) {
+      return { ...normalizedProfile, chat_status: 'blocked' } as NetworkUser
+    }
+
+    if (chat) {
+      return { ...normalizedProfile, chat_status: chat.status as ChatStatus } as NetworkUser
+    }
+
+    return { ...normalizedProfile } as NetworkUser
+  }
+
+  async function initializeSocialGraph() {
+    // syncMyStats removed: data is already inside authStore.user.stats
     await Promise.all([
-      fetchFriends(user),
       fetchPendingRequests(),
-      fetchInitialOnlineFriends()
+      fetchInitialOnlineFriends(),
+      fetchBlockedUsers()
     ])
   }
 
-  /**
-   * Hydrates the friends list from the IDs stored in the User document
-   */
-  async function fetchFriends(user: User) {
-    // Check both friends array and legacy mates array
-    const idsToFetch = user.friends?.length ? user.friends : (user.mates as any[] || [])
-
-    if (idsToFetch.length > 0) {
-      try {
-        const api = useAPI()
-        const cleanIds = idsToFetch.map(id => typeof id === 'string' ? id : id._id)
-        const fullMates = await api.getPartialUsers({ _ids: cleanIds })
-        if (fullMates) friends.value = fullMates
-      } catch (e) {
-        console.error('Failed to hydrate friends list', e)
-      }
+  async function fetchInitialOnlineFriends() {
+    try {
+      const onlineUsers: NetworkUser[] = await fetchOnlineFriends() as any
+      onlineUsers.forEach(u => {
+        onlineFriendIds.value.add(u._id)
+        onlineCache.value.set(u._id, u)
+      })
+    } catch (e) {
+      console.error('Failed to fetch initial online friends', e)
     }
   }
 
-  /**
-   * Fetches incoming chat requests ('pending' status)
-   */
+  async function setFriendOnlineStatus(userId: string, isOnline: boolean) {
+    if (isOnline) {
+      onlineFriendIds.value.add(userId)
+      if (!resolvePartnerInfo(userId)) {
+        try {
+          const res = await fetchUserProfile(userId)
+          if (res.profile) onlineCache.value.set(userId, res.profile)
+        } catch (e) {
+        }
+      }
+    } else {
+      onlineFriendIds.value.delete(userId)
+    }
+  }
+
   async function fetchPendingRequests() {
     friendRequestLoading.value = true
     try {
-      const requests = await getPendingRequests()
-      pendingRequests.value = requests
+      pendingRequests.value = await getPendingRequests()
     } catch (e) {
       console.error('Failed to fetch pending requests:', e)
     } finally {
@@ -133,39 +159,6 @@ export const useFriendStore = defineStore('friend', () => {
     }
   }
 
-  /**
-   * One-time check of who is currently online via Socket.io
-   */
-  async function fetchInitialOnlineFriends() {
-    try {
-      const onlineIds = await fetchOnlineFriends()
-      onlineFriendIds.value = new Set(onlineIds)
-    } catch (e) {
-      console.error('Failed to fetch initial online friends', e)
-    }
-  }
-
-  /**
-   * Handles real-time 'friend:online' and 'friend:offline' events
-   */
-  function setFriendOnlineStatus(userId: string, isOnline: boolean) {
-    if (isOnline) onlineFriendIds.value.add(userId)
-    else onlineFriendIds.value.delete(userId)
-  }
-
-  /**
-   * Locally adds a friend to the list (Used when a Mate proposal is accepted)
-   */
-  function addFriendLocally(partner: Mate) {
-    const exists = friends.value.some(f => f._id === partner._id)
-    if (!exists) {
-      friends.value.push(partner)
-    }
-  }
-
-  /**
-   * Fetches data for the profile inspector
-   */
   async function getProfile(userId: string) {
     loadingProfile.value = true
     try {
@@ -179,62 +172,128 @@ export const useFriendStore = defineStore('friend', () => {
     }
   }
 
-  /**
-   * Helper to find a user's name/img/id across all active contexts
-   */
-  const resolvePartnerInfo = (id: string) => {
-    const chatStore = useChatStore()
-    const authStore = useAuthStore()
-    const me = authStore.user?._id
-
-    // 1. Search in Active Chats & Pending Requests
-    const allConversations = [...chatStore.activeChats, ...pendingRequests.value]
-    const chat = allConversations.find(c =>
-      c._id === id || c.participants.some(p => p._id === id)
-    )
-
-    if (chat) {
-      const partner = chat.participants.find(p => p._id !== me)
-      if (partner) return partner
+  async function getNetworkList(type: 'mates' | 'following' | 'followers', userId: string, page = 1, search = '') {
+    if (page === 1) networkLoading.value = true
+    try {
+      const res = await fetchNetworkType(userId, type, { page, search, limit: 20 })
+      if (page === 1) {
+        networkLists.value[type] = res
+      } else {
+        networkLists.value[type].push(...res)
+      }
+      hasMore.value = res.length === 20
+    } catch (e) {
+      console.error(`Failed to fetch ${type}`, e)
+      hasMore.value = false
+    } finally {
+      networkLoading.value = false
     }
-
-    // 2. Search in established Friends (Mates)
-    const friend = friends.value.find(f => f._id === id)
-    if (friend) return friend
-
-    // 3. Fallback to current profile view
-    if (targetProfile.value?._id === id) return targetProfile.value
-
-    return null
   }
 
-  function removeFriendLocally(userId: string) {
-    friends.value = friends.value.filter(f => f._id !== userId)
+  async function fetchBlockedUsers() {
+    try {
+      const blockedIds: string[] = await getBlockedIds()
+      blockedUserIds.value = new Set(blockedIds)
+    } catch (e) {
+      console.error('Failed to fetch blocked user IDs', e)
+    }
+  }
+
+  // --- LOCAL MUTATIONS ---
+
+  function blockUserLocally(userId: string) {
+    blockedUserIds.value.add(userId)
     onlineFriendIds.value.delete(userId)
   }
 
+  function unblockUserLocally(userId: string) {
+    blockedUserIds.value.delete(userId)
+  }
+
+  function removeFriendLocally(userId: string) {
+    networkLists.value.mates = networkLists.value.mates.filter(m => m._id !== userId)
+    onlineFriendIds.value.delete(userId)
+    onlineCache.value.delete(userId)
+    if (targetProfile.value?._id === userId) targetProfile.value = null
+
+    // Decrement local stats
+    if (authStore.user?.stats && authStore.user.stats.mates) authStore.user.stats.mates--
+  }
+
+  function addFriendLocally(mate: NetworkUser) {
+    const exists = networkLists.value.mates.some(m => m._id === mate._id)
+    if (!exists) {
+      networkLists.value.mates.unshift({ ...mate, chat_status: 'mate' })
+      // Increment local stats
+      if (authStore.user?.stats && authStore.user.stats.mates) authStore.user.stats.mates++
+    }
+    if (onlineFriendIds.value.has(mate._id)) {
+      onlineCache.value.set(mate._id, { ...mate, chat_status: 'mate' })
+    }
+  }
+
+  async function toggleFollowUser(target: NetworkUser) {
+    if (!authStore.user?._id || target._id === authStore.user._id) return
+
+    const wasFollowing = networkLists.value.following.some(f => f._id === target._id)
+    const originalTargetStats = target.stats ? { ...target.stats } : null
+
+    // 1. Optimistic Update (Target)
+    if (wasFollowing) {
+      networkLists.value.following = networkLists.value.following.filter(f => f._id !== target._id)
+      if (target.stats) target.stats.followers--
+      if (authStore.user.stats) authStore.user.stats.following--
+    } else {
+      networkLists.value.following.push(target)
+      if (target.stats) target.stats.followers++
+      if (authStore.user.stats) authStore.user.stats.following++
+    }
+
+    try {
+      const res = await toggleFollow(target._id)
+      return res.isFollowing
+    } catch (e) {
+      // Rollback
+      if (wasFollowing) {
+        networkLists.value.following.push(target)
+        if (authStore.user.stats) authStore.user.stats.following++
+      } else {
+        networkLists.value.following = networkLists.value.following.filter(f => f._id !== target._id)
+        if (authStore.user.stats) authStore.user.stats.following--
+      }
+      if (target.stats && originalTargetStats) {
+        target.stats.followers = originalTargetStats.followers
+      }
+      throw e
+    }
+  }
+
   return {
-    // State
-    friends,
     onlineFriendIds,
+    onlineCache,
     pendingRequests,
     friendRequestLoading,
     targetProfile,
     targetPosts,
     loadingProfile,
-
-    // Getters
+    networkLists,
+    networkLoading,
+    hasMore,
+    myStats,
     isFriendOnline,
     onlineFriends,
-
-    // Actions
+    allConnectedPartners,
+    isBlocked,
     initializeSocialGraph,
     setFriendOnlineStatus,
     fetchPendingRequests,
-    addFriendLocally,
     getProfile,
     resolvePartnerInfo,
+    getNetworkList,
+    blockUserLocally,
+    unblockUserLocally,
     removeFriendLocally,
-    allConnectedPartners
+    toggleFollowUser,
+    addFriendLocally
   }
 })

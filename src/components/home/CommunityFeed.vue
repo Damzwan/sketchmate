@@ -137,8 +137,6 @@ import { usePostSwiper } from '@/composables/home/usePostSwiper'
 import { FeedPost } from '@/types/server.types'
 import { reactionImages } from '@/config/post.config'
 
-dayjs.extend(relativeTime)
-
 // --- STORE LOGIC ---
 const authStore = useAuthStore()
 const postStore = usePostStore()

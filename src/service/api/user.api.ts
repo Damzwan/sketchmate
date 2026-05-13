@@ -1,30 +1,10 @@
 import { request } from './http'
-import { User, Mate, FeedPost, UserProfileData, UpdateProfilePayload } from '@/types/server.types'
+import { Mate, FeedPost, UserProfileData, UpdateProfilePayload, NetworkUser } from '@/types/server.types'
 
-export async function toggleFollow(targetId: string) {
-  return await request(`/user/follow/${targetId}`, { method: 'PUT' })
-}
+// --- PROFILE MANAGEMENT ---
 
-export async function searchUsers(query: string) {
-  return await request<Mate[]>(`/user/search_mate?mateName=${query}`)
-}
-
-export async function reportUserContent(targetId: string, type: 'post' | 'comment', reason: string) {
-  return await request('/report', {
-    method: 'POST',
-    body: JSON.stringify({ target_id: targetId, target_type: type, reason })
-  })
-}
-
-export async function fetchUserPosts(userId: string, page = 1, limit = 20) {
-  return await request<{ posts: FeedPost[] }>(
-    `/user/${userId}/posts?page=${page}&limit=${limit}`
-  )
-}
-
-export interface UpdateProfileParams {
-  name: string;
-  description: string;
+export async function fetchUserProfile(userId: string) {
+  return await request<UserProfileData>(`/user/${userId}/profile`)
 }
 
 export async function updateProfile(payload: UpdateProfilePayload) {
@@ -47,29 +27,26 @@ export async function uploadProfileImg(blob: Blob, previousImageUrl?: string) {
   })
 }
 
-export async function blockUser(blockId: string) {
-  return await request('/user/block', {
-    method: 'POST',
-    body: JSON.stringify({ block_id: blockId })
-  })
-}
+// --- GLOBAL ACTIONS ---
 
-export async function unblockUser(blockId: string) {
-  return await request('/user/unblock', {
-    method: 'POST',
-    body: JSON.stringify({ block_id: blockId })
-  })
+export async function searchUsers(query: string) {
+  return await request<Mate[]>(`/user/search?q=${encodeURIComponent(query)}`)
 }
-
 
 export async function fetchOnlineFriends() {
-  return await request<string[]>('/user/online-friends') // Adjust path to match your Koa prefix
+  // Returns hydrated NetworkUser objects for the "Online Now" bar
+  return await request<NetworkUser[]>('/user/online-friends')
 }
 
-export async function fetchUserProfile(userId: string) {
-  return await request<UserProfileData>(`/user/${userId}/profile`)
+export async function fetchUserPosts(userId: string, page = 1, limit = 20) {
+  return await request<{ posts: FeedPost[] }>(
+    `/user/${userId}/posts?page=${page}&limit=${limit}`
+  )
 }
 
-export async function unfriendUser(targetId: string) {
-  return await request(`/user/unfriend/${targetId}`, { method: 'PUT' })
+export async function reportUserContent(targetId: string, type: 'post' | 'comment' | 'user', reason: string) {
+  return await request('/report', {
+    method: 'POST',
+    body: JSON.stringify({ target_id: targetId, target_type: type, reason })
+  })
 }

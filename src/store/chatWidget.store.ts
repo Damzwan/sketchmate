@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useChatStore } from './chat.store'
 
-export type ChatHead = { id: string; type: 'chat' | 'friend' }
+export type ChatHead = { id: string; type: 'chat' | 'user' }
 
 export const useChatWidgetStore = defineStore('chatWidget', () => {
   const isVisible = ref(true)
@@ -10,7 +11,7 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
   const activeChatHeads = ref<ChatHead[]>([])
 
   const bouncingBubbles = ref<string[]>([])
-  const showLobbyPreview = ref(false) // Controls the lobby preview popup
+  const showLobbyPreview = ref(false)
 
   const showWidget = () => (isVisible.value = true)
   const hideWidget = () => {
@@ -25,7 +26,7 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
   const openOverview = () => { activeTab.value = 'overview'; openPanel() }
   const openLobby = () => { activeTab.value = 'lobby'; openPanel() }
 
-  const addChatHead = (id: string, type: 'chat' | 'friend') => {
+  const addChatHead = (id: string, type: 'chat' | 'user') => {
     if (!activeChatHeads.value.some((h) => h.id === id)) {
       activeChatHeads.value.unshift({ id, type })
     }
@@ -37,12 +38,33 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
     openPanel()
   }
 
+  /**
+   * NEW: The master routing action.
+   * Components call this with a User ID, and the store figures out the rest.
+   */
+  const openChatWithUser = (userId: string) => {
+    const chatStore = useChatStore()
+
+    // Check if we already have an active conversation object
+    const existingChat = chatStore.activeChats.find(c =>
+      c.participants.some(p => p._id === userId)
+    )
+
+    if (existingChat) {
+      openPrivateChat(existingChat._id)
+    } else {
+      // Create a temporary user chat head
+      addChatHead(userId, 'user')
+      activeTab.value = userId
+      openPanel()
+    }
+  }
+
   const removeChatHead = (id: string) => {
     activeChatHeads.value = activeChatHeads.value.filter((h) => h.id !== id)
     if (activeTab.value === id) activeTab.value = 'overview'
   }
 
-  // Called from Socket Handlers when a new message arrives
   const triggerNewMessageAlert = (chatId: string) => {
     addChatHead(chatId, 'chat')
     if (!bouncingBubbles.value.includes(chatId)) {
@@ -53,12 +75,10 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
     }
   }
 
-
-
   return {
     isVisible, isExpanded, activeTab, activeChatHeads, bouncingBubbles, showLobbyPreview,
     showWidget, hideWidget, openPanel, closePanel, togglePanel,
-    openOverview, openLobby, openPrivateChat, addChatHead, removeChatHead,
+    openOverview, openLobby, openPrivateChat, openChatWithUser, addChatHead, removeChatHead,
     triggerNewMessageAlert
   }
 })

@@ -7,4 +7,5 @@ export enum FRONTEND_ROUTES {
   chat='chat',
   profile='profile',
   settings='settings',
+  network='network',
 }

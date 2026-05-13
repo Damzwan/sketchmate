@@ -1,6 +1,6 @@
 // src/stores/auth.store.ts
 import { defineStore, storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { FirebaseAuthentication, User as FirebaseUser } from '@capacitor-firebase/authentication'
 import { UseIonRouterResult } from '@ionic/vue'
@@ -23,9 +23,13 @@ import { routerAnimation } from '@/helper/animation.helper'
 import { useNotificationStore } from '@/store/notification.store'
 import { useBalloonStore } from '@/store/balloon.store'
 import { useInboxStore } from '@/store/inbox.store'
-import { useSocketService } from '@/service/api/socket/socket.service'
+// NEW: Import the prefixed socket functions directly
+import {
+  socketConnect,
+  socketDisconnect,
+  socketLogin
+} from '@/service/api/socket/socket.service'
 import { useSessionStore } from '@/store/session.store'
-import { leaveRoom } from '@/service/api/socket/drawSyncing.socket'
 import { mixpanelIdentify } from '@/service/mixpanel'
 import { useFriendStore } from '@/store/friend.store'
 import { useChatStore } from '@/store/chat.store'
@@ -53,7 +57,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value!))
 
-  // TODO Bad name, used for matching
   const isLoading = ref(false)
 
   // Derived
@@ -75,17 +78,12 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = undefined
       firebaseUser.value = undefined
 
-
       await router.replace(FRONTEND_ROUTES.login!)
 
-
       isAuthLoading.value = false
-
-
       return
     }
 
-    // User logged in
     firebaseUser.value = status.user
 
     const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
@@ -101,17 +99,14 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       const [authUser, newAcc] = result
-      isAuthLoading.value = false
 
+      isAuthLoading.value = false
       const { showEnableNotificationsAfterLogin } = useNotificationStore()
 
       if (newAcc || showEnableNotificationsAfterLogin) {
-        // new user is routed in login.view.vue
         return
       }
 
-
-      // TODO testing whether this is better
       ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation)
     } else {
       // Auto-login (no login intent)
@@ -129,36 +124,29 @@ export const useAuthStore = defineStore('auth', () => {
         return
       }
 
-      const [authUser] = result
       const allowedRoutes = Object.values(FRONTEND_ROUTES).filter(
         p => p !== FRONTEND_ROUTES.login
       ) as Partial<FRONTEND_ROUTES>[]
 
-
-      // 2. Check if the user was trying to reach a specific room/page
       const { redirectIntent } = useSessionStore()
       if (redirectIntent) {
         ionRouter.replace(redirectIntent, routerAnimation)
         return
       }
 
-      // 3. Fallback: Stay where you are if it's allowed, otherwise go to draw
       const path = router.currentRoute.value.path.split('/')[1]
       if (allowedRoutes.includes(path as FRONTEND_ROUTES)) {
         ionRouter.replace(path, routerAnimation)
       } else {
         ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation)
       }
-
-
     }
   })
 
-
   async function login(): Promise<[User, boolean] | null> {
     try {
-      const socketService = useSocketService()
-      socketService.connect()
+      // Use new prefixed function
+      socketConnect()
 
       const authUser = await getCurrentAuthUser()
       if (!authUser) return null
@@ -168,11 +156,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       showTutorial.value = !userValue.user.last_seen_version
 
-
-      // Parse DOB
-      if (userValue.user.date_of_birth) {
-        userValue.user.date_of_birth = new Date(userValue.user.date_of_birth)
-      }
+      // Date parsing removed here as requested
 
       // Native version check
       if (
@@ -185,12 +169,12 @@ export const useAuthStore = defineStore('auth', () => {
 
       const arrivedFromLogin = await Preferences.get({ key: LocalStorage.login })
 
-
       user.value = userValue.user
       isLoggedIn.value = true
       isNewAccount.value = userValue.new_account
 
-      socketService.login({ _id: user.value!._id })
+      // Use new prefixed functions
+      socketLogin({ _id: user.value!._id })
       balloonStore.init(user.value)
       await notificationStore.init(user.value, !!arrivedFromLogin.value)
 
@@ -199,8 +183,6 @@ export const useAuthStore = defineStore('auth', () => {
       friendStore.initializeSocialGraph(user.value)
       chatStore.loadActiveChats()
 
-      // Store user id locally
-      // TODO maybe remove
       Preferences.set({ key: LocalStorage.user_id, value: user.value!._id })
       Preferences.set({ key: LocalStorage.img, value: user.value!.img })
 
@@ -226,7 +208,6 @@ export const useAuthStore = defineStore('auth', () => {
     ionRouter = r
   }
 
-  // TODO not ideal
   async function refresh(e?: any) {
     const authUser = await getCurrentAuthUser()
     const { toast } = useToast()
@@ -241,11 +222,8 @@ export const useAuthStore = defineStore('auth', () => {
       return
     }
 
-    if (userValue.user.date_of_birth) {
-      userValue.user.date_of_birth = new Date(userValue.user.date_of_birth)
-    }
+    // Date parsing removed here as requested
     user.value = userValue.user
-
 
     const { getInboxBatch } = useInboxStore()
     await getInboxBatch(true)
@@ -253,26 +231,44 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
-    // TODO can be done better
     const { showEnableNotificationsAfterLogin } = storeToRefs(useNotificationStore())
     showEnableNotificationsAfterLogin.value = false
 
     Preferences.remove({ key: LocalStorage.user_id })
     Preferences.remove({ key: LocalStorage.notificationToken })
 
-    const { disconnect } = useSocketService()
-    if (deviceFingerprint.value) {
+    if (deviceFingerprint.value && user.value) {
       api.onLoginEvent({
-        user_id: user.value!._id,
+        user_id: user.value._id,
         fingerprint: deviceFingerprint.value,
         loggedIn: false
       })
     }
 
-    disconnect()
+    // Use new prefixed function
+    socketDisconnect()
+
     await FirebaseAuthentication.signOut()
     isLoggedIn.value = false
     user.value = undefined
+  }
+
+  async function waitUntilInitialized(): Promise<User | undefined> {
+    if (isLoggedIn.value) return user.value
+
+    return new Promise((resolve) => {
+      const unwatch = watch(isLoggedIn, (val) => {
+        if (val) {
+          unwatch()
+          resolve(user.value)
+        }
+      }, { immediate: true })
+
+      setTimeout(() => {
+        unwatch()
+        resolve(undefined)
+      }, 10000)
+    })
   }
 
   return {
@@ -287,11 +283,11 @@ export const useAuthStore = defineStore('auth', () => {
     deviceFingerprint,
     localUserImg,
     showTutorial,
-
     initIonRouter,
     login,
     logout,
     refresh,
-    refreshNeeded
+    refreshNeeded,
+    waitUntilInitialized
   }
 })

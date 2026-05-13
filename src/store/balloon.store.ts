@@ -83,8 +83,9 @@ export const useBalloonStore = defineStore('balloon', () => {
 
       const { inbox, inboxUsers } = storeToRefs(useInboxStore())
       if (auth.user!.inbox.length != 0 && inbox.value.length == 0) {
-        const { getInbox } = useInboxStore()
-        await getInbox()
+        console.error('need to change balloon logic')
+        // const { getInbox } = useInboxStore()
+        // await getInbox()
       }
 
       auth.user!.inbox = [inboxItem._id, ...auth.user!.inbox]

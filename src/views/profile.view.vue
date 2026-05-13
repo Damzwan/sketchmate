@@ -137,6 +137,7 @@ import SignaturePadModal from '@/components/profile/customization/SignaturePadMo
 import { hydrateCustomization } from '@/config/profile_options.config'
 import { useMenuStore } from '@/store/menu.store'
 import { Menu } from '@/draw/types/draw.types'
+import { useFriendStore } from '@/store/friend.store'
 
 const router = useIonRouter()
 const authStore = useAuthStore()
@@ -153,7 +154,6 @@ const loadingPosts = ref(false)
 const isEditing = ref(false)
 const titlesModalOpen = ref(false)
 const signatureModalOpen = ref(false)
-const connectionModalOpen = ref(false)
 const { openMenu } = useMenuStore()
 
 const editForm = reactive({ name: '', description: '' })
@@ -292,7 +292,7 @@ watch(
 )
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const goToNetwork = (tab: string) => router.push(`/network?tab=${tab}`)
+const goToNetwork = (tab: string) => router.push(`/network?tab=${tab}`, masterAnimation)
 const goToSettings = () => router.push('/settings', masterAnimation)
 const getTotalReactions = (counts?: Record<string, number>) => Object.values(counts || {}).reduce((a, b) => a + b, 0)
 const formatNumber = (n: number) => (n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n)

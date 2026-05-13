@@ -158,8 +158,6 @@ import { svg } from '@/helper/general.helper'
 import { PopulatedConversation } from '@/types/server.types'
 import { useAuthStore } from '@/store/auth.store' // Added store
 
-dayjs.extend(relativeTime)
-
 const props = defineProps<{
   chat: PopulatedConversation;
   currentUserId: string;

@@ -39,6 +39,15 @@
 
     <!-- ACTIVE CONTENT (Only shows if NOT blocked) -->
     <template v-else>
+      <!-- NEW CHAT BLANK STATE -->
+      <div v-if="isBrandNewChat && partner"
+           class="flex flex-col items-center justify-center py-20 opacity-40 animate-fade-in text-center">
+        <ion-icon :icon="svg(mdiDraw)" class="text-6xl mb-4 text-black" />
+        <p class="cabin-sketch-regular text-2xl font-bold text-black leading-none">
+          Send a balloon to <br />{{ partner.name }}!
+        </p>
+      </div>
+
       <!-- 1. PENDING: Incoming Chat Request -->
       <div v-if="isIncomingRequest && currentChat" class="px-1">
         <div
@@ -90,9 +99,9 @@
       </div>
 
       <div
-        v-if="activeTab !== 'lobby' && chatStore.hasMoreMessagesByChat[activeTab] !== false"
+        v-if="activeTab !== 'lobby' && messages.length > 0 && chatStore.hasMoreMessagesByChat[activeTab] !== false"
         ref="topSentinel"
-        class="w-full flex  justify-center py-4 shrink-0"
+        class="w-full flex justify-center py-4 shrink-0"
       >
         <ion-spinner name="bubbles" color="secondary" class="opacity-60"></ion-spinner>
       </div>
@@ -130,7 +139,7 @@
             :class="{'flex-row-reverse': isMe(msg), 'mt-[-6px]': isCompact(msg, index)}"
           >
             <div class="w-8 h-8 shrink-0 flex items-end" v-if="!isMe(msg) && !isCompact(msg, index)">
-              <!-- ... existing avatar code ... -->
+              <img :src="partner?.img" class="w-8 h-8 rounded-xl object-cover border-2 border-white shadow-sm" />
             </div>
             <div v-else-if="!isMe(msg)" class="w-8 shrink-0"></div>
 
@@ -148,18 +157,16 @@
 
                 <div class="font-bold">{{ msg.content || msg.message }}</div>
 
-                <!-- UPDATED: Timestamp & Checkmarks -->
+                <!-- Timestamp & Checkmarks -->
                 <div class="text-[8px] mt-1 font-sans opacity-80 flex justify-end items-center gap-1">
                   <span>{{ dayjs(msg.createdAt).format('HH:mm') }}</span>
 
-                  <!-- Checkmarks only for normal private messages sent by the user -->
                   <span v-if="isMe(msg) && activeTab !== 'lobby'" class="text-[11px] flex items-center">
-              <ion-icon v-if="msg.status === 'sending'" :icon="timeOutline" class="opacity-60" />
-              <ion-icon v-else-if="msg.status === 'error'" :icon="alertCircleOutline" class="text-red-300" />
-              <ion-icon v-else :icon="checkmarkDoneOutline" class="text-white" />
-            </span>
+                    <ion-icon v-if="msg.status === 'sending'" :icon="timeOutline" class="opacity-60" />
+                    <ion-icon v-else-if="msg.status === 'error'" :icon="alertCircleOutline" class="text-red-300" />
+                    <ion-icon v-else :icon="checkmarkDoneOutline" class="text-white" />
+                  </span>
                 </div>
-
               </div>
             </div>
           </div>
@@ -301,11 +308,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, ref } from 'vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { storeToRefs } from 'pinia'
-import { IonButton, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent } from '@ionic/vue' // Add this to your Ionic imports
+import { IonButton, IonIcon, IonSpinner } from '@ionic/vue'
 import { alertCircleOutline, checkmarkDoneOutline, closeCircle, timeOutline } from 'ionicons/icons'
 import { mdiAccountOff, mdiClockOutline, mdiDraw, mdiHeart, mdiLockOutline } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
@@ -315,12 +322,10 @@ import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useChatStore } from '@/store/chat.store'
 import { useFriendStore } from '@/store/friend.store'
-import { acceptMatership, declineMatership, requestMatership } from '@/service/api/chat.api'
 import { PopulatedConversation } from '@/types/server.types'
 import { useUserActions } from '@/composables/profile/useUserActions'
 import { useIntersectionObserver } from '@vueuse/core'
-
-dayjs.extend(relativeTime)
+import { acceptMatership, declineMatership, requestMatership } from '@/service/api/relationship.api'
 
 const props = defineProps<{ messages: any[], isFetchingHistory: boolean }>()
 const emit = defineEmits(['inspect-profile', 'join-session', 'load-more'])
@@ -337,8 +342,10 @@ const { activeTab } = storeToRefs(chatWidgetStore)
 const { invitations } = storeToRefs(drawSyncer)
 const { activeChats } = storeToRefs(chatStore)
 const { pendingRequests } = storeToRefs(friendStore)
+
 const topSentinel = ref<HTMLElement | null>(null)
 
+// --- INFINITE SCROLL OBSERVER ---
 useIntersectionObserver(
   topSentinel,
   ([{ isIntersecting }]) => {
@@ -350,39 +357,45 @@ useIntersectionObserver(
       emit('load-more')
     }
   },
-  {
-    // Trigger the load slightly before the user actually hits the exact top
-    // for a more seamless UX
-    rootMargin: '150px'
-  }
+  { rootMargin: '150px' }
 )
 
+// --- COMPUTED STATES ---
 const currentChat = computed(() => {
   return [...activeChats.value, ...pendingRequests.value].find(c => c._id === activeTab.value)
 })
 
 const partner = computed(() => {
   if (activeTab.value === 'lobby') return null
-  return currentChat.value?.participants.find((p: any) => p._id !== user.value?._id)
+
+  // 1. Priority: Existing Chat Participant
+  const chatPartner = currentChat.value?.participants.find((p: any) => p._id !== user.value?._id)
+  if (chatPartner) return chatPartner
+
+  // 2. Fallback: We are opening a new chat. activeTab is the partner's User ID.
+  return friendStore.resolvePartnerInfo(activeTab.value)
 })
 
+// Brand New Chat Logic
+const isBrandNewChat = computed(() => !currentChat.value && activeTab.value !== 'lobby')
+
+// UPDATED: Decoupled Block Logic
 const isBlocked = computed(() => {
   if (!partner.value) return false
-  return user.value?.blocked_users?.includes(partner.value._id)
+  return friendStore.isBlocked(partner.value._id)
 })
 
 const isIncomingRequest = computed(() =>
-  currentChat.value?.status === 'pending' &&
+  currentChat.value?.status === 'pending_invite' &&
   currentChat.value.initiator_id !== user.value?._id
 )
-
 const isOutgoingPending = computed(() =>
-  currentChat.value?.status === 'pending' &&
+  currentChat.value?.status === 'pending_invite' &&
   currentChat.value.initiator_id === user.value?._id
 )
 
 const isTemporaryChat = computed(() => currentChat.value?.status === 'temporary')
-const isMatePending = computed(() => currentChat.value?.status === 'mate_pending')
+const isMatePending = computed(() => currentChat.value?.status === 'pending_mate')
 
 const showStatusBanner = computed(() =>
   isTemporaryChat.value ||
@@ -412,21 +425,28 @@ const formattedCooldown = computed(() => {
   return dayjs(currentChat.value?.cooldown_until).fromNow()
 })
 
+// --- RELATIONSHIP ACTIONS ---
 async function handleMateRequest() {
-  if (!currentChat.value) return
+  if (!currentChat.value?.relationship_id) return
   try {
-    await requestMatership(currentChat.value._id)
-    currentChat.value.status = 'mate_pending'
-    currentChat.value.initiator_id = user.value?._id
+    await requestMatership(currentChat.value._id) // uses conversation_id
+    const idx = chatStore.activeChats.findIndex(c => c._id === currentChat.value!._id)
+    if (idx !== -1) {
+      chatStore.activeChats[idx] = {
+        ...chatStore.activeChats[idx],
+        status: 'pending_mate',
+        initiator_id: user.value?._id?.toString()
+      }
+    }
   } catch (e) {
-    console.error('Failed to propose matership', e)
+    console.error('Failed to send mate request', e)
   }
 }
 
 async function handleMateAccept() {
-  if (!currentChat.value) return
+  if (!currentChat.value?.relationship_id) return
   try {
-    const { conversation } = await acceptMatership(currentChat.value._id) as { conversation: PopulatedConversation }
+    const { conversation } = await acceptMatership(currentChat.value.relationship_id) as { conversation: PopulatedConversation }
     chatStore.handleMateMatched({ conversation })
   } catch (e) {
     console.error('Failed to accept matership', e)
@@ -434,15 +454,17 @@ async function handleMateAccept() {
 }
 
 async function handleMateDecline() {
-  if (!currentChat.value) return
+  if (!currentChat.value?.relationship_id) return
   try {
-    const { status, conversation } = await declineMatership(currentChat.value._id) as any
-    currentChat.value.status = status
-    currentChat.value.initiator_id = undefined
-    if (conversation) {
-      currentChat.value.trial_expires_at = conversation.trial_expires_at
+    const { status, conversation } = await declineMatership(currentChat.value.relationship_id) as any
+    const idx = chatStore.activeChats.findIndex(c => c._id === currentChat.value!._id)
+    if (idx !== -1) {
+      chatStore.activeChats[idx] = {
+        ...chatStore.activeChats[idx],
+        status,
+        initiator_id: undefined
+      }
     }
-    chatStore.removeNotification(currentChat.value._id)
   } catch (e) {
     console.error('Failed to decline matership', e)
   }
@@ -459,9 +481,8 @@ const activeInvite = computed(() => {
 })
 
 const dismissInvite = () => {
-  if (activeInvite.value) {
-    drawSyncer.invitations = invitations.value.filter(inv => inv.roomId !== activeInvite.value.roomId)
-  }
+  if (!activeInvite.value) return
+  drawSyncer.invitations = invitations.value.filter(inv => inv.roomId !== activeInvite.value?.roomId)
 }
 
 const isMe = (msg: any) => msg.sender_id === user.value?._id || msg.member?._id === user.value?._id
@@ -472,16 +493,6 @@ const isCompact = (msg: any, index: number) => {
   const currentSender = msg.sender_id || msg.member?._id
   const prevSender = prev.sender_id || prev.member?._id
   return currentSender === prevSender && prev.type !== 'join' && prev.type !== 'leave'
-}
-
-const loadMoreMessages = async (event: any) => {
-  console.log('was')
-  if (activeTab.value === 'lobby') {
-    event.target.complete()
-    return
-  }
-  await chatStore.loadMessages(activeTab.value, false)
-  event.target.complete()
 }
 </script>
 
@@ -544,15 +555,6 @@ const loadMoreMessages = async (event: any) => {
 
 .msg-bubble-move {
   transition: transform 0.3s ease;
-}
-
-.skip-anim {
-  transition: none !important;
-  animation: none !important;
-}
-
-.is-fetching .msg-bubble-move {
-  transition: none !important;
 }
 
 .is-fetching-history > * {

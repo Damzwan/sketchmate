@@ -106,8 +106,6 @@ import { useSocketService } from '@/service/api/socket/socket.service'
 import { fetchPostComments } from '@/service/api/post.api'
 import { senderImg, senderName, svg } from '@/helper/general.helper'
 
-dayjs.extend(relativeTime)
-
 const props = defineProps<{
   open: boolean;
   user: any;

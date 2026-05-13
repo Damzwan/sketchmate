@@ -64,12 +64,14 @@ import { useChatStore } from '@/store/chat.store'
 import { useAuthStore } from '@/store/auth.store'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { useFriendStore } from '@/store/friend.store' // <-- Added FriendStore
 
 const chatWidget = useChatWidgetStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
 const drawUI = useDrawUIStore()
 const drawSyncer = useDrawSyncer()
+const friendStore = useFriendStore() // <-- Initialized FriendStore
 
 const { isExpanded, activeTab } = storeToRefs(chatWidget)
 const { notifications } = storeToRefs(chatStore)
@@ -88,7 +90,6 @@ watch(lobbyChatMessages, (messages) => {
   const latest = messages[messages.length - 1] as any
   const senderId = latest.member?._id || 'system'
 
-  // 1. HANDLE SYSTEM EVENTS (Join/Leave)
   if (latest.type === 'join' || latest.type === 'leave') {
     const isMe = latest.member?._id === user.value?._id
 
@@ -102,7 +103,6 @@ watch(lobbyChatMessages, (messages) => {
     }
 
     chatStore.addNotification({
-      // Crucial: unique tabId per sender/event so they don't merge
       tabId: `lobby-${senderId}-${latest.type}`,
       subtitle: isMe ? 'System' : (latest.member?.name || 'Lobby'),
       text,
@@ -125,8 +125,6 @@ watch(lobbyChatMessages, (messages) => {
   if (latest.member?._id === user.value?._id) return
 
   chatStore.addNotification({
-    // By using 'lobby-' + senderId, User A and User B get separate toasts.
-    // User A's subsequent messages will still group in User A's toast.
     tabId: `lobby-${senderId}`,
     subtitle: latest.member?.name || 'Lobby',
     text: latest.content || latest.message,
@@ -145,6 +143,7 @@ watch(invitations, (newInvites, oldInvites) => {
   if (!latest) return
 
   chatStore.addNotification({
+    // Uses a User ID!
     tabId: latest.friend._id,
     subtitle: 'Drawing Invite',
     text: `${latest.friend.name} wants to sketch!`,
@@ -155,7 +154,6 @@ watch(invitations, (newInvites, oldInvites) => {
 }, { deep: true })
 
 const getBorderColor = (group: any) => {
-  // Use startsWith since our tabId is now dynamic (e.g., lobby-123)
   if (group.tabId.startsWith('lobby')) return 'bg-cyan-400'
   if (group.isMateProposal) return 'bg-secondary animate-pulse'
   if (group.isRequest) return 'bg-secondary'
@@ -164,16 +162,22 @@ const getBorderColor = (group: any) => {
 }
 
 const openFromNotification = (tabId: string) => {
-  // Remove the specific notification (lobby-userA, etc)
   chatStore.removeNotification(tabId)
-
   chatWidget.openPanel()
 
-  // If it's any lobby variant, redirect to the general lobby tab
   if (tabId.startsWith('lobby')) {
-    activeTab.value = 'lobby'
-  } else {
+    chatWidget.activeTab = 'lobby'
+    return
+  }
+
+  const isExistingChat = [...chatStore.activeChats, ...friendStore.pendingRequests].some(
+    c => c._id === tabId
+  )
+
+  if (isExistingChat) {
     chatWidget.openPrivateChat(tabId)
+  } else {
+    chatWidget.openChatWithUser(tabId)
   }
 }
 </script>

@@ -153,8 +153,9 @@ const handleLoadMore = async () => {
 
   const el = messageContainer.value
   if (!el || el.scrollTop > 200) return
-  if (!chatStore.messagesByChat[activeTab.value]?.length) return
-  if (!chatStore.hasMoreMessagesByChat[activeTab.value]) return // use the flag!
+
+  if (!currentMessages.value.length) return
+  if (chatStore.hasMoreMessagesByChat[activeTab.value] === false) return
 
   isFetchingHistory.value = true
   const snapshot = captureScrollState()
@@ -169,7 +170,6 @@ const handleLoadMore = async () => {
     }, 200)
   }
 }
-
 
 </script>
 

@@ -1,13 +1,11 @@
 <!-- components/chat/ChatOverview.vue -->
 <template>
   <div class="flex flex-col h-full">
-    <!-- 1. DRAWING INVITES -->
     <InviteList
       :invitations="invitations"
       @join="(roomId) => $emit('join-session', roomId)"
     />
 
-    <!-- 2. MATE PROPOSALS -->
     <div v-if="incomingMateRequests.length > 0" class="px-2 mb-6 animate-fade-in">
       <div class="flex items-center gap-2 mb-2 px-1">
         <div class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"></div>
@@ -29,10 +27,10 @@
       </div>
     </div>
 
-    <!-- 3. CREATE CHAT STATE (Modularized) -->
+    <!-- 3. CREATE CHAT STATE -->
     <ChatFriendPicker
       v-if="isCreatingChat"
-      :friends="friends"
+      :friends="friendStore.networkLists.mates"
       :min-chat-version="MIN_CHAT_VERSION"
       :is-friend-online="isFriendOnline"
       @cancel="isCreatingChat = false"
@@ -47,12 +45,12 @@
         :unreadCount="lobbyUnreadCount"
         :memberCount="roomMembers.length"
         :lastMessage="lastLobbyMessage"
-        @open="activeTab = 'lobby'"
+        @open="chatWidget.openLobby()"
       />
 
       <!-- ONLINE MATES HORIZONTAL SCROLL -->
       <div v-if="onlineMates.length > 0">
-        <div class="px-2 mb-4 mt-2 text-[10px] font-black text-black/40 uppercase tracking-widest">Online Mates</div>
+        <div class="px-2 mb-4 mt-2 text-[10px] font-black text-black/40 uppercase tracking-widest">Online Now</div>
         <div class="flex overflow-x-auto hide-scrollbar gap-4 px-2 mb-8">
           <div v-for="friend in onlineMates" :key="friend._id" @click="startChatWithFriend(friend)"
                class="flex flex-col items-center gap-1.5 shrink-0 w-14 cursor-pointer">
@@ -111,54 +109,58 @@ import { svg } from '@/helper/general.helper'
 import LobbyConversationItem from './LobbyConversationItem.vue'
 import ConversationItem from './ConversationItem.vue'
 import InviteList from '@/components/chat/InviteList.vue'
-import ChatFriendPicker from './ChatFriendPicker.vue' // <-- Added Import
+import ChatFriendPicker from './ChatFriendPicker.vue'
 
 import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { useChatStore } from '@/store/chat.store'
 import { useAuthStore } from '@/store/auth.store'
 import { useFriendStore } from '@/store/friend.store'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { MIN_CHAT_VERSION } from '@/config/general.config'
 
 defineEmits(['join-session'])
-
-const MIN_CHAT_VERSION = '0.4.3'
 
 const chatWidget = useChatWidgetStore()
 const chatStore = useChatStore()
 const friendStore = useFriendStore()
 const drawSyncer = useDrawSyncer()
 
-const { activeTab } = storeToRefs(chatWidget)
 const { activeChats, typingStatuses } = storeToRefs(chatStore)
 const { user } = storeToRefs(useAuthStore())
-const { friends, isFriendOnline, pendingRequests } = storeToRefs(friendStore)
+const { isFriendOnline, pendingRequests, onlineFriends } = storeToRefs(friendStore)
 const { lobbyChatMessages, roomMembers, invitations } = storeToRefs(drawSyncer)
 
 const isCreatingChat = ref(false)
 const isInLobby = computed(() => !!roomMembers.value?.length)
 const lobbyUnreadCount = ref(0)
 
-const incomingMateRequests = computed(() => {
-  return activeChats.value.filter(chat =>
-    chat.status === 'mate_pending' &&
-    chat.initiator_id !== user.value?._id
+// 1. FIX: Changed 'mate_pending' to 'pending_mate'
+const incomingMateRequests = computed(() =>
+  activeChats.value.filter(chat =>
+    chat.status === 'pending_mate' &&
+    chat.initiator_id !== user.value?._id?.toString()
+  )
+)
+
+const combinedConversations = computed(() => {
+  const mateProposalIds = new Set(incomingMateRequests.value.map(c => c._id))
+
+  const all = [
+    ...activeChats.value.filter(c => !mateProposalIds.has(c._id)),
+    ...pendingRequests.value
+  ]
+  return all.sort((a, b) =>
+    new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
   )
 })
 
-const combinedConversations = computed(() => {
-  const all = [...activeChats.value, ...pendingRequests.value]
-  return all.sort((a, b) => {
-    const dateA = new Date(a.updatedAt || 0).getTime()
-    const dateB = new Date(b.updatedAt || 0).getTime()
-    return dateB - dateA
-  })
+// 2. FIX: Use the friendStore's pre-hydrated 'onlineFriends' list!
+// This guarantees we see online mates even if we haven't loaded a chat with them yet.
+const onlineMates = computed(() => {
+  return onlineFriends.value.filter(friend =>
+    friend.chat_status === 'mate' || friend.chat_status === 'temporary'
+  )
 })
-
-const onlineMates = computed(() =>
-  friends.value.filter(f => isFriendOnline.value(f._id))
-)
-
-// Note: `eligibleMates` was removed here because `ChatFriendPicker` handles it internally now.
 
 const lastLobbyMessage = computed(() => {
   const lastChatMessage = lobbyChatMessages.value.findLast(
@@ -173,20 +175,11 @@ const getPartner = (chat: any) =>
 const getPartnerIdFromChat = (chat: any) => getPartner(chat)?._id || ''
 
 const startChatWithFriend = (friend: any) => {
-  const existing = combinedConversations.value.find(c =>
-    c.participants.some(p => p._id === friend._id)
-  )
-
-  if (existing) {
-    chatWidget.openPrivateChat(existing._id)
-  } else {
-    chatWidget.addChatHead(friend._id, 'friend')
-    activeTab.value = friend._id
-  }
+  chatWidget.openChatWithUser(friend._id)
   isCreatingChat.value = false
-  chatWidget.openPanel()
 }
 </script>
+
 
 <style scoped>
 /* (Keep your existing styles here) */

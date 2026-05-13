@@ -64,11 +64,15 @@ const { inspect } = useProfileInspector()
 
 onMounted(async () => {
   defineCustomElements(window)
+  const authStore = useAuthStore()
+  await authStore.waitUntilInitialized()
 
-  const { queryParams } = useSessionStore()
-  const mate = queryParams?.get('mate')
-  if (mate) {
-    inspect(mate)
+  if (authStore.isLoggedIn) {
+    const { queryParams } = useSessionStore()
+    const mate = queryParams?.get('mate')
+    if (mate) {
+      inspect(mate)
+    }
   }
 })
 

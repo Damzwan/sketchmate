@@ -397,13 +397,6 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     }
   }
 
-  const isBlocked = (creator: any): boolean => {
-    if (!creator) return false
-    // Handle both object and string IDs
-    const id = (typeof creator === 'object' ? creator._id || creator.id : creator).toString()
-    return blockedMap.value.has(id)
-  }
-
   function addOptimisticLobbyMessage(message: any) {
     lobbyChatMessages.value.push(message)
   }
@@ -443,7 +436,6 @@ export const useDrawSyncer = defineStore('drawSyncer', () => {
     lastProcessedSequenceId,
     currentSessionId,
     isLobby,
-    isBlocked,
     addOptimisticLobbyMessage,
     resolveOptimisticLobbyMessage,
     updateLobbyMessageStatus

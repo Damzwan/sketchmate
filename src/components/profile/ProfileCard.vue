@@ -129,20 +129,26 @@
       </template>
 
       <!-- Stats bar -->
+      <!-- Stats bar -->
       <div
         class="grid grid-cols-3 w-full mt-6 border-t pt-4 transition-colors duration-500"
         :style="{ borderColor: customization.cardBorderColor || 'rgba(0,0,0,0.1)' }"
       >
-        <button v-for="stat in ['mates', 'followers', 'following']" :key="stat"
-                class="flex flex-col items-center active:scale-95 transition-transform"
+        <button v-for="stat in (['mates', 'followers', 'following'] as const)" :key="stat"
+                class="flex flex-col items-center active:scale-95 transition-transform relative"
                 :class="{ 'border-x': stat === 'followers' }"
                 :style="stat === 'followers' ? { borderColor: customization.cardBorderColor || 'rgba(0,0,0,0.1)' } : {}"
                 @click="$emit('go-network', stat)"
         >
+
           <span class="block text-xl font-black" :class="stat === 'mates' ? 'text-secondary' : 'text-black'">
-            {{ formatStatNumber(user[stat]?.length || 0) }}
-          </span>
-          <span class="text-[9px] font-bold text-black/50 uppercase tracking-widest">{{ stat }}</span>
+      {{ formatStatNumber(getStatCount(stat)) }}
+    </span>
+
+          <span class="text-[9px] font-bold text-black/50 uppercase tracking-widest flex items-center gap-1">
+      {{ stat }}
+
+    </span>
         </button>
       </div>
     </div>
@@ -190,7 +196,7 @@ import {
 import { Button } from '@ionic/core/dist/types/components/button/button'
 
 const props = defineProps<{
-  user: any
+  user: any // This is now a full User object containing stats
   customization: Record<string, any>
   isEditing: boolean
   editForm: { name: string; description: string }
@@ -212,6 +218,10 @@ const isNameChangeLocked = computed(() => {
   if (isPro.value) return false // Pro bypass
   return daysRemaining.value > 0
 })
+
+const getStatCount = (key: 'mates' | 'followers' | 'following') => {
+  return props.user.stats?.[key] || 0
+}
 
 const cardBgClass = computed(() => CARD_BG_MAP[props.customization.cardBg] ?? CARD_BG_MAP.frost)
 const resolvedFontFamily = computed(() => resolveFontFamily(props.customization.fontFamily))

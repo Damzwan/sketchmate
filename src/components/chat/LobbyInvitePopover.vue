@@ -72,7 +72,7 @@ const props = defineProps<{
 const emit = defineEmits(['close'])
 
 const friendStore = useFriendStore()
-const { allConnectedPartners } = storeToRefs(friendStore)
+const { networkLists } = storeToRefs(friendStore) // Use the centralized list
 const { roomMembers, roomId } = storeToRefs(useDrawSyncer())
 
 const inviteTimestamps = ref<Record<string, number>>({})
@@ -80,12 +80,9 @@ const INVITE_COOLDOWN_MS = 30000
 
 const isOnline = (id: string) => friendStore.isFriendOnline(id)
 
-/**
- * Filter out people already in the room.
- * Sort by online status so available people appear first.
- */
+
 const eligibleToInvite = computed(() => {
-  return allConnectedPartners.value
+  return networkLists.value.mates
     .filter(f => !roomMembers.value.some(rm => rm._id === f._id))
     .sort((a, b) => {
       const aOnline = isOnline(a._id) ? 1 : 0

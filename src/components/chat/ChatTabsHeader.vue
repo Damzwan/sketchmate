@@ -61,7 +61,7 @@
     >
       <template v-if="getPartner(head.id)">
         <img
-          :src="getPartner(head.id).img"
+          :src="getPartner(head.id)?.img"
           class="w-full h-full rounded-[1.1rem] object-cover transition-all"
           :class="{ 'grayscale opacity-60': isExpired(head.id) }"
         />
@@ -144,8 +144,15 @@ watch(
   }
 )
 
-const isExpired = (chatId: string) => {
-  const chat = activeChats.value.find(c => c._id === chatId)
+const getChatFromHead = (headId: string) => {
+  return [...activeChats.value, ...friendStore.pendingRequests].find(c => {
+    if (c._id === headId) return true;
+    return c.participants.some(p => p._id === headId);
+  });
+}
+
+const isExpired = (headId: string) => {
+  const chat = getChatFromHead(headId);
   return chat?.status === 'expired'
 }
 
@@ -156,20 +163,25 @@ const unreadConversationsCount = computed(() => {
   return activeCount + pendingCount
 })
 
-const getPartner = (id: string) => friendStore.resolvePartnerInfo(id)
+const getPartner = (headId: string) => {
+  const chat = getChatFromHead(headId);
+  if (chat) {
+    return chat.participants.find((p: any) => p._id !== user.value?._id);
+  }
 
-const isPartnerOnline = (chatId: string) => {
-  const partner = getPartner(chatId)
+  // f no chat exists, headId is a User ID (brand new chat)
+  return friendStore.resolvePartnerInfo(headId);
+}
+
+const isPartnerOnline = (headId: string) => {
+  const partner = getPartner(headId)
   return partner ? friendStore.isFriendOnline(partner._id) : false
 }
 
-const getUnreadCount = (chatId: string) => {
+const getUnreadCount = (headId: string) => {
   const me = user.value?._id || ''
-  const chat = activeChats.value.find(c => c._id === chatId)
-  if (chat) return chat.unread_counts?.[me] || 0
-
-  const pending = friendStore.pendingRequests.find(c => c._id === chatId)
-  return pending?.unread_counts?.[me] || 0
+  const chat = getChatFromHead(headId);
+  return chat?.unread_counts?.[me] || 0
 }
 </script>
 

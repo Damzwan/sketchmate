@@ -1,316 +1,325 @@
-import { defineStore } from 'pinia'
-import * as fabric from 'fabric'
-import { type Canvas, type FabricObject, IText, Point } from 'fabric'
-import { type Ref, ref } from 'vue'
-import { v4 } from 'uuid'
-import { FabricEvent, ToolService } from '@/draw/types/draw.types'
-import { isNative } from '@/helper/general.helper'
-import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { isText } from '@/draw/helpers/text.helper'
-import { getAbsoluteState } from '@/draw/helpers/object.helper'
+import { defineStore } from "pinia";
+import * as fabric from "fabric";
+import { type Canvas, type FabricObject, IText, Point } from "fabric";
+import { type Ref, ref } from "vue";
+import { v4 } from "uuid";
+import { FabricEvent, ToolService } from "@/draw/types/draw.types";
+import { isNative } from "@/helper/general.helper";
+import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
+import { isText } from "@/draw/helpers/text.helper";
+import { getAbsoluteState } from "@/draw/helpers/object.helper";
 
 interface Select extends ToolService {
-  unSelect: () => void
-  getSelectedObjects: () => FabricObject[]
-  isSelectActive: Ref<boolean>
-  selectedObjectsRef: Ref<FabricObject[]>
-  multiSelectMode: Ref<boolean>
-  shouldModifyObjectsWithGestures: () => boolean
-  isEditingText: Ref<boolean>
-  getSelectedObjectOriginalStates: () => Map<string, any>
+	unSelect: () => void;
+	getSelectedObjects: () => FabricObject[];
+	isSelectActive: Ref<boolean>;
+	selectedObjectsRef: Ref<FabricObject[]>;
+	multiSelectMode: Ref<boolean>;
+	shouldModifyObjectsWithGestures: () => boolean;
+	isEditingText: Ref<boolean>;
+	getSelectedObjectOriginalStates: () => Map<string, any>;
 }
 
+export const useSelect = defineStore("select", (): Select => {
+	let c: Canvas | undefined = undefined;
+	const isSelectActive = ref(false);
 
-export const useSelect = defineStore('select', (): Select => {
-  let c: Canvas | undefined = undefined
-  const isSelectActive = ref(false)
+	let selectedObjects: FabricObject[] = [];
+	const selectedObjectsRef: Ref<FabricObject[]> = ref([]);
 
-  let selectedObjects: FabricObject[] = []
-  const selectedObjectsRef: Ref<FabricObject[]> = ref([])
+	const multiSelectMode = ref(false); // TODO not yet implemented
+	let clicksAfterSelectionActive = 0;
 
-  const multiSelectMode = ref(false) // TODO not yet implemented
-  let clicksAfterSelectionActive = 0
+	const isEditingText = ref(false);
+	const isBottomHalf = ref(false);
 
-  const isEditingText = ref(false)
-  const isBottomHalf = ref(false)
+	let wasDragging = false;
+	let pointerDownPos: Point | null = null;
 
-  let wasDragging = false
-  let pointerDownPos: Point | null = null
+	let useGestures = false; // means that when we zoom or rotate we edit the object instead of zooming/panning the canvas
 
-  let useGestures = false // means that when we zoom or rotate we edit the object instead of zooming/panning the canvas
+	const originalStates = new Map<string, any>();
 
+	let isUsingGestures = false;
 
-  const originalStates = new Map<string, any>()
+	// ----------------- Helper Functions -----------------
+	function getObjectsUnderPointer(pointer: Point) {
+		return c!.getObjects().filter((obj) => obj.containsPoint(pointer));
+	}
 
-  let isUsingGestures = false
+	function cycleSelection(pointer: Point) {
+		const { actionWithoutEvents } = useDrawEventManager();
+		const objsUnderPointer = getObjectsUnderPointer(pointer);
+		const nextObj = objsUnderPointer.find(
+			(obj) => !selectedObjects.includes(obj),
+		);
+		if (nextObj) {
+			void actionWithoutEvents(() => {
+				c!.setActiveObject(nextObj);
+				selectedObjects = [nextObj];
+				selectedObjectsRef.value = [nextObj];
+				c!.clearContext(c!.getTopContext());
+				nextObj._renderControls(c!.getTopContext());
+			});
+		}
+	}
 
-  // ----------------- Helper Functions -----------------
-  function getObjectsUnderPointer(pointer: Point) {
-    return c!.getObjects().filter(obj => obj.containsPoint(pointer))
-  }
+	function handleMultiSelect(pointer: Point) {
+		const currentSelection = c!.getActiveObjects() || [];
+		c!.discardActiveObject();
+		c!.getObjects().forEach((o) => o.setCoords());
+		const { actionWithoutEvents } = useDrawEventManager();
 
-  function cycleSelection(pointer: Point) {
-    const { actionWithoutEvents } = useDrawEventManager()
-    const objsUnderPointer = getObjectsUnderPointer(pointer)
-    const nextObj = objsUnderPointer.find(obj => !selectedObjects.includes(obj))
-    if (nextObj) {
-      void actionWithoutEvents(() => {
-        c!.setActiveObject(nextObj)
-        selectedObjects = [nextObj]
-        selectedObjectsRef.value = [nextObj]
-        c!.clearContext(c!.getTopContext())
-        nextObj._renderControls(c!.getTopContext())
-      })
-    }
-  }
+		const objectsUnderPointer = getObjectsUnderPointer(pointer);
+		const newObjects = objectsUnderPointer.filter(
+			(obj) =>
+				!currentSelection.includes(obj) &&
+				currentSelection.every((sel) =>
+					sel.containsPoint(pointer) ? obj.isContainedWithinObject(sel) : true,
+				),
+		);
 
-  function handleMultiSelect(pointer: Point) {
-    const currentSelection = c!.getActiveObjects() || []
-    c!.discardActiveObject()
-    c!.getObjects().forEach(o => o.setCoords())
-    const { actionWithoutEvents } = useDrawEventManager()
+		if (newObjects.length) {
+			void actionWithoutEvents(() => {
+				const newSelection = [...currentSelection, ...newObjects.slice(0, 1)];
+				c!.setActiveObject(
+					new fabric.ActiveSelection(newSelection, { canvas: c }),
+				);
+				selectedObjects = newSelection;
+				selectedObjectsRef.value = [...newSelection];
+			});
+		} else {
+			// If click on selected object, unselect it
+			const toUnselect = objectsUnderPointer.filter((obj) =>
+				currentSelection.includes(obj),
+			);
+			if (toUnselect.length) {
+				void actionWithoutEvents(() => {
+					c!.setActiveObject(
+						new fabric.ActiveSelection(
+							currentSelection.filter((o) => !toUnselect.includes(o)),
+							{ canvas: c },
+						),
+					);
+					selectedObjects = c!.getActiveObjects() || [];
+					selectedObjectsRef.value = [...selectedObjects];
+				});
+			}
+		}
+	}
 
+	// ----------------- Event Handlers -----------------
+	const events: FabricEvent[] = [
+		{
+			on: "selection:created",
+			handler: (e: any) => {
+				const active = c!._activeObject;
+				if (active?.isType("activeselection")) active.id = v4(); // TODO is this necessary?
 
-    const objectsUnderPointer = getObjectsUnderPointer(pointer)
-    const newObjects = objectsUnderPointer.filter(
-      obj =>
-        !currentSelection.includes(obj) &&
-        currentSelection.every(sel =>
-          sel.containsPoint(pointer) ? obj.isContainedWithinObject(sel) : true
-        )
-    )
+				setSelection(e.selected);
+				temporarilyDisableGestures();
+			},
+		},
+		{
+			on: "selection:updated",
+			handler: (e: any) => {
+				const currentSelection = c!.getActiveObjects();
 
-    if (newObjects.length) {
-      void actionWithoutEvents(() => {
-        const newSelection = [...currentSelection, ...newObjects.slice(0, 1)]
-        c!.setActiveObject(new fabric.ActiveSelection(newSelection, { canvas: c }))
-        selectedObjects = newSelection
-        selectedObjectsRef.value = [...newSelection]
-      })
-    } else {
-      // If click on selected object, unselect it
-      const toUnselect = objectsUnderPointer.filter(obj => currentSelection.includes(obj))
-      if (toUnselect.length) {
-        void actionWithoutEvents(() => {
-          c!.setActiveObject(new fabric.ActiveSelection(currentSelection.filter(o => !toUnselect.includes(o)), { canvas: c }))
-          selectedObjects = c!.getActiveObjects() || []
-          selectedObjectsRef.value = [...selectedObjects]
-        })
-      }
-    }
-  }
+				if (isText(e.deselected) && isEditingText.value) {
+					c!.setActiveObject(selectedObjects[0]);
+					isEditingText.value = false;
+					return;
+				}
 
-  // ----------------- Event Handlers -----------------
-  const events: FabricEvent[] = [
-    {
-      on: 'selection:created',
-      handler: (e: any) => {
-        const active = c!._activeObject
-        if (active?.isType('activeselection')) active.id = v4() // TODO is this necessary?
+				setSelection(currentSelection);
+				temporarilyDisableGestures();
+			},
+		},
+		{
+			on: "selection:cleared",
+			handler: () => {
+				if (isText(selectedObjects) && isEditingText.value) {
+					c!.setActiveObject(selectedObjects[0]);
+					isEditingText.value = false;
+					c!.clearContext(c!.getTopContext());
+					selectedObjects[0]._renderControls(c!.getTopContext());
+					return;
+				}
 
-        setSelection(e.selected)
-        temporarilyDisableGestures()
-      }
-    },
-    {
-      on: 'selection:updated',
-      handler: (e: any) => {
-        const currentSelection = c!.getActiveObjects()
+				clearSelection();
+			},
+		},
+		{
+			on: "mouse:down",
+			handler: (e) => {
+				c!.skipTargetFind = true;
+				startPointerTracking(c!.getScenePoint(e.e));
+				clicksAfterSelectionActive++;
+			},
+		},
+		{
+			on: "before:transform",
+			handler: () => {
+				originalStates.clear();
+				c!.getActiveObjects().forEach((obj) => {
+					originalStates.set(obj.id, getAbsoluteState(obj));
+				});
+			},
+		},
+		{
+			on: "mouse:move",
+			handler: (e) => {
+				updatePointerTracking(c!.getScenePoint(e.e));
+			},
+		},
+		{
+			on: "mouse:up",
+			handler: () => {
+				c!.skipTargetFind = false;
+				if (!isSelectActive.value || !isClick() || isUsingGestures) return;
+				if (clicksAfterSelectionActive <= 1) return;
 
-        if (isText(e.deselected) && isEditingText.value) {
-          c!.setActiveObject(selectedObjects[0])
-          isEditingText.value = false
-          return
-        }
+				handleSelectionClick(pointerDownPos!);
+				pointerDownPos = null;
+			},
+		},
+		{
+			on: "text:editing:entered",
+			handler: () => {
+				isEditingText.value = true;
+				if (isNative() && isText(selectedObjects)) {
+					const text = selectedObjects[0] as IText;
+					const p = new fabric.Point(text.left, text.top);
+					const screenPoint = fabric.util.transformPoint(
+						p,
+						c!.viewportTransform,
+					);
+					isBottomHalf.value = screenPoint.y > window.innerHeight / 2;
+				}
+			},
+		},
+		{
+			on: "gestureStart",
+			handler: () => {
+				isUsingGestures = true;
+			},
+		},
+		{
+			on: "gestureEnd",
+			handler: () => {
+				isUsingGestures = false;
+			},
+		},
+	];
 
-        setSelection(currentSelection)
-        temporarilyDisableGestures()
-      }
-    },
-    {
-      on: 'selection:cleared',
-      handler: () => {
-        if (isText(selectedObjects) && isEditingText.value) {
-          c!.setActiveObject(selectedObjects[0])
-          isEditingText.value = false
-          c!.clearContext(c!.getTopContext())
-          selectedObjects[0]._renderControls(c!.getTopContext())
-          return
-        }
+	// ----------------- Store Functions -----------------
+	function init(canvas: Canvas) {
+		c = canvas;
+	}
 
-        clearSelection()
-      }
-    },
-    {
-      on: 'mouse:down',
-      handler: (e) => {
-        c!.skipTargetFind = true
-        startPointerTracking(c!.getScenePoint(e.e))
-        clicksAfterSelectionActive++
-      }
-    },
-    {
-      on: 'before:transform',
-      handler: () => {
-        originalStates.clear()
-        c!.getActiveObjects().forEach(obj => {
-          originalStates.set(obj.id, getAbsoluteState(obj))
-        })
-      }
-    },
-    {
-      on: 'mouse:move',
-      handler: (e) => {
-        updatePointerTracking(c!.getScenePoint(e.e))
-      }
-    },
-    {
-      on: 'mouse:up',
-      handler: () => {
-        c!.skipTargetFind = false
-        if (!isSelectActive.value || !isClick() || isUsingGestures) return
-        if (clicksAfterSelectionActive <= 1) return
+	async function select() {
+		c!.isDrawingMode = false;
+		c!.skipTargetFind = false;
+		c!.selection = true;
+	}
 
+	function unSelect() {
+		if (isText(selectedObjectsRef.value) && isEditingText.value) {
+			const text = selectedObjects[0] as IText;
+			text.exitEditing();
+			isEditingText.value = false;
+			c!.setActiveObject(text);
+			c!.clearContext(c!.getTopContext());
+			text._renderControls(c!.getTopContext());
+			return;
+		}
+		if (c!.getActiveObject()) {
+			c!.discardActiveObject();
+			c!.clearContext(c!.contextTop);
+		}
 
-        handleSelectionClick(pointerDownPos!)
-        pointerDownPos = null
-      }
-    },
-    {
-      on: 'text:editing:entered',
-      handler: () => {
-        isEditingText.value = true
-        if (isNative() && isText(selectedObjects)) {
-          const text = selectedObjects[0] as IText
-          const p = new fabric.Point(text.left, text.top)
-          const screenPoint = fabric.util.transformPoint(p, c!.viewportTransform)
-          isBottomHalf.value = screenPoint.y > window.innerHeight / 2
-        }
-      }
-    },
-    {
-      on: 'gestureStart',
-      handler: () => {
-        isUsingGestures = true
-      }
-    },
-    {
-      on: 'gestureEnd',
-      handler: () => {
-        isUsingGestures = false
-      }
-    }
-  ]
+		isSelectActive.value = false;
+		selectedObjects = [];
+		selectedObjectsRef.value = [];
+	}
 
-  // ----------------- Store Functions -----------------
-  function init(canvas: Canvas) {
-    c = canvas
-  }
+	function getSelectedObjects() {
+		return selectedObjects;
+	}
 
-  async function select() {
-    c!.isDrawingMode = false
-    c!.skipTargetFind = false
-    c!.selection = true
-  }
+	function shouldModifyObjectsWithGestures() {
+		if (selectedObjects.length === 0 || !useGestures) return false;
+		else return useGestures;
+	}
 
-  function unSelect() {
-    if (isText(selectedObjectsRef.value) && isEditingText.value) {
-      const text = selectedObjects[0] as IText
-      text.exitEditing()
-      isEditingText.value = false
-      c!.setActiveObject(text)
-      c!.clearContext(c!.getTopContext())
-      text._renderControls(c!.getTopContext())
-      return
-    }
-    if (c!.getActiveObject()) {
-      c!.discardActiveObject()
-      c!.clearContext(c!.contextTop)
-    }
+	function setSelection(objects: FabricObject[]) {
+		selectedObjects = objects;
+		selectedObjectsRef.value = [...objects];
+		isSelectActive.value = objects.length > 0;
+	}
 
-    isSelectActive.value = false
-    selectedObjects = []
-    selectedObjectsRef.value = []
-  }
+	function clearSelection() {
+		selectedObjects = [];
+		selectedObjectsRef.value = [];
+		isSelectActive.value = false;
+		c!.clearContext(c!.contextTop);
+	}
 
-  function getSelectedObjects() {
-    return selectedObjects
-  }
+	function handleSelectionClick(pointer: Point) {
+		if (multiSelectMode.value) {
+			handleMultiSelect(pointer);
+			return;
+		}
 
-  function shouldModifyObjectsWithGestures() {
-    if (selectedObjects.length === 0) return false
-    else return useGestures
-  }
+		if (isText(selectedObjects) && !isEditingText.value) {
+			(selectedObjects[0] as IText).enterEditing();
+			return;
+		}
 
-  function setSelection(objects: FabricObject[]) {
-    selectedObjects = objects
-    selectedObjectsRef.value = [...objects]
-    isSelectActive.value = objects.length > 0
-  }
+		cycleSelection(pointer);
+	}
 
-  function clearSelection() {
-    selectedObjects = []
-    selectedObjectsRef.value = []
-    isSelectActive.value = false
-    c!.clearContext(c!.contextTop)
-  }
+	function startPointerTracking(pointer: Point) {
+		pointerDownPos = pointer;
+		wasDragging = false;
+	}
 
-  function handleSelectionClick(pointer: Point) {
-    if (multiSelectMode.value) {
-      handleMultiSelect(pointer)
-      return
-    }
+	function updatePointerTracking(pointer: Point) {
+		if (!pointerDownPos) return;
+		const dx = pointer.x - pointerDownPos.x;
+		const dy = pointer.y - pointerDownPos.y;
+		wasDragging ||= Math.hypot(dx, dy) > 5;
+	}
 
-    if (isText(selectedObjects) && !isEditingText.value) {
-      (selectedObjects[0] as IText).enterEditing()
-      return
-    }
+	function isClick() {
+		return !!pointerDownPos && !wasDragging;
+	}
 
-    cycleSelection(pointer)
-  }
+	function temporarilyDisableGestures() {
+		useGestures = false;
+		clicksAfterSelectionActive = 0;
 
-  function startPointerTracking(pointer: Point) {
-    pointerDownPos = pointer
-    wasDragging = false
-  }
+		setTimeout(() => {
+			useGestures = true;
+			clicksAfterSelectionActive++;
+		}, 100);
+	}
 
-  function updatePointerTracking(pointer: Point) {
-    if (!pointerDownPos) return
-    const dx = pointer.x - pointerDownPos.x
-    const dy = pointer.y - pointerDownPos.y
-    wasDragging ||= Math.hypot(dx, dy) > 5
-  }
+	function getSelectedObjectOriginalStates() {
+		return originalStates;
+	}
 
-  function isClick() {
-    return !!pointerDownPos && !wasDragging
-  }
-
-  function temporarilyDisableGestures() {
-    useGestures = false
-    clicksAfterSelectionActive = 0
-
-    setTimeout(() => {
-      useGestures = true
-      clicksAfterSelectionActive++
-    }, 100)
-  }
-
-  function getSelectedObjectOriginalStates() {
-    return originalStates
-  }
-
-
-  return {
-    select,
-    init,
-    events,
-    unSelect,
-    isSelectActive,
-    getSelectedObjects,
-    selectedObjectsRef,
-    multiSelectMode,
-    shouldModifyObjectsWithGestures,
-    isEditingText,
-    getSelectedObjectOriginalStates
-  }
-})
+	return {
+		select,
+		init,
+		events,
+		unSelect,
+		isSelectActive,
+		getSelectedObjects,
+		selectedObjectsRef,
+		multiSelectMode,
+		shouldModifyObjectsWithGestures,
+		isEditingText,
+		getSelectedObjectOriginalStates,
+	};
+});

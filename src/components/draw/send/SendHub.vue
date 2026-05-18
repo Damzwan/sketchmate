@@ -149,7 +149,7 @@ const isLoading = ref(false)
 onMounted(() => {
   setTimeout(() => {
     createPreview()
-  }, 50)
+  }, drawStore.getCanvas().getObjects().length > 1000 ? 250 : 50)
 })
 
 onUnmounted(() => {

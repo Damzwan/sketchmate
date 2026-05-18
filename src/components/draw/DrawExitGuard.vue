@@ -75,7 +75,7 @@ const showExitUI = async (): Promise<boolean> => {
 
   switch (role) {
     case 'save':
-      await loadStore.forceSave()
+      loadStore.forceSaveBackground()
       return true
     case 'leave':
     case 'discard':

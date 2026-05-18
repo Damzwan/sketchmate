@@ -1,604 +1,404 @@
-import * as fabric from 'fabric'
-import { Canvas, Point, TMat2D } from 'fabric'
-import { isMobile } from '@/helper/general.helper'
-import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { storeToRefs } from 'pinia'
-import { DrawTool, FabricEvent } from '@/draw/types/draw.types'
-import { useSelect } from '@/draw/store/tools/select.store'
-import { ref } from 'vue'
-import { gestureDetector } from '@/draw/utils/gestureDetector'
-import { cancelPreviousAction } from '@/draw/helpers/tools/cancelTools.helper'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import * as fabric from "fabric";
+import { Canvas, Point } from "fabric";
+import { isMobile } from "@/helper/general.helper";
+import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
+import { storeToRefs } from "pinia";
+import { DrawTool, FabricEvent } from "@/draw/types/draw.types";
+import { useSelect } from "@/draw/store/tools/select.store";
+import { ref } from "vue";
+import { gestureDetector } from "@/draw/utils/gestureDetector";
+import { cancelPreviousAction } from "@/draw/helpers/tools/cancelTools.helper";
+import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { useToolSelection } from "@/draw/store/tools/toolSelection.store";
+import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import {
-  isLayeredRenderActive,
-  prepareLayeredBuffers,
-  renderLayeredBuffers
-} from '@/draw/helpers/customTransform.helper'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { Rect } from '@/draw/utils/QuadTree'
-import { useGestureStore } from '@/draw/store/tools/gesture.store'
+	finalizeCssOverlay,
+	isLayeredRenderActive,
+	prepareCssOverlay,
+	renderCssOverlay,
+} from "@/draw/helpers/customTransform.helper";
+import { Rect } from "@/draw/utils/QuadTree";
+import { useGestureStore } from "@/draw/store/tools/gesture.store";
+import { useToast } from "@/service/toast.service";
+import { MOVE_HAPPENED } from "@/draw/helpers/fabricDefaults.helper";
 
 // ==========================================
-// CONSTANTS
+// CONSTANTS & STATE
 // ==========================================
-const MIN_ZOOM = 0.2
+const MIN_ZOOM = 0.2;
+let ghostBoxes: any[] = [];
+let debounceCacheTimeout: any = null;
+let visibilityTimeout: any = null;
+let dynamicMinZoom = MIN_ZOOM;
 
+// ==========================================
+// SHARED UTILITIES
+// ==========================================
 
-// ==========================================
-// HELPER FUNCTIONS
-// ==========================================
 function getMinZoomToFitAll(canvas: fabric.Canvas, padding = 0.9) {
-  const objects = canvas.getObjects()
-  if (objects.length === 0) return 0.5
+	const objects = canvas.getObjects();
+	if (objects.length === 0) return 0.5;
 
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
+	let minX = Infinity,
+		minY = Infinity,
+		maxX = -Infinity,
+		maxY = -Infinity;
 
-  // Single O(n) pass to find the absolute boundaries
-  for (let i = 0; i < objects.length; i++) {
-    // getBoundingRect returns the actual visual bounds,
-    // accounting for stroke width, scaling, and rotation
-    const bound = objects[i].getBoundingRect()
+	for (let i = 0; i < objects.length; i++) {
+		const bound = objects[i].getBoundingRect();
+		if (bound.left < minX) minX = bound.left;
+		if (bound.top < minY) minY = bound.top;
+		if (bound.left + bound.width > maxX) maxX = bound.left + bound.width;
+		if (bound.top + bound.height > maxY) maxY = bound.top + bound.height;
+	}
 
-    if (bound.left < minX) minX = bound.left
-    if (bound.top < minY) minY = bound.top
-    if (bound.left + bound.width > maxX) maxX = bound.left + bound.width
-    if (bound.top + bound.height > maxY) maxY = bound.top + bound.height
-  }
+	const contentWidth = maxX - minX;
+	const contentHeight = maxY - minY;
+	const scaleX = canvas.getWidth() / (contentWidth || 1);
+	const scaleY = canvas.getHeight() / (contentHeight || 1);
 
-  const contentWidth = maxX - minX
-  const contentHeight = maxY - minY
-
-  const canvasWidth = canvas.getWidth()
-  const canvasHeight = canvas.getHeight()
-
-  // Prevent division by zero if objects have no dimensions
-  const scaleX = canvasWidth / (contentWidth || 1)
-  const scaleY = canvasHeight / (contentHeight || 1)
-
-  const fitZoom = Math.min(scaleX, scaleY) * padding
-
-  return Math.min(fitZoom, MIN_ZOOM)
+	return Math.min(Math.min(scaleX, scaleY) * padding, MIN_ZOOM);
 }
 
-// Define this outside the function (e.g., in your component or store)
-let debounceCacheTimeout: any = null
-let visibilityTimeout: any = null
+function syncVisuals(c: Canvas) {
+	const { getStableCanvas } = useDrawObjectManager();
+	const gestureStore = useGestureStore();
+	const physWidth = c.getElement().width;
+	const physHeight = c.getElement().height;
+	const stableCanvas = getStableCanvas(physWidth, physHeight);
+	gestureStore.fastBlit(c, stableCanvas as any, ghostBoxes);
+}
 
-function rotateView(c: fabric.Canvas, deltaDeg: number, centerPoint: Point) {
-  const rad = fabric.util.degreesToRadians(deltaDeg)
-  const cos = Math.cos(rad)
-  const sin = Math.sin(rad)
+function administerGhostBuffer(c: Canvas) {
+	const gestureStore = useGestureStore();
+	const { query } = useDrawObjectManager();
 
-  const rotate: TMat2D = [cos, sin, -sin, cos, 0, 0]
-  const translate: TMat2D = [1, 0, 0, 1, centerPoint.x, centerPoint.y]
-  const translateInv: TMat2D = [1, 0, 0, 1, -centerPoint.x, -centerPoint.y]
+	const rVpt = gestureStore.renderedVpt;
+	const zoom = rVpt[0];
+	const vLeft = -rVpt[4] / zoom;
+	const vTop = -rVpt[5] / zoom;
+	const vW = c.width! / zoom;
+	const vH = c.height! / zoom;
 
-  const vpt = c.viewportTransform
+	const expandedArea = new Rect(vLeft - vW, vTop - vH, vW * 3, vH * 3);
 
-  let newVpt = fabric.util.multiplyTransformMatrices(translate, rotate)
-  newVpt = fabric.util.multiplyTransformMatrices(newVpt, translateInv)
-  newVpt = fabric.util.multiplyTransformMatrices(newVpt, vpt)
+	ghostBoxes = query(expandedArea)
+		.filter((obj: any) => {
+			const b = obj.getBoundingRect(true, true);
+			const isWithinStable = !(
+				b.left > vLeft + vW ||
+				b.left + b.width < vLeft ||
+				b.top > vTop + vH ||
+				b.top + b.height < vTop
+			);
+			return !isWithinStable;
+		})
+		.map((obj: any) => {
+			const b = obj.getBoundingRect(true, true);
+			return {
+				id: obj.id || Math.random().toString(),
+				left: b.left,
+				top: b.top,
+				width: b.width,
+				height: b.height,
+				type: obj.type,
+			};
+		});
+}
 
-  c.setViewportTransform(newVpt)
+/**
+ * Unified end-gesture logic for both PC and Mobile.
+ * Handles the handover from low-res fast-blit to high-res chunked render.
+ */
+function endViewportGesture(c: Canvas, isZooming: boolean = false) {
+	const { updateVisibility, onGestureEnd } = useDrawObjectManager();
+	const gestureStore = useGestureStore();
+
+	gestureStore.isGesturing = false;
+	onGestureEnd();
+	c.fire("gestureEnd");
+	ghostBoxes = [];
+
+	clearTimeout(visibilityTimeout);
+	visibilityTimeout = setTimeout(() => {
+		if (!gestureStore.isGesturing) {
+			updateVisibility(false);
+		}
+	}, 250);
 }
 
 // ==========================================
-// MAIN EXPORTS & FEATURE LOGIC
+// PC GESTURES
 // ==========================================
-
-export function enableGestures(c: Canvas) {
-  if (isMobile()) enableMobileGestures(c, c.upperCanvasEl)
-  else enablePCGestures(c)
-}
-
-let dynamicMinZoom = MIN_ZOOM // fallback
 
 export function enablePCGestures(c: Canvas) {
-  const gestureStore = useGestureStore()
-  const { getStableCanvas, query } = useDrawObjectManager()
-  const { ghostBoxes } = storeToRefs(useDrawStore())
-  const { addEventsOfService } = useDrawEventManager()
+	const gestureStore = useGestureStore();
+	const { addEventsOfService } = useDrawEventManager();
+	const { onGestureStart } = useDrawObjectManager();
 
-  let isWheeling = false
-  let pcWheelTimeout: any = null
-  let panActive = false
-  let lastPanPoint: { x: number; y: number } | null = null
+	let isWheeling = false;
+	let pcWheelTimeout: any = null;
+	let panActive = false;
+	let lastPanPoint: { x: number; y: number } | null = null;
 
-  // Fills the edges with low-res boxes if we pan off the rendered canvas
-  // Fills the edges with low-res boxes if we pan off the rendered canvas
-  function administerGhostBuffer() {
-    if (gestureStore.isGesturing) return
+	const events: FabricEvent[] = [
+		{
+			on: "mouse:wheel",
+			handler: (o: any) => {
+				const e = o.e;
+				e.preventDefault();
+				e.stopPropagation();
 
-    const rVpt = gestureStore.renderedVpt
-    const zoom = rVpt[0]
-    const currentViewWidth = c.width! / zoom
-    const currentViewHeight = c.height! / zoom
-    const vLeft = -rVpt[4] / zoom
-    const vTop = -rVpt[5] / zoom
+				if (!isWheeling) {
+					isWheeling = true;
+					dynamicMinZoom = getMinZoomToFitAll(c);
+					onGestureStart();
+					administerGhostBuffer(c);
+					gestureStore.isGesturing = true;
+					c.fire("gestureStart");
+				}
 
-    // We fetch a 1.5x buffer around the visible area
-    const bufferX = currentViewWidth * 1.5
-    const bufferY = currentViewHeight * 1.5
+				const rawZoomFactor = Math.exp(-e.deltaY / 50);
+				let newZoom = Math.max(
+					dynamicMinZoom,
+					Math.min(c.getZoom() * rawZoomFactor, gestureStore.maxZoom),
+				);
 
-    const expandedSearchArea = new Rect(
-      vLeft - bufferX, vTop - bufferY,
-      currentViewWidth + bufferX * 2, currentViewHeight + bufferY * 2
-    )
+				c.zoomToPoint(new Point(e.offsetX, e.offsetY), newZoom);
+				requestAnimationFrame(() => syncVisuals(c));
+				c.fire("zoomChanged");
 
-    // 🩺 THE CURE: Synchronous calculation. Instant results.
-    ghostBoxes.value = query(expandedSearchArea)
-      .filter((obj: any) => {
-        const bound = obj.getBoundingRect(true, true)
-        const isPaintedOnStableCanvas = !(
-          bound.left > vLeft + currentViewWidth ||
-          bound.left + bound.width < vLeft ||
-          bound.top > vTop + currentViewHeight ||
-          bound.top + bound.height < vTop
-        )
-        return !isPaintedOnStableCanvas
-      })
-      .map((obj: any) => {
-        const bound = obj.getBoundingRect(true, true)
-        return {
-          id: obj.name || obj.id || Math.random().toString(),
-          left: bound.left,
-          top: bound.top,
-          width: bound.width,
-          height: bound.height,
-          type: obj.type
-        }
-      })
-  }
+				clearTimeout(pcWheelTimeout);
+				pcWheelTimeout = setTimeout(() => {
+					isWheeling = false;
+					endViewportGesture(c, true);
+					c.fire("zoomChanged");
+				}, 150);
+			},
+		},
+		{
+			on: "mouse:down",
+			handler: (o: any) => {
+				const e = o.e;
+				if (e.buttons !== 4) return; // Middle click
 
-  function clearGhostBuffer() {
-    ghostBoxes.value = []
-  }
+				panActive = true;
+				lastPanPoint = { x: e.pageX, y: e.pageY };
+				c.selection = false;
+				c.skipTargetFind = true;
 
-  function syncVisuals() {
-    const physWidth = c.getElement().width
-    const physHeight = c.getElement().height
+				onGestureStart();
+				administerGhostBuffer(c);
+				gestureStore.isGesturing = true;
+				c.fire("gestureStart");
 
-    const stableCanvas = getStableCanvas(physWidth, physHeight)
-    gestureStore.fastBlit(c, stableCanvas as any, ghostBoxes.value)
-  }
+				e.preventDefault();
+				e.stopPropagation();
+			},
+		},
+		{
+			on: "mouse:move",
+			handler: (o: any) => {
+				if (!panActive || !lastPanPoint) return;
+				const e = o.e;
+				const dx = e.pageX - lastPanPoint.x;
+				const dy = e.pageY - lastPanPoint.y;
+				lastPanPoint = { x: e.pageX, y: e.pageY };
 
-  // Wraps up the gesture procedure and triggers a high-res re-render
-  function endGesture(isZooming: boolean = false) {
-    const { setVisibleObjectsState, updateVisibility, onGestureEnd } = useDrawObjectManager()
-    const gestureStore = useGestureStore()
+				const vpt = c.viewportTransform!;
+				vpt[4] += dx;
+				vpt[5] += dy;
+				c.setViewportTransform(vpt);
+				requestAnimationFrame(() => syncVisuals(c));
+			},
+		},
+		{
+			on: "mouse:up",
+			handler: (o: any) => {
+				if (!panActive) return;
+				panActive = false;
+				lastPanPoint = null;
 
-    gestureStore.isGesturing = false
-    onGestureEnd()
-    c.fire('gestureEnd')
-    clearGhostBuffer()
+				const { selectedTool } = storeToRefs(useToolSelection());
+				if (selectedTool.value === DrawTool.Select) {
+					c.selection = true;
+					c.skipTargetFind = false;
+				}
 
-    if (isZooming) {
-      setVisibleObjectsState('interaction')
-    }
+				endViewportGesture(c);
+				o.e.preventDefault();
+				o.e.stopPropagation();
+			},
+		},
+	];
 
-    // 2. Debounce the high-res chunked render
-    // This allows the user to chain a pan immediately after a zoom without stuttering
-    clearTimeout(visibilityTimeout)
-    visibilityTimeout = setTimeout(() => {
-      if (!gestureStore.isGesturing) {
-        updateVisibility(false)
-      }
-    }, 150)
-
-    // 3. The Idle Cache Bake
-    if (isZooming) {
-      clearTimeout(debounceCacheTimeout)
-      debounceCacheTimeout = setTimeout(() => {
-        window.requestIdleCallback?.(() => {
-          if (!gestureStore.isGesturing) {
-            setVisibleObjectsState('static')
-            updateVisibility(false)
-          }
-        })
-      }, 5000)
-    }
-  }
-
-  const events: FabricEvent[] = [
-    {
-      on: 'mouse:wheel',
-      handler: (o: any) => {
-        const e = o.e
-        e.preventDefault()
-        e.stopPropagation()
-
-        if (!isWheeling) {
-          isWheeling = true
-
-          // 1. Calculate the boundary at the exact start of the gesture
-          dynamicMinZoom = getMinZoomToFitAll(c)
-
-          administerGhostBuffer()
-          gestureStore.isGesturing = true
-          c.fire('gestureStart')
-        }
-
-        // 2. Calculate proposed Zoom
-        const rawZoomFactor = Math.exp(-e.deltaY / 50)
-        let newZoom = c.getZoom() * rawZoomFactor
-
-        // 3. Clamp using your dynamic boundary
-        newZoom = Math.max(dynamicMinZoom, Math.min(newZoom, gestureStore.maxZoom))
-
-        // 4. Fabric handles the focal point translation automatically
-        c.zoomToPoint(new Point(e.offsetX, e.offsetY), newZoom)
-
-        // 5. Hardware-accelerated visual sync
-        requestAnimationFrame(syncVisuals)
-
-        c.fire('zoomChanged')
-
-        // 6. Debounce the end of the wheel gesture
-        clearTimeout(pcWheelTimeout)
-        pcWheelTimeout = setTimeout(() => {
-          isWheeling = false
-          endGesture(true) // true because this is a zoom event
-          c.fire('zoomChanged')
-        }, 150)
-      }
-    },
-    {
-      on: 'mouse:down',
-      handler: (o: any) => {
-        const e = o.e
-        if (e.buttons !== 4) return // Middle click check
-
-        panActive = true
-        lastPanPoint = { x: e.pageX, y: e.pageY }
-
-        c.selection = false
-        c.skipTargetFind = true
-
-        administerGhostBuffer()
-        gestureStore.isGesturing = true
-        c.fire('gestureStart')
-
-        e.preventDefault()
-        e.stopPropagation()
-      }
-    },
-    {
-      on: 'mouse:move',
-      handler: (o: any) => {
-        if (!panActive || !lastPanPoint) return
-
-        const e = o.e
-        const dx = e.pageX - lastPanPoint.x
-        const dy = e.pageY - lastPanPoint.y
-        lastPanPoint = { x: e.pageX, y: e.pageY }
-
-        // 1. Update Fabric's viewport transform directly
-        const vpt = c.viewportTransform!
-        vpt[4] += dx
-        vpt[5] += dy
-        c.setViewportTransform(vpt)
-
-        // 2. Hardware-accelerated visual sync
-        requestAnimationFrame(syncVisuals)
-      }
-    },
-    {
-      on: 'mouse:up',
-      handler: (o: any) => {
-        if (!panActive) return
-
-        panActive = false
-        lastPanPoint = null
-
-        const { selectedTool } = storeToRefs(useToolSelection())
-        if (selectedTool.value === DrawTool.Select) {
-          c.selection = true
-          c.skipTargetFind = false
-        }
-
-        endGesture()
-
-        o.e.preventDefault()
-        o.e.stopPropagation()
-      }
-    }
-  ]
-
-  addEventsOfService('gestures', events)
+	addEventsOfService("gestures", events);
 }
 
+// ==========================================
+// MOBILE GESTURES
+// ==========================================
 
 export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
-  const { selectedTool } = storeToRefs(useToolSelection())
-  const { shapeCreationMode } = storeToRefs(useDrawUIStore())
-  const { ghostBoxes } = storeToRefs(useDrawStore())
+	const { selectedTool } = storeToRefs(useToolSelection());
+	const { shapeCreationMode } = storeToRefs(useDrawUIStore());
+	const { shouldModifyObjectsWithGestures } = useSelect();
+	const { onGestureStart, flushDirtyBatch } = useDrawObjectManager();
+	const gestureStore = useGestureStore();
 
-  const { shouldModifyObjectsWithGestures } = useSelect()
-  const {
-    query,
-    getStableCanvas,
-    setVisibleObjectsState,
-    updateVisibility,
-    onGestureEnd,
-    flushDirtyBatch,
-    onGestureStart
-  } = useDrawObjectManager()
-  const gestureStore = useGestureStore()
+	const isUsingGesture = ref(false);
+	const gestureState = { originalObjectState: null as any | null };
 
-  const isUsingGesture = ref(false)
+	let isCanvasZooming = false;
+	let canvasPanDistance = 0;
+	let isObjectScaling = false;
+	let totalObjectAngleDelta = 0;
+	let gestureFrameScheduled = false;
 
-  // State variables for smooth gesture tracking & disambiguation
-  let isCanvasZooming = false
-  let canvasPanDistance = 0
-  let isObjectScaling = false
-  let totalObjectAngleDelta = 0
-  let gestureFrameScheduled = false
-  let dynamicMinZoom = gestureStore.minZoom
+	function scheduleObjectUpdate() {
+		if (gestureFrameScheduled) return;
+		gestureFrameScheduled = true;
+		requestAnimationFrame(() => {
+			gestureFrameScheduled = false;
+			const obj = c.getActiveObject();
+			if (!obj || !gestureState.originalObjectState) return;
+			obj.set(
+				"angle",
+				(gestureState.originalObjectState.angle + totalObjectAngleDelta) % 360,
+			);
+			obj.setCoords();
+			if (isLayeredRenderActive) renderCssOverlay(c, obj);
+		});
+	}
 
-  // --- SHARED HELPERS (Consider moving to a shared file later) ---
-  function syncVisuals() {
-    const physWidth = c.getElement().width
-    const physHeight = c.getElement().height
+	gestureDetector(upperCanvasEl, {
+		onGestureStart: () => {
+			isCanvasZooming = false;
+			canvasPanDistance = 0;
+			isObjectScaling = false;
+			totalObjectAngleDelta = 0;
+			if (shapeCreationMode.value) return;
+			c.fire("gestureStart");
 
-    const stableCanvas = getStableCanvas(physWidth, physHeight)
-    gestureStore.fastBlit(c, stableCanvas as any, ghostBoxes.value)
-  }
+			if (
+				selectedTool.value === DrawTool.Select &&
+				shouldModifyObjectsWithGestures()
+			) {
+				const obj = c.getActiveObject();
+				if (!obj) return;
+				obj.lockMovementX = obj.lockMovementY = true;
+				gestureState.originalObjectState = {
+					left: obj.left,
+					top: obj.top,
+					scaleX: obj.scaleX,
+					scaleY: obj.scaleY,
+					angle: obj.angle,
+				};
+				isUsingGesture.value = true;
+				gestureStore.isGesturing = true;
+			} else {
+				isUsingGesture.value = false;
+				c.selection = false;
+				c.skipTargetFind = true;
+				c.isDrawingMode = false;
+				cancelPreviousAction(c);
+				dynamicMinZoom = getMinZoomToFitAll(c);
+				onGestureStart();
+				administerGhostBuffer(c);
+				gestureStore.isGesturing = true;
+				flushDirtyBatch(true);
+			}
+		},
 
-  let visibilityTimeout: any = null
-  let debounceCacheTimeout: any = null
+		onDrag: (dx, dy) => {
+			if (isUsingGesture.value) return;
+			canvasPanDistance += Math.hypot(dx, dy);
+			const vpt = c.viewportTransform!;
+			vpt[4] += dx * 2;
+			vpt[5] += dy * 2;
+			c.setViewportTransform(vpt);
+			requestAnimationFrame(() => syncVisuals(c));
+		},
 
-  function endCanvasGesture(wasZooming: boolean) {
-    gestureStore.isGesturing = false
-    onGestureEnd()
-    c.fire('gestureEnd')
-    ghostBoxes.value = []
+		onZoom: (scale, previousScale, center) => {
+			if (isUsingGesture.value) {
+				if (!isObjectScaling && Math.abs(1 - scale) > 0.03)
+					isObjectScaling = true;
+				if (!isObjectScaling) return;
+				const obj = c.getActiveObject();
+				if (obj && gestureState.originalObjectState) {
+					obj.set({
+						scaleX: gestureState.originalObjectState.scaleX * scale,
+						scaleY: gestureState.originalObjectState.scaleY * scale,
+					});
+					scheduleObjectUpdate();
+				}
+				return;
+			}
 
-    if (wasZooming) setVisibleObjectsState('interaction')
+			if (!isCanvasZooming && Math.abs(1 - scale) > 0.03)
+				isCanvasZooming = true;
+			if (!isCanvasZooming) return;
 
-    clearTimeout(visibilityTimeout)
-    visibilityTimeout = setTimeout(() => {
-      if (!gestureStore.isGesturing) updateVisibility(false)
-    }, 250)
+			const rawZoomFactor = scale / previousScale;
+			let newZoom = Math.max(
+				dynamicMinZoom,
+				Math.min(c.getZoom() * rawZoomFactor, gestureStore.maxZoom),
+			);
 
-    if (wasZooming) {
-      clearTimeout(debounceCacheTimeout)
-      debounceCacheTimeout = setTimeout(() => {
-        window.requestIdleCallback?.(() => {
-          if (!gestureStore.isGesturing) {
-            setVisibleObjectsState('static')
-            updateVisibility(false)
-          }
-        })
-      }, 2000)
-    }
-  }
+			c.zoomToPoint(new Point(center.x, center.y), newZoom);
+			requestAnimationFrame(() => syncVisuals(c));
+		},
 
-  // --------------------------------------------------------------
+		onRotate: (delta) => {
+			if (!isUsingGesture.value) return;
+			totalObjectAngleDelta += delta;
+			scheduleObjectUpdate();
+		},
 
-  function scheduleGestureFrame() {
-    if (gestureFrameScheduled) return
-    gestureFrameScheduled = true
+		onGestureEnd: () => {
+			const wasZooming = isCanvasZooming;
+			isCanvasZooming = false;
+			isObjectScaling = false;
 
-    requestAnimationFrame(() => {
-      gestureFrameScheduled = false
-      const obj = c.getActiveObject()
-      if (!obj || !gestureState.originalObjectState) return
+			if (isUsingGesture.value) {
+				setTimeout(() => {
+					const obj = c.getActiveObject();
+					if (obj) {
+						obj.setCoords();
+						obj.lockMovementX = obj.lockMovementY = false;
+						isUsingGesture.value = false;
+						gestureStore.isGesturing = false;
 
-      const newAngle = (gestureState.originalObjectState.angle + totalObjectAngleDelta) % 360
-      obj.set('angle', newAngle)
-      obj.setCoords()
+						if (MOVE_HAPPENED) return; // we use logic in fabricDefault.helper.ts / internal fabric js LOGIC TODO not good but oh well
+						finalizeCssOverlay(c);
+						c.fire("object:modified", {
+							target: obj,
+							transform: {
+								target: obj,
+								original: gestureState.originalObjectState,
+							} as any,
+						});
+					}
+				}, 50);
+			} else {
+				setTimeout(() => {
+					if (selectedTool.value === DrawTool.Select) {
+						c.selection = true;
+						c.skipTargetFind = false;
+					} else if (
+						[DrawTool.Pen, DrawTool.MobileEraser].includes(selectedTool.value)
+					) {
+						c.isDrawingMode = true;
+					}
+				}, 50);
+				endViewportGesture(c, wasZooming);
+			}
+		},
+	});
+}
 
-      if (isLayeredRenderActive) {
-        renderLayeredBuffers(c, obj)
-      } else {
-      }
-    })
-  }
-
-  const gestureState = {
-    originalObjectState: null as any | null
-  }
-
-  gestureDetector(upperCanvasEl, {
-    onGestureStart: () => {
-      isCanvasZooming = false
-      canvasPanDistance = 0
-      isObjectScaling = false
-      totalObjectAngleDelta = 0
-
-      if (shapeCreationMode.value) return
-
-      c.fire('gestureStart')
-
-      if (selectedTool.value === DrawTool.Select && shouldModifyObjectsWithGestures()) {
-        // Object gesture path
-        const obj = c.getActiveObject()
-        if (!obj) return
-
-        obj.lockMovementX = true
-        obj.lockMovementY = true
-
-        gestureState.originalObjectState = {
-          left: obj.left, top: obj.top,
-          scaleX: obj.scaleX, scaleY: obj.scaleY, angle: obj.angle
-        }
-
-        isUsingGesture.value = true
-        prepareLayeredBuffers(c, obj)
-
-      } else {
-        // Canvas gesture path
-        isUsingGesture.value = false
-        c.selection = false
-        c.skipTargetFind = true
-        c.isDrawingMode = false
-        cancelPreviousAction(c)
-        dynamicMinZoom = getMinZoomToFitAll(c)
-        onGestureStart()
-        gestureStore.isGesturing = true
-        flushDirtyBatch(true)
-
-        const rVpt = gestureStore.renderedVpt
-        if (!gestureStore.isGesturing) return
-
-        const zoom = rVpt[0]
-
-        // These variables define the exact boundaries of your frozen stableCanvas
-        const vLeft = -rVpt[4] / zoom
-        const vTop = -rVpt[5] / zoom
-        const currentViewWidth = c.width! / zoom
-        const currentViewHeight = c.height! / zoom
-
-        const bufferX = currentViewWidth * 1.5
-        const bufferY = currentViewHeight * 1.5
-
-        const expandedSearchArea = new Rect(
-          vLeft - bufferX, vTop - bufferY,
-          currentViewWidth + bufferX * 2, currentViewHeight + bufferY * 2
-        )
-
-        ghostBoxes.value = query(expandedSearchArea)
-          .filter((obj: any) => {
-            // 🩺 THE CURE: Do NOT use Fabric's live isOnScreen()
-            // Instead, check if the absolute bounding box is outside the frozen stableCanvas bounds.
-            const bound = obj.getBoundingRect(true, true)
-
-            const isPaintedOnStableCanvas = !(
-              bound.left > vLeft + currentViewWidth ||
-              bound.left + bound.width < vLeft ||
-              bound.top > vTop + currentViewHeight ||
-              bound.top + bound.height < vTop
-            )
-
-            // If it IS NOT painted on the stable canvas, it MUST be a ghost box
-            return !isPaintedOnStableCanvas
-          })
-          .map((obj: any) => {
-            const bound = obj.getBoundingRect(true, true)
-            return {
-              id: obj.name || obj.id || Math.random().toString(),
-              left: bound.left,
-              top: bound.top,
-              width: bound.width,
-              height: bound.height,
-              type: obj.type
-            }
-          })
-      }
-    },
-
-    onDrag: (movementX, movementY) => {
-      canvasPanDistance += Math.hypot(movementX, movementY)
-
-      if (selectedTool.value === DrawTool.Select && isUsingGesture.value) return
-
-      // 1. Direct Fabric Viewport Math
-      // (Kept your * 2 multiplier if that was your preferred mobile drag sensitivity)
-      const vpt = c.viewportTransform!
-      vpt[4] += movementX * 2
-      vpt[5] += movementY * 2
-      c.setViewportTransform(vpt)
-
-
-      // 2. Hardware-accelerated sync
-      requestAnimationFrame(syncVisuals)
-    },
-
-    onZoom: (scale, previousScale, center) => {
-      if (selectedTool.value === DrawTool.Select && isUsingGesture.value) {
-        if (!isObjectScaling) {
-          const isHeavyRotating = Math.abs(totalObjectAngleDelta) > 10
-          const dynamicObjThreshold = isHeavyRotating ? 0.15 : 0.03
-          const totalScaleChange = Math.abs(1 - scale)
-          if (totalScaleChange < dynamicObjThreshold) return
-          isObjectScaling = true
-        }
-
-        const obj = c.getActiveObject()
-        if (!obj || !gestureState.originalObjectState) return
-
-        const orig = gestureState.originalObjectState
-        obj.set({ scaleX: orig.scaleX * scale, scaleY: orig.scaleY * scale })
-        scheduleGestureFrame()
-        return
-      }
-
-      // Disambiguate panning vs zooming
-      if (!isCanvasZooming) {
-        const isHeavyPanning = canvasPanDistance > 30
-        const dynamicThreshold = isHeavyPanning ? 0.08 : 0.03
-        const totalCanvasScaleChange = Math.abs(1 - scale)
-        if (totalCanvasScaleChange < dynamicThreshold) return
-        isCanvasZooming = true
-      }
-
-      let rawZoomFactor = scale / previousScale
-
-      if (isCanvasZooming && canvasPanDistance > 30) {
-        if (Math.abs(1 - rawZoomFactor) < 0.002) rawZoomFactor = 1
-      }
-
-      // 1. Calculate & Clamp Zoom
-      let newZoom = c.getZoom() * rawZoomFactor
-      newZoom = Math.max(dynamicMinZoom, Math.min(newZoom, gestureStore.maxZoom))
-
-      // 2. Let Fabric handle the focal pivot translation
-      c.zoomToPoint(new Point(center.x, center.y), newZoom)
-
-
-      // 3. Hardware-accelerated sync
-      requestAnimationFrame(syncVisuals)
-    },
-
-    onRotate: (angleDifference, center) => {
-      if (selectedTool.value !== DrawTool.Select || !isUsingGesture.value) return
-      totalObjectAngleDelta += angleDifference
-      scheduleGestureFrame()
-    },
-
-    onGestureEnd: (fingers) => {
-      const wasZooming = isCanvasZooming
-
-      isCanvasZooming = false
-      isObjectScaling = false
-
-      if (selectedTool.value === DrawTool.Select && isUsingGesture.value) {
-        const obj = c.getActiveObject()
-        if (!obj) return
-
-        setTimeout(() => {
-          obj.lockMovementX = false
-          obj.lockMovementY = false
-          isUsingGesture.value = false
-          gestureStore.isGesturing = false
-
-          c.fire('object:modified', {
-            target: obj,
-            transform: { target: obj, original: gestureState.originalObjectState } as any
-          })
-
-        }, 100)
-      }
-
-      // Canvas gesture completion
-      if (!isUsingGesture.value) {
-        setTimeout(() => {
-          if (selectedTool.value === DrawTool.Select) {
-            c.selection = true
-            c.skipTargetFind = false
-          } else if (selectedTool.value === DrawTool.Pen || selectedTool.value === DrawTool.MobileEraser) {
-            c.isDrawingMode = true
-          }
-        }, 50)
-
-
-        endCanvasGesture(wasZooming)
-      }
-    }
-  })
+export function enableGestures(c: Canvas) {
+	if (isMobile()) enableMobileGestures(c, c.upperCanvasEl);
+	else enablePCGestures(c);
 }

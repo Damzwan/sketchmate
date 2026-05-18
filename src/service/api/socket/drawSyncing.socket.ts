@@ -167,7 +167,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     fitAndCenterAllActualObjects(getCanvas())
 
     const { updateVisibility } = useDrawObjectManager()
-    updateVisibility()
+    await updateVisibility()
     isLoadingCanvas.value = false
   })
 
@@ -193,7 +193,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
     fitAndCenterAllActualObjects(getCanvas())
 
     const { updateVisibility } = useDrawObjectManager()
-    updateVisibility()
+    await updateVisibility()
     isLoadingCanvas.value = false
   })
 

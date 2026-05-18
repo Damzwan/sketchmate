@@ -91,6 +91,7 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.15",
     "@capacitor/cli": "^8.2.0",
     "@mdi/js": "^7.4.47",
     "@tailwindcss/typography": "^0.5.19",
@@ -113,7 +114,6 @@
     "eslint-plugin-vue": "^9.33.0",
     "husky": "^8.0.3",
     "ionicons": "^7.4.0",
-    "prettier": "^3.8.1",
     "rollup-plugin-visualizer": "^7.0.1",
     "sass": "^1.98.0",
     "tailwindcss": "^4.2.1",

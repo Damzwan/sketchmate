@@ -2,7 +2,7 @@ import { Canvas } from 'fabric'
 import {
   changeFabricSettings,
   initCanvasOptions,
-  overrideFindTarget, overrideMouseDown, overrideMouseUp,
+  overrideFindTarget, overrideHandleSelection, overrideMouseDown, overrideMouseUp,
   overrideTransform
 } from '@/draw/helpers/fabricDefaults.helper'
 import { initViewport, resetZoom } from '@/draw/helpers/viewport.helper'
@@ -44,6 +44,7 @@ export function useCanvasService() {
     overrideTransform(c)
     overrideMouseUp(c)
     overrideMouseDown(c)
+    overrideHandleSelection(c)
     initViewport(c)
     loadFonts()
 

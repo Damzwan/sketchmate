@@ -30,8 +30,9 @@
         />
 
         <MyDrafts
-          :drafts="localDrafts"
+          :drafts="mergedDrafts"
           :loading="isLoadingDrafts"
+          :pending-ids="pendingDraftIds"
           @open="openDraft"
           @delete="handleDeleteDraft"
         />
@@ -44,11 +45,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { IonContent, IonPage, onIonViewDidEnter, useIonRouter } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import TopBar from '../components/general/TopBar.vue'
-import ActiveLobbies from '../components/home/ActiveLobbies.vue' // <-- Import the organ
+import ActiveLobbies from '../components/home/ActiveLobbies.vue'
 import { FRONTEND_ROUTES } from '@/types/router.types'
 import { masterAnimation } from '@/helper/animation.helper'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
@@ -59,9 +60,7 @@ import { DrawingDraft, useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import CommunityFeed from '@/components/home/CommunityFeed.vue'
 import { useMenuStore } from '@/store/menu.store'
 import { Menu } from '@/draw/types/draw.types'
-import { useSessionStore } from '@/store/session.store'
-import router from '@/router'
-import { useProfileInspector } from '@/composables/profile/useProfileInspector'
+import { EventBus } from '@/main'
 
 const r = useIonRouter()
 
@@ -70,6 +69,8 @@ const { publicLobbies } = storeToRefs(drawSyncerStore)
 const { openMenu } = useMenuStore()
 
 const loadStore = useDrawLoadStore()
+const { pendingDraftsList } = storeToRefs(loadStore)
+
 const localDrafts = ref<DrawingDraft[]>([])
 const isLoadingDrafts = ref(true)
 
@@ -79,12 +80,18 @@ const quickActions = ref([
   { id: 'share', label: 'Add a Mate', iconFallback: '🤝' }
 ])
 
+/**
+ * Merged drafts view. Pending background saves are shown first (newest), then
+ * the actual IDB drafts. If a draft id appears in both (which happens during
+ * the brief window between IDB write completing and re-fetching), the pending
+ * one takes precedence so we don't flicker.
+ */
+const pendingDraftIds = computed(() => new Set(pendingDraftsList.value.map(p => p.id)))
 
-onIonViewDidEnter(() => {
-  fetchDrafts()
-  socketLoggedInPromise.then(() => {
-    startWatchingLobbies()
-  })
+const mergedDrafts = computed<DrawingDraft[]>(() => {
+  const pendingIds = pendingDraftIds.value
+  const real = localDrafts.value.filter(d => !pendingIds.has(d.id))
+  return [...pendingDraftsList.value, ...real].sort((a, b) => b.updatedAt - a.updatedAt)
 })
 
 onMounted(async () => {
@@ -93,6 +100,30 @@ onMounted(async () => {
   } catch (error) {
   }
 })
+
+onIonViewDidEnter(() => {
+  fetchDrafts()
+  socketLoggedInPromise.then(() => {
+    startWatchingLobbies()
+  })
+})
+
+watch(
+  () => pendingDraftsList.value.length,
+  (newLength, oldLength) => {
+    if (newLength < oldLength) {
+      fetchDraftsBackground()
+    }
+  }
+)
+
+const fetchDraftsBackground = async () => {
+  try {
+    localDrafts.value = await loadStore.getAllDrafts()
+  } catch (error) {
+    console.error('[home] background fetch failed:', error)
+  }
+}
 
 
 const handleQuickAction = (actionId: string) => {
@@ -115,7 +146,6 @@ const joinLobby = (lobbyId: string) => {
 const fetchDrafts = async () => {
   isLoadingDrafts.value = true
   try {
-    // This calls the IndexedDB getAllDrafts we wrote in the load store
     localDrafts.value = await loadStore.getAllDrafts()
   } finally {
     isLoadingDrafts.value = false
@@ -123,15 +153,22 @@ const fetchDrafts = async () => {
 }
 
 const handleDeleteDraft = async (id: string) => {
+  // If this is a pending save, the store handles cancellation. Otherwise it
+  // deletes from IDB. Either way, removeDraft is the right call.
   try {
     await loadStore.removeDraft(id)
     localDrafts.value = localDrafts.value.filter(d => d.id !== id)
   } catch (error) {
+    console.error('[home] delete failed:', error)
   }
 }
 
 const openDraft = (id: string) => {
-  // Navigate to draw page with the draft ID as a query param
+  // Block opening a draft that's still being saved — the JSON isn't in IDB
+  // yet, so navigation would land on an empty canvas. We could instead await
+  // the pending promise, but that's surprising UX. Better to make it visible
+  // (e.g., spinner overlay) and let the user wait.
+  if (pendingDraftIds.value.has(id)) return
   r.push(`${FRONTEND_ROUTES.draw}?id=${id}`, masterAnimation)
 }
 

@@ -245,7 +245,7 @@ export class InfiniteQuadtreeManager<T> {
 export function fabricObjectToEntry(
   obj: FabricObject
 ): QuadtreeEntry<FabricObject> {
-  const b = obj.getBoundingRect()
+  const b = obj.getBoundingRect(true, true)
 
   return {
     id: obj.id,

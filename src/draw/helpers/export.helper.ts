@@ -1,6 +1,7 @@
 import { Canvas, StaticCanvas } from 'fabric'
-import { compressImg, yieldToMain } from '@/helper/general.helper'
+import { compressImg } from '@/helper/general.helper'
 import { CANVAS_SIZE } from '@/draw/config/canvas.config'
+import { createYielder, nextFrame } from '@/draw/helpers/yielding.helper'
 
 export async function canvasToBuffer(canvasDataUrl: string, size = 1920) {
   return await (await compressImg(canvasDataUrl, { returnType: 'blob', size: size })).arrayBuffer()
@@ -8,14 +9,11 @@ export async function canvasToBuffer(canvasDataUrl: string, size = 1920) {
 
 export async function createSketchFromDataURL(dataURL: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    // Create an Image object from the Data URL
     const img = new Image()
     img.crossOrigin = 'Anonymous'
-
     img.src = dataURL
 
     img.onload = async () => {
-      // Function to apply filters to a canvas element
       const filter = (bmp: ImageBitmap, filters = ''): HTMLCanvasElement => {
         const canvas = Object.assign(document.createElement('canvas'), {
           width: bmp.width,
@@ -29,7 +27,6 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
         return canvas
       }
 
-      // Function to merge two canvases into one to generate a sketch-like image
       const generateSketch = (bnw: HTMLCanvasElement, blur: HTMLCanvasElement): HTMLCanvasElement => {
         const canvas = document.createElement('canvas')
         canvas.width = bnw.width
@@ -43,20 +40,11 @@ export async function createSketchFromDataURL(dataURL: string): Promise<string> 
         return canvas
       }
 
-      // Create a bitmap from the loaded image
       const bmp = await createImageBitmap(img)
-
-      // Generate a black & white and blur canvas using filter()
       const bnw = filter(bmp, 'grayscale(1)')
       const blur = filter(bmp, 'grayscale(1) invert(1) blur(5px)')
-
-      // Merge / combine `bnw` and `blur` canvas
       const sketchImg = generateSketch(bnw, blur)
-
-      // Convert the canvas to Data URL
       const sketchDataURL = sketchImg.toDataURL('image/png')
-
-      // Resolve the promise with the sketch Data URL
       resolve(sketchDataURL)
     }
 
@@ -78,22 +66,21 @@ export async function exportBoundingBoxImage(
     signal: options.signal
   }
 
-  const mode: string = 'main'
-
-  let result
-  if (mode === 'worker') {
-    // result = await exportWithWebWorker(canvas, settings)
-  } else {
-    result = await exportWithMainThreadChunking(canvas, settings)
-  }
-
-
-  return result
+  return await exportWithMainThreadChunking(canvas, settings)
 }
 
 /**
- * VERSION 1: Main Thread with RequestAnimationFrame Chunking
- * Focus: Prevents UI lockup by yielding control every few objects.
+ * Background-friendly export.
+ *
+ * Differences from previous version:
+ *   • Uses a Yielder tied to RAF / isInputPending, not setTimeout(4).
+ *   • When input is pending, yields a FULL animation frame so the browser
+ *     can dispatch the event and paint before we resume rendering objects.
+ *     This is the main reason exports used to make gestures laggy.
+ *   • Tighter budget on mobile (4ms vs 8ms). One object's render() can blow
+ *     the budget by itself — that's OK, we yield after.
+ *   • Aggressive abort checks before each yield AND after each yield resolves.
+ *     A new gesture or cancellation should reach the export within ~1 frame.
  */
 async function exportWithMainThreadChunking(
   canvas: Canvas,
@@ -114,7 +101,6 @@ async function exportWithMainThreadChunking(
       ctx.fillRect(0, 0, size, size)
     }
 
-
     return new Promise((resolve) => {
       nativeCanvas.toBlob(async (blob) => {
         if (!blob) return resolve(null)
@@ -131,32 +117,35 @@ async function exportWithMainThreadChunking(
     })
   }
 
-  const TIME_BUDGET_MS = 8
+  // Tighter budgets — input responsiveness matters more than export speed.
+  // The export still completes quickly; it just stops hogging the main thread.
+  const IS_MOBILE = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)
+  const mathYielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal })
+  const renderYielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal })
 
-  await yieldToMain()
+  // Defer one frame before starting — if the caller just kicked us off after
+  // some UI event, this lets that event's paint finish first.
+  await nextFrame()
+  if (signal?.aborted) return null
 
-  // 2. 🧮 TIME-BUDGETED BOUNDING BOX CALCULATION
+  // ── 1. Bounding box pass ──────────────────────────────────────────────────
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  let frameStartTime = performance.now()
-
+  mathYielder.reset()
   for (let i = 0; i < objects.length; i++) {
     if (signal?.aborted) return null
-
     // @ts-ignore
     const bound = objects[i].getBoundingRect(true)
-    minX = Math.min(minX, bound.left)
-    minY = Math.min(minY, bound.top)
-    maxX = Math.max(maxX, bound.left + bound.width)
-    maxY = Math.max(maxY, bound.top + bound.height)
+    if (bound.left < minX) minX = bound.left
+    if (bound.top < minY) minY = bound.top
+    if (bound.left + bound.width > maxX) maxX = bound.left + bound.width
+    if (bound.top + bound.height > maxY) maxY = bound.top + bound.height
 
-    // Yield if we've spent too much time doing math
-    if (performance.now() - frameStartTime > TIME_BUDGET_MS) {
-      await yieldToMain()
-      frameStartTime = performance.now() // Reset timer
+    if (mathYielder.shouldYield()) {
+      await mathYielder.yield()
+      if (signal?.aborted) return null
     }
   }
 
-  // Calculate Canvas Dimensions
   const padding = 50
   const width = (maxX + padding) - (minX - padding)
   const height = (maxY + padding) - (minY - padding)
@@ -174,121 +163,79 @@ async function exportWithMainThreadChunking(
   ctx.scale(scale, scale)
   ctx.translate(-(minX - padding), -(minY - padding))
 
+  const wasSkipOffscreen = canvas.skipOffscreen
   canvas.skipOffscreen = false
 
-  // 3. 🎨 TIME-BUDGETED RENDERING
-  // Instead of a fixed chunk size of 30, we render as many as we can in 8ms.
-  frameStartTime = performance.now()
+  // ── 2. Render pass ───────────────────────────────────────────────────────
+  // Each obj.render() is synchronous and uncancellable — but we yield BEFORE
+  // each one if budget/input demands it. So worst case: one heavy object runs,
+  // then we yield, then input is processed, then we continue.
+  renderYielder.reset()
+  try {
+    for (let i = 0; i < objects.length; i++) {
+      if (signal?.aborted) return null
 
-  for (let i = 0; i < objects.length; i++) {
-    if (signal?.aborted) return null
+      // Yield BEFORE rendering this object if needed. This is important: if
+      // budget is already blown, we yield, let input dispatch, THEN render.
+      // The alternative — yield after — means we always do one extra render
+      // before responding to input.
+      if (renderYielder.shouldYield()) {
+        await renderYielder.yield()
+        if (signal?.aborted) return null
+      }
 
-    const obj = objects[i]
-    const wasVisible = obj.visible
-    obj.visible = true
-    obj.objectCaching = false // Critical for clean high-res export
-    obj.render(ctx)
-    obj.objectCaching = true
-    obj.visible = wasVisible
-
-    // Yield if this object pushed us over our 8ms budget
-    if (performance.now() - frameStartTime > TIME_BUDGET_MS) {
-      await yieldToMain()
-      frameStartTime = performance.now() // Reset timer
+      const obj = objects[i]
+      const wasVisible = obj.visible
+      const wasObjectCaching = obj.objectCaching
+      obj.visible = true
+      obj.objectCaching = false
+      try {
+        obj.render(ctx)
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[export] obj.render threw, skipping:', e)
+      }
+      obj.objectCaching = wasObjectCaching
+      obj.visible = wasVisible
     }
+  } finally {
+    canvas.skipOffscreen = wasSkipOffscreen
+    ctx.restore()
   }
 
   if (signal?.aborted) return null
 
-  canvas.skipOffscreen = true
-  ctx.restore()
-
-  // 4. GENERATE BLOB
+  // ── 3. Encode ────────────────────────────────────────────────────────────
+  // toBlob is itself off-main-thread for image encoding. We still wrap it
+  // in a promise that respects the signal.
   return new Promise((resolve, reject) => {
+    let aborted = false
+    const onAbort = () => {
+      aborted = true
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
     if (signal) {
-      signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+      if (signal.aborted) return reject(new DOMException('Aborted', 'AbortError'))
+      signal.addEventListener('abort', onAbort, { once: true })
     }
 
     nativeCanvas.toBlob(async (blob) => {
+      if (signal) signal.removeEventListener('abort', onAbort)
+      if (aborted) return
       if (!blob) return resolve(null)
 
       if (options.asBuffer) {
         return resolve({ img: await blob.arrayBuffer(), aspect_ratio: width / height })
       }
-
-      if (options.asDataUrl) { // 👈 New option
+      if (options.asDataUrl) {
         const reader = new FileReader()
         // @ts-ignore
         reader.onloadend = () => resolve({ img: reader.result, aspect_ratio: width / height })
         reader.readAsDataURL(blob)
         return
       }
-
-
       resolve({ img: URL.createObjectURL(blob), aspect_ratio: width / height })
     }, options.asDataUrl ? 'image/png' : 'image/webp', options.quality)
-  })
-}
-
-/**
- * VERSION 2: Off-Thread via Web Worker
- * Focus: Moves heavy rendering logic entirely off the main thread.
- */
-async function exportWithWebWorker(
-  canvas: Canvas,
-  options: { maxSize: number; asBuffer: boolean; quality: number }
-): Promise<{ img: string | ArrayBuffer, aspect_ratio: number } | null> {
-  const objects = canvas.getObjects()
-
-  // 1. Serialization (The main thread cost)
-  const serialStart = performance.now()
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  objects.forEach(obj => {
-    // @ts-ignore
-    const bound = obj.getBoundingRect(true)
-    minX = Math.min(minX, bound.left)
-    minY = Math.min(minY, bound.top)
-    maxX = Math.max(maxX, bound.left + bound.width)
-    maxY = Math.max(maxY, bound.top + bound.height)
-  })
-
-  const padding = 50
-  const width = (maxX + padding) - (minX - padding)
-  const height = (maxY + padding) - (minY - padding)
-  const scale = Math.min(options.maxSize / width, options.maxSize / height)
-
-  const serializedObjects = objects.map(obj => {
-    const json = obj.toObject()
-    json.left -= (minX - padding)
-    json.top -= (minY - padding)
-    return json
-  })
-  const serialTime = performance.now() - serialStart
-  console.log(`[Metric] Worker Serialization Time: ${serialTime.toFixed(2)}ms`)
-
-  // 2. Worker Execution
-  return new Promise((resolve) => {
-    const worker = new Worker(new URL('./preview.worker.ts', import.meta.url), { type: 'module' })
-
-    worker.onmessage = async (e) => {
-      worker.terminate()
-      if (e.data.error) return resolve(null)
-
-      const blob = e.data.blob
-      const result = options.asBuffer
-        ? await blob.arrayBuffer()
-        : URL.createObjectURL(blob)
-
-      resolve({ img: result, aspect_ratio: width / height })
-    }
-
-    worker.postMessage({
-      objects: serializedObjects,
-      width,
-      height,
-      scale,
-      backgroundColor: canvas.backgroundColor
-    })
   })
 }
 
@@ -337,21 +284,21 @@ export function relativeToAbsolute(bounds: any, rect: any) {
   }
 }
 
-
-export async function cropCanvas(canvas: StaticCanvas, relativeRect: any): Promise<{
+/**
+ * Background-friendly cropCanvas. Same yielding pattern as the main export.
+ */
+export async function cropCanvas(canvas: StaticCanvas, relativeRect: any, signal?: AbortSignal): Promise<{
   img: string,
   aspect_ratio: number
 } | null> {
   const objects = canvas?.getObjects()
   if (!canvas || !objects || objects.length === 0) return null
 
-  // Step A: Convert the relative UI rect into an absolute World rect
   const totalBounds = computeBounds(objects)
   const absCrop = relativeToAbsolute(totalBounds, relativeRect)
 
   if (absCrop.width <= 0 || absCrop.height <= 0) return null
 
-  // Step B: Set up the native clipping canvas
   const maxPreviewTarget = 2000
   const scale = Math.min(maxPreviewTarget / absCrop.width, maxPreviewTarget / absCrop.height)
 
@@ -365,31 +312,46 @@ export async function cropCanvas(canvas: StaticCanvas, relativeRect: any): Promi
   ctx.fillStyle = canvas.backgroundColor as any
   ctx.fillRect(0, 0, nativeCanvas.width, nativeCanvas.height)
 
-  // Step C: Shift the camera to target ONLY the crop area
   ctx.save()
   ctx.scale(scale, scale)
-  // Shift the origin so the top-left of the crop box is exactly at [0, 0]
   ctx.translate(-absCrop.left, -absCrop.top)
 
-  // Step D: The blind render loop
-  canvas.skipOffscreen = false
-  objects.forEach(obj => {
-    const wasVisible = obj.visible
-    obj.visible = true
-    obj.objectCaching = false
-    obj.render(ctx)
-    obj.objectCaching = true
-    obj.visible = wasVisible
-  })
+  const IS_MOBILE = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)
+  const yielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal })
 
-  ctx.restore()
-  canvas.skipOffscreen = true
+  const wasSkipOffscreen = (canvas as any).skipOffscreen
+  ;(canvas as any).skipOffscreen = false
+  try {
+    yielder.reset()
+    for (const obj of objects) {
+      if (signal?.aborted) return null
+      if (yielder.shouldYield()) {
+        await yielder.yield()
+        if (signal?.aborted) return null
+      }
+      const wasVisible = obj.visible
+      const wasObjectCaching = obj.objectCaching
+      obj.visible = true
+      obj.objectCaching = false
+      try {
+        obj.render(ctx)
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[cropCanvas] obj.render threw, skipping:', e)
+      }
+      obj.objectCaching = wasObjectCaching
+      obj.visible = wasVisible
+    }
+  } finally {
+    ctx.restore()
+    ;(canvas as any).skipOffscreen = wasSkipOffscreen
+  }
 
-  // Step E: Off-thread encoding
+  if (signal?.aborted) return null
+
   return new Promise((resolve) => {
     nativeCanvas.toBlob((blob) => {
       if (!blob) return resolve(null)
-
       resolve({
         img: URL.createObjectURL(blob),
         aspect_ratio: absCrop.width / absCrop.height
@@ -402,11 +364,9 @@ export async function exportCroppedJson(canvas: Canvas | StaticCanvas, relativeR
   const objects = canvas?.getObjects()
   if (!canvas || !objects || objects.length === 0) return null
 
-  // 1. Map the relative UI crop to absolute world coordinates
   const totalBounds = computeBounds(objects)
   const absCrop = relativeToAbsolute(totalBounds, relativeRect)
 
-  // 2. Mathematical Intersection Filtering
   const keepObjects = objects.filter(obj => {
     // @ts-ignore
     const b = obj.getBoundingRect(true)
@@ -432,16 +392,11 @@ export async function exportCroppedJson(canvas: Canvas | StaticCanvas, relativeR
     keepObjects.map(obj => obj.clone())
   )
 
-  // 2. CALCULATE THE SHIFT TO CENTER
-  // Find the exact center of the cropped area
   const cropCenterX = absCrop.left + (absCrop.width / 2)
   const cropCenterY = absCrop.top + (absCrop.height / 2)
-
-  // The spot we want the crop to land on (the center of the workspace)
   const targetCenterX = CANVAS_SIZE / 2
   const targetCenterY = CANVAS_SIZE / 2
 
-  // The delta distance to move every object
   const shiftX = targetCenterX - cropCenterX
   const shiftY = targetCenterY - cropCenterY
 

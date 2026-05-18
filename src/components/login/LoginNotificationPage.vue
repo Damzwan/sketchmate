@@ -11,7 +11,7 @@
       <img :src="notificationsImage" class="md:w-[50%] max-w-[600px] w-[90%] mx-auto" alt="friends connect" />
       <div class="flex flex-col gap-4 justify-center items-center">
         <ion-button shape="round" color="secondary" fill="clear" size="large"
-                    @click="navigateToConnectionScreen"
+                    @click="navigateToHomeScreen"
         >
 
           Skip for now
@@ -39,10 +39,16 @@ import { slideTransition } from '@/helper/animation.helper'
 import { requestNotifications } from '@/helper/notification.helper'
 import { useToast } from '@/service/toast.service'
 import notificationsImage from '@/assets/illustrations/notifications.webp'
+import { onMounted } from 'vue'
 
 const ionRouter = useIonRouter()
 
-// const navLink = ref<any>()
+onMounted(async () => {
+  try {
+    await import('@/views/home.view.vue')
+  } catch (error) {
+  }
+})
 
 
 async function enableNotifications() {
@@ -51,14 +57,11 @@ async function enableNotifications() {
     const { toast } = useToast()
     toast('Notifications are not enabled', { color: 'warning' })
   }
-  // if (isNative()) {
-  //   navLink.value?.$el?.click()
-  // } else
-  navigateToConnectionScreen()
+  navigateToHomeScreen()
 }
 
 
-function navigateToConnectionScreen() {
+function navigateToHomeScreen() {
   const { user } = useAuthStore()
   if (!user) return
   ionRouter.replace(FRONTEND_ROUTES.home, slideTransition)

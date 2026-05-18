@@ -9,15 +9,11 @@ import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { useShortcutManager } from '@/draw/services/shortcut.service'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 import { enableGestures } from '@/draw/helpers/gestures.helper'
-import { ref, shallowRef } from 'vue'
+import { ref } from 'vue'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { computeBounds } from '@/draw/helpers/export.helper'
-import { EventBus } from '@/main'
-import { leaveRoom, socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
-import { useHealthChecker } from '../services/healthChecker'
 import { useCanvasPreview } from '@/draw/services/useCanvasPreview'
-import { resetZoom, zoomToFitAllObjects } from '@/draw/helpers/viewport.helper'
 import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
 import { useGestureStore } from '@/draw/store/tools/gesture.store'
 
@@ -37,11 +33,9 @@ export const useDrawStore = defineStore('draw', () => {
     const drawHistory = useDrawHistoryManager()
     const drawSyncer = useDrawSyncer()
     const drawUI = useDrawUIStore()
-    const healthChecker = useHealthChecker()
 
 
     const isGesturing = ref(false)
-    const ghostBoxes = shallowRef<{ id: string; left: number; top: number; width: number; height: number }[]>([])
     const cssTransform = ref<any>({ ...initialCssTransform })
     const pendingCssTransform = ref<any>({ ...initialCssTransform })
 
@@ -60,23 +54,18 @@ export const useDrawStore = defineStore('draw', () => {
 
     const prevDrawingMode = ref(false) // TODO think of something better
 
-    let canvasID = ''
-
     async function initCanvas(
       el: HTMLCanvasElement,
       options: { isLobby: boolean; draftId?: string, canvasUrl?: string }
     ) {
-      const {isLoadingCanvas} = storeToRefs(useDrawSyncer()) // TODO fking ugly :c
+      const { isLoadingCanvas } = storeToRefs(useDrawSyncer()) // TODO fking ugly :c
       isLoadingCanvas.value = true
-      canvasID = el.id
 
       canvasSvc.destroyCanvas()
-      healthChecker.stopMonitoring()
       drawUI.destroy()
 
       // 2. Create fresh Canvas instance
       const c = canvasSvc.createCanvas(el)
-      healthChecker.startMonitoring(c)
 
       // 3. Access our unified Load Store
       const loadStore = useDrawLoadStore()
@@ -98,7 +87,7 @@ export const useDrawStore = defineStore('draw', () => {
 
 
       toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true })
-      drawObjectManager.updateVisibility(true)
+      await drawObjectManager.updateVisibility(true)
       isLoadingCanvas.value = false
     }
 
@@ -122,28 +111,6 @@ export const useDrawStore = defineStore('draw', () => {
       return bounds.width / bounds.height
     }
 
-    async function handleEmergencyRecovery() {
-      canvasSvc.destroyCanvas()
-
-      await new Promise(resolve => setTimeout(resolve, 100))
-      const canvasEl = document.getElementById(canvasID) as HTMLCanvasElement
-
-      if (canvasEl) {
-        canvasID = ''
-        await initCanvas(canvasEl, { isLobby: false, draftId: undefined })
-      } else {
-        console.error('CRITICAL: Could not find canvas element in the DOM to recover.')
-      }
-
-      const { roomId } = useDrawSyncer()
-      if (roomId) {
-        leaveRoom()
-        socketJoinRoom({ roomId, intent: 'join' })
-      }
-    }
-
-    EventBus.on('trigger_canvas_recovery', handleEmergencyRecovery)
-
 
     return {
       initCanvas,
@@ -157,7 +124,6 @@ export const useDrawStore = defineStore('draw', () => {
       isSendingDrawing,
       getAspectRatio,
       isGesturing,
-      ghostBoxes,
       cssTransform,
       createPreview,
       preview,

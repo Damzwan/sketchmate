@@ -157,6 +157,7 @@ export class TileCache<T extends Bounded> {
 		return { ready, total };
 	}
 
+	// ─── Composite (unchanged) ─────────────────────────────────────────────────
 	composite(
 		ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
 		vpt: number[],
@@ -202,7 +203,6 @@ export class TileCache<T extends Bounded> {
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.clearRect(0, 0, viewportPx.w, viewportPx.h);
 
-		// Draw background ONLY during composite
 		if (backgroundColor) {
 			ctx.fillStyle = backgroundColor;
 			ctx.fillRect(0, 0, viewportPx.w, viewportPx.h);
@@ -319,6 +319,7 @@ export class TileCache<T extends Bounded> {
 			// @ts-ignore
 			ctx.imageSmoothingQuality = "low";
 			for (const dr of fallbackDraws) {
+				if (dr.tile.bitmap === null) continue;
 				ctx.drawImage(
 					dr.tile.bitmap,
 					dr.sx + OS,
@@ -353,8 +354,205 @@ export class TileCache<T extends Bounded> {
 		return report;
 	}
 
+	// ─── NEW: Synchronous tile patching for surgical updates ───────────────────
+	//
+	// Re-bakes the affected tiles SYNCHRONOUSLY on the main thread using a 2D
+	// canvas (no createImageBitmap async hop). This is the key to anti-flicker:
+	// by the time composite() runs immediately after, the tiles are fresh.
+	//
+	// `worldRects` lists the regions to repaint (one per dirty cluster).
+	// `tiers` lets caller restrict which tiers to patch — defaults to the
+	// currently-visible tier(s). For most surgical edits we only patch the
+	// active tier; other tiers stay invalidated and get lazily re-baked.
+	patchTilesSync(
+		worldRects: WorldRect[],
+		tiers: number[],
+	): { patched: number; skipped: number } {
+		if (worldRects.length === 0 || tiers.length === 0) {
+			return { patched: 0, skipped: 0 };
+		}
+
+		let patched = 0;
+		let skipped = 0;
+		const seen = new Set<string>();
+
+		for (const tier of tiers) {
+			if (tier < 0 || tier >= this.ZOOM_TIERS.length) continue;
+			const scale = this.ZOOM_TIERS[tier];
+
+			// Collect unique (tier, tx, ty) covered by any dirty rect.
+			const dirtyTiles: Array<{ tx: number; ty: number }> = [];
+			for (const r of worldRects) {
+				const range = this.tileRangeForWorld(r, tier);
+				for (let ty = range.ty0; ty <= range.ty1; ty++) {
+					for (let tx = range.tx0; tx <= range.tx1; tx++) {
+						const k = `${tier}:${tx}:${ty}`;
+						if (seen.has(k)) continue;
+						seen.add(k);
+						dirtyTiles.push({ tx, ty });
+					}
+				}
+			}
+
+			for (const { tx, ty } of dirtyTiles) {
+				const ok = this.bakeTileSync(tier, tx, ty, scale);
+				if (ok) patched++;
+				else skipped++;
+			}
+		}
+
+		return { patched, skipped };
+	}
+
+	// Synchronous bake — no async / no createImageBitmap. We blit the offscreen
+	// 2D canvas directly into a canvas-backed tile. Slightly slower draw than
+	// ImageBitmap at composite time but it eliminates the async tearing window.
+	private bakeTileSync(
+		tier: number,
+		tx: number,
+		ty: number,
+		scale: number,
+	): boolean {
+		const world = this.tileToWorld(tier, tx, ty);
+		const overscanWorld = this.OVERSCAN / scale;
+		const stroke = 4 / scale;
+		const totalPadWorld = overscanWorld + stroke;
+
+		const queryRect: WorldRect = {
+			x: world.x - totalPadWorld,
+			y: world.y - totalPadWorld,
+			w: world.w + 2 * totalPadWorld,
+			h: world.h + 2 * totalPadWorld,
+		};
+		const objects = this.index.query(queryRect);
+
+		const key = `${tier}:${tx}:${ty}`;
+		const existing = this.tiles.get(key);
+		const tileGen = this.tileGen.get(key) ?? 0;
+
+		// Empty tile fast path — drop bitmap, install dummy.
+		if (objects.length === 0) {
+			if (existing) {
+				if (existing.bitmap !== null) existing.bitmap.close();
+				this.memoryBytes -= existing.bytes;
+			}
+			this.tiles.set(key, {
+				bitmap: null,
+				tier,
+				tx,
+				ty,
+				bytes: 4,
+				lastUsed: performance.now(),
+				gen: tileGen,
+			});
+			this.memoryBytes += 4;
+			return true;
+		}
+
+		// Render into a transient OffscreenCanvas, then convert to bitmap.
+		// We use the SAME createImageBitmap path but synchronously via a
+		// fallback: if the engine supports `transferToImageBitmap` we use that
+		// (sync); otherwise we fall back to the async path but resolve it in
+		// the current microtask and accept a 1-frame async hop.
+		const off = this.acquireCanvas();
+		const c2d = off.getContext("2d");
+		if (!c2d) {
+			this.releaseCanvas(off);
+			return false;
+		}
+
+		c2d.setTransform(1, 0, 0, 1, 0, 0);
+		c2d.clearRect(0, 0, this.BITMAP_SIZE, this.BITMAP_SIZE);
+
+		c2d.save();
+		c2d.translate(this.OVERSCAN, this.OVERSCAN);
+		c2d.scale(scale, scale);
+		c2d.translate(-world.x, -world.y);
+
+		c2d.beginPath();
+		c2d.rect(
+			world.x - totalPadWorld,
+			world.y - totalPadWorld,
+			world.w + 2 * totalPadWorld,
+			world.h + 2 * totalPadWorld,
+		);
+		c2d.clip();
+
+		for (const obj of objects) {
+			try {
+				this.renderer(c2d as any, obj, scale);
+			} catch (err) {
+				if (this.debug) console.warn("[TileCache] renderer threw (sync)", err);
+			}
+		}
+		c2d.restore();
+
+		// transferToImageBitmap is synchronous; uses GPU memory; the off canvas
+		// is now "neutered" so we DON'T return it to the pool.
+		let bitmap: ImageBitmap;
+		try {
+			// @ts-ignore — transferToImageBitmap exists on OffscreenCanvas
+			bitmap = off.transferToImageBitmap();
+		} catch (err) {
+			if (this.debug)
+				console.warn("[TileCache] transferToImageBitmap failed", err);
+			this.releaseCanvas(off);
+			return false;
+		}
+		// `off` is detached; don't release back to pool.
+
+		const bytes = this.BITMAP_SIZE * this.BITMAP_SIZE * 4;
+		if (!this.ensureMemory(bytes)) {
+			bitmap.close();
+			return false;
+		}
+
+		if (existing) {
+			if (existing.bitmap !== null) existing.bitmap.close();
+			this.memoryBytes -= existing.bytes;
+		}
+
+		this.tiles.set(key, {
+			bitmap,
+			tier,
+			tx,
+			ty,
+			bytes,
+			lastUsed: performance.now(),
+			gen: tileGen,
+		});
+		this.memoryBytes += bytes;
+
+		// Rewire objectToTiles for the patched tile.
+		for (const obj of objects) {
+			let set = this.objectToTiles.get(obj.id);
+			if (!set) {
+				set = new Set();
+				this.objectToTiles.set(obj.id, set);
+			}
+			set.add(key);
+		}
+
+		return true;
+	}
+
+	// ─── NEW: Invalidate a world rect (not tied to a single object) ────────────
+	// Used for erase strips and similar rect-based dirtying.
+	invalidateRect(worldRect: WorldRect): void {
+		for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
+			const range = this.tileRangeForWorld(worldRect, tier);
+			for (let ty = range.ty0; ty <= range.ty1; ty++) {
+				for (let tx = range.tx0; tx <= range.tx1; tx++) {
+					const key = `${tier}:${tx}:${ty}`;
+					this.tileGen.set(key, (this.tileGen.get(key) ?? 0) + 1);
+				}
+			}
+		}
+	}
+
+	// ─── Helpers / existing methods (unchanged below this line) ────────────────
+
 	private drawDebugOverlay(ctx: any, info: any): void {
-		// (Keep your existing drawDebugOverlay logic here unchanged as requested)
 		const {
 			pickedTier,
 			targetTier,
@@ -529,6 +727,7 @@ export class TileCache<T extends Bounded> {
 				const key = `${tier}:${ctx_}:${cty}`;
 				const tile = this.tiles.get(key);
 				if (!tile) continue;
+				if (tile.bitmap === null) continue;
 				const fresh = this.isFresh(key, tile);
 				if (!allowStale && !fresh) continue;
 
@@ -627,8 +826,6 @@ export class TileCache<T extends Bounded> {
 				const key = `${tier}:${tx}:${ty}`;
 				const existing = this.tiles.get(key);
 				if (existing && this.isFresh(key, existing)) continue;
-				if (tx == -2 && ty == 2) {
-				}
 				todo.push({ tier, tx, ty, priority: (tx - cx) ** 2 + (ty - cy) ** 2 });
 			}
 		}
@@ -661,7 +858,6 @@ export class TileCache<T extends Bounded> {
 		return report;
 	}
 
-	// Removed backgroundColor argument
 	private async bakeTile(
 		tier: number,
 		tx: number,
@@ -688,7 +884,6 @@ export class TileCache<T extends Bounded> {
 		let bitmap: ImageBitmap | null = null;
 		let isDummy = false;
 
-		// HUGE MEMORY SAVER: Empty tiles now NEVER spawn a canvas context
 		if (objects.length === 0) {
 			bitmap = null;
 			isDummy = true;

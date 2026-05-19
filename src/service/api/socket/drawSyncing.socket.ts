@@ -1,466 +1,509 @@
-import { Socket } from 'socket.io-client'
-import { socket } from '@/service/api/socket/socket.service'
-import { storeToRefs } from 'pinia'
-import { LobbyChatItem, PublicLobby, useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useToast } from '@/service/toast.service'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { DrawSyncingAction } from '@/draw/types/drawSyncing.types'
-import { SOCKET_ENDPONTS } from '@/types/server.types'
-import router from '@/router'
-import { ToastDuration } from '@/types/toast.types'
-import { getDateOfBirthConfirmationResponse } from '@/helper/general.helper'
-import { useAuthStore } from '@/store/auth.store'
-import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
-import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
-import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
-import { generateChunkedJSON } from '@/draw/helpers/drawload.helper'
-import { v4 as uuidv4 } from 'uuid'
-import { fitAndCenterAllActualObjects } from '@/draw/helpers/viewport.helper'
-import { useFriendStore } from '@/store/friend.store'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { Socket } from "socket.io-client";
+import { socket } from "@/service/api/socket/socket.service";
+import { storeToRefs } from "pinia";
+import {
+	LobbyChatItem,
+	PublicLobby,
+	useDrawSyncer,
+} from "@/draw/store/drawSyncing.store";
+import { useToast } from "@/service/toast.service";
+import { useDrawStore } from "@/draw/store/draw.store";
+import { DrawSyncingAction } from "@/draw/types/drawSyncing.types";
+import { SOCKET_ENDPONTS } from "@/types/server.types";
+import router from "@/router";
+import { ToastDuration } from "@/types/toast.types";
+import { getDateOfBirthConfirmationResponse } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { useDrawHistoryManager } from "@/draw/store/drawHistoryManager.store";
+import { exportBoundingBoxImage } from "@/draw/helpers/export.helper";
+import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { generateChunkedJSON } from "@/draw/helpers/drawload.helper";
+import { v4 as uuidv4 } from "uuid";
+import { fitAndCenterAllActualObjects } from "@/draw/helpers/viewport.helper";
+import { useFriendStore } from "@/store/friend.store";
+import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 
 export function registerDrawSyncingHandlers(socket: Socket) {
-  const { isBlocked } = useFriendStore()
+	const { isBlocked } = useFriendStore();
 
+	socket.on(
+		"room-joined",
+		async ({ roomId, users, isCreator, sessionId, isPublic }) => {
+			const {
+				roomId: rm,
+				roomMembers,
+				isCreator: cr,
+				isTryingToJoin,
+				currentSessionId,
+				isPublicLobby,
+			} = storeToRefs(useDrawSyncer());
+			rm.value = roomId;
+			roomMembers.value = users;
+			cr.value = isCreator;
+			isTryingToJoin.value = false;
+			currentSessionId.value = sessionId;
+			addRoomIdToUrl(roomId);
+			isPublicLobby.value = isPublic;
+		},
+	);
 
-  socket.on('room-joined', async ({ roomId, users, isCreator, sessionId, isPublic }) => {
-    const {
-      roomId: rm,
-      roomMembers,
-      isCreator: cr,
-      isTryingToJoin,
-      currentSessionId,
-      isPublicLobby
-    } = storeToRefs(useDrawSyncer())
-    rm.value = roomId
-    roomMembers.value = users
-    cr.value = isCreator
-    isTryingToJoin.value = false
-    currentSessionId.value = sessionId
-    addRoomIdToUrl(roomId)
-    isPublicLobby.value = isPublic
-  })
+	socket.on("user-joined", ({ user, timestamp, id }) => {
+		const { roomMembers, lobbyChatMessages } = storeToRefs(useDrawSyncer());
 
-  socket.on('user-joined', ({ user, timestamp, id }) => {
-    const { roomMembers, lobbyChatMessages } = storeToRefs(useDrawSyncer())
+		if (!roomMembers.value.find((i) => i._id === user._id)) {
+			roomMembers.value = [...roomMembers.value, user];
+		}
 
-    if (!roomMembers.value.find(i => i._id === user._id)) {
-      roomMembers.value = [...roomMembers.value, user]
-    }
+		lobbyChatMessages.value.push({
+			type: "join",
+			member: user,
+			timestamp,
+			_id: id,
+		});
+	});
 
-    lobbyChatMessages.value.push({
-      type: 'join',
-      member: user,
-      timestamp,
-      _id: id
-    })
-  })
+	socket.on("user-left", async ({ user, id, timestamp }) => {
+		const { roomMembers, invitedFriends, lobbyChatMessages } = storeToRefs(
+			useDrawSyncer(),
+		);
+		roomMembers.value = roomMembers.value.filter(
+			(member) => member._id !== user._id,
+		);
+		invitedFriends.value = invitedFriends.value.filter((m) => m !== user._id);
 
-  socket.on('user-left', async ({ user, id, timestamp }) => {
-    const { roomMembers, invitedFriends, lobbyChatMessages } = storeToRefs(useDrawSyncer())
-    roomMembers.value = roomMembers.value.filter(member => member._id !== user._id)
-    invitedFriends.value = invitedFriends.value.filter(m => m !== user._id)
+		lobbyChatMessages.value.push({
+			type: "leave",
+			member: user,
+			timestamp,
+			_id: id,
+		});
+	});
 
-    lobbyChatMessages.value.push({
-      type: 'leave',
-      member: user,
-      timestamp,
-      _id: id
-    })
-  })
+	socket.on("join-error", async ({ reason, message }) => {
+		const { toast } = useToast();
 
-  socket.on('join-error', async ({ reason, message }) => {
-    const { toast } = useToast()
+		// 1. Handle predefined technical codes
+		if (reason === "ROOM_FULL") {
+			toast(`Room is full, try again later`, { color: "danger" });
+		} else if (reason === "ROOM_NOT_FOUND") {
+			removeRoomIdFromUrl();
+			toast(`Room does not exist`, { color: "danger" });
+		} else if (reason === "DOUBLE_JOIN") {
+			toast("Joined from another device", { color: "danger" });
+		} else if (reason && message) {
+			toast(message, { color: "danger", duration: ToastDuration.long });
+		} else {
+			toast(`Unknown error: ${reason || "Connection failed"}`, {
+				color: "danger",
+			});
+		}
 
-    // 1. Handle predefined technical codes
-    if (reason === 'ROOM_FULL') {
-      toast(`Room is full, try again later`, { color: 'danger' })
-    } else if (reason === 'ROOM_NOT_FOUND') {
-      removeRoomIdFromUrl()
-      toast(`Room does not exist`, { color: 'danger' })
-    } else if (reason === 'DOUBLE_JOIN') {
-      toast('Joined from another device', { color: 'danger' })
-    } else if (reason && message) {
-      toast(message, { color: 'danger', duration: ToastDuration.long })
-    } else {
-      toast(`Unknown error: ${reason || 'Connection failed'}`, { color: 'danger' })
-    }
+		leaveRoom(true);
+	});
 
-    leaveRoom(true)
-  })
+	socket.on(
+		"request-canvas-state",
+		async ({ targetSocketId, snapshotSequenceId, isBackgroundUpdate }) => {
+			const { getCanvas } = useDrawStore();
+			const canvas = getCanvas();
+			if (!canvas) return;
 
-  socket.on('request-canvas-state', async ({ targetSocketId, snapshotSequenceId, isBackgroundUpdate }) => {
-    const { getCanvas } = useDrawStore()
-    const canvas = getCanvas()
-    if (!canvas) return
+			const json = await generateChunkedJSON(canvas);
+			const canvasString = JSON.stringify(json);
 
+			const stream = new Blob([canvasString])
+				.stream()
+				.pipeThrough(new CompressionStream("gzip"));
 
-    const json = await generateChunkedJSON(canvas)
-    const canvasString = JSON.stringify(json)
+			const compressedBuffer = await new Response(stream).arrayBuffer();
+			const sizeKB = compressedBuffer.byteLength / 1024;
 
-    const stream = new Blob([canvasString]).stream()
-      .pipeThrough(new CompressionStream('gzip'))
+			socket.emit("send-canvas-state", {
+				targetSocketId,
+				canvasState: compressedBuffer,
+				sizeKB: Math.round(sizeKB),
+				snapshotSequenceId,
+				isBackgroundUpdate,
+			});
+		},
+	);
 
-    const compressedBuffer = await new Response(stream).arrayBuffer()
-    const sizeKB = compressedBuffer.byteLength / 1024
+	socket.on("request-lobby-thumbnail", async () => {
+		const { getCanvas } = useDrawStore();
+		const { roomId } = useDrawSyncer();
+		const canvas = getCanvas();
+		if (!canvas || !roomId) return;
 
-    socket.emit('send-canvas-state', {
-      targetSocketId,
-      canvasState: compressedBuffer,
-      sizeKB: Math.round(sizeKB),
-      snapshotSequenceId,
-      isBackgroundUpdate
-    })
-  })
+		// 1. Generate a small, highly compressed buffer specifically for the network
+		const result = await exportBoundingBoxImage(canvas, {
+			maxSize: 400, // Small dimensions for a thumbnail
+			asBuffer: true,
+			quality: 0.6,
+		});
 
-  socket.on('request-lobby-thumbnail', async () => {
-    const { getCanvas } = useDrawStore()
-    const { roomId } = useDrawSyncer()
-    const canvas = getCanvas()
-    if (!canvas || !roomId) return
+		if (!result) return;
 
-    // 1. Generate a small, highly compressed buffer specifically for the network
-    const result = await exportBoundingBoxImage(canvas, {
-      maxSize: 400, // Small dimensions for a thumbnail
-      asBuffer: true,
-      quality: 0.6
-    })
+		socket.emit("send-lobby-thumbnail", {
+			thumbnailBuffer: result.img,
+			aspectRatio: result.aspect_ratio,
+			roomId,
+		});
+	});
 
-    if (!result) return
+	socket.on(
+		"initial-canvas-state",
+		async ({ canvasState, sequenceId, missedActions, isInitialSync }) => {
+			const store = useDrawSyncer();
+			const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store);
+			const mgr = useDrawObjectManager();
+			mgr.beginLoading();
 
-    socket.emit('send-lobby-thumbnail', {
-      thumbnailBuffer: result.img,
-      aspectRatio: result.aspect_ratio,
-      roomId
-    })
-  })
+			// Set our baseline time
+			if (sequenceId !== undefined) {
+				lastProcessedSequenceId.value = sequenceId;
+			}
 
-  socket.on('initial-canvas-state', async ({ canvasState, sequenceId, missedActions, isInitialSync }) => {
-    const store = useDrawSyncer()
-    const { setPendingFullRerender } = useDrawObjectManager()
-    setPendingFullRerender(true)
-    const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
+			const stream = new Blob([canvasState])
+				.stream()
+				.pipeThrough(new DecompressionStream("gzip"));
 
-    // Set our baseline time
-    if (sequenceId !== undefined) {
-      lastProcessedSequenceId.value = sequenceId
-    }
+			const decompressedString = await new Response(stream).text();
 
-    const stream = new Blob([canvasState]).stream()
-      .pipeThrough(new DecompressionStream('gzip'))
+			const json = JSON.parse(decompressedString);
+			await store.loadRoomCanvas(json, isInitialSync);
 
-    const decompressedString = await new Response(stream).text()
+			if (missedActions && missedActions.length > 0) {
+				for (const item of missedActions) {
+					if (isBlocked(item.userId)) continue;
+					lastProcessedSequenceId.value = item.sequenceId;
+					await store.executeDrawSyncingAction(item);
+				}
+			}
 
-    const json = JSON.parse(decompressedString)
-    await store.loadRoomCanvas(json, isInitialSync)
+			const { getCanvas } = useDrawStore();
+			fitAndCenterAllActualObjects(getCanvas());
 
+			mgr.endLoading();
+			const { renderViewport } = useDrawObjectManager();
+			renderViewport();
+			isLoadingCanvas.value = false;
+		},
+	);
 
-    if (missedActions && missedActions.length > 0) {
-      for (const item of missedActions) {
-        if (isBlocked(item.userId)) continue
-        lastProcessedSequenceId.value = item.sequenceId
-        await store.executeDrawSyncingAction(item)
-      }
-    }
+	socket.on("missed-actions", async ({ actions, isInitialSync }) => {
+		const store = useDrawSyncer();
+		const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store);
+		const mgr = useDrawObjectManager();
+		mgr.beginLoading();
 
-    const { getCanvas } = useDrawStore()
-    fitAndCenterAllActualObjects(getCanvas())
+		if (isInitialSync) {
+			const { reset } = useDrawStore();
+			reset();
+		}
 
-    const { updateVisibility } = useDrawObjectManager()
-    await updateVisibility()
-    isLoadingCanvas.value = false
-  })
+		for (const item of actions) {
+			if (isBlocked(item.userId)) continue;
+			lastProcessedSequenceId.value = item.sequenceId;
+			await store.executeDrawSyncingAction(item);
+		}
 
-  socket.on('missed-actions', async ({ actions, isInitialSync }) => {
-    const store = useDrawSyncer()
-    const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
-    const { setPendingFullRerender } = useDrawObjectManager()
-    setPendingFullRerender(true)
+		const { getCanvas } = useDrawStore();
+		fitAndCenterAllActualObjects(getCanvas());
 
+		mgr.endLoading();
+		const { renderViewport } = useDrawObjectManager();
+		renderViewport();
+		isLoadingCanvas.value = false;
+	});
 
-    if (isInitialSync) {
-      const { reset } = useDrawStore()
-      reset()
-    }
+	socket.on("draw-event", async (data) => {
+		const store = useDrawSyncer();
+		const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store);
 
-    for (const item of actions) {
-      if (isBlocked(item.userId)) continue
-      lastProcessedSequenceId.value = item.sequenceId
-      await store.executeDrawSyncingAction(item)
-    }
+		if (isBlocked(data.creator)) return;
 
-    const { getCanvas } = useDrawStore()
-    fitAndCenterAllActualObjects(getCanvas())
+		if (data.sequenceId !== undefined) {
+			lastProcessedSequenceId.value = data.sequenceId;
+		}
 
-    const { updateVisibility } = useDrawObjectManager()
-    await updateVisibility()
-    isLoadingCanvas.value = false
-  })
+		// Inject creator into params for the rendering engine
+		if (data.action.params) {
+			data.action.params.creator = data.creator;
+		}
 
-  socket.on('draw-event', async (data) => {
-    const store = useDrawSyncer()
-    const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store)
+		if (isLoadingCanvas.value) {
+			store.addToDrawSyncingActionQueue(data.action);
+		} else {
+			await store.executeDrawSyncingAction(data.action);
+		}
+	});
 
-    if (isBlocked(data.creator)) return
+	socket.on(SOCKET_ENDPONTS.friend_invitation, async (data) => {
+		const { invitations } = storeToRefs(useDrawSyncer());
+		invitations.value = invitations.value.filter(
+			(inv) => inv.friend._id === data.friend.id,
+		);
+		invitations.value.push(data);
+	});
 
-    if (data.sequenceId !== undefined) {
-      lastProcessedSequenceId.value = data.sequenceId
-    }
+	socket.on("lobby-message", async ({ message, member, timestamp, id }) => {
+		const drawSyncer = useDrawSyncer();
+		const authStore = useAuthStore();
 
-    // Inject creator into params for the rendering engine
-    if (data.action.params) {
-      data.action.params.creator = data.creator
-    }
+		if (isBlocked(member.user_id || member._id)) {
+			return;
+		}
 
-    if (isLoadingCanvas.value) {
-      store.addToDrawSyncingActionQueue(data.action)
-    } else {
-      await store.executeDrawSyncingAction(data.action)
-    }
-  })
+		const isMe = member._id === authStore.user?._id;
 
-  socket.on(SOCKET_ENDPONTS.friend_invitation, async (data) => {
-    const { invitations } = storeToRefs(useDrawSyncer())
-    invitations.value = invitations.value.filter(inv => inv.friend._id === data.friend.id)
-    invitations.value.push(data)
-  })
+		if (isMe && id) {
+			drawSyncer.resolveOptimisticLobbyMessage(id, {
+				type: "message",
+				message,
+				member,
+				timestamp,
+				createdAt: timestamp,
+				_id: id,
+				status: "sent",
+				isOptimistic: true,
+			});
+			return;
+		}
 
-  socket.on('lobby-message', async ({ message, member, timestamp, id }) => {
-    const drawSyncer = useDrawSyncer()
-    const authStore = useAuthStore()
+		// If it's a message from someone else, just push it normally
+		drawSyncer.lobbyChatMessages.push({
+			type: "message",
+			message,
+			member,
+			timestamp,
+			createdAt: timestamp,
+			_id: id,
+			isOptimistic: false,
+		});
+	});
 
-    if (isBlocked(member.user_id || member._id)) {
-      return
-    }
+	socket.on("disconnect", () => {
+		const store = useDrawSyncer();
+		store.disconnectedRoomId = store.roomId;
+	});
 
-    const isMe = member._id === authStore.user?._id
+	socket.on("missed-lobby-messages", (missedMessages: LobbyChatItem[]) => {
+		const { lobbyChatMessages } = storeToRefs(useDrawSyncer());
+		lobbyChatMessages.value.push(...missedMessages);
+		lobbyChatMessages.value.sort(
+			(a, b) =>
+				new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+		);
+	});
 
-    if (isMe && id) {
-      drawSyncer.resolveOptimisticLobbyMessage(id, {
-        type: 'message',
-        message,
-        member,
-        timestamp,
-        createdAt: timestamp,
-        _id: id,
-        status: 'sent',
-        isOptimistic: true
-      })
-      return
-    }
-
-    // If it's a message from someone else, just push it normally
-    drawSyncer.lobbyChatMessages.push({
-      type: 'message',
-      message,
-      member,
-      timestamp,
-      createdAt: timestamp,
-      _id: id,
-      isOptimistic: false
-    })
-  })
-
-  socket.on('disconnect', () => {
-    const store = useDrawSyncer()
-    store.disconnectedRoomId = store.roomId
-  })
-
-  socket.on('missed-lobby-messages', (missedMessages: LobbyChatItem[]) => {
-    const { lobbyChatMessages } = storeToRefs(useDrawSyncer())
-    lobbyChatMessages.value.push(...missedMessages)
-    lobbyChatMessages.value.sort((a, b) =>
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    )
-  })
-
-  // this will only trigger after relogging in aka reconnect
-  socket.on(SOCKET_ENDPONTS.login, () => {
-    const store = useDrawSyncer()
-    if (store.disconnectedRoomId) {
-      socketJoinRoom({
-        roomId: store.disconnectedRoomId,
-        intent: store.isCreator ? 'create' : 'join'
-      })
-      store.disconnectedRoomId = undefined
-    }
-  })
+	// this will only trigger after relogging in aka reconnect
+	socket.on(SOCKET_ENDPONTS.login, () => {
+		const store = useDrawSyncer();
+		if (store.disconnectedRoomId) {
+			socketJoinRoom({
+				roomId: store.disconnectedRoomId,
+				intent: store.isCreator ? "create" : "join",
+			});
+			store.disconnectedRoomId = undefined;
+		}
+	});
 }
 
-export function socketJoinRoom({ roomId, intent }: {
-  roomId: string
-  intent: 'create' | 'join'
+export function socketJoinRoom({
+	roomId,
+	intent,
+}: {
+	roomId: string;
+	intent: "create" | "join";
 }) {
-  const { isTryingToJoin, lastProcessedSequenceId, isLoadingCanvas, currentSessionId } = storeToRefs(useDrawSyncer())
-  isTryingToJoin.value = true
+	const {
+		isTryingToJoin,
+		lastProcessedSequenceId,
+		isLoadingCanvas,
+		currentSessionId,
+	} = storeToRefs(useDrawSyncer());
+	isTryingToJoin.value = true;
 
-  if (intent === 'join') {
-    isLoadingCanvas.value = true
-  }
+	if (intent === "join") {
+		isLoadingCanvas.value = true;
+	}
 
-  const { stopAutosave } = useDrawLoadStore()
-  stopAutosave()
+	const { stopAutosave } = useDrawLoadStore();
+	stopAutosave();
 
-  socket!.emit('join-room', {
-    roomId,
-    intent,
-    lastSequenceId: lastProcessedSequenceId.value,
-    lastSessionId: currentSessionId.value
-  })
+	socket!.emit("join-room", {
+		roomId,
+		intent,
+		lastSequenceId: lastProcessedSequenceId.value,
+		lastSessionId: currentSessionId.value,
+	});
 }
 
 // TODO maybe move to the story?
 export function leaveRoom(skipEmit = false) {
-  const {
-    roomId,
-    roomMembers,
-    invitedFriends,
-    isPublicLobby,
-    isLoadingCanvas,
-    lobbyChatMessages,
-    lastProcessedSequenceId,
-    publicLobbies
-  } = storeToRefs(useDrawSyncer())
+	const {
+		roomId,
+		roomMembers,
+		invitedFriends,
+		isPublicLobby,
+		isLoadingCanvas,
+		lobbyChatMessages,
+		lastProcessedSequenceId,
+		publicLobbies,
+	} = storeToRefs(useDrawSyncer());
 
+	if (isPublicLobby.value) {
+		publicLobbies.value = publicLobbies.value.map((i) =>
+			i.id === roomId.value ? { ...i, users: i.users - 1 } : i,
+		);
+	}
 
-  if (isPublicLobby.value) {
-    publicLobbies.value = publicLobbies.value.map(i => i.id === roomId.value ? { ...i, users: i.users - 1 } : i)
-  }
+	roomMembers.value = [];
+	invitedFriends.value = [];
+	removeRoomIdFromUrl();
+	isPublicLobby.value = false;
+	isLoadingCanvas.value = false;
+	lobbyChatMessages.value = [];
+	lastProcessedSequenceId.value = undefined; // <-- Reset time on leave
 
-
-  roomMembers.value = []
-  invitedFriends.value = []
-  removeRoomIdFromUrl()
-  isPublicLobby.value = false
-  isLoadingCanvas.value = false
-  lobbyChatMessages.value = []
-  lastProcessedSequenceId.value = undefined // <-- Reset time on leave
-
-  if (!skipEmit) socket!.emit('leave-room', { roomId: roomId.value })
-  roomId.value = undefined
+	if (!skipEmit) socket!.emit("leave-room", { roomId: roomId.value });
+	roomId.value = undefined;
 }
 
 export function emitDrawSyncingEvent(action: DrawSyncingAction) {
-  const { roomId } = useDrawSyncer()
+	const { roomId } = useDrawSyncer();
 
-  const json = JSON.stringify(action)
-  const sizeMB = json.length / (1024 * 1024)
+	const json = JSON.stringify(action);
+	const sizeMB = json.length / (1024 * 1024);
 
-  console.log(`Action size: ${sizeMB.toFixed(4)} MB`)
-  if (sizeMB >= 0.6) {
-    const { toast } = useToast()
-    toast('Operation too big, cancelled', { color: 'danger', duration: ToastDuration.long })
-    const { silentUndo, silentRedo, lastActionType } = useDrawHistoryManager()
+	console.log(`Action size: ${sizeMB.toFixed(4)} MB`);
+	if (sizeMB >= 0.6) {
+		const { toast } = useToast();
+		toast("Operation too big, cancelled", {
+			color: "danger",
+			duration: ToastDuration.long,
+		});
+		const { silentUndo, silentRedo, lastActionType } = useDrawHistoryManager();
 
-    if (lastActionType === 'redo' || lastActionType === 'normal') {
-      silentUndo()
-    } else silentRedo()
+		if (lastActionType === "redo" || lastActionType === "normal") {
+			silentUndo();
+		} else silentRedo();
 
-    return
-  }
+		return;
+	}
 
-
-  socket!.emit('draw-event', { roomId: roomId, action })
+	socket!.emit("draw-event", { roomId: roomId, action });
 }
 
 export function inviteFriendToRoom(friendId: string, roomId: string) {
-  socket!.emit('friend-invite', { roomId, friendId })
+	socket!.emit("friend-invite", { roomId, friendId });
 }
 
 export function sendLobbyMessage(message: string) {
-  const drawSyncer = useDrawSyncer()
-  const authStore = useAuthStore()
+	const drawSyncer = useDrawSyncer();
+	const authStore = useAuthStore();
 
-  if (!drawSyncer.roomId || !authStore.user) return
+	if (!drawSyncer.roomId || !authStore.user) return;
 
-  // 1. Create a temporary Optimistic Message
-  const tempId = uuidv4()
-  const optimisticMessage = {
-    _id: tempId,
-    type: 'message',
-    message: message,
-    member: authStore.user,
-    createdAt: new Date().toISOString(),
-    status: 'sending',
-    isOptimistic: true
-  }
+	// 1. Create a temporary Optimistic Message
+	const tempId = uuidv4();
+	const optimisticMessage = {
+		_id: tempId,
+		type: "message",
+		message: message,
+		member: authStore.user,
+		createdAt: new Date().toISOString(),
+		status: "sending",
+		isOptimistic: true,
+	};
 
-  drawSyncer.addOptimisticLobbyMessage(optimisticMessage)
+	drawSyncer.addOptimisticLobbyMessage(optimisticMessage);
 
-  socket!.emit('lobby-message', {
-    roomId: drawSyncer.roomId,
-    message,
-    tempId
-  })
+	socket!.emit("lobby-message", {
+		roomId: drawSyncer.roomId,
+		message,
+		tempId,
+	});
 
-  // Optional: Set a timeout to mark as error if the server never responds
-  setTimeout(() => {
-    const msg = drawSyncer.lobbyChatMessages.find(m => m._id === tempId)
-    if (msg && msg.type == 'message' && msg.status === 'sending') {
-      drawSyncer.updateLobbyMessageStatus(tempId, 'error')
-    }
-  }, 5000)
+	// Optional: Set a timeout to mark as error if the server never responds
+	setTimeout(() => {
+		const msg = drawSyncer.lobbyChatMessages.find((m) => m._id === tempId);
+		if (msg && msg.type == "message" && msg.status === "sending") {
+			drawSyncer.updateLobbyMessageStatus(tempId, "error");
+		}
+	}, 5000);
 }
 
 export async function startWatchingLobbies() {
-  const { shouldShowDateOfBirthConfirmation } = useAuthStore()
-  if (shouldShowDateOfBirthConfirmation) {
-    const socialFeatureResult = await getDateOfBirthConfirmationResponse()
-    if (socialFeatureResult == 'cancel' || socialFeatureResult == 'notAllowed') {
-      return
-    }
-  }
+	const { shouldShowDateOfBirthConfirmation } = useAuthStore();
+	if (shouldShowDateOfBirthConfirmation) {
+		const socialFeatureResult = await getDateOfBirthConfirmationResponse();
+		if (
+			socialFeatureResult == "cancel" ||
+			socialFeatureResult == "notAllowed"
+		) {
+			return;
+		}
+	}
 
-  const { isWatchingPublicLobbies } = storeToRefs(useDrawSyncer())
-  isWatchingPublicLobbies.value = true
+	const { isWatchingPublicLobbies } = storeToRefs(useDrawSyncer());
+	isWatchingPublicLobbies.value = true;
 
-  // Clean up any existing listeners before attaching new ones
-  socket!.off('public-lobbies-update', handleLobbyUpdate)
-  socket!.off('lobby-thumbnail-pulsed', handleThumbnailPulse)
+	// Clean up any existing listeners before attaching new ones
+	socket!.off("public-lobbies-update", handleLobbyUpdate);
+	socket!.off("lobby-thumbnail-pulsed", handleThumbnailPulse);
 
-  socket!.emit('watch-public-lobbies')
+	socket!.emit("watch-public-lobbies");
 
-  socket!.on('public-lobbies-update', handleLobbyUpdate)
-  socket!.on('lobby-thumbnail-pulsed', handleThumbnailPulse)
+	socket!.on("public-lobbies-update", handleLobbyUpdate);
+	socket!.on("lobby-thumbnail-pulsed", handleThumbnailPulse);
 }
 
 export function stopWatchingLobbies() {
-  const { isWatchingPublicLobbies, publicLobbies } = storeToRefs(useDrawSyncer())
-  if (!isWatchingPublicLobbies.value) return
+	const { isWatchingPublicLobbies, publicLobbies } = storeToRefs(
+		useDrawSyncer(),
+	);
+	if (!isWatchingPublicLobbies.value) return;
 
-  isWatchingPublicLobbies.value = false
-  publicLobbies.value = []
+	isWatchingPublicLobbies.value = false;
+	publicLobbies.value = [];
 
-  socket!.emit('unwatch-public-lobbies')
-  socket!.off('public-lobbies-update', handleLobbyUpdate)
-  socket!.off('lobby-thumbnail-pulsed', handleThumbnailPulse)
+	socket!.emit("unwatch-public-lobbies");
+	socket!.off("public-lobbies-update", handleLobbyUpdate);
+	socket!.off("lobby-thumbnail-pulsed", handleThumbnailPulse);
 }
 
 export function handleLobbyUpdate(lobbies: PublicLobby[]) {
-  const { publicLobbies } = storeToRefs(useDrawSyncer())
-  publicLobbies.value = lobbies
+	const { publicLobbies } = storeToRefs(useDrawSyncer());
+	publicLobbies.value = lobbies;
 }
 
 function removeRoomIdFromUrl() {
-  const query = { ...router.currentRoute.value.query }
-  delete query.room_id
-  router.replace({ query })
+	const query = { ...router.currentRoute.value.query };
+	delete query.room_id;
+	router.replace({ query });
 }
 
-export function handleThumbnailPulse({ roomId, thumbnailUrl }: { roomId: string, thumbnailUrl: string }) {
-  const { publicLobbies } = storeToRefs(useDrawSyncer())
-  const index = publicLobbies.value.findIndex(l => l.id === roomId)
+export function handleThumbnailPulse({
+	roomId,
+	thumbnailUrl,
+}: {
+	roomId: string;
+	thumbnailUrl: string;
+}) {
+	const { publicLobbies } = storeToRefs(useDrawSyncer());
+	const index = publicLobbies.value.findIndex((l) => l.id === roomId);
 
-  if (index !== -1) {
-    publicLobbies.value[index].thumbnailUrl = thumbnailUrl
-  }
+	if (index !== -1) {
+		publicLobbies.value[index].thumbnailUrl = thumbnailUrl;
+	}
 }
 
 function addRoomIdToUrl(roomId: string) {
-  const query = {
-    ...router.currentRoute.value.query,
-    room_id: roomId
-  }
+	const query = {
+		...router.currentRoute.value.query,
+		room_id: roomId,
+	};
 
-  router.replace({ query })
+	router.replace({ query });
 }

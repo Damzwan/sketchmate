@@ -20,6 +20,9 @@ const IS_MOBILE = isMobile();
 const HW_CONCURRENCY = (navigator as any).hardwareConcurrency || 4;
 const IS_LOW_END = IS_MOBILE && HW_CONCURRENCY <= 4;
 
+const SYNC_PATCH_TILE_BUDGET = IS_LOW_END ? 12 : IS_MOBILE ? 20 : 40;
+const CLUSTER_WASTE_THRESHOLD = 2.0;
+
 export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	let c: Canvas | undefined = undefined;
 
@@ -36,6 +39,31 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 	let coarseBakedBounds: WorldRect | null = null;
 	let coarseExtendScheduled: any = null;
+
+	// ─── Bulk-load guard ───────────────────────────────────────────────────────
+	// While loading the canvas state from a socket message we receive thousands
+	// of object:added events. Each one would normally schedule a microtask
+	// patch + composite. That's pure waste: only the final render matters.
+	//
+	// `loadingDepth` is a counter (not a boolean) so nested begin/end calls
+	// stack correctly — if two async loads overlap, the manager only exits
+	// loading mode when both finish. Quadtree, objectMap, z-index updates all
+	// still happen; we only suppress the patch pipeline and compositing.
+	let loadingDepth = 0;
+	function isLoading() {
+		return loadingDepth > 0;
+	}
+	function beginLoading() {
+		loadingDepth++;
+	}
+	function endLoading() {
+		loadingDepth = Math.max(0, loadingDepth - 1);
+		if (loadingDepth === 0) {
+			dirtyObjects.clear();
+			dirtyOldRects.length = 0;
+			patchScheduled = false;
+		}
+	}
 
 	const primaryYielder = createYielder({
 		budgetMs: IS_LOW_END ? 4 : IS_MOBILE ? 6 : 8,
@@ -69,6 +97,182 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			zoomTiers: [0.03125, 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8],
 		},
 	);
+
+	interface Cluster {
+		rect: WorldRect;
+		objects: FabricObject[];
+	}
+
+	const dirtyObjects = new Set<FabricObject>();
+	const dirtyOldRects: WorldRect[] = [];
+	let patchScheduled = false;
+
+	function scheduleObjectPatch(obj: FabricObject) {
+		dirtyObjects.add(obj);
+		schedulePatch();
+	}
+
+	function scheduleObjectsPatch(objs: FabricObject[]) {
+		for (const o of objs) dirtyObjects.add(o);
+		schedulePatch();
+	}
+
+	function scheduleRectPatch(rect: WorldRect) {
+		dirtyOldRects.push(rect);
+		schedulePatch();
+	}
+
+	function schedulePatch() {
+		// Suppress the patch flush while loading. The final renderViewport in the
+		// socket handler does the real work.
+		if (isLoading()) return;
+		if (patchScheduled) return;
+		patchScheduled = true;
+		queueMicrotask(() => {
+			patchScheduled = false;
+			flushDirtyPatches();
+		});
+	}
+
+	function flushDirtyPatches() {
+		if (!c) return;
+		// A flush may have been queued just before loading started — bail.
+		if (isLoading()) return;
+		if (dirtyObjects.size === 0 && dirtyOldRects.length === 0) return;
+
+		const gs = useGestureStore();
+		if (gs.isGesturing) {
+			for (const obj of dirtyObjects) tileCache.invalidateObject(obj);
+			for (const r of dirtyOldRects) tileCache.invalidateRect(r);
+			dirtyObjects.clear();
+			dirtyOldRects.length = 0;
+			return;
+		}
+
+		const objs = Array.from(dirtyObjects);
+		const oldRects = dirtyOldRects.slice();
+		dirtyObjects.clear();
+		dirtyOldRects.length = 0;
+
+		const candidates: Cluster[] = [];
+		for (const obj of objs) {
+			const b = objectBounds(obj);
+			if (!isFinite(b.x) || !isFinite(b.y) || b.w <= 0 || b.h <= 0) continue;
+			candidates.push({ rect: b, objects: [obj] });
+		}
+		for (const r of oldRects) {
+			if (!isFinite(r.x) || !isFinite(r.y) || r.w <= 0 || r.h <= 0) continue;
+			candidates.push({ rect: r, objects: [] });
+		}
+
+		if (candidates.length === 0) return;
+
+		const clusters = clusterCandidates(candidates);
+
+		for (const cl of clusters) {
+			tileCache.invalidateRect(cl.rect);
+		}
+
+		const zoom = c.viewportTransform![0];
+		const activeTier = tileCache.pickTierForZoom(zoom);
+
+		const rects = clusters.map((cl) => cl.rect);
+		const estimatedTiles = estimatePatchTileCount(rects, activeTier);
+
+		let rectsToPatch = rects;
+		if (estimatedTiles > SYNC_PATCH_TILE_BUDGET) {
+			rectsToPatch = pickPriorityRects(
+				clusters,
+				SYNC_PATCH_TILE_BUDGET,
+				activeTier,
+			);
+		}
+
+		tileCache.patchTilesSync(rectsToPatch, [activeTier]);
+
+		renderViewport();
+		scheduleBake();
+
+		for (const obj of objs) maybeExtendCoarse(obj);
+	}
+
+	function estimatePatchTileCount(rects: WorldRect[], tier: number): number {
+		const scale = tileCache.ZOOM_TIERS[tier];
+		const tileWorldSize = 512 / scale;
+		let total = 0;
+		for (const r of rects) {
+			const cols =
+				Math.floor((r.x + r.w) / tileWorldSize) -
+				Math.floor(r.x / tileWorldSize) +
+				1;
+			const rows =
+				Math.floor((r.y + r.h) / tileWorldSize) -
+				Math.floor(r.y / tileWorldSize) +
+				1;
+			total += cols * rows;
+		}
+		return total;
+	}
+
+	function pickPriorityRects(
+		clusters: Cluster[],
+		budget: number,
+		tier: number,
+	): WorldRect[] {
+		if (!c) return clusters.map((cl) => cl.rect);
+		const v = getViewportRect(c);
+		const cx = v.x + v.w / 2;
+		const cy = v.y + v.h / 2;
+
+		const scored = clusters.map((cl) => {
+			const ccx = cl.rect.x + cl.rect.w / 2;
+			const ccy = cl.rect.y + cl.rect.h / 2;
+			const dist = (ccx - cx) ** 2 + (ccy - cy) ** 2;
+			const tilesEst = estimatePatchTileCount([cl.rect], tier);
+			return { cl, dist, tilesEst };
+		});
+		scored.sort((a, b) => a.dist - b.dist);
+
+		const picked: WorldRect[] = [];
+		let used = 0;
+		for (const s of scored) {
+			if (used + s.tilesEst > budget && picked.length > 0) break;
+			picked.push(s.cl.rect);
+			used += s.tilesEst;
+		}
+		return picked;
+	}
+
+	function clusterCandidates(candidates: Cluster[]): Cluster[] {
+		if (candidates.length <= 1) return candidates;
+		const result = candidates.slice();
+		let merged = true;
+		const MAX_PASSES = 64;
+		let passes = 0;
+		while (merged && result.length > 1 && passes++ < MAX_PASSES) {
+			merged = false;
+			outer: for (let i = 0; i < result.length; i++) {
+				for (let j = i + 1; j < result.length; j++) {
+					const a = result[i];
+					const b = result[j];
+					const u = unionRect(a.rect, b.rect);
+					const unionArea = u.w * u.h;
+					const aArea = a.rect.w * a.rect.h;
+					const bArea = b.rect.w * b.rect.h;
+					if (unionArea <= (aArea + bArea) * CLUSTER_WASTE_THRESHOLD) {
+						result[i] = {
+							rect: u,
+							objects: a.objects.concat(b.objects),
+						};
+						result.splice(j, 1);
+						merged = true;
+						break outer;
+					}
+				}
+			}
+		}
+		return result;
+	}
 
 	function getZIndexMap(): Map<FabricObject, number> {
 		if (isZIndexDirty) {
@@ -121,6 +325,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 	function runCoarseBake() {
 		if (!c || !coarseBakedBounds) return;
+		if (isLoading()) return;
 		const gs = useGestureStore();
 		if (gs.isGesturing) {
 			coarseExtendScheduled = setTimeout(() => {
@@ -136,7 +341,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 		const bounds = { ...coarseBakedBounds };
 
-		// REMOVED Background color from baking parameters
 		tileCache
 			.bakeRect(bounds, 0, prefetchYielder, ctrl.signal)
 			.then(() => {
@@ -156,9 +360,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				objectMap.set(obj.id, obj);
 				addToQuadTree(obj);
 				isZIndexDirty = true;
-				tileCache.invalidateObject(obj);
-				maybeExtendCoarse(obj);
-				scheduleBake();
+				if (!isLoading()) scheduleObjectPatch(obj);
 			},
 		},
 		{
@@ -166,29 +368,66 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			handler: (e: any) => {
 				const obj = e.target as FabricObject;
 				if (!obj.id) return;
-				tileCache.invalidateObject(obj);
+				const oldRect = objectBounds(obj);
 				objectMap.delete(obj.id);
 				removeFromQuadTree(obj);
 				invalidateZIndex();
-				scheduleBake();
+				if (!isLoading()) scheduleRectPatch(oldRect);
 			},
 		},
 		{
 			on: "object:modified",
 			handler: (e: any) => {
 				const obj = e.target as FabricObject;
+				const transform = e.transform;
+
+				const collectOldRect = (o: FabricObject) => {
+					if (!transform?.original) return null;
+					const cur = {
+						left: o.left,
+						top: o.top,
+						scaleX: o.scaleX,
+						scaleY: o.scaleY,
+						skewX: o.skewX,
+						skewY: o.skewY,
+						angle: o.angle,
+						flipX: o.flipX,
+						flipY: o.flipY,
+						originX: o.originX,
+						originY: o.originY,
+					};
+					try {
+						o.set(transform.original);
+						o.setCoords();
+						const b = objectBounds(o);
+						o.set(cur);
+						o.setCoords();
+						return b;
+					} catch {
+						o.set(cur);
+						o.setCoords();
+						return null;
+					}
+				};
+
 				if (obj.type === ObjectType.selection) {
-					c!.getActiveObjects().forEach((o) => {
+					const actives = c!.getActiveObjects();
+					for (const o of actives) {
+						const old = collectOldRect(o);
 						updateQuadTree(o);
-						tileCache.invalidateObject(o);
-						maybeExtendCoarse(o);
-					});
+						if (!isLoading()) {
+							if (old) scheduleRectPatch(old);
+							scheduleObjectPatch(o);
+						}
+					}
 				} else {
+					const old = collectOldRect(obj);
 					updateQuadTree(obj);
-					tileCache.invalidateObject(obj);
-					maybeExtendCoarse(obj);
+					if (!isLoading()) {
+						if (old) scheduleRectPatch(old);
+						scheduleObjectPatch(obj);
+					}
 				}
-				scheduleBake();
 			},
 		},
 		{
@@ -196,35 +435,70 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			handler: () => {
 				tileCache.invalidateAll();
 				coarseBakedBounds = null;
-				renderViewport();
-			},
-		},
-		{
-			on: "layer:changed",
-			handler: () => {
-				isZIndexDirty = true;
-				tileCache.invalidateAll();
-				scheduleBake();
+				if (!isLoading()) renderViewport();
 			},
 		},
 		{
 			on: "backgroundColorChanged",
 			handler: () => {
-				// Tile Cache invalidation not needed anymore since background is detached
-				renderViewport(true);
+				if (!isLoading()) renderViewport(true);
 			},
 		},
 		{
 			on: "invalidateCanvas",
 			handler: (e: any) => {
+				if (isLoading()) return;
 				const targets = Array.isArray(e.target) ? e.target : [e.target];
-				targets.forEach((obj: FabricObject) => {
-					if (obj?.id) tileCache.invalidateObject(obj);
+				for (const obj of targets as FabricObject[]) {
+					if (obj?.id) scheduleObjectPatch(obj);
+				}
+			},
+		},
+		{
+			on: "render:patchModifiedObject",
+			handler: (e: any) => {
+				const obj = e.target as FabricObject;
+				const oldRect = e.oldRect;
+				if (!obj || !oldRect) return;
+				updateQuadTree(obj);
+				if (isLoading()) return;
+				scheduleRectPatch({
+					x: oldRect.x ?? oldRect.left,
+					y: oldRect.y ?? oldRect.top,
+					w: oldRect.w ?? oldRect.width,
+					h: oldRect.h ?? oldRect.height,
 				});
-				scheduleBake();
+				scheduleObjectPatch(obj);
+			},
+		},
+		{ on: "textStyleChanged", handler: (e: any) => handleStyleChange(e) },
+		{ on: "objectStyleChanged", handler: (e: any) => handleStyleChange(e) },
+		{ on: "imgFilterChanged", handler: (e: any) => handleStyleChange(e) },
+		{
+			on: "layer:changed",
+			handler: (e: any) => {
+				isZIndexDirty = true;
+				handleStyleChange(e);
+			},
+		},
+		{ on: "flip", handler: (e: any) => handleStyleChange(e) },
+		{
+			on: "erasing:end",
+			handler: (e: any) => {
+				if (isLoading()) return;
+				const targets = Array.isArray(e.detail.targets)
+					? e.detail.targets
+					: [e.detail.targets];
+				scheduleObjectsPatch(targets);
 			},
 		},
 	];
+
+	function handleStyleChange(e: any) {
+		if (isLoading()) return;
+		const t = Array.isArray(e.target) ? e.target : [e.target];
+		scheduleObjectsPatch(t);
+	}
 
 	function renderViewport(forceBake = false) {
 		if (!c) return;
@@ -233,7 +507,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		const ph = c.getElement().height;
 		const dpr = window.devicePixelRatio || 1;
 
-		// Background is only used here during the compositing phase
 		const bg = c.backgroundColor as string;
 		const mainCtx = c.getContext();
 
@@ -254,6 +527,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	function scheduleBake() {
 		const gs = useGestureStore();
 		if (gs.isGesturing || !c) return;
+		if (isLoading()) return;
 		if (pendingBakeTimeout !== null) return;
 		pendingBakeTimeout = setTimeout(() => {
 			pendingBakeTimeout = null;
@@ -278,10 +552,9 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		const ctrl = new AbortController();
 		primaryBakeController = ctrl;
 
-		// REMOVED Background color parameter
 		tileCache
 			.bakeMissing(vpt, { w: pw, h: ph }, dpr, primaryYielder, ctrl.signal)
-			.then((report) => {
+			.then(() => {
 				const wasCurrent = primaryBakeController === ctrl;
 				if (wasCurrent) primaryBakeController = null;
 				if (!wasCurrent) return;
@@ -307,6 +580,10 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		prefetchBakeController = null;
 		clearTimeout(pendingBakeTimeout);
 		pendingBakeTimeout = null;
+		for (const obj of dirtyObjects) tileCache.invalidateObject(obj);
+		dirtyObjects.clear();
+		dirtyOldRects.length = 0;
+		patchScheduled = false;
 	}
 
 	function onGestureEnd() {
@@ -320,7 +597,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		addStartingCanvasObjects();
 		useDrawEventManager().addPermanentEvents(events);
 		renderViewport();
-		// Removed specific mouse:up debug listener to keep things clean
 	}
 
 	function addStartingCanvasObjects() {
@@ -384,16 +660,16 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			if (blocked.includes(o.userId)) toRemove.push(o);
 		});
 		if (!toRemove.length) return;
-		toRemove.forEach((obj) => {
+		for (const obj of toRemove) {
 			if (obj.id) {
-				tileCache.invalidateObject(obj);
+				const oldRect = objectBounds(obj);
 				objectMap.delete(obj.id);
 				removeFromQuadTree(obj);
+				scheduleRectPatch(oldRect);
 			}
 			c?.remove(obj);
-		});
+		}
 		invalidateZIndex();
-		renderViewport(true);
 	}
 
 	function query(rect: WorldRect): FabricObject[] {
@@ -418,6 +694,13 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		return ids.map((id) => getObjectById(id)).filter(Boolean) as FabricObject[];
 	}
 
+	// Public reset: socket handlers should call this after a full reload to
+	// drop all stale tiles before the final renderViewport repopulates them.
+	function resetTileCache() {
+		tileCache.invalidateAll();
+		coarseBakedBounds = null;
+	}
+
 	return {
 		init,
 		renderViewport,
@@ -430,5 +713,9 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		getVisibleObjects,
 		getObjectById,
 		getObjectsById,
+		beginLoading,
+		endLoading,
+		isLoading,
+		resetTileCache,
 	};
 });

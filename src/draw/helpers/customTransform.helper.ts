@@ -156,6 +156,10 @@ export function prepareCssOverlay(c: Canvas, target: FabricObject) {
 		obj.opacity = 0;
 	});
 
+	c.fire("invalidateCanvas", {
+		target: selectedObjects,
+	} as any);
+
 	// c.fire("invalidateCanvas", { target: selectedObjects } as any);
 	// useDrawObjectManager().flushDirtyBatch(true);
 
@@ -205,7 +209,6 @@ export function finalizeCssOverlay(c: Canvas) {
 
 	selectionState?.selectedObjects.forEach((obj) => {
 		obj.opacity = (obj as any)._preDragOpacity ?? 1;
-		delete (obj as any)._preDragOpacity;
 	});
 
 	c.fire("invalidateCanvas", {

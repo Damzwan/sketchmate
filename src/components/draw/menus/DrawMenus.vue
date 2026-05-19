@@ -27,49 +27,46 @@
   <DocsMenu trigger="docsMenu" />
   <HelpMenu />
   <RoomMenu />
-  <MiniMap/>
 </template>
 
 <script setup lang="ts">
-import { DrawAction, ObjectType } from '@/draw/types/draw.types'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
-import PenMenu from '@/components/draw/menus/PenMenu.vue'
-import { useSelect } from '@/draw/store/tools/select.store'
-import EraserMenu from '@/components/draw/menus/EraserMenu.vue'
-import SelectMenu from '@/components/draw/menus/SelectMenu.vue'
-import DocsMenu from '@/components/draw/menus/DocsMenu.vue'
-import TextMenu from '@/components/draw/menus/TextMenu.vue'
-import FontMenu from '@/components/draw/menus/FontMenu.vue'
-import MoreToolsMenu from '@/components/draw/menus/MoreToolsMenu.vue'
-import StickersEmblemsSavedMenu from '@/components/draw/menus/stickersEmblemsSavedMenu/StickersEmblemsSavedMenu.vue'
-import HelpMenu from '@/components/draw/menus/HelpMenu.vue'
-import SelectExtraOptionsMenu from '@/components/draw/menus/SelectExtraOptionsMenu.vue'
-import ShapesMenu from '@/components/draw/menus/ShapesMenu.vue'
-import SelectImgStyleMenu from '@/components/draw/menus/SelectImgStyleMenu.vue'
-import SelectColorMenu from '@/components/draw/menus/SelectColorMenu.vue'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useShapeCreation } from '@/draw/store/shapeCreation.store'
-import RoomMenu from '@/components/draw/menus/RoomMenu.vue'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import MiniMap from '@/components/draw/MiniMap.vue'
-import BucketMenu from '@/components/draw/menus/BucketMenu.vue'
+import { DrawAction, ObjectType } from "@/draw/types/draw.types";
+import { useDrawStore } from "@/draw/store/draw.store";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
+import PenMenu from "@/components/draw/menus/PenMenu.vue";
+import { useSelect } from "@/draw/store/tools/select.store";
+import EraserMenu from "@/components/draw/menus/EraserMenu.vue";
+import SelectMenu from "@/components/draw/menus/SelectMenu.vue";
+import DocsMenu from "@/components/draw/menus/DocsMenu.vue";
+import TextMenu from "@/components/draw/menus/TextMenu.vue";
+import FontMenu from "@/components/draw/menus/FontMenu.vue";
+import MoreToolsMenu from "@/components/draw/menus/MoreToolsMenu.vue";
+import StickersEmblemsSavedMenu from "@/components/draw/menus/stickersEmblemsSavedMenu/StickersEmblemsSavedMenu.vue";
+import HelpMenu from "@/components/draw/menus/HelpMenu.vue";
+import SelectExtraOptionsMenu from "@/components/draw/menus/SelectExtraOptionsMenu.vue";
+import ShapesMenu from "@/components/draw/menus/ShapesMenu.vue";
+import SelectImgStyleMenu from "@/components/draw/menus/SelectImgStyleMenu.vue";
+import SelectColorMenu from "@/components/draw/menus/SelectColorMenu.vue";
+import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { useShapeCreation } from "@/draw/store/shapeCreation.store";
+import RoomMenu from "@/components/draw/menus/RoomMenu.vue";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import MiniMap from "@/components/draw/MiniMap.vue";
+import BucketMenu from "@/components/draw/menus/BucketMenu.vue";
 
-const { selectedObjectsRef } = storeToRefs(useSelect())
-const { selectAction } = useDrawStore()
-const { roomId } = storeToRefs(useDrawSyncer())
-
+const { selectedObjectsRef } = storeToRefs(useSelect());
+const { selectAction } = useDrawStore();
+const { roomId } = storeToRefs(useDrawSyncer());
 
 const isText = computed(
-  () => selectedObjectsRef.value.length == 1 && selectedObjectsRef.value[0].type == ObjectType.text
-)
+	() =>
+		selectedObjectsRef.value.length == 1 &&
+		selectedObjectsRef.value[0].type == ObjectType.text,
+);
 
-
-const { shapeCreationMode } = storeToRefs(useDrawUIStore())
-const { shapeCreationSettings } = storeToRefs(useShapeCreation())
-
-
+const { shapeCreationMode } = storeToRefs(useDrawUIStore());
+const { shapeCreationSettings } = storeToRefs(useShapeCreation());
 </script>
 
 <style scoped>

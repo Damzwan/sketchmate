@@ -1,3 +1,4 @@
+// src/draw/helpers/gestures.helper.ts
 import * as fabric from "fabric";
 import { Canvas, Point } from "fabric";
 import { isMobile } from "@/helper/general.helper";
@@ -17,23 +18,12 @@ import {
 	prepareCssOverlay,
 	renderCssOverlay,
 } from "@/draw/helpers/customTransform.helper";
-import { Rect } from "@/draw/utils/QuadTree";
 import { useGestureStore } from "@/draw/store/tools/gesture.store";
-import { useToast } from "@/service/toast.service";
 import { MOVE_HAPPENED } from "@/draw/helpers/fabricDefaults.helper";
 
-// ==========================================
-// CONSTANTS & STATE
-// ==========================================
 const MIN_ZOOM = 0.2;
-let ghostBoxes: any[] = [];
-let debounceCacheTimeout: any = null;
-let visibilityTimeout: any = null;
 let dynamicMinZoom = MIN_ZOOM;
-
-// ==========================================
-// SHARED UTILITIES
-// ==========================================
+let visibilityTimeout: any = null;
 
 function getMinZoomToFitAll(canvas: fabric.Canvas, padding = 0.9) {
 	const objects = canvas.getObjects();
@@ -43,7 +33,6 @@ function getMinZoomToFitAll(canvas: fabric.Canvas, padding = 0.9) {
 		minY = Infinity,
 		maxX = -Infinity,
 		maxY = -Infinity;
-
 	for (let i = 0; i < objects.length; i++) {
 		const bound = objects[i].getBoundingRect();
 		if (bound.left < minX) minX = bound.left;
@@ -61,75 +50,26 @@ function getMinZoomToFitAll(canvas: fabric.Canvas, padding = 0.9) {
 }
 
 function syncVisuals(c: Canvas) {
-	const { getStableCanvas } = useDrawObjectManager();
-	const gestureStore = useGestureStore();
-	const physWidth = c.getElement().width;
-	const physHeight = c.getElement().height;
-	const stableCanvas = getStableCanvas(physWidth, physHeight);
-	gestureStore.fastBlit(c, stableCanvas as any, ghostBoxes);
+	const { renderViewport } = useDrawObjectManager();
+	renderViewport();
 }
 
-function administerGhostBuffer(c: Canvas) {
-	const gestureStore = useGestureStore();
-	const { query } = useDrawObjectManager();
-
-	const rVpt = gestureStore.renderedVpt;
-	const zoom = rVpt[0];
-	const vLeft = -rVpt[4] / zoom;
-	const vTop = -rVpt[5] / zoom;
-	const vW = c.width! / zoom;
-	const vH = c.height! / zoom;
-
-	const expandedArea = new Rect(vLeft - vW, vTop - vH, vW * 3, vH * 3);
-
-	ghostBoxes = query(expandedArea)
-		.filter((obj: any) => {
-			const b = obj.getBoundingRect(true, true);
-			const isWithinStable = !(
-				b.left > vLeft + vW ||
-				b.left + b.width < vLeft ||
-				b.top > vTop + vH ||
-				b.top + b.height < vTop
-			);
-			return !isWithinStable;
-		})
-		.map((obj: any) => {
-			const b = obj.getBoundingRect(true, true);
-			return {
-				id: obj.id || Math.random().toString(),
-				left: b.left,
-				top: b.top,
-				width: b.width,
-				height: b.height,
-				type: obj.type,
-			};
-		});
-}
-
-/**
- * Unified end-gesture logic for both PC and Mobile.
- * Handles the handover from low-res fast-blit to high-res chunked render.
- */
-function endViewportGesture(c: Canvas, isZooming: boolean = false) {
-	const { updateVisibility, onGestureEnd } = useDrawObjectManager();
+function endViewportGesture(c: Canvas) {
+	const { onGestureEnd } = useDrawObjectManager();
 	const gestureStore = useGestureStore();
 
 	gestureStore.isGesturing = false;
-	onGestureEnd();
 	c.fire("gestureEnd");
-	ghostBoxes = [];
 
 	clearTimeout(visibilityTimeout);
 	visibilityTimeout = setTimeout(() => {
 		if (!gestureStore.isGesturing) {
-			updateVisibility(false);
+			onGestureEnd();
 		}
-	}, 250);
+	}, 50);
 }
 
-// ==========================================
-// PC GESTURES
-// ==========================================
+// ─── PC Interaction ─────────────────────────────────────────────────────────
 
 export function enablePCGestures(c: Canvas) {
 	const gestureStore = useGestureStore();
@@ -153,34 +93,33 @@ export function enablePCGestures(c: Canvas) {
 					isWheeling = true;
 					dynamicMinZoom = getMinZoomToFitAll(c);
 					onGestureStart();
-					administerGhostBuffer(c);
 					gestureStore.isGesturing = true;
 					c.fire("gestureStart");
 				}
 
-				const rawZoomFactor = Math.exp(-e.deltaY / 50);
+				const rawZoomFactor = Math.exp(-e.deltaY / 300);
 				let newZoom = Math.max(
 					dynamicMinZoom,
 					Math.min(c.getZoom() * rawZoomFactor, gestureStore.maxZoom),
 				);
 
 				c.zoomToPoint(new Point(e.offsetX, e.offsetY), newZoom);
-				requestAnimationFrame(() => syncVisuals(c));
+				syncVisuals(c);
 				c.fire("zoomChanged");
 
 				clearTimeout(pcWheelTimeout);
 				pcWheelTimeout = setTimeout(() => {
 					isWheeling = false;
-					endViewportGesture(c, true);
+					endViewportGesture(c);
 					c.fire("zoomChanged");
-				}, 150);
+				}, 100);
 			},
 		},
 		{
 			on: "mouse:down",
 			handler: (o: any) => {
 				const e = o.e;
-				if (e.buttons !== 4) return; // Middle click
+				if (e.buttons !== 4) return;
 
 				panActive = true;
 				lastPanPoint = { x: e.pageX, y: e.pageY };
@@ -188,7 +127,6 @@ export function enablePCGestures(c: Canvas) {
 				c.skipTargetFind = true;
 
 				onGestureStart();
-				administerGhostBuffer(c);
 				gestureStore.isGesturing = true;
 				c.fire("gestureStart");
 
@@ -209,7 +147,7 @@ export function enablePCGestures(c: Canvas) {
 				vpt[4] += dx;
 				vpt[5] += dy;
 				c.setViewportTransform(vpt);
-				requestAnimationFrame(() => syncVisuals(c));
+				syncVisuals(c);
 			},
 		},
 		{
@@ -235,22 +173,19 @@ export function enablePCGestures(c: Canvas) {
 	addEventsOfService("gestures", events);
 }
 
-// ==========================================
-// MOBILE GESTURES
-// ==========================================
+// ─── Mobile Interaction ─────────────────────────────────────────────────────
 
 export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 	const { selectedTool } = storeToRefs(useToolSelection());
 	const { shapeCreationMode } = storeToRefs(useDrawUIStore());
 	const { shouldModifyObjectsWithGestures } = useSelect();
-	const { onGestureStart, flushDirtyBatch } = useDrawObjectManager();
+	const { onGestureStart } = useDrawObjectManager();
 	const gestureStore = useGestureStore();
 
 	const isUsingGesture = ref(false);
 	const gestureState = { originalObjectState: null as any | null };
 
 	let isCanvasZooming = false;
-	let canvasPanDistance = 0;
 	let isObjectScaling = false;
 	let totalObjectAngleDelta = 0;
 	let gestureFrameScheduled = false;
@@ -274,7 +209,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 	gestureDetector(upperCanvasEl, {
 		onGestureStart: () => {
 			isCanvasZooming = false;
-			canvasPanDistance = 0;
 			isObjectScaling = false;
 			totalObjectAngleDelta = 0;
 			if (shapeCreationMode.value) return;
@@ -304,20 +238,17 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 				cancelPreviousAction(c);
 				dynamicMinZoom = getMinZoomToFitAll(c);
 				onGestureStart();
-				administerGhostBuffer(c);
 				gestureStore.isGesturing = true;
-				flushDirtyBatch(true);
 			}
 		},
 
 		onDrag: (dx, dy) => {
 			if (isUsingGesture.value) return;
-			canvasPanDistance += Math.hypot(dx, dy);
 			const vpt = c.viewportTransform!;
 			vpt[4] += dx * 2;
 			vpt[5] += dy * 2;
 			c.setViewportTransform(vpt);
-			requestAnimationFrame(() => syncVisuals(c));
+			syncVisuals(c);
 		},
 
 		onZoom: (scale, previousScale, center) => {
@@ -347,7 +278,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 			);
 
 			c.zoomToPoint(new Point(center.x, center.y), newZoom);
-			requestAnimationFrame(() => syncVisuals(c));
+			syncVisuals(c);
 		},
 
 		onRotate: (delta) => {
@@ -357,7 +288,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 		},
 
 		onGestureEnd: () => {
-			const wasZooming = isCanvasZooming;
 			isCanvasZooming = false;
 			isObjectScaling = false;
 
@@ -370,7 +300,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 						isUsingGesture.value = false;
 						gestureStore.isGesturing = false;
 
-						if (MOVE_HAPPENED) return; // we use logic in fabricDefault.helper.ts / internal fabric js LOGIC TODO not good but oh well
+						if (MOVE_HAPPENED) return;
 						finalizeCssOverlay(c);
 						c.fire("object:modified", {
 							target: obj,
@@ -392,7 +322,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 						c.isDrawingMode = true;
 					}
 				}, 50);
-				endViewportGesture(c, wasZooming);
+				endViewportGesture(c);
 			}
 		},
 	});

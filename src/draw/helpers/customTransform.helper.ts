@@ -156,8 +156,8 @@ export function prepareCssOverlay(c: Canvas, target: FabricObject) {
 		obj.opacity = 0;
 	});
 
-	c.fire("invalidateCanvas", { target: selectedObjects } as any);
-	useDrawObjectManager().flushDirtyBatch(true);
+	// c.fire("invalidateCanvas", { target: selectedObjects } as any);
+	// useDrawObjectManager().flushDirtyBatch(true);
 
 	domOverlay = selectionBuffer;
 	domOverlay.style.cssText = `position:absolute; pointer-events:none; transform:none;`;

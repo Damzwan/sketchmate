@@ -91,7 +91,12 @@ function buildSmartOffscreenCanvas(c: Canvas, scale: number, dpr: number) {
 	const vpCx = vpLeft + vpWidth / 2;
 	const vpCy = vpTop + vpHeight / 2;
 
-	const viewportRect = new Rect(vpLeft, vpTop, vpWidth, vpHeight);
+	const viewportRect: Rect = {
+		x: vpLeft,
+		y: vpTop,
+		w: vpWidth,
+		h: vpHeight,
+	};
 	const nearbyObjects = query(viewportRect);
 
 	let expandLeft = vpLeft;
@@ -157,7 +162,12 @@ function buildSmartOffscreenCanvas(c: Canvas, scale: number, dpr: number) {
 		-expandTop * pxScale,
 	);
 
-	const renderRect = new Rect(expandLeft, expandTop, worldW, worldH);
+	const renderRect: Rect = {
+		x: expandLeft,
+		y: expandTop,
+		w: worldW,
+		h: worldH,
+	};
 	const objectsToRender = query(renderRect);
 	const zIndexMap = getZIndexMap();
 

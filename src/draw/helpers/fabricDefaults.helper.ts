@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from "uuid";
 import { BACKGROUND } from "@/draw/config/canvas.config";
 import { useAuthStore } from "@/store/auth.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
-import { Rect } from "@/draw/utils/QuadTree";
+import { Rect, rectIntersects } from "@/draw/utils/QuadTree";
 
 // Brush Imports
 import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
@@ -174,14 +174,12 @@ export function overrideFindTarget(c: Canvas) {
 		if (this._targetInfo) return this._targetInfo;
 		if (this.skipTargetFind) return { subTargets: [], currentSubTargets: [] };
 
-		const candidates = useDrawObjectManager().query(
-			new Rect(
-				pointer.x - SEARCH_PADDING,
-				pointer.y - SEARCH_PADDING,
-				SEARCH_PADDING * 2,
-				SEARCH_PADDING * 2,
-			),
-		);
+		const candidates = useDrawObjectManager().query({
+			x: pointer.x - SEARCH_PADDING,
+			y: pointer.y - SEARCH_PADDING,
+			w: SEARCH_PADDING * 2,
+			h: SEARCH_PADDING * 2,
+		});
 		const targetInfo = this.searchPossibleTargets(candidates, pointer);
 		const fullTargetInfo = {
 			...targetInfo,
@@ -386,7 +384,7 @@ export function overrideTransform(canvas: Canvas) {
 		if (e.target && e.e.button !== 1) {
 			// Capture starting position on interaction
 			startPointer = canvas.getScenePoint(e.e);
-			prepareCssOverlay(canvas, e.target);
+			// prepareCssOverlay(canvas, e.target);
 			canvas.clearContext(canvas.contextTop);
 			e.target._renderControls(canvas.contextTop);
 		}
@@ -438,8 +436,8 @@ export function overrideTransform(canvas: Canvas) {
 			MOVE_HAPPENED = true;
 			this._performTransformAction(evt, this._currentTransform, local);
 
-			if (this._currentTransform.actionPerformed && isLayeredRenderActive)
-				renderCssOverlay(this, target);
+			// if (this._currentTransform.actionPerformed && isLayeredRenderActive)
+			// 	renderCssOverlay(this, target);
 		});
 	};
 
@@ -450,7 +448,7 @@ export function overrideTransform(canvas: Canvas) {
 
 		const { isGesturing } = useGestureStore();
 		if (isGesturing) return;
-		finalizeCssOverlay(canvas);
+		// finalizeCssOverlay(canvas);
 	});
 }
 
@@ -462,17 +460,32 @@ export function overrideHandleSelection(c: Canvas) {
 		const br = new Point(x, y).max(new Point(x + deltaX, y + deltaY));
 
 		const mgr = useDrawObjectManager();
-		const collected = mgr
-			.query(new Rect(tl.x, tl.y, br.x - tl.x, br.y - tl.y))
-			.filter(
-				(obj) =>
-					obj.selectable &&
-					obj.visible &&
-					(obj.intersectsWithRect(tl, br) ||
-						obj.isContainedWithinRect(tl, br) ||
-						obj.containsPoint(tl) ||
-						obj.containsPoint(br)),
+		// Replace:
+		const lassoBounds: Rect = {
+			x: tl.x,
+			y: tl.y,
+			w: br.x - tl.x,
+			h: br.y - tl.y,
+		};
+
+		// Query the manager using the interface
+		const collected = mgr.query(lassoBounds).filter((obj) => {
+			// @ts-ignore
+			const b = obj.getBoundingRect(true, true);
+
+			// Define the object's bounds as an interface-compliant object
+			const objRect: Rect = {
+				x: b.left,
+				y: b.top,
+				w: b.width,
+				h: b.height,
+			};
+
+			// Perform the intersection check using the helper
+			return (
+				obj.selectable && obj.visible && rectIntersects(objRect, lassoBounds)
 			);
+		});
 
 		const zMap = mgr.getZIndexMap();
 		collected.sort((a, b) => (zMap.get(b) ?? 0) - (zMap.get(a) ?? 0));

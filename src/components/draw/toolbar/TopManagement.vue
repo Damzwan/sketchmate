@@ -10,13 +10,7 @@
       }"
       custom-class="hover:bg-primary/20"
     />
-
-    <ToolButton
-      :icon="svg(mdiMapOutline)"
-      :active="isMiniMapOpen"
-      @click="toggleMinimap"
-      custom-class="hover:bg-primary/20"
-    />
+    
 
     <ToolButton
       :icon="megaphoneOutline"
@@ -59,40 +53,38 @@
 </template>
 
 <script setup lang="ts">
-import { storeToRefs } from 'pinia'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useMenuStore } from '@/store/menu.store'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import ToolButton from './ToolButton.vue'
-import { mdiAccountGroupOutline, mdiFullscreen, mdiMapOutline, mdiSend } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { Menu } from '@/draw/types/draw.types'
-import SendHub from '../send/SendHub.vue'
-import { useAuthStore } from '@/store/auth.store'
-import { chatbubblesOutline, megaphoneOutline } from 'ionicons/icons'
-import { useChatWidgetStore } from '@/store/chatWidget.store'
-import { useChatStore } from '@/store/chat.store'
-import { useToast } from '@/service/toast.service'
+import { storeToRefs } from "pinia";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import ToolButton from "./ToolButton.vue";
+import {
+	mdiAccountGroupOutline,
+	mdiFullscreen,
+	mdiMapOutline,
+	mdiSend,
+} from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { Menu } from "@/draw/types/draw.types";
+import SendHub from "../send/SendHub.vue";
+import { useAuthStore } from "@/store/auth.store";
+import { chatbubblesOutline, megaphoneOutline } from "ionicons/icons";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useChatStore } from "@/store/chat.store";
+import { useToast } from "@/service/toast.service";
 
-defineEmits(['toggle-fullscreen'])
+defineEmits(["toggle-fullscreen"]);
 
-const { roomMembers } = storeToRefs(useDrawSyncer())
-const { openMenu } = useMenuStore()
-const drawUIStore = useDrawUIStore()
-const { isMiniMapOpen } = storeToRefs(drawUIStore)
-const { isLoggedIn } = storeToRefs(useAuthStore())
-const { openPanel } = useChatWidgetStore()
+const { roomMembers } = storeToRefs(useDrawSyncer());
+const { openMenu } = useMenuStore();
+const { isLoggedIn } = storeToRefs(useAuthStore());
+const { openPanel } = useChatWidgetStore();
 
-const { totalUnreadCount } = storeToRefs(useChatStore())
-const { toast } = useToast()
-
-
-const toggleMinimap = () => {
-  drawUIStore.isMiniMapOpen = !drawUIStore.isMiniMapOpen
-}
+const { totalUnreadCount } = storeToRefs(useChatStore());
+const { toast } = useToast();
 
 const startSendFlow = async (e: Event) => {
-  const nav = (e.target as HTMLElement).closest('ion-nav')
-  nav?.push(SendHub)
-}
+	const nav = (e.target as HTMLElement).closest("ion-nav");
+	nav?.push(SendHub);
+};
 </script>

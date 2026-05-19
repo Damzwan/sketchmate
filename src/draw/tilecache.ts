@@ -32,7 +32,7 @@ export interface SpatialIndex<T extends Bounded> {
 }
 
 interface Tile {
-	bitmap: ImageBitmap;
+	bitmap: ImageBitmap | null;
 	tier: number;
 	tx: number;
 	ty: number;
@@ -60,31 +60,6 @@ export interface TileCacheOptions {
 	debugOverlay?: boolean;
 }
 
-export interface TileDebugInfo {
-	tier: number;
-	tx: number;
-	ty: number;
-	scale: number;
-	worldRect: WorldRect;
-	queryRect: WorldRect;
-	objectCount: number;
-	objectIds: string[];
-	objectBounds: Array<{
-		id: string;
-		bounds: { left: number; top: number; width: number; height: number };
-		visible: boolean;
-		opacity: number;
-		intersectsQuery: boolean;
-		containedInQuery: boolean;
-	}>;
-	tileExists: boolean;
-	tileFresh: boolean;
-	tileGen: number;
-	expectedGen: number;
-	hasBitmap: boolean;
-	isDummy: boolean;
-}
-
 export class TileCache<T extends Bounded> {
 	private readonly TILE_SIZE: number;
 	private readonly OVERSCAN: number;
@@ -108,7 +83,6 @@ export class TileCache<T extends Bounded> {
 	private currentGen = 0;
 
 	private emptyBitmap: ImageBitmap | null = null;
-
 	private lastRenderedTier: number | null = null;
 
 	private readonly index: SpatialIndex<T>;
@@ -147,10 +121,7 @@ export class TileCache<T extends Bounded> {
 		return bestIdx;
 	}
 
-	private tileRangeForWorld(
-		worldRect: WorldRect,
-		tier: number,
-	): { tx0: number; ty0: number; tx1: number; ty1: number } {
+	private tileRangeForWorld(worldRect: WorldRect, tier: number) {
 		const scale = this.ZOOM_TIERS[tier];
 		const tileWorldSize = this.TILE_SIZE / scale;
 		const tx0 = Math.floor(worldRect.x / tileWorldSize);
@@ -171,10 +142,7 @@ export class TileCache<T extends Bounded> {
 		};
 	}
 
-	private tierReadiness(
-		tier: number,
-		viewWorld: WorldRect,
-	): { ready: number; total: number } {
+	private tierReadiness(tier: number, viewWorld: WorldRect) {
 		const range = this.tileRangeForWorld(viewWorld, tier);
 		let ready = 0;
 		let total = 0;
@@ -233,6 +201,8 @@ export class TileCache<T extends Bounded> {
 		ctx.save();
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.clearRect(0, 0, viewportPx.w, viewportPx.h);
+
+		// Draw background ONLY during composite
 		if (backgroundColor) {
 			ctx.fillStyle = backgroundColor;
 			ctx.fillRect(0, 0, viewportPx.w, viewportPx.h);
@@ -247,28 +217,8 @@ export class TileCache<T extends Bounded> {
 		const e = vpt[4] * dpr;
 		const f = vpt[5] * dpr;
 
-		interface ExactDraw {
-			tile: Tile;
-			dx: number;
-			dy: number;
-			dw: number;
-			dh: number;
-		}
-		interface FallbackDraw {
-			tile: Tile;
-			sx: number;
-			sy: number;
-			sw: number;
-			sh: number;
-			dx: number;
-			dy: number;
-			dw: number;
-			dh: number;
-			stale: boolean;
-		}
-
-		const exactDraws: ExactDraw[] = [];
-		const fallbackDraws: FallbackDraw[] = [];
+		const exactDraws: any[] = [];
+		const fallbackDraws: any[] = [];
 
 		const report: CompositeReport = {
 			tier: pickedTier,
@@ -288,26 +238,25 @@ export class TileCache<T extends Bounded> {
 
 				const wx = tx * tileWorldSize;
 				const wy = ty * tileWorldSize;
-				const wx2 = wx + tileWorldSize;
-				const wy2 = wy + tileWorldSize;
-
 				const dx0 = Math.floor(wx * a + e);
 				const dy0 = Math.floor(wy * d + f);
-				const dx1 = Math.ceil(wx2 * a + e);
-				const dy1 = Math.ceil(wy2 * d + f);
+				const dx1 = Math.ceil((wx + tileWorldSize) * a + e);
+				const dy1 = Math.ceil((wy + tileWorldSize) * d + f);
 
 				const exactKey = `${pickedTier}:${tx}:${ty}`;
 				const exact = this.tiles.get(exactKey);
 
 				if (exact && this.isFresh(exactKey, exact)) {
 					exact.lastUsed = performance.now();
-					exactDraws.push({
-						tile: exact,
-						dx: dx0,
-						dy: dy0,
-						dw: dx1 - dx0,
-						dh: dy1 - dy0,
-					});
+					if (exact.bitmap !== null) {
+						exactDraws.push({
+							tile: exact,
+							dx: dx0,
+							dy: dy0,
+							dw: dx1 - dx0,
+							dh: dy1 - dy0,
+						});
+					}
 					report.tilesExact++;
 					continue;
 				}
@@ -319,21 +268,18 @@ export class TileCache<T extends Bounded> {
 
 				if (draws && draws.length > 0) {
 					for (const fd of draws) {
-						const fdx0 = Math.floor(fd.dx * a + e);
-						const fdy0 = Math.floor(fd.dy * d + f);
-						const fdx1 = Math.ceil((fd.dx + fd.dw) * a + e);
-						const fdy1 = Math.ceil((fd.dy + fd.dh) * d + f);
-
 						fallbackDraws.push({
 							tile: fd.tile,
 							sx: fd.sx,
 							sy: fd.sy,
 							sw: fd.sw,
 							sh: fd.sh,
-							dx: fdx0,
-							dy: fdy0,
-							dw: fdx1 - fdx0,
-							dh: fdy1 - fdy0,
+							dx: Math.floor(fd.dx * a + e),
+							dy: Math.floor(fd.dy * d + f),
+							dw:
+								Math.ceil((fd.dx + fd.dw) * a + e) - Math.floor(fd.dx * a + e),
+							dh:
+								Math.ceil((fd.dy + fd.dh) * d + f) - Math.floor(fd.dy * d + f),
 							stale: fd.stale,
 						});
 					}
@@ -386,7 +332,6 @@ export class TileCache<T extends Bounded> {
 				);
 			}
 		}
-
 		ctx.restore();
 
 		if (this.debugOverlay) {
@@ -408,29 +353,8 @@ export class TileCache<T extends Bounded> {
 		return report;
 	}
 
-	private drawDebugOverlay(
-		ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-		info: {
-			pickedTier: number;
-			targetTier: number;
-			viewWorld: WorldRect;
-			range: { tx0: number; ty0: number; tx1: number; ty1: number };
-			tileWorldSize: number;
-			a: number;
-			d: number;
-			e: number;
-			f: number;
-			fallbackDraws: Array<{
-				dx: number;
-				dy: number;
-				dw: number;
-				dh: number;
-				tile: Tile;
-				stale: boolean;
-			}>;
-			report: CompositeReport;
-		},
-	): void {
+	private drawDebugOverlay(ctx: any, info: any): void {
+		// (Keep your existing drawDebugOverlay logic here unchanged as requested)
 		const {
 			pickedTier,
 			targetTier,
@@ -447,12 +371,10 @@ export class TileCache<T extends Bounded> {
 
 		ctx.save();
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
-		// @ts-ignore
 		ctx.imageSmoothingEnabled = false;
 		ctx.font = "11px monospace";
 		ctx.textBaseline = "top";
 
-		type TileState = "exact" | "fallback-fresh" | "fallback-stale" | "missing";
 		const missingSet = new Set(report.missingTileKeys);
 
 		for (let ty = range.ty0; ty <= range.ty1; ty++) {
@@ -471,7 +393,7 @@ export class TileCache<T extends Bounded> {
 				const exactKey = `${pickedTier}:${tx}:${ty}`;
 				const tile = this.tiles.get(exactKey);
 
-				let state: TileState;
+				let state;
 				if (tile && this.isFresh(exactKey, tile)) {
 					state = "exact";
 				} else if (missingSet.has(exactKey)) {
@@ -525,6 +447,7 @@ export class TileCache<T extends Bounded> {
 		hudLines.push(
 			`mem: ${(this.memoryBytes / 1024 / 1024).toFixed(1)}MB  tiles: ${this.tiles.size}`,
 		);
+
 		for (let t = 0; t < this.ZOOM_TIERS.length; t++) {
 			const r = this.tierReadiness(t, viewWorld);
 			const ratio = r.total > 0 ? r.ready / r.total : 0;
@@ -554,18 +477,7 @@ export class TileCache<T extends Bounded> {
 		wy: number,
 		worldSize: number,
 		allowStale: boolean,
-	): Array<{
-		tile: Tile;
-		sx: number;
-		sy: number;
-		sw: number;
-		sh: number;
-		dx: number;
-		dy: number;
-		dw: number;
-		dh: number;
-		stale: boolean;
-	}> | null {
+	) {
 		for (let dt = 1; dt <= this.FALLBACK_RADIUS; dt++) {
 			const coarserTier = requestedTier - dt;
 			if (coarserTier >= 0) {
@@ -601,18 +513,7 @@ export class TileCache<T extends Bounded> {
 		wy: number,
 		worldSize: number,
 		allowStale: boolean,
-	): Array<{
-		tile: Tile;
-		sx: number;
-		sy: number;
-		sw: number;
-		sh: number;
-		dx: number;
-		dy: number;
-		dw: number;
-		dh: number;
-		stale: boolean;
-	}> | null {
+	) {
 		const scale = this.ZOOM_TIERS[tier];
 		const candidateWorldSize = this.TILE_SIZE / scale;
 
@@ -621,18 +522,7 @@ export class TileCache<T extends Bounded> {
 		const tx1 = Math.floor((wx + worldSize - 1e-6) / candidateWorldSize);
 		const ty1 = Math.floor((wy + worldSize - 1e-6) / candidateWorldSize);
 
-		const draws: Array<{
-			tile: Tile;
-			sx: number;
-			sy: number;
-			sw: number;
-			sh: number;
-			dx: number;
-			dy: number;
-			dw: number;
-			dh: number;
-			stale: boolean;
-		}> = [];
+		const draws: any[] = [];
 
 		for (let cty = ty0; cty <= ty1; cty++) {
 			for (let ctx_ = tx0; ctx_ <= tx1; ctx_++) {
@@ -671,7 +561,6 @@ export class TileCache<T extends Bounded> {
 				});
 			}
 		}
-
 		return draws.length > 0 ? draws : null;
 	}
 
@@ -680,12 +569,11 @@ export class TileCache<T extends Bounded> {
 		tierIndex: number,
 		yielder: Yielder,
 		signal: AbortSignal,
-		backgroundColor?: string,
 	) {
 		const gen = this.currentGen;
 		const range = this.tileRangeForWorld(worldRect, tierIndex);
-
 		const todo: BakeRequest[] = [];
+
 		for (let ty = range.ty0; ty <= range.ty1; ty++) {
 			for (let tx = range.tx0; tx <= range.tx1; tx++) {
 				const key = `${tierIndex}:${tx}:${ty}`;
@@ -698,19 +586,8 @@ export class TileCache<T extends Bounded> {
 		yielder.reset();
 		for (const req of todo) {
 			if (signal.aborted || gen !== this.currentGen) break;
-			await this.bakeTile(
-				req.tier,
-				req.tx,
-				req.ty,
-				backgroundColor,
-				signal,
-				gen,
-			);
-			if (signal.aborted || gen !== this.currentGen) break;
-
-			if (yielder.shouldYield()) {
-				await yielder.yield();
-			}
+			await this.bakeTile(req.tier, req.tx, req.ty, signal, gen);
+			if (yielder.shouldYield()) await yielder.yield();
 		}
 	}
 
@@ -720,7 +597,6 @@ export class TileCache<T extends Bounded> {
 		dpr: number,
 		yielder: Yielder,
 		signal: AbortSignal,
-		backgroundColor?: string,
 	): Promise<BakeReport> {
 		const gen = this.currentGen;
 		const zoom = vpt[0];
@@ -751,9 +627,9 @@ export class TileCache<T extends Bounded> {
 				const key = `${tier}:${tx}:${ty}`;
 				const existing = this.tiles.get(key);
 				if (existing && this.isFresh(key, existing)) continue;
-				const dx = tx - cx;
-				const dy = ty - cy;
-				todo.push({ tier, tx, ty, priority: dx * dx + dy * dy });
+				if (tx == -2 && ty == 2) {
+				}
+				todo.push({ tier, tx, ty, priority: (tx - cx) ** 2 + (ty - cy) ** 2 });
 			}
 		}
 		todo.sort((a, b) => a.priority - b.priority);
@@ -774,106 +650,22 @@ export class TileCache<T extends Bounded> {
 				report.remaining = todo.length - i;
 				break;
 			}
-			const ok = await this.bakeTile(
-				req.tier,
-				req.tx,
-				req.ty,
-				backgroundColor,
-				signal,
-				gen,
-			);
-			if (signal.aborted || gen !== this.currentGen) {
-				report.aborted = true;
-				report.remaining = todo.length - i - (ok ? 1 : 0);
-				break;
-			}
+
+			const ok = await this.bakeTile(req.tier, req.tx, req.ty, signal, gen);
 			if (ok) report.baked++;
 
 			if (yielder.shouldYield()) {
 				await yielder.yield();
-				if (signal.aborted || gen !== this.currentGen) {
-					report.aborted = true;
-					report.remaining = todo.length - i - 1;
-					break;
-				}
 			}
 		}
 		return report;
 	}
 
-	async bakeNeighborTiers(
-		vpt: number[],
-		viewportPx: { w: number; h: number },
-		dpr: number,
-		yielder: Yielder,
-		signal: AbortSignal,
-		backgroundColor?: string,
-	): Promise<void> {
-		const gen = this.currentGen;
-		const zoom = vpt[0];
-		const currentTier = this.pickTierForZoom(zoom);
-
-		const neighbors = [currentTier - 1, currentTier + 1].filter(
-			(t) => t >= 0 && t < this.ZOOM_TIERS.length,
-		);
-
-		for (const tier of neighbors) {
-			if (signal.aborted || gen !== this.currentGen) return;
-
-			const scale = this.ZOOM_TIERS[tier];
-			const viewWorldX = -vpt[4] / zoom;
-			const viewWorldY = -vpt[5] / zoom;
-			const viewWorldW = viewportPx.w / (zoom * dpr);
-			const viewWorldH = viewportPx.h / (zoom * dpr);
-
-			const paddedViewport: WorldRect = {
-				x: viewWorldX,
-				y: viewWorldY,
-				w: viewWorldW,
-				h: viewWorldH,
-			};
-
-			const range = this.tileRangeForWorld(paddedViewport, tier);
-			const cx = (range.tx0 + range.tx1) / 2;
-			const cy = (range.ty0 + range.ty1) / 2;
-
-			const todo: BakeRequest[] = [];
-			for (let ty = range.ty0; ty <= range.ty1; ty++) {
-				for (let tx = range.tx0; tx <= range.tx1; tx++) {
-					const key = `${tier}:${tx}:${ty}`;
-					const existing = this.tiles.get(key);
-					if (existing && this.isFresh(key, existing)) continue;
-					const dx = tx - cx;
-					const dy = ty - cy;
-					todo.push({ tier, tx, ty, priority: dx * dx + dy * dy });
-				}
-			}
-			todo.sort((a, b) => a.priority - b.priority);
-
-			yielder.reset();
-			for (const req of todo) {
-				if (signal.aborted || gen !== this.currentGen) return;
-				await this.bakeTile(
-					req.tier,
-					req.tx,
-					req.ty,
-					backgroundColor,
-					signal,
-					gen,
-				);
-				if (yielder.shouldYield()) {
-					await yielder.yield();
-					if (signal.aborted || gen !== this.currentGen) return;
-				}
-			}
-		}
-	}
-
+	// Removed backgroundColor argument
 	private async bakeTile(
 		tier: number,
 		tx: number,
 		ty: number,
-		backgroundColor: string | undefined,
 		signal: AbortSignal,
 		gen: number,
 	): Promise<boolean> {
@@ -881,7 +673,6 @@ export class TileCache<T extends Bounded> {
 
 		const scale = this.ZOOM_TIERS[tier];
 		const world = this.tileToWorld(tier, tx, ty);
-
 		const overscanWorld = this.OVERSCAN / scale;
 		const stroke = 4 / scale;
 		const totalPadWorld = overscanWorld + stroke;
@@ -897,12 +688,9 @@ export class TileCache<T extends Bounded> {
 		let bitmap: ImageBitmap | null = null;
 		let isDummy = false;
 
-		if (objects.length === 0 && !backgroundColor) {
-			if (!this.emptyBitmap) {
-				const off = new OffscreenCanvas(1, 1);
-				this.emptyBitmap = await createImageBitmap(off);
-			}
-			bitmap = this.emptyBitmap;
+		// HUGE MEMORY SAVER: Empty tiles now NEVER spawn a canvas context
+		if (objects.length === 0) {
+			bitmap = null;
 			isDummy = true;
 		} else {
 			const off = this.acquireCanvas();
@@ -914,10 +702,6 @@ export class TileCache<T extends Bounded> {
 
 			c2d.setTransform(1, 0, 0, 1, 0, 0);
 			c2d.clearRect(0, 0, this.BITMAP_SIZE, this.BITMAP_SIZE);
-			if (backgroundColor) {
-				c2d.fillStyle = backgroundColor;
-				c2d.fillRect(0, 0, this.BITMAP_SIZE, this.BITMAP_SIZE);
-			}
 
 			c2d.save();
 			c2d.translate(this.OVERSCAN, this.OVERSCAN);
@@ -932,12 +716,6 @@ export class TileCache<T extends Bounded> {
 				world.h + 2 * totalPadWorld,
 			);
 			c2d.clip();
-
-			if (signal.aborted || gen !== this.currentGen) {
-				c2d.restore();
-				this.releaseCanvas(off);
-				return false;
-			}
 
 			for (const obj of objects) {
 				try {
@@ -976,9 +754,7 @@ export class TileCache<T extends Bounded> {
 		const key = `${tier}:${tx}:${ty}`;
 		const existing = this.tiles.get(key);
 		if (existing) {
-			if (existing.bitmap !== this.emptyBitmap) {
-				existing.bitmap.close();
-			}
+			if (existing.bitmap !== null) existing.bitmap.close();
 			this.memoryBytes -= existing.bytes;
 		}
 
@@ -1012,7 +788,7 @@ export class TileCache<T extends Bounded> {
 			(a, b) => a[1].lastUsed - b[1].lastUsed,
 		);
 		for (const [key, tile] of sorted) {
-			if (tile.bitmap !== this.emptyBitmap) tile.bitmap.close();
+			if (tile.bitmap !== null) tile.bitmap.close();
 			this.memoryBytes -= tile.bytes;
 			this.tiles.delete(key);
 			if (this.memoryBytes + needed <= this.MEMORY_HARD) return true;
@@ -1047,7 +823,7 @@ export class TileCache<T extends Bounded> {
 
 	invalidateAll(): void {
 		for (const tile of this.tiles.values()) {
-			if (tile.bitmap !== this.emptyBitmap) tile.bitmap.close();
+			if (tile.bitmap !== null) tile.bitmap.close();
 		}
 		this.tiles.clear();
 		this.objectToTiles.clear();
@@ -1073,340 +849,6 @@ export class TileCache<T extends Bounded> {
 
 	private releaseCanvas(c: OffscreenCanvas): void {
 		if (this.canvasPool.length < this.POOL_MAX) this.canvasPool.push(c);
-	}
-
-	getVitals() {
-		const tierCounts = new Array(this.ZOOM_TIERS.length).fill(0);
-		for (const t of this.tiles.values()) tierCounts[t.tier]++;
-		return {
-			tileCount: this.tiles.size,
-			memoryMB: (this.memoryBytes / 1024 / 1024).toFixed(2),
-			memoryLimitMB: (this.MEMORY_HARD / 1024 / 1024).toFixed(2),
-			memoryPressure: ((this.memoryBytes / this.MEMORY_HARD) * 100).toFixed(1),
-			bitmapSize: this.BITMAP_SIZE,
-			overscan: this.OVERSCAN,
-			tilesPerTier: tierCounts.map((n, i) => ({
-				tier: i,
-				scale: this.ZOOM_TIERS[i],
-				count: n,
-			})),
-		};
-	}
-
-	// =====================================================================
-	// DEBUG HELPERS — tile inspection / rebake
-	// =====================================================================
-
-	/**
-	 * Given a viewport-relative DEVICE-PIXEL position, return which tile
-	 * (at the currently rendered tier) was drawn there.
-	 *
-	 *   canvas.addEventListener("click", (e) => {
-	 *     if (!e.altKey) return;
-	 *     const rect = canvas.getBoundingClientRect();
-	 *     const dpr = window.devicePixelRatio || 1;
-	 *     const px = (e.clientX - rect.left) * dpr;
-	 *     const py = (e.clientY - rect.top)  * dpr;
-	 *     const hit = tileCache.debugTileAtPixel(px, py, vpt, dpr);
-	 *     if (hit) tileCache.debugDumpTile(hit.tier, hit.tx, hit.ty);
-	 *   });
-	 */
-	debugTileAtPixel(
-		px: number,
-		py: number,
-		vpt: number[],
-		dpr: number,
-	): { tier: number; tx: number; ty: number } | null {
-		const tier = this.lastRenderedTier ?? this.pickTierForZoom(vpt[0]);
-		const scale = this.ZOOM_TIERS[tier];
-		const tileWorldSize = this.TILE_SIZE / scale;
-
-		const a = vpt[0] * dpr;
-		const d = vpt[3] * dpr;
-		const e = vpt[4] * dpr;
-		const f = vpt[5] * dpr;
-
-		if (a === 0 || d === 0) return null;
-		const wx = (px - e) / a;
-		const wy = (py - f) / d;
-
-		const tx = Math.floor(wx / tileWorldSize);
-		const ty = Math.floor(wy / tileWorldSize);
-		return { tier, tx, ty };
-	}
-
-	/**
-	 * Log everything we know about a tile: world rect, what the index
-	 * query returns, current bitmap state, freshness, and whether each
-	 * returned object actually intersects the tile's query rect.
-	 */
-	debugDumpTile(tier: number, tx: number, ty: number): TileDebugInfo {
-		const scale = this.ZOOM_TIERS[tier];
-		const world = this.tileToWorld(tier, tx, ty);
-		const overscanWorld = this.OVERSCAN / scale;
-		const stroke = 4 / scale;
-		const totalPadWorld = overscanWorld + stroke;
-
-		const queryRect: WorldRect = {
-			x: world.x - totalPadWorld,
-			y: world.y - totalPadWorld,
-			w: world.w + 2 * totalPadWorld,
-			h: world.h + 2 * totalPadWorld,
-		};
-
-		const objects = this.index.query(queryRect);
-		const key = `${tier}:${tx}:${ty}`;
-		const tile = this.tiles.get(key);
-		const expectedGen = this.tileGen.get(key) ?? 0;
-
-		const objectBounds = objects.map((obj) => {
-			const b = obj.getBoundingRect(true, true);
-			return {
-				id: obj.id,
-				bounds: b,
-				visible: (obj as any).visible !== false,
-				opacity: (obj as any).opacity ?? 1,
-				intersectsQuery: this.rectsIntersect(b, queryRect),
-				containedInQuery: this.rectContainsRect(queryRect, b),
-			};
-		});
-
-		const info: TileDebugInfo = {
-			tier,
-			tx,
-			ty,
-			scale,
-			worldRect: world,
-			queryRect,
-			objectCount: objects.length,
-			objectIds: objects.map((o) => o.id),
-			objectBounds,
-			tileExists: !!tile,
-			tileFresh: tile ? this.isFresh(key, tile) : false,
-			tileGen: tile?.gen ?? -1,
-			expectedGen,
-			hasBitmap: !!tile?.bitmap,
-			isDummy: tile?.bitmap === this.emptyBitmap,
-		};
-
-		console.groupCollapsed(
-			`[TileCache] tile ${key} (×${scale})  objects=${info.objectCount}  fresh=${info.tileFresh}  exists=${info.tileExists}`,
-		);
-		console.log("worldRect (tile):", world);
-		console.log("queryRect (with overscan+stroke pad):", queryRect);
-		console.log("tile state:", {
-			exists: info.tileExists,
-			fresh: info.tileFresh,
-			tileGen: info.tileGen,
-			expectedGen: info.expectedGen,
-			hasBitmap: info.hasBitmap,
-			isDummy: info.isDummy,
-		});
-		console.log(`objects from index.query (${objects.length}):`);
-		console.table(
-			objectBounds.map((o) => ({
-				id: o.id,
-				visible: o.visible,
-				opacity: o.opacity,
-				left: Math.round(o.bounds.left),
-				top: Math.round(o.bounds.top),
-				w: Math.round(o.bounds.width),
-				h: Math.round(o.bounds.height),
-				intersects: o.intersectsQuery,
-				contained: o.containedInQuery,
-			})),
-		);
-		const notIntersecting = objectBounds.filter((o) => !o.intersectsQuery);
-		if (notIntersecting.length > 0) {
-			console.warn(
-				`⚠️ ${notIntersecting.length} object(s) returned by index.query but don't intersect queryRect — quadtree may have stale bounds:`,
-				notIntersecting.map((o) => o.id),
-			);
-		}
-		console.groupEnd();
-
-		return info;
-	}
-
-	private rectsIntersect(
-		a: { left: number; top: number; width: number; height: number },
-		b: WorldRect,
-	): boolean {
-		return (
-			a.left < b.x + b.w &&
-			a.left + a.width > b.x &&
-			a.top < b.y + b.h &&
-			a.top + a.height > b.y
-		);
-	}
-
-	private rectContainsRect(
-		outer: WorldRect,
-		inner: { left: number; top: number; width: number; height: number },
-	): boolean {
-		return (
-			inner.left >= outer.x &&
-			inner.top >= outer.y &&
-			inner.left + inner.width <= outer.x + outer.w &&
-			inner.top + inner.height <= outer.y + outer.h
-		);
-	}
-
-	/**
-	 * Force a fresh bake of one specific tile. Discards the existing
-	 * bitmap, clears its stale-gen flag, runs bakeTile with a fresh
-	 * AbortController. Useful for answering:
-	 *
-	 *   "is this tile wrong because the BAKE produced wrong output,
-	 *    or because of staleness / abort logic?"
-	 *
-	 * If the rebake fixes it → bake logic / abort timing is the bug.
-	 * If the rebake produces the same wrong output → the renderer or
-	 *   index.query is the bug (probably stale quadtree bounds).
-	 */
-	async debugRebakeTile(
-		tier: number,
-		tx: number,
-		ty: number,
-		backgroundColor?: string,
-	): Promise<boolean> {
-		const key = `${tier}:${tx}:${ty}`;
-		console.log(`[TileCache] debugRebakeTile: rebaking ${key}`);
-
-		console.log("--- BEFORE ---");
-		const before = this.debugDumpTile(tier, tx, ty);
-
-		// Drop existing bitmap so bakeTile is forced to recreate.
-		const existing = this.tiles.get(key);
-		if (existing) {
-			if (existing.bitmap !== this.emptyBitmap) existing.bitmap.close();
-			this.memoryBytes -= existing.bytes;
-			this.tiles.delete(key);
-		}
-
-		// Clear stale-gen tracking so the new bake is considered fresh.
-		this.tileGen.delete(key);
-
-		const ctrl = new AbortController();
-		const ok = await this.bakeTile(
-			tier,
-			tx,
-			ty,
-			backgroundColor,
-			ctrl.signal,
-			this.currentGen,
-		);
-
-		console.log(`[TileCache] debugRebakeTile: bakeTile -> ${ok}`);
-		if (ok) {
-			console.log("--- AFTER ---");
-			const after = this.debugDumpTile(tier, tx, ty);
-			const beforeIds = new Set(before.objectIds);
-			const afterIds = new Set(after.objectIds);
-			const added = [...afterIds].filter((id) => !beforeIds.has(id));
-			const removed = [...beforeIds].filter((id) => !afterIds.has(id));
-			if (added.length || removed.length) {
-				console.warn(
-					`⚠️ Object set differs between bakes — added: ${added.length}, removed: ${removed.length}`,
-					{ added, removed },
-				);
-			} else {
-				console.log(
-					"✓ Same object set rendered. If tile is still wrong, the renderer is the bug.",
-				);
-			}
-		}
-		return ok;
-	}
-
-	/**
-	 * Rebake a tile and open the resulting bitmap in a new tab so you
-	 * can inspect pixel-by-pixel what the bake actually produced.
-	 */
-	async debugRebakeTileAndShow(
-		tier: number,
-		tx: number,
-		ty: number,
-		backgroundColor?: string,
-	): Promise<void> {
-		const ok = await this.debugRebakeTile(tier, tx, ty, backgroundColor);
-		if (!ok) {
-			console.warn("[TileCache] rebake failed");
-			return;
-		}
-		const key = `${tier}:${tx}:${ty}`;
-		const tile = this.tiles.get(key);
-		if (!tile || !tile.bitmap) {
-			console.warn("[TileCache] no bitmap after rebake");
-			return;
-		}
-
-		const c = document.createElement("canvas");
-		c.width = this.BITMAP_SIZE;
-		c.height = this.BITMAP_SIZE;
-		const cctx = c.getContext("2d");
-		if (!cctx) return;
-		cctx.drawImage(tile.bitmap, 0, 0);
-
-		c.toBlob((blob) => {
-			if (!blob) return;
-			const url = URL.createObjectURL(blob);
-			console.log(
-				`[TileCache] tile ${key} bitmap (${this.BITMAP_SIZE}px):`,
-				url,
-			);
-			window.open(url, "_blank");
-		});
-	}
-
-	/**
-	 * Enumerate visible tiles plus their current cache state. Useful as a
-	 * console one-liner during debugging.
-	 */
-	debugListVisibleTiles(
-		vpt: number[],
-		viewportPx: { w: number; h: number },
-		dpr: number,
-	): Array<{
-		tier: number;
-		tx: number;
-		ty: number;
-		exists: boolean;
-		fresh: boolean;
-		isDummy: boolean;
-	}> {
-		const tier = this.lastRenderedTier ?? this.pickTierForZoom(vpt[0]);
-		const zoom = vpt[0];
-		const viewWorld: WorldRect = {
-			x: -vpt[4] / zoom,
-			y: -vpt[5] / zoom,
-			w: viewportPx.w / (zoom * dpr),
-			h: viewportPx.h / (zoom * dpr),
-		};
-		const range = this.tileRangeForWorld(viewWorld, tier);
-		const out: Array<{
-			tier: number;
-			tx: number;
-			ty: number;
-			exists: boolean;
-			fresh: boolean;
-			isDummy: boolean;
-		}> = [];
-		for (let ty = range.ty0; ty <= range.ty1; ty++) {
-			for (let tx = range.tx0; tx <= range.tx1; tx++) {
-				const key = `${tier}:${tx}:${ty}`;
-				const t = this.tiles.get(key);
-				out.push({
-					tier,
-					tx,
-					ty,
-					exists: !!t,
-					fresh: t ? this.isFresh(key, t) : false,
-					isDummy: t ? t.bitmap === this.emptyBitmap : false,
-				});
-			}
-		}
-		return out;
 	}
 }
 

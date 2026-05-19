@@ -90,7 +90,7 @@ export const useDrawStore = defineStore("draw", () => {
 		drawUI.init(c);
 
 		toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true });
-		await drawObjectManager.renderViewport();
+		drawObjectManager.renderViewport();
 		isLoadingCanvas.value = false;
 	}
 

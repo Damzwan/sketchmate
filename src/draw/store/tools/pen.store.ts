@@ -50,7 +50,7 @@ export const usePen = defineStore("pen", (): Pen => {
 	}
 
 	async function select() {
-		c!.isDrawingMode = false;
+		c!.isDrawingMode = true;
 		c!.skipTargetFind = true;
 
 		c!.selection = false;

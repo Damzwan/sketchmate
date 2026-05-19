@@ -29,7 +29,6 @@ import {
 	prepareCssOverlay,
 	renderCssOverlay,
 } from "@/draw/helpers/customTransform.helper";
-import { useToast } from "@/service/toast.service";
 import { useGestureStore } from "@/draw/store/tools/gesture.store";
 
 export function changeFabricSettings() {
@@ -384,7 +383,7 @@ export function overrideTransform(canvas: Canvas) {
 		if (e.target && e.e.button !== 1) {
 			// Capture starting position on interaction
 			startPointer = canvas.getScenePoint(e.e);
-			// prepareCssOverlay(canvas, e.target);
+			prepareCssOverlay(canvas, e.target);
 			canvas.clearContext(canvas.contextTop);
 			e.target._renderControls(canvas.contextTop);
 		}
@@ -436,8 +435,8 @@ export function overrideTransform(canvas: Canvas) {
 			MOVE_HAPPENED = true;
 			this._performTransformAction(evt, this._currentTransform, local);
 
-			// if (this._currentTransform.actionPerformed && isLayeredRenderActive)
-			// 	renderCssOverlay(this, target);
+			if (this._currentTransform.actionPerformed && isLayeredRenderActive)
+				renderCssOverlay(this, target);
 		});
 	};
 
@@ -448,7 +447,7 @@ export function overrideTransform(canvas: Canvas) {
 
 		const { isGesturing } = useGestureStore();
 		if (isGesturing) return;
-		// finalizeCssOverlay(canvas);
+		finalizeCssOverlay(canvas);
 	});
 }
 

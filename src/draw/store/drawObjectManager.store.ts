@@ -1,4 +1,3 @@
-// src/draw/store/drawObjectManager.store.ts
 import { defineStore } from "pinia";
 import { Canvas, FabricObject } from "fabric";
 import { FabricEvent, ObjectType } from "@/draw/types/draw.types";
@@ -40,15 +39,9 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	let coarseBakedBounds: WorldRect | null = null;
 	let coarseExtendScheduled: any = null;
 
-	// ─── Bulk-load guard ───────────────────────────────────────────────────────
-	// While loading the canvas state from a socket message we receive thousands
-	// of object:added events. Each one would normally schedule a microtask
-	// patch + composite. That's pure waste: only the final render matters.
-	//
-	// `loadingDepth` is a counter (not a boolean) so nested begin/end calls
-	// stack correctly — if two async loads overlap, the manager only exits
-	// loading mode when both finish. Quadtree, objectMap, z-index updates all
-	// still happen; we only suppress the patch pipeline and compositing.
+	const deferredDuringGesture: Array<{ kind: "obj" | "rect"; payload: any }> =
+		[];
+
 	let loadingDepth = 0;
 	function isLoading() {
 		return loadingDepth > 0;
@@ -123,8 +116,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	}
 
 	function schedulePatch() {
-		// Suppress the patch flush while loading. The final renderViewport in the
-		// socket handler does the real work.
 		if (isLoading()) return;
 		if (patchScheduled) return;
 		patchScheduled = true;
@@ -136,14 +127,17 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 	function flushDirtyPatches() {
 		if (!c) return;
-		// A flush may have been queued just before loading started — bail.
 		if (isLoading()) return;
 		if (dirtyObjects.size === 0 && dirtyOldRects.length === 0) return;
 
 		const gs = useGestureStore();
 		if (gs.isGesturing) {
-			for (const obj of dirtyObjects) tileCache.invalidateObject(obj);
-			for (const r of dirtyOldRects) tileCache.invalidateRect(r);
+			for (const obj of dirtyObjects) {
+				deferredDuringGesture.push({ kind: "obj", payload: obj });
+			}
+			for (const r of dirtyOldRects) {
+				deferredDuringGesture.push({ kind: "rect", payload: r });
+			}
 			dirtyObjects.clear();
 			dirtyOldRects.length = 0;
 			return;
@@ -190,7 +184,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 		tileCache.patchTilesSync(rectsToPatch, [activeTier]);
 
-		renderViewport();
+		renderMain();
 		scheduleBake();
 
 		for (const obj of objs) maybeExtendCoarse(obj);
@@ -357,10 +351,14 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			handler: (e: any) => {
 				const obj = e.target as FabricObject;
 				if (!obj.id) return;
+				if (isLoading()) {
+					objectMap.set(obj.id, obj);
+					return;
+				}
 				objectMap.set(obj.id, obj);
 				addToQuadTree(obj);
 				isZIndexDirty = true;
-				if (!isLoading()) scheduleObjectPatch(obj);
+				scheduleObjectPatch(obj);
 			},
 		},
 		{
@@ -435,13 +433,13 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			handler: () => {
 				tileCache.invalidateAll();
 				coarseBakedBounds = null;
-				if (!isLoading()) renderViewport();
+				if (!isLoading()) renderMain();
 			},
 		},
 		{
 			on: "backgroundColorChanged",
 			handler: () => {
-				if (!isLoading()) renderViewport(true);
+				if (!isLoading()) renderMain(true);
 			},
 		},
 		{
@@ -500,7 +498,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		scheduleObjectsPatch(t);
 	}
 
-	function renderViewport(forceBake = false) {
+	function renderMain(forceBake = false) {
 		if (!c) return;
 		const vpt = c.viewportTransform!;
 		const pw = c.getElement().width;
@@ -512,9 +510,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 		const report = tileCache.composite(mainCtx, vpt, { w: pw, h: ph }, dpr, bg);
 
-		// @ts-ignore
-		if (!c.skipControlsDrawing) c.drawControls(mainCtx);
-
 		if (forceBake) {
 			clearTimeout(pendingBakeTimeout);
 			pendingBakeTimeout = null;
@@ -522,6 +517,10 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		} else if (report.tilesMissing > 0 || report.tilesFallback > 0) {
 			scheduleBake();
 		}
+	}
+
+	function renderViewport(forceBake = false) {
+		renderMain(forceBake);
 	}
 
 	function scheduleBake() {
@@ -561,13 +560,13 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 				requestAnimationFrame(() => {
 					if (!c) return;
-					renderViewport();
+					renderMain();
 				});
 			})
 			.catch(() => {
 				if (primaryBakeController === ctrl) primaryBakeController = null;
 				requestAnimationFrame(() => {
-					if (c) renderViewport();
+					if (c) renderMain();
 				});
 			});
 	}
@@ -580,23 +579,27 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		prefetchBakeController = null;
 		clearTimeout(pendingBakeTimeout);
 		pendingBakeTimeout = null;
-		for (const obj of dirtyObjects) tileCache.invalidateObject(obj);
-		dirtyObjects.clear();
-		dirtyOldRects.length = 0;
 		patchScheduled = false;
 	}
 
 	function onGestureEnd() {
 		clearTimeout(pendingBakeTimeout);
 		pendingBakeTimeout = null;
-		renderViewport(true);
+
+		for (const d of deferredDuringGesture) {
+			if (d.kind === "obj") scheduleObjectPatch(d.payload);
+			else scheduleRectPatch(d.payload);
+		}
+		deferredDuringGesture.length = 0;
+
+		renderMain(true);
 	}
 
 	function init(canvas: Canvas) {
 		c = canvas;
 		addStartingCanvasObjects();
 		useDrawEventManager().addPermanentEvents(events);
-		renderViewport();
+		renderMain();
 	}
 
 	function addStartingCanvasObjects() {
@@ -694,16 +697,30 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		return ids.map((id) => getObjectById(id)).filter(Boolean) as FabricObject[];
 	}
 
-	// Public reset: socket handlers should call this after a full reload to
-	// drop all stale tiles before the final renderViewport repopulates them.
 	function resetTileCache() {
 		tileCache.invalidateAll();
 		coarseBakedBounds = null;
 	}
 
+	function rebuildSpatialIndex() {
+		if (!c) return;
+		objectMap.clear();
+		entryMap.clear();
+		quadtree.clear();
+		isZIndexDirty = true;
+
+		for (const obj of c.getObjects()) {
+			if (obj.id) {
+				objectMap.set(obj.id, obj);
+				addToQuadTree(obj);
+			}
+		}
+	}
+
 	return {
 		init,
-		renderViewport,
+		renderMain,
+		renderViewport, // legacy alias
 		onGestureStart,
 		onGestureEnd,
 		purgeBlockedObjects,
@@ -717,5 +734,8 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		endLoading,
 		isLoading,
 		resetTileCache,
+		rebuildSpatialIndex,
+		scheduleRectPatch,
+		scheduleObjectPatch,
 	};
 });

@@ -158,7 +158,6 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			const mgr = useDrawObjectManager();
 			mgr.beginLoading();
 
-			// Set our baseline time
 			if (sequenceId !== undefined) {
 				lastProcessedSequenceId.value = sequenceId;
 			}
@@ -166,10 +165,9 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			const stream = new Blob([canvasState])
 				.stream()
 				.pipeThrough(new DecompressionStream("gzip"));
-
 			const decompressedString = await new Response(stream).text();
-
 			const json = JSON.parse(decompressedString);
+
 			await store.loadRoomCanvas(json, isInitialSync);
 
 			if (missedActions && missedActions.length > 0) {
@@ -181,11 +179,16 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			}
 
 			const { getCanvas } = useDrawStore();
-			fitAndCenterAllActualObjects(getCanvas());
+			const canvas = getCanvas();
 
+			canvas.getObjects().forEach((o) => o.setCoords());
+			mgr.rebuildSpatialIndex?.();
+			fitAndCenterAllActualObjects(canvas);
+
+			mgr.resetTileCache();
 			mgr.endLoading();
-			const { renderViewport } = useDrawObjectManager();
-			renderViewport();
+
+			mgr.renderViewport(true);
 			isLoadingCanvas.value = false;
 		},
 	);
@@ -208,11 +211,17 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 		}
 
 		const { getCanvas } = useDrawStore();
-		fitAndCenterAllActualObjects(getCanvas());
+		const canvas = getCanvas();
+
+		if (isInitialSync) {
+			canvas.getObjects().forEach((o) => o.setCoords());
+			mgr.rebuildSpatialIndex();
+			fitAndCenterAllActualObjects(canvas);
+			mgr.resetTileCache();
+		}
 
 		mgr.endLoading();
-		const { renderViewport } = useDrawObjectManager();
-		renderViewport();
+		mgr.renderViewport(true);
 		isLoadingCanvas.value = false;
 	});
 

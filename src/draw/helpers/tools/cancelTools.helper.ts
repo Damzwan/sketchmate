@@ -1,12 +1,10 @@
-import * as fabric from "fabric";
 import { Canvas } from "fabric";
-import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
 import { useEraser } from "@/draw/store/tools/eraser.store";
 import { DrawTool } from "@/draw/types/draw.types";
 import { ERASERS } from "@/draw/config/tools.config";
 import { useToolSelection } from "@/draw/store/tools/toolSelection.store";
 import { useSelect } from "@/draw/store/tools/select.store";
-import { finalizeCssOverlay } from "@/draw/helpers/customTransform.helper";
+import * as transform from "@/draw/transform/transformController";
 
 function cancelEraserAction(c: Canvas) {
 	const { cancelErase } = useEraser();
@@ -16,6 +14,7 @@ function cancelEraserAction(c: Canvas) {
 function cancelSelect(c: Canvas) {
 	const { unSelect } = useSelect();
 	unSelect();
+	transform.cancel(c);
 }
 
 export function cancelPenAction(c: Canvas) {
@@ -51,6 +50,5 @@ export function cancelPreviousAction(c: Canvas) {
 	if (selectedTool == DrawTool.Pen) cancelPenAction(c);
 	if (selectedTool == DrawTool.Select) {
 		cancelSelect(c);
-		finalizeCssOverlay(c);
 	}
 }

@@ -1,25 +1,18 @@
 // src/draw/helpers/gestures.helper.ts
 import * as fabric from "fabric";
-import { Canvas, Point } from "fabric";
+import { Canvas, FabricObject, Point } from "fabric";
 import { isMobile } from "@/helper/general.helper";
 import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
 import { storeToRefs } from "pinia";
 import { DrawTool, FabricEvent } from "@/draw/types/draw.types";
 import { useSelect } from "@/draw/store/tools/select.store";
-import { ref } from "vue";
 import { gestureDetector } from "@/draw/utils/gestureDetector";
 import { cancelPreviousAction } from "@/draw/helpers/tools/cancelTools.helper";
 import { useDrawUIStore } from "@/draw/store/drawUI.store";
 import { useToolSelection } from "@/draw/store/tools/toolSelection.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
-import {
-	finalizeCssOverlay,
-	isLayeredRenderActive,
-	prepareCssOverlay,
-	renderCssOverlay,
-} from "@/draw/helpers/customTransform.helper";
 import { useGestureStore } from "@/draw/store/tools/gesture.store";
-import { MOVE_HAPPENED } from "@/draw/helpers/fabricDefaults.helper";
+import * as transform from "@/draw/transform/transformController";
 
 const MIN_ZOOM = 0.2;
 let dynamicMinZoom = MIN_ZOOM;
@@ -182,8 +175,10 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 	const { onGestureStart } = useDrawObjectManager();
 	const gestureStore = useGestureStore();
 
-	const isUsingGesture = ref(false);
-	const gestureState = { originalObjectState: null as any | null };
+	// Simplified, non-reactive state
+	let isActiveObjectGesture = false;
+	let gestureTarget: FabricObject | null = null;
+	let gestureOriginalState: any = null;
 
 	let isCanvasZooming = false;
 	let isObjectScaling = false;
@@ -191,26 +186,30 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 	let gestureFrameScheduled = false;
 
 	function scheduleObjectUpdate() {
-		if (gestureFrameScheduled) return;
+		if (gestureFrameScheduled || !gestureTarget) return;
 		gestureFrameScheduled = true;
 		requestAnimationFrame(() => {
 			gestureFrameScheduled = false;
-			const obj = c.getActiveObject();
-			if (!obj || !gestureState.originalObjectState) return;
-			obj.set(
-				"angle",
-				(gestureState.originalObjectState.angle + totalObjectAngleDelta) % 360,
-			);
-			obj.setCoords();
-			if (isLayeredRenderActive) renderCssOverlay(c, obj);
+			if (!gestureTarget || !gestureOriginalState) return;
+
+			const newAngle =
+				(gestureOriginalState.angle + totalObjectAngleDelta) % 360;
+			gestureTarget.set("angle", newAngle);
+			gestureTarget.setCoords();
+
+			if (transform.isActive()) transform.schedule();
 		});
 	}
 
 	gestureDetector(upperCanvasEl, {
+		// Inside enableMobileGestures -> gestureDetector
+
 		onGestureStart: () => {
 			isCanvasZooming = false;
 			isObjectScaling = false;
 			totalObjectAngleDelta = 0;
+			isActiveObjectGesture = false;
+
 			if (shapeCreationMode.value) return;
 			c.fire("gestureStart");
 
@@ -219,31 +218,51 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 				shouldModifyObjectsWithGestures()
 			) {
 				const obj = c.getActiveObject();
-				if (!obj) return;
-				obj.lockMovementX = obj.lockMovementY = true;
-				gestureState.originalObjectState = {
-					left: obj.left,
-					top: obj.top,
-					scaleX: obj.scaleX,
-					scaleY: obj.scaleY,
-					angle: obj.angle,
-				};
-				isUsingGesture.value = true;
-				gestureStore.isGesturing = true;
-			} else {
-				isUsingGesture.value = false;
-				c.selection = false;
-				c.skipTargetFind = true;
-				c.isDrawingMode = false;
-				cancelPreviousAction(c);
-				dynamicMinZoom = getMinZoomToFitAll(c);
-				onGestureStart();
-				gestureStore.isGesturing = true;
+				if (obj) {
+					isActiveObjectGesture = true;
+					gestureTarget = obj;
+
+					if (c._currentTransform) {
+						c._currentTransform = null;
+					}
+
+					gestureTarget.lockMovementX = gestureTarget.lockMovementY = true;
+
+					gestureOriginalState = {
+						left: obj.left,
+						top: obj.top,
+						scaleX: obj.scaleX,
+						scaleY: obj.scaleY,
+						angle: obj.angle,
+					};
+
+					transform.markMoved();
+
+					// Start the tile cache overlay since we are transforming
+					if (!transform.isActive()) {
+						transform.begin(c, obj);
+					}
+					return;
+				}
+			}
+
+			// Viewport gesture path
+			c.selection = false;
+			c.skipTargetFind = true;
+			c.isDrawingMode = false;
+			cancelPreviousAction(c);
+			dynamicMinZoom = getMinZoomToFitAll(c);
+			onGestureStart();
+			gestureStore.isGesturing = true;
+
+			if (c._currentTransform) {
+				c._currentTransform.target.setCoords();
+				c._currentTransform = null;
 			}
 		},
 
 		onDrag: (dx, dy) => {
-			if (isUsingGesture.value) return;
+			if (isActiveObjectGesture) return;
 			const vpt = c.viewportTransform!;
 			vpt[4] += dx * 2;
 			vpt[5] += dy * 2;
@@ -252,18 +271,17 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 		},
 
 		onZoom: (scale, previousScale, center) => {
-			if (isUsingGesture.value) {
+			if (isActiveObjectGesture) {
 				if (!isObjectScaling && Math.abs(1 - scale) > 0.03)
 					isObjectScaling = true;
-				if (!isObjectScaling) return;
-				const obj = c.getActiveObject();
-				if (obj && gestureState.originalObjectState) {
-					obj.set({
-						scaleX: gestureState.originalObjectState.scaleX * scale,
-						scaleY: gestureState.originalObjectState.scaleY * scale,
-					});
-					scheduleObjectUpdate();
-				}
+				if (!isObjectScaling || !gestureTarget) return;
+
+				gestureTarget.set({
+					scaleX: gestureOriginalState.scaleX * scale,
+					scaleY: gestureOriginalState.scaleY * scale,
+				});
+				transform.markMoved();
+				scheduleObjectUpdate();
 				return;
 			}
 
@@ -282,8 +300,9 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 		},
 
 		onRotate: (delta) => {
-			if (!isUsingGesture.value) return;
+			if (!isActiveObjectGesture || !gestureTarget) return;
 			totalObjectAngleDelta += delta;
+			transform.markMoved();
 			scheduleObjectUpdate();
 		},
 
@@ -291,26 +310,36 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 			isCanvasZooming = false;
 			isObjectScaling = false;
 
-			if (isUsingGesture.value) {
-				setTimeout(() => {
-					const obj = c.getActiveObject();
-					if (obj) {
-						obj.setCoords();
-						obj.lockMovementX = obj.lockMovementY = false;
-						isUsingGesture.value = false;
-						gestureStore.isGesturing = false;
+			if (isActiveObjectGesture) {
+				// Cache variables to prevent race conditions during teardown
+				const target = gestureTarget;
+				const originalState = gestureOriginalState;
 
-						if (MOVE_HAPPENED) return;
-						finalizeCssOverlay(c);
-						c.fire("object:modified", {
-							target: obj,
-							transform: {
-								target: obj,
-								original: gestureState.originalObjectState,
-							} as any,
-						});
-					}
-				}, 50);
+				isActiveObjectGesture = false;
+				gestureTarget = null;
+				gestureOriginalState = null;
+				gestureStore.isGesturing = false;
+
+				if (!target) return;
+
+				target.setCoords();
+				target.lockMovementX = target.lockMovementY = false;
+
+				const moved = transform.moveHappened();
+
+				// SYNCHRONOUS call to end the transform. Objects will never disappear.
+				transform.end(c);
+
+				// Always trigger object:modified cleanly from one place if changes happened
+				if (moved || totalObjectAngleDelta !== 0 || isObjectScaling) {
+					c.fire("object:modified", {
+						target: target,
+						transform: {
+							target: target,
+							original: originalState,
+						} as any,
+					});
+				}
 			} else {
 				setTimeout(() => {
 					if (selectedTool.value === DrawTool.Select) {

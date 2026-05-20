@@ -224,8 +224,8 @@ export class CharcoalStroke extends FabricObject {
 		this.minX = options.minX || 0;
 		this.minY = options.minY || 0;
 
-		this.originX = "left";
-		this.originY = "top";
+		this.originX = "center";
+		this.originY = "center";
 
 		if (typeof options.left !== "number") {
 			this._calcDimensions();
@@ -257,10 +257,8 @@ export class CharcoalStroke extends FabricObject {
 
 		this.width = maxX - minX + this.stampSize;
 		this.height = maxY - minY + this.stampSize;
-
-		// Set the initial global position
-		this.left = minX - radius;
-		this.top = minY - radius;
+		this.left = minX - radius + this.width / 2; // center, not corner
+		this.top = minY - radius + this.height / 2;
 	}
 
 	_render(ctx: CanvasRenderingContext2D) {

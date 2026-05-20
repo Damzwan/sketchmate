@@ -12,7 +12,6 @@ import { v4 as uuidv4 } from "uuid";
 import { BACKGROUND } from "@/draw/config/canvas.config";
 import { useAuthStore } from "@/store/auth.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
-import { Rect, rectIntersects } from "@/draw/utils/QuadTree";
 
 // Brush Imports
 import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
@@ -23,13 +22,8 @@ import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
 import { BucketFillPath } from "@/draw/utils/BucketFillPath";
 import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
 import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import {
-	finalizeCssOverlay,
-	isLayeredRenderActive,
-	prepareCssOverlay,
-	renderCssOverlay,
-} from "@/draw/helpers/customTransform.helper";
 import { useGestureStore } from "@/draw/store/tools/gesture.store";
+import * as transform from "@/draw/transform/transformController";
 
 export function changeFabricSettings() {
 	FabricObject.prototype.objectCaching = false;
@@ -287,7 +281,9 @@ export function overrideMouseUp(c: Canvas) {
 				!(this._activeObject as IText)?.isEditing)
 		) {
 			this.renderTop();
-			this.getActiveObject()?._renderControls(this.getTopContext());
+			if (target || this._activeObject) {
+				this.getActiveObject()?._renderControls(this.getTopContext());
+			}
 		}
 	};
 }
@@ -369,85 +365,58 @@ export function overrideMouseDown(c: Canvas) {
 	};
 }
 
-export let MOVE_HAPPENED = false;
 export function overrideTransform(canvas: Canvas) {
-	let rafPending = false,
-		pendingEvent: MouseEvent | null = null;
-
-	// Define a threshold (e.g., 4 pixels)
 	const MOVEMENT_THRESHOLD = 4;
 	let startPointer: { x: number; y: number } | null = null;
 
 	canvas.on("mouse:down", (e: any) => {
-		MOVE_HAPPENED = false;
 		if (e.target && e.e.button !== 1) {
-			// Capture starting position on interaction
 			startPointer = canvas.getScenePoint(e.e);
-			prepareCssOverlay(canvas, e.target);
-			canvas.clearContext(canvas.contextTop);
-			e.target._renderControls(canvas.contextTop);
+			// RESTORED: This ensures the overlay handles controls immediately on click
+			transform.begin(canvas, e.target);
 		}
 	});
 
 	canvas._transformObject = function (e: MouseEvent) {
-		pendingEvent = e;
-		if (rafPending) return;
-		rafPending = true;
+		if (!this._currentTransform) return;
+		if (useGestureStore().isGesturing) return;
 
-		const { isGesturing } = useGestureStore();
-		if (isGesturing) return;
+		const target = this._currentTransform.target;
+		const scenePoint = this.getScenePoint(e);
 
-		requestAnimationFrame(() => {
-			rafPending = false;
-			const evt = pendingEvent;
-			pendingEvent = null;
-			if (!evt || !this._currentTransform) return;
+		if (startPointer) {
+			const dx = scenePoint.x - startPointer.x;
+			const dy = scenePoint.y - startPointer.y;
+			if (
+				Math.sqrt(dx * dx + dy * dy) < MOVEMENT_THRESHOLD &&
+				!this._currentTransform.actionPerformed
+			)
+				return;
+		}
 
-			const target = this._currentTransform.target;
-			const scenePoint = this.getScenePoint(evt);
+		const local = target.group
+			? fabric.util.sendPointToPlane(
+					scenePoint,
+					undefined,
+					target.group.calcTransformMatrix(),
+				)
+			: scenePoint;
 
-			if (startPointer) {
-				const dx = scenePoint.x - startPointer.x;
-				const dy = scenePoint.y - startPointer.y;
-				const distance = Math.sqrt(dx * dx + dy * dy);
+		this._currentTransform.shiftKey = e.shiftKey;
+		this._currentTransform.altKey =
+			!!this.centeredKey && (e as any)[this.centeredKey];
 
-				if (
-					distance < MOVEMENT_THRESHOLD &&
-					!this._currentTransform.actionPerformed
-				) {
-					return;
-				}
-			}
+		transform.markMoved();
+		this._performTransformAction(e, this._currentTransform, local);
 
-			const local = target.group
-				? fabric.util.sendPointToPlane(
-						scenePoint,
-						undefined,
-						target.group.calcTransformMatrix(),
-					)
-				: scenePoint;
-
-			this._currentTransform.shiftKey = evt.shiftKey;
-			this._currentTransform.altKey =
-				!!this.centeredKey && (evt as any)[this.centeredKey];
-
-			// Perform the action (this sets actionPerformed = true internally)
-			MOVE_HAPPENED = true;
-			this._performTransformAction(evt, this._currentTransform, local);
-
-			if (this._currentTransform.actionPerformed && isLayeredRenderActive)
-				renderCssOverlay(this, target);
-		});
+		if (this._currentTransform.actionPerformed && transform.isActive()) {
+			transform.schedule();
+		}
 	};
 
 	canvas.on("mouse:up", () => {
-		rafPending = false;
-		pendingEvent = null;
-		startPointer = null; // Reset
-
-		const { isGesturing } = useGestureStore();
-		if (isGesturing) return;
-		finalizeCssOverlay(canvas);
+		startPointer = null;
+		if (transform.isActive()) transform.end(canvas);
 	});
 }
 
@@ -459,53 +428,52 @@ export function overrideHandleSelection(c: Canvas) {
 		const br = new Point(x, y).max(new Point(x + deltaX, y + deltaY));
 
 		const mgr = useDrawObjectManager();
-		// Replace:
-		const lassoBounds: Rect = {
+		const lassoBounds = {
 			x: tl.x,
 			y: tl.y,
 			w: br.x - tl.x,
 			h: br.y - tl.y,
 		};
 
-		// Query the manager using the interface
+		const isClick = x === x + deltaX && y === y + deltaY;
+
 		const collected = mgr.query(lassoBounds).filter((obj) => {
-			// @ts-ignore
-			const b = obj.getBoundingRect(true, true);
+			if (!obj.selectable || !obj.visible) return false;
 
-			// Define the object's bounds as an interface-compliant object
-			const objRect: Rect = {
-				x: b.left,
-				y: b.top,
-				w: b.width,
-				h: b.height,
-			};
+			obj.setCoords();
 
-			// Perform the intersection check using the helper
-			return (
-				obj.selectable && obj.visible && rectIntersects(objRect, lassoBounds)
-			);
+			if (isClick) {
+				return obj.containsPoint(tl);
+			} else {
+				return (
+					obj.intersectsWithRect(tl, br) || obj.isContainedWithinRect(tl, br)
+				);
+			}
 		});
 
 		const zMap = mgr.getZIndexMap();
 		collected.sort((a, b) => (zMap.get(b) ?? 0) - (zMap.get(a) ?? 0));
 
-		const isClick = x === x + deltaX && y === y + deltaY;
 		const objects = isClick
 			? collected[0]
 				? [collected[0]]
 				: []
 			: collected.filter((o) => !(o as any).onSelect({ e })).reverse();
 
-		if (objects.length > 0)
+		if (objects.length > 0) {
 			this.setActiveObject(
 				objects.length === 1
 					? objects[0]
 					: new (fabric.classRegistry.getClass<any>("ActiveSelection"))(
 							objects,
-							{ canvas: this },
+							{
+								canvas: this,
+							},
 						),
 				e,
 			);
+		}
+
 		this._groupSelector = null;
 		return true;
 	};

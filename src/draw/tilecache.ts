@@ -354,16 +354,6 @@ export class TileCache<T extends Bounded> {
 		return report;
 	}
 
-	// ─── NEW: Synchronous tile patching for surgical updates ───────────────────
-	//
-	// Re-bakes the affected tiles SYNCHRONOUSLY on the main thread using a 2D
-	// canvas (no createImageBitmap async hop). This is the key to anti-flicker:
-	// by the time composite() runs immediately after, the tiles are fresh.
-	//
-	// `worldRects` lists the regions to repaint (one per dirty cluster).
-	// `tiers` lets caller restrict which tiers to patch — defaults to the
-	// currently-visible tier(s). For most surgical edits we only patch the
-	// active tier; other tiers stay invalidated and get lazily re-baked.
 	patchTilesSync(
 		worldRects: WorldRect[],
 		tiers: number[],

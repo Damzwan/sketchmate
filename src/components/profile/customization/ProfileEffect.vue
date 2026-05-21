@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="def && def.kind !== 'none'"
-    class="absolute inset-0 overflow-hidden pointer-events-none rounded-[3rem]"
+    class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]"
     aria-hidden="true"
   >
     <!-- Paper grain -->

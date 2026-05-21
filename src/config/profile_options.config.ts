@@ -241,15 +241,14 @@ export const resolveTheme = (id?: string): Theme =>
 	THEMES.find((t) => t.id === id) || THEMES[0];
 
 // ─── AVATAR DECORATIONS ──────────────────────────────────────────────────────
-// Added "topper" kind — renders SVG/markup positioned above the avatar,
-// outside the circular bounds. Cat ears use this kind.
 export type DecorationKind =
 	| "none"
 	| "frame"
 	| "halo"
 	| "particles"
 	| "composite"
-	| "topper";
+	| "topper"
+	| "lottie";
 
 export interface Decoration {
 	id: string;
@@ -261,12 +260,32 @@ export interface Decoration {
 	haloColor?: string;
 	particles?: { emoji: string; count: number; spin?: boolean };
 	badge?: { emoji: string; position: "tl" | "tr" | "bl" | "br" };
-	/** For 'topper' kind — references a topper id rendered by AvatarDecoration */
 	topper?: "cat-ears";
+	lottieId?: "gamer" | "wave";
+	lottieConfig?: {
+		scale: string;
+		offset: string;
+	};
 }
 
 export const DECORATIONS: Decoration[] = [
 	{ id: "none", name: "None", desc: "Just the avatar", kind: "none" },
+	{
+		id: "gamer",
+		name: "Gamer",
+		desc: "Level up!",
+		kind: "lottie",
+		lottieId: "gamer",
+		lottieConfig: { scale: "160%", offset: "translate(-51%, -50%)" },
+	},
+	{
+		id: "wave",
+		name: "Wave",
+		desc: "Catch the vibe",
+		kind: "lottie",
+		lottieId: "wave",
+		lottieConfig: { scale: "120%", offset: "translate(-50%, -50%)" },
+	},
 	{
 		id: "cat-ears",
 		name: "Cat Ears",
@@ -326,7 +345,6 @@ export const resolveDecoration = (id?: string): Decoration =>
 	DECORATIONS.find((d) => d.id === id) || DECORATIONS[0];
 
 // ─── PROFILE EFFECTS ─────────────────────────────────────────────────────────
-// Removed: dragons (ugly), hearts (looked off), starfield (poor visibility)
 export type EffectKind = "none" | "particles" | "falling" | "shimmer" | "grain";
 
 export interface ProfileEffectDef {

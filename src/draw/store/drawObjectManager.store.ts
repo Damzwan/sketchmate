@@ -14,6 +14,7 @@ import { isMobile } from "@/helper/general.helper";
 import { TileCache, WorldRect } from "@/draw/tilecache";
 import { createYielder } from "@/draw/helpers/yielding.helper";
 import { isolatedTileRenderer } from "@/draw/helpers/drawTileRenderer.helper";
+import { useFriendStore } from "@/store/friend.store";
 
 const IS_MOBILE = isMobile();
 const HW_CONCURRENCY = (navigator as any).hardwareConcurrency || 4;
@@ -603,7 +604,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	}
 
 	function addStartingCanvasObjects() {
-		const blocked = useAuthStore().user?.blocked_users ?? [];
+		const { isBlocked } = useFriendStore();
 		objectMap.clear();
 		entryMap.clear();
 		quadtree.clear();
@@ -614,7 +615,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		const objects = c!.getObjects();
 		for (let i = objects.length - 1; i >= 0; i--) {
 			const obj = objects[i];
-			if (blocked.includes(obj.userId)) {
+			if (isBlocked(obj.userId)) {
 				c?.remove(obj);
 				continue;
 			}
@@ -656,11 +657,10 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	}
 
 	function purgeBlockedObjects() {
-		const blocked = useAuthStore().user?.blocked_users ?? [];
-		if (!blocked.length) return;
+		const { isBlocked } = useFriendStore();
 		const toRemove: FabricObject[] = [];
 		objectMap.forEach((o) => {
-			if (blocked.includes(o.userId)) toRemove.push(o);
+			if (isBlocked(o.userId)) toRemove.push(o);
 		});
 		if (!toRemove.length) return;
 		for (const obj of toRemove) {

@@ -192,136 +192,138 @@
 </template>
 
 <script setup lang="ts">
-import { storeToRefs } from 'pinia'
-import { computed, nextTick, onMounted, ref } from 'vue'
-import { IonIcon, IonModal, IonButton, IonAvatar } from '@ionic/vue'
-import { chatbubblesOutline } from 'ionicons/icons'
-import { mdiAccountPlus, mdiBrush, mdiCamera, mdiShareVariant } from '@mdi/js'
-import QrcodeVue from 'qrcode.vue'
+import { storeToRefs } from "pinia";
+import { computed, nextTick, onMounted, ref } from "vue";
+import { IonAvatar, IonButton, IonIcon, IonModal } from "@ionic/vue";
+import { chatbubblesOutline } from "ionicons/icons";
+import { mdiAccountPlus, mdiCamera, mdiShareVariant } from "@mdi/js";
+import QrcodeVue from "qrcode.vue";
 
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useMenuStore } from '@/store/menu.store'
-import { useAuthStore } from '@/store/auth.store'
-import { useChatWidgetStore } from '@/store/chatWidget.store'
-import { useScanner } from '@/service/scanner.service'
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useScanner } from "@/service/scanner.service";
 import {
-  socketJoinRoom,
-  startWatchingLobbies,
-  leaveRoom as apiLeaveRoom
-} from '@/service/api/socket/drawSyncing.socket'
-import { generateRandomCode, isNative, svg } from '@/helper/general.helper'
-import { createRoomLink, shareUrl } from '@/helper/share.helper'
+	leaveRoom as apiLeaveRoom,
+	socketJoinRoom,
+	startWatchingLobbies,
+} from "@/service/api/socket/drawSyncing.socket";
+import { generateRandomCode, isNative, svg } from "@/helper/general.helper";
+import { createRoomLink, shareUrl } from "@/helper/share.helper";
 
-import LobbyInvitePopover from '@/components/chat/LobbyInvitePopover.vue'
-import ActiveLobbies from '@/components/home/ActiveLobbies.vue'
-import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
-import { useUserActions } from '@/composables/profile/useUserActions'
-import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
-import { useToast } from '@/service/toast.service'
+import LobbyInvitePopover from "@/components/chat/LobbyInvitePopover.vue";
+import ActiveLobbies from "@/components/home/ActiveLobbies.vue";
+import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
+import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { useToast } from "@/service/toast.service";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 
-const drawSyncerStore = useDrawSyncer()
+const drawSyncerStore = useDrawSyncer();
 const {
-  roomId,
-  roomMembers,
-  isWatchingPublicLobbies,
-  publicLobbies,
-  isPublicLobby,
-  publicLobbyName
-} = storeToRefs(drawSyncerStore)
-const { roomMenuOpen } = storeToRefs(useMenuStore())
-const { user } = storeToRefs(useAuthStore())
-const chatWidget = useChatWidgetStore()
-const { startScanning } = useScanner()
-const { openUserActions } = useUserActions()
+	roomId,
+	roomMembers,
+	isWatchingPublicLobbies,
+	publicLobbies,
+	isPublicLobby,
+	publicLobbyName,
+} = storeToRefs(drawSyncerStore);
+const { roomMenuOpen } = storeToRefs(useMenuStore());
+const { user } = storeToRefs(useAuthStore());
+const chatWidget = useChatWidgetStore();
+const { startScanning } = useScanner();
+const { openUserActions } = useUserContextSheet();
 
 onMounted(async () => {
-  if (!isWatchingPublicLobbies.value) {
-    await socketLoggedInPromise
-    startWatchingLobbies()
-  }
-})
+	if (!isWatchingPublicLobbies.value) {
+		await socketLoggedInPromise;
+		startWatchingLobbies();
+	}
+});
 
-const code = ref(['', '', '', ''])
-const codeString = computed(() => code.value.join(''))
-const roomIdLink = computed(() => createRoomLink(roomId.value ?? ''))
-const isCodeComplete = computed(() => code.value.every(digit => digit !== ''))
+const code = ref(["", "", "", ""]);
+const codeString = computed(() => code.value.join(""));
+const roomIdLink = computed(() => createRoomLink(roomId.value ?? ""));
+const isCodeComplete = computed(() =>
+	code.value.every((digit) => digit !== ""),
+);
 
-const invitePopoverOpen = ref(false)
-const inviteEvent = ref<Event | null>(null)
+const invitePopoverOpen = ref(false);
+const inviteEvent = ref<Event | null>(null);
 
 const openInvitePopover = (ev: Event) => {
-  inviteEvent.value = ev
-  invitePopoverOpen.value = true
-}
+	inviteEvent.value = ev;
+	invitePopoverOpen.value = true;
+};
 
 const openLobbyChat = () => {
-  chatWidget.openPanel()
-  chatWidget.activeTab = 'lobby'
-  roomMenuOpen.value = false
-}
+	chatWidget.openPanel();
+	chatWidget.activeTab = "lobby";
+	roomMenuOpen.value = false;
+};
 
 const leaveRoom = () => {
-  apiLeaveRoom()
-  // Per requirements: Modal remains open after leaving
-}
+	apiLeaveRoom();
+	// Per requirements: Modal remains open after leaving
+};
 
 const onDismiss = () => {
-  roomMenuOpen.value = false
-  code.value = ['', '', '', '']
-}
+	roomMenuOpen.value = false;
+	code.value = ["", "", "", ""];
+};
 
 function createRoom() {
-  socketJoinRoom({ roomId: generateRandomCode(), intent: 'create' })
+	socketJoinRoom({ roomId: generateRandomCode(), intent: "create" });
 }
 
 async function joinRoom(joinCode: string) {
-  if (joinCode == '') return
-  const { forceSave, hasContent } = useDrawLoadStore()
-  if (hasContent()) {
-    const { toast } = useToast()
-    toast('Saving draft before joining...')
-    await forceSave()
-  }
-  socketJoinRoom({ roomId: joinCode, intent: 'join' })
+	if (joinCode == "") return;
+	const { forceSave, hasContent } = useDrawLoadStore();
+	if (hasContent()) {
+		const { toast } = useToast();
+		toast("Saving draft before joining...");
+		await forceSave();
+	}
+	socketJoinRoom({ roomId: joinCode, intent: "join" });
 }
 
 const focusNext = (index: number) => {
-  if (index === 3) joinRoom(codeString.value)
-  else if (code.value[index] && index < 3) {
-    document.getElementById(`code-${index + 1}`)?.focus()
-  }
-}
+	if (index === 3) joinRoom(codeString.value);
+	else if (code.value[index] && index < 3) {
+		document.getElementById(`code-${index + 1}`)?.focus();
+	}
+};
 
 const focusPrev = (index: number, event: any) => {
-  if (event.key === 'Backspace' && !code.value[index] && index > 0) {
-    document.getElementById(`code-${index - 1}`)?.focus()
-  }
-}
+	if (event.key === "Backspace" && !code.value[index] && index > 0) {
+		document.getElementById(`code-${index - 1}`)?.focus();
+	}
+};
 
 const handlePaste = (event: any) => {
-  const pasteData = event.clipboardData.getData('text').slice(0, 4).split('')
-  if (pasteData.length) {
-    pasteData.forEach((char: any, index: number) => {
-      if (index < 4) code.value[index] = char
-    })
-    nextTick(() => document.getElementById('code-3')?.focus())
-  }
-}
+	const pasteData = event.clipboardData.getData("text").slice(0, 4).split("");
+	if (pasteData.length) {
+		pasteData.forEach((char: any, index: number) => {
+			if (index < 4) code.value[index] = char;
+		});
+		nextTick(() => document.getElementById("code-3")?.focus());
+	}
+};
 
 async function handleJoinPublicLobby(id: string) {
-  const lobby = publicLobbies.value.find(l => l.id === id)
-  if (!lobby || lobby.users >= lobby.maxUsers) return
-  joinRoom(id)
-  publicLobbyName.value = lobby.name
-  isPublicLobby.value = true
+	const lobby = publicLobbies.value.find((l) => l.id === id);
+	if (!lobby || lobby.users >= lobby.maxUsers) return;
+	joinRoom(id);
+	publicLobbyName.value = lobby.name;
+	isPublicLobby.value = true;
 }
 
 async function startScanningHelper() {
-  const scanned = await startScanning()
-  if (!scanned) return
-  const url = new URL(scanned)
-  const qId = url.searchParams.get('room_id')
-  if (qId) joinRoom(qId)
+	const scanned = await startScanning();
+	if (!scanned) return;
+	const url = new URL(scanned);
+	const qId = url.searchParams.get("room_id");
+	if (qId) joinRoom(qId);
 }
 </script>
 

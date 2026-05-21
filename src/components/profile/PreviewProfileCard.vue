@@ -13,13 +13,13 @@
 </template>
 
 <script setup lang="ts">
-import ProfileCard from '@/components/profile/ProfileCard.vue'
-import type { Customization } from '@/config/profile_options.config'
+import ProfileCard from "@/components/profile/ProfileCard.vue";
+import type { Customization } from "@/config/profile_options.config";
 
 defineProps<{
-  user: any
-  customization: Partial<Customization>
-}>()
+	user: any;
+	customization: Partial<Customization>;
+}>();
 </script>
 
 <style scoped>
@@ -30,7 +30,7 @@ defineProps<{
   justify-content: center;
   align-items: flex-start;
   overflow: hidden;
-  padding-top: 60px; /* account for avatar overhang */
+  padding-top: 30px; /* account for avatar overhang */
 }
 
 .preview-scale {

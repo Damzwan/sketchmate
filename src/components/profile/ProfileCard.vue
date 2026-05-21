@@ -2,44 +2,58 @@
   <!-- Outer card: NOT overflow-hidden, so toppers (cat ears) can extend
        above the avatar without being clipped. -->
   <section
-    class="rounded-[3rem] border-2 shadow-lg relative px-6 pb-4 pt-4 transition-all duration-500"
+    class="rounded-[3rem] border-2 shadow-lg relative px-2 pb-2 pt-4 transition-all duration-500"
     :style="cardStyle"
   >
     <!-- Profile effect lives inside its own clipped container so particles
          stay within the card bounds without clipping the avatar topper. -->
-    <div class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none">
+    <div class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
       <ProfileEffect :effect-id="effectiveCustomization.effectId" />
     </div>
 
     <!-- All actual content sits above the effect via z-10. Font cascades. -->
     <div class="relative z-10" :style="{ fontFamily: resolvedFontFamily }">
-      <!-- Action buttons (own profile only) -->
-      <div
-        v-if="isOwnProfile && !isPreview"
-        class="absolute top-0 right-0 flex items-center justify-end min-w-[80px] z-20"
-      >
+
+      <!-- ── TOP LEFT: SETTINGS ── -->
+      <div v-if="isOwnProfile && !isPreview" class="absolute top-1 left-0 z-20">
         <transition name="fade">
-          <ion-button v-if="!isEditing" fill="clear" class="m-0" @click="$emit('go-customize')">
-            <ion-icon slot="icon-only" :style="{ color: theme.nameColor }" :icon="svg(mdiPalette)" />
-          </ion-button>
+          <button
+            v-if="!isEditing"
+            class="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/40 shadow-sm transition-all active:scale-95"
+            @click="$emit('go-settings')"
+          >
+            <ion-icon :style="{ color: theme.nameColor }" :icon="svg(mdiCog)" class="text-xl" />
+          </button>
         </transition>
-        <transition name="fade">
-          <ion-button v-if="!isEditing" fill="clear" class="m-0" @click="$emit('go-settings')">
-            <ion-icon slot="icon-only" :style="{ color: theme.nameColor }" :icon="svg(mdiCog)" />
-          </ion-button>
-        </transition>
-        <ion-button fill="clear" class="m-0" @click="$emit('toggle-edit')">
-          <ion-icon
-            slot="icon-only"
-            :style="{ color: theme.nameColor }"
-            :icon="svg(isEditing ? mdiCheck : mdiPencil)"
-          />
-        </ion-button>
       </div>
 
-      <div class="flex flex-col items-center relative">
-        <!-- Avatar (with decoration baked in via UserAvatar) -->
-        <div class="relative z-30">
+      <!-- ── TOP RIGHT: CUSTOMIZE & EDIT ── -->
+      <div v-if="isOwnProfile && !isPreview" class="absolute top-1 right-0 flex items-center gap-2 z-20">
+        <transition name="fade">
+          <button
+            v-if="!isEditing"
+            class="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/40 shadow-sm transition-all active:scale-95"
+            @click="$emit('go-customize')"
+          >
+            <ion-icon :style="{ color: theme.nameColor }" :icon="svg(mdiPalette)" class="text-xl" />
+          </button>
+        </transition>
+        <button
+          class="w-10 h-10 flex items-center justify-center rounded-full shadow-sm transition-all active:scale-95"
+          :class="isEditing ? 'bg-green-500 border-none' : 'bg-white/20 backdrop-blur-md border border-white/40'"
+          @click="$emit('toggle-edit')"
+        >
+          <ion-icon
+            :style="!isEditing ? { color: theme.nameColor } : { color: '#ffffff' }"
+            :icon="svg(isEditing ? mdiCheck : mdiPencil)"
+            class="text-xl"
+          />
+        </button>
+      </div>
+
+      <div class="flex flex-col items-center relative mt-2">
+        <!-- Avatar -->
+        <div class="relative z-30 mb-6">
           <UserAvatar
             v-if="!isEditing || !isOwnProfile"
             :user="user"
@@ -59,7 +73,7 @@
           <div class="text-center mt-4 w-full flex flex-col items-center">
             <span
               v-if="displayTitle"
-              class="text-[10px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full mb-1"
+              class="text-[10px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full mb-1 transition-colors duration-500"
               :style="{ background: theme.titleBg, color: theme.nameColor }"
             >
               {{ displayTitle }}
@@ -80,23 +94,39 @@
               "{{ user.description || 'No description yet.' }}"
             </p>
 
-            <div v-if="!isPreview" class="flex gap-2 mt-4">
+            <!-- ── THEMED CALL-TO-ACTIONS ── -->
+            <div v-if="!isPreview" class="flex gap-3 w-full mt-6 px-1">
               <ion-button
                 v-if="isOwnProfile"
-                fill="solid"
-                color="secondary"
+                expand="block"
                 shape="round"
+                class="w-full m-0 text-sm font-black uppercase tracking-widest shadow-md transition-all duration-500"
+                :style="{ '--background': theme.accentColor, '--color': '#ffffff' }"
                 @click="$emit('open-connection')"
               >
                 <ion-icon slot="start" :icon="svg(mdiAccountPlusOutline)" class="mr-1" />
                 Add / Share
               </ion-button>
+
               <template v-else>
-                <ion-button fill="solid" color="secondary" shape="round" @click="$emit('add-friend')">
-                  <ion-icon slot="start" :icon="svg(mdiAccountPlusOutline)" class="mr-1" />
+                <ion-button
+                  expand="block"
+                  shape="round"
+                  class="flex-1 m-0 text-sm font-black uppercase tracking-widest shadow-md transition-all duration-500"
+                  :style="{ '--background': theme.accentColor, '--color': '#ffffff' }"
+                  @click="$emit('add-friend')"
+                >
+                  <ion-icon slot="start" :icon="svg(mdiAccountPlusOutline)" />
                   Add Mate
                 </ion-button>
-                <ion-button fill="outline" color="secondary" shape="round" @click="$emit('message')">
+                <ion-button
+                  expand="block"
+                  fill="outline"
+                  shape="round"
+                  class="flex-1 m-0 text-sm font-black uppercase tracking-widest transition-all duration-500"
+                  :style="{ '--color': theme.nameColor, '--border-color': theme.cardBorderColor, '--border-width': '2px' }"
+                  @click="$emit('message')"
+                >
                   Message
                 </ion-button>
               </template>
@@ -173,33 +203,31 @@
             @click="$emit('go-network', stat)"
           >
             <span
-              class="block text-xl font-black"
+              class="block text-xl font-black transition-colors duration-500"
               :style="{ color: stat === 'mates' ? theme.accentColor : theme.nameColor }"
             >
               {{ formatStatNumber(getStatCount(stat)) }}
             </span>
-            <span class="text-[9px] font-bold uppercase tracking-widest" :style="{ color: theme.descColor }">
+            <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">
               {{ stat }}
             </span>
           </button>
         </div>
 
-        <!-- Dedicated signature section. Sits below stats with its own divider
-             and label so it reads clearly as a signature, no longer floating
-             over collision-prone areas. -->
+        <!-- Dedicated signature section -->
         <div
           v-if="effectiveCustomization.signaturePath && !isEditing"
-          class="w-full mt-6 pt-4 border-t flex flex-col items-center"
+          class="w-full mt-6 pt-4 border-t flex flex-col items-center transition-colors duration-500"
           :style="{ borderColor: theme.cardBorderColor }"
         >
           <span
-            class="text-[18px] font-bold uppercase tracking-widest mb-1"
+            class="text-[14px] font-bold uppercase tracking-widest mb-1 transition-colors duration-500"
             :style="{ color: theme.descColor }"
           >
             — Signed —
           </span>
           <svg
-            class="w-32 h-12 drop-shadow-sm"
+            class="w-32 h-12 drop-shadow-sm transition-colors duration-500"
             :viewBox="effectiveCustomization.signatureViewBox || '0 0 300 150'"
             preserveAspectRatio="xMidYMid meet"
           >
@@ -333,5 +361,6 @@ const displayTitle = computed(() =>
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+  transform: scale(0.9);
 }
 </style>

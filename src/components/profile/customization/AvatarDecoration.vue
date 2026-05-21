@@ -1,15 +1,29 @@
 <template>
   <div class="absolute inset-0 pointer-events-none" v-if="def && def.kind !== 'none'">
-    <!-- Halo glow -->
+
+    <!-- Lottie Overlay (New!) -->
+    <div
+      v-if="def.kind === 'lottie' && def.lottieId"
+      class="absolute top-1/2 left-1/2 pointer-events-none z-10"
+      :style="{
+        width: def.lottieConfig?.scale || '100%',
+        height: def.lottieConfig?.scale || '100%',
+        transform: def.lottieConfig?.offset || 'translate(-50%, -50%)'
+      }"
+    >
+      <DotLottieVue :src="getLottieSrc(def.lottieId)" autoplay loop class="w-full h-full" />
+    </div>
+
+    <!-- Halo glow (Changed to rounded-full) -->
     <div
       v-if="def.haloColor"
-      class="absolute inset-0 rounded-[2.5rem] animate-halo-pulse"
+      class="absolute inset-0 rounded-full animate-halo-pulse"
       :style="{
         boxShadow: `0 0 24px 4px ${def.haloColor}, 0 0 48px 8px ${def.haloColor}55`,
       }"
     ></div>
 
-    <!-- SVG frame -->
+    <!-- SVG frame (Changed <rect> to <circle>) -->
     <svg
       v-if="def.frameStroke"
       class="absolute -inset-1 w-[calc(100%+0.5rem)] h-[calc(100%+0.5rem)]"
@@ -18,21 +32,14 @@
     >
       <defs v-if="def.gradient">
         <linearGradient :id="def.gradient.id" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop
-            v-for="(s, i) in def.gradient.stops"
-            :key="i"
-            :offset="s.offset"
-            :stop-color="s.color"
-          />
+          <stop v-for="(s, i) in def.gradient.stops" :key="i" :offset="s.offset" :stop-color="s.color" />
         </linearGradient>
       </defs>
-      <rect
-        x="2"
-        y="2"
-        width="96"
-        height="96"
-        rx="22"
-        ry="22"
+      <!-- Replaced rounded rect with perfect circle -->
+      <circle
+        cx="50"
+        cy="50"
+        r="48"
         fill="none"
         :stroke="def.frameStroke"
         stroke-width="3"
@@ -42,63 +49,24 @@
     </svg>
 
     <!-- Orbiting particles -->
-    <div
-      v-if="def.particles"
-      class="absolute inset-0"
-      :class="{ 'animate-spin-slow': def.particles.spin }"
-    >
-      <span
-        v-for="i in def.particles.count"
-        :key="i"
-        class="absolute text-base drop-shadow-md"
-        :style="orbitStyle(i - 1, def.particles.count)"
-      >
+    <div v-if="def.particles" class="absolute inset-0" :class="{ 'animate-spin-slow': def.particles.spin }">
+      <span v-for="i in def.particles.count" :key="i" class="absolute text-base drop-shadow-md" :style="orbitStyle(i - 1, def.particles.count)">
         {{ def.particles.emoji }}
       </span>
     </div>
 
     <!-- Corner badge -->
-    <div
-      v-if="def.badge"
-      class="absolute text-2xl drop-shadow-md"
-      :class="badgePositionClass(def.badge.position)"
-    >
+    <div v-if="def.badge" class="absolute text-2xl drop-shadow-md z-10" :class="badgePositionClass(def.badge.position)">
       {{ def.badge.emoji }}
     </div>
 
-    <!-- Topper — positioned above the avatar, outside circular bounds -->
-    <div
-      v-if="def.kind === 'topper' && def.topper === 'cat-ears'"
-      class="absolute -top-5 left-1/2 -translate-x-1/2 w-[110%] pointer-events-none"
-    >
+    <!-- Topper -->
+    <div v-if="def.kind === 'topper' && def.topper === 'cat-ears'" class="absolute -top-4 left-1/2 -translate-x-1/2 w-[110%] pointer-events-none">
       <svg viewBox="0 0 100 40" class="w-full h-auto drop-shadow-md" aria-hidden="true">
-        <!-- Left ear -->
-        <path
-          d="M 18 38 L 28 6 L 42 32 Z"
-          fill="#2d1810"
-          stroke="#1a0e08"
-          stroke-width="1.5"
-          stroke-linejoin="round"
-        />
-        <!-- Left inner ear (pink) -->
-        <path
-          d="M 24 32 L 29 14 L 36 28 Z"
-          fill="#f9a8d4"
-        />
-
-        <!-- Right ear -->
-        <path
-          d="M 58 32 L 72 6 L 82 38 Z"
-          fill="#2d1810"
-          stroke="#1a0e08"
-          stroke-width="1.5"
-          stroke-linejoin="round"
-        />
-        <!-- Right inner ear (pink) -->
-        <path
-          d="M 64 28 L 71 14 L 76 32 Z"
-          fill="#f9a8d4"
-        />
+        <path d="M 18 38 L 28 6 L 42 32 Z" fill="#2d1810" stroke="#1a0e08" stroke-width="1.5" stroke-linejoin="round" />
+        <path d="M 24 32 L 29 14 L 36 28 Z" fill="#f9a8d4" />
+        <path d="M 58 32 L 72 6 L 82 38 Z" fill="#2d1810" stroke="#1a0e08" stroke-width="1.5" stroke-linejoin="round" />
+        <path d="M 64 28 L 71 14 L 76 32 Z" fill="#f9a8d4" />
       </svg>
     </div>
   </div>
@@ -107,9 +75,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
-	resolveDecoration,
 	type Decoration,
+	resolveDecoration,
 } from "@/config/profile_options.config";
+
+// Import Lottie system & assets
+import { DotLottieVue } from "@lottiefiles/dotlottie-vue";
+import gamerLottie from "@/assets/lottie/avatar/gamer.lottie";
+import waveLottie from "@/assets/lottie/avatar/wave.lottie";
 
 const props = defineProps<{
 	decorationId?: string;
@@ -119,6 +92,18 @@ const props = defineProps<{
 const def = computed<Decoration>(
 	() => props.def || resolveDecoration(props.decorationId),
 );
+
+// Map the ID to the imported asset
+const getLottieSrc = (id: string) => {
+	switch (id) {
+		case "gamer":
+			return gamerLottie;
+		case "wave":
+			return waveLottie;
+		default:
+			return "";
+	}
+};
 
 const orbitStyle = (i: number, total: number) => {
 	const angle = (i / total) * 2 * Math.PI;
@@ -142,6 +127,7 @@ const badgePositionClass = (pos: "tl" | "tr" | "bl" | "br") =>
 </script>
 
 <style scoped>
+/* Keep existing animations untouched */
 @keyframes halo-pulse {
   0%, 100% { opacity: 0.8; }
   50% { opacity: 1; }

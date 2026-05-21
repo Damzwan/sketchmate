@@ -35,12 +35,22 @@
 
           <div class="flex items-center mt-1">
             <span v-if="activeTab !== 'lobby'" class="text-[9px] font-bold uppercase tracking-widest">
-              <!-- No online indicator for archived chats, just the status -->
-              <template v-if="!isExpired">
+
+              <template v-if="isExpired">
+                <span class="text-zinc-400 font-black">Archived History</span>
+              </template>
+
+              <!-- Only show Online/Offline if we are actively tracking them -->
+              <template v-else-if="isTrackingOnline">
                 <span v-if="isOnline" class="text-green-600">Online</span>
                 <span v-else class="text-black/30">Offline</span>
               </template>
-              <span v-else class="text-zinc-400 font-black">Archived History</span>
+
+              <!-- Safe fallback for strangers / pending invites -->
+              <template v-else>
+                <span class="text-black/30">Artist</span>
+              </template>
+
             </span>
             <span v-else class="text-[9px] font-bold uppercase tracking-widest text-secondary">
                {{ isPublicLobby ? 'Public Canvas' : 'Private Session' }}
@@ -79,80 +89,95 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import { IonIcon } from '@ionic/vue'
-import { mdiCog, mdiDotsHorizontal, mdiChevronRight } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { computed } from "vue";
+import { storeToRefs } from "pinia";
+import { IonIcon } from "@ionic/vue";
+import { mdiCog, mdiDotsHorizontal, mdiChevronRight } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
-import { useChatWidgetStore } from '@/store/chatWidget.store'
-import { useChatStore } from '@/store/chat.store'
-import { useFriendStore } from '@/store/friend.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useAuthStore } from '@/store/auth.store'
-import { useMenuStore } from '@/store/menu.store'
-import { Menu } from '@/draw/types/draw.types'
-import LobbyMemberBar from './LobbyMemberBar.vue'
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useChatStore } from "@/store/chat.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useAuthStore } from "@/store/auth.store";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
+import LobbyMemberBar from "./LobbyMemberBar.vue";
 
-const chatWidget = useChatWidgetStore()
-const chatStore = useChatStore()
-const friendStore = useFriendStore()
-const drawSyncer = useDrawSyncer()
-const authStore = useAuthStore()
-const menuStore = useMenuStore()
+const chatWidget = useChatWidgetStore();
+const chatStore = useChatStore();
+const friendStore = useFriendStore();
+const drawSyncer = useDrawSyncer();
+const authStore = useAuthStore();
+const menuStore = useMenuStore();
 
-const { activeTab } = storeToRefs(chatWidget)
-const { activeChats } = storeToRefs(chatStore)
-const { user } = storeToRefs(authStore)
-const { isPublicLobby, publicLobbyName, roomMembers } = storeToRefs(drawSyncer)
+const { activeTab } = storeToRefs(chatWidget);
+const { activeChats } = storeToRefs(chatStore);
+const { user } = storeToRefs(authStore);
+const { isPublicLobby, publicLobbyName, roomMembers } = storeToRefs(drawSyncer);
 
-const emit = defineEmits(['inspect-profile', 'open-report'])
+const emit = defineEmits(["inspect-profile", "open-report"]);
 
+// 1. Unified conversation resolver to clean up the code below
+const activeConversation = computed(() => {
+	if (activeTab.value === "overview" || activeTab.value === "lobby")
+		return null;
+	return [...activeChats.value, ...friendStore.pendingRequests].find((c) => {
+		return (
+			c._id === activeTab.value ||
+			c.participants.some((p) => p._id === activeTab.value)
+		);
+	});
+});
+
+// 2. Resolve the partner
 const partner = computed(() => {
-  if (activeTab.value === 'overview' || activeTab.value === 'lobby') return null
+	if (activeTab.value === "overview" || activeTab.value === "lobby")
+		return null;
+	if (activeConversation.value) {
+		return activeConversation.value.participants.find(
+			(p: any) => p._id !== user.value?._id,
+		);
+	}
+	return friendStore.resolvePartnerInfo(activeTab.value);
+});
 
-  // Safe resolution (Handles both ChatID and UserID)
-  const chat = [...activeChats.value, ...friendStore.pendingRequests].find(
-    c => c._id === activeTab.value
-  )
-  if (chat) {
-    return chat.participants.find((p: any) => p._id !== user.value?._id)
-  }
-  return friendStore.resolvePartnerInfo(activeTab.value)
-})
+// 3. Centralized status check
+const chatStatus = computed(
+	() =>
+		activeConversation.value?.status || partner.value?.chat_status || "none",
+);
 
-const isExpired = computed(() => {
-  const chat = [...activeChats.value, ...friendStore.pendingRequests].find(c => {
-    if (c._id === activeTab.value) return true
-    return c.participants.some(p => p._id === activeTab.value)
-  })
-  return chat?.status === 'expired'
-})
+const isExpired = computed(() => chatStatus.value === "expired");
+
+const isTrackingOnline = computed(() => {
+	return ["mate", "temporary", "pending_mate"].includes(
+		chatStatus.value as string,
+	);
+});
 
 const panelTitle = computed(() => {
-  if (activeTab.value === 'lobby') {
-    return isPublicLobby.value ? publicLobbyName.value : 'Session Lobby'
-  }
-  const chat = [...activeChats.value, ...friendStore.pendingRequests].find(c => c._id === activeTab.value)
-  if (!chat && partner.value) {
-    return `New Chat: ${partner.value.name.split(' ')[0]}`
-  }
-
-  return partner.value?.name || 'Chat'
-})
+	if (activeTab.value === "lobby") {
+		return isPublicLobby.value ? publicLobbyName.value : "Session Lobby";
+	}
+	if (!activeConversation.value && partner.value) {
+		return `New Chat: ${partner.value.name.split(" ")[0]}`;
+	}
+	return partner.value?.name || "Chat";
+});
 
 const isOnline = computed(() => {
-  if (!partner.value || isExpired.value) return false
-  return friendStore.isFriendOnline(partner.value._id) // Use store method for Set lookup
-})
+	if (!partner.value || !isTrackingOnline.value) return false;
+	return friendStore.isFriendOnline(partner.value._id);
+});
 
 const handleHeaderClick = (event: Event) => {
-  if (activeTab.value === 'lobby' || !partner.value) return
-  emit('inspect-profile', event, partner.value)
-}
+	if (activeTab.value === "lobby" || !partner.value) return;
+	emit("inspect-profile", event, partner.value);
+};
 
 const openRoomMenu = () => {
-  chatWidget.closePanel()
-  menuStore.openMenu(Menu.DrawRoomMenu)
-}
+	chatWidget.closePanel();
+	menuStore.openMenu(Menu.DrawRoomMenu);
+};
 </script>

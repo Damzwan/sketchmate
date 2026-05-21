@@ -118,76 +118,92 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { IonPage, IonContent, IonSpinner, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent } from '@ionic/vue'
-import { chevronForward, peopleOutline, searchOutline } from 'ionicons/icons'
-import { storeToRefs } from 'pinia'
+import { ref, computed, onMounted, watch } from "vue";
+import { useRoute } from "vue-router";
+import {
+	IonPage,
+	IonContent,
+	IonSpinner,
+	IonIcon,
+	IonInfiniteScroll,
+	IonInfiniteScrollContent,
+} from "@ionic/vue";
+import { chevronForward, peopleOutline, searchOutline } from "ionicons/icons";
+import { storeToRefs } from "pinia";
 
-import { useAuthStore } from '@/store/auth.store'
-import { useFriendStore } from '@/store/friend.store'
-import { useUserActions } from '@/composables/profile/useUserActions'
-import SubPageBar from '@/components/general/SubPageBar.vue'
-import { svg } from '@/helper/general.helper'
-import { mdiClockOutline } from '@mdi/js'
-import dayjs from 'dayjs'
+import { useAuthStore } from "@/store/auth.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useUserActions } from "@/composables/profile/useUserActions";
+import SubPageBar from "@/components/general/SubPageBar.vue";
+import { svg } from "@/helper/general.helper";
+import { mdiClockOutline } from "@mdi/js";
+import dayjs from "dayjs";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 
-const route = useRoute()
-const activeTab = ref<'mates' | 'following' | 'followers'>((route.query.tab as any) || 'mates')
-const searchQuery = ref('')
-const currentPage = ref(1)
-let debounceTimeout: any = null
+const route = useRoute();
+const activeTab = ref<"mates" | "following" | "followers">(
+	(route.query.tab as any) || "mates",
+);
+const searchQuery = ref("");
+const currentPage = ref(1);
+let debounceTimeout: any = null;
 
-const friendStore = useFriendStore()
-const { user } = storeToRefs(useAuthStore())
-const { networkLists, networkLoading, hasMore, isFriendOnline } = storeToRefs(friendStore)
-const { openUserActions } = useUserActions()
+const friendStore = useFriendStore();
+const { user } = storeToRefs(useAuthStore());
+const { networkLists, networkLoading, hasMore, isFriendOnline } =
+	storeToRefs(friendStore);
+const { openUserActions } = useUserContextSheet();
 
-const currentList = computed(() => networkLists.value[activeTab.value])
+const currentList = computed(() => networkLists.value[activeTab.value]);
 
 const fetchData = async (reset = false) => {
-  if (!user.value?._id) return
-  if (reset) currentPage.value = 1
+	if (!user.value?._id) return;
+	if (reset) currentPage.value = 1;
 
-  // Use search only if it meets the 3-char minimum
-  const term = searchQuery.value.length >= 3 ? searchQuery.value : ''
-  await friendStore.getNetworkList(activeTab.value, user.value._id, currentPage.value, term)
-}
+	// Use search only if it meets the 3-char minimum
+	const term = searchQuery.value.length >= 3 ? searchQuery.value : "";
+	await friendStore.getNetworkList(
+		activeTab.value,
+		user.value._id,
+		currentPage.value,
+		term,
+	);
+};
 
-const switchTab = (tab: 'mates' | 'following' | 'followers') => {
-  activeTab.value = tab
-  searchQuery.value = ''
-  fetchData(true)
-}
+const switchTab = (tab: "mates" | "following" | "followers") => {
+	activeTab.value = tab;
+	searchQuery.value = "";
+	fetchData(true);
+};
 
 const handleSearch = () => {
-  clearTimeout(debounceTimeout)
-  debounceTimeout = setTimeout(() => fetchData(true), 400)
-}
+	clearTimeout(debounceTimeout);
+	debounceTimeout = setTimeout(() => fetchData(true), 400);
+};
 
 const loadMore = async (ev: any) => {
-  currentPage.value++
-  await fetchData()
-  ev.target.complete()
-}
+	currentPage.value++;
+	await fetchData();
+	ev.target.complete();
+};
 
 function getTimeRemaining(expiryDate: string | undefined): string {
-  if (!expiryDate) return ''
+	if (!expiryDate) return "";
 
-  const now = dayjs()
-  const end = dayjs(expiryDate)
+	const now = dayjs();
+	const end = dayjs(expiryDate);
 
-  if (end.isBefore(now)) return 'Expired'
+	if (end.isBefore(now)) return "Expired";
 
-  const diffHours = end.diff(now, 'hour')
-  const diffMinutes = end.diff(now, 'minute') % 60
+	const diffHours = end.diff(now, "hour");
+	const diffMinutes = end.diff(now, "minute") % 60;
 
-  if (diffHours > 0) {
-    return `${diffHours}h ${diffMinutes}m`
-  }
+	if (diffHours > 0) {
+		return `${diffHours}h ${diffMinutes}m`;
+	}
 
-  return `${diffMinutes}m`
+	return `${diffMinutes}m`;
 }
 
-onMounted(() => fetchData(true))
+onMounted(() => fetchData(true));
 </script>

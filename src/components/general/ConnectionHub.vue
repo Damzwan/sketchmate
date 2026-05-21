@@ -80,7 +80,7 @@
                 v-for="mate in foundMates"
                 :key="mate._id"
                 class="rounded-2xl mb-1 bg-white/40"
-                @click="inspect(mate._id)"
+                @click="openUserActions(mate._id)"
               >
                 <ion-avatar slot="start" class="w-10 h-10">
                   <img :src="mate.img" />
@@ -145,91 +145,111 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { IonModal, IonButton, IonIcon, IonAvatar, IonList, IonItem, IonLabel, IonSpinner, modalController } from '@ionic/vue'
-import QrcodeVue from 'qrcode.vue'
-import { mdiShareVariant, mdiQrcodeScan, mdiSend, mdiChevronRight } from '@mdi/js'
-import { arrowBack } from 'ionicons/icons'
+import { computed, ref } from "vue";
+import {
+	IonAvatar,
+	IonButton,
+	IonIcon,
+	IonItem,
+	IonLabel,
+	IonList,
+	IonModal,
+	IonSpinner,
+	modalController,
+} from "@ionic/vue";
+import QrcodeVue from "qrcode.vue";
+import {
+	mdiChevronRight,
+	mdiQrcodeScan,
+	mdiSend,
+	mdiShareVariant,
+} from "@mdi/js";
+import { arrowBack } from "ionicons/icons";
 
-import { useAuthStore } from '@/store/auth.store'
-import { useToast } from '@/service/toast.service'
-import { useScanner } from '@/service/scanner.service'
-import { createPersonalShareLink, shareUrl } from '@/helper/share.helper'
-import { isNative, svg } from '@/helper/general.helper'
-import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/menu.store'
-import { useProfileInspector } from '@/composables/profile/useProfileInspector'
-import { useAPI } from '@/service/api/api.service'
+import { useAuthStore } from "@/store/auth.store";
+import { useToast } from "@/service/toast.service";
+import { useScanner } from "@/service/scanner.service";
+import { createPersonalShareLink, shareUrl } from "@/helper/share.helper";
+import { isNative, svg } from "@/helper/general.helper";
+import { storeToRefs } from "pinia";
+import { useMenuStore } from "@/store/menu.store";
+import { useAPI } from "@/service/api/api.service";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 
 // State
-const isScanning = ref(false)
-const video = ref<HTMLVideoElement>()
-const mateName = ref('')
-const isSearchingUsers = ref(false)
-const foundMates = ref<any[]>([])
+const isScanning = ref(false);
+const video = ref<HTMLVideoElement>();
+const mateName = ref("");
+const isSearchingUsers = ref(false);
+const foundMates = ref<any[]>([]);
 
 // Stores/Composables
-const { user } = storeToRefs(useAuthStore())
-const { toast } = useToast()
-const { startScanning, stopScanning, resetScanning } = useScanner(video)
-const { connectionMenuOpen } = storeToRefs(useMenuStore())
-const { inspect } = useProfileInspector()
-const { searchMate } = useAPI()
+const { user } = storeToRefs(useAuthStore());
+const { toast } = useToast();
+const { startScanning, stopScanning, resetScanning } = useScanner(video);
+const { connectionMenuOpen } = storeToRefs(useMenuStore());
+const { openUserActions } = useUserContextSheet();
+const { searchMate } = useAPI();
 
-const qrURL = computed(() => createPersonalShareLink(user.value?._id || '', ''))
+const qrURL = computed(() =>
+	createPersonalShareLink(user.value?._id || "", ""),
+);
 
 // Logic
 const startCameraView = async () => {
-  isScanning.value = true
-  const code = await startScanning()
-  if (code) {
-    decode(new URL(code))
-  }
-}
+	isScanning.value = true;
+	const code = await startScanning();
+	if (code) {
+		decode(new URL(code));
+	}
+};
 
 const stopCameraView = () => {
-  stopScanning()
-  isScanning.value = false
-}
+	stopScanning();
+	isScanning.value = false;
+};
 
 async function searchUsers() {
-  if (!mateName.value.trim() || !user.value) return
-  isSearchingUsers.value = true
-  try {
-    const res = await searchMate({ mateName: mateName.value, user_id: user.value._id })
-    foundMates.value = res || []
-    if (foundMates.value.length === 0) {
-      toast('No artists found with that name', { color: 'warning' })
-    }
-  } catch (e) {
-    toast('Search failed', { color: 'danger' })
-  } finally {
-    isSearchingUsers.value = false
-  }
+	if (!mateName.value.trim() || !user.value) return;
+	isSearchingUsers.value = true;
+	try {
+		const res = await searchMate({
+			mateName: mateName.value,
+			user_id: user.value._id,
+		});
+		foundMates.value = res || [];
+		if (foundMates.value.length === 0) {
+			toast("No artists found with that name", { color: "warning" });
+		}
+	} catch (e) {
+		toast("Search failed", { color: "danger" });
+	} finally {
+		isSearchingUsers.value = false;
+	}
 }
 
 function decode(url: URL) {
-  const mateValue = url.searchParams.get('mate')
-  if (!mateValue) {
-    toast('Invalid sketchmate code', { color: 'danger' })
-    isScanning.value = false
-    return
-  }
-  inspect(mateValue)
-  closeModal()
+	const mateValue = url.searchParams.get("mate");
+	if (!mateValue) {
+		toast("Invalid sketchmate code", { color: "danger" });
+		isScanning.value = false;
+		return;
+	}
+	openUserActions({ _id: mateValue });
+	closeModal();
 }
 
 function closeModal() {
-  modalController.dismiss()
+	modalController.dismiss();
 }
 
 function onDismiss() {
-  stopScanning()
-  resetScanning()
-  isScanning.value = false
-  connectionMenuOpen.value = false
-  mateName.value = ''
-  foundMates.value = []
+	stopScanning();
+	resetScanning();
+	isScanning.value = false;
+	connectionMenuOpen.value = false;
+	mateName.value = "";
+	foundMates.value = [];
 }
 </script>
 

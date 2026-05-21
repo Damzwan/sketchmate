@@ -59,118 +59,112 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
-import { IonModal, useIonRouter } from '@ionic/vue'
-import { storeToRefs } from 'pinia'
+import { computed, nextTick, ref, watch } from "vue";
+import { IonModal, useIonRouter } from "@ionic/vue";
+import { storeToRefs } from "pinia";
 
 // Components
-import ChatToasts from './ChatToasts.vue'
-import ChatTabsHeader from './ChatTabsHeader.vue'
-import ChatToolbar from './ChatToolbar.vue'
-import ChatOverview from './ChatOverview.vue'
-import ChatMessageFlow from './ChatMessageFlow.vue'
-import ChatInputFooter from './ChatInputFooter.vue'
-import LobbyInvitePopover from './LobbyInvitePopover.vue'
+import ChatToasts from "./ChatToasts.vue";
+import ChatTabsHeader from "./ChatTabsHeader.vue";
+import ChatToolbar from "./ChatToolbar.vue";
+import ChatOverview from "./ChatOverview.vue";
+import ChatMessageFlow from "./ChatMessageFlow.vue";
+import ChatInputFooter from "./ChatInputFooter.vue";
+import LobbyInvitePopover from "./LobbyInvitePopover.vue";
 
 // Stores
-import { useChatWidgetStore } from '@/store/chatWidget.store'
-import { useChatStore } from '@/store/chat.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
-import { masterAnimation } from '@/helper/animation.helper'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import { useUserActions } from '@/composables/profile/useUserActions'
-import { useScrollAnchor } from '@/composables/general/useScrollAnchor'
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useChatStore } from "@/store/chat.store";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
+import { masterAnimation } from "@/helper/animation.helper";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { useScrollAnchor } from "@/composables/general/useScrollAnchor";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 
-const chatWidget = useChatWidgetStore()
-const { isVisible, isExpanded, activeTab } = storeToRefs(chatWidget)
-const { messagesByChat } = storeToRefs(useChatStore())
-const { lobbyChatMessages } = storeToRefs(useDrawSyncer())
+const chatWidget = useChatWidgetStore();
+const { isVisible, isExpanded, activeTab } = storeToRefs(chatWidget);
+const { messagesByChat } = storeToRefs(useChatStore());
+const { lobbyChatMessages } = storeToRefs(useDrawSyncer());
 
-const { invitations } = storeToRefs(useDrawSyncer())
+const { invitations } = storeToRefs(useDrawSyncer());
 
 // --- Local UI State ---
-const messageContainer = ref<HTMLElement | null>(null)
-const invitePopoverOpen = ref(false)
-const inviteEvent = ref<Event | null>(null)
-const { openUserActions } = useUserActions()
-const chatStore = useChatStore()
+const messageContainer = ref<HTMLElement | null>(null);
+const invitePopoverOpen = ref(false);
+const inviteEvent = ref<Event | null>(null);
+const { openUserActions } = useUserContextSheet();
+const chatStore = useChatStore();
 
-const router = useIonRouter()
+const router = useIonRouter();
 
-const isFetchingHistory = ref(false)
-const { scrollToBottom, captureScrollState, restoreScrollState } = useScrollAnchor(messageContainer)
-
+const isFetchingHistory = ref(false);
+const { scrollToBottom, captureScrollState, restoreScrollState } =
+	useScrollAnchor(messageContainer);
 
 // --- Computed ---
 const currentMessages = computed(() => {
-  return activeTab.value === 'lobby'
-    ? lobbyChatMessages.value
-    : (messagesByChat.value[activeTab.value] || [])
-})
+	return activeTab.value === "lobby"
+		? lobbyChatMessages.value
+		: messagesByChat.value[activeTab.value] || [];
+});
 
-watch([activeTab, isExpanded], async ([tab, expanded], [prevTab]) => {
-  if (!expanded) return
-  if (tab == 'lobby' || tab == 'overview') return
+watch(
+	[activeTab, isExpanded],
+	async ([tab, expanded], [prevTab]) => {
+		if (!expanded) return;
+		if (tab == "lobby" || tab == "overview") return;
 
-  const tabChanged = tab !== prevTab
+		const tabChanged = tab !== prevTab;
 
-  if (tabChanged) {
-    await chatStore.switchToConversation(tab)
-    scrollToBottom(true)
-  } else {
-    chatStore.clearUnreads(tab)
-  }
-}, { immediate: true })
-
-watch(currentMessages, () => {
-  if (!isFetchingHistory.value && isVisible.value && isExpanded.value) {
-    scrollToBottom(false)
-  }
-}, { deep: true })
-
+		if (tabChanged) {
+			await chatStore.switchToConversation(tab);
+			scrollToBottom(true);
+		} else {
+			chatStore.clearUnreads(tab);
+		}
+	},
+	{ immediate: true },
+);
 
 const openLobbyInvitePopover = (ev: Event) => {
-  inviteEvent.value = ev
-  invitePopoverOpen.value = true
-}
-
+	inviteEvent.value = ev;
+	invitePopoverOpen.value = true;
+};
 
 function joinSession(roomId: string) {
-  invitations.value = invitations.value.filter(inv => inv.roomId !== roomId)
+	invitations.value = invitations.value.filter((inv) => inv.roomId !== roomId);
 
-  chatWidget.closePanel()
-  router.push(FRONTEND_ROUTES.draw, masterAnimation)
+	chatWidget.closePanel();
+	router.push(FRONTEND_ROUTES.draw, masterAnimation);
 
-  setTimeout(() => {
-    socketJoinRoom({ roomId: roomId, intent: 'join' })
-  }, 200)
+	setTimeout(() => {
+		socketJoinRoom({ roomId: roomId, intent: "join" });
+	}, 200);
 }
-
 
 const handleLoadMore = async () => {
-  if (isFetchingHistory.value) return
+	if (isFetchingHistory.value) return;
 
-  const el = messageContainer.value
-  if (!el || el.scrollTop > 200) return
+	const el = messageContainer.value;
+	if (!el || el.scrollTop > 200) return;
 
-  if (!currentMessages.value.length) return
-  if (chatStore.hasMoreMessagesByChat[activeTab.value] === false) return
+	if (!currentMessages.value.length) return;
+	if (chatStore.hasMoreMessagesByChat[activeTab.value] === false) return;
 
-  isFetchingHistory.value = true
-  const snapshot = captureScrollState()
+	isFetchingHistory.value = true;
+	const snapshot = captureScrollState();
 
-  try {
-    await chatStore.loadMessages(activeTab.value, false)
-    await nextTick()
-    if (snapshot) restoreScrollState(snapshot)
-  } finally {
-    setTimeout(() => {
-      isFetchingHistory.value = false
-    }, 200)
-  }
-}
-
+	try {
+		await chatStore.loadMessages(activeTab.value, false);
+		await nextTick();
+		if (snapshot) restoreScrollState(snapshot);
+	} finally {
+		setTimeout(() => {
+			isFetchingHistory.value = false;
+		}, 200);
+	}
+};
 </script>
 
 <style scoped>

@@ -18,25 +18,7 @@
       :class="speedClass"
       :style="shimmerStyle"
     ></div>
-
-    <!-- Starfield -->
-    <div v-else-if="def.kind === 'starfield'" class="absolute inset-0">
-      <span
-        v-for="(s, i) in stars"
-        :key="i"
-        class="absolute rounded-full bg-white twinkle"
-        :style="{
-          left: s.left + '%',
-          top: s.top + '%',
-          width: s.size + 'px',
-          height: s.size + 'px',
-          animationDelay: preview ? '0s' : s.delay + 's',
-          animationDuration: s.duration + 's',
-          boxShadow: `0 0 ${s.size * 2}px white`
-        }"
-      ></span>
-    </div>
-
+    
     <!-- Falling emoji -->
     <div v-else-if="def.kind === 'falling'" class="absolute inset-0">
       <span
@@ -124,29 +106,14 @@ const particles = computed(() => {
 	const baseDur =
 		def.value.speed === "fast" ? 5 : def.value.speed === "slow" ? 14 : 9;
 
-	// Dragons get bigger sizes so the emoji reads at distance
-	const isDragon = def.value.emoji === "🐉";
-	const sizeMin = isDragon ? 32 : 14;
-	const sizeRange = isDragon ? 16 : 12;
+	const sizeMin = 14;
+	const sizeRange = 12;
 
 	return Array.from({ length: count }, () => ({
 		left: rand() * 100,
 		delay: rand() * baseDur,
 		duration: baseDur + rand() * 4,
 		size: sizeMin + Math.floor(rand() * sizeRange),
-	}));
-});
-
-const stars = computed(() => {
-	const count = def.value.density || 18;
-	const rand = seededRandom(def.value.id);
-	return Array.from({ length: count }, () => ({
-		left: rand() * 100,
-		top: rand() * 100,
-		delay: rand() * 3,
-		duration: 2 + rand() * 3,
-		// Larger range (1.5–4px) so stars actually read; the old 1px dots vanished
-		size: 1.5 + rand() * 2.5,
 	}));
 });
 

@@ -94,39 +94,44 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonButton, IonIcon } from '@ionic/vue'
-import { ref, watchEffect } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/store/auth.store'
-import { compareVersions, svg } from '@/helper/general.helper'
-import { useAPI } from '@/service/api/api.service'
-import { mdiAccountGroupOutline, mdiBrushVariant, mdiLasso, mdiMapOutline } from '@mdi/js'
-import { useRoute } from 'vue-router'
-import { FRONTEND_ROUTES } from '@/types/router.types'
+import { IonModal, IonButton, IonIcon } from "@ionic/vue";
+import { ref, watchEffect } from "vue";
+import { storeToRefs } from "pinia";
+import { useAuthStore } from "@/store/auth.store";
+import { compareVersions, svg } from "@/helper/general.helper";
+import {
+	mdiAccountGroupOutline,
+	mdiBrushVariant,
+	mdiLasso,
+	mdiMapOutline,
+} from "@mdi/js";
+import { useRoute } from "vue-router";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { updateUser } from "@/service/api/user.api";
 
-const isOpen = ref(false)
-const { user } = storeToRefs(useAuthStore())
-const api = useAPI()
-const route = useRoute()
-const appVersion = __APP_VERSION__
+const isOpen = ref(false);
+const { user } = storeToRefs(useAuthStore());
+const route = useRoute();
+const appVersion = __APP_VERSION__;
 
 watchEffect(() => {
-  if (isOpen.value || !user.value || route.path === `/${FRONTEND_ROUTES.login}`) return
+	if (isOpen.value || !user.value || route.path === `/${FRONTEND_ROUTES.login}`)
+		return;
 
-  const lastSeen = user.value.last_seen_version || '0.0.0'
+	const lastSeen = user.value.last_seen_version || "0.0.0";
 
-  if (compareVersions(appVersion, lastSeen) === 1) {
-    setTimeout(() => {
-      if (!user.value) return
-      isOpen.value = true
-    }, 2000)
-    user.value.last_seen_version = appVersion
-    void api.updateUser({
-      _id: user.value._id,
-      last_seen_version: appVersion
-    })
-  }
-})
+	if (compareVersions(appVersion, lastSeen) === 1) {
+		setTimeout(() => {
+			if (!user.value) return;
+			isOpen.value = true;
+		}, 2000);
+		user.value.last_seen_version = appVersion;
+		void updateUser({
+			_id: user.value._id,
+			last_seen_version: appVersion,
+		});
+	}
+});
 </script>
 
 <style scoped>

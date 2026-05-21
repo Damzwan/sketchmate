@@ -15,6 +15,7 @@
     <Confetti />
     <ReceivedBalloon />
     <ConnectionHub />
+    <ModerationMenu/>
   </ion-app>
 </template>
 
@@ -69,6 +70,10 @@ const ConnectionHub = defineAsyncComponent(
 
 const UserContextSheet = defineAsyncComponent(
 	() => import("@/components/profile/UserContextSheet.vue"),
+);
+
+const ModerationMenu = defineAsyncComponent(
+	() => import("@/components/moderation/ModerationMenu.vue"),
 );
 
 const ionRouter = useIonRouter();

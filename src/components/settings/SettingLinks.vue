@@ -1,5 +1,8 @@
 <template>
   <div class="w-full flex flex-col bottom-0">
+    <ion-button fill="clear" color="secondary" @click="() => r.push(FRONTEND_ROUTES.moderation, masterAnimation)"
+    >Report status
+    </ion-button>
     <ion-button v-if="docs" fill="clear" color="secondary" :id="id">User Manual</ion-button>
     <DocsMenu :trigger="id" />
     <ion-button v-if="form" fill="clear" color="secondary" @click="openMenu(Menu.FeedbackMenu)"
@@ -35,56 +38,62 @@
 </template>
 
 <script lang="ts" setup>
-import { v4 as uuidv4 } from 'uuid'
-import { IonButton } from '@ionic/vue'
-import { useAuthStore } from '@/store/auth.store'
-import { storeToRefs } from 'pinia'
-import { installPWA, isIOS, isNative, showIosSafariInstructions } from '@/helper/general.helper'
-import IosPwaInstructions from '@/components/general/IosPwaInstructions.vue'
-import { useMenuStore } from '@/store/menu.store'
-import { Menu } from '@/draw/types/draw.types'
-import { discord_link } from '@/config/general.config'
-import DocsMenu from '@/components/draw/menus/DocsMenu.vue'
-import { useSessionStore } from '@/store/session.store'
-import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
-import { ref } from 'vue'
+import { v4 as uuidv4 } from "uuid";
+import { IonButton, useIonRouter } from "@ionic/vue";
+import { useAuthStore } from "@/store/auth.store";
+import { storeToRefs } from "pinia";
+import {
+	installPWA,
+	isIOS,
+	isNative,
+	showIosSafariInstructions,
+} from "@/helper/general.helper";
+import IosPwaInstructions from "@/components/general/IosPwaInstructions.vue";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
+import { discord_link } from "@/config/general.config";
+import DocsMenu from "@/components/draw/menus/DocsMenu.vue";
+import { useSessionStore } from "@/store/session.store";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
+import { ref } from "vue";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { masterAnimation } from "@/helper/animation.helper";
 
-const { installPrompt } = storeToRefs(useSessionStore())
-const { logout } = useAuthStore()
-const { firebaseUser } = storeToRefs(useAuthStore())
+const { installPrompt } = storeToRefs(useSessionStore());
+const { logout } = useAuthStore();
+const { firebaseUser } = storeToRefs(useAuthStore());
 
-const { openMenu } = useMenuStore()
+const { openMenu } = useMenuStore();
 
-const pwaInstructionId = uuidv4()
-const logoutWarningOpen = ref(false)
+const r = useIonRouter();
+
+const pwaInstructionId = uuidv4();
+const logoutWarningOpen = ref(false);
 
 export interface Props {
-  docs?: boolean
-  form?: boolean
-  blog?: boolean
-  contact?: boolean
+	docs?: boolean;
+	form?: boolean;
+	blog?: boolean;
+	contact?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
-  docs: true,
-  form: true,
-  blog: true,
-  contact: true
-})
+	docs: true,
+	form: true,
+	blog: true,
+	contact: true,
+});
 
-const id = uuidv4()
-
+const id = uuidv4();
 
 function onInstallPWAClick() {
-  installPWA(installPrompt)
+	installPWA(installPrompt);
 }
 
 function logoutHelper() {
-  if (firebaseUser.value?.isAnonymous) logoutWarningOpen.value = true
-  else logout()
+	if (firebaseUser.value?.isAnonymous) logoutWarningOpen.value = true;
+	else logout();
 }
-
-
 </script>
 
 <style scoped>

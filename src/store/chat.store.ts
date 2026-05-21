@@ -176,6 +176,7 @@ export const useChatStore = defineStore("chat", () => {
 				(p: any) =>
 					(typeof p === "object" ? p._id || p.toString() : p.toString()) !== me,
 			);
+			// @ts-ignore
 			partnerIdStr = typeof p === "object" ? p._id : p?.toString();
 		}
 

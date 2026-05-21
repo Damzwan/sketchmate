@@ -1,420 +1,442 @@
-import { useDrawStore } from '@/draw/store/draw.store'
-import * as fabric from 'fabric'
-import { ActiveSelection, Canvas, FabricObject, Group } from 'fabric'
+import { useDrawStore } from "@/draw/store/draw.store";
+import * as fabric from "fabric";
+import { ActiveSelection, Canvas, FabricObject, Group } from "fabric";
 
-import { DrawAction, DrawActionParams, DrawTool } from '@/draw/types/draw.types'
-import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { v4 as uuidv4 } from 'uuid'
-import { useSelect } from '@/draw/store/tools/select.store'
-import { useAuthStore } from '@/store/auth.store'
-import { storeToRefs } from 'pinia'
-import { useAPI } from '@/service/api/api.service'
-import { useToast } from '@/service/toast.service'
-import { viewSavedButton } from '@/config/toast.config'
-import { ToastDuration } from '@/types/toast.types'
-import { centerObjectInViewport } from '@/draw/helpers/viewport.helper'
-import { canvasToBuffer } from '@/draw/helpers/export.helper'
-import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { toJSON, toObjectsIds } from '@/draw/helpers/object.helper'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-
+import {
+	DrawAction,
+	DrawActionParams,
+	DrawTool,
+} from "@/draw/types/draw.types";
+import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
+import { v4 as uuidv4 } from "uuid";
+import { useSelect } from "@/draw/store/tools/select.store";
+import { useAuthStore } from "@/store/auth.store";
+import { storeToRefs } from "pinia";
+import { useToast } from "@/service/toast.service";
+import { viewSavedButton } from "@/config/toast.config";
+import { ToastDuration } from "@/types/toast.types";
+import { centerObjectInViewport } from "@/draw/helpers/viewport.helper";
+import { canvasToBuffer } from "@/draw/helpers/export.helper";
+import { useToolSelection } from "@/draw/store/tools/toolSelection.store";
+import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { toJSON, toObjectsIds } from "@/draw/helpers/object.helper";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { createSaved } from "@/service/api/user.api";
 
 export async function removeObjects(objects: FabricObject[]) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
 
-  if (objects.length === 0) return
+	if (objects.length === 0) return;
 
-  c.remove(...objects)
-  
+	c.remove(...objects);
 
-  c.fire('objectsDeleted', { target: objects })
+	c.fire("objectsDeleted", { target: objects });
 }
 
 export async function removeSelectedObjects() {
-  const { getSelectedObjects, unSelect } = useSelect()
-  const selected = getSelectedObjects()
+	const { getSelectedObjects, unSelect } = useSelect();
+	const selected = getSelectedObjects();
 
-  const { isPublicLobby } = useDrawSyncer()
-  if (isPublicLobby) {
-    const { user } = useAuthStore()
-    if (selected.find(o => o.userId !== user?._id)) {
-      const { toast } = useToast()
-      toast('Cannot deleted objects from other user', { color: 'warning' })
-      return
-    }
-  }
+	const { isPublicLobby } = useDrawSyncer();
+	if (isPublicLobby) {
+		const { user } = useAuthStore();
+		if (selected.find((o) => o.userId !== user?._id)) {
+			const { toast } = useToast();
+			toast("Cannot deleted objects from other user", { color: "warning" });
+			return;
+		}
+	}
 
-  unSelect()
-  await removeObjects(selected)
+	unSelect();
+	await removeObjects(selected);
 }
-
 
 // TODO this should be the function that should be used with everything...
-export function setPropertiesOfObjects(params: DrawActionParams[DrawAction.SetPropertiesOfObject]) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
+export function setPropertiesOfObjects(
+	params: DrawActionParams[DrawAction.SetPropertiesOfObject],
+) {
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
 
+	params.objects.forEach((obj: any) => {
+		obj.set(params.properties);
+	});
 
-  params.objects.forEach((obj: any) => {
-    obj.set(params.properties)
-  })
-  
-  c.fire('objects:changed', { target: params.objects, parameters: params.properties })
+	c.fire("objects:changed", {
+		target: params.objects,
+		parameters: params.properties,
+	});
 }
 
-
-function sortObjectsByLayer(objects: FabricObject[], c: Canvas, reverse = false) {
-  const sorted = objects.sort((a: any, b: any) => {
-    return c.getObjects().indexOf(a) - c.getObjects().indexOf(b)
-  })
-  return reverse ? sorted.reverse() : sorted
+function sortObjectsByLayer(
+	objects: FabricObject[],
+	c: Canvas,
+	reverse = false,
+) {
+	const sorted = objects.sort((a: any, b: any) => {
+		return c.getObjects().indexOf(a) - c.getObjects().indexOf(b);
+	});
+	return reverse ? sorted.reverse() : sorted;
 }
 
-export function moveObjectToFront(params: DrawActionParams[DrawAction.MoveObjectToFront]) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const sortedObjects = sortObjectsByLayer(params.objects, c)
+export function moveObjectToFront(
+	params: DrawActionParams[DrawAction.MoveObjectToFront],
+) {
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
+	const sortedObjects = sortObjectsByLayer(params.objects, c);
 
-  const prevObjectPositions: number[] = []
+	const prevObjectPositions: number[] = [];
 
-  sortedObjects.forEach((obj: any) => {
-    const currI = c.getObjects().indexOf(obj)
-    prevObjectPositions.push(currI)
-    c.bringObjectToFront(obj)
-  })
-  
-  c.fire('layer:changed', {
-    target: params.objects,
-    type: DrawAction.MoveObjectToFront,
-    prevObjectPositions
-  })
+	sortedObjects.forEach((obj: any) => {
+		const currI = c.getObjects().indexOf(obj);
+		prevObjectPositions.push(currI);
+		c.bringObjectToFront(obj);
+	});
+
+	c.fire("layer:changed", {
+		target: params.objects,
+		type: DrawAction.MoveObjectToFront,
+		prevObjectPositions,
+	});
 }
 
-export function moveObjectToBack(params: DrawActionParams[DrawAction.MoveObjectToBack]) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const sortedObjects = sortObjectsByLayer(params.objects, c, true)
+export function moveObjectToBack(
+	params: DrawActionParams[DrawAction.MoveObjectToBack],
+) {
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
+	const sortedObjects = sortObjectsByLayer(params.objects, c, true);
 
-  const prevObjectPositions: number[] = []
+	const prevObjectPositions: number[] = [];
 
+	sortedObjects.forEach((obj: any) => {
+		const currI = c.getObjects().indexOf(obj);
+		prevObjectPositions.push(currI);
+		c.sendObjectToBack(obj);
+	});
 
-  sortedObjects.forEach((obj: any) => {
-    const currI = c.getObjects().indexOf(obj)
-    prevObjectPositions.push(currI)
-    c.sendObjectToBack(obj)
-  })
-
-
-  
-  c.fire('layer:changed', {
-    target: params.objects,
-    type: DrawAction.MoveObjectToBack,
-    prevObjectPositions
-  })
+	c.fire("layer:changed", {
+		target: params.objects,
+		type: DrawAction.MoveObjectToBack,
+		prevObjectPositions,
+	});
 }
 
-export function moveObjectUpOneLayer(params: DrawActionParams[DrawAction.MoveObjectUpOneLayer]) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const sortedObjects = sortObjectsByLayer(params.objects, c, true)
-  const objectsLength = c.getObjects().length - 1
+export function moveObjectUpOneLayer(
+	params: DrawActionParams[DrawAction.MoveObjectUpOneLayer],
+) {
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
+	const sortedObjects = sortObjectsByLayer(params.objects, c, true);
+	const objectsLength = c.getObjects().length - 1;
 
-  sortedObjects.forEach((obj: any) => {
-    const currI = c.getObjects().indexOf(obj)
-    c.moveObjectTo(obj, Math.min(currI + 1, objectsLength))
-  })
-  
-  c.fire('layer:changed', { target: params.objects, type: DrawAction.MoveObjectUpOneLayer })
+	sortedObjects.forEach((obj: any) => {
+		const currI = c.getObjects().indexOf(obj);
+		c.moveObjectTo(obj, Math.min(currI + 1, objectsLength));
+	});
+
+	c.fire("layer:changed", {
+		target: params.objects,
+		type: DrawAction.MoveObjectUpOneLayer,
+	});
 }
 
-export function moveObjectDownOneLayer(params: DrawActionParams[DrawAction.MoveObjectUpOneLayer]) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
+export function moveObjectDownOneLayer(
+	params: DrawActionParams[DrawAction.MoveObjectUpOneLayer],
+) {
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
 
-  const sortedObjects = sortObjectsByLayer(params.objects, c, false)
+	const sortedObjects = sortObjectsByLayer(params.objects, c, false);
 
-  sortedObjects.forEach((obj: any) => {
-    const currI = c.getObjects().indexOf(obj)
-    c.moveObjectTo(obj, Math.max(currI - 1, 0))
-  })
-  
-  c.fire('layer:changed', { target: params.objects, type: DrawAction.MoveObjectDownOneLayer })
+	sortedObjects.forEach((obj: any) => {
+		const currI = c.getObjects().indexOf(obj);
+		c.moveObjectTo(obj, Math.max(currI - 1, 0));
+	});
+
+	c.fire("layer:changed", {
+		target: params.objects,
+		type: DrawAction.MoveObjectDownOneLayer,
+	});
 }
 
-export async function copyObjects(params: DrawActionParams[DrawAction.CopyObject]) {
-  const { getCanvas } = useDrawStore()
-  const { actionWithoutEvents } = useDrawEventManager()
-  const c = getCanvas()
+export async function copyObjects(
+	params: DrawActionParams[DrawAction.CopyObject],
+) {
+	const { getCanvas } = useDrawStore();
+	const { actionWithoutEvents } = useDrawEventManager();
+	const c = getCanvas();
 
-  if (params.objects.length > 200) {
-    const { toast } = useToast()
-    toast('Cannot copy more than 200 objects', { color: 'warning' })
-    return
-  }
+	if (params.objects.length > 200) {
+		const { toast } = useToast();
+		toast("Cannot copy more than 200 objects", { color: "warning" });
+		return;
+	}
 
+	const offsetX = 10;
+	const offsetY = 10;
 
-  const offsetX = 10
-  const offsetY = 10
+	let clonedObjects: FabricObject[] = [];
+	await actionWithoutEvents(async () => {
+		c.discardActiveObject();
+		clonedObjects = await Promise.all(
+			params.objects.map((obj: FabricObject) => obj.clone()),
+		);
 
+		clonedObjects.forEach((obj: FabricObject, i) => {
+			obj.set({ left: obj.left! + offsetX, top: obj.top! + offsetY });
+			obj.id = params.newObjectIds ? params.newObjectIds[i] : uuidv4();
+			c.add(obj);
+		});
+	});
 
-  let clonedObjects: FabricObject[] = []
-  await actionWithoutEvents(async () => {
-    c.discardActiveObject()
-    clonedObjects = await Promise.all(params.objects.map((obj: FabricObject) => obj.clone()))
+	const clonedJsons = toJSON(clonedObjects);
 
-    clonedObjects.forEach((obj: FabricObject, i) => {
-      obj.set({ left: obj.left! + offsetX, top: obj.top! + offsetY })
-      obj.id = params.newObjectIds ? params.newObjectIds[i] : uuidv4()
-      c.add(obj)
-    })
-  })
+	// normal scenario, not when syncing events
+	if (!params.newObjectIds) {
+		const newActiveObject =
+			clonedObjects.length == 1
+				? clonedObjects[0]
+				: new ActiveSelection(clonedObjects, { canvas: c });
 
-  const clonedJsons = toJSON(clonedObjects)
+		c.setActiveObject(newActiveObject);
+		c.clearContext(c.getTopContext());
+		newActiveObject._renderControls(c.getTopContext());
+	}
 
-  // normal scenario, not when syncing events
-  if (!params.newObjectIds) {
-    const newActiveObject =
-      clonedObjects.length == 1 ? clonedObjects[0] : new ActiveSelection(clonedObjects, { canvas: c })
-
-    c.setActiveObject(newActiveObject)
-    c.clearContext(c.getTopContext())
-    newActiveObject._renderControls(c.getTopContext())
-  }
-
-  
-
-
-  c.fire('objectsCopied', {
-    target: clonedJsons,
-    objectIdsToClone: params.objects.map((obj: FabricObject) => obj.id),
-    newObjectIds: clonedObjects.map((obj: FabricObject) => obj.id)
-  })
+	c.fire("objectsCopied", {
+		target: clonedJsons,
+		objectIdsToClone: params.objects.map((obj: FabricObject) => obj.id),
+		newObjectIds: clonedObjects.map((obj: FabricObject) => obj.id),
+	});
 }
 
 export function mergeHelper(
-  canvas: Canvas,
-  objects: FabricObject[],
-  groupId = uuidv4()
+	canvas: Canvas,
+	objects: FabricObject[],
+	groupId = uuidv4(),
 ): Group {
-  const highestIndex = Math.max(...objects.map(obj => canvas.getObjects().indexOf(obj)))
+	const highestIndex = Math.max(
+		...objects.map((obj) => canvas.getObjects().indexOf(obj)),
+	);
 
-  const group = new Group(objects, {
-    canvas: canvas,
-    id: groupId
-  } as any)
+	const group = new Group(objects, {
+		canvas: canvas,
+		id: groupId,
+	} as any);
 
-  objects.forEach((obj) => canvas.remove(obj))
+	objects.forEach((obj) => canvas.remove(obj));
 
-  const targetIndex = Math.max(0, highestIndex - objects.length + 1)
-  canvas.insertAt(targetIndex, group)
+	const targetIndex = Math.max(0, highestIndex - objects.length + 1);
+	canvas.insertAt(targetIndex, group);
 
-  return group
+	return group;
 }
 
-
 export async function mergeObjects(params: DrawActionParams[DrawAction.Merge]) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
 
-  const { actionWithoutEvents } = useDrawEventManager()
+	const { actionWithoutEvents } = useDrawEventManager();
 
+	let createdGroup: Group | undefined;
+	await actionWithoutEvents(async () => {
+		c.discardActiveObject();
+		createdGroup = mergeHelper(c, params.objects);
+	});
 
-  let createdGroup: Group | undefined
-  await actionWithoutEvents(async () => {
-    c.discardActiveObject()
-    createdGroup = mergeHelper(c, params.objects)
-  })
+	if (!createdGroup) return;
 
-  if (!createdGroup) return
+	c.setActiveObject(createdGroup);
+	c.clearContext(c.getTopContext());
+	createdGroup._renderControls(c.getTopContext());
 
-  c.setActiveObject(createdGroup)
-  c.clearContext(c.getTopContext())
-  createdGroup._renderControls(c.getTopContext())
-
-  c.fire('objectsMerged', {
-    objectIds: [createdGroup.id],
-    group: null,
-    mergedObjectIds: toObjectsIds(params.objects)
-  })
+	c.fire("objectsMerged", {
+		objectIds: [createdGroup.id],
+		group: null,
+		mergedObjectIds: toObjectsIds(params.objects),
+	});
 }
 
 export async function flipXObjects(params: DrawActionParams[DrawAction.FlipX]) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const objects = params.objects
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
+	const objects = params.objects;
 
-  if (objects.length === 1) {
-    objects[0].set('flipX', !objects[0].flipX)
-    objects[0].setCoords()
-  } else {
-    const tempSelection = new fabric.ActiveSelection(objects, { canvas: c })
+	if (objects.length === 1) {
+		objects[0].set("flipX", !objects[0].flipX);
+		objects[0].setCoords();
+	} else {
+		const tempSelection = new fabric.ActiveSelection(objects, { canvas: c });
 
-    const prevActiveObject = c.getActiveObject()
-    c.setActiveObject(tempSelection)
+		const prevActiveObject = c.getActiveObject();
+		c.setActiveObject(tempSelection);
 
-    tempSelection.set('flipX', !tempSelection.flipX)
-    tempSelection.setCoords()
+		tempSelection.set("flipX", !tempSelection.flipX);
+		tempSelection.setCoords();
 
-    if (!params.setActiveObject) {
-      c.discardActiveObject()
-      if (prevActiveObject) c.setActiveObject(prevActiveObject)
-    }
-  }
+		if (!params.setActiveObject) {
+			c.discardActiveObject();
+			if (prevActiveObject) c.setActiveObject(prevActiveObject);
+		}
+	}
 
-  c.fire('flip', { direction: 'flipX', target: objects })
+	c.fire("flip", { direction: "flipX", target: objects });
 }
 
 export async function flipYObjects(params: DrawActionParams[DrawAction.FlipX]) {
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
-  const objects = params.objects
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
+	const objects = params.objects;
 
-  if (objects.length === 1) {
-    objects[0].set('flipY', !objects[0].flipY)
-    objects[0].setCoords()
-  } else {
-    const tempSelection = new fabric.ActiveSelection(objects, { canvas: c })
+	if (objects.length === 1) {
+		objects[0].set("flipY", !objects[0].flipY);
+		objects[0].setCoords();
+	} else {
+		const tempSelection = new fabric.ActiveSelection(objects, { canvas: c });
 
-    const prevActiveObject = c.getActiveObject()
-    c.setActiveObject(tempSelection)
+		const prevActiveObject = c.getActiveObject();
+		c.setActiveObject(tempSelection);
 
-    tempSelection.set('flipY', !tempSelection.flipY)
-    tempSelection.setCoords()
+		tempSelection.set("flipY", !tempSelection.flipY);
+		tempSelection.setCoords();
 
-    if (!params.setActiveObject) {
-      c.discardActiveObject()
-      if (prevActiveObject) c.setActiveObject(prevActiveObject)
-    }
-  }
+		if (!params.setActiveObject) {
+			c.discardActiveObject();
+			if (prevActiveObject) c.setActiveObject(prevActiveObject);
+		}
+	}
 
-  c.fire('flip', { direction: 'flipY', target: objects })
+	c.fire("flip", { direction: "flipY", target: objects });
 }
 
 export async function unselectObjects() {
-  const { unSelect } = useSelect()
-  unSelect()
+	const { unSelect } = useSelect();
+	unSelect();
 }
 
-export async function saveFabricObject(params: DrawActionParams[DrawAction.SaveFabricObject]) {
-  const { user } = useAuthStore()
-  const { loadingText, isLoading } = storeToRefs(useDrawUIStore())
-  const { createSaved } = useAPI()
-  const { toast } = useToast()
+export async function saveFabricObject(
+	params: DrawActionParams[DrawAction.SaveFabricObject],
+) {
+	const { user } = useAuthStore();
+	const { loadingText, isLoading } = storeToRefs(useDrawUIStore());
+	const { toast } = useToast();
 
-  const { getCanvas } = useDrawStore()
-  const c = getCanvas()
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
 
+	isLoading.value = true;
+	loadingText.value = "Saving drawing...";
 
-  isLoading.value = true
-  loadingText.value = 'Saving drawing...'
+	let minX = Infinity;
+	let minY = Infinity;
+	let maxX = -Infinity;
+	let maxY = -Infinity;
 
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
+	if (params.objects.length > 1) {
+		c.discardActiveObject();
+	}
 
-  if (params.objects.length > 1) {
-    c.discardActiveObject()
-  }
+	// Calculate the bounding box for the objects
+	params.objects.forEach((obj) => {
+		const boundingRect = obj.getBoundingRect(); // Pass true to get a box that surrounds the entire object even if it's rotated
+		minX = Math.min(minX, boundingRect.left);
+		minY = Math.min(minY, boundingRect.top);
+		maxX = Math.max(maxX, boundingRect.left + boundingRect.width);
+		maxY = Math.max(maxY, boundingRect.top + boundingRect.height);
+	});
 
-  // Calculate the bounding box for the objects
-  params.objects.forEach(obj => {
-    const boundingRect = obj.getBoundingRect() // Pass true to get a box that surrounds the entire object even if it's rotated
-    minX = Math.min(minX, boundingRect.left)
-    minY = Math.min(minY, boundingRect.top)
-    maxX = Math.max(maxX, boundingRect.left + boundingRect.width)
-    maxY = Math.max(maxY, boundingRect.top + boundingRect.height)
-  })
+	const width = maxX - minX;
+	const height = maxY - minY;
 
-  const width = maxX - minX
-  const height = maxY - minY
+	const tempCanvas = new fabric.StaticCanvas(undefined, {
+		width: width,
+		height: height,
+	});
 
-  const tempCanvas = new fabric.StaticCanvas(undefined, { width: width, height: height })
+	const clonedObjects = await Promise.all(
+		params.objects.map((obj: FabricObject) => obj.clone()),
+	);
 
-  const clonedObjects = await Promise.all(params.objects.map((obj: FabricObject) => obj.clone()))
+	// Add objects to the canvas
+	clonedObjects.forEach((obj) => {
+		obj.set({
+			left: obj.left! - minX,
+			top: obj.top! - minY,
+		});
 
-  // Add objects to the canvas
-  clonedObjects.forEach(obj => {
-    obj.set({
-      left: obj.left! - minX,
-      top: obj.top! - minY
-    })
+		tempCanvas.add(obj);
+	});
 
-    tempCanvas.add(obj)
-  })
+	tempCanvas.renderAll();
 
-  tempCanvas.renderAll()
+	if (params.objects.length > 1) {
+		c.setActiveObject(new ActiveSelection(params.objects, { canvas: c }));
+	}
 
-  if (params.objects.length > 1) {
-    c.setActiveObject(new ActiveSelection(params.objects, { canvas: c }))
-  }
+	// Save canvas as JSON and DataURL
+	const json = JSON.stringify(tempCanvas.toJSON());
+	const img = await canvasToBuffer(tempCanvas.toDataURL());
 
-  // Save canvas as JSON and DataURL
-  const json = JSON.stringify(tempCanvas.toJSON())
-  const img = await canvasToBuffer(tempCanvas.toDataURL())
+	const saved = await createSaved({ _id: user!._id, drawing: json, img: img });
+	user!.saved.push(saved!);
 
-  const saved = await createSaved({ _id: user!._id, drawing: json, img: img })
-  user!.saved.push(saved!)
-
-  isLoading.value = false
-  toast('Saved drawing', { buttons: [viewSavedButton], duration: ToastDuration.medium })
-
-
-  
+	isLoading.value = false;
+	toast("Saved drawing", {
+		buttons: [viewSavedButton],
+		duration: ToastDuration.medium,
+	});
 }
 
-export async function addSavedFabricObjectToCanvas(params: DrawActionParams[DrawAction.AddSavedDrawingToCanvas]) {
-  const { getCanvas } = useDrawStore()
-  const { selectTool, selectedTool } = useToolSelection()
-  const { actionWithoutEvents } = useDrawEventManager()
+export async function addSavedFabricObjectToCanvas(
+	params: DrawActionParams[DrawAction.AddSavedDrawingToCanvas],
+) {
+	const { getCanvas } = useDrawStore();
+	const { selectTool, selectedTool } = useToolSelection();
+	const { actionWithoutEvents } = useDrawEventManager();
 
-  const c = getCanvas()
-  if (!c) return
-  const json = params.json
+	const c = getCanvas();
+	if (!c) return;
+	const json = params.json;
 
-  // Enliven
-  let objects = await fabric.util.enlivenObjects<FabricObject>(json.objects)
-  objects.forEach(obj => obj.set('id', uuidv4()))
+	// Enliven
+	let objects = await fabric.util.enlivenObjects<FabricObject>(json.objects);
+	objects.forEach((obj) => obj.set("id", uuidv4()));
 
-  await actionWithoutEvents(() => {
-    if (objects.length === 1) {
-      const obj = objects[0]
+	await actionWithoutEvents(() => {
+		if (objects.length === 1) {
+			const obj = objects[0];
 
-      centerObjectInViewport(c, obj)
-      c.add(obj)
-      obj.setCoords()
+			centerObjectInViewport(c, obj);
+			c.add(obj);
+			obj.setCoords();
 
-      c.setActiveObject(obj)
-    } else {
-      const selection = new fabric.ActiveSelection(objects, { canvas: c })
+			c.setActiveObject(obj);
+		} else {
+			const selection = new fabric.ActiveSelection(objects, { canvas: c });
 
-      centerObjectInViewport(c, selection)
+			centerObjectInViewport(c, selection);
 
-      selection.forEachObject(obj => {
-        c.add(obj)
-        obj.setCoords()
-      })
+			selection.forEachObject((obj) => {
+				c.add(obj);
+				obj.setCoords();
+			});
 
-      selection.removeAll()
+			selection.removeAll();
+		}
+	});
 
-    }
-  })
+	if (selectedTool !== DrawTool.Select) {
+		selectTool(DrawTool.Select);
+	}
 
-  if (selectedTool !== DrawTool.Select) {
-    selectTool(DrawTool.Select)
-  }
+	c.fire("objects:added", { target: objects });
 
-  c.fire('objects:added', { target: objects })
-
-  if (objects.length === 1) {
-    c.setActiveObject(objects[0])
-  } else {
-    c.setActiveObject(new fabric.ActiveSelection(objects, { canvas: c }))
-
-  }
-
-
-  
+	if (objects.length === 1) {
+		c.setActiveObject(objects[0]);
+	} else {
+		c.setActiveObject(new fabric.ActiveSelection(objects, { canvas: c }));
+	}
 }

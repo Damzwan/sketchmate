@@ -112,160 +112,180 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { IonPage, IonIcon, IonSpinner, IonToggle, IonButton, onIonViewDidEnter } from '@ionic/vue'
-import { mdiChevronLeft, mdiCheck } from '@mdi/js'
-import { storeToRefs } from 'pinia'
-import { compressImg, svg } from '@/helper/general.helper'
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import {
+	IonPage,
+	IonIcon,
+	IonSpinner,
+	IonToggle,
+	IonButton,
+	onIonViewDidEnter,
+} from "@ionic/vue";
+import { mdiChevronLeft, mdiCheck } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { compressImg, svg } from "@/helper/general.helper";
 
-import { useAuthStore } from '@/store/auth.store'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useMateSelection } from '@/draw/services/useMateSelection'
-import { useToast } from '@/service/toast.service'
+import { useAuthStore } from "@/store/auth.store";
+import { useDrawStore } from "@/draw/store/draw.store";
+import { useMateSelection } from "@/draw/services/useMateSelection";
+import { useToast } from "@/service/toast.service";
 
 // @ts-ignore
-import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
-import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
-import { createPost } from '@/service/api/post.api'
-import { usePostStore } from '@/store/post.store'
+import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
+import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { createPost } from "@/service/api/post.api";
+import { usePostStore } from "@/store/post.store";
 
-const { user } = storeToRefs(useAuthStore())
-const drawStore = useDrawStore()
-const { preview, newPreview, isSendingDrawing } = storeToRefs(drawStore)
-const { send, getDataToSend, createBalloon, getAspectRatio, crop, createPreview, resetPreview } = drawStore
+const { user } = storeToRefs(useAuthStore());
+const drawStore = useDrawStore();
+const { preview, newPreview, isSendingDrawing } = storeToRefs(drawStore);
+const {
+	send,
+	getDataToSend,
+	createBalloon,
+	getAspectRatio,
+	crop,
+	createPreview,
+	resetPreview,
+} = drawStore;
 
-const { selected, toggle, count, reset: resetMates } = useMateSelection()
-const { toast } = useToast()
+const { selected, toggle, count, reset: resetMates } = useMateSelection();
+const { toast } = useToast();
 
 // UI State
-const isSaveAndSend = ref(true) // Defaults to true so they save their work
-const isPublicPost = ref(false)
-const postCaption = ref('')
-const isBalloon = ref(false)
-const balloonNote = ref('')
-const isLoading = ref(false)
-
+const isSaveAndSend = ref(true); // Defaults to true so they save their work
+const isPublicPost = ref(false);
+const postCaption = ref("");
+const isBalloon = ref(false);
+const balloonNote = ref("");
+const isLoading = ref(false);
 
 onMounted(() => {
-  setTimeout(() => {
-    createPreview()
-  }, drawStore.getCanvas().getObjects().length > 1000 ? 250 : 50)
-})
+	setTimeout(
+		() => {
+			createPreview();
+		},
+		drawStore.getCanvas().getObjects().length > 1000 ? 250 : 50,
+	);
+});
 
 onUnmounted(() => {
-  resetPreview()
-})
+	resetPreview();
+});
 
 // Validation: At least one main toggle must be active
 const noActionSelected = computed(() => {
-  return !isSaveAndSend.value && !isPublicPost.value && !isBalloon.value
-})
+	return !isSaveAndSend.value && !isPublicPost.value && !isBalloon.value;
+});
 
 const goBack = (e: Event) => {
-  const nav = (e.target as HTMLElement).closest('ion-nav')
-  nav?.pop()
-}
+	const nav = (e.target as HTMLElement).closest("ion-nav");
+	nav?.pop();
+};
 
 async function preparePostData(data: {
-  canvas: ArrayBuffer | string;
-  img: ArrayBuffer | Blob;
+	canvas: ArrayBuffer | string;
+	img: ArrayBuffer | Blob;
 }) {
-  const jsonString = JSON.stringify(data.canvas)
+	const jsonString = JSON.stringify(data.canvas);
 
-  const drawingStream = new Blob([jsonString])
-    .stream()
-    .pipeThrough(new CompressionStream('gzip'))
+	const drawingStream = new Blob([jsonString])
+		.stream()
+		.pipeThrough(new CompressionStream("gzip"));
 
-  const drawingBlob = await new Response(drawingStream).blob()
+	const drawingBlob = await new Response(drawingStream).blob();
 
-  // 2. Process Main Image
-  const imageBlob = data.img instanceof Blob
-    ? data.img
-    : new Blob([data.img], { type: 'image/webp' })
+	// 2. Process Main Image
+	const imageBlob =
+		data.img instanceof Blob
+			? data.img
+			: new Blob([data.img], { type: "image/webp" });
 
-  // 3. Generate Thumbnail via your existing compressImg helper
-  const thumbnailBlob = await compressImg(imageBlob, {
-    size: 500,
-    quality: 0.7,
-    returnType: 'blob'
-  })
+	// 3. Generate Thumbnail via your existing compressImg helper
+	const thumbnailBlob = await compressImg(imageBlob, {
+		size: 500,
+		quality: 0.7,
+		returnType: "blob",
+	});
 
-  return {
-    drawingBlob,
-    imageBlob,
-    thumbnailBlob
-  }
+	return {
+		drawingBlob,
+		imageBlob,
+		thumbnailBlob,
+	};
 }
 
 async function executeShares() {
-  isLoading.value = true
-  isSendingDrawing.value = true
+	isLoading.value = true;
+	isSendingDrawing.value = true;
 
-  try {
-    const processedData = await getDataToSend()
-    const { reset } = useDrawStore()
-    reset()
+	try {
+		const processedData = await getDataToSend();
+		const { reset } = useDrawStore();
+		reset();
 
-    const nav = document.querySelector('ion-nav')
-    await nav?.popToRoot()
+		const nav = document.querySelector("ion-nav");
+		await nav?.popToRoot();
 
-    const actions = []
+		const actions = [];
 
-    // 1. Queue Direct Messages & Gallery Save
-    if (isSaveAndSend.value && user.value) {
-      // Start with the mates they selected (if any)
-      const directRecipients = Array.from(selected.value)
+		// 1. Queue Direct Messages & Gallery Save
+		if (isSaveAndSend.value && user.value) {
+			// Start with the mates they selected (if any)
+			const directRecipients = Array.from(selected.value);
 
-      // Always push the user's ID so it saves to their personal gallery
-      directRecipients.push(user.value._id)
+			// Always push the user's ID so it saves to their personal gallery
+			directRecipients.push(user.value._id);
 
-      actions.push(send(directRecipients, processedData))
-    }
+			actions.push(send(directRecipients, processedData));
+		}
 
-    if (isPublicPost.value) {
-      const { drawingBlob, imageBlob, thumbnailBlob } = await preparePostData({
-        canvas: processedData.canvas,
-        img: processedData.img
-      })
+		if (isPublicPost.value) {
+			const { drawingBlob, imageBlob, thumbnailBlob } = await preparePostData({
+				canvas: processedData.canvas,
+				img: processedData.img,
+			});
 
-      actions.push(createPost({
-        drawingBlob,
-        imageBlob,
-        thumbnailBlob,
-        aspect_ratio: processedData.aspect_ratio || 1,
-        description: postCaption.value
-      }).then(() => {
-        const postStore = usePostStore()
-        postStore.isProfileDirty = true
-        const { toast } = useToast()
-        toast('Post created')
-      }))
-    }
+			actions.push(
+				createPost({
+					drawingBlob,
+					imageBlob,
+					thumbnailBlob,
+					aspect_ratio: processedData.aspect_ratio || 1,
+					description: postCaption.value,
+				}).then(() => {
+					const postStore = usePostStore();
+					postStore.isProfileDirty = true;
+					const { toast } = useToast();
+					toast("Post created");
+				}),
+			);
+		}
 
-    // 3. Queue Balloon
-    if (isBalloon.value) {
-      actions.push(createBalloon(balloonNote.value, {
-        img: processedData.img,
-        aspect_ratio: processedData.aspect_ratio,
-        canvas: processedData.canvas
-      }))
-    }
+		// 3. Queue Balloon
+		if (isBalloon.value) {
+			actions.push(
+				createBalloon(balloonNote.value, {
+					img: processedData.img,
+					aspect_ratio: processedData.aspect_ratio,
+					canvas: processedData.canvas,
+				}),
+			);
+		}
 
-    // Fire all selected actions concurrently
-    await Promise.all(actions)
+		// Fire all selected actions concurrently
+		await Promise.all(actions);
 
+		const loadStore = useDrawLoadStore();
+		void loadStore.removeDraft();
 
-    const loadStore = useDrawLoadStore()
-    void loadStore.removeDraft()
-
-    resetMates()
-  } catch (error) {
-    console.error('Failed to share masterpiece:', error)
-    toast('Something went wrong. Please try again.')
-  } finally {
-    isLoading.value = false
-    isSendingDrawing.value = false
-  }
+		resetMates();
+	} catch (error) {
+		console.error("Failed to share masterpiece:", error);
+	} finally {
+		isLoading.value = false;
+		isSendingDrawing.value = false;
+	}
 }
 </script>
 

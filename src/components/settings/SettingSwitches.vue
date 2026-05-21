@@ -61,39 +61,55 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonIcon, IonItem, IonLabel, IonToggle, IonPopover } from '@ionic/vue'
-import { isNative, svg } from '@/helper/general.helper'
-import { mdiBalloon, mdiBellOff, mdiBellRing, mdiInformationOutline } from '@mdi/js'
-import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/store/auth.store'
-import { useAPI } from '@/service/api/api.service'
-import { useNotificationStore } from '@/store/notification.store'
-import { disableNotifications, requestNotifications } from '@/helper/notification.helper'
+import {
+	IonButton,
+	IonIcon,
+	IonItem,
+	IonLabel,
+	IonPopover,
+	IonToggle,
+} from "@ionic/vue";
+import { isNative, svg } from "@/helper/general.helper";
+import {
+	mdiBalloon,
+	mdiBellOff,
+	mdiBellRing,
+	mdiInformationOutline,
+} from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { useAuthStore } from "@/store/auth.store";
+import { useNotificationStore } from "@/store/notification.store";
+import {
+	disableNotifications,
+	requestNotifications,
+} from "@/helper/notification.helper";
+import { updateUser } from "@/service/api/user.api";
 
-const { user } = storeToRefs(useAuthStore())
-const { deviceNotificationsAllowed } = storeToRefs(useNotificationStore())
-const api = useAPI()
+const { user } = storeToRefs(useAuthStore());
+const { deviceNotificationsAllowed } = storeToRefs(useNotificationStore());
 
 function handleBalloonChange() {
-  if (!user.value) return
-  if (!user.value.balloon) user.value.balloon = { disabled: false }
+	if (!user.value) return;
+	if (!user.value.balloon) user.value.balloon = { disabled: false };
 
-  const newState = !user.value.balloon.disabled
-  user.value.balloon.disabled = newState
+	const newState = !user.value.balloon.disabled;
+	user.value.balloon.disabled = newState;
 
-  api.updateUser({
-    _id: user.value._id,
-    balloon: { ...user.value.balloon, disabled: newState }
-  }).catch(() => {
-    // Revert on failure
-    if (user.value?.balloon) {
-      user.value.balloon.disabled = !newState
-    }
-  })
+	updateUser({
+		_id: user.value._id,
+		balloon: { ...user.value.balloon, disabled: newState },
+	}).catch(() => {
+		// Revert on failure
+		if (user.value?.balloon) {
+			user.value.balloon.disabled = !newState;
+		}
+	});
 }
 
 function handleNotificationChange() {
-  deviceNotificationsAllowed.value ? disableNotifications() : requestNotifications()
+	deviceNotificationsAllowed.value
+		? disableNotifications()
+		: requestNotifications();
 }
 </script>
 

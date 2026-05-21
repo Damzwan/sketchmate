@@ -173,8 +173,8 @@ import { createPersonalShareLink, shareUrl } from "@/helper/share.helper";
 import { isNative, svg } from "@/helper/general.helper";
 import { storeToRefs } from "pinia";
 import { useMenuStore } from "@/store/menu.store";
-import { useAPI } from "@/service/api/api.service";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { searchMate } from "@/service/api/user.api";
 
 // State
 const isScanning = ref(false);
@@ -189,7 +189,6 @@ const { toast } = useToast();
 const { startScanning, stopScanning, resetScanning } = useScanner(video);
 const { connectionMenuOpen } = storeToRefs(useMenuStore());
 const { openUserActions } = useUserContextSheet();
-const { searchMate } = useAPI();
 
 const qrURL = computed(() =>
 	createPersonalShareLink(user.value?._id || "", ""),

@@ -49,6 +49,10 @@ const routes: Array<RouteRecordRaw> = [
 		path: `/${FRONTEND_ROUTES.customization}`,
 		component: () => import("@/views/customization.view.vue"),
 	},
+	{
+		path: `/${FRONTEND_ROUTES.moderation}`,
+		component: () => import("@/views/moderation.view.vue"),
+	},
 ];
 
 const router = createRouter({

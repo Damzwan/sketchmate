@@ -50,96 +50,114 @@
 </template>
 
 <script lang="ts" setup>
-import { IonButton, IonIcon, IonModal, alertController } from '@ionic/vue'
-import { ref } from 'vue'
-import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
-import { compressImg, getRandomStockAvatar, setAppColors, svg } from '@/helper/general.helper'
-import { photoSwiperColorConfig, settingsModalColorConfig } from '@/config/colors.config'
-import Cropper from 'cropperjs'
-import 'cropperjs/dist/cropper.css'
-import { mdiClose, mdiCameraPlus } from '@mdi/js'
-import { useAPI } from '@/service/api/api.service'
-import { useAuthStore } from '@/store/auth.store'
-import { storeToRefs } from 'pinia'
-import { useToast } from '@/service/toast.service'
-import { Preferences } from '@capacitor/preferences'
-import { LocalStorage } from '@/types/storage.types'
-
-const { deleteProfileImg } = useAPI()
+import { alertController, IonButton, IonIcon, IonModal } from "@ionic/vue";
+import { ref } from "vue";
+import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
+import {
+	compressImg,
+	getRandomStockAvatar,
+	setAppColors,
+	svg,
+} from "@/helper/general.helper";
+import {
+	photoSwiperColorConfig,
+	settingsModalColorConfig,
+} from "@/config/colors.config";
+import Cropper from "cropperjs";
+import "cropperjs/dist/cropper.css";
+import { mdiCameraPlus, mdiClose } from "@mdi/js";
+import { useAuthStore } from "@/store/auth.store";
+import { storeToRefs } from "pinia";
+import { useToast } from "@/service/toast.service";
+import { Preferences } from "@capacitor/preferences";
+import { LocalStorage } from "@/types/storage.types";
+import { deleteProfileImg } from "@/service/api/user.api";
 
 // NEW: Accept customization object to preview the border while editing
 defineProps<{
-  img: string;
-  customization?: any;
-}>()
+	img: string;
+	customization?: any;
+}>();
 
-const emits = defineEmits(['update:img'])
+const emits = defineEmits(["update:img"]);
 
-let cropper: Cropper
-const cropperMenuOpen = ref(false)
-const cropperLoading = ref(true)
+let cropper: Cropper;
+const cropperMenuOpen = ref(false);
+const cropperLoading = ref(true);
 
-const imgInput = ref<HTMLInputElement>()
-const localImgUrl = ref()
-const imgRef = ref<HTMLImageElement>()
+const imgInput = ref<HTMLInputElement>();
+const localImgUrl = ref();
+const imgRef = ref<HTMLImageElement>();
 
 const onImageChange = async (e: Event) => {
-  const target = e.target as HTMLInputElement
-  if (target.files && target.files[0]) {
-    const reader = new FileReader()
-    reader.onload = async (e: ProgressEvent<FileReader>) => {
-      if (e.target) {
-        const compressedImg = await compressImg(e.target.result as string, { size: 1024, returnType: 'blob' })
-        localImgUrl.value = URL.createObjectURL(compressedImg)
-        cropperMenuOpen.value = true
-        if (imgInput.value) imgInput.value.value = ''
-      }
-    }
-    reader.readAsDataURL(target.files[0])
-  }
-}
+	const target = e.target as HTMLInputElement;
+	if (target.files && target.files[0]) {
+		const reader = new FileReader();
+		reader.onload = async (e: ProgressEvent<FileReader>) => {
+			if (e.target) {
+				const compressedImg = await compressImg(e.target.result as string, {
+					size: 1024,
+					returnType: "blob",
+				});
+				localImgUrl.value = URL.createObjectURL(compressedImg);
+				cropperMenuOpen.value = true;
+				if (imgInput.value) imgInput.value.value = "";
+			}
+		};
+		reader.readAsDataURL(target.files[0]);
+	}
+};
 
 function initCropper() {
-  setAppColors(photoSwiperColorConfig)
-  imgRef.value?.addEventListener('ready', () => (cropperLoading.value = false))
-  if (cropper) cropper.destroy()
-  cropper = new Cropper(imgRef.value!, { aspectRatio: 1, background: false, viewMode: 2 })
+	setAppColors(photoSwiperColorConfig);
+	imgRef.value?.addEventListener("ready", () => (cropperLoading.value = false));
+	if (cropper) cropper.destroy();
+	cropper = new Cropper(imgRef.value!, {
+		aspectRatio: 1,
+		background: false,
+		viewMode: 2,
+	});
 }
 
 function closeCropper() {
-  cropperMenuOpen.value = false
-  cropperLoading.value = true
-  setAppColors(settingsModalColorConfig)
-  if (cropper) cropper.destroy()
+	cropperMenuOpen.value = false;
+	cropperLoading.value = true;
+	setAppColors(settingsModalColorConfig);
+	if (cropper) cropper.destroy();
 }
 
 function apply() {
-  const imgUrl = cropper.getCroppedCanvas().toDataURL()
-  closeCropper()
-  emits('update:img', imgUrl)
+	const imgUrl = cropper.getCroppedCanvas().toDataURL();
+	closeCropper();
+	emits("update:img", imgUrl);
 }
 
 const confirmDelete = async () => {
-  const alert = await alertController.create({
-    header: 'Remove Image?',
-    message: 'Are you sure you want to revert to a stock avatar?',
-    cssClass: 'liquid-alert',
-    buttons: [
-      { text: 'Keep it', role: 'cancel', cssClass: 'alert-button-cancel' },
-      { text: 'Remove', role: 'destructive', cssClass: 'alert-button-confirm', handler: () => deleteProfileImage() }
-    ]
-  })
-  await alert.present()
-}
+	const alert = await alertController.create({
+		header: "Remove Image?",
+		message: "Are you sure you want to revert to a stock avatar?",
+		cssClass: "liquid-alert",
+		buttons: [
+			{ text: "Keep it", role: "cancel", cssClass: "alert-button-cancel" },
+			{
+				text: "Remove",
+				role: "destructive",
+				cssClass: "alert-button-confirm",
+				handler: () => deleteProfileImage(),
+			},
+		],
+	});
+	await alert.present();
+};
 
 function deleteProfileImage() {
-  const { user } = storeToRefs(useAuthStore())
-  const { toast } = useToast()
-  const stock_img = getRandomStockAvatar()
-  Preferences.set({ key: LocalStorage.img, value: stock_img })
-  deleteProfileImg({ _id: user.value!._id, stock_img })
-  user.value!.img = stock_img
-  toast('Profile image removed')
+	const { user } = storeToRefs(useAuthStore());
+	const { toast } = useToast();
+	const stock_img = getRandomStockAvatar();
+	Preferences.set({ key: LocalStorage.img, value: stock_img });
+	deleteProfileImg({ _id: user.value!._id, stock_img });
+	user.value!.img = stock_img;
+	toast("Profile image removed");
 }
 </script>
 

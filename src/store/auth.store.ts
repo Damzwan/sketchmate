@@ -1,293 +1,315 @@
 // src/stores/auth.store.ts
-import { defineStore, storeToRefs } from 'pinia'
-import { computed, ref, watch } from 'vue'
-import { Preferences } from '@capacitor/preferences'
-import { FirebaseAuthentication, User as FirebaseUser } from '@capacitor-firebase/authentication'
-import { UseIonRouterResult } from '@ionic/vue'
-import router from '@/router'
-import { FRONTEND_ROUTES } from '@/types/router.types'
+import { defineStore, storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
+import { Preferences } from "@capacitor/preferences";
+import {
+	FirebaseAuthentication,
+	User as FirebaseUser,
+} from "@capacitor-firebase/authentication";
+import { UseIonRouterResult } from "@ionic/vue";
+import router from "@/router";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
-import { User } from '@/types/server.types'
-import { LocalStorage } from '@/types/storage.types'
-import { useAPI } from '@/service/api/api.service'
-import { useToast } from '@/service/toast.service'
+import { User } from "@/types/server.types";
+import { LocalStorage } from "@/types/storage.types";
+import { useToast } from "@/service/toast.service";
 
 import {
-  compareVersions,
-  generateDeviceFingerprint,
-  getCurrentAuthUser,
-  isNative,
-  isOldEnough
-} from '@/helper/general.helper'
-import { routerAnimation } from '@/helper/animation.helper'
-import { useNotificationStore } from '@/store/notification.store'
-import { useBalloonStore } from '@/store/balloon.store'
-import { useInboxStore } from '@/store/inbox.store'
-// NEW: Import the prefixed socket functions directly
+	compareVersions,
+	generateDeviceFingerprint,
+	getCurrentAuthUser,
+	isNative,
+	isOldEnough,
+} from "@/helper/general.helper";
+import { routerAnimation } from "@/helper/animation.helper";
+import { useNotificationStore } from "@/store/notification.store";
+import { useBalloonStore } from "@/store/balloon.store";
+import { useInboxStore } from "@/store/inbox.store";
 import {
-  socketConnect,
-  socketDisconnect,
-  socketLogin
-} from '@/service/api/socket/socket.service'
-import { useSessionStore } from '@/store/session.store'
-import { mixpanelIdentify } from '@/service/mixpanel'
-import { useFriendStore } from '@/store/friend.store'
-import { useChatStore } from '@/store/chat.store'
+	socketConnect,
+	socketDisconnect,
+	socketLogin,
+} from "@/service/api/socket/socket.service";
+import { useSessionStore } from "@/store/session.store";
+import { mixpanelIdentify } from "@/service/mixpanel";
+import { useFriendStore } from "@/store/friend.store";
+import { useChatStore } from "@/store/chat.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { getUser, onLoginEvent } from "@/service/api/user.api";
 
-export const useAuthStore = defineStore('auth', () => {
-  const api = useAPI()
+export const useAuthStore = defineStore("auth", () => {
+	const user = ref<User>();
+	const firebaseUser = ref<FirebaseUser>();
 
-  const user = ref<User>()
-  const firebaseUser = ref<FirebaseUser>()
+	const isLoggedIn = ref(false);
+	const isAuthLoading = ref(true);
+	const isNewAccount = ref(false);
+	const showForceUpdateModal = ref(false);
+	const deviceFingerprint = ref<string>();
 
-  const isLoggedIn = ref(false)
-  const isAuthLoading = ref(true)
-  const isNewAccount = ref(false)
-  const showForceUpdateModal = ref(false)
-  const deviceFingerprint = ref<string>()
+	let ionRouter: UseIonRouterResult | undefined = undefined;
 
-  let ionRouter: UseIonRouterResult | undefined = undefined
+	const notificationStore = useNotificationStore();
+	const balloonStore = useBalloonStore();
+	const localUserImg = ref<string>();
 
-  const notificationStore = useNotificationStore()
-  const balloonStore = useBalloonStore()
-  const localUserImg = ref<string>()
+	const refreshNeeded = ref(false); // only needed when socket disconnects
+	const showTutorial = ref(false);
 
-  const refreshNeeded = ref(false) // only needed when socket disconnects
-  const showTutorial = ref(false)
+	Preferences.get({ key: LocalStorage.img }).then(
+		(res) => (localUserImg.value = res.value!),
+	);
 
-  Preferences.get({ key: LocalStorage.img }).then(res => (localUserImg.value = res.value!))
+	const isLoading = ref(false);
 
-  const isLoading = ref(false)
+	// Derived
+	const shouldShowDateOfBirthConfirmation = computed(() =>
+		user.value
+			? user.value.date_of_birth == undefined ||
+				!isOldEnough(user.value.date_of_birth)
+			: false,
+	);
 
-  // Derived
-  const shouldShowDateOfBirthConfirmation = computed(
-    () => user.value ? user.value.date_of_birth == undefined || !isOldEnough(user.value.date_of_birth) : false
-  )
+	generateDeviceFingerprint().then(
+		(fingerprint) => (deviceFingerprint.value = fingerprint),
+	);
 
-  generateDeviceFingerprint().then(fingerprint => deviceFingerprint.value = fingerprint)
+	FirebaseAuthentication.addListener("authStateChange", async (status) => {
+		if (!ionRouter) {
+			throw new Error("IonRouter not initialized");
+		}
 
-  FirebaseAuthentication.addListener('authStateChange', async (status) => {
-    if (!ionRouter) {
-      throw new Error('IonRouter not initialized')
-    }
+		if (!status.user) {
+			// User is logged out
+			await router.isReady();
+			isLoggedIn.value = false;
+			user.value = undefined;
+			firebaseUser.value = undefined;
 
-    if (!status.user) {
-      // User is logged out
-      await router.isReady()
-      isLoggedIn.value = false
-      user.value = undefined
-      firebaseUser.value = undefined
+			await router.replace(FRONTEND_ROUTES.login!);
 
-      await router.replace(FRONTEND_ROUTES.login!)
+			isAuthLoading.value = false;
+			return;
+		}
 
-      isAuthLoading.value = false
-      return
-    }
+		firebaseUser.value = status.user;
 
-    firebaseUser.value = status.user
+		const justLoggedIn = await Preferences.get({ key: LocalStorage.login });
 
-    const justLoggedIn = await Preferences.get({ key: LocalStorage.login })
+		// If arriving from login page
+		if (justLoggedIn.value) {
+			const result = await login();
 
-    // If arriving from login page
-    if (justLoggedIn.value) {
-      const result = await login()
+			if (!result) {
+				const { toast } = useToast();
+				toast("Something went wrong, please try again", { color: "warning" });
+				return;
+			}
 
-      if (!result) {
-        const { toast } = useToast()
-        toast('Something went wrong, please try again', { color: 'warning' })
-        return
-      }
+			const [authUser, newAcc] = result;
 
-      const [authUser, newAcc] = result
+			isAuthLoading.value = false;
+			const { showEnableNotificationsAfterLogin } = useNotificationStore();
 
-      isAuthLoading.value = false
-      const { showEnableNotificationsAfterLogin } = useNotificationStore()
+			if (newAcc || showEnableNotificationsAfterLogin) {
+				return;
+			}
 
-      if (newAcc || showEnableNotificationsAfterLogin) {
-        return
-      }
+			ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation);
+		} else {
+			// Auto-login (no login intent)
+			isAuthLoading.value = false;
 
-      ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation)
-    } else {
-      // Auto-login (no login intent)
-      isAuthLoading.value = false
+			const result = await login();
 
-      const result = await login()
+			if (!result) {
+				const { toast } = useToast();
+				toast(
+					"You’re offline. Local drawing is still available. Reopen the app to retry.",
+					{ color: "warning" },
+				);
+				ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation);
+				return;
+			}
 
-      if (!result) {
-        const { toast } = useToast()
-        toast(
-          'You’re offline. Local drawing is still available. Reopen the app to retry.',
-          { color: 'warning' }
-        )
-        ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation)
-        return
-      }
+			const allowedRoutes = Object.values(FRONTEND_ROUTES).filter(
+				(p) => p !== FRONTEND_ROUTES.login,
+			) as Partial<FRONTEND_ROUTES>[];
 
-      const allowedRoutes = Object.values(FRONTEND_ROUTES).filter(
-        p => p !== FRONTEND_ROUTES.login
-      ) as Partial<FRONTEND_ROUTES>[]
+			const { redirectIntent } = useSessionStore();
+			if (redirectIntent) {
+				ionRouter.replace(redirectIntent, routerAnimation);
+				return;
+			}
 
-      const { redirectIntent } = useSessionStore()
-      if (redirectIntent) {
-        ionRouter.replace(redirectIntent, routerAnimation)
-        return
-      }
+			const path = router.currentRoute.value.path.split("/")[1];
+			if (allowedRoutes.includes(path as FRONTEND_ROUTES)) {
+				ionRouter.replace(path, routerAnimation);
+			} else {
+				ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation);
+			}
+		}
+	});
 
-      const path = router.currentRoute.value.path.split('/')[1]
-      if (allowedRoutes.includes(path as FRONTEND_ROUTES)) {
-        ionRouter.replace(path, routerAnimation)
-      } else {
-        ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation)
-      }
-    }
-  })
+	async function login(): Promise<[User, boolean] | null> {
+		try {
+			// Use new prefixed function
+			socketConnect();
 
-  async function login(): Promise<[User, boolean] | null> {
-    try {
-      // Use new prefixed function
-      socketConnect()
+			const authUser = await getCurrentAuthUser();
+			if (!authUser) return null;
 
-      const authUser = await getCurrentAuthUser()
-      if (!authUser) return null
+			const userValue = await getUser({ auth_id: authUser.uid });
+			if (!userValue) throw new Error();
 
-      const userValue = await api.getUser({ auth_id: authUser.uid })
-      if (!userValue) throw new Error()
+			showTutorial.value = !userValue.user.last_seen_version;
 
-      showTutorial.value = !userValue.user.last_seen_version
+			// Date parsing removed here as requested
 
-      // Date parsing removed here as requested
+			// Native version check
+			if (
+				isNative() &&
+				compareVersions(
+					__APP_VERSION__,
+					userValue.minimum_supported_version,
+				) === -1
+			) {
+				showForceUpdateModal.value = true;
+				return null;
+			}
 
-      // Native version check
-      if (
-        isNative() &&
-        compareVersions(__APP_VERSION__, userValue.minimum_supported_version) === -1
-      ) {
-        showForceUpdateModal.value = true
-        return null
-      }
+			const arrivedFromLogin = await Preferences.get({
+				key: LocalStorage.login,
+			});
 
-      const arrivedFromLogin = await Preferences.get({ key: LocalStorage.login })
+			user.value = userValue.user;
+			isLoggedIn.value = true;
+			isNewAccount.value = userValue.new_account;
 
-      user.value = userValue.user
-      isLoggedIn.value = true
-      isNewAccount.value = userValue.new_account
+			// Use new prefixed functions
+			socketLogin({ _id: user.value!._id });
+			balloonStore.init(user.value);
+			await notificationStore.init(user.value, !!arrivedFromLogin.value);
 
-      // Use new prefixed functions
-      socketLogin({ _id: user.value!._id })
-      balloonStore.init(user.value)
-      await notificationStore.init(user.value, !!arrivedFromLogin.value)
+			const friendStore = useFriendStore();
+			const chatStore = useChatStore();
+			void friendStore.initializeSocialGraph();
+			void chatStore.loadActiveChats();
+			void useModerationStore().initFromUser(user.value);
 
-      const friendStore = useFriendStore()
-      const chatStore = useChatStore()
-      friendStore.initializeSocialGraph(user.value)
-      chatStore.loadActiveChats()
+			Preferences.set({ key: LocalStorage.user_id, value: user.value!._id });
+			Preferences.set({ key: LocalStorage.img, value: user.value!.img });
 
-      Preferences.set({ key: LocalStorage.user_id, value: user.value!._id })
-      Preferences.set({ key: LocalStorage.img, value: user.value!.img })
+			mixpanelIdentify(user.value._id);
+			if (arrivedFromLogin.value && deviceFingerprint.value) {
+				onLoginEvent({
+					user_id: user.value!._id,
+					fingerprint: deviceFingerprint.value,
+					loggedIn: true,
+				});
+			}
 
-      mixpanelIdentify(user.value._id)
-      if (arrivedFromLogin.value && deviceFingerprint.value) {
-        api.onLoginEvent({
-          user_id: user.value!._id,
-          fingerprint: deviceFingerprint.value,
-          loggedIn: true
-        })
-      }
+			Preferences.remove({ key: LocalStorage.login });
 
-      Preferences.remove({ key: LocalStorage.login })
+			return [user.value, isNewAccount.value];
+		} catch (e) {
+			console.error(e);
+			return null;
+		}
+	}
 
-      return [user.value, isNewAccount.value]
-    } catch (e) {
-      console.error(e)
-      return null
-    }
-  }
+	function initIonRouter(r: UseIonRouterResult) {
+		ionRouter = r;
+	}
 
-  function initIonRouter(r: UseIonRouterResult) {
-    ionRouter = r
-  }
+	async function refresh(e?: any) {
+		const authUser = await getCurrentAuthUser();
+		const { toast } = useToast();
 
-  async function refresh(e?: any) {
-    const authUser = await getCurrentAuthUser()
-    const { toast } = useToast()
+		if (!authUser) {
+			toast("Something went wrong, please try again.", { color: "danger" });
+			return;
+		}
+		const userValue = await getUser({ auth_id: authUser.uid });
+		if (!userValue) {
+			toast("Something went wrong, please try again.", { color: "danger" });
+			return;
+		}
 
-    if (!authUser) {
-      toast('Something went wrong, please try again.', { color: 'danger' })
-      return
-    }
-    const userValue = await api.getUser({ auth_id: authUser.uid })
-    if (!userValue) {
-      toast('Something went wrong, please try again.', { color: 'danger' })
-      return
-    }
+		// Date parsing removed here as requested
+		user.value = userValue.user;
+		useModerationStore().initFromUser(user.value);
 
-    // Date parsing removed here as requested
-    user.value = userValue.user
+		const { getInboxBatch } = useInboxStore();
+		await getInboxBatch(true);
+		if (e) e.target.complete();
+	}
 
-    const { getInboxBatch } = useInboxStore()
-    await getInboxBatch(true)
-    if (e) e.target.complete()
-  }
+	async function logout() {
+		const { showEnableNotificationsAfterLogin } = storeToRefs(
+			useNotificationStore(),
+		);
+		showEnableNotificationsAfterLogin.value = false;
 
-  async function logout() {
-    const { showEnableNotificationsAfterLogin } = storeToRefs(useNotificationStore())
-    showEnableNotificationsAfterLogin.value = false
+		Preferences.remove({ key: LocalStorage.user_id });
+		Preferences.remove({ key: LocalStorage.notificationToken });
+		useModerationStore().reset();
 
-    Preferences.remove({ key: LocalStorage.user_id })
-    Preferences.remove({ key: LocalStorage.notificationToken })
+		if (deviceFingerprint.value && user.value) {
+			onLoginEvent({
+				user_id: user.value._id,
+				fingerprint: deviceFingerprint.value,
+				loggedIn: false,
+			});
+		}
 
-    if (deviceFingerprint.value && user.value) {
-      api.onLoginEvent({
-        user_id: user.value._id,
-        fingerprint: deviceFingerprint.value,
-        loggedIn: false
-      })
-    }
+		// Use new prefixed function
+		socketDisconnect();
 
-    // Use new prefixed function
-    socketDisconnect()
+		await FirebaseAuthentication.signOut();
+		isLoggedIn.value = false;
+		user.value = undefined;
+	}
 
-    await FirebaseAuthentication.signOut()
-    isLoggedIn.value = false
-    user.value = undefined
-  }
+	async function waitUntilInitialized(): Promise<User | undefined> {
+		if (isLoggedIn.value) return user.value;
 
-  async function waitUntilInitialized(): Promise<User | undefined> {
-    if (isLoggedIn.value) return user.value
+		return new Promise((resolve) => {
+			const unwatch = watch(
+				isLoggedIn,
+				(val) => {
+					if (val) {
+						unwatch();
+						resolve(user.value);
+					}
+				},
+				{ immediate: true },
+			);
 
-    return new Promise((resolve) => {
-      const unwatch = watch(isLoggedIn, (val) => {
-        if (val) {
-          unwatch()
-          resolve(user.value)
-        }
-      }, { immediate: true })
+			setTimeout(() => {
+				unwatch();
+				resolve(undefined);
+			}, 10000);
+		});
+	}
 
-      setTimeout(() => {
-        unwatch()
-        resolve(undefined)
-      }, 10000)
-    })
-  }
-
-  return {
-    user,
-    firebaseUser,
-    isLoggedIn,
-    isAuthLoading,
-    isNewAccount,
-    showForceUpdateModal,
-    isLoading,
-    shouldShowDateOfBirthConfirmation,
-    deviceFingerprint,
-    localUserImg,
-    showTutorial,
-    initIonRouter,
-    login,
-    logout,
-    refresh,
-    refreshNeeded,
-    waitUntilInitialized
-  }
-})
+	return {
+		user,
+		firebaseUser,
+		isLoggedIn,
+		isAuthLoading,
+		isNewAccount,
+		showForceUpdateModal,
+		isLoading,
+		shouldShowDateOfBirthConfirmation,
+		deviceFingerprint,
+		localUserImg,
+		showTutorial,
+		initIonRouter,
+		login,
+		logout,
+		refresh,
+		refreshNeeded,
+		waitUntilInitialized,
+	};
+});

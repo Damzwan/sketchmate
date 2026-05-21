@@ -89,163 +89,182 @@
     </ion-footer>
   </ion-modal>
 </template>
-
 <script lang="ts" setup>
 import {
-  IonContent,
-  IonFooter,
-  IonIcon,
-  IonModal,
-  IonToolbar,
-  IonSegment,
-  IonSegmentButton,
-  IonLabel,
-  IonHeader,
-  modalController,
-  IonButton,
-  IonButtons
-} from '@ionic/vue'
-import { useAPI } from '@/service/api/api.service'
-import { useAuthStore } from '@/store/auth.store'
-import { useToast } from '@/service/toast.service'
-import { storeToRefs } from 'pinia'
-import { compressImg, setAppColors, svg } from '@/helper/general.helper'
-import { mdiCancel, mdiDeleteOutline, mdiPlus } from '@mdi/js'
-import { computed, ref } from 'vue'
-import { useMenuStore } from '@/store/menu.store'
-import { colorsPerRoute, drawModalColorConfig } from '@/config/colors.config'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { DrawAction } from '@/draw/types/draw.types'
-import { Saved } from '@/types/server.types'
-import LinearLoader from '@/components/general/loaders/LinearLoader.vue'
-import EmblemsPage from '@/components/draw/menus/stickersEmblemsSavedMenu/EmblemsPage.vue'
-import StickersPage from '@/components/draw/menus/stickersEmblemsSavedMenu/StickersPage.vue'
-import SavedPage from '@/components/draw/menus/stickersEmblemsSavedMenu/SavedPage.vue'
-import { dynamicStickerLoading } from '@/draw/config/stickers.config'
+	IonButton,
+	IonButtons,
+	IonContent,
+	IonFooter,
+	IonHeader,
+	IonIcon,
+	IonLabel,
+	IonModal,
+	IonSegment,
+	IonSegmentButton,
+	IonToolbar,
+	modalController,
+} from "@ionic/vue";
+import { useAuthStore } from "@/store/auth.store";
+import { useToast } from "@/service/toast.service";
+import { storeToRefs } from "pinia";
+import { compressImg, setAppColors, svg } from "@/helper/general.helper";
+import { mdiCancel, mdiDeleteOutline, mdiPlus } from "@mdi/js";
+import { computed, ref } from "vue";
+import { useMenuStore } from "@/store/menu.store";
+import { colorsPerRoute, drawModalColorConfig } from "@/config/colors.config";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { useDrawStore } from "@/draw/store/draw.store";
+import { DrawAction } from "@/draw/types/draw.types";
+import { Saved } from "@/types/server.types";
+import LinearLoader from "@/components/general/loaders/LinearLoader.vue";
+import EmblemsPage from "@/components/draw/menus/stickersEmblemsSavedMenu/EmblemsPage.vue";
+import StickersPage from "@/components/draw/menus/stickersEmblemsSavedMenu/StickersPage.vue";
+import SavedPage from "@/components/draw/menus/stickersEmblemsSavedMenu/SavedPage.vue";
+import { dynamicStickerLoading } from "@/draw/config/stickers.config";
+import {
+	createEmblem,
+	createSticker,
+	deleteEmblem,
+	deleteSaved,
+	deleteSticker,
+} from "@/service/api/user.api";
 
-const api = useAPI()
-const drawStore = useDrawStore()
-const { user } = storeToRefs(useAuthStore())
-const { toast } = useToast()
-const isLoading = ref(false)
-const deleteMode = ref(false)
-const isDisabled = computed(() => isLoading.value || deleteMode.value)
+const drawStore = useDrawStore();
+const { user } = storeToRefs(useAuthStore());
+const { toast } = useToast();
+const isLoading = ref(false);
+const deleteMode = ref(false);
+const isDisabled = computed(() => isLoading.value || deleteMode.value);
 
-const { stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore())
+const { stickersEmblemsSavedSelectedTab } = storeToRefs(useMenuStore());
 
 const emptyPage = computed(() =>
-  stickersEmblemsSavedSelectedTab.value == 'sticker'
-    ? user.value!.stickers.length === 0
-    : stickersEmblemsSavedSelectedTab.value == 'emblem'
-      ? user.value!.emblems.length === 0
-      : user.value!.saved.length === 0
-)
+	stickersEmblemsSavedSelectedTab.value == "sticker"
+		? user.value!.stickers.length === 0
+		: stickersEmblemsSavedSelectedTab.value == "emblem"
+			? user.value!.emblems.length === 0
+			: user.value!.saved.length === 0,
+);
 
 const isStickerOrEmblem = computed(
-  () => stickersEmblemsSavedSelectedTab.value == 'emblem' || stickersEmblemsSavedSelectedTab.value == 'sticker'
-)
+	() =>
+		stickersEmblemsSavedSelectedTab.value == "emblem" ||
+		stickersEmblemsSavedSelectedTab.value == "sticker",
+);
 
-const imgInput = ref<HTMLInputElement>()
-const { stickerMenuOpen } = storeToRefs(useMenuStore())
+const imgInput = ref<HTMLInputElement>();
+const { stickerMenuOpen } = storeToRefs(useMenuStore());
 
 function onSegmentChange(e: any) {
-  stickersEmblemsSavedSelectedTab.value = e.detail.value
-  deleteMode.value = false
+	stickersEmblemsSavedSelectedTab.value = e.detail.value;
+	deleteMode.value = false;
 }
 
 async function selectSticker(sticker: string) {
-  if (deleteMode.value) {
-    user.value!.stickers = user.value!.stickers.filter(item => item != sticker)
-    api.deleteSticker({
-      user_id: user.value!._id,
-      sticker_url: sticker
-    })
-    if (user.value?.stickers.length == 0) deleteMode.value = false
-  } else {
-    const reader = new FileReader()
-    reader.onload = e => {
-      if (!e.target?.result?.toString()) return
-      drawStore.selectAction(DrawAction.AddImage, { imageUrl: e.target.result.toString() })
-    }
-    reader.readAsDataURL(await compressImg(sticker, { quality: 1 }))
-    modalController.dismiss()
-  }
+	if (deleteMode.value) {
+		user.value!.stickers = user.value!.stickers.filter(
+			(item) => item != sticker,
+		);
+		deleteSticker({
+			user_id: user.value!._id,
+			sticker_url: sticker,
+		});
+		if (user.value?.stickers.length == 0) deleteMode.value = false;
+	} else {
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			if (!e.target?.result?.toString()) return;
+			drawStore.selectAction(DrawAction.AddImage, {
+				imageUrl: e.target.result.toString(),
+			});
+		};
+		reader.readAsDataURL(await compressImg(sticker, { quality: 1 }));
+		modalController.dismiss();
+	}
 }
 
 async function selectEmblem(emblem: string) {
-  if (deleteMode.value) {
-    user.value!.emblems = user.value!.emblems.filter(item => item != emblem)
-    api.deleteEmblem({
-      user_id: user.value!._id,
-      emblem_url: emblem
-    })
-    if (user.value?.emblems.length == 0) deleteMode.value = false
-  } else {
-    const reader = new FileReader()
-    reader.onload = e => {
-      if (!e.target?.result?.toString()) return
-      drawStore.selectAction(DrawAction.AddImage, { imageUrl: e.target.result.toString() })
-    }
-    reader.readAsDataURL(await compressImg(emblem, { quality: 1 }))
-    modalController.dismiss()
-  }
+	if (deleteMode.value) {
+		user.value!.emblems = user.value!.emblems.filter((item) => item != emblem);
+		deleteEmblem({
+			user_id: user.value!._id,
+			emblem_url: emblem,
+		});
+		if (user.value?.emblems.length == 0) deleteMode.value = false;
+	} else {
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			if (!e.target?.result?.toString()) return;
+			drawStore.selectAction(DrawAction.AddImage, {
+				imageUrl: e.target.result.toString(),
+			});
+		};
+		reader.readAsDataURL(await compressImg(emblem, { quality: 1 }));
+		modalController.dismiss();
+	}
 }
 
 async function selectedSaved(saved: Saved) {
-  if (deleteMode.value) {
-    api.deleteSaved({
-      user_id: user.value!._id,
-      img_url: saved.img,
-      drawing_url: saved.drawing
-    })
-    user.value!.saved = user.value!.saved.filter(item => item.drawing != saved.drawing)
-    if (user.value?.saved.length == 0) deleteMode.value = false
-  } else {
-    const drawing = await fetch(saved.drawing).then(drawing => drawing.json())
-    drawStore.selectAction(DrawAction.AddSavedDrawingToCanvas, { json: drawing })
-    modalController.dismiss()
-  }
+	if (deleteMode.value) {
+		deleteSaved({
+			user_id: user.value!._id,
+			img_url: saved.img,
+			drawing_url: saved.drawing,
+		});
+		user.value!.saved = user.value!.saved.filter(
+			(item) => item.drawing != saved.drawing,
+		);
+		if (user.value?.saved.length == 0) deleteMode.value = false;
+	} else {
+		const drawing = await fetch(saved.drawing).then((drawing) =>
+			drawing.json(),
+		);
+		drawStore.selectAction(DrawAction.AddSavedDrawingToCanvas, {
+			json: drawing,
+		});
+		modalController.dismiss();
+	}
 }
 
 async function onUpload(e: any) {
-  isLoading.value = true
-  const file = e.target.files[0]
-  e.target.value = ''
-  const img = (await compressImg(file, { size: 512 })) as File
-  if (stickersEmblemsSavedSelectedTab.value === 'sticker') await createSticker(img)
-  else await createEmblem(img)
-  isLoading.value = false
+	isLoading.value = true;
+	const file = e.target.files[0];
+	e.target.value = "";
+	const img = (await compressImg(file, { size: 512 })) as File;
+	if (stickersEmblemsSavedSelectedTab.value === "sticker")
+		await createStickerHelper(img);
+	else await createEmblemHelper(img);
+	isLoading.value = false;
 }
 
-async function createSticker(img: File) {
-  const imgUrl = await api.createSticker({
-    _id: user.value!._id,
-    img: img
-  })
-  user.value!.stickers.push(imgUrl!)
-  toast('Sticker Created!')
+async function createStickerHelper(img: File) {
+	const imgUrl = await createSticker({
+		_id: user.value!._id,
+		img: img,
+	});
+	user.value!.stickers.push(imgUrl!);
+	toast("Sticker Created!");
 }
 
 //
-async function createEmblem(img: File) {
-  const imgUrl = await api.createEmblem({
-    _id: user.value!._id,
-    img: img
-  })
-  user.value!.emblems.push(imgUrl!)
-  toast('Emblem Created!')
+async function createEmblemHelper(img: File) {
+	const imgUrl = await createEmblem({
+		_id: user.value!._id,
+		img: img,
+	});
+	user.value!.emblems.push(imgUrl!);
+	toast("Emblem Created!");
 }
 
 function onDismiss() {
-  stickerMenuOpen.value = false
-  deleteMode.value = false
-  setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
+	stickerMenuOpen.value = false;
+	deleteMode.value = false;
+	setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw]);
 }
 
 // We delay so that it does not interfere with the button (deletemode = !deletemode)
 function setDeleteModeDelayed(value: boolean) {
-  setTimeout(() => (deleteMode.value = value), 50)
+	setTimeout(() => (deleteMode.value = value), 50);
 }
 </script>
 

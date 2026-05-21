@@ -9,4 +9,5 @@ export enum FRONTEND_ROUTES {
 	settings = "settings",
 	network = "network",
 	customization = "customize",
+	moderation = "moderation",
 }

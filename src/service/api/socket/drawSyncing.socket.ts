@@ -22,6 +22,9 @@ import { v4 as uuidv4 } from "uuid";
 import { fitAndCenterAllActualObjects } from "@/draw/helpers/viewport.helper";
 import { useFriendStore } from "@/store/friend.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
 
 export function registerDrawSyncingHandlers(socket: Socket) {
 	const { isBlocked } = useFriendStore();
@@ -79,7 +82,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 		});
 	});
 
-	socket.on("join-error", async ({ reason, message }) => {
+	socket.on("join-error", async ({ reason, message, restriction, action }) => {
 		const { toast } = useToast();
 
 		// 1. Handle predefined technical codes
@@ -90,6 +93,16 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			toast(`Room does not exist`, { color: "danger" });
 		} else if (reason === "DOUBLE_JOIN") {
 			toast("Joined from another device", { color: "danger" });
+		} else if (reason === "CAPABILITY_BLOCKED") {
+			const modStore = useModerationStore();
+			const menuStore = useMenuStore();
+
+			modStore.notifyCapabilityBlocked({
+				capability: action,
+				restriction: restriction,
+			});
+
+			menuStore.openMenu(Menu.ModerationMenu);
 		} else if (reason && message) {
 			toast(message, { color: "danger", duration: ToastDuration.long });
 		} else {

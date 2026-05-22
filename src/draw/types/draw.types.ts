@@ -85,6 +85,8 @@ export enum Menu {
 	Bucket,
 	ConnectionMenu,
 	ModerationMenu,
+	SharePostMenu,
+	ReportMenu,
 }
 
 export enum ObjectType {

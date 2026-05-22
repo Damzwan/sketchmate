@@ -24,7 +24,6 @@
   />
   <TextMenu />
   <FontMenu />
-  <DocsMenu trigger="docsMenu" />
   <HelpMenu />
   <RoomMenu />
 </template>
@@ -38,7 +37,6 @@ import PenMenu from "@/components/draw/menus/PenMenu.vue";
 import { useSelect } from "@/draw/store/tools/select.store";
 import EraserMenu from "@/components/draw/menus/EraserMenu.vue";
 import SelectMenu from "@/components/draw/menus/SelectMenu.vue";
-import DocsMenu from "@/components/draw/menus/DocsMenu.vue";
 import TextMenu from "@/components/draw/menus/TextMenu.vue";
 import FontMenu from "@/components/draw/menus/FontMenu.vue";
 import MoreToolsMenu from "@/components/draw/menus/MoreToolsMenu.vue";
@@ -52,7 +50,6 @@ import { useDrawUIStore } from "@/draw/store/drawUI.store";
 import { useShapeCreation } from "@/draw/store/shapeCreation.store";
 import RoomMenu from "@/components/draw/menus/RoomMenu.vue";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
-import MiniMap from "@/components/draw/MiniMap.vue";
 import BucketMenu from "@/components/draw/menus/BucketMenu.vue";
 
 const { selectedObjectsRef } = storeToRefs(useSelect());

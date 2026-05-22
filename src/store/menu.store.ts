@@ -32,6 +32,8 @@ export const useMenuStore = defineStore("menu", () => {
 	const bucketMenuOpen = ref(false);
 	const connectionMenuOpen = ref(false);
 	const moderationMenuOpen = ref(false);
+	const sharePostMenuOpen = ref(false);
+	const reportMenuOpen = ref(false);
 
 	const stickersEmblemsSavedSelectedTab =
 		ref<StickersEmblemsSavedTabOptions>("sticker");
@@ -64,6 +66,8 @@ export const useMenuStore = defineStore("menu", () => {
 		[Menu.Bucket]: bucketMenuOpen,
 		[Menu.ConnectionMenu]: connectionMenuOpen,
 		[Menu.ModerationMenu]: moderationMenuOpen,
+		[Menu.SharePostMenu]: sharePostMenuOpen,
+		[Menu.ReportMenu]: reportMenuOpen,
 	};
 
 	const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
@@ -82,6 +86,10 @@ export const useMenuStore = defineStore("menu", () => {
 	function openMenu(menu: Menu, event: Event | undefined = undefined) {
 		menuMapping[menu].value = !menuMapping[menu].value;
 		if (event) menuEvent.value = event;
+	}
+
+	function closeMenu(menu: Menu) {
+		menuMapping[menu].value = false;
 	}
 
 	return {
@@ -114,5 +122,8 @@ export const useMenuStore = defineStore("menu", () => {
 		bucketMenuOpen,
 		connectionMenuOpen,
 		moderationMenuOpen,
+		sharePostMenuOpen,
+		closeMenu,
+		reportMenuOpen,
 	};
 });

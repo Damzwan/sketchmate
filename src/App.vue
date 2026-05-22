@@ -16,6 +16,8 @@
     <ReceivedBalloon />
     <ConnectionHub />
     <ModerationMenu/>
+    <SharePostMenu/>
+    <ReportMenu/>
   </ion-app>
 </template>
 
@@ -74,6 +76,14 @@ const UserContextSheet = defineAsyncComponent(
 
 const ModerationMenu = defineAsyncComponent(
 	() => import("@/components/moderation/ModerationMenu.vue"),
+);
+
+const SharePostMenu = defineAsyncComponent(
+	() => import("@/components/general/SharePostMenu.vue"),
+);
+
+const ReportMenu = defineAsyncComponent(
+	() => import("@/components/moderation/ReportMenu.vue"),
 );
 
 const ionRouter = useIonRouter();

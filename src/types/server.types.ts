@@ -143,7 +143,6 @@ export interface UserRestriction {
 	reason?: ReportReason;
 	applied_at?: string;
 	expires_at?: string;
-	blocked_capabilities: Capability[];
 }
 
 export interface UserStrikeSummary {
@@ -152,23 +151,22 @@ export interface UserStrikeSummary {
 	last_strike_at?: string;
 }
 
-// Payload emitted by the moderation:strike socket event — drives the
-// restriction modal on the frontend.
 export interface ModerationStrikePayload {
 	level: number;
 	name: string;
 	description: string;
 	reason: ReportReason;
 	expires_at?: string;
-	blocked_capabilities: Capability[];
+	blocked_capabilities: Capability[]; // Kept for UI rendering optimization
 }
 
-// Returned by GET /report/standing — drives the "Your Standing" page
 export interface UserStandingData {
 	level: number;
 	name: string;
 	description: string;
-	restriction: UserRestriction | null;
+	restriction:
+		| (UserRestriction & { blocked_capabilities: Capability[] })
+		| null;
 	summary: UserStrikeSummary;
 	history: Array<{
 		action_type: string;
@@ -198,6 +196,7 @@ export interface CapabilityBlockedError {
 // =============================================================================
 
 export interface User {
+	is_admin?: boolean;
 	_id: string;
 	auth_id: string;
 	name: string;
@@ -303,6 +302,8 @@ export interface BasePost {
 	aspect_ratio: number;
 	comment_count: number;
 	reports_count: number;
+	views: number;
+	total_reactions: number;
 	status: ContentModerationStatus;
 	moderation?: ContentModerationMeta;
 	reaction_counts: Record<string, number>;
@@ -344,9 +345,6 @@ export interface Comment {
 	message: string;
 	_id: string;
 	date: string;
-
-	// Inbox-comment moderation — removed comments render as "[removed]"
-	// client-side so threading stays intact.
 	status?: "active" | "removed";
 	reports_count?: number;
 }
@@ -477,6 +475,7 @@ export interface BaseMessage {
 	// DM-message moderation — soft delete on uphold, preserves conversation flow
 	moderation_status?: "active" | "removed";
 	reports_count?: number;
+	shared_post_id?: string;
 }
 
 export interface BaseConversation {
@@ -763,77 +762,4 @@ export interface SubmitReportRes {
 	success: boolean;
 	alreadyReported?: boolean;
 	message?: string;
-}
-
-// =============================================================================
-// INTERFACES
-// =============================================================================
-
-export interface API {
-	getUser(params: GetUserParams): Promise<Res<GetUserRes>>;
-
-	updateUser(params: UpdateUserParams): Promise<Res<void>>;
-
-	getPartialUsers(params: { _ids: string[] }): Promise<Res<Mate[]>>;
-
-	subscribe(params: RegisterNotificationParams): Promise<Res<void>>;
-
-	unsubscribe(params: UnRegisterNotificationParams): Promise<Res<void>>;
-
-	getInbox(params: GetInboxItemsParams): Promise<GetInboxRes>;
-
-	removeFromInbox(params: RemoveFromInboxParams): Promise<Res<void>>;
-
-	changeUserName(params: ChangeUserNameParams): Promise<Res<void>>;
-
-	uploadProfileImg(params: UploadProfileImgParams): Promise<Res<string>>;
-
-	deleteProfileImg(params: DeleteProfileImgParams): Promise<void>;
-
-	createSticker(params: CreateStickerParams): Promise<Res<string>>;
-
-	createEmblem(params: CreateEmblemParams): Promise<Res<string>>;
-
-	deleteSticker(params: DeleteStickerParams): Promise<void>;
-
-	deleteEmblem(params: DeleteEmblemParams): Promise<void>;
-
-	createSaved(params: CreateSavedParams): Promise<Res<Saved>>;
-
-	deleteSaved(params: DeleteSavedParams): Promise<void>;
-
-	seeInboxItem(params: SeeInboxParams): Promise<void>;
-
-	onLoginEvent(params: OnLoginEventParams): Promise<void>;
-
-	searchMate(params: SearchMateParams): Promise<Res<Mate[]>>;
-
-	createBalloon(
-		params: CreateBalloonPostParams,
-	): Promise<Res<CreateBalloonPostRes>>;
-
-	getBalloon(params: { balloonId: string }): Promise<Res<Balloon>>;
-
-	submitReport(params: SubmitReportParams): Promise<Res<SubmitReportRes>>;
-
-	getStanding(): Promise<Res<UserStandingData>>;
-}
-
-export interface SocketAPI {
-	connect: () => Promise<void>;
-	disconnect: () => Promise<void>;
-	match: (params: MatchParams) => Promise<void>;
-	send: (params: SendParams) => Promise<void>;
-
-	unMatch(params: UnMatchParams): Promise<void>;
-
-	comment(params: CommentParams): Promise<void>;
-
-	login(params: SocketLoginParams): Promise<void>;
-
-	sendMateRequest(params: SendMateRequestParams): Promise<void>;
-
-	cancelSendMateRequest(params: SendMateRequestParams): Promise<void>;
-
-	refuseSendMateRequest(params: SendMateRequestParams): Promise<void>;
 }

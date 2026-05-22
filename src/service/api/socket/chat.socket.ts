@@ -67,12 +67,18 @@ export function registerChatHandlers(socket: Socket) {
 					(p) => p._id !== me,
 				);
 
+				let message = "Sent a sketch";
+				if (payload.message.content === me) {
+					message = payload.message.content;
+				} else if (payload.message.shared_post_id) {
+					message = "Shared a post";
+				}
+
 				chatStore.addNotification({
 					tabId: payload.conversation_id,
 					subtitle: partner?.name || "New Message",
-					text: payload.message.content || "Sent a sketch",
+					text: message,
 					img: partner?.img || "",
-					// FIX: Updated to match standardized ChatStatus literals
 					isTrial: payload.conversation.status === "temporary",
 					isRequest: payload.conversation.status === "pending_invite",
 					isMateProposal: payload.conversation.status === "pending_mate",
@@ -152,19 +158,17 @@ export function emitSendMessage(
 	socket: any,
 	receiver_id: string,
 	content: string,
+	shared_post_id?: string, // ← new
 ): Promise<any> {
 	return new Promise((resolve, reject) => {
 		if (!socket?.connected) return reject(new Error("Socket disconnected"));
 
 		socket.emit(
 			"chat:send_message",
-			{ receiver_id, content },
+			{ receiver_id, content, shared_post_id },
 			(response: any) => {
-				if (response.error) {
-					reject(new Error(response.error));
-				} else {
-					resolve(response);
-				}
+				if (response.error) reject(new Error(response.error));
+				else resolve(response);
 			},
 		);
 	});

@@ -124,7 +124,7 @@
             <span v-else-if="isIncomingRequest" class="text-secondary italic">Wants to sketch with you!</span>
             <span v-else-if="isOutgoingPending" class="opacity-50">Invitation sent...</span>
             <span v-else-if="isTrialExpired" class="text-red-400 italic">Trial ended. Become Mates?</span>
-            <span v-else>{{ chat.last_message?.content || 'Started a conversation' }}</span>
+            <span v-else>{{ lastMessage }}</span>
           </template>
         </p>
 
@@ -147,14 +147,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import {
-	mdiClockOutline,
-	mdiLockOutline,
-	mdiHeart,
-	mdiTrashCanOutline,
-	mdiChevronRight,
 	mdiAccountOff,
+	mdiChevronRight,
+	mdiHeart,
+	mdiLockOutline,
+	mdiTrashCanOutline,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { PopulatedConversation } from "@/types/server.types";
@@ -174,6 +172,16 @@ const friendStore = useFriendStore();
 const partner = computed(() =>
 	props.chat.participants?.find((p: any) => p._id !== props.currentUserId),
 );
+
+const lastMessage = computed(() => {
+	let message = "Started a conversation";
+	if (props.chat.last_message?.content) {
+		message = props.chat.last_message.content;
+	} else if (props.chat.last_message?.shared_post_id) {
+		message = "Shared a post";
+	}
+	return message;
+});
 
 // Blocked Logic using the function from friendStore
 const isUserBlocked = computed(() => {

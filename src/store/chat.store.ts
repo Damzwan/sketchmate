@@ -301,6 +301,8 @@ export const useChatStore = defineStore("chat", () => {
 		receiver_id: string,
 		content: string,
 		currentTabId: string,
+		shared_post_id?: string,
+		options: { silent?: boolean } = {},
 	) {
 		if (!socket) throw new Error("Socket not connected");
 		const tempId = uuidv4();
@@ -309,6 +311,7 @@ export const useChatStore = defineStore("chat", () => {
 			_id: tempId,
 			localKey: tempId,
 			content,
+			shared_post_id: shared_post_id || null,
 			sender_id: authStore.user?._id,
 			createdAt: new Date().toISOString(),
 			status: "sending",
@@ -318,11 +321,17 @@ export const useChatStore = defineStore("chat", () => {
 		addOptimisticMessage(currentTabId, optimisticMessage);
 
 		try {
-			const response = await emitSendMessage(socket, receiver_id, content);
+			const response = await emitSendMessage(
+				socket,
+				receiver_id,
+				content,
+				shared_post_id,
+			);
 
 			if (response.success && response.message && response.conversation) {
 				const realChatId = response.conversation._id;
 
+				// Migrate optimistic messages from temp tab → real conversation id
 				if (currentTabId !== realChatId) {
 					const tempMsgs = messagesByChat.value[currentTabId] || [];
 					messagesByChat.value[realChatId] = [
@@ -364,7 +373,7 @@ export const useChatStore = defineStore("chat", () => {
 					realChatId,
 				);
 
-				if (chatWidget.activeTab === currentTabId) {
+				if (!options.silent && chatWidget.activeTab === currentTabId) {
 					chatWidget.addChatHead(realChatId, "chat");
 					chatWidget.activeTab = realChatId;
 					if (currentTabId !== realChatId)

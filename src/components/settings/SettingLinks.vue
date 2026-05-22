@@ -3,8 +3,6 @@
     <ion-button fill="clear" color="secondary" @click="() => r.push(FRONTEND_ROUTES.moderation, masterAnimation)"
     >Report status
     </ion-button>
-    <ion-button v-if="docs" fill="clear" color="secondary" :id="id">User Manual</ion-button>
-    <DocsMenu :trigger="id" />
     <ion-button v-if="form" fill="clear" color="secondary" @click="openMenu(Menu.FeedbackMenu)"
     >Feedback
     </ion-button>
@@ -52,7 +50,6 @@ import IosPwaInstructions from "@/components/general/IosPwaInstructions.vue";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import { discord_link } from "@/config/general.config";
-import DocsMenu from "@/components/draw/menus/DocsMenu.vue";
 import { useSessionStore } from "@/store/session.store";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 import { ref } from "vue";

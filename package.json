@@ -87,7 +87,6 @@
     "uuid": "^9.0.1",
     "vanilla-picker": "^2.12.3",
     "vue": "^3.5.30",
-    "vue-markdown-render": "^2.3.0",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {

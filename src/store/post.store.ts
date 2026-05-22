@@ -1,105 +1,148 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { FeedPost } from '@/types/server.types'
-import { fetchUserPosts } from '@/service/api/user.api'
-import { fetchFeed, toggleReaction as apiReact } from '@/service/api/post.api'
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import { FeedPost } from "@/types/server.types";
+import { fetchUserPosts } from "@/service/api/user.api";
+import {
+	deleteComment,
+	fetchFeed,
+	fetchPost,
+	toggleReaction as apiReact,
+} from "@/service/api/post.api";
 
-export const usePostStore = defineStore('post', () => {
-  const feedPosts = ref<FeedPost[]>([])
-  const userPosts = ref<FeedPost[]>([])
-  const userPage = ref(1)
-  const hasMoreUserPosts = ref(true)
-  const isProfileDirty = ref(false)
-  const isFeedDirty = ref(false)
-  const limit = 20
+export const usePostStore = defineStore("post", () => {
+	const feedPosts = ref<FeedPost[]>([]);
+	const userPosts = ref<FeedPost[]>([]);
+	const userPage = ref(1);
+	const hasMoreUserPosts = ref(true);
+	const isProfileDirty = ref(false);
+	const isFeedDirty = ref(false);
+	const limit = 20;
+	const postCache = ref<Record<string, FeedPost>>({});
 
+	// State for the global Share Menu
+	const activePostToShare = ref<FeedPost | null>(null);
 
-  async function getFeed(isRefresh = false) {
-    try {
-      const res = await fetchFeed(limit)
-      feedPosts.value = res.feed
-      isFeedDirty.value = false
-    } catch (error) {
-      console.error('Failed to fetch feed', error)
-      throw error
-    }
-  }
+	async function getFeed(isRefresh = false) {
+		try {
+			const res = await fetchFeed(limit);
+			feedPosts.value = res.feed;
+			isFeedDirty.value = false;
+		} catch (error) {
+			console.error("Failed to fetch feed", error);
+			throw error;
+		}
+	}
 
-  async function getUserPosts(userId: string, isInitial = false) {
-    if (isInitial) {
-      userPage.value = 1
-      hasMoreUserPosts.value = true
-    }
-    try {
-      const res = await fetchUserPosts(userId, userPage.value, limit)
-      const fetchedPosts = res.posts || []
-      if (isInitial) userPosts.value = fetchedPosts
-      else userPosts.value.push(...fetchedPosts)
+	async function getUserPosts(userId: string, isInitial = false) {
+		if (isInitial) {
+			userPage.value = 1;
+			hasMoreUserPosts.value = true;
+		}
+		try {
+			const res = await fetchUserPosts(userId, userPage.value, limit);
+			const fetchedPosts = res.posts || [];
+			if (isInitial) userPosts.value = fetchedPosts;
+			else userPosts.value.push(...fetchedPosts);
 
-      hasMoreUserPosts.value = fetchedPosts.length === limit
-      userPage.value++
-      isProfileDirty.value = false
-    } catch (error) {
-      console.error('Failed to fetch gallery', error)
-      throw error
-    }
-  }
+			hasMoreUserPosts.value = fetchedPosts.length === limit;
+			userPage.value++;
+			isProfileDirty.value = false;
+		} catch (error) {
+			console.error("Failed to fetch gallery", error);
+			throw error;
+		}
+	}
 
-  // --- ACTIONS: MUTATIONS ---
+	// --- ACTIONS: MUTATIONS ---
 
-  function removePostLocally(postId: string) {
-    feedPosts.value = feedPosts.value.filter(p => p._id !== postId)
-    userPosts.value = userPosts.value.filter(p => p._id !== postId)
-  }
+	function setActiveSharePost(post: FeedPost | null) {
+		activePostToShare.value = post;
+	}
 
-  /**
-   * Universal Reaction Toggle: Updates the post object wherever it exists in the store
-   */
-  async function toggleReactionLocally(postId: string, type: string) {
-    // Find post in either array
-    const findAndToggle = (list: FeedPost[]) => {
-      const post = list.find(p => p._id === postId)
-      if (!post) return
+	function removePostLocally(postId: string) {
+		feedPosts.value = feedPosts.value.filter((p) => p._id !== postId);
+		userPosts.value = userPosts.value.filter((p) => p._id !== postId);
+	}
 
-      const isRemoving = post.user_reaction === type
-      const previousReaction = post.user_reaction
+	async function toggleReactionLocally(postId: string, type: string) {
+		const findAndToggle = (list: FeedPost[]) => {
+			const post = list.find((p) => p._id === postId);
+			if (!post) return;
 
-      if (isRemoving) {
-        post.user_reaction = null
-        post.reaction_counts[type]--
-      } else {
-        if (previousReaction) post.reaction_counts[previousReaction]--
-        post.user_reaction = type
-        post.reaction_counts[type] = (post.reaction_counts[type] || 0) + 1
-      }
-    }
+			const isRemoving = post.user_reaction === type;
+			const previousReaction = post.user_reaction;
 
-    findAndToggle(feedPosts.value)
-    findAndToggle(userPosts.value)
+			if (isRemoving) {
+				post.user_reaction = null;
+				post.reaction_counts[type]--;
+			} else {
+				if (previousReaction) post.reaction_counts[previousReaction]--;
+				post.user_reaction = type;
+				post.reaction_counts[type] = (post.reaction_counts[type] || 0) + 1;
+			}
+		};
 
-    return await apiReact(postId, type)
-  }
+		findAndToggle(feedPosts.value);
+		findAndToggle(userPosts.value);
 
-  function markProfileDirty() {
-    isProfileDirty.value = true
-  }
+		return await apiReact(postId, type);
+	}
 
-  function markFeedDirty() {
-    isFeedDirty.value = true
-  }
+	function markProfileDirty() {
+		isProfileDirty.value = true;
+	}
+	function markFeedDirty() {
+		isFeedDirty.value = true;
+	}
 
-  return {
-    feedPosts,
-    userPosts,
-    userPage,
-    hasMoreUserPosts,
-    isProfileDirty,
-    isFeedDirty,
-    getUserPosts,
-    getFeed,
-    removePostLocally,
-    toggleReactionLocally,
-    markProfileDirty,
-    markFeedDirty
-  }
-})
+	async function deletePostComment(postId: string, commentId: string) {
+		const removeFrom = (list: FeedPost[]) => {
+			const post = list.find((p) => p._id === postId);
+			if (!post) return;
+			if (post.comments) {
+				post.comments = post.comments.filter((c) => c._id !== commentId);
+			}
+			if (typeof post.comment_count === "number" && post.comment_count > 0) {
+				post.comment_count--;
+			}
+		};
+		removeFrom(feedPosts.value);
+		removeFrom(userPosts.value);
+
+		return await deleteComment(postId, commentId);
+	}
+
+	async function fetchSinglePost(postId: string): Promise<FeedPost | null> {
+		if (postCache.value[postId]) return postCache.value[postId];
+		try {
+			const res = await fetchPost(postId);
+			if (res?.post) {
+				postCache.value[postId] = res.post;
+				return res.post;
+			}
+		} catch (e) {
+			console.error("Failed to fetch shared post:", e);
+		}
+		return null;
+	}
+
+	return {
+		feedPosts,
+		userPosts,
+		userPage,
+		hasMoreUserPosts,
+		isProfileDirty,
+		isFeedDirty,
+		activePostToShare,
+		getUserPosts,
+		getFeed,
+		removePostLocally,
+		toggleReactionLocally,
+		setActiveSharePost,
+		deletePostComment,
+		markProfileDirty,
+		markFeedDirty,
+		fetchSinglePost,
+		postCache,
+	};
+});

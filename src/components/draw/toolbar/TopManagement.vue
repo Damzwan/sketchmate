@@ -14,7 +14,7 @@
 
     <ToolButton
       :icon="megaphoneOutline"
-      @click="openMenu(Menu.HelpMenu, $event)"
+      @click="openMenu(Menu.FeedbackMenu)"
       custom-class="hover:bg-primary/20"
     />
 

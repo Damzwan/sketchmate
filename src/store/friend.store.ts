@@ -5,7 +5,6 @@ import type {
 	FeedPost,
 	NetworkUser,
 	PopulatedConversation,
-	PublicUser,
 } from "@/types/server.types";
 import { getPendingRequests } from "@/service/api/chat.api";
 import { fetchOnlineFriends, getFullProfile } from "@/service/api/user.api";
@@ -42,7 +41,7 @@ export const useFriendStore = defineStore("friend", () => {
 
 	const networkLoading = ref(false);
 	const hasMore = ref(true);
-	const targetProfile = ref<PublicUser | null>(null);
+	const targetProfile = ref<any | null>(null);
 	const targetPosts = ref<FeedPost[]>([]);
 	const loadingProfile = ref(false);
 
@@ -196,7 +195,7 @@ export const useFriendStore = defineStore("friend", () => {
 	) {
 		if (page === 1) networkLoading.value = true;
 		try {
-			const res: (PublicUser & {
+			const res: (any & {
 				chat_status?: ChatStatus;
 				expires_at?: string;
 				relationship_id?: string;
@@ -258,7 +257,7 @@ export const useFriendStore = defineStore("friend", () => {
 			authStore.user.stats.mates--;
 	}
 
-	function addFriendLocally(mate: PublicUser) {
+	function addFriendLocally(mate: any) {
 		userCache.upsert(mate);
 		const exists = networkLists.value.mates.some((m) => m._id === mate._id);
 		if (!exists) {

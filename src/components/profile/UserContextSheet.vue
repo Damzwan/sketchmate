@@ -97,6 +97,11 @@
                 <ion-icon :icon="svg(isBlocked ? mdiAccountReactivateOutline : mdiAccountCancelOutline)" class="text-xl transition-colors duration-500" :style="{ color: theme.descColor }" />
                 <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">{{ isBlocked ? 'Unblock User' : 'Block User' }}</span>
               </button>
+
+              <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 transition-colors duration-200" @click="report">
+                <ion-icon :icon="svg(mdiFlagVariantOutline)" class="text-xl transition-colors duration-500" :style="{ color: theme.descColor }" />
+                <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">Report user</span>
+              </button>
             </div>
           </div>
 
@@ -169,6 +174,7 @@ import {
 	mdiChatOutline,
 	mdiHeartBroken,
 	mdiTimerSandComplete,
+	mdiFlagVariantOutline,
 } from "@mdi/js";
 import { compareVersions, svg } from "@/helper/general.helper";
 
@@ -179,7 +185,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useUserContextSheet } from "../../composables/profile/useUserContextSheet";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 
 import {
@@ -196,10 +202,10 @@ import {
 	resolveTheme,
 	resolveTitle,
 } from "@/config/profile_options.config";
-import type { PublicCustomization } from "@/types/server.types";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import { useChatStore } from "@/store/chat.store";
+import { useModerationStore } from "@/store/moderation.store";
 
 const MIN_CHAT_VERSION = "0.4.3";
 
@@ -221,8 +227,8 @@ const resolvedUser = computed(() =>
 );
 
 // ── Customization Hydration ──
-const resolvedCustomization = computed<Partial<PublicCustomization>>(() => {
-	return (resolvedUser.value?.customization as PublicCustomization) || {};
+const resolvedCustomization = computed<Partial<any>>(() => {
+	return (resolvedUser.value?.customization as any) || {};
 });
 const effectiveCustomization = computed(() =>
 	hydrateCustomization(resolvedCustomization.value),
@@ -442,26 +448,12 @@ async function confirmToggleBlock() {
 	await alert.present();
 }
 
-async function confirmReport() {
-	if (!targetProfile.value) return;
-
-	const alert = await alertController.create({
-		header: "Report Profile",
-		message:
-			"Does this profile contain inappropriate content or violate community guidelines?",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Submit Report",
-				role: "destructive",
-				handler: () => {
-					toast("Report submitted for review");
-					closeSheet();
-				},
-			},
-		],
+function report() {
+	useModerationStore().openReport({
+		type: "user",
+		id: targetProfile.value._id,
+		label: targetProfile.value.name,
 	});
-	await alert.present();
 }
 </script>
 

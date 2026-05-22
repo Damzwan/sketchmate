@@ -68,7 +68,7 @@ export function registerChatHandlers(socket: Socket) {
 				);
 
 				let message = "Sent a sketch";
-				if (payload.message.content === me) {
+				if (payload.message.content) {
 					message = payload.message.content;
 				} else if (payload.message.shared_post_id) {
 					message = "Shared a post";

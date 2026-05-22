@@ -1,0 +1,113 @@
+<template>
+  <ion-modal
+    :is-open="open"
+    @did-dismiss="close"
+    :initial-breakpoint="1"
+    :breakpoints="[0, 1]"
+    handle-behavior="cycle"
+    class="followers-modal"
+  >
+    <div class="h-full flex flex-col bg-background cabin-sketch-regular max-h-[60vh]" @touchmove.stop>
+      <!-- Header -->
+      <div class="shrink-0 pt-5 px-5 pb-3 text-center border-b border-black/5">
+        <h1 class="text-xl text-black font-black tracking-tight italic leading-none">Followers</h1>
+        <p class="text-[11px] text-black/40 font-bold uppercase tracking-widest mt-1">
+          {{ followers.length }} {{ followers.length === 1 ? 'person' : 'people' }}
+        </p>
+      </div>
+
+      <!-- List -->
+      <div class="flex-1 overflow-y-auto px-3 py-2 hide-scrollbar">
+        <button
+          v-for="follower in followers"
+          :key="follower"
+          @click="handleTap(follower)"
+          class="w-full flex items-center px-3 py-3 rounded-2xl active:bg-black/5 transition-colors text-left"
+        >
+          <div class="h-[44px] w-[44px] rounded-2xl bg-white/60 border border-black/5 shadow-sm overflow-hidden shrink-0 flex items-center justify-center">
+            <img
+              v-if="resolveImg(follower)"
+              :src="resolveImg(follower)"
+              :alt="resolveName(follower)"
+              class="w-full h-full object-cover"
+            />
+            <span v-else class="font-bold text-black">
+              {{ resolveName(follower).charAt(0) }}
+            </span>
+          </div>
+
+          <div class="flex-1 ml-3 min-w-0">
+            <p class="text-sm font-black text-black truncate">
+              {{ resolveName(follower) }}
+              <span v-if="follower === user._id" class="text-black/40 font-normal italic">(you)</span>
+            </p>
+          </div>
+
+          <ion-icon
+            v-if="follower !== user._id"
+            :icon="svg(mdiChevronRight)"
+            class="text-xl text-black/30 shrink-0"
+          />
+        </button>
+      </div>
+    </div>
+  </ion-modal>
+</template>
+
+<script setup lang="ts">
+import { IonModal, IonIcon } from "@ionic/vue";
+import { mdiChevronRight } from "@mdi/js";
+import { svg, senderImg, senderName } from "@/helper/general.helper";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+
+const props = defineProps<{
+	followers: string[];
+	user: any;
+	open: boolean;
+	userLookup?: (userId: string) => any;
+}>();
+
+const emit = defineEmits(["update:open"]);
+
+const { openUserActions } = useUserContextSheet();
+
+function resolveUser(id: string) {
+	return props.userLookup ? props.userLookup(id) : null;
+}
+
+function resolveImg(id: string): string | undefined {
+	const u = resolveUser(id);
+	return u?.img || senderImg(u);
+}
+
+function resolveName(id: string): string {
+	const u = resolveUser(id);
+	return u?.name || senderName(u) || "Sketcher";
+}
+
+function handleTap(followerId: string) {
+	if (followerId === props.user._id) return;
+	const userInfo = resolveUser(followerId);
+	openUserActions({
+		_id: followerId,
+		name: userInfo?.name,
+		img: userInfo?.img,
+	});
+}
+
+function close() {
+	emit("update:open", false);
+}
+</script>
+
+<style scoped>
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+ion-modal.followers-modal {
+  --border-radius: 2.5rem 2.5rem 0 0;
+  --background: var(--ion-color-tertiary, #fff);
+  --height: auto;
+  --max-height: 70vh;
+}
+</style>

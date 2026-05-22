@@ -1,10 +1,9 @@
 import { defineStore } from "pinia";
 import { computed, ref, shallowRef, triggerRef } from "vue";
-import type { PublicUser } from "@/types/server.types";
 import { getPartialUsers } from "@/service/api/user.api";
 
 interface CacheEntry {
-	data: PublicUser;
+	data: any;
 	fetchedAt: number;
 }
 
@@ -21,11 +20,11 @@ export const useUserCacheStore = defineStore("userCache", () => {
 
 	// In-flight dedupe — promises per id so concurrent reads of the same
 	// missing user share one network round-trip
-	const inflight = new Map<string, Promise<PublicUser | null>>();
+	const inflight = new Map<string, Promise<any | null>>();
 
 	// ─── INTERNAL ──────────────────────────────────────────────────────────
 
-	const writeMany = (users: PublicUser[]) => {
+	const writeMany = (users: any[]) => {
 		if (!users.length) return;
 		const next = new Map(cache.value);
 		const now = Date.now();
@@ -84,19 +83,19 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	};
 
 	/** Map of resolver functions for in-flight promises, keyed by id */
-	const inflightResolvers = new Map<string, (v: PublicUser | null) => void>();
+	const inflightResolvers = new Map<string, (v: any | null) => void>();
 
 	/**
 	 * Schedule an id for the next batch and return a promise that resolves
 	 * once that batch completes.
 	 */
-	const enqueue = (id: string): Promise<PublicUser | null> => {
+	const enqueue = (id: string): Promise<any | null> => {
 		// Already waiting on this id? Share the promise.
 		const existing = inflight.get(id);
 		if (existing) return existing;
 
 		pendingIds.add(id);
-		const p = new Promise<PublicUser | null>((resolve) => {
+		const p = new Promise<any | null>((resolve) => {
 			inflightResolvers.set(id, resolve);
 		});
 		inflight.set(id, p);
@@ -115,7 +114,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	 * triggering a fetch — e.g. inside computed properties that re-evaluate
 	 * cheaply.
 	 */
-	const peek = (id: string): PublicUser | undefined => {
+	const peek = (id: string): any | undefined => {
 		return cache.value.get(id)?.data;
 	};
 
@@ -127,7 +126,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	 * whatever's available immediately, the cache will replace it when
 	 * fresh data arrives.
 	 */
-	const getUser = (id: string): PublicUser | undefined => {
+	const getUser = (id: string): any | undefined => {
 		if (!id) return undefined;
 
 		const entry = cache.value.get(id);
@@ -151,7 +150,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	 * same order as the input ids, with undefined for misses (which are
 	 * automatically queued).
 	 */
-	const getUsers = (ids: string[]): (PublicUser | undefined)[] => {
+	const getUsers = (ids: string[]): (any | undefined)[] => {
 		return ids.map((id) => getUser(id));
 	};
 
@@ -160,7 +159,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	 * genuinely need to block on the fetch (e.g. opening a sheet).
 	 * For list rendering prefer the reactive `getUser`.
 	 */
-	const fetchUser = async (id: string): Promise<PublicUser | null> => {
+	const fetchUser = async (id: string): Promise<any | null> => {
 		const peeked = peek(id);
 		if (peeked) {
 			// Check for staleness; if stale, fall through to fetch
@@ -177,7 +176,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	 * Components shouldn't call this directly — it's for plumbing the
 	 * cache from existing data flows (chat list responses, post fetches, etc).
 	 */
-	const upsert = (user: PublicUser | undefined | null) => {
+	const upsert = (user: any | undefined | null) => {
 		if (!user || !user._id) return;
 		writeMany([user]);
 	};
@@ -186,8 +185,8 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	 * Upsert multiple users at once. Used by list endpoints — chat list
 	 * response, network list response, posts feed.
 	 */
-	const upsertMany = (users: (PublicUser | undefined | null)[]) => {
-		const filtered = users.filter((u): u is PublicUser => !!u && !!u._id);
+	const upsertMany = (users: (any | undefined | null)[]) => {
+		const filtered = users.filter((u): u is any => !!u && !!u._id);
 		writeMany(filtered);
 	};
 

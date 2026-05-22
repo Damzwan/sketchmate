@@ -30,17 +30,24 @@
           <ion-toggle v-model="isSaveAndSend" color="secondary"></ion-toggle>
         </div>
 
-        <div v-if="isSaveAndSend && user && user.mates && user.mates.length > 0"
+        <div v-if="isSaveAndSend && sortedMates.length > 0"
              class="pt-1 mt-1 border-t border-primary/20 animate-fade-in">
           <div class="flex overflow-x-auto space-x-3 pb-1 pt-1 hide-scrollbar px-1">
             <button
-              v-for="mate in user.mates"
+              v-for="mate in sortedMates"
               :key="mate._id"
               @click="toggle(mate._id)"
               class="relative w-[64px] h-[64px] shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center"
               :class="selected.has(mate._id) ? 'border-secondary shadow-md scale-105 bg-secondary/20' : 'border-transparent bg-primary/60'"
             >
-              <img :src="mate.img" class="w-8 h-8 rounded-full object-cover border-2 border-white mb-1 shadow-sm" />
+              <div class="relative mb-1">
+                <img :src="mate.img" class="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm" />
+                <!-- Green dot only for online users -->
+                <div v-if="isOnline(mate._id)"
+                     class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-white shadow-sm">
+                </div>
+              </div>
+
               <div v-if="selected.has(mate._id)"
                    class="absolute -top-1.5 -right-1.5 bg-secondary rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-10">
                 <ion-icon :icon="svg(mdiCheck)" class="text-white w-4 h-4" />
@@ -126,6 +133,7 @@ import { storeToRefs } from "pinia";
 import { compressImg, svg } from "@/helper/general.helper";
 
 import { useAuthStore } from "@/store/auth.store";
+import { useFriendStore } from "@/store/friend.store"; // Added
 import { useDrawStore } from "@/draw/store/draw.store";
 import { useMateSelection } from "@/draw/services/useMateSelection";
 import { useToast } from "@/service/toast.service";
@@ -137,6 +145,9 @@ import { createPost } from "@/service/api/post.api";
 import { usePostStore } from "@/store/post.store";
 
 const { user } = storeToRefs(useAuthStore());
+const friendStore = useFriendStore(); // Added
+const { allConnectedPartners } = storeToRefs(friendStore); // Added
+
 const drawStore = useDrawStore();
 const { preview, newPreview, isSendingDrawing } = storeToRefs(drawStore);
 const {
@@ -159,6 +170,17 @@ const postCaption = ref("");
 const isBalloon = ref(false);
 const balloonNote = ref("");
 const isLoading = ref(false);
+
+const isOnline = (id: string) => friendStore.isFriendOnline(id); // Added
+
+// Replaces user.mates logic: sorted by online status
+const sortedMates = computed(() => {
+	return [...allConnectedPartners.value].sort((a, b) => {
+		const aOnline = isOnline(a._id) ? 1 : 0;
+		const bOnline = isOnline(b._id) ? 1 : 0;
+		return bOnline - aOnline;
+	});
+});
 
 onMounted(() => {
 	setTimeout(

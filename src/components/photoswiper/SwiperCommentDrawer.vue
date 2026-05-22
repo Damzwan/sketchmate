@@ -1,15 +1,14 @@
 <template>
   <ion-modal
-    :is-open="isOpen"
-    @did-dismiss="handleDismiss"
-    @will-present="onPresent"
+    :is-open="open"
+    @did-dismiss="close"
+    @did-present="scrollToBottom()"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
     handle-behavior="cycle"
     class="liquid-comment-modal"
   >
-    <div class="h-full flex flex-col bg-background cabin-sketch-regular overflow-hidden">
-      <!-- Header -->
+    <div class="h-full flex flex-col bg-background cabin-sketch-regular overflow-y-auto max-h-[85vh]">
       <div class="shrink-0 pt-5 px-5 pb-3 text-center relative border-b border-black/5">
         <h1 class="text-xl text-black font-black tracking-tight italic leading-none">Comments</h1>
         <p v-if="comments.length > 0" class="text-[11px] text-black/40 font-bold uppercase tracking-widest mt-1">
@@ -17,7 +16,6 @@
         </p>
       </div>
 
-      <!-- Comments List -->
       <div
         ref="scrollContainer"
         class="flex-1 overflow-y-auto hide-scrollbar pb-4 pt-1"
@@ -35,50 +33,48 @@
         <div
           v-else
           v-for="(comment, idx) in comments"
-          :key="comment._id"
-          class="flex items-start px-4 py-3 group"
+          :key="comment._id || idx"
+          class="flex items-start px-4 py-3 relative"
         >
-          <button
-            @click="openUser(comment.author._id)"
-            class="shrink-0 active:scale-95 transition-transform"
-          >
+          <button @click="openUser(getAuthorId(comment))" class="shrink-0 active:scale-95 transition-transform">
             <ion-avatar class="h-[38px] w-[38px] bg-white/80 shadow-sm border border-black/5 overflow-hidden">
-              <img v-if="comment.author.img" :src="comment.author.img" class="aspect-square object-cover" />
+              <img v-if="getAuthorImg(comment)" :src="getAuthorImg(comment)" class="aspect-square object-cover" />
               <span v-else class="w-full h-full flex items-center justify-center font-bold text-black text-sm">
-                {{ comment.author.name.charAt(0) }}
-              </span>
+        {{ getAuthorName(comment).charAt(0) }}
+      </span>
             </ion-avatar>
           </button>
 
-          <div class="flex-1 ml-3 min-w-0 pb-3 relative" :class="{ 'border-b border-black/5': idx < comments.length - 1 }">
-            <div class="flex items-baseline justify-between gap-2 pr-8"> <!-- Added pr-8 to prevent text overlap -->
+          <div
+            class="flex-1 ml-3 min-w-0 pb-3 pr-6"
+            :class="{ 'border-b border-black/5': idx < comments.length - 1 }"
+          >
+            <div class="flex items-baseline justify-between gap-2">
               <button
-                @click="openUser(comment.author._id)"
+                @click="openUser(getAuthorId(comment))"
                 class="text-sm font-black text-black truncate active:opacity-60 transition-opacity text-left"
               >
-                {{ comment.author.name }}
+                {{ getAuthorName(comment) }}
               </button>
-              <span class="text-[10px] text-black/40 font-bold uppercase tracking-wider shrink-0">
-      {{ dayjs(comment.createdAt).fromNow() }}
-    </span>
+              <span class="text-[10px] text-black/40 font-bold uppercase tracking-wider shrink-0 pr-7">
+        {{ dayjs(comment.createdAt || comment.date).fromNow() }}
+      </span>
             </div>
 
-            <p class="text-[14px] text-black/85 mt-1 leading-snug break-words pr-6"> <!-- Added pr-6 -->
+            <p class="text-[14px] text-black/85 mt-1 leading-snug break-words">
               {{ comment.message }}
             </p>
-
-            <!-- Button now correctly positioned relative to this parent -->
-            <button
-              @click.stop="openCommentActions(comment)"
-              class="absolute top-0 right-0 p-2 active:scale-90 transition-transform"
-            >
-              <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg text-black/30" />
-            </button>
           </div>
+
+          <button
+            @click.stop="openCommentActions(comment)"
+            class="absolute top-3 right-3 p-1.5 active:scale-90 transition-transform"
+          >
+            <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg text-black/30" />
+          </button>
         </div>
       </div>
 
-      <!-- Sticky Input Footer -->
       <div class="flex w-full items-center gap-2 bg-background sticky bottom-0 border-t border-black/10 px-3 py-2 pb-safe z-10 shrink-0">
         <ion-avatar class="shrink-0 h-[34px] w-[34px] shadow-sm">
           <img v-if="user?.img" :src="user.img" alt="Me" class="aspect-square object-cover" />
@@ -111,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from "vue";
+import { ref, nextTick, computed, watch } from "vue";
 import {
 	IonModal,
 	IonSpinner,
@@ -121,7 +117,6 @@ import {
 	actionSheetController,
 	alertController,
 } from "@ionic/vue";
-import { storeToRefs } from "pinia";
 import {
 	mdiSend,
 	mdiFlagVariantOutline,
@@ -132,19 +127,24 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { svg } from "@/helper/general.helper";
 import { fetchPostComments, postComment } from "@/service/api/post.api";
-import { useAuthStore } from "@/store/auth.store";
 import { usePostStore } from "@/store/post.store";
 import { useModerationStore } from "@/store/moderation.store";
 import { useToast } from "@/service/toast.service";
-import { FeedPost } from "@/types/server.types";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 
 dayjs.extend(relativeTime);
 
-const props = defineProps<{ isOpen: boolean; post: FeedPost | null }>();
-const emit = defineEmits(["close"]);
+const props = defineProps<{
+	open: boolean;
+	currItem: any;
+	type: "post" | "inbox";
+	user: any;
+	userLookup?: (userId: string) => any;
+	onComment?: (item: any, message: string) => Promise<any>;
+}>();
 
-const { user } = storeToRefs(useAuthStore());
+const emit = defineEmits(["update:open"]);
+
 const { openUserActions } = useUserContextSheet();
 const postStore = usePostStore();
 const moderationStore = useModerationStore();
@@ -157,46 +157,110 @@ const loading = ref(false);
 const isSubmitting = ref(false);
 const newComment = ref("");
 
-const onPresent = async () => {
-	if (props.post) {
-		comments.value = props.post.comments ? [...props.post.comments] : [];
+const isPost = computed(() => props.type === "post");
 
-		loading.value = true;
-		try {
-			const res = await fetchPostComments(props.post._id, 1, 50);
-			comments.value = res.comments;
+// --- Author resolution (handles hydrated post comments AND raw inbox comments)
+
+function getAuthorId(comment: any): string {
+	return comment.author?._id || comment.author_id || comment.sender;
+}
+
+function getAuthorName(comment: any): string {
+	if (comment.author?.name) return comment.author.name;
+	const resolved = props.userLookup?.(comment.sender || comment.author_id);
+	return resolved?.name || "Sketcher";
+}
+
+function getAuthorImg(comment: any): string | undefined {
+	if (comment.author?.img) return comment.author.img;
+	const resolved = props.userLookup?.(comment.sender || comment.author_id);
+	return resolved?.img;
+}
+
+// --- Lifecycle: load comments when drawer opens
+
+watch(
+	() => props.open,
+	async (isOpen) => {
+		if (!isOpen || !props.currItem) return;
+
+		if (isPost.value) {
+			comments.value = props.currItem.comments
+				? [...props.currItem.comments]
+				: [];
+			loading.value = true;
+			try {
+				const res = await fetchPostComments(props.currItem._id, 1, 50);
+				comments.value = res.comments;
+				scrollToBottom();
+			} catch (e) {
+				console.error("Failed to load comments", e);
+			} finally {
+				loading.value = false;
+			}
+		} else {
+			// Inbox items already have comments populated locally
+			comments.value = props.currItem.comments || [];
 			scrollToBottom();
-		} catch (e) {
-			console.error("Failed to load comments", e);
-		} finally {
-			loading.value = false;
 		}
-	}
-};
+	},
+);
 
-const openUser = (userId: string) => {
-	openUserActions({ _id: userId });
-};
+// Reset comments when item changes mid-open
+watch(
+	() => props.currItem?._id,
+	() => {
+		comments.value = props.currItem?.comments
+			? [...props.currItem.comments]
+			: [];
+	},
+);
 
-const submitComment = async () => {
-	if (!newComment.value.trim() || !props.post) return;
+function openUser(userId: string) {
+	if (userId) openUserActions({ _id: userId });
+}
+
+async function submitComment() {
+	if (!newComment.value.trim() || !props.currItem || isSubmitting.value) return;
+	const message = newComment.value;
+	newComment.value = "";
 	isSubmitting.value = true;
+
 	try {
-		const res = await postComment(props.post._id, newComment.value);
-		res.comment.author = user.value;
-		comments.value.push(res.comment);
-		if (props.post) {
-			props.post.comment_count++;
-			props.post.comments = [res.comment];
+		if (isPost.value) {
+			const res = await postComment(props.currItem._id, message);
+			comments.value.push(res.comment);
+			props.currItem.comment_count++;
+			props.currItem.comments = [res.comment];
+		} else if (props.onComment) {
+			// Inbox path delegates to the composable's onComment (plain API call)
+			await props.onComment(props.currItem, message);
+			const localComment = {
+				_id: `local-${Date.now()}`,
+				sender: props.user._id,
+				author_id: props.user._id,
+				author: {
+					_id: props.user._id,
+					name: props.user.name,
+					img: props.user.img,
+				},
+				message,
+				createdAt: new Date().toISOString(),
+				date: new Date().toISOString(),
+			};
+			comments.value.push(localComment);
+			if (!props.currItem.comments) props.currItem.comments = [];
+			props.currItem.comments.push(localComment);
 		}
-		newComment.value = "";
 		scrollToBottom();
 	} catch (e) {
 		console.error("Failed to post comment", e);
+		toast("Failed to post comment", { color: "danger" });
+		newComment.value = message; // restore
 	} finally {
 		isSubmitting.value = false;
 	}
-};
+}
 
 const scrollToBottom = async () => {
 	await nextTick();
@@ -205,37 +269,42 @@ const scrollToBottom = async () => {
 	}
 };
 
-const handleDismiss = () => emit("close");
+function close() {
+	emit("update:open", false);
+}
 
-// --- Comment Actions ---
+// --- Comment actions
 
-const openCommentActions = async (comment: any) => {
-	const isMine = comment.author._id === user.value?._id;
+async function openCommentActions(comment: any) {
+	const authorId = getAuthorId(comment);
+	const isMine = authorId === props.user._id;
 
 	const buttons: any[] = [];
 
-	if (isMine) {
+	if (isMine && isPost.value) {
+		// Only post comments have a delete endpoint right now
 		buttons.push({
 			text: "Delete Comment",
 			role: "destructive",
 			icon: svg(mdiDeleteOutline),
 			handler: () => confirmDeleteComment(comment),
 		});
-	} else {
+	} else if (!isMine) {
 		buttons.push({
 			text: "Report Comment",
 			role: "destructive",
 			icon: svg(mdiFlagVariantOutline),
 			handler: () => {
 				moderationStore.openReport({
-					type: "comment",
+					type: isPost.value ? "comment" : "inbox_comment",
 					id: comment._id,
-					label: `${comment.author.name}'s comment`,
+					label: `${getAuthorName(comment)}'s comment`,
 				});
 			},
 		});
 	}
 
+	if (buttons.length === 0) return;
 	buttons.push({ text: "Cancel", role: "cancel" });
 
 	const sheet = await actionSheetController.create({
@@ -244,9 +313,9 @@ const openCommentActions = async (comment: any) => {
 		buttons,
 	});
 	await sheet.present();
-};
+}
 
-const confirmDeleteComment = async (comment: any) => {
+async function confirmDeleteComment(comment: any) {
 	const alert = await alertController.create({
 		header: "Delete Comment?",
 		subHeader: "This can't be undone.",
@@ -259,15 +328,14 @@ const confirmDeleteComment = async (comment: any) => {
 				role: "destructive",
 				cssClass: "alert-button-confirm",
 				handler: async () => {
-					if (!props.post) return;
+					if (!props.currItem) return;
 					try {
-						await postStore.deletePostComment(props.post._id, comment._id);
+						await postStore.deletePostComment(props.currItem._id, comment._id);
 						comments.value = comments.value.filter(
 							(c) => c._id !== comment._id,
 						);
 						toast("Comment deleted");
 					} catch (e) {
-						console.error("Delete failed", e);
 						toast("Failed to delete comment", { color: "danger" });
 					}
 				},
@@ -275,7 +343,7 @@ const confirmDeleteComment = async (comment: any) => {
 		],
 	});
 	await alert.present();
-};
+}
 </script>
 
 <style scoped>

@@ -50,14 +50,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import {
-  IonModal,
-  IonButton,
-  IonIcon,
-  IonRadio,
-  IonRadioGroup,
-  IonTextarea,
+	IonButton,
+	IonIcon,
+	IonModal,
+	IonRadio,
+	IonRadioGroup,
+	IonTextarea,
 } from "@ionic/vue";
 import { mdiClose } from "@mdi/js";
 import { storeToRefs } from "pinia";
@@ -65,6 +65,7 @@ import { svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
 import { useModerationStore } from "@/store/moderation.store";
 import type { ReportReason } from "@/types/server.types";
+import { Menu } from "@/draw/types/draw.types";
 
 const menuStore = useMenuStore();
 const moderationStore = useModerationStore();
@@ -77,55 +78,64 @@ const details = ref("");
 
 // Adjust these to match your actual ReportReason enum values.
 const reasonOptions: { value: ReportReason; label: string }[] = [
-  { value: "minor_safety", label: "Minor safety concern" },
-  { value: "nsfw", label: "Sexual or NSFW content" },
-  { value: "violence", label: "Violence or self-harm" },
-  { value: "harassment", label: "Harassment or bullying" },
-  { value: "hate_speech", label: "Hate speech" },
-  { value: "spam", label: "Spam or misleading" },
-  { value: "impersonation", label: "Impersonation" },
-  { value: "other", label: "Something else" },
+	{ value: "minor_safety", label: "Minor safety concern" },
+	{ value: "nsfw", label: "Sexual or NSFW content" },
+	{ value: "violence", label: "Violence or self-harm" },
+	{ value: "harassment", label: "Harassment or bullying" },
+	{ value: "hate_speech", label: "Hate speech" },
+	{ value: "spam", label: "Spam or misleading" },
+	{ value: "impersonation", label: "Impersonation" },
+	{ value: "other", label: "Something else" },
 ];
 
 const targetLabel = computed(() => {
-  const t = targetToReport.value;
-  if (!t) return "this content";
-  if (t.label) return t.label;
-  switch (t.type) {
-    case "post": return "this post";
-    case "comment": return "this comment";
-    case "balloon": return "this balloon";
-    case "user": return "this user";
-    case "dm_message": return "this message";
-    case "inbox_drawing": return "this drawing";
-    case "inbox_comment": return "this comment";
-    default: return "this content";
-  }
+	const t = targetToReport.value;
+	if (!t) return "this content";
+	if (t.label) return t.label;
+	switch (t.type) {
+		case "post":
+			return "this post";
+		case "comment":
+			return "this comment";
+		case "balloon":
+			return "this balloon";
+		case "user":
+			return "this user";
+		case "dm_message":
+			return "this message";
+		case "inbox_drawing":
+			return "this drawing";
+		case "inbox_comment":
+			return "this comment";
+		default:
+			return "this content";
+	}
 });
 
 // Reset form whenever a new target is set
 watch(targetToReport, (v) => {
-  if (v) {
-    reason.value = null;
-    details.value = "";
-  }
+	if (v) {
+		reason.value = null;
+		details.value = "";
+	}
 });
 
 function close() {
-  menuStore.closeMenu?.("ReportMenu" as any);
-  // Fallback: if your store uses a different close pattern, adjust accordingly
-  reportMenuOpen.value = false;
+	menuStore.closeMenu?.(Menu.ReportMenu);
 }
 
 function onDismiss() {
-  reportMenuOpen.value = false;
-  moderationStore.clearReportTarget();
+	reportMenuOpen.value = false;
+	moderationStore.clearReportTarget();
 }
 
 async function submit() {
-  if (!reason.value) return;
-  const ok = await moderationStore.submitReport(reason.value, details.value || undefined);
-  if (ok) close();
+	if (!reason.value) return;
+	const ok = await moderationStore.submitReport(
+		reason.value,
+		details.value || undefined,
+	);
+	if (ok) close();
 }
 </script>
 

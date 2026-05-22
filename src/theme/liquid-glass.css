@@ -27,6 +27,10 @@ ion-popover.liquid-popover::part(content) {
 	--backdrop-opacity: 0;
 }
 
+.liquid-action-sheet .action-sheet-group.sc-ion-action-sheet-md:first-child {
+	border-radius: 2rem 2rem 0 0;
+}
+
 .liquid-action-sheet .action-sheet-wrapper {
 	backdrop-filter: blur(24px) saturate(150%);
 	-webkit-backdrop-filter: blur(24px) saturate(150%);
@@ -44,6 +48,25 @@ ion-popover.liquid-popover::part(content) {
 .liquid-action-sheet .action-sheet-button {
 	background: transparent;
 	color: var(--ion-color-dark);
+	font-weight: bold;
+}
+
+.normal-action-sheet {
+	--background: var(--ion-color-tertiary);
+	--backdrop-opacity: 0;
+}
+
+.normal-action-sheet .action-sheet-group.sc-ion-action-sheet-md:first-child {
+	border-radius: 2rem 2rem 0 0;
+}
+
+.normal-action-sheet .action-sheet-title {
+	font-family: "Cabin Sketch", cursive;
+	font-weight: bold;
+	font-size: 1.1rem;
+}
+
+.normal-action-sheet .action-sheet-button {
 	font-weight: bold;
 }
 

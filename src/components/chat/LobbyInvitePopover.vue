@@ -57,51 +57,47 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import { IonPopover } from '@ionic/vue'
-import { useFriendStore } from '@/store/friend.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { inviteFriendToRoom } from '@/service/api/socket/drawSyncing.socket'
+import { ref, computed } from "vue";
+import { storeToRefs } from "pinia";
+import { IonPopover } from "@ionic/vue";
+import { useFriendStore } from "@/store/friend.store";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { inviteFriendToRoom } from "@/service/api/socket/drawSyncing.socket";
 
 const props = defineProps<{
-  isOpen: boolean
-  event: Event | null
-}>()
+	isOpen: boolean;
+	event: Event | null;
+}>();
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(["close"]);
 
-const friendStore = useFriendStore()
-const { allConnectedPartners } = storeToRefs(friendStore)
-const { roomMembers, roomId } = storeToRefs(useDrawSyncer())
+const friendStore = useFriendStore();
+const { allConnectedPartners } = storeToRefs(friendStore);
+const { roomMembers, roomId } = storeToRefs(useDrawSyncer());
 
-const inviteTimestamps = ref<Record<string, number>>({})
-const INVITE_COOLDOWN_MS = 30000
+const inviteTimestamps = ref<Record<string, number>>({});
+const INVITE_COOLDOWN_MS = 30000;
 
-const isOnline = (id: string) => friendStore.isFriendOnline(id)
+const isOnline = (id: string) => friendStore.isFriendOnline(id);
 
-/**
- * Filter out people already in the room.
- * Sort by online status so available people appear first.
- */
 const eligibleToInvite = computed(() => {
-  return allConnectedPartners.value
-    .filter(f => !roomMembers.value.some(rm => rm._id === f._id))
-    .sort((a, b) => {
-      const aOnline = isOnline(a._id) ? 1 : 0
-      const bOnline = isOnline(b._id) ? 1 : 0
-      return bOnline - aOnline
-    })
-})
+	return allConnectedPartners.value
+		.filter((f) => !roomMembers.value.some((rm) => rm._id === f._id))
+		.sort((a, b) => {
+			const aOnline = isOnline(a._id) ? 1 : 0;
+			const bOnline = isOnline(b._id) ? 1 : 0;
+			return bOnline - aOnline;
+		});
+});
 
 const canInvite = (friendId: string) => {
-  const last = inviteTimestamps.value[friendId] || 0
-  return (Date.now() - last) > INVITE_COOLDOWN_MS
-}
+	const last = inviteTimestamps.value[friendId] || 0;
+	return Date.now() - last > INVITE_COOLDOWN_MS;
+};
 
 const handleInvite = (friendId: string) => {
-  if (!roomId.value || !canInvite(friendId)) return
-  inviteTimestamps.value[friendId] = Date.now()
-  inviteFriendToRoom(friendId, roomId.value)
-}
+	if (!roomId.value || !canInvite(friendId)) return;
+	inviteTimestamps.value[friendId] = Date.now();
+	inviteFriendToRoom(friendId, roomId.value);
+};
 </script>

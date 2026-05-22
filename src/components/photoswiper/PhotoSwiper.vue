@@ -1,9 +1,16 @@
 <template>
-  <transition name="expand">
-    <div class="fixed w-full h-full bg-black z-[99999999] flex flex-col safe-area" v-if="open && user && currItem">
-
+  <ion-modal
+    :is-open="open"
+    @did-dismiss="close"
+    @did-present="onDidPresent"
+    :keep-contents-mounted="true"
+    class="liquid-photoswiper"
+  >
+    <div class="w-full h-full bg-black flex flex-col safe-area">
       <PhotoSwiperHeader
+        v-if="user && currItem"
         :curr-item="currItem"
+        :type="config.type ?? 'inbox'"
         v-model:show-comments="showComments"
         @close="close"
         @open-followers="isFollowerDrawerOpen = true"
@@ -13,7 +20,7 @@
       <swiper-container
         class="w-full grow"
         :initial-slide="slide"
-        :zoom="{maxRatio: 3}"
+        :zoom="{ maxRatio: 3 }"
         @swiperslidechange="handleSlideChange"
         ref="swiper"
       >
@@ -28,9 +35,10 @@
         </swiper-slide>
       </swiper-container>
 
-
       <PhotoSwiperFooter
+        v-if="user && currItem"
         :curr-item="currItem"
+        :type="config.type ?? 'inbox'"
         :show-comments="showComments"
         :can-reply="config.canReply"
         :can-delete="canDelete"
@@ -40,198 +48,170 @@
         @delete="handleDelete"
         @react="handleReact"
       />
-<!--      <CommentDrawer-->
-<!--        :index-of-curr-inbox-item="slide"-->
-<!--        :curr-inbox-item="currItem"-->
-<!--        v-model:open="isCommentDrawerOpen"-->
-<!--        :user="user"-->
-<!--      />-->
-<!--      <PhotoSwiperFollowersDrawer-->
-<!--        v-if="currItem"-->
-<!--        :followers="currItem.followers || []"-->
-<!--        :user="user"-->
-<!--        v-model:open="isFollowerDrawerOpen"-->
-<!--      />-->
+
+      <SwiperCommentDrawer
+        v-model:open="isCommentDrawerOpen"
+        :curr-item="currItem"
+        :type="config.type ?? 'inbox'"
+        :user="user"
+        :user-lookup="config.userLookup"
+        :on-comment="config.onComment"
+      />
+
+      <SwiperFollowersDrawer
+        v-if="config.type === 'inbox' && currItem"
+        v-model:open="isFollowerDrawerOpen"
+        :followers="currItem.followers || []"
+        :user="user"
+        :user-lookup="config.userLookup"
+      />
     </div>
-  </transition>
+  </ion-modal>
 </template>
 
 <script setup lang="ts">
-import { usePhotoSwiper } from '@/store/photoswiper.store'
-import { storeToRefs } from 'pinia'
-import { computed, nextTick, ref, watch } from 'vue'
-import { useBackButton } from '@ionic/vue'
-import { useAuthStore } from '@/store/auth.store'
-import { register } from 'swiper/element/bundle'
-import { EventBus } from '@/main'
-import router from '@/router'
-import { useSessionStore } from '@/store/session.store'
+import { computed, nextTick, ref, watch } from "vue";
+import { IonModal } from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { register } from "swiper/element/bundle";
 
-// Components
-import PhotoSwiperItem from '@/components/photoswiper/PhotoSwiperItem.vue'
-import PhotoSwiperHeader from '@/components/photoswiper/PhotoSwiperHeader.vue'
-import PhotoSwiperFooter from '@/components/photoswiper/PhotoSwiperFooter.vue'
-import { fetchPostComments } from '@/service/api/post.api'
+import { usePhotoSwiper } from "@/store/photoswiper.store";
+import { useAuthStore } from "@/store/auth.store";
+import { useSessionStore } from "@/store/session.store";
+import { fetchPostComments } from "@/service/api/post.api";
+import { EventBus } from "@/main";
+import router from "@/router";
 
-register()
+import PhotoSwiperItem from "@/components/photoswiper/PhotoSwiperItem.vue";
+import PhotoSwiperHeader from "@/components/photoswiper/PhotoSwiperHeader.vue";
+import PhotoSwiperFooter from "@/components/photoswiper/PhotoSwiperFooter.vue";
+import SwiperCommentDrawer from "@/components/photoswiper/SwiperCommentDrawer.vue";
+import SwiperFollowersDrawer from "@/components/photoswiper/SwiperFollowersDrawer.vue";
 
-const swiperStore = usePhotoSwiper()
-const { open, slide, collection, config } = storeToRefs(swiperStore)
-const { seeItem } = swiperStore
-const { user } = storeToRefs(useAuthStore())
-const { updateSlide } = storeToRefs(useSessionStore())
+register();
 
-const currItem = computed(() => collection.value[slide.value] || null)
+const swiperStore = usePhotoSwiper();
+const { open, slide, collection, config } = storeToRefs(swiperStore);
+const { user } = storeToRefs(useAuthStore());
+const { updateSlide } = storeToRefs(useSessionStore());
 
-const showComments = ref(true)
-const isCommentDrawerOpen = ref(false)
-const isFollowerDrawerOpen = ref(false)
-const swiper = ref<any>()
+const currItem = computed(() => collection.value[slide.value] || null);
+
+const showComments = ref(true);
+const isCommentDrawerOpen = ref(false);
+const isFollowerDrawerOpen = ref(false);
+const swiper = ref<any>();
 
 const canDelete = computed(() => {
-  if (!user.value || !currItem.value) return false
-  if (config.value.canDelete) return config.value.canDelete(currItem.value, user.value)
-  return currItem.value.sender === user.value._id || currItem.value.creator_id === user.value._id
-})
+	if (!user.value || !currItem.value) return false;
+	if (config.value.canDelete)
+		return config.value.canDelete(currItem.value, user.value);
+	return (
+		currItem.value.sender === user.value._id ||
+		currItem.value.author_id === user.value._id
+	);
+});
 
 function handleSlideChange(event: any) {
-  if (!open.value || !event.target.swiper) return
-  slide.value = event.target.swiper.activeIndex
+	if (!open.value || !event.target.swiper || !event.target.swiper.activeIndex)
+		return;
+	slide.value = event.target.swiper.activeIndex;
 }
 
 watch(
-  collection,
-  (first, second) => {
-    if (first?.length == second?.length || !updateSlide.value) return
-    nextTick(() => swiper.value?.swiper?.update())
-    updateSlide.value = false
-  },
-  { deep: true }
-)
+	collection,
+	(first, second) => {
+		if (first?.length == second?.length || !updateSlide.value) return;
+		nextTick(() => swiper.value?.swiper?.update());
+		updateSlide.value = false;
+	},
+	{ deep: true },
+);
 
-// FIX: Added Keyboard Navigation Logic back
 const keyboardListener = (event: KeyboardEvent) => {
-  event.stopPropagation()
-
-  // Disable keyboard navigation if drawers are open to prevent accidental swipes
-  if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return
-
-  if (event.key === 'Escape') {
-    close()
-  } else if (event.key === 'ArrowRight') {
-    swiper.value?.swiper?.slideNext()
-  } else if (event.key === 'ArrowLeft') {
-    swiper.value?.swiper?.slidePrev()
-  }
-}
-
-useBackButton(9000, (processNextHandler) => {
-  if (open.value) close()
-  else processNextHandler()
-})
+	event.stopPropagation();
+	if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return;
+	if (event.key === "Escape") close();
+	else if (event.key === "ArrowRight") swiper.value?.swiper?.slideNext();
+	else if (event.key === "ArrowLeft") swiper.value?.swiper?.slidePrev();
+};
 
 function close() {
-  open.value = false
-  swiper.value?.swiper?.zoom?.out()
-  window.removeEventListener('keydown', keyboardListener)
+	open.value = false;
+	swiper.value?.swiper?.zoom?.out();
+	window.removeEventListener("keydown", keyboardListener);
 }
 
-watch(open, async () => {
-  if (open.value) {
-    window.addEventListener('keydown', keyboardListener)
+async function onDidPresent() {
+	window.addEventListener("keydown", keyboardListener);
+	const swiperEl = swiper.value?.swiper;
+	if (!swiperEl) return;
 
-    await nextTick()
-    await nextTick()
+	swiperEl.update();
+	swiperEl.slideTo(slide.value, 0, false);
 
-    if (swiper.value?.swiper) {
-      const s = swiper.value.swiper
-      s.update() // Force swiper to recalculate slide count
-      s.slideTo(slide.value, 0, false)
-    }
-  } else {
-    close()
-  }
-})
+	if (config.value.onSeen && currItem.value)
+		config.value.onSeen(currItem.value);
+}
 
 watch(currItem, async () => {
-  if (!currItem.value || !open.value) return
-  seeItem()
+	if (!currItem.value || !open.value) return;
+	if (config.value.onSeen) config.value.onSeen(currItem.value);
 
-  if (currItem.value.author_id && !currItem.value.commentsLoaded) {
-    try {
-      const res = await fetchPostComments(currItem.value._id, 1, 5)
-      currItem.value.comments = res.comments || []
-      currItem.value.commentsLoaded = true
-    } catch (e) {
-      console.error('Failed to pre-fetch comments for preview', e)
-    }
-  }
-})
+	if (config.value.type === "post" && !currItem.value.commentsLoaded) {
+		try {
+			const res = await fetchPostComments(currItem.value._id, 1, 5);
+			currItem.value.comments = res.comments || [];
+			currItem.value.commentsLoaded = true;
+		} catch (e) {
+			console.error("Failed to pre-fetch comments", e);
+		}
+	}
+});
 
-// TODO remove
-EventBus.on('goToSlide', () => {
-  nextTick(() => swiper.value?.swiper?.slideTo(slide.value, 0))
-  seeItem()
-  checkQueryParams()
-})
+EventBus.on("goToSlide", () => {
+	nextTick(() => swiper.value?.swiper?.slideTo(slide.value, 0));
+	if (config.value.onSeen && currItem.value)
+		config.value.onSeen(currItem.value);
+	const query = router.currentRoute.value.query;
+	isCommentDrawerOpen.value = query.comments === "true";
+	setTimeout(() => router.replace({ query: undefined }), 100);
+});
 
 function handleReply() {
-  if (config.value.onReply) {
-    close()
-    config.value.onReply(currItem.value)
-  }
+	if (config.value.onReply) {
+		config.value.onReply(currItem.value);
+	}
 }
 
 function handleDelete() {
-  if (config.value.onDelete) {
-    config.value.onDelete(currItem.value)
-    const tmp = slide.value
-    slide.value = Math.max(0, slide.value - 1)
-    if (collection.value?.length === 1) open.value = false
-  }
-}
-
-function checkQueryParams() {
-  const query = router.currentRoute.value.query
-  isCommentDrawerOpen.value = query.comments === 'true'
-  setTimeout(() => router.replace({ query: undefined }), 100)
-}
-
-function resolveImage(item: any) {
-  return config.value.imageResolver ? config.value.imageResolver(item) : (item.image_url || item.image)
-}
-
-function resolveThumbnail(item: any) {
-  return config.value.thumbnailResolver ? config.value.thumbnailResolver(item) : (item.thumbnail_url || item.thumbnail)
+	if (config.value.onDelete) {
+		config.value.onDelete(currItem.value);
+		slide.value = Math.max(0, slide.value - 1);
+		if (collection.value?.length === 1) open.value = false;
+	}
 }
 
 function handleReact(type: string) {
-  if (config.value.onReact) {
-    config.value.onReact(currItem.value, type)
-  }
+	if (config.value.onReact) config.value.onReact(currItem.value, type);
+}
+
+function resolveImage(item: any) {
+	if (!config.value.imageResolver) return;
+	return config.value.imageResolver(item);
+}
+
+function resolveThumbnail(item: any) {
+	if (!config.value.thumbnailResolver) return;
+	return config.value.thumbnailResolver(item);
 }
 </script>
 
 <style scoped>
-.expand-enter-active {
-  opacity: 0;
-  transform: scale(0.8);
-  transition: all 0.1s ease-out;
-}
-
-.expand-enter-to {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.expand-leave-active {
-  opacity: 1;
-  transform: scale(1);
-  transition: all 0.1s ease-in;
-}
-
-.expand-leave-to {
-  opacity: 0;
-  transform: scale(0.8);
+ion-modal.liquid-photoswiper {
+  --background: black;
+  --width: 100%;
+  --height: 100%;
+  --border-radius: 0;
 }
 </style>

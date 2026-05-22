@@ -44,7 +44,9 @@ export async function request<T>(
 
 				menuStore.moderationMenuOpen = true;
 			}
-		} catch (e) {}
+		} catch (e) {
+			throw e;
+		}
 
 		throw new Error(
 			errorText || `Request failed with status ${response.status}`,

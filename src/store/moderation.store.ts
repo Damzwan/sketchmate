@@ -226,6 +226,7 @@ export const useModerationStore = defineStore("moderation", () => {
 			return true;
 		} catch (e) {
 			console.error("submitReport failed:", e);
+			console.log(e.status);
 			toast("Could not submit report. Please try again.", { color: "danger" });
 			return false;
 		} finally {

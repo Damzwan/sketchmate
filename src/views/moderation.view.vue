@@ -203,7 +203,7 @@ const { standing } = storeToRefs(modStore);
 onMounted(() => modStore.fetchStanding());
 
 // =============================================================================
-// LADDER
+// LADDER (Updated to 4 levels)
 // =============================================================================
 const LADDER = [
 	{
@@ -213,25 +213,17 @@ const LADDER = [
 	{
 		name: "First Warning",
 		description:
-			"A piece of content was removed. No restrictions yet — consider this a heads-up.",
-	},
-	{
-		name: "Balloon Pause",
-		description: "Balloon privileges paused for 7 days. Everything else works.",
+			"We removed a piece of content. Please review our guidelines — no restrictions yet.",
 	},
 	{
 		name: "Public Pause",
 		description:
-			"Public posting and balloons paused for 30 days. Chat with mates still works.",
+			"Public posting and balloons are paused for 30 days. You can still chat with existing mates.",
 	},
 	{
-		name: "Account Under Review",
+		name: "Banned",
 		description:
-			"Most features paused while we review. Contact support to appeal.",
-	},
-	{
-		name: "Suspended",
-		description: "Account suspended. Reach out if you think this is a mistake.",
+			"Your account has been suspended. Contact support if you believe this is a mistake.",
 	},
 ];
 
@@ -269,23 +261,23 @@ const CODE_OF_CONDUCT = [
 ];
 
 // =============================================================================
-// COMPUTED
+// COMPUTED (Updated for 4 levels)
 // =============================================================================
 const levelEmoji = computed(() => {
-	const map = ["✨", "⚠️", "🎈", "📛", "🔍", "🚫"];
+	const map = ["✨", "⚠️", "📛", "🚫"];
 	return map[modStore.level] ?? "✨";
 });
 
 const levelCardClass = computed(() => {
 	if (modStore.level === 0)
 		return "bg-emerald-50/80 border-emerald-200 text-emerald-900";
-	if (modStore.level >= 4) return "bg-red-50/80 border-red-200 text-red-900";
+	if (modStore.level >= 3) return "bg-red-50/80 border-red-200 text-red-900";
 	return "bg-amber-50/80 border-amber-200 text-amber-900";
 });
 
 const levelIconBgClass = computed(() => {
 	if (modStore.level === 0) return "bg-emerald-100 text-emerald-700";
-	if (modStore.level >= 4) return "bg-red-100 text-red-700";
+	if (modStore.level >= 3) return "bg-red-100 text-red-700";
 	return "bg-amber-100 text-amber-700";
 });
 

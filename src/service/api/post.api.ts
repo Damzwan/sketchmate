@@ -1,44 +1,29 @@
 import { request } from "./http";
 import { FeedPost } from "@/types/server.types";
+import type { PresignedUploadBundle } from "@/draw/shareDrawings";
 
-export interface PostUploadUrls {
-	drawing: { signedUrl: string; publicUrl: string };
-	image: { signedUrl: string; publicUrl: string };
-	thumbnail: { signedUrl: string; publicUrl: string };
-}
-
-export async function createPost(params: {
-	drawingBlob: Blob;
-	imageBlob: Blob;
-	thumbnailBlob: Blob;
+export interface PublishPostParams {
+	drawing_url: string;
+	image_url: string;
+	thumbnail_url: string;
 	aspect_ratio: number;
 	description: string;
-}) {
-	const tickets = await request<PostUploadUrls>("/post/upload-urls", {
+	enable_comments?: boolean;
+	enable_remix?: boolean;
+}
+
+export async function getPostUploadUrls(): Promise<PresignedUploadBundle> {
+	return await request<PresignedUploadBundle>("/post/upload-urls", {
 		method: "POST",
 	});
+}
 
-	await Promise.all([
-		fetch(tickets.drawing.signedUrl, {
-			method: "PUT",
-			body: params.drawingBlob,
-		}),
-		fetch(tickets.image.signedUrl, { method: "PUT", body: params.imageBlob }),
-		fetch(tickets.thumbnail.signedUrl, {
-			method: "PUT",
-			body: params.thumbnailBlob,
-		}),
-	]);
-
+export async function publishPost(
+	params: PublishPostParams,
+): Promise<{ post: FeedPost }> {
 	return await request<{ post: FeedPost }>("/post/publish", {
 		method: "POST",
-		body: JSON.stringify({
-			drawing_url: tickets.drawing.publicUrl,
-			image_url: tickets.image.publicUrl,
-			thumbnail_url: tickets.thumbnail.publicUrl,
-			aspect_ratio: params.aspect_ratio,
-			description: params.description,
-		}),
+		body: JSON.stringify(params),
 	});
 }
 

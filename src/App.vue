@@ -18,6 +18,7 @@
     <ModerationMenu/>
     <SharePostMenu/>
     <ReportMenu/>
+    <ShareToasts/>
   </ion-app>
 </template>
 
@@ -63,7 +64,7 @@ const Confetti = defineAsyncComponent(
 	() => import("@/components/subscription/Confetti.vue"),
 );
 const ReceivedBalloon = defineAsyncComponent(
-	() => import("@/components/connect/balloon/ReceivedBalloon.vue"),
+	() => import("@/components/balloon/ReceivedBalloon.vue"),
 );
 
 const ConnectionHub = defineAsyncComponent(
@@ -84,6 +85,10 @@ const SharePostMenu = defineAsyncComponent(
 
 const ReportMenu = defineAsyncComponent(
 	() => import("@/components/moderation/ReportMenu.vue"),
+);
+
+const ShareToasts = defineAsyncComponent(
+	() => import("@/components/draw/send/ShareToasts.vue"),
 );
 
 const ionRouter = useIonRouter();

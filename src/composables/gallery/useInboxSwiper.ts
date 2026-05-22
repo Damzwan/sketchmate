@@ -3,12 +3,15 @@ import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useInboxStore } from "@/store/inbox.store";
-import { removeFromInbox, seeInboxItem } from "@/service/api/inbox.api";
+import {
+	commentOnInbox,
+	removeFromInbox,
+	seeInboxItem,
+} from "@/service/api/inbox.api";
 import { useUserCacheStore } from "@/store/userCache.store";
 import { isInRoom } from "@/draw/helpers/drawSyncing.helper";
 import router from "@/router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { socketComment } from "@/service/api/socket/socket.service";
 import { alertController } from "@ionic/vue";
 
 export function useInboxSwiper() {
@@ -95,13 +98,18 @@ export function useInboxSwiper() {
 
 			onComment: async (item, message) => {
 				if (!user.value) return;
-				socketComment({
-					inbox_id: item._id,
-					sender: user.value._id,
-					message: message,
-					followers: item.followers,
-					name: user.value.name,
-				});
+
+				try {
+					const commentRes: any = await commentOnInbox(item._id, {
+						message: message,
+						followers: item.followers,
+					});
+
+					const { addComment } = useInboxStore();
+					addComment(commentRes);
+				} catch (error) {
+					console.error("Failed to post comment:", error);
+				}
 			},
 		});
 	}

@@ -30,24 +30,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { computed } from "vue";
+import { storeToRefs } from "pinia";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useShareService } from "@/draw/store/useShareService.store";
 
-const drawStore = useDrawStore()
-const drawSyncer = useDrawSyncer()
+const drawSyncer = useDrawSyncer();
 
-const { isSendingDrawing } = storeToRefs(drawStore)
-const { isLoadingCanvas } = storeToRefs(drawSyncer)
+const { isSending } = storeToRefs(useShareService());
+const { isLoadingCanvas } = storeToRefs(drawSyncer);
 
-const isActive = computed(() => isSendingDrawing.value || isLoadingCanvas.value)
+const isActive = computed(() => isSending.value || isLoadingCanvas.value);
 
 const message = computed(() => {
-  if (isSendingDrawing.value) return 'Sending...'
-  if (isLoadingCanvas.value) return 'Loading...'
-  return 'Working...'
-})
+	if (isSending.value) return "Sending...";
+	if (isLoadingCanvas.value) return "Loading...";
+	return "Working...";
+});
 </script>
 
 <style scoped>

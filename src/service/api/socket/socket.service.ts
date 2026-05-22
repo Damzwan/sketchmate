@@ -101,64 +101,64 @@ export async function socketConnect(): Promise<void> {
 
 	// --- GLOBAL DRAWING EVENTS ---
 
-	socket.on(SOCKET_ENDPONTS.send, async (params: Res<InboxItem>) => {
-		if (!params) return;
-
-		const { user } = storeToRefs(useAuthStore());
-		const { inbox, inboxUsers } = storeToRefs(useInboxStore());
-		const { updateSlide } = storeToRefs(useSessionStore());
-		const { toast } = useToast();
-
-		updateSlide.value = true;
-
-		if (inbox.value.length > 0) {
-			inbox.value = [params, ...inbox.value];
-		}
-
-		// Sync missing user data for followers
-		const missingFollowers = params.original_followers.filter(
-			(id) => !inboxUsers.value.some((u) => u._id === id),
-		);
-
-		if (missingFollowers.length > 0) {
-			getPartialUsers(missingFollowers).then((res) => {
-				if (res) inboxUsers.value = [...inboxUsers.value, ...res];
-			});
-		}
-
-		// Check Milestones
-		if (params.sender === user.value?._id) {
-			const { isSendingDrawing } = storeToRefs(useDrawStore());
-			isSendingDrawing.value = false;
-
-			const sentCount = inbox.value.filter(
-				(item) => item.sender === user.value?._id,
-			).length;
-			if (showFeedbackMilestones.includes(sentCount)) {
-				const { openMenu } = useMenuStore();
-				openMenu(Menu.FeedbackMenu);
-			}
-		}
-
-		const isSender = params.sender === user.value?._id;
-
-		toast(isSender ? "Drawing sent!" : "New drawing received", {
-			buttons: [
-				dismissButton,
-				{
-					text: "View",
-					handler: () => {
-						const { openSwiper } = usePhotoSwiper();
-						openSwiper([params], 0, {
-							canReply: !isSender,
-							canDelete: () => true,
-						});
-					},
-				},
-			],
-			duration: ToastDuration.long,
-		});
-	});
+	// socket.on(SOCKET_ENDPONTS.send, async (params: Res<InboxItem>) => {
+	// 	if (!params) return;
+	//
+	// 	const { user } = storeToRefs(useAuthStore());
+	// 	const { inbox, inboxUsers } = storeToRefs(useInboxStore());
+	// 	const { updateSlide } = storeToRefs(useSessionStore());
+	// 	const { toast } = useToast();
+	//
+	// 	updateSlide.value = true;
+	//
+	// 	if (inbox.value.length > 0) {
+	// 		inbox.value = [params, ...inbox.value];
+	// 	}
+	//
+	// 	// Sync missing user data for followers
+	// 	const missingFollowers = params.original_followers.filter(
+	// 		(id) => !inboxUsers.value.some((u) => u._id === id),
+	// 	);
+	//
+	// 	if (missingFollowers.length > 0) {
+	// 		getPartialUsers(missingFollowers).then((res) => {
+	// 			if (res) inboxUsers.value = [...inboxUsers.value, ...res];
+	// 		});
+	// 	}
+	//
+	// 	// Check Milestones
+	// 	if (params.sender === user.value?._id) {
+	// 		const { isSendingDrawing } = storeToRefs(useDrawStore());
+	// 		isSendingDrawing.value = false;
+	//
+	// 		const sentCount = inbox.value.filter(
+	// 			(item) => item.sender === user.value?._id,
+	// 		).length;
+	// 		if (showFeedbackMilestones.includes(sentCount)) {
+	// 			const { openMenu } = useMenuStore();
+	// 			openMenu(Menu.FeedbackMenu);
+	// 		}
+	// 	}
+	//
+	// 	const isSender = params.sender === user.value?._id;
+	//
+	// 	toast(isSender ? "Drawing sent!" : "New drawing received", {
+	// 		buttons: [
+	// 			dismissButton,
+	// 			{
+	// 				text: "View",
+	// 				handler: () => {
+	// 					const { openSwiper } = usePhotoSwiper();
+	// 					openSwiper([params], 0, {
+	// 						canReply: !isSender,
+	// 						canDelete: () => true,
+	// 					});
+	// 				},
+	// 			},
+	// 		],
+	// 		duration: ToastDuration.long,
+	// 	});
+	// });
 
 	socket.on(SOCKET_ENDPONTS.comment, (params: Res<CommentRes>) => {
 		if (params) {
@@ -184,47 +184,4 @@ export async function socketDisconnect(): Promise<void> {
 export async function socketLogin(params: SocketLoginParams): Promise<void> {
 	if (!socket) return;
 	socket.emit(SOCKET_ENDPONTS.login, { ...params, version: __APP_VERSION__ });
-}
-
-/**
- * Sends a drawing via chunked binary stream
- */
-export async function socketSend(params: SendParams): Promise<void> {
-	if (!socket) return;
-
-	const img = params.img;
-	delete params.img;
-
-	const data = JSON.stringify(params);
-	const stream = new Blob([data])
-		.stream()
-		.pipeThrough(new CompressionStream("deflate"));
-	const compressedBuffer = await new Response(stream).arrayBuffer();
-	const compressedData = new Uint8Array(compressedBuffer);
-
-	const chunkSize = 1024 * 64; // 64KB Chunks
-
-	// Send JSON text data
-	for (let i = 0; i < compressedData.length; i += chunkSize) {
-		const chunk = compressedData.slice(i, i + chunkSize);
-		socket.emit(`${SOCKET_ENDPONTS.send}text_chunk`, chunk);
-	}
-	socket.emit(`${SOCKET_ENDPONTS.send}text_end`);
-
-	// Send Image binary data
-	const imgData = new Uint8Array(img);
-	for (let i = 0; i < imgData.length; i += chunkSize) {
-		const chunk = imgData.slice(i, i + chunkSize);
-		socket.emit(`${SOCKET_ENDPONTS.send}img_chunk`, chunk);
-	}
-	socket.emit(`${SOCKET_ENDPONTS.send}img_end`);
-}
-
-/**
- * Emits a comment on a drawing
- */
-export async function socketComment(params: CommentParams): Promise<void> {
-	if (socket) {
-		socket.emit(SOCKET_ENDPONTS.comment, params);
-	}
 }

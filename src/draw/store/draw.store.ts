@@ -1,6 +1,5 @@
 import { defineStore, storeToRefs } from "pinia";
 import { useDrawHistoryManager } from "./drawHistoryManager.store";
-import { useDrawSendService } from "@/draw/services/drawSend.service";
 import {
 	DrawAction,
 	DrawActionParams,
@@ -21,12 +20,6 @@ import { useCanvasPreview } from "@/draw/services/useCanvasPreview";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useGestureStore } from "@/draw/store/tools/gesture.store";
 
-const initialCssTransform = {
-	scale: 1,
-	translateX: 0,
-	translateY: 0,
-};
-
 export const useDrawStore = defineStore("draw", () => {
 	const canvasSvc = useCanvasService();
 	const toolSelection = useToolSelection();
@@ -39,8 +32,6 @@ export const useDrawStore = defineStore("draw", () => {
 	const drawUI = useDrawUIStore();
 
 	const isGesturing = ref(false);
-	const cssTransform = ref<any>({ ...initialCssTransform });
-	const pendingCssTransform = ref<any>({ ...initialCssTransform });
 
 	const {
 		createPreview,
@@ -52,34 +43,26 @@ export const useDrawStore = defineStore("draw", () => {
 		isLoading: isLoadingPreview,
 	} = useCanvasPreview();
 
-	const { send, createBalloon, isSendingDrawing } = useDrawSendService(
-		canvasSvc.getCanvas,
-	);
-
-	const prevDrawingMode = ref(false); // TODO think of something better
+	const prevDrawingMode = ref(false);
 
 	async function initCanvas(
 		el: HTMLCanvasElement,
 		options: { isLobby: boolean; draftId?: string; canvasUrl?: string },
 	) {
-		const { isLoadingCanvas } = storeToRefs(useDrawSyncer()); // TODO fking ugly :c
+		const { isLoadingCanvas } = storeToRefs(useDrawSyncer());
 		isLoadingCanvas.value = true;
 
 		canvasSvc.destroyCanvas();
 		drawUI.destroy();
 
-		// 2. Create fresh Canvas instance
 		const c = canvasSvc.createCanvas(el);
 
-		// 3. Access our unified Load Store
 		const loadStore = useDrawLoadStore();
 		loadStore.init(c);
 		await loadStore.loadCanvas(c, options);
 
-		// Sync the reactive background color to the store
 		canvasSvc.backgroundColor.value = c.backgroundColor as string;
 
-		// 4. Initialize Managers
 		drawEventManager.init(c);
 		enableGestures(c);
 		toolSelection.init(c);
@@ -119,16 +102,12 @@ export const useDrawStore = defineStore("draw", () => {
 	return {
 		initCanvas,
 		reset,
-		send,
-		createBalloon,
 		selectAction,
 		getCanvas: canvasSvc.getCanvas,
 		backgroundColor: canvasSvc.backgroundColor,
 		prevDrawingMode,
-		isSendingDrawing,
 		getAspectRatio,
 		isGesturing,
-		cssTransform,
 		createPreview,
 		preview,
 		newPreview,
@@ -136,6 +115,5 @@ export const useDrawStore = defineStore("draw", () => {
 		resetPreview,
 		getDataToSend,
 		isLoadingPreview,
-		pendingCssTransform,
 	};
 });

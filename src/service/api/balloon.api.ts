@@ -49,3 +49,38 @@ export async function getBalloon(params: {
 		return null;
 	}
 }
+
+export interface PublishBalloonParams {
+	message: string;
+	drawing_url: string;
+	image_url: string;
+	thumbnail_url: string;
+	aspect_ratio: number;
+}
+
+export async function getBalloonUploadUrls(): Promise<any> {
+	return request<any>(`${ENDPOINTS.balloon}/upload-urls`, {
+		method: "POST",
+	});
+}
+
+export async function publishBalloon(
+	params: PublishBalloonParams,
+): Promise<Res<CreateBalloonPostRes>> {
+	return request<Res<CreateBalloonPostRes>>(`${ENDPOINTS.balloon}/`, {
+		method: "POST",
+		body: JSON.stringify(params),
+	});
+}
+
+export async function fetchMyBalloons(): Promise<{ balloons: Balloon[] }> {
+	return await request<{ balloons: Balloon[] }>("/balloon/mine");
+}
+
+export async function cancelBalloon(
+	balloonId: string,
+): Promise<{ success: boolean }> {
+	return await request<{ success: boolean }>(`/balloon/${balloonId}/cancel`, {
+		method: "POST",
+	});
+}

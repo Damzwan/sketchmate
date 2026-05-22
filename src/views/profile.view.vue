@@ -40,53 +40,8 @@
             @update:edit-form-desc="editForm.description = $event"
           />
 
-          <!-- My Posts -->
-          <section class="mt-10">
-            <div class="flex items-center justify-between px-2 mb-4">
-              <h3 class="text-xl font-black text-black italic drop-shadow-sm">My Posts</h3>
-              <span class="text-xs font-bold text-black/40">{{ userPosts.length }} Sketches</span>
-            </div>
-
-            <div v-if="loadingPosts && userPosts.length === 0" class="grid grid-cols-2 gap-3">
-              <div
-                v-for="i in 4"
-                :key="i"
-                class="aspect-square bg-primary/10 rounded-[2rem] animate-pulse border border-primary/20"
-              ></div>
-            </div>
-
-            <div
-              v-else-if="userPosts.length === 0"
-              class="text-center py-10 bg-primary/5 rounded-[2.5rem] border-2 border-dashed border-primary/20"
-            >
-              <span class="text-4xl grayscale block mb-2 opacity-30">🎨</span>
-              <p class="text-sm font-bold text-black/40">You haven't posted any sketches yet.</p>
-            </div>
-
-            <div v-else class="grid grid-cols-2 gap-3">
-              <div
-                v-for="(post, index) in userPosts"
-                :key="post._id"
-                class="aspect-square bg-primary/5 rounded-[2rem] border border-primary/20 shadow-sm relative overflow-hidden active:scale-95 transition-transform group cursor-pointer"
-                @click="openPostSwiper(userPosts, index)"
-              >
-                <img
-                  :src="post.image_url"
-                  class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  loading="lazy"
-                />
-                <div
-                  v-if="getTotalReactions(post.reaction_counts) > 0"
-                  class="absolute bottom-2 left-2 flex items-center space-x-1 bg-black/40 backdrop-blur-md px-2 py-1 rounded-full border border-white/20 shadow-sm"
-                >
-                  <ion-icon :icon="svg(mdiHeart)" class="text-[10px] text-white" />
-                  <span class="text-[10px] font-black text-white">
-                    {{ formatNumber(getTotalReactions(post.reaction_counts)) }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </section>
+          <!-- Extracted Posts Component -->
+          <ProfilePost :posts="userPosts" :loading="loadingPosts" />
 
           <ion-infinite-scroll @ionInfinite="loadMorePosts" :disabled="!hasMoreUserPosts">
             <ion-infinite-scroll-content loading-spinner="bubbles" />
@@ -101,7 +56,6 @@
 import { reactive, ref, watch } from "vue";
 import {
 	IonContent,
-	IonIcon,
 	IonInfiniteScroll,
 	IonInfiniteScrollContent,
 	IonPage,
@@ -111,15 +65,13 @@ import {
 import { storeToRefs } from "pinia";
 import { useAuthStore } from "@/store/auth.store";
 import { usePostStore } from "@/store/post.store";
-import { svg } from "@/helper/general.helper";
-import { mdiHeart } from "@mdi/js";
 import { masterAnimation } from "@/helper/animation.helper";
 import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
-import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { useToast } from "@/service/toast.service";
 
 import TopBar from "@/components/general/TopBar.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
+import ProfilePost from "@/components/profile/ProfilePost.vue"; // Imported the new component
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 
@@ -127,7 +79,6 @@ const router = useIonRouter();
 const authStore = useAuthStore();
 const postStore = usePostStore();
 const { toast } = useToast();
-const { openPostSwiper } = usePostSwiper();
 
 const { user } = storeToRefs(authStore);
 const { userPosts, hasMoreUserPosts, isProfileDirty } = storeToRefs(postStore);
@@ -146,13 +97,11 @@ const toggleEdit = async () => {
 		const oldName = user.value?.name || "";
 		const oldDesc = user.value?.description || "";
 
-		// No-op if nothing changed — skip the API call and the success toast
 		if (newName === oldName && newDesc === oldDesc) {
 			isEditing.value = false;
 			return;
 		}
 
-		// Don't allow saving an empty name (would create UX weirdness later)
 		if (!newName) {
 			toast("Name cannot be empty", { color: "danger" });
 			return;
@@ -235,25 +184,8 @@ const goToNetwork = (tab: string) =>
 	router.push(`/network?tab=${tab}`, masterAnimation);
 const goToSettings = () => router.push("/settings", masterAnimation);
 const goToCustomize = () => router.push("/customize", masterAnimation);
-const getTotalReactions = (counts?: Record<string, number>) =>
-	Object.values(counts || {}).reduce((a, b) => a + b, 0);
-const formatNumber = (n: number) =>
-	n >= 1000 ? (n / 1000).toFixed(1) + "k" : n;
 </script>
 
 <style scoped>
-@reference "@/theme/main.css";
 
-.liquid-fade-enter-active,
-.liquid-fade-leave-active {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.liquid-fade-enter-from {
-  opacity: 0;
-  transform: translateY(20px);
-}
-.liquid-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
 </style>

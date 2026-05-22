@@ -75,8 +75,6 @@ export enum Menu {
 	SelectImgStyle,
 	FeedbackMenu,
 	HelpMenu,
-	ReceiveBalloon,
-	SendBalloon,
 	DateOfBirth,
 	DrawMenu,
 	DrawRoomMenu,
@@ -87,6 +85,7 @@ export enum Menu {
 	ModerationMenu,
 	SharePostMenu,
 	ReportMenu,
+	BalloonMenu,
 }
 
 export enum ObjectType {

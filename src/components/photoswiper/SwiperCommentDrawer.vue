@@ -233,30 +233,13 @@ async function submitComment() {
 			props.currItem.comment_count++;
 			props.currItem.comments = [res.comment];
 		} else if (props.onComment) {
-			// Inbox path delegates to the composable's onComment (plain API call)
 			await props.onComment(props.currItem, message);
-			const localComment = {
-				_id: `local-${Date.now()}`,
-				sender: props.user._id,
-				author_id: props.user._id,
-				author: {
-					_id: props.user._id,
-					name: props.user.name,
-					img: props.user.img,
-				},
-				message,
-				createdAt: new Date().toISOString(),
-				date: new Date().toISOString(),
-			};
-			comments.value.push(localComment);
-			if (!props.currItem.comments) props.currItem.comments = [];
-			props.currItem.comments.push(localComment);
 		}
 		scrollToBottom();
 	} catch (e) {
 		console.error("Failed to post comment", e);
 		toast("Failed to post comment", { color: "danger" });
-		newComment.value = message; // restore
+		newComment.value = message; // restore text if it fails
 	} finally {
 		isSubmitting.value = false;
 	}

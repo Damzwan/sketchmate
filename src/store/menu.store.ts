@@ -22,8 +22,6 @@ export const useMenuStore = defineStore("menu", () => {
 	const selectImgStyleMenuOpen = ref(false);
 	const feedbackMenuOpen = ref(false);
 	const helpMenuOpen = ref(false);
-	const receiveBalloonModalOpen = ref(false);
-	const sendBalloonModalOpen = ref(false);
 	const dateOfBirthConfirmationOpen = ref(false);
 	const drawMenuOpen = ref(false);
 	const roomMenuOpen = ref(false);
@@ -34,6 +32,7 @@ export const useMenuStore = defineStore("menu", () => {
 	const moderationMenuOpen = ref(false);
 	const sharePostMenuOpen = ref(false);
 	const reportMenuOpen = ref(false);
+	const balloonMenuOpen = ref(false);
 
 	const stickersEmblemsSavedSelectedTab =
 		ref<StickersEmblemsSavedTabOptions>("sticker");
@@ -56,8 +55,6 @@ export const useMenuStore = defineStore("menu", () => {
 		[Menu.SelectImgStyle]: selectImgStyleMenuOpen,
 		[Menu.FeedbackMenu]: feedbackMenuOpen,
 		[Menu.HelpMenu]: helpMenuOpen,
-		[Menu.ReceiveBalloon]: receiveBalloonModalOpen,
-		[Menu.SendBalloon]: sendBalloonModalOpen,
 		[Menu.DateOfBirth]: dateOfBirthConfirmationOpen,
 		[Menu.DrawMenu]: drawMenuOpen,
 		[Menu.DrawRoomMenu]: roomMenuOpen,
@@ -68,6 +65,7 @@ export const useMenuStore = defineStore("menu", () => {
 		[Menu.ModerationMenu]: moderationMenuOpen,
 		[Menu.SharePostMenu]: sharePostMenuOpen,
 		[Menu.ReportMenu]: reportMenuOpen,
+		[Menu.BalloonMenu]: balloonMenuOpen,
 	};
 
 	const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
@@ -112,8 +110,7 @@ export const useMenuStore = defineStore("menu", () => {
 		fontMenuOpen,
 		feedbackMenuOpen,
 		helpMenuOpen,
-		receiveBalloonModalOpen,
-		sendBalloonModalOpen,
+		balloonMenuOpen,
 		dateOfBirthConfirmationOpen,
 		drawMenuOpen,
 		roomMenuOpen,

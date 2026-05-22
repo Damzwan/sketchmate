@@ -82,28 +82,25 @@ export const useInboxStore = defineStore("inbox", () => {
 	 * Updates the inbox when a new comment arrives via socket or pulse.
 	 */
 	async function addComment(commentRes: CommentRes) {
-		// If the gallery isn't loaded yet, we don't necessarily want to fetch the whole thing
-		// but we check if the item exists in our current loaded set
 		const index = inbox.value.findIndex(
 			(i) => i._id === commentRes.inbox_item_id,
 		);
 		if (index === -1) return;
 
-		// Update the reactive item
+		const alreadyExists = inbox.value[index].comments.some(
+			(c) => c._id === commentRes.comment._id,
+		);
+		if (alreadyExists) return;
+
 		inbox.value[index].comments.push(commentRes.comment);
 		inbox.value[index].comments_seen_by = [commentRes.comment.sender];
 
 		const { user } = useAuthStore();
+
 		if (!user || commentRes.comment.sender === user._id) return;
 
 		const sender = findUserInInboxUsers(commentRes.comment.sender);
 		if (!sender) return;
-
-		const { toast } = useToast();
-		toast(`${sender.name} commented on a drawing`, {
-			buttons: [viewCommentButton(commentRes.inbox_item_id)],
-			duration: ToastDuration.medium,
-		});
 	}
 
 	function findUserInInboxUsers(id: string): Mate | undefined {

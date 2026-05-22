@@ -763,3 +763,23 @@ export interface SubmitReportRes {
 	alreadyReported?: boolean;
 	message?: string;
 }
+
+export type SubscriptionTier = "free" | "pro";
+
+export interface DailyQuota {
+	balloons_per_day: number;
+	posts_per_day: number;
+}
+
+export interface QuotaState {
+	used: number;
+	limit: number;
+	remaining: number;
+	reset_at: string; // ISO
+}
+
+export interface QuotaSummary {
+	tier: string;
+	balloons: QuotaState;
+	posts: QuotaState;
+}

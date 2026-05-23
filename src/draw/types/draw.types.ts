@@ -86,6 +86,8 @@ export enum Menu {
 	SharePostMenu,
 	ReportMenu,
 	BalloonMenu,
+	TextEditMenu,
+	Shop,
 }
 
 export enum ObjectType {

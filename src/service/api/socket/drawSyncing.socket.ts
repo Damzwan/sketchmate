@@ -19,7 +19,7 @@ import { exportBoundingBoxImage } from "@/draw/helpers/export.helper";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { generateChunkedJSON } from "@/draw/helpers/drawload.helper";
 import { v4 as uuidv4 } from "uuid";
-import { fitAndCenterAllActualObjects } from "@/draw/helpers/viewport.helper";
+import { fitToDensestRegion } from "@/draw/helpers/viewport.helper";
 import { useFriendStore } from "@/store/friend.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import { useModerationStore } from "@/store/moderation.store";
@@ -196,7 +196,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
 			canvas.getObjects().forEach((o) => o.setCoords());
 			mgr.rebuildSpatialIndex?.();
-			fitAndCenterAllActualObjects(canvas);
+			fitToDensestRegion(canvas);
 
 			mgr.resetTileCache();
 			mgr.endLoading();
@@ -229,7 +229,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 		if (isInitialSync) {
 			canvas.getObjects().forEach((o) => o.setCoords());
 			mgr.rebuildSpatialIndex();
-			fitAndCenterAllActualObjects(canvas);
+			fitToDensestRegion(canvas);
 			mgr.resetTileCache();
 		}
 

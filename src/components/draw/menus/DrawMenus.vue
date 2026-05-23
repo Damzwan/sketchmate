@@ -26,6 +26,7 @@
   <FontMenu />
   <HelpMenu />
   <RoomMenu />
+  <TextEditMenu />
 </template>
 
 <script setup lang="ts">
@@ -51,6 +52,7 @@ import { useShapeCreation } from "@/draw/store/shapeCreation.store";
 import RoomMenu from "@/components/draw/menus/RoomMenu.vue";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import BucketMenu from "@/components/draw/menus/BucketMenu.vue";
+import TextEditMenu from "@/components/draw/TextEditMenu.vue";
 
 const { selectedObjectsRef } = storeToRefs(useSelect());
 const { selectAction } = useDrawStore();

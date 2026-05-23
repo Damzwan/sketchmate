@@ -129,71 +129,82 @@
 
 <script lang="ts" setup>
 import {
-  IonButton,
-  IonContent,
-  IonIcon,
-  IonInfiniteScroll,
-  IonInfiniteScrollContent,
-  IonPage,
-  IonRefresher,
-  IonRefresherContent,
-  onIonViewWillLeave,
-  useBackButton
-} from '@ionic/vue'
-import { onMounted } from 'vue'
-import { storeToRefs } from 'pinia'
-import dayjs from 'dayjs'
+	IonButton,
+	IonContent,
+	IonIcon,
+	IonInfiniteScroll,
+	IonInfiniteScrollContent,
+	IonPage,
+	IonRefresher,
+	IonRefresherContent,
+	onIonViewWillEnter,
+	onIonViewWillLeave,
+	useBackButton,
+} from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import dayjs from "dayjs";
 
-import { isNative, sortDates, svg } from '@/helper/general.helper'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import { mdiClose } from '@mdi/js'
+import { isNative, sortDates, svg } from "@/helper/general.helper";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { mdiClose } from "@mdi/js";
 
-import TopBar from '@/components/general/TopBar.vue'
-import GalleryActionSheet from '@/components/gallery/GalleryActionSheet.vue'
-import NoMessages from '@/components/gallery/NoMessages.vue'
-import Thumbnail from '@/components/gallery/Thumbnail.vue'
-import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
-import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import TopBar from "@/components/general/TopBar.vue";
+import GalleryActionSheet from "@/components/gallery/GalleryActionSheet.vue";
+import NoMessages from "@/components/gallery/NoMessages.vue";
+import Thumbnail from "@/components/gallery/Thumbnail.vue";
+import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 
-import noMessagesImg from '@/assets/illustrations/no_messages.webp'
-import connectImage from '@/assets/illustrations/connect.webp'
+import noMessagesImg from "@/assets/illustrations/no_messages.webp";
+import connectImage from "@/assets/illustrations/connect.webp";
 
-import { useAuthStore } from '@/store/auth.store'
-import { useInboxSwiper } from '@/composables/gallery/useInboxSwiper'
-import { useGalleryData } from '@/composables/gallery/useGalleryData'
-import { useGallerySelection } from '@/composables/gallery/useGallerySelection'
+import { useAuthStore } from "@/store/auth.store";
+import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
+import { useGalleryData } from "@/composables/gallery/useGalleryData";
+import { useGallerySelection } from "@/composables/gallery/useGallerySelection";
 
-const { user } = storeToRefs(useAuthStore())
+const { user } = storeToRefs(useAuthStore());
 
 // Logic Hooks
-const { openInboxSwiper, seeItem } = useInboxSwiper()
+const { openInboxSwiper, seeItem } = useInboxSwiper();
 const triggerSwiper = (item: any) => {
-  const index = inbox.value.findIndex(val => item._id === val._id)
-  openInboxSwiper(inbox.value, index)
-}
+	const index = inbox.value.findIndex((val) => item._id === val._id);
+	openInboxSwiper(inbox.value, index);
+};
 
 const {
-  isLoading, inbox, isInboxLoading, allLoaded,
-  groupedInboxItems, noMessages,
-  fetchInitialInbox, loadMore, handleRefresh
-} = useGalleryData()
+	isLoading,
+	inbox,
+	isInboxLoading,
+	allLoaded,
+	groupedInboxItems,
+	noMessages,
+	fetchInitialInbox,
+	loadMore,
+	handleRefresh,
+} = useGalleryData();
 
 const {
-  multiSelectMode, selectedItems, alterTrigger,
-  onItemLongPress, onThumbnailClick, cancelMultiSelect,
-  handleShare, deleteInboxItems
-} = useGallerySelection(user, inbox, triggerSwiper)
+	multiSelectMode,
+	selectedItems,
+	alterTrigger,
+	onItemLongPress,
+	onThumbnailClick,
+	cancelMultiSelect,
+	handleShare,
+	deleteInboxItems,
+} = useGallerySelection(user, inbox, triggerSwiper);
 
-onMounted(fetchInitialInbox)
+onIonViewWillEnter(fetchInitialInbox);
 
 // Handle native hardware back button
 useBackButton(9999, (processNextHandler) => {
-  if (multiSelectMode.value) cancelMultiSelect()
-  else processNextHandler()
-})
+	if (multiSelectMode.value) cancelMultiSelect();
+	else processNextHandler();
+});
 
 // Clean up selection state when navigating away
-onIonViewWillLeave(cancelMultiSelect)
+onIonViewWillLeave(cancelMultiSelect);
 </script>
 
 <style scoped>

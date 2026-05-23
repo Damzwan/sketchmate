@@ -67,28 +67,31 @@
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all"
         :class="[
           {'ring-2 ring-secondary/50': isPublicPost},
-          quota.canCreatePost ? 'cursor-pointer active:scale-[0.995]' : 'opacity-60 cursor-not-allowed'
+          quotaStore.canCreatePost ? 'cursor-pointer active:scale-[0.995]' : 'opacity-60 cursor-not-allowed'
         ]"
-        @click="quota.canCreatePost && toggleSection('post')"
+        @click="quotaStore.canCreatePost && toggleSection('post')"
       >
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
             <p class="text-xl font-bold text-black leading-none">Community Post</p>
             <p class="text-sm text-black/60 font-bold mt-1">
-              <template v-if="quota.canCreatePost">
+              <template v-if="quotaStore.canCreatePost">
                 Publish to the public feed.
-                <span class="text-secondary">{{ quota.posts.remaining }}/{{ quota.posts.limit }} left today.</span>
+                <span class="text-secondary">{{ quotaStore.posts.remaining }}/{{ quotaStore.posts.limit }} left today.</span>
+              </template>
+              <template v-else-if="quotaStore.isPro">
+                Daily limit reached. Resets in {{ postResetCountdown }}.
               </template>
               <template v-else>
-                Daily limit reached. Resets in {{ postResetCountdown }}.
+                Daily limit reached. <span class="text-secondary underline font-black active:scale-95 inline-block cursor-pointer" @click.stop="goToPro">⭐ Upgrade to PRO</span>
               </template>
             </p>
           </div>
           <ion-toggle
             :checked="isPublicPost"
-            :disabled="!quota.canCreatePost"
+            :disabled="!quotaStore.canCreatePost"
             color="secondary"
-            @click.stop="quota.canCreatePost && toggleSection('post')"
+            @click.stop="quotaStore.canCreatePost && toggleSection('post')"
           />
         </div>
 
@@ -124,28 +127,31 @@
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all"
         :class="[
           {'ring-2 ring-secondary/50': isBalloon},
-          quota.canSendBalloon ? 'cursor-pointer active:scale-[0.995]' : 'opacity-60 cursor-not-allowed'
+          quotaStore.canSendBalloon ? 'cursor-pointer active:scale-[0.995]' : 'opacity-60 cursor-not-allowed'
         ]"
-        @click="quota.canSendBalloon && toggleSection('balloon')"
+        @click="quotaStore.canSendBalloon && toggleSection('balloon')"
       >
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
             <p class="text-xl font-bold text-black leading-none"><span class="mr-1">🎈</span> Release Balloon</p>
             <p class="text-sm text-black/60 font-bold mt-1">
-              <template v-if="quota.canSendBalloon">
+              <template v-if="quotaStore.canSendBalloon">
                 Send to a random stranger.
-                <span class="text-secondary">{{ quota.balloons.remaining }}/{{ quota.balloons.limit }} left today.</span>
+                <span class="text-secondary">{{ quotaStore.balloons.remaining }}/{{ quotaStore.balloons.limit }} left today.</span>
+              </template>
+              <template v-else-if="quotaStore.isPro">
+                Daily limit reached. Resets in {{ balloonResetCountdown }}.
               </template>
               <template v-else>
-                Daily limit reached. Resets in {{ balloonResetCountdown }}.
+                Daily limit reached. <span class="text-secondary underline font-black active:scale-95 inline-block cursor-pointer" @click.stop="goToPro">⭐ Upgrade to PRO</span>
               </template>
             </p>
           </div>
           <ion-toggle
             :checked="isBalloon"
-            :disabled="!quota.canSendBalloon"
+            :disabled="!quotaStore.canSendBalloon"
             color="secondary"
-            @click.stop="quota.canSendBalloon && toggleSection('balloon')"
+            @click.stop="quotaStore.canSendBalloon && toggleSection('balloon')"
           />
         </div>
 
@@ -178,12 +184,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { IonIcon, IonSpinner, IonToggle, IonButton } from "@ionic/vue";
-import { mdiChevronLeft, mdiCheck } from "@mdi/js";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import {
+	IonButton,
+	IonIcon,
+	IonSpinner,
+	IonToggle,
+	useIonRouter,
+} from "@ionic/vue";
+import { mdiCheck, mdiChevronLeft } from "@mdi/js";
 import { storeToRefs } from "pinia";
-import { useRoute } from "vue-router";
 import { svg } from "@/helper/general.helper";
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
@@ -193,11 +206,14 @@ import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useShareService } from "@/draw/store/useShareService.store";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useQuotaStore } from "@/store/quota.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 // @ts-ignore
 import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
 
-const route = useRoute();
+dayjs.extend(duration);
+
+const router = useIonRouter();
 
 const { user } = storeToRefs(useAuthStore());
 const friendStore = useFriendStore();
@@ -216,34 +232,16 @@ const {
 
 const shareService = useShareService();
 const quotaStore = useQuotaStore();
-const { balloons, posts, canSendBalloon, canCreatePost } =
-	storeToRefs(quotaStore);
-
-// Compact accessor for the template — avoids having to template-bind 4 refs.
-const quota = {
-	get balloons() {
-		return balloons.value;
-	},
-	get posts() {
-		return posts.value;
-	},
-	get canSendBalloon() {
-		return canSendBalloon.value;
-	},
-	get canCreatePost() {
-		return canCreatePost.value;
-	},
-};
 
 const { selected, toggle, reset: resetMates } = useMateSelection();
 
-// UI State
-const isSaveAndSend = ref(true);
+const isBalloon = ref(shareService.preSelected === "balloon");
+const isSaveAndSend = ref(shareService.preSelected !== "balloon");
+
 const isPublicPost = ref(false);
 const postCaption = ref("");
 const postEnableComments = ref(true);
 const postEnableRemix = ref(true);
-const isBalloon = ref(false);
 const balloonNote = ref("");
 
 const isOnline = (id: string) => friendStore.isFriendOnline(id);
@@ -256,48 +254,54 @@ const sortedMates = computed(() =>
 	}),
 );
 
-// Countdown ticker (only ticks while at least one section is quota-blocked)
+// Ticker to force reactivity updates on the countdown computed properties
 const now = ref(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;
+
 function ensureTicker() {
 	if (timer) return;
 	timer = setInterval(() => {
 		now.value = Date.now();
 	}, 1000);
 }
+
 onUnmounted(() => {
 	if (timer) clearInterval(timer);
 });
 
 function fmtCountdown(resetIso: string): string {
-	const diff = Math.max(0, new Date(resetIso).getTime() - now.value);
-	const h = Math.floor(diff / 3_600_000);
-	const m = Math.floor((diff % 3_600_000) / 60_000);
-	if (h > 0) return `${h}h ${m}m`;
-	const s = Math.floor((diff % 60_000) / 1_000);
-	return `${m}m ${s}s`;
+	const diff = dayjs(resetIso).diff(dayjs(now.value));
+	if (diff <= 0) return "0m 0s";
+
+	const dur = dayjs.duration(diff);
+	const h = Math.floor(dur.asHours());
+	const m = dur.minutes();
+
+	return h > 0 ? `${h}h ${m}m` : `${m}m ${dur.seconds()}s`;
 }
 
 const balloonResetCountdown = computed(() =>
-	fmtCountdown(quota.balloons.reset_at),
+	fmtCountdown(quotaStore.balloons.reset_at),
 );
-const postResetCountdown = computed(() => fmtCountdown(quota.posts.reset_at));
+const postResetCountdown = computed(() =>
+	fmtCountdown(quotaStore.posts.reset_at),
+);
 
 onMounted(async () => {
-	// Refresh quota on entering the hub — the user may have published from
-	// another device since the last fetch.
-	void quotaStore.refresh(true);
+	// Graceful fallback: If preSelected was balloon but they actually have no quota left,
+	// disable balloon and re-enable direct send so they aren't stuck.
+	if (isBalloon.value && !quotaStore.canSendBalloon) {
+		isBalloon.value = false;
+		isSaveAndSend.value = true;
+	}
+
 	ensureTicker();
 
+	const canvas = drawStore.getCanvas();
 	setTimeout(
-		() => createPreview(),
-		drawStore.getCanvas().getObjects().length > 1000 ? 250 : 50,
+		() => createPreview(canvas),
+		canvas.getObjects().length > 1000 ? 250 : 50,
 	);
-
-	// Allow deep-link from the BalloonModal: ?share=balloon
-	if (route.query.share === "balloon" && canSendBalloon.value) {
-		isBalloon.value = true;
-	}
 });
 
 onUnmounted(() => resetPreview());
@@ -315,6 +319,10 @@ function toggleSection(section: "direct" | "post" | "balloon") {
 	if (section === "direct") isSaveAndSend.value = !isSaveAndSend.value;
 	if (section === "post") isPublicPost.value = !isPublicPost.value;
 	if (section === "balloon") isBalloon.value = !isBalloon.value;
+}
+
+function goToPro() {
+	// router.push({ path: FRONTEND_ROUTES.subscribe });
 }
 
 async function executeShares() {
@@ -337,6 +345,7 @@ async function executeShares() {
 		resetCanvas();
 	}
 	const nav = document.querySelector("ion-nav");
+	shareService.preSelected = "mate";
 	await nav?.popToRoot();
 	resetMates();
 
@@ -348,17 +357,25 @@ async function executeShares() {
 
 	if (wantsPost) {
 		tasks.push(() =>
-			shareService.publishCommunityPost(processedData, {
-				caption: captionSnapshot,
-				enable_comments: enableCommentsSnapshot,
-				enable_remix: enableRemixSnapshot,
-			}),
+			shareService
+				.publishCommunityPost(processedData, {
+					caption: captionSnapshot,
+					enable_comments: enableCommentsSnapshot,
+					enable_remix: enableRemixSnapshot,
+				})
+				.then(() => {
+					// Optimistic update
+					quotaStore.decrementPost();
+				}),
 		);
 	}
 
 	if (wantsBalloon) {
 		tasks.push(() =>
-			shareService.releaseBalloon(processedData, balloonSnapshot),
+			shareService.releaseBalloon(processedData, balloonSnapshot).then(() => {
+				// Optimistic update
+				quotaStore.decrementBalloon();
+			}),
 		);
 	}
 

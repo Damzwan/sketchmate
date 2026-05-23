@@ -141,3 +141,107 @@ export function fitAndCenterAllActualObjects(
 
 	canvas.setViewportTransform([fitZoom, 0, 0, fitZoom, panX, panY]);
 }
+
+export function fitToDensestRegion(
+	canvas: Canvas,
+	padding = 0.8,
+	maxZoom = 1.0,
+) {
+	const objects = canvas.getObjects();
+	if (objects.length === 0) return;
+	if (objects.length === 1) {
+		return fitAndCenterAllActualObjects(canvas, padding, maxZoom);
+	}
+
+	// 1. Collect centroids + bounds. Use the same method your QuadTree uses
+	//    so we don't drift from the rest of the system.
+	type Item = {
+		cx: number;
+		cy: number;
+		b: { x: number; y: number; w: number; h: number };
+	};
+	const items: Item[] = [];
+	for (const o of objects) {
+		// @ts-ignore — same call as objectBounds()
+		const b = o.getBoundingRect(true, true);
+		if (!isFinite(b.left) || !isFinite(b.top)) continue;
+		if (b.width <= 0 || b.height <= 0) continue;
+		items.push({
+			cx: b.left + b.width / 2,
+			cy: b.top + b.height / 2,
+			b: { x: b.left, y: b.top, w: b.width, h: b.height },
+		});
+	}
+	if (items.length === 0) return;
+
+	// 2. Grid-bin centroids. Cell size scales with viewport so the
+	//    "densest region" is always roughly screen-sized.
+	const cw = canvas.getWidth();
+	const ch = canvas.getHeight();
+	const cellSize = Math.max(cw, ch); // world units — one cell ≈ one screen at zoom 1
+	const bins = new Map<string, Item[]>();
+	for (const it of items) {
+		const gx = Math.floor(it.cx / cellSize);
+		const gy = Math.floor(it.cy / cellSize);
+		const key = `${gx},${gy}`;
+		let arr = bins.get(key);
+		if (!arr) {
+			arr = [];
+			bins.set(key, arr);
+		}
+		arr.push(it);
+	}
+
+	// 3. Score each cell. Include a 1-cell neighborhood so we don't
+	//    accidentally split a cluster across a cell boundary.
+	let bestKey = "";
+	let bestCount = -1;
+	for (const [key] of bins) {
+		const [gx, gy] = key.split(",").map(Number);
+		let count = 0;
+		for (let dy = -1; dy <= 1; dy++) {
+			for (let dx = -1; dx <= 1; dx++) {
+				count += bins.get(`${gx + dx},${gy + dy}`)?.length ?? 0;
+			}
+		}
+		if (count > bestCount) {
+			bestCount = count;
+			bestKey = key;
+		}
+	}
+
+	// 4. Build the union rect from the items in the winning 3x3 neighborhood.
+	const [bgx, bgy] = bestKey.split(",").map(Number);
+	let minX = Infinity,
+		minY = Infinity,
+		maxX = -Infinity,
+		maxY = -Infinity;
+	for (let dy = -1; dy <= 1; dy++) {
+		for (let dx = -1; dx <= 1; dx++) {
+			const arr = bins.get(`${bgx + dx},${bgy + dy}`);
+			if (!arr) continue;
+			for (const it of arr) {
+				if (it.b.x < minX) minX = it.b.x;
+				if (it.b.y < minY) minY = it.b.y;
+				if (it.b.x + it.b.w > maxX) maxX = it.b.x + it.b.w;
+				if (it.b.y + it.b.h > maxY) maxY = it.b.y + it.b.h;
+			}
+		}
+	}
+
+	// 5. Standard fit math.
+	const contentW = maxX - minX;
+	const contentH = maxY - minY;
+	const sx = cw / (contentW || 1);
+	const sy = ch / (contentH || 1);
+	let zoom = Math.min(sx, sy) * padding;
+	zoom = Math.max(zoom, 0.05);
+	zoom = Math.min(zoom, maxZoom);
+
+	const ccx = minX + contentW / 2;
+	const ccy = minY + contentH / 2;
+	const panX = cw / 2 - ccx * zoom;
+	const panY = ch / 2 - ccy * zoom;
+
+	canvas.setViewportTransform([zoom, 0, 0, zoom, panX, panY]);
+}

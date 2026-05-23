@@ -12,42 +12,41 @@
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonItem, IonList, IonPopover } from '@ionic/vue'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
-import { useMenuStore } from '@/store/menu.store'
-import { useSelect } from '@/draw/store/tools/select.store'
-import { DrawAction } from '@/draw/types/draw.types'
-import { IText } from 'fabric'
-import { focusText } from '@/draw/helpers/text.helper'
-import { FONTS } from '@/draw/config/fonts.config'
+import { IonContent, IonItem, IonList, IonPopover } from "@ionic/vue";
+import { useDrawStore } from "@/draw/store/draw.store";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
+import { useMenuStore } from "@/store/menu.store";
+import { useSelect } from "@/draw/store/tools/select.store";
+import { DrawAction } from "@/draw/types/draw.types";
+import { IText } from "fabric";
 
-const { selectedObjectsRef } = storeToRefs(useSelect())
-const text = computed(() => selectedObjectsRef.value[0] as IText)
+import { FONTS } from "@/draw/config/fonts.config";
 
-const shouldRefocusTextAfterClose = ref(false)
+const { selectedObjectsRef } = storeToRefs(useSelect());
+const text = computed(() => selectedObjectsRef.value[0] as IText);
 
-const { fontMenuOpen, menuEvent } = storeToRefs(useMenuStore())
+const shouldRefocusTextAfterClose = ref(false);
+
+const { fontMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 
 function selectFont(font: string) {
-  const { selectAction } = useDrawStore()
-  selectAction(DrawAction.ChangeFont, { font })
+	const { selectAction } = useDrawStore();
+	selectAction(DrawAction.ChangeFont, { font });
 }
 
 function onPresent() {
-  const { getCanvas } = useDrawStore()
-  const { isEditingText } = useSelect()
-  if (isEditingText) {
-    shouldRefocusTextAfterClose.value = true
-    if (text.value.text != '') getCanvas().discardActiveObject() // TODO needed to activate history
-  }
+	const { getCanvas } = useDrawStore();
+	const { isEditingText } = useSelect();
+	if (isEditingText) {
+		shouldRefocusTextAfterClose.value = true;
+		if (text.value.text != "") getCanvas().discardActiveObject(); // TODO needed to activate history
+	}
 }
 
 function onDismiss() {
-  if (shouldRefocusTextAfterClose.value) focusText(text.value)
-  shouldRefocusTextAfterClose.value = false
-  fontMenuOpen.value = false
+	shouldRefocusTextAfterClose.value = false;
+	fontMenuOpen.value = false;
 }
 </script>
 

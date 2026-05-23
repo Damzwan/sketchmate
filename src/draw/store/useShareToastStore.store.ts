@@ -1,103 +1,90 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import type { FeedPost, InboxItem } from "@/types/server.types";
+import { useInboxStore } from "@/store/inbox.store";
+import { usePostStore } from "@/store/post.store";
 
 export type ShareToastKind = "drawing" | "post" | "balloon";
 
 export interface ShareToast {
 	id: string;
 	kind: ShareToastKind;
-
 	title: string;
 	subtitle: string;
-
 	thumbnail?: string;
 
-	inboxItem?: InboxItem;
-	post?: FeedPost;
+	// References instead of full objects
+	inboxId?: string;
+	postId?: string;
 }
 
-const AUTO_DISMISS_MS = 4500;
-const MAX_TOASTS = 4;
-
-let counter = 0;
-const nextId = () => `share-toast-${Date.now()}-${++counter}`;
-
 export const useShareToastStore = defineStore("shareToast", () => {
+	const inboxStore = useInboxStore();
+	const postStore = usePostStore();
+
 	const toasts = ref<ShareToast[]>([]);
 	const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
+	// Helper to get the actual item from stores reactively
+	const getInboxItem = (id: string) =>
+		inboxStore.inbox.find((i) => i._id === id);
+	const getPost = (id: string) => postStore.postCache[id];
+
 	function push(toast: ShareToast) {
-		if (toasts.value.length >= MAX_TOASTS) {
+		if (toasts.value.length >= 4) {
 			const dropped = toasts.value.shift();
-			if (dropped) clearTimer(dropped.id);
+			if (dropped) clearTimeout(timers.get(dropped.id)!);
 		}
 		toasts.value.push(toast);
-
-		const t = setTimeout(() => dismiss(toast.id), AUTO_DISMISS_MS);
+		const t = setTimeout(() => dismiss(toast.id), 4500);
 		timers.set(toast.id, t);
 	}
 
-	function clearTimer(id: string) {
-		const t = timers.get(id);
-		if (t) {
-			clearTimeout(t);
+	function dismiss(id: string) {
+		if (timers.has(id)) {
+			clearTimeout(timers.get(id)!);
 			timers.delete(id);
 		}
-	}
-
-	function dismiss(id: string) {
-		clearTimer(id);
 		toasts.value = toasts.value.filter((t) => t.id !== id);
 	}
 
-	function clearAll() {
-		timers.forEach((t) => clearTimeout(t));
-		timers.clear();
-		toasts.value = [];
-	}
-
+	// --- Public Push Methods ---
 	function pushDrawingToast(params: {
 		inboxItem: InboxItem;
 		currentUserId: string;
 	}) {
 		const recipientCount = Math.max(
 			0,
-			(params.inboxItem.followers?.length || 0) -
-				(params.inboxItem.followers?.includes(params.currentUserId) ? 1 : 0),
+			(params.inboxItem.followers?.length || 0) - 1,
 		);
 
-		const subtitle =
-			recipientCount === 0
-				? "Saved to your gallery"
-				: recipientCount === 1
-					? "Shared with 1 mate"
-					: `Shared with ${recipientCount} mates`;
-
 		push({
-			id: nextId(),
+			id: `toast-${Date.now()}`,
 			kind: "drawing",
 			title: recipientCount === 0 ? "Saved!" : "Sent!",
-			subtitle,
+			subtitle:
+				recipientCount === 0
+					? "Saved to your gallery"
+					: `Shared with ${recipientCount} mates`,
 			thumbnail: params.inboxItem.thumbnail,
-			inboxItem: params.inboxItem,
+			inboxId: params.inboxItem._id,
 		});
 	}
 
 	function pushPostToast(params: { post: FeedPost }) {
 		push({
-			id: nextId(),
+			id: `toast-${Date.now()}`,
 			kind: "post",
 			title: "Posted!",
 			subtitle: "Live on the community feed",
 			thumbnail: params.post.thumbnail_url,
-			post: params.post,
+			postId: params.post._id,
 		});
 	}
 
 	function pushBalloonToast(params: { message: string }) {
 		push({
-			id: nextId(),
+			id: `toast-${Date.now()}`,
 			kind: "balloon",
 			title: "Balloon released",
 			subtitle: params.message?.trim()
@@ -109,9 +96,10 @@ export const useShareToastStore = defineStore("shareToast", () => {
 	return {
 		toasts,
 		dismiss,
-		clearAll,
 		pushDrawingToast,
 		pushPostToast,
+		getInboxItem, // Expose these to component
+		getPost,
 		pushBalloonToast,
 	};
 });

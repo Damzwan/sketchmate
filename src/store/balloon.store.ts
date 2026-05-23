@@ -1,12 +1,6 @@
-import { defineStore, storeToRefs } from "pinia";
+import { defineStore } from "pinia";
 import { ref } from "vue";
-import {
-	Balloon,
-	InboxItem,
-	Mate,
-	SOCKET_ENDPONTS,
-	User,
-} from "@/types/server.types";
+import { Balloon, Mate, SOCKET_ENDPONTS, User } from "@/types/server.types";
 import {
 	socket,
 	socketLoggedInPromise,
@@ -14,14 +8,17 @@ import {
 import { useAuthStore } from "@/store/auth.store";
 import { useToast } from "@/service/toast.service";
 import { ToastDuration } from "@/types/toast.types";
-import { matchBalloonButton } from "@/config/toast.config";
 import {
 	getDateOfBirthConfirmationResponse,
 	isOldEnough,
 } from "@/helper/general.helper";
-import { useInboxStore } from "@/store/inbox.store";
-import { getBalloon } from "@/service/api/balloon.api";
-import { getPartialUsers, updateUser } from "@/service/api/user.api";
+import {
+	acceptBalloon as apiAcceptBalloon,
+	fetchMyBalloons,
+	refuseBalloon as apiRefuseBalloon,
+	triageBalloons,
+} from "@/service/api/balloon.api";
+import { getPartialUsers } from "@/service/api/user.api";
 
 export const useBalloonStore = defineStore("balloon", () => {
 	const sentBalloon = ref<Balloon | null>(null);
@@ -32,31 +29,28 @@ export const useBalloonStore = defineStore("balloon", () => {
 
 	const { toast } = useToast();
 
-	async function init(user: User) {
-		// 1. Recovery: Fetch sent balloon if user has one active
-		if (user.balloon?.sent) {
-			const res = await getBalloon({ balloonId: user.balloon.sent });
-			if (res) sentBalloon.value = res;
-			else {
-				updateUser({
-					_id: user._id,
-					balloon: { ...user.balloon, sent: undefined },
-				});
-				if (auth.user?.balloon) auth.user.balloon.sent = undefined;
-			}
+	async function init(_user: User) {
+		try {
+			const { balloons } = await fetchMyBalloons();
+			sentBalloon.value = balloons.length > 0 ? balloons[0] : null;
+		} catch (e) {
+			console.error("Failed to recover sent balloons:", e);
+			sentBalloon.value = null;
 		}
 	}
 
 	function setupSocketListeners() {
 		if (!socket) return;
 
+		// Deferred triage after login. We still wait on the socket-logged-in
+		// promise because the server only delivers via socket emit — no
+		// point asking for a balloon before the socket is ready to receive
+		// `receive_new_balloon`. The actual ask is an HTTP call now.
 		socketLoggedInPromise.then(() => {
-			// Calculate Random Timeout (5s to 30s)
+			if (auth.isNewAccount) return;
 			const randomDelay = Math.floor(Math.random() * (30000 - 5000 + 1) + 5000);
-			if (auth.isNewAccount) return; // too much in case new account
-			setTimeout(() => {
+			setTimeout(async () => {
 				if (
-					!socket ||
 					!auth.user?._id ||
 					auth.user.balloon?.disabled ||
 					receivedBalloon.value
@@ -66,76 +60,32 @@ export const useBalloonStore = defineStore("balloon", () => {
 					? isOldEnough(auth.user.date_of_birth)
 					: true;
 				if (!oldEnough) return;
-				socket.emit(SOCKET_ENDPONTS.balloon_check, { user_id: auth.user._id });
-			}, randomDelay);
+
+				try {
+					await triageBalloons();
+				} catch (e) {
+					console.error("Balloon triage failed:", e);
+				}
+			}, 10);
 		});
 
-		// Triggered by routeBalloonToOnlineUser or triageWaitingRoom
-		socket.on(SOCKET_ENDPONTS.receive_new_balloon, async ({ balloon }) => {
-			if (balloon) {
-				try {
-					const mates = await getPartialUsers([balloon.sender]);
-
-					if (mates && mates.length > 0) {
-						senderInfo.value = mates[0];
-						receivedBalloon.value = balloon;
-					} else {
-						console.error("Sender not found");
-					}
-				} catch (e) {
-					console.error("Failed to fetch balloon sender info", e);
+		// Server → client push: a balloon has arrived
+		socket.on(SOCKET_ENDPONTS.receive_new_balloon_v3, async ({ balloon }) => {
+			if (!balloon) return;
+			try {
+				const mates = await getPartialUsers([balloon.sender]);
+				if (mates && mates.length > 0) {
+					senderInfo.value = mates[0];
+					receivedBalloon.value = balloon;
+				} else {
+					console.error("Sender not found");
 				}
+			} catch (e) {
+				console.error("Failed to fetch balloon sender info", e);
 			}
 		});
 
-		socket.on(
-			SOCKET_ENDPONTS.v2_accept_balloon,
-			async ({
-				mate,
-				acceptorId,
-				inboxItem,
-			}: {
-				mate: Mate;
-				acceptorId: string;
-				inboxItem: InboxItem;
-			}) => {
-				// TODO copied logic from socket service, uglyyy
-				auth.user!.mates = [...auth.user!.mates, mate];
-				auth.user!.mate_requests_received =
-					auth.user!.mate_requests_received.filter((m) => m != mate!._id);
-				auth.user!.mate_requests_sent = auth.user!.mate_requests_sent.filter(
-					(m) => m != mate!._id,
-				);
-
-				const { inbox, inboxUsers } = storeToRefs(useInboxStore());
-				if (auth.user!.inbox.length != 0 && inbox.value.length == 0) {
-					console.error("need to change balloon logic");
-					// const { getInbox } = useInboxStore()
-					// await getInbox()
-				}
-
-				auth.user!.inbox = [inboxItem._id, ...auth.user!.inbox];
-				inbox.value = [inboxItem, ...inbox.value];
-				if (!inboxUsers.value.find((m) => m._id === mate._id)) {
-					inboxUsers.value = [...inboxUsers.value, mate];
-				}
-
-				if (acceptorId === auth.user!._id) {
-					toast(`You have become mates with ${mate.name}`, {
-						buttons: [matchBalloonButton],
-						duration: ToastDuration.long,
-					});
-				} else {
-					sentBalloon.value = null;
-					toast(`${mate.name} accepted your balloon`, {
-						buttons: [matchBalloonButton],
-						duration: ToastDuration.long,
-					});
-				}
-			},
-		);
-
-		// Targeted dismissal if the timer ran out on server
+		// Server → client push: timeout dismissal
 		socket.on(SOCKET_ENDPONTS.balloon_missed, ({ balloonId }: any) => {
 			if (receivedBalloon.value?._id === balloonId) {
 				toast("You reacted too late, a new balloon will arrive later", {
@@ -148,7 +98,7 @@ export const useBalloonStore = defineStore("balloon", () => {
 	}
 
 	async function acceptReceived() {
-		if (!receivedBalloon.value || !socket || !auth.user?._id) return;
+		if (!receivedBalloon.value || !auth.user?._id) return;
 
 		if (auth.shouldShowDateOfBirthConfirmation) {
 			const canSendBalloon = await getDateOfBirthConfirmationResponse();
@@ -158,51 +108,51 @@ export const useBalloonStore = defineStore("balloon", () => {
 			}
 		}
 
-		socket.emit(SOCKET_ENDPONTS.v2_accept_balloon, {
-			balloon_id: receivedBalloon.value._id,
-			sender_id: receivedBalloon.value.sender,
-			user_id: auth.user._id,
-		});
+		const balloonId = receivedBalloon.value._id;
+		const senderId = receivedBalloon.value.sender;
 
-		// Optimistically clear so the UI closes immediately
 		receivedBalloon.value = null;
+
+		try {
+			await apiAcceptBalloon({ balloonId, senderId });
+		} catch (e) {
+			console.error("Accept balloon failed:", e);
+			toast("Couldn't accept the balloon, try again", {
+				color: "danger",
+				duration: ToastDuration.long,
+			});
+		}
 	}
 
-	function refuseReceived() {
-		if (!receivedBalloon.value || !socket || !auth.user?._id) return;
+	async function refuseReceived() {
+		if (!receivedBalloon.value || !auth.user?._id) return;
 
-		socket.emit(SOCKET_ENDPONTS.v2_refuse_balloon, {
-			balloon_id: receivedBalloon.value._id,
-			sender_id: receivedBalloon.value.sender,
-			user_id: auth.user._id,
-		});
+		const balloonId = receivedBalloon.value._id;
+		const senderId = receivedBalloon.value.sender;
 
 		receivedBalloon.value = null;
+
+		try {
+			await apiRefuseBalloon({ balloonId, senderId });
+		} catch (e) {
+			console.error("Refuse balloon failed:", e);
+		}
 	}
 
 	async function disableBalloons() {
-		if (!receivedBalloon.value || !socket || !auth.user?._id) return;
+		if (!receivedBalloon.value || !auth.user?._id) return;
 
-		socket.emit(SOCKET_ENDPONTS.v2_refuse_balloon, {
-			balloon_id: receivedBalloon.value._id,
-			sender_id: receivedBalloon.value.sender,
-			user_id: auth.user._id,
-			disable: true,
-		});
+		const balloonId = receivedBalloon.value._id;
+		const senderId = receivedBalloon.value.sender;
 
 		receivedBalloon.value = null;
 		auth.user.balloon!.disabled = true;
-	}
 
-	function cancelSent() {
-		if (!sentBalloon.value || !socket || !auth.user?._id) return;
-
-		socket.emit(SOCKET_ENDPONTS.v2_cancel_balloon, {
-			balloon_id: sentBalloon.value._id,
-			user_id: auth.user._id,
-		});
-
-		sentBalloon.value = null;
+		try {
+			await apiRefuseBalloon({ balloonId, senderId, disable: true });
+		} catch (e) {
+			console.error("Disable balloons failed:", e);
+		}
 	}
 
 	return {
@@ -211,7 +161,6 @@ export const useBalloonStore = defineStore("balloon", () => {
 		init,
 		acceptReceived,
 		refuseReceived,
-		cancelSent,
 		setupSocketListeners,
 		disableBalloons,
 		senderInfo,

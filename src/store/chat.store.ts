@@ -26,6 +26,7 @@ import {
 	respondToRelationship,
 } from "@/service/api/relationship.api";
 import { useUserCacheStore } from "@/store/userCache.store";
+import { useQuotaStore } from "@/store/quota.store";
 
 type FrontendMessage = BaseMessage & {
 	isOptimistic?: boolean;
@@ -585,6 +586,8 @@ export const useChatStore = defineStore("chat", () => {
 			img: partner?.img || "",
 			isMateProposal: true,
 		});
+
+		useQuotaStore().refresh(true);
 	}
 
 	function handleMateDeclined(payload: {
@@ -646,6 +649,7 @@ export const useChatStore = defineStore("chat", () => {
 			img: partner?.img || "",
 			isTrial: false,
 		});
+		useQuotaStore().refresh(true);
 	}
 
 	function handleMateRequested(payload: {

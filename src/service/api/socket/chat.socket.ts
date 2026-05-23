@@ -49,41 +49,52 @@ export function registerChatHandlers(socket: Socket) {
 			conversation_id: string;
 		}) => {
 			const me = authStore.user?._id;
-			if (payload.message.sender_id === me) return;
+			if (
+				payload.message?.type !== "system" &&
+				payload.message.sender_id === me
+			)
+				return;
 
-			// 1. Sync store data (Handles hydration for new or status-changing chats)
 			chatStore.addIncomingMessage(
 				payload.conversation_id,
 				payload.message,
 				payload.conversation,
 			);
 
-			// 2. Trigger UI alerts (Chat heads/Animations)
 			widgetStore.triggerNewMessageAlert(payload.conversation_id);
 
-			// 3. Show Notification Toast if the message isn't from the current user
-			if (payload.message.sender_id !== me) {
-				const partner = payload.conversation.participants.find(
-					(p) => p._id !== me,
-				);
+			const partner = payload.conversation.participants.find(
+				(p) => p._id !== me,
+			);
 
-				let message = "Sent a sketch";
-				if (payload.message.content) {
-					message = payload.message.content;
-				} else if (payload.message.shared_post_id) {
-					message = "Shared a post";
+			// System messages get bespoke notification text — content is empty
+			let notifText: string;
+			if (payload.message.type === "system") {
+				if (payload.message.system_kind === "balloon_match") {
+					// The acceptor "sends" the system message → if it's not me, they caught my balloon.
+					notifText = `${partner?.name || "Someone"} caught your balloon 🎈`;
+				} else {
+					notifText = "New activity";
 				}
-
-				chatStore.addNotification({
-					tabId: payload.conversation_id,
-					subtitle: partner?.name || "New Message",
-					text: message,
-					img: partner?.img || "",
-					isTrial: payload.conversation.status === "temporary",
-					isRequest: payload.conversation.status === "pending_invite",
-					isMateProposal: payload.conversation.status === "pending_mate",
-				});
+			} else if (payload.message.content) {
+				notifText = payload.message.content;
+			} else if (payload.message.shared_post_id) {
+				notifText = "Shared a post";
+			} else if (payload.message.shared_inbox_item_id) {
+				notifText = "Shared a gallery sketch";
+			} else {
+				notifText = "Sent a sketch";
 			}
+
+			chatStore.addNotification({
+				tabId: payload.conversation_id,
+				subtitle: partner?.name || "New Message",
+				text: notifText,
+				img: partner?.img || "",
+				isTrial: payload.conversation.status === "temporary",
+				isRequest: payload.conversation.status === "pending_invite",
+				isMateProposal: payload.conversation.status === "pending_mate",
+			});
 		},
 	);
 

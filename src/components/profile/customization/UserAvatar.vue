@@ -1,20 +1,23 @@
 <template>
   <div class="relative inline-block" :style="containerStyle">
-    <!-- Avatar image holder (Changed to rounded-full) -->
+    <!-- Applied dynamic borderClass -->
     <div
-      class="w-full h-full rounded-full border-4 shadow-sm flex items-center justify-center bg-white overflow-hidden transition-all duration-500"
+      class="w-full h-full rounded-full flex items-center justify-center overflow-hidden transition-all duration-500"
+      :class="borderClass"
       :style="{ borderColor: borderColor }"
     >
       <img
         :src="img || user?.img"
         alt=""
-        class="w-full h-full object-cover bg-zinc-100"
+        class="w-full h-full object-cover "
       />
     </div>
 
+    <!-- Pass the static prop down -->
     <AvatarDecoration
       :decoration-id="customization?.decorationId"
       :def="decorationDef"
+      :static="static"
     />
   </div>
 </template>
@@ -31,19 +34,24 @@ import {
 const props = defineProps<{
 	user?: any;
 	customization?: Partial<Customization>;
-	/** Direct decoration override (for previews) */
 	decorationDef?: Decoration;
-	size?: "sm" | "md" | "lg" | "xl";
+	size?: "xs" | "sm" | "md" | "lg" | "xl";
 	img?: string;
+	static?: boolean; // <-- NEW PROP
 }>();
 
 const containerStyle = computed(() => {
-	const sizes = { sm: "40px", md: "60px", lg: "80px", xl: "128px" };
+	const sizes = { xs: "32px", sm: "48px", md: "64px", lg: "96px", xl: "128px" };
 	const dim = sizes[props.size || "md"];
 	return { width: dim, height: dim };
 });
 
-// Border color pulls from the active theme accent so the avatar feels integrated
+const borderClass = computed(() => {
+	if (props.size === "sm" || props.size === "xs") return "border-2";
+	if (props.size === "md") return "border-[3px]";
+	return "border-4";
+});
+
 const borderColor = computed(() => {
 	if (!props.customization?.themeId) return "rgba(0,0,0,0.1)";
 	return resolveTheme(props.customization.themeId).accentColor;

@@ -13,7 +13,6 @@ import {
 	enlivenObjectsTimeSlivered,
 	generateChunkedJSON,
 	migrateLegacyOrigin,
-	migrateObjectToCenterIfLegacy,
 } from "@/draw/helpers/drawload.helper";
 import { createYielder } from "@/draw/helpers/yielding.helper";
 

@@ -36,6 +36,8 @@ import { useFriendStore } from "@/store/friend.store";
 import { useChatStore } from "@/store/chat.store";
 import { useModerationStore } from "@/store/moderation.store";
 import { getUser, onLoginEvent } from "@/service/api/user.api";
+import { useQuotaStore } from "@/store/quota.store";
+import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 
 export const useAuthStore = defineStore("auth", () => {
 	const user = ref<User>();
@@ -194,8 +196,10 @@ export const useAuthStore = defineStore("auth", () => {
 			const friendStore = useFriendStore();
 			const chatStore = useChatStore();
 			void friendStore.initializeSocialGraph();
+			void useQuotaStore().refresh();
 			void chatStore.loadActiveChats();
 			void useModerationStore().initFromUser(user.value);
+			void useInAppNotificationStore().loadInitial();
 
 			Preferences.set({ key: LocalStorage.user_id, value: user.value!._id });
 			Preferences.set({ key: LocalStorage.img, value: user.value!.img });
@@ -254,6 +258,7 @@ export const useAuthStore = defineStore("auth", () => {
 		Preferences.remove({ key: LocalStorage.user_id });
 		Preferences.remove({ key: LocalStorage.notificationToken });
 		useModerationStore().reset();
+		useInAppNotificationStore().reset();
 
 		if (deviceFingerprint.value && user.value) {
 			onLoginEvent({

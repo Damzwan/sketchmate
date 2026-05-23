@@ -28,100 +28,114 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { storeToRefs } from 'pinia'
-import { v4 as uuidv4 } from 'uuid'
+import { computed, onMounted, ref, onUnmounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { storeToRefs } from "pinia";
+import { v4 as uuidv4 } from "uuid";
 
 // Stores
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useSessionStore } from '@/store/session.store'
+import { useDrawStore } from "@/draw/store/draw.store";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useSessionStore } from "@/store/session.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useShareService } from "@/draw/store/useShareService.store";
 
 // Components
-import Toolbars from '@/components/draw/toolbar/Toolbars.vue'
-import MultiplayerAvatars from '@/components/draw/MultiplayerAvatars.vue'
-import DrawMenus from '@/components/draw/menus/DrawMenus.vue'
-import DrawStatusIndicator from '@/components/draw/DrawStatusIndicator.vue'
-import DrawExitGuard from '@/components/draw/DrawExitGuard.vue'
+import Toolbars from "@/components/draw/toolbar/Toolbars.vue";
+import MultiplayerAvatars from "@/components/draw/MultiplayerAvatars.vue";
+import DrawMenus from "@/components/draw/menus/DrawMenus.vue";
+import DrawStatusIndicator from "@/components/draw/DrawStatusIndicator.vue";
+import DrawExitGuard from "@/components/draw/DrawExitGuard.vue";
 
 // Services & Sockets
-import { socketJoinRoom } from '@/service/api/socket/drawSyncing.socket'
-import { socketLoggedInPromise } from '@/service/api/socket/socket.service'
-import { useMenuStore } from '@/store/menu.store'
-import { Menu } from '@/draw/types/draw.types'
+import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
+import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
+import { Menu } from "@/draw/types/draw.types";
 
-const route = useRoute()
-const router = useRouter()
+const route = useRoute();
+const router = useRouter();
 
-const myCanvasRef = ref<HTMLCanvasElement>()
+const myCanvasRef = ref<HTMLCanvasElement>();
 
-const drawStore = useDrawStore()
-const { initCanvas } = drawStore
-const { backgroundColor } = storeToRefs(drawStore)
+const drawStore = useDrawStore();
+const { initCanvas } = drawStore;
+const { backgroundColor } = storeToRefs(drawStore);
 
-const drawSyncer = useDrawSyncer()
-const { disconnectedRoomId, isLoadingCanvas, roomId } = storeToRefs(drawSyncer)
+const drawSyncer = useDrawSyncer();
+const { disconnectedRoomId, isLoadingCanvas, roomId } = storeToRefs(drawSyncer);
 
-const currentMode = computed(() => (route.query.mode as string) || 'solo')
-const isLobby = computed(() => {
-  const { queryParams } = useSessionStore()
-  return !!route.query.room_id || !!queryParams?.get('room_id')
-})
-const drawTogether = computed(() => {
-  const { queryParams } = useSessionStore()
-  return !!route.query.together || !!queryParams?.get('together')
-})
+// ─── 1. CLEAN PARAMETER RESOLUTION ──────────────────────────────
+const sessionStore = useSessionStore();
+const shareService = useShareService();
 
+const getParam = (key: string): string | undefined => {
+	const val = route.query[key] || sessionStore.queryParams?.get(key);
+	return val ? String(val) : undefined;
+};
 
-const draftId = ref(route.query.id as string)
+const currentMode = computed(() => getParam("mode") || "solo");
+const isLobby = computed(() => !!getParam("room_id"));
+const drawTogether = computed(() => !!getParam("together"));
+const type = computed(() => getParam("type"));
+const targetRoomId = computed(() => getParam("room_id"));
+const canvasUrl = computed(() => getParam("canvas_url"));
 
+const draftId = ref(getParam("id"));
+
+// ─── 2. LIFECYCLE & ROUTE SANITIZATION ─────────────────────────
 onMounted(() => {
-  if (!isLobby.value && !draftId.value) {
-    draftId.value = uuidv4()
-  }
-  if (draftId.value){
-    // TODO should not remove params in the beginning... then this would be way cleaner
-    setTimeout(() => {
-      router.replace({
-        query: { ...route.query, id: draftId.value }
-      })
-    }, 200)
-  }
+	const newQuery = { ...route.query };
+	let routeNeedsUpdate = false;
 
-  // 2. Canvas Bootstrapping
-  const canvasUrl = route.query.canvas_url as string
+	// Ensure Draft ID
+	if (!isLobby.value && !draftId.value) {
+		draftId.value = uuidv4();
+		newQuery.id = draftId.value;
+		routeNeedsUpdate = true;
+	}
 
-  requestAnimationFrame(() => {
-    if (!myCanvasRef.value) return
+	// Consume and clear 'type' parameter
+	if (type.value === "balloon") {
+		shareService.preSelected = "balloon";
+		delete newQuery.type;
+		routeNeedsUpdate = true;
 
-    initCanvas(myCanvasRef.value, {
-      isLobby: isLobby.value || drawTogether.value,
-      draftId: draftId.value,
-      canvasUrl: canvasUrl
-    }).then(async () => {
-      if (drawTogether.value) {
-        const { openMenu } = useMenuStore()
-        openMenu(Menu.DrawRoomMenu)
-      } else {
-        await socketLoggedInPromise
+		if (sessionStore.queryParams?.has("type")) {
+			sessionStore.queryParams.delete("type");
+		}
+	} else {
+		shareService.preSelected = "mate";
+	}
 
-        const { queryParams } = useSessionStore()
-        const roomIdFromStore = queryParams?.get('room_id')
-        const roomIdFromUrl = route.query.room_id as string
+	// Perform one clean route replacement without timeouts
+	if (routeNeedsUpdate) {
+		router.replace({ query: newQuery });
+	}
 
-        const targetRoomId = roomIdFromStore || roomIdFromUrl
+	// ─── 3. CANVAS BOOTSTRAPPING ──────────────────────────────────
+	requestAnimationFrame(() => {
+		if (!myCanvasRef.value) return;
 
-        if (targetRoomId) {
-          socketJoinRoom({ roomId: targetRoomId, intent: 'join' })
-        }
-      }
-    })
-  })
-})
+		initCanvas(myCanvasRef.value, {
+			isLobby: isLobby.value || drawTogether.value,
+			draftId: draftId.value,
+			canvasUrl: canvasUrl.value,
+		}).then(async () => {
+			if (drawTogether.value) {
+				const { openMenu } = useMenuStore();
+				openMenu(Menu.DrawRoomMenu);
+			} else {
+				await socketLoggedInPromise;
 
-onUnmounted(() => {
-})
+				if (targetRoomId.value) {
+					socketJoinRoom({ roomId: targetRoomId.value, intent: "join" });
+				}
+			}
+		});
+	});
+});
+
+onUnmounted(() => {});
 </script>
 
 <style scoped>

@@ -100,62 +100,76 @@
 </template>
 
 <script lang="ts" setup>
-import { svg } from '@/helper/general.helper'
-import { mdiBorderColor, mdiClose, mdiFormatColorFill, mdiPanoramaHorizontalOutline } from '@mdi/js'
-import { IonContent, IonIcon, IonItem, IonList, IonPopover, IonRange } from '@ionic/vue'
-import { computed, ref } from 'vue'
-import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { DrawAction } from '@/draw/types/draw.types'
-import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/menu.store'
-import { useSelect } from '@/draw/store/tools/select.store'
-import { focusText, isText } from '@/draw/helpers/text.helper'
-import { hexWithTransparencyToNormal } from '@/draw/utils/color.utils'
-import { BLACK } from '@/draw/config/canvas.config'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { IText } from 'fabric'
+import { svg } from "@/helper/general.helper";
+import {
+	mdiBorderColor,
+	mdiClose,
+	mdiFormatColorFill,
+	mdiPanoramaHorizontalOutline,
+} from "@mdi/js";
+import {
+	IonContent,
+	IonIcon,
+	IonItem,
+	IonList,
+	IonPopover,
+	IonRange,
+} from "@ionic/vue";
+import { computed, ref } from "vue";
+import ColorPicker from "@/components/draw/ColorPicker.vue";
+import { useDrawStore } from "@/draw/store/draw.store";
+import { DrawAction } from "@/draw/types/draw.types";
+import { storeToRefs } from "pinia";
+import { useMenuStore } from "@/store/menu.store";
+import { useSelect } from "@/draw/store/tools/select.store";
+import { focusText, isText } from "@/draw/helpers/text.helper";
+import { hexWithTransparencyToNormal } from "@/draw/utils/color.utils";
+import { BLACK } from "@/draw/config/canvas.config";
+import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { IText } from "fabric";
 
 const props = defineProps<{
-  strokeColor?: string
-  fillColor?: string
-  backgroundColor?: string
-  disableClear?: 'stroke' | 'fill'
-  strokeWidth: number
-  objectType?: string
-}>()
+	strokeColor?: string;
+	fillColor?: string;
+	backgroundColor?: string;
+	disableClear?: "stroke" | "fill";
+	strokeWidth: number;
+	objectType?: string;
+}>();
 
-const { selectColorMenuOpen, menuEvent } = storeToRefs(useMenuStore())
+const { selectColorMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 
-const shouldRefocusTextAfterClose = ref(false)
+const shouldRefocusTextAfterClose = ref(false);
 
 const emits = defineEmits<{
-  (e: 'update:stroke-color', color: string | undefined): void
-  (e: 'update:fill-color', color: string | undefined): void
-  (e: 'update:background-color', color: string | undefined): void
-  (e: 'update:strokeWidth', strokeWidth: number): void
-}>()
+	(e: "update:stroke-color", color: string | undefined): void;
+	(e: "update:fill-color", color: string | undefined): void;
+	(e: "update:background-color", color: string | undefined): void;
+	(e: "update:strokeWidth", strokeWidth: number): void;
+}>();
 
-const isGroup = computed(() => props.objectType && props.objectType === 'group')
+const isGroup = computed(
+	() => props.objectType && props.objectType === "group",
+);
 
 function onDismiss() {
-  const { selectedObjectsRef } = useSelect()
-  selectColorMenuOpen.value = false
-  if (!isText(selectedObjectsRef)) return
-  if (shouldRefocusTextAfterClose.value) focusText(selectedObjectsRef[0] as IText)
-  shouldRefocusTextAfterClose.value = false
+	const { selectedObjectsRef } = useSelect();
+	selectColorMenuOpen.value = false;
+	if (!isText(selectedObjectsRef)) return;
+	shouldRefocusTextAfterClose.value = false;
 }
 
 function onPresent() {
-  const { selectedObjectsRef } = useSelect()
-  if (!isText(selectedObjectsRef)) return
+	const { selectedObjectsRef } = useSelect();
+	if (!isText(selectedObjectsRef)) return;
 
-  const { getCanvas } = useDrawStore()
-  const { isEditingText } = useDrawUIStore()
-  if (isEditingText) {
-    shouldRefocusTextAfterClose.value = true
-    if ((selectedObjectsRef[0] as IText).text != '') getCanvas().discardActiveObject() // TODO needed to activate history
-  }
+	const { getCanvas } = useDrawStore();
+	const { isEditingText } = useDrawUIStore();
+	if (isEditingText) {
+		shouldRefocusTextAfterClose.value = true;
+		if ((selectedObjectsRef[0] as IText).text != "")
+			getCanvas().discardActiveObject(); // TODO needed to activate history
+	}
 }
 </script>
 

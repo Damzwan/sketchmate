@@ -53,44 +53,52 @@
 </template>
 
 <script lang="ts" setup>
-import { svg } from '@/helper/general.helper'
-import { mdiFormatAlignCenter, mdiFormatAlignLeft, mdiFormatAlignRight, mdiFormatBold, mdiFormatItalic } from '@mdi/js'
-import { IonContent, IonIcon, IonItem, IonList, IonPopover } from '@ionic/vue'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { DrawAction, TextAlign } from '@/draw/types/draw.types'
-import { storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
-import { useMenuStore } from '@/store/menu.store'
-import { useSelect } from '@/draw/store/tools/select.store'
-import { focusText } from '@/draw/helpers/text.helper'
-import { IText } from 'fabric'
+import { svg } from "@/helper/general.helper";
+import {
+	mdiFormatAlignCenter,
+	mdiFormatAlignLeft,
+	mdiFormatAlignRight,
+	mdiFormatBold,
+	mdiFormatItalic,
+} from "@mdi/js";
+import { IonContent, IonIcon, IonItem, IonList, IonPopover } from "@ionic/vue";
+import { useDrawStore } from "@/draw/store/draw.store";
+import { DrawAction, TextAlign } from "@/draw/types/draw.types";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
+import { useMenuStore } from "@/store/menu.store";
+import { useSelect } from "@/draw/store/tools/select.store";
 
-const { selectAction } = useDrawStore()
-const { selectedObjectsRef } = storeToRefs(useSelect())
+import { IText } from "fabric";
 
+const { selectAction } = useDrawStore();
+const { selectedObjectsRef } = storeToRefs(useSelect());
 
-const text = computed(() => selectedObjectsRef.value[0] as IText)
-const isBold = computed(() => (selectedObjectsRef.value[0] as IText).fontWeight === 'bold')
-const isItalic = computed(() => (selectedObjectsRef.value[0] as IText).fontStyle === 'italic')
-const align = computed(() => (selectedObjectsRef.value[0] as IText).textAlign)
+const text = computed(() => selectedObjectsRef.value[0] as IText);
+const isBold = computed(
+	() => (selectedObjectsRef.value[0] as IText).fontWeight === "bold",
+);
+const isItalic = computed(
+	() => (selectedObjectsRef.value[0] as IText).fontStyle === "italic",
+);
+const align = computed(() => (selectedObjectsRef.value[0] as IText).textAlign);
 
-const { textMenuOpen, menuEvent } = storeToRefs(useMenuStore())
+const { textMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 
-const shouldRefocusTextAfterClose = ref(false)
+const shouldRefocusTextAfterClose = ref(false);
 
 function onDismiss() {
-  if (shouldRefocusTextAfterClose.value) focusText(text.value)
-  shouldRefocusTextAfterClose.value = false
-  textMenuOpen.value = false
+	shouldRefocusTextAfterClose.value = false;
+	textMenuOpen.value = false;
 }
 
 function onPresent() {
-  const { isEditingText } = useSelect()
-  const { getCanvas } = useDrawStore()
-  if (isEditingText) {
-    shouldRefocusTextAfterClose.value = true
-    if (text.value.text != '') getCanvas().discardActiveObject() // TODO needed to activate history
-  }
+	const { isEditingText } = useSelect();
+	const { getCanvas } = useDrawStore();
+	if (isEditingText) {
+		shouldRefocusTextAfterClose.value = true;
+		if (text.value.text != "") getCanvas().discardActiveObject(); // TODO needed to activate history
+	}
 }
 </script>
 

@@ -9,6 +9,7 @@ export enum NotificationType {
 	balloon = "balloon",
 	lobby_invitation = "lobby_invitation",
 	moderation_strike = "moderation_strike",
+	moderation_lifted = "moderation_lifted",
 }
 
 export enum ENDPOINTS {
@@ -41,8 +42,10 @@ export enum SOCKET_ENDPONTS {
 	balloon_match_expired = "balloon_match_expired",
 	balloon_expired = "balloon_expired ",
 	receive_new_balloon = "receive_new_balloon",
+	receive_new_balloon_v3 = "receive_new_balloon_v3",
 	balloon_missed = "balloon_missed",
 	v2_accept_balloon = "v2_accept_balloon",
+	v3_accept_balloon = "v3_accept_balloon",
 	v2_refuse_balloon = "v2_refuse_balloon",
 	v2_cancel_balloon = "v2_cancel_balloon",
 	balloon_check = "balloon_check",
@@ -302,6 +305,8 @@ export interface BasePost {
 	aspect_ratio: number;
 	comment_count: number;
 	reports_count: number;
+	enable_comments: boolean;
+	enable_remix: boolean;
 	views: number;
 	total_reactions: number;
 	status: ContentModerationStatus;
@@ -472,10 +477,21 @@ export interface BaseMessage {
 	updatedAt: string;
 	status?: string;
 
-	// DM-message moderation — soft delete on uphold, preserves conversation flow
+	// Message kind. Default 'user'; 'system' for things like balloon matches.
+	type?: "user" | "system";
+	system_kind?: "balloon_match";
+	system_payload?: {
+		acceptor_id?: string;
+		acceptor_name?: string;
+		sender_id?: string;
+		balloon_id?: string;
+		thumbnail?: string;
+	};
+
 	moderation_status?: "active" | "removed";
 	reports_count?: number;
 	shared_post_id?: string;
+	shared_inbox_item_id?: string;
 }
 
 export interface BaseConversation {
@@ -766,20 +782,89 @@ export interface SubmitReportRes {
 
 export type SubscriptionTier = "free" | "pro";
 
+// todo rename
 export interface DailyQuota {
 	balloons_per_day: number;
 	posts_per_day: number;
+	max_mates: number;
 }
 
 export interface QuotaState {
 	used: number;
 	limit: number;
 	remaining: number;
-	reset_at: string; // ISO
+	reset_at?: string;
 }
 
 export interface QuotaSummary {
 	tier: string;
 	balloons: QuotaState;
 	posts: QuotaState;
+	mates: QuotaState;
+}
+
+// =============================================================================
+// NOTIFICATIONS
+// =============================================================================
+
+export type NotificationKind =
+	| "post_reaction"
+	| "post_comment"
+	| "inbox_drawing"
+	| "inbox_comment"
+	| "dm_message"
+	| "follow"
+	| "moderation_strike"
+	| "moderation_lifted"
+	| "announcement";
+
+export type NotificationTargetType =
+	| "post"
+	| "inbox_item"
+	| "comment"
+	| "user"
+	| "system";
+
+export interface NotificationActor {
+	_id: string;
+	name: string;
+	img: string;
+}
+
+export interface NotificationTargetPreview {
+	thumbnail?: string;
+	text?: string;
+}
+
+export interface Notification {
+	_id: string;
+	recipient_id: string;
+	type: NotificationKind;
+
+	// Aggregation key — entries sharing this within the merge window get merged.
+	// Absent = never aggregate (one entry per event).
+	aggregation_key?: string;
+
+	// Denormalized actors so the feed renders without N+1 user lookups.
+	// Capped at MAX_STORED_ACTORS (3) — actor_count holds the true total.
+	actors: NotificationActor[];
+	actor_count: number;
+
+	// What the notification points to when tapped
+	target_type?: NotificationTargetType;
+	target_id?: string;
+	target_preview?: NotificationTargetPreview;
+
+	// State — split intentionally:
+	//   seen = appeared in the bell (bulk-cleared when opening the feed)
+	//   read = user actually tapped this specific entry
+	read: boolean;
+	seen: boolean;
+
+	// Free-form payload for moderation/announcement types that need
+	// structured data beyond the standard fields (level, expires_at, etc.)
+	payload?: any;
+
+	createdAt: string;
+	updatedAt: string;
 }

@@ -80,3 +80,8 @@ ion-popover.liquid-popover::part(content) {
 	color: var(--ion-color-secondary);
 	cursor: pointer;
 }
+
+.liquid-alert .alert-button {
+	color: var(--ion-color-secondary) !important;
+	cursor: pointer;
+}

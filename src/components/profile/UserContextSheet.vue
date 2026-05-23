@@ -378,6 +378,7 @@ async function onUnfriend() {
 
 	const alert = await alertController.create({
 		header: isPermanent ? "Unfriend?" : "End Trial?",
+		cssClass: "liquid-alert",
 		message: isPermanent
 			? `Remove ${partner.name}? Chat invites locked for 48h.`
 			: `Stop chatting with ${partner.name}?`,
@@ -423,6 +424,7 @@ async function confirmToggleBlock() {
 	const alert = await alertController.create({
 		header: "Block User?",
 		message: `Are you sure you want to block ${target.name}? They will no longer be able to message you or see your sketches.`,
+		cssClass: "liquid-alert",
 		buttons: [
 			{ text: "Cancel", role: "cancel" },
 			{

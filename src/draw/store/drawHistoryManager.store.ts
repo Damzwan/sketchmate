@@ -39,7 +39,7 @@ export const useDrawHistoryManager = defineStore("history", () => {
 
 	const MAX_HISTORY = 50;
 
-	const { updateQuadTree, updateVisibility, getObjectById, getObjectsById } =
+	const { updateQuadTree, getObjectById, getObjectsById } =
 		useDrawObjectManager();
 	const { unSelect } = useSelect();
 
@@ -256,7 +256,6 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		return {
 			canvas: getCanvas(),
 			updateQuadTree,
-			updateVisibility,
 			unSelect,
 			getObjectById,
 			getObjectsById,

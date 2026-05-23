@@ -14,11 +14,13 @@
     <DateOfBirthConfirmation />
     <Confetti />
     <ReceivedBalloon />
+    <BalloonMenu/>
     <ConnectionHub />
     <ModerationMenu/>
     <SharePostMenu/>
     <ReportMenu/>
     <ShareToasts/>
+    <Shop/>
   </ion-app>
 </template>
 
@@ -67,6 +69,10 @@ const ReceivedBalloon = defineAsyncComponent(
 	() => import("@/components/balloon/ReceivedBalloon.vue"),
 );
 
+const BalloonMenu = defineAsyncComponent(
+	() => import("@/components/balloon/BalloonMenu.vue"),
+);
+
 const ConnectionHub = defineAsyncComponent(
 	() => import("@/components/general/ConnectionHub.vue"),
 );
@@ -89,6 +95,10 @@ const ReportMenu = defineAsyncComponent(
 
 const ShareToasts = defineAsyncComponent(
 	() => import("@/components/draw/send/ShareToasts.vue"),
+);
+
+const Shop = defineAsyncComponent(
+	() => import("@/components/general/Shop.vue"),
 );
 
 const ionRouter = useIonRouter();

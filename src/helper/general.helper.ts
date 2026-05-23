@@ -349,18 +349,8 @@ export function setupDeeplinkListener() {
 
 export async function handleWebDeeplink() {
 	const url = new URL(window.location.href);
-	const roomId = url.searchParams.get("room_id");
-
-	const { redirectIntent } = storeToRefs(useSessionStore());
-
 	const { setQueryParams } = useSessionStore();
 	setQueryParams(url.searchParams);
-
-	// if (roomId) {
-	//   redirectIntent.value = window.location.pathname + window.location.search
-	//   await socketLoggedInPromise
-	//   socketJoinRoom({ roomId, intent: 'join' })
-	// }
 }
 
 export function setupPwa() {

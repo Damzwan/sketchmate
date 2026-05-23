@@ -1,7 +1,7 @@
 <template>
   <ion-modal
-    :is-open="isOpen"
-    @did-dismiss="handleDismiss"
+    :is-open="balloonMenuOpen"
+    @did-dismiss="close"
     @did-present="onPresent"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
@@ -22,20 +22,19 @@
           </button>
         </div>
         <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
-          {{ section === 'home' ? 'Balloons' : section === 'manage' ? 'Your Balloons' : 'Balloons' }}
+          {{ section === 'home' ? 'Balloons' : 'Your Balloons' }}
         </h1>
         <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-2">
           {{ sectionSubtitle }}
         </p>
       </div>
 
-      <!-- BODY -->
       <div
         class="flex-1 overflow-y-auto px-1 hide-scrollbar pb-4"
         style="min-height: 320px;"
         @touchmove.stop
       >
-        <!-- HOME: explainer + quota + actions -->
+        <!-- HOME -->
         <template v-if="section === 'home'">
           <div class="flex flex-col items-center mb-5 mt-1">
             <div class="w-28 h-28 flex items-center justify-center">
@@ -53,24 +52,20 @@
             </p>
           </div>
 
-          <!-- Quota Card -->
           <div class="bg-white/80 border-2 rounded-3xl p-4 mb-4"
-               :class="quota.canSendBalloon ? 'border-secondary/40' : 'border-black/10'">
+               :class="quotaStore.canSendBalloon ? 'border-secondary/40' : 'border-black/10'">
             <div class="flex items-center justify-between mb-2">
               <span class="text-xs font-black uppercase tracking-widest text-black/60">Today's Budget</span>
-              <span v-if="!quota.canSendBalloon" class="text-[10px] font-black uppercase bg-black/10 text-black/60 px-2 py-0.5 rounded">
-                Resets in {{ resetCountdown }}
+              <span v-if="!quotaStore.canSendBalloon" class="text-[10px] font-black uppercase bg-black/10 text-black/60 px-2 py-0.5 rounded">
+                <template v-if="quotaStore.isPro">Resets in {{ resetCountdown }}</template>
+                <template v-else>Limit Reached</template>
               </span>
             </div>
             <div class="flex items-baseline gap-2">
-              <span class="text-4xl font-black text-secondary leading-none">
-                {{ quota.balloons.remaining }}
-              </span>
-              <span class="text-lg font-bold text-black/40 leading-none">
-                / {{ quota.balloons.limit }}
-              </span>
+              <span class="text-4xl font-black text-secondary leading-none">{{ balloons.remaining }}</span>
+              <span class="text-lg font-bold text-black/40 leading-none">/ {{ balloons.limit }}</span>
               <span class="text-sm font-bold text-black/60 ml-auto leading-none">
-                {{ quota.balloons.remaining === 1 ? 'balloon left' : 'balloons left' }}
+                {{ balloons.remaining === 1 ? 'balloon left' : 'balloons left' }}
               </span>
             </div>
           </div>
@@ -80,9 +75,7 @@
             @click="section = 'manage'"
             class="w-full flex items-center gap-4 p-4 rounded-3xl bg-white/60 border border-primary/30 active:scale-[0.98] transition-transform mb-3"
           >
-            <div class="w-11 h-11 rounded-2xl bg-amber-400/20 flex items-center justify-center text-xl shrink-0">
-              📜
-            </div>
+            <div class="w-11 h-11 rounded-2xl bg-amber-400/20 flex items-center justify-center text-xl shrink-0">📜</div>
             <div class="flex-1 text-left">
               <p class="font-black text-base text-black leading-none">Manage your balloons</p>
               <p class="text-[12px] font-bold text-black/50 mt-1 leading-none">
@@ -130,7 +123,6 @@
         </template>
       </div>
 
-      <!-- Action Area -->
       <div class="pt-2 pb-2 shrink-0">
         <ion-button
           v-if="section === 'home'"
@@ -138,17 +130,19 @@
           color="secondary"
           shape="round"
           class="h-16 font-black uppercase tracking-widest shadow-lg"
-          :disabled="!quota.canSendBalloon"
-          @click="onCreateNew"
+          :disabled="!quotaStore.canSendBalloon && quotaStore.isPro"
+          @click="handlePrimaryAction"
         >
-          {{ quota.canSendBalloon ? 'Release a Balloon' : `Resets in ${resetCountdown}` }}
+          <template v-if="quotaStore.canSendBalloon">Release a Balloon</template>
+          <template v-else-if="quotaStore.isPro">Resets in {{ resetCountdown }}</template>
+          <template v-else>⭐ Upgrade to PRO</template>
         </ion-button>
         <ion-button
           fill="clear"
           color="dark"
           expand="block"
           class="font-black uppercase tracking-widest text-xs mt-2 opacity-60"
-          @click="handleDismiss"
+          @click="close"
         >
           Close
         </ion-button>
@@ -158,117 +152,148 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue';
-import { IonModal, IonButton, IonIcon, IonSpinner } from '@ionic/vue';
-import { mdiChevronLeft, mdiChevronRight } from '@mdi/js';
-import { storeToRefs } from 'pinia';
-import { svg } from '@/helper/general.helper';
+import { computed, onUnmounted, ref } from "vue";
+import {
+	IonModal,
+	IonButton,
+	IonIcon,
+	IonSpinner,
+	useIonRouter,
+} from "@ionic/vue";
+import { mdiChevronLeft, mdiChevronRight } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { svg } from "@/helper/general.helper";
 
-// @ts-ignore
-import Lottie from '@/components/common/Lottie.vue';
-import balloonLottie from '@/assets/lottie/balloon.json';
+import balloonLottie from "@/assets/lottie/balloon.json";
 
-import { useQuotaStore } from '@/store/quota.store';
-import { cancelBalloon, fetchMyBalloons } from '@/service/api/balloon.api';
-import type { Balloon } from '@/types/server.types';
+import { useQuotaStore } from "@/store/quota.store";
+import { useMenuStore } from "@/store/menu.store";
+import { cancelBalloon, fetchMyBalloons } from "@/service/api/balloon.api";
+import type { Balloon } from "@/types/server.types";
+import { Menu } from "@/draw/types/draw.types";
+import Lottie from "@/components/general/Lottie.vue";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { masterAnimation } from "@/helper/animation.helper";
+import { useRoute } from "vue-router";
 
-const props = defineProps<{ isOpen: boolean }>();
-const emit = defineEmits<{
-  (e: 'close'): void;
-  (e: 'create'): void; // user wants to go draw a new balloon
-}>();
+const router = useIonRouter();
 
-type Section = 'home' | 'manage';
-const section = ref<Section>('home');
+// Driven by the global menu store
+const menuStore = useMenuStore();
+const { balloonMenuOpen } = storeToRefs(menuStore);
+
+type Section = "home" | "manage";
+const section = ref<Section>("home");
 
 const quotaStore = useQuotaStore();
-const { balloons: balloonsRef, canSendBalloon } = storeToRefs(quotaStore);
-const quota = {
-  get balloons() { return balloonsRef.value; },
-  get canSendBalloon() { return canSendBalloon.value; },
-};
+const { balloons } = storeToRefs(quotaStore);
 
 const myBalloons = ref<Balloon[]>([]);
 const isLoadingMine = ref(false);
 const cancellingId = ref<string | null>(null);
 
-// Countdown ticker — updates the "resets in" label every second
+// Countdown ticker
 const now = ref(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;
-
 function startTicker() {
-  if (timer) return;
-  timer = setInterval(() => { now.value = Date.now(); }, 1000);
+	if (timer) return;
+	timer = setInterval(() => {
+		now.value = Date.now();
+	}, 1000);
 }
 function stopTicker() {
-  if (timer) { clearInterval(timer); timer = null; }
+	if (timer) {
+		clearInterval(timer);
+		timer = null;
+	}
 }
 onUnmounted(stopTicker);
 
 const resetCountdown = computed(() => {
-  const resetMs = new Date(quota.balloons.reset_at).getTime();
-  const diff = Math.max(0, resetMs - now.value);
-  const h = Math.floor(diff / 3_600_000);
-  const m = Math.floor((diff % 3_600_000) / 60_000);
-  if (h > 0) return `${h}h ${m}m`;
-  const s = Math.floor((diff % 60_000) / 1_000);
-  return `${m}m ${s}s`;
+	const resetMs = new Date(balloons.value.reset_at).getTime();
+	const diff = Math.max(0, resetMs - now.value);
+	const h = Math.floor(diff / 3_600_000);
+	const m = Math.floor((diff % 3_600_000) / 60_000);
+	if (h > 0) return `${h}h ${m}m`;
+	const s = Math.floor((diff % 60_000) / 1_000);
+	return `${m}m ${s}s`;
 });
 
-const sectionSubtitle = computed(() => {
-  if (section.value === 'home') return 'Slow ways to meet someone new';
-  return 'In flight — tap cancel to recall';
-});
+const sectionSubtitle = computed(() =>
+	section.value === "home"
+		? "Slow ways to meet someone new"
+		: "In flight — tap cancel to recall",
+);
+
+function relativeTime(iso: string): string {
+	const diff = Date.now() - new Date(iso).getTime();
+	const m = Math.floor(diff / 60_000);
+	if (m < 1) return "just now";
+	if (m < 60) return `${m}m ago`;
+	const h = Math.floor(m / 60);
+	if (h < 24) return `${h}h ago`;
+	return `${Math.floor(h / 24)}d ago`;
+}
 
 async function loadMyBalloons() {
-  isLoadingMine.value = true;
-  try {
-    const { balloons } = await fetchMyBalloons();
-    myBalloons.value = balloons;
-  } catch (e) {
-    console.error('Failed to load balloons:', e);
-  } finally {
-    isLoadingMine.value = false;
-  }
+	isLoadingMine.value = true;
+	try {
+		const { balloons } = await fetchMyBalloons();
+		myBalloons.value = balloons;
+	} catch (e) {
+		console.error("Failed to load balloons:", e);
+	} finally {
+		isLoadingMine.value = false;
+	}
 }
 
 async function onCancel(b: Balloon) {
-  if (cancellingId.value) return;
-  cancellingId.value = b._id;
-  try {
-    await cancelBalloon(b._id);
-    myBalloons.value = myBalloons.value.filter(x => x._id !== b._id);
-  } catch (e) {
-    console.error('Failed to cancel balloon:', e);
-  } finally {
-    cancellingId.value = null;
-  }
+	if (cancellingId.value) return;
+	cancellingId.value = b._id;
+	try {
+		await cancelBalloon(b._id);
+		quotaStore.incrementBalloon();
+		myBalloons.value = myBalloons.value.filter((x) => x._id !== b._id);
+	} catch (e) {
+		console.error("Failed to cancel balloon:", e);
+	} finally {
+		cancellingId.value = null;
+	}
 }
 
+const route = useRoute();
 function onCreateNew() {
-  emit('create');
-  emit('close');
+	close();
+	if (route.path === `/${FRONTEND_ROUTES.draw}`) return;
+	router.push(
+		{
+			path: FRONTEND_ROUTES.draw,
+			query: { type: "balloon" },
+		},
+		masterAnimation,
+	);
 }
 
-function handleDismiss() {
-  emit('close');
+function handlePrimaryAction() {
+	if (quotaStore.canSendBalloon) {
+		onCreateNew();
+	} else if (!quotaStore.isPro) {
+		close();
+		// router.push({ path: FRONTEND_ROUTES.subscribe });
+	}
+}
+
+function close() {
+	stopTicker();
+	menuStore.closeMenu(Menu.BalloonMenu);
 }
 
 function onPresent() {
-  startTicker();
-  section.value = 'home';
-  void quotaStore.refresh();
-  void loadMyBalloons();
+	startTicker();
+	section.value = "home";
+	void loadMyBalloons();
+	// Relying on naive initial load as requested
 }
-
-watch(() => props.isOpen, (open) => {
-  if (!open) stopTicker();
-});
-
-// Note for parent: when emit('create') fires, navigate to the draw page
-// with a flag that pre-selects the balloon toggle in SendHub. Pattern:
-//   router.push({ name: 'draw', query: { share: 'balloon' } });
-// and SendHub reads route.query.share === 'balloon' to set isBalloon=true on mount.
 </script>
 
 <style scoped>

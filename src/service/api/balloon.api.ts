@@ -1,54 +1,14 @@
-import {
+import { request } from "./http";
+import type { PresignedUploadBundle } from "@/draw/shareDrawings";
+import type {
 	Balloon,
-	CreateBalloonPostParams,
 	CreateBalloonPostRes,
-	ENDPOINTS,
+	InboxItem,
+	Mate,
 	Res,
 } from "@/types/server.types";
-import { request } from "@/service/api/http";
 
-export async function createBalloon(
-	params: CreateBalloonPostParams,
-): Promise<Res<CreateBalloonPostRes>> {
-	const imgFile = new File([params.img], "img.webp", { type: "image/webp" });
-
-	const jsonString = JSON.stringify(params.drawing);
-	const stream = new Blob([jsonString])
-		.stream()
-		.pipeThrough(new CompressionStream("gzip"));
-	const compressedBlob = await new Response(stream).blob();
-	const compressedFile = new File([compressedBlob], "drawing.gz", {
-		type: "application/gzip",
-	});
-
-	const data = new FormData();
-	data.append("img", imgFile);
-	data.append("drawing", compressedFile);
-	// data.append("sender", params.sender); <-- REMOVED! The backend handles this securely now.
-	data.append("message", params.message);
-	data.append("aspect_ratio", String(params.aspect_ratio));
-
-	return request<Res<CreateBalloonPostRes>>(`${ENDPOINTS.balloon}`, {
-		method: "POST",
-		body: data,
-	});
-}
-
-export async function getBalloon(params: {
-	balloonId: string;
-}): Promise<Res<Balloon> | null> {
-	try {
-		return await request<Res<Balloon>>(
-			`${ENDPOINTS.balloon}/${params.balloonId}`,
-			{
-				method: "GET",
-			},
-		);
-	} catch (e) {
-		console.error("Failed to fetch balloon:", e);
-		return null;
-	}
-}
+// ─── Create (presigned URL flow) ────────────────────────────────────────
 
 export interface PublishBalloonParams {
 	message: string;
@@ -58,8 +18,8 @@ export interface PublishBalloonParams {
 	aspect_ratio: number;
 }
 
-export async function getBalloonUploadUrls(): Promise<any> {
-	return request<any>(`${ENDPOINTS.balloon}/upload-urls`, {
+export async function getBalloonUploadUrls(): Promise<PresignedUploadBundle> {
+	return await request<PresignedUploadBundle>("/balloon/upload-urls", {
 		method: "POST",
 	});
 }
@@ -67,11 +27,13 @@ export async function getBalloonUploadUrls(): Promise<any> {
 export async function publishBalloon(
 	params: PublishBalloonParams,
 ): Promise<Res<CreateBalloonPostRes>> {
-	return request<Res<CreateBalloonPostRes>>(`${ENDPOINTS.balloon}/`, {
+	return await request<Res<CreateBalloonPostRes>>("/balloon/", {
 		method: "POST",
 		body: JSON.stringify(params),
 	});
 }
+
+// ─── List / Cancel (modal management) ───────────────────────────────────
 
 export async function fetchMyBalloons(): Promise<{ balloons: Balloon[] }> {
 	return await request<{ balloons: Balloon[] }>("/balloon/mine");
@@ -79,8 +41,52 @@ export async function fetchMyBalloons(): Promise<{ balloons: Balloon[] }> {
 
 export async function cancelBalloon(
 	balloonId: string,
-): Promise<{ success: boolean }> {
-	return await request<{ success: boolean }>(`/balloon/${balloonId}/cancel`, {
+): Promise<{ cancelled: true }> {
+	return await request<{ cancelled: true }>(`/balloon/${balloonId}/cancel`, {
+		method: "POST",
+	});
+}
+
+// ─── Accept / Refuse (incoming balloon actions) ─────────────────────────
+
+export interface AcceptBalloonRes {
+	mate: Mate;
+	acceptorId: string;
+	inboxItem: InboxItem;
+}
+
+export async function acceptBalloon(params: {
+	balloonId: string;
+	senderId: string;
+}): Promise<AcceptBalloonRes> {
+	return await request<AcceptBalloonRes>(
+		`/balloon/${params.balloonId}/accept`,
+		{
+			method: "POST",
+			body: JSON.stringify({ sender_id: params.senderId }),
+		},
+	);
+}
+
+export async function refuseBalloon(params: {
+	balloonId: string;
+	senderId: string;
+	disable?: boolean;
+}): Promise<{ refused: true }> {
+	return await request<{ refused: true }>(
+		`/balloon/${params.balloonId}/refuse`,
+		{
+			method: "POST",
+			body: JSON.stringify({
+				sender_id: params.senderId,
+				disable: !!params.disable,
+			}),
+		},
+	);
+}
+
+export async function triageBalloons(): Promise<{ delivered: boolean }> {
+	return await request<{ delivered: boolean }>("/balloon/triage", {
 		method: "POST",
 	});
 }

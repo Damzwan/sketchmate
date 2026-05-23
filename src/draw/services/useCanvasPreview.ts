@@ -1,112 +1,121 @@
-import { StaticCanvas } from 'fabric'
-import { ref } from 'vue'
+import { ref } from "vue";
+import { Canvas } from "fabric"; // Adjust based on your fabric version
 import {
-  canvasToBuffer,
-  cloneCanvas,
-  cropCanvas,
-  exportBoundingBoxImage,
-  exportCroppedJson
-} from '@/draw/helpers/export.helper'
-import { useDrawStore } from '@/draw/store/draw.store'
+	canvasToBuffer,
+	cropCanvas,
+	exportBoundingBoxImage,
+	exportCroppedJson,
+} from "@/draw/helpers/export.helper";
+import { generateChunkedJSON } from "@/draw/helpers/drawload.helper";
 
 export function useCanvasPreview() {
-  const preview = ref<string>()
-  const newPreview = ref<string>()
-  const isLoading = ref<boolean>()
+	const preview = ref<string>();
+	const newPreview = ref<string>();
+	const isLoading = ref<boolean>(false);
 
+	let croppedRect: any;
+	let abortController: AbortController | null = null;
 
-  let croppedRect: any
-  let abortController: AbortController | null = null
+	// Keep a reference to the original instead of cloning it
+	let originalCanvas: Canvas | null = null;
+	let aspect_ratio: number | undefined = undefined;
 
-  let cachedCanvas: StaticCanvas | null = null
-  let aspect_ratio: number | undefined = undefined
+	// Store the chunked JSON here so we don't have to calculate it on send
+	let cachedJson: any = null;
 
-  async function createPreview() {
-    if (abortController) {
-      abortController.abort()
-    }
+	async function createPreview(canvas: Canvas) {
+		if (abortController) {
+			abortController.abort();
+		}
 
-    // 2. Create a new controller for this specific execution
-    abortController = new AbortController()
-    const { signal } = abortController
+		abortController = new AbortController();
+		const { signal } = abortController;
 
-    reset(false)
-    isLoading.value = true
+		reset(false);
+		isLoading.value = true;
+		originalCanvas = canvas;
 
-    const { getCanvas } = useDrawStore()
-    const canvas = getCanvas()
+		try {
+			// 1. Generate the image preview for the UI
+			const res = await exportBoundingBoxImage(canvas, { signal });
+			if (res) {
+				preview.value = res.img as any;
+				aspect_ratio = res?.aspect_ratio;
+			}
 
-    try {
-      // Pass the signal into your helper
-      const res = await exportBoundingBoxImage(canvas, { signal })
+			// 2. Generate the JSON in the background using your chunked yielder!
+			// This happens while the user is looking at the UI, so it's ready when they hit "Send"
+			cachedJson = await generateChunkedJSON(canvas, signal);
+		} catch (err: any) {
+			if (err.name === "AbortError") {
+				console.log("Successfully cancelled preview generation.");
+			} else {
+				console.error("Preview error:", err);
+			}
+		} finally {
+			if (!signal.aborted) {
+				isLoading.value = false;
+			}
+		}
+	}
 
-      // If we got here, the task wasn't aborted
-      if (res) {
-        preview.value = res.img as any
-        aspect_ratio = res?.aspect_ratio
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        console.log('Successfully cancelled preview generation.')
-      } else {
-        console.error('Preview error:', err)
-      }
-    } finally {
-      // Only hide loading if this is still the active controller
-      if (!signal.aborted) {
-        isLoading.value = false
-      }
-    }
+	async function crop(rect: any) {
+		if (!originalCanvas) return;
 
-    // Still need to clone for cropping
-    cachedCanvas = await cloneCanvas(canvas)
-  }
+		if (rect.x === 0 && rect.y === 0 && rect.width === 1 && rect.height === 1) {
+			newPreview.value = undefined;
+			croppedRect = undefined;
+			return;
+		}
 
-  async function crop(rect: any) {
-    if (!cachedCanvas) return
+		croppedRect = rect;
+		isLoading.value = true;
 
-    if (rect.x === 0 && rect.y === 0 && rect.width === 1 && rect.height === 1) {
-      newPreview.value = undefined
-      croppedRect = undefined
-      return
-    }
+		// Pass the original canvas!
+		// Assuming cropCanvas is non-destructive (uses dataURL with viewport/clipping)
+		const result = await cropCanvas(originalCanvas, rect);
+		if (!result) return;
 
-    croppedRect = rect
-    isLoading.value = true
-    const result = await cropCanvas(cachedCanvas, rect)
-    if (!result) return
-    newPreview.value = result.img
-    aspect_ratio = result.aspect_ratio
-    isLoading.value = false
-  }
+		newPreview.value = result.img;
+		aspect_ratio = result.aspect_ratio;
+		isLoading.value = false;
+	}
 
-  function reset(handleAbort = true) {
-    if (abortController && handleAbort) abortController.abort()
-    preview.value = undefined
-    newPreview.value = undefined
-    cachedCanvas = null
-    croppedRect = undefined
-  }
+	function reset(handleAbort = true) {
+		if (abortController && handleAbort) abortController.abort();
+		preview.value = undefined;
+		newPreview.value = undefined;
+		originalCanvas = null;
+		croppedRect = undefined;
+		cachedJson = null;
+	}
 
-  async function getDataToSend() {
+	async function getDataToSend() {
+		if (!originalCanvas || !preview.value) {
+			throw new Error("Canvas or preview not ready");
+		}
 
-    if (croppedRect && cachedCanvas && newPreview.value) {
-      const [img, croppedCanvasJSON] = await Promise.all([canvasToBuffer(newPreview.value), exportCroppedJson(cachedCanvas, croppedRect)])
-      return { canvas: croppedCanvasJSON, img, aspect_ratio }
-    } else if (cachedCanvas && preview.value) {
-      const img = await canvasToBuffer(preview.value)
-      return { canvas: cachedCanvas.toJSON(), img, aspect_ratio }
-    } else {
-      const img = await canvasToBuffer(preview.value!)
-      const { getCanvas } = useDrawStore()
+		if (croppedRect && newPreview.value) {
+			const [img, croppedCanvasJSON] = await Promise.all([
+				canvasToBuffer(newPreview.value),
+				exportCroppedJson(originalCanvas, croppedRect),
+			]);
+			return { canvas: croppedCanvasJSON, img, aspect_ratio };
+		}
 
-      return {
-        canvas: getCanvas().toJSON(), img: img, aspect_ratio
-      }
-    }
+		const img = await canvasToBuffer(preview.value);
+		const finalJson = cachedJson || (await generateChunkedJSON(originalCanvas));
 
+		return { canvas: finalJson, img, aspect_ratio };
+	}
 
-  }
-
-  return { preview, newPreview, createPreview, crop, reset, getDataToSend, isLoading }
+	return {
+		preview,
+		newPreview,
+		createPreview,
+		crop,
+		reset,
+		getDataToSend,
+		isLoading,
+	};
 }

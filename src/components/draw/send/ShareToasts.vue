@@ -1,6 +1,6 @@
 <!-- components/ShareToasts.vue -->
 <template>
-  <div class="fixed top-safe mt-32 right-4 z-[100] flex flex-col gap-2 w-64 pointer-events-none">
+  <div class="fixed top-safe mt-20 right-4 z-[100] flex flex-col gap-2 w-64 pointer-events-none">
     <TransitionGroup name="share-toast">
       <div
         v-for="toast in toasts"
@@ -69,13 +69,15 @@ import { svg } from "@/helper/general.helper";
 
 import balloonLottie from "@/assets/lottie/balloon.json";
 import {
-  ShareToast,
-  ShareToastKind,
-  useShareToastStore,
+	ShareToast,
+	ShareToastKind,
+	useShareToastStore,
 } from "@/draw/store/useShareToastStore.store";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
-import Lottie from '@/components/general/Lottie.vue'
+import Lottie from "@/components/general/Lottie.vue";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
 
 const shareToastStore = useShareToastStore();
 const { toasts } = storeToRefs(shareToastStore);
@@ -84,39 +86,50 @@ const inboxSwiper = useInboxSwiper();
 const postSwiper = usePostSwiper();
 
 const borderColor = (kind: ShareToastKind) => {
-  switch (kind) {
-    case "drawing": return "bg-secondary";
-    case "post":    return "bg-cyan-400";
-    case "balloon": return "bg-amber-400 animate-pulse";
-  }
+	switch (kind) {
+		case "drawing":
+			return "bg-secondary";
+		case "post":
+			return "bg-cyan-400";
+		case "balloon":
+			return "bg-amber-400 animate-pulse";
+	}
 };
 
 const kindLabel = (kind: ShareToastKind) => {
-  switch (kind) {
-    case "drawing": return "Direct";
-    case "post":    return "Community";
-    case "balloon": return "Balloon";
-  }
+	switch (kind) {
+		case "drawing":
+			return "Direct";
+		case "post":
+			return "Community";
+		case "balloon":
+			return "Balloon";
+	}
 };
 
 const onTap = (toast: ShareToast) => {
-  shareToastStore.dismiss(toast.id);
+	shareToastStore.dismiss(toast.id);
 
-  if (toast.kind === "drawing" && toast.inboxItem) {
-    inboxSwiper.openInboxSwiper([toast.inboxItem], 0);
-    return;
-  }
+	if (toast.kind === "drawing" && toast.inboxId) {
+		const item = shareToastStore.getInboxItem(toast.inboxId);
+		if (item) {
+			inboxSwiper.openInboxSwiper([item], 0);
+		}
+		return;
+	}
 
-  if (toast.kind === "post" && toast.post) {
-    postSwiper.openPostSwiper([toast.post], 0);
-    return;
-  }
+	if (toast.kind === "post" && toast.postId) {
+		const post = shareToastStore.getPost(toast.postId);
+		if (post) {
+			postSwiper.openPostSwiper([post], 0);
+		}
+		return;
+	}
 
-  if (toast.kind === "balloon") {
-    // TODO: open balloon management platform
-    console.log("Open balloon management platform");
-    return;
-  }
+	if (toast.kind === "balloon") {
+		useMenuStore().openMenu(Menu.BalloonMenu);
+		return;
+	}
 };
 </script>
 

@@ -2,6 +2,7 @@ import {
 	ENDPOINTS,
 	GetInboxRes,
 	InboxItem,
+	Mate,
 	RemoveFromInboxParams,
 	Res,
 	SeeInboxParams,
@@ -31,6 +32,26 @@ export async function getInbox(params: any): Promise<GetInboxRes> {
 	return request<GetInboxRes>(`/inbox?${queryString}`, {
 		method: "GET",
 	});
+}
+
+export async function getSingleInboxItem(
+	inboxId: string,
+): Promise<{ inboxItem: InboxItem; userInfo: Mate[] }> {
+	return request<{ inboxItem: InboxItem; userInfo: Mate[] }>(
+		`${ENDPOINTS.inbox}/item/${inboxId}`,
+		{
+			method: "GET",
+		},
+	);
+}
+
+export async function syncInboxItems(sinceDate: string): Promise<GetInboxRes> {
+	return request<GetInboxRes>(
+		`${ENDPOINTS.inbox}/sync?sinceDate=${sinceDate}`,
+		{
+			method: "GET",
+		},
+	);
 }
 
 export async function removeFromInbox(

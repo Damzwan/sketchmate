@@ -9,39 +9,64 @@
       <!-- Post Header -->
       <div class="px-4 pb-3 shrink-0">
         <div class="flex items-center justify-between">
-          <button @click="openUser(post.author._id)" class="flex items-center active:scale-95 transition-transform text-left">
-            <div class="w-10 h-10 rounded-2xl bg-white/40 backdrop-blur-xl border border-black/10 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
-              <img v-if="post.author.img" :src="post.author.img" class="w-full h-full object-cover" />
-              <span v-else class="text-black font-bold">{{ post.author.name.charAt(0) }}</span>
+          <button @click="openUser(post.author._id)" class="flex items-center active:scale-95 transition-transform text-left min-w-0">
+
+            <!-- Standardized UserAvatar (Static for feed performance) -->
+            <div class="flex items-center justify-center shrink-0 m-1">
+              <UserAvatar
+                :user="post.author"
+                :customization="authorCustomization"
+                size="sm"
+                static
+              />
             </div>
-            <div class="ml-3 flex flex-col justify-center">
-              <p class="text-[15px] leading-none font-bold text-black drop-shadow-sm">{{ post.author.name }}</p>
-              <p class="text-[10px] text-black/50 font-bold uppercase mt-0.5 tracking-wider">{{ dayjs(post.createdAt).fromNow() }}</p>
+
+            <div class="ml-3 flex flex-col justify-center min-w-0">
+              <div class="flex items-baseline gap-1.5 truncate">
+                <p
+                  class="ml-1 text-[15px] leading-none font-black drop-shadow-sm transition-colors truncate"
+                  :class="fontEffectClass"
+                  :style="{ color: theme.nameColor, fontFamily: resolvedFontFamily }"
+                >
+                  {{ post.author.name }}
+                </p>
+                <span
+                  v-if="displayTitle"
+                  class="text-[10px] font-black uppercase tracking-widest opacity-70 shrink-0 truncate"
+                  :style="{ color: theme.descColor }"
+                >
+                  - {{ displayTitle }}
+                </span>
+              </div>
+              <p class="text-[10px] text-black/50 font-bold uppercase mt-0.5 tracking-wider">
+                {{ dayjs(post.createdAt).fromNow() }}
+              </p>
             </div>
           </button>
-          <button @click="presentActionSheet" class="p-2 active:scale-90 transition-transform">
+
+          <button @click="presentActionSheet" class="p-2 active:scale-90 transition-transform shrink-0">
             <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-2xl text-black/50" />
           </button>
         </div>
 
-        <p v-if="post.description" class="cabin-sketch-regular text-lg line-clamp-1">
+        <p v-if="post.description" class="cabin-sketch-regular text-lg line-clamp-1 mt-1">
           {{ post.description }}
         </p>
       </div>
 
-      <!-- Canvas Area: Removed rigid aspect-ratio in favor of container-based scaling -->
+      <!-- Canvas Area -->
       <div
         class="relative w-full flex items-center justify-center overflow-hidden"
         :style="{ backgroundColor: 'var(--ion-color-tertiary)' }"
         @dblclick="handleDoubleTap"
       >
-        <!-- Background Blur (fills the space) -->
+        <!-- Background Blur -->
         <img :src="post.image_url" class="absolute inset-0 w-full h-full object-cover scale-110 blur-3xl opacity-40" />
 
         <!-- Vignette -->
         <div class="absolute inset-0 z-[5] pointer-events-none vignette-mask" />
 
-        <!-- Main Image: object-contain ensures the WHOLE image is visible -->
+        <!-- Main Image -->
         <img
           :src="post.image_url"
           class="relative z-10 w-full h-full object-contain transition-opacity duration-500"
@@ -49,6 +74,28 @@
           @load="imageLoaded = true"
           :style="{ maxHeight: '60vh' }"
         />
+
+        <!-- NEW: The Artist's Signature Overlay -->
+        <div
+          v-if="authorCustomization.signaturePath"
+          class="absolute bottom-0 right-0 z-20 pointer-events-none opacity-90 drop-shadow-md transition-opacity duration-500"
+          :class="imageLoaded ? 'opacity-90' : 'opacity-0'"
+        >
+          <svg
+            class="w-26 h-26"
+            :viewBox="authorCustomization.signatureViewBox || '0 0 300 150'"
+            preserveAspectRatio="xMidYMid meet"
+          >
+            <path
+              :d="authorCustomization.signaturePath"
+              fill="none"
+              :stroke="theme.accentColor"
+              :stroke-width="signatureStrokeWidth"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
 
         <!-- Reaction Animation -->
         <div v-if="activeAnim" class="absolute inset-0 z-50 flex items-center justify-center pointer-events-none" >
@@ -62,7 +109,7 @@
           <button @click="(e) => $emit('open-reaction-popover', { event: e, post })" class="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform">
             <img :src="post.user_reaction ? reactionImages[post.user_reaction] : reactionImages.heart" class="w-7 h-7 drop-shadow-sm object-contain" :class="{ 'grayscale opacity-50': !post.user_reaction }" />
           </button>
-          <button @click="$emit('open-comments', post)" class="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform text-black/70 hover:text-black">
+          <button @click="$emit('open-comments', post)" class="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform text-black/70 hover:text-black" v-if="post.enable_comments">
             <ion-icon :icon="svg(mdiChatOutline)" class="text-[28px]" />
           </button>
           <button @click="openShare" class="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform text-black/70 hover:text-black">
@@ -70,10 +117,7 @@
           </button>
         </div>
         <div class="flex items-center gap-2">
-<!--          <button @click="toggleBookmark" class="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform text-black/70 hover:text-black">-->
-<!--            <ion-icon :icon="svg(isBookmarked ? mdiBookmark : mdiBookmarkOutline)" class="text-[28px]" :class="{ 'text-secondary': isBookmarked }" />-->
-<!--          </button>-->
-          <button @click="remixPost" class="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform text-black/70 hover:text-black">
+          <button @click="remixPost" class="w-9 h-9 flex items-center justify-center active:scale-90 transition-transform text-black/70 hover:text-black" v-if="post.enable_remix">
             <ion-icon :icon="svg(mdiPencilOutline)" class="text-[26px]" />
           </button>
         </div>
@@ -103,21 +147,17 @@
 </template>
 
 <script setup lang="ts">
-// (Imports and Logic remain exactly the same as your original provided code)
-import { ref, computed, watch } from "vue";
-import { IonIcon, actionSheetController, alertController } from "@ionic/vue";
+import { computed, ref, watch } from "vue";
+import { actionSheetController, alertController, IonIcon } from "@ionic/vue";
 import {
-	mdiDotsHorizontal,
 	mdiChatOutline,
-	mdiSendOutline,
-	mdiPencilOutline,
-	mdiFlagVariantOutline,
 	mdiDeleteOutline,
-	mdiBookmarkOutline,
-	mdiBookmark,
+	mdiDotsHorizontal,
+	mdiFlagVariantOutline,
+	mdiPencilOutline,
+	mdiSendOutline,
 } from "@mdi/js";
 import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { svg } from "@/helper/general.helper";
 import { FeedPost } from "@/types/server.types";
 import { reactionImages } from "@/config/post.config";
@@ -130,31 +170,63 @@ import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { Menu } from "@/draw/types/draw.types";
 import { useModerationStore } from "@/store/moderation.store";
 
-dayjs.extend(relativeTime);
+// NEW: Customization Imports
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import {
+	hydrateCustomization,
+	resolveTheme,
+	resolveFontFamily,
+	resolveFontEffectClass,
+	resolveTitle,
+	calculateSignatureStroke,
+} from "@/config/profile_options.config";
+
 const props = defineProps<{ post: FeedPost; isMine: boolean }>();
 const emit = defineEmits([
 	"open-comments",
 	"open-reaction-popover",
 	"delete-post",
 ]);
+
 const { openUserActions } = useUserContextSheet();
 const menuStore = useMenuStore();
 const postStore = usePostStore();
 const { toast } = useToast();
+
 const imageLoaded = ref(false);
 const isBookmarked = ref(false);
 const activeAnim = ref<string | null>(null);
+
+const authorCustomization = computed(() =>
+	hydrateCustomization(props.post.author?.customization),
+);
+const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
+const resolvedFontFamily = computed(() =>
+	resolveFontFamily(authorCustomization.value.fontId),
+);
+const fontEffectClass = computed(() =>
+	resolveFontEffectClass(authorCustomization.value.fontEffectId),
+);
+const displayTitle = computed(() =>
+	resolveTitle(authorCustomization.value.titleId),
+);
+const signatureStrokeWidth = computed(() =>
+	calculateSignatureStroke(authorCustomization.value.signatureViewBox),
+);
+
 const activeReactions = computed(() =>
 	Object.keys(props.post.reaction_counts || {}).filter(
 		(key) => props.post.reaction_counts[key] > 0,
 	),
 );
+
 const totalReactionCount = computed(() =>
 	Object.values(props.post.reaction_counts || {}).reduce(
 		(sum, count) => sum + count,
 		0,
 	),
 );
+
 watch(
 	() => props.post.user_reaction,
 	(newVal, oldVal) => {
@@ -166,15 +238,19 @@ watch(
 		}
 	},
 );
+
 const openUser = (userId: string) => openUserActions({ _id: userId });
+
 const openShare = () => {
 	postStore.setActiveSharePost(props.post);
 	menuStore.openMenu(Menu.SharePostMenu);
 };
+
 const toggleBookmark = () => {
 	isBookmarked.value = !isBookmarked.value;
 	toast(isBookmarked.value ? "Saved to bookmarks" : "Removed from bookmarks");
 };
+
 const remixPost = async () => {
 	const alert = await alertController.create({
 		header: "Start New Session?",
@@ -200,10 +276,12 @@ const remixPost = async () => {
 	});
 	await alert.present();
 };
+
 const handleDoubleTap = (e: MouseEvent | TouchEvent) => {
 	e.preventDefault();
 	emit("open-reaction-popover", { event: e, post: props.post });
 };
+
 const presentActionSheet = async () => {
 	const buttons: any[] = [
 		{

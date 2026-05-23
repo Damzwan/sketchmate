@@ -18,31 +18,34 @@
     ]"
   >
     <!-- Avatar Section -->
-    <div class="relative w-12 h-12 rounded-xl flex-shrink-0">
-      <img
-        v-if="partner?.img"
-        :src="partner.img"
-        class="w-full h-full rounded-xl object-cover shadow-sm border border-white/40"
+    <div class="relative flex-shrink-0 flex items-center justify-center">
+      <UserAvatar
+        v-if="partner"
+        :user="partner"
+        static
+        :customization="partner.customization"
+        size="sm"
         :class="{
           'grayscale opacity-50': isUserBlocked,
           'grayscale-[0.4] opacity-80': !isUserBlocked && isPending,
           'grayscale-[0.6] contrast-[0.9]': !isUserBlocked && isExpired
         }"
       />
-      <span v-else class="flex items-center justify-center w-full h-full bg-secondary/10 text-lg font-bold text-secondary rounded-xl">
+      <!-- Fallback also changed to rounded-full and w-12 h-12 to match -->
+      <span v-else class="flex items-center justify-center w-12 h-12 bg-secondary/10 text-lg font-bold text-secondary rounded-full border-2 border-white">
         {{ partner?.name?.charAt(0) || '?' }}
       </span>
 
-      <!-- Status Indicators (Hidden if blocked) -->
+      <!-- Status Indicators (Position adjusted slightly to sit flush on a circle) -->
       <div
         v-if="isOnline && !isRelationshipInactive && !isUserBlocked && !isLiveInvite"
-        class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-400 border-2 border-white rounded-full z-10"
+        class="absolute -bottom-0.5 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-white rounded-full z-20"
       ></div>
 
-      <!-- Live Badge (Takes top visual precedence over online status) -->
+      <!-- Live Badge -->
       <div
         v-if="isLiveInvite"
-        class="absolute -bottom-1 -right-1 w-5 h-5 bg-secondary border-2 border-white rounded-full z-10 flex items-center justify-center shadow-md animate-pulse"
+        class="absolute -bottom-1 -right-1 w-5 h-5 bg-secondary border-2 border-white rounded-full z-20 flex items-center justify-center shadow-md animate-pulse"
       >
         <div class="w-2 h-2 bg-white rounded-full"></div>
       </div>
@@ -50,7 +53,7 @@
       <!-- Blocked Badge -->
       <div
         v-else-if="isUserBlocked"
-        class="absolute -bottom-1 -right-1 w-5 h-5 bg-zinc-600 border-2 border-white rounded-full z-10 flex items-center justify-center shadow-sm"
+        class="absolute -bottom-0.5 right-0 w-5 h-5 bg-zinc-600 border-2 border-white rounded-full z-20 flex items-center justify-center shadow-sm"
       >
         <ion-icon :icon="svg(mdiAccountOff)" class="text-[10px] text-white" />
       </div>
@@ -58,7 +61,7 @@
       <!-- Trash Badge for Expired -->
       <div
         v-else-if="isExpired"
-        class="absolute -bottom-1 -right-1 w-5 h-5 bg-zinc-400 border-2 border-white rounded-full z-10 flex items-center justify-center shadow-sm"
+        class="absolute -bottom-0.5 right-0 w-5 h-5 bg-zinc-400 border-2 border-white rounded-full z-20 flex items-center justify-center shadow-sm"
       >
         <ion-icon :icon="svg(mdiTrashCanOutline)" class="text-[10px] text-white" />
       </div>
@@ -66,7 +69,7 @@
       <!-- Heart badge for Mate Proposals -->
       <div
         v-else-if="isMatePending"
-        class="absolute -bottom-1 -right-1 w-5 h-5 bg-secondary border-2 border-white rounded-full z-10 flex items-center justify-center shadow-sm"
+        class="absolute -bottom-0.5 right-0 w-5 h-5 bg-secondary border-2 border-white rounded-full z-20 flex items-center justify-center shadow-sm"
       >
         <ion-icon :icon="svg(mdiHeart)" class="text-[10px] text-white" />
       </div>
@@ -157,6 +160,7 @@ import {
 import { svg } from "@/helper/general.helper";
 import { PopulatedConversation } from "@/types/server.types";
 import { useFriendStore } from "@/store/friend.store";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
 const props = defineProps<{
 	chat: PopulatedConversation;
@@ -174,13 +178,26 @@ const partner = computed(() =>
 );
 
 const lastMessage = computed(() => {
-	let message = "Started a conversation";
-	if (props.chat.last_message?.content) {
-		message = props.chat.last_message.content;
-	} else if (props.chat.last_message?.shared_post_id) {
-		message = "Shared a post";
+	const msg = props.chat.last_message;
+
+	if (!msg) return "Started a conversation";
+
+	if (msg.type === "system") {
+		if (msg.system_kind === "balloon_match") {
+			return `${partner.value?.name || "Someone"} caught a balloon 🎈`;
+		}
+		return "New activity";
 	}
-	return message;
+
+	if (msg.content) {
+		return msg.content;
+	}
+
+	if (msg.shared_post_id) {
+		return "Shared a post";
+	}
+
+	return "Sent a sketch";
 });
 
 // Blocked Logic using the function from friendStore

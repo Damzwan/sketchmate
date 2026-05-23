@@ -9,12 +9,12 @@ import {
 	QuadtreeEntry,
 } from "@/draw/utils/QuadTree";
 import { useGestureStore } from "@/draw/store/tools/gesture.store";
-import { useAuthStore } from "@/store/auth.store";
 import { isMobile } from "@/helper/general.helper";
 import { TileCache, WorldRect } from "@/draw/tilecache";
 import { createYielder } from "@/draw/helpers/yielding.helper";
 import { isolatedTileRenderer } from "@/draw/helpers/drawTileRenderer.helper";
 import { useFriendStore } from "@/store/friend.store";
+import { rerenderActiveObjectControls } from "@/draw/helpers/render.helper";
 
 const IS_MOBILE = isMobile();
 const HW_CONCURRENCY = (navigator as any).hardwareConcurrency || 4;
@@ -381,7 +381,15 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				const transform = e.transform;
 
 				const collectOldRect = (o: FabricObject) => {
-					if (!transform?.original) return null;
+					// Look for the custom payload from the modal, fallback to Fabric's internal property
+					const oldText = (o as any)._textBeforeEdit;
+					const isTextChanged =
+						oldText !== undefined && oldText !== (o as any).text;
+
+					// If neither a transform nor a text change happened, we have no "old" rect to measure
+					if (!transform?.original && !isTextChanged) return null;
+
+					// Save the current state, including text
 					const cur = {
 						left: o.left,
 						top: o.top,
@@ -394,11 +402,25 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 						flipY: o.flipY,
 						originX: o.originX,
 						originY: o.originY,
+						text: (o as any).text,
 					};
+
 					try {
-						o.set(transform.original);
+						// 1. Revert to original transform (if applicable)
+						if (transform?.original) {
+							o.set(transform.original);
+						}
+
+						// 2. Revert to original text (if applicable)
+						if (isTextChanged && oldText.length > (o as any).text.length) {
+							o.set({ text: oldText });
+						}
+
+						// 3. Measure the 'before' bounding box
 						o.setCoords();
 						const b = objectBounds(o);
+
+						// 4. Restore the current state
 						o.set(cur);
 						o.setCoords();
 						return b;
@@ -409,23 +431,11 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 					}
 				};
 
-				if (obj.type === ObjectType.selection) {
-					const actives = c!.getActiveObjects();
-					for (const o of actives) {
-						const old = collectOldRect(o);
-						updateQuadTree(o);
-						if (!isLoading()) {
-							if (old) scheduleRectPatch(old);
-							scheduleObjectPatch(o);
-						}
-					}
-				} else {
-					const old = collectOldRect(obj);
-					updateQuadTree(obj);
-					if (!isLoading()) {
-						if (old) scheduleRectPatch(old);
-						scheduleObjectPatch(obj);
-					}
+				const old = collectOldRect(obj);
+				updateQuadTree(obj);
+				if (!isLoading()) {
+					if (old) scheduleRectPatch(old);
+					scheduleObjectPatch(obj);
 				}
 			},
 		},
@@ -518,6 +528,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		} else if (report.tilesMissing > 0 || report.tilesFallback > 0) {
 			scheduleBake();
 		}
+		rerenderActiveObjectControls(c);
 	}
 
 	function renderViewport(forceBake = false) {

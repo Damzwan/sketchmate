@@ -70,24 +70,28 @@
             <div
               v-for="member in roomMembers"
               :key="member._id"
-              class="flex flex-col items-center gap-2 snap-start min-w-[70px] active:scale-95 transition-transform"
+              class="flex flex-col items-center gap-2 snap-start min-w-[70px] active:scale-95 transition-transform cursor-pointer py-1"
               @click="openUserActions(member)"
             >
-              <div class="relative p-0.5">
-                <!-- Using a white border and shadow to make the avatars pop against the primary/30 background -->
-                <ion-avatar class="w-14 h-14 border-2 border-white shadow-sm overflow-hidden">
-                  <img :src="member.img" class="object-cover w-full h-full" />
-                </ion-avatar>
 
-                <!-- Optional: Add an online indicator if you want to reuse your isFriendOnline logic -->
+              <div class="relative flex items-center justify-center p-1">
+                <UserAvatar
+                  :user="member"
+                  :customization="member.customization"
+                  size="sm"
+                  static
+                />
+
+                <!-- Online indicator adjusted for perfect circle -->
                 <div v-if="member._id !== user?._id"
-                     class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-white rounded-full shadow-sm">
+                     class="absolute bottom-0.5 right-1 w-3.5 h-3.5 bg-green-400 border-2 border-white rounded-full shadow-sm z-20">
                 </div>
               </div>
 
-              <span class="text-[13px] font-bold text-center truncate w-20 leading-none">
-        {{ member._id === user?._id ? 'You' : member.name.split(' ')[0] }}
-      </span>
+              <span class="text-[13px] font-bold text-center truncate w-20 leading-none transition-colors"
+                    :class="member._id === user?._id ? 'text-secondary' : 'text-heading'">
+                {{ member._id === user?._id ? 'You' : member.name.split(' ')[0] }}
+              </span>
             </div>
           </div>
         </section>
@@ -218,6 +222,7 @@ import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useToast } from "@/service/toast.service";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
 const drawSyncerStore = useDrawSyncer();
 const {

@@ -21,25 +21,47 @@
         @open="chatWidget.openLobby()"
       />
 
-      <!-- ONLINE MATES (Top Priority Visibility) -->
       <div v-if="onlineMates.length > 0" class="pt-2">
-        <div class="px-2 mb-3 text-[10px] font-black text-black/40 uppercase tracking-widest">Online Now</div>
+        <div class="px-2 mb-3 text-[10px] font-black text-black/40 uppercase">Online Now</div>
         <div class="flex overflow-x-auto hide-scrollbar gap-4 px-2 mb-6">
           <div v-for="friend in onlineMates" :key="friend._id" @click="startChatWithFriend(friend)"
-               class="flex flex-col items-center gap-1.5 shrink-0 w-14 cursor-pointer">
-            <div class="relative w-14 h-14 rounded-2xl transition-transform active:scale-90 shadow-sm">
-              <img :src="friend.img" class="w-full h-full object-cover rounded-2xl border-2 border-white" />
-              <div class="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-400 rounded-full border-2 border-white shadow-sm"></div>
+               class="flex flex-col items-center shrink-0 w-14 cursor-pointer">
+
+            <div class="relative flex items-center justify-center transition-transform active:scale-90">
+              <UserAvatar
+                static
+                :user="friend"
+                :customization="friend.customization"
+                size="sm"
+                class="my-2"
+              />
+
+              <div class="absolute -bottom-0.5 right-0 w-3.5 h-3.5 bg-green-400 rounded-full border-2 border-white z-20"></div>
             </div>
-            <span class="text-[9px] font-black text-black/80 truncate w-full text-center uppercase tracking-tighter">
-              {{ friend.name.split(' ')[0] }}
-            </span>
+
+            <span class="text-[9px] font-black text-black/80 truncate w-full text-center uppercase tracking-tighter mt-1.5">
+        {{ friend.name.split(' ')[0] }}
+      </span>
           </div>
         </div>
       </div>
 
-      <div class="px-2 mb-4 text-2xl font-normal cabin-sketch-regular text-black">
-        Conversations
+      <div class="px-2 mb-4 flex items-center justify-between">
+        <span class="text-2xl font-normal cabin-sketch-regular text-black">
+          Conversations
+        </span>
+
+        <div
+          v-if="quotaStore.mates.limit > 0"
+          class="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-colors active:scale-95 cursor-pointer"
+          :class="!quotaStore.canAddMate && !quotaStore.isPro ? 'bg-amber-400/20 border border-amber-400/40' : 'bg-black/5'"
+          @click="handleQuotaPillClick"
+        >
+          <ion-icon :icon="svg(mdiHeart)" class="text-[10px]" :class="!quotaStore.canAddMate && !quotaStore.isPro ? 'text-amber-600' : 'text-black/40'" />
+          <span class="text-[10px] font-black uppercase tracking-widest" :class="!quotaStore.canAddMate && !quotaStore.isPro ? 'text-amber-700' : 'text-black/50'">
+            {{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }}
+          </span>
+        </div>
       </div>
 
       <div class="space-y-2 px-2">
@@ -108,7 +130,7 @@
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { IonFab, IonFabButton, IonIcon } from "@ionic/vue";
-import { mdiChatPlusOutline } from "@mdi/js";
+import { mdiChatPlusOutline, mdiHeart } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 
 import LobbyConversationItem from "./LobbyConversationItem.vue";
@@ -121,6 +143,8 @@ import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { MIN_CHAT_VERSION } from "@/config/general.config";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useQuotaStore } from "@/store/quota.store";
 
 defineEmits(["join-session"]);
 
@@ -128,6 +152,7 @@ const chatWidget = useChatWidgetStore();
 const chatStore = useChatStore();
 const friendStore = useFriendStore();
 const drawSyncer = useDrawSyncer();
+const quotaStore = useQuotaStore();
 
 const { activeChats, typingStatuses } = storeToRefs(chatStore);
 const { user } = storeToRefs(useAuthStore());

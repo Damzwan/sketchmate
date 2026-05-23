@@ -18,6 +18,20 @@ const MIN_ZOOM = 0.2;
 let dynamicMinZoom = MIN_ZOOM;
 let visibilityTimeout: any = null;
 
+// --- VIEWPORT SCHEDULER ---
+let viewportFrameScheduled = false;
+
+function scheduleViewportUpdate(c: Canvas, postRenderCallback?: () => void) {
+	if (viewportFrameScheduled) return;
+	viewportFrameScheduled = true;
+	requestAnimationFrame(() => {
+		viewportFrameScheduled = false;
+		syncVisuals(c);
+		if (postRenderCallback) postRenderCallback();
+	});
+}
+// --------------------------
+
 function getMinZoomToFitAll(canvas: fabric.Canvas, padding = 0.9) {
 	const objects = canvas.getObjects();
 	if (objects.length === 0) return 0.5;
@@ -96,9 +110,11 @@ export function enablePCGestures(c: Canvas) {
 					Math.min(c.getZoom() * rawZoomFactor, gestureStore.maxZoom),
 				);
 
+				// Logical update is instant
 				c.zoomToPoint(new Point(e.offsetX, e.offsetY), newZoom);
-				syncVisuals(c);
-				c.fire("zoomChanged");
+
+				// Visual paint & event dispatch are throttled
+				scheduleViewportUpdate(c, () => c.fire("zoomChanged"));
 
 				clearTimeout(pcWheelTimeout);
 				pcWheelTimeout = setTimeout(() => {
@@ -136,11 +152,14 @@ export function enablePCGestures(c: Canvas) {
 				const dy = e.pageY - lastPanPoint.y;
 				lastPanPoint = { x: e.pageX, y: e.pageY };
 
+				// Logical matrix update is instant
 				const vpt = c.viewportTransform!;
 				vpt[4] += dx;
 				vpt[5] += dy;
 				c.setViewportTransform(vpt);
-				syncVisuals(c);
+
+				// Visual paint is throttled
+				scheduleViewportUpdate(c);
 			},
 		},
 		{
@@ -175,7 +194,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 	const { onGestureStart } = useDrawObjectManager();
 	const gestureStore = useGestureStore();
 
-	// Simplified, non-reactive state
 	let isActiveObjectGesture = false;
 	let gestureTarget: FabricObject | null = null;
 	let gestureOriginalState: any = null;
@@ -202,8 +220,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 	}
 
 	gestureDetector(upperCanvasEl, {
-		// Inside enableMobileGestures -> gestureDetector
-
 		onGestureStart: () => {
 			isCanvasZooming = false;
 			isObjectScaling = false;
@@ -238,7 +254,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
 					transform.markMoved();
 
-					// Start the tile cache overlay since we are transforming
 					if (!transform.isActive()) {
 						transform.begin(c, obj);
 					}
@@ -246,7 +261,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 				}
 			}
 
-			// Viewport gesture path
 			c.selection = false;
 			c.skipTargetFind = true;
 			c.isDrawingMode = false;
@@ -263,11 +277,15 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
 		onDrag: (dx, dy) => {
 			if (isActiveObjectGesture) return;
+
+			// Logical matrix update is instant
 			const vpt = c.viewportTransform!;
 			vpt[4] += dx * 2;
 			vpt[5] += dy * 2;
 			c.setViewportTransform(vpt);
-			syncVisuals(c);
+
+			// Visual paint is throttled
+			scheduleViewportUpdate(c);
 		},
 
 		onZoom: (scale, previousScale, center) => {
@@ -295,8 +313,11 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 				Math.min(c.getZoom() * rawZoomFactor, gestureStore.maxZoom),
 			);
 
+			// Logical update is instant
 			c.zoomToPoint(new Point(center.x, center.y), newZoom);
-			syncVisuals(c);
+
+			// Visual paint is throttled
+			scheduleViewportUpdate(c);
 		},
 
 		onRotate: (delta) => {
@@ -311,7 +332,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 			isObjectScaling = false;
 
 			if (isActiveObjectGesture) {
-				// Cache variables to prevent race conditions during teardown
 				const target = gestureTarget;
 				const originalState = gestureOriginalState;
 
@@ -327,10 +347,8 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
 				const moved = transform.moveHappened();
 
-				// SYNCHRONOUS call to end the transform. Objects will never disappear.
 				transform.end(c);
 
-				// Always trigger object:modified cleanly from one place if changes happened
 				if (moved || totalObjectAngleDelta !== 0 || isObjectScaling) {
 					c.fire("object:modified", {
 						target: target,

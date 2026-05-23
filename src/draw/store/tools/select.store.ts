@@ -184,21 +184,6 @@ export const useSelect = defineStore("select", (): Select => {
 			},
 		},
 		{
-			on: "text:editing:entered",
-			handler: () => {
-				isEditingText.value = true;
-				if (isNative() && isText(selectedObjects)) {
-					const text = selectedObjects[0] as IText;
-					const p = new fabric.Point(text.left, text.top);
-					const screenPoint = fabric.util.transformPoint(
-						p,
-						c!.viewportTransform,
-					);
-					isBottomHalf.value = screenPoint.y > window.innerHeight / 2;
-				}
-			},
-		},
-		{
 			on: "gestureStart",
 			handler: () => {
 				isUsingGestures = true;
@@ -224,20 +209,10 @@ export const useSelect = defineStore("select", (): Select => {
 	}
 
 	function unSelect() {
-		if (isText(selectedObjectsRef.value) && isEditingText.value) {
-			const text = selectedObjects[0] as IText;
-			text.exitEditing();
-			isEditingText.value = false;
-			c!.setActiveObject(text);
-			c!.clearContext(c!.getTopContext());
-			text._renderControls(c!.getTopContext());
-			return;
-		}
 		if (c!.getActiveObject()) {
 			c!.discardActiveObject();
 			c!.clearContext(c!.contextTop);
 		}
-
 		isSelectActive.value = false;
 		selectedObjects = [];
 		selectedObjectsRef.value = [];
@@ -270,12 +245,6 @@ export const useSelect = defineStore("select", (): Select => {
 			handleMultiSelect(pointer);
 			return;
 		}
-
-		if (isText(selectedObjects) && !isEditingText.value) {
-			(selectedObjects[0] as IText).enterEditing();
-			return;
-		}
-
 		cycleSelection(pointer);
 	}
 

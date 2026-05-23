@@ -6,19 +6,27 @@
           {{ title }}
         </p>
 
-        <ion-button
-          fill="outline"
-          class="sketch-button-rounded h-9 m-0"
-          @click="openProMenu"
-        >
-          <div class="flex items-center space-x-1 px-1">
-            <ion-icon :icon="sparklesOutline" class="text-black text-[12px]" />
-            <span class="cabin-sketch-regular text-black text-[17px] font-bold lowercase">plus+</span>
-          </div>
-        </ion-button>
+<!--        <ion-button-->
+<!--          fill="outline"-->
+<!--          class="sketch-button-rounded h-9 m-0"-->
+<!--          @click="openProMenu"-->
+<!--        >-->
+<!--          <div class="flex items-center space-x-1 px-1">-->
+<!--            <ion-icon :icon="sparklesOutline" class="text-black text-[12px]" />-->
+<!--            <span class="cabin-sketch-regular text-black text-[17px] font-bold lowercase">plus+</span>-->
+<!--          </div>-->
+<!--        </ion-button>-->
       </div>
 
       <div class="flex items-center space-x-4 pr-2">
+        <button
+          @click="() => openMenu(Menu.Shop)"
+          class="active:scale-90 transition-transform flex items-center"
+        >
+          <ion-icon :icon="storefrontOutline"  class="text-[30px] text-black shrink-0"/>
+        </button>
+
+
         <button class="flex items-center p-1 active:scale-90 transition-transform group" @click="openPanel()">
           <ion-icon :icon="chatbubblesOutline" class="text-[30px] text-black shrink-0" />
 
@@ -52,6 +60,12 @@
           @click="openNotifications"
           class="active:scale-90 transition-transform flex items-center"
         >
+          <span
+            v-if="unseen > 0"
+            class="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center"
+          >
+    {{ unseen > 99 ? '99+' : unseen }}
+  </span>
           <ion-icon :icon="notificationsOutline" class="text-[26px] text-black" />
         </button>
       </div>
@@ -61,36 +75,40 @@
 </template>
 
 <script setup lang="ts">
-import { IonHeader, IonIcon, IonButton } from '@ionic/vue'
+import { IonButton, IonHeader, IonIcon, useIonRouter } from "@ionic/vue";
 import {
-  sparklesOutline,
-  notificationsOutline,
-  peopleOutline,
-  ticketOutline,
-  bulbOutline,
-  megaphoneOutline, chatbubblesOutline, chatbubbleOutline
-} from 'ionicons/icons'
-import { mdiMessageAlertOutline } from '@mdi/js'
-import { Menu } from '@/draw/types/draw.types'
-import { svg } from '@/helper/general.helper'
-import { useMenuStore } from '@/store/menu.store'
-import { useChatWidgetStore } from '@/store/chatWidget.store'
-import { useChatStore } from '@/store/chat.store'
-import { storeToRefs } from 'pinia'
-import { useFriendStore } from '@/store/friend.store'
+	chatbubblesOutline,
+	megaphoneOutline,
+	notificationsOutline,
+	storefrontOutline,
+} from "ionicons/icons";
+import { Menu } from "@/draw/types/draw.types";
+import { useMenuStore } from "@/store/menu.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useChatStore } from "@/store/chat.store";
+import { storeToRefs } from "pinia";
+import { useFriendStore } from "@/store/friend.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { masterAnimation } from "@/helper/animation.helper";
+import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 
-defineProps<{ title: string }>()
+defineProps<{ title: string }>();
 
-const { openMenu } = useMenuStore()
-const { openPanel } = useChatWidgetStore()
-const {onlineFriends} = storeToRefs(useFriendStore())
-const {totalUnreadCount} = storeToRefs(useChatStore())
+const { openMenu } = useMenuStore();
+const { openPanel } = useChatWidgetStore();
+const { onlineFriends } = storeToRefs(useFriendStore());
+const { totalUnreadCount } = storeToRefs(useChatStore());
 
-const openProMenu = () => { /* logic */
-}
-const openNotifications = () => { /* logic */
-}
+const { unseen } = storeToRefs(useInAppNotificationStore());
 
+const r = useIonRouter();
+
+const openProMenu = () => {
+	/* logic */
+};
+const openNotifications = () => {
+	r.push(FRONTEND_ROUTES.notifications, masterAnimation);
+};
 </script>
 
 <style scoped>

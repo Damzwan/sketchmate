@@ -59,16 +59,22 @@
               class="flex items-center p-3 bg-white/40 rounded-3xl border border-white/60 active:scale-95 transition-all cursor-pointer group shadow-sm"
               :class="{ 'border-secondary/30 bg-secondary/5': person.chat_status === 'temporary' || person.chat_status === 'pending_mate' }"
             >
-              <div class="relative shrink-0">
-                <img :src="person.img" class="w-12 h-12 rounded-xl object-cover border border-white shadow-sm" />
+              <div class="relative shrink-0 w-12 h-12 flex items-center justify-center">
+                <!-- Swapped raw image for custom avatar skin component -->
+                <UserAvatar
+                  :user="person"
+                  :customization="hydrateCustomization(person.customization)"
+                  size="sm"
+                  static
+                />
 
                 <!-- Status Dot -->
                 <div v-if="isFriendOnline(person._id)"
-                     class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>
+                     class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm z-10"></div>
 
                 <!-- Temporary/Pending Icon -->
                 <div v-if="person.chat_status === 'temporary' || person.chat_status === 'pending_mate'"
-                     class="absolute -top-1 -left-1 bg-secondary text-white rounded-full p-0.5 shadow-sm border border-white animate-pulse">
+                     class="absolute -top-1 -left-1 bg-secondary text-white rounded-full p-0.5 shadow-sm border border-white animate-pulse z-10">
                   <ion-icon :icon="svg(mdiClockOutline)" class="text-[10px] block" />
                 </div>
               </div>
@@ -80,12 +86,12 @@
                   <!-- Status Badge -->
                   <span v-if="person.chat_status === 'temporary'"
                         class="text-[8px] font-black uppercase bg-secondary/20 text-secondary px-1.5 py-0.5 rounded-full">
-        Ink Drying
-      </span>
+                    Ink Drying
+                  </span>
                   <span v-else-if="person.chat_status === 'pending_mate'"
                         class="text-[8px] font-black uppercase bg-black/10 text-black/40 px-1.5 py-0.5 rounded-full">
-        Pending
-      </span>
+                    Pending
+                  </span>
                 </div>
 
                 <p class="text-[10px] font-black text-black/30 uppercase tracking-widest truncate mt-0.5">
@@ -118,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import {
 	IonPage,
@@ -133,8 +139,10 @@ import { storeToRefs } from "pinia";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
-import { useUserActions } from "@/composables/profile/useUserActions";
+import { useUserCacheStore } from "@/store/userCache.store";
 import SubPageBar from "@/components/general/SubPageBar.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue"; // <-- Added import
+import { hydrateCustomization } from "@/config/profile_options.config"; // <-- Added import
 import { svg } from "@/helper/general.helper";
 import { mdiClockOutline } from "@mdi/js";
 import dayjs from "dayjs";
@@ -149,12 +157,29 @@ const currentPage = ref(1);
 let debounceTimeout: any = null;
 
 const friendStore = useFriendStore();
+const userCache = useUserCacheStore();
 const { user } = storeToRefs(useAuthStore());
 const { networkLists, networkLoading, hasMore, isFriendOnline } =
 	storeToRefs(friendStore);
 const { openUserActions } = useUserContextSheet();
 
-const currentList = computed(() => networkLists.value[activeTab.value]);
+// Merges the locally stored relationship logic with the globally cached profile info
+const currentList = computed(() => {
+	const entries = networkLists.value[activeTab.value] || [];
+	return entries.map((entry) => {
+		const cachedProfile = userCache.getUser(entry._id);
+		return {
+			...(cachedProfile || {
+				_id: entry._id,
+				name: "Artist",
+				img: "",
+				description: "",
+				customization: undefined,
+			}),
+			...entry,
+		};
+	});
+});
 
 const fetchData = async (reset = false) => {
 	if (!user.value?._id) return;

@@ -24,9 +24,11 @@ import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
 import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
 import { useGestureStore } from "@/draw/store/tools/gesture.store";
 import * as transform from "@/draw/transform/transformController";
+import { useDrawStore } from "@/draw/store/draw.store";
 
 export function changeFabricSettings() {
 	FabricObject.prototype.objectCaching = false;
+	IText.prototype.editable = false;
 	FabricObject.customProperties = [
 		"id",
 		"erasable",
@@ -53,6 +55,7 @@ export function changeFabricSettings() {
 	// Canvas Prototype Overrides
 	const injectMeta = (obj: any) => {
 		if (!obj.id) obj.id = uuidv4();
+		if (obj.editable) obj.editable = false;
 		if (!obj.userId) obj.userId = useAuthStore().user?._id;
 	};
 

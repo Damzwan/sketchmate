@@ -132,8 +132,6 @@ import { useModerationStore } from "@/store/moderation.store";
 import { useToast } from "@/service/toast.service";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 
-dayjs.extend(relativeTime);
-
 const props = defineProps<{
 	open: boolean;
 	currItem: any;

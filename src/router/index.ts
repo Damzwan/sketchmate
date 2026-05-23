@@ -53,6 +53,10 @@ const routes: Array<RouteRecordRaw> = [
 		path: `/${FRONTEND_ROUTES.moderation}`,
 		component: () => import("@/views/moderation.view.vue"),
 	},
+	{
+		path: `/${FRONTEND_ROUTES.notifications}`,
+		component: () => import("@/views/notification.view.vue"),
+	},
 ];
 
 const router = createRouter({

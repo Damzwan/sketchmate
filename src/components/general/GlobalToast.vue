@@ -13,32 +13,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { IonToast } from '@ionic/vue'
-import { useToast } from '@/service/toast.service'
-import { useSwipe } from '@vueuse/core'
+import { ref, watch } from "vue";
+import { IonToast } from "@ionic/vue";
+import { useToast } from "@/service/toast.service";
+import { useSwipe } from "@vueuse/core";
 
-const { text, isOpen, dismiss, duration, color, buttons, position } = useToast()
+const { text, isOpen, dismiss, duration, color, buttons, position } =
+	useToast();
 
-const toastRef = ref()
+const toastRef = ref();
 
 useSwipe(toastRef, {
-  onSwipeEnd(e, direction) {
-    dismiss()
-  }
-})
-
+	onSwipeEnd(e, direction) {
+		dismiss();
+	},
+});
 </script>
 
 <style lang="scss">
 .global-toast {
   --border-radius: 16px;
   --button-color: var(--ion-color-primary-contrast);
-
-  &::part(container) {
-    border: 2px solid rgba(0, 0, 0, 0.1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
 
   &::part(message) {
     font-family: 'Cabin Sketch', cursive;

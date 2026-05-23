@@ -14,6 +14,8 @@ import {
 } from "@/service/api/balloon.api";
 import { useAuthStore } from "@/store/auth.store";
 import { useQuotaStore } from "@/store/quota.store";
+import { useInboxStore } from "@/store/inbox.store";
+import { usePostStore } from "@/store/post.store";
 
 export interface PostSettings {
 	caption: string;
@@ -25,6 +27,7 @@ export const useShareService = defineStore("shareService", () => {
 	const isSending = ref(false);
 	const toasts = useShareToastStore();
 	const quota = useQuotaStore();
+	const preSelected = ref<"mate" | "balloon" | "post">("mate");
 	const { user } = storeToRefs(useAuthStore());
 
 	async function sendToMates(
@@ -43,6 +46,9 @@ export const useShareService = defineStore("shareService", () => {
 			thumbnail_url: uploaded.thumbnail_url,
 			aspect_ratio: blobs.aspect_ratio,
 		});
+
+		const inboxStore = useInboxStore();
+		inboxStore.inbox.push(inbox_item);
 
 		toasts.pushDrawingToast({
 			inboxItem: inbox_item,
@@ -68,6 +74,9 @@ export const useShareService = defineStore("shareService", () => {
 			enable_comments: settings.enable_comments,
 			enable_remix: settings.enable_remix,
 		});
+
+		const postStore = usePostStore();
+		postStore.postCache[post._id] = post;
 
 		quota.decrementPost();
 		toasts.pushPostToast({ post });
@@ -111,5 +120,6 @@ export const useShareService = defineStore("shareService", () => {
 		publishCommunityPost,
 		releaseBalloon,
 		runBatch,
+		preSelected,
 	};
 });

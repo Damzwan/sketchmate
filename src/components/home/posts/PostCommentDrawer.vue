@@ -10,7 +10,7 @@
   >
     <div class="h-full flex flex-col bg-background cabin-sketch-regular overflow-hidden">
       <!-- Header -->
-      <div class="shrink-0 pt-5 px-5 pb-3 text-center relative border-b border-black/5">
+      <div class="shrink-0 pt-4 px-5 pb-3 text-center relative border-b border-black/5">
         <h1 class="text-xl text-black font-black tracking-tight italic leading-none">Comments</h1>
         <p v-if="comments.length > 0" class="text-[11px] text-black/40 font-bold uppercase tracking-widest mt-1">
           {{ comments.length }} {{ comments.length === 1 ? 'reply' : 'replies' }}
@@ -20,7 +20,7 @@
       <!-- Comments List -->
       <div
         ref="scrollContainer"
-        class="flex-1 overflow-y-auto hide-scrollbar pb-4 pt-1"
+        class="flex-1 overflow-y-auto hide-scrollbar pt-1"
         @touchmove.stop
       >
         <div v-if="loading && comments.length === 0" class="flex justify-center py-10">
@@ -36,13 +36,14 @@
           v-else
           v-for="(comment, idx) in comments"
           :key="comment._id"
-          class="flex items-start px-4 py-3 group"
+          class="flex items-start px-4 py-2 group"
         >
+          <!-- User Avatar -->
           <button
             @click="openUser(comment.author._id)"
-            class="shrink-0 active:scale-95 transition-transform"
+            class="shrink-0 active:scale-95 transition-transform mt-0.5"
           >
-            <ion-avatar class="h-[38px] w-[38px] bg-white/80 shadow-sm border border-black/5 overflow-hidden">
+            <ion-avatar class="h-[36px] w-[36px] bg-white/80 shadow-sm border border-black/5 overflow-hidden">
               <img v-if="comment.author.img" :src="comment.author.img" class="aspect-square object-cover" />
               <span v-else class="w-full h-full flex items-center justify-center font-bold text-black text-sm">
                 {{ comment.author.name.charAt(0) }}
@@ -50,27 +51,31 @@
             </ion-avatar>
           </button>
 
-          <div class="flex-1 ml-3 min-w-0 pb-3 relative" :class="{ 'border-b border-black/5': idx < comments.length - 1 }">
-            <div class="flex items-baseline justify-between gap-2 pr-8"> <!-- Added pr-8 to prevent text overlap -->
+          <!-- Comment Content Body -->
+          <div class="flex-1 ml-3 min-w-0 pb-2.5 relative" :class="{ 'border-b border-black/5': idx < comments.length - 1 }">
+
+            <!-- Header row containing Name, Timestamp, and Actions -->
+            <div class="flex items-center justify-between pr-8">
               <button
                 @click="openUser(comment.author._id)"
-                class="text-sm font-black text-black truncate active:opacity-60 transition-opacity text-left"
+                class="text-sm font-black text-black truncate active:opacity-60 transition-opacity text-left max-w-[70%]"
               >
                 {{ comment.author.name }}
               </button>
-              <span class="text-[10px] text-black/40 font-bold uppercase tracking-wider shrink-0">
-      {{ dayjs(comment.createdAt).fromNow() }}
-    </span>
+              <span class="text-[10px] text-black/40 font-bold uppercase tracking-wider shrink-0 ml-2">
+                {{ dayjs(comment.createdAt).fromNow() }}
+              </span>
             </div>
 
-            <p class="text-[14px] text-black/85 mt-1 leading-snug break-words pr-6"> <!-- Added pr-6 -->
+            <!-- Message Text -->
+            <p class="text-[14px] text-black/85 mt-0.5 leading-snug break-words pr-2">
               {{ comment.message }}
             </p>
 
-            <!-- Button now correctly positioned relative to this parent -->
+            <!-- Correctly positioned Context Button aligned with Header Row -->
             <button
               @click.stop="openCommentActions(comment)"
-              class="absolute top-0 right-0 p-2 active:scale-90 transition-transform"
+              class="absolute top-0 right-0 h-5 w-8 flex items-center justify-end active:scale-90 transition-transform"
             >
               <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg text-black/30" />
             </button>
@@ -138,8 +143,6 @@ import { useModerationStore } from "@/store/moderation.store";
 import { useToast } from "@/service/toast.service";
 import { FeedPost } from "@/types/server.types";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-
-dayjs.extend(relativeTime);
 
 const props = defineProps<{ isOpen: boolean; post: FeedPost | null }>();
 const emit = defineEmits(["close"]);

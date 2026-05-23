@@ -1,11 +1,12 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { InboxItem, Mate, CommentRes, GetInboxRes } from "@/types/server.types";
-import { useToast } from "@/service/toast.service";
-import { ToastDuration } from "@/types/toast.types";
-import { viewCommentButton } from "@/config/toast.config";
 import { useAuthStore } from "@/store/auth.store";
-import { getInbox } from "@/service/api/inbox.api";
+import {
+	getInbox,
+	getSingleInboxItem,
+	syncInboxItems,
+} from "@/service/api/inbox.api";
 
 export const useInboxStore = defineStore("inbox", () => {
 	// --- State ---
@@ -79,6 +80,55 @@ export const useInboxStore = defineStore("inbox", () => {
 	}
 
 	/**
+	 * Syncs only new items that arrived since our newest cached item.
+	 */
+	async function syncNewItems() {
+		if (inbox.value.length === 0) return getInboxBatch(true);
+
+		const newestDate = inbox.value[0].date;
+
+		try {
+			const res = await syncInboxItems(newestDate);
+			if (res?.inboxItems?.length > 0) {
+				// Prepend new items
+				inbox.value = [...res.inboxItems, ...inbox.value];
+
+				for (const u of res.userInfo || []) {
+					if (!inboxUsers.value.find((x) => x._id === u._id)) {
+						inboxUsers.value.push(u);
+					}
+				}
+			}
+		} catch (e) {
+			console.error("Failed to sync new inbox items:", e);
+		}
+	}
+
+	/**
+	 * Fetches a specific inbox item if it's not already in the store.
+	 */
+	async function fetchSingleInboxItem(inboxId: string) {
+		const existing = inbox.value.find((item) => item._id === inboxId);
+		if (existing) return existing;
+
+		try {
+			const res = await getSingleInboxItem(inboxId);
+			if (res?.inboxItem) {
+				for (const u of res.userInfo || []) {
+					if (!inboxUsers.value.find((x) => x._id === u._id)) {
+						inboxUsers.value.push(u);
+					}
+				}
+				inbox.value.push(res.inboxItem);
+				return res.inboxItem;
+			}
+		} catch (e) {
+			console.error("Failed to fetch specific inbox item:", e);
+		}
+		return null;
+	}
+
+	/**
 	 * Updates the inbox when a new comment arrives via socket or pulse.
 	 */
 	async function addComment(commentRes: CommentRes) {
@@ -94,13 +144,6 @@ export const useInboxStore = defineStore("inbox", () => {
 
 		inbox.value[index].comments.push(commentRes.comment);
 		inbox.value[index].comments_seen_by = [commentRes.comment.sender];
-
-		const { user } = useAuthStore();
-
-		if (!user || commentRes.comment.sender === user._id) return;
-
-		const sender = findUserInInboxUsers(commentRes.comment.sender);
-		if (!sender) return;
 	}
 
 	function findUserInInboxUsers(id: string): Mate | undefined {
@@ -114,6 +157,10 @@ export const useInboxStore = defineStore("inbox", () => {
 		inbox.value = inbox.value.filter((item) => item._id !== inboxId);
 	}
 
+	function hasItem(inboxId: string): boolean {
+		return inbox.value.some((item) => item._id === inboxId);
+	}
+
 	return {
 		inbox,
 		inboxUsers,
@@ -121,8 +168,11 @@ export const useInboxStore = defineStore("inbox", () => {
 		allLoaded,
 		hasFetchedInitial,
 		getInboxBatch,
+		syncNewItems,
+		fetchSingleInboxItem,
 		addComment,
 		findUserInInboxUsers,
 		removeFromLocalInbox,
+		hasItem,
 	};
 });

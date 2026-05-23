@@ -1,4 +1,3 @@
-<!-- components/chat/ChatRelationshipBanner.vue -->
 <template>
   <div class="flex justify-center w-full mt-4 px-1 pb-2">
     <div class="w-full flex flex-col items-center p-5 bg-white/50 border border-secondary/20 rounded-[2rem] backdrop-blur-md shadow-sm text-center animate-fade-in">
@@ -38,7 +37,16 @@
         </p>
         <div class="grid grid-cols-2 gap-2 w-full">
           <ion-button fill="clear" class="capitalize font-black text-[10px] text-black/40" @click="$emit('decline')">Decline</ion-button>
-          <ion-button color="secondary" class="font-black text-[10px] shadow-lg custom-rounded-button" @click="$emit('accept')">Accept</ion-button>
+          <ion-button
+            color="secondary"
+            class="font-black text-[10px] shadow-lg custom-rounded-button"
+            :disabled="!quotaStore.canAddMate && quotaStore.isPro"
+            @click="handleAccept"
+          >
+            <template v-if="quotaStore.canAddMate">Accept</template>
+            <template v-else-if="quotaStore.isPro">Limit Reached</template>
+            <template v-else>⭐ Upgrade</template>
+          </ion-button>
         </div>
       </template>
 
@@ -59,8 +67,15 @@
         <p class="text-[11px] font-bold text-black/60 mb-3 leading-tight cabin-sketch-regular">
           Ink Dried! The 24h trial has ended.<br />Become Mates to keep sketching.
         </p>
-        <ion-button color="secondary" class="px-4 font-black text-[10px] tracking-widest custom-rounded-button" @click="$emit('request')">
-          Send Mate Request
+        <ion-button
+          color="secondary"
+          class="px-4 font-black text-[10px] tracking-widest custom-rounded-button"
+          :disabled="!quotaStore.canAddMate && quotaStore.isPro"
+          @click="handleRequest"
+        >
+          <template v-if="quotaStore.canAddMate">Send Mate Request</template>
+          <template v-else-if="quotaStore.isPro">Limit Reached</template>
+          <template v-else>⭐ Upgrade to Add</template>
         </ion-button>
       </template>
 
@@ -69,8 +84,17 @@
         <p class="text-[10px] font-bold text-black/40 leading-tight italic max-w-[200px]">
           Vibe check! You have a 24-hour trial to get to know each other.
         </p>
-        <ion-button fill="clear" size="small" class="mt-2 font-black text-secondary uppercase tracking-[0.1em] opacity-60" @click="$emit('request')">
-          + Add to Mates
+        <ion-button
+          fill="clear"
+          size="small"
+          class="mt-2 font-black uppercase tracking-[0.1em]"
+          :class="quotaStore.canAddMate ? 'text-secondary opacity-60' : 'text-amber-500 opacity-90'"
+          :disabled="!quotaStore.canAddMate && quotaStore.isPro"
+          @click="handleRequest"
+        >
+          <template v-if="quotaStore.canAddMate">+ Add to Mates</template>
+          <template v-else-if="quotaStore.isPro">Mate Limit Reached</template>
+          <template v-else>⭐ Upgrade to Add</template>
         </ion-button>
       </template>
 
@@ -96,38 +120,76 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
-import { IonButton, IonIcon } from '@ionic/vue'
-import { mdiHeart, mdiClockOutline, mdiLockOutline } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { computed } from "vue";
+import dayjs from "dayjs";
+import { IonButton, IonIcon, useIonRouter } from "@ionic/vue";
+import { mdiHeart, mdiClockOutline, mdiLockOutline } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { useQuotaStore } from "@/store/quota.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
-dayjs.extend(relativeTime)
+const props = defineProps<{ chat: any; partner: any; currentUserId: string }>();
+const emit = defineEmits([
+	"accept",
+	"decline",
+	"request",
+	"cancel-mate",
+	"accept-invite",
+	"decline-invite",
+]);
 
-const props = defineProps<{ chat: any; partner: any; currentUserId: string }>()
-defineEmits(['accept', 'decline', 'request', 'cancel-mate', 'accept-invite', 'decline-invite'])
+const quotaStore = useQuotaStore();
+const router = useIonRouter();
 
 const isPendingInvite = computed(() => props.chat?.status === "pending_invite");
-const isIncomingInvite = computed(() => isPendingInvite.value && props.chat?.initiator_id !== props.currentUserId);
-const isOutgoingInvite = computed(() => isPendingInvite.value && props.chat?.initiator_id === props.currentUserId);
+const isIncomingInvite = computed(
+	() =>
+		isPendingInvite.value && props.chat?.initiator_id !== props.currentUserId,
+);
+const isOutgoingInvite = computed(
+	() =>
+		isPendingInvite.value && props.chat?.initiator_id === props.currentUserId,
+);
 
 const isTemporaryChat = computed(() => props.chat?.status === "temporary");
 const isMatePending = computed(() => props.chat?.status === "pending_mate");
 
 const isTrialExpired = computed(() => {
-  if (!isTemporaryChat.value || !props.chat?.trial_expires_at) return false;
-  return dayjs().isAfter(dayjs(props.chat.trial_expires_at));
+	if (!isTemporaryChat.value || !props.chat?.trial_expires_at) return false;
+	return dayjs().isAfter(dayjs(props.chat.trial_expires_at));
 });
 
-const isMateProposalSent = computed(() => isMatePending.value && props.chat?.initiator_id === props.currentUserId);
-const isMateProposalReceived = computed(() => isMatePending.value && props.chat?.initiator_id !== props.currentUserId);
+const isMateProposalSent = computed(
+	() => isMatePending.value && props.chat?.initiator_id === props.currentUserId,
+);
+const isMateProposalReceived = computed(
+	() => isMatePending.value && props.chat?.initiator_id !== props.currentUserId,
+);
 
 const isUnderCooldown = computed(() => {
-  if (!props.chat?.cooldown_until) return false;
-  return dayjs().isBefore(dayjs(props.chat.cooldown_until));
+	if (!props.chat?.cooldown_until) return false;
+	return dayjs().isBefore(dayjs(props.chat.cooldown_until));
 });
-const formattedCooldown = computed(() => dayjs(props.chat?.cooldown_until).fromNow());
+const formattedCooldown = computed(() =>
+	dayjs(props.chat?.cooldown_until).fromNow(),
+);
+
+// Quota Handlers
+function handleAccept() {
+	if (quotaStore.canAddMate) {
+		emit("accept");
+	} else if (!quotaStore.isPro) {
+		// router.push({ path: FRONTEND_ROUTES.subscribe });
+	}
+}
+
+function handleRequest() {
+	if (quotaStore.canAddMate) {
+		emit("request");
+	} else if (!quotaStore.isPro) {
+		// router.push({ path: FRONTEND_ROUTES.subscribe });
+	}
+}
 </script>
 
 <style scoped>

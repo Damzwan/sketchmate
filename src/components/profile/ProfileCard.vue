@@ -38,6 +38,18 @@
             <ion-icon :style="{ color: theme.nameColor }" :icon="svg(mdiPalette)" class="text-xl" />
           </button>
         </transition>
+
+        <transition name="fade">
+          <button
+            v-if="isEditing"
+            class="w-10 h-10 flex items-center justify-center rounded-full bg-black/10 backdrop-blur-md border border-white/40 shadow-sm transition-all active:scale-95"
+            @click="$emit('cancel-edit')"
+          >
+            <ion-icon :icon="svg(mdiClose)" class="text-xl text-white" />
+          </button>
+        </transition>
+
+        <!-- Save/Edit Toggle Button -->
         <button
           class="w-10 h-10 flex items-center justify-center rounded-full shadow-sm transition-all active:scale-95"
           :class="isEditing ? 'bg-green-500 border-none' : 'bg-white/20 backdrop-blur-md border border-white/40'"
@@ -153,9 +165,6 @@
                 <h2 class="text-2xl font-black text-black/20 line-through decoration-secondary/40 decoration-2">
                   {{ user.name }}
                 </h2>
-                <ion-button @click.stop="subStore.presentPaywall()" shape="round" color="secondary" size="small" class="mt-1">
-                  Unlock with Pro ⚡
-                </ion-button>
               </div>
 
               <div v-else class="w-full flex flex-col items-center">
@@ -163,11 +172,15 @@
                   <ion-icon :icon="svg(mdiAlertCircleOutline)" class="text-secondary" v-if="hasNameChanged" />
                   {{ isPro ? 'Pro: Unlimited Changes' : 'New Identity' }}
                 </div>
-                <input
+                <ion-input
+                  type="text"
+                  :counter="true"
                   :value="editForm?.name"
                   placeholder="Artist Name"
-                  class="w-full bg-transparent text-center text-2xl font-black text-black focus:outline-none"
-                  @input="$emit('update:editFormName', ($event.target as HTMLInputElement).value)"
+                  :minlength="4"
+                  :maxlength="20"
+                  class="w-full text-center text-2xl font-black text-black"
+                  @ionInput="$emit('update:editFormName', ($event.target as HTMLInputElement).value)"
                 />
                 <p
                   v-if="hasNameChanged && !isPro"
@@ -179,12 +192,18 @@
               </div>
             </div>
 
-            <textarea
-              :value="editForm?.description"
-              rows="3"
-              class="w-full bg-white/60 border-2 border-white rounded-[2.5rem] px-6 py-4 text-base font-bold text-black italic shadow-inner focus:outline-none resize-none"
-              @input="$emit('update:editFormDesc', ($event.target as HTMLTextAreaElement).value)"
-            ></textarea>
+            <div class="w-full bg-white/60 border-2 border-white rounded-[2.5rem] shadow-inner overflow-hidden px-6">
+              <ion-textarea
+                :value="editForm?.description"
+                placeholder="Add a short bio or description..."
+                :counter="true"
+                maxlength="80"
+                :auto-grow="true"
+                rows="3"
+                class="font-bold text-black italic text-base"
+                @ionInput="$emit('update:editFormDesc', ($event.target as HTMLTextAreaElement).value)"
+              />
+            </div>
           </div>
         </template>
 
@@ -249,7 +268,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import dayjs from "dayjs";
-import { IonButton, IonIcon } from "@ionic/vue";
+import { IonButton, IonIcon, IonInput, IonTextarea } from "@ionic/vue";
 import {
 	mdiAccountPlusOutline,
 	mdiAlertCircleOutline,
@@ -258,6 +277,7 @@ import {
 	mdiCog,
 	mdiPalette,
 	mdiPencil,
+	mdiClose, // Add this
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";

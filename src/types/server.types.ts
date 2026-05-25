@@ -1,5 +1,7 @@
 // --- ENUMS & CONSTANTS ---
 
+import { minimum_online_version } from "../main";
+
 export enum NotificationType {
 	// Current
 	balloon_match = "balloon_match",
@@ -584,6 +586,7 @@ export interface GetUserRes {
 	user: User;
 	new_account: boolean;
 	minimum_supported_version: string;
+	minimum_online_version: string;
 }
 
 export interface UpdateUserParams extends Partial<User> {

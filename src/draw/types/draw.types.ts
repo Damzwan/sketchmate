@@ -88,6 +88,7 @@ export enum Menu {
 	BalloonMenu,
 	TextEditMenu,
 	Shop,
+	UpgradeOnline,
 }
 
 export enum ObjectType {

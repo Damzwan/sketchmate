@@ -35,8 +35,9 @@
             @go-customize="goToCustomize"
             @update-img="handleImgUpdate"
             @go-network="goToNetwork"
+            @cancel-edit="isEditing=false"
             @open-connection="openMenu(Menu.ConnectionMenu)"
-            @update:edit-form-name="editForm.name = $event"
+            @update:edit-form-name="(newName: string) => editForm.name = newName"
             @update:edit-form-desc="editForm.description = $event"
           />
 
@@ -103,6 +104,11 @@ const toggleEdit = async () => {
 		}
 		if (!newName) {
 			toast("Name cannot be empty", { color: "danger" });
+			return;
+		}
+
+		if (newName.length < 4) {
+			toast("Name should be at least 4 characters", { color: "danger" });
 			return;
 		}
 

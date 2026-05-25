@@ -21,6 +21,7 @@
     <ReportMenu/>
     <ShareToasts/>
     <Shop/>
+    <OnlineUpgradeModal/>
   </ion-app>
 </template>
 
@@ -45,6 +46,7 @@ import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
 import WhatsNewModal from "@/components/general/WhatsNewModal.vue";
 import { useSessionStore } from "@/store/session.store";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import OnlineUpgradeModal from "@/components/general/OnlineUpgradeModal.vue";
 
 // LAZY LOADED COMPONENTS (Will create separate js chunks)
 const GlobalToast = defineAsyncComponent(

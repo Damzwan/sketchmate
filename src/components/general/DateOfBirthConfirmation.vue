@@ -1,148 +1,223 @@
 <template>
   <ion-modal
-    :is-open="dateOfBirthConfirmationOpen"
-    @didDismiss="() => {
-      dateOfBirthConfirmationOpen=false
-      cancel()
-    }"
-    @willPresent="() => {
-      sentResponse = false
-      if (user?.date_of_birth) {
-        dateTimeValue = user.date_of_birth.toISOString()
-        dateAlreadyEntered = true
-        canModify = false
-      }
-      else {
-        canModify = true
-        dateAlreadyEntered= false
-      }
-    }"
-    class="dob-modal"
+    :is-open="isOpen"
+    :backdrop-dismiss="mode === 'edit'"
+    @didDismiss="handleDismiss"
+    @willPresent="handlePresent"
+    class="liquid-dob-modal"
   >
-    <div class="p-4 flex flex-col gap-2">
-      <p class="text-xl cabin-sketch-regular text-center font-semibold">
-        Confirm Age for Social Features
-      </p>
+    <div class="flex flex-col p-5 bot-pad-safe bg-background cabin-sketch-regular overflow-hidden h-full">
 
-      <!-- Safety Information with border -->
-      <div class="p-2 rounded-md shadow-sm  overflow-y-auto cabin-sketch-regular border border-gray-400">
-        <p>Please read carefully before continuing:</p>
-        <ul class="list-disc ml-4">
-          <li>Do not share personal information with strangers online.</li>
-          <li>Be respectful to others at all times.</li>
-          <li>Do not post inappropriate or offensive content.</li>
-          <li>Remember that anything you share online can be permanent.</li>
-        </ul>
+      <!-- HEADER -->
+      <div class="shrink-0 pt-2 mb-4 text-center relative">
+        <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
+          {{ mode === 'edit' ? 'Update Birthday' : 'One Quick Thing' }}
+        </h1>
+        <p class="text-[10px] font-black opacity-60 uppercase tracking-widest mt-3 px-2">
+          {{ mode === 'edit'
+          ? 'Keeping features age-appropriate'
+          : 'Unlock the right creative spaces' }}
+        </p>
       </div>
 
-      <div class="bg-amber-400 rounded-md shadow-sm overflow-y-auto cabin-sketch-regular p-4" v-if="dateAlreadyEntered">
-        <p class="text-xl">Notice</p>
-        <p class="text-sm">Social features are available for users 13 and older. You can edit your birthdate if
-          needed.</p>
-        <ion-button @click="canModify = !canModify" color="secondary" fill="outline" size="small">
-          <ion-icon :icon="svg(canModify ? mdiCancel : mdiPencilOutline)" slot="end"></ion-icon>
-          {{ canModify ? 'Cancel' : 'Edit' }}
+      <!-- BODY -->
+      <div class="flex-1 overflow-y-auto px-1 space-y-5 hide-scrollbar pb-4 mt-2">
+
+        <!-- SKETCHMATE CUSTOM DATE PICKER -->
+        <div class="bg-white/70 border-2 border-white rounded-[2.5rem] shadow-inner p-6 flex flex-col items-center gap-4">
+          <span class="text-[10px] font-black uppercase tracking-widest text-black/40">Select Birthdate</span>
+          <SketchDatePicker v-model="computedDob" />
+        </div>
+
+        <!-- Community rules -->
+        <div v-if="mode === 'initial'" class="bg-white/70 border-2 border-white rounded-[2.5rem] shadow-inner p-6">
+          <p class="text-[10px] font-black uppercase tracking-widest text-black/40 mb-4 text-center">
+            Community rules
+          </p>
+          <ul class="space-y-4">
+            <li v-for="rule in WELCOME_RULES" :key="rule.title" class="flex gap-3 items-start">
+              <span class="shrink-0 text-xl">{{ rule.emoji }}</span>
+              <span class="text-black/70 text-[13px] leading-snug pt-0.5">
+                <strong class="text-black font-black italic">{{ rule.title }}</strong> — {{ rule.body }}
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Impact preview -->
+        <div
+          v-if="mode === 'edit' && willChangeAccess"
+          class="rounded-[2.5rem] p-5 text-sm font-bold leading-snug flex items-center gap-4 border-2 transition-all duration-300 shadow-inner"
+          :class="willUnlock
+            ? 'bg-emerald-50 border-emerald-100 text-emerald-900'
+            : 'bg-amber-50 border-amber-100 text-amber-900'"
+        >
+          <div class="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center shrink-0 text-2xl">
+            {{ willUnlock ? '✨' : '🌱' }}
+          </div>
+          <p class="flex-1">
+            <span v-if="willUnlock">Saving unlocks public lobbies, posts, and balloons!</span>
+            <span v-else>Saving hides public lobbies, posts, and balloons until you're 13.</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- ACTION AREA / FOOTER -->
+      <div class="pt-4 pb-2 shrink-0 flex flex-col gap-2">
+        <ion-button
+          expand="block"
+          color="secondary"
+          shape="round"
+          class="h-16 font-black uppercase tracking-widest shadow-md m-0"
+          :disabled="!isValidDob || isSubmitting || (mode === 'edit' && computedDob === initialDob)"
+          @click="handleConfirm"
+        >
+          <ion-spinner v-if="isSubmitting" name="dots" />
+          <span v-else>{{ mode === 'edit' ? 'Save Changes' : 'Continue' }}</span>
+        </ion-button>
+
+        <ion-button
+          v-if="mode === 'edit'"
+          fill="clear"
+          color="dark"
+          expand="block"
+          class="font-black uppercase tracking-widest text-xs opacity-60 mt-1"
+          :disabled="isSubmitting"
+          @click="handleCancel"
+        >
+          Cancel
         </ion-button>
       </div>
 
-      <!-- Date of Birth Picker with label -->
-      <div class="flex flex-col items-center gap-2">
-        <label for="datetime" class="font-medium cabin-sketch-regular">
-          Date of Birth:
-        </label>
-        <ion-datetime
-          v-model="dateTimeValue"
-          :disabled="!canModify"
-          id="datetime"
-          color="secondary"
-          presentation="month-year"
-          class="rounded-lg shadow-md border border-gray-400 w-56"
-          :min="minDate"
-          :max="maxDate"
-          display-format="YYYY-MM-DD"
-          picker-format="YYYY-MM-DD"
-        />
-      </div>
-
-    </div>
-
-    <div class="modal-footer">
-      <ion-button fill="clear" color="medium" @click="cancel">
-        Cancel
-      </ion-button>
-      <ion-button color="secondary" fill="clear" @click="confirm"
-                  :disabled="!dateTimeValue || sentResponse || !canModify">
-        Confirm
-      </ion-button>
     </div>
   </ion-modal>
 </template>
 
 <script setup lang="ts">
-import { IonDatetime, IonModal, IonButton, IonIcon } from '@ionic/vue'
-import { ref } from 'vue'
+import { IonButton, IonModal, IonSpinner } from "@ionic/vue";
+import { computed, ref } from "vue";
+import { storeToRefs } from "pinia";
+import { useAuthStore } from "@/store/auth.store";
+import { isOldEnough } from "@/helper/general.helper";
+import { updateUser } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
+import { ToastDuration } from "@/types/toast.types";
+import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
+import SketchDatePicker from "@/components/general/SketchDatePicker.vue"; // Adjust path as needed
 
-import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/menu.store'
-import { useAuthStore } from '@/store/auth.store'
-import { svg } from '@/helper/general.helper'
-import { mdiCancel, mdiCross, mdiPen, mdiPencilOutline } from '@mdi/js'
+const modalStore = useDateOfBirthModalStore();
+const { isOpen, mode } = storeToRefs(modalStore);
+const { user } = storeToRefs(useAuthStore());
+const { toast } = useToast();
 
-const { dateOfBirthConfirmationOpen } = storeToRefs(useMenuStore())
-const { user } = storeToRefs(useAuthStore())
+const computedDob = ref<string | undefined>();
+const initialDob = ref<string | undefined>();
+const isSubmitting = ref(false);
 
-const minDate = '1900-01-01'
-const maxDate = new Date().toISOString().split('T')[0]
+const isValidDob = computed(() => !!computedDob.value);
 
-const dateTimeValue = ref<string>()
-const sentResponse = ref(false)
+const willChangeAccess = computed(() => {
+	if (!isValidDob.value || !initialDob.value) return false;
+	return isOldEnough(initialDob.value) !== isOldEnough(computedDob.value!);
+});
 
-const dateAlreadyEntered = ref(false)
-const canModify = ref(true)
+const willUnlock = computed(() =>
+	isValidDob.value ? isOldEnough(computedDob.value!) : false,
+);
 
-const cancel = () => {
-  if (sentResponse.value) return
-  document.dispatchEvent(
-    new CustomEvent('dateofbirth-response', { detail: { response: null } })
-  )
-  dateOfBirthConfirmationOpen.value = false
-  sentResponse.value = true
+const WELCOME_RULES = [
+	{
+		emoji: "🎨",
+		title: "Make art freely",
+		body: "weird, personal, expressive.",
+	},
+	{
+		emoji: "🤝",
+		title: "Respect others",
+		body: "no harassment or hate speech.",
+	},
+	{
+		emoji: "🚫",
+		title: "Keep it safe",
+		body: "nothing sexual, violent, or harmful.",
+	},
+	{
+		emoji: "🔒",
+		title: "Stay private",
+		body: "don't share real info with strangers.",
+	},
+];
+
+function handlePresent() {
+	isSubmitting.value = false;
+	computedDob.value = user.value?.date_of_birth || undefined;
+	initialDob.value = user.value?.date_of_birth || undefined;
 }
 
-const confirm = () => {
-  if (sentResponse.value) return
-  if (!dateTimeValue.value) {
-    return
-  }
+function handleDismiss() {
+	isOpen.value = false;
+	modalStore.resolve(null);
+}
 
-  document.dispatchEvent(
-    new CustomEvent('dateofbirth-response', { detail: { response: new Date(dateTimeValue.value) } })
-  )
+function handleCancel() {
+	modalStore.close();
+	modalStore.resolve(null);
+}
 
-  dateOfBirthConfirmationOpen.value = false
-  sentResponse.value = true
+async function handleConfirm() {
+	if (
+		!isValidDob.value ||
+		isSubmitting.value ||
+		!user.value ||
+		!computedDob.value
+	)
+		return;
+	isSubmitting.value = true;
+
+	try {
+		await updateUser({
+			_id: user.value._id,
+			date_of_birth: computedDob.value,
+		});
+		user.value.date_of_birth = computedDob.value;
+
+		if (!isOldEnough(computedDob.value)) {
+			toast(
+				"Social features hidden until you're 13 — keep drawing and saving!",
+				{ color: "warning", duration: ToastDuration.long },
+			);
+		} else if (mode.value === "edit" && willChangeAccess.value) {
+			toast("Social features unlocked.", { color: "success" });
+		}
+
+		modalStore.close();
+		modalStore.resolve(computedDob.value);
+	} catch (e) {
+		toast("Couldn't save, please try again", { color: "danger" });
+	} finally {
+		isSubmitting.value = false;
+	}
 }
 </script>
 
 <style scoped>
-ion-modal {
+ion-modal.liquid-dob-modal {
   --width: fit-content;
-  --min-width: 250px;
+  --min-width: 300px;
   --max-width: 80%;
   --height: fit-content;
   --background: var(--ion-color-tertiary);
+  --border-radius: 2.5rem 2.5rem 2.5rem 2.5rem;
   border-radius: 16px;
   padding: 0;
 }
 
-.modal-footer {
-  display: flex;
-  justify-content: space-between;
-  padding: 1rem;
+ion-modal.liquid-dob-modal::part(handle) {
+  background: var(--ion-color-secondary);
+  opacity: 0.3;
+  width: 40px;
 }
 
-ion-datetime {
-  --background: var(--ion-color-tertiary);
-  --background-rgb: var(--ion-color-light);
-}
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

@@ -88,7 +88,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			tierSwitchThreshold: 0.9,
 			fallbackTierRadius: 2,
 			overscanPx: 2,
-			zoomTiers: [0.03125, 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8],
+			zoomTiers: [0.03125, 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32],
 		},
 	);
 

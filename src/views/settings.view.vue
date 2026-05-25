@@ -7,6 +7,14 @@
 
         <div class="grow space-y-8">
 
+          <!-- Account Section -->
+          <section class="bg-primary/5 rounded-[2.5rem] p-6 border border-black/5 shadow-sm transition-all">
+            <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-4 uppercase tracking-wider">
+              Account
+            </h3>
+            <AccountSettings />
+          </section>
+
           <!-- Preferences Section -->
           <section class="bg-primary/5 rounded-[2.5rem] p-6 border border-black/5 shadow-sm transition-all">
             <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-4 uppercase tracking-wider">
@@ -16,8 +24,9 @@
           </section>
 
           <!-- Network Sync Section -->
-          <section v-if="user?.subscriptions?.length"
-                   class="animate-fade-in bg-primary/5 rounded-[2.5rem] p-6 border border-black/5 shadow-sm transition-all"
+          <section
+            v-if="user?.subscriptions?.length"
+            class="animate-fade-in bg-primary/5 rounded-[2.5rem] p-6 border border-black/5 shadow-sm transition-all"
           >
             <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-4 uppercase tracking-wider">
               Network Sync
@@ -31,7 +40,6 @@
 
         </div>
 
-        <!-- Links at the bottom -->
         <div class="mt-auto pt-12 flex justify-center">
           <SettingLinks />
         </div>
@@ -50,6 +58,7 @@ import SubPageBar from "@/components/general/SubPageBar.vue";
 import SettingLinks from "@/components/settings/SettingLinks.vue";
 import SubscriptionManager from "@/components/settings/SubscriptionManager.vue";
 import SettingSwitches from "@/components/settings/SettingSwitches.vue";
+import AccountSettings from "@/components/settings/AccountSettings.vue";
 import { ref } from "vue";
 import { NotificationSubscription } from "@/types/server.types";
 import { unsubscribe } from "@/service/api/user.api";
@@ -86,14 +95,16 @@ async function handleDeleteSubscription(sub: NotificationSubscription) {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/*
-   Pro Tip: Ensure the inner items of the switches/manager
-   don't add extra horizontal padding that makes the 'card' look cramped
-*/
 ion-item {
   --background: transparent;
   --border-color: rgba(0, 0, 0, 0.05);

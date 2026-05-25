@@ -55,7 +55,6 @@ const ionRouter = useIonRouter();
 const requesting = ref(false);
 
 onMounted(async () => {
-	// Warm the home view's chunk so the post-onboarding transition is instant.
 	try {
 		await import("@/views/home.view.vue");
 	} catch (e) {

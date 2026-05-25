@@ -47,6 +47,21 @@
             color="secondary"
           />
         </div>
+
+        <div
+          v-if="!loading && posts.length > 0 && !hasMore"
+          class="py-12 px-6 text-center animate-fade-in"
+        >
+          <div class="inline-block p-6 bg-white/40 border-2 border-dashed border-black/10 rounded-[2.5rem] shadow-inner">
+            <div class="text-4xl mb-4 rotate-[-5deg]">🎨</div>
+            <h3 class="text-xl font-black text-black italic leading-none mb-2">
+              You're all caught up!
+            </h3>
+            <p class="text-sm font-bold text-black/50 max-w-[200px] mx-auto">
+              You've seen all the new art. Maybe it's time to stop ccrolling and draw something yourself?
+            </p>
+          </div>
+        </div>
       </div>
     </transition>
 

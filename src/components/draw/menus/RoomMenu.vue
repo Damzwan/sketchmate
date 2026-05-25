@@ -180,6 +180,7 @@
         </div>
 
         <ActiveLobbies
+          v-if="!isUnderAge"
           :lobbies="publicLobbies"
           @join="(id) => handleJoinPublicLobby(id)"
           :loading="publicLobbies.length === 0 && isWatchingPublicLobbies"
@@ -197,8 +198,8 @@
 
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
-import { computed, nextTick, onMounted, ref } from "vue";
-import { IonAvatar, IonButton, IonIcon, IonModal } from "@ionic/vue";
+import { computed, nextTick, ref } from "vue";
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
 import { chatbubblesOutline } from "ionicons/icons";
 import { mdiAccountPlus, mdiCamera, mdiShareVariant } from "@mdi/js";
 import QrcodeVue from "qrcode.vue";
@@ -211,14 +212,12 @@ import { useScanner } from "@/service/scanner.service";
 import {
 	leaveRoom as apiLeaveRoom,
 	socketJoinRoom,
-	startWatchingLobbies,
 } from "@/service/api/socket/drawSyncing.socket";
 import { generateRandomCode, isNative, svg } from "@/helper/general.helper";
 import { createRoomLink, shareUrl } from "@/helper/share.helper";
 
 import LobbyInvitePopover from "@/components/chat/LobbyInvitePopover.vue";
 import ActiveLobbies from "@/components/home/ActiveLobbies.vue";
-import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useToast } from "@/service/toast.service";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
@@ -234,17 +233,10 @@ const {
 	publicLobbyName,
 } = storeToRefs(drawSyncerStore);
 const { roomMenuOpen } = storeToRefs(useMenuStore());
-const { user } = storeToRefs(useAuthStore());
+const { user, isUnderAge } = storeToRefs(useAuthStore());
 const chatWidget = useChatWidgetStore();
 const { startScanning } = useScanner();
 const { openUserActions } = useUserContextSheet();
-
-onMounted(async () => {
-	if (!isWatchingPublicLobbies.value) {
-		await socketLoggedInPromise;
-		startWatchingLobbies();
-	}
-});
 
 const code = ref(["", "", "", ""]);
 const codeString = computed(() => code.value.join(""));

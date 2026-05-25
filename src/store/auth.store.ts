@@ -38,8 +38,11 @@ import { useModerationStore } from "@/store/moderation.store";
 import { getUser, onLoginEvent } from "@/service/api/user.api";
 import { useQuotaStore } from "@/store/quota.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
+import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
+import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
 
 export const useAuthStore = defineStore("auth", () => {
+	// --- STATE ---
 	const user = ref<User>();
 	const firebaseUser = ref<FirebaseUser>();
 
@@ -47,49 +50,42 @@ export const useAuthStore = defineStore("auth", () => {
 	const isAuthLoading = ref(true);
 	const isNewAccount = ref(false);
 	const showForceUpdateModal = ref(false);
+	const showTutorial = ref(false);
 	const deviceFingerprint = ref<string>();
+	const localUserImg = ref<string>();
+
+	const lastHydratedAt = ref<number>(0);
+	const isHydrating = ref(false);
+
+	const minimum_online_version = ref<string>("");
 
 	let ionRouter: UseIonRouterResult | undefined = undefined;
 
-	const notificationStore = useNotificationStore();
-	const balloonStore = useBalloonStore();
-	const localUserImg = ref<string>();
+	// --- DERIVED ---
+	const hasConfirmedAge = computed(() => !!user.value?.date_of_birth);
+	const isUnderAge = computed(() => {
+		if (!user.value?.date_of_birth) return false;
+		return !isOldEnough(user.value.date_of_birth);
+	});
 
-	const refreshNeeded = ref(false); // only needed when socket disconnects
-	const showTutorial = ref(false);
-
+	// --- INIT ---
 	Preferences.get({ key: LocalStorage.img }).then(
 		(res) => (localUserImg.value = res.value!),
 	);
-
-	const isLoading = ref(false);
-
-	// Derived
-	const shouldShowDateOfBirthConfirmation = computed(() =>
-		user.value
-			? user.value.date_of_birth == undefined ||
-				!isOldEnough(user.value.date_of_birth)
-			: false,
-	);
-
 	generateDeviceFingerprint().then(
 		(fingerprint) => (deviceFingerprint.value = fingerprint),
 	);
 
+	// --- AUTH STATE LISTENER ---
 	FirebaseAuthentication.addListener("authStateChange", async (status) => {
-		if (!ionRouter) {
-			throw new Error("IonRouter not initialized");
-		}
+		if (!ionRouter) throw new Error("IonRouter not initialized");
 
 		if (!status.user) {
-			// User is logged out
 			await router.isReady();
 			isLoggedIn.value = false;
 			user.value = undefined;
 			firebaseUser.value = undefined;
-
 			await router.replace(FRONTEND_ROUTES.login!);
-
 			isAuthLoading.value = false;
 			return;
 		}
@@ -97,53 +93,90 @@ export const useAuthStore = defineStore("auth", () => {
 		firebaseUser.value = status.user;
 
 		const justLoggedIn = await Preferences.get({ key: LocalStorage.login });
+		const arrivedFromLogin = !!justLoggedIn.value;
 
-		// If arriving from login page
-		if (justLoggedIn.value) {
-			const result = await login();
+		// BOOTSTRAP: blocking, fast — just enough to make routing decisions
+		const ok = await bootstrap();
 
-			if (!result) {
-				const { toast } = useToast();
+		if (!ok) {
+			const { toast } = useToast();
+			if (arrivedFromLogin) {
 				toast("Something went wrong, please try again", { color: "warning" });
-				return;
-			}
-
-			const [authUser, newAcc] = result;
-
-			isAuthLoading.value = false;
-			const { showEnableNotificationsAfterLogin } = useNotificationStore();
-
-			if (newAcc || showEnableNotificationsAfterLogin) {
-				return;
-			}
-
-			ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation);
-		} else {
-			// Auto-login (no login intent)
-			isAuthLoading.value = false;
-
-			const result = await login();
-
-			if (!result) {
-				const { toast } = useToast();
+			} else {
 				toast(
-					"You’re offline. Local drawing is still available. Reopen the app to retry.",
+					"You're offline. Local drawing is still available. Reopen the app to retry.",
 					{ color: "warning" },
 				);
 				ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation);
-				return;
 			}
+			isAuthLoading.value = false;
+			return;
+		}
 
+		// Splash can come down NOW — user is loaded, route is decided.
+		isAuthLoading.value = false;
+
+		// HYDRATE in two stages:
+		//   - hydrateCritical: things routing depends on. Awaited.
+		//   - hydrateBackground: everything else. Fire-and-forget, stores own their loading UI.
+		await hydrateCritical({ arrivedFromLogin });
+		void hydrateBackground({ arrivedFromLogin });
+
+		// ROUTING + post-login prompts
+		await handlePostBootstrapRouting(arrivedFromLogin);
+	});
+
+	/**
+	 * Decides where to send the user after bootstrap succeeds.
+	 *
+	 * Priority order:
+	 *   1. New account → onboarding flow owns navigation (AgeConfirmationPage handles DOB)
+	 *   2. Legacy user missing DOB → show universal DOB modal (blocking, no skip)
+	 *   3. Arrived from login + notifications not yet activated → push notification opt-in page
+	 *   4. Redirect intent from a deep link → honor it
+	 *   5. Otherwise → home (or whatever route they were on)
+	 */
+	async function handlePostBootstrapRouting(arrivedFromLogin: boolean) {
+		if (!ionRouter || !user.value) return;
+
+		// 1. New signup — onboarding flow drives the stack, nothing to do here
+		if (arrivedFromLogin && isNewAccount.value) {
+			Preferences.remove({ key: LocalStorage.login });
+			return;
+		}
+
+		// 2. Legacy user without DOB — prompt them. Blocking by design.
+		//    The modal saves to user.date_of_birth on confirm, so isUnderAge
+		//    becomes correct before we route anywhere.
+		if (!user.value.date_of_birth) {
+			const dobStore = useDateOfBirthModalStore();
+			await dobStore.open("initial");
+			// Don't branch on result. Soft mode means even if they declined,
+			// home + server-side gates handle the rest. Continue routing.
+		}
+
+		// 3. Post-login notification opt-in for users who haven't activated yet
+		const { showEnableNotificationsAfterLogin } = useNotificationStore();
+		if (arrivedFromLogin && showEnableNotificationsAfterLogin) {
+			return;
+		}
+
+		// 4. Deep-link redirect intent (e.g. opened from a push notification)
+		const { redirectIntent } = useSessionStore();
+		if (redirectIntent) {
+			ionRouter.replace(redirectIntent, routerAnimation);
+			if (arrivedFromLogin) Preferences.remove({ key: LocalStorage.login });
+			return;
+		}
+
+		// 5. Default routing
+		if (arrivedFromLogin) {
+			ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation);
+			Preferences.remove({ key: LocalStorage.login });
+		} else {
 			const allowedRoutes = Object.values(FRONTEND_ROUTES).filter(
 				(p) => p !== FRONTEND_ROUTES.login,
 			) as Partial<FRONTEND_ROUTES>[];
-
-			const { redirectIntent } = useSessionStore();
-			if (redirectIntent) {
-				ionRouter.replace(redirectIntent, routerAnimation);
-				return;
-			}
-
 			const path = router.currentRoute.value.path.split("/")[1];
 			if (allowedRoutes.includes(path as FRONTEND_ROUTES)) {
 				ionRouter.replace(path, routerAnimation);
@@ -151,24 +184,23 @@ export const useAuthStore = defineStore("auth", () => {
 				ionRouter.replace(FRONTEND_ROUTES.home, routerAnimation);
 			}
 		}
-	});
+	}
 
-	async function login(): Promise<[User, boolean] | null> {
+	/**
+	 * BOOTSTRAP: minimum work to make a routing decision.
+	 */
+	async function bootstrap(): Promise<boolean> {
 		try {
-			// Use new prefixed function
-			socketConnect();
+			void socketConnect();
 
 			const authUser = await getCurrentAuthUser();
-			if (!authUser) return null;
+			if (!authUser) return false;
 
 			const userValue = await getUser({ auth_id: authUser.uid });
-			if (!userValue) throw new Error();
+			if (!userValue) return false;
 
-			showTutorial.value = !userValue.user.last_seen_version;
+			minimum_online_version.value = userValue.minimum_online_version;
 
-			// Date parsing removed here as requested
-
-			// Native version check
 			if (
 				isNative() &&
 				compareVersions(
@@ -177,76 +209,123 @@ export const useAuthStore = defineStore("auth", () => {
 				) === -1
 			) {
 				showForceUpdateModal.value = true;
-				return null;
+				return false;
 			}
 
-			const arrivedFromLogin = await Preferences.get({
-				key: LocalStorage.login,
-			});
-
+			showTutorial.value = !userValue.user.last_seen_version;
 			user.value = userValue.user;
-			isLoggedIn.value = true;
 			isNewAccount.value = userValue.new_account;
+			isLoggedIn.value = true;
 
-			// Use new prefixed functions
-			socketLogin({ _id: user.value!._id });
-			balloonStore.init(user.value);
-			await notificationStore.init(user.value, !!arrivedFromLogin.value);
+			void socketLogin({ _id: user.value._id });
 
-			const friendStore = useFriendStore();
-			const chatStore = useChatStore();
-			void friendStore.initializeSocialGraph();
-			void useQuotaStore().refresh();
-			void chatStore.loadActiveChats();
-			void useModerationStore().initFromUser(user.value);
-			void useInAppNotificationStore().loadInitial();
-
-			Preferences.set({ key: LocalStorage.user_id, value: user.value!._id });
-			Preferences.set({ key: LocalStorage.img, value: user.value!.img });
-
+			Preferences.set({ key: LocalStorage.user_id, value: user.value._id });
+			Preferences.set({ key: LocalStorage.img, value: user.value.img });
 			mixpanelIdentify(user.value._id);
-			if (arrivedFromLogin.value && deviceFingerprint.value) {
+
+			return true;
+		} catch (e) {
+			console.error("[auth] bootstrap failed:", e);
+			return false;
+		}
+	}
+
+	/**
+	 * CRITICAL HYDRATION: awaited before routing decisions.
+	 *
+	 * Only what `handlePostBootstrapRouting` reads goes here. Right now that's
+	 * the notification store, because the "send them to LoginNotificationPage"
+	 * branch reads `showEnableNotificationsAfterLogin` immediately after.
+	 *
+	 * Keep this list tight — anything added here delays the home screen.
+	 */
+	async function hydrateCritical(opts: { arrivedFromLogin: boolean }) {
+		if (!user.value) return;
+		try {
+			await useNotificationStore().init(user.value, opts.arrivedFromLogin);
+		} catch (e) {
+			console.error("[auth] critical hydrate failed:", e);
+			// Don't block routing on this — worst case is we skip the notification
+			// opt-in prompt for this session and they see it next time.
+		}
+	}
+
+	/**
+	 * BACKGROUND HYDRATION: fire-and-forget, in parallel.
+	 *
+	 * Everything routing doesn't directly read. Each store handles its own
+	 * loading state; failures are isolated via Promise.allSettled.
+	 */
+	async function hydrateBackground(opts: { arrivedFromLogin: boolean }) {
+		if (!user.value) return;
+		isHydrating.value = true;
+
+		const u = user.value;
+
+		try {
+			await Promise.allSettled([
+				useBalloonStore().init(u),
+				useFriendStore().initializeSocialGraph(),
+				useQuotaStore().refresh(true),
+				useChatStore().loadActiveChats(),
+				useModerationStore().initFromUser(u),
+				useInAppNotificationStore().loadInitial(),
+				refreshPublicLobbies(),
+			]);
+
+			if (opts.arrivedFromLogin && deviceFingerprint.value) {
 				onLoginEvent({
-					user_id: user.value!._id,
+					user_id: u._id,
 					fingerprint: deviceFingerprint.value,
 					loggedIn: true,
 				});
 			}
 
-			Preferences.remove({ key: LocalStorage.login });
+			lastHydratedAt.value = Date.now();
+		} finally {
+			isHydrating.value = false;
+		}
+	}
 
-			return [user.value, isNewAccount.value];
-		} catch (e) {
-			console.error(e);
-			return null;
+	/**
+	 * REFRESH: re-fetch user + re-hydrate everything that could be stale.
+	 */
+	async function refresh(e?: any): Promise<void> {
+		const { toast } = useToast();
+
+		try {
+			const authUser = await getCurrentAuthUser();
+			if (!authUser) {
+				toast("Something went wrong, please try again.", { color: "danger" });
+				return;
+			}
+			const userValue = await getUser({ auth_id: authUser.uid });
+			if (!userValue) {
+				toast("Something went wrong, please try again.", { color: "danger" });
+				return;
+			}
+			user.value = userValue.user;
+
+			await Promise.allSettled([
+				useInboxStore().getInboxBatch(true),
+				useChatStore().loadActiveChats(),
+				useQuotaStore().refresh(true),
+				useModerationStore().initFromUser(user.value),
+				useInAppNotificationStore().loadInitial(),
+				refreshPublicLobbies(),
+			]);
+
+			lastHydratedAt.value = Date.now();
+		} catch (err) {
+			console.error("[auth] refresh failed:", err);
+			toast("Couldn't refresh, try again.", { color: "danger" });
+		} finally {
+			if (e) e.target.complete();
 		}
 	}
 
 	function initIonRouter(r: UseIonRouterResult) {
 		ionRouter = r;
-	}
-
-	async function refresh(e?: any) {
-		const authUser = await getCurrentAuthUser();
-		const { toast } = useToast();
-
-		if (!authUser) {
-			toast("Something went wrong, please try again.", { color: "danger" });
-			return;
-		}
-		const userValue = await getUser({ auth_id: authUser.uid });
-		if (!userValue) {
-			toast("Something went wrong, please try again.", { color: "danger" });
-			return;
-		}
-
-		// Date parsing removed here as requested
-		user.value = userValue.user;
-		useModerationStore().initFromUser(user.value);
-
-		const { getInboxBatch } = useInboxStore();
-		await getInboxBatch(true);
-		if (e) e.target.complete();
 	}
 
 	async function logout() {
@@ -268,22 +347,21 @@ export const useAuthStore = defineStore("auth", () => {
 			});
 		}
 
-		// Use new prefixed function
 		socketDisconnect();
-
 		await FirebaseAuthentication.signOut();
 		isLoggedIn.value = false;
 		user.value = undefined;
+		lastHydratedAt.value = 0;
 	}
 
 	async function waitUntilInitialized(): Promise<User | undefined> {
-		if (isLoggedIn.value) return user.value;
+		if (!isAuthLoading.value) return user.value;
 
 		return new Promise((resolve) => {
 			const unwatch = watch(
-				isLoggedIn,
-				(val) => {
-					if (val) {
+				isAuthLoading,
+				(loading) => {
+					if (!loading) {
 						unwatch();
 						resolve(user.value);
 					}
@@ -298,23 +376,33 @@ export const useAuthStore = defineStore("auth", () => {
 		});
 	}
 
+	function onlineUpdateRequired() {
+		return (
+			compareVersions(__APP_VERSION__, minimum_online_version.value) === -1
+		);
+	}
+
 	return {
 		user,
 		firebaseUser,
 		isLoggedIn,
 		isAuthLoading,
 		isNewAccount,
+		isHydrating,
+		lastHydratedAt,
 		showForceUpdateModal,
-		isLoading,
-		shouldShowDateOfBirthConfirmation,
+		showTutorial,
+		hasConfirmedAge,
+		isUnderAge,
 		deviceFingerprint,
 		localUserImg,
-		showTutorial,
 		initIonRouter,
-		login,
+		bootstrap,
+		hydrateCritical,
+		hydrateBackground,
 		logout,
 		refresh,
-		refreshNeeded,
 		waitUntilInitialized,
+		onlineUpdateRequired,
 	};
 });

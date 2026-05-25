@@ -35,6 +35,7 @@ export const useMenuStore = defineStore("menu", () => {
 	const balloonMenuOpen = ref(false);
 	const textEditMenuOpen = ref(false);
 	const isShopOpen = ref(false);
+	const isOnlineUpgradeMenuOpen = ref(false);
 
 	const stickersEmblemsSavedSelectedTab =
 		ref<StickersEmblemsSavedTabOptions>("sticker");
@@ -70,6 +71,7 @@ export const useMenuStore = defineStore("menu", () => {
 		[Menu.BalloonMenu]: balloonMenuOpen,
 		[Menu.TextEditMenu]: textEditMenuOpen,
 		[Menu.Shop]: isShopOpen,
+		[Menu.UpgradeOnline]: isOnlineUpgradeMenuOpen,
 	};
 
 	const toolMenuMapping: { [key in DrawTool]: Menu | undefined } = {
@@ -128,5 +130,6 @@ export const useMenuStore = defineStore("menu", () => {
 		reportMenuOpen,
 		textEditMenuOpen,
 		isShopOpen,
+		isOnlineUpgradeMenuOpen,
 	};
 });

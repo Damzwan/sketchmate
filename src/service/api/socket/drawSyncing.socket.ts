@@ -25,6 +25,7 @@ import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import { useModerationStore } from "@/store/moderation.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
+import { fetchPublicLobbies } from "@/service/api/user.api";
 
 export function registerDrawSyncingHandlers(socket: Socket) {
 	const { isBlocked } = useFriendStore();
@@ -346,6 +347,11 @@ export function socketJoinRoom({
 	} = storeToRefs(useDrawSyncer());
 	isTryingToJoin.value = true;
 
+	if (useAuthStore().onlineUpdateRequired()) {
+		useMenuStore().openMenu(Menu.UpgradeOnline);
+		return;
+	}
+
 	if (intent === "join") {
 		isLoadingCanvas.value = true;
 	}
@@ -456,16 +462,23 @@ export function sendLobbyMessage(message: string) {
 	}, 5000);
 }
 
+export async function refreshPublicLobbies(): Promise<void> {
+	const { isUnderAge } = useAuthStore();
+	if (isUnderAge) {
+		return;
+	}
+	const { publicLobbies } = storeToRefs(useDrawSyncer());
+	try {
+		publicLobbies.value = await fetchPublicLobbies();
+	} catch (e) {
+		console.error("Failed to refresh public lobbies:", e);
+	}
+}
+
 export async function startWatchingLobbies() {
-	const { shouldShowDateOfBirthConfirmation } = useAuthStore();
-	if (shouldShowDateOfBirthConfirmation) {
-		const socialFeatureResult = await getDateOfBirthConfirmationResponse();
-		if (
-			socialFeatureResult == "cancel" ||
-			socialFeatureResult == "notAllowed"
-		) {
-			return;
-		}
+	const { isUnderAge } = useAuthStore();
+	if (isUnderAge) {
+		return;
 	}
 
 	const { isWatchingPublicLobbies } = storeToRefs(useDrawSyncer());

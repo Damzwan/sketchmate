@@ -5,29 +5,19 @@
         <p class="cabin-sketch-regular text-4xl text-center">Let's create your profile</p>
         <ProfileCustomization :skip-toast="true"/>
       </div>
-      <ion-nav-link router-direction="forward" :component="LoginNotificationPage">
-        <ion-button shape="round" color="secondary" size="large" class="pb-12"
-        >
 
+      <!-- CHANGED: route to AgeConfirmationPage first, not LoginNotificationPage -->
+      <ion-nav-link router-direction="forward" :component="LoginAgeConfirmationPage">
+        <ion-button shape="round" color="secondary" size="large" class="pb-12">
           Continue
         </ion-button>
       </ion-nav-link>
-
     </div>
-
   </ion-content>
 </template>
 
 <script setup lang="ts">
-import {
-  IonButton,
-  IonContent, IonNavLink
-} from '@ionic/vue'
-import ProfileCustomization from '@/components/account/ProfileCustomization.vue'
-import LoginNotificationPage from '@/components/login/LoginNotificationPage.vue'
-
+import { IonButton, IonContent, IonNavLink } from "@ionic/vue";
+import ProfileCustomization from "@/components/account/ProfileCustomization.vue";
+import LoginAgeConfirmationPage from "@/components/login/LoginAgeConfirmationPage.vue";
 </script>
-
-<style scoped>
-
-</style>

@@ -10,8 +10,7 @@
     </div>
 
     <div class="flex-1 overflow-y-auto p-3 space-y-4 pb-32">
-      <div
-        class="bg-primary/20 rounded-3xl p-2 border border-primary/40 shadow-inner max-w-[200px] mx-auto animate-fade-in">
+      <div class="bg-primary/20 rounded-3xl p-2 border border-primary/40 shadow-inner max-w-[200px] mx-auto animate-fade-in">
         <PreviewDrawing
           :newPreview="newPreview"
           :src="preview"
@@ -20,7 +19,9 @@
         />
       </div>
 
+      <!-- Save & Send Direct — visible to everyone IF they have mates -->
       <section
+        v-if="!isUnderAge || sortedMates.length > 0"
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
         :class="{'ring-2 ring-secondary/50': isSaveAndSend}"
         @click="toggleSection('direct')"
@@ -61,7 +62,25 @@
         </div>
       </section>
 
+      <!-- Save-only fallback for underage with no mates: the drawing should still be savable -->
       <section
+        v-if="isUnderAge && sortedMates.length === 0"
+        class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
+        :class="{'ring-2 ring-secondary/50': isSaveAndSend}"
+        @click="toggleSection('direct')"
+      >
+        <div class="flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <p class="text-xl font-bold text-black leading-none">Save to gallery</p>
+            <p class="text-sm text-black/60 font-bold mt-1">Keep this drawing in your personal gallery.</p>
+          </div>
+          <ion-toggle :checked="isSaveAndSend" color="secondary" class="pointer-events-none"></ion-toggle>
+        </div>
+      </section>
+
+      <!-- Community Post — adults only -->
+      <section
+        v-if="!isUnderAge"
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all"
         :class="[
           {'ring-2 ring-secondary/50': isPublicPost},
@@ -119,7 +138,9 @@
         </div>
       </section>
 
+      <!-- Release Balloon — adults only -->
       <section
+        v-if="!isUnderAge"
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all"
         :class="[
           {'ring-2 ring-secondary/50': isBalloon},
@@ -161,6 +182,22 @@
           />
         </div>
       </section>
+
+      <!-- Soft-mode banner -->
+      <section
+        v-if="isUnderAge"
+        class="bg-amber-50 border border-amber-200 rounded-3xl p-4 flex gap-3"
+      >
+        <span class="text-2xl shrink-0">🌱</span>
+        <div class="flex-1 min-w-0">
+          <p class="font-black text-sm text-amber-900 leading-tight">
+            More sharing options unlock at 13
+          </p>
+          <p class="text-[12px] text-amber-800/80 mt-1 leading-snug">
+            Community posts and balloons will turn on when you're old enough. For now, you can save your work and send to mates.
+          </p>
+        </div>
+      </section>
     </div>
 
     <div class="absolute bottom-6 left-0 right-0 px-6 pointer-events-none z-20">
@@ -172,7 +209,7 @@
         @click="executeShares"
         :disabled="shareService.isSending || noActionSelected"
       >
-        <span v-if="!shareService.isSending">Send</span>
+        <span v-if="!shareService.isSending">{{ sendButtonLabel }}</span>
         <ion-spinner v-else name="crescent" class="text-white" />
       </ion-button>
     </div>
@@ -211,7 +248,7 @@ dayjs.extend(duration);
 
 const router = useIonRouter();
 
-const { user } = storeToRefs(useAuthStore());
+const { user, isUnderAge } = storeToRefs(useAuthStore());
 const friendStore = useFriendStore();
 const { allConnectedPartners } = storeToRefs(friendStore);
 
@@ -231,8 +268,13 @@ const quotaStore = useQuotaStore();
 
 const { selected, toggle, reset: resetMates } = useMateSelection();
 
-const isBalloon = ref(shareService.preSelected === "balloon");
-const isSaveAndSend = ref(shareService.preSelected !== "balloon");
+// Underage users can't pre-select balloon — fall through to save-only.
+const isBalloon = ref(
+	!isUnderAge.value && shareService.preSelected === "balloon",
+);
+const isSaveAndSend = ref(
+	isUnderAge.value || shareService.preSelected !== "balloon",
+);
 
 const isPublicPost = ref(false);
 const postCaption = ref("");
@@ -250,7 +292,7 @@ const sortedMates = computed(() =>
 	}),
 );
 
-// Ticker to force reactivity updates on the countdown computed properties
+// Ticker for countdown computed properties
 const now = ref(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -283,10 +325,16 @@ const postResetCountdown = computed(() =>
 	fmtCountdown(quotaStore.posts.reset_at),
 );
 
+// "Send" vs "Save" — wording shifts when underage with no mates, since
+// there's nothing to send to
+const sendButtonLabel = computed(() => {
+	if (isUnderAge.value && sortedMates.value.length === 0) return "Save";
+	return "Send";
+});
+
 onMounted(async () => {
-	// Graceful fallback: If preSelected was balloon but they actually have no quota left,
-	// disable balloon and re-enable direct send so they aren't stuck.
-	if (isBalloon.value && !quotaStore.canSendBalloon) {
+	// Graceful fallback: if preSelected was balloon but underage or out of quota
+	if (isBalloon.value && (!quotaStore.canSendBalloon || isUnderAge.value)) {
 		isBalloon.value = false;
 		isSaveAndSend.value = true;
 	}
@@ -312,6 +360,11 @@ const goBack = (e: Event) => {
 };
 
 function toggleSection(section: "direct" | "post" | "balloon") {
+	// Defensive: underage users shouldn't be able to flip post/balloon even if
+	// they bypassed the v-if (e.g. age changed mid-session). UI-only guard;
+	// server is the real enforcement.
+	if ((section === "post" || section === "balloon") && isUnderAge.value) return;
+
 	if (section === "direct") isSaveAndSend.value = !isSaveAndSend.value;
 	if (section === "post") isPublicPost.value = !isPublicPost.value;
 	if (section === "balloon") isBalloon.value = !isBalloon.value;
@@ -330,11 +383,13 @@ async function executeShares() {
 		isSaveAndSend.value && user.value
 			? [...Array.from(selected.value), user.value._id]
 			: [];
-	const wantsPost = isPublicPost.value;
+
+	// Underage users can't trigger these, but guard at the action layer too
+	const wantsPost = isPublicPost.value && !isUnderAge.value;
 	const captionSnapshot = postCaption.value;
 	const enableCommentsSnapshot = postEnableComments.value;
 	const enableRemixSnapshot = postEnableRemix.value;
-	const wantsBalloon = isBalloon.value;
+	const wantsBalloon = isBalloon.value && !isUnderAge.value;
 	const balloonSnapshot = balloonNote.value;
 
 	if (!useDrawSyncer().isLobby) {
@@ -360,7 +415,6 @@ async function executeShares() {
 					enable_remix: enableRemixSnapshot,
 				})
 				.then(() => {
-					// Optimistic update
 					quotaStore.decrementPost();
 				}),
 		);
@@ -369,7 +423,6 @@ async function executeShares() {
 	if (wantsBalloon) {
 		tasks.push(() =>
 			shareService.releaseBalloon(processedData, balloonSnapshot).then(() => {
-				// Optimistic update
 				quotaStore.decrementBalloon();
 			}),
 		);

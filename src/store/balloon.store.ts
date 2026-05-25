@@ -100,12 +100,10 @@ export const useBalloonStore = defineStore("balloon", () => {
 	async function acceptReceived() {
 		if (!receivedBalloon.value || !auth.user?._id) return;
 
-		if (auth.shouldShowDateOfBirthConfirmation) {
-			const canSendBalloon = await getDateOfBirthConfirmationResponse();
-			if (canSendBalloon == "cancel" || canSendBalloon == "notAllowed") {
-				refuseReceived();
-				return;
-			}
+		const { isUnderAge } = useAuthStore();
+		if (isUnderAge) {
+			refuseReceived(); // TODO test
+			return;
 		}
 
 		const balloonId = receivedBalloon.value._id;

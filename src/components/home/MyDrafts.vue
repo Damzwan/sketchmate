@@ -33,8 +33,11 @@
         <div
           v-for="draft in sortedDrafts"
           :key="draft.id"
-          class="min-w-[170px] max-w-[170px] bg-primary/40 rounded-3xl overflow-hidden snap-start flex-shrink-0 border border-primary/60 transition-all cursor-pointer active:scale-95 group relative"
-          @click="emit('open', draft.id)"
+          class="min-w-[170px] max-w-[170px] rounded-3xl overflow-hidden snap-start flex-shrink-0 border transition-all group relative"
+          :class="isPending(draft.id)
+            ? 'bg-primary/20 border-primary/30 cursor-default pointer-events-auto'
+            : 'bg-primary/40 border-primary/60 cursor-pointer active:scale-95'"
+          @click="handleCardClick(draft.id)"
         >
           <!-- Preview Image Area -->
           <div class="h-28 w-full relative border-b border-primary/40 overflow-hidden bg-[#FAF0E6FF]">
@@ -42,24 +45,41 @@
               v-if="draft.thumbnail"
               :src="draft.thumbnail"
               class="w-full h-full object-contain p-2 transition-opacity duration-500"
+              :class="{ 'opacity-50': isPending(draft.id) }"
               alt="Draft"
             />
             <div v-else class="absolute inset-0 flex items-center justify-center opacity-10">
               <span class="text-2xl">🖌️</span>
+            </div>
+
+            <!-- Pending overlay: subtle shimmer + spinner badge -->
+            <div
+              v-if="isPending(draft.id)"
+              class="absolute inset-0 flex items-center justify-center bg-black/10 backdrop-blur-[1px]"
+            >
+              <div class="pending-shimmer absolute inset-0" />
+              <div class="relative z-10 bg-white/90 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-sm">
+                <ion-spinner name="dots" class="w-4 h-4 text-black/70" />
+                <span class="text-[10px] font-black text-black/70 uppercase tracking-wider">Saving</span>
+              </div>
             </div>
           </div>
 
           <!-- Bottom Meta Section -->
           <div class="p-3 bg-white/30 backdrop-blur-md flex items-center justify-between">
             <div class="truncate pr-2">
-              <p class="text-[9px] font-black text-black/40 uppercase tracking-tighter mb-0.5">Last Edit</p>
+              <p class="text-[9px] font-black text-black/40 uppercase tracking-tighter mb-0.5">
+                {{ isPending(draft.id) ? 'Just now' : 'Last Edit' }}
+              </p>
               <h3 class="text-xs font-bold text-black truncate">
-                {{ formatDate(draft.updatedAt) }}
+                {{ isPending(draft.id) ? '...' : formatDate(draft.updatedAt) }}
               </h3>
             </div>
 
-            <!-- Action Trigger -->
+            <!-- Action menu — hidden while pending. Once the save lands, it
+                 appears naturally as the card transitions to a real draft. -->
             <ion-button
+              v-if="!isPending(draft.id)"
               fill="clear"
               color="secondary"
               class="text-black/50"
@@ -79,86 +99,106 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { actionSheetController, IonButton, IonIcon } from '@ionic/vue'
-import { DrawingDraft } from '@/draw/store/drawLoad.store'
-import { Share } from '@capacitor/share'
-import { mdiDeleteOutline, mdiDotsVertical, mdiShareOutline } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { shareImg } from '@/helper/share.helper' // Using MDI as requested
+import { computed } from "vue";
+import {
+	actionSheetController,
+	IonButton,
+	IonIcon,
+	IonSpinner,
+} from "@ionic/vue";
+import { DrawingDraft } from "@/draw/store/drawLoad.store";
+import { mdiDeleteOutline, mdiDotsVertical, mdiShareOutline } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { shareImg } from "@/helper/share.helper";
 
 const props = defineProps<{
-  drafts: DrawingDraft[]
-  loading: boolean
-}>()
+	drafts: DrawingDraft[];
+	loading: boolean;
+	pendingIds: Set<string>;
+}>();
 
 const emit = defineEmits<{
-  (e: 'open', id: string): void
-  (e: 'delete', id: string): void
-}>()
+	(e: "open", id: string): void;
+	(e: "delete", id: string): void;
+}>();
 
-const sortedDrafts = computed(() => {
-  return [...props.drafts].sort((a, b) => b.updatedAt - a.updatedAt)
-})
+const sortedDrafts = computed(() =>
+	[...props.drafts].sort((a, b) => b.updatedAt - a.updatedAt),
+);
+
+const isPending = (id: string) => props.pendingIds.has(id);
+
+// Tap on a pending card is a no-op (no toast, no jank). The visual treatment
+// already tells the user it's not interactive yet.
+const handleCardClick = (id: string) => {
+	if (isPending(id)) return;
+	emit("open", id);
+};
 
 const presentActionSheet = async (draft: DrawingDraft) => {
-  const actionSheet = await actionSheetController.create({
-    header: 'Draft Options',
-    cssClass: 'custom-draw-action-sheet',
-    buttons: [
-      {
-        text: 'Share',
-        icon: svg(mdiShareOutline),
-        handler: async () => {
-          if (draft.thumbnail) {
-            shareImg(draft.thumbnail)
-          }
-        }
-      },
-      {
-        text: 'Delete',
-        role: 'destructive',
-        icon: svg(mdiDeleteOutline),
-        handler: () => {
-          emit('delete', draft.id)
-        }
-      }
-    ]
-  })
-  await actionSheet.present()
-}
+	if (isPending(draft.id)) return;
 
-const formatDate = (date: number) => {
-  return new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
+	const actionSheet = await actionSheetController.create({
+		header: "Draft Options",
+		cssClass: "custom-draw-action-sheet",
+		buttons: [
+			{
+				text: "Share",
+				icon: svg(mdiShareOutline),
+				handler: async () => {
+					if (draft.thumbnail) shareImg(draft.thumbnail);
+				},
+			},
+			{
+				text: "Delete",
+				role: "destructive",
+				icon: svg(mdiDeleteOutline),
+				handler: () => emit("delete", draft.id),
+			},
+		],
+	});
+	await actionSheet.present();
+};
+
+const formatDate = (date: number) =>
+	new Date(date).toLocaleDateString(undefined, {
+		month: "short",
+		day: "numeric",
+	});
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 .snap-x {
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
 
-.fade-slow-enter-active, .fade-slow-leave-active {
-  transition: opacity 0.4s ease;
+.fade-slow-enter-active, .fade-slow-leave-active { transition: opacity 0.4s ease; }
+.fade-slow-enter-from, .fade-slow-leave-to { opacity: 0; }
+
+/* Subtle shimmer on the pending overlay. Just enough motion that the card
+   doesn't feel frozen, not so much it competes with the rest of the UI. */
+.pending-shimmer {
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
 }
 
-.fade-slow-enter-from, .fade-slow-leave-to {
-  opacity: 0;
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 </style>
 
 <style>
-/* Global styles for the action sheet colors */
 .custom-draw-action-sheet {
   --background: var(--ion-color-tertiary);
   --button-color: var(--ion-color-dark);

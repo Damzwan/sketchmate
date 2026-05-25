@@ -58,7 +58,7 @@
               You're all caught up!
             </h3>
             <p class="text-sm font-bold text-black/50 max-w-[200px] mx-auto">
-              You've seen all the new art. Maybe it's time to stop ccrolling and draw something yourself?
+              You've seen all the new art. Maybe it's time to stop scrolling and draw something yourself?
             </p>
           </div>
         </div>

@@ -23,7 +23,6 @@
         fill="outline"
         placeholder="I wish that..."
         color="secondary"
-
       />
 
       <p class="cabin-sketch-regular pt-4">Do you like SketchMate?</p>
@@ -51,113 +50,152 @@
         </ion-button>
       </div>
 
-
       <div class="flex justify-end">
-        <ion-button color="secondary" @click="submit">Submit</ion-button>
+        <ion-button color="secondary" @click="submit" :disabled="isSubmitting">Submit</ion-button>
       </div>
 
-
+      <div class="flex justify-center mt-3 pt-2">
+        <ion-button
+          size="small"
+          fill="clear"
+          @click="handleOptOut"
+          :disabled="isOptingOut"
+        >
+          <p class="cabin-sketch-regular text-xs text-gray-500">Don't ask me again</p>
+        </ion-button>
+      </div>
     </div>
   </ion-modal>
 </template>
 
 
 <script setup lang="ts">
-import { useToast } from '@/service/toast.service'
-import { IonButton, IonIcon, IonModal, IonRadio, IonRadioGroup, IonTextarea, modalController } from '@ionic/vue'
-import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/menu.store'
-import { mdiClose, mdiGiftOffOutline } from '@mdi/js'
-import { isNative, svg } from '@/helper/general.helper'
-import { ref } from 'vue'
-import discordSvg from '@/assets/discord.svg'
-import { addDoc, collection, getFirestore, serverTimestamp } from '@firebase/firestore'
-import { useAuthStore } from '@/store/auth.store'
-import { discord_link } from '@/config/general.config'
-import { AppReview } from '@capawesome/capacitor-app-review'
-import { useSubscriptionStore } from '@/store/subscription.store'
+import { useToast } from "@/service/toast.service";
+import {
+	IonButton,
+	IonIcon,
+	IonModal,
+	IonRadio,
+	IonRadioGroup,
+	IonTextarea,
+	modalController,
+} from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { useMenuStore } from "@/store/menu.store";
+import { mdiClose, mdiGiftOffOutline } from "@mdi/js";
+import { isNative, svg } from "@/helper/general.helper";
+import { ref } from "vue";
+import discordSvg from "@/assets/discord.svg";
+import {
+	addDoc,
+	collection,
+	getFirestore,
+	serverTimestamp,
+} from "@firebase/firestore";
+import { useAuthStore } from "@/store/auth.store";
+import { discord_link } from "@/config/general.config";
+import { AppReview } from "@capawesome/capacitor-app-review";
+import { useSubscriptionStore } from "@/store/subscription.store";
+import { setFeedbackOptOut } from "@/service/api/user.api";
 
 enum FeedbackOptions {
-  like = 'like',
-  neutral = 'neutral',
-  dislike = 'dislike',
-  empty = 'empty',
+	like = "like",
+	neutral = "neutral",
+	dislike = "dislike",
+	empty = "empty",
 }
 
-const { feedbackMenuOpen } = storeToRefs(useMenuStore())
+const { feedbackMenuOpen } = storeToRefs(useMenuStore());
 
-const likeText = ref('')
-const dislikeText = ref('')
-const score = ref<FeedbackOptions>(FeedbackOptions.empty)
+const likeText = ref("");
+const dislikeText = ref("");
+const score = ref<FeedbackOptions>(FeedbackOptions.empty);
 
-const subscriptionStore = useSubscriptionStore()
-const { isPro } = storeToRefs(subscriptionStore)
+const subscriptionStore = useSubscriptionStore();
+const { isPro } = storeToRefs(subscriptionStore);
 
-const isSubmitting = ref(false)
+const isSubmitting = ref(false);
+const isOptingOut = ref(false);
 
 async function submit() {
-  if (isSubmitting.value) return // prevent duplicate submits
-  isSubmitting.value = true
+	if (isSubmitting.value) return;
+	isSubmitting.value = true;
 
-  const { toast } = useToast()
-  if (
-    likeText.value == '' &&
-    dislikeText.value == '' &&
-    score.value == FeedbackOptions.empty
-  ) {
-    toast('Fill at least one field', { color: 'warning' })
-    isSubmitting.value = false
-    return
-  }
+	const { toast } = useToast();
+	if (
+		likeText.value == "" &&
+		dislikeText.value == "" &&
+		score.value == FeedbackOptions.empty
+	) {
+		toast("Fill at least one field", { color: "warning" });
+		isSubmitting.value = false;
+		return;
+	}
 
-  const db = getFirestore()
-  const { user } = useAuthStore()
+	const db = getFirestore();
+	const { user } = useAuthStore();
 
-  if (!user) {
-    isSubmitting.value = false
-    return
-  }
+	if (!user) {
+		isSubmitting.value = false;
+		return;
+	}
 
-  modalController.dismiss()
+	modalController.dismiss();
 
-  const feedbackData = {
-    likeText: likeText.value,
-    dislikeText: dislikeText.value,
-    score: score.value,
-    userId: user.auth_id,
-    version: __APP_VERSION__
-  }
+	const feedbackData = {
+		likeText: likeText.value,
+		dislikeText: dislikeText.value,
+		score: score.value,
+		userId: user.auth_id,
+		version: __APP_VERSION__,
+	};
 
-  resetForm()
-  isSubmitting.value = true
+	resetForm();
 
-  try {
-    await addDoc(collection(db, 'feedback'), {
-      ...feedbackData,
-      timestamp: serverTimestamp()
-    })
+	try {
+		await addDoc(collection(db, "feedback"), {
+			...feedbackData,
+			timestamp: serverTimestamp(),
+		});
 
-    toast('Thank you for your feedback :)', { color: 'success' })
+		toast("Thank you for your feedback :)", { color: "success" });
 
-    if (feedbackData.score === FeedbackOptions.like) {
-      await AppReview.requestReview()
-    }
-  } catch (e) {
-    console.error('Error adding feedback: ', e)
-    toast('Failed to send feedback. Please try again later.', { color: 'danger' })
-  } finally {
-    isSubmitting.value = false
-  }
+		if (feedbackData.score === FeedbackOptions.like) {
+			await AppReview.requestReview();
+		}
+	} catch (e) {
+		console.error("Error adding feedback: ", e);
+		toast("Failed to send feedback. Please try again later.", {
+			color: "danger",
+		});
+	} finally {
+		isSubmitting.value = false;
+	}
 }
 
+async function handleOptOut() {
+	if (isOptingOut.value) return;
+	isOptingOut.value = true;
+
+	const { toast } = useToast();
+
+	try {
+		await setFeedbackOptOut(true);
+		toast("Got it, I won't ask again", { color: "success" });
+		feedbackMenuOpen.value = false;
+	} catch (e) {
+		console.error("Failed to opt out:", e);
+		toast("Something went wrong. Please try again.", { color: "danger" });
+	} finally {
+		isOptingOut.value = false;
+	}
+}
 
 function resetForm() {
-  dislikeText.value = ''
-  likeText.value = ''
-  score.value = FeedbackOptions.empty
+	dislikeText.value = "";
+	likeText.value = "";
+	score.value = FeedbackOptions.empty;
 }
-
-
 </script>
 
 <style scoped>

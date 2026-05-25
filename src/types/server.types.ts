@@ -249,6 +249,11 @@ export interface User {
 	inbox: string[];
 	mate_requests_sent: string[];
 	mate_requests_received: string[];
+	engagement_metadata?: {
+		last_thought_prompt_at?: string;
+		total_thought_prompts_shown?: number;
+		tasks_completed_since_last_prompt?: number;
+	};
 }
 
 export interface UserCustomization {
@@ -598,6 +603,7 @@ export interface UpdateProfilePayload {
 	description?: string;
 	customization?: UserCustomization;
 	subscription_tier?: string;
+	engagement_metadata?: any;
 }
 
 export interface ChangeUserNameParams {

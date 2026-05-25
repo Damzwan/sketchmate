@@ -239,3 +239,23 @@ export async function fetchPublicLobbies(): Promise<PublicLobby[]> {
 		method: "GET",
 	});
 }
+
+export interface RecordEngagementActionResponse {
+	should_prompt: boolean;
+}
+
+export async function recordEngagementAction(): Promise<RecordEngagementActionResponse> {
+	return request<RecordEngagementActionResponse>(
+		`${ENDPOINTS.user}/engagement/action`,
+		{
+			method: "POST",
+		},
+	);
+}
+
+export async function setFeedbackOptOut(opted_out: boolean): Promise<void> {
+	return request<void>(`${ENDPOINTS.user}/engagement/opt-out`, {
+		method: "PUT",
+		body: JSON.stringify({ opted_out }),
+	});
+}

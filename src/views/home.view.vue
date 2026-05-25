@@ -27,7 +27,7 @@
           </div>
         </section>
 
-        <!-- QUICK ACTIONS (filtered by age) -->
+        <!-- QUICK ACTIONS -->
         <section>
           <p class="text-base font-black text-black mb-3 px-1">Quick Actions</p>
           <div class="grid grid-cols-2 gap-3">
@@ -110,8 +110,6 @@ const { pendingDraftsList } = storeToRefs(loadStore);
 const localDrafts = ref<DrawingDraft[]>([]);
 const isLoadingDrafts = ref(true);
 
-// Only balloon is age-gated. Draw-together (private rooms with mates) and
-// adding mates are allowed for underage users.
 const ALL_QUICK_ACTIONS = [
 	{ id: "draw_alone", label: "Draw", iconFallback: "✏️", requiresAge: false },
 	{
@@ -132,6 +130,8 @@ const pendingDraftIds = computed(
 	() => new Set(pendingDraftsList.value.map((p) => p.id)),
 );
 
+// Pending drafts shown first, then real ones. Pending entries shadow any
+// real draft with the same id (the user just exited and overwrote it).
 const mergedDrafts = computed<DrawingDraft[]>(() => {
 	const pendingIds = pendingDraftIds.value;
 	const real = localDrafts.value.filter((d) => !pendingIds.has(d.id));
@@ -143,13 +143,12 @@ const mergedDrafts = computed<DrawingDraft[]>(() => {
 onMounted(async () => {
 	try {
 		await import("@/views/draw.view.vue");
-	} catch (error) {}
+	} catch {}
 });
 
 onIonViewDidEnter(() => {
 	fetchDrafts();
 
-	// Skip lobby network calls for underage — they can't see public lobbies
 	if (!isUnderAge.value) {
 		useAuthStore()
 			.waitUntilInitialized()
@@ -162,12 +161,12 @@ onIonViewDidEnter(() => {
 	}
 });
 
+// When a pending save completes (count drops), re-fetch so the real draft
+// (with the proper thumbnail) replaces the pending placeholder.
 watch(
 	() => pendingDraftsList.value.length,
 	(newLength, oldLength) => {
-		if (newLength < oldLength) {
-			fetchDraftsBackground();
-		}
+		if (newLength < oldLength) fetchDraftsBackground();
 	},
 );
 
@@ -216,8 +215,8 @@ const handleDeleteDraft = async (id: string) => {
 	}
 };
 
+// MyDrafts already blocks tap on pending cards, so this is always a real id.
 const openDraft = (id: string) => {
-	if (pendingDraftIds.value.has(id)) return;
 	r.push(`${FRONTEND_ROUTES.draw}?id=${id}`, masterAnimation);
 };
 
@@ -227,12 +226,6 @@ const goToAgeSettings = () => {
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

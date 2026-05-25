@@ -1,4 +1,4 @@
-import { Mate } from "@/types/server.types";
+import { Mate, User } from "@/types/server.types";
 import Compressor from "compressorjs";
 import router from "@/router";
 import { StatusBar } from "@capacitor/status-bar";
@@ -458,4 +458,19 @@ export async function initBilling() {
 export function generateRandomCode() {
 	const code = Math.floor(Math.random() * 10000);
 	return String(code).padStart(4, "0");
+}
+
+export function shouldShowThoughtPrompt(user: User): boolean {
+	const meta = user.engagement_metadata;
+	if (!meta) return true; // First time, always prompt
+
+	const lastPromptDate = new Date(meta.last_thought_prompt_at || 0);
+	const daysSinceLastPrompt =
+		(Date.now() - lastPromptDate.getTime()) / (1000 * 60 * 60 * 24);
+
+	return (
+		!!meta.tasks_completed_since_last_prompt &&
+		meta.tasks_completed_since_last_prompt >= 3 &&
+		daysSinceLastPrompt >= 7
+	);
 }

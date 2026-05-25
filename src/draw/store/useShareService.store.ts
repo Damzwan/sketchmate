@@ -18,6 +18,10 @@ import { useInboxStore } from "@/store/inbox.store";
 import { usePostStore } from "@/store/post.store";
 import { FeedPost, InboxItem } from "@/types/server.types";
 import { useChatStore } from "@/store/chat.store";
+import { shouldShowThoughtPrompt } from "@/helper/general.helper";
+import { recordEngagementAction, updateProfile } from "@/service/api/user.api";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
 
 export interface PostSettings {
 	caption: string;
@@ -157,10 +161,26 @@ export const useShareService = defineStore("shareService", () => {
 		if (tasks.length === 0) return;
 		isSending.value = true;
 		try {
-			await Promise.allSettled(tasks.map((t) => t()));
+			const results = await Promise.allSettled(tasks.map((t) => t()));
+			const anySucceeded = results.some((r) => r.status === "fulfilled");
+			if (anySucceeded) {
+				await recordEngagementAndMaybePrompt();
+			}
 		} finally {
 			isSending.value = false;
 			void quota.refresh(true);
+		}
+	}
+
+	async function recordEngagementAndMaybePrompt(): Promise<void> {
+		try {
+			const { should_prompt } = await recordEngagementAction();
+			if (should_prompt) {
+				useMenuStore().openMenu(Menu.FeedbackMenu);
+			}
+		} catch (e) {
+			// Never let engagement tracking break the share flow
+			console.warn("Engagement tracking failed", e);
 		}
 	}
 

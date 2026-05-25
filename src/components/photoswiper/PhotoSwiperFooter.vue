@@ -1,5 +1,6 @@
 <template>
   <CommentPreview
+    v-if="showComments"
     :comments="currItem.comments || []"
     @open-comments="$emit('open-comments')"
     :resolveUser="resolveUser"

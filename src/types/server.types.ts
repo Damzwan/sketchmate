@@ -253,7 +253,9 @@ export interface User {
 		last_thought_prompt_at?: string;
 		total_thought_prompts_shown?: number;
 		tasks_completed_since_last_prompt?: number;
+		feedback_opted_out?: boolean;
 	};
+	inventory: string[];
 }
 
 export interface UserCustomization {
@@ -603,7 +605,6 @@ export interface UpdateProfilePayload {
 	description?: string;
 	customization?: UserCustomization;
 	subscription_tier?: string;
-	engagement_metadata?: any;
 }
 
 export interface ChangeUserNameParams {

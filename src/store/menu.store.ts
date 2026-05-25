@@ -37,6 +37,8 @@ export const useMenuStore = defineStore("menu", () => {
 	const isShopOpen = ref(false);
 	const isOnlineUpgradeMenuOpen = ref(false);
 
+	const shopScrollTarget = ref<string | null>(null);
+
 	const stickersEmblemsSavedSelectedTab =
 		ref<StickersEmblemsSavedTabOptions>("sticker");
 
@@ -96,6 +98,11 @@ export const useMenuStore = defineStore("menu", () => {
 		menuMapping[menu].value = false;
 	}
 
+	function openShop(targetItemId?: string) {
+		shopScrollTarget.value = targetItemId ?? null;
+		isShopOpen.value = true;
+	}
+
 	return {
 		penMenuOpen,
 		eraserMenuOpen,
@@ -131,5 +138,7 @@ export const useMenuStore = defineStore("menu", () => {
 		textEditMenuOpen,
 		isShopOpen,
 		isOnlineUpgradeMenuOpen,
+		shopScrollTarget,
+		openShop,
 	};
 });

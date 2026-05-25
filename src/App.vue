@@ -99,9 +99,7 @@ const ShareToasts = defineAsyncComponent(
 	() => import("@/components/draw/send/ShareToasts.vue"),
 );
 
-const Shop = defineAsyncComponent(
-	() => import("@/components/general/Shop.vue"),
-);
+const Shop = defineAsyncComponent(() => import("@/components/shop/Shop.vue"));
 
 const ionRouter = useIonRouter();
 const { initIonRouter } = useAuthStore();

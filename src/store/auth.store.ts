@@ -40,6 +40,8 @@ import { useQuotaStore } from "@/store/quota.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 
 export const useAuthStore = defineStore("auth", () => {
 	// --- STATE ---
@@ -271,6 +273,7 @@ export const useAuthStore = defineStore("auth", () => {
 				useModerationStore().initFromUser(u),
 				useInAppNotificationStore().loadInitial(),
 				refreshPublicLobbies(),
+				useInventoryStore().hydrateFromUser(user.value),
 			]);
 
 			if (opts.arrivedFromLogin && deviceFingerprint.value) {
@@ -313,6 +316,7 @@ export const useAuthStore = defineStore("auth", () => {
 				useModerationStore().initFromUser(user.value),
 				useInAppNotificationStore().loadInitial(),
 				refreshPublicLobbies(),
+				useInventoryStore().hydrateFromUser(user.value),
 			]);
 
 			lastHydratedAt.value = Date.now();
@@ -338,6 +342,8 @@ export const useAuthStore = defineStore("auth", () => {
 		Preferences.remove({ key: LocalStorage.notificationToken });
 		useModerationStore().reset();
 		useInAppNotificationStore().reset();
+		useInventoryStore().clear();
+		useSubscriptionStore().clearSubscriptionState();
 
 		if (deviceFingerprint.value && user.value) {
 			onLoginEvent({

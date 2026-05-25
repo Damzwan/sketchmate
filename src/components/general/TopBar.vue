@@ -5,17 +5,6 @@
         <p class="cabin-sketch-regular text-2xl font-light text-black w-[80px]">
           {{ title }}
         </p>
-
-<!--        <ion-button-->
-<!--          fill="outline"-->
-<!--          class="sketch-button-rounded h-9 m-0"-->
-<!--          @click="openProMenu"-->
-<!--        >-->
-<!--          <div class="flex items-center space-x-1 px-1">-->
-<!--            <ion-icon :icon="sparklesOutline" class="text-black text-[12px]" />-->
-<!--            <span class="cabin-sketch-regular text-black text-[17px] font-bold lowercase">plus+</span>-->
-<!--          </div>-->
-<!--        </ion-button>-->
       </div>
 
       <div class="flex items-center space-x-4 pr-2">
@@ -33,16 +22,16 @@
           <div class="flex flex-col gap-1 ml-2 mt-0.5">
 
             <div v-if="totalUnreadCount > 0" class="flex items-center gap-1.5 h-3">
-      <span class="cabin-sketch-regular text-[13px] font-bold text-red-600 leading-none">
-        {{ totalUnreadCount }}
-      </span>
+              <span class="cabin-sketch-regular text-[13px] font-bold text-red-600 leading-none">
+                {{ totalUnreadCount }}
+              </span>
               <div class="w-1.5 h-1.5 bg-red-500 rounded-full shadow-sm"></div>
             </div>
 
             <div class="flex items-center gap-1.5 h-3">
-      <span class="cabin-sketch-regular text-[13px] font-bold text-black leading-none">
-        {{ onlineFriends.length }}
-      </span>
+              <span class="cabin-sketch-regular text-[13px] font-bold text-black leading-none">
+                {{ onlineFriends.length }}
+              </span>
               <div class="w-1.5 h-1.5 bg-green-500 rounded-full shadow-sm animate-pulse"></div>
             </div>
 
@@ -58,14 +47,14 @@
 
         <button
           @click="openNotifications"
-          class="active:scale-90 transition-transform flex items-center"
+          class="relative active:scale-90 transition-transform flex items-center"
         >
           <span
             v-if="unseen > 0"
-            class="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center"
+            class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center z-10"
           >
-    {{ unseen > 99 ? '99+' : unseen }}
-  </span>
+            {{ unseen > 99 ? '99+' : unseen }}
+          </span>
           <ion-icon :icon="notificationsOutline" class="text-[26px] text-black" />
         </button>
       </div>
@@ -103,9 +92,6 @@ const { unseen } = storeToRefs(useInAppNotificationStore());
 
 const r = useIonRouter();
 
-const openProMenu = () => {
-	/* logic */
-};
 const openNotifications = () => {
 	r.push(FRONTEND_ROUTES.notifications, masterAnimation);
 };
@@ -122,7 +108,6 @@ const openNotifications = () => {
   --padding-start: 10px;
   --padding-end: 10px;
 }
-
 
 /* Custom shadow/glow for the badge */
 .shadow-sm {

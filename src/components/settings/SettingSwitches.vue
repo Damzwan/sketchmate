@@ -10,14 +10,28 @@
       <ion-label class="cabin-sketch-regular font-bold text-lg">
         Alerts
         <ion-button fill="clear" id="notif-info" class="h-6 w-6 m-0 p-0">
-          <ion-icon slot="icon-only" :icon="svg(mdiInformationOutline)" size="small" class="text-gray-400" />
+          <ion-icon
+            slot="icon-only"
+            :icon="svg(mdiInformationOutline)"
+            size="small"
+            class="text-gray-400"
+          />
         </ion-button>
       </ion-label>
+
+      <ion-spinner
+        v-if="notificationToggleBusy"
+        slot="end"
+        name="crescent"
+        class="text-gray-500"
+      />
       <ion-toggle
+        v-else
         slot="end"
         mode="ios"
         color="secondary"
         :checked="!!deviceNotificationsAllowed"
+        :disabled="notificationToggleBusy"
         @ionChange="handleNotificationChange"
       />
     </ion-item>
@@ -28,7 +42,12 @@
       <ion-label class="cabin-sketch-regular font-bold text-lg">
         Balloons
         <ion-button fill="clear" id="balloon-info" class="h-6 w-6 m-0 p-0">
-          <ion-icon slot="icon-only" :icon="svg(mdiInformationOutline)" size="small" class="text-gray-400" />
+          <ion-icon
+            slot="icon-only"
+            :icon="svg(mdiInformationOutline)"
+            size="small"
+            class="text-gray-400"
+          />
         </ion-button>
       </ion-label>
       <ion-toggle
@@ -36,6 +55,7 @@
         mode="ios"
         color="secondary"
         :checked="!user.balloon?.disabled"
+        :disabled="balloonToggleBusy"
         @ionChange="handleBalloonChange"
       />
     </ion-item>
@@ -44,7 +64,10 @@
     <ion-popover trigger="balloon-info" trigger-action="click" class="cabin-sketch-regular shadow-lg">
       <div class="p-4 text-sm text-black bg-tertiary">
         <p class="font-bold mb-1 underline decoration-secondary">Incoming Balloons</p>
-        <p>Toggle off to stop receiving balloons from strangers. <strong>You can still send balloons to others!</strong></p>
+        <p>
+          Toggle off to stop receiving balloons from strangers.
+          <strong>You can still send balloons to others!</strong>
+        </p>
       </div>
     </ion-popover>
 
@@ -61,12 +84,15 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
+import type { ToggleCustomEvent } from "@ionic/vue";
 import {
 	IonButton,
 	IonIcon,
 	IonItem,
 	IonLabel,
 	IonPopover,
+	IonSpinner,
 	IonToggle,
 } from "@ionic/vue";
 import { isNative, svg } from "@/helper/general.helper";
@@ -84,37 +110,68 @@ import {
 	requestNotifications,
 } from "@/helper/notification.helper";
 import { updateUser } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
 
 const { user } = storeToRefs(useAuthStore());
 const { deviceNotificationsAllowed } = storeToRefs(useNotificationStore());
 
-function handleBalloonChange() {
+const notificationToggleBusy = ref(false);
+const balloonToggleBusy = ref(false);
+
+async function handleNotificationChange(event: ToggleCustomEvent) {
+	const desired = event.detail.checked;
+	if (desired === !!deviceNotificationsAllowed.value) return;
+
+	if (notificationToggleBusy.value) return;
+	notificationToggleBusy.value = true;
+
+	try {
+		if (desired) {
+			await requestNotifications();
+		} else {
+			await disableNotifications();
+		}
+	} catch (e) {
+		console.error("Notification toggle failed", e);
+		useToast().toast("Something went wrong, please try again", {
+			color: "danger",
+		});
+	} finally {
+		notificationToggleBusy.value = false;
+	}
+}
+
+async function handleBalloonChange(event: ToggleCustomEvent) {
 	if (!user.value) return;
 	if (!user.value.balloon) user.value.balloon = { disabled: false };
 
-	const newState = !user.value.balloon.disabled;
-	user.value.balloon.disabled = newState;
+	const desiredEnabled = event.detail.checked;
+	const desiredDisabled = !desiredEnabled;
+	if (desiredDisabled === user.value.balloon.disabled) return;
+	if (balloonToggleBusy.value) return;
 
-	updateUser({
-		_id: user.value._id,
-		balloon: { ...user.value.balloon, disabled: newState },
-	}).catch(() => {
-		// Revert on failure
-		if (user.value?.balloon) {
-			user.value.balloon.disabled = !newState;
-		}
-	});
-}
+	balloonToggleBusy.value = true;
+	const previous = user.value.balloon.disabled;
+	user.value.balloon.disabled = desiredDisabled;
 
-function handleNotificationChange() {
-	deviceNotificationsAllowed.value
-		? disableNotifications()
-		: requestNotifications();
+	try {
+		await updateUser({
+			_id: user.value._id,
+			balloon: { ...user.value.balloon, disabled: desiredDisabled },
+		});
+	} catch (e) {
+		// Rollback
+		if (user.value?.balloon) user.value.balloon.disabled = previous;
+		useToast().toast("Could not update balloon preference", {
+			color: "danger",
+		});
+	} finally {
+		balloonToggleBusy.value = false;
+	}
 }
 </script>
 
 <style scoped>
-/* Ensure popovers match the sketch/paper theme */
 ion-popover {
   --background: var(--ion-color-tertiary);
   --backdrop-opacity: 0.2;

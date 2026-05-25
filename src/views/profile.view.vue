@@ -162,8 +162,8 @@ const loadMorePosts = async (e: any) => {
 	}
 };
 
-onIonViewDidEnter(() => {
-	if (!user.value) return;
+onIonViewDidEnter(async () => {
+	await authStore.waitUntilInitialized();
 	loadingAccount.value = false;
 	if (userPosts.value.length === 0 || isProfileDirty.value) loadPosts();
 });

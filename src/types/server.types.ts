@@ -572,6 +572,7 @@ export interface NotificationSubscription {
 	platform: string;
 	model: string;
 	os: string;
+	updated_at?: string;
 }
 
 export interface GetUserParams {

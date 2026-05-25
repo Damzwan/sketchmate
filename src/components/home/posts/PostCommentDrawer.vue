@@ -43,12 +43,13 @@
             @click="openUser(comment.author._id)"
             class="shrink-0 active:scale-95 transition-transform mt-0.5"
           >
-            <ion-avatar class="h-[36px] w-[36px] bg-white/80 shadow-sm border border-black/5 overflow-hidden">
-              <img v-if="comment.author.img" :src="comment.author.img" class="aspect-square object-cover" />
-              <span v-else class="w-full h-full flex items-center justify-center font-bold text-black text-sm">
-                {{ comment.author.name.charAt(0) }}
-              </span>
-            </ion-avatar>
+            <UserAvatar
+              static
+              v-if="comment.author"
+              :user="comment.author"
+              :customization="comment.author?.customization"
+              size="sm"
+            />
           </button>
 
           <!-- Comment Content Body -->
@@ -143,6 +144,7 @@ import { useModerationStore } from "@/store/moderation.store";
 import { useToast } from "@/service/toast.service";
 import { FeedPost } from "@/types/server.types";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
 const props = defineProps<{ isOpen: boolean; post: FeedPost | null }>();
 const emit = defineEmits(["close"]);

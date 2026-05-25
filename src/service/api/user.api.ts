@@ -23,6 +23,7 @@ import {
 	UpdateProfilePayload,
 	UpdateUserParams,
 } from "@/types/server.types";
+import { PublicLobby } from "@/draw/store/drawSyncing.store";
 
 // --- PROFILE MANAGEMENT ---
 export async function updateProfile(payload: UpdateProfilePayload) {
@@ -231,4 +232,10 @@ export async function deleteProfileImg(
 			method: "DELETE",
 		},
 	);
+}
+
+export async function fetchPublicLobbies(): Promise<PublicLobby[]> {
+	return request<PublicLobby[]>(`${ENDPOINTS.user}/lobbies`, {
+		method: "GET",
+	});
 }

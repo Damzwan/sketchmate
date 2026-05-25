@@ -1,8 +1,6 @@
-<!-- components/chat/ChatMessageFlow.vue -->
 <template>
   <div @touchmove.stop class="space-y-2 pb-4 flex flex-col justify-end min-h-full animate-tab-in">
 
-    <!-- 0. BLOCKED STATE -->
     <div v-if="isBlocked" class="flex-1 flex flex-col items-center justify-center p-8 animate-fade-in">
       <div class="bg-white/40 border border-white/60 p-8 rounded-[3rem] backdrop-blur-md shadow-xl text-center w-full max-w-xs">
         <div class="relative inline-block mb-4">
@@ -21,10 +19,8 @@
       </div>
     </div>
 
-    <!-- ACTIVE CONTENT -->
     <template v-else>
 
-      <!-- NEW CHAT BLANK STATE -->
       <div v-if="isBrandNewChat && partner" class="flex flex-col items-center justify-center py-20 opacity-40 animate-fade-in text-center">
         <ion-icon :icon="svg(mdiChatOutline)" class="text-6xl mb-4 text-black" />
         <p class="cabin-sketch-regular text-2xl font-bold text-black leading-none">
@@ -32,12 +28,10 @@
         </p>
       </div>
 
-      <!-- LOADING SPINNER -->
       <div v-if="activeTab !== 'lobby' && messages.length > 0 && chatStore.hasMoreMessagesByChat[activeTab] !== false" ref="topSentinel" class="w-full flex justify-center py-4 shrink-0">
         <ion-spinner name="bubbles" color="secondary" class="opacity-60"></ion-spinner>
       </div>
 
-      <!-- 1. MESSAGE BUBBLES -->
       <TransitionGroup name="msg-bubble" tag="div" class="flex flex-col gap-2 w-full" :class="{ 'is-fetching-history': isFetchingHistory }">
         <ChatMessageBubble
           v-for="(msg, index) in messages"
@@ -52,22 +46,6 @@
         />
       </TransitionGroup>
 
-      <!-- 2. UNIFIED RELATIONSHIP STATUS BANNER -->
-      <ChatRelationshipBanner
-        v-if="showRelationshipBanner && partner"
-        :chat="currentChat"
-        :partner="partner"
-        :currentUserId="user?._id"
-        @accept-invite="chatStore.respondToRequest(currentChat._id, 'accept')"
-        @decline-invite="chatStore.respondToRequest(currentChat._id, 'decline')"
-        @request="handleMateRequest"
-        @accept="handleMateAccept"
-        @decline="handleMateDecline"
-        @cancel-mate="chatStore.handleCancelMateRequest(currentChat._id)"
-        @upgrade="() => useMenuStore().openMenu(Menu.Shop)"
-      />
-
-      <!-- 3. DRAWING INVITATION BANNER -->
       <div v-if="activeInvite" class="flex justify-center w-full my-6 animate-bounce-in">
         <div class="flex flex-col items-center gap-3 p-4 bg-secondary/10 border border-secondary/30 rounded-[2.5rem] backdrop-blur-md w-full max-w-[250px] shadow-2xl relative">
           <button @click="dismissInvite" class="absolute top-3 right-3 text-secondary/40 hover:text-secondary"><ion-icon :icon="closeCircle" class="text-xl" /></button>
@@ -101,23 +79,14 @@ import { mdiAccountOff, mdiChatOutline, mdiDraw } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 
 import ChatMessageBubble from "./ChatMessageBubble.vue";
-import ChatRelationshipBanner from "./ChatRelationshipBanner.vue";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useChatStore } from "@/store/chat.store";
 import { useFriendStore } from "@/store/friend.store";
-import { PopulatedConversation } from "@/types/server.types";
 import { useIntersectionObserver } from "@vueuse/core";
-import {
-	acceptMatership,
-	declineMatership,
-	requestMatership,
-} from "@/service/api/relationship.api";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
 
 const props = defineProps<{ messages: any[]; isFetchingHistory: boolean }>();
 const emit = defineEmits(["inspect-profile", "join-session", "load-more"]);
@@ -169,67 +138,10 @@ const partner = computed(() => {
 const isBrandNewChat = computed(
 	() => !currentChat.value && activeTab.value !== "lobby",
 );
+
 const isBlocked = computed(() =>
 	partner.value ? friendStore.isBlocked(partner.value._id) : false,
 );
-
-const showRelationshipBanner = computed(() => {
-	if (!currentChat.value) return false;
-	const s = currentChat.value.status;
-	return ["pending_invite", "temporary", "pending_mate", "expired"].includes(
-		s as string,
-	);
-});
-
-async function handleMateRequest() {
-	if (!currentChat.value?.relationship_id) return;
-	try {
-		await requestMatership(currentChat.value._id);
-		const idx = chatStore.activeChats.findIndex(
-			(c) => c._id === currentChat.value!._id,
-		);
-		if (idx !== -1)
-			chatStore.activeChats[idx] = {
-				...chatStore.activeChats[idx],
-				status: "pending_mate",
-				initiator_id: user.value?._id?.toString(),
-			};
-	} catch (e) {
-		console.error(e);
-	}
-}
-
-async function handleMateAccept() {
-	if (!currentChat.value?.relationship_id) return;
-	try {
-		const { conversation } = (await acceptMatership(
-			currentChat.value.relationship_id,
-		)) as { conversation: PopulatedConversation };
-		chatStore.handleMateMatched({ conversation });
-	} catch (e) {
-		console.error(e);
-	}
-}
-
-async function handleMateDecline() {
-	if (!currentChat.value?.relationship_id) return;
-	try {
-		const { status } = (await declineMatership(
-			currentChat.value.relationship_id,
-		)) as any;
-		const idx = chatStore.activeChats.findIndex(
-			(c) => c._id === currentChat.value!._id,
-		);
-		if (idx !== -1)
-			chatStore.activeChats[idx] = {
-				...chatStore.activeChats[idx],
-				status,
-				initiator_id: undefined,
-			};
-	} catch (e) {
-		console.error(e);
-	}
-}
 
 const activeInvite = computed(() => {
 	if (activeTab.value === "lobby" || activeTab.value === "overview")

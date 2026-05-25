@@ -24,6 +24,7 @@
             </h3>
             <SubscriptionManager
               :subscriptions="user.subscriptions"
+              :pending-fingerprint="pendingFingerprint"
               @delete="handleDeleteSubscription"
             />
           </section>
@@ -40,27 +41,40 @@
 </template>
 
 <script setup lang="ts">
-import { IonPage, IonContent } from '@ionic/vue'
-import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/store/auth.store'
-import { useToast } from '@/service/toast.service'
+import { IonPage, IonContent } from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { useAuthStore } from "@/store/auth.store";
+import { useToast } from "@/service/toast.service";
 
-import SubPageBar from '@/components/general/SubPageBar.vue'
-import SettingLinks from '@/components/settings/SettingLinks.vue'
-import SubscriptionManager from '@/components/settings/SubscriptionManager.vue'
-import SettingSwitches from '@/components/settings/SettingSwitches.vue'
+import SubPageBar from "@/components/general/SubPageBar.vue";
+import SettingLinks from "@/components/settings/SettingLinks.vue";
+import SubscriptionManager from "@/components/settings/SubscriptionManager.vue";
+import SettingSwitches from "@/components/settings/SettingSwitches.vue";
+import { ref } from "vue";
+import { NotificationSubscription } from "@/types/server.types";
+import { unsubscribe } from "@/service/api/user.api";
 
-const authStore = useAuthStore()
-const { user } = storeToRefs(authStore)
-const { toast } = useToast()
+const authStore = useAuthStore();
+const { user } = storeToRefs(authStore);
 
-const handleDeleteSubscription = async (sub: any) => {
-  try {
-    // await api.deleteSubscription(sub.fingerprint)
-    toast('Device removed successfully')
-  } catch (e) {
-    toast('Could not remove device', { color: 'danger' })
-  }
+const pendingFingerprint = ref<string | null>(null);
+
+async function handleDeleteSubscription(sub: NotificationSubscription) {
+	if (!user.value) return;
+	pendingFingerprint.value = sub.fingerprint;
+	try {
+		await unsubscribe({
+			user_id: user.value._id,
+			fingerprint: sub.fingerprint,
+		});
+		user.value.subscriptions = user.value.subscriptions.filter(
+			(s) => s.fingerprint !== sub.fingerprint,
+		);
+	} catch (e) {
+		useToast().toast("Could not remove device", { color: "danger" });
+	} finally {
+		pendingFingerprint.value = null;
+	}
 }
 </script>
 

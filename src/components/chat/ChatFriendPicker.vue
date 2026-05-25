@@ -45,7 +45,6 @@
             :user="friend"
             :customization="friend.customization"
             size="sm"
-            class="shadow-sm transition-all"
           />
           <div
             v-if="isFriendOnline(friend._id) && !isDisabled(friend)"

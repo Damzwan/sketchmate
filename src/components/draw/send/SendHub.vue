@@ -20,9 +20,8 @@
         />
       </div>
 
-      <!-- ─── SAVE & SEND DIRECT ──────────────────────────────────────── -->
       <section
-        class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer active:scale-[0.995]"
+        class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
         :class="{'ring-2 ring-secondary/50': isSaveAndSend}"
         @click="toggleSection('direct')"
       >
@@ -31,7 +30,7 @@
             <p class="text-xl font-bold text-black leading-none">Save & Send Direct</p>
             <p class="text-sm text-black/60 font-bold mt-1">Keep in gallery and share with mates.</p>
           </div>
-          <ion-toggle :checked="isSaveAndSend" color="secondary" @click.stop="toggleSection('direct')"></ion-toggle>
+          <ion-toggle :checked="isSaveAndSend" color="secondary" class="pointer-events-none"></ion-toggle>
         </div>
 
         <div v-if="isSaveAndSend && sortedMates.length > 0"
@@ -62,12 +61,11 @@
         </div>
       </section>
 
-      <!-- ─── COMMUNITY POST ─────────────────────────────────────────── -->
       <section
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all"
         :class="[
           {'ring-2 ring-secondary/50': isPublicPost},
-          quotaStore.canCreatePost ? 'cursor-pointer active:scale-[0.995]' : 'opacity-60 cursor-not-allowed'
+          quotaStore.canCreatePost ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'
         ]"
         @click="quotaStore.canCreatePost && toggleSection('post')"
       >
@@ -91,7 +89,7 @@
             :checked="isPublicPost"
             :disabled="!quotaStore.canCreatePost"
             color="secondary"
-            @click.stop="quotaStore.canCreatePost && toggleSection('post')"
+            class="pointer-events-none"
           />
         </div>
 
@@ -103,7 +101,6 @@
             maxlength="200"
           />
 
-          <!-- New post settings -->
           <div class="flex items-center justify-between bg-primary/10 rounded-xl p-3">
             <div class="flex-1 pr-3">
               <p class="text-sm font-black text-black leading-none">Allow comments</p>
@@ -122,12 +119,11 @@
         </div>
       </section>
 
-      <!-- ─── BALLOON ───────────────────────────────────────────────── -->
       <section
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all"
         :class="[
           {'ring-2 ring-secondary/50': isBalloon},
-          quotaStore.canSendBalloon ? 'cursor-pointer active:scale-[0.995]' : 'opacity-60 cursor-not-allowed'
+          quotaStore.canSendBalloon ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'
         ]"
         @click="quotaStore.canSendBalloon && toggleSection('balloon')"
       >
@@ -151,7 +147,7 @@
             :checked="isBalloon"
             :disabled="!quotaStore.canSendBalloon"
             color="secondary"
-            @click.stop="quotaStore.canSendBalloon && toggleSection('balloon')"
+            class="pointer-events-none"
           />
         </div>
 

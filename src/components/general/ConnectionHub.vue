@@ -21,7 +21,6 @@
           </p>
         </div>
 
-        <!-- Unified Identity Card (With Truncation Fix) -->
         <div
           class="bg-white/60 border border-white p-5 rounded-[2.5rem] flex items-center justify-between shadow-sm relative mt-4 backdrop-blur-md">
           <div class="flex flex-col z-10 w-full pr-4 min-w-0">
@@ -82,9 +81,13 @@
                 class="rounded-2xl mb-1 bg-white/40"
                 @click="openUserActions(mate)"
               >
-                <ion-avatar slot="start" class="w-10 h-10">
-                  <img :src="mate.img" />
-                </ion-avatar>
+                <UserAvatar
+                  v-if="user"
+                  static
+                  :user="user"
+                  :customization="user?.customization"
+                  size="sm"
+                />
                 <ion-label>
                   <h2 class="font-black text-black">{{ mate.name }}</h2>
                 </ion-label>
@@ -175,6 +178,7 @@ import { storeToRefs } from "pinia";
 import { useMenuStore } from "@/store/menu.store";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { searchMate } from "@/service/api/user.api";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
 // State
 const isScanning = ref(false);

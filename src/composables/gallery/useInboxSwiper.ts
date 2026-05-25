@@ -91,8 +91,9 @@ export function useInboxSwiper() {
 			},
 
 			// Try inbox users first, fall back to userCache
-			userLookup: (userId: string) =>
-				findUserInInboxUsers(userId) || userCache.getUser(userId),
+			userLookup: (userId: string) => {
+				return findUserInInboxUsers(userId) || userCache.getUser(userId);
+			},
 
 			canDelete: () => true,
 

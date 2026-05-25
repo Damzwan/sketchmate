@@ -303,6 +303,7 @@ export const useChatStore = defineStore("chat", () => {
 		content: string,
 		currentTabId: string,
 		shared_post_id?: string,
+		shared_inbox_item_id?: string,
 		options: { silent?: boolean } = {},
 	) {
 		if (!socket) throw new Error("Socket not connected");
@@ -313,6 +314,7 @@ export const useChatStore = defineStore("chat", () => {
 			localKey: tempId,
 			content,
 			shared_post_id: shared_post_id || null,
+			shared_inbox_item_id: shared_inbox_item_id || null,
 			sender_id: authStore.user?._id,
 			createdAt: new Date().toISOString(),
 			status: "sending",
@@ -327,6 +329,7 @@ export const useChatStore = defineStore("chat", () => {
 				receiver_id,
 				content,
 				shared_post_id,
+				shared_inbox_item_id,
 			);
 
 			if (response.success && response.message && response.conversation) {

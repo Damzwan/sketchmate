@@ -169,14 +169,15 @@ export function emitSendMessage(
 	socket: any,
 	receiver_id: string,
 	content: string,
-	shared_post_id?: string, // ← new
+	shared_post_id?: string,
+	shared_inbox_item_id?: string,
 ): Promise<any> {
 	return new Promise((resolve, reject) => {
 		if (!socket?.connected) return reject(new Error("Socket disconnected"));
 
 		socket.emit(
 			"chat:send_message",
-			{ receiver_id, content, shared_post_id },
+			{ receiver_id, content, shared_post_id, shared_inbox_item_id },
 			(response: any) => {
 				if (response.error) reject(new Error(response.error));
 				else resolve(response);

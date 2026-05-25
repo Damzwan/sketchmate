@@ -39,8 +39,7 @@ export const useQuotaStore = defineStore("quota", () => {
 		if (!force && Date.now() - lastFetchedAt.value < 5_000) return;
 		isLoading.value = true;
 		try {
-			const x = await fetchQuotaSummary();
-			summary.value = x;
+			summary.value = await fetchQuotaSummary();
 			lastFetchedAt.value = Date.now();
 		} catch (e) {
 			console.error("Failed to fetch quota summary:", e);

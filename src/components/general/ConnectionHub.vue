@@ -80,7 +80,7 @@
                 v-for="mate in foundMates"
                 :key="mate._id"
                 class="rounded-2xl mb-1 bg-white/40"
-                @click="openUserActions(mate._id)"
+                @click="openUserActions(mate)"
               >
                 <ion-avatar slot="start" class="w-10 h-10">
                   <img :src="mate.img" />

@@ -28,29 +28,56 @@
 
       <!-- 3. Received Mate Proposal -->
       <template v-else-if="isMateProposalReceived">
-        <ion-icon :icon="svg(mdiHeart)" class="text-2xl text-secondary mb-1 animate-bounce" />
-        <p class="text-sm font-black italic cabin-sketch-regular text-black leading-tight">
-          {{ partner.name }} wants to become Mates!
-        </p>
-        <p class="text-[10px] font-bold text-black/40 uppercase tracking-tighter mb-3">
-          Unlock your sketchbooks forever.
-        </p>
-        <div class="grid grid-cols-2 gap-2 w-full">
+        <!-- AT-LIMIT FREE USER: Show upgrade inline -->
+        <template v-if="showUpgradePrompt">
+          <div class="w-12 h-12 bg-amber-400/20 rounded-full flex items-center justify-center mb-2 border-2 border-white shadow-sm">
+            <span class="text-2xl">⭐</span>
+          </div>
+          <p class="text-sm font-black italic cabin-sketch-regular text-black leading-tight">
+            {{ partner.name }} wants to be Mates!
+          </p>
+          <p class="text-[10px] font-bold text-amber-700 uppercase tracking-tighter mb-3 mt-1">
+            Your mate slots are full ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }})
+          </p>
+          <div class="grid grid-cols-2 gap-2 w-full">
+            <ion-button fill="clear" class="capitalize font-black text-[10px] text-black/40" @click="$emit('decline')">Decline</ion-button>
+            <ion-button color="warning" class="font-black text-[10px] shadow-lg custom-rounded-button" @click="$emit('upgrade')">
+              ⭐ Upgrade
+            </ion-button>
+          </div>
+        </template>
+
+        <!-- AT-LIMIT PRO USER: No upgrade path -->
+        <template v-else-if="showProLimitReached">
+          <ion-icon :icon="svg(mdiHeart)" class="text-2xl text-black/30 mb-1" />
+          <p class="text-sm font-black italic cabin-sketch-regular text-black leading-tight">
+            {{ partner.name }} wants to be Mates!
+          </p>
+          <p class="text-[10px] font-bold text-black/40 uppercase tracking-tighter mb-3 mt-1">
+            You've reached your maximum mate limit
+          </p>
           <ion-button fill="clear" class="capitalize font-black text-[10px] text-black/40" @click="$emit('decline')">Decline</ion-button>
-          <ion-button
-            color="secondary"
-            class="font-black text-[10px] shadow-lg custom-rounded-button"
-            :disabled="!quotaStore.canAddMate && quotaStore.isPro"
-            @click="handleAccept"
-          >
-            <template v-if="quotaStore.canAddMate">Accept</template>
-            <template v-else-if="quotaStore.isPro">Limit Reached</template>
-            <template v-else>⭐ Upgrade</template>
-          </ion-button>
-        </div>
+        </template>
+
+        <!-- NORMAL: Has capacity -->
+        <template v-else>
+          <ion-icon :icon="svg(mdiHeart)" class="text-2xl text-secondary mb-1 animate-bounce" />
+          <p class="text-sm font-black italic cabin-sketch-regular text-black leading-tight">
+            {{ partner.name }} wants to become Mates!
+          </p>
+          <p class="text-[10px] font-bold text-black/40 uppercase tracking-tighter mb-3">
+            Unlock your sketchbooks forever.
+          </p>
+          <div class="grid grid-cols-2 gap-2 w-full">
+            <ion-button fill="clear" class="capitalize font-black text-[10px] text-black/40" @click="$emit('decline')">Decline</ion-button>
+            <ion-button color="secondary" class="font-black text-[10px] shadow-lg custom-rounded-button" @click="$emit('accept')">
+              Accept
+            </ion-button>
+          </div>
+        </template>
       </template>
 
-      <!-- 4. Sent Mate Proposal (WITH CANCEL) -->
+      <!-- 4. Sent Mate Proposal -->
       <template v-else-if="isMateProposalSent">
         <ion-icon :icon="svg(mdiClockOutline)" class="text-xl text-black/30 mb-1" />
         <p class="text-[10px] font-bold text-black/40 uppercase tracking-widest italic mb-3">
@@ -63,20 +90,43 @@
 
       <!-- 5. Trial Expired -->
       <template v-else-if="isTrialExpired">
-        <ion-icon :icon="svg(mdiLockOutline)" class="text-xl text-black/40 mb-1" />
-        <p class="text-[11px] font-bold text-black/60 mb-3 leading-tight cabin-sketch-regular">
-          Ink Dried! The 24h trial has ended.<br />Become Mates to keep sketching.
-        </p>
-        <ion-button
-          color="secondary"
-          class="px-4 font-black text-[10px] tracking-widest custom-rounded-button"
-          :disabled="!quotaStore.canAddMate && quotaStore.isPro"
-          @click="handleRequest"
-        >
-          <template v-if="quotaStore.canAddMate">Send Mate Request</template>
-          <template v-else-if="quotaStore.isPro">Limit Reached</template>
-          <template v-else>⭐ Upgrade to Add</template>
-        </ion-button>
+        <!-- AT-LIMIT FREE USER: Show upgrade -->
+        <template v-if="showUpgradePrompt">
+          <div class="w-12 h-12 bg-amber-400/20 rounded-full flex items-center justify-center mb-2 border-2 border-white shadow-sm">
+            <span class="text-2xl">⭐</span>
+          </div>
+          <p class="text-[11px] font-bold text-black/70 mb-1 leading-tight cabin-sketch-regular">
+            Ink Dried! The 24h trial has ended.
+          </p>
+          <p class="text-[10px] font-bold text-amber-700 uppercase tracking-tighter mb-3">
+            Mate slots full ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }}) — Double them with Pro
+          </p>
+          <ion-button color="warning" class="px-4 font-black text-[10px] tracking-widest custom-rounded-button" @click="$emit('upgrade')">
+            ⭐ Upgrade to Add
+          </ion-button>
+        </template>
+
+        <!-- AT-LIMIT PRO USER -->
+        <template v-else-if="showProLimitReached">
+          <ion-icon :icon="svg(mdiLockOutline)" class="text-xl text-black/40 mb-1" />
+          <p class="text-[11px] font-bold text-black/60 mb-1 leading-tight cabin-sketch-regular">
+            Ink Dried! The 24h trial has ended.
+          </p>
+          <p class="text-[10px] font-bold text-black/40 uppercase tracking-tighter">
+            Maximum mate limit reached
+          </p>
+        </template>
+
+        <!-- NORMAL: Has capacity -->
+        <template v-else>
+          <ion-icon :icon="svg(mdiLockOutline)" class="text-xl text-black/40 mb-1" />
+          <p class="text-[11px] font-bold text-black/60 mb-3 leading-tight cabin-sketch-regular">
+            Ink Dried! The 24h trial has ended.<br />Become Mates to keep sketching.
+          </p>
+          <ion-button color="secondary" class="px-4 font-black text-[10px] tracking-widest custom-rounded-button" @click="$emit('request')">
+            Send Mate Request
+          </ion-button>
+        </template>
       </template>
 
       <!-- 6. Active Trial -->
@@ -84,27 +134,73 @@
         <p class="text-[10px] font-bold text-black/40 leading-tight italic max-w-[200px]">
           Vibe check! You have a 24-hour trial to get to know each other.
         </p>
+
+        <!-- AT-LIMIT FREE USER -->
         <ion-button
+          v-if="showUpgradePrompt"
           fill="clear"
           size="small"
+          color="warning"
           class="mt-2 font-black uppercase tracking-[0.1em]"
-          :class="quotaStore.canAddMate ? 'text-secondary opacity-60' : 'text-amber-500 opacity-90'"
-          :disabled="!quotaStore.canAddMate && quotaStore.isPro"
-          @click="handleRequest"
+          @click="$emit('upgrade')"
         >
-          <template v-if="quotaStore.canAddMate">+ Add to Mates</template>
-          <template v-else-if="quotaStore.isPro">Mate Limit Reached</template>
-          <template v-else>⭐ Upgrade to Add</template>
+          ⭐ Upgrade to Add ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }})
+        </ion-button>
+
+        <!-- AT-LIMIT PRO USER -->
+        <span
+          v-else-if="showProLimitReached"
+          class="mt-2 text-[10px] font-black uppercase tracking-[0.1em] text-black/30"
+        >
+          Mate Limit Reached
+        </span>
+
+        <!-- NORMAL: Has capacity -->
+        <ion-button
+          v-else
+          fill="clear"
+          size="small"
+          class="mt-2 font-black uppercase tracking-[0.1em] text-secondary opacity-60"
+          @click="$emit('request')"
+        >
+          + Add to Mates
         </ion-button>
       </template>
 
       <!-- 7. Unfriended / Expired -->
       <template v-else-if="chat.status === 'expired'">
         <ion-icon :icon="svg(mdiLockOutline)" class="text-xl text-black/20 mb-1" />
+
+        <!-- Cooldown takes precedence — quota doesn't matter if they can't request anyway -->
         <template v-if="isUnderCooldown">
           <p class="text-[11px] font-bold text-black/40 mb-1 leading-tight cabin-sketch-regular">Relationship cooling down...</p>
           <p class="text-[9px] font-sans font-bold text-secondary uppercase tracking-widest">Available again {{ formattedCooldown }}</p>
         </template>
+
+        <!-- AT-LIMIT FREE USER: Show upgrade -->
+        <template v-else-if="showUpgradePrompt">
+          <p class="text-[11px] font-bold text-black/70 mb-1 leading-tight cabin-sketch-regular">
+            The connection has ended.
+          </p>
+          <p class="text-[10px] font-bold text-amber-700 uppercase tracking-tighter mb-3">
+            Mate slots full ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }}) — Upgrade to reconnect
+          </p>
+          <ion-button color="warning" class="px-4 font-black text-[10px] tracking-widest custom-rounded-button" @click="$emit('upgrade')">
+            ⭐ Upgrade to Reconnect
+          </ion-button>
+        </template>
+
+        <!-- AT-LIMIT PRO USER -->
+        <template v-else-if="showProLimitReached">
+          <p class="text-[11px] font-bold text-black/60 mb-1 leading-tight cabin-sketch-regular">
+            The connection has ended.
+          </p>
+          <p class="text-[10px] font-bold text-black/40 uppercase tracking-tighter">
+            Maximum mate limit reached
+          </p>
+        </template>
+
+        <!-- NORMAL: Has capacity -->
         <template v-else>
           <p class="text-[11px] font-bold text-black/60 mb-3 leading-tight cabin-sketch-regular">
             The connection has ended.<br />Want to try sketching again?
@@ -122,24 +218,23 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import dayjs from "dayjs";
-import { IonButton, IonIcon, useIonRouter } from "@ionic/vue";
+import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiHeart, mdiClockOutline, mdiLockOutline } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { useQuotaStore } from "@/store/quota.store";
-import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const props = defineProps<{ chat: any; partner: any; currentUserId: string }>();
-const emit = defineEmits([
+defineEmits([
 	"accept",
 	"decline",
 	"request",
 	"cancel-mate",
 	"accept-invite",
 	"decline-invite",
+	"upgrade",
 ]);
 
 const quotaStore = useQuotaStore();
-const router = useIonRouter();
 
 const isPendingInvite = computed(() => props.chat?.status === "pending_invite");
 const isIncomingInvite = computed(
@@ -174,22 +269,13 @@ const formattedCooldown = computed(() =>
 	dayjs(props.chat?.cooldown_until).fromNow(),
 );
 
-// Quota Handlers
-function handleAccept() {
-	if (quotaStore.canAddMate) {
-		emit("accept");
-	} else if (!quotaStore.isPro) {
-		// router.push({ path: FRONTEND_ROUTES.subscribe });
-	}
-}
-
-function handleRequest() {
-	if (quotaStore.canAddMate) {
-		emit("request");
-	} else if (!quotaStore.isPro) {
-		// router.push({ path: FRONTEND_ROUTES.subscribe });
-	}
-}
+// Quota gating helpers
+const showUpgradePrompt = computed(
+	() => !quotaStore.canAddMate && !quotaStore.isPro,
+);
+const showProLimitReached = computed(
+	() => !quotaStore.canAddMate && quotaStore.isPro,
+);
 </script>
 
 <style scoped>

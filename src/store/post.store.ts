@@ -19,9 +19,6 @@ export const usePostStore = defineStore("post", () => {
 	const limit = 20;
 	const postCache = ref<Record<string, FeedPost>>({});
 
-	// State for the global Share Menu
-	const activePostToShare = ref<FeedPost | null>(null);
-
 	async function getFeed(isRefresh = false) {
 		try {
 			const res = await fetchFeed(limit);
@@ -51,12 +48,6 @@ export const usePostStore = defineStore("post", () => {
 			console.error("Failed to fetch gallery", error);
 			throw error;
 		}
-	}
-
-	// --- ACTIONS: MUTATIONS ---
-
-	function setActiveSharePost(post: FeedPost | null) {
-		activePostToShare.value = post;
 	}
 
 	function removePostLocally(postId: string) {
@@ -133,12 +124,10 @@ export const usePostStore = defineStore("post", () => {
 		hasMoreUserPosts,
 		isProfileDirty,
 		isFeedDirty,
-		activePostToShare,
 		getUserPosts,
 		getFeed,
 		removePostLocally,
 		toggleReactionLocally,
-		setActiveSharePost,
 		deletePostComment,
 		markProfileDirty,
 		markFeedDirty,

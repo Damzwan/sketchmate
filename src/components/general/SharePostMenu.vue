@@ -8,14 +8,14 @@
     handle-behavior="cycle"
     class="liquid-title-modal"
   >
-
     <div
       @touchmove.stop
       class="max-h-[60vh] flex flex-col p-5 bot-pad-safe bg-background cabin-sketch-regular overflow-hidden relative"
     >
-      <!-- Header -->
       <div class="flex items-center justify-between mb-4 pt-2 shrink-0">
-        <span class="text-2xl font-black text-secondary tracking-tighter italic leading-none">Share Sketch</span>
+        <span class="text-2xl font-black text-secondary tracking-tighter italic leading-none">
+          {{ headerTitle }}
+        </span>
         <button
           @click="handleDismiss"
           class="text-xs font-black text-black/40 uppercase tracking-widest active:opacity-50"
@@ -24,28 +24,40 @@
         </button>
       </div>
 
-      <!-- Preview of post being shared -->
-      <div v-if="post" class="flex items-center mb-4 bg-white/40 border border-white p-2 rounded-2xl shrink-0">
-        <div class="w-12 h-12 rounded-xl overflow-hidden bg-black/5 shrink-0">
-          <img :src="post.thumbnail_url" class="w-full h-full object-cover" />
+      <div v-if="activeShareItem" class="flex items-center justify-between mb-4 bg-white/40 border border-white p-2 pr-3 rounded-2xl shrink-0 shadow-sm">
+        <div class="flex items-center overflow-hidden flex-1">
+          <div class="w-12 h-12 rounded-xl overflow-hidden bg-black/5 shrink-0">
+            <img :src="previewThumbnail" class="w-full h-full object-cover" />
+          </div>
+          <div class="ml-3 flex flex-col min-w-0 pr-2">
+            <p class="text-sm font-bold text-black/60 italic truncate">
+              {{ previewLabel }}
+            </p>
+            <p class="text-[10px] font-black text-black/40 uppercase tracking-widest mt-0.5">
+              Share Externally
+            </p>
+          </div>
         </div>
-        <p class="ml-3 text-sm font-bold text-black/60 italic truncate">
-          Sharing {{ post.author.name }}'s post...
-        </p>
+
+        <ion-button
+          fill="clear"
+          color="secondary"
+          class="m-0 shrink-0"
+          @click="handleSystemShare"
+        >
+          <ion-icon :icon="svg(mdiShareVariant)" slot="icon-only" class="text-xl" />
+        </ion-button>
       </div>
 
-      <!-- List Container -->
       <div
         ref="scrollContainer"
         @touchmove.stop
         class="flex-1 overflow-y-auto overscroll-contain px-1 space-y-3 hide-scrollbar pb-4 scroll-mask"
       >
-        <!-- Loading -->
         <div v-if="loading && friends.length === 0" class="flex justify-center py-12">
           <ion-spinner name="bubbles" color="secondary" />
         </div>
 
-        <!-- Empty -->
         <div
           v-else-if="friends.length === 0"
           class="text-center py-12 bg-white/20 rounded-[2.5rem] border-2 border-dashed border-black/5"
@@ -53,10 +65,9 @@
           <p class="text-sm font-bold text-black/30 italic">No mates yet. Start sketching!</p>
         </div>
 
-        <!-- List -->
         <div v-else class="space-y-3 mt-2">
           <p class="text-[10px] font-black text-black/30 uppercase px-2 tracking-widest mb-1">
-            Your Mates
+            Send to Mates
           </p>
 
           <button
@@ -95,7 +106,6 @@
               </span>
             </div>
 
-            <!-- Checkbox / Selection state indicator -->
             <div
               v-if="!isFriendDisabled(friend)"
               :class="[
@@ -105,16 +115,12 @@
                   : 'border-black/5 bg-black/5 text-black/20'
               ]"
             >
-              <ion-icon
-                :icon="svg(mdiCheck)"
-                class="text-base font-black"
-              />
+              <ion-icon :icon="svg(mdiCheck)" class="text-base font-black" />
             </div>
           </button>
         </div>
       </div>
 
-      <!-- Persistent Sticky Action Footer -->
       <ion-fab
         v-if="selectedFriendIds.length > 0"
         vertical="bottom"
@@ -139,28 +145,34 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { IonModal, IonSpinner, IonIcon, IonButton } from "@ionic/vue";
-import { mdiSendOutline, mdiCheck } from "@mdi/js";
+import {
+	IonModal,
+	IonSpinner,
+	IonIcon,
+	IonButton,
+	IonFab,
+	IonFabButton,
+} from "@ionic/vue";
+import { mdiSendOutline, mdiCheck, mdiShareVariant } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { svg, compareVersions } from "@/helper/general.helper";
+import { shareImg } from "@/helper/share.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
-import { usePostStore } from "@/store/post.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useChatStore } from "@/store/chat.store";
 import { useToast } from "@/service/toast.service";
 import { Menu } from "@/draw/types/draw.types";
+import { useShareService } from "@/draw/store/useShareService.store";
 
 const authStore = useAuthStore();
 const friendStore = useFriendStore();
-const postStore = usePostStore();
 const menuStore = useMenuStore();
-const chatStore = useChatStore();
+const shareService = useShareService();
 const { toast } = useToast();
 
 const { allConnectedPartners, isFriendOnline } = storeToRefs(friendStore);
 const { sharePostMenuOpen } = storeToRefs(menuStore);
-const { activePostToShare: post } = storeToRefs(postStore);
+const { activeShareItem } = storeToRefs(shareService);
 
 const minChatVersion = "0.4.0";
 const loading = ref(false);
@@ -169,6 +181,31 @@ const selectedFriendIds = ref<string[]>([]);
 const scrollContainer = ref<HTMLElement | null>(null);
 let matesFetchedThisSession = false;
 
+// --- Preview adapters (post vs inbox) ---
+const headerTitle = computed(() =>
+	activeShareItem.value?.type === "inbox" ? "Share Drawing" : "Share Sketch",
+);
+
+const previewThumbnail = computed(() => {
+	const item = activeShareItem.value;
+	if (!item) return "";
+	return activeShareItem.value?.type === "inbox"
+		? item.data.thumbnail
+		: item.data.thumbnail_url;
+});
+
+const previewLabel = computed(() => {
+	const item = activeShareItem.value;
+	if (!item) return "";
+	if (item.type === "post") {
+		return `Sharing ${item.data.author.name}'s post...`;
+	}
+	// inbox item
+	const senderName = (item.data as any).sender_name ?? "this";
+	return `Forwarding ${senderName}'s drawing...`;
+});
+
+// --- Mate list ---
 const onWillPresent = async () => {
 	selectedFriendIds.value = [];
 
@@ -205,92 +242,70 @@ const sortedFriends = computed(() => {
 
 const toggleFriend = (friendId: string) => {
 	const index = selectedFriendIds.value.indexOf(friendId);
-	if (index > -1) {
-		selectedFriendIds.value.splice(index, 1);
-	} else {
-		selectedFriendIds.value.push(friendId);
-	}
+	if (index > -1) selectedFriendIds.value.splice(index, 1);
+	else selectedFriendIds.value.push(friendId);
 };
 
+// --- Send ---
 const sendToAllSelected = async () => {
-	if (!post.value || selectedFriendIds.value.length === 0 || isSending.value)
+	if (
+		!activeShareItem.value ||
+		selectedFriendIds.value.length === 0 ||
+		isSending.value
+	)
 		return;
 	isSending.value = true;
 
-	const totalCount = selectedFriendIds.value.length;
-	let successCount = 0;
-
-	const promises = selectedFriendIds.value.map(async (friendId) => {
-		const existingChat = chatStore.activeChats.find((c) =>
-			c.participants.some((p: any) => p._id === friendId),
+	try {
+		const { successCount, totalCount } = await shareService.shareItemToMates(
+			activeShareItem.value,
+			selectedFriendIds.value,
 		);
-		const tabId = existingChat?._id || friendId;
 
-		try {
-			await chatStore.sendMessage(friendId, "", tabId, post.value!._id, {
-				silent: true,
+		if (successCount === totalCount) {
+			toast(`Shared with ${successCount} mates`, { color: "success" });
+			handleDismiss();
+		} else if (successCount > 0) {
+			toast(`Shared with ${successCount}/${totalCount} mates (some failed)`, {
+				color: "warning",
 			});
-			successCount++;
-		} catch (e) {
-			console.error(`Failed sharing to friend ${friendId}`, e);
+			handleDismiss();
+		} else {
+			toast("Failed to share with selected mates", { color: "danger" });
 		}
-	});
-
-	await Promise.all(promises);
-
-	if (successCount === totalCount) {
-		toast(`Shared with ${successCount} mates`, { color: "success" });
-		handleDismiss();
-	} else if (successCount > 0) {
-		toast(`Shared with ${successCount}/${totalCount} mates (some failed)`, {
-			color: "warning",
-		});
-		handleDismiss();
-	} else {
-		toast("Failed to share with selected mates", { color: "danger" });
+	} finally {
+		isSending.value = false;
 	}
+};
 
-	isSending.value = false;
+// --- Secondary actions ---
+const handleSystemShare = () => {
+	const item = activeShareItem.value;
+	if (!item) return;
+	const imgUrl = (item.data as any).image_url || (item.data as any).image;
+	if (imgUrl) shareImg(imgUrl);
 };
 
 const handleDismiss = () => {
 	selectedFriendIds.value = [];
 	menuStore.closeMenu(Menu.SharePostMenu);
-	setTimeout(() => postStore.setActiveSharePost(null), 300);
+	setTimeout(() => shareService.setActiveShareItem(null), 300);
 };
 </script>
 
 <style scoped>
 .hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.overscroll-contain {
-  overscroll-behavior: contain;
-}
-
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.overscroll-contain { overscroll-behavior: contain; }
 .scroll-mask {
   mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%);
 }
-
-.animate-slide-up {
-  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
+.animate-slide-up { animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 @keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(15px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-
 ion-modal.liquid-title-modal {
   --border-radius: 2.5rem 2.5rem 0 0;
   --background: var(--ion-color-tertiary);

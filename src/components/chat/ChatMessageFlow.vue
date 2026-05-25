@@ -64,6 +64,7 @@
         @accept="handleMateAccept"
         @decline="handleMateDecline"
         @cancel-mate="chatStore.handleCancelMateRequest(currentChat._id)"
+        @upgrade="() => useMenuStore().openMenu(Menu.Shop)"
       />
 
       <!-- 3. DRAWING INVITATION BANNER -->
@@ -115,6 +116,8 @@ import {
 	requestMatership,
 } from "@/service/api/relationship.api";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
 
 const props = defineProps<{ messages: any[]; isFetchingHistory: boolean }>();
 const emit = defineEmits(["inspect-profile", "join-session", "load-more"]);

@@ -80,13 +80,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { IonIcon } from '@ionic/vue'
-import { mdiAccountPlus, mdiBullhorn, mdiChatOutline, mdiHeart, mdiPencilOutline, mdiShieldAlertOutline } from '@mdi/js'
-import dayjs from 'dayjs'
-import { svg } from '@/helper/general.helper'
-import type { Notification } from '@/types/server.types'
-import { useInAppNotificationStore } from '@/store/inAppNotificationStore'
+import { computed } from "vue";
+import { IonIcon, useIonRouter } from "@ionic/vue";
+import {
+	mdiAccountPlus,
+	mdiBullhorn,
+	mdiChatOutline,
+	mdiHeart,
+	mdiPencilOutline,
+	mdiShieldAlertOutline,
+} from "@mdi/js";
+import dayjs from "dayjs";
+import { svg } from "@/helper/general.helper";
+import type { Notification } from "@/types/server.types";
+import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { masterAnimation } from "@/helper/animation.helper";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { usePostStore } from "@/store/post.store";
+import { useInboxStore } from "@/store/inbox.store";
+import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
+import { usePostSwiper } from "@/composables/home/usePostSwiper";
 
 const props = defineProps<{ notification: Notification }>();
 
@@ -95,134 +109,145 @@ const store = useInAppNotificationStore();
 // ─── Type-specific rendering ──────────────────────────────────────────
 
 const typeConfig = computed(() => {
-  switch (props.notification.type) {
-    case "post_reaction":
-      return {
-        color: "var(--ion-color-danger)",
-        icon: mdiHeart,
-        verb: (n: number) => (n === 1 ? "reacted to your post" : `and ${n - 1} others reacted to your post`),
-      };
-    case "post_comment":
-      return {
-        color: "var(--ion-color-primary)",
-        icon: mdiChatOutline,
-        verb: () => "commented on your post",
-      };
-    case "inbox_comment":
-      return {
-        color: "var(--ion-color-primary)",
-        icon: mdiChatOutline,
-        verb: (n: number) => (n === 1 ? "commented on a drawing" : `and ${n - 1} others commented`),
-      };
-    case "follow":
-      return {
-        color: "var(--ion-color-success)",
-        icon: mdiAccountPlus,
-        verb: (n: number) => (n === 1 ? "started following you" : `and ${n - 1} others started following you`),
-      };
-    case "inbox_drawing":
-      // Edge case — not normally surfaced here since inbox_drawing has in_app:false,
-      // but kept for completeness in case you change the policy later.
-      return {
-        color: "var(--ion-color-warning)",
-        icon: mdiPencilOutline,
-        verb: () => "sent you a drawing",
-      };
-    case "moderation_strike":
-      return {
-        color: "var(--ion-color-danger)",
-        icon: mdiShieldAlertOutline,
-        verb: () => "",
-      };
-    case "moderation_lifted":
-      return {
-        color: "var(--ion-color-success)",
-        icon: mdiShieldAlertOutline,
-        verb: () => "",
-      };
-    case "announcement":
-      return {
-        color: "var(--ion-color-primary)",
-        icon: mdiBullhorn,
-        verb: () => "",
-      };
-    default:
-      return {
-        color: "var(--ion-color-medium)",
-        icon: mdiBullhorn,
-        verb: () => "",
-      };
-  }
+	switch (props.notification.type) {
+		case "post_reaction":
+			return {
+				color: "var(--ion-color-danger)",
+				icon: mdiHeart,
+				verb: (n: number) =>
+					n === 1
+						? "reacted to your post"
+						: `and ${n - 1} others reacted to your post`,
+			};
+		case "post_comment":
+			return {
+				color: "var(--ion-color-primary)",
+				icon: mdiChatOutline,
+				verb: () => "commented on your post",
+			};
+		case "inbox_comment":
+			return {
+				color: "var(--ion-color-primary)",
+				icon: mdiChatOutline,
+				verb: (n: number) =>
+					n === 1 ? "commented on a drawing" : `and ${n - 1} others commented`,
+			};
+		case "follow":
+			return {
+				color: "var(--ion-color-success)",
+				icon: mdiAccountPlus,
+				verb: (n: number) =>
+					n === 1
+						? "started following you"
+						: `and ${n - 1} others started following you`,
+			};
+		case "inbox_drawing":
+			// Edge case — not normally surfaced here since inbox_drawing has in_app:false,
+			// but kept for completeness in case you change the policy later.
+			return {
+				color: "var(--ion-color-warning)",
+				icon: mdiPencilOutline,
+				verb: () => "sent you a drawing",
+			};
+		case "moderation_strike":
+			return {
+				color: "var(--ion-color-danger)",
+				icon: mdiShieldAlertOutline,
+				verb: () => "",
+			};
+		case "moderation_lifted":
+			return {
+				color: "var(--ion-color-success)",
+				icon: mdiShieldAlertOutline,
+				verb: () => "",
+			};
+		case "announcement":
+			return {
+				color: "var(--ion-color-primary)",
+				icon: mdiBullhorn,
+				verb: () => "",
+			};
+		default:
+			return {
+				color: "var(--ion-color-medium)",
+				icon: mdiBullhorn,
+				verb: () => "",
+			};
+	}
 });
 
 const accentColor = computed(() => typeConfig.value.color);
 const systemIcon = computed(() => typeConfig.value.icon);
 
 const headline = computed(() => {
-  // Moderation/announcement: no actor, headline comes from payload
-  if (props.notification.type === "moderation_strike") {
-    return props.notification.payload?.name ?? "Account update";
-  }
-  if (props.notification.type === "moderation_lifted") {
-    return "Welcome back";
-  }
-  if (props.notification.type === "announcement") {
-    return props.notification.payload?.title ?? "Announcement";
-  }
-  // Standard: first actor's name
-  return props.notification.actors[0]?.name ?? "Someone";
+	// Moderation/announcement: no actor, headline comes from payload
+	if (props.notification.type === "moderation_strike") {
+		return props.notification.payload?.name ?? "Account update";
+	}
+	if (props.notification.type === "moderation_lifted") {
+		return "Welcome back";
+	}
+	if (props.notification.type === "announcement") {
+		return props.notification.payload?.title ?? "Announcement";
+	}
+	// Standard: first actor's name
+	return props.notification.actors[0]?.name ?? "Someone";
 });
 
 const body = computed(() => {
-  if (props.notification.type === "moderation_strike") {
-    return props.notification.payload?.description ?? "";
-  }
-  if (props.notification.type === "moderation_lifted") {
-    return "Your restriction has been lifted.";
-  }
-  if (props.notification.type === "announcement") {
-    return props.notification.payload?.body ?? "";
-  }
-  return typeConfig.value.verb(props.notification.actor_count);
+	if (props.notification.type === "moderation_strike") {
+		return props.notification.payload?.description ?? "";
+	}
+	if (props.notification.type === "moderation_lifted") {
+		return "Your restriction has been lifted.";
+	}
+	if (props.notification.type === "announcement") {
+		return props.notification.payload?.body ?? "";
+	}
+	return typeConfig.value.verb(props.notification.actor_count);
 });
 
-// ─── Tap handler — deep-link to the target ────────────────────────────
+const postStore = usePostStore();
+const inboxStore = useInboxStore();
+const { openInboxSwiper } = useInboxSwiper();
+const { openPostSwiper } = usePostSwiper();
 
+const openSharedPost = async (_id: string) => {
+	const post = await postStore.fetchSinglePost(_id);
+	if (post) openPostSwiper([post], 0);
+};
+
+const openSharedInboxItem = async (_id: string) => {
+	const item = await inboxStore.fetchSingleInboxItem(_id);
+	if (item) openInboxSwiper([item], 0);
+};
+
+const r = useIonRouter();
+const { openUserActions } = useUserContextSheet();
 async function handleTap() {
-  await store.markRead(props.notification._id);
+	await store.markRead(props.notification._id);
 
-  const n = props.notification;
-  switch (n.target_type) {
-    case "post":
-      if (n.target_id) {
-        // router.push({
-        //   path: FRONTEND_ROUTES.post,  // adjust to your actual route
-        //   query: { id: n.target_id },
-        // });
-      }
-      break;
-    case "inbox_item":
-      if (n.target_id) {
-        // router.push({
-        //   path: FRONTEND_ROUTES.gallery,
-        //   query: {
-        //     item: n.target_id,
-        //     comments: n.type === "inbox_comment" ? "true" : undefined,
-        //   },
-        // });
-      }
-      break;
-    case "user":
-      // if (n.target_id) {
-      //   // user profile route
-      //   router.push({ path: `/user/${n.target_id}` });
-      // }
-      break;
-    case "system":
-      if (n.type === "moderation_strike" || n.type === "moderation_lifted") {
-        // router.push(FRONTEND_ROUTES.standing ?? FRONTEND_ROUTES.settings);
-      }
-      break;
-  }
+	const n = props.notification;
+	switch (n.target_type) {
+		case "post":
+			if (n.target_id) {
+				openSharedPost(n.target_id);
+			}
+			break;
+		case "inbox_item":
+			if (n.target_id) {
+				openSharedInboxItem(n.target_id);
+			}
+			break;
+		case "user":
+			if (!n.target_id) return;
+			openUserActions({ _id: n.target_id });
+			break;
+		case "system":
+			if (n.type === "moderation_strike" || n.type === "moderation_lifted") {
+				r.push(FRONTEND_ROUTES.moderation, masterAnimation);
+			}
+			break;
+	}
 }
 </script>

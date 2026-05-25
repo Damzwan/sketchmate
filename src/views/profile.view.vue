@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from "vue";
+import { reactive, ref } from "vue";
 import {
 	IonContent,
 	IonInfiniteScroll,
@@ -71,7 +71,7 @@ import { useToast } from "@/service/toast.service";
 
 import TopBar from "@/components/general/TopBar.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
-import ProfilePost from "@/components/profile/ProfilePost.vue"; // Imported the new component
+import ProfilePost from "@/components/profile/ProfilePost.vue";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 
@@ -101,7 +101,6 @@ const toggleEdit = async () => {
 			isEditing.value = false;
 			return;
 		}
-
 		if (!newName) {
 			toast("Name cannot be empty", { color: "danger" });
 			return;
@@ -142,11 +141,11 @@ const handleImgUpdate = async (newImgBase64: string) => {
 	}
 };
 
-const loadPosts = async (reset = true) => {
+const loadPosts = async () => {
 	if (!user.value) return;
 	loadingPosts.value = true;
 	try {
-		await postStore.getUserPosts(user.value._id, reset);
+		await postStore.getUserPosts(user.value._id, true);
 	} catch {
 		toast("Failed to load sketches", { color: "danger" });
 	} finally {
@@ -166,19 +165,8 @@ const loadMorePosts = async (e: any) => {
 onIonViewDidEnter(() => {
 	if (!user.value) return;
 	loadingAccount.value = false;
-	if (userPosts.value.length === 0 || isProfileDirty.value) loadPosts(true);
+	if (userPosts.value.length === 0 || isProfileDirty.value) loadPosts();
 });
-
-watch(
-	user,
-	(val) => {
-		if (val) {
-			loadingAccount.value = false;
-			if (userPosts.value.length === 0) loadPosts(true);
-		}
-	},
-	{ immediate: true },
-);
 
 const goToNetwork = (tab: string) =>
 	router.push(`/network?tab=${tab}`, masterAnimation);

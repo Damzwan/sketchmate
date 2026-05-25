@@ -87,6 +87,12 @@ import PhotoSwiperReactions from "@/components/photoswiper/PhotoSwiperReactions.
 import { reactionImages } from "@/config/post.config";
 import { useModerationStore } from "@/store/moderation.store";
 import { useAuthStore } from "@/store/auth.store";
+import {
+	useShareService,
+	ShareableItem,
+} from "@/draw/store/useShareService.store";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
 
 const props = defineProps<{
 	currItem: any;
@@ -124,9 +130,17 @@ function resolveUser(userId: string) {
 	return props.userLookup ? props.userLookup(userId) : userId;
 }
 
+const shareService = useShareService();
+const menuStore = useMenuStore();
+
 function handleShare() {
-	const imgUrl = props.currItem.image_url || props.currItem.image;
-	if (imgUrl) shareImg(imgUrl);
+	if (props.type === "post") {
+		shareService.setActiveShareItem({ type: "post", data: props.currItem });
+		menuStore.openMenu(Menu.SharePostMenu);
+	} else {
+		const imgUrl = props.currItem.image;
+		if (imgUrl) shareImg(imgUrl);
+	}
 }
 
 async function openOverflow() {

@@ -180,6 +180,7 @@ import {
 	resolveTitle,
 	calculateSignatureStroke,
 } from "@/config/profile_options.config";
+import { useShareService } from "@/draw/store/useShareService.store";
 
 const props = defineProps<{ post: FeedPost; isMine: boolean }>();
 const emit = defineEmits([
@@ -241,8 +242,10 @@ watch(
 
 const openUser = (userId: string) => openUserActions({ _id: userId });
 
+const shareService = useShareService();
+
 const openShare = () => {
-	postStore.setActiveSharePost(props.post);
+	shareService.setActiveShareItem({ type: "post", data: props.post });
 	menuStore.openMenu(Menu.SharePostMenu);
 };
 

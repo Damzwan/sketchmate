@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@capacitor-community/admob':
-        specifier: ^8.0.0
-        version: 8.0.0
       '@capacitor-firebase/authentication':
         specifier: ^8.1.0
         version: 8.1.0(@capacitor/core@8.2.0)(firebase@11.10.0)
@@ -886,10 +883,6 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
-
-  '@capacitor-community/admob@8.0.0':
-    resolution: {integrity: sha512-+ZIq+UtcNvTMFwjvuhOuGvCjwK2Wu36lTIl9o1/CEjfp2Aj3m4b9zQGx0vXrERYqQmJp/Ven7ee3gGuh2Ym8nA==}
-    engines: {node: '>=22.0.0'}
 
   '@capacitor-firebase/authentication@8.1.0':
     resolution: {integrity: sha512-Vo4Yp2Ttk+rqGjs8e/wNr1MiLr3czLCrKPcUIZMAG15QsvjEWw24CYeYx/wjeagB2tkcDUbBoaH8itCxJ39pww==}
@@ -1895,11 +1888,6 @@ packages:
 
   '@protobufjs/utf8@1.1.0':
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
-
-  '@rdlabo/capacitor-docgen@0.4.1':
-    resolution: {integrity: sha512-zUB0lwha4Omqyr5URy/QaFjP6Gh2xxTKAFI0MClqrmUxQwmV8c84+wGvqAoWPCzg4jk1MsU6oiRVuTkUV7xseA==}
-    engines: {node: '>=18.0.0'}
-    hasBin: true
 
   '@revenuecat/purchases-capacitor-ui@12.3.0':
     resolution: {integrity: sha512-71frOBEhtopY0LYXnWRFJ9FY5EvpB4wV2qqIszDyf3yVz5ixbikdR+I0cUDBWayMlnEU5O/zzvGmdK2jXP8XHQ==}
@@ -3637,9 +3625,6 @@ packages:
   github-from-package@0.0.0:
     resolution: {integrity: sha512-SyHy3T1v2NUXn29OsWdxmK6RwHD+vkj3v8en8AOBZ1wBQ/hCAQ5bAQTD02kW4W9tUp/3Qh6J8r9EvntiyCmOOw==}
 
-  github-slugger@1.5.0:
-    resolution: {integrity: sha512-wIh+gKBI9Nshz2o46B0B3f5k/W+WI9ZAv6y5Dn5WJ5SK1t0TnDimB4WE5rmTD05ZAIn8HALCZVmCsvj0w0v0lw==}
-
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
     engines: {node: '>= 6'}
@@ -5376,11 +5361,6 @@ packages:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.0.0'
 
-  typescript@4.2.4:
-    resolution: {integrity: sha512-V+evlYHZnQkaz8TRBuxTA92yZBPotr5H+WhQ7bD3hZUndx5tGOa1fuCgeSjxAzM1RiN5IzvadIXTVefuuwZCRg==}
-    engines: {node: '>=4.2.0'}
-    hasBin: true
-
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
@@ -6595,11 +6575,6 @@ snapshots:
   '@biomejs/cli-win32-x64@2.4.15':
     optional: true
 
-  '@capacitor-community/admob@8.0.0':
-    dependencies:
-      '@capacitor/core': 8.2.0
-      '@rdlabo/capacitor-docgen': 0.4.1
-
   '@capacitor-firebase/authentication@8.1.0(@capacitor/core@8.2.0)(firebase@11.10.0)':
     dependencies:
       '@capacitor/core': 8.2.0
@@ -7631,13 +7606,6 @@ snapshots:
   '@protobufjs/pool@1.1.0': {}
 
   '@protobufjs/utf8@1.1.0': {}
-
-  '@rdlabo/capacitor-docgen@0.4.1':
-    dependencies:
-      colorette: 2.0.20
-      github-slugger: 1.5.0
-      minimist: 1.2.8
-      typescript: 4.2.4
 
   '@revenuecat/purchases-capacitor-ui@12.3.0(@capacitor/core@8.2.0)':
     dependencies:
@@ -9606,8 +9574,6 @@ snapshots:
   github-from-package@0.0.0:
     optional: true
 
-  github-slugger@1.5.0: {}
-
   glob-parent@5.1.2:
     dependencies:
       is-glob: 4.0.3
@@ -11342,8 +11308,6 @@ snapshots:
       typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
-
-  typescript@4.2.4: {}
 
   typescript@5.9.3: {}
 

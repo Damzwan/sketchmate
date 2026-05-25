@@ -169,7 +169,7 @@ export async function getUser(params: GetUserParams): Promise<Res<GetUserRes>> {
 export async function subscribe(
 	params: RegisterNotificationParams,
 ): Promise<Res<void>> {
-	return request<Res<void>>(ENDPOINTS.subscribe, {
+	return request<Res<void>>(`${ENDPOINTS.user}/subscribe`, {
 		method: "PUT",
 		body: JSON.stringify(params),
 	});
@@ -178,7 +178,7 @@ export async function subscribe(
 export async function unsubscribe(
 	params: UnRegisterNotificationParams,
 ): Promise<Res<void>> {
-	return request<Res<void>>(ENDPOINTS.unsubscribe, {
+	return request<Res<void>>(`${ENDPOINTS.user}/unsubscribe`, {
 		method: "PUT",
 		body: JSON.stringify(params),
 	});

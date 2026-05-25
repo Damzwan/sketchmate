@@ -16,6 +16,8 @@ import { useAuthStore } from "@/store/auth.store";
 import { useQuotaStore } from "@/store/quota.store";
 import { useInboxStore } from "@/store/inbox.store";
 import { usePostStore } from "@/store/post.store";
+import { FeedPost, InboxItem } from "@/types/server.types";
+import { useChatStore } from "@/store/chat.store";
 
 export interface PostSettings {
 	caption: string;
@@ -23,12 +25,59 @@ export interface PostSettings {
 	enable_remix: boolean;
 }
 
+export type ShareableItem =
+	| { type: "post"; data: FeedPost }
+	| { type: "inbox"; data: InboxItem };
+
 export const useShareService = defineStore("shareService", () => {
 	const isSending = ref(false);
 	const toasts = useShareToastStore();
 	const quota = useQuotaStore();
 	const preSelected = ref<"mate" | "balloon" | "post">("mate");
 	const { user } = storeToRefs(useAuthStore());
+
+	const activeShareItem = ref<ShareableItem | null>(null);
+
+	function setActiveShareItem(item: ShareableItem | null) {
+		activeShareItem.value = item;
+	}
+
+	async function shareItemToMates(
+		item: ShareableItem,
+		friendIds: string[],
+	): Promise<{ successCount: number; totalCount: number }> {
+		const chatStore = useChatStore();
+		const totalCount = friendIds.length;
+		let successCount = 0;
+
+		await Promise.all(
+			friendIds.map(async (friendId) => {
+				const existingChat = chatStore.activeChats.find((c) =>
+					c.participants.some((p: any) => p._id === friendId),
+				);
+				const tabId = existingChat?._id || friendId;
+
+				const sharedPostId = item.type === "post" ? item.data._id : undefined;
+				const sharedInboxId = item.type === "inbox" ? item.data._id : undefined;
+
+				try {
+					await chatStore.sendMessage(
+						friendId,
+						"",
+						tabId,
+						sharedPostId,
+						sharedInboxId,
+						{ silent: true },
+					);
+					successCount++;
+				} catch (e) {
+					console.error(`Failed sharing to friend ${friendId}`, e);
+				}
+			}),
+		);
+
+		return { successCount, totalCount };
+	}
 
 	async function sendToMates(
 		data: DrawingExportInput,
@@ -77,6 +126,7 @@ export const useShareService = defineStore("shareService", () => {
 
 		const postStore = usePostStore();
 		postStore.postCache[post._id] = post;
+		postStore.markProfileDirty();
 
 		quota.decrementPost();
 		toasts.pushPostToast({ post });
@@ -121,5 +171,8 @@ export const useShareService = defineStore("shareService", () => {
 		releaseBalloon,
 		runBatch,
 		preSelected,
+		setActiveShareItem,
+		activeShareItem,
+		shareItemToMates,
 	};
 });

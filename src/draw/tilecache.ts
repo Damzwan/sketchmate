@@ -323,65 +323,6 @@ export class TileCache<T extends Bounded> {
 		return { patched, skipped };
 	}
 
-	private additivelyPatchTileBatch(
-		tier: number,
-		tx: number,
-		ty: number,
-		scale: number,
-		objects: T[],
-		existing: Tile,
-	): boolean {
-		const world = this.tileToWorld(tier, tx, ty);
-		const overscanWorld = this.OVERSCAN / scale;
-		const stroke = 4 / scale;
-		const totalPadWorld = overscanWorld + stroke;
-
-		const off = new OffscreenCanvas(this.BITMAP_SIZE, this.BITMAP_SIZE);
-		const c2d = off.getContext("2d");
-		if (!c2d) return false;
-
-		if (existing.bitmap !== null) {
-			c2d.drawImage(existing.bitmap, 0, 0);
-		}
-
-		c2d.save();
-		c2d.translate(this.OVERSCAN, this.OVERSCAN);
-		c2d.scale(scale, scale);
-		c2d.translate(-world.x, -world.y);
-
-		c2d.beginPath();
-		c2d.rect(
-			world.x - totalPadWorld,
-			world.y - totalPadWorld,
-			world.w + 2 * totalPadWorld,
-			world.h + 2 * totalPadWorld,
-		);
-		c2d.clip();
-
-		for (const obj of objects) {
-			try {
-				this.renderer(c2d as any, obj, scale);
-			} catch (err) {
-				if (this.debug)
-					console.warn("[TileCache] additive-batch renderer threw", err);
-			}
-		}
-		c2d.restore();
-
-		let newBitmap: ImageBitmap;
-		try {
-			// @ts-ignore
-			newBitmap = off.transferToImageBitmap();
-		} catch {
-			return false;
-		}
-
-		if (existing.bitmap !== null) existing.bitmap.close();
-		existing.bitmap = newBitmap;
-		existing.lastUsed = performance.now();
-		return true;
-	}
-
 	private tileRangeForWorld(worldRect: WorldRect, tier: number) {
 		const scale = this.ZOOM_TIERS[tier];
 		const tileWorldSize = this.TILE_SIZE / scale;

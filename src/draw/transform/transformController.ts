@@ -231,7 +231,7 @@ function bakeSelectionBitmap(
 	if (worldW <= 0 || worldH <= 0) return null;
 
 	const zoom = c.viewportTransform![0];
-	const dpr = window.devicePixelRatio || 1;
+	const dpr = 1;
 	let scale = zoom * dpr;
 
 	const childCount =
@@ -301,7 +301,7 @@ function bakeSelectionBitmap(
 function renderOverlay(s: Session): void {
 	const c = s.canvas;
 	const topCtx = c.getTopContext();
-	const dpr = window.devicePixelRatio || 1;
+	const dpr = 1;
 	const vpt = c.viewportTransform!;
 
 	topCtx.save();

@@ -43,20 +43,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	const deferredDuringGesture: Array<{ kind: "obj" | "rect"; payload: any }> =
 		[];
 
-	const ADDITIVE_BURST_THRESHOLD = 5; // adds-in-window to trigger batching mode
-	const ADDITIVE_BURST_WINDOW_MS = 200; // sliding window for burst detection
-	const ADDITIVE_BATCH_DELAY_MS = 24; // delay before flushing in batched mode
-	const ADDITIVE_BATCH_DELAY_MAX_MS = 80; // never wait longer than this
-	const TILE_REBAKE_BUDGET_PER_SEC = 8; // additive patches per tile per second
-	const TILE_REBAKE_COOLDOWN_MS = 1000 / TILE_REBAKE_BUDGET_PER_SEC;
-
-	// State the manager needs to add:
-	const additiveQueue: FabricObject[] = [];
-	let additiveFlushTimer: any = null;
-	let additiveLastFlush = 0;
-	const additiveTimestamps: number[] = []; // recent additive arrival times
-	const tileLastPatched = new Map<string, number>(); // tileKey -> ms timestamp
-
 	let loadingDepth = 0;
 	function isLoading() {
 		return loadingDepth > 0;
@@ -213,8 +199,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		}
 		tileCache.patchTilesSync(rectsToPatch, [activeTier]);
 
-		// ALSO patch coarser tiers cheaply — they cover much less area per rect.
-		// Only patch tiles that already exist (don't bake new coarse tiles speculatively).
 		const coarserTiers: number[] = [];
 		for (let t = activeTier - 1; t >= Math.max(0, activeTier - 2); t--) {
 			coarserTiers.push(t);
@@ -386,7 +370,18 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	const events: FabricEvent[] = [
 		{
 			on: "object:added",
-			handler: (e: any) => onObjectAdded(e.target),
+			handler: (e: any) => {
+				const obj = e.target as FabricObject;
+				if (!obj.id) return;
+				if (isLoading()) {
+					objectMap.set(obj.id, obj);
+					return;
+				}
+				objectMap.set(obj.id, obj);
+				addToQuadTree(obj);
+				isZIndexDirty = true;
+				scheduleObjectPatch(obj);
+			},
 		},
 		{
 			on: "object:removed",
@@ -752,185 +747,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				addToQuadTree(obj);
 			}
 		}
-	}
-
-	function onObjectAdded(obj: FabricObject) {
-		if (!obj.id) return;
-		if (isLoading()) {
-			objectMap.set(obj.id, obj);
-			return;
-		}
-		objectMap.set(obj.id, obj);
-		addToQuadTree(obj);
-		isZIndexDirty = true;
-
-		// ADDITIVE path: queue the object and schedule a flush.
-		additiveQueue.push(obj);
-		additiveTimestamps.push(performance.now());
-		scheduleAdditiveFlush();
-	}
-
-	function scheduleAdditiveFlush() {
-		if (additiveFlushTimer !== null) return;
-		if (isLoading()) return;
-
-		// Prune timestamps older than the window.
-		const now = performance.now();
-		const cutoff = now - ADDITIVE_BURST_WINDOW_MS;
-		while (additiveTimestamps.length && additiveTimestamps[0] < cutoff) {
-			additiveTimestamps.shift();
-		}
-
-		const isBurst = additiveTimestamps.length >= ADDITIVE_BURST_THRESHOLD;
-
-		if (!isBurst) {
-			// Microtask flush — no perceptible delay.
-			additiveFlushTimer = -1; // sentinel: "scheduled, not a real timer id"
-			queueMicrotask(() => {
-				additiveFlushTimer = null;
-				flushAdditiveQueue();
-			});
-			return;
-		}
-
-		// Burst mode: window of ADDITIVE_BATCH_DELAY_MS, but flush sooner if it's
-		// been too long since the last flush (so we don't starve under sustained
-		// load).
-		const sinceLast = now - additiveLastFlush;
-		const delay = Math.max(
-			0,
-			Math.min(
-				ADDITIVE_BATCH_DELAY_MS,
-				ADDITIVE_BATCH_DELAY_MAX_MS - sinceLast,
-			),
-		);
-		additiveFlushTimer = setTimeout(() => {
-			additiveFlushTimer = null;
-			flushAdditiveQueue();
-		}, delay);
-	}
-
-	function flushAdditiveQueue() {
-		if (!c || additiveQueue.length === 0) return;
-		if (isLoading()) {
-			additiveQueue.length = 0;
-			return;
-		}
-
-		const gs = useGestureStore();
-		if (gs.isGesturing) {
-			// Defer through normal gesture machinery.
-			for (const obj of additiveQueue) {
-				deferredDuringGesture.push({ kind: "obj", payload: obj });
-			}
-			additiveQueue.length = 0;
-			return;
-		}
-
-		additiveLastFlush = performance.now();
-		const objects = additiveQueue.slice();
-		additiveQueue.length = 0;
-
-		// Sort by z-index so multi-object batched patches render in correct order.
-		const zMap = getZIndexMap();
-		objects.sort((a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0));
-
-		// Decide tiers: active tier always; coarser tiers only if their tiles
-		// already exist (cheap). NEVER touch finer tiers — they're a waste of work
-		// for objects you can't see at that zoom yet.
-		const zoom = c.viewportTransform![0];
-		const activeTier = tileCache.pickTierForZoom(zoom);
-		const tiers: number[] = [activeTier];
-		// Add coarser tiers if their tiles already exist in cache — checked by
-		// patchTilesAdditive's "skip if no tile" guard. Free attempt.
-		for (let t = activeTier - 1; t >= Math.max(0, activeTier - 2); t--) {
-			tiers.push(t);
-		}
-
-		// Filter the active-tier tiles by the per-tile cooldown. Tiles that are
-		// being hammered get demoted to "stale, rebake later" instead of yet
-		// another additive composite.
-		const cooledObjects: FabricObject[] = [];
-		const overheatedRects: WorldRect[] = [];
-		const now = performance.now();
-
-		for (const obj of objects) {
-			const b = objectBounds(obj);
-			if (!isFinite(b.x) || b.w <= 0 || b.h <= 0) continue;
-
-			// Check active-tier tiles for cooldown.
-			const range = tileRangeForObject(b, activeTier);
-			let anyOverheated = false;
-			for (let ty = range.ty0; ty <= range.ty1 && !anyOverheated; ty++) {
-				for (let tx = range.tx0; tx <= range.tx1; tx++) {
-					const key = `${activeTier}:${tx}:${ty}`;
-					const last = tileLastPatched.get(key) ?? 0;
-					if (now - last < TILE_REBAKE_COOLDOWN_MS) {
-						anyOverheated = true;
-						break;
-					}
-				}
-			}
-
-			if (anyOverheated) {
-				// Skip additive — invalidate and let async bake do a single
-				// batched rebake later. Much cheaper than N additive composites
-				// on the same hot tile.
-				overheatedRects.push(b);
-			} else {
-				cooledObjects.push(obj);
-			}
-		}
-
-		// Update cooldown timestamps for every active-tier tile we're about to
-		// patch additively.
-		for (const obj of cooledObjects) {
-			const b = objectBounds(obj);
-			const range = tileRangeForObject(b, activeTier);
-			for (let ty = range.ty0; ty <= range.ty1; ty++) {
-				for (let tx = range.tx0; tx <= range.tx1; tx++) {
-					tileLastPatched.set(`${activeTier}:${tx}:${ty}`, now);
-				}
-			}
-		}
-
-		// ── 1. Additive batch patch for cooled objects ──
-		if (cooledObjects.length > 0) {
-			tileCache.patchTilesAdditiveBatch(cooledObjects, tiers);
-		}
-
-		// ── 2. For overheated tiles, just invalidate gen + schedule async bake ──
-		if (overheatedRects.length > 0) {
-			for (const r of overheatedRects) {
-				tileCache.invalidateRect(r);
-			}
-		}
-
-		// ── 3. Maintain coarse-baked tracking so zoom-out still works ──
-		for (const obj of objects) maybeExtendCoarse(obj);
-
-		// ── 4. One renderMain at the end (not per-object) ──
-		renderMain();
-		scheduleBake();
-
-		// Garbage-collect tileLastPatched periodically.
-		if (tileLastPatched.size > 2000) {
-			const cutoffMs = now - TILE_REBAKE_COOLDOWN_MS * 4;
-			for (const [k, t] of tileLastPatched) {
-				if (t < cutoffMs) tileLastPatched.delete(k);
-			}
-		}
-	}
-
-	function tileRangeForObject(b: WorldRect, tier: number) {
-		const scale = tileCache.ZOOM_TIERS[tier];
-		const tileWorldSize = 512 / scale; // matches tileSize
-		return {
-			tx0: Math.floor(b.x / tileWorldSize),
-			ty0: Math.floor(b.y / tileWorldSize),
-			tx1: Math.floor((b.x + b.w) / tileWorldSize),
-			ty1: Math.floor((b.y + b.h) / tileWorldSize),
-		};
 	}
 
 	return {

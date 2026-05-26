@@ -67,7 +67,7 @@ const THEME_SKUS: ShopSku[] = [
 	{
 		id: "theme.sunset",
 		kind: "single",
-		rcProductId: "sm_theme_sunset",
+		rcProductId: "sm_theme_sunset_v2",
 		grants: ["theme.sunset"],
 		category: "theme",
 		name: "Sunset",
@@ -519,7 +519,7 @@ const BUNDLE_SKUS: ShopSku[] = [
 		],
 		category: "pack",
 		name: "Cyber Pack",
-		desc: "Midnight + neon halo + neon brush",
+		desc: "Midnight + neon halo + neon brush + neon text effect",
 		featured: true,
 	},
 ];

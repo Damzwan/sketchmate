@@ -155,27 +155,43 @@ export const initCanvasOptions = (
 });
 
 export function overrideFindTarget(c: Canvas) {
-	const SEARCH_PADDING = 10;
-	(c as any).findTarget = function (e: any) {
-		const pointer = this.getScenePoint(e);
-		const activeObject = this._activeObject;
+	const SEARCH_PADDING_PX = 10; // screen pixels
 
-		if (
-			activeObject &&
-			(this as any)._isClick &&
-			activeObject.containsPoint(pointer)
-		) {
-			return { target: activeObject, subTargets: [] };
+	(c as any).findTarget = function (e: any) {
+		if (this.skipTargetFind) {
+			return { subTargets: [], currentSubTargets: [] };
 		}
 		if (this._targetInfo) return this._targetInfo;
-		if (this.skipTargetFind) return { subTargets: [], currentSubTargets: [] };
 
+		const pointer = this.getScenePoint(e);
+		const activeObject = this._activeObject;
+		const isTouch = fabric.util.isTouchEvent(e);
+		const viewportPoint = this.getViewportPoint(e);
+
+		if (activeObject) {
+			const handle = activeObject.findControl(viewportPoint, isTouch);
+			if (handle) {
+				return { target: activeObject, subTargets: [] };
+			}
+		}
+
+		const zoom = this.getZoom();
+		const padWorld = SEARCH_PADDING_PX / zoom;
 		const candidates = useDrawObjectManager().query({
-			x: pointer.x - SEARCH_PADDING,
-			y: pointer.y - SEARCH_PADDING,
-			w: SEARCH_PADDING * 2,
-			h: SEARCH_PADDING * 2,
+			x: pointer.x - padWorld,
+			y: pointer.y - padWorld,
+			w: padWorld * 2,
+			h: padWorld * 2,
 		});
+
+		if (candidates.length === 0) {
+			return { target: undefined, subTargets: [], currentSubTargets: [] };
+		}
+
+		const zMap = useDrawObjectManager().getZIndexMap();
+		candidates.sort((a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0));
+
+		// Let Fabric do per-object hit testing (respects shape, alpha)
 		const targetInfo = this.searchPossibleTargets(candidates, pointer);
 		const fullTargetInfo = {
 			...targetInfo,
@@ -186,19 +202,14 @@ export function overrideFindTarget(c: Canvas) {
 
 		if (!activeObject) return fullTargetInfo;
 
-		const activeObjectControl = activeObject.findControl(
-			this.getViewportPoint(e),
-			fabric.util.isTouchEvent(e),
-		);
-		if (activeObjectControl) return { ...targetInfo, target: activeObject };
-		if (
-			targetInfo.target &&
-			(this.getActiveObjects().length > 1 ||
-				!this.preserveObjectStacking ||
-				e[this.altSelectionKey as any])
-		) {
-			return { ...targetInfo, ...fullTargetInfo };
+		const activeContainsPointer = activeObject.containsPoint(pointer);
+
+		// ── FIX: Prioritize active object unconditionally if clicked inside ──
+		if (activeContainsPointer) {
+			return { target: activeObject, subTargets: [], currentSubTargets: [] };
 		}
+
+		// ── FALLBACK: Return the standard top hit if the click was outside the active object ──
 		return fullTargetInfo;
 	};
 }

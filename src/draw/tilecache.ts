@@ -121,6 +121,267 @@ export class TileCache<T extends Bounded> {
 		return bestIdx;
 	}
 
+	public patchTilesAdditive(
+		object: T,
+		tiers?: number[],
+	): { patched: number; skipped: number; tileKeys: string[] } {
+		const b = object.getBoundingRect(true, true);
+		const worldRect: WorldRect = {
+			x: b.left,
+			y: b.top,
+			w: b.width,
+			h: b.height,
+		};
+		if (!isFinite(worldRect.x) || worldRect.w <= 0 || worldRect.h <= 0) {
+			return { patched: 0, skipped: 0, tileKeys: [] };
+		}
+
+		const tiersToPatch = tiers ?? this.ZOOM_TIERS.map((_, i) => i);
+		let patched = 0;
+		let skipped = 0;
+		const tileKeys: string[] = [];
+
+		for (const tier of tiersToPatch) {
+			if (tier < 0 || tier >= this.ZOOM_TIERS.length) continue;
+			const scale = this.ZOOM_TIERS[tier];
+			const range = this.tileRangeForWorld(worldRect, tier);
+
+			for (let ty = range.ty0; ty <= range.ty1; ty++) {
+				for (let tx = range.tx0; tx <= range.tx1; tx++) {
+					const key = `${tier}:${tx}:${ty}`;
+					const tile = this.tiles.get(key);
+					if (!tile) {
+						// Tile doesn't exist — let the normal bake path create it.
+						skipped++;
+						continue;
+					}
+					if (!this.isFresh(key, tile)) {
+						// Tile is stale — a full rebake is already pending. Don't
+						// patch on top of stale content.
+						skipped++;
+						continue;
+					}
+					if (this.additivelyPatchTile(tier, tx, ty, scale, object, tile)) {
+						patched++;
+						tileKeys.push(key);
+						// Track membership for invalidation later.
+						let set = this.objectToTiles.get(object.id);
+						if (!set) {
+							set = new Set();
+							this.objectToTiles.set(object.id, set);
+						}
+						set.add(key);
+					} else {
+						skipped++;
+					}
+				}
+			}
+		}
+
+		return { patched, skipped, tileKeys };
+	}
+
+	private additivelyPatchTile(
+		tier: number,
+		tx: number,
+		ty: number,
+		scale: number,
+		object: T,
+		existing: Tile,
+	): boolean {
+		const world = this.tileToWorld(tier, tx, ty);
+		const overscanWorld = this.OVERSCAN / scale;
+		const stroke = 4 / scale;
+		const totalPadWorld = overscanWorld + stroke;
+
+		const off = new OffscreenCanvas(this.BITMAP_SIZE, this.BITMAP_SIZE);
+		const c2d = off.getContext("2d");
+		if (!c2d) return false;
+
+		// Draw existing tile content first (preserves background of tile).
+		if (existing.bitmap !== null) {
+			c2d.drawImage(existing.bitmap, 0, 0);
+		}
+
+		// Now draw the new object on top, using same transform setup as bakeTileSync.
+		c2d.save();
+		c2d.translate(this.OVERSCAN, this.OVERSCAN);
+		c2d.scale(scale, scale);
+		c2d.translate(-world.x, -world.y);
+
+		c2d.beginPath();
+		c2d.rect(
+			world.x - totalPadWorld,
+			world.y - totalPadWorld,
+			world.w + 2 * totalPadWorld,
+			world.h + 2 * totalPadWorld,
+		);
+		c2d.clip();
+
+		try {
+			this.renderer(c2d as any, object, scale);
+		} catch (err) {
+			if (this.debug) console.warn("[TileCache] additive renderer threw", err);
+			c2d.restore();
+			return false;
+		}
+		c2d.restore();
+
+		let newBitmap: ImageBitmap;
+		try {
+			// @ts-ignore
+			newBitmap = off.transferToImageBitmap();
+		} catch {
+			return false;
+		}
+
+		// Swap in. Same byte cost — no memory delta.
+		if (existing.bitmap !== null) existing.bitmap.close();
+		existing.bitmap = newBitmap;
+		existing.lastUsed = performance.now();
+
+		return true;
+	}
+
+	public patchTilesAdditiveBatch(
+		objects: T[],
+		tiers?: number[],
+	): { patched: number; skipped: number } {
+		if (objects.length === 0) return { patched: 0, skipped: 0 };
+		if (objects.length === 1) {
+			const r = this.patchTilesAdditive(objects[0], tiers);
+			return { patched: r.patched, skipped: r.skipped };
+		}
+
+		const tiersToPatch = tiers ?? this.ZOOM_TIERS.map((_, i) => i);
+
+		// Bucket: tileKey -> objects that touch it
+		const buckets = new Map<
+			string,
+			{ tier: number; tx: number; ty: number; objs: T[] }
+		>();
+
+		for (const obj of objects) {
+			const b = obj.getBoundingRect(true, true);
+			if (!isFinite(b.left) || b.width <= 0 || b.height <= 0) continue;
+			const worldRect: WorldRect = {
+				x: b.left,
+				y: b.top,
+				w: b.width,
+				h: b.height,
+			};
+			for (const tier of tiersToPatch) {
+				if (tier < 0 || tier >= this.ZOOM_TIERS.length) continue;
+				const range = this.tileRangeForWorld(worldRect, tier);
+				for (let ty = range.ty0; ty <= range.ty1; ty++) {
+					for (let tx = range.tx0; tx <= range.tx1; tx++) {
+						const key = `${tier}:${tx}:${ty}`;
+						let bucket = buckets.get(key);
+						if (!bucket) {
+							bucket = { tier, tx, ty, objs: [] };
+							buckets.set(key, bucket);
+						}
+						bucket.objs.push(obj);
+					}
+				}
+			}
+		}
+
+		let patched = 0;
+		let skipped = 0;
+
+		for (const [key, bucket] of buckets) {
+			const tile = this.tiles.get(key);
+			if (!tile || !this.isFresh(key, tile)) {
+				skipped++;
+				continue;
+			}
+			if (
+				this.additivelyPatchTileBatch(
+					bucket.tier,
+					bucket.tx,
+					bucket.ty,
+					this.ZOOM_TIERS[bucket.tier],
+					bucket.objs,
+					tile,
+				)
+			) {
+				patched++;
+				for (const obj of bucket.objs) {
+					let set = this.objectToTiles.get(obj.id);
+					if (!set) {
+						set = new Set();
+						this.objectToTiles.set(obj.id, set);
+					}
+					set.add(key);
+				}
+			} else {
+				skipped++;
+			}
+		}
+
+		return { patched, skipped };
+	}
+
+	private additivelyPatchTileBatch(
+		tier: number,
+		tx: number,
+		ty: number,
+		scale: number,
+		objects: T[],
+		existing: Tile,
+	): boolean {
+		const world = this.tileToWorld(tier, tx, ty);
+		const overscanWorld = this.OVERSCAN / scale;
+		const stroke = 4 / scale;
+		const totalPadWorld = overscanWorld + stroke;
+
+		const off = new OffscreenCanvas(this.BITMAP_SIZE, this.BITMAP_SIZE);
+		const c2d = off.getContext("2d");
+		if (!c2d) return false;
+
+		if (existing.bitmap !== null) {
+			c2d.drawImage(existing.bitmap, 0, 0);
+		}
+
+		c2d.save();
+		c2d.translate(this.OVERSCAN, this.OVERSCAN);
+		c2d.scale(scale, scale);
+		c2d.translate(-world.x, -world.y);
+
+		c2d.beginPath();
+		c2d.rect(
+			world.x - totalPadWorld,
+			world.y - totalPadWorld,
+			world.w + 2 * totalPadWorld,
+			world.h + 2 * totalPadWorld,
+		);
+		c2d.clip();
+
+		for (const obj of objects) {
+			try {
+				this.renderer(c2d as any, obj, scale);
+			} catch (err) {
+				if (this.debug)
+					console.warn("[TileCache] additive-batch renderer threw", err);
+			}
+		}
+		c2d.restore();
+
+		let newBitmap: ImageBitmap;
+		try {
+			// @ts-ignore
+			newBitmap = off.transferToImageBitmap();
+		} catch {
+			return false;
+		}
+
+		if (existing.bitmap !== null) existing.bitmap.close();
+		existing.bitmap = newBitmap;
+		existing.lastUsed = performance.now();
+		return true;
+	}
+
 	private tileRangeForWorld(worldRect: WorldRect, tier: number) {
 		const scale = this.ZOOM_TIERS[tier];
 		const tileWorldSize = this.TILE_SIZE / scale;
@@ -236,12 +497,21 @@ export class TileCache<T extends Bounded> {
 			for (let tx = range.tx0; tx <= range.tx1; tx++) {
 				report.tilesRequested++;
 
+				const xEdges = new Int32Array(range.tx1 - range.tx0 + 2);
+				for (let i = 0; i <= range.tx1 - range.tx0 + 1; i++) {
+					xEdges[i] = Math.floor((range.tx0 + i) * tileWorldSize * a + e);
+				}
+				const yEdges = new Int32Array(range.ty1 - range.ty0 + 2);
+				for (let i = 0; i <= range.ty1 - range.ty0 + 1; i++) {
+					yEdges[i] = Math.floor((range.ty0 + i) * tileWorldSize * d + f);
+				}
+
 				const wx = tx * tileWorldSize;
 				const wy = ty * tileWorldSize;
-				const dx0 = Math.floor(wx * a + e);
-				const dy0 = Math.floor(wy * d + f);
-				const dx1 = Math.ceil((wx + tileWorldSize) * a + e);
-				const dy1 = Math.ceil((wy + tileWorldSize) * d + f);
+				const dx0 = xEdges[tx - range.tx0];
+				const dx1 = xEdges[tx - range.tx0 + 1];
+				const dy0 = yEdges[ty - range.ty0];
+				const dy1 = yEdges[ty - range.ty0 + 1];
 
 				const exactKey = `${pickedTier}:${tx}:${ty}`;
 				const exact = this.tiles.get(exactKey);
@@ -535,6 +805,27 @@ export class TileCache<T extends Bounded> {
 				for (let tx = range.tx0; tx <= range.tx1; tx++) {
 					const key = `${tier}:${tx}:${ty}`;
 					this.tileGen.set(key, (this.tileGen.get(key) ?? 0) + 1);
+				}
+			}
+		}
+	}
+
+	patchExistingTilesSync(worldRects: WorldRect[], tiers: number[]) {
+		const seen = new Set<string>();
+		for (const tier of tiers) {
+			if (tier < 0 || tier >= this.ZOOM_TIERS.length) continue;
+			const scale = this.ZOOM_TIERS[tier];
+			for (const r of worldRects) {
+				const range = this.tileRangeForWorld(r, tier);
+				for (let ty = range.ty0; ty <= range.ty1; ty++) {
+					for (let tx = range.tx0; tx <= range.tx1; tx++) {
+						const k = `${tier}:${tx}:${ty}`;
+						if (seen.has(k)) continue;
+						seen.add(k);
+						if (this.tiles.has(k)) {
+							this.bakeTileSync(tier, tx, ty, scale);
+						}
+					}
 				}
 			}
 		}

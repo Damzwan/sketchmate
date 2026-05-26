@@ -1,7 +1,3 @@
-// --- ENUMS & CONSTANTS ---
-
-import { minimum_online_version } from "../main";
-
 export enum NotificationType {
 	// Current
 	balloon_match = "balloon_match",

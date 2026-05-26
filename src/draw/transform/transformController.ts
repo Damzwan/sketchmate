@@ -1,6 +1,5 @@
 import { Canvas, FabricObject } from "fabric";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
-import { WorldRect } from "@/draw/tilecache";
 
 interface SelectionRefs {
 	left: number;
@@ -38,9 +37,8 @@ export function moveHappened(): boolean {
 export function markMoved(): void {
 	if (!session || session.moveHappened) return;
 	session.moveHappened = true;
+	renderOverlay(session);
 
-	// The object has officially started moving/rotating.
-	// Hide it from the tile cache NOW.
 	session.objects.forEach((o) => (o.opacity = 0));
 
 	const mgr = useDrawObjectManager();
@@ -64,6 +62,7 @@ export function begin(c: Canvas, target: FabricObject): void {
 			? [...(target as any)._objects]
 			: [target];
 
+	// Fast bake using aCoords instead of getBoundingRect
 	const baked = bakeSelectionBitmap(c, objects);
 	if (!baked) return;
 
@@ -76,10 +75,6 @@ export function begin(c: Canvas, target: FabricObject): void {
 	};
 
 	const savedOpacity = objects.map((o) => o.opacity);
-
-	// DEFERRED HIDING: Do NOT set opacity to 0 yet.
-	// Do NOT schedule a rect patch.
-	// We just let the overlay sit exactly on top of the real object.
 
 	session = {
 		canvas: c,
@@ -94,14 +89,15 @@ export function begin(c: Canvas, target: FabricObject): void {
 		rafId: null,
 	};
 
-	renderOverlay(session);
+	// Render the overlay immediately so it masks the real objects exactly.
+	// We DO NOT set opacity=0 or patch the tile cache yet.
 }
 
 export function schedule(): void {
 	if (!session) return;
 	session.dirty = true;
 	if (session.rafId !== null) return;
-	session.rafId = requestAnimationFrame(flush);
+	session.rafId = flush();
 }
 
 export function end(c: Canvas): void {
@@ -111,11 +107,13 @@ export function end(c: Canvas): void {
 	const s = session;
 	session = null;
 
-	// Only restore opacity and patch if we actually hid them
 	if (s.moveHappened) {
+		// Restore opacities so the tilecache can bake them again
 		s.objects.forEach((o, i) => (o.opacity = s.savedOpacity[i]));
 
 		const mgr = useDrawObjectManager();
+
+		// Patch the old area where they started
 		mgr.scheduleRectPatch({
 			x: s.origin.left,
 			y: s.origin.top,
@@ -125,21 +123,33 @@ export function end(c: Canvas): void {
 
 		s.target.setCoords();
 
+		// Patch the new area where they landed
 		for (const o of s.objects) {
 			o.setCoords();
 			mgr.scheduleObjectPatch(o);
 		}
+
+		// ANTI-FLICKER: Wait for the TileCache to finish its async render
+		// before tearing down the top overlay. This bridges the 1-2 frame visual gap.
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				if (s.bitmap) s.bitmap.close();
+				if (!session) {
+					clearTopContext(c);
+					const active = c.getActiveObject();
+					if (active) active._renderControls(c.getTopContext());
+				}
+			});
+		});
 	} else {
-		// Even if no movement, keep coordinates synced just in case
+		// If no movement happened (just a click), teardown immediately
 		s.target.setCoords();
+		s.bitmap.close();
+		clearTopContext(c);
+
+		const active = c.getActiveObject();
+		if (active) active._renderControls(c.getTopContext());
 	}
-
-	// Tear down the overlay
-	s.bitmap.close();
-	clearTopContext(c);
-
-	const active = c.getActiveObject();
-	if (active) active._renderControls(c.getTopContext());
 }
 
 export function cancel(c: Canvas): void {
@@ -156,7 +166,7 @@ function flush(): void {
 	renderOverlay(session);
 }
 
-// ─── Bitmap baking ───────────────────────────────────────────────────────────
+// ─── Bitmap baking (Optimized) ───────────────────────────────────────────────
 
 function bakeSelectionBitmap(
 	c: Canvas,
@@ -173,14 +183,25 @@ function bakeSelectionBitmap(
 		minY = Infinity,
 		maxX = -Infinity,
 		maxY = -Infinity;
+
+	// FAST BOUNDS: Use aCoords. It is instantaneous compared to getBoundingRect
 	for (const o of visible) {
-		// @ts-ignore
-		const b = o.getBoundingRect(true, true);
-		if (b.left < minX) minX = b.left;
-		if (b.top < minY) minY = b.top;
-		if (b.left + b.width > maxX) maxX = b.left + b.width;
-		if (b.top + b.height > maxY) maxY = b.top + b.height;
+		const coords = o.aCoords;
+		if (coords) {
+			minX = Math.min(minX, coords.tl.x, coords.tr.x, coords.bl.x, coords.br.x);
+			minY = Math.min(minY, coords.tl.y, coords.tr.y, coords.bl.y, coords.br.y);
+			maxX = Math.max(maxX, coords.tl.x, coords.tr.x, coords.bl.x, coords.br.x);
+			maxY = Math.max(maxY, coords.tl.y, coords.tr.y, coords.bl.y, coords.br.y);
+		} else {
+			// Fallback if aCoords isn't populated yet
+			const b = o.getBoundingRect();
+			if (b.left < minX) minX = b.left;
+			if (b.top < minY) minY = b.top;
+			if (b.left + b.width > maxX) maxX = b.left + b.width;
+			if (b.top + b.height > maxY) maxY = b.top + b.height;
+		}
 	}
+
 	minX -= PAD;
 	minY -= PAD;
 	maxX += PAD;
@@ -194,10 +215,17 @@ function bakeSelectionBitmap(
 	const dpr = window.devicePixelRatio || 1;
 	let scale = zoom * dpr;
 
+	// Auto-scale down resolution for massive selections to save GPU
+	if (visible.length > 150) {
+		scale *= 0.5;
+	} else if (visible.length > 50) {
+		scale *= 0.75;
+	}
+
 	let physW = Math.ceil(worldW * scale);
 	let physH = Math.ceil(worldH * scale);
 
-	const MAX_DIM = 4096;
+	const MAX_DIM = 2048;
 	if (physW > MAX_DIM || physH > MAX_DIM) {
 		const factor = Math.min(MAX_DIM / physW, MAX_DIM / physH);
 		physW = Math.max(1, Math.floor(physW * factor));
@@ -206,7 +234,7 @@ function bakeSelectionBitmap(
 	}
 
 	const off = new OffscreenCanvas(physW, physH);
-	const ctx = off.getContext("2d");
+	const ctx = off.getContext("2d", { alpha: true });
 	if (!ctx) return null;
 
 	ctx.scale(scale, scale);
@@ -216,6 +244,7 @@ function bakeSelectionBitmap(
 	const sorted = [...visible].sort(
 		(a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0),
 	);
+
 	for (const o of sorted) {
 		try {
 			o.render(ctx as any);
@@ -226,7 +255,6 @@ function bakeSelectionBitmap(
 
 	let bitmap: ImageBitmap;
 	try {
-		// @ts-ignore
 		bitmap = off.transferToImageBitmap();
 	} catch (err) {
 		return null;
@@ -243,7 +271,7 @@ function bakeSelectionBitmap(
 function renderOverlay(s: Session): void {
 	const c = s.canvas;
 	const topCtx = c.getTopContext();
-	const dpr = 1;
+	const dpr = window.devicePixelRatio || 1; // Explicitly ensure dpr is pulled
 	const vpt = c.viewportTransform!;
 
 	topCtx.save();

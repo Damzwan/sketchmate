@@ -1,4 +1,3 @@
-// src/stores/auth.store.ts
 import { defineStore, storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
 import { Preferences } from "@capacitor/preferences";
@@ -42,6 +41,7 @@ import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
+import { Purchases } from "@revenuecat/purchases-capacitor";
 
 export const useAuthStore = defineStore("auth", () => {
 	// --- STATE ---
@@ -99,6 +99,9 @@ export const useAuthStore = defineStore("auth", () => {
 
 		// BOOTSTRAP: blocking, fast — just enough to make routing decisions
 		const ok = await bootstrap();
+
+		if (isNative() && user.value)
+			void Purchases.logIn({ appUserID: user.value.auth_id });
 
 		if (!ok) {
 			const { toast } = useToast();

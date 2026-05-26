@@ -70,7 +70,12 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 			return false;
 		}
 		trackEvent(mixpanelEvents.presentPaywall);
-		const { result } = await RevenueCatUI.presentPaywall();
+
+		const offerings = await Purchases.getOfferings();
+		const specificOffering = offerings.all["paywall_items"];
+		const { result } = await RevenueCatUI.presentPaywall({
+			offering: specificOffering,
+		});
 
 		const successStates = [PAYWALL_RESULT.PURCHASED, PAYWALL_RESULT.RESTORED];
 		const isSuccess = successStates.includes(result);

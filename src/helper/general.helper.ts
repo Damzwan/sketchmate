@@ -449,7 +449,7 @@ export async function initBilling() {
 
 	try {
 		await Purchases.configure({ apiKey: testKey });
-		console.log("RevenueCat configured successfully with Test Key!");
+		console.log("RevenueCat configured successfully with Key!");
 	} catch (error) {
 		console.error("Error configuring RevenueCat:", error);
 	}

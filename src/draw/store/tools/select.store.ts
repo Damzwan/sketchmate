@@ -1,13 +1,13 @@
 import { defineStore } from "pinia";
 import * as fabric from "fabric";
-import { type Canvas, type FabricObject, IText, Point } from "fabric";
+import { type Canvas, type FabricObject, Point } from "fabric";
 import { type Ref, ref } from "vue";
 import { v4 } from "uuid";
 import { FabricEvent, ToolService } from "@/draw/types/draw.types";
-import { isNative } from "@/helper/general.helper";
 import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
 import { isText } from "@/draw/helpers/text.helper";
 import { getAbsoluteState } from "@/draw/helpers/object.helper";
+import * as transform from "@/draw/transform/transformController";
 
 interface Select extends ToolService {
 	unSelect: () => void;
@@ -118,6 +118,7 @@ export const useSelect = defineStore("select", (): Select => {
 
 				setSelection(e.selected);
 				temporarilyDisableGestures();
+				// transform.invalidateCache();
 			},
 		},
 		{
@@ -133,6 +134,7 @@ export const useSelect = defineStore("select", (): Select => {
 
 				setSelection(currentSelection);
 				temporarilyDisableGestures();
+				// transform.invalidateCache();
 			},
 		},
 		{

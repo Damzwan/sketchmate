@@ -28,11 +28,12 @@
             v-for="theme in THEMES"
             :key="theme.id"
             class="relative rounded-[2rem] border-2 p-4 text-left active:scale-95 transition-all overflow-hidden"
-            :class="
+            :class="[
               localSelection === theme.id
                 ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
-                : 'border-white shadow-sm'
-            "
+                : 'border-white shadow-sm',
+              !isItemOwned(theme.id) && 'locked-tile'
+            ]"
             :style="{ background: theme.cardBg }"
             @click="localSelection = theme.id"
           >
@@ -51,8 +52,19 @@
               {{ theme.desc }}
             </p>
 
+            <!-- Lock veil — dims the tile but keeps the preview readable -->
             <div
-              v-if="localSelection === theme.id"
+              v-if="!isItemOwned(theme.id)"
+              class="absolute inset-0 bg-black/25 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
+            >
+              <div class="bg-white/95 rounded-full w-9 h-9 flex items-center justify-center shadow-lg">
+                <ion-icon :icon="svg(mdiLock)" class="text-base text-black/70" />
+              </div>
+            </div>
+
+            <!-- Checkmark only on owned + selected tile -->
+            <div
+              v-if="localSelection === theme.id && isItemOwned(theme.id)"
               class="absolute top-2 right-2 w-7 h-7 rounded-full bg-secondary shadow-lg flex items-center justify-center"
             >
               <ion-icon :icon="svg(mdiCheck)" class="text-white text-base" />
@@ -63,7 +75,20 @@
 
       <!-- Actions -->
       <div class="px-5 pt-3 pb-2 shrink-0 bg-background border-t border-black/5">
+        <!-- Locked selection → Unlock CTA -->
         <ion-button
+          v-if="selectionLocked"
+          expand="block"
+          color="secondary"
+          shape="round"
+          class="h-14 font-black uppercase tracking-widest shadow-lg"
+          @click="goToShop"
+        >
+          <ion-icon :icon="svg(mdiLock)" slot="start" class="mr-1" />
+          Unlock {{ selectionName }}
+        </ion-button>
+        <ion-button
+          v-else
           expand="block"
           color="secondary"
           shape="round"
@@ -72,6 +97,7 @@
         >
           Apply Theme
         </ion-button>
+
         <ion-button
           fill="clear"
           color="dark"
@@ -87,48 +113,76 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { IonButton, IonIcon, IonModal } from '@ionic/vue'
-import { mdiCheck } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { THEMES, type Customization } from '@/config/profile_options.config'
-import PreviewProfileCard from '../PreviewProfileCard.vue'
+import { computed, ref, watch } from "vue";
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
+import { mdiCheck, mdiLock } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { THEMES, type Customization } from "@/config/profile_options.config";
+import { buildItemId } from "@/config/catalog.config";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useMenuStore } from "@/store/menu.store";
+import PreviewProfileCard from "../PreviewProfileCard.vue";
 
 const props = defineProps<{
-  isOpen: boolean
-  user: any
-  customization: Partial<Customization>
-}>()
+	isOpen: boolean;
+	user: any;
+	customization: Partial<Customization>;
+}>();
 
-const emit = defineEmits(['close', 'select'])
+const emit = defineEmits(["close", "select"]);
 
-const localSelection = ref(props.customization.themeId || 'classic')
+const inventoryStore = useInventoryStore();
+const menuStore = useMenuStore();
+
+const localSelection = ref(props.customization.themeId || "classic");
 
 watch(
-  () => props.isOpen,
-  (open) => {
-    if (open) localSelection.value = props.customization.themeId || 'classic'
-  }
-)
+	() => props.isOpen,
+	(open) => {
+		if (open) localSelection.value = props.customization.themeId || "classic";
+	},
+);
+
+// Themes use the "theme.<id>" item ID convention
+const isItemOwned = (themeId: string) =>
+	inventoryStore.isOwned(buildItemId("theme", themeId));
+
+const selectionLocked = computed(() => !isItemOwned(localSelection.value));
+
+const selectionName = computed(
+	() => THEMES.find((t) => t.id === localSelection.value)?.name || "",
+);
 
 // Compose preview customization by merging the current full customization
 // with the locally previewed theme — keeps decoration/effect/title visible
-// while the user shops themes.
+// while the user shops themes. Even locked themes preview live so they see
+// what they're missing.
 const previewCustomization = computed(() => ({
-  ...props.customization,
-  themeId: localSelection.value
-}))
+	...props.customization,
+	themeId: localSelection.value,
+}));
 
 const confirm = () => {
-  emit('select', localSelection.value)
-  emit('close')
-}
-const handleDismiss = () => emit('close')
+	if (selectionLocked.value) return goToShop();
+	emit("select", localSelection.value);
+	emit("close");
+};
+
+const goToShop = () => {
+	const itemId = buildItemId("theme", localSelection.value);
+	emit("close");
+	// Slight delay so the modal dismisses cleanly before the shop opens
+	setTimeout(() => menuStore.openShop(itemId), 250);
+};
+
+const handleDismiss = () => emit("close");
 </script>
 
 <style scoped>
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.locked-tile { opacity: 0.92; }
 
 ion-modal.liquid-customize-modal {
   --border-radius: 2.5rem 2.5rem 0 0;

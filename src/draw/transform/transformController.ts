@@ -22,7 +22,20 @@ interface Session {
 	rafId: number | null;
 }
 
+interface CachedBake {
+	bitmap: ImageBitmap;
+	origin: { left: number; top: number; width: number; height: number };
+	state: {
+		scaleX: number;
+		scaleY: number;
+		angle: number;
+		width: number;
+		height: number;
+	};
+}
+
 let session: Session | null = null;
+let cachedBake: CachedBake | null = null;
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -62,8 +75,7 @@ export function begin(c: Canvas, target: FabricObject): void {
 			? [...(target as any)._objects]
 			: [target];
 
-	// Fast bake using aCoords instead of getBoundingRect
-	const baked = bakeSelectionBitmap(c, objects);
+	const baked = bakeSelectionBitmap(c, target);
 	if (!baked) return;
 
 	const refs: SelectionRefs = {
@@ -88,16 +100,13 @@ export function begin(c: Canvas, target: FabricObject): void {
 		dirty: false,
 		rafId: null,
 	};
-
-	// Render the overlay immediately so it masks the real objects exactly.
-	// We DO NOT set opacity=0 or patch the tile cache yet.
 }
 
 export function schedule(): void {
 	if (!session) return;
 	session.dirty = true;
 	if (session.rafId !== null) return;
-	session.rafId = flush();
+	flush();
 }
 
 export function end(c: Canvas): void {
@@ -108,12 +117,10 @@ export function end(c: Canvas): void {
 	session = null;
 
 	if (s.moveHappened) {
-		// Restore opacities so the tilecache can bake them again
 		s.objects.forEach((o, i) => (o.opacity = s.savedOpacity[i]));
 
 		const mgr = useDrawObjectManager();
 
-		// Patch the old area where they started
 		mgr.scheduleRectPatch({
 			x: s.origin.left,
 			y: s.origin.top,
@@ -123,17 +130,15 @@ export function end(c: Canvas): void {
 
 		s.target.setCoords();
 
-		// Patch the new area where they landed
 		for (const o of s.objects) {
 			o.setCoords();
+			mgr.updateQuadTree(o);
 			mgr.scheduleObjectPatch(o);
 		}
 
-		// ANTI-FLICKER: Wait for the TileCache to finish its async render
-		// before tearing down the top overlay. This bridges the 1-2 frame visual gap.
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
-				if (s.bitmap) s.bitmap.close();
+				// Removed bitmap.close() here so the cache survives across drops!
 				if (!session) {
 					clearTopContext(c);
 					const active = c.getActiveObject();
@@ -142,9 +147,7 @@ export function end(c: Canvas): void {
 			});
 		});
 	} else {
-		// If no movement happened (just a click), teardown immediately
 		s.target.setCoords();
-		s.bitmap.close();
 		clearTopContext(c);
 
 		const active = c.getActiveObject();
@@ -154,6 +157,13 @@ export function end(c: Canvas): void {
 
 export function cancel(c: Canvas): void {
 	end(c);
+}
+
+export function invalidateCache(): void {
+	if (cachedBake?.bitmap) {
+		cachedBake.bitmap.close();
+	}
+	cachedBake = null;
 }
 
 // ─── rAF flush ───────────────────────────────────────────────────────────────
@@ -166,46 +176,55 @@ function flush(): void {
 	renderOverlay(session);
 }
 
-// ─── Bitmap baking (Optimized) ───────────────────────────────────────────────
+// ─── Bitmap baking (Optimized + Caching) ─────────────────────────────────────
 
 function bakeSelectionBitmap(
 	c: Canvas,
-	objects: FabricObject[],
+	target: FabricObject,
 ): {
 	bitmap: ImageBitmap;
 	origin: { left: number; top: number; width: number; height: number };
 } | null {
-	const visible = objects.filter((o) => o.visible !== false);
-	if (visible.length === 0) return null;
-
 	const PAD = 8;
-	let minX = Infinity,
-		minY = Infinity,
-		maxX = -Infinity,
-		maxY = -Infinity;
+	const b = target.getBoundingRect();
 
-	// FAST BOUNDS: Use aCoords. It is instantaneous compared to getBoundingRect
-	for (const o of visible) {
-		const coords = o.aCoords;
-		if (coords) {
-			minX = Math.min(minX, coords.tl.x, coords.tr.x, coords.bl.x, coords.br.x);
-			minY = Math.min(minY, coords.tl.y, coords.tr.y, coords.bl.y, coords.br.y);
-			maxX = Math.max(maxX, coords.tl.x, coords.tr.x, coords.bl.x, coords.br.x);
-			maxY = Math.max(maxY, coords.tl.y, coords.tr.y, coords.bl.y, coords.br.y);
+	const curState = {
+		scaleX: target.scaleX ?? 1,
+		scaleY: target.scaleY ?? 1,
+		angle: target.angle ?? 0,
+		width: target.width ?? 0,
+		height: target.height ?? 0,
+	};
+
+	// 1. FAST CACHE RETURN: If we only translated the object, reuse the bitmap!
+	if (cachedBake) {
+		if (
+			cachedBake.state.scaleX === curState.scaleX &&
+			cachedBake.state.scaleY === curState.scaleY &&
+			cachedBake.state.angle === curState.angle &&
+			cachedBake.state.width === curState.width &&
+			cachedBake.state.height === curState.height
+		) {
+			return {
+				bitmap: cachedBake.bitmap,
+				origin: {
+					left: b.left - PAD,
+					top: b.top - PAD,
+					width: cachedBake.origin.width,
+					height: cachedBake.origin.height,
+				},
+			};
 		} else {
-			// Fallback if aCoords isn't populated yet
-			const b = o.getBoundingRect();
-			if (b.left < minX) minX = b.left;
-			if (b.top < minY) minY = b.top;
-			if (b.left + b.width > maxX) maxX = b.left + b.width;
-			if (b.top + b.height > maxY) maxY = b.top + b.height;
+			// Geometry changed (scaled/rotated) - invalidate and rebake
+			invalidateCache();
 		}
 	}
 
-	minX -= PAD;
-	minY -= PAD;
-	maxX += PAD;
-	maxY += PAD;
+	// 2. FULL BAKE: (Executes on first select, or after scaling/rotating)
+	let minX = b.left - PAD;
+	let minY = b.top - PAD;
+	let maxX = b.left + b.width + PAD;
+	let maxY = b.top + b.height + PAD;
 
 	const worldW = maxX - minX;
 	const worldH = maxY - minY;
@@ -215,10 +234,14 @@ function bakeSelectionBitmap(
 	const dpr = window.devicePixelRatio || 1;
 	let scale = zoom * dpr;
 
-	// Auto-scale down resolution for massive selections to save GPU
-	if (visible.length > 150) {
+	const childCount =
+		target.type === "activeselection" || target.type === "ActiveSelection"
+			? (target as any)._objects?.length || 1
+			: 1;
+
+	if (childCount > 150) {
 		scale *= 0.5;
-	} else if (visible.length > 50) {
+	} else if (childCount > 50) {
 		scale *= 0.75;
 	}
 
@@ -240,17 +263,18 @@ function bakeSelectionBitmap(
 	ctx.scale(scale, scale);
 	ctx.translate(-minX, -minY);
 
-	const zMap = useDrawObjectManager().getZIndexMap();
-	const sorted = [...visible].sort(
-		(a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0),
-	);
+	if (target.type === "activeselection" || target.type === "ActiveSelection") {
+		const zMap = useDrawObjectManager().getZIndexMap();
+		(target as any)._objects?.sort(
+			(a: FabricObject, b: FabricObject) =>
+				(zMap.get(a) ?? 0) - (zMap.get(b) ?? 0),
+		);
+	}
 
-	for (const o of sorted) {
-		try {
-			o.render(ctx as any);
-		} catch (err) {
-			console.warn("[transformController] bake render failed", err);
-		}
+	try {
+		target.render(ctx as any);
+	} catch (err) {
+		console.warn("[transformController] bake render failed", err);
 	}
 
 	let bitmap: ImageBitmap;
@@ -260,9 +284,15 @@ function bakeSelectionBitmap(
 		return null;
 	}
 
-	return {
+	cachedBake = {
 		bitmap,
 		origin: { left: minX, top: minY, width: worldW, height: worldH },
+		state: curState,
+	};
+
+	return {
+		bitmap,
+		origin: cachedBake.origin,
 	};
 }
 
@@ -271,7 +301,7 @@ function bakeSelectionBitmap(
 function renderOverlay(s: Session): void {
 	const c = s.canvas;
 	const topCtx = c.getTopContext();
-	const dpr = window.devicePixelRatio || 1; // Explicitly ensure dpr is pulled
+	const dpr = window.devicePixelRatio || 1;
 	const vpt = c.viewportTransform!;
 
 	topCtx.save();

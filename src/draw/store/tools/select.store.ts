@@ -118,7 +118,7 @@ export const useSelect = defineStore("select", (): Select => {
 
 				setSelection(e.selected);
 				temporarilyDisableGestures();
-				// transform.invalidateCache();
+				transform.invalidateCache();
 			},
 		},
 		{
@@ -134,7 +134,7 @@ export const useSelect = defineStore("select", (): Select => {
 
 				setSelection(currentSelection);
 				temporarilyDisableGestures();
-				// transform.invalidateCache();
+				transform.invalidateCache();
 			},
 		},
 		{

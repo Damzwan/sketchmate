@@ -47,13 +47,25 @@ export function moveHappened(): boolean {
 	return session?.moveHappened ?? false;
 }
 
+/**
+ * Called by the transform-action loop on the first frame the user actually
+ * moves something. Order matters:
+ *   1. Hide the underlying object FIRST (opacity = 0).
+ *   2. Schedule a rect patch so the tile cache clears that region under
+ *      the overlay (with the local-transform pre-emption fix, this now
+ *      sync-patches the in-viewport area).
+ *   3. ONLY THEN draw the overlay. If we drew first, the tile would still
+ *      show the original object for a frame → double-render.
+ */
 export function markMoved(): void {
 	if (!session || session.moveHappened) return;
 	session.moveHappened = true;
-	renderOverlay(session);
 
+	// 1. Hide originals
 	session.objects.forEach((o) => (o.opacity = 0));
 
+	// 2. Tell tile cache to clear the original-position rect. The local-
+	//    transform-aware flushDirtyPatches will sync-patch this immediately.
 	const mgr = useDrawObjectManager();
 	mgr.scheduleRectPatch({
 		x: session.origin.left,
@@ -61,6 +73,9 @@ export function markMoved(): void {
 		w: session.origin.width,
 		h: session.origin.height,
 	});
+
+	// 3. Draw the overlay on top
+	renderOverlay(session);
 }
 
 export function activeObjects(): readonly FabricObject[] {
@@ -106,7 +121,7 @@ export function schedule(): void {
 	if (!session) return;
 	session.dirty = true;
 	if (session.rafId !== null) return;
-	flush();
+	session.rafId = requestAnimationFrame(flush);
 }
 
 export function end(c: Canvas): void {
@@ -117,10 +132,12 @@ export function end(c: Canvas): void {
 	session = null;
 
 	if (s.moveHappened) {
+		// Restore opacity at the NEW position
 		s.objects.forEach((o, i) => (o.opacity = s.savedOpacity[i]));
 
 		const mgr = useDrawObjectManager();
 
+		// Clear the OLD position (where overlay was drawn)
 		mgr.scheduleRectPatch({
 			x: s.origin.left,
 			y: s.origin.top,
@@ -129,16 +146,17 @@ export function end(c: Canvas): void {
 		});
 
 		s.target.setCoords();
-
 		for (const o of s.objects) {
 			o.setCoords();
 			mgr.updateQuadTree(o);
 			mgr.scheduleObjectPatch(o);
 		}
 
+		// Defer overlay tear-down until tiles have rebaked at new position.
+		// 2× rAF gives the manager's rAF-coalesced renderMain a chance to
+		// run with the freshly patched tiles before we wipe the overlay.
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
-				// Removed bitmap.close() here so the cache survives across drops!
 				if (!session) {
 					clearTopContext(c);
 					const active = c.getActiveObject();
@@ -147,9 +165,10 @@ export function end(c: Canvas): void {
 			});
 		});
 	} else {
+		// Tap without drag — overlay was never drawn (we deferred), just
+		// keep coords synced.
 		s.target.setCoords();
 		clearTopContext(c);
-
 		const active = c.getActiveObject();
 		if (active) active._renderControls(c.getTopContext());
 	}
@@ -196,7 +215,6 @@ function bakeSelectionBitmap(
 		height: target.height ?? 0,
 	};
 
-	// 1. FAST CACHE RETURN: If we only translated the object, reuse the bitmap!
 	if (cachedBake) {
 		if (
 			cachedBake.state.scaleX === curState.scaleX &&
@@ -215,17 +233,14 @@ function bakeSelectionBitmap(
 				},
 			};
 		} else {
-			// Geometry changed (scaled/rotated) - invalidate and rebake
 			invalidateCache();
 		}
 	}
 
-	// 2. FULL BAKE: (Executes on first select, or after scaling/rotating)
-	let minX = b.left - PAD;
-	let minY = b.top - PAD;
-	let maxX = b.left + b.width + PAD;
-	let maxY = b.top + b.height + PAD;
-
+	const minX = b.left - PAD;
+	const minY = b.top - PAD;
+	const maxX = b.left + b.width + PAD;
+	const maxY = b.top + b.height + PAD;
 	const worldW = maxX - minX;
 	const worldH = maxY - minY;
 	if (worldW <= 0 || worldH <= 0) return null;

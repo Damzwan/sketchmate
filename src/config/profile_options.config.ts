@@ -448,6 +448,8 @@ export interface Customization {
 	titleId: string;
 	signaturePath?: string;
 	signatureViewBox?: string;
+	backgroundSketchPath?: string;
+	backgroundSketchViewBox?: string;
 }
 
 export const hydrateCustomization = (
@@ -461,6 +463,8 @@ export const hydrateCustomization = (
 	titleId: raw?.titleId || "",
 	signaturePath: raw?.signaturePath,
 	signatureViewBox: raw?.signatureViewBox,
+	backgroundSketchPath: raw?.backgroundSketchPath ?? "",
+	backgroundSketchViewBox: raw?.backgroundSketchViewBox ?? "",
 });
 
 export const resolveTitle = (id?: string): string => {

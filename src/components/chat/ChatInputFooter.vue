@@ -1,7 +1,6 @@
 <template>
-  <div class="flex flex-col shrink-0 w-full z-10">
-
-    <div v-if="showRelationshipBanner && partner" class="px-3 pb-2 pt-2 w-full">
+  <div class="flex flex-col shrink-0 w-full z-10 relative">
+    <div v-if="showRelationshipBanner && partner" class="px-3 pb-2 pt-1 w-full overflow-visible">
       <ChatRelationshipBanner
         :chat="currentChat"
         :partner="partner"
@@ -16,48 +15,47 @@
       />
     </div>
 
-    <div class="p-3 bg-white/40 border-t border-secondary/20 backdrop-blur-2xl pb-safe">
-      <div class="flex items-center gap-2">
+    <div class="p-3 bg-white/50 border-t border-primary/10 backdrop-blur-xl pb-safe">
+      <div class="flex items-center gap-2.5">
         <button
           @click="handleInviteClick"
           :disabled="!chatStore.canSendMessage(activeTab)"
-          class="w-11 h-11 rounded-2xl border border-secondary/30 bg-secondary/10 flex items-center justify-center active:scale-90 transition-all shadow-sm disabled:opacity-30"
+          class="w-10 h-10 rounded-xl border border-primary/60 bg-primary/20 flex items-center justify-center active:scale-90 transition-all shadow-sm disabled:opacity-30 text-secondary"
         >
           <ion-icon
             :icon="activeTab === 'lobby' ? svg(mdiAccountMultiplePlusOutline) : svg(mdiAccountPlusOutline)"
-            class="text-2xl text-secondary"
+            class="text-xl"
           />
         </button>
 
         <div
-          class="flex-1 flex items-center gap-1 bg-white/90 border border-secondary/20 rounded-2xl p-1.5 shadow-inner transition-opacity"
-          :class="{ 'opacity-60': !chatStore.canSendMessage(activeTab) }"
+          class="flex-1 flex items-center bg-white/90 border border-primary/40 rounded-xl p-1 shadow-inner transition-opacity"
+          :class="{ 'opacity-50': !chatStore.canSendMessage(activeTab) }"
         >
           <ion-input
             v-model="inputText"
             @keyup.enter="handleSend"
             :disabled="!chatStore.canSendMessage(activeTab)"
             :placeholder="chatStore.chatInputPlaceholder(activeTab)"
-            class="cabin-sketch-regular font-bold px-2"
+            class="font-bold px-2 text-sm"
             color="secondary"
           />
 
           <button
-            @mousedown.prevent
             v-if="chatStore.canSendMessage(activeTab)"
+            @mousedown.prevent
             @click="handleSend"
-            class="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center active:scale-90 transition-all shadow-md"
+            class="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center active:scale-90 transition-all shadow-sm text-white"
           >
-            <ion-icon :icon="svg(mdiSend)" class="text-white text-lg ml-0.5" />
+            <ion-icon :icon="svg(mdiSend)" class="text-sm ml-0.5" />
           </button>
 
-          <div v-else class="w-10 h-10 flex items-center justify-center opacity-30">
-            <ion-icon :icon="svg(mdiClockOutline)" class="text-secondary text-lg" />
+          <div v-else class="w-8 h-8 flex items-center justify-center opacity-40 text-secondary">
+            <ion-icon :icon="svg(mdiClockOutline)" class="text-base" />
           </div>
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
@@ -115,10 +113,8 @@ const router = useIonRouter();
 
 const { activeTab } = storeToRefs(chatWidget);
 const { roomId } = storeToRefs(drawSyncer);
-
 const inputText = ref("");
 
-// Converted to reactive computed properties to drive the banner
 const currentChat = computed(() => {
 	if (activeTab.value === "lobby") return null;
 	return [...chatStore.activeChats, ...friendStore.pendingRequests].find(
@@ -138,13 +134,10 @@ const partner = computed(() => {
 
 const showRelationshipBanner = computed(() => {
 	if (!currentChat.value) return false;
-	const s = currentChat.value.status;
 	return ["pending_invite", "temporary", "pending_mate", "expired"].includes(
-		s as string,
+		currentChat.value.status as string,
 	);
 });
-
-// --- Relationship Action Handlers ---
 
 async function handleMateRequest() {
 	if (!currentChat.value?.relationship_id) return;
@@ -196,29 +189,21 @@ async function handleMateDecline() {
 	}
 }
 
-// --- Interaction Handlers ---
-
 const handleInviteClick = (ev: Event) => {
-	if (activeTab.value === "lobby") {
-		emit("open-invite-popover", ev);
-	} else {
-		openPrivateInviteSheet();
-	}
+	if (activeTab.value === "lobby") emit("open-invite-popover", ev);
+	else openPrivateInviteSheet();
 };
 
 const openPrivateInviteSheet = async () => {
 	if (!partner.value) return;
-
 	const buttons = [
 		{
 			text: "Start drawing together",
 			icon: svg(mdiDraw),
 			handler: () => {
-				if (roomId.value) {
+				if (roomId.value)
 					confirmNewSession(partner.value!._id, partner.value!.name);
-				} else {
-					startDrawingTogether(partner.value!._id);
-				}
+				else startDrawingTogether(partner.value!._id);
 			},
 		},
 	];
@@ -248,10 +233,9 @@ const confirmNewSession = async (friendId: string, name: string) => {
 		message: `You are about to start a private drawing session with ${name}.`,
 		cssClass: "liquid-alert",
 		buttons: [
-			{ text: "Cancel", role: "cancel", cssClass: "alert-button-confirm" },
+			{ text: "Cancel", role: "cancel" },
 			{
 				text: "Confirm",
-				cssClass: "alert-button-confirm",
 				handler: () => {
 					leaveRoom();
 					setTimeout(() => startDrawingTogether(friendId), 100);
@@ -259,7 +243,6 @@ const confirmNewSession = async (friendId: string, name: string) => {
 			},
 		],
 	});
-
 	await alert.present();
 };
 
@@ -267,7 +250,6 @@ const startDrawingTogether = async (friendId: string) => {
 	const newRoomId = generateRandomCode();
 	chatWidget.closePanel();
 	router.push("/draw");
-
 	setTimeout(() => {
 		socketJoinRoom({ roomId: newRoomId, intent: "create" });
 		inviteFriendToRoom(friendId, newRoomId);
@@ -275,23 +257,16 @@ const startDrawingTogether = async (friendId: string) => {
 };
 
 const handleSend = () => {
-	// Removed async
 	const text = inputText.value.trim();
 	if (!text) return;
-
 	if (activeTab.value === "lobby") {
 		sendLobbyMessage(text);
-	} else {
-		if (partner.value?._id) {
-			// Removed await so it doesn't block the thread
-			chatStore
-				.sendMessage(partner.value._id, text, activeTab.value)
-				.catch(console.error);
-		}
+	} else if (partner.value?._id) {
+		chatStore
+			.sendMessage(partner.value._id, text, activeTab.value)
+			.catch(console.error);
 	}
-
 	inputText.value = "";
-
 	nextTick(() => {
 		emit("sent");
 	});

@@ -1,93 +1,101 @@
 <template>
-  <section class="min-h-[180px]">
-    <div class="flex items-center justify-between px-1 mb-3">
-      <h2 class="text-base font-black text-black">My Drafts</h2>
+  <section class="min-h-[160px] overflow-visible">
+    <!-- Section Header Subhead -->
+    <div class="flex items-center justify-between px-1 mb-2.5">
+      <h2 class="text-xs uppercase tracking-widest font-black text-black/40">
+        My Drafts
+      </h2>
       <transition name="fade">
-        <span v-if="!loading && drafts.length" class="text-[10px] font-bold text-black/50 uppercase tracking-wider">
+        <span v-if="!loading && drafts.length" class="text-[10px] font-black text-black/50 uppercase tracking-widest">
           {{ drafts.length }} Saved
         </span>
       </transition>
     </div>
 
     <transition name="fade-slow" mode="out-in">
-      <!-- Loading Skeleton -->
-      <div v-if="loading" key="loading" class="flex overflow-x-auto gap-4 pb-2 hide-scrollbar">
-        <div v-for="i in 5" :key="i"
-             class="min-w-[170px] max-w-[170px] bg-black/5 rounded-3xl overflow-hidden flex-shrink-0 border border-black/10 animate-pulse">
-          <div class="h-28 bg-black/10 w-full"></div>
-          <div class="p-3">
-            <div class="h-3 w-16 bg-black/10 rounded-full"></div>
-          </div>
-        </div>
+      <!-- Compact Loading Skeleton Stack -->
+      <div v-if="loading" key="loading" class="flex overflow-x-auto gap-3.5 pb-2 hide-scrollbar">
+        <div
+          v-for="i in 3"
+          :key="i"
+          class="min-w-[145px] max-w-[145px] h-32 bg-tertiary rounded-[2rem] border border-black/5 animate-pulse"
+        ></div>
       </div>
 
-      <!-- Empty State -->
-      <div v-else-if="drafts.length === 0" key="empty"
-           class="bg-primary/20 rounded-[2.5rem] p-8 border-2 border-dashed border-primary/60 flex flex-col items-center justify-center text-center">
-        <span class="text-3xl mb-2 opacity-40">🖌️</span>
-        <p class="text-xs font-black text-black/40 uppercase tracking-widest">No local drafts</p>
+      <!-- Playful, Minimal Empty State -->
+      <div
+        v-else-if="drafts.length === 0"
+        key="empty"
+        class="bg-tertiary rounded-[2rem] p-6 border border-dashed border-primary/60 flex flex-col items-center justify-center text-center shadow-sm"
+      >
+        <span class="text-2xl mb-1.5 opacity-40 animate-bounce duration-1000">✨</span>
+        <p class="cabin-sketch-regular text-base font-black text-black/50 tracking-tight">
+          Your creative workspace is clean!
+        </p>
+        <p class="text-[10px] uppercase font-black tracking-widest text-black/30 mt-0.5">
+          Start a new sketch above
+        </p>
       </div>
 
-      <!-- Draft Cards -->
-      <div v-else key="data" class="flex overflow-x-auto gap-4 pb-2 snap-x snap-mandatory hide-scrollbar">
+      <!-- Live Draft Cards Row -->
+      <div v-else key="data" class="flex overflow-x-auto gap-3.5 pb-3 snap-x snap-mandatory hide-scrollbar overflow-visible">
         <div
           v-for="draft in sortedDrafts"
           :key="draft.id"
-          class="min-w-[170px] max-w-[170px] rounded-3xl overflow-hidden snap-start flex-shrink-0 border transition-all group relative"
+          class="min-w-[145px] max-w-[145px] rounded-[2rem] overflow-hidden snap-start flex-shrink-0 border transition-all duration-300 group relative shadow-sm"
           :class="isPending(draft.id)
-            ? 'bg-primary/20 border-primary/30 cursor-default pointer-events-auto'
-            : 'bg-primary/40 border-primary/60 cursor-pointer active:scale-95'"
+            ? 'bg-primary/20 border-primary/30 cursor-default'
+            : 'bg-tertiary border-primary/40 cursor-pointer active:scale-95 hover:border-secondary/30'"
           @click="handleCardClick(draft.id)"
         >
-          <!-- Preview Image Area -->
-          <div class="h-28 w-full relative border-b border-primary/40 overflow-hidden bg-[#FAF0E6FF]">
+          <!-- Drawing Board Preview Area Frame (Using full edge-to-edge object-cover layout) -->
+          <div class="h-24 w-full relative border-b border-primary/10 overflow-hidden bg-[#FAF8F5] flex items-center justify-center">
             <img
               v-if="draft.thumbnail"
               :src="draft.thumbnail"
-              class="w-full h-full object-contain p-2 transition-opacity duration-500"
-              :class="{ 'opacity-50': isPending(draft.id) }"
-              alt="Draft"
+              class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+              :class="{ 'opacity-40': isPending(draft.id) }"
+              alt="Draft snapshot"
             />
-            <div v-else class="absolute inset-0 flex items-center justify-center opacity-10">
-              <span class="text-2xl">🖌️</span>
+            <div v-else class="absolute inset-0 flex items-center justify-center opacity-20">
+              <span class="text-xl group-hover:rotate-12 transition-transform duration-300">✏️</span>
             </div>
 
-            <!-- Pending overlay: subtle shimmer + spinner badge -->
+            <!-- Pending / Saving Live Shimmer Layer -->
             <div
               v-if="isPending(draft.id)"
-              class="absolute inset-0 flex items-center justify-center bg-black/10 backdrop-blur-[1px]"
+              class="absolute inset-0 flex items-center justify-center bg-white/40"
             >
               <div class="pending-shimmer absolute inset-0" />
-              <div class="relative z-10 bg-white/90 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-sm">
-                <ion-spinner name="dots" class="w-4 h-4 text-black/70" />
-                <span class="text-[10px] font-black text-black/70 uppercase tracking-wider">Saving</span>
+              <div class="relative z-10 bg-white/95 rounded-full px-2.5 py-1 flex items-center gap-1 shadow-sm border border-black/5">
+                <ion-spinner name="dots" class="w-3.5 h-3.5 text-secondary" />
+                <span class="text-[8px] font-black text-black/80 uppercase tracking-widest">Saving</span>
               </div>
             </div>
           </div>
 
-          <!-- Bottom Meta Section -->
-          <div class="p-3 bg-white/30 backdrop-blur-md flex items-center justify-between">
-            <div class="truncate pr-2">
-              <p class="text-[9px] font-black text-black/40 uppercase tracking-tighter mb-0.5">
-                {{ isPending(draft.id) ? 'Just now' : 'Last Edit' }}
-              </p>
-              <h3 class="text-xs font-bold text-black truncate">
-                {{ isPending(draft.id) ? '...' : formatDate(draft.updatedAt) }}
+          <!-- Bottom Tray Metadata Area -->
+          <div class="p-2.5 bg-white/50 flex items-center justify-between min-w-0 h-10">
+            <div class="truncate pr-1 flex flex-col justify-center">
+              <h3 class="text-xs font-black text-black truncate tracking-tight leading-none">
+                {{ isPending(draft.id) ? 'Sketching...' : formatDate(draft.updatedAt) }}
               </h3>
+              <!-- Cleaned text block for layout compactness -->
+              <span class="text-[8px] font-bold text-black/30 uppercase tracking-wider mt-1 leading-none">
+                {{ isPending(draft.id) ? 'Syncing...' : '' }}
+              </span>
             </div>
 
-            <!-- Action menu — hidden while pending. Once the save lands, it
-                 appears naturally as the card transitions to a real draft. -->
+            <!-- Context Options Drop Menu Trigger -->
             <ion-button
               v-if="!isPending(draft.id)"
               fill="clear"
-              color="secondary"
-              class="text-black/50"
+              class="text-black/40 hover:text-black m-0 p-0 --compact-trigger-btn shrink-0"
               @click.stop="presentActionSheet(draft)"
             >
               <ion-icon
                 slot="icon-only"
-                class="text-black"
+                class="text-base"
                 :icon="svg(mdiDotsVertical)"
               />
             </ion-button>
@@ -128,8 +136,6 @@ const sortedDrafts = computed(() =>
 
 const isPending = (id: string) => props.pendingIds.has(id);
 
-// Tap on a pending card is a no-op (no toast, no jank). The visual treatment
-// already tells the user it's not interactive yet.
 const handleCardClick = (id: string) => {
 	if (isPending(id)) return;
 	emit("open", id);
@@ -139,18 +145,18 @@ const presentActionSheet = async (draft: DrawingDraft) => {
 	if (isPending(draft.id)) return;
 
 	const actionSheet = await actionSheetController.create({
-		header: "Draft Options",
-		cssClass: "custom-draw-action-sheet",
+		header: "Draft Settings",
+		cssClass: "liquid-action-sheet",
 		buttons: [
 			{
-				text: "Share",
+				text: "Share Sketch",
 				icon: svg(mdiShareOutline),
 				handler: async () => {
 					if (draft.thumbnail) shareImg(draft.thumbnail);
 				},
 			},
 			{
-				text: "Delete",
+				text: "Discard Draft",
 				role: "destructive",
 				icon: svg(mdiDeleteOutline),
 				handler: () => emit("delete", draft.id),
@@ -168,39 +174,47 @@ const formatDate = (date: number) =>
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
+.hide-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 .snap-x {
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
 
-.fade-slow-enter-active, .fade-slow-leave-active { transition: opacity 0.4s ease; }
-.fade-slow-enter-from, .fade-slow-leave-to { opacity: 0; }
+.--compact-trigger-btn {
+  --padding-start: 2px;
+  --padding-end: 2px;
+  width: 24px;
+  height: 24px;
+}
 
-/* Subtle shimmer on the pending overlay. Just enough motion that the card
-   doesn't feel frozen, not so much it competes with the rest of the UI. */
+.fade-slow-enter-active, .fade-slow-leave-active {
+  transition: opacity 0.4s ease;
+}
+.fade-slow-enter-from, .fade-slow-leave-to {
+  opacity: 0;
+}
+
 .pending-shimmer {
   background: linear-gradient(
     100deg,
     transparent 30%,
-    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.45) 50%,
     transparent 70%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
-}
-</style>
-
-<style>
-.custom-draw-action-sheet {
-  --background: var(--ion-color-tertiary);
-  --button-color: var(--ion-color-dark);
 }
 </style>

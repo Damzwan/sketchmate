@@ -2,51 +2,99 @@
   <ion-page>
     <TopBar title="Home" />
 
-    <ion-content class="bg-background">
-      <div class="px-4 pt-2 space-y-6">
+    <ion-content class="--background-custom">
+      <div class="px-4 pt-4 space-y-6 json-layout-wrapper pb-10">
 
         <!-- AGE-GATED BANNER (soft mode) -->
         <section
           v-if="isUnderAge"
-          class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3"
+          class="bg-amber-50/60 backdrop-blur-sm border border-amber-200/80 rounded-3xl p-4 flex gap-3 shadow-sm"
         >
           <span class="text-2xl shrink-0">🌱</span>
           <div class="flex-1 min-w-0">
             <p class="font-black text-sm text-amber-900 leading-tight">
               Public features unlock at 13
             </p>
-            <p class="text-[12px] text-amber-800/80 mt-1 leading-snug">
+            <p class="text-[12px] text-amber-800/90 mt-1 leading-snug">
               You can draw, save drafts, add mates, and draw together with them. Public lobbies, posts, and balloons will turn on when you're old enough.
             </p>
             <button
               @click="goToAgeSettings"
-              class="text-[11px] font-bold text-amber-900 underline mt-2"
+              class="text-[11px] font-bold text-amber-900 underline mt-2 block active:opacity-60"
             >
               Entered the wrong birthday? Fix it
             </button>
           </div>
         </section>
 
-        <!-- QUICK ACTIONS -->
+        <!-- COMPACT DYNAMIC BENTO GRID (WITH LOTTIE INTEGRATION) -->
         <section>
-          <p class="text-base font-black text-black mb-3 px-1">Quick Actions</p>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-6 gap-2.5 overflow-visible">
             <button
               v-for="action in visibleQuickActions"
               :key="action.id"
-              class="flex items-center p-3 bg-primary/40 rounded-2xl border border-primary/60 active:scale-95 transition-all"
               @click="handleQuickAction(action.id)"
+              class="relative overflow-visible flex flex-col justify-between p-3.5 rounded-[1.75rem] border transition-all duration-300 active:scale-[0.96] group text-left shadow-sm"
+              :class="getCardLayoutClasses(action.id)"
             >
+              <!-- Ambient Background Blur/Blob -->
               <div
-                class="flex-shrink-0 w-9 h-9 bg-primary rounded-xl flex items-center justify-center mr-3 shadow-sm border border-primary/20">
-                <span class="text-lg">{{ action.iconFallback }}</span>
+                class="absolute -right-2 -bottom-2 w-16 h-16 rounded-full blur-md transition-transform duration-500 group-hover:scale-125 pointer-events-none"
+                :class="action.id === 'draw_alone' || action.id === 'draw_together' ? 'bg-secondary/10' : 'bg-primary/20'"
+              ></div>
+
+              <!-- Visual Core Layer: Conditional Render between standard WebP images and Lottie -->
+              <template v-if="action.id === 'balloon'">
+                <div
+                  class="absolute pointer-events-none transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 z-20"
+                  :class="getImageLayoutClasses(action.id)"
+                >
+                  <Lottie
+                    :json="balloonLottie"
+                    :loop="true"
+                    :speed="0.5"
+                    class="w-11/12 h-11/12"
+                  />
+                </div>
+              </template>
+
+              <template v-else>
+                <img
+                  :src="action.img"
+                  class="absolute pointer-events-none object-contain transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 z-20"
+                  :class="getImageLayoutClasses(action.id)"
+                  alt=""
+                />
+              </template>
+
+              <!-- Text Layout -->
+              <div class="relative z-10 flex flex-col justify-between h-full items-start pointer-events-none">
+                <span
+                  class="cabin-sketch-regular leading-none text-black font-black tracking-tight"
+                  :class="action.id === 'draw_alone' || action.id === 'draw_together' ? 'text-xl' : 'text-base'"
+                >
+                  {{ action.label }}
+                </span>
+
+                <!-- Tiny micro-pills to distinguish the styles without ruining symmetry -->
+                <span
+                  v-if="action.id === 'draw_alone'"
+                  class="text-[8px] uppercase font-black tracking-widest px-2 py-0.5 bg-secondary text-white rounded-full shadow-sm mt-auto"
+                >
+                  Solo
+                </span>
+                <span
+                  v-if="action.id === 'draw_together'"
+                  class="text-[8px] uppercase font-black tracking-widest px-2 py-0.5 bg-secondary text-white rounded-full shadow-sm mt-auto"
+                >
+                  Live Lobbies
+                </span>
               </div>
-              <span class="text-sm font-bold text-black truncate">{{ action.label }}</span>
             </button>
           </div>
         </section>
 
-        <!-- PUBLIC LOBBIES — hidden for underage -->
+        <!-- PUBLIC LOBBIES -->
         <ActiveLobbies
           v-if="!isUnderAge"
           :lobbies="publicLobbies"
@@ -54,7 +102,7 @@
           :loading="publicLobbies.length === 0"
         />
 
-        <!-- DRAFTS — always shown -->
+        <!-- DRAFTS -->
         <MyDrafts
           :drafts="mergedDrafts"
           :loading="isLoadingDrafts"
@@ -63,7 +111,7 @@
           @delete="handleDeleteDraft"
         />
 
-        <!-- COMMUNITY FEED — hidden for underage -->
+        <!-- COMMUNITY FEED -->
         <CommunityFeed v-if="!isUnderAge" />
 
       </div>
@@ -96,6 +144,13 @@ import CommunityFeed from "@/components/home/CommunityFeed.vue";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import { useAuthStore } from "@/store/auth.store";
+import Lottie from "@/components/general/Lottie.vue";
+
+// Vector Assets & Lottie Files
+import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
+import draw_together from "@/assets/illustrations/home/draw_together.webp";
+import share from "@/assets/illustrations/home/share.webp";
+import balloonLottie from "@/assets/lottie/balloon.json";
 
 const r = useIonRouter();
 
@@ -111,27 +166,55 @@ const localDrafts = ref<DrawingDraft[]>([]);
 const isLoadingDrafts = ref(true);
 
 const ALL_QUICK_ACTIONS = [
-	{ id: "draw_alone", label: "Draw", iconFallback: "✏️", requiresAge: false },
+	{ id: "draw_alone", label: "Draw", img: draw_alone, requiresAge: false },
 	{
 		id: "draw_together",
-		label: "Draw together",
-		iconFallback: "👋",
+		label: "Together",
+		img: draw_together,
 		requiresAge: false,
 	},
-	{ id: "share", label: "Add a Mate", iconFallback: "🤝", requiresAge: false },
-	{ id: "balloon", label: "Balloon", iconFallback: "🎈", requiresAge: true },
+	{ id: "share", label: "Add Mate", img: share, requiresAge: false },
+	{ id: "balloon", label: "Balloon", img: null, requiresAge: true }, // img null because it switches to lottie
 ];
 
 const visibleQuickActions = computed(() =>
 	ALL_QUICK_ACTIONS.filter((a) => !a.requiresAge || !isUnderAge.value),
 );
 
+const getCardLayoutClasses = (id: string) => {
+	switch (id) {
+		case "draw_alone":
+			return "col-span-3 h-24 border-primary/40 bg-gradient-to-br from-primary/20 to-tertiary";
+		case "draw_together":
+			return "col-span-3 h-24 border-primary/40 bg-gradient-to-br from-primary/20 to-tertiary";
+		case "share":
+			return "col-span-3 h-16 border-black/5 bg-tertiary";
+		case "balloon":
+			return "col-span-3 h-16 border-black/5 bg-tertiary";
+		default:
+			return "col-span-3";
+	}
+};
+
+const getImageLayoutClasses = (id: string) => {
+	switch (id) {
+		case "draw_alone":
+			return "w-18 h-18 -right-1 -bottom-1 drop-shadow-sm";
+		case "draw_together":
+			return "w-18 h-18 right-1 -bottom-1 drop-shadow-sm";
+		case "share":
+			return "w-14 h-14 right-2 bottom-1";
+		case "balloon":
+			return "w-14 h-14 right-2 bottom-0.5";
+		default:
+			return "w-12 h-12 right-0 bottom-0";
+	}
+};
+
 const pendingDraftIds = computed(
 	() => new Set(pendingDraftsList.value.map((p) => p.id)),
 );
 
-// Pending drafts shown first, then real ones. Pending entries shadow any
-// real draft with the same id (the user just exited and overwrote it).
 const mergedDrafts = computed<DrawingDraft[]>(() => {
 	const pendingIds = pendingDraftIds.value;
 	const real = localDrafts.value.filter((d) => !pendingIds.has(d.id));
@@ -161,8 +244,6 @@ onIonViewDidEnter(() => {
 	}
 });
 
-// When a pending save completes (count drops), re-fetch so the real draft
-// (with the proper thumbnail) replaces the pending placeholder.
 watch(
 	() => pendingDraftsList.value.length,
 	(newLength, oldLength) => {
@@ -215,7 +296,6 @@ const handleDeleteDraft = async (id: string) => {
 	}
 };
 
-// MyDrafts already blocks tap on pending cards, so this is always a real id.
 const openDraft = (id: string) => {
 	r.push(`${FRONTEND_ROUTES.draw}?id=${id}`, masterAnimation);
 };
@@ -226,6 +306,9 @@ const goToAgeSettings = () => {
 </script>
 
 <style scoped>
+.--background-custom {
+  --background: var(--ion-color-background) !important;
+}
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

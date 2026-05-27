@@ -2,19 +2,19 @@
 <template>
   <div
     @click="$emit('open', chat._id)"
-    class="group relative w-full flex items-center p-3 backdrop-blur-md rounded-[1.5rem] border transition-all cursor-pointer overflow-hidden active:scale-[0.98]"
+    class="group relative w-full flex items-center p-3.5 rounded-[1.75rem] border transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] cursor-pointer overflow-hidden active:scale-[0.97]"
     :class="[
       isUserBlocked
-        ? 'bg-zinc-200/40 border-zinc-300/40 opacity-75'
+        ? 'bg-primary/5 border-primary/20 opacity-60'
         : isLiveInvite
-        ? 'bg-secondary/10 border-secondary shadow-md ring-2 ring-secondary/30'
+        ? 'bg-secondary/10 border-secondary shadow-sm ring-2 ring-secondary/20 animate-pulse-subtle'
         : (isIncomingRequest || isMateProposalReceived)
-        ? 'bg-secondary/5 border-secondary/40 shadow-sm ring-1 ring-secondary/20'
+        ? 'bg-secondary/5 border-secondary/40 shadow-sm'
         : (isTemporary || isMateProposalSent || isOutgoingPending)
-        ? 'bg-white/60 border-secondary/10 shadow-sm'
+        ? 'bg-white/80 border-primary/40 shadow-sm'
         : isExpired
-        ? 'bg-zinc-100/50 border-zinc-300/50 hover:bg-zinc-100/80'
-        : 'bg-white/40 border-white/60 shadow-sm hover:bg-white/60'
+        ? 'bg-black/5 border-black/5 opacity-50 hover:opacity-80'
+        : 'bg-white border-primary/30 shadow-sm hover:border-primary'
     ]"
   >
     <!-- Avatar Section -->
@@ -25,122 +25,125 @@
         static
         :customization="partner.customization"
         size="sm"
+        class=" transition-transform duration-300 group-hover:scale-105"
         :class="{
-          'grayscale opacity-50': isUserBlocked,
-          'grayscale-[0.4] opacity-80': !isUserBlocked && isPending,
-          'grayscale-[0.6] contrast-[0.9]': !isUserBlocked && isExpired
+          'grayscale opacity-40': isUserBlocked,
+          'grayscale-[0.3] opacity-75': !isUserBlocked && isPending,
+          'grayscale-[0.5] contrast-[0.9]': !isUserBlocked && isExpired
         }"
       />
-      <!-- Fallback also changed to rounded-full and w-12 h-12 to match -->
-      <span v-else class="flex items-center justify-center w-12 h-12 bg-secondary/10 text-lg font-bold text-secondary rounded-full border-2 border-white">
+
+      <span v-else class="flex items-center justify-center w-11 h-11 bg-secondary/10 text-base font-black text-secondary rounded-full border border-primary/40">
         {{ partner?.name?.charAt(0) || '?' }}
       </span>
 
-      <!-- Status Indicators (Position adjusted slightly to sit flush on a circle) -->
+      <!-- Active Online Status Indicator Pip -->
       <div
         v-if="isOnline && !isRelationshipInactive && !isUserBlocked && !isLiveInvite"
-        class="absolute -bottom-0.5 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-white rounded-full z-20"
+        class="absolute -bottom-0.5 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full z-20 shadow-sm"
       ></div>
 
-      <!-- Live Badge -->
+      <!-- Live Drawing Pulse Badge -->
       <div
         v-if="isLiveInvite"
-        class="absolute -bottom-1 -right-1 w-5 h-5 bg-secondary border-2 border-white rounded-full z-20 flex items-center justify-center shadow-md animate-pulse"
+        class="absolute -bottom-1 -right-1 w-4.5 h-4.5 bg-secondary border-2 border-white rounded-full z-20 flex items-center justify-center shadow-sm animate-bounce"
       >
-        <div class="w-2 h-2 bg-white rounded-full"></div>
+        <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
       </div>
 
-      <!-- Blocked Badge -->
+      <!-- User Blocked Badge Bubble -->
       <div
         v-else-if="isUserBlocked"
-        class="absolute -bottom-0.5 right-0 w-5 h-5 bg-zinc-600 border-2 border-white rounded-full z-20 flex items-center justify-center shadow-sm"
+        class="absolute -bottom-0.5 right-0 w-4.5 h-4.5 bg-zinc-600 border border-white rounded-full z-20 flex items-center justify-center shadow-sm"
       >
-        <ion-icon :icon="svg(mdiAccountOff)" class="text-[10px] text-white" />
+        <ion-icon :icon="svg(mdiAccountOff)" class="text-[8px] text-white" />
       </div>
 
-      <!-- Trash Badge for Expired -->
+      <!-- Archive / Trash Badge indicator -->
       <div
         v-else-if="isExpired"
-        class="absolute -bottom-0.5 right-0 w-5 h-5 bg-zinc-400 border-2 border-white rounded-full z-20 flex items-center justify-center shadow-sm"
+        class="absolute -bottom-0.5 right-0 w-4.5 h-4.5 bg-zinc-400 border border-white rounded-full z-20 flex items-center justify-center shadow-sm"
       >
-        <ion-icon :icon="svg(mdiTrashCanOutline)" class="text-[10px] text-white" />
+        <ion-icon :icon="svg(mdiTrashCanOutline)" class="text-[8px] text-white" />
       </div>
 
-      <!-- Heart badge for Mate Proposals -->
+      <!-- Relationship Mate Proposal Badge -->
       <div
         v-else-if="isMatePending"
-        class="absolute -bottom-0.5 right-0 w-5 h-5 bg-secondary border-2 border-white rounded-full z-20 flex items-center justify-center shadow-sm"
+        class="absolute -bottom-0.5 right-0 w-4.5 h-4.5 bg-secondary border border-white rounded-full z-20 flex items-center justify-center shadow-sm"
       >
-        <ion-icon :icon="svg(mdiHeart)" class="text-[10px] text-white" />
+        <ion-icon :icon="svg(mdiHeart)" class="text-[8px] text-white" />
       </div>
     </div>
 
-    <!-- Content Section -->
-    <div class="flex-1 min-w-0 ml-3.5 text-left">
-      <div class="flex justify-between items-end mb-0.5">
-        <div class="flex items-center gap-1.5 min-w-0">
+    <!-- Info Details Text Column Block -->
+    <div class="flex-1 min-w-0 ml-3 text-left">
+      <div class="flex justify-between items-center mb-0.5">
+        <div class="flex items-center gap-1.5 min-w-0 leading-none">
           <span
-            class="text-base leading-none font-black truncate"
+            class="text-[14px] leading-none font-black truncate tracking-tight"
             :class="[
               (unreadCount > 0 || isIncomingRequest || isMateProposalReceived || isLiveInvite) ? 'text-black' : 'text-black/80',
-              { 'text-zinc-500': isExpired || isUserBlocked }
+              { 'text-black/40 font-bold': isExpired || isUserBlocked }
             ]"
           >
             {{ partner?.name || 'Unknown User' }}
           </span>
 
-          <!-- Priority Badges -->
-          <span v-if="isLiveInvite" class="px-1.5 py-0.5 rounded-md bg-secondary text-[8px] font-black text-white uppercase tracking-tighter shadow-sm animate-pulse">
+          <!-- Explicit Text Relationship Badges -->
+          <span v-if="isLiveInvite" class="px-1.5 py-0.5 rounded-md bg-secondary text-[7px] font-black text-white uppercase tracking-wider shadow-sm animate-pulse">
             LIVE
           </span>
-          <span v-else-if="isUserBlocked" class="px-1.5 py-0.5 rounded-md bg-zinc-500 text-[7px] font-black text-white uppercase tracking-tighter">
+          <span v-else-if="isUserBlocked" class="px-1.5 py-0.5 rounded-md bg-zinc-500 text-[6px] font-black text-white uppercase tracking-wider">
             Blocked
           </span>
-          <span v-else-if="isMatePending" class="px-1.5 py-0.5 rounded-md bg-secondary text-[7px] font-black text-white uppercase tracking-tighter animate-pulse">
+          <span v-else-if="isMatePending" class="px-1.5 py-0.5 rounded-md bg-secondary text-[6px] font-black text-white uppercase tracking-wider">
             Proposal
           </span>
-          <span v-else-if="isTemporary" class="px-1.5 py-0.5 rounded-md bg-secondary/10 text-[8px] font-black text-secondary uppercase tracking-tighter">
+          <span v-else-if="isTemporary" class="px-1.5 py-0.5 rounded-md bg-secondary/10 text-[7px] font-black text-secondary uppercase tracking-wider">
             Trial
           </span>
-          <span v-else-if="isExpired" class="px-1.5 py-0.5 rounded-md bg-zinc-200 text-[7px] font-black text-zinc-500 uppercase tracking-tighter">
+          <span v-else-if="isExpired" class="px-1.5 py-0.5 rounded-md bg-black/10 text-[6px] font-black text-black/40 uppercase tracking-wider">
             Archive
           </span>
         </div>
-        <span class="text-[9px] font-black uppercase whitespace-nowrap opacity-30">
+
+        <span class="text-[8px] font-black uppercase tracking-wider whitespace-nowrap opacity-30 mt-0.5">
           {{ isLiveInvite ? 'NOW' : formattedTime }}
         </span>
       </div>
 
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between leading-none mt-1">
         <p
-          class="text-[13px] truncate cabin-sketch-regular tracking-wide pr-2"
-          :class="(unreadCount > 0 || isIncomingRequest || isMateProposalReceived || isLiveInvite) ? 'font-black text-black' : 'font-bold text-black/60'"
+          class="text-[12px] truncate cabin-sketch-regular tracking-wide pr-2 leading-none"
+          :class="(unreadCount > 0 || isIncomingRequest || isMateProposalReceived || isLiveInvite) ? 'font-black text-black' : 'font-bold text-black/50'"
         >
-          <!-- Priority Message Logic -->
+          <!-- Context Message Switch Hierarchy -->
           <span v-if="isLiveInvite" class="text-secondary italic font-black">Live drawing invite! Tap to join 🎨</span>
-          <span v-else-if="isUserBlocked" class="text-zinc-500 italic">User is blocked</span>
+          <span v-else-if="isUserBlocked" class="text-black/30 italic">User is blocked</span>
           <span v-else-if="isTyping" class="text-secondary animate-pulse italic">typing...</span>
           <template v-else>
-            <span v-if="isExpired" class="text-zinc-400 italic">{{ deleteCountdown }}</span>
+            <span v-if="isExpired" class="text-black/40 italic">{{ deleteCountdown }}</span>
             <span v-else-if="isMateProposalReceived" class="text-secondary italic">Sent you a Mate proposal!</span>
-            <span v-else-if="isMateProposalSent" class="opacity-50">Mate proposal pending...</span>
+            <span v-else-if="isMateProposalSent" class="opacity-40">Mate proposal pending...</span>
             <span v-else-if="isIncomingRequest" class="text-secondary italic">Wants to sketch with you!</span>
-            <span v-else-if="isOutgoingPending" class="opacity-50">Invitation sent...</span>
-            <span v-else-if="isTrialExpired" class="text-red-400 italic">Trial ended. Become Mates?</span>
+            <span v-else-if="isOutgoingPending" class="opacity-40">Invitation sent...</span>
+            <span v-else-if="isTrialExpired" class="text-red-500 font-bold italic">Trial ended. Become Mates?</span>
             <span v-else>{{ lastMessage }}</span>
           </template>
         </p>
 
-        <!-- Unread Badge -->
-        <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
+        <!-- Unread Badge Layout Trigger Dock -->
+        <div class="flex items-center gap-1.5 flex-shrink-0 ml-1.5">
           <div
             v-if="unreadCount > 0 && !isUserBlocked && !isLiveInvite"
-            class="min-w-[1.25rem] h-5 px-1.5 bg-red-500 rounded-full flex items-center justify-center shadow-md animate-bounce-in"
+            class="min-w-[16px] h-4 px-1 bg-red-500 rounded-full flex items-center justify-center shadow-sm animate-bounce-in"
           >
-            <span class="text-[10px] font-black text-white leading-none">{{ unreadCount }}</span>
+            <span class="text-[8px] font-black text-white leading-none mb-[0.5px]">{{ unreadCount }}</span>
           </div>
-          <ion-icon v-if="isExpired || isUserBlocked" :icon="svg(mdiChevronRight)" class="text-zinc-300 text-lg transition-transform group-hover:translate-x-0.5" />
-          <ion-icon v-if="isTrialExpired && !isMatePending && !isExpired && !isUserBlocked" :icon="svg(mdiLockOutline)" class="text-black/20 text-xs" />
+
+          <ion-icon v-if="isExpired || isUserBlocked" :icon="svg(mdiChevronRight)" class="text-black/20 text-base transition-transform duration-200 group-hover:translate-x-0.5" />
+          <ion-icon v-if="isTrialExpired && !isMatePending && !isExpired && !isUserBlocked" :icon="svg(mdiLockOutline)" class="text-black/30 text-xs" />
         </div>
       </div>
     </div>
@@ -150,6 +153,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import {
 	mdiAccountOff,
 	mdiChevronRight,
@@ -161,6 +165,8 @@ import { svg } from "@/helper/general.helper";
 import { PopulatedConversation } from "@/types/server.types";
 import { useFriendStore } from "@/store/friend.store";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+
+dayjs.extend(relativeTime);
 
 const props = defineProps<{
 	chat: PopulatedConversation;
@@ -179,7 +185,6 @@ const partner = computed(() =>
 
 const lastMessage = computed(() => {
 	const msg = props.chat.last_message;
-
 	if (!msg) return "Started a conversation";
 
 	if (msg.type === "system") {
@@ -189,24 +194,16 @@ const lastMessage = computed(() => {
 		return "New activity";
 	}
 
-	if (msg.content) {
-		return msg.content;
-	}
-
-	if (msg.shared_post_id) {
-		return "Shared a post";
-	}
-
+	if (msg.content) return msg.content;
+	if (msg.shared_post_id) return "Shared a post";
 	return "Sent a sketch";
 });
 
-// Blocked Logic using the function from friendStore
 const isUserBlocked = computed(() => {
 	if (!partner.value) return false;
 	return friendStore.isBlocked(partner.value._id);
 });
 
-// Custom flag for Faux Invitations - cast to string to bypass type restriction
 const isLiveInvite = computed(
 	() => (props.chat.status as string) === "live_invite",
 );
@@ -239,9 +236,10 @@ const isTrialExpired = computed(() => {
 const isRelationshipInactive = computed(
 	() => isTrialExpired.value || isExpired.value,
 );
+
 const deleteCountdown = computed(() => {
-	if (!props.chat.deleted_at) return "History saved (will be deleted soon)";
-	return `History deletes in ${dayjs(props.chat.deleted_at).fromNow(true)}`;
+	if (!props.chat.deleted_at) return "History saved";
+	return `Deletes in ${dayjs(props.chat.deleted_at).fromNow(true)}`;
 });
 
 const unreadCount = computed(
@@ -251,3 +249,20 @@ const formattedTime = computed(() =>
 	props.chat.updatedAt ? dayjs(props.chat.updatedAt).fromNow(true) : "",
 );
 </script>
+
+<style scoped>
+.animate-bounce-in {
+  animation: bounceIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes bounceIn {
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes subtlePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(0.995); }
+}
+.animate-pulse-subtle {
+  animation: subtlePulse 2s ease-in-out infinite;
+}
+</style>

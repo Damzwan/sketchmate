@@ -4,7 +4,7 @@
     android:id="@+id/widget_error_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FFF2E4"
+    android:background="#F5E6D3"
     android:gravity="center">
 
     <LinearLayout

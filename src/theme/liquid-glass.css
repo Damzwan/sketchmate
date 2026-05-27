@@ -1,87 +1,168 @@
+/* ==========================================================================
+   1. ION-POPOVER MODIFICATIONS
+   ========================================================================== */
 ion-popover.liquid-popover {
-	--background: rgba(var(--ion-color-tertiary-rgb, 250, 224, 194), 1);
+	--background: rgba(var(--ion-color-tertiary-rgb, 253, 246, 238), 0.85);
 	--width: 280px;
-	--box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+	--box-shadow: 0 16px 40px rgba(44, 34, 26, 0.12);
 }
 
-/* 2. Apply the blur directly to the container part */
 ion-popover.liquid-popover::part(content) {
 	border-radius: 2.5rem;
+	border: 1.5px solid rgba(var(--ion-color-primary-rgb), 0.4);
+	backdrop-filter: blur(20px) saturate(140%);
+	-webkit-backdrop-filter: blur(20px) saturate(140%);
 	overflow: hidden;
 }
 
-/* 3. Hide the scrollbar cleanly */
-.hide-scrollbar::-webkit-scrollbar {
-	display: none;
-	width: 0 !important;
-	height: 0 !important;
-}
-
-.hide-scrollbar {
-	-ms-overflow-style: none;
-	scrollbar-width: none;
-}
-
+/* ==========================================================================
+   2. LIQUID ACTION SHEETS (BLURRED MODE)
+   ========================================================================== */
 .liquid-action-sheet {
-	--background: rgba(var(--ion-color-tertiary-rgb, 250, 224, 194), 0.4);
-	--backdrop-opacity: 0;
+	--background: rgba(var(--ion-color-tertiary-rgb, 253, 246, 238), 0.4);
+	--backdrop-opacity: 0.2;
 }
 
-.liquid-action-sheet .action-sheet-group.sc-ion-action-sheet-md:first-child {
-	border-radius: 2rem 2rem 0 0;
+/* Rounding rule overrides for standard MD mode components */
+.liquid-action-sheet .action-sheet-group.sc-ion-action-sheet-md:first-child,
+.liquid-action-sheet .action-sheet-group.sc-ion-action-sheet-ios:first-child {
+	border-radius: 2.5rem 2.5rem 0 0;
 }
 
 .liquid-action-sheet .action-sheet-wrapper {
 	backdrop-filter: blur(24px) saturate(150%);
 	-webkit-backdrop-filter: blur(24px) saturate(150%);
-	border-radius: 32px 32px 0 0;
+	border-radius: 2.5rem 2.5rem 0 0;
 	box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.05);
+	border-top: 1.5px solid rgba(255, 255, 255, 0.5);
 }
 
 .liquid-action-sheet .action-sheet-title {
-	font-family: "Cabin Sketch", cursive;
-	font-weight: bold;
-	color: rgba(var(--ion-color-dark-rgb, 0, 0, 0), 0.7);
-	font-size: 1.1rem;
+	font-family: var(--ion-font-family, "Cabin Sketch", cursive);
+	font-weight: 900;
+	color: var(--ion-color-secondary, #b9463a);
+	font-size: 1.2rem;
+	letter-spacing: 0.02em;
 }
 
 .liquid-action-sheet .action-sheet-button {
-	background: transparent;
-	color: var(--ion-color-dark);
-	font-weight: bold;
+	background: transparent !important;
+	color: var(--ion-color-dark, #2f2f2f);
+	font-weight: 800;
 }
 
+/* ==========================================================================
+   3. NORMAL ACTION SHEETS (OPAQUE SOLID MODE)
+   ========================================================================== */
 .normal-action-sheet {
 	--background: var(--ion-color-tertiary);
-	--backdrop-opacity: 0;
+	--backdrop-opacity: 0.3;
 }
 
-.normal-action-sheet .action-sheet-group.sc-ion-action-sheet-md:first-child {
-	border-radius: 2rem 2rem 0 0;
+.normal-action-sheet .action-sheet-group.sc-ion-action-sheet-md:first-child,
+.normal-action-sheet .action-sheet-group.sc-ion-action-sheet-ios:first-child {
+	border-radius: 2.5rem 2.5rem 0 0;
 }
 
 .normal-action-sheet .action-sheet-title {
-	font-family: "Cabin Sketch", cursive;
-	font-weight: bold;
-	font-size: 1.1rem;
+	font-family: var(--ion-font-family, "Cabin Sketch", cursive);
+	font-weight: 900;
+	font-size: 1.2rem;
 }
 
 .normal-action-sheet .action-sheet-button {
-	font-weight: bold;
+	font-weight: 800;
 }
 
-/* Global Alert Styling */
+/* ==========================================================================
+   4. LIQUID DIALOG ALERTS
+   ========================================================================== */
 .liquid-alert {
 	--background: var(--ion-color-tertiary);
 }
 
-/* Cancel Button */
-.liquid-alert.button.alert-button.alert-button-confirm {
-	color: var(--ion-color-secondary);
-	cursor: pointer;
+.liquid-alert .alert-wrapper {
+	border-radius: 2.25rem;
+	border: 2px solid var(--ion-color-dark, #2f2f2f);
+	box-shadow: 4px 4px 0px var(--ion-color-dark, #2f2f2f);
+}
+
+.liquid-alert .alert-title {
+	font-family: var(--ion-font-family, "Cabin Sketch", cursive);
+	font-weight: 900;
+	color: var(--ion-color-dark);
 }
 
 .liquid-alert .alert-button {
 	color: var(--ion-color-secondary) !important;
-	cursor: pointer;
+	font-weight: 800;
+}
+
+/* ==========================================================================
+   5. LAYOUT & SCROLL UTILITIES
+   ========================================================================== */
+.hide-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+	display: none !important;
+	width: 0 !important;
+	height: 0 !important;
+}
+
+/* ==========================================================================
+   6. LIQUID CHAT INTERFACE DOCK OVERRIDES
+   ========================================================================== */
+ion-modal.liquid-chat-modal {
+	--height: 85vh;
+	--border-radius: 2.5rem 2.5rem 0 0 !important;
+	--box-shadow: 0 -10px 40px rgba(var(--ion-color-dark-rgb, 30, 30, 31), 0.08);
+}
+
+ion-modal.liquid-chat-modal::part(content) {
+	border-radius: 2.5rem 2.5rem 0 0 !important;
+	border-top: 1.5px solid rgba(var(--ion-color-primary-rgb), 0.6);
+	background: transparent !important;
+}
+
+/* Custom rounded shortcut parameters inside chat footers */
+.custom-rounded-button {
+	--border-radius: 1.25rem !important;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+}
+
+/* Rough Hand-Drawn / Tactile Clay Styles */
+.sketch-card-border {
+	border: 2px solid rgba(var(--ion-color-dark-rgb, 61, 26, 20), 0.85) !important;
+}
+
+.rough-dashed {
+	border: 2px dashed rgba(var(--ion-color-dark-rgb, 61, 26, 20), 0.3) !important;
+}
+
+/* Custom Horizontal Scroll Bars for Art Carousels */
+.hide-scrollbar::-webkit-scrollbar {
+	display: none !important;
+}
+.hide-scrollbar {
+	-ms-overflow-style: none !important;
+	scrollbar-width: none !important;
+}
+
+@keyframes packPulse {
+	0%,
+	100% {
+		transform: scale(1);
+		border-color: rgba(var(--ion-color-secondary-rgb), 0.6);
+	}
+	50% {
+		transform: scale(1.015);
+		border-color: rgba(var(--ion-color-secondary-rgb), 1);
+		box-shadow: 0 4px 20px rgba(var(--ion-color-secondary-rgb), 0.15);
+	}
+}
+.pack-glow-pulse {
+	animation: packPulse 3s ease-in-out infinite;
 }

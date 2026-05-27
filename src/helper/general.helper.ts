@@ -372,10 +372,6 @@ export function setupWidget() {
 	}
 }
 
-export async function lazyLoadDrawingModules() {
-	await Promise.all([import("fabric")]);
-}
-
 export function setupBackButtonBehavior() {
 	const { isOpen, dismiss } = useToast();
 

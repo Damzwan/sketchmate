@@ -30,7 +30,6 @@ defineProps<{
   justify-content: center;
   align-items: flex-start;
   overflow: hidden;
-  padding-top: 30px; /* account for avatar overhang */
 }
 
 .preview-scale {

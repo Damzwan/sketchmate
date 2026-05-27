@@ -42,6 +42,7 @@
     />
 
     <ToolButton
+      id="send"
       :disabled="!isLoggedIn"
       :icon="svg(mdiSend)"
       custom-class="bg-secondary shadow-md border-secondary ml-1"

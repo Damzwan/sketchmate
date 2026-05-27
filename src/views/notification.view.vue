@@ -2,42 +2,38 @@
   <ion-page class="slide-page">
     <SubPageBar title="Notifications" />
 
-    <ion-content class="bg-background">
-      <div class="w-full max-w-3xl mx-auto px-6 pt-6 bot-pad-safe">
+    <ion-content class="--background-custom">
+      <div class="w-full max-w-2xl mx-auto px-4 pt-4 bot-pad-safe overflow-visible">
 
-        <!-- Empty state -->
         <div
           v-if="!isLoading && notifications.length === 0"
-          class="flex flex-col items-center justify-center py-24 text-center"
+          class="flex flex-col items-center justify-center py-20 text-center"
         >
           <ion-icon
             :icon="svg(mdiBellOutline)"
-            class="text-6xl text-black/20 mb-4"
+            class="text-5xl text-[var(--ion-color-dark)]/20 mb-3"
           />
-          <p class="cabin-sketch-regular text-xl text-black/40">
-            Nothing yet
+          <p class="cabin-sketch-regular text-xl font-black text-[var(--ion-color-dark)]/50 tracking-tight leading-none">
+            Nothing here yet
           </p>
-          <p class="text-sm text-black/30 mt-1">
-            When something happens, you'll find it here.
+          <p class="text-[10px] font-black uppercase tracking-widest text-[var(--ion-color-dark)]/30 mt-1">
+            When something happens, you'll see it here.
           </p>
         </div>
 
-        <!-- Loading skeleton -->
         <div v-else-if="isLoading" class="space-y-3">
           <div
-            v-for="i in 5"
+            v-for="i in 4"
             :key="i"
-            class="h-20 rounded-[2rem] bg-primary/5 animate-pulse"
+            class="h-20 rounded-[1.75rem] bg-[var(--ion-color-tertiary)]/60 border border-[var(--ion-color-dark)]/5"
           />
         </div>
 
-        <!-- Grouped feed -->
         <template v-else>
-          <!-- Mark all as read — only shown when there's something to clear -->
-          <div v-if="unread > 0" class="flex justify-end mb-4">
+          <div v-if="unread > 0" class="flex justify-end mb-3 px-1">
             <button
               @click="handleMarkAllRead"
-              class="text-xs font-black uppercase tracking-widest text-black/50 active:opacity-60 transition-opacity px-3 py-2 rounded-full bg-primary/5 border border-black/5"
+              class="text-[9px] font-black uppercase tracking-widest text-[var(--ion-color-secondary)] hover:text-[var(--ion-color-secondary-shade)] active:scale-95 transition-transform px-3 py-1.5 rounded-full bg-white border border-primary/40 shadow-sm"
             >
               Mark all as read
             </button>
@@ -46,12 +42,13 @@
           <section
             v-for="[group, entries] in groupedByDay"
             :key="group"
-            class="mb-8"
+            class="mb-6 overflow-visible"
           >
-            <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-3 uppercase tracking-wider">
+            <h3 class="cabin-sketch-regular text-sm font-black text-[var(--ion-color-dark)]/40 px-2 mb-2 uppercase tracking-wider">
               {{ group }}
             </h3>
-            <div class="space-y-2.5">
+
+            <div class="space-y-2.5 overflow-visible">
               <NotificationCard
                 v-for="n in entries"
                 :key="n._id"
@@ -60,13 +57,12 @@
             </div>
           </section>
 
-          <!-- Load more sentinel -->
           <ion-infinite-scroll
             v-if="hasMore"
             @ionInfinite="handleLoadMore"
-            threshold="150px"
+            threshold="100px"
           >
-            <ion-infinite-scroll-content loading-spinner="bubbles" />
+            <ion-infinite-scroll-content loading-spinner="dots" />
           </ion-infinite-scroll>
         </template>
 
@@ -77,38 +73,40 @@
 
 <script setup lang="ts">
 import {
-  IonContent,
-  IonIcon,
-  IonInfiniteScroll,
-  IonInfiniteScrollContent,
-  IonPage,
-  onIonViewWillEnter
-} from '@ionic/vue'
-import { storeToRefs } from 'pinia'
-import { mdiBellOutline } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+	IonContent,
+	IonInfiniteScroll,
+	IonInfiniteScrollContent,
+	IonPage,
+	onIonViewWillEnter,
+} from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { mdiBellOutline } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
-import SubPageBar from '@/components/general/SubPageBar.vue'
-import NotificationCard from '@/components/notification/NotificationCard.vue'
-import { useInAppNotificationStore } from '@/store/inAppNotificationStore'
+import SubPageBar from "@/components/general/SubPageBar.vue";
+import NotificationCard from "@/components/notification/NotificationCard.vue";
+import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 
 const store = useInAppNotificationStore();
-const { notifications, isLoading, hasMore, groupedByDay, unread } = storeToRefs(store);
+const { notifications, isLoading, hasMore, groupedByDay, unread } =
+	storeToRefs(store);
 
 onIonViewWillEnter(() => {
-  store.markAllSeen();
-})
+	store.markAllSeen();
+});
 
 async function handleLoadMore(event: any) {
-  await store.loadMore();
-  event.target.complete();
+	await store.loadMore();
+	event.target.complete();
 }
 
 async function handleMarkAllRead() {
-  await store.markAllRead();
+	await store.markAllRead();
 }
 </script>
 
 <style scoped>
-@reference "@/theme/main.css";
+.--background-custom {
+  --background: var(--ion-color-background) !important;
+}
 </style>

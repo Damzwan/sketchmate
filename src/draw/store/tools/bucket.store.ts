@@ -4,11 +4,17 @@ import { isMobile } from "@/helper/general.helper";
 import { Canvas } from "fabric";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import { bucketFill } from "@/draw/helpers/tools/bucket.helper";
+import { Ref, ref } from "vue";
 
-export const useBucket = defineStore("bucket", (): ToolService => {
+interface Bucket extends ToolService {
+	isFilling: Ref<boolean>;
+}
+
+export const useBucket = defineStore("bucket", (): Bucket => {
 	let c: Canvas | undefined = undefined;
 	let gestureStart = false;
 	let fillInProgress = false;
+	const isFilling = ref(false);
 
 	const events: FabricEvent[] = [
 		{
@@ -59,7 +65,9 @@ export const useBucket = defineStore("bucket", (): ToolService => {
 				fillInProgress = true;
 				try {
 					const now = performance.now();
-					const img = await bucketFill(c!, worldPoint, isBackground ? 0.5 : 1);
+					isFilling.value = true;
+					await new Promise((resolve) => setTimeout(resolve, 10));
+					const img = await bucketFill(c!, worldPoint);
 					console.log(performance.now() - now);
 					if (!img) return;
 
@@ -94,6 +102,7 @@ export const useBucket = defineStore("bucket", (): ToolService => {
 					}
 				} finally {
 					fillInProgress = false;
+					isFilling.value = false;
 				}
 			},
 		},
@@ -116,5 +125,5 @@ export const useBucket = defineStore("bucket", (): ToolService => {
 		c.skipTargetFind = true;
 	}
 
-	return { select, init, events };
+	return { select, init, events, isFilling };
 });

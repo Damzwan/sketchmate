@@ -37,7 +37,8 @@ ion-content.my-safe-area::part(scroll) {
     --color-primary-light: var(--ion-color-primary-tint);
     --color-secondary: var(--ion-color-secondary);
     --color-secondary-light: var(--ion-color-secondary-shade);
-    --color-background: var(--ion-color-tertiary);
+    --color-background: var(--ion-color-background);
+    --color-tertiary: var(--ion-color-tertiary);
     --color-warning: var(--ion-color-warning);
 }
 

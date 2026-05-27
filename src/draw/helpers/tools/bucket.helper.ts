@@ -11,9 +11,12 @@ import { useToast } from "@/service/toast.service";
 
 type Point = { x: number; y: number };
 
-const MAX_OFFSCREEN_DIM = 4096;
-const RDP_TOLERANCE = 1.5;
-const MAX_WORLD_AREA = 2000000;
+// Fixed spatial constants ensuring deterministic performance & fidelity
+const PIXELS_PER_WORLD_UNIT = 1.25; // Locked base resolution ratio (1.0 - 1.5 is ideal)
+const MAX_WORLD_DIM = 2500; // Fixed-size virtual workspace centered around click
+const RDP_TOLERANCE = 1.2; // Vector simplification tuning variable
+const MAX_WORLD_AREA = 2500000; // Maximum vector area threshold before safety guard triggers
+const MAX_OFFSCREEN_PIXELS = 1200;
 
 function simplifyPathIterative(
 	points: number[][],
@@ -73,77 +76,28 @@ function simplifyPathIterative(
 	return result;
 }
 
-function buildSmartOffscreenCanvas(c: Canvas, scale: number, dpr: number) {
+/**
+ * Builds a smart virtual canvas anchored precisely on the user's click coordinate.
+ * It functions perfectly even if the target objects are mostly off-screen.
+ */
+function buildSmartOffscreenCanvas(c: Canvas, clickPoint: Point) {
 	const { query, getZIndexMap } = useDrawObjectManager();
-	const vpt = c.viewportTransform!;
-	const zoom = c.getZoom();
-	const screenW = c.width!;
-	const screenH = c.height!;
 
-	const vpLeft = -vpt[4] / zoom;
-	const vpTop = -vpt[5] / zoom;
-	const vpRight = (screenW - vpt[4]) / zoom;
-	const vpBottom = (screenH - vpt[5]) / zoom;
-	const vpWidth = vpRight - vpLeft;
-	const vpHeight = vpBottom - vpTop;
+	const expandLeft = clickPoint.x - MAX_WORLD_DIM / 2;
+	const expandTop = clickPoint.y - MAX_WORLD_DIM / 2;
 
-	// Save the viewport center for our emergency crop later
-	const vpCx = vpLeft + vpWidth / 2;
-	const vpCy = vpTop + vpHeight / 2;
+	// DYNAMIC RESOLUTION DEFENSE
+	// Start with ideal resolution, but crush it down if it exceeds our safe pixel budget
+	let currentPxScale = PIXELS_PER_WORLD_UNIT;
+	let targetOffW = Math.floor(MAX_WORLD_DIM * currentPxScale);
 
-	const viewportRect: Rect = {
-		x: vpLeft,
-		y: vpTop,
-		w: vpWidth,
-		h: vpHeight,
-	};
-	const nearbyObjects = query(viewportRect);
-
-	let expandLeft = vpLeft;
-	let expandTop = vpTop;
-	let expandRight = vpRight;
-	let expandBottom = vpBottom;
-
-	// 1. Expand to include all intersecting objects (Your correct logic)
-	for (const obj of nearbyObjects) {
-		// @ts-ignore
-		const b = obj.getBoundingRect(true, true);
-		const oL = b.left,
-			oT = b.top;
-		const oR = b.left + b.width,
-			oB = b.top + b.height;
-
-		if (oL < expandLeft) expandLeft = oL;
-		if (oT < expandTop) expandTop = oT;
-		if (oR > expandRight) expandRight = oR;
-		if (oB > expandBottom) expandBottom = oB;
+	if (targetOffW > MAX_OFFSCREEN_PIXELS) {
+		currentPxScale = MAX_OFFSCREEN_PIXELS / MAX_WORLD_DIM;
+		targetOffW = MAX_OFFSCREEN_PIXELS;
 	}
 
-	const pxPerWorldUnit = zoom * dpr * scale;
-	const maxWorldDim = MAX_OFFSCREEN_DIM / pxPerWorldUnit;
-	let worldW = expandRight - expandLeft;
-	let worldH = expandBottom - expandTop;
-
-	// 2. The Fix: If it's too big, center the crop on the VIEWPORT, not the object.
-	if (worldW > maxWorldDim) {
-		expandLeft = vpCx - maxWorldDim / 2;
-		expandRight = vpCx + maxWorldDim / 2;
-		worldW = maxWorldDim;
-	}
-	if (worldH > maxWorldDim) {
-		expandTop = vpCy - maxWorldDim / 2;
-		expandBottom = vpCy + maxWorldDim / 2;
-		worldH = maxWorldDim;
-	}
-
-	const offW = Math.min(Math.floor(worldW * pxPerWorldUnit), MAX_OFFSCREEN_DIM);
-	const offH = Math.min(Math.floor(worldH * pxPerWorldUnit), MAX_OFFSCREEN_DIM);
-
-	const effectiveScale = Math.min(
-		offW / (worldW * zoom * dpr),
-		offH / (worldH * zoom * dpr),
-	);
-	const pxScale = zoom * dpr * effectiveScale;
+	const offW = targetOffW;
+	const offH = targetOffW; // Square aspect ratio
 
 	const offscreen = document.createElement("canvas");
 	offscreen.width = offW;
@@ -153,21 +107,23 @@ function buildSmartOffscreenCanvas(c: Canvas, scale: number, dpr: number) {
 	ctx.fillStyle = (c.backgroundColor as string) || "#ffffff";
 	ctx.fillRect(0, 0, offW, offH);
 
+	// Apply the safe, dynamically calculated scale
 	ctx.setTransform(
-		pxScale,
+		currentPxScale,
 		0,
 		0,
-		pxScale,
-		-expandLeft * pxScale,
-		-expandTop * pxScale,
+		currentPxScale,
+		-expandLeft * currentPxScale,
+		-expandTop * currentPxScale,
 	);
 
 	const renderRect: Rect = {
 		x: expandLeft,
 		y: expandTop,
-		w: worldW,
-		h: worldH,
+		w: MAX_WORLD_DIM,
+		h: MAX_WORLD_DIM,
 	};
+
 	const objectsToRender = query(renderRect);
 	const zIndexMap = getZIndexMap();
 
@@ -181,31 +137,25 @@ function buildSmartOffscreenCanvas(c: Canvas, scale: number, dpr: number) {
 
 	return {
 		offscreen,
-		worldRect: { x: expandLeft, y: expandTop, w: worldW, h: worldH },
-		effectiveScale,
-		dpr,
+		worldRect: renderRect,
+		pxScale: currentPxScale, // Pass this down so mapping still aligns perfectly
 	};
 }
 
 export async function bucketFill(
 	c: Canvas,
 	p: Point,
-	scale = 1,
 ): Promise<BucketFillPath | null> {
 	const { brushColorWithOpacity } = usePen();
-	const dpr = window.devicePixelRatio || 1;
-	const zoom = c.getZoom();
 
+	// Fix precision floating issues in Fabric generation
 	// @ts-ignore
 	FabricObject.NUM_FRACTION_DIGITS = 1;
 
-	const { offscreen, worldRect, effectiveScale } = buildSmartOffscreenCanvas(
-		c,
-		scale,
-		dpr,
-	);
+	// Generate localized virtual environment
+	const { offscreen, worldRect, pxScale } = buildSmartOffscreenCanvas(c, p);
 
-	const pxScale = zoom * dpr * effectiveScale;
+	// Map absolute click onto localized pixels
 	const fillX = Math.round((p.x - worldRect.x) * pxScale);
 	const fillY = Math.round((p.y - worldRect.y) * pxScale);
 
@@ -225,16 +175,15 @@ export async function bucketFill(
 	const floodFill = new CustomFloodFill(imgData);
 	floodFill.fill(brushColor, fillX, fillY, 10);
 
-	// Guard against massive fills that would crash the vectorizer
+	if (floodFill.modifiedPixelsCount === 0) return null;
+
 	const modifiedArea = floodFill.getModifiedArea();
 	const worldArea =
 		(modifiedArea.width / pxScale) * (modifiedArea.height / pxScale);
 
-	if (floodFill.modifiedPixelsCount === 0) return null;
-
-	const { toast } = useToast();
 	if (worldArea > MAX_WORLD_AREA) {
-		toast("Area too large, Please zoom in or close the shape to fill.", {
+		const { toast } = useToast();
+		toast("Area too large. Please close the shape to fill.", {
 			color: "warning",
 		});
 		return null;
@@ -243,6 +192,7 @@ export async function bucketFill(
 	const modifiedImgData = floodFill.getModifiedImageData(hex2RGBA(brushColor));
 	const { width, height, data } = modifiedImgData;
 
+	// Give threading breathing room to keep animations fluid
 	await new Promise<void>((r) => setTimeout(r, 0));
 
 	const values = new Float32Array(width * height);
@@ -285,19 +235,20 @@ export async function bucketFill(
 	const centerX = toWorldX(modifiedArea.minX + modifiedArea.width / 2);
 	const centerY = toWorldY(modifiedArea.minY + modifiedArea.height / 2);
 
-	const physicalBleed = 5;
-	const expansionAmount = Math.max(0.5, physicalBleed / zoom);
+	// Set the "bleed" constant purely in world units (e.g., 1.5 units wide).
+	// This keeps anti-aliased edge coverage perfectly identical regardless of zoom level.
+	const worldUnitBleedExpansion = 1.5;
 
 	return new BucketFillPath(svgPath, {
 		fill: brushColor,
-		stroke: brushColor, // Same as fill to bleed under edges
-		strokeWidth: expansionAmount,
+		stroke: brushColor,
+		strokeWidth: worldUnitBleedExpansion,
 		strokeLineJoin: "round",
 		strokeLineCap: "round",
 		isBucketFill: true,
 		left: centerX,
 		top: centerY,
 		fillRule: "evenodd",
-		paintFirst: "stroke", // Ensures the stroke doesn't shrink the inner holes
+		paintFirst: "stroke",
 	});
 }

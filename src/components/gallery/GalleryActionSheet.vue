@@ -2,7 +2,7 @@
   <transition name="dock-pop">
     <div
       v-if="selectedMode"
-      class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[1000] flex items-center p-1.5 rounded-[22px] border border-primary/80 bg-primary/60 backdrop-blur-lg shadow-xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+      class="fixed bottom-28 left-1/2 -translate-x-1/2 z-[1000] flex items-center p-1.5 rounded-[22px] border border-primary/80 bg-primary/60 backdrop-blur-lg shadow-xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
     >
       <!-- Selection Info Section -->
       <div class="px-5 py-2.5 flex flex-col items-center justify-center border-r border-primary-shade/40">
@@ -52,16 +52,16 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon, IonButton } from '@ionic/vue'
-import { svg } from '@/helper/general.helper'
-import { mdiClose, mdiDeleteOutline, mdiShareVariantOutline } from '@mdi/js'
+import { IonIcon, IonButton } from "@ionic/vue";
+import { svg } from "@/helper/general.helper";
+import { mdiClose, mdiDeleteOutline, mdiShareVariantOutline } from "@mdi/js";
 
 defineProps<{
-  selectedMode: boolean;
-  count: number;
-}>()
+	selectedMode: boolean;
+	count: number;
+}>();
 
-const emits = defineEmits(['cancel', 'delete', 'share'])
+const emits = defineEmits(["cancel", "delete", "share"]);
 </script>
 
 <style scoped>

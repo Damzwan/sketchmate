@@ -9,71 +9,77 @@
     :keepContentsMounted="true"
     :style="{ '--background': theme.cardBg, transition: 'background-color 0.5s ease' }"
   >
-    <!-- Root Container -->
     <div class="h-full relative overflow-hidden rounded-t-[2.5rem]">
 
-      <!-- ── 1. FIXED PROFILE EFFECT ── -->
       <div class="absolute inset-0 pointer-events-none z-0">
         <ProfileEffect :effect-id="effectiveCustomization.effectId" />
       </div>
 
-      <!-- ── 2. SCROLLABLE CONTENT ── -->
       <div class="h-full overflow-y-auto hide-scrollbar relative z-10" @touchmove.stop>
-        <div class="px-6 pt-8 pb-12 flex flex-col transition-all duration-500" :style="{ fontFamily: resolvedFontFamily }">
+        <div class="px-6 pb-12 flex flex-col transition-all duration-500" :style="{ fontFamily: resolvedFontFamily }">
 
-          <!-- HEADER: Avatar & Badges -->
-          <div class="flex flex-col items-center text-center shrink-0">
-            <div class="relative">
-              <UserAvatar
-                v-if="resolvedUser"
-                :user="resolvedUser"
-                :customization="effectiveCustomization"
-                size="xl"
-              />
-              <div v-else class="w-24 h-24 rounded-[2rem] bg-zinc-200 border-4 border-white shadow-sm animate-pulse"></div>
+          <div class="relative w-full flex flex-col items-center text-center shrink-0 pt-8 pb-6">
 
-              <div
-                v-if="!isMe && isOnline"
-                class="absolute bottom-1 right-1 w-5 h-5 bg-green-500 rounded-full border-4 border-white shadow"
-              ></div>
+            <div class="absolute inset-0 pointer-events-none z-0 flex justify-center">
+              <div class="w-full h-full max-w-[360px] relative">
+                <BackgroundSketch
+                  :path="effectiveCustomization.backgroundSketchPath"
+                  :view-box="effectiveCustomization.backgroundSketchViewBox"
+                  :stroke-color="theme.nameColor"
+                  class="absolute inset-0 w-full h-full"
+                />
+              </div>
             </div>
 
-            <span
-              v-if="displayTitle"
-              class="mt-4 text-[10px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full transition-colors duration-500"
-              :style="{ background: theme.titleBg, color: theme.nameColor }"
-            >
-              {{ displayTitle }}
-            </span>
+            <div class="relative z-10 flex flex-col items-center w-full">
+              <div class="relative">
+                <UserAvatar
+                  v-if="resolvedUser"
+                  :user="resolvedUser"
+                  :customization="effectiveCustomization"
+                  size="xl"
+                />
+                <div v-else class="w-24 h-24 rounded-[2rem] bg-zinc-200 border-4 border-white shadow-sm animate-pulse"></div>
 
-            <h2
-              class="text-3xl font-black mt-2 leading-tight drop-shadow-sm transition-colors duration-500"
-              :style="{ color: theme.nameColor }"
-              :class="fontEffectClass"
-            >
-              {{ resolvedUser?.name || 'Loading...' }}
-            </h2>
+                <div
+                  v-if="!isMe && isOnline"
+                  class="absolute bottom-1 right-1 w-5 h-5 bg-green-500 rounded-full border-4 border-white shadow"
+                ></div>
+              </div>
 
-            <!-- Status Badges -->
-            <div class="flex items-center gap-2 mt-2">
-              <span v-if="isMe" class="bg-secondary/10 text-secondary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">That's You</span>
-              <span v-else-if="isBlocked" class="bg-black/10 text-black/60 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Blocked</span>
-              <span v-else-if="status === 'mate'" class="bg-secondary/10 text-secondary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-secondary/20">Mates</span>
-              <span v-else-if="status === 'temporary' || status === 'pending_mate'" class="bg-secondary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse">Trial Active</span>
-              <span v-if="targetProfile?.relationship?.areFollowingMe && !isFollowing && !isMe" class="bg-black/5 text-black/40 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Follows You</span>
+              <span
+                v-if="displayTitle"
+                class="mt-4 text-[10px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full transition-colors duration-500"
+                :style="{ background: theme.titleBg, color: theme.nameColor }"
+              >
+                {{ displayTitle }}
+              </span>
+
+              <h2
+                class="text-3xl font-black mt-2 leading-tight drop-shadow-sm transition-colors duration-500"
+                :style="{ color: theme.nameColor }"
+                :class="fontEffectClass"
+              >
+                {{ resolvedUser?.name || 'Loading...' }}
+              </h2>
+
+              <div class="flex items-center gap-2 mt-2">
+                <span v-if="isMe" class="bg-secondary/10 text-secondary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">That's You</span>
+                <span v-else-if="isBlocked" class="bg-black/10 text-black/60 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Blocked</span>
+                <span v-else-if="status === 'mate'" class="bg-secondary/10 text-secondary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-secondary/20">Mates</span>
+                <span v-else-if="status === 'temporary' || status === 'pending_mate'" class="bg-secondary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse">Trial Active</span>
+                <span v-if="targetProfile?.relationship?.areFollowingMe && !isFollowing && !isMe" class="bg-black/5 text-black/40 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Follows You</span>
+              </div>
+
+              <div v-if="loadingProfile && !resolvedUser?.description" class="mt-4 flex flex-col items-center gap-1.5 w-full px-8">
+                <div class="h-3.5 w-full bg-black/5 rounded-full animate-pulse"></div>
+                <div class="h-3.5 w-2/3 bg-black/5 rounded-full animate-pulse"></div>
+              </div>
+              <p v-else class="text-sm font-bold italic mt-4 leading-snug whitespace-pre-wrap px-2 transition-colors duration-500" :style="{ color: theme.descColor }">
+                "{{ resolvedUser?.description || 'This artist is a mystery...' }}"
+              </p>
             </div>
-
-            <!-- Bio Skeleton -->
-            <div v-if="loadingProfile && !resolvedUser?.description" class="mt-4 flex flex-col items-center gap-1.5 w-full px-8">
-              <div class="h-3.5 w-full bg-black/5 rounded-full animate-pulse"></div>
-              <div class="h-3.5 w-2/3 bg-black/5 rounded-full animate-pulse"></div>
-            </div>
-            <p v-else class="text-sm font-bold italic mt-4 leading-snug whitespace-pre-wrap px-2 transition-colors duration-500" :style="{ color: theme.descColor }">
-              "{{ resolvedUser?.description || 'This artist is a mystery...' }}"
-            </p>
           </div>
-
-          <!-- ACTIONS MENU -->
           <div v-if="!isMe" class="mt-8 w-full shrink-0">
             <div class="flex flex-col overflow-hidden rounded-[1.5rem] border transition-colors duration-500 shadow-sm backdrop-blur-sm" :style="{ borderColor: theme.cardBorderColor, backgroundColor: 'rgba(255, 255, 255, 0.15)' }">
               <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 transition-colors duration-200" @click="primaryCta.handler" :disabled="primaryCta.disabled">
@@ -105,7 +111,6 @@
             </div>
           </div>
 
-          <!-- STATS BAR -->
           <div v-if="targetProfile" class="grid grid-cols-3 w-full mt-8 border-t pt-5 transition-colors duration-500" :style="{ borderColor: theme.cardBorderColor }">
             <template v-if="loadingProfile && !resolvedUser?.stats">
               <div v-for="i in 3" :key="i" class="flex flex-col items-center" :class="{'border-x': i === 1}" :style="{ borderColor: theme.cardBorderColor }">
@@ -129,7 +134,6 @@
             </template>
           </div>
 
-          <!-- SIGNATURE -->
           <div v-if="effectiveCustomization.signaturePath" class="mt-6 pt-4 border-t flex flex-col items-center transition-colors duration-500" :style="{ borderColor: theme.cardBorderColor }">
             <span class="text-[10px] font-bold uppercase tracking-widest mb-1 transition-colors duration-500" :style="{ color: theme.descColor }">— Signed —</span>
             <svg class="w-32 h-12 drop-shadow-sm transition-colors duration-500" :viewBox="effectiveCustomization.signatureViewBox || '0 0 300 150'" preserveAspectRatio="xMidYMid meet">
@@ -137,7 +141,6 @@
             </svg>
           </div>
 
-          <!-- PORTFOLIO GRID -->
           <div class="mt-8">
             <div class="flex items-center justify-between mb-3 px-1">
               <h3 class="text-lg font-black italic transition-colors duration-500" :style="{ color: theme.nameColor }">Portfolio</h3>
@@ -180,6 +183,7 @@ import { compareVersions, svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -226,7 +230,6 @@ const resolvedUser = computed(() =>
 	targetProfile.value?._id ? targetProfile.value : null,
 );
 
-// ── Customization Hydration ──
 const resolvedCustomization = computed<Partial<any>>(() => {
 	return (resolvedUser.value?.customization as any) || {};
 });
@@ -288,7 +291,6 @@ const hasRequiredVersion = computed(() => {
 });
 
 const primaryCta = computed(() => {
-	// 1. Catch blocked users immediately
 	if (isBlocked.value) {
 		return {
 			label: "User Blocked",
@@ -297,8 +299,6 @@ const primaryCta = computed(() => {
 			handler: () => {},
 		};
 	}
-
-	// 2. Check version
 	if (!hasRequiredVersion.value) {
 		return {
 			label: "Update Required",
@@ -307,8 +307,6 @@ const primaryCta = computed(() => {
 			handler: () => {},
 		};
 	}
-
-	// 3. Normal states
 	if (status.value === "mate") {
 		return {
 			label: "Message",
@@ -317,7 +315,6 @@ const primaryCta = computed(() => {
 			handler: onStartChat,
 		};
 	}
-
 	if (["temporary", "pending_mate"].includes(status.value as string)) {
 		return {
 			label: "Continue Chat",
@@ -326,7 +323,6 @@ const primaryCta = computed(() => {
 			handler: onStartChat,
 		};
 	}
-
 	return {
 		label: "Send Invite",
 		icon: mdiChatOutline,
@@ -335,7 +331,6 @@ const primaryCta = computed(() => {
 	};
 });
 
-// ── Handlers ──
 function onDismiss() {
 	viewProfileMenuOpen.value = false;
 }
@@ -407,7 +402,6 @@ async function confirmToggleBlock() {
 	if (!targetProfile.value) return;
 	const target = targetProfile.value;
 
-	// If already blocked, unblock immediately without confirmation
 	if (isBlocked.value) {
 		try {
 			void unblockUser(target._id);
@@ -420,7 +414,6 @@ async function confirmToggleBlock() {
 		return;
 	}
 
-	// Confirm before blocking
 	const alert = await alertController.create({
 		header: "Block User?",
 		message: `Are you sure you want to block ${target.name}? They will no longer be able to message you or see your sketches.`,

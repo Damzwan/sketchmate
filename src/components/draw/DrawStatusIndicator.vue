@@ -34,17 +34,22 @@ import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useShareService } from "@/draw/store/useShareService.store";
+import { useBucket } from "@/draw/store/tools/bucket.store";
 
 const drawSyncer = useDrawSyncer();
 
 const { isSending } = storeToRefs(useShareService());
 const { isLoadingCanvas } = storeToRefs(drawSyncer);
+const { isFilling } = storeToRefs(useBucket());
 
-const isActive = computed(() => isSending.value || isLoadingCanvas.value);
+const isActive = computed(
+	() => isSending.value || isLoadingCanvas.value || isFilling.value,
+);
 
 const message = computed(() => {
 	if (isSending.value) return "Sending...";
 	if (isLoadingCanvas.value) return "Loading...";
+	if (isFilling.value) return "Filling...";
 	return "Working...";
 });
 </script>

@@ -5,13 +5,16 @@
     <ion-content class="bg-background">
       <div v-if="user" class="px-4 pt-6 pb-32 max-w-2xl mx-auto cabin-sketch-regular">
 
-        <!-- Live preview -->
+        <!-- Live preview. allow-sketch-edit shows a small FAB in the
+             card's top-left corner instead of an overlay on the title. -->
         <section class="mb-8">
           <ProfileCard
             :user="user"
             :customization="draft"
             :is-own-profile="false"
             :is-preview="true"
+            :allow-sketch-edit="true"
+            @edit-sketch="sketchModalOpen = true"
           />
         </section>
 
@@ -128,6 +131,44 @@
               </svg>
             </template>
           </CustomizeOptionRow>
+
+          <!-- Card doodle row — mirrors signature row layout. -->
+          <CustomizeOptionRow
+            :icon="mdiBrush"
+            label="Card Doodle"
+            :value="draft.backgroundSketchPath ? 'Custom doodle' : 'None'"
+            @click="sketchModalOpen = true"
+          >
+            <template #preview>
+              <div class="w-12 h-8 rounded-lg overflow-hidden bg-white/40 border border-white relative">
+                <svg
+                  v-if="draft.backgroundSketchPath"
+                  class="w-full h-full"
+                  :viewBox="draft.backgroundSketchViewBox || '0 0 300 360'"
+                  preserveAspectRatio="xMidYMid slice"
+                >
+                  <path
+                    :d="draft.backgroundSketchPath"
+                    fill="none"
+                    :stroke="currentTheme.nameColor"
+                    stroke-width="6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    opacity="0.5"
+                  />
+                </svg>
+              </div>
+            </template>
+          </CustomizeOptionRow>
+
+          <!-- Clear button only when a doodle exists. Keeps the row clean. -->
+          <button
+            v-if="draft.backgroundSketchPath"
+            class="w-full text-[11px] font-black uppercase tracking-widest text-secondary/70 active:text-secondary py-1"
+            @click="clearSketch"
+          >
+            Clear card doodle
+          </button>
         </section>
 
         <!-- Sticky save/revert footer -->
@@ -136,10 +177,10 @@
             v-if="isDirty"
             class="fixed left-0 right-0 bottom-0 p-4 bg-white/90 backdrop-blur-2xl border-t-2 border-secondary/20 flex items-center justify-between z-40 safe-area-bottom"
           >
-            <ion-button fill="clear" color="dark" class="font-black tracking-widest text-xs" @click="revert">
+            <ion-button fill="clear" color="dark" class="font-black tracking-widest text-xs mb-4" @click="revert">
               Revert
             </ion-button>
-            <ion-button shape="round" color="secondary" @click="save">
+            <ion-button shape="round" color="secondary" class="mb-4" @click="save">
               Save Look ✓
             </ion-button>
           </div>
@@ -153,7 +194,7 @@
       :user="user"
       :customization="draft"
       @close="themeModalOpen = false"
-      @select="(id) => updateField('themeId', id)"
+      @select="(id: any) => updateField('themeId', id)"
     />
 
     <FontModal
@@ -161,7 +202,7 @@
       :user="user"
       :customization="draft"
       @close="fontModalOpen = false"
-      @select="(id) => updateField('fontId', id)"
+      @select="(id: any) => updateField('fontId', id)"
     />
 
     <FontEffectModal
@@ -169,7 +210,7 @@
       :user="user"
       :customization="draft"
       @close="fontEffectModalOpen = false"
-      @select="(id) => updateField('fontEffectId', id)"
+      @select="(id: any) => updateField('fontEffectId', id)"
     />
 
     <DecorationModal
@@ -177,7 +218,7 @@
       :user="user"
       :customization="draft"
       @close="decorationModalOpen = false"
-      @select="(id) => updateField('decorationId', id)"
+      @select="(id: any) => updateField('decorationId', id)"
     />
 
     <EffectModal
@@ -185,14 +226,14 @@
       :user="user"
       :customization="draft"
       @close="effectModalOpen = false"
-      @select="(id) => updateField('effectId', id)"
+      @select="(id: any) => updateField('effectId', id)"
     />
 
     <TitleModal
       :is-open="titlesModalOpen"
       :current-title-id="draft.titleId"
       @close="titlesModalOpen = false"
-      @select="(id) => updateField('titleId', draft.titleId === id ? '' : id)"
+      @select="(id: any) => updateField('titleId', draft.titleId === id ? '' : id)"
     />
 
     <SignaturePadModal
@@ -200,6 +241,20 @@
       :color="currentTheme.accentColor"
       @close="signatureModalOpen = false"
       @save="handleSaveSignature"
+    />
+
+    <!-- Sketch pad gets the live draft + user so it can render the actual
+         card as the drawing surface. Stroke color = theme.nameColor to
+         match what BackgroundSketch.vue renders on the card. -->
+    <BackgroundSketchPadModal
+      :is-open="sketchModalOpen"
+      :color="currentTheme.nameColor"
+      :customization="draft"
+      :user="user"
+      :initial-path="draft.backgroundSketchPath"
+      :initial-view-box="draft.backgroundSketchViewBox"
+      @close="sketchModalOpen = false"
+      @save="handleSaveSketch"
     />
   </ion-page>
 </template>
@@ -210,6 +265,7 @@ import { IonContent, IonPage, IonButton } from "@ionic/vue";
 import {
 	mdiAccountCircleOutline,
 	mdiAutoFix,
+	mdiBrush,
 	mdiDraw,
 	mdiFormatColorText,
 	mdiFormatFont,
@@ -221,7 +277,6 @@ import { useAuthStore } from "@/store/auth.store";
 import { updateProfile } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 
-import TopBar from "@/components/general/TopBar.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
 import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
@@ -232,6 +287,7 @@ import DecorationModal from "@/components/profile/customization/DecorationModal.
 import EffectModal from "@/components/profile/customization/EffectModal.vue";
 import TitleModal from "@/components/profile/customization/TitleModal.vue";
 import SignaturePadModal from "@/components/profile/customization/SignaturePadModal.vue";
+import BackgroundSketchPadModal from "@/components/profile/customization/BackgroundSketchPadModal.vue";
 import CustomizeOptionRow from "@/components/profile/customization/CustomizeOptionRow.vue";
 
 import {
@@ -259,6 +315,7 @@ const decorationModalOpen = ref(false);
 const effectModalOpen = ref(false);
 const titlesModalOpen = ref(false);
 const signatureModalOpen = ref(false);
+const sketchModalOpen = ref(false);
 
 const saved = ref<Customization>(
 	hydrateCustomization(user.value?.customization),
@@ -321,6 +378,23 @@ const handleSaveSignature = (sigData: { path: string; viewBox: string }) => {
 		signatureViewBox: sigData.viewBox,
 	};
 	signatureModalOpen.value = false;
+};
+
+const handleSaveSketch = (data: { path: string; viewBox: string }) => {
+	draft.value = {
+		...draft.value,
+		backgroundSketchPath: data.path,
+		backgroundSketchViewBox: data.viewBox,
+	};
+	sketchModalOpen.value = false;
+};
+
+const clearSketch = () => {
+	draft.value = {
+		...draft.value,
+		backgroundSketchPath: "",
+		backgroundSketchViewBox: "",
+	};
 };
 
 const revert = () => {

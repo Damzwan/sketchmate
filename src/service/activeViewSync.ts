@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/auth.store";
  * for more than this threshold. Anything shorter (quick app switches,
  * brief screen-off) doesn't trigger a refetch — data is still fresh.
  */
-const REFRESH_AFTER_BACKGROUND_MS = 30_000;
+const REFRESH_AFTER_BACKGROUND_MS = 5000;
 
 export function useActiveViewSync() {
 	const authStore = useAuthStore();

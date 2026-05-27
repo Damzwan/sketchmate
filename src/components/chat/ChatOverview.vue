@@ -1,7 +1,5 @@
-<!-- components/chat/ChatOverview.vue -->
 <template>
-  <div class="flex flex-col h-full">
-
+  <div class="flex flex-col h-full overflow-visible">
     <ChatFriendPicker
       v-if="isCreatingChat"
       :friends="friendStore.networkLists.mates"
@@ -11,69 +9,72 @@
       @select-friend="startChatWithFriend"
     />
 
-    <div v-else class="animate-fade-in pb-24 overflow-y-auto hide-scrollbar">
-
+    <div v-else class="animate-fade-in pb-24 overflow-y-auto hide-scrollbar overflow-visible">
       <LobbyConversationItem
         v-if="isInLobby"
         :unreadCount="lobbyUnreadCount"
         :memberCount="roomMembers.length"
         :lastMessage="lastLobbyMessage"
         @open="chatWidget.openLobby()"
+        class="mb-4"
       />
 
-      <div v-if="onlineMates.length > 0" class="pt-2">
-        <div class="px-2 mb-3 text-[10px] font-black text-black/40 uppercase">Online Now</div>
-        <div class="flex overflow-x-auto hide-scrollbar gap-4 px-2 mb-6">
-          <div v-for="friend in onlineMates" :key="friend._id" @click="startChatWithFriend(friend)"
-               class="flex flex-col items-center shrink-0 w-14 cursor-pointer">
-
-            <div class="relative flex items-center justify-center transition-transform active:scale-90">
+      <div v-if="onlineMates.length > 0" class="pt-1">
+        <div class="px-1 mb-2.5 text-[9px] font-black text-black/40 uppercase tracking-widest">Online Now</div>
+        <div class="flex overflow-x-auto hide-scrollbar gap-4 px-1 mb-5 overflow-visible">
+          <div
+            v-for="friend in onlineMates"
+            :key="friend._id"
+            @click="startChatWithFriend(friend)"
+            class="flex flex-col items-center shrink-0 w-12 cursor-pointer group"
+          >
+            <div class="relative flex items-center justify-center transition-transform duration-300 group-hover:scale-105 active:scale-90">
               <UserAvatar
                 static
                 :user="friend"
                 :customization="friend.customization"
                 size="sm"
-                class="my-2"
               />
-
-              <div class="absolute -bottom-0.5 right-0 w-3.5 h-3.5 bg-green-400 rounded-full border-2 border-white z-20"></div>
+              <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white z-20 shadow-sm"></div>
             </div>
-
-            <span class="text-[9px] font-black text-black/80 truncate w-full text-center uppercase tracking-tighter mt-1.5">
-        {{ friend.name.split(' ')[0] }}
-      </span>
+            <span class="text-[9px] font-black text-black/60 truncate w-full text-center uppercase tracking-tight mt-1">
+              {{ friend.name.split(' ')[0] }}
+            </span>
           </div>
         </div>
       </div>
 
-      <div class="px-2 mb-4 flex items-center justify-between">
-        <span class="text-2xl font-normal cabin-sketch-regular text-black">
+      <div class="px-1 mb-3.5 flex items-center justify-between">
+        <span class="text-xl font-normal cabin-sketch-regular text-black tracking-tight">
           Conversations
         </span>
 
         <div
           v-if="quotaStore.mates.limit > 0"
-          class="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-colors active:scale-95 cursor-pointer"
-          :class="!quotaStore.canAddMate && !quotaStore.isPro ? 'bg-amber-400/20 border border-amber-400/40' : 'bg-black/5'"
+          class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border shadow-sm transition-all active:scale-95 cursor-pointer"
+          :class="!quotaStore.canAddMate && !quotaStore.isPro
+            ? 'bg-amber-500 border-amber-500 text-white'
+            : 'bg-white/80 border-primary/40 text-black/50'"
           @click="handleQuotaPillClick"
         >
-          <ion-icon :icon="svg(mdiHeart)" class="text-[10px]" :class="!quotaStore.canAddMate && !quotaStore.isPro ? 'text-amber-600' : 'text-black/40'" />
-          <span class="text-[10px] font-black uppercase tracking-widest" :class="!quotaStore.canAddMate && !quotaStore.isPro ? 'text-amber-700' : 'text-black/50'">
-            {{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }}
+          <ion-icon :icon="svg(mdiHeart)" class="text-[9px]" :class="!quotaStore.canAddMate && !quotaStore.isPro ? 'text-white' : 'text-black/30'" />
+          <span class="text-[9px] font-black uppercase tracking-widest mt-[0.5px]">
+            {{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }} Mates
           </span>
         </div>
       </div>
 
-      <div class="space-y-2 px-2">
-        <!-- EMPTY STATE -->
+      <div class="space-y-2.5 px-0.5">
         <div v-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby"
-             class="p-10 text-center bg-black/5 rounded-[2rem] border border-dashed border-black/10">
-          <p class="text-[11px] font-bold text-black/20 italic uppercase tracking-widest leading-relaxed">
-            Your sketchbook is empty.<br />Send a balloon to find a mate!
+             class="p-8 text-center bg-white/40 rounded-[2rem] border border-dashed border-primary/60">
+          <p class="cabin-sketch-regular text-base font-bold text-black/40 leading-snug">
+            Your drawing desk is clear!
+          </p>
+          <p class="text-[9px] uppercase font-black tracking-widest text-black/30 mt-0.5">
+            Send a canvas balloon to find an artist mate
           </p>
         </div>
 
-        <!-- 1. LIVE DRAWING INVITES (Absolute Top Priority) -->
         <ConversationItem
           v-for="chat in fauxInvitations"
           :key="'live-' + chat._id"
@@ -84,10 +85,9 @@
           @open="$emit('join-session', chat._id)"
         />
 
-        <!-- 2. ACTION REQUIRED (Mate Proposals & Incoming Invites) -->
-        <div v-if="actionableChats.length > 0" class="flex items-center gap-2 pt-2 pb-1 pl-1 animate-fade-in">
-          <div class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"></div>
-          <div class="text-[10px] font-black text-secondary uppercase tracking-widest">Action Required</div>
+        <div v-if="actionableChats.length > 0" class="flex items-center gap-1.5 pt-2 pb-0.5 pl-1 animate-fade-in">
+          <span class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"></span>
+          <div class="text-[9px] font-black text-secondary uppercase tracking-widest">Action Required</div>
         </div>
 
         <ConversationItem
@@ -100,9 +100,8 @@
           @open="chatWidget.openPrivateChat(chat._id)"
         />
 
-        <!-- 3. REGULAR CONVERSATIONS -->
-        <div v-if="(fauxInvitations.length > 0 || actionableChats.length > 0) && regularChats.length > 0" class="pt-3 pb-1 pl-1">
-          <div class="text-[10px] font-black text-black/40 uppercase tracking-widest">Active Chats</div>
+        <div v-if="(fauxInvitations.length > 0 || actionableChats.length > 0) && regularChats.length > 0" class="pt-2 pb-0.5 pl-1">
+          <div class="text-[9px] font-black text-black/40 uppercase tracking-widest">Active Chats</div>
         </div>
 
         <ConversationItem
@@ -117,10 +116,9 @@
       </div>
     </div>
 
-    <!-- FLOATING ACTION BUTTON -->
     <ion-fab v-show="!isCreatingChat" slot="fixed" vertical="bottom" horizontal="end" class="absolute bottom-6 right-2">
-      <ion-fab-button color="secondary" @click="isCreatingChat = true" class="shadow-none">
-        <ion-icon :icon="svg(mdiChatPlusOutline)" class="text-2xl text-white" />
+      <ion-fab-button color="secondary" @click="isCreatingChat = true" class="shadow-md">
+        <ion-icon :icon="svg(mdiChatPlusOutline)" class="text-xl text-white" />
       </ion-fab-button>
     </ion-fab>
   </div>
@@ -164,18 +162,16 @@ const isCreatingChat = ref(false);
 const isInLobby = computed(() => !!roomMembers.value?.length);
 const lobbyUnreadCount = ref(0);
 
-// Map actual Drawing Invitations into faux Chat objects so ConversationItem can render them natively
 const fauxInvitations = computed(() => {
 	return invitations.value.map((invite) => ({
-		_id: invite.roomId, // Binds securely to @open -> $emit('join-session', _id)
-		status: "live_invite", // Triggers custom UI state in ConversationItem
+		_id: invite.roomId,
+		status: "live_invite",
 		participants: [user.value, invite.friend],
 		updatedAt: new Date().toISOString(),
-		unread_counts: { [user.value?._id || ""]: 1 }, // Triggers unread boldness
+		unread_counts: { [user.value?._id || ""]: 1 },
 	})) as any[];
 });
 
-// High priority items requiring user interaction (Proposals + Incoming Chat Requests)
 const actionableChats = computed(() => {
 	const me = user.value?._id;
 	const incomingMates = activeChats.value.filter(
@@ -184,7 +180,6 @@ const actionableChats = computed(() => {
 	const incomingChats = pendingRequests.value.filter(
 		(c) => c.initiator_id !== me,
 	);
-
 	return [...incomingMates, ...incomingChats].sort(
 		(a, b) =>
 			new Date(b.updatedAt || 0).getTime() -
@@ -192,7 +187,6 @@ const actionableChats = computed(() => {
 	);
 });
 
-// All remaining active and outgoing chats
 const regularChats = computed(() => {
 	const actionableIds = new Set(actionableChats.value.map((c) => c._id));
 	const all = [
@@ -233,15 +227,11 @@ const startChatWithFriend = (friend: any) => {
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none !important; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-.animate-fade-in { animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
-
+.animate-fade-in { animation: fadeIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
-.pb-24 { padding-bottom: 6rem; }
 </style>

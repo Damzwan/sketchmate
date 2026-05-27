@@ -12,7 +12,6 @@ import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import { useInboxStore } from "@/store/inbox.store";
 import { useBalloonStore } from "@/store/balloon.store";
-import { registerDrawSyncingHandlers } from "@/service/api/socket/drawSyncing.socket";
 import { registerChatHandlers } from "@/service/api/socket/chat.socket";
 import { useModerationStore } from "@/store/moderation.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
@@ -41,7 +40,7 @@ export async function socketConnect(): Promise<void> {
 	});
 
 	// Register Sub-Socket Handlers
-	registerDrawSyncingHandlers(socket);
+	// registerDrawSyncingHandlers(socket);
 	registerChatHandlers(socket);
 	useBalloonStore().setupSocketListeners();
 	useInAppNotificationStore().registerSocketListener();
@@ -55,7 +54,6 @@ export async function socketConnect(): Promise<void> {
 
 	socket.on("disconnect", () => {
 		const store = useAuthStore();
-		store.refreshNeeded = true;
 	});
 
 	socket.on(SOCKET_ENDPONTS.login, () => {

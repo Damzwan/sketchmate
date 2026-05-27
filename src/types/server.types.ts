@@ -263,6 +263,8 @@ export interface UserCustomization {
 	titleId: string;
 	signaturePath?: string;
 	signatureViewBox?: string;
+	backgroundSketchPath?: string;
+	backgroundSketchViewBox?: string;
 }
 
 export interface UserStats {

@@ -1,38 +1,42 @@
 <template>
-  <div @touchmove.stop class="space-y-2 pb-4 flex flex-col justify-end min-h-full animate-tab-in">
+  <div @touchmove.stop class="space-y-3 pb-4 flex flex-col justify-end min-h-full animate-tab-in">
 
-    <div v-if="isBlocked" class="flex-1 flex flex-col items-center justify-center p-8 animate-fade-in">
-      <div class="bg-white/40 border border-white/60 p-8 rounded-[3rem] backdrop-blur-md shadow-xl text-center w-full max-w-xs">
-        <div class="relative inline-block mb-4">
-          <img :src="partner?.img" class="w-20 h-20 rounded-[2rem] border-4 border-white shadow-md object-cover grayscale opacity-60" />
-          <div class="absolute -bottom-1 -right-1 bg-zinc-500 rounded-full p-2 border-2 border-white shadow-sm">
-            <ion-icon :icon="svg(mdiAccountOff)" class="text-xs text-white" />
+    <!-- Blocked User Interface Callout Box -->
+    <div v-if="isBlocked" class="flex-1 flex flex-col items-center justify-center p-6 animate-fade-in">
+      <div class="bg-white border border-primary/50 p-6 rounded-[2.5rem] shadow-sm text-center w-full max-w-xs relative overflow-hidden">
+        <div class="absolute -right-4 -bottom-4 w-16 h-16 rounded-full bg-primary/10 blur-xl pointer-events-none"></div>
+        <div class="relative inline-block mb-3.5">
+          <img :src="partner?.img" class="w-16 h-16 rounded-[1.35rem] border border-black/5 shadow-sm object-cover grayscale opacity-50" alt="" />
+          <div class="absolute -bottom-1 -right-1 bg-zinc-500 rounded-full p-1 border border-white shadow-sm flex items-center justify-center">
+            <ion-icon :icon="svg(mdiAccountOff)" class="text-[9px] text-white" />
           </div>
         </div>
-        <h3 class="text-xl font-black text-black leading-tight cabin-sketch-regular">
-          {{ partner?.name }} <br />
-          <span class="text-[10px] opacity-40 uppercase tracking-widest font-sans font-bold">is blocked</span>
+        <h3 class="text-base font-black text-black leading-tight cabin-sketch-regular">
+          {{ partner?.name }}<br />
+          <span class="text-[9px] opacity-40 uppercase tracking-widest font-sans font-black">is blocked</span>
         </h3>
-        <ion-button color="dark" fill="outline" class="mt-8 font-black text-[10px] tracking-widest custom-rounded-button w-full" @click="openUserActions(partner)">
+        <ion-button color="dark" fill="outline" class="mt-6 font-black text-[9px] tracking-widest custom-rounded-button w-full" @click="openUserActions(partner)">
           Manage Artist
         </ion-button>
       </div>
     </div>
 
     <template v-else>
-
-      <div v-if="isBrandNewChat && partner" class="flex flex-col items-center justify-center py-20 opacity-40 animate-fade-in text-center">
-        <ion-icon :icon="svg(mdiChatOutline)" class="text-6xl mb-4 text-black" />
-        <p class="cabin-sketch-regular text-2xl font-bold text-black leading-none">
-          Say hi to <br />{{ partner.name }}!
+      <!-- Empty Conversation Vibe Checklist -->
+      <div v-if="isBrandNewChat && partner" class="flex flex-col items-center justify-center py-16 opacity-30 animate-fade-in text-center">
+        <ion-icon :icon="svg(mdiChatOutline)" class="text-5xl mb-3 text-black" />
+        <p class="cabin-sketch-regular text-xl font-bold text-black leading-none">
+          Say hi to<br />{{ partner.name }}!
         </p>
       </div>
 
-      <div v-if="activeTab !== 'lobby' && messages.length > 0 && chatStore.hasMoreMessagesByChat[activeTab] !== false" ref="topSentinel" class="w-full flex justify-center py-4 shrink-0">
-        <ion-spinner name="bubbles" color="secondary" class="opacity-60"></ion-spinner>
+      <!-- History Loading Spinner Element Indicator -->
+      <div v-if="activeTab !== 'lobby' && messages.length > 0 && chatStore.hasMoreMessagesByChat[activeTab] !== false" ref="topSentinel" class="w-full flex justify-center py-2 shrink-0">
+        <ion-spinner name="dots" color="secondary" class="opacity-40"></ion-spinner>
       </div>
 
-      <TransitionGroup name="msg-bubble" tag="div" class="flex flex-col gap-2 w-full" :class="{ 'is-fetching-history': isFetchingHistory }">
+      <!-- Main Message Stream Content Node -->
+      <TransitionGroup name="msg-bubble" tag="div" class="flex flex-col gap-2.5 w-full overflow-visible" :class="{ 'is-fetching-history': isFetchingHistory }">
         <ChatMessageBubble
           v-for="(msg, index) in messages"
           :key="msg.localKey || msg._id || index"
@@ -46,26 +50,32 @@
         />
       </TransitionGroup>
 
-      <div v-if="activeInvite" class="flex justify-center w-full my-6 animate-bounce-in">
-        <div class="flex flex-col items-center gap-3 p-4 bg-secondary/10 border border-secondary/30 rounded-[2.5rem] backdrop-blur-md w-full max-w-[250px] shadow-2xl relative">
-          <button @click="dismissInvite" class="absolute top-3 right-3 text-secondary/40 hover:text-secondary"><ion-icon :icon="closeCircle" class="text-xl" /></button>
+      <!-- Collaborative Drawing Invite Card Notification Block -->
+      <div v-if="activeInvite" class="flex justify-center w-full my-4 animate-bounce-in">
+        <div class="flex flex-col items-center gap-3 p-4 bg-white border border-secondary/40 rounded-[2.25rem] w-full max-w-[240px] shadow-md relative overflow-hidden">
+          <div class="absolute -left-6 -bottom-6 w-16 h-16 rounded-full bg-secondary/10 blur-xl pointer-events-none"></div>
+          <button @click="dismissInvite" class="absolute top-2.5 right-2.5 text-black/30 hover:text-black transition-colors">
+            <ion-icon :icon="closeCircle" class="text-lg" />
+          </button>
+
           <div class="relative">
-            <img :src="activeInvite.friend?.img" class="w-14 h-14 rounded-2xl border-2 border-white shadow-md object-cover" />
-            <div class="absolute -bottom-1 -right-1 bg-secondary rounded-full p-1.5 border-2 border-white shadow-sm">
-              <ion-icon :icon="svg(mdiDraw)" class="text-xs text-white" />
+            <img :src="activeInvite.friend?.img" class="w-12 h-12 rounded-xl border border-black/5 shadow-sm object-cover" alt="" />
+            <div class="absolute -bottom-1 -right-1 bg-secondary rounded-full p-1 border border-white shadow-sm flex items-center justify-center">
+              <ion-icon :icon="svg(mdiDraw)" class="text-[9px] text-white" />
             </div>
           </div>
-          <div class="text-center">
-            <p class="text-[13px] font-bold text-black italic cabin-sketch-regular leading-tight">
-              <span class="text-secondary font-black not-italic uppercase text-sm">{{ activeInvite.friend?.name }}</span><br />invited you to draw!
+
+          <div class="text-center px-1">
+            <p class="text-[12px] font-bold text-black italic cabin-sketch-regular leading-tight">
+              <span class="text-secondary font-black not-italic uppercase text-xs tracking-tight">{{ activeInvite.friend?.name }}</span><br />invited you to draw!
             </p>
           </div>
-          <ion-button color="secondary" expand="block" class="w-full font-black text-[11px] tracking-widest custom-rounded-button" @click="$emit('join-session', activeInvite.roomId)">
+
+          <ion-button color="secondary" expand="block" class="w-full font-black text-[10px] tracking-widest custom-rounded-button shadow-sm" @click="$emit('join-session', activeInvite.roomId)">
             Join Session
           </ion-button>
         </div>
       </div>
-
     </template>
   </div>
 </template>
@@ -138,7 +148,6 @@ const partner = computed(() => {
 const isBrandNewChat = computed(
 	() => !currentChat.value && activeTab.value !== "lobby",
 );
-
 const isBlocked = computed(() =>
 	partner.value ? friendStore.isBlocked(partner.value._id) : false,
 );
@@ -177,3 +186,11 @@ const isCompact = (msg: any, index: number) => {
 	);
 };
 </script>
+
+<style scoped>
+.animate-tab-in { animation: tabIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+@keyframes tabIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>

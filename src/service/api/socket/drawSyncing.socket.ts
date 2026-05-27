@@ -12,7 +12,6 @@ import { DrawSyncingAction } from "@/draw/types/drawSyncing.types";
 import { SOCKET_ENDPONTS } from "@/types/server.types";
 import router from "@/router";
 import { ToastDuration } from "@/types/toast.types";
-import { getDateOfBirthConfirmationResponse } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useDrawHistoryManager } from "@/draw/store/drawHistoryManager.store";
 import { exportBoundingBoxImage } from "@/draw/helpers/export.helper";

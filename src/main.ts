@@ -28,7 +28,6 @@ import {
 	setupWidget,
 } from "@/helper/general.helper";
 import { useSubscriptionStore } from "@/store/subscription.store";
-import { initMixpanel } from "@/service/mixpanel";
 import { Capacitor } from "@capacitor/core";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import duration from "dayjs/plugin/duration";
@@ -57,7 +56,6 @@ setupDeeplinkListener();
 handleWebDeeplink();
 setupPwa();
 setupWidget();
-initMixpanel();
 
 if (Capacitor.isNativePlatform()) {
 	StatusBar.setStyle({ style: Style.Light });

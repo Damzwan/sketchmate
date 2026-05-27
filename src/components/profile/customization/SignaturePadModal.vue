@@ -10,9 +10,18 @@
   >
     <div class="h-full flex flex-col p-5 bot-pad-safe bg-background cabin-sketch-regular overflow-hidden" @touchmove.stop>
 
-      <!-- Header Section -->
       <div class="shrink-0 pt-2 mb-6 text-center relative">
-        <div class="absolute right-0 top-0">
+        <div class="absolute right-0 top-0 flex items-center gap-1">
+          <ion-button
+            fill="clear"
+            color="dark"
+            class="ion-no-margin"
+            :disabled="strokes.length === 0"
+            @click="undo"
+          >
+            <ion-icon slot="icon-only" :icon="svg(mdiUndoVariant)" class="text-xl" />
+          </ion-button>
+
           <ion-button fill="clear" color="dark" class="ion-no-margin" @click="handleDismiss">
             <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="text-xl" />
           </ion-button>
@@ -26,7 +35,6 @@
         </p>
       </div>
 
-      <!-- Drawing Canvas Area -->
       <div
         ref="padRef"
         class="flex-1 w-full bg-white/60 border-2 border-white rounded-[2.5rem] touch-none relative overflow-hidden shadow-sm backdrop-blur-md cursor-crosshair group"
@@ -37,7 +45,6 @@
         @pointercancel.prevent="endStroke"
         @pointerout.prevent="endStroke"
       >
-        <!-- Decorative grid pattern background for that "sketchbook" feel -->
         <div class="absolute inset-0 opacity-[0.03] pointer-events-none"
              style="background-image: radial-gradient(#000 1px, transparent 1px); background-size: 20px 20px;">
         </div>
@@ -48,7 +55,6 @@
           preserveAspectRatio="xMidYMid meet"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <!-- Completed strokes -->
           <path
             v-for="(stroke, i) in strokes"
             :key="i"
@@ -59,9 +65,8 @@
             stroke-linecap="round"
             stroke-linejoin="round"
           />
-          <!-- Stroke in progress -->
           <path
-            v-if="currentStroke.length > 1"
+            v-if="currentStroke.length >= 1"
             :d="buildPath(currentStroke)"
             fill="none"
             :stroke="color"
@@ -71,7 +76,6 @@
           />
         </svg>
 
-        <!-- Placeholder text -->
         <transition name="fade">
           <div
             v-if="strokes.length === 0 && currentStroke.length === 0"
@@ -85,26 +89,34 @@
         </transition>
       </div>
 
-      <!-- Action buttons -->
-      <div class="grid grid-cols-2 gap-3 mt-6 shrink-0 pb-2">
-        <ion-button
-          fill="clear"
-          color="dark"
-          size="large"
-          :disabled="strokes.length === 0"
-          @click="clear"
-        >
-          Clear
-        </ion-button>
-        <ion-button
-          color="secondary"
-          shape="round"
-          size="large"
-          :disabled="strokes.length === 0"
-          @click="save"
-        >
-          Apply ✓
-        </ion-button>
+      <div class="flex flex-col gap-2 mt-6 shrink-0 pb-2">
+        <p v-if="!isPro" class="text-center text-[11px] font-bold text-secondary/70 uppercase tracking-wider">
+          🔒 Premium feature: Pro subscription required
+        </p>
+
+        <div class="grid grid-cols-2 gap-3">
+          <ion-button
+            fill="clear"
+            color="dark"
+            size="large"
+            :disabled="strokes.length === 0"
+            @click="clear"
+          >
+            Clear
+          </ion-button>
+          <ion-button
+            color="secondary"
+            shape="round"
+            size="large"
+            :disabled="strokes.length === 0 || !isPro"
+            @click="save"
+          >
+            <div class="flex items-center justify-center gap-1.5">
+              <ion-icon v-if="!isPro" :icon="svg(mdiLock)" class="text-base opacity-80" />
+              <span>Apply ✓</span>
+            </div>
+          </ion-button>
+        </div>
       </div>
 
     </div>
@@ -112,15 +124,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from "vue";
+import { ref, nextTick, computed } from "vue";
 import { IonModal, IonButton, IonIcon } from "@ionic/vue";
-import { mdiClose } from "@mdi/js";
+import { mdiClose, mdiLock, mdiUndoVariant } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
+import { useSubscriptionStore } from "@/store/subscription.store";
 
 type Point = [number, number];
 
 const props = defineProps<{ isOpen: boolean; color: string }>();
 const emit = defineEmits(["close", "save"]);
+
+const subscriptionStore = useSubscriptionStore();
+const isPro = computed(() => subscriptionStore.isPro);
 
 const padRef = ref<HTMLElement | null>(null);
 const padWidth = ref(300);
@@ -138,7 +154,6 @@ const strokes = ref<Point[][]>([]);
 const currentStroke = ref<Point[]>([]);
 const isDrawing = ref(false);
 
-// Truncates to 1 decimal place to save massive string space
 const getPoint = (e: PointerEvent): Point => {
 	const rect = padRef.value!.getBoundingClientRect();
 	const scaleX = padWidth.value / rect.width;
@@ -167,7 +182,6 @@ const draw = (e: PointerEvent) => {
 		const dy = newPoint[1] - lastPoint[1];
 		const distance = Math.sqrt(dx * dx + dy * dy);
 
-		// Live threshold: ignore micro-movements under 2 pixels
 		if (distance < 2) return;
 	}
 
@@ -179,15 +193,15 @@ const endStroke = (e: PointerEvent) => {
 	isDrawing.value = false;
 	padRef.value?.releasePointerCapture(e.pointerId);
 
-	if (currentStroke.value.length > 1) {
-		// Run the RDP algorithm to strip out mathematically useless points
+	if (currentStroke.value.length === 1) {
+		// Saves standalone points/taps
+		strokes.value.push([currentStroke.value[0]]);
+	} else if (currentStroke.value.length > 1) {
 		const optimizedStroke = simplifyPath(currentStroke.value, 1.5);
 		strokes.value.push(optimizedStroke);
 	}
 	currentStroke.value = [];
 };
-
-// ─── Ramer-Douglas-Peucker Algorithm (Zero Dependencies) ───
 
 function getSqSegDist(p: Point, p1: Point, p2: Point): number {
 	let x = p1[0],
@@ -243,10 +257,12 @@ function simplifyPath(points: Point[], tolerance = 1.5): Point[] {
 	return simplified;
 }
 
-// ───────────────────────────────────────────────────────────
-
 const buildPath = (points: Point[]): string => {
-	if (points.length < 2) return "";
+	if (points.length === 0) return "";
+	if (points.length === 1) {
+		const [x, y] = points[0];
+		return `M${x},${y} L${x},${y}`;
+	}
 
 	const d: string[] = [];
 	d.push(`M${points[0][0]},${points[0][1]}`);
@@ -263,22 +279,25 @@ const buildPath = (points: Point[]): string => {
 	return d.join("");
 };
 
+const undo = () => {
+	strokes.value.pop();
+};
+
 const clear = () => {
 	strokes.value = [];
 	currentStroke.value = [];
 };
 
 const save = () => {
+	if (!isPro.value) return;
 	if (strokes.value.length === 0) return;
 
 	const combinedPath = strokes.value.map(buildPath).join(" ");
 	const viewBox = `0 0 ${padWidth.value} ${padHeight.value}`;
 
-	// ── Size Measurement ──
 	const encoder = new TextEncoder();
 	const pathBytes = encoder.encode(combinedPath).length;
 	console.log(`Signature Path Size: ${(pathBytes / 1024).toFixed(2)} KB`);
-	// ──────────────────────
 
 	emit("save", {
 		path: combinedPath,

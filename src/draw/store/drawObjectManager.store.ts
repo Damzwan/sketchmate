@@ -501,6 +501,8 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		if (c) {
 			const v = getViewportRectPadded(c);
 			const b = objectBounds(obj);
+
+			// 1. Off-viewport check
 			if (!rectsIntersect(b, v)) {
 				// Off-viewport — gen-bump all tiers so they rebake when scrolled
 				// to, then let the async bake pipeline catch up.
@@ -508,14 +510,29 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				scheduleBake();
 				return;
 			}
+
+			// 2. Z-Order validation for Additive Patching
+			const canvasObjects = c.getObjects();
+			// Check if the newly added object is the very last item in the array (top-most)
+			const isTopMost =
+				canvasObjects.length > 0 &&
+				canvasObjects[canvasObjects.length - 1] === obj;
+
+			if (!isTopMost) {
+				// If the object was inserted behind existing strokes (e.g., background bucket fill),
+				// we CANNOT "additively" paint it. Drawing it onto the existing cached bitmap
+				// would paint it over the higher z-index objects.
+				// Instead, we invalidate the affected area to force a full z-sorted rebake.
+				scheduleObjectPatch(obj);
+				return;
+			}
 		}
 
-		// In-viewport: do NOT blanket-invalidate. The additive flush will:
+		// In-viewport and at the top: safe to use the additive fast-path.
+		// The additive flush will:
 		//   - composite onto fresh tiles at active + neighbor tiers (no flash)
 		//   - gen-bump only tiers we DON'T patch, so they rebake on first
 		//     use (e.g., user zooms to a far tier later)
-		// This avoids invalidating the very tile we're about to additively
-		// patch, which would otherwise force a fallback render → blank flash.
 		additiveQueue.push(obj);
 		additiveTimestamps.push(performance.now());
 		scheduleAdditiveFlush();

@@ -1,12 +1,12 @@
 <template>
   <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
     <template #preview>
-      <div class="h-32 bg-gradient-to-br from-zinc-50 to-zinc-100 relative flex items-center justify-center">
-        <canvas ref="canvasEl" class="max-w-full"></canvas>
+      <div class="h-28 bg-[#FAF6F0] relative flex items-center justify-center p-2 border-b border-black/5">
+        <canvas ref="canvasEl" class="max-w-full pointer-events-none"></canvas>
 
-        <!-- Brush icon corner badge -->
-        <div class="absolute top-3 right-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center">
-          <ion-icon :icon="svg(brushIcon)" class="text-xl text-[#3d1a14]" />
+        <!-- Floated organic pencil badge icon -->
+        <div class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white border border-black/10 shadow-sm flex items-center justify-center text-black">
+          <ion-icon :icon="svg(brushIcon)" class="text-sm" />
         </div>
       </div>
     </template>
@@ -14,78 +14,63 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, nextTick } from 'vue'
-import { IonIcon } from '@ionic/vue'
-import { Canvas, Point } from 'fabric'
-import type { ShopSku } from '@/config/catalog.config'
-import { BrushType } from '@/draw/types/draw.types'
-import { penBrushMapping, penIconMapping } from '@/draw/config/tools.config'
-import { svg } from '@/helper/general.helper'
-import ShopCardShell from './ShopCardShell.vue'
+import { onMounted, ref, computed, nextTick } from "vue";
+import { IonIcon } from "@ionic/vue";
+import { Canvas, Point } from "fabric";
+import type { ShopSku } from "@/config/catalog.config";
+import { BrushType } from "@/draw/types/draw.types";
+import { penBrushMapping, penIconMapping } from "@/draw/config/tools.config";
+import { svg } from "@/helper/general.helper";
+import ShopCardShell from "./ShopCardShell.vue";
 
 const props = defineProps<{
-  sku: ShopSku
-  owned: boolean
-  highlight?: boolean
-}>()
+	sku: ShopSku;
+	owned: boolean;
+	highlight?: boolean;
+}>();
+defineEmits(["purchase"]);
 
-defineEmits(['purchase'])
-
-const canvasEl = ref<HTMLCanvasElement | null>(null)
-
-// Map sku.refId → BrushType enum
+const canvasEl = ref<HTMLCanvasElement | null>(null);
 const brushType = computed<BrushType>(() => {
-  switch (props.sku.refId) {
-    case 'neon':
-      return BrushType.Neon
-    case 'calligraphy':
-      return BrushType.CalliGraphy
-    default:
-      return BrushType.Pencil
-  }
-})
+	if (props.sku.refId === "neon") return BrushType.Neon;
+	if (props.sku.refId === "calligraphy") return BrushType.CalliGraphy;
+	return BrushType.Pencil;
+});
+const brushIcon = computed(() => penIconMapping[brushType.value]);
 
-const brushIcon = computed(() => penIconMapping[brushType.value])
-
-// Render a single wavy stroke in this brush's style. Same technique as
-// PenMenu's renderPreview but at a fixed shop-card size.
 onMounted(async () => {
-  await nextTick()
-  if (!canvasEl.value) return
+	await nextTick();
+	if (!canvasEl.value) return;
+	const canvas = new Canvas(canvasEl.value, {
+		width: 150,
+		height: 75,
+		selection: false,
+	});
+	canvas.backgroundColor = "rgba(0,0,0,0)";
+	try {
+		canvas.freeDrawingBrush = penBrushMapping[brushType.value](canvas);
+		const brush = canvas.freeDrawingBrush as any;
+		brush.color = "#1e1e1f";
+		brush.width = brushType.value === BrushType.CalliGraphy ? 6 : 3;
 
-  const canvas = new Canvas(canvasEl.value, {
-    width: 200,
-    height: 90,
-    selection: false
-  })
-  canvas.backgroundColor = 'rgba(0,0,0,0)'
+		const amplitude = 10;
+		const frequency = 0.07;
+		const yOffset = 38;
+		const pts = [[10, yOffset]];
+		for (let x = 18; x <= 140; x += 8) {
+			pts.push([x, yOffset + amplitude * Math.sin(frequency * x)]);
+		}
+		const points = pts.map((p) => new Point(p[0], p[1]));
 
-  try {
-    canvas.freeDrawingBrush = penBrushMapping[brushType.value](canvas)
-    const brush = canvas.freeDrawingBrush as any
-    brush.color = '#3d1a14'
-    brush.width = brushType.value === BrushType.CalliGraphy ? 8 : 4
-
-    const amplitude = 12
-    const frequency = 0.06
-    const yOffset = 45
-
-    const pts = [[10, yOffset]]
-    for (let x = 20; x <= 190; x += 8) {
-      pts.push([x, yOffset + amplitude * Math.sin(frequency * x)])
-    }
-    const points = pts.map((p) => new Point(p[0], p[1]))
-
-    brush.onMouseDown(points[0], { e: new MouseEvent('mousedown') })
-    for (let i = 1; i < points.length; i++) {
-      brush.onMouseMove(points[i], { e: new MouseEvent('mousemove') })
-    }
-    brush.onMouseUp({ e: new MouseEvent('mouseup') })
-
-    canvas.getObjects().forEach((o) => o.set('selectable', false))
-    canvas.renderAll()
-  } catch (e) {
-    console.warn('[ShopCardBrush] preview render failed', e)
-  }
-})
+		brush.onMouseDown(points[0], { e: new MouseEvent("mousedown") });
+		for (let i = 1; i < points.length; i++) {
+			brush.onMouseMove(points[i], { e: new MouseEvent("mousemove") });
+		}
+		brush.onMouseUp({ e: new MouseEvent("mouseup") });
+		canvas.getObjects().forEach((o) => o.set("selectable", false));
+		canvas.renderAll();
+	} catch (e) {
+		console.warn("[ShopCardBrush] preview failed", e);
+	}
+});
 </script>

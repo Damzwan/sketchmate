@@ -1,37 +1,40 @@
 <template>
   <ion-page id="page">
-    <!-- Top Bar: Smooth slide-out when multi-selecting -->
     <div
-      class="top-0 left-0 right-0 z-[200] h-[56px] transition-all duration-400 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--ion-color-tertiary)]"
+      class="top-0 left-0 right-0 z-[200] h-[56px] transition-all duration-400 ease-[cubic-bezier(0.4,0,0.2,1)] bg-[var(--ion-color-background)]"
       :class="{ '-translate-y-full opacity-0 pointer-events-none': multiSelectMode }"
     >
       <TopBar title="Gallery" />
     </div>
 
-    <ion-content >
-      <!-- Multi-Select Contextual Header -->
-      <transition
-        enter-active-class="transition-opacity duration-200"
-        enter-from-class="opacity-0"
-        leave-active-class="transition-opacity duration-200"
-        leave-to-class="opacity-0"
+    <transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-200"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="multiSelectMode"
+        @click="cancelMultiSelect"
+        class="fixed top-pad-safe left-0 right-0 z-[150] cursor-pointer flex items-center h-[56px] bg-[var(--ion-background-color)] border-b border-white/10 px-4"
       >
-        <div
-          v-if="multiSelectMode"
-          @click="cancelMultiSelect"
-          class="fixed top-safe left-2 right-0 z-[150] cursor-pointer flex items-center h-[56px] bg-[var(--ion-background-color)] border-b border-white/10 px-4"
-        >
-          <div class="flex items-center bg-secondary rounded-full -ml-2 transition-transform active:scale-95">
-            <ion-button fill="clear" class="h-9 w-9 --padding-start-0 --padding-end-0">
-              <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="text-white text-xl" />
-            </ion-button>
-            <span class="font-bold text-base pr-4 text-white tabular-nums">
+        <div class="flex items-center bg-secondary rounded-full -ml-2 transition-transform active:scale-95">
+          <ion-button fill="clear" class="h-9 w-9 --padding-start-0 --padding-end-0">
+            <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="text-white text-xl" />
+          </ion-button>
+          <span class="font-bold text-base pr-4 text-white tabular-nums">
               {{ selectedItems.length }}
             </span>
-          </div>
         </div>
-      </transition>
+      </div>
+    </transition>
 
+    <ion-content>
+      <!-- Multi-Select Contextual Header (Fully Restored Original Flow & UI) -->
+
+
+
+      <!-- Grid Content Body Frame -->
       <div :class="{'pt-[56px]': isNative()}" class="h-full">
         <CircularLoader v-if="isLoading && inbox.length === 0" class="z-50" bgColor="bg-background" />
 
@@ -41,12 +44,10 @@
             @ionRefresh="handleRefresh"
             class="z-[300]"
           >
-            <ion-refresher-content
-              refreshing-spinner="circular"
-            />
+            <ion-refresher-content refreshing-spinner="circular" />
           </ion-refresher>
 
-          <!-- Empty States -->
+          <!-- Empty State: Missing Connections / Mates -->
           <NoMessages
             v-if="noMessages && user.mates.length === 0"
             title="Start connecting"
@@ -56,6 +57,7 @@
             :btn-link="FRONTEND_ROUTES.connect"
           />
 
+          <!-- Empty State: Clear Chat Logs -->
           <NoMessages
             v-else-if="noMessages && !isInboxLoading"
             title="No messages.."
@@ -65,18 +67,24 @@
             :btn-link="FRONTEND_ROUTES.draw"
           />
 
-          <!-- Gallery Grid -->
-          <div class="h-full p-2" v-else>
-            <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-3">
-              <div class="text-xl font-bold px-2">
-                {{ dayjs(date).format('MMMM, YYYY') }}
+          <!-- Artistic Dynamic Portfolio Feed Grid -->
+          <div class="h-full px-4 pt-4 pb-12" v-else>
+            <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-6">
+
+              <!-- Month Stamp Divider Subhead -->
+              <div class="px-1 mb-3">
+                <h3 class="cabin-sketch-regular text-xl font-black text-black leading-none drop-shadow-sm">
+                  {{ dayjs(date).format('MMMM, YYYY') }}
+                </h3>
               </div>
 
-              <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-1.5 pt-3">
+              <!-- Organic Masonry-Style Flex Grid Grid -->
+              <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3.5 pt-1 overflow-visible">
                 <div
                   v-for="(inboxItem, i) in groupedInboxItems[date]"
                   :key="inboxItem._id"
-                  :class="inboxItem.aspect_ratio > 1 ? 'col-span-2' : 'col-span-1'"
+                  class="transition-all duration-300 overflow-visible"
+                  :class="inboxItem.aspect_ratio > 1.2 ? 'col-span-2' : 'col-span-1'"
                 >
                   <Thumbnail
                     :inbox-item="inboxItem"
@@ -95,11 +103,11 @@
             <ion-infinite-scroll
               @ionInfinite="loadMore"
               :disabled="allLoaded"
-              threshold="50%"
+              threshold="30%"
               position="bottom"
             >
               <ion-infinite-scroll-content
-                loading-spinner="crescent"
+                loading-spinner="dots"
                 loading-text="Looking back in time..."
               />
             </ion-infinite-scroll>
@@ -107,7 +115,7 @@
         </div>
       </div>
 
-      <!-- Actions & Alerts -->
+      <!-- Global Actions Layout Overlays -->
       <GalleryActionSheet
         :selected-mode="multiSelectMode"
         :count="selectedItems.length"
@@ -165,7 +173,6 @@ import { useGallerySelection } from "@/composables/gallery/useGallerySelection";
 
 const { user } = storeToRefs(useAuthStore());
 
-// Logic Hooks
 const { openInboxSwiper, seeItem } = useInboxSwiper();
 const triggerSwiper = (item: any) => {
 	const index = inbox.value.findIndex((val) => item._id === val._id);
@@ -197,32 +204,33 @@ const {
 
 onIonViewWillEnter(fetchInitialInbox);
 
-// Handle native hardware back button
 useBackButton(9999, (processNextHandler) => {
 	if (multiSelectMode.value) cancelMultiSelect();
 	else processNextHandler();
 });
 
-// Clean up selection state when navigating away
 onIonViewWillLeave(cancelMultiSelect);
 </script>
 
 <style scoped>
-/* Ensure tabular numbers for the selection counter so it doesn't jump */
+ion-content{
+  --background: var(--ion-color-background);
+}
+
+.--background-custom {
+  --background: var(--ion-color-background) !important;
+}
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
-
-/* Background refinement for the ion-content */
-ion-content {
-  --background: var(--ion-background-color);
-}
-
 ion-refresher {
   --color: var(--ion-color-secondary);
 }
-
-ion-refresher-content {
-  --ion-color-primary: var(--ion-color-secondary);
+/* Style adjustments to make the custom ion buttons compact inside selection pill */
+.--padding-start-0 {
+  --padding-start: 0px !important;
+}
+.--padding-end-0 {
+  --padding-end: 0px !important;
 }
 </style>

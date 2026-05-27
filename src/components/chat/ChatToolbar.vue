@@ -1,37 +1,35 @@
 <template>
   <div
     v-if="activeTab !== 'overview'"
-    class="flex flex-col bg-white/10 shrink-0 border-b border-white/10 cabin-sketch-regular"
+    class="flex flex-col bg-white/30 shrink-0 border-b border-primary/10"
   >
-    <div class="flex items-center justify-between px-4 pt-3 pb-2">
+    <div class="flex items-center justify-between px-4 pt-3 pb-2.5">
       <div
-        class="flex items-center gap-3 min-w-0 cursor-pointer group active:scale-[0.98] transition-all"
+        class="flex items-center gap-3 min-w-0 cursor-pointer group active:scale-[0.99] transition-all"
         @click="handleHeaderClick"
       >
-        <!-- 1. Replaced static <img> with UserAvatar -->
         <div v-if="activeTab !== 'lobby' && partner" class="relative shrink-0 flex items-center justify-center">
           <UserAvatar
             :user="partner"
             :customization="partnerCustomization"
             size="sm"
             class="transition-transform duration-300 group-hover:scale-105"
-            :class="isExpired ? 'grayscale-[0.4] opacity-80' : ''"
+            :class="isExpired ? 'grayscale opacity-70' : ''"
           />
 
           <div
-            class="absolute -right-1.5 -bottom-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-md border border-zinc-100 transition-transform group-hover:scale-110 z-20"
+            class="absolute -right-1 -bottom-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-sm border border-black/5 transition-transform group-hover:scale-110 z-20"
           >
-            <ion-icon :icon="svg(mdiChevronRight)" class="text-[12px] text-secondary" />
+            <ion-icon :icon="svg(mdiChevronRight)" class="text-[10px] text-secondary" />
           </div>
         </div>
 
-        <div class="flex flex-col min-w-0">
-          <div class="flex items-center gap-1.5">
-            <!-- 2. Apply Custom Font and Color ONLY if not expired -->
+        <div class="flex flex-col min-w-0 justify-center">
+          <div class="flex items-center gap-1.5 leading-none">
             <span
-              class="text-sm font-black leading-none truncate tracking-tight transition-colors"
+              class="text-[15px] font-black leading-none truncate tracking-tight transition-colors drop-shadow-sm"
               :class="[
-                isExpired ? 'text-zinc-600' : 'text-black',
+                isExpired ? 'text-black/40' : 'text-black',
                 !isExpired ? fontEffectClass : ''
               ]"
               :style="!isExpired ? { color: theme.nameColor, fontFamily: resolvedFontFamily } : {}"
@@ -40,43 +38,41 @@
             </span>
           </div>
 
-          <!-- Status text remains the same... -->
-          <div class="flex items-center mt-1">
-            <span v-if="activeTab !== 'lobby'" class="text-[9px] font-bold uppercase tracking-widest">
+          <div class="flex items-center mt-1 leading-none">
+            <span v-if="activeTab !== 'lobby'" class="text-[8px] font-black uppercase tracking-widest leading-none">
               <template v-if="isExpired">
-                <span class="text-zinc-400 font-black">Archived History</span>
+                <span class="text-black/30">Archived History</span>
               </template>
               <template v-else-if="isTrackingOnline">
-                <span v-if="isOnline" class="text-green-600">Online</span>
+                <span v-if="isOnline" class="text-green-600 font-bold">Online</span>
                 <span v-else class="text-black/30">Offline</span>
               </template>
               <template v-else>
                 <span class="text-black/30">Artist</span>
               </template>
             </span>
-            <span v-else class="text-[9px] font-bold uppercase tracking-widest text-secondary">
+            <span v-else class="text-[8px] font-black uppercase tracking-widest text-secondary leading-none">
                {{ isPublicLobby ? 'Public Canvas' : 'Private Session' }}
             </span>
           </div>
         </div>
       </div>
 
-      <!-- Action Buttons remain the same... -->
       <div class="flex items-center gap-1.5 shrink-0">
         <button
           v-if="activeTab === 'lobby'"
           @click="openRoomMenu"
-          class="p-2 rounded-xl bg-white/40 border border-white/60 active:scale-90 transition-all shadow-sm"
+          class="p-2 rounded-xl bg-white/60 border border-primary/20 active:scale-90 transition-all shadow-sm text-secondary"
         >
-          <ion-icon :icon="svg(mdiCog)" class="text-secondary text-lg" />
+          <ion-icon :icon="svg(mdiCog)" class="text-base" />
         </button>
 
         <button
           v-else
           @click="$emit('open-report', partner)"
-          class="p-2 rounded-xl active:scale-90 transition-all hover:bg-white/40"
+          class="p-2 rounded-xl active:scale-90 transition-all text-black/30 hover:text-black"
         >
-          <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-black/40 text-xl" />
+          <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg" />
         </button>
       </div>
     </div>
@@ -97,7 +93,6 @@ import { IonIcon } from "@ionic/vue";
 import { mdiCog, mdiDotsHorizontal, mdiChevronRight } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 
-// --- Import Customization Config & Component ---
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import {
 	hydrateCustomization,
@@ -152,7 +147,6 @@ const partner = computed(() => {
 	return friendStore.resolvePartnerInfo(activeTab.value);
 });
 
-// --- Customization Computeds ---
 const partnerCustomization = computed(() =>
 	hydrateCustomization(partner.value?.customization),
 );
@@ -174,16 +168,13 @@ const isTrackingOnline = computed(() =>
 );
 
 const panelTitle = computed(() => {
-	if (activeTab.value === "lobby") {
+	if (activeTab.value === "lobby")
 		return isPublicLobby.value ? publicLobbyName.value : "Session Lobby";
-	}
-	if (!activeConversation.value && partner.value) {
+	if (!activeConversation.value && partner.value)
 		return `New Chat: ${partner.value.name.split(" ")[0]}`;
-	}
 	const title = resolveTitle(partnerCustomization.value.titleId);
-	if (partner.value) {
+	if (partner.value)
 		return title ? `${partner.value.name} • ${title}` : partner.value.name;
-	}
 	return "Chat";
 });
 

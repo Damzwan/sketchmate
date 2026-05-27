@@ -19,6 +19,7 @@ import {
 	grantsForSku,
 	PRO_ENTITLEMENT,
 } from "@/config/catalog.config";
+import { useAuthStore } from "@/store/auth.store";
 
 export const useSubscriptionStore = defineStore("subscription", () => {
 	const isPro = ref(false);
@@ -37,6 +38,10 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 	async function checkProStatus() {
 		if (!isNative()) {
 			isLoading.value = false;
+			const { waitUntilInitialized } = useAuthStore();
+			await waitUntilInitialized();
+			const { user } = useAuthStore();
+			isPro.value = user?.subscription_tier === "pro";
 			return;
 		}
 

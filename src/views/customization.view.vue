@@ -284,7 +284,6 @@ import ThemeModal from "@/components/profile/customization/ThemeModal.vue";
 import FontModal from "@/components/profile/customization/FontModal.vue";
 import FontEffectModal from "@/components/profile/customization/FontEffectModal.vue";
 import DecorationModal from "@/components/profile/customization/DecorationModal.vue";
-import EffectModal from "@/components/profile/customization/EffectModal.vue";
 import TitleModal from "@/components/profile/customization/TitleModal.vue";
 import SignaturePadModal from "@/components/profile/customization/SignaturePadModal.vue";
 import BackgroundSketchPadModal from "@/components/profile/customization/BackgroundSketchPadModal.vue";
@@ -303,6 +302,7 @@ import {
 	type Customization,
 } from "@/config/profile_options.config";
 import SubPageBar from "@/components/general/SubPageBar.vue";
+import EffectModal from "@/components/profile/customization/EffectModal.vue";
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);

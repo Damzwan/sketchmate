@@ -2,7 +2,6 @@ import { defineStore } from "pinia";
 import { ShapeCreationMode } from "@/draw/types/draw.types";
 import { ref, watch } from "vue";
 import { useDrawStore } from "@/draw/store/draw.store";
-import * as fabric from "fabric";
 import { Canvas, Point } from "fabric";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useDebounceFn } from "@vueuse/core";
@@ -21,6 +20,7 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 	const activeAvatars = ref(new Map());
 	const isCanvasNavigating = ref(false);
 	const isFullscreen = ref(false);
+	const chatToastsSilenced = ref(false);
 
 	const gestureStore = useGestureStore();
 	const exitRequested = ref(0);
@@ -113,5 +113,6 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 		exitRequested,
 		triggerManualExit,
 		isFullscreen,
+		chatToastsSilenced,
 	};
 });

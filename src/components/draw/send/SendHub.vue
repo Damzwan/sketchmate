@@ -243,6 +243,7 @@ import { FRONTEND_ROUTES } from "@/types/router.types";
 
 // @ts-ignore
 import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
+import { useDrawUIStore } from "@/draw/store/drawUI.store";
 
 dayjs.extend(duration);
 
@@ -265,6 +266,7 @@ const {
 
 const shareService = useShareService();
 const quotaStore = useQuotaStore();
+const drawUI = useDrawUIStore();
 
 const { selected, toggle, reset: resetMates } = useMateSelection();
 
@@ -334,6 +336,7 @@ const sendButtonLabel = computed(() => {
 
 onMounted(async () => {
 	// Graceful fallback: if preSelected was balloon but underage or out of quota
+	drawUI.chatToastsSilenced = true;
 	if (isBalloon.value && (!quotaStore.canSendBalloon || isUnderAge.value)) {
 		isBalloon.value = false;
 		isSaveAndSend.value = true;
@@ -348,7 +351,10 @@ onMounted(async () => {
 	);
 });
 
-onUnmounted(() => resetPreview());
+onUnmounted(() => {
+	resetPreview();
+	drawUI.chatToastsSilenced = false;
+});
 
 const noActionSelected = computed(
 	() => !isSaveAndSend.value && !isPublicPost.value && !isBalloon.value,

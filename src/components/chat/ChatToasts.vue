@@ -1,7 +1,7 @@
 <!-- components/ChatToasts.vue -->
 <template>
-  <div v-if="!isExpanded && !isFullscreen"
-       class="fixed top-safe mt-20 right-4 z-[100] flex flex-col gap-2 w-64 pointer-events-none">
+  <div v-if="!isExpanded && !isFullscreen && !chatToastsSilenced"
+       class="fixed top-safe mt-20 right-4 z-[10] flex flex-col gap-2 w-64 pointer-events-none">
     <TransitionGroup name="chat-toast">
       <div
         v-for="group in notifications"
@@ -53,133 +53,145 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { IonIcon } from '@ionic/vue'
-import { mdiClockOutline, mdiHeart } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { watch } from "vue";
+import { storeToRefs } from "pinia";
+import { IonIcon } from "@ionic/vue";
+import { mdiClockOutline, mdiHeart } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
-import { useChatWidgetStore } from '@/store/chatWidget.store'
-import { useChatStore } from '@/store/chat.store'
-import { useAuthStore } from '@/store/auth.store'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useFriendStore } from '@/store/friend.store' // <-- Added FriendStore
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useChatStore } from "@/store/chat.store";
+import { useAuthStore } from "@/store/auth.store";
+import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useFriendStore } from "@/store/friend.store"; // <-- Added FriendStore
 
-const chatWidget = useChatWidgetStore()
-const chatStore = useChatStore()
-const authStore = useAuthStore()
-const drawUI = useDrawUIStore()
-const drawSyncer = useDrawSyncer()
-const friendStore = useFriendStore() // <-- Initialized FriendStore
+const chatWidget = useChatWidgetStore();
+const chatStore = useChatStore();
+const authStore = useAuthStore();
+const drawUI = useDrawUIStore();
+const drawSyncer = useDrawSyncer();
+const friendStore = useFriendStore(); // <-- Initialized FriendStore
 
-const { isExpanded, activeTab } = storeToRefs(chatWidget)
-const { notifications } = storeToRefs(chatStore)
-const { isFullscreen } = storeToRefs(drawUI)
-const { user } = storeToRefs(authStore)
-const { lobbyChatMessages, invitations } = storeToRefs(drawSyncer)
+const { isExpanded, activeTab } = storeToRefs(chatWidget);
+const { notifications } = storeToRefs(chatStore);
+const { isFullscreen, chatToastsSilenced } = storeToRefs(drawUI);
+const { user } = storeToRefs(authStore);
+const { lobbyChatMessages, invitations } = storeToRefs(drawSyncer);
 
-let isInitialLobbyLoad = true
+let isInitialLobbyLoad = true;
 
 /**
  * WATCHER: Lobby Messages
  */
-watch(lobbyChatMessages, (messages) => {
-  if (messages.length === 0) return
+watch(
+	lobbyChatMessages,
+	(messages) => {
+		if (messages.length === 0) return;
 
-  const latest = messages[messages.length - 1] as any
-  const senderId = latest.member?._id || 'system'
+		const latest = messages[messages.length - 1] as any;
+		const senderId = latest.member?._id || "system";
 
-  if (latest.type === 'join' || latest.type === 'leave') {
-    const isMe = latest.member?._id === user.value?._id
+		if (latest.type === "join" || latest.type === "leave") {
+			const isMe = latest.member?._id === user.value?._id;
 
-    const text = latest.type === 'join'
-      ? (isMe ? 'You hopped into the room!' : `${latest.member?.name} hopped in!`)
-      : 'left the room.'
+			const text =
+				latest.type === "join"
+					? isMe
+						? "You hopped into the room!"
+						: `${latest.member?.name} hopped in!`
+					: "left the room.";
 
-    if (isInitialLobbyLoad && latest.type !== 'join') {
-      isInitialLobbyLoad = false
-      return
-    }
+			if (isInitialLobbyLoad && latest.type !== "join") {
+				isInitialLobbyLoad = false;
+				return;
+			}
 
-    chatStore.addNotification({
-      tabId: `lobby-${senderId}-${latest.type}`,
-      subtitle: isMe ? 'System' : (latest.member?.name || 'Lobby'),
-      text,
-      img: latest.member?.img || '',
-      isTrial: false,
-      isRequest: false
-    })
+			chatStore.addNotification({
+				tabId: `lobby-${senderId}-${latest.type}`,
+				subtitle: isMe ? "System" : latest.member?.name || "Lobby",
+				text,
+				img: latest.member?.img || "",
+				isTrial: false,
+				isRequest: false,
+			});
 
-    isInitialLobbyLoad = false
-    return
-  }
+			isInitialLobbyLoad = false;
+			return;
+		}
 
-  // 2. HANDLE REGULAR MESSAGES
-  if (isInitialLobbyLoad) {
-    isInitialLobbyLoad = false
-    return
-  }
+		// 2. HANDLE REGULAR MESSAGES
+		if (isInitialLobbyLoad) {
+			isInitialLobbyLoad = false;
+			return;
+		}
 
-  if (activeTab.value === 'lobby' && isExpanded.value) return
-  if (latest.member?._id === user.value?._id) return
+		if (activeTab.value === "lobby" && isExpanded.value) return;
+		if (latest.member?._id === user.value?._id) return;
 
-  chatStore.addNotification({
-    tabId: `lobby-${senderId}`,
-    subtitle: latest.member?.name || 'Lobby',
-    text: latest.content || latest.message,
-    img: latest.member?.img || '',
-    isTrial: false,
-    isRequest: false
-  })
-}, { deep: true })
+		chatStore.addNotification({
+			tabId: `lobby-${senderId}`,
+			subtitle: latest.member?.name || "Lobby",
+			text: latest.content || latest.message,
+			img: latest.member?.img || "",
+			isTrial: false,
+			isRequest: false,
+		});
+	},
+	{ deep: true },
+);
 
 /**
  * WATCHER: Drawing Invitations
  */
-watch(invitations, (newInvites, oldInvites) => {
-  if (newInvites.length <= (oldInvites?.length || 0)) return
-  const latest = newInvites[newInvites.length - 1]
-  if (!latest) return
+watch(
+	invitations,
+	(newInvites, oldInvites) => {
+		if (newInvites.length <= (oldInvites?.length || 0)) return;
+		const latest = newInvites[newInvites.length - 1];
+		if (!latest) return;
 
-  chatStore.addNotification({
-    // Uses a User ID!
-    tabId: latest.friend._id,
-    subtitle: 'Drawing Invite',
-    text: `${latest.friend.name} wants to sketch!`,
-    img: latest.friend.img,
-    isTrial: false,
-    isRequest: true
-  })
-}, { deep: true })
+		chatStore.addNotification({
+			// Uses a User ID!
+			tabId: latest.friend._id,
+			subtitle: "Drawing Invite",
+			text: `${latest.friend.name} wants to sketch!`,
+			img: latest.friend.img,
+			isTrial: false,
+			isRequest: true,
+		});
+	},
+	{ deep: true },
+);
 
 const getBorderColor = (group: any) => {
-  if (group.tabId.startsWith('lobby')) return 'bg-cyan-400'
-  if (group.isMateProposal) return 'bg-secondary animate-pulse'
-  if (group.isRequest) return 'bg-secondary'
-  if (group.isTrial) return 'bg-amber-400'
-  return 'bg-secondary'
-}
+	if (group.tabId.startsWith("lobby")) return "bg-cyan-400";
+	if (group.isMateProposal) return "bg-secondary animate-pulse";
+	if (group.isRequest) return "bg-secondary";
+	if (group.isTrial) return "bg-amber-400";
+	return "bg-secondary";
+};
 
 const openFromNotification = (tabId: string) => {
-  chatStore.removeNotification(tabId)
-  chatWidget.openPanel()
+	chatStore.removeNotification(tabId);
+	chatWidget.openPanel();
 
-  if (tabId.startsWith('lobby')) {
-    chatWidget.activeTab = 'lobby'
-    return
-  }
+	if (tabId.startsWith("lobby")) {
+		chatWidget.activeTab = "lobby";
+		return;
+	}
 
-  const isExistingChat = [...chatStore.activeChats, ...friendStore.pendingRequests].some(
-    c => c._id === tabId
-  )
+	const isExistingChat = [
+		...chatStore.activeChats,
+		...friendStore.pendingRequests,
+	].some((c) => c._id === tabId);
 
-  if (isExistingChat) {
-    chatWidget.openPrivateChat(tabId)
-  } else {
-    chatWidget.openChatWithUser(tabId)
-  }
-}
+	if (isExistingChat) {
+		chatWidget.openPrivateChat(tabId);
+	} else {
+		chatWidget.openChatWithUser(tabId);
+	}
+};
 </script>
 
 <style scoped>

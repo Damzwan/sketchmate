@@ -47,21 +47,10 @@
             <ion-refresher-content refreshing-spinner="circular" />
           </ion-refresher>
 
-          <!-- Empty State: Missing Connections / Mates -->
           <NoMessages
-            v-if="noMessages && user.mates.length === 0"
-            title="Start connecting"
-            subtitle="Add a friend first before you can access your gallery"
-            :img="connectImage"
-            btn-text="Add a friend"
-            :btn-link="FRONTEND_ROUTES.connect"
-          />
-
-          <!-- Empty State: Clear Chat Logs -->
-          <NoMessages
-            v-else-if="noMessages && !isInboxLoading"
-            title="No messages.."
-            subtitle="Send a drawing to a friend to see it over here"
+            v-if="noMessages && !isInboxLoading"
+            title="No drawings yet..."
+            subtitle="Create a drawing see it over here"
             :img="noMessagesImg"
             btn-text="Start drawing"
             :btn-link="FRONTEND_ROUTES.draw"
@@ -164,7 +153,6 @@ import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 
 import noMessagesImg from "@/assets/illustrations/no_messages.webp";
-import connectImage from "@/assets/illustrations/connect.webp";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";

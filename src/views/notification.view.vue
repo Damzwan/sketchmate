@@ -77,6 +77,7 @@ import {
 	IonInfiniteScroll,
 	IonInfiniteScrollContent,
 	IonPage,
+	IonIcon,
 	onIonViewWillEnter,
 } from "@ionic/vue";
 import { storeToRefs } from "pinia";

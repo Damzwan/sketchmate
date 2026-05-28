@@ -275,11 +275,11 @@ function createRoom() {
 
 async function joinRoom(joinCode: string) {
 	if (joinCode == "") return;
-	const { forceSave, hasContent } = useDrawLoadStore();
+	const { exitWithBackgroundSave, hasContent } = useDrawLoadStore();
 	if (hasContent()) {
 		const { toast } = useToast();
 		toast("Saving draft before joining...");
-		await forceSave();
+		await exitWithBackgroundSave();
 	}
 	socketJoinRoom({ roomId: joinCode, intent: "join" });
 }

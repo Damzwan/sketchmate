@@ -17,7 +17,7 @@
       <!-- Loading Skeleton Stack -->
       <div v-if="loading" key="loading" class="flex overflow-x-auto gap-3.5 pb-2 hide-scrollbar">
         <div
-          v-for="i in 3"
+          v-for="i in 10"
           :key="i"
           class="min-w-[145px] max-w-[145px] h-32 bg-tertiary rounded-[2rem] border border-black/5 animate-pulse"
         ></div>

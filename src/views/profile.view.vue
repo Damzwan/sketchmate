@@ -29,16 +29,18 @@
             :customization="user.customization"
             :is-own-profile="true"
             :is-editing="isEditing"
+            :preview-img="displayImg"
             :edit-form="editForm"
             @toggle-edit="toggleEdit"
             @go-settings="goToSettings"
             @go-customize="goToCustomize"
             @update-img="handleImgUpdate"
             @go-network="goToNetwork"
-            @cancel-edit="isEditing=false"
+            @cancel-edit="cancelEdit"
             @open-connection="openMenu(Menu.ConnectionMenu)"
             @update:edit-form-name="(newName: string) => editForm.name = newName"
             @update:edit-form-desc="editForm.description = $event"
+
           />
 
           <!-- Extracted Posts Component -->
@@ -54,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import {
 	IonContent,
 	IonInfiniteScroll,
@@ -87,64 +89,165 @@ const { userPosts, hasMoreUserPosts, isProfileDirty } = storeToRefs(postStore);
 const loadingAccount = ref(true);
 const loadingPosts = ref(false);
 const isEditing = ref(false);
+const isSaving = ref(false);
 const { openMenu } = useMenuStore();
 
 const editForm = reactive({ name: "", description: "" });
 
-const toggleEdit = async () => {
-	if (isEditing.value) {
-		const newName = editForm.name.trim();
-		const newDesc = editForm.description.trim();
-		const oldName = user.value?.name || "";
-		const oldDesc = user.value?.description || "";
+// Staged image while editing. null = no pending change (show the real user.img).
+// A non-null value is the cropped base64 awaiting confirmation.
+const pendingImg = ref<string | null>(null);
 
-		if (newName === oldName && newDesc === oldDesc) {
-			isEditing.value = false;
-			return;
-		}
+// What the avatar shows in edit mode: the staged crop if present, else current.
+const displayImg = computed(() => pendingImg.value ?? user.value?.img ?? "");
+
+// Cropper applied — just stage it. No upload, no store mutation yet.
+const handleImgUpdate = (newImgBase64: string) => {
+	pendingImg.value = newImgBase64;
+};
+
+const enterEdit = () => {
+	editForm.name = user.value?.name || "";
+	editForm.description = user.value?.description || "";
+	pendingImg.value = null;
+	isEditing.value = true;
+};
+
+const cancelEdit = () => {
+	// Drop the staged image — preview reverts to the real user.img.
+	pendingImg.value = null;
+	isEditing.value = false;
+};
+
+const saveEdit = () => {
+	if (!user.value) return;
+
+	const newName = editForm.name.trim();
+	const newDesc = editForm.description.trim();
+	const oldName = user.value.name || "";
+	const oldDesc = user.value.description || "";
+
+	const nameChanged = newName !== oldName;
+	const descChanged = newDesc !== oldDesc;
+	const imgChanged = pendingImg.value !== null;
+
+	// Nothing to do.
+	if (!nameChanged && !descChanged && !imgChanged) {
+		isEditing.value = false;
+		return;
+	}
+
+	// Validate name only if it actually changed. (Stays synchronous — we want
+	// to block the close on bad input, not on the network.)
+	if (nameChanged) {
 		if (!newName) {
 			toast("Name cannot be empty", { color: "danger" });
 			return;
 		}
-
 		if (newName.length < 4) {
 			toast("Name should be at least 4 characters", { color: "danger" });
 			return;
 		}
+	}
 
-		try {
-			await updateProfile({ name: newName, description: newDesc });
-			if (user.value) {
-				if (newName !== oldName)
-					user.value.last_name_change = new Date().toISOString();
-				user.value.name = newName;
-				user.value.description = newDesc;
+	// --- Snapshot everything the background task needs BEFORE we mutate/clear. ---
+	const u = user.value;
+	const previousImg = u.img;
+	const previousName = oldName;
+	const previousDesc = oldDesc;
+	const previousNameChange = u.last_name_change;
+	const stagedImg = imgChanged ? pendingImg.value : null;
+
+	// --- Apply ALL changes optimistically + close edit mode RIGHT NOW. ---
+	if (nameChanged) {
+		u.last_name_change = new Date().toISOString();
+		u.name = newName;
+	}
+	if (descChanged) u.description = newDesc;
+	if (stagedImg) u.img = stagedImg; // store watcher → tab bar updates this tick
+
+	pendingImg.value = null;
+	isEditing.value = false; // ← UI exits edit mode immediately, no lag
+
+	// --- Reconcile in the background. No await in the handler's main path. ---
+	void persistProfile({
+		nameChanged,
+		descChanged,
+		newName,
+		newDesc,
+		stagedImg,
+		previousImg,
+		previousName,
+		previousDesc,
+		previousNameChange,
+	});
+};
+
+interface PersistArgs {
+	nameChanged: boolean;
+	descChanged: boolean;
+	newName: string;
+	newDesc: string;
+	stagedImg: string | null;
+	previousImg: string;
+	previousName: string;
+	previousDesc: string;
+	previousNameChange: string | undefined;
+}
+
+const persistProfile = async (a: PersistArgs) => {
+	if (!user.value) return;
+	const u = user.value;
+
+	const tasks: Promise<unknown>[] = [];
+
+	if (a.nameChanged || a.descChanged) {
+		tasks.push(updateProfile({ name: a.newName, description: a.newDesc }));
+	}
+
+	let uploadPromise: Promise<{ url?: string }> | null = null;
+	if (a.stagedImg) {
+		const staged = a.stagedImg;
+		uploadPromise = fetch(staged)
+			.then((r) => r.blob())
+			.then((blob) => uploadProfileImg(blob, a.previousImg));
+		tasks.push(uploadPromise);
+	}
+
+	try {
+		await Promise.all(tasks);
+
+		// Reconcile optimistic base64 → canonical S3 URL.
+		if (uploadPromise) {
+			const res = await uploadPromise;
+			// Only swap if the user hasn't changed their image again in the meantime.
+			if (res.url && u.img === a.stagedImg) {
+				u.img = res.url;
+			} else if (!res.url) {
+				if (u.img === a.stagedImg) u.img = a.previousImg;
+				toast("Failed to upload image", { color: "danger" });
 			}
-			toast("Profile updated!", { color: "success" });
-			isEditing.value = false;
-		} catch (err: any) {
-			const errorMsg = err.response?.data?.error || "Failed to update profile";
-			toast(errorMsg, { color: "danger" });
 		}
-	} else {
-		editForm.name = user.value?.name || "";
-		editForm.description = user.value?.description || "";
-		isEditing.value = true;
+	} catch (err: any) {
+		// Roll back whatever we optimistically applied — but only if it's still
+		// the value we set (guards against a newer edit racing this one).
+		if (a.stagedImg && u.img === a.stagedImg) u.img = a.previousImg;
+		if (a.nameChanged && u.name === a.newName) {
+			u.name = a.previousName;
+			u.last_name_change = a.previousNameChange;
+		}
+		if (a.descChanged && u.description === a.newDesc) {
+			u.description = a.previousDesc;
+		}
+		const errorMsg = err?.response?.data?.error || "Failed to update profile";
+		toast(errorMsg, { color: "danger" });
 	}
 };
 
-const handleImgUpdate = async (newImgBase64: string) => {
-	if (!user.value) return;
-	try {
-		const blob = await fetch(newImgBase64).then((r) => r.blob());
-		const res = await uploadProfileImg(blob, user.value.img);
-		if (res.url) {
-			user.value.img = res.url;
-			toast("Profile picture updated!", { color: "success" });
-		}
-	} catch {
-		toast("Failed to upload image", { color: "danger" });
-	}
+// ProfileCard's single toggle button routes to enter vs save.
+const toggleEdit = () => {
+	if (isEditing.value) saveEdit();
+	else enterEdit();
 };
 
 const loadPosts = async () => {

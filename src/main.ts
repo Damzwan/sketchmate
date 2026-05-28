@@ -45,10 +45,10 @@ dayjs.extend(isYesterday);
 export const EventBus = mitt();
 const app = createApp(App).use(IonicVue).use(pinia).use(router);
 
+app.mount("#app");
+
 initBilling().then(() => {
-	const { checkProStatus } = useSubscriptionStore();
-	checkProStatus();
-	app.mount("#app");
+	useSubscriptionStore().checkProStatus();
 });
 
 addNotificationListeners();

@@ -85,19 +85,20 @@ const hasNameChanged = computed(
 	() => editForm.name.trim() !== (user.value?.name || ""),
 );
 
-async function saveProfile() {
+function saveProfile() {
+	if (!user.value) return;
+
 	const newName = editForm.name.trim();
 	const newDesc = editForm.description?.trim() || "";
-	const oldName = user.value?.name || "";
-	const oldDesc = user.value?.description || "";
+	const oldName = user.value.name || "";
+	const oldDesc = user.value.description || "";
 
-	// 1. Validation
+	// 1. Validation — revert the field, no network work.
 	if (!newName) {
 		if (!props.skipToast) toast("Name cannot be empty", { color: "danger" });
 		editForm.name = oldName;
 		return;
 	}
-
 	if (newName.length < 4) {
 		if (!props.skipToast)
 			toast("Name must be at least 4 characters", { color: "danger" });
@@ -105,25 +106,28 @@ async function saveProfile() {
 		return;
 	}
 
-	// 2. Prevent unnecessary API calls
-	if (newName === oldName && newDesc === oldDesc) {
-		return;
-	}
+	// 2. No change — nothing to persist.
+	if (newName === oldName && newDesc === oldDesc) return;
 
-	// 3. API Save
-	try {
-		await updateProfile({ name: newName, description: newDesc });
+	// 3. Optimistic: apply locally NOW, persist in the background.
+	const u = user.value;
+	u.name = newName;
+	u.description = newDesc;
 
-		if (user.value) {
-			user.value.name = newName;
-			user.value.description = newDesc;
+	void (async () => {
+		try {
+			await updateProfile({ name: newName, description: newDesc });
+		} catch (err: any) {
+			// Roll back — but only if the field still holds what we set
+			// (guards against a newer edit racing this request).
+			if (u.name === newName) u.name = oldName;
+			if (u.description === newDesc) u.description = oldDesc;
+			editForm.name = oldName;
+			editForm.description = oldDesc;
+			const errorMsg = err?.response?.data?.error || "Failed to update profile";
+			if (!props.skipToast) toast(errorMsg, { color: "danger" });
 		}
-
-		if (!props.skipToast) toast("Profile updated!", { color: "success" });
-	} catch (err: any) {
-		const errorMsg = err.response?.data?.error || "Failed to update profile";
-		if (!props.skipToast) toast(errorMsg, { color: "danger" });
-	}
+	})();
 }
 
 function onBlur() {
@@ -135,20 +139,31 @@ function onEnter() {
 	(nameRef.value as any)?.blur();
 }
 
-async function uploadImage(newImgBase64: string) {
+function uploadImage(newImgBase64: string) {
 	if (!user.value) return;
 
-	try {
-		const blob = await fetch(newImgBase64).then((r) => r.blob());
-		const res = await uploadProfileImg(blob, user.value.img);
+	const u = user.value;
+	const previousImg = u.img;
+	u.img = newImgBase64;
 
-		if (res.url) {
-			user.value.img = res.url;
+	void (async () => {
+		try {
+			const blob = await fetch(newImgBase64).then((r) => r.blob());
+			const res = await uploadProfileImg(blob, previousImg);
+
+			// Reconcile base64 → canonical S3 URL, only if unchanged since.
+			if (res.url) {
+				if (u.img === newImgBase64) u.img = res.url;
+			} else {
+				if (u.img === newImgBase64) u.img = previousImg;
+				if (!props.skipToast)
+					toast("Failed to upload image", { color: "danger" });
+			}
+		} catch {
+			if (u.img === newImgBase64) u.img = previousImg;
 			if (!props.skipToast)
-				toast("Profile picture updated!", { color: "success" });
+				toast("Failed to upload image", { color: "danger" });
 		}
-	} catch (error) {
-		if (!props.skipToast) toast("Failed to upload image", { color: "danger" });
-	}
+	})();
 }
 </script>

@@ -74,6 +74,16 @@ export const useAuthStore = defineStore("auth", () => {
 	Preferences.get({ key: LocalStorage.img }).then(
 		(res) => (localUserImg.value = res.value!),
 	);
+
+	watch(
+		() => user.value?.img,
+		(img) => {
+			if (!img || img === localUserImg.value) return;
+			localUserImg.value = img;
+			Preferences.set({ key: LocalStorage.img, value: img });
+		},
+	);
+
 	generateDeviceFingerprint().then(
 		(fingerprint) => (deviceFingerprint.value = fingerprint),
 	);

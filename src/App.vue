@@ -1,8 +1,7 @@
 <template>
   <ion-app>
-    <CircularLoader class="z-50" v-if="!isRouterReady || isAuthLoading" bg-color="bg-background" />
+    <CircularLoader class="z-50" v-if="!isRouterReady" bg-color="bg-background" />
     <ion-router-outlet />
-    <ForceUpdateModal v-if="isNative() && showForceUpdateModal" />
     <WhatsNewModal />
     <ChatBubble />
 
@@ -30,7 +29,6 @@ import { IonApp, IonRouterOutlet, useIonRouter } from "@ionic/vue";
 import { defineAsyncComponent, onMounted, ref } from "vue";
 import { defineCustomElements } from "@ionic/pwa-elements/loader";
 import {
-	isNative,
 	setupBackButtonBehavior,
 	setupPWAPromptListener,
 	setupRouterReadyWatcher,
@@ -41,7 +39,6 @@ import { useAuthStore } from "@/store/auth.store";
 import { useActiveViewSync } from "@/service/activeViewSync";
 
 // Eagerly loaded components
-import ForceUpdateModal from "@/components/general/ForceUpdateModal.vue";
 import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
 import WhatsNewModal from "@/components/general/WhatsNewModal.vue";
 import { useSessionStore } from "@/store/session.store";

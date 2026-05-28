@@ -44,7 +44,6 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
 import {
 	IonIcon,
 	IonPage,
@@ -58,23 +57,19 @@ import { homeOutline, imagesOutline, personOutline } from "ionicons/icons";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { masterAnimation } from "@/helper/animation.helper";
 import { useRoute } from "vue-router";
-import { Preferences } from "@capacitor/preferences";
-import { LocalStorage } from "@/types/storage.types";
+import { storeToRefs } from "pinia";
+import { useAuthStore } from "@/store/auth.store";
 
 const router = useIonRouter();
 const route = useRoute();
-const profileImg = ref<string | null>(null);
+
+const { localUserImg: profileImg } = storeToRefs(useAuthStore());
 
 const tabs = [
 	{ route: FRONTEND_ROUTES.home, icon: homeOutline },
 	{ route: FRONTEND_ROUTES.gallery, icon: imagesOutline },
 	{ route: FRONTEND_ROUTES.profile, icon: personOutline },
 ];
-
-onMounted(async () => {
-	const { value } = await Preferences.get({ key: LocalStorage.img });
-	profileImg.value = value;
-});
 
 const isTabActive = (tabRoute: string) => route.path.includes(tabRoute);
 

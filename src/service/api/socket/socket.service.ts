@@ -15,6 +15,7 @@ import { useBalloonStore } from "@/store/balloon.store";
 import { registerChatHandlers } from "@/service/api/socket/chat.socket";
 import { useModerationStore } from "@/store/moderation.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
+import { registerDrawSyncingHandlers } from "@/service/api/socket/drawSyncing.socket";
 
 export let socket: Socket | undefined;
 
@@ -40,7 +41,7 @@ export async function socketConnect(): Promise<void> {
 	});
 
 	// Register Sub-Socket Handlers
-	// registerDrawSyncingHandlers(socket);
+	registerDrawSyncingHandlers(socket);
 	registerChatHandlers(socket);
 	useBalloonStore().setupSocketListeners();
 	useInAppNotificationStore().registerSocketListener();

@@ -151,6 +151,7 @@ import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
 import draw_together from "@/assets/illustrations/home/draw_together.webp";
 import share from "@/assets/illustrations/home/share.webp";
 import balloonLottie from "@/assets/lottie/balloon.json";
+import { whenIdle } from "@/helper/general.helper";
 
 const r = useIonRouter();
 
@@ -223,10 +224,10 @@ const mergedDrafts = computed<DrawingDraft[]>(() => {
 	);
 });
 
-onMounted(async () => {
-	try {
-		await import("@/views/draw.view.vue");
-	} catch {}
+onMounted(() => {
+	whenIdle(() => {
+		import("@/views/draw.view.vue").catch(() => {});
+	}, 1500);
 });
 
 onIonViewDidEnter(() => {

@@ -93,7 +93,7 @@
             />
             <ProfilePictureSelector
               v-else
-              :img="user.img"
+              :img="previewImg || user.img"
               :customization="effectiveCustomization"
               @update:img="$emit('update-img', $event)"
             />
@@ -328,6 +328,7 @@ const props = withDefaults(
 		editForm?: { name: string; description: string };
 		isPreview?: boolean;
 		allowSketchEdit?: boolean;
+		previewImg?: string;
 	}>(),
 	{
 		isOwnProfile: false,

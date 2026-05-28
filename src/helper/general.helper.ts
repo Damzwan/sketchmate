@@ -403,6 +403,28 @@ export function setupPWAPromptListener() {
 	});
 }
 
+// export function setupRouterReadyWatcher(
+// 	isRouterReady: Ref<boolean>,
+// 	isAuthLoading: Ref<boolean>,
+// ) {
+// 	router.isReady().then(() => {
+// 		isRouterReady.value = true;
+// 	});
+//
+// 	if (isNative()) {
+// 		const unwatch = watch(
+// 			[isAuthLoading, isRouterReady],
+// 			([authLoading, routerReady]) => {
+// 				if (routerReady && !authLoading) {
+// 					SplashScreen.hide();
+// 					unwatch();
+// 				}
+// 			},
+// 			{ immediate: true },
+// 		);
+// 	}
+// }
+
 export function setupRouterReadyWatcher(
 	isRouterReady: Ref<boolean>,
 	isAuthLoading: Ref<boolean>,
@@ -413,9 +435,9 @@ export function setupRouterReadyWatcher(
 
 	if (isNative()) {
 		const unwatch = watch(
-			[isAuthLoading, isRouterReady],
-			([authLoading, routerReady]) => {
-				if (routerReady && !authLoading) {
+			[isRouterReady],
+			([routerReady]) => {
+				if (routerReady) {
 					SplashScreen.hide();
 					unwatch();
 				}
@@ -469,4 +491,18 @@ export function shouldShowThoughtPrompt(user: User): boolean {
 		meta.tasks_completed_since_last_prompt >= 3 &&
 		daysSinceLastPrompt >= 7
 	);
+}
+
+type IdleCallback = (deadline: {
+	timeRemaining: () => number;
+	didTimeout: boolean;
+}) => void;
+
+export function whenIdle(cb: IdleCallback, timeout = 3000): void {
+	if (typeof (window as any).requestIdleCallback === "function") {
+		(window as any).requestIdleCallback(cb, { timeout });
+	} else {
+		// Safari fallback. Don't pretend to honor deadlines; just defer.
+		setTimeout(() => cb({ timeRemaining: () => 50, didTimeout: false }), 1500);
+	}
 }

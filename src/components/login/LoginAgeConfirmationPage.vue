@@ -5,7 +5,7 @@
       <!-- HEADER -->
       <div class="px-8 pt-10 pb-6 text-center shrink-0">
         <h1 class="text-5xl text-black font-black italic tracking-tighter leading-none">
-          One Last Thing
+          Safety & Community
         </h1>
         <p class="text-[11px] font-black opacity-40 uppercase tracking-[0.2em] mt-3">
           Help us keep Sketchmate safe

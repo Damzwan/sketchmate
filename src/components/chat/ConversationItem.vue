@@ -165,6 +165,7 @@ import { svg } from "@/helper/general.helper";
 import { PopulatedConversation } from "@/types/server.types";
 import { useFriendStore } from "@/store/friend.store";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { IonIcon } from "@ionic/vue";
 
 dayjs.extend(relativeTime);
 

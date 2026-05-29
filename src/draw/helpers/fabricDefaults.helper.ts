@@ -24,7 +24,6 @@ import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
 import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
 import { useGestureStore } from "@/draw/store/tools/gesture.store";
 import * as transform from "@/draw/transform/transformController";
-import { useDrawStore } from "@/draw/store/draw.store";
 
 export function changeFabricSettings() {
 	FabricObject.prototype.objectCaching = false;
@@ -387,7 +386,7 @@ export function overrideTransform(canvas: Canvas) {
 		if (e.target && e.e.button !== 1) {
 			startPointer = canvas.getScenePoint(e.e);
 			// RESTORED: This ensures the overlay handles controls immediately on click
-			transform.begin(canvas, e.target);
+			transform.beginOrContinue(canvas, e.target);
 		}
 	});
 
@@ -430,7 +429,7 @@ export function overrideTransform(canvas: Canvas) {
 
 	canvas.on("mouse:up", () => {
 		startPointer = null;
-		if (transform.isActive()) transform.end(canvas);
+		if (transform.isActive()) transform.releaseDrag(canvas);
 	});
 }
 

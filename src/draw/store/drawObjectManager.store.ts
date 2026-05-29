@@ -182,7 +182,12 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 	let recentPatchTimes: number[] = [];
 
-	function flushDirtyPatches() {
+	function flushPatchesNow(force = false) {
+		patchScheduled = false;
+		flushDirtyPatches(force);
+	}
+
+	function flushDirtyPatches(force = false) {
 		if (!c) return;
 		if (isLoading()) return;
 		if (dirtyObjects.size === 0 && dirtyOldRects.length === 0) return;
@@ -191,7 +196,8 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		recentPatchTimes = recentPatchTimes.filter(
 			(t) => now - t < PATCH_RATE_WINDOW,
 		);
-		if (recentPatchTimes.length >= PATCH_RATE_MAX) {
+		if (!force && recentPatchTimes.length >= PATCH_RATE_MAX) {
+			// ← !force
 			for (const obj of dirtyObjects) tileCache.invalidateObject(obj);
 			for (const r of dirtyOldRects) tileCache.invalidateRect(r);
 			dirtyObjects.clear();
@@ -202,7 +208,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		recentPatchTimes.push(now);
 
 		const gs = useGestureStore();
-		if (gs.isGesturing) {
+		if (gs.isGesturing && !force) {
 			for (const obj of dirtyObjects)
 				deferredDuringGesture.push({ kind: "obj", payload: obj });
 			for (const r of dirtyOldRects)
@@ -731,6 +737,10 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	function onObjectModified(e: any) {
 		const obj = e.target as FabricObject;
 		if (!obj.id) return;
+		if (localTransform.isActive() && localTransform.ownsTarget(obj)) {
+			updateQuadTree(obj);
+			return;
+		}
 		const oldRect = collectOldRect(obj, e.transform);
 		updateQuadTree(obj);
 		if (isLoading()) return;
@@ -1034,6 +1044,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 	function onGestureStart() {
 		if (!c) return;
+		if (localTransform.isActive()) localTransform.commit(c);
 		const zoomNow = c.viewportTransform![0];
 		// FIX 3 — only kill in-flight bakes on zoom change. Pure pan keeps them.
 		const zoomChanged = Math.abs(Math.log2(zoomNow / lastGestureZoom)) > 0.05;
@@ -1195,5 +1206,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		rebuildSpatialIndex,
 		scheduleRectPatch,
 		scheduleObjectPatch,
+		flushPatchesNow,
 	};
 });

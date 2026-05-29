@@ -255,7 +255,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 					transform.markMoved();
 
 					if (!transform.isActive()) {
-						transform.begin(c, obj);
+						transform.beginOrContinue(c, obj);
 					}
 					return;
 				}
@@ -347,7 +347,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
 				const moved = transform.moveHappened();
 
-				transform.end(c);
+				if (transform.isActive()) transform.releaseDrag(c!);
 
 				if (moved || totalObjectAngleDelta !== 0 || isObjectScaling) {
 					c.fire("object:modified", {

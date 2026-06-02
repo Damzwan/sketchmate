@@ -1,402 +1,402 @@
 export enum NotificationType {
-  match = 'match',
-  unmatch = 'unmatch',
-  message = 'message',
-  comment = 'comment',
-  friend_request = 'friend_request',
-  balloon = 'balloon',
-  lobby_invitation = 'lobby_invitation',
+	match = "match",
+	unmatch = "unmatch",
+	message = "message",
+	comment = "comment",
+	friend_request = "friend_request",
+	balloon = "balloon",
+	lobby_invitation = "lobby_invitation",
 }
 
 export interface InboxItem {
-  _id: string;
-  followers: string[];
-  original_followers: string[];
-  drawing: string;
-  thumbnail: string;
-  image: string;
-  date: Date;
-  sender: string;
-  reply?: InboxItem;
-  comments: Comment[];
-  aspect_ratio: number;
-  seen_by: string[];
-  comments_seen_by: string[];
+	_id: string;
+	followers: string[];
+	original_followers: string[];
+	drawing: string;
+	thumbnail: string;
+	image: string;
+	date: Date;
+	sender: string;
+	reply?: InboxItem;
+	comments: Comment[];
+	aspect_ratio: number;
+	seen_by: string[];
+	comments_seen_by: string[];
 }
 
 export interface Comment {
-  sender: string;
-  message: string;
-  _id: string;
-  date: Date;
+	sender: string;
+	message: string;
+	_id: string;
+	date: Date;
 }
 
 export interface NotificationSubscription {
-  token: string,
-  logged_in: boolean,
-  fingerprint: string,
-  platform: string,
-  model: string,
-  os: string
+	token: string;
+	logged_in: boolean;
+	fingerprint: string;
+	platform: string;
+	model: string;
+	os: string;
 }
 
 export interface User {
-  _id: string;
-  auth_id: string;
-  name: string;
-  img: string;
-  mates: Mate[];
-  inbox: string[];
-  stickers: string[];
-  emblems: string[];
-  saved: Saved[];
-  mate_requests_sent: string[];
-  mate_requests_received: string[];
-  subscriptions: NotificationSubscription[];
-  balloon?: {
-    sent?: string,
-    received?: string,
-    disabled?: boolean,
-    last_received_at?: Date,
-  };
-  date_of_birth?: Date;
-  last_seen_version?: string;
+	_id: string;
+	auth_id: string;
+	name: string;
+	img: string;
+	mates: Mate[];
+	inbox: string[];
+	stickers: string[];
+	emblems: string[];
+	saved: Saved[];
+	mate_requests_sent: string[];
+	mate_requests_received: string[];
+	subscriptions: NotificationSubscription[];
+	balloon?: {
+		sent?: string;
+		received?: string;
+		disabled?: boolean;
+		last_received_at?: Date;
+	};
+	date_of_birth?: Date;
+	last_seen_version?: string;
 }
 
-export type BalloonStatus = 'pending' | 'paired' | 'accepted';
+export type BalloonStatus = "pending" | "paired" | "accepted";
 
 export interface Balloon {
-  _id: string;
-  sender: string,
-  message: string,
-  drawingJsonUrl: string,
-  img: string,
-  thumbnail: string,
-  aspect_ratio: number,
-  status: BalloonStatus,
-  createdAt: Date,
-  matchedAt?: Date,
-  lastActivityAt: Date,
-  pairedUser?: string,
-  pairedBalloon?: string,
-  cancelledBalloons: string[]
-  version?: number
+	_id: string;
+	sender: string;
+	message: string;
+	drawingJsonUrl: string;
+	img: string;
+	thumbnail: string;
+	aspect_ratio: number;
+	status: BalloonStatus;
+	createdAt: Date;
+	matchedAt?: Date;
+	lastActivityAt: Date;
+	pairedUser?: string;
+	pairedBalloon?: string;
+	cancelledBalloons: string[];
+	version?: number;
 }
 
 export interface CreateBalloonPostParams {
-  sender: string,
-  message: string,
-  drawing: string,
-  img: any,
-  aspect_ratio: number,
-  version?: number
+	sender: string;
+	message: string;
+	drawing: string;
+	img: any;
+	aspect_ratio: number;
+	version?: number;
 }
 
 export interface CreateBalloonPostRes {
-  balloon: Balloon,
+	balloon: Balloon;
 }
 
 export interface Mate {
-  _id: string;
-  name: string;
-  img: string;
+	_id: string;
+	name: string;
+	img: string;
 }
 
 export interface SocketLoginParams {
-  _id: string;
+	_id: string;
 }
 
 export interface MatchParams {
-  _id: string;
-  mate_id: string;
+	_id: string;
+	mate_id: string;
 }
 
 export interface MatchRes {
-  mate?: Mate;
-  error?: string;
+	mate?: Mate;
+	error?: string;
 }
 
 export interface SendParams {
-  _id: string;
-  name: string;
-  followers: string[];
-  drawing: string;
-  img: any;
-  aspect_ratio: number;
+	_id: string;
+	name: string;
+	followers: string[];
+	drawing: string;
+	img: any;
+	aspect_ratio: number;
 }
 
 export interface SendRes {
-  inboxItem: InboxItem;
+	inboxItem: InboxItem;
 }
 
 export interface CommentParams {
-  inbox_id: string;
-  sender: string;
-  message: string;
-  followers: string[];
-  name: string;
+	inbox_id: string;
+	sender: string;
+	message: string;
+	followers: string[];
+	name: string;
 }
 
 export interface CommentRes {
-  comment: Comment;
-  inbox_item_id: string;
+	comment: Comment;
+	inbox_item_id: string;
 }
 
 export interface GetInboxItemsParams {
-  _ids: string[];
+	_ids: string[];
 }
 
 export interface RemoveFromInboxParams {
-  user_id: string;
-  inbox_id: string;
+	user_id: string;
+	inbox_id: string;
 }
 
 export interface UnMatchParams {
-  mate_id: string;
-  name: string;
-  _id: string;
+	mate_id: string;
+	name: string;
+	_id: string;
 }
 
 export interface GetUserParams {
-  _id?: string;
-  auth_id: string;
+	_id?: string;
+	auth_id: string;
 }
 
 export interface GetUserRes {
-  user: User;
-  new_account: boolean;
-  minimum_supported_version: string;
+	user: User;
+	new_account: boolean;
+	minimum_supported_version: string;
 }
 
 export interface DeleteStickerParams {
-  user_id: string;
-  sticker_url: string;
+	user_id: string;
+	sticker_url: string;
 }
 
 export interface SendMateRequestParams {
-  sender: string;
-  sender_name: string;
-  receiver: string;
+	sender: string;
+	sender_name: string;
+	receiver: string;
 }
 
 export interface AcceptBalloonParams {
-  user_id: string;
-  balloon_id: string;
-  sender: string;
+	user_id: string;
+	balloon_id: string;
+	sender: string;
 }
 
 export interface AcceptBalloonRes {
-  isMatch: boolean;
-  acceptor: string;
+	isMatch: boolean;
+	acceptor: string;
 }
 
 export interface RejectBalloonRes {
-  refuser: string;
+	refuser: string;
 }
 
-
 export interface CancelBalloonParams {
-  user_id: string;
-  balloon_id: string;
+	user_id: string;
+	balloon_id: string;
 }
 
 export interface MatchBalloonRes {
-  received_balloon: Balloon;
+	received_balloon: Balloon;
 }
 
-
 export interface DeleteEmblemParams {
-  user_id: string;
-  emblem_url: string;
+	user_id: string;
+	emblem_url: string;
 }
 
 export interface ChangeUserNameParams {
-  _id: string;
-  name: string;
+	_id: string;
+	name: string;
 }
 
 export interface UpdateUserParams extends Partial<User> {
-  _id: string;
+	_id: string;
 }
 
-
 export interface UploadProfileImgParams {
-  _id: string;
-  img: any;
-  previousImage?: string;
+	_id: string;
+	img: any;
+	previousImage?: string;
 }
 
 export interface DeleteProfileImgParams {
-  _id: string;
-  stock_img: string;
+	_id: string;
+	stock_img: string;
 }
 
 export interface CreateStickerParams {
-  _id: string;
-  img: any;
+	_id: string;
+	img: any;
 }
 
 export interface CreateEmblemParams {
-  _id: string;
-  img: any;
+	_id: string;
+	img: any;
 }
 
 export interface CreateSavedParams {
-  _id: string;
-  img: any;
-  drawing: any;
+	_id: string;
+	img: any;
+	drawing: any;
 }
 
 export interface DeleteSavedParams {
-  user_id: string;
-  drawing_url: string;
-  img_url: string;
+	user_id: string;
+	drawing_url: string;
+	img_url: string;
 }
 
 export interface SeeInboxParams {
-  inbox_id: string;
-  user_id: string;
+	inbox_id: string;
+	user_id: string;
 }
 
-
 export interface Saved {
-  drawing: string;
-  img: string;
+	drawing: string;
+	img: string;
 }
 
 export interface GetInboxRes {
-  inboxItems: InboxItem[],
-  userInfo: Mate[]
+	inboxItems: InboxItem[];
+	userInfo: Mate[];
 }
 
 export interface RegisterNotificationParams {
-  user_id: string,
-  subscription: NotificationSubscription
+	user_id: string;
+	subscription: NotificationSubscription;
 }
 
 export interface UnRegisterNotificationParams {
-  user_id: string,
-  fingerprint: string
+	user_id: string;
+	fingerprint: string;
 }
 
 export interface OnLoginEventParams {
-  user_id: string;
-  fingerprint: string;
-  loggedIn: boolean;
+	user_id: string;
+	fingerprint: string;
+	loggedIn: boolean;
 }
 
 export interface SearchMateParams {
-  mateName: string;
-  user_id: string;
+	mateName: string;
+	user_id: string;
 }
-
 
 export type Res<T> = T | undefined | null;
 
 export interface API {
+	getUser(params: GetUserParams): Promise<Res<GetUserRes>>;
 
-  getUser(params: GetUserParams): Promise<Res<GetUserRes>>;
+	updateUser(params: UpdateUserParams): Promise<Res<void>>;
 
-  updateUser(params: UpdateUserParams): Promise<Res<void>>;
+	getPartialUsers(params: { _ids: string[] }): Promise<Res<Mate[]>>;
 
-  getPartialUsers(params: { _ids: string[] }): Promise<Res<Mate[]>>;
+	subscribe(params: RegisterNotificationParams): Promise<Res<void>>;
 
-  subscribe(params: RegisterNotificationParams): Promise<Res<void>>;
+	unsubscribe(params: UnRegisterNotificationParams): Promise<Res<void>>;
 
-  unsubscribe(params: UnRegisterNotificationParams): Promise<Res<void>>;
+	getInbox(params: GetInboxItemsParams): Promise<GetInboxRes>;
 
-  getInbox(params: GetInboxItemsParams): Promise<GetInboxRes>;
+	removeFromInbox(params: RemoveFromInboxParams): Promise<Res<void>>;
 
-  removeFromInbox(params: RemoveFromInboxParams): Promise<Res<void>>;
+	changeUserName(params: ChangeUserNameParams): Promise<Res<void>>;
 
-  changeUserName(params: ChangeUserNameParams): Promise<Res<void>>;
+	uploadProfileImg(params: UploadProfileImgParams): Promise<Res<string>>;
 
-  uploadProfileImg(params: UploadProfileImgParams): Promise<Res<string>>;
+	deleteProfileImg(params: DeleteProfileImgParams): Promise<void>;
 
-  deleteProfileImg(params: DeleteProfileImgParams): Promise<void>;
+	createSticker(params: CreateStickerParams): Promise<Res<string>>;
 
-  createSticker(params: CreateStickerParams): Promise<Res<string>>;
+	createEmblem(params: CreateEmblemParams): Promise<Res<string>>;
 
-  createEmblem(params: CreateEmblemParams): Promise<Res<string>>;
+	deleteSticker(params: DeleteStickerParams): Promise<void>;
 
-  deleteSticker(params: DeleteStickerParams): Promise<void>;
+	deleteEmblem(params: DeleteEmblemParams): Promise<void>;
 
-  deleteEmblem(params: DeleteEmblemParams): Promise<void>;
+	createSaved(params: CreateSavedParams): Promise<Res<Saved>>;
 
-  createSaved(params: CreateSavedParams): Promise<Res<Saved>>;
+	deleteSaved(params: DeleteSavedParams): Promise<void>;
 
-  deleteSaved(params: DeleteSavedParams): Promise<void>;
+	seeInboxItem(params: SeeInboxParams): Promise<void>;
 
-  seeInboxItem(params: SeeInboxParams): Promise<void>;
+	onLoginEvent(params: OnLoginEventParams): Promise<void>;
 
-  onLoginEvent(params: OnLoginEventParams): Promise<void>;
+	searchMate(params: SearchMateParams): Promise<Res<Mate[]>>;
 
-  searchMate(params: SearchMateParams): Promise<Res<Mate[]>>;
+	createBalloon(
+		params: CreateBalloonPostParams,
+	): Promise<Res<CreateBalloonPostRes>>;
 
-  createBalloon(params: CreateBalloonPostParams): Promise<Res<CreateBalloonPostRes>>;
-
-  getBalloon(params: { balloonId: string }): Promise<Res<Balloon>>;
+	getBalloon(params: { balloonId: string }): Promise<Res<Balloon>>;
 }
 
 export interface SocketAPI {
-  connect: () => Promise<void>;
-  disconnect: () => Promise<void>;
-  match: (params: MatchParams) => Promise<void>;
-  send: (params: SendParams) => Promise<void>;
+	connect: () => Promise<void>;
+	disconnect: () => Promise<void>;
+	match: (params: MatchParams) => Promise<void>;
+	send: (params: SendParams) => Promise<void>;
 
-  unMatch(params: UnMatchParams): Promise<void>;
+	unMatch(params: UnMatchParams): Promise<void>;
 
-  comment(params: CommentParams): Promise<void>;
+	comment(params: CommentParams): Promise<void>;
 
-  login(params: SocketLoginParams): Promise<void>;
+	login(params: SocketLoginParams): Promise<void>;
 
-  sendMateRequest(params: SendMateRequestParams): Promise<void>;
+	sendMateRequest(params: SendMateRequestParams): Promise<void>;
 
-  cancelSendMateRequest(params: SendMateRequestParams): Promise<void>;
+	cancelSendMateRequest(params: SendMateRequestParams): Promise<void>;
 
-  refuseSendMateRequest(params: SendMateRequestParams): Promise<void>;
+	refuseSendMateRequest(params: SendMateRequestParams): Promise<void>;
 }
 
 export enum ENDPOINTS {
-  user = '/user',
-  partial_users = '/partial_users',
-  subscribe = '/subscribe',
-  unsubscribe = '/unsubscribe',
-  inbox = '/inbox',
-  sticker = '/sticker',
-  emblem = '/emblem',
-  saved = '/saved',
-  balloon = '/balloon'
+	user = "/user",
+	partial_users = "/partial_users",
+	subscribe = "/subscribe",
+	unsubscribe = "/unsubscribe",
+	inbox = "/inbox",
+	sticker = "/sticker",
+	emblem = "/emblem",
+	saved = "/saved",
+	balloon = "/balloon",
 }
 
 export enum SOCKET_ENDPONTS {
-  match = 'match',
-  unmatch = 'unmatch',
-  login = 'login',
-  send = 'send',
-  disconnect = 'disconnect',
-  comment = 'comment',
-  mate_request = 'mate_request',
-  cancel_mate_request = 'cancel_mate_request',
-  refuse_mate_request = 'refuse_mate_request',
+	match = "match",
+	unmatch = "unmatch",
+	login = "login",
+	send = "send",
+	disconnect = "disconnect",
+	comment = "comment",
+	mate_request = "mate_request",
+	cancel_mate_request = "cancel_mate_request",
+	refuse_mate_request = "refuse_mate_request",
 
-  // Balloon Events
-  accept_balloon = 'accept_balloon',
-  refuse_balloon = 'refuse_balloon',
-  cancel_balloon = 'cancel-balloon',
-  match_balloon = 'match-balloon',
-  balloon_match_expired = 'balloon-match-expired',
-  balloon_expired = 'balloon-expired ',
+	// Balloon Events
+	accept_balloon = "accept_balloon",
+	refuse_balloon = "refuse_balloon",
+	cancel_balloon = "cancel-balloon",
+	match_balloon = "match-balloon",
+	balloon_match_expired = "balloon-match-expired",
+	balloon_expired = "balloon-expired ",
 
-  // NEW v2 Events
-  receive_new_balloon = 'receive_new_balloon', // Triggers the UI popup for v2
-  balloon_missed = 'balloon_missed',           // Triggers UI close when hot potato timer ends
-  v2_accept_balloon = 'v2_accept_balloon',
-  v2_refuse_balloon = 'v2_refuse_balloon',
-  v2_cancel_balloon = 'v2_cancel_balloon',
-  balloon_check = 'balloon_check',
+	// NEW v2 Events
+	receive_new_balloon = "receive_new_balloon", // Triggers the UI popup for v2
+	balloon_missed = "balloon_missed", // Triggers UI close when hot potato timer ends
+	v2_accept_balloon = "v2_accept_balloon",
+	v2_refuse_balloon = "v2_refuse_balloon",
+	v2_cancel_balloon = "v2_cancel_balloon",
+	balloon_check = "balloon_check",
 
-  // Collaborative drawing
-  friend_invitation = 'friend-invitation',
+	// Collaborative drawing
+	friend_invitation = "friend-invitation",
+}
 
+export interface GetInboxCommentsRes {
+	comments: Comment[];
+	hasMore: boolean;
 }

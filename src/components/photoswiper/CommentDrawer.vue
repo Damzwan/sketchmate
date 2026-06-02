@@ -6,6 +6,7 @@
   <!-- Modal Content -->
   <transition name="slide">
     <div ref="scrollContainer"
+         @scroll="onCommentsScroll"
          class="w-full bg-background rounded-t-lg overflow-y-auto z-[1000] fixed bottom-0 max-h-[80%] bot-pad-safe"
          v-show="open">
       <ion-popover :event="e" @didDismiss="accountPopoverOpen = false" :isOpen="accountPopoverOpen">
@@ -36,6 +37,9 @@
           <ion-button @click="accountPopoverOpen = false" color="secondary" fill="clear">Close</ion-button>
         </div>
       </ion-popover>
+      <div v-if="isLoadingComments" class="w-full flex justify-center py-2">
+        <ion-spinner color="secondary" name="crescent" />
+      </div>
       <div class="block divide-y divide-secondary pt-2">
         <div v-for="(comment, i) in currInboxItem.comments" :key="i"
              class="px-2 py-2 flex items-center w-full cursor-pointer"
@@ -78,146 +82,174 @@
 </template>
 
 <script lang="ts" setup>
-import { nextTick, ref, watch } from 'vue'
-import { IonAvatar, IonButton, IonIcon, IonInput, IonPopover, IonSpinner, useBackButton } from '@ionic/vue'
+import { nextTick, ref, watch } from "vue";
+import {
+	IonAvatar,
+	IonButton,
+	IonIcon,
+	IonInput,
+	IonPopover,
+	IonSpinner,
+	useBackButton,
+} from "@ionic/vue";
 
-import { InboxItem, Mate, User } from '@/types/server.types'
-import { useToast } from '@/service/toast.service'
-import { senderImg, senderName, svg } from '@/helper/general.helper'
-import { mdiSend } from '@mdi/js'
-import dayjs from 'dayjs'
-import { useSocketService } from '@/service/api/socket/socket.service'
-import { storeToRefs } from 'pinia'
-import { useFriendStore } from '@/store/friend.store'
-import { useInboxStore } from '@/store/inbox.store'
+import { InboxItem, Mate, User } from "@/types/server.types";
+import { useToast } from "@/service/toast.service";
+import { senderImg, senderName, svg } from "@/helper/general.helper";
+import { mdiSend } from "@mdi/js";
+import dayjs from "dayjs";
+import { useSocketService } from "@/service/api/socket/socket.service";
+import { storeToRefs } from "pinia";
+import { useFriendStore } from "@/store/friend.store";
+import { useInboxStore } from "@/store/inbox.store";
 
-const socketService = useSocketService()
-const { cancelSendMateRequest } = useSocketService()
-const { friendRequestLoading } = storeToRefs(useFriendStore())
-const { findUserInInboxUsers } = useInboxStore()
-const scrollContainer = ref<HTMLElement | null>(null)
+const socketService = useSocketService();
+const { cancelSendMateRequest } = useSocketService();
+const { friendRequestLoading } = storeToRefs(useFriendStore());
+const { findUserInInboxUsers, hasMoreComments, loadMoreComments } =
+	useInboxStore();
+
+const isLoadingComments = ref(false);
+
+async function onCommentsScroll() {
+	const el = scrollContainer.value;
+	if (!el || el.scrollTop > 80) return;
+	if (isLoadingComments.value || !hasMoreComments(props.currInboxItem)) return;
+
+	isLoadingComments.value = true;
+	const prevHeight = el.scrollHeight;
+	await loadMoreComments(props.currInboxItem);
+	await nextTick();
+	// keep the viewport anchored after prepending older comments
+	el.scrollTop = el.scrollHeight - prevHeight;
+	isLoadingComments.value = false;
+}
+const scrollContainer = ref<HTMLElement | null>(null);
 
 const props = defineProps({
-  open: {
-    required: true,
-    type: Boolean
-  },
-  user: {
-    required: true,
-    type: Object as () => User
-  },
-  currInboxItem: {
-    required: true,
-    type: Object as () => InboxItem
-  },
-  indexOfCurrInboxItem: {
-    required: true,
-    type: Number
-  }
-})
-const emit = defineEmits(['update:open', 'update:currInboxItem'])
+	open: {
+		required: true,
+		type: Boolean,
+	},
+	user: {
+		required: true,
+		type: Object as () => User,
+	},
+	currInboxItem: {
+		required: true,
+		type: Object as () => InboxItem,
+	},
+	indexOfCurrInboxItem: {
+		required: true,
+		type: Number,
+	},
+});
+const emit = defineEmits(["update:open", "update:currInboxItem"]);
 
-const e: any = ref()
-const accountPopoverOpen = ref(false)
-const accountInfoToShow = ref<Mate>()
+const e: any = ref();
+const accountPopoverOpen = ref(false);
+const accountInfoToShow = ref<Mate>();
 
-const commentBody = ref('')
-const input = ref<any>()
+const commentBody = ref("");
+const input = ref<any>();
 
 const escListener = (event: KeyboardEvent) => {
-  event.stopPropagation()
-  if (event.key === 'Escape' || event.keyCode === 27) {
-    closeWithTimeout(20)
-  }
-}
+	event.stopPropagation();
+	if (event.key === "Escape" || event.keyCode === 27) {
+		closeWithTimeout(20);
+	}
+};
 
 function showAccountInfo(ev: any, mate_id?: string) {
-  if (!mate_id) return
-  e.value = ev
-  accountPopoverOpen.value = true
-  accountInfoToShow.value = findUserInInboxUsers(mate_id)
+	if (!mate_id) return;
+	e.value = ev;
+	accountPopoverOpen.value = true;
+	accountInfoToShow.value = findUserInInboxUsers(mate_id);
 }
 
 function autoFocusInput() {
-  // fucking ionic timeout needed
-  if (props.currInboxItem?.comments.length === 0) setTimeout(() => input.value.$el.setFocus(), 100)
+	// fucking ionic timeout needed
+	if (props.currInboxItem?.comments.length === 0)
+		setTimeout(() => input.value.$el.setFocus(), 100);
 }
 
 useBackButton(9999, (processNextHandler) => {
-  if (props.open) close()
-  else processNextHandler()
-})
-
-
-watch(
-  () => props.open,
-  async () => {
-    if (props.open) {
-      window.addEventListener('keydown', escListener)
-      autoFocusInput()
-      scrollToBottom() // <-- Add this here
-
-    } else {
-      window.removeEventListener('keydown', escListener)
-    }
-  }
-)
+	if (props.open) close();
+	else processNextHandler();
+});
 
 watch(
-  () => props.currInboxItem?.comments?.length,
-  (newLength, oldLength) => {
-    if (props.open && newLength !== undefined && oldLength !== undefined && newLength > oldLength) {
-      scrollToBottom()
-    }
-  }
-)
+	() => props.open,
+	async () => {
+		if (props.open) {
+			window.addEventListener("keydown", escListener);
+			autoFocusInput();
+			scrollToBottom(); // <-- Add this here
+		} else {
+			window.removeEventListener("keydown", escListener);
+		}
+	},
+);
 
+watch(
+	() => props.currInboxItem?.comments?.length,
+	(newLength, oldLength) => {
+		if (
+			props.open &&
+			newLength !== undefined &&
+			oldLength !== undefined &&
+			newLength > oldLength
+		) {
+			scrollToBottom();
+		}
+	},
+);
 
 async function comment() {
-  if (commentBody.value.length == 0) return
+	if (commentBody.value.length == 0) return;
 
-  socketService.comment({
-    inbox_id: props.currInboxItem._id,
-    sender: props.user._id,
-    message: commentBody.value,
-    followers: props.currInboxItem.followers,
-    name: props.user.name
-  })
-  commentBody.value = ''
-  // input.value?.$el.blur()
+	socketService.comment({
+		inbox_id: props.currInboxItem._id,
+		sender: props.user._id,
+		message: commentBody.value,
+		followers: props.currInboxItem.followers,
+		name: props.user.name,
+	});
+	commentBody.value = "";
+	// input.value?.$el.blur()
 }
 
 function closeWithTimeout(time: number) {
-  setTimeout(close, time)
+	setTimeout(close, time);
 }
 
 function becomeFriends(follower: string) {
-  if (props.user.mate_requests_received.some(m => m == follower)) socketService.match({
-    _id: props.user._id,
-    mate_id: follower
-  })
-  else socketService.sendMateRequest({
-    sender: props.user._id, sender_name: props.user.name,
-    receiver: follower
-  })
-
+	if (props.user.mate_requests_received.some((m) => m == follower))
+		socketService.match({
+			_id: props.user._id,
+			mate_id: follower,
+		});
+	else
+		socketService.sendMateRequest({
+			sender: props.user._id,
+			sender_name: props.user.name,
+			receiver: follower,
+		});
 }
 
 function close() {
-  emit('update:open', false)
+	emit("update:open", false);
 
-  input.value?.$el.blur()
-  commentBody.value = ''
+	input.value?.$el.blur();
+	commentBody.value = "";
 }
 
 const scrollToBottom = async () => {
-  await nextTick()
-  if (scrollContainer.value) {
-    scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
-  }
-}
-
-
+	await nextTick();
+	if (scrollContainer.value) {
+		scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight;
+	}
+};
 </script>
 
 <style scoped lang="scss">

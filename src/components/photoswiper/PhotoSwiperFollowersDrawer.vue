@@ -16,7 +16,7 @@
 
           <div v-if="follower != user._id && !user.mates.some(m1 => m1._id == follower)" slot="end">
             <ion-spinner color="secondary" v-if="friendRequestLoading && friendToBe==follower" />
-            <ion-button color="secondary" fill="clear" v-else-if="user.mate_requests_sent.some(m => m == follower)"
+            <ion-button color="secondary" fill="clear" v-else-if="user?.mate_requests_sent?.some(m => m == follower)"
                         @click="cancelSendMateRequest({sender: user._id, sender_name: user.name, receiver: follower})">
               Undo request
             </ion-button>
@@ -34,62 +34,71 @@
 </template>
 
 <script setup lang="ts">
-
-import { IonButton, IonItem, IonList, IonSpinner, useBackButton } from '@ionic/vue'
-import { User } from '@/types/server.types'
-import { ref, watch } from 'vue'
-import { useSocketService } from '@/service/api/socket/socket.service'
-import { storeToRefs } from 'pinia'
-import { senderImg, senderName } from '@/helper/general.helper'
-import { useFriendStore } from '@/store/friend.store'
-import { useInboxStore } from '@/store/inbox.store'
+import {
+	IonButton,
+	IonItem,
+	IonList,
+	IonSpinner,
+	useBackButton,
+} from "@ionic/vue";
+import { User } from "@/types/server.types";
+import { ref, watch } from "vue";
+import { useSocketService } from "@/service/api/socket/socket.service";
+import { storeToRefs } from "pinia";
+import { senderImg, senderName } from "@/helper/general.helper";
+import { useFriendStore } from "@/store/friend.store";
+import { useInboxStore } from "@/store/inbox.store";
 
 const props = defineProps<{
-  followers: string[],
-  user: User,
-  open: boolean
-}>()
-const emit = defineEmits(['update:open'])
+	followers: string[];
+	user: User;
+	open: boolean;
+}>();
+const emit = defineEmits(["update:open"]);
 
-const { cancelSendMateRequest, sendMateRequest, match } = useSocketService()
-const { friendRequestLoading } = storeToRefs(useFriendStore())
-const { findUserInInboxUsers } = useInboxStore()
+const { cancelSendMateRequest, sendMateRequest, match } = useSocketService();
+const { friendRequestLoading } = storeToRefs(useFriendStore());
+const { findUserInInboxUsers } = useInboxStore();
 
-const friendToBe = ref<string>()
-
+const friendToBe = ref<string>();
 
 const escListener = (event: KeyboardEvent) => {
-  event.stopPropagation()
-  if (event.key === 'Escape' || event.keyCode === 27) {
-    close()
-  }
-}
-
+	event.stopPropagation();
+	if (event.key === "Escape" || event.keyCode === 27) {
+		close();
+	}
+};
 
 function becomeFriends(follower: string) {
-  friendToBe.value = follower
-  if (props.user.mate_requests_received.some(m => m == follower)) match({
-    _id: props.user._id,
-    mate_id: follower
-  })
-  else sendMateRequest({
-    sender: props.user._id, sender_name: props.user.name,
-    receiver: follower
-  })
-
+	friendToBe.value = follower;
+	if (props.user.mate_requests_received.some((m) => m == follower))
+		match({
+			_id: props.user._id,
+			mate_id: follower,
+		});
+	else
+		sendMateRequest({
+			sender: props.user._id,
+			sender_name: props.user.name,
+			receiver: follower,
+		});
 }
 
 useBackButton(9999, (processNextHandler) => {
-  if (props.open) close()
-  else processNextHandler()
-})
+	if (props.open) close();
+	else processNextHandler();
+});
 
 watch(
-  () => props.open, () => props.open ? window.addEventListener('keydown', escListener) : window.removeEventListener('keydown', escListener)
-)
+	() => props.open,
+	() =>
+		props.open
+			? window.addEventListener("keydown", escListener)
+			: window.removeEventListener("keydown", escListener),
+);
 
 function close() {
-  emit('update:open', false)
+	emit("update:open", false);
 }
 </script>
 

@@ -53,6 +53,7 @@
               </div>
             </div>
           </div>
+
         </div>
         <div id="delete-multiple-images-alert" class="hidden" ref="alterTrigger" />
         <ConfirmationAlert
@@ -61,178 +62,199 @@
           message="These drawings will be deleted permanently"
           @confirm="deleteInboxItems"
         />
+        <ion-infinite-scroll
+          :disabled="!hasMoreInbox"
+          @ionInfinite="onInfinite"
+        >
+          <ion-infinite-scroll-content loading-spinner="crescent" />
+        </ion-infinite-scroll>
       </div>
     </ion-content>
   </ion-page>
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonPage, IonRefresher, IonRefresherContent, onIonViewWillLeave, useBackButton } from '@ionic/vue'
-import { computed, onMounted, ref, watch } from 'vue'
-import { useAuthStore } from '@/store/auth.store'
-import { storeToRefs } from 'pinia'
-import { InboxItem } from '@/types/server.types'
-import dayjs from 'dayjs'
-import { sortDates } from '@/helper/general.helper'
-import router from '@/router'
-import { useToast } from '@/service/toast.service'
-import SettingsHeader from '@/components/settings/SettingsHeader.vue'
-import { useRoute } from 'vue-router'
-import NoMessages from '@/components/gallery/NoMessages.vue'
-import Thumbnail from '@/components/gallery/Thumbnail.vue'
-import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
-import { useAPI } from '@/service/api/api.service'
-import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
-import noMessagesImg from '@/assets/illustrations/no_messages.webp'
-import { EventBus } from '@/main'
-import connectImage from '@/assets/illustrations/connect.webp'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import { usePhotoSwiper } from '@/store/photoswiper.store'
-import { useSessionStore } from '@/store/session.store'
-import { useInboxStore } from '@/store/inbox.store'
-import SubscriptionCard from '@/components/subscription/SubscriptionCard.vue'
+import {
+	IonContent,
+	IonPage,
+	IonRefresher,
+	IonRefresherContent,
+	onIonViewWillLeave,
+	useBackButton,
+	IonInfiniteScroll,
+} from "@ionic/vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useAuthStore } from "@/store/auth.store";
+import { storeToRefs } from "pinia";
+import { InboxItem } from "@/types/server.types";
+import dayjs from "dayjs";
+import { sortDates } from "@/helper/general.helper";
+import router from "@/router";
+import { useToast } from "@/service/toast.service";
+import SettingsHeader from "@/components/settings/SettingsHeader.vue";
+import { useRoute } from "vue-router";
+import NoMessages from "@/components/gallery/NoMessages.vue";
+import Thumbnail from "@/components/gallery/Thumbnail.vue";
+import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
+import { useAPI } from "@/service/api/api.service";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
+import noMessagesImg from "@/assets/illustrations/no_messages.webp";
+import { EventBus } from "@/main";
+import connectImage from "@/assets/illustrations/connect.webp";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
+import { useSessionStore } from "@/store/session.store";
+import { useInboxStore } from "@/store/inbox.store";
+import SubscriptionCard from "@/components/subscription/SubscriptionCard.vue";
 
-const api = useAPI()
-const { refresh } = useAuthStore()
-const { user, isLoggedIn } = storeToRefs(useAuthStore())
-const { queryParams } = storeToRefs(useSessionStore())
-const { setQueryParams } = useSessionStore()
-const { open, slide } = storeToRefs(usePhotoSwiper())
-const { inbox, hasFetchedInbox } = storeToRefs(useInboxStore())
-const { getInbox } = useInboxStore()
+const api = useAPI();
+const { refresh } = useAuthStore();
+const { user, isLoggedIn } = storeToRefs(useAuthStore());
+const { queryParams } = storeToRefs(useSessionStore());
+const { setQueryParams } = useSessionStore();
+const { open, slide } = storeToRefs(usePhotoSwiper());
+const { inbox, hasFetchedInbox, hasMoreInbox } = storeToRefs(useInboxStore());
+const { getInbox, loadMoreInbox } = useInboxStore();
 
-const { seeItem } = usePhotoSwiper()
+const { seeItem } = usePhotoSwiper();
 
-const { toast } = useToast()
+const { toast } = useToast();
 
-const isLoading = ref(true)
-
+const isLoading = ref(true);
 
 useBackButton(9999, (processNextHandler) => {
-  if (multiSelectMode.value) cancelMultiSelect()
-  else processNextHandler()
-})
+	if (multiSelectMode.value) cancelMultiSelect();
+	else processNextHandler();
+});
 
-onMounted(fetchInbox)
+onMounted(fetchInbox);
 watch(isLoggedIn, () => {
-  fetchInbox()
-})
+	fetchInbox();
+});
 
-const groupedInboxItems = computed(() => groupOnMonth(inbox.value))
+const groupedInboxItems = computed(() => groupOnMonth(inbox.value));
 
+const noMessages = computed(() => inbox.value.length === 0);
 
-const noMessages = computed(() => inbox.value.length === 0)
+const route = useRoute();
 
+const multiSelectMode = ref(false);
+const selectedItems = ref<string[]>([]);
 
-const route = useRoute()
+const alterTrigger = ref<any>();
 
-const multiSelectMode = ref(false)
-const selectedItems = ref<string[]>([])
-
-const alterTrigger = ref<any>()
-
-onIonViewWillLeave(cancelMultiSelect)
+onIonViewWillLeave(cancelMultiSelect);
 
 function onItemLongPress(item: InboxItem) {
-  multiSelectMode.value = true
-  selectedItems.value.push(item._id)
+	multiSelectMode.value = true;
+	selectedItems.value.push(item._id);
 }
 
 function onThumbnailClick(item: InboxItem) {
-  if (!multiSelectMode.value) openPhotoSwiper(item)
-  else {
-    if (!selectedItems.value.includes(item._id)) selectedItems.value.push(item._id)
-    else selectedItems.value = selectedItems.value.filter(id => item._id != id)
-  }
+	if (!multiSelectMode.value) openPhotoSwiper(item);
+	else {
+		if (!selectedItems.value.includes(item._id))
+			selectedItems.value.push(item._id);
+		else
+			selectedItems.value = selectedItems.value.filter((id) => item._id != id);
+	}
 }
 
 function cancelMultiSelect() {
-  multiSelectMode.value = false
-  selectedItems.value = []
+	multiSelectMode.value = false;
+	selectedItems.value = [];
 }
 
 function deleteInboxItems() {
-  selectedItems.value.forEach(val => {
-    // TODO can be done with 1 request
-    api.removeFromInbox({
-      user_id: user.value!._id,
-      inbox_id: val
-    })
-  })
+	selectedItems.value.forEach((val) => {
+		// TODO can be done with 1 request
+		api.removeFromInbox({
+			user_id: user.value!._id,
+			inbox_id: val,
+		});
+	});
 
-  inbox.value = inbox.value?.filter(item => !selectedItems.value.includes(item._id))
-  cancelMultiSelect()
-  toast('Deleted items')
+	inbox.value = inbox.value?.filter(
+		(item) => !selectedItems.value.includes(item._id),
+	);
+	cancelMultiSelect();
+	toast("Deleted items");
 }
 
 // TODO this is ugly
-checkQueryParams()
+checkQueryParams();
 watch(
-  () => route.query,
-  () => {
-    if (!route.query.item) return
-    checkQueryParams()
-  }
-)
+	() => route.query,
+	() => {
+		if (!route.query.item) return;
+		checkQueryParams();
+	},
+);
 
-watch([hasFetchedInbox, queryParams], checkQueryParams)
+watch([hasFetchedInbox, queryParams], checkQueryParams);
 
-const page = ref()
+const page = ref();
 
 onMounted(() => {
-  page.value = document.getElementById('page')
-})
+	page.value = document.getElementById("page");
+});
 
 async function fetchInbox() {
-  if (inbox.value.length !== user.value?.inbox.length && isLoggedIn.value) {
-    isLoading.value = true
-    await getInbox()
-    isLoading.value = false
-    checkQueryParams()
-  } else {
-    isLoading.value = false
-  }
+	if (!isLoggedIn.value) {
+		isLoading.value = false;
+		return;
+	}
+	if (hasFetchedInbox.value) {
+		isLoading.value = false;
+		return;
+	}
+
+	isLoading.value = true;
+	await getInbox();
+	isLoading.value = false;
+	checkQueryParams();
+}
+
+async function onInfinite(ev: any) {
+	await loadMoreInbox();
+	ev.target.complete();
 }
 
 function checkQueryParams() {
-  if (!hasFetchedInbox.value) return
-  const query = router.currentRoute.value.query
-  const item = query?.item ? query.item : queryParams.value?.get('item')
-  if (!item) return
-  const foundInboxIndex = inbox.value.findIndex(val => item === val._id)
-  if (foundInboxIndex === -1) return
-  setQueryParams(undefined)
+	if (!hasFetchedInbox.value) return;
+	const query = router.currentRoute.value.query;
+	const item = query?.item ? query.item : queryParams.value?.get("item");
+	if (!item) return;
+	const foundInboxIndex = inbox.value.findIndex((val) => item === val._id);
+	if (foundInboxIndex === -1) return;
+	setQueryParams(undefined);
 
-
-  slide.value = foundInboxIndex
-  open.value = true
-  EventBus.emit('goToSlide')
+	slide.value = foundInboxIndex;
+	open.value = true;
+	EventBus.emit("goToSlide");
 }
 
 function groupOnMonth(inbox: InboxItem[]) {
-  const inboxPerMonth: { [key: string]: InboxItem[] } = {}
-  inbox.forEach(item => {
-    const date = new Date(item.date)
-    const year = date.getFullYear()
-    const month = date.getMonth() + 1 // Months are 0-indexed, so add 1 to get the actual month
-    const key = `${year}-${month < 10 ? '0' + month : month}` // Format as YYYY-MM
-    if (key in inboxPerMonth) {
-      inboxPerMonth[key].push(item)
-    } else {
-      inboxPerMonth[key] = [item]
-    }
-  })
-  return inboxPerMonth
+	const inboxPerMonth: { [key: string]: InboxItem[] } = {};
+	inbox.forEach((item) => {
+		const date = new Date(item.date);
+		const year = date.getFullYear();
+		const month = date.getMonth() + 1; // Months are 0-indexed, so add 1 to get the actual month
+		const key = `${year}-${month < 10 ? "0" + month : month}`; // Format as YYYY-MM
+		if (key in inboxPerMonth) {
+			inboxPerMonth[key].push(item);
+		} else {
+			inboxPerMonth[key] = [item];
+		}
+	});
+	return inboxPerMonth;
 }
 
 function openPhotoSwiper(inboxItem: InboxItem) {
-  slide.value = inbox.value.findIndex(val => inboxItem._id === val._id)
-  EventBus.emit('goToSlide')
-  open.value = true
-
-
+	slide.value = inbox.value.findIndex((val) => inboxItem._id === val._id);
+	EventBus.emit("goToSlide");
+	open.value = true;
 }
-
 </script>
 
 <style scoped lang="scss"></style>

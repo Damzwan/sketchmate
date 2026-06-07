@@ -180,6 +180,7 @@ export function releaseDrag(c: Canvas): void {
 		o.setCoords();
 		mgr.updateQuadTree(o);
 	}
+	commit(c);
 }
 
 /** The selection is really finished with. Repaint tiles ONCE and tear down. */

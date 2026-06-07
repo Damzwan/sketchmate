@@ -158,6 +158,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { useGalleryData } from "@/composables/gallery/useGalleryData";
 import { useGallerySelection } from "@/composables/gallery/useGallerySelection";
+import { nextTick, watch } from "vue";
 
 const { user } = storeToRefs(useAuthStore());
 
@@ -190,7 +191,29 @@ const {
 	deleteInboxItems,
 } = useGallerySelection(user, inbox, triggerSwiper);
 
-onIonViewWillEnter(fetchInitialInbox);
+onIonViewWillEnter(async () => {
+	await fetchInitialInbox();
+	nextTick(() => {
+		checkAutoLoadMore();
+	});
+});
+
+async function checkAutoLoadMore() {
+	if (allLoaded.value) return;
+	const isScreenNotFilled =
+		document.documentElement.scrollHeight <= window.innerHeight;
+	if (isScreenNotFilled) {
+		await loadMore();
+	}
+}
+
+let wasTrue = false;
+watch(isLoading, () => {
+	if (wasTrue) {
+		checkAutoLoadMore();
+	}
+	wasTrue = isLoading.value;
+});
 
 useBackButton(9999, (processNextHandler) => {
 	if (multiSelectMode.value) cancelMultiSelect();

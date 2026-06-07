@@ -48,9 +48,9 @@ export function useGalleryData() {
 		}
 	}
 
-	async function loadMore(ev: any) {
+	async function loadMore(ev?: any) {
 		await inboxStore.getInboxBatch();
-		ev.target.complete();
+		ev?.target.complete();
 	}
 
 	async function handleRefresh(ev: any) {

@@ -22,7 +22,7 @@
             <div v-else>
               <ion-spinner color="secondary" v-if="friendRequestLoading" />
               <ion-button color="secondary"
-                          v-else-if="user.mate_requests_sent.some(m => m == accountInfoToShow?._id)"
+                          v-else-if="user.mate_requests_sent?.some(m => m == accountInfoToShow?._id)"
                           @click="cancelSendMateRequest({sender: user._id, sender_name: user.name, receiver: accountInfoToShow._id})">
                 Undo request
               </ion-button>

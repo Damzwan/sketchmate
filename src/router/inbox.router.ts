@@ -1,4 +1,5 @@
 import {
+	CommentRes,
 	ENDPOINTS,
 	GetInboxCommentsRes,
 	GetInboxRes,
@@ -44,5 +45,26 @@ export async function getInboxComments(
 
 	const res = await fetch(`${API_URL}/comments?${q.toString()}`);
 	if (!res.ok) throw new Error("getInboxComments failed");
+	return res.json();
+}
+
+export interface PutInboxCommentParams {
+	inbox_id: string;
+	sender: string;
+	message: string;
+	followers: string[];
+	name: string;
+	img: string;
+}
+
+export async function putInboxComment(
+	params: PutInboxCommentParams,
+): Promise<CommentRes> {
+	const res = await fetch(`${API_URL}/comment`, {
+		method: "PUT",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(params),
+	});
+	if (!res.ok) throw new Error("putInboxComment failed");
 	return res.json();
 }

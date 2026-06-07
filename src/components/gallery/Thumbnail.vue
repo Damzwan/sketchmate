@@ -48,7 +48,7 @@
         >
           <div class="absolute z-10 left-0 top-0 w-3 h-3 bg-blue-400 rounded-full" v-if="isNewComment" />
 
-          {{ props.inboxItem.comments.length }}
+          {{ props.inboxItem.comment_count }}
         </div>
 
         <div class="absolute z-10 left-1 top-1 w-[24px] h-[24px]" v-if="multiSelectMode">
@@ -66,65 +66,70 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue'
-import { IonIcon, IonSkeletonText } from '@ionic/vue'
-import { InboxItem, User } from '@/types/server.types'
-import { isMobile, senderImg, svg } from '@/helper/general.helper'
-import { onLongPress } from '@vueuse/core'
-import { mdiCheckboxBlankCircleOutline, mdiCheckboxMarkedCircleOutline } from '@mdi/js'
-import { useAuthStore } from '@/store/auth.store'
-import { useInboxStore } from '@/store/inbox.store'
+import { computed, onMounted, ref } from "vue";
+import { IonIcon, IonSkeletonText } from "@ionic/vue";
+import { InboxItem, User } from "@/types/server.types";
+import { isMobile, senderImg, svg } from "@/helper/general.helper";
+import { onLongPress } from "@vueuse/core";
+import {
+	mdiCheckboxBlankCircleOutline,
+	mdiCheckboxMarkedCircleOutline,
+} from "@mdi/js";
+import { useAuthStore } from "@/store/auth.store";
+import { useInboxStore } from "@/store/inbox.store";
 
-const itemId = computed(() => props.inboxItem._id)
-let cancelClick = false
-const renderHeight = ref(100)
+const itemId = computed(() => props.inboxItem._id);
+let cancelClick = false;
+const renderHeight = ref(100);
 
-const badgesCountToShow = 2
-const { findUserInInboxUsers } = useInboxStore()
+const badgesCountToShow = 2;
+const { findUserInInboxUsers } = useInboxStore();
 
-let resizeObserver
+let resizeObserver;
 onMounted(async () => {
-  resizeObserver = new ResizeObserver(entries => {
-    for (const entry of entries) {
-      const { width } = entry.contentRect
-      if (!props.inboxItem.aspect_ratio) return
-      renderHeight.value = width / props.inboxItem.aspect_ratio
-    }
-  })
+	resizeObserver = new ResizeObserver((entries) => {
+		for (const entry of entries) {
+			const { width } = entry.contentRect;
+			if (!props.inboxItem.aspect_ratio) return;
+			renderHeight.value = width / props.inboxItem.aspect_ratio;
+		}
+	});
 
-  if (el.value) resizeObserver.observe(el.value)
-})
+	if (el.value) resizeObserver.observe(el.value);
+});
 
 function onClick() {
-  if (cancelClick) cancelClick = false
-  else emits('click')
+	if (cancelClick) cancelClick = false;
+	else emits("click");
 }
 
 const props = defineProps<{
-  inboxItem: InboxItem
-  user: User
-  multiSelectMode: boolean
-  multiSelectedItems: string[]
-  eager: boolean
-}>()
+	inboxItem: InboxItem;
+	user: User;
+	multiSelectMode: boolean;
+	multiSelectedItems: string[];
+	eager: boolean;
+}>();
 
-const el = ref()
+const el = ref();
 
 onLongPress(
-  el,
-  () => {
-    if (!isMobile()) cancelClick = true
-    emits('long-press')
-  },
-  { modifiers: { prevent: true }, delay: 500 }
-)
+	el,
+	() => {
+		if (!isMobile()) cancelClick = true;
+		emits("long-press");
+	},
+	{ modifiers: { prevent: true }, delay: 500 },
+);
 
-const emits = defineEmits(['long-press', 'click', 'hover'])
+const emits = defineEmits(["long-press", "click", "hover"]);
 
-const isNew = computed(() => !props.inboxItem.seen_by.includes(props.user._id))
-const isNewComment = computed(() => !props.inboxItem.comments_seen_by.includes(props.user._id))
+const isNew = computed(() => !props.inboxItem.seen_by.includes(props.user._id));
+const isNewComment = computed(
+	() => !props.inboxItem.comments_seen_by.includes(props.user._id),
+);
 
-const isLoading = ref(true)
+const isLoading = ref(true);
 </script>
 
 <style scoped>

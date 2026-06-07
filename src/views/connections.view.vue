@@ -99,7 +99,7 @@
                 </ion-list>
               </div>
 
-              <div v-if="user && user?.mate_requests_sent.length > 0">
+              <div v-if="user && user?.mate_requests_sent?.length > 0">
                 <h1 class="text-lg font-bold pl-3">Sent ({{ user.mate_requests_sent.length }})</h1>
                 <ion-list class="p-0">
                   <ion-item v-for="mateRequest in user.mate_requests_sent" :key="mateRequest" color="background">
@@ -152,189 +152,203 @@
 </template>
 
 <script setup lang="ts">
-
-import noMessagesImg from '@/assets/illustrations/no_messages.webp'
-import SettingsHeader from '@/components/settings/SettingsHeader.vue'
-import { storeToRefs } from 'pinia'
-import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
+import noMessagesImg from "@/assets/illustrations/no_messages.webp";
+import SettingsHeader from "@/components/settings/SettingsHeader.vue";
+import { storeToRefs } from "pinia";
+import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
 import {
-  IonActionSheet,
-  IonButton,
-  IonContent,
-  IonFab,
-  IonFabButton,
-  IonIcon,
-  IonItem,
-  IonLabel,
-  IonList,
-  IonPage,
-  IonRefresher,
-  IonRefresherContent,
-  IonSegment,
-  IonSegmentButton,
-  IonSpinner,
-  IonToolbar,
-  onIonViewDidLeave
-} from '@ionic/vue'
-import { useAuthStore } from '@/store/auth.store'
-import { add } from 'ionicons/icons'
-import { computed, onMounted, ref, watch } from 'vue'
-import { Mate } from '@/types/server.types'
-import { senderImg, senderName, svg } from '@/helper/general.helper'
-import { mdiBalloon, mdiLink, mdiMagnify, mdiQrcode } from '@mdi/js'
-import { createPersonalShareLink, shareUrl } from '@/helper/share.helper'
-import { useRoute } from 'vue-router'
-import QRPage from '@/components/connect/QRPage.vue'
-import { useSocketService } from '@/service/api/socket/socket.service'
-import router from '@/router'
-import { useToast } from '@/service/toast.service'
-import connectImage from '@/assets/illustrations/connect.webp'
-import ConnectUserItem from '@/components/connect/ConnectUserItem.vue'
-import SearchNameModal from '@/components/connect/SearchNameModal.vue'
-import { useMenuStore } from '@/store/menu.store'
-import { Menu } from '@/draw/types/draw.types'
-import { useSessionStore } from '@/store/session.store'
-import { useFriendStore } from '@/store/friend.store'
-import BalloonBanner from '@/components/connect/balloon/BalloonBanner.vue'
-import SendBalloonModal from '@/components/connect/balloon/SendBalloonModal.vue'
-import SubscriptionCard from '@/components/subscription/SubscriptionCard.vue'
-import CollaborativeDrawingBanner from '@/components/connect/balloon/CollaborativeDrawingBanner.vue'
+	IonActionSheet,
+	IonButton,
+	IonContent,
+	IonFab,
+	IonFabButton,
+	IonIcon,
+	IonItem,
+	IonLabel,
+	IonList,
+	IonPage,
+	IonRefresher,
+	IonRefresherContent,
+	IonSegment,
+	IonSegmentButton,
+	IonSpinner,
+	IonToolbar,
+	onIonViewDidLeave,
+} from "@ionic/vue";
+import { useAuthStore } from "@/store/auth.store";
+import { add } from "ionicons/icons";
+import { computed, onMounted, ref, watch } from "vue";
+import { Mate } from "@/types/server.types";
+import { senderImg, senderName, svg } from "@/helper/general.helper";
+import { mdiBalloon, mdiLink, mdiMagnify, mdiQrcode } from "@mdi/js";
+import { createPersonalShareLink, shareUrl } from "@/helper/share.helper";
+import { useRoute } from "vue-router";
+import QRPage from "@/components/connect/QRPage.vue";
+import { useSocketService } from "@/service/api/socket/socket.service";
+import router from "@/router";
+import { useToast } from "@/service/toast.service";
+import connectImage from "@/assets/illustrations/connect.webp";
+import ConnectUserItem from "@/components/connect/ConnectUserItem.vue";
+import SearchNameModal from "@/components/connect/SearchNameModal.vue";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
+import { useSessionStore } from "@/store/session.store";
+import { useFriendStore } from "@/store/friend.store";
+import BalloonBanner from "@/components/connect/balloon/BalloonBanner.vue";
+import SendBalloonModal from "@/components/connect/balloon/SendBalloonModal.vue";
+import SubscriptionCard from "@/components/subscription/SubscriptionCard.vue";
+import CollaborativeDrawingBanner from "@/components/connect/balloon/CollaborativeDrawingBanner.vue";
 
 enum Segments {
-  friends = 'friends',
-  requests = 'request'
+	friends = "friends",
+	requests = "request",
 }
 
-const {
-  user,
-  isLoading
-} = storeToRefs(useAuthStore())
+const { user, isLoading } = storeToRefs(useAuthStore());
 
-const {
-  friendRequestLoading,
-  friendRequestUsers
-} = storeToRefs(useFriendStore())
-const { queryParams } = storeToRefs(useSessionStore())
-const { setQueryParams } = useSessionStore()
-const { refresh } = useAuthStore()
-const { retrieveFriendRequestUsers, findUserInFriendRequestUsers } = useFriendStore()
+const { friendRequestLoading, friendRequestUsers } = storeToRefs(
+	useFriendStore(),
+);
+const { queryParams } = storeToRefs(useSessionStore());
+const { setQueryParams } = useSessionStore();
+const { refresh } = useAuthStore();
+const { retrieveFriendRequestUsers, findUserInFriendRequestUsers } =
+	useFriendStore();
 
-const route = useRoute()
+const route = useRoute();
 
-const isUnMatchSheetOpen = ref(false)
-const mateToUnMatch = ref<Mate>()
+const isUnMatchSheetOpen = ref(false);
+const mateToUnMatch = ref<Mate>();
 
-const showQRPage = ref(false)
-const { match, unMatch, refuseSendMateRequest, cancelSendMateRequest } = useSocketService()
+const showQRPage = ref(false);
+const { match, unMatch, refuseSendMateRequest, cancelSendMateRequest } =
+	useSocketService();
 
-const { toast } = useToast()
-const { openMenu } = useMenuStore()
-const requestsSize = computed(() => user.value ? user.value.mate_requests_received.length + user.value.mate_requests_sent.length : 0)
+const { toast } = useToast();
+const { openMenu } = useMenuStore();
+const requestsSize = computed(() =>
+	user.value
+		? user.value?.mate_requests_received?.length +
+			user.value.mate_requests_sent?.length
+		: 0,
+);
 
-const loadingFriendRequests = ref(false)
+const loadingFriendRequests = ref(false);
 
-onIonViewDidLeave(() => segment.value = Segments.friends)
+onIonViewDidLeave(() => (segment.value = Segments.friends));
 
-watch(queryParams, value => {
-  if (value) checkQueryParams()
-})
-onMounted(checkQueryParams)
-watch(user, checkQueryParams)
-watch(route, checkQueryParams)
+watch(queryParams, (value) => {
+	if (value) checkQueryParams();
+});
+onMounted(checkQueryParams);
+watch(user, checkQueryParams);
+watch(route, checkQueryParams);
 
-const segment = ref<Segments>(route.query && route.query.tab == 'request' ? Segments.requests : Segments.friends)
-
+const segment = ref<Segments>(
+	route.query && route.query.tab == "request"
+		? Segments.requests
+		: Segments.friends,
+);
 
 const unMatchSheetButtons = [
-  {
-    text: 'Unmatch',
-    role: 'destructive',
-    data: {
-      action: 'delete'
-    },
-    handler: () => unMatch({ mate_id: mateToUnMatch.value!._id, _id: user.value!._id, name: user.value!.name })
-  },
-  {
-    text: 'Cancel',
-    role: 'cancel',
-    data: {
-      action: 'cancel'
-    }
-  }
-]
+	{
+		text: "Unmatch",
+		role: "destructive",
+		data: {
+			action: "delete",
+		},
+		handler: () =>
+			unMatch({
+				mate_id: mateToUnMatch.value!._id,
+				_id: user.value!._id,
+				name: user.value!.name,
+			}),
+	},
+	{
+		text: "Cancel",
+		role: "cancel",
+		data: {
+			action: "cancel",
+		},
+	},
+];
 
-const isConnectSheetOpen = ref(false)
-const connectSheetButtons = computed(() => [
-  {
-    text: 'Share Link',
-    role: 'selected',
-    icon: svg(mdiLink),
-    data: { action: 'delete' },
-    handler: () => shareUrl(
-      createPersonalShareLink(user.value!._id, route.path),
-      'Become my mate on Sketchmate',
-      'send connect link'
-    )
-  },
-  {
-    text: 'QR Code',
-    role: 'selected',
-    icon: svg(mdiQrcode),
-    data: { action: 'delete' },
-    handler: () => showQRPage.value = true
-  },
-  {
-    text: 'Search a name',
-    role: 'selected',
-    icon: svg(mdiMagnify),
-    id: 'search-name',
-    data: { action: 'delete' }
-  },
-  {
-    text: 'Send a balloon',
-    role: 'selected',
-    icon: svg(mdiBalloon),
-    handler: () => openMenu(Menu.SendBalloon),
-    data: { action: 'delete' }
-  },
-  {
-    text: 'Cancel',
-    role: 'cancel',
-    data: { action: 'cancel' }
-  }
-].filter(Boolean)) // remove undefined entries
-
+const isConnectSheetOpen = ref(false);
+const connectSheetButtons = computed(() =>
+	[
+		{
+			text: "Share Link",
+			role: "selected",
+			icon: svg(mdiLink),
+			data: { action: "delete" },
+			handler: () =>
+				shareUrl(
+					createPersonalShareLink(user.value!._id, route.path),
+					"Become my mate on Sketchmate",
+					"send connect link",
+				),
+		},
+		{
+			text: "QR Code",
+			role: "selected",
+			icon: svg(mdiQrcode),
+			data: { action: "delete" },
+			handler: () => (showQRPage.value = true),
+		},
+		{
+			text: "Search a name",
+			role: "selected",
+			icon: svg(mdiMagnify),
+			id: "search-name",
+			data: { action: "delete" },
+		},
+		{
+			text: "Send a balloon",
+			role: "selected",
+			icon: svg(mdiBalloon),
+			handler: () => openMenu(Menu.SendBalloon),
+			data: { action: "delete" },
+		},
+		{
+			text: "Cancel",
+			role: "cancel",
+			data: { action: "cancel" },
+		},
+	].filter(Boolean),
+); // remove undefined entries
 
 function checkQueryParams() {
-  if (!user.value) return
+	if (!user.value) return;
 
-  if (route.query && route.query.tab) {
-    segment.value = route.query.tab as Segments
-    fetchFriendRequests()
-    router.replace({ query: undefined })
-  }
+	if (route.query && route.query.tab) {
+		segment.value = route.query.tab as Segments;
+		fetchFriendRequests();
+		router.replace({ query: undefined });
+	}
 
-  const mateId = queryParams.value ? queryParams.value.get('mate') : router.currentRoute.value.query.mate?.toString()
-  if (!mateId) return
-  setQueryParams(undefined)
-  router.replace({ query: undefined })
-  if (mateId === user.value._id) toast('Do not use your own share link', { color: 'warning' })
-  else if (user.value.mates.some(m => m._id == mateId)) toast('You are already connected to this mate', { color: 'danger' })
-  else match({ _id: user.value._id, mate_id: mateId })
+	const mateId = queryParams.value
+		? queryParams.value.get("mate")
+		: router.currentRoute.value.query.mate?.toString();
+	if (!mateId) return;
+	setQueryParams(undefined);
+	router.replace({ query: undefined });
+	if (mateId === user.value._id)
+		toast("Do not use your own share link", { color: "warning" });
+	else if (user.value.mates.some((m) => m._id == mateId))
+		toast("You are already connected to this mate", { color: "danger" });
+	else match({ _id: user.value._id, mate_id: mateId });
 }
-
 
 function openUnMatchSheet(mate: Mate) {
-  mateToUnMatch.value = mate
-  isUnMatchSheetOpen.value = true
+	mateToUnMatch.value = mate;
+	isUnMatchSheetOpen.value = true;
 }
 
-
 async function fetchFriendRequests() {
-  if (friendRequestUsers.value.length >= requestsSize.value) return
-  loadingFriendRequests.value = true
-  await retrieveFriendRequestUsers()
-  loadingFriendRequests.value = false
+	if (friendRequestUsers.value.length >= requestsSize.value) return;
+	loadingFriendRequests.value = true;
+	await retrieveFriendRequestUsers();
+	loadingFriendRequests.value = false;
 }
 </script>
 

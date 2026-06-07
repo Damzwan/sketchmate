@@ -101,11 +101,10 @@ export const useInboxStore = defineStore("inbox", () => {
 		}
 	}
 
-	function hasMoreComments(item?: InboxItem): boolean {
+	function hasMoreComments(item?: any): boolean {
 		if (!item) return false;
 		if (fullyLoadedComments.value.has(item._id)) return false;
-		// fewer than the gallery cap means the backend already sent everything
-		return item.comments.length >= GALLERY_COMMENT_LIMIT;
+		return (item.comment_count ?? 0) > item.comments.length;
 	}
 
 	async function loadMoreComments(item: InboxItem) {
@@ -133,7 +132,6 @@ export const useInboxStore = defineStore("inbox", () => {
 			console.error(e);
 		}
 	}
-
 	async function addComment(commentRes: CommentRes) {
 		if (!inbox.value.length) await getInbox();
 
@@ -142,8 +140,16 @@ export const useInboxStore = defineStore("inbox", () => {
 		);
 		if (index === -1) return; // item not on a loaded page yet; picks up on next fetch
 
-		inbox.value[index].comments.push(commentRes.comment);
-		inbox.value[index].comments_seen_by = [commentRes.comment.sender];
+		const item = inbox.value[index];
+
+		// socket echo + optimistic insert can race — key off _id
+		const exists = item.comments.some(
+			(c) => commentKey(c) === commentKey(commentRes.comment),
+		);
+		if (!exists) item.comments.push(commentRes.comment);
+
+		item.comment_count += 1;
+		item.comments_seen_by = [commentRes.comment.sender];
 
 		const { user } = useAuthStore();
 		if (!user || commentRes.comment.sender === user._id) return;

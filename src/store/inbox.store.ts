@@ -124,6 +124,7 @@ export const useInboxStore = defineStore("inbox", () => {
 		if (alreadyExists) return;
 
 		inbox.value[index].comments.push(commentRes.comment);
+		inbox.value[index].comment_count += 1;
 		inbox.value[index].comments_seen_by = [commentRes.comment.sender];
 	}
 

@@ -97,7 +97,7 @@
             >
               <ion-infinite-scroll-content
                 loading-spinner="dots"
-                loading-text="Looking back in time..."
+                loading-text="loading"
               />
             </ion-infinite-scroll>
           </div>

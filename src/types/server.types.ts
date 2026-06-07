@@ -38,6 +38,7 @@ export enum SOCKET_ENDPONTS {
 	send = "send",
 	disconnect = "disconnect",
 	comment = "comment",
+	comment_v2 = "comment_v2",
 	mate_request = "mate_request",
 	cancel_mate_request = "cancel_mate_request",
 	refuse_mate_request = "refuse_mate_request",
@@ -348,7 +349,8 @@ export interface InboxItem {
 	date: string;
 	sender: string;
 	reply?: InboxItem;
-	comments: Comment[];
+	comments: Comment[]; // @deprecated
+	comment_count: number;
 	aspect_ratio: number;
 	seen_by: string[];
 	comments_seen_by: string[];
@@ -360,6 +362,16 @@ export interface InboxItem {
 	moderation?: ContentModerationMeta;
 }
 
+export interface InboxComment {
+	_id: string;
+	inbox_id: string;
+	sender: string;
+	message: string;
+	date: string;
+	status: "active" | "removed";
+	reports_count: number;
+}
+
 export interface Comment {
 	sender: string;
 	message: string;
@@ -367,6 +379,11 @@ export interface Comment {
 	date: string;
 	status?: "active" | "removed";
 	reports_count?: number;
+}
+
+export interface GetInboxCommentsRes {
+	comments: Comment[];
+	hasMore: boolean;
 }
 
 export interface BasePostComment {
@@ -749,7 +766,7 @@ export interface CommentParams {
 }
 
 export interface CommentRes {
-	comment: Comment;
+	comment: InboxComment;
 	inbox_item_id: string;
 }
 

@@ -11,16 +11,20 @@
     <div class="h-full flex flex-col bg-background cabin-sketch-regular overflow-y-auto max-h-[85vh]">
       <div class="shrink-0 pt-5 px-5 pb-3 text-center relative border-b border-black/5">
         <h1 class="text-xl text-black font-black tracking-tight italic leading-none">Comments</h1>
-        <p v-if="comments.length > 0" class="text-[11px] text-black/40 font-bold uppercase tracking-widest mt-1">
-          {{ comments.length }} {{ comments.length === 1 ? 'reply' : 'replies' }}
+        <p v-if="currItem.comment_count > 0" class="text-[11px] text-black/40 font-bold uppercase tracking-widest mt-1">
+          {{ currItem.comment_count }} {{ currItem.comment_count === 1 ? 'reply' : 'replies' }}
         </p>
       </div>
 
       <div
         ref="scrollContainer"
-        class="flex-1 overflow-y-auto hide-scrollbar pb-4 pt-1"
+        class="flex-1 overflow-y-auto hide-scrollbar pb-4 pt-1 relative"
         @touchmove.stop
       >
+        <div v-if="loadingOlder" class="flex justify-center py-4 w-full">
+          <ion-spinner name="bubbles" color="secondary" />
+        </div>
+
         <div v-if="loading && comments.length === 0" class="flex justify-center py-10">
           <ion-spinner name="bubbles" color="secondary" />
         </div>
@@ -40,8 +44,8 @@
             <ion-avatar class="h-[38px] w-[38px] bg-white/80 shadow-sm border border-black/5 overflow-hidden">
               <img v-if="getAuthorImg(comment)" :src="getAuthorImg(comment)" class="aspect-square object-cover" />
               <span v-else class="w-full h-full flex items-center justify-center font-bold text-black text-sm">
-        {{ getAuthorName(comment).charAt(0) }}
-      </span>
+                {{ getAuthorName(comment).charAt(0) }}
+              </span>
             </ion-avatar>
           </button>
 
@@ -57,8 +61,8 @@
                 {{ getAuthorName(comment) }}
               </button>
               <span class="text-[10px] text-black/40 font-bold uppercase tracking-wider shrink-0 pr-7">
-        {{ dayjs(comment.createdAt || comment.date).fromNow() }}
-      </span>
+                {{ dayjs(comment.createdAt || comment.date).fromNow() }}
+              </span>
             </div>
 
             <p class="text-[14px] text-black/85 mt-1 leading-snug break-words">
@@ -108,6 +112,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, computed, watch } from "vue";
+import { useInfiniteScroll } from "@vueuse/core";
 import {
 	IonModal,
 	IonSpinner,
@@ -131,6 +136,7 @@ import { usePostStore } from "@/store/post.store";
 import { useModerationStore } from "@/store/moderation.store";
 import { useToast } from "@/service/toast.service";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { getInboxComments } from "@/service/api/inbox.api";
 
 const props = defineProps<{
 	open: boolean;
@@ -152,13 +158,25 @@ const scrollContainer = ref<HTMLElement | null>(null);
 const input = ref<any>();
 const comments = ref<any[]>([]);
 const loading = ref(false);
+const loadingOlder = ref(false);
 const isSubmitting = ref(false);
 const newComment = ref("");
+const hasMore = ref(false);
 
 const isPost = computed(() => props.type === "post");
 
-// --- Author resolution (handles hydrated post comments AND raw inbox comments)
+// --- VueUse Infinite Scroll setup
+useInfiniteScroll(
+	scrollContainer,
+	async () => {
+		if (hasMore.value && !loadingOlder.value) {
+			await loadOlderComments();
+		}
+	},
+	{ direction: "top", distance: 40 },
+);
 
+// --- Author resolution (handles hydrated post comments AND raw inbox comments)
 function getAuthorId(comment: any): string {
 	return comment.author?._id || comment.author_id || comment.sender;
 }
@@ -176,11 +194,12 @@ function getAuthorImg(comment: any): string | undefined {
 }
 
 // --- Lifecycle: load comments when drawer opens
-
 watch(
 	() => props.open,
 	async (isOpen) => {
 		if (!isOpen || !props.currItem) return;
+
+		hasMore.value = false;
 
 		if (isPost.value) {
 			comments.value = props.currItem.comments
@@ -188,23 +207,34 @@ watch(
 				: [];
 			loading.value = true;
 			try {
-				const res = await fetchPostComments(props.currItem._id, 1, 50);
+				const res = await fetchPostComments(props.currItem._id, 20);
 				comments.value = res.comments;
+				hasMore.value = res.hasMore;
 				scrollToBottom();
 			} catch (e) {
-				console.error("Failed to load comments", e);
+				console.error("Failed to load post comments", e);
 			} finally {
 				loading.value = false;
 			}
 		} else {
-			// Inbox items already have comments populated locally
-			comments.value = props.currItem.comments || [];
-			scrollToBottom();
+			comments.value = props.currItem.comments
+				? [...props.currItem.comments]
+				: [];
+			loading.value = true;
+			try {
+				const res = await getInboxComments(props.currItem._id, 20);
+				comments.value = res.comments;
+				hasMore.value = res.hasMore;
+				scrollToBottom();
+			} catch (e) {
+				console.error("Failed to load inbox comments", e);
+			} finally {
+				loading.value = false;
+			}
 		}
 	},
 );
 
-// Reset comments when item changes mid-open
 watch(
 	() => props.currItem?._id,
 	() => {
@@ -243,6 +273,49 @@ async function submitComment() {
 	}
 }
 
+async function loadOlderComments() {
+	if (!hasMore.value || comments.value.length === 0 || loadingOlder.value) {
+		return;
+	}
+
+	loadingOlder.value = true;
+
+	// The first item in the array is the oldest loaded comment
+	const oldestComment = comments.value[0];
+	const oldestDate = oldestComment.date || oldestComment.createdAt;
+
+	try {
+		let res;
+		if (isPost.value) {
+			res = await fetchPostComments(props.currItem._id, 20, oldestDate);
+		} else {
+			res = await getInboxComments(props.currItem._id, 20, oldestDate);
+		}
+
+		const newComments = res.comments.filter(
+			(c: any) => !comments.value.some((existing) => existing._id === c._id),
+		);
+
+		const container = scrollContainer.value;
+		const previousScrollHeight = container ? container.scrollHeight : 0;
+		const previousScrollTop = container ? container.scrollTop : 0;
+
+		comments.value = [...newComments, ...comments.value];
+		hasMore.value = res.hasMore;
+
+		await nextTick();
+		if (container) {
+			// Keeps the user looking at the same comment they were just at
+			container.scrollTop =
+				previousScrollTop + (container.scrollHeight - previousScrollHeight);
+		}
+	} catch (e) {
+		console.error("Failed to load older comments", e);
+	} finally {
+		loadingOlder.value = false;
+	}
+}
+
 const scrollToBottom = async () => {
 	await nextTick();
 	if (scrollContainer.value) {
@@ -255,7 +328,6 @@ function close() {
 }
 
 // --- Comment actions
-
 async function openCommentActions(comment: any) {
 	const authorId = getAuthorId(comment);
 	const isMine = authorId === props.user._id;

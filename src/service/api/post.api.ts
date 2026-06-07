@@ -51,9 +51,22 @@ export async function postComment(postId: string, message: string) {
 	});
 }
 
-export async function fetchPostComments(postId: string, page = 1, limit = 20) {
-	return await request<{ comments: any[] }>(
-		`/post/${postId}/comments?page=${page}&limit=${limit}`,
+export async function fetchPostComments(
+	postId: string,
+	limit = 20,
+	beforeDate?: string,
+) {
+	const query = new URLSearchParams({ limit: limit.toString() });
+
+	if (beforeDate) {
+		query.append("beforeDate", beforeDate);
+	}
+
+	return await request<{ comments: any[]; hasMore: boolean }>(
+		`/post/${postId}/comments?${query.toString()}`,
+		{
+			method: "GET",
+		},
 	);
 }
 

@@ -79,7 +79,7 @@
         >
           <div class="w-1 h-1 bg-green-400 rounded-full animate-ping" v-if="isNewComment" />
           <span class="text-[9px] font-black tracking-tight leading-none mb-[0.5px]">
-            {{ props.inboxItem.comments.length }}
+            {{ props.inboxItem.comment_count }}
           </span>
         </div>
       </div>

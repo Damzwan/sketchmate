@@ -96,3 +96,22 @@ export async function commentOnInbox(
 		body: JSON.stringify(params),
 	});
 }
+
+export async function getInboxComments(
+	inboxId: string,
+	limit: number = 20,
+	beforeDate?: string,
+): Promise<any> {
+	const query = new URLSearchParams({ limit: limit.toString() });
+
+	if (beforeDate) {
+		query.append("beforeDate", beforeDate);
+	}
+
+	return request<any>(
+		`${ENDPOINTS.inbox}/${inboxId}/comments?${query.toString()}`,
+		{
+			method: "GET",
+		},
+	);
+}

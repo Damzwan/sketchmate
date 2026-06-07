@@ -5,12 +5,11 @@
     @click.stop="$emit('open-comments')"
   >
     <div
-      v-for="(comment, i) in comments.slice(0, 4)"
+      v-for="(comment, i) in comments.slice(0, 4).reverse()"
       :key="comment._id || i"
       class="my-1 p-1 rounded-full shadow-lg bg-black/60 border border-white/20 backdrop-blur-md transition-transform duration-200 active:scale-[0.97]"
     >
       <div class="flex items-center min-w-0">
-        <!-- Avatar -->
         <ion-avatar class="w-8 h-8 flex-shrink-0 border border-white/10 overflow-hidden">
           <img
             :src="comment.author?.img || senderImg(resolveUser(comment.sender || comment.author_id))"
@@ -19,7 +18,6 @@
           />
         </ion-avatar>
 
-        <!-- Text -->
         <div class="flex-1 min-w-0 mx-2">
           <p class="text-[12px] font-black text-white cabin-sketch-regular leading-none truncate mb-0.5">
             {{ comment.author?.name || senderName(resolveUser(comment.sender || comment.author_id)) }}
@@ -31,23 +29,23 @@
       </div>
     </div>
 
-    <!-- More Comments Indicator -->
-    <div v-if="comments.length > 4" class="mt-2 pl-3">
+    <div v-if="commentCount > comments.slice(0, 4).length" class="mt-2 pl-3">
       <p class="text-[11px] font-bold text-white/60 italic cabin-sketch-regular drop-shadow-md">
-        + {{ comments.length - 4 }} more comments...
+        + {{ commentCount - comments.slice(0, 4).length }} more comments...
       </p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { IonAvatar } from '@ionic/vue'
-import { senderImg, senderName } from '@/helper/general.helper'
+import { IonAvatar } from "@ionic/vue";
+import { senderImg, senderName } from "@/helper/general.helper";
 
 defineProps<{
-  comments: any[]
-  resolveUser: (id: string) => any
-}>()
+	comments: any[];
+	commentCount: number;
+	resolveUser: (id: string) => any;
+}>();
 
-defineEmits(['open-comments'])
+defineEmits(["open-comments"]);
 </script>

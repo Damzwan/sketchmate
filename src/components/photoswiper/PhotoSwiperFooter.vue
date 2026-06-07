@@ -2,6 +2,7 @@
   <CommentPreview
     v-if="showComments"
     :comments="currItem.comments || []"
+    :commentCount="currItem.comment_count"
     @open-comments="$emit('open-comments')"
     :resolveUser="resolveUser"
   />
@@ -111,7 +112,7 @@ const moderationStore = useModerationStore();
 const displayCommentCount = computed(() =>
 	props.type === "post"
 		? props.currItem.comment_count || 0
-		: props.currItem.comments?.length || 0,
+		: props.currItem.comment_count || 0,
 );
 
 const popoverOpen = ref(false);

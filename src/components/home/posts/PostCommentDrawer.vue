@@ -2,45 +2,54 @@
   <ion-modal
     :is-open="isOpen"
     @did-dismiss="handleDismiss"
-    @will-present="onPresent"
+    @did-present="scrollToBottom"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
     handle-behavior="cycle"
     class="liquid-comment-modal"
   >
-    <div class="h-full flex flex-col bg-background cabin-sketch-regular overflow-hidden">
+    <!-- FIX: Restored overflow-y-auto and max-h-[85vh] here to match the working component layout layout structure -->
+    <div class="h-full flex flex-col bg-background cabin-sketch-regular overflow-y-auto max-h-[85vh]">
       <!-- Header -->
       <div class="shrink-0 pt-4 px-5 pb-3 text-center relative border-b border-black/5">
         <h1 class="text-xl text-black font-black tracking-tight italic leading-none">Comments</h1>
-        <p v-if="comments.length > 0" class="text-[11px] text-black/40 font-bold uppercase tracking-widest mt-1">
-          {{ comments.length }} {{ comments.length === 1 ? 'reply' : 'replies' }}
+        <p v-if="post?.comment_count > 0" class="text-[11px] text-black/40 font-bold uppercase tracking-widest mt-1">
+          {{ post.comment_count }} {{ post.comment_count === 1 ? 'reply' : 'replies' }}
         </p>
       </div>
 
-      <!-- Comments List -->
+      <!-- Comments List Area -->
       <div
         ref="scrollContainer"
-        class="flex-1 overflow-y-auto hide-scrollbar pt-1"
+        class="flex-1 overflow-y-auto hide-scrollbar pb-4 pt-1 relative"
         @touchmove.stop
       >
+        <!-- Top Loading Spinner for Pagination History -->
+        <div v-if="loadingOlder" class="flex justify-center py-4 w-full">
+          <ion-spinner name="bubbles" color="secondary" />
+        </div>
+
+        <!-- Initial Load Spinner -->
         <div v-if="loading && comments.length === 0" class="flex justify-center py-10">
           <ion-spinner name="bubbles" color="secondary" />
         </div>
 
+        <!-- Empty State -->
         <div v-else-if="comments.length === 0" class="text-center py-12 px-6">
           <p class="font-bold text-black/60 italic">No comments yet.</p>
           <p class="text-sm text-black/40 mt-1">Be the first to say something nice.</p>
         </div>
 
+        <!-- Comments Stream Loop -->
         <div
           v-else
           v-for="(comment, idx) in comments"
-          :key="comment._id"
-          class="flex items-start px-4 py-2 group"
+          :key="comment._id || idx"
+          class="flex items-start px-4 py-3 relative group"
         >
           <!-- User Avatar -->
           <button
-            @click="openUser(comment.author._id)"
+            @click="openUser(comment.author?._id)"
             class="shrink-0 active:scale-95 transition-transform mt-0.5"
           >
             <UserAvatar
@@ -53,30 +62,30 @@
           </button>
 
           <!-- Comment Content Body -->
-          <div class="flex-1 ml-3 min-w-0 pb-2.5 relative" :class="{ 'border-b border-black/5': idx < comments.length - 1 }">
+          <div class="flex-1 ml-3 min-w-0 pb-3 pr-6 relative" :class="{ 'border-b border-black/5': idx < comments.length - 1 }">
 
-            <!-- Header row containing Name, Timestamp, and Actions -->
-            <div class="flex items-center justify-between pr-8">
+            <!-- Header row containing Name and Timestamp -->
+            <div class="flex items-baseline justify-between gap-2">
               <button
-                @click="openUser(comment.author._id)"
+                @click="openUser(comment.author?._id)"
                 class="text-sm font-black text-black truncate active:opacity-60 transition-opacity text-left max-w-[70%]"
               >
-                {{ comment.author.name }}
+                {{ comment.author?.name || 'Sketcher' }}
               </button>
-              <span class="text-[10px] text-black/40 font-bold uppercase tracking-wider shrink-0 ml-2">
-                {{ dayjs(comment.createdAt).fromNow() }}
+              <span class="text-[10px] text-black/40 font-bold uppercase tracking-wider shrink-0 pr-7">
+                {{ dayjs(comment.createdAt || comment.date).fromNow() }}
               </span>
             </div>
 
             <!-- Message Text -->
-            <p class="text-[14px] text-black/85 mt-0.5 leading-snug break-words pr-2">
+            <p class="text-[14px] text-black/85 mt-1 leading-snug break-words">
               {{ comment.message }}
             </p>
 
-            <!-- Correctly positioned Context Button aligned with Header Row -->
+            <!-- Context Options Button -->
             <button
               @click.stop="openCommentActions(comment)"
-              class="absolute top-0 right-0 h-5 w-8 flex items-center justify-end active:scale-90 transition-transform"
+              class="absolute top-3 right-3 p-1.5 active:scale-90 transition-transform"
             >
               <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg text-black/30" />
             </button>
@@ -88,7 +97,9 @@
       <div class="flex w-full items-center gap-2 bg-background sticky bottom-0 border-t border-black/10 px-3 py-2 pb-safe z-10 shrink-0">
         <ion-avatar class="shrink-0 h-[34px] w-[34px] shadow-sm">
           <img v-if="user?.img" :src="user.img" alt="Me" class="aspect-square object-cover" />
-          <span v-else class="w-full h-full flex items-center justify-center font-bold text-black bg-black/5 text-sm">{{ user?.name?.charAt(0) }}</span>
+          <span v-else class="w-full h-full flex items-center justify-center font-bold text-black bg-black/5 text-sm">
+            {{ user?.name?.charAt(0) }}
+          </span>
         </ion-avatar>
 
         <div class="flex-1 flex items-center bg-white/60 rounded-full px-4 border border-black/10 shadow-inner">
@@ -117,7 +128,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from "vue";
+import { ref, nextTick, watch } from "vue";
+import { useInfiniteScroll } from "@vueuse/core";
 import {
 	IonModal,
 	IonSpinner,
@@ -146,6 +158,8 @@ import { FeedPost } from "@/types/server.types";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
+dayjs.extend(relativeTime);
+
 const props = defineProps<{ isOpen: boolean; post: FeedPost | null }>();
 const emit = defineEmits(["close"]);
 
@@ -159,47 +173,133 @@ const scrollContainer = ref<HTMLElement | null>(null);
 const input = ref<any>();
 const comments = ref<any[]>([]);
 const loading = ref(false);
+const loadingOlder = ref(false);
 const isSubmitting = ref(false);
 const newComment = ref("");
+const hasMore = ref(false);
 
-const onPresent = async () => {
-	if (props.post) {
+// --- Infinite Scroll Implementation (Top Anchored for Older Items)
+useInfiniteScroll(
+	scrollContainer,
+	async () => {
+		if (hasMore.value && !loadingOlder.value) {
+			await loadOlderComments();
+		}
+	},
+	{ direction: "top", distance: 40 },
+);
+
+// --- Handle initial load sequence on modal toggle
+watch(
+	() => props.isOpen,
+	async (openState) => {
+		if (!openState || !props.post) return;
+
+		hasMore.value = false;
 		comments.value = props.post.comments ? [...props.post.comments] : [];
-
 		loading.value = true;
+
 		try {
-			const res = await fetchPostComments(props.post._id, 1, 50);
+			const res = await fetchPostComments(props.post._id, 20);
 			comments.value = res.comments;
+			hasMore.value = res.hasMore;
 			scrollToBottom();
 		} catch (e) {
 			console.error("Failed to load comments", e);
 		} finally {
 			loading.value = false;
 		}
-	}
-};
+	},
+);
+
+// --- Reset streams cleanly when post instance shifts
+watch(
+	() => props.post?._id,
+	() => {
+		if (props.isOpen) {
+			comments.value = props.post?.comments ? [...props.post.comments] : [];
+		}
+	},
+);
+
+// --- Watch deep mutations arriving via external channels (sockets) safely
+watch(
+	() => props.post?.comments,
+	(incomingList) => {
+		if (!props.isOpen || !incomingList) return;
+
+		const uniquelyNew = incomingList.filter(
+			(inc: any) => !comments.value.some((loc) => loc._id === inc._id),
+		);
+
+		if (uniquelyNew.length > 0) {
+			comments.value = [...comments.value, ...uniquelyNew];
+			scrollToBottom();
+		}
+	},
+	{ deep: true },
+);
 
 const openUser = (userId: string) => {
-	openUserActions({ _id: userId });
+	if (userId) openUserActions({ _id: userId });
 };
 
 const submitComment = async () => {
-	if (!newComment.value.trim() || !props.post) return;
+	if (!newComment.value.trim() || !props.post || isSubmitting.value) return;
+	const message = newComment.value;
+	newComment.value = "";
 	isSubmitting.value = true;
+
 	try {
-		const res = await postComment(props.post._id, newComment.value);
+		const res = await postComment(props.post._id, message);
 		res.comment.author = user.value;
+
 		comments.value.push(res.comment);
+
 		if (props.post) {
 			props.post.comment_count++;
-			props.post.comments = [res.comment];
+			props.post.comments = [...(props.post.comments || []), res.comment];
 		}
-		newComment.value = "";
 		scrollToBottom();
 	} catch (e) {
 		console.error("Failed to post comment", e);
+		newComment.value = message;
 	} finally {
 		isSubmitting.value = false;
+	}
+};
+
+const loadOlderComments = async () => {
+	if (!hasMore.value || comments.value.length === 0 || loadingOlder.value)
+		return;
+
+	loadingOlder.value = true;
+	const oldestComment = comments.value[0];
+	const oldestDate = oldestComment.createdAt || oldestComment.date;
+
+	try {
+		const res = await fetchPostComments(props.post!._id, 20, oldestDate);
+
+		const historicalSlice = res.comments.filter(
+			(c: any) => !comments.value.some((existing) => existing._id === c._id),
+		);
+
+		const container = scrollContainer.value;
+		const initialHeight = container ? container.scrollHeight : 0;
+		const initialTop = container ? container.scrollTop : 0;
+
+		comments.value = [...historicalSlice, ...comments.value];
+		hasMore.value = res.hasMore;
+
+		await nextTick();
+		if (container) {
+			container.scrollTop =
+				initialTop + (container.scrollHeight - initialHeight);
+		}
+	} catch (e) {
+		console.error("Failed to load older historical chunks", e);
+	} finally {
+		loadingOlder.value = false;
 	}
 };
 
@@ -212,11 +312,10 @@ const scrollToBottom = async () => {
 
 const handleDismiss = () => emit("close");
 
-// --- Comment Actions ---
+// --- Comment Actions Configuration ---
 
 const openCommentActions = async (comment: any) => {
-	const isMine = comment.author._id === user.value?._id;
-
+	const isMine = comment.author?._id === user.value?._id;
 	const buttons: any[] = [];
 
 	if (isMine) {
@@ -235,7 +334,7 @@ const openCommentActions = async (comment: any) => {
 				moderationStore.openReport({
 					type: "comment",
 					id: comment._id,
-					label: `${comment.author.name}'s comment`,
+					label: `${comment.author?.name || "User"}'s comment`,
 				});
 			},
 		});
@@ -267,9 +366,23 @@ const confirmDeleteComment = async (comment: any) => {
 					if (!props.post) return;
 					try {
 						await postStore.deletePostComment(props.post._id, comment._id);
+
 						comments.value = comments.value.filter(
 							(c) => c._id !== comment._id,
 						);
+
+						if (props.post.comments) {
+							props.post.comments = props.post.comments.filter(
+								(c: any) => c._id !== comment._id,
+							);
+						}
+						if (
+							typeof props.post.comment_count === "number" &&
+							props.post.comment_count > 0
+						) {
+							props.post.comment_count--;
+						}
+
 						toast("Comment deleted");
 					} catch (e) {
 						console.error("Delete failed", e);

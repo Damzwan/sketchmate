@@ -115,3 +115,15 @@ export async function getInboxComments(
 		},
 	);
 }
+
+export async function deleteInboxComment(
+	inboxId: string,
+	commentId: string,
+): Promise<{ success: boolean }> {
+	return request<{ success: boolean }>(
+		`${ENDPOINTS.inbox}/${inboxId}/comment/${commentId}`,
+		{
+			method: "DELETE",
+		},
+	);
+}

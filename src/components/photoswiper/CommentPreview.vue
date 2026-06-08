@@ -5,7 +5,7 @@
     @click.stop="$emit('open-comments')"
   >
     <div
-      v-for="(comment, i) in comments.slice(0, 4).reverse()"
+      v-for="(comment, i) in comments.slice(0, 4)"
       :key="comment._id || i"
       class="my-1 p-1 rounded-full shadow-lg bg-black/60 border border-white/20 backdrop-blur-md transition-transform duration-200 active:scale-[0.97]"
     >

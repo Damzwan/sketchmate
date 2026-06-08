@@ -68,7 +68,7 @@
               </div>
 
               <!-- Organic Masonry-Style Flex Grid Grid -->
-              <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3.5 pt-1 overflow-visible">
+              <div class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-8 gap-3.5 pt-1 overflow-visible">
                 <div
                   v-for="(inboxItem, i) in groupedInboxItems[date]"
                   :key="inboxItem._id"

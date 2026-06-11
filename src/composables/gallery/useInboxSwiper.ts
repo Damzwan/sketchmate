@@ -13,6 +13,7 @@ import { isInRoom } from "@/draw/helpers/drawSyncing.helper";
 import router from "@/router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { alertController } from "@ionic/vue";
+import { useDrawStore } from "@/draw/store/draw.store";
 
 export function useInboxSwiper() {
 	const swiperStore = usePhotoSwiper();
@@ -74,15 +75,42 @@ export function useInboxSwiper() {
 						{
 							text: "Start Drawing",
 							cssClass: "alert-button-confirm",
-							handler: () => {
+							handler: async () => {
 								swiperStore.close();
-								router.push({
-									path: FRONTEND_ROUTES.draw,
-									query: {
-										canvas_url: item.drawing,
-										mode: "solo",
-									},
-								});
+
+								const queryParams = {
+									canvas_url: item.drawing,
+									mode: "solo",
+									// Force a new random draft ID so lifecycle rules recognize a new session
+									id: crypto.randomUUID(),
+								};
+
+								if (
+									router.currentRoute.value.path === `/${FRONTEND_ROUTES.draw}`
+								) {
+									// 1. Update the URL parameters silently so deep-links match our state
+									await router.replace({ query: queryParams });
+
+									// 2. Reach directly into the active draw store to re-initialize the board
+									const drawStore = useDrawStore();
+									const mainCanvasElement = document.getElementById(
+										"mainCanvas",
+									) as HTMLCanvasElement;
+
+									if (mainCanvasElement) {
+										await drawStore.initCanvas(mainCanvasElement, {
+											isLobby: false,
+											draftId: queryParams.id,
+											canvasUrl: queryParams.canvas_url,
+										});
+									}
+								} else {
+									// Fallback behavior: Standard navigation if we are coming from a feed/lobby
+									router.push({
+										path: FRONTEND_ROUTES.draw,
+										query: queryParams,
+									});
+								}
 							},
 						},
 					],

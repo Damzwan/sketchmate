@@ -145,7 +145,8 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			overscanPx: 2,
 			zoomTiers: [0.03125, 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32],
 			additivePatchBudget: 16,
-			deferBitmapClose: true, // FIX 2
+			deferBitmapClose: true,
+			maxRenderScale: IS_LOW_END ? 1.5 : 2,
 		},
 	);
 
@@ -232,7 +233,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				const localRects = dirtyOldRects.slice();
 				dirtyOldRects.length = 0;
 				const zoom = c.viewportTransform![0];
-				const activeTier = tileCache.pickTierForZoom(zoom);
+				const activeTier = tileCache.pickActiveTier(zoom);
 				// Filter to in-viewport only; off-viewport just gen-bump.
 				const viewport = getViewportRectPadded(c);
 				const inViewRects: WorldRect[] = [];
@@ -300,7 +301,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		for (const cl of clusters) tileCache.invalidateRect(cl.rect);
 
 		const zoom = c.viewportTransform![0];
-		const activeTier = tileCache.pickTierForZoom(zoom);
+		const activeTier = tileCache.pickActiveTier(zoom);
 
 		const rects = clusters.map((cl) => cl.rect);
 		const estimatedTiles = estimatePatchTileCount(rects, activeTier);
@@ -603,7 +604,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		objects.sort((a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0));
 
 		const zoom = c.viewportTransform![0];
-		const activeTier = tileCache.pickTierForZoom(zoom);
+		const activeTier = tileCache.pickActiveTier(zoom);
 
 		// FIX 1 — active tier + 2 coarser + 1 finer. The finer tier matters
 		// because if the user is about to zoom in, the cached finer tile
@@ -815,7 +816,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		const b = objectBounds(obj);
 		if (!isFinite(b.w) || !isFinite(b.h)) return false;
 		const zoom = c.viewportTransform![0];
-		const tier = tileCache.pickTierForZoom(zoom);
+		const tier = tileCache.pickActiveTier(zoom);
 		const tileWorldSize = 512 / tileCache.ZOOM_TIERS[tier];
 		const tilesCovered =
 			Math.ceil(b.w / tileWorldSize) * Math.ceil(b.h / tileWorldSize);

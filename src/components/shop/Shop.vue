@@ -289,7 +289,7 @@ const categories: { id: ItemCategory; label: string; icon: string }[] = [
 	{ id: "brush", label: "Brushes", icon: "🖌️" },
 	{ id: "decoration", label: "Decor", icon: "✨" },
 	{ id: "effect", label: "Effects", icon: "💫" },
-	{ id: "font", label: "Fonts", icon: "Aa" },
+	{ id: "font", label: "Fonts", icon: "𑿿" },
 ];
 
 const activeCategory = ref<ItemCategory>("theme");

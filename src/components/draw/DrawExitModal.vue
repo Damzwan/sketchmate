@@ -2,10 +2,17 @@
   <div class="px-8 mb-4 bot-pad-safe exit-modal-container bg-tertiary">
     <div class="text-center mb-4 mt-6">
       <h2 class="text-3xl cabin-sketch-regular font-black text-black tracking-tight">
-        Leave Session?
+        {{ isEmptyDeletion ? 'Discard Draft?' : 'Leave Session?' }}
       </h2>
-      <p class="text-xl cabin-sketch-regular font-medium text-black/60 mt-2">
+
+      <p v-if="isLobby" class="text-xl cabin-sketch-regular font-medium text-black/60 mt-2">
         You'll be disconnected from the room.
+      </p>
+      <p v-else-if="isEmptyDeletion" class="text-xl cabin-sketch-regular font-medium text-black/60 mt-2">
+        This draft is empty. Exiting will remove it from your gallery storage.
+      </p>
+      <p v-else class="text-xl cabin-sketch-regular font-medium text-black/60 mt-2">
+        Don't worry, your progress is automatically saved!
       </p>
     </div>
 
@@ -17,7 +24,7 @@
         class="main-exit-btn cabin-sketch-regular font-black"
         @click="dismiss('leave')"
       >
-        Leave Room
+        {{ isLobby ? 'Leave Room' : (isEmptyDeletion ? 'Discard & Exit' : 'Exit to Gallery') }}
       </ion-button>
 
       <ion-button
@@ -27,7 +34,7 @@
         class="cancel-btn cabin-sketch-regular font-bold"
         @click="dismiss('cancel')"
       >
-        Stay
+        Keep Drawing
       </ion-button>
     </div>
   </div>
@@ -35,6 +42,11 @@
 
 <script setup lang="ts">
 import { IonButton, modalController } from "@ionic/vue";
+
+defineProps<{
+	isLobby: boolean;
+	isEmptyDeletion: boolean; // Evaluates conditional strings for clean warning feedback
+}>();
 
 const dismiss = (role: string) => modalController.dismiss(null, role);
 </script>

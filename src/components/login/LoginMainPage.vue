@@ -4,7 +4,6 @@
       <div>
         <div class="w-full flex justify-center items-center gap-2">
           <p class="cabin-sketch-regular text-5xl">SketchMate</p>
-          <!--          <img :src="pencil" alt="sketchmate logo" height="40" width="40" />-->
         </div>
 
         <div class="w-full flex flex-col gap-4 pt-4">
@@ -35,7 +34,8 @@
                   @ionBlur="v$.loginEmail.$validate()"
                   ref="mailInput"
                   name="email"
-                  type="email" placeholder="sketcher@gmail.com">
+                  type="email" placeholder="sketcher@gmail.com"
+                  class="autofill-override">
                   <ion-icon slot="start" :icon="svg(mdiEmailOutline)" aria-hidden="true" size="large"
                             class="fill-gray-500" />
                 </ion-input>
@@ -54,7 +54,8 @@
                     autocomplete="current-password"
                     name="password"
                     fill="outline"
-                    type="password">
+                    type="password"
+                    class="autofill-override">
                     <ion-icon slot="start" :icon="svg(mdiLockOutline)" aria-hidden="true" size="large"
                               class="fill-gray-500" />
                     <ion-input-password-toggle slot="end" color="secondary" />
@@ -84,7 +85,8 @@
                     autocomplete="new-password"
                     color="secondary"
                     fill="outline"
-                    type="password">
+                    type="password"
+                    class="autofill-override">
                     <ion-icon slot="start" :icon="svg(mdiLockOutline)" aria-hidden="true" size="large"
                               class="fill-gray-500" />
                   </ion-input>
@@ -116,7 +118,8 @@
                   v-model="state.loginEmail"
                   @ionBlur="v$.loginEmail.$validate()"
                   ref="mailInput"
-                  type="email" placeholder="sketcher@gmail.com">
+                  type="email" placeholder="sketcher@gmail.com"
+                  class="autofill-override">
                   <ion-icon slot="start" :icon="svg(mdiEmailOutline)" aria-hidden="true" size="large"
                             class="fill-gray-500" />
                 </ion-input>
@@ -191,200 +194,250 @@
 
 <script setup lang="ts">
 import {
-  IonButton,
-  IonContent,
-  IonIcon,
-  IonInputPasswordToggle,
-  IonInput,
-  IonSpinner
-} from '@ionic/vue'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useToast } from '@/service/toast.service'
-import { FirebaseAuthentication, SignInResult } from '@capacitor-firebase/authentication'
-import { ToastDuration } from '@/types/toast.types'
-import { isNative, shuffleArray, svg } from '@/helper/general.helper'
-import { Preferences } from '@capacitor/preferences'
-import { LocalStorage } from '@/types/storage.types'
-import { email, minLength, required, sameAs } from '@vuelidate/validators'
-import { useVuelidate } from '@vuelidate/core'
+	IonButton,
+	IonContent,
+	IonIcon,
+	IonInputPasswordToggle,
+	IonInput,
+	IonSpinner,
+} from "@ionic/vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useToast } from "@/service/toast.service";
+import {
+	FirebaseAuthentication,
+	SignInResult,
+} from "@capacitor-firebase/authentication";
+import { ToastDuration } from "@/types/toast.types";
+import { isNative, shuffleArray, svg } from "@/helper/general.helper";
+import { Preferences } from "@capacitor/preferences";
+import { LocalStorage } from "@/types/storage.types";
+import { email, minLength, required, sameAs } from "@vuelidate/validators";
+import { useVuelidate } from "@vuelidate/core";
 
-import drawing1 from '@/assets/login_images/1.webp'
-import drawing2 from '@/assets/login_images/2.webp'
-import drawing3 from '@/assets/login_images/3.webp'
-import drawing4 from '@/assets/login_images/4.webp'
-import drawing5 from '@/assets/login_images/5.webp'
-import drawing6 from '@/assets/login_images/6.webp'
-import drawing7 from '@/assets/login_images/7.webp'
-import drawing8 from '@/assets/login_images/8.webp'
-import drawing9 from '@/assets/login_images/9.webp'
-import drawing10 from '@/assets/login_images/10.webp'
-import drawing11 from '@/assets/login_images/11.webp'
-import drawing12 from '@/assets/login_images/12.webp'
-import drawing13 from '@/assets/login_images/13.webp'
-import drawing14 from '@/assets/login_images/14.webp'
-import drawing15 from '@/assets/login_images/15.webp'
-import drawing16 from '@/assets/login_images/16.webp'
-import drawing17 from '@/assets/login_images/17.webp'
-import drawing18 from '@/assets/login_images/18.webp'
-import drawing19 from '@/assets/login_images/19.webp'
-import drawing20 from '@/assets/login_images/20.webp'
-import LoginMovingDrawingRow from '@/components/login/LoginMovingDrawingRow.vue'
-import { mdiEmail, mdiEmailOutline, mdiGoogle, mdiLockOutline, mdiSend } from '@mdi/js'
-import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import drawing1 from "@/assets/login_images/1.webp";
+import drawing2 from "@/assets/login_images/2.webp";
+import drawing3 from "@/assets/login_images/3.webp";
+import drawing4 from "@/assets/login_images/4.webp";
+import drawing5 from "@/assets/login_images/5.webp";
+import drawing6 from "@/assets/login_images/6.webp";
+import drawing7 from "@/assets/login_images/7.webp";
+import drawing8 from "@/assets/login_images/8.webp";
+import drawing9 from "@/assets/login_images/9.webp";
+import drawing10 from "@/assets/login_images/10.webp";
+import drawing11 from "@/assets/login_images/11.webp";
+import drawing12 from "@/assets/login_images/12.webp";
+import drawing13 from "@/assets/login_images/13.webp";
+import drawing14 from "@/assets/login_images/14.webp";
+import drawing15 from "@/assets/login_images/15.webp";
+import drawing16 from "@/assets/login_images/16.webp";
+import drawing17 from "@/assets/login_images/17.webp";
+import drawing18 from "@/assets/login_images/18.webp";
+import drawing19 from "@/assets/login_images/19.webp";
+import drawing20 from "@/assets/login_images/20.webp";
+import LoginMovingDrawingRow from "@/components/login/LoginMovingDrawingRow.vue";
+import {
+	mdiEmail,
+	mdiEmailOutline,
+	mdiGoogle,
+	mdiLockOutline,
+	mdiSend,
+} from "@mdi/js";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 
+const drawings1 = shuffleArray([
+	drawing1,
+	drawing2,
+	drawing3,
+	drawing4,
+	drawing5,
+	drawing6,
+	drawing7,
+	drawing8,
+	drawing9,
+	drawing10,
+]);
+const drawings2 = shuffleArray([
+	drawing11,
+	drawing12,
+	drawing13,
+	drawing14,
+	drawing15,
+	drawing16,
+	drawing17,
+	drawing18,
+	drawing19,
+	drawing20,
+]);
 
-const drawings1 = shuffleArray([drawing1, drawing2, drawing3, drawing4, drawing5, drawing6, drawing7, drawing8, drawing9, drawing10])
-const drawings2 = shuffleArray([drawing11, drawing12, drawing13, drawing14, drawing15, drawing16, drawing17, drawing18, drawing19, drawing20])
+const { toast } = useToast();
 
+const showLoginScreen = ref(false);
+const isPasswordForgotten = ref(false);
+const isAnonymousConfirmationOpen = ref(false);
 
-const { toast } = useToast()
+const mailInput = ref();
+const loginErrorMsg = ref("");
+const loginLoading = ref(false);
+const googleloading = ref(false);
+const anonymousLoading = ref(false);
 
-const showLoginScreen = ref(false)
-const isPasswordForgotten = ref(false)
-const isAnonymousConfirmationOpen = ref(false)
+const forgotPassword = ref(false);
+const forgotPasswordSent = ref(false);
 
-
-const mailInput = ref()
-const loginErrorMsg = ref('')
-const loginLoading = ref(false)
-const googleloading = ref(false)
-const anonymousLoading = ref(false)
-
-const forgotPassword = ref(false)
-const forgotPasswordSent = ref(false)
-
-const isShortScreen = ref(false)
-const isSuperShortScreen = ref(false)
+const isShortScreen = ref(false);
+const isSuperShortScreen = ref(false);
 
 onMounted(() => {
-  isShortScreen.value = window.innerHeight < 1200
-  isSuperShortScreen.value = window.innerHeight < 700
-})
+	isShortScreen.value = window.innerHeight < 1200;
+	isSuperShortScreen.value = window.innerHeight < 700;
+});
 
 const state = reactive({
-  loginEmail: '',
-  password: '',
-  confirmPassword: ''
-})
+	loginEmail: "",
+	password: "",
+	confirmPassword: "",
+});
 
-const confirmRef = computed(() => state.password)
+const confirmRef = computed(() => state.password);
 
 const rules = {
-  loginEmail: { required, email },
-  password: { required, minLength: minLength(8) },
-  confirmPassword: { required, minLength: minLength(8), confirmRef: sameAs(confirmRef) }
-}
+	loginEmail: { required, email },
+	password: { required, minLength: minLength(8) },
+	confirmPassword: {
+		required,
+		minLength: minLength(8),
+		confirmRef: sameAs(confirmRef),
+	},
+};
 
-
-const v$ = useVuelidate(rules, state)
-const isLoginInValid = computed(() => v$.value.loginEmail.$invalid || v$.value.password.$invalid)
-const isForgetPasswordInvalid = computed(() => v$.value.loginEmail.$invalid)
-const isRegisterInvalid = computed(() => v$.value.loginEmail.$invalid || v$.value.password.$invalid || v$.value.confirmPassword.$invalid)
-const isRegistering = ref(false)
-
+const v$ = useVuelidate(rules, state);
+const isLoginInValid = computed(
+	() => v$.value.loginEmail.$invalid || v$.value.password.$invalid,
+);
+const isForgetPasswordInvalid = computed(() => v$.value.loginEmail.$invalid);
+const isRegisterInvalid = computed(
+	() =>
+		v$.value.loginEmail.$invalid ||
+		v$.value.password.$invalid ||
+		v$.value.confirmPassword.$invalid,
+);
+const isRegistering = ref(false);
 
 // reset the error messages
 watch([isRegistering, forgotPassword], () => {
-  v$.value.$reset()
-  loginErrorMsg.value = ''
-})
-
+	v$.value.$reset();
+	loginErrorMsg.value = "";
+});
 
 async function onPasswordForget() {
-  try {
-    await v$.value.$validate()
-    if (isForgetPasswordInvalid.value) return
-    loginLoading.value = true
-    await FirebaseAuthentication.sendPasswordResetEmail({
-      email: state.loginEmail
-    })
-    forgotPasswordSent.value = true
-    loginLoading.value = false
-  } catch (e: any) {
-    loginErrorMsg.value = 'Email not found'
-    loginLoading.value = false
-    console.log(e.code)
-  }
+	try {
+		await v$.value.$validate();
+		if (isForgetPasswordInvalid.value) return;
+		loginLoading.value = true;
+		await FirebaseAuthentication.sendPasswordResetEmail({
+			email: state.loginEmail,
+		});
+		forgotPasswordSent.value = true;
+		loginLoading.value = false;
+	} catch (e: any) {
+		loginErrorMsg.value = "Email not found";
+		loginLoading.value = false;
+		console.log(e.code);
+	}
 }
 
 async function onEmailLoginSubmit() {
-  Preferences.set({ key: LocalStorage.login, value: 'true' })
-  await v$.value.$validate()
+	Preferences.set({ key: LocalStorage.login, value: "true" });
+	await v$.value.$validate();
 
-  if (isRegistering.value) {
-    if (isRegisterInvalid.value) return
-    try {
-      loginLoading.value = true
-      const result = await FirebaseAuthentication.createUserWithEmailAndPassword({
-        email: state.loginEmail,
-        password: state.password
-      })
-      await onLoginResult(result)
-
-    } catch (e: any) {
-      if (e.code == 'auth/email-already-in-use') loginErrorMsg.value = 'Account already exists, try logging in instead.'
-      else if (e.code == 'email-already-in-use') loginErrorMsg.value = 'Account already exists, try logging in instead.'
-      else loginErrorMsg.value = 'Something went wrong, please try again later. If this issue persists contact me.'
-      loginLoading.value = false
-    }
-  } else {
-    if (isLoginInValid.value) return
-    try {
-      loginLoading.value = true
-      const result = await FirebaseAuthentication.signInWithEmailAndPassword({
-        email: state.loginEmail,
-        password: state.password
-      })
-      await onLoginResult(result)
-    } catch (e: any) {
-      if (e.code == 'auth/invalid-login-credentials') loginErrorMsg.value = 'Account not found or wrong password.'
-      else if (e.message.includes('INVALID_LOGIN_CREDENTIALS')) loginErrorMsg.value = 'Account not found or wrong password.' // TODO current hack since the plugin does not return the error code...
-      else if (e.code == 'auth/too-many-requests') loginErrorMsg.value = 'Too many attempts, try again later.'
-      else loginErrorMsg.value = 'Something went wrong, please try again later. If this issue persists contact me.'
-      loginLoading.value = false
-    }
-  }
+	if (isRegistering.value) {
+		if (isRegisterInvalid.value) return;
+		try {
+			loginLoading.value = true;
+			const result =
+				await FirebaseAuthentication.createUserWithEmailAndPassword({
+					email: state.loginEmail,
+					password: state.password,
+				});
+			await onLoginResult(result);
+		} catch (e: any) {
+			if (e.code == "auth/email-already-in-use")
+				loginErrorMsg.value = "Account already exists, try logging in instead.";
+			else if (e.code == "email-already-in-use")
+				loginErrorMsg.value = "Account already exists, try logging in instead.";
+			else
+				loginErrorMsg.value =
+					"Something went wrong, please try again later. If this issue persists contact me.";
+			loginLoading.value = false;
+		}
+	} else {
+		if (isLoginInValid.value) return;
+		try {
+			loginLoading.value = true;
+			const result = await FirebaseAuthentication.signInWithEmailAndPassword({
+				email: state.loginEmail,
+				password: state.password,
+			});
+			await onLoginResult(result);
+		} catch (e: any) {
+			if (e.code == "auth/invalid-login-credentials")
+				loginErrorMsg.value = "Account not found or wrong password.";
+			else if (e.message.includes("INVALID_LOGIN_CREDENTIALS"))
+				loginErrorMsg.value = "Account not found or wrong password."; // TODO current hack since the plugin does not return the error code...
+			else if (e.code == "auth/too-many-requests")
+				loginErrorMsg.value = "Too many attempts, try again later.";
+			else
+				loginErrorMsg.value =
+					"Something went wrong, please try again later. If this issue persists contact me.";
+			loginLoading.value = false;
+		}
+	}
 }
 
-
 async function onGoogleLogin() {
-  Preferences.set({ key: LocalStorage.login, value: 'true' })
-  if (isNative()) setTimeout(() => googleloading.value = true, 1500)
-  else googleloading.value = true
-  try {
-    const result = await FirebaseAuthentication.signInWithGoogle()
-    await onLoginResult(result)
-  } catch (e) {
-    toast('Something went wrong, try again later', { color: 'danger', duration: ToastDuration.medium })
-    googleloading.value = false
-  }
+	Preferences.set({ key: LocalStorage.login, value: "true" });
+	if (isNative()) setTimeout(() => (googleloading.value = true), 1500);
+	else googleloading.value = true;
+	try {
+		const result = await FirebaseAuthentication.signInWithGoogle();
+		await onLoginResult(result);
+	} catch (e) {
+		toast("Something went wrong, try again later", {
+			color: "danger",
+			duration: ToastDuration.medium,
+		});
+		googleloading.value = false;
+	}
 }
 
 async function onAnonymousLogin() {
-  Preferences.set({ key: LocalStorage.login, value: 'true' })
-  try {
-    anonymousLoading.value = true
-    const result = await FirebaseAuthentication.signInAnonymously()
-    await onLoginResult(result)
-  } catch (e) {
-    toast('Something went wrong, try again later', { color: 'danger', duration: ToastDuration.medium })
-    anonymousLoading.value = false
-  }
+	Preferences.set({ key: LocalStorage.login, value: "true" });
+	try {
+		anonymousLoading.value = true;
+		const result = await FirebaseAuthentication.signInAnonymously();
+		await onLoginResult(result);
+	} catch (e) {
+		toast("Something went wrong, try again later", {
+			color: "danger",
+			duration: ToastDuration.medium,
+		});
+		anonymousLoading.value = false;
+	}
 }
-
 
 // the watcher in app.store will trigger the reroute
 async function onLoginResult(result: SignInResult) {
-  if (!result.user) {
-    loginLoading.value = false
-    googleloading.value = false
-    anonymousLoading.value = false
-    toast('Something went wrong, try again later', { color: 'danger', duration: ToastDuration.medium })
-    return
-  }
+	if (!result.user) {
+		loginLoading.value = false;
+		googleloading.value = false;
+		anonymousLoading.value = false;
+		toast("Something went wrong, try again later", {
+			color: "danger",
+			duration: ToastDuration.medium,
+		});
+		return;
+	}
 }
-
-
 </script>
 
 <style scoped>
@@ -398,5 +451,15 @@ async function onLoginResult(result: SignInResult) {
 
 .fade-enter-to {
   opacity: 1;
+}
+
+
+</style>
+
+<!--prevents the stupid autofill style-->
+<style>
+input:-webkit-autofill,
+input:-webkit-autofill:focus {
+  transition: background-color 0s 600000s, color 0s 600000s !important;
 }
 </style>

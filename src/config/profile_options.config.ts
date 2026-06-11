@@ -262,10 +262,7 @@ export interface Decoration {
 	badge?: { emoji: string; position: "tl" | "tr" | "bl" | "br" };
 	topper?: "cat-ears";
 	lottieId?: "gamer" | "wave";
-	lottieConfig?: {
-		scale: string;
-		offset: string;
-	};
+	lottieConfig?: { scale: string; offset: string };
 }
 
 export const DECORATIONS: Decoration[] = [
@@ -344,7 +341,7 @@ export const DEFAULT_DECORATION_ID = "none";
 export const resolveDecoration = (id?: string): Decoration =>
 	DECORATIONS.find((d) => d.id === id) || DECORATIONS[0];
 
-// ─── PROFILE EFFECTS ─────────────────────────────────────────────────────────
+// ─── PROFILE EFFECTS (BACKGROUND TEXTURES) ───────────────────────────────────
 export type EffectKind = "none" | "particles" | "falling" | "shimmer" | "grain";
 
 export interface ProfileEffectDef {
@@ -438,6 +435,38 @@ export const DEFAULT_EFFECT_ID = "none";
 export const resolveEffect = (id?: string): ProfileEffectDef =>
 	PROFILE_EFFECTS.find((e) => e.id === id) || PROFILE_EFFECTS[0];
 
+// ─── ATMOSPHERES (FOREGROUND ENVIRONMENTS) ───────────────────────────────────
+export type AtmosphereKind = "none" | "ocean" | "cat" | "autumn";
+
+export interface AtmosphereDef {
+	id: string;
+	name: string;
+	desc: string;
+	kind: AtmosphereKind;
+}
+
+export const ATMOSPHERES: AtmosphereDef[] = [
+	{ id: "none", name: "None", desc: "Quiet space", kind: "none" },
+	{
+		id: "ocean",
+		name: "Aquarium",
+		desc: "Relaxing marine life",
+		kind: "ocean",
+	},
+	{ id: "cat", name: "Cozy Cat", desc: "Meow meow", kind: "cat" },
+	{
+		id: "autumn",
+		name: "Autumn Forest",
+		desc: "Crisp leaves & tiny friends",
+		kind: "autumn",
+	},
+];
+
+export const DEFAULT_ATMOSPHERE_ID = "none";
+
+export const resolveAtmosphere = (id?: string): AtmosphereDef =>
+	ATMOSPHERES.find((a) => a.id === id) || ATMOSPHERES[0];
+
 // ─── CUSTOMIZATION SHAPE ─────────────────────────────────────────────────────
 export interface Customization {
 	themeId: string;
@@ -445,6 +474,7 @@ export interface Customization {
 	fontEffectId: string;
 	decorationId: string;
 	effectId: string;
+	atmosphereId: string;
 	titleId: string;
 	signaturePath?: string;
 	signatureViewBox?: string;
@@ -460,6 +490,7 @@ export const hydrateCustomization = (
 	fontEffectId: raw?.fontEffectId || "",
 	decorationId: raw?.decorationId || DEFAULT_DECORATION_ID,
 	effectId: raw?.effectId || DEFAULT_EFFECT_ID,
+	atmosphereId: raw?.atmosphereId || DEFAULT_ATMOSPHERE_ID,
 	titleId: raw?.titleId || "",
 	signaturePath: raw?.signaturePath,
 	signatureViewBox: raw?.signatureViewBox,

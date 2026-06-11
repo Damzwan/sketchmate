@@ -280,15 +280,14 @@ async function exportWithMainThreadChunking(
 	});
 }
 
-export function computeBounds(objects: any[]) {
+export function computeBounds(objects: any[], padding: number = 50) {
 	let minX = Infinity,
 		minY = Infinity;
 	let maxX = -Infinity,
 		maxY = -Infinity;
 
 	for (const obj of objects) {
-		const { left, top, width, height } = obj.getBoundingRect();
-
+		const { left, top, width, height } = obj.getBoundingRect(true); // use true for absolute
 		minX = Math.min(minX, left);
 		minY = Math.min(minY, top);
 		maxX = Math.max(maxX, left + width);
@@ -296,10 +295,10 @@ export function computeBounds(objects: any[]) {
 	}
 
 	return {
-		minX,
-		minY,
-		width: maxX - minX,
-		height: maxY - minY,
+		minX: minX - padding,
+		minY: minY - padding,
+		width: maxX + padding - (minX - padding),
+		height: maxY + padding - (minY - padding),
 	};
 }
 

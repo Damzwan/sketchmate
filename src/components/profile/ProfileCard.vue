@@ -1,19 +1,16 @@
 <template>
-  <!-- Outer card: NOT overflow-hidden, so toppers (cat ears) can extend
-       above the avatar without being clipped. -->
   <section
     class="rounded-[3rem] border-2 shadow-lg relative px-2 pb-2 pt-4 transition-all duration-500"
     :style="cardStyle"
   >
-    <!-- Profile-wide effect at full-card level so particles drift
-         across the whole card, not just the doodle zone. -->
     <div class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
       <ProfileEffect :effect-id="effectiveCustomization.effectId" />
+
+      <ProfileAtmosphere :atmosphere-id="effectiveCustomization.atmosphereId" />
     </div>
 
     <div class="relative z-10" :style="{ fontFamily: resolvedFontFamily }">
 
-      <!-- ── TOP LEFT: SETTINGS ── -->
       <div v-if="isOwnProfile && !isPreview" class="absolute top-1 left-0 z-20">
         <transition name="fade">
           <button
@@ -26,7 +23,6 @@
         </transition>
       </div>
 
-      <!-- ── TOP RIGHT: CUSTOMIZE & EDIT ── -->
       <div v-if="isOwnProfile && !isPreview" class="absolute top-1 right-0 flex items-center gap-2 z-20">
         <transition name="fade">
           <button
@@ -63,19 +59,10 @@
 
       <div class="flex flex-col items-center relative mt-2">
 
-        <!-- ─────────────────────────────────────────────────────────
-             DOODLE ZONE — fixed-content region (avatar/title/name/bio)
-             with vertical padding for drawing breathing room. The
-             padding is INSIDE the zone, so strokes drawn in the
-             padding still belong to the zone's coordinate space and
-             render correctly. Buttons above and content below are
-             outside the zone and don't affect sketch geometry.
-             ───────────────────────────────────────────────────────── -->
         <div
           ref="doodleZoneRef"
           class="js-doodle-zone relative w-full flex flex-col items-center py-6"
         >
-          <!-- Sketch overlay covers the entire padded zone. -->
           <BackgroundSketch
             :path="effectiveCustomization.backgroundSketchPath"
             :view-box="effectiveCustomization.backgroundSketchViewBox"
@@ -83,7 +70,6 @@
             class="absolute inset-0 z-0"
           />
 
-          <!-- Avatar -->
           <div class="relative z-30 mb-6">
             <UserAvatar
               v-if="!isEditing || !isOwnProfile"
@@ -157,7 +143,7 @@
                     :value="editForm?.name"
                     placeholder="Artist Name"
                     :minlength="4"
-                    :maxlength="20"
+                    :maxlength="MAX_NAME_LENGTH"
                     class="w-full text-center text-2xl font-black text-black"
                     @ionInput="$emit('update:editFormName', ($event.target as HTMLInputElement).value)"
                   />
@@ -186,10 +172,6 @@
             </div>
           </template>
         </div>
-        <!-- ─── END DOODLE ZONE ─────────────────────────────────── -->
-
-        <!-- Below: CTAs, stats, signature — all outside the doodle zone. -->
-
         <template v-if="!isEditing">
           <div v-if="!isPreview" class="flex gap-3 w-full mt-6 px-1">
             <ion-button
@@ -303,6 +285,7 @@ import {
 import { svg } from "@/helper/general.helper";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
 import ProfilePictureSelector from "@/components/account/ProfilePictureSelector.vue";
 import { useSubscriptionStore } from "@/store/subscription.store";
@@ -318,6 +301,8 @@ import {
 	resolveTitle,
 	type Customization,
 } from "@/config/profile_options.config";
+
+const MAX_NAME_LENGTH = 40;
 
 const props = withDefaults(
 	defineProps<{

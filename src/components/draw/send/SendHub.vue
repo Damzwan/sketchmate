@@ -19,7 +19,7 @@
         />
       </div>
 
-      <!-- Save & Send Direct — visible to everyone IF they have mates -->
+      <!-- Save & Send Direct — visible to everyone IF they have mates or user is logged in -->
       <section
         v-if="!isUnderAge || sortedMates.length > 0"
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
@@ -29,15 +29,33 @@
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
             <p class="text-xl font-bold text-black leading-none">Save & Send Direct</p>
-            <p class="text-sm text-black/60 font-bold mt-1">Keep in gallery and share with mates.</p>
+            <p class="text-sm text-black/60 font-bold mt-1">Keep in gallery, select mates to share with</p>
           </div>
-          <ion-toggle :checked="isSaveAndSend" color="secondary" class="pointer-events-none"></ion-toggle>
+          <input
+            type="checkbox"
+            :checked="isSaveAndSend"
+            class="w-6 h-6 rounded border-primary/40 text-secondary focus:ring-secondary pointer-events-none accent-secondary"
+          />
         </div>
 
-        <div v-if="isSaveAndSend && sortedMates.length > 0"
-             class="pt-1 mt-1 border-t border-primary/20 animate-fade-in"
-             @click.stop>
+        <div v-if="isSaveAndSend" class="pt-1 mt-1 border-t border-primary/20 animate-fade-in" @click.stop>
           <div class="flex overflow-x-auto space-x-3 pb-1 pt-1 hide-scrollbar px-1">
+
+            <!-- ALWAYS VISIBLE & PRE-SELECTED: The Current User (Self) -->
+            <div
+              v-if="user"
+              class="relative w-[64px] h-[64px] shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center border-secondary shadow-md bg-secondary/20 cursor-default select-none"
+            >
+              <div class="relative mb-1">
+                <img :src="user.img || 'assets/placeholder-user.png'" class="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm" />
+              </div>
+              <div class="absolute -top-1.5 -right-1.5 bg-secondary rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-10">
+                <ion-icon :icon="svg(mdiCheck)" class="text-white w-4 h-4" />
+              </div>
+              <span class="text-[10px] font-black truncate w-full text-center px-1 text-black">Me</span>
+            </div>
+
+            <!-- Scrollable Mates List -->
             <button
               v-for="mate in sortedMates"
               :key="mate._id"
@@ -74,7 +92,11 @@
             <p class="text-xl font-bold text-black leading-none">Save to gallery</p>
             <p class="text-sm text-black/60 font-bold mt-1">Keep this drawing in your personal gallery.</p>
           </div>
-          <ion-toggle :checked="isSaveAndSend" color="secondary" class="pointer-events-none"></ion-toggle>
+          <input
+            type="checkbox"
+            :checked="isSaveAndSend"
+            class="w-6 h-6 rounded border-primary/40 text-secondary focus:ring-secondary pointer-events-none accent-secondary"
+          />
         </div>
       </section>
 
@@ -91,10 +113,10 @@
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
             <p class="text-xl font-bold text-black leading-none">Community Post</p>
-            <p class="text-sm text-black/60 font-bold mt-1">
+            <div class="text-sm text-black/60 font-bold mt-1">
               <template v-if="quotaStore.canCreatePost">
-                Publish to the public feed.
-                <span class="text-secondary">{{ quotaStore.posts.remaining }}/{{ quotaStore.posts.limit }} left today.</span>
+                <div>Publish to the public feed.</div>
+                <div class="text-secondary mt-1">{{ quotaStore.posts.remaining }}/{{ quotaStore.posts.limit }} left today.</div>
               </template>
               <template v-else-if="quotaStore.isPro">
                 Daily limit reached. Resets in {{ postResetCountdown }}.
@@ -102,13 +124,13 @@
               <template v-else>
                 Daily limit reached. <span class="text-secondary underline font-black active:scale-95 inline-block cursor-pointer" @click.stop="goToPro">⭐ Upgrade to PRO</span>
               </template>
-            </p>
+            </div>
           </div>
-          <ion-toggle
+          <input
+            type="checkbox"
             :checked="isPublicPost"
             :disabled="!quotaStore.canCreatePost"
-            color="secondary"
-            class="pointer-events-none"
+            class="w-6 h-6 rounded border-primary/40 text-secondary focus:ring-secondary pointer-events-none accent-secondary"
           />
         </div>
 
@@ -151,10 +173,10 @@
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
             <p class="text-xl font-bold text-black leading-none"><span class="mr-1">🎈</span> Release Balloon</p>
-            <p class="text-sm text-black/60 font-bold mt-1">
+            <div class="text-sm text-black/60 font-bold mt-1">
               <template v-if="quotaStore.canSendBalloon">
-                Send to a random stranger.
-                <span class="text-secondary">{{ quotaStore.balloons.remaining }}/{{ quotaStore.balloons.limit }} left today.</span>
+                <div>Send to a stranger.</div>
+                <div class="text-secondary mt-1">{{ quotaStore.balloons.remaining }}/{{ quotaStore.balloons.limit }} left today.</div>
               </template>
               <template v-else-if="quotaStore.isPro">
                 Daily limit reached. Resets in {{ balloonResetCountdown }}.
@@ -162,13 +184,13 @@
               <template v-else>
                 Daily limit reached. <span class="text-secondary underline font-black active:scale-95 inline-block cursor-pointer" @click.stop="goToPro">⭐ Upgrade to PRO</span>
               </template>
-            </p>
+            </div>
           </div>
-          <ion-toggle
+          <input
+            type="checkbox"
             :checked="isBalloon"
             :disabled="!quotaStore.canSendBalloon"
-            color="secondary"
-            class="pointer-events-none"
+            class="w-6 h-6 rounded border-primary/40 text-secondary focus:ring-secondary pointer-events-none accent-secondary"
           />
         </div>
 
@@ -233,7 +255,6 @@ import duration from "dayjs/plugin/duration";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
-import { useDrawStore } from "@/draw/store/draw.store";
 import { useMateSelection } from "@/draw/services/useMateSelection";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useShareService } from "@/draw/store/useShareService.store";
@@ -244,6 +265,7 @@ import { FRONTEND_ROUTES } from "@/types/router.types";
 // @ts-ignore
 import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
 import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { useDrawStore } from "@/draw/store/draw.store";
 
 dayjs.extend(duration);
 
@@ -270,7 +292,6 @@ const drawUI = useDrawUIStore();
 
 const { selected, toggle, reset: resetMates } = useMateSelection();
 
-// Underage users can't pre-select balloon — fall through to save-only.
 const isBalloon = ref(
 	!isUnderAge.value && shareService.preSelected === "balloon",
 );
@@ -294,7 +315,6 @@ const sortedMates = computed(() =>
 	}),
 );
 
-// Ticker for countdown computed properties
 const now = ref(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -327,15 +347,12 @@ const postResetCountdown = computed(() =>
 	fmtCountdown(quotaStore.posts.reset_at),
 );
 
-// "Send" vs "Save" — wording shifts when underage with no mates, since
-// there's nothing to send to
 const sendButtonLabel = computed(() => {
 	if (isUnderAge.value && sortedMates.value.length === 0) return "Save";
 	return "Send";
 });
 
 onMounted(async () => {
-	// Graceful fallback: if preSelected was balloon but underage or out of quota
 	drawUI.chatToastsSilenced = true;
 	if (isBalloon.value && (!quotaStore.canSendBalloon || isUnderAge.value)) {
 		isBalloon.value = false;
@@ -366,9 +383,6 @@ const goBack = (e: Event) => {
 };
 
 function toggleSection(section: "direct" | "post" | "balloon") {
-	// Defensive: underage users shouldn't be able to flip post/balloon even if
-	// they bypassed the v-if (e.g. age changed mid-session). UI-only guard;
-	// server is the real enforcement.
 	if ((section === "post" || section === "balloon") && isUnderAge.value) return;
 
 	if (section === "direct") isSaveAndSend.value = !isSaveAndSend.value;
@@ -390,7 +404,6 @@ async function executeShares() {
 			? [...Array.from(selected.value), user.value._id]
 			: [];
 
-	// Underage users can't trigger these, but guard at the action layer too
 	const wantsPost = isPublicPost.value && !isUnderAge.value;
 	const captionSnapshot = postCaption.value;
 	const enableCommentsSnapshot = postEnableComments.value;

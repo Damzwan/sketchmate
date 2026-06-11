@@ -59,21 +59,23 @@
       </div>
 
       <div class="flex items-center gap-1.5 shrink-0">
-        <button
+        <ion-button
           v-if="activeTab === 'lobby'"
           @click="openRoomMenu"
-          class="p-2 rounded-xl bg-white/60 border border-primary/20 active:scale-90 transition-all shadow-sm text-secondary"
+          fill="clear"
+          class="h-9 w-9 rounded-xl bg-white/60 border border-primary/20 active:scale-90 transition-all shadow-sm text-secondary [--padding-start:0] [--padding-end:0]"
         >
-          <ion-icon :icon="svg(mdiCog)" class="text-base" />
-        </button>
+          <ion-icon :icon="svg(mdiCog)" class="text-base" slot="icon-only" />
+        </ion-button>
 
-        <button
+        <ion-button
           v-else
           @click="$emit('open-report', partner)"
-          class="p-2 rounded-xl active:scale-90 transition-all text-black/30 hover:text-black"
+          fill="clear"
+          class="h-9 w-9 rounded-xl active:scale-90 transition-all text-black/30 hover:text-black [--padding-start:0] [--padding-end:0]"
         >
-          <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg" />
-        </button>
+          <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg" slot="icon-only" />
+        </ion-button>
       </div>
     </div>
 

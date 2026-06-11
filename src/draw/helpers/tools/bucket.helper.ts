@@ -183,7 +183,7 @@ export async function bucketFill(
 
 	if (worldArea > MAX_WORLD_AREA) {
 		const { toast } = useToast();
-		toast("Area too large. Please close the shape to fill.", {
+		toast("Area too large", {
 			color: "warning",
 		});
 		return null;

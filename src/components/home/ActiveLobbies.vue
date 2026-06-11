@@ -3,7 +3,7 @@
     <!-- Header Subhead -->
     <div class="flex items-center justify-between px-1 mb-2.5">
       <h2 class="text-xs uppercase tracking-widest font-black text-black/40">
-        Active Lobbies
+        Public Lobbies
       </h2>
       <transition name="fade">
         <div v-if="!loading" class="flex items-center gap-1.5">
@@ -107,6 +107,8 @@ import { ref, computed } from "vue";
 import { useIonRouter } from "@ionic/vue";
 import { useQuotaStore } from "@/store/quota.store";
 import PremiumLobbyModal from "@/components/draw/PremiumLobbyModal.vue";
+import { Menu } from "@/draw/types/draw.types";
+import { useMenuStore } from "@/store/menu.store";
 
 export interface PublicLobbyProps {
 	id: string;
@@ -172,7 +174,8 @@ const handleLobbyClick = (lobby: PublicLobbyProps) => {
 };
 
 const goToPro = () => {
-	// router.push({ path: FRONTEND_ROUTES.subscribe });
+	const { openMenu } = useMenuStore();
+	openMenu(Menu.Shop);
 };
 </script>
 

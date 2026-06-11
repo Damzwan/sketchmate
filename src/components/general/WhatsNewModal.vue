@@ -8,10 +8,6 @@
       <div class="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
 
       <div class="prose dark:prose-invert relative">
-        <div class="flex justify-center mb-2 text-5xl animate-bounce">
-          ✨
-        </div>
-
         <h2 class="text-3xl font-bold mb-1 text-center cabin-sketch-regular tracking-wide text-secondary">
           Leveling Up!
         </h2>
@@ -20,49 +16,55 @@
         </p>
 
         <div class="space-y-6">
-          <div class="flex gap-4">
-            <div
-              class="flex-shrink-0 w-12 h-12 rounded-2xl bg-secondary/30 flex items-center justify-center shadow-sm border border-border/50">
-              <ion-icon :icon="svg(mdiBrushVariant)" class="text-2xl text-secondary" />
-            </div>
-            <div>
-              <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-foreground/90">Smoother
-                Sketching</h3>
-              <p class="text-sm text-muted-foreground mt-1 cabin-sketch-regular">
-                Faster drawing, deeper zoom, and object previews. Navigating your canvas has never felt better.
-              </p>
-            </div>
-          </div>
-
-          <div class="flex gap-4">
-            <div
-              class="flex-shrink-0 w-12 h-12 rounded-2xl bg-secondary/30 flex items-center justify-center text-2xl shadow-sm border border-border/50">
-              🖼️
-            </div>
-            <div>
-              <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-foreground/90">New Gallery
-                Widget</h3>
-              <p class="text-sm text-muted-foreground mt-1 cabin-sketch-regular">
-                Check out our brand-new widget! It displays the latest masterpiece from your gallery right on your home
-                screen.
-              </p>
-            </div>
-          </div>
-
+          <!-- Social Features -->
           <div class="flex gap-4">
             <div
               class="flex-shrink-0 w-12 h-12 rounded-2xl bg-secondary/30 flex items-center justify-center shadow-sm border border-border/50">
               <ion-icon :icon="svg(mdiAccountGroupOutline)" class="text-2xl text-secondary" />
             </div>
             <div>
-              <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-foreground/90">Protected Public
-                Rooms</h3>
+              <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-foreground/90">
+                New Social Features
+              </h3>
               <p class="text-sm text-muted-foreground mt-1 cabin-sketch-regular">
-                Draw with peace of mind. In public rooms, only YOU can edit or delete your own creations.
+                Connect like never before! Make posts, see who is online, and send private messages to your friends.
               </p>
             </div>
           </div>
 
+          <!-- Moderation -->
+          <div class="flex gap-4">
+            <div
+              class="flex-shrink-0 w-12 h-12 rounded-2xl bg-secondary/30 flex items-center justify-center text-2xl shadow-sm border border-border/50">
+              🛡️
+            </div>
+            <div>
+              <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-foreground/90">
+                Community Moderation
+              </h3>
+              <p class="text-sm text-muted-foreground mt-1 cabin-sketch-regular">
+                Let's keep SketchMate safe together. You now have clear options to report and block unwanted content.
+              </p>
+            </div>
+          </div>
+
+          <!-- Customization -->
+          <div class="flex gap-4">
+            <div
+              class="flex-shrink-0 w-12 h-12 rounded-2xl bg-secondary/30 flex items-center justify-center shadow-sm border border-border/50">
+              <ion-icon :icon="svg(mdiBrushVariant)" class="text-2xl text-secondary" />
+            </div>
+            <div>
+              <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-foreground/90">
+                More Customization
+              </h3>
+              <p class="text-sm text-muted-foreground mt-1 cabin-sketch-regular">
+                Express yourself in all kinds of ways! Customize your profile and presence to match your unique style.
+              </p>
+            </div>
+          </div>
+
+          <!-- Drawing & UI -->
           <div class="flex gap-4">
             <div
               class="flex-shrink-0 w-12 h-12 rounded-2xl bg-secondary/30 flex items-center justify-center shadow-sm border border-border/50">
@@ -70,10 +72,10 @@
             </div>
             <div>
               <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-foreground/90">
-                Precision Lasso
+                Next-Gen Canvas
               </h3>
               <p class="text-sm text-muted-foreground mt-1 cabin-sketch-regular">
-                Selecting objects is now easier with real-time visual feedback. See exactly what you're grabbing as you draw!
+                Enjoy an improved drawing experience, a fresh new UI, and massive performance boosts for a smoother workflow.
               </p>
             </div>
           </div>
@@ -99,12 +101,7 @@ import { ref, watchEffect } from "vue";
 import { storeToRefs } from "pinia";
 import { useAuthStore } from "@/store/auth.store";
 import { compareVersions, svg } from "@/helper/general.helper";
-import {
-	mdiAccountGroupOutline,
-	mdiBrushVariant,
-	mdiLasso,
-	mdiMapOutline,
-} from "@mdi/js";
+import { mdiAccountGroupOutline, mdiBrushVariant, mdiLasso } from "@mdi/js";
 import { useRoute } from "vue-router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { updateUser } from "@/service/api/user.api";
@@ -141,7 +138,6 @@ ion-modal.whats-new-modal {
   --height: fit-content;
   --border-radius: 28px;
 }
-
 
 .hide-scrollbar {
   -ms-overflow-style: none;

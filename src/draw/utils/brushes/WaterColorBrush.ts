@@ -77,12 +77,8 @@ export class WaterColorBrush extends BaseBrush {
 			return false;
 		}
 
-		// 1. POST-PROCESSING: Simplify the raw points using Douglas-Peucker.
-		const simplifiedPoints = this._simplifyBasePoints(this._basePoints, 0.2);
-
-		// 2. Build geometry from the clean dataset
 		const pathString = WaterColorStroke.buildPathString(
-			simplifiedPoints,
+			this._basePoints, // Pass the raw decimated points directly
 			this.width,
 		);
 
@@ -99,7 +95,8 @@ export class WaterColorBrush extends BaseBrush {
 				globalCompositeOperation: "multiply",
 				objectCaching: false,
 				interactive: false,
-				basePoints: simplifiedPoints,
+				// Clone the array to prevent accidental reference mutations
+				basePoints: [...this._basePoints],
 			});
 
 			path.set(
@@ -185,8 +182,13 @@ export class WaterColorBrush extends BaseBrush {
 		ctx.lineCap = "round";
 		ctx.lineJoin = "round";
 
+		const retinaScaling = this.canvas.getRetinaScaling
+			? this.canvas.getRetinaScaling()
+			: window.devicePixelRatio || 1;
+		const zoom = this.canvas.getZoom ? this.canvas.getZoom() : 1;
+
 		ctx.shadowColor = this.color;
-		ctx.shadowBlur = this.width * 0.4;
+		ctx.shadowBlur = this.width * 0.4 * zoom * retinaScaling;
 
 		ctx.beginPath();
 		for (let b = 0; b < this._bristlePoints.length; b++) {

@@ -72,25 +72,38 @@
           alt="Main illustration content"
         />
 
+        <!--
+          Signature plaque: framed on a small frosted card with the author's name
+          underneath, so it reads as a clear signed attribution rather than part
+          of the artwork itself. Kept pointer-events-none so it never blocks the
+          double-tap-to-react gesture.
+        -->
         <div
           v-if="authorCustomization.signaturePath"
-          class="absolute bottom-2 right-2 z-20 pointer-events-none transition-opacity duration-500"
-          :class="imageLoaded ? 'opacity-80' : 'opacity-0'"
+          class="absolute bottom-2.5 right-2.5 z-20 pointer-events-none transition-opacity duration-500"
+          :class="imageLoaded ? 'opacity-100' : 'opacity-0'"
         >
-          <svg
-            class="w-20 h-20 filter drop-shadow-sm"
-            :viewBox="authorCustomization.signatureViewBox || '0 0 300 150'"
-            preserveAspectRatio="xMidYMid meet"
+          <div
+            class="flex flex-col items-center rounded-xl bg-white/75 backdrop-blur-md px-2 pt-1 pb-1 shadow-sm border border-black/5"
           >
-            <path
-              :d="authorCustomization.signaturePath"
-              fill="none"
-              :stroke="theme.accentColor || 'var(--ion-color-secondary)'"
-              :stroke-width="signatureStrokeWidth"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+            <svg
+              class="w-14 h-7"
+              :viewBox="authorCustomization.signatureViewBox || '0 0 300 150'"
+              preserveAspectRatio="xMidYMid meet"
+            >
+              <path
+                :d="authorCustomization.signaturePath"
+                fill="none"
+                :stroke="theme.accentColor || 'var(--ion-color-secondary)'"
+                :stroke-width="signatureStrokeWidth"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <span class="text-[7px] font-black uppercase tracking-[0.2em] text-black/40 leading-none mt-0.5">
+              {{ post.author.name }}
+            </span>
+          </div>
         </div>
 
         <div v-if="activeAnim" class="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
@@ -98,86 +111,111 @@
         </div>
       </div>
 
-      <div class="px-4 py-2 flex items-center justify-between bg-white/40 shrink-0 border-b border-primary/5">
-        <div class="flex items-center gap-3">
-          <button
-            @click="(e) => $emit('open-reaction-popover', { event: e, post })"
-            class="w-8 h-8 flex items-center justify-center active:scale-90 transition-transform bg-white/60 shadow-sm rounded-full border border-black/5"
-          >
-            <img
-              :src="post.user_reaction ? reactionImages[post.user_reaction] : reactionImages.heart"
-              class="w-5 h-5 object-contain transition-all"
-              :class="{ 'grayscale opacity-40': !post.user_reaction, 'scale-110': post.user_reaction }"
-              alt="heart"
-            />
-          </button>
-
-          <button
-            v-if="post.enable_comments"
-            @click="$emit('open-comments', post)"
-            class="w-8 h-8 flex items-center justify-center active:scale-90 transition-transform bg-white/60 shadow-sm rounded-full border border-black/5 text-black/60 hover:text-black"
-          >
-            <ion-icon :icon="svg(mdiChatOutline)" class="text-lg mt-0.5" />
-          </button>
-
-          <button
-            @click="openShare"
-            class="w-8 h-8 flex items-center justify-center active:scale-90 transition-transform bg-white/60 shadow-sm rounded-full border border-black/5 text-black/60 hover:text-black"
-          >
-            <ion-icon :icon="svg(mdiSendOutline)" class="text-base -rotate-12 ml-0.5" />
-          </button>
-        </div>
-
-        <div class="flex items-center">
-          <button
-            v-if="post.enable_remix"
-            @click="remixPost"
-            class="px-3 h-8 flex items-center gap-1.5 active:scale-95 transition-all bg-secondary hover:bg-secondary-shade text-white font-black text-[10px] uppercase tracking-wider rounded-full shadow-sm"
-          >
-            <ion-icon :icon="svg(mdiPencilOutline)" class="text-xs" />
-            <span>Remix</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="px-4 pt-2.5 pb-4 bg-white/20 shrink-0 flex flex-col gap-2">
-        <div v-if="activeReactions.length > 0" class="flex items-center gap-1.5">
-          <div class="flex items-center overflow-visible">
-            <img
+      <!-- Footer: reaction proof · action bar · comment previews -->
+      <div class="px-4 pt-3 pb-4 shrink-0 flex flex-col gap-3">
+        <!-- LinkedIn-style reaction social proof -->
+        <div v-if="totalReactionCount > 0" class="flex items-center gap-2">
+          <div class="flex items-center">
+            <div
               v-for="(key, i) in activeReactions.slice(0, 3)"
               :key="key"
-              :src="reactionImages[key]"
-              class="w-5 h-5 object-contain drop-shadow-sm border border-white/50 rounded-full bg-white"
-              :class="i !== 0 ? '-ml-1.5' : ''"
-              alt="reaction stack"
-            />
+              class="w-6 h-6 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center"
+              :class="i !== 0 ? '-ml-2' : ''"
+              :style="{ zIndex: 3 - i }"
+            >
+              <img :src="reactionImages[key]" class="w-4 h-4 object-contain" alt="" />
+            </div>
           </div>
-          <span class="text-[11px] font-black text-black/40 mt-0.5">
-            {{ totalReactionCount }} reactions
+          <span class="text-xs font-black text-black/45 tracking-tight">
+            {{ totalReactionCount }}
           </span>
         </div>
 
+        <!-- Action bar: one cohesive, clear button style -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <!-- React -->
+            <button
+              @click="(e) => $emit('open-reaction-popover', { event: e, post })"
+              class="flex items-center justify-center h-9 px-3 rounded-full border active:scale-95 transition-all"
+              :class="post.user_reaction
+                ? 'bg-secondary/10 border-secondary/30 text-secondary'
+                : 'bg-white border-black/10 text-black/80'"
+              aria-label="React"
+            >
+              <img
+                v-if="post.user_reaction"
+                :src="reactionImages[post.user_reaction]"
+                class="w-5 h-5 object-contain"
+                alt=""
+              />
+              <ion-icon v-else :icon="svg(mdiHeartOutline)" class="text-lg" />
+            </button>
+
+            <!-- Comment (count lives here, Instagram-style) -->
+            <button
+              v-if="post.enable_comments"
+              @click="$emit('open-comments', post)"
+              class="flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-white border border-black/10 text-black/80 active:scale-95 transition-all"
+            >
+              <ion-icon :icon="svg(mdiChatOutline)" class="text-lg" />
+              <span v-if="post.comment_count" class="text-sm font-black tracking-tight">
+                {{ post.comment_count }}
+              </span>
+            </button>
+
+            <!-- Share -->
+            <button
+              @click="openShare"
+              class="flex items-center justify-center h-9 w-9 rounded-full bg-white border border-black/10 text-black/80 active:scale-95 transition-all"
+              aria-label="Share"
+            >
+              <ion-icon :icon="svg(mdiSendOutline)" class="text-base -rotate-12" />
+            </button>
+          </div>
+
+          <!-- Remix: demoted to a neutral pill, matching the rest -->
+          <button
+            v-if="post.enable_remix"
+            @click="remixPost"
+            class="flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-black/10 text-black/50 hover:text-black active:scale-95 transition-all"
+          >
+            <ion-icon :icon="svg(mdiPencilOutline)" class="text-sm" />
+            <span class="text-[11px] font-black uppercase tracking-wider">Remix</span>
+          </button>
+        </div>
+
+        <!-- Comment previews -->
         <div
-          v-if="post.comments?.length || post.comment_count"
+          v-if="previewComments.length"
           @click="$emit('open-comments', post)"
-          class="cursor-pointer active:opacity-70 transition-opacity bg-white/30 rounded-2xl p-2.5 border border-black/5"
+          class="cursor-pointer active:opacity-70 transition-opacity flex flex-col gap-1"
         >
-          <div v-for="comment in post.comments?.slice(0, 2)" :key="comment._id" class="flex items-start gap-1.5 mb-1 last:mb-0 text-xs">
+          <div
+            v-for="comment in previewComments"
+            :key="comment._id"
+            class="flex items-start gap-1.5 text-xs leading-snug"
+          >
             <span class="text-black font-black shrink-0 tracking-tight">{{ comment.author.name }}</span>
             <span class="text-black/70 truncate tracking-tight">{{ comment.message }}</span>
           </div>
 
-          <p class="text-[9px] font-black text-secondary mt-1.5 uppercase tracking-widest leading-none">
+          <!-- Only when there are genuinely more comments than we're previewing -->
+          <p
+            v-if="hasMoreComments"
+            class="text-[10px] font-black text-black/35 mt-0.5 tracking-wide"
+          >
             View all {{ post.comment_count }} comments
           </p>
         </div>
 
+        <!-- Empty-state nudge, only when there is nothing to preview -->
         <p
-          v-else
+          v-else-if="post.enable_comments"
           @click="$emit('open-comments', post)"
-          class="text-[9px] font-black text-black/30 uppercase tracking-widest cursor-pointer active:opacity-60 px-1 py-1"
+          class="text-[10px] font-black text-black/30 uppercase tracking-widest cursor-pointer active:opacity-60"
         >
-          Start the conversation...
+          Start the conversation
         </p>
       </div>
     </div>
@@ -192,6 +230,7 @@ import {
 	mdiDeleteOutline,
 	mdiDotsHorizontal,
 	mdiFlagVariantOutline,
+	mdiHeartOutline,
 	mdiPencilOutline,
 	mdiSendOutline,
 } from "@mdi/js";
@@ -267,6 +306,15 @@ const totalReactionCount = computed(() =>
 	),
 );
 
+// Up to two embedded comments to preview inline.
+const previewComments = computed(() => props.post.comments?.slice(0, 2) ?? []);
+
+// "View all" should only appear when there are comments beyond what's previewed,
+// i.e. genuinely hidden comments — never "View all 1 comments".
+const hasMoreComments = computed(
+	() => (props.post.comment_count ?? 0) > previewComments.value.length,
+);
+
 watch(
 	() => props.post.user_reaction,
 	(newVal, oldVal) => {
@@ -289,15 +337,14 @@ const openShare = () => {
 
 const remixPost = async () => {
 	const alert = await alertController.create({
-		header: "Start Remix Session?",
-		subHeader: "This leaves your current room.",
+		header: "Start a remix?",
 		message:
-			"You are about to start a drawing canvas session based on this layout framework.",
+			"You'll leave this room and open a fresh canvas based on this layout.",
 		cssClass: "liquid-alert",
 		buttons: [
 			{ text: "Cancel", role: "cancel" },
 			{
-				text: "Let's Draw",
+				text: "Let's draw",
 				handler: () => {
 					setTimeout(() => {
 						router.push({

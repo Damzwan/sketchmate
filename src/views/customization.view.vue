@@ -5,8 +5,6 @@
     <ion-content class="bg-background">
       <div v-if="user" class="px-4 pt-6 pb-32 max-w-2xl mx-auto cabin-sketch-regular">
 
-        <!-- Live preview. allow-sketch-edit shows a small FAB in the
-             card's top-left corner instead of an overlay on the title. -->
         <section class="mb-8">
           <ProfileCard
             :user="user"
@@ -18,7 +16,6 @@
           />
         </section>
 
-        <!-- Customization rows -->
         <section class="space-y-3">
           <CustomizeOptionRow
             :icon="mdiPalette"
@@ -101,6 +98,19 @@
           </CustomizeOptionRow>
 
           <CustomizeOptionRow
+            :icon="mdiWeatherHurricane"
+            label="Atmosphere"
+            :value="currentAtmosphereName"
+            @click="atmosphereModalOpen = true"
+          >
+            <template #preview>
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 overflow-hidden relative">
+                <ProfileAtmosphere :atmosphere-id="draft.atmosphereId" />
+              </div>
+            </template>
+          </CustomizeOptionRow>
+
+          <CustomizeOptionRow
             :icon="mdiStarFourPointsOutline"
             label="Title"
             :value="currentTitleName || 'No title'"
@@ -132,7 +142,6 @@
             </template>
           </CustomizeOptionRow>
 
-          <!-- Card doodle row — mirrors signature row layout. -->
           <CustomizeOptionRow
             :icon="mdiBrush"
             label="Card Doodle"
@@ -161,7 +170,6 @@
             </template>
           </CustomizeOptionRow>
 
-          <!-- Clear button only when a doodle exists. Keeps the row clean. -->
           <button
             v-if="draft.backgroundSketchPath"
             class="w-full text-[11px] font-black uppercase tracking-widest text-secondary/70 active:text-secondary py-1"
@@ -171,7 +179,6 @@
           </button>
         </section>
 
-        <!-- Sticky save/revert footer -->
         <transition name="slide-up">
           <div
             v-if="isDirty"
@@ -188,7 +195,6 @@
       </div>
     </ion-content>
 
-    <!-- Modals -->
     <ThemeModal
       :is-open="themeModalOpen"
       :user="user"
@@ -229,6 +235,14 @@
       @select="(id: any) => updateField('effectId', id)"
     />
 
+    <AtmosphereModal
+      :is-open="atmosphereModalOpen"
+      :user="user"
+      :customization="draft"
+      @close="atmosphereModalOpen = false"
+      @select="(id: any) => updateField('atmosphereId', id)"
+    />
+
     <TitleModal
       :is-open="titlesModalOpen"
       :current-title-id="draft.titleId"
@@ -243,9 +257,6 @@
       @save="handleSaveSignature"
     />
 
-    <!-- Sketch pad gets the live draft + user so it can render the actual
-         card as the drawing surface. Stroke color = theme.nameColor to
-         match what BackgroundSketch.vue renders on the card. -->
     <BackgroundSketchPadModal
       :is-open="sketchModalOpen"
       :color="currentTheme.nameColor"
@@ -271,6 +282,7 @@ import {
 	mdiFormatFont,
 	mdiPalette,
 	mdiStarFourPointsOutline,
+	mdiWeatherHurricane,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { useAuthStore } from "@/store/auth.store";
@@ -280,10 +292,12 @@ import { useToast } from "@/service/toast.service";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
 import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
 import ThemeModal from "@/components/profile/customization/ThemeModal.vue";
 import FontModal from "@/components/profile/customization/FontModal.vue";
 import FontEffectModal from "@/components/profile/customization/FontEffectModal.vue";
 import DecorationModal from "@/components/profile/customization/DecorationModal.vue";
+import EffectModal from "@/components/profile/customization/EffectModal.vue";
 import TitleModal from "@/components/profile/customization/TitleModal.vue";
 import SignaturePadModal from "@/components/profile/customization/SignaturePadModal.vue";
 import BackgroundSketchPadModal from "@/components/profile/customization/BackgroundSketchPadModal.vue";
@@ -295,6 +309,7 @@ import {
 	hydrateCustomization,
 	resolveDecoration,
 	resolveEffect,
+	resolveAtmosphere,
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
@@ -302,7 +317,7 @@ import {
 	type Customization,
 } from "@/config/profile_options.config";
 import SubPageBar from "@/components/general/SubPageBar.vue";
-import EffectModal from "@/components/profile/customization/EffectModal.vue";
+import AtmosphereModal from "@/components/profile/customization/AtmosphereModal.vue";
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
@@ -313,6 +328,7 @@ const fontModalOpen = ref(false);
 const fontEffectModalOpen = ref(false);
 const decorationModalOpen = ref(false);
 const effectModalOpen = ref(false);
+const atmosphereModalOpen = ref(false);
 const titlesModalOpen = ref(false);
 const signatureModalOpen = ref(false);
 const sketchModalOpen = ref(false);
@@ -346,6 +362,9 @@ const currentDecorationName = computed(
 );
 const currentEffectName = computed(
 	() => resolveEffect(draft.value.effectId).name,
+);
+const currentAtmosphereName = computed(
+	() => resolveAtmosphere(draft.value.atmosphereId).name,
 );
 const currentTitleName = computed(() => resolveTitle(draft.value.titleId));
 

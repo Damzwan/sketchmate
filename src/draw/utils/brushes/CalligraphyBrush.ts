@@ -137,7 +137,6 @@ export function generateCalligraphyImage(
 ): FabricImage | null {
 	if (rawPoints.length < 2) return null;
 
-	// Step 1: Calculate bounds first so we can size the offscreen canvas
 	let minX = Infinity,
 		minY = Infinity,
 		maxX = -Infinity,
@@ -156,7 +155,9 @@ export function generateCalligraphyImage(
 	maxX += padding;
 	maxY += padding;
 
-	const dpr = 1;
+	// FIX 1: Dynamically pull the device's actual pixel ratio to cure the blurriness
+	const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+
 	const canvas = document.createElement("canvas");
 	canvas.width = (maxX - minX) * dpr;
 	canvas.height = (maxY - minY) * dpr;
@@ -164,9 +165,8 @@ export function generateCalligraphyImage(
 
 	if (!ctx) return null;
 	ctx.scale(dpr, dpr);
-	ctx.translate(-minX, -minY); // Offset the context to fit our bounding box
+	ctx.translate(-minX, -minY);
 
-	// Step 2: Utilize the unified render engine
 	renderCalligraphyEngine(
 		ctx,
 		rawPoints,
@@ -180,7 +180,6 @@ export function generateCalligraphyImage(
 	const width = maxX - minX;
 	const height = maxY - minY;
 
-	// Step 3: Return Fabric Image
 	return new FabricImage(canvas, {
 		left: minX + width / 2,
 		top: minY + height / 2,
@@ -193,10 +192,6 @@ export function generateCalligraphyImage(
 	});
 }
 
-/**
- * The core drawing logic decoupled from the canvas wrapper.
- * This guarantees the live preview and final render are 100% identical.
- */
 function renderCalligraphyEngine(
 	ctx: CanvasRenderingContext2D,
 	rawPoints: RawPoint[],
@@ -207,7 +202,7 @@ function renderCalligraphyEngine(
 	isTemp: boolean,
 ) {
 	const random = seededRandom(seed);
-	const nibAngle = -Math.PI / 4; // 45-degree calligraphy nib
+	const nibAngle = -Math.PI / 4;
 	const maxInkDistance = 2500;
 
 	ctx.fillStyle = color;
@@ -215,10 +210,19 @@ function renderCalligraphyEngine(
 	ctx.lineCap = "round";
 	ctx.lineJoin = "round";
 
+	// Disable smoothing during preview for ultra-fast, stutter-free performance
+	if (isTemp) {
+		ctx.imageSmoothingEnabled = false;
+	}
+
 	let currentDist = 0;
 	let lastWidth = baseWidth * 0.6;
 
-	// 1. Core Ribbon Rendering
+	// Arrays to hold the left and right edges of the continuous stroke
+	const pathLeft: { x: number; y: number }[] = [];
+	const pathRight: { x: number; y: number }[] = [];
+
+	// 1. Core Ribbon Rendering (Unified Path)
 	for (let i = 1; i < rawPoints.length; i++) {
 		const p1 = rawPoints[i - 1];
 		const p2 = rawPoints[i];
@@ -232,60 +236,87 @@ function renderCalligraphyEngine(
 		const timeDiff = Math.max(1, p2.time - p1.time);
 		const velocity = distance / timeDiff;
 
-		// Calculate thickness based heavily on stroke angle vs nib angle
 		const angle = Math.atan2(dy, dx);
 		const angleDiff = angle - nibAngle;
 
-		// Perpendicular = thick, Parallel = thin
 		const widthRatio = 0.15 + 0.85 * Math.abs(Math.sin(angleDiff));
 		const targetWidth = Math.max(
 			baseWidth * 0.1,
 			baseWidth * widthRatio - velocity * 2,
 		);
 
-		// Smooth the width transitions
 		const currentWidth = lastWidth + (targetWidth - lastWidth) * 0.2;
-
-		// Ink depletion fading
-		const inkRemaining = Math.max(0.25, 1 - currentDist / maxInkDistance);
-		ctx.globalAlpha = inkRemaining;
-
-		// --- THE RIBBON TECHNIQUE ---
-		// Instead of drawing a line, we calculate the edges of the chisel tip
-		// and draw a filled polygon. This gives true calligraphy crispness.
-		const w1 = lastWidth / 2;
-		const w2 = currentWidth / 2;
-
-		// Perpendicular angle for the flat edge of the nib
 		const perpAngle = nibAngle + Math.PI / 2;
 
-		const p1Left = {
-			x: p1.x + Math.cos(perpAngle) * w1,
-			y: p1.y + Math.sin(perpAngle) * w1,
-		};
-		const p1Right = {
-			x: p1.x - Math.cos(perpAngle) * w1,
-			y: p1.y - Math.sin(perpAngle) * w1,
-		};
-		const p2Left = {
+		// FIX 2: Calculate boundaries once and store them, rather than filling immediately
+		if (pathLeft.length === 0) {
+			const w1 = lastWidth / 2;
+			pathLeft.push({
+				x: p1.x + Math.cos(perpAngle) * w1,
+				y: p1.y + Math.sin(perpAngle) * w1,
+			});
+			pathRight.push({
+				x: p1.x - Math.cos(perpAngle) * w1,
+				y: p1.y - Math.sin(perpAngle) * w1,
+			});
+		}
+
+		const w2 = currentWidth / 2;
+		pathLeft.push({
 			x: p2.x + Math.cos(perpAngle) * w2,
 			y: p2.y + Math.sin(perpAngle) * w2,
-		};
-		const p2Right = {
+		});
+		pathRight.push({
 			x: p2.x - Math.cos(perpAngle) * w2,
 			y: p2.y - Math.sin(perpAngle) * w2,
-		};
+		});
 
+		lastWidth = currentWidth;
+	}
+
+	// Draw the unified continuous ribbon to cure white-line artifacts
+	if (pathLeft.length > 0) {
 		ctx.beginPath();
-		ctx.moveTo(p1Left.x, p1Left.y);
-		ctx.lineTo(p1Right.x, p1Right.y);
-		ctx.lineTo(p2Right.x, p2Right.y);
-		ctx.lineTo(p2Left.x, p2Left.y);
-		ctx.closePath();
-		ctx.fill();
+		ctx.moveTo(pathLeft[0].x, pathLeft[0].y);
 
-		// Splatters & Bristles (Only render on final image to keep temp strokes ultra-fast)
-		if (!isTemp) {
+		for (let i = 1; i < pathLeft.length; i++) {
+			ctx.lineTo(pathLeft[i].x, pathLeft[i].y);
+		}
+		for (let i = pathRight.length - 1; i >= 0; i--) {
+			ctx.lineTo(pathRight[i].x, pathRight[i].y);
+		}
+
+		ctx.closePath();
+
+		// Dynamic ink depletion: prevents thin strokes from disappearing
+		const minOpacity = baseWidth < 2 ? 0.7 : 0.25;
+		const inkRemaining = Math.max(minOpacity, 1 - currentDist / maxInkDistance);
+		ctx.globalAlpha = inkRemaining;
+
+		ctx.fill();
+		ctx.globalAlpha = 1.0;
+	}
+
+	// 2. Splatters & Bristles (Final image only)
+	if (!isTemp) {
+		currentDist = 0;
+		lastWidth = baseWidth * 0.6;
+
+		for (let i = 1; i < rawPoints.length; i++) {
+			const p1 = rawPoints[i - 1];
+			const p2 = rawPoints[i];
+			const distance = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+			if (distance < 0.5) continue;
+
+			const velocity = distance / Math.max(1, p2.time - p1.time);
+			const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+			const widthRatio = 0.15 + 0.85 * Math.abs(Math.sin(angle - nibAngle));
+			const targetWidth = Math.max(
+				baseWidth * 0.1,
+				baseWidth * widthRatio - velocity * 2,
+			);
+			const currentWidth = lastWidth + (targetWidth - lastWidth) * 0.2;
+
 			if (velocity > 1.5 && random() > 0.8) {
 				ctx.globalAlpha = 0.9;
 				ctx.beginPath();
@@ -315,12 +346,11 @@ function renderCalligraphyEngine(
 				);
 				ctx.stroke();
 			}
+			lastWidth = currentWidth;
 		}
-
-		lastWidth = currentWidth;
 	}
 
-	// 2. Ink Pooling (Final render only)
+	// 3. Ink Pooling (Final render only)
 	if (!isTemp && rawPoints.length > 0) {
 		const lastRawPoint = rawPoints[rawPoints.length - 1];
 		const timeHeld = endTime - lastRawPoint.time;
@@ -337,7 +367,7 @@ function renderCalligraphyEngine(
 		}
 	}
 
-	ctx.globalAlpha = 1.0; // Reset
+	ctx.globalAlpha = 1.0;
 }
 
 export class CalligraphyStroke extends FabricImage {

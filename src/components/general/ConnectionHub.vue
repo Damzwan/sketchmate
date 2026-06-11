@@ -52,7 +52,7 @@
           </div>
         </div>
 
-        <!-- SEARCH SECTION: Integrated for findability -->
+        <!-- SEARCH SECTION -->
         <section class="space-y-3">
           <p class="text-[10px] font-black text-black/40 uppercase tracking-widest px-2">
             Search by name
@@ -72,28 +72,41 @@
             </div>
           </div>
 
-          <!-- Search Results -->
-          <div v-if="foundMates.length > 0 || isSearchingUsers" class="bg-white/30 rounded-[2rem] border border-white/50 overflow-hidden animate-fade-in">
-            <ion-list lines="none" class="bg-transparent p-2">
-              <ion-item
-                v-for="mate in foundMates"
-                :key="mate._id"
-                class="rounded-2xl mb-1 bg-white/40"
-                @click="openUserActions(mate)"
-              >
-                <UserAvatar
-                  v-if="user"
-                  static
-                  :user="user"
-                  :customization="user?.customization"
-                  size="sm"
-                />
-                <ion-label>
-                  <h2 class="font-black text-black">{{ mate.name }}</h2>
-                </ion-label>
-                <ion-icon slot="end" :icon="svg(mdiChevronRight)" class="opacity-30" />
-              </ion-item>
-            </ion-list>
+          <!-- Inline Search Responses -->
+          <div
+            v-if="hasSearched || isSearchingUsers || searchWarning"
+            class="bg-white/30 rounded-[2rem] border border-white/50 overflow-hidden animate-fade-in p-2"
+          >
+            <!-- Fixed string rendering loop checking -->
+            <div v-if="searchWarning" class="p-4 text-center text-xs font-bold text-amber-700 italic">
+              {{ searchWarning }}
+            </div>
+
+            <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-xs font-bold text-black/50 italic">
+              No artists found with that name
+            </div>
+
+            <div v-else class="max-h-60 overflow-y-auto hide-scrollbar">
+              <ion-list lines="none" class="bg-transparent p-0">
+                <ion-item
+                  v-for="mate in foundMates"
+                  :key="mate._id"
+                  class="rounded-2xl mb-1 bg-white/40 last:mb-0"
+                  @click="openUserActions(mate)"
+                >
+                  <UserAvatar
+                    static
+                    :user="mate"
+                    :customization="mate.customization"
+                    size="sm"
+                  />
+                  <ion-label class="ml-2">
+                    <h2 class="font-black text-black">{{ mate.name }}</h2>
+                  </ion-label>
+                  <ion-icon slot="end" :icon="svg(mdiChevronRight)" class="opacity-30" />
+                </ion-item>
+              </ion-list>
+            </div>
           </div>
         </section>
 
@@ -186,6 +199,8 @@ const video = ref<HTMLVideoElement>();
 const mateName = ref("");
 const isSearchingUsers = ref(false);
 const foundMates = ref<any[]>([]);
+const hasSearched = ref(false);
+const searchWarning = ref("");
 
 // Stores/Composables
 const { user } = storeToRefs(useAuthStore());
@@ -213,19 +228,30 @@ const stopCameraView = () => {
 };
 
 async function searchUsers() {
-	if (!mateName.value.trim() || !user.value) return;
+	const query = mateName.value.trim();
+	if (!user.value) return;
+
+	// FIX: Properly reference ref objects using .value to avoid breaking execution
+	if (query.length < 3) {
+		foundMates.value = [];
+		hasSearched.value = false;
+		searchWarning.value = "Type at least 3 characters to search...";
+		return;
+	}
+
+	searchWarning.value = "";
 	isSearchingUsers.value = true;
+	hasSearched.value = true;
+
 	try {
 		const res = await searchMate({
-			mateName: mateName.value,
+			mateName: query,
 			user_id: user.value._id,
 		});
 		foundMates.value = res || [];
-		if (foundMates.value.length === 0) {
-			toast("No artists found with that name", { color: "warning" });
-		}
 	} catch (e) {
 		toast("Search failed", { color: "danger" });
+		hasSearched.value = false;
 	} finally {
 		isSearchingUsers.value = false;
 	}
@@ -253,6 +279,8 @@ function onDismiss() {
 	connectionMenuOpen.value = false;
 	mateName.value = "";
 	foundMates.value = [];
+	hasSearched.value = false;
+	searchWarning.value = "";
 }
 </script>
 
@@ -287,7 +315,6 @@ ion-modal.liquid-connection-modal {
   --max-height: 96vh;
 }
 
-/* Custom Input Styling to match the "Liquid" theme */
 input {
   appearance: none;
   -webkit-appearance: none;

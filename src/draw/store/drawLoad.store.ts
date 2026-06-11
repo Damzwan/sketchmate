@@ -65,13 +65,14 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 	const isSaving = ref(false);
 	const isDirty = ref(false);
 
+	// FIX: Track if the current session was loaded from a pre-existing local draft
+	const isPreExistingDraft = ref(false);
+
 	const pendingDrafts = ref<Map<string, PendingDraft>>(new Map());
 
 	// --- Internal non-reactive refs ---
 	let activeCanvas: Canvas | undefined;
 	let saveInterval: ReturnType<typeof setInterval> | undefined;
-	// AbortController for the *live* autosave only. Background saves run on a
-	// separate controller and complete regardless of activeCanvas state.
 	let liveAbortController: AbortController | undefined;
 
 	const SAVE_INTERVAL_MS = 20000;
@@ -130,6 +131,9 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		const finalId = options.draftId || currentDraftId.value || uuidv4();
 		currentDraftId.value = finalId;
 
+		// Reset draft lineage tracking flag for the new workspace lifecycle
+		isPreExistingDraft.value = false;
+
 		let json: any = null;
 		let isExternalLoad = false;
 
@@ -154,7 +158,11 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 			} else if (!options.isLobby && options.draftId) {
 				await initDB();
 				const draft = await getDraft(options.draftId);
-				if (draft) json = draft.json;
+				if (draft) {
+					json = draft.json;
+					// FIX: Flag that this draft exists in IndexedDB storage
+					isPreExistingDraft.value = true;
+				}
 			}
 
 			if (json) {
@@ -192,9 +200,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 
 			if (!options.isLobby) {
 				startAutosave(c, finalId);
-				// Drafts loaded from disk start clean. External-loaded canvases
-				// (e.g. dropped images, imported JSON) get an immediate save so
-				// they're not lost if the user backgrounds the app right away.
 				if (isExternalLoad && hasContent()) {
 					markAsDirty();
 					performLiveSave();
@@ -207,17 +212,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		}
 	}
 
-	// ──────────────────────────────────────────────────────────────────────────
-	// 📸 SYNCHRONOUS CANVAS SNAPSHOT
-	// ──────────────────────────────────────────────────────────────────────────
-	//
-	// Builds a detached snapshot in O(visible-objects) cloning. Clones are
-	// cheap (~5-15ms for 3k objects) — the heavy work (serialization, render,
-	// IDB write) happens AFTER navigation, off the critical path.
-	//
-	// We clone instead of just slicing references because the view will dispose
-	// the live Canvas on unmount, which mutates `_objects` and can flip
-	// internal state on each object. Clones are fully independent.
 	async function snapshotCanvas(
 		draftId: string,
 	): Promise<CanvasSnapshot | null> {
@@ -225,8 +219,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		const liveObjects = activeCanvas.getObjects();
 		if (liveObjects.length === 0) return null;
 
-		// Capture optimistic thumbnail FIRST — before any cloning — so it
-		// reflects exactly what the user sees as they navigate away.
 		let optimisticThumb = "";
 		try {
 			const el =
@@ -239,7 +231,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 			/* non-fatal */
 		}
 
-		// Clone in parallel. Fabric's clone() is async but lightweight.
 		const objects = await Promise.all(
 			liveObjects.map((o) => o.clone() as Promise<FabricObject>),
 		);
@@ -255,13 +246,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		};
 	}
 
-	// ──────────────────────────────────────────────────────────────────────────
-	// 💾 UNIFIED SAVE
-	// ──────────────────────────────────────────────────────────────────────────
-	//
-	// Both the live autosave and the background-on-exit save go through this.
-	// Pass in a snapshot + signal; it serializes, renders a thumbnail off an
-	// offscreen StaticCanvas (so the live canvas is never blocked), and writes.
 	async function runSave(
 		snapshot: CanvasSnapshot,
 		signal: AbortSignal,
@@ -270,7 +254,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		if (!db.value) throw new Error("DB not available");
 		if (signal.aborted) throw new DOMException("Aborted", "AbortError");
 
-		// ── 1. Serialize (time-sliced) ────────────────────────────────────────
 		const json: any = {
 			version: snapshot.version,
 			objects: [],
@@ -303,10 +286,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 			if (yielder.shouldYield()) await yielder.yield();
 		}
 
-		// ── 2. Offscreen thumbnail render ─────────────────────────────────────
-		// Build a throwaway StaticCanvas around the cloned objects. The export
-		// helper accepts any Canvas, so we just hand it this one. The live
-		// canvas is untouched and can be disposed at any moment.
 		let thumbnail = snapshot.optimisticThumb;
 		let offscreen: StaticCanvas | null = null;
 		try {
@@ -338,7 +317,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 
 		if (signal.aborted) throw new DOMException("Aborted", "AbortError");
 
-		// ── 3. Persist ────────────────────────────────────────────────────────
 		const draft: DrawingDraft = {
 			id: snapshot.draftId,
 			json,
@@ -353,9 +331,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		});
 	}
 
-	// ==========================================
-	// 🟢 LIVE AUTOSAVE (periodic, while drawing)
-	// ==========================================
 	async function performLiveSave() {
 		if (
 			!activeCanvas ||
@@ -402,24 +377,16 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 
 	const markAsDirty = () => (isDirty.value = true);
 
-	// ==========================================
-	// 🚀 BACKGROUND SAVE (on exit)
-	// ==========================================
-	//
-	// Snapshot synchronously, return a PendingDraft that the UI uses for an
-	// optimistic placeholder. The actual save completes after navigation.
 	async function queueBackgroundSave(
 		draftId: string,
 	): Promise<PendingDraft | null> {
 		if (!hasContent()) return null;
 
-		// Kill the live autosave — we don't want it racing the background save.
 		if (liveAbortController) liveAbortController.abort();
 
 		const snapshot = await snapshotCanvas(draftId);
 		if (!snapshot) return null;
 
-		// Background saves are NOT abortable from outside. They must complete.
 		const ctrl = new AbortController();
 
 		const promise = runSave(snapshot, ctrl.signal)
@@ -444,14 +411,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		return pending;
 	}
 
-	/**
-	 * Capture the snapshot synchronously-ish and navigate. Returns the
-	 * PendingDraft so callers can await it if they truly need to (most won't).
-	 *
-	 * IMPORTANT: this awaits ONLY the snapshot (object cloning), not the IDB
-	 * write. Typical wait: 5–30ms. The caller can navigate as soon as this
-	 * resolves; the rest happens in the background.
-	 */
 	const exitWithBackgroundSave = async (): Promise<PendingDraft | null> => {
 		if (!currentDraftId.value) currentDraftId.value = uuidv4();
 		if (!hasContent()) return null;
@@ -466,9 +425,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		await Promise.allSettled(promises);
 	}
 
-	// ==========================================
-	// 📚 DRAFT QUERIES
-	// ==========================================
 	async function getDraft(id: string): Promise<DrawingDraft | undefined> {
 		await initDB();
 		return new Promise((resolve) => {
@@ -484,9 +440,6 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		const targetId = id || currentDraftId.value;
 		if (!targetId) return;
 
-		// If a save is in-flight for this id, drop the placeholder. We can't
-		// cancel the actual write (it's not abortable by design), but we can
-		// schedule a delete after it lands.
 		const pending = pendingDrafts.value.get(targetId);
 		if (pending) {
 			pendingDrafts.value.delete(targetId);
@@ -527,6 +480,7 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		currentDraftId.value = uuidv4();
 		isDirty.value = false;
 		isSaving.value = false;
+		isPreExistingDraft.value = false;
 	}
 
 	const pendingDraftsList = computed<DrawingDraft[]>(() => {
@@ -542,6 +496,7 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		currentDraftId,
 		isSaving,
 		isDirty,
+		isPreExistingDraft, // Exported to be consumed by DrawExitGuard.vue
 		pendingDrafts,
 		pendingDraftsList,
 		loadCanvas,

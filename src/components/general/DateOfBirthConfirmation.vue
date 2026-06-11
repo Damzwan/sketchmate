@@ -13,11 +13,7 @@
         <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
           {{ mode === 'edit' ? 'Update Birthday' : 'One Quick Thing' }}
         </h1>
-        <p class="text-[10px] font-black opacity-60 uppercase tracking-widest mt-3 px-2">
-          {{ mode === 'edit'
-          ? 'Keeping features age-appropriate'
-          : 'Unlock the right creative spaces' }}
-        </p>
+
       </div>
 
       <!-- BODY -->
@@ -68,7 +64,7 @@
           expand="block"
           color="secondary"
           shape="round"
-          class="h-16 font-black uppercase tracking-widest shadow-md m-0"
+          class="h-16 font-black uppercase m-0"
           :disabled="!isValidDob || isSubmitting || (mode === 'edit' && computedDob === initialDob)"
           @click="handleConfirm"
         >

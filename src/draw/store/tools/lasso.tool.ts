@@ -36,12 +36,22 @@ export const useLasso = defineStore("lasso", (): ToolService => {
 	function init(canvas: Canvas) {
 		c = canvas;
 		upperCtx = (c as any).upperCanvasEl?.getContext("2d") ?? null;
+
 		c.on("object:modified", (opt) => {
-			if (opt.target)
-				(opt.target as FabricObjectWithCache)._lassoPoints = undefined;
+			const target = opt.target;
+			if (!target) return;
+
+			// 1. Clear cache for the main target (single object selection)
+			(target as FabricObjectWithCache)._lassoPoints = undefined;
+
+			// 2. Clear cache for all children if the target is an ActiveSelection or Group
+			if ((target as any)._objects) {
+				(target as any)._objects.forEach((child: FabricObjectWithCache) => {
+					child._lassoPoints = undefined;
+				});
+			}
 		});
 	}
-
 	// ─── Drawing helpers ─────────────────────────────────────────────────────────
 
 	function renderOverlay(highlightedObjects: FabricObject[]) {

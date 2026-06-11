@@ -67,6 +67,8 @@ export interface TileCacheOptions {
 	debugOverlay?: boolean;
 	additivePatchBudget?: number;
 	deferBitmapClose?: boolean;
+	maxRenderScale?: number;
+	fallbackFinerRadius?: number;
 }
 
 export interface PanHint {
@@ -102,6 +104,10 @@ export class TileCache<T extends Bounded> {
 	private readonly index: SpatialIndex<T>;
 	private readonly renderer: TileRenderer<T>;
 
+	private readonly MAX_RENDER_SCALE: number;
+	private renderScale: number;
+	private readonly FALLBACK_FINER_RADIUS: number;
+
 	constructor(
 		index: SpatialIndex<T>,
 		renderer: TileRenderer<T>,
@@ -121,20 +127,25 @@ export class TileCache<T extends Bounded> {
 		this.debugOverlay = opts.debugOverlay ?? false;
 		this.PATCH_COUNT_BUDGET = opts.additivePatchBudget ?? 16;
 		this.DEFER_BITMAP_CLOSE = opts.deferBitmapClose ?? false;
+		this.MAX_RENDER_SCALE = opts.maxRenderScale ?? 2;
+		this.renderScale = Math.min(
+			typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+			this.MAX_RENDER_SCALE,
+		);
+		this.FALLBACK_FINER_RADIUS =
+			opts.fallbackFinerRadius ?? Math.max(this.FALLBACK_RADIUS, 12);
 	}
 
-	public pickTierForZoom(zoom: number): number {
-		const logZ = Math.log2(Math.max(zoom, 1e-6));
-		let bestIdx = 0;
-		let bestDist = Infinity;
+	public pickActiveTier(zoom: number): number {
+		return this.pickTierForEffective(zoom * this.renderScale);
+	}
+
+	private pickTierForEffective(effective: number): number {
+		const UPSCALE_TOL = 1.15; // tolerate ≤15% upscale before bumping a tier
 		for (let i = 0; i < this.ZOOM_TIERS.length; i++) {
-			const d = Math.abs(Math.log2(this.ZOOM_TIERS[i]) - logZ);
-			if (d < bestDist) {
-				bestDist = d;
-				bestIdx = i;
-			}
+			if (this.ZOOM_TIERS[i] * UPSCALE_TOL >= effective) return i;
 		}
-		return bestIdx;
+		return this.ZOOM_TIERS.length - 1;
 	}
 
 	private tileRangeForWorld(worldRect: WorldRect, tier: number) {
@@ -190,7 +201,7 @@ export class TileCache<T extends Bounded> {
 		backgroundColor?: string,
 	): CompositeReport {
 		const zoom = vpt[0];
-		const targetTier = this.pickTierForZoom(zoom);
+		const targetTier = this.pickActiveTier(zoom);
 
 		const viewWorldX = -vpt[4] / zoom;
 		const viewWorldY = -vpt[5] / zoom;
@@ -320,8 +331,9 @@ export class TileCache<T extends Bounded> {
 		ctx.save();
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		if (exactDraws.length > 0) {
-			// @ts-ignore
-			ctx.imageSmoothingEnabled = false;
+			const exactFactor = (zoom * dpr) / pickedScale;
+			const near1to1 = Math.abs(exactFactor - 1) < 0.01;
+			ctx.imageSmoothingEnabled = !near1to1;
 			for (const dr of exactDraws) {
 				ctx.drawImage(
 					dr.tile.bitmap,
@@ -340,7 +352,7 @@ export class TileCache<T extends Bounded> {
 			// @ts-ignore
 			ctx.imageSmoothingEnabled = true;
 			// @ts-ignore
-			ctx.imageSmoothingQuality = "low";
+			ctx.imageSmoothingQuality = "medium";
 			for (const dr of fallbackDraws) {
 				if (dr.tile.bitmap === null) continue;
 				ctx.drawImage(
@@ -977,6 +989,8 @@ export class TileCache<T extends Bounded> {
 		worldSize: number,
 		allowStale: boolean,
 	) {
+		// Coarser first: cheap upscale, full coverage. Wins for zoom-in and for
+		// areas where no finer detail has been baked.
 		for (let dt = 1; dt <= this.FALLBACK_RADIUS; dt++) {
 			const coarser = requestedTier - dt;
 			if (coarser >= 0) {
@@ -990,7 +1004,11 @@ export class TileCache<T extends Bounded> {
 				if (d && d.length > 0) return d;
 			}
 		}
-		for (let dt = 1; dt <= this.FALLBACK_RADIUS; dt++) {
+		// Finer next: downscale the already-baked detailed tier. Reaches much
+		// further than the coarser search, so drawing while zoomed in and then
+		// zooming out shows the fresh detail immediately instead of flashing
+		// empty/stale until the coarse tier finishes baking.
+		for (let dt = 1; dt <= this.FALLBACK_FINER_RADIUS; dt++) {
 			const finer = requestedTier + dt;
 			if (finer < this.ZOOM_TIERS.length) {
 				const d = this.findCoveringDraws(finer, wx, wy, worldSize, allowStale);
@@ -1083,7 +1101,7 @@ export class TileCache<T extends Bounded> {
 	): Promise<BakeReport> {
 		const gen = this.currentGen;
 		const zoom = vpt[0];
-		const tier = this.pickTierForZoom(zoom);
+		const tier = this.pickActiveTier(zoom);
 		const scale = this.ZOOM_TIERS[tier];
 
 		const viewWorldX = -vpt[4] / zoom;

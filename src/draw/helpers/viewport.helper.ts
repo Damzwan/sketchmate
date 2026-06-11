@@ -44,10 +44,10 @@ export function resetZoom() {
 	const { canResetView } = storeToRefs(useDrawUIStore());
 
 	const c = getCanvas();
-	c.setZoom(1);
-	const initX = (c.width - CANVAS_SIZE) / 2;
-	const initY = (c.height - CANVAS_SIZE) / 2;
-	c.setViewportTransform([1, 0, 0, 1, initX, initY]);
+	const z = getDefaultZoom(c);
+	const initX = (c.width - CANVAS_SIZE * z) / 2;
+	const initY = (c.height - CANVAS_SIZE * z) / 2;
+	c.setViewportTransform([z, 0, 0, z, initX, initY]);
 	canResetView.value = false;
 
 	c.fire("zoomReset");
@@ -244,4 +244,11 @@ export function fitToDensestRegion(
 	const panY = ch / 2 - ccy * zoom;
 
 	canvas.setViewportTransform([zoom, 0, 0, zoom, panX, panY]);
+}
+
+export function getDefaultZoom(canvas: Canvas) {
+	return Math.min(
+		1,
+		(Math.min(canvas.getWidth(), canvas.getHeight()) / CANVAS_SIZE) * 0.9,
+	);
 }

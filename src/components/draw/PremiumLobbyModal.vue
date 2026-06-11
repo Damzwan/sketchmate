@@ -41,7 +41,7 @@
           expand="block"
           color="secondary"
           shape="round"
-          class="h-16 font-black uppercase tracking-widest shadow-lg"
+          class="h-16 font-black uppercase "
           @click="confirmUpgrade"
         >
           ⭐ Unlock Premium Slots
@@ -61,18 +61,18 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonButton } from '@ionic/vue';
+import { IonModal, IonButton } from "@ionic/vue";
 
 defineProps<{ isOpen: boolean }>();
-const emit = defineEmits(['close', 'upgrade']);
+const emit = defineEmits(["close", "upgrade"]);
 
 const confirmUpgrade = () => {
-  emit('upgrade');
-  emit('close');
+	emit("upgrade");
+	emit("close");
 };
 
 const handleDismiss = () => {
-  emit('close');
+	emit("close");
 };
 </script>
 

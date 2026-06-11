@@ -13,6 +13,7 @@
 
       <div class="absolute inset-0 pointer-events-none z-0">
         <ProfileEffect :effect-id="effectiveCustomization.effectId" />
+        <ProfileAtmosphere :atmosphere-id="effectiveCustomization.atmosphereId" />
       </div>
 
       <div class="h-full overflow-y-auto hide-scrollbar relative z-10" @touchmove.stop>
@@ -183,6 +184,7 @@ import { compareVersions, svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue"; // Imported Atmosphere element
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
 
 import { useAuthStore } from "@/store/auth.store";
@@ -301,7 +303,7 @@ const primaryCta = computed(() => {
 	}
 	if (!hasRequiredVersion.value) {
 		return {
-			label: "Update Required",
+			label: "User needs to update to chat",
 			icon: mdiAlertCircleOutline,
 			disabled: true,
 			handler: () => {},

@@ -1,81 +1,79 @@
 <template>
-  <div v-if="user" class="mx-auto max-w-100">
-    <!-- Alerts Toggle -->
-    <ion-item lines="none" color="tertiary" class="ion-no-padding px-2">
-      <ion-icon
-        slot="start"
-        :icon="svg(deviceNotificationsAllowed ? mdiBellRing : mdiBellOff)"
-        class="text-gray-600 mr-2"
-      />
-      <ion-label class="cabin-sketch-regular font-bold text-lg">
-        Alerts
-        <ion-button fill="clear" id="notif-info" class="h-6 w-6 m-0 p-0">
+  <div v-if="user" class="w-full space-y-2">
+
+    <div class="w-full flex items-center justify-between bg-white/40 border border-primary/10 rounded-2xl p-3 shadow-sm">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
           <ion-icon
-            slot="icon-only"
-            :icon="svg(mdiInformationOutline)"
-            size="small"
-            class="text-gray-400"
+            :icon="svg(deviceNotificationsAllowed ? mdiBellRing : mdiBellOff)"
+            class="text-xl text-black/70"
           />
-        </ion-button>
-      </ion-label>
+        </div>
+        <div class="cabin-sketch-regular font-bold text-base text-black flex items-center gap-1">
+          <span>Alerts</span>
+          <button id="notif-info" class="flex items-center justify-center p-1 rounded-full active:bg-black/5 transition-colors">
+            <ion-icon :icon="svg(mdiInformationOutline)" class="text-sm text-black/30" />
+          </button>
+        </div>
+      </div>
 
-      <ion-spinner
-        v-if="notificationToggleBusy"
-        slot="end"
-        name="crescent"
-        class="text-gray-500"
-      />
-      <ion-toggle
-        v-else
-        slot="end"
-        mode="ios"
-        color="secondary"
-        :checked="!!deviceNotificationsAllowed"
-        :disabled="notificationToggleBusy"
-        @ionChange="handleNotificationChange"
-      />
-    </ion-item>
+      <div class="shrink-0 flex items-center justify-end min-w-[50px]">
+        <ion-spinner
+          v-if="notificationToggleBusy"
+          name="crescent"
+          class="w-5 h-5 text-gray-500"
+        />
+        <ion-toggle
+          v-else
+          mode="ios"
+          color="secondary"
+          :checked="!!deviceNotificationsAllowed"
+          :disabled="notificationToggleBusy"
+          @ionChange="handleNotificationChange"
+        />
+      </div>
+    </div>
 
-    <!-- Balloons Toggle -->
-    <ion-item lines="none" color="tertiary" class="ion-no-padding px-2">
-      <ion-icon slot="start" :icon="svg(mdiBalloon)" class="text-secondary mr-2" />
-      <ion-label class="cabin-sketch-regular font-bold text-lg">
-        Balloons
-        <ion-button fill="clear" id="balloon-info" class="h-6 w-6 m-0 p-0">
-          <ion-icon
-            slot="icon-only"
-            :icon="svg(mdiInformationOutline)"
-            size="small"
-            class="text-gray-400"
-          />
-        </ion-button>
-      </ion-label>
-      <ion-toggle
-        slot="end"
-        mode="ios"
-        color="secondary"
-        :checked="!user.balloon?.disabled"
-        :disabled="balloonToggleBusy"
-        @ionChange="handleBalloonChange"
-      />
-    </ion-item>
+    <div class="w-full flex items-center justify-between bg-white/40 border border-primary/10 rounded-2xl p-3 shadow-sm">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
+          <ion-icon :icon="svg(mdiBalloon)" class="text-xl text-secondary" />
+        </div>
+        <div class="cabin-sketch-regular font-bold text-base text-black flex items-center gap-1">
+          <span>Balloons</span>
+          <button id="balloon-info" class="flex items-center justify-center p-1 rounded-full active:bg-black/5 transition-colors">
+            <ion-icon :icon="svg(mdiInformationOutline)" class="text-sm text-black/30" />
+          </button>
+        </div>
+      </div>
 
-    <!-- Popovers -->
-    <ion-popover trigger="balloon-info" trigger-action="click" class="cabin-sketch-regular shadow-lg">
-      <div class="p-4 text-sm text-black bg-tertiary">
-        <p class="font-bold mb-1 underline decoration-secondary">Incoming Balloons</p>
-        <p>
+      <div class="shrink-0">
+        <ion-toggle
+          mode="ios"
+          color="secondary"
+          :checked="!user.balloon?.disabled"
+          :disabled="balloonToggleBusy"
+          @ionChange="handleBalloonChange"
+        />
+      </div>
+    </div>
+
+    <ion-popover trigger="balloon-info" trigger-action="click" class="cabin-sketch-regular">
+      <div class="p-4 text-sm text-black bg-background border border-primary/20 rounded-2xl">
+        <p class="font-bold mb-1 border-b border-secondary/20 pb-1 text-secondary">Incoming Balloons</p>
+        <p class="mt-1 leading-snug">
           Toggle off to stop receiving balloons from strangers.
-          <strong>You can still send balloons to others!</strong>
+          <strong class="block mt-1 text-xs text-black/60">You can still send balloons to others!</strong>
         </p>
       </div>
     </ion-popover>
 
-    <ion-popover trigger="notif-info" trigger-action="click" class="cabin-sketch-regular shadow-lg">
-      <div class="p-4 text-sm text-black bg-tertiary">
-        <p class="font-bold mb-2 underline decoration-secondary">Why enable Alerts?</p>
-        <ul class="list-disc pl-4 space-y-1">
-          <li>Receive sketches from your friends</li>
+    <ion-popover trigger="notif-info" trigger-action="click" class="cabin-sketch-regular">
+      <div class="p-4 text-sm text-black bg-background border border-primary/20 rounded-2xl">
+        <p class="font-bold mb-1 border-b border-secondary/20 pb-1 text-secondary">Why enable Alerts?</p>
+        <ul class="list-disc pl-4 space-y-1 mt-1 leading-snug">
+          <li>Receive sketches from your mates</li>
+          <li>Receive messages from your mates</li>
           <li v-if="!isNative()">Get daily reminders</li>
         </ul>
       </div>
@@ -86,15 +84,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import type { ToggleCustomEvent } from "@ionic/vue";
-import {
-	IonButton,
-	IonIcon,
-	IonItem,
-	IonLabel,
-	IonPopover,
-	IonSpinner,
-	IonToggle,
-} from "@ionic/vue";
+import { IonIcon, IonPopover, IonSpinner, IonToggle } from "@ionic/vue";
 import { isNative, svg } from "@/helper/general.helper";
 import {
 	mdiBalloon,
@@ -121,7 +111,6 @@ const balloonToggleBusy = ref(false);
 async function handleNotificationChange(event: ToggleCustomEvent) {
 	const desired = event.detail.checked;
 	if (desired === !!deviceNotificationsAllowed.value) return;
-
 	if (notificationToggleBusy.value) return;
 	notificationToggleBusy.value = true;
 
@@ -160,7 +149,6 @@ async function handleBalloonChange(event: ToggleCustomEvent) {
 			balloon: { ...user.value.balloon, disabled: desiredDisabled },
 		});
 	} catch (e) {
-		// Rollback
 		if (user.value?.balloon) user.value.balloon.disabled = previous;
 		useToast().toast("Could not update balloon preference", {
 			color: "danger",
@@ -172,18 +160,8 @@ async function handleBalloonChange(event: ToggleCustomEvent) {
 </script>
 
 <style scoped>
-ion-popover {
-  --background: var(--ion-color-tertiary);
-  --backdrop-opacity: 0.2;
-}
-
 ion-popover::part(content) {
   border-radius: 20px;
-  border: 2px solid rgba(0, 0, 0, 0.05);
-}
-
-ion-item {
-  --padding-start: 0;
-  --inner-padding-end: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 </style>

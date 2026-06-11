@@ -1,72 +1,82 @@
-import { Canvas } from 'fabric'
+import { Canvas } from "fabric";
 import {
-  changeFabricSettings,
-  initCanvasOptions,
-  overrideFindTarget, overrideHandleSelection, overrideMouseDown, overrideMouseUp,
-  overrideTransform
-} from '@/draw/helpers/fabricDefaults.helper'
-import { initViewport, resetZoom } from '@/draw/helpers/viewport.helper'
-import { BACKGROUND, CANVAS_SIZE } from '@/draw/config/canvas.config'
-import { ref } from 'vue'
-import { loadFonts } from '@/draw/helpers/text.helper'
+	changeFabricSettings,
+	initCanvasOptions,
+	overrideFindTarget,
+	overrideHandleSelection,
+	overrideMouseDown,
+	overrideMouseUp,
+	overrideTransform,
+} from "@/draw/helpers/fabricDefaults.helper";
+import {
+	getDefaultZoom,
+	initViewport,
+	resetZoom,
+} from "@/draw/helpers/viewport.helper";
+import { BACKGROUND, CANVAS_SIZE } from "@/draw/config/canvas.config";
+import { ref } from "vue";
+import { loadFonts } from "@/draw/helpers/text.helper";
 
 export function useCanvasService() {
-  let c: Canvas | null = null
-  const backgroundColor = ref(BACKGROUND)
+	let c: Canvas | null = null;
+	const backgroundColor = ref(BACKGROUND);
 
+	function getCanvas(): Canvas {
+		return c!;
+	}
 
-  function getCanvas(): Canvas {
-    return c!
-  }
+	function destroyCanvas() {
+		if (c) {
+			try {
+				c.dispose?.(); // fabric >= x may have dispose
+				c.destroy();
+				c = null;
+			} catch (e) {
+				// ignore
+			}
+		}
+	}
 
-  function destroyCanvas() {
-    if (c) {
-      try {
-        c.dispose?.() // fabric >= x may have dispose
-        c.destroy()
-        c = null
-      } catch (e) {
-        // ignore
-      }
+	function createCanvas(canvasEl: HTMLCanvasElement): Canvas {
+		destroyCanvas();
 
-    }
-  }
+		const bbox = canvasEl.getBoundingClientRect();
+		c = new Canvas(canvasEl, initCanvasOptions(bbox.width, bbox.height));
 
-  function createCanvas(canvasEl: HTMLCanvasElement): Canvas {
-    destroyCanvas()
+		// c.skipOffscreen = false TODO needed for rotations
+		changeFabricSettings();
+		overrideFindTarget(c);
+		overrideTransform(c);
+		overrideMouseUp(c);
+		overrideMouseDown(c);
+		overrideHandleSelection(c);
+		initViewport(c);
+		loadFonts();
 
-    const bbox = canvasEl.getBoundingClientRect()
-    c = new Canvas(canvasEl, initCanvasOptions(bbox.width, bbox.height))
+		const z = getDefaultZoom(c);
+		const initX = (c.width - CANVAS_SIZE * z) / 2;
+		const initY = (c.height - CANVAS_SIZE * z) / 2;
+		c.setViewportTransform([z, 0, 0, z, initX, initY]);
 
-    // c.skipOffscreen = false TODO needed for rotations
-    changeFabricSettings()
-    overrideFindTarget(c)
-    overrideTransform(c)
-    overrideMouseUp(c)
-    overrideMouseDown(c)
-    overrideHandleSelection(c)
-    initViewport(c)
-    loadFonts()
+		return c;
+	}
 
-    return c
-  }
+	function resetCanvas() {
+		if (!c) return;
+		c.clear();
+		c.backgroundColor = BACKGROUND;
+		backgroundColor.value = BACKGROUND;
+		resetZoom();
+		const initX = (c.width - CANVAS_SIZE) / 2;
+		const initY = (c.height - CANVAS_SIZE) / 2;
+		c.setViewportTransform([1, 0, 0, 1, initX, initY]);
+	}
 
-  function resetCanvas() {
-    if (!c) return
-    c.clear()
-    c.backgroundColor = BACKGROUND
-    backgroundColor.value = BACKGROUND
-    resetZoom()
-    const initX = (c.width - CANVAS_SIZE) / 2
-    const initY = (c.height - CANVAS_SIZE) / 2
-    c.setViewportTransform([1, 0, 0, 1, initX, initY])
-  }
-
-  return {
-    getCanvas,
-    createCanvas,
-    destroyCanvas,
-    resetCanvas,
-    backgroundColor
-  }
+	return {
+		getCanvas,
+		createCanvas,
+		destroyCanvas,
+		resetCanvas,
+		backgroundColor,
+	};
 }

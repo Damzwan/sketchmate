@@ -172,6 +172,10 @@ export function overrideFindTarget(c: Canvas) {
 			if (handle) {
 				return { target: activeObject, subTargets: [] };
 			}
+
+			if (activeObject.containsPoint(pointer)) {
+				return { target: activeObject, subTargets: [], currentSubTargets: [] };
+			}
 		}
 
 		const zoom = this.getZoom();
@@ -190,26 +194,14 @@ export function overrideFindTarget(c: Canvas) {
 		const zMap = useDrawObjectManager().getZIndexMap();
 		candidates.sort((a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0));
 
-		// Let Fabric do per-object hit testing (respects shape, alpha)
 		const targetInfo = this.searchPossibleTargets(candidates, pointer);
-		const fullTargetInfo = {
+
+		return {
 			...targetInfo,
 			currentSubTargets: targetInfo.subTargets,
 			currentContainer: targetInfo.container,
 			currentTarget: targetInfo.target,
 		};
-
-		if (!activeObject) return fullTargetInfo;
-
-		const activeContainsPointer = activeObject.containsPoint(pointer);
-
-		// ── FIX: Prioritize active object unconditionally if clicked inside ──
-		if (activeContainsPointer) {
-			return { target: activeObject, subTargets: [], currentSubTargets: [] };
-		}
-
-		// ── FALLBACK: Return the standard top hit if the click was outside the active object ──
-		return fullTargetInfo;
 	};
 }
 

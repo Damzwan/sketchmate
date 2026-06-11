@@ -25,6 +25,11 @@ export const useFriendStore = defineStore("friend", () => {
 	const pendingRequests = ref<PopulatedConversation[]>([]);
 	const friendRequestLoading = ref(false);
 	const blockedUserIds = ref<Set<string>>(new Set());
+	const totalCounts = ref<Record<"mates" | "following" | "followers", number>>({
+		mates: 0,
+		following: 0,
+		followers: 0,
+	});
 
 	interface NetworkEntry {
 		_id: string;
@@ -195,17 +200,27 @@ export const useFriendStore = defineStore("friend", () => {
 	) {
 		if (page === 1) networkLoading.value = true;
 		try {
-			const res: (any & {
-				chat_status?: ChatStatus;
-				expires_at?: string;
-				relationship_id?: string;
-			})[] = await fetchNetworkType(userId, type, { page, search, limit: 20 });
+			// API now returns an object shape: { total: number, data: any[] }
+			const res: {
+				total: number;
+				data: (any & {
+					chat_status?: ChatStatus;
+					expires_at?: string;
+					relationship_id?: string;
+				})[];
+			} = await fetchNetworkType(userId, type, { page, search, limit: 20 });
 
-			// Feed user identity into the cache
-			userCache.upsertMany(res);
+			const records = res.data || [];
+			const totalCount = res.total || 0;
 
-			// Store only relationship-flavored metadata locally
-			const entries: NetworkEntry[] = res.map((u) => ({
+			// Save total match count immediately for the layout badge
+			totalCounts.value[type] = totalCount;
+
+			// Feed user identity profiles into the cache list
+			userCache.upsertMany(records);
+
+			// Store only relationship-flavored metadata values locally
+			const entries: NetworkEntry[] = records.map((u) => ({
 				_id: u._id,
 				chat_status: u.chat_status,
 				expires_at: u.expires_at,
@@ -217,15 +232,20 @@ export const useFriendStore = defineStore("friend", () => {
 			} else {
 				networkLists.value[type].push(...entries);
 			}
-			hasMore.value = res.length === 20;
+
+			// Evaluate more matches using the absolute total count threshold criteria
+			hasMore.value = networkLists.value[type].length < totalCount;
 		} catch (e) {
 			console.error(`Failed to fetch ${type}`, e);
 			hasMore.value = false;
+			if (page === 1) {
+				networkLists.value[type] = [];
+				totalCounts.value[type] = 0;
+			}
 		} finally {
 			networkLoading.value = false;
 		}
 	}
-
 	async function fetchBlockedUsers() {
 		try {
 			const blockedIds: string[] = await getBlockedIds();
@@ -317,6 +337,7 @@ export const useFriendStore = defineStore("friend", () => {
 		onlineFriends,
 		allConnectedPartners,
 		isBlocked,
+		totalCounts,
 		initializeSocialGraph,
 		setFriendOnlineStatus,
 		fetchPendingRequests,

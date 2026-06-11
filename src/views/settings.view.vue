@@ -3,32 +3,29 @@
     <SubPageBar title="Settings" />
 
     <ion-content class="bg-background">
-      <div class="w-full max-w-3xl mx-auto px-6 pt-6 bot-pad-safe flex flex-col min-h-full">
+      <div class="w-full max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-12 bot-pad-safe flex flex-col min-h-full">
 
-        <div class="grow space-y-8">
+        <div class="grow space-y-6">
 
-          <!-- Account Section -->
-          <section class="bg-primary/5 rounded-[2.5rem] p-6 border border-black/5 shadow-sm transition-all">
-            <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-4 uppercase tracking-wider">
+          <section class="bg-white/50 border border-primary/20 rounded-[2rem] p-5 shadow-sm transition-all">
+            <h3 class="cabin-sketch-regular text-lg font-black text-black/40 px-1 mb-3 uppercase tracking-wider">
               Account
             </h3>
             <AccountSettings />
           </section>
 
-          <!-- Preferences Section -->
-          <section class="bg-primary/5 rounded-[2.5rem] p-6 border border-black/5 shadow-sm transition-all">
-            <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-4 uppercase tracking-wider">
+          <section class="bg-white/50 border border-primary/20 rounded-[2rem] p-5 shadow-sm transition-all">
+            <h3 class="cabin-sketch-regular text-lg font-black text-black/40 px-1 mb-3 uppercase tracking-wider">
               Preferences
             </h3>
             <SettingSwitches />
           </section>
 
-          <!-- Network Sync Section -->
           <section
             v-if="user?.subscriptions?.length"
-            class="animate-fade-in bg-primary/5 rounded-[2.5rem] p-6 border border-black/5 shadow-sm transition-all"
+            class="animate-fade-in bg-white/50 border border-primary/20 rounded-[2rem] p-5 shadow-sm transition-all"
           >
-            <h3 class="cabin-sketch-regular text-lg font-bold text-black/40 px-2 mb-4 uppercase tracking-wider">
+            <h3 class="cabin-sketch-regular text-lg font-black text-black/40 px-1 mb-3 uppercase tracking-wider">
               Network Sync
             </h3>
             <SubscriptionManager
@@ -40,7 +37,7 @@
 
         </div>
 
-        <div class="mt-auto pt-12 flex justify-center">
+        <div class="mt-auto pt-10 flex justify-center">
           <SettingLinks />
         </div>
       </div>
@@ -103,13 +100,6 @@ async function handleDeleteSubscription(sub: NotificationSubscription) {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-ion-item {
-  --background: transparent;
-  --border-color: rgba(0, 0, 0, 0.05);
-  --padding-start: 8px;
-  --inner-padding-end: 8px;
 }
 
 ion-content::part(scroll) {

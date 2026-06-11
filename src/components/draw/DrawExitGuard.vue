@@ -2,11 +2,13 @@
 import { onBeforeRouteLeave } from "vue-router";
 import { modalController, useBackButton, useIonRouter } from "@ionic/vue";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { useDrawStore } from "@/draw/store/draw.store";
 import { onUnmounted, ref, watch } from "vue";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { slideTransition } from "@/helper/animation.helper";
 import { useDrawUIStore } from "@/draw/store/drawUI.store";
 import DrawExitModal from "@/components/draw/DrawExitModal.vue";
+import { useSessionStore } from "@/store/session.store";
 
 const props = defineProps<{
 	draftId: string;
@@ -15,20 +17,12 @@ const props = defineProps<{
 
 const router = useIonRouter();
 const loadStore = useDrawLoadStore();
+const drawStore = useDrawStore();
 const uiStore = useDrawUIStore();
 
-// Set once we've decided to leave for real. Prevents the guard / back-button
-// hooks from re-prompting on the actual navigation.
 let isNavigationConfirmed = false;
-
-// Reentrancy guard for the lobby modal.
 const isModalOpen = ref(false);
 
-// ─────────────────────────────────────────────────────────────────────────
-// Public entry points (toolbar X, hardware back, route change, swipe-back)
-// all funnel through here. We resolve true/false from `resolveExit` and
-// only then commit to navigating.
-// ─────────────────────────────────────────────────────────────────────────
 const requestExit = async () => {
 	if (isNavigationConfirmed) {
 		commitExit();
@@ -44,12 +38,22 @@ const commitExit = () => {
 	isNavigationConfirmed = true;
 	loadStore.stopAutosave();
 
-	// SOLO: snapshot and queue background save. Fire-and-forget — the snapshot
-	// resolves in a handful of ms; we don't await the write. The Home page
-	// sees the pending draft immediately via the store.
 	if (!props.isLobby) {
-		loadStore.exitWithBackgroundSave();
+		const canvas = drawStore.getCanvas();
+		const totalObjects = canvas ? canvas.getObjects().length : 0;
+		const isPreExistingDraft = loadStore.isPreExistingDraft || false;
+
+		// FIX: Drop empty drawings from cache tracking completely if they were previous records
+		if (totalObjects === 0 && isPreExistingDraft) {
+			loadStore.removeDraft(props.draftId);
+		} else {
+			loadStore.exitWithBackgroundSave();
+		}
 	}
+
+	// FIX: Clear query parameters explicitly before popping back routing history
+	const sessionStore = useSessionStore();
+	sessionStore.setQueryParams(undefined);
 
 	if (router.canGoBack()) {
 		router.back();
@@ -59,16 +63,18 @@ const commitExit = () => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Decision logic.
-//
-//   SOLO   → always exit. Autosave has us covered; the user can delete from
-//            the gallery if they don't want it.
-//   LOBBY  → modal with Leave / Cancel. No discard option (you're not in
-//            charge of the room's content anyway).
+// Decision logic updated: Resolves modal warnings based on canvas content status
 // ─────────────────────────────────────────────────────────────────────────
 const resolveExit = async (): Promise<boolean> => {
-	if (!props.isLobby) return true;
 	if (isModalOpen.value) return false;
+
+	const canvas = drawStore.getCanvas();
+	const totalObjects = canvas ? canvas.getObjects().length : 0;
+	const isPreExistingDraft = loadStore.isPreExistingDraft || false;
+
+	// Flag determining whether exit causes an implicit wipe out execution
+	const isEmptyDeletion =
+		!props.isLobby && totalObjects === 0 && isPreExistingDraft;
 
 	isModalOpen.value = true;
 	const modal = await modalController.create({
@@ -76,6 +82,10 @@ const resolveExit = async (): Promise<boolean> => {
 		cssClass: "draw-exit-modal",
 		breakpoints: [0, 1],
 		initialBreakpoint: 1,
+		componentProps: {
+			isLobby: props.isLobby,
+			isEmptyDeletion: isEmptyDeletion, // Inform dialog about removal warning requirements
+		},
 	});
 	await modal.present();
 	const { role } = await modal.onWillDismiss();
@@ -91,9 +101,7 @@ onBeforeRouteLeave(async (_to, _from, next) => {
 	if (isNavigationConfirmed) return next();
 	const shouldLeave = await resolveExit();
 	if (shouldLeave) {
-		isNavigationConfirmed = true;
-		loadStore.stopAutosave();
-		if (!props.isLobby) loadStore.exitWithBackgroundSave();
+		commitExit();
 		next();
 	} else {
 		next(false);

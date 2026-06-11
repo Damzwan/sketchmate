@@ -1,122 +1,120 @@
-import { type TEvent } from 'fabric'
-import type { DrawAction } from '@/draw/types/draw.types.ts'
+import { type TEvent } from "fabric";
+import type { DrawAction } from "@/draw/types/draw.types.ts";
 
-declare module 'fabric' {
-  interface CanvasOptions {
-    isDrawingMode?: boolean
-  }
+declare module "fabric" {
+	interface CanvasOptions {
+		isDrawingMode?: boolean;
+	}
 
-  interface Canvas{
-    version: number
-  }
+	interface Canvas {
+		version: number;
+	}
 
-  // to have the properties recognized on the instance and in the constructor
-  interface FabricObject {
-    id: string
-    erasable?: boolean
-    oldText?: string
-    layer: number
-    init?: boolean // hacky property for text initialization
-    visual?: boolean // hacky property for shape creations
-    isBucketFill?: boolean
-    insertedIndex?: number
-    userId: string
-  }
+	// to have the properties recognized on the instance and in the constructor
+	interface FabricObject {
+		id: string;
+		erasable?: boolean;
+		oldText?: string;
+		layer: number;
+		init?: boolean; // hacky property for text initialization
+		visual?: boolean; // hacky property for shape creations
+		isBucketFill?: boolean;
+		insertedIndex?: number;
+		userId: string;
+	}
 
-  // to have the properties typed in the exported object
-  interface SerializedObjectProps {
-    id?: string
-    erasable?: boolean
-    insertedIndex?: number
-    isBucketFill?: boolean
-  }
+	// to have the properties typed in the exported object
+	interface SerializedObjectProps {
+		id?: string;
+		erasable?: boolean;
+		insertedIndex?: number;
+		isBucketFill?: boolean;
+	}
 
-  interface BaseBrush {
-    _reset: () => void
-  }
+	interface BaseBrush {
+		_reset: () => void;
+	}
 
+	interface CanvasEvents {
+		"objects:changed": Partial<TEvent> & {
+			target: FabricObject[];
+			parameters: any;
+		};
 
-  interface CanvasEvents {
+		"layer:changed": Partial<TEvent> & {
+			target: FabricObject[];
+			type: DrawAction;
+			prevObjectPositions?: number[];
+		};
 
+		fullErase: Partial<TEvent> & {
+			prevCanvasJSON: string;
+		};
 
-    'objects:changed': Partial<TEvent> & {
-      target: FabricObject[]
-      parameters: any
-    }
+		flip: Partial<TEvent> & {
+			direction: "flipX" | "flipY";
+			target: FabricObject[];
+		};
 
-    'layer:changed': Partial<TEvent> & {
-      target: FabricObject[]
-      type: DrawAction
-      prevObjectPositions?: number[]
-    }
+		objectsCopied: Partial<TEvent> & {
+			target: string[];
+			objectIdsToClone: string[];
+			newObjectIds: string[];
+		};
 
-    fullErase: Partial<TEvent> & {
-      prevCanvasJSON: string
-    }
+		objectsMerged: Partial<TEvent> & {
+			objectIds: string[];
+			group: any; // TODO what is this,
+			mergedObjectIds: string[];
+		};
 
-    flip: Partial<TEvent> & {
-      direction: 'flipX' | 'flipY'
-      target: FabricObject[]
-    }
+		objectsDeleted: Partial<TEvent> & {
+			target: FabricObject[];
+		};
 
-    objectsCopied: Partial<TEvent> & {
-      target: string[]
-      objectIdsToClone: string[]
-      newObjectIds: string[]
-    }
+		backgroundColorChanged: Partial<TEvent> & {
+			previousColor: string;
+			color: string;
+		};
 
-    objectsMerged: Partial<TEvent> & {
-      objectIds: string[]
-      group: any // TODO what is this,
-      mergedObjectIds: string[]
-    }
+		textStyleChanged: Partial<TEvent> & {
+			prevStyle: object;
+			style: object;
+			target: FabricObject[];
+		};
 
-    objectsDeleted: Partial<TEvent> & {
-      target: FabricObject[]
-    }
+		polygonCreation: Partial<TEvent> & {
+			target: FabricObject;
+		};
 
-    backgroundColorChanged: Partial<TEvent> & {
-      previousColor: string
-      color: string
-    }
+		"objects:added": Partial<TEvent> & {
+			target: FabricObject[];
+		};
 
-    textStyleChanged: Partial<TEvent> & {
-      prevStyle: object
-      style: object
-      target: FabricObject[]
-    }
+		objectStyleChanged: Partial<TEvent> & {
+			target: FabricObject[];
+			prevStyles: object[];
+			style: object;
+		};
 
-    polygonCreation: Partial<TEvent> & {
-      target: FabricObject
-    }
+		imgFilterChanged: Partial<TEvent> & {
+			target: FabricObject;
+			prevFilter: any;
+			filter: any;
+			prevBlendColorFilter?: any;
+		};
 
-    'objects:added': Partial<TEvent> & {
-      target: FabricObject[]
-    }
+		"viewport:changed": Partial<TEvent> & {};
 
-    'objectStyleChanged': Partial<TEvent> & {
-      target: FabricObject[]
-      prevStyles: object[]
-      style: object
-    }
+		zoomReset: Partial<TEvent>;
+		zoomChanged: Partial<TEvent>;
+		gestureStart: Partial<TEvent>;
+		gestureEnd: Partial<TEvent>;
+		invalidateCanvas: Partial<TEvent>;
+		"render:patchModifiedObject": Partial<TEvent>;
 
-    imgFilterChanged: Partial<TEvent> & {
-      target: FabricObject
-      prevFilter: any
-      filter: any
-      prevBlendColorFilter?: any
-    }
-
-    'viewport:changed': Partial<TEvent> & {}
-
-    zoomReset: Partial<TEvent>
-    zoomChanged: Partial<TEvent>
-    gestureStart: Partial<TEvent>
-    gestureEnd: Partial<TEvent>
-    invalidateCanvas: Partial<TEvent>
-    'render:patchModifiedObject': Partial<TEvent>
-
-    undo: any
-    redo: any
-  }
+		undo: any;
+		redo: any;
+		"erasing:cleanup_done": any;
+	}
 }

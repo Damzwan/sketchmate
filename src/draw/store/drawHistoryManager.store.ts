@@ -65,6 +65,27 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			},
 		},
 		{
+			on: "erasing:cleanup_done",
+			handler: (e: any) => {
+				const { strokeId, deletedObjects } = e;
+
+				for (let i = undoStack.length - 1; i >= 0; i--) {
+					const action: any = undoStack[i];
+					if (
+						action.type === HistoryEvent.Erasing &&
+						action.params.strokeId === strokeId
+					) {
+						const newDeletedJSON = toJSON(deletedObjects);
+						action.params.deletedObjectsJSON = [
+							...(action.params.deletedObjectsJSON || []),
+							...newDeletedJSON,
+						];
+						break;
+					}
+				}
+			},
+		},
+		{
 			on: "object:added",
 			handler: (e: any) => {
 				addToUndoStackWithResetRedo({
@@ -93,6 +114,7 @@ export const useDrawHistoryManager = defineStore("history", () => {
 				});
 			},
 		},
+
 		{
 			on: "object:modified",
 			handler: (e: any) => {

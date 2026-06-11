@@ -336,6 +336,24 @@ export class CustomEraserBrush extends PencilBrush {
 	decimate = 1.5;
 	effectContext: CanvasRenderingContext2D;
 
+	/**
+	 * Optional. Restricts the selective-erase mask render in {@link drawEffect}
+	 * to the supplied objects (e.g. only on-screen ones), returned in paint
+	 * (z) order. Off-viewport objects cannot contribute a visible pixel to a
+	 * screen-space mask, so narrowing this avoids a full native re-render of
+	 * every object on pointer-down. When unset, all canvas objects are used.
+	 */
+	protectObjectsProvider?: () => FabricObject[];
+
+	/**
+	 * Optional. Resolves the candidate objects tested against the eraser path in
+	 * {@link _finalizeAndAddPath}, e.g. via a spatial index, instead of scanning
+	 * the whole object list. {@link walk} still runs the precise intersection
+	 * test, so an over-inclusive (padded) result is safe. When unset, all canvas
+	 * objects are used.
+	 */
+	targetCandidatesProvider?: (path: Path) => FabricObject[];
+
 	private eventEmitter: EventTarget;
 	private active = false;
 	private _disposer?: VoidFunction;
@@ -371,13 +389,15 @@ export class CustomEraserBrush extends PencilBrush {
 	}
 
 	drawEffect() {
+		// Narrow the mask render to the provided objects when available.
+		const objects = this.protectObjectsProvider?.();
 		draw(
 			this.effectContext,
 			{
 				opacity: new fabric.Color(this.color).getAlpha(),
 				inverted: this.inverted,
 			},
-			{ canvas: this.canvas },
+			objects ? { canvas: this.canvas, objects } : { canvas: this.canvas },
 		);
 	}
 
@@ -554,14 +574,15 @@ export class CustomEraserBrush extends PencilBrush {
 			this._afterRenderHandler = undefined;
 		}
 
+		// NOTE: the previous version of this block was corrupted (chained
+		// assignments collapsed onto numeric literals, e.g. `0(this as any)...`)
+		// and silently threw, so the point/flag reset never actually ran. Fixed.
 		try {
-			if (Array.isArray(this["_points"]))
-				this["_points"].length =
-					0(this as any)._lastPoint =
-					null(this as any)._decimatedPoints =
-					[](this as any)._isCurrentlyDrawing =
-					false(this as any)._needsFullRender =
-						false;
+			if (Array.isArray(this["_points"])) this["_points"].length = 0;
+			(this as any)._lastPoint = null;
+			(this as any)._decimatedPoints = [];
+			(this as any)._isCurrentlyDrawing = false;
+			(this as any)._needsFullRender = false;
 		} catch {}
 
 		this.canvas.forEachObject((obj) => {
@@ -629,7 +650,13 @@ export class CustomEraserBrush extends PencilBrush {
 		}
 
 		const path = this.createPath(this.convertPointsToSVGPath(points));
-		const targets = walk(this.canvas.getObjects(), path);
+
+		// Resolve candidates via the spatial index when available; walk() still
+		// runs the precise intersection + deep-group recursion on this subset.
+		const candidates = this.targetCandidatesProvider
+			? this.targetCandidatesProvider(path)
+			: this.canvas.getObjects();
+		const targets = walk(candidates, path);
 
 		this.eventEmitter.dispatchEvent(
 			new CustomEvent("end", {

@@ -135,23 +135,28 @@ export const useDrawSyncer = defineStore("drawSyncer", () => {
 				const targets = e.detail.targets as FabricObject[];
 				const path = e.detail.path;
 
-				const allObjectIds = toObjectsIds(targets);
-				const deletedObjectIds = toObjectsIds(e.detail.deletedObjects || []);
-				const objectIds = allObjectIds.filter(
-					(id) => !deletedObjectIds.includes(id),
-				);
-
 				emitDrawSyncingEvent({
 					type: DrawSyncingEvent.ErasingEnd,
 					params: {
-						objectIds: objectIds,
-						deletedObjectIds: toObjectsIds(e.detail.deletedObjects || []),
+						objectIds: toObjectsIds(targets),
+						deletedObjectIds: [],
 						erasePath: path.toJSON([
 							"globalCompositeOperation",
 							"opacity",
 							"stroke",
 						]),
 					},
+				});
+			},
+		},
+		{
+			on: "erasing:cleanup_done",
+			handler: (e: any) => {
+				const { deletedObjects } = e;
+				if (!deletedObjects || deletedObjects.length === 0) return;
+				emitDrawSyncingEvent({
+					type: DrawSyncingEvent.removed,
+					params: { objectIds: toObjectsIds(deletedObjects) },
 				});
 			},
 		},

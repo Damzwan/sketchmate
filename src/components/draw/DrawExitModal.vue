@@ -24,7 +24,7 @@
         class="main-exit-btn cabin-sketch-regular font-black"
         @click="dismiss('leave')"
       >
-        {{ isLobby ? 'Leave Room' : (isEmptyDeletion ? 'Discard & Exit' : 'Exit to Gallery') }}
+        {{ isLobby ? 'Leave Room' : (isEmptyDeletion ? 'Discard & Exit' : 'Exit') }}
       </ion-button>
 
       <ion-button

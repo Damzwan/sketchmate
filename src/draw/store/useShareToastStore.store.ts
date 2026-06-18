@@ -4,7 +4,7 @@ import type { FeedPost, InboxItem } from "@/types/server.types";
 import { useInboxStore } from "@/store/inbox.store";
 import { usePostStore } from "@/store/post.store";
 
-export type ShareToastKind = "drawing" | "post" | "balloon";
+export type ShareToastKind = "drawing" | "post" | "balloon" | "saved";
 
 export interface ShareToast {
 	id: string;
@@ -13,9 +13,10 @@ export interface ShareToast {
 	subtitle: string;
 	thumbnail?: string;
 
-	// References instead of full objects
+	// Add optional field for saved drawing reference
 	inboxId?: string;
 	postId?: string;
+	savedId?: string; // New reference
 }
 
 export const useShareToastStore = defineStore("shareToast", () => {
@@ -93,6 +94,17 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		});
 	}
 
+	function pushSavedToast(params: { saved: any }) {
+		push({
+			id: `toast-${Date.now()}`,
+			kind: "saved",
+			title: "Saved!",
+			subtitle: "Added to your collection",
+			thumbnail: params.saved.img,
+			savedId: params.saved._id,
+		});
+	}
+
 	return {
 		toasts,
 		dismiss,
@@ -101,5 +113,6 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		getInboxItem, // Expose these to component
 		getPost,
 		pushBalloonToast,
+		pushSavedToast,
 	};
 });

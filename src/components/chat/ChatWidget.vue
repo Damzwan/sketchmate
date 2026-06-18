@@ -3,7 +3,7 @@
 
   <ion-modal
     :is-open="isVisible && isExpanded"
-    @will-present="scrollToBottom(true)"
+    @will-present="onWillPresent"
     @did-dismiss="chatWidget.closePanel()"
     :keepContentsMounted="true"
     :initial-breakpoint="1"
@@ -208,6 +208,14 @@ const handleLoadMore = async () => {
 		}, 200);
 	}
 };
+
+function onWillPresent() {
+	const { isLobby } = useDrawSyncer();
+	if (!isLobby && chatWidget.activeTab == "lobby") {
+		chatWidget.activeTab = "overview";
+	}
+	scrollToBottom(true);
+}
 </script>
 
 <style scoped>

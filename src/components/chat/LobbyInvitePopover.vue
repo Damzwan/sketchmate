@@ -3,50 +3,58 @@
     :is-open="isOpen"
     :event="event"
     @didDismiss="$emit('close')"
-    class="liquid-popover"
-    :show-backdrop="false"
+    class="invite-popover"
+    :show-backdrop="true"
+    side="top" alignment="center"
   >
-    <div class="glass-panel flex flex-col p-5 max-h-[400px]">
-      <h3 class="text-sm font-black text-secondary/70 uppercase tracking-widest text-center mb-4 cabin-sketch-regular">
+    <div class="flex flex-col p-5 w-[310px] bg-background rounded-[2.5rem] shadow-xl border border-default-light">
+      <h3 class="text-xs font-black text-secondary uppercase tracking-widest text-center mb-4">
         Invite Mates
       </h3>
 
-      <div class="flex-1 overflow-y-auto hide-scrollbar space-y-2 pr-0.5">
-        <div v-if="!eligibleToInvite.length" class="text-center py-6 text-xs font-bold text-black/30 italic">
+      <div class="flex-1 overflow-y-auto hide-scrollbar space-y-2.5 pr-0.5 max-h-[300px]" @touchmove.stop>
+        <div v-if="!eligibleToInvite.length" class="text-center py-8 text-xs font-bold text-black/30 italic">
           Everyone is already here!
         </div>
 
-        <!-- Sorted List: Online users at the top, but everyone looks enabled -->
-        <div v-for="friend in eligibleToInvite" :key="friend._id"
-             class="flex items-center justify-between p-2.5 bg-white/40 rounded-[1.2rem] border border-white/60 shadow-sm transition-all active:scale-[0.99]">
+        <div
+          v-for="friend in eligibleToInvite"
+          :key="friend._id"
 
+          class="flex items-center justify-between p-3 bg-tertiary border border-default-light rounded-[1.5rem] shadow-sm transition-all active:scale-[0.99]"
+        >
           <div class="flex items-center gap-3 min-w-0">
             <div class="relative shrink-0">
-              <img :src="friend.img" class="w-10 h-10 rounded-xl object-cover border border-white shadow-sm" />
-              <!-- Green dot only for online users -->
-              <div v-if="isOnline(friend._id)"
-                   class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-white shadow-sm">
-              </div>
+              <img
+                :src="friend.img"
+                class="w-10 h-10 rounded-xl object-cover border border-default-light shadow-sm"
+              />
+              <div
+                v-if="isOnline(friend._id)"
+                class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm"
+              ></div>
             </div>
 
-            <div class="flex flex-col min-w-0">
-              <span class="text-sm font-bold text-black truncate">{{ friend.name.split(' ')[0] }}</span>
-              <!-- Status text remains for clarity -->
-              <span v-if="!isOnline(friend._id)" class="text-[9px] text-black/40 font-black uppercase tracking-tighter">
-                Offline
+            <div class="flex flex-col min-w-0 leading-tight">
+              <span class="text-sm font-black text-heading truncate">
+                {{ friend.name.split(' ')[0] }}
               </span>
-              <span v-else class="text-[9px] text-green-600 font-black uppercase tracking-tighter">
-                Online
+              <span
+                :class="isOnline(friend._id) ? 'text-green-600' : 'text-black/30'"
+                class="text-[9px] font-black uppercase tracking-wider mt-0.5"
+              >
+                {{ isOnline(friend._id) ? 'Online' : 'Offline' }}
               </span>
             </div>
           </div>
 
-          <!-- The button is only disabled during the 30s local cooldown (preventing spam) -->
           <button
             @click="handleInvite(friend._id)"
             :disabled="!canInvite(friend._id)"
-            class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 ml-2 shadow-sm"
-            :class="canInvite(friend._id) ? 'bg-secondary text-white active:scale-90' : 'bg-black/10 text-black/20'"
+            class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ml-3 shadow-sm border"
+            :class="canInvite(friend._id)
+              ? 'bg-secondary border-secondary text-white active:scale-95'
+              : 'bg-default-light border-default-medium text-black/30 cursor-not-allowed'"
           >
             {{ canInvite(friend._id) ? 'Invite' : 'Sent' }}
           </button>
@@ -101,3 +109,12 @@ const handleInvite = (friendId: string) => {
 	inviteFriendToRoom(friendId, roomId.value);
 };
 </script>
+
+<style scoped>
+/* Scoped overrides ensuring clean styling inside Ionic's shadow-dom context */
+ion-popover.invite-popover {
+  --background: transparent;
+  --box-shadow: none;
+  --width:310px
+}
+</style>

@@ -16,25 +16,15 @@
           color="tertiary"
           :button="true"
           id="stickers"
-          @click="openStickerMenu"
           :detail="true"
-          :disabled="!user"
+          :disabled="true"
         >
           <ion-icon :icon="svg(mdiStickerEmoji)" />
           <p class="pl-2 text-base">Stickers</p>
+          <p class="pl-2 text-sm">coming soon</p>
         </ion-item>
 
-        <ion-item
-          color="tertiary"
-          :button="true"
-          id="stickers"
-          @click="openEmblemMenu"
-          :detail="true"
-          :disabled="!user"
-        >
-          <ion-icon :icon="svg(mdiStickerCircleOutline)" />
-          <p class="pl-2 text-base">Emblems</p>
-        </ion-item>
+
         <ion-item color="tertiary" :button="true" @click="onImgClick" :detail="true">
           <input type="file" class="hidden" ref="imgInput" @change="onImgUpload" accept="image/*" />
           <ion-icon :icon="svg(mdiImage)" />

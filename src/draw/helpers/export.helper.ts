@@ -113,11 +113,13 @@ async function exportWithMainThreadChunking(
 		const nativeCanvas = document.createElement("canvas");
 		nativeCanvas.width = size;
 		nativeCanvas.height = size;
-		const ctx = nativeCanvas.getContext("2d");
+		const ctx = nativeCanvas.getContext("2d", { alpha: true });
 
 		if (ctx) {
-			ctx.fillStyle = canvas.backgroundColor as any;
-			ctx.fillRect(0, 0, size, size);
+			if (canvas.backgroundColor && canvas.backgroundColor !== "transparent") {
+				ctx.fillStyle = canvas.backgroundColor as string;
+				ctx.fillRect(0, 0, nativeCanvas.width, nativeCanvas.height);
+			}
 		}
 
 		return new Promise((resolve) => {

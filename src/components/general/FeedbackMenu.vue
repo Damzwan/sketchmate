@@ -1,6 +1,6 @@
 <template>
-  <ion-modal :is-open="feedbackMenuOpen" @didDismiss="feedbackMenuOpen = false" class="z-2000">
-    <div class="bg-background p-4">
+  <ion-modal :is-open="feedbackMenuOpen" @didDismiss="feedbackMenuOpen = false" class="z-2000 sketch-modal">
+    <div class="bg-background p-4 report-modal">
       <ion-button fill="clear" class="absolute right-0 top-0" @click="feedbackMenuOpen = false">
         <ion-icon slot="icon-only" class="fill-black" :icon="svg(mdiClose)" />
       </ion-button>

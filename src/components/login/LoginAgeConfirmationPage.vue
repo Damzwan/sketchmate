@@ -3,8 +3,7 @@
     <div class="w-full min-h-full flex flex-col">
 
       <div class="px-8 pt-10 pb-6 text-center shrink-0">
-        <h1 class="text-4xl text-black font-black uppercase tracking-tight leading-none">
-          Safety & Community
+        <h1 class="text-4xl text-black font-blimport { svg, isOldEnough, isNative } from "@/helper/general.helper";ity
         </h1>
         <p class="text-[10px] font-black opacity-50 uppercase tracking-[0.2em] mt-2">
           Verify age before access
@@ -80,16 +79,23 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonIcon, IonSpinner } from "@ionic/vue";
+import {
+	IonButton,
+	IonContent,
+	IonIcon,
+	IonSpinner,
+	useIonRouter,
+} from "@ionic/vue";
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { mdiCheck } from "@mdi/js";
 import { useAuthStore } from "@/store/auth.store";
-import { svg, isOldEnough } from "@/helper/general.helper";
+import { svg, isOldEnough, isNative } from "@/helper/general.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import LoginNotificationPage from "@/components/login/LoginNotificationPage.vue";
 import SketchDatePicker from "@/components/general/SketchDatePicker.vue";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const { user } = storeToRefs(useAuthStore());
 const { toast } = useToast();
@@ -99,6 +105,8 @@ const agreed = ref(false);
 const isSubmitting = ref(false);
 
 const isValidDob = computed(() => !!dobValue.value);
+
+const ionRouter = useIonRouter();
 
 const WELCOME_RULES = [
 	{
@@ -149,7 +157,11 @@ async function handleContinue() {
 
 		const navEl = document.querySelector("ion-nav");
 		if (navEl) {
-			await (navEl as any).push(LoginNotificationPage);
+			if (isNative()) {
+				await (navEl as any).push(LoginNotificationPage);
+			} else {
+				ionRouter.push(FRONTEND_ROUTES.home);
+			}
 		}
 	} catch (e) {
 		toast("Couldn't save, please try again", { color: "danger" });

@@ -20,7 +20,11 @@ import {
 	isNative,
 	isOldEnough,
 } from "@/helper/general.helper";
-import { routerAnimation } from "@/helper/animation.helper";
+import {
+	masterAnimation,
+	routerAnimation,
+	slideTransition,
+} from "@/helper/animation.helper";
 import { useNotificationStore } from "@/store/notification.store";
 import { useBalloonStore } from "@/store/balloon.store";
 import { useInboxStore } from "@/store/inbox.store";
@@ -97,8 +101,12 @@ export const useAuthStore = defineStore("auth", () => {
 			isLoggedIn.value = false;
 			user.value = undefined;
 			firebaseUser.value = undefined;
-			await router.replace(FRONTEND_ROUTES.login!);
 			isAuthLoading.value = false;
+
+			const currentPath = router.currentRoute.value.path;
+			if (currentPath !== `/${FRONTEND_ROUTES.login}`) {
+				ionRouter.replace(FRONTEND_ROUTES.login, masterAnimation);
+			}
 			return;
 		}
 
@@ -367,6 +375,11 @@ export const useAuthStore = defineStore("auth", () => {
 		}
 
 		socketDisconnect();
+
+		if (ionRouter) {
+			ionRouter.navigate(FRONTEND_ROUTES.login, "root", "replace");
+		}
+
 		await FirebaseAuthentication.signOut();
 		isLoggedIn.value = false;
 		user.value = undefined;

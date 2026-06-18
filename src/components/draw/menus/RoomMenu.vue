@@ -5,56 +5,51 @@
     :subtitle="!roomId ? 'Share a canvas with others' : undefined"
     @close="onDismiss"
   >
-    <!-- ACTIVE SESSION VIEW -->
+    <!-- ACTIVE SESSION VIEW (Dedicated Session Controls) -->
     <div v-if="roomId" class="space-y-6 animate-fade-in pt-1">
 
-      <!-- Room Code Hub Card -->
-      <div class="bg-background border border-default-medium p-5 rounded-[2rem] flex items-center justify-between">
-        <div class="flex flex-col">
-          <span class="text-sm font-bold opacity-60 uppercase tracking-widest mb-1">
-            Room Code
+      <!-- 1. Session Context Card (Swaps to Room Name if Public) -->
+      <div class="bg-background border border-default-medium p-5 rounded-[2rem] flex items-center justify-between gap-4">
+        <div class="flex flex-col min-w-0 flex-1">
+          <span class="text-sm font-bold opacity-60 uppercase tracking-widest mb-1 truncate">
+            {{ isPublicLobby ? 'Lobby Name' : 'Room Code' }}
           </span>
-          <div class="flex items-center gap-2">
-            <h1 class="text-4xl text-secondary font-black tracking-tighter leading-none">
-              {{ roomId }}
+          <div class="flex items-center gap-2 min-w-0">
+            <h1
+              class="text-secondary font-black tracking-tighter leading-none truncate flex-1"
+              :class="isPublicLobby ? 'text-2xl' : 'text-4xl'"
+            >
+              {{ isPublicLobby ? publicLobbyName : roomId }}
             </h1>
             <ion-button
               fill="clear"
               size="small"
-              class="ion-no-margin h-8 w-8 text-secondary"
+              class="ion-no-margin h-8 w-8 text-secondary shrink-0"
               @click="shareUrl(roomIdLink, '', '', 'Link copied!')"
             >
               <ion-icon slot="icon-only" :icon="svg(mdiShareVariant)" class="text-2xl" />
             </ion-button>
           </div>
         </div>
-        <div class="p-2 bg-white rounded-2xl ring-1 ring-black/5">
+        <div class="p-2 bg-white rounded-2xl ring-1 ring-black/5 shrink-0">
           <qrcode-vue :value="roomIdLink" :size="80" background="white" foreground="#000" />
         </div>
       </div>
 
-      <!-- Action Actions Section -->
-      <div class="flex gap-3">
-        <button
-          @click="openLobbyChat"
-          class="flex-1 h-12 bg-cyan-400 text-white rounded-full text-sm font-black uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <ion-icon :icon="chatbubblesOutline" class="text-lg" />
-          Chat
-        </button>
-
+      <!-- 2. Invite Action -->
+      <div class="flex">
         <ion-button
           @click="openInvitePopover"
           color="secondary"
           shape="round"
-          class="flex-1 h-12 text-sm font-black uppercase tracking-widest"
+          class="w-full h-12 text-sm font-black uppercase tracking-widest"
         >
           <ion-icon slot="start" :icon="svg(mdiAccountPlus)" class="text-lg" />
-          Invite
+          Invite Artists
         </ion-button>
       </div>
 
-      <!-- Artist Registry Slider Section -->
+      <!-- 3. Full Artist Roster Slider Section -->
       <section class="py-2">
         <h3 class="text-sm font-black opacity-40 uppercase tracking-widest mb-3 px-1">
           Artists <span class="text-secondary opacity-100 ml-1">{{ roomMembers.length }}</span>
@@ -89,7 +84,7 @@
         </div>
       </section>
 
-      <!-- Leave Room CTA -->
+      <!-- 4. Leave Room CTA -->
       <div class="flex justify-center pt-2">
         <ion-button
           @click="leaveRoom"
@@ -186,8 +181,7 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import { computed, nextTick, ref } from "vue";
-import { IonButton, IonIcon } from "@ionic/vue";
-import { chatbubblesOutline } from "ionicons/icons";
+import { IonButton, IonIcon, useIonRouter } from "@ionic/vue";
 import { mdiAccountPlus, mdiCamera, mdiShareVariant } from "@mdi/js";
 import QrcodeVue from "qrcode.vue";
 
@@ -195,12 +189,8 @@ import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useAuthStore } from "@/store/auth.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useScanner } from "@/service/scanner.service";
-import {
-	leaveRoom as apiLeaveRoom,
-	socketJoinRoom,
-} from "@/service/api/socket/drawSyncing.socket";
+import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { generateRandomCode, isNative, svg } from "@/helper/general.helper";
 import { createRoomLink, shareUrl } from "@/helper/share.helper";
 
@@ -210,6 +200,9 @@ import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useToast } from "@/service/toast.service";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useDrawUIStore } from "@/draw/store/drawUI.store";
+
+const router = useIonRouter();
 
 const drawSyncerStore = useDrawSyncer();
 const {
@@ -222,7 +215,6 @@ const {
 } = storeToRefs(drawSyncerStore);
 const { roomMenuOpen } = storeToRefs(useMenuStore());
 const { user, isUnderAge } = storeToRefs(useAuthStore());
-const chatWidget = useChatWidgetStore();
 const { startScanning } = useScanner();
 const { openUserActions } = useUserContextSheet();
 
@@ -241,14 +233,10 @@ const openInvitePopover = (ev: Event) => {
 	invitePopoverOpen.value = true;
 };
 
-const openLobbyChat = () => {
-	chatWidget.openPanel();
-	chatWidget.activeTab = "lobby";
-	roomMenuOpen.value = false;
-};
-
 const leaveRoom = () => {
-	apiLeaveRoom();
+	const { triggerManualExit } = useDrawUIStore();
+	triggerManualExit();
+	roomMenuOpen.value = false;
 };
 
 const onDismiss = () => {
@@ -297,9 +285,12 @@ const handlePaste = (event: any) => {
 async function handleJoinPublicLobby(id: string) {
 	const lobby = publicLobbies.value.find((l) => l.id === id);
 	if (!lobby || lobby.users >= lobby.maxUsers) return;
-	joinRoom(id);
+
+	// Set store state explicitly before calling socket join
 	publicLobbyName.value = lobby.name;
 	isPublicLobby.value = true;
+
+	joinRoom(id);
 }
 
 async function startScanningHelper() {

@@ -87,9 +87,13 @@ function onInstallPWAClick() {
 	installPWA(installPrompt);
 }
 
+const ionRouter = useIonRouter();
+
 function logoutHelper() {
 	if (firebaseUser.value?.isAnonymous) logoutWarningOpen.value = true;
-	else logout();
+	else {
+		logout();
+	}
 }
 </script>
 

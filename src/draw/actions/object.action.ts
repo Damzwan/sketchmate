@@ -16,12 +16,24 @@ import { useToast } from "@/service/toast.service";
 import { viewSavedButton } from "@/config/toast.config";
 import { ToastDuration } from "@/types/toast.types";
 import { centerObjectInViewport } from "@/draw/helpers/viewport.helper";
-import { canvasToBuffer } from "@/draw/helpers/export.helper";
+import {
+	canvasToBuffer,
+	computeBounds,
+	exportBoundingBoxImage,
+} from "@/draw/helpers/export.helper";
 import { useToolSelection } from "@/draw/store/tools/toolSelection.store";
 import { useDrawUIStore } from "@/draw/store/drawUI.store";
 import { toJSON, toObjectsIds } from "@/draw/helpers/object.helper";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { createSaved } from "@/service/api/user.api";
+import {
+	enlivenObjectsTimeSlivered,
+	generateChunkedJSON,
+	migrateLegacyOrigin,
+} from "@/draw/helpers/drawload.helper";
+import { useChatStore } from "@/store/chat.store";
+import { createSavedDrawing } from "@/service/api/savedDrawing.api";
+import { useShareToastStore } from "@/draw/store/useShareToastStore.store";
 
 export async function removeObjects(objects: FabricObject[]) {
 	const { getCanvas } = useDrawStore();
@@ -321,73 +333,73 @@ export async function saveFabricObject(
 	params: DrawActionParams[DrawAction.SaveFabricObject],
 ) {
 	const { user } = useAuthStore();
-	const { loadingText, isLoading } = storeToRefs(useDrawUIStore());
-	const { toast } = useToast();
-
+	const drawui = useDrawUIStore();
+	const shareToastStore = useShareToastStore(); // Access your new store
 	const { getCanvas } = useDrawStore();
+
 	const c = getCanvas();
+	if (!c || !user) return;
 
-	isLoading.value = true;
-	loadingText.value = "Saving drawing...";
+	drawui.isSavingDrawing = true;
 
-	let minX = Infinity;
-	let minY = Infinity;
-	let maxX = -Infinity;
-	let maxY = -Infinity;
+	try {
+		if (params.objects.length > 1) {
+			c.discardActiveObject();
+		}
 
-	if (params.objects.length > 1) {
-		c.discardActiveObject();
-	}
+		const bounds = computeBounds(params.objects, 0);
 
-	// Calculate the bounding box for the objects
-	params.objects.forEach((obj) => {
-		const boundingRect = obj.getBoundingRect(); // Pass true to get a box that surrounds the entire object even if it's rotated
-		minX = Math.min(minX, boundingRect.left);
-		minY = Math.min(minY, boundingRect.top);
-		maxX = Math.max(maxX, boundingRect.left + boundingRect.width);
-		maxY = Math.max(maxY, boundingRect.top + boundingRect.height);
-	});
-
-	const width = maxX - minX;
-	const height = maxY - minY;
-
-	const tempCanvas = new fabric.StaticCanvas(undefined, {
-		width: width,
-		height: height,
-	});
-
-	const clonedObjects = await Promise.all(
-		params.objects.map((obj: FabricObject) => obj.clone()),
-	);
-
-	// Add objects to the canvas
-	clonedObjects.forEach((obj) => {
-		obj.set({
-			left: obj.left! - minX,
-			top: obj.top! - minY,
+		const tempCanvas = new fabric.StaticCanvas(undefined, {
+			width: bounds.width,
+			height: bounds.height,
 		});
 
-		tempCanvas.add(obj);
-	});
+		const clonedObjects = await Promise.all(
+			params.objects.map((obj: fabric.Object) => obj.clone()),
+		);
 
-	tempCanvas.renderAll();
+		clonedObjects.forEach((obj) => {
+			obj.set({
+				left: obj.left! - bounds.minX,
+				top: obj.top! - bounds.minY,
+			});
+			tempCanvas.add(obj);
+		});
 
-	if (params.objects.length > 1) {
-		c.setActiveObject(new ActiveSelection(params.objects, { canvas: c }));
+		tempCanvas.renderAll();
+
+		// 1. Chunked JSON & Image Generation
+		tempCanvas.backgroundColor = "transparent";
+		const jsonObj = await generateChunkedJSON(tempCanvas as any);
+		const jsonString = JSON.stringify(jsonObj);
+
+		const exportResult = await exportBoundingBoxImage(tempCanvas as any, {
+			maxSize: 1080,
+			asBuffer: true,
+			quality: 0.9,
+		});
+
+		if (!exportResult) throw new Error("Export failed");
+
+		// 2. API Call
+		const saved = await createSavedDrawing({
+			_id: user._id,
+			drawing: jsonString,
+			img: exportResult.img,
+		});
+
+		if (params.objects.length > 1) {
+			c.setActiveObject(
+				new fabric.ActiveSelection(params.objects, { canvas: c }),
+			);
+		}
+
+		shareToastStore.pushSavedToast({ saved });
+	} catch (error) {
+		console.error("Save failed:", error);
+	} finally {
+		drawui.isSavingDrawing = false;
 	}
-
-	// Save canvas as JSON and DataURL
-	const json = JSON.stringify(tempCanvas.toJSON());
-	const img = await canvasToBuffer(tempCanvas.toDataURL());
-
-	const saved = await createSaved({ _id: user!._id, drawing: json, img: img });
-	user!.saved.push(saved!);
-
-	isLoading.value = false;
-	toast("Saved drawing", {
-		buttons: [viewSavedButton],
-		duration: ToastDuration.medium,
-	});
 }
 
 export async function addSavedFabricObjectToCanvas(
@@ -396,47 +408,107 @@ export async function addSavedFabricObjectToCanvas(
 	const { getCanvas } = useDrawStore();
 	const { selectTool, selectedTool } = useToolSelection();
 	const { actionWithoutEvents } = useDrawEventManager();
+	const drawSyncer = useDrawSyncer();
 
 	const c = getCanvas();
 	if (!c) return;
-	const json = params.json;
 
-	// Enliven
-	let objects = await fabric.util.enlivenObjects<FabricObject>(json.objects);
-	objects.forEach((obj) => obj.set("id", uuidv4()));
+	drawSyncer.isLoadingCanvas = true;
 
-	await actionWithoutEvents(() => {
-		if (objects.length === 1) {
-			const obj = objects[0];
+	try {
+		let jsonData = params.json;
 
-			centerObjectInViewport(c, obj);
-			c.add(obj);
-			obj.setCoords();
-
-			c.setActiveObject(obj);
-		} else {
-			const selection = new fabric.ActiveSelection(objects, { canvas: c });
-
-			centerObjectInViewport(c, selection);
-
-			selection.forEachObject((obj) => {
-				c.add(obj);
-				obj.setCoords();
-			});
-
-			selection.removeAll();
+		if (typeof params.json === "string") {
+			const response = await fetch(params.json);
+			jsonData = await response.json();
 		}
-	});
 
-	if (selectedTool !== DrawTool.Select) {
-		selectTool(DrawTool.Select);
-	}
+		const objects: fabric.Object[] = [];
 
-	c.fire("objects:added", { target: objects });
+		await enlivenObjectsTimeSlivered(jsonData.objects, (obj) => {
+			const migrated = migrateLegacyOrigin(obj);
+			migrated.set("id", uuidv4());
+			objects.push(migrated);
+		});
 
-	if (objects.length === 1) {
-		c.setActiveObject(objects[0]);
-	} else {
-		c.setActiveObject(new fabric.ActiveSelection(objects, { canvas: c }));
+		const fitToViewport = (
+			obj: fabric.Object,
+			canvas: fabric.Canvas,
+			padding = 0.8,
+		) => {
+			const zoom = canvas.getZoom();
+
+			const viewportWidth = canvas.getWidth() / zoom;
+			const viewportHeight = canvas.getHeight() / zoom;
+
+			const objWidth = obj.getScaledWidth();
+			const objHeight = obj.getScaledHeight();
+
+			const maxWidth = viewportWidth * padding;
+			const maxHeight = viewportHeight * padding;
+
+			const widthScale = maxWidth / objWidth;
+			const heightScale = maxHeight / objHeight;
+
+			const scale = Math.min(widthScale, heightScale);
+
+			// Only shrink, never enlarge
+			if (scale < 1) {
+				obj.scale(obj.scaleX! * scale);
+			}
+
+			obj.setCoords();
+		};
+
+		await actionWithoutEvents(async () => {
+			if (objects.length === 1) {
+				const obj = objects[0];
+
+				fitToViewport(obj, c);
+
+				centerObjectInViewport(c, obj);
+				c.add(obj);
+
+				obj.setCoords();
+				c.setActiveObject(obj);
+			} else if (objects.length > 1) {
+				const selection = new fabric.ActiveSelection(objects, {
+					canvas: c,
+				});
+
+				fitToViewport(selection, c);
+
+				centerObjectInViewport(c, selection);
+
+				selection.forEachObject((obj) => {
+					c.add(obj);
+					obj.setCoords();
+				});
+
+				selection.removeAll();
+			}
+		});
+
+		if (selectedTool !== DrawTool.Select) {
+			selectTool(DrawTool.Select);
+		}
+
+		c.fire("objects:added", {
+			target: objects,
+		});
+
+		if (objects.length === 1) {
+			c.setActiveObject(objects[0]);
+		} else if (objects.length > 1) {
+			c.setActiveObject(
+				new fabric.ActiveSelection(objects, {
+					canvas: c,
+				}),
+			);
+		}
+	} catch (error) {
+		console.error("Failed to load saved drawing:", error);
+	} finally {
+		drawSyncer.isLoadingCanvas = false;
 	}
 }

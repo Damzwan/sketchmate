@@ -3,226 +3,230 @@
     :is-open="isOpen"
     @did-dismiss="handleDismiss"
     @will-present="onPresent"
-    :initial-breakpoint="1"
-    :breakpoints="[0, 1]"
-    handle-behavior="cycle"
     class="liquid-sketch-modal"
   >
     <div
-      class="h-full flex flex-col p-4 bot-pad-safe overflow-hidden"
+      class="editor-root relative h-full w-full overflow-hidden select-none"
       :style="{ background: 'var(--ion-color-tertiary)' }"
-      @touchmove.stop
     >
-      <div class="shrink-0 mb-2 text-center relative">
-        <div class="absolute right-[-8px] top-[-8px]">
-          <ion-button fill="clear" color="dark" class="ion-no-margin" @click="handleDismiss">
-            <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="text-xl" />
-          </ion-button>
-        </div>
-        <h1 class="text-2xl text-secondary font-black tracking-tighter italic leading-none">
-          Card Doodle
-        </h1>
-        <p class="text-[10px] font-bold opacity-60 uppercase tracking-widest mt-1">
-          Draw around your avatar and name
-        </p>
-      </div>
-
-      <div class="shrink-0 flex flex-col gap-2 mb-3 px-1">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-[9px] font-black uppercase tracking-widest opacity-50 shrink-0">
-            {{ strokes.length }} {{ strokes.length === 1 ? 'stroke' : 'strokes' }}
-          </span>
-
-          <div class="flex items-center gap-1 p-1 rounded-full bg-white/50 border border-white/60 shadow-inner">
-            <button
-              v-for="opt in widthOptions"
-              :key="opt.value"
-              class="flex items-center justify-center transition-all rounded-full active:scale-95"
-              :class="brushWidth === opt.value ? 'bg-secondary shadow-sm' : 'bg-transparent'"
-              style="width: 36px; height: 24px;"
-              :title="opt.label"
-              @click="brushWidth = opt.value"
-            >
-              <span
-                class="block rounded-full"
-                :style="{
-                  width: `${opt.previewSize}px`,
-                  height: `${opt.previewSize}px`,
-                  backgroundColor: brushWidth === opt.value ? '#ffffff' : color,
-                  opacity: brushWidth === opt.value ? 1 : 0.7,
-                }"
-              ></span>
-            </button>
-          </div>
-
-          <div class="w-10 shrink-0"></div>
-        </div>
-
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex items-center bg-white/50 border border-white/60 rounded-full p-[2px] shadow-inner shrink-0">
-            <button
-              class="h-7 px-3 flex items-center justify-center gap-1.5 rounded-full transition-all active:scale-95"
-              :class="!isPanMode ? 'bg-secondary text-white shadow-sm' : 'text-black/50'"
-              @click="isPanMode = false"
-            >
-              <ion-icon :icon="svg(mdiBrush)" class="text-sm" />
-              <span class="text-[9px] font-black tracking-widest">DRAW</span>
-            </button>
-            <button
-              class="h-7 px-3 flex items-center justify-center gap-1.5 rounded-full transition-all active:scale-95"
-              :class="isPanMode ? 'bg-secondary text-white shadow-sm' : 'text-black/50'"
-              @click="isPanMode = true"
-            >
-              <ion-icon :icon="svg(mdiCursorMove)" class="text-sm" />
-              <span class="text-[9px] font-black tracking-widest">PAN</span>
-            </button>
-          </div>
-
-          <div class="flex items-center gap-1 shrink-0">
-            <button
-              class="h-8 px-3 flex items-center justify-center gap-1 rounded-full transition-all active:scale-95"
-              :class="zoomLevel > 1 ? 'bg-secondary text-white' : 'bg-white/50 border border-white/60'"
-              @click="cycleZoom"
-            >
-              <ion-icon :icon="svg(mdiMagnifyPlusOutline)" class="text-sm" />
-              <span class="text-[9px] font-black tracking-widest">{{ zoomLabel }}</span>
-            </button>
-
-            <ion-button
-              fill="clear"
-              color="dark"
-              size="small"
-              class="ion-no-margin h-8"
-              :disabled="strokes.length === 0"
-              @click="undo"
-            >
-              <ion-icon slot="icon-only" :icon="svg(mdiUndoVariant)" class="text-lg" />
-            </ion-button>
-          </div>
-        </div>
-      </div>
-
       <div
         ref="viewportRef"
-        class="flex-1 w-full overflow-auto min-h-0 hide-scrollbar relative"
+        class="absolute inset-0 touch-none"
+        :class="tool === 'erase' ? 'cursor-cell' : 'cursor-crosshair'"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerUp"
+        @pointercancel="onPointerUp"
+        @wheel.prevent="onWheel"
       >
         <div
-          class="w-full min-h-full flex items-start pt-2 pb-12"
-          :style="{ paddingLeft: `max(0px, calc(50% - ${CANONICAL_CARD_WIDTH * zoomLevel / 2}px))` }"
+          ref="worldRef"
+          class="absolute top-0 left-0 origin-top-left will-change-transform"
+          :style="worldStyle"
         >
           <div
-            class="relative shrink-0 transition-all duration-200"
-            :style="{
-              width: `${CANONICAL_CARD_WIDTH * zoomLevel}px`,
-              height: 'auto'
-            }"
+            ref="cardWrapperRef"
+            class="relative"
+            :style="{ width: `${CANONICAL_CARD_WIDTH}px` }"
           >
+            <div class="pointer-events-none" :style="{ opacity: cardOpacity }">
+              <ProfileCard
+                :user="user || {}"
+                :customization="cardCustomization"
+                :is-own-profile="false"
+                :is-preview="true"
+              />
+            </div>
+
             <div
-              ref="cardWrapperRef"
-              class="transition-transform duration-200 origin-top-left"
+              ref="padRef"
+              class="absolute pointer-events-none overflow-hidden"
               :style="{
-                width: `${CANONICAL_CARD_WIDTH}px`,
-                transform: `scale(${zoomLevel})`
+                top: `${zoneRenderTop}px`,
+                left: `${zoneRenderLeft}px`,
+                width: `${zoneRenderWidth}px`,
+                height: `${zoneRenderHeight}px`,
               }"
             >
-              <div
-                class="pointer-events-none select-none"
-                :style="{
-                  opacity: 0.35,
-                  maskImage: maskGradient,
-                  WebkitMaskImage: maskGradient,
-                }"
+              <svg
+                v-if="zoneRenderWidth > 0"
+                class="absolute inset-0 w-full h-full"
+                :viewBox="`0 0 ${CANONICAL_ZONE_WIDTH} ${CANONICAL_ZONE_HEIGHT}`"
+                preserveAspectRatio="none"
+                xmlns="http://www.w3.org/2000/svg"
               >
-                <ProfileCard
-                  :user="user || {}"
-                  :customization="cardCustomization"
-                  :is-own-profile="false"
-                  :is-preview="true"
+                <path
+                  v-for="(stroke, i) in strokes"
+                  :key="i"
+                  :d="safeBuildPath(stroke)"
+                  fill="none"
+                  :stroke="strokeColor"
+                  :stroke-width="stroke.width"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  vector-effect="non-scaling-stroke"
+                  :opacity="EDIT_OPACITY"
                 />
-              </div>
-
-              <div
-                ref="padRef"
-                class="absolute"
-                :class="isPanMode ? 'cursor-grab touch-auto' : 'cursor-crosshair touch-none'"
-                :style="{
-                  top: `${zoneRenderTop}px`,
-                  left: `${zoneRenderLeft}px`,
-                  width: `${zoneRenderWidth}px`,
-                  height: `${zoneRenderHeight}px`,
-                }"
-                @pointerdown="startStroke"
-                @pointermove="draw"
-                @pointerup="endStroke"
-                @pointercancel="endStroke"
-                @pointerout="endStroke"
-              >
-                <div
-                  class="absolute inset-0 rounded-[2rem] border-2 border-dashed pointer-events-none"
-                  :style="{ borderColor: theme.nameColor, opacity: 0.2 }"
-                ></div>
-
-                <div class="absolute inset-0 pointer-events-none flex justify-center">
-                  <svg
-                    v-if="zoneRenderWidth > 0"
-                    class="w-full h-full max-w-[360px]"
-                    :viewBox="`0 0 ${CANONICAL_ZONE_WIDTH} ${CANONICAL_ZONE_HEIGHT}`"
-                    preserveAspectRatio="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      v-for="(stroke, i) in strokes"
-                      :key="i"
-                      :d="safeBuildPath(stroke)"
-                      fill="none"
-                      :stroke="color"
-                      :stroke-width="stroke.width"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      :opacity="previewOpacity"
-                    />
-                    <path
-                      v-if="currentStroke.length >= 1"
-                      :d="buildPath(currentStroke)"
-                      fill="none"
-                      :stroke="color"
-                      :stroke-width="brushWidth"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      :opacity="previewOpacity"
-                    />
-                  </svg>
-                </div>
-              </div>
+                <path
+                  v-if="currentStroke.length >= 1"
+                  :d="buildPath(currentStroke)"
+                  fill="none"
+                  :stroke="strokeColor"
+                  :stroke-width="brushWidth"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  vector-effect="non-scaling-stroke"
+                  :opacity="EDIT_OPACITY"
+                />
+              </svg>
             </div>
+
+            <div
+              v-if="zoneRenderWidth > 0"
+              class="absolute pointer-events-none border-2 border-dashed rounded-md"
+              :style="{
+                top: `${zoneRenderTop}px`,
+                left: `${zoneRenderLeft}px`,
+                width: `${zoneRenderWidth}px`,
+                height: `${zoneRenderHeight}px`,
+                borderColor: strokeColor,
+                opacity: 0.3,
+              }"
+            ></div>
           </div>
         </div>
+
+        <div
+          v-if="tool === 'erase' && eraserCursor.visible"
+          class="absolute pointer-events-none rounded-full border-2 border-dashed -translate-x-1/2 -translate-y-1/2"
+          :style="{
+            left: `${eraserCursor.x}px`,
+            top: `${eraserCursor.y}px`,
+            width: `${eraserCursor.size}px`,
+            height: `${eraserCursor.size}px`,
+            borderColor: 'var(--ion-color-secondary)',
+            background: 'rgba(var(--ion-color-secondary-rgb), 0.12)',
+          }"
+        ></div>
       </div>
 
-      <div class="flex flex-col gap-2 mt-2 shrink-0 pb-1 relative z-20">
-        <p v-if="!isPro" class="text-center text-[10px] font-bold text-secondary/70 uppercase tracking-wider">
-          🔒 Premium feature: Pro subscription required
-        </p>
-
-        <div class="grid grid-cols-2 gap-3">
+      <div class="absolute top-0 inset-x-0 z-20 px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <div class="relative h-12 flex items-center justify-center">
           <ion-button
             fill="clear"
             color="dark"
-            @click="clear"
+            class="absolute left-0 ion-no-margin"
+            @click="handleDismiss"
           >
-            Clear
+            <ion-icon slot="icon-only" :icon="svg(mdiClose)" class="text-xl" />
           </ion-button>
-          <ion-button
-            color="secondary"
-            shape="round"
-            :disabled="!isPro"
-            @click="save"
-          >
-            <div class="flex items-center justify-center gap-1">
-              <ion-icon v-if="!isPro" :icon="svg(mdiLock)" class="text-sm opacity-80" />
-              <span>Apply ✓</span>
+
+          <div class="text-center">
+            <h1
+              class="text-3xl text-secondary leading-none"
+              :style="{ fontFamily: SKETCH_FONT }"
+            >
+              Card Doodle
+            </h1>
+            <p class="text-[9px] font-bold opacity-50 uppercase tracking-widest mt-0.5">
+              Draw around your avatar &amp; name
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="absolute z-20 inset-x-0 bottom-0 px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pointer-events-none">
+        <div class="pointer-events-auto rounded-3xl bg-white/90 backdrop-blur-xl border border-white/60 shadow-lg px-3 py-2 flex flex-col gap-2">
+
+          <div class="flex items-center gap-1">
+            <ion-button fill="clear" color="dark" class="ion-no-margin h-9 w-9" :disabled="!canUndo" @click="undo">
+              <ion-icon slot="icon-only" :icon="svg(mdiUndoVariant)" class="text-xl" />
+            </ion-button>
+            <ion-button fill="clear" color="dark" class="ion-no-margin h-9 w-9" :disabled="!canRedo" @click="redo">
+              <ion-icon slot="icon-only" :icon="svg(mdiRedoVariant)" class="text-xl" />
+            </ion-button>
+
+            <span class="text-[14px] cabin-sketch-regular ml-2">
+              Pinch to zoom / drag to pan
+            </span>
+
+            <ion-button fill="clear" color="medium" size="small" class="ion-no-margin ml-auto pr-1" @click="fitView(true)">
+              <ion-icon slot="start" :icon="svg(mdiFitToScreenOutline)" class="text-lg mr-2" />
+              <span class="text-[11px] font-bold tabular-nums">{{ zoomPct }}%</span>
+            </ion-button>
+          </div>
+
+          <div class="flex items-center gap-3 px-0.5">
+            <div class="custom-toggle-group shrink-0">
+              <button
+                type="button"
+                class="toggle-btn"
+                :class="{ active: tool === 'draw' }"
+                @click="tool = 'draw'"
+              >
+                <ion-icon :icon="svg(mdiBrush)" class="text-base" />
+              </button>
+              <button
+                type="button"
+                class="toggle-btn"
+                :class="{ active: tool === 'erase' }"
+                @click="tool = 'erase'"
+              >
+                <ion-icon :icon="svg(mdiEraser)" class="text-base" />
+              </button>
             </div>
-          </ion-button>
+
+            <span
+              class="block rounded-full shrink-0 transition-all duration-100"
+              :style="{
+                width: `${sizeDotPx}px`,
+                height: `${sizeDotPx}px`,
+                backgroundColor: tool === 'erase' ? 'var(--ion-color-medium)' : strokeColor,
+              }"
+            ></span>
+
+            <ion-range
+              v-model="brushWidth"
+              :min="MIN_BRUSH"
+              :max="MAX_BRUSH"
+              :step="1"
+              color="secondary"
+              class="flex-1 min-w-0 liquid-range"
+            />
+
+            <span class="text-[11px] font-bold tabular-nums text-dark/50 w-5 text-right shrink-0">
+              {{ brushWidth }}
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2 mt-0.5">
+            <ion-button
+              fill="clear"
+              color="medium"
+              class="flex-1 ion-no-margin"
+              :disabled="strokes.length === 0 && currentStroke.length === 0"
+              @click="clear"
+            >
+              Clear
+            </ion-button>
+            <ion-button
+              color="secondary"
+              shape="round"
+              class="flex-1 ion-no-margin font-semibold"
+              :disabled="!isPro"
+              @click="save"
+            >
+              <ion-icon v-if="!isPro" slot="start" :icon="svg(mdiLock)" />
+              Apply
+            </ion-button>
+          </div>
+
+          <p
+            v-if="!isPro"
+            class="text-center text-[9px] font-bold text-secondary/70 uppercase tracking-widest pb-0.5"
+          >
+            🔒 Pro subscription required to apply
+          </p>
         </div>
       </div>
     </div>
@@ -230,15 +234,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import { IonModal, IonButton, IonIcon } from "@ionic/vue";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { IonModal, IonButton, IonIcon, IonRange } from "@ionic/vue";
 import {
 	mdiClose,
-	mdiMagnifyPlusOutline,
 	mdiUndoVariant,
-	mdiCursorMove,
+	mdiRedoVariant,
 	mdiBrush,
+	mdiEraser,
 	mdiLock,
+	mdiFitToScreenOutline,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
@@ -251,14 +256,23 @@ import { useSubscriptionStore } from "@/store/subscription.store";
 
 type Point = [number, number];
 type Stroke = { points: Point[]; width: number };
+type Tool = "draw" | "erase";
 
 const CANONICAL_CARD_WIDTH = 360;
 const CANONICAL_ZONE_WIDTH = ref(0);
 const CANONICAL_ZONE_HEIGHT = ref(0);
 
+const MIN_BRUSH = 2;
+const MAX_BRUSH = 28;
+const MIN_SCALE = 0.35;
+const MAX_SCALE = 8;
+
+const SKETCH_FONT = '"Cabin Sketch", cursive';
+const EDIT_OPACITY = 0.35;
+
 const props = defineProps<{
 	isOpen: boolean;
-	color: string;
+	color?: string;
 	customization?: Partial<Customization>;
 	user?: any;
 	initialPath?: string;
@@ -273,80 +287,114 @@ const emit = defineEmits<{
 const subscriptionStore = useSubscriptionStore();
 const isPro = computed(() => subscriptionStore.isPro);
 
-const previewOpacity = 0.25;
+/* ----------------------------- tools ----------------------------- */
+const tool = ref<Tool>("draw");
+const brushWidth = ref<number>(8);
+const cardOpacity = 0.4;
 
-const widthOptions = [
-	{ value: 4, label: "Thin", previewSize: 6 },
-	{ value: 7, label: "Medium", previewSize: 10 },
-	{ value: 11, label: "Bold", previewSize: 14 },
-] as const;
+const sizeDotPx = computed(() => Math.max(6, Math.min(22, brushWidth.value)));
 
-const brushWidth = ref<number>(widthOptions[1].value);
-
-const zoomSteps = [1, 1.6, 2.4] as const;
-const zoomIndex = ref(0);
-const zoomLevel = computed(() => zoomSteps[zoomIndex.value]);
-const zoomLabel = computed(() =>
-	zoomLevel.value === 1 ? "1×" : `${zoomLevel.value}×`,
-);
-
-const isPanMode = ref(false);
+/* ----------------------------- refs ------------------------------ */
 const viewportRef = ref<HTMLElement | null>(null);
+const worldRef = ref<HTMLElement | null>(null);
 const cardWrapperRef = ref<HTMLElement | null>(null);
 const padRef = ref<HTMLElement | null>(null);
 
+/* --------------------------- zone layout -------------------------- */
 const zoneRenderTop = ref(0);
 const zoneRenderLeft = ref(0);
 const zoneRenderWidth = ref(0);
 const zoneRenderHeight = ref(0);
 
+/* --------------------------- view transform ----------------------- */
+const scale = ref(1);
+const tx = ref(0);
+const ty = ref(0);
+
+const worldStyle = computed(() => ({
+	transform: `translate3d(${tx.value}px, ${ty.value}px, 0) scale(${scale.value})`,
+}));
+const zoomPct = computed(() => Math.round(scale.value * 100));
+
+/* --------------------------- stroke state ------------------------- */
 const strokes = ref<Stroke[]>([]);
 const currentStroke = ref<Point[]>([]);
 const isDrawing = ref(false);
 
-const cardCustomization = computed(() => ({
-	...(props.customization || {}),
-	backgroundSketchPath: "",
-	backgroundSketchViewBox: "",
-}));
-
+/* ----- colour ---------------------------------------------------- */
 const effectiveCustomization = computed(() =>
 	hydrateCustomization(props.customization || {}),
 );
 const theme = computed(() =>
 	resolveTheme(effectiveCustomization.value.themeId),
 );
+const strokeColor = computed(
+	() => theme.value.nameColor || props.color || "#1c1c1e",
+);
 
-const maskGradient = computed(() => {
-	const wrapperEl = cardWrapperRef.value;
-	if (!wrapperEl) return "none";
-	const wrapperRect = wrapperEl.getBoundingClientRect();
-	if (wrapperRect.height === 0) return "none";
-	const zoneBottomPx = zoneRenderTop.value + zoneRenderHeight.value;
-	const wrapperHeightCss = wrapperRect.height / zoomLevel.value;
-	const fadeStart = (zoneBottomPx / wrapperHeightCss) * 100;
-	const fadeEnd = Math.min(100, fadeStart + 8);
-	return `linear-gradient(to bottom, black 0%, black ${fadeStart}%, transparent ${fadeEnd}%)`;
-});
+/* --------------------------- history ------------------------------ */
+const past = ref<Stroke[][]>([]);
+const future = ref<Stroke[][]>([]);
+const canUndo = computed(() => past.value.length > 0);
+const canRedo = computed(() => future.value.length > 0);
+let gestureSnapshot: string | null = null;
 
+const cloneStrokes = (s: Stroke[]): Stroke[] =>
+	s.map((st) => ({
+		width: st.width,
+		points: st.points.map((p) => [p[0], p[1]] as Point),
+	}));
+
+const beginHistory = () => {
+	gestureSnapshot = JSON.stringify(strokes.value);
+};
+const commitHistory = () => {
+	if (gestureSnapshot === null) return;
+	if (gestureSnapshot !== JSON.stringify(strokes.value)) {
+		past.value.push(JSON.parse(gestureSnapshot));
+		future.value = [];
+	}
+	gestureSnapshot = null;
+};
+const undo = () => {
+	if (!canUndo.value) return;
+	future.value.push(cloneStrokes(strokes.value));
+	strokes.value = past.value.pop()!;
+};
+const redo = () => {
+	if (!canRedo.value) return;
+	past.value.push(cloneStrokes(strokes.value));
+	strokes.value = future.value.pop()!;
+};
+
+/* --------------------------- card preview ------------------------- */
+const cardCustomization = computed(() => ({
+	...(props.customization || {}),
+	backgroundSketchPath: "",
+	backgroundSketchViewBox: "",
+}));
+
+/* ================================================================== *
+ * MEASUREMENT
+ * ================================================================== */
 let resizeObserver: ResizeObserver | null = null;
 
 const measureZone = () => {
-	if (!cardWrapperRef.value) return;
+	const wrapper = cardWrapperRef.value;
+	if (!wrapper) return;
 
 	const zoneEl =
-		cardWrapperRef.value.querySelector<HTMLElement>(".js-doodle-zone");
-	if (!zoneEl) return;
+		wrapper.querySelector<HTMLElement>(".js-doodle-zone") ?? wrapper;
 
-	const wrapperRect = cardWrapperRef.value.getBoundingClientRect();
-	const zoneRect = zoneEl.getBoundingClientRect();
-	if (zoneRect.width === 0 || zoneRect.height === 0) return;
+	const wRect = wrapper.getBoundingClientRect();
+	const zRect = zoneEl.getBoundingClientRect();
+	if (zRect.width === 0 || zRect.height === 0) return;
 
-	const z = zoomLevel.value;
-	zoneRenderTop.value = Math.round((zoneRect.top - wrapperRect.top) / z);
-	zoneRenderLeft.value = Math.round((zoneRect.left - wrapperRect.left) / z);
-	zoneRenderWidth.value = Math.round(zoneRect.width / z);
-	zoneRenderHeight.value = Math.round(zoneRect.height / z);
+	const s = scale.value || 1;
+	zoneRenderTop.value = Math.round((zRect.top - wRect.top) / s);
+	zoneRenderLeft.value = Math.round((zRect.left - wRect.left) / s);
+	zoneRenderWidth.value = Math.round(zRect.width / s);
+	zoneRenderHeight.value = Math.round(zRect.height / s);
 
 	if (CANONICAL_ZONE_WIDTH.value === 0) {
 		CANONICAL_ZONE_WIDTH.value = zoneRenderWidth.value;
@@ -354,21 +402,70 @@ const measureZone = () => {
 	}
 };
 
+const cardIntrinsicHeight = () =>
+	cardWrapperRef.value?.offsetHeight || CANONICAL_CARD_WIDTH * 1.4;
+
+const fitView = (animate = false) => {
+	const vp = viewportRef.value;
+	if (!vp) return;
+	const rect = vp.getBoundingClientRect();
+	const margin = 28;
+	const topReserve = 96;
+	const bottomReserve = 170;
+	const availW = rect.width - margin * 2;
+	const availH = rect.height - topReserve - bottomReserve;
+	const cardH = cardIntrinsicHeight();
+
+	const next = clamp(
+		Math.min(availW / CANONICAL_CARD_WIDTH, availH / cardH),
+		MIN_SCALE,
+		4,
+	);
+
+	const apply = () => {
+		scale.value = next;
+		tx.value = (rect.width - CANONICAL_CARD_WIDTH * next) / 2;
+		ty.value = topReserve + Math.max(0, (availH - cardH * next) / 2);
+	};
+
+	if (animate && worldRef.value) {
+		worldRef.value.style.transition =
+			"transform 0.28s cubic-bezier(0.22,1,0.36,1)";
+		apply();
+		window.setTimeout(() => {
+			if (worldRef.value) worldRef.value.style.transition = "";
+		}, 300);
+	} else {
+		apply();
+	}
+};
+
+/* ================================================================== *
+ * LIFECYCLE
+ * ================================================================== */
 const onPresent = async () => {
-	zoomIndex.value = 0;
-	isPanMode.value = false;
+	tool.value = "draw";
+	scale.value = 1;
+	tx.value = 0;
+	ty.value = 0;
 	CANONICAL_ZONE_WIDTH.value = 0;
 	CANONICAL_ZONE_HEIGHT.value = 0;
-	await nextTick();
+	past.value = [];
+	future.value = [];
+	currentStroke.value = [];
 
+	await nextTick();
 	measureZone();
-	setTimeout(() => measureZone(), 150);
+	fitView();
+
+	window.setTimeout(() => {
+		measureZone();
+		fitView();
+	}, 180);
 
 	if (cardWrapperRef.value && typeof ResizeObserver !== "undefined") {
 		resizeObserver?.disconnect();
-		resizeObserver = new ResizeObserver(() => {
-			measureZone();
-		});
+		resizeObserver = new ResizeObserver(() => measureZone());
 		resizeObserver.observe(cardWrapperRef.value);
 		const zoneEl =
 			cardWrapperRef.value.querySelector<HTMLElement>(".js-doodle-zone");
@@ -378,79 +475,155 @@ const onPresent = async () => {
 	strokes.value = props.initialPath
 		? parsePathToStrokes(props.initialPath)
 		: [];
-	currentStroke.value = [];
 };
 
-onBeforeUnmount(() => {
-	resizeObserver?.disconnect();
-});
+onBeforeUnmount(() => resizeObserver?.disconnect());
 
 watch(
 	() => props.initialPath,
 	(val) => {
 		if (props.isOpen) {
 			strokes.value = val ? parsePathToStrokes(val) : [];
+			past.value = [];
+			future.value = [];
 		}
 	},
 );
 
-const cycleZoom = async () => {
-	zoomIndex.value = (zoomIndex.value + 1) % zoomSteps.length;
-	await nextTick();
-	if (zoomLevel.value > 1 && viewportRef.value && padRef.value) {
-		const viewportRect = viewportRef.value.getBoundingClientRect();
-		const padRect = padRef.value.getBoundingClientRect();
-		viewportRef.value.scrollTo({
-			top: viewportRef.value.scrollTop + (padRect.top - viewportRect.top) - 20,
-			left:
-				viewportRef.value.scrollLeft +
-				(padRect.left - viewportRect.left) -
-				(viewportRect.width - padRect.width) / 2,
-			behavior: "smooth",
-		});
-	}
+/* ================================================================== *
+ * POINTER / GESTURE ENGINE
+ * ================================================================== */
+const pointers = new Map<number, { x: number; y: number }>();
+type GestureMode = "none" | "draw" | "transform" | "lock";
+let mode: GestureMode = "none";
+
+let pinchStartDist = 0;
+let pinchStartScale = 1;
+let pinchAnchor = { wx: 0, wy: 0 };
+
+const eraserCursor = reactive({ visible: false, x: 0, y: 0, size: 0 });
+
+const vpRect = () =>
+	viewportRef.value?.getBoundingClientRect() ?? new DOMRect();
+
+const pxPerCanonical = () => {
+	if (!padRef.value || !CANONICAL_ZONE_WIDTH.value) return scale.value;
+	return (
+		padRef.value.getBoundingClientRect().width / CANONICAL_ZONE_WIDTH.value
+	);
 };
 
-const getPoint = (e: PointerEvent): Point => {
-	const rect = padRef.value!.getBoundingClientRect();
-	const scaleX = CANONICAL_ZONE_WIDTH.value / rect.width;
-	const scaleY = CANONICAL_ZONE_HEIGHT.value / rect.height;
+const getPoint = (clientX: number, clientY: number): Point | null => {
+	if (!padRef.value || CANONICAL_ZONE_WIDTH.value === 0) return null;
+	const rect = padRef.value.getBoundingClientRect();
+	if (rect.width === 0) return null;
+	const sx = CANONICAL_ZONE_WIDTH.value / rect.width;
+	const sy = CANONICAL_ZONE_HEIGHT.value / rect.height;
 	return [
-		Number(((e.clientX - rect.left) * scaleX).toFixed(1)),
-		Number(((e.clientY - rect.top) * scaleY).toFixed(1)),
+		Number(((clientX - rect.left) * sx).toFixed(1)),
+		Number(((clientY - rect.top) * sy).toFixed(1)),
 	];
 };
 
-const startStroke = (e: PointerEvent) => {
-	if (isPanMode.value) return;
-	e.preventDefault();
-	if (!padRef.value || CANONICAL_ZONE_WIDTH.value === 0) return;
-	padRef.value.setPointerCapture(e.pointerId);
-	isDrawing.value = true;
-	currentStroke.value = [getPoint(e)];
+const twoPointers = () => {
+	const it = pointers.values();
+	const a = it.next().value!;
+	const b = it.next().value!;
+	return [a, b] as const;
 };
 
-const draw = (e: PointerEvent) => {
-	if (isPanMode.value) return;
-	e.preventDefault();
-	if (!isDrawing.value) return;
-	const newPoint = getPoint(e);
-	const lastPoint = currentStroke.value[currentStroke.value.length - 1];
-	if (lastPoint) {
-		const dx = newPoint[0] - lastPoint[0];
-		const dy = newPoint[1] - lastPoint[1];
-		if (dx * dx + dy * dy < 4) return;
+const onPointerDown = (e: PointerEvent) => {
+	viewportRef.value?.setPointerCapture(e.pointerId);
+	pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+	if (pointers.size >= 2) {
+		if (mode === "draw") cancelStroke();
+		startPinch();
+		mode = "transform";
+		return;
 	}
-	currentStroke.value.push(newPoint);
+
+	if (mode === "lock") return;
+
+	if (tool.value === "erase") {
+		mode = "draw";
+		beginHistory();
+		updateEraserCursor(e);
+		eraseAt(e.clientX, e.clientY);
+	} else {
+		mode = "draw";
+		beginHistory();
+		const p = getPoint(e.clientX, e.clientY);
+		if (!p) {
+			mode = "none";
+			return;
+		}
+		isDrawing.value = true;
+		currentStroke.value = [p];
+	}
 };
 
-const endStroke = (e: PointerEvent) => {
-	if (isPanMode.value) return;
-	e.preventDefault();
-	if (!isDrawing.value) return;
-	isDrawing.value = false;
-	padRef.value?.releasePointerCapture(e.pointerId);
+const onPointerMove = (e: PointerEvent) => {
+	if (pointers.has(e.pointerId)) {
+		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+	}
+	if (tool.value === "erase") updateEraserCursor(e);
 
+	if (mode === "transform" && pointers.size >= 2) {
+		updatePinch();
+		return;
+	}
+	if (mode !== "draw") return;
+
+	if (tool.value === "erase") {
+		eraseAt(e.clientX, e.clientY);
+		return;
+	}
+
+	if (!isDrawing.value) return;
+	const p = getPoint(e.clientX, e.clientY);
+	if (!p) return;
+	const last = currentStroke.value[currentStroke.value.length - 1];
+	if (last) {
+		const dx = p[0] - last[0];
+		const dy = p[1] - last[1];
+		if (dx * dx + dy * dy < 1) return;
+	}
+	currentStroke.value.push(p);
+};
+
+const onPointerUp = (e: PointerEvent) => {
+	viewportRef.value?.releasePointerCapture?.(e.pointerId);
+	pointers.delete(e.pointerId);
+
+	if (mode === "transform") {
+		mode = pointers.size === 0 ? "none" : "lock";
+		return;
+	}
+	if (mode === "lock") {
+		if (pointers.size === 0) mode = "none";
+		return;
+	}
+
+	if (mode === "draw") {
+		if (tool.value === "erase") {
+			commitHistory();
+			if (pointers.size === 0) eraserCursor.visible = false;
+		} else if (isDrawing.value) {
+			isDrawing.value = false;
+			commitStroke();
+		}
+		if (pointers.size === 0) mode = "none";
+	}
+};
+
+const cancelStroke = () => {
+	isDrawing.value = false;
+	currentStroke.value = [];
+	gestureSnapshot = null;
+};
+
+const commitStroke = () => {
 	if (currentStroke.value.length === 1) {
 		strokes.value.push({
 			points: [currentStroke.value[0]],
@@ -458,19 +631,175 @@ const endStroke = (e: PointerEvent) => {
 		});
 	} else if (currentStroke.value.length > 1) {
 		strokes.value.push({
-			points: simplifyPath(currentStroke.value, 1.5),
+			points: simplifyPath(currentStroke.value, 0.75),
 			width: brushWidth.value,
 		});
 	}
 	currentStroke.value = [];
+	commitHistory();
 };
 
-const undo = () => {
-	strokes.value.pop();
+/* ----------------------------- pinch ------------------------------ */
+const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+	Math.hypot(a.x - b.x, a.y - b.y);
+const mid = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
+	x: (a.x + b.x) / 2,
+	y: (a.y + b.y) / 2,
+});
+
+const startPinch = () => {
+	const [a, b] = twoPointers();
+	const center = mid(a, b);
+	const rect = vpRect();
+	pinchStartDist = dist(a, b) || 1;
+	pinchStartScale = scale.value;
+	pinchAnchor = {
+		wx: (center.x - rect.left - tx.value) / scale.value,
+		wy: (center.y - rect.top - ty.value) / scale.value,
+	};
 };
+
+const updatePinch = () => {
+	const [a, b] = twoPointers();
+	const center = mid(a, b);
+	const rect = vpRect();
+	const factor = dist(a, b) / pinchStartDist;
+	const next = clamp(pinchStartScale * factor, MIN_SCALE, MAX_SCALE);
+	scale.value = next;
+	tx.value = center.x - rect.left - pinchAnchor.wx * next;
+	ty.value = center.y - rect.top - pinchAnchor.wy * next;
+};
+
+/* ----------------------------- wheel ------------------------------ */
+const onWheel = (e: WheelEvent) => {
+	const rect = vpRect();
+	const px = e.clientX - rect.left;
+	const py = e.clientY - rect.top;
+	const wx = (px - tx.value) / scale.value;
+	const wy = (py - ty.value) / scale.value;
+	const k = e.ctrlKey ? 0.012 : 0.0016;
+	const next = clamp(
+		scale.value * Math.exp(-e.deltaY * k),
+		MIN_SCALE,
+		MAX_SCALE,
+	);
+	scale.value = next;
+	tx.value = px - wx * next;
+	ty.value = py - wy * next;
+};
+
+/* ----------------------------- high-fidelity eraser ----------------------------- */
+const eraseRadius = () => Math.max(4, brushWidth.value * 0.9);
+
+const updateEraserCursor = (e: PointerEvent) => {
+	const rect = vpRect();
+	eraserCursor.visible = true;
+	eraserCursor.x = e.clientX - rect.left;
+	eraserCursor.y = e.clientY - rect.top;
+	eraserCursor.size = eraseRadius() * pxPerCanonical() * 2;
+};
+
+const eraseAt = (clientX: number, clientY: number) => {
+	const p = getPoint(clientX, clientY);
+	if (!p) return;
+	const radius = eraseRadius();
+
+	const nextStrokes: Stroke[] = [];
+	let mutated = false;
+
+	for (const stroke of strokes.value) {
+		const r = radius + stroke.width / 2;
+		const r2 = r * r;
+		const pts = stroke.points;
+
+		if (pts.length === 0) continue;
+
+		if (pts.length === 1) {
+			const dx = pts[0][0] - p[0];
+			const dy = pts[0][1] - p[1];
+			if (dx * dx + dy * dy <= r2) {
+				mutated = true;
+			} else {
+				nextStrokes.push(stroke);
+			}
+			continue;
+		}
+
+		let currentSubPoints: Point[] = [];
+		let strokeHitOccurred = false;
+		const subStrokes: Stroke[] = [];
+
+		// Check entry point
+		const d0x = pts[0][0] - p[0];
+		const d0y = pts[0][1] - p[1];
+		if (d0x * d0x + d0y * d0y > r2) {
+			currentSubPoints.push(pts[0]);
+		} else {
+			strokeHitOccurred = true;
+		}
+
+		for (let i = 0; i < pts.length - 1; i++) {
+			const p1 = pts[i];
+			const p2 = pts[i + 1];
+
+			if (getSqSegDist(p, p1, p2) <= r2) {
+				strokeHitOccurred = true;
+
+				// INTERPOLATION ENGINE: Walk the segment and keep safe points
+				const dist = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+				const steps = Math.max(1, Math.ceil(dist / 2)); // Calculate safe points every ~2px
+
+				for (let j = 1; j <= steps; j++) {
+					const t = j / steps;
+					const ix = Number((p1[0] + (p2[0] - p1[0]) * t).toFixed(1));
+					const iy = Number((p1[1] + (p2[1] - p1[1]) * t).toFixed(1));
+					const dx = ix - p[0];
+					const dy = iy - p[1];
+
+					if (dx * dx + dy * dy > r2) {
+						// Coordinate is safely outside the eraser blast radius
+						currentSubPoints.push([ix, iy]);
+					} else {
+						// Coordinate was destroyed. Close out the current segment fragment.
+						if (currentSubPoints.length > 0) {
+							subStrokes.push({
+								points: currentSubPoints,
+								width: stroke.width,
+							});
+							currentSubPoints = [];
+						}
+					}
+				}
+			} else {
+				if (currentSubPoints.length === 0) currentSubPoints.push(p1);
+				currentSubPoints.push(p2);
+			}
+		}
+
+		if (strokeHitOccurred) {
+			mutated = true;
+			if (currentSubPoints.length > 0) {
+				subStrokes.push({ points: currentSubPoints, width: stroke.width });
+			}
+			nextStrokes.push(...subStrokes);
+		} else {
+			// Stroke wasn't touched at all, pass it forward cleanly
+			nextStrokes.push(stroke);
+		}
+	}
+
+	if (mutated) {
+		strokes.value = nextStrokes;
+	}
+};
+
+/* ----------------------------- actions ---------------------------- */
 const clear = () => {
+	if (strokes.value.length === 0 && currentStroke.value.length === 0) return;
+	beginHistory();
 	strokes.value = [];
 	currentStroke.value = [];
+	commitHistory();
 };
 
 const save = () => {
@@ -484,21 +813,25 @@ const save = () => {
 		.join(" ");
 	const viewBox = `0 0 ${CANONICAL_ZONE_WIDTH.value} ${CANONICAL_ZONE_HEIGHT.value}`;
 	emit("save", { path: combinedPath, viewBox });
-	clear();
 };
 
 const handleDismiss = () => {
-	clear();
-	zoomIndex.value = 0;
-	isPanMode.value = false;
+	currentStroke.value = [];
+	eraserCursor.visible = false;
 	emit("close");
 };
 
+/* ================================================================== *
+ * GEOMETRY HELPERS
+ * ================================================================== */
+const clamp = (v: number, lo: number, hi: number) =>
+	Math.max(lo, Math.min(hi, v));
+
 function getSqSegDist(p: Point, p1: Point, p2: Point): number {
-	let x = p1[0],
-		y = p1[1],
-		dx = p2[0] - x,
-		dy = p2[1] - y;
+	let x = p1[0];
+	let y = p1[1];
+	let dx = p2[0] - x;
+	let dy = p2[1] - y;
 	if (dx !== 0 || dy !== 0) {
 		const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy);
 		if (t > 1) {
@@ -521,8 +854,8 @@ function simplifyDPStep(
 	sqTolerance: number,
 	simplified: Point[],
 ) {
-	let maxSqDist = sqTolerance,
-		index = -1;
+	let maxSqDist = sqTolerance;
+	let index = -1;
 	for (let i = first + 1; i < last; i++) {
 		const sqDist = getSqSegDist(points[i], points[first], points[last]);
 		if (sqDist > maxSqDist) {
@@ -539,7 +872,7 @@ function simplifyDPStep(
 	}
 }
 
-function simplifyPath(points: Point[], tolerance = 1.5): Point[] {
+function simplifyPath(points: Point[], tolerance = 0.75): Point[] {
 	if (points.length <= 2) return points;
 	const sqTolerance = tolerance * tolerance;
 	const simplified: Point[] = [points[0]];
@@ -548,7 +881,6 @@ function simplifyPath(points: Point[], tolerance = 1.5): Point[] {
 	return simplified;
 }
 
-// Cleans up any potential bracket leftovers if a bad structure gets passed back downstream
 const safeBuildPath = (stroke: Stroke): string => {
 	if (!stroke || !stroke.points) return "";
 	return buildPath(stroke.points);
@@ -594,7 +926,6 @@ function parsePathToStrokes(pathStr: string): Stroke[] {
 
 function parsePointsFromPath(pathStr: string): Point[] {
 	const points: Point[] = [];
-	// Strip out prefix headers if passed raw by accident
 	const cleanPath = pathStr.replace(/^\[\d+(?:\.\d+)?\]/, "");
 	const cmdRegex = /([MmLlQq])\s*([^MmLlQqZz]*)/g;
 	let match: RegExpExecArray | null;
@@ -623,25 +954,49 @@ function parsePointsFromPath(pathStr: string): Point[] {
 
 <style scoped>
 ion-modal.liquid-sketch-modal {
-  --border-radius: 2.5rem 2.5rem 0 0;
-  --height: auto;
-  --max-height: 96vh;
+  --width: 100%;
+  --height: 100%;
+  --border-radius: 0;
   --background: var(--ion-color-tertiary);
 }
 
-ion-modal.liquid-sketch-modal::part(handle) {
-  background: var(--ion-color-secondary);
-  opacity: 0.3;
-  width: 40px;
+/* Custom crisp tool toggle styling */
+.custom-toggle-group {
+  display: flex;
+  background: rgba(var(--ion-color-light-rgb, 244, 245, 246), 0.85);
+  padding: 3px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 32px;
+  border-radius: 11px;
+  border: none;
+  background: transparent;
+  color: var(--ion-color-medium);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.toggle-btn.active {
+  background: #ffffff;
+  color: var(--ion-color-secondary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
+.liquid-range {
+  --bar-height: 5px;
+  --knob-size: 20px;
+  --height: 32px;
+  padding: 0;
 }
 
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
 </style>

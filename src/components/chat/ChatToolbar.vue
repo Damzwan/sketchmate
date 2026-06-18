@@ -8,7 +8,11 @@
         class="flex items-center gap-3 min-w-0 cursor-pointer group active:scale-[0.99] transition-all"
         @click="handleHeaderClick"
       >
-        <div v-if="activeTab !== 'lobby' && partner" class="relative shrink-0 flex items-center justify-center">
+        <div v-if="activeTab === 'lobby'" class="relative shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-primary/5 text-secondary transition-transform duration-300 group-hover:scale-105">
+          <ion-icon :icon="svg(isPublicLobby ? mdiEarth : mdiLockOutline)" class="text-lg" />
+        </div>
+
+        <div v-else-if="partner" class="relative shrink-0 flex items-center justify-center">
           <UserAvatar
             :user="partner"
             :customization="partnerCustomization"
@@ -30,12 +34,18 @@
               class="text-[15px] font-black leading-none truncate tracking-tight transition-colors drop-shadow-sm"
               :class="[
                 isExpired ? 'text-black/40' : 'text-black',
-                !isExpired ? fontEffectClass : ''
+                (!isExpired && activeTab !== 'lobby') ? fontEffectClass : ''
               ]"
-              :style="!isExpired ? { color: theme.nameColor, fontFamily: resolvedFontFamily } : {}"
+              :style="(!isExpired && activeTab !== 'lobby') ? { color: theme.nameColor, fontFamily: resolvedFontFamily } : {}"
             >
               {{ panelTitle }}
             </span>
+
+            <ion-icon
+              v-if="activeTab === 'lobby'"
+              :icon="svg(mdiChevronRight)"
+              class="text-sm text-secondary transition-transform group-hover:translate-x-0.5"
+            />
           </div>
 
           <div class="flex items-center mt-1 leading-none">
@@ -52,24 +62,14 @@
               </template>
             </span>
             <span v-else class="text-[8px] font-black uppercase tracking-widest text-secondary leading-none">
-               {{ isPublicLobby ? 'Public Canvas' : 'Private Session' }}
+               {{ isPublicLobby ? 'Public Canvas' : 'Private Session' }} · {{ roomMembers.length }} here
             </span>
           </div>
         </div>
       </div>
 
-      <div class="flex items-center gap-1.5 shrink-0">
+      <div v-if="activeTab !== 'lobby'" class="flex items-center gap-1.5 shrink-0">
         <ion-button
-          v-if="activeTab === 'lobby'"
-          @click="openRoomMenu"
-          fill="clear"
-          class="h-9 w-9 rounded-xl bg-white/60 border border-primary/20 active:scale-90 transition-all shadow-sm text-secondary [--padding-start:0] [--padding-end:0]"
-        >
-          <ion-icon :icon="svg(mdiCog)" class="text-base" slot="icon-only" />
-        </ion-button>
-
-        <ion-button
-          v-else
           @click="$emit('open-report', partner)"
           fill="clear"
           class="h-9 w-9 rounded-xl active:scale-90 transition-all text-black/30 hover:text-black [--padding-start:0] [--padding-end:0]"
@@ -92,7 +92,12 @@
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiChevronRight, mdiCog, mdiDotsHorizontal } from "@mdi/js";
+import {
+	mdiChevronRight,
+	mdiDotsHorizontal,
+	mdiEarth,
+	mdiLockOutline,
+} from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
@@ -186,12 +191,16 @@ const isOnline = computed(() => {
 });
 
 const handleHeaderClick = (event: Event) => {
-	if (activeTab.value === "lobby" || !partner.value) return;
+	if (activeTab.value === "lobby") {
+		openRoomMenu();
+		return;
+	}
+	if (!partner.value) return;
 	emit("inspect-profile", event, partner.value);
 };
 
 const openRoomMenu = () => {
-	chatWidget.closePanel();
+	// Removed chatWidget.closePanel() here to leave underlying chat mounted
 	menuStore.openMenu(Menu.DrawRoomMenu);
 };
 </script>

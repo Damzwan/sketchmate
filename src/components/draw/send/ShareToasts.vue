@@ -93,6 +93,8 @@ const borderColor = (kind: ShareToastKind) => {
 			return "bg-cyan-400";
 		case "balloon":
 			return "bg-amber-400 animate-pulse";
+		case "saved":
+			return "bg-emerald-400"; // Fresh green for success
 	}
 };
 
@@ -104,6 +106,8 @@ const kindLabel = (kind: ShareToastKind) => {
 			return "Community";
 		case "balloon":
 			return "Balloon";
+		case "saved":
+			return "Library";
 	}
 };
 
@@ -128,6 +132,11 @@ const onTap = (toast: ShareToast) => {
 
 	if (toast.kind === "balloon") {
 		useMenuStore().openMenu(Menu.BalloonMenu);
+		return;
+	}
+
+	if (toast.kind === "saved") {
+		useMenuStore().openMenu(Menu.StickerEmblemSaved);
 		return;
 	}
 };

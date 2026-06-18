@@ -105,7 +105,8 @@ export const useFriendStore = defineStore("friend", () => {
 	});
 
 	const isBlocked = computed(
-		() => (userId: string) => blockedUserIds.value.has(userId.toString()),
+		() => (userId: string) =>
+			blockedUserIds.value.has(userId?.toString() ?? ""),
 	);
 
 	const resolvePartnerInfo = (id: string): NetworkUser | null => {

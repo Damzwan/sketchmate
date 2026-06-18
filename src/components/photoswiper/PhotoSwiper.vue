@@ -188,7 +188,7 @@ function handleDelete() {
 	if (config.value.onDelete) {
 		config.value.onDelete(currItem.value);
 		slide.value = Math.max(0, slide.value - 1);
-		if (collection.value?.length === 1) open.value = false;
+		open.value = false;
 	}
 }
 

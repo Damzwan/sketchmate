@@ -401,6 +401,7 @@ async function onGoogleLogin() {
 	try {
 		const result = await FirebaseAuthentication.signInWithGoogle();
 		await onLoginResult(result);
+		googleloading.value = false;
 	} catch (e) {
 		toast("Something went wrong, try again later", {
 			color: "danger",

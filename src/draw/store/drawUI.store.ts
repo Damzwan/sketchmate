@@ -21,6 +21,7 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 	const isCanvasNavigating = ref(false);
 	const isFullscreen = ref(false);
 	const chatToastsSilenced = ref(false);
+	const isSavingDrawing = ref(false);
 
 	const gestureStore = useGestureStore();
 	const exitRequested = ref(0);
@@ -114,5 +115,6 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 		triggerManualExit,
 		isFullscreen,
 		chatToastsSilenced,
+		isSavingDrawing,
 	};
 });

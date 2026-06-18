@@ -1,7 +1,7 @@
 <template>
   <div v-if="user" class="w-full space-y-2">
 
-    <div class="w-full flex items-center justify-between bg-white/40 border border-primary/10 rounded-2xl p-3 shadow-sm">
+    <div class="w-full flex items-center justify-between bg-white/40 border border-primary/10 rounded-2xl p-3 shadow-sm" v-if="isNative()">
       <div class="flex items-center gap-3 flex-1 min-w-0">
         <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
           <ion-icon
@@ -9,7 +9,7 @@
             class="text-xl text-black/70"
           />
         </div>
-        <div class="cabin-sketch-regular font-bold text-base text-black flex items-center gap-1">
+        <div class="cabin-sketch-regular font-bold text-base text-black flex items-center gap-1" >
           <span>Alerts</span>
           <button id="notif-info" class="flex items-center justify-center p-1 rounded-full active:bg-black/5 transition-colors">
             <ion-icon :icon="svg(mdiInformationOutline)" class="text-sm text-black/30" />

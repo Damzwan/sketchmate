@@ -42,7 +42,7 @@
           @click="() => openMenu(Menu.FeedbackMenu)"
           class="active:scale-90 transition-transform flex items-center"
         >
-          <ion-icon :icon="megaphoneOutline" class="text-[26px] text-black" />
+          <ion-icon :icon="bulbOutline" class="text-[26px] text-black" />
         </button>
 
         <button
@@ -67,7 +67,7 @@
 import { IonButton, IonHeader, IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	chatbubblesOutline,
-	megaphoneOutline,
+	bulbOutline,
 	notificationsOutline,
 	storefrontOutline,
 } from "ionicons/icons";

@@ -6,7 +6,6 @@
         <ProfileCustomization :skip-toast="true"/>
       </div>
 
-      <!-- CHANGED: route to AgeConfirmationPage first, not LoginNotificationPage -->
       <ion-nav-link router-direction="forward" :component="LoginAgeConfirmationPage">
         <ion-button shape="round" color="secondary" size="large" class="pb-12">
           Continue

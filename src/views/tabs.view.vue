@@ -1,7 +1,7 @@
 <template>
   <ion-page>
     <ion-tabs>
-      <ion-router-outlet :animation="masterAnimation" />
+      <ion-router-outlet :animation="masterAnimation" :key="sessionKey"/>
 
       <!-- Tab Dock: Lifted, transparent glass dock wrapper layout -->
       <ion-tab-bar
@@ -59,11 +59,13 @@ import { masterAnimation } from "@/helper/animation.helper";
 import { useRoute } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useAuthStore } from "@/store/auth.store";
+import { computed } from "vue";
 
 const router = useIonRouter();
 const route = useRoute();
 
-const { localUserImg: profileImg } = storeToRefs(useAuthStore());
+const { localUserImg: profileImg, user } = storeToRefs(useAuthStore());
+const sessionKey = computed(() => user.value?._id ?? "anon");
 
 const tabs = [
 	{ route: FRONTEND_ROUTES.home, icon: homeOutline },

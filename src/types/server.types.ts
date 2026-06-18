@@ -259,6 +259,7 @@ export interface UserCustomization {
 	themeId: string;
 	fontId: string;
 	fontEffectId: string;
+	atmosphereId: string;
 	decorationId: string;
 	effectId: string;
 	titleId: string;
@@ -903,4 +904,10 @@ export interface Notification {
 
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface BaseSavedDrawing {
+	user_id: string;
+	drawing: string;
+	img: string;
 }

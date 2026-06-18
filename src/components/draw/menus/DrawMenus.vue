@@ -5,7 +5,7 @@
   <SelectMenu />
   <ShapesMenu />
   <MoreToolsMenu />
-  <StickersEmblemsSavedMenu />
+  <SavedDrawingMenu/>
   <SelectExtraOptionsMenu />
   <SelectImgStyleMenu :img="selectedObjectsRef[0] as any"
                       @add-filter="options => selectAction(DrawAction.AddImgFilter, { image: selectedObjectsRef[0], ...options })" />
@@ -53,6 +53,7 @@ import RoomMenu from "@/components/draw/menus/RoomMenu.vue";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import BucketMenu from "@/components/draw/menus/BucketMenu.vue";
 import TextEditMenu from "@/components/draw/TextEditMenu.vue";
+import SavedDrawingMenu from "@/components/draw/menus/SavedDrawingMenu.vue";
 
 const { selectedObjectsRef } = storeToRefs(useSelect());
 const { selectAction } = useDrawStore();

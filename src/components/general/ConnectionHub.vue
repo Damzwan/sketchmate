@@ -78,7 +78,7 @@
             No artists found with that name
           </div>
 
-          <div v-else class="max-h-60 overflow-y-auto hide-scrollbar">
+          <div v-else class="max-h-40 overflow-y-auto hide-scrollbar">
             <ion-list lines="none" class="bg-transparent p-0">
               <ion-item
                 v-for="mate in foundMates"

@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import { IonToast } from "@ionic/vue";
 import { useToast } from "@/service/toast.service";
 import { useSwipe } from "@vueuse/core";

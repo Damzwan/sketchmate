@@ -203,7 +203,14 @@ watch(
 			const res = await fetchPostComments(props.post._id, 20);
 			comments.value = res.comments;
 			hasMore.value = res.hasMore;
-			scrollToBottom();
+
+			// Check if empty after loading
+			if (comments.value.length === 0) {
+				await nextTick();
+				input.value?.$el?.setFocus();
+			} else {
+				scrollToBottom();
+			}
 		} catch (e) {
 			console.error("Failed to load comments", e);
 		} finally {
@@ -310,7 +317,10 @@ const scrollToBottom = async () => {
 	}
 };
 
-const handleDismiss = () => emit("close");
+const handleDismiss = () => {
+	newComment.value = "";
+	emit("close");
+};
 
 // --- Comment Actions Configuration ---
 

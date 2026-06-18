@@ -13,12 +13,19 @@
     
 
     <ToolButton
-      :icon="megaphoneOutline"
+      :icon="bulbOutline"
       @click="openMenu(Menu.FeedbackMenu)"
       custom-class="hover:bg-primary/20"
     />
 
     <div class="w-[2px] h-6 bg-primary-shade mx-1 rounded-full"></div>
+
+    <ToolButton
+      :disabled="!isLobby"
+      :icon="megaphoneOutline"
+      @click="openUserReportMenu"
+      custom-class="hover:bg-primary/20"
+    />
 
     <ToolButton
       :disabled="!isLoggedIn"
@@ -30,6 +37,7 @@
       <div
         class="absolute top-1 left-1 w-2 h-2 bg-green-500 rounded-full border border-white shadow-[0_0_5px_rgba(34,197,94,0.6)]"></div>
     </ToolButton>
+
 
     <ToolButton
       :icon="svg(mdiAccountGroupOutline)"
@@ -69,16 +77,22 @@ import { svg } from "@/helper/general.helper";
 import { Menu } from "@/draw/types/draw.types";
 import SendHub from "../send/SendHub.vue";
 import { useAuthStore } from "@/store/auth.store";
-import { chatbubblesOutline, megaphoneOutline } from "ionicons/icons";
+import {
+	chatbubblesOutline,
+	megaphoneOutline,
+	bulbOutline,
+} from "ionicons/icons";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useToast } from "@/service/toast.service";
+import { modalController } from "@ionic/vue";
+import ReportUserMenu from "@/components/moderation/ReportUserMenu.vue";
 
 defineEmits(["toggle-fullscreen"]);
 
-const { roomMembers } = storeToRefs(useDrawSyncer());
+const { roomMembers, isLobby } = storeToRefs(useDrawSyncer());
 const { openMenu } = useMenuStore();
-const { isLoggedIn } = storeToRefs(useAuthStore());
+const { isLoggedIn, user } = storeToRefs(useAuthStore());
 const { openPanel } = useChatWidgetStore();
 
 const { totalUnreadCount } = storeToRefs(useChatStore());
@@ -88,4 +102,15 @@ const startSendFlow = async (e: Event) => {
 	const nav = (e.target as HTMLElement).closest("ion-nav");
 	nav?.push(SendHub);
 };
+
+async function openUserReportMenu() {
+	const modal = await modalController.create({
+		component: ReportUserMenu,
+		componentProps: {
+			roomMembers: roomMembers.value.filter((u) => u._id !== user.value!._id),
+		},
+		cssClass: "sketch-modal",
+	});
+	await modal.present();
+}
 </script>

@@ -91,12 +91,16 @@ export const useDrawSyncer = defineStore("drawSyncer", () => {
 	const publicLobbies = ref<PublicLobby[]>([]);
 	const isWatchingPublicLobbies = ref<boolean>(false);
 	const isPublicLobby = ref<boolean>(false);
-	const publicLobbyName = ref<string>("");
 	const disconnectedRoomId = ref<string>();
 	const isProcessingQueue = ref(false);
 	const lastProcessedSequenceId = ref<number | undefined>(undefined);
 	const currentSessionId = ref<string | undefined>(undefined);
 	const isUsingGestures = ref(false);
+	const publicLobbyName = computed(
+		() =>
+			publicLobbies.value.find((lobby) => lobby.id === roomId.value)?.name ||
+			"",
+	);
 
 	const isLobby = computed(() => !!roomId.value);
 
@@ -393,6 +397,7 @@ export const useDrawSyncer = defineStore("drawSyncer", () => {
 				const start = performance.now();
 
 				await actionWithoutEvents(async () => {
+					// @ts-ignore
 					await drawSyncingMapping[action.type](action.params);
 				});
 

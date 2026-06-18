@@ -83,31 +83,31 @@
           </div>
           <div v-if="!isMe" class="mt-8 w-full shrink-0">
             <div class="flex flex-col overflow-hidden rounded-[1.5rem] border transition-colors duration-500 shadow-sm backdrop-blur-sm" :style="{ borderColor: theme.cardBorderColor, backgroundColor: 'rgba(255, 255, 255, 0.15)' }">
-              <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 transition-colors duration-200" @click="primaryCta.handler" :disabled="primaryCta.disabled">
+              <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200" @click="primaryCta.handler" :disabled="primaryCta.disabled">
                 <ion-icon :icon="svg(primaryCta.icon)" class="text-xl" :style="{ color: theme.accentColor }" />
                 <span class="text-sm font-black uppercase tracking-widest" :style="{ color: theme.nameColor }">{{ primaryCta.label }}</span>
               </button>
               <div class="h-px w-full transition-colors duration-500" :style="{ backgroundColor: theme.cardBorderColor }"></div>
-              <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 transition-colors duration-200" @click="onToggleFollow">
+              <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200" @click="onToggleFollow">
                 <ion-icon :icon="svg(isFollowing ? mdiAccountMinusOutline : mdiAccountPlusOutline)" class="text-xl transition-colors duration-500" :style="{ color: theme.nameColor }" />
                 <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.nameColor }">{{ isFollowing ? 'Unfollow' : 'Follow' }}</span>
               </button>
               <template v-if="canUnfriend">
                 <div class="h-px w-full transition-colors duration-500" :style="{ backgroundColor: theme.cardBorderColor }"></div>
-                <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 transition-colors duration-200" @click="onUnfriend">
+                <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200" @click="onUnfriend">
                   <ion-icon :icon="svg(mdiHeartBroken)" class="text-xl transition-colors duration-500" :style="{ color: theme.descColor }" />
                   <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">{{ status === 'mate' ? 'Unfriend Mate' : 'Cancel Connection' }}</span>
                 </button>
               </template>
               <div class="h-px w-full transition-colors duration-500" :style="{ backgroundColor: theme.cardBorderColor }"></div>
-              <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 transition-colors duration-200" @click="confirmToggleBlock">
+              <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200" @click="confirmToggleBlock">
                 <ion-icon :icon="svg(isBlocked ? mdiAccountReactivateOutline : mdiAccountCancelOutline)" class="text-xl transition-colors duration-500" :style="{ color: theme.descColor }" />
-                <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">{{ isBlocked ? 'Unblock User' : 'Block User' }}</span>
+                <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.nameColor }">{{ isBlocked ? 'Unblock User' : 'Block User' }}</span>
               </button>
-
-              <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 transition-colors duration-200" @click="report">
+              <div class="h-px w-full transition-colors duration-500" :style="{ backgroundColor: theme.cardBorderColor }"></div>
+              <button class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200" @click="report">
                 <ion-icon :icon="svg(mdiFlagVariantOutline)" class="text-xl transition-colors duration-500" :style="{ color: theme.descColor }" />
-                <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">Report user</span>
+                <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.nameColor }">Report user</span>
               </button>
             </div>
           </div>
@@ -120,15 +120,15 @@
               </div>
             </template>
             <template v-else>
-              <button class="flex flex-col items-center active:scale-95 transition-transform" @click="goToNetwork('mates')">
+              <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform" @click="goToNetwork('mates')">
                 <span class="text-xl font-black transition-colors duration-500" :style="{ color: theme.accentColor }">{{ targetProfile.stats?.mates || 0 }}</span>
                 <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">Mates</span>
               </button>
-              <button class="flex flex-col items-center active:scale-95 transition-transform border-x" :style="{ borderColor: theme.cardBorderColor }" @click="goToNetwork('followers')">
+              <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform border-x" :style="{ borderColor: theme.cardBorderColor }" @click="goToNetwork('followers')">
                 <span class="text-xl font-black transition-colors duration-500" :style="{ color: theme.nameColor }">{{ targetProfile.stats?.followers || 0 }}</span>
                 <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">Followers</span>
               </button>
-              <button class="flex flex-col items-center active:scale-95 transition-transform" @click="goToNetwork('following')">
+              <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform" @click="goToNetwork('following')">
                 <span class="text-xl font-black transition-colors duration-500" :style="{ color: theme.nameColor }">{{ targetProfile.stats?.following || 0 }}</span>
                 <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">Following</span>
               </button>
@@ -153,7 +153,7 @@
               <p class="text-sm font-bold italic transition-colors duration-500" :style="{ color: theme.descColor }">No public sketches yet.</p>
             </div>
             <div v-else class="grid grid-cols-3 gap-2">
-              <div v-for="(post, index) in targetPosts" :key="post._id" class="aspect-square rounded-[1.5rem] shadow-sm relative overflow-hidden active:scale-95 transition-transform duration-200" :style="{ backgroundColor: theme.cardBorderColor }" @click="onOpenPost(index)">
+              <div v-for="(post, index) in targetPosts" :key="post._id" class="aspect-square rounded-[1.5rem] shadow-sm relative overflow-hidden active:scale-95 cursor-pointer transition-transform duration-200" :style="{ backgroundColor: theme.cardBorderColor }" @click="onOpenPost(index)">
                 <img :src="post.thumbnail_url" class="w-full h-full object-cover" loading="lazy" alt="sketch" />
               </div>
             </div>
@@ -184,7 +184,7 @@ import { compareVersions, svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue"; // Imported Atmosphere element
+import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
 
 import { useAuthStore } from "@/store/auth.store";
@@ -326,7 +326,7 @@ const primaryCta = computed(() => {
 		};
 	}
 	return {
-		label: "Send Invite",
+		label: "Message",
 		icon: mdiChatOutline,
 		disabled: false,
 		handler: onStartChat,

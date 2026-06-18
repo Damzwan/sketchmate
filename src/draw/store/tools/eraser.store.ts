@@ -10,33 +10,68 @@ import { isCompletelyErased } from "@/draw/helpers/tools/eraser.helper";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
+import { createYielder } from "@/draw/helpers/yielding.helper";
 
 interface Eraser extends ToolService {
 	eraserSize: Ref<number>;
 	cancelErase: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Idle scheduling helper: requestIdleCallback when available, else a gentle
-// setTimeout fallback. The `timeout: 1000` guarantees the queue still drains
-// even if the browser never reports an idle window (e.g. continuous erasing).
-// ---------------------------------------------------------------------------
-interface IdleDeadlineLike {
-	timeRemaining(): number;
-	didTimeout: boolean;
-}
-
-const requestIdle: (cb: (d: IdleDeadlineLike) => void) => void =
-	typeof (globalThis as any).requestIdleCallback === "function"
-		? (cb) => (globalThis as any).requestIdleCallback(cb, { timeout: 1000 })
-		: (cb) =>
-				setTimeout(() => cb({ timeRemaining: () => 8, didTimeout: true }), 16);
-
 interface CleanupJob {
 	targets: FabricObject[];
 	cursor: number;
 	deleted: FabricObject[];
-	path: FabricObject;
+	path: Path;
+}
+
+// ---------------------------------------------------------------------------
+// Per-object erase-coverage cache.
+//
+// The expensive part of "is this object fully erased?" was that
+// isCompletelyErased() re-renders the object's whole geometry + clip stack
+// EVERY time, for EVERY erased object, on EVERY stroke. Re-erasing the same
+// objects therefore got slower and slower.
+//
+// Instead we keep a tiny (~96px) "what's left" bitmap per object:
+//   - Captured ONCE, the first time the object is erased, by rendering its
+//     current clipped state at low res.
+//   - Updated on each later stroke by STAMPING just the new eraser path into
+//     it with destination-out — no object re-render.
+//   - Scanned (sub-ms) to answer "does meaningful content remain?".
+//
+// If meaningful content remains (the common case — you clipped a corner), we
+// SKIP isCompletelyErased entirely. Only when the cheap bitmap looks nearly
+// empty do we run the authoritative check to confirm before deleting.
+//
+// destination-out stamping is idempotent, so duplicate / out-of-order stamps
+// can't corrupt the mask. Any failure (can't render, tainted canvas, object
+// moved) drops the entry and biases to "run the authoritative check", so the
+// worst case is today's behaviour, never a wrong deletion.
+// ---------------------------------------------------------------------------
+interface CoverageEntry {
+	canvas: HTMLCanvasElement;
+	ctx: CanvasRenderingContext2D;
+	bboxLeft: number;
+	bboxTop: number;
+	sx: number;
+	sy: number;
+	matrixKey: string;
+	pixels: number;
+}
+
+const COVERAGE_MAX_DIM = 96;
+const COVERAGE_ALPHA = 15; // alpha >= this counts as "still there"
+const COVERAGE_MAX_ENTRIES = 3000;
+
+function matrixKey(obj: FabricObject): string {
+	try {
+		return obj
+			.calcTransformMatrix()
+			.map((n) => n.toFixed(2))
+			.join(",");
+	} catch {
+		return "";
+	}
 }
 
 export const useEraser = defineStore("eraser", (): Eraser => {
@@ -47,31 +82,121 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 	let isCancelling = false;
 	let cancelCircle = false;
 
-	// -----------------------------------------------------------------------
-	// Deferred "fully erased" detection
-	//
-	// isCompletelyErased() renders each candidate to an offscreen canvas and
-	// reads back its pixels to decide whether anything survived the erase. That
-	// readback forces a GPU->CPU sync + a full pixel scan PER OBJECT. Running it
-	// synchronously for every target the instant the stroke ends freezes the
-	// main thread proportionally to how many objects the eraser passed over.
-	//
-	// So: apply the erase + fire `erasing:end` immediately (tiles re-bake, peers
-	// get the stroke), then drain the completeness checks during idle time in
-	// small time-budgeted slices, removing fully-erased objects as we go.
-	//
-	// Object-granularity yielding is enough — a single check is bounded (render
-	// capped at ~1MP, pixel loop early-exits). We just never run a long run of
-	// them back-to-back.
-	// -----------------------------------------------------------------------
 	const cleanupQueue: CleanupJob[] = [];
-	let cleanupScheduled = false;
+	let draining = false;
+	const coverage = new Map<string, CoverageEntry>();
 
 	function objectStillPresent(obj: FabricObject): boolean {
 		return !!obj?.id && objMgr.getObjectById(obj.id) === obj;
 	}
 
-	function enqueueErasedCheck(targets: FabricObject[], path: FabricObject) {
+	function forgetCoverage(id?: string) {
+		if (id) coverage.delete(id);
+	}
+
+	/**
+	 * Get (or lazily build) the low-res "remaining content" bitmap for an
+	 * object. Rebuilds if the object has been transformed since capture.
+	 * Returns null if it can't be rendered — caller treats that as "uncertain".
+	 */
+	function ensureCoverage(obj: FabricObject): CoverageEntry | null {
+		const id = obj.id as string | undefined;
+		if (!id) return null;
+
+		const existing = coverage.get(id);
+		if (existing && existing.matrixKey === matrixKey(obj)) return existing;
+
+		try {
+			const bbox = (obj as any).getBoundingRect(true, true);
+			if (!bbox.width || !bbox.height) return null;
+
+			const mult = Math.min(
+				1,
+				COVERAGE_MAX_DIM / Math.max(bbox.width, bbox.height),
+			);
+			// Current clipped state — i.e. what survives RIGHT NOW, history included.
+			const fp: HTMLCanvasElement = (obj as any).toCanvasElement({
+				multiplier: mult,
+			});
+			const ctx = fp.getContext("2d", { willReadFrequently: true });
+			if (!ctx || !fp.width || !fp.height) return null;
+
+			if (coverage.size > COVERAGE_MAX_ENTRIES) coverage.clear();
+
+			const entry: CoverageEntry = {
+				canvas: fp,
+				ctx,
+				bboxLeft: bbox.left,
+				bboxTop: bbox.top,
+				sx: fp.width / bbox.width,
+				sy: fp.height / bbox.height,
+				matrixKey: matrixKey(obj),
+				pixels: fp.width * fp.height,
+			};
+			coverage.set(id, entry);
+			return entry;
+		} catch {
+			coverage.delete(id);
+			return null;
+		}
+	}
+
+	/**
+	 * Punch the new eraser stroke into the remaining-content bitmap. The path is
+	 * in scene/world coords (it has not been sent to any object's plane — only
+	 * the per-object CLONES are), and the bitmap maps world -> pixels via the
+	 * object's world bounding box, so the placement is plane-agnostic.
+	 */
+	function stampCoverage(entry: CoverageEntry, path: Path): boolean {
+		// Only plain (destination-out) erasing maps cleanly to "remove coverage".
+		// Inverted / undo strokes add content back — punt those to the
+		// authoritative check.
+		if ((path as any).globalCompositeOperation !== "destination-out") {
+			return false;
+		}
+		try {
+			const ctx = entry.ctx;
+			ctx.save();
+			ctx.setTransform(
+				entry.sx,
+				0,
+				0,
+				entry.sy,
+				-entry.bboxLeft * entry.sx,
+				-entry.bboxTop * entry.sy,
+			);
+			// Path carries its own destination-out gco, so render() punches a hole.
+			(path as any).render(ctx);
+			ctx.restore();
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * @returns true if the bitmap CONFIDENTLY still holds content (=> skip the
+	 * expensive check). false means "looks nearly empty — confirm it".
+	 */
+	function coverageSaysPresent(entry: CoverageEntry): boolean {
+		try {
+			const { width, height } = entry.canvas;
+			const data = entry.ctx.getImageData(0, 0, width, height).data;
+			const floor = Math.max(12, Math.floor(entry.pixels * 0.005)); // 0.5%
+			let count = 0;
+			for (let i = 3; i < data.length; i += 4) {
+				if (data[i] >= COVERAGE_ALPHA) {
+					count++;
+					if (count >= floor) return true;
+				}
+			}
+			return false;
+		} catch {
+			return false; // tainted / failed read -> confirm authoritatively
+		}
+	}
+
+	function enqueueErasedCheck(targets: FabricObject[], path: Path) {
 		if (!targets.length) return;
 		cleanupQueue.push({
 			targets: targets.slice(),
@@ -79,49 +204,57 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 			deleted: [],
 			path,
 		});
-		scheduleCleanup();
+		void drainCleanup();
 	}
 
-	function scheduleCleanup() {
-		if (cleanupScheduled || cleanupQueue.length === 0) return;
-		cleanupScheduled = true;
-		requestIdle(drainCleanup);
-	}
+	async function drainCleanup() {
+		if (draining) return;
+		draining = true;
 
-	function drainCleanup(deadline: IdleDeadlineLike) {
-		cleanupScheduled = false;
-		if (!c) {
-			cleanupQueue.length = 0;
-			return;
-		}
-		const start = performance.now();
-		const BUDGET_MS = 4;
-		// Always process at least one object per slice (forward progress even
-		// under sustained load / didTimeout), then respect the time budget.
-		let didOne = false;
-		const hasBudget = () =>
-			!didOne ||
-			(deadline.timeRemaining() > 1 && performance.now() - start < BUDGET_MS);
+		const yielder = createYielder({ budgetMs: 8 });
 
-		while (cleanupQueue.length > 0) {
-			const job = cleanupQueue[0];
-			while (job.cursor < job.targets.length) {
-				if (!hasBudget()) {
-					scheduleCleanup();
+		try {
+			while (cleanupQueue.length > 0) {
+				if (!c) {
+					cleanupQueue.length = 0;
 					return;
 				}
-				const obj = job.targets[job.cursor++];
-				didOne = true;
-				// Object may have been removed by a later stroke, an undo, etc.
-				if (!objectStillPresent(obj)) continue;
-				try {
-					if (isCompletelyErased(obj)) job.deleted.push(obj);
-				} catch {
-					// Never delete on uncertainty — leave the object intact.
+				const job = cleanupQueue[0];
+				while (job.cursor < job.targets.length) {
+					await yielder.maybeYield();
+					if (!c) {
+						cleanupQueue.length = 0;
+						return;
+					}
+					const obj = job.targets[job.cursor++];
+					if (!objectStillPresent(obj)) {
+						forgetCoverage(obj?.id as string);
+						continue;
+					}
+
+					// --- cheap gate: update the remaining-content bitmap ---------
+					let confirm = true; // default: run the authoritative check
+					const entry = ensureCoverage(obj);
+					if (entry) {
+						stampCoverage(entry, job.path);
+						// If content is confidently still there, skip the costly check.
+						if (coverageSaysPresent(entry)) confirm = false;
+					}
+					if (!confirm) continue;
+
+					// --- authoritative confirm (rare) ---------------------------
+					try {
+						if (isCompletelyErased(obj)) job.deleted.push(obj);
+					} catch {
+						// Never delete on uncertainty.
+					}
 				}
+				cleanupQueue.shift();
+				finalizeCleanup(job);
 			}
-			cleanupQueue.shift();
-			finalizeCleanup(job);
+		} finally {
+			draining = false;
+			if (cleanupQueue.length > 0) void drainCleanup();
 		}
 	}
 
@@ -131,6 +264,7 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		if (!removable.length) return;
 
 		for (const obj of removable) {
+			forgetCoverage(obj.id as string);
 			c.remove(obj);
 		}
 
@@ -264,19 +398,13 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 				);
 			}
 
-			// 2. COMMIT: apply erasure clip paths to the allowed targets. Must run
-			//    before the re-bake so the cached tiles reflect the erase.
 			await b.commit(e.detail);
 
 			const targets: FabricObject[] = e.detail.targets || [];
 
-			// 3. Reflect the erase immediately: re-bake affected tiles + let peers
-			//    receive the stroke. No pixel readback happens on this path.
 			e.detail.deletedObjects = [];
 			c!.fire("erasing:end", e as any);
 
-			// 4. Defer the per-object "is it fully gone?" check to idle time so a
-			//    large pass doesn't freeze the main thread on pointer-up.
 			enqueueErasedCheck(targets, e.detail.path);
 		});
 

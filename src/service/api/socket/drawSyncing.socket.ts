@@ -116,45 +116,84 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
 	socket.on(
 		"request-canvas-state",
-		async ({ targetSocketId, snapshotSequenceId, isBackgroundUpdate }) => {
+		async ({
+			targetSocketId,
+			snapshotSequenceId,
+			isBackgroundUpdate,
+			uploadUrl,
+			fetchUrl,
+		}) => {
 			const { getCanvas } = useDrawStore();
 			const canvas = getCanvas();
 			if (!canvas) return;
 
-			const json = await generateChunkedJSON(canvas);
-			const canvasString = JSON.stringify(json);
-
+			const canvasString = JSON.stringify(canvas.toJSON());
 			const stream = new Blob([canvasString])
 				.stream()
 				.pipeThrough(new CompressionStream("gzip"));
-
 			const compressedBuffer = await new Response(stream).arrayBuffer();
-			const sizeKB = compressedBuffer.byteLength / 1024;
+			const sizeKB = Math.round(compressedBuffer.byteLength / 1024);
 
+			if (uploadUrl) {
+				try {
+					await fetch(uploadUrl, { method: "PUT", body: compressedBuffer });
+					socket.emit("send-canvas-state", {
+						targetSocketId,
+						url: fetchUrl,
+						sizeKB,
+						snapshotSequenceId,
+						isBackgroundUpdate,
+					});
+					return;
+				} catch (e) {
+					console.error(
+						"Snapshot upload failed, falling back to buffer relay:",
+						e,
+					);
+				}
+			}
+
+			// Legacy server, or upload failed: relay the buffer through the socket
 			socket.emit("send-canvas-state", {
 				targetSocketId,
 				canvasState: compressedBuffer,
-				sizeKB: Math.round(sizeKB),
+				sizeKB,
 				snapshotSequenceId,
 				isBackgroundUpdate,
 			});
 		},
 	);
 
-	socket.on("request-lobby-thumbnail", async () => {
+	socket.on("request-lobby-thumbnail", async (payload) => {
+		const { uploadUrl, fetchUrl } = payload || {};
 		const { getCanvas } = useDrawStore();
 		const { roomId } = useDrawSyncer();
 		const canvas = getCanvas();
 		if (!canvas || !roomId) return;
 
-		// 1. Generate a small, highly compressed buffer specifically for the network
 		const result = await exportBoundingBoxImage(canvas, {
-			maxSize: 400, // Small dimensions for a thumbnail
+			maxSize: 400,
 			asBuffer: true,
 			quality: 0.6,
 		});
-
 		if (!result) return;
+
+		if (uploadUrl) {
+			try {
+				await fetch(uploadUrl, { method: "PUT", body: result.img });
+				socket.emit("send-lobby-thumbnail", {
+					url: fetchUrl,
+					aspectRatio: result.aspect_ratio,
+					roomId,
+				});
+				return;
+			} catch (e) {
+				console.error(
+					"Thumbnail upload failed, falling back to buffer relay:",
+					e,
+				);
+			}
+		}
 
 		socket.emit("send-lobby-thumbnail", {
 			thumbnailBuffer: result.img,
@@ -165,7 +204,13 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
 	socket.on(
 		"initial-canvas-state",
-		async ({ canvasState, sequenceId, missedActions, isInitialSync }) => {
+		async ({
+			canvasState,
+			canvasStateUrl,
+			sequenceId,
+			missedActions,
+			isInitialSync,
+		}) => {
 			const store = useDrawSyncer();
 			const { isLoadingCanvas, lastProcessedSequenceId } = storeToRefs(store);
 			const mgr = useDrawObjectManager();
@@ -175,12 +220,26 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 				lastProcessedSequenceId.value = sequenceId;
 			}
 
-			const stream = new Blob([canvasState])
-				.stream()
-				.pipeThrough(new DecompressionStream("gzip"));
-			const decompressedString = await new Response(stream).text();
-			const json = JSON.parse(decompressedString);
+			let decompressedString: string;
+			try {
+				let gzipBytes: ArrayBuffer | Uint8Array;
+				if (canvasStateUrl) {
+					const res = await fetch(canvasStateUrl);
+					gzipBytes = await res.arrayBuffer();
+				} else {
+					gzipBytes = canvasState;
+				}
+				const stream = new Blob([gzipBytes])
+					.stream()
+					.pipeThrough(new DecompressionStream("gzip"));
+				decompressedString = await new Response(stream).text();
+			} catch (e) {
+				console.error("Failed to load canvas snapshot:", e);
+				isLoadingCanvas.value = false;
+				return;
+			}
 
+			const json = JSON.parse(decompressedString);
 			await store.loadRoomCanvas(json, isInitialSync);
 
 			if (missedActions && missedActions.length > 0) {

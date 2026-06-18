@@ -21,7 +21,7 @@
 // Net cost for N drags of one selection: 1 bake + 1 hole-punch + N cheap
 // style writes + 1 commit. The N-1 redundant tile storms are gone.
 
-import { Canvas, FabricObject } from "fabric";
+import { Canvas, FabricObject, InteractiveFabricObject } from "fabric";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 
 interface Refs {
@@ -198,20 +198,34 @@ export function commit(c: Canvas): void {
 		s.objects.forEach((o, i) => (o.opacity = s.savedOpacity[i]));
 
 		const mgr = useDrawObjectManager();
-		// Clear the OLD footprint.
+
+		// 1. Clear the OLD footprint.
 		mgr.scheduleRectPatch({
 			x: s.origin.left,
 			y: s.origin.top,
 			w: s.origin.width,
 			h: s.origin.height,
 		});
+
+		// Refresh internal layout states for the object system
 		s.target.setCoords();
 		for (const o of s.objects) {
 			o.setCoords();
 			mgr.updateQuadTree(o);
-			mgr.scheduleObjectPatch(o);
 		}
 
+		// 2. Clear the NEW footprint as a single unified rectangle patch instead of
+		// looping through 300+ child object bounds candidates individually.
+		const targetBounds = s.target.getBoundingRect();
+		const PAD = 8; // Match the padding threshold used during target bitmap baking
+		mgr.scheduleRectPatch({
+			x: targetBounds.left - PAD,
+			y: targetBounds.top - PAD,
+			w: targetBounds.width + PAD * 2,
+			h: targetBounds.height + PAD * 2,
+		});
+
+		// Force tileCache system to process changes synchronously
 		mgr.flushPatchesNow(true);
 
 		// Hide the layer only after tiles have rebaked at the new position
@@ -381,6 +395,8 @@ function applyTransform(s: Session): void {
 
 /** Redraw just the selection controls on the upper (top) canvas. Cheap vector
  *  work — keeps the bounding box & handles glued to the moving selection. */
+const MAX_CHILD_BORDERS = 30;
+
 function renderControls(c: Canvas): void {
 	const upper = (c as any).upperCanvasEl as HTMLCanvasElement;
 	const ctx = c.getTopContext();
@@ -389,7 +405,15 @@ function renderControls(c: Canvas): void {
 	ctx.clearRect(0, 0, upper.width, upper.height);
 	ctx.restore();
 	const active = c.getActiveObject();
-	if (active) (active as any)._renderControls(ctx);
+	if (!active) return;
+	const childCount = isActiveSelection(active)
+		? ((active as any)._objects?.length ?? 0)
+		: 0;
+	if (childCount > MAX_CHILD_BORDERS) {
+		InteractiveFabricObject.prototype._renderControls.call(active as any, ctx);
+	} else {
+		(active as any)._renderControls(ctx);
+	}
 }
 
 // ─── Bitmap baking (cached; keyed on shape + zoom, NOT position) ─────────────

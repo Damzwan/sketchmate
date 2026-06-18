@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import * as fabric from "fabric";
 import { type Canvas, type FabricObject, Point } from "fabric";
-import { type Ref, ref } from "vue";
+import { type Ref, ref, shallowRef } from "vue";
 import { v4 } from "uuid";
 import { FabricEvent, ToolService } from "@/draw/types/draw.types";
 import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
@@ -25,7 +25,7 @@ export const useSelect = defineStore("select", (): Select => {
 	const isSelectActive = ref(false);
 
 	let selectedObjects: FabricObject[] = [];
-	const selectedObjectsRef: Ref<FabricObject[]> = ref([]);
+	const selectedObjectsRef = shallowRef<FabricObject[]>([]);
 
 	const multiSelectMode = ref(false); // TODO not yet implemented
 	let clicksAfterSelectionActive = 0;

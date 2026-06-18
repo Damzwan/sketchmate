@@ -3,20 +3,35 @@
     <SubPageBar title="Customization" />
 
     <ion-content class="bg-background">
-      <div v-if="user" class="px-4 pt-6 pb-32 max-w-2xl mx-auto cabin-sketch-regular">
+      <div v-if="user" class="px-4 pt-2 pb-32 max-w-2xl mx-auto cabin-sketch-regular">
 
-        <section class="mb-8">
-          <ProfileCard
-            :user="user"
-            :customization="draft"
-            :is-own-profile="false"
-            :is-preview="true"
-            :allow-sketch-edit="true"
-            @edit-sketch="sketchModalOpen = true"
-          />
+        <section class="mb-2 flex justify-center">
+          <div class="w-full scale-[0.7] origin-top -mb-32">
+            <ProfileCard
+              :user="user"
+              :customization="draft"
+              :is-own-profile="false"
+              :is-preview="true"
+              :allow-sketch-edit="true"
+              @edit-sketch="sketchModalOpen = true"
+            />
+          </div>
         </section>
 
-        <section class="space-y-3">
+        <!-- UNIFIED CONFIGURATION GRID -->
+        <section class="grid grid-cols-2 gap-3">
+
+          <CustomizeOptionRow
+            :icon="mdiCardAccountDetailsOutline"
+            label="Identity"
+            :value="profileDraft.name"
+            @click="identityModalOpen = true"
+          >
+            <template #preview>
+              <img :src="previewImg || user.img" class="w-6 h-6 rounded-md object-cover border border-white" />
+            </template>
+          </CustomizeOptionRow>
+
           <CustomizeOptionRow
             :icon="mdiPalette"
             label="Theme"
@@ -24,7 +39,7 @@
             @click="themeModalOpen = true"
           >
             <template #preview>
-              <div class="flex gap-1">
+              <div class="flex -space-x-1">
                 <span
                   v-for="(c, i) in currentTheme.swatches"
                   :key="i"
@@ -42,10 +57,7 @@
             @click="fontModalOpen = true"
           >
             <template #preview>
-              <span
-                class="text-2xl font-bold text-black/70 leading-none"
-                :style="{ fontFamily: resolvedFontFamily }"
-              >
+              <span class="text-xl font-bold text-black/70 leading-none" :style="{ fontFamily: resolvedFontFamily }">
                 Aa
               </span>
             </template>
@@ -70,13 +82,13 @@
 
           <CustomizeOptionRow
             :icon="mdiAccountCircleOutline"
-            label="Avatar Decoration"
+            label="Avatar Decor"
             :value="currentDecorationName"
             @click="decorationModalOpen = true"
           >
             <template #preview>
-              <div class="relative w-10 h-10">
-                <div class="absolute inset-0 rounded-xl border-2 border-white bg-zinc-200 overflow-hidden">
+              <div class="relative w-6 h-6">
+                <div class="absolute inset-0 rounded-md border border-white bg-zinc-200 overflow-hidden">
                   <img v-if="user.img" :src="user.img" class="w-full h-full object-cover" alt="" />
                 </div>
                 <AvatarDecoration :decoration-id="draft.decorationId" />
@@ -91,7 +103,7 @@
             @click="effectModalOpen = true"
           >
             <template #preview>
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-zinc-100 to-zinc-200 overflow-hidden relative">
+              <div class="w-6 h-6 rounded-md bg-gradient-to-br from-zinc-100 to-zinc-200 overflow-hidden relative">
                 <ProfileEffect :effect-id="draft.effectId" />
               </div>
             </template>
@@ -104,7 +116,7 @@
             @click="atmosphereModalOpen = true"
           >
             <template #preview>
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 overflow-hidden relative">
+              <div class="w-6 h-6 rounded-md bg-gradient-to-br from-blue-100 to-blue-200 overflow-hidden relative">
                 <ProfileAtmosphere :atmosphere-id="draft.atmosphereId" />
               </div>
             </template>
@@ -120,24 +132,12 @@
           <CustomizeOptionRow
             :icon="mdiDraw"
             label="Signature"
-            :value="draft.signaturePath ? 'Custom signature' : 'None'"
+            :value="draft.signaturePath ? 'Custom' : 'None'"
             @click="signatureModalOpen = true"
           >
             <template #preview>
-              <svg
-                v-if="draft.signaturePath"
-                class="w-12 h-8"
-                :viewBox="draft.signatureViewBox || '0 0 300 150'"
-                preserveAspectRatio="xMidYMid meet"
-              >
-                <path
-                  :d="draft.signaturePath"
-                  fill="none"
-                  :stroke="currentTheme.accentColor"
-                  stroke-width="8"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
+              <svg v-if="draft.signaturePath" class="w-8 h-4" :viewBox="draft.signatureViewBox || '0 0 300 150'" preserveAspectRatio="xMidYMid meet">
+                <path :d="draft.signaturePath" fill="none" :stroke="currentTheme.accentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </template>
           </CustomizeOptionRow>
@@ -149,36 +149,16 @@
             @click="sketchModalOpen = true"
           >
             <template #preview>
-              <div class="w-12 h-8 rounded-lg overflow-hidden bg-white/40 border border-white relative">
-                <svg
-                  v-if="draft.backgroundSketchPath"
-                  class="w-full h-full"
-                  :viewBox="draft.backgroundSketchViewBox || '0 0 300 360'"
-                  preserveAspectRatio="xMidYMid slice"
-                >
-                  <path
-                    :d="draft.backgroundSketchPath"
-                    fill="none"
-                    :stroke="currentTheme.nameColor"
-                    stroke-width="6"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    opacity="0.5"
-                  />
+              <div class="w-8 h-6 rounded overflow-hidden bg-white/40 border border-white relative">
+                <svg v-if="draft.backgroundSketchPath" class="w-full h-full" :viewBox="draft.backgroundSketchViewBox || '0 0 300 360'" preserveAspectRatio="xMidYMid slice">
+                  <path :d="draft.backgroundSketchPath" fill="none" :stroke="currentTheme.nameColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.5" />
                 </svg>
               </div>
             </template>
           </CustomizeOptionRow>
-
-          <button
-            v-if="draft.backgroundSketchPath"
-            class="w-full text-[11px] font-black uppercase tracking-widest text-secondary/70 active:text-secondary py-1"
-            @click="clearSketch"
-          >
-            Clear card doodle
-          </button>
         </section>
 
+        <!-- SAVE ACTIONS -->
         <transition name="slide-up">
           <div
             v-if="isDirty"
@@ -187,86 +167,35 @@
             <ion-button fill="clear" color="dark" class="font-black tracking-widest text-xs mb-4" @click="revert">
               Revert
             </ion-button>
-            <ion-button shape="round" color="secondary" class="mb-4" @click="save">
-              Save Look ✓
+            <ion-button shape="round" color="secondary" class="mb-4" :disabled="isSaving" @click="save">
+              {{ isSaving ? 'Saving...' : 'Save Look ✓' }}
             </ion-button>
           </div>
         </transition>
       </div>
     </ion-content>
 
-    <ThemeModal
-      :is-open="themeModalOpen"
+    <!-- Modals -->
+    <IdentityModal
+      :is-open="identityModalOpen"
       :user="user"
       :customization="draft"
-      @close="themeModalOpen = false"
-      @select="(id: any) => updateField('themeId', id)"
+      :initial-name="profileDraft.name"
+      :initial-desc="profileDraft.description"
+      :preview-img="pendingImg"
+      @close="identityModalOpen = false"
+      @save="handleIdentitySave"
     />
 
-    <FontModal
-      :is-open="fontModalOpen"
-      :user="user"
-      :customization="draft"
-      @close="fontModalOpen = false"
-      @select="(id: any) => updateField('fontId', id)"
-    />
-
-    <FontEffectModal
-      :is-open="fontEffectModalOpen"
-      :user="user"
-      :customization="draft"
-      @close="fontEffectModalOpen = false"
-      @select="(id: any) => updateField('fontEffectId', id)"
-    />
-
-    <DecorationModal
-      :is-open="decorationModalOpen"
-      :user="user"
-      :customization="draft"
-      @close="decorationModalOpen = false"
-      @select="(id: any) => updateField('decorationId', id)"
-    />
-
-    <EffectModal
-      :is-open="effectModalOpen"
-      :user="user"
-      :customization="draft"
-      @close="effectModalOpen = false"
-      @select="(id: any) => updateField('effectId', id)"
-    />
-
-    <AtmosphereModal
-      :is-open="atmosphereModalOpen"
-      :user="user"
-      :customization="draft"
-      @close="atmosphereModalOpen = false"
-      @select="(id: any) => updateField('atmosphereId', id)"
-    />
-
-    <TitleModal
-      :is-open="titlesModalOpen"
-      :current-title-id="draft.titleId"
-      @close="titlesModalOpen = false"
-      @select="(id: any) => updateField('titleId', draft.titleId === id ? '' : id)"
-    />
-
-    <SignaturePadModal
-      :is-open="signatureModalOpen"
-      :color="currentTheme.accentColor"
-      @close="signatureModalOpen = false"
-      @save="handleSaveSignature"
-    />
-
-    <BackgroundSketchPadModal
-      :is-open="sketchModalOpen"
-      :color="currentTheme.nameColor"
-      :customization="draft"
-      :user="user"
-      :initial-path="draft.backgroundSketchPath"
-      :initial-view-box="draft.backgroundSketchViewBox"
-      @close="sketchModalOpen = false"
-      @save="handleSaveSketch"
-    />
+    <ThemeModal :is-open="themeModalOpen" :user="user" :customization="draft" @close="themeModalOpen = false" @select="(id: any) => updateField('themeId', id)" />
+    <FontModal :is-open="fontModalOpen" :user="user" :customization="draft" @close="fontModalOpen = false" @select="(id: any) => updateField('fontId', id)" />
+    <FontEffectModal :is-open="fontEffectModalOpen" :user="user" :customization="draft" @close="fontEffectModalOpen = false" @select="(id: any) => updateField('fontEffectId', id)" />
+    <DecorationModal :is-open="decorationModalOpen" :user="user" :customization="draft" @close="decorationModalOpen = false" @select="(id: any) => updateField('decorationId', id)" />
+    <EffectModal :is-open="effectModalOpen" :user="user" :customization="draft" @close="effectModalOpen = false" @select="(id: any) => updateField('effectId', id)" />
+    <AtmosphereModal :is-open="atmosphereModalOpen" :user="user" :customization="draft" @close="atmosphereModalOpen = false" @select="(id: any) => updateField('atmosphereId', id)" />
+    <TitleModal :is-open="titlesModalOpen" :current-title-id="draft.titleId" @close="titlesModalOpen = false" @select="(id: any) => updateField('titleId', draft.titleId === id ? '' : id)" />
+    <SignaturePadModal :is-open="signatureModalOpen" :color="currentTheme.accentColor" @close="signatureModalOpen = false" @save="handleSaveSignature" />
+    <BackgroundSketchPadModal :is-open="sketchModalOpen" :color="currentTheme.nameColor" :customization="draft" :user="user" :initial-path="draft.backgroundSketchPath" :initial-view-box="draft.backgroundSketchViewBox" @close="sketchModalOpen = false" @save="handleSaveSketch" />
   </ion-page>
 </template>
 
@@ -277,6 +206,7 @@ import {
 	mdiAccountCircleOutline,
 	mdiAutoFix,
 	mdiBrush,
+	mdiCardAccountDetailsOutline,
 	mdiDraw,
 	mdiFormatColorText,
 	mdiFormatFont,
@@ -286,22 +216,27 @@ import {
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { useAuthStore } from "@/store/auth.store";
-import { updateProfile } from "@/service/api/user.api";
+import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 
+import SubPageBar from "@/components/general/SubPageBar.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
+import CustomizeOptionRow from "@/components/profile/customization/CustomizeOptionRow.vue";
 import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
+
+// Modal Imports
+import IdentityModal from "@/components/profile/customization/IdentityModal.vue";
 import ThemeModal from "@/components/profile/customization/ThemeModal.vue";
 import FontModal from "@/components/profile/customization/FontModal.vue";
 import FontEffectModal from "@/components/profile/customization/FontEffectModal.vue";
 import DecorationModal from "@/components/profile/customization/DecorationModal.vue";
 import EffectModal from "@/components/profile/customization/EffectModal.vue";
+import AtmosphereModal from "@/components/profile/customization/AtmosphereModal.vue";
 import TitleModal from "@/components/profile/customization/TitleModal.vue";
 import SignaturePadModal from "@/components/profile/customization/SignaturePadModal.vue";
 import BackgroundSketchPadModal from "@/components/profile/customization/BackgroundSketchPadModal.vue";
-import CustomizeOptionRow from "@/components/profile/customization/CustomizeOptionRow.vue";
 
 import {
 	FONTS,
@@ -316,13 +251,14 @@ import {
 	resolveTitle,
 	type Customization,
 } from "@/config/profile_options.config";
-import SubPageBar from "@/components/general/SubPageBar.vue";
-import AtmosphereModal from "@/components/profile/customization/AtmosphereModal.vue";
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
 const { toast } = useToast();
 
+const isSaving = ref(false);
+
+const identityModalOpen = ref(false);
 const themeModalOpen = ref(false);
 const fontModalOpen = ref(false);
 const fontEffectModalOpen = ref(false);
@@ -340,19 +276,44 @@ const draft = ref<Customization>(
 	hydrateCustomization(user.value?.customization),
 );
 
+// Identity Drafts
+const profileDraft = ref({
+	name: user.value?.name || "",
+	description: user.value?.description || "",
+});
+const savedProfileDraft = ref({
+	name: user.value?.name || "",
+	description: user.value?.description || "",
+});
+
+const pendingImg = ref<string | null>(null);
+const previewImg = computed(() => pendingImg.value ?? user.value?.img ?? "");
+
 watch(
 	user,
 	(val) => {
 		if (val) {
 			saved.value = hydrateCustomization(val.customization);
 			draft.value = hydrateCustomization(val.customization);
+			savedProfileDraft.value = {
+				name: val.name,
+				description: val.description || "",
+			};
+			profileDraft.value = {
+				name: val.name,
+				description: val.description || "",
+			};
 		}
 	},
 	{ immediate: true },
 );
 
 const isDirty = computed(
-	() => JSON.stringify(saved.value) !== JSON.stringify(draft.value),
+	() =>
+		JSON.stringify(saved.value) !== JSON.stringify(draft.value) ||
+		JSON.stringify(savedProfileDraft.value) !==
+			JSON.stringify(profileDraft.value) ||
+		pendingImg.value !== null,
 );
 
 const currentTheme = computed(() => resolveTheme(draft.value.themeId));
@@ -367,7 +328,6 @@ const currentAtmosphereName = computed(
 	() => resolveAtmosphere(draft.value.atmosphereId).name,
 );
 const currentTitleName = computed(() => resolveTitle(draft.value.titleId));
-
 const currentFontLabel = computed(
 	() => FONTS.find((f) => f.value === draft.value.fontId)?.label || "Sketch",
 );
@@ -388,6 +348,24 @@ const updateField = <K extends keyof Customization>(
 	value: Customization[K],
 ) => {
 	draft.value = { ...draft.value, [field]: value };
+};
+
+const handleIdentitySave = (data: {
+	name: string;
+	description: string;
+	img: string | null;
+}) => {
+	profileDraft.value.name = data.name;
+	profileDraft.value.description = data.description;
+	if (data.img) pendingImg.value = data.img;
+
+	// Directly sync preview to User state for instant ProfileCard reflection
+	if (user.value) {
+		user.value.name = data.name;
+		user.value.description = data.description;
+	}
+
+	identityModalOpen.value = false;
 };
 
 const handleSaveSignature = (sigData: { path: string; viewBox: string }) => {
@@ -418,19 +396,63 @@ const clearSketch = () => {
 
 const revert = () => {
 	draft.value = JSON.parse(JSON.stringify(saved.value));
+	profileDraft.value = JSON.parse(JSON.stringify(savedProfileDraft.value));
+	pendingImg.value = null;
+	if (user.value) {
+		user.value.name = savedProfileDraft.value.name;
+		user.value.description = savedProfileDraft.value.description;
+	}
 };
 
 const save = async () => {
+	if (profileDraft.value.name.trim().length < 4) {
+		return toast("Name should be at least 4 characters", { color: "danger" });
+	}
+
+	isSaving.value = true;
 	try {
-		await updateProfile({ customization: draft.value });
-		saved.value = JSON.parse(JSON.stringify(draft.value));
+		const tasks: Promise<unknown>[] = [];
+
+		tasks.push(
+			updateProfile({
+				name: profileDraft.value.name.trim(),
+				description: profileDraft.value.description.trim(),
+				customization: draft.value,
+			}),
+		);
+
+		if (pendingImg.value) {
+			const uploadPromise = fetch(pendingImg.value)
+				.then((r) => r.blob())
+				.then((blob) => uploadProfileImg(blob, user.value?.img || ""));
+			tasks.push(uploadPromise);
+		}
+
+		const results = await Promise.all(tasks);
+
 		if (user.value) {
 			user.value.customization = JSON.parse(JSON.stringify(draft.value));
+			if (profileDraft.value.name.trim() !== savedProfileDraft.value.name)
+				user.value.last_name_change = new Date().toISOString();
+			user.value.name = profileDraft.value.name.trim();
+			user.value.description = profileDraft.value.description.trim();
+
+			if (pendingImg.value && results[1] && (results[1] as any).url) {
+				user.value.img = (results[1] as any).url;
+			}
 		}
-		toast("Look saved! ✨", { color: "success" });
-	} catch (e) {
+
+		saved.value = JSON.parse(JSON.stringify(draft.value));
+		savedProfileDraft.value = JSON.parse(JSON.stringify(profileDraft.value));
+		pendingImg.value = null;
+
+		toast("Look and details saved! ✨", { color: "success" });
+	} catch (e: any) {
 		console.error(e);
-		toast("Failed to save", { color: "danger" });
+		const errorMsg = e?.response?.data?.error || "Failed to save profile";
+		toast(errorMsg, { color: "danger" });
+	} finally {
+		isSaving.value = false;
 	}
 };
 </script>
@@ -445,7 +467,6 @@ const save = async () => {
   transform: translateY(100%);
   opacity: 0;
 }
-
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }

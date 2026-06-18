@@ -48,12 +48,12 @@
           class="pt-6 pb-10 text-center"
         >
           <div class="inline-block p-8 bg-tertiary border border-dashed border-primary/80 rounded-[2.5rem] shadow-sm max-w-xs mx-auto">
-            <div class="text-3xl mb-3 rotate-[-6deg] animate-bounce duration-1000">🎨</div>
+            <div class="text-3xl mb-3">🎨</div>
             <h3 class="cabin-sketch-regular text-xl font-black text-black tracking-tight leading-none mb-1.5">
               You're all caught up!
             </h3>
             <p class="text-[11px] font-bold text-black/40 uppercase tracking-wider leading-relaxed">
-              Grab a brush, drop into a live lobby, and make some waves.
+              No more scrolling :)
             </p>
           </div>
         </div>

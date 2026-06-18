@@ -5,26 +5,40 @@ import type { FabricObject } from "fabric";
  * Decide whether an object has been erased to the point of being effectively
  * invisible after its clipPath is applied.
  *
- * Why the previous version was wrong:
- *   - It used `toCanvasElement({ multiplier: 0.1 })` (10x downsample). Thin
- *     strokes get antialiased into transparency at that scale and produce
- *     near-zero opaque pixels even when the object still has plenty of visible
- *     material. Result: false positives → premature deletion.
- *   - It used a fixed `pixelCountThreshold: 5` regardless of object size, so
- *     a tiny dot and a 4000x4000 image were judged by the same survival count.
+ * The dominant cost here is `toCanvasElement()` — a full rasterization of the
+ * object (and its growing ClippingGroup). For a large object that render can be
+ * 10–30ms. When the eraser passes over many objects, paying that per object is
+ * what freezes the thread.
  *
- * What this version does:
- *   - Picks a render multiplier per object: 1.0 for small objects, scaling
- *     down only when the object's natural pixel area would exceed a memory
- *     budget. This preserves antialiasing fidelity for thin shapes.
- *   - Threshold is a percentage of the rendered area, not an absolute count.
- *     An object that would render to 200x200 needs more surviving pixels to
- *     count as "alive" than a 20x20 one does.
- *   - Fast-exits the moment enough surviving pixels are found.
- *   - Guards against zero-area renders and willReadFrequently failures.
+ * TWO-TIER STRATEGY (the optimization):
+ *   Most objects an eraser passes over are only PARTIALLY erased — a corner
+ *   clipped, the bulk intact. Those are the common case and we want to reject
+ *   them cheaply.
  *
- * Tunables are conservative — we'd rather leave a barely-visible sliver than
- * delete an object the user wasn't trying to fully erase.
+ *   A downscaled render can only LOSE coverage, never gain it: a downsampled
+ *   pixel's alpha is the average of its source pixels, so avg ≥ threshold
+ *   implies at least one source pixel ≥ threshold. Therefore:
+ *
+ *     "survives at LOW resolution" ⟹ "definitely has real content" ⟹ KEEP.
+ *
+ *   This is reliable in the safe direction: low-res can only ever tell us to
+ *   KEEP, never to delete. So for large objects we do a cheap low-res pass
+ *   first; if it already finds enough survivors we return early without the
+ *   expensive full render. Only objects that look gone at low-res fall through
+ *   to the authoritative full-res pass (which correctly handles thin strokes
+ *   that antialias away when downscaled — exactly the false-positive case the
+ *   previous comment warned about, now confined to the confirm pass).
+ *
+ *   Small objects skip the low-res pass entirely — their full render is already
+ *   cheap, so a second render would only add overhead.
+ *
+ * The authoritative full-res pass is unchanged in behavior:
+ *   - Per-object multiplier: 1.0 for small objects, scaled down only when the
+ *     natural pixel area exceeds the budget, with a floor so thin strokes keep
+ *     ≥2px of width and don't antialias to nothing.
+ *   - Threshold is a fraction of rendered area, not an absolute count.
+ *   - Fast-exits as soon as enough surviving pixels are found.
+ *   - Any render/readback failure returns false (never delete on uncertainty).
  */
 export const isCompletelyErased = (
 	obj: FabricObject,
@@ -53,62 +67,119 @@ export const isCompletelyErased = (
 	const absoluteMinSurvivors = options?.absoluteMinSurvivors ?? 20;
 	const maxRenderPixels = options?.maxRenderPixels ?? 1_048_576;
 
-	// Use the object's bounding rect to estimate the natural render size, then
-	// pick a multiplier that keeps us under the budget without blowing past 1.0.
+	// Only run a low-res reject pass when the full render would be big enough
+	// for it to pay off (a second tiny render on a small object is pure waste).
+	const LOWRES_GATE_PX = 65_536; // ~256x256
+	const TARGET_LOWRES_PX = 16_384; // ~128x128
+
+	// --- pick the authoritative (high-res) multiplier from the bounding box ---
 	let multiplier = 1;
+	let bw = 0;
+	let bh = 0;
 	try {
 		// @ts-ignore — fabric's getBoundingRect typings
 		const b = (obj as any).getBoundingRect(true, true);
-		const area = Math.max(1, b.width * b.height);
+		bw = b.width;
+		bh = b.height;
+		const area = Math.max(1, bw * bh);
 		if (area > maxRenderPixels) {
 			multiplier = Math.sqrt(maxRenderPixels / area);
 		}
 		// Avoid sub-pixel rendering on objects with absurd aspect ratios — long
 		// thin strokes need at least 1px of width to survive antialiasing.
-		const minDim = Math.min(b.width, b.height) * multiplier;
+		const minDim = Math.min(bw, bh) * multiplier;
 		if (minDim < 2 && minDim > 0) {
-			multiplier = Math.min(1, 2 / Math.min(b.width, b.height));
+			multiplier = Math.min(1, 2 / Math.min(bw, bh));
 		}
 	} catch {
 		multiplier = 1;
 	}
 
+	// Estimated full-res render area + survival threshold. Using the estimate
+	// (rather than the post-render dims) keeps the low-res and high-res passes
+	// on the SAME threshold, which is what makes the low-res KEEP guarantee
+	// hold. It's within a pixel or two of the real rendered size.
+	const estRenderArea = Math.max(1, bw * multiplier * (bh * multiplier));
+	const survivalThreshold = Math.max(
+		absoluteMinSurvivors,
+		Math.ceil(estRenderArea * survivalRatioThreshold),
+	);
+
+	// --- tier 1: cheap low-res reject (large objects only) -------------------
+	if (estRenderArea > LOWRES_GATE_PX) {
+		let lowMult = multiplier * Math.sqrt(TARGET_LOWRES_PX / estRenderArea);
+		if (!isFinite(lowMult) || lowMult <= 0) lowMult = multiplier;
+		lowMult = Math.min(lowMult, multiplier);
+
+		const lowSurvivors = countSurvivors(
+			obj,
+			lowMult,
+			alphaThreshold,
+			survivalThreshold,
+		);
+		// Reaching the threshold at low-res guarantees ≥ that many real pixels at
+		// full-res, so the object is definitely alive — keep it, cheaply.
+		if (lowSurvivors !== null && lowSurvivors >= survivalThreshold) {
+			return false;
+		}
+		// Inconclusive (looked gone, or render failed) — fall through to the
+		// authoritative pass below. We do NOT delete on the low-res result.
+	}
+
+	// --- tier 2: authoritative full-res pass ---------------------------------
+	const survivors = countSurvivors(
+		obj,
+		multiplier,
+		alphaThreshold,
+		survivalThreshold,
+	);
+	if (survivors === null) return false; // couldn't render — don't delete
+	return survivors < survivalThreshold;
+};
+
+/**
+ * Render the object at `multiplier` and count pixels with alpha >= threshold,
+ * early-exiting once `cap` survivors are seen.
+ *
+ * Returns:
+ *   - the survivor count (clamped at `cap`),
+ *   - 0 for a zero-area render (nothing to see → treated as erased upstream),
+ *   - null if the object couldn't be rendered/read (caller must NOT delete).
+ */
+function countSurvivors(
+	obj: FabricObject,
+	multiplier: number,
+	alphaThreshold: number,
+	cap: number,
+): number | null {
 	let canvasEl: HTMLCanvasElement;
 	try {
 		// @ts-ignore — toCanvasElement exists on FabricObject
 		canvasEl = obj.toCanvasElement({ multiplier });
 	} catch {
-		// If we can't render the object at all, don't delete it.
-		return false;
+		return null;
 	}
 
 	const w = canvasEl.width;
 	const h = canvasEl.height;
-	if (w === 0 || h === 0) return true;
+	if (w === 0 || h === 0) return 0;
 
 	const ctx = canvasEl.getContext("2d", { willReadFrequently: true });
-	if (!ctx) return false;
+	if (!ctx) return null;
 
 	let data: Uint8ClampedArray;
 	try {
 		data = ctx.getImageData(0, 0, w, h).data;
 	} catch {
-		return false;
+		return null;
 	}
-
-	const totalPixels = w * h;
-	// Don't let the ratio threshold fall below the absolute floor.
-	const survivalThreshold = Math.max(
-		absoluteMinSurvivors,
-		Math.ceil(totalPixels * survivalRatioThreshold),
-	);
 
 	let visible = 0;
 	for (let i = 3; i < data.length; i += 4) {
 		if (data[i] >= alphaThreshold) {
 			visible++;
-			if (visible > survivalThreshold) return false;
+			if (visible >= cap) return visible;
 		}
 	}
-	return true;
-};
+	return visible;
+}

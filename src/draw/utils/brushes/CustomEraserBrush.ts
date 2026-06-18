@@ -354,6 +354,15 @@ export class CustomEraserBrush extends PencilBrush {
 	 */
 	targetCandidatesProvider?: (path: Path) => FabricObject[];
 
+	/**
+	 * Once an object's ClippingGroup holds more than this many eraser strokes,
+	 * the strokes are collapsed into a single cached bitmap mask (see
+	 * {@link bakeClipGroupIfNeeded}). This bounds the per-render clip cost, which
+	 * otherwise grows with every erase and makes repeated erasing super-linear.
+	 * Set to 0 to disable (keep fully-vector clips).
+	 */
+	flattenClipAfter = 14;
+
 	private eventEmitter: EventTarget;
 	private active = false;
 	private _disposer?: VoidFunction;
@@ -602,7 +611,7 @@ export class CustomEraserBrush extends PencilBrush {
 		path,
 		targets,
 	}: EventDetailMap["end"]): Promise<Map<fabric.FabricObject, fabric.Path>> {
-		return new Map(
+		const result = new Map(
 			await Promise.all([
 				...targets.map(async (object) => {
 					return [object, await eraseObject(object, path)] as const;
@@ -632,6 +641,107 @@ export class CustomEraserBrush extends PencilBrush {
 					}),
 			]),
 		);
+
+		// Bound clip-path growth. Only objects hit by THIS stroke can have grown,
+		// so we only check those. Amortized O(1) per stroke: a bake happens once
+		// every `flattenClipAfter` strokes per object.
+		if (this.flattenClipAfter > 0) {
+			for (const object of targets) {
+				try {
+					await this.bakeClipGroupIfNeeded(object);
+				} catch {
+					// On ANY failure, leave the existing clip untouched. Never risk
+					// corrupting a drawing for the sake of a perf optimization.
+				}
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Collapse an object's accumulated eraser strokes into a single cached
+	 * bitmap mask, keeping the clip a {@link ClippingGroup} so @erase2d's
+	 * rendering is unchanged.
+	 *
+	 * WHY: every erase adds a vector child to the object's ClippingGroup, and
+	 * every subsequent render / tile re-bake / completeness check re-rasterizes
+	 * the WHOLE accumulated stack. Erasing repeatedly over the same objects
+	 * makes that stack grow, so each stroke is more expensive than the last —
+	 * the cost is roughly O(objects x strokes^2). That is the "lags more and
+	 * more" you're seeing; it is NOT the deferred cleanup.
+	 *
+	 * EQUIVALENCE: erasing is destination-out compositing, and
+	 *   destination-out(A) then destination-out(B)  ==  destination-out(A u B).
+	 * So replacing N stroke children with ONE image of their union, composited
+	 * destination-out, produces exactly the same mask — but renders in O(1)
+	 * forever after instead of O(N).
+	 *
+	 * TRADEOFF: the union is a bitmap, so erased EDGES become raster at the bake
+	 * resolution (retina, capped). Strokes stay fully vector until the threshold,
+	 * and the bake is at device resolution, so it's imperceptible at normal zoom.
+	 * Raise `flattenClipAfter` (or set 0) if you need vector-sharp edges at deep
+	 * zoom on heavily-erased objects.
+	 *
+	 * NOTE: the coordinate/scale placement of the baked image is the one thing
+	 * worth eyeballing on a live test — verify erased regions don't shift after
+	 * a bake fires. The method fails safe (keeps the original group) on error.
+	 */
+	private async bakeClipGroupIfNeeded(object: FabricObject): Promise<void> {
+		const cg = object.clipPath as unknown;
+		if (!(cg instanceof ClippingGroup)) return;
+
+		const children = cg.getObjects();
+		if (children.length <= this.flattenClipAfter) return;
+
+		// Render the union of the existing strokes' SHAPES (force source-over so
+		// we get coverage, not the destination-out hole-punch). Clone so we never
+		// mutate the live children.
+		const clones = (await Promise.all(
+			children.map((child) => child.clone()),
+		)) as FabricObject[];
+		clones.forEach((clone) => {
+			(clone as any).globalCompositeOperation = "source-over";
+			clone.set("dirty", true);
+		});
+
+		const union = new fabric.Group(clones);
+		const center = union.getCenterPoint();
+		const uw = union.width;
+		const uh = union.height;
+		if (!uw || !uh) return;
+
+		// Retina resolution, capped so a giant object can't allocate a huge buffer.
+		let multiplier = this.canvas.getRetinaScaling?.() || 1;
+		const MAX_BAKE_PX = 4_194_304; // ~4MP
+		const area = uw * uh * multiplier * multiplier;
+		if (area > MAX_BAKE_PX) multiplier *= Math.sqrt(MAX_BAKE_PX / area);
+
+		// @ts-ignore — toCanvasElement exists on Group
+		const el: HTMLCanvasElement = union.toCanvasElement({ multiplier });
+		if (!el.width || !el.height) return;
+
+		const baked = new fabric.Image(el, {
+			originX: "center",
+			originY: "center",
+			left: center.x,
+			top: center.y,
+			scaleX: uw / el.width,
+			scaleY: uh / el.height,
+			// Match how the strokes were composited inside the group, so the union
+			// punches exactly the same holes.
+			globalCompositeOperation: "destination-out",
+		});
+
+		// Swap the N stroke children for the single union image.
+		cg.remove(...children);
+		cg.add(baked as unknown as FabricObject);
+		cg.set("dirty", true);
+		object.set("dirty", true);
+
+		// Best-effort release of the now-dead nodes.
+		clones.forEach((clone) => (clone as any).dispose?.());
+		children.forEach((child) => (child as any).dispose?.());
 	}
 
 	/**
@@ -658,11 +768,22 @@ export class CustomEraserBrush extends PencilBrush {
 			: this.canvas.getObjects();
 		const targets = walk(candidates, path);
 
+		const r = path.getBoundingRect(true, true);
+
+		const pad = (path.strokeWidth ?? 0) * 1.5;
+
 		this.eventEmitter.dispatchEvent(
 			new CustomEvent("end", {
 				detail: {
 					path,
 					targets,
+
+					dirtyRect: {
+						x: r.left - pad,
+						y: r.top - pad,
+						w: r.width + pad * 2,
+						h: r.height + pad * 2,
+					},
 				},
 				cancelable: true,
 			}),

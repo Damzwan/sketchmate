@@ -27,72 +27,10 @@
           </div>
         </section>
 
-        <!-- COMPACT DYNAMIC BENTO GRID (WITH LOTTIE INTEGRATION) -->
-        <section>
-          <div class="grid grid-cols-6 gap-2.5 overflow-visible">
-            <button
-              v-for="action in visibleQuickActions"
-              :key="action.id"
-              @click="handleQuickAction(action.id)"
-              class="relative overflow-visible flex flex-col justify-between p-3.5 rounded-[1.75rem] border transition-all duration-300 active:scale-[0.96] group text-left shadow-sm"
-              :class="getCardLayoutClasses(action.id)"
-            >
-              <!-- Ambient Background Blur/Blob -->
-              <div
-                class="absolute -right-2 -bottom-2 w-16 h-16 rounded-full blur-md transition-transform duration-500 group-hover:scale-125 pointer-events-none"
-                :class="action.id === 'draw_alone' || action.id === 'draw_together' ? 'bg-secondary/10' : 'bg-primary/20'"
-              ></div>
-
-              <!-- Visual Core Layer: Conditional Render between standard WebP images and Lottie -->
-              <template v-if="action.id === 'balloon'">
-                <div
-                  class="absolute pointer-events-none transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 z-20"
-                  :class="getImageLayoutClasses(action.id)"
-                >
-                  <Lottie
-                    :json="balloonLottie"
-                    :loop="true"
-                    :speed="0.5"
-                    class="w-11/12 h-11/12"
-                  />
-                </div>
-              </template>
-
-              <template v-else>
-                <img
-                  :src="action.img"
-                  class="absolute pointer-events-none object-contain transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 z-20"
-                  :class="getImageLayoutClasses(action.id)"
-                  alt=""
-                />
-              </template>
-
-              <!-- Text Layout -->
-              <div class="relative z-10 flex flex-col justify-between h-full items-start pointer-events-none">
-                <span
-                  class="cabin-sketch-regular leading-none text-black font-black tracking-tight"
-                  :class="action.id === 'draw_alone' || action.id === 'draw_together' ? 'text-xl' : 'text-base'"
-                >
-                  {{ action.label }}
-                </span>
-
-                <!-- Tiny micro-pills to distinguish the styles without ruining symmetry -->
-                <span
-                  v-if="action.id === 'draw_alone'"
-                  class="text-[8px] uppercase font-black tracking-widest px-2 py-0.5 bg-secondary text-white rounded-full shadow-sm mt-auto"
-                >
-                  Solo
-                </span>
-                <span
-                  v-if="action.id === 'draw_together'"
-                  class="text-[8px] uppercase font-black tracking-widest px-2 py-0.5 bg-secondary text-white rounded-full shadow-sm mt-auto"
-                >
-                  Live Lobbies
-                </span>
-              </div>
-            </button>
-          </div>
-        </section>
+        <HomeQuickActions
+          :is-under-age="isUnderAge"
+          @action="handleQuickAction"
+        />
 
         <!-- PUBLIC LOBBIES -->
         <ActiveLobbies
@@ -152,6 +90,7 @@ import draw_together from "@/assets/illustrations/home/draw_together.webp";
 import share from "@/assets/illustrations/home/share.webp";
 import balloonLottie from "@/assets/lottie/balloon.json";
 import { whenIdle } from "@/helper/general.helper";
+import HomeQuickActions from "@/components/home/HomeQuickActions.vue";
 
 const r = useIonRouter();
 

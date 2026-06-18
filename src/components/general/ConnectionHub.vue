@@ -1,163 +1,139 @@
 <template>
-  <ion-modal
+  <BaseSheetModal
     :is-open="connectionMenuOpen"
-    @did-dismiss="onDismiss"
-    :initial-breakpoint="1"
-    :breakpoints="[0, 1]"
-    handle-behavior="cycle"
-    class="liquid-connection-modal"
+    :title="!isScanning ? 'Add a Mate' : undefined"
+    :subtitle="!isScanning ? 'Grow Your Network' : undefined"
+    :show-back="isScanning"
+    @close="onDismiss"
+    @back="stopCameraView"
   >
-    <div
-      class="h-full flex flex-col p-5 bot-pad-safe bg-background cabin-sketch-regular transition-all duration-300 overflow-y-auto hide-scrollbar">
+    <template v-if="isScanning" #header>
+      <div class="flex items-center justify-center pt-0 mb-2 mt-4 relative">
+        <h2 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
+          Camera
+        </h2>
+      </div>
+    </template>
 
-      <!-- MAIN VIEW: My Code, Search & Scan Trigger -->
-      <div v-show="!isScanning" class="space-y-6 animate-fade-in pt-2 mb-4">
-        <div class="text-center">
-          <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
-            Add a Mate
-          </h1>
-          <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-2">
-            Grow Your Network
-          </p>
+    <div v-show="!isScanning" class="space-y-6 animate-fade-in pt-1">
+
+      <div class="bg-white/60 border border-white p-5 rounded-[2.5rem] flex items-center justify-between relative mt-1 backdrop-blur-md">
+        <div class="flex flex-col z-10 w-full pr-4 min-w-0">
+          <span class="text-[10px] font-black text-black/40 uppercase tracking-widest mb-2">
+            Your Personal Code
+          </span>
+
+          <div class="flex items-center gap-3 mb-3 min-w-0">
+            <ion-avatar class="w-12 h-12 border-2 border-white overflow-hidden bg-white shrink-0">
+              <img :src="user?.img" class="object-cover w-full h-full" />
+            </ion-avatar>
+            <h2 class="text-2xl text-black font-black leading-none truncate min-w-0">
+              {{ user?.name }}
+            </h2>
+          </div>
+
+          <ion-button
+            fill="clear"
+            class="ion-no-margin h-10 w-max text-secondary -ml-2 font-black uppercase tracking-widest text-sm"
+            @click="() => shareUrl(qrURL)"
+          >
+            <ion-icon slot="start" :icon="svg(mdiShareVariant)" class="text-xl" />
+            Share Link
+          </ion-button>
         </div>
 
-        <div
-          class="bg-white/60 border border-white p-5 rounded-[2.5rem] flex items-center justify-between shadow-sm relative mt-4 backdrop-blur-md">
-          <div class="flex flex-col z-10 w-full pr-4 min-w-0">
-            <span class="text-[10px] font-black text-black/40 uppercase tracking-widest mb-2">
-              Your Personal Code
-            </span>
+        <div class="p-2.5 bg-white rounded-[1.5rem] ring-1 ring-black/5 shrink-0">
+          <qrcode-vue :value="qrURL" :size="90" background="white" foreground="#000" />
+        </div>
+      </div>
 
-            <div class="flex items-center gap-3 mb-3 min-w-0">
-              <ion-avatar class="w-12 h-12 border-2 border-white shadow-sm overflow-hidden bg-white shrink-0">
-                <img :src="user?.img" class="object-cover w-full h-full" />
-              </ion-avatar>
-              <h2 class="text-2xl text-black font-black leading-none truncate min-w-0">
-                {{ user?.name }}
-              </h2>
-            </div>
-
-            <ion-button
-              fill="clear"
-              class="ion-no-margin h-10 w-max text-secondary -ml-2 font-black uppercase tracking-widest text-sm"
-              @click="() => shareUrl(qrURL)"
-            >
-              <ion-icon slot="start" :icon="svg(mdiShareVariant)" class="text-xl" />
-              Share Link
+      <section class="space-y-3">
+        <p class="text-[10px] font-black text-black/40 uppercase tracking-widest px-2">
+          Search by name
+        </p>
+        <div class="relative">
+          <input
+            v-model="mateName"
+            @keyup.enter="searchUsers"
+            placeholder="Artist name..."
+            class="w-full bg-white/50 border border-white rounded-2xl px-5 py-4 text-lg font-black text-black focus:outline-none focus:ring-2 focus:ring-secondary/50 transition-all"
+          />
+          <div class="absolute right-2 top-1/2 -translate-y-1/2">
+            <ion-button fill="clear" color="secondary" @click="searchUsers" :disabled="!mateName">
+              <ion-spinner v-if="isSearchingUsers" name="bubbles" size="small" />
+              <ion-icon v-else slot="icon-only" :icon="svg(mdiSend)" />
             </ion-button>
           </div>
-
-          <div class="p-2.5 bg-white rounded-[1.5rem] ring-1 ring-black/5 shadow-inner shrink-0">
-            <qrcode-vue :value="qrURL" :size="90" background="white" foreground="#000" />
-          </div>
-        </div>
-
-        <!-- SEARCH SECTION -->
-        <section class="space-y-3">
-          <p class="text-[10px] font-black text-black/40 uppercase tracking-widest px-2">
-            Search by name
-          </p>
-          <div class="relative">
-            <input
-              v-model="mateName"
-              @keyup.enter="searchUsers"
-              placeholder="Artist name..."
-              class="w-full bg-white/50 border border-white rounded-2xl px-5 py-4 text-lg font-black text-black shadow-inner focus:outline-none focus:ring-2 focus:ring-secondary/50 transition-all"
-            />
-            <div class="absolute right-2 top-1/2 -translate-y-1/2">
-              <ion-button fill="clear" color="secondary" @click="searchUsers" :disabled="!mateName">
-                <ion-spinner v-if="isSearchingUsers" name="bubbles" size="small" />
-                <ion-icon v-else slot="icon-only" :icon="svg(mdiSend)" />
-              </ion-button>
-            </div>
-          </div>
-
-          <!-- Inline Search Responses -->
-          <div
-            v-if="hasSearched || isSearchingUsers || searchWarning"
-            class="bg-white/30 rounded-[2rem] border border-white/50 overflow-hidden animate-fade-in p-2"
-          >
-            <!-- Fixed string rendering loop checking -->
-            <div v-if="searchWarning" class="p-4 text-center text-xs font-bold text-amber-700 italic">
-              {{ searchWarning }}
-            </div>
-
-            <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-xs font-bold text-black/50 italic">
-              No artists found with that name
-            </div>
-
-            <div v-else class="max-h-60 overflow-y-auto hide-scrollbar">
-              <ion-list lines="none" class="bg-transparent p-0">
-                <ion-item
-                  v-for="mate in foundMates"
-                  :key="mate._id"
-                  class="rounded-2xl mb-1 bg-white/40 last:mb-0"
-                  @click="openUserActions(mate)"
-                >
-                  <UserAvatar
-                    static
-                    :user="mate"
-                    :customization="mate.customization"
-                    size="sm"
-                  />
-                  <ion-label class="ml-2">
-                    <h2 class="font-black text-black">{{ mate.name }}</h2>
-                  </ion-label>
-                  <ion-icon slot="end" :icon="svg(mdiChevronRight)" class="opacity-30" />
-                </ion-item>
-              </ion-list>
-            </div>
-          </div>
-        </section>
-
-        <!-- OR Divider -->
-        <div class="flex items-center justify-center space-x-4 opacity-30 my-4">
-          <div class="h-px bg-black flex-1 rounded-full"></div>
-          <span class="text-[10px] font-black uppercase tracking-widest">OR</span>
-          <div class="h-px bg-black flex-1 rounded-full"></div>
-        </div>
-
-        <!-- Big Scan Action -->
-        <ion-button
-          @click="startCameraView"
-          color="secondary"
-          shape="round"
-          size="large"
-          expand="block"
-          class="h-16 font-black uppercase tracking-widest"
-        >
-          <ion-icon slot="start" :icon="svg(mdiQrcodeScan)" class="text-2xl mr-2" />
-          Scan a Mate
-        </ion-button>
-      </div>
-
-      <!-- SCANNER VIEW -->
-      <div v-show="isScanning" class="flex flex-col h-full animate-fade-in pt-2 pb-6">
-        <div class="flex items-center justify-between mb-4 px-2">
-          <ion-button fill="clear" color="dark" class="ion-no-margin -ml-3" @click="stopCameraView">
-            <ion-icon slot="icon-only" :icon="arrowBack" class="text-2xl" />
-          </ion-button>
-          <h2 class="text-xl font-black italic">Camera</h2>
-          <div class="w-12"></div>
         </div>
 
         <div
-          class="flex-1 w-full bg-primary/10 rounded-[2.5rem] border border-primary/20 overflow-hidden relative shadow-inner">
-          <div v-if="!isNative()" class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-            <div class="w-48 h-48 border-2 border-dashed border-secondary/60 rounded-3xl"></div>
+          v-if="hasSearched || isSearchingUsers || searchWarning"
+          class="bg-white/30 rounded-[2rem] border border-white/50 overflow-hidden animate-fade-in p-2"
+        >
+          <div v-if="searchWarning" class="p-4 text-center text-xs font-bold text-amber-700 italic">
+            {{ searchWarning }}
           </div>
-          <video ref="video" class="w-full h-full object-cover bg-black/5" />
-          <div class="absolute bottom-6 left-0 right-0 text-center z-10">
-            <span
-              class="bg-black/60 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest backdrop-blur-md shadow-sm">
-              Point at a Code
-            </span>
+
+          <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-xs font-bold text-black/50 italic">
+            No artists found with that name
+          </div>
+
+          <div v-else class="max-h-60 overflow-y-auto hide-scrollbar">
+            <ion-list lines="none" class="bg-transparent p-0">
+              <ion-item
+                v-for="mate in foundMates"
+                :key="mate._id"
+                class="rounded-2xl mb-1 bg-white/40 last:mb-0"
+                @click="openUserActions(mate)"
+              >
+                <UserAvatar
+                  static
+                  :user="mate"
+                  :customization="mate.customization"
+                  size="sm"
+                />
+                <ion-label class="ml-2">
+                  <h2 class="font-black text-black">{{ mate.name }}</h2>
+                </ion-label>
+                <ion-icon slot="end" :icon="svg(mdiChevronRight)" class="opacity-30" />
+              </ion-item>
+            </ion-list>
           </div>
         </div>
+      </section>
+
+      <div class="flex items-center justify-center space-x-4 opacity-30 my-4">
+        <div class="h-px bg-black flex-1 rounded-full"></div>
+        <span class="text-[10px] font-black uppercase tracking-widest">OR</span>
+        <div class="h-px bg-black flex-1 rounded-full"></div>
       </div>
 
+      <ion-button
+        @click="startCameraView"
+        color="secondary"
+        shape="round"
+        class="m-0 h-16 font-black uppercase tracking-widest text-base"
+        expand="block"
+      >
+        <ion-icon slot="start" :icon="svg(mdiQrcodeScan)" class="text-2xl mr-2" />
+        Scan a Mate
+      </ion-button>
     </div>
-  </ion-modal>
+
+    <div v-show="isScanning" class="flex flex-col h-full animate-fade-in pt-1 pb-2">
+      <div class="flex-1 w-full bg-primary/10 rounded-[2.5rem] border border-primary/20 overflow-hidden relative">
+        <div v-if="!isNative()" class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div class="w-48 h-48 border-2 border-dashed border-secondary/60 rounded-3xl"></div>
+        </div>
+        <video ref="video" class="w-full h-full object-cover bg-black/5" />
+        <div class="absolute bottom-6 left-0 right-0 text-center z-10">
+          <span class="bg-black/60 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest backdrop-blur-md">
+            Point at a Code
+          </span>
+        </div>
+      </div>
+    </div>
+  </BaseSheetModal>
 </template>
 
 <script setup lang="ts">
@@ -169,7 +145,6 @@ import {
 	IonItem,
 	IonLabel,
 	IonList,
-	IonModal,
 	IonSpinner,
 	modalController,
 } from "@ionic/vue";
@@ -180,8 +155,8 @@ import {
 	mdiSend,
 	mdiShareVariant,
 } from "@mdi/js";
-import { arrowBack } from "ionicons/icons";
 
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import { useAuthStore } from "@/store/auth.store";
 import { useToast } from "@/service/toast.service";
 import { useScanner } from "@/service/scanner.service";
@@ -231,7 +206,6 @@ async function searchUsers() {
 	const query = mateName.value.trim();
 	if (!user.value) return;
 
-	// FIX: Properly reference ref objects using .value to avoid breaking execution
 	if (query.length < 3) {
 		foundMates.value = [];
 		hasSearched.value = false;
@@ -285,15 +259,6 @@ function onDismiss() {
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out forwards;
 }
@@ -307,12 +272,6 @@ function onDismiss() {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-ion-modal.liquid-connection-modal {
-  --border-radius: 2.5rem 2.5rem 0 0;
-  --height: auto;
-  --max-height: 96vh;
 }
 
 input {

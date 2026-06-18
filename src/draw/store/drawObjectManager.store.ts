@@ -313,7 +313,11 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				activeTier,
 			);
 		}
-		tileCache.patchTilesSync(rectsToPatch, [activeTier]);
+		const syncRects = clipRectsForSyncPatch(rectsToPatch, activeTier);
+
+		if (syncRects.length > 0) {
+			tileCache.patchTilesSync(syncRects, [activeTier]);
+		}
 
 		const coarserTiers: number[] = [];
 		for (let t = activeTier - 1; t >= Math.max(0, activeTier - 2); t--)
@@ -928,12 +932,18 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		{ on: "flip", handler: (e: any) => handleStyleChange(e) },
 		{
 			on: "erasing:end",
+
 			handler: (e: any) => {
 				if (isLoading()) return;
-				const targets = Array.isArray(e.detail.targets)
-					? e.detail.targets
-					: [e.detail.targets];
-				scheduleObjectsPatch(targets);
+
+				const dirty = e.detail?.dirtyRect;
+
+				if (dirty) {
+					scheduleRectPatch(dirty);
+					return;
+				}
+
+				scheduleObjectsPatch(e.detail.targets);
 			},
 		},
 	];
@@ -1184,6 +1194,53 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				objectMap.set(obj.id, obj);
 				addToQuadTree(obj);
 			}
+	}
+
+	function clipRectsForSyncPatch(
+		rects: WorldRect[],
+		activeTier: number,
+	): WorldRect[] {
+		if (!c) return rects;
+
+		const viewport = getViewportRect(c);
+
+		const syncRects: WorldRect[] = [];
+
+		for (const r of rects) {
+			const tiles = estimatePatchTileCount([r], activeTier);
+
+			if (tiles <= SYNC_PATCH_TILE_BUDGET) {
+				syncRects.push(r);
+				continue;
+			}
+
+			const clipped = intersectRect(r, viewport);
+
+			if (clipped) {
+				syncRects.push(clipped);
+			}
+
+			tileCache.invalidateRect(r);
+		}
+
+		return syncRects;
+	}
+
+	function intersectRect(a: WorldRect, b: WorldRect): WorldRect | null {
+		const x1 = Math.max(a.x, b.x);
+		const y1 = Math.max(a.y, b.y);
+
+		const x2 = Math.min(a.x + a.w, b.x + b.w);
+		const y2 = Math.min(a.y + a.h, b.y + b.h);
+
+		if (x2 <= x1 || y2 <= y1) return null;
+
+		return {
+			x: x1,
+			y: y1,
+			w: x2 - x1,
+			h: y2 - y1,
+		};
 	}
 
 	return {

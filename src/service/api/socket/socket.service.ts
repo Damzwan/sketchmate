@@ -37,7 +37,7 @@ export async function socketConnect(): Promise<void> {
 		withCredentials: true,
 		reconnection: true,
 		reconnectionAttempts: Infinity,
-		query: { clientVersion: "2" },
+		query: { clientVersion: "3" },
 	});
 
 	// Register Sub-Socket Handlers

@@ -1,38 +1,36 @@
 <template>
   <button
-    class="w-full bg-white/60 backdrop-blur-xl border-2 border-white rounded-[2rem] p-4 flex items-center gap-4 shadow-sm active:scale-[0.98] transition-all"
+    class="w-full bg-white/60 backdrop-blur-xl border-2 border-white rounded-[1.5rem] p-3 flex flex-col text-left shadow-sm active:scale-[0.96] transition-all"
     @click="$emit('click')"
   >
-    <div class="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center shrink-0">
-      <ion-icon :icon="svg(icon)" class="text-2xl text-secondary" />
-    </div>
-
-    <div class="flex-1 min-w-0 text-left">
-      <p class="text-[10px] font-black uppercase tracking-widest text-black/40 leading-none">
+    <div class="flex items-center gap-2 mb-2 w-full">
+      <div class="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
+        <ion-icon :icon="svg(icon)" class="text-lg text-secondary" />
+      </div>
+      <p class="text-[10px] font-black uppercase tracking-widest text-black/40 leading-none truncate flex-1">
         {{ label }}
       </p>
-      <p class="text-base font-black text-black mt-1 truncate">{{ value }}</p>
     </div>
 
-    <!-- Slot for any inline preview swatch / mini-card -->
-    <div class="shrink-0">
-      <slot name="preview" />
-    </div>
+    <div class="flex items-end justify-between w-full mt-auto">
+      <p class="text-sm font-black text-black truncate pr-2">{{ value }}</p>
 
-    <ion-icon :icon="svg(mdiChevronRight)" class="text-2xl text-black/30 shrink-0" />
+      <div class="shrink-0 h-6 flex items-center justify-center">
+        <slot name="preview" />
+      </div>
+    </div>
   </button>
 </template>
 
 <script setup lang="ts">
-import { IonIcon } from '@ionic/vue'
-import { mdiChevronRight } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { IonIcon } from "@ionic/vue";
+import { svg } from "@/helper/general.helper";
 
 defineProps<{
-  icon: string
-  label: string
-  value: string
-}>()
+	icon: string;
+	label: string;
+	value: string;
+}>();
 
-defineEmits(['click'])
+defineEmits(["click"]);
 </script>

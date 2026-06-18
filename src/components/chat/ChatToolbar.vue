@@ -91,16 +91,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { IonIcon } from "@ionic/vue";
-import { mdiCog, mdiDotsHorizontal, mdiChevronRight } from "@mdi/js";
+import { IonButton, IonIcon } from "@ionic/vue";
+import { mdiChevronRight, mdiCog, mdiDotsHorizontal } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import {
 	hydrateCustomization,
-	resolveTheme,
-	resolveFontFamily,
 	resolveFontEffectClass,
+	resolveFontFamily,
+	resolveTheme,
 	resolveTitle,
 } from "@/config/profile_options.config";
 

@@ -28,7 +28,6 @@
         key="empty"
         class="bg-tertiary rounded-[2rem] p-6 border border-dashed border-primary/60 flex flex-col items-center justify-center text-center shadow-sm"
       >
-        <span class="text-2xl mb-1.5 opacity-40 animate-bounce duration-1000">✨</span>
         <p class="cabin-sketch-regular text-base font-black text-black/50 tracking-tight">
           Your creative workspace is clean!
         </p>

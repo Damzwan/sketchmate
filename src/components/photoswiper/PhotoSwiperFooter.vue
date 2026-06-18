@@ -186,8 +186,6 @@ async function openOverflow() {
 		});
 	}
 
-	buttons.push({ text: "Cancel", role: "cancel" });
-
 	const sheet = await actionSheetController.create({
 		header: props.type === "post" ? "Post Options" : "Drawing Options",
 		cssClass: "normal-action-sheet",

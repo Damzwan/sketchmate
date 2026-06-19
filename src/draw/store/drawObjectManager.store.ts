@@ -54,8 +54,14 @@ const BIG_OBJECT_TILE_THRESHOLD = 9;
 const PATCH_RATE_WINDOW = 100;
 const PATCH_RATE_MAX = 8;
 
+const ERASE_TIERS_COARSER = 2;
+const IDLE_REBAKE_BUDGET = IS_LOW_END ? 6 : IS_MOBILE ? 10 : 18;
+const ERASE_PRECISE_REBAKE = true; // see caveats; set false for delete-erasers w/ async GC
+
 export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	let c: Canvas | undefined = undefined;
+	let idleRebakeKeys = new Set<string>();
+	let idleRebakeHandle: any = null;
 
 	const objectMap = new Map<string, FabricObject>();
 	const quadtree = new InfiniteQuadtreeManager<FabricObject>();
@@ -112,6 +118,11 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			patchScheduled = false;
 			additiveQueue.length = 0;
 			pendingModifies.clear();
+			idleRebakeKeys.clear();
+			if (idleRebakeHandle !== null) {
+				(window as any).cancelIdleCallback?.(idleRebakeHandle);
+				idleRebakeHandle = null;
+			}
 		}
 	}
 
@@ -490,7 +501,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		prefetchBakeController = ctrl;
 		const bounds = { ...coarseBakedBounds };
 		tileCache
-			.bakeRect(bounds, 0, prefetchYielder, ctrl.signal)
+			.bakePyramid(bounds, 0, prefetchYielder, ctrl.signal)
 			.then(() => {
 				if (prefetchBakeController === ctrl) prefetchBakeController = null;
 			})
@@ -932,18 +943,18 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		{ on: "flip", handler: (e: any) => handleStyleChange(e) },
 		{
 			on: "erasing:end",
-
 			handler: (e: any) => {
 				if (isLoading()) return;
-
-				const dirty = e.detail?.dirtyRect;
-
-				if (dirty) {
-					scheduleRectPatch(dirty);
+				const d = e.detail ?? {};
+				if (d.path && c && d.dirtyRect) {
+					subtractiveErase(d.path, d.dirtyRect, !!d.selective); // d.path = the eraser stroke
 					return;
 				}
-
-				scheduleObjectsPatch(e.detail.targets);
+				if (d.dirtyRect) {
+					scheduleRectPatch(d.dirtyRect);
+					return;
+				}
+				if (d.targets) scheduleObjectsPatch(d.targets);
 			},
 		},
 	];
@@ -1241,6 +1252,136 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			w: x2 - x1,
 			h: y2 - y1,
 		};
+	}
+
+	function subtractRect(a: WorldRect, b: WorldRect): WorldRect[] {
+		if (!rectsIntersect(a, b)) return [a];
+		const ax2 = a.x + a.w,
+			ay2 = a.y + a.h;
+		const bx1 = Math.max(a.x, b.x),
+			by1 = Math.max(a.y, b.y);
+		const bx2 = Math.min(ax2, b.x + b.w),
+			by2 = Math.min(ay2, b.y + b.h);
+		const out: WorldRect[] = [];
+		if (by1 > a.y) out.push({ x: a.x, y: a.y, w: a.w, h: by1 - a.y }); // top
+		if (by2 < ay2) out.push({ x: a.x, y: by2, w: a.w, h: ay2 - by2 }); // bottom
+		if (bx1 > a.x) out.push({ x: a.x, y: by1, w: bx1 - a.x, h: by2 - by1 }); // left
+		if (bx2 < ax2) out.push({ x: bx2, y: by1, w: ax2 - bx2, h: by2 - by1 }); // right
+		return out.filter((r) => r.w > 0 && r.h > 0);
+	}
+
+	function eraseTierSet(activeTier: number): number[] {
+		const tiers = [activeTier];
+		for (
+			let t = activeTier - 1;
+			t >= Math.max(0, activeTier - ERASE_TIERS_COARSER);
+			t--
+		)
+			tiers.push(t);
+		if (activeTier + 1 < tileCache.ZOOM_TIERS.length)
+			tiers.push(activeTier + 1);
+		return tiers;
+	}
+
+	// Render the eraser stroke object with destination-out. Mirrors
+	// isolatedTileRenderer (null the canvas, disable caching) but forces the
+	// composite op so it survives Fabric's internal compositing setup.
+	function makeEraserRenderer(eraserObj: FabricObject) {
+		return (ctx: OffscreenCanvasRenderingContext2D) => {
+			const prevCanvas = (eraserObj as any).canvas;
+			const prevCaching = eraserObj.objectCaching;
+			const prevGco = (eraserObj as any).globalCompositeOperation;
+			// @ts-ignore
+			eraserObj.canvas = null;
+			eraserObj.objectCaching = false;
+			eraserObj.dirty = true;
+			(eraserObj as any).globalCompositeOperation = "destination-out";
+			try {
+				eraserObj.render(ctx as unknown as CanvasRenderingContext2D);
+			} catch (err) {
+				console.warn("[Erase] eraser render failed", err);
+			} finally {
+				(eraserObj as any).globalCompositeOperation = prevGco;
+				eraserObj.objectCaching = prevCaching;
+				// @ts-ignore
+				eraserObj.canvas = prevCanvas;
+			}
+		};
+	}
+
+	function subtractiveErase(
+		eraserObj: FabricObject,
+		rect: WorldRect,
+		selective: boolean,
+	) {
+		if (!c) return;
+		const zoom = c.viewportTransform![0];
+		const activeTier = tileCache.pickActiveTier(zoom);
+		const eraseTiers = eraseTierSet(activeTier);
+		const viewport = getViewportRectPadded(c);
+		const inView = intersectRect(rect, viewport);
+
+		if (inView) {
+			if (!selective) {
+				// Exact: same destination-out @erase2d itself uses → no rebake needed.
+				tileCache.subtractStrokeFromTiles(
+					makeEraserRenderer(eraserObj),
+					inView,
+					eraseTiers,
+				);
+				requestRenderMain();
+			} else {
+				// Selective: don't over-erase. Precisely rebake affected EXISTING tiles
+				// in idle (re-renders the now-clipped objects). Tiles stay fresh until
+				// overwritten → brief un-erase delay, never a wrong-erase flicker.
+				for (const k of tileCache.existingTileKeysForRect(inView, eraseTiers))
+					idleRebakeKeys.add(k);
+				scheduleIdleRebake();
+			}
+		}
+
+		const erasedSet = new Set(eraseTiers);
+		const otherTiers: number[] = [];
+		for (let t = 0; t < tileCache.ZOOM_TIERS.length; t++)
+			if (!erasedSet.has(t)) otherTiers.push(t);
+		tileCache.invalidateRectTiers(rect, otherTiers);
+		for (const part of subtractRect(rect, viewport))
+			tileCache.invalidateRectTiers(part, eraseTiers);
+
+		scheduleBake();
+	}
+
+	function scheduleIdleRebake() {
+		if (idleRebakeHandle !== null || idleRebakeKeys.size === 0) return;
+		const ric: (cb: any) => any =
+			(window as any).requestIdleCallback ||
+			((cb: any) => setTimeout(() => cb({ timeRemaining: () => 8 }), 16));
+		idleRebakeHandle = ric(processIdleRebake);
+	}
+
+	function processIdleRebake(deadline?: { timeRemaining: () => number }) {
+		idleRebakeHandle = null;
+		if (!c || isLoading()) {
+			idleRebakeKeys.clear();
+			return;
+		}
+		const gs = useGestureStore();
+		if (gs.isGesturing || localTransform.isActive()) {
+			setTimeout(scheduleIdleRebake, 120); // don't fight a live gesture/drag
+			return;
+		}
+		let processed = 0;
+		for (const key of Array.from(idleRebakeKeys)) {
+			const timeLeft = deadline
+				? deadline.timeRemaining()
+				: IDLE_REBAKE_BUDGET - processed;
+			if (processed >= IDLE_REBAKE_BUDGET || timeLeft <= 2) break;
+			tileCache.rebakeTileKeys([key], 1);
+			idleRebakeKeys.delete(key);
+			processed++;
+		}
+		if (processed > 0) requestRenderMain();
+		if (idleRebakeKeys.size > 0) scheduleIdleRebake();
 	}
 
 	return {

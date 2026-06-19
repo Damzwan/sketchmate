@@ -700,6 +700,311 @@ export class TileCache<T extends Bounded> {
 		}
 	}
 
+	// ─────────────────────────────────────────────────────────────────────
+	// MIPMAP PYRAMID
+	//
+	// Tiers are exactly 2:1, so a coarse tile (tier T) maps onto a 2×2 block
+	// of finer children (tier T+1): parent (tx,ty) ← (2tx..2tx+1, 2ty..2ty+1).
+	// Build the coarse tile by downscaling those 4 already-baked bitmaps
+	// instead of re-querying + re-rendering every object inside it.
+	// ─────────────────────────────────────────────────────────────────────
+
+	/**
+	 * Build a single tile by downscaling its 2×2 finer children.
+	 * Returns true only if every quadrant is covered by a present, fresh child
+	 * (a null-bitmap child counts as a valid EMPTY quadrant). Otherwise returns
+	 * false and the caller should vector-render the tile.
+	 */
+	private tryBuildTileFromChildren(
+		tier: number,
+		tx: number,
+		ty: number,
+	): boolean {
+		const childTier = tier + 1;
+		if (childTier >= this.ZOOM_TIERS.length) return false; // already finest
+
+		const children: Array<{
+			bitmap: ImageBitmap | null;
+			dx: number;
+			dy: number;
+		}> = [];
+		for (let dy = 0; dy < 2; dy++) {
+			for (let dx = 0; dx < 2; dx++) {
+				const ckey = `${childTier}:${tx * 2 + dx}:${ty * 2 + dy}`;
+				const child = this.tiles.get(ckey);
+				if (!child || !this.isFresh(ckey, child)) return false; // incomplete → bail
+				children.push({ bitmap: child.bitmap, dx, dy });
+				child.lastUsed = performance.now();
+			}
+		}
+
+		const key = `${tier}:${tx}:${ty}`;
+		const tileGen = this.tileGen.get(key) ?? 0;
+
+		// All four empty → store an empty tile (mirrors bakeTileSync's empty path).
+		if (!children.some((c) => c.bitmap !== null)) {
+			const existing = this.tiles.get(key);
+			if (existing) {
+				this.closeBitmap(existing.bitmap);
+				this.memoryBytes -= existing.bytes;
+			}
+			this.tiles.set(key, {
+				bitmap: null,
+				tier,
+				tx,
+				ty,
+				bytes: 4,
+				lastUsed: performance.now(),
+				gen: tileGen,
+				patchCount: 0,
+			});
+			this.memoryBytes += 4;
+			return true;
+		}
+
+		const off = this.acquireCanvas();
+		const c2d = off.getContext("2d");
+		if (!c2d) {
+			this.releaseCanvas(off);
+			return false;
+		}
+		c2d.setTransform(1, 0, 0, 1, 0, 0);
+		c2d.clearRect(0, 0, this.BITMAP_SIZE, this.BITMAP_SIZE);
+		c2d.imageSmoothingEnabled = true;
+		// @ts-ignore
+		c2d.imageSmoothingQuality = "high";
+
+		const OS = this.OVERSCAN;
+		const TS = this.TILE_SIZE;
+		const HALF = TS / 2;
+		// Each child CORE (TS×TS, offset past its overscan) → a HALF×HALF quadrant
+		// of the parent core. Parent's own 2px overscan ring is left transparent;
+		// invisible at coarse zoom and covered by neighbour-tile overscan.
+		for (const ch of children) {
+			if (!ch.bitmap) continue;
+			c2d.drawImage(
+				ch.bitmap,
+				OS,
+				OS,
+				TS,
+				TS, // src: child core
+				OS + ch.dx * HALF,
+				OS + ch.dy * HALF,
+				HALF,
+				HALF, // dst: parent quadrant
+			);
+		}
+
+		let bitmap: ImageBitmap;
+		try {
+			// @ts-ignore
+			bitmap = off.transferToImageBitmap();
+		} catch {
+			this.releaseCanvas(off);
+			return false;
+		}
+		this.releaseCanvas(off); // transferToImageBitmap reset the canvas → reusable
+
+		const bytes = this.BITMAP_SIZE * this.BITMAP_SIZE * 4;
+		if (!this.ensureMemory(bytes)) {
+			bitmap.close();
+			return false;
+		}
+
+		const existing = this.tiles.get(key);
+		if (existing) {
+			this.closeBitmap(existing.bitmap);
+			this.memoryBytes -= existing.bytes;
+		}
+		this.tiles.set(key, {
+			bitmap,
+			tier,
+			tx,
+			ty,
+			bytes,
+			lastUsed: performance.now(),
+			gen: tileGen,
+			patchCount: 0,
+		});
+		this.memoryBytes += bytes;
+		return true;
+	}
+
+	private rectsOverlap(a: WorldRect, b: WorldRect): boolean {
+		return (
+			a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+		);
+	}
+
+	/** Highest tier index with ≥1 fresh tile intersecting worldRect, or -1. */
+	private finestPopulatedTier(worldRect: WorldRect): number {
+		let best = -1;
+		for (const [key, tile] of this.tiles) {
+			if (tile.tier <= best) continue;
+			if (!this.isFresh(key, tile)) continue;
+			const w = this.tileToWorld(tile.tier, tile.tx, tile.ty);
+			if (this.rectsOverlap(w, worldRect)) best = tile.tier;
+		}
+		return best;
+	}
+
+	/**
+	 * Build a coarse pyramid over worldRect down to targetTier (usually 0).
+	 * Processes FINE→COARSE so children are ready when each parent builds.
+	 * Per tile: try downscaling its children; only vector-render (bakeTile)
+	 * when children are incomplete. This is what replaces the old, brutal
+	 * "vector-render every object into tier 0" coarse bake.
+	 */
+	async bakePyramid(
+		worldRect: WorldRect,
+		targetTier: number,
+		yielder: Yielder,
+		signal: AbortSignal,
+	): Promise<void> {
+		const gen = this.currentGen;
+		const src = this.finestPopulatedTier(worldRect);
+		if (src <= targetTier) return; // nothing finer to downscale from
+		yielder.reset();
+		for (let tier = src - 1; tier >= targetTier; tier--) {
+			const range = this.tileRangeForWorld(worldRect, tier);
+			for (let ty = range.ty0; ty <= range.ty1; ty++) {
+				for (let tx = range.tx0; tx <= range.tx1; tx++) {
+					if (signal.aborted || gen !== this.currentGen) return;
+					const key = `${tier}:${tx}:${ty}`;
+					const existing = this.tiles.get(key);
+					if (existing && this.isFresh(key, existing)) continue; // already good
+					if (!this.tryBuildTileFromChildren(tier, tx, ty)) {
+						await this.bakeTile(tier, tx, ty, signal, gen); // vector fallback
+					}
+					if (yielder.shouldYield()) await yielder.yield();
+				}
+			}
+		}
+	}
+
+	// ─────────────────────────────────────────────────────────────────────
+	// SUBTRACTIVE ERASE
+	//
+	// Erase by compositing the eraser stroke onto existing tile bitmaps with
+	// `destination-out` — no index.query, no per-object re-render. Tiles are
+	// modified in place and kept FRESH (gen untouched) so composite() shows it
+	// immediately with no fallback flash. `renderEraser(ctx, scale)` paints the
+	// eraser geometry in WORLD coords (same space object.render uses); the tile
+	// transform, clip, and composite op are already set up here.
+	// ─────────────────────────────────────────────────────────────────────
+
+	public subtractStrokeFromTiles(
+		renderEraser: (
+			ctx: OffscreenCanvasRenderingContext2D,
+			scale: number,
+		) => void,
+		worldRect: WorldRect,
+		tiers: number[],
+	): { erased: number; touchedTiles: string[] } {
+		const touched: string[] = [];
+		let erased = 0;
+		for (const tier of tiers) {
+			if (tier < 0 || tier >= this.ZOOM_TIERS.length) continue;
+			const scale = this.ZOOM_TIERS[tier];
+			const overscanWorld = this.OVERSCAN / scale;
+			const stroke = 4 / scale;
+			const totalPadWorld = overscanWorld + stroke;
+			const range = this.tileRangeForWorld(worldRect, tier);
+			for (let ty = range.ty0; ty <= range.ty1; ty++) {
+				for (let tx = range.tx0; tx <= range.tx1; tx++) {
+					const key = `${tier}:${tx}:${ty}`;
+					const tile = this.tiles.get(key);
+					// Only touch tiles that exist, are fresh, and have pixels to remove.
+					if (!tile || !this.isFresh(key, tile) || tile.bitmap === null)
+						continue;
+					const world = this.tileToWorld(tier, tx, ty);
+					const off = this.acquireCanvas();
+					const c2d = off.getContext("2d");
+					if (!c2d) {
+						this.releaseCanvas(off);
+						continue;
+					}
+					c2d.setTransform(1, 0, 0, 1, 0, 0);
+					c2d.clearRect(0, 0, this.BITMAP_SIZE, this.BITMAP_SIZE);
+					c2d.drawImage(tile.bitmap, 0, 0); // lay down existing pixels (source-over)
+					c2d.save();
+					c2d.translate(this.OVERSCAN, this.OVERSCAN);
+					c2d.scale(scale, scale);
+					c2d.translate(-world.x, -world.y);
+					c2d.beginPath();
+					c2d.rect(
+						world.x - totalPadWorld,
+						world.y - totalPadWorld,
+						world.w + 2 * totalPadWorld,
+						world.h + 2 * totalPadWorld,
+					);
+					c2d.clip();
+					c2d.globalCompositeOperation = "destination-out";
+					try {
+						renderEraser(c2d as any, scale);
+					} catch (err) {
+						if (this.debug) console.warn("[TileCache] eraser threw", err);
+						c2d.restore();
+						this.releaseCanvas(off);
+						continue;
+					}
+					c2d.restore();
+					let newBitmap: ImageBitmap;
+					try {
+						// @ts-ignore
+						newBitmap = off.transferToImageBitmap();
+					} catch {
+						this.releaseCanvas(off);
+						continue;
+					}
+					this.closeBitmap(tile.bitmap);
+					tile.bitmap = newBitmap;
+					tile.lastUsed = performance.now();
+					tile.patchCount += 1;
+					this.releaseCanvas(off);
+					touched.push(key);
+					erased++;
+				}
+			}
+		}
+		return { erased, touchedTiles: touched };
+	}
+
+	/** Gen-bump specific tiers over a rect (leaves other tiers alone). */
+	public invalidateRectTiers(worldRect: WorldRect, tiers: number[]): void {
+		for (const tier of tiers) {
+			if (tier < 0 || tier >= this.ZOOM_TIERS.length) continue;
+			const range = this.tileRangeForWorld(worldRect, tier);
+			for (let ty = range.ty0; ty <= range.ty1; ty++) {
+				for (let tx = range.tx0; tx <= range.tx1; tx++) {
+					const key = `${tier}:${tx}:${ty}`;
+					this.tileGen.set(key, (this.tileGen.get(key) ?? 0) + 1);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Precisely rebake up to `budget` tile keys (re-query + re-render). Stays
+	 * fresh (bakeTileSync sets gen = current), so no flash. Used by the idle
+	 * correction pass after a subtractive erase. Returns count rebaked.
+	 */
+	public rebakeTileKeys(keys: string[], budget: number): number {
+		let done = 0;
+		for (const key of keys) {
+			if (done >= budget) break;
+			const parts = key.split(":");
+			const tier = +parts[0],
+				tx = +parts[1],
+				ty = +parts[2];
+			if (!isFinite(tier) || tier < 0 || tier >= this.ZOOM_TIERS.length)
+				continue;
+			this.bakeTileSync(tier, tx, ty, this.ZOOM_TIERS[tier]);
+			done++;
+		}
+		return done;
+	}
+
 	private additivelyPatchTileBatch(
 		tier: number,
 		tx: number,
@@ -1182,6 +1487,26 @@ export class TileCache<T extends Bounded> {
 		return report;
 	}
 
+	public existingTileKeysForRect(
+		worldRect: WorldRect,
+		tiers: number[],
+	): string[] {
+		const keys: string[] = [];
+		const seen = new Set<string>();
+		for (const tier of tiers) {
+			if (tier < 0 || tier >= this.ZOOM_TIERS.length) continue;
+			const range = this.tileRangeForWorld(worldRect, tier);
+			for (let ty = range.ty0; ty <= range.ty1; ty++)
+				for (let tx = range.tx0; tx <= range.tx1; tx++) {
+					const k = `${tier}:${tx}:${ty}`;
+					if (seen.has(k)) continue;
+					seen.add(k);
+					if (this.tiles.has(k)) keys.push(k);
+				}
+		}
+		return keys;
+	}
+
 	private async bakeTile(
 		tier: number,
 		tx: number,
@@ -1190,6 +1515,7 @@ export class TileCache<T extends Bounded> {
 		gen: number,
 	): Promise<boolean> {
 		if (signal.aborted || gen !== this.currentGen) return false;
+		if (this.tryBuildTileFromChildren(tier, tx, ty)) return true;
 		const scale = this.ZOOM_TIERS[tier];
 		const world = this.tileToWorld(tier, tx, ty);
 		const overscanWorld = this.OVERSCAN / scale;

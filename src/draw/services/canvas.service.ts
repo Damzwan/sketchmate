@@ -53,7 +53,7 @@ export function useCanvasService() {
 		initViewport(c);
 		loadFonts();
 
-		const z = getDefaultZoom(c);
+		const z = 2;
 		const initX = (c.width - CANVAS_SIZE * z) / 2;
 		const initY = (c.height - CANVAS_SIZE * z) / 2;
 		c.setViewportTransform([z, 0, 0, z, initX, initY]);

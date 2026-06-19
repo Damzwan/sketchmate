@@ -403,6 +403,7 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 			const targets: FabricObject[] = e.detail.targets || [];
 
 			e.detail.deletedObjects = [];
+			e.detail.selective = isPublicLobby;
 			c!.fire("erasing:end", e as any);
 
 			enqueueErasedCheck(targets, e.detail.path);

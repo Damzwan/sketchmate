@@ -2,6 +2,27 @@ import * as fabric from "fabric";
 import { Canvas, FabricObject, Group, Path, PencilBrush } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
 
+function clonePathSync(source: any): fabric.Path {
+	if (!(source instanceof OptimizedEraserStroke)) {
+		throw new Error("Fallback async clone needed for standard paths");
+	}
+	const clone = new OptimizedEraserStroke(source.path!, {
+		fill: source.fill,
+		strokeWidth: source.strokeWidth,
+		strokeLineCap: source.strokeLineCap,
+		strokeMiterLimit: source.strokeMiterLimit,
+		strokeLineJoin: source.strokeLineJoin,
+		strokeDashArray: source.strokeDashArray,
+		stroke: source.stroke,
+		opacity: source.opacity,
+		globalCompositeOperation: source.globalCompositeOperation,
+	});
+	if (source.shadow) clone.shadow = new fabric.Shadow(source.shadow as any);
+
+	clone.id = (source as any).id;
+	return clone;
+}
+
 function isPrimaryPointer(ev: Event | undefined): boolean {
 	if (!ev) return true;
 
@@ -237,7 +258,10 @@ export async function eraseObject(
 	object: fabric.FabricObject,
 	source: fabric.Path,
 ) {
-	const clone = await source.clone();
+	const clone = source instanceof OptimizedEraserStroke
+		? clonePathSync(source)
+		: await source.clone();
+
 	fabric.util.sendObjectToPlane(clone, undefined, object.calcTransformMatrix());
 	commitErasing(object, clone);
 	return clone;
@@ -248,7 +272,9 @@ export async function eraseCanvasDrawable(
 	vpt: fabric.TMat2D | undefined,
 	source: fabric.Path,
 ) {
-	const clone = await source.clone();
+	const clone = source instanceof OptimizedEraserStroke
+		? clonePathSync(source)
+		: await source.clone();
 	const d =
 		vpt &&
 		object.translateToOriginPoint(

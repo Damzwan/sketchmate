@@ -168,7 +168,7 @@
               Revert
             </ion-button>
             <ion-button shape="round" color="secondary" class="mb-4" :disabled="isSaving" @click="save">
-              {{ isSaving ? 'Saving...' : 'Save Look ✓' }}
+              {{ isSaving ? 'Saving...' : 'Save ✓' }}
             </ion-button>
           </div>
         </transition>

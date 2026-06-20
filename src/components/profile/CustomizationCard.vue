@@ -148,7 +148,7 @@
             </ion-button>
             <ion-button shape="round" color="secondary"
                         @click="$emit('save', draft)">
-              Save Look ✓
+              Save ✓
             </ion-button>
           </div>
         </transition>

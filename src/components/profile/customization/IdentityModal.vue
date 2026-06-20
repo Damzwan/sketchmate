@@ -9,7 +9,7 @@
       <ProfilePictureSelector
         :img="displayImg"
         :customization="customization"
-        @update:img="handleImgUpdate"
+        @update:img="uploadImage"
         class="mb-6"
       />
 
@@ -66,83 +66,83 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import dayjs from "dayjs";
-import { IonButton, IonIcon, IonInput, IonTextarea } from "@ionic/vue";
-import { mdiAlertCircleOutline, mdiClockOutline } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { useSubscriptionStore } from "@/store/subscription.store";
-import ProfilePictureSelector from "@/components/account/ProfilePictureSelector.vue";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue"; // Adjust path as necessary
+import { computed, ref, watch } from 'vue'
+import dayjs from 'dayjs'
+import { IonButton, IonIcon, IonInput, IonTextarea } from '@ionic/vue'
+import { mdiAlertCircleOutline, mdiClockOutline } from '@mdi/js'
+import { svg } from '@/helper/general.helper'
+import { useSubscriptionStore } from '@/store/subscription.store'
+import ProfilePictureSelector from '@/components/account/ProfilePictureSelector.vue'
+import BaseSheetModal from '@/components/general/BaseSheetModal.vue' // Adjust path as necessary
 import {
-	NAME_CHANGE_COOLDOWN_DAYS,
-	type Customization,
-} from "@/config/profile_options.config";
+  NAME_CHANGE_COOLDOWN_DAYS,
+  type Customization
+} from '@/config/profile_options.config'
+import { useProfileUpload } from '@/composables/general/useProfileUpload'
 
 const props = defineProps<{
-	isOpen: boolean;
-	user: any;
-	customization: Partial<Customization>;
-	initialName: string;
-	initialDesc: string;
-	previewImg: string | null;
-}>();
+  isOpen: boolean;
+  user: any;
+  customization: Partial<Customization>;
+  initialName: string;
+  initialDesc: string;
+  previewImg: string | null;
+}>()
 
-const emit = defineEmits(["close", "save"]);
-const subStore = useSubscriptionStore();
+const emit = defineEmits(['close', 'save'])
+const subStore = useSubscriptionStore()
 
-const localName = ref(props.initialName);
-const localDesc = ref(props.initialDesc);
-const localImg = ref<string | null>(null);
+const localName = ref(props.initialName)
+const localDesc = ref(props.initialDesc)
+const localImg = ref<string | null>(null)
 
 const displayImg = computed(
-	() => localImg.value ?? props.previewImg ?? props.user.img,
-);
+  () => localImg.value ?? props.previewImg ?? props.user.img
+)
 
 watch(
-	() => props.isOpen,
-	(open) => {
-		if (open) {
-			localName.value = props.initialName;
-			localDesc.value = props.initialDesc;
-			localImg.value = null;
-		}
-	},
-);
+  () => props.isOpen,
+  (open) => {
+    if (open) {
+      localName.value = props.initialName
+      localDesc.value = props.initialDesc
+      localImg.value = null
+    }
+  }
+)
 
 // Cooldown Logic
-const isPro = computed(() => subStore.isPro);
+const isPro = computed(() => subStore.isPro)
 const daysRemaining = computed(() => {
-	if (!props.user?.last_name_change) return 0;
-	const diff =
-		NAME_CHANGE_COOLDOWN_DAYS -
-		dayjs().diff(dayjs(props.user.last_name_change), "day");
-	return diff > 0 ? diff : 0;
-});
+  if (!props.user?.last_name_change) return 0
+  const diff =
+    NAME_CHANGE_COOLDOWN_DAYS -
+    dayjs().diff(dayjs(props.user.last_name_change), 'day')
+  return diff > 0 ? diff : 0
+})
 const isNameChangeLocked = computed(
-	() => !isPro.value && daysRemaining.value > 0,
-);
+  () => !isPro.value && daysRemaining.value > 0
+)
 const hasNameChanged = computed(
-	() => localName.value.trim() !== props.user?.name,
-);
+  () => localName.value.trim() !== props.user?.name
+)
 
-const handleImgUpdate = (base64: string) => {
-	localImg.value = base64;
-};
+const { uploadImage } = useProfileUpload()
+
 
 const confirm = () => {
-	emit("save", {
-		name: localName.value.trim(),
-		description: localDesc.value.trim(),
-		img: localImg.value,
-	});
-};
+  emit('save', {
+    name: localName.value.trim(),
+    description: localDesc.value.trim(),
+    img: localImg.value
+  })
+}
 
-const handleDismiss = () => emit("close");
+const handleDismiss = () => emit('close')
 </script>
 
 <style scoped>
-ion-input{
+ion-input {
   --padding-end: 10px;
 }
 </style>

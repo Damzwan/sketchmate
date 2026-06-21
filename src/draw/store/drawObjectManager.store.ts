@@ -79,9 +79,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     }
     return zIndexMap;
   }
-  function invalidateZIndex() {
-    isZIndexDirty = true;
-  }
+  function invalidateZIndex() { isZIndexDirty = true; }
 
   function addToQuadTree(obj: FabricObject) {
     const e = fabricObjectToEntry(obj);
@@ -90,35 +88,24 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   }
   function removeFromQuadTree(obj: FabricObject) {
     const e = entryMap.get(obj.id);
-    if (e) {
-      quadtree.remove(e);
-      entryMap.delete(obj.id);
-    }
+    if (e) { quadtree.remove(e); entryMap.delete(obj.id); }
   }
   function updateQuadTree(obj: FabricObject) {
     const e = entryMap.get(obj.id);
     if (!e) return;
     // @ts-ignore
     const b = obj.getBoundingRect(true, true);
-    e.bounds.x = b.left;
-    e.bounds.y = b.top;
-    e.bounds.w = b.width;
-    e.bounds.h = b.height;
+    e.bounds.x = b.left; e.bounds.y = b.top; e.bounds.w = b.width; e.bounds.h = b.height;
     quadtree.update(e);
   }
 
   function computeContentBounds(): WorldRect | null {
-    let x0 = Infinity,
-      y0 = Infinity,
-      x1 = -Infinity,
-      y1 = -Infinity;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const obj of objectMap.values()) {
       const b = objectBounds(obj);
       if (!isFinite(b.x) || b.w <= 0 || b.h <= 0) continue;
-      x0 = Math.min(x0, b.x);
-      y0 = Math.min(y0, b.y);
-      x1 = Math.max(x1, b.x + b.w);
-      y1 = Math.max(y1, b.y + b.h);
+      x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y);
+      x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h);
     }
     if (!isFinite(x0)) return null;
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
@@ -133,31 +120,19 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     const isTextChanged = oldText !== undefined && oldText !== (o as any).text;
     if (!transform?.original && !isTextChanged) return null;
     const cur = {
-      left: o.left,
-      top: o.top,
-      scaleX: o.scaleX,
-      scaleY: o.scaleY,
-      skewX: o.skewX,
-      skewY: o.skewY,
-      angle: o.angle,
-      flipX: o.flipX,
-      flipY: o.flipY,
-      originX: o.originX,
-      originY: o.originY,
-      text: (o as any).text,
+      left: o.left, top: o.top, scaleX: o.scaleX, scaleY: o.scaleY,
+      skewX: o.skewX, skewY: o.skewY, angle: o.angle, flipX: o.flipX,
+      flipY: o.flipY, originX: o.originX, originY: o.originY, text: (o as any).text,
     };
     try {
       if (transform?.original) o.set(transform.original);
-      if (isTextChanged && oldText.length > (o as any).text.length)
-        o.set({ text: oldText });
+      if (isTextChanged && oldText.length > (o as any).text.length) o.set({ text: oldText });
       o.setCoords();
       const b = objectBounds(o);
-      o.set(cur);
-      o.setCoords();
+      o.set(cur); o.setCoords();
       return b;
     } catch {
-      o.set(cur);
-      o.setCoords();
+      o.set(cur); o.setCoords();
       return null;
     }
   }
@@ -167,34 +142,20 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   function renderLive(ctx: CanvasRenderingContext2D, obj: FabricObject) {
     const prev = (obj as any).canvas;
     // @ts-ignore
-    obj.canvas = null;
-    obj.objectCaching = false;
-    obj.dirty = true;
-    try {
-      obj.render(ctx);
-    } catch {
-      /* ignore */
-    } finally {
+    obj.canvas = null; obj.objectCaching = false; obj.dirty = true;
+    try { obj.render(ctx); } catch { /* ignore */ }
       // @ts-ignore
-      obj.canvas = prev;
-    }
+    finally { obj.canvas = prev; }
   }
   // Render the eraser stroke (carries its own destination-out gco).
   function makeEraserRenderer(path: FabricObject) {
     return (ctx: any) => {
       const prev = (path as any).canvas;
       // @ts-ignore
-      path.canvas = null;
-      path.objectCaching = false;
-      path.dirty = true;
-      try {
-        path.render(ctx);
-      } catch {
-        /* ignore */
-      } finally {
+      path.canvas = null; path.objectCaching = false; path.dirty = true;
+      try { path.render(ctx); } catch { /* ignore */ }
         // @ts-ignore
-        path.canvas = prev;
-      }
+      finally { path.canvas = prev; }
     };
   }
 
@@ -202,7 +163,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   function onObjectAdded(obj: FabricObject) {
     if (!obj.id) return;
     objectMap.set(obj.id, obj);
-    if (isLoading()) return; // index rebuilt wholesale at endLoading
+    if (isLoading()) return;          // index rebuilt wholesale at endLoading
     addToQuadTree(obj);
     isZIndexDirty = true;
     core?.onObjectAdded(obj);
@@ -228,15 +189,13 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     const oldRect = collectOldRect(obj, e.transform);
     updateQuadTree(obj);
     if (isLoading()) return;
-    core.liveAdd(obj, "normal"); // smooth while a remote drag streams in
+    core.liveAdd(obj, "normal");        // smooth while a remote drag streams in
     core.onObjectChanged(obj, oldRect); // committed catches up; live demotes when ready
   }
 
   function handleStyleChange(e: any) {
     if (isLoading() || !core) return;
-    const list = (
-      Array.isArray(e.target) ? e.target : [e.target]
-    ) as FabricObject[];
+    const list = (Array.isArray(e.target) ? e.target : [e.target]) as FabricObject[];
     for (const obj of list) {
       if (!obj?.id) continue;
       updateQuadTree(obj);
@@ -250,10 +209,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     { on: "object:modified", handler: (e: any) => onObjectModified(e) },
     {
       on: "fullErase",
-      handler: () => {
-        core?.reset();
-        core?.requestFrame();
-      },
+      handler: () => { core?.reset(); core?.requestFrame(); },
     },
     {
       on: "backgroundColorChanged",
@@ -280,10 +236,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
         updateQuadTree(obj);
         if (isLoading()) return;
         core.onObjectChanged(obj, {
-          x: o.x ?? o.left,
-          y: o.y ?? o.top,
-          w: o.w ?? o.width,
-          h: o.h ?? o.height,
+          x: o.x ?? o.left, y: o.y ?? o.top, w: o.w ?? o.width, h: o.h ?? o.height,
         });
       },
     },
@@ -293,10 +246,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     { on: "flip", handler: (e: any) => handleStyleChange(e) },
     {
       on: "layer:changed",
-      handler: (e: any) => {
-        isZIndexDirty = true;
-        handleStyleChange(e);
-      },
+      handler: (e: any) => { isZIndexDirty = true; handleStyleChange(e); },
     },
     {
       on: "erasing:end",
@@ -334,9 +284,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
         overviewPx: IS_LOW_END ? 1024 : 2048,
         overviewTier: 2,
         liveMax: IS_LOW_END ? 32 : 64,
-        afterComposite: () => {
-          if (c) rerenderActiveObjectControls(c);
-        },
+        afterComposite: () => { if (c) rerenderActiveObjectControls(c); },
       },
     );
 
@@ -357,42 +305,30 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     const objs = c!.getObjects();
     for (let i = objs.length - 1; i >= 0; i--) {
       const obj = objs[i];
-      if (isBlocked(obj.userId)) {
-        c?.remove(obj);
-        continue;
-      }
-      if (obj.id) {
-        objectMap.set(obj.id, obj);
-        addToQuadTree(obj);
-      }
+      if (isBlocked(obj.userId)) { c?.remove(obj); continue; }
+      if (obj.id) { objectMap.set(obj.id, obj); addToQuadTree(obj); }
     }
   }
 
   // ── gesture / frame ──────────────────────────────────────────────────────
-  function renderMain() {
-    core?.requestFrame();
-  }
-  function renderViewport() {
-    core?.requestFrame();
-  }
+  function renderMain() { core?.requestFrame(); }
+  function renderViewport() { core?.requestFrame(); }
 
   function onGestureStart() {
     if (!c || !core) return;
     if (localTransform.isActive()) localTransform.commit(c);
     core.setGesturing(true);
   }
-  function onGestureEnd() {
-    core?.setGesturing(false);
-  }
+  function onGestureEnd() { core?.setGesturing(false); }
 
   // Erase: suspend compositing while the brush owns the canvas, resume on end.
-  function setErasing(on: boolean) {
-    core?.setErasing(on);
-  }
+  function setErasing(on: boolean) { core?.setErasing(on); }
 
-  function recordPanDelta(_dx: number, _dy: number) {
-    /* directional prefetch retired */
-  }
+  // Destructively drop a region's tiles (no stale-exact ghost). Used by the
+  // drag controller for the OLD footprint of a moved selection.
+  function dropRegion(rect: WorldRect) { core?.dropRegion(rect); }
+
+  function recordPanDelta(_dx: number, _dy: number) { /* directional prefetch retired */ }
 
   // ── loading ──────────────────────────────────────────────────────────────
   function beginLoading() {
@@ -416,9 +352,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   function purgeBlockedObjects() {
     const { isBlocked } = useFriendStore();
     const toRemove: FabricObject[] = [];
-    objectMap.forEach((o) => {
-      if (isBlocked(o.userId)) toRemove.push(o);
-    });
+    objectMap.forEach((o) => { if (isBlocked(o.userId)) toRemove.push(o); });
     if (!toRemove.length) return;
     for (const obj of toRemove) {
       if (obj.id) {
@@ -434,20 +368,12 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
   // ── public query API (unchanged behaviour) ───────────────────────────────
   function query(rect: WorldRect): FabricObject[] {
-    return quadtree
-      .query(rect)
-      .map((e) => objectMap.get(e.id))
-      .filter(Boolean) as FabricObject[];
+    return quadtree.query(rect).map((e) => objectMap.get(e.id)).filter(Boolean) as FabricObject[];
   }
   function getVisibleObjects(): FabricObject[] {
-    return quadtree
-      .query(getViewportRect(c!))
-      .map((e) => objectMap.get(e.id))
-      .filter(Boolean) as FabricObject[];
+    return quadtree.query(getViewportRect(c!)).map((e) => objectMap.get(e.id)).filter(Boolean) as FabricObject[];
   }
-  function getObjectById(id: string) {
-    return objectMap.get(id);
-  }
+  function getObjectById(id: string) { return objectMap.get(id); }
   function getObjectsById(ids: string[]): FabricObject[] {
     return ids.map((id) => objectMap.get(id)).filter(Boolean) as FabricObject[];
   }
@@ -470,18 +396,12 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
   // ── compatibility shims for external callers ─────────────────────────────
   // Other modules still call these; they now just mark a region dirty.
-  function scheduleRectPatch(rect: WorldRect) {
-    core?.markDirty(rect);
-  }
-  function scheduleObjectPatch(obj: FabricObject) {
-    core?.markDirty(objectBounds(obj));
-  }
+  function scheduleRectPatch(rect: WorldRect) { core?.markDirty(rect); }
+  function scheduleObjectPatch(obj: FabricObject) { core?.markDirty(objectBounds(obj)); }
   // There is no synchronous patch flush any more (no in-place patching); the
   // committed state is eventually-consistent. For pixel-exact EXPORTS, render
   // the fabric canvas directly rather than relying on tiles.
-  function flushPatchesNow(_force = false) {
-    core?.requestFrame();
-  }
+  function flushPatchesNow(_force = false) { core?.requestFrame(); }
 
   // Used by transformController to hide its GPU drag layer only AFTER the new
   // position has actually baked — no fixed-rAF guess, no empty-gap flash.
@@ -513,5 +433,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     flushPatchesNow,
     isRegionBaked,
     setErasing,
+    dropRegion,
   };
 });

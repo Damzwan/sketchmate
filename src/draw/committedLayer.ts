@@ -23,12 +23,7 @@
 
 import { WorldOverview } from "./worldOverview";
 
-export interface WorldRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+export interface WorldRect { x: number; y: number; w: number; h: number; }
 
 export interface Bounded {
   id: string;
@@ -57,9 +52,7 @@ export interface Yieldable {
 
 interface Tile {
   bitmap: ImageBitmap | null; // null = baked-empty (no content in region)
-  tier: number;
-  tx: number;
-  ty: number;
+  tier: number; tx: number; ty: number;
   bytes: number;
   builtGen: number;
   lastUsed: number;
@@ -111,9 +104,8 @@ export class CommittedLayer<T extends Bounded> {
     this.TILE = opts.tileSize ?? 512;
     this.OS = Math.max(0, opts.overscanPx ?? 2);
     this.BMP = this.TILE + 2 * this.OS;
-    this.ZOOM_TIERS = opts.zoomTiers ?? [
-      0.03125, 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32,
-    ];
+    this.ZOOM_TIERS = opts.zoomTiers ??
+      [0.03125, 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32];
     this.MEM_HARD = (opts.memoryBudgetMB ?? 256) * 1024 * 1024;
     this.OVERVIEW_TIER = opts.overviewTier ?? 2;
     this.CHUNK = opts.renderChunk ?? 64;
@@ -139,10 +131,8 @@ export class CommittedLayer<T extends Bounded> {
   private tileRange(r: WorldRect, tier: number) {
     const tws = this.TILE / this.ZOOM_TIERS[tier];
     return {
-      tx0: Math.floor(r.x / tws),
-      ty0: Math.floor(r.y / tws),
-      tx1: Math.floor((r.x + r.w) / tws),
-      ty1: Math.floor((r.y + r.h) / tws),
+      tx0: Math.floor(r.x / tws), ty0: Math.floor(r.y / tws),
+      tx1: Math.floor((r.x + r.w) / tws), ty1: Math.floor((r.y + r.h) / tws),
     };
   }
   private tileToWorld(tier: number, tx: number, ty: number): WorldRect {
@@ -152,17 +142,11 @@ export class CommittedLayer<T extends Bounded> {
   private isFresh(key: string, t: Tile): boolean {
     return t.builtGen === (this.gen.get(key) ?? 0);
   }
-  private viewWorld(
-    vpt: number[],
-    px: { w: number; h: number },
-    dpr: number,
-  ): WorldRect {
+  private viewWorld(vpt: number[], px: { w: number; h: number }, dpr: number): WorldRect {
     const z = vpt[0];
     return {
-      x: -vpt[4] / z,
-      y: -vpt[5] / z,
-      w: px.w / (z * dpr),
-      h: px.h / (z * dpr),
+      x: -vpt[4] / z, y: -vpt[5] / z,
+      w: px.w / (z * dpr), h: px.h / (z * dpr),
     };
   }
 
@@ -186,9 +170,7 @@ export class CommittedLayer<T extends Bounded> {
   // ── compositing (one path, no special cases) ─────────────────────────────
   composite(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-    vpt: number[],
-    px: { w: number; h: number },
-    dpr: number,
+    vpt: number[], px: { w: number; h: number }, dpr: number,
     bg?: string,
   ): { needsBake: boolean } {
     const zoom = vpt[0];
@@ -198,10 +180,7 @@ export class CommittedLayer<T extends Bounded> {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, px.w, px.h);
-    if (bg) {
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, px.w, px.h);
-    }
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, px.w, px.h); }
     ctx.restore();
 
     // FAR ZOOM → overview only. O(1), never bakes coarse tiles.
@@ -210,61 +189,68 @@ export class CommittedLayer<T extends Bounded> {
       return { needsBake: this.overview.isDirty() };
     }
 
-    // NEAR/MID → fresh vector tiles over a correct overview base.
+    // NEAR/MID → sharp vector tiles, with graceful fallbacks so the low-res
+    // world overview is essentially never seen at this zoom.
     const range = this.tileRange(vw, tier);
     const scale = this.ZOOM_TIERS[tier];
     const tws = this.TILE / scale;
-    const a = vpt[0] * dpr,
-      d = vpt[3] * dpr,
-      e = vpt[4] * dpr,
-      f = vpt[5] * dpr;
+    const a = vpt[0] * dpr, d = vpt[3] * dpr, e = vpt[4] * dpr, f = vpt[5] * dpr;
 
-    // Draw ONLY fresh tiles. A stale or missing tile is intentionally NOT
-    // drawn — the (always-correct, localized-patched) overview shows through
-    // for it. So we never expose stale "ghost" pixels and never go blank;
-    // the worst case is a brief low-res patch until that tile bakes.
-    const draws: { t: Tile; dx: number; dy: number; dw: number; dh: number }[] =
-      [];
-    let anyNonFresh = false;
+    // For each cell pick the BEST available source, in priority order:
+    //   1. fresh tile            → sharp, correct
+    //   2. stale tile (bitmap)   → STALE-EXACT: sharp, ≤~100ms old
+    //   3. coarser baked tile    → that tier's pixels scaled up (sharp-ish);
+    //                              this is what kills the zoom flash — instead
+    //                              of the blurry world overview you see the
+    //                              level you came from, scaled.
+    //   4. (none)                → world overview as a last resort.
+    // The overview is drawn ONLY when a cell has no tile source at all, so a
+    // normal draw / erase / move never drops the viewport to low-res.
+    type Draw = { bmp: ImageBitmap; sx: number; sy: number; sw: number; sh: number; dx: number; dy: number; dw: number; dh: number };
+    const draws: Draw[] = [];
+    let anyNonFresh = false; // → schedule a bake
+    let anyUncovered = false; // → overview last-resort base
     for (let ty = range.ty0; ty <= range.ty1; ty++) {
       for (let tx = range.tx0; tx <= range.tx1; tx++) {
+        const dx0 = Math.floor(tx * tws * a + e);
+        const dy0 = Math.floor(ty * tws * d + f);
+        const dx1 = Math.floor((tx + 1) * tws * a + e);
+        const dy1 = Math.floor((ty + 1) * tws * d + f);
+        const dw = dx1 - dx0, dh = dy1 - dy0;
+
         const key = `${tier}:${tx}:${ty}`;
         const t = this.tiles.get(key);
-        if (t && this.isFresh(key, t)) {
-          t.lastUsed = performance.now();
-          if (t.bitmap) {
-            const dx0 = Math.floor(tx * tws * a + e);
-            const dy0 = Math.floor(ty * tws * d + f);
-            const dx1 = Math.floor((tx + 1) * tws * a + e);
-            const dy1 = Math.floor((ty + 1) * tws * d + f);
-            draws.push({ t, dx: dx0, dy: dy0, dw: dx1 - dx0, dh: dy1 - dy0 });
-          }
+        const fresh = t ? this.isFresh(key, t) : false;
+        if (t) t.lastUsed = performance.now();
+        if (!t || !fresh) anyNonFresh = true;
+
+        if (t && t.bitmap) {
+          // fresh OR stale-exact → draw the tile's content area.
+          draws.push({ bmp: t.bitmap, sx: this.OS, sy: this.OS, sw: this.TILE, sh: this.TILE, dx: dx0, dy: dy0, dw, dh });
+          continue;
+        }
+        if (t && fresh && !t.bitmap) continue; // fresh-empty → genuinely empty
+
+        // Missing (or stale-empty): borrow a coarser baked tile, scaled.
+        const fb = this.findCoarserSource(tier, tx, ty);
+        if (fb) {
+          draws.push({ bmp: fb.bmp, sx: fb.sx, sy: fb.sy, sw: fb.sw, sh: fb.sh, dx: dx0, dy: dy0, dw, dh });
         } else {
-          anyNonFresh = true; // overview base covers this cell until it bakes
+          anyUncovered = true;
         }
       }
     }
 
-    // Overview base under any non-fresh cell: one cheap blit, skipped entirely
-    // once the viewport is fully baked. Drawn BEFORE tiles so fresh tiles win.
-    if (anyNonFresh) this.overview.composite(ctx, vpt, px, dpr, vw);
+    // Last-resort overview, only if some cell had no tile at any tier.
+    if (anyUncovered) this.overview.composite(ctx, vpt, px, dpr, vw);
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const factor = (zoom * dpr) / scale;
-    ctx.imageSmoothingEnabled = Math.abs(factor - 1) >= 0.01;
+    ctx.imageSmoothingEnabled = true;
+    // @ts-ignore
+    ctx.imageSmoothingQuality = "low";
     for (const dr of draws)
-      ctx.drawImage(
-        dr.t.bitmap!,
-        this.OS,
-        this.OS,
-        this.TILE,
-        this.TILE,
-        dr.dx,
-        dr.dy,
-        dr.dw,
-        dr.dh,
-      );
+      ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh);
     ctx.restore();
 
     return { needsBake: anyNonFresh };
@@ -272,11 +258,8 @@ export class CommittedLayer<T extends Bounded> {
 
   // ── baking (rebuild-only, async, yielded) ────────────────────────────────
   async bake(
-    vpt: number[],
-    px: { w: number; h: number },
-    dpr: number,
-    yielder: Yieldable,
-    signal: AbortSignal,
+    vpt: number[], px: { w: number; h: number }, dpr: number,
+    yielder: Yieldable, signal: AbortSignal,
     contentBounds: WorldRect | null,
   ): Promise<void> {
     const zoom = vpt[0];
@@ -291,15 +274,9 @@ export class CommittedLayer<T extends Bounded> {
 
     // Pad the viewport by one tile for prefetch.
     const tws = this.TILE / this.ZOOM_TIERS[tier];
-    const padded: WorldRect = {
-      x: vw.x - tws,
-      y: vw.y - tws,
-      w: vw.w + 2 * tws,
-      h: vw.h + 2 * tws,
-    };
+    const padded: WorldRect = { x: vw.x - tws, y: vw.y - tws, w: vw.w + 2 * tws, h: vw.h + 2 * tws };
     const range = this.tileRange(padded, tier);
-    const cx = (range.tx0 + range.tx1) / 2,
-      cy = (range.ty0 + range.ty1) / 2;
+    const cx = (range.tx0 + range.tx1) / 2, cy = (range.ty0 + range.ty1) / 2;
 
     const todo: { tx: number; ty: number; pri: number }[] = [];
     for (let ty = range.ty0; ty <= range.ty1; ty++)
@@ -320,36 +297,22 @@ export class CommittedLayer<T extends Bounded> {
   }
 
   private async rebuildTile(
-    tier: number,
-    tx: number,
-    ty: number,
-    yielder: Yieldable,
-    signal: AbortSignal,
+    tier: number, tx: number, ty: number,
+    yielder: Yieldable, signal: AbortSignal,
   ): Promise<void> {
     const scale = this.ZOOM_TIERS[tier];
     const world = this.tileToWorld(tier, tx, ty);
     const pad = this.OS / scale + 4 / scale;
-    const q: WorldRect = {
-      x: world.x - pad,
-      y: world.y - pad,
-      w: world.w + 2 * pad,
-      h: world.h + 2 * pad,
-    };
+    const q: WorldRect = { x: world.x - pad, y: world.y - pad, w: world.w + 2 * pad, h: world.h + 2 * pad };
     const objects = this.index.query(q);
     const key = `${tier}:${tx}:${ty}`;
     const builtGen = this.gen.get(key) ?? 0;
 
-    if (objects.length === 0) {
-      this.store(key, tier, tx, ty, null, 4, builtGen);
-      return;
-    }
+    if (objects.length === 0) { this.store(key, tier, tx, ty, null, 4, builtGen); return; }
 
     const off = this.acquire();
     const c2d = off.getContext("2d");
-    if (!c2d) {
-      this.release(off);
-      return;
-    }
+    if (!c2d) { this.release(off); return; }
     c2d.setTransform(1, 0, 0, 1, 0, 0);
     c2d.clearRect(0, 0, this.BMP, this.BMP);
     c2d.save();
@@ -361,66 +324,30 @@ export class CommittedLayer<T extends Bounded> {
     c2d.clip();
     // Chunked render: a single dense tile can never freeze the main thread.
     for (let i = 0; i < objects.length; i++) {
-      try {
-        this.renderer(c2d as any, objects[i], scale);
-      } catch (err) {
-        if (this.debug) console.warn("[Committed] render threw", err);
-      }
+      try { this.renderer(c2d as any, objects[i], scale); }
+      catch (err) { if (this.debug) console.warn("[Committed] render threw", err); }
       if (i % this.CHUNK === this.CHUNK - 1 && yielder.shouldYield()) {
         await yielder.yield();
-        if (signal.aborted) {
-          c2d.restore();
-          this.release(off);
-          return;
-        }
+        if (signal.aborted) { c2d.restore(); this.release(off); return; }
       }
     }
     c2d.restore();
 
     let bmp: ImageBitmap;
-    try {
-      bmp = await createImageBitmap(off);
-    } catch {
-      this.release(off);
-      return;
-    }
+    try { bmp = await createImageBitmap(off); }
+    catch { this.release(off); return; }
     this.release(off);
-    if (signal.aborted) {
-      bmp.close();
-      return;
-    }
+    if (signal.aborted) { bmp.close(); return; }
 
     const bytes = this.BMP * this.BMP * 4;
-    if (!this.ensureMemory(bytes)) {
-      bmp.close();
-      return;
-    }
+    if (!this.ensureMemory(bytes)) { bmp.close(); return; }
     this.store(key, tier, tx, ty, bmp, bytes, builtGen);
   }
 
-  private store(
-    key: string,
-    tier: number,
-    tx: number,
-    ty: number,
-    bitmap: ImageBitmap | null,
-    bytes: number,
-    builtGen: number,
-  ) {
+  private store(key: string, tier: number, tx: number, ty: number, bitmap: ImageBitmap | null, bytes: number, builtGen: number) {
     const prev = this.tiles.get(key);
-    if (prev) {
-      if (prev.bitmap) prev.bitmap.close();
-      this.memoryBytes -= prev.bytes;
-    }
-    this.tiles.set(key, {
-      bitmap,
-      tier,
-      tx,
-      ty,
-      bytes,
-      builtGen,
-      lastUsed: performance.now(),
-    });
+    if (prev) { if (prev.bitmap) prev.bitmap.close(); this.memoryBytes -= prev.bytes; }
+    this.tiles.set(key, { bitmap, tier, tx, ty, bytes, builtGen, lastUsed: performance.now() });
     this.memoryBytes += bytes;
   }
 
@@ -436,11 +363,7 @@ export class CommittedLayer<T extends Bounded> {
       for (let tx = r.tx0; tx <= r.tx1; tx++) {
         const k = `${tier}:${tx}:${ty}`;
         const t = this.tiles.get(k);
-        if (t) {
-          if (t.bitmap) t.bitmap.close();
-          this.memoryBytes -= t.bytes;
-          this.tiles.delete(k);
-        }
+        if (t) { if (t.bitmap) t.bitmap.close(); this.memoryBytes -= t.bytes; this.tiles.delete(k); }
       }
   }
 
@@ -458,12 +381,44 @@ export class CommittedLayer<T extends Bounded> {
     return true;
   }
 
+  /**
+   * Find a fresh baked tile at a COARSER tier that covers active-tier cell
+   * (tx,ty), and return the sub-rect of its bitmap to sample. Used so a not-
+   * yet-baked cell can borrow the level you just zoomed from (scaled) instead
+   * of dropping to the blurry world overview. Coarser only (one tile covers
+   * the cell); returns null if nothing covers it (→ overview last resort).
+   */
+  private findCoarserSource(
+    tier: number, tx: number, ty: number,
+  ): { bmp: ImageBitmap; sx: number; sy: number; sw: number; sh: number } | null {
+    const tws = this.TILE / this.ZOOM_TIERS[tier];
+    const cwx = tx * tws, cwy = ty * tws, cww = tws;
+    for (let ct = tier - 1; ct >= 0; ct--) {
+      const ctws = this.TILE / this.ZOOM_TIERS[ct];
+      const ctxi = Math.floor(cwx / ctws);
+      const ctyi = Math.floor(cwy / ctws);
+      const key = `${ct}:${ctxi}:${ctyi}`;
+      const t = this.tiles.get(key);
+      if (!t || !t.bitmap || !this.isFresh(key, t)) continue;
+      // Cell's fractional position inside the coarser tile's content area.
+      const fx = (cwx - ctxi * ctws) / ctws;
+      const fy = (cwy - ctyi * ctws) / ctws;
+      const fw = cww / ctws; // < 1 (coarser tile is larger in world units)
+      t.lastUsed = performance.now();
+      return {
+        bmp: t.bitmap,
+        sx: this.OS + fx * this.TILE,
+        sy: this.OS + fy * this.TILE,
+        sw: fw * this.TILE,
+        sh: fw * this.TILE,
+      };
+    }
+    return null;
+  }
   // ── memory + pool ────────────────────────────────────────────────────────
   private ensureMemory(need: number): boolean {
     if (this.memoryBytes + need <= this.MEM_HARD) return true;
-    const sorted = [...this.tiles.entries()].sort(
-      (a, b) => a[1].lastUsed - b[1].lastUsed,
-    );
+    const sorted = [...this.tiles.entries()].sort((a, b) => a[1].lastUsed - b[1].lastUsed);
     for (const [k, t] of sorted) {
       if (t.bitmap) t.bitmap.close();
       this.memoryBytes -= t.bytes;

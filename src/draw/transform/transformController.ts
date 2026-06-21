@@ -2,24 +2,18 @@
 //
 // GPU drag-layer transform controller.
 //
-// Instead of re-blitting a baked ImageBitmap into the canvas top-context on
-// every move (CPU, per-frame drawImage), the selection is baked ONCE into a
-// dedicated <canvas> layered over the Fabric wrapper. Dragging only writes
-// `element.style.transform`, which the browser composites on the GPU — no
-// per-frame canvas work, no layout/paint.
+// The selection is baked ONCE into a dedicated <canvas> layered over the Fabric
+// wrapper. Dragging only writes element.style.transform (GPU composite) — no
+// per-frame canvas work. Lifecycle is SELECTION-scoped, not drag-scoped.
 //
-// Lifecycle is SELECTION-scoped, not drag-scoped:
-//   beginOrContinue() — start a session, or keep the current one alive across
-//                       a fresh mouse:down on the SAME selection (no re-bake).
-//   markMoved()       — first real movement: hide originals, punch the tile
-//                       hole ONCE, reveal the layer.
-//   schedule()        — coalesced per-frame transform write (GPU).
-//   releaseDrag()     — mouse:up: keep the session floating, do NOT touch tiles.
-//   commit()          — the selection is really done (deselect / different
-//                       object / tool switch): repaint tiles ONCE, tear down.
+// Net cost for N drags of one selection: 1 bake + 1 hole-punch + N cheap style
+// writes + 1 commit.
 //
-// Net cost for N drags of one selection: 1 bake + 1 hole-punch + N cheap
-// style writes + 1 commit. The N-1 redundant tile storms are gone.
+// MOVE-ARTIFACT NOTE: the OLD footprint is invalidated with mgr.dropRegion()
+// (destructive drop → the region shows the correct overview), NOT
+// scheduleRectPatch() (stale-exact → the object stayed painted sharp at its old
+// position until the rebake = the "leftover artifact"). The NEW footprint uses
+// scheduleRectPatch() because the GPU layer covers it until isRegionBaked().
 
 import { Canvas, FabricObject, InteractiveFabricObject } from "fabric";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
@@ -86,8 +80,8 @@ export function activeObjects(): readonly FabricObject[] {
   return session?.objects ?? [];
 }
 
-/** True while the controller "owns" this object (manager should skip its tile
- *  patches until commit). */
+/** True while the controller "owns" this object (manager skips its tile patches
+ *  until commit AND through the post-commit bake, via persisted ownedIds). */
 export function ownsObject(id: string): boolean {
   return ownedIds.has(id);
 }
@@ -107,10 +101,7 @@ export function beginOrContinue(c: Canvas, target: FabricObject): void {
 
   if (session) {
     if (sameSet(session.objects, objs)) {
-      session.target = target; // usually the same instance
-      // Only thing that can invalidate the float between drags is a zoom
-      // change (gestures are blocked mid-drag, so zoom is constant within
-      // a single drag). Re-baseline if it changed.
+      session.target = target;
       const zoom = c.viewportTransform![0];
       if (Math.abs(zoom - session.baseZoom) > 1e-4) rebaseline(c, session);
       return;
@@ -120,7 +111,7 @@ export function beginOrContinue(c: Canvas, target: FabricObject): void {
   beginNew(c, target, objs);
 }
 
-/** First frame the user actually moves. Hide originals, clear the original
+/** First frame the user actually moves. Hide originals, DROP the original
  *  footprint from the tile cache ONCE, then reveal the GPU layer. */
 export function markMoved(): void {
   if (!session || session.moveHappened) return;
@@ -130,11 +121,11 @@ export function markMoved(): void {
   // 1. Hide originals in the object model.
   s.objects.forEach((o) => (o.opacity = 0));
 
-  // 2. Clear the original-position rect in the tile cache. While a local
-  //    transform is active, the manager sync-patches in-viewport rects, so
-  //    this punches the hole immediately (no ghost under the layer).
+  // 2. DROP the original-position tiles (destructive → shows the correct, now-
+  //    empty overview there). scheduleRectPatch would keep the sharp old pixels
+  //    = a ghost under/around the layer.
   const mgr = useDrawObjectManager();
-  mgr.scheduleRectPatch({
+  mgr.dropRegion({
     x: s.origin.left,
     y: s.origin.top,
     w: s.origin.width,
@@ -172,7 +163,6 @@ export function releaseDrag(c: Canvas): void {
     applyTransform(s);
     renderControls(c);
   }
-  // Keep coords fresh so the next grab / hit-test is correct.
   const mgr = useDrawObjectManager();
   s.target.setCoords();
   for (const o of s.objects) {
@@ -187,8 +177,8 @@ export function commit(c: Canvas): void {
   if (!session) return;
   const s = session;
   session = null;
-  // DO NOT run `ownedIds.clear()` here! Let ownership persist through the bake.
-
+  // DO NOT clear ownedIds here — let ownership persist through the bake so the
+  // manager keeps skipping this object's own modified-events until tiles land.
   if (s.rafId !== null) cancelAnimationFrame(s.rafId);
 
   const el = layerCanvas;
@@ -196,26 +186,28 @@ export function commit(c: Canvas): void {
   if (s.moveHappened) {
     const mgr = useDrawObjectManager();
 
-    // 1. Refresh internal layout states FIRST to prevent the quad tree from
-    // trapping the moved object inside the old region patch.
+    // 1. Refresh layout FIRST so the quadtree has the NEW position before we
+    //    invalidate (otherwise the old-region drop could re-capture the object).
     s.target.setCoords();
     for (const o of s.objects) {
       o.setCoords();
       mgr.updateQuadTree(o);
     }
 
-    // 2. Restore opacity
+    // 2. Restore opacity at the new position.
     s.objects.forEach((o, i) => (o.opacity = s.savedOpacity[i]));
 
-    // 3. Mark the OLD footprint dirty
-    mgr.scheduleRectPatch({
+    // 3. DROP the OLD footprint (object has left it) → correct empty overview,
+    //    never a sharp stale-exact ghost.
+    mgr.dropRegion({
       x: s.origin.left,
       y: s.origin.top,
       w: s.origin.width,
       h: s.origin.height,
     });
 
-    // 4. Mark the NEW footprint dirty
+    // 4. Mark the NEW footprint dirty (stale-exact OK — the GPU layer covers it
+    //    until the tiles are baked).
     const tb = s.target.getBoundingRect();
     const PAD = 8;
     const newRect = {
@@ -226,24 +218,24 @@ export function commit(c: Canvas): void {
     };
     mgr.scheduleRectPatch(newRect);
 
+    // 5. Hide the GPU layer only once the NEW position has actually baked (or
+    //    zoom changed, which invalidates the layer coords), then release
+    //    ownership. 1s safety cap so it can never stick.
     const elRef = el;
     const start = performance.now();
-    const idsToClear = new Set(ownedIds); // Capture this drag's IDs
+    const idsToClear = new Set(ownedIds);
 
     const hideWhenReady = () => {
       if (session) return; // a new drag took over the layer
 
       const currentZoom = c.viewportTransform![0];
-
-      // Hide if baked, OR if zoomed (zoom invalidates the GPU layer coordinates)
       if (
         currentZoom !== s.baseZoom ||
         mgr.isRegionBaked(newRect) ||
         performance.now() - start > 1000
       ) {
         if (elRef) elRef.style.display = "none";
-        // Safely clear ownership ONLY once the tiles are baked and displayed
-        idsToClear.forEach(id => ownedIds.delete(id));
+        idsToClear.forEach((id) => ownedIds.delete(id));
         renderControls(c);
       } else {
         requestAnimationFrame(hideWhenReady);
@@ -294,17 +286,13 @@ function beginNew(c: Canvas, target: FabricObject, objs: FabricObject[]): void {
   };
   for (const o of objs) if (o.id) ownedIds.add(o.id);
 
-  // Pre-draw + place the layer now (hidden) so the first move has zero
-  // bake/upload latency. markMoved() flips it to visible.
   placeLayer(c, session);
   if (layerCanvas) layerCanvas.style.display = "none";
 }
 
-/** Re-bake at the current state/zoom and reset the reference frame to "now".
- *  Used when zoom changed between drags so the layer stays crisp & aligned. */
+/** Re-bake at the current state/zoom and reset the reference frame to "now". */
 function rebaseline(c: Canvas, s: Session): void {
   const t = s.target;
-  // bake reads object pixels, so temporarily un-hide.
   const restore = s.objects.map((o) => o.opacity);
   s.objects.forEach((o, i) => (o.opacity = s.savedOpacity[i]));
   invalidateCache();
@@ -347,20 +335,14 @@ function ensureLayer(c: Canvas): HTMLCanvasElement {
     willChange: "transform",
     display: "none",
   } as Partial<CSSStyleDeclaration>);
-  // Insert BELOW the upper canvas so selection controls (drawn on the upper
-  // canvas) still render on top of the dragged bitmap.
   wrapper.insertBefore(el, upper);
   layerCanvas = el;
   return el;
 }
 
-/** Draw the baked bitmap into the layer and set its base placement from the
- *  current viewport. The live transform is reset to identity here; movement
- *  is applied separately via applyTransform(). */
 function placeLayer(c: Canvas, s: Session): void {
   const el = ensureLayer(c);
 
-  // Backing store = bitmap's physical pixels (already baked at zoom * dpr).
   if (el.width !== s.bitmap.width || el.height !== s.bitmap.height) {
     el.width = s.bitmap.width;
     el.height = s.bitmap.height;
@@ -375,20 +357,17 @@ function placeLayer(c: Canvas, s: Session): void {
   const zoom = vpt[0];
   s.baseZoom = zoom;
 
-  // World bbox top-left → screen (CSS px relative to wrapper).
   el.style.left = `${s.origin.left * zoom + vpt[4]}px`;
   el.style.top = `${s.origin.top * zoom + vpt[5]}px`;
   el.style.width = `${s.origin.width * zoom}px`;
   el.style.height = `${s.origin.height * zoom}px`;
 
-  // Pivot (selection center) inside the bbox, in CSS px.
   const pivotPxX = (s.refs.left - s.origin.left) * zoom;
   const pivotPxY = (s.refs.top - s.origin.top) * zoom;
   el.style.transformOrigin = `${pivotPxX}px ${pivotPxY}px`;
   el.style.transform = "none";
 }
 
-/** The only thing written per move: a compositor-only CSS transform. */
 function applyTransform(s: Session): void {
   const el = layerCanvas;
   if (!el) return;
@@ -401,13 +380,9 @@ function applyTransform(s: Session): void {
   const tx = ((t.left ?? 0) - s.refs.left) * zoom;
   const ty = ((t.top ?? 0) - s.refs.top) * zoom;
 
-  // translate moves the (origin-anchored) pivot to the current center;
-  // rotate/scale happen about that pivot. Matches the old 2D-ctx overlay.
   el.style.transform = `translate(${tx}px, ${ty}px) rotate(${angle}deg) scale(${sx}, ${sy})`;
 }
 
-/** Redraw just the selection controls on the upper (top) canvas. Cheap vector
- *  work — keeps the bounding box & handles glued to the moving selection. */
 const MAX_CHILD_BORDERS = 30;
 
 function renderControls(c: Canvas): void {
@@ -448,8 +423,6 @@ function bakeSelectionBitmap(
     zoom,
   };
 
-  // Cache hit: pure translation at the same zoom → reuse the bitmap, just
-  // recompute the world origin from the current bounding rect.
   if (cachedBake) {
     const s = cachedBake.state;
     if (
@@ -479,7 +452,7 @@ function bakeSelectionBitmap(
   const worldH = b.height + PAD * 2;
   if (worldW <= 0 || worldH <= 0) return null;
 
-  const dpr = window.devicePixelRatio || 1; // bake retina-crisp
+  const dpr = window.devicePixelRatio || 1;
   let scale = zoom * dpr;
 
   const childCount = isActiveSelection(target)
@@ -491,7 +464,7 @@ function bakeSelectionBitmap(
   let physW = Math.ceil(worldW * scale);
   let physH = Math.ceil(worldH * scale);
 
-  const MAX_DIM = 2048; // memory bound; CSS upscales beyond this
+  const MAX_DIM = 2048;
   if (physW > MAX_DIM || physH > MAX_DIM) {
     const factor = Math.min(MAX_DIM / physW, MAX_DIM / physH);
     physW = Math.max(1, Math.floor(physW * factor));

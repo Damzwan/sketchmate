@@ -20,13 +20,8 @@
 // read-only Surface + the spatial index.
 
 import {
-  CommittedLayer,
-  type Bounded,
-  type CommittedOptions,
-  type SpatialIndex,
-  type TileRenderer,
-  type WorldRect,
-  type Yieldable,
+  CommittedLayer, type Bounded, type CommittedOptions,
+  type SpatialIndex, type TileRenderer, type WorldRect, type Yieldable,
 } from "./committedLayer";
 import { LiveLayer, type LiveMode, type LiveRenderer } from "./liveLayer";
 
@@ -61,6 +56,8 @@ export class RenderCore<T extends Bounded> {
   private gesturing = false;
   private loading = false;
   private erasing = false;
+  private baking = false;
+  private bakeAgain = false;
 
   private contentBounds: WorldRect | null = null;
 
@@ -81,19 +78,14 @@ export class RenderCore<T extends Bounded> {
     this.bakeDebounce = opts.bakeDebounceMs ?? 80;
   }
 
-  get tiers(): number[] {
-    return this.committed.ZOOM_TIERS;
-  }
+  get tiers(): number[] { return this.committed.ZOOM_TIERS; }
 
   // ── frame ────────────────────────────────────────────────────────────────
   requestFrame(): void {
     if (this.erasing) return; // brush owns the lower context during a stroke
     if (this.frameScheduled) return;
     this.frameScheduled = true;
-    requestAnimationFrame(() => {
-      this.frameScheduled = false;
-      this.renderNow();
-    });
+    requestAnimationFrame(() => { this.frameScheduled = false; this.renderNow(); });
   }
   private renderNow(): void {
     const ctx = this.surface.getContext();
@@ -101,13 +93,7 @@ export class RenderCore<T extends Bounded> {
     const vpt = this.surface.getVpt();
     const size = this.surface.getSize();
     const dpr = this.surface.getDpr();
-    const { needsBake } = this.committed.composite(
-      ctx,
-      vpt,
-      size,
-      dpr,
-      this.surface.getBackground(),
-    );
+    const { needsBake } = this.committed.composite(ctx, vpt, size, dpr, this.surface.getBackground());
     this.live.composite(ctx, vpt, dpr, this.liveRender);
     if (needsBake) this.scheduleBake();
     this.afterComposite?.();
@@ -115,49 +101,49 @@ export class RenderCore<T extends Bounded> {
 
   // ── bake ─────────────────────────────────────────────────────────────────
   scheduleBake(): void {
-    if (this.gesturing || this.loading || this.bakeTimer !== null) return;
-    this.bakeTimer = setTimeout(() => {
-      this.bakeTimer = null;
-      void this.runBake();
-    }, this.bakeDebounce);
+    if (this.gesturing || this.loading || this.erasing) return;
+    // A bake is already running: don't start a second one (the old code did,
+    // and they aborted each other so the viewport-fill bake never finished →
+    // the whole screen stayed on the low-res overview). Just request a follow-
+    // up pass for any tiles dirtied while this one runs.
+    if (this.baking) { this.bakeAgain = true; return; }
+    if (this.bakeTimer !== null) return;
+    this.bakeTimer = setTimeout(() => { this.bakeTimer = null; void this.runBake(); }, this.bakeDebounce);
   }
   abortBakes(): void {
     this.bakeCtrl?.abort();
     this.bakeCtrl = null;
-    if (this.bakeTimer !== null) {
-      clearTimeout(this.bakeTimer);
-      this.bakeTimer = null;
-    }
+    this.bakeAgain = false;
+    if (this.bakeTimer !== null) { clearTimeout(this.bakeTimer); this.bakeTimer = null; }
   }
   private async runBake(): Promise<void> {
-    if (this.gesturing || this.loading) return;
-    this.bakeCtrl?.abort();
+    if (this.gesturing || this.loading || this.erasing) return;
+    if (this.baking) { this.bakeAgain = true; return; }
+    this.baking = true;
+    this.bakeAgain = false;
+    // NOTE: we do NOT abort a previous bake here. A bake is only ever aborted
+    // by an explicit gesture/zoom/reset (abortBakes). New edits ride bakeAgain.
     const ctrl = new AbortController();
     this.bakeCtrl = ctrl;
     try {
       await this.committed.bake(
-        this.surface.getVpt(),
-        this.surface.getSize(),
-        this.surface.getDpr(),
-        this.makeYielder(),
-        ctrl.signal,
-        this.contentBounds,
+        this.surface.getVpt(), this.surface.getSize(), this.surface.getDpr(),
+        this.makeYielder(), ctrl.signal, this.contentBounds,
       );
-    } catch {
-      /* aborted / transient */
-    }
+    } catch { /* aborted / transient */ }
+    this.baking = false;
     if (this.bakeCtrl === ctrl) this.bakeCtrl = null;
-    if (ctrl.signal.aborted) return;
+    if (ctrl.signal.aborted) { this.bakeAgain = false; return; }
     this.demoteSettled();
     this.requestFrame();
+    // Tiles dirtied mid-bake → one more pass (debounced, coalesced).
+    if (this.bakeAgain) { this.bakeAgain = false; this.scheduleBake(); }
   }
   /** Hand finished objects off from live → committed once their tiles are fresh. */
   private demoteSettled(): void {
     if (this.live.isEmpty()) return;
     const zoom = this.surface.getVpt()[0];
-    const ids = this.live.settledIds((rect) =>
-      this.committed.isRegionReady(rect, zoom),
-    );
+    const ids = this.live.settledIds((rect) => this.committed.isRegionReady(rect, zoom));
     for (const id of ids) this.live.remove(id);
   }
 
@@ -167,30 +153,28 @@ export class RenderCore<T extends Bounded> {
     const rect = this.boundsOf(obj);
     if (!rect) return;
     this.growContentBounds(rect);
-    this.patchOverview(rect); // localized clear+redraw from index
+    this.patchOverview(rect);     // localized clear+redraw from index
     this.committed.markDirty(rect);
     this.live.add(obj, rect, "normal"); // instant; demoted after bake
     this.requestFrame();
     this.scheduleBake();
   }
-  /** An object was removed. */
+  /** An object was removed. Drop its footprint so it can't ghost at any zoom. */
   onObjectRemoved(obj: T, oldRect?: WorldRect): void {
     const rect = oldRect ?? this.boundsOf(obj);
     if (obj.id) this.live.remove(obj.id);
-    if (rect) {
-      this.committed.markDirty(rect);
-      this.patchOverview(rect);
-    }
+    if (rect) this.destructiveInvalidate(rect);
     this.requestFrame();
     this.scheduleBake();
   }
   /** An object changed in place (moved / restyled / re-clipped). */
   onObjectChanged(obj: T, oldRect?: WorldRect): void {
     const rect = this.boundsOf(obj);
-    if (oldRect) {
-      this.committed.markDirty(oldRect);
-      this.patchOverview(oldRect);
-    }
+    // OLD footprint is destructive (the object left it) → DROP so it shows the
+    // correct overview, never a sharp stale-exact copy at the old position.
+    if (oldRect) this.destructiveInvalidate(oldRect);
+    // NEW footprint is additive → markDirty (stale-exact stays sharp; the live
+    // layer / GPU drag layer covers it until the rebake lands).
     if (rect) {
       this.committed.markDirty(rect);
       this.patchOverview(rect);
@@ -200,31 +184,33 @@ export class RenderCore<T extends Bounded> {
     this.scheduleBake();
   }
   /**
-   * Erase. The eraser stroke clips committed objects; we markDirty so they
-   * rebake clipped, and localized-patch the overview region (which redraws the
-   * now-clipped objects from the index → correct holes, no mutation hack).
+   * Erase. The stroke clips committed objects; drop the region (so the hole
+   * shows the correct, localized-patched overview instantly) and rebake the
+   * now-clipped objects sharp.
    */
-  onErase(
-    _eraserObj: T,
-    rect: WorldRect,
-    _renderEraser: (ctx: any) => void,
-  ): void {
-    const zoom = this.surface.getVpt()[0];
-    const tier = this.pickActiveTier(zoom);
-    this.committed.dropTiles(rect, tier);
-
-    this.committed.markDirty(rect);
-    this.patchOverview(rect);
+  onErase(_eraserObj: T, rect: WorldRect, _renderEraser: (ctx: any) => void): void {
+    this.destructiveInvalidate(rect);
     this.requestFrame();
     this.scheduleBake();
   }
 
-  dropRegion(rect: WorldRect, zoom: number): void {
-    const tier = this.pickActiveTier(zoom);
-    this.committed.dropTiles(rect, tier);
-    this.committed.markDirty(rect);
+  /**
+   * A region whose old pixels must NOT linger (remove / erase / move-from).
+   * Drops the covering tiles at EVERY tier (so no stale-exact ghost appears at
+   * any zoom), then localized-patches the overview so the dropped cells show
+   * correct low-res content until they rebake sharp.
+   */
+  private destructiveInvalidate(rect: WorldRect): void {
+    for (let tier = 0; tier < this.committed.ZOOM_TIERS.length; tier++) {
+      this.committed.dropTiles(rect, tier);
+    }
     this.patchOverview(rect);
+  }
+  /** Public destructive drop (used by the drag controller for the old footprint). */
+  dropRegion(rect: WorldRect): void {
+    this.destructiveInvalidate(rect);
     this.requestFrame();
+    this.scheduleBake();
   }
 
   // ── direct live control (store wires drag begin/end here) ────────────────
@@ -233,10 +219,7 @@ export class RenderCore<T extends Bounded> {
     if (!rect) return false;
     return this.live.add(obj, rect, mode);
   }
-  liveRemove(id: string): void {
-    this.live.remove(id);
-    this.requestFrame();
-  }
+  liveRemove(id: string): void { this.live.remove(id); this.requestFrame(); }
 
   markDirty(rect: WorldRect): void {
     this.committed.markDirty(rect);
@@ -249,17 +232,11 @@ export class RenderCore<T extends Bounded> {
   setGesturing(on: boolean): void {
     this.gesturing = on;
     if (on) this.abortBakes();
-    else {
-      this.requestFrame();
-      this.scheduleBake();
-    }
+    else { this.requestFrame(); this.scheduleBake(); }
   }
   setLoading(on: boolean): void {
     this.loading = on;
-    if (on) {
-      this.abortBakes();
-      this.live.clear();
-    }
+    if (on) { this.abortBakes(); this.live.clear(); }
   }
   /**
    * While an erase STROKE is in progress, the @erase2d brush owns the canvas's
@@ -272,15 +249,10 @@ export class RenderCore<T extends Bounded> {
   setErasing(on: boolean): void {
     this.erasing = on;
     if (on) this.abortBakes();
-    else {
-      this.requestFrame();
-      this.scheduleBake();
-    }
+    else { this.requestFrame(); this.scheduleBake(); }
   }
 
-  pickActiveTier(zoom: number): number {
-    return this.committed.pickActiveTier(zoom);
-  }
+  pickActiveTier(zoom: number): number { return this.committed.pickActiveTier(zoom); }
 
   /** Set the world bounds used to size/rebuild the overview (from the index). */
   setContentBounds(rect: WorldRect | null): void {
@@ -295,11 +267,7 @@ export class RenderCore<T extends Bounded> {
   /** Eagerly build the overview so the base layer is present from frame one. */
   warmOverview(): void {
     void this.committed.overview
-      .rebuildIfNeeded(
-        this.contentBounds,
-        this.makeYielder(),
-        new AbortController().signal,
-      )
+      .rebuildIfNeeded(this.contentBounds, this.makeYielder(), new AbortController().signal)
       .then(() => this.requestFrame());
   }
 
@@ -323,16 +291,9 @@ export class RenderCore<T extends Bounded> {
     if (this.overviewTimer !== null) return;
     this.overviewTimer = setTimeout(() => {
       this.overviewTimer = null;
-      if (this.gesturing || this.loading) {
-        this.scheduleOverviewRebuild();
-        return;
-      }
+      if (this.gesturing || this.loading) { this.scheduleOverviewRebuild(); return; }
       void this.committed.overview
-        .rebuildIfNeeded(
-          this.contentBounds,
-          this.makeYielder(),
-          new AbortController().signal,
-        )
+        .rebuildIfNeeded(this.contentBounds, this.makeYielder(), new AbortController().signal)
         .then(() => this.requestFrame());
     }, 250);
   }
@@ -345,10 +306,7 @@ export class RenderCore<T extends Bounded> {
 
   reset(): void {
     this.abortBakes();
-    if (this.overviewTimer !== null) {
-      clearTimeout(this.overviewTimer);
-      this.overviewTimer = null;
-    }
+    if (this.overviewTimer !== null) { clearTimeout(this.overviewTimer); this.overviewTimer = null; }
     this.live.clear();
     this.committed.reset();
     this.contentBounds = null;
@@ -360,20 +318,13 @@ export class RenderCore<T extends Bounded> {
       const b = obj.getBoundingRect(true, true);
       if (!isFinite(b.left) || b.width <= 0 || b.height <= 0) return null;
       return { x: b.left, y: b.top, w: b.width, h: b.height };
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
   private growContentBounds(r: WorldRect): void {
-    if (!this.contentBounds) {
-      this.contentBounds = { ...r };
-      return;
-    }
+    if (!this.contentBounds) { this.contentBounds = { ...r }; return; }
     const c = this.contentBounds;
-    const x = Math.min(c.x, r.x),
-      y = Math.min(c.y, r.y);
-    const x2 = Math.max(c.x + c.w, r.x + r.w),
-      y2 = Math.max(c.y + c.h, r.y + r.h);
+    const x = Math.min(c.x, r.x), y = Math.min(c.y, r.y);
+    const x2 = Math.max(c.x + c.w, r.x + r.w), y2 = Math.max(c.y + c.h, r.y + r.h);
     this.contentBounds = { x, y, w: x2 - x, h: y2 - y };
   }
 }

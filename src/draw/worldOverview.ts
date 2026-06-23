@@ -150,11 +150,9 @@ export class WorldOverview<T extends Bounded> {
     signal: AbortSignal,
   ): Promise<void> {
     if (!contentBounds || contentBounds.w <= 0 || contentBounds.h <= 0) return;
-    const fits =
-      this.canvas && this.bounds && this.contains(this.bounds, contentBounds);
+    const fits = this.canvas && this.bounds && this.contains(this.bounds, contentBounds);
     if (!this.dirty && fits) return;
 
-    // Pad coverage so small growth doesn't trigger constant rebuilds.
     const pad = 0.15;
     const bounds: WorldRect = {
       x: contentBounds.x - contentBounds.w * pad,
@@ -162,44 +160,39 @@ export class WorldOverview<T extends Bounded> {
       w: contentBounds.w * (1 + 2 * pad),
       h: contentBounds.h * (1 + 2 * pad),
     };
-    if (!this.canvas) {
-      this.canvas = new OffscreenCanvas(this.PX, this.PX);
-      this.ctx = this.canvas.getContext("2d");
-    }
-    if (!this.ctx) return;
-    this.bounds = bounds;
-    this.sx = this.PX / bounds.w;
-    this.sy = this.PX / bounds.h;
 
-    const ctx = this.ctx;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.PX, this.PX);
+    // Build into a TEMP canvas. The currently-displayed overview stays untouched
+    // until we swap atomically at the end — never cleared mid-repaint.
+    const tmp = new OffscreenCanvas(this.PX, this.PX);
+    const tctx = tmp.getContext("2d");
+    if (!tctx) return;
+    const sx = this.PX / bounds.w;
+    const sy = this.PX / bounds.h;
+
+    tctx.setTransform(1, 0, 0, 1, 0, 0);
+    tctx.clearRect(0, 0, this.PX, this.PX);
+    tctx.save();
+    tctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy);
 
     const objects = this.index.query(bounds);
-    ctx.save();
-    this.applyWorldTransform(ctx);
-
     yielder.reset();
-    const minPx = 0.75; // skip objects smaller than ~1 overview pixel
-
+    const minPx = 0.75;
     for (let i = 0; i < objects.length; i++) {
       const b = objects[i].getBoundingRect(true, true);
-      if (b.width * this.sx >= minPx || b.height * this.sy >= minPx) {
-        try {
-          this.renderer(ctx as any, objects[i], Math.max(this.sx, this.sy));
-        } catch {
-          /* ignore */
-        }
+      if (b.width * sx >= minPx || b.height * sy >= minPx) {
+        try { this.renderer(tctx as any, objects[i], Math.max(sx, sy)); } catch { /* ignore */ }
       }
-
       await yielder.maybeYield();
-      if (signal.aborted) {
-        ctx.restore();
-        return;
-      }
+      if (signal.aborted) { tctx.restore(); return; } // discard temp, keep old overview visible
     }
+    tctx.restore();
 
-    ctx.restore();
+    // Atomic swap.
+    this.canvas = tmp;
+    this.ctx = tctx;
+    this.bounds = bounds;
+    this.sx = sx;
+    this.sy = sy;
     this.dirty = false;
   }
 

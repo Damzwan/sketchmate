@@ -410,6 +410,13 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     return core ? core.isRegionBaked(rect) : true;
   }
 
+  function patchRectSync(rect: WorldRect) {
+    if (!core || !c) return;
+    const vpt = c.viewportTransform!;
+    const tier = core.pickActiveTier(vpt[0]);
+    core.markDirtyAndRebuildSync(rect, tier);
+  }
+
   return {
     init,
     renderMain,
@@ -435,5 +442,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     isRegionBaked,
     setErasing,
     dropRegion,
+    patchRectSync
   };
 });

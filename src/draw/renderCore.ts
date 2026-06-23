@@ -98,16 +98,16 @@ export class RenderCore<T extends Bounded> {
   }
 
   private renderNow(): void {
-    const ctx = this.surface.getContext();
-    if (!ctx) return;
-    const vpt = this.surface.getVpt();
-    const size = this.surface.getSize();
-    const dpr = this.surface.getDpr();
-    const { needsBake } = this.committed.composite(ctx, vpt, size, dpr, this.surface.getBackground());
-    const vw = this.committed.viewWorld(vpt, size, dpr);
-    this.live.composite(ctx, vpt, dpr, this.liveRender, vw);
-    if (needsBake) this.scheduleBake();
-    this.afterComposite?.();
+    const ctx = this.surface.getContext()
+    if (!ctx) return
+    const vpt = this.surface.getVpt()
+    const size = this.surface.getSize()
+    const dpr = this.surface.getDpr()
+    const { needsBake } = this.committed.composite(ctx, vpt, size, dpr, this.surface.getBackground())
+    const vw = this.committed.viewWorld(vpt, size, dpr)
+    this.live.composite(ctx, vpt, dpr, this.liveRender, vw)
+    if (needsBake) this.scheduleBake()
+    this.afterComposite?.()
   }
 
   // ── bake ─────────────────────────────────────────────────────────────────
@@ -160,12 +160,14 @@ export class RenderCore<T extends Bounded> {
     this.baking = false
     if (this.bakeCtrl === ctrl) this.bakeCtrl = null
     if (ctrl.signal.aborted) {
-      this.bakeAgain = false
+      if (this.bakeAgain) {
+        this.bakeAgain = false
+        this.scheduleBake()
+      } // ← was: bakeAgain = false; return
       return
     }
     this.demoteSettled()
     this.requestFrame()
-    // Tiles dirtied mid-bake → one more pass (debounced, coalesced).
     if (this.bakeAgain) {
       this.bakeAgain = false
       this.scheduleBake()
@@ -175,6 +177,7 @@ export class RenderCore<T extends Bounded> {
   /** Hand finished objects off from live → committed once their tiles are fresh. */
   private demoteSettled(): void {
     if (this.live.isEmpty()) return
+    if (this.committed.overview.isDirty()) return
     const zoom = this.surface.getVpt()[0]
     const ids = this.live.settledIds((rect) => this.committed.isRegionReady(rect, zoom))
     for (const id of ids) this.live.remove(id)
@@ -186,7 +189,7 @@ export class RenderCore<T extends Bounded> {
     const rect = this.boundsOf(obj)
     if (!rect) return
     this.growContentBounds(rect)
-    this.committed.markDirty(rect)
+    this.additiveInvalidate(rect)
     this.live.add(obj, rect, 'normal')
     this.requestFrame()
     this.scheduleBake()
@@ -201,18 +204,12 @@ export class RenderCore<T extends Bounded> {
     this.scheduleBake()
   }
 
-  /** An object changed in place (moved / restyled / re-clipped). */
   onObjectChanged(obj: T, oldRect?: WorldRect): void {
     const rect = this.boundsOf(obj)
-    // OLD footprint is destructive (the object left it) → DROP so it shows the
-    // correct overview, never a sharp stale-exact copy at the old position.
     if (oldRect) this.destructiveInvalidate(oldRect)
-    // NEW footprint is additive → markDirty (stale-exact stays sharp; the live
-    // layer / GPU drag layer covers it until the rebake lands).
     if (rect) {
-      this.committed.markDirty(rect)
-      this.patchOverview(rect)
       this.growContentBounds(rect)
+      this.additiveInvalidate(rect)
     }
     this.requestFrame()
     this.scheduleBake()
@@ -223,32 +220,31 @@ export class RenderCore<T extends Bounded> {
    * shows the correct, localized-patched overview instantly) and rebake the
    * now-clipped objects sharp.
    */
-  onErase(eraserObj: T, rect: WorldRect, _renderEraser: (ctx: any) => void): void {
-    this.committed.markDirty(rect)
+  onErase(eraserObj: T, rect: WorldRect, renderEraser: (ctx: any, scale?: number) => void): void {
+    const vpt = this.surface.getVpt()
+    const tier = this.committed.pickActiveTier(vpt[0])
+    // active + a couple coarser + one finer, exactly like the old eraseTierSet
+    const tiers = [tier]
+    for (let t = tier - 1; t >= Math.max(0, tier - 2); t--) tiers.push(t)
+    if (tier + 1 < this.tiers.length) tiers.push(tier + 1)
+
+    this.committed.subtractStroke(renderEraser, rect, tiers)
     this.patchOverview(rect)
-
-    // The LiveLayer will instantly overlay the destination-out stroke on the
-    // stale tile without requiring the entire tile to drop to low-res.
-    this.liveAdd(eraserObj, 'erase')
-
     this.requestFrame()
-    this.scheduleBake()
   }
 
 
   private destructiveInvalidate(rect: WorldRect): void {
+    const vpt = this.surface.getVpt()
+    const tier = this.committed.pickActiveTier(vpt[0])
     this.committed.dropAllTiers(rect)
-    this.coverRegionLive(rect)
-    this.patchOverview(rect)
-  }
-
-  private coverRegionLive(rect: WorldRect): void {
-    const objs = this.committed.queryIndex(rect)
-    if (objs.length === 0 || objs.length > this.live.freeSlots()) return
-    for (const o of objs) {
-      const r = this.boundsOf(o)
-      if (r) this.live.add(o, r, 'normal')
+    if (tier > this.committed.overviewTier) {
+      const size = this.surface.getSize()
+      const dpr = this.surface.getDpr()
+      const vw = this.committed.viewWorld(vpt, size, dpr)
+      this.committed.rebuildRectSync(rect, tier, vw)
     }
+    this.patchOverview(rect)
   }
 
 
@@ -271,10 +267,22 @@ export class RenderCore<T extends Bounded> {
   }
 
   markDirty(rect: WorldRect): void {
-    this.committed.markDirty(rect)
-    this.patchOverview(rect)
+    this.additiveInvalidate(rect)
     this.requestFrame()
     this.scheduleBake()
+  }
+
+  // renderCore.ts
+  markDirtyAndRebuildSync(rect: WorldRect, tier: number): void {
+    this.committed.markDirty(rect)                 // distrust stale tiles in region
+    if (tier > this.committed.overviewTier) {
+      const vpt = this.surface.getVpt()
+      const vw = this.committed.viewWorld(vpt, this.surface.getSize(), this.surface.getDpr())
+      this.committed.rebuildRectSync(rect, tier, vw)  // sharp + correct THIS frame
+    }
+    this.patchOverview(rect)
+    this.requestFrame()
+    this.scheduleBake()  // off-viewport / coarser tiers catch up
   }
 
   // ── gesture / loading seams ──────────────────────────────────────────────
@@ -361,7 +369,10 @@ export class RenderCore<T extends Bounded> {
       }
       void this.committed.overview
         .rebuildIfNeeded(this.contentBounds, this.makeYielder(), new AbortController().signal)
-        .then(() => this.requestFrame())
+        .then(() => {
+          this.requestFrame()
+          this.scheduleBake()
+        })
     }, 250)
   }
 
@@ -402,5 +413,12 @@ export class RenderCore<T extends Bounded> {
     const x = Math.min(c.x, r.x), y = Math.min(c.y, r.y)
     const x2 = Math.max(c.x + c.w, r.x + r.w), y2 = Math.max(c.y + c.h, r.y + r.h)
     this.contentBounds = { x, y, w: x2 - x, h: y2 - y }
+  }
+
+  private additiveInvalidate(rect: WorldRect): void {
+    const tier = this.committed.pickActiveTier(this.surface.getVpt()[0])
+    this.committed.dropOtherTiers(rect, tier)
+    this.committed.markDirty(rect)
+    this.patchOverview(rect)
   }
 }

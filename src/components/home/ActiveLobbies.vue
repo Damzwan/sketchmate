@@ -1,6 +1,5 @@
 <template>
   <section class="min-h-[160px] overflow-visible">
-    <!-- Header Subhead -->
     <div class="flex items-center justify-between px-1 mb-2.5">
       <h2 class="text-xs uppercase tracking-widest font-black text-black/40">
         Public Lobbies
@@ -14,7 +13,6 @@
     </div>
 
     <transition name="fade-slow" mode="out-in">
-      <!-- Loading Skeleton Stack -->
       <div v-if="loading" key="loading" class="flex overflow-x-auto gap-3.5 pb-2 hide-scrollbar">
         <div
           v-for="i in 10"
@@ -23,7 +21,6 @@
         ></div>
       </div>
 
-      <!-- Live Horizontal Scrolling Stack -->
       <div v-else key="data" class="flex overflow-x-auto gap-3.5 pb-3 snap-x snap-mandatory hide-scrollbar overflow-visible">
         <div
           v-for="lobby in sortedLobbies"
@@ -36,10 +33,8 @@
           ]"
           @click="handleLobbyClick(lobby)"
         >
-          <!-- Drawing Board Canvas Frame Wrapper -->
           <div class="h-24 w-full relative overflow-hidden group bg-[#FAF8F5]">
 
-            <!-- Fallback Canvas Drawing Icon Placeholder -->
             <div
               v-if="!lobby.thumbnailUrl || !imageLoaded[lobby.id]"
               class="absolute inset-0 flex items-center justify-center transition-opacity duration-300 bg-[#FAF0E6FF]"
@@ -48,10 +43,8 @@
               <span class="text-xl opacity-30 grayscale group-hover:rotate-12 transition-transform duration-300">🎨</span>
             </div>
 
-            <!-- Live Canvas Preview Layer -->
             <img
               v-if="lobby.thumbnailUrl"
-              :key="lobby.thumbnailUrl"
               :src="lobby.thumbnailUrl"
               class="w-full h-full object-cover transition-opacity duration-500 ease-in-out"
               :class="imageLoaded[lobby.id] ? 'opacity-100' : 'opacity-0'"
@@ -60,12 +53,10 @@
               alt="Lobby preview"
             />
 
-            <!-- Clean, Integrated Live Status Badge Pill -->
             <div
               class="absolute top-2 right-2 px-2 py-0.5 backdrop-blur-md rounded-full text-[9px] text-white flex items-center gap-1 font-black shadow-sm tracking-wider uppercase"
               :class="getBadgeClass(lobby)"
             >
-              <!-- Small Green Status Indicator Dot -->
               <span
                 v-if="lobby.users < (lobby.maxUsers + lobby.premiumSlots)"
                 class="w-1.5 h-1.5 rounded-full shrink-0"
@@ -84,7 +75,6 @@
             </div>
           </div>
 
-          <!-- Bottom Meta Tray Label Frame -->
           <div class="p-2.5 bg-white/50 flex flex-col min-w-0">
             <h3 class="text-xs font-black text-black truncate tracking-tight">
               {{ lobby.name }}
@@ -111,21 +101,21 @@ import { Menu } from "@/draw/types/draw.types";
 import { useMenuStore } from "@/store/menu.store";
 
 export interface PublicLobbyProps {
-	id: string;
-	name: string;
-	users: number;
-	maxUsers: number;
-	premiumSlots: number;
-	thumbnailUrl?: string;
+  id: string;
+  name: string;
+  users: number;
+  maxUsers: number;
+  premiumSlots: number;
+  thumbnailUrl?: string;
 }
 
 const props = defineProps<{
-	lobbies: PublicLobbyProps[];
-	loading: boolean;
+  lobbies: PublicLobbyProps[];
+  loading: boolean;
 }>();
 
 const emit = defineEmits<{
-	(e: "join", id: string): void;
+  (e: "join", id: string): void;
 }>();
 
 const router = useIonRouter();
@@ -135,47 +125,47 @@ const showPremiumModal = ref(false);
 const imageLoaded = ref<Record<string, boolean>>({});
 
 const sortedLobbies = computed(() => {
-	return [...props.lobbies].sort((a, b) => b.users - a.users);
+  return [...props.lobbies].sort((a, b) => b.users - a.users);
 });
 
 /* Modern minimal badge background tints */
 const getBadgeClass = (lobby: PublicLobbyProps) => {
-	const totalCap = lobby.maxUsers + lobby.premiumSlots;
-	if (lobby.users >= totalCap) return "bg-zinc-800 text-white/90";
-	if (lobby.users >= lobby.maxUsers) return "bg-amber-500 text-white";
-	return "bg-secondary text-white";
+  const totalCap = lobby.maxUsers + lobby.premiumSlots;
+  if (lobby.users >= totalCap) return "bg-zinc-800 text-white/90";
+  if (lobby.users >= lobby.maxUsers) return "bg-amber-500 text-white";
+  return "bg-secondary text-white";
 };
 
 /* Micro Status indicator dot colors inside the layout badge frame */
 const getDotClass = (lobby: PublicLobbyProps) => {
-	if (lobby.users >= lobby.maxUsers) return "bg-amber-200 animate-pulse";
-	return "bg-green-400 animate-pulse";
+  if (lobby.users >= lobby.maxUsers) return "bg-amber-200 animate-pulse";
+  return "bg-green-400 animate-pulse";
 };
 
 const handleImageError = (lobbyId: string) => {
-	imageLoaded.value[lobbyId] = false;
+  imageLoaded.value[lobbyId] = false;
 };
 
 const handleLobbyClick = (lobby: PublicLobbyProps) => {
-	const totalCapacity = lobby.maxUsers + lobby.premiumSlots;
+  const totalCapacity = lobby.maxUsers + lobby.premiumSlots;
 
-	if (lobby.users >= totalCapacity) return;
+  if (lobby.users >= totalCapacity) return;
 
-	if (lobby.users >= lobby.maxUsers) {
-		if (quotaStore.isPro) {
-			emit("join", lobby.id);
-		} else {
-			showPremiumModal.value = true;
-		}
-		return;
-	}
+  if (lobby.users >= lobby.maxUsers) {
+    if (quotaStore.isPro) {
+      emit("join", lobby.id);
+    } else {
+      showPremiumModal.value = true;
+    }
+    return;
+  }
 
-	emit("join", lobby.id);
+  emit("join", lobby.id);
 };
 
 const goToPro = () => {
-	const { openMenu } = useMenuStore();
-	openMenu(Menu.Shop);
+  const { openMenu } = useMenuStore();
+  openMenu(Menu.Shop);
 };
 </script>
 

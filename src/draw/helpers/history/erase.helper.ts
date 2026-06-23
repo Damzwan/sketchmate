@@ -1,9 +1,9 @@
-import * as fabric from "fabric";
-import { HistoryAction, HistoryEvent } from "@/draw/types/drawHistory.types";
-import { HistoryContext } from "@/draw/config/drawHistory.config";
-import { eraseObject } from "@/draw/utils/brushes/CustomEraserBrush";
-import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
-import { WorldRect } from "@/draw/committedLayer";
+import * as fabric from 'fabric'
+import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
+import { HistoryContext } from '@/draw/config/drawHistory.config'
+import { eraseObject } from '@/draw/utils/brushes/CustomEraserBrush'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { WorldRect } from '@/draw/committedLayer'
 
 // ─── union-bounds helper ──────────────────────────────────────────────────────
 //
@@ -20,33 +20,33 @@ import { WorldRect } from "@/draw/committedLayer";
 // localized overview patch + one rebake of just that region.
 
 function unionBounds(
-  objects: (fabric.Object | undefined | null)[],
+  objects: (fabric.Object | undefined | null)[]
 ): WorldRect | null {
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
-    maxY = -Infinity;
+    maxY = -Infinity
   for (const obj of objects) {
-    if (!obj) continue;
+    if (!obj) continue
     try {
-      const b = (obj as any).getBoundingRect(true, true);
-      if (!b || !isFinite(b.left) || !isFinite(b.top)) continue;
-      minX = Math.min(minX, b.left);
-      minY = Math.min(minY, b.top);
-      maxX = Math.max(maxX, b.left + b.width);
-      maxY = Math.max(maxY, b.top + b.height);
+      const b = (obj as any).getBoundingRect(true, true)
+      if (!b || !isFinite(b.left) || !isFinite(b.top)) continue
+      minX = Math.min(minX, b.left)
+      minY = Math.min(minY, b.top)
+      maxX = Math.max(maxX, b.left + b.width)
+      maxY = Math.max(maxY, b.top + b.height)
     } catch {
       /* ignore an object we can't measure */
     }
   }
-  if (minX === Infinity) return null;
-  const PAD = 4;
+  if (minX === Infinity) return null
+  const PAD = 4
   return {
     x: minX - PAD,
     y: minY - PAD,
     w: maxX - minX + PAD * 2,
-    h: maxY - minY + PAD * 2,
-  };
+    h: maxY - minY + PAD * 2
+  }
 }
 
 /**
@@ -59,29 +59,25 @@ function unionBounds(
  * just this stroke. We fail safe (leave the clip untouched) rather than corrupt
  * the mask; the caller logs this so it's visible rather than silent.
  */
-function removeStrokeFromClip(
-  canvasObj: fabric.Object,
-  strokeId: string,
-): boolean {
-  const clip = canvasObj.clipPath as any;
-  if (!clip || !Array.isArray(clip._objects)) return false;
+function removeStrokeFromClip(canvasObj: fabric.Object, strokeId: string): boolean {
+  const clip = canvasObj.clipPath as any
+  if (!clip || !clip._objects || !Array.isArray(clip._objects)) return false
 
-  const before = clip._objects.length;
-  const kept = clip._objects.filter((o: any) => o?.id !== strokeId);
+  const before = clip._objects.length
+  const kept = clip._objects.filter((o: any) => o?.id !== strokeId)
 
-  if (kept.length === before) {
-    // strokeId not present — either already removed, or baked away.
-    return false;
-  }
+  if (kept.length === before) return false // Stroke not found
 
-  clip._objects = kept;
   if (kept.length === 0) {
-    canvasObj.set({ clipPath: undefined });
+    canvasObj.set({ clipPath: undefined })
   } else {
-    clip.set?.("dirty", true);
+    // Reassign and cleanly flag the clip group for a vector re-render
+    clip._objects = kept
+    clip.set?.('dirty', true)
   }
-  canvasObj.set("dirty", true);
-  return true;
+
+  canvasObj.set('dirty', true)
+  return true
 }
 
 export async function handleErasedAction(
@@ -90,20 +86,12 @@ export async function handleErasedAction(
   actionType: "undo" | "redo",
 ): Promise<HistoryAction<HistoryEvent.Erasing>> {
   const { canvas, getObjectsById } = ctx;
-  const {
-    strokeJSON,
-    strokeId,
-    objectIds,
-    deletedObjectsJSON = [],
-  } = action.params;
+  const { strokeJSON, strokeId, objectIds, deletedObjectsJSON = [] } = action.params;
   const mgr = useDrawObjectManager();
 
   if (actionType === "redo") {
-    // ── REDO ─────────────────────────────────────────────────────────────
     const objects = getObjectsById(objectIds);
-    const [enlivenedStroke] = await fabric.util.enlivenObjects<fabric.Path>([
-      strokeJSON,
-    ]);
+    const [enlivenedStroke] = await fabric.util.enlivenObjects<fabric.Path>([strokeJSON]);
 
     await Promise.all(
       objects.map(async (canvasObj) => {
@@ -112,54 +100,38 @@ export async function handleErasedAction(
       }),
     );
 
-    // Removing deleted objects fires object:removed → the manager invalidates
-    // their own footprints, so we don't need to cover them in the rect below.
     if (deletedObjectsJSON.length > 0) {
       const deletedIds = deletedObjectsJSON.map((obj: any) => obj.id);
-      const objectsToRemove = getObjectsById(deletedIds);
-      objectsToRemove.forEach((obj) => {
+      getObjectsById(deletedIds).forEach((obj) => {
         if (obj) canvas.remove(obj);
       });
     }
 
-    // Keep the spatial index consistent (bounds may shift as clips change),
-    // then invalidate ONCE over the affected region — not per object.
+    const [strokeForBounds] = await fabric.util.enlivenObjects<fabric.Path>([strokeJSON]);
     for (const obj of objects) if (obj) mgr.updateQuadTree(obj);
-    const rect = unionBounds(objects);
-    if (rect) mgr.scheduleRectPatch(rect);
+    const rect = intersectRect(strokeFootprint(strokeForBounds), unionBounds(objects));
+    if (rect) mgr.patchRectSync(rect);
+
   } else {
-    // ── UNDO ─────────────────────────────────────────────────────────────
+    // UNDO: Safely target the individual vector stroke to remove it.
     let restoredObjects: fabric.Object[] = [];
     if (deletedObjectsJSON.length > 0) {
       restoredObjects = await fabric.util.enlivenObjects(deletedObjectsJSON);
-      // object:added re-indexes these; we still rect-patch below so they
-      // rebake with the correct (stroke-removed) clip in one pass.
       restoredObjects.forEach((obj) => canvas.add(obj as fabric.Object));
     }
 
     const objectsOnCanvas = getObjectsById(objectIds);
     const allAffected = [...objectsOnCanvas, ...restoredObjects];
 
-    let bakedAwayCount = 0;
     for (const canvasObj of allAffected) {
       if (!canvasObj || !canvasObj.clipPath) continue;
-      const removed = removeStrokeFromClip(canvasObj, strokeId);
-      if (!removed) bakedAwayCount++;
-    }
-    if (bakedAwayCount > 0) {
-      console.warn(
-        `[erase-undo] ${bakedAwayCount} object(s) had this stroke baked into a ` +
-          `flattened clip; that stroke can't be undone individually. ` +
-          `Lower or disable CustomEraserBrush.flattenClipAfter if erase history ` +
-          `must stay fully reversible.`,
-      );
+      removeStrokeFromClip(canvasObj, strokeId);
     }
 
-    // Index consistency + a SINGLE localized invalidation, after all clip
-    // edits are applied (so tiles rebake with the final clip, not a stale one).
+    const [strokeForBounds] = await fabric.util.enlivenObjects<fabric.Path>([strokeJSON]);
     for (const obj of allAffected) if (obj) mgr.updateQuadTree(obj);
-    const rect = unionBounds(allAffected);
-    if (rect) mgr.scheduleRectPatch(rect);
+    const rect = intersectRect(strokeFootprint(strokeForBounds), unionBounds(allAffected));
+    if (rect) mgr.patchRectSync(rect);
   }
 
   return action;
@@ -167,14 +139,34 @@ export async function handleErasedAction(
 
 export async function redoErased(
   ctx: HistoryContext,
-  action: HistoryAction<HistoryEvent.Erasing>,
+  action: HistoryAction<HistoryEvent.Erasing>
 ): Promise<HistoryAction<HistoryEvent.Erasing>> {
-  return handleErasedAction(ctx, action, "redo");
+  return handleErasedAction(ctx, action, 'redo')
 }
 
 export async function undoErased(
   ctx: HistoryContext,
-  action: HistoryAction<HistoryEvent.Erasing>,
+  action: HistoryAction<HistoryEvent.Erasing>
 ): Promise<HistoryAction<HistoryEvent.Erasing>> {
-  return handleErasedAction(ctx, action, "undo");
+  return handleErasedAction(ctx, action, 'undo')
+}
+
+function strokeFootprint(stroke: fabric.Object | null | undefined): WorldRect | null {
+  if (!stroke) return null
+  try {
+    const b = (stroke as any).getBoundingRect(true, true)
+    if (!isFinite(b.left)) return null
+    const PAD = ((stroke as any).strokeWidth ?? 0) * 1.5 + 4
+    return { x: b.left - PAD, y: b.top - PAD, w: b.width + PAD * 2, h: b.height + PAD * 2 }
+  } catch {
+    return null
+  }
+}
+
+function intersectRect(a: WorldRect | null, b: WorldRect | null): WorldRect | null {
+  if (!a) return b
+  if (!b) return a
+  const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y)
+  const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h)
+  return x2 <= x1 || y2 <= y1 ? null : { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }
 }

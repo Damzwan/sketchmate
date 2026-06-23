@@ -536,22 +536,19 @@ export class CustomEraserBrush extends PencilBrush {
 	 */
 	onMouseUp(context: fabric.TEvent<fabric.TPointerEvent>): boolean {
 		const ev = context?.e;
+		// Always tear down the after:render handler, even for secondary pointers.
+		this.detachAfterRender();
 		if (!isPrimaryPointer(ev)) return false;
-
-		if (this.active) {
-			super.onMouseUp(context);
-		}
-
+		if (this.active) super.onMouseUp(context);
 		this.active = false;
+		return false;
+	}
 
+	private detachAfterRender() {
 		if (this._afterRenderHandler) {
-			try {
-				this.canvas.off("after:render", this._afterRenderHandler);
-			} catch {}
+			try { this.canvas.off("after:render", this._afterRenderHandler); } catch {}
 			this._afterRenderHandler = undefined;
 		}
-
-		return false;
 	}
 
 	/**

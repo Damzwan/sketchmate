@@ -139,7 +139,9 @@ export class CommittedLayer<T extends Bounded> {
     return this.OVERVIEW_TIER
   }
 
-  queryIndex(rect: WorldRect): T[] { return this.index.query(rect); }
+  queryIndex(rect: WorldRect): T[] {
+    return this.index.query(rect)
+  }
 
   // ── geometry ────────────────────────────────────────────────────────────
   pickActiveTier(zoom: number): number {
@@ -299,7 +301,15 @@ export class CommittedLayer<T extends Bounded> {
     }
 
     // Draw order: overview base → neighbour-tier fallbacks → present tiles.
-    if (anyUncovered) this.overview.composite(ctx, vpt, px, dpr, vw)
+    if (anyUncovered) {
+      ctx.save()
+      ctx.setTransform(1,0,0,1,0,0)
+      ctx.beginPath()
+      for (const cell of uncovered) ctx.rect(cell.dx, cell.dy, cell.dw, cell.dh)
+      ctx.clip()
+      this.overview.composite(ctx, vpt, px, dpr, vw)
+      ctx.restore()
+    }
 
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -313,6 +323,48 @@ export class CommittedLayer<T extends Bounded> {
     ctx.restore()
 
     return { needsBake: anyNonFresh }
+  }
+
+  // committedLayer.ts
+  /** Apply the eraser stroke directly onto existing fresh tiles (destination-out),
+   *  keeping them FRESH. Mirrors the old TileCache.subtractStrokeFromTiles: no
+   *  re-query, no rebuild, no fallback, no overview. The visible tiles stay sharp. */
+  subtractStroke(
+    renderEraser: (ctx: OffscreenCanvasRenderingContext2D, scale: number) => void,
+    rect: WorldRect,
+    tiers: number[]
+  ): void {
+    for (const tier of tiers) {
+      if (tier < 0 || tier >= this.ZOOM_TIERS.length) continue
+      const scale = this.ZOOM_TIERS[tier]
+      const pad = this.OS / scale + 4 / scale
+      const r = this.tileRange(rect, tier)
+      for (let ty = r.ty0; ty <= r.ty1; ty++)
+        for (let tx = r.tx0; tx <= r.tx1; tx++) {
+          const key = `${tier}:${tx}:${ty}`
+          const t = this.tiles.get(key)
+          if (!t || !this.isFresh(key, t) || !t.bitmap) continue
+          const world = this.tileToWorld(tier, tx, ty)
+          const off = this.acquire()
+          const c2d = off.getContext('2d')!
+          c2d.setTransform(1,0,0,1,0,0)
+          c2d.clearRect(0,0,this.BMP,this.BMP)
+          c2d.drawImage(t.bitmap, 0, 0)
+          c2d.save()
+          c2d.translate(this.OS, this.OS); c2d.scale(scale, scale); c2d.translate(-world.x, -world.y)
+          c2d.beginPath(); c2d.rect(world.x - pad, world.y - pad, world.w + 2*pad, world.h + 2*pad); c2d.clip()
+          c2d.globalCompositeOperation = 'destination-out'
+          try { renderEraser(c2d, scale) } catch {}
+          c2d.restore()
+          let bmp: ImageBitmap
+          // @ts-ignore
+          try { bmp = off.transferToImageBitmap() } catch { this.release(off); continue }
+          this.release(off)
+          if (t.bitmap) t.bitmap.close()
+          t.bitmap = bmp           // SAME tile, gen untouched → stays fresh
+          t.lastUsed = performance.now()
+        }
+    }
   }
 
   /**
@@ -545,6 +597,82 @@ export class CommittedLayer<T extends Bounded> {
     this.store(key, tier, tx, ty, bmp, bytes, builtGen)
   }
 
+  /**
+   * Synchronously rebuild every tile covering `rect` at `tier`, re-querying the
+   * index so the result is CORRECT this frame (no stale-exact ghost) and SHARP
+   * (no low-res overview flash). `clip` (the viewport) bounds the on-frame cost:
+   * tiles outside it are left for the async bake. Used for destructive edits.
+   */
+  rebuildRectSync(rect: WorldRect, tier: number, clip?: WorldRect, maxTiles = 32): void {
+    if (tier < 0 || tier >= this.ZOOM_TIERS.length) return
+    const r = this.tileRange(rect, tier)
+    const cr = clip ? this.tileRange(clip, tier) : null
+    let count = 0
+    for (let ty = r.ty0; ty <= r.ty1; ty++) {
+      for (let tx = r.tx0; tx <= r.tx1; tx++) {
+        if (cr && (tx < cr.tx0 || tx > cr.tx1 || ty < cr.ty0 || ty > cr.ty1)) continue // off-screen → async bake
+        if (count >= maxTiles) return // safety: never block the frame on a huge edit
+        this.rebuildTileSync(tier, tx, ty)
+        count++
+      }
+    }
+  }
+
+  private rebuildTileSync(tier: number, tx: number, ty: number): void {
+    const scale = this.ZOOM_TIERS[tier]
+    const world = this.tileToWorld(tier, tx, ty)
+    const pad = this.OS / scale + 4 / scale
+    const q: WorldRect = { x: world.x - pad, y: world.y - pad, w: world.w + 2 * pad, h: world.h + 2 * pad }
+    const objects = this.index.query(q)
+    const key = `${tier}:${tx}:${ty}`
+    const builtGen = this.gen.get(key) ?? 0 // current gen → tile lands FRESH
+
+    if (objects.length === 0) {
+      this.store(key, tier, tx, ty, null, 4, builtGen)
+      return
+    }
+
+    const off = this.acquire()
+    const c2d = off.getContext('2d')
+    if (!c2d) {
+      this.release(off)
+      return
+    }
+    c2d.setTransform(1, 0, 0, 1, 0, 0)
+    c2d.clearRect(0, 0, this.BMP, this.BMP)
+    c2d.save()
+    c2d.translate(this.OS, this.OS)
+    c2d.scale(scale, scale)
+    c2d.translate(-world.x, -world.y)
+    c2d.beginPath()
+    c2d.rect(q.x, q.y, q.w, q.h)
+    c2d.clip()
+    for (let i = 0; i < objects.length; i++) {
+      try {
+        this.renderer(c2d as any, objects[i], scale)
+      } catch (err) {
+        if (this.debug) console.warn('[Committed] sync render threw', err)
+      }
+    }
+    c2d.restore()
+
+    let bmp: ImageBitmap
+    // @ts-ignore - transferToImageBitmap is sync and resets the canvas (reusable)
+    try {
+      bmp = off.transferToImageBitmap()
+    } catch {
+      this.release(off)
+      return
+    }
+    this.release(off)
+    const bytes = this.BMP * this.BMP * 4
+    if (!this.ensureMemory(bytes)) {
+      bmp.close()
+      return
+    }
+    this.store(key, tier, tx, ty, bmp, bytes, builtGen)
+  }
+
   private store(key: string, tier: number, tx: number, ty: number, bitmap: ImageBitmap | null, bytes: number, builtGen: number) {
     const prev = this.tiles.get(key)
     if (prev) {
@@ -587,6 +715,14 @@ export class CommittedLayer<T extends Bounded> {
 
   private release(c: OffscreenCanvas): void {
     if (this.pool.length < this.POOL_MAX) this.pool.push(c)
+  }
+
+
+  dropOtherTiers(rect: WorldRect, keepTier: number): void {
+    for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
+      if (tier === keepTier) continue
+      this.dropTiles(rect, tier)
+    }
   }
 
   reset(): void {

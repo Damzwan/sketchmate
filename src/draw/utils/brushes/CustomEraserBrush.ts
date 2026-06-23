@@ -387,7 +387,7 @@ export class CustomEraserBrush extends PencilBrush {
 	 * otherwise grows with every erase and makes repeated erasing super-linear.
 	 * Set to 0 to disable (keep fully-vector clips).
 	 */
-	flattenClipAfter = 14;
+	flattenClipAfter = 0;
 
 	private eventEmitter: EventTarget;
 	private active = false;

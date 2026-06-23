@@ -20,6 +20,7 @@ import type {
   WorldRect,
   Yieldable,
 } from "./committedLayer";
+import { Yielder } from '@/draw/helpers/yielding.helper'
 
 interface OverviewOptions {
   px?: number;
@@ -142,9 +143,10 @@ export class WorldOverview<T extends Bounded> {
   }
 
   /** Full low-res rebuild, only if dirty or coverage no longer fits content. */
+  /** Full low-res rebuild, only if dirty or coverage no longer fits content. */
   async rebuildIfNeeded(
     contentBounds: WorldRect | null,
-    yielder: Yieldable,
+    yielder: Yielder,
     signal: AbortSignal,
   ): Promise<void> {
     if (!contentBounds || contentBounds.w <= 0 || contentBounds.h <= 0) return;
@@ -176,21 +178,27 @@ export class WorldOverview<T extends Bounded> {
     const objects = this.index.query(bounds);
     ctx.save();
     this.applyWorldTransform(ctx);
+
     yielder.reset();
+    const minPx = 0.75; // skip objects smaller than ~1 overview pixel
+
     for (let i = 0; i < objects.length; i++) {
-      try {
-        this.renderer(ctx as any, objects[i], Math.max(this.sx, this.sy));
-      } catch {
-        /* ignore */
-      }
-      if (i % this.CHUNK === this.CHUNK - 1 && yielder.shouldYield()) {
-        await yielder.yield();
-        if (signal.aborted) {
-          ctx.restore();
-          return;
+      const b = objects[i].getBoundingRect(true, true);
+      if (b.width * this.sx >= minPx || b.height * this.sy >= minPx) {
+        try {
+          this.renderer(ctx as any, objects[i], Math.max(this.sx, this.sy));
+        } catch {
+          /* ignore */
         }
       }
+
+      await yielder.maybeYield();
+      if (signal.aborted) {
+        ctx.restore();
+        return;
+      }
     }
+
     ctx.restore();
     this.dirty = false;
   }

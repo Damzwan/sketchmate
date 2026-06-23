@@ -182,10 +182,11 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     const obj = e.target as FabricObject;
     if (!obj.id || !core) return;
     // Local drag is owned by transformController (it renders its own layer).
-    if (localTransform.isActive() && localTransform.ownsTarget(obj)) {
+    if (localTransform.ownsTarget(obj)) {
       updateQuadTree(obj);
       return;
     }
+
     const oldRect = collectOldRect(obj, e.transform);
     updateQuadTree(obj);
     if (isLoading()) return;

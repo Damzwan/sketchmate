@@ -118,12 +118,8 @@ export function markMoved(): void {
   session.moveHappened = true;
   const s = session;
 
-  // 1. Hide originals in the object model.
   s.objects.forEach((o) => (o.opacity = 0));
 
-  // 2. DROP the original-position tiles (destructive → shows the correct, now-
-  //    empty overview there). scheduleRectPatch would keep the sharp old pixels
-  //    = a ghost under/around the layer.
   const mgr = useDrawObjectManager();
   mgr.dropRegion({
     x: s.origin.left,
@@ -132,7 +128,6 @@ export function markMoved(): void {
     h: s.origin.height,
   });
 
-  // 3. Reveal the layer on top.
   const el = ensureLayer(s.canvas);
   el.style.display = "block";
   applyTransform(s);

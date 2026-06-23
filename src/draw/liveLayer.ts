@@ -1,15 +1,15 @@
 // liveLayer.ts
 //
-// The LIVE layer holds the handful of objects that are currently in flight:
-// your active stroke, strokes that just arrived from other people, the object
-// you are dragging, an in-progress eraser stroke. They are rendered DIRECTLY
-// on top of the committed tiles every frame — never baked, never patched.
+// Small, bounded set of in-flight objects rendered DIRECTLY over committed
+// tiles every frame. Now also used to COVER destructively-dropped regions with
+// sharp vectors during the bake window (see RenderCore.coverRegionLive).
 //
-// This is what replaces additive patching. Because the set is always small and
-// bounded (LIVE_MAX), drawing it per frame is cheap even on low-end devices and
-// even with many simultaneous collaborators. An item is handed off to the
-// committed layer (and dropped here) only once the committed tiles covering it
-// are fresh, so there is never a pop or a double-render at the boundary.
+// Hardening vs. the previous version:
+//   • freeSlots() so callers can avoid overflowing the cap silently.
+//   • viewport culling in composite() — off-screen live items cost nothing.
+//   • gcExpired() — normal items have a TTL so a missed demotion can't leave
+//     the layer permanently full (the "less responsive after zoom" leak).
+//   • erase items have a short hard TTL (their tile rebakes fast).
 
 import type { Bounded, WorldRect } from "./committedLayer";
 
@@ -28,6 +28,9 @@ export type LiveRenderer<T> = (
   mode: LiveMode,
 ) => void;
 
+const NORMAL_TTL_MS = 5000; // safety expiry for an item that never demoted
+const ERASE_TTL_MS = 1500;  // erase overlays are transient
+
 export class LiveLayer<T extends Bounded> {
   private items = new Map<string, LiveItem<T>>();
   private readonly MAX: number;
@@ -36,61 +39,59 @@ export class LiveLayer<T extends Bounded> {
     this.MAX = opts.max ?? 64;
   }
 
-  /** @returns false if the layer is full (caller should rely on committed/overview). */
+  freeSlots(): number { return Math.max(0, this.MAX - this.items.size); }
+
   add(obj: T, rect: WorldRect, mode: LiveMode = "normal"): boolean {
     if (!obj.id) return false;
     if (!this.items.has(obj.id) && this.items.size >= this.MAX) return false;
     this.items.set(obj.id, { obj, mode, rect, addedAt: performance.now() });
     return true;
   }
-  remove(id: string): void {
-    this.items.delete(id);
-  }
-  has(id: string): boolean {
-    return this.items.has(id);
-  }
-  get size(): number {
-    return this.items.size;
-  }
-  isEmpty(): boolean {
-    return this.items.size === 0;
-  }
-  clear(): void {
-    this.items.clear();
+  remove(id: string): void { this.items.delete(id); }
+  has(id: string): boolean { return this.items.has(id); }
+  get size(): number { return this.items.size; }
+  isEmpty(): boolean { return this.items.size === 0; }
+  clear(): void { this.items.clear(); }
+
+  /** Force-expire stale items so the layer can never stay full. */
+  gcExpired(): void {
+    if (this.items.size === 0) return;
+    const now = performance.now();
+    for (const [id, it] of this.items) {
+      const ttl = it.mode === "erase" ? ERASE_TTL_MS : NORMAL_TTL_MS;
+      if (now - it.addedAt > ttl) this.items.delete(id);
+    }
   }
 
-  /** Items whose covering tiles are now ready, so they can be demoted. */
   settledIds(isReady: (rect: WorldRect) => boolean): string[] {
     const out: string[] = [];
-    for (const [id, it] of this.items)
-      if (it.mode === "normal" && isReady(it.rect)) out.push(id);
-    // erase-mode items are transient; demote them once their region is ready too
-    for (const [id, it] of this.items)
-      if (it.mode === "erase" && isReady(it.rect)) out.push(id);
+    for (const [id, it] of this.items) if (isReady(it.rect)) out.push(id);
     return out;
   }
 
-  /** Render all live items in world space on top of an already-composited frame. */
+  /** Render all live items in world space, viewport-culled. */
   composite(
     ctx: CanvasRenderingContext2D,
     vpt: number[],
     dpr: number,
     render: LiveRenderer<T>,
+    viewWorld?: WorldRect,
   ): void {
     if (this.items.size === 0) return;
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
     for (const it of this.items.values()) {
+      if (viewWorld && !this.intersects(it.rect, viewWorld)) continue;
       ctx.save();
       if (it.mode === "erase") ctx.globalCompositeOperation = "destination-out";
-      try {
-        render(ctx, it.obj, it.mode);
-      } catch {
-        /* ignore */
-      }
+      try { render(ctx, it.obj, it.mode); } catch { /* ignore */ }
       ctx.restore();
     }
     ctx.restore();
+  }
+
+  private intersects(a: WorldRect, b: WorldRect): boolean {
+    return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
   }
 }

@@ -143,8 +143,6 @@ export class WorldOverview<T extends Bounded> {
     return true
   }
 
-  /** Full low-res rebuild, only if dirty or coverage no longer fits content. */
-  /** Full low-res rebuild, only if dirty or coverage no longer fits content. */
   async rebuildIfNeeded(
     contentBounds: WorldRect | null,
     yielder: Yielder,
@@ -236,7 +234,7 @@ export class WorldOverview<T extends Bounded> {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.imageSmoothingEnabled = true
     // @ts-ignore
-    ctx.imageSmoothingQuality = 'medium'
+    ctx.imageSmoothingQuality = 'low'
     ctx.drawImage(this.canvas, srcX, srcY, srcW, srcH, dx, dy, dw, dh)
     ctx.restore()
   }

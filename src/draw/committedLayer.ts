@@ -3,61 +3,40 @@
 // Cached tiles that are a PURE FUNCTION of (objects in a region, generation).
 // Tiles are NEVER mutated in place — only rebuilt wholesale from the index.
 //
-// Display rules:
-//   • A present tile (fresh OR stale-exact, i.e. has a bitmap) is drawn — this
-//     keeps DRAW / restyle sharp (no blur) while its rebuild is pending.
-//   • A MISSING cell (dropped destructively, or never baked at this tier)
-//     borrows the NEAREST FRESH tier in EITHER direction, scaled:
-//        - coarser  → one tile covers the cell (sub-rect sample)
-//        - finer    → several tiles cover the cell (draw each)
-//     This is what kills the zoom flash in BOTH directions.
-//   • The world overview is the last-resort base, drawn only when a cell has
-//     no tile source at any tier.
+// Low-end changes vs. previous:
+//   • async bake uses transferToImageBitmap (zero-copy) like the sync path,
+//     killing a ~1MB memcpy per baked tile during heavy panning.
+//   • composite() takes an optional fallbackDepth (1 while gesturing) so the
+//     bidirectional tier search can't walk FALLBACK_DEPTH tiers per cell on a
+//     fast pan.
 
 import { WorldOverview } from './worldOverview'
 
-export interface WorldRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+export interface WorldRect { x: number; y: number; w: number; h: number }
 
 export interface Bounded {
   id: string;
-
-  getBoundingRect(
-    absolute?: boolean,
-    calculate?: boolean
-  ): { left: number; top: number; width: number; height: number };
+  getBoundingRect(absolute?: boolean, calculate?: boolean):
+    { left: number; top: number; width: number; height: number };
 }
 
-export interface SpatialIndex<T extends Bounded> {
-  query(rect: WorldRect): T[];
-}
+export interface SpatialIndex<T extends Bounded> { query(rect: WorldRect): T[] }
 
 export type TileRenderer<T extends Bounded> = (
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  obj: T,
-  tierScale: number
+  obj: T, tierScale: number
 ) => void;
 
 export interface Yieldable {
   reset(): void;
-
   shouldYield(): boolean;
-
   yield(): Promise<void>;
 }
 
 interface Tile {
-  bitmap: ImageBitmap | null; // null = baked-empty (no content in region)
-  tier: number;
-  tx: number;
-  ty: number;
-  bytes: number;
-  builtGen: number;
-  lastUsed: number;
+  bitmap: ImageBitmap | null;
+  tier: number; tx: number; ty: number;
+  bytes: number; builtGen: number; lastUsed: number;
 }
 
 export interface CommittedOptions {
@@ -69,21 +48,14 @@ export interface CommittedOptions {
   overviewTier?: number;
   overviewPx?: number;
   renderChunk?: number;
-  /** How many tiers out we search for a sharp fallback before using overview. */
   fallbackDepth?: number;
   debug?: boolean;
 }
 
 interface Draw {
   bmp: ImageBitmap;
-  sx: number;
-  sy: number;
-  sw: number;
-  sh: number;
-  dx: number;
-  dy: number;
-  dw: number;
-  dh: number;
+  sx: number; sy: number; sw: number; sh: number;
+  dx: number; dy: number; dw: number; dh: number;
 }
 
 export class CommittedLayer<T extends Bounded> {
@@ -106,13 +78,9 @@ export class CommittedLayer<T extends Bounded> {
   private gen = new Map<string, number>()
   private memoryBytes = 0
   private pool: OffscreenCanvas[] = []
-  private readonly POOL_MAX = 4
+  private readonly POOL_MAX = 16
 
-  constructor(
-    index: SpatialIndex<T>,
-    renderer: TileRenderer<T>,
-    opts: CommittedOptions = {}
-  ) {
+  constructor(index: SpatialIndex<T>, renderer: TileRenderer<T>, opts: CommittedOptions = {}) {
     this.index = index
     this.renderer = renderer
     this.TILE = opts.tileSize ?? 512
@@ -127,23 +95,15 @@ export class CommittedLayer<T extends Bounded> {
     this.debug = opts.debug ?? false
     const maxRS = opts.maxRenderScale ?? 2
     this.renderScale = Math.min(
-      typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
-      maxRS
-    )
-    this.overview = new WorldOverview<T>(index, renderer, {
-      px: opts.overviewPx ?? 2048
-    })
+      typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, maxRS)
+    this.overview = new WorldOverview<T>(index, renderer, { px: opts.overviewPx ?? 2048 })
   }
 
-  get overviewTier(): number {
-    return this.OVERVIEW_TIER
-  }
+  get overviewTier(): number { return this.OVERVIEW_TIER }
 
-  queryIndex(rect: WorldRect): T[] {
-    return this.index.query(rect)
-  }
+  queryIndex(rect: WorldRect): T[] { return this.index.query(rect) }
 
-  // ── geometry ────────────────────────────────────────────────────────────
+  // ── geometry ───────────────────────────────────────────────────────────
   pickActiveTier(zoom: number): number {
     const eff = zoom * this.renderScale
     const TOL = 1.15
@@ -171,14 +131,10 @@ export class CommittedLayer<T extends Bounded> {
 
   viewWorld(vpt: number[], px: { w: number; h: number }, dpr: number): WorldRect {
     const z = vpt[0]
-    return {
-      x: -vpt[4] / z, y: -vpt[5] / z,
-      w: px.w / (z * dpr), h: px.h / (z * dpr)
-    }
+    return { x: -vpt[4] / z, y: -vpt[5] / z, w: px.w / (z * dpr), h: px.h / (z * dpr) }
   }
 
-  // ── invalidation ──────────────────────────────────────────────────────────
-  /** Mark a region dirty at every tier (additive change: keeps stale-exact). */
+  // ── invalidation ─────────────────────────────────────────────────────────
   markDirty(rect: WorldRect): void {
     for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
       const r = this.tileRange(rect, tier)
@@ -195,7 +151,6 @@ export class CommittedLayer<T extends Bounded> {
     this.overview.markDirty()
   }
 
-  /** Destructive: remove tiles covering rect at ONE tier (composite falls back). */
   dropTiles(rect: WorldRect, tier: number): void {
     const r = this.tileRange(rect, tier)
     for (let ty = r.ty0; ty <= r.ty1; ty++)
@@ -210,35 +165,35 @@ export class CommittedLayer<T extends Bounded> {
       }
   }
 
-  /**
-   * Destructive at EVERY tier — the moved/removed object can no longer ghost at
-   * any zoom. Dropped cells fall back to a FRESH neighbour tier or the overview,
-   * never a stale-exact copy of the old pixels.
-   */
   dropAllTiers(rect: WorldRect): void {
     for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) this.dropTiles(rect, tier)
   }
 
-  // ── compositing ───────────────────────────────────────────────────────────
+  dropOtherTiers(rect: WorldRect, keepTier: number): void {
+    for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
+      if (tier === keepTier) continue
+      this.dropTiles(rect, tier)
+    }
+  }
+
+  // ── compositing ────────────────────────────────────────────────────────
   composite(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     vpt: number[], px: { w: number; h: number }, dpr: number,
-    bg?: string
+    bg?: string,
+    fallbackDepth = 0   // 0 → use FALLBACK_DEPTH; >0 → cap (1 while gesturing)
   ): { needsBake: boolean } {
     const zoom = vpt[0]
     const tier = this.pickActiveTier(zoom)
     const vw = this.viewWorld(vpt, px, dpr)
+    const maxDepth = fallbackDepth > 0 ? fallbackDepth : this.FALLBACK_DEPTH
 
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, px.w, px.h)
-    if (bg) {
-      ctx.fillStyle = bg
-      ctx.fillRect(0, 0, px.w, px.h)
-    }
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, px.w, px.h) }
     ctx.restore()
 
-    // FAR ZOOM → overview only. O(1).
     if (tier <= this.OVERVIEW_TIER) {
       this.overview.composite(ctx, vpt, px, dpr, vw)
       return { needsBake: this.overview.isDirty() }
@@ -248,7 +203,6 @@ export class CommittedLayer<T extends Bounded> {
     const a = vpt[0] * dpr, d = vpt[3] * dpr, e = vpt[4] * dpr, f = vpt[5] * dpr
     const tws = this.TILE / this.ZOOM_TIERS[tier]
 
-    // Pass 1: classify cells → present (draw on top) vs uncovered (need fallback).
     const present: Draw[] = []
     const uncovered: { tx: number; ty: number; dx: number; dy: number; dw: number; dh: number }[] = []
     let anyNonFresh = false
@@ -268,42 +222,26 @@ export class CommittedLayer<T extends Bounded> {
         if (!t || !fresh) anyNonFresh = true
 
         if (t && t.bitmap) {
-          // fresh OR stale-exact → sharp, draw on top.
-          present.push({
-            bmp: t.bitmap,
-            sx: this.OS,
-            sy: this.OS,
-            sw: this.TILE,
-            sh: this.TILE,
-            dx: dx0,
-            dy: dy0,
-            dw,
-            dh
-          })
+          present.push({ bmp: t.bitmap, sx: this.OS, sy: this.OS, sw: this.TILE, sh: this.TILE, dx: dx0, dy: dy0, dw, dh })
           continue
         }
-        if (t && fresh && !t.bitmap) if (t && fresh && !t.bitmap) continue // fresh-empty → genuinely empty
+        if (t && fresh && !t.bitmap) continue // fresh-empty → genuinely empty
 
-        // Missing (or stale-empty) → need a fallback source for this cell.
         uncovered.push({ tx, ty, dx: dx0, dy: dy0, dw, dh })
       }
     }
 
-    // Pass 2: resolve fallbacks for uncovered cells (bidirectional tier search).
-    // We draw the overview ONCE underneath if ANY cell can't be covered, then
-    // layer the sharp neighbour-tier draws on top.
     const fallback: Draw[] = []
     let anyUncovered = false
     for (const cell of uncovered) {
-      const fbs = this.findBestSource(tier, cell.tx, cell.ty, cell.dx, cell.dy, cell.dw, cell.dh)
+      const fbs = this.findBestSource(tier, cell.tx, cell.ty, cell.dx, cell.dy, cell.dw, cell.dh, maxDepth)
       if (fbs.length) fallback.push(...fbs)
       else anyUncovered = true
     }
 
-    // Draw order: overview base → neighbour-tier fallbacks → present tiles.
     if (anyUncovered) {
       ctx.save()
-      ctx.setTransform(1,0,0,1,0,0)
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.beginPath()
       for (const cell of uncovered) ctx.rect(cell.dx, cell.dy, cell.dw, cell.dh)
       ctx.clip()
@@ -325,23 +263,13 @@ export class CommittedLayer<T extends Bounded> {
     return { needsBake: anyNonFresh }
   }
 
-  /**
-   * Find the BEST fresh source for an active-tier cell, searching BOTH ways:
-   *   - coarser tiers (tier-1 … ): ONE tile covers the cell → sub-rect sample.
-   *   - finer tiers   (tier+1 … ): several tiles cover the cell → draw each.
-   * Nearest tier wins (least scaling artefact). Returns [] → overview.
-   *
-   * This is the fix for the zoom flash: zooming OUT now borrows the finer tier
-   * you came from (scaled down) instead of the blurry overview, and zooming IN
-   * borrows the coarser tier (scaled up).
-   */
   private findBestSource(
     tier: number, tx: number, ty: number,
-    dx: number, dy: number, dw: number, dh: number
+    dx: number, dy: number, dw: number, dh: number,
+    maxDepth: number
   ): Draw[] {
-    const maxOut = Math.min(this.FALLBACK_DEPTH, this.ZOOM_TIERS.length)
+    const maxOut = Math.min(maxDepth, this.ZOOM_TIERS.length)
     for (let step = 1; step <= maxOut; step++) {
-      // Prefer coarser first (cheaper: single tile), then finer.
       const coarser = tier - step
       if (coarser > this.OVERVIEW_TIER) {
         const c = this.coarserDraw(tier, tx, ty, coarser, dx, dy, dw, dh)
@@ -356,7 +284,6 @@ export class CommittedLayer<T extends Bounded> {
     return []
   }
 
-  /** Sample a single coarser fresh tile that covers the cell. */
   private coarserDraw(
     tier: number, tx: number, ty: number, ct: number,
     dx: number, dy: number, dw: number, dh: number
@@ -375,20 +302,12 @@ export class CommittedLayer<T extends Bounded> {
     t.lastUsed = performance.now()
     return {
       bmp: t.bitmap,
-      sx: this.OS + fx * this.TILE,
-      sy: this.OS + fy * this.TILE,
-      sw: fw * this.TILE,
-      sh: fw * this.TILE,
+      sx: this.OS + fx * this.TILE, sy: this.OS + fy * this.TILE,
+      sw: fw * this.TILE, sh: fw * this.TILE,
       dx, dy, dw, dh
     }
   }
 
-  /**
-   * Cover the cell from a FINER tier: many fine tiles map into one coarse cell.
-   * Only used if EVERY fine cell intersecting the cell is fresh-with-bitmap (we
-   * don't want a half-covered patch — that reintroduces flashing). We sub-divide
-   * the destination rect proportionally.
-   */
   private finerDraws(
     tier: number, tx: number, ty: number, ft: number,
     dx: number, dy: number, dw: number, dh: number
@@ -398,20 +317,16 @@ export class CommittedLayer<T extends Bounded> {
     const fr = this.tileRange(cellWorld, ft)
     const ftws = this.TILE / this.ZOOM_TIERS[ft]
 
-    // Gate: every covering fine tile must be fresh-with-bitmap OR fresh-empty.
-    // (fresh-empty contributes nothing but is "covered" — fine.) Any missing /
-    // stale fine tile → bail (partial cover would flash).
     const draws: Draw[] = []
-    const dpw = dw / tws  // device px per world unit (x)
-    const dph = dh / tws  // device px per world unit (y)
+    const dpw = dw / tws
+    const dph = dh / tws
     for (let fty = fr.ty0; fty <= fr.ty1; fty++) {
       for (let ftx = fr.tx0; ftx <= fr.tx1; ftx++) {
         const k = `${ft}:${ftx}:${fty}`
         const t = this.tiles.get(k)
-        if (!t || !this.isFresh(k, t)) return [] // not fully covered → bail
-        if (!t.bitmap) continue                  // fresh-empty patch of this cell
+        if (!t || !this.isFresh(k, t)) return []
+        if (!t.bitmap) continue
 
-        // Intersection of this fine tile with the coarse cell, in world space.
         const fwx = ftx * ftws, fwy = fty * ftws
         const ix0 = Math.max(fwx, cellWorld.x)
         const iy0 = Math.max(fwy, cellWorld.y)
@@ -419,14 +334,12 @@ export class CommittedLayer<T extends Bounded> {
         const iy1 = Math.min(fwy + ftws, cellWorld.y + cellWorld.h)
         if (ix1 <= ix0 || iy1 <= iy0) continue
 
-        // Source sub-rect inside the fine tile's content area (px).
-        const fineScale = this.TILE / ftws // px per world unit in fine tile
+        const fineScale = this.TILE / ftws
         const sx = this.OS + (ix0 - fwx) * fineScale
         const sy = this.OS + (iy0 - fwy) * fineScale
         const sw = (ix1 - ix0) * fineScale
         const sh = (iy1 - iy0) * fineScale
 
-        // Dest sub-rect inside the coarse cell on screen (px).
         const ddx = dx + (ix0 - cellWorld.x) * dpw
         const ddy = dy + (iy0 - cellWorld.y) * dph
         const ddw = (ix1 - ix0) * dpw
@@ -439,18 +352,17 @@ export class CommittedLayer<T extends Bounded> {
     return draws
   }
 
-  // ── baking ──────────────────────────────────────────────────────────────
+  // ── baking ───────────────────────────────────────────────────────────────
   async bake(
     vpt: number[], px: { w: number; h: number }, dpr: number,
-    yielder: Yieldable, signal: AbortSignal,
-    contentBounds: WorldRect | null
+    yielder: Yieldable, signal: AbortSignal, contentBounds: WorldRect | null
   ): Promise<void> {
     const zoom = vpt[0]
     const tier = this.pickActiveTier(zoom)
     const vw = this.viewWorld(vpt, px, dpr)
 
     if (tier <= this.OVERVIEW_TIER) {
-      await this.overview.rebuildIfNeeded(contentBounds, yielder, signal)
+      await this.overview.rebuildIfNeeded(contentBounds, yielder as any, signal)
       return
     }
 
@@ -489,17 +401,11 @@ export class CommittedLayer<T extends Bounded> {
     const key = `${tier}:${tx}:${ty}`
     const builtGen = this.gen.get(key) ?? 0
 
-    if (objects.length === 0) {
-      this.store(key, tier, tx, ty, null, 4, builtGen)
-      return
-    }
+    if (objects.length === 0) { this.store(key, tier, tx, ty, null, 4, builtGen); return }
 
     const off = this.acquire()
     const c2d = off.getContext('2d')
-    if (!c2d) {
-      this.release(off)
-      return
-    }
+    if (!c2d) { this.release(off); return }
     c2d.setTransform(1, 0, 0, 1, 0, 0)
     c2d.clearRect(0, 0, this.BMP, this.BMP)
     c2d.save()
@@ -510,57 +416,32 @@ export class CommittedLayer<T extends Bounded> {
     c2d.rect(q.x, q.y, q.w, q.h)
     c2d.clip()
     for (let i = 0; i < objects.length; i++) {
-      try {
-        this.renderer(c2d as any, objects[i], scale)
-      } catch (err) {
-        if (this.debug) console.warn('[Committed] render threw', err)
-      }
+      try { this.renderer(c2d as any, objects[i], scale) }
+      catch (err) { if (this.debug) console.warn('[Committed] render threw', err) }
       if (i % this.CHUNK === this.CHUNK - 1 && yielder.shouldYield()) {
         await yielder.yield()
-        if (signal.aborted) {
-          c2d.restore()
-          this.release(off)
-          return
-        }
+        if (signal.aborted) { c2d.restore(); this.release(off); return }
       }
     }
     c2d.restore()
 
+    // Zero-copy transfer (was createImageBitmap → full-frame memcpy every bake).
+    // transferToImageBitmap is sync and resets the canvas so it stays poolable.
     let bmp: ImageBitmap
-    try {
-      bmp = await createImageBitmap(off)
-    } catch {
-      this.release(off)
-      return
-    }
+    try { bmp = off.transferToImageBitmap() }
+    catch { this.release(off); return }
     this.release(off)
-    if (signal.aborted) {
-      bmp.close()
-      return
-    }
+    if (signal.aborted) { bmp.close(); return }
 
-    // Generation may have advanced WHILE we baked (a new edit landed). Don't
-    // store a stale bitmap under the new gen — drop it; the follow-up bake
-    // (bakeAgain) will produce the correct one. This prevents a 1-frame ghost.
-    if ((this.gen.get(key) ?? 0) !== builtGen) {
-      bmp.close()
-      return
-    }
+    // Gen may have advanced during an await yield above → drop stale bitmap;
+    // bakeAgain will produce the correct one. Prevents a 1-frame ghost.
+    if ((this.gen.get(key) ?? 0) !== builtGen) { bmp.close(); return }
 
     const bytes = this.BMP * this.BMP * 4
-    if (!this.ensureMemory(bytes)) {
-      bmp.close()
-      return
-    }
+    if (!this.ensureMemory(bytes)) { bmp.close(); return }
     this.store(key, tier, tx, ty, bmp, bytes, builtGen)
   }
 
-  /**
-   * Synchronously rebuild every tile covering `rect` at `tier`, re-querying the
-   * index so the result is CORRECT this frame (no stale-exact ghost) and SHARP
-   * (no low-res overview flash). `clip` (the viewport) bounds the on-frame cost:
-   * tiles outside it are left for the async bake. Used for destructive edits.
-   */
   rebuildRectSync(rect: WorldRect, tier: number, clip?: WorldRect, maxTiles = 32): void {
     if (tier < 0 || tier >= this.ZOOM_TIERS.length) return
     const r = this.tileRange(rect, tier)
@@ -568,8 +449,8 @@ export class CommittedLayer<T extends Bounded> {
     let count = 0
     for (let ty = r.ty0; ty <= r.ty1; ty++) {
       for (let tx = r.tx0; tx <= r.tx1; tx++) {
-        if (cr && (tx < cr.tx0 || tx > cr.tx1 || ty < cr.ty0 || ty > cr.ty1)) continue // off-screen → async bake
-        if (count >= maxTiles) return // safety: never block the frame on a huge edit
+        if (cr && (tx < cr.tx0 || tx > cr.tx1 || ty < cr.ty0 || ty > cr.ty1)) continue
+        if (count >= maxTiles) return
         this.rebuildTileSync(tier, tx, ty)
         count++
       }
@@ -583,19 +464,13 @@ export class CommittedLayer<T extends Bounded> {
     const q: WorldRect = { x: world.x - pad, y: world.y - pad, w: world.w + 2 * pad, h: world.h + 2 * pad }
     const objects = this.index.query(q)
     const key = `${tier}:${tx}:${ty}`
-    const builtGen = this.gen.get(key) ?? 0 // current gen → tile lands FRESH
+    const builtGen = this.gen.get(key) ?? 0
 
-    if (objects.length === 0) {
-      this.store(key, tier, tx, ty, null, 4, builtGen)
-      return
-    }
+    if (objects.length === 0) { this.store(key, tier, tx, ty, null, 4, builtGen); return }
 
     const off = this.acquire()
     const c2d = off.getContext('2d')
-    if (!c2d) {
-      this.release(off)
-      return
-    }
+    if (!c2d) { this.release(off); return }
     c2d.setTransform(1, 0, 0, 1, 0, 0)
     c2d.clearRect(0, 0, this.BMP, this.BMP)
     c2d.save()
@@ -606,37 +481,23 @@ export class CommittedLayer<T extends Bounded> {
     c2d.rect(q.x, q.y, q.w, q.h)
     c2d.clip()
     for (let i = 0; i < objects.length; i++) {
-      try {
-        this.renderer(c2d as any, objects[i], scale)
-      } catch (err) {
-        if (this.debug) console.warn('[Committed] sync render threw', err)
-      }
+      try { this.renderer(c2d as any, objects[i], scale) }
+      catch (err) { if (this.debug) console.warn('[Committed] sync render threw', err) }
     }
     c2d.restore()
 
     let bmp: ImageBitmap
-    // @ts-ignore - transferToImageBitmap is sync and resets the canvas (reusable)
-    try {
-      bmp = off.transferToImageBitmap()
-    } catch {
-      this.release(off)
-      return
-    }
+    try { bmp = off.transferToImageBitmap() }
+    catch { this.release(off); return }
     this.release(off)
     const bytes = this.BMP * this.BMP * 4
-    if (!this.ensureMemory(bytes)) {
-      bmp.close()
-      return
-    }
+    if (!this.ensureMemory(bytes)) { bmp.close(); return }
     this.store(key, tier, tx, ty, bmp, bytes, builtGen)
   }
 
   private store(key: string, tier: number, tx: number, ty: number, bitmap: ImageBitmap | null, bytes: number, builtGen: number) {
     const prev = this.tiles.get(key)
-    if (prev) {
-      if (prev.bitmap) prev.bitmap.close()
-      this.memoryBytes -= prev.bytes
-    }
+    if (prev) { if (prev.bitmap) prev.bitmap.close(); this.memoryBytes -= prev.bytes }
     this.tiles.set(key, { bitmap, tier, tx, ty, bytes, builtGen, lastUsed: performance.now() })
     this.memoryBytes += bytes
   }
@@ -654,7 +515,7 @@ export class CommittedLayer<T extends Bounded> {
     return true
   }
 
-  // ── memory + pool ──────────────────────────────────────────────────────────
+  // ── memory + pool ─────────────────────────────────────────────────────────
   private ensureMemory(need: number): boolean {
     if (this.memoryBytes + need <= this.MEM_HARD) return true
     const sorted = [...this.tiles.entries()].sort((a, b) => a[1].lastUsed - b[1].lastUsed)
@@ -673,14 +534,6 @@ export class CommittedLayer<T extends Bounded> {
 
   private release(c: OffscreenCanvas): void {
     if (this.pool.length < this.POOL_MAX) this.pool.push(c)
-  }
-
-
-  dropOtherTiers(rect: WorldRect, keepTier: number): void {
-    for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
-      if (tier === keepTier) continue
-      this.dropTiles(rect, tier)
-    }
   }
 
   reset(): void {

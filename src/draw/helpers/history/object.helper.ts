@@ -145,28 +145,41 @@ export async function redoObjectsDeleted(
 	return action;
 }
 
-export async function redoObjectStyle(
-	ctx: HistoryContext,
-	action: HistoryAction<HistoryEvent.ObjectStyleChanged>,
-) {
-	const { canvas, getObjectsById } = ctx;
-	const prevStyles = action.params.prevStyles;
-	const canvasObjects = getObjectsById(action.params.objectIds);
-
-	const newPrevStyles = canvasObjects.map((item) => {
-		const style: any = {};
-		Object.keys(prevStyles[0]).forEach(
-			(key) => (style[key] = (item as any)[key]),
-		);
-		return style;
-	});
-
-	canvasObjects.forEach((obj, i) => obj?.set(prevStyles[i]));
-	canvas.requestRenderAll();
-	return { ...action, params: { ...action.params, prevStyles: newPrevStyles } };
+function patchObjectsAppearance(objects: FabricObject[]): void {
+  const mgr = useDrawObjectManager();
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const obj of objects) {
+    if (!obj) continue;
+    mgr.updateQuadTree(obj); // strokeWidth etc. can shift bounds slightly
+    // @ts-ignore
+    const b = obj.getBoundingRect(true, true);
+    if (!b || !isFinite(b.left)) continue;
+    minX = Math.min(minX, b.left); minY = Math.min(minY, b.top);
+    maxX = Math.max(maxX, b.left + b.width); maxY = Math.max(maxY, b.top + b.height);
+  }
+  if (minX === Infinity) return;
+  const PAD = 8;
+  mgr.patchRectSync({ x: minX - PAD, y: minY - PAD, w: maxX - minX + PAD * 2, h: maxY - minY + PAD * 2 });
 }
 
-// --- Undo Helpers ---
+export async function redoObjectStyle(
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.ObjectStyleChanged>,
+) {
+  const { getObjectsById } = ctx;
+  const prevStyles = action.params.prevStyles;
+  const canvasObjects = getObjectsById(action.params.objectIds);
+
+  const newPrevStyles = canvasObjects.map((item) => {
+    const style: any = {};
+    Object.keys(prevStyles[0]).forEach((key) => (style[key] = (item as any)[key]));
+    return style;
+  });
+
+  canvasObjects.forEach((obj, i) => obj?.set(prevStyles[i]));
+  patchObjectsAppearance(canvasObjects);   // was: canvas.requestRenderAll()
+  return { ...action, params: { ...action.params, prevStyles: newPrevStyles } };
+}
 
 export async function undoObjectAdded(
 	ctx: HistoryContext,
@@ -336,37 +349,22 @@ export async function undoObjectsCopied(
 }
 
 export async function undoObjectStyle(
-	ctx: HistoryContext,
-	action: HistoryAction<HistoryEvent.ObjectStyleChanged>,
+  ctx: HistoryContext,
+  action: HistoryAction<HistoryEvent.ObjectStyleChanged>,
 ): Promise<HistoryAction<HistoryEvent.ObjectStyleChanged>> {
-	const { canvas, getObjectsById } = ctx;
+  const { getObjectsById } = ctx;
+  const prevStyles = action.params.prevStyles;
+  const canvasObjects = getObjectsById(action.params.objectIds);
 
-	const prevStyles = action.params.prevStyles;
-	const canvasObjects = getObjectsById(action.params.objectIds);
+  const nextPrevStyles = canvasObjects.map((item) => {
+    const currentStyle: any = {};
+    Object.keys(prevStyles[0]).forEach((key) => (currentStyle[key] = (item as any)[key]));
+    return currentStyle;
+  });
 
-	// Capture current state to swap into redo
-	const nextPrevStyles = canvasObjects.map((item) => {
-		const currentStyle: any = {};
-		// Use the first style object keys to know what properties to swap
-		Object.keys(prevStyles[0]).forEach((key) => {
-			currentStyle[key] = (item as any)[key];
-		});
-		return currentStyle;
-	});
-
-	// Apply the historical styles
-	canvasObjects.forEach((obj, i) => {
-		if (obj) {
-			obj.set(prevStyles[i]);
-		}
-	});
-
-	canvas.requestRenderAll();
-
-	return {
-		...action,
-		params: { ...action.params, prevStyles: nextPrevStyles },
-	};
+  canvasObjects.forEach((obj, i) => { if (obj) obj.set(prevStyles[i]); });
+  patchObjectsAppearance(canvasObjects);   // was: canvas.requestRenderAll()
+  return { ...action, params: { ...action.params, prevStyles: nextPrevStyles } };
 }
 
 export function getObjectDiff(

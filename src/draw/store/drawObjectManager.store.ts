@@ -1,20 +1,17 @@
 // src/draw/store/drawObjectManager.store.ts
 //
-// THIN SHELL over RenderCore. This store keeps the plumbing the rest of the app
-// depends on — the quadtree / object map, z-index map, loading depth, blocked-
-// user purge, and the public query API — and delegates ALL rendering decisions
-// to RenderCore (committed tiles + world overview + live layer).
+// THIN SHELL over RenderCore. Owns the quadtree / object map, z-index map,
+// loading depth, blocked-user purge, and the public query API; delegates all
+// rendering to RenderCore.
 //
-// What used to live here and is now GONE (RenderCore makes it unnecessary):
-//   additive patching, the additive burst/overheat/giant-object machinery,
-//   subtractive-erase tile patching, the modify-storm / remoteOverlay / big-
-//   object branching, deferred-during-gesture queues, coarse-bake scheduling,
-//   directional pan prefetch, and every invalidate* variant. Each existed only
-//   to work around in-place tile mutation; with rebuild-only tiles they don't.
-//
-// In-flight objects (your stroke, a collaborator's stroke, a drag) ride the
-// LIVE layer and are handed to committed once their tiles are fresh. Everything
-// else is: update the index → markDirty(region) → RenderCore rebuilds + frames.
+// Low-end additions:
+//   • cachedBounds(): memoised getBoundingRect keyed on a transform signature —
+//     recomputes only when an object's transform / strokeWidth / text changes,
+//     killing the per-event measurement storm (item B).
+//   • batch mode (beginBatch / endBatch): while draining a remote-event queue,
+//     handlers maintain the index but ACCUMULATE affected rects instead of
+//     hitting the core per event. endBatch issues ONE core.invalidateRegions
+//     (item A). z-index then rebuilds once per batch, not per query.
 
 import { defineStore } from "pinia";
 import { Canvas, FabricObject } from "fabric";
@@ -53,6 +50,28 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   let loadingDepth = 0;
   const isLoading = () => loadingDepth > 0;
 
+  // ── batch mode ─────────────────────────────────────────────────────────
+  let batchDepth = 0;
+  let batchRects: WorldRect[] = [];
+  const isBatching = () => batchDepth > 0;
+
+  function beginBatch() { batchDepth++; }
+  function endBatch() {
+    batchDepth = Math.max(0, batchDepth - 1);
+    if (batchDepth !== 0) return;
+    const rects = batchRects;
+    batchRects = [];
+    if (isLoading() || !core || rects.length === 0) return;
+    core.setContentBounds(computeContentBounds());
+    core.invalidateRegions(rects);
+  }
+  /** Returns true if the region was absorbed by the batch (skip per-event core). */
+  function noteRegion(rect: WorldRect | null | undefined): boolean {
+    if (!isBatching()) return false;
+    if (rect) batchRects.push(rect);
+    return true;
+  }
+
   // ── spatial index handed to the renderer (z-sorted query) ────────────────
   const spatialIndex = {
     query: (rect: WorldRect): FabricObject[] => {
@@ -66,20 +85,51 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   };
 
   // ── geometry / index helpers ─────────────────────────────────────────────
-  function objectBounds(obj: FabricObject): WorldRect {
+  function cachedBounds(obj: FabricObject): WorldRect {
+    const a = obj as any;
+    const g = obj.group as any; // <-- Check for parent group (ActiveSelection)
+
+    let sig =
+      `${a.left},${a.top},${a.scaleX},${a.scaleY},${a.angle},` +
+      `${a.skewX},${a.skewY},${a.flipX},${a.flipY},` +
+      `${a.width},${a.height},${a.strokeWidth},` +
+      `${a.text !== undefined ? a.text.length : 0}`;
+
+    if (g) {
+      sig += `|g:${g.left},${g.top},${g.scaleX},${g.scaleY},${g.angle}`;
+    }
+
+    if (a.__brSig === sig && a.__br) return a.__br as WorldRect;
+
     // @ts-ignore
     const b = obj.getBoundingRect(true, true);
-    return { x: b.left, y: b.top, w: b.width, h: b.height };
+    const r: WorldRect = { x: b.left, y: b.top, w: b.width, h: b.height };
+    a.__brSig = sig;
+    a.__br = r;
+    return r;
   }
+
+  function objectBounds(obj: FabricObject): WorldRect {
+    return cachedBounds(obj);
+  }
+
+  function unionRect(a: WorldRect, b: WorldRect): WorldRect {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    const x2 = Math.max(a.x + a.w, b.x + b.w), y2 = Math.max(a.y + a.h, b.y + b.h);
+    return { x, y, w: x2 - x, h: y2 - y };
+  }
+
   function getZIndexMap(): Map<FabricObject, number> {
     if (isZIndexDirty) {
       zIndexMap.clear();
-      c!.getObjects().forEach((o, i) => zIndexMap.set(o, i));
+      const objs = c!.getObjects();
+      for (let i = 0; i < objs.length; i++) zIndexMap.set(objs[i], i);
       isZIndexDirty = false;
     }
     return zIndexMap;
   }
   function invalidateZIndex() { isZIndexDirty = true; }
+  function markZIndexDirty() { isZIndexDirty = true; } // for history layer helpers
 
   function addToQuadTree(obj: FabricObject) {
     const e = fabricObjectToEntry(obj);
@@ -93,9 +143,8 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   function updateQuadTree(obj: FabricObject) {
     const e = entryMap.get(obj.id);
     if (!e) return;
-    // @ts-ignore
-    const b = obj.getBoundingRect(true, true);
-    e.bounds.x = b.left; e.bounds.y = b.top; e.bounds.w = b.width; e.bounds.h = b.height;
+    const b = cachedBounds(obj);
+    e.bounds.x = b.x; e.bounds.y = b.y; e.bounds.w = b.w; e.bounds.h = b.h;
     quadtree.update(e);
   }
 
@@ -113,7 +162,9 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
   /**
    * Pre-move bounding rect, so the object's OLD footprint gets rebuilt. Resets
-   * the object to its original transform, measures, then restores. Best-effort.
+   * the object to its original transform, measures, then restores. Uses
+   * cachedBounds — the temporary set() changes the signature, so it recomputes
+   * the old bounds and self-heals on restore.
    */
   function collectOldRect(o: FabricObject, transform: any): WorldRect | null {
     const oldText = (o as any)._textBeforeEdit;
@@ -128,9 +179,10 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
       if (transform?.original) o.set(transform.original);
       if (isTextChanged && oldText.length > (o as any).text.length) o.set({ text: oldText });
       o.setCoords();
-      const b = objectBounds(o);
+      const b = cachedBounds(o);
+      const snapshot = { ...b }; // copy — cache entry will be overwritten on restore
       o.set(cur); o.setCoords();
-      return b;
+      return snapshot;
     } catch {
       o.set(cur); o.setCoords();
       return null;
@@ -138,7 +190,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   }
 
   // ── renderers handed to the core ─────────────────────────────────────────
-  // Live items render in WORLD space (the live layer already applied vpt/gco).
   function renderLive(ctx: CanvasRenderingContext2D, obj: FabricObject) {
     const prev = (obj as any).canvas;
     // @ts-ignore
@@ -155,6 +206,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     if (isLoading()) return;          // index rebuilt wholesale at endLoading
     addToQuadTree(obj);
     isZIndexDirty = true;
+    if (noteRegion(objectBounds(obj))) return;
     core?.onObjectAdded(obj);
   }
 
@@ -164,7 +216,9 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     objectMap.delete(obj.id);
     removeFromQuadTree(obj);
     invalidateZIndex();
-    if (!isLoading()) core?.onObjectRemoved(obj, oldRect);
+    if (isLoading()) return;
+    if (noteRegion(oldRect)) return;
+    core?.onObjectRemoved(obj, oldRect);
   }
 
   function onObjectModified(e: any) {
@@ -179,8 +233,12 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     const oldRect = collectOldRect(obj, e.transform);
     updateQuadTree(obj);
     if (isLoading()) return;
-    core.liveAdd(obj, "normal");        // smooth while a remote drag streams in
-    core.onObjectChanged(obj, oldRect); // committed catches up; live demotes when ready
+    if (isBatching()) {
+      const cur = objectBounds(obj);
+      noteRegion(oldRect ? unionRect(cur, oldRect) : cur);
+      return;
+    }
+    core.onObjectChangedCoalesced(obj, oldRect); // streamed remote drag
   }
 
   function handleStyleChange(e: any) {
@@ -189,6 +247,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     for (const obj of list) {
       if (!obj?.id) continue;
       updateQuadTree(obj);
+      if (noteRegion(objectBounds(obj))) continue;
       core.onObjectChanged(obj);
     }
   }
@@ -213,6 +272,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
         for (const obj of targets as FabricObject[]) {
           if (!obj?.id) continue;
           updateQuadTree(obj);
+          if (noteRegion(objectBounds(obj))) continue;
           core.onObjectChanged(obj);
         }
       },
@@ -225,9 +285,11 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
         if (!obj || !o || !core) return;
         updateQuadTree(obj);
         if (isLoading()) return;
-        core.onObjectChanged(obj, {
+        const oldRect: WorldRect = {
           x: o.x ?? o.left, y: o.y ?? o.top, w: o.w ?? o.width, h: o.h ?? o.height,
-        });
+        };
+        if (isBatching()) { noteRegion(unionRect(objectBounds(obj), oldRect)); return; }
+        core.onObjectChanged(obj, oldRect);
       },
     },
     { on: "textStyleChanged", handler: (e: any) => handleStyleChange(e) },
@@ -245,7 +307,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
         const d = e.detail ?? {};
         const path = d.path as FabricObject | undefined;
         const rect = d.dirtyRect as WorldRect | undefined;
-
+        if (isBatching()) { if (rect) noteRegion(rect); return; }
         if (path && rect) core.onErase(path, rect);
         else if (rect) core.markDirty(rect);
       },
@@ -312,11 +374,8 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   }
   function onGestureEnd() { core?.setGesturing(false); }
 
-  // Erase: suspend compositing while the brush owns the canvas, resume on end.
   function setErasing(on: boolean) { core?.setErasing(on); }
 
-  // Destructively drop a region's tiles (no stale-exact ghost). Used by the
-  // drag controller for the OLD footprint of a moved selection.
   function dropRegion(rect: WorldRect) { core?.dropRegion(rect); }
 
   function recordPanDelta(_dx: number, _dy: number) { /* directional prefetch retired */ }
@@ -330,8 +389,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     loadingDepth = Math.max(0, loadingDepth - 1);
     if (loadingDepth !== 0) return;
     core?.setLoading(false);
-    // Objects added during the bulk load only touched objectMap; rebuild the
-    // index wholesale and refresh the committed state.
     rebuildIndexFromCanvas();
     core?.setContentBounds(computeContentBounds());
     core?.markAllDirty();
@@ -357,7 +414,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     invalidateZIndex();
   }
 
-  // ── public query API (unchanged behaviour) ───────────────────────────────
+  // ── public query API ─────────────────────────────────────────────────────
   function query(rect: WorldRect): FabricObject[] {
     return quadtree.query(rect).map((e) => objectMap.get(e.id)).filter(Boolean) as FabricObject[];
   }
@@ -386,22 +443,17 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   }
 
   // ── compatibility shims for external callers ─────────────────────────────
-  // Other modules still call these; they now just mark a region dirty.
   function scheduleRectPatch(rect: WorldRect) { core?.markDirty(rect); }
   function scheduleObjectPatch(obj: FabricObject) { core?.markDirty(objectBounds(obj)); }
-  // There is no synchronous patch flush any more (no in-place patching); the
-  // committed state is eventually-consistent. For pixel-exact EXPORTS, render
-  // the fabric canvas directly rather than relying on tiles.
   function flushPatchesNow(_force = false) { core?.requestFrame(); }
 
-  // Used by transformController to hide its GPU drag layer only AFTER the new
-  // position has actually baked — no fixed-rAF guess, no empty-gap flash.
   function isRegionBaked(rect: WorldRect): boolean {
     return core ? core.isRegionBaked(rect) : true;
   }
 
   function patchRectSync(rect: WorldRect) {
     if (!core || !c) return;
+    if (noteRegion(rect)) return; // batched → one invalidate at endBatch
     const vpt = c.viewportTransform!;
     const tier = core.pickActiveTier(vpt[0]);
     core.markDirtyAndRebuildSync(rect, tier);
@@ -432,6 +484,10 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     isRegionBaked,
     setErasing,
     dropRegion,
-    patchRectSync
+    patchRectSync,
+    beginBatch,
+    endBatch,
+    isBatching,
+    markZIndexDirty,
   };
 });

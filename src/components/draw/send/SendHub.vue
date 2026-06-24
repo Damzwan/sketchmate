@@ -364,12 +364,14 @@ function goToPro() {
 async function executeShares() {
   if (noActionSelected.value) return;
 
-  const processedData = await getDataToSend();
 
   const directRecipients =
     isSaveAndSend.value && user.value
       ? [...Array.from(selected.value), user.value._id]
       : [];
+
+  const processedData = await getDataToSend();
+
 
   const wantsPost = isPublicPost.value && !isUnderAge.value;
   const captionSnapshot = postCaption.value;

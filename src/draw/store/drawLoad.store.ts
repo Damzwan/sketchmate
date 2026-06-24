@@ -1,21 +1,13 @@
-import { ref, computed } from "vue";
-import { defineStore } from "pinia";
-import { ActiveSelection, Canvas, StaticCanvas, FabricObject } from "fabric";
-import { EventBus } from "@/main";
-import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
-import {
-	centerObjectInViewport,
-	precalculateAndSetViewport,
-} from "@/draw/helpers/viewport.helper";
-import { exportBoundingBoxImage } from "@/draw/helpers/export.helper";
-import { v4 as uuidv4 } from "uuid";
-import {
-	enlivenObjectsNaive,
-	enlivenObjectsTimeSlivered,
-	generateChunkedJSON,
-	migrateLegacyOrigin
-} from '@/draw/helpers/drawload.helper'
-import { createYielder } from "@/draw/helpers/yielding.helper";
+import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+import { ActiveSelection, Canvas, FabricObject, StaticCanvas } from 'fabric'
+import { EventBus } from '@/main'
+import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
+import { centerObjectInViewport, precalculateAndSetViewport } from '@/draw/helpers/viewport.helper'
+import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
+import { v4 as uuidv4 } from 'uuid'
+import { enlivenObjectsTimeSlivered, migrateLegacyOrigin } from '@/draw/helpers/drawload.helper'
+import { createYielder } from '@/draw/helpers/yielding.helper'
 
 export interface DrawingDraft {
 	id: string;
@@ -183,7 +175,7 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 				await actionWithoutEvents(async () => {
 					c.clear();
 					if (json.objects && json.objects.length > 0) {
-						await enlivenObjectsNaive(json.objects, (obj) => {
+						await enlivenObjectsTimeSlivered(json.objects, (obj) => {
 							c.add(obj);
 						});
 					}

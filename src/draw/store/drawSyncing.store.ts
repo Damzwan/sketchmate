@@ -23,6 +23,7 @@ import { EventBus } from "@/main";
 import { useSelect } from "@/draw/store/tools/select.store";
 import { handleTextModificationSync } from "@/draw/helpers/history/text.helper";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 
 export interface DrawInvitation {
 	friend: Mate;
@@ -177,6 +178,7 @@ export const useDrawSyncer = defineStore("drawSyncer", () => {
 		{
 			on: "objects:added",
 			handler: (e: any) => {
+				console.log('si')
 				const targets = e.target as FabricObject[];
 				emitDrawSyncingEvent({
 					type: DrawSyncingEvent.added,
@@ -382,34 +384,31 @@ export const useDrawSyncer = defineStore("drawSyncer", () => {
 	async function processActionQueue() {
 		isProcessingQueue.value = true;
 		const { actionWithoutEvents } = useDrawEventManager();
+		const objMgr = useDrawObjectManager();
 		const { getCanvas } = useDrawStore();
 		const canvas = getCanvas();
 
-		// 🛰️ FIRE DEBUG START
 		canvas.fire("sync:queue:start" as any);
 
+		objMgr.beginBatch();
 		try {
 			while (actionQueue.length > 0) {
 				const action = actionQueue.shift();
 				if (!action) continue;
 
-				// ⏱️ TIME INDIVIDUAL ACTION
 				const start = performance.now();
-
 				await actionWithoutEvents(async () => {
 					// @ts-ignore
 					await drawSyncingMapping[action.type](action.params);
 				});
-
-				// 🛰️ FIRE DEBUG INDIVIDUAL
 				canvas.fire("sync:action:done" as any, {
 					type: action.type,
 					duration: performance.now() - start,
 				});
 			}
 		} finally {
+			objMgr.endBatch();
 			isProcessingQueue.value = false;
-			// 🛰️ FIRE DEBUG END
 			canvas.fire("sync:queue:end" as any);
 		}
 	}

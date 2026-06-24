@@ -1,23 +1,21 @@
 // renderCore.ts
 //
-// The orchestrator. It owns the frame loop and the bake loop and exposes a
-// small set of lifecycle hooks that the store delegates to. The entire mental
-// model is three lines:
-//
+// Orchestrator. Frame loop + bake loop + lifecycle hooks the store delegates to.
 //   • in-flight object        → live layer (rendered directly, never baked)
-//   • settled / changed object → index + markDirty(region)  (committed rebuilds)
+//   • settled / changed object → index + invalidate(region)  (committed rebuilds)
 //   • every frame             → committed.composite() then live.composite()
 //
-// There is no additive patching, no subtractive-erase patching, no overheat
-// tracking, no giant-object guard, no modify-storm/overlay branching, no cross-
-// tier fallback. Those all lived to paper over in-place tile mutation; with
-// rebuild-only tiles they simply don't exist.
-//
-// SEAMS (wire these from the store, which still owns the quadtree, gesture
-// store, localTransform, remoteOverlay, eraser): call setGesturing() around
-// gestures, abortBakes() on zoom change, and the on*/live* hooks from the
-// corresponding fabric events. Everything the core needs from the outside is a
-// read-only Surface + the spatial index.
+// Low-end hardening:
+//   • viewport gating: off-screen adds/changes invalidate (cheap) but never
+//     take a live slot or schedule a composite.
+//   • remote-modify coalescing: many streamed object:modified events collapse
+//     into ONE destructive sync-rebuild per frame (unioned rect).
+//   • BATCH invalidation: a drained remote-event queue collapses to ONE pass —
+//     drop regions + patch overview + one frame + one bake, no per-rect sync
+//     rebuild (invalidateRegions).
+//   • off-screen overview patches are DEFERRED (pendingOverview) and flushed on
+//     bake / pan-end — invisible regions don't pay the clip+redraw.
+//   • depth-1 fallback while gesturing (passed down to committed.composite).
 
 import {
   CommittedLayer, type Bounded, type CommittedOptions,
@@ -27,20 +25,15 @@ import { LiveLayer, type LiveMode, type LiveRenderer } from './liveLayer'
 
 export interface Surface {
   getContext(): CanvasRenderingContext2D;
-
   getSize(): { w: number; h: number };
-
   getVpt(): number[];
-
   getDpr(): number;
-
   getBackground(): string | undefined;
 }
 
 export interface RenderCoreOptions extends CommittedOptions {
   liveMax?: number;
   bakeDebounceMs?: number;
-  /** Called after each composite so the store can redraw selection controls etc. */
   afterComposite?: () => void;
 }
 
@@ -62,6 +55,13 @@ export class RenderCore<T extends Bounded> {
   private erasing = false
   private baking = false
   private bakeAgain = false
+
+  // remote-modify coalescing
+  private pendingRemote: WorldRect | null = null
+  private remoteRaf = 0
+
+  // deferred off-screen overview patches (item C)
+  private pendingOverview: WorldRect[] = []
 
   private contentBounds: WorldRect | null = null
 
@@ -103,7 +103,10 @@ export class RenderCore<T extends Bounded> {
     const vpt = this.surface.getVpt()
     const size = this.surface.getSize()
     const dpr = this.surface.getDpr()
-    const { needsBake } = this.committed.composite(ctx, vpt, size, dpr, this.surface.getBackground())
+    // Depth-1 fallback while gesturing → bounded per-cell cost on fast pans.
+    const { needsBake } = this.committed.composite(
+      ctx, vpt, size, dpr, this.surface.getBackground(), this.gesturing ? 1 : 0
+    )
     const vw = this.committed.viewWorld(vpt, size, dpr)
     this.live.composite(ctx, vpt, dpr, this.liveRender, vw)
     if (needsBake) this.scheduleBake()
@@ -113,10 +116,7 @@ export class RenderCore<T extends Bounded> {
   // ── bake ─────────────────────────────────────────────────────────────────
   scheduleBake(): void {
     if (this.gesturing || this.loading || this.erasing) return
-    if (this.baking) {
-      this.bakeAgain = true
-      return
-    }
+    if (this.baking) { this.bakeAgain = true; return }
     if (this.bakeTimer !== null) return
     this.bakeTimer = setTimeout(() => {
       this.bakeTimer = null
@@ -128,22 +128,15 @@ export class RenderCore<T extends Bounded> {
     this.bakeCtrl?.abort()
     this.bakeCtrl = null
     this.bakeAgain = false
-    if (this.bakeTimer !== null) {
-      clearTimeout(this.bakeTimer)
-      this.bakeTimer = null
-    }
+    if (this.bakeTimer !== null) { clearTimeout(this.bakeTimer); this.bakeTimer = null }
   }
 
   private async runBake(): Promise<void> {
     if (this.gesturing || this.loading || this.erasing) return
-    if (this.baking) {
-      this.bakeAgain = true
-      return
-    }
+    if (this.baking) { this.bakeAgain = true; return }
     this.baking = true
     this.bakeAgain = false
-    // NOTE: we do NOT abort a previous bake here. A bake is only ever aborted
-    // by an explicit gesture/zoom/reset (abortBakes). New edits ride bakeAgain.
+    this.flushPendingOverview() // off-screen patches now matter (we're about to bake)
     const ctrl = new AbortController()
     this.bakeCtrl = ctrl
     try {
@@ -151,26 +144,18 @@ export class RenderCore<T extends Bounded> {
         this.surface.getVpt(), this.surface.getSize(), this.surface.getDpr(),
         this.makeYielder(), ctrl.signal, this.contentBounds
       )
-    } catch { /* aborted / transient */
-    }
+    } catch { /* aborted / transient */ }
     this.baking = false
     if (this.bakeCtrl === ctrl) this.bakeCtrl = null
     if (ctrl.signal.aborted) {
-      if (this.bakeAgain) {
-        this.bakeAgain = false
-        this.scheduleBake()
-      } // ← was: bakeAgain = false; return
+      if (this.bakeAgain) { this.bakeAgain = false; this.scheduleBake() }
       return
     }
     this.demoteSettled()
     this.requestFrame()
-    if (this.bakeAgain) {
-      this.bakeAgain = false
-      this.scheduleBake()
-    }
+    if (this.bakeAgain) { this.bakeAgain = false; this.scheduleBake() }
   }
 
-  /** Hand finished objects off from live → committed once their tiles are fresh. */
   private demoteSettled(): void {
     if (this.live.isEmpty()) return
     if (this.committed.overview.isDirty()) return
@@ -179,50 +164,100 @@ export class RenderCore<T extends Bounded> {
     for (const id of ids) this.live.remove(id)
   }
 
-  // ── lifecycle hooks (store delegates fabric events here) ─────────────────
-  /** A new object exists in the index. Show it instantly, commit it lazily. */
+  // ── lifecycle hooks ──────────────────────────────────────────────────────
   onObjectAdded(obj: T): void {
     const rect = this.boundsOf(obj)
     if (!rect) return
     this.growContentBounds(rect)
     this.additiveInvalidate(rect)
-    this.live.add(obj, rect, 'normal')
-    this.requestFrame()
+    if (this.intersectsView(rect)) {
+      this.live.add(obj, rect, 'normal')
+      this.requestFrame()
+    }
     this.scheduleBake()
   }
 
-  /** An object was removed. Drop its footprint so it can't ghost at any zoom. */
   onObjectRemoved(obj: T, oldRect?: WorldRect): void {
     const rect = oldRect ?? this.boundsOf(obj)
     if (obj.id) this.live.remove(obj.id)
-    if (rect) this.destructiveInvalidate(rect)
-    this.requestFrame()
+    if (rect) {
+      this.destructiveInvalidate(rect)
+      if (this.intersectsView(rect)) this.requestFrame()
+    }
     this.scheduleBake()
   }
 
   onObjectChanged(obj: T, oldRect?: WorldRect): void {
     const rect = this.boundsOf(obj)
     if (oldRect) this.destructiveInvalidate(oldRect)
-    if (rect) {
-      this.growContentBounds(rect)
-      this.additiveInvalidate(rect)
-    }
-    this.requestFrame()
+    if (rect) { this.growContentBounds(rect); this.additiveInvalidate(rect) }
+    const inView =
+      (rect ? this.intersectsView(rect) : false) ||
+      (oldRect ? this.intersectsView(oldRect) : false)
+    if (inView) this.requestFrame()
     this.scheduleBake()
   }
 
   /**
-   * Erase. The stroke clips committed objects; drop the region (so the hole
-   * shows the correct, localized-patched overview instantly) and rebake the
-   * now-clipped objects sharp.
+   * Coalesced change — for STREAMED remote drags. The live overlay keeps it
+   * smooth per-event (viewport-culled); the destructive sync-rebuild runs at
+   * most ONCE per frame on the unioned rect.
    */
-  onErase(eraserObj: T, rect: WorldRect): void {
-    const vpt = this.surface.getVpt();
-    const tier = this.committed.pickActiveTier(vpt[0]);
-
-    this.markDirtyAndRebuildSync(rect, tier);
+  onObjectChangedCoalesced(obj: T, oldRect?: WorldRect): void {
+    const cur = this.boundsOf(obj)
+    if (cur) {
+      this.growContentBounds(cur)
+      if (this.intersectsView(cur)) this.live.add(obj, cur, 'normal')
+    }
+    let r: WorldRect | null = cur
+    if (oldRect) r = cur ? this.union(cur, oldRect) : oldRect
+    if (!r) return
+    this.pendingRemote = this.pendingRemote ? this.union(this.pendingRemote, r) : { ...r }
+    this.scheduleRemoteFlush()
   }
 
+  private scheduleRemoteFlush(): void {
+    if (this.remoteRaf) return
+    this.remoteRaf = requestAnimationFrame(() => {
+      this.remoteRaf = 0
+      if (this.gesturing || this.loading) { this.scheduleRemoteFlush(); return }
+      const rect = this.pendingRemote
+      this.pendingRemote = null
+      if (!rect) return
+      this.destructiveInvalidate(rect)
+      if (this.intersectsView(rect)) this.requestFrame()
+      this.scheduleBake()
+    })
+  }
+
+  /**
+   * BATCH invalidation for a drained remote-event queue (item A). Many
+   * adds/removes/edits collapse into ONE pass: drop each region at every tier
+   * (so removed / moved objects can't ghost), patch the overview (on-screen) or
+   * defer it (off-screen), then a SINGLE requestFrame + scheduleBake. No
+   * per-rect synchronous rebuild — the async bake refreshes; the overview
+   * covers holes. Nearby rects are merged so a multi-stroke region is one drop;
+   * far-apart edits stay separate so we don't over-invalidate the whole span.
+   */
+  invalidateRegions(rects: WorldRect[]): void {
+    if (rects.length === 0) return
+    const merged = this.mergeRects(rects)
+    let anyInView = false
+    for (const rect of merged) {
+      this.growContentBounds(rect)
+      this.committed.dropAllTiers(rect)
+      this.committed.markDirty(rect)
+      this.patchOverview(rect)
+      if (this.intersectsView(rect)) anyInView = true
+    }
+    if (anyInView) this.requestFrame()
+    this.scheduleBake()
+  }
+
+  onErase(_eraserObj: T, rect: WorldRect): void {
+    const tier = this.committed.pickActiveTier(this.surface.getVpt()[0])
+    this.markDirtyAndRebuildSync(rect, tier)
+  }
 
   private destructiveInvalidate(rect: WorldRect): void {
     const vpt = this.surface.getVpt()
@@ -237,17 +272,17 @@ export class RenderCore<T extends Bounded> {
     this.patchOverview(rect)
   }
 
-
   dropRegion(rect: WorldRect): void {
     this.destructiveInvalidate(rect)
-    this.requestFrame()
+    if (this.intersectsView(rect)) this.requestFrame()
     this.scheduleBake()
   }
 
-  // ── direct live control (store wires drag begin/end here) ────────────────
+  // ── direct live control ──────────────────────────────────────────────────
   liveAdd(obj: T, mode: LiveMode = 'normal'): boolean {
     const rect = this.boundsOf(obj)
     if (!rect) return false
+    if (!this.intersectsView(rect)) return false
     return this.live.add(obj, rect, mode)
   }
 
@@ -258,13 +293,12 @@ export class RenderCore<T extends Bounded> {
 
   markDirty(rect: WorldRect): void {
     this.additiveInvalidate(rect)
-    this.requestFrame()
+    if (this.intersectsView(rect)) this.requestFrame()
     this.scheduleBake()
   }
 
   markDirtyAndRebuildSync(rect: WorldRect, tier: number): void {
     this.committed.dropOtherTiers(rect, tier)
-
     this.committed.markDirty(rect)
     if (tier > this.committed.overviewTier) {
       const vpt = this.surface.getVpt()
@@ -276,11 +310,12 @@ export class RenderCore<T extends Bounded> {
     this.scheduleBake()
   }
 
-  // ── gesture / loading seams ──────────────────────────────────────────────
+  // ── gesture / loading / erase seams ──────────────────────────────────────
   setGesturing(on: boolean): void {
     this.gesturing = on
     if (on) this.abortBakes()
     else {
+      this.flushPendingOverview() // regions we panned toward may now be visible
       this.requestFrame()
       this.scheduleBake()
     }
@@ -288,97 +323,88 @@ export class RenderCore<T extends Bounded> {
 
   setLoading(on: boolean): void {
     this.loading = on
-    if (on) {
-      this.abortBakes()
-      this.live.clear()
-    }
+    if (on) { this.abortBakes(); this.live.clear() }
   }
 
-  /**
-   * While an erase STROKE is in progress, the @erase2d brush owns the canvas's
-   * lower context — it post-composites destination-out after every render. If
-   * our async compositor also repaints that context on its own rAF cadence,
-   * the two race and the erase preview flickers. So we suspend compositing for
-   * the duration of the stroke (requestFrame is a no-op) and do ONE clean
-   * markDirty + rebake when the stroke ends via onErase.
-   */
   setErasing(on: boolean): void {
     this.erasing = on
     if (on) this.abortBakes()
-    else {
-      this.requestFrame()
-      this.scheduleBake()
-    }
+    else { this.requestFrame(); this.scheduleBake() }
   }
 
   pickActiveTier(zoom: number): number {
     return this.committed.pickActiveTier(zoom)
   }
 
-  /** Set the world bounds used to size/rebuild the overview (from the index). */
   setContentBounds(rect: WorldRect | null): void {
     this.contentBounds = rect ? { ...rect } : null
   }
 
-  /** Invalidate every committed tile + the overview (used by reset / bulk load). */
   markAllDirty(): void {
     this.committed.markAllDirty()
     this.requestFrame()
     this.scheduleBake()
   }
 
-  /** Eagerly build the overview so the base layer is present from frame one. */
   warmOverview(): void {
     void this.committed.overview
-      .rebuildIfNeeded(this.contentBounds, this.makeYielder(), new AbortController().signal)
+      .rebuildIfNeeded(this.contentBounds, this.makeYielder() as any, new AbortController().signal)
       .then(() => this.requestFrame())
   }
 
   /**
-   * Keep the overview correct for a changed region. Localized patch (cheap,
-   * synchronous) when the region is inside coverage; only when content has
-   * grown beyond coverage do we fall back to a debounced full re-fit rebuild.
+   * On-screen edits patch the overview immediately (it's the fallback base
+   * layer under not-yet-baked tiles). Off-screen edits DEFER the patch (item
+   * C): an invisible region isn't drawn until the user pans there, and the
+   * flush points (bake / pan-end) refresh it before those tiles render. Saves
+   * an O(objects-in-region) clip+redraw per invisible edit.
    */
   private patchOverview(rect: WorldRect): void {
-    if (this.committed.overview.patchRect(rect)) return // common: O(local)
+    if (!this.intersectsView(rect)) {
+      this.pendingOverview.push({ ...rect })
+      if (this.pendingOverview.length > 256) this.flushPendingOverview()
+      return
+    }
+    if (this.committed.overview.patchRect(rect)) return
     this.committed.overview.markDirty()
-    this.scheduleOverviewRebuild() // rare: content grew → re-fit
+    this.scheduleOverviewRebuild()
   }
 
-  /**
-   * Debounced full overview rebuild — ONLY for growth / first build. Not used
-   * for ordinary edits (those go through patchOverview), so it can never become
-   * the per-edit O(N) bottleneck.
-   */
+  private flushPendingOverview(): void {
+    if (this.pendingOverview.length === 0) return
+    const rects = this.pendingOverview
+    this.pendingOverview = []
+    let needRebuild = false
+    for (const r of rects) {
+      if (!this.committed.overview.patchRect(r)) needRebuild = true
+    }
+    if (needRebuild) {
+      this.committed.overview.markDirty()
+      this.scheduleOverviewRebuild()
+    }
+  }
+
   private scheduleOverviewRebuild(): void {
     if (this.overviewTimer !== null) return
     this.overviewTimer = setTimeout(() => {
       this.overviewTimer = null
-      if (this.gesturing || this.loading) {
-        this.scheduleOverviewRebuild()
-        return
-      }
+      if (this.gesturing || this.loading) { this.scheduleOverviewRebuild(); return }
       void this.committed.overview
-        .rebuildIfNeeded(this.contentBounds, this.makeYielder(), new AbortController().signal)
-        .then(() => {
-          this.requestFrame()
-          this.scheduleBake()
-        })
+        .rebuildIfNeeded(this.contentBounds, this.makeYielder() as any, new AbortController().signal)
+        .then(() => { this.requestFrame(); this.scheduleBake() })
     }, 250)
   }
 
-  /** True if the committed tiles covering rect are baked (used by the drag
-   *  controller to hide its GPU layer only once the new position is ready). */
   isRegionBaked(rect: WorldRect): boolean {
     return this.committed.isRegionReady(rect, this.surface.getVpt()[0])
   }
 
   reset(): void {
     this.abortBakes()
-    if (this.overviewTimer !== null) {
-      clearTimeout(this.overviewTimer)
-      this.overviewTimer = null
-    }
+    if (this.overviewTimer !== null) { clearTimeout(this.overviewTimer); this.overviewTimer = null }
+    if (this.remoteRaf) { cancelAnimationFrame(this.remoteRaf); this.remoteRaf = 0 }
+    this.pendingRemote = null
+    this.pendingOverview = []
     this.live.clear()
     this.committed.reset()
     this.contentBounds = null
@@ -390,16 +416,49 @@ export class RenderCore<T extends Bounded> {
       const b = obj.getBoundingRect(true, true)
       if (!isFinite(b.left) || b.width <= 0 || b.height <= 0) return null
       return { x: b.left, y: b.top, w: b.width, h: b.height }
-    } catch {
-      return null
+    } catch { return null }
+  }
+
+  private intersectsView(r: WorldRect): boolean {
+    const v = this.committed.viewWorld(
+      this.surface.getVpt(), this.surface.getSize(), this.surface.getDpr())
+    return !(r.x + r.w < v.x || r.x > v.x + v.w || r.y + r.h < v.y || r.y > v.y + v.h)
+  }
+
+  private union(a: WorldRect, b: WorldRect): WorldRect {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y)
+    const x2 = Math.max(a.x + a.w, b.x + b.w), y2 = Math.max(a.y + a.h, b.y + b.h)
+    return { x, y, w: x2 - x, h: y2 - y }
+  }
+
+  /** Merge overlapping / near rects; far-apart rects stay separate. Pathological
+   *  batches (>64 rects) collapse to one bounding union. */
+  private mergeRects(rects: WorldRect[]): WorldRect[] {
+    if (rects.length <= 1) return rects.map((r) => ({ ...r }))
+    if (rects.length > 64) {
+      let u = rects[0]
+      for (let i = 1; i < rects.length; i++) u = this.union(u, rects[i])
+      return [u]
     }
+    const out: WorldRect[] = []
+    for (const r of rects) {
+      let merged = false
+      for (let i = 0; i < out.length; i++) {
+        if (this.nearOrOverlap(out[i], r)) { out[i] = this.union(out[i], r); merged = true; break }
+      }
+      if (!merged) out.push({ ...r })
+    }
+    return out
+  }
+
+  private nearOrOverlap(a: WorldRect, b: WorldRect): boolean {
+    const pad = 16
+    return !(a.x + a.w + pad < b.x || b.x + b.w + pad < a.x ||
+      a.y + a.h + pad < b.y || b.y + b.h + pad < a.y)
   }
 
   private growContentBounds(r: WorldRect): void {
-    if (!this.contentBounds) {
-      this.contentBounds = { ...r }
-      return
-    }
+    if (!this.contentBounds) { this.contentBounds = { ...r }; return }
     const c = this.contentBounds
     const x = Math.min(c.x, r.x), y = Math.min(c.y, r.y)
     const x2 = Math.max(c.x + c.w, r.x + r.w), y2 = Math.max(c.y + c.h, r.y + r.h)

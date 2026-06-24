@@ -34,6 +34,7 @@ import {
 import { useChatStore } from "@/store/chat.store";
 import { createSavedDrawing } from "@/service/api/savedDrawing.api";
 import { useShareToastStore } from "@/draw/store/useShareToastStore.store";
+import { createYielder } from '@/draw/helpers/yielding.helper'
 
 export async function removeObjects(objects: FabricObject[]) {
 	const { getCanvas } = useDrawStore();
@@ -187,32 +188,31 @@ export async function copyObjects(
 		return;
 	}
 
-	const offsetX = 10;
-	const offsetY = 10;
+	const offsetX = 10, offsetY = 10;
+	const sources = params.objects;
+	const clonedObjects: FabricObject[] = [];
 
-	let clonedObjects: FabricObject[] = [];
 	await actionWithoutEvents(async () => {
-		c.discardActiveObject();
-		clonedObjects = await Promise.all(
-			params.objects.map((obj: FabricObject) => obj.clone()),
-		);
+		c.discardActiveObject(); // MUST precede cloning → children back in absolute coords
 
-		clonedObjects.forEach((obj: FabricObject, i) => {
+		const yielder = createYielder({ budgetMs: 8 });
+		yielder.reset();
+		for (let i = 0; i < sources.length; i++) {
+			const obj = await sources[i].clone();
 			obj.set({ left: obj.left! + offsetX, top: obj.top! + offsetY });
 			obj.id = params.newObjectIds ? params.newObjectIds[i] : uuidv4();
+			clonedObjects.push(obj);
 			c.add(obj);
-		});
+			await yielder.maybeYield(); // adaptive: no-op when fast, breathes when slow
+		}
 	});
 
-	const clonedJsons = toJSON(clonedObjects);
+	const clonedJsons = toJSON(clonedObjects); // history needs this — keep it
 
-	// normal scenario, not when syncing events
 	if (!params.newObjectIds) {
-		const newActiveObject =
-			clonedObjects.length == 1
-				? clonedObjects[0]
-				: new ActiveSelection(clonedObjects, { canvas: c });
-
+		const newActiveObject = clonedObjects.length === 1
+			? clonedObjects[0]
+			: new ActiveSelection(clonedObjects, { canvas: c });
 		c.setActiveObject(newActiveObject);
 		c.clearContext(c.getTopContext());
 		newActiveObject._renderControls(c.getTopContext());
@@ -220,8 +220,8 @@ export async function copyObjects(
 
 	c.fire("objectsCopied", {
 		target: clonedJsons,
-		objectIdsToClone: params.objects.map((obj: FabricObject) => obj.id),
-		newObjectIds: clonedObjects.map((obj: FabricObject) => obj.id),
+		objectIdsToClone: sources.map((o) => o.id),
+		newObjectIds: clonedObjects.map((o) => o.id),
 	});
 }
 
@@ -413,7 +413,6 @@ export async function addSavedFabricObjectToCanvas(
 	const c = getCanvas();
 	if (!c) return;
 
-	drawSyncer.isLoadingCanvas = true;
 
 	try {
 		let jsonData = params.json;
@@ -493,6 +492,7 @@ export async function addSavedFabricObjectToCanvas(
 			selectTool(DrawTool.Select);
 		}
 
+
 		c.fire("objects:added", {
 			target: objects,
 		});
@@ -509,6 +509,5 @@ export async function addSavedFabricObjectToCanvas(
 	} catch (error) {
 		console.error("Failed to load saved drawing:", error);
 	} finally {
-		drawSyncer.isLoadingCanvas = false;
 	}
 }

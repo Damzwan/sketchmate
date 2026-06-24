@@ -260,6 +260,7 @@ export async function eraseObject(
 	return clone;
 }
 
+
 export async function eraseCanvasDrawable(
 	object: fabric.FabricObject,
 	vpt: fabric.TMat2D | undefined,

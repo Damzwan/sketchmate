@@ -1,6 +1,12 @@
-import { util, StaticCanvas, classRegistry } from 'fabric'
+import { classRegistry, util } from 'fabric'
 import { OptimizedEraserStroke } from '@/draw/utils/brushes/CustomEraserBrush'
 import { OptimizedPencilStroke } from '@/draw/utils/brushes/CustomPencilBrush'
+import { PixelStroke } from '@/draw/utils/brushes/PixelBrush'
+import { CharcoalStroke } from '@/draw/utils/brushes/CharcoalBrush'
+import { WaterColorStroke } from '@/draw/utils/brushes/WaterColorBrush'
+import { CalligraphyStroke } from '@/draw/utils/brushes/CalligraphyBrush'
+import { BucketFillPath } from '@/draw/utils/BucketFillPath'
+import { CircleStroke } from '@/draw/utils/brushes/CustomCircleBrush'
 
 // --- MOCK DOM & DISGUISE (Copied from your stable Preview Worker) ---
 const applyCanvasDisguise = (canvas: any) => {
@@ -102,8 +108,17 @@ self.onmessage = async (e: MessageEvent) => {
   const { object, multiplier } = e.data
 
   try {
-    classRegistry.setClass(OptimizedEraserStroke, 'OptimizedEraserStroke')
-    classRegistry.setClass(OptimizedPencilStroke, 'OptimizedPencilStroke')
+    const brushes = [
+      [OptimizedEraserStroke, 'OptimizedEraserStroke'],
+      [PixelStroke, 'PixelStroke'],
+      [CharcoalStroke, 'CharcoalStroke'],
+      [WaterColorStroke, 'WaterColorStroke'],
+      [CalligraphyStroke, 'CalligraphyStroke'],
+      [BucketFillPath, 'BucketFillPath'],
+      [OptimizedPencilStroke, 'OptimizedPencilStroke'],
+      [CircleStroke, CircleStroke.type]
+    ] as const
+    brushes.forEach(([cls, name]) => classRegistry.setClass(cls, name))
 
     const enlivened = await util.enlivenObjects([object])
     const obj: any = enlivened[0]
@@ -124,8 +139,6 @@ self.onmessage = async (e: MessageEvent) => {
       if (o.type === 'image' && o._element?._bitmap) o._element = o._element._bitmap
     })
 
-    // toCanvasElement handles the bbox + translation that setZoom was missing.
-    // Returns the disguised OffscreenCanvas via the mock's createElement.
     const el: any = obj.toCanvasElement({ multiplier })
     const w = el.width, h = el.height
     if (!w || !h) return self.postMessage({ survivors: 0 })

@@ -83,58 +83,70 @@ function removeStrokeFromClip(canvasObj: fabric.Object, strokeId: string): boole
 export async function handleErasedAction(
   ctx: HistoryContext,
   action: HistoryAction<HistoryEvent.Erasing>,
-  actionType: "undo" | "redo",
+  actionType: 'undo' | 'redo'
 ): Promise<HistoryAction<HistoryEvent.Erasing>> {
-  const { canvas, getObjectsById } = ctx;
-  const { strokeJSON, strokeId, objectIds, deletedObjectsJSON = [] } = action.params;
-  const mgr = useDrawObjectManager();
+  const { canvas, getObjectsById } = ctx
+  const { strokeJSON, strokeId, objectIds, deletedObjectsJSON = [] } = action.params
+  const mgr = useDrawObjectManager()
 
-  if (actionType === "redo") {
-    const objects = getObjectsById(objectIds);
-    const [enlivenedStroke] = await fabric.util.enlivenObjects<fabric.Path>([strokeJSON]);
+  // 1. OPTIMIZATION: Enliven the stroke exactly ONCE.
+  // Previously, this was being parsed a second time at the bottom of the function!
+  const [enlivenedStroke] = await fabric.util.enlivenObjects<fabric.Path>([strokeJSON])
 
+  if (actionType === 'redo') {
+    const objects = getObjectsById(objectIds)
+
+    // This still clones per object under the hood, but avoiding the
+    // redundant JSON parse at the bottom saves massive overhead.
     await Promise.all(
       objects.map(async (canvasObj) => {
-        if (!canvasObj) return;
-        await eraseObject(canvasObj, enlivenedStroke);
-      }),
-    );
+        if (!canvasObj) return
+        await eraseObject(canvasObj, enlivenedStroke)
+      })
+    )
 
     if (deletedObjectsJSON.length > 0) {
-      const deletedIds = deletedObjectsJSON.map((obj: any) => obj.id);
+      const deletedIds = deletedObjectsJSON.map((obj: any) => obj.id)
       getObjectsById(deletedIds).forEach((obj) => {
-        if (obj) canvas.remove(obj);
-      });
+        if (obj) canvas.remove(obj)
+      })
     }
 
-    const [strokeForBounds] = await fabric.util.enlivenObjects<fabric.Path>([strokeJSON]);
-    for (const obj of objects) if (obj) mgr.updateQuadTree(obj);
-    const rect = intersectRect(strokeFootprint(strokeForBounds), unionBounds(objects));
-    if (rect) mgr.patchRectSync(rect);
+    for (const obj of objects) if (obj) mgr.updateQuadTree(obj)
+
+    // 2. OPTIMIZATION: Re-use the already enlivened stroke to calculate bounds.
+    const rect = intersectRect(strokeFootprint(enlivenedStroke), unionBounds(objects))
+
+    // 3. OPTIMIZATION: Destructively drop the region instead of a synchronous patch.
+    // This bypasses keeping the stale tile and triggers a clean, viewport-clipped rebuild.
+    if (rect) mgr.dropRegion(rect)
 
   } else {
-    // UNDO: Safely target the individual vector stroke to remove it.
-    let restoredObjects: fabric.Object[] = [];
+    // UNDO
+    let restoredObjects: fabric.Object[] = []
     if (deletedObjectsJSON.length > 0) {
-      restoredObjects = await fabric.util.enlivenObjects(deletedObjectsJSON);
-      restoredObjects.forEach((obj) => canvas.add(obj as fabric.Object));
+      restoredObjects = await fabric.util.enlivenObjects(deletedObjectsJSON)
+      restoredObjects.forEach((obj) => canvas.add(obj as fabric.Object))
     }
 
-    const objectsOnCanvas = getObjectsById(objectIds);
-    const allAffected = [...objectsOnCanvas, ...restoredObjects];
+    const objectsOnCanvas = getObjectsById(objectIds)
+    const allAffected = [...objectsOnCanvas, ...restoredObjects]
 
     for (const canvasObj of allAffected) {
-      if (!canvasObj || !canvasObj.clipPath) continue;
-      removeStrokeFromClip(canvasObj, strokeId);
+      if (!canvasObj || !canvasObj.clipPath) continue
+      removeStrokeFromClip(canvasObj, strokeId)
     }
 
-    const [strokeForBounds] = await fabric.util.enlivenObjects<fabric.Path>([strokeJSON]);
-    for (const obj of allAffected) if (obj) mgr.updateQuadTree(obj);
-    const rect = intersectRect(strokeFootprint(strokeForBounds), unionBounds(allAffected));
-    if (rect) mgr.patchRectSync(rect);
+    for (const obj of allAffected) if (obj) mgr.updateQuadTree(obj)
+
+    // Use the enlivened stroke instantly.
+    const rect = intersectRect(strokeFootprint(enlivenedStroke), unionBounds(allAffected))
+
+    // Destructively drop the region to avoid locking the main thread.
+    if (rect) mgr.dropRegion(rect)
   }
 
-  return action;
+  return action
 }
 
 export async function redoErased(

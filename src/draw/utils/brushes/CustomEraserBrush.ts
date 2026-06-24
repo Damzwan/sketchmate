@@ -39,12 +39,21 @@ const drawImage = (
 	destination: CanvasRenderingContext2D,
 	source: CanvasRenderingContext2D,
 	globalCompositeOperation: GlobalCompositeOperation = "source-over",
+	clipRect?: { x: number; y: number; w: number; h: number }
 ) => {
 	destination.save();
 	destination.imageSmoothingEnabled = true;
 	destination.imageSmoothingQuality = "high";
 	destination.globalCompositeOperation = globalCompositeOperation;
 	destination.resetTransform();
+
+	// FIX: Apply clipping region so the GPU only copies the affected area
+	if (clipRect) {
+		destination.beginPath();
+		destination.rect(clipRect.x, clipRect.y, clipRect.w, clipRect.h);
+		destination.clip();
+	}
+
 	destination.drawImage(source.canvas, 0, 0);
 	destination.restore();
 };
@@ -61,17 +70,25 @@ const erase = (
 	destination: CanvasRenderingContext2D,
 	source: CanvasRenderingContext2D,
 	erasingEffect?: CanvasRenderingContext2D,
+	clipRect?: { x: number; y: number; w: number; h: number }
 ) => {
 	// clip destination
-	drawImage(destination, source, "destination-out");
+	drawImage(destination, source, "destination-out", clipRect);
 
 	// draw erasing effect
 	if (erasingEffect) {
-		drawImage(source, erasingEffect, "source-in");
+		drawImage(source, erasingEffect, "source-in", clipRect);
 	} else {
 		source.save();
 		source.resetTransform();
-		source.clearRect(0, 0, source.canvas.width, source.canvas.height);
+
+		// FIX: Only clear the exact rectangle on the source canvas
+		if (clipRect) {
+			source.clearRect(clipRect.x, clipRect.y, clipRect.w, clipRect.h);
+		} else {
+			source.clearRect(0, 0, source.canvas.width, source.canvas.height);
+		}
+
 		source.restore();
 	}
 };
@@ -431,7 +448,41 @@ export class CustomEraserBrush extends PencilBrush {
 	 */
 	_render(ctx: CanvasRenderingContext2D = this.canvas.getTopContext()): void {
 		super._render(ctx);
-		erase(this.canvas.getContext(), ctx, this.effectContext);
+
+		// 1. Grab the points of the current stroke
+		const points = this["_points"];
+		if (!points || points.length === 0) return;
+
+		// 2. Calculate the World bounding box of the stroke so far
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		for (const p of points) {
+			minX = Math.min(minX, p.x);
+			minY = Math.min(minY, p.y);
+			maxX = Math.max(maxX, p.x);
+			maxY = Math.max(maxY, p.y);
+		}
+
+		// 3. Convert to physical screen pixels
+		const vpt = this.canvas.viewportTransform!;
+		const dpr = this.canvas.getRetinaScaling ? this.canvas.getRetinaScaling() : (window.devicePixelRatio || 1);
+
+		// Pad the box by the brush width to ensure smooth anti-aliased edges aren't clipped
+		const pad = (this.width / 2) * vpt[0] * dpr + 5;
+
+		const screenMinX = (minX * vpt[0] + vpt[4]) * dpr;
+		const screenMinY = (minY * vpt[3] + vpt[5]) * dpr;
+		const screenMaxX = (maxX * vpt[0] + vpt[4]) * dpr;
+		const screenMaxY = (maxY * vpt[3] + vpt[5]) * dpr;
+
+		const clipRect = {
+			x: screenMinX - pad,
+			y: screenMinY - pad,
+			w: (screenMaxX - screenMinX) + pad * 2,
+			h: (screenMaxY - screenMinY) + pad * 2
+		};
+
+		// 4. Pass the clipRect to drastically limit the GPU copy operation!
+		erase(this.canvas.getContext(), ctx, this.effectContext, clipRect);
 	}
 
 	/**

@@ -1,50 +1,74 @@
-import * as fabric from "fabric";
-import { FabricObject, FabricObjectProps, Group } from "fabric";
-import { HistoryAction, HistoryEvent } from "@/draw/types/drawHistory.types";
-import { HistoryContext } from "@/draw/config/drawHistory.config";
-import { drawActionMapping } from "@/draw/config/action.config";
-import { DrawAction } from "@/draw/types/draw.types";
-import { toObjectsIds } from "@/draw/helpers/object.helper";
-import { Rect } from "@/draw/utils/QuadTree";
+import * as fabric from 'fabric'
+import { FabricObject, FabricObjectProps, Group } from 'fabric'
+import { HistoryAction, HistoryEvent } from '@/draw/types/drawHistory.types'
+import { HistoryContext } from '@/draw/config/drawHistory.config'
+import { drawActionMapping } from '@/draw/config/action.config'
+import { DrawAction } from '@/draw/types/draw.types'
+import { toObjectsIds } from '@/draw/helpers/object.helper'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 
-// --- Utility ---
-export function applyObjectModification(
+export function applyObjectModificationsBulk(
 	ctx: HistoryContext,
-	obj: FabricObject,
-	diff: any,
+	changes: { id: string; diff: any }[],
 ): void {
-	const targetObject = ctx.getObjectById((obj as any).id);
-	if (!targetObject) return;
+	const mgr = useDrawObjectManager();
+	const targetObjects: FabricObject[] = [];
 
-	// @ts-ignore
-	const oldRect = targetObject.getBoundingRect(true, true);
+	let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
-	targetObject.set({
-		left: (targetObject.left ?? 0) - diff.left,
-		top: (targetObject.top ?? 0) - diff.top,
-		scaleX: (targetObject.scaleX ?? 1) - diff.scaleX,
-		scaleY: (targetObject.scaleY ?? 1) - diff.scaleY,
-		angle: (targetObject.angle ?? 0) - diff.angle,
+	// 1. Measure OLD boundaries, apply transforms, and update index
+	changes.forEach(({ id, diff }) => {
+		const obj = ctx.getObjectById(id);
+		if (!obj) return;
+		targetObjects.push(obj);
+
+		// @ts-ignore
+		const b = obj.getBoundingRect(true, true);
+		if (b && isFinite(b.left)) {
+			minX = Math.min(minX, b.left);
+			minY = Math.min(minY, b.top);
+			maxX = Math.max(maxX, b.left + b.width);
+			maxY = Math.max(maxY, b.top + b.height);
+		}
+
+		obj.set({
+			left: (obj.left ?? 0) - diff.left,
+			top: (obj.top ?? 0) - diff.top,
+			scaleX: (obj.scaleX ?? 1) - diff.scaleX,
+			scaleY: (obj.scaleY ?? 1) - diff.scaleY,
+			angle: (obj.angle ?? 0) - diff.angle,
+		});
+
+		obj.setCoords();
+		mgr.updateQuadTree(obj);
 	});
 
-	targetObject.setCoords();
-	// ctx.updateQuadTree(targetObject)
+	if (targetObjects.length === 0) return;
 
-	const canvas = targetObject.canvas;
-	if (canvas) {
-		canvas.fire("render:patchModifiedObject", {
-			target: targetObject,
-			oldRect: {
-				x: oldRect.left,
-				y: oldRect.top,
-				w: oldRect.width,
-				h: oldRect.height,
-			},
-		} as any);
+	// 2. Measure NEW boundaries and expand the bounding box union
+	targetObjects.forEach((obj) => {
+		// @ts-ignore
+		const b = obj.getBoundingRect(true, true);
+		if (b && isFinite(b.left)) {
+			minX = Math.min(minX, b.left);
+			minY = Math.min(minY, b.top);
+			maxX = Math.max(maxX, b.left + b.width);
+			maxY = Math.max(maxY, b.top + b.height);
+		}
+	});
+
+	// 3. Issue ONE synchronous patch for the entire affected region
+	if (minX !== Infinity) {
+		const PAD = 8;
+		mgr.patchRectSync({
+			x: minX - PAD,
+			y: minY - PAD,
+			w: maxX - minX + PAD * 2,
+			h: maxY - minY + PAD * 2,
+		});
 	}
 }
 
-// --- Redo Helpers ---
 
 export async function redoObjectAdded(
 	ctx: HistoryContext,
@@ -89,11 +113,12 @@ export async function redoObjectModified(
 	ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.ObjectModified>,
 ) {
-	action.params.changes.forEach(({ id, backward }) => {
-		const obj = ctx.getObjectById(id);
-		if (!obj) return;
-		applyObjectModification(ctx, obj, backward);
-	});
+	const changes = action.params.changes.map((c) => ({
+		id: c.id,
+		diff: c.backward,
+	}));
+
+	applyObjectModificationsBulk(ctx, changes);
 
 	return action;
 }
@@ -171,14 +196,16 @@ export async function undoObjectModified(
 	ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.ObjectModified>,
 ) {
-	action.params.changes.forEach(({ id, forward }) => {
-		const obj = ctx.getObjectById(id);
-		if (!obj) return;
-		applyObjectModification(ctx, obj, forward);
-	});
+	const changes = action.params.changes.map((c) => ({
+		id: c.id,
+		diff: c.forward,
+	}));
+
+	applyObjectModificationsBulk(ctx, changes);
 
 	return action;
 }
+
 
 export async function undoObjectsDeleted(
 	ctx: HistoryContext,

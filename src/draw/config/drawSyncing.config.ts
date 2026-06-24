@@ -6,7 +6,7 @@ import * as fabric from "fabric";
 import { FabricImage, FabricObject, IText } from "fabric";
 import { useDrawStore } from "@/draw/store/draw.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
-import { applyObjectModification } from "@/draw/helpers/history/object.helper";
+import {  applyObjectModificationsBulk } from '@/draw/helpers/history/object.helper'
 import { drawActionMapping } from "@/draw/config/action.config";
 import { fullErase } from "@/draw/actions/erase.action";
 import { DrawAction } from "@/draw/types/draw.types";
@@ -73,12 +73,14 @@ async function syncObjectsModified(
 	const { getObjectById } = useDrawObjectManager();
 	const { createHistoryContext } = useDrawHistoryManager();
 
-	params.changes.forEach(({ id, backward }) => {
-		const obj = getObjectById(id);
-		if (!obj) return;
-		applyObjectModification(createHistoryContext(), obj, backward);
-	});
+	const bulkChanges = params.changes.map((c) => ({
+		id: c.id,
+		diff: c.backward,
+	}));
 
+	applyObjectModificationsBulk(createHistoryContext(), bulkChanges);
+
+	// 3. Update the collaborator's cursor/avatar position
 	if (params.creator && params.changes.length > 0) {
 		const { showOrUpdateAvatar } = useDrawUIStore();
 		const firstChange = params.changes[0];

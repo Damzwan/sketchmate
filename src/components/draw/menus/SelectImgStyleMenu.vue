@@ -2,17 +2,6 @@
   <ion-popover trigger="img-style" :showBackdrop="false" :is-open="selectImgStyleMenuOpen" :event="menuEvent"
                @didDismiss="selectImgStyleMenuOpen=false">
     <ion-content class="divide-y divide-primary">
-      <ion-list lines="none" class="p-0">
-        <ion-item color="tertiary">
-          <ion-toggle color="secondary" :checked="isGrayScale" @ionChange="addGrayScaleFilter">Black/White</ion-toggle>
-        </ion-item>
-        <ion-item color="tertiary">
-          <ion-toggle color="secondary" :checked="isSepia" @ionChange="addSepiaFilter">Sepia</ion-toggle>
-        </ion-item>
-        <ion-item color="tertiary">
-          <ion-toggle color="secondary" :checked="isInvert" @ionChange="addInvertFilter">Invert</ion-toggle>
-        </ion-item>
-      </ion-list>
       <ion-list lines="none" class="p-0 divide-y divide-primary">
         <ion-item color="tertiary" v-if="colorFilter" :button="true" :detail="false" @click="removeColorFilter">
           <ion-icon :icon="svg(mdiClose)" color="danger" />

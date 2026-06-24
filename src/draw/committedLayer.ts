@@ -325,48 +325,6 @@ export class CommittedLayer<T extends Bounded> {
     return { needsBake: anyNonFresh }
   }
 
-  // committedLayer.ts
-  /** Apply the eraser stroke directly onto existing fresh tiles (destination-out),
-   *  keeping them FRESH. Mirrors the old TileCache.subtractStrokeFromTiles: no
-   *  re-query, no rebuild, no fallback, no overview. The visible tiles stay sharp. */
-  subtractStroke(
-    renderEraser: (ctx: OffscreenCanvasRenderingContext2D, scale: number) => void,
-    rect: WorldRect,
-    tiers: number[]
-  ): void {
-    for (const tier of tiers) {
-      if (tier < 0 || tier >= this.ZOOM_TIERS.length) continue
-      const scale = this.ZOOM_TIERS[tier]
-      const pad = this.OS / scale + 4 / scale
-      const r = this.tileRange(rect, tier)
-      for (let ty = r.ty0; ty <= r.ty1; ty++)
-        for (let tx = r.tx0; tx <= r.tx1; tx++) {
-          const key = `${tier}:${tx}:${ty}`
-          const t = this.tiles.get(key)
-          if (!t || !this.isFresh(key, t) || !t.bitmap) continue
-          const world = this.tileToWorld(tier, tx, ty)
-          const off = this.acquire()
-          const c2d = off.getContext('2d')!
-          c2d.setTransform(1,0,0,1,0,0)
-          c2d.clearRect(0,0,this.BMP,this.BMP)
-          c2d.drawImage(t.bitmap, 0, 0)
-          c2d.save()
-          c2d.translate(this.OS, this.OS); c2d.scale(scale, scale); c2d.translate(-world.x, -world.y)
-          c2d.beginPath(); c2d.rect(world.x - pad, world.y - pad, world.w + 2*pad, world.h + 2*pad); c2d.clip()
-          c2d.globalCompositeOperation = 'destination-out'
-          try { renderEraser(c2d, scale) } catch {}
-          c2d.restore()
-          let bmp: ImageBitmap
-          // @ts-ignore
-          try { bmp = off.transferToImageBitmap() } catch { this.release(off); continue }
-          this.release(off)
-          if (t.bitmap) t.bitmap.close()
-          t.bitmap = bmp           // SAME tile, gen untouched → stays fresh
-          t.lastUsed = performance.now()
-        }
-    }
-  }
-
   /**
    * Find the BEST fresh source for an active-tier cell, searching BOTH ways:
    *   - coarser tiers (tier-1 … ): ONE tile covers the cell → sub-rect sample.

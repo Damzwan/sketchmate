@@ -55,11 +55,6 @@
         @click="openMenu(Menu.SelectColor, $event)"
       />
 
-      <ToolButton
-        v-if="isImg"
-        :icon="svg(mdiPaletteOutline)"
-        @click="openMenu(Menu.SelectImgStyle, $event)"
-      />
 
       <ToolButton
         :icon="svg(mdiDotsVertical)"
@@ -76,61 +71,61 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { storeToRefs } from "pinia";
-import { useSelect } from "@/draw/store/tools/select.store";
-import { useDrawStore } from "@/draw/store/draw.store";
-import { useMenuStore } from "@/store/menu.store";
-import ToolButton from "./ToolButton.vue";
-import { IonIcon } from "@ionic/vue";
+import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useSelect } from '@/draw/store/tools/select.store'
+import { useDrawStore } from '@/draw/store/draw.store'
+import { useMenuStore } from '@/store/menu.store'
+import ToolButton from './ToolButton.vue'
+import { IonIcon } from '@ionic/vue'
 
 import {
-	mdiClose,
-	mdiDeleteOutline,
-	mdiPaletteOutline,
-	mdiFormatText,
-	mdiMenuSwapOutline,
-	mdiDotsVertical,
-	mdiUndo,
-	mdiRedo,
-	mdiPencilOutline,
-} from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { DrawAction, Menu, ObjectType } from "@/draw/types/draw.types";
-import { useDrawHistoryManager } from "@/draw/store/drawHistoryManager.store";
+  mdiClose,
+  mdiDeleteOutline,
+  mdiPaletteOutline,
+  mdiFormatText,
+  mdiMenuSwapOutline,
+  mdiDotsVertical,
+  mdiUndo,
+  mdiRedo,
+  mdiPencilOutline
+} from '@mdi/js'
+import { svg } from '@/helper/general.helper'
+import { DrawAction, Menu, ObjectType } from '@/draw/types/draw.types'
+import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
 
-const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect());
-const { selectAction } = useDrawStore();
-const { openMenu } = useMenuStore();
-const { undoDisabled, redoDisabled } = storeToRefs(useDrawHistoryManager());
+const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect())
+const { selectAction } = useDrawStore()
+const { openMenu } = useMenuStore()
+const { undoDisabled, redoDisabled } = storeToRefs(useDrawHistoryManager())
 
 // Localized Computed Logic
 const containsImage = computed(() =>
-	selectedObjectsRef.value.map((obj) => obj.type).includes("image"),
-);
+  selectedObjectsRef.value.map((obj) => obj.type).includes('image')
+)
 const isText = computed(
-	() =>
-		selectedObjectsRef.value.length === 1 &&
-		selectedObjectsRef.value[0].type === ObjectType.text,
-);
+  () =>
+    selectedObjectsRef.value.length === 1 &&
+    selectedObjectsRef.value[0].type === ObjectType.text
+)
 const isImg = computed(
-	() =>
-		selectedObjectsRef.value.length === 1 &&
-		selectedObjectsRef.value[0].type === ObjectType.image,
-);
+  () =>
+    selectedObjectsRef.value.length === 1 &&
+    selectedObjectsRef.value[0].type === ObjectType.image
+)
 
 const fontFamily = computed(() =>
-	selectedObjectsRef.value[0]
-		? ((selectedObjectsRef.value as any)[0]["fontFamily"] as string)
-		: undefined,
-);
+  selectedObjectsRef.value[0]
+    ? ((selectedObjectsRef.value as any)[0]['fontFamily'] as string)
+    : undefined
+)
 
 // Actions
 const unselectObjects = () =>
-	selectAction(DrawAction.UnselectObjects, undefined);
+  selectAction(DrawAction.UnselectObjects, undefined)
 const removeSelected = () =>
-	selectAction(DrawAction.RemoveSelectedObjects, undefined);
+  selectAction(DrawAction.RemoveSelectedObjects, undefined)
 
-const undo = () => selectAction(DrawAction.Undo, undefined);
-const redo = () => selectAction(DrawAction.Redo, undefined);
+const undo = () => selectAction(DrawAction.Undo, undefined)
+const redo = () => selectAction(DrawAction.Redo, undefined)
 </script>

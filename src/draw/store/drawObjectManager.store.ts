@@ -147,17 +147,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
       // @ts-ignore
     finally { obj.canvas = prev; }
   }
-  // Render the eraser stroke (carries its own destination-out gco).
-  function makeEraserRenderer(path: FabricObject) {
-    return (ctx: any) => {
-      const prev = (path as any).canvas;
-      // @ts-ignore
-      path.canvas = null; path.objectCaching = false; path.dirty = true;
-      try { path.render(ctx); } catch { /* ignore */ }
-        // @ts-ignore
-      finally { path.canvas = prev; }
-    };
-  }
 
   // ── fabric events → core lifecycle ───────────────────────────────────────
   function onObjectAdded(obj: FabricObject) {

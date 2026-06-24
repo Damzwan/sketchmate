@@ -10,10 +10,11 @@ import {
 import { exportBoundingBoxImage } from "@/draw/helpers/export.helper";
 import { v4 as uuidv4 } from "uuid";
 import {
+	enlivenObjectsNaive,
 	enlivenObjectsTimeSlivered,
 	generateChunkedJSON,
-	migrateLegacyOrigin,
-} from "@/draw/helpers/drawload.helper";
+	migrateLegacyOrigin
+} from '@/draw/helpers/drawload.helper'
 import { createYielder } from "@/draw/helpers/yielding.helper";
 
 export interface DrawingDraft {
@@ -182,7 +183,7 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 				await actionWithoutEvents(async () => {
 					c.clear();
 					if (json.objects && json.objects.length > 0) {
-						await enlivenObjectsTimeSlivered(json.objects, (obj) => {
+						await enlivenObjectsNaive(json.objects, (obj) => {
 							c.add(obj);
 						});
 					}

@@ -79,6 +79,36 @@ export async function enlivenObjectsTimeSlivered(
 	}
 }
 
+export async function enlivenObjectsNaive(
+	objectsJson: any[],
+	onObjectEnlivened: (obj: FabricObject) => void,
+): Promise<void> {
+	if (!objectsJson || objectsJson.length === 0) return;
+
+	// IMPORTANT: we do NOT use reactive store inside loop
+	const { isBlocked } = useFriendStore();
+
+	// single-pass filter only
+	const filtered = objectsJson.filter((item) => !isBlocked(item.userId));
+
+	try {
+		// enliven EVERYTHING in one go
+		const enlivened = await util.enlivenObjects<FabricObject>(filtered);
+
+		for (const obj of enlivened) {
+			if (!obj) continue;
+
+			// no async gap -> no state drift
+			if (!isBlocked(obj.userId)) {
+				onObjectEnlivened(obj);
+			}
+		}
+	} catch (e) {
+		console.error("[enliven-naive] failed:", e);
+		throw e;
+	}
+}
+
 /**
  * Time-sliced canvas → JSON serialization.
  *

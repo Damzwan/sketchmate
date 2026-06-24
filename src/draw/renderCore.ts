@@ -113,10 +113,6 @@ export class RenderCore<T extends Bounded> {
   // ── bake ─────────────────────────────────────────────────────────────────
   scheduleBake(): void {
     if (this.gesturing || this.loading || this.erasing) return
-    // A bake is already running: don't start a second one (the old code did,
-    // and they aborted each other so the viewport-fill bake never finished →
-    // the whole screen stayed on the low-res overview). Just request a follow-
-    // up pass for any tiles dirtied while this one runs.
     if (this.baking) {
       this.bakeAgain = true
       return
@@ -220,17 +216,11 @@ export class RenderCore<T extends Bounded> {
    * shows the correct, localized-patched overview instantly) and rebake the
    * now-clipped objects sharp.
    */
-  onErase(eraserObj: T, rect: WorldRect, renderEraser: (ctx: any, scale?: number) => void): void {
-    const vpt = this.surface.getVpt()
-    const tier = this.committed.pickActiveTier(vpt[0])
-    // active + a couple coarser + one finer, exactly like the old eraseTierSet
-    const tiers = [tier]
-    for (let t = tier - 1; t >= Math.max(0, tier - 2); t--) tiers.push(t)
-    if (tier + 1 < this.tiers.length) tiers.push(tier + 1)
+  onErase(eraserObj: T, rect: WorldRect): void {
+    const vpt = this.surface.getVpt();
+    const tier = this.committed.pickActiveTier(vpt[0]);
 
-    this.committed.subtractStroke(renderEraser, rect, tiers)
-    this.patchOverview(rect)
-    this.requestFrame()
+    this.markDirtyAndRebuildSync(rect, tier);
   }
 
 
@@ -272,17 +262,18 @@ export class RenderCore<T extends Bounded> {
     this.scheduleBake()
   }
 
-  // renderCore.ts
   markDirtyAndRebuildSync(rect: WorldRect, tier: number): void {
-    this.committed.markDirty(rect)                 // distrust stale tiles in region
+    this.committed.dropOtherTiers(rect, tier)
+
+    this.committed.markDirty(rect)
     if (tier > this.committed.overviewTier) {
       const vpt = this.surface.getVpt()
       const vw = this.committed.viewWorld(vpt, this.surface.getSize(), this.surface.getDpr())
-      this.committed.rebuildRectSync(rect, tier, vw)  // sharp + correct THIS frame
+      this.committed.rebuildRectSync(rect, tier, vw)
     }
     this.patchOverview(rect)
     this.requestFrame()
-    this.scheduleBake()  // off-viewport / coarser tiers catch up
+    this.scheduleBake()
   }
 
   // ── gesture / loading seams ──────────────────────────────────────────────

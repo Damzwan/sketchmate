@@ -256,7 +256,8 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
         const d = e.detail ?? {};
         const path = d.path as FabricObject | undefined;
         const rect = d.dirtyRect as WorldRect | undefined;
-        if (path && rect) core.onErase(path, rect, makeEraserRenderer(path));
+
+        if (path && rect) core.onErase(path, rect);
         else if (rect) core.markDirty(rect);
       },
     },

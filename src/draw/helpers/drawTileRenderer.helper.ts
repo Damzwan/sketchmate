@@ -1,3 +1,4 @@
+// src/draw/helpers/drawTileRenderer.helper.ts
 import { FabricObject } from "fabric";
 
 export const isolatedTileRenderer = (
@@ -6,12 +7,20 @@ export const isolatedTileRenderer = (
 ) => {
 	if (obj.visible === false || obj.opacity === 0) return false;
 
-	const originalCanvas = obj.canvas;
-	// @ts-ignore — fabric typings don't allow null but the runtime accepts it
-	obj.canvas = null;
+
+	const origCaching = obj.objectCaching;
 	obj.objectCaching = false;
 	obj.dirty = true;
-	if (obj.clipPath) obj.clipPath.dirty = true;
+
+	if (obj.clipPath) {
+		obj.clipPath.dirty = true;
+	}
+
+	// THE FIX: Since we kept obj.canvas attached, Fabric will attempt to cull
+	// the object if it is off-screen relative to the MAIN canvas viewport.
+	// Because we are baking background tiles, we must forcefully bypass this!
+	const origIsOnScreen = obj.isOnScreen;
+	obj.isOnScreen = () => true;
 
 	ctx.save();
 	try {
@@ -20,7 +29,9 @@ export const isolatedTileRenderer = (
 		console.warn("[TileRenderer] Draw failed:", err);
 	} finally {
 		ctx.restore();
-		// @ts-ignore
-		obj.canvas = originalCanvas;
+
+		// Restore original states so the live layer behaves normally
+		obj.objectCaching = origCaching;
+		obj.isOnScreen = origIsOnScreen;
 	}
 };

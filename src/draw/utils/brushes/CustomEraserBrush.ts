@@ -2,27 +2,6 @@ import * as fabric from "fabric";
 import { Canvas, FabricObject, Group, Path, PencilBrush } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
 
-function clonePathSync(source: any): fabric.Path {
-	if (!(source instanceof OptimizedEraserStroke)) {
-		throw new Error("Fallback async clone needed for standard paths");
-	}
-	const clone = new OptimizedEraserStroke(source.path!, {
-		fill: source.fill,
-		strokeWidth: source.strokeWidth,
-		strokeLineCap: source.strokeLineCap,
-		strokeMiterLimit: source.strokeMiterLimit,
-		strokeLineJoin: source.strokeLineJoin,
-		strokeDashArray: source.strokeDashArray,
-		stroke: source.stroke,
-		opacity: source.opacity,
-		globalCompositeOperation: source.globalCompositeOperation,
-	});
-	if (source.shadow) clone.shadow = new fabric.Shadow(source.shadow as any);
-
-	clone.id = (source as any).id;
-	return clone;
-}
-
 function isPrimaryPointer(ev: Event | undefined): boolean {
 	if (!ev) return true;
 
@@ -258,10 +237,7 @@ export async function eraseObject(
 	object: fabric.FabricObject,
 	source: fabric.Path,
 ) {
-	const clone = source instanceof OptimizedEraserStroke
-		? clonePathSync(source)
-		: await source.clone();
-
+	const clone = await source.clone();
 	fabric.util.sendObjectToPlane(clone, undefined, object.calcTransformMatrix());
 	commitErasing(object, clone);
 	return clone;
@@ -272,9 +248,7 @@ export async function eraseCanvasDrawable(
 	vpt: fabric.TMat2D | undefined,
 	source: fabric.Path,
 ) {
-	const clone = source instanceof OptimizedEraserStroke
-		? clonePathSync(source)
-		: await source.clone();
+	const clone = await source.clone();
 	const d =
 		vpt &&
 		object.translateToOriginPoint(
@@ -287,12 +261,12 @@ export async function eraseCanvasDrawable(
 		undefined,
 		d
 			? fabric.util.multiplyTransformMatrixArray([
-					[1, 0, 0, 1, d.x, d.y],
-					// apply vpt from center of drawable
-					vpt,
-					[1, 0, 0, 1, -d.x, -d.y],
-					object.calcTransformMatrix(),
-				])
+				[1, 0, 0, 1, d.x, d.y],
+				// apply vpt from center of drawable
+				vpt,
+				[1, 0, 0, 1, -d.x, -d.y],
+				object.calcTransformMatrix(),
+			])
 			: object.calcTransformMatrix(),
 	);
 	commitErasing(object, clone);
@@ -387,7 +361,7 @@ export class CustomEraserBrush extends PencilBrush {
 	 * otherwise grows with every erase and makes repeated erasing super-linear.
 	 * Set to 0 to disable (keep fully-vector clips).
 	 */
-	flattenClipAfter = 0;
+	flattenClipAfter = 14;
 
 	private eventEmitter: EventTarget;
 	private active = false;
@@ -493,8 +467,8 @@ export class CustomEraserBrush extends PencilBrush {
 		// attach after:render handler once
 		if (!this._afterRenderHandler) {
 			this._afterRenderHandler = ({
-				ctx,
-			}: {
+																		ctx,
+																	}: {
 				ctx: CanvasRenderingContext2D;
 			}) => {
 				if (ctx !== this.canvas.getContext()) return;
@@ -536,19 +510,22 @@ export class CustomEraserBrush extends PencilBrush {
 	 */
 	onMouseUp(context: fabric.TEvent<fabric.TPointerEvent>): boolean {
 		const ev = context?.e;
-		// Always tear down the after:render handler, even for secondary pointers.
-		this.detachAfterRender();
 		if (!isPrimaryPointer(ev)) return false;
-		if (this.active) super.onMouseUp(context);
-		this.active = false;
-		return false;
-	}
 
-	private detachAfterRender() {
+		if (this.active) {
+			super.onMouseUp(context);
+		}
+
+		this.active = false;
+
 		if (this._afterRenderHandler) {
-			try { this.canvas.off("after:render", this._afterRenderHandler); } catch {}
+			try {
+				this.canvas.off("after:render", this._afterRenderHandler);
+			} catch {}
 			this._afterRenderHandler = undefined;
 		}
+
+		return false;
 	}
 
 	/**
@@ -577,14 +554,14 @@ export class CustomEraserBrush extends PencilBrush {
 			// Inject the @erase2d specific logic
 			...(this.inverted
 				? {
-						globalCompositeOperation: "source-over",
-						stroke: "white",
-					}
+					globalCompositeOperation: "source-over",
+					stroke: "white",
+				}
 				: {
-						globalCompositeOperation: "destination-out",
-						stroke: "black",
-						opacity: new fabric.Color(this.color).getAlpha(),
-					}),
+					globalCompositeOperation: "destination-out",
+					stroke: "black",
+					opacity: new fabric.Color(this.color).getAlpha(),
+				}),
 		});
 
 		if (this.shadow) {
@@ -631,9 +608,9 @@ export class CustomEraserBrush extends PencilBrush {
 	}
 
 	async commit({
-		path,
-		targets,
-	}: EventDetailMap["end"]): Promise<Map<fabric.FabricObject, fabric.Path>> {
+								 path,
+								 targets,
+							 }: EventDetailMap["end"]): Promise<Map<fabric.FabricObject, fabric.Path>> {
 		const result = new Map(
 			await Promise.all([
 				...targets.map(async (object) => {

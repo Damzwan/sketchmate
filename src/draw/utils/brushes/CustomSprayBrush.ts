@@ -128,7 +128,6 @@ export class FastSprayBrush extends BaseBrush {
 		this.canvas.clearContext(this.canvas.contextTop);
 		this._resetShadow();
 		this.canvas.renderOnAddRemove = originalRenderOnAddRemove;
-		this.canvas.requestRenderAll();
 
 		// Clear out the memory
 		this.sprayDots = [];

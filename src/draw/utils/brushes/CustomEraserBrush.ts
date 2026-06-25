@@ -656,7 +656,6 @@ export class CustomEraserBrush extends PencilBrush {
 		});
 
 		this.canvas.clearContext(this.canvas.contextTop);
-		// this.canvas.requestRenderAll()
 	}
 
 	async commit({
@@ -842,8 +841,6 @@ export class CustomEraserBrush extends PencilBrush {
 		);
 
 		this.canvas.clearContext(this.canvas.contextTop);
-
-		// this.canvas.requestRenderAll()
 
 		this._resetShadow();
 	}

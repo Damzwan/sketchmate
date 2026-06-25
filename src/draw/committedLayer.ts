@@ -12,15 +12,23 @@
 
 import { WorldOverview } from './worldOverview'
 
-export interface WorldRect { x: number; y: number; w: number; h: number }
+export interface WorldRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number
+}
 
 export interface Bounded {
   id: string;
+
   getBoundingRect(absolute?: boolean, calculate?: boolean):
     { left: number; top: number; width: number; height: number };
 }
 
-export interface SpatialIndex<T extends Bounded> { query(rect: WorldRect): T[] }
+export interface SpatialIndex<T extends Bounded> {
+  query(rect: WorldRect): T[]
+}
 
 export type TileRenderer<T extends Bounded> = (
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
@@ -29,17 +37,24 @@ export type TileRenderer<T extends Bounded> = (
 
 export interface Yieldable {
   reset(): void;
+
   shouldYield(): boolean;
+
   yield(): Promise<void>;
 }
 
 interface Tile {
   bitmap: ImageBitmap | null;
-  tier: number; tx: number; ty: number;
-  bytes: number; builtGen: number; lastUsed: number;
+  tier: number;
+  tx: number;
+  ty: number;
+  bytes: number;
+  builtGen: number;
+  lastUsed: number;
 }
 
 export interface CommittedOptions {
+  poolMax?: number
   tileSize?: number;
   overscanPx?: number;
   zoomTiers?: number[];
@@ -54,8 +69,14 @@ export interface CommittedOptions {
 
 interface Draw {
   bmp: ImageBitmap;
-  sx: number; sy: number; sw: number; sh: number;
-  dx: number; dy: number; dw: number; dh: number;
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+  dx: number;
+  dy: number;
+  dw: number;
+  dh: number;
 }
 
 export class CommittedLayer<T extends Bounded> {
@@ -78,7 +99,7 @@ export class CommittedLayer<T extends Bounded> {
   private gen = new Map<string, number>()
   private memoryBytes = 0
   private pool: OffscreenCanvas[] = []
-  private readonly POOL_MAX = 16
+  private POOL_MAX = 16
 
   constructor(index: SpatialIndex<T>, renderer: TileRenderer<T>, opts: CommittedOptions = {}) {
     this.index = index
@@ -97,11 +118,16 @@ export class CommittedLayer<T extends Bounded> {
     this.renderScale = Math.min(
       typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, maxRS)
     this.overview = new WorldOverview<T>(index, renderer, { px: opts.overviewPx ?? 2048 })
+    this.POOL_MAX = opts.poolMax ?? 16
   }
 
-  get overviewTier(): number { return this.OVERVIEW_TIER }
+  get overviewTier(): number {
+    return this.OVERVIEW_TIER
+  }
 
-  queryIndex(rect: WorldRect): T[] { return this.index.query(rect) }
+  queryIndex(rect: WorldRect): T[] {
+    return this.index.query(rect)
+  }
 
   // ── geometry ───────────────────────────────────────────────────────────
   pickActiveTier(zoom: number): number {
@@ -186,12 +212,19 @@ export class CommittedLayer<T extends Bounded> {
     const zoom = vpt[0]
     const tier = this.pickActiveTier(zoom)
     const vw = this.viewWorld(vpt, px, dpr)
+
+    // top instrumentation hook
+    const __t0 = performance.now()
+
     const maxDepth = fallbackDepth > 0 ? fallbackDepth : this.FALLBACK_DEPTH
 
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, px.w, px.h)
-    if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, px.w, px.h) }
+    if (bg) {
+      ctx.fillStyle = bg
+      ctx.fillRect(0, 0, px.w, px.h)
+    }
     ctx.restore()
 
     if (tier <= this.OVERVIEW_TIER) {
@@ -222,7 +255,17 @@ export class CommittedLayer<T extends Bounded> {
         if (!t || !fresh) anyNonFresh = true
 
         if (t && t.bitmap) {
-          present.push({ bmp: t.bitmap, sx: this.OS, sy: this.OS, sw: this.TILE, sh: this.TILE, dx: dx0, dy: dy0, dw, dh })
+          present.push({
+            bmp: t.bitmap,
+            sx: this.OS,
+            sy: this.OS,
+            sw: this.TILE,
+            sh: this.TILE,
+            dx: dx0,
+            dy: dy0,
+            dw,
+            dh
+          })
           continue
         }
         if (t && fresh && !t.bitmap) continue // fresh-empty → genuinely empty
@@ -232,18 +275,24 @@ export class CommittedLayer<T extends Bounded> {
     }
 
     const fallback: Draw[] = []
-    let anyUncovered = false
+    const needsOverview: { dx: number; dy: number; dw: number; dh: number }[] = []
+
     for (const cell of uncovered) {
       const fbs = this.findBestSource(tier, cell.tx, cell.ty, cell.dx, cell.dy, cell.dw, cell.dh, maxDepth)
-      if (fbs.length) fallback.push(...fbs)
-      else anyUncovered = true
+      if (fbs.length) {
+        fallback.push(...fbs)
+      } else {
+        // Cells ONLY fallback to the overview if no coarser/finer tile chunks exist
+        needsOverview.push(cell)
+      }
     }
 
-    if (anyUncovered) {
+    // Render the overview background strictly for gaps missing tile data
+    if (needsOverview.length > 0) {
       ctx.save()
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.beginPath()
-      for (const cell of uncovered) ctx.rect(cell.dx, cell.dy, cell.dw, cell.dh)
+      for (const cell of needsOverview) ctx.rect(cell.dx, cell.dy, cell.dw, cell.dh)
       ctx.clip()
       this.overview.composite(ctx, vpt, px, dpr, vw)
       ctx.restore()
@@ -254,11 +303,23 @@ export class CommittedLayer<T extends Bounded> {
     ctx.imageSmoothingEnabled = true
     // @ts-ignore
     ctx.imageSmoothingQuality = 'low'
+
+    // Draw tiles on top safely without stacking transparency
     for (const dr of fallback)
       ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh)
     for (const dr of present)
       ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh)
     ctx.restore()
+
+    // bottom instrumentation hook
+    const g = globalThis as any
+    const s = (g.__comp ||= { frames: 0, ms: 0, maxMs: 0, cells: 0, missFrames: 0 })
+    const dt = performance.now() - __t0
+    s.frames++
+    s.ms += dt
+    s.maxMs = Math.max(s.maxMs, dt)
+    s.cells += uncovered.length
+    if (needsOverview.length > 0) s.missFrames++
 
     return { needsBake: anyNonFresh }
   }
@@ -401,11 +462,17 @@ export class CommittedLayer<T extends Bounded> {
     const key = `${tier}:${tx}:${ty}`
     const builtGen = this.gen.get(key) ?? 0
 
-    if (objects.length === 0) { this.store(key, tier, tx, ty, null, 4, builtGen); return }
+    if (objects.length === 0) {
+      this.store(key, tier, tx, ty, null, 4, builtGen)
+      return
+    }
 
     const off = this.acquire()
     const c2d = off.getContext('2d')
-    if (!c2d) { this.release(off); return }
+    if (!c2d) {
+      this.release(off)
+      return
+    }
     c2d.setTransform(1, 0, 0, 1, 0, 0)
     c2d.clearRect(0, 0, this.BMP, this.BMP)
     c2d.save()
@@ -416,11 +483,18 @@ export class CommittedLayer<T extends Bounded> {
     c2d.rect(q.x, q.y, q.w, q.h)
     c2d.clip()
     for (let i = 0; i < objects.length; i++) {
-      try { this.renderer(c2d as any, objects[i], scale) }
-      catch (err) { if (this.debug) console.warn('[Committed] render threw', err) }
+      try {
+        this.renderer(c2d as any, objects[i], scale)
+      } catch (err) {
+        if (this.debug) console.warn('[Committed] render threw', err)
+      }
       if (i % this.CHUNK === this.CHUNK - 1 && yielder.shouldYield()) {
         await yielder.yield()
-        if (signal.aborted) { c2d.restore(); this.release(off); return }
+        if (signal.aborted) {
+          c2d.restore()
+          this.release(off)
+          return
+        }
       }
     }
     c2d.restore()
@@ -428,17 +502,30 @@ export class CommittedLayer<T extends Bounded> {
     // Zero-copy transfer (was createImageBitmap → full-frame memcpy every bake).
     // transferToImageBitmap is sync and resets the canvas so it stays poolable.
     let bmp: ImageBitmap
-    try { bmp = off.transferToImageBitmap() }
-    catch { this.release(off); return }
+    try {
+      bmp = off.transferToImageBitmap()
+    } catch {
+      this.release(off)
+      return
+    }
     this.release(off)
-    if (signal.aborted) { bmp.close(); return }
+    if (signal.aborted) {
+      bmp.close()
+      return
+    }
 
     // Gen may have advanced during an await yield above → drop stale bitmap;
     // bakeAgain will produce the correct one. Prevents a 1-frame ghost.
-    if ((this.gen.get(key) ?? 0) !== builtGen) { bmp.close(); return }
+    if ((this.gen.get(key) ?? 0) !== builtGen) {
+      bmp.close()
+      return
+    }
 
     const bytes = this.BMP * this.BMP * 4
-    if (!this.ensureMemory(bytes)) { bmp.close(); return }
+    if (!this.ensureMemory(bytes)) {
+      bmp.close()
+      return
+    }
     this.store(key, tier, tx, ty, bmp, bytes, builtGen)
   }
 
@@ -466,11 +553,17 @@ export class CommittedLayer<T extends Bounded> {
     const key = `${tier}:${tx}:${ty}`
     const builtGen = this.gen.get(key) ?? 0
 
-    if (objects.length === 0) { this.store(key, tier, tx, ty, null, 4, builtGen); return }
+    if (objects.length === 0) {
+      this.store(key, tier, tx, ty, null, 4, builtGen)
+      return
+    }
 
     const off = this.acquire()
     const c2d = off.getContext('2d')
-    if (!c2d) { this.release(off); return }
+    if (!c2d) {
+      this.release(off)
+      return
+    }
     c2d.setTransform(1, 0, 0, 1, 0, 0)
     c2d.clearRect(0, 0, this.BMP, this.BMP)
     c2d.save()
@@ -481,23 +574,36 @@ export class CommittedLayer<T extends Bounded> {
     c2d.rect(q.x, q.y, q.w, q.h)
     c2d.clip()
     for (let i = 0; i < objects.length; i++) {
-      try { this.renderer(c2d as any, objects[i], scale) }
-      catch (err) { if (this.debug) console.warn('[Committed] sync render threw', err) }
+      try {
+        this.renderer(c2d as any, objects[i], scale)
+      } catch (err) {
+        if (this.debug) console.warn('[Committed] sync render threw', err)
+      }
     }
     c2d.restore()
 
     let bmp: ImageBitmap
-    try { bmp = off.transferToImageBitmap() }
-    catch { this.release(off); return }
+    try {
+      bmp = off.transferToImageBitmap()
+    } catch {
+      this.release(off)
+      return
+    }
     this.release(off)
     const bytes = this.BMP * this.BMP * 4
-    if (!this.ensureMemory(bytes)) { bmp.close(); return }
+    if (!this.ensureMemory(bytes)) {
+      bmp.close()
+      return
+    }
     this.store(key, tier, tx, ty, bmp, bytes, builtGen)
   }
 
   private store(key: string, tier: number, tx: number, ty: number, bitmap: ImageBitmap | null, bytes: number, builtGen: number) {
     const prev = this.tiles.get(key)
-    if (prev) { if (prev.bitmap) prev.bitmap.close(); this.memoryBytes -= prev.bytes }
+    if (prev) {
+      if (prev.bitmap) prev.bitmap.close()
+      this.memoryBytes -= prev.bytes
+    }
     this.tiles.set(key, { bitmap, tier, tx, ty, bytes, builtGen, lastUsed: performance.now() })
     this.memoryBytes += bytes
   }
@@ -534,6 +640,68 @@ export class CommittedLayer<T extends Bounded> {
 
   private release(c: OffscreenCanvas): void {
     if (this.pool.length < this.POOL_MAX) this.pool.push(c)
+  }
+
+
+  additiveStamp(rect: WorldRect, obj: T, tier: number): boolean {
+    if (tier < 0 || tier >= this.ZOOM_TIERS.length) return false
+    const scale = this.ZOOM_TIERS[tier]
+    const r = this.tileRange(rect, tier)
+    let stampedAny = false
+    for (let ty = r.ty0; ty <= r.ty1; ty++) {
+      for (let tx = r.tx0; tx <= r.tx1; tx++) {
+        const key = `${tier}:${tx}:${ty}`
+        const oldGen = this.gen.get(key) ?? 0
+        const t = this.tiles.get(key)
+        const stampable = !!(t && t.bitmap && t.builtGen === oldGen)
+
+        if (!stampable) {
+          if (this.tiles.has(key)) this.gen.set(key, oldGen + 1)
+          continue
+        }
+
+        // Stampable: composite obj on top, store FRESH under a bumped gen.
+        const newGen = oldGen + 1
+        this.gen.set(key, newGen)
+
+        const world = this.tileToWorld(tier, tx, ty)
+        const pad = this.OS / scale + 4 / scale
+        const q: WorldRect = { x: world.x - pad, y: world.y - pad, w: world.w + 2 * pad, h: world.h + 2 * pad }
+
+        const off = this.acquire()
+        const c2d = off.getContext('2d')
+        if (!c2d) { this.release(off); continue }
+        c2d.setTransform(1, 0, 0, 1, 0, 0)
+        c2d.clearRect(0, 0, this.BMP, this.BMP)
+        c2d.drawImage(t!.bitmap!, 0, 0)
+        c2d.save()
+        c2d.translate(this.OS, this.OS)
+        c2d.scale(scale, scale)
+        c2d.translate(-world.x, -world.y)
+        c2d.beginPath()
+        c2d.rect(q.x, q.y, q.w, q.h)
+        c2d.clip()
+        try { this.renderer(c2d as any, obj, scale) } catch { /* ignore */ }
+        c2d.restore()
+
+        let bmp: ImageBitmap
+        try { bmp = off.transferToImageBitmap() } catch { this.release(off); continue }
+        this.release(off)
+        const bytes = this.BMP * this.BMP * 4
+        if (!this.ensureMemory(bytes)) { bmp.close(); continue }
+        this.store(key, tier, tx, ty, bmp, bytes, newGen)
+        stampedAny = true
+      }
+    }
+    return stampedAny
+  }
+
+  get minUsableZoom(): number {
+    return this.ZOOM_TIERS[0] / this.renderScale
+  }
+  get maxUsableZoom(): number {
+    // Finest tier ÷ renderScale — past this we'd ask for a tier we never bake.
+    return this.ZOOM_TIERS[this.ZOOM_TIERS.length - 1] / this.renderScale
   }
 
   reset(): void {

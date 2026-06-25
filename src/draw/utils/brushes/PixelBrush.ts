@@ -78,7 +78,6 @@ export class PixelBrush extends BaseBrush {
 			this.canvas.add(stroke);
 			this.canvas.clearContext(this.canvas.contextTop);
 			this.canvas.fire("path:created", { path: stroke });
-			this.canvas?.requestRenderAll();
 		}
 		return false;
 	}

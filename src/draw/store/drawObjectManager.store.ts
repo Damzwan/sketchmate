@@ -191,23 +191,34 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
   // ── renderers handed to the core ─────────────────────────────────────────
   function renderLive(ctx: CanvasRenderingContext2D, obj: FabricObject) {
-    const prev = (obj as any).canvas;
-    // @ts-ignore
-    obj.canvas = null; obj.objectCaching = false; obj.dirty = true;
-    try { obj.render(ctx); } catch { /* ignore */ }
-      // @ts-ignore
-    finally { obj.canvas = prev; }
+    const a = obj as any;
+    const needsCanvas = !!a.clipPath || !!a.shadow;
+    const prevCanvas = a.canvas;
+    const prevCaching = a.objectCaching;
+    const prevDirty = a.dirty;
+    if (!needsCanvas) a.canvas = null;
+    a.objectCaching = false;
+    a.dirty = true;
+    try { obj.render(ctx); }
+    catch { /* ignore */ }
+    finally {
+      if (!needsCanvas) a.canvas = prevCanvas;
+      a.objectCaching = prevCaching;
+      a.dirty = prevDirty;
+    }
   }
 
   // ── fabric events → core lifecycle ───────────────────────────────────────
   function onObjectAdded(obj: FabricObject) {
     if (!obj.id) return;
     objectMap.set(obj.id, obj);
-    if (isLoading()) return;          // index rebuilt wholesale at endLoading
+    if (isLoading()) return;
     addToQuadTree(obj);
     isZIndexDirty = true;
     if (noteRegion(objectBounds(obj))) return;
-    core?.onObjectAdded(obj);
+    const arr = c!.getObjects();
+    const topmost = arr.length > 0 && arr[arr.length - 1] === obj;
+    core?.onObjectAdded(obj, topmost);
   }
 
   function onObjectRemoved(obj: FabricObject) {
@@ -338,6 +349,8 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
         overviewTier: 2,
         liveMax: IS_LOW_END ? 32 : 64,
         afterComposite: () => { if (c) rerenderActiveObjectControls(c); },
+        tileSize: IS_LOW_END ? 256 : 512,
+        poolMax: IS_LOW_END ? 6 : 16,
       },
     );
 
@@ -459,6 +472,10 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     core.markDirtyAndRebuildSync(rect, tier);
   }
 
+  function getZoomLimits() {
+    return core ? { min: core.minZoom, max: core.maxZoom } : { min: 0.03125, max: 32 };
+  }
+
   return {
     init,
     renderMain,
@@ -489,5 +506,6 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     endBatch,
     isBatching,
     markZIndexDirty,
+    getZoomLimits
   };
 });

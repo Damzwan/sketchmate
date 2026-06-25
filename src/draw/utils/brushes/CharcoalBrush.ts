@@ -78,7 +78,6 @@ export class CharcoalBrush extends BaseBrush {
 			this.canvas.add(stroke);
 			this.canvas.clearContext(this.canvas.contextTop);
 			this.canvas.fire("path:created", { path: stroke });
-			this.canvas?.requestRenderAll();
 		}
 
 		this._lastPoint = undefined;

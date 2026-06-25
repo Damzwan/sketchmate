@@ -18,16 +18,25 @@
 //   • depth-1 fallback while gesturing (passed down to committed.composite).
 
 import {
-  CommittedLayer, type Bounded, type CommittedOptions,
-  type SpatialIndex, type TileRenderer, type WorldRect, type Yieldable
+  type Bounded,
+  CommittedLayer,
+  type CommittedOptions,
+  type SpatialIndex,
+  type TileRenderer,
+  type WorldRect,
+  type Yieldable
 } from './committedLayer'
 import { LiveLayer, type LiveMode, type LiveRenderer } from './liveLayer'
 
 export interface Surface {
   getContext(): CanvasRenderingContext2D;
+
   getSize(): { w: number; h: number };
+
   getVpt(): number[];
+
   getDpr(): number;
+
   getBackground(): string | undefined;
 }
 
@@ -116,7 +125,10 @@ export class RenderCore<T extends Bounded> {
   // ── bake ─────────────────────────────────────────────────────────────────
   scheduleBake(): void {
     if (this.gesturing || this.loading || this.erasing) return
-    if (this.baking) { this.bakeAgain = true; return }
+    if (this.baking) {
+      this.bakeAgain = true
+      return
+    }
     if (this.bakeTimer !== null) return
     this.bakeTimer = setTimeout(() => {
       this.bakeTimer = null
@@ -128,12 +140,18 @@ export class RenderCore<T extends Bounded> {
     this.bakeCtrl?.abort()
     this.bakeCtrl = null
     this.bakeAgain = false
-    if (this.bakeTimer !== null) { clearTimeout(this.bakeTimer); this.bakeTimer = null }
+    if (this.bakeTimer !== null) {
+      clearTimeout(this.bakeTimer)
+      this.bakeTimer = null
+    }
   }
 
   private async runBake(): Promise<void> {
     if (this.gesturing || this.loading || this.erasing) return
-    if (this.baking) { this.bakeAgain = true; return }
+    if (this.baking) {
+      this.bakeAgain = true
+      return
+    }
     this.baking = true
     this.bakeAgain = false
     this.flushPendingOverview() // off-screen patches now matter (we're about to bake)
@@ -144,16 +162,23 @@ export class RenderCore<T extends Bounded> {
         this.surface.getVpt(), this.surface.getSize(), this.surface.getDpr(),
         this.makeYielder(), ctrl.signal, this.contentBounds
       )
-    } catch { /* aborted / transient */ }
+    } catch { /* aborted / transient */
+    }
     this.baking = false
     if (this.bakeCtrl === ctrl) this.bakeCtrl = null
     if (ctrl.signal.aborted) {
-      if (this.bakeAgain) { this.bakeAgain = false; this.scheduleBake() }
+      if (this.bakeAgain) {
+        this.bakeAgain = false
+        this.scheduleBake()
+      }
       return
     }
     this.demoteSettled()
     this.requestFrame()
-    if (this.bakeAgain) { this.bakeAgain = false; this.scheduleBake() }
+    if (this.bakeAgain) {
+      this.bakeAgain = false
+      this.scheduleBake()
+    }
   }
 
   private demoteSettled(): void {
@@ -164,16 +189,35 @@ export class RenderCore<T extends Bounded> {
     for (const id of ids) this.live.remove(id)
   }
 
-  // ── lifecycle hooks ──────────────────────────────────────────────────────
-  onObjectAdded(obj: T): void {
+  onObjectAdded(obj: T, topmost = false): void {
     const rect = this.boundsOf(obj)
     if (!rect) return
     this.growContentBounds(rect)
-    this.additiveInvalidate(rect)
-    if (this.intersectsView(rect)) {
-      this.live.add(obj, rect, 'normal')
+    const tier = this.committed.pickActiveTier(this.surface.getVpt()[0])
+
+    const gco = (obj as any).globalCompositeOperation
+    const stampSafe = !gco || gco === 'source-over'
+
+    const canStamp =
+      topmost && stampSafe &&
+      tier > this.committed.overviewTier &&
+      !this.gesturing &&
+      this.intersectsView(rect)
+
+    if (canStamp) {
+      this.committed.dropOtherTiers(rect, tier)
+      const stamped = this.committed.additiveStamp(rect, obj, tier) // now returns bool
+      this.patchOverview(rect)
+      if (!stamped) this.live.add(obj, rect, 'normal')
       this.requestFrame()
+      this.scheduleBake()
+      return
     }
+
+    // Fallback: full rebuild + live overlay for multiply/blend strokes.
+    this.additiveInvalidate(rect)
+    if (this.intersectsView(rect) && topmost) this.live.add(obj, rect, 'normal')
+    this.requestFrame()
     this.scheduleBake()
   }
 
@@ -190,7 +234,10 @@ export class RenderCore<T extends Bounded> {
   onObjectChanged(obj: T, oldRect?: WorldRect): void {
     const rect = this.boundsOf(obj)
     if (oldRect) this.destructiveInvalidate(oldRect)
-    if (rect) { this.growContentBounds(rect); this.additiveInvalidate(rect) }
+    if (rect) {
+      this.growContentBounds(rect)
+      this.additiveInvalidate(rect)
+    }
     const inView =
       (rect ? this.intersectsView(rect) : false) ||
       (oldRect ? this.intersectsView(oldRect) : false)
@@ -220,7 +267,10 @@ export class RenderCore<T extends Bounded> {
     if (this.remoteRaf) return
     this.remoteRaf = requestAnimationFrame(() => {
       this.remoteRaf = 0
-      if (this.gesturing || this.loading) { this.scheduleRemoteFlush(); return }
+      if (this.gesturing || this.loading) {
+        this.scheduleRemoteFlush()
+        return
+      }
       const rect = this.pendingRemote
       this.pendingRemote = null
       if (!rect) return
@@ -245,7 +295,8 @@ export class RenderCore<T extends Bounded> {
     let anyInView = false
     for (const rect of merged) {
       this.growContentBounds(rect)
-      this.committed.dropAllTiers(rect)
+      const tier = this.committed.pickActiveTier(this.surface.getVpt()[0])
+      this.committed.dropOtherTiers(rect, tier)  // additive: keep active-tier sharp
       this.committed.markDirty(rect)
       this.patchOverview(rect)
       if (this.intersectsView(rect)) anyInView = true
@@ -323,13 +374,19 @@ export class RenderCore<T extends Bounded> {
 
   setLoading(on: boolean): void {
     this.loading = on
-    if (on) { this.abortBakes(); this.live.clear() }
+    if (on) {
+      this.abortBakes()
+      this.live.clear()
+    }
   }
 
   setErasing(on: boolean): void {
     this.erasing = on
     if (on) this.abortBakes()
-    else { this.requestFrame(); this.scheduleBake() }
+    else {
+      this.requestFrame()
+      this.scheduleBake()
+    }
   }
 
   pickActiveTier(zoom: number): number {
@@ -388,10 +445,16 @@ export class RenderCore<T extends Bounded> {
     if (this.overviewTimer !== null) return
     this.overviewTimer = setTimeout(() => {
       this.overviewTimer = null
-      if (this.gesturing || this.loading) { this.scheduleOverviewRebuild(); return }
+      if (this.gesturing || this.loading) {
+        this.scheduleOverviewRebuild()
+        return
+      }
       void this.committed.overview
         .rebuildIfNeeded(this.contentBounds, this.makeYielder() as any, new AbortController().signal)
-        .then(() => { this.requestFrame(); this.scheduleBake() })
+        .then(() => {
+          this.requestFrame()
+          this.scheduleBake()
+        })
     }, 250)
   }
 
@@ -401,8 +464,14 @@ export class RenderCore<T extends Bounded> {
 
   reset(): void {
     this.abortBakes()
-    if (this.overviewTimer !== null) { clearTimeout(this.overviewTimer); this.overviewTimer = null }
-    if (this.remoteRaf) { cancelAnimationFrame(this.remoteRaf); this.remoteRaf = 0 }
+    if (this.overviewTimer !== null) {
+      clearTimeout(this.overviewTimer)
+      this.overviewTimer = null
+    }
+    if (this.remoteRaf) {
+      cancelAnimationFrame(this.remoteRaf)
+      this.remoteRaf = 0
+    }
     this.pendingRemote = null
     this.pendingOverview = []
     this.live.clear()
@@ -416,7 +485,9 @@ export class RenderCore<T extends Bounded> {
       const b = obj.getBoundingRect(true, true)
       if (!isFinite(b.left) || b.width <= 0 || b.height <= 0) return null
       return { x: b.left, y: b.top, w: b.width, h: b.height }
-    } catch { return null }
+    } catch {
+      return null
+    }
   }
 
   private intersectsView(r: WorldRect): boolean {
@@ -444,7 +515,11 @@ export class RenderCore<T extends Bounded> {
     for (const r of rects) {
       let merged = false
       for (let i = 0; i < out.length; i++) {
-        if (this.nearOrOverlap(out[i], r)) { out[i] = this.union(out[i], r); merged = true; break }
+        if (this.nearOrOverlap(out[i], r)) {
+          out[i] = this.union(out[i], r)
+          merged = true
+          break
+        }
       }
       if (!merged) out.push({ ...r })
     }
@@ -458,7 +533,10 @@ export class RenderCore<T extends Bounded> {
   }
 
   private growContentBounds(r: WorldRect): void {
-    if (!this.contentBounds) { this.contentBounds = { ...r }; return }
+    if (!this.contentBounds) {
+      this.contentBounds = { ...r }
+      return
+    }
     const c = this.contentBounds
     const x = Math.min(c.x, r.x), y = Math.min(c.y, r.y)
     const x2 = Math.max(c.x + c.w, r.x + r.w), y2 = Math.max(c.y + c.h, r.y + r.h)
@@ -470,5 +548,13 @@ export class RenderCore<T extends Bounded> {
     this.committed.dropOtherTiers(rect, tier)
     this.committed.markDirty(rect)
     this.patchOverview(rect)
+  }
+
+  get minZoom(): number {
+    return this.committed.minUsableZoom
+  }
+
+  get maxZoom(): number {
+    return this.committed.maxUsableZoom
   }
 }

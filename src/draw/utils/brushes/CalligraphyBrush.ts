@@ -91,7 +91,6 @@ export class CalligraphyBrush extends BaseBrush {
 
 				this.canvas.add(calligraphyStroke);
 				this.canvas.fire("path:created", { path: calligraphyStroke });
-				this.canvas.requestRenderAll();
 			}
 		}
 		this._rawPoints = [];

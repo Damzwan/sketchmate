@@ -57,7 +57,6 @@ export class CustomCircleBrush extends BaseBrush {
 		}
 		this._activePoints = [];
 		this.canvas.clearContext(this.canvas.contextTop);
-		this.canvas.requestRenderAll();
 		return false;
 	}
 

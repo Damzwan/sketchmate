@@ -76,7 +76,6 @@ export class NeonBrush extends BaseBrush {
 
 		this.canvas.clearContext(this.canvas.contextTop);
 		this.canvas.renderOnAddRemove = originalRenderOnAddRemove;
-		this.canvas.requestRenderAll();
 
 		// Sterilize the instruments
 		this._points = [];

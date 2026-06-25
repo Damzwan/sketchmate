@@ -24,6 +24,8 @@ import { OptimizedPencilStroke } from '@/draw/utils/brushes/CustomPencilBrush'
 import { OptimizedEraserStroke } from '@/draw/utils/brushes/CustomEraserBrush'
 import { useGestureStore } from '@/draw/store/tools/gesture.store'
 import * as transform from '@/draw/transform/transformController'
+import { NeonStroke } from '@/draw/utils/brushes/NeonSignBrush'
+import { SprayStroke } from '@/draw/utils/brushes/CustomSprayBrush'
 
 export function changeFabricSettings() {
   FabricObject.prototype.objectCaching = false
@@ -47,6 +49,8 @@ export function changeFabricSettings() {
     [CalligraphyStroke, 'CalligraphyStroke'],
     [BucketFillPath, 'BucketFillPath'],
     [OptimizedPencilStroke, 'OptimizedPencilStroke'],
+    [NeonStroke, NeonStroke.type],
+    [SprayStroke, SprayStroke.type],
     [CircleStroke, CircleStroke.type]
   ] as const
   brushes.forEach(([cls, name]) => classRegistry.setClass(cls, name))

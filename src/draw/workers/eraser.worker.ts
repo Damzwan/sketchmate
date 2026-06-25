@@ -7,6 +7,8 @@ import { WaterColorStroke } from '@/draw/utils/brushes/WaterColorBrush'
 import { CalligraphyStroke } from '@/draw/utils/brushes/CalligraphyBrush'
 import { BucketFillPath } from '@/draw/utils/BucketFillPath'
 import { CircleStroke } from '@/draw/utils/brushes/CustomCircleBrush'
+import { NeonStroke } from '@/draw/utils/brushes/NeonSignBrush'
+import { SprayStroke } from '@/draw/utils/brushes/CustomSprayBrush'
 
 // --- MOCK DOM & DISGUISE (Copied from your stable Preview Worker) ---
 const applyCanvasDisguise = (canvas: any) => {
@@ -116,7 +118,9 @@ self.onmessage = async (e: MessageEvent) => {
       [CalligraphyStroke, 'CalligraphyStroke'],
       [BucketFillPath, 'BucketFillPath'],
       [OptimizedPencilStroke, 'OptimizedPencilStroke'],
-      [CircleStroke, CircleStroke.type]
+      [CircleStroke, CircleStroke.type],
+      [SprayStroke, SprayStroke.type],
+      [NeonStroke, NeonStroke.type],
     ] as const
     brushes.forEach(([cls, name]) => classRegistry.setClass(cls, name))
 

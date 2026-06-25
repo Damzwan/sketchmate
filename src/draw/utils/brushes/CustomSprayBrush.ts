@@ -1,180 +1,258 @@
 import {
-	BaseBrush,
-	Canvas,
-	FabricImage,
-	Path,
-	Point,
-	Shadow,
-	SprayBrushPoint,
-} from "fabric";
-import * as fabric from "fabric";
+  BaseBrush,
+  Canvas,
+  FabricImage,
+  Path,
+  Point,
+  Shadow,
+  SprayBrushPoint
+} from 'fabric'
+import * as fabric from 'fabric'
 
 export class FastSprayBrush extends BaseBrush {
-	/** Width of a spray */
-	width = 10;
+  /** Width of a spray */
+  width = 10
 
-	/** Density of a spray (number of dots per chunk) */
-	density = 20;
+  /** Density of a spray (number of dots per chunk) */
+  density = 20
 
-	/** Fixed width of spray dots. (Variance removed for max compression) */
-	dotWidth = 1;
+  /** Fixed width of spray dots. (Variance removed for max compression) */
+  dotWidth = 1
 
-	private declare sprayDots: SprayBrushPoint[];
-	private declare latestChunkStart: number;
+  private declare sprayDots: SprayBrushPoint[]
+  private declare latestChunkStart: number
 
-	constructor(canvas: Canvas) {
-		super(canvas);
-		this.sprayDots = [];
-		this.latestChunkStart = 0;
-	}
+  constructor(canvas: Canvas) {
+    super(canvas)
+    this.sprayDots = []
+    this.latestChunkStart = 0
+  }
 
-	onMouseDown(pointer: Point) {
-		this.sprayDots = [];
-		this.latestChunkStart = 0;
-		this.canvas.clearContext(this.canvas.contextTop);
-		this._setShadow();
+  onMouseDown(pointer: Point) {
+    this.sprayDots = []
+    this.latestChunkStart = 0
+    this.canvas.clearContext(this.canvas.contextTop)
+    this._setShadow()
 
-		this.addSprayChunk(pointer);
-		this.renderChunk();
-	}
+    this.addSprayChunk(pointer)
+    this.renderChunk()
+  }
 
-	onMouseMove(pointer: Point) {
-		if (this.limitedToCanvasSize === true && this._isOutSideCanvas(pointer)) {
-			return;
-		}
-		this.addSprayChunk(pointer);
-		this.renderChunk();
-	}
+  onMouseMove(pointer: Point) {
+    if (this.limitedToCanvasSize === true && this._isOutSideCanvas(pointer)) {
+      return
+    }
+    this.addSprayChunk(pointer)
+    this.renderChunk()
+  }
 
-	onMouseUp() {
-		const originalRenderOnAddRemove = this.canvas.renderOnAddRemove;
-		this.canvas.renderOnAddRemove = false;
+  onMouseUp() {
+    const originalRenderOnAddRemove = this.canvas.renderOnAddRemove
+    this.canvas.renderOnAddRemove = false
 
-		if (this.sprayDots.length > 0) {
-			// 1. Diagnose the exact bounding box of the affected area
-			let minX = Infinity,
-				minY = Infinity,
-				maxX = -Infinity,
-				maxY = -Infinity;
+    if (this.sprayDots.length > 0) {
+      const img = generateSprayImage(this.sprayDots, this.color as string, this.dotWidth)
+      if (img) {
+        const stroke = new SprayStroke(img.getElement(), {
+          ...img.toObject(),
+          color: this.color,
+          dotWidth: this.dotWidth,
+          dots: [...this.sprayDots]
+        })
+        this.canvas.fire('before:path:created', { path: stroke })
+        this.canvas.add(stroke)
+        this.canvas.fire('path:created', { path: stroke })
+      }
+    }
 
-			for (let i = 0; i < this.sprayDots.length; i++) {
-				const dot = this.sprayDots[i];
-				if (dot.x < minX) minX = dot.x;
-				if (dot.y < minY) minY = dot.y;
+    this.canvas.clearContext(this.canvas.contextTop)
+    this._resetShadow()
+    this.canvas.renderOnAddRemove = originalRenderOnAddRemove
+    this.sprayDots = []
+  }
 
-				// Use dot.width to calculate max bounds properly if variance is restored
-				const width = dot.width || this.dotWidth;
-				if (dot.x + width > maxX) maxX = dot.x + width;
-				if (dot.y + width > maxY) maxY = dot.y + width;
-			}
+  renderChunk() {
+    const ctx = this.canvas.contextTop
+    ctx.fillStyle = this.color
 
-			// Add a slight padding to safely encapsulate the entire spray
-			const padding = this.dotWidth;
-			minX -= padding;
-			minY -= padding;
-			maxX += padding;
-			maxY += padding;
+    this._saveAndTransform(ctx)
 
-			const physicalWidth = maxX - minX;
-			const physicalHeight = maxY - minY;
+    // Live preview uses basic fillRect for max drawing speed while mouse is down
+    for (let i = this.latestChunkStart; i < this.sprayDots.length; i++) {
+      const point = this.sprayDots[i]
+      ctx.fillRect(point.x, point.y, this.dotWidth, this.dotWidth)
+    }
 
-			// 2. Extract the patient's display density (Retina/High-DPI support)
-			// onMouseUp, replace the dpr line:
-			const baseDpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
-			const dpr = Math.min(baseDpr * 2, 3);
+    ctx.restore()
+    this.latestChunkStart = this.sprayDots.length
+  }
+
+  _render() {
+    const ctx = this.canvas.contextTop
+    ctx.fillStyle = this.color
+
+    this._saveAndTransform(ctx)
+
+    for (let i = 0; i < this.sprayDots.length; i++) {
+      const point = this.sprayDots[i]
+      ctx.fillRect(point.x, point.y, this.dotWidth, this.dotWidth)
+    }
+    ctx.restore()
+  }
+
+  addSprayChunk(pointer: Point) {
+    const radius = this.width / 2
+
+    for (let i = 0; i < this.density; i++) {
+      this.sprayDots.push({
+        x: fabric.util.getRandomInt(pointer.x - radius, pointer.x + radius),
+        y: fabric.util.getRandomInt(pointer.y - radius, pointer.y + radius),
+        width: this.dotWidth,
+        opacity: 1
+      })
+    }
+  }
+}
 
 
-			// 3. Prepare the sterile offscreen environment at high resolution
-			const offscreenCanvas = document.createElement("canvas");
-			offscreenCanvas.width = physicalWidth * dpr;
-			offscreenCanvas.height = physicalHeight * dpr;
-			const ctx = offscreenCanvas.getContext("2d");
+import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
 
-			if (ctx) {
-				// Scale the surgical context so our coordinates map to the high-res grid automatically
-				ctx.scale(dpr, dpr);
-				ctx.fillStyle = this.color;
+// Pure renderer: (dots, color, dpr) → spray bitmap. Deterministic given the
+// stored dot list, so the bitmap is regenerable and need not be serialized.
+export function generateSprayImage(
+  dots: SprayBrushPoint[],
+  color: string,
+  dotWidth: number
+): FabricImage | null {
+  if (dots.length === 0) return null
 
-				// 4. Paint the dots onto the mini-canvas
-				for (let i = 0; i < this.sprayDots.length; i++) {
-					const dot = this.sprayDots[i];
-					const width = dot.width || this.dotWidth;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const d of dots) {
+    const w = d.width || dotWidth
+    if (d.x < minX) minX = d.x
+    if (d.y < minY) minY = d.y
+    if (d.x + w > maxX) maxX = d.x + w
+    if (d.y + w > maxY) maxY = d.y + w
+  }
+  const pad = dotWidth
+  minX -= pad
+  minY -= pad
+  maxX += pad
+  maxY += pad
 
-					// Restore the opacity variance if you brought that back for the denser feel
-					ctx.globalAlpha = dot.opacity ?? 1;
-					ctx.fillRect(dot.x - minX, dot.y - minY, width, width);
-				}
+  const w = maxX - minX, h = maxY - minY
+  if (w <= 0 || h <= 0) return null
 
-				const width = maxX - minX;
-				const height = maxY - minY;
+  const baseDpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1
+  const dpr = Math.min(baseDpr * 2, 3)
 
-				// 5. Transplant the canvas back into Fabric, applying inverse scaling and origin alignment
-				const sprayImage = new FabricImage(offscreenCanvas, {
-					left: minX + width / 2,
-					top: minY + height / 2,
-					originX: "center",
-					originY: "center",
-					scaleX: 1 / dpr, // Shrink visual size back to normal physical bounds
-					scaleY: 1 / dpr,
-					objectCaching: false,
-					interactive: false,
-				});
+  const off = document.createElement('canvas')
+  off.width = w * dpr
+  off.height = h * dpr
+  const ctx = off.getContext('2d')
+  if (!ctx) return null
+  ctx.scale(dpr, dpr)
+  ctx.fillStyle = color
 
-				this.shadow && sprayImage.set("shadow", new Shadow(this.shadow));
-				this.canvas.fire("before:path:created", { path: sprayImage });
-				this.canvas.add(sprayImage);
-				this.canvas.fire("path:created", { path: sprayImage });
-			}
-		}
+  for (let i = 0; i < dots.length; i++) {
+    const d = dots[i]
+    const dw = d.width || dotWidth
+    ctx.globalAlpha = d.opacity ?? 1
+    ctx.fillRect(d.x - minX, d.y - minY, dw, dw)
+  }
 
-		// Clean up and restore canvas vitals
-		this.canvas.clearContext(this.canvas.contextTop);
-		this._resetShadow();
-		this.canvas.renderOnAddRemove = originalRenderOnAddRemove;
+  return new FabricImage(off, {
+    left: minX + w / 2,
+    top: minY + h / 2,
+    originX: 'center',
+    originY: 'center',
+    scaleX: 1 / dpr,
+    scaleY: 1 / dpr,
+    objectCaching: false,
+    interactive: false
+  })
+}
 
-		// Clear out the memory
-		this.sprayDots = [];
-	}
+export class SprayStroke extends FabricImage {
+  static type = 'SprayStroke'
+  static cacheProperties = [
+    ...FabricImage.cacheProperties,
+    'color', 'dotWidth', 'compressedDots'
+  ]
 
-	renderChunk() {
-		const ctx = this.canvas.contextTop;
-		ctx.fillStyle = this.color;
+  public dots: SprayBrushPoint[] = []
+  public color: string = '#000000'
+  public dotWidth: number = 1
 
-		this._saveAndTransform(ctx);
+  constructor(element: any, options: any) {
+    super(element, options)
+    this.color = options.color
+    this.dotWidth = options.dotWidth ?? 1
+    if (options.compressedDots) {
+      this.dots = this._inflate(options.compressedDots)
+    } else {
+      this.dots = options.dots || []
+    }
+  }
 
-		// Live preview uses basic fillRect for max drawing speed while mouse is down
-		for (let i = this.latestChunkStart; i < this.sprayDots.length; i++) {
-			const point = this.sprayDots[i];
-			ctx.fillRect(point.x, point.y, this.dotWidth, this.dotWidth);
-		}
+  private _inflate(c: number[]): SprayBrushPoint[] {
+    const out: SprayBrushPoint[] = []
+    let lastX = 0, lastY = 0
+    // pairs of delta-encoded ints; opacity assumed 1 (variance removed per your note)
+    for (let i = 0; i < c.length; i += 2) {
+      let ix = c[i], iy = c[i + 1]
+      if (i > 0) {
+        ix += lastX
+        iy += lastY
+      }
+      lastX = ix
+      lastY = iy
+      out.push({ x: ix, y: iy, width: this.dotWidth, opacity: 1 } as SprayBrushPoint)
+    }
+    return out
+  }
 
-		ctx.restore();
-		this.latestChunkStart = this.sprayDots.length;
-	}
+  // @ts-ignore
+  toObject(additionalProperties: string[] = []) {
+    const flat: number[] = []
+    let lastX = 0, lastY = 0
+    for (let i = 0; i < this.dots.length; i++) {
+      const d = this.dots[i]
+      const ix = Math.round(d.x), iy = Math.round(d.y)
+      if (i === 0) flat.push(ix, iy)
+      else flat.push(ix - lastX, iy - lastY)
+      lastX = ix
+      lastY = iy
+    }
+    const baseObj = super.toObject([
+      'color', 'dotWidth', ...additionalProperties
+    ] as any)
+    delete (baseObj as any).src  // drop the bitmap — the payload win
+    return { ...baseObj, compressedDots: flat }
+  }
 
-	_render() {
-		const ctx = this.canvas.contextTop;
-		ctx.fillStyle = this.color;
-
-		this._saveAndTransform(ctx);
-
-		for (let i = 0; i < this.sprayDots.length; i++) {
-			const point = this.sprayDots[i];
-			ctx.fillRect(point.x, point.y, this.dotWidth, this.dotWidth);
-		}
-		ctx.restore();
-	}
-
-	addSprayChunk(pointer: Point) {
-		const radius = this.width / 2;
-
-		for (let i = 0; i < this.density; i++) {
-			this.sprayDots.push({
-				x: fabric.util.getRandomInt(pointer.x - radius, pointer.x + radius),
-				y: fabric.util.getRandomInt(pointer.y - radius, pointer.y + radius),
-				width: this.dotWidth,
-				opacity: 1,
-			});
-		}
-	}
+  static async fromObject(object: any) {
+    if (!object.src) {
+      const dots: SprayBrushPoint[] = []
+      let lastX = 0, lastY = 0
+      const c = object.compressedDots || []
+      const dw = object.dotWidth ?? 1
+      for (let i = 0; i < c.length; i += 2) {
+        let ix = c[i], iy = c[i + 1]
+        if (i > 0) {
+          ix += lastX
+          iy += lastY
+        }
+        lastX = ix
+        lastY = iy
+        dots.push({ x: ix, y: iy, width: dw, opacity: 1 } as SprayBrushPoint)
+      }
+      const img = generateSprayImage(dots, object.color, dw)
+      if (img) {
+        const props = await enlivenStrokeProps(object)
+        return new SprayStroke(img.getElement(), { ...props, dots })
+      }
+    }
+    return fabric.util.enlivenObjects([object]).then((e) => e[0])
+  }
 }

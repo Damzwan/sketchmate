@@ -107,17 +107,26 @@ export class RenderCore<T extends Bounded> {
   }
 
   private renderNow(): void {
+    this.frameCounter++; // <-- ADD THIS to invalidate the viewport cache
+
     const ctx = this.surface.getContext()
     if (!ctx) return
     const vpt = this.surface.getVpt()
     const size = this.surface.getSize()
     const dpr = this.surface.getDpr()
-    // Depth-1 fallback while gesturing → bounded per-cell cost on fast pans.
+
+    if (this.pendingDemote) {
+      this.demoteSettled()
+      this.pendingDemote = false
+    }
+
+    this.live.gcExpired()
     const { needsBake } = this.committed.composite(
       ctx, vpt, size, dpr, this.surface.getBackground(), this.gesturing ? 1 : 0
     )
     const vw = this.committed.viewWorld(vpt, size, dpr)
     this.live.composite(ctx, vpt, dpr, this.liveRender, vw)
+
     if (needsBake) this.scheduleBake()
     this.afterComposite?.()
   }
@@ -145,6 +154,7 @@ export class RenderCore<T extends Bounded> {
       this.bakeTimer = null
     }
   }
+  private pendingDemote = false
 
   private async runBake(): Promise<void> {
     if (this.gesturing || this.loading || this.erasing) return
@@ -173,11 +183,14 @@ export class RenderCore<T extends Bounded> {
       }
       return
     }
-    this.demoteSettled()
+    this.pendingDemote = true
     this.requestFrame()
     if (this.bakeAgain) {
       this.bakeAgain = false
       this.scheduleBake()
+    } else {
+      this.committed.trimPool()
+      this.committed.pruneEmpties()
     }
   }
 
@@ -206,7 +219,7 @@ export class RenderCore<T extends Bounded> {
 
     if (canStamp) {
       this.committed.dropOtherTiers(rect, tier)
-      const stamped = this.committed.additiveStamp(rect, obj, tier) // now returns bool
+      const stamped = this.committed.additiveStamp(rect, obj, tier)
       this.patchOverview(rect)
       if (!stamped) this.live.add(obj, rect, 'normal')
       this.requestFrame()
@@ -490,9 +503,21 @@ export class RenderCore<T extends Bounded> {
     }
   }
 
+  private cachedViewWorld: WorldRect | null = null
+  private viewWorldFrame = -1
+  private frameCounter = 0
+
+  private getViewWorld(): WorldRect {
+    if (this.viewWorldFrame !== this.frameCounter || !this.cachedViewWorld) {
+      this.cachedViewWorld = this.committed.viewWorld(
+        this.surface.getVpt(), this.surface.getSize(), this.surface.getDpr())
+      this.viewWorldFrame = this.frameCounter
+    }
+    return this.cachedViewWorld
+  }
+
   private intersectsView(r: WorldRect): boolean {
-    const v = this.committed.viewWorld(
-      this.surface.getVpt(), this.surface.getSize(), this.surface.getDpr())
+    const v = this.getViewWorld()
     return !(r.x + r.w < v.x || r.x > v.x + v.w || r.y + r.h < v.y || r.y > v.y + v.h)
   }
 

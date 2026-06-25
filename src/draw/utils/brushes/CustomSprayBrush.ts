@@ -79,7 +79,10 @@ export class FastSprayBrush extends BaseBrush {
 			const physicalHeight = maxY - minY;
 
 			// 2. Extract the patient's display density (Retina/High-DPI support)
-			const dpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
+			// onMouseUp, replace the dpr line:
+			const baseDpr = typeof window !== "undefined" ? window.devicePixelRatio : 1;
+			const dpr = Math.min(baseDpr * 2, 3);
+
 
 			// 3. Prepare the sterile offscreen environment at high resolution
 			const offscreenCanvas = document.createElement("canvas");

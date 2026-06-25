@@ -9,6 +9,10 @@
 //   • composite() takes an optional fallbackDepth (1 while gesturing) so the
 //     bidirectional tier search can't walk FALLBACK_DEPTH tiers per cell on a
 //     fast pan.
+//   • Honest memory accounting: fixed costs (overview, pool) are subtracted
+//     from the memory budget so the device limit is actually respected.
+//   • Aggressive garbage collection: idle pool canvases are shrunk to 0x0
+//     and untouched empty tiles are pruned to prevent map bloat.
 
 import { WorldOverview } from './worldOverview'
 
@@ -98,7 +102,9 @@ export class CommittedLayer<T extends Bounded> {
   private tiles = new Map<string, Tile>()
   private gen = new Map<string, number>()
   private memoryBytes = 0
+
   private pool: OffscreenCanvas[] = []
+  private poolBytes = 0
   private POOL_MAX = 16
 
   constructor(index: SpatialIndex<T>, renderer: TileRenderer<T>, opts: CommittedOptions = {}) {
@@ -108,17 +114,28 @@ export class CommittedLayer<T extends Bounded> {
     this.OS = Math.max(0, opts.overscanPx ?? 2)
     this.BMP = this.TILE + 2 * this.OS
     this.ZOOM_TIERS = opts.zoomTiers ??
-      [0.03125, 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32]
-    this.MEM_HARD = (opts.memoryBudgetMB ?? 256) * 1024 * 1024
+      [ 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16]
+
+    this.POOL_MAX = opts.poolMax ?? 16
     this.OVERVIEW_TIER = opts.overviewTier ?? 2
     this.CHUNK = opts.renderChunk ?? 64
     this.FALLBACK_DEPTH = opts.fallbackDepth ?? 3
     this.debug = opts.debug ?? false
+
     const maxRS = opts.maxRenderScale ?? 2
     this.renderScale = Math.min(
       typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, maxRS)
+
+    // Reserve the overview + pool ceiling out of the tile budget so
+    // the TOTAL stays under the device limit, not just the tile portion.
+    const overviewBytes = (opts.overviewPx ?? 2048) ** 2 * 4
+    const poolCeiling = this.POOL_MAX * this.BMP * this.BMP * 4
+    this.MEM_HARD = Math.max(
+      16 * 1024 * 1024,
+      (opts.memoryBudgetMB ?? 256) * 1024 * 1024 - overviewBytes - poolCeiling
+    )
+
     this.overview = new WorldOverview<T>(index, renderer, { px: opts.overviewPx ?? 2048 })
-    this.POOL_MAX = opts.poolMax ?? 16
   }
 
   get overviewTier(): number {
@@ -635,11 +652,46 @@ export class CommittedLayer<T extends Bounded> {
   }
 
   private acquire(): OffscreenCanvas {
-    return this.pool.pop() ?? new OffscreenCanvas(this.BMP, this.BMP)
+    const c = this.pool.pop()
+    if (c) {
+      this.poolBytes -= this.BMP * this.BMP * 4;
+      return c
+    }
+    return new OffscreenCanvas(this.BMP, this.BMP)
   }
 
   private release(c: OffscreenCanvas): void {
-    if (this.pool.length < this.POOL_MAX) this.pool.push(c)
+    // Keep at most a few in the pool; let the rest be GC'd. The pool exists to
+    // smooth a sync-rebuild burst, not to hold megabytes idle between gestures.
+    if (this.pool.length < this.POOL_MAX) {
+      this.pool.push(c)
+      this.poolBytes += this.BMP * this.BMP * 4
+    } else {
+      // drop it: shrink to 0 so the backing store is freed promptly on mobile.
+      c.width = 0; c.height = 0
+    }
+  }
+
+  /** Call when idle (gesture-end / bake-done) to release pooled backing store. */
+  trimPool(keep = 2): void {
+    while (this.pool.length > keep) {
+      const c = this.pool.pop()!
+      c.width = 0; c.height = 0
+      this.poolBytes -= this.BMP * this.BMP * 4
+    }
+  }
+
+  /** Drop long-untouched empty tiles so the maps don't grow unbounded on a
+   * sparse infinite canvas. Empty tiles cost ~nothing to rebuild on revisit. */
+  pruneEmpties(maxAgeMs = 30_000): void {
+    const now = performance.now()
+    for (const [k, t] of this.tiles) {
+      if (!t.bitmap && now - t.lastUsed > maxAgeMs) {
+        this.tiles.delete(k)
+        this.gen.delete(k) // also unbloat the gen map
+        this.memoryBytes -= t.bytes
+      }
+    }
   }
 
 
@@ -710,5 +762,6 @@ export class CommittedLayer<T extends Bounded> {
     this.gen.clear()
     this.memoryBytes = 0
     this.overview.reset()
+    this.trimPool(0) // ensure pool bytes are dumped entirely on reset
   }
 }

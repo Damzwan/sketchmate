@@ -17,32 +17,30 @@ export class CharcoalBrush extends BaseBrush {
 
 	// TREATMENT 1: Core Density Injection
 	private _generateStamp() {
-		this._stampSize = this.width * 2;
-		const canvas = document.createElement("canvas");
-		canvas.width = canvas.height = this._stampSize;
-		const ctx = canvas.getContext("2d")!;
+		const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+		const SS = Math.min(dpr*2, 3);
 
-		// A. Lay down a soft, semi-transparent core tissue to give the stroke weight
+		this._stampSize = this.width * 2;            // LOGICAL size — unchanged
+		const physical = Math.ceil(this._stampSize * SS);
+
+		const canvas = document.createElement("canvas");
+		canvas.width = canvas.height = physical;     // device-res backing store
+		const ctx = canvas.getContext("2d")!;
+		ctx.scale(SS, SS);                           // draw in logical coords, land on device px
+
+		// A. Soft core — unchanged, now rendered at device res
 		ctx.beginPath();
-		ctx.arc(
-			this._stampSize / 2,
-			this._stampSize / 2,
-			this.width / 2.5,
-			0,
-			Math.PI * 2,
-		);
+		ctx.arc(this._stampSize / 2, this._stampSize / 2, this.width / 2.5, 0, Math.PI * 2);
 		ctx.fillStyle = this.color;
 		ctx.globalAlpha = 0.15;
 		ctx.fill();
 
-		// B. Generate the harsh grain using a center-weighted distribution
-		// This clusters the heaviest flakes near the center, simulating physical pressure
+		// B. Grain — now each flake lands on a device pixel, so fine grain stays sharp
 		for (let i = 0; i < this.width * 20; i++) {
 			const radius = Math.random() * Math.random() * (this.width / 1.2);
 			const angle = Math.random() * Math.PI * 2;
 			const x = this._stampSize / 2 + Math.cos(angle) * radius;
 			const y = this._stampSize / 2 + Math.sin(angle) * radius;
-
 			ctx.globalAlpha = Math.random() * 0.8 + 0.2;
 			const grainSize = Math.random() * 1.5 + 0.5;
 			ctx.fillRect(x, y, grainSize, grainSize);
@@ -143,14 +141,9 @@ export class CharcoalBrush extends BaseBrush {
 		}
 
 		const radius = this._stampSize / 2;
-
 		for (const p of this._trace) {
 			ctx.globalAlpha = p.opacity;
-			ctx.drawImage(
-				this._stampCanvas,
-				p.x + p.offsetX - radius,
-				p.y + p.offsetY - radius,
-			);
+			ctx.drawImage(this._stampCanvas, p.x + p.offsetX - radius, p.y + p.offsetY - radius, this._stampSize, this._stampSize);
 		}
 
 		ctx.restore();
@@ -272,11 +265,8 @@ export class CharcoalStroke extends FabricObject {
 		for (const p of this.trace) {
 			const localX = p.x + p.offsetX - this.minX - halfWidth;
 			const localY = p.y + p.offsetY - this.minY - halfHeight;
-
-			// We set alpha per-stamp. ctx.save/restore isn't needed inside the loop
-			// but we MUST ensure we don't multiply alpha if the context already has one.
 			ctx.globalAlpha = p.opacity;
-			ctx.drawImage(this.stampCanvas, localX, localY);
+			ctx.drawImage(this.stampCanvas, localX, localY, this.stampSize, this.stampSize);
 		}
 
 		ctx.restore();
@@ -328,7 +318,8 @@ export class CharcoalStroke extends FabricObject {
 		if (object.stampDataUrl && !object.stampCanvas) {
 			const img = await fabric.util.loadImage(object.stampDataUrl);
 			const canvas = document.createElement("canvas");
-			canvas.width = canvas.height = object.stampSize;
+			canvas.width = img.width;
+			canvas.height = img.height;
 			canvas.getContext("2d")?.drawImage(img, 0, 0);
 			object.stampCanvas = canvas;
 		}

@@ -233,15 +233,13 @@ export class PixelStroke extends FabricObject {
 		const halfHeight = this.height / 2;
 		const offset = this.stampSize / 2;
 
-		// The nested loop is entirely gone.
 		for (const p of this.points) {
 			const renderX = p.x - this.minX - halfWidth - offset + this.stampSize / 2;
-			const renderY =
-				p.y - this.minY - halfHeight - offset + this.stampSize / 2;
-
-			ctx.drawImage(this.stampCanvas, renderX, renderY);
+			const renderY = p.y - this.minY - halfHeight - offset + this.stampSize / 2;
+			ctx.drawImage(this.stampCanvas, Math.round(renderX), Math.round(renderY));
 		}
 	}
+
 
 	toObject(additionalProperties: string[] = []) {
 		return super.toObject([

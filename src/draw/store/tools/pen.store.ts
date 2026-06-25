@@ -10,6 +10,7 @@ import { penBrushMapping } from "@/draw/config/tools.config";
 interface Pen extends ToolService {
 	brushSize: Ref<number>;
 	density: Ref<number>;
+	pixelSize: Ref<number>;
 	dotWidth: Ref<number>;
 	brushType: Ref<BrushType>;
 	brushColor: Ref<string>;
@@ -24,6 +25,7 @@ export const usePen = defineStore("pen", (): Pen => {
 	const brushType = ref<BrushType>(BrushType.Pencil);
 	const brushColor = ref(BLACK);
 	const opacity = ref(100);
+	const pixelSize = ref(5);
 
 	const density = ref(20);
 	const dotWidth = ref(1);
@@ -63,6 +65,8 @@ export const usePen = defineStore("pen", (): Pen => {
 		// @ts-ignore
 
 		c!.freeDrawingBrush.dotWidth = dotWidth.value;
+		// c!.freeDrawingBrush.pixelSize
+		// 	= dotWidth.value;
 
 		c!.freeDrawingBrush.color = brushColorWithOpacity();
 		updatePenCursor();
@@ -102,6 +106,10 @@ export const usePen = defineStore("pen", (): Pen => {
 		(c!.freeDrawingBrush! as any).dotWidth = dotWidth.value;
 	});
 
+	watch(pixelSize, () => {
+		(c!.freeDrawingBrush! as any).pixelSize = pixelSize.value;
+	});
+
 	watch(brushType, () => {
 		select();
 	});
@@ -118,5 +126,6 @@ export const usePen = defineStore("pen", (): Pen => {
 		brushColorWithOpacity,
 		density,
 		dotWidth,
+		pixelSize
 	};
 });

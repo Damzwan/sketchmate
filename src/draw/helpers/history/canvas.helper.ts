@@ -47,7 +47,6 @@ export async function undoFullErase(
 
   await canvas.loadFromJSON(action.params.prevCanvasJSON)
 
-  canvas.requestRenderAll()
 
   return action
 }

@@ -75,12 +75,11 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
   // ── spatial index handed to the renderer (z-sorted query) ────────────────
   const spatialIndex = {
     query: (rect: WorldRect): FabricObject[] => {
-      const objs = quadtree
-        .query(rect)
+      getZIndexMap(); // ensure __z stamps are current
+      const objs = quadtree.query(rect)
         .map((e) => objectMap.get(e.id))
         .filter(Boolean) as FabricObject[];
-      const z = getZIndexMap();
-      return objs.sort((a, b) => (z.get(a) ?? 0) - (z.get(b) ?? 0));
+      return objs.sort((a, b) => ((a as any).__z ?? 0) - ((b as any).__z ?? 0));
     },
   };
 
@@ -123,11 +122,15 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     if (isZIndexDirty) {
       zIndexMap.clear();
       const objs = c!.getObjects();
-      for (let i = 0; i < objs.length; i++) zIndexMap.set(objs[i], i);
+      for (let i = 0; i < objs.length; i++) {
+        zIndexMap.set(objs[i], i);
+        (objs[i] as any).__z = i;
+      }
       isZIndexDirty = false;
     }
     return zIndexMap;
   }
+
   function invalidateZIndex() { isZIndexDirty = true; }
   function markZIndexDirty() { isZIndexDirty = true; } // for history layer helpers
 
@@ -351,6 +354,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
         afterComposite: () => { if (c) rerenderActiveObjectControls(c); },
         tileSize: IS_LOW_END ? 256 : 512,
         poolMax: IS_LOW_END ? 6 : 16,
+        maxRenderScale: IS_LOW_END ? 1.5 : 2,
       },
     );
 
@@ -506,6 +510,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     endBatch,
     isBatching,
     markZIndexDirty,
-    getZoomLimits
+    getZoomLimits,
+    getContentBounds: computeContentBounds
   };
 });

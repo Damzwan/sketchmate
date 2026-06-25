@@ -84,7 +84,6 @@ export function useShortcutManager() {
 		}
 
 		activeObject.setCoords();
-		c?.requestRenderAll();
 		c?.fire("object:modified", { target: activeObject, transform });
 		dismissPopover();
 	}
@@ -326,7 +325,6 @@ export function useShortcutManager() {
 
 		selectIndex = nextIndex;
 		c!.setActiveObject(objects[selectIndex]);
-		c!.requestRenderAll();
 		dismissPopover();
 	}
 

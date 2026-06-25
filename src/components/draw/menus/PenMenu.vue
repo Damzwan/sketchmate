@@ -55,6 +55,14 @@
         </div>
       </template>
 
+      <template v-if="brushType === BrushType.Pixel">
+        <div class="px-2 pt-1">
+          <label for="slider">Pixel Size: {{ pixelSize }}</label>
+          <ion-range aria-label="Pixel size" id="slider" v-model="pixelSize"
+                     :min="2" :max="20" :step="1" color="secondary" />
+        </div>
+      </template>
+
       <!-- Brush Type -->
       <div class="p-1">
         <label for="brush-type">Brush Type</label>
@@ -115,7 +123,7 @@ import { buildItemId } from "@/config/catalog.config";
 
 const { selectTool } = useToolSelection();
 const { selectedTool } = storeToRefs(useToolSelection());
-const { brushSize, brushColor, brushType, opacity, density, dotWidth } =
+const { brushSize, brushColor, brushType, opacity, density, dotWidth, pixelSize } =
 	storeToRefs(usePen());
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 const menuStore = useMenuStore();
@@ -192,6 +200,9 @@ const renderPreview = () => {
 		brush.density = density.value;
 		brush.dotWidth = dotWidth.value;
 	}
+  if (brushType.value === BrushType.Pixel) {
+    brush.pixelSize = pixelSize.value;
+  }
 	brush.width = brushSize.value;
 
 	const amplitude = 20;
@@ -310,6 +321,7 @@ watch(opacity, renderPreview);
 watch(brushColor, renderPreview);
 watch(density, renderPreview);
 watch(dotWidth, renderPreview);
+watch(pixelSize, renderPreview);
 watch(brushType, () => {
 	// When user picks an OWNED brush, clear the locked-preview banner
 	if (isBrushOwned(brushType.value)) {

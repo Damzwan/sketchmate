@@ -61,7 +61,6 @@ function applyStyle<T extends FabricObject = FabricObject>(options: StyleOptions
     style: style
   })
 
-  canvas.requestRenderAll()
 }
 
 export function setStrokeColor(params: DrawActionParams[DrawAction.SetObjectStrokeColor]) {

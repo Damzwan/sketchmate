@@ -177,7 +177,7 @@ export async function redoObjectStyle(
   });
 
   canvasObjects.forEach((obj, i) => obj?.set(prevStyles[i]));
-  patchObjectsAppearance(canvasObjects);   // was: canvas.requestRenderAll()
+  patchObjectsAppearance(canvasObjects);
   return { ...action, params: { ...action.params, prevStyles: newPrevStyles } };
 }
 
@@ -343,7 +343,6 @@ export async function undoObjectsCopied(
 	const canvasObjects = getObjectsById(ids);
 
 	canvas.remove(...canvasObjects);
-	canvas.requestRenderAll();
 
 	return action;
 }
@@ -363,7 +362,7 @@ export async function undoObjectStyle(
   });
 
   canvasObjects.forEach((obj, i) => { if (obj) obj.set(prevStyles[i]); });
-  patchObjectsAppearance(canvasObjects);   // was: canvas.requestRenderAll()
+  patchObjectsAppearance(canvasObjects);
   return { ...action, params: { ...action.params, prevStyles: nextPrevStyles } };
 }
 

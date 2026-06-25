@@ -42,7 +42,7 @@ function moveObjectsToOriginalPosition(
 
   const mgr = useDrawObjectManager()
   mgr.markZIndexDirty()
-  patchObjectsRegion(canvasObjects)   // was: canvas.requestRenderAll()
+  patchObjectsRegion(canvasObjects)
 }
 
 // --- Redo Helpers ---

@@ -23,8 +23,6 @@ export async function redoPolygonCreation(
   currObj.set({ points });
   currObj.dirty = true;
 
-  canvas.requestRenderAll();
-
   // Notify UI that the polygon points have changed
   EventBus.emit('rerenderPolygon');
 
@@ -53,7 +51,6 @@ export async function undoPolygonCreation(
   // Store the popped point so Redo knows what to put back
   action.params.lastPoint = lastPoint;
 
-  canvas.requestRenderAll();
   EventBus.emit('rerenderPolygon');
 
   return action;

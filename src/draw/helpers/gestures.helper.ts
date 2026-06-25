@@ -31,31 +31,6 @@ function scheduleViewportUpdate(c: Canvas, postRenderCallback?: () => void) {
   })
 }
 
-// --------------------------
-
-function getMinZoomToFitAll(canvas: fabric.Canvas, padding = 0.9) {
-  const objects = canvas.getObjects()
-  if (objects.length === 0) return 0.5
-
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity
-  for (let i = 0; i < objects.length; i++) {
-    const bound = objects[i].getBoundingRect()
-    if (bound.left < minX) minX = bound.left
-    if (bound.top < minY) minY = bound.top
-    if (bound.left + bound.width > maxX) maxX = bound.left + bound.width
-    if (bound.top + bound.height > maxY) maxY = bound.top + bound.height
-  }
-
-  const contentWidth = maxX - minX
-  const contentHeight = maxY - minY
-  const scaleX = canvas.getWidth() / (contentWidth || 1)
-  const scaleY = canvas.getHeight() / (contentHeight || 1)
-
-  return Math.min(Math.min(scaleX, scaleY) * padding, MIN_ZOOM)
-}
 
 function syncVisuals(c: Canvas) {
   const { renderViewport } = useDrawObjectManager()
@@ -100,7 +75,7 @@ export function enablePCGestures(c: Canvas) {
 
         if (!isWheeling) {
           isWheeling = true
-          dynamicMinZoom = Math.max(getMinZoomToFitAll(c), limits.min)
+          dynamicMinZoom = limits.min
           onGestureStart()
           gestureStore.isGesturing = true
           c.fire('gestureStart')
@@ -201,7 +176,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
   let isObjectScaling = false
   let totalObjectAngleDelta = 0
   let gestureFrameScheduled = false
-	const limits = useDrawObjectManager().getZoomLimits();
+  const limits = useDrawObjectManager().getZoomLimits()
 
   function scheduleObjectUpdate() {
     if (gestureFrameScheduled || !gestureTarget) return
@@ -265,7 +240,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       c.skipTargetFind = true
       c.isDrawingMode = false
       cancelPreviousAction(c)
-			dynamicMinZoom = Math.max(getMinZoomToFitAll(c), limits.min);
+      dynamicMinZoom = limits.min
       onGestureStart()
       gestureStore.isGesturing = true
 
@@ -308,7 +283,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       if (!isCanvasZooming) return
 
       const rawZoomFactor = scale / previousScale
-			let newZoom = Math.max(dynamicMinZoom, Math.min(c.getZoom() * rawZoomFactor, limits.max));
+      let newZoom = Math.max(dynamicMinZoom, Math.min(c.getZoom() * rawZoomFactor, limits.max))
 
       // Logical update is instant
       c.zoomToPoint(new Point(center.x, center.y), newZoom)

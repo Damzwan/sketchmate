@@ -43,7 +43,6 @@ export async function undoTextChanged(
 	if (textObject) {
 		currentText = textObject.text;
 		textObject.set("text", action.params.prevText);
-		canvas.requestRenderAll();
 	}
 
 	return { ...action, params: { ...action.params, prevText: currentText } };
@@ -60,7 +59,6 @@ export async function redoTextChanged(
 	if (textObject) {
 		currentText = textObject.text;
 		textObject.set("text", action.params.prevText);
-		canvas.requestRenderAll();
 	}
 
 	return { ...action, params: { ...action.params, prevText: currentText } };
@@ -81,7 +79,6 @@ export async function undoTextStyleChanged(
 			textObject.set(key as any, value);
 		});
 
-		canvas.requestRenderAll();
 	}
 
 	// Return a new object rather than modifying 'action'
@@ -109,7 +106,6 @@ export async function redoTextStyleChanged(
 			textObject.set(key as any, value);
 		});
 
-		canvas.requestRenderAll();
 	}
 
 	// Return a new object rather than modifying 'action'

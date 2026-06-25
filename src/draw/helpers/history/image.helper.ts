@@ -26,7 +26,6 @@ export async function redoImgFilter(
   }
 
   await img.applyFilters()
-  canvas.requestRenderAll()
 
   // Return a new object with updated params
   return {
@@ -66,7 +65,6 @@ export async function undoImgFilter(
   }
 
   await img.applyFilters()
-  canvas.requestRenderAll()
 
   // Return a new object with updated params
   return {

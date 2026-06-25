@@ -19,7 +19,6 @@ export class PixelBrush extends BaseBrush {
 		const radius = this.width / 2;
 		const step = this.pixelSize;
 
-		// Calculate the safe dimensions for the stamp
 		const gridMax = Math.ceil(radius / step) * step;
 		this._stampSize = gridMax * 2 + step;
 
@@ -32,18 +31,22 @@ export class PixelBrush extends BaseBrush {
 		const start = -Math.floor(radius / step) * step;
 		const end = Math.floor(radius / step) * step;
 
+		// Overlap each cell by 1px so neighbours can't leave an AA seam when the
+		// stamp is later scaled/blitted at fractional device coordinates. Same colour
+		// over same colour, so the overlap is invisible — it only guarantees coverage.
+		const overlap = 1;
+
 		for (let dx = start; dx <= end; dx += step) {
 			for (let dy = start; dy <= end; dy += step) {
 				const distance = Math.sqrt(dx * dx + dy * dy);
 				if (distance <= radius) {
 					const probability = 1 - Math.pow(distance / radius, 3);
 					if (Math.random() < probability || distance <= step) {
-						// Draw relative to the center of our tiny stamp canvas
 						ctx.fillRect(
 							center + dx - step / 2,
 							center + dy - step / 2,
-							step,
-							step,
+							step + overlap,
+							step + overlap,
 						);
 					}
 				}
@@ -141,17 +144,13 @@ export class PixelBrush extends BaseBrush {
 	_render(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
 		ctx.save();
 		const vpt = this.canvas.viewportTransform;
-		if (vpt) {
-			ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
-		}
+		if (vpt) ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
+		ctx.imageSmoothingEnabled = false;
 
 		const offset = this._stampSize / 2;
-
-		// Look how healthy this loop is now!
 		for (const p of this._points) {
-			ctx.drawImage(this._stampCanvas, p.x - offset, p.y - offset);
+			ctx.drawImage(this._stampCanvas, Math.round(p.x - offset), Math.round(p.y - offset));
 		}
-
 		ctx.restore();
 	}
 }
@@ -226,8 +225,11 @@ export class PixelStroke extends FabricObject {
 		this.top = minY - this.stampSize / 2 + this.height / 2;
 	}
 
+	// PixelStroke._render
 	_render(ctx: CanvasRenderingContext2D) {
 		if (!this.stampCanvas) return;
+		ctx.save();
+		ctx.imageSmoothingEnabled = false;   // crisp pixel blits, no AA seam
 
 		const halfWidth = this.width / 2;
 		const halfHeight = this.height / 2;
@@ -238,6 +240,7 @@ export class PixelStroke extends FabricObject {
 			const renderY = p.y - this.minY - halfHeight - offset + this.stampSize / 2;
 			ctx.drawImage(this.stampCanvas, Math.round(renderX), Math.round(renderY));
 		}
+		ctx.restore();
 	}
 
 

@@ -59,7 +59,7 @@
         <div class="px-2 pt-1">
           <label for="slider">Pixel Size: {{ pixelSize }}</label>
           <ion-range aria-label="Pixel size" id="slider" v-model="pixelSize"
-                     :min="2" :max="20" :step="1" color="secondary" />
+                     :min="3" :max="30" :step="1" color="secondary" />
         </div>
       </template>
 

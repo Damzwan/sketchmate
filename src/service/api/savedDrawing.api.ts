@@ -4,8 +4,6 @@ import { Res, Saved, CreateSavedParams } from "@/types/server.types";
 
 const BASE_URL = "/saved";
 
-// Local shape for the legacy v1 delete route.
-// If you already export this from server.types, import it instead.
 export interface DeleteSavedParams {
 	user_id: string;
 	img_url: string;

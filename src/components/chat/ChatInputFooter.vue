@@ -15,21 +15,26 @@
       />
     </div>
 
-    <div class="p-3 bg-white/50 border-t border-primary/10 backdrop-blur-xl pb-safe">
-      <div class="flex items-center gap-2.5">
-        <button
+    <div class="px-4 pt-3 pb-3 bg-white/60 border-t border-primary/10 backdrop-blur-xl pb-safe">
+      <div class="flex items-center gap-1">
+
+        <ion-button
+          fill="clear"
+          shape="round"
+          color="secondary"
           @click="handleInviteClick"
           :disabled="!chatStore.canSendMessage(activeTab)"
-          class="w-10 h-10 rounded-xl border border-primary/60 bg-primary/20 flex items-center justify-center active:scale-90 transition-all shadow-sm disabled:opacity-30 text-secondary"
+          class="m-0 h-11 w-11 text-xl shrink-0"
+          :title="activeTab === 'lobby' ? 'Invite to Lobby' : 'Draw Together'"
         >
           <ion-icon
-            :icon="activeTab === 'lobby' ? svg(mdiAccountMultiplePlusOutline) : svg(mdiAccountPlusOutline)"
-            class="text-xl"
+            slot="icon-only"
+            :icon="activeTab === 'lobby' ? svg(mdiAccountMultiplePlusOutline) : svg(mdiDraw)"
           />
-        </button>
+        </ion-button>
 
         <div
-          class="flex-1 flex items-center bg-white/90 border border-primary/40 rounded-xl p-1 shadow-inner transition-opacity"
+          class="flex-1 flex items-center gap-1.5 bg-white border border-primary/20 rounded-2xl pl-2 pr-1 py-1 shadow-sm transition-opacity"
           :class="{ 'opacity-50': !chatStore.canSendMessage(activeTab) }"
         >
           <ion-input
@@ -37,23 +42,28 @@
             @keyup.enter="handleSend"
             :disabled="!chatStore.canSendMessage(activeTab)"
             :placeholder="chatStore.chatInputPlaceholder(activeTab)"
-            class="font-bold px-2 text-sm"
+            class="font-bold px-2 text-[15px] min-h-[36px]"
             color="secondary"
           />
 
-          <button
+          <ion-button
             v-if="chatStore.canSendMessage(activeTab)"
+            fill="clear"
+            shape="round"
+            color="secondary"
             @mousedown.prevent
             @click="handleSend"
-            class="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center active:scale-90 transition-all shadow-sm text-white"
+            :disabled="!inputText.trim()"
+            class="m-0 h-9 w-9 text-base shrink-0"
           >
-            <ion-icon :icon="svg(mdiSend)" class="text-sm ml-0.5" />
-          </button>
+            <ion-icon slot="icon-only" :icon="svg(mdiSend)" class="ml-0.5" />
+          </ion-button>
 
-          <div v-else class="w-8 h-8 flex items-center justify-center opacity-40 text-secondary">
+          <div v-else class="w-9 h-9 flex items-center justify-center opacity-30 text-secondary shrink-0">
             <ion-icon :icon="svg(mdiClockOutline)" class="text-base" />
           </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -63,19 +73,19 @@
 import { computed, nextTick, ref } from "vue";
 import { storeToRefs } from "pinia";
 import {
-	actionSheetController,
-	alertController,
-	IonIcon,
-	IonInput,
-	useIonRouter,
+  actionSheetController,
+  alertController,
+  IonButton,
+  IonIcon,
+  IonInput,
+  useIonRouter,
 } from "@ionic/vue";
 import {
-	mdiAccountMultiplePlusOutline,
-	mdiAccountPlusOutline,
-	mdiClockOutline,
-	mdiDraw,
-	mdiLoginVariant,
-	mdiSend,
+  mdiAccountMultiplePlusOutline,
+  mdiClockOutline,
+  mdiDraw,
+  mdiLoginVariant,
+  mdiSend,
 } from "@mdi/js";
 import { generateRandomCode, svg } from "@/helper/general.helper";
 
@@ -89,15 +99,15 @@ import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import {
-	acceptMatership,
-	declineMatership,
-	requestMatership,
+  acceptMatership,
+  declineMatership,
+  requestMatership,
 } from "@/service/api/relationship.api";
 import {
-	inviteFriendToRoom,
-	leaveRoom,
-	sendLobbyMessage,
-	socketJoinRoom,
+  inviteFriendToRoom,
+  leaveRoom,
+  sendLobbyMessage,
+  socketJoinRoom,
 } from "@/service/api/socket/drawSyncing.socket";
 import { PopulatedConversation } from "@/types/server.types";
 
@@ -116,159 +126,159 @@ const { roomId } = storeToRefs(drawSyncer);
 const inputText = ref("");
 
 const currentChat = computed(() => {
-	if (activeTab.value === "lobby") return null;
-	return [...chatStore.activeChats, ...friendStore.pendingRequests].find(
-		(c) => c._id === activeTab.value,
-	);
+  if (activeTab.value === "lobby") return null;
+  return [...chatStore.activeChats, ...friendStore.pendingRequests].find(
+    (c) => c._id === activeTab.value,
+  );
 });
 
 const partner = computed(() => {
-	if (activeTab.value === "lobby") return null;
-	if (currentChat.value) {
-		return currentChat.value.participants.find(
-			(p: any) => p._id !== authStore.user?._id,
-		);
-	}
-	return friendStore.resolvePartnerInfo(activeTab.value);
+  if (activeTab.value === "lobby") return null;
+  if (currentChat.value) {
+    return currentChat.value.participants.find(
+      (p: any) => p._id !== authStore.user?._id,
+    );
+  }
+  return friendStore.resolvePartnerInfo(activeTab.value);
 });
 
 const showRelationshipBanner = computed(() => {
-	if (!currentChat.value) return false;
-	return ["pending_invite", "temporary", "pending_mate", "expired"].includes(
-		currentChat.value.status as string,
-	);
+  if (!currentChat.value) return false;
+  return ["pending_invite", "temporary", "pending_mate", "expired"].includes(
+    currentChat.value.status as string,
+  );
 });
 
 async function handleMateRequest() {
-	if (!currentChat.value?.relationship_id) return;
-	try {
-		await requestMatership(currentChat.value._id);
-		const idx = chatStore.activeChats.findIndex(
-			(c) => c._id === currentChat.value!._id,
-		);
-		if (idx !== -1)
-			chatStore.activeChats[idx] = {
-				...chatStore.activeChats[idx],
-				status: "pending_mate",
-				initiator_id: authStore.user?._id?.toString(),
-			};
-	} catch (e) {
-		console.error(e);
-	}
+  if (!currentChat.value?.relationship_id) return;
+  try {
+    await requestMatership(currentChat.value._id);
+    const idx = chatStore.activeChats.findIndex(
+      (c) => c._id === currentChat.value!._id,
+    );
+    if (idx !== -1)
+      chatStore.activeChats[idx] = {
+        ...chatStore.activeChats[idx],
+        status: "pending_mate",
+        initiator_id: authStore.user?._id?.toString(),
+      };
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 async function handleMateAccept() {
-	if (!currentChat.value?.relationship_id) return;
-	try {
-		const { conversation } = (await acceptMatership(
-			currentChat.value.relationship_id,
-		)) as { conversation: PopulatedConversation };
-		chatStore.handleMateMatched({ conversation });
-	} catch (e) {
-		console.error(e);
-	}
+  if (!currentChat.value?.relationship_id) return;
+  try {
+    const { conversation } = (await acceptMatership(
+      currentChat.value.relationship_id,
+    )) as { conversation: PopulatedConversation };
+    chatStore.handleMateMatched({ conversation });
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 async function handleMateDecline() {
-	if (!currentChat.value?.relationship_id) return;
-	try {
-		const { status } = (await declineMatership(
-			currentChat.value.relationship_id,
-		)) as any;
-		const idx = chatStore.activeChats.findIndex(
-			(c) => c._id === currentChat.value!._id,
-		);
-		if (idx !== -1)
-			chatStore.activeChats[idx] = {
-				...chatStore.activeChats[idx],
-				status,
-				initiator_id: undefined,
-			};
-	} catch (e) {
-		console.error(e);
-	}
+  if (!currentChat.value?.relationship_id) return;
+  try {
+    const { status } = (await declineMatership(
+      currentChat.value.relationship_id,
+    )) as any;
+    const idx = chatStore.activeChats.findIndex(
+      (c) => c._id === currentChat.value!._id,
+    );
+    if (idx !== -1)
+      chatStore.activeChats[idx] = {
+        ...chatStore.activeChats[idx],
+        status,
+        initiator_id: undefined,
+      };
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 const handleInviteClick = (ev: Event) => {
-	if (activeTab.value === "lobby") emit("open-invite-popover", ev);
-	else openPrivateInviteSheet();
+  if (activeTab.value === "lobby") emit("open-invite-popover", ev);
+  else openPrivateInviteSheet();
 };
 
 const openPrivateInviteSheet = async () => {
-	if (!partner.value) return;
-	const buttons = [
-		{
-			text: "Start drawing together",
-			icon: svg(mdiDraw),
-			handler: () => {
-				if (roomId.value)
-					confirmNewSession(partner.value!._id, partner.value!.name);
-				else startDrawingTogether(partner.value!._id);
-			},
-		},
-	];
+  if (!partner.value) return;
+  const buttons = [
+    {
+      text: "Start drawing together",
+      icon: svg(mdiDraw),
+      handler: () => {
+        if (roomId.value)
+          confirmNewSession(partner.value!._id, partner.value!.name);
+        else startDrawingTogether(partner.value!._id);
+      },
+    },
+  ];
 
-	if (roomId.value) {
-		buttons.unshift({
-			text: "Invite to current Lobby",
-			icon: svg(mdiLoginVariant),
-			handler: async () => {
-				inviteFriendToRoom(partner.value!._id, roomId.value!);
-			},
-		});
-	}
+  if (roomId.value) {
+    buttons.unshift({
+      text: "Invite to current Lobby",
+      icon: svg(mdiLoginVariant),
+      handler: async () => {
+        inviteFriendToRoom(partner.value!._id, roomId.value!);
+      },
+    });
+  }
 
-	const actionSheet = await actionSheetController.create({
-		header: `Session with ${partner.value.name}`,
-		cssClass: "liquid-action-sheet",
-		buttons,
-	});
-	await actionSheet.present();
+  const actionSheet = await actionSheetController.create({
+    header: `Session with ${partner.value.name}`,
+    cssClass: "liquid-action-sheet",
+    buttons,
+  });
+  await actionSheet.present();
 };
 
 const confirmNewSession = async (friendId: string, name: string) => {
-	const alert = await alertController.create({
-		header: "Start New Session?",
-		subHeader: "This will leave your current lobby.",
-		message: `You are about to start a private drawing session with ${name}.`,
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Confirm",
-				handler: () => {
-					leaveRoom();
-					setTimeout(() => startDrawingTogether(friendId), 100);
-				},
-			},
-		],
-	});
-	await alert.present();
+  const alert = await alertController.create({
+    header: "Start New Session?",
+    subHeader: "This will leave your current lobby.",
+    message: `You are about to start a private drawing session with ${name}.`,
+    cssClass: "liquid-alert",
+    buttons: [
+      { text: "Cancel", role: "cancel" },
+      {
+        text: "Confirm",
+        handler: () => {
+          leaveRoom();
+          setTimeout(() => startDrawingTogether(friendId), 100);
+        },
+      },
+    ],
+  });
+  await alert.present();
 };
 
 const startDrawingTogether = async (friendId: string) => {
-	const newRoomId = generateRandomCode();
-	chatWidget.closePanel();
-	router.push("/draw");
-	setTimeout(() => {
-		socketJoinRoom({ roomId: newRoomId, intent: "create" });
-		inviteFriendToRoom(friendId, newRoomId);
-	}, 400);
+  const newRoomId = generateRandomCode();
+  chatWidget.closePanel();
+  router.push("/draw");
+  setTimeout(() => {
+    socketJoinRoom({ roomId: newRoomId, intent: "create" });
+    inviteFriendToRoom(friendId, newRoomId);
+  }, 400);
 };
 
 const handleSend = () => {
-	const text = inputText.value.trim();
-	if (!text) return;
-	if (activeTab.value === "lobby") {
-		sendLobbyMessage(text);
-	} else if (partner.value?._id) {
-		chatStore
-			.sendMessage(partner.value._id, text, activeTab.value)
-			.catch(console.error);
-	}
-	inputText.value = "";
-	nextTick(() => {
-		emit("sent");
-	});
+  const text = inputText.value.trim();
+  if (!text) return;
+  if (activeTab.value === "lobby") {
+    sendLobbyMessage(text);
+  } else if (partner.value?._id) {
+    chatStore
+      .sendMessage(partner.value._id, text, activeTab.value)
+      .catch(console.error);
+  }
+  inputText.value = "";
+  nextTick(() => {
+    emit("sent");
+  });
 };
 </script>

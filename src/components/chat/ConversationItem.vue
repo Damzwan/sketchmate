@@ -2,149 +2,110 @@
 <template>
   <div
     @click="$emit('open', chat._id)"
-    class="group relative w-full flex items-center p-3.5 rounded-[1.75rem] border transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] cursor-pointer overflow-hidden active:scale-[0.97]"
-    :class="[
-      isUserBlocked
-        ? 'bg-primary/5 border-primary/20 opacity-60'
-        : isLiveInvite
-        ? 'bg-secondary/10 border-secondary shadow-sm ring-2 ring-secondary/20 animate-pulse-subtle'
-        : (isIncomingRequest || isMateProposalReceived)
-        ? 'bg-secondary/5 border-secondary/40 shadow-sm'
-        : (isTemporary || isMateProposalSent || isOutgoingPending)
-        ? 'bg-white/80 border-primary/40 shadow-sm'
-        : isExpired
-        ? 'bg-black/5 border-black/5 opacity-50 hover:opacity-80'
-        : 'bg-white border-primary/30 shadow-sm hover:border-primary'
-    ]"
+    class="group relative w-full flex items-center gap-3 p-3 rounded-[1.6rem] border cursor-pointer overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.97]"
+    :class="cardClass"
   >
-    <!-- Avatar Section -->
-    <div class="relative flex-shrink-0 flex items-center justify-center">
+    <!-- Soft accent glow, only when this card wants attention -->
+    <div
+      v-if="rel.actionable && !isBlocked"
+      class="absolute -left-6 -bottom-8 w-24 h-24 rounded-full blur-2xl pointer-events-none"
+      :class="accent.glow"
+    ></div>
+
+    <!-- Avatar + single contextual badge -->
+    <div class="relative shrink-0">
       <UserAvatar
         v-if="partner"
         :user="partner"
         static
         :customization="partner.customization"
         size="sm"
-        class=" transition-transform duration-300 group-hover:scale-105"
-        :class="{
-          'grayscale opacity-40': isUserBlocked,
-          'grayscale-[0.3] opacity-75': !isUserBlocked && isPending,
-          'grayscale-[0.5] contrast-[0.9]': !isUserBlocked && isExpired
-        }"
+        class="transition-transform duration-300 group-hover:scale-105"
+        :class="avatarFilter"
       />
-
-      <span v-else class="flex items-center justify-center w-11 h-11 bg-secondary/10 text-base font-black text-secondary rounded-full border border-primary/40">
+      <span
+        v-else
+        class="flex items-center justify-center w-11 h-11 bg-secondary/10 text-base font-black text-secondary rounded-full border border-primary/40"
+      >
         {{ partner?.name?.charAt(0) || '?' }}
       </span>
 
-      <!-- Active Online Status Indicator Pip -->
+      <!-- One badge to rule them all: the most important state wins -->
       <div
-        v-if="isOnline && !isRelationshipInactive && !isUserBlocked && !isLiveInvite"
+        v-if="avatarBadge"
+        class="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full border-2 border-white flex items-center justify-center shadow-sm z-20"
+        :class="avatarBadge.bg"
+      >
+        <ion-icon v-if="avatarBadge.icon" :icon="avatarBadge.icon" class="text-[8px] text-white" />
+        <div v-else class="w-1.5 h-1.5 bg-white rounded-full"></div>
+      </div>
+      <div
+        v-else-if="showOnlinePip"
         class="absolute -bottom-0.5 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full z-20 shadow-sm"
       ></div>
-
-      <!-- Live Drawing Pulse Badge -->
-      <div
-        v-if="isLiveInvite"
-        class="absolute -bottom-1 -right-1 w-4.5 h-4.5 bg-secondary border-2 border-white rounded-full z-20 flex items-center justify-center shadow-sm animate-bounce"
-      >
-        <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
-      </div>
-
-      <!-- User Blocked Badge Bubble -->
-      <div
-        v-else-if="isUserBlocked"
-        class="absolute -bottom-0.5 right-0 w-4.5 h-4.5 bg-zinc-600 border border-white rounded-full z-20 flex items-center justify-center shadow-sm"
-      >
-        <ion-icon :icon="svg(mdiAccountOff)" class="text-[8px] text-white" />
-      </div>
-
-      <!-- Archive / Trash Badge indicator -->
-      <div
-        v-else-if="isExpired"
-        class="absolute -bottom-0.5 right-0 w-4.5 h-4.5 bg-zinc-400 border border-white rounded-full z-20 flex items-center justify-center shadow-sm"
-      >
-        <ion-icon :icon="svg(mdiTrashCanOutline)" class="text-[8px] text-white" />
-      </div>
-
-      <!-- Relationship Mate Proposal Badge -->
-      <div
-        v-else-if="isMatePending"
-        class="absolute -bottom-0.5 right-0 w-4.5 h-4.5 bg-secondary border border-white rounded-full z-20 flex items-center justify-center shadow-sm"
-      >
-        <ion-icon :icon="svg(mdiHeart)" class="text-[8px] text-white" />
-      </div>
     </div>
 
-    <!-- Info Details Text Column Block -->
-    <div class="flex-1 min-w-0 ml-3 text-left">
-      <div class="flex justify-between items-center mb-0.5">
-        <div class="flex items-center gap-1.5 min-w-0 leading-none">
-          <span
-            class="text-[14px] leading-none font-black truncate tracking-tight"
-            :class="[
-              (unreadCount > 0 || isIncomingRequest || isMateProposalReceived || isLiveInvite) ? 'text-black' : 'text-black/80',
-              { 'text-black/40 font-bold': isExpired || isUserBlocked }
-            ]"
-          >
-            {{ partner?.name || 'Unknown User' }}
-          </span>
+    <!-- Body -->
+    <div class="flex-1 min-w-0">
+      <!-- Row 1 — name · status chip · time -->
+      <div class="flex items-center gap-1.5 min-w-0">
+        <span
+          class="text-[14px] leading-none font-black truncate tracking-tight"
+          :class="nameClass"
+        >
+          {{ partner?.name || 'Unknown User' }}
+        </span>
 
-          <!-- Explicit Text Relationship Badges -->
-          <span v-if="isLiveInvite" class="px-1.5 py-0.5 rounded-md bg-secondary text-[7px] font-black text-white uppercase tracking-wider shadow-sm animate-pulse">
-            LIVE
-          </span>
-          <span v-else-if="isUserBlocked" class="px-1.5 py-0.5 rounded-md bg-zinc-500 text-[6px] font-black text-white uppercase tracking-wider">
-            Blocked
-          </span>
-          <span v-else-if="isMatePending" class="px-1.5 py-0.5 rounded-md bg-secondary text-[6px] font-black text-white uppercase tracking-wider">
-            Proposal
-          </span>
-          <span v-else-if="isTemporary" class="px-1.5 py-0.5 rounded-md bg-secondary/10 text-[7px] font-black text-secondary uppercase tracking-wider">
-            Trial
-          </span>
-          <span v-else-if="isExpired" class="px-1.5 py-0.5 rounded-md bg-black/10 text-[6px] font-black text-black/40 uppercase tracking-wider">
-            Archive
-          </span>
-        </div>
+        <span
+          v-if="showChip"
+          class="shrink-0 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-wider whitespace-nowrap"
+          :class="chipClass"
+        >
+          {{ chipText }}
+        </span>
 
-        <span class="text-[8px] font-black uppercase tracking-wider whitespace-nowrap opacity-30 mt-0.5">
-          {{ isLiveInvite ? 'NOW' : formattedTime }}
+        <span class="ml-auto shrink-0 text-[8px] font-black uppercase tracking-wider opacity-30 whitespace-nowrap mt-0.5">
+          {{ rel.kind === 'live_invite' ? 'NOW' : formattedTime }}
         </span>
       </div>
 
-      <div class="flex items-center justify-between leading-none mt-1">
+      <!-- Row 2 — status line · unread -->
+      <div class="flex items-center gap-1.5 mt-1.5">
         <p
-          class="text-[12px] truncate cabin-sketch-regular tracking-wide pr-2 leading-none"
-          :class="(unreadCount > 0 || isIncomingRequest || isMateProposalReceived || isLiveInvite) ? 'font-black text-black' : 'font-bold text-black/50'"
+          class="flex-1 min-w-0 text-[12px] truncate cabin-sketch-regular tracking-wide leading-none"
+          :class="statusClass"
         >
-          <!-- Context Message Switch Hierarchy -->
-          <span v-if="isLiveInvite" class="text-secondary italic font-black">Live drawing invite! Tap to join 🎨</span>
-          <span v-else-if="isUserBlocked" class="text-black/30 italic">User is blocked</span>
-          <span v-else-if="isTyping" class="text-secondary animate-pulse italic">typing...</span>
-          <template v-else>
-            <span v-if="isExpired" class="text-black/40 italic">{{ deleteCountdown }}</span>
-            <span v-else-if="isMateProposalReceived" class="text-secondary italic">Sent you a Mate proposal!</span>
-            <span v-else-if="isMateProposalSent" class="opacity-40">Mate proposal pending...</span>
-            <span v-else-if="isIncomingRequest" class="text-secondary italic">Wants to sketch with you!</span>
-            <span v-else-if="isOutgoingPending" class="opacity-40">Invitation sent...</span>
-            <span v-else-if="isTrialExpired" class="text-red-500 font-bold italic">Trial ended. Become Mates?</span>
-            <span v-else>{{ lastMessage }}</span>
-          </template>
+          {{ statusLine }}
         </p>
 
-        <!-- Unread Badge Layout Trigger Dock -->
-        <div class="flex items-center gap-1.5 flex-shrink-0 ml-1.5">
-          <div
-            v-if="unreadCount > 0 && !isUserBlocked && !isLiveInvite"
-            class="min-w-[16px] h-4 px-1 bg-red-500 rounded-full flex items-center justify-center shadow-sm animate-bounce-in"
-          >
-            <span class="text-[8px] font-black text-white leading-none mb-[0.5px]">{{ unreadCount }}</span>
-          </div>
-
-          <ion-icon v-if="isExpired || isUserBlocked" :icon="svg(mdiChevronRight)" class="text-black/20 text-base transition-transform duration-200 group-hover:translate-x-0.5" />
-          <ion-icon v-if="isTrialExpired && !isMatePending && !isExpired && !isUserBlocked" :icon="svg(mdiLockOutline)" class="text-black/30 text-xs" />
+        <div
+          v-if="unreadCount > 0 && !isBlocked && rel.kind !== 'live_invite'"
+          class="shrink-0 min-w-[16px] h-4 px-1 bg-red-500 rounded-full flex items-center justify-center shadow-sm animate-bounce-in"
+        >
+          <span class="text-[8px] font-black text-white leading-none mb-[0.5px]">{{ unreadCount }}</span>
         </div>
+        <ion-icon
+          v-else-if="isBlocked || isExpired"
+          :icon="svg(mdiChevronRight)"
+          class="shrink-0 text-black/20 text-base transition-transform duration-200 group-hover:translate-x-0.5"
+        />
+      </div>
+
+      <!-- Row 3 — the journey rail, only while a relationship is in flight -->
+      <div v-if="showJourney" class="flex items-center gap-1.5 mt-2.5 pr-1">
+        <template v-for="(stepDef, i) in JOURNEY_STEPS" :key="stepDef.label">
+          <div class="flex items-center gap-1 shrink-0">
+            <div class="rounded-full transition-all duration-300" :class="dotClass(i)"></div>
+            <span class="text-[7px] font-black uppercase tracking-wider transition-colors" :class="stepLabelClass(i)">
+              {{ stepDef.label }}
+            </span>
+          </div>
+          <div
+            v-if="i < JOURNEY_STEPS.length - 1"
+            class="flex-1 h-px rounded-full transition-colors"
+            :class="i < activeIdx ? 'bg-black/20' : 'bg-black/10'"
+          ></div>
+        </template>
       </div>
     </div>
   </div>
@@ -155,25 +116,30 @@ import { computed } from "vue";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
-	mdiAccountOff,
-	mdiChevronRight,
-	mdiHeart,
-	mdiLockOutline,
-	mdiTrashCanOutline,
+  mdiAccountOff,
+  mdiChevronRight,
+  mdiHeart,
+  mdiPalette,
+  mdiTrashCanOutline,
 } from "@mdi/js";
+import { IonIcon } from "@ionic/vue";
 import { svg } from "@/helper/general.helper";
 import { PopulatedConversation } from "@/types/server.types";
 import { useFriendStore } from "@/store/friend.store";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import { IonIcon } from "@ionic/vue";
+import {
+  resolveRelationship,
+  JOURNEY_STEPS,
+  RELATIONSHIP_ACCENT,
+} from "@/config/relationship.config";
 
 dayjs.extend(relativeTime);
 
 const props = defineProps<{
-	chat: PopulatedConversation;
-	currentUserId: string;
-	isOnline: boolean;
-	isTyping: boolean;
+  chat: PopulatedConversation;
+  currentUserId: string;
+  isOnline: boolean;
+  isTyping: boolean;
 }>();
 
 defineEmits(["open"]);
@@ -181,74 +147,163 @@ defineEmits(["open"]);
 const friendStore = useFriendStore();
 
 const partner = computed(() =>
-	props.chat.participants?.find((p: any) => p._id !== props.currentUserId),
+  props.chat.participants?.find((p: any) => p._id !== props.currentUserId),
 );
 
-const lastMessage = computed(() => {
-	const msg = props.chat.last_message;
-	if (!msg) return "Started a conversation";
-
-	if (msg.type === "system") {
-		if (msg.system_kind === "balloon_match") {
-			return `${partner.value?.name || "Someone"} caught a balloon 🎈`;
-		}
-		return "New activity";
-	}
-
-	if (msg.content) return msg.content;
-	if (msg.shared_post_id) return "Shared a post";
-	return "Sent a sketch";
-});
-
-const isUserBlocked = computed(() => {
-	if (!partner.value) return false;
-	return friendStore.isBlocked(partner.value._id);
-});
-
-const isLiveInvite = computed(
-	() => (props.chat.status as string) === "live_invite",
+const isBlocked = computed(() =>
+  partner.value ? friendStore.isBlocked(partner.value._id) : false,
 );
-
-const isPending = computed(() =>
-	["pending", "pending_invite"].includes(props.chat.status),
-);
-const isTemporary = computed(() => props.chat.status === "temporary");
-const isMatePending = computed(() => props.chat.status === "pending_mate");
 const isExpired = computed(() => props.chat.status === "expired");
 
-const isIncomingRequest = computed(
-	() => isPending.value && props.chat.initiator_id !== props.currentUserId,
+/* --- the single resolved relationship state everything keys off --- */
+const rel = computed(() =>
+  resolveRelationship({
+    status: props.chat.status as string,
+    initiatorId: props.chat.initiator_id,
+    currentUserId: props.currentUserId,
+    trialExpiresAt: props.chat.trial_expires_at,
+  }),
 );
-const isOutgoingPending = computed(
-	() => isPending.value && props.chat.initiator_id === props.currentUserId,
-);
-const isMateProposalReceived = computed(
-	() => isMatePending.value && props.chat.initiator_id !== props.currentUserId,
-);
-const isMateProposalSent = computed(
-	() => isMatePending.value && props.chat.initiator_id === props.currentUserId,
-);
+const accent = computed(() => RELATIONSHIP_ACCENT[rel.value.accent]);
+const activeIdx = computed(() => rel.value.step - 1);
 
-const isTrialExpired = computed(() => {
-	if (!isTemporary.value || !props.chat.trial_expires_at) return false;
-	return dayjs().isAfter(dayjs(props.chat.trial_expires_at));
+/* --- derived display bits --- */
+const lastMessage = computed(() => {
+  const msg = props.chat.last_message;
+  if (!msg) return "Started a conversation";
+  if (msg.type === "system") {
+    if (msg.system_kind === "balloon_match")
+      return `${partner.value?.name || "Someone"} caught a balloon 🎈`;
+    return "New activity";
+  }
+  if (msg.content) return msg.content;
+  if (msg.shared_post_id) return "Shared a post";
+  return "Sent a sketch";
 });
 
-const isRelationshipInactive = computed(
-	() => isTrialExpired.value || isExpired.value,
+const deleteCountdown = computed(() =>
+  props.chat.deleted_at
+    ? `Deletes ${dayjs(props.chat.deleted_at).fromNow()}`
+    : "History saved",
 );
-
-const deleteCountdown = computed(() => {
-	if (!props.chat.deleted_at) return "History saved";
-	return `Deletes in ${dayjs(props.chat.deleted_at).fromNow(true)}`;
-});
 
 const unreadCount = computed(
-	() => props.chat.unread_counts?.[props.currentUserId] || 0,
+  () => props.chat.unread_counts?.[props.currentUserId] || 0,
 );
 const formattedTime = computed(() =>
-	props.chat.updatedAt ? dayjs(props.chat.updatedAt).fromNow(true) : "",
+  props.chat.updatedAt ? dayjs(props.chat.updatedAt).fromNow(true) : "",
 );
+
+const showOnlinePip = computed(
+  () =>
+    props.isOnline &&
+    !isBlocked.value &&
+    !isExpired.value &&
+    ["active", "mate", "trial"].includes(rel.value.kind),
+);
+
+const showJourney = computed(
+  () =>
+    !isBlocked.value &&
+    [
+      "incoming_invite",
+      "outgoing_invite",
+      "trial",
+      "trial_expired",
+      "incoming_mate",
+      "outgoing_mate",
+    ].includes(rel.value.kind),
+);
+
+/* --- text --- */
+const statusLine = computed(() => {
+  if (isBlocked.value) return "User is blocked";
+  if (props.isTyping && !isExpired.value) return "typing…";
+  if (isExpired.value) return deleteCountdown.value;
+  if (rel.value.kind === "active" || rel.value.kind === "mate")
+    return lastMessage.value;
+  return rel.value.hint;
+});
+
+const showChip = computed(
+  () => isBlocked.value || !["active", "mate"].includes(rel.value.kind),
+);
+const chipText = computed(() => (isBlocked.value ? "Blocked" : rel.value.label));
+
+/* --- single avatar badge: priority order live > blocked > expired > mate-request --- */
+const avatarBadge = computed<{ bg: string; icon?: string } | null>(() => {
+  if (rel.value.kind === "live_invite")
+    return { bg: "bg-secondary animate-bounce", icon: svg(mdiPalette) };
+  if (isBlocked.value) return { bg: "bg-zinc-600", icon: svg(mdiAccountOff) };
+  if (isExpired.value) return { bg: "bg-zinc-400", icon: svg(mdiTrashCanOutline) };
+  if (rel.value.kind === "incoming_mate" || rel.value.kind === "outgoing_mate")
+    return { bg: "bg-secondary", icon: svg(mdiHeart) };
+  return null;
+});
+
+/* --- class bundles --- */
+const cardClass = computed(() => {
+  if (isBlocked.value) return "bg-primary/5 border-primary/20 opacity-60";
+  if (rel.value.kind === "live_invite")
+    return "bg-secondary/10 border-secondary shadow-sm ring-2 ring-secondary/20 animate-pulse-subtle";
+  if (isExpired.value)
+    return "bg-black/5 border-black/5 opacity-50 hover:opacity-80";
+  if (rel.value.actionable)
+    return rel.value.accent === "amber"
+      ? "bg-amber-400/5 border-amber-400/40 shadow-sm"
+      : "bg-secondary/5 border-secondary/40 shadow-sm";
+  return "bg-white border-primary/30 shadow-sm hover:border-primary";
+});
+
+const avatarFilter = computed(() => ({
+  "grayscale opacity-40": isBlocked.value,
+  "grayscale-[0.5] contrast-[0.9]": !isBlocked.value && isExpired.value,
+  "grayscale-[0.3] opacity-75":
+    !isBlocked.value && rel.value.kind === "outgoing_invite",
+}));
+
+const nameClass = computed(() => {
+  if (isBlocked.value || isExpired.value) return "text-black/40 font-bold";
+  if (
+    rel.value.actionable ||
+    unreadCount.value > 0 ||
+    rel.value.kind === "live_invite"
+  )
+    return "text-black";
+  return "text-black/80";
+});
+
+const chipClass = computed(() =>
+  isBlocked.value ? "bg-zinc-500 text-white" : accent.value.chip,
+);
+
+const statusClass = computed(() => {
+  if (isBlocked.value) return "text-black/30 italic font-bold";
+  if (props.isTyping && !isExpired.value)
+    return "text-secondary animate-pulse italic font-bold";
+  if (isExpired.value) return "text-black/40 italic font-bold";
+  if (rel.value.actionable)
+    return rel.value.accent === "amber"
+      ? "text-amber-700 font-black italic"
+      : "text-secondary font-black italic";
+  if (rel.value.kind === "active" || rel.value.kind === "mate")
+    return unreadCount.value > 0
+      ? "font-black text-black"
+      : "font-bold text-black/50";
+  return "text-black/50 font-bold";
+});
+
+/* --- journey rail per-step styling --- */
+const dotClass = (i: number) => {
+  if (i === activeIdx.value) return `w-2 h-2 ${accent.value.dot} shadow-sm`;
+  if (i < activeIdx.value) return "w-1.5 h-1.5 bg-black/25";
+  return "w-1.5 h-1.5 bg-black/10";
+};
+const stepLabelClass = (i: number) => {
+  if (i === activeIdx.value) return accent.value.text;
+  if (i < activeIdx.value) return "text-black/35";
+  return "text-black/20";
+};
 </script>
 
 <style scoped>

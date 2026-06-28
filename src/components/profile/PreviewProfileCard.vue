@@ -25,7 +25,7 @@ defineProps<{
 <style scoped>
 .preview-wrapper {
   /* Reserve scaled-down height so layout doesn't jump */
-  height: 200px;
+  height: 330px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -33,7 +33,7 @@ defineProps<{
 }
 
 .preview-scale {
-  transform: scale(0.4);
+  transform: scale(0.7);
   transform-origin: top center;
   width: 100%;
   max-width: 400px;

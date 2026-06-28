@@ -5,6 +5,7 @@ import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useAuthStore } from '@/store/auth.store'
 import { removeObjects } from '@/draw/actions/object.action'
+import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 
 export function fullErase() {
   const { getCanvas } = useDrawStore()
@@ -18,15 +19,17 @@ export function fullErase() {
     const { selectTool, selectedTool } = useToolSelection()
     const c = getCanvas()
     if (!c) return
-
+    const mgr = useDrawObjectManager()
 
     const prevCanvasJSON = c.toJSON()
-    c.clear()
+
+    mgr.clearAllObjects()
+    c.discardActiveObject()
+    ;(c as any)._objects.length = 0
     c.backgroundColor = BACKGROUND
+
     c.fire('fullErase', { prevCanvasJSON })
 
-    if (selectedTool !== DrawTool.Pen) {
-      selectTool(DrawTool.Pen)
-    }
+    if (selectedTool !== DrawTool.Pen) selectTool(DrawTool.Pen)
   }
 }

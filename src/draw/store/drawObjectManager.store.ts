@@ -493,6 +493,18 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     return core ? { min: core.minZoom, max: core.maxZoom } : { min: 0.03125, max: 32 };
   }
 
+  function clearAllObjects() {
+    if (!c || !core) return
+    objectMap.clear()
+    entryMap.clear()
+    quadtree.clear()
+    zIndexMap.clear()
+    isZIndexDirty = true
+    core.reset()
+    core.setContentBounds(null)
+    core.requestFrame()
+  }
+
   return {
     init,
     renderMain,
@@ -524,6 +536,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     isBatching,
     markZIndexDirty,
     getZoomLimits,
-    getContentBounds: computeContentBounds
+    getContentBounds: computeContentBounds,
+    clearAllObjects
   };
 });

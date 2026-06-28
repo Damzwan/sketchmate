@@ -117,7 +117,7 @@
     </div>
 
     <ion-fab v-show="!isCreatingChat" slot="fixed" vertical="bottom" horizontal="end" class="absolute bottom-6 right-2">
-      <ion-fab-button color="secondary" @click="isCreatingChat = true" class="shadow-md">
+      <ion-fab-button color="secondary" @click="isCreatingChat = true">
         <ion-icon :icon="svg(mdiChatPlusOutline)" class="text-xl text-white" />
       </ion-fab-button>
     </ion-fab>

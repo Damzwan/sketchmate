@@ -33,7 +33,7 @@
         <!-- Infinite Scrolling Trigger Zone -->
         <div
           ref="loadMoreTrigger"
-          class="h-12 w-full flex justify-center items-center"
+          class="h-8 w-full flex justify-center items-center"
         >
           <ion-spinner
             v-if="!loading && hasMore"
@@ -45,7 +45,7 @@
         <!-- End of Feed Tactile Caught-Up Graphics Block -->
         <div
           v-if="!loading && posts.length > 0 && !hasMore"
-          class="pt-6 pb-10 text-center"
+          class="pb-6 text-center"
         >
           <div class="inline-block p-8 bg-tertiary border border-dashed border-primary/80 rounded-[2.5rem] shadow-sm max-w-xs mx-auto">
             <div class="text-3xl mb-3">🎨</div>

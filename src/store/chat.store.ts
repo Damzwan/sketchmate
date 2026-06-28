@@ -585,7 +585,7 @@ export const useChatStore = defineStore("chat", () => {
 		addNotification({
 			tabId: payload.conversation._id,
 			subtitle: "New Mate!",
-			text: `You and ${partner?.name} are now Mates! 🎨✨`,
+			text: `You and ${partner?.name} are now Mates!`,
 			img: partner?.img || "",
 			isMateProposal: true,
 		});

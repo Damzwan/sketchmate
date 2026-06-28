@@ -17,6 +17,7 @@ import * as transform from '@/draw/transform/transformController'
 const MIN_ZOOM = 0.2
 let dynamicMinZoom = MIN_ZOOM
 let visibilityTimeout: any = null
+const SETTLE_DELAY = 180
 
 // --- VIEWPORT SCHEDULER ---
 let viewportFrameScheduled = false
@@ -29,6 +30,10 @@ function scheduleViewportUpdate(c: Canvas, postRenderCallback?: () => void) {
     syncVisuals(c)
     if (postRenderCallback) postRenderCallback()
   })
+}
+
+function cancelPendingSettle() {
+  clearTimeout(visibilityTimeout)
 }
 
 
@@ -49,7 +54,7 @@ function endViewportGesture(c: Canvas) {
     if (!gestureStore.isGesturing) {
       onGestureEnd()
     }
-  }, 50)
+  }, SETTLE_DELAY)
 }
 
 // ─── PC Interaction ─────────────────────────────────────────────────────────
@@ -74,6 +79,7 @@ export function enablePCGestures(c: Canvas) {
         e.stopPropagation()
 
         if (!isWheeling) {
+          cancelPendingSettle()
           isWheeling = true
           dynamicMinZoom = limits.min
           onGestureStart()
@@ -103,6 +109,8 @@ export function enablePCGestures(c: Canvas) {
       handler: (o: any) => {
         const e = o.e
         if (e.buttons !== 4) return
+
+        cancelPendingSettle()
 
         panActive = true
         lastPanPoint = { x: e.pageX, y: e.pageY }
@@ -204,6 +212,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       if (shapeCreationMode.value) return
       c.fire('gestureStart')
 
+
       if (
         selectedTool.value === DrawTool.Select &&
         shouldModifyObjectsWithGestures()
@@ -241,6 +250,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       c.isDrawingMode = false
       cancelPreviousAction(c)
       dynamicMinZoom = limits.min
+      cancelPendingSettle()
       onGestureStart()
       gestureStore.isGesturing = true
 

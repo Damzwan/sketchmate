@@ -158,7 +158,6 @@ export class PixelBrush extends BaseBrush {
 export class PixelStroke extends FabricObject {
 	static type = "PixelStroke";
 
-	// Update cache properties to track the stamp
 	static cacheProperties = [
 		...FabricObject.cacheProperties,
 		"points",
@@ -218,31 +217,38 @@ export class PixelStroke extends FabricObject {
 		this.minX = minX;
 		this.minY = minY;
 
-		// Padding is just the size of our stamp!
 		this.width = maxX - minX + this.stampSize;
 		this.height = maxY - minY + this.stampSize;
 		this.left = minX - this.stampSize / 2 + this.width / 2;
 		this.top = minY - this.stampSize / 2 + this.height / 2;
 	}
 
-	// PixelStroke._render
 	_render(ctx: CanvasRenderingContext2D) {
 		if (!this.stampCanvas) return;
 		ctx.save();
-		ctx.imageSmoothingEnabled = false;   // crisp pixel blits, no AA seam
+		ctx.imageSmoothingEnabled = false;
 
-		const halfWidth = this.width / 2;
-		const halfHeight = this.height / 2;
 		const offset = this.stampSize / 2;
 
+		// To prevent the sub-pixel shift, calculate the local coordinates
+		// based directly on the EXACT global integer targets the Brush preview used.
+		const initialLeft = this.minX - offset + this.width / 2;
+		const initialTop = this.minY - offset + this.height / 2;
+
 		for (const p of this.points) {
-			const renderX = p.x - this.minX - halfWidth - offset + this.stampSize / 2;
-			const renderY = p.y - this.minY - halfHeight - offset + this.stampSize / 2;
-			ctx.drawImage(this.stampCanvas, Math.round(renderX), Math.round(renderY));
+			// 1. Recreate the precise integer coordinates the preview mapped to
+			const targetX = Math.round(p.x - offset);
+			const targetY = Math.round(p.y - offset);
+
+			// 2. Map those absolute coordinates to the object's relative space.
+			// (Do not round these, as any float values perfectly cancel out the translation matrix)
+			const renderX = targetX - initialLeft;
+			const renderY = targetY - initialTop;
+
+			ctx.drawImage(this.stampCanvas, renderX, renderY);
 		}
 		ctx.restore();
 	}
-
 
 	toObject(additionalProperties: string[] = []) {
 		return super.toObject([
@@ -266,11 +272,9 @@ export class PixelStroke extends FabricObject {
 			canvas.width = canvas.height = object.stampSize;
 			canvas.getContext("2d")?.drawImage(img, 0, 0);
 
-			// Inject the newly created canvas back into the options object
 			object.stampCanvas = canvas;
 		}
 
-		// 2. Proceed with normal enlivenment
 		const enlivenedProps = await enlivenStrokeProps(object);
 		return new PixelStroke(enlivenedProps);
 	}

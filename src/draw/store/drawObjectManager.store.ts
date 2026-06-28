@@ -199,18 +199,31 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
     const prevCanvas = a.canvas;
     const prevCaching = a.objectCaching;
     const prevDirty = a.dirty;
+
     if (!needsCanvas) a.canvas = null;
     a.objectCaching = false;
     a.dirty = true;
+
+    // --- NEW: Scale shadow for the live layer based on viewport zoom ---
+    const vpt = c!.viewportTransform!;
+    const originalBlur = a.shadow?.blur;
+    if (a.shadow) {
+      a.shadow.blur = originalBlur * vpt[0];
+    }
+    // ------------------------------------------------------------------
+
     try { obj.render(ctx); }
     catch { /* ignore */ }
     finally {
       if (!needsCanvas) a.canvas = prevCanvas;
       a.objectCaching = prevCaching;
       a.dirty = prevDirty;
+
+      // --- NEW: Restore original shadow ---
+      if (a.shadow) a.shadow.blur = originalBlur;
+      // ------------------------------------
     }
   }
-
   // ── fabric events → core lifecycle ───────────────────────────────────────
   function onObjectAdded(obj: FabricObject) {
     if (!obj.id) return;

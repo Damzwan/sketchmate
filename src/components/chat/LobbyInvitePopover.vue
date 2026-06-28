@@ -20,7 +20,6 @@
         <div
           v-for="friend in eligibleToInvite"
           :key="friend._id"
-
           class="flex items-center justify-between p-3 bg-tertiary border border-default-light rounded-[1.5rem] shadow-sm transition-all active:scale-[0.99]"
         >
           <div class="flex items-center gap-3 min-w-0">
@@ -49,12 +48,11 @@
           </div>
 
           <button
-            @click="handleInvite(friend._id)"
-            :disabled="!canInvite(friend._id)"
+            @click="handleInvite(friend)"
             class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ml-3 shadow-sm border"
             :class="canInvite(friend._id)
               ? 'bg-secondary border-secondary text-white active:scale-95'
-              : 'bg-default-light border-default-medium text-black/30 cursor-not-allowed'"
+              : 'bg-default-light border-default-medium text-black/30'"
           >
             {{ canInvite(friend._id) ? 'Invite' : 'Sent' }}
           </button>
@@ -65,56 +63,76 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { storeToRefs } from "pinia";
-import { IonPopover } from "@ionic/vue";
-import { useFriendStore } from "@/store/friend.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
-import { inviteFriendToRoom } from "@/service/api/socket/drawSyncing.socket";
+import { ref, computed } from 'vue'
+import { storeToRefs } from 'pinia'
+import { IonPopover } from '@ionic/vue'
+import { useFriendStore } from '@/store/friend.store'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { inviteFriendToRoom } from '@/service/api/socket/drawSyncing.socket'
+import { useToast } from '@/service/toast.service'
 
 const props = defineProps<{
-	isOpen: boolean;
-	event: Event | null;
-}>();
+  isOpen: boolean;
+  event: Event | null;
+}>()
 
-const emit = defineEmits(["close"]);
+defineEmits(['close'])
 
-const friendStore = useFriendStore();
-const { allConnectedPartners } = storeToRefs(friendStore);
-const { roomMembers, roomId } = storeToRefs(useDrawSyncer());
+const friendStore = useFriendStore()
+const { allConnectedPartners } = storeToRefs(friendStore)
+const { roomMembers, roomId } = storeToRefs(useDrawSyncer())
 
-const inviteTimestamps = ref<Record<string, number>>({});
-const INVITE_COOLDOWN_MS = 30000;
+const { toast } = useToast()
 
-const isOnline = (id: string) => friendStore.isFriendOnline(id);
+const inviteTimestamps = ref<Record<string, number>>({})
+const INVITE_COOLDOWN_MS = 30000
+
+const isOnline = (id: string) => friendStore.isFriendOnline(id)
 
 const eligibleToInvite = computed(() => {
-	return allConnectedPartners.value
-		.filter((f) => !roomMembers.value.some((rm) => rm._id === f._id))
-		.sort((a, b) => {
-			const aOnline = isOnline(a._id) ? 1 : 0;
-			const bOnline = isOnline(b._id) ? 1 : 0;
-			return bOnline - aOnline;
-		});
-});
+  return allConnectedPartners.value
+    .filter((f) => !roomMembers.value.some((rm) => rm._id === f._id))
+    .sort((a, b) => {
+      const aOnline = isOnline(a._id) ? 1 : 0
+      const bOnline = isOnline(b._id) ? 1 : 0
+      return bOnline - aOnline
+    })
+})
 
 const canInvite = (friendId: string) => {
-	const last = inviteTimestamps.value[friendId] || 0;
-	return Date.now() - last > INVITE_COOLDOWN_MS;
-};
+  const last = inviteTimestamps.value[friendId] || 0
+  return Date.now() - last > INVITE_COOLDOWN_MS
+}
 
-const handleInvite = (friendId: string) => {
-	if (!roomId.value || !canInvite(friendId)) return;
-	inviteTimestamps.value[friendId] = Date.now();
-	inviteFriendToRoom(friendId, roomId.value);
-};
+const handleInvite = (friend: any) => {
+  if (!roomId.value) return
+
+  const firstName = friend.name.split(' ')[0]
+
+  if (!canInvite(friend._id)) {
+    const last = inviteTimestamps.value[friend._id] || 0
+    const remainingSecs = Math.ceil((INVITE_COOLDOWN_MS - (Date.now() - last)) / 1000)
+
+    toast(`Wait ${remainingSecs}s before inviting ${firstName} again.`, { color: 'warning' })
+    return
+  }
+
+  if (!isOnline(friend._id)) {
+    toast(`${firstName} is offline, but we'll try sending it!`, { color: 'warning' })
+  } else {
+    toast(`Invite sent to ${firstName}!`, { color: 'success' })
+  }
+
+  // 3. Process Invitation
+  inviteTimestamps.value[friend._id] = Date.now()
+  inviteFriendToRoom(friend._id, roomId.value)
+}
 </script>
 
 <style scoped>
-/* Scoped overrides ensuring clean styling inside Ionic's shadow-dom context */
 ion-popover.invite-popover {
   --background: transparent;
   --box-shadow: none;
-  --width:310px
+  --width: 310px
 }
 </style>

@@ -1,56 +1,70 @@
 <template>
-  <div class="divide-y divide-primary bg-background" ref="hmm">
-    <div class="px-2 py-1" v-if="showOpacity && color">
-      <label for="slider">Opacity: {{ alphaHexToPercent(opacityHex) }}</label>
-      <ion-range aria-label="Volume" id="slider" :value="alphaHexToPercent(opacityHex)"
-                 @ionChange="(e: any) => emit('update:color', hexWithOpacity(c, percentToAlphaHex(e.target.value)))"
-                 :min="0"
-                 :max="100" color="secondary" />
+  <div class="picker_card" ref="hmm">
+
+    <div class="flex items-center gap-1.5 w-full">
+      <button type="button" class="current_row" :id="customColorPopoverId">
+        <span class="current_chip" :style="{ backgroundColor: color }" />
+        <div class="current_meta">
+          <span class="current_hex">{{ displayHex }}</span>
+          <span class="current_sub">Custom</span>
+        </div>
+        <ion-icon class="current_chevron" :icon="svg(mdiChevronRight)" />
+      </button>
+
+      <button type="button" class="eyedrop_btn" aria-label="Pick color from canvas" @click="pickColor">
+        <ion-icon :icon="svg(mdiEyedropper)" />
+      </button>
     </div>
-    <div class="py-1 px-2">
-      <label for="color-picker" class="!flex justify-between items-center">
-        Color
-        <ion-button @click="pickColor" size="small" fill="clear" class="text-black">
-          <ion-icon :icon="svg(mdiEyedropper)" size="large" />
-        </ion-button>
-      </label>
 
-      <div class="mt-1">
-        <div v-for="(row, rowIndex) in COLORSWATCHES" :key="'row-' + rowIndex" class="flex justify-between mb-2">
-          <div v-for="(color, colorIndex) in row" :key="'color-' + colorIndex"
-               :class="{ brush_selected: props.color == hexWithOpacity(color, opacityHex) }"
-               :style="{ backgroundColor: hexWithOpacity(color, opacityHex) }" class="color_swatch"
-               @click="emit('update:color', hexWithOpacity(color, opacityHex))" />
+    <template v-if="showOpacity && color">
+      <div class="card_divider" />
+      <div>
+        <div class="control_row">
+          <label class="section_label">Opacity</label>
+          <span class="value_pill">{{ alphaHexToPercent(opacityHex) }}%</span>
         </div>
-        <div class="flex mb-2 justify-between" v-if="colorHistory.length > 0">
-          <div v-for="(color, colorIndex) in colorHistory" :key="'color_history-' + colorIndex"
-               :class="{ brush_selected: props.color == hexWithOpacity(color, opacityHex) }"
-               :style="{ backgroundColor: hexWithOpacity(color, opacityHex) }" class="color_swatch"
-               @click="emit('update:color', hexWithOpacity(color, opacityHex))" />
+        <ion-range aria-label="Opacity" :value="alphaHexToPercent(opacityHex)"
+                   @ionChange="(e: any) => emit('update:color', hexWithOpacity(c, percentToAlphaHex(e.target.value)))"
+                   :min="0" :max="100" color="secondary" />
+      </div>
+    </template>
 
-          <div v-for="i in emptySpaces" :key="'empty-' + i" class="color_swatch" />
-        </div>
+    <div class="card_divider" />
+
+    <div>
+      <label class="section_label">Palette</label>
+      <div class="swatch_grid mt-1">
+        <button v-for="(swatch, i) in flatSwatches" :key="'sw-' + i" type="button"
+                class="swatch" :class="{ 'swatch--selected': isSelected(swatch) }"
+                :style="{ backgroundColor: hexWithOpacity(swatch, opacityHex) }"
+                @click="onColorSelect(swatch)" />
       </div>
     </div>
 
-    <div class="py-1 px-2">
-      <label for="color-picker">Color recommendations</label>
-      <div class="mt-1">
-        <div v-for="(row, rowIndex) in getColorRecommendations(c)" :key="'row-' + rowIndex"
-             class="flex justify-between mb-2">
-          <div v-for="(color, colorIndex) in row" :key="'color-' + colorIndex" :style="{ backgroundColor: color }"
-               class="color_swatch" @click="onCustomColorSelected(color)" />
-        </div>
+    <div v-if="colorHistory.length > 0">
+      <label class="section_label">Recent</label>
+      <div class="swatch_grid mt-1">
+        <button v-for="(swatch, i) in colorHistory" :key="'hist-' + i" type="button"
+                class="swatch" :class="{ 'swatch--selected': isSelected(swatch) }"
+                :style="{ backgroundColor: hexWithOpacity(swatch, opacityHex) }"
+                @click="onColorSelect(swatch)" />
+        <span v-for="i in emptySpaces" :key="'empty-' + i" class="swatch_empty" />
       </div>
     </div>
 
-    <ion-item color="tertiary" class="px-2" :button="true" :id="customColorPopoverId">
-      <div class="color_swatch" :style="{ backgroundColor: color }" />
-      <p class="pl-3 text-base">Choose color</p>
-      <input type="color" :value="props.color" @change="e => onCustomColorSelected(e.target.value)"
-             ref="brushColorPicker"
-             class="hidden" />
-    </ion-item>
+    <div class="card_divider" />
+
+    <div>
+      <label class="section_label">Suggested</label>
+      <div class="space-y-1.5 mt-1">
+        <div v-for="(row, ri) in recommendations" :key="'rec-' + ri" class="swatch_grid">
+          <button v-for="(swatch, ci) in row" :key="'rec-' + ri + '-' + ci" type="button"
+                  class="swatch" :class="{ 'swatch--selected': isSelected(swatch) }"
+                  :style="{ backgroundColor: swatch }"
+                  @click="onColorSelect(swatch)" />
+        </div>
+      </div>
+    </div>
 
     <ion-popover :trigger="customColorPopoverId" :keep-contents-mounted="true" side="top"
                  @willPresent="() => props.color ? picker.setColor(props.color) : null">
@@ -60,7 +74,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IonButton, IonIcon, IonItem, IonPopover, IonRange, popoverController } from '@ionic/vue'
+import { IonIcon, IonPopover, IonRange, popoverController } from '@ionic/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
@@ -69,7 +83,7 @@ import { DrawAction } from '@/draw/types/draw.types'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { storeToRefs } from 'pinia'
 import { isMobile, svg } from '@/helper/general.helper'
-import { mdiEyedropper } from '@mdi/js'
+import { mdiEyedropper, mdiChevronRight } from '@mdi/js'
 import { v4 as uuidv4 } from 'uuid'
 import Picker from 'vanilla-picker'
 import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
@@ -86,11 +100,11 @@ import { ERASERS, PENMENUTOOLS } from '@/draw/config/tools.config'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
 import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
 
-const hmm = ref() // TODO hack to only close top popover
+const hmm = ref()
 const customColorPopoverId = uuidv4()
 const customColorParent = ref()
 const colorHistory = ref<string[]>([])
-const emptySpaces = computed(() => 6 - colorHistory.value.length)
+const emptySpaces = computed(() => Math.max(0, 6 - colorHistory.value.length))
 
 let picker: any
 
@@ -104,8 +118,8 @@ onMounted(() => {
     editor: false,
     color: props.color,
     onDone: async (c) => {
-      onCustomColorSelected(c.hex)
-      hmm.value.click() // hack to close current popover
+      onColorSelect(c.hex)
+      hmm.value.click()
     }
   })
 })
@@ -117,11 +131,17 @@ const props = defineProps<{
   colorPickerAction?: DrawAction
 }>()
 
-
 const emit = defineEmits(['update:color'])
 
 const c = computed(() => props?.color || BLACK)
 const opacityHex = computed(() => (c.value.substring(7, 9) != '' ? c.value.substring(7, 9) : 'FF'))
+
+const flatSwatches = computed(() => COLORSWATCHES.flat())
+const recommendations = computed(() => getColorRecommendations(c.value))
+const displayHex = computed(() => hexWithoutOpacity(c.value).toUpperCase())
+
+const isSelected = (swatch: string): boolean =>
+  props.color === hexWithOpacity(swatch, opacityHex.value)
 
 function getSavedColorHistory() {
   Preferences.get({ key: LocalStorage.color_history }).then(
@@ -129,11 +149,18 @@ function getSavedColorHistory() {
   )
 }
 
-async function onCustomColorSelected(newColor: string) {
-  newColor = hexWithoutOpacity(newColor)
+/**
+ * Handles explicit selection of any color across all sections
+ * Tracks unified usage history cleanly.
+ */
+async function onColorSelect(newColor: string) {
+  newColor = hexWithoutOpacity(newColor).toUpperCase()
   emit('update:color', hexWithOpacity(newColor, opacityHex.value))
-  if (colorHistory.value.includes(newColor) || COLORSWATCHES.some(arr => arr.includes(newColor))) return
+
+  // Remove existing occurrence to cycle duplicates to the front
+  colorHistory.value = colorHistory.value.filter(h => h !== newColor)
   colorHistory.value.unshift(newColor)
+
   if (colorHistory.value.length > 6) colorHistory.value.pop()
   Preferences.set({ key: LocalStorage.color_history, value: JSON.stringify(colorHistory.value) })
 }
@@ -145,10 +172,8 @@ function pickColor(e: any) {
   const { colorPickerMode } = storeToRefs(useDrawUIStore())
   const c = getCanvas()
 
-
   const lastSelectedObject = c.getActiveObject()
   colorPickerMode.value = true
-
 
   c.selection = false
   c.skipTargetFind = true
@@ -157,13 +182,11 @@ function pickColor(e: any) {
     c.isDrawingMode = false
   }
 
-
   function updateColorIndicator(color: string, e?: any, size = isMobile() ? 80 : 32) {
     const zoom = c.getZoom()
     const adjustedSize = size * zoom
 
     if (!isMobile()) {
-      // --- Desktop: set custom cursor ---
       const canvas = document.createElement('canvas')
       canvas.width = adjustedSize
       canvas.height = adjustedSize
@@ -172,18 +195,15 @@ function pickColor(e: any) {
       const center = adjustedSize / 2
       const radius = adjustedSize / 2 - 1
 
-      // Main circle
       ctx.beginPath()
       ctx.arc(center, center, radius, 0, Math.PI * 2)
       ctx.fillStyle = color
       ctx.fill()
 
-      // Border
       ctx.strokeStyle = '#000'
       ctx.lineWidth = 2
       ctx.stroke()
 
-      // Crosshair (dual stroke)
       ctx.lineWidth = 2
       ctx.strokeStyle = '#000'
       ctx.beginPath()
@@ -205,40 +225,35 @@ function pickColor(e: any) {
       const url = canvas.toDataURL('image/png')
       c.freeDrawingCursor = `url(${url}) ${center} ${center}, crosshair`
       c.setCursor(c.freeDrawingCursor)
-
     } else if (e) {
       const pointer = e.pointer
       const ctx = c.contextTop
 
-      ctx.clearRect(0, 0, c.width, c.height) // Clear previous indicator
+      ctx.clearRect(0, 0, c.width, c.height)
 
-      const offsetY = -60 * zoom // shift circle above finger
+      const offsetY = -60 * zoom
       const centerX = pointer.x
       const centerY = pointer.y + offsetY
       const radius = adjustedSize / 2
 
-      // Outer stroke (black for visibility)
       ctx.beginPath()
       ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
       ctx.strokeStyle = '#000'
       ctx.lineWidth = 3
       ctx.stroke()
 
-      // Inner stroke (white for contrast)
       ctx.beginPath()
       ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
       ctx.strokeStyle = '#fff'
       ctx.lineWidth = 1.5
       ctx.stroke()
 
-      // Fill circle
       ctx.beginPath()
       ctx.arc(centerX, centerY, radius - 2, 0, 2 * Math.PI)
       ctx.fillStyle = color
       ctx.fill()
     }
   }
-
 
   activateExclusiveEvents([
     {
@@ -255,7 +270,7 @@ function pickColor(e: any) {
           ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase() +
           pixel[3].toString(16).toUpperCase().padStart(2, '0')
 
-        onCustomColorSelected(hex)
+        onColorSelect(hex)
         if (props.colorPickerAction) selectAction(props.colorPickerAction, { color: hex })
 
         c.freeDrawingCursor = 'default'
@@ -278,7 +293,6 @@ function pickColor(e: any) {
   ])
 
   popoverController.dismiss()
-
 }
 
 watch(props, async () => {
@@ -288,21 +302,89 @@ watch(props, async () => {
 
 <style scoped>
 @reference "@/theme/main.css";
-.brush_selected {
-  @apply border-[3px] border-secondary;
+
+.picker_card {
+  @apply bg-background border border-black/5 rounded-[1.75rem] p-3 space-y-2.5;
 }
 
-.color_swatch {
-  @apply w-8 h-8 rounded-full cursor-pointer;
+.section_label {
+  @apply block text-[10px] font-black uppercase tracking-widest text-black/35;
 }
 
-label {
-  @apply block text-sm font-medium text-gray-700;
+.card_divider {
+  @apply h-px bg-black/5;
 }
 
-ion-item {
-  --inner-padding-end: 0;
-  --padding-start: 0;
+.control_row {
+  @apply flex items-center justify-between mb-0.5;
+}
+
+.value_pill {
+  @apply text-[11px] font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-full tabular-nums;
+}
+
+/* ─── Layout Actions ───────────────────────────────────────────────────────── */
+.current_row {
+  @apply flex-1 flex items-center gap-2.5 p-1.5 rounded-xl bg-black/5 ring-1 ring-black/5
+  active:scale-[0.99] transition-transform cursor-pointer text-left min-w-0;
+}
+
+.current_chip {
+  @apply w-7 h-7 rounded-lg ring-1 ring-black/10 shrink-0;
+}
+
+.current_meta {
+  @apply flex flex-col min-w-0 leading-tight;
+}
+
+.current_hex {
+  @apply text-xs font-black text-black/70 tabular-nums uppercase truncate;
+}
+
+.current_sub {
+  @apply text-[9px] font-bold uppercase tracking-wider text-black/30;
+}
+
+.current_chevron {
+  @apply ml-auto text-black/25 text-base shrink-0 pr-0.5;
+}
+
+.eyedrop_btn {
+  @apply w-10 h-10 rounded-xl flex items-center justify-center shrink-0
+  bg-secondary/10 text-secondary active:scale-90 transition-transform;
+}
+
+.eyedrop_btn ion-icon {
+  @apply w-4 h-4;
+}
+
+/* ─── Tighter Swatch Matrix ────────────────────────────────────────────────── */
+.swatch_grid {
+  @apply grid grid-cols-6 gap-1.5;
+}
+
+.swatch {
+  @apply w-full aspect-square rounded-full ring-1 ring-black/5
+  transition-all duration-150 active:scale-90 cursor-pointer;
+}
+
+.swatch--selected {
+  @apply ring-2 ring-secondary ring-offset-2 ring-offset-background scale-105;
+}
+
+.swatch_empty {
+  @apply w-full aspect-square rounded-full border border-dashed border-black/10;
+}
+
+ion-range {
+  --bar-height: 4px;
+  --bar-border-radius: 8px;
+  --bar-background: rgba(0, 0, 0, 0.08);
+  --bar-background-active: var(--ion-color-secondary);
+  --knob-size: 18px;
+  --knob-background: #fff;
+  --knob-box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  padding: 2px 2px;
 }
 </style>
 
@@ -313,7 +395,6 @@ ion-item {
   background: var(--ion-color-tertiary)
 }
 
-
 .picker_selector {
   border: 2px solid var(--ion-color-primary)
 }
@@ -323,4 +404,3 @@ ion-item {
   @apply bg-primary rounded-md hover:bg-primary-shade
 }
 </style>
-

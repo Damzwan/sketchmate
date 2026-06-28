@@ -107,18 +107,12 @@ export class RenderCore<T extends Bounded> {
   }
 
   private renderNow(): void {
-    this.frameCounter++; // <-- ADD THIS to invalidate the viewport cache
-
+    this.frameCounter++
     const ctx = this.surface.getContext()
     if (!ctx) return
     const vpt = this.surface.getVpt()
     const size = this.surface.getSize()
     const dpr = this.surface.getDpr()
-
-    if (this.pendingDemote) {
-      this.demoteSettled()
-      this.pendingDemote = false
-    }
 
     this.live.gcExpired()
     const { needsBake } = this.committed.composite(
@@ -126,6 +120,11 @@ export class RenderCore<T extends Bounded> {
     )
     const vw = this.committed.viewWorld(vpt, size, dpr)
     this.live.composite(ctx, vpt, dpr, this.liveRender, vw)
+
+    if (this.pendingDemote && !needsBake) {
+      this.pendingDemote = false
+      this.demoteSettled()
+    }
 
     if (needsBake) this.scheduleBake()
     this.afterComposite?.()

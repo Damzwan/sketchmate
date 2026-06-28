@@ -1,7 +1,8 @@
 <!-- components/ChatToasts.vue -->
 <template>
   <div v-if="!isExpanded && !isFullscreen && !chatToastsSilenced"
-       class="fixed top-safe mt-20 right-4 z-[10] flex flex-col gap-2 w-64 pointer-events-none">
+       class="fixed top-safe right-4 z-[10] flex flex-col gap-2 w-64 pointer-events-none transition-all duration-300"
+       :class="isLoadingCanvas ? 'mt-32' : 'mt-20'">
     <TransitionGroup name="chat-toast">
       <div
         v-for="group in notifications"
@@ -78,6 +79,8 @@ const { notifications } = storeToRefs(chatStore);
 const { isFullscreen, chatToastsSilenced } = storeToRefs(drawUI);
 const { user } = storeToRefs(authStore);
 const { lobbyChatMessages, invitations } = storeToRefs(drawSyncer);
+
+const { isLoadingCanvas } = storeToRefs(drawSyncer);
 
 let isInitialLobbyLoad = true;
 

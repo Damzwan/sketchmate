@@ -3,7 +3,6 @@
     class="rounded-[3rem] border-2 shadow-lg relative px-2 pb-2 pt-4 transition-all duration-500"
     :style="cardStyle"
   >
-    <!-- Background Effects -->
     <div class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
       <ProfileEffect :effect-id="effectiveCustomization.effectId" />
       <ProfileAtmosphere :atmosphere-id="effectiveCustomization.atmosphereId" />
@@ -11,33 +10,37 @@
 
     <div class="relative z-10" :style="{ fontFamily: resolvedFontFamily }">
 
-      <!-- Top Right Hub: Settings, Add/Share, Customize -->
-      <div v-if="isOwnProfile && !isPreview" class="absolute top-2 right-2 flex items-center gap-2 z-20">
+      <div v-if="isOwnProfile && !isPreview" class="absolute top-0 right-0 flex items-center gap-1 z-50">
 
-        <ion-button
+        <button
+          type="button"
           @click="$emit('go-settings')"
-          fill="clear"
+          class="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform bg-transparent hover:bg-black/5"
+          aria-label="Settings"
         >
-          <ion-icon :icon="svg(mdiCog)" class="text-base w-5 h-5" :style="{'color': theme.accentColor}" slot="icon-only" />
-        </ion-button>
+          <ion-icon :icon="svg(mdiCog)" class="w-6 h-6" :style="{'color': theme.accentColor}" />
+        </button>
 
-        <ion-button
+        <button
+          type="button"
           @click="$emit('open-connection')"
-          fill="clear"
+          class="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform bg-transparent hover:bg-black/5"
+          aria-label="Add Connection"
         >
-          <ion-icon :icon="svg(mdiAccountPlusOutline)" class="text-base w-5 h-5" slot="icon-only" :style="{'color': theme.accentColor}"  />
-        </ion-button>
+          <ion-icon :icon="svg(mdiAccountPlusOutline)" class="w-6 h-6" :style="{'color': theme.accentColor}" />
+        </button>
 
-        <ion-button
+        <button
+          type="button"
           @click="$emit('go-customize')"
-          fill="clear"
+          class="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform bg-transparent hover:bg-black/5"
+          aria-label="Customize"
         >
-          <ion-icon :icon="svg(mdiPalette)" class="text-base w-5 h-5" slot="icon-only" :style="{'color': theme.accentColor}"  />
-        </ion-button>
+          <ion-icon :icon="svg(mdiPalette)" class="w-6 h-6" :style="{'color': theme.accentColor}" />
+        </button>
 
       </div>
 
-      <!-- Main Profile Context -->
       <div class="flex flex-col items-center relative mt-2">
         <div ref="doodleZoneRef" class="js-doodle-zone relative w-full flex flex-col items-center py-6">
           <BackgroundSketch
@@ -81,7 +84,6 @@
           </div>
         </div>
 
-        <!-- Social Connections (Visits Alternative View profiles Only) -->
         <template v-if="!isOwnProfile && !isPreview">
           <div class="flex gap-3 w-full mt-6 px-1">
             <ion-button
@@ -107,7 +109,6 @@
           </div>
         </template>
 
-        <!-- Stats Section Summary -->
         <div
           v-if="!isPreview"
           class="grid grid-cols-3 w-full mt-6 border-t pt-4 transition-colors duration-500"
@@ -133,7 +134,6 @@
           </button>
         </div>
 
-        <!-- Signature Presentation Panel -->
         <div
           v-if="effectiveCustomization.signaturePath"
           class="w-full mt-6 pt-4 border-t flex flex-col items-center transition-colors duration-500"

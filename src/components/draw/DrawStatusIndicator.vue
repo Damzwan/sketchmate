@@ -34,7 +34,7 @@ import { useDrawUIStore } from "@/draw/store/drawUI.store";
 const drawSyncer = useDrawSyncer();
 const { isSending } = storeToRefs(useShareService());
 const { isLoadingCanvas } = storeToRefs(drawSyncer);
-const { isSavingDrawing } = storeToRefs(useDrawUIStore());
+const { isSavingDrawing, isLoadingDrawing } = storeToRefs(useDrawUIStore());
 const { isFilling } = storeToRefs(useBucket());
 
 const isActive = computed(
@@ -42,6 +42,7 @@ const isActive = computed(
 		isSending.value ||
 		isLoadingCanvas.value ||
 		isSavingDrawing.value ||
+    isLoadingDrawing.value ||
 		isFilling.value,
 );
 
@@ -49,6 +50,7 @@ const message = computed(() => {
 	if (isSending.value) return "Sending...";
 	if (isSavingDrawing.value) return "Saving...";
 	if (isLoadingCanvas.value) return "Loading...";
+	if (isLoadingDrawing.value) return "Loading...";
 	if (isFilling.value) return "Filling...";
 	return "Working...";
 });

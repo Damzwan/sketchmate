@@ -341,6 +341,7 @@ export async function saveFabricObject(
 	if (!c || !user) return;
 
 	drawui.isSavingDrawing = true;
+	await new Promise((resolve) => setTimeout(resolve, 10));
 
 	try {
 		if (params.objects.length > 1) {
@@ -408,7 +409,9 @@ export async function addSavedFabricObjectToCanvas(
 	const { getCanvas } = useDrawStore();
 	const { selectTool, selectedTool } = useToolSelection();
 	const { actionWithoutEvents } = useDrawEventManager();
-	const drawSyncer = useDrawSyncer();
+	const drawui = useDrawUIStore();
+
+	drawui.isLoadingDrawing = true;
 
 	const c = getCanvas();
 	if (!c) return;
@@ -506,6 +509,7 @@ export async function addSavedFabricObjectToCanvas(
 				}),
 			);
 		}
+		drawui.isLoadingDrawing = false
 	} catch (error) {
 		console.error("Failed to load saved drawing:", error);
 	} finally {

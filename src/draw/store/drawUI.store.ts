@@ -22,6 +22,7 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 	const isFullscreen = ref(false);
 	const chatToastsSilenced = ref(false);
 	const isSavingDrawing = ref(false);
+	const isLoadingDrawing = ref(false);
 
 	const gestureStore = useGestureStore();
 	const exitRequested = ref(0);
@@ -116,5 +117,6 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 		isFullscreen,
 		chatToastsSilenced,
 		isSavingDrawing,
+		isLoadingDrawing
 	};
 });

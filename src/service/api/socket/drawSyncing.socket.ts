@@ -321,10 +321,14 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
 	socket.on(SOCKET_ENDPONTS.friend_invitation, async (data) => {
 		const { invitations } = storeToRefs(useDrawSyncer());
-		invitations.value = invitations.value.filter(
-			(inv) => inv.friend._id === data.friend.id,
+
+		const updatedInvitations = invitations.value.filter(
+			(inv) => inv.friend._id !== data.friend.id // Note: Changed to !== to strip matching entries
 		);
-		invitations.value.push(data);
+
+		updatedInvitations.push(data);
+
+		invitations.value = updatedInvitations;
 	});
 
 	socket.on("lobby-message", async ({ message, member, timestamp, id }) => {

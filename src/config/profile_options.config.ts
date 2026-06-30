@@ -102,21 +102,24 @@ export interface FontEffect {
 
 export const FONT_EFFECTS: FontEffect[] = [
   { value: '', label: 'None', desc: 'Plain text' },
-  { value: 'sticker', label: 'Sticker Pop', desc: 'White outline punch' },
-  { value: 'neon', label: 'Hyper Neon', desc: 'Purple glow pulse' },
-  { value: 'echo', label: '3D Echo', desc: 'Stacked shadow' },
-  { value: 'glitch', label: 'Cyber Glitch', desc: 'Digital tear' },
-  { value: 'chroma', label: 'Liquid Chroma', desc: 'Flowing rainbow' }
+  { value: 'puffy', label: 'Puffy Sticker', desc: 'Thick glossy border & bounce' },
+  { value: 'jawbreaker', label: 'Jawbreaker', desc: 'Vibrant stacked 3D colors' },
+  { value: 'velvet', label: 'Midnight Velvet', desc: 'Soft glowing luxury drift' }, // New Effect
+  { value: 'supernova', label: 'Supernova', desc: 'Hyper-saturated holographic' },
+  { value: 'lava', label: 'Lava Lamp', desc: 'Flowing molten gradient' }
 ]
 
 export const FONT_EFFECT_MAP: Record<string, string> = {
-  sticker:
-    '[text-shadow:-2px_-2px_0_#fff,2px_-2px_0_#fff,-2px_2px_0_#fff,2px_2px_0_#fff,-3px_0_0_#fff,3px_0_0_#fff,0_-3px_0_#fff,0_3px_0_#fff,5px_8px_0_rgba(0,0,0,0.15)] scale-105 transform -rotate-1',
-  neon: 'text-white drop-shadow-[0_0_4px_#fff] drop-shadow-[0_0_15px_#a855f7] drop-shadow-[0_0_30px_#a855f7] animate-glow-pulse',
-  echo: '[text-shadow:2px_2px_0_#18181b,4px_4px_0_#18181b,6px_6px_0_#18181b,8px_12px_15px_rgba(0,0,0,0.4)] animate-float',
-  glitch: 'animate-glitch',
-  chroma:
-    'animate-chroma-flow bg-[linear-gradient(90deg,#ff512f,#dd2476,#4a00e0,#8e2de2,#ff512f)] bg-[length:200%_auto] text-transparent bg-clip-text drop-shadow-[0_4px_10px_rgba(221,36,118,0.4)]'
+  puffy:
+    '[text-shadow:-4px_-4px_0_#fff,4px_-4px_0_#fff,-4px_4px_0_#fff,4px_4px_0_#fff,-6px_0_0_#fff,6px_0_0_#fff,0_-6px_0_#fff,0_6px_0_#fff,0_12px_20px_rgba(0,0,0,0.3)] animate-puffy-bounce',
+  jawbreaker:
+    '[text-shadow:2px_2px_0_#06b6d4,4px_4px_0_#ec4899,6px_6px_0_#eab308,8px_8px_0_#8b5cf6,12px_16px_25px_rgba(0,0,0,0.35)] animate-jawbreaker-float',
+  velvet:
+    'text-indigo-950 animate-velvet-glow drop-shadow-[0_0_8px_rgba(79,70,229,0.6)]',
+  supernova:
+    'animate-supernova-flow bg-[linear-gradient(90deg,#ff0055,#ffaa00,#00ffaa,#00aaff,#ff00ff,#ff0055)] bg-[length:300%_auto] text-transparent bg-clip-text drop-shadow-[0_5px_15px_rgba(0,255,170,0.4)]',
+  lava:
+    'animate-lava-flow bg-[linear-gradient(180deg,#fef08a,#f59e0b,#ef4444,#f59e0b,#fef08a)] bg-[length:100%_300%] text-transparent bg-clip-text drop-shadow-[0_4px_12px_rgba(239,68,68,0.5)]'
 }
 
 export const resolveFontEffectClass = (key?: string): string =>
@@ -284,55 +287,11 @@ export const DECORATIONS: Decoration[] = [
     lottieConfig: { scale: '120%', offset: 'translate(-50%, -50%)' }
   },
   {
-    id: 'cat-ears',
-    name: 'Cat Ears',
-    desc: 'Purrfect look',
-    kind: 'topper',
-    topper: 'cat-ears'
-  },
-  {
     id: 'neon-halo',
     name: 'Neon Halo',
     desc: 'Cyber glow',
     kind: 'halo',
     haloColor: '#a855f7'
-  },
-  {
-    id: 'sparkle-storm',
-    name: 'Sparkle Storm',
-    desc: 'Twinkling stars orbit',
-    kind: 'particles',
-    particles: { emoji: '✨', count: 6, spin: true }
-  },
-  {
-    id: 'cherry-petals',
-    name: 'Cherry Petals',
-    desc: 'Falling sakura',
-    kind: 'particles',
-    particles: { emoji: '🌸', count: 5, spin: true }
-  },
-  {
-    id: 'royal',
-    name: 'Royal Crown',
-    desc: 'A crown for your head',
-    kind: 'composite',
-    badge: { emoji: '👑', position: 'tr' }
-  },
-  {
-    id: 'storm',
-    name: 'Stormcaller',
-    desc: 'Lightning halo',
-    kind: 'composite',
-    haloColor: '#60a5fa',
-    particles: { emoji: '⚡', count: 4, spin: false }
-  },
-  {
-    id: 'bloom',
-    name: 'Bloom',
-    desc: 'Garden of flowers',
-    kind: 'composite',
-    particles: { emoji: '🌷', count: 5, spin: true },
-    badge: { emoji: '🐝', position: 'br' }
   }
 ]
 
@@ -341,8 +300,10 @@ export const DEFAULT_DECORATION_ID = 'none'
 export const resolveDecoration = (id?: string): Decoration =>
   DECORATIONS.find((d) => d.id === id) || DECORATIONS[0]
 
-// ─── PROFILE EFFECTS (BACKGROUND TEXTURES) ───────────────────────────────────
-export type EffectKind = 'none' | 'particles' | 'falling' | 'shimmer' | 'grain';
+export type EffectKind =
+  | 'none'
+  | 'grain'
+  | 'shimmer'
 
 export interface ProfileEffectDef {
   id: string;
@@ -357,7 +318,14 @@ export interface ProfileEffectDef {
 
 export const PROFILE_EFFECTS: ProfileEffectDef[] = [
   { id: 'none', name: 'None', desc: 'Clean & quiet', kind: 'none' },
-  { id: 'grain', name: 'Paper Grain', desc: 'Subtle texture', kind: 'grain' },
+
+  {
+    id: 'grain',
+    name: 'Paper Grain',
+    desc: 'Subtle texture',
+    kind: 'grain'
+  },
+
   {
     id: 'shimmer-gold',
     name: 'Gold Shimmer',
@@ -366,66 +334,13 @@ export const PROFILE_EFFECTS: ProfileEffectDef[] = [
     color: 'rgba(251,191,36,0.4)',
     speed: 'slow'
   },
+
   {
     id: 'shimmer-rainbow',
     name: 'Prism',
     desc: 'Rainbow sweep',
     kind: 'shimmer',
     color: 'rainbow',
-    speed: 'normal'
-  },
-  {
-    id: 'sparkles',
-    name: 'Sparkles',
-    desc: 'Floating glints',
-    kind: 'particles',
-    emoji: '✨',
-    density: 10,
-    speed: 'normal'
-  },
-  {
-    id: 'falling-petals',
-    name: 'Falling Petals',
-    desc: 'Sakura snowfall',
-    kind: 'falling',
-    emoji: '🌸',
-    density: 12,
-    speed: 'slow'
-  },
-  {
-    id: 'falling-leaves',
-    name: 'Autumn Drift',
-    desc: 'Leaves on the wind',
-    kind: 'falling',
-    emoji: '🍂',
-    density: 10,
-    speed: 'normal'
-  },
-  {
-    id: 'falling-snow',
-    name: 'Snowfall',
-    desc: 'Winter mood',
-    kind: 'falling',
-    emoji: '❄️',
-    density: 18,
-    speed: 'slow'
-  },
-  {
-    id: 'fire',
-    name: 'Embers',
-    desc: 'Rising flames',
-    kind: 'particles',
-    emoji: '🔥',
-    density: 8,
-    speed: 'fast'
-  },
-  {
-    id: 'bubbles',
-    name: 'Bubbles',
-    desc: 'Floating up',
-    kind: 'particles',
-    emoji: '🫧',
-    density: 10,
     speed: 'normal'
   }
 ]
@@ -509,7 +424,6 @@ export const resolveTitle = (id?: string): string => {
   return TITLES.find((t) => t.id === id)?.name || ''
 }
 
-// ─── MISC HELPERS ────────────────────────────────────────────────────────────
 export const NAME_CHANGE_COOLDOWN_DAYS = 31
 
 export const formatStatNumber = (n: number): string => {

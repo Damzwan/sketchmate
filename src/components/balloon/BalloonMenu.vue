@@ -11,7 +11,8 @@
     <template v-if="section === 'home'">
       <div class="relative w-full h-40 flex items-center justify-between px-2 mb-3 mt-1">
         <div class="flex flex-col items-center z-10 w-20">
-          <div class="w-14 h-14 rounded-full border-2 border-primary/20 bg-black/5 overflow-hidden flex items-center justify-center">
+          <div
+            class="w-14 h-14 rounded-full border-2 border-primary/20 bg-black/5 overflow-hidden flex items-center justify-center">
             <img v-if="user?.img" :src="user.img" class="w-full h-full object-cover" alt="You" />
             <ion-icon v-else :icon="svg(mdiAccount)" class="text-3xl text-primary/40" />
           </div>
@@ -30,7 +31,8 @@
         </div>
 
         <div class="flex flex-col items-center z-10 w-20 relative">
-          <div class="w-14 h-14 rounded-full border-2 border-secondary/20 bg-white flex items-center justify-center relative">
+          <div
+            class="w-14 h-14 rounded-full border-2 border-secondary/20 bg-white flex items-center justify-center relative">
             <ion-icon :icon="svg(mdiHelp)" class="text-3xl text-secondary/40" />
             <div class="absolute -top-3 -right-3 text-3xl drop-shadow-sm animate-mate-heart">
               ❤️
@@ -41,10 +43,10 @@
       </div>
 
       <div class="text-center px-4 mb-6 mt-1">
-        <p class="text-xl font-black text-black/80 leading-snug">
+        <p class="text-2xl cabin-sketch-regular font-black  leading-snug">
           Release a balloon up in the air!
         </p>
-        <p class="text-sm font-bold text-black/50 leading-snug mt-2 px-2">
+        <p class="font-bold cabin-sketch-regular text-black/80 leading-snug px-2">
           If a stranger catches your sketch and replies, you become mates.
         </p>
       </div>
@@ -141,142 +143,143 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from "vue";
-import { IonButton, IonIcon, IonSpinner, useIonRouter } from "@ionic/vue";
-import { mdiChevronRight, mdiAccount, mdiHelp } from "@mdi/js";
-import { storeToRefs } from "pinia";
-import { svg } from "@/helper/general.helper";
-import { useRoute } from "vue-router";
+import { computed, onUnmounted, ref } from 'vue'
+import { IonButton, IonIcon, IonSpinner, useIonRouter } from '@ionic/vue'
+import { mdiChevronRight, mdiAccount, mdiHelp } from '@mdi/js'
+import { storeToRefs } from 'pinia'
+import { svg } from '@/helper/general.helper'
+import { useRoute } from 'vue-router'
 
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import balloonLottie from "@/assets/lottie/balloon.json";
-import Lottie from "@/components/general/Lottie.vue";
-import drawingImg from "@/assets/login_images/1.webp";
+import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
+import balloonLottie from '@/assets/lottie/balloon.json'
+import Lottie from '@/components/general/Lottie.vue'
+import drawingImg from '@/assets/login_images/1.webp'
 
-import { useAuthStore } from "@/store/auth.store";
-import { useQuotaStore } from "@/store/quota.store";
-import { useMenuStore } from "@/store/menu.store";
-import { cancelBalloon, fetchMyBalloons } from "@/service/api/balloon.api";
-import type { Balloon } from "@/types/server.types";
-import { Menu } from "@/draw/types/draw.types";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
+import { useAuthStore } from '@/store/auth.store'
+import { useQuotaStore } from '@/store/quota.store'
+import { useMenuStore } from '@/store/menu.store'
+import { cancelBalloon, fetchMyBalloons } from '@/service/api/balloon.api'
+import type { Balloon } from '@/types/server.types'
+import { Menu } from '@/draw/types/draw.types'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { masterAnimation } from '@/helper/animation.helper'
 
-const router = useIonRouter();
-const route = useRoute();
+const router = useIonRouter()
+const route = useRoute()
 
-const authStore = useAuthStore();
-const { user } = storeToRefs(authStore);
+const authStore = useAuthStore()
+const { user } = storeToRefs(authStore)
 
-const menuStore = useMenuStore();
-const { balloonMenuOpen } = storeToRefs(menuStore);
+const menuStore = useMenuStore()
+const { balloonMenuOpen } = storeToRefs(menuStore)
 
-type Section = "home" | "manage";
-const section = ref<Section>("home");
+type Section = 'home' | 'manage';
+const section = ref<Section>('home')
 
-const quotaStore = useQuotaStore();
-const { balloons } = storeToRefs(quotaStore);
+const quotaStore = useQuotaStore()
+const { balloons } = storeToRefs(quotaStore)
 
-const myBalloons = ref<Balloon[]>([]);
-const isLoadingMine = ref(false);
-const cancellingId = ref<string | null>(null);
+const myBalloons = ref<Balloon[]>([])
+const isLoadingMine = ref(false)
+const cancellingId = ref<string | null>(null)
 
-const now = ref(Date.now());
-let timer: ReturnType<typeof setInterval> | null = null;
+const now = ref(Date.now())
+let timer: ReturnType<typeof setInterval> | null = null
 
 function startTicker() {
-	if (timer) return;
-	timer = setInterval(() => {
-		now.value = Date.now();
-	}, 1000);
+  if (timer) return
+  timer = setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
 }
 
 function stopTicker() {
-	if (timer) {
-		clearInterval(timer);
-		timer = null;
-	}
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
 }
-onUnmounted(stopTicker);
+
+onUnmounted(stopTicker)
 
 const resetCountdown = computed(() => {
-	const resetMs = new Date(balloons.value.reset_at).getTime();
-	const diff = Math.max(0, resetMs - now.value);
-	const h = Math.floor(diff / 3_600_000);
-	const m = Math.floor((diff % 3_600_000) / 60_000);
-	if (h > 0) return `${h}h ${m}m`;
-	const s = Math.floor((diff % 60_000) / 1_000);
-	return `${m}m ${s}s`;
-});
+  const resetMs = new Date(balloons.value.reset_at).getTime()
+  const diff = Math.max(0, resetMs - now.value)
+  const h = Math.floor(diff / 3_600_000)
+  const m = Math.floor((diff % 3_600_000) / 60_000)
+  if (h > 0) return `${h}h ${m}m`
+  const s = Math.floor((diff % 60_000) / 1_000)
+  return `${m}m ${s}s`
+})
 
 const sectionSubtitle = computed(() =>
-	section.value === "home"
-		? "Find a mate across the skies"
-		: "Recall balloons before they are caught",
-);
+  section.value === 'home'
+    ? 'Find a mate across the skies'
+    : 'Recall balloons before they are caught'
+)
 
 function relativeTime(iso: string): string {
-	const diff = Date.now() - new Date(iso).getTime();
-	const m = Math.floor(diff / 60_000);
-	if (m < 1) return "just now";
-	if (m < 60) return `${m}m ago`;
-	const h = Math.floor(m / 60);
-	if (h < 24) return `${h}h ago`;
-	return `${Math.floor(h / 24)}d ago`;
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60_000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
 }
 
 async function loadMyBalloons() {
-	isLoadingMine.value = true;
-	try {
-		const { balloons } = await fetchMyBalloons();
-		myBalloons.value = balloons;
-	} catch (e) {
-		console.error("Failed to load balloons:", e);
-	} finally {
-		isLoadingMine.value = false;
-	}
+  isLoadingMine.value = true
+  try {
+    const { balloons } = await fetchMyBalloons()
+    myBalloons.value = balloons
+  } catch (e) {
+    console.error('Failed to load balloons:', e)
+  } finally {
+    isLoadingMine.value = false
+  }
 }
 
 async function onCancel(b: Balloon) {
-	if (cancellingId.value) return;
-	cancellingId.value = b._id;
-	try {
-		await cancelBalloon(b._id);
-		quotaStore.incrementBalloon();
-		myBalloons.value = myBalloons.value.filter((x) => x._id !== b._id);
-	} catch (e) {
-		console.error("Failed to cancel balloon:", e);
-	} finally {
-		cancellingId.value = null;
-	}
+  if (cancellingId.value) return
+  cancellingId.value = b._id
+  try {
+    await cancelBalloon(b._id)
+    quotaStore.incrementBalloon()
+    myBalloons.value = myBalloons.value.filter((x) => x._id !== b._id)
+  } catch (e) {
+    console.error('Failed to cancel balloon:', e)
+  } finally {
+    cancellingId.value = null
+  }
 }
 
 function onCreateNew() {
-	close();
-	if (route.path === `/${FRONTEND_ROUTES.draw}`) return;
-	router.push(
-		{ path: FRONTEND_ROUTES.draw, query: { type: "balloon" } },
-		masterAnimation,
-	);
+  close()
+  if (route.path === `/${FRONTEND_ROUTES.draw}`) return
+  router.push(
+    { path: FRONTEND_ROUTES.draw, query: { type: 'balloon' } },
+    masterAnimation
+  )
 }
 
 function handlePrimaryAction() {
-	if (quotaStore.canSendBalloon) {
-		onCreateNew();
-	} else if (!quotaStore.isPro) {
-		close();
-	}
+  if (quotaStore.canSendBalloon) {
+    onCreateNew()
+  } else if (!quotaStore.isPro) {
+    close()
+  }
 }
 
 function close() {
-	stopTicker();
-	menuStore.closeMenu(Menu.BalloonMenu);
+  stopTicker()
+  menuStore.closeMenu(Menu.BalloonMenu)
 }
 
 function onPresent() {
-	startTicker();
-	section.value = "home";
-	void loadMyBalloons();
+  startTicker()
+  section.value = 'home'
+  void loadMyBalloons()
 }
 </script>
 
@@ -287,12 +290,30 @@ function onPresent() {
 }
 
 @keyframes flyDirect {
-  0% { transform: translateX(-110px) translateY(15px) scale(0.85); opacity: 0; }
-  12% { opacity: 1; transform: translateX(-110px) translateY(15px) scale(0.95); }
-  45% { transform: translateX(110px) translateY(-5px) scale(1.05); opacity: 1; }
-  75% { transform: translateX(110px) translateY(-5px) scale(1.05); opacity: 1; }
-  88% { opacity: 0; transform: translateX(110px) translateY(-20px) scale(0.95); }
-  100% { transform: translateX(-110px) translateY(15px) scale(0.85); opacity: 0; }
+  0% {
+    transform: translateX(-110px) translateY(15px) scale(0.85);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+    transform: translateX(-110px) translateY(15px) scale(0.95);
+  }
+  45% {
+    transform: translateX(110px) translateY(-5px) scale(1.05);
+    opacity: 1;
+  }
+  75% {
+    transform: translateX(110px) translateY(-5px) scale(1.05);
+    opacity: 1;
+  }
+  88% {
+    opacity: 0;
+    transform: translateX(110px) translateY(-20px) scale(0.95);
+  }
+  100% {
+    transform: translateX(-110px) translateY(15px) scale(0.85);
+    opacity: 0;
+  }
 }
 
 /* Canvas Swing Animation Rules */
@@ -302,8 +323,12 @@ function onPresent() {
 }
 
 @keyframes swingPaper {
-  0% { transform: rotate(-12deg); }
-  100% { transform: rotate(12deg); }
+  0% {
+    transform: rotate(-12deg);
+  }
+  100% {
+    transform: rotate(12deg);
+  }
 }
 
 /* Friendship Heart Pop Animation Rules */
@@ -312,9 +337,21 @@ function onPresent() {
 }
 
 @keyframes heartPop {
-  0%, 40% { opacity: 0; transform: scale(0.4); }
-  46% { opacity: 1; transform: scale(1.4); }
-  52%, 75% { opacity: 1; transform: scale(1); }
-  82%, 100% { opacity: 0; transform: scale(0.4); }
+  0%, 40% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  46% {
+    opacity: 1;
+    transform: scale(1.4);
+  }
+  52%, 75% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  82%, 100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
 }
 </style>

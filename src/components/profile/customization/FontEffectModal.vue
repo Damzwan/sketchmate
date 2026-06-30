@@ -36,7 +36,7 @@
           >
             <!-- Live demo of the effect using the user's chosen font -->
             <span
-              class="block text-2xl font-black leading-none mb-1"
+              class="block text-3xl font-black leading-none mb-2"
               :class="FONT_EFFECT_MAP[e.value] || ''"
               :style="{ fontFamily: resolvedFontFamily, color: e.value ? undefined : '#18181b' }"
             >

@@ -32,7 +32,7 @@
             Starts a 24-hour trial to see if you vibe.
           </p>
           <div class="grid grid-cols-2 gap-3 mt-4 w-full max-w-[260px]">
-            <ion-button fill="clear" shape="round" @click="$emit('decline-invite')">
+            <ion-button fill="clear" class="text-black" shape="round" @click="$emit('decline-invite')">
               Ignore
             </ion-button>
             <ion-button color="secondary" shape="round" @click="$emit('accept-invite')">
@@ -126,7 +126,7 @@
 
         <template v-else-if="isTemporaryChat">
           <ion-icon :icon="svg(mdiClockOutline)" class="text-2xl text-secondary mb-2" />
-          <p class="text-[11px] font-black text-black/60 uppercase tracking-wider max-w-[220px]">
+          <p class="text-[11px] mb-2 font-black text-black/60 uppercase tracking-wider max-w-[220px]">
             You're in a 24-hour Trial.
           </p>
 

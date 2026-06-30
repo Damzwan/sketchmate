@@ -250,9 +250,9 @@ const fieryPits = Array.from({ length: 9 }, (_, i) => ({
   delay: `-${seededRandom(i * 11) * 5}s`,
 }))
 
-// Extended duration so the massive path sequence feels natural
+// Extended duration to support 6 complex interchanging movement profiles fluidly
 const wanderingDragons = [
-  { id: 1, size: '22rem', delay: '0s', duration: '50s' }
+  { id: 1, size: '22rem', delay: '0s', duration: '54s' }
 ]
 </script>
 
@@ -297,40 +297,52 @@ const wanderingDragons = [
   to { left: 140vw; }
 }
 
-/* ── Threatening Dragon Path ── */
+/* ── Complex, Unpredictable Dragon Flight Paths ── */
 @keyframes dragon-roam {
-  /* --- PATTERN 1: Left to Right Sweep --- */
+  /* PATTERN 1: Standard Left-to-Right High-Altitude Sweep */
   0% { left: -45vw; top: 5%; transform: rotateY(180deg); }
-  12% { left: 145vw; top: 35%; transform: rotateY(180deg); }
+  10% { left: 145vw; top: 25%; transform: rotateY(180deg); }
 
   /* INSTANT FLIP OFF-SCREEN */
-  12.001% { left: 145vw; top: -10%; transform: rotateY(0deg); }
+  10.001% { left: 145vw; top: 0%; transform: rotateY(0deg); }
 
-  /* --- PATTERN 2: Right to Left, pausing in the middle --- */
-  15% { left: 145vw; top: -10%; transform: rotateY(0deg); }
-  25% { left: 25%; top: 40%; transform: rotateY(0deg) scale(1.15); } /* Threatening stop */
-  32% { left: 25%; top: 40%; transform: rotateY(0deg) scale(1.15); }
-  42% { left: -45vw; top: 80%; transform: rotateY(0deg); }
-
-  /* INSTANT FLIP OFF-SCREEN */
-  42.001% { left: -45vw; top: 90%; transform: rotateY(180deg); }
-
-  /* --- PATTERN 3: Bottom-Left rising to Top-Right --- */
-  46% { left: -45vw; top: 90%; transform: rotateY(180deg); }
-  58% { left: 145vw; top: 0%; transform: rotateY(180deg); }
+  /* PATTERN 2: Right-to-Left Low Hover (Threatening Stare) */
+  13% { left: 145vw; top: 0%; transform: rotateY(0deg); }
+  21% { left: 15%; top: 40%; transform: rotateY(0deg) scale(1.15); }
+  27% { left: 15%; top: 40%; transform: rotateY(0deg) scale(1.15); } /* Stillness window */
+  35% { left: -45vw; top: 20%; transform: rotateY(0deg); }
 
   /* INSTANT FLIP OFF-SCREEN */
-  58.001% { left: 145vw; top: 50%; transform: rotateY(0deg); }
+  35.001% { left: -45vw; top: 75%; transform: rotateY(180deg); }
 
-  /* --- PATTERN 4: Right to Left massive swoop --- */
-  62% { left: 145vw; top: 50%; transform: rotateY(0deg); }
-  72% { left: 60%; top: 20%; transform: rotateY(0deg) scale(1.25); } /* Huge lunge */
-  82% { left: 60%; top: 20%; transform: rotateY(0deg) scale(1.25); } /* Standstill glare */
-  96% { left: -45vw; top: -20%; transform: rotateY(0deg); }
+  /* PATTERN 3: Bottom-Left Cross Ascent to Top-Right */
+  39% { left: -45vw; top: 75%; transform: rotateY(180deg); }
+  49% { left: 145vw; top: -10%; transform: rotateY(180deg); }
 
-  /* RESET */
-  99.999% { left: -45vw; top: 5%; transform: rotateY(0deg); }
-  100% { left: -45vw; top: 5%; transform: rotateY(180deg); }
+  /* INSTANT FLIP OFF-SCREEN */
+  49.001% { left: 45%; top: -45vw; transform: rotateY(180deg); }
+
+  /* PATTERN 4: Sudden Vertical Diving Ambush from Above */
+  53% { left: 45%; top: -45vw; transform: rotateY(180deg); }
+  59% { left: 40%; top: 45%; transform: rotateY(180deg) scale(1.3); } /* Close-up jump scare */
+  64% { left: 40%; top: 45%; transform: rotateY(180deg) scale(1.3); }
+  71% { left: 145vw; top: 85%; transform: rotateY(180deg); }
+
+  /* INSTANT FLIP OFF-SCREEN */
+  71.001% { left: 145vw; top: 60%; transform: rotateY(0deg); }
+
+  /* PATTERN 5: Right-to-Left Level Dash */
+  75% { left: 145vw; top: 60%; transform: rotateY(0deg); }
+  83% { left: -45vw; top: 40%; transform: rotateY(0deg); }
+
+  /* INSTANT FLIP OFF-SCREEN */
+  83.001% { left: -45vw; top: -15%; transform: rotateY(180deg); }
+
+  /* PATTERN 6: Top-Left Diagonal Slide to Centre Right Rest */
+  86% { left: -45vw; top: -15%; transform: rotateY(180deg); }
+  92% { left: 55%; top: 20%; transform: rotateY(180deg) scale(1.1); }
+  95% { left: 55%; top: 20%; transform: rotateY(180deg) scale(1.1); }
+  100% { left: 145vw; top: 10%; transform: rotateY(180deg); }
 }
 
 @keyframes fire-flicker {

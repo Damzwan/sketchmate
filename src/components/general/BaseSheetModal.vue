@@ -27,10 +27,10 @@
 
       <div class="shrink-0 pt-0 mb-2 text-center mt-2">
         <slot name="header">
-          <h1 v-if="title" class="text-4xl text-secondary font-black tracking-tighter italic leading-none">
+          <h1 v-if="title" class="text-4xl cabin-sketch-regular text-secondary font-black tracking-tighter italic leading-none">
             {{ title }}
           </h1>
-          <p v-if="subtitle" class="text-sm font-bold opacity-60 uppercase tracking-widest mt-1.5">
+          <p v-if="subtitle" class="text-sm font-bold opacity-60 uppercase tracking-widest mt-1.5 cabin-sketch-regular">
             {{ subtitle }}
           </p>
         </slot>

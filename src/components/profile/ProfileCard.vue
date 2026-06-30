@@ -239,3 +239,7 @@ const displayTitle = computed(() =>
 	resolveTitle(effectiveCustomization.value.titleId),
 );
 </script>
+
+<style scoped>
+
+</style>

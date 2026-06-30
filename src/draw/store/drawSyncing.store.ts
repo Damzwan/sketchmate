@@ -58,6 +58,7 @@ export interface PublicLobby {
 	name: string;
 	users: number;
 	maxUsers: number;
+	premiumSlots: number;
 	thumbnailUrl?: string;
 }
 

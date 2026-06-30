@@ -284,7 +284,12 @@ const handlePaste = (event: any) => {
 
 async function handleJoinPublicLobby(id: string) {
 	const lobby = publicLobbies.value.find((l) => l.id === id);
-	if (!lobby || lobby.users >= lobby.maxUsers) return;
+	if (!lobby) return;
+	// ActiveLobbies already gates capacity + VIP before emitting "join" (full →
+	// blocked; premium zone → Pro joins, non-Pro gets the upsell modal). Only
+	// guard here against a genuinely full room — base + premium slots taken —
+	// so Pro members can still claim a VIP slot when users >= maxUsers.
+	if (lobby.users >= lobby.maxUsers + lobby.premiumSlots) return;
 
 	// Set store state explicitly before calling socket join
 	publicLobbyName.value = lobby.name;

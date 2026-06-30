@@ -440,13 +440,10 @@ function executeShares() {
 </script>
 
 <style scoped>
-.cabin-sketch-regular {
-  font-family: 'Cabin Sketch', cursive !important;
-}
+
 
 ion-button {
   --border-radius: 9999px;
-  font-family: 'Cabin Sketch', cursive !important;
   font-weight: 700;
 }
 

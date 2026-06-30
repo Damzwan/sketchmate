@@ -46,7 +46,6 @@ useSwipe(toastRef, {
   --button-color: var(--ion-color-primary-contrast);
 
   &::part(message) {
-    font-family: 'Cabin Sketch', cursive;
     font-weight: bold;
     font-size: 16px;
   }

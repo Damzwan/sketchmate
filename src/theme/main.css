@@ -42,7 +42,6 @@ ion-content.my-safe-area::part(scroll) {
     --color-warning: var(--ion-color-warning);
 
     --font-display: "Cabin Sketch", sans-serif;
-    --font-sketch: "Cabin Sketch", sans-serif;
 }
 
 ion-alert.liquid-alert {

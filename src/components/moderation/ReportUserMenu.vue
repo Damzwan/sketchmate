@@ -96,9 +96,6 @@ const dismiss = () => modalController.dismiss();
 </script>
 
 <style scoped>
-.cabin-sketch-regular {
-  font-family: var(--ion-font-family, "Cabin Sketch", cursive);
-}
 
 /* Custom scroll hiding helper to match slider views */
 .hide-scrollbar::-webkit-scrollbar {

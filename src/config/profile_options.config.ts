@@ -304,6 +304,7 @@ export type EffectKind =
   | 'none'
   | 'grain'
   | 'shimmer'
+  | 'glass'
 
 export interface ProfileEffectDef {
   id: string;
@@ -341,6 +342,14 @@ export const PROFILE_EFFECTS: ProfileEffectDef[] = [
     desc: 'Rainbow sweep',
     kind: 'shimmer',
     color: 'rainbow',
+    speed: 'normal'
+  },
+
+  {
+    id: 'shattered-glass',
+    name: 'Shattered Glass',
+    desc: 'Cracked crystal & prism light',
+    kind: 'glass',
     speed: 'normal'
   }
 ]

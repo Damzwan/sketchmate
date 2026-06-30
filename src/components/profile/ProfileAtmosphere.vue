@@ -2,6 +2,8 @@
   <div
     v-if="def && def.kind !== 'none'"
     class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]"
+    :class="{ 'atmos-preview': preview }"
+    :style="preview ? { '--atmos-scale': previewScale } : undefined"
     aria-hidden="true"
   >
     <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-40">
@@ -191,8 +193,10 @@ const props = withDefaults(
     atmosphereId?: string;
     def?: AtmosphereDef;
     preview?: boolean;
+    /** Scale of the card-sized stage when in preview (1 = full card). */
+    previewScale?: number;
   }>(),
-  { preview: false }
+  { preview: false, previewScale: 0.5 }
 )
 const def = computed<AtmosphereDef>(
   () => props.def || resolveAtmosphere(props.atmosphereId)
@@ -257,16 +261,30 @@ const wanderingDragons = [
 </script>
 
 <style scoped>
+/* Preview tiles are tiny (h-28). Render the atmosphere on a full card-sized
+   stage, then scale it down so rem sprite sizes shrink proportionally and the
+   tile shows a faithful mini version instead of giant off-screen sprites.
+   Pairs with % (not vw) travel so motion stays inside the stage. */
+.atmos-preview {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: 320px;
+  height: 280px;
+  transform: translate(-50%, -50%) scale(var(--atmos-scale, 0.5));
+  transform-origin: center;
+}
+
 @keyframes turtle-swim-lane {
-  0% { left: -35vw; transform: translateY(0px) rotate(-6deg); }
+  0% { left: -35%; transform: translateY(0px) rotate(-6deg); }
   50% { transform: translateY(20px) rotate(4deg); }
-  100% { left: 135vw; transform: translateY(-5px) rotate(-3deg); }
+  100% { left: 135%; transform: translateY(-5px) rotate(-3deg); }
 }
 
 @keyframes fish-swim-lane {
-  0% { left: 135vw; transform: translateY(0px) rotate(4deg); }
+  0% { left: 135%; transform: translateY(0px) rotate(4deg); }
   50% { transform: translateY(-25px) rotate(-5deg); }
-  100% { left: -35vw; transform: translateY(0px) rotate(3deg); }
+  100% { left: -35%; transform: translateY(0px) rotate(3deg); }
 }
 
 @keyframes jellyfish-drift {
@@ -293,56 +311,56 @@ const wanderingDragons = [
 }
 
 @keyframes walker-cross {
-  from { left: -40vw; }
-  to { left: 140vw; }
+  from { left: -40%; }
+  to { left: 140%; }
 }
 
 /* ── Complex, Unpredictable Dragon Flight Paths ── */
 @keyframes dragon-roam {
   /* PATTERN 1: Standard Left-to-Right High-Altitude Sweep */
-  0% { left: -45vw; top: 5%; transform: rotateY(180deg); }
-  10% { left: 145vw; top: 25%; transform: rotateY(180deg); }
+  0% { left: -45%; top: 5%; transform: rotateY(180deg); }
+  10% { left: 145%; top: 25%; transform: rotateY(180deg); }
 
   /* INSTANT FLIP OFF-SCREEN */
-  10.001% { left: 145vw; top: 0%; transform: rotateY(0deg); }
+  10.001% { left: 145%; top: 0%; transform: rotateY(0deg); }
 
   /* PATTERN 2: Right-to-Left Low Hover (Threatening Stare) */
-  13% { left: 145vw; top: 0%; transform: rotateY(0deg); }
+  13% { left: 145%; top: 0%; transform: rotateY(0deg); }
   21% { left: 15%; top: 40%; transform: rotateY(0deg) scale(1.15); }
   27% { left: 15%; top: 40%; transform: rotateY(0deg) scale(1.15); } /* Stillness window */
-  35% { left: -45vw; top: 20%; transform: rotateY(0deg); }
+  35% { left: -45%; top: 20%; transform: rotateY(0deg); }
 
   /* INSTANT FLIP OFF-SCREEN */
-  35.001% { left: -45vw; top: 75%; transform: rotateY(180deg); }
+  35.001% { left: -45%; top: 75%; transform: rotateY(180deg); }
 
   /* PATTERN 3: Bottom-Left Cross Ascent to Top-Right */
-  39% { left: -45vw; top: 75%; transform: rotateY(180deg); }
-  49% { left: 145vw; top: -10%; transform: rotateY(180deg); }
+  39% { left: -45%; top: 75%; transform: rotateY(180deg); }
+  49% { left: 145%; top: -10%; transform: rotateY(180deg); }
 
   /* INSTANT FLIP OFF-SCREEN */
-  49.001% { left: 45%; top: -45vw; transform: rotateY(180deg); }
+  49.001% { left: 45%; top: -45%; transform: rotateY(180deg); }
 
   /* PATTERN 4: Sudden Vertical Diving Ambush from Above */
-  53% { left: 45%; top: -45vw; transform: rotateY(180deg); }
+  53% { left: 45%; top: -45%; transform: rotateY(180deg); }
   59% { left: 40%; top: 45%; transform: rotateY(180deg) scale(1.3); } /* Close-up jump scare */
   64% { left: 40%; top: 45%; transform: rotateY(180deg) scale(1.3); }
-  71% { left: 145vw; top: 85%; transform: rotateY(180deg); }
+  71% { left: 145%; top: 85%; transform: rotateY(180deg); }
 
   /* INSTANT FLIP OFF-SCREEN */
-  71.001% { left: 145vw; top: 60%; transform: rotateY(0deg); }
+  71.001% { left: 145%; top: 60%; transform: rotateY(0deg); }
 
   /* PATTERN 5: Right-to-Left Level Dash */
-  75% { left: 145vw; top: 60%; transform: rotateY(0deg); }
-  83% { left: -45vw; top: 40%; transform: rotateY(0deg); }
+  75% { left: 145%; top: 60%; transform: rotateY(0deg); }
+  83% { left: -45%; top: 40%; transform: rotateY(0deg); }
 
   /* INSTANT FLIP OFF-SCREEN */
-  83.001% { left: -45vw; top: -15%; transform: rotateY(180deg); }
+  83.001% { left: -45%; top: -15%; transform: rotateY(180deg); }
 
   /* PATTERN 6: Top-Left Diagonal Slide to Centre Right Rest */
-  86% { left: -45vw; top: -15%; transform: rotateY(180deg); }
+  86% { left: -45%; top: -15%; transform: rotateY(180deg); }
   92% { left: 55%; top: 20%; transform: rotateY(180deg) scale(1.1); }
   95% { left: 55%; top: 20%; transform: rotateY(180deg) scale(1.1); }
-  100% { left: 145vw; top: 10%; transform: rotateY(180deg); }
+  100% { left: 145%; top: 10%; transform: rotateY(180deg); }
 }
 
 @keyframes fire-flicker {

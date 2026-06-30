@@ -117,7 +117,7 @@
           >
             <template #preview>
               <div class="w-6 h-6 rounded-md bg-gradient-to-br from-blue-100 to-blue-200 overflow-hidden relative">
-                <ProfileAtmosphere :atmosphere-id="draft.atmosphereId" />
+                <ProfileAtmosphere :atmosphere-id="draft.atmosphereId" :preview="true" :preview-scale="0.085" />
               </div>
             </template>
           </CustomizeOptionRow>

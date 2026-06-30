@@ -265,7 +265,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
       noteRegion(oldRect ? unionRect(cur, oldRect) : cur);
       return;
     }
-    core.onObjectChangedCoalesced(obj, oldRect); // streamed remote drag
+    core.onObjectChangedCoalesced(obj, oldRect);
   }
 
   function handleStyleChange(e: any) {

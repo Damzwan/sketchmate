@@ -638,6 +638,22 @@ export class CommittedLayer<T extends Bounded> {
     return true
   }
 
+  /** True only if EVERY active-tier tile the rect covers is present, has a
+   *  bitmap, and is fresh — i.e. additiveStamp would FULLY cover the rect. A
+   *  partial stamp would leave stale tiles showing old content with no live
+   *  fallback (the draw-commit flicker), so callers gate stamping on this. */
+  canStampAll(rect: WorldRect, tier: number): boolean {
+    if (tier < 0 || tier >= this.ZOOM_TIERS.length) return false
+    const r = this.tileRange(rect, tier)
+    for (let ty = r.ty0; ty <= r.ty1; ty++)
+      for (let tx = r.tx0; tx <= r.tx1; tx++) {
+        const key = `${tier}:${tx}:${ty}`
+        const t = this.tiles.get(key)
+        if (!t || !t.bitmap || !this.isFresh(key, t)) return false
+      }
+    return true
+  }
+
   // ── memory + pool ─────────────────────────────────────────────────────────
   private ensureMemory(need: number): boolean {
     if (this.memoryBytes + need <= this.MEM_HARD) return true

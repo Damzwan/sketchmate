@@ -214,19 +214,22 @@ export class RenderCore<T extends Bounded> {
       topmost && stampSafe &&
       tier > this.committed.overviewTier &&
       !this.gesturing &&
-      this.intersectsView(rect)
+      this.intersectsView(rect) &&
+      // All-or-nothing: only stamp when EVERY covered tile is stampable.
+      // A partial stamp leaves stale tiles with no live fallback → flicker.
+      this.committed.canStampAll(rect, tier)
 
     if (canStamp) {
       this.committed.dropOtherTiers(rect, tier)
-      const stamped = this.committed.additiveStamp(rect, obj, tier)
+      this.committed.additiveStamp(rect, obj, tier)
       this.patchOverview(rect)
-      if (!stamped) this.live.add(obj, rect, 'normal')
       this.requestFrame()
       this.scheduleBake()
       return
     }
 
-    // Fallback: full rebuild + live overlay for multiply/blend strokes.
+    // Fallback: full rebuild + live overlay for multiply/blend strokes,
+    // and for any stroke that wasn't fully stampable (covered by live here).
     this.additiveInvalidate(rect)
     if (this.intersectsView(rect) && topmost) this.live.add(obj, rect, 'normal')
     this.requestFrame()

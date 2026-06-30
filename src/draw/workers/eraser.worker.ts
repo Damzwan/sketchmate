@@ -9,6 +9,7 @@ import { BucketFillPath } from '@/draw/utils/BucketFillPath'
 import { CircleStroke } from '@/draw/utils/brushes/CustomCircleBrush'
 import { NeonStroke } from '@/draw/utils/brushes/NeonSignBrush'
 import { SprayStroke } from '@/draw/utils/brushes/CustomSprayBrush'
+import { CrayonStroke } from '@/draw/utils/brushes/CrayonBrush'
 
 // --- MOCK DOM & DISGUISE (Copied from your stable Preview Worker) ---
 const applyCanvasDisguise = (canvas: any) => {
@@ -121,6 +122,7 @@ self.onmessage = async (e: MessageEvent) => {
       [CircleStroke, CircleStroke.type],
       [SprayStroke, SprayStroke.type],
       [NeonStroke, NeonStroke.type],
+      [CrayonStroke, CrayonStroke.type]
     ] as const
     brushes.forEach(([cls, name]) => classRegistry.setClass(cls, name))
 

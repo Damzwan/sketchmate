@@ -26,6 +26,7 @@ import { useGestureStore } from '@/draw/store/tools/gesture.store'
 import * as transform from '@/draw/transform/transformController'
 import { NeonStroke } from '@/draw/utils/brushes/NeonSignBrush'
 import { SprayStroke } from '@/draw/utils/brushes/CustomSprayBrush'
+import { CrayonStroke } from '@/draw/utils/brushes/CrayonBrush'
 
 export function changeFabricSettings() {
   FabricObject.prototype.objectCaching = false
@@ -51,7 +52,8 @@ export function changeFabricSettings() {
     [OptimizedPencilStroke, 'OptimizedPencilStroke'],
     [NeonStroke, NeonStroke.type],
     [SprayStroke, SprayStroke.type],
-    [CircleStroke, CircleStroke.type]
+    [CircleStroke, CircleStroke.type],
+    [CrayonStroke, CrayonStroke.type]
   ] as const
   brushes.forEach(([cls, name]) => classRegistry.setClass(cls, name))
 

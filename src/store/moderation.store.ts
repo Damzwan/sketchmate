@@ -22,11 +22,20 @@ import {
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import { useToast } from "@/service/toast.service";
+import { blockUser } from "@/service/api/relationship.api";
+import { useFriendStore } from "@/store/friend.store";
 
 export interface ReportTarget {
 	type: ReportableType;
 	id: string;
 	label?: string;
+	/**
+	 * The author/owner to optionally block alongside the report. For a
+	 * `type: 'user'` report this is implicitly `id`; for content reports
+	 * (post/comment/message) pass the author's user id so the "also block"
+	 * option can be offered.
+	 */
+	blockUserId?: string;
 }
 export const useModerationStore = defineStore("moderation", () => {
 	const restriction = ref<UserRestriction | null>(null);
@@ -180,13 +189,25 @@ export const useModerationStore = defineStore("moderation", () => {
 		targetToReport.value = null;
 	}
 
-	async function submitReport(reason: ReportReason, details?: string) {
+	/** The user that "also block" would act on, or null if none is known. */
+	const blockableUserId = computed(() => {
+		const t = targetToReport.value;
+		if (!t) return null;
+		return t.type === "user" ? t.id : (t.blockUserId ?? null);
+	});
+
+	async function submitReport(
+		reason: ReportReason,
+		details?: string,
+		alsoBlock = false,
+	) {
 		if (!targetToReport.value) return false;
 		if (isSubmittingReport.value) return false;
 
 		isSubmittingReport.value = true;
 		const { toast } = useToast();
 		const { id, type } = targetToReport.value;
+		const userToBlock = alsoBlock ? blockableUserId.value : null;
 
 		try {
 			switch (type) {
@@ -219,9 +240,21 @@ export const useModerationStore = defineStore("moderation", () => {
 					console.warn("Unknown report target type:", type);
 					return false;
 			}
-			toast("Report submitted. Thanks for keeping the community safe.", {
-				color: "success",
-			});
+			if (userToBlock) {
+				try {
+					await blockUser(userToBlock);
+					useFriendStore().blockUserLocally(userToBlock);
+				} catch (e) {
+					console.error("block after report failed:", e);
+				}
+			}
+
+			toast(
+				userToBlock
+					? "Report submitted and user blocked."
+					: "Report submitted. Thanks for keeping the community safe.",
+				{ color: "success" },
+			);
 			targetToReport.value = null;
 			return true;
 		} catch (e) {
@@ -251,6 +284,7 @@ export const useModerationStore = defineStore("moderation", () => {
 		reset,
 		targetToReport,
 		isSubmittingReport,
+		blockableUserId,
 		openReport,
 		clearReportTarget,
 		submitReport,

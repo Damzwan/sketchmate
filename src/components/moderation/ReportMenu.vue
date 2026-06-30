@@ -35,6 +35,17 @@
         :maxlength="500"
       />
 
+      <ion-checkbox
+        v-if="canBlock"
+        v-model="alsoBlock"
+        mode="md"
+        color="secondary"
+        label-placement="end"
+        class="cabin-sketch-regular mt-4"
+      >
+        Also block this user
+      </ion-checkbox>
+
       <div class="flex justify-end mt-4 gap-2">
         <ion-button fill="clear" color="medium" @click="close">Cancel</ion-button>
         <ion-button
@@ -53,6 +64,7 @@
 import { computed, ref, watch } from "vue";
 import {
 	IonButton,
+	IonCheckbox,
 	IonIcon,
 	IonModal,
 	IonRadio,
@@ -71,10 +83,16 @@ const menuStore = useMenuStore();
 const moderationStore = useModerationStore();
 
 const { reportMenuOpen } = storeToRefs(menuStore);
-const { targetToReport, isSubmittingReport } = storeToRefs(moderationStore);
+const { targetToReport, isSubmittingReport, blockableUserId } =
+	storeToRefs(moderationStore);
 
 const reason = ref<ReportReason | null>(null);
 const details = ref("");
+const alsoBlock = ref(false);
+
+// Offer "also block" only when the report has a user we can block (a user
+// report, or a content report whose author id was supplied).
+const canBlock = computed(() => !!blockableUserId.value);
 
 // Adjust these to match your actual ReportReason enum values.
 const reasonOptions: { value: ReportReason; label: string }[] = [
@@ -117,6 +135,7 @@ watch(targetToReport, (v) => {
 	if (v) {
 		reason.value = null;
 		details.value = "";
+		alsoBlock.value = false;
 	}
 });
 
@@ -134,6 +153,7 @@ async function submit() {
 	const ok = await moderationStore.submitReport(
 		reason.value,
 		details.value || undefined,
+		alsoBlock.value,
 	);
 	if (ok) close();
 }

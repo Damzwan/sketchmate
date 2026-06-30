@@ -24,8 +24,8 @@
         @click="$emit('inspect-profile', $event, sender)"
         class="flex items-center gap-1.5 px-2 py-0.5 cursor-pointer active:opacity-60 transition-opacity"
       >
-        <div class="origin-left scale-[0.7] w-6 h-6 flex items-center justify-center -mr-1.5">
-          <UserAvatar v-if="sender" :user="sender" :customization="senderCustomization" size="xs" static />
+        <div class="origin-left scale-[0.7] w-8 h-8 flex items-center justify-center -mr-1.5">
+          <UserAvatar v-if="sender" :user="sender" :customization="senderCustomization" size="xs" static class="shrink-0" />
         </div>
         <span class="text-[10px] font-black cabin-sketch-regular text-black/40 uppercase tracking-tight">
           <span class="text-black/60">{{ sender?.name }}</span>
@@ -37,10 +37,10 @@
     <!-- STANDARD USER MESSAGES -->
     <div  v-else class="flex items-start gap-2.5 px-0.5 py-0.5 w-full" :class="{'flex-row-reverse': isMe, 'mt-[-5px]': isCompact}">
       <!-- External Partner User Avatar Node -->
-      <div class="w-7 h-7 shrink-0 flex items-end justify-center cursor-pointer" v-if="!isMe && !isCompact" @click="$emit('inspect-profile', $event, sender)">
-        <UserAvatar v-if="sender" :user="sender" :customization="senderCustomization" size="xs" static class="border border-black/5" />
+      <div class="w-8 h-8 shrink-0 flex items-center justify-center cursor-pointer" v-if="!isMe && !isCompact" @click="$emit('inspect-profile', $event, sender)">
+        <UserAvatar v-if="sender" :user="sender" :customization="senderCustomization" size="xs" static class="shrink-0" />
       </div>
-      <div v-else-if="!isMe" class="w-7 shrink-0"></div>
+      <div v-else-if="!isMe" class="w-8 shrink-0"></div>
 
       <div class="flex flex-col max-w-[75%] overflow-visible" :class="{ 'items-end': isMe }">
 
@@ -109,7 +109,7 @@
         <!-- STANDALONE MICRO SKETCH BUBBLE (TEXT LAYOUT CONSOLE) -->
         <div
           v-else
-          class="py-2 px-3 text-[14px] shadow-sm cabin-sketch-regular tracking-wide relative max-w-full overflow-visible"
+          class="py-2 px-3 text-[15px] shadow-sm cabin-sketch-regular tracking-wide relative max-w-full overflow-visible"
           :class="isMe
             ? 'bg-secondary text-white rounded-2xl rounded-tr-sm'
             : 'bg-white text-black rounded-2xl rounded-tl-sm border border-primary/40'"
@@ -127,7 +127,7 @@
           <div class="font-bold leading-snug break-words pr-2">{{ msg.content || msg.message }}</div>
 
           <!-- Micro Sync Data Pips -->
-          <div class="text-[7px] mt-1 font-sans opacity-60 flex justify-end items-center gap-0.5 select-none leading-none">
+          <div class="text-[10px] mt-1 cabin-sketch-regular opacity-80 flex justify-end items-center gap-0.5 select-none leading-none">
             <span>{{ dayjs(msg.createdAt).format('HH:mm') }}</span>
             <span  v-if="isMe && activeTab !== 'lobby'" class="text-[9px] flex items-center leading-none">
               <ion-icon v-if="msg.status === 'sending'" :icon="timeOutline" class="opacity-50" />

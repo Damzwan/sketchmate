@@ -24,11 +24,11 @@
           color="secondary"
           @click="handleInviteClick"
           :disabled="!chatStore.canSendMessage(activeTab)"
-          class="m-0 h-11 w-11 text-xl shrink-0"
           :title="activeTab === 'lobby' ? 'Invite to Lobby' : 'Draw Together'"
         >
           <ion-icon
             slot="icon-only"
+            class="text-2xl"
             :icon="activeTab === 'lobby' ? svg(mdiAccountMultiplePlusOutline) : svg(mdiDraw)"
           />
         </ion-button>
@@ -54,9 +54,8 @@
             @mousedown.prevent
             @click="handleSend"
             :disabled="!inputText.trim()"
-            class="m-0 h-9 w-9 text-base shrink-0"
           >
-            <ion-icon slot="icon-only" :icon="svg(mdiSend)" class="ml-0.5" />
+            <ion-icon slot="icon-only" :icon="svg(mdiSend)" class="text-xl ml-0.5" />
           </ion-button>
 
           <div v-else class="w-9 h-9 flex items-center justify-center opacity-30 text-secondary shrink-0">

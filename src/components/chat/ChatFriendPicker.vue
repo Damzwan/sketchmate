@@ -1,14 +1,29 @@
 <template>
-  <div class="animate-fade-in space-y-6 pb-20 px-2">
-    <div class="flex items-center justify-between p-2">
-      <span class="text-2xl font-normal cabin-sketch-regular text-black">Select Mate</span>
+  <div class="animate-fade-in flex flex-col gap-3 pb-6 px-0.5">
+    <div class="flex items-center justify-between px-1">
+      <span class="text-2xl font-normal cabin-sketch-regular text-black tracking-tight">New Message</span>
       <button
         @click="$emit('cancel')"
-        class="text-xs font-black text-secondary uppercase tracking-widest active:opacity-50"
+        class="text-[10px] font-black text-secondary uppercase tracking-widest active:opacity-50"
       >
         Cancel
       </button>
     </div>
+
+    <!-- Add a friend — always available, opens the connection flow -->
+    <button
+      @click="openConnectionMenu"
+      class="group w-full flex items-center gap-3 p-3 rounded-[1.6rem] border border-secondary/40 bg-secondary/5 shadow-sm transition-all active:scale-[0.98] text-left"
+    >
+      <span class="shrink-0 flex items-center justify-center w-11 h-11 rounded-full bg-secondary text-white shadow-sm transition-transform group-hover:scale-105">
+        <ion-icon :icon="svg(mdiAccountPlusOutline)" class="text-xl" />
+      </span>
+      <div class="flex flex-col min-w-0">
+        <span class="text-base leading-none font-black text-black">Add a Friend</span>
+        <span class="text-[12px] cabin-sketch-regular font-bold text-black/50 mt-0.5">Grow your circle of mates</span>
+      </div>
+      <ion-icon :icon="svg(mdiChevronRight)" class="ml-auto shrink-0 text-secondary text-lg transition-transform group-hover:translate-x-0.5" />
+    </button>
 
     <!-- Loading state — only show on first ever load -->
     <div v-if="loading && friends.length === 0" class="flex items-center justify-center py-12">
@@ -18,13 +33,13 @@
     <!-- Empty state -->
     <div
       v-else-if="friends.length === 0"
-      class="text-center py-12 bg-white/20 rounded-[2.5rem] border-2 border-dashed border-black/5"
+      class="text-center py-10 bg-white rounded-[2rem] border border-dashed border-primary/40"
     >
-      <p class="text-sm font-bold text-black/30 italic">No mates yet. Start sketching!</p>
+      <p class="cabin-sketch-regular text-base font-bold text-black/40">No mates yet. Add a friend above!</p>
     </div>
 
-    <div v-else class="space-y-2">
-      <p class="text-[10px] font-black text-black/30 uppercase px-2 tracking-widest">
+    <div v-else class="flex flex-col gap-2">
+      <p class="text-[9px] font-black text-black/40 uppercase px-1 tracking-widest">
         Your Mates
       </p>
 
@@ -33,14 +48,14 @@
         :key="friend._id"
         @click="!isDisabled(friend) && $emit('select-friend', friend)"
         :disabled="isDisabled(friend)"
-        class="group relative w-full flex items-center p-3 backdrop-blur-md rounded-[1.5rem] border transition-all cursor-pointer overflow-hidden active:scale-[0.98] text-left"
+        class="group relative w-full flex items-center gap-3 p-3 rounded-[1.6rem] border transition-all cursor-pointer overflow-hidden active:scale-[0.98] text-left"
         :class="[
           isDisabled(friend)
-            ? 'bg-zinc-200/40 border-zinc-300/40 opacity-75 grayscale'
-            : 'bg-white/40 border-white/60 shadow-sm hover:bg-white/60'
+            ? 'bg-black/5 border-black/5 opacity-60 grayscale'
+            : 'bg-white border-primary/30 shadow-sm hover:border-primary'
         ]"
       >
-        <div class="relative flex-shrink-0 flex items-center justify-center">
+        <div class="relative shrink-0 flex items-center justify-center">
           <UserAvatar
             :user="friend"
             :customization="friend.customization"
@@ -52,11 +67,11 @@
           ></div>
         </div>
 
-        <div class="flex flex-col ml-3.5 flex-1 min-w-0">
-          <span class="text-base leading-none font-black truncate text-black">
+        <div class="flex flex-col flex-1 min-w-0">
+          <span class="text-[14px] leading-none font-black truncate tracking-tight text-black">
             {{ friend.name }}
           </span>
-          <p class="text-[13px] truncate cabin-sketch-regular tracking-wide pr-2 mt-0.5" :class="isDisabled(friend) ? 'font-bold text-red-500' : 'font-bold text-black/60'">
+          <p class="text-[12px] truncate cabin-sketch-regular tracking-wide pr-2 mt-1 leading-none" :class="isDisabled(friend) ? 'font-bold text-red-500' : 'font-bold text-black/50'">
             <span v-if="isDisabled(friend)">Needs update to chat</span>
             <span v-else-if="isFriendOnline(friend._id)" class="text-green-600">Online now</span>
             <span v-else>Offline</span>
@@ -70,12 +85,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { IonSpinner } from "@ionic/vue";
-import { compareVersions } from "@/helper/general.helper";
+import { IonSpinner, IonIcon } from "@ionic/vue";
+import { mdiAccountPlusOutline, mdiChevronRight } from "@mdi/js";
+import { compareVersions, svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
 
 const props = defineProps<{
 	minChatVersion: string;
@@ -85,7 +103,10 @@ defineEmits(["cancel", "select-friend"]);
 
 const authStore = useAuthStore();
 const friendStore = useFriendStore();
+const menuStore = useMenuStore();
 const { allConnectedPartners, isFriendOnline } = storeToRefs(friendStore);
+
+const openConnectionMenu = () => menuStore.openMenu(Menu.ConnectionMenu);
 
 const loading = ref(false);
 

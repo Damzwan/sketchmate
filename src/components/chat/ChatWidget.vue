@@ -22,7 +22,7 @@
       <div
         @scroll="onScroll"
         @touchmove.stop
-        class="flex-1 overflow-y-auto relative hide-scrollbar px-4 py-3"
+        class="flex-1 overflow-y-auto relative hide-scrollbar px-3 py-3"
         ref="messageContainer"
       >
         <ChatOverview

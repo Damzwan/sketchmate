@@ -77,7 +77,7 @@
             <ion-icon :icon="svg(mdiHeart)" class="text-2xl text-secondary mb-2 animate-bounce" />
             <h3 class="cabin-sketch-regular text-base font-black text-black">{{ partner?.name }} wants to be Mates!</h3>
             <div class="grid grid-cols-2 gap-2.5 w-full max-w-[240px]">
-              <ion-button fill="clear" class="text-black" shape="round" @click="$emit('decline')">Decline</ion-button>
+              <ion-button fill="clear" color="dark" shape="round" @click="$emit('decline')">Decline</ion-button>
               <ion-button color="secondary" shape="round" @click="$emit('accept')">Accept</ion-button>
             </div>
           </div>
@@ -148,7 +148,6 @@
             color="secondary"
             shape="round"
             @click="$emit('request')"
-            class="mt-2"
           >
             <ion-icon :icon="svg(mdiHeart)" slot="start" class="text-xs mr-1" />
             Become Mates

@@ -68,11 +68,11 @@
         </div>
       </div>
 
-      <div v-if="activeTab !== 'lobby'" class="flex items-center gap-1.5 shrink-0">
+      <div v-if="activeTab !== 'lobby'" class="flex items-center shrink-0">
         <ion-button
           @click="$emit('open-report', partner)"
           fill="clear"
-          class="h-9 w-9 rounded-xl active:scale-90 transition-all text-black/30 hover:text-black [--padding-start:0] [--padding-end:0]"
+          color="dark"
         >
           <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg" slot="icon-only" />
         </ion-button>

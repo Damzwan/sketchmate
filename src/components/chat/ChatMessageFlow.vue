@@ -15,9 +15,11 @@
           {{ partner?.name }}<br />
           <span class="text-[9px] opacity-40 uppercase tracking-widest font-sans font-black">is blocked</span>
         </h3>
-        <ion-button color="dark" fill="outline" class="mt-6 font-black text-[9px] tracking-widest custom-rounded-button w-full" @click="openUserActions(partner)">
-          Manage Artist
-        </ion-button>
+        <div class="mt-6">
+          <ion-button color="dark" fill="outline" expand="block" @click="openUserActions(partner)">
+            Manage Artist
+          </ion-button>
+        </div>
       </div>
     </div>
 
@@ -71,7 +73,7 @@
             </p>
           </div>
 
-          <ion-button color="secondary" expand="block" class="w-full font-black text-[10px] tracking-widest custom-rounded-button shadow-sm" @click="$emit('join-session', activeInvite.roomId)">
+          <ion-button color="secondary" expand="block" @click="$emit('join-session', activeInvite.roomId)">
             Join Session
           </ion-button>
         </div>

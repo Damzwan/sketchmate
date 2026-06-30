@@ -1,31 +1,45 @@
 // ─── TITLES ──────────────────────────────────────────────────────────────────
+// Titles are NOT purchasable — they're earned through engagement. Each carries a
+// `howTo` line surfaced in the clickable title badge to drive that engagement.
+// Ownership lives in inventory under `title.<id>` (see buildItemId). `id: ''` is
+// the always-free "no title" option.
 export interface Title {
   id: string;
   name: string;
   emoji: string;
   desc: string;
+  /** How a user earns this title — shown in the title badge explainer. */
+  howTo: string;
 }
 
 export const TITLES: Title[] = [
-  { id: 'doodler', name: 'Doodler', emoji: '✏️', desc: 'Sketches with heart' },
   {
-    id: 'visionary',
-    name: 'Visionary',
-    emoji: '👁️',
-    desc: 'Sees what others miss'
-  },
-  { id: 'maestro', name: 'Maestro', emoji: '🎼', desc: 'Master of the craft' },
-  {
-    id: 'wanderer',
-    name: 'Wanderer',
-    emoji: '🌙',
-    desc: 'Drawn to the unknown'
+    id: '',
+    name: 'None',
+    emoji: '🚫',
+    desc: 'No title shown',
+    howTo: 'Hide your title.'
   },
   {
-    id: 'pioneer',
-    name: 'Pioneer',
-    emoji: '🚀',
-    desc: 'First through the door'
+    id: 'early-tester',
+    name: 'Early Tester',
+    emoji: '🌱',
+    desc: 'Here in the early days',
+    howTo: 'Joined during the early days.'
+  },
+  {
+    id: 'contributor',
+    name: 'Contributor',
+    emoji: '💡',
+    desc: 'Helped shape the app',
+    howTo: 'Send feedback by pressing the lightbulb icon (top right).'
+  },
+  {
+    id: 'supporter',
+    name: 'Supporter',
+    emoji: '❤️',
+    desc: 'Backed the project',
+    howTo: 'Make any purchase.'
   }
 ]
 
@@ -432,6 +446,10 @@ export const resolveTitle = (id?: string): string => {
   if (!id) return ''
   return TITLES.find((t) => t.id === id)?.name || ''
 }
+
+/** Full title definition (name + emoji + howTo) for the clickable badge. */
+export const resolveTitleDef = (id?: string): Title | undefined =>
+  id ? TITLES.find((t) => t.id === id) : undefined
 
 export const NAME_CHANGE_COOLDOWN_DAYS = 31
 

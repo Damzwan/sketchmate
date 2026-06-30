@@ -24,6 +24,12 @@
             </div>
           </template>
 
+          <template v-else-if="toast.kind === 'title'">
+            <div class="w-10 h-10 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center text-xl shadow-md">
+              {{ toast.emoji }}
+            </div>
+          </template>
+
           <template v-else>
             <img
               :src="toast.thumbnail"
@@ -43,7 +49,7 @@
               {{ kindLabel(toast.kind) }}
             </span>
             <span
-              v-if="toast.kind !== 'balloon'"
+              v-if="toast.kind !== 'balloon' && toast.kind !== 'title'"
               class="text-[7px] font-black text-white/40 uppercase"
             >
               Tap to view
@@ -95,6 +101,8 @@ const borderColor = (kind: ShareToastKind) => {
 			return "bg-amber-400 animate-pulse";
 		case "saved":
 			return "bg-emerald-400"; // Fresh green for success
+		case "title":
+			return "bg-fuchsia-400";
 	}
 };
 
@@ -108,6 +116,8 @@ const kindLabel = (kind: ShareToastKind) => {
 			return "Balloon";
 		case "saved":
 			return "Library";
+		case "title":
+			return "Title Earned";
 	}
 };
 

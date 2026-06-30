@@ -48,13 +48,12 @@
                 ></div>
               </div>
 
-              <span
-                v-if="displayTitle"
-                class="mt-4 text-[10px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full transition-colors duration-500"
-                :style="{ background: theme.titleBg, color: theme.nameColor }"
-              >
-                {{ displayTitle }}
-              </span>
+              <TitleBadge
+                v-if="effectiveCustomization.titleId"
+                :title-id="effectiveCustomization.titleId"
+                :theme="theme"
+                extra-class="mt-4"
+              />
 
               <h2
                 class="text-3xl font-black mt-2 leading-tight drop-shadow-sm transition-colors duration-500"
@@ -186,6 +185,7 @@ import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
+import TitleBadge from "@/components/profile/TitleBadge.vue";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -206,7 +206,6 @@ import {
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
-	resolveTitle,
 } from "@/config/profile_options.config";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
@@ -246,9 +245,6 @@ const resolvedFontFamily = computed(() =>
 );
 const fontEffectClass = computed(() =>
 	resolveFontEffectClass(effectiveCustomization.value.fontEffectId),
-);
-const displayTitle = computed(() =>
-	resolveTitle(effectiveCustomization.value.titleId),
 );
 const signatureStrokeWidth = computed(() =>
 	calculateSignatureStroke(effectiveCustomization.value.signatureViewBox),

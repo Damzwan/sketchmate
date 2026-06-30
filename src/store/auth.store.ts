@@ -33,6 +33,7 @@ import { useInAppNotificationStore } from '@/store/inAppNotificationStore'
 import { refreshPublicLobbies } from '@/service/api/socket/drawSyncing.socket'
 import { useDateOfBirthModalStore } from '@/store/dateOfBirth.store'
 import { useInventoryStore } from '@/store/inventory.store'
+import { useShareToastStore } from '@/draw/store/useShareToastStore.store'
 import { useSubscriptionStore } from '@/store/subscription.store'
 import { Purchases } from '@revenuecat/purchases-capacitor'
 
@@ -293,6 +294,17 @@ export const useAuthStore = defineStore("auth", () => {
 					fingerprint: deviceFingerprint.value,
 					loggedIn: true,
 				});
+			}
+
+			// Backfill server-verifiable titles (early-tester, supporter) once per
+			// login, not on every picker open. Toast anything newly earned.
+			if (opts.arrivedFromLogin) {
+				void useInventoryStore()
+					.syncTitles()
+					.then((granted) => {
+						for (const id of granted)
+							useShareToastStore().pushTitleToast(id);
+					});
 			}
 
 			lastHydratedAt.value = Date.now();

@@ -10,7 +10,7 @@
           Artist Title
         </h1>
         <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-1">
-          Your Earned Honors
+          Earned, never bought
         </p>
       </div>
     </template>
@@ -24,10 +24,13 @@
         v-for="title in TITLES"
         :key="title.id"
         class="group relative flex items-center gap-4 p-4 rounded-[2rem] border transition-all duration-300 active:scale-[0.97]"
-        :class="localSelection === title.id
-          ? 'bg-white border-secondary shadow-md'
-          : 'bg-white/40 border-white shadow-sm hover:bg-white/60'"
-        @click="localSelection = localSelection === title.id ? '' : title.id"
+        :class="[
+          localSelection === title.id
+            ? 'bg-white border-secondary shadow-md'
+            : 'bg-white/40 border-white shadow-sm hover:bg-white/60',
+          !isUnlocked(title.id) && 'opacity-95'
+        ]"
+        @click="onTap(title)"
       >
         <div
           class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 transition-all"
@@ -43,16 +46,24 @@
           >
             {{ title.name }}
           </span>
-          <p class="text-[11px] font-bold text-black/40 mt-1 leading-tight italic">
-            {{ title.desc }}
+          <p class="text-[11px] font-bold mt-1 leading-tight italic"
+             :class="isUnlocked(title.id) ? 'text-black/40' : 'text-secondary/80'">
+            {{ title.howTo }}
           </p>
         </div>
 
         <div
+          v-if="isUnlocked(title.id)"
           class="w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
           :class="localSelection === title.id ? 'bg-secondary border-secondary shadow-lg' : 'border-black/5 bg-black/5'"
         >
           <ion-icon v-if="localSelection === title.id" :icon="svg(mdiCheck)" class="text-white text-lg" />
+        </div>
+        <div
+          v-else
+          class="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center shrink-0"
+        >
+          <ion-icon :icon="svg(mdiLockOutline)" class="text-black/40 text-base" />
         </div>
       </div>
     </div>
@@ -74,39 +85,56 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiCheck } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { TITLES } from "../../../config/profile_options.config";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { ref, watch } from 'vue'
+import { IonButton, IonIcon } from '@ionic/vue'
+import { mdiCheck, mdiLockOutline } from '@mdi/js'
+import { svg } from '@/helper/general.helper'
+import { TITLES, type Title } from '@/config/profile_options.config'
+import { buildItemId } from '@/config/catalog.config'
+import { useInventoryStore } from '@/store/inventory.store'
+import { useToast } from '@/service/toast.service'
+import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
 
 const props = defineProps<{
-	isOpen: boolean;
-	currentTitleId: string;
-}>();
+  isOpen: boolean;
+  currentTitleId: string;
+}>()
 
-const emit = defineEmits(["close", "select"]);
+const emit = defineEmits(['close', 'select'])
 
-const localSelection = ref(props.currentTitleId);
+const inventoryStore = useInventoryStore()
+const { toast } = useToast()
+
+const localSelection = ref(props.currentTitleId)
+
+// "None" (id: '') is always available; everything else needs the inventory item.
+const isUnlocked = (id: string): boolean =>
+  !id || inventoryStore.isOwned(buildItemId('title', id))
 
 watch(
-	() => props.isOpen,
-	(open) => {
-		if (open) localSelection.value = props.currentTitleId;
-	},
-);
+  () => props.isOpen,
+  (open) => {
+    if (open) localSelection.value = props.currentTitleId
+  }
+)
+
+const onTap = (title: Title) => {
+  if (!isUnlocked(title.id)) {
+    toast(title.howTo, { color: 'secondary' })
+    return
+  }
+  localSelection.value = localSelection.value === title.id ? '' : title.id
+}
 
 const confirmSelection = () => {
-	emit("select", localSelection.value);
-	emit("close");
-};
+  if (!isUnlocked(localSelection.value)) return
+  emit('select', localSelection.value)
+  emit('close')
+}
 
 const handleDismiss = () => {
-	emit("close");
-};
+  emit('close')
+}
 </script>
 
-<style scoped>
-/* No internal alignment overrides needed anymore! */
-</style>
+<style scoped></style>

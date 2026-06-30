@@ -59,13 +59,12 @@
           </div>
 
           <div class="text-center mt-4 w-full flex flex-col items-center relative z-10">
-            <span
-              v-if="displayTitle"
-              class="text-[10px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full mb-1 transition-colors duration-500"
-              :style="{ background: theme.titleBg, color: theme.nameColor }"
-            >
-              {{ displayTitle }}
-            </span>
+            <TitleBadge
+              v-if="effectiveCustomization.titleId"
+              :title-id="effectiveCustomization.titleId"
+              :theme="theme"
+              extra-class="mb-1"
+            />
 
             <h2
               class="text-3xl font-black drop-shadow-sm transition-colors duration-500"
@@ -175,6 +174,7 @@ import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
+import TitleBadge from "@/components/profile/TitleBadge.vue";
 
 import {
 	calculateSignatureStroke,
@@ -183,7 +183,6 @@ import {
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
-	resolveTitle,
 	type Customization,
 } from "@/config/profile_options.config";
 
@@ -234,9 +233,6 @@ const getStatCount = (key: "mates" | "followers" | "following") =>
 	props.user.stats?.[key] || 0;
 const signatureStrokeWidth = computed(() =>
 	calculateSignatureStroke(effectiveCustomization.value.signatureViewBox),
-);
-const displayTitle = computed(() =>
-	resolveTitle(effectiveCustomization.value.titleId),
 );
 </script>
 

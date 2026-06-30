@@ -88,6 +88,7 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		if (isSuccess) {
 			showConfetti.value = true;
 			isPro.value = true;
+			useInventoryStore().grantOptimistic(["title.supporter"]);
 			await syncWithBackend(true);
 		} else {
 			await checkProStatus();
@@ -165,9 +166,10 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 				);
 			}
 
-			// Optimistic update — UI feels instant
+			// Optimistic update — UI feels instant. Any purchase also earns the
+			// Supporter title (backend reconciles via webhook + title sync).
 			const inventoryStore = useInventoryStore();
-			inventoryStore.grantOptimistic(grantsForSku(skuId));
+			inventoryStore.grantOptimistic([...grantsForSku(skuId), "title.supporter"]);
 
 			// Reconcile with backend after webhook has a chance to fire (~2-3s)
 			setTimeout(() => {

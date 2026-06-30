@@ -3,8 +3,9 @@ import { ref, computed } from "vue";
 import type { FeedPost, InboxItem } from "@/types/server.types";
 import { useInboxStore } from "@/store/inbox.store";
 import { usePostStore } from "@/store/post.store";
+import { resolveTitleDef } from "@/config/profile_options.config";
 
-export type ShareToastKind = "drawing" | "post" | "balloon" | "saved";
+export type ShareToastKind = "drawing" | "post" | "balloon" | "saved" | "title";
 
 export interface ShareToast {
 	id: string;
@@ -12,6 +13,7 @@ export interface ShareToast {
 	title: string;
 	subtitle: string;
 	thumbnail?: string;
+	emoji?: string;
 
 	// Add optional field for saved drawing reference
 	inboxId?: string;
@@ -105,6 +107,23 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		});
 	}
 
+	/** Title earned — emoji-led toast, no thumbnail. Accepts a bare title id
+	 *  (`early-tester`) or an inventory item id (`title.early-tester`). Returns
+	 *  false if the title is unknown so callers don't fire on garbage. */
+	function pushTitleToast(titleOrItemId: string): boolean {
+		const id = titleOrItemId.replace(/^title\./, "");
+		const def = resolveTitleDef(id);
+		if (!def) return false;
+		push({
+			id: `toast-${Date.now()}-${id}`,
+			kind: "title",
+			title: `${def.name} unlocked!`,
+			subtitle: def.desc,
+			emoji: def.emoji,
+		});
+		return true;
+	}
+
 	return {
 		toasts,
 		dismiss,
@@ -114,5 +133,6 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		getPost,
 		pushBalloonToast,
 		pushSavedToast,
+		pushTitleToast,
 	};
 });

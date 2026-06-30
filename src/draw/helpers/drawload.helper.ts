@@ -79,6 +79,53 @@ export async function enlivenObjectsTimeSlivered(
 	}
 }
 
+/**
+ * Enliven a JSON array into Fabric objects fully OFF-canvas, in yielded
+ * batches. Order and count are preserved 1:1 with the input — no filtering,
+ * no drops — so callers can safely zip the result against a parallel array
+ * (e.g. pre-generated ids).
+ *
+ * Unlike enlivenObjectsTimeSlivered this does NOT touch the canvas and does
+ * NOT drop blocked users. It's for operations like copy/paste where the work
+ * must stay invisible until it's fully prepared, then be committed atomically
+ * in a single render — so the user never sees objects "popcorn" in one by one.
+ */
+export async function enlivenAllBatched(
+	objectsJson: any[],
+	signal?: AbortSignal,
+): Promise<FabricObject[]> {
+	if (!objectsJson || objectsJson.length === 0) return [];
+
+	const IS_MOBILE =
+		typeof navigator !== "undefined" &&
+		/Mobi|Android/i.test(navigator.userAgent);
+	const BATCH_SIZE = IS_MOBILE ? 16 : 32;
+
+	const yielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal });
+	yielder.reset();
+
+	const out: FabricObject[] = new Array(objectsJson.length);
+	let i = 0;
+	while (i < objectsJson.length) {
+		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+		const start = i;
+		const batch = objectsJson.slice(i, i + BATCH_SIZE);
+		i += batch.length;
+
+		const enlivened = await util.enlivenObjects<FabricObject>(batch);
+		for (let j = 0; j < enlivened.length; j++) out[start + j] = enlivened[j];
+
+		// Yield between batches to stay responsive. Safe: nothing is on the
+		// canvas yet, so yielding here cannot cause a partial paint.
+		if (i < objectsJson.length && yielder.shouldYield()) {
+			await yielder.yield();
+		}
+	}
+
+	return out;
+}
+
 export async function enlivenObjectsNaive(
 	objectsJson: any[],
 	onObjectEnlivened: (obj: FabricObject) => void,

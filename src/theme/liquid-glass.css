@@ -36,7 +36,6 @@ ion-popover.liquid-popover::part(content) {
 }
 
 .liquid-action-sheet .action-sheet-title {
-	font-family: var(--ion-font-family, "Cabin Sketch", cursive);
 	font-weight: 900;
 	color: var(--ion-color-secondary, #b9463a);
 	font-size: 1.2rem;
@@ -63,7 +62,6 @@ ion-popover.liquid-popover::part(content) {
 }
 
 .normal-action-sheet .action-sheet-title {
-	font-family: var(--ion-font-family, "Cabin Sketch", cursive);
 	font-weight: 900;
 	font-size: 1.2rem;
 }
@@ -86,7 +84,6 @@ ion-popover.liquid-popover::part(content) {
 }
 
 .liquid-alert .alert-title {
-	font-family: var(--ion-font-family, "Cabin Sketch", cursive);
 	font-weight: 900;
 	color: var(--ion-color-dark);
 }

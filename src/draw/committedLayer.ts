@@ -627,7 +627,10 @@ export class CommittedLayer<T extends Bounded> {
 
   isRegionReady(rect: WorldRect, zoom: number): boolean {
     const tier = this.pickActiveTier(zoom)
-    if (tier <= this.OVERVIEW_TIER) return true
+    // At overview tier the overview IS the picture. Not "ready" while it's dirty
+    // — else a drop-layer (e.g. drag commit) hides before the regrown overview
+    // repaints → flicker.
+    if (tier <= this.OVERVIEW_TIER) return !this.overview.isDirty()
     const r = this.tileRange(rect, tier)
     for (let ty = r.ty0; ty <= r.ty1; ty++)
       for (let tx = r.tx0; tx <= r.tx1; tx++) {

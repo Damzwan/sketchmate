@@ -358,12 +358,18 @@ export class RenderCore<T extends Bounded> {
   }
 
   markDirty(rect: WorldRect): void {
+    // Content may have MOVED into this rect (e.g. a drag committed via
+    // scheduleRectPatch). Grow bounds so the overview — which only renders
+    // within contentBounds — covers the new region; otherwise a move past the
+    // old extent is invisible until something else (a stroke) grows bounds.
+    this.growContentBounds(rect)
     this.additiveInvalidate(rect)
     if (this.intersectsView(rect)) this.requestFrame()
     this.scheduleBake()
   }
 
   markDirtyAndRebuildSync(rect: WorldRect, tier: number): void {
+    this.growContentBounds(rect)
     this.committed.dropOtherTiers(rect, tier)
     this.committed.markDirty(rect)
     if (tier > this.committed.overviewTier) {

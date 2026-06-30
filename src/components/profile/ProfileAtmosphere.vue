@@ -4,7 +4,6 @@
     class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]"
     aria-hidden="true"
   >
-    <!-- ── OCEAN THEME ── -->
     <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-40">
       <div
         v-for="j in jellyfishes"
@@ -22,7 +21,6 @@
           :src="jellyFishLottie"
           :autoplay="true"
           :loop="true"
-          :renderConfig="{ preserveAspectRatio: 'xMidYMid meet' }"
           class="w-full h-full lottie-strict-bounds"
         />
       </div>
@@ -43,7 +41,6 @@
           :src="turtleLottie"
           :autoplay="true"
           :loop="true"
-          :renderConfig="{ preserveAspectRatio: 'xMidYMid meet' }"
           class="w-full h-full lottie-strict-bounds"
         />
       </div>
@@ -64,13 +61,11 @@
           :src="fishLottie"
           :autoplay="true"
           :loop="true"
-          :renderConfig="{ preserveAspectRatio: 'xMidYMid meet' }"
           class="w-full h-full lottie-strict-bounds"
         />
       </div>
     </div>
 
-    <!-- ── COZY HOME (CAT) THEME ── -->
     <div v-else-if="def.kind === 'cat'" class="absolute inset-0 z-20 opacity-60">
       <div
         v-for="m in dustMotes"
@@ -87,28 +82,23 @@
         }"
       ></div>
 
-
       <div class="absolute top-[26%] left-[0%] w-36 h-36 flex items-end justify-center pointer-events-none z-10">
         <div class="absolute bottom-[35%] left-[-10%] w-20 h-20 origin-bottom animate-plant-sway opacity-70 z-0">
           <DotLottieVue :src="plantLottie" :autoplay="true" :loop="true"
-                        :renderConfig="{ preserveAspectRatio: 'xMidYMid meet' }"
                         class="w-full h-full lottie-strict-bounds" />
         </div>
         <div
           class="absolute bottom-[40%] right-[-10%] w-18 h-18 origin-bottom animate-plant-sway opacity-60 z-0 transform scaleX(-1)">
           <DotLottieVue :src="plantLottie" :autoplay="true" :loop="true"
-                        :renderConfig="{ preserveAspectRatio: 'xMidYMid meet' }"
                         class="w-full h-full lottie-strict-bounds" />
         </div>
         <div class="w-32 h-32 opacity-95 filter drop-shadow-sm z-10">
           <DotLottieVue :src="catLottie" :autoplay="true" :loop="true"
-                        :renderConfig="{ preserveAspectRatio: 'xMidYMid meet' }"
                         class="w-full h-full lottie-strict-bounds" />
         </div>
       </div>
     </div>
 
-    <!-- ── AUTUMN FOREST THEME ── -->
     <div v-else-if="def.kind === 'autumn'" class="absolute inset-0 z-20 opacity-70">
       <div
         v-for="leaf in fallingLeaves"
@@ -123,7 +113,6 @@
         }"
       >
         <DotLottieVue :src="autumn_leaves" :autoplay="true" :loop="true"
-                      :renderConfig="{ preserveAspectRatio: 'xMidYMid meet' }"
                       class="w-full h-full lottie-strict-bounds" />
       </div>
 
@@ -140,8 +129,40 @@
         }"
       >
         <DotLottieVue :src="mushroom_walking" :autoplay="true" :loop="true"
-                      :renderConfig="{ preserveAspectRatio: 'xMidYMid meet' }"
                       class="w-full h-full lottie-strict-bounds" />
+      </div>
+    </div>
+
+    <div v-else-if="def.kind === 'dragon'" class="absolute inset-0 z-20 opacity-90">
+      <div
+        v-for="f in fieryPits"
+        :key="'fr' + f.id"
+        class="absolute animate-fire-flicker mix-blend-screen"
+        :style="{
+          left: f.left,
+          top: f.top,
+          width: f.size,
+          height: f.size,
+          animationDelay: f.delay,
+        }"
+      >
+        <DotLottieVue :src="fire" :autoplay="true" :loop="true"
+                      class="w-full h-full lottie-strict-bounds" />
+      </div>
+
+      <div
+        v-for="d in wanderingDragons"
+        :key="'dr' + d.id"
+        class="absolute animate-dragon-roam"
+        :style="{
+          width: d.size,
+          height: d.size,
+          animationDelay: d.delay,
+          animationDuration: d.duration,
+        }"
+      >
+        <DotLottieVue :src="dragon" :autoplay="true" :loop="true"
+                      class="w-full h-full lottie-strict-bounds drop-shadow-[0_15px_25px_rgba(0,0,0,0.7)]" />
       </div>
     </div>
   </div>
@@ -161,6 +182,9 @@ import catLottie from '@/assets/lottie/avatar/cat.lottie'
 import plantLottie from '@/assets/lottie/avatar/plant.lottie'
 import mushroom_walking from '@/assets/lottie/avatar/mushroom.lottie'
 import autumn_leaves from '@/assets/lottie/avatar/autumn_leaves.lottie'
+
+import dragon from '@/assets/lottie/avatar/dragon.lottie'
+import fire from '@/assets/lottie/avatar/fire.lottie'
 
 const props = withDefaults(
   defineProps<{
@@ -207,6 +231,7 @@ const seededRandom = (seed: number) => {
   let x = Math.sin(seed++) * 10000
   return x - Math.floor(x)
 }
+
 const dustMotes = Array.from({ length: 15 }, (_, i) => ({
   id: i,
   left: `${seededRandom(i * 42) * 100}%`,
@@ -216,124 +241,114 @@ const dustMotes = Array.from({ length: 15 }, (_, i) => ({
   duration: `${Math.floor(seededRandom(i * 3) * 15) + 15}s`,
   opacity: seededRandom(i * 9) * 0.4 + 0.2
 }))
+
+const fieryPits = Array.from({ length: 9 }, (_, i) => ({
+  id: i,
+  left: `${seededRandom(i * 17) * 90}%`,
+  top: `${seededRandom(i * 29) * 85}%`,
+  size: `${Math.floor(seededRandom(i * 41) * 5) + 4}rem`,
+  delay: `-${seededRandom(i * 11) * 5}s`,
+}))
+
+// Extended duration so the massive path sequence feels natural
+const wanderingDragons = [
+  { id: 1, size: '22rem', delay: '0s', duration: '50s' }
+]
 </script>
 
 <style scoped>
 @keyframes turtle-swim-lane {
-  0% {
-    left: -35vw;
-    transform: translateY(0px) rotate(-6deg);
-  }
-  50% {
-    transform: translateY(20px) rotate(4deg);
-  }
-  100% {
-    left: 135vw;
-    transform: translateY(-5px) rotate(-3deg);
-  }
+  0% { left: -35vw; transform: translateY(0px) rotate(-6deg); }
+  50% { transform: translateY(20px) rotate(4deg); }
+  100% { left: 135vw; transform: translateY(-5px) rotate(-3deg); }
 }
 
 @keyframes fish-swim-lane {
-  0% {
-    left: 135vw;
-    transform: translateY(0px) rotate(4deg);
-  }
-  50% {
-    transform: translateY(-25px) rotate(-5deg);
-  }
-  100% {
-    left: -35vw;
-    transform: translateY(0px) rotate(3deg);
-  }
+  0% { left: 135vw; transform: translateY(0px) rotate(4deg); }
+  50% { transform: translateY(-25px) rotate(-5deg); }
+  100% { left: -35vw; transform: translateY(0px) rotate(3deg); }
 }
 
 @keyframes jellyfish-drift {
-  0% {
-    top: 110%;
-    transform: translateX(0px) rotate(-5deg);
-  }
-  50% {
-    transform: translateX(20px) rotate(5deg);
-  }
-  100% {
-    top: -25%;
-    transform: translateX(-5px) rotate(-2deg);
-  }
+  0% { top: 110%; transform: translateX(0px) rotate(-5deg); }
+  50% { transform: translateX(20px) rotate(5deg); }
+  100% { top: -25%; transform: translateX(-5px) rotate(-2deg); }
 }
 
 @keyframes dust-drift {
-  0% {
-    transform: translateY(0) translateX(0);
-    opacity: 0;
-  }
-  25%, 75% {
-    opacity: var(--target-opacity);
-  }
-  100% {
-    transform: translateY(-60px) translateX(20px);
-    opacity: 0;
-  }
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  25%, 75% { opacity: var(--target-opacity); }
+  100% { transform: translateY(-60px) translateX(20px); opacity: 0; }
 }
 
 @keyframes plant-sway {
-  0%, 100% {
-    transform: rotate(-2deg);
-  }
-  50% {
-    transform: rotate(2deg) scale(1.01);
-  }
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg) scale(1.01); }
 }
 
 @keyframes leaf-fall {
-  0% {
-    top: -20%;
-    transform: translateX(0) rotate(0deg);
-  }
-  50% {
-    transform: translateX(28px) rotate(180deg);
-  }
-  100% {
-    top: 118%;
-    transform: translateX(-18px) rotate(360deg);
-  }
+  0% { top: -20%; transform: translateX(0) rotate(0deg); }
+  50% { transform: translateX(28px) rotate(180deg); }
+  100% { top: 118%; transform: translateX(-18px) rotate(360deg); }
 }
 
 @keyframes walker-cross {
-  from {
-    left: -40vw;
-  }
-  to {
-    left: 140vw;
-  }
+  from { left: -40vw; }
+  to { left: 140vw; }
 }
 
-.animate-turtle-swim-lane {
-  animation: turtle-swim-lane linear infinite;
+/* ── Threatening Dragon Path ── */
+@keyframes dragon-roam {
+  /* --- PATTERN 1: Left to Right Sweep --- */
+  0% { left: -45vw; top: 5%; transform: rotateY(180deg); }
+  12% { left: 145vw; top: 35%; transform: rotateY(180deg); }
+
+  /* INSTANT FLIP OFF-SCREEN */
+  12.001% { left: 145vw; top: -10%; transform: rotateY(0deg); }
+
+  /* --- PATTERN 2: Right to Left, pausing in the middle --- */
+  15% { left: 145vw; top: -10%; transform: rotateY(0deg); }
+  25% { left: 25%; top: 40%; transform: rotateY(0deg) scale(1.15); } /* Threatening stop */
+  32% { left: 25%; top: 40%; transform: rotateY(0deg) scale(1.15); }
+  42% { left: -45vw; top: 80%; transform: rotateY(0deg); }
+
+  /* INSTANT FLIP OFF-SCREEN */
+  42.001% { left: -45vw; top: 90%; transform: rotateY(180deg); }
+
+  /* --- PATTERN 3: Bottom-Left rising to Top-Right --- */
+  46% { left: -45vw; top: 90%; transform: rotateY(180deg); }
+  58% { left: 145vw; top: 0%; transform: rotateY(180deg); }
+
+  /* INSTANT FLIP OFF-SCREEN */
+  58.001% { left: 145vw; top: 50%; transform: rotateY(0deg); }
+
+  /* --- PATTERN 4: Right to Left massive swoop --- */
+  62% { left: 145vw; top: 50%; transform: rotateY(0deg); }
+  72% { left: 60%; top: 20%; transform: rotateY(0deg) scale(1.25); } /* Huge lunge */
+  82% { left: 60%; top: 20%; transform: rotateY(0deg) scale(1.25); } /* Standstill glare */
+  96% { left: -45vw; top: -20%; transform: rotateY(0deg); }
+
+  /* RESET */
+  99.999% { left: -45vw; top: 5%; transform: rotateY(0deg); }
+  100% { left: -45vw; top: 5%; transform: rotateY(180deg); }
 }
 
-.animate-fish-swim-lane {
-  animation: fish-swim-lane linear infinite;
+@keyframes fire-flicker {
+  0%, 100% { transform: scale(1) rotate(-1deg); opacity: 0.75; }
+  50% { transform: scale(1.15) rotate(3deg); opacity: 1; filter: brightness(1.2); }
 }
 
-.animate-jellyfish-drift {
-  animation: jellyfish-drift ease-in-out infinite;
-}
+.animate-turtle-swim-lane { animation: turtle-swim-lane linear infinite; }
+.animate-fish-swim-lane { animation: fish-swim-lane linear infinite; }
+.animate-jellyfish-drift { animation: jellyfish-drift ease-in-out infinite; }
+.animate-dust-drift { animation: dust-drift linear infinite; }
+.animate-plant-sway { animation: plant-sway 9s ease-in-out infinite; }
+.animate-leaf-fall { animation: leaf-fall linear infinite; }
+.animate-walker-cross { animation: walker-cross linear infinite; }
 
-.animate-dust-drift {
-  animation: dust-drift linear infinite;
-}
-
-.animate-plant-sway {
-  animation: plant-sway 9s ease-in-out infinite;
-}
-
-.animate-leaf-fall {
-  animation: leaf-fall linear infinite;
-}
-
-.animate-walker-cross {
-  animation: walker-cross linear infinite;
-}
+/* ── Dragon Utility Classes ── */
+.animate-dragon-roam { animation: dragon-roam linear infinite; }
+.animate-fire-flicker { animation: fire-flicker 1.5s ease-in-out infinite alternate; }
 
 .lottie-strict-bounds :deep(canvas), .lottie-strict-bounds :deep(svg) {
   width: 100% !important;

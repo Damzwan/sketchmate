@@ -6,7 +6,7 @@
       <div v-if="user" class="px-4 pt-2 pb-32 max-w-2xl mx-auto cabin-sketch-regular">
 
         <section class="mb-2 flex justify-center">
-          <div class="w-full scale-[0.7] origin-top -mb-32">
+          <div class="w-full scale-[0.8] origin-top -mb-14">
             <ProfileCard
               :user="user"
               :customization="draft"

@@ -15,7 +15,7 @@
       />
     </div>
 
-    <div class="px-4 pt-3 pb-3 bg-white/60 border-t border-primary/10 backdrop-blur-xl pb-safe">
+    <div class="px-4 pt-3 pb-3 bg-tertiary border-t border-primary/10 backdrop-blur-xl pb-safe">
       <div class="flex items-center gap-1">
 
         <ion-button

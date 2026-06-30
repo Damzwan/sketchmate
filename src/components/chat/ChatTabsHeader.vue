@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex items-center gap-3 px-4 pt-4 pb-3 overflow-x-auto hide-scrollbar border-b border-primary/20 bg-white/40 rounded-t-[2.5rem] shrink-0 overflow-visible"
+    class="flex items-center gap-3 px-4 pt-4 pb-3 overflow-x-auto hide-scrollbar bg-tertiary rounded-t-[2.5rem] shrink-0 overflow-visible"
   >
     <div
       @click="activeTab = 'overview'"
@@ -95,88 +95,94 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { storeToRefs } from "pinia";
-import { IonIcon } from "@ionic/vue";
-import { chatbubblesOutline } from "ionicons/icons";
-import { mdiEarth, mdiClose } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { computed, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { IonIcon } from '@ionic/vue'
+import { chatbubblesOutline } from 'ionicons/icons'
+import { mdiEarth, mdiClose } from '@mdi/js'
+import { svg } from '@/helper/general.helper'
 
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useChatStore } from "@/store/chat.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useFriendStore } from "@/store/friend.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useChatWidgetStore } from '@/store/chatWidget.store'
+import { useChatStore } from '@/store/chat.store'
+import { useAuthStore } from '@/store/auth.store'
+import { useFriendStore } from '@/store/friend.store'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 
-const chatWidget = useChatWidgetStore();
-const friendStore = useFriendStore();
-const chatStore = useChatStore();
-const authStore = useAuthStore();
+const chatWidget = useChatWidgetStore()
+const friendStore = useFriendStore()
+const chatStore = useChatStore()
+const authStore = useAuthStore()
 
-const { activeTab, activeChatHeads } = storeToRefs(chatWidget);
-const { activeChats } = storeToRefs(chatStore);
-const { user } = storeToRefs(authStore);
-const { roomMembers, lobbyChatMessages } = storeToRefs(useDrawSyncer());
+const { activeTab, activeChatHeads } = storeToRefs(chatWidget)
+const { activeChats } = storeToRefs(chatStore)
+const { user } = storeToRefs(authStore)
+const { roomMembers, lobbyChatMessages } = storeToRefs(useDrawSyncer())
 
-const isInLobby = computed(() => !!roomMembers.value?.length);
+const isInLobby = computed(() => !!roomMembers.value?.length)
 const interestingLobbyMessages = computed(() =>
-	lobbyChatMessages.value.filter((msg) => msg.type === "message"),
-);
-const unreadLobbyCount = ref(0);
+  lobbyChatMessages.value.filter((msg) => msg.type === 'message')
+)
+const unreadLobbyCount = ref(0)
 
 watch(
-	[() => interestingLobbyMessages.value.length, activeTab],
-	([newLen, newTab], [oldLen]) => {
-		if (newTab === "lobby") {
-			unreadLobbyCount.value = 0;
-			return;
-		}
-		if (newTab !== "lobby" && oldLen !== undefined && newLen > oldLen) {
-			unreadLobbyCount.value += newLen - oldLen;
-		}
-	},
-);
+  [() => interestingLobbyMessages.value.length, activeTab],
+  ([newLen, newTab], [oldLen]) => {
+    if (newTab === 'lobby') {
+      unreadLobbyCount.value = 0
+      return
+    }
+    if (newTab !== 'lobby' && oldLen !== undefined && newLen > oldLen) {
+      unreadLobbyCount.value += newLen - oldLen
+    }
+  }
+)
 
 const getChatFromHead = (headId: string) => {
-	return [...activeChats.value, ...friendStore.pendingRequests].find((c) => {
-		if (c._id === headId) return true;
-		return c.participants.some((p) => p._id === headId);
-	});
-};
+  return [...activeChats.value, ...friendStore.pendingRequests].find((c) => {
+    if (c._id === headId) return true
+    return c.participants.some((p) => p._id === headId)
+  })
+}
 
 const isExpired = (headId: string) =>
-	getChatFromHead(headId)?.status === "expired";
+  getChatFromHead(headId)?.status === 'expired'
 
 const unreadConversationsCount = computed(() => {
-	const me = user.value?._id || "";
-	const activeCount = activeChats.value.filter(
-		(c) => (c.unread_counts?.[me] || 0) > 0,
-	).length;
-	const pendingCount = friendStore.pendingRequests.filter(
-		(c) => (c.unread_counts?.[me] || 0) > 0,
-	).length;
-	return activeCount + pendingCount;
-});
+  const me = user.value?._id || ''
+  const activeCount = activeChats.value.filter(
+    (c) => (c.unread_counts?.[me] || 0) > 0
+  ).length
+  const pendingCount = friendStore.pendingRequests.filter(
+    (c) => (c.unread_counts?.[me] || 0) > 0
+  ).length
+  return activeCount + pendingCount
+})
 
 const getPartner = (headId: string) => {
-	const chat = getChatFromHead(headId);
-	if (chat)
-		return chat.participants.find((p: any) => p._id !== user.value?._id);
-	return friendStore.resolvePartnerInfo(headId);
-};
+  const chat = getChatFromHead(headId)
+  if (chat)
+    return chat.participants.find((p: any) => p._id !== user.value?._id)
+  return friendStore.resolvePartnerInfo(headId)
+}
 
 const isPartnerOnline = (headId: string) => {
-	const partner = getPartner(headId);
-	return partner ? friendStore.isFriendOnline(partner._id) : false;
-};
+  const partner = getPartner(headId)
+  return partner ? friendStore.isFriendOnline(partner._id) : false
+}
 
 const getUnreadCount = (headId: string) => {
-	const me = user.value?._id || "";
-	return getChatFromHead(headId)?.unread_counts?.[me] || 0;
-};
+  const me = user.value?._id || ''
+  return getChatFromHead(headId)?.unread_counts?.[me] || 0
+}
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar { display: none !important; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 </style>

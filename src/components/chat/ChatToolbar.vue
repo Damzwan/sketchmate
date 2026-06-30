@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="activeTab !== 'overview'"
-    class="flex flex-col bg-white/30 shrink-0 border-b border-primary/10"
+    class="flex flex-col bg-tertiary shrink-0 border-b border-primary/10"
   >
     <div class="flex items-center justify-between px-4 pt-3 pb-2.5">
       <div

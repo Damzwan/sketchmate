@@ -59,13 +59,14 @@ export const useBucket = defineStore('bucket', (): Bucket => {
         }
 
         // ── Run fill ──────────────────────────────────────────────────────
+        // Only surface the "Filling…" indicator if the fill is slow enough to
+        // be worth it — short fills finish before the timer and never flash it.
         fillInProgress = true
-        try {
-          const now = performance.now()
+        const spinnerTimer = setTimeout(() => {
           isFilling.value = true
-          await new Promise((resolve) => setTimeout(resolve, 10))
+        }, 220)
+        try {
           const img = await bucketFill(c!, worldPoint)
-          console.log(performance.now() - now)
           if (!img) return
 
           if (isBackground) {
@@ -98,6 +99,7 @@ export const useBucket = defineStore('bucket', (): Bucket => {
             c!.add(img)
           }
         } finally {
+          clearTimeout(spinnerTimer)
           fillInProgress = false
           isFilling.value = false
         }

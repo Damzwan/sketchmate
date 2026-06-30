@@ -8,35 +8,36 @@
     :color="color"
     :position="position"
     @didDismiss="dismiss()"
-    :class="['global-toast', { 'on-draw': isDrawScreen }]"
+    class="global-toast"
+    :data-on-draw="isDrawScreen"
   />
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useRoute } from "vue-router";
-import { IonToast } from "@ionic/vue";
-import { useToast } from "@/service/toast.service";
-import { useSwipe } from "@vueuse/core";
-import { FRONTEND_ROUTES } from "@/types/router.types";
+import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { IonToast } from '@ionic/vue'
+import { useToast } from '@/service/toast.service'
+import { useSwipe } from '@vueuse/core'
+import { FRONTEND_ROUTES } from '@/types/router.types'
 
 const { text, isOpen, dismiss, duration, color, buttons, position } =
-	useToast();
+  useToast()
 
-const route = useRoute();
+const route = useRoute()
 const isDrawScreen = computed(
-	() =>
-		route.name === FRONTEND_ROUTES.draw ||
-		route.path.includes(`/${FRONTEND_ROUTES.draw}`),
-);
+  () =>
+    route.name === FRONTEND_ROUTES.draw ||
+    route.path.includes(`/${FRONTEND_ROUTES.draw}`)
+)
 
-const toastRef = ref();
+const toastRef = ref()
 
 useSwipe(toastRef, {
-	onSwipeEnd(e, direction) {
-		dismiss();
-	},
-});
+  onSwipeEnd(e, direction) {
+    dismiss()
+  }
+})
 </script>
 
 <style lang="scss">
@@ -50,9 +51,10 @@ useSwipe(toastRef, {
     font-size: 16px;
   }
 
-  &.on-draw {
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+
+  &[data-on-draw="true"] {
     transform: translateY(-86px);
-    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   }
 }
 </style>

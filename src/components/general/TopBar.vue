@@ -22,22 +22,21 @@
           class="active:scale-90 transition-transform m-0"
         >
           <div class="flex items-center group">
-            <ion-icon :icon="chatbubblesOutline" class="text-[30px] text-black shrink-0" />
+            <div class="relative shrink-0">
+              <ion-icon :icon="chatbubblesOutline" class="text-[30px] text-black" />
+              <span
+                v-if="totalUnreadCount > 0"
+                class="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none"
+              >
+                {{ totalUnreadCount > 99 ? '99+' : totalUnreadCount }}
+              </span>
+            </div>
 
-            <div class="flex flex-col gap-1 ml-2 mt-0.5">
-              <div v-if="totalUnreadCount > 0" class="flex items-center gap-1.5 h-3">
-                <span class="cabin-sketch-regular text-[13px] font-bold text-red-600 leading-none">
-                  {{ totalUnreadCount }}
-                </span>
-                <div class="w-1.5 h-1.5 bg-red-500 rounded-full shadow-sm"></div>
-              </div>
-
-              <div class="flex items-center gap-1.5 h-3">
-                <span class="cabin-sketch-regular text-[13px] font-bold text-black leading-none">
-                  {{ onlineFriends.length }}
-                </span>
-                <div class="w-1.5 h-1.5 bg-green-500 rounded-full shadow-sm animate-pulse"></div>
-              </div>
+            <div class="flex items-center gap-1 ml-2">
+              <ion-icon :icon="peopleOutline" class="text-[18px] text-green-600" />
+              <span class="cabin-sketch-regular text-[13px] font-bold text-black leading-none">
+                {{ onlineFriends.length }}
+              </span>
             </div>
           </div>
         </ion-button>
@@ -76,6 +75,7 @@ import {
   bulbOutline,
   notificationsOutline,
   storefrontOutline,
+  peopleOutline,
 } from "ionicons/icons";
 import { Menu } from "@/draw/types/draw.types";
 import { useMenuStore } from "@/store/menu.store";
@@ -107,5 +107,11 @@ const openNotifications = () => {
 /* Custom shadow/glow for the badge */
 .shadow-sm {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Let absolute badges (notification count, unread) escape the button clip. */
+ion-button::part(native) {
+  overflow: visible;
+  contain: none;
 }
 </style>

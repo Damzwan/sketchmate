@@ -5,7 +5,7 @@
   >
     <div class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
       <ProfileEffect :effect-id="effectiveCustomization.effectId" />
-      <ProfileAtmosphere :atmosphere-id="effectiveCustomization.atmosphereId" />
+      <ProfileWorld :world-id="effectiveCustomization.worldId" />
     </div>
 
     <div class="relative z-10" :style="{ fontFamily: resolvedFontFamily }">
@@ -172,7 +172,7 @@ import { mdiAccountPlusOutline, mdiCog, mdiPalette } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
 import TitleBadge from "@/components/profile/TitleBadge.vue";
 

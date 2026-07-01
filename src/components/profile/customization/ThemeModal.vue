@@ -75,11 +75,12 @@
           expand="block"
           color="secondary"
           shape="round"
+          :disabled="purchasing"
           class="h-14 font-black uppercase tracking-widest shadow-lg"
-          @click="goToShop"
+          @click="unlock"
         >
           <ion-icon :icon="svg(mdiLock)" slot="start" class="mr-1" />
-          Unlock {{ selectionName }}
+          {{ purchasing ? 'Unlocking…' : `Unlock ${selectionName}` }}
         </ion-button>
         <ion-button
           v-else
@@ -104,7 +105,7 @@ import { svg } from "@/helper/general.helper";
 import { THEMES, type Customization } from "@/config/profile_options.config";
 import { buildItemId } from "@/config/catalog.config";
 import { useInventoryStore } from "@/store/inventory.store";
-import { useMenuStore } from "@/store/menu.store";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import PreviewProfileCard from "../PreviewProfileCard.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue"; // Import your base modal
 
@@ -117,7 +118,7 @@ const props = defineProps<{
 const emit = defineEmits(["close", "select"]);
 
 const inventoryStore = useInventoryStore();
-const menuStore = useMenuStore();
+const { purchasing, unlockItem } = useUnlockItem();
 
 const localSelection = ref(props.customization.themeId || "classic");
 
@@ -143,15 +144,17 @@ const previewCustomization = computed(() => ({
 }));
 
 const confirm = () => {
-	if (selectionLocked.value) return goToShop();
+	if (selectionLocked.value) return unlock();
 	emit("select", localSelection.value);
 	emit("close");
 };
 
-const goToShop = () => {
-	const itemId = buildItemId("theme", localSelection.value);
-	emit("close");
-	setTimeout(() => menuStore.openShop(itemId), 250);
+const unlock = async () => {
+	const ok = await unlockItem(buildItemId("theme", localSelection.value));
+	if (ok) {
+		emit("select", localSelection.value);
+		emit("close");
+	}
 };
 
 const handleDismiss = () => emit("close");

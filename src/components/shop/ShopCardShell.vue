@@ -1,67 +1,71 @@
 <template>
   <div
-    class="relative rounded-[2.25rem] overflow-hidden transition-all duration-300 border-2 bg-white text-black flex flex-col justify-between"
+    class="relative rounded-[2rem] overflow-hidden flex flex-col bg-tertiary border shadow-sm transition-all duration-300"
     :class="[
-      owned ? 'border-emerald-500 bg-[#FAFFF9]' : 'border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]',
-      highlight && 'highlight-pulse',
+      owned ? 'border-emerald-400/60' : 'border-primary/40',
+      highlight && 'highlight-pulse'
     ]"
   >
     <slot name="preview" />
 
-    <div class="px-3.5 py-3 border-t border-black/10 bg-white flex flex-col flex-1 justify-between">
+    <div class="px-3.5 py-3 flex flex-col flex-1 justify-between">
       <div>
-        <div class="flex items-baseline justify-between gap-1.5 mb-1">
-          <h3 class="text-sm font-black text-black truncate leading-none tracking-tight">{{ sku.name }}</h3>
-          <span v-if="owned" class="text-[9px] font-black text-emerald-600 uppercase tracking-widest shrink-0">
-            ✓ Owned
+        <div class="flex items-baseline justify-between gap-1.5 mb-0.5">
+          <h3 class="text-[15px] font-black text-black truncate leading-none tracking-tight">
+            {{ sku.name }}
+          </h3>
+          <span v-if="owned" class="text-[11px] font-black text-emerald-600 tracking-tight shrink-0">
+            Owned
           </span>
         </div>
-        <p class="text-[10px] font-bold text-black/40 leading-tight mb-3 line-clamp-2 min-h-[24px]">
+        <p class="text-[12px] text-black leading-tight mb-2 line-clamp-2 min-h-[28px]">
           {{ sku.desc }}
         </p>
       </div>
 
-      <button
+      <ion-button
         v-if="!owned"
-        class="w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border shadow-sm"
-        :class="
-          sku.kind === 'bundle'
-            ? 'bg-secondary border-secondary text-white shadow-sm'
-            : 'bg-white border-black text-black hover:bg-black/5'
-        "
+        expand="block"
+        color="secondary"
+        shape="round"
+        size="small"
+        class="m-0 tracking-tight"
         @click.stop="$emit('purchase')"
       >
         {{ (sku as any).priceString || 'Unlock' }}
-      </button>
+      </ion-button>
       <div
         v-else
-        class="w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider bg-emerald-100/60 border border-emerald-200 text-emerald-700 text-center select-none"
+        class="w-full py-1.5 rounded-full text-[12px] font-black tracking-tight bg-emerald-50 text-emerald-700 text-center select-none flex items-center justify-center gap-1"
       >
-        Collected
+        <ion-icon :icon="mdiCheck" class="text-sm" />
+        Owned
       </div>
-    </div>
-
-    <!-- Hand-drawn style Pack Tag -->
-    <div
-      v-if="sku.kind === 'bundle'"
-      class="absolute top-2 left-2 px-2.5 py-0.5 bg-black border border-black text-white text-[8px] font-black uppercase tracking-widest rounded-full shadow-sm"
-    >
-      BOX
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { ShopSku } from "@/config/catalog.config";
-defineProps<{ sku: ShopSku; owned: boolean; highlight?: boolean }>();
-defineEmits(["purchase"]);
+import { IonButton, IonIcon } from '@ionic/vue'
+import { mdiCheck } from '@mdi/js'
+import type { ShopSku } from '@/config/catalog.config'
+
+defineProps<{ sku: ShopSku; owned: boolean; highlight?: boolean }>()
+defineEmits(['purchase'])
 </script>
 
 <style scoped>
 @keyframes highlight-pulse {
-  0%, 100% { transform: scale(1); border-color: #000; }
-  50% { transform: scale(1.02); border-color: var(--ion-color-secondary); }
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 3px var(--ion-color-secondary);
+  }
 }
+
 .highlight-pulse {
   animation: highlight-pulse 1.2s ease-in-out 3;
 }

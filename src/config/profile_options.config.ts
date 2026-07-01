@@ -373,17 +373,17 @@ export const DEFAULT_EFFECT_ID = 'none'
 export const resolveEffect = (id?: string): ProfileEffectDef =>
   PROFILE_EFFECTS.find((e) => e.id === id) || PROFILE_EFFECTS[0]
 
-// ─── ATMOSPHERES (FOREGROUND ENVIRONMENTS) ───────────────────────────────────
-export type AtmosphereKind = 'none' | 'ocean' | 'cat' | 'autumn' | 'dragon';
+// ─── WORLDS (FOREGROUND ENVIRONMENTS) ───────────────────────────────────
+export type WorldKind = 'none' | 'ocean' | 'cat' | 'autumn' | 'dragon';
 
-export interface AtmosphereDef {
+export interface WorldDef {
   id: string;
   name: string;
   desc: string;
-  kind: AtmosphereKind;
+  kind: WorldKind;
 }
 
-export const ATMOSPHERES: AtmosphereDef[] = [
+export const WORLDS: WorldDef[] = [
   { id: 'none', name: 'None', desc: 'Quiet space', kind: 'none' },
   {
     id: 'ocean',
@@ -406,10 +406,10 @@ export const ATMOSPHERES: AtmosphereDef[] = [
   }
 ]
 
-export const DEFAULT_ATMOSPHERE_ID = 'none'
+export const DEFAULT_WORLD_ID = 'none'
 
-export const resolveAtmosphere = (id?: string): AtmosphereDef =>
-  ATMOSPHERES.find((a) => a.id === id) || ATMOSPHERES[0]
+export const resolveWorld = (id?: string): WorldDef =>
+  WORLDS.find((a) => a.id === id) || WORLDS[0]
 
 // ─── CUSTOMIZATION SHAPE ─────────────────────────────────────────────────────
 export interface Customization {
@@ -418,7 +418,7 @@ export interface Customization {
   fontEffectId: string;
   decorationId: string;
   effectId: string;
-  atmosphereId: string;
+  worldId: string;
   titleId: string;
   signaturePath?: string;
   signatureViewBox?: string;
@@ -434,7 +434,7 @@ export const hydrateCustomization = (
   fontEffectId: raw?.fontEffectId || '',
   decorationId: raw?.decorationId || DEFAULT_DECORATION_ID,
   effectId: raw?.effectId || DEFAULT_EFFECT_ID,
-  atmosphereId: raw?.atmosphereId || DEFAULT_ATMOSPHERE_ID,
+  worldId: raw?.worldId || DEFAULT_WORLD_ID,
   titleId: raw?.titleId || '',
   signaturePath: raw?.signaturePath,
   signatureViewBox: raw?.signatureViewBox,

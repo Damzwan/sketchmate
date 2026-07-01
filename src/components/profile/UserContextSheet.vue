@@ -13,7 +13,7 @@
 
       <div class="absolute inset-0 pointer-events-none z-0">
         <ProfileEffect :effect-id="effectiveCustomization.effectId" />
-        <ProfileAtmosphere :atmosphere-id="effectiveCustomization.atmosphereId" />
+        <ProfileWorld :world-id="effectiveCustomization.worldId" />
       </div>
 
       <div class="h-full overflow-y-auto hide-scrollbar relative z-10" @touchmove.stop>
@@ -183,7 +183,7 @@ import { compareVersions, svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
 import TitleBadge from "@/components/profile/TitleBadge.vue";
 

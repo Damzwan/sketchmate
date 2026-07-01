@@ -33,7 +33,7 @@
             </div>
 
             <div class="flex items-center gap-1 ml-2">
-              <ion-icon :icon="peopleOutline" class="text-[18px] text-green-600" />
+              <ion-icon :icon="peopleOutline" class="text-[18px] text-black" />
               <span class="cabin-sketch-regular text-[13px] font-bold text-black leading-none">
                 {{ onlineFriends.length }}
               </span>

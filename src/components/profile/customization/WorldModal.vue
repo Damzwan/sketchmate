@@ -7,7 +7,7 @@
     <template #header>
       <div class="shrink-0 pt-0 mb-1 text-center">
         <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
-          Atmosphere
+          World
         </h1>
         <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-1">
           Environment for your card
@@ -25,23 +25,23 @@
       class="grid grid-cols-2 gap-3 pb-4"
     >
       <button
-        v-for="atmos in ATMOSPHERES"
-        :key="atmos.id"
+        v-for="world in WORLDS"
+        :key="world.id"
         class="relative rounded-[2rem] border-2 bg-white/60 active:scale-95 transition-all overflow-hidden h-28 text-left"
         :class="[
-          localSelection === atmos.id
+          localSelection === world.id
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
             : 'border-white shadow-sm',
-          !isItemOwned(atmos.id) && 'locked-tile'
+          !isItemOwned(world.id) && 'locked-tile'
         ]"
-        @click="handleSelect(atmos)"
+        @click="handleSelect(world)"
       >
         <div class="absolute inset-0 bg-gradient-to-br from-zinc-100 to-zinc-200">
-          <ProfileAtmosphere :def="atmos" :preview="true" />
+          <ProfileWorld :def="world" :preview="true" />
         </div>
 
         <div
-          v-if="!isItemOwned(atmos.id)"
+          v-if="!isItemOwned(world.id)"
           class="absolute inset-0 bg-black/30 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
         >
           <div class="bg-white/95 rounded-full w-9 h-9 flex items-center justify-center shadow-lg">
@@ -51,15 +51,15 @@
 
         <div class="absolute inset-x-0 bottom-0 bg-white/85 backdrop-blur-sm px-3 py-2">
           <p class="text-[11px] font-black uppercase tracking-wider text-black leading-none">
-            {{ atmos.name }}
+            {{ world.name }}
           </p>
           <p class="text-[9px] font-bold text-black/50 italic leading-tight mt-0.5">
-            {{ atmos.desc }}
+            {{ world.desc }}
           </p>
         </div>
 
         <div
-          v-if="localSelection === atmos.id && isItemOwned(atmos.id)"
+          v-if="localSelection === world.id && isItemOwned(world.id)"
           class="absolute top-2 right-2 w-6 h-6 rounded-full bg-secondary shadow-lg flex items-center justify-center"
         >
           <ion-icon :icon="svg(mdiCheck)" class="text-white text-sm" />
@@ -75,10 +75,11 @@
           color="secondary"
           shape="round"
           size="large"
-          @click="goToShop"
+          :disabled="purchasing"
+          @click="unlock"
         >
           <ion-icon :icon="svg(mdiLock)" slot="start" class="mr-1" />
-          Unlock {{ selectionName }}
+          {{ purchasing ? 'Unlocking…' : `Unlock ${selectionName}` }}
         </ion-button>
         <ion-button
           v-else
@@ -88,7 +89,7 @@
           size="large"
           @click="confirm"
         >
-          Apply Atmosphere
+          Apply World
         </ion-button>
       </div>
     </template>
@@ -101,16 +102,16 @@ import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiCheck, mdiLock } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import {
-	DEFAULT_ATMOSPHERE_ID,
-	ATMOSPHERES,
+	DEFAULT_WORLD_ID,
+	WORLDS,
 	type Customization,
-	type AtmosphereDef,
+	type WorldDef,
 } from "@/config/profile_options.config";
 import { buildItemId } from "@/config/catalog.config";
 import { useInventoryStore } from "@/store/inventory.store";
-import { useMenuStore } from "@/store/menu.store";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
-import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 
 const props = defineProps<{
@@ -122,10 +123,10 @@ const props = defineProps<{
 const emit = defineEmits(["close", "select"]);
 
 const inventoryStore = useInventoryStore();
-const menuStore = useMenuStore();
+const { purchasing, unlockItem } = useUnlockItem();
 
 const localSelection = ref(
-	props.customization.atmosphereId || DEFAULT_ATMOSPHERE_ID,
+	props.customization.worldId || DEFAULT_WORLD_ID,
 );
 
 watch(
@@ -133,39 +134,41 @@ watch(
 	(open) => {
 		if (open)
 			localSelection.value =
-				props.customization.atmosphereId || DEFAULT_ATMOSPHERE_ID;
+				props.customization.worldId || DEFAULT_WORLD_ID;
 	},
 );
 
-const isItemOwned = (atmosphereId: string) => {
-	if (atmosphereId === "none") return true;
-	return inventoryStore.isOwned(buildItemId("atmosphere", atmosphereId));
+const isItemOwned = (worldId: string) => {
+	if (worldId === "none") return true;
+	return inventoryStore.isOwned(buildItemId("world", worldId));
 };
 
 const selectionLocked = computed(() => !isItemOwned(localSelection.value));
 const selectionName = computed(
-	() => ATMOSPHERES.find((a) => a.id === localSelection.value)?.name || "",
+	() => WORLDS.find((a) => a.id === localSelection.value)?.name || "",
 );
 
 const previewCustomization = computed(() => ({
 	...props.customization,
-	atmosphereId: localSelection.value,
+	worldId: localSelection.value,
 }));
 
-const handleSelect = (atmos: AtmosphereDef) => {
-	localSelection.value = atmos.id;
+const handleSelect = (world: WorldDef) => {
+	localSelection.value = world.id;
 };
 
 const confirm = () => {
-	if (selectionLocked.value) return goToShop();
+	if (selectionLocked.value) return unlock();
 	emit("select", localSelection.value);
 	emit("close");
 };
 
-const goToShop = () => {
-	const itemId = buildItemId("atmosphere", localSelection.value);
-	emit("close");
-	setTimeout(() => menuStore.openShop(itemId), 250);
+const unlock = async () => {
+	const ok = await unlockItem(buildItemId("world", localSelection.value));
+	if (ok) {
+		emit("select", localSelection.value);
+		emit("close");
+	}
 };
 
 const handleDismiss = () => emit("close");

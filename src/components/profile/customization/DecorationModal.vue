@@ -57,7 +57,16 @@
         </div>
 
         <div
-          v-if="localSelection === dec.id"
+          v-if="!isItemOwned(dec.id)"
+          class="absolute inset-0 bg-black/25 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
+        >
+          <div class="bg-white/95 rounded-full w-8 h-8 flex items-center justify-center shadow-lg">
+            <ion-icon :icon="svg(mdiLock)" class="text-sm text-black/70" />
+          </div>
+        </div>
+
+        <div
+          v-else-if="localSelection === dec.id"
           class="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-secondary shadow-lg flex items-center justify-center"
         >
           <ion-icon :icon="svg(mdiCheck)" class="text-white text-xs" />
@@ -68,6 +77,19 @@
     <template #footer>
       <div class="px-1 pt-2 pb-1 bg-background">
         <ion-button
+          v-if="selectionLocked"
+          expand="block"
+          color="secondary"
+          shape="round"
+          size="large"
+          :disabled="purchasing"
+          @click="unlock"
+        >
+          <ion-icon :icon="svg(mdiLock)" slot="start" class="mr-1" />
+          {{ purchasing ? 'Unlocking…' : `Unlock ${selectionName}` }}
+        </ion-button>
+        <ion-button
+          v-else
           expand="block"
           color="secondary"
           shape="round"
@@ -84,13 +106,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiCheck } from "@mdi/js";
+import { mdiCheck, mdiLock } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import {
 	DECORATIONS,
 	DEFAULT_DECORATION_ID,
 	type Customization,
 } from "@/config/profile_options.config";
+import { buildItemId } from "@/config/catalog.config";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import AvatarDecoration from "./AvatarDecoration.vue";
 import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
@@ -103,8 +128,21 @@ const props = defineProps<{
 
 const emit = defineEmits(["close", "select"]);
 
+const inventoryStore = useInventoryStore();
+const { purchasing, unlockItem } = useUnlockItem();
+
 const localSelection = ref(
 	props.customization.decorationId || DEFAULT_DECORATION_ID,
+);
+
+const isItemOwned = (decorationId: string) => {
+	if (decorationId === "none") return true;
+	return inventoryStore.isOwned(buildItemId("decoration", decorationId));
+};
+
+const selectionLocked = computed(() => !isItemOwned(localSelection.value));
+const selectionName = computed(
+	() => DECORATIONS.find((d) => d.id === localSelection.value)?.name || "",
 );
 
 watch(
@@ -122,9 +160,19 @@ const previewCustomization = computed(() => ({
 }));
 
 const confirm = () => {
+	if (selectionLocked.value) return unlock();
 	emit("select", localSelection.value);
 	emit("close");
 };
+
+const unlock = async () => {
+	const ok = await unlockItem(buildItemId("decoration", localSelection.value));
+	if (ok) {
+		emit("select", localSelection.value);
+		emit("close");
+	}
+};
+
 const handleDismiss = () => emit("close");
 </script>
 

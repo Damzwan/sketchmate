@@ -1,7 +1,10 @@
 <template>
   <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
     <template #preview>
-      <div class="h-28 relative overflow-hidden bg-white border-b border-black/5 shadow-inner">
+      <!-- Mid slate + faux name line so subtle effects (shattered glass, shimmer)
+           are actually visible instead of washing out on white. -->
+      <div class="h-28 relative overflow-hidden border-b border-primary/30 effect-stage flex items-center justify-center">
+        <span class="text-white/85 font-black text-lg tracking-tight cabin-sketch-regular select-none">Aa</span>
         <ProfileEffect v-if="effectDef" :def="effectDef" :preview="true" />
       </div>
     </template>
@@ -23,3 +26,9 @@ const props = defineProps<{
 defineEmits(["purchase"]);
 const effectDef = computed(() => resolveEffect(props.sku.refId));
 </script>
+
+<style scoped>
+.effect-stage {
+  background: linear-gradient(135deg, #4a5568, #2d3748);
+}
+</style>

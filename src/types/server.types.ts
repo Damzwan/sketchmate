@@ -259,7 +259,7 @@ export interface UserCustomization {
 	themeId: string;
 	fontId: string;
 	fontEffectId: string;
-	atmosphereId: string;
+	worldId: string;
 	decorationId: string;
 	effectId: string;
 	titleId: string;

@@ -18,11 +18,14 @@ import {
 	CATALOG_BY_ID,
 	grantsForSku,
 	PRO_ENTITLEMENT,
+	LIFETIME_ENTITLEMENT,
+	LIFETIME_RC_PRODUCT,
 } from "@/config/catalog.config";
 import { useAuthStore } from "@/store/auth.store";
 
 export const useSubscriptionStore = defineStore("subscription", () => {
 	const isPro = ref(false);
+	const isLifetime = ref(false);
 	const isLoading = ref(true);
 	const showConfetti = ref(false);
 
@@ -41,17 +44,23 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 			const { waitUntilInitialized } = useAuthStore();
 			await waitUntilInitialized();
 			const { user } = useAuthStore();
-			isPro.value = user?.subscription_tier === "pro";
+			isLifetime.value = user?.subscription_tier === "lifetime";
+			isPro.value = isLifetime.value || user?.subscription_tier === "pro";
 			return;
 		}
 
 		isLoading.value = true;
 		try {
 			const { customerInfo } = await Purchases.getCustomerInfo();
-			const active =
-				typeof customerInfo.entitlements.active[PRO_ENTITLEMENT] !==
-				"undefined";
+			const ent = customerInfo.entitlements.active;
+			const lifetime =
+				typeof ent[LIFETIME_ENTITLEMENT] !== "undefined" ||
+				customerInfo.nonSubscriptionTransactions.some(
+					(t) => t.productIdentifier === LIFETIME_RC_PRODUCT,
+				);
+			const active = lifetime || typeof ent[PRO_ENTITLEMENT] !== "undefined";
 
+			isLifetime.value = lifetime;
 			if (active !== isPro.value) {
 				isPro.value = active;
 				await syncWithBackend(active);
@@ -199,6 +208,7 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 
 	function clearSubscriptionState() {
 		isPro.value = false;
+		isLifetime.value = false;
 	}
 
 	async function manageSubscription() {
@@ -212,6 +222,7 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 
 	return {
 		isPro,
+		isLifetime,
 		isLoading,
 		checkProStatus,
 		clearSubscriptionState,

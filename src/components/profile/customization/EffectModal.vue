@@ -10,7 +10,7 @@
           Profile Effect
         </h1>
         <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-1">
-          Atmosphere for your card
+          A little motion for your card
         </p>
       </div>
 
@@ -75,10 +75,11 @@
           color="secondary"
           shape="round"
           size="large"
-          @click="goToShop"
+          :disabled="purchasing"
+          @click="unlock"
         >
           <ion-icon :icon="svg(mdiLock)" slot="start" class="mr-1" />
-          Unlock {{ selectionName }}
+          {{ purchasing ? 'Unlocking…' : `Unlock ${selectionName}` }}
         </ion-button>
         <ion-button
           v-else
@@ -108,7 +109,7 @@ import {
 } from "@/config/profile_options.config";
 import { buildItemId } from "@/config/catalog.config";
 import { useInventoryStore } from "@/store/inventory.store";
-import { useMenuStore } from "@/store/menu.store";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import ProfileEffect from "./ProfileEffect.vue";
 import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
@@ -122,7 +123,7 @@ const props = defineProps<{
 const emit = defineEmits(["close", "select"]);
 
 const inventoryStore = useInventoryStore();
-const menuStore = useMenuStore();
+const { purchasing, unlockItem } = useUnlockItem();
 
 const localSelection = ref(props.customization.effectId || DEFAULT_EFFECT_ID);
 
@@ -153,15 +154,17 @@ const handleSelect = (effect: ProfileEffectDef) => {
 };
 
 const confirm = () => {
-	if (selectionLocked.value) return goToShop();
+	if (selectionLocked.value) return unlock();
 	emit("select", localSelection.value);
 	emit("close");
 };
 
-const goToShop = () => {
-	const itemId = buildItemId("effect", localSelection.value);
-	emit("close");
-	setTimeout(() => menuStore.openShop(itemId), 250);
+const unlock = async () => {
+	const ok = await unlockItem(buildItemId("effect", localSelection.value));
+	if (ok) {
+		emit("select", localSelection.value);
+		emit("close");
+	}
 };
 
 const handleDismiss = () => emit("close");

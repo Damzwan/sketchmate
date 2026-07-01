@@ -5,15 +5,25 @@ import { useAuthStore } from "./auth.store";
 import {
 	CATALOG_BY_ID,
 	FREE_ITEMS,
+	PRO_LOCKED_CATEGORIES,
 	grantsForSku,
+	type ItemCategory,
 	type ShopSku,
 } from "@/config/catalog.config";
 import { syncTitles as syncTitlesApi } from "@/service/api/user.api";
 
 // Single source of truth for "does this user own item X?". Item IDs use the
-// dotted convention (`theme.midnight`, `title.supporter`). Pro short-circuits
-// to true on everything, but Pro never writes into `owned` — we keep a clean
-// "actually unlocked item X" signal that survives a lapsed subscription.
+// dotted convention (`theme.midnight`, `title.supporter`).
+//
+// Access rules, in order:
+//   • Free items          → always owned.
+//   • Titles              → earned only; never unlocked by any subscription.
+//   • Lifetime            → owns everything else.
+//   • Pro                 → owns everything EXCEPT PRO_LOCKED_CATEGORIES
+//                           (decoration / effect / world) — those stay paid.
+//   • Otherwise           → must be in `owned` (a real purchase / grant).
+// Subscriptions never write into `owned`, so it stays a clean "actually
+// purchased" signal that survives a lapse.
 export const useInventoryStore = defineStore("inventory", () => {
 	const owned = ref<Set<string>>(new Set());
 	const isLoading = ref(false);
@@ -21,10 +31,13 @@ export const useInventoryStore = defineStore("inventory", () => {
 	const isOwned = (itemId?: string): boolean => {
 		if (!itemId) return true;
 		if (FREE_ITEMS.has(itemId)) return true;
-		// Titles are earned, never paid — Pro must NOT unlock them. Only a real
-		// grant (in `owned`) counts. Everything else falls back to the Pro pass.
-		if (itemId.startsWith("title.")) return owned.value.has(itemId);
-		if (useSubscriptionStore().isPro) return true;
+
+		const category = itemId.split(".")[0] as ItemCategory;
+		if (category === "title") return owned.value.has(itemId);
+
+		const sub = useSubscriptionStore();
+		if (sub.isLifetime) return true;
+		if (sub.isPro && !PRO_LOCKED_CATEGORIES.includes(category)) return true;
 		return owned.value.has(itemId);
 	};
 

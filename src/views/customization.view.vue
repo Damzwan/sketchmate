@@ -111,13 +111,13 @@
 
           <CustomizeOptionRow
             :icon="mdiWeatherHurricane"
-            label="Atmosphere"
-            :value="currentAtmosphereName"
-            @click="atmosphereModalOpen = true"
+            label="World"
+            :value="currentWorldName"
+            @click="worldModalOpen = true"
           >
             <template #preview>
               <div class="w-6 h-6 rounded-md bg-gradient-to-br from-blue-100 to-blue-200 overflow-hidden relative">
-                <ProfileAtmosphere :atmosphere-id="draft.atmosphereId" :preview="true" :preview-scale="0.085" />
+                <ProfileWorld :world-id="draft.worldId" :preview="true" :preview-scale="0.085" />
               </div>
             </template>
           </CustomizeOptionRow>
@@ -192,7 +192,7 @@
     <FontEffectModal :is-open="fontEffectModalOpen" :user="user" :customization="draft" @close="fontEffectModalOpen = false" @select="(id: any) => updateField('fontEffectId', id)" />
     <DecorationModal :is-open="decorationModalOpen" :user="user" :customization="draft" @close="decorationModalOpen = false" @select="(id: any) => updateField('decorationId', id)" />
     <EffectModal :is-open="effectModalOpen" :user="user" :customization="draft" @close="effectModalOpen = false" @select="(id: any) => updateField('effectId', id)" />
-    <AtmosphereModal :is-open="atmosphereModalOpen" :user="user" :customization="draft" @close="atmosphereModalOpen = false" @select="(id: any) => updateField('atmosphereId', id)" />
+    <WorldModal :is-open="worldModalOpen" :user="user" :customization="draft" @close="worldModalOpen = false" @select="(id: any) => updateField('worldId', id)" />
     <TitleModal :is-open="titlesModalOpen" :current-title-id="draft.titleId" @close="titlesModalOpen = false" @select="(id: any) => updateField('titleId', draft.titleId === id ? '' : id)" />
     <SignaturePadModal :is-open="signatureModalOpen" :color="currentTheme.accentColor" @close="signatureModalOpen = false" @save="handleSaveSignature" />
     <BackgroundSketchPadModal :is-open="sketchModalOpen" :color="currentTheme.nameColor" :customization="draft" :user="user" :initial-path="draft.backgroundSketchPath" :initial-view-box="draft.backgroundSketchViewBox" @close="sketchModalOpen = false" @save="handleSaveSketch" />
@@ -224,7 +224,7 @@ import ProfileCard from "@/components/profile/ProfileCard.vue";
 import CustomizeOptionRow from "@/components/profile/customization/CustomizeOptionRow.vue";
 import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileAtmosphere from "@/components/profile/ProfileAtmosphere.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 
 // Modal Imports
 import IdentityModal from "@/components/profile/customization/IdentityModal.vue";
@@ -233,7 +233,7 @@ import FontModal from "@/components/profile/customization/FontModal.vue";
 import FontEffectModal from "@/components/profile/customization/FontEffectModal.vue";
 import DecorationModal from "@/components/profile/customization/DecorationModal.vue";
 import EffectModal from "@/components/profile/customization/EffectModal.vue";
-import AtmosphereModal from "@/components/profile/customization/AtmosphereModal.vue";
+import WorldModal from "@/components/profile/customization/WorldModal.vue";
 import TitleModal from "@/components/profile/customization/TitleModal.vue";
 import SignaturePadModal from "@/components/profile/customization/SignaturePadModal.vue";
 import BackgroundSketchPadModal from "@/components/profile/customization/BackgroundSketchPadModal.vue";
@@ -244,7 +244,7 @@ import {
 	hydrateCustomization,
 	resolveDecoration,
 	resolveEffect,
-	resolveAtmosphere,
+	resolveWorld,
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
@@ -264,7 +264,7 @@ const fontModalOpen = ref(false);
 const fontEffectModalOpen = ref(false);
 const decorationModalOpen = ref(false);
 const effectModalOpen = ref(false);
-const atmosphereModalOpen = ref(false);
+const worldModalOpen = ref(false);
 const titlesModalOpen = ref(false);
 const signatureModalOpen = ref(false);
 const sketchModalOpen = ref(false);
@@ -324,8 +324,8 @@ const currentDecorationName = computed(
 const currentEffectName = computed(
 	() => resolveEffect(draft.value.effectId).name,
 );
-const currentAtmosphereName = computed(
-	() => resolveAtmosphere(draft.value.atmosphereId).name,
+const currentWorldName = computed(
+	() => resolveWorld(draft.value.worldId).name,
 );
 const currentTitleName = computed(() => resolveTitle(draft.value.titleId));
 const currentFontLabel = computed(

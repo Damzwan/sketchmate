@@ -1,6 +1,7 @@
 <template>
+  <Teleport to="body">
   <Transition name="fade">
-    <div v-if="showConfetti" class="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+    <div v-if="showConfetti" class="fixed inset-0 flex items-center justify-center pointer-events-none z-[99999]">
 
       <DotLottieVue
         class="absolute"
@@ -22,6 +23,7 @@
 
     </div>
   </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

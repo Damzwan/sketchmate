@@ -15,7 +15,7 @@
         <button
           type="button"
           @click="$emit('go-settings')"
-          class="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform bg-transparent hover:bg-black/5"
+          class="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-transform bg-transparent hover:bg-black/5"
           aria-label="Settings"
         >
           <ion-icon :icon="svg(mdiCog)" class="w-6 h-6" :style="{'color': theme.accentColor}" />
@@ -24,7 +24,7 @@
         <button
           type="button"
           @click="$emit('open-connection')"
-          class="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform bg-transparent hover:bg-black/5"
+          class="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-transform bg-transparent hover:bg-black/5"
           aria-label="Add Connection"
         >
           <ion-icon :icon="svg(mdiAccountPlusOutline)" class="w-6 h-6" :style="{'color': theme.accentColor}" />
@@ -33,7 +33,7 @@
         <button
           type="button"
           @click="$emit('go-customize')"
-          class="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform bg-transparent hover:bg-black/5"
+          class="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-transform bg-transparent hover:bg-black/5"
           aria-label="Customize"
         >
           <ion-icon :icon="svg(mdiPalette)" class="w-6 h-6" :style="{'color': theme.accentColor}" />
@@ -116,7 +116,7 @@
           <button
             v-for="stat in (['mates', 'followers', 'following'] as const)"
             :key="stat"
-            class="flex flex-col items-center active:scale-95 transition-transform relative"
+            class="flex flex-col items-center cursor-pointer hover:scale-110 active:scale-95 transition-transform relative"
             :class="{ 'border-x': stat === 'followers' }"
             :style="stat === 'followers' ? { borderColor: theme.cardBorderColor } : {}"
             @click="$emit('go-network', stat)"

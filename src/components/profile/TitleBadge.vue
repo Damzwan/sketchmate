@@ -3,7 +3,7 @@
     <button
       :id="triggerId"
       type="button"
-      class="title-pin group relative overflow-hidden text-[10px] font-black uppercase tracking-widest pl-1.5 pr-3 py-1 rounded-full inline-flex items-center gap-1.5 border border-white/25 transition-all duration-300 ease-out active:scale-95 hover:-translate-y-px"
+      class="title-pin group relative overflow-hidden text-[10px] font-black uppercase tracking-widest pl-1.5 pr-3 py-1 rounded-full inline-flex items-center gap-1.5 border border-white/25 transition-all duration-300 ease-out cursor-pointer hover:scale-110 active:scale-95 hover:-translate-y-px"
       :class="extraClass"
       :style="{ background: theme.titleBg, color: theme.nameColor }"
       @click.stop="open = true"

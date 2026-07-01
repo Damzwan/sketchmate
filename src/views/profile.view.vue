@@ -10,13 +10,7 @@
           key="skeleton"
           class="px-4 pt-6 pb-12 max-w-2xl mx-auto cabin-sketch-regular"
         >
-          <section class="mt-16 bg-primary/10 rounded-[3rem] border border-primary/20 shadow-sm relative px-6 pb-8 pt-4">
-            <div class="flex flex-col items-center -mt-20 relative z-20">
-              <div class="w-32 h-32 rounded-[2.5rem] bg-primary/20 animate-pulse shadow-sm"></div>
-              <div class="mt-6 h-8 w-48 bg-primary/20 rounded-xl animate-pulse"></div>
-              <div class="mt-4 h-4 w-64 bg-primary/10 rounded-md animate-pulse"></div>
-            </div>
-          </section>
+          <ProfileCardSkeleton />
         </div>
 
         <div
@@ -63,6 +57,7 @@ import { useToast } from "@/service/toast.service";
 
 import TopBar from "@/components/general/TopBar.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
+import ProfileCardSkeleton from "@/components/profile/ProfileCardSkeleton.vue";
 import ProfilePost from "@/components/profile/ProfilePost.vue";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";

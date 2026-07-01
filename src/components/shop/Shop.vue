@@ -25,14 +25,14 @@
             @click="subStore.presentPaywall()"
           >
             <h2 class="text-[16px] font-black text-black leading-none">Pro</h2>
-            <p class="text-[12px] font-bold text-secondary mt-1.5 leading-none">Unlock more →</p>
+            <p class="text-[12px] font-bold text-secondary mt-1.5 leading-none">Unlock more</p>
           </button>
           <button
             class="rounded-[1.25rem] px-4 py-3 text-left border-2 border-secondary bg-secondary/10 active:scale-[0.98] transition-transform"
             @click="subStore.presentPaywall()"
           >
             <h2 class="text-[16px] font-black text-black leading-none">Lifetime</h2>
-            <p class="text-[12px] font-bold text-secondary mt-1.5 leading-none">Everything, forever →</p>
+            <p class="text-[12px] font-bold text-secondary mt-1.5 leading-none">Everything, forever</p>
           </button>
         </div>
 
@@ -46,26 +46,29 @@
             @click="subStore.presentPaywall()"
           >
             Go Lifetime, unlock everything
-            <ion-icon :icon="mdiArrowRight" slot="end" />
+            <ion-icon :icon="svg(mdiArrowRight)" slot="end" />
           </ion-button>
           <div class="rounded-xl px-3.5 py-1.5 border border-primary/40 flex items-center justify-between">
             <span class="text-[13px] text-black/80 flex items-center gap-1.5">
-              <ion-icon :icon="mdiCheckCircle" class="text-emerald-500 text-base" />
+              <ion-icon :icon="svg(mdiCheckCircle)" class="text-emerald-500 text-base" />
               Pro is active
             </span>
-            <ion-button fill="clear" size="small" color="secondary" class="m-0 font-black" @click="subStore.manageSubscription()">
+            <ion-button fill="clear" size="small" color="secondary" class="m-0"
+                        @click="subStore.manageSubscription()">
               Manage
             </ion-button>
           </div>
         </div>
 
         <!-- Lifetime: nothing to sell, slim status + manage -->
-        <div v-else class="rounded-xl px-3.5 py-1.5 border border-emerald-400/60 bg-emerald-50/50 flex items-center justify-between">
+        <div v-else
+             class="rounded-xl px-3.5 py-1.5 border border-emerald-400/60 bg-emerald-50/50 flex items-center justify-between">
           <span class="text-[14px] font-black text-black flex items-center gap-1.5">
-            <ion-icon :icon="mdiCrown" class="text-secondary text-lg" />
+            <ion-icon :icon="svg(mdiCrown)" class="text-secondary text-lg" />
             Lifetime, all access
           </span>
-          <ion-button fill="clear" size="small" color="secondary" class="m-0 font-black" @click="subStore.manageSubscription()">
+          <ion-button fill="clear" size="small" color="secondary" class="m-0"
+                      @click="subStore.manageSubscription()">
             Manage
           </ion-button>
         </div>
@@ -177,185 +180,185 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
-import { IonModal, IonContent, IonIcon, IonButton } from "@ionic/vue";
-import { storeToRefs } from "pinia";
-import { Purchases } from "@revenuecat/purchases-capacitor";
-import { mdiArrowRight, mdiCheckCircle, mdiCrown } from "@mdi/js";
-import { chevronBackOutline } from "ionicons/icons";
-import bigbossImage from "@/assets/bigboss.jpg"
+import { computed, nextTick, ref, watch } from 'vue'
+import { IonModal, IonContent, IonIcon, IonButton } from '@ionic/vue'
+import { storeToRefs } from 'pinia'
+import { Purchases } from '@revenuecat/purchases-capacitor'
+import { mdiArrowRight, mdiCheckCircle, mdiCrown } from '@mdi/js'
+import { chevronBackOutline } from 'ionicons/icons'
+import bigbossImage from '@/assets/bigboss.jpg'
 
-import { isNative } from "@/helper/general.helper";
-import { useMenuStore } from "@/store/menu.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
-import { useInventoryStore } from "@/store/inventory.store";
-import { useToast } from "@/service/toast.service";
+import { isNative, svg } from '@/helper/general.helper'
+import { useMenuStore } from '@/store/menu.store'
+import { useSubscriptionStore } from '@/store/subscription.store'
+import { useInventoryStore } from '@/store/inventory.store'
+import { useToast } from '@/service/toast.service'
 import {
-	CATALOG,
-	CATALOG_BY_ID,
-	HIGHLIGHT_IDS,
-	type ShopSku,
-	type ItemCategory,
-} from "@/config/catalog.config";
+  CATALOG,
+  CATALOG_BY_ID,
+  HIGHLIGHT_IDS,
+  type ShopSku,
+  type ItemCategory
+} from '@/config/catalog.config'
 
-import ShopSupportNote from "./ShopSupportNote.vue";
-import ShopHero from "./ShopHero.vue";
-import ShopCardPack from "./ShopCardPack.vue";
-import ShopBundleModal from "./ShopBundleModal.vue";
-import ShopCardTheme from "./ShopCardTheme.vue";
-import ShopCardBrush from "./ShopCardBrush.vue";
-import ShopCardDecoration from "./ShopCardDecoration.vue";
-import ShopCardEffect from "./ShopCardEffect.vue";
-import ShopCardWorld from "./ShopCardWorld.vue";
-import ShopCardFont from "./ShopCardFont.vue";
-import ShopCardFontEffect from "./ShopCardFontEffect.vue";
-import { useAuthStore } from "@/store/auth.store";
+import ShopSupportNote from './ShopSupportNote.vue'
+import ShopHero from './ShopHero.vue'
+import ShopCardPack from './ShopCardPack.vue'
+import ShopBundleModal from './ShopBundleModal.vue'
+import ShopCardTheme from './ShopCardTheme.vue'
+import ShopCardBrush from './ShopCardBrush.vue'
+import ShopCardDecoration from './ShopCardDecoration.vue'
+import ShopCardEffect from './ShopCardEffect.vue'
+import ShopCardWorld from './ShopCardWorld.vue'
+import ShopCardFont from './ShopCardFont.vue'
+import ShopCardFontEffect from './ShopCardFontEffect.vue'
+import { useAuthStore } from '@/store/auth.store'
 
-const menuStore = useMenuStore();
-const subStore = useSubscriptionStore();
-const inventoryStore = useInventoryStore();
-const userStore = useAuthStore();
-const { toast } = useToast();
+const menuStore = useMenuStore()
+const subStore = useSubscriptionStore()
+const inventoryStore = useInventoryStore()
+const userStore = useAuthStore()
+const { toast } = useToast()
 
-const { isShopOpen, shopScrollTarget } = storeToRefs(menuStore);
-const user = computed(() => userStore.user);
-const isLoading = ref(true);
+const { isShopOpen, shopScrollTarget } = storeToRefs(menuStore)
+const user = computed(() => userStore.user)
+const isLoading = ref(true)
 const skusWithPrices = ref<
-	Record<string, ShopSku & { priceString?: string; rcPackage?: any }>
->({});
-const contentEl = ref<any>(null);
-const highlightedId = ref<string | null>(null);
-const previewBundle = ref<ShopSku | null>(null);
+  Record<string, ShopSku & { priceString?: string; rcPackage?: any }>
+>({})
+const contentEl = ref<any>(null)
+const highlightedId = ref<string | null>(null)
+const previewBundle = ref<ShopSku | null>(null)
 
 function withPrice(sku: ShopSku) {
-	return skusWithPrices.value[sku.id] || sku;
+  return skusWithPrices.value[sku.id] || sku
 }
 
 const featuredPacks = computed(() =>
-	CATALOG.filter((s) => s.kind === "bundle" && s.featured).map(withPrice),
-);
+  CATALOG.filter((s) => s.kind === 'bundle' && s.featured).map(withPrice)
+)
 
 const highlights = computed(() =>
-	HIGHLIGHT_IDS.map((id) => CATALOG_BY_ID[id])
-		.filter(Boolean)
-		.map(withPrice),
-);
+  HIGHLIGHT_IDS.map((id) => CATALOG_BY_ID[id])
+    .filter(Boolean)
+    .map(withPrice)
+)
 
 // Grouped by feel: card looks first, then text, then tools.
 const categories: { id: ItemCategory; label: string }[] = [
-	{ id: "theme", label: "Themes" },
-	{ id: "world", label: "Worlds" },
-	{ id: "effect", label: "Effects" },
-	{ id: "decoration", label: "Decor" },
-	{ id: "font", label: "Fonts" },
-	{ id: "font_effect", label: "Text" },
-	{ id: "brush", label: "Brushes" },
-];
+  { id: 'theme', label: 'Themes' },
+  { id: 'world', label: 'Worlds' },
+  { id: 'effect', label: 'Effects' },
+  { id: 'decoration', label: 'Decor' },
+  { id: 'font', label: 'Fonts' },
+  { id: 'font_effect', label: 'Text' },
+  { id: 'brush', label: 'Brushes' }
+]
 
 const cardComponents: Partial<Record<ItemCategory, any>> = {
-	theme: ShopCardTheme,
-	world: ShopCardWorld,
-	effect: ShopCardEffect,
-	decoration: ShopCardDecoration,
-	brush: ShopCardBrush,
-	font: ShopCardFont,
-	font_effect: ShopCardFontEffect,
-};
-const cardFor = (cat: ItemCategory) => cardComponents[cat] || ShopCardTheme;
+  theme: ShopCardTheme,
+  world: ShopCardWorld,
+  effect: ShopCardEffect,
+  decoration: ShopCardDecoration,
+  brush: ShopCardBrush,
+  font: ShopCardFont,
+  font_effect: ShopCardFontEffect
+}
+const cardFor = (cat: ItemCategory) => cardComponents[cat] || ShopCardTheme
 
-const activeCategory = ref<ItemCategory>("theme");
+const activeCategory = ref<ItemCategory>('theme')
 const activeItems = computed(() =>
-	CATALOG.filter((s) => s.category === activeCategory.value).map(withPrice),
-);
+  CATALOG.filter((s) => s.category === activeCategory.value).map(withPrice)
+)
 
 const ownedSkus = computed(() =>
-	CATALOG.filter((s) => s.kind === "single" && inventoryStore.owned.has(s.id)),
-);
+  CATALOG.filter((s) => s.kind === 'single' && inventoryStore.owned.has(s.id))
+)
 
 // Ownership is decided entirely by the inventory store (which knows the
 // Lifetime / Pro / locked-category rules). A bundle is owned only when every
 // grant inside it is.
 const isItemOwned = (skuId: string): boolean => {
-	const sku = CATALOG_BY_ID[skuId];
-	if (!sku) return false;
-	if (sku.kind === "bundle")
-		return sku.grants.every((g) => inventoryStore.isOwned(g));
-	return inventoryStore.isOwned(sku.id);
-};
+  const sku = CATALOG_BY_ID[skuId]
+  if (!sku) return false
+  if (sku.kind === 'bundle')
+    return sku.grants.every((g) => inventoryStore.isOwned(g))
+  return inventoryStore.isOwned(sku.id)
+}
 
 const closeShop = () => {
-	isShopOpen.value = false;
-	highlightedId.value = null;
-};
+  isShopOpen.value = false
+  highlightedId.value = null
+}
 
 const loadOfferings = async () => {
-	if (!isNative()) {
-		skusWithPrices.value = Object.fromEntries(
-			CATALOG.map((s) => [
-				s.id,
-				{ ...s, priceString: s.kind === "bundle" ? "$4.99" : "$1.99" },
-			]),
-		);
-		isLoading.value = false;
-		return;
-	}
-	try {
-		isLoading.value = true;
-		const offerings = await Purchases.getOfferings();
-		const shopPackages = offerings.all["shop_items"]?.availablePackages || [];
-		const priced: Record<
-			string,
-			ShopSku & { priceString?: string; rcPackage?: any }
-		> = {};
-		for (const sku of CATALOG) {
-			const pkg = shopPackages.find(
-				(p) => p.product.identifier === sku.rcProductId,
-			);
-			priced[sku.id] = {
-				...sku,
-				priceString: pkg?.product.priceString,
-				rcPackage: pkg,
-			};
-		}
-		skusWithPrices.value = priced;
-	} catch (e) {
-		toast("Could not load shop prices", { color: "danger" });
-	} finally {
-		isLoading.value = false;
-	}
-};
+  if (!isNative()) {
+    skusWithPrices.value = Object.fromEntries(
+      CATALOG.map((s) => [
+        s.id,
+        { ...s, priceString: s.kind === 'bundle' ? '$4.99' : '$1.99' }
+      ])
+    )
+    isLoading.value = false
+    return
+  }
+  try {
+    isLoading.value = true
+    const offerings = await Purchases.getOfferings()
+    const shopPackages = offerings.all['shop_items']?.availablePackages || []
+    const priced: Record<
+      string,
+      ShopSku & { priceString?: string; rcPackage?: any }
+    > = {}
+    for (const sku of CATALOG) {
+      const pkg = shopPackages.find(
+        (p) => p.product.identifier === sku.rcProductId
+      )
+      priced[sku.id] = {
+        ...sku,
+        priceString: pkg?.product.priceString,
+        rcPackage: pkg
+      }
+    }
+    skusWithPrices.value = priced
+  } catch (e) {
+    toast('Could not load shop prices', { color: 'danger' })
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const purchaseItem = async (sku: ShopSku) => {
-	const ok = await subStore.purchaseSku(sku.id);
-	if (ok) highlightedId.value = null;
-};
+  const ok = await subStore.purchaseSku(sku.id)
+  if (ok) highlightedId.value = null
+}
 
 watch(isShopOpen, async (open) => {
-	if (!open) return;
-	if (Object.keys(skusWithPrices.value).length === 0) await loadOfferings();
-	if (shopScrollTarget.value) {
-		const targetItem = shopScrollTarget.value;
-		const targetSku =
-			CATALOG_BY_ID[targetItem] ??
-			CATALOG.find((s) => s.grants.includes(targetItem));
-		if (targetSku) {
-			if (targetSku.category !== "pack")
-				activeCategory.value = targetSku.category;
-			highlightedId.value = targetSku.id;
-			await nextTick();
-			setTimeout(() => {
-				const el = document.querySelector(
-					`[data-shop-id="${targetSku.id}"]`,
-				) as HTMLElement | null;
-				el?.scrollIntoView({ behavior: "smooth", block: "center" });
-			}, 150);
-			setTimeout(() => {
-				highlightedId.value = null;
-			}, 4000);
-		}
-		shopScrollTarget.value = null;
-	}
-});
+  if (!open) return
+  if (Object.keys(skusWithPrices.value).length === 0) await loadOfferings()
+  if (shopScrollTarget.value) {
+    const targetItem = shopScrollTarget.value
+    const targetSku =
+      CATALOG_BY_ID[targetItem] ??
+      CATALOG.find((s) => s.grants.includes(targetItem))
+    if (targetSku) {
+      if (targetSku.category !== 'pack')
+        activeCategory.value = targetSku.category
+      highlightedId.value = targetSku.id
+      await nextTick()
+      setTimeout(() => {
+        const el = document.querySelector(
+          `[data-shop-id="${targetSku.id}"]`
+        ) as HTMLElement | null
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 150)
+      setTimeout(() => {
+        highlightedId.value = null
+      }, 4000)
+    }
+    shopScrollTarget.value = null
+  }
+})
 </script>
 
 <style scoped>
@@ -364,13 +367,19 @@ ion-modal.full-screen-modal {
   --width: 100%;
   --border-radius: 0;
 }
+
 .--bg-canvas {
   --background: var(--ion-color-background) !important;
 }
+
 .header-bg, .navbar-bg {
   background-color: rgba(245, 230, 211, 0.95);
 }
-.hide-scrollbar::-webkit-scrollbar { display: none !important; }
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+
 .hide-scrollbar {
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;

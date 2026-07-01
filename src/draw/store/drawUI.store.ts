@@ -1,11 +1,9 @@
 import { defineStore } from "pinia";
 import { ShapeCreationMode } from "@/draw/types/draw.types";
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import { useDrawStore } from "@/draw/store/draw.store";
 import { Canvas, Point } from "fabric";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
-import { useDebounceFn } from "@vueuse/core";
-import { useGestureStore } from "@/draw/store/tools/gesture.store";
 
 const AVATAR_DISAPPEAR_TIMEOUT_MS = 3000;
 
@@ -18,36 +16,16 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 	const loadingText = ref("");
 	const canResetView = ref(false);
 	const activeAvatars = ref(new Map());
-	const isCanvasNavigating = ref(false);
 	const isFullscreen = ref(false);
 	const chatToastsSilenced = ref(false);
 	const isSavingDrawing = ref(false);
 	const isLoadingDrawing = ref(false);
 
-	const gestureStore = useGestureStore();
 	const exitRequested = ref(0);
 
 	const triggerManualExit = () => {
 		exitRequested.value++;
 	};
-
-	const resumeRendering = useDebounceFn(() => {
-		if (!gestureStore.isGesturing) {
-			isCanvasNavigating.value = false;
-		}
-	}, 300);
-
-	watch(
-		() => gestureStore.isGesturing,
-		(isGesturing) => {
-			if (isGesturing) {
-				isCanvasNavigating.value = true;
-				recalculateAvatarPositions();
-			} else {
-				resumeRendering();
-			}
-		},
-	);
 
 	function showOrUpdateAvatar(
 		userId: string,
@@ -110,7 +88,7 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 		showOrUpdateAvatar,
 		activeAvatars,
 		init,
-		isCanvasNavigating,
+		recalculateAvatarPositions,
 		destroy,
 		exitRequested,
 		triggerManualExit,

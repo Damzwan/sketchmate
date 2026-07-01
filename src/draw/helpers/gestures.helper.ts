@@ -40,6 +40,9 @@ function cancelPendingSettle() {
 function syncVisuals(c: Canvas) {
   const { renderViewport } = useDrawObjectManager()
   renderViewport()
+
+  const { recalculateAvatarPositions } = useDrawUIStore()
+  recalculateAvatarPositions()
 }
 
 function endViewportGesture(c: Canvas) {

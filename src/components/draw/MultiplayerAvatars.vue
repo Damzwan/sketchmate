@@ -1,13 +1,13 @@
 <template>
   <div
-    class="absolute inset-0 w-full h-full pointer-events-none overflow-hidden z-50 transition-opacity duration-200"
-    :class="{ 'opacity-0': isCanvasNavigating, 'opacity-100': !isCanvasNavigating }"
+    class="absolute inset-0 w-full h-full pointer-events-none overflow-hidden z-50"
   >
     <TransitionGroup name="avatar-fade">
       <div
         v-for="[id, avatar] in activeAvatars"
         :key="id"
-        class="absolute top-0 left-0 flex flex-col items-center gap-1 will-change-transform transition-transform duration-75 ease-linear"
+        class="absolute top-0 left-0 flex flex-col items-center gap-1 will-change-transform ease-linear"
+        :class="{ 'transition-transform duration-75': !isGesturing }"
         :style="{ transform: `translate(${avatar.x}px, ${avatar.y}px)` }"
       >
         <ion-avatar class="w-8 h-8 border-2 border-white shadow-md ring-2 ring-primary/50">
@@ -26,9 +26,11 @@
 <script setup lang="ts">
 import { IonAvatar } from '@ionic/vue'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { useGestureStore } from '@/draw/store/tools/gesture.store'
 import { storeToRefs } from 'pinia'
 
-const { activeAvatars, isCanvasNavigating } = storeToRefs(useDrawUIStore())
+const { activeAvatars } = storeToRefs(useDrawUIStore())
+const { isGesturing } = storeToRefs(useGestureStore())
 </script>
 
 <style scoped>

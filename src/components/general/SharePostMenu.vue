@@ -18,7 +18,7 @@
         </span>
         <button
           @click="handleDismiss"
-          class="text-xs font-black text-black/70 uppercase tracking-widest active:opacity-50"
+          class="text-xs font-black text-black/80 uppercase tracking-widest active:opacity-50"
         >
           Cancel
         </button>
@@ -30,10 +30,10 @@
             <img :src="previewThumbnail" class="w-full h-full object-cover" />
           </div>
           <div class="ml-3 flex flex-col min-w-0 pr-2">
-            <p class="text-sm text-black/60 italic truncate">
+            <p class="text-sm text-black/80 italic truncate">
               {{ previewLabel }}
             </p>
-            <p class="text-[10px] font-black text-black/70 uppercase tracking-widest mt-0.5">
+            <p class="text-xs font-black text-black/80 uppercase tracking-widest mt-0.5">
               Share Externally
             </p>
           </div>
@@ -62,11 +62,11 @@
           v-else-if="friends.length === 0"
           class="text-center py-12 bg-white/20 rounded-[2.5rem] border-2 border-dashed border-black/5"
         >
-          <p class="text-sm text-black/30 italic">No mates yet. Start sketching!</p>
+          <p class="text-sm text-black/80 italic">No mates yet. Start sketching!</p>
         </div>
 
         <div v-else class="space-y-3 mt-2">
-          <p class="text-[10px] font-black text-black/70 uppercase px-2 tracking-widest mb-1">
+          <p class="text-xs font-black text-black/80 uppercase px-2 tracking-widest mb-1">
             Send to Mates
           </p>
 
@@ -94,13 +94,13 @@
               <span class="text-lg font-black text-black leading-none truncate">{{ friend.name }}</span>
               <span
                 v-if="isFriendDisabled(friend)"
-                class="text-[9px] font-bold text-red-500 uppercase tracking-widest mt-1"
+                class="text-xs font-bold text-red-500 uppercase tracking-widest mt-1"
               >
                 Needs update
               </span>
               <span
                 v-else-if="isFriendOnline(friend._id)"
-                class="text-[9px] font-bold text-green-600 uppercase tracking-widest mt-1"
+                class="text-xs font-bold text-green-600 uppercase tracking-widest mt-1"
               >
                 Online now
               </span>
@@ -135,7 +135,7 @@
           <ion-spinner v-if="isSending" name="dots" />
           <div v-else class="flex flex-col items-center justify-center leading-none mt-0.5">
             <ion-icon :icon="svg(mdiSendOutline)" class="text-xl transform -rotate-12" />
-            <span class="text-[10px] font-black tracking-tighter">{{ selectedFriendIds.length }}</span>
+            <span class="text-xs font-black tracking-tighter">{{ selectedFriendIds.length }}</span>
           </div>
         </ion-fab-button>
       </ion-fab>

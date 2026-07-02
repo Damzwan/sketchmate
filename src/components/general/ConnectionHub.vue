@@ -19,7 +19,7 @@
 
       <div class="bg-white/60 border border-white p-5 rounded-[2.5rem] flex items-center justify-between relative mt-1 backdrop-blur-md">
         <div class="flex flex-col z-10 w-full pr-4 min-w-0">
-          <span class="text-[10px] font-black text-black/70 uppercase tracking-widest mb-2">
+          <span class="text-xs font-black text-black/80 uppercase tracking-widest mb-2">
             Your Personal Code
           </span>
 
@@ -37,7 +37,7 @@
             color="secondary"
             @click="() => shareUrl(qrURL)"
           >
-            <ion-icon slot="start" :icon="svg(mdiShareVariant)" />
+            <ion-icon slot="start" :icon="svg(mdiShareVariant)" class="mr-2" />
             Share Link
           </ion-button>
         </div>
@@ -48,7 +48,7 @@
       </div>
 
       <section class="space-y-3">
-        <p class="text-[10px] font-black text-black/70 uppercase tracking-widest px-2">
+        <p class="text-xs font-black text-black/80 uppercase tracking-widest px-2">
           Search by name
         </p>
         <div class="relative">
@@ -74,7 +74,7 @@
             {{ searchWarning }}
           </div>
 
-          <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-xs text-black/50 italic">
+          <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-xs text-black/80 italic">
             No artists found with that name
           </div>
 
@@ -104,7 +104,7 @@
 
       <div class="flex items-center justify-center space-x-4 opacity-30 my-4">
         <div class="h-px bg-black flex-1 rounded-full"></div>
-        <span class="text-[10px] font-black uppercase tracking-widest">OR</span>
+        <span class="text-xs font-black uppercase tracking-widest">OR</span>
         <div class="h-px bg-black flex-1 rounded-full"></div>
       </div>
 
@@ -115,7 +115,7 @@
         size="large"
         expand="block"
       >
-        <ion-icon slot="start" :icon="svg(mdiQrcodeScan)" />
+        <ion-icon slot="start" :icon="svg(mdiQrcodeScan)" class="mr-2" />
         Scan a Mate
       </ion-button>
     </div>
@@ -127,7 +127,7 @@
         </div>
         <video ref="video" class="w-full h-full object-cover bg-black/5" />
         <div class="absolute bottom-6 left-0 right-0 text-center z-10">
-          <span class="bg-black/60 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest backdrop-blur-md">
+          <span class="bg-black/60 text-white text-xs font-black px-4 py-2 rounded-full uppercase tracking-widest backdrop-blur-md">
             Point at a Code
           </span>
         </div>

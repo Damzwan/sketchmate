@@ -26,11 +26,12 @@
         v-for="f in FONTS"
         :key="f.value"
         class="relative rounded-[2rem] border-2 bg-white/60 p-4 active:scale-95 transition-all overflow-hidden text-left"
-        :class="
+        :class="[
           localSelection === f.value
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
-            : 'border-white shadow-sm'
-        "
+            : 'border-white shadow-sm',
+          !isItemOwned(f.value) && 'locked-tile'
+        ]"
         @click="localSelection = f.value"
       >
         <span class="block text-2xl font-bold leading-tight truncate" :style="{ fontFamily: f.family }">
@@ -41,7 +42,16 @@
         </span>
 
         <div
-          v-if="localSelection === f.value"
+          v-if="!isItemOwned(f.value)"
+          class="absolute inset-0 bg-black/25 backdrop-blur-[1px] flex items-center justify-center pointer-events-none"
+        >
+          <div class="bg-white/95 rounded-full w-9 h-9 flex items-center justify-center shadow-lg">
+            <ion-icon :icon="svg(mdiLock)" class="text-base text-black/70" />
+          </div>
+        </div>
+
+        <div
+          v-if="localSelection === f.value && isItemOwned(f.value)"
           class="absolute top-2 right-2 w-6 h-6 rounded-full bg-secondary shadow-lg flex items-center justify-center"
         >
           <ion-icon :icon="svg(mdiCheck)" class="text-white text-sm" />
@@ -52,6 +62,19 @@
     <template #footer>
       <div class="px-1 pt-2 pb-1 bg-background">
         <ion-button
+          v-if="selectionLocked"
+          expand="block"
+          color="secondary"
+          shape="round"
+          size="large"
+          :disabled="purchasing"
+          @click="unlock"
+        >
+          <ion-icon :icon="svg(mdiLock)" slot="start" class="mr-1" />
+          {{ purchasing ? 'Unlocking…' : `Unlock ${selectionName}` }}
+        </ion-button>
+        <ion-button
+          v-else
           expand="block"
           color="secondary"
           shape="round"
@@ -68,13 +91,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiCheck } from "@mdi/js";
+import { mdiCheck, mdiLock } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import {
 	DEFAULT_FONT_ID,
 	FONTS,
 	type Customization,
 } from "@/config/profile_options.config";
+import { buildItemId } from "@/config/catalog.config";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 
@@ -86,6 +112,9 @@ const props = defineProps<{
 
 const emit = defineEmits(["close", "select"]);
 
+const inventoryStore = useInventoryStore();
+const { purchasing, unlockItem } = useUnlockItem();
+
 const localSelection = ref(props.customization.fontId || DEFAULT_FONT_ID);
 
 watch(
@@ -96,18 +125,37 @@ watch(
 	},
 );
 
+const isItemOwned = (fontId: string) =>
+	inventoryStore.isOwned(buildItemId("font", fontId));
+
+const selectionLocked = computed(() => !isItemOwned(localSelection.value));
+
+const selectionName = computed(
+	() => FONTS.find((f) => f.value === localSelection.value)?.label || "",
+);
+
 const previewCustomization = computed(() => ({
 	...props.customization,
 	fontId: localSelection.value,
 }));
 
 const confirm = () => {
+	if (selectionLocked.value) return unlock();
 	emit("select", localSelection.value);
 	emit("close");
 };
+
+const unlock = async () => {
+	const ok = await unlockItem(buildItemId("font", localSelection.value));
+	if (ok) {
+		emit("select", localSelection.value);
+		emit("close");
+	}
+};
+
 const handleDismiss = () => emit("close");
 </script>
 
 <style scoped>
-/* Scoped styles clean and lean since everything is managed by BaseSheetModal */
+.locked-tile { opacity: 0.92; }
 </style>

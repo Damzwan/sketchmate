@@ -165,8 +165,18 @@ const DECORATION_SKUS: ShopSku[] = [
 ]
 
 // ─── PROFILE EFFECTS ─────────────────────────────────────────────────────────
-// `none` and `grain` stay free as a teaser. Rest are paid.
+// `none` stays free. Rest are paid.
 const EFFECT_SKUS: ShopSku[] = [
+  {
+    id: 'effect.grain',
+    kind: 'single',
+    rcProductId: 'sm_effect_grain',
+    grants: ['effect.grain'],
+    category: 'effect',
+    name: 'Paper Grain',
+    desc: 'Subtle texture',
+    refId: 'grain'
+  },
   {
     id: 'effect.shimmer-gold',
     kind: 'single',
@@ -482,7 +492,6 @@ export const FREE_ITEMS = new Set<string>([
   'theme.classic',
   'decoration.none',
   'effect.none',
-  'effect.grain',
   'font.sketch',
   'font_effect.', // empty string font effect = "None"
   // Default brushes

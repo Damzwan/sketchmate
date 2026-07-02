@@ -29,7 +29,7 @@
         :class="[
           localSelection === theme.id
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
-            : 'border-white shadow-sm',
+            : 'border-primary/40 shadow-sm',
           !isItemOwned(theme.id) && 'locked-tile'
         ]"
         :style="{ background: theme.cardBg }"
@@ -75,8 +75,8 @@
           expand="block"
           color="secondary"
           shape="round"
+          size="large"
           :disabled="purchasing"
-          class="h-14 font-black uppercase tracking-widest shadow-lg"
           @click="unlock"
         >
           <ion-icon :icon="svg(mdiLock)" slot="start" class="mr-1" />
@@ -87,7 +87,7 @@
           expand="block"
           color="secondary"
           shape="round"
-          class="h-14 font-black uppercase tracking-widest shadow-lg"
+          size="large"
           @click="confirm"
         >
           Apply Theme

@@ -25,11 +25,11 @@
       <button
         v-for="f in FONTS"
         :key="f.value"
-        class="relative rounded-[2rem] border-2 bg-white/60 p-4 active:scale-95 transition-all overflow-hidden text-left"
+        class="relative rounded-[2rem] border-2 bg-tertiary p-4 active:scale-95 transition-all overflow-hidden text-left"
         :class="[
           localSelection === f.value
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
-            : 'border-white shadow-sm',
+            : 'border-primary/40 shadow-sm',
           !isItemOwned(f.value) && 'locked-tile'
         ]"
         @click="localSelection = f.value"

@@ -7,8 +7,8 @@
         v-if="msg.system_kind === 'balloon_match'"
         class="flex items-center gap-2 px-3 py-1 bg-white border border-primary/50 shadow-sm rounded-full"
       >
-        <span class="text-sm leading-none mt-[-2px]">🎈</span>
-        <span class="text-[10px] font-black cabin-sketch-regular text-black/60 uppercase tracking-wide">
+        <ion-icon :icon="svg(mdiBalloon)" class="text-sm leading-none mt-[-2px] text-secondary" />
+        <span class="text-xs font-black cabin-sketch-regular text-black/80 uppercase tracking-wide">
           <template v-if="isAcceptor">
             You caught <span class="text-black font-black">{{ otherPartyName }}</span>'s balloon
           </template>
@@ -28,9 +28,9 @@
           <UserAvatar v-if="sender" :user="sender" :customization="senderCustomization" size="xs" static
                       class="shrink-0" />
         </div>
-        <span class="text-[10px] font-black cabin-sketch-regular text-black/40 uppercase tracking-tight">
-          <span class="text-black/60">{{ sender?.name }}</span>
-          <span class="ml-1 font-bold">{{ msg.type === 'join' ? 'entered' : 'left' }}</span>
+        <span class="text-xs cabin-sketch-regular text-black/80 uppercase tracking-tight">
+          <span class="text-black/80 font-black">{{ sender?.name }}</span>
+          <span class="ml-1">{{ msg.type === 'join' ? 'entered' : 'left' }}</span>
         </span>
       </div>
     </div>
@@ -66,17 +66,17 @@
               <ion-icon v-else :icon="svg(mdiImageBroken)" class="text-xl text-black/20" />
             </div>
           </div>
-          <div class="pt-1.5 pb-1 px-0.5 flex items-center gap-1 text-black/50">
-            <ion-icon :icon="svg(mdiDraw)" class="text-[10px] shrink-0" />
+          <div class="pt-1.5 pb-1 px-0.5 flex items-center gap-1 text-black/80">
+            <ion-icon :icon="svg(mdiDraw)" class="text-xs shrink-0" />
             <span
-              class="text-[9px] font-black uppercase tracking-wider truncate cabin-sketch-regular leading-none mt-[1px]">
+              class="text-xs font-black uppercase tracking-wider truncate cabin-sketch-regular leading-none mt-[1px]">
               {{ unavailable ? 'Missing Sketch' : sharedPost?.author?.name ? `${sharedPost.author.name}'s art` : 'Shared art'
               }}
             </span>
           </div>
 
-          <!-- Timestamp overlay tags inside polaroid margins -->
-          <div class="absolute bottom-1 right-2 text-[7px] font-sans text-black/30 flex items-center gap-0.5">
+          <!-- Timestamp tag below caption -->
+          <div class="flex justify-end px-0.5 pb-0.5 text-xs font-sans text-black/80 gap-0.5">
             <span>{{ dayjs(msg.createdAt).format('HH:mm') }}</span>
             <span v-if="isMe && activeTab !== 'lobby'" class="text-[9px] flex items-center">
               <ion-icon v-if="msg.status === 'sending'" :icon="timeOutline" class="opacity-40" />
@@ -104,13 +104,13 @@
               <ion-icon v-else :icon="svg(mdiImageBroken)" class="text-xl text-black/20" />
             </div>
           </div>
-          <div class="pt-1.5 pb-1 px-0.5 flex items-center gap-1 text-black/50">
-            <ion-icon :icon="svg(mdiDraw)" class="text-[10px] shrink-0" />
+          <div class="pt-1.5 pb-1 px-0.5 flex items-center gap-1 text-black/80">
+            <ion-icon :icon="svg(mdiDraw)" class="text-xs shrink-0" />
             <span
-              class="text-[9px] font-black uppercase tracking-wider truncate cabin-sketch-regular leading-none mt-[1px]">Gallery Sketch</span>
+              class="text-xs font-black uppercase tracking-wider truncate cabin-sketch-regular leading-none mt-[1px]">Gallery Sketch</span>
           </div>
 
-          <div class="absolute bottom-1 right-2 text-[7px] font-sans text-black/30 flex items-center gap-0.5">
+          <div class="flex justify-end px-0.5 pb-0.5 text-xs font-sans text-black/80 gap-0.5">
             <span>{{ dayjs(msg.createdAt).format('HH:mm') }}</span>
           </div>
         </button>
@@ -126,11 +126,11 @@
           <!-- Dynamic Room Title Headers (Visible only if messaging inside lobbies) -->
           <div v-if="!isCompact && !isMe && activeTab === 'lobby'"
                class="mb-1 flex items-baseline gap-1 whitespace-nowrap leading-none">
-            <span class="text-[9px] font-black uppercase tracking-tight"
+            <span class="text-xs font-black uppercase tracking-tight"
                   :style="{ color: theme.nameColor, fontFamily: resolvedFontFamily }">
               {{ sender?.name }}
             </span>
-            <span v-if="displayTitle" class="text-[7px] font-black uppercase tracking-widest opacity-50 truncate"
+            <span v-if="displayTitle" class="text-[10px] uppercase tracking-widest opacity-80 truncate"
                   :style="{ color: theme.descColor, fontFamily: resolvedFontFamily }">
               • {{ displayTitle }}
             </span>
@@ -140,7 +140,7 @@
 
           <!-- Micro Sync Data Pips -->
           <div
-            class="text-[10px] mt-1 cabin-sketch-regular opacity-80 flex justify-end items-center gap-0.5 select-none leading-none">
+            class="text-xs mt-1 cabin-sketch-regular opacity-80 flex justify-end items-center gap-0.5 select-none leading-none">
             <span>{{ dayjs(msg.createdAt).format('HH:mm') }}</span>
             <span v-if="isMe && activeTab !== 'lobby'" class="text-[9px] flex items-center leading-none">
               <ion-icon v-if="msg.status === 'sending'" :icon="timeOutline" class="opacity-50" />
@@ -164,7 +164,7 @@ import {
   alertCircleOutline,
   checkmarkDoneOutline
 } from 'ionicons/icons'
-import { mdiDraw, mdiImageBroken } from '@mdi/js'
+import { mdiDraw, mdiImageBroken, mdiBalloon } from '@mdi/js'
 import { storeToRefs } from 'pinia'
 import { svg } from '@/helper/general.helper'
 import { usePostStore } from '@/store/post.store'

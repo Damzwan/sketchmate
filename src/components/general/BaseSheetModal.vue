@@ -30,7 +30,7 @@
           <h1 v-if="title" class="text-4xl cabin-sketch-regular text-secondary font-black tracking-tighter italic leading-none">
             {{ title }}
           </h1>
-          <p v-if="subtitle" class="text-sm font-bold opacity-60 uppercase tracking-widest mt-1.5 cabin-sketch-regular">
+          <p v-if="subtitle" class="font-bold uppercase tracking-widest mt-1.5 cabin-sketch-regular">
             {{ subtitle }}
           </p>
         </slot>

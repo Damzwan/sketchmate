@@ -21,7 +21,7 @@
             <div class="ml-3 flex flex-col justify-center min-w-0">
               <div class="flex items-baseline gap-1 truncate">
                 <p
-                  class="text-[14px] leading-none font-black drop-shadow-sm truncate"
+                  class="text-sm p-2 leading-none font-black drop-shadow-sm truncate"
                   :class="fontEffectClass"
                   :style="{ color: theme.nameColor, fontFamily: resolvedFontFamily }"
                 >
@@ -29,13 +29,13 @@
                 </p>
                 <span
                   v-if="displayTitle"
-                  class="text-[9px] font-black uppercase tracking-widest opacity-50 shrink-0 truncate ml-0.5"
+                  class="text-xs font-black uppercase tracking-widest opacity-70 shrink-0 truncate ml-0.5"
                   :style="{ color: theme.descColor }"
                 >
                   · {{ displayTitle }}
                 </span>
               </div>
-              <p class="text-[8px] text-black/40 font-black uppercase mt-1 tracking-wider">
+              <p class="text-xs text-black/60 uppercase mt-1 tracking-wider">
                 {{ dayjs(post.createdAt).fromNow() }}
               </p>
             </div>
@@ -100,7 +100,7 @@
                 stroke-linejoin="round"
               />
             </svg>
-            <span class="text-[7px] font-black uppercase tracking-[0.2em] text-black/40 leading-none mt-0.5">
+            <span class="text-[7px] font-black uppercase tracking-[0.2em] text-black/70 leading-none mt-0.5">
               {{ post.author.name }}
             </span>
           </div>
@@ -126,7 +126,7 @@
               <img :src="reactionImages[key]" class="w-4 h-4 object-contain" alt="" />
             </div>
           </div>
-          <span class="text-xs font-black text-black/45 tracking-tight">
+          <span class="text-xs font-black text-black/70 tracking-tight">
             {{ totalReactionCount }}
           </span>
         </div>
@@ -178,7 +178,7 @@
           <button
             v-if="post.enable_remix"
             @click="remixPost"
-            class="flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-black/10 text-black/50 hover:text-black active:scale-95 transition-all"
+            class="flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-black/10 text-black/70 hover:text-black active:scale-95 transition-all"
           >
             <ion-icon :icon="svg(mdiPencilOutline)" class="text-sm" />
             <span class="text-[11px] font-black uppercase tracking-wider">Remix</span>
@@ -197,13 +197,13 @@
             class="flex items-start gap-1.5 text-xs leading-snug"
           >
             <span class="text-black font-black shrink-0 tracking-tight">{{ comment.author.name }}</span>
-            <span class="text-black/70 truncate tracking-tight">{{ comment.message }}</span>
+            <span class="text-black/80 truncate tracking-tight">{{ comment.message }}</span>
           </div>
 
           <!-- Only when there are genuinely more comments than we're previewing -->
           <p
             v-if="hasMoreComments"
-            class="text-[10px] font-black text-black/35 mt-0.5 tracking-wide"
+            class="text-xs font-black text-black/70 mt-0.5 tracking-wide"
           >
             View all {{ post.comment_count }} comments
           </p>
@@ -213,7 +213,7 @@
         <p
           v-else-if="post.enable_comments"
           @click="$emit('open-comments', post)"
-          class="text-[10px] font-black text-black/30 uppercase tracking-widest cursor-pointer active:opacity-60"
+          class="text-xs font-black text-black/70 uppercase tracking-widest cursor-pointer active:opacity-60"
         >
           Start the conversation
         </p>

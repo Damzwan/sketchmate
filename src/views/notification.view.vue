@@ -11,12 +11,12 @@
         >
           <ion-icon
             :icon="svg(mdiBellOutline)"
-            class="text-6xl text-[var(--ion-color-dark)]/20 mb-4 drop-shadow-sm"
+            class="text-6xl text-black/80 mb-4 drop-shadow-sm"
           />
-          <p class="cabin-sketch-regular text-2xl font-black text-[var(--ion-color-dark)]/50 tracking-tight leading-none">
+          <p class="cabin-sketch-regular text-2xl font-black text-black/80 tracking-tight leading-none">
             Nothing here yet
           </p>
-          <p class="text-xs font-black uppercase tracking-widest text-[var(--ion-color-dark)]/30 mt-2">
+          <p class="text-xs font-black uppercase tracking-widest text-black/80 mt-2">
             When something happens, you'll see it here.
           </p>
         </div>
@@ -31,12 +31,14 @@
 
         <template v-else>
           <div v-if="unread > 0" class="flex justify-end mb-4 px-2">
-            <button
+            <ion-button
               @click="handleMarkAllRead"
-              class="flex items-center justify-center h-9 px-4 rounded-full bg-white border border-primary/40 text-[10px] font-black uppercase tracking-widest text-[var(--ion-color-secondary)] hover:bg-secondary/5 hover:text-[var(--ion-color-secondary-shade)] active:scale-95 transition-all shadow-sm cursor-pointer"
+              size="small"
+              shape="round"
+              color="secondary"
             >
               Mark all as read
-            </button>
+            </ion-button>
           </div>
 
           <section
@@ -44,7 +46,7 @@
             :key="group"
             class="mb-8 overflow-visible"
           >
-            <h3 class="cabin-sketch-regular text-base font-black text-[var(--ion-color-dark)]/40 px-3 mb-3 uppercase tracking-wider">
+            <h3 class="cabin-sketch-regular text-base font-black text-black/80 px-3 mb-3 uppercase tracking-wider">
               {{ group }}
             </h3>
 
@@ -73,6 +75,7 @@
 
 <script setup lang="ts">
 import {
+  IonButton,
   IonContent,
   IonInfiniteScroll,
   IonInfiniteScrollContent,

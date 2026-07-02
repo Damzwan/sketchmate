@@ -27,11 +27,11 @@
       <button
         v-for="world in WORLDS"
         :key="world.id"
-        class="relative rounded-[2rem] border-2 bg-white/60 active:scale-95 transition-all overflow-hidden h-28 text-left"
+        class="relative rounded-[2rem] border-2 bg-tertiary active:scale-95 transition-all overflow-hidden h-28 text-left"
         :class="[
           localSelection === world.id
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
-            : 'border-white shadow-sm',
+            : 'border-primary/40 shadow-sm',
           !isItemOwned(world.id) && 'locked-tile'
         ]"
         @click="handleSelect(world)"
@@ -53,7 +53,7 @@
           <p class="text-[11px] font-black uppercase tracking-wider text-black leading-none">
             {{ world.name }}
           </p>
-          <p class="text-[9px] font-bold text-black/50 italic leading-tight mt-0.5">
+          <p class="text-[9px] text-black/50 italic leading-tight mt-0.5">
             {{ world.desc }}
           </p>
         </div>

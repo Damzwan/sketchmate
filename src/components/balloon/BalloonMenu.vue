@@ -16,7 +16,7 @@
             <img v-if="user?.img" :src="user.img" class="w-full h-full object-cover" alt="You" />
             <ion-icon v-else :icon="svg(mdiAccount)" class="text-3xl text-primary/40" />
           </div>
-          <span class="text-[11px] font-black uppercase tracking-widest mt-2 opacity-50">You</span>
+          <span class="text-[11px] uppercase tracking-widest mt-2 opacity-70">You</span>
         </div>
 
         <div class="absolute inset-x-16 top-[35%] border-t-2 border-dashed border-primary/20 -z-10"></div>
@@ -34,11 +34,11 @@
           <div
             class="w-14 h-14 rounded-full border-2 border-secondary/20 bg-white flex items-center justify-center relative">
             <ion-icon :icon="svg(mdiHelp)" class="text-3xl text-secondary/40" />
-            <div class="absolute -top-3 -right-3 text-3xl drop-shadow-sm animate-mate-heart">
-              ❤️
+            <div class="absolute -top-3 -right-3 text-3xl drop-shadow-sm animate-mate-heart text-secondary">
+              <ion-icon :icon="svg(mdiHeart)" />
             </div>
           </div>
-          <span class="text-[11px] font-black uppercase tracking-widest mt-2 opacity-50">Stranger</span>
+          <span class="text-[11px] uppercase tracking-widest mt-2 opacity-70">Stranger</span>
         </div>
       </div>
 
@@ -46,7 +46,7 @@
         <p class="text-2xl cabin-sketch-regular font-black  leading-snug">
           Release a balloon up in the air!
         </p>
-        <p class="font-bold cabin-sketch-regular text-black/80 leading-snug px-2">
+        <p class="cabin-sketch-regular text-black/80 leading-snug px-2">
           If a stranger catches your sketch and replies, you become mates.
         </p>
       </div>
@@ -56,7 +56,7 @@
         :class="!quotaStore.canSendBalloon && 'opacity-70'"
       >
         <div class="flex flex-col">
-          <span class="text-xs font-black uppercase tracking-widest text-black/50">Today's Budget</span>
+          <span class="text-xs uppercase tracking-widest text-black/60">Today's Budget</span>
           <span v-if="!quotaStore.canSendBalloon" class="text-[10px] font-bold text-secondary mt-1">
             <template v-if="quotaStore.isPro">Resets in {{ resetCountdown }}</template>
             <template v-else>Limit Reached</template>
@@ -64,7 +64,7 @@
         </div>
         <div class="flex items-baseline gap-1">
           <span class="text-3xl font-black text-secondary leading-none">{{ balloons.remaining }}</span>
-          <span class="text-lg font-bold text-black/30 leading-none">/ {{ balloons.limit }}</span>
+          <span class="text-lg text-black/60 leading-none">/ {{ balloons.limit }}</span>
         </div>
       </div>
 
@@ -73,10 +73,13 @@
         @click="section = 'manage'"
         class="w-full flex items-center gap-4 p-4 rounded-2xl bg-amber-50/50 border border-amber-500/20 active:scale-[0.98] transition-all mb-2"
       >
-        <div class="w-12 h-12 rounded-xl bg-amber-400/20 flex items-center justify-center text-2xl shrink-0">📜</div>
+        <div
+          class="w-12 h-12 rounded-xl bg-amber-400/20 flex items-center justify-center text-2xl shrink-0 text-amber-600">
+          <ion-icon :icon="svg(mdiHistory)" />
+        </div>
         <div class="flex-1 text-left">
           <p class="font-black text-base text-black leading-none">Track Balloons</p>
-          <p class="text-[11px] font-bold uppercase tracking-widest text-black/50 mt-1.5 leading-none">
+          <p class="text-[11px] uppercase tracking-widest text-black/60 mt-1.5 leading-none">
             {{ myBalloons.length }} in flight
           </p>
         </div>
@@ -93,7 +96,7 @@
         <div class="w-16 h-16 bg-black/5 rounded-full flex items-center justify-center mx-auto mb-4">
           <ion-icon :icon="svg(mdiHelp)" class="text-3xl text-black/20" />
         </div>
-        <p class="text-sm font-black text-black/40 uppercase tracking-widest">Nothing in flight</p>
+        <p class="text-sm text-black/60 uppercase tracking-widest">Nothing in flight</p>
       </div>
 
       <div v-else class="space-y-3">
@@ -107,7 +110,7 @@
             <p class="text-sm font-black text-black truncate leading-none">
               {{ b.message?.trim() || 'No note attached' }}
             </p>
-            <p class="text-[10px] font-bold uppercase tracking-widest text-black/40 mt-1.5 leading-none">
+            <p class="text-[10px] uppercase tracking-widest text-black/60 mt-1.5 leading-none">
               {{ b.status }} · {{ relativeTime(b.createdAt) }}
             </p>
           </div>
@@ -129,14 +132,17 @@
         v-if="section === 'home'"
         expand="block"
         color="secondary"
+        size="large"
         shape="round"
-        class="m-0 h-14 font-black tracking-widest uppercase text-base"
         :disabled="!quotaStore.canSendBalloon && quotaStore.isPro"
         @click="handlePrimaryAction"
       >
         <template v-if="quotaStore.canSendBalloon">Release a Balloon</template>
         <template v-else-if="quotaStore.isPro">Resets in {{ resetCountdown }}</template>
-        <template v-else>⭐ Upgrade to PRO</template>
+        <template v-else>
+          <ion-icon :icon="svg(mdiStar)" class="mr-1" />
+          Upgrade to PRO
+        </template>
       </ion-button>
     </template>
   </BaseSheetModal>
@@ -145,7 +151,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
 import { IonButton, IonIcon, IonSpinner, useIonRouter } from '@ionic/vue'
-import { mdiChevronRight, mdiAccount, mdiHelp } from '@mdi/js'
+import { mdiChevronRight, mdiAccount, mdiHelp, mdiHeart, mdiHistory, mdiStar } from '@mdi/js'
 import { storeToRefs } from 'pinia'
 import { svg } from '@/helper/general.helper'
 import { useRoute } from 'vue-router'

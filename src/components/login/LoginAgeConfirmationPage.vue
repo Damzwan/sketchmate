@@ -7,7 +7,7 @@
         <h1 class="text-5xl text-black font-black italic tracking-tighter leading-none">
           Safety & Community
         </h1>
-        <p class="text-[11px] font-black opacity-40 uppercase tracking-[0.2em] mt-3">
+        <p class="text-[11px] font-black opacity-70 uppercase tracking-[0.2em] mt-3">
           Help us keep Sketchmate safe
         </p>
       </div>
@@ -17,13 +17,13 @@
 
         <!-- DOB INPUT SECTION -->
         <section class="bg-white/40 border-2 border-dashed border-black/10 rounded-[2.5rem] p-6 flex flex-col items-center gap-4">
-          <div class="text-[11px] font-black uppercase tracking-widest text-black/50 italic">
+          <div class="text-[11px] font-black uppercase tracking-widest text-black/70 italic">
             When is your birthday?
           </div>
 
           <SketchDatePicker v-model="dobValue" />
 
-          <p class="text-[12px] font-bold text-black/40 italic text-center leading-snug px-2">
+          <p class="text-[12px] text-black/40 italic text-center leading-snug px-2">
             Required for safe spaces. You can change this later in settings.
           </p>
         </section>
@@ -32,7 +32,7 @@
         <section>
           <div class="flex items-center gap-3 mb-6 px-2">
             <div class="h-0.5 flex-1 bg-black/5 rounded-full"></div>
-            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-black/30">Community Rules</p>
+            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-black/70">Community Rules</p>
             <div class="h-0.5 flex-1 bg-black/5 rounded-full"></div>
           </div>
 
@@ -41,12 +41,12 @@
               v-for="rule in WELCOME_RULES" :key="rule.title"
               class="bg-white/60 border border-black/5 p-4 rounded-[2rem] flex gap-4 items-center shadow-sm"
             >
-              <div class="w-12 h-12 rounded-[1.25rem] bg-white shadow-inner flex items-center justify-center shrink-0 text-2xl rotate-[-3deg]">
-                {{ rule.emoji }}
+              <div class="w-12 h-12 rounded-[1.25rem] bg-white shadow-inner flex items-center justify-center shrink-0 rotate-[-3deg]">
+                <ion-icon :icon="svg(rule.icon)" class="text-2xl text-secondary" />
               </div>
               <div>
                 <p class="font-black text-lg text-black leading-none">{{ rule.title }}</p>
-                <p class="text-black/60 font-bold text-[12px] mt-1">{{ rule.body }}</p>
+                <p class="text-black/60 text-[12px] mt-1">{{ rule.body }}</p>
               </div>
             </div>
           </div>
@@ -99,7 +99,13 @@ import {
 } from "@ionic/vue";
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { mdiCheck } from "@mdi/js";
+import {
+	mdiCheck,
+	mdiHandshakeOutline,
+	mdiLockOutline,
+	mdiPalette,
+	mdiShieldAlertOutline,
+} from "@mdi/js";
 import { useAuthStore } from "@/store/auth.store";
 import { svg, isOldEnough, isNative } from "@/helper/general.helper";
 import { updateUser } from "@/service/api/user.api";
@@ -119,22 +125,22 @@ const isValidDob = computed(() => !!dobValue.value);
 
 const WELCOME_RULES = [
 	{
-		emoji: "🎨",
+		icon: mdiPalette,
 		title: "Make art freely",
 		body: "Weird, personal, expressive — that's what we're here for.",
 	},
 	{
-		emoji: "🤝",
+		icon: mdiHandshakeOutline,
 		title: "Respect artists",
 		body: "No harassment, hate speech, or targeted drama.",
 	},
 	{
-		emoji: "🚫",
+		icon: mdiShieldAlertOutline,
 		title: "Keep it safe",
 		body: "No sexual, intense violence, or illegal elements.",
 	},
 	{
-		emoji: "🔒",
+		icon: mdiLockOutline,
 		title: "Protect privacy",
 		body: "Don't share real names, addresses, or phone lines.",
 	},

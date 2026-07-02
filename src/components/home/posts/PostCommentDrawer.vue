@@ -13,7 +13,7 @@
       <!-- Header -->
       <div class="shrink-0 pt-4 px-5 pb-3 text-center relative border-b border-black/5">
         <h1 class="text-xl text-black font-black tracking-tight italic leading-none">Comments</h1>
-        <p v-if="post?.comment_count > 0" class="text-[11px] text-black/40 font-bold uppercase tracking-widest mt-1">
+        <p v-if="post?.comment_count > 0" class="text-xs text-black/80 font-bold uppercase tracking-widest mt-1">
           {{ post.comment_count }} {{ post.comment_count === 1 ? 'reply' : 'replies' }}
         </p>
       </div>
@@ -36,8 +36,8 @@
 
         <!-- Empty State -->
         <div v-else-if="comments.length === 0" class="text-center py-12 px-6">
-          <p class="font-bold text-black/60 italic">No comments yet.</p>
-          <p class="text-sm text-black/40 mt-1">Be the first to say something nice.</p>
+          <p class="text-black/80 italic">No comments yet.</p>
+          <p class="text-sm text-black/80 mt-1">Be the first to say something nice.</p>
         </div>
 
         <!-- Comments Stream Loop -->
@@ -72,13 +72,13 @@
               >
                 {{ comment.author?.name || 'Sketcher' }}
               </button>
-              <span class="text-[10px] text-black/40 font-bold uppercase tracking-wider shrink-0 pr-7">
+              <span class="text-xs text-black/80 uppercase tracking-wider shrink-0 pr-7">
                 {{ dayjs(comment.createdAt || comment.date).fromNow() }}
               </span>
             </div>
 
             <!-- Message Text -->
-            <p class="text-[14px] text-black/85 mt-1 leading-snug break-words">
+            <p class="text-sm text-black/85 mt-1 leading-snug break-words">
               {{ comment.message }}
             </p>
 
@@ -87,14 +87,14 @@
               @click.stop="openCommentActions(comment)"
               class="absolute top-3 right-3 p-1.5 active:scale-90 transition-transform"
             >
-              <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg text-black/30" />
+              <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg text-black/80" />
             </button>
           </div>
         </div>
       </div>
 
       <!-- Sticky Input Footer -->
-      <div class="flex w-full items-center gap-2 bg-background sticky bottom-0 border-t border-black/10 px-3 py-2 pb-safe z-10 shrink-0">
+      <div class="flex w-full items-center gap-2 bg-background sticky bottom-0 border-t border-black/10 px-3 py-3 pb-safe z-10 shrink-0">
         <ion-avatar class="shrink-0 h-[34px] w-[34px] shadow-sm">
           <img v-if="user?.img" :src="user.img" alt="Me" class="aspect-square object-cover" />
           <span v-else class="w-full h-full flex items-center justify-center font-bold text-black bg-black/5 text-sm">
@@ -409,6 +409,10 @@ const confirmDeleteComment = async (comment: any) => {
 <style scoped>
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+}
 
 ion-input {
   --color: black;

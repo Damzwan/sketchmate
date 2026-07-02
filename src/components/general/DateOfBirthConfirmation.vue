@@ -21,18 +21,18 @@
 
         <!-- SKETCHMATE CUSTOM DATE PICKER -->
         <div class="bg-white/70 border-2 border-white rounded-[2.5rem] shadow-inner p-6 flex flex-col items-center gap-4">
-          <span class="text-[10px] font-black uppercase tracking-widest text-black/40">Select Birthdate</span>
+          <span class="text-[10px] font-black uppercase tracking-widest text-black/70">Select Birthdate</span>
           <SketchDatePicker v-model="computedDob" />
         </div>
 
         <!-- Community rules -->
         <div v-if="mode === 'initial'" class="bg-white/70 border-2 border-white rounded-[2.5rem] shadow-inner p-6">
-          <p class="text-[10px] font-black uppercase tracking-widest text-black/40 mb-4 text-center">
+          <p class="text-[10px] font-black uppercase tracking-widest text-black/70 mb-4 text-center">
             Community rules
           </p>
           <ul class="space-y-4">
             <li v-for="rule in WELCOME_RULES" :key="rule.title" class="flex gap-3 items-start">
-              <span class="shrink-0 text-xl">{{ rule.emoji }}</span>
+              <ion-icon :icon="svg(rule.icon)" class="shrink-0 text-xl text-secondary" />
               <span class="text-black/70 text-[13px] leading-snug pt-0.5">
                 <strong class="text-black font-black italic">{{ rule.title }}</strong> — {{ rule.body }}
               </span>
@@ -48,8 +48,8 @@
             ? 'bg-emerald-50 border-emerald-100 text-emerald-900'
             : 'bg-amber-50 border-amber-100 text-amber-900'"
         >
-          <div class="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center shrink-0 text-2xl">
-            {{ willUnlock ? '✨' : '🌱' }}
+          <div class="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center shrink-0">
+            <ion-icon :icon="svg(willUnlock ? mdiCreation : mdiSproutOutline)" class="text-2xl" :class="willUnlock ? 'text-emerald-600' : 'text-amber-600'" />
           </div>
           <p class="flex-1">
             <span v-if="willUnlock">Saving unlocks public lobbies, posts, and balloons!</span>
@@ -77,7 +77,7 @@
           fill="clear"
           color="dark"
           expand="block"
-          class="font-black uppercase tracking-widest text-xs opacity-60 mt-1"
+          class="font-black uppercase tracking-widest text-xs opacity-80 mt-1"
           :disabled="isSubmitting"
           @click="handleCancel"
         >
@@ -90,11 +90,19 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonModal, IonSpinner } from "@ionic/vue";
+import { IonButton, IonIcon, IonModal, IonSpinner } from "@ionic/vue";
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
+import {
+	mdiCreation,
+	mdiHandshakeOutline,
+	mdiLockOutline,
+	mdiPalette,
+	mdiShieldAlertOutline,
+	mdiSproutOutline,
+} from "@mdi/js";
 import { useAuthStore } from "@/store/auth.store";
-import { isOldEnough } from "@/helper/general.helper";
+import { isOldEnough, svg } from "@/helper/general.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { ToastDuration } from "@/types/toast.types";
@@ -123,22 +131,22 @@ const willUnlock = computed(() =>
 
 const WELCOME_RULES = [
 	{
-		emoji: "🎨",
+		icon: mdiPalette,
 		title: "Make art freely",
 		body: "weird, personal, expressive.",
 	},
 	{
-		emoji: "🤝",
+		icon: mdiHandshakeOutline,
 		title: "Respect others",
 		body: "no harassment or hate speech.",
 	},
 	{
-		emoji: "🚫",
+		icon: mdiShieldAlertOutline,
 		title: "Keep it safe",
 		body: "nothing sexual, violent, or harmful.",
 	},
 	{
-		emoji: "🔒",
+		icon: mdiLockOutline,
 		title: "Stay private",
 		body: "don't share real info with strangers.",
 	},

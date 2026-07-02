@@ -4,7 +4,7 @@
     <div class="w-full flex flex-col justify-center items-center pt-3">
       <h1 class="text-2xl font-bold">{{ title }}</h1>
       <p class="px-5 text-center text-lg">{{ subtitle }}</p>
-      <ion-button color="secondary" :router-link="btnLink" class="pt-2 w-64" shape="round" size="large"
+      <ion-button color="secondary" :router-link="btnLink" shape="round" size="large"
       >{{ btnText }}
       </ion-button
       >

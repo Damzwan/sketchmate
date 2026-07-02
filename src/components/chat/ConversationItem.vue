@@ -64,7 +64,7 @@
           {{ chipText }}
         </span>
 
-        <span class="ml-auto shrink-0 text-[8px] font-black uppercase tracking-wider opacity-30 whitespace-nowrap mt-0.5">
+        <span class="ml-auto shrink-0 text-[8px] uppercase tracking-wider opacity-50 whitespace-nowrap mt-0.5">
           {{ rel.kind === 'live_invite' ? 'NOW' : formattedTime }}
         </span>
       </div>
@@ -263,7 +263,7 @@ const avatarFilter = computed(() => ({
 }));
 
 const nameClass = computed(() => {
-  if (isBlocked.value || isExpired.value) return "text-black/40 font-bold";
+  if (isBlocked.value || isExpired.value) return "text-black/50";
   if (
     rel.value.actionable ||
     unreadCount.value > 0 ||
@@ -278,10 +278,10 @@ const chipClass = computed(() =>
 );
 
 const statusClass = computed(() => {
-  if (isBlocked.value) return "text-black/30 italic font-bold";
+  if (isBlocked.value) return "text-black/50 italic";
   if (props.isTyping && !isExpired.value)
     return "text-secondary animate-pulse italic font-bold";
-  if (isExpired.value) return "text-black/40 italic font-bold";
+  if (isExpired.value) return "text-black/50 italic";
   if (rel.value.actionable)
     return rel.value.accent === "amber"
       ? "text-amber-700 font-black italic"
@@ -289,8 +289,8 @@ const statusClass = computed(() => {
   if (rel.value.kind === "active" || rel.value.kind === "mate")
     return unreadCount.value > 0
       ? "font-black text-black"
-      : "font-bold text-black/50";
-  return "text-black/50 font-bold";
+      : "text-black/60";
+  return "text-black/60";
 });
 
 /* --- journey rail per-step styling --- */

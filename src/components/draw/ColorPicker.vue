@@ -308,7 +308,7 @@ watch(props, async () => {
 }
 
 .section_label {
-  @apply block text-[10px] font-black uppercase tracking-widest text-black/35;
+  @apply block text-[10px] font-black uppercase tracking-widest text-black/70;
 }
 
 .card_divider {
@@ -342,7 +342,7 @@ watch(props, async () => {
 }
 
 .current_sub {
-  @apply text-[9px] font-bold uppercase tracking-wider text-black/30;
+  @apply text-[9px] uppercase tracking-wider text-black/45;
 }
 
 .current_chevron {

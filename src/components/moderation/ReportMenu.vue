@@ -1,5 +1,5 @@
 <template>
-  <ion-modal :is-open="reportMenuOpen" @didDismiss="onDismiss" class="z-2000">
+  <ion-modal :is-open="reportMenuOpen" @didDismiss="onDismiss" class="z-2000 sketch-modal">
     <div class="bg-background p-4">
       <ion-button fill="clear" class="absolute right-0 top-0" @click="close">
         <ion-icon slot="icon-only" class="fill-black" :icon="svg(mdiClose)" />
@@ -162,8 +162,8 @@ async function submit() {
 <style scoped>
 ion-modal {
   --width: fit-content;
-  --min-width: 280px;
-  --max-width: 90%;
+  --min-width: 250px;
+  --max-width: 80%;
   --height: fit-content;
   --border-radius: 6px;
   --box-shadow: 0 28px 48px rgba(0, 0, 0, 0.4);

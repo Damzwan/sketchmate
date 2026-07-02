@@ -11,7 +11,7 @@
       <!-- Header -->
       <div class="shrink-0 pt-5 px-5 pb-3 text-center border-b border-black/5">
         <h1 class="text-xl text-black font-black tracking-tight italic leading-none">Followers</h1>
-        <p class="text-[11px] text-black/40 font-bold uppercase tracking-widest mt-1">
+        <p class="text-[11px] text-black/40 uppercase tracking-widest mt-1">
           {{ followers.length }} {{ followers.length === 1 ? 'person' : 'people' }}
         </p>
       </div>

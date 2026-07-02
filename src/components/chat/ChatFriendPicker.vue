@@ -20,7 +20,7 @@
       </span>
       <div class="flex flex-col min-w-0">
         <span class="text-base leading-none font-black text-black">Add a Friend</span>
-        <span class="text-[12px] cabin-sketch-regular font-bold text-black/50 mt-0.5">Grow your circle of mates</span>
+        <span class="text-[12px] cabin-sketch-regular text-black/60 mt-0.5">Grow your circle of mates</span>
       </div>
       <ion-icon :icon="svg(mdiChevronRight)" class="ml-auto shrink-0 text-secondary text-lg transition-transform group-hover:translate-x-0.5" />
     </button>
@@ -35,11 +35,11 @@
       v-else-if="friends.length === 0"
       class="text-center py-10 bg-white rounded-[2rem] border border-dashed border-primary/40"
     >
-      <p class="cabin-sketch-regular text-base font-bold text-black/40">No mates yet. Add a friend above!</p>
+      <p class="cabin-sketch-regular text-base text-black/60">No mates yet. Add a friend above!</p>
     </div>
 
     <div v-else class="flex flex-col gap-2">
-      <p class="text-[9px] font-black text-black/40 uppercase px-1 tracking-widest">
+      <p class="text-[9px] font-black text-black/70 uppercase px-1 tracking-widest">
         Your Mates
       </p>
 
@@ -71,7 +71,7 @@
           <span class="text-[14px] leading-none font-black truncate tracking-tight text-black">
             {{ friend.name }}
           </span>
-          <p class="text-[12px] truncate cabin-sketch-regular tracking-wide pr-2 mt-1 leading-none" :class="isDisabled(friend) ? 'font-bold text-red-500' : 'font-bold text-black/50'">
+          <p class="text-[12px] truncate cabin-sketch-regular tracking-wide pr-2 mt-1 leading-none" :class="isDisabled(friend) ? 'font-bold text-red-500' : 'text-black/60'">
             <span v-if="isDisabled(friend)">Needs update to chat</span>
             <span v-else-if="isFriendOnline(friend._id)" class="text-green-600">Online now</span>
             <span v-else>Offline</span>

@@ -17,7 +17,7 @@
       </div>
 
       <div class="h-full overflow-y-auto hide-scrollbar relative z-10" @touchmove.stop>
-        <div class="px-6 pb-12 flex flex-col transition-all duration-500" :style="{ fontFamily: resolvedFontFamily }">
+        <div class="px-6 pb-24 pb-safe flex flex-col transition-all duration-500" :style="{ fontFamily: resolvedFontFamily }">
 
           <div class="relative w-full flex flex-col items-center text-center shrink-0 pt-8 pb-6">
 
@@ -65,10 +65,10 @@
 
               <div class="flex items-center gap-2 mt-2">
                 <span v-if="isMe" class="bg-secondary/10 text-secondary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">That's You</span>
-                <span v-else-if="isBlocked" class="bg-black/10 text-black/60 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Blocked</span>
+                <span v-else-if="isBlocked" class="bg-black/10 text-black/80 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Blocked</span>
                 <span v-else-if="status === 'mate'" class="bg-secondary/10 text-secondary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-secondary/20">Mates</span>
                 <span v-else-if="status === 'temporary' || status === 'pending_mate'" class="bg-secondary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse">Trial Active</span>
-                <span v-if="targetProfile?.relationship?.areFollowingMe && !isFollowing && !isMe" class="bg-black/5 text-black/40 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Follows You</span>
+                <span v-if="targetProfile?.relationship?.areFollowingMe && !isFollowing && !isMe" class="bg-black/5 text-black/80 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Follows You</span>
               </div>
 
               <div v-if="loadingProfile && !resolvedUser?.description" class="mt-4 flex flex-col items-center gap-1.5 w-full px-8">
@@ -453,6 +453,10 @@ function report() {
 <style scoped>
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
 
 ion-modal.liquid-user-sheet {
   --border-radius: 2.5rem 2.5rem 0 0;

@@ -42,9 +42,10 @@
           @click="openInvitePopover"
           color="secondary"
           shape="round"
-          class="w-full h-12 text-sm font-black uppercase tracking-widest"
+          size="large"
+          expand="block"
         >
-          <ion-icon slot="start" :icon="svg(mdiAccountPlus)" class="text-lg" />
+          <ion-icon slot="start" :icon="svg(mdiAccountPlus)" />
           Invite Artists
         </ion-button>
       </div>
@@ -90,7 +91,7 @@
           @click="leaveRoom"
           fill="clear"
           color="secondary"
-          class="text-sm font-black uppercase tracking-widest ion-no-margin"
+          size="large"
         >
           Leave Session
         </ion-button>
@@ -103,21 +104,21 @@
         expand="block"
         color="secondary"
         shape="round"
-        class="h-14 text-lg font-black italic"
+        size="large"
         @click="createRoom"
       >
         Create New Room
       </ion-button>
 
-      <div class="flex items-center gap-4 opacity-30 px-6">
+      <div class="flex items-center gap-4 opacity-70 px-6">
         <div class="flex-1 h-px bg-black"></div>
-        <span class="text-[10px] font-black uppercase tracking-widest">Or Join</span>
+        <span class="text-sm font-black uppercase tracking-widest">Or Join</span>
         <div class="flex-1 h-px bg-black"></div>
       </div>
 
       <!-- Enter Code Panel -->
       <div class="bg-background border border-default-light p-6 rounded-[2rem] flex flex-col items-center gap-5">
-        <h3 class="text-sm font-black opacity-40 uppercase tracking-widest w-full text-left">
+        <h3 class="font-black text-black/80 uppercase tracking-widest w-full text-left">
           Enter Room Code
         </h3>
 
@@ -153,7 +154,7 @@
           expand="block"
           color="secondary"
           shape="round"
-          class="w-full h-12 font-black text-base disabled:opacity-40"
+          size="large"
           :disabled="!isCodeComplete"
           @click="joinRoom(codeString)"
         >

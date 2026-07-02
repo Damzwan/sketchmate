@@ -9,8 +9,9 @@
 
       <div v-if="showJourney" class="px-5 pt-4 pb-3 border-b border-black/5">
         <RelationshipJourney :step="rel.step" :accent="effectiveAccent" />
-        <p v-if="showExplainer" class="mt-2.5 text-center text-[9px] font-bold uppercase tracking-widest text-black/30">
-          Invite → 24h Trial → Forever Mates 🤝
+        <p v-if="showExplainer" class="mt-2.5 flex items-center justify-center gap-1 text-[9px] uppercase tracking-widest text-black/50">
+          <span>Invite → 24h Trial → Forever Mates</span>
+          <ion-icon :icon="svg(mdiHandshake)" class="text-[10px]" />
         </p>
       </div>
 
@@ -28,7 +29,7 @@
           <h3 class="cabin-sketch-regular text-lg font-black text-black leading-tight">
             Sketch with {{ partner?.name }}?
           </h3>
-          <p class="mt-1 text-[10px] font-bold text-black/40 uppercase tracking-wider">
+          <p class="mt-1 text-[10px] text-black/55 uppercase tracking-wider">
             Starts a 24-hour trial to see if you vibe.
           </p>
           <div class="grid grid-cols-2 gap-3 mt-4 w-full max-w-[260px]">
@@ -44,7 +45,7 @@
         <template v-else-if="isOutgoingInvite">
           <div class="px-4 py-2 bg-black/5 rounded-full flex items-center gap-2">
             <div class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"></div>
-            <span class="text-[9px] font-black text-black/40 uppercase tracking-widest">
+            <span class="text-[9px] text-black/55 uppercase tracking-widest">
               Waiting for {{ firstName }}
             </span>
           </div>
@@ -54,7 +55,7 @@
           <div v-if="showUpgradePrompt" class="flex flex-col items-center w-full">
             <div
               class="w-10 h-10 bg-amber-400/10 text-amber-500 rounded-full flex items-center justify-center mb-2 text-base">
-              ⭐
+              <ion-icon :icon="svg(mdiStar)" />
             </div>
             <h3 class="cabin-sketch-regular text-base font-black text-black">{{ partner?.name }} wants to be Mates!</h3>
             <p class="text-[9px] font-bold text-amber-700 uppercase tracking-wider mt-1 mb-3">
@@ -62,14 +63,16 @@
             </p>
             <div class="grid grid-cols-2 gap-2.5 w-full max-w-[240px]">
               <ion-button fill="clear" shape="round" @click="$emit('decline')">Decline</ion-button>
-              <ion-button color="warning" shape="round" @click="$emit('upgrade')">⭐ Upgrade</ion-button>
+              <ion-button color="warning" shape="round" @click="$emit('upgrade')">
+                <ion-icon :icon="svg(mdiStar)" slot="start" class="text-xs mr-1" />Upgrade
+              </ion-button>
             </div>
           </div>
 
           <div v-else-if="showProLimitReached" class="flex flex-col items-center w-full">
             <ion-icon :icon="svg(mdiHeart)" class="text-xl text-black/20 mb-2" />
             <h3 class="cabin-sketch-regular text-base font-black text-black">{{ partner?.name }} wants to be Mates!</h3>
-            <p class="text-[9px] font-bold text-black/40 uppercase tracking-widest mt-1 mb-3">Max limit reached</p>
+            <p class="text-[9px] text-black/55 uppercase tracking-widest mt-1 mb-3">Max limit reached</p>
             <ion-button fill="clear" shape="round" @click="$emit('decline')">Decline</ion-button>
           </div>
 
@@ -86,7 +89,7 @@
         <template v-else-if="isMateProposalSent">
           <div class="px-4 py-2 bg-black/5 rounded-full flex items-center gap-2 mb-2.5">
             <ion-icon :icon="svg(mdiClockOutline)" class="text-xs text-black/30" />
-            <span class="text-[9px] font-black text-black/40 uppercase tracking-widest">Waiting for {{ firstName }}</span>
+            <span class="text-[9px] text-black/55 uppercase tracking-widest">Waiting for {{ firstName }}</span>
           </div>
           <ion-button fill="clear" shape="round" color="danger" @click="$emit('cancel-mate')">
             Cancel
@@ -97,27 +100,27 @@
           <div v-if="showUpgradePrompt" class="flex flex-col items-center w-full">
             <div
               class="w-10 h-10 bg-amber-400/10 text-amber-500 rounded-full flex items-center justify-center mb-2 text-base">
-              ⭐
+              <ion-icon :icon="svg(mdiStar)" />
             </div>
             <h3 class="cabin-sketch-regular text-base font-black text-black">Trial with {{ firstName }} ended</h3>
             <p class="text-[9px] font-bold text-amber-700 uppercase tracking-wider mt-1 mb-3">
               Slots full ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }})
             </p>
             <ion-button color="warning" shape="round" @click="$emit('upgrade')">
-              ⭐ Upgrade to Add
+              <ion-icon :icon="svg(mdiStar)" slot="start" class="text-xs mr-1" />Upgrade to Add
             </ion-button>
           </div>
 
           <div v-else-if="showProLimitReached" class="flex flex-col items-center w-full">
             <ion-icon :icon="svg(mdiLockOutline)" class="text-xl text-black/30 mb-2" />
             <h3 class="cabin-sketch-regular text-base font-black text-black">Trial with {{ firstName }} ended</h3>
-            <p class="text-[9px] font-bold text-black/40 uppercase tracking-widest mt-1">Maximum limits reached</p>
+            <p class="text-[9px] text-black/55 uppercase tracking-widest mt-1">Maximum limits reached</p>
           </div>
 
           <div v-else class="flex flex-col items-center w-full">
             <ion-icon :icon="svg(mdiHeartPlusOutline)" class="text-2xl text-secondary mb-2" />
             <h3 class="cabin-sketch-regular text-base font-black text-black">Trial with {{ firstName }} ended</h3>
-            <p class="text-[9px] font-bold text-black/40 uppercase tracking-wider mt-1 mb-4">Become Mates to stay connected.</p>
+            <p class="text-[9px] text-black/55 uppercase tracking-wider mt-1 mb-4">Become Mates to stay connected.</p>
             <ion-button color="secondary" shape="round" @click="$emit('request')">
               Become Mates
             </ion-button>
@@ -126,7 +129,7 @@
 
         <template v-else-if="isTemporaryChat">
           <ion-icon :icon="svg(mdiClockOutline)" class="text-2xl text-secondary mb-2" />
-          <p class="text-[11px] mb-2 font-black text-black/60 uppercase tracking-wider max-w-[220px]">
+          <p class="text-[11px] mb-2 font-black text-black/80 uppercase tracking-wider max-w-[220px]">
             You're in a 24-hour Trial.
           </p>
 
@@ -137,10 +140,10 @@
             color="warning"
             @click="$emit('upgrade')"
           >
-            ⭐ Upgrade to Add ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }})
+            <ion-icon :icon="svg(mdiStar)" slot="start" class="text-xs mr-1" />Upgrade to Add ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }})
           </ion-button>
           <span v-else-if="showProLimitReached"
-                class="mt-2 text-[9px] font-black uppercase tracking-widest text-black/30">
+                class="mt-2 text-[9px] uppercase tracking-widest text-black/50">
             Mate limit reached
           </span>
           <ion-button
@@ -168,20 +171,20 @@
               Slots full ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }})
             </p>
             <ion-button color="warning" shape="round" @click="$emit('upgrade')">
-              ⭐ Upgrade
+              <ion-icon :icon="svg(mdiStar)" slot="start" class="text-xs mr-1" />Upgrade
             </ion-button>
           </div>
 
           <div v-else-if="showProLimitReached" class="flex flex-col items-center w-full">
             <ion-icon :icon="svg(mdiHeartBroken)" class="text-xl text-black/30 mb-1.5" />
             <h3 class="cabin-sketch-regular text-base font-black text-black">Connection ended</h3>
-            <p class="text-[9px] font-bold text-black/40 uppercase tracking-widest mt-1">Maximum limit reached</p>
+            <p class="text-[9px] text-black/55 uppercase tracking-widest mt-1">Maximum limit reached</p>
           </div>
 
           <div v-else class="flex flex-col items-center w-full">
             <ion-icon :icon="svg(mdiHeartBroken)" class="text-xl text-black/30 mb-2" />
             <h3 class="cabin-sketch-regular text-base font-black text-black">Connection ended</h3>
-            <p class="text-[9px] font-bold text-black/40 uppercase tracking-wider mt-1 mb-4">Start fresh with a new invite?</p>
+            <p class="text-[9px] text-black/55 uppercase tracking-wider mt-1 mb-4">Start fresh with a new invite?</p>
             <ion-button color="secondary" shape="round" @click="$emit('request')">
               Send New Invite
             </ion-button>
@@ -203,7 +206,9 @@ import {
   mdiHeartPlusOutline,
   mdiClockOutline,
   mdiLockOutline,
-  mdiPalette
+  mdiPalette,
+  mdiStar,
+  mdiHandshake
 } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { useQuotaStore } from '@/store/quota.store'

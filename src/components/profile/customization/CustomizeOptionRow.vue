@@ -1,13 +1,13 @@
 <template>
   <button
-    class="w-full bg-white/60 backdrop-blur-xl border-2 border-white rounded-[1.5rem] p-3 flex flex-col text-left shadow-sm active:scale-[0.96] transition-all"
+    class="w-full bg-tertiary border border-primary/40 rounded-[1.5rem] p-3 flex flex-col text-left shadow-sm active:scale-[0.96] transition-all"
     @click="$emit('click')"
   >
     <div class="flex items-center gap-2 mb-2 w-full">
       <div class="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
         <ion-icon :icon="svg(icon)" class="text-lg text-secondary" />
       </div>
-      <p class="text-[10px] font-black uppercase tracking-widest text-black/40 leading-none truncate flex-1">
+      <p class="text-sm uppercase font-bold tracking-widest text-black leading-none truncate flex-1">
         {{ label }}
       </p>
     </div>
@@ -23,14 +23,14 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon } from "@ionic/vue";
-import { svg } from "@/helper/general.helper";
+import { IonIcon } from '@ionic/vue'
+import { svg } from '@/helper/general.helper'
 
 defineProps<{
-	icon: string;
-	label: string;
-	value: string;
-}>();
+  icon: string;
+  label: string;
+  value: string;
+}>()
 
-defineEmits(["click"]);
+defineEmits(['click'])
 </script>

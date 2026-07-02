@@ -30,7 +30,7 @@
           <span class="text-2xl">{{ def.emoji }}</span>
           <h3 class="text-base font-black text-black leading-none">{{ def.name }}</h3>
         </div>
-        <p class="text-xs font-bold italic text-black/50 mb-2">{{ def.desc }}</p>
+        <p class="text-xs italic text-black/50 mb-2">{{ def.desc }}</p>
         <div class="rounded-2xl bg-secondary/10 px-3 py-2">
           <p class="text-[10px] font-black uppercase tracking-widest text-secondary mb-0.5">
             {{ owned ? 'Unlocked' : 'How to earn' }}

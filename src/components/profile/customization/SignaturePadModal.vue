@@ -82,7 +82,7 @@
             class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none gap-3"
           >
             <div class="w-16 h-16 rounded-full bg-secondary/5 flex items-center justify-center">
-              <span class="text-4xl opacity-20">✍️</span>
+              <ion-icon :icon="svg(mdiLeadPencil)" class="text-4xl opacity-20" />
             </div>
             <span class="text-sm font-black text-black/20 tracking-widest uppercase">Sign inside the lines</span>
           </div>
@@ -90,8 +90,9 @@
       </div>
 
       <div class="flex flex-col gap-2 mt-6 shrink-0 pb-2">
-        <p v-if="!isPro" class="text-center text-[11px] font-bold text-secondary/70 uppercase tracking-wider">
-          🔒 Premium feature: Pro subscription required
+        <p v-if="!isPro" class="text-center text-[11px] font-bold text-secondary/70 uppercase tracking-wider flex items-center justify-center gap-1">
+          <ion-icon :icon="svg(mdiLock)" class="text-xs" />
+          Premium feature: Pro subscription required
         </p>
 
         <div class="grid grid-cols-2 gap-3">
@@ -113,7 +114,8 @@
           >
             <div class="flex items-center justify-center gap-1.5">
               <ion-icon v-if="!isPro" :icon="svg(mdiLock)" class="text-base opacity-80" />
-              <span>Apply ✓</span>
+              <span>Apply</span>
+              <ion-icon :icon="svg(mdiCheck)" class="text-base" />
             </div>
           </ion-button>
         </div>
@@ -126,7 +128,7 @@
 <script setup lang="ts">
 import { ref, nextTick, computed } from "vue";
 import { IonModal, IonButton, IonIcon } from "@ionic/vue";
-import { mdiClose, mdiLock, mdiUndoVariant } from "@mdi/js";
+import { mdiCheck, mdiClose, mdiLeadPencil, mdiLock, mdiUndoVariant } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { useSubscriptionStore } from "@/store/subscription.store";
 

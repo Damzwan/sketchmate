@@ -7,7 +7,7 @@
         <button @click="modalController.dismiss()" class="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center active:scale-90 transition-transform">
           <ion-icon :icon="svg(mdiArrowLeft)" class="text-xl text-black/70" />
         </button>
-        <span class="text-xs font-bold uppercase tracking-widest opacity-40">Save Progress</span>
+        <span class="text-xs uppercase tracking-widest opacity-40">Save Progress</span>
         <div class="w-10"></div> <!-- Flex Spacer -->
       </div>
 
@@ -17,7 +17,7 @@
         <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none text-center mb-2">
           Connect Account
         </h1>
-        <p class="text-sm font-bold text-black/50 text-center max-w-[280px] leading-tight mb-8">
+        <p class="text-sm text-black/60 text-center max-w-[280px] leading-tight mb-8">
           Link your guest profile to an email or Google to secure your artwork and progress.
         </p>
 
@@ -91,7 +91,7 @@
             <div class="absolute inset-0 flex items-center">
               <div class="w-full border-t-2 border-black/5"></div>
             </div>
-            <span class="relative bg-background px-4 text-xs font-bold uppercase tracking-widest text-black/30">Or</span>
+            <span class="relative bg-background px-4 text-xs uppercase tracking-widest text-black/40">Or</span>
           </div>
 
           <!-- Google Submit -->

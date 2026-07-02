@@ -13,7 +13,7 @@
 
       <div
         class="relative z-10 bg-primary backdrop-blur-sm shadow-xl rounded-2xl px-8 py-6 text-center transform -translate-y-4">
-        <span class="text-5xl mb-2 block animate-bounce">💖</span>
+        <ion-icon :icon="svg(mdiHeart)" class="text-5xl mb-2 block animate-bounce text-secondary" />
         <h3 class="text-3xl cabin-sketch-regular font-extrabold text-gray-800 mb-1">You're amazing!</h3>
         <p class="text-lg cabin-sketch-regular text-gray-600 font-medium leading-tight">
           Thank you for supporting Sketchmate.<br />
@@ -29,6 +29,9 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
+import { IonIcon } from '@ionic/vue'
+import { mdiHeart } from '@mdi/js'
+import { svg } from '@/helper/general.helper'
 import confetti from '@/assets/lottie/confetti.lottie'
 import { useSubscriptionStore } from '@/store/subscription.store'
 import { ref, watch } from 'vue'

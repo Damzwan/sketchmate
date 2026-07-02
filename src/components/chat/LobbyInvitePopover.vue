@@ -13,7 +13,7 @@
       </h3>
 
       <div class="flex-1 overflow-y-auto hide-scrollbar space-y-2.5 pr-0.5 max-h-[300px]" @touchmove.stop>
-        <div v-if="!eligibleToInvite.length" class="text-center py-8 text-xs font-bold text-black/30 italic">
+        <div v-if="!eligibleToInvite.length" class="text-center py-8 text-xs text-black/50 italic">
           Everyone is already here!
         </div>
 
@@ -39,8 +39,8 @@
                 {{ friend.name.split(' ')[0] }}
               </span>
               <span
-                :class="isOnline(friend._id) ? 'text-green-600' : 'text-black/30'"
-                class="text-[9px] font-black uppercase tracking-wider mt-0.5"
+                :class="isOnline(friend._id) ? 'text-green-600 font-black' : 'text-black/50'"
+                class="text-[9px] uppercase tracking-wider mt-0.5"
               >
                 {{ isOnline(friend._id) ? 'Online' : 'Offline' }}
               </span>
@@ -52,7 +52,7 @@
             class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ml-3 shadow-sm border"
             :class="canInvite(friend._id)
               ? 'bg-secondary border-secondary text-white active:scale-95'
-              : 'bg-default-light border-default-medium text-black/30'"
+              : 'bg-default-light border-default-medium text-black/50'"
           >
             {{ canInvite(friend._id) ? 'Invite' : 'Sent' }}
           </button>

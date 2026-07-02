@@ -13,7 +13,7 @@
         </div>
         <h3 class="text-base font-black text-black leading-tight cabin-sketch-regular">
           {{ partner?.name }}<br />
-          <span class="text-[9px] opacity-40 uppercase tracking-widest font-sans font-black">is blocked</span>
+          <span class="text-xs text-black/80 uppercase tracking-widest font-sans font-black">is blocked</span>
         </h3>
         <div class="mt-6">
           <ion-button color="dark" fill="outline" expand="block" @click="openUserActions(partner)">

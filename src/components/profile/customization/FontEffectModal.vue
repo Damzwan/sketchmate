@@ -46,7 +46,7 @@
             <span class="block text-[10px] font-black uppercase tracking-widest text-black mt-3">
               {{ e.label }}
             </span>
-            <span class="block text-[9px] font-bold italic text-black/40 leading-tight mt-0.5">
+            <span class="block text-[9px] italic text-black/40 leading-tight mt-0.5">
               {{ e.desc }}
             </span>
 
@@ -75,7 +75,7 @@
           expand="block"
           color="secondary"
           shape="round"
-          class="h-14 font-black uppercase tracking-widest shadow-lg"
+          size="large"
           :disabled="purchasing"
           @click="unlock"
         >
@@ -87,7 +87,7 @@
           expand="block"
           color="secondary"
           shape="round"
-          class="h-14 font-black uppercase tracking-widest shadow-lg"
+          size="large"
           @click="confirm"
         >
           Apply Effect
@@ -96,7 +96,7 @@
           fill="clear"
           color="dark"
           expand="block"
-          class="font-black uppercase tracking-widest text-xs mt-1 opacity-60"
+          size="large"
           @click="handleDismiss"
         >
           Cancel

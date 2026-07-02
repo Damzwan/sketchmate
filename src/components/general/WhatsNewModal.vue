@@ -35,8 +35,8 @@
           <!-- Moderation -->
           <div class="flex gap-4">
             <div
-              class="flex-shrink-0 w-12 h-12 rounded-2xl bg-secondary/30 flex items-center justify-center text-2xl shadow-sm border border-border/50">
-              🛡️
+              class="flex-shrink-0 w-12 h-12 rounded-2xl bg-secondary/30 flex items-center justify-center shadow-sm border border-border/50">
+              <ion-icon :icon="svg(mdiShieldCheckOutline)" class="text-2xl text-secondary" />
             </div>
             <div>
               <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-foreground/90">
@@ -101,7 +101,7 @@ import { ref, watchEffect } from "vue";
 import { storeToRefs } from "pinia";
 import { useAuthStore } from "@/store/auth.store";
 import { compareVersions, svg } from "@/helper/general.helper";
-import { mdiAccountGroupOutline, mdiBrushVariant, mdiLasso } from "@mdi/js";
+import { mdiAccountGroupOutline, mdiBrushVariant, mdiLasso, mdiShieldCheckOutline } from "@mdi/js";
 import { useRoute } from "vue-router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { updateUser } from "@/service/api/user.api";

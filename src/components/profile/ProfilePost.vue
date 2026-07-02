@@ -2,10 +2,10 @@
   <section class="mt-8 overflow-visible">
     <!-- Cleaned Subhead Row Segment Structure -->
     <div class="flex items-center justify-between px-1 mb-3">
-      <h3 class="text-xs uppercase tracking-widest font-black text-black/40">
+      <h3 class="uppercase tracking-widest font-black text-black/80">
         My Creative Posts
       </h3>
-      <span v-if="posts.length" class="text-[10px] font-black text-black/50 uppercase tracking-widest">
+      <span v-if="posts.length" class="text-sm font-black text-black/70 uppercase tracking-widest">
         {{ posts.length }} Saved Sketches
       </span>
     </div>
@@ -24,7 +24,7 @@
       v-else-if="posts.length === 0"
       class="text-center py-10 bg-tertiary rounded-[2.25rem] border border-dashed border-primary/60 shadow-sm px-4"
     >
-      <span class="text-3xl block mb-2 opacity-40 animate-pulse">🖌----</span>
+      <ion-icon :icon="svg(mdiBrush)" class="text-3xl block mb-2 opacity-40 animate-pulse mx-auto" />
       <p class="cabin-sketch-regular text-base font-black text-black/50 tracking-tight">
         You haven't shared any drawings yet.
       </p>
@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { IonIcon } from "@ionic/vue";
-import { mdiHeart, mdiEye } from "@mdi/js";
+import { mdiHeart, mdiEye, mdiBrush } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 

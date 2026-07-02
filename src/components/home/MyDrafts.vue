@@ -2,11 +2,11 @@
   <section class="min-h-[160px] overflow-visible">
     <!-- Section Header Subhead -->
     <div class="flex items-center justify-between px-1 mb-2.5">
-      <h2 class="text-xs uppercase tracking-widest font-black text-black/40">
+      <h2 class="uppercase tracking-widest font-black text-black/80">
         My Drafts
       </h2>
       <transition name="fade">
-        <span v-if="!loading && drafts.length" class="text-[10px] font-black text-black/50 uppercase tracking-widest">
+        <span v-if="!loading && drafts.length" class="text-sm font-black text-black/80 uppercase tracking-widest">
           {{ drafts.length }} Saved
         </span>
       </transition>
@@ -28,10 +28,10 @@
         key="empty"
         class="bg-tertiary rounded-[2rem] p-6 border border-dashed border-primary/60 flex flex-col items-center justify-center text-center shadow-sm"
       >
-        <p class="cabin-sketch-regular text-base font-black text-black/50 tracking-tight">
+        <p class="cabin-sketch-regular text-base font-black text-black/80 tracking-tight">
           Your creative workspace is clean!
         </p>
-        <p class="text-[10px] uppercase font-black tracking-widest text-black/30 mt-0.5">
+        <p class="text-[10px] uppercase tracking-widest text-black/60 mt-0.5">
           Start a new sketch above
         </p>
       </div>
@@ -57,7 +57,7 @@
               alt="Draft snapshot"
             />
             <div v-else class="absolute inset-0 flex items-center justify-center opacity-20">
-              <span class="text-xl group-hover:rotate-12 transition-transform duration-300">✏️</span>
+              <ion-icon :icon="svg(mdiPencilOutline)" class="text-xl group-hover:rotate-12 transition-transform duration-300" />
             </div>
 
             <!-- Pending / Saving Live Shimmer Layer -->
@@ -80,7 +80,7 @@
                 {{ isPending(draft.id) ? 'Sketching...' : formatDate(draft.updatedAt) }}
               </h3>
               <!-- Cleaned text block for layout compactness -->
-              <span class="text-[8px] font-bold text-black/30 uppercase tracking-wider mt-1 leading-none">
+              <span class="text-[8px] text-black/60 uppercase tracking-wider mt-1 leading-none">
                 {{ isPending(draft.id) ? 'Syncing...' : '' }}
               </span>
             </div>
@@ -114,7 +114,7 @@ import {
 	IonSpinner,
 } from "@ionic/vue";
 import { DrawingDraft } from "@/draw/store/drawLoad.store";
-import { mdiDeleteOutline, mdiDotsVertical, mdiShareOutline } from "@mdi/js";
+import { mdiDeleteOutline, mdiDotsVertical, mdiPencilOutline, mdiShareOutline } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { shareImg } from "@/helper/share.helper";
 

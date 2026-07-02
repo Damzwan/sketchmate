@@ -27,11 +27,11 @@
       <button
         v-for="dec in DECORATIONS"
         :key="dec.id"
-        class="relative rounded-[2rem] border-2 bg-white/60 p-3 active:scale-95 transition-all overflow-hidden flex flex-col items-center gap-2 text-left"
+        class="relative rounded-[2rem] border-2 bg-tertiary p-3 active:scale-95 transition-all overflow-hidden flex flex-col items-center gap-2 text-left"
         :class="
           localSelection === dec.id
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
-            : 'border-white shadow-sm'
+            : 'border-primary/40 shadow-sm'
         "
         @click="localSelection = dec.id"
       >
@@ -51,7 +51,7 @@
           <p class="text-[11px] font-black uppercase tracking-wider text-black leading-tight">
             {{ dec.name }}
           </p>
-          <p class="text-[9px] font-bold text-black/40 italic leading-tight mt-0.5">
+          <p class="text-[9px] text-black/40 italic leading-tight mt-0.5">
             {{ dec.desc }}
           </p>
         </div>

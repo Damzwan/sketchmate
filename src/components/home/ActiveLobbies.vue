@@ -1,13 +1,13 @@
 <template>
   <section class="min-h-[160px] overflow-visible">
     <div class="flex items-center justify-between px-1 mb-2.5">
-      <h2 class="text-xs uppercase tracking-widest font-black text-black/40">
+      <h2 class="uppercase tracking-widest font-black text-black/80">
         Public Lobbies
       </h2>
       <transition name="fade">
         <div v-if="!loading" class="flex items-center gap-1.5">
           <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-          <span class="text-[10px] font-black text-black/50 uppercase tracking-widest">Live Now</span>
+          <span class="text-sm font-black text-black/80 uppercase tracking-widest">Live Now</span>
         </div>
       </transition>
     </div>
@@ -40,7 +40,7 @@
               class="absolute inset-0 flex items-center justify-center transition-opacity duration-300 bg-[#FAF0E6FF]"
               :class="{ 'animate-pulse': lobby.thumbnailUrl }"
             >
-              <span class="text-xl opacity-30 grayscale group-hover:rotate-12 transition-transform duration-300">🎨</span>
+              <ion-icon :icon="svg(mdiPalette)" class="text-xl opacity-30 grayscale group-hover:rotate-12 transition-transform duration-300" />
             </div>
 
             <img
@@ -94,7 +94,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { useIonRouter } from "@ionic/vue";
+import { IonIcon, useIonRouter } from "@ionic/vue";
+import { mdiPalette } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 import { useQuotaStore } from "@/store/quota.store";
 import PremiumLobbyModal from "@/components/draw/PremiumLobbyModal.vue";
 import { Menu } from "@/draw/types/draw.types";

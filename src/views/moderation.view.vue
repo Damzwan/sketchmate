@@ -16,41 +16,41 @@
                 class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm"
                 :class="levelIconBgClass"
               >
-                {{ levelEmoji }}
+                <ion-icon :icon="svg(levelIcon)" />
               </div>
               <div class="min-w-0">
-                <p class="cabin-sketch-regular text-[10px] font-black uppercase tracking-widest opacity-50 leading-none">
+                <p class="cabin-sketch-regular text-xs font-black uppercase tracking-widest text-black/60 leading-none">
                   Status
                 </p>
-                <h2 class="text-lg font-black tracking-tight mt-1 leading-none">
+                <h2 class="text-xl font-black tracking-tight mt-1 leading-none">
                   {{ standing?.name || 'Good Standing' }}
                 </h2>
               </div>
             </div>
 
-            <p class="text-sm opacity-90 leading-snug mt-1">
+            <p class="text-base opacity-90 leading-snug mt-1">
               {{ standing?.description || 'All features unlocked. Keep sketching!' }}
             </p>
 
             <div
               v-if="modStore.isRestricted && standing?.restriction?.expires_at"
-              class="mt-1 pt-2 border-t border-current/10 flex items-center justify-between text-xs"
+              class="mt-1 pt-2 border-t border-current/10 flex items-center justify-between text-sm"
             >
-              <span class="opacity-60 font-medium">Restriction ends</span>
+              <span class="opacity-70 font-medium">Restriction ends</span>
               <span class="font-black">{{ formatExpiry(standing.restriction.expires_at) }}</span>
             </div>
           </section>
 
           <section class="grid grid-cols-2 gap-3">
             <div class="bg-white/40 border border-primary/10 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-sm">
-              <p class="text-2xl font-black leading-none text-black">{{ modStore.strikeSummary.active_strikes }}</p>
-              <p class="cabin-sketch-regular text-[10px] font-black opacity-50 uppercase tracking-widest mt-1">Active Strikes</p>
-              <p class="text-[9px] opacity-40 mt-0.5">Last 90 days</p>
+              <p class="text-3xl font-black leading-none text-black">{{ modStore.strikeSummary.active_strikes }}</p>
+              <p class="cabin-sketch-regular text-xs font-black text-black/60 uppercase tracking-widest mt-1">Active Strikes</p>
+              <p class="text-xs text-black/60 mt-0.5">Last 90 days</p>
             </div>
             <div class="bg-white/40 border border-primary/10 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-sm">
-              <p class="text-2xl font-black leading-none text-black">{{ modStore.strikeSummary.total_strikes }}</p>
-              <p class="cabin-sketch-regular text-[10px] font-black opacity-50 uppercase tracking-widest mt-1">Total History</p>
-              <p class="text-[9px] opacity-40 mt-0.5">All-time record</p>
+              <p class="text-3xl font-black leading-none text-black">{{ modStore.strikeSummary.total_strikes }}</p>
+              <p class="cabin-sketch-regular text-xs font-black text-black/60 uppercase tracking-widest mt-1">Total History</p>
+              <p class="text-xs text-black/60 mt-0.5">All-time record</p>
             </div>
           </section>
 
@@ -58,16 +58,16 @@
             v-if="modStore.isRestricted && standing?.restriction?.blocked_capabilities?.length"
             class="bg-red-50/40 rounded-2xl p-4 border border-red-200/60 shadow-sm"
           >
-            <h3 class="cabin-sketch-regular text-xs font-black text-red-900/60 mb-2.5 uppercase tracking-wider">
+            <h3 class="cabin-sketch-regular text-sm font-black text-red-900/70 mb-2.5 uppercase tracking-wider">
               Paused Features
             </h3>
             <div class="flex flex-wrap gap-1.5">
               <div
                 v-for="cap in standing.restriction.blocked_capabilities"
                 :key="cap"
-                class="flex items-center gap-1 px-2.5 py-1 bg-white border border-red-100 rounded-xl text-xs font-bold text-red-950 shadow-sm"
+                class="flex items-center gap-1 px-2.5 py-1 bg-white border border-red-100 rounded-xl text-sm font-bold text-red-950 shadow-sm"
               >
-                <span>{{ capabilityEmoji(cap) }}</span>
+                <ion-icon :icon="svg(capabilityIcon(cap))" class="text-base" />
                 <span>{{ capabilityLabel(cap) }}</span>
               </div>
             </div>
@@ -77,23 +77,23 @@
             v-if="standing?.history?.length"
             class="bg-white/50 rounded-2xl p-4 border border-primary/10 shadow-sm"
           >
-            <h3 class="cabin-sketch-regular text-xs font-black text-black/40 mb-1 uppercase tracking-wider">
+            <h3 class="cabin-sketch-regular text-sm font-black text-black/60 mb-1 uppercase tracking-wider">
               Recent History
             </h3>
             <div class="divide-y divide-primary/10">
               <div
                 v-for="(action, idx) in standing.history.slice(0, 10)"
                 :key="idx"
-                class="py-2.5 flex items-center justify-between text-xs first:pt-1 last:pb-0"
+                class="py-2.5 flex items-center justify-between text-sm first:pt-1 last:pb-0"
               >
                 <div class="flex items-center gap-2.5 min-w-0">
-                  <span class="text-base shrink-0">{{ actionEmoji(action.action_type) }}</span>
+                  <ion-icon :icon="svg(actionIcon(action.action_type))" class="text-lg shrink-0" />
                   <div class="min-w-0">
                     <p class="font-bold truncate text-black">{{ actionLabel(action.action_type) }}</p>
-                    <p v-if="action.reason" class="text-[10px] text-black/40 mt-0.5 truncate font-medium">{{ reasonLabel(action.reason) }}</p>
+                    <p v-if="action.reason" class="text-xs text-black/60 mt-0.5 truncate font-medium">{{ reasonLabel(action.reason) }}</p>
                   </div>
                 </div>
-                <span class="text-[10px] font-black text-black/40 shrink-0 ml-2">
+                <span class="text-xs font-black text-black/60 shrink-0 ml-2">
                   {{ formatDate(action.created_at) }}
                 </span>
               </div>
@@ -103,20 +103,20 @@
           <section class="bg-white/50 rounded-2xl border border-primary/10 shadow-sm overflow-hidden flex flex-col">
 
             <details class="group border-b border-primary/10 last:border-0">
-              <summary class="p-3.5 flex items-center justify-between font-bold text-xs cursor-pointer select-none bg-white/30 hover:bg-white/60 transition-colors">
-                <span class="cabin-sketch-regular uppercase tracking-wider text-black/60 text-sm">Rules</span>
-                <span class="text-[10px] opacity-40 transition-transform group-open:rotate-180">▼</span>
+              <summary class="p-3.5 flex items-center justify-between font-bold text-sm cursor-pointer select-none bg-white/30 hover:bg-white/60 transition-colors">
+                <span class="cabin-sketch-regular uppercase tracking-wider text-black/70 text-base">Rules</span>
+                <ion-icon :icon="svg(mdiChevronDown)" class="text-xs text-black/50 transition-transform group-open:rotate-180" />
               </summary>
-              <div class="p-4 pt-2 space-y-3 bg-white/20 text-xs">
-                <p class="text-black/60 font-bold">
+              <div class="p-4 pt-2 space-y-3 bg-white/20 text-sm">
+                <p class="text-black/70 font-medium">
                   Sketchmate is for weird, expressive, personal work. To keep it safe for everyone, please follow these core boundaries:
                 </p>
                 <ul class="space-y-2.5">
                   <li v-for="rule in CODE_OF_CONDUCT" :key="rule.title" class="flex gap-2.5">
-                    <span class="text-base shrink-0 mt-0.5">{{ rule.emoji }}</span>
+                    <ion-icon :icon="svg(rule.icon)" class="text-lg shrink-0 mt-0.5" />
                     <div>
-                      <p class="font-black text-black">{{ rule.title }}</p>
-                      <p class="text-black/60 font-medium leading-snug mt-0.5">{{ rule.body }}</p>
+                      <p class="text-base font-black text-black">{{ rule.title }}</p>
+                      <p class="text-black/70 font-medium leading-snug mt-0.5">{{ rule.body }}</p>
                     </div>
                   </li>
                 </ul>
@@ -124,11 +124,11 @@
             </details>
 
             <details class="group border-b border-primary/10 last:border-0">
-              <summary class="p-3.5 flex items-center justify-between font-bold text-xs cursor-pointer select-none bg-white/30 hover:bg-white/60 transition-colors">
-                <span class="cabin-sketch-regular uppercase tracking-wider text-black/60 text-sm">Review Process</span>
-                <span class="text-[10px] opacity-40 transition-transform group-open:rotate-180">▼</span>
+              <summary class="p-3.5 flex items-center justify-between font-bold text-sm cursor-pointer select-none bg-white/30 hover:bg-white/60 transition-colors">
+                <span class="cabin-sketch-regular uppercase tracking-wider text-black/70 text-base">Review Process</span>
+                <ion-icon :icon="svg(mdiChevronDown)" class="text-xs text-black/50 transition-transform group-open:rotate-180" />
               </summary>
-              <div class="p-4 pt-2 space-y-2 text-xs leading-relaxed text-black/70 bg-white/20 font-medium">
+              <div class="p-4 pt-2 space-y-2 text-sm leading-relaxed text-black/70 bg-white/20 font-medium">
                 <p>
                   Reported content is human-reviewed. Valid violations shift your account down the ladder, temporarily disabling specific capabilities.
                 </p>
@@ -142,9 +142,9 @@
             </details>
 
             <details class="group border-b border-primary/10 last:border-0">
-              <summary class="p-3.5 flex items-center justify-between font-bold text-xs cursor-pointer select-none bg-white/30 hover:bg-white/60 transition-colors">
-                <span class="cabin-sketch-regular uppercase tracking-wider text-black/60 text-sm">System Levels</span>
-                <span class="text-[10px] opacity-40 transition-transform group-open:rotate-180">▼</span>
+              <summary class="p-3.5 flex items-center justify-between font-bold text-sm cursor-pointer select-none bg-white/30 hover:bg-white/60 transition-colors">
+                <span class="cabin-sketch-regular uppercase tracking-wider text-black/70 text-base">System Levels</span>
+                <ion-icon :icon="svg(mdiChevronDown)" class="text-xs text-black/50 transition-transform group-open:rotate-180" />
               </summary>
               <div class="p-3 pt-1.5 space-y-1 bg-white/20">
                 <div
@@ -154,17 +154,17 @@
                   :class="modStore.level === idx ? 'bg-white border-secondary/40 shadow-sm' : 'bg-transparent border-transparent'"
                 >
                   <div
-                    class="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0"
-                    :class="modStore.level === idx ? 'bg-secondary text-white' : 'bg-black/5 text-black/40'"
+                    class="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
+                    :class="modStore.level === idx ? 'bg-secondary text-white' : 'bg-black/5 text-black/60'"
                   >
                     L{{ idx }}
                   </div>
-                  <div class="flex-1 min-w-0 pt-0.5 text-xs">
+                  <div class="flex-1 min-w-0 pt-0.5 text-sm">
                     <p class="font-black text-black" :class="{'text-secondary': modStore.level === idx}">
                       {{ rung.name }}
-                      <span v-if="modStore.level === idx" class="ml-1 text-[9px] uppercase tracking-wider opacity-60">(Active)</span>
+                      <span v-if="modStore.level === idx" class="ml-1 text-xs uppercase tracking-wider text-black/70">(Active)</span>
                     </p>
-                    <p class="text-black/60 font-medium leading-snug mt-0.5">{{ rung.description }}</p>
+                    <p class="text-black/70 font-medium leading-snug mt-0.5">{{ rung.description }}</p>
                   </div>
                 </div>
               </div>
@@ -179,9 +179,28 @@
 </template>
 
 <script setup lang="ts">
-import { IonPage, IonContent } from "@ionic/vue";
+import { IonPage, IonContent, IonIcon } from "@ionic/vue";
 import { computed, onMounted } from "vue";
 import { storeToRefs } from "pinia";
+import {
+	mdiAccountAlert,
+	mdiAccountQuestion,
+	mdiAlert,
+	mdiAlertOctagon,
+	mdiBalloon,
+	mdiCancel,
+	mdiCheckCircle,
+	mdiChevronDown,
+	mdiEyeOff,
+	mdiHandshakeOutline,
+	mdiMessageText,
+	mdiPalette,
+	mdiPencil,
+	mdiPencilOutline,
+	mdiShieldAlert,
+	mdiShieldCheck,
+} from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 import { useModerationStore } from "@/store/moderation.store";
 import SubPageBar from "@/components/general/SubPageBar.vue";
 import dayjs from "dayjs";
@@ -214,40 +233,40 @@ const LADDER = [
 
 const CODE_OF_CONDUCT = [
 	{
-		emoji: "🎨",
+		icon: mdiAccountAlert,
 		title: "Harassment",
 		body: "Targeted behavior, bullying, or tracking sketches meant to threaten are prohibited.",
 	},
 	{
-		emoji: "🚫",
+		icon: mdiEyeOff,
 		title: "Explicit Material",
 		body: "Adult, sexual, or overtly graphic illustrations are removed instantly.",
 	},
 	{
-		emoji: "🛡️",
+		icon: mdiShieldAlert,
 		title: "Minor Safety",
 		body: "Any material placing underage accounts at risk results in permanent closures.",
 	},
 	{
-		emoji: "🙅",
+		icon: mdiAlertOctagon,
 		title: "Hate Speech",
 		body: "Slurs or attacks targeting group identity profiles are not tolerated.",
 	},
 	{
-		emoji: "👥",
+		icon: mdiAccountQuestion,
 		title: "Impersonation",
 		body: "Claiming identity confuse others is banned.",
 	},
 	{
-		emoji: "🤝",
+		icon: mdiHandshakeOutline,
 		title: "Disputes",
 		body: "In a fight? Block the user, do not escalate.",
 	},
 ];
 
-const levelEmoji = computed(() => {
-	const map = ["✨", "⚠️", "📛", "🚫"];
-	return map[modStore.level] ?? "✨";
+const levelIcon = computed(() => {
+	const map = [mdiShieldCheck, mdiAlert, mdiAlertOctagon, mdiCancel];
+	return map[modStore.level] ?? mdiShieldCheck;
 });
 
 const levelCardClass = computed(() => {
@@ -284,13 +303,13 @@ function capabilityLabel(cap: string): string {
 	return map[cap] ?? cap;
 }
 
-function capabilityEmoji(cap: string): string {
-	if (cap.includes("BALLOON")) return "🎈";
-	if (cap.includes("POST")) return "📝";
-	if (cap.includes("LOBBY")) return "🎨";
-	if (cap.includes("DM") || cap.includes("MATE")) return "💬";
-	if (cap.includes("CHANGE")) return "✏️";
-	return "🚫";
+function capabilityIcon(cap: string): string {
+	if (cap.includes("BALLOON")) return mdiBalloon;
+	if (cap.includes("POST")) return mdiPencil;
+	if (cap.includes("LOBBY")) return mdiPalette;
+	if (cap.includes("DM") || cap.includes("MATE")) return mdiMessageText;
+	if (cap.includes("CHANGE")) return mdiPencilOutline;
+	return mdiCancel;
 }
 
 function reasonLabel(reason: string): string {
@@ -320,15 +339,15 @@ function actionLabel(action: string): string {
 	return map[action] ?? action;
 }
 
-function actionEmoji(action: string): string {
+function actionIcon(action: string): string {
 	if (
 		action.includes("lifted") ||
 		action.includes("decayed") ||
 		action.includes("granted")
 	)
-		return "✅";
-	if (action.includes("denied") || action.includes("suspension")) return "🚫";
-	return "⚠️";
+		return mdiCheckCircle;
+	if (action.includes("denied") || action.includes("suspension")) return mdiCancel;
+	return mdiAlert;
 }
 
 function formatDate(iso: string): string {

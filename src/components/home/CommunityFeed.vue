@@ -2,7 +2,7 @@
   <section class="min-h-[300px] pb-10 max-w-2xl mx-auto overflow-visible">
     <!-- Header Subhead Segment -->
     <div class="flex items-center justify-between px-1 mb-4 pt-2">
-      <h2 class="text-xs uppercase tracking-widest font-black text-black/40">
+      <h2 class="uppercase tracking-widest font-black text-black/80">
         Community Vibes
       </h2>
     </div>
@@ -52,7 +52,7 @@
             <h3 class="cabin-sketch-regular text-xl font-black text-black tracking-tight leading-none mb-1.5">
               You're all caught up!
             </h3>
-            <p class="text-[11px] font-bold text-black/40 uppercase tracking-wider leading-relaxed">
+            <p class="text-[11px] text-black/40 uppercase tracking-wider leading-relaxed">
               No more scrolling :)
             </p>
           </div>

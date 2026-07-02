@@ -20,7 +20,7 @@
       />
 
       <div v-if="onlineMates.length > 0" class="pt-1">
-        <div class="px-1 mb-2.5 text-[9px] font-black text-black/40 uppercase tracking-widest">Online Now</div>
+        <div class="px-1 mb-2.5 text-[9px] font-black text-black uppercase tracking-widest">Online Now</div>
         <div class="flex overflow-x-auto hide-scrollbar gap-4 px-1 mb-5 overflow-visible">
           <div
             v-for="friend in onlineMates"
@@ -37,7 +37,7 @@
               />
               <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white z-20 shadow-sm"></div>
             </div>
-            <span class="text-[9px] font-black text-black/60 truncate w-full text-center uppercase tracking-tight mt-1">
+            <span class="text-[9px] font-black text-black/80 truncate w-full text-center uppercase tracking-tight mt-1">
               {{ friend.name.split(' ')[0] }}
             </span>
           </div>
@@ -67,10 +67,10 @@
       <div class="space-y-2.5 px-0.5">
         <div v-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby"
              class="p-8 text-center bg-white/40 rounded-[2rem] border border-dashed border-primary/60">
-          <p class="cabin-sketch-regular text-base font-bold text-black/40 leading-snug">
+          <p class="cabin-sketch-regular text-base font-bold text-black/70 leading-snug">
             Your drawing desk is clear!
           </p>
-          <p class="text-[9px] uppercase font-black tracking-widest text-black/30 mt-0.5">
+          <p class="text-[9px] uppercase tracking-widest text-black/50 mt-0.5">
             Send a canvas balloon to find an artist mate
           </p>
         </div>
@@ -101,7 +101,7 @@
         />
 
         <div v-if="(fauxInvitations.length > 0 || actionableChats.length > 0) && regularChats.length > 0" class="pt-2 pb-0.5 pl-1">
-          <div class="text-[9px] font-black text-black/40 uppercase tracking-widest">Active Chats</div>
+          <div class="text-[9px] font-black text-black uppercase tracking-widest">Active Chats</div>
         </div>
 
         <ConversationItem

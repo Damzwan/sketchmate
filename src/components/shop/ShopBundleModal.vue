@@ -5,7 +5,7 @@
         <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none cabin-sketch-regular">
           {{ sku.name }}
         </h1>
-        <p class="text-[13px] font-bold text-black/60 mt-2 leading-snug">{{ sku.desc }}</p>
+        <p class="text-[13px] text-black/60 mt-2 leading-snug">{{ sku.desc }}</p>
         <span class="inline-block mt-2 px-3 py-0.5 rounded-full bg-secondary/10 text-secondary text-[12px] font-black tracking-tight">
           {{ sku.grants.length }} items
         </span>

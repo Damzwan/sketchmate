@@ -19,8 +19,8 @@ ion-popover.liquid-popover::part(content) {
    2. LIQUID ACTION SHEETS (BLURRED MODE)
    ========================================================================== */
 .liquid-action-sheet {
-	--background: rgba(var(--ion-color-tertiary-rgb, 253, 246, 238), 0.4);
-	--backdrop-opacity: 0.2;
+	--background: rgba(var(--ion-color-tertiary-rgb, 253, 246, 238), 0.92);
+	--backdrop-opacity: 0.35;
 }
 
 /* Rounding rule overrides for standard MD mode components */
@@ -84,13 +84,11 @@ ion-popover.liquid-popover::part(content) {
 }
 
 .liquid-alert .alert-title {
-	font-weight: 900;
 	color: var(--ion-color-dark);
 }
 
 .liquid-alert .alert-button {
 	color: var(--ion-color-secondary) !important;
-	font-weight: 800;
 }
 
 /* ==========================================================================

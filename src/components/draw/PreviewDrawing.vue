@@ -28,7 +28,6 @@
       size="large"
       color="secondary"
       @click="openModal"
-      class="mt-4 font-semibold transition-opacity duration-500"
       :class="isLoaded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'"
     >
       <IonIcon slot="end" :icon="svg(mdiCrop)" class="ml-2 w-6 h-6" />
@@ -79,282 +78,282 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch } from 'vue'
 import {
-	IonButton,
-	IonContent,
-	IonIcon,
-	IonModal,
-	IonSkeletonText,
-	IonToolbar,
-	modalController,
-} from "@ionic/vue";
-import Cropper from "cropperjs";
-import "cropperjs/dist/cropper.css";
+  IonButton,
+  IonContent,
+  IonIcon,
+  IonModal,
+  IonSkeletonText,
+  IonToolbar,
+  modalController
+} from '@ionic/vue'
+import Cropper from 'cropperjs'
+import 'cropperjs/dist/cropper.css'
 
-import { mdiClose, mdiCrop, mdiFullscreen } from "@mdi/js";
-import { svg } from "@/helper/general.helper.ts";
+import { mdiClose, mdiCrop, mdiFullscreen } from '@mdi/js'
+import { svg } from '@/helper/general.helper.ts'
 
 const props = defineProps({
-	src: {
-		type: String,
-		required: false,
-		default: null,
-	},
-	newPreview: {
-		type: String,
-		required: false,
-		default: null,
-	},
-	aspectRatio: {
-		type: Number,
-		required: true,
-		default: 1,
-	},
-});
+  src: {
+    type: String,
+    required: false,
+    default: null
+  },
+  newPreview: {
+    type: String,
+    required: false,
+    default: null
+  },
+  aspectRatio: {
+    type: Number,
+    required: true,
+    default: 1
+  }
+})
 
-const emit = defineEmits(["crop-completed"]);
+const emit = defineEmits(['crop-completed'])
 
-const isOpen = ref(false);
-const imageRef = ref(null);
-const isCropperReady = ref(false); // Tracks when Cropper is fully initialized
-let cropperInstance = null;
-const isLoaded = ref(false);
+const isOpen = ref(false)
+const imageRef = ref(null)
+const isCropperReady = ref(false) // Tracks when Cropper is fully initialized
+let cropperInstance = null
+const isLoaded = ref(false)
 
-const newAspectRatio = ref();
+const newAspectRatio = ref()
 
-const openModal = () => (isOpen.value = true);
+const openModal = () => (isOpen.value = true)
 
 watch(
-	() => [props.src],
-	([]) => {
-		if (!props.src) newAspectRatio.value = undefined;
-		isLoaded.value = false;
-	},
-);
+  () => [props.src],
+  ([]) => {
+    if (!props.src) newAspectRatio.value = undefined
+    isLoaded.value = false
+  }
+)
 
 const closeModal = () => {
-	isOpen.value = false;
-};
+  isOpen.value = false
+}
 
 const initCropper = () => {
-	shouldCrop = false;
-	if (imageRef.value) {
-		// Reset readiness state just in case
-		isCropperReady.value = false;
+  shouldCrop = false
+  if (imageRef.value) {
+    // Reset readiness state just in case
+    isCropperReady.value = false
 
-		cropperInstance = new Cropper(imageRef.value, {
-			viewMode: 1, // Restricts crop box to within the canvas
-			dragMode: "move", // Allows moving the image instead of creating new crop boxes
-			autoCropArea: 1,
-			zoomable: true,
-			scalable: true,
-			background: false,
-			responsive: true,
-			restore: false, // Prevents it from resetting oddly on window resize
+    cropperInstance = new Cropper(imageRef.value, {
+      viewMode: 1, // Restricts crop box to within the canvas
+      dragMode: 'move', // Allows moving the image instead of creating new crop boxes
+      autoCropArea: 1,
+      zoomable: true,
+      scalable: true,
+      background: false,
+      responsive: true,
+      restore: false, // Prevents it from resetting oddly on window resize
 
-			ready() {
-				isCropperReady.value = true;
-			},
+      ready() {
+        isCropperReady.value = true
+      },
 
-			cropmove(event) {
-				syncImageToCrop(event);
-			},
+      cropmove(event) {
+        syncImageToCrop(event)
+      },
 
-			cropend(event) {
-				autoZoomToSelection();
-			},
-		});
-	}
-};
+      cropend(event) {
+        autoZoomToSelection()
+      }
+    })
+  }
+}
 
 const autoZoomToSelection = () => {
-	if (!cropperInstance) return;
+  if (!cropperInstance) return
 
-	// 1. Save the exact area of the image currently selected (natural pixels)
-	const cropData = cropperInstance.getData();
-	const containerData = cropperInstance.getContainerData();
+  // 1. Save the exact area of the image currently selected (natural pixels)
+  const cropData = cropperInstance.getData()
+  const containerData = cropperInstance.getContainerData()
 
-	// 2. Calculate the zoom ratio to make this selection fill 80% of the screen
-	const scaleX = (containerData.width * 0.8) / cropData.width;
-	const scaleY = (containerData.height * 0.8) / cropData.height;
-	const newZoomRatio = Math.min(scaleX, scaleY);
+  // 2. Calculate the zoom ratio to make this selection fill 80% of the screen
+  const scaleX = (containerData.width * 0.8) / cropData.width
+  const scaleY = (containerData.height * 0.8) / cropData.height
+  const newZoomRatio = Math.min(scaleX, scaleY)
 
-	// 3. Zoom the image canvas to that exact ratio
-	cropperInstance.zoomTo(newZoomRatio);
+  // 3. Zoom the image canvas to that exact ratio
+  cropperInstance.zoomTo(newZoomRatio)
 
-	// 4. Calculate where to move the canvas so our selection is perfectly centered
-	const containerCenterX = containerData.width / 2;
-	const containerCenterY = containerData.height / 2;
+  // 4. Calculate where to move the canvas so our selection is perfectly centered
+  const containerCenterX = containerData.width / 2
+  const containerCenterY = containerData.height / 2
 
-	// Convert natural image coordinates to our new scaled canvas coordinates
-	const canvasCenterX = (cropData.x + cropData.width / 2) * newZoomRatio;
-	const canvasCenterY = (cropData.y + cropData.height / 2) * newZoomRatio;
+  // Convert natural image coordinates to our new scaled canvas coordinates
+  const canvasCenterX = (cropData.x + cropData.width / 2) * newZoomRatio
+  const canvasCenterY = (cropData.y + cropData.height / 2) * newZoomRatio
 
-	// 5. Move the canvas so the selection is in the middle of the screen
-	cropperInstance.moveTo(
-		containerCenterX - canvasCenterX,
-		containerCenterY - canvasCenterY,
-	);
+  // 5. Move the canvas so the selection is in the middle of the screen
+  cropperInstance.moveTo(
+    containerCenterX - canvasCenterX,
+    containerCenterY - canvasCenterY
+  )
 
-	// 6. Force the crop box to clamp back down onto the exact same objects we saved in Step 1
-	cropperInstance.setData(cropData);
-};
+  // 6. Force the crop box to clamp back down onto the exact same objects we saved in Step 1
+  cropperInstance.setData(cropData)
+}
 
 const handleModalDismiss = () => {
-	isOpen.value = false;
+  isOpen.value = false
 
-	// We do this here to prevent lagg since the crop operation is heavvy!
-	if (cropperInstance && shouldCrop) {
-		const cropData = cropperInstance.getData(true);
-		const imageData = cropperInstance.getImageData();
+  // We do this here to prevent lagg since the crop operation is heavvy!
+  if (cropperInstance && shouldCrop) {
+    const cropData = cropperInstance.getData(true)
+    const imageData = cropperInstance.getImageData()
 
-		const relativeBoundary = {
-			x: cropData.x / imageData.naturalWidth,
-			y: cropData.y / imageData.naturalHeight,
-			width: cropData.width / imageData.naturalWidth,
-			height: cropData.height / imageData.naturalHeight,
-		};
+    const relativeBoundary = {
+      x: cropData.x / imageData.naturalWidth,
+      y: cropData.y / imageData.naturalHeight,
+      width: cropData.width / imageData.naturalWidth,
+      height: cropData.height / imageData.naturalHeight
+    }
 
-		isLoaded.value =
-			relativeBoundary.x === 0 &&
-			relativeBoundary.y === 0 &&
-			relativeBoundary.width === 1 &&
-			relativeBoundary.height === 1;
-		newAspectRatio.value = cropData.width / cropData.height;
+    isLoaded.value =
+      relativeBoundary.x === 0 &&
+      relativeBoundary.y === 0 &&
+      relativeBoundary.width === 1 &&
+      relativeBoundary.height === 1
+    newAspectRatio.value = cropData.width / cropData.height
 
-		cropperInstance.destroy();
-		cropperInstance = null;
-		isCropperReady.value = false;
+    cropperInstance.destroy()
+    cropperInstance = null
+    isCropperReady.value = false
 
-		emit("crop-completed", relativeBoundary);
-	}
-};
+    emit('crop-completed', relativeBoundary)
+  }
+}
 
-let shouldCrop = false;
+let shouldCrop = false
 
 function crop() {
-	modalController.dismiss();
-	shouldCrop = true;
+  modalController.dismiss()
+  shouldCrop = true
 }
 
 // Add these to your script setup to track velocity/state
-let isProcessingSync = false;
+let isProcessingSync = false
 
 // Define this outside your function/event listener so it persists
-let previousBoxArea = 0;
+let previousBoxArea = 0
 const syncImageToCrop = (event) => {
-	if (!cropperInstance || isProcessingSync) return;
+  if (!cropperInstance || isProcessingSync) return
 
-	const container = cropperInstance.getContainerData();
-	const canvas = cropperInstance.getCanvasData();
-	const box = cropperInstance.getCropBoxData();
-	const action = event.detail.originalEvent.type; // check if touch or mouse
+  const container = cropperInstance.getContainerData()
+  const canvas = cropperInstance.getCanvasData()
+  const box = cropperInstance.getCropBoxData()
+  const action = event.detail.originalEvent.type // check if touch or mouse
 
-	// 1. GENTLE ZOOM OUT (When box gets too big for the screen)
-	// If the user is expanding the box and it hits 90% of the screen,
-	// we zoom the image OUT so they can see more context.
-	// 1. GENTLE ZOOM OUT (When box gets too big for the screen)
-	if (event.detail.action !== "all") {
-		const coverage = Math.max(
-			box.width / container.width,
-			box.height / container.height,
-		);
+  // 1. GENTLE ZOOM OUT (When box gets too big for the screen)
+  // If the user is expanding the box and it hits 90% of the screen,
+  // we zoom the image OUT so they can see more context.
+  // 1. GENTLE ZOOM OUT (When box gets too big for the screen)
+  if (event.detail.action !== 'all') {
+    const coverage = Math.max(
+      box.width / container.width,
+      box.height / container.height
+    )
 
-		// Calculate current area to determine if we are expanding or shrinking
-		const currentBoxArea = box.width * box.height;
-		const isExpanding = currentBoxArea > previousBoxArea;
+    // Calculate current area to determine if we are expanding or shrinking
+    const currentBoxArea = box.width * box.height
+    const isExpanding = currentBoxArea > previousBoxArea
 
-		// Update the previous area for the next frame
-		previousBoxArea = currentBoxArea;
+    // Update the previous area for the next frame
+    previousBoxArea = currentBoxArea
 
-		// ONLY zoom out if coverage is high AND the user is making the box bigger
-		if (coverage > 0.85 && isExpanding) {
-			// Calculate the new zoom ratio (zooming out by 1%)
-			const canvasData = cropperInstance.getCanvasData();
-			const imageData = cropperInstance.getImageData();
-			const currentRatio = canvasData.width / imageData.naturalWidth;
-			const newRatio = currentRatio * 0.99;
+    // ONLY zoom out if coverage is high AND the user is making the box bigger
+    if (coverage > 0.85 && isExpanding) {
+      // Calculate the new zoom ratio (zooming out by 1%)
+      const canvasData = cropperInstance.getCanvasData()
+      const imageData = cropperInstance.getImageData()
+      const currentRatio = canvasData.width / imageData.naturalWidth
+      const newRatio = currentRatio * 0.99
 
-			// Find the stationary anchor point (pivot) based on the drag handle
-			const action = event.detail.action;
-			let pivotX = box.left + box.width / 2; // Default to center
-			let pivotY = box.top + box.height / 2;
+      // Find the stationary anchor point (pivot) based on the drag handle
+      const action = event.detail.action
+      let pivotX = box.left + box.width / 2 // Default to center
+      let pivotY = box.top + box.height / 2
 
-			// Anchor the OPPOSITE side of the active handle so the image stays pinned
-			if (action === "se") {
-				pivotX = box.left;
-				pivotY = box.top;
-			} else if (action === "sw") {
-				pivotX = box.left + box.width;
-				pivotY = box.top;
-			} else if (action === "ne") {
-				pivotX = box.left;
-				pivotY = box.top + box.height;
-			} else if (action === "nw") {
-				pivotX = box.left + box.width;
-				pivotY = box.top + box.height;
-			} else if (action === "e") {
-				pivotX = box.left;
-			} else if (action === "w") {
-				pivotX = box.left + box.width;
-			} else if (action === "s") {
-				pivotY = box.top;
-			} else if (action === "n") {
-				pivotY = box.top + box.height;
-			}
+      // Anchor the OPPOSITE side of the active handle so the image stays pinned
+      if (action === 'se') {
+        pivotX = box.left
+        pivotY = box.top
+      } else if (action === 'sw') {
+        pivotX = box.left + box.width
+        pivotY = box.top
+      } else if (action === 'ne') {
+        pivotX = box.left
+        pivotY = box.top + box.height
+      } else if (action === 'nw') {
+        pivotX = box.left + box.width
+        pivotY = box.top + box.height
+      } else if (action === 'e') {
+        pivotX = box.left
+      } else if (action === 'w') {
+        pivotX = box.left + box.width
+      } else if (action === 's') {
+        pivotY = box.top
+      } else if (action === 'n') {
+        pivotY = box.top + box.height
+      }
 
-			// Zoom specifically to that anchored pivot point
-			cropperInstance.zoomTo(newRatio, { x: pivotX, y: pivotY });
-		}
-		return;
-	}
+      // Zoom specifically to that anchored pivot point
+      cropperInstance.zoomTo(newRatio, { x: pivotX, y: pivotY })
+    }
+    return
+  }
 
-	// 2. REFINED DAMPENED PANNING (The "Elastic" feel)
-	// Reduced threshold to 10% so it feels like a true boundary
-	const threshold = 0.05;
-	const edgeLeft = container.width * threshold;
-	const edgeTop = container.height * threshold;
-	const edgeRight = container.width * (1 - threshold);
-	const edgeBottom = container.height * (1 - threshold);
+  // 2. REFINED DAMPENED PANNING (The "Elastic" feel)
+  // Reduced threshold to 10% so it feels like a true boundary
+  const threshold = 0.05
+  const edgeLeft = container.width * threshold
+  const edgeTop = container.height * threshold
+  const edgeRight = container.width * (1 - threshold)
+  const edgeBottom = container.height * (1 - threshold)
 
-	let moveX = 0;
-	let moveY = 0;
+  let moveX = 0
+  let moveY = 0
 
-	// Calculate how far "into" the edge we are
-	if (box.left < edgeLeft) moveX = edgeLeft - box.left;
-	if (box.top < edgeTop) moveY = edgeTop - box.top;
-	if (box.left + box.width > edgeRight)
-		moveX = edgeRight - (box.left + box.width);
-	if (box.top + box.height > edgeBottom)
-		moveY = edgeBottom - (box.top + box.height);
+  // Calculate how far "into" the edge we are
+  if (box.left < edgeLeft) moveX = edgeLeft - box.left
+  if (box.top < edgeTop) moveY = edgeTop - box.top
+  if (box.left + box.width > edgeRight)
+    moveX = edgeRight - (box.left + box.width)
+  if (box.top + box.height > edgeBottom)
+    moveY = edgeBottom - (box.top + box.height)
 
-	if (moveX !== 0 || moveY !== 0) {
-		isProcessingSync = true;
+  if (moveX !== 0 || moveY !== 0) {
+    isProcessingSync = true
 
-		// LOWER multiplier: 0.05 at 60fps is too fast. 0.015 gives a tighter, heavier feel.
-		const speedMultiplier = 0.1;
+    // LOWER multiplier: 0.05 at 60fps is too fast. 0.015 gives a tighter, heavier feel.
+    const speedMultiplier = 0.1
 
-		// SPEED LIMIT: Cap the movement to a maximum of 3 pixels per frame.
-		// This prevents the "runaway" sliding effect if the user moves the mouse aggressively.
-		const maxSpeed = 10;
+    // SPEED LIMIT: Cap the movement to a maximum of 3 pixels per frame.
+    // This prevents the "runaway" sliding effect if the user moves the mouse aggressively.
+    const maxSpeed = 10
 
-		const deltaX = Math.max(
-			-maxSpeed,
-			Math.min(maxSpeed, moveX * speedMultiplier),
-		);
-		const deltaY = Math.max(
-			-maxSpeed,
-			Math.min(maxSpeed, moveY * speedMultiplier),
-		);
+    const deltaX = Math.max(
+      -maxSpeed,
+      Math.min(maxSpeed, moveX * speedMultiplier)
+    )
+    const deltaY = Math.max(
+      -maxSpeed,
+      Math.min(maxSpeed, moveY * speedMultiplier)
+    )
 
-		cropperInstance.move(deltaX, deltaY);
+    cropperInstance.move(deltaX, deltaY)
 
-		requestAnimationFrame(() => {
-			isProcessingSync = false;
-		});
-	}
-};
+    requestAnimationFrame(() => {
+      isProcessingSync = false
+    })
+  }
+}
 </script>
 
 <style scoped>

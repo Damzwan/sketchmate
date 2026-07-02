@@ -78,7 +78,7 @@ defineEmits<{
 }
 
 .brush_name {
-  @apply text-[10px] font-bold text-black/45 tracking-tight leading-none;
+  @apply text-[10px] text-black/60 tracking-tight leading-none;
 }
 
 .brush_name--selected {

@@ -21,7 +21,7 @@
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
             <p class="text-xl font-bold text-black leading-none">Save & Send Direct</p>
-            <p class="text-sm text-black/60 font-bold mt-1">Keep in gallery, select mates to share with</p>
+            <p class="text-sm text-black/80 mt-1">Keep in gallery, select mates to share with</p>
           </div>
           <div
             class="w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all shrink-0 border-secondary"
@@ -72,7 +72,7 @@
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
             <p class="text-xl font-bold text-black leading-none">Save to gallery</p>
-            <p class="text-sm text-black/60 font-bold mt-1">Keep this drawing in your personal gallery.</p>
+            <p class="text-sm text-black/80 mt-1">Keep this drawing in your personal gallery.</p>
           </div>
           <div
             class="w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all shrink-0 border-secondary"
@@ -90,7 +90,7 @@
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
             <p class="text-xl font-bold text-black leading-none">Community Post</p>
-            <div class="text-sm text-black/60 font-bold mt-1">
+            <div class="text-sm text-black/80 mt-1">
               <template v-if="quotaStore.canCreatePost">
                 <div>Publish to the public feed.</div>
                 <div class="text-secondary mt-1">{{ quotaStore.posts.remaining }}/{{ quotaStore.posts.limit }} left
@@ -103,7 +103,7 @@
               <template v-else>
                 Daily limit reached. <span
                 class="text-secondary underline font-black active:scale-95 inline-block cursor-pointer"
-                @click.stop="goToPro">⭐ Upgrade to PRO</span>
+                @click.stop="goToPro"><ion-icon :icon="svg(mdiStar)" class="text-xs align-[-1px]" /> Upgrade to PRO</span>
               </template>
             </div>
           </div>
@@ -119,13 +119,13 @@
 
         <div v-if="isPublicPost" class="pt-4 mt-3 border-t border-primary/20 animate-fade-in space-y-3" @click.stop>
           <textarea v-model="postCaption" placeholder="Write a caption... (optional)"
-                    class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 resize-none outline-none font-bold text-black placeholder:text-black/40 h-20"
+                    class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 resize-none outline-none font-bold text-black placeholder:font-normal placeholder:text-black/50 h-20"
                     maxlength="200" />
 
           <div class="flex items-center justify-between bg-primary/10 rounded-xl p-3">
             <div class="flex-1 pr-3">
               <p class="text-sm font-black text-black leading-none">Allow comments</p>
-              <p class="text-[11px] font-bold text-black/50 mt-1 leading-none">Let viewers leave a note.</p>
+              <p class="text-[11px] text-black/80 mt-1 leading-none">Let viewers leave a note.</p>
             </div>
             <ion-toggle v-model="postEnableComments" color="secondary" />
           </div>
@@ -133,7 +133,7 @@
           <div class="flex items-center justify-between bg-primary/10 rounded-xl p-3">
             <div class="flex-1 pr-3">
               <p class="text-sm font-black text-black leading-none">Allow remix</p>
-              <p class="text-[11px] font-bold text-black/50 mt-1 leading-none">Anyone can start a session from this
+              <p class="text-[11px] text-black/80 mt-1 leading-none">Anyone can start a session from this
                 drawing.</p>
             </div>
             <ion-toggle v-model="postEnableRemix" color="secondary" />
@@ -148,8 +148,8 @@
         ]" @click="quotaStore.canSendBalloon && toggleSection('balloon')">
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
-            <p class="text-xl font-bold text-black leading-none"><span class="mr-1">🎈</span> Release Balloon</p>
-            <div class="text-sm text-black/60 font-bold mt-1">
+            <p class="text-xl font-bold text-black leading-none"><ion-icon :icon="svg(mdiBalloon)" class="text-secondary mr-1 align-[-2px]" /> Release Balloon</p>
+            <div class="text-sm text-black/80 mt-1">
               <template v-if="quotaStore.canSendBalloon">
                 <div>Send to a stranger.</div>
                 <div class="text-secondary mt-1">{{ quotaStore.balloons.remaining }}/{{ quotaStore.balloons.limit }}
@@ -162,7 +162,7 @@
               <template v-else>
                 Daily limit reached. <span
                 class="text-secondary underline font-black active:scale-95 inline-block cursor-pointer"
-                @click.stop="goToPro">⭐ Upgrade to PRO</span>
+                @click.stop="goToPro"><ion-icon :icon="svg(mdiStar)" class="text-xs align-[-1px]" /> Upgrade to PRO</span>
               </template>
             </div>
           </div>
@@ -178,12 +178,12 @@
 
         <div v-if="isBalloon" class="pt-4 mt-3 border-t border-primary/20 animate-fade-in" @click.stop>
           <input v-model="balloonNote" type="text" placeholder="Attach a short note... (optional)" maxlength="40"
-                 class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 outline-none font-bold text-black placeholder:text-black/40" />
+                 class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 outline-none font-bold text-black placeholder:font-normal placeholder:text-black/50" />
         </div>
       </section>
 
       <section v-if="isUnderAge" class="bg-amber-50 border border-amber-200 rounded-3xl p-4 flex gap-3">
-        <span class="text-2xl shrink-0">🌱</span>
+        <ion-icon :icon="svg(mdiSprout)" class="text-2xl shrink-0 text-amber-600" />
         <div class="flex-1 min-w-0">
           <p class="font-black text-sm text-amber-900 leading-tight">
             More sharing options unlock at 13
@@ -216,7 +216,7 @@ import {
   IonToggle,
   useIonRouter
 } from '@ionic/vue'
-import { mdiCheck, mdiChevronLeft } from '@mdi/js'
+import { mdiCheck, mdiChevronLeft, mdiStar, mdiBalloon, mdiSprout } from '@mdi/js'
 import { storeToRefs } from 'pinia'
 import { svg } from '@/helper/general.helper'
 import dayjs from 'dayjs'

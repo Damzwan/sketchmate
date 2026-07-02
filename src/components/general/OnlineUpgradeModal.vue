@@ -14,7 +14,7 @@
         <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
           Update Required
         </h1>
-        <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-2">
+        <p class="text-xs font-bold opacity-80 uppercase tracking-widest mt-2">
           New version available
         </p>
       </div>
@@ -22,17 +22,17 @@
       <!-- Content -->
       <div class="flex-1 flex flex-col items-center justify-center px-4 space-y-6 text-center">
         <div class="relative">
-          <div class="w-24 h-24 bg-secondary/10 rounded-[2rem] flex items-center justify-center text-5xl rotate-[-5deg]">
-            🎨
+          <div class="w-24 h-24 bg-secondary/10 rounded-[2rem] flex items-center justify-center rotate-[-5deg]">
+            <ion-icon :icon="svg(mdiPalette)" class="text-5xl text-secondary" />
           </div>
           <div class="absolute -top-2 -right-2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center shadow-lg animate-bounce">
-            ✨
+            <ion-icon :icon="svg(mdiCreation)" class="text-lg text-white" />
           </div>
         </div>
 
         <div class="space-y-2">
           <h2 class="text-2xl font-black text-black tracking-tight">Time to upgrade!</h2>
-          <p class="text-[15px] font-bold text-black/60 leading-relaxed max-w-[280px]">
+          <p class="text-[15px] text-black/60 leading-relaxed max-w-[280px]">
             You must update to the latest version of Sketchmate to join collaborative sessions and draw with others online.
           </p>
         </div>
@@ -62,11 +62,13 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonButton } from '@ionic/vue'
+import { IonModal, IonButton, IonIcon } from '@ionic/vue'
 import { App } from '@capacitor/app'
 import { AppUpdate } from '@capawesome/capacitor-app-update'
+import { mdiCreation, mdiPalette } from '@mdi/js'
 import { useMenuStore } from '@/store/menu.store'
 import { storeToRefs } from 'pinia'
+import { svg } from '@/helper/general.helper'
 
 const menuStore = useMenuStore()
 const { isOnlineUpgradeMenuOpen } = storeToRefs(menuStore)

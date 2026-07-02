@@ -15,22 +15,22 @@
         <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
           Lobby Full!
         </h1>
-        <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-2">
+        <p class="text-xs opacity-70 uppercase tracking-widest mt-2">
           Regular slots are taken
         </p>
       </div>
 
       <div class="flex-1 flex flex-col items-center justify-center px-2 py-4">
 
-        <div class="w-24 h-24 bg-amber-400/20 rounded-full flex items-center justify-center mb-6 border-4 border-white shadow-sm">
-          <span class="text-5xl">⭐</span>
+        <div class="w-24 h-24 bg-amber-400/20 rounded-full flex items-center justify-center mb-6 border-4 border-white shadow-sm text-amber-500">
+          <ion-icon :icon="svg(mdiStar)" class="text-5xl" />
         </div>
 
         <p class="text-lg font-black text-black text-center leading-tight px-4 mb-2">
           This room is packed, but Pro members get reserved VIP slots.
         </p>
 
-        <p class="text-xs font-bold text-black/50 text-center uppercase tracking-widest italic px-6">
+        <p class="text-xs text-black/60 text-center uppercase tracking-widest italic px-6">
           Upgrade to skip the line and sketch in full lobbies.
         </p>
       </div>
@@ -44,13 +44,13 @@
           class="h-16 font-black uppercase "
           @click="confirmUpgrade"
         >
-          ⭐ Unlock Premium Slots
+          <ion-icon :icon="svg(mdiStar)" slot="start" />Unlock Premium Slots
         </ion-button>
         <ion-button
           fill="clear"
           color="dark"
           expand="block"
-          class="font-black uppercase tracking-widest text-xs mt-2 opacity-60"
+          class="font-black uppercase tracking-widest text-xs mt-2 opacity-70"
           @click="handleDismiss"
         >
           Cancel
@@ -61,7 +61,9 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonButton } from "@ionic/vue";
+import { IonModal, IonButton, IonIcon } from "@ionic/vue";
+import { mdiStar } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
 defineProps<{ isOpen: boolean }>();
 const emit = defineEmits(["close", "upgrade"]);

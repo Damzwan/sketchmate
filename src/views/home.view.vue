@@ -10,7 +10,7 @@
           v-if="isUnderAge"
           class="bg-amber-50/60 backdrop-blur-sm border border-amber-200/80 rounded-3xl p-4 flex gap-3 shadow-sm"
         >
-          <span class="text-2xl shrink-0">🌱</span>
+          <ion-icon :icon="svg(mdiSproutOutline)" class="text-2xl shrink-0 text-amber-700" />
           <div class="flex-1 min-w-0">
             <p class="font-black text-sm text-amber-900 leading-tight">
               Public features unlock at 13
@@ -61,10 +61,12 @@
 import { computed, onMounted, ref, watch } from "vue";
 import {
 	IonContent,
+	IonIcon,
 	IonPage,
 	onIonViewDidEnter,
 	useIonRouter,
 } from "@ionic/vue";
+import { mdiSproutOutline } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import TopBar from "../components/general/TopBar.vue";
 import ActiveLobbies from "../components/home/ActiveLobbies.vue";
@@ -89,7 +91,7 @@ import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
 import draw_together from "@/assets/illustrations/home/draw_together.webp";
 import share from "@/assets/illustrations/home/share.webp";
 import balloonLottie from "@/assets/lottie/balloon.json";
-import { whenIdle } from "@/helper/general.helper";
+import { svg, whenIdle } from "@/helper/general.helper";
 import HomeQuickActions from "@/components/home/HomeQuickActions.vue";
 
 const r = useIonRouter();

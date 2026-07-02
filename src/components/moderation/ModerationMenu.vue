@@ -11,7 +11,7 @@
 
       <!-- Header -->
       <div class="shrink-0 pt-4 mb-6 text-center">
-        <div class="text-[54px] mb-2 leading-none">✋</div>
+        <ion-icon :icon="svg(mdiPauseOctagonOutline)" class="text-[54px] mb-2 leading-none" :class="modStore.level >= 3 ? 'text-red-500' : 'text-amber-500'" />
         <h1
           class="text-3xl font-black tracking-tighter italic leading-none"
           :class="modStore.level >= 3 ? 'text-red-500' : 'text-amber-500'"
@@ -63,13 +63,15 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
-import { IonModal, IonButton, useIonRouter } from "@ionic/vue";
+import { IonModal, IonButton, IonIcon, useIonRouter } from "@ionic/vue";
 import dayjs from "dayjs";
+import { mdiPauseOctagonOutline } from "@mdi/js";
 
 import { useMenuStore } from "@/store/menu.store";
 import { useModerationStore } from "@/store/moderation.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { masterAnimation } from "@/helper/animation.helper";
+import { svg } from "@/helper/general.helper";
 
 const router = useIonRouter();
 const modStore = useModerationStore();

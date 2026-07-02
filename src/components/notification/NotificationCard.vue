@@ -47,10 +47,10 @@
       <!-- Text Payload Content Block -->
       <div class="flex-1 min-w-0 flex flex-col justify-center text-left pointer-events-none">
         <p class="text-[14px] md:text-[15px] leading-snug text-black/90 tracking-tight">
-          <span :class="notification.read ? 'font-bold opacity-75' : 'font-black'">
+          <span :class="notification.read ? 'font-black text-black/80' : 'font-black'">
             {{ headline }}
           </span>
-          <span :class="notification.read ? 'font-medium opacity-65 ml-1' : 'font-bold text-black/75 ml-1'">
+          <span :class="notification.read ? 'font-medium text-black/80 ml-1' : 'font-bold text-black/80 ml-1'">
             {{ body }}
           </span>
         </p>
@@ -61,14 +61,14 @@
           class="text-xs md:text-[13px] tracking-tight mt-2 line-clamp-2 italic border px-3 py-2 rounded-2xl transition-colors"
           :class="[
             notification.read
-              ? 'bg-black/5 border-primary/5 text-black/45 font-medium'
-              : 'bg-white/40 border-primary/10 text-black/75 font-bold shadow-inner'
+              ? 'bg-black/5 border-primary/5 text-black/80 font-medium'
+              : 'bg-white/40 border-primary/10 text-black/80 font-bold shadow-inner'
           ]"
         >
           "{{ notification.target_preview.text }}"
         </div>
 
-        <span class="text-[9px] md:text-[10px] font-black mt-2 uppercase tracking-widest leading-none text-black/35">
+        <span class="text-[9px] md:text-[10px] mt-2 uppercase tracking-widest leading-none text-black/80">
           {{ dayjs(notification.updatedAt).fromNow() }}
         </span>
       </div>

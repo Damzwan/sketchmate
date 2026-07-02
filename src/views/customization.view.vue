@@ -149,7 +149,7 @@
             @click="sketchModalOpen = true"
           >
             <template #preview>
-              <div class="w-8 h-6 rounded overflow-hidden bg-white/40 border border-white relative">
+              <div class="w-8 h-6 rounded overflow-hidden bg-tertiary border border-primary/40 relative">
                 <svg v-if="draft.backgroundSketchPath" class="w-full h-full" :viewBox="draft.backgroundSketchViewBox || '0 0 300 360'" preserveAspectRatio="xMidYMid slice">
                   <path :d="draft.backgroundSketchPath" fill="none" :stroke="currentTheme.nameColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.5" />
                 </svg>
@@ -164,11 +164,12 @@
             v-if="isDirty"
             class="fixed left-0 right-0 bottom-0 p-4 bg-white/90 backdrop-blur-2xl border-t-2 border-secondary/20 flex items-center justify-between z-40 safe-area-bottom"
           >
-            <ion-button fill="clear" color="dark" class="font-black tracking-widest text-xs mb-4" @click="revert">
+            <ion-button fill="clear" color="dark" size="large" @click="revert">
               Revert
             </ion-button>
-            <ion-button shape="round" color="secondary" class="mb-4" :disabled="isSaving" @click="save">
-              {{ isSaving ? 'Saving...' : 'Save ✓' }}
+            <ion-button shape="round" color="secondary" size="large" :disabled="isSaving" @click="save">
+              {{ isSaving ? 'Saving...' : 'Save' }}
+              <ion-icon v-if="!isSaving" :icon="svg(mdiCheck)" slot="end" />
             </ion-button>
           </div>
         </transition>
@@ -201,12 +202,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { IonContent, IonPage, IonButton } from "@ionic/vue";
+import { IonContent, IonPage, IonButton, IonIcon } from "@ionic/vue";
 import {
 	mdiAccountCircleOutline,
 	mdiAutoFix,
 	mdiBrush,
 	mdiCardAccountDetailsOutline,
+	mdiCheck,
 	mdiDraw,
 	mdiFormatColorText,
 	mdiFormatFont,
@@ -215,6 +217,7 @@ import {
 	mdiWeatherHurricane,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
+import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";

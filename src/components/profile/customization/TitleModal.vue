@@ -27,7 +27,7 @@
         :class="[
           localSelection === title.id
             ? 'bg-white border-secondary shadow-md'
-            : 'bg-white/40 border-white shadow-sm hover:bg-white/60',
+            : 'bg-tertiary border-primary/40 shadow-sm hover:bg-white/60',
           !isUnlocked(title.id) && 'opacity-95'
         ]"
         @click="onTap(title)"
@@ -46,8 +46,8 @@
           >
             {{ title.name }}
           </span>
-          <p class="text-[11px] font-bold mt-1 leading-tight italic"
-             :class="isUnlocked(title.id) ? 'text-black/40' : 'text-secondary/80'">
+          <p class="text-[11px] mt-1 leading-tight italic"
+             :class="isUnlocked(title.id) ? 'text-black/60' : 'text-secondary/80'">
             {{ title.howTo }}
           </p>
         </div>

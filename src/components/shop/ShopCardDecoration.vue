@@ -5,7 +5,7 @@
         <div class="relative w-12 h-12">
           <div class="w-full h-full rounded-full border border-black/20 flex items-center justify-center overflow-hidden bg-white shadow-inner">
             <img v-if="user?.img" :src="user.img" alt="" class="w-full h-full object-cover" />
-            <span  v-else class="text-xl">🎨</span>
+            <ion-icon v-else :icon="svg(mdiAccountCircle)" class="text-xl text-black/40" />
           </div>
           <AvatarDecoration v-if="decorationDef" :def="decorationDef" />
         </div>
@@ -16,6 +16,9 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { IonIcon } from "@ionic/vue";
+import { mdiAccountCircle } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 import type { ShopSku } from "@/config/catalog.config";
 import { resolveDecoration } from "@/config/profile_options.config";
 import ShopCardShell from "./ShopCardShell.vue";

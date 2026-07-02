@@ -13,7 +13,7 @@
         </div>
         <div>
           <h3 class="text-sm font-black uppercase tracking-widest text-black/80">Pro Studio</h3>
-          <p class="text-[10px] font-bold text-black/40 uppercase tracking-widest mt-0.5">
+          <p class="text-[10px] text-black/40 uppercase tracking-widest mt-0.5">
             Colors · Fonts · Signature
           </p>
         </div>
@@ -57,7 +57,9 @@
                   stroke-linejoin="round"
                 />
               </svg>
-              <span v-else class="text-sm font-black text-black/50">✍️ Draw</span>
+              <span v-else class="text-sm font-black text-black/50 flex items-center gap-1">
+                <ion-icon :icon="svg(mdiLeadPencil)" class="text-base" /> Draw
+              </span>
             </button>
           </div>
 
@@ -148,7 +150,8 @@
             </ion-button>
             <ion-button shape="round" color="secondary"
                         @click="$emit('save', draft)">
-              Save ✓
+              Save
+              <ion-icon :icon="svg(mdiCheck)" slot="end" />
             </ion-button>
           </div>
         </transition>
@@ -169,7 +172,7 @@
 <script setup lang="ts">
 import { computed, ref, reactive } from 'vue'
 import { IonButton, IonIcon } from '@ionic/vue'
-import { mdiChevronDown, mdiChevronUp, mdiPalette } from '@mdi/js'
+import { mdiCheck, mdiChevronDown, mdiChevronUp, mdiLeadPencil, mdiPalette } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import {
   COLORS,

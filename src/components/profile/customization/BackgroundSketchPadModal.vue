@@ -212,7 +212,7 @@
             <ion-button
               color="secondary"
               shape="round"
-              class="flex-1 ion-no-margin font-semibold"
+              class="flex-1 ion-no-margin"
               :disabled="!isPro"
               @click="save"
             >
@@ -223,9 +223,10 @@
 
           <p
             v-if="!isPro"
-            class="text-center text-[9px] font-bold text-secondary/70 uppercase tracking-widest pb-0.5"
+            class="text-center text-[9px] font-bold text-secondary/70 uppercase tracking-widest pb-0.5 flex items-center justify-center gap-1"
           >
-            🔒 Pro subscription required to apply
+            <ion-icon :icon="svg(mdiLock)" class="text-xs" />
+            Pro subscription required to apply
           </p>
         </div>
       </div>

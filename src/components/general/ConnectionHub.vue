@@ -19,7 +19,7 @@
 
       <div class="bg-white/60 border border-white p-5 rounded-[2.5rem] flex items-center justify-between relative mt-1 backdrop-blur-md">
         <div class="flex flex-col z-10 w-full pr-4 min-w-0">
-          <span class="text-[10px] font-black text-black/40 uppercase tracking-widest mb-2">
+          <span class="text-[10px] font-black text-black/70 uppercase tracking-widest mb-2">
             Your Personal Code
           </span>
 
@@ -34,10 +34,10 @@
 
           <ion-button
             fill="clear"
-            class="ion-no-margin h-10 w-max text-secondary -ml-2 font-black uppercase tracking-widest text-sm"
+            color="secondary"
             @click="() => shareUrl(qrURL)"
           >
-            <ion-icon slot="start" :icon="svg(mdiShareVariant)" class="text-xl" />
+            <ion-icon slot="start" :icon="svg(mdiShareVariant)" />
             Share Link
           </ion-button>
         </div>
@@ -48,7 +48,7 @@
       </div>
 
       <section class="space-y-3">
-        <p class="text-[10px] font-black text-black/40 uppercase tracking-widest px-2">
+        <p class="text-[10px] font-black text-black/70 uppercase tracking-widest px-2">
           Search by name
         </p>
         <div class="relative">
@@ -74,7 +74,7 @@
             {{ searchWarning }}
           </div>
 
-          <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-xs font-bold text-black/50 italic">
+          <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-xs text-black/50 italic">
             No artists found with that name
           </div>
 
@@ -112,10 +112,10 @@
         @click="startCameraView"
         color="secondary"
         shape="round"
-        class="m-0 h-16 font-black uppercase tracking-widest text-base"
+        size="large"
         expand="block"
       >
-        <ion-icon slot="start" :icon="svg(mdiQrcodeScan)" class="text-2xl mr-2" />
+        <ion-icon slot="start" :icon="svg(mdiQrcodeScan)" />
         Scan a Mate
       </ion-button>
     </div>

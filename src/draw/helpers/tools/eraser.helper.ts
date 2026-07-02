@@ -189,21 +189,48 @@ const worker = new Worker(new URL('../../workers/eraser.worker.ts', import.meta.
   type: 'module'
 })
 
+// Request/response correlation + failure paths. Without these, a worker crash
+// (onerror fires, no message ever comes) left the promise pending forever,
+// which wedged the eraser cleanup queue (`draining` never resets) for the rest
+// of the session. All failure modes resolve(false) — never delete on
+// uncertainty, never stall the queue.
+const WORKER_TIMEOUT_MS = 10_000
+let reqSeq = 0
+const pending = new Map<number, { resolve: (v: boolean) => void; timer: any }>()
+
+function settle(reqId: number, value: boolean) {
+  const p = pending.get(reqId)
+  if (!p) return // timed out / already settled — ignore stale reply
+  pending.delete(reqId)
+  clearTimeout(p.timer)
+  p.resolve(value)
+}
+
+worker.onmessage = (e) => {
+  const { reqId, survivors, error } = e.data
+  if (error) {
+    console.error('Erasure Worker Error:', error)
+    settle(reqId, false)
+    return
+  }
+  settle(reqId, survivors < 20)
+}
+
+worker.onerror = () => {
+  for (const [id] of pending) settle(id, false)
+}
+
 export async function analyzeErasureInWorker(obj: FabricObject): Promise<boolean> {
   return new Promise((resolve) => {
+    const reqId = ++reqSeq
     const objectJSON = obj.toJSON()
     const b = (obj as any).getBoundingRect(true, true)
 
-    worker.onmessage = (e) => {
-      if (e.data.error) {
-        console.error('Erasure Worker Error:', e.data.error)
-        return resolve(false)
-      }
-
-      resolve(e.data.survivors < 20)
-    }
+    const timer = setTimeout(() => settle(reqId, false), WORKER_TIMEOUT_MS)
+    pending.set(reqId, { resolve, timer })
 
     worker.postMessage({
+      reqId,
       object: objectJSON,
       width: b.width,
       height: b.height,

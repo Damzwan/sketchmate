@@ -370,8 +370,6 @@ export const useDrawHistoryManager = defineStore("history", () => {
 	}
 
 	function addToUndoStack<T extends HistoryEvent>(action: HistoryAction<T>) {
-		console.log("addToUndoStack", action.type);
-
 		undoStack.push(action);
 		if (undoStack.length > MAX_HISTORY) {
 			undoStack.shift();
@@ -381,8 +379,6 @@ export const useDrawHistoryManager = defineStore("history", () => {
 	}
 
 	function addToRedoStack<T extends HistoryEvent>(action: HistoryAction<T>) {
-		console.log("addToRedoStack", action.type);
-
 		redoStack.push(action);
 		redoStackCounter.value = redoStack.length;
 	}

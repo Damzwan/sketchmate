@@ -43,7 +43,15 @@ export async function removeObjects(objects: FabricObject[]) {
 
   if (objects.length === 0) return
 
-  c.remove(...objects)
+  // Multi-delete: coalesce the N object:removed invalidations into one
+  // invalidateRegions pass instead of N destructive sync tile rebuilds.
+  const drawObjects = useDrawObjectManager()
+  if (objects.length > 1) drawObjects.beginBatch()
+  try {
+    c.remove(...objects)
+  } finally {
+    if (objects.length > 1) drawObjects.endBatch()
+  }
 
   c.fire('objectsDeleted', { target: objects })
 }
@@ -88,9 +96,11 @@ function sortObjectsByLayer(
   c: Canvas,
   reverse = false
 ) {
-  const sorted = objects.sort((a: any, b: any) => {
-    return c.getObjects().indexOf(a) - c.getObjects().indexOf(b)
-  })
+  // getObjects() copies the whole stack — never call it inside a comparator.
+  const order = new Map(c.getObjects().map((o, i) => [o, i]))
+  const sorted = objects.sort(
+    (a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0)
+  )
   return reverse ? sorted.reverse() : sorted
 }
 
@@ -102,9 +112,10 @@ export function moveObjectToFront(
   const sortedObjects = sortObjectsByLayer(params.objects, c)
 
   const prevObjectPositions: number[] = []
+  const stack = (c as any)._objects as FabricObject[] // live ref, no copy per object
 
   sortedObjects.forEach((obj: any) => {
-    const currI = c.getObjects().indexOf(obj)
+    const currI = stack.indexOf(obj)
     prevObjectPositions.push(currI)
     c.bringObjectToFront(obj)
   })
@@ -124,9 +135,10 @@ export function moveObjectToBack(
   const sortedObjects = sortObjectsByLayer(params.objects, c, true)
 
   const prevObjectPositions: number[] = []
+  const stack = (c as any)._objects as FabricObject[]
 
   sortedObjects.forEach((obj: any) => {
-    const currI = c.getObjects().indexOf(obj)
+    const currI = stack.indexOf(obj)
     prevObjectPositions.push(currI)
     c.sendObjectToBack(obj)
   })
@@ -144,10 +156,11 @@ export function moveObjectUpOneLayer(
   const { getCanvas } = useDrawStore()
   const c = getCanvas()
   const sortedObjects = sortObjectsByLayer(params.objects, c, true)
-  const objectsLength = c.getObjects().length - 1
+  const stack = (c as any)._objects as FabricObject[]
+  const objectsLength = stack.length - 1
 
   sortedObjects.forEach((obj: any) => {
-    const currI = c.getObjects().indexOf(obj)
+    const currI = stack.indexOf(obj)
     c.moveObjectTo(obj, Math.min(currI + 1, objectsLength))
   })
 
@@ -164,9 +177,10 @@ export function moveObjectDownOneLayer(
   const c = getCanvas()
 
   const sortedObjects = sortObjectsByLayer(params.objects, c, false)
+  const stack = (c as any)._objects as FabricObject[]
 
   sortedObjects.forEach((obj: any) => {
-    const currI = c.getObjects().indexOf(obj)
+    const currI = stack.indexOf(obj)
     c.moveObjectTo(obj, Math.max(currI - 1, 0))
   })
 
@@ -239,9 +253,8 @@ export function mergeHelper(
   objects: FabricObject[],
   groupId = uuidv4()
 ): Group {
-  const highestIndex = Math.max(
-    ...objects.map((obj) => canvas.getObjects().indexOf(obj))
-  )
+  const stack = (canvas as any)._objects as FabricObject[]
+  const highestIndex = Math.max(...objects.map((obj) => stack.indexOf(obj)))
 
   const group = new Group(objects, {
     canvas: canvas,

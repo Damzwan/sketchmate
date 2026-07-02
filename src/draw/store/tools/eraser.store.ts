@@ -38,7 +38,11 @@ interface CoverageEntry {
 
 const COVERAGE_MAX_DIM = 96
 const COVERAGE_ALPHA = 15 // alpha >= this counts as "still there"
-const COVERAGE_MAX_ENTRIES = 3000
+// Each entry holds a canvas (~36KB backing store at 96x96). iOS Safari has a
+// hard total-canvas-memory budget, and 3000 live canvases was enough to blow
+// it during long erase sessions. 256 covers any realistic stroke burst; the
+// cache is a pure perf hint, so eviction only costs a rebuild on next touch.
+const COVERAGE_MAX_ENTRIES = 256
 
 function matrixKey(obj: FabricObject): string {
   try {
@@ -51,6 +55,8 @@ function matrixKey(obj: FabricObject): string {
   }
 }
 
+const IS_MOBILE = isMobile()
+
 export const useEraser = defineStore('eraser', (): Eraser => {
   let c: Canvas | undefined = undefined
   const objMgr = useDrawObjectManager()
@@ -58,6 +64,10 @@ export const useEraser = defineStore('eraser', (): Eraser => {
   const eraserSize = ref<EraserSize>(EraserSize.small)
   let isCancelling = false
   let cancelCircle = false
+  // One brush per canvas, reused across tool selections. Each brush owns a
+  // full-screen retina effect canvas; constructing a fresh one per select()
+  // stacked those canvases until GC — real memory pressure on iOS.
+  let brush: CustomEraserBrush | null = null
 
   const cleanupQueue: CleanupJob[] = []
   let draining = false
@@ -68,7 +78,15 @@ export const useEraser = defineStore('eraser', (): Eraser => {
   }
 
   function forgetCoverage(id?: string) {
-    if (id) coverage.delete(id)
+    if (!id) return
+    const entry = coverage.get(id)
+    if (entry) {
+      // Zero the dims so the backing store is released NOW, not at next GC —
+      // iOS counts canvas memory the moment it's allocated.
+      entry.canvas.width = 0
+      entry.canvas.height = 0
+      coverage.delete(id)
+    }
   }
 
   /**
@@ -98,7 +116,14 @@ export const useEraser = defineStore('eraser', (): Eraser => {
       const ctx = fp.getContext('2d', { willReadFrequently: true })
       if (!ctx || !fp.width || !fp.height) return null
 
-      if (coverage.size > COVERAGE_MAX_ENTRIES) coverage.clear()
+      // Stale rebuild replaces the old canvas — release it explicitly.
+      if (existing) forgetCoverage(id)
+      // FIFO eviction (Map preserves insertion order) instead of clear-all.
+      while (coverage.size >= COVERAGE_MAX_ENTRIES) {
+        const oldest = coverage.keys().next().value
+        if (oldest === undefined) break
+        forgetCoverage(oldest)
+      }
 
       const entry: CoverageEntry = {
         canvas: fp,
@@ -113,7 +138,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
       coverage.set(id, entry)
       return entry
     } catch {
-      coverage.delete(id)
+      forgetCoverage(id)
       return null
     }
   }
@@ -260,7 +285,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     {
       on: 'mouse:move',
       handler: (e: any) => {
-        if (!isMobile() || cancelCircle) return
+        if (!IS_MOBILE || cancelCircle) return
 
         const ctx = c!.contextTop
 
@@ -308,6 +333,12 @@ export const useEraser = defineStore('eraser', (): Eraser => {
   ]
 
   function init(canvas: Canvas) {
+    // Fresh canvas → the old brush (and its full-screen effect canvas) is
+    // dead weight. Release it now instead of holding it until next select().
+    if (brush && brush.canvas !== canvas) {
+      brush.dispose()
+      brush = null
+    }
     c = canvas
   }
 
@@ -333,7 +364,19 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     c!.selection = false
     c!.skipTargetFind = true
 
+    if (brush && brush.canvas === c) {
+      // Reuse: providers + handlers already attached. Only the dims may be
+      // stale (rotation / keyboard resize since last use).
+      brush.syncDimensions()
+      brush.width = eraserSize.value
+      c!.freeDrawingBrush = brush
+      updateEraserCursor()
+      return
+    }
+
+    brush?.dispose() // canvas changed — release the old effect canvas now
     const b = new CustomEraserBrush(c!)
+    brush = b
 
     b.width = eraserSize.value
 

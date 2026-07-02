@@ -7,6 +7,18 @@ import { DrawAction } from '@/draw/types/draw.types'
 import { toObjectsIds } from '@/draw/helpers/object.helper'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 
+/** Coalesce N add/remove invalidations into one pass. Single object skips the
+ *  batch so it keeps the immediate sync-rebuild path. */
+function runBatched(count: number, fn: () => void): void {
+	const mgr = useDrawObjectManager();
+	if (count > 1) mgr.beginBatch();
+	try {
+		fn();
+	} finally {
+		if (count > 1) mgr.endBatch();
+	}
+}
+
 export function applyObjectModificationsBulk(
 	ctx: HistoryContext,
 	changes: { id: string; diff: any }[],
@@ -95,15 +107,17 @@ export async function redoObjectsAdded(
 	const enlivened =
 		await fabric.util.enlivenObjects<FabricObject>(objectsToRedo);
 
-	enlivened.forEach((obj) => {
-		if (
-			(obj as any).insertedIndex !== undefined &&
-			(obj as any).insertedIndex !== null
-		) {
-			ctx.canvas.insertAt((obj as any).insertedIndex, obj);
-		} else {
-			ctx.canvas.add(obj);
-		}
+	runBatched(enlivened.length, () => {
+		enlivened.forEach((obj) => {
+			if (
+				(obj as any).insertedIndex !== undefined &&
+				(obj as any).insertedIndex !== null
+			) {
+				ctx.canvas.insertAt((obj as any).insertedIndex, obj);
+			} else {
+				ctx.canvas.add(obj);
+			}
+		});
 	});
 
 	return action;
@@ -130,7 +144,7 @@ export async function redoObjectsCopied(
 	const enlivened = await fabric.util.enlivenObjects<FabricObject>(
 		action.params.objectsJSON,
 	);
-	ctx.canvas.add(...enlivened);
+	runBatched(enlivened.length, () => ctx.canvas.add(...enlivened));
 	return action;
 }
 
@@ -141,7 +155,7 @@ export async function redoObjectsDeleted(
 	const objects = ctx.getObjectsById(
 		action.params.objectsJSON.map((item) => item.id),
 	);
-	ctx.canvas.remove(...objects);
+	runBatched(objects.length, () => ctx.canvas.remove(...objects));
 	return action;
 }
 
@@ -197,10 +211,10 @@ export async function undoObjectsAdded(
 	action: HistoryAction<HistoryEvent.ObjectsAdded>,
 ) {
 	// ctx.unSelect() TODO was this necessary?
-	action.params.objectsJSON?.forEach((obj) => {
-		const canvasObj = ctx.getObjectById(obj.id);
-		if (canvasObj) ctx.canvas.remove(canvasObj);
-	});
+	const toRemove = (action.params.objectsJSON ?? [])
+		.map((obj) => ctx.getObjectById(obj.id))
+		.filter(Boolean) as FabricObject[];
+	runBatched(toRemove.length, () => ctx.canvas.remove(...toRemove));
 
 	return action;
 }
@@ -227,7 +241,7 @@ export async function undoObjectsDeleted(
 	const enlivened = await fabric.util.enlivenObjects<FabricObject>(
 		action.params.objectsJSON,
 	);
-	ctx.canvas.add(...enlivened);
+	runBatched(enlivened.length, () => ctx.canvas.add(...enlivened));
 	return action;
 }
 
@@ -342,7 +356,7 @@ export async function undoObjectsCopied(
 	const ids = toObjectsIds(action.params.objectsJSON as FabricObject[]);
 	const canvasObjects = getObjectsById(ids);
 
-	canvas.remove(...canvasObjects);
+	runBatched(canvasObjects.length, () => canvas.remove(...canvasObjects));
 
 	return action;
 }

@@ -65,9 +65,12 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   const spatialIndex = {
     query: (rect: WorldRect): FabricObject[] => {
       getZIndexMap() // ensure __z stamps are current
-      const objs = quadtree.query(rect)
-        .map((e) => objectMap.get(e.id))
-        .filter(Boolean) as FabricObject[]
+      const entries = quadtree.query(rect)
+      const objs: FabricObject[] = []
+      for (let i = 0; i < entries.length; i++) {
+        const o = objectMap.get(entries[i].id)
+        if (o) objs.push(o)
+      }
       return objs.sort((a, b) => ((a as any).__z ?? 0) - ((b as any).__z ?? 0))
     }
   }
@@ -279,12 +282,23 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   function handleStyleChange(e: any) {
     if (isLoading() || !core) return
     const list = (Array.isArray(e.target) ? e.target : [e.target]) as FabricObject[]
+    const rects: WorldRect[] = []
+    let firstObj: FabricObject | null = null
     for (const obj of list) {
       if (!obj?.id) continue
       updateQuadTree(obj)
-      if (noteRegion(objectBounds(obj))) continue
-      core.onObjectChanged(obj)
+      if (!firstObj) firstObj = obj
+      rects.push(objectBounds(obj))
     }
+    if (!firstObj) return
+    if (isBatching()) {
+      for (const r of rects) noteRegion(r)
+      return
+    }
+    // Single object keeps the precise per-object path; multi-object collapses
+    // into ONE merged invalidation instead of N overview patches + N bakes.
+    if (rects.length === 1) core.onObjectChanged(firstObj)
+    else core.invalidateRegions(rects)
   }
 
   const events: FabricEvent[] = [
@@ -304,16 +318,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     },
     {
       on: 'invalidateCanvas',
-      handler: (e: any) => {
-        if (isLoading() || !core) return
-        const targets = Array.isArray(e.target) ? e.target : [e.target]
-        for (const obj of targets as FabricObject[]) {
-          if (!obj?.id) continue
-          updateQuadTree(obj)
-          if (noteRegion(objectBounds(obj))) continue
-          core.onObjectChanged(obj)
-        }
-      }
+      handler: (e: any) => handleStyleChange(e)
     },
     {
       on: 'render:patchModifiedObject',
@@ -476,14 +481,14 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       if (isBlocked(o.userId)) toRemove.push(o)
     })
     if (!toRemove.length) return
-    for (const obj of toRemove) {
-      if (obj.id) {
-        const oldRect = objectBounds(obj)
-        objectMap.delete(obj.id)
-        removeFromQuadTree(obj)
-        core?.onObjectRemoved(obj, oldRect)
-      }
-      c?.remove(obj)
+    // c.remove() fires object:removed → onObjectRemoved does index + core work;
+    // doing it manually here as well double-invalidated every region. Batch so
+    // N removals collapse into one invalidateRegions pass.
+    beginBatch()
+    try {
+      for (const obj of toRemove) c?.remove(obj)
+    } finally {
+      endBatch()
     }
     invalidateZIndex()
   }

@@ -39,7 +39,6 @@ export function emitDrawSyncingEvent(action: DrawSyncingAction) {
 	const json = JSON.stringify(action);
 	const sizeMB = json.length / (1024 * 1024);
 
-	console.log(`Action size: ${sizeMB.toFixed(4)} MB`);
 	if (sizeMB >= 0.6) {
 		const { toast } = useToast();
 		toast("Operation too big, cancelled", {
@@ -340,12 +339,9 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 		if (isInitialSync) reset();
 		await loadCanvas(getCanvas(), { json: canvasJSON, isLobby: true });
 
+		// Drains everything queued while the canvas was loading.
 		if (actionQueue.length > 0) {
 			await processActionQueue();
-		}
-
-		for (const action of actionQueue.reverse()) {
-			await executeDrawSyncingAction(action);
 		}
 	}
 

@@ -250,11 +250,51 @@ export function commitErasing(
 	object.set("dirty", true);
 }
 
+/**
+ * Fast per-target stroke clone. `source.clone()` is a full
+ * toObject → compressedTrace → fromObject → SVG-parse round trip PER erased
+ * object — a long stroke over many targets made commit() jank. The parsed
+ * path array is never mutated (only transform props change via
+ * sendObjectToPlane), so sharing it by reference is safe. `id` must be copied:
+ * erase-undo removes clip children by stroke id.
+ */
+function clonePathForErase(source: fabric.Path): fabric.Path {
+	const clone = new OptimizedEraserStroke(source.path as any, {
+		id: (source as any).id,
+		left: source.left,
+		top: source.top,
+		originX: source.originX,
+		originY: source.originY,
+		scaleX: source.scaleX,
+		scaleY: source.scaleY,
+		angle: source.angle,
+		skewX: source.skewX,
+		skewY: source.skewY,
+		flipX: source.flipX,
+		flipY: source.flipY,
+		fill: source.fill,
+		stroke: source.stroke,
+		strokeWidth: source.strokeWidth,
+		strokeLineCap: source.strokeLineCap,
+		strokeLineJoin: source.strokeLineJoin,
+		strokeMiterLimit: source.strokeMiterLimit,
+		strokeDashArray: source.strokeDashArray,
+		opacity: source.opacity,
+		globalCompositeOperation: source.globalCompositeOperation,
+	});
+	return clone as unknown as fabric.Path;
+}
+
 export async function eraseObject(
 	object: fabric.FabricObject,
 	source: fabric.Path,
 ) {
-	const clone = await source.clone();
+	let clone: fabric.Path;
+	try {
+		clone = clonePathForErase(source);
+	} catch {
+		clone = await source.clone(); // fail safe to the slow exact clone
+	}
 	fabric.util.sendObjectToPlane(clone, undefined, object.calcTransformMatrix());
 	commitErasing(object, clone);
 	return clone;
@@ -266,7 +306,12 @@ export async function eraseCanvasDrawable(
 	vpt: fabric.TMat2D | undefined,
 	source: fabric.Path,
 ) {
-	const clone = await source.clone();
+	let clone: fabric.Path;
+	try {
+		clone = clonePathForErase(source);
+	} catch {
+		clone = await source.clone();
+	}
 	const d =
 		vpt &&
 		object.translateToOriginPoint(
@@ -413,6 +458,20 @@ export class CustomEraserBrush extends PencilBrush {
 		this.eventEmitter.addEventListener(type, cb as EventListener, options);
 		return () =>
 			this.eventEmitter.removeEventListener(type, cb as EventListener, options);
+	}
+
+	/**
+	 * Re-sync the effect canvas to the fabric canvas dimensions. Call when the
+	 * brush is REUSED across tool selections — the canvas may have resized
+	 * (rotation, keyboard) since the brush was constructed.
+	 */
+	syncDimensions(): void {
+		setCanvasDimensions(
+			this.effectContext.canvas,
+			this.effectContext,
+			this.canvas,
+			this.canvas.getRetinaScaling(),
+		);
 	}
 
 	drawEffect() {

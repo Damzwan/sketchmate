@@ -108,7 +108,7 @@ if (typeof document === 'undefined') {
 }
 
 self.onmessage = async (e: MessageEvent) => {
-  const { object, multiplier } = e.data
+  const { reqId, object, multiplier } = e.data
 
   try {
     const brushes = [
@@ -147,7 +147,7 @@ self.onmessage = async (e: MessageEvent) => {
 
     const el: any = obj.toCanvasElement({ multiplier })
     const w = el.width, h = el.height
-    if (!w || !h) return self.postMessage({ survivors: 0 })
+    if (!w || !h) return self.postMessage({ reqId, survivors: 0 })
 
     const ctx = el.getContext('2d', { willReadFrequently: true })
     const data = ctx.getImageData(0, 0, w, h).data
@@ -157,8 +157,8 @@ self.onmessage = async (e: MessageEvent) => {
       if (data[i] > 15) visible++
     }
 
-    self.postMessage({ survivors: visible })
+    self.postMessage({ reqId, survivors: visible })
   } catch (err: any) {
-    self.postMessage({ error: err.message })
+    self.postMessage({ reqId, error: err.message })
   }
 }

@@ -179,8 +179,27 @@ export class CommittedLayer<T extends Bounded> {
 
   // ── invalidation ─────────────────────────────────────────────────────────
   markDirty(rect: WorldRect): void {
+    // Walking tile-coordinate ranges is O(rect area / tile²) — a large rect at
+    // a fine tier explodes into 100k+ iterations. The tile map itself is
+    // memory-budget-bounded, so when the range is bigger than the map, walk
+    // the map instead: O(tiles) worst case, no per-cell key allocs.
+    const ranges: { tx0: number; ty0: number; tx1: number; ty1: number }[] = []
+    let cells = 0
     for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
       const r = this.tileRange(rect, tier)
+      ranges.push(r)
+      cells += (r.tx1 - r.tx0 + 1) * (r.ty1 - r.ty0 + 1)
+    }
+    if (cells > this.tiles.size) {
+      for (const [k, t] of this.tiles) {
+        const r = ranges[t.tier]
+        if (t.tx >= r.tx0 && t.tx <= r.tx1 && t.ty >= r.ty0 && t.ty <= r.ty1)
+          this.gen.set(k, (this.gen.get(k) ?? 0) + 1)
+      }
+      return
+    }
+    for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
+      const r = ranges[tier]
       for (let ty = r.ty0; ty <= r.ty1; ty++)
         for (let tx = r.tx0; tx <= r.tx1; tx++) {
           const k = `${tier}:${tx}:${ty}`
@@ -196,6 +215,18 @@ export class CommittedLayer<T extends Bounded> {
 
   dropTiles(rect: WorldRect, tier: number): void {
     const r = this.tileRange(rect, tier)
+    // Same area-bound as markDirty: never iterate more cells than tiles exist.
+    const cells = (r.tx1 - r.tx0 + 1) * (r.ty1 - r.ty0 + 1)
+    if (cells > this.tiles.size) {
+      for (const [k, t] of this.tiles) {
+        if (t.tier !== tier) continue
+        if (t.tx < r.tx0 || t.tx > r.tx1 || t.ty < r.ty0 || t.ty > r.ty1) continue
+        if (t.bitmap) t.bitmap.close()
+        this.memoryBytes -= t.bytes
+        this.tiles.delete(k)
+      }
+      return
+    }
     for (let ty = r.ty0; ty <= r.ty1; ty++)
       for (let tx = r.tx0; tx <= r.tx1; tx++) {
         const k = `${tier}:${tx}:${ty}`

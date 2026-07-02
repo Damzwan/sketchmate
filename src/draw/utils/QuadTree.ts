@@ -228,19 +228,28 @@ export class InfiniteQuadtreeManager<T> {
 
 	query(range: Rect): QuadtreeEntry<T>[] {
 		const keys = this.getOverlappingChunkKeys(range);
-		const foundMap = new Map<string, QuadtreeEntry<T>>();
 
+		// Hot path: a tile query almost always fits one chunk — within a chunk
+		// an entry lives in exactly one node, so no dedup needed and no Map.
+		if (keys.length === 1) {
+			const chunk = this.chunks.get(keys[0]);
+			return chunk ? chunk.query(range) : [];
+		}
+
+		const found: QuadtreeEntry<T>[] = [];
+		const seen = new Set<string>();
 		for (const key of keys) {
 			const chunk = this.chunks.get(key);
-			if (chunk) {
-				const items = chunk.query(range);
-				for (const item of items) {
-					foundMap.set(item.id, item);
+			if (!chunk) continue;
+			const items = chunk.query(range);
+			for (const item of items) {
+				if (!seen.has(item.id)) {
+					seen.add(item.id);
+					found.push(item);
 				}
 			}
 		}
-
-		return Array.from(foundMap.values());
+		return found;
 	}
 
 	clear(): void {

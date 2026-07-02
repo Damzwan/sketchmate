@@ -1,4 +1,4 @@
-import { Canvas, CanvasEvents, FabricImage, FabricObject } from "fabric";
+import type { Canvas, CanvasEvents, FabricImage, FabricObject } from "fabric";
 
 export interface ToolService {
 	select: () => void;

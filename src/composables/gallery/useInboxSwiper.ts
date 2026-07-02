@@ -13,7 +13,6 @@ import { isInRoom } from "@/draw/helpers/drawSyncing.helper";
 import router from "@/router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { alertController } from "@ionic/vue";
-import { useDrawStore } from "@/draw/store/draw.store";
 
 export function useInboxSwiper() {
 	const swiperStore = usePhotoSwiper();
@@ -91,7 +90,12 @@ export function useInboxSwiper() {
 									// 1. Update the URL parameters silently so deep-links match our state
 									await router.replace({ query: queryParams });
 
-									// 2. Reach directly into the active draw store to re-initialize the board
+									// 2. Reach directly into the active draw store to re-initialize the board.
+									// Imported lazily so the draw engine stays out of the app-start
+									// bundle; this only runs while already on the draw route.
+									const { useDrawStore } = await import(
+										"@/draw/store/draw.store"
+									);
 									const drawStore = useDrawStore();
 									const mainCanvasElement = document.getElementById(
 										"mainCanvas",

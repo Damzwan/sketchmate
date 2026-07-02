@@ -14,6 +14,7 @@ import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
 import { enableGestures } from "@/draw/helpers/gestures.helper";
 import { ref } from "vue";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncEngine } from "@/draw/store/drawSyncEngine.store";
 import { useDrawUIStore } from "@/draw/store/drawUI.store";
 import { computeBounds } from "@/draw/helpers/export.helper";
 import { useCanvasPreview } from "@/draw/services/useCanvasPreview";
@@ -28,7 +29,7 @@ export const useDrawStore = defineStore("draw", () => {
 	const drawEventManager = useDrawEventManager();
 
 	const drawHistory = useDrawHistoryManager();
-	const drawSyncer = useDrawSyncer();
+	const drawSyncEngine = useDrawSyncEngine();
 	const drawUI = useDrawUIStore();
 
 	const isGesturing = ref(false);
@@ -69,7 +70,7 @@ export const useDrawStore = defineStore("draw", () => {
 		drawHistory.init(c);
 		drawObjectManager.init(c);
 		shortcutManager.init(c);
-		drawSyncer.init();
+		drawSyncEngine.init();
 		drawUI.init(c);
 
 		toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true });

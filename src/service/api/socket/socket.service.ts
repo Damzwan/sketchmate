@@ -15,7 +15,6 @@ import { useBalloonStore } from "@/store/balloon.store";
 import { registerChatHandlers } from "@/service/api/socket/chat.socket";
 import { useModerationStore } from "@/store/moderation.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
-import { registerDrawSyncingHandlers } from "@/service/api/socket/drawSyncing.socket";
 
 export let socket: Socket | undefined;
 
@@ -41,7 +40,13 @@ export async function socketConnect(): Promise<void> {
 	});
 
 	// Register Sub-Socket Handlers
-	registerDrawSyncingHandlers(socket);
+	// Draw-sync handlers pull in the heavy fabric/render engine, so we load them
+	// lazily off the critical path — the engine chunk is fetched shortly after
+	// connect instead of being part of the app-start bundle.
+	const drawSocket = socket;
+	void import("@/service/api/socket/drawRoomHandlers.socket").then((m) =>
+		m.registerDrawSyncingHandlers(drawSocket),
+	);
 	registerChatHandlers(socket);
 	useBalloonStore().setupSocketListeners();
 	useInAppNotificationStore().registerSocketListener();

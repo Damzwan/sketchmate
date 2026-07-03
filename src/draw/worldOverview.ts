@@ -75,6 +75,18 @@ export class WorldOverview<T extends Bounded> {
     this.paintOne(this.ctx, obj)
   }
 
+  /**
+   * Punch one eraser stroke into the overview. The stroke's own
+   * globalCompositeOperation (destination-out) applies during render, so this
+   * is exact at overview resolution — the overview stays NOT dirty.
+   * Returns false if no bitmap exists yet (caller falls back to markDirty).
+   */
+  eraseObject(obj: T): boolean {
+    if (!this.canvas || !this.ctx || !this.bounds) return false
+    this.paintOne(this.ctx, obj)
+    return true
+  }
+
   /** Destination-out the eraser stroke into the overview (approximate). */
   erase(renderEraser: (ctx: OffscreenCanvasRenderingContext2D) => void): void {
     if (!this.ctx || !this.bounds) return
@@ -96,10 +108,12 @@ export class WorldOverview<T extends Bounded> {
    * current content (handles add / remove / move / erase / undo uniformly)
    * WITHOUT an O(N) full redraw — cost is O(objects intersecting rect).
    *
-   * Returns false if the overview isn't built yet, or `rect` isn't fully
-   * inside coverage (content grew) — caller should rebuild/grow in that case.
+   * Returns false if the overview isn't built yet, `rect` isn't fully inside
+   * coverage (content grew), or more than `maxObjects` intersect the region —
+   * a dense patch is a synchronous N-object render, and the async yielded
+   * full rebuild is cheaper than janking the frame. Caller rebuilds on false.
    */
-  patchRect(rect: WorldRect): boolean {
+  patchRect(rect: WorldRect, maxObjects = Infinity): boolean {
     if (!this.canvas || !this.ctx || !this.bounds) return false
     if (!this.contains(this.bounds, rect)) return false
     const ctx = this.ctx
@@ -115,6 +129,18 @@ export class WorldOverview<T extends Bounded> {
       h: rect.h + 2 * my
     }
 
+    // Query BEFORE clearing — bail out density check must not leave a hole.
+    // Gate on VISIBLE objects only: the transform controller hides a dragged
+    // selection via opacity=0 while it's still indexed at the old position, so
+    // counting hidden objects made every big-selection drag defer this patch
+    // to the async rebuild — leaving a ghost at the vacated spot. Invisible
+    // objects cost nothing to "render" (fabric skips them), so they must not
+    // trip the cost gate; dropping them from the loop too skips the no-ops.
+    const objects = this.index
+      .query(r)
+      .filter((o: any) => o.visible !== false && o.opacity !== 0)
+    if (objects.length > maxObjects) return false
+
     // Clear the sub-rect (identity space).
     const cx = (r.x - this.bounds.x) * this.sx
     const cy = (r.y - this.bounds.y) * this.sy
@@ -126,7 +152,6 @@ export class WorldOverview<T extends Bounded> {
     ctx.restore()
 
     // Redraw objects intersecting r, clipped to r (z-ordered by the index).
-    const objects = this.index.query(r)
     ctx.save()
     this.applyWorldTransform(ctx)
     ctx.beginPath()

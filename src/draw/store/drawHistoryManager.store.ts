@@ -39,7 +39,7 @@ export const useDrawHistoryManager = defineStore("history", () => {
 
 	const MAX_HISTORY = 50;
 
-	const { updateQuadTree, getObjectById, getObjectsById } =
+	const { updateQuadTree, getObjectById, getObjectsById, beginBatch, endBatch } =
 		useDrawObjectManager();
 	const { unSelect } = useSelect();
 
@@ -290,13 +290,20 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		const action = undoStack.pop() as HistoryAction;
 
 		unSelect();
-		await actionWithoutEvents(async () => {
-			const newAction = await undoActionMapping[action.type](
-				createHistoryContext(),
-				action as any,
-			);
-			addToRedoStack(newAction);
-		});
+		// Batch: a multi-region undo (move/style/multi-delete) coalesces into ONE
+		// invalidateRegions pass instead of per-region sync tile rebuilds.
+		beginBatch();
+		try {
+			await actionWithoutEvents(async () => {
+				const newAction = await undoActionMapping[action.type](
+					createHistoryContext(),
+					action as any,
+				);
+				addToRedoStack(newAction);
+			});
+		} finally {
+			endBatch();
+		}
 		undoStackCounter.value = undoStack.length;
 
 		lastActionType.value = "undo"; // important that it needs to be before the emit
@@ -307,13 +314,18 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		if (redoStack.length == 0) return;
 		const action = redoStack.pop() as HistoryAction;
 		unSelect();
-		await actionWithoutEvents(async () => {
-			const newAction = await redoActionMapping[action.type](
-				createHistoryContext(),
-				action as any,
-			);
-			addToUndoStack(newAction);
-		});
+		beginBatch();
+		try {
+			await actionWithoutEvents(async () => {
+				const newAction = await redoActionMapping[action.type](
+					createHistoryContext(),
+					action as any,
+				);
+				addToUndoStack(newAction);
+			});
+		} finally {
+			endBatch();
+		}
 		redoStackCounter.value = redoStack.length;
 		lastActionType.value = "redo";
 		c!.fire("redo", action);

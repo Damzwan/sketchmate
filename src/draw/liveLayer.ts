@@ -53,20 +53,33 @@ export class LiveLayer<T extends Bounded> {
   isEmpty(): boolean { return this.items.size === 0; }
   clear(): void { this.items.clear(); }
 
-  /** Force-expire stale items so the layer can never stay full. */
-  gcExpired(): void {
-    if (this.items.size === 0) return;
+  /** Force-expire stale items so the layer can never stay full. Returns the
+   *  rects of expired NORMAL items so the caller can fold them into the
+   *  overview (their overview patch was deferred until demote; a TTL expiry
+   *  short-circuits that, so it must be done here or the stroke vanishes from
+   *  the far-zoom fallback). */
+  gcExpired(): WorldRect[] {
+    if (this.items.size === 0) return [];
     const now = performance.now();
+    const expired: WorldRect[] = [];
     for (const [id, it] of this.items) {
       const ttl = it.mode === "erase" ? ERASE_TTL_MS : NORMAL_TTL_MS;
-      if (now - it.addedAt > ttl) this.items.delete(id);
+      if (now - it.addedAt > ttl) {
+        if (it.mode === "normal") expired.push(it.rect);
+        this.items.delete(id);
+      }
     }
+    return expired;
   }
 
   settledIds(isReady: (rect: WorldRect) => boolean): string[] {
     const out: string[] = [];
     for (const [id, it] of this.items) if (isReady(it.rect)) out.push(id);
     return out;
+  }
+
+  rectOf(id: string): WorldRect | undefined {
+    return this.items.get(id)?.rect;
   }
 
   /** Render all live items in world space, viewport-culled. */

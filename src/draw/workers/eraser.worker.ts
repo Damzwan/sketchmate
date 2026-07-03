@@ -129,21 +129,39 @@ self.onmessage = async (e: MessageEvent) => {
     const enlivened = await util.enlivenObjects([object])
     const obj: any = enlivened[0]
 
-    // image barrier (unchanged)
+    // Image barrier — recurse into groups/active-selections so NESTED images
+    // are handled too (the old top-level-only filter left group-child images
+    // as the mock element → drawImage threw "not of type ...").
+    const collectImages = (o: any, out: any[] = []): any[] => {
+      if (!o) return out
+      if (o.type === 'image' && o._element) out.push(o)
+      const kids = o._objects || (typeof o.getObjects === 'function' ? o.getObjects() : null)
+      if (Array.isArray(kids)) for (const k of kids) collectImages(k, out)
+      return out
+    }
+    const images = collectImages(obj)
+
     await Promise.all(
-      enlivened
-        .filter((o: any) => o.type === 'image' && o._element)
-        .map((o: any) => new Promise((resolve) => {
-          const m = o._element
-          if (m._bitmap) return resolve(true)
-          const prev = m.onload
-          m.onload = () => { if (prev) prev(); resolve(true) }
-          setTimeout(() => resolve(false), 5000)
-        }))
+      images.map((o: any) => new Promise((resolve) => {
+        const m = o._element
+        if (m?._bitmap) return resolve(true)
+        const prev = m?.onload
+        if (m) m.onload = () => { if (prev) prev(); resolve(true) }
+        setTimeout(() => resolve(false), 5000)
+      }))
     )
-    enlivened.forEach((o: any) => {
-      if (o.type === 'image' && o._element?._bitmap) o._element = o._element._bitmap
-    })
+
+    let missingBitmap = false
+    for (const o of images) {
+      if (o._element?._bitmap) o._element = o._element._bitmap
+      else missingBitmap = true
+    }
+    // Can't rasterize an image whose bitmap never arrived → don't guess.
+    // Report "lots of survivors" so the caller KEEPS the object (never delete
+    // on uncertainty) instead of throwing an uncaught drawImage error.
+    if (missingBitmap) {
+      return self.postMessage({ reqId, survivors: Number.MAX_SAFE_INTEGER })
+    }
 
     const el: any = obj.toCanvasElement({ multiplier })
     const w = el.width, h = el.height

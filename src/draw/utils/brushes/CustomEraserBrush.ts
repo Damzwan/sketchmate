@@ -424,7 +424,16 @@ export class CustomEraserBrush extends PencilBrush {
 	 * otherwise grows with every erase and makes repeated erasing super-linear.
 	 * Set to 0 to disable (keep fully-vector clips).
 	 */
-	flattenClipAfter = 14;
+	flattenClipAfter = 50;
+
+	/**
+	 * When a flatten fires, this many of the NEWEST stroke children are kept as
+	 * individual vectors (with their ids) so undo — which removes a stroke from
+	 * the clip by id — still works for recent erases. Only the older overflow is
+	 * baked into the single union image. Keep this comfortably above the erase
+	 * undo depth a user realistically reaches on ONE object; MAX_HISTORY is 50.
+	 */
+	keepVectorClips = 40;
 
 	private eventEmitter: EventTarget;
 	private active = false;
@@ -804,11 +813,20 @@ export class CustomEraserBrush extends PencilBrush {
 		const children = cg.getObjects();
 		if (children.length <= this.flattenClipAfter) return;
 
+		// PARTIAL flatten: bake only the OLDEST overflow, keep the newest
+		// `keepVectorClips` as individual vector children WITH their stroke ids so
+		// undo (removeStrokeFromClip by id) still restores recent erases exactly.
+		// destination-out is commutative over the mask union, so baking a subset
+		// and keeping the rest yields the identical hole. (A full flatten wiped
+		// EVERY id, which is why undo stopped matching the original.)
+		const toBake = children.slice(0, children.length - this.keepVectorClips);
+		if (toBake.length === 0) return;
+
 		// Render the union of the existing strokes' SHAPES (force source-over so
 		// we get coverage, not the destination-out hole-punch). Clone so we never
 		// mutate the live children.
 		const clones = (await Promise.all(
-			children.map((child) => child.clone()),
+			toBake.map((child) => child.clone()),
 		)) as FabricObject[];
 		clones.forEach((clone) => {
 			(clone as any).globalCompositeOperation = "source-over";
@@ -843,15 +861,17 @@ export class CustomEraserBrush extends PencilBrush {
 			globalCompositeOperation: "destination-out",
 		});
 
-		// Swap the N stroke children for the single union image.
-		cg.remove(...children);
+		// Swap ONLY the baked (oldest) children for the single union image; the
+		// newest `keepVectorClips` stay as-is. Order among destination-out
+		// children is irrelevant to the resulting mask, so appending is safe.
+		cg.remove(...toBake);
 		cg.add(baked as unknown as FabricObject);
 		cg.set("dirty", true);
 		object.set("dirty", true);
 
 		// Best-effort release of the now-dead nodes.
 		clones.forEach((clone) => (clone as any).dispose?.());
-		children.forEach((child) => (child as any).dispose?.());
+		toBake.forEach((child) => (child as any).dispose?.());
 	}
 
 	/**

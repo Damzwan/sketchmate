@@ -50,6 +50,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     const rects = batchRects
     batchRects = []
     if (isLoading() || !core || rects.length === 0) return
+    // Batched changes (remote sync, undo/redo) may have altered objects that
+    // are currently selected — the drag-layer bitmap can't be trusted anymore.
+    localTransform.invalidateCache()
     core.setContentBounds(computeContentBounds())
     core.invalidateRegions(rects)
   }
@@ -281,6 +284,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
 
   function handleStyleChange(e: any) {
     if (isLoading() || !core) return
+    // The transform controller's selection bitmap may show these objects.
+    localTransform.invalidateCache()
     const list = (Array.isArray(e.target) ? e.target : [e.target]) as FabricObject[]
     const rects: WorldRect[] = []
     let firstObj: FabricObject | null = null
@@ -326,6 +331,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         const obj = e.target as FabricObject
         const o = e.oldRect
         if (!obj || !o || !core) return
+        localTransform.invalidateCache()
         updateQuadTree(obj)
         if (isLoading()) return
         const oldRect: WorldRect = {
@@ -356,11 +362,17 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         const d = e.detail ?? {}
         const path = d.path as FabricObject | undefined
         const rect = d.dirtyRect as WorldRect | undefined
+        localTransform.invalidateCache() // selected pixels may have changed
         if (isBatching()) {
           if (rect) noteRegion(rect)
           return
         }
-        if (path && rect) core.onErase(path, rect)
+        // Tile-stamp fast path only for a plain full erase: selective (lobby)
+        // erasing must re-render from objects, inverted "un-erase" adds pixels.
+        const canStamp =
+          !d.selective &&
+          (path as any)?.globalCompositeOperation === 'destination-out'
+        if (path && rect) core.onErase(path, rect, canStamp)
         else if (rect) core.markDirty(rect)
       }
     }
@@ -394,7 +406,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         },
         tileSize: IS_LOW_END ? 256 : 512,
         poolMax: IS_LOW_END ? 6 : 16,
-        maxRenderScale: IS_LOW_END ? 1.5 : 2
+        maxRenderScale: IS_LOW_END ? 1.5 : 2,
+        overviewPatchMax: IS_LOW_END ? 80 : 200
       }
     )
 
@@ -450,7 +463,25 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
   function dropRegion(rect: WorldRect) {
+    localTransform.invalidateCache() // e.g. erase undo changed selected pixels
     core?.dropRegion(rect)
+  }
+
+  /** Bounded-sync drop for the transform controller's drag seams. Deliberately
+   *  does NOT invalidate the transform cache — the selection itself is
+   *  unchanged by a move, and nuking the cache here would force a full re-bake
+   *  on every re-grab. */
+  function dropRegionLight(rect: WorldRect) {
+    core?.dropRegionLight(rect, IS_LOW_END ? 4 : 8)
+  }
+
+  /** Stamp the drag-layer bitmap into tiles on transform commit. */
+  function stampRegionBitmap(
+    rect: WorldRect,
+    bmp: ImageBitmap,
+    m: [number, number, number, number, number, number]
+  ): boolean {
+    return core ? core.stampRegionBitmap(rect, bmp, m) : false
   }
 
   function recordPanDelta(_dx: number, _dy: number) { /* directional prefetch retired */
@@ -593,6 +624,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     isRegionBaked,
     setErasing,
     dropRegion,
+    dropRegionLight,
+    stampRegionBitmap,
     patchRectSync,
     beginBatch,
     endBatch,

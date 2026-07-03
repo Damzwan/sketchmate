@@ -9,7 +9,10 @@ import { isMobile } from "@/helper/general.helper";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import { Rect } from "@/draw/utils/QuadTree";
 
-type FabricObjectWithCache = FabricObject & { _lassoPoints?: number[][] };
+type FabricObjectWithCache = FabricObject & {
+	_lassoPoints?: number[][];
+	_lassoMatrixSig?: string;
+};
 
 export const useLasso = defineStore("lasso", (): ToolService => {
 	let c: Canvas | undefined = undefined;
@@ -36,21 +39,9 @@ export const useLasso = defineStore("lasso", (): ToolService => {
 	function init(canvas: Canvas) {
 		c = canvas;
 		upperCtx = (c as any).upperCanvasEl?.getContext("2d") ?? null;
-
-		c.on("object:modified", (opt) => {
-			const target = opt.target;
-			if (!target) return;
-
-			// 1. Clear cache for the main target (single object selection)
-			(target as FabricObjectWithCache)._lassoPoints = undefined;
-
-			// 2. Clear cache for all children if the target is an ActiveSelection or Group
-			if ((target as any)._objects) {
-				(target as any)._objects.forEach((child: FabricObjectWithCache) => {
-					child._lassoPoints = undefined;
-				});
-			}
-		});
+		// No cache-clear listener needed: _lassoPoints is self-validating via a
+		// transform-matrix signature (see getPathPoints), so undo / remote moves
+		// can never leave stale hit-test points behind.
 	}
 	// ─── Drawing helpers ─────────────────────────────────────────────────────────
 
@@ -223,16 +214,20 @@ export const useLasso = defineStore("lasso", (): ToolService => {
 	}
 
 	function getPathPoints(
-		path: fabric.Path & { _lassoPoints?: number[][] },
+		path: fabric.Path & { _lassoPoints?: number[][]; _lassoMatrixSig?: string },
 	): number[][] {
-		if (path._lassoPoints) return path._lassoPoints;
 		if (!path.path || path.path.length === 0) return [];
 
 		try {
+			const matrix = path.calcTransformMatrix();
+			const sig = matrix.join(",");
+			if (path._lassoPoints && path._lassoMatrixSig === sig) {
+				return path._lassoPoints;
+			}
+
 			const pathString = path.path.map((cmd) => cmd.join(" ")).join(" ");
 			const properties = new svgPathProperties(pathString);
 			const totalLength = properties.getTotalLength();
-			const matrix = path.calcTransformMatrix();
 			const points: number[][] = [];
 
 			if (totalLength < 20) {
@@ -261,6 +256,7 @@ export const useLasso = defineStore("lasso", (): ToolService => {
 			}
 
 			path._lassoPoints = points;
+			path._lassoMatrixSig = sig;
 			return points;
 		} catch {
 			return [];
@@ -270,10 +266,16 @@ export const useLasso = defineStore("lasso", (): ToolService => {
 	function applyFinalSelection(objects: FabricObject[]) {
 		const { selectTool } = useToolSelection();
 		selectTool(DrawTool.Select);
-		if (objects.length > 1) {
-			c!.setActiveObject(new ActiveSelection(objects, { canvas: c }));
+		// Quadtree query order is arbitrary — sort by z like the normal drag
+		// select does, else copies of the selection stack in the wrong order.
+		const zMap = useDrawObjectManager().getZIndexMap();
+		const sorted = [...objects].sort(
+			(a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0),
+		);
+		if (sorted.length > 1) {
+			c!.setActiveObject(new ActiveSelection(sorted, { canvas: c }));
 		} else {
-			c!.setActiveObject(objects[0]);
+			c!.setActiveObject(sorted[0]);
 		}
 		const topCtx = c!.getTopContext();
 		const activeObject = c!.getActiveObject();

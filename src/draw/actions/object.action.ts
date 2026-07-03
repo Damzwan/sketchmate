@@ -215,10 +215,14 @@ export async function copyObjects(
     const serialized = sources.map((o) => o.toObject())
     clonedObjects = await enlivenAllBatched(serialized)
 
-    // Apply offset + ids while the clones are still detached.
+    // Apply offset + ids while the clones are still detached. setCoords is
+    // mandatory: the engine bypasses fabric's render loop (which would refresh
+    // oCoords), so without it the first control grab on a copy transforms from
+    // stale corners — the "shrinks on first scale" glitch.
     clonedObjects.forEach((obj, i) => {
       obj.set({ left: obj.left! + offsetX, top: obj.top! + offsetY })
       obj.id = params.newObjectIds ? params.newObjectIds[i] : uuidv4()
+      obj.setCoords()
     })
 
 
@@ -236,6 +240,7 @@ export async function copyObjects(
     const newActiveObject = clonedObjects.length === 1
       ? clonedObjects[0]
       : new ActiveSelection(clonedObjects, { canvas: c })
+    newActiveObject.setCoords()
     c.setActiveObject(newActiveObject)
     c.clearContext(c.getTopContext())
     newActiveObject._renderControls(c.getTopContext())

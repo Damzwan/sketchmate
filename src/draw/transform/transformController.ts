@@ -33,6 +33,7 @@ interface CachedBake {
   bitmap: ImageBitmap;
   origin: Origin;
   state: {
+    id: string | null; // selection identity — two targets can share shape+zoom
     scaleX: number;
     scaleY: number;
     angle: number;
@@ -103,8 +104,11 @@ export function markMoved(): void {
 
   s.objects.forEach((o) => (o.opacity = 0))
 
+  // Light drop: full dropRegion() sync-rebuilt up to 32 tiles on the first
+  // move frame (and invalidated our own bitmap cache). Bounded sync repair +
+  // overview fallback is enough — the GPU layer shows the selection.
   const mgr = useDrawObjectManager()
-  mgr.dropRegion({
+  mgr.dropRegionLight({
     x: s.origin.left,
     y: s.origin.top,
     w: s.origin.width,
@@ -141,12 +145,8 @@ export function releaseDrag(c: Canvas): void {
     applyTransform(s)
     renderControls(c)
   }
-  const mgr = useDrawObjectManager()
-  s.target.setCoords()
-  for (const o of s.objects) {
-    o.setCoords()
-    mgr.updateQuadTree(o)
-  }
+  // commit() performs the setCoords + quadtree refresh — doing it here as
+  // well ran the whole O(N) loop twice per release.
   commit(c)
 }
 
@@ -176,8 +176,9 @@ export function commit(c: Canvas): void {
     s.objects.forEach((o, i) => (o.opacity = s.savedOpacity[i]))
 
     // 3. DROP the OLD footprint (object has left it) → correct empty overview,
-    //    never a sharp stale-exact ghost.
-    mgr.dropRegion({
+    //    never a sharp stale-exact ghost. Bounded sync repair only — the full
+    //    ≤32-tile sync rebuild was the release-frame freeze on big selections.
+    mgr.dropRegionLight({
       x: s.origin.left,
       y: s.origin.top,
       w: s.origin.width,
@@ -196,30 +197,52 @@ export function commit(c: Canvas): void {
     }
     mgr.scheduleRectPatch(newRect)
 
-    // 5. Hide the GPU layer only once the NEW position has actually baked (or
-    //    zoom changed, which invalidates the layer coords), then release
-    //    ownership. 1s safety cap so it can never stick.
+    // 5. Stamp the drag-layer pixels straight into the tiles at the new
+    //    position: the commit costs O(touched tiles) drawImage instead of
+    //    re-rendering N objects, and the result is pixel-identical to what
+    //    the layer already shows. Tiles are stored stale — the scheduled
+    //    bake repaints them exactly (correct z where the selection sits
+    //    under other content) without any visible change.
+    let stamped = false
+    if (c.viewportTransform![0] === s.baseZoom) {
+      try {
+        stamped = mgr.stampRegionBitmap(newRect, s.bitmap, bitmapToWorldMatrix(s))
+      } catch { /* bitmap closed / detached — fall back to the bake cover */ }
+    }
+
     const elRef = el
-    const start = performance.now()
     const idsToClear = new Set(ownedIds)
 
-    const hideWhenReady = () => {
-      if (session) return // a new drag took over the layer
+    if (stamped) {
+      // Tiles already show the exact layer pixels — hide immediately.
+      if (elRef) elRef.style.display = 'none'
+      idsToClear.forEach((id) => ownedIds.delete(id))
+      renderControls(c)
+    } else {
+      // 5b. Fallback: hide the GPU layer only once the NEW position has
+      //     actually baked (or zoom changed, which invalidates the layer
+      //     coords), then release ownership. 1s safety cap so it can never
+      //     stick.
+      const start = performance.now()
 
-      const currentZoom = c.viewportTransform![0]
-      if (
-        currentZoom !== s.baseZoom ||
-        mgr.isRegionBaked(newRect) ||
-        performance.now() - start > 1000
-      ) {
-        if (elRef) elRef.style.display = 'none'
-        idsToClear.forEach((id) => ownedIds.delete(id))
-        renderControls(c)
-      } else {
-        requestAnimationFrame(hideWhenReady)
+      const hideWhenReady = () => {
+        if (session) return // a new drag took over the layer
+
+        const currentZoom = c.viewportTransform![0]
+        if (
+          currentZoom !== s.baseZoom ||
+          mgr.isRegionBaked(newRect) ||
+          performance.now() - start > 1000
+        ) {
+          if (elRef) elRef.style.display = 'none'
+          idsToClear.forEach((id) => ownedIds.delete(id))
+          renderControls(c)
+        } else {
+          requestAnimationFrame(hideWhenReady)
+        }
       }
+      requestAnimationFrame(hideWhenReady)
     }
-    requestAnimationFrame(hideWhenReady)
   } else {
     if (el) el.style.display = 'none'
     s.target.setCoords()
@@ -240,7 +263,11 @@ export function invalidateCache(): void {
 // ─── Session setup ───────────────────────────────────────────────────────────
 
 function beginNew(c: Canvas, target: FabricObject, objs: FabricObject[]): void {
-  invalidateCache()
+  // No unconditional invalidateCache here — bakeSelectionBitmap validates the
+  // cache against identity + shape + zoom, so re-grabbing an unchanged
+  // selection is an instant cache hit instead of N sync object renders.
+  // Content changes invalidate via handleStyleChange / erasing:end /
+  // selection events.
   const baked = bakeSelectionBitmap(c, target)
   if (!baked) return
 
@@ -393,6 +420,7 @@ function bakeSelectionBitmap(
   const zoom = c.viewportTransform![0]
 
   const curState = {
+    id: ((target as any).id as string | undefined) ?? null,
     scaleX: target.scaleX ?? 1,
     scaleY: target.scaleY ?? 1,
     angle: target.angle ?? 0,
@@ -404,6 +432,8 @@ function bakeSelectionBitmap(
   if (cachedBake) {
     const s = cachedBake.state
     if (
+      s.id !== null &&
+      s.id === curState.id &&
       s.scaleX === curState.scaleX &&
       s.scaleY === curState.scaleY &&
       s.angle === curState.angle &&
@@ -488,6 +518,44 @@ function bakeSelectionBitmap(
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+type Mat = [number, number, number, number, number, number]
+
+function mul(m1: Mat, m2: Mat): Mat {
+  return [
+    m1[0] * m2[0] + m1[2] * m2[1],
+    m1[1] * m2[0] + m1[3] * m2[1],
+    m1[0] * m2[2] + m1[2] * m2[3],
+    m1[1] * m2[2] + m1[3] * m2[3],
+    m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
+    m1[1] * m2[4] + m1[3] * m2[5] + m1[5]
+  ]
+}
+
+/**
+ * bitmap px → CURRENT world coords. Mirrors the CSS layer transform exactly:
+ * bitmap px → bake-time world (origin box), then the delta transform about
+ * the refs pivot (what applyTransform writes as CSS).
+ */
+function bitmapToWorldMatrix(s: Session): Mat {
+  const t = s.target
+  const rad = (((t.angle ?? 0) - s.refs.angle) * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const sx = (t.scaleX ?? 1) / s.refs.scaleX
+  const sy = (t.scaleY ?? 1) / s.refs.scaleY
+
+  let m: Mat = [1, 0, 0, 1, t.left ?? 0, t.top ?? 0]
+  m = mul(m, [cos, sin, -sin, cos, 0, 0])
+  m = mul(m, [sx, 0, 0, sy, 0, 0])
+  m = mul(m, [1, 0, 0, 1, -s.refs.left, -s.refs.top])
+  m = mul(m, [1, 0, 0, 1, s.origin.left, s.origin.top])
+  return mul(m, [
+    s.origin.width / s.bitmap.width, 0,
+    0, s.origin.height / s.bitmap.height,
+    0, 0
+  ])
+}
 
 function isActiveSelection(t: FabricObject): boolean {
   return (t.type || '').toLowerCase() === 'activeselection'

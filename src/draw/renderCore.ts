@@ -43,6 +43,9 @@ export interface Surface {
 export interface RenderCoreOptions extends CommittedOptions {
   liveMax?: number;
   bakeDebounceMs?: number;
+  /** Max objects a sync overview patch may render; denser regions defer to
+   *  the async yielded rebuild. */
+  overviewPatchMax?: number;
   afterComposite?: () => void;
 }
 
@@ -54,6 +57,7 @@ export class RenderCore<T extends Bounded> {
   private readonly makeYielder: () => Yieldable
   private readonly afterComposite?: () => void
   private readonly bakeDebounce: number
+  private readonly overviewPatchMax: number
 
   private frameScheduled = false
   private bakeTimer: any = null
@@ -89,6 +93,7 @@ export class RenderCore<T extends Bounded> {
     this.makeYielder = makeYielder
     this.afterComposite = opts.afterComposite
     this.bakeDebounce = opts.bakeDebounceMs ?? 80
+    this.overviewPatchMax = opts.overviewPatchMax ?? 200
   }
 
   get tiers(): number[] {
@@ -114,7 +119,8 @@ export class RenderCore<T extends Bounded> {
     const size = this.surface.getSize()
     const dpr = this.surface.getDpr()
 
-    this.live.gcExpired()
+    const expired = this.live.gcExpired()
+    for (const r of expired) this.patchOverview(r)
     const { needsBake } = this.committed.composite(
       ctx, vpt, size, dpr, this.surface.getBackground(), this.gesturing ? 1 : 0
     )
@@ -123,7 +129,11 @@ export class RenderCore<T extends Bounded> {
 
     if (this.pendingDemote && !needsBake) {
       this.pendingDemote = false
-      this.demoteSettled()
+      // live was already composited ABOVE the now-baked tiles this frame, so a
+      // semi-transparent stroke shows doubled until we repaint without it.
+      // demoteSettled removes the settled overlays → request one more frame so
+      // the next composite shows the tile alone (single intensity).
+      if (this.demoteSettled() > 0) this.requestFrame()
     }
 
     if (needsBake) this.scheduleBake()
@@ -193,12 +203,28 @@ export class RenderCore<T extends Bounded> {
     }
   }
 
-  private demoteSettled(): void {
-    if (this.live.isEmpty()) return
-    if (this.committed.overview.isDirty()) return
+  private demoteSettled(): number {
+    if (this.live.isEmpty()) return 0
+    // NB: do NOT blanket-block on overview.isDirty here. isRegionReady already
+    // returns !overview.isDirty at OVERVIEW tier; at fine tiers the baked tile
+    // is authoritative and overview state is irrelevant. The old blanket gate
+    // stranded a live item on top of its own freshly-baked tile whenever the
+    // overview happened to be mid-rebuild — so a semi-transparent stroke was
+    // drawn twice (live + tile ≈ 0.70 not 0.45) and, since demote only retries
+    // after a bake, it stayed doubled until the next zoom/pan/stroke.
     const zoom = this.surface.getVpt()[0]
     const ids = this.live.settledIds((rect) => this.committed.isRegionReady(rect, zoom))
-    for (const id of ids) this.live.remove(id)
+    for (const id of ids) {
+      // The overview patch was DEFERRED at add time (a live-covered stroke must
+      // not also sit in the overview, or a semi-transparent stroke draws twice:
+      // overview + live ≈ 0.70 not 0.45). Now that the tile is baked and we're
+      // dropping the overlay, fold the stroke into the overview so far-zoom /
+      // tile-eviction fallbacks stay correct.
+      const rect = this.live.rectOf(id)
+      this.live.remove(id)
+      if (rect) this.patchOverview(rect)
+    }
+    return ids.length
   }
 
   onObjectAdded(obj: T, topmost = false): void {
@@ -228,10 +254,18 @@ export class RenderCore<T extends Bounded> {
       return
     }
 
-    // Fallback: full rebuild + live overlay for multiply/blend strokes,
-    // and for any stroke that wasn't fully stampable (covered by live here).
-    this.additiveInvalidate(rect)
-    if (this.intersectsView(rect) && topmost) this.live.add(obj, rect, 'normal')
+    // Fallback: live overlay covers the stroke sharply until the tile bakes.
+    const willLive = this.intersectsView(rect) && topmost
+    this.committed.dropOtherTiers(rect, tier)
+    this.committed.markDirty(rect)
+    if (willLive) {
+      // Do NOT patch the overview here — the live overlay is the sole copy
+      // during the bake window, so a semi-transparent stroke stays single.
+      // The overview is folded in at demote (see demoteSettled).
+      this.live.add(obj, rect, 'normal')
+    } else {
+      this.patchOverview(rect)
+    }
     this.requestFrame()
     this.scheduleBake()
   }
@@ -320,9 +354,38 @@ export class RenderCore<T extends Bounded> {
     this.scheduleBake()
   }
 
-  onErase(_eraserObj: T, rect: WorldRect): void {
+  /**
+   * Erase commit. Fast path (canStamp: plain destination-out stroke, not
+   * selective): punch the stroke straight into the existing tile bitmaps —
+   * pixel-exact, O(touched tiles), ZERO object re-rendering, stamped tiles
+   * stay fresh so no rebake. The overview gets the same exact punch. Other
+   * tiers are dropped lazily. Fallback (inverted / selective lobby erase):
+   * the old synchronous rebuild from objects.
+   */
+  onErase(eraserObj: T, rect: WorldRect, canStamp = false): void {
     const tier = this.committed.pickActiveTier(this.surface.getVpt()[0])
-    this.markDirtyAndRebuildSync(rect, tier)
+    if (!canStamp) {
+      this.markDirtyAndRebuildSync(rect, tier)
+      return
+    }
+
+    let complete = true
+    if (tier > this.committed.overviewTier) {
+      complete = this.committed.eraseStamp(rect, eraserObj, tier)
+      this.committed.dropOtherTiers(rect, tier)
+    } else {
+      // Overview zoom: the overview IS the picture; tiles just go stale and
+      // rebuild (with updated clips) when the user zooms back in.
+      this.committed.markDirty(rect)
+    }
+
+    if (!this.committed.overview.eraseObject(eraserObj)) {
+      this.committed.overview.markDirty()
+      this.scheduleOverviewRebuild()
+    }
+
+    if (this.intersectsView(rect)) this.requestFrame()
+    if (!complete) this.scheduleBake()
   }
 
   private destructiveInvalidate(rect: WorldRect): void {
@@ -342,6 +405,45 @@ export class RenderCore<T extends Bounded> {
     this.destructiveInvalidate(rect)
     if (this.intersectsView(rect)) this.requestFrame()
     this.scheduleBake()
+  }
+
+  /**
+   * Destructive drop with BOUNDED sync repair, for drag seams on big
+   * selections. dropRegion()'s full ≤32-tile sync rebuild froze the release
+   * frame when the region was dense; here at most `maxSyncTiles` viewport
+   * tiles rebuild synchronously for instant feedback and the rest show the
+   * overview fallback until the async bake lands (the GPU drag layer covers
+   * the selection itself throughout).
+   */
+  dropRegionLight(rect: WorldRect, maxSyncTiles = 6): void {
+    const vpt = this.surface.getVpt()
+    const tier = this.committed.pickActiveTier(vpt[0])
+    this.committed.dropAllTiers(rect)
+    if (maxSyncTiles > 0 && tier > this.committed.overviewTier) {
+      const vw = this.committed.viewWorld(vpt, this.surface.getSize(), this.surface.getDpr())
+      this.committed.rebuildRectSync(rect, tier, vw, maxSyncTiles)
+    }
+    this.patchOverview(rect)
+    if (this.intersectsView(rect)) this.requestFrame()
+    this.scheduleBake()
+  }
+
+  /**
+   * Commit a transform by stamping the drag-layer bitmap into the tiles at
+   * the new position (see CommittedLayer.stampBitmapRegion). Returns true if
+   * the whole region is covered — caller may hide its GPU layer immediately.
+   */
+  stampRegionBitmap(
+    rect: WorldRect,
+    bmp: ImageBitmap,
+    m: [number, number, number, number, number, number]
+  ): boolean {
+    const tier = this.committed.pickActiveTier(this.surface.getVpt()[0])
+    if (tier <= this.committed.overviewTier) return false
+    const complete = this.committed.stampBitmapRegion(rect, tier, bmp, m)
+    if (this.intersectsView(rect)) this.requestFrame()
+    this.scheduleBake() // stamped tiles are stale — bake repaints them exactly
+    return complete
   }
 
   // ── direct live control ──────────────────────────────────────────────────
@@ -443,7 +545,14 @@ export class RenderCore<T extends Bounded> {
       if (this.pendingOverview.length > 256) this.flushPendingOverview()
       return
     }
-    if (this.committed.overview.patchRect(rect)) return
+    // Cost is gated by OBJECT COUNT, not area: patchRect re-renders only the
+    // objects actually in the rect and bails (→ async rebuild) past
+    // overviewPatchMax. A drag's OLD footprint can be huge in area yet nearly
+    // empty (the objects moved away), so an area gate here wrongly deferred it
+    // to the ~250ms async rebuild — leaving the objects ghosted at the old
+    // spot during a fast drag. The count gate clears that footprint instantly
+    // when it's sparse, and still defers genuinely dense regions.
+    if (this.committed.overview.patchRect(rect, this.overviewPatchMax)) return
     this.committed.overview.markDirty()
     this.scheduleOverviewRebuild()
   }
@@ -454,7 +563,7 @@ export class RenderCore<T extends Bounded> {
     this.pendingOverview = []
     let needRebuild = false
     for (const r of rects) {
-      if (!this.committed.overview.patchRect(r)) needRebuild = true
+      if (!this.committed.overview.patchRect(r, this.overviewPatchMax)) needRebuild = true
     }
     if (needRebuild) {
       this.committed.overview.markDirty()

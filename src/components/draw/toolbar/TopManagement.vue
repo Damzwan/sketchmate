@@ -16,12 +16,25 @@
     <ToolButton :disabled="!isLobby" :icon="megaphoneOutline" @click="openUserReportMenu"
       :custom-class="!isLobby ? 'cursor-not-allowed' : 'hover:bg-primary/20 cursor-pointer'" />
 
-    <ToolButton :disabled="!isLoggedIn" :icon="chatbubblesOutline" @click="openPanel" :badge="totalUnreadCount"
-      :custom-class="!isLoggedIn ? 'cursor-not-allowed' : 'hover:bg-primary/20 cursor-pointer'">
-      <div
-        class="absolute top-1 left-1 w-2 h-2 bg-green-500 rounded-full border border-white shadow-[0_0_5px_rgba(34,197,94,0.6)] pointer-events-none">
+    <!-- Combined chat button — chat icon + unread badge AND online-friends
+         count in ONE pill, like TopBar. -->
+    <button :disabled="!isLoggedIn" @click="openPanel"
+      class="relative flex items-center gap-1.5 pl-2 pr-2.5 h-10 rounded-xl transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+      :class="!isLoggedIn ? '' : 'hover:bg-primary/20 cursor-pointer'">
+      <div class="relative flex items-center justify-center">
+        <ion-icon :icon="chatbubblesOutline" class="w-6 h-6 text-black" />
+        <span v-if="totalUnreadCount > 0"
+          class="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-secondary text-white text-[10px] font-black flex items-center justify-center leading-none border border-primary/40">
+          {{ totalUnreadCount > 99 ? '99+' : totalUnreadCount }}
+        </span>
       </div>
-    </ToolButton>
+      <div class="flex items-center gap-0.5">
+        <ion-icon :icon="peopleOutline" class="w-[18px] h-[18px] text-black" />
+        <span class="cabin-sketch-regular text-sm font-bold text-black leading-none">
+          {{ onlineFriends.length > 99 ? '99+' : onlineFriends.length }}
+        </span>
+      </div>
+    </button>
 
 
     <ToolButton :icon="svg(mdiAccountGroupOutline)" :custom-class="roomMembers.length > 0
@@ -53,20 +66,23 @@ import { svg } from "@/helper/general.helper";
 import { Menu } from "@/draw/types/draw.types";
 import SendHub from "../send/SendHub.vue";
 import { useAuthStore } from "@/store/auth.store";
+import { useFriendStore } from "@/store/friend.store";
 import {
   chatbubblesOutline,
   megaphoneOutline,
   bulbOutline,
+  peopleOutline,
 } from "ionicons/icons";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useToast } from "@/service/toast.service";
-import { modalController } from "@ionic/vue";
+import { IonIcon, modalController } from "@ionic/vue";
 import ReportUserMenu from "@/components/moderation/ReportUserMenu.vue";
 
 defineEmits(["toggle-fullscreen"]);
 
 const { roomMembers, isLobby } = storeToRefs(useDrawSyncer());
+const { onlineFriends } = storeToRefs(useFriendStore());
 const { openMenu } = useMenuStore();
 const { isLoggedIn, user } = storeToRefs(useAuthStore());
 const { openPanel } = useChatWidgetStore();

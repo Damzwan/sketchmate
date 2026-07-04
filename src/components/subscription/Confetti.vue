@@ -1,28 +1,39 @@
 <template>
   <Teleport to="body">
-  <Transition name="fade">
-    <div v-if="showConfetti" class="fixed inset-0 flex items-center justify-center pointer-events-none z-[99999]">
-
-      <DotLottieVue
-        class="absolute"
-        style="width: 100vw; height: 100vh; max-width: 1200px; max-height: 1200px;"
-        :src="confetti"
-        autoplay
-        ref="lottieRef"
-      />
-
+    <Transition name="fade-scale">
       <div
-        class="relative z-10 bg-primary backdrop-blur-sm shadow-xl rounded-2xl px-8 py-6 text-center transform -translate-y-4">
-        <ion-icon :icon="svg(mdiHeart)" class="text-5xl mb-2 block animate-bounce text-secondary" />
-        <h3 class="text-3xl cabin-sketch-regular font-extrabold text-gray-800 mb-1">You're amazing!</h3>
-        <p class="text-lg cabin-sketch-regular text-gray-600 font-medium leading-tight">
-          Thank you for supporting Sketchmate.<br />
-          This project can't exist without your help.
-        </p>
-      </div>
+        v-if="showConfetti"
+        class="fixed inset-0 z-[99999] flex items-center justify-center p-4 pointer-events-auto"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
 
-    </div>
-  </Transition>
+        <DotLottieVue
+          class="absolute pointer-events-none"
+          style="width: 100vw; height: 100vh; max-width: 1200px; max-height: 1200px;"
+          :src="confetti"
+          autoplay
+          @complete="onAnimationComplete"
+        />
+
+        <div class="relative z-10 w-full max-w-sm bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-2xl rounded-3xl border border-gray-200/50 dark:border-gray-700/50 p-8 text-center ring-1 ring-black/5 transform transition-all">
+
+          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 mb-5">
+            <ion-icon :icon="svg(mdiHeart)" class="text-4xl animate-pulse text-red-500" />
+          </div>
+
+          <h3 class="text-3xl cabin-sketch-regular font-extrabold text-gray-900 dark:text-white mb-3 tracking-tight">
+            You're amazing!
+          </h3>
+          <p class="text-base font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
+            Thank you for supporting Sketchmate.<br />
+            This project can't exist without your help.
+          </p>
+
+        </div>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -34,34 +45,31 @@ import { mdiHeart } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import confetti from '@/assets/lottie/confetti.lottie'
 import { useSubscriptionStore } from '@/store/subscription.store'
-import { ref, watch } from 'vue'
 
 const { showConfetti } = storeToRefs(useSubscriptionStore())
-const lottieRef = ref(null)
 
-watch(showConfetti, async (isActive) => {
-  if (isActive) {
-    setTimeout(() => {
-      const dotLottie = lottieRef.value?.getDotLottieInstance()
-      if (dotLottie) {
-        dotLottie.addEventListener('complete', () => {
-          showConfetti.value = false
-        })
-      }
-    }, 50)
-  }
-})
+// Greatly simplified logic: rely on the component's native event
+const onAnimationComplete = () => {
+  showConfetti.value = false
+}
 </script>
 
 <style scoped>
-/* Simple fade transition classes */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.6s ease;
+/* Smoother scale-in transition rather than just fading */
+.fade-scale-enter-active,
+.fade-scale-leave-active {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.fade-enter-from,
-.fade-leave-to {
+.fade-scale-enter-from,
+.fade-scale-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* Optional: Ensure the backdrop fades smoothly alongside the card */
+.fade-scale-enter-from .bg-black\/30,
+.fade-scale-leave-to .bg-black\/30 {
   opacity: 0;
 }
 </style>

@@ -23,6 +23,7 @@
           :src="jellyFishLottie"
           :autoplay="true"
           :loop="true"
+          :render-config="renderConfig"
           class="w-full h-full lottie-strict-bounds"
         />
       </div>
@@ -43,6 +44,7 @@
           :src="turtleLottie"
           :autoplay="true"
           :loop="true"
+          :render-config="renderConfig"
           class="w-full h-full lottie-strict-bounds"
         />
       </div>
@@ -63,6 +65,7 @@
           :src="fishLottie"
           :autoplay="true"
           :loop="true"
+          :render-config="renderConfig"
           class="w-full h-full lottie-strict-bounds"
         />
       </div>
@@ -87,15 +90,18 @@
       <div class="absolute top-[26%] left-[0%] w-36 h-36 flex items-end justify-center pointer-events-none z-10">
         <div class="absolute bottom-[35%] left-[-10%] w-20 h-20 origin-bottom animate-plant-sway opacity-70 z-0">
           <DotLottieVue :src="plantLottie" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
                         class="w-full h-full lottie-strict-bounds" />
         </div>
         <div
           class="absolute bottom-[40%] right-[-10%] w-18 h-18 origin-bottom animate-plant-sway opacity-60 z-0 transform scaleX(-1)">
           <DotLottieVue :src="plantLottie" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
                         class="w-full h-full lottie-strict-bounds" />
         </div>
         <div class="w-32 h-32 opacity-95 filter drop-shadow-sm z-10">
           <DotLottieVue :src="catLottie" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
                         class="w-full h-full lottie-strict-bounds" />
         </div>
       </div>
@@ -115,6 +121,7 @@
         }"
       >
         <DotLottieVue :src="autumn_leaves" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds" />
       </div>
 
@@ -131,6 +138,7 @@
         }"
       >
         <DotLottieVue :src="mushroom_walking" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds" />
       </div>
     </div>
@@ -149,6 +157,7 @@
         }"
       >
         <DotLottieVue :src="fire" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds" />
       </div>
 
@@ -164,6 +173,7 @@
         }"
       >
         <DotLottieVue :src="dragon" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds drop-shadow-[0_15px_25px_rgba(0,0,0,0.7)]" />
       </div>
     </div>
@@ -201,6 +211,13 @@ const props = withDefaults(
 const def = computed<WorldDef>(
   () => props.def || resolveWorld(props.worldId)
 )
+
+// freezeOnOffscreen (default true) freezes the player when its canvas is
+// hidden/offscreen. Ionic keeps the previous page mounted as `ion-page-hidden`
+// (display:none), so when a world edit re-renders these sprites while the card
+// is behind another page, frozen players lock onto a stale/zero canvas size and
+// never repaint at the right size — sprites come back smaller. Keep them live.
+const renderConfig = { freezeOnOffscreen: false }
 
 // Each DotLottie is a full wasm/canvas player, so instance count is the main
 // cost. We keep the on-card swarm modest and, in preview tiles, cut it hard —

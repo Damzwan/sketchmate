@@ -21,6 +21,7 @@
           <ProfileCard
             :user="user"
             :customization="user.customization"
+            :world-remount-key="worldKey"
             :is-own-profile="true"
             @go-settings="goToSettings"
             @go-customize="goToCustomize"
@@ -74,6 +75,13 @@ const { openMenu } = useMenuStore();
 const loadingAccount = ref(true);
 const loadingPosts = ref(false);
 
+// World lotties measure their canvas via getBoundingClientRect at mount. When a
+// world edit re-renders them while this page is `ion-page-hidden` (display:none),
+// the rect is 0 and they lock a wrong (small) size. Bumping this on view-enter
+// remounts the world while the page is visible — same path as a fresh app load,
+// which renders correctly.
+const worldKey = ref(0);
+
 const loadPosts = async () => {
 	if (!user.value) return;
 	loadingPosts.value = true;
@@ -96,6 +104,7 @@ const loadMorePosts = async (e: any) => {
 };
 
 onIonViewDidEnter(async () => {
+	worldKey.value++;
 	await authStore.waitUntilInitialized();
 	loadingAccount.value = false;
 	if (userPosts.value.length === 0 || isProfileDirty.value) loadPosts();

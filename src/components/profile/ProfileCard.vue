@@ -5,7 +5,7 @@
   >
     <div class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
       <ProfileEffect :effect-id="effectiveCustomization.effectId" />
-      <ProfileWorld :world-id="effectiveCustomization.worldId" />
+      <ProfileWorld :key="worldRemountKey" :world-id="effectiveCustomization.worldId" />
     </div>
 
     <div class="relative z-10" :style="{ fontFamily: resolvedFontFamily }">
@@ -192,10 +192,12 @@ const props = withDefaults(
 		customization?: Partial<Customization>;
 		isOwnProfile?: boolean;
 		isPreview?: boolean;
+		worldRemountKey?: number | string;
 	}>(),
 	{
 		isOwnProfile: false,
 		isPreview: false,
+		worldRemountKey: 0,
 	},
 );
 

@@ -69,7 +69,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
   let liveAbortController: AbortController | undefined
 
   const SAVE_INTERVAL_MS = 20000
-  const saveEvents = ['undo', 'redo', 'add_to_undo_stack', 'saveDrawing']
+  const saveEvents = ['undo', 'redo', 'add_to_undo_stack']
 
   // ==========================================
   // 💾 DATABASE

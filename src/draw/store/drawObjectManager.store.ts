@@ -79,7 +79,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
   // ── geometry / index helpers ─────────────────────────────────────────────
-  function cachedBounds(obj: FabricObject): WorldRect {
+  function boundsSig(obj: FabricObject): string {
     const a = obj as any
     const g = obj.group as any // <-- Check for parent group (ActiveSelection)
 
@@ -92,6 +92,12 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     if (g) {
       sig += `|g:${g.left},${g.top},${g.scaleX},${g.scaleY},${g.angle}`
     }
+    return sig
+  }
+
+  function cachedBounds(obj: FabricObject): WorldRect {
+    const a = obj as any
+    const sig = boundsSig(obj)
 
     if (a.__brSig === sig && a.__br) return a.__br as WorldRect
 
@@ -156,6 +162,29 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     e.bounds.y = b.y
     e.bounds.w = b.w
     e.bounds.h = b.h
+    quadtree.update(e)
+  }
+
+  /**
+   * Fast-path index update for a PURE TRANSLATION (drag commit): the world
+   * bounds of every object in the selection shift by exactly (dx, dy), so we
+   * shift the entry and the bounds cache instead of recomputing the full
+   * transform chain per object. Falls back to the exact recompute when no
+   * cache exists yet.
+   */
+  function offsetQuadTree(obj: FabricObject, dx: number, dy: number) {
+    const e = entryMap.get(obj.id)
+    if (!e) return
+    const a = obj as any
+    if (!a.__br) {
+      updateQuadTree(obj)
+      return
+    }
+    const br = a.__br as WorldRect
+    a.__br = { x: br.x + dx, y: br.y + dy, w: br.w, h: br.h }
+    a.__brSig = boundsSig(obj)
+    e.bounds.x += dx
+    e.bounds.y += dy
     quadtree.update(e)
   }
 
@@ -279,7 +308,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       noteRegion(oldRect ? unionRect(cur, oldRect) : cur)
       return
     }
-    core.onObjectChangedCoalesced(obj, oldRect)
+    core.onObjectChangedCoalesced(obj, oldRect ?? undefined)
   }
 
   function handleStyleChange(e: any) {
@@ -467,12 +496,28 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     core?.dropRegion(rect)
   }
 
-  /** Bounded-sync drop for the transform controller's drag seams. Deliberately
-   *  does NOT invalidate the transform cache — the selection itself is
-   *  unchanged by a move, and nuking the cache here would force a full re-bake
-   *  on every re-grab. */
-  function dropRegionLight(rect: WorldRect) {
+  /** Bounded-sync drop for the transform controller's drag seams and history
+   *  invalidations. By default does NOT invalidate the transform cache — the
+   *  selection itself is unchanged by a move, and nuking the cache here would
+   *  force a full re-bake on every re-grab. Callers whose change DOES alter
+   *  selected pixels (erase undo/redo) pass `invalidateSelectionCache`. */
+  function dropRegionLight(rect: WorldRect, invalidateSelectionCache = false) {
+    if (invalidateSelectionCache) localTransform.invalidateCache()
     core?.dropRegionLight(rect, IS_LOW_END ? 4 : 8)
+  }
+
+  /**
+   * History redo of a plain (destination-out) erase: punch the stroke into
+   * the fresh tiles and the overview — pixel-exact, O(touched tiles), zero
+   * object re-rendering — instead of dropping the region and sync-rebuilding
+   * it from objects. The caller has already applied the clip mutations, so
+   * any tile the stamp couldn't cover goes stale and rebakes to the same
+   * state.
+   */
+  function eraseStampCommit(path: FabricObject, rect: WorldRect) {
+    if (!core) return
+    localTransform.invalidateCache() // selected pixels changed
+    core.onErase(path, rect, true)
   }
 
   /** Stamp the drag-layer bitmap into tiles on transform commit. */
@@ -610,6 +655,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     query,
     getZIndexMap,
     updateQuadTree,
+    offsetQuadTree,
+    getObjectBounds: objectBounds,
     getVisibleObjects,
     getObjectById,
     getObjectsById,
@@ -625,6 +672,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     setErasing,
     dropRegion,
     dropRegionLight,
+    eraseStampCommit,
     stampRegionBitmap,
     patchRectSync,
     beginBatch,

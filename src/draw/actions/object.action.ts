@@ -43,6 +43,16 @@ export async function removeObjects(objects: FabricObject[]) {
 
   if (objects.length === 0) return
 
+  // Record each object's stack position BEFORE removal so undo restores it at
+  // its original z instead of on top (insertedIndex is serialized into the
+  // history JSON via customProperties, and undoObjectsDeleted re-inserts at
+  // it). Captured against the same full stack → ascending re-insert on undo
+  // reproduces the layering exactly.
+  const stack = c.getObjects()
+  for (const obj of objects) {
+    (obj as any).insertedIndex = stack.indexOf(obj)
+  }
+
   // Multi-delete: coalesce the N object:removed invalidations into one
   // invalidateRegions pass instead of N destructive sync tile rebuilds.
   const drawObjects = useDrawObjectManager()
@@ -199,9 +209,9 @@ export async function copyObjects(
   const c = getCanvas()
 
   if (params.objects.length > 200) {
-  	const { toast } = useToast();
-  	toast("Cannot copy more than 200 objects", { color: "warning" });
-  	return;
+    const { toast } = useToast()
+    toast('Cannot copy more than 200 objects', { color: 'warning' })
+    return
   }
 
   const offsetX = 10, offsetY = 10
@@ -361,7 +371,7 @@ export async function saveFabricObject(
 ) {
   const { user } = useAuthStore()
   const drawui = useDrawUIStore()
-  const shareToastStore = useShareToastStore() // Access your new store
+  const shareToastStore = useShareToastStore()
   const { getCanvas } = useDrawStore()
 
   const c = getCanvas()
@@ -389,7 +399,8 @@ export async function saveFabricObject(
     clonedObjects.forEach((obj) => {
       obj.set({
         left: obj.left! - bounds.minX,
-        top: obj.top! - bounds.minY
+        top: obj.top! - bounds.minY,
+        userId: user._id
       })
       tempCanvas.add(obj)
     })
@@ -433,6 +444,7 @@ export async function saveFabricObject(
 export async function addSavedFabricObjectToCanvas(
   params: DrawActionParams[DrawAction.AddSavedDrawingToCanvas]
 ) {
+  const { user } = useAuthStore() // Access the active user
   const { getCanvas } = useDrawStore()
   const { selectTool, selectedTool } = useToolSelection()
   const { actionWithoutEvents } = useDrawEventManager()
@@ -443,7 +455,6 @@ export async function addSavedFabricObjectToCanvas(
 
   const c = getCanvas()
   if (!c) return
-
 
   try {
     let jsonData = params.json
@@ -457,7 +468,10 @@ export async function addSavedFabricObjectToCanvas(
 
     await enlivenObjectsTimeSlivered(jsonData.objects, (obj) => {
       const migrated = migrateLegacyOrigin(obj)
-      migrated.set('id', uuidv4())
+      migrated.set({
+        id: uuidv4(),
+        userId: user?._id || migrated.get('userId')
+      })
       objects.push(migrated)
     })
 
@@ -491,9 +505,6 @@ export async function addSavedFabricObjectToCanvas(
     }
 
     await actionWithoutEvents(async () => {
-      // Batch mode coalesces every object:added region into ONE
-      // core.invalidateRegions() at endBatch, so RenderCore paints the whole
-      // drawing in a single frame instead of one object at a time.
       drawObjects.beginBatch()
       try {
         if (objects.length === 1) {
@@ -530,7 +541,6 @@ export async function addSavedFabricObjectToCanvas(
     if (selectedTool !== DrawTool.Select) {
       selectTool(DrawTool.Select)
     }
-
 
     c.fire('objects:added', {
       target: objects

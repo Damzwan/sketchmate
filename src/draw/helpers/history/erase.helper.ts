@@ -105,8 +105,8 @@ export async function handleErasedAction(
       })
     )
 
-    if (deletedObjectsJSON.length > 0) {
-      const deletedIds = deletedObjectsJSON.map((obj: any) => obj.id)
+    const deletedIds: string[] = deletedObjectsJSON.map((obj: any) => obj.id)
+    if (deletedIds.length > 0) {
       getObjectsById(deletedIds).forEach((obj) => {
         if (obj) canvas.remove(obj)
       })
@@ -114,19 +114,46 @@ export async function handleErasedAction(
 
     for (const obj of objects) if (obj) mgr.updateQuadTree(obj)
 
-    // 2. OPTIMIZATION: Re-use the already enlivened stroke to calculate bounds.
-    const rect = intersectRect(strokeFootprint(enlivenedStroke), unionBounds(objects))
+    const footprint = strokeFootprint(enlivenedStroke)
+    const rect = intersectRect(footprint, unionBounds(objects))
 
-    // 3. OPTIMIZATION: Destructively drop the region instead of a synchronous patch.
-    // This bypasses keeping the stale tile and triggers a clean, viewport-clipped rebuild.
-    if (rect) mgr.dropRegion(rect)
+    if (rect) {
+      // Redo of a plain erase IS the original erase: punch the stroke
+      // straight into the tiles + overview (pixel-exact, O(touched tiles),
+      // no object re-render) — the same fast path the live stroke commit
+      // uses. Only sound when every object under the stroke was a target of
+      // the original erase: a collaborator's object drawn since would get
+      // holes punched into fresh tiles that never rebake.
+      if (canStampRedo(mgr, enlivenedStroke, footprint, objectIds, deletedIds)) {
+        mgr.eraseStampCommit(enlivenedStroke, rect)
+      } else {
+        // Bounded sync repair + overview fallback; the async bake finishes.
+        mgr.dropRegionLight(rect, true)
+      }
+    }
 
   } else {
     // UNDO
     let restoredObjects: fabric.Object[] = []
     if (deletedObjectsJSON.length > 0) {
       restoredObjects = await fabric.util.enlivenObjects(deletedObjectsJSON)
-      restoredObjects.forEach((obj) => canvas.add(obj as fabric.Object))
+      // Restore at the recorded stack position — a plain add() dropped a
+      // mid-stack object back on TOP, visibly changing z-order under stacked
+      // drawings. Ascending insert order reproduces the recorded indexes
+      // exactly (they were captured against the same full stack).
+      const sorted = [...restoredObjects].sort(
+        (a: any, b: any) =>
+          ((a.insertedIndex ?? Infinity) as number) -
+          ((b.insertedIndex ?? Infinity) as number)
+      )
+      for (const obj of sorted) {
+        const idx = (obj as any).insertedIndex
+        if (typeof idx === 'number' && idx >= 0 && idx <= canvas.getObjects().length) {
+          canvas.insertAt(idx, obj as fabric.Object)
+        } else {
+          canvas.add(obj as fabric.Object) // legacy action without index
+        }
+      }
     }
 
     const objectsOnCanvas = getObjectsById(objectIds)
@@ -139,14 +166,41 @@ export async function handleErasedAction(
 
     for (const obj of allAffected) if (obj) mgr.updateQuadTree(obj)
 
-    // Use the enlivened stroke instantly.
     const rect = intersectRect(strokeFootprint(enlivenedStroke), unionBounds(allAffected))
 
-    // Destructively drop the region to avoid locking the main thread.
-    if (rect) mgr.dropRegion(rect)
+    // Un-erase ADDS pixels back, so tiles must re-render from objects — no
+    // stamp possible. dropRegion's "avoid locking the main thread" comment
+    // was wrong: it sync-rebuilt up to 32 viewport tiles, which was the undo
+    // freeze. Bounded variant rebuilds a handful of viewport tiles sharp and
+    // lets the overview + async bake cover the rest.
+    if (rect) mgr.dropRegionLight(rect, true)
   }
 
   return action
+}
+
+/**
+ * The erase stamp punches the stroke into every fresh tile it covers, so it
+ * is only pixel-correct when nothing but the recorded targets (and the
+ * objects deleted by this erase) sits under the stroke. Quadtree query is
+ * over-inclusive (padded AABBs), so a false here just means we take the
+ * rebuild fallback — never a wrong stamp.
+ */
+function canStampRedo(
+  mgr: ReturnType<typeof useDrawObjectManager>,
+  stroke: fabric.Object,
+  footprint: WorldRect | null,
+  targetIds: string[],
+  deletedIds: string[]
+): boolean {
+  if (!footprint) return false
+  if ((stroke as any).globalCompositeOperation !== 'destination-out') return false
+  const allowed = new Set([...targetIds, ...deletedIds])
+  for (const obj of mgr.query(footprint)) {
+    const id = (obj as any).id
+    if (!id || !allowed.has(id)) return false
+  }
+  return true
 }
 
 export async function redoErased(

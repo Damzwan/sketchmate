@@ -1,5 +1,6 @@
 import { Canvas, FabricObject, InteractiveFabricObject } from 'fabric'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { useGestureStore } from '@/draw/store/tools/gesture.store'
 
 interface Refs {
   left: number;
@@ -24,6 +25,9 @@ interface Session {
   bitmap: ImageBitmap;
   origin: Origin;
   refs: Refs;
+  /** Transform at beginNew — the state the quadtree entries reflect. Never
+   *  touched by rebaseline, so commit's translation fast-path stays exact. */
+  origRefs: Refs;
   baseZoom: number;
   moveHappened: boolean;
   rafId: number | null;
@@ -40,6 +44,9 @@ interface CachedBake {
     width: number;
     height: number;
     zoom: number;
+    /** Baked at reduced resolution for a fast mouse:down — an idle prewarm
+     *  replaces it with a full-quality bake. */
+    lowQuality: boolean;
   };
 }
 
@@ -166,10 +173,26 @@ export function commit(c: Canvas): void {
 
     // 1. Refresh layout FIRST so the quadtree has the NEW position before we
     //    invalidate (otherwise the old-region drop could re-capture the object).
+    //    Pure translation (the common heavy case) shifts every child's world
+    //    bounds by the same delta — exact, no per-child transform-chain math.
+    const dx = (s.target.left ?? 0) - s.origRefs.left
+    const dy = (s.target.top ?? 0) - s.origRefs.top
+    const pureMove =
+      (s.target.scaleX ?? 1) === s.origRefs.scaleX &&
+      (s.target.scaleY ?? 1) === s.origRefs.scaleY &&
+      (s.target.angle ?? 0) === s.origRefs.angle
+
     s.target.setCoords()
-    for (const o of s.objects) {
-      o.setCoords()
-      mgr.updateQuadTree(o)
+    if (pureMove) {
+      for (const o of s.objects) {
+        o.setCoords()
+        if (dx !== 0 || dy !== 0) mgr.offsetQuadTree(o, dx, dy)
+      }
+    } else {
+      for (const o of s.objects) {
+        o.setCoords()
+        mgr.updateQuadTree(o)
+      }
     }
 
     // 2. Restore opacity at the new position.
@@ -249,6 +272,11 @@ export function commit(c: Canvas): void {
     ownedIds.clear()
     renderControls(c)
   }
+
+  // Upgrade / refresh the bake cache during idle so the NEXT grab of this
+  // selection is instant: converts a fast low-quality bake to full quality,
+  // and re-bakes after rotate/scale (which changed the cache key).
+  prewarm(c)
 }
 
 export function cancel(c: Canvas): void {
@@ -260,6 +288,42 @@ export function invalidateCache(): void {
   cachedBake = null
 }
 
+// ─── idle prewarm ────────────────────────────────────────────────────────────
+
+const requestIdle: (cb: () => void, timeout: number) => number =
+  typeof (window as any).requestIdleCallback === 'function'
+    ? (cb, timeout) => (window as any).requestIdleCallback(cb, { timeout })
+    : (cb, timeout) => window.setTimeout(cb, Math.min(timeout, 200))
+const cancelIdle: (h: number) => void =
+  typeof (window as any).cancelIdleCallback === 'function'
+    ? (h) => (window as any).cancelIdleCallback(h)
+    : (h) => clearTimeout(h)
+
+let prewarmHandle: number | null = null
+
+/**
+ * Bake (or upgrade a low-quality bake of) the CURRENT active object's
+ * selection bitmap during idle time, so the next mouse:down grab is a cache
+ * hit instead of a synchronous N-object render. Safe to call often — a hot
+ * full-quality cache makes it a no-op.
+ */
+export function prewarm(c: Canvas): void {
+  if (prewarmHandle !== null) cancelIdle(prewarmHandle)
+  prewarmHandle = requestIdle(() => {
+    prewarmHandle = null
+    if (session) return // a live drag owns the selection; commit re-prewarms
+    if (useGestureStore().isGesturing) {
+      // Mid-pinch: zoom is still changing, a bake now would key on a
+      // transient zoom AND jank the gesture. Try again shortly.
+      prewarm(c)
+      return
+    }
+    const target = c.getActiveObject()
+    if (!target) return
+    bakeSelectionBitmap(c, target)
+  }, 500)
+}
+
 // ─── Session setup ───────────────────────────────────────────────────────────
 
 function beginNew(c: Canvas, target: FabricObject, objs: FabricObject[]): void {
@@ -267,10 +331,19 @@ function beginNew(c: Canvas, target: FabricObject, objs: FabricObject[]): void {
   // cache against identity + shape + zoom, so re-grabbing an unchanged
   // selection is an instant cache hit instead of N sync object renders.
   // Content changes invalidate via handleStyleChange / erasing:end /
-  // selection events.
-  const baked = bakeSelectionBitmap(c, target)
+  // selection events. `fast` halves the bake resolution on big cold
+  // selections — this runs inside mouse:down, and the post-commit prewarm
+  // upgrades the cache to full quality during idle.
+  const baked = bakeSelectionBitmap(c, target, true)
   if (!baked) return
 
+  const refs: Refs = {
+    left: target.left ?? 0,
+    top: target.top ?? 0,
+    scaleX: target.scaleX ?? 1,
+    scaleY: target.scaleY ?? 1,
+    angle: target.angle ?? 0
+  }
   session = {
     canvas: c,
     objects: objs,
@@ -278,13 +351,8 @@ function beginNew(c: Canvas, target: FabricObject, objs: FabricObject[]): void {
     savedOpacity: objs.map((o) => o.opacity ?? 1),
     bitmap: baked.bitmap,
     origin: baked.origin,
-    refs: {
-      left: target.left ?? 0,
-      top: target.top ?? 0,
-      scaleX: target.scaleX ?? 1,
-      scaleY: target.scaleY ?? 1,
-      angle: target.angle ?? 0
-    },
+    refs,
+    origRefs: { ...refs },
     baseZoom: c.viewportTransform![0],
     moveHappened: false,
     rafId: null
@@ -301,7 +369,7 @@ function rebaseline(c: Canvas, s: Session): void {
   const restore = s.objects.map((o) => o.opacity)
   s.objects.forEach((o, i) => (o.opacity = s.savedOpacity[i]))
   invalidateCache()
-  const baked = bakeSelectionBitmap(c, t)
+  const baked = bakeSelectionBitmap(c, t, true)
   s.objects.forEach((o, i) => (o.opacity = s.moveHappened ? 0 : restore[i]))
   if (!baked) return
 
@@ -411,13 +479,23 @@ function renderControls(c: Canvas): void {
 
 // ─── Bitmap baking (cached; keyed on shape + zoom, NOT position) ─────────────
 
+/** Above this child count a `fast` (mouse:down) bake halves its resolution;
+ *  the idle prewarm then replaces it with a full-quality bake. */
+const FAST_BAKE_MIN_CHILDREN = 30
+
 function bakeSelectionBitmap(
   c: Canvas,
-  target: FabricObject
+  target: FabricObject,
+  fast = false
 ): { bitmap: ImageBitmap; origin: Origin } | null {
   const PAD = 8
   const b = target.getBoundingRect()
   const zoom = c.viewportTransform![0]
+
+  const childCount = isActiveSelection(target)
+    ? (target as any)._objects?.length || 1
+    : 1
+  const lowQuality = fast && childCount > FAST_BAKE_MIN_CHILDREN
 
   const curState = {
     id: ((target as any).id as string | undefined) ?? null,
@@ -426,7 +504,8 @@ function bakeSelectionBitmap(
     angle: target.angle ?? 0,
     width: target.width ?? 0,
     height: target.height ?? 0,
-    zoom
+    zoom,
+    lowQuality
   }
 
   if (cachedBake) {
@@ -439,7 +518,11 @@ function bakeSelectionBitmap(
       s.angle === curState.angle &&
       s.width === curState.width &&
       s.height === curState.height &&
-      s.zoom === curState.zoom
+      s.zoom === curState.zoom &&
+      // A low-quality cache satisfies a fast request; a full-quality request
+      // (prewarm) falls through and re-bakes. A full-quality cache satisfies
+      // everything.
+      (!s.lowQuality || fast)
     ) {
       return {
         bitmap: cachedBake.bitmap,
@@ -463,11 +546,9 @@ function bakeSelectionBitmap(
   const dpr = window.devicePixelRatio || 1
   let scale = zoom * dpr
 
-  const childCount = isActiveSelection(target)
-    ? (target as any)._objects?.length || 1
-    : 1
   if (childCount > 150) scale *= 0.5
   else if (childCount > 50) scale *= 0.75
+  if (lowQuality) scale *= 0.5
 
   let physW = Math.ceil(worldW * scale)
   let physH = Math.ceil(worldH * scale)

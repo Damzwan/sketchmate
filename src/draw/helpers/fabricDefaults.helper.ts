@@ -483,6 +483,9 @@ export function overrideHandleSelection(c: Canvas) {
           ),
         e
       )
+      // Bake the selection bitmap during idle so the first grab of this
+      // fresh selection is a cache hit instead of a mouse:down sync render.
+      transform.prewarm(this as Canvas)
     }
 
     this._groupSelector = null

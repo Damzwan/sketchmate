@@ -11,6 +11,7 @@ import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useAuthStore } from '@/store/auth.store'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { createYielder } from '@/draw/helpers/yielding.helper'
+import { isActive as transformSessionActive } from '@/draw/transform/transformController'
 
 interface Eraser extends ToolService {
   eraserSize: Ref<number>;
@@ -206,7 +207,23 @@ export const useEraser = defineStore('eraser', (): Eraser => {
       deleted: [],
       path
     })
-    void drainCleanup()
+    scheduleDrain()
+  }
+
+  /** Start the drain in IDLE time — the per-object work (toCanvasElement /
+   *  toJSON) is chunky and used to land right after the stroke commit, on top
+   *  of the tile rebake. */
+  function scheduleDrain() {
+    if (draining) return
+    const ric = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined
+    if (ric) ric(() => void drainCleanup(), { timeout: 2000 })
+    else setTimeout(() => void drainCleanup(), 200)
+  }
+
+  function idlePause(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 250))
   }
 
   async function drainCleanup() {
@@ -224,6 +241,9 @@ export const useEraser = defineStore('eraser', (): Eraser => {
         const job = cleanupQueue[0]
         while (job.cursor < job.targets.length) {
           await yielder.maybeYield()
+          // A drag/scale session owns the frame budget — back off until it
+          // commits so a big-object render can't hitch the interaction.
+          while (transformSessionActive()) await idlePause()
           if (!c) {
             cleanupQueue.length = 0
             return
@@ -257,14 +277,33 @@ export const useEraser = defineStore('eraser', (): Eraser => {
       }
     } finally {
       draining = false
-      if (cleanupQueue.length > 0) void drainCleanup()
+      if (cleanupQueue.length > 0) scheduleDrain()
     }
   }
 
   function finalizeCleanup(job: CleanupJob) {
     if (!c) return
-    const removable = job.deleted.filter(objectStillPresent)
+    const strokeId = (job.path as any).id
+    const removable = job.deleted.filter(objectStillPresent).filter((obj) => {
+      // The check runs deferred — an undo may have pulled this stroke out of
+      // the object's clip in the meantime. Deleting then would vanish a
+      // visible object AND the erase action is no longer in the undo stack,
+      // so nothing could restore it. Only delete while THIS stroke still
+      // erases the object. (A flattened clip loses stroke ids — that also
+      // lands here and safely keeps the object.)
+      const clip: any = obj.clipPath
+      return !!clip?._objects?.some((o: any) => o?.id === strokeId)
+    })
     if (!removable.length) return
+
+    // Record stack positions BEFORE removing anything, so erase-undo can
+    // restore each object at its original z instead of dropping it on top.
+    // All indexes are captured against the same full stack, so ascending
+    // re-insertion reproduces them exactly.
+    const stack = c.getObjects()
+    for (const obj of removable) {
+      (obj as any).insertedIndex = stack.indexOf(obj)
+    }
 
     for (const obj of removable) {
       forgetCoverage(obj.id as string)
@@ -272,7 +311,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     }
 
     c.fire('erasing:cleanup_done', {
-      strokeId: job.path.id,
+      strokeId,
       deletedObjects: removable
     } as any)
   }

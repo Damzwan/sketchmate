@@ -24,23 +24,28 @@ export function applyObjectModificationsBulk(
 	changes: { id: string; diff: any }[],
 ): void {
 	const mgr = useDrawObjectManager();
-	const targetObjects: FabricObject[] = [];
+	let count = 0;
 
-	let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+	// OLD and NEW footprints tracked separately: one union rect of a long move
+	// spans mostly-empty space between the two spots and invalidates tiles
+	// nothing touched.
+	let oMinX = Infinity, oMinY = Infinity, oMaxX = -Infinity, oMaxY = -Infinity;
+	let nMinX = Infinity, nMinY = Infinity, nMaxX = -Infinity, nMaxY = -Infinity;
 
-	// 1. Measure OLD boundaries, apply transforms, and update index
 	changes.forEach(({ id, diff }) => {
 		const obj = ctx.getObjectById(id);
 		if (!obj) return;
-		targetObjects.push(obj);
+		count++;
 
-		// @ts-ignore
-		const b = obj.getBoundingRect(true, true);
-		if (b && isFinite(b.left)) {
-			minX = Math.min(minX, b.left);
-			minY = Math.min(minY, b.top);
-			maxX = Math.max(maxX, b.left + b.width);
-			maxY = Math.max(maxY, b.top + b.height);
+		// Signature-cached bounds: getBoundingRect used to run three times per
+		// object here (old measure, new measure, quadtree) — now at most once
+		// per state via the manager's cache.
+		const ob = mgr.getObjectBounds(obj);
+		if (isFinite(ob.x)) {
+			oMinX = Math.min(oMinX, ob.x);
+			oMinY = Math.min(oMinY, ob.y);
+			oMaxX = Math.max(oMaxX, ob.x + ob.w);
+			oMaxY = Math.max(oMaxY, ob.y + ob.h);
 		}
 
 		obj.set({
@@ -52,33 +57,48 @@ export function applyObjectModificationsBulk(
 		});
 
 		obj.setCoords();
-		mgr.updateQuadTree(obj);
-	});
-
-	if (targetObjects.length === 0) return;
-
-	// 2. Measure NEW boundaries and expand the bounding box union
-	targetObjects.forEach((obj) => {
-		// @ts-ignore
-		const b = obj.getBoundingRect(true, true);
-		if (b && isFinite(b.left)) {
-			minX = Math.min(minX, b.left);
-			minY = Math.min(minY, b.top);
-			maxX = Math.max(maxX, b.left + b.width);
-			maxY = Math.max(maxY, b.top + b.height);
+		mgr.updateQuadTree(obj); // computes + caches the new bounds once
+		const nb = mgr.getObjectBounds(obj); // cache hit
+		if (isFinite(nb.x)) {
+			nMinX = Math.min(nMinX, nb.x);
+			nMinY = Math.min(nMinY, nb.y);
+			nMaxX = Math.max(nMaxX, nb.x + nb.w);
+			nMaxY = Math.max(nMaxY, nb.y + nb.h);
 		}
 	});
 
-	// 3. Issue ONE synchronous patch for the entire affected region
-	if (minX !== Infinity) {
-		const PAD = 8;
-		mgr.patchRectSync({
-			x: minX - PAD,
-			y: minY - PAD,
-			w: maxX - minX + PAD * 2,
-			h: maxY - minY + PAD * 2,
-		});
+	if (count === 0) return;
+
+	const PAD = 8;
+	const oldRect =
+		oMinX !== Infinity
+			? { x: oMinX - PAD, y: oMinY - PAD, w: oMaxX - oMinX + PAD * 2, h: oMaxY - oMinY + PAD * 2 }
+			: null;
+	const newRect =
+		nMinX !== Infinity
+			? { x: nMinX - PAD, y: nMinY - PAD, w: nMaxX - nMinX + PAD * 2, h: nMaxY - nMinY + PAD * 2 }
+			: null;
+
+	// Inside undo()/redo() these are batch-absorbed and coalesce into ONE
+	// invalidateRegions pass at endBatch. Overlapping rects (short move)
+	// collapse to their union so an unbatched caller doesn't rebuild the
+	// shared tiles twice.
+	if (oldRect && newRect && rectsOverlap(oldRect, newRect)) {
+		mgr.patchRectSync(unionOf(oldRect, newRect));
+	} else {
+		if (oldRect) mgr.patchRectSync(oldRect);
+		if (newRect) mgr.patchRectSync(newRect);
 	}
+}
+
+function rectsOverlap(a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }): boolean {
+	return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
+}
+
+function unionOf(a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) {
+	const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+	const x2 = Math.max(a.x + a.w, b.x + b.w), y2 = Math.max(a.y + a.h, b.y + b.h);
+	return { x, y, w: x2 - x, h: y2 - y };
 }
 
 
@@ -241,7 +261,26 @@ export async function undoObjectsDeleted(
 	const enlivened = await fabric.util.enlivenObjects<FabricObject>(
 		action.params.objectsJSON,
 	);
-	runBatched(enlivened.length, () => ctx.canvas.add(...enlivened));
+	// Restore at the recorded stack position — a plain add() dropped a
+	// mid-stack object back on TOP, changing z-order under stacked drawings.
+	// Ascending insert reproduces the recorded indexes exactly (captured
+	// against the same full stack). Fallback to add() for legacy actions
+	// without insertedIndex.
+	const sorted = [...enlivened].sort(
+		(a: any, b: any) =>
+			((a.insertedIndex ?? Infinity) as number) -
+			((b.insertedIndex ?? Infinity) as number),
+	);
+	runBatched(sorted.length, () => {
+		for (const obj of sorted) {
+			const idx = (obj as any).insertedIndex;
+			if (typeof idx === "number" && idx >= 0 && idx <= ctx.canvas.getObjects().length) {
+				ctx.canvas.insertAt(idx, obj);
+			} else {
+				ctx.canvas.add(obj);
+			}
+		}
+	});
 	return action;
 }
 

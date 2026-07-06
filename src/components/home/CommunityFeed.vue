@@ -116,6 +116,7 @@ import { reactionImages } from '@/config/post.config'
 
 import FeedPostCard from '@/components/home/posts/FeedPostCard.vue'
 import PostCommentDrawer from '@/components/home/posts/PostCommentDrawer.vue'
+import { mixpanelEvents, trackEvent } from '@/service/mixpanel'
 
 const authStore = useAuthStore()
 const postStore = usePostStore()
@@ -170,8 +171,17 @@ const handleOpenReactionPopover = ({
 const selectReaction = async (type: string) => {
   popoverOpen.value = false
   if (!activePopoverPost.value) return
+  const post = activePopoverPost.value
+  const isRemoving = post.user_reaction === type
+  trackEvent(mixpanelEvents.postReact, {
+    post_id: post._id,
+    author_id: post.author_id,
+    reaction_type: type,
+    removed: isRemoving,
+    is_own_post: post.author_id === user.value?._id,
+  })
   try {
-    await postStore.toggleReactionLocally(activePopoverPost.value._id, type)
+    await postStore.toggleReactionLocally(post._id, type)
   } catch (e) {
     console.error('Reaction sync failed', e)
   }

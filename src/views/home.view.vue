@@ -85,6 +85,7 @@ import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import { useAuthStore } from "@/store/auth.store";
 import Lottie from "@/components/general/Lottie.vue";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 
 // Vector Assets & Lottie Files
 import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
@@ -217,6 +218,7 @@ const handleQuickAction = (actionId: string) => {
 };
 
 const joinLobby = (lobbyId: string) => {
+	trackEvent(mixpanelEvents.lobbyOpen, { lobby_id: lobbyId, source: "home" });
 	r.push(`${FRONTEND_ROUTES.draw}?room_id=${lobbyId}`, masterAnimation);
 };
 
@@ -239,6 +241,7 @@ const handleDeleteDraft = async (id: string) => {
 };
 
 const openDraft = (id: string) => {
+	trackEvent(mixpanelEvents.draftOpen, { draft_id: id });
 	r.push(`${FRONTEND_ROUTES.draw}?id=${id}`, masterAnimation);
 };
 

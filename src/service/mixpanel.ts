@@ -2,6 +2,24 @@ import { IS_DEV, isNative } from "@/helper/general.helper";
 
 export enum mixpanelEvents {
 	presentPaywall = "paywall-present",
+
+	// --- v2 Navigation / engagement ---
+	lobbyOpen = "lobby_open", // tapped a public lobby to join
+	draftOpen = "draft_open", // opened a saved draft
+	notificationsOpen = "notifications_open",
+	messagesOpen = "messages_open", // opened chat panel
+	shopOpen = "shop_open",
+	customizationOpen = "customization_open",
+	inboxItemOpen = "inbox_item_open", // opened a received drawing (story)
+
+	// --- v2 Posts ---
+	postReact = "post_react",
+	postCommentsOpen = "post_comments_open",
+	postShareOpen = "post_share_open",
+	postRemix = "post_remix",
+
+	// --- v2 Relationships (client intent; server is authoritative) ---
+	mateAdd = "mate_add", // tapped follow / add-mate
 }
 
 // Keep a reference to the dynamically loaded module instance

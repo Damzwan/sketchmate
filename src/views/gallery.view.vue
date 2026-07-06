@@ -158,6 +158,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { useGalleryData } from "@/composables/gallery/useGalleryData";
 import { useGallerySelection } from "@/composables/gallery/useGallerySelection";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { nextTick, watch } from "vue";
 
 const { user } = storeToRefs(useAuthStore());
@@ -165,6 +166,10 @@ const { user } = storeToRefs(useAuthStore());
 const { openInboxSwiper, seeItem } = useInboxSwiper();
 const triggerSwiper = (item: any) => {
 	const index = inbox.value.findIndex((val) => item._id === val._id);
+	trackEvent(mixpanelEvents.inboxItemOpen, {
+		inbox_id: item._id,
+		seen: !!item.seen,
+	});
 	openInboxSwiper(inbox.value, index);
 };
 

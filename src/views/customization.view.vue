@@ -202,7 +202,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { IonContent, IonPage, IonButton, IonIcon } from "@ionic/vue";
+import { IonContent, IonPage, IonButton, IonIcon, onIonViewDidEnter } from "@ionic/vue";
 import {
 	mdiAccountCircleOutline,
 	mdiAutoFix,
@@ -221,6 +221,7 @@ import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 
 import SubPageBar from "@/components/general/SubPageBar.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
@@ -258,6 +259,10 @@ import {
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
 const { toast } = useToast();
+
+onIonViewDidEnter(() => {
+	trackEvent(mixpanelEvents.customizationOpen);
+});
 
 const isSaving = ref(false);
 

@@ -16,6 +16,7 @@ import {
 import { useChatStore } from "@/store/chat.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useUserCacheStore } from "@/store/userCache.store";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 
 export const useFriendStore = defineStore("friend", () => {
 	const authStore = useAuthStore();
@@ -303,6 +304,7 @@ export const useFriendStore = defineStore("friend", () => {
 		} else {
 			networkLists.value.following.push({ _id: target._id });
 			if (authStore.user.stats) authStore.user.stats.following++;
+			trackEvent(mixpanelEvents.mateAdd, { target_id: target._id });
 		}
 
 		try {

@@ -10,7 +10,7 @@
       <div class="flex items-center space-x-4 pr-2">
         <ion-button
           fill="clear"
-          @click="() => openMenu(Menu.Shop)"
+          @click="openShop"
           class="active:scale-90 transition-transform m-0"
         >
           <ion-icon :icon="storefrontOutline" class="text-[30px] text-black shrink-0" slot="icon-only" />
@@ -18,7 +18,7 @@
 
         <ion-button
           fill="clear"
-          @click="openPanel()"
+          @click="openMessages"
           class="active:scale-90 transition-transform m-0"
         >
           <div class="flex items-center group">
@@ -86,11 +86,24 @@ import { useFriendStore } from "@/store/friend.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { masterAnimation } from "@/helper/animation.helper";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 
 defineProps<{ title: string }>();
 
-const { openMenu } = useMenuStore();
-const { openPanel } = useChatWidgetStore();
+const menuStore = useMenuStore();
+const { openMenu } = menuStore;
+const chatWidgetStore = useChatWidgetStore();
+const { openPanel } = chatWidgetStore;
+
+const openShop = () => {
+  trackEvent(mixpanelEvents.shopOpen, { source: "topbar" });
+  openMenu(Menu.Shop);
+};
+
+const openMessages = () => {
+  trackEvent(mixpanelEvents.messagesOpen, { source: "topbar" });
+  openPanel();
+};
 const { onlineFriends } = storeToRefs(useFriendStore());
 const { totalUnreadCount } = storeToRefs(useChatStore());
 
@@ -99,6 +112,7 @@ const { unseen } = storeToRefs(useInAppNotificationStore());
 const r = useIonRouter();
 
 const openNotifications = () => {
+  trackEvent(mixpanelEvents.notificationsOpen, { unseen: unseen.value, source: "topbar" });
   r.push(FRONTEND_ROUTES.notifications, masterAnimation);
 };
 </script>

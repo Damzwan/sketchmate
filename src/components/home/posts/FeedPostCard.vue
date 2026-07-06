@@ -155,7 +155,7 @@
             <!-- Comment (count lives here, Instagram-style) -->
             <button
               v-if="post.enable_comments"
-              @click="$emit('open-comments', post)"
+              @click="openComments"
               class="flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-white border border-black/10 text-black/80 active:scale-95 transition-all"
             >
               <ion-icon :icon="svg(mdiChatOutline)" class="text-lg" />
@@ -188,7 +188,7 @@
         <!-- Comment previews -->
         <div
           v-if="previewComments.length"
-          @click="$emit('open-comments', post)"
+          @click="openComments"
           class="cursor-pointer active:opacity-70 transition-opacity flex flex-col gap-1"
         >
           <div
@@ -212,7 +212,7 @@
         <!-- Empty-state nudge, only when there is nothing to preview -->
         <p
           v-else-if="post.enable_comments"
-          @click="$emit('open-comments', post)"
+          @click="openComments"
           class="text-xs font-black text-black/70 uppercase tracking-widest cursor-pointer active:opacity-60"
         >
           Start the conversation
@@ -258,6 +258,7 @@ import {
 	calculateSignatureStroke,
 } from "@/config/profile_options.config";
 import { useShareService } from "@/draw/store/useShareService.store";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 
 dayjs.extend(relativeTime);
 
@@ -331,8 +332,22 @@ const openUser = (userId: string) => openUserActions({ _id: userId });
 const shareService = useShareService();
 
 const openShare = () => {
+	trackEvent(mixpanelEvents.postShareOpen, {
+		post_id: props.post._id,
+		author_id: props.post.author._id,
+		is_mine: props.isMine,
+	});
 	shareService.setActiveShareItem({ type: "post", data: props.post });
 	menuStore.openMenu(Menu.SharePostMenu);
+};
+
+const openComments = () => {
+	trackEvent(mixpanelEvents.postCommentsOpen, {
+		post_id: props.post._id,
+		author_id: props.post.author._id,
+		comment_count: props.post.comment_count ?? 0,
+	});
+	emit("open-comments", props.post);
 };
 
 const remixPost = async () => {
@@ -346,6 +361,10 @@ const remixPost = async () => {
 			{
 				text: "Let's draw",
 				handler: () => {
+					trackEvent(mixpanelEvents.postRemix, {
+						post_id: props.post._id,
+						author_id: props.post.author._id,
+					});
 					setTimeout(() => {
 						router.push({
 							path: FRONTEND_ROUTES.draw,

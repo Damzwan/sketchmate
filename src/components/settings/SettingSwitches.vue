@@ -1,23 +1,20 @@
 <template>
   <div v-if="user" class="w-full space-y-2">
 
-    <div class="w-full flex items-center justify-between bg-white/40 border border-primary/10 rounded-2xl p-3 shadow-sm" v-if="isNative()">
-      <div class="flex items-center gap-3 flex-1 min-w-0">
-        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-          <ion-icon
-            :icon="svg(deviceNotificationsAllowed ? mdiBellRing : mdiBellOff)"
-            class="text-xl text-black/70"
-          />
-        </div>
-        <div class="cabin-sketch-regular font-bold text-base text-black flex items-center gap-1" >
+    <SettingCard
+      v-if="isNative()"
+      :icon="deviceNotificationsAllowed ? mdiBellRing : mdiBellOff"
+      :interactive="false"
+    >
+      <template #label>
+        <span class="flex items-center gap-1 font-bold text-base text-black">
           <span>Alerts</span>
           <button id="notif-info" class="flex items-center justify-center p-1 rounded-full active:bg-black/5 transition-colors">
             <ion-icon :icon="svg(mdiInformationOutline)" class="text-sm text-black/30" />
           </button>
-        </div>
-      </div>
-
-      <div class="shrink-0 flex items-center justify-end min-w-[50px]">
+        </span>
+      </template>
+      <template #trailing>
         <ion-spinner
           v-if="notificationToggleBusy"
           name="crescent"
@@ -31,23 +28,19 @@
           :disabled="notificationToggleBusy"
           @ionChange="handleNotificationChange"
         />
-      </div>
-    </div>
+      </template>
+    </SettingCard>
 
-    <div class="w-full flex items-center justify-between bg-white/40 border border-primary/10 rounded-2xl p-3 shadow-sm">
-      <div class="flex items-center gap-3 flex-1 min-w-0">
-        <div class="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
-          <ion-icon :icon="svg(mdiBalloon)" class="text-xl text-secondary" />
-        </div>
-        <div class="cabin-sketch-regular font-bold text-base text-black flex items-center gap-1">
+    <SettingCard :icon="mdiBalloon" :interactive="false">
+      <template #label>
+        <span class="flex items-center gap-1 font-bold text-base text-black">
           <span>Balloons</span>
           <button id="balloon-info" class="flex items-center justify-center p-1 rounded-full active:bg-black/5 transition-colors">
             <ion-icon :icon="svg(mdiInformationOutline)" class="text-sm text-black/30" />
           </button>
-        </div>
-      </div>
-
-      <div class="shrink-0">
+        </span>
+      </template>
+      <template #trailing>
         <ion-toggle
           mode="ios"
           color="secondary"
@@ -55,8 +48,8 @@
           :disabled="balloonToggleBusy"
           @ionChange="handleBalloonChange"
         />
-      </div>
-    </div>
+      </template>
+    </SettingCard>
 
     <ion-popover trigger="balloon-info" trigger-action="click" class="cabin-sketch-regular">
       <div class="p-4 text-sm text-black bg-background border border-primary/20 rounded-2xl">
@@ -101,6 +94,7 @@ import {
 } from "@/helper/notification.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
+import SettingCard from "@/components/settings/SettingCard.vue";
 
 const { user } = storeToRefs(useAuthStore());
 const { deviceNotificationsAllowed } = storeToRefs(useNotificationStore());

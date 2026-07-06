@@ -11,41 +11,50 @@
     </div>
 
     <!-- Edit Form -->
-    <div class="w-full space-y-4 px-2">
+    <div class="w-full space-y-3 px-2">
 
       <!-- Name Input -->
       <div
-        class="w-full rounded-[2.5rem] bg-white/70 border-2 border-white shadow-inner p-5 flex flex-col items-center justify-center relative transition-all duration-300">
-        <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-black/40 mb-2">
-          <ion-icon :icon="svg(mdiAlertCircleOutline)" class="text-secondary" v-if="hasNameChanged" />
+        class="w-full rounded-[1.5rem] bg-tertiary border shadow-sm p-5 flex flex-col items-center justify-center relative transition-colors"
+        :class="nameError ? 'border-red-400/60' : 'border-primary/40'"
+      >
+        <div class="text-[11px] font-bold uppercase tracking-widest text-secondary mb-2">
           Artist Name
         </div>
         <ion-input
           ref="nameRef"
+          color="secondary"
           :value="editForm.name"
           @ionInput="editForm.name = ($event.target as any).value"
           type="text"
           :maxlength="30"
           :minlength="4"
           placeholder="e.g. Skelur"
-          class="w-full text-center text-2xl font-black text-black"
+          class="w-full text-center text-3xl font-bold text-black"
           @ionBlur="onBlur"
           @keyup.enter="onEnter"
           enterkeyhint="done"
           autocapitalize="sentences"
         />
+
+        <!-- Explain, in plain words, why the name won't save -->
+        <p v-if="nameError" class="flex items-center gap-1.5 text-[13px] font-bold text-red-500 mt-2 text-center leading-snug">
+          <ion-icon :icon="svg(mdiAlertCircleOutline)" class="text-base shrink-0" />
+          {{ nameError }}
+        </p>
       </div>
 
       <!-- Description Input -->
-      <div class="w-full bg-white/60 border-2 border-white rounded-[2.5rem] shadow-inner overflow-hidden px-6">
+      <div class="w-full bg-tertiary border border-primary/40 rounded-[1.5rem] shadow-sm overflow-hidden px-6">
         <ion-textarea
+          color="secondary"
           :value="editForm.description"
           @ionInput="editForm.description = ($event.target as any).value"
           placeholder="Add a short bio or description..."
           :maxlength="80"
           :auto-grow="true"
           :rows="3"
-          class="font-bold text-black italic text-base"
+          class="font-medium text-black italic text-lg"
           @ionBlur="onBlur"
         />
       </div>
@@ -83,9 +92,13 @@ const editForm = reactive({
   description: user.value?.description || ''
 })
 
-const hasNameChanged = computed(
-  () => editForm.name.trim() !== (user.value?.name || '')
-)
+// Live, human-readable reason the name can't be saved (empty on valid).
+const nameError = computed(() => {
+  const n = editForm.name.trim()
+  if (!n) return "Your name can't be empty."
+  if (n.length < 4) return 'Name needs at least 4 characters.'
+  return ''
+})
 
 function saveProfile() {
   if (!user.value) return

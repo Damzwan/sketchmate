@@ -1,14 +1,15 @@
 <template>
-  <div class="w-full h-full flex-col flex justify-center">
-    <img :src="img" alt="No messages" class="md:w-[30%] max-w-[600px] w-[70%] mx-auto" />
-    <div class="w-full flex flex-col justify-center items-center pt-3">
-      <h1 class="text-2xl font-bold">{{ title }}</h1>
-      <p class="px-5 text-center text-lg">{{ subtitle }}</p>
-      <ion-button color="secondary" :router-link="btnLink" shape="round" size="large"
-      >{{ btnText }}
-      </ion-button
-      >
+  <div class="w-full min-h-full flex flex-col items-center text-center px-8 pt-[10vh] gap-5 cabin-sketch-regular">
+    <img :src="img" alt="No messages" class="w-[78%] max-w-[340px] md:w-[38%] mx-auto" />
+
+    <div class="flex flex-col items-center gap-1.5">
+      <h1 class="text-3xl md:text-2xl font-bold text-black leading-tight">{{ title }}</h1>
+      <p class="text-lg md:text-base text-black/60 leading-snug max-w-xs">{{ subtitle }}</p>
     </div>
+
+    <ion-button color="secondary" :router-link="btnLink" shape="round" size="large" class="m-0">
+      {{ btnText }}
+    </ion-button>
   </div>
 </template>
 

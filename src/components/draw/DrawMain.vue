@@ -122,8 +122,8 @@ onMounted(() => {
 			canvasUrl: canvasUrl.value,
 		}).then(async () => {
 			if (drawTogether.value) {
-				const { openMenu } = useMenuStore();
-				openMenu(Menu.DrawRoomMenu);
+				canvasReady.value = true;
+				maybeOpenRoomMenu();
 			} else {
 				await socketLoggedInPromise;
 
@@ -134,6 +134,19 @@ onMounted(() => {
 		});
 	});
 });
+
+// The DrawRoomMenu sheet is heavy; opening it *during* the page-push animation
+// (and the canvas boot) stutters. Present it once, a beat after the canvas is
+// ready, so the push transition has settled first.
+const canvasReady = ref(false);
+let roomMenuOpened = false;
+
+function maybeOpenRoomMenu() {
+	if (roomMenuOpened || !drawTogether.value || !canvasReady.value) return;
+	roomMenuOpened = true;
+	const { openMenu } = useMenuStore();
+	setTimeout(() => openMenu(Menu.DrawRoomMenu), 350);
+}
 
 onUnmounted(() => {});
 </script>

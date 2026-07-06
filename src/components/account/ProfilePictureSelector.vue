@@ -1,14 +1,15 @@
 <template>
   <div class="relative w-32 h-32 group/avatar mx-auto">
+    <!-- Round avatar -->
     <div
       @click="() => imgInput!.click()"
-      class="cursor-pointer w-full h-full rounded-[2.5rem] bg-primary/40 backdrop-blur-xl border-2 shadow-lg overflow-hidden transition-all duration-300 z-20 relative flex items-center justify-center group-hover/avatar:scale-105 group-hover/avatar:shadow-primary/20 group-hover/avatar:shadow-2xl"
-      :style="{ borderColor: customization?.borderColor || 'rgba(0,0,0,0.1)' }"
+      class="cursor-pointer w-full h-full rounded-full bg-primary/40 border-4 shadow-md overflow-hidden transition-transform duration-300 relative flex items-center justify-center active:scale-95 md:group-hover/avatar:scale-105"
+      :style="{ borderColor: customization?.borderColor || 'var(--ion-color-tertiary)' }"
     >
       <img
         alt="Profile picture"
         :src="img"
-        class="object-cover w-full h-full transition-transform duration-500 group-hover/avatar:scale-110"
+        class="object-cover w-full h-full transition-transform duration-500 md:group-hover/avatar:scale-110"
       />
     </div>
 
@@ -20,16 +21,23 @@
       @change="onImageChange"
     />
 
-    <div class="absolute -bottom-1 -right-1 w-10 h-10 bg-primary/80 backdrop-blur-md border border-primary/60 rounded-2xl shadow-lg flex items-center justify-center transition-all duration-300 z-40 group-hover/avatar:translate-x-1 group-hover/avatar:translate-y-1 pointer-events-none">
-      <ion-icon :icon="svg(mdiCameraPlus)" class="text-xl text-black" />
-    </div>
+    <!-- Change badge — sits on the ring, clearly says "tap to change" -->
+    <button
+      @click="() => imgInput!.click()"
+      class="absolute bottom-0 right-0 w-10 h-10 bg-secondary rounded-full shadow-md border-2 border-white flex items-center justify-center active:scale-90 transition-transform z-40"
+      aria-label="Change picture"
+    >
+      <ion-icon :icon="svg(mdiCamera)" class="text-xl text-white" />
+    </button>
 
+    <!-- Remove — high-contrast, fully inside the box so it never clips -->
     <button
       v-if="!img.includes('stock')"
-      class="absolute cursor-pointer -top-1 -right-1 w-8 h-8 bg-black/10 backdrop-blur-md border border-black/5 rounded-xl shadow-sm flex items-center justify-center hover:bg-red-500/20 active:scale-90 transition-all duration-300 z-50 group/delete group-hover/avatar:-translate-x-1 group-hover/avatar:-translate-y-1"
+      class="absolute top-0 right-0 w-8 h-8 bg-white rounded-full shadow-md border border-black/10 flex items-center justify-center active:scale-90 hover:bg-red-500 transition-colors z-50 group/delete"
       @click.stop="confirmDelete"
+      aria-label="Remove picture"
     >
-      <ion-icon :icon="svg(mdiClose)" class="text-lg text-black/60 group-hover/delete:text-red-600 transition-colors" />
+      <ion-icon :icon="svg(mdiClose)" class="text-lg text-red-500 group-hover/delete:text-white transition-colors" />
     </button>
   </div>
 
@@ -55,7 +63,7 @@ import { compressImg, getRandomStockAvatar, setAppColors, svg } from "@/helper/g
 import { photoSwiperColorConfig, settingsModalColorConfig } from "@/config/colors.config";
 import Cropper from "cropperjs";
 import "cropperjs/dist/cropper.css";
-import { mdiCameraPlus, mdiClose } from "@mdi/js";
+import { mdiCamera, mdiClose } from "@mdi/js";
 import { useAuthStore } from "@/store/auth.store";
 import { useSubscriptionStore } from "@/store/subscription.store"; // Adjust path if needed
 import { storeToRefs } from "pinia";
@@ -198,5 +206,4 @@ function deleteProfileImage() {
 <style scoped>
 @reference "@/theme/main.css";
 ion-modal { --background: #000000; --height: 100%; --width: 100%; }
-button.z-50:hover ~ .rounded-\[2\.5rem\] { background-color: transparent !important; }
 </style>

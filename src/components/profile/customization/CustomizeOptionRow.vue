@@ -1,6 +1,6 @@
 <template>
   <button
-    class="w-full bg-tertiary border border-primary/40 rounded-[1.5rem] p-3 flex flex-col text-left shadow-sm active:scale-[0.96] transition-all"
+    class="w-full cursor-pointer bg-tertiary border border-primary/40 rounded-[1.5rem] p-3 flex flex-col text-left shadow-sm active:scale-[0.96] hover:scale-[1.02] transition-all"
     @click="$emit('click')"
   >
     <div class="flex items-center gap-2 mb-2 w-full">

@@ -27,17 +27,17 @@
           </ion-button>
         </div>
 
-        <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
+        <h1 class="text-4xl text-secondary font-black tracking-tighter italic leading-none">
           Signature
         </h1>
-        <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-2">
+        <p class="font-bold uppercase tracking-widest mt-1.5">
           Leave your mark
         </p>
       </div>
 
       <div
         ref="padRef"
-        class="flex-1 w-full bg-white/60 border-2 border-white rounded-[2.5rem] touch-none relative overflow-hidden shadow-sm backdrop-blur-md cursor-crosshair group"
+        class="flex-1 w-full bg-tertiary border border-primary/40 rounded-[2.5rem] touch-none relative overflow-hidden shadow-sm cursor-crosshair group"
         style="min-height: 280px;"
         @pointerdown.prevent="startStroke"
         @pointermove.prevent="draw"

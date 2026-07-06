@@ -35,8 +35,8 @@
             {{ action.label }}
           </span>
 
-          <span v-if="action.id === 'draw_alone'" class="text-[8px] uppercase font-black tracking-widest px-2 py-0.5 bg-secondary text-white rounded-full shadow-sm mt-auto">Solo</span>
-          <span v-if="action.id === 'draw_together'" class="text-[8px] uppercase font-black tracking-widest px-2 py-0.5 bg-secondary text-white rounded-full shadow-sm mt-auto">Live Lobbies</span>
+          <span v-if="action.id === 'draw_alone'" class="text-[10px] uppercase font-black tracking-widest px-2 py-0.5 bg-secondary text-white rounded-full shadow-sm mt-auto">Solo</span>
+          <span v-if="action.id === 'draw_together'" class="text-[10px] uppercase font-black tracking-widest px-2 py-0.5 bg-secondary text-white rounded-full shadow-sm mt-auto">Live Lobbies</span>
         </div>
       </button>
     </div>

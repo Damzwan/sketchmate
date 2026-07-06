@@ -14,30 +14,32 @@
       />
 
       <div class="w-full mb-4">
-        <div class="flex justify-between items-center px-2 mb-1 text-[10px] font-black uppercase tracking-widest">
-          <span class="text-black/40">Artist Name</span>
+        <div class="flex justify-between items-center px-2 mb-1.5 text-[11px] font-bold uppercase tracking-widest">
+          <span class="text-black/80">Artist Name</span>
         </div>
         <ion-input
           type="text"
+          color="secondary"
           :counter="true"
           v-model="localName"
           placeholder="Artist Name"
           :minlength="4"
           :maxlength="40"
-          class="w-full text-center text-xl font-black text-black bg-white/70 border-2 border-white rounded-[1.5rem] px-4 mr-2"
+          class="w-full text-center text-2xl font-bold text-black bg-tertiary border border-primary/40 rounded-[1.5rem] px-4"
         />
       </div>
 
       <div class="w-full">
-        <span class="px-2 mb-1 block text-[10px] font-black uppercase tracking-widest text-black/40">Bio</span>
+        <span class="px-2 mb-1.5 block text-[11px] font-bold uppercase tracking-widest text-black/80">Bio</span>
         <ion-textarea
           v-model="localDesc"
+          color="secondary"
           placeholder="Add a short bio or description..."
           :counter="true"
           :maxlength="80"
           :auto-grow="true"
           :rows="3"
-          class="font-bold text-black italic text-base bg-white/70 border-2 border-white rounded-[1.5rem] px-4"
+          class="text-black italic text-lg bg-tertiary border border-primary/40 rounded-[1.5rem] px-4"
         />
       </div>
     </div>

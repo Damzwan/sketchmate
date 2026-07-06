@@ -24,17 +24,15 @@ defineProps<{
 
 <style scoped>
 .preview-wrapper {
-  /* Reserve scaled-down height so layout doesn't jump */
-  height: 330px;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  overflow: hidden;
 }
 
 .preview-scale {
-  transform: scale(0.7);
-  transform-origin: top center;
+  /* zoom (unlike transform: scale) collapses the layout box too, so the
+     preview height tracks the real card — no reserved gap when there's no
+     signature, and no clipping when there is one. */
+  zoom: 0.7;
   width: 100%;
   max-width: 400px;
   pointer-events: none;

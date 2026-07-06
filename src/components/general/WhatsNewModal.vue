@@ -115,7 +115,18 @@ watchEffect(() => {
 	if (isOpen.value || !user.value || route.path === `/${FRONTEND_ROUTES.login}`)
 		return;
 
-	const lastSeen = user.value.last_seen_version || "0.0.0";
+	const lastSeen = user.value.last_seen_version;
+
+	// Brand-new account (never seen any version): don't pile a changelog on top
+	// of onboarding — just mark them current so they see the NEXT release's note.
+	if (!lastSeen) {
+		user.value.last_seen_version = appVersion;
+		void updateUser({
+			_id: user.value._id,
+			last_seen_version: appVersion,
+		});
+		return;
+	}
 
 	if (compareVersions(appVersion, lastSeen) === 1) {
 		setTimeout(() => {

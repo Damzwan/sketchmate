@@ -2,30 +2,29 @@
   <ion-page class="slide-page">
     <SubPageBar title="Settings" />
 
-    <ion-content class="bg-background">
-      <div class="w-full max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-12 bot-pad-safe flex flex-col min-h-full">
+    <ion-content class="bg-background ">
+
+      <div
+        class="w-full max-w-3xl mx-auto px-4 sm:px-6 pt-4 pb-[calc(3rem+var(--ion-safe-area-bottom,32px))] flex flex-col min-h-full cabin-sketch-regular">
 
         <div class="grow space-y-6">
 
-          <section class="bg-white/50 border border-primary/20 rounded-[2rem] p-5 shadow-sm transition-all">
-            <h3 class="cabin-sketch-regular text-lg font-black text-black/40 px-1 mb-3 uppercase tracking-wider">
+          <section>
+            <h3 class="text-[11px] font-bold text-black/50 px-1 mb-2 uppercase tracking-widest">
               Account
             </h3>
             <AccountSettings />
           </section>
 
-          <section class="bg-white/50 border border-primary/20 rounded-[2rem] p-5 shadow-sm transition-all">
-            <h3 class="cabin-sketch-regular text-lg font-black text-black/40 px-1 mb-3 uppercase tracking-wider">
+          <section>
+            <h3 class="text-[11px] font-bold text-black/50 px-1 mb-2 uppercase tracking-widest">
               Preferences
             </h3>
             <SettingSwitches />
           </section>
 
-          <section
-            v-if="user?.subscriptions?.length"
-            class="animate-fade-in bg-white/50 border border-primary/20 rounded-[2rem] p-5 shadow-sm transition-all"
-          >
-            <h3 class="cabin-sketch-regular text-lg font-black text-black/40 px-1 mb-3 uppercase tracking-wider">
+          <section v-if="user?.subscriptions?.length" class="animate-fade-in">
+            <h3 class="text-[11px] font-bold text-black/50 px-1 mb-2 uppercase tracking-widest">
               Network Sync
             </h3>
             <SubscriptionManager
@@ -35,10 +34,13 @@
             />
           </section>
 
-        </div>
+          <section>
+            <h3 class="text-[11px] font-bold text-black/50 px-1 mb-2 uppercase tracking-widest">
+              More
+            </h3>
+            <SettingLinks />
+          </section>
 
-        <div class="mt-auto pt-10 flex justify-center">
-          <SettingLinks />
         </div>
       </div>
     </ion-content>
@@ -46,41 +48,41 @@
 </template>
 
 <script setup lang="ts">
-import { IonPage, IonContent } from "@ionic/vue";
-import { storeToRefs } from "pinia";
-import { useAuthStore } from "@/store/auth.store";
-import { useToast } from "@/service/toast.service";
+import { IonPage, IonContent } from '@ionic/vue'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/store/auth.store'
+import { useToast } from '@/service/toast.service'
 
-import SubPageBar from "@/components/general/SubPageBar.vue";
-import SettingLinks from "@/components/settings/SettingLinks.vue";
-import SubscriptionManager from "@/components/settings/SubscriptionManager.vue";
-import SettingSwitches from "@/components/settings/SettingSwitches.vue";
-import AccountSettings from "@/components/settings/AccountSettings.vue";
-import { ref } from "vue";
-import { NotificationSubscription } from "@/types/server.types";
-import { unsubscribe } from "@/service/api/user.api";
+import SubPageBar from '@/components/general/SubPageBar.vue'
+import SettingLinks from '@/components/settings/SettingLinks.vue'
+import SubscriptionManager from '@/components/settings/SubscriptionManager.vue'
+import SettingSwitches from '@/components/settings/SettingSwitches.vue'
+import AccountSettings from '@/components/settings/AccountSettings.vue'
+import { ref } from 'vue'
+import { NotificationSubscription } from '@/types/server.types'
+import { unsubscribe } from '@/service/api/user.api'
 
-const authStore = useAuthStore();
-const { user } = storeToRefs(authStore);
+const authStore = useAuthStore()
+const { user } = storeToRefs(authStore)
 
-const pendingFingerprint = ref<string | null>(null);
+const pendingFingerprint = ref<string | null>(null)
 
 async function handleDeleteSubscription(sub: NotificationSubscription) {
-	if (!user.value) return;
-	pendingFingerprint.value = sub.fingerprint;
-	try {
-		await unsubscribe({
-			user_id: user.value._id,
-			fingerprint: sub.fingerprint,
-		});
-		user.value.subscriptions = user.value.subscriptions.filter(
-			(s) => s.fingerprint !== sub.fingerprint,
-		);
-	} catch (e) {
-		useToast().toast("Could not remove device", { color: "danger" });
-	} finally {
-		pendingFingerprint.value = null;
-	}
+  if (!user.value) return
+  pendingFingerprint.value = sub.fingerprint
+  try {
+    await unsubscribe({
+      user_id: user.value._id,
+      fingerprint: sub.fingerprint
+    })
+    user.value.subscriptions = user.value.subscriptions.filter(
+      (s) => s.fingerprint !== sub.fingerprint
+    )
+  } catch (e) {
+    useToast().toast('Could not remove device', { color: 'danger' })
+  } finally {
+    pendingFingerprint.value = null
+  }
 }
 </script>
 

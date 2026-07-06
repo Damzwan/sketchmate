@@ -24,11 +24,11 @@
       v-else-if="posts.length === 0"
       class="text-center py-10 bg-tertiary rounded-[2.25rem] border border-dashed border-primary/60 shadow-sm px-4"
     >
-      <ion-icon :icon="svg(mdiBrush)" class="text-3xl block mb-2 opacity-40 animate-pulse mx-auto" />
-      <p class="cabin-sketch-regular text-base font-black text-black/50 tracking-tight">
+      <ion-icon :icon="svg(mdiBrush)" class="text-4xl block mb-3 text-secondary/60 mx-auto" />
+      <p class="cabin-sketch-regular text-lg font-bold text-black tracking-tight">
         You haven't shared any drawings yet.
       </p>
-      <p class="text-[9px] uppercase font-black tracking-widest text-black/30 mt-0.5">
+      <p class="text-[13px] text-black/60 mt-1">
         Publish your next sketch to the feed
       </p>
     </div>

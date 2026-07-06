@@ -66,13 +66,31 @@
 
       <div class="space-y-2.5 px-0.5">
         <div v-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby"
-             class="p-8 text-center bg-white/40 rounded-[2rem] border border-dashed border-primary/60">
-          <p class="cabin-sketch-regular text-base font-bold text-black/70 leading-snug">
+             class="p-5 bg-tertiary rounded-[2rem] border border-primary/40 shadow-sm cabin-sketch-regular">
+          <p class="text-lg font-bold text-black leading-snug text-center">
             Your drawing desk is clear!
           </p>
-          <p class="text-[9px] uppercase tracking-widest text-black/50 mt-0.5">
-            Send a canvas balloon to find an artist mate
+          <p class="text-[13px] text-black/60 mt-1 text-center leading-snug">
+            Find an artist mate to draw with:
           </p>
+
+          <div class="mt-4 space-y-2">
+            <button
+              v-for="cta in emptyCtas"
+              :key="cta.label"
+              class="w-full flex items-center gap-3 bg-white/70 border border-primary/40 rounded-[1.25rem] p-3 shadow-sm active:scale-[0.98] transition-transform text-left"
+              @click="cta.action"
+            >
+              <span class="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
+                <ion-icon :icon="svg(cta.icon)" class="text-xl text-secondary" />
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-[15px] font-bold text-black leading-tight">{{ cta.label }}</span>
+                <span class="block text-[12px] text-black/55 leading-tight">{{ cta.sub }}</span>
+              </span>
+              <ion-icon :icon="svg(mdiChevronRight)" class="text-lg text-black/30 shrink-0" />
+            </button>
+          </div>
         </div>
 
         <ConversationItem
@@ -127,9 +145,20 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { IonFab, IonFabButton, IonIcon } from "@ionic/vue";
-import { mdiChatPlusOutline, mdiHeart } from "@mdi/js";
+import { IonFab, IonFabButton, IonIcon, useIonRouter } from "@ionic/vue";
+import {
+	mdiAccountMultiplePlusOutline,
+	mdiBalloon,
+	mdiChatPlusOutline,
+	mdiChevronRight,
+	mdiHeart,
+	mdiPencilPlusOutline,
+} from "@mdi/js";
 import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { masterAnimation } from "@/helper/animation.helper";
 
 import LobbyConversationItem from "./LobbyConversationItem.vue";
 import ConversationItem from "./ConversationItem.vue";
@@ -224,6 +253,44 @@ const startChatWithFriend = (friend: any) => {
 	chatWidget.openChatWithUser(friend._id);
 	isCreatingChat.value = false;
 };
+
+// Empty-state CTAs — collapse the widget first so the target menu/route is
+// front-and-centre instead of buried under the chat panel.
+const router = useIonRouter();
+const { openMenu } = useMenuStore();
+
+const emptyCtas = [
+	{
+		icon: mdiPencilPlusOutline,
+		label: "Draw together",
+		sub: "Open a public lobby & meet artists",
+		action: () => {
+			chatWidget.closePanel();
+			router.push(
+				{ path: FRONTEND_ROUTES.draw, query: { together: "true" } },
+				masterAnimation,
+			);
+		},
+	},
+	{
+		icon: mdiAccountMultiplePlusOutline,
+		label: "Add a mate",
+		sub: "Share your code or scan a friend's",
+		action: () => {
+			chatWidget.closePanel();
+			openMenu(Menu.ConnectionMenu);
+		},
+	},
+	{
+		icon: mdiBalloon,
+		label: "Send a balloon",
+		sub: "Float a sketch to a random artist",
+		action: () => {
+			chatWidget.closePanel();
+			openMenu(Menu.BalloonMenu);
+		},
+	},
+];
 </script>
 
 <style scoped>

@@ -1,12 +1,17 @@
 <template>
   <div
+    ref="rootEl"
     class="relative cursor-pointer rounded-[2rem] overflow-hidden flex flex-col bg-tertiary border shadow-sm transition-all duration-300 md:hover:scale-[1.02] md:hover:shadow-md"
     :class="[
       owned ? 'border-emerald-400/60' : 'border-primary/40',
       highlight && 'highlight-pulse'
     ]"
   >
-    <slot name="preview" />
+    <!-- Heavy previews (lotties, animated effects, mini profile cards) only
+         mount while near the viewport, so a full grid of them doesn't animate
+         off-screen and tank the scroll. Placeholder keeps the layout steady. -->
+    <slot v-if="previewVisible" name="preview" />
+    <div v-else class="h-28 bg-[#3d1a14]/5 animate-pulse border-b border-[#3d1a14]/10"></div>
 
     <div class="px-3.5 py-3 flex flex-col flex-1 justify-between">
       <div>
@@ -46,12 +51,36 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { IonButton, IonIcon } from '@ionic/vue'
 import { mdiCheck } from '@mdi/js'
 import type { ShopSku } from '@/config/catalog.config'
 
 defineProps<{ sku: ShopSku; owned: boolean; highlight?: boolean }>()
 defineEmits(['purchase'])
+
+// Lazy-mount the preview slot based on proximity to the viewport. A generous
+// rootMargin pre-warms the next row so cards are ready before they scroll in,
+// and unmounts them again once well off-screen to stop their animations.
+const rootEl = ref<HTMLElement>()
+const previewVisible = ref(false)
+let observer: IntersectionObserver | undefined
+
+onMounted(() => {
+  if (typeof IntersectionObserver === 'undefined') {
+    previewVisible.value = true
+    return
+  }
+  observer = new IntersectionObserver(
+    ([entry]) => {
+      previewVisible.value = entry.isIntersecting
+    },
+    { rootMargin: '300px 0px' }
+  )
+  if (rootEl.value) observer.observe(rootEl.value)
+})
+
+onBeforeUnmount(() => observer?.disconnect())
 </script>
 
 <style scoped>

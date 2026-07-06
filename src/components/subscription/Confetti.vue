@@ -18,16 +18,18 @@
           @complete="onAnimationComplete"
         />
 
-        <div class="relative z-10 w-full max-w-sm bg-tertiary shadow-xl rounded-[2rem] border border-primary/40 p-8 text-center">
+        <div
+          class="relative z-10 w-full max-w-sm bg-tertiary shadow-xl rounded-[2rem] border border-primary/40 p-8 text-center">
 
-          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary/10 border border-primary/30 mb-5">
+          <div
+            class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary/10 border border-primary/30 mb-5">
             <ion-icon :icon="svg(mdiHeart)" class="text-4xl animate-pulse text-secondary" />
           </div>
 
           <h3 class="text-3xl cabin-sketch-regular font-black text-black mb-3 tracking-tight">
             You're amazing!
           </h3>
-          <p class="text-[15px] text-black/70 leading-relaxed">
+          <p class="text-[15px] text-black/80 cabin-sketch-regular">
             Thank you for supporting SketchMate.<br />
             This project can't exist without your help.
           </p>

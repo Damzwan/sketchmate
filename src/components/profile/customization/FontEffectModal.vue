@@ -1,36 +1,27 @@
 <template>
-  <ion-modal
+  <BaseSheetModal
     :is-open="isOpen"
-    @did-dismiss="handleDismiss"
-    :initial-breakpoint="1"
-    :breakpoints="[0, 1]"
-    handle-behavior="cycle"
-    class="liquid-customize-modal"
+    scrollable
+    title="Text Effect"
+    subtitle="Drama for your name"
+    @close="handleDismiss"
   >
-    <div class="h-full flex flex-col bot-pad-safe bg-background cabin-sketch-regular overflow-hidden">
-      <div class="shrink-0 pt-4 pb-2 text-center">
-        <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
-          Text Effect
-        </h1>
-        <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-2">
-          Drama for your name
-        </p>
-      </div>
-
-      <div class="shrink-0 px-4 mb-2">
+    <template #sub-header>
+      <div class="px-3">
         <PreviewProfileCard :user="user" :customization="previewCustomization" />
       </div>
+    </template>
 
-      <div class="flex-1 overflow-y-auto px-5 hide-scrollbar pb-4" @touchmove.stop>
+    <div data-content-scroll="true" @touchmove.stop class="pb-4">
         <div class="grid grid-cols-2 gap-3">
           <button
             v-for="e in FONT_EFFECTS"
             :key="e.value"
-            class="relative rounded-[2rem] border-2 bg-white/60 p-5 active:scale-95 transition-all overflow-hidden flex flex-col items-center justify-center min-h-[110px]"
+            class="relative rounded-[2rem] border-2 bg-tertiary p-5 active:scale-95 transition-all overflow-hidden flex flex-col items-center justify-center min-h-[110px]"
             :class="[
               localSelection === e.value
                 ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
-                : 'border-white shadow-sm',
+                : 'border-primary/40 shadow-sm',
               !isItemOwned(e.value) && 'locked-tile'
             ]"
             @click="localSelection = e.value"
@@ -67,9 +58,10 @@
             </div>
           </button>
         </div>
-      </div>
+    </div>
 
-      <div class="px-5 pt-3 pb-2 shrink-0 bg-background border-t border-black/5">
+    <template #footer>
+      <div class="px-1 pt-2 pb-1 bg-background">
         <ion-button
           v-if="selectionLocked"
           expand="block"
@@ -92,23 +84,15 @@
         >
           Apply Effect
         </ion-button>
-        <ion-button
-          fill="clear"
-          color="dark"
-          expand="block"
-          size="large"
-          @click="handleDismiss"
-        >
-          Cancel
-        </ion-button>
       </div>
-    </div>
-  </ion-modal>
+    </template>
+  </BaseSheetModal>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { IonButton, IonIcon, IonModal } from '@ionic/vue'
+import { IonButton, IonIcon } from '@ionic/vue'
+import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
 import { mdiCheck, mdiLock } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import {
@@ -178,19 +162,5 @@ const handleDismiss = () => emit('close')
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
 .locked-tile { opacity: 0.92; }
-
-ion-modal.liquid-customize-modal {
-  --border-radius: 2.5rem 2.5rem 0 0;
-  --height: 90%;
-  --background: var(--ion-color-tertiary);
-}
-ion-modal.liquid-customize-modal::part(handle) {
-  background: var(--ion-color-secondary);
-  opacity: 0.3;
-  width: 40px;
-}
 </style>

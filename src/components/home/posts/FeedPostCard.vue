@@ -41,12 +41,14 @@
             </div>
           </button>
 
-          <button @click="presentActionSheet" class="p-2 active:scale-90 transition-transform shrink-0 text-black/30 hover:text-black">
+          <button @click="presentActionSheet"
+                  class="p-2 active:scale-90 transition-transform shrink-0 text-black/30 hover:text-black">
             <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-xl" />
           </button>
         </div>
 
-        <p v-if="post.description" class="cabin-sketch-regular text-base font-bold text-black/80 line-clamp-2 mt-2 px-0.5 leading-snug">
+        <p v-if="post.description"
+           class="cabin-sketch-regular text-base font-bold text-black/80 line-clamp-2 mt-2 px-0.5 leading-snug">
           {{ post.description }}
         </p>
       </div>
@@ -223,208 +225,223 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { actionSheetController, alertController, IonIcon } from "@ionic/vue";
+import { computed, ref, watch } from 'vue'
+import { actionSheetController, alertController, IonIcon } from '@ionic/vue'
 import {
-	mdiChatOutline,
-	mdiDeleteOutline,
-	mdiDotsHorizontal,
-	mdiFlagVariantOutline,
-	mdiHeartOutline,
-	mdiPencilOutline,
-	mdiSendOutline,
-} from "@mdi/js";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { svg } from "@/helper/general.helper";
-import { FeedPost } from "@/types/server.types";
-import { reactionImages } from "@/config/post.config";
-import { useToast } from "@/service/toast.service";
-import { useMenuStore } from "@/store/menu.store";
-import { usePostStore } from "@/store/post.store";
-import router from "@/router";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { Menu } from "@/draw/types/draw.types";
-import { useModerationStore } from "@/store/moderation.store";
+  mdiChatOutline,
+  mdiDeleteOutline,
+  mdiDotsHorizontal,
+  mdiFlagVariantOutline,
+  mdiHeartOutline,
+  mdiPencilOutline,
+  mdiSendOutline
+} from '@mdi/js'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { svg } from '@/helper/general.helper'
+import { FeedPost } from '@/types/server.types'
+import { reactionImages } from '@/config/post.config'
+import { useToast } from '@/service/toast.service'
+import { useMenuStore } from '@/store/menu.store'
+import { usePostStore } from '@/store/post.store'
+import router from '@/router'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { useUserContextSheet } from '@/composables/profile/useUserContextSheet'
+import { Menu } from '@/draw/types/draw.types'
+import { useModerationStore } from '@/store/moderation.store'
 
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import UserAvatar from '@/components/profile/customization/UserAvatar.vue'
 import {
-	hydrateCustomization,
-	resolveTheme,
-	resolveFontFamily,
-	resolveFontEffectClass,
-	resolveTitle,
-	calculateSignatureStroke,
-} from "@/config/profile_options.config";
-import { useShareService } from "@/draw/store/useShareService.store";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+  hydrateCustomization,
+  resolveTheme,
+  resolveFontFamily,
+  resolveFontEffectClass,
+  resolveTitle,
+  calculateSignatureStroke
+} from '@/config/profile_options.config'
+import { useShareService } from '@/draw/store/useShareService.store'
+import { mixpanelEvents, trackEvent } from '@/service/mixpanel'
 
-dayjs.extend(relativeTime);
+dayjs.extend(relativeTime)
 
-const props = defineProps<{ post: FeedPost; isMine: boolean }>();
+const props = defineProps<{ post: FeedPost; isMine: boolean }>()
 const emit = defineEmits([
-	"open-comments",
-	"open-reaction-popover",
-	"delete-post",
-]);
+  'open-comments',
+  'open-reaction-popover',
+  'delete-post'
+])
 
-const { openUserActions } = useUserContextSheet();
-const menuStore = useMenuStore();
-const postStore = usePostStore();
-const { toast } = useToast();
+const { openUserActions } = useUserContextSheet()
+const menuStore = useMenuStore()
+const postStore = usePostStore()
+const { toast } = useToast()
 
-const imageLoaded = ref(false);
-const activeAnim = ref<string | null>(null);
+const imageLoaded = ref(false)
+const activeAnim = ref<string | null>(null)
 
 const authorCustomization = computed(() =>
-	hydrateCustomization(props.post.author?.customization),
-);
-const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
+  hydrateCustomization(props.post.author?.customization)
+)
+const theme = computed(() => resolveTheme(authorCustomization.value.themeId))
 const resolvedFontFamily = computed(() =>
-	resolveFontFamily(authorCustomization.value.fontId),
-);
+  resolveFontFamily(authorCustomization.value.fontId)
+)
 const fontEffectClass = computed(() =>
-	resolveFontEffectClass(authorCustomization.value.fontEffectId),
-);
+  resolveFontEffectClass(authorCustomization.value.fontEffectId)
+)
 const displayTitle = computed(() =>
-	resolveTitle(authorCustomization.value.titleId),
-);
+  resolveTitle(authorCustomization.value.titleId)
+)
 const signatureStrokeWidth = computed(() =>
-	calculateSignatureStroke(authorCustomization.value.signatureViewBox),
-);
+  calculateSignatureStroke(authorCustomization.value.signatureViewBox)
+)
 
 const activeReactions = computed(() =>
-	Object.keys(props.post.reaction_counts || {}).filter(
-		(key) => props.post.reaction_counts[key] > 0,
-	),
-);
+  Object.keys(props.post.reaction_counts || {}).filter(
+    (key) => props.post.reaction_counts[key] > 0
+  )
+)
 
 const totalReactionCount = computed(() =>
-	Object.values(props.post.reaction_counts || {}).reduce(
-		(sum, count) => sum + count,
-		0,
-	),
-);
+  Object.values(props.post.reaction_counts || {}).reduce(
+    (sum, count) => sum + count,
+    0
+  )
+)
 
 // Up to two embedded comments to preview inline.
-const previewComments = computed(() => props.post.comments?.slice(0, 2) ?? []);
+const previewComments = computed(() => props.post.comments?.slice(0, 2) ?? [])
 
 // "View all" should only appear when there are comments beyond what's previewed,
 // i.e. genuinely hidden comments — never "View all 1 comments".
 const hasMoreComments = computed(
-	() => (props.post.comment_count ?? 0) > previewComments.value.length,
-);
+  () => (props.post.comment_count ?? 0) > previewComments.value.length
+)
 
 watch(
-	() => props.post.user_reaction,
-	(newVal, oldVal) => {
-		if (newVal && newVal !== oldVal) {
-			activeAnim.value = newVal;
-			setTimeout(() => {
-				activeAnim.value = null;
-			}, 1000);
-		}
-	},
-);
+  () => props.post.user_reaction,
+  (newVal, oldVal) => {
+    if (newVal && newVal !== oldVal) {
+      activeAnim.value = newVal
+      setTimeout(() => {
+        activeAnim.value = null
+      }, 1000)
+    }
+  }
+)
 
-const openUser = (userId: string) => openUserActions({ _id: userId });
-const shareService = useShareService();
+const openUser = (userId: string) => openUserActions({ _id: userId })
+const shareService = useShareService()
 
 const openShare = () => {
-	trackEvent(mixpanelEvents.postShareOpen, {
-		post_id: props.post._id,
-		author_id: props.post.author._id,
-		is_mine: props.isMine,
-	});
-	shareService.setActiveShareItem({ type: "post", data: props.post });
-	menuStore.openMenu(Menu.SharePostMenu);
-};
+  trackEvent(mixpanelEvents.postShareOpen, {
+    post_id: props.post._id,
+    author_id: props.post.author._id,
+    is_mine: props.isMine
+  })
+  shareService.setActiveShareItem({ type: 'post', data: props.post })
+  menuStore.openMenu(Menu.SharePostMenu)
+}
 
 const openComments = () => {
-	trackEvent(mixpanelEvents.postCommentsOpen, {
-		post_id: props.post._id,
-		author_id: props.post.author._id,
-		comment_count: props.post.comment_count ?? 0,
-	});
-	emit("open-comments", props.post);
-};
+  trackEvent(mixpanelEvents.postCommentsOpen, {
+    post_id: props.post._id,
+    author_id: props.post.author._id,
+    comment_count: props.post.comment_count ?? 0
+  })
+  emit('open-comments', props.post)
+}
 
 const remixPost = async () => {
-	const alert = await alertController.create({
-		header: "Start a remix?",
-		message:
-			"You'll leave this room and open a fresh canvas based on this layout.",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel" },
-			{
-				text: "Let's draw",
-				handler: () => {
-					trackEvent(mixpanelEvents.postRemix, {
-						post_id: props.post._id,
-						author_id: props.post.author._id,
-					});
-					setTimeout(() => {
-						router.push({
-							path: FRONTEND_ROUTES.draw,
-							query: { canvas_url: props.post.drawing_url, mode: "solo" },
-						});
-					}, 100);
-				},
-			},
-		],
-	});
-	await alert.present();
-};
+  const alert = await alertController.create({
+    header: 'Start a remix?',
+    message:
+      'You\'ll leave this room and open a fresh canvas with this drawing.',
+    cssClass: 'liquid-alert',
+    buttons: [
+      { text: 'Cancel', role: 'cancel' },
+      {
+        text: 'Let\'s draw',
+        handler: () => {
+          trackEvent(mixpanelEvents.postRemix, {
+            post_id: props.post._id,
+            author_id: props.post.author._id
+          })
+          setTimeout(() => {
+            router.push({
+              path: FRONTEND_ROUTES.draw,
+              query: { canvas_url: props.post.drawing_url, mode: 'solo' }
+            })
+          }, 100)
+        }
+      }
+    ]
+  })
+  await alert.present()
+}
 
 const handleDoubleTap = (e: MouseEvent | TouchEvent) => {
-	e.preventDefault();
-	emit("open-reaction-popover", { event: e, post: props.post });
-};
+  e.preventDefault()
+  emit('open-reaction-popover', { event: e, post: props.post })
+}
 
 const presentActionSheet = async () => {
-	const buttons: any[] = [
-		{
-			text: "Report Artwork",
-			role: "destructive",
-			icon: svg(mdiFlagVariantOutline),
-			handler: () => {
-				useModerationStore().openReport({
-					type: "post",
-					id: props.post._id,
-					label: `${props.post.author.name}'s post`,
-				});
-			},
-		},
-	];
-	if (props.isMine) {
-		buttons.unshift({
-			text: "Delete Post",
-			role: "destructive",
-			icon: svg(mdiDeleteOutline),
-			handler: () => emit("delete-post", props.post),
-		});
-	}
-	buttons.push({ text: "Cancel", role: "cancel" });
+  const buttons: any[] = [
+    {
+      text: 'Report Artwork',
+      role: 'destructive',
+      icon: svg(mdiFlagVariantOutline),
+      handler: () => {
+        useModerationStore().openReport({
+          type: 'post',
+          id: props.post._id,
+          label: `${props.post.author.name}'s post`
+        })
+      }
+    }
+  ]
+  if (props.isMine) {
+    buttons.unshift({
+      text: 'Delete Post',
+      role: 'destructive',
+      icon: svg(mdiDeleteOutline),
+      handler: () => emit('delete-post', props.post)
+    })
+  }
+  buttons.push({ text: 'Cancel', role: 'cancel' })
 
-	const actionSheet = await actionSheetController.create({
-		header: "Post Options",
-		cssClass: "liquid-action-sheet",
-		buttons,
-	});
-	await actionSheet.present();
-};
+  const actionSheet = await actionSheetController.create({
+    header: 'Post Options',
+    cssClass: 'liquid-action-sheet',
+    buttons
+  })
+  await actionSheet.present()
+}
 </script>
 
 <style scoped>
 @keyframes floatUpFade {
-  0% { opacity: 0; transform: scale(0.6) translateY(24px); }
-  15% { opacity: 1; transform: scale(1.1) translateY(0px); }
-  80% { opacity: 1; transform: scale(1) translateY(-25px); }
-  100% { opacity: 0; transform: scale(0.85) translateY(-45px); }
+  0% {
+    opacity: 0;
+    transform: scale(0.6) translateY(24px);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1.1) translateY(0px);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(1) translateY(-25px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.85) translateY(-45px);
+  }
 }
-.anim-float-up { animation: floatUpFade 0.9s cubic-bezier(0.175, 0.885, 0.32, 1.2) forwards; }
+
+.anim-float-up {
+  animation: floatUpFade 0.9s cubic-bezier(0.175, 0.885, 0.32, 1.2) forwards;
+}
 
 /* * Smooth Vignette: Uses your modern brand tertiary theme token background variables
  * to subtly dissolve card image parameters safely, removing letterbox borders.

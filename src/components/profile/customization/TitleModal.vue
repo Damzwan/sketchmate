@@ -2,18 +2,10 @@
   <BaseSheetModal
     :is-open="isOpen"
     scrollable
+    title="Artist Title"
+    subtitle="Earned, never bought"
     @close="handleDismiss"
   >
-    <template #header>
-      <div class="shrink-0 pt-0 mb-1 text-center">
-        <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
-          Artist Title
-        </h1>
-        <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-1">
-          Earned, never bought
-        </p>
-      </div>
-    </template>
 
     <div
       data-content-scroll="true"

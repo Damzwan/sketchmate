@@ -18,17 +18,19 @@
             <ion-icon :icon="chevronBackOutline" class="text-[26px] text-black" slot="icon-only" />
           </ion-button>
           <h2 class="relative text-[28px] font-black text-secondary italic tracking-tighter leading-none cabin-sketch-regular">
-            SketchMate Pro
+            {{ isPro ? 'Go Lifetime' : 'SketchMate Pro' }}
             <img :src="logo" alt="" class="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 w-9 h-9 drop-shadow-sm" />
           </h2>
         </div>
-        <p class="text-[16px] text-black/90 text-center mt-1.5">Unlock your canvas</p>
+        <p class="text-[16px] text-black/90 text-center mt-1.5">
+          {{ isPro ? 'Upgrade to lifetime access' : 'Unlock your canvas' }}
+        </p>
       </div>
 
       <div class="px-4 pt-4 pb-10 space-y-5">
 
-        <!-- ─── Pro card ─── -->
-        <div class="relative rounded-[2rem] border border-primary/40 bg-tertiary shadow-sm p-5">
+        <!-- ─── Pro card (hidden once already Pro — only Pro→Lifetime remains) ─── -->
+        <div v-if="!isPro" class="relative rounded-[2rem] border border-primary/40 bg-tertiary shadow-sm p-5">
           <!-- Title + cat share the top row so the cat reads as part of the card -->
           <div class="flex items-start justify-between gap-3">
             <h3 class="text-2xl font-black text-black tracking-tight leading-none cabin-sketch-regular pt-1">Pro</h3>
@@ -129,8 +131,8 @@
           </ion-button>
         </div>
 
-        <!-- ─── Comparison table ─── -->
-        <div>
+        <!-- ─── Comparison table (irrelevant once already Pro) ─── -->
+        <div v-if="!isPro">
           <h3 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">Pro vs Lifetime</h3>
           <div class="relative rounded-[1.5rem] border border-primary/40 bg-tertiary overflow-hidden">
             <!-- Featured column: one continuous rounded highlight behind the
@@ -181,8 +183,8 @@
           </div>
         </div>
 
-        <!-- ─── Get Pro → plan selection sheet (the only entry to the sheet) ─── -->
-        <ion-button expand="block" fill="outline" color="secondary" shape="round" size="large" class="m-0"
+        <!-- ─── Get Pro → plan selection sheet (only useful while Pro is an option) ─── -->
+        <ion-button v-if="!isPro" expand="block" fill="outline" color="secondary" shape="round" size="large" class="m-0"
                     @click="selectOpen = true">
           See all plans
         </ion-button>
@@ -294,6 +296,10 @@ const menuStore = useMenuStore()
 const subStore = useSubscriptionStore()
 const { isPaywallOpen } = storeToRefs(menuStore)
 
+// Already Pro → the only upgrade left is Lifetime. Hide every Pro-subscription
+// surface (card, comparison, monthly/yearly plans) so the flow is Pro → Lifetime.
+const isPro = computed(() => subStore.isPro)
+
 // ─── Static marketing content ────────────────────────────────────────────────
 const proBullets = [
   { label: 'All brushes', icon: mdiBrush },
@@ -371,7 +377,9 @@ async function loadPackages() {
 
 // Load once when the paywall opens.
 watch(isPaywallOpen, (open) => {
-  if (open && !monthly.value && !yearly.value && !lifetime.value) void loadPackages()
+  if (!open) return
+  if (isPro.value) selectedPlan.value = 'lifetime'
+  if (!monthly.value && !yearly.value && !lifetime.value) void loadPackages()
 })
 
 // ─── Purchasing ──────────────────────────────────────────────────────────────
@@ -396,7 +404,7 @@ const selectedPlan = ref<PlanId>('yearly')
 
 const planOptions = computed(() => {
   const out: { id: PlanId; title: string; sub?: string; price: string; badge?: string }[] = []
-  if (yearly.value)
+  if (yearly.value && !isPro.value)
     out.push({
       id: 'yearly',
       title: 'Yearly',
@@ -404,7 +412,7 @@ const planOptions = computed(() => {
       price: yearly.value.product.priceString,
       badge: yearlyDiscount.value ? `Save ${yearlyDiscount.value}%` : 'Best value'
     })
-  if (monthly.value)
+  if (monthly.value && !isPro.value)
     out.push({ id: 'monthly', title: 'Monthly', sub: 'Billed monthly', price: monthly.value.product.priceString })
   if (lifetime.value)
     out.push({

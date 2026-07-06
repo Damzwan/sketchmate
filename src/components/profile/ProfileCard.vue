@@ -15,28 +15,28 @@
         <button
           type="button"
           @click="$emit('go-settings')"
-          class="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-transform bg-transparent hover:bg-black/5"
+          class="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-all bg-white/25 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/45"
           aria-label="Settings"
         >
-          <ion-icon :icon="svg(mdiCog)" class="w-6 h-6" :style="{'color': theme.accentColor}" />
+          <ion-icon :icon="svg(mdiCog)" class="w-5 h-5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" :style="{'color': theme.accentColor}" />
         </button>
 
         <button
           type="button"
           @click="$emit('open-connection')"
-          class="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-transform bg-transparent hover:bg-black/5"
+          class="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-all bg-white/25 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/45"
           aria-label="Add Connection"
         >
-          <ion-icon :icon="svg(mdiAccountPlusOutline)" class="w-6 h-6" :style="{'color': theme.accentColor}" />
+          <ion-icon :icon="svg(mdiAccountPlusOutline)" class="w-5 h-5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" :style="{'color': theme.accentColor}" />
         </button>
 
         <button
           type="button"
           @click="$emit('go-customize')"
-          class="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-transform bg-transparent hover:bg-black/5"
+          class="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-all bg-white/25 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/45"
           aria-label="Customize"
         >
-          <ion-icon :icon="svg(mdiPalette)" class="w-6 h-6" :style="{'color': theme.accentColor}" />
+          <ion-icon :icon="svg(mdiPalette)" class="w-5 h-5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" :style="{'color': theme.accentColor}" />
         </button>
 
       </div>
@@ -88,7 +88,7 @@
             <ion-button
               expand="block"
               shape="round"
-              class="flex-1 m-0 text-sm font-black uppercase tracking-widest shadow-md transition-all duration-500"
+              class="flex-1 m-0 text-sm font-black uppercase tracking-widest transition-all duration-500"
               :style="{ '--background': theme.accentColor, '--color': '#ffffff' }"
               @click="$emit('add-friend')"
             >

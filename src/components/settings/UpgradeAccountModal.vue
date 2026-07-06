@@ -1,115 +1,118 @@
 <template>
-  <ion-modal ref="modal" trigger="openUpgradeAccountModal" class="liquid-upgrade-modal">
-    <div class="h-full flex flex-col p-5 bot-pad-safe bg-background overflow-y-auto hide-scrollbar relative">
+  <ion-modal ref="modal" :trigger="trigger" class="upgrade-account-modal">
+    <ion-content class="bg-background cabin-sketch-regular">
 
-      <!-- Custom Floating Header -->
-      <div class="flex items-center justify-between shrink-0 mb-2 z-10">
-        <button @click="modalController.dismiss()" class="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center active:scale-90 transition-transform">
-          <ion-icon :icon="svg(mdiArrowLeft)" class="text-xl text-black/70" />
-        </button>
-        <span class="text-xs uppercase tracking-widest opacity-40">Save Progress</span>
-        <div class="w-10"></div> <!-- Flex Spacer -->
+      <!-- Header (shop-style: safe-area top + mdi back button) -->
+      <div
+        class="sticky top-0 z-50 flex items-center gap-1 px-2 pb-3 bg-background"
+        :style="{ paddingTop: 'calc(8px + var(--ion-safe-area-top, 0px))' }"
+      >
+        <ion-button fill="clear" class="m-0 active:scale-90 transition-transform" @click="modalController.dismiss()">
+          <ion-icon :icon="svg(mdiChevronLeft)" class="text-[26px] text-black" slot="icon-only" />
+        </ion-button>
+        <h1 class="text-2xl font-light text-black leading-none">Save your progress</h1>
       </div>
 
-      <!-- Main Visuals -->
-      <div class="flex flex-col flex-grow items-center justify-center -mt-4 cabin-sketch-regular">
-        <img :src="connectImage" class="w-52 h-52 object-contain drop-shadow-xl mb-4 anim-float" alt="friends connect" />
-        <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none text-center mb-2">
-          Connect Account
-        </h1>
-        <p class="text-sm text-black/60 text-center max-w-[280px] leading-tight mb-8">
-          Link your guest profile to an email or Google to secure your artwork and progress.
+      <!-- Body -->
+      <div class="px-5 pb-8 bot-pad-safe flex flex-col items-center">
+        <img :src="connectImage" class="w-64 h-64 object-contain anim-float" alt="friends connect" />
+        <p class="text-base text-black text-center max-w-[300px] leading-snug mb-6">
+          Link your guest profile to an email or Google so your art and progress are never lost.
         </p>
 
-        <!-- Form Area -->
-        <form class="w-full max-w-[320px] flex flex-col gap-3" @keyup.enter="onEmailLoginSubmit">
+        <!-- Form -->
+        <form class="w-full max-w-[340px] flex flex-col gap-3" @keyup.enter="onEmailLoginSubmit">
 
-          <!-- Email Input -->
-          <div class="flex flex-col gap-1">
-            <ion-input
-              v-model="state.loginEmail"
-              @ionBlur="v$.loginEmail.$validate()"
-              type="email"
-              placeholder="sketcher@gmail.com"
-              class="liquid-input"
-              :class="{ 'error-input': v$.loginEmail.$errors.length }"
-            >
-              <ion-icon slot="start" :icon="svg(mdiEmailOutline)" class="text-xl text-black/40 mr-2" />
-            </ion-input>
-            <span v-if="v$.loginEmail.$errors.length" class="text-[11px] font-bold text-red-500 ml-2 uppercase tracking-wide">
-              {{ v$.loginEmail.$errors[0].$message }}
-            </span>
-          </div>
-
-          <!-- Password Input -->
-          <div class="flex flex-col gap-1">
-            <ion-input
-              v-model="state.password"
-              @ionBlur="v$.password.$validate()"
-              type="password"
-              placeholder="Password"
-              class="liquid-input"
-              :class="{ 'error-input': v$.password.$errors.length }"
-            >
-              <ion-icon slot="start" :icon="svg(mdiLockOutline)" class="text-xl text-black/40 mr-2" />
-              <ion-input-password-toggle slot="end" color="dark" />
-            </ion-input>
-            <span v-if="v$.password.$errors.length" class="text-[11px] font-bold text-red-500 ml-2 uppercase tracking-wide">
-              {{ v$.password.$errors[0].$message }}
-            </span>
-          </div>
-
-          <!-- Confirm Password Input -->
-          <div class="flex flex-col gap-1">
-            <ion-input
-              v-model="state.confirmPassword"
-              @ionBlur="v$.confirmPassword.$validate()"
-              type="password"
-              placeholder="Confirm Password"
-              class="liquid-input"
-              :class="{ 'error-input': v$.confirmPassword.$errors.length }"
-            >
-              <ion-icon slot="start" :icon="svg(mdiLockOutline)" class="text-xl text-black/40 mr-2" />
-              <ion-input-password-toggle slot="end" color="dark" />
-            </ion-input>
-            <span v-if="v$.confirmPassword.$errors.length" class="text-[11px] font-bold text-red-500 ml-2 uppercase tracking-wide">
-              {{ v$.confirmPassword.$errors[0].$message }}
-            </span>
-          </div>
-
-          <span v-if="loginErrorMsg" class="text-sm font-bold text-red-500 text-center mt-2">{{ loginErrorMsg }}</span>
-
-          <!-- Email Submit -->
-          <ion-button shape="round" color="secondary" class="h-14 font-black uppercase tracking-widest shadow-lg mt-2" @click="onEmailLoginSubmit">
-            Continue with Email
-            <ion-icon slot="end" :icon="svg(mdiSend)" v-if="!loginLoading" />
-            <ion-spinner name="crescent" slot="end" class="ml-2 text-white" v-else />
-          </ion-button>
-
-          <!-- Divider -->
-          <div class="relative flex items-center justify-center mt-4 mb-2">
-            <div class="absolute inset-0 flex items-center">
-              <div class="w-full border-t-2 border-black/5"></div>
+            <!-- Email -->
+            <div class="flex flex-col gap-1">
+              <ion-input
+                v-model="state.loginEmail"
+                @ionBlur="v$.loginEmail.$validate()"
+                fill="outline"
+                color="secondary"
+                type="email"
+                placeholder="sketcher@gmail.com"
+                :class="{ 'ion-invalid ion-touched': v$.loginEmail.$errors.length }"
+              >
+                <ion-icon slot="start" :icon="svg(mdiEmailOutline)" class="text-xl text-black/40" />
+              </ion-input>
+              <span v-if="v$.loginEmail.$errors.length" class="text-[11px] font-bold text-red-500 ml-2">
+                {{ v$.loginEmail.$errors[0].$message }}
+              </span>
             </div>
-            <span class="relative bg-background px-4 text-xs uppercase tracking-widest text-black/40">Or</span>
-          </div>
 
-          <!-- Google Submit -->
-          <ion-button fill="clear" color="dark" class="h-14 font-black uppercase tracking-widest border-2 border-black/10 rounded-full shadow-sm bg-white/50" @click="onGoogleLogin">
-            <ion-icon slot="start" :icon="svg(mdiGoogle)" />
-            <ion-spinner name="crescent" slot="end" color="secondary" v-if="googleloading" />
-            Continue With Google
-          </ion-button>
+            <!-- Password -->
+            <div class="flex flex-col gap-1">
+              <ion-input
+                v-model="state.password"
+                @ionBlur="v$.password.$validate()"
+                fill="outline"
+                color="secondary"
+                type="password"
+                placeholder="Password"
+                :class="{ 'ion-invalid ion-touched': v$.password.$errors.length }"
+              >
+                <ion-icon slot="start" :icon="svg(mdiLockOutline)" class="text-xl text-black/40" />
+                <ion-input-password-toggle slot="end" color="secondary" />
+              </ion-input>
+              <span v-if="v$.password.$errors.length" class="text-[11px] font-bold text-red-500 ml-2">
+                {{ v$.password.$errors[0].$message }}
+              </span>
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="flex flex-col gap-1">
+              <ion-input
+                v-model="state.confirmPassword"
+                @ionBlur="v$.confirmPassword.$validate()"
+                fill="outline"
+                color="secondary"
+                type="password"
+                placeholder="Confirm password"
+                :class="{ 'ion-invalid ion-touched': v$.confirmPassword.$errors.length }"
+              >
+                <ion-icon slot="start" :icon="svg(mdiLockOutline)" class="text-xl text-black/40" />
+                <ion-input-password-toggle slot="end" color="secondary" />
+              </ion-input>
+              <span v-if="v$.confirmPassword.$errors.length" class="text-[11px] font-bold text-red-500 ml-2">
+                {{ v$.confirmPassword.$errors[0].$message }}
+              </span>
+            </div>
+
+            <span v-if="loginErrorMsg" class="text-sm font-bold text-red-500 text-center mt-1">{{ loginErrorMsg }}</span>
+
+            <!-- Email Submit -->
+            <ion-button expand="block" shape="round" color="secondary" size="large" class="mt-2" @click="onEmailLoginSubmit">
+              Continue with email
+              <ion-icon slot="end" :icon="svg(mdiSend)" v-if="!loginLoading" />
+              <ion-spinner name="crescent" slot="end" class="ml-2 text-white" v-else />
+            </ion-button>
+
+            <!-- Divider -->
+            <div class="relative flex items-center justify-center my-1">
+              <div class="absolute inset-0 flex items-center">
+                <div class="w-full border-t border-black/10"></div>
+              </div>
+              <span class="relative bg-background px-3 text-[11px] uppercase tracking-widest text-black/40">Or</span>
+            </div>
+
+            <!-- Google Submit -->
+            <ion-button expand="block" fill="outline" shape="round" color="secondary" size="large" @click="onGoogleLogin">
+              <ion-icon slot="start" :icon="svg(mdiGoogle)" />
+              Continue with Google
+              <ion-spinner name="crescent" slot="end" color="secondary" v-if="googleloading" />
+            </ion-button>
 
         </form>
       </div>
-    </div>
+    </ion-content>
   </ion-modal>
 </template>
 
 <script setup lang="ts">
 import {
 	IonButton,
+	IonContent,
 	IonIcon,
 	IonInput,
 	IonInputPasswordToggle,
@@ -119,12 +122,21 @@ import {
 } from "@ionic/vue";
 import { svg } from "@/helper/general.helper";
 import {
-	mdiArrowLeft,
+	mdiChevronLeft,
 	mdiEmailOutline,
 	mdiGoogle,
 	mdiLockOutline,
 	mdiSend,
 } from "@mdi/js";
+
+withDefaults(
+	defineProps<{
+		trigger?: string;
+	}>(),
+	{
+		trigger: "openUpgradeAccountModal",
+	},
+);
 import { computed, reactive, ref } from "vue";
 import { email, minLength, required, sameAs } from "@vuelidate/validators";
 import { useVuelidate } from "@vuelidate/core";
@@ -232,36 +244,22 @@ async function onGoogleLogin() {
   scrollbar-width: none;
 }
 
-ion-modal.liquid-upgrade-modal {
-  --background: var(--ion-color-tertiary);
+ion-modal.upgrade-account-modal {
+  --background: var(--ion-color-background);
 }
 @media (min-width: 768px) {
-  ion-modal.liquid-upgrade-modal {
+  ion-modal.upgrade-account-modal {
     --border-radius: 2.5rem;
+    --width: 440px;
+    --height: 80%;
   }
 }
 
-/* Customizing the Ionic inputs to look like liquid sketch shapes */
-.liquid-input {
-  --background: rgba(255, 255, 255, 0.8);
-  --padding-start: 1rem;
-  --padding-end: 1rem;
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: rgba(0, 0, 0, 0.8);
-  min-height: 56px;
-  transition: all 0.3s ease;
-}
-
-.liquid-input.ion-focused {
-  border-color: var(--ion-color-secondary);
-  background: #ffffff;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-}
-
-.liquid-input.error-input {
-  border-color: rgba(239, 68, 68, 0.5);
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
+ion-input {
+  --border-radius: 1.25rem;
+  --padding-start: 0.9rem;
+  --padding-end: 0.9rem;
+  font-weight: 600;
 }
 
 @keyframes floatAnim {

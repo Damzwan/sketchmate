@@ -2,19 +2,12 @@
   <BaseSheetModal
     :is-open="isOpen"
     scrollable
+    title="Profile Effect"
+    subtitle="A little motion for your card"
     @close="handleDismiss"
   >
-    <template #header>
-      <div class="shrink-0 pt-0 mb-1 text-center">
-        <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
-          Profile Effect
-        </h1>
-        <p class="text-xs font-bold opacity-60 uppercase tracking-widest mt-1">
-          A little motion for your card
-        </p>
-      </div>
-
-      <div class="shrink-0 px-3 mb-2">
+    <template #sub-header>
+      <div class="px-3">
         <PreviewProfileCard :user="user" :customization="previewCustomization" />
       </div>
     </template>

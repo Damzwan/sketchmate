@@ -4,37 +4,49 @@
     :backdrop-dismiss="mode === 'edit'"
     @didDismiss="handleDismiss"
     @willPresent="handlePresent"
-    class="liquid-dob-modal"
+    class="sketch-modal"
   >
     <div class="flex flex-col p-5 bot-pad-safe bg-background cabin-sketch-regular overflow-hidden h-full">
 
       <!-- HEADER -->
-      <div class="shrink-0 pt-2 mb-4 text-center relative">
-        <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
-          {{ mode === 'edit' ? 'Update Birthday' : 'One Quick Thing' }}
+      <div class="shrink-0 pt-1 mb-4 flex items-center justify-between gap-3">
+        <h1 class="text-2xl text-black font-bold tracking-tight leading-none">
+          {{ mode === 'edit' ? 'Update birthday' : 'One quick thing' }}
         </h1>
 
+        <button
+          v-if="mode === 'edit'"
+          type="button"
+          @click="handleCancel"
+          :disabled="isSubmitting"
+          class="w-9 h-9 -mr-1 rounded-full flex items-center justify-center shrink-0 active:scale-90 transition-transform"
+          aria-label="Close"
+        >
+          <ion-icon :icon="svg(mdiClose)" class="text-2xl text-black/50" />
+        </button>
       </div>
 
       <!-- BODY -->
-      <div class="flex-1 overflow-y-auto px-1 space-y-5 hide-scrollbar pb-4 mt-2">
+      <div class="flex-1 overflow-y-auto px-1 space-y-4 hide-scrollbar pb-2">
 
         <!-- SKETCHMATE CUSTOM DATE PICKER -->
-        <div class="bg-white/70 border-2 border-white rounded-[2.5rem] shadow-inner p-6 flex flex-col items-center gap-4">
-          <span class="text-[10px] font-black uppercase tracking-widest text-black/70">Select Birthdate</span>
+        <div class="bg-tertiary border border-primary/40 rounded-[1.5rem] shadow-sm p-6 flex flex-col items-center gap-4">
+          <span class="text-[10px] font-bold uppercase tracking-widest text-black/50">Select birthdate</span>
           <SketchDatePicker v-model="computedDob" />
         </div>
 
         <!-- Community rules -->
-        <div v-if="mode === 'initial'" class="bg-white/70 border-2 border-white rounded-[2.5rem] shadow-inner p-6">
-          <p class="text-[10px] font-black uppercase tracking-widest text-black/70 mb-4 text-center">
+        <div v-if="mode === 'initial'" class="bg-tertiary border border-primary/40 rounded-[1.5rem] shadow-sm p-5">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-black/50 mb-3">
             Community rules
           </p>
-          <ul class="space-y-4">
+          <ul class="space-y-3">
             <li v-for="rule in WELCOME_RULES" :key="rule.title" class="flex gap-3 items-start">
-              <ion-icon :icon="svg(rule.icon)" class="shrink-0 text-xl text-secondary" />
-              <span class="text-black/70 text-[13px] leading-snug pt-0.5">
-                <strong class="text-black font-black italic">{{ rule.title }}</strong> — {{ rule.body }}
+              <div class="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
+                <ion-icon :icon="svg(rule.icon)" class="text-lg text-secondary" />
+              </div>
+              <span class="text-black/70 text-[13px] leading-snug pt-1">
+                <strong class="text-black font-bold">{{ rule.title }}</strong> — {{ rule.body }}
               </span>
             </li>
           </ul>
@@ -43,12 +55,12 @@
         <!-- Impact preview -->
         <div
           v-if="mode === 'edit' && willChangeAccess"
-          class="rounded-[2.5rem] p-5 text-sm font-bold leading-snug flex items-center gap-4 border-2 transition-all duration-300 shadow-inner"
+          class="rounded-[1.5rem] p-4 text-sm font-medium leading-snug flex items-center gap-3 border"
           :class="willUnlock
-            ? 'bg-emerald-50 border-emerald-100 text-emerald-900'
-            : 'bg-amber-50 border-amber-100 text-amber-900'"
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : 'bg-amber-50 border-amber-200 text-amber-900'"
         >
-          <div class="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0">
             <ion-icon :icon="svg(willUnlock ? mdiCreation : mdiSproutOutline)" class="text-2xl" :class="willUnlock ? 'text-emerald-600' : 'text-amber-600'" />
           </div>
           <p class="flex-1">
@@ -59,29 +71,17 @@
       </div>
 
       <!-- ACTION AREA / FOOTER -->
-      <div class="pt-4 pb-2 shrink-0 flex flex-col gap-2">
+      <div class="pt-4 mb-4 shrink-0">
         <ion-button
           expand="block"
           color="secondary"
           shape="round"
-          class="h-16 font-black uppercase m-0"
+          size="large"
           :disabled="!isValidDob || isSubmitting || (mode === 'edit' && computedDob === initialDob)"
           @click="handleConfirm"
         >
           <ion-spinner v-if="isSubmitting" name="dots" />
-          <span v-else>{{ mode === 'edit' ? 'Save Changes' : 'Continue' }}</span>
-        </ion-button>
-
-        <ion-button
-          v-if="mode === 'edit'"
-          fill="clear"
-          color="dark"
-          expand="block"
-          class="font-black uppercase tracking-widest text-xs opacity-80 mt-1"
-          :disabled="isSubmitting"
-          @click="handleCancel"
-        >
-          Cancel
+          <span v-else>{{ mode === 'edit' ? 'Save changes' : 'Continue' }}</span>
         </ion-button>
       </div>
 
@@ -94,6 +94,7 @@ import { IonButton, IonIcon, IonModal, IonSpinner } from "@ionic/vue";
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import {
+	mdiClose,
 	mdiCreation,
 	mdiHandshakeOutline,
 	mdiLockOutline,
@@ -205,23 +206,6 @@ async function handleConfirm() {
 </script>
 
 <style scoped>
-ion-modal.liquid-dob-modal {
-  --width: fit-content;
-  --min-width: 300px;
-  --max-width: 80%;
-  --height: fit-content;
-  --background: var(--ion-color-tertiary);
-  --border-radius: 2.5rem 2.5rem 2.5rem 2.5rem;
-  border-radius: 16px;
-  padding: 0;
-}
-
-ion-modal.liquid-dob-modal::part(handle) {
-  background: var(--ion-color-secondary);
-  opacity: 0.3;
-  width: 40px;
-}
-
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

@@ -7,6 +7,7 @@ import {
 import router from "@/router";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
+import { useChatStore } from "@/store/chat.store";
 import { Menu } from "@/draw/types/draw.types";
 import { EventBus } from "@/main";
 import { v4 as uuidv4 } from "uuid";
@@ -81,6 +82,7 @@ export function leaveRoom(skipEmit = false) {
 	isPublicLobby.value = false;
 	isLoadingCanvas.value = false;
 	lobbyChatMessages.value = [];
+	useChatStore().clearLobbyNotifications(); // <-- Kill lingering lobby toasts immediately
 	lastProcessedSequenceId.value = undefined; // <-- Reset time on leave
 
 	if (!skipEmit) socket!.emit("leave-room", { roomId: roomId.value });

@@ -512,6 +512,16 @@ export const useChatStore = defineStore("chat", () => {
 		notifications.value = notifications.value.filter((n) => n.tabId !== tabId);
 	}
 
+	function clearLobbyNotifications() {
+		notifications.value = notifications.value.filter((n) => {
+			if (n.tabId?.startsWith("lobby")) {
+				clearTimeout(n.timer);
+				return false;
+			}
+			return true;
+		});
+	}
+
 	// --- SOCKET HANDLERS (RELATIONSHIP LIFECYCLE) ---
 
 	function handleRequestAccepted(payload: {
@@ -780,6 +790,7 @@ export const useChatStore = defineStore("chat", () => {
 		switchToConversation,
 		addNotification,
 		removeNotification,
+		clearLobbyNotifications,
 		handleRequestAccepted,
 		handleRequestDeclined,
 		handleMateMatched,

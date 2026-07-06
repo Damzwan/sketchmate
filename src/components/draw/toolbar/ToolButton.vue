@@ -1,6 +1,6 @@
 <template>
   <button @click="$emit('click', $event)" :disabled="disabled"
-    class="relative flex items-center justify-center w-10 h-10 rounded-xl transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+    class="relative cursor-pointer flex items-center justify-center w-10 h-10 rounded-xl transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
     :class="[
       active ? 'bg-primary/80 shadow-sm' : '',
       customClass ? customClass : ' hover:bg-primary/20 cursor-pointer'

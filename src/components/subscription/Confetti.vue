@@ -7,17 +7,18 @@
         role="dialog"
         aria-modal="true"
       >
-        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
+        <div class="absolute inset-0 bg-black/25"></div>
 
         <DotLottieVue
           class="absolute pointer-events-none"
           style="width: 100vw; height: 100vh; max-width: 1200px; max-height: 1200px;"
           :src="confetti"
+          :loop="false"
           autoplay
           @complete="onAnimationComplete"
         />
 
-        <div class="relative z-10 w-full max-w-sm bg-tertiary/95 backdrop-blur-md shadow-xl rounded-[2rem] border border-primary/40 p-8 text-center">
+        <div class="relative z-10 w-full max-w-sm bg-tertiary shadow-xl rounded-[2rem] border border-primary/40 p-8 text-center">
 
           <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary/10 border border-primary/30 mb-5">
             <ion-icon :icon="svg(mdiHeart)" class="text-4xl animate-pulse text-secondary" />
@@ -38,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import { watch, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 import { IonIcon } from '@ionic/vue'
@@ -48,10 +50,21 @@ import { useSubscriptionStore } from '@/store/subscription.store'
 
 const { showConfetti } = storeToRefs(useSubscriptionStore())
 
-// Greatly simplified logic: rely on the component's native event
-const onAnimationComplete = () => {
+const hide = () => {
   showConfetti.value = false
 }
+
+// Prefer the lottie's own end event...
+const onAnimationComplete = () => hide()
+
+// ...but guarantee dismissal: the @complete event doesn't fire reliably (looping
+// asset / missed event), which left the overlay stuck. Auto-hide after a beat.
+let hideTimer: ReturnType<typeof setTimeout> | undefined
+watch(showConfetti, (visible) => {
+  clearTimeout(hideTimer)
+  if (visible) hideTimer = setTimeout(hide, 3500)
+})
+onUnmounted(() => clearTimeout(hideTimer))
 </script>
 
 <style scoped>

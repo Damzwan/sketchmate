@@ -20,6 +20,7 @@
     <ReportMenu/>
     <ShareToasts/>
     <Shop/>
+    <PaywallModal/>
     <OnlineUpgradeModal/>
   </ion-app>
 </template>
@@ -97,6 +98,10 @@ const ShareToasts = defineAsyncComponent(
 );
 
 const Shop = defineAsyncComponent(() => import("@/components/shop/Shop.vue"));
+
+const PaywallModal = defineAsyncComponent(
+	() => import("@/components/subscription/PaywallModal.vue"),
+);
 
 const ionRouter = useIonRouter();
 const { initIonRouter } = useAuthStore();

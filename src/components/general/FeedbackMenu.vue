@@ -43,7 +43,7 @@
           <p class="cabin-sketch-regular text-black">Chat with me on Discord</p>
         </ion-button>
 
-        <ion-button size="small" fill="clear" class="pt-3" @click="subscriptionStore.presentPaywall()"
+        <ion-button size="small" fill="clear" class="pt-3" @click="subscriptionStore.openPaywall()"
                     v-if="!isPro && isNative()">
           <ion-icon slot="start" :icon="svg(mdiGiftOffOutline)" class="text-black pr-2" />
           <p class="cabin-sketch-regular text-black">Donate</p>

@@ -30,61 +30,61 @@
 
         <!-- ─── Membership ─── -->
         <template v-if="ready">
-        <!-- Free: two compact tappable tiers -->
-        <div v-if="!subStore.isPro" class="grid grid-cols-2 gap-3">
-          <button
-            class="rounded-[1.25rem] px-4 py-3 text-left border border-primary/50 bg-tertiary active:scale-[0.98] transition-transform cursor-pointer md:hover:scale-[1.02]"
-            @click="subStore.presentPaywall()"
-          >
-            <h2 class="text-[18px] font-black text-black leading-none">Pro</h2>
-            <p class="text-[13px] font-bold text-secondary mt-1.5 leading-none">Unlock more</p>
-          </button>
-          <button
-            class="rounded-[1.25rem] px-4 py-3 text-left border-2 border-secondary bg-secondary/10 active:scale-[0.98] transition-transform cursor-pointer md:hover:scale-[1.02]"
-            @click="subStore.presentPaywall()"
-          >
-            <h2 class="text-[18px] font-black text-black leading-none">Lifetime</h2>
-            <p class="text-[13px] font-bold text-secondary mt-1.5 leading-none">Everything, forever</p>
-          </button>
-        </div>
+          <!-- Free: two compact tappable tiers -->
+          <div v-if="!subStore.isPro" class="grid grid-cols-2 gap-3">
+            <button
+              class="rounded-[1.25rem] px-4 py-3 text-left border border-primary/50 bg-tertiary active:scale-[0.98] transition-transform cursor-pointer md:hover:scale-[1.02]"
+              @click="subStore.openPaywall()"
+            >
+              <h2 class="text-[18px] font-black text-black leading-none">Pro</h2>
+              <p class="text-[13px] font-bold text-secondary mt-1.5 leading-none">Unlock more</p>
+            </button>
+            <button
+              class="rounded-[1.25rem] px-4 py-3 text-left border-2 border-secondary bg-secondary/10 active:scale-[0.98] transition-transform cursor-pointer md:hover:scale-[1.02]"
+              @click="subStore.openPaywall()"
+            >
+              <h2 class="text-[18px] font-black text-black leading-none">Lifetime</h2>
+              <p class="text-[13px] font-bold text-secondary mt-1.5 leading-none">Everything, forever</p>
+            </button>
+          </div>
 
-        <!-- Pro (not lifetime): upsell button + a distinct little manage card -->
-        <div v-else-if="!subStore.isLifetime" class="space-y-2">
-          <ion-button
-            expand="block"
-            color="secondary"
-            shape="round"
-            class="m-0 tracking-tight"
-            @click="subStore.presentPaywall()"
-          >
-            Go Lifetime, unlock everything
-            <ion-icon :icon="svg(mdiArrowRight)" slot="end" />
-          </ion-button>
-          <div class="rounded-xl px-3.5 py-1.5 border border-primary/40 flex items-center justify-between">
+          <!-- Pro (not lifetime): upsell button + a distinct little manage card -->
+          <div v-else-if="!subStore.isLifetime" class="space-y-2">
+            <ion-button
+              expand="block"
+              color="secondary"
+              shape="round"
+              class="m-0 tracking-tight"
+              @click="subStore.openPaywall()"
+            >
+              Go Lifetime, unlock everything
+              <ion-icon :icon="svg(mdiArrowRight)" slot="end" />
+            </ion-button>
+            <div class="rounded-xl px-3.5 py-1.5 border border-primary/40 flex items-center justify-between">
             <span class="text-[14px] text-black/80 flex items-center gap-1.5">
               <ion-icon :icon="svg(mdiCheckCircle)" class="text-emerald-500 text-base" />
               Pro is active
             </span>
-            <ion-button fill="clear" size="small" color="secondary" class="m-0"
-                        @click="subStore.manageSubscription()">
-              Manage
-            </ion-button>
+              <ion-button fill="clear" size="small" color="secondary" class="m-0"
+                          @click="subStore.manageSubscription()">
+                Manage
+              </ion-button>
+            </div>
           </div>
-        </div>
 
-        <!-- Lifetime: nothing to renew or cancel. Restore is the only useful
-             action (re-sync on a new device); no Customer Center maze. -->
-        <div v-else
-             class="rounded-xl px-3.5 py-1.5 border border-emerald-400/60 bg-emerald-50/50 flex items-center justify-between">
+          <!-- Lifetime: nothing to renew or cancel. Restore is the only useful
+               action (re-sync on a new device); no Customer Center maze. -->
+          <div v-else
+               class="rounded-xl px-3.5 py-1.5 border border-emerald-400/60 bg-emerald-50/50 flex items-center justify-between">
           <span class="text-[15px] font-black text-black flex items-center gap-1.5">
             <ion-icon :icon="svg(mdiCrown)" class="text-secondary text-lg" />
             Lifetime, all access
           </span>
-          <ion-button fill="clear" size="small" color="secondary" class="m-0"
-                      @click="subStore.restorePurchases()">
-            Restore
-          </ion-button>
-        </div>
+            <ion-button fill="clear" size="small" color="secondary" class="m-0"
+                        @click="subStore.restorePurchases()">
+              Restore
+            </ion-button>
+          </div>
 
         </template>
         <!-- Membership skeleton while sub/inventory stores load -->
@@ -95,13 +95,14 @@
 
         <!-- Loading skeleton -->
         <div v-if="!ready" class="grid grid-cols-2 gap-3.5">
-          <div v-for="i in 4" :key="i" class="h-44 bg-[#3d1a14]/5 rounded-[1.75rem] border-2 border-[#3d1a14]/5 animate-pulse"></div>
+          <div v-for="i in 4" :key="i"
+               class="h-44 bg-[#3d1a14]/5 rounded-[1.75rem] border-2 border-[#3d1a14]/5 animate-pulse"></div>
         </div>
 
         <template v-else>
           <!-- ─── New (hero highlights) ─── -->
           <section v-if="highlights.length">
-            <h2 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">New this season</h2>
+            <h2 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">New</h2>
             <div class="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory hide-scrollbar -mx-4 px-4">
               <ShopHero
                 v-for="item in highlights"
@@ -328,7 +329,7 @@ const activeCategory = ref<CategoryFilter>('all')
 // Fisher-Yates. 'all' shows a shuffled mix so the shelf feels browseable
 // instead of grouped in obvious category blocks. Shuffled ONCE per session so
 // the order is stable (doesn't jump when prices finish loading / user filters).
-const shuffle = <T,>(arr: T[]): T[] => {
+const shuffle = <T, >(arr: T[]): T[] => {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))

@@ -17,17 +17,17 @@
           @complete="onAnimationComplete"
         />
 
-        <div class="relative z-10 w-full max-w-sm bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-2xl rounded-3xl border border-gray-200/50 dark:border-gray-700/50 p-8 text-center ring-1 ring-black/5 transform transition-all">
+        <div class="relative z-10 w-full max-w-sm bg-tertiary/95 backdrop-blur-md shadow-xl rounded-[2rem] border border-primary/40 p-8 text-center">
 
-          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 mb-5">
-            <ion-icon :icon="svg(mdiHeart)" class="text-4xl animate-pulse text-red-500" />
+          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary/10 border border-primary/30 mb-5">
+            <ion-icon :icon="svg(mdiHeart)" class="text-4xl animate-pulse text-secondary" />
           </div>
 
-          <h3 class="text-3xl cabin-sketch-regular font-extrabold text-gray-900 dark:text-white mb-3 tracking-tight">
+          <h3 class="text-3xl cabin-sketch-regular font-black text-black mb-3 tracking-tight">
             You're amazing!
           </h3>
-          <p class="text-base font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
-            Thank you for supporting Sketchmate.<br />
+          <p class="text-[15px] text-black/70 leading-relaxed">
+            Thank you for supporting SketchMate.<br />
             This project can't exist without your help.
           </p>
 

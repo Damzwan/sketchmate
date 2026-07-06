@@ -556,8 +556,8 @@ export const HIGHLIGHT_IDS: string[] = [
   'world.ocean'
 ]
 
-/** Pro entitlement identifier in RevenueCat. Pro unlocks app features + most
- *  cosmetics, but NOT the categories in PRO_LOCKED_CATEGORIES. */
+/** Pro entitlement identifier in RevenueCat. Pro unlocks app features (quota,
+ *  etc.) plus the item categories in PRO_UNLOCKED_CATEGORIES. */
 export const PRO_ENTITLEMENT = 'SketchMate Pro'
 
 /** Lifetime entitlement — grants access to literally everything (every
@@ -565,11 +565,8 @@ export const PRO_ENTITLEMENT = 'SketchMate Pro'
 export const LIFETIME_ENTITLEMENT = 'Lifetime'
 export const LIFETIME_RC_PRODUCT = 'sm_pro_lifetime'
 
-/** Categories a normal Pro subscription does NOT unlock — these stay
- *  purchase-gated (or require Lifetime). Titles are never sub-unlocked at all
- *  and are handled separately (earned, not bought). */
-export const PRO_LOCKED_CATEGORIES: ItemCategory[] = [
-  'decoration',
-  'effect',
-  'world'
-]
+/** Item categories a normal Pro subscription unlocks. Everything NOT listed
+ *  stays purchase-gated (buy the single/bundle, or go Lifetime for all).
+ *  Pro currently unlocks brushes only. Titles are never sub-unlocked — they're
+ *  earned, handled separately. */
+export const PRO_UNLOCKED_CATEGORIES: ItemCategory[] = ['brush']

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="relative rounded-[2rem] overflow-hidden flex flex-col bg-tertiary border shadow-sm transition-all duration-300"
+    class="relative cursor-pointer rounded-[2rem] overflow-hidden flex flex-col bg-tertiary border shadow-sm transition-all duration-300 md:hover:scale-[1.02] md:hover:shadow-md"
     :class="[
       owned ? 'border-emerald-400/60' : 'border-primary/40',
       highlight && 'highlight-pulse'
@@ -11,14 +11,14 @@
     <div class="px-3.5 py-3 flex flex-col flex-1 justify-between">
       <div>
         <div class="flex items-baseline justify-between gap-1.5 mb-0.5">
-          <h3 class="text-[15px] font-black text-black truncate leading-none tracking-tight">
+          <h3 class="text-[16px] font-black text-black truncate leading-none tracking-tight">
             {{ sku.name }}
           </h3>
-          <span v-if="owned" class="text-[11px] font-black text-emerald-600 tracking-tight shrink-0">
+          <span v-if="owned" class="text-[12px] font-black text-emerald-600 tracking-tight shrink-0">
             Owned
           </span>
         </div>
-        <p class="text-[12px] text-black leading-tight mb-2 line-clamp-2 min-h-[28px]">
+        <p class="text-[13px] text-black leading-tight mb-2 line-clamp-2 min-h-[30px]">
           {{ sku.desc }}
         </p>
       </div>
@@ -36,7 +36,7 @@
       </ion-button>
       <div
         v-else
-        class="w-full py-1.5 rounded-full text-[12px] font-black tracking-tight bg-emerald-50 text-emerald-700 text-center select-none flex items-center justify-center gap-1"
+        class="w-full py-1.5 rounded-full text-[13px] font-black tracking-tight bg-emerald-50 text-emerald-700 text-center select-none flex items-center justify-center gap-1"
       >
         <ion-icon :icon="mdiCheck" class="text-sm" />
         Owned

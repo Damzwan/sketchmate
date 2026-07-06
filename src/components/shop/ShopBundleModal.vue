@@ -5,8 +5,8 @@
         <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none cabin-sketch-regular">
           {{ sku.name }}
         </h1>
-        <p class="text-[13px] text-black/60 mt-2 leading-snug">{{ sku.desc }}</p>
-        <span class="inline-block mt-2 px-3 py-0.5 rounded-full bg-secondary/10 text-secondary text-[12px] font-black tracking-tight">
+        <p class="text-[14px] text-black/60 mt-2 leading-snug">{{ sku.desc }}</p>
+        <span class="inline-block mt-2 px-3 py-0.5 rounded-full bg-secondary/10 text-secondary text-[13px] font-black tracking-tight">
           {{ sku.grants.length }} items
         </span>
       </div>
@@ -22,8 +22,8 @@
           <ShopGrantPreview :item-id="item.id" :user-img="userImg" />
         </div>
         <div class="px-3 py-2">
-          <p class="text-[14px] font-black text-black leading-none truncate">{{ item.label }}</p>
-          <p class="text-[11px] text-black/70 tracking-tight mt-1 capitalize">
+          <p class="text-[15px] font-black text-black leading-none truncate">{{ item.label }}</p>
+          <p class="text-[12px] text-black/70 tracking-tight mt-1 capitalize">
             {{ item.category.replace('_', ' ') }}
           </p>
         </div>

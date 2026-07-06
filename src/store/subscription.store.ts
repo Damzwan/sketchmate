@@ -23,22 +23,38 @@ import {
 } from "@/config/catalog.config";
 import { useAuthStore } from "@/store/auth.store";
 
+/**
+ * Subscription + shop-purchase store.
+ *
+ * Owns the user's paid state (`isPro` / `isLifetime`), read from RevenueCat on
+ * native and from the user's `subscription_tier` on web. Also drives the two
+ * purchase flows: the RC paywall (Pro / Lifetime) and one-off shop SKUs.
+ * Inventory items live in the inventory store — this store only grants them
+ * optimistically and lets the webhook reconcile.
+ */
 export const useSubscriptionStore = defineStore("subscription", () => {
+	// ─── Paid state ──────────────────────────────────────────────────────────
 	const isPro = ref(false);
 	const isLifetime = ref(false);
 	const isLoading = ref(true);
+	// Toggled true after any successful purchase; drives the Confetti overlay.
 	const showConfetti = ref(false);
 
-	async function syncWithBackend(status: boolean) {
+	type Tier = "free" | "pro" | "lifetime";
+
+	async function syncWithBackend(tier: Tier) {
 		try {
-			const tier = status ? "pro" : "free";
 			await updateProfile({ subscription_tier: tier });
 		} catch (e) {
 			console.error("Failed to sync subscription tier to backend", e);
 		}
 	}
 
-	async function checkProStatus() {
+	function currentTier(): Tier {
+		return isLifetime.value ? "lifetime" : isPro.value ? "pro" : "free";
+	}
+
+	async function checkProStatus(force = false) {
 		if (!isNative()) {
 			isLoading.value = false;
 			const { waitUntilInitialized } = useAuthStore();
@@ -60,10 +76,11 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 				);
 			const active = lifetime || typeof ent[PRO_ENTITLEMENT] !== "undefined";
 
+			const changed = active !== isPro.value || lifetime !== isLifetime.value;
 			isLifetime.value = lifetime;
-			if (active !== isPro.value) {
-				isPro.value = active;
-				await syncWithBackend(active);
+			isPro.value = active;
+			if (changed || force) {
+				await syncWithBackend(currentTier());
 				const quotaStore = useQuotaStore();
 				void quotaStore.refresh(true);
 			}
@@ -98,10 +115,12 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 			showConfetti.value = true;
 			isPro.value = true;
 			useInventoryStore().grantOptimistic(["title.supporter"]);
-			await syncWithBackend(true);
-		} else {
-			await checkProStatus();
 		}
+
+		// ...then re-read customerInfo so Lifetime vs Pro is resolved correctly
+		// and the right tier is persisted to the backend (force sync: optimistic
+		// isPro above would otherwise mask the free→pro transition).
+		await checkProStatus(true);
 
 		return isSuccess;
 	}
@@ -155,8 +174,6 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 				return false;
 			}
 
-			// trackEvent(mixpanelEvents.shopPurchaseAttempt, { sku: skuId });
-
 			const { customerInfo } = await Purchases.purchasePackage({
 				aPackage: pkg,
 			});
@@ -185,7 +202,6 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 				void inventoryStore.refresh();
 			}, 3000);
 
-			// trackEvent(mixpanelEvents.shopPurchaseSuccess, { sku: skuId });
 			showConfetti.value = true;
 
 			const { toast } = useToast();
@@ -197,10 +213,6 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 				console.error("[purchaseSku] error", e);
 				const { toast } = useToast();
 				toast("Purchase failed. Please try again.", { color: "danger" });
-				// trackEvent(mixpanelEvents.shopPurchaseFailed, {
-				// 	sku: skuId,
-				// 	error: e.message,
-				// });
 			}
 			return false;
 		}
@@ -211,12 +223,41 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		isLifetime.value = false;
 	}
 
+	// Opens RC's Customer Center — only meaningful for the Pro subscription
+	// (cancel, view renewal). Lifetime uses restorePurchases() instead.
 	async function manageSubscription() {
 		try {
 			await RevenueCatUI.presentCustomerCenter();
 			await checkProStatus();
 		} catch (error) {
 			console.error("Error opening Customer Center", error);
+		}
+	}
+
+	// Re-syncs entitlements from the store (e.g. new device / reinstall). The one
+	// useful action for a Lifetime owner, without the Customer Center maze.
+	async function restorePurchases(): Promise<boolean> {
+		const { toast } = useToast();
+		if (!isNative()) {
+			toast("Restore is only available on the mobile app! 📱", {
+				color: "warning",
+			});
+			return false;
+		}
+		try {
+			presentPaywall()
+			return
+			await Purchases.restorePurchases();
+			await checkProStatus(true);
+			await useInventoryStore().refresh();
+			// Always confirm — an already-active Lifetime restores to no visible
+			// change, so without this the button feels dead.
+			toast("Purchases restored", { color: "success" });
+			return true;
+		} catch (error) {
+			console.error("Error restoring purchases", error);
+			toast("Could not restore purchases", { color: "danger" });
+			return false;
 		}
 	}
 
@@ -229,6 +270,7 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		presentPaywall,
 		purchaseSku,
 		manageSubscription,
+		restorePurchases,
 		showConfetti,
 	};
 });

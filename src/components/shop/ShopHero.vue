@@ -1,6 +1,6 @@
 <template>
   <div
-    class="snap-center shrink-0 w-[290px] relative rounded-[2rem] overflow-hidden border border-primary/40 bg-tertiary shadow-sm"
+    class="snap-center cursor-pointer shrink-0 w-[290px] relative rounded-[2rem] overflow-hidden border border-primary/40 bg-tertiary shadow-sm transition-all duration-200 md:hover:scale-[1.02] md:hover:shadow-md"
   >
     <!-- Live preview backdrop (muted slate — not a flashy neon gradient) -->
     <div class="h-40 relative overflow-hidden hero-stage">
@@ -12,18 +12,18 @@
         :preview-scale="0.55"
       />
 
-      <span class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-secondary text-white text-[11px] font-black tracking-tight">
+      <span class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-secondary text-white text-[12px] font-black tracking-tight">
         New
       </span>
 
       <div class="absolute inset-x-0 bottom-0 p-4 pt-10 bg-gradient-to-t from-black/75 to-transparent">
         <h3 class="text-white text-xl font-black leading-none tracking-tight cabin-sketch-regular">{{ sku.name }}</h3>
-        <p class="text-white/80 text-[12px] font-bold mt-1 leading-tight">{{ sku.desc }}</p>
+        <p class="text-white/80 text-[13px] font-bold mt-1 leading-tight">{{ sku.desc }}</p>
       </div>
     </div>
 
     <div class="px-4 py-2.5 flex items-center justify-between gap-2">
-      <span class="text-[13px] font-black tracking-tight text-black/70">{{ categoryLabel }}</span>
+      <span class="text-[14px] font-black tracking-tight text-black/70">{{ categoryLabel }}</span>
       <ion-button
         v-if="!owned"
         color="secondary"
@@ -34,7 +34,7 @@
       >
         {{ (sku as any).priceString || 'Unlock' }}
       </ion-button>
-      <span v-else class="text-[13px] font-black tracking-tight text-emerald-600 flex items-center gap-1">
+      <span v-else class="text-[14px] font-black tracking-tight text-emerald-600 flex items-center gap-1">
         <ion-icon :icon="mdiCheck" class="text-sm" /> Owned
       </span>
     </div>

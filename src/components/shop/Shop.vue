@@ -11,6 +11,17 @@
           <ion-icon :icon="chevronBackOutline" class="text-[26px] text-black" slot="icon-only" />
         </ion-button>
         <h1 class="text-2xl font-light text-black cabin-sketch-regular leading-none">Shop</h1>
+
+        <!-- Quiet, opt-in access to owned items — no pushy "collect them all"
+             shelf. Only appears once the user actually owns something. -->
+        <button
+          v-if="ready && ownedSkus.length"
+          class="ml-auto mr-1 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/40 bg-tertiary text-black text-[13px] font-black tracking-tight cursor-pointer active:scale-95 md:hover:brightness-95 transition"
+          @click="collectionOpen = true"
+        >
+          <ion-icon :icon="svg(mdiTreasureChestOutline)" class="text-base text-secondary" />
+          Collection
+        </button>
       </div>
 
       <div class="px-4 pt-4 pb-24 space-y-6">
@@ -18,21 +29,22 @@
         <ShopSupportNote />
 
         <!-- ─── Membership ─── -->
+        <template v-if="ready">
         <!-- Free: two compact tappable tiers -->
         <div v-if="!subStore.isPro" class="grid grid-cols-2 gap-3">
           <button
-            class="rounded-[1.25rem] px-4 py-3 text-left border border-primary/50 bg-tertiary active:scale-[0.98] transition-transform"
+            class="rounded-[1.25rem] px-4 py-3 text-left border border-primary/50 bg-tertiary active:scale-[0.98] transition-transform cursor-pointer md:hover:scale-[1.02]"
             @click="subStore.presentPaywall()"
           >
-            <h2 class="text-[16px] font-black text-black leading-none">Pro</h2>
-            <p class="text-[12px] font-bold text-secondary mt-1.5 leading-none">Unlock more</p>
+            <h2 class="text-[18px] font-black text-black leading-none">Pro</h2>
+            <p class="text-[13px] font-bold text-secondary mt-1.5 leading-none">Unlock more</p>
           </button>
           <button
-            class="rounded-[1.25rem] px-4 py-3 text-left border-2 border-secondary bg-secondary/10 active:scale-[0.98] transition-transform"
+            class="rounded-[1.25rem] px-4 py-3 text-left border-2 border-secondary bg-secondary/10 active:scale-[0.98] transition-transform cursor-pointer md:hover:scale-[1.02]"
             @click="subStore.presentPaywall()"
           >
-            <h2 class="text-[16px] font-black text-black leading-none">Lifetime</h2>
-            <p class="text-[12px] font-bold text-secondary mt-1.5 leading-none">Everything, forever</p>
+            <h2 class="text-[18px] font-black text-black leading-none">Lifetime</h2>
+            <p class="text-[13px] font-bold text-secondary mt-1.5 leading-none">Everything, forever</p>
           </button>
         </div>
 
@@ -49,7 +61,7 @@
             <ion-icon :icon="svg(mdiArrowRight)" slot="end" />
           </ion-button>
           <div class="rounded-xl px-3.5 py-1.5 border border-primary/40 flex items-center justify-between">
-            <span class="text-[13px] text-black/80 flex items-center gap-1.5">
+            <span class="text-[14px] text-black/80 flex items-center gap-1.5">
               <ion-icon :icon="svg(mdiCheckCircle)" class="text-emerald-500 text-base" />
               Pro is active
             </span>
@@ -60,28 +72,36 @@
           </div>
         </div>
 
-        <!-- Lifetime: nothing to sell, slim status + manage -->
+        <!-- Lifetime: nothing to renew or cancel. Restore is the only useful
+             action (re-sync on a new device); no Customer Center maze. -->
         <div v-else
              class="rounded-xl px-3.5 py-1.5 border border-emerald-400/60 bg-emerald-50/50 flex items-center justify-between">
-          <span class="text-[14px] font-black text-black flex items-center gap-1.5">
+          <span class="text-[15px] font-black text-black flex items-center gap-1.5">
             <ion-icon :icon="svg(mdiCrown)" class="text-secondary text-lg" />
             Lifetime, all access
           </span>
           <ion-button fill="clear" size="small" color="secondary" class="m-0"
-                      @click="subStore.manageSubscription()">
-            Manage
+                      @click="subStore.restorePurchases()">
+            Restore
           </ion-button>
         </div>
 
+        </template>
+        <!-- Membership skeleton while sub/inventory stores load -->
+        <div v-else class="grid grid-cols-2 gap-3">
+          <div class="h-[58px] rounded-[1.25rem] bg-[#3d1a14]/5 border border-[#3d1a14]/5 animate-pulse"></div>
+          <div class="h-[58px] rounded-[1.25rem] bg-[#3d1a14]/5 border border-[#3d1a14]/5 animate-pulse"></div>
+        </div>
+
         <!-- Loading skeleton -->
-        <div v-if="isLoading" class="grid grid-cols-2 gap-3.5">
-          <div v-for="i in 4" :key="i" class="h-44 bg-[#3d1a14]/5 rounded-[1.75rem] border-2 border-[#3d1a14]/5"></div>
+        <div v-if="!ready" class="grid grid-cols-2 gap-3.5">
+          <div v-for="i in 4" :key="i" class="h-44 bg-[#3d1a14]/5 rounded-[1.75rem] border-2 border-[#3d1a14]/5 animate-pulse"></div>
         </div>
 
         <template v-else>
           <!-- ─── New (hero highlights) ─── -->
           <section v-if="highlights.length">
-            <h2 class="text-[17px] font-black text-black tracking-tight mb-2 px-1">New this season</h2>
+            <h2 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">New this season</h2>
             <div class="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory hide-scrollbar -mx-4 px-4">
               <ShopHero
                 v-for="item in highlights"
@@ -96,8 +116,7 @@
 
           <!-- ─── Bundles ─── -->
           <section v-if="featuredPacks.length">
-            <h2 class="text-[17px] font-black text-black tracking-tight mb-1 px-1">Bundles</h2>
-            <p class="text-[13px] text-black/80 mb-2 px-1">A whole look for less. Tap one to peek inside.</p>
+            <h2 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">Bundles</h2>
             <div class="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory hide-scrollbar -mx-4 px-4">
               <ShopCardPack
                 v-for="pack in featuredPacks"
@@ -113,57 +132,49 @@
             </div>
           </section>
 
-          <!-- ─── Category nav ─── -->
-          <div class="sticky top-[54px] z-40 -mx-4 px-4 py-2.5 backdrop-blur-md border-y border-primary/40 navbar-bg">
-            <div class="flex gap-2 overflow-x-auto hide-scrollbar">
-              <button
-                v-for="cat in categories"
-                :key="cat.id"
-                class="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-black tracking-tight border transition-colors"
-                :class="
-                  activeCategory === cat.id
-                    ? 'bg-secondary text-white border-secondary'
-                    : 'bg-white text-black/70 border-primary/40'
-                "
-                @click="activeCategory = cat.id"
-              >
-                {{ cat.label }}
-              </button>
+          <!-- ─── Browse + category filter ─── -->
+          <!-- Nav + grid share ONE section so the filter bar stays stuck for the
+               whole scroll of the feed (a sticky element only sticks while its
+               containing block is on screen). -->
+          <section>
+            <h2 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">Browse</h2>
+            <div class="sticky top-[54px] z-40 -mx-4 px-4 py-2.5 backdrop-blur-md border-y border-primary/40 navbar-bg">
+              <div class="flex gap-2 overflow-x-auto hide-scrollbar">
+                <button
+                  v-for="cat in categories"
+                  :key="cat.id"
+                  class="shrink-0 px-4 py-1.5 rounded-full text-[14px] font-black tracking-tight border transition-colors cursor-pointer hover:brightness-95 active:scale-95"
+                  :class="
+                    activeCategory === cat.id
+                      ? 'bg-secondary text-white border-secondary'
+                      : 'bg-white text-black/70 border-primary/40'
+                  "
+                  @click="activeCategory = cat.id"
+                >
+                  {{ cat.label }}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <!-- ─── Active category grid ─── -->
-          <div class="min-h-[260px]">
-            <div class="grid grid-cols-2 gap-3">
-              <component
-                v-for="sku in activeItems"
-                :is="cardFor(activeCategory)"
-                :key="sku.id"
-                :sku="sku"
-                :user="user"
-                :owned="isItemOwned(sku.id)"
-                :data-shop-id="sku.id"
-                :highlight="highlightedId === sku.id"
-                @purchase="purchaseItem(sku)"
-              />
-            </div>
-          </div>
-
-          <!-- ─── Owned archive ─── -->
-          <section v-if="ownedSkus.length && !subStore.isPro">
-            <h2 class="text-[15px] font-black text-black tracking-tight mb-2 px-1">
-              Your collection · {{ ownedSkus.length }}
-            </h2>
-            <div class="flex flex-wrap gap-1.5">
-              <span
-                v-for="sku in ownedSkus"
-                :key="sku.id"
-                class="px-2.5 py-1 bg-white border border-primary/40 rounded-full text-[12px] text-black"
-              >
-                {{ sku.name }}
-              </span>
+            <!-- Filtered item feed. In 'all' the order is shuffled (see
+                 activeItems) so it reads as a mixed shelf, not category blocks. -->
+            <div class="min-h-[260px] mt-3">
+              <div class="grid grid-cols-2 gap-3">
+                <component
+                  v-for="sku in activeItems"
+                  :is="cardFor(sku.category)"
+                  :key="sku.id"
+                  :sku="sku"
+                  :user="user"
+                  :owned="isItemOwned(sku.id)"
+                  :data-shop-id="sku.id"
+                  :highlight="highlightedId === sku.id"
+                  @purchase="purchaseItem(sku)"
+                />
+              </div>
             </div>
           </section>
+
         </template>
       </div>
 
@@ -175,6 +186,38 @@
         @close="previewBundle = null"
         @purchase="previewBundle && purchaseItem(previewBundle)"
       />
+
+      <!-- ─── Collection sheet (owned items) ─── -->
+      <BaseSheetModal :is-open="collectionOpen" scrollable @close="collectionOpen = false">
+        <template #header>
+          <div class="shrink-0 text-center px-2">
+            <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none cabin-sketch-regular">
+              Your collection
+            </h1>
+            <p class="text-[14px] text-black/60 mt-2 leading-snug">
+              {{ ownedSkus.length }} {{ ownedSkus.length === 1 ? 'item' : 'items' }} you own
+            </p>
+          </div>
+        </template>
+
+        <div data-content-scroll="true" @touchmove.stop class="grid grid-cols-2 gap-3 pb-4">
+          <div
+            v-for="sku in ownedSkus"
+            :key="sku.id"
+            class="rounded-[1.5rem] overflow-hidden border border-primary/40 bg-tertiary shadow-sm"
+          >
+            <div class="h-24 border-b border-primary/30">
+              <ShopGrantPreview :item-id="sku.id" :user-img="user?.img" />
+            </div>
+            <div class="px-3 py-2">
+              <p class="text-[15px] font-black text-black leading-none truncate">{{ sku.name }}</p>
+              <p class="text-[12px] text-black/70 tracking-tight mt-1 capitalize">
+                {{ sku.category.replace('_', ' ') }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </BaseSheetModal>
     </ion-content>
   </ion-modal>
 </template>
@@ -184,7 +227,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { IonModal, IonContent, IonIcon, IonButton } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { Purchases } from '@revenuecat/purchases-capacitor'
-import { mdiArrowRight, mdiCheckCircle, mdiCrown } from '@mdi/js'
+import { mdiArrowRight, mdiCheckCircle, mdiCrown, mdiTreasureChestOutline } from '@mdi/js'
 import { chevronBackOutline } from 'ionicons/icons'
 import bigbossImage from '@/assets/bigboss.jpg'
 
@@ -212,6 +255,8 @@ import ShopCardEffect from './ShopCardEffect.vue'
 import ShopCardWorld from './ShopCardWorld.vue'
 import ShopCardFont from './ShopCardFont.vue'
 import ShopCardFontEffect from './ShopCardFontEffect.vue'
+import ShopGrantPreview from './ShopGrantPreview.vue'
+import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
 import { useAuthStore } from '@/store/auth.store'
 
 const menuStore = useMenuStore()
@@ -223,12 +268,18 @@ const { toast } = useToast()
 const { isShopOpen, shopScrollTarget } = storeToRefs(menuStore)
 const user = computed(() => userStore.user)
 const isLoading = ref(true)
+// Shop content waits on ALL of: RC prices, subscription status resolved, and
+// inventory hydrated — else it flashes upsell/unowned to an owner before load.
+const ready = computed(
+  () => !isLoading.value && !subStore.isLoading && inventoryStore.hydrated
+)
 const skusWithPrices = ref<
   Record<string, ShopSku & { priceString?: string; rcPackage?: any }>
 >({})
 const contentEl = ref<any>(null)
 const highlightedId = ref<string | null>(null)
 const previewBundle = ref<ShopSku | null>(null)
+const collectionOpen = ref(false)
 
 function withPrice(sku: ShopSku) {
   return skusWithPrices.value[sku.id] || sku
@@ -244,8 +295,12 @@ const highlights = computed(() =>
     .map(withPrice)
 )
 
-// Grouped by feel: card looks first, then text, then tools.
-const categories: { id: ItemCategory; label: string }[] = [
+// Browse-all by default, then filter down. 'all' shows every single item so
+// users can just scroll; the rest narrow to one category. Grouped by feel:
+// card looks first, then text, then tools.
+type CategoryFilter = ItemCategory | 'all'
+const categories: { id: CategoryFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
   { id: 'theme', label: 'Themes' },
   { id: 'world', label: 'Worlds' },
   { id: 'effect', label: 'Effects' },
@@ -266,10 +321,32 @@ const cardComponents: Partial<Record<ItemCategory, any>> = {
 }
 const cardFor = (cat: ItemCategory) => cardComponents[cat] || ShopCardTheme
 
-const activeCategory = ref<ItemCategory>('theme')
-const activeItems = computed(() =>
-  CATALOG.filter((s) => s.category === activeCategory.value).map(withPrice)
+// The single item feed. Bundles live in their own section, so this is singles
+// only — either all of them ('all') or one category.
+const activeCategory = ref<CategoryFilter>('all')
+
+// Fisher-Yates. 'all' shows a shuffled mix so the shelf feels browseable
+// instead of grouped in obvious category blocks. Shuffled ONCE per session so
+// the order is stable (doesn't jump when prices finish loading / user filters).
+const shuffle = <T,>(arr: T[]): T[] => {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+const shuffledSingleIds = shuffle(
+  CATALOG.filter((s) => s.kind === 'single').map((s) => s.id)
 )
+
+const activeItems = computed(() => {
+  if (activeCategory.value === 'all')
+    return shuffledSingleIds.map((id) => withPrice(CATALOG_BY_ID[id]))
+  return CATALOG.filter(
+    (s) => s.kind === 'single' && s.category === activeCategory.value
+  ).map(withPrice)
+})
 
 const ownedSkus = computed(() =>
   CATALOG.filter((s) => s.kind === 'single' && inventoryStore.owned.has(s.id))

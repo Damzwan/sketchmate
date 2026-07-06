@@ -240,9 +240,6 @@ export const useSubscriptionStore = defineStore('subscription', () => {
   async function restorePurchases(): Promise<boolean> {
     const { toast } = useToast()
 
-    openPaywall()
-    return false
-
     if (!isNative()) {
       toast('Restore is only available on the mobile app! 📱', {
         color: 'warning'

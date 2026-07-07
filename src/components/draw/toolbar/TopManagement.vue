@@ -51,33 +51,22 @@
 </template>
 
 <script setup lang="ts">
-import { storeToRefs } from "pinia";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useDrawUIStore } from "@/draw/store/drawUI.store";
-import ToolButton from "./ToolButton.vue";
-import {
-  mdiAccountGroupOutline,
-  mdiFullscreen,
-  mdiMapOutline,
-  mdiSend,
-} from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { Menu } from "@/draw/types/draw.types";
-import SendHub from "../send/SendHub.vue";
-import { useAuthStore } from "@/store/auth.store";
-import { useFriendStore } from "@/store/friend.store";
-import {
-  chatbubblesOutline,
-  megaphoneOutline,
-  bulbOutline,
-  peopleOutline,
-} from "ionicons/icons";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useChatStore } from "@/store/chat.store";
-import { useToast } from "@/service/toast.service";
-import { IonIcon, modalController } from "@ionic/vue";
-import ReportUserMenu from "@/components/moderation/ReportUserMenu.vue";
+import { storeToRefs } from 'pinia'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { useMenuStore } from '@/store/menu.store'
+import ToolButton from './ToolButton.vue'
+import { mdiAccountGroupOutline, mdiFullscreen, mdiSend } from '@mdi/js'
+import { svg } from '@/helper/general.helper'
+import { Menu } from '@/draw/types/draw.types'
+import SendHub from '../send/SendHub.vue'
+import { useAuthStore } from '@/store/auth.store'
+import { useFriendStore } from '@/store/friend.store'
+import { bulbOutline, chatbubblesOutline, megaphoneOutline, peopleOutline } from 'ionicons/icons'
+import { useChatWidgetStore } from '@/store/chatWidget.store'
+import { useChatStore } from '@/store/chat.store'
+import { useToast } from '@/service/toast.service'
+import { IonIcon, modalController } from '@ionic/vue'
+import ReportUserMenu from '@/components/moderation/ReportUserMenu.vue'
 
 defineEmits(["toggle-fullscreen"]);
 

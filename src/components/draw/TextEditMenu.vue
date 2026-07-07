@@ -1,92 +1,73 @@
 <template>
-  <ion-modal
+  <BaseSheetModal
     :is-open="textEditMenuOpen"
-    @will-present="willPresent"
-    @did-dismiss="handleDismiss"
-    :initial-breakpoint="1"
-    :breakpoints="[0, 1]"
-    handle-behavior="cycle"
-    class="liquid-title-modal"
-    @ionModalDidPresent="focusTextarea"
+    title="Edit Text"
+    @close="handleDismiss"
   >
-    <div class="h-full flex flex-col p-5 bot-pad-safe bg-background overflow-hidden">
+    <div class="space-y-6 animate-fade-in pt-1 pb-4">
 
-      <!-- Header -->
-      <div class="shrink-0 pt-2 mb-6 text-center relative">
-        <h1 class="text-3xl text-secondary font-black tracking-tighter italic leading-none">
-          Edit Text
-        </h1>
-      </div>
-
-      <!-- Textarea Area -->
-      <div class="flex-1 px-1 pb-4">
+      <div class="relative">
         <textarea
           ref="textInput"
           v-model="localText"
-          class="w-full h-full min-h-[200px] p-4 rounded-[2rem] border-2 border-primary/40 bg-white/80 shadow-inner text-lg font-medium resize-none focus:outline-none focus:border-secondary transition-colors"
+          class="w-full bg-white/50 border border-white rounded-[2rem] p-5 text-lg font-black text-black focus:outline-none focus:ring-2 focus:ring-secondary/50 transition-all min-h-[200px] resize-none"
           placeholder="Type your text here..."
         ></textarea>
       </div>
 
-      <!-- Action Area -->
-      <div class="pt-4 pb-2 shrink-0">
+      <div class="pt-2">
         <ion-button
           expand="block"
           color="secondary"
           shape="round"
-          class="h-16 font-black uppercase tracking-widest shadow-lg"
+          size="large"
           @click="confirmText"
         >
           Confirm
         </ion-button>
-        <ion-button
-          fill="clear"
-          color="dark"
-          expand="block"
-          class="font-black uppercase tracking-widest text-xs mt-2 opacity-60"
-          @click="handleDismiss"
-        >
-          Cancel
-        </ion-button>
       </div>
+
     </div>
-  </ion-modal>
+  </BaseSheetModal>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { IonModal, IonButton } from '@ionic/vue'
+import { ref, watch, nextTick } from 'vue'
+import { IonButton } from '@ionic/vue'
 import { useSelect } from '@/draw/store/tools/select.store'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { IText } from 'fabric'
 import { storeToRefs } from 'pinia'
 import { useMenuStore } from '@/store/menu.store'
-import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-
+import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
 
 const localText = ref('')
 let oldText = localText.value
 const textInput = ref<HTMLTextAreaElement | null>(null)
-const {unSelect} = useSelect()
-
+const { unSelect } = useSelect()
 
 const { selectedObjectsRef } = storeToRefs(useSelect())
 const { getCanvas } = useDrawStore()
-const {textEditMenuOpen} = storeToRefs(useMenuStore())
+const { textEditMenuOpen } = storeToRefs(useMenuStore())
 
-function willPresent(){
-  if ( selectedObjectsRef.value.length === 1) {
-    const textObj = selectedObjectsRef.value[0] as IText
-    localText.value = textObj.text || ''
-    oldText = textObj.text
-  }
-}
+// Replaces Ionic's will-present/did-present to handle focus and setup
+watch(textEditMenuOpen, async (isOpen) => {
+  if (isOpen) {
+    if (selectedObjectsRef.value.length === 1) {
+      const textObj = selectedObjectsRef.value[0] as IText
+      localText.value = textObj.text || ''
+      oldText = textObj.text
+    }
 
-const focusTextarea = () => {
-  if (textInput.value) {
-    textInput.value.focus()
+    // Allow DOM to update and modal to mount before focusing
+    await nextTick()
+    setTimeout(() => {
+      if (textInput.value) {
+        textInput.value.focus()
+      }
+    }, 150)
   }
-}
+})
 
 const confirmText = () => {
   if (oldText == localText.value) {
@@ -98,24 +79,23 @@ const confirmText = () => {
     const textObj = selectedObjectsRef.value[0] as IText
     const c = getCanvas()
 
-    if (localText.value === ''){
-        c.remove(textObj)
-        c.fire("objectsDeleted", { target: [textObj] });
-        unSelect()
-        textEditMenuOpen.value = false
-        return
+    if (localText.value === '') {
+      c.remove(textObj)
+      c.fire("objectsDeleted", { target: [textObj] })
+      unSelect()
+      textEditMenuOpen.value = false
+      return
     }
 
     textObj.set({ text: localText.value })
 
-    if (textObj.init){
+    if (textObj.init) {
       textObj.init = false
       c.add(textObj)
       c.setActiveObject(textObj)
       c.clearContext(c.getTopContext())
       textObj._renderControls(c.getTopContext())
-    }
-    else {
+    } else {
       c.clearContext(c.getTopContext())
       textObj._renderControls(c.getTopContext())
 
@@ -130,22 +110,30 @@ const confirmText = () => {
 
 const handleDismiss = () => {
   textEditMenuOpen.value = false
-  if (localText.value === ''){
+  if (localText.value === '') {
     unSelect()
   }
 }
 </script>
 
 <style scoped>
-ion-modal.liquid-title-modal {
-  --border-radius: 2.5rem 2.5rem 0 0;
-  --height: auto;
-  --max-height: 90vh;
-  --background: var(--ion-color-tertiary);
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
 }
-ion-modal.liquid-title-modal::part(handle) {
-  background: var(--ion-color-secondary);
-  opacity: 0.3;
-  width: 40px;
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+textarea {
+  /* Applying the custom sketch font seen in your other inputs */
+  font-family: 'cabin-sketch-regular', sans-serif;
 }
 </style>

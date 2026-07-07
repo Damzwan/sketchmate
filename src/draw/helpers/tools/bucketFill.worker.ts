@@ -109,6 +109,20 @@ self.onmessage = (e: MessageEvent<FloodFillRequest>) => {
   if (floodFill.modifiedPixelsCount === 0) return post({ ok: false })
 
   const modifiedArea = floodFill.getModifiedArea()
+
+  // EDGE-TOUCH GUARD (region/zoom independent)
+  // If the fill reaches the buffer border the enclosure extends past the
+  // working region (or leaked through a barrier) — either way it's unbounded.
+  // This is the reliable "too large" signal; the absolute-area check below is
+  // a fixed threshold that no longer fits the now-variable region size.
+  const touchesEdge =
+    modifiedArea.minX <= 0 ||
+    modifiedArea.minY <= 0 ||
+    modifiedArea.maxX >= width - 1 ||
+    modifiedArea.maxY >= height - 1
+
+  if (touchesEdge) return post({ ok: false, tooLarge: true })
+
   const worldArea =
     (modifiedArea.width / pxScale) * (modifiedArea.height / pxScale)
 

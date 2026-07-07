@@ -359,8 +359,6 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
 
   function init(c: Canvas) {
     activeCanvas = c
-    // Stop autosaving when joining a room. Signalled by the light room socket
-    // module so it need not import this heavy store. off+on keeps it single.
     EventBus.off('room:joining', stopAutosave)
     EventBus.on('room:joining', stopAutosave)
   }

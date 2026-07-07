@@ -11,12 +11,15 @@ import type {
 
 type Point = { x: number; y: number };
 
-// Fixed spatial constants ensuring deterministic performance & fidelity
-const PIXELS_PER_WORLD_UNIT = 1.25 // Locked base resolution ratio (1.0 - 1.5 is ideal)
-const MAX_WORLD_DIM = 2500 // Fixed-size virtual workspace centered around click
+// Spatial constants. Resolution adapts to the thinnest barrier so hairline
+// strokes still render as solid, multi-pixel barriers (see buildSmartOffscreenCanvas).
+const MAX_WORLD_DIM = 2500 // Largest workspace — thick strokes / big fills / no strokes
+const MIN_WORLD_DIM = 600 // Smallest workspace — hairline strokes get max resolution
 const RDP_TOLERANCE = 1.2 // Vector simplification tuning variable
 const MAX_WORLD_AREA = 2500000 // Maximum vector area threshold before safety guard triggers
-const MAX_OFFSCREEN_PIXELS = 1200
+const MAX_OFFSCREEN_PIXELS = 1200 // Fixed offscreen buffer edge (px); perf-bounded
+const MIN_BARRIER_PX = 3 // Barrier must render >= this many px to block the radius-2 flood
+const BASE_BLEED = 1.5 // Fill bleed (world units) tucked under surrounding strokes
 
 // ── Flood-fill worker (lazy singleton) ──────────────────────────────────────
 // The flood fill scan + contour tracing run off the main thread so big fills
@@ -59,51 +62,81 @@ function runFloodFill(
 }
 
 /**
+ * Thinnest stroke width (world units) among stroked objects. Fills/images
+ * (no stroke) are ignored. No strokes at all → MAX_WORLD_DIM, which drives the
+ * resolution math to base res + full region (the old fixed behaviour).
+ */
+function thinnestStroke(objs: FabricObject[]): number {
+  let min = Number.POSITIVE_INFINITY
+  for (const o of objs) {
+    if (o.stroke == null) continue
+    const w = o.strokeWidth
+    if (w != null && w > 0 && w < min) min = w
+  }
+  return Number.isFinite(min) ? Math.max(1, min) : MAX_WORLD_DIM
+}
+
+/**
  * Builds a smart virtual canvas anchored precisely on the user's click coordinate.
  * It functions perfectly even if the target objects are mostly off-screen.
+ *
+ * ADAPTIVE RESOLUTION
+ * The offscreen buffer is a fixed MAX_OFFSCREEN_PIXELS square (perf-bounded), so
+ * resolution and world-region size trade off. Pick pxScale to render even the
+ * thinnest barrier as a solid >= MIN_BARRIER_PX line — otherwise a sub-pixel
+ * stroke lets the radius-2 flood (see CustomFloodFill) leak and flood the world.
+ * Hairline strokes → high res + small region; thick / no strokes → base res +
+ * full region. No stroke bump needed: barriers are real at every scale.
  */
 function buildSmartOffscreenCanvas(c: Canvas, clickPoint: Point) {
   const { query, getZIndexMap } = useDrawObjectManager()
 
-  const expandLeft = clickPoint.x - MAX_WORLD_DIM / 2
-  const expandTop = clickPoint.y - MAX_WORLD_DIM / 2
-
-  // DYNAMIC RESOLUTION DEFENSE
-  // Start with ideal resolution, but crush it down if it exceeds our safe pixel budget
-  let currentPxScale = PIXELS_PER_WORLD_UNIT
-  let targetOffW = Math.floor(MAX_WORLD_DIM * currentPxScale)
-
-  if (targetOffW > MAX_OFFSCREEN_PIXELS) {
-    currentPxScale = MAX_OFFSCREEN_PIXELS / MAX_WORLD_DIM
-    targetOffW = MAX_OFFSCREEN_PIXELS
+  // Probe a small neighborhood around the click for the thinnest stroke — the
+  // barriers that actually enclose the fill are near the click. Sizing off the
+  // global thinnest stroke would let one distant hairline collapse the region
+  // and make fill coverage feel unpredictable.
+  const probeRect: Rect = {
+    x: clickPoint.x - MIN_WORLD_DIM / 2,
+    y: clickPoint.y - MIN_WORLD_DIM / 2,
+    w: MIN_WORLD_DIM,
+    h: MIN_WORLD_DIM
   }
+  const probeMinStroke = thinnestStroke(query(probeRect))
 
-  const offW = targetOffW
-  const offH = targetOffW // Square aspect ratio
+  const minPxScale = MAX_OFFSCREEN_PIXELS / MAX_WORLD_DIM // full region, base res
+  const maxPxScale = MAX_OFFSCREEN_PIXELS / MIN_WORLD_DIM // tightest region, max res
+  const pxScale = Math.min(
+    maxPxScale,
+    Math.max(minPxScale, MIN_BARRIER_PX / probeMinStroke)
+  )
+  const worldDim = MAX_OFFSCREEN_PIXELS / pxScale // in [MIN_WORLD_DIM, MAX_WORLD_DIM]
 
+  const expandLeft = clickPoint.x - worldDim / 2
+  const expandTop = clickPoint.y - worldDim / 2
+
+  const off = MAX_OFFSCREEN_PIXELS // buffer edge is always fixed
   const offscreen = document.createElement('canvas')
-  offscreen.width = offW
-  offscreen.height = offH
+  offscreen.width = off
+  offscreen.height = off
   const ctx = offscreen.getContext('2d', { alpha: false })!
 
   ctx.fillStyle = (c.backgroundColor as string) || '#ffffff'
-  ctx.fillRect(0, 0, offW, offH)
+  ctx.fillRect(0, 0, off, off)
 
-  // Apply the safe, dynamically calculated scale
   ctx.setTransform(
-    currentPxScale,
+    pxScale,
     0,
     0,
-    currentPxScale,
-    -expandLeft * currentPxScale,
-    -expandTop * currentPxScale
+    pxScale,
+    -expandLeft * pxScale,
+    -expandTop * pxScale
   )
 
   const renderRect: Rect = {
     x: expandLeft,
     y: expandTop,
-    w: MAX_WORLD_DIM,
-    h: MAX_WORLD_DIM
+    w: worldDim,
+    h: worldDim
   }
 
   const objectsToRender = query(renderRect)
@@ -113,14 +146,26 @@ function buildSmartOffscreenCanvas(c: Canvas, clickPoint: Point) {
     (a, b) => (zIndexMap.get(a) ?? 0) - (zIndexMap.get(b) ?? 0)
   )
 
+  // ZOOM-INDEPENDENT BARRIERS
+  // Fabric caches each object's bitmap at a resolution tied to the on-screen
+  // zoom. Zoomed out, that cache is low-res, so rendering it into the offscreen
+  // upscales a blurry, thinned barrier — the flood then leaks or stops short and
+  // the fill loses accuracy. Disable caching for this pass so objects draw their
+  // vectors directly at our controlled pxScale, crisp at any zoom. Restore after.
   for (const obj of objectsToRender) {
+    const cached = obj.objectCaching
+    obj.objectCaching = false
     obj.render(ctx)
+    obj.objectCaching = cached
   }
 
   return {
     offscreen,
     worldRect: renderRect,
-    pxScale: currentPxScale // Pass this down so mapping still aligns perfectly
+    pxScale,
+    // Thinnest barrier actually inside the final region — bounds the fill bleed
+    // so the under-tuck never pokes out the far side of a thin stroke.
+    minStrokeWorld: thinnestStroke(objectsToRender)
   }
 }
 
@@ -135,7 +180,8 @@ export async function bucketFill(
   FabricObject.NUM_FRACTION_DIGITS = 1
 
   // Generate localized virtual environment
-  const { offscreen, worldRect, pxScale } = buildSmartOffscreenCanvas(c, p)
+  const { offscreen, worldRect, pxScale, minStrokeWorld } =
+    buildSmartOffscreenCanvas(c, p)
 
   // Map absolute click onto localized pixels
   const fillX = Math.round((p.x - worldRect.x) * pxScale)
@@ -184,9 +230,10 @@ export async function bucketFill(
   const centerX = result.centerX!
   const centerY = result.centerY!
 
-  // Set the "bleed" constant purely in world units (e.g., 1.5 units wide).
-  // This keeps anti-aliased edge coverage perfectly identical regardless of zoom level.
-  const worldUnitBleedExpansion = 1.5
+  // Bleed the fill outward (world units) so its edge tucks under the surrounding
+  // strokes and no anti-aliased seam shows. Clamp to half the thinnest barrier so
+  // the tuck never pokes out the far side of a thin stroke.
+  const worldUnitBleedExpansion = Math.min(BASE_BLEED, minStrokeWorld / 2)
 
   return new BucketFillPath(svgPath, {
     fill: brushColor,

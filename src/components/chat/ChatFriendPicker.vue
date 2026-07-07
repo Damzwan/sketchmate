@@ -4,7 +4,7 @@
       <span class="text-xl font-normal cabin-sketch-regular text-black tracking-tight">New message</span>
       <button
         @click="$emit('cancel')"
-        class="text-[9px] font-black text-secondary uppercase tracking-widest active:opacity-50 md:hover:opacity-70"
+        class="text-[9px] cursor-pointer font-black text-secondary uppercase tracking-widest active:opacity-50 md:hover:opacity-70"
       >
         Cancel
       </button>

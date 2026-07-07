@@ -139,7 +139,7 @@
             <!-- React -->
             <button
               @click="(e) => $emit('open-reaction-popover', { event: e, post })"
-              class="flex items-center justify-center h-9 px-3 rounded-full border active:scale-95 transition-all"
+              class="flex items-center cursor-pointer hover:scale-105 justify-center h-9 px-3 rounded-full border active:scale-95 transition-all"
               :class="post.user_reaction
                 ? 'bg-secondary/10 border-secondary/30 text-secondary'
                 : 'bg-white border-black/10 text-black/80'"
@@ -158,7 +158,7 @@
             <button
               v-if="post.enable_comments"
               @click="openComments"
-              class="flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-white border border-black/10 text-black/80 active:scale-95 transition-all"
+              class="flex items-center gap-1.5 h-9 cursor-pointer hover:scale-105 px-3.5 rounded-full bg-white border border-black/10 text-black/80 active:scale-95 transition-all"
             >
               <ion-icon :icon="svg(mdiChatOutline)" class="text-lg" />
               <span v-if="post.comment_count" class="text-sm font-black tracking-tight">
@@ -169,7 +169,7 @@
             <!-- Share -->
             <button
               @click="openShare"
-              class="flex items-center justify-center h-9 w-9 rounded-full bg-white border border-black/10 text-black/80 active:scale-95 transition-all"
+              class="flex items-center justify-center cursor-pointer hover:scale-105 h-9 w-9 rounded-full bg-white border border-black/10 text-black/80 active:scale-95 transition-all"
               aria-label="Share"
             >
               <ion-icon :icon="svg(mdiSendOutline)" class="text-base -rotate-12" />
@@ -180,7 +180,7 @@
           <button
             v-if="post.enable_remix"
             @click="remixPost"
-            class="flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-black/10 text-black/70 hover:text-black active:scale-95 transition-all"
+            class="flex items-center gap-1.5 h-9 px-3 cursor-pointer hover:scale-105 rounded-full bg-white border border-black/10 text-black/70 hover:text-black active:scale-95 transition-all"
           >
             <ion-icon :icon="svg(mdiPencilOutline)" class="text-sm" />
             <span class="text-[11px] font-black uppercase tracking-wider">Remix</span>
@@ -226,9 +226,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { actionSheetController, alertController, IonIcon } from '@ionic/vue'
+import { actionSheetController, alertController, IonButton, IonIcon } from '@ionic/vue'
 import {
-  mdiChatOutline,
+  mdiChatOutline, mdiClose,
   mdiDeleteOutline,
   mdiDotsHorizontal,
   mdiFlagVariantOutline,

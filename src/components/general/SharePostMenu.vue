@@ -16,15 +16,16 @@
         <span class="text-2xl font-black text-secondary tracking-tighter italic leading-none">
           {{ headerTitle }}
         </span>
-        <button
-          @click="handleDismiss"
-          class="text-xs font-black text-black/80 uppercase tracking-widest active:opacity-50"
-        >
-          Cancel
-        </button>
       </div>
 
-      <div v-if="activeShareItem" class="flex items-center justify-between mb-4 bg-white/40 border border-white p-2 pr-3 rounded-2xl shrink-0 shadow-sm">
+      <div class="absolute top-2 right-2 z-20">
+        <ion-button @click="handleDismiss" fill="clear" color="dark" class="m-0">
+          <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-2xl" />
+        </ion-button>
+      </div>
+
+      <div v-if="activeShareItem"
+           class="flex items-center justify-between mb-4 bg-white/40 border border-white p-2 pr-3 rounded-2xl shrink-0 shadow-sm">
         <div class="flex items-center overflow-hidden flex-1">
           <div class="w-12 h-12 rounded-xl overflow-hidden bg-black/5 shrink-0">
             <img :src="previewThumbnail" class="w-full h-full object-cover" />
@@ -86,7 +87,8 @@
                     : 'bg-white/40 border-white shadow-sm active:scale-[0.97] cursor-pointer hover:bg-white/60'
             ]"
           >
-            <div class="relative shrink-0 w-12 h-12 rounded-full bg-white/80 shadow-inner overflow-hidden border border-black/5">
+            <div
+              class="relative shrink-0 w-12 h-12 rounded-full bg-white/80 shadow-inner overflow-hidden border border-black/5">
               <img v-if="friend.img" :src="friend.img" class="w-full h-full object-cover" />
             </div>
 
@@ -144,169 +146,191 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed } from 'vue'
 import {
-	IonModal,
-	IonSpinner,
-	IonIcon,
-	IonButton,
-	IonFab,
-	IonFabButton,
-} from "@ionic/vue";
-import { mdiSendOutline, mdiCheck, mdiShareVariant } from "@mdi/js";
-import { storeToRefs } from "pinia";
-import { svg, compareVersions } from "@/helper/general.helper";
-import { shareImg } from "@/helper/share.helper";
-import { useAuthStore } from "@/store/auth.store";
-import { useFriendStore } from "@/store/friend.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useToast } from "@/service/toast.service";
-import { Menu } from "@/draw/types/draw.types";
-import { useShareService } from "@/draw/store/useShareService.store";
+  IonModal,
+  IonSpinner,
+  IonIcon,
+  IonButton,
+  IonFab,
+  IonFabButton
+} from '@ionic/vue'
+import { mdiSendOutline, mdiCheck, mdiShareVariant, mdiClose } from '@mdi/js'
+import { storeToRefs } from 'pinia'
+import { svg, compareVersions } from '@/helper/general.helper'
+import { shareImg } from '@/helper/share.helper'
+import { useAuthStore } from '@/store/auth.store'
+import { useFriendStore } from '@/store/friend.store'
+import { useMenuStore } from '@/store/menu.store'
+import { useToast } from '@/service/toast.service'
+import { Menu } from '@/draw/types/draw.types'
+import { useShareService } from '@/draw/store/useShareService.store'
 
-const authStore = useAuthStore();
-const friendStore = useFriendStore();
-const menuStore = useMenuStore();
-const shareService = useShareService();
-const { toast } = useToast();
+const authStore = useAuthStore()
+const friendStore = useFriendStore()
+const menuStore = useMenuStore()
+const shareService = useShareService()
+const { toast } = useToast()
 
-const { allConnectedPartners, isFriendOnline } = storeToRefs(friendStore);
-const { sharePostMenuOpen } = storeToRefs(menuStore);
-const { activeShareItem } = storeToRefs(shareService);
+const { allConnectedPartners, isFriendOnline } = storeToRefs(friendStore)
+const { sharePostMenuOpen } = storeToRefs(menuStore)
+const { activeShareItem } = storeToRefs(shareService)
 
-const minChatVersion = "0.4.0";
-const loading = ref(false);
-const isSending = ref(false);
-const selectedFriendIds = ref<string[]>([]);
-const scrollContainer = ref<HTMLElement | null>(null);
-let matesFetchedThisSession = false;
+const minChatVersion = '0.4.0'
+const loading = ref(false)
+const isSending = ref(false)
+const selectedFriendIds = ref<string[]>([])
+const scrollContainer = ref<HTMLElement | null>(null)
+let matesFetchedThisSession = false
 
 // --- Preview adapters (post vs inbox) ---
 const headerTitle = computed(() =>
-	activeShareItem.value?.type === "inbox" ? "Share Drawing" : "Share Sketch",
-);
+  activeShareItem.value?.type === 'inbox' ? 'Share Drawing' : 'Share Sketch'
+)
 
 const previewThumbnail = computed(() => {
-	const item = activeShareItem.value;
-	if (!item) return "";
-	return activeShareItem.value?.type === "inbox"
-		? item.data.thumbnail
-		: item.data.thumbnail_url;
-});
+  const item = activeShareItem.value
+  if (!item) return ''
+  return activeShareItem.value?.type === 'inbox'
+    ? item.data.thumbnail
+    : item.data.thumbnail_url
+})
 
 const previewLabel = computed(() => {
-	const item = activeShareItem.value;
-	if (!item) return "";
-	if (item.type === "post") {
-		return `Sharing ${item.data.author.name}'s post...`;
-	}
-	// inbox item
-	const senderName = (item.data as any).sender_name ?? "this";
-	return `Forwarding ${senderName}'s drawing...`;
-});
+  const item = activeShareItem.value
+  if (!item) return ''
+  if (item.type === 'post') {
+    return `Sharing ${item.data.author.name}'s post...`
+  }
+  // inbox item
+  const senderName = (item.data as any).sender_name ?? 'this'
+  return `Forwarding ${senderName}'s drawing...`
+})
 
 // --- Mate list ---
 const onWillPresent = async () => {
-	selectedFriendIds.value = [];
+  selectedFriendIds.value = []
 
-	if (!matesFetchedThisSession && authStore.user?._id) {
-		matesFetchedThisSession = true;
-		if (allConnectedPartners.value.length === 0) loading.value = true;
-		try {
-			await friendStore.getNetworkList("mates", authStore.user._id, 1);
-		} catch (e) {
-			console.error("Failed to load mates", e);
-		} finally {
-			loading.value = false;
-		}
-	}
-};
+  if (!matesFetchedThisSession && authStore.user?._id) {
+    matesFetchedThisSession = true
+    if (allConnectedPartners.value.length === 0) loading.value = true
+    try {
+      await friendStore.getNetworkList('mates', authStore.user._id, 1)
+    } catch (e) {
+      console.error('Failed to load mates', e)
+    } finally {
+      loading.value = false
+    }
+  }
+}
 
-const friends = computed(() => allConnectedPartners.value);
+const friends = computed(() => allConnectedPartners.value)
 
 const isFriendDisabled = (friend: any) =>
-	!friend.last_seen_version ||
-	compareVersions(friend.last_seen_version, minChatVersion) === -1;
+  !friend.last_seen_version ||
+  compareVersions(friend.last_seen_version, minChatVersion) === -1
 
 const sortedFriends = computed(() => {
-	return [...friends.value].sort((a, b) => {
-		const aDisabled = isFriendDisabled(a);
-		const bDisabled = isFriendDisabled(b);
-		if (aDisabled !== bDisabled) return aDisabled ? 1 : -1;
-		const aOnline = isFriendOnline.value(a._id);
-		const bOnline = isFriendOnline.value(b._id);
-		if (aOnline !== bOnline) return aOnline ? -1 : 1;
-		return a.name.localeCompare(b.name);
-	});
-});
+  return [...friends.value].sort((a, b) => {
+    const aDisabled = isFriendDisabled(a)
+    const bDisabled = isFriendDisabled(b)
+    if (aDisabled !== bDisabled) return aDisabled ? 1 : -1
+    const aOnline = isFriendOnline.value(a._id)
+    const bOnline = isFriendOnline.value(b._id)
+    if (aOnline !== bOnline) return aOnline ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+})
 
 const toggleFriend = (friendId: string) => {
-	const index = selectedFriendIds.value.indexOf(friendId);
-	if (index > -1) selectedFriendIds.value.splice(index, 1);
-	else selectedFriendIds.value.push(friendId);
-};
+  const index = selectedFriendIds.value.indexOf(friendId)
+  if (index > -1) selectedFriendIds.value.splice(index, 1)
+  else selectedFriendIds.value.push(friendId)
+}
 
 // --- Send ---
 const sendToAllSelected = async () => {
-	if (
-		!activeShareItem.value ||
-		selectedFriendIds.value.length === 0 ||
-		isSending.value
-	)
-		return;
-	isSending.value = true;
+  if (
+    !activeShareItem.value ||
+    selectedFriendIds.value.length === 0 ||
+    isSending.value
+  )
+    return
+  isSending.value = true
 
-	try {
-		const { successCount } = await shareService.shareItemToMates(
-			activeShareItem.value,
-			selectedFriendIds.value,
-		);
+  try {
+    const { successCount } = await shareService.shareItemToMates(
+      activeShareItem.value,
+      selectedFriendIds.value
+    )
 
-		// Success (full or partial) surfaces via the ShareToasts card the service
-		// pushes — tapping it opens the chat. Only a total failure needs the bar.
-		if (successCount > 0) {
-			handleDismiss();
-		} else {
-			toast("Failed to share with selected mates", { color: "danger" });
-		}
-	} finally {
-		isSending.value = false;
-	}
-};
+    // Success (full or partial) surfaces via the ShareToasts card the service
+    // pushes — tapping it opens the chat. Only a total failure needs the bar.
+    if (successCount > 0) {
+      handleDismiss()
+    } else {
+      toast('Failed to share with selected mates', { color: 'danger' })
+    }
+  } finally {
+    isSending.value = false
+  }
+}
 
 // --- Secondary actions ---
 const handleSystemShare = () => {
-	const item = activeShareItem.value;
-	if (!item) return;
-	const imgUrl = (item.data as any).image_url || (item.data as any).image;
-	if (imgUrl) shareImg(imgUrl);
-};
+  const item = activeShareItem.value
+  if (!item) return
+  const imgUrl = (item.data as any).image_url || (item.data as any).image
+  if (imgUrl) shareImg(imgUrl)
+}
 
 const handleDismiss = () => {
-	selectedFriendIds.value = [];
-	menuStore.closeMenu(Menu.SharePostMenu);
-	setTimeout(() => shareService.setActiveShareItem(null), 300);
-};
+  selectedFriendIds.value = []
+  menuStore.closeMenu(Menu.SharePostMenu)
+  setTimeout(() => shareService.setActiveShareItem(null), 300)
+}
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-.overscroll-contain { overscroll-behavior: contain; }
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
 .scroll-mask {
   mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%);
 }
-.animate-slide-up { animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
+
+.animate-slide-up {
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 ion-modal.liquid-title-modal {
   --border-radius: 2.5rem 2.5rem 0 0;
   --background: var(--ion-color-tertiary);
   --height: 'auto'
 }
+
 ion-modal.liquid-title-modal::part(handle) {
   background: var(--ion-color-secondary);
   opacity: 0.3;

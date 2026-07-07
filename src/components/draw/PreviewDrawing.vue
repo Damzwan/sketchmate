@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col items-center justify-center w-full">
     <div
-      class="relative flex items-center justify-center rounded-2xl shadow-lg overflow-hidden"
+      class="relative cursor-pointer flex items-center justify-center rounded-2xl shadow-lg overflow-hidden"
       :style="{
     aspectRatio: newAspectRatio || props.aspectRatio || 1,
     width: `min(11rem, calc(11rem * ${newAspectRatio || props.aspectRatio || 1}))`

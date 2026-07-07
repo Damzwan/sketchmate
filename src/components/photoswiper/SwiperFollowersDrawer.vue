@@ -16,15 +16,22 @@
         </p>
       </div>
 
+      <div class="absolute top-2 right-2 z-20">
+        <ion-button @click="close" fill="clear" color="dark" class="m-0">
+          <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-2xl" />
+        </ion-button>
+      </div>
+
       <!-- List -->
       <div class="flex-1 overflow-y-auto px-3 py-2 hide-scrollbar">
         <button
           v-for="follower in followers"
           :key="follower"
           @click="handleTap(follower)"
-          class="w-full flex items-center px-3 py-3 rounded-2xl active:bg-black/5 transition-colors text-left"
+          class="w-full flex items-center px-3 py-3 rounded-2xl active:bg-black/5 transition-colors text-left cursor-pointer"
         >
-          <div class="h-[44px] w-[44px] rounded-2xl bg-white/60 border border-black/5 shadow-sm overflow-hidden shrink-0 flex items-center justify-center">
+          <div
+            class="h-[44px] w-[44px] rounded-2xl bg-white/60 border border-black/5 shadow-sm overflow-hidden shrink-0 flex items-center justify-center">
             <img
               v-if="resolveImg(follower)"
               :src="resolveImg(follower)"
@@ -44,7 +51,6 @@
           </div>
 
           <ion-icon
-            v-if="follower !== user._id"
             :icon="svg(mdiChevronRight)"
             class="text-xl text-black/30 shrink-0"
           />
@@ -55,54 +61,59 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonIcon } from "@ionic/vue";
-import { mdiChevronRight } from "@mdi/js";
-import { svg, senderImg, senderName } from "@/helper/general.helper";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { IonModal, IonIcon } from '@ionic/vue'
+import { mdiChevronRight, mdiClose } from '@mdi/js'
+import { svg, senderImg, senderName } from '@/helper/general.helper'
+import { useUserContextSheet } from '@/composables/profile/useUserContextSheet'
 
 const props = defineProps<{
-	followers: string[];
-	user: any;
-	open: boolean;
-	userLookup?: (userId: string) => any;
-}>();
+  followers: string[];
+  user: any;
+  open: boolean;
+  userLookup?: (userId: string) => any;
+}>()
 
-const emit = defineEmits(["update:open"]);
+const emit = defineEmits(['update:open'])
 
-const { openUserActions } = useUserContextSheet();
+const { openUserActions } = useUserContextSheet()
 
 function resolveUser(id: string) {
-	return props.userLookup ? props.userLookup(id) : null;
+  return props.userLookup ? props.userLookup(id) : null
 }
 
 function resolveImg(id: string): string | undefined {
-	const u = resolveUser(id);
-	return u?.img || senderImg(u);
+  const u = resolveUser(id)
+  return u?.img || senderImg(u)
 }
 
 function resolveName(id: string): string {
-	const u = resolveUser(id);
-	return u?.name || senderName(u) || "Sketcher";
+  const u = resolveUser(id)
+  return u?.name || senderName(u) || 'Sketcher'
 }
 
 function handleTap(followerId: string) {
-	if (followerId === props.user._id) return;
-	const userInfo = resolveUser(followerId);
-	openUserActions({
-		_id: followerId,
-		name: userInfo?.name,
-		img: userInfo?.img,
-	});
+  const userInfo = resolveUser(followerId)
+  openUserActions({
+    _id: followerId,
+    name: userInfo?.name,
+    img: userInfo?.img
+  })
 }
 
 function close() {
-	emit("update:open", false);
+  emit('update:open', false)
 }
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
 ion-modal.followers-modal {
   --border-radius: 2.5rem 2.5rem 0 0;

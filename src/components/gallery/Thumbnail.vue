@@ -2,7 +2,7 @@
   <div
     ref="el"
     @click="onClick"
-    class="relative flex justify-center items-center h-full w-full select-none touch-pan-y overflow-visible"
+    class="relative flex justify-center cursor-pointer items-center h-full w-full select-none touch-pan-y overflow-visible"
     @mouseover="emits('hover')"
   >
     <div

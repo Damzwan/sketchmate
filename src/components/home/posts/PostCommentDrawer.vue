@@ -18,6 +18,12 @@
         </p>
       </div>
 
+      <div class="absolute top-2 right-2 z-20">
+        <ion-button @click="$emit('close')" fill="clear" color="dark" class="m-0">
+          <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-2xl" />
+        </ion-button>
+      </div>
+
       <!-- Comments List Area -->
       <div
         ref="scrollContainer"
@@ -131,21 +137,21 @@
 import { ref, nextTick, watch } from "vue";
 import { useInfiniteScroll } from "@vueuse/core";
 import {
-	IonModal,
-	IonSpinner,
-	IonIcon,
-	IonAvatar,
-	IonInput,
-	actionSheetController,
-	alertController,
-} from "@ionic/vue";
+  IonModal,
+  IonSpinner,
+  IonIcon,
+  IonAvatar,
+  IonInput,
+  actionSheetController,
+  alertController, IonButton
+} from '@ionic/vue'
 import { storeToRefs } from "pinia";
 import {
-	mdiSend,
-	mdiFlagVariantOutline,
-	mdiDeleteOutline,
-	mdiDotsHorizontal,
-} from "@mdi/js";
+  mdiSend,
+  mdiFlagVariantOutline,
+  mdiDeleteOutline,
+  mdiDotsHorizontal, mdiClose
+} from '@mdi/js'
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { svg } from "@/helper/general.helper";

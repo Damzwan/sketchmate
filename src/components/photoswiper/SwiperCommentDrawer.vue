@@ -16,6 +16,12 @@
         </p>
       </div>
 
+      <div class="absolute top-2 right-2 z-20">
+        <ion-button @click="close" fill="clear" color="dark" class="m-0">
+          <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-2xl" />
+        </ion-button>
+      </div>
+
       <div
         ref="scrollContainer"
         class="flex-1 overflow-y-auto hide-scrollbar pb-4 pt-1 relative"
@@ -79,7 +85,8 @@
         </div>
       </div>
 
-      <div class="flex w-full items-center gap-2 bg-background sticky bottom-0 border-t border-black/10 px-3 py-3 pb-safe z-10 shrink-0">
+      <div
+        class="flex w-full items-center gap-2 bg-background sticky bottom-0 border-t border-black/10 px-3 py-3 pb-safe z-10 shrink-0">
         <ion-avatar class="shrink-0 h-[34px] w-[34px] shadow-sm">
           <img v-if="user?.img" :src="user.img" alt="Me" class="aspect-square object-cover" />
           <span v-else class="w-full h-full flex items-center justify-center font-bold text-black bg-black/5 text-sm">
@@ -113,321 +120,328 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
-import { useInfiniteScroll } from "@vueuse/core";
+import { computed, nextTick, ref, watch } from 'vue'
+import { useInfiniteScroll } from '@vueuse/core'
 import {
-	actionSheetController,
-	alertController,
-	IonAvatar,
-	IonIcon,
-	IonInput,
-	IonModal,
-	IonSpinner,
-} from "@ionic/vue";
+  actionSheetController,
+  alertController,
+  IonAvatar, IonButton,
+  IonIcon,
+  IonInput,
+  IonModal,
+  IonSpinner
+} from '@ionic/vue'
 import {
-	mdiDeleteOutline,
-	mdiDotsHorizontal,
-	mdiFlagVariantOutline,
-	mdiSend,
-} from "@mdi/js";
-import dayjs from "dayjs";
-import { svg } from "@/helper/general.helper";
-import { fetchPostComments, postComment } from "@/service/api/post.api";
-import { usePostStore } from "@/store/post.store";
-import { useModerationStore } from "@/store/moderation.store";
-import { useToast } from "@/service/toast.service";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { deleteInboxComment, getInboxComments } from "@/service/api/inbox.api";
+  mdiClose,
+  mdiDeleteOutline,
+  mdiDotsHorizontal,
+  mdiFlagVariantOutline,
+  mdiSend
+} from '@mdi/js'
+import dayjs from 'dayjs'
+import { svg } from '@/helper/general.helper'
+import { fetchPostComments, postComment } from '@/service/api/post.api'
+import { usePostStore } from '@/store/post.store'
+import { useModerationStore } from '@/store/moderation.store'
+import { useToast } from '@/service/toast.service'
+import { useUserContextSheet } from '@/composables/profile/useUserContextSheet'
+import { deleteInboxComment, getInboxComments } from '@/service/api/inbox.api'
 
 const props = defineProps<{
-	open: boolean;
-	currItem: any;
-	type: "post" | "inbox";
-	user: any;
-	userLookup?: (userId: string) => any;
-	onComment?: (item: any, message: string) => Promise<any>;
-}>();
+  open: boolean;
+  currItem: any;
+  type: 'post' | 'inbox';
+  user: any;
+  userLookup?: (userId: string) => any;
+  onComment?: (item: any, message: string) => Promise<any>;
+}>()
 
-const emit = defineEmits(["update:open"]);
+const emit = defineEmits(['update:open'])
 
-const { openUserActions } = useUserContextSheet();
-const postStore = usePostStore();
-const moderationStore = useModerationStore();
-const { toast } = useToast();
+const { openUserActions } = useUserContextSheet()
+const postStore = usePostStore()
+const moderationStore = useModerationStore()
+const { toast } = useToast()
 
-const scrollContainer = ref<HTMLElement | null>(null);
-const input = ref<any>();
-const comments = ref<any[]>([]);
-const loading = ref(false);
-const loadingOlder = ref(false);
-const isSubmitting = ref(false);
-const newComment = ref("");
-const hasMore = ref(false);
+const scrollContainer = ref<HTMLElement | null>(null)
+const input = ref<any>()
+const comments = ref<any[]>([])
+const loading = ref(false)
+const loadingOlder = ref(false)
+const isSubmitting = ref(false)
+const newComment = ref('')
+const hasMore = ref(false)
 
-const isPost = computed(() => props.type === "post");
+const isPost = computed(() => props.type === 'post')
 
 // --- VueUse Infinite Scroll setup
 useInfiniteScroll(
-	scrollContainer,
-	async () => {
-		if (hasMore.value && !loadingOlder.value) {
-			await loadOlderComments();
-		}
-	},
-	{ direction: "top", distance: 40 },
-);
+  scrollContainer,
+  async () => {
+    if (hasMore.value && !loadingOlder.value) {
+      await loadOlderComments()
+    }
+  },
+  { direction: 'top', distance: 40 }
+)
 
 // --- Author resolution
 function getAuthorId(comment: any): string {
-	return comment.author?._id || comment.author_id || comment.sender;
+  return comment.author?._id || comment.author_id || comment.sender
 }
 
 function getAuthorName(comment: any): string {
-	if (comment.author?.name) return comment.author.name;
-	const resolved = props.userLookup?.(comment.sender || comment.author_id);
-	return resolved?.name || "Sketcher";
+  if (comment.author?.name) return comment.author.name
+  const resolved = props.userLookup?.(comment.sender || comment.author_id)
+  return resolved?.name || 'Sketcher'
 }
 
 function getAuthorImg(comment: any): string | undefined {
-	if (comment.author?.img) return comment.author.img;
-	const resolved = props.userLookup?.(comment.sender || comment.author_id);
-	return resolved?.img;
+  if (comment.author?.img) return comment.author.img
+  const resolved = props.userLookup?.(comment.sender || comment.author_id)
+  return resolved?.img
 }
 
 // --- Lifecycle: load initial active state when drawer opens
 watch(
-	() => props.open,
-	async (isOpen) => {
-		if (!isOpen || !props.currItem) return;
+  () => props.open,
+  async (isOpen) => {
+    if (!isOpen || !props.currItem) return
 
-		hasMore.value = false;
-		comments.value = props.currItem.comments
-			? [...props.currItem.comments]
-			: [];
-		loading.value = true;
+    hasMore.value = false
+    comments.value = props.currItem.comments
+      ? [...props.currItem.comments]
+      : []
+    loading.value = true
 
-		try {
-			const res = isPost.value
-				? await fetchPostComments(props.currItem._id, 20)
-				: await getInboxComments(props.currItem._id, 20);
+    try {
+      const res = isPost.value
+        ? await fetchPostComments(props.currItem._id, 20)
+        : await getInboxComments(props.currItem._id, 20)
 
-			comments.value = res.comments;
-			hasMore.value = res.hasMore;
-			scrollToBottom();
-		} catch (e) {
-			console.error("Failed to load comments", e);
-		} finally {
-			loading.value = false;
-		}
-	},
-);
+      comments.value = res.comments
+      hasMore.value = res.hasMore
+      scrollToBottom()
+    } catch (e) {
+      console.error('Failed to load comments', e)
+    } finally {
+      loading.value = false
+    }
+  }
+)
 
 // --- Handles switching items entirely when drawer is already open
 watch(
-	() => props.currItem?._id,
-	() => {
-		if (props.open) {
-			comments.value = props.currItem?.comments
-				? [...props.currItem.comments]
-				: [];
-		}
-	},
-);
+  () => props.currItem?._id,
+  () => {
+    if (props.open) {
+      comments.value = props.currItem?.comments
+        ? [...props.currItem.comments]
+        : []
+    }
+  }
+)
 
 // --- Watch deep changes for incoming items arriving via Socket or Pulse
 watch(
-	() => props.currItem?.comments,
-	(newIncomingComments) => {
-		if (!props.open || !newIncomingComments) return;
+  () => props.currItem?.comments,
+  (newIncomingComments) => {
+    if (!props.open || !newIncomingComments) return
 
-		// Find comments in the new prop data that aren't present in our local state
-		const incomingNewArray = newIncomingComments.filter(
-			(incoming: any) =>
-				!comments.value.some((local) => local._id === incoming._id),
-		);
+    // Find comments in the new prop data that aren't present in our local state
+    const incomingNewArray = newIncomingComments.filter(
+      (incoming: any) =>
+        !comments.value.some((local) => local._id === incoming._id)
+    )
 
-		// Only append fresh socket/pulse payloads to the bottom without dropping our local history
-		if (incomingNewArray.length > 0) {
-			comments.value = [...comments.value, ...incomingNewArray];
-			scrollToBottom();
-		}
-	},
-	{ deep: true },
-);
+    // Only append fresh socket/pulse payloads to the bottom without dropping our local history
+    if (incomingNewArray.length > 0) {
+      comments.value = [...comments.value, ...incomingNewArray]
+      scrollToBottom()
+    }
+  },
+  { deep: true }
+)
 
 function openUser(userId: string) {
-	if (userId) openUserActions({ _id: userId });
+  if (userId) openUserActions({ _id: userId })
 }
 
 async function submitComment() {
-	if (!newComment.value.trim() || !props.currItem || isSubmitting.value) return;
-	const message = newComment.value;
-	newComment.value = "";
-	isSubmitting.value = true;
+  if (!newComment.value.trim() || !props.currItem || isSubmitting.value) return
+  const message = newComment.value
+  newComment.value = ''
+  isSubmitting.value = true
 
-	try {
-		if (isPost.value) {
-			const res = await postComment(props.currItem._id, message);
-			comments.value.push(res.comment);
-			props.currItem.comment_count++;
-			props.currItem.comments = [
-				...(props.currItem.comments || []),
-				res.comment,
-			];
-		} else if (props.onComment) {
-			await props.onComment(props.currItem, message);
-		}
-		scrollToBottom();
-	} catch (e) {
-		console.error("Failed to post comment", e);
-		toast("Failed to post comment", { color: "danger" });
-		newComment.value = message;
-	} finally {
-		isSubmitting.value = false;
-	}
+  try {
+    if (isPost.value) {
+      const res = await postComment(props.currItem._id, message)
+      comments.value.push(res.comment)
+      props.currItem.comment_count++
+      props.currItem.comments = [
+        ...(props.currItem.comments || []),
+        res.comment
+      ]
+    } else if (props.onComment) {
+      await props.onComment(props.currItem, message)
+    }
+    scrollToBottom()
+  } catch (e) {
+    console.error('Failed to post comment', e)
+    toast('Failed to post comment', { color: 'danger' })
+    newComment.value = message
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 async function loadOlderComments() {
-	if (!hasMore.value || comments.value.length === 0 || loadingOlder.value)
-		return;
+  if (!hasMore.value || comments.value.length === 0 || loadingOlder.value)
+    return
 
-	loadingOlder.value = true;
-	const oldestComment = comments.value[0];
-	const oldestDate = oldestComment.date || oldestComment.createdAt;
+  loadingOlder.value = true
+  const oldestComment = comments.value[0]
+  const oldestDate = oldestComment.date || oldestComment.createdAt
 
-	try {
-		const res = isPost.value
-			? await fetchPostComments(props.currItem._id, 20, oldestDate)
-			: await getInboxComments(props.currItem._id, 20, oldestDate);
+  try {
+    const res = isPost.value
+      ? await fetchPostComments(props.currItem._id, 20, oldestDate)
+      : await getInboxComments(props.currItem._id, 20, oldestDate)
 
-		const newComments = res.comments.filter(
-			(c: any) => !comments.value.some((existing) => existing._id === c._id),
-		);
+    const newComments = res.comments.filter(
+      (c: any) => !comments.value.some((existing) => existing._id === c._id)
+    )
 
-		const container = scrollContainer.value;
-		const previousScrollHeight = container ? container.scrollHeight : 0;
-		const previousScrollTop = container ? container.scrollTop : 0;
+    const container = scrollContainer.value
+    const previousScrollHeight = container ? container.scrollHeight : 0
+    const previousScrollTop = container ? container.scrollTop : 0
 
-		// Prepend the loaded historical comments to our current state
-		comments.value = [...newComments, ...comments.value];
-		hasMore.value = res.hasMore;
+    // Prepend the loaded historical comments to our current state
+    comments.value = [...newComments, ...comments.value]
+    hasMore.value = res.hasMore
 
-		await nextTick();
-		if (container) {
-			container.scrollTop =
-				previousScrollTop + (container.scrollHeight - previousScrollHeight);
-		}
-	} catch (e) {
-		console.error("Failed to load older comments", e);
-	} finally {
-		loadingOlder.value = false;
-	}
+    await nextTick()
+    if (container) {
+      container.scrollTop =
+        previousScrollTop + (container.scrollHeight - previousScrollHeight)
+    }
+  } catch (e) {
+    console.error('Failed to load older comments', e)
+  } finally {
+    loadingOlder.value = false
+  }
 }
 
 const scrollToBottom = async () => {
-	await nextTick();
-	if (scrollContainer.value) {
-		scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight;
-	}
-};
+  await nextTick()
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
+  }
+}
 
 function close() {
-	emit("update:open", false);
+  emit('update:open', false)
 }
 
 // --- Comment actions
 async function openCommentActions(comment: any) {
-	const authorId = getAuthorId(comment);
-	const isMine = authorId === props.user._id;
-	const buttons: any[] = [];
+  const authorId = getAuthorId(comment)
+  const isMine = authorId === props.user._id
+  const buttons: any[] = []
 
-	if (isMine) {
-		buttons.push({
-			text: "Delete Comment",
-			role: "destructive",
-			icon: svg(mdiDeleteOutline),
-			handler: () => confirmDeleteComment(comment),
-		});
-	} else {
-		buttons.push({
-			text: "Report Comment",
-			role: "destructive",
-			icon: svg(mdiFlagVariantOutline),
-			handler: () => {
-				moderationStore.openReport({
-					type: isPost.value ? "comment" : "inbox_comment",
-					id: comment._id,
-					label: `${getAuthorName(comment)}'s comment`,
-				});
-			},
-		});
-	}
+  if (isMine) {
+    buttons.push({
+      text: 'Delete Comment',
+      role: 'destructive',
+      icon: svg(mdiDeleteOutline),
+      handler: () => confirmDeleteComment(comment)
+    })
+  } else {
+    buttons.push({
+      text: 'Report Comment',
+      role: 'destructive',
+      icon: svg(mdiFlagVariantOutline),
+      handler: () => {
+        moderationStore.openReport({
+          type: isPost.value ? 'comment' : 'inbox_comment',
+          id: comment._id,
+          label: `${getAuthorName(comment)}'s comment`
+        })
+      }
+    })
+  }
 
-	if (buttons.length === 0) return;
-	buttons.push({ text: "Cancel", role: "cancel" });
+  if (buttons.length === 0) return
+  buttons.push({ text: 'Cancel', role: 'cancel' })
 
-	const sheet = await actionSheetController.create({
-		header: "Comment Options",
-		cssClass: "liquid-action-sheet",
-		buttons,
-	});
-	await sheet.present();
+  const sheet = await actionSheetController.create({
+    header: 'Comment Options',
+    cssClass: 'liquid-action-sheet',
+    buttons
+  })
+  await sheet.present()
 }
 
 async function confirmDeleteComment(comment: any) {
-	const alert = await alertController.create({
-		header: "Delete Comment?",
-		subHeader: "This can't be undone.",
-		message: "Are you sure you want to remove this comment?",
-		cssClass: "liquid-alert",
-		buttons: [
-			{ text: "Cancel", role: "cancel", cssClass: "alert-button-cancel" },
-			{
-				text: "Delete",
-				role: "destructive",
-				cssClass: "alert-button-confirm",
-				handler: async () => {
-					if (!props.currItem) return;
-					try {
-						if (isPost.value) {
-							await postStore.deletePostComment(
-								props.currItem._id,
-								comment._id,
-							);
-						} else {
-							await deleteInboxComment(props.currItem._id, comment._id);
-						}
+  const alert = await alertController.create({
+    header: 'Delete Comment?',
+    subHeader: 'This can\'t be undone.',
+    message: 'Are you sure you want to remove this comment?',
+    cssClass: 'liquid-alert',
+    buttons: [
+      { text: 'Cancel', role: 'cancel', cssClass: 'alert-button-cancel' },
+      {
+        text: 'Delete',
+        role: 'destructive',
+        cssClass: 'alert-button-confirm',
+        handler: async () => {
+          if (!props.currItem) return
+          try {
+            if (isPost.value) {
+              await postStore.deletePostComment(
+                props.currItem._id,
+                comment._id
+              )
+            } else {
+              await deleteInboxComment(props.currItem._id, comment._id)
+            }
 
-						comments.value = comments.value.filter(
-							(c) => c._id !== comment._id,
-						);
-						if (props.currItem.comments) {
-							props.currItem.comments = props.currItem.comments.filter(
-								(c: any) => c._id !== comment._id,
-							);
-						}
+            comments.value = comments.value.filter(
+              (c) => c._id !== comment._id
+            )
+            if (props.currItem.comments) {
+              props.currItem.comments = props.currItem.comments.filter(
+                (c: any) => c._id !== comment._id
+              )
+            }
 
-						if (
-							typeof props.currItem.comment_count === "number" &&
-							props.currItem.comment_count > 0
-						) {
-							props.currItem.comment_count--;
-						}
-						toast("Comment deleted");
-					} catch (e) {
-						toast("Failed to delete comment", { color: "danger" });
-					}
-				},
-			},
-		],
-	});
-	await alert.present();
+            if (
+              typeof props.currItem.comment_count === 'number' &&
+              props.currItem.comment_count > 0
+            ) {
+              props.currItem.comment_count--
+            }
+            toast('Comment deleted')
+          } catch (e) {
+            toast('Failed to delete comment', { color: 'danger' })
+          }
+        }
+      }
+    ]
+  })
+  await alert.present()
 }
 </script>
 
 <style scoped>
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
 .pb-safe {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);

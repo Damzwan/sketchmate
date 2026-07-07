@@ -33,7 +33,7 @@
 
       <button
         v-if="type === 'inbox' && currItem.followers && currItem.followers.length > 0"
-        class="flex -space-x-6 pr-2"
+        class="flex -space-x-6 pr-2 cursor-pointer"
         @click="$emit('open-followers')"
       >
         <img

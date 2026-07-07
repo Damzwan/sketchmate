@@ -15,52 +15,86 @@
                         :aspectRatio="getAspectRatio()" />
       </div>
 
-      <section v-if="!isUnderAge || sortedMates.length > 0"
-               class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
-               :class="{ 'ring-2 ring-secondary/50': isSaveAndSend }" @click="toggleSection('direct')">
+      <section
+        v-if="!isUnderAge || sortedMates.length > 0"
+        class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
+        :class="{ 'ring-2 ring-secondary/50': isSaveAndSend }"
+        @click="toggleSection('direct')"
+      >
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
-            <p class="text-xl font-bold text-black leading-none">Save & Send Direct</p>
-            <p class="text-sm text-black/80 mt-1">Keep in gallery, select mates to share with</p>
+            <p class="text-xl font-bold text-black leading-none">
+              {{ sortedMates.length > 0 ? 'Save & Share' : 'Save to Gallery' }}
+            </p>
+
+            <p class="text-sm text-black/80 mt-1">
+              {{
+                sortedMates.length > 0
+                  ? 'Saved to gallery. Share with mates.'
+                  : 'Store it in your gallery'
+              }}
+            </p>
           </div>
+
           <div
             class="w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all shrink-0 border-secondary"
-            :class="isSaveAndSend ? 'bg-secondary scale-105 shadow-sm' : 'bg-secondary/10'">
-            <ion-icon v-if="isSaveAndSend" :icon="svg(mdiCheck)" class="text-white w-4 h-4 font-black" />
+            :class="isSaveAndSend ? 'bg-secondary scale-105 shadow-sm' : 'bg-secondary/10'"
+          >
+            <ion-icon
+              v-if="isSaveAndSend"
+              :icon="svg(mdiCheck)"
+              class="text-white w-4 h-4 font-black"
+            />
           </div>
         </div>
 
-        <div v-if="isSaveAndSend" class="pt-1 mt-3 border-t border-primary/20 animate-fade-in" @click.stop>
-          <div class="flex overflow-x-auto space-x-3 pb-1 pt-1 hide-scrollbar px-1">
+        <!-- Only show mate selection when mates exist -->
+        <div
+          v-if="isSaveAndSend && sortedMates.length > 0"
+          class="pt-3 border-t border-primary/20 animate-fade-in"
+          @click.stop
+        >
+          <p class="text-xs font-black text-black/70 mb-2">
+            Share with mates
+          </p>
 
-            <div v-if="user"
-                 class="relative w-[64px] h-[64px] shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center border-secondary shadow-md bg-secondary/20 cursor-default select-none">
+          <div class="flex overflow-x-auto space-x-3 pb-1 hide-scrollbar px-1">
+            <button
+              v-for="mate in sortedMates"
+              :key="mate._id"
+              @click.stop="toggle(mate._id)"
+              class="relative w-[64px] h-[64px] mt-2 cursor-pointer hover:scale-105 shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center"
+              :class="
+          selected.has(mate._id)
+            ? 'border-secondary shadow-md scale-105 bg-secondary/20'
+            : 'border-transparent bg-primary/60'
+        "
+            >
               <div class="relative mb-1">
-                <img :src="user.img || 'assets/placeholder-user.png'"
-                     class="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm" />
+                <img
+                  :src="mate.img"
+                  class="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm"
+                />
+
+                <div
+                  v-if="isOnline(mate._id)"
+                  class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-white shadow-sm"
+                />
               </div>
+
               <div
-                class="absolute -top-1.5 -right-1.5 bg-secondary rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-10">
-                <ion-icon :icon="svg(mdiCheck)" class="text-white w-4 h-4" />
-              </div>
-              <span class="text-[10px] font-black truncate w-full text-center px-1 text-black">Me</span>
-            </div>
-
-            <button v-for="mate in sortedMates" :key="mate._id" @click.stop="toggle(mate._id)"
-                    class="relative w-[64px] h-[64px] shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center"
-                    :class="selected.has(mate._id) ? 'border-secondary shadow-md scale-105 bg-secondary/20' : 'border-transparent bg-primary/60'">
-              <div class="relative mb-1">
-                <img :src="mate.img" class="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm" />
-                <div v-if="isOnline(mate._id)"
-                     class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-white shadow-sm">
-                </div>
+                v-if="selected.has(mate._id)"
+                class="absolute -top-1.5 -right-1.5 bg-secondary rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-10"
+              >
+                <ion-icon
+                  :icon="svg(mdiCheck)"
+                  class="text-white w-4 h-4"
+                />
               </div>
 
-              <div v-if="selected.has(mate._id)"
-                   class="absolute -top-1.5 -right-1.5 bg-secondary rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-10">
-                <ion-icon :icon="svg(mdiCheck)" class="text-white w-4 h-4" />
-              </div>
-              <span class="text-[10px] font-black truncate w-full text-center px-1 text-black">{{ mate.name }}</span>
+              <span class="text-[10px] font-black truncate w-full text-center px-1 text-black">
+          {{ mate.name }}
+        </span>
             </button>
           </div>
         </div>

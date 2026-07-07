@@ -41,6 +41,9 @@ export const useChatStore = defineStore("chat", () => {
 	const typingStatuses = ref<Record<string, boolean>>({});
 	const hasMoreMessagesByChat = ref<Record<string, boolean>>({});
 	const notifications = ref<any[]>([]);
+	// True once the first conversation fetch resolves — lets the overview show a
+	// skeleton instead of flashing the empty state while the list loads.
+	const chatsHydrated = ref(false);
 
 	const authStore = useAuthStore();
 	const friendStore = useFriendStore();
@@ -133,6 +136,8 @@ export const useChatStore = defineStore("chat", () => {
 			}
 		} catch (e) {
 			console.error("Failed to load active chats:", e);
+		} finally {
+			chatsHydrated.value = true;
 		}
 	}
 
@@ -777,6 +782,7 @@ export const useChatStore = defineStore("chat", () => {
 		typingStatuses,
 		notifications,
 		hasMoreMessagesByChat,
+		chatsHydrated,
 		totalUnreadCount,
 		canSendMessage,
 		chatInputPlaceholder,

@@ -1,7 +1,8 @@
 <template>
   <div
-    class="flex items-center gap-3 px-4 pt-4 pb-3 overflow-x-auto hide-scrollbar bg-tertiary rounded-t-[2.5rem] shrink-0 overflow-visible"
+    class="flex items-center gap-1 px-3 pt-5 pb-3 min-h-[68px] bg-tertiary rounded-t-[2.5rem] shrink-0"
   >
+    <div class="flex-1 flex items-center gap-3 overflow-x-auto hide-scrollbar overflow-visible py-2 pl-1">
     <div
       @click="activeTab = 'overview'"
       class="relative shrink-0 w-11 h-11 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
@@ -91,13 +92,24 @@
         <ion-icon :icon="svg(mdiClose)" class="text-white text-[8px]" />
       </div>
     </div>
+    </div>
+
+    <ion-button
+      @click="chatWidget.closePanel()"
+      aria-label="Close chat"
+      fill="clear"
+      color="dark"
+      class="shrink-0 m-0 active:scale-90 transition-transform"
+    >
+      <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-2xl" />
+    </ion-button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { IonIcon } from '@ionic/vue'
+import { IonButton, IonIcon } from '@ionic/vue'
 import { chatbubblesOutline } from 'ionicons/icons'
 import { mdiEarth, mdiClose } from '@mdi/js'
 import { svg } from '@/helper/general.helper'

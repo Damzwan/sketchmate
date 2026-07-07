@@ -2,31 +2,41 @@
 <template>
   <div
     @click="$emit('open')"
-    class="flex items-center p-3 bg-cyan-400/10 border border-cyan-400/30 rounded-3xl active:scale-[0.98] transition-all cursor-pointer mb-4 shadow-sm"
+    class="group w-full flex items-center gap-3 p-3 rounded-[1.6rem] border border-cyan-400/40 bg-cyan-400/10 shadow-sm active:scale-[0.97] md:hover:border-cyan-400 transition-all cursor-pointer"
   >
-    <div class="relative w-12 h-12 shrink-0">
-      <div class="w-full h-full bg-cyan-400 rounded-2xl flex items-center justify-center shadow-inner">
-        <ion-icon :icon="svg(mdiEarth)" class="text-white text-2xl" />
+    <div class="relative shrink-0">
+      <div class="w-11 h-11 bg-cyan-500 rounded-full flex items-center justify-center shadow-sm transition-transform group-hover:scale-105">
+        <ion-icon :icon="svg(mdiEarth)" class="text-white text-xl" />
       </div>
-      <div v-if="unreadCount > 0" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
-        {{ unreadCount }}
+      <div
+        v-if="unreadCount > 0"
+        class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 rounded-full border-2 border-white flex items-center justify-center"
+      >
+        <span class="text-[8px] font-black text-white leading-none">{{ unreadCount }}</span>
       </div>
     </div>
-    <div class="ml-3 flex-1 min-w-0">
-      <div class="flex justify-between items-center">
-        <span class="text-sm font-black italic cabin-sketch-regular text-cyan-700">Current Session Lobby</span>
-        <span class="text-[10px] font-bold text-cyan-600/60 uppercase">{{ memberCount }} Vibing</span>
+
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-1.5 min-w-0">
+        <span class="text-[14px] leading-none font-black truncate tracking-tight text-cyan-800">
+          Lobby chat
+        </span>
+        <span class="ml-auto shrink-0 text-[8px] font-black uppercase tracking-wider text-cyan-600/70 whitespace-nowrap">
+          {{ memberCount }} here
+        </span>
       </div>
-      <p class="text-xs text-cyan-800/70 truncate cabin-sketch-regular font-bold mt-0.5">
-        {{ lastMessage || 'Jump in and say hi!' }}
+      <p class="text-[12px] truncate cabin-sketch-regular tracking-wide leading-none mt-1.5 text-cyan-800/70">
+        {{ lastMessage || 'Jump in and say hi' }}
       </p>
     </div>
+
+    <ion-icon :icon="svg(mdiChevronRight)" class="shrink-0 text-cyan-500/50 text-base transition-transform group-hover:translate-x-0.5" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { IonIcon } from '@ionic/vue';
-import { mdiEarth } from '@mdi/js';
+import { mdiChevronRight, mdiEarth } from '@mdi/js';
 import { svg } from '@/helper/general.helper';
 
 defineProps<{

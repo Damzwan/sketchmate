@@ -1,10 +1,10 @@
 <template>
   <div class="animate-fade-in flex flex-col gap-3 pb-6 px-0.5">
     <div class="flex items-center justify-between px-1">
-      <span class="text-2xl font-normal cabin-sketch-regular text-black tracking-tight">New Message</span>
+      <span class="text-xl font-normal cabin-sketch-regular text-black tracking-tight">New message</span>
       <button
         @click="$emit('cancel')"
-        class="text-[10px] font-black text-secondary uppercase tracking-widest active:opacity-50"
+        class="text-[9px] font-black text-secondary uppercase tracking-widest active:opacity-50 md:hover:opacity-70"
       >
         Cancel
       </button>

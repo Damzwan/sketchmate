@@ -21,7 +21,8 @@
         ></div>
       </div>
 
-      <div v-else key="data" class="flex overflow-x-auto gap-3.5 pb-3 snap-x snap-mandatory hide-scrollbar overflow-visible">
+      <div v-else key="data"
+           class="flex overflow-x-auto gap-3.5 pb-3 snap-x snap-mandatory hide-scrollbar overflow-visible">
         <div
           v-for="lobby in sortedLobbies"
           :key="lobby.id"
@@ -40,7 +41,8 @@
               class="absolute inset-0 flex items-center justify-center transition-opacity duration-300 bg-[#FAF0E6FF]"
               :class="{ 'animate-pulse': lobby.thumbnailUrl }"
             >
-              <ion-icon :icon="svg(mdiPalette)" class="text-xl opacity-30 grayscale group-hover:rotate-12 transition-transform duration-300" />
+              <ion-icon :icon="svg(mdiPalette)"
+                        class="text-xl opacity-30 grayscale group-hover:rotate-12 transition-transform duration-300" />
             </div>
 
             <img
@@ -93,14 +95,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { IonIcon, useIonRouter } from "@ionic/vue";
-import { mdiPalette } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { useQuotaStore } from "@/store/quota.store";
-import PremiumLobbyModal from "@/components/draw/PremiumLobbyModal.vue";
-import { Menu } from "@/draw/types/draw.types";
-import { useMenuStore } from "@/store/menu.store";
+import { ref, computed } from 'vue'
+import { IonIcon, useIonRouter } from '@ionic/vue'
+import { mdiPalette } from '@mdi/js'
+import { svg } from '@/helper/general.helper'
+import { useQuotaStore } from '@/store/quota.store'
+import PremiumLobbyModal from '@/components/draw/PremiumLobbyModal.vue'
+import { Menu } from '@/draw/types/draw.types'
+import { useMenuStore } from '@/store/menu.store'
+import { useSubscriptionStore } from '@/store/subscription.store'
 
 export interface PublicLobbyProps {
   id: string;
@@ -114,61 +117,61 @@ export interface PublicLobbyProps {
 const props = defineProps<{
   lobbies: PublicLobbyProps[];
   loading: boolean;
-}>();
+}>()
 
 const emit = defineEmits<{
-  (e: "join", id: string): void;
-}>();
+  (e: 'join', id: string): void;
+}>()
 
-const router = useIonRouter();
-const quotaStore = useQuotaStore();
+const router = useIonRouter()
+const quotaStore = useQuotaStore()
 
-const showPremiumModal = ref(false);
-const imageLoaded = ref<Record<string, boolean>>({});
+const showPremiumModal = ref(false)
+const imageLoaded = ref<Record<string, boolean>>({})
 
 const sortedLobbies = computed(() => {
-  return [...props.lobbies].sort((a, b) => b.users - a.users);
-});
+  return [...props.lobbies].sort((a, b) => b.users - a.users)
+})
 
 /* Modern minimal badge background tints */
 const getBadgeClass = (lobby: PublicLobbyProps) => {
-  const totalCap = lobby.maxUsers + lobby.premiumSlots;
-  if (lobby.users >= totalCap) return "bg-zinc-800 text-white/90";
-  if (lobby.users >= lobby.maxUsers) return "bg-amber-500 text-white";
-  return "bg-secondary text-white";
-};
+  const totalCap = lobby.maxUsers + lobby.premiumSlots
+  if (lobby.users >= totalCap) return 'bg-zinc-800 text-white/90'
+  if (lobby.users >= lobby.maxUsers) return 'bg-amber-500 text-white'
+  return 'bg-secondary text-white'
+}
 
 /* Micro Status indicator dot colors inside the layout badge frame */
 const getDotClass = (lobby: PublicLobbyProps) => {
-  if (lobby.users >= lobby.maxUsers) return "bg-amber-200 animate-pulse";
-  return "bg-green-400 animate-pulse";
-};
+  if (lobby.users >= lobby.maxUsers) return 'bg-amber-200 animate-pulse'
+  return 'bg-green-400 animate-pulse'
+}
 
 const handleImageError = (lobbyId: string) => {
-  imageLoaded.value[lobbyId] = false;
-};
+  imageLoaded.value[lobbyId] = false
+}
 
 const handleLobbyClick = (lobby: PublicLobbyProps) => {
-  const totalCapacity = lobby.maxUsers + lobby.premiumSlots;
+  const totalCapacity = lobby.maxUsers + lobby.premiumSlots
 
-  if (lobby.users >= totalCapacity) return;
+  if (lobby.users >= totalCapacity) return
 
   if (lobby.users >= lobby.maxUsers) {
     if (quotaStore.isPro) {
-      emit("join", lobby.id);
+      emit('join', lobby.id)
     } else {
-      showPremiumModal.value = true;
+      showPremiumModal.value = true
     }
-    return;
+    return
   }
 
-  emit("join", lobby.id);
-};
+  emit('join', lobby.id)
+}
 
 const goToPro = () => {
-  const { openMenu } = useMenuStore();
-  openMenu(Menu.Shop);
-};
+  const { openPaywall } = useSubscriptionStore()
+  openPaywall()
+}
 </script>
 
 <style scoped>
@@ -177,19 +180,24 @@ const goToPro = () => {
   width: 0 !important;
   height: 0 !important;
 }
+
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
 .fade-enter-active, .fade-leave-active {
   transition: opacity 0.3s ease;
 }
+
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }
+
 .fade-slow-enter-active, .fade-slow-leave-active {
   transition: opacity 0.4s ease;
 }
+
 .fade-slow-enter-from, .fade-slow-leave-to {
   opacity: 0;
 }

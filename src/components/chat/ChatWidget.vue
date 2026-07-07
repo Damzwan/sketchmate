@@ -211,8 +211,16 @@ const handleLoadMore = async () => {
 
 function onWillPresent() {
 	const { isLobby } = useDrawSyncer();
-	if (!isLobby && chatWidget.activeTab == "lobby") {
+	const tab = chatWidget.activeTab;
+	// Land on the screen that makes sense for where the user actually is:
+	//  - stale lobby tab (already left the room) → back to the overview
+	//  - sitting on the overview while inside a lobby → jump straight into the
+	//    lobby chat (opening chat from a lobby shouldn't dump you in the list)
+	//  - an open DM is left exactly where it was
+	if (tab === "lobby" && !isLobby) {
 		chatWidget.activeTab = "overview";
+	} else if (tab === "overview" && isLobby) {
+		chatWidget.activeTab = "lobby";
 	}
 	scrollToBottom(true);
 }

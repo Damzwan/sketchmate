@@ -13,6 +13,18 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
   const bouncingBubbles = ref<string[]>([])
   const showLobbyPreview = ref(false)
 
+  // Chats whose relationship banner the user has collapsed. Remembered so a
+  // temporary-trial nudge they've already seen stays out of the way instead of
+  // re-inflating every time they reopen the thread.
+  const minimizedBanners = ref<string[]>([])
+  const isBannerMinimized = (chatId: string) =>
+    minimizedBanners.value.includes(chatId)
+  const toggleBannerMinimized = (chatId: string) => {
+    if (isBannerMinimized(chatId))
+      minimizedBanners.value = minimizedBanners.value.filter((id) => id !== chatId)
+    else minimizedBanners.value.push(chatId)
+  }
+
   const showWidget = () => (isVisible.value = true)
   const hideWidget = () => {
     isVisible.value = false
@@ -77,6 +89,7 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
 
   return {
     isVisible, isExpanded, activeTab, activeChatHeads, bouncingBubbles, showLobbyPreview,
+    minimizedBanners, isBannerMinimized, toggleBannerMinimized,
     showWidget, hideWidget, openPanel, closePanel, togglePanel,
     openOverview, openLobby, openPrivateChat, openChatWithUser, addChatHead, removeChatHead,
     triggerNewMessageAlert

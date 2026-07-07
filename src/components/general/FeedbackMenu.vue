@@ -37,24 +37,19 @@
         <br />
       </ion-radio-group>
 
-      <div class="flex flex-col mt-2">
-        <ion-button size="small" fill="clear" class="pt-3" :href="discord_link" target="_blank">
-          <ion-icon slot="start" :icon="discordSvg" class="pr-2" />
-          <p class="cabin-sketch-regular text-black">Chat with me on Discord</p>
-        </ion-button>
-
-        <ion-button size="small" fill="clear" class="pt-3" @click="subscriptionStore.openPaywall()"
-                    v-if="!isPro && isNative()">
-          <ion-icon slot="start" :icon="svg(mdiGiftOffOutline)" class="text-black pr-2" />
-          <p class="cabin-sketch-regular text-black">Donate</p>
-        </ion-button>
-      </div>
 
       <div class="flex justify-end">
         <ion-button color="secondary" @click="submit" :disabled="isSubmitting">Submit</ion-button>
       </div>
 
-      <div class="flex justify-center mt-3 pt-2">
+      <div class="flex flex-col mt-2">
+        <ion-button size="small" fill="clear" class="pt-3" :href="discord_link" target="_blank">
+          <ion-icon slot="start" :icon="discordSvg" class="pr-2" />
+          <p class="cabin-sketch-regular text-black">Chat with me on Discord</p>
+        </ion-button>
+      </div>
+
+      <div class="flex justify-center pt-2">
         <ion-button
           size="small"
           fill="clear"

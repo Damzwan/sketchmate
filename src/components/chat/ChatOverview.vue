@@ -19,9 +19,9 @@
         class="mb-4"
       />
 
-      <div v-if="onlineMates.length > 0" class="pt-1">
-        <div class="px-1 mb-2.5 text-[9px] font-black text-black uppercase tracking-widest">Online Now</div>
-        <div class="flex overflow-x-auto hide-scrollbar gap-4 px-1 mb-5 overflow-visible">
+      <div v-if="onlineMates.length > 0" class="pt-0.5">
+        <div class="px-1 mb-2 text-[9px] font-black text-black/70 uppercase tracking-widest">Online Now</div>
+        <div class="flex overflow-x-auto hide-scrollbar gap-4 px-1 mb-4 overflow-visible">
           <div
             v-for="friend in onlineMates"
             :key="friend._id"
@@ -44,7 +44,7 @@
         </div>
       </div>
 
-      <div class="px-1 mb-3.5 flex items-center justify-between">
+      <div class="px-1 mb-2.5 flex items-center justify-between">
         <span class="text-xl font-normal cabin-sketch-regular text-black tracking-tight">
           Conversations
         </span>
@@ -65,58 +65,84 @@
       </div>
 
       <div class="space-y-2.5 px-0.5">
-        <div v-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby"
-             class="p-5 bg-tertiary rounded-[2rem] border border-primary/40 shadow-sm cabin-sketch-regular">
-          <p class="text-lg font-bold text-black leading-snug text-center">
-            Your drawing desk is clear!
-          </p>
-          <p class="text-[13px] text-black/60 mt-1 text-center leading-snug">
-            Find an artist mate to draw with:
+        <div v-if="showLoadingState" class="space-y-2.5 pt-1">
+          <div
+            v-for="i in 4"
+            :key="i"
+            class="flex items-center gap-3 p-3 rounded-[1.6rem] border border-primary/20 bg-white/60"
+          >
+            <div class="w-11 h-11 rounded-full bg-black/5 animate-pulse shrink-0"></div>
+            <div class="flex-1 min-w-0 space-y-2">
+              <div class="h-2.5 w-1/3 rounded-full bg-black/5 animate-pulse"></div>
+              <div class="h-2 w-2/3 rounded-full bg-black/5 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby">
+          <p class="px-1 mb-3 text-[13px] text-black/55 leading-snug">
+            No conversations yet — pick a way to start drawing with someone.
           </p>
 
-          <div class="mt-4 space-y-2">
+          <div class="space-y-2">
             <button
               v-for="cta in emptyCtas"
               :key="cta.label"
-              class="w-full flex items-center gap-3 bg-white/70 border border-primary/40 rounded-[1.25rem] p-3 shadow-sm active:scale-[0.98] transition-transform text-left"
+              class="w-full flex items-center gap-3 bg-white border border-primary/30 rounded-[1.6rem] p-3 shadow-sm active:scale-[0.98] md:hover:border-primary transition-all text-left"
               @click="cta.action"
             >
-              <span class="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
+              <span class="w-11 h-11 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
                 <ion-icon :icon="svg(cta.icon)" class="text-xl text-secondary" />
               </span>
               <span class="min-w-0 flex-1">
-                <span class="block text-[15px] font-bold text-black leading-tight">{{ cta.label }}</span>
-                <span class="block text-[12px] text-black/55 leading-tight">{{ cta.sub }}</span>
+                <span class="block text-[14px] font-black text-black leading-tight tracking-tight">{{ cta.label }}</span>
+                <span class="block text-[12px] text-black/55 leading-tight mt-0.5">{{ cta.sub }}</span>
               </span>
-              <ion-icon :icon="svg(mdiChevronRight)" class="text-lg text-black/30 shrink-0" />
+              <ion-icon :icon="svg(mdiChevronRight)" class="text-lg text-black/25 shrink-0" />
             </button>
           </div>
         </div>
 
-        <ConversationItem
-          v-for="chat in fauxInvitations"
-          :key="'live-' + chat._id"
-          :chat="chat"
-          :currentUserId="user?._id || ''"
-          :isOnline="true"
-          :isTyping="false"
-          @open="$emit('join-session', chat._id)"
-        />
+        <div v-if="inviteCount > 0" class="space-y-2.5">
+          <button
+            class="w-full flex items-center gap-1.5 pt-1 pl-1 pr-0.5 disabled:cursor-default"
+            :disabled="inviteCount <= 2"
+            @click="invitesExpanded = !invitesExpanded"
+          >
+            <span class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"></span>
+            <span class="text-[9px] font-black text-secondary uppercase tracking-widest">Invites</span>
+            <span class="min-w-[14px] h-3.5 px-1 rounded-full bg-secondary/15 text-secondary text-[8px] font-black flex items-center justify-center">
+              {{ inviteCount }}
+            </span>
+            <ion-icon
+              v-if="inviteCount > 2"
+              :icon="svg(showInvites ? mdiChevronDown : mdiChevronRight)"
+              class="ml-auto text-secondary/70 text-base"
+            />
+          </button>
 
-        <div v-if="actionableChats.length > 0" class="flex items-center gap-1.5 pt-2 pb-0.5 pl-1 animate-fade-in">
-          <span class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"></span>
-          <div class="text-[9px] font-black text-secondary uppercase tracking-widest">Action Required</div>
+          <template v-if="showInvites">
+            <ConversationItem
+              v-for="chat in fauxInvitations"
+              :key="'live-' + chat._id"
+              :chat="chat"
+              :currentUserId="user?._id || ''"
+              :isOnline="true"
+              :isTyping="false"
+              @open="$emit('join-session', chat._id)"
+            />
+
+            <ConversationItem
+              v-for="chat in actionableChats"
+              :key="'action-' + chat._id"
+              :chat="chat"
+              :currentUserId="user?._id || ''"
+              :isOnline="isFriendOnline(getPartnerIdFromChat(chat))"
+              :isTyping="typingStatuses[getPartnerIdFromChat(chat)] || false"
+              @open="chatWidget.openPrivateChat(chat._id)"
+            />
+          </template>
         </div>
-
-        <ConversationItem
-          v-for="chat in actionableChats"
-          :key="'action-' + chat._id"
-          :chat="chat"
-          :currentUserId="user?._id || ''"
-          :isOnline="isFriendOnline(getPartnerIdFromChat(chat))"
-          :isTyping="typingStatuses[getPartnerIdFromChat(chat)] || false"
-          @open="chatWidget.openPrivateChat(chat._id)"
-        />
 
         <div v-if="(fauxInvitations.length > 0 || actionableChats.length > 0) && regularChats.length > 0" class="pt-2 pb-0.5 pl-1">
           <div class="text-[9px] font-black text-black uppercase tracking-widest">Active Chats</div>
@@ -143,13 +169,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { IonFab, IonFabButton, IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	mdiAccountMultiplePlusOutline,
 	mdiBalloon,
 	mdiChatPlusOutline,
+	mdiChevronDown,
 	mdiChevronRight,
 	mdiHeart,
 	mdiPencilPlusOutline,
@@ -181,7 +208,8 @@ const friendStore = useFriendStore();
 const drawSyncer = useDrawSyncer();
 const quotaStore = useQuotaStore();
 
-const { activeChats, typingStatuses } = storeToRefs(chatStore);
+const { activeChats, typingStatuses, chatsHydrated } = storeToRefs(chatStore);
+const { isExpanded } = storeToRefs(chatWidget);
 const { user } = storeToRefs(useAuthStore());
 const { isFriendOnline, pendingRequests, onlineFriends } =
 	storeToRefs(friendStore);
@@ -190,6 +218,26 @@ const { lobbyChatMessages, roomMembers, invitations } = storeToRefs(drawSyncer);
 const isCreatingChat = ref(false);
 const isInLobby = computed(() => !!roomMembers.value?.length);
 const lobbyUnreadCount = ref(0);
+
+// Reset the transient "new message" screen whenever the panel closes, so
+// reopening always lands back on the conversation list.
+watch(isExpanded, (open) => {
+	if (!open) isCreatingChat.value = false;
+});
+
+// Live draw invites + incoming requests share one "needs attention" bucket.
+// When it gets crowded we collapse it so it can't swallow the whole overview.
+const invitesExpanded = ref(false);
+const inviteCount = computed(
+	() => fauxInvitations.value.length + actionableChats.value.length,
+);
+const showInvites = computed(() => invitesExpanded.value || inviteCount.value <= 2);
+const showLoadingState = computed(
+	() =>
+		!chatsHydrated.value &&
+		activeChats.value.length === 0 &&
+		pendingRequests.value.length === 0,
+);
 
 const fauxInvitations = computed(() => {
 	return invitations.value.map((invite) => ({
@@ -254,6 +302,14 @@ const startChatWithFriend = (friend: any) => {
 	isCreatingChat.value = false;
 };
 
+// Tapping the mates quota pill nudges toward more slots when full; otherwise
+// it's just a status readout, so leave the panel where it is.
+const handleQuotaPillClick = () => {
+	if (quotaStore.canAddMate || quotaStore.isPro) return;
+	chatWidget.closePanel();
+	openMenu(Menu.Shop);
+};
+
 // Empty-state CTAs — collapse the widget first so the target menu/route is
 // front-and-centre instead of buried under the chat panel.
 const router = useIonRouter();
@@ -263,7 +319,7 @@ const emptyCtas = [
 	{
 		icon: mdiPencilPlusOutline,
 		label: "Draw together",
-		sub: "Open a public lobby & meet artists",
+		sub: "Join a public lobby",
 		action: () => {
 			chatWidget.closePanel();
 			router.push(
@@ -275,7 +331,7 @@ const emptyCtas = [
 	{
 		icon: mdiAccountMultiplePlusOutline,
 		label: "Add a mate",
-		sub: "Share your code or scan a friend's",
+		sub: "Share or scan a friend code",
 		action: () => {
 			chatWidget.closePanel();
 			openMenu(Menu.ConnectionMenu);
@@ -284,7 +340,7 @@ const emptyCtas = [
 	{
 		icon: mdiBalloon,
 		label: "Send a balloon",
-		sub: "Float a sketch to a random artist",
+		sub: "Send a sketch to a stranger",
 		action: () => {
 			chatWidget.closePanel();
 			openMenu(Menu.BalloonMenu);

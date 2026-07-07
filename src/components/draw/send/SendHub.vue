@@ -103,7 +103,8 @@
               <template v-else>
                 Daily limit reached. <span
                 class="text-secondary underline font-black active:scale-95 inline-block cursor-pointer"
-                @click.stop="goToPro"><ion-icon :icon="svg(mdiStar)" class="text-xs align-[-1px]" /> Upgrade to PRO</span>
+                @click.stop="goToPro"><ion-icon :icon="svg(mdiStar)"
+                                                class="text-xs align-[-1px]" /> Upgrade to PRO</span>
               </template>
             </div>
           </div>
@@ -148,7 +149,10 @@
         ]" @click="quotaStore.canSendBalloon && toggleSection('balloon')">
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
-            <p class="text-xl font-bold text-black leading-none"><ion-icon :icon="svg(mdiBalloon)" class="text-secondary mr-1 align-[-2px]" /> Release Balloon</p>
+            <p class="text-xl font-bold text-black leading-none">
+              <ion-icon :icon="svg(mdiBalloon)" class="text-secondary mr-1 align-[-2px]" />
+              Release Balloon
+            </p>
             <div class="text-sm text-black/80 mt-1">
               <template v-if="quotaStore.canSendBalloon">
                 <div>Send to a stranger.</div>
@@ -162,7 +166,8 @@
               <template v-else>
                 Daily limit reached. <span
                 class="text-secondary underline font-black active:scale-95 inline-block cursor-pointer"
-                @click.stop="goToPro"><ion-icon :icon="svg(mdiStar)" class="text-xs align-[-1px]" /> Upgrade to PRO</span>
+                @click.stop="goToPro"><ion-icon :icon="svg(mdiStar)"
+                                                class="text-xs align-[-1px]" /> Upgrade to PRO</span>
               </template>
             </div>
           </div>
@@ -386,10 +391,9 @@ function executeShares() {
   if (!useDrawSyncer().isLobby) {
     resetCanvas()
   }
-  const nav = document.querySelector('ion-nav')
   shareService.preSelected = 'mate'
-
-  void nav?.popToRoot()
+  drawUI.isForceExiting = true
+  router.replace(FRONTEND_ROUTES.home)
   resetMates()
 
   setTimeout(async () => {

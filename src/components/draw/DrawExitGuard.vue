@@ -98,23 +98,33 @@ const resolveExit = async (): Promise<boolean> => {
 // Hooks
 // ─────────────────────────────────────────────────────────────────────────
 onBeforeRouteLeave(async (_to, _from, next) => {
-	if (isNavigationConfirmed) return next();
-	const shouldLeave = await resolveExit();
-	if (shouldLeave) {
-		commitExit();
-		next();
-	} else {
-		next(false);
-	}
+  // If we already confirmed, just go
+  if (isNavigationConfirmed) return next();
+
+  // BYPASS: If we are coming from a successful share, skip the modal
+  if (uiStore.isForceExiting) {
+    uiStore.isForceExiting = false; // Reset it for the next session
+    commitExit();
+    return next();
+  }
+
+  // NORMAL CASE: Prompt the user with the modal
+  const shouldLeave = await resolveExit();
+  if (shouldLeave) {
+    commitExit();
+    next();
+  } else {
+    next(false);
+  }
 });
 
 const backButtonSubscription = useBackButton(1, async (processNextHandler) => {
-	if (isNavigationConfirmed) {
-		processNextHandler();
-		return;
-	}
-	await requestExit();
-});
+  if (isNavigationConfirmed) {
+    processNextHandler()
+    return
+  }
+  await requestExit()
+})
 
 onUnmounted(() => {
 	if (backButtonSubscription) backButtonSubscription.unregister();

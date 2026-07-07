@@ -58,6 +58,19 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
   const isSaving = ref(false)
   const isDirty = ref(false)
 
+  // Reactive "this session has drawable content", so the autosave chip can stay
+  // visible from the first stroke onward. hasContent() reads the live canvas and
+  // is not reactive, so the UI can't watch it directly.
+  const sessionHasContent = ref(false)
+
+  // Timestamp of the last successful persist — surfaced so the UI can show
+  // "saved N seconds ago" and reason about manual-save throttling.
+  const lastSavedAt = ref<number | undefined>()
+
+  // Anti-spam floor for the user-triggered "Save now" button.
+  let lastManualSaveAt = 0
+  const MANUAL_SAVE_COOLDOWN_MS = 3000
+
   // FIX: Track if the current session was loaded from a pre-existing local draft
   const isPreExistingDraft = ref(false)
 
@@ -162,6 +175,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
         if (json.objects && json.objects.length > 0) {
           json.objects = json.objects.map(migrateLegacyOrigin)
           precalculateAndSetViewport(c, json.objects)
+          sessionHasContent.value = true
         }
 
         if (json.version === '5.5.2') {
@@ -350,11 +364,27 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
       if (!snapshot || signal.aborted) return
       await runSave(snapshot, signal)
       isDirty.value = false
+      lastSavedAt.value = Date.now()
     } catch (error: any) {
       if (error.name !== 'AbortError') console.error('🔥 Save Error:', error)
     } finally {
       isSaving.value = false
     }
+  }
+
+  /**
+   * User-triggered immediate save. Returns a status so the UI can give
+   * feedback. Throttled so mashing the button can't spam IndexedDB writes;
+   * no-ops when already saving or when there's nothing new to persist.
+   */
+  async function saveNow(): Promise<'saved' | 'clean' | 'busy' | 'cooldown'> {
+    if (isSaving.value) return 'busy'
+    if (!isDirty.value) return 'clean'
+    const now = Date.now()
+    if (now - lastManualSaveAt < MANUAL_SAVE_COOLDOWN_MS) return 'cooldown'
+    lastManualSaveAt = now
+    await performLiveSave()
+    return 'saved'
   }
 
   function init(c: Canvas) {
@@ -377,7 +407,10 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     if (liveAbortController) liveAbortController.abort()
   }
 
-  const markAsDirty = () => (isDirty.value = true)
+  const markAsDirty = () => {
+    isDirty.value = true
+    sessionHasContent.value = true
+  }
 
   async function queueBackgroundSave(
     draftId: string
@@ -484,6 +517,7 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     isDirty.value = false
     isSaving.value = false
     isPreExistingDraft.value = false
+    sessionHasContent.value = false
   }
 
   const pendingDraftsList = computed<DrawingDraft[]>(() => {
@@ -499,6 +533,9 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     currentDraftId,
     isSaving,
     isDirty,
+    sessionHasContent,
+    lastSavedAt,
+    saveNow,
     isPreExistingDraft, // Exported to be consumed by DrawExitGuard.vue
     pendingDrafts,
     pendingDraftsList,

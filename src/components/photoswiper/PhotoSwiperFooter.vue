@@ -40,31 +40,13 @@
       </button>
     </div>
 
-    <ion-popover
+    <ReactionPopover
       :is-open="popoverOpen"
       :event="popoverEvent"
-      @didDismiss="popoverOpen = false"
-      :show-backdrop="false"
-      class="liquid-popover"
-      side="top"
-      :arrow="false"
-      alignment="center"
-    >
-      <div
-        class="bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-[2rem] flex items-center px-4 py-3 space-x-3 animate-pop-in shadow-2xl">
-        <button
-          v-for="(imgSrc, type) in reactionImages"
-          :key="type"
-          @click="selectReaction(type)"
-          class="group relative w-11 h-11 p-1 transition-all duration-300 hover:scale-125 active:scale-90"
-        >
-          <img :src="imgSrc"
-               class="h-full w-full object-contain drop-shadow-md group-hover:-translate-y-2 transition-transform" />
-          <div v-if="currItem.user_reaction === type"
-               class="absolute -bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-secondary shadow-[0_0_8px_rgba(var(--ion-color-secondary-rgb),0.6)]" />
-        </button>
-      </div>
-    </ion-popover>
+      :userReaction="currItem.user_reaction"
+      @close="popoverOpen = false"
+      @select="selectReaction"
+    />
   </div>
 </template>
 
@@ -89,6 +71,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { useShareService } from '@/draw/store/useShareService.store'
 import { useMenuStore } from '@/store/menu.store'
 import { Menu } from '@/draw/types/draw.types'
+import ReactionPopover from '@/components/general/ReactionPopover.vue'
 
 const props = defineProps<{
   currItem: any;

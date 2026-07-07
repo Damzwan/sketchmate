@@ -60,37 +60,13 @@
       </div>
     </transition>
 
-    <!-- Unified Floating Dynamic Reaction Picker Popover -->
-    <ion-popover
+    <ReactionPopover
       :is-open="popoverOpen"
       :event="popoverEvent"
-      @didDismiss="popoverOpen = false"
-      :show-backdrop="false"
-      class="liquid-popover"
-      side="top"
-      alignment="center"
-    >
-      <div class="flex items-center px-2 py-1.5 space-x-1 animate-pop-in overflow-visible">
-        <button
-          v-for="(imgSrc, type) in reactionImages"
-          :key="type"
-          @click="selectReaction(type)"
-          class="group relative w-11 h-11 p-1 transition-all duration-300 hover:scale-125 active:scale-90"
-        >
-          <img
-            :src="imgSrc"
-            class="h-full w-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:-translate-y-1.5"
-            alt="reaction"
-          />
-
-          <!-- Current Selection Dot Indicator -->
-          <div
-            v-if="activePopoverPost?.user_reaction === type"
-            class="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-secondary animate-pulse"
-          />
-        </button>
-      </div>
-    </ion-popover>
+      :user-reaction="activePopoverPost?.user_reaction"
+      @close="popoverOpen = false"
+      @select="selectReaction"
+    />
 
     <!-- Comments Drawer Slide Controller -->
     <PostCommentDrawer
@@ -117,6 +93,7 @@ import { reactionImages } from '@/config/post.config'
 import FeedPostCard from '@/components/home/posts/FeedPostCard.vue'
 import PostCommentDrawer from '@/components/home/posts/PostCommentDrawer.vue'
 import { mixpanelEvents, trackEvent } from '@/service/mixpanel'
+import ReactionPopover from '@/components/general/ReactionPopover.vue'
 
 const authStore = useAuthStore()
 const postStore = usePostStore()
@@ -134,6 +111,7 @@ const activePost = ref<FeedPost | null>(null)
 const popoverOpen = ref(false)
 const popoverEvent = ref<Event | null>(null)
 const activePopoverPost = ref<FeedPost | null>(null)
+const REACTION_POPOVER_SPACING = 10
 
 const openComments = (post: FeedPost) => {
   activePost.value = post
@@ -157,7 +135,7 @@ const handleOpenReactionPopover = ({
     target: {
       getBoundingClientRect: () => ({
         left: x,
-        top: y,
+        top: y - REACTION_POPOVER_SPACING,
         right: x,
         bottom: y,
         width: 0,
@@ -178,7 +156,7 @@ const selectReaction = async (type: string) => {
     author_id: post.author_id,
     reaction_type: type,
     removed: isRemoving,
-    is_own_post: post.author_id === user.value?._id,
+    is_own_post: post.author_id === user.value?._id
   })
   try {
     await postStore.toggleReactionLocally(post._id, type)

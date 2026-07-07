@@ -48,6 +48,7 @@ export function registerChatHandlers(socket: Socket) {
 			conversation: PopulatedConversation;
 			conversation_id: string;
 		}) => {
+			console.log('si')
 			const me = authStore.user?._id;
 			if (
 				payload.message?.type !== "system" &&

@@ -135,8 +135,10 @@
         </div>
       </div>
 
-      <div class="absolute z-20 inset-x-0 bottom-0 px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pointer-events-none">
-        <div class="pointer-events-auto rounded-3xl bg-white/90 backdrop-blur-xl border border-white/60 shadow-lg px-3 py-2 flex flex-col gap-2">
+      <div
+        class="absolute z-20 inset-x-0 bottom-0 px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pointer-events-none">
+        <div
+          class="pointer-events-auto rounded-3xl bg-white/90 backdrop-blur-xl border border-white/60 shadow-lg px-3 py-2 flex flex-col gap-2">
 
           <div class="flex items-center gap-1">
             <ion-button fill="clear" color="dark" class="ion-no-margin h-9 w-9" :disabled="!canUndo" @click="undo">
@@ -150,7 +152,8 @@
               Pinch to zoom / drag to pan
             </span>
 
-            <ion-button fill="clear" color="medium" size="small" class="ion-no-margin ml-auto pr-1" @click="fitView(true)">
+            <ion-button fill="clear" color="medium" size="small" class="ion-no-margin ml-auto pr-1"
+                        @click="fitView(true)">
               <ion-icon slot="start" :icon="svg(mdiFitToScreenOutline)" class="text-lg mr-2" />
               <span class="text-[11px] font-bold tabular-nums">{{ zoomPct }}%</span>
             </ion-button>
@@ -209,15 +212,21 @@
             >
               Clear
             </ion-button>
+
             <ion-button
               color="secondary"
               shape="round"
               class="flex-1 ion-no-margin"
-              :disabled="!isPro"
-              @click="save"
+              @click="applyOrUpgrade"
             >
-              <ion-icon v-if="!isPro" slot="start" :icon="svg(mdiLock)" />
-              Apply
+              <template v-if="isPro">
+                Apply
+              </template>
+
+              <template v-else>
+                <ion-icon slot="start" :icon="svg(mdiLock)" />
+                Unlock Pro
+              </template>
             </ion-button>
           </div>
 
@@ -226,7 +235,7 @@
             class="text-center text-[9px] font-bold text-secondary/70 uppercase tracking-widest pb-0.5 flex items-center justify-center gap-1"
           >
             <ion-icon :icon="svg(mdiLock)" class="text-xs" />
-            Pro subscription required to apply
+            Unlock Pro to save your doodle
           </p>
         </div>
       </div>
@@ -235,721 +244,734 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
-import { IonModal, IonButton, IonIcon, IonRange } from "@ionic/vue";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { IonModal, IonButton, IonIcon, IonRange } from '@ionic/vue'
 import {
-	mdiClose,
-	mdiUndoVariant,
-	mdiRedoVariant,
-	mdiBrush,
-	mdiEraser,
-	mdiLock,
-	mdiFitToScreenOutline,
-} from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import ProfileCard from "@/components/profile/ProfileCard.vue";
+  mdiClose,
+  mdiUndoVariant,
+  mdiRedoVariant,
+  mdiBrush,
+  mdiEraser,
+  mdiLock,
+  mdiFitToScreenOutline
+} from '@mdi/js'
+import { svg } from '@/helper/general.helper'
+import ProfileCard from '@/components/profile/ProfileCard.vue'
 import {
-	hydrateCustomization,
-	resolveTheme,
-	type Customization,
-} from "@/config/profile_options.config";
-import { useSubscriptionStore } from "@/store/subscription.store";
+  hydrateCustomization,
+  resolveTheme,
+  type Customization
+} from '@/config/profile_options.config'
+import { useSubscriptionStore } from '@/store/subscription.store'
 
 type Point = [number, number];
 type Stroke = { points: Point[]; width: number };
-type Tool = "draw" | "erase";
+type Tool = 'draw' | 'erase';
 
-const CANONICAL_CARD_WIDTH = 360;
-const CANONICAL_ZONE_WIDTH = ref(0);
-const CANONICAL_ZONE_HEIGHT = ref(0);
+const CANONICAL_CARD_WIDTH = 360
+const CANONICAL_ZONE_WIDTH = ref(0)
+const CANONICAL_ZONE_HEIGHT = ref(0)
 
-const MIN_BRUSH = 2;
-const MAX_BRUSH = 28;
-const MIN_SCALE = 0.35;
-const MAX_SCALE = 8;
+const MIN_BRUSH = 2
+const MAX_BRUSH = 28
+const MIN_SCALE = 0.35
+const MAX_SCALE = 8
 
-const SKETCH_FONT = '"Cabin Sketch", cursive';
-const EDIT_OPACITY = 0.35;
+const SKETCH_FONT = '"Cabin Sketch", cursive'
+const EDIT_OPACITY = 0.35
 
 const props = defineProps<{
-	isOpen: boolean;
-	color?: string;
-	customization?: Partial<Customization>;
-	user?: any;
-	initialPath?: string;
-	initialViewBox?: string;
-}>();
+  isOpen: boolean;
+  color?: string;
+  customization?: Partial<Customization>;
+  user?: any;
+  initialPath?: string;
+  initialViewBox?: string;
+}>()
 
 const emit = defineEmits<{
-	(e: "close"): void;
-	(e: "save", payload: { path: string; viewBox: string }): void;
-}>();
+  (e: 'close'): void;
+  (e: 'save', payload: { path: string; viewBox: string }): void;
+}>()
 
-const subscriptionStore = useSubscriptionStore();
-const isPro = computed(() => subscriptionStore.isPro);
+const subscriptionStore = useSubscriptionStore()
+const isPro = computed(() => subscriptionStore.isPro)
 
 /* ----------------------------- tools ----------------------------- */
-const tool = ref<Tool>("draw");
-const brushWidth = ref<number>(8);
-const cardOpacity = 0.4;
+const tool = ref<Tool>('draw')
+const brushWidth = ref<number>(8)
+const cardOpacity = 0.4
 
-const sizeDotPx = computed(() => Math.max(6, Math.min(22, brushWidth.value)));
+const sizeDotPx = computed(() => Math.max(6, Math.min(22, brushWidth.value)))
 
 /* ----------------------------- refs ------------------------------ */
-const viewportRef = ref<HTMLElement | null>(null);
-const worldRef = ref<HTMLElement | null>(null);
-const cardWrapperRef = ref<HTMLElement | null>(null);
-const padRef = ref<HTMLElement | null>(null);
+const viewportRef = ref<HTMLElement | null>(null)
+const worldRef = ref<HTMLElement | null>(null)
+const cardWrapperRef = ref<HTMLElement | null>(null)
+const padRef = ref<HTMLElement | null>(null)
 
 /* --------------------------- zone layout -------------------------- */
-const zoneRenderTop = ref(0);
-const zoneRenderLeft = ref(0);
-const zoneRenderWidth = ref(0);
-const zoneRenderHeight = ref(0);
+const zoneRenderTop = ref(0)
+const zoneRenderLeft = ref(0)
+const zoneRenderWidth = ref(0)
+const zoneRenderHeight = ref(0)
 
 /* --------------------------- view transform ----------------------- */
-const scale = ref(1);
-const tx = ref(0);
-const ty = ref(0);
+const scale = ref(1)
+const tx = ref(0)
+const ty = ref(0)
 
 const worldStyle = computed(() => ({
-	transform: `translate3d(${tx.value}px, ${ty.value}px, 0) scale(${scale.value})`,
-}));
-const zoomPct = computed(() => Math.round(scale.value * 100));
+  transform: `translate3d(${tx.value}px, ${ty.value}px, 0) scale(${scale.value})`
+}))
+const zoomPct = computed(() => Math.round(scale.value * 100))
 
 /* --------------------------- stroke state ------------------------- */
-const strokes = ref<Stroke[]>([]);
-const currentStroke = ref<Point[]>([]);
-const isDrawing = ref(false);
+const strokes = ref<Stroke[]>([])
+const currentStroke = ref<Point[]>([])
+const isDrawing = ref(false)
 
 /* ----- colour ---------------------------------------------------- */
 const effectiveCustomization = computed(() =>
-	hydrateCustomization(props.customization || {}),
-);
+  hydrateCustomization(props.customization || {})
+)
 const theme = computed(() =>
-	resolveTheme(effectiveCustomization.value.themeId),
-);
+  resolveTheme(effectiveCustomization.value.themeId)
+)
 const strokeColor = computed(
-	() => theme.value.nameColor || props.color || "#1c1c1e",
-);
+  () => theme.value.nameColor || props.color || '#1c1c1e'
+)
 
 /* --------------------------- history ------------------------------ */
-const past = ref<Stroke[][]>([]);
-const future = ref<Stroke[][]>([]);
-const canUndo = computed(() => past.value.length > 0);
-const canRedo = computed(() => future.value.length > 0);
-let gestureSnapshot: string | null = null;
+const past = ref<Stroke[][]>([])
+const future = ref<Stroke[][]>([])
+const canUndo = computed(() => past.value.length > 0)
+const canRedo = computed(() => future.value.length > 0)
+let gestureSnapshot: string | null = null
 
 const cloneStrokes = (s: Stroke[]): Stroke[] =>
-	s.map((st) => ({
-		width: st.width,
-		points: st.points.map((p) => [p[0], p[1]] as Point),
-	}));
+  s.map((st) => ({
+    width: st.width,
+    points: st.points.map((p) => [p[0], p[1]] as Point)
+  }))
 
 const beginHistory = () => {
-	gestureSnapshot = JSON.stringify(strokes.value);
-};
+  gestureSnapshot = JSON.stringify(strokes.value)
+}
 const commitHistory = () => {
-	if (gestureSnapshot === null) return;
-	if (gestureSnapshot !== JSON.stringify(strokes.value)) {
-		past.value.push(JSON.parse(gestureSnapshot));
-		future.value = [];
-	}
-	gestureSnapshot = null;
-};
+  if (gestureSnapshot === null) return
+  if (gestureSnapshot !== JSON.stringify(strokes.value)) {
+    past.value.push(JSON.parse(gestureSnapshot))
+    future.value = []
+  }
+  gestureSnapshot = null
+}
 const undo = () => {
-	if (!canUndo.value) return;
-	future.value.push(cloneStrokes(strokes.value));
-	strokes.value = past.value.pop()!;
-};
+  if (!canUndo.value) return
+  future.value.push(cloneStrokes(strokes.value))
+  strokes.value = past.value.pop()!
+}
 const redo = () => {
-	if (!canRedo.value) return;
-	past.value.push(cloneStrokes(strokes.value));
-	strokes.value = future.value.pop()!;
-};
+  if (!canRedo.value) return
+  past.value.push(cloneStrokes(strokes.value))
+  strokes.value = future.value.pop()!
+}
 
 /* --------------------------- card preview ------------------------- */
 const cardCustomization = computed(() => ({
-	...(props.customization || {}),
-	backgroundSketchPath: "",
-	backgroundSketchViewBox: "",
-}));
+  ...(props.customization || {}),
+  backgroundSketchPath: '',
+  backgroundSketchViewBox: ''
+}))
 
 /* ================================================================== *
  * MEASUREMENT
  * ================================================================== */
-let resizeObserver: ResizeObserver | null = null;
+let resizeObserver: ResizeObserver | null = null
 
 const measureZone = () => {
-	const wrapper = cardWrapperRef.value;
-	if (!wrapper) return;
+  const wrapper = cardWrapperRef.value
+  if (!wrapper) return
 
-	const zoneEl =
-		wrapper.querySelector<HTMLElement>(".js-doodle-zone") ?? wrapper;
+  const zoneEl =
+    wrapper.querySelector<HTMLElement>('.js-doodle-zone') ?? wrapper
 
-	const wRect = wrapper.getBoundingClientRect();
-	const zRect = zoneEl.getBoundingClientRect();
-	if (zRect.width === 0 || zRect.height === 0) return;
+  const wRect = wrapper.getBoundingClientRect()
+  const zRect = zoneEl.getBoundingClientRect()
+  if (zRect.width === 0 || zRect.height === 0) return
 
-	const s = scale.value || 1;
-	zoneRenderTop.value = Math.round((zRect.top - wRect.top) / s);
-	zoneRenderLeft.value = Math.round((zRect.left - wRect.left) / s);
-	zoneRenderWidth.value = Math.round(zRect.width / s);
-	zoneRenderHeight.value = Math.round(zRect.height / s);
+  const s = scale.value || 1
+  zoneRenderTop.value = Math.round((zRect.top - wRect.top) / s)
+  zoneRenderLeft.value = Math.round((zRect.left - wRect.left) / s)
+  zoneRenderWidth.value = Math.round(zRect.width / s)
+  zoneRenderHeight.value = Math.round(zRect.height / s)
 
-	if (CANONICAL_ZONE_WIDTH.value === 0) {
-		CANONICAL_ZONE_WIDTH.value = zoneRenderWidth.value;
-		CANONICAL_ZONE_HEIGHT.value = zoneRenderHeight.value;
-	}
-};
+  if (CANONICAL_ZONE_WIDTH.value === 0) {
+    CANONICAL_ZONE_WIDTH.value = zoneRenderWidth.value
+    CANONICAL_ZONE_HEIGHT.value = zoneRenderHeight.value
+  }
+}
 
 const cardIntrinsicHeight = () =>
-	cardWrapperRef.value?.offsetHeight || CANONICAL_CARD_WIDTH * 1.4;
+  cardWrapperRef.value?.offsetHeight || CANONICAL_CARD_WIDTH * 1.4
 
 const fitView = (animate = false) => {
-	const vp = viewportRef.value;
-	if (!vp) return;
-	const rect = vp.getBoundingClientRect();
-	const margin = 28;
-	const topReserve = 96;
-	const bottomReserve = 170;
-	const availW = rect.width - margin * 2;
-	const availH = rect.height - topReserve - bottomReserve;
-	const cardH = cardIntrinsicHeight();
+  const vp = viewportRef.value
+  if (!vp) return
+  const rect = vp.getBoundingClientRect()
+  const margin = 28
+  const topReserve = 96
+  const bottomReserve = 170
+  const availW = rect.width - margin * 2
+  const availH = rect.height - topReserve - bottomReserve
+  const cardH = cardIntrinsicHeight()
 
-	const next = clamp(
-		Math.min(availW / CANONICAL_CARD_WIDTH, availH / cardH),
-		MIN_SCALE,
-		4,
-	);
+  const next = clamp(
+    Math.min(availW / CANONICAL_CARD_WIDTH, availH / cardH),
+    MIN_SCALE,
+    4
+  )
 
-	const apply = () => {
-		scale.value = next;
-		tx.value = (rect.width - CANONICAL_CARD_WIDTH * next) / 2;
-		ty.value = topReserve + Math.max(0, (availH - cardH * next) / 2);
-	};
+  const apply = () => {
+    scale.value = next
+    tx.value = (rect.width - CANONICAL_CARD_WIDTH * next) / 2
+    ty.value = topReserve + Math.max(0, (availH - cardH * next) / 2)
+  }
 
-	if (animate && worldRef.value) {
-		worldRef.value.style.transition =
-			"transform 0.28s cubic-bezier(0.22,1,0.36,1)";
-		apply();
-		window.setTimeout(() => {
-			if (worldRef.value) worldRef.value.style.transition = "";
-		}, 300);
-	} else {
-		apply();
-	}
-};
+  if (animate && worldRef.value) {
+    worldRef.value.style.transition =
+      'transform 0.28s cubic-bezier(0.22,1,0.36,1)'
+    apply()
+    window.setTimeout(() => {
+      if (worldRef.value) worldRef.value.style.transition = ''
+    }, 300)
+  } else {
+    apply()
+  }
+}
 
 /* ================================================================== *
  * LIFECYCLE
  * ================================================================== */
 const onPresent = async () => {
-	tool.value = "draw";
-	scale.value = 1;
-	tx.value = 0;
-	ty.value = 0;
-	CANONICAL_ZONE_WIDTH.value = 0;
-	CANONICAL_ZONE_HEIGHT.value = 0;
-	past.value = [];
-	future.value = [];
-	currentStroke.value = [];
+  tool.value = 'draw'
+  scale.value = 1
+  tx.value = 0
+  ty.value = 0
+  CANONICAL_ZONE_WIDTH.value = 0
+  CANONICAL_ZONE_HEIGHT.value = 0
+  past.value = []
+  future.value = []
+  currentStroke.value = []
 
-	await nextTick();
-	measureZone();
-	fitView();
+  await nextTick()
+  measureZone()
+  fitView()
 
-	window.setTimeout(() => {
-		measureZone();
-		fitView();
-	}, 180);
+  window.setTimeout(() => {
+    measureZone()
+    fitView()
+  }, 180)
 
-	if (cardWrapperRef.value && typeof ResizeObserver !== "undefined") {
-		resizeObserver?.disconnect();
-		resizeObserver = new ResizeObserver(() => measureZone());
-		resizeObserver.observe(cardWrapperRef.value);
-		const zoneEl =
-			cardWrapperRef.value.querySelector<HTMLElement>(".js-doodle-zone");
-		if (zoneEl) resizeObserver.observe(zoneEl);
-	}
+  if (cardWrapperRef.value && typeof ResizeObserver !== 'undefined') {
+    resizeObserver?.disconnect()
+    resizeObserver = new ResizeObserver(() => measureZone())
+    resizeObserver.observe(cardWrapperRef.value)
+    const zoneEl =
+      cardWrapperRef.value.querySelector<HTMLElement>('.js-doodle-zone')
+    if (zoneEl) resizeObserver.observe(zoneEl)
+  }
 
-	strokes.value = props.initialPath
-		? parsePathToStrokes(props.initialPath)
-		: [];
-};
+  strokes.value = props.initialPath
+    ? parsePathToStrokes(props.initialPath)
+    : []
+}
 
-onBeforeUnmount(() => resizeObserver?.disconnect());
+onBeforeUnmount(() => resizeObserver?.disconnect())
 
 watch(
-	() => props.initialPath,
-	(val) => {
-		if (props.isOpen) {
-			strokes.value = val ? parsePathToStrokes(val) : [];
-			past.value = [];
-			future.value = [];
-		}
-	},
-);
+  () => props.initialPath,
+  (val) => {
+    if (props.isOpen) {
+      strokes.value = val ? parsePathToStrokes(val) : []
+      past.value = []
+      future.value = []
+    }
+  }
+)
 
 /* ================================================================== *
  * POINTER / GESTURE ENGINE
  * ================================================================== */
-const pointers = new Map<number, { x: number; y: number }>();
-type GestureMode = "none" | "draw" | "transform" | "lock";
-let mode: GestureMode = "none";
+const pointers = new Map<number, { x: number; y: number }>()
+type GestureMode = 'none' | 'draw' | 'transform' | 'lock';
+let mode: GestureMode = 'none'
 
-let pinchStartDist = 0;
-let pinchStartScale = 1;
-let pinchAnchor = { wx: 0, wy: 0 };
+let pinchStartDist = 0
+let pinchStartScale = 1
+let pinchAnchor = { wx: 0, wy: 0 }
 
-const eraserCursor = reactive({ visible: false, x: 0, y: 0, size: 0 });
+const eraserCursor = reactive({ visible: false, x: 0, y: 0, size: 0 })
 
 const vpRect = () =>
-	viewportRef.value?.getBoundingClientRect() ?? new DOMRect();
+  viewportRef.value?.getBoundingClientRect() ?? new DOMRect()
 
 const pxPerCanonical = () => {
-	if (!padRef.value || !CANONICAL_ZONE_WIDTH.value) return scale.value;
-	return (
-		padRef.value.getBoundingClientRect().width / CANONICAL_ZONE_WIDTH.value
-	);
-};
+  if (!padRef.value || !CANONICAL_ZONE_WIDTH.value) return scale.value
+  return (
+    padRef.value.getBoundingClientRect().width / CANONICAL_ZONE_WIDTH.value
+  )
+}
 
 const getPoint = (clientX: number, clientY: number): Point | null => {
-	if (!padRef.value || CANONICAL_ZONE_WIDTH.value === 0) return null;
-	const rect = padRef.value.getBoundingClientRect();
-	if (rect.width === 0) return null;
-	const sx = CANONICAL_ZONE_WIDTH.value / rect.width;
-	const sy = CANONICAL_ZONE_HEIGHT.value / rect.height;
-	return [
-		Number(((clientX - rect.left) * sx).toFixed(1)),
-		Number(((clientY - rect.top) * sy).toFixed(1)),
-	];
-};
+  if (!padRef.value || CANONICAL_ZONE_WIDTH.value === 0) return null
+  const rect = padRef.value.getBoundingClientRect()
+  if (rect.width === 0) return null
+  const sx = CANONICAL_ZONE_WIDTH.value / rect.width
+  const sy = CANONICAL_ZONE_HEIGHT.value / rect.height
+  return [
+    Number(((clientX - rect.left) * sx).toFixed(1)),
+    Number(((clientY - rect.top) * sy).toFixed(1))
+  ]
+}
 
 const twoPointers = () => {
-	const it = pointers.values();
-	const a = it.next().value!;
-	const b = it.next().value!;
-	return [a, b] as const;
-};
+  const it = pointers.values()
+  const a = it.next().value!
+  const b = it.next().value!
+  return [a, b] as const
+}
 
 const onPointerDown = (e: PointerEvent) => {
-	viewportRef.value?.setPointerCapture(e.pointerId);
-	pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  viewportRef.value?.setPointerCapture(e.pointerId)
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
-	if (pointers.size >= 2) {
-		if (mode === "draw") cancelStroke();
-		startPinch();
-		mode = "transform";
-		return;
-	}
+  if (pointers.size >= 2) {
+    if (mode === 'draw') cancelStroke()
+    startPinch()
+    mode = 'transform'
+    return
+  }
 
-	if (mode === "lock") return;
+  if (mode === 'lock') return
 
-	if (tool.value === "erase") {
-		mode = "draw";
-		beginHistory();
-		updateEraserCursor(e);
-		eraseAt(e.clientX, e.clientY);
-	} else {
-		mode = "draw";
-		beginHistory();
-		const p = getPoint(e.clientX, e.clientY);
-		if (!p) {
-			mode = "none";
-			return;
-		}
-		isDrawing.value = true;
-		currentStroke.value = [p];
-	}
-};
+  if (tool.value === 'erase') {
+    mode = 'draw'
+    beginHistory()
+    updateEraserCursor(e)
+    eraseAt(e.clientX, e.clientY)
+  } else {
+    mode = 'draw'
+    beginHistory()
+    const p = getPoint(e.clientX, e.clientY)
+    if (!p) {
+      mode = 'none'
+      return
+    }
+    isDrawing.value = true
+    currentStroke.value = [p]
+  }
+}
 
 const onPointerMove = (e: PointerEvent) => {
-	if (pointers.has(e.pointerId)) {
-		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-	}
-	if (tool.value === "erase") updateEraserCursor(e);
+  if (pointers.has(e.pointerId)) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  }
+  if (tool.value === 'erase') updateEraserCursor(e)
 
-	if (mode === "transform" && pointers.size >= 2) {
-		updatePinch();
-		return;
-	}
-	if (mode !== "draw") return;
+  if (mode === 'transform' && pointers.size >= 2) {
+    updatePinch()
+    return
+  }
+  if (mode !== 'draw') return
 
-	if (tool.value === "erase") {
-		eraseAt(e.clientX, e.clientY);
-		return;
-	}
+  if (tool.value === 'erase') {
+    eraseAt(e.clientX, e.clientY)
+    return
+  }
 
-	if (!isDrawing.value) return;
-	const p = getPoint(e.clientX, e.clientY);
-	if (!p) return;
-	const last = currentStroke.value[currentStroke.value.length - 1];
-	if (last) {
-		const dx = p[0] - last[0];
-		const dy = p[1] - last[1];
-		if (dx * dx + dy * dy < 1) return;
-	}
-	currentStroke.value.push(p);
-};
+  if (!isDrawing.value) return
+  const p = getPoint(e.clientX, e.clientY)
+  if (!p) return
+  const last = currentStroke.value[currentStroke.value.length - 1]
+  if (last) {
+    const dx = p[0] - last[0]
+    const dy = p[1] - last[1]
+    if (dx * dx + dy * dy < 1) return
+  }
+  currentStroke.value.push(p)
+}
 
 const onPointerUp = (e: PointerEvent) => {
-	viewportRef.value?.releasePointerCapture?.(e.pointerId);
-	pointers.delete(e.pointerId);
+  viewportRef.value?.releasePointerCapture?.(e.pointerId)
+  pointers.delete(e.pointerId)
 
-	if (mode === "transform") {
-		mode = pointers.size === 0 ? "none" : "lock";
-		return;
-	}
-	if (mode === "lock") {
-		if (pointers.size === 0) mode = "none";
-		return;
-	}
+  if (mode === 'transform') {
+    mode = pointers.size === 0 ? 'none' : 'lock'
+    return
+  }
+  if (mode === 'lock') {
+    if (pointers.size === 0) mode = 'none'
+    return
+  }
 
-	if (mode === "draw") {
-		if (tool.value === "erase") {
-			commitHistory();
-			if (pointers.size === 0) eraserCursor.visible = false;
-		} else if (isDrawing.value) {
-			isDrawing.value = false;
-			commitStroke();
-		}
-		if (pointers.size === 0) mode = "none";
-	}
-};
+  if (mode === 'draw') {
+    if (tool.value === 'erase') {
+      commitHistory()
+      if (pointers.size === 0) eraserCursor.visible = false
+    } else if (isDrawing.value) {
+      isDrawing.value = false
+      commitStroke()
+    }
+    if (pointers.size === 0) mode = 'none'
+  }
+}
 
 const cancelStroke = () => {
-	isDrawing.value = false;
-	currentStroke.value = [];
-	gestureSnapshot = null;
-};
+  isDrawing.value = false
+  currentStroke.value = []
+  gestureSnapshot = null
+}
 
 const commitStroke = () => {
-	if (currentStroke.value.length === 1) {
-		strokes.value.push({
-			points: [currentStroke.value[0]],
-			width: brushWidth.value,
-		});
-	} else if (currentStroke.value.length > 1) {
-		strokes.value.push({
-			points: simplifyPath(currentStroke.value, 0.75),
-			width: brushWidth.value,
-		});
-	}
-	currentStroke.value = [];
-	commitHistory();
-};
+  if (currentStroke.value.length === 1) {
+    strokes.value.push({
+      points: [currentStroke.value[0]],
+      width: brushWidth.value
+    })
+  } else if (currentStroke.value.length > 1) {
+    strokes.value.push({
+      points: simplifyPath(currentStroke.value, 0.75),
+      width: brushWidth.value
+    })
+  }
+  currentStroke.value = []
+  commitHistory()
+}
 
 /* ----------------------------- pinch ------------------------------ */
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
-	Math.hypot(a.x - b.x, a.y - b.y);
+  Math.hypot(a.x - b.x, a.y - b.y)
 const mid = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
-	x: (a.x + b.x) / 2,
-	y: (a.y + b.y) / 2,
-});
+  x: (a.x + b.x) / 2,
+  y: (a.y + b.y) / 2
+})
 
 const startPinch = () => {
-	const [a, b] = twoPointers();
-	const center = mid(a, b);
-	const rect = vpRect();
-	pinchStartDist = dist(a, b) || 1;
-	pinchStartScale = scale.value;
-	pinchAnchor = {
-		wx: (center.x - rect.left - tx.value) / scale.value,
-		wy: (center.y - rect.top - ty.value) / scale.value,
-	};
-};
+  const [a, b] = twoPointers()
+  const center = mid(a, b)
+  const rect = vpRect()
+  pinchStartDist = dist(a, b) || 1
+  pinchStartScale = scale.value
+  pinchAnchor = {
+    wx: (center.x - rect.left - tx.value) / scale.value,
+    wy: (center.y - rect.top - ty.value) / scale.value
+  }
+}
 
 const updatePinch = () => {
-	const [a, b] = twoPointers();
-	const center = mid(a, b);
-	const rect = vpRect();
-	const factor = dist(a, b) / pinchStartDist;
-	const next = clamp(pinchStartScale * factor, MIN_SCALE, MAX_SCALE);
-	scale.value = next;
-	tx.value = center.x - rect.left - pinchAnchor.wx * next;
-	ty.value = center.y - rect.top - pinchAnchor.wy * next;
-};
+  const [a, b] = twoPointers()
+  const center = mid(a, b)
+  const rect = vpRect()
+  const factor = dist(a, b) / pinchStartDist
+  const next = clamp(pinchStartScale * factor, MIN_SCALE, MAX_SCALE)
+  scale.value = next
+  tx.value = center.x - rect.left - pinchAnchor.wx * next
+  ty.value = center.y - rect.top - pinchAnchor.wy * next
+}
 
 /* ----------------------------- wheel ------------------------------ */
 const onWheel = (e: WheelEvent) => {
-	const rect = vpRect();
-	const px = e.clientX - rect.left;
-	const py = e.clientY - rect.top;
-	const wx = (px - tx.value) / scale.value;
-	const wy = (py - ty.value) / scale.value;
-	const k = e.ctrlKey ? 0.012 : 0.0016;
-	const next = clamp(
-		scale.value * Math.exp(-e.deltaY * k),
-		MIN_SCALE,
-		MAX_SCALE,
-	);
-	scale.value = next;
-	tx.value = px - wx * next;
-	ty.value = py - wy * next;
-};
+  const rect = vpRect()
+  const px = e.clientX - rect.left
+  const py = e.clientY - rect.top
+  const wx = (px - tx.value) / scale.value
+  const wy = (py - ty.value) / scale.value
+  const k = e.ctrlKey ? 0.012 : 0.0016
+  const next = clamp(
+    scale.value * Math.exp(-e.deltaY * k),
+    MIN_SCALE,
+    MAX_SCALE
+  )
+  scale.value = next
+  tx.value = px - wx * next
+  ty.value = py - wy * next
+}
 
 /* ----------------------------- high-fidelity eraser ----------------------------- */
-const eraseRadius = () => Math.max(4, brushWidth.value * 0.9);
+const eraseRadius = () => Math.max(4, brushWidth.value * 0.9)
 
 const updateEraserCursor = (e: PointerEvent) => {
-	const rect = vpRect();
-	eraserCursor.visible = true;
-	eraserCursor.x = e.clientX - rect.left;
-	eraserCursor.y = e.clientY - rect.top;
-	eraserCursor.size = eraseRadius() * pxPerCanonical() * 2;
-};
+  const rect = vpRect()
+  eraserCursor.visible = true
+  eraserCursor.x = e.clientX - rect.left
+  eraserCursor.y = e.clientY - rect.top
+  eraserCursor.size = eraseRadius() * pxPerCanonical() * 2
+}
 
 const eraseAt = (clientX: number, clientY: number) => {
-	const p = getPoint(clientX, clientY);
-	if (!p) return;
-	const radius = eraseRadius();
+  const p = getPoint(clientX, clientY)
+  if (!p) return
+  const radius = eraseRadius()
 
-	const nextStrokes: Stroke[] = [];
-	let mutated = false;
+  const nextStrokes: Stroke[] = []
+  let mutated = false
 
-	for (const stroke of strokes.value) {
-		const r = radius + stroke.width / 2;
-		const r2 = r * r;
-		const pts = stroke.points;
+  for (const stroke of strokes.value) {
+    const r = radius + stroke.width / 2
+    const r2 = r * r
+    const pts = stroke.points
 
-		if (pts.length === 0) continue;
+    if (pts.length === 0) continue
 
-		if (pts.length === 1) {
-			const dx = pts[0][0] - p[0];
-			const dy = pts[0][1] - p[1];
-			if (dx * dx + dy * dy <= r2) {
-				mutated = true;
-			} else {
-				nextStrokes.push(stroke);
-			}
-			continue;
-		}
+    if (pts.length === 1) {
+      const dx = pts[0][0] - p[0]
+      const dy = pts[0][1] - p[1]
+      if (dx * dx + dy * dy <= r2) {
+        mutated = true
+      } else {
+        nextStrokes.push(stroke)
+      }
+      continue
+    }
 
-		let currentSubPoints: Point[] = [];
-		let strokeHitOccurred = false;
-		const subStrokes: Stroke[] = [];
+    let currentSubPoints: Point[] = []
+    let strokeHitOccurred = false
+    const subStrokes: Stroke[] = []
 
-		// Check entry point
-		const d0x = pts[0][0] - p[0];
-		const d0y = pts[0][1] - p[1];
-		if (d0x * d0x + d0y * d0y > r2) {
-			currentSubPoints.push(pts[0]);
-		} else {
-			strokeHitOccurred = true;
-		}
+    // Check entry point
+    const d0x = pts[0][0] - p[0]
+    const d0y = pts[0][1] - p[1]
+    if (d0x * d0x + d0y * d0y > r2) {
+      currentSubPoints.push(pts[0])
+    } else {
+      strokeHitOccurred = true
+    }
 
-		for (let i = 0; i < pts.length - 1; i++) {
-			const p1 = pts[i];
-			const p2 = pts[i + 1];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p1 = pts[i]
+      const p2 = pts[i + 1]
 
-			if (getSqSegDist(p, p1, p2) <= r2) {
-				strokeHitOccurred = true;
+      if (getSqSegDist(p, p1, p2) <= r2) {
+        strokeHitOccurred = true
 
-				// INTERPOLATION ENGINE: Walk the segment and keep safe points
-				const dist = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
-				const steps = Math.max(1, Math.ceil(dist / 2)); // Calculate safe points every ~2px
+        // INTERPOLATION ENGINE: Walk the segment and keep safe points
+        const dist = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+        const steps = Math.max(1, Math.ceil(dist / 2)) // Calculate safe points every ~2px
 
-				for (let j = 1; j <= steps; j++) {
-					const t = j / steps;
-					const ix = Number((p1[0] + (p2[0] - p1[0]) * t).toFixed(1));
-					const iy = Number((p1[1] + (p2[1] - p1[1]) * t).toFixed(1));
-					const dx = ix - p[0];
-					const dy = iy - p[1];
+        for (let j = 1; j <= steps; j++) {
+          const t = j / steps
+          const ix = Number((p1[0] + (p2[0] - p1[0]) * t).toFixed(1))
+          const iy = Number((p1[1] + (p2[1] - p1[1]) * t).toFixed(1))
+          const dx = ix - p[0]
+          const dy = iy - p[1]
 
-					if (dx * dx + dy * dy > r2) {
-						// Coordinate is safely outside the eraser blast radius
-						currentSubPoints.push([ix, iy]);
-					} else {
-						// Coordinate was destroyed. Close out the current segment fragment.
-						if (currentSubPoints.length > 0) {
-							subStrokes.push({
-								points: currentSubPoints,
-								width: stroke.width,
-							});
-							currentSubPoints = [];
-						}
-					}
-				}
-			} else {
-				if (currentSubPoints.length === 0) currentSubPoints.push(p1);
-				currentSubPoints.push(p2);
-			}
-		}
+          if (dx * dx + dy * dy > r2) {
+            // Coordinate is safely outside the eraser blast radius
+            currentSubPoints.push([ix, iy])
+          } else {
+            // Coordinate was destroyed. Close out the current segment fragment.
+            if (currentSubPoints.length > 0) {
+              subStrokes.push({
+                points: currentSubPoints,
+                width: stroke.width
+              })
+              currentSubPoints = []
+            }
+          }
+        }
+      } else {
+        if (currentSubPoints.length === 0) currentSubPoints.push(p1)
+        currentSubPoints.push(p2)
+      }
+    }
 
-		if (strokeHitOccurred) {
-			mutated = true;
-			if (currentSubPoints.length > 0) {
-				subStrokes.push({ points: currentSubPoints, width: stroke.width });
-			}
-			nextStrokes.push(...subStrokes);
-		} else {
-			// Stroke wasn't touched at all, pass it forward cleanly
-			nextStrokes.push(stroke);
-		}
-	}
+    if (strokeHitOccurred) {
+      mutated = true
+      if (currentSubPoints.length > 0) {
+        subStrokes.push({ points: currentSubPoints, width: stroke.width })
+      }
+      nextStrokes.push(...subStrokes)
+    } else {
+      // Stroke wasn't touched at all, pass it forward cleanly
+      nextStrokes.push(stroke)
+    }
+  }
 
-	if (mutated) {
-		strokes.value = nextStrokes;
-	}
-};
+  if (mutated) {
+    strokes.value = nextStrokes
+  }
+}
 
 /* ----------------------------- actions ---------------------------- */
 const clear = () => {
-	if (strokes.value.length === 0 && currentStroke.value.length === 0) return;
-	beginHistory();
-	strokes.value = [];
-	currentStroke.value = [];
-	commitHistory();
-};
+  if (strokes.value.length === 0 && currentStroke.value.length === 0) return
+  beginHistory()
+  strokes.value = []
+  currentStroke.value = []
+  commitHistory()
+}
 
 const save = () => {
-	if (!isPro.value) return;
-	if (strokes.value.length === 0) {
-		emit("save", { path: "", viewBox: "" });
-		return;
-	}
-	const combinedPath = strokes.value
-		.map((s) => `[${s.width}]${buildPath(s.points)}`)
-		.join(" ");
-	const viewBox = `0 0 ${CANONICAL_ZONE_WIDTH.value} ${CANONICAL_ZONE_HEIGHT.value}`;
-	emit("save", { path: combinedPath, viewBox });
-};
+  if (!isPro.value) return
+  if (strokes.value.length === 0) {
+    emit('save', { path: '', viewBox: '' })
+    return
+  }
+  const combinedPath = strokes.value
+    .map((s) => `[${s.width}]${buildPath(s.points)}`)
+    .join(' ')
+  const viewBox = `0 0 ${CANONICAL_ZONE_WIDTH.value} ${CANONICAL_ZONE_HEIGHT.value}`
+  emit('save', { path: combinedPath, viewBox })
+}
 
 const handleDismiss = () => {
-	currentStroke.value = [];
-	eraserCursor.visible = false;
-	emit("close");
-};
+  currentStroke.value = []
+  eraserCursor.visible = false
+  emit('close')
+}
 
 /* ================================================================== *
  * GEOMETRY HELPERS
  * ================================================================== */
 const clamp = (v: number, lo: number, hi: number) =>
-	Math.max(lo, Math.min(hi, v));
+  Math.max(lo, Math.min(hi, v))
 
 function getSqSegDist(p: Point, p1: Point, p2: Point): number {
-	let x = p1[0];
-	let y = p1[1];
-	let dx = p2[0] - x;
-	let dy = p2[1] - y;
-	if (dx !== 0 || dy !== 0) {
-		const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy);
-		if (t > 1) {
-			x = p2[0];
-			y = p2[1];
-		} else if (t > 0) {
-			x += dx * t;
-			y += dy * t;
-		}
-	}
-	dx = p[0] - x;
-	dy = p[1] - y;
-	return dx * dx + dy * dy;
+  let x = p1[0]
+  let y = p1[1]
+  let dx = p2[0] - x
+  let dy = p2[1] - y
+  if (dx !== 0 || dy !== 0) {
+    const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy)
+    if (t > 1) {
+      x = p2[0]
+      y = p2[1]
+    } else if (t > 0) {
+      x += dx * t
+      y += dy * t
+    }
+  }
+  dx = p[0] - x
+  dy = p[1] - y
+  return dx * dx + dy * dy
 }
 
 function simplifyDPStep(
-	points: Point[],
-	first: number,
-	last: number,
-	sqTolerance: number,
-	simplified: Point[],
+  points: Point[],
+  first: number,
+  last: number,
+  sqTolerance: number,
+  simplified: Point[]
 ) {
-	let maxSqDist = sqTolerance;
-	let index = -1;
-	for (let i = first + 1; i < last; i++) {
-		const sqDist = getSqSegDist(points[i], points[first], points[last]);
-		if (sqDist > maxSqDist) {
-			index = i;
-			maxSqDist = sqDist;
-		}
-	}
-	if (index > -1) {
-		if (index - first > 1)
-			simplifyDPStep(points, first, index, sqTolerance, simplified);
-		simplified.push(points[index]);
-		if (last - index > 1)
-			simplifyDPStep(points, index, last, sqTolerance, simplified);
-	}
+  let maxSqDist = sqTolerance
+  let index = -1
+  for (let i = first + 1; i < last; i++) {
+    const sqDist = getSqSegDist(points[i], points[first], points[last])
+    if (sqDist > maxSqDist) {
+      index = i
+      maxSqDist = sqDist
+    }
+  }
+  if (index > -1) {
+    if (index - first > 1)
+      simplifyDPStep(points, first, index, sqTolerance, simplified)
+    simplified.push(points[index])
+    if (last - index > 1)
+      simplifyDPStep(points, index, last, sqTolerance, simplified)
+  }
 }
 
 function simplifyPath(points: Point[], tolerance = 0.75): Point[] {
-	if (points.length <= 2) return points;
-	const sqTolerance = tolerance * tolerance;
-	const simplified: Point[] = [points[0]];
-	simplifyDPStep(points, 0, points.length - 1, sqTolerance, simplified);
-	simplified.push(points[points.length - 1]);
-	return simplified;
+  if (points.length <= 2) return points
+  const sqTolerance = tolerance * tolerance
+  const simplified: Point[] = [points[0]]
+  simplifyDPStep(points, 0, points.length - 1, sqTolerance, simplified)
+  simplified.push(points[points.length - 1])
+  return simplified
 }
 
 const safeBuildPath = (stroke: Stroke): string => {
-	if (!stroke || !stroke.points) return "";
-	return buildPath(stroke.points);
-};
+  if (!stroke || !stroke.points) return ''
+  return buildPath(stroke.points)
+}
 
 const buildPath = (points: Point[]): string => {
-	if (points.length === 0) return "";
-	if (points.length === 1) {
-		const [x, y] = points[0];
-		return `M${x},${y} L${x},${y}`;
-	}
-	const d: string[] = [];
-	d.push(`M${points[0][0]},${points[0][1]}`);
-	for (let i = 1; i < points.length - 1; i++) {
-		const midX = Number(((points[i][0] + points[i + 1][0]) / 2).toFixed(1));
-		const midY = Number(((points[i][1] + points[i + 1][1]) / 2).toFixed(1));
-		d.push(`Q${points[i][0]},${points[i][1]} ${midX},${midY}`);
-	}
-	const last = points[points.length - 1];
-	d.push(`L${last[0]},${last[1]}`);
-	return d.join("");
-};
+  if (points.length === 0) return ''
+  if (points.length === 1) {
+    const [x, y] = points[0]
+    return `M${x},${y} L${x},${y}`
+  }
+  const d: string[] = []
+  d.push(`M${points[0][0]},${points[0][1]}`)
+  for (let i = 1; i < points.length - 1; i++) {
+    const midX = Number(((points[i][0] + points[i + 1][0]) / 2).toFixed(1))
+    const midY = Number(((points[i][1] + points[i + 1][1]) / 2).toFixed(1))
+    d.push(`Q${points[i][0]},${points[i][1]} ${midX},${midY}`)
+  }
+  const last = points[points.length - 1]
+  d.push(`L${last[0]},${last[1]}`)
+  return d.join('')
+}
 
 function parsePathToStrokes(pathStr: string): Stroke[] {
-	if (!pathStr) return [];
-	const out: Stroke[] = [];
-	const hasWidthPrefixes = /\[\d+(?:\.\d+)?\]/.test(pathStr);
-	if (hasWidthPrefixes) {
-		const segments = pathStr.split(/\s*(?=\[\d)/);
-		for (const seg of segments) {
-			const m = seg.match(/^\[(\d+(?:\.\d+)?)\](.*)$/s);
-			if (!m) continue;
-			const width = Number(m[1]) || 6;
-			const points = parsePointsFromPath(m[2]);
-			if (points.length >= 1) out.push({ points, width });
-		}
-	} else {
-		const points = parsePointsFromPath(pathStr);
-		if (points.length >= 1) out.push({ points, width: 6 });
-	}
-	return out;
+  if (!pathStr) return []
+  const out: Stroke[] = []
+  const hasWidthPrefixes = /\[\d+(?:\.\d+)?\]/.test(pathStr)
+  if (hasWidthPrefixes) {
+    const segments = pathStr.split(/\s*(?=\[\d)/)
+    for (const seg of segments) {
+      const m = seg.match(/^\[(\d+(?:\.\d+)?)\](.*)$/s)
+      if (!m) continue
+      const width = Number(m[1]) || 6
+      const points = parsePointsFromPath(m[2])
+      if (points.length >= 1) out.push({ points, width })
+    }
+  } else {
+    const points = parsePointsFromPath(pathStr)
+    if (points.length >= 1) out.push({ points, width: 6 })
+  }
+  return out
 }
 
 function parsePointsFromPath(pathStr: string): Point[] {
-	const points: Point[] = [];
-	const cleanPath = pathStr.replace(/^\[\d+(?:\.\d+)?\]/, "");
-	const cmdRegex = /([MmLlQq])\s*([^MmLlQqZz]*)/g;
-	let match: RegExpExecArray | null;
-	while ((match = cmdRegex.exec(cleanPath)) !== null) {
-		const cmd = match[1];
-		const nums = match[2]
-			.trim()
-			.split(/[\s,]+/)
-			.filter(Boolean)
-			.map(Number);
-		if (cmd === "M" || cmd === "m" || cmd === "L" || cmd === "l") {
-			for (let i = 0; i < nums.length; i += 2) {
-				if (nums[i] !== undefined && nums[i + 1] !== undefined)
-					points.push([nums[i], nums[i + 1]]);
-			}
-		} else if (cmd === "Q" || cmd === "q") {
-			for (let i = 0; i < nums.length; i += 4) {
-				if (nums[i] !== undefined && nums[i + 1] !== undefined)
-					points.push([nums[i], nums[i + 1]]);
-			}
-		}
-	}
-	return points;
+  const points: Point[] = []
+  const cleanPath = pathStr.replace(/^\[\d+(?:\.\d+)?\]/, '')
+  const cmdRegex = /([MmLlQq])\s*([^MmLlQqZz]*)/g
+  let match: RegExpExecArray | null
+  while ((match = cmdRegex.exec(cleanPath)) !== null) {
+    const cmd = match[1]
+    const nums = match[2]
+      .trim()
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .map(Number)
+    if (cmd === 'M' || cmd === 'm' || cmd === 'L' || cmd === 'l') {
+      for (let i = 0; i < nums.length; i += 2) {
+        if (nums[i] !== undefined && nums[i + 1] !== undefined)
+          points.push([nums[i], nums[i + 1]])
+      }
+    } else if (cmd === 'Q' || cmd === 'q') {
+      for (let i = 0; i < nums.length; i += 4) {
+        if (nums[i] !== undefined && nums[i + 1] !== undefined)
+          points.push([nums[i], nums[i + 1]])
+      }
+    }
+  }
+  return points
+}
+
+const presentPaywall = () => {
+  subscriptionStore.presentPaywall()
+}
+
+const applyOrUpgrade = () => {
+  if (!isPro.value) {
+    presentPaywall()
+    return
+  }
+
+  save()
 }
 </script>
 
@@ -969,6 +991,7 @@ ion-modal.liquid-sketch-modal {
   border-radius: 14px;
   border: 1px solid rgba(0, 0, 0, 0.04);
 }
+
 .toggle-btn {
   display: flex;
   align-items: center;
@@ -982,6 +1005,7 @@ ion-modal.liquid-sketch-modal {
   transition: all 0.15s ease;
   cursor: pointer;
 }
+
 .toggle-btn.active {
   background: #ffffff;
   color: var(--ion-color-secondary);

@@ -104,6 +104,7 @@ import { useInboxSwiper } from '@/composables/gallery/useInboxSwiper'
 import { usePostSwiper } from '@/composables/home/usePostSwiper'
 import Lottie from '@/components/general/Lottie.vue'
 import { useMenuStore } from '@/store/menu.store'
+import { useChatWidgetStore } from '@/store/chatWidget.store'
 import { Menu } from '@/draw/types/draw.types'
 
 const shareToastStore = useShareToastStore()
@@ -118,6 +119,8 @@ const postSwiper = usePostSwiper()
 const borderColor = (kind: ShareToastKind) => {
   switch (kind) {
     case 'drawing':
+      return 'bg-secondary'
+    case 'shared':
       return 'bg-secondary'
     case 'post':
       return 'bg-cyan-400'
@@ -134,6 +137,8 @@ const kindLabel = (kind: ShareToastKind) => {
   switch (kind) {
     case 'drawing':
       return 'Direct'
+    case 'shared':
+      return 'Sent to mates'
     case 'post':
       return 'Community'
     case 'balloon':
@@ -147,6 +152,18 @@ const kindLabel = (kind: ShareToastKind) => {
 
 const onTap = (toast: ShareToast) => {
   shareToastStore.dismiss(toast.id)
+
+  if (toast.kind === 'shared') {
+    const widget = useChatWidgetStore()
+    if (toast.shareTargetType === 'chat' && toast.shareTargetId) {
+      widget.openPrivateChat(toast.shareTargetId)
+    } else if (toast.shareTargetType === 'user' && toast.shareTargetId) {
+      widget.openChatWithUser(toast.shareTargetId)
+    } else {
+      widget.openOverview()
+    }
+    return
+  }
 
   if (toast.kind === 'drawing' && toast.inboxId) {
     const item = shareToastStore.getInboxItem(toast.inboxId)

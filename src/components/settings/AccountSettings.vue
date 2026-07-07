@@ -44,32 +44,49 @@
       </template>
     </SettingCard>
 
+    <SettingCard :icon="mdiPalette" @click="goToCustomization()">
+      <template #label>
+        <span class="block font-bold text-black text-base leading-tight">Customization</span>
+      </template>
+      <template #trailing>
+        <ion-icon :icon="svg(mdiPencilOutline)" class="text-lg text-black/30" />
+      </template>
+    </SettingCard>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { IonIcon, IonButton } from "@ionic/vue";
-import { computed } from "vue";
-import { storeToRefs } from "pinia";
-import dayjs from "dayjs";
-import { mdiCakeVariantOutline, mdiPencilOutline } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { useAuthStore } from "@/store/auth.store";
-import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
-import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
-import SettingCard from "@/components/settings/SettingCard.vue";
+import { IonIcon, IonButton, useIonRouter } from '@ionic/vue'
+import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
+import dayjs from 'dayjs'
+import { mdiCakeVariantOutline, mdiPalette, mdiPencilOutline } from '@mdi/js'
+import { svg } from '@/helper/general.helper'
+import { useAuthStore } from '@/store/auth.store'
+import { useDateOfBirthModalStore } from '@/store/dateOfBirth.store'
+import UpgradeAccountModal from '@/components/settings/UpgradeAccountModal.vue'
+import SettingCard from '@/components/settings/SettingCard.vue'
+import { FRONTEND_ROUTES } from '@/types/router.types'
+import { masterAnimation } from '@/helper/animation.helper'
 
-const { user, firebaseUser, isUnderAge } = storeToRefs(useAuthStore());
-const dobModal = useDateOfBirthModalStore();
+const r = useIonRouter()
+
+const { user, firebaseUser, isUnderAge } = storeToRefs(useAuthStore())
+const dobModal = useDateOfBirthModalStore()
 
 const formattedDob = computed(() =>
-	user.value?.date_of_birth
-		? dayjs(user.value.date_of_birth).format("MMM D, YYYY")
-		: "",
-);
+  user.value?.date_of_birth
+    ? dayjs(user.value.date_of_birth).format('MMM D, YYYY')
+    : ''
+)
 
 function openAgeModal() {
-	const mode = user.value?.date_of_birth ? "edit" : "initial";
-	void dobModal.open(mode);
+  const mode = user.value?.date_of_birth ? 'edit' : 'initial'
+  void dobModal.open(mode)
+}
+
+function goToCustomization() {
+  r.push(FRONTEND_ROUTES.customization, masterAnimation)
 }
 </script>

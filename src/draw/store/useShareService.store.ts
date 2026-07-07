@@ -80,6 +80,27 @@ export const useShareService = defineStore("shareService", () => {
 			}),
 		);
 
+		if (successCount > 0) {
+			const thumbnail =
+				item.type === "post"
+					? (item.data as any).thumbnail_url
+					: (item.data as any).thumbnail;
+
+			// Single recipient → tap opens that exact thread; many → the overview.
+			let target: { id: string; type: "chat" | "user" } | undefined;
+			if (friendIds.length === 1) {
+				const fid = friendIds[0];
+				const existingChat = chatStore.activeChats.find((c) =>
+					c.participants.some((p: any) => p._id === fid),
+				);
+				target = existingChat
+					? { id: existingChat._id, type: "chat" }
+					: { id: fid, type: "user" };
+			}
+
+			toasts.pushSharedToast({ count: successCount, thumbnail, target });
+		}
+
 		return { successCount, totalCount };
 	}
 
@@ -103,9 +124,34 @@ export const useShareService = defineStore("shareService", () => {
 		const inboxStore = useInboxStore();
 		inboxStore.inbox.push(inbox_item);
 
-		toasts.pushDrawingToast({
-			inboxItem: inbox_item,
-			currentUserId: user.value!._id,
+		const me = user.value!._id;
+		const recipients = followers.filter((f) => f !== me);
+
+		if (recipients.length === 0) {
+			// Pure save-to-gallery — keep the photoswiper toast.
+			toasts.pushDrawingToast({ inboxItem: inbox_item, currentUserId: me });
+			return;
+		}
+
+		const chatStore = useChatStore();
+		chatStore.injectSharedInboxOptimistic(inbox_item._id, recipients);
+
+		// Single mate → tap the toast to jump into that thread; many → overview.
+		let target: { id: string; type: "chat" | "user" } | undefined;
+		if (recipients.length === 1) {
+			const fid = recipients[0];
+			const existingChat = chatStore.activeChats.find((c) =>
+				c.participants.some((p: any) => p._id === fid),
+			);
+			target = existingChat
+				? { id: existingChat._id, type: "chat" }
+				: { id: fid, type: "user" };
+		}
+
+		toasts.pushSharedToast({
+			count: recipients.length,
+			thumbnail: inbox_item.thumbnail,
+			target,
 		});
 	}
 

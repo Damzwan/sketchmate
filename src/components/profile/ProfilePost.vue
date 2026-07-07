@@ -1,5 +1,5 @@
 <template>
-  <section class="mt-8 overflow-visible">
+  <section class="mt-8 mb-16 overflow-visible">
     <!-- Cleaned Subhead Row Segment Structure -->
     <div class="flex items-center justify-between px-1 mb-3">
       <h3 class="uppercase tracking-widest font-black text-black/80">

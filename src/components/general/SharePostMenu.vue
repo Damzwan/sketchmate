@@ -257,18 +257,14 @@ const sendToAllSelected = async () => {
 	isSending.value = true;
 
 	try {
-		const { successCount, totalCount } = await shareService.shareItemToMates(
+		const { successCount } = await shareService.shareItemToMates(
 			activeShareItem.value,
 			selectedFriendIds.value,
 		);
 
-		if (successCount === totalCount) {
-			toast(`Shared with ${successCount} mates`, { color: "success" });
-			handleDismiss();
-		} else if (successCount > 0) {
-			toast(`Shared with ${successCount}/${totalCount} mates (some failed)`, {
-				color: "warning",
-			});
+		// Success (full or partial) surfaces via the ShareToasts card the service
+		// pushes — tapping it opens the chat. Only a total failure needs the bar.
+		if (successCount > 0) {
 			handleDismiss();
 		} else {
 			toast("Failed to share with selected mates", { color: "danger" });

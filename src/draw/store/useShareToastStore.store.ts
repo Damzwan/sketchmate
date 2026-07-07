@@ -5,7 +5,13 @@ import { useInboxStore } from "@/store/inbox.store";
 import { usePostStore } from "@/store/post.store";
 import { resolveTitleDef } from "@/config/profile_options.config";
 
-export type ShareToastKind = "drawing" | "post" | "balloon" | "saved" | "title";
+export type ShareToastKind =
+	| "drawing"
+	| "post"
+	| "balloon"
+	| "saved"
+	| "title"
+	| "shared";
 
 export interface ShareToast {
 	id: string;
@@ -19,6 +25,11 @@ export interface ShareToast {
 	inboxId?: string;
 	postId?: string;
 	savedId?: string; // New reference
+
+	// "shared" toasts open the chat on tap. When shared to a single mate we know
+	// exactly which thread; otherwise we drop the user on the overview.
+	shareTargetId?: string;
+	shareTargetType?: "chat" | "user";
 }
 
 export const useShareToastStore = defineStore("shareToast", () => {
@@ -71,6 +82,27 @@ export const useShareToastStore = defineStore("shareToast", () => {
 					: `Shared with ${recipientCount} mates`,
 			thumbnail: params.inboxItem.thumbnail,
 			inboxId: params.inboxItem._id,
+		});
+	}
+
+	/** Forwarded an existing post/drawing to mates from the share sheet. Tapping
+	 *  it jumps into the chat (single mate → that thread, many → overview). */
+	function pushSharedToast(params: {
+		count: number;
+		thumbnail?: string;
+		target?: { id: string; type: "chat" | "user" };
+	}) {
+		push({
+			id: `toast-${Date.now()}`,
+			kind: "shared",
+			title: "Sent!",
+			subtitle:
+				params.count === 1
+					? "Shared with 1 mate"
+					: `Shared with ${params.count} mates`,
+			thumbnail: params.thumbnail,
+			shareTargetId: params.target?.id,
+			shareTargetType: params.target?.type,
 		});
 	}
 
@@ -128,6 +160,7 @@ export const useShareToastStore = defineStore("shareToast", () => {
 		toasts,
 		dismiss,
 		pushDrawingToast,
+		pushSharedToast,
 		pushPostToast,
 		getInboxItem, // Expose these to component
 		getPost,

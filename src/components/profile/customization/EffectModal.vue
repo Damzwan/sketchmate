@@ -20,7 +20,7 @@
       <button
         v-for="effect in visibleEffects"
         :key="effect.id"
-        class="relative cursor-pointer rounded-[2rem] border-2 bg-tertiary active:scale-95 transition-all overflow-hidden h-28 text-left"
+        class="relative rounded-[2rem] border-2 bg-tertiary active:scale-95 transition-all overflow-hidden h-28 text-left cursor-pointer"
         :class="[
           localSelection === effect.id
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'

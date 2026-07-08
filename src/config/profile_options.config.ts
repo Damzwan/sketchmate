@@ -443,13 +443,10 @@ export const WORLDS: WorldDef[] = [
 		desc: "Stars, meteors & a drifting astronaut",
 		kind: "space",
 	},
-
-	// ── OG-EXCLUSIVE ─────────────────────────────────────────────────────
-	// Not in the shop catalog — granted to founding users only (like titles).
 	{
 		id: "gratitude",
-		name: "Constellation",
-		desc: "A sky lit in thanks, forever",
+		name: "Gratitude",
+		desc: "Only for early SketchMate testers",
 		kind: "gratitude",
 		exclusive: true,
 	},

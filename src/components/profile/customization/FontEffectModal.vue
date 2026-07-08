@@ -17,7 +17,7 @@
           <button
             v-for="e in FONT_EFFECTS"
             :key="e.value"
-            class="relative rounded-[2rem] border-2 bg-tertiary p-5 active:scale-95 transition-all overflow-hidden flex flex-col items-center justify-center min-h-[110px]"
+            class="relative rounded-[2rem] cursor-pointer border-2 bg-tertiary p-5 active:scale-95 transition-all overflow-hidden flex flex-col items-center justify-center min-h-[110px]"
             :class="[
               localSelection === e.value
                 ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
@@ -90,75 +90,77 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { IonButton, IonIcon } from '@ionic/vue'
-import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
-import { mdiCheck, mdiLock } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { computed, ref, watch } from "vue";
+import { IonButton, IonIcon } from "@ionic/vue";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { mdiCheck, mdiLock } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 import {
-  FONT_EFFECT_MAP,
-  FONT_EFFECTS,
-  resolveFontFamily,
-  type Customization
-} from '@/config/profile_options.config'
-import { buildItemId } from '@/config/catalog.config'
-import { useInventoryStore } from '@/store/inventory.store'
-import { useUnlockItem } from '@/composables/shop/useUnlockItem'
-import PreviewProfileCard from '@/components/profile/PreviewProfileCard.vue'
+	FONT_EFFECT_MAP,
+	FONT_EFFECTS,
+	resolveFontFamily,
+	type Customization,
+} from "@/config/profile_options.config";
+import { buildItemId } from "@/config/catalog.config";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
+import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 
 const props = defineProps<{
-  isOpen: boolean
-  user: any
-  customization: Partial<Customization>
-}>()
+	isOpen: boolean;
+	user: any;
+	customization: Partial<Customization>;
+}>();
 
-const emit = defineEmits(['close', 'select'])
+const emit = defineEmits(["close", "select"]);
 
-const inventoryStore = useInventoryStore()
-const { purchasing, unlockItem } = useUnlockItem()
+const inventoryStore = useInventoryStore();
+const { purchasing, unlockItem } = useUnlockItem();
 
-const localSelection = ref(props.customization.fontEffectId || '')
+const localSelection = ref(props.customization.fontEffectId || "");
 
 watch(
-  () => props.isOpen,
-  (open) => {
-    if (open) localSelection.value = props.customization.fontEffectId || ''
-  }
-)
+	() => props.isOpen,
+	(open) => {
+		if (open) localSelection.value = props.customization.fontEffectId || "";
+	},
+);
 
 const isItemOwned = (effectId: string) =>
-  inventoryStore.isOwned(buildItemId('font_effect', effectId))
+	inventoryStore.isOwned(buildItemId("font_effect", effectId));
 
-const selectionLocked = computed(() => !isItemOwned(localSelection.value))
+const selectionLocked = computed(() => !isItemOwned(localSelection.value));
 
 const selectionName = computed(
-  () => FONT_EFFECTS.find((e) => e.value === localSelection.value)?.label || ''
-)
+	() => FONT_EFFECTS.find((e) => e.value === localSelection.value)?.label || "",
+);
 
 const previewCustomization = computed(() => ({
-  ...props.customization,
-  fontEffectId: localSelection.value
-}))
+	...props.customization,
+	fontEffectId: localSelection.value,
+}));
 
 // Use the user's chosen font in the swatch previews so the effect/font combo
 // is honest about what they'll actually see.
-const resolvedFontFamily = computed(() => resolveFontFamily(props.customization.fontId))
+const resolvedFontFamily = computed(() =>
+	resolveFontFamily(props.customization.fontId),
+);
 
 const confirm = () => {
-  if (selectionLocked.value) return unlock()
-  emit('select', localSelection.value)
-  emit('close')
-}
+	if (selectionLocked.value) return unlock();
+	emit("select", localSelection.value);
+	emit("close");
+};
 
 const unlock = async () => {
-  const ok = await unlockItem(buildItemId('font_effect', localSelection.value))
-  if (ok) {
-    emit('select', localSelection.value)
-    emit('close')
-  }
-}
+	const ok = await unlockItem(buildItemId("font_effect", localSelection.value));
+	if (ok) {
+		emit("select", localSelection.value);
+		emit("close");
+	}
+};
 
-const handleDismiss = () => emit('close')
+const handleDismiss = () => emit("close");
 </script>
 
 <style scoped>

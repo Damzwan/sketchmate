@@ -20,7 +20,7 @@
       <button
         v-for="dec in DECORATIONS"
         :key="dec.id"
-        class="relative rounded-[2rem] border-2 bg-tertiary p-3 active:scale-95 transition-all overflow-hidden flex flex-col items-center gap-2 text-left"
+        class="relative rounded-[2rem] cursor-pointer border-2 bg-tertiary p-3 active:scale-95 transition-all overflow-hidden flex flex-col items-center gap-2 text-left"
         :class="
           localSelection === dec.id
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'

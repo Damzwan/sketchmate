@@ -177,149 +177,325 @@
                       class="w-full h-full lottie-strict-bounds drop-shadow-[0_15px_25px_rgba(0,0,0,0.7)]" />
       </div>
     </div>
+
+    <div
+      v-else-if="def.kind === 'space'"
+      class="absolute inset-0"
+      :style="{ '--world-accent': accent }"
+    >
+      <!-- Deep-space wash sits at -z-10 so it's the card BACKDROP, below the
+           ProfileEffect layer (z:auto/0) — the effect (shimmer/glass/grain) then
+           reads on top of the sky, and the space sprites (z-10/20 below) sit
+           above the effect. So space combines with an effect like other worlds
+           instead of the opaque sky hiding it. No z-index on this container, or
+           it'd trap the sky in its own stacking context above the effect again. -->
+      <div class="absolute inset-0 space-sky -z-10"></div>
+
+      <!-- Twinkling star field (CSS-only) -->
+      <div
+        v-for="s in stars"
+        :key="'st' + s.id"
+        class="absolute rounded-full bg-white animate-star-twinkle"
+        :style="{
+          left: s.left,
+          top: s.top,
+          width: s.size,
+          height: s.size,
+          animationDelay: s.delay,
+          animationDuration: s.duration,
+          '--star-glow': s.glow,
+        }"
+      ></div>
+
+      <!-- Our own constellation: shiny nodes joined by faint lines -->
+      <svg
+        class="absolute left-[-4%] top-[12%] w-[42%] h-[42%] overflow-visible animate-constellation-pulse"
+        viewBox="0 0 100 100"
+        fill="none"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <polyline
+          points="10,70 32,40 52,58 70,20 90,44"
+          stroke="rgba(191,214,255,0.35)"
+          stroke-width="0.8"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+        />
+        <g v-for="(p, i) in constellationNodes" :key="'cn' + i">
+          <circle :cx="p.x" :cy="p.y" :r="p.r" fill="#ffffff" />
+          <circle :cx="p.x" :cy="p.y" :r="p.r * 2.6" fill="#bfd6ff" opacity="0.25" />
+        </g>
+      </svg>
+
+      <!-- Meteor shower in the background -->
+      <div
+        v-for="m in meteors"
+        :key="'mt' + m.id"
+        class="absolute animate-meteor-streak"
+        :style="{
+          top: m.top,
+          left: m.left,
+          width: m.size,
+          height: m.size,
+          animationDelay: m.delay,
+          animationDuration: m.duration,
+        }"
+      >
+        <DotLottieVue :src="meteor" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
+                      class="w-full h-full lottie-strict-bounds" />
+      </div>
+
+      <!-- Moon: fixed in its corner, gentle in-place bob -->
+      <div class="absolute top-[10%] right-[8%] w-24 h-24 animate-moon-bob z-10">
+        <DotLottieVue :src="moon" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
+                      class="w-full h-full lottie-strict-bounds drop-shadow-[0_0_18px_rgba(200,215,255,0.5)]" />
+      </div>
+
+      <!-- One rocket, many launches: each cycle it flies bottom→top on a
+           different diagonal, at a different size, exits past the top edge,
+           then reappears at the bottom for the next launch. -->
+      <div class="absolute left-[40%] top-0 w-28 h-28 animate-rocket-fly z-10">
+        <DotLottieVue :src="rocket" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
+                      class="w-full h-full lottie-strict-bounds" />
+      </div>
+
+      <!-- Astronaut: quirky slow wander from place to place -->
+      <div class="absolute top-0 left-0 w-20 h-20 animate-astronaut-wander z-20">
+        <DotLottieVue :src="astronaut" :autoplay="true" :loop="true"
+          :render-config="renderConfig"
+                      class="w-full h-full lottie-strict-bounds drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]" />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import {
-  resolveWorld,
-  type WorldDef
-} from '@/config/profile_options.config'
-import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
-import turtleLottie from '@/assets/lottie/avatar/turtle.lottie'
-import fishLottie from '@/assets/lottie/avatar/fish.lottie'
-import jellyFishLottie from '@/assets/lottie/avatar/jellyfish.lottie'
-import catLottie from '@/assets/lottie/avatar/cat.lottie'
-import plantLottie from '@/assets/lottie/avatar/plant.lottie'
-import mushroom_walking from '@/assets/lottie/avatar/mushroom.lottie'
-import autumn_leaves from '@/assets/lottie/avatar/autumn_leaves.lottie'
+import { computed } from "vue";
+import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
+import { DotLottieVue } from "@lottiefiles/dotlottie-vue";
+import turtleLottie from "@/assets/lottie/avatar/turtle.lottie";
+import fishLottie from "@/assets/lottie/avatar/fish.lottie";
+import jellyFishLottie from "@/assets/lottie/avatar/jellyfish.lottie";
+import catLottie from "@/assets/lottie/avatar/cat.lottie";
+import plantLottie from "@/assets/lottie/avatar/plant.lottie";
+import mushroom_walking from "@/assets/lottie/avatar/mushroom.lottie";
+import autumn_leaves from "@/assets/lottie/avatar/autumn_leaves.lottie";
 
-import dragon from '@/assets/lottie/avatar/dragon.lottie'
-import fire from '@/assets/lottie/avatar/fire.lottie'
+import meteor from "@/assets/lottie/avatar/meteor.lottie";
+import astronaut from "@/assets/lottie/avatar/astronaut.lottie";
+import moon from "@/assets/lottie/avatar/moon.lottie";
+import rocket from "@/assets/lottie/avatar/rocket.lottie";
+
+import dragon from "@/assets/lottie/avatar/dragon.lottie";
+import fire from "@/assets/lottie/avatar/fire.lottie";
 
 const props = withDefaults(
-  defineProps<{
-    worldId?: string;
-    def?: WorldDef;
-    preview?: boolean;
-    /** Scale of the card-sized stage when in preview (1 = full card). */
-    previewScale?: number;
-  }>(),
-  { preview: false, previewScale: 0.5 }
-)
-const def = computed<WorldDef>(
-  () => props.def || resolveWorld(props.worldId)
-)
+	defineProps<{
+		worldId?: string;
+		def?: WorldDef;
+		preview?: boolean;
+		/** Scale of the card-sized stage when in preview (1 = full card). */
+		previewScale?: number;
+		/** Current theme accent — tints the space world's sky. */
+		accent?: string;
+	}>(),
+	{ preview: false, previewScale: 0.5, accent: "#7c5cff" },
+);
+const def = computed<WorldDef>(() => props.def || resolveWorld(props.worldId));
 
 // freezeOnOffscreen (default true) freezes the player when its canvas is
 // hidden/offscreen. Ionic keeps the previous page mounted as `ion-page-hidden`
 // (display:none), so when a world edit re-renders these sprites while the card
 // is behind another page, frozen players lock onto a stale/zero canvas size and
 // never repaint at the right size — sprites come back smaller. Keep them live.
-const renderConfig = { freezeOnOffscreen: false }
+const renderConfig = { freezeOnOffscreen: false };
 
 // Each DotLottie is a full wasm/canvas player, so instance count is the main
 // cost. We keep the on-card swarm modest and, in preview tiles, cut it hard —
 // a thumbnail only needs a hint of motion, not the whole ecosystem.
-const cap = <T,>(list: T[], full: number, prev: number): T[] =>
-  list.slice(0, props.preview ? prev : full)
+const cap = <T>(list: T[], full: number, prev: number): T[] =>
+	list.slice(0, props.preview ? prev : full);
 
 const jellyfishes = computed(() =>
-  cap(
-    [
-      { id: 1, size: '6.0rem', left: '15%', delay: '-10s', duration: '52s' },
-      { id: 2, size: '4.8rem', left: '70%', delay: '-28s', duration: '68s' }
-    ],
-    2,
-    1
-  )
-)
+	cap(
+		[
+			{ id: 1, size: "6.0rem", left: "15%", delay: "-10s", duration: "52s" },
+			{ id: 2, size: "4.8rem", left: "70%", delay: "-28s", duration: "68s" },
+		],
+		2,
+		1,
+	),
+);
 const experimentalTurtles = computed(() =>
-  cap(
-    [
-      { id: 1, size: '7.2rem', initialTop: '14%', delay: '0s', duration: '36s' },
-      { id: 2, size: '5.5rem', initialTop: '28%', delay: '-9s', duration: '46s' }
-    ],
-    2,
-    1
-  )
-)
+	cap(
+		[
+			{
+				id: 1,
+				size: "7.2rem",
+				initialTop: "14%",
+				delay: "0s",
+				duration: "36s",
+			},
+			{
+				id: 2,
+				size: "5.5rem",
+				initialTop: "28%",
+				delay: "-9s",
+				duration: "46s",
+			},
+		],
+		2,
+		1,
+	),
+);
 const fishes = computed(() =>
-  cap(
-    [
-      { id: 1, size: '4.0rem', top: '20%', delay: '-5s', duration: '28s' },
-      { id: 2, size: '3.2rem', top: '36%', delay: '-14s', duration: '24s' },
-      { id: 3, size: '3.6rem', top: '8%', delay: '-25s', duration: '32s' }
-    ],
-    3,
-    2
-  )
-)
+	cap(
+		[
+			{ id: 1, size: "4.0rem", top: "20%", delay: "-5s", duration: "28s" },
+			{ id: 2, size: "3.2rem", top: "36%", delay: "-14s", duration: "24s" },
+			{ id: 3, size: "3.6rem", top: "8%", delay: "-25s", duration: "32s" },
+		],
+		3,
+		2,
+	),
+);
 
 const fallingLeaves = computed(() =>
-  cap(
-    [
-      { id: 1, left: '6%', size: '11rem', delay: '-1s', duration: '17s' },
-      { id: 2, left: '34%', size: '13.5rem', delay: '-8s', duration: '20s' },
-      { id: 3, left: '60%', size: '10rem', delay: '-14s', duration: '16s' },
-      { id: 4, left: '85%', size: '12.5rem', delay: '-4s', duration: '19s' }
-    ],
-    4,
-    2
-  )
-)
+	cap(
+		[
+			{ id: 1, left: "6%", size: "11rem", delay: "-1s", duration: "17s" },
+			{ id: 2, left: "34%", size: "13.5rem", delay: "-8s", duration: "20s" },
+			{ id: 3, left: "60%", size: "10rem", delay: "-14s", duration: "16s" },
+			{ id: 4, left: "85%", size: "12.5rem", delay: "-4s", duration: "19s" },
+		],
+		4,
+		2,
+	),
+);
 
 const walkers = computed(() =>
-  cap(
-    [
-      { id: 1, top: '30%', size: '8.5rem', delay: '0s', duration: '10s' },
-      { id: 2, top: '62%', size: '7.5rem', delay: '-5s', duration: '12s' }
-    ],
-    2,
-    1
-  )
-)
+	cap(
+		[
+			{ id: 1, top: "30%", size: "8.5rem", delay: "0s", duration: "10s" },
+			{ id: 2, top: "62%", size: "7.5rem", delay: "-5s", duration: "12s" },
+		],
+		2,
+		1,
+	),
+);
 
 const seededRandom = (seed: number) => {
-  let x = Math.sin(seed++) * 10000
-  return x - Math.floor(x)
-}
+	let x = Math.sin(seed++) * 10000;
+	return x - Math.floor(x);
+};
 
 const dustMotes = computed(() =>
-  cap(
-    Array.from({ length: 10 }, (_, i) => ({
-      id: i,
-      left: `${seededRandom(i * 42) * 100}%`,
-      top: `${seededRandom(i * 13) * 100}%`,
-      size: `${Math.floor(seededRandom(i * 42) * 4) + 2}px`,
-      delay: `-${seededRandom(i * 7) * 20}s`,
-      duration: `${Math.floor(seededRandom(i * 3) * 15) + 15}s`,
-      opacity: seededRandom(i * 9) * 0.4 + 0.2
-    })),
-    10,
-    5
-  )
-)
+	cap(
+		Array.from({ length: 10 }, (_, i) => ({
+			id: i,
+			left: `${seededRandom(i * 42) * 100}%`,
+			top: `${seededRandom(i * 13) * 100}%`,
+			size: `${Math.floor(seededRandom(i * 42) * 4) + 2}px`,
+			delay: `-${seededRandom(i * 7) * 20}s`,
+			duration: `${Math.floor(seededRandom(i * 3) * 15) + 15}s`,
+			opacity: seededRandom(i * 9) * 0.4 + 0.2,
+		})),
+		10,
+		5,
+	),
+);
 
 const fieryPits = computed(() =>
-  cap(
-    Array.from({ length: 5 }, (_, i) => ({
-      id: i,
-      left: `${seededRandom(i * 17) * 88}%`,
-      top: `${seededRandom(i * 29) * 82}%`,
-      size: `${Math.floor(seededRandom(i * 41) * 4) + 4}rem`,
-      delay: `-${seededRandom(i * 11) * 5}s`
-    })),
-    5,
-    2
-  )
-)
+	cap(
+		Array.from({ length: 5 }, (_, i) => ({
+			id: i,
+			left: `${seededRandom(i * 17) * 88}%`,
+			top: `${seededRandom(i * 29) * 82}%`,
+			size: `${Math.floor(seededRandom(i * 41) * 4) + 4}rem`,
+			delay: `-${seededRandom(i * 11) * 5}s`,
+		})),
+		5,
+		2,
+	),
+);
 
 // A single dragon on a smooth, continuous loop that stays on-card the whole
 // time (no off-screen teleports). rotateY interpolates at the turn points so it
 // reads as banking, not popping. Shorter cycle → feels ever-present.
-const wanderingDragons = [{ id: 1, size: '18rem', delay: '0s', duration: '17s' }]
+const wanderingDragons = [
+	{ id: 1, size: "18rem", delay: "0s", duration: "17s" },
+];
+
+// ── SPACE ──────────────────────────────────────────────────────────────
+// Pure-CSS star field: cheap (no lottie players), so we can afford many.
+const stars = computed(() =>
+	cap(
+		Array.from({ length: 26 }, (_, i) => {
+			const big = seededRandom(i * 3) > 0.82;
+			return {
+				id: i,
+				left: `${seededRandom(i * 12) * 100}%`,
+				top: `${seededRandom(i * 27) * 100}%`,
+				size: `${(big ? 3 : 1) + Math.floor(seededRandom(i * 5) * 2)}px`,
+				delay: `-${seededRandom(i * 8) * 4}s`,
+				duration: `${2 + seededRandom(i * 6) * 3}s`,
+				glow: big
+					? "0 0 6px 1px rgba(255,255,255,0.8)"
+					: "0 0 3px rgba(255,255,255,0.6)",
+			};
+		}),
+		26,
+		12,
+	),
+);
+
+// Our own constellation — fixed node layout matching the polyline above.
+const constellationNodes = [
+	{ x: 10, y: 70, r: 1.6 },
+	{ x: 32, y: 40, r: 2.4 },
+	{ x: 52, y: 58, r: 1.4 },
+	{ x: 70, y: 20, r: 2.8 },
+	{ x: 90, y: 44, r: 1.8 },
+];
+
+// Meteor shower: big, slow diagonal streaks. The lottie itself falls
+// up-left→down-right; the container adds a slow drift in the same direction and
+// resets, so passes read as a sparse shower rather than parked loops.
+const meteors = computed(() =>
+	cap(
+		[
+			{
+				id: 1,
+				top: "-8%",
+				left: "8%",
+				size: "13rem",
+				delay: "0s",
+				duration: "11s",
+			},
+			{
+				id: 2,
+				top: "-18%",
+				left: "40%",
+				size: "11rem",
+				delay: "-5s",
+				duration: "13s",
+			},
+			{
+				id: 3,
+				top: "-12%",
+				left: "68%",
+				size: "12rem",
+				delay: "-9s",
+				duration: "12s",
+			},
+		],
+		3,
+		1,
+	),
+);
 </script>
 
 <style scoped>
@@ -417,13 +593,114 @@ const wanderingDragons = [{ id: 1, size: '18rem', delay: '0s', duration: '17s' }
   50% { transform: scale(1.15) rotate(3deg); opacity: 1; filter: brightness(1.2); }
 }
 
+/* ── Space ── */
+/* Deep-space gradient with the theme accent mixed into the mid-band, angled
+   down-right to echo the meteor fall. color-mix keeps it dark enough to read. */
+.space-sky {
+  /* Deep-space gradient with the theme accent mixed into the mid-band, angled
+     down-right to echo the meteor fall. Keep the accent share low so warm
+     accents (sunset/gold) tint subtly instead of turning into a muddy band. */
+  background: linear-gradient(
+    160deg,
+    #090d20 0%,
+    color-mix(in srgb, var(--world-accent, #7c5cff) 16%, #141b3d) 52%,
+    #1c1030 100%
+  );
+}
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); box-shadow: var(--star-glow); }
+  50% { opacity: 1; transform: scale(1.15); box-shadow: var(--star-glow); }
+}
+
+@keyframes constellation-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* Moon holds its corner and just breathes/tilts in place. */
+@keyframes moon-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
+
+/* Meteor: slow drift down-right (matching the lottie's own fall), then parks
+   off-screen for the back half so passes feel sparse like a real shower. No
+   rotate — the lottie already carries the angle. */
+@keyframes meteor-streak {
+  0% { transform: translate(0, 0); opacity: 0; }
+  10% { opacity: 1; }
+  45% { opacity: 1; }
+  55% { transform: translate(170px, 240px); opacity: 0; }
+  100% { transform: translate(170px, 240px); opacity: 0; }
+}
+
+/* Rocket: 6 launches packed into one loop so a single sprite reads as a rocket
+   that keeps blasting off on new, VARIED headings — not all straight up. rotate
+   is matched to each launch's sideways drift (nose leads the path, no wobble)
+   and the sprite shrinks as it flies away. Between launches it's parked off-card
+   (opacity 0) and repositioned for the next heading + size. Trajectories vary in
+   BOTH direction and reach: some cross the whole card and exit the top, others
+   are shorter arcs that peter out mid-card (top ~34–40%) heading left or right,
+   so the sky isn't a column of identical vertical climbs. */
+@keyframes rocket-fly {
+  /* Launch 1 — center → up-LEFT, long, exits TOP-LEFT corner (large) */
+  0%    { top: 115%; transform: translateX(55px) rotate(-22deg) scale(1);      opacity: 0; }
+  2%    { opacity: 1; }
+  13%   { top: -58%; transform: translateX(-160px) rotate(-22deg) scale(0.62); opacity: 1; }
+  15%   { top: -70%; transform: translateX(-172px) rotate(-22deg) scale(0.58); opacity: 0; }
+
+  /* Launch 2 — lower-RIGHT → shallow LEFT, SHORT arc, dies mid-card (medium) */
+  16.6% { top: 120%; transform: translateX(120px) rotate(-33deg) scale(0.8);   opacity: 0; }
+  18.6% { opacity: 1; }
+  29.6% { top: 34%;  transform: translateX(-45px) rotate(-33deg) scale(0.6);   opacity: 1; }
+  31.6% { top: 24%;  transform: translateX(-70px) rotate(-33deg) scale(0.57);  opacity: 0; }
+
+  /* Launch 3 — off to the LEFT → dead-straight up, exits top (small) */
+  33.3% { top: 118%; transform: translateX(-120px) rotate(0deg) scale(0.6);    opacity: 0; }
+  35.3% { opacity: 1; }
+  46.3% { top: -55%; transform: translateX(-120px) rotate(0deg) scale(0.42);   opacity: 1; }
+  48.3% { top: -70%; transform: translateX(-120px) rotate(0deg) scale(0.4);    opacity: 0; }
+
+  /* Launch 4 — center → up-RIGHT, long, exits TOP-RIGHT corner (large) */
+  50%   { top: 115%; transform: translateX(-20px) rotate(24deg) scale(0.95);   opacity: 0; }
+  52%   { opacity: 1; }
+  63%   { top: -58%; transform: translateX(185px) rotate(24deg) scale(0.58);   opacity: 1; }
+  65%   { top: -70%; transform: translateX(198px) rotate(24deg) scale(0.54);   opacity: 0; }
+
+  /* Launch 5 — lower-LEFT → shallow RIGHT, SHORT arc, dies mid-right (medium) */
+  66.6% { top: 120%; transform: translateX(-150px) rotate(30deg) scale(0.7);   opacity: 0; }
+  68.6% { opacity: 1; }
+  79.6% { top: 40%;  transform: translateX(60px) rotate(30deg) scale(0.55);    opacity: 1; }
+  81.6% { top: 30%;  transform: translateX(85px) rotate(30deg) scale(0.52);    opacity: 0; }
+
+  /* Launch 6 — center → gentle up-LEFT, ends upper-mid (medium) */
+  83.3% { top: 118%; transform: translateX(30px) rotate(-12deg) scale(0.78);   opacity: 0; }
+  85.3% { opacity: 1; }
+  96.3% { top: 8%;   transform: translateX(-70px) rotate(-12deg) scale(0.5);   opacity: 1; }
+  98.3% { top: -4%;  transform: translateX(-82px) rotate(-12deg) scale(0.47);  opacity: 0; }
+  100%  { top: 115%; transform: translateX(55px) rotate(-22deg) scale(1);      opacity: 0; }
+}
+
+/* Astronaut drifts quirkily between spots, tumbling slowly as it goes. */
+@keyframes astronaut-wander {
+  0% { transform: translate(40%, 60%) rotate(0deg); }
+  25% { transform: translate(230%, 120%) rotate(25deg); }
+  50% { transform: translate(310%, 300%) rotate(-15deg); }
+  75% { transform: translate(120%, 260%) rotate(20deg); }
+  100% { transform: translate(40%, 60%) rotate(0deg); }
+}
+
 /* Promote moving sprites to their own GPU layer for smoother compositing. */
 .animate-turtle-swim-lane,
 .animate-fish-swim-lane,
 .animate-jellyfish-drift,
 .animate-leaf-fall,
 .animate-walker-cross,
-.animate-dragon-roam {
+.animate-dragon-roam,
+.animate-meteor-streak,
+.animate-rocket-fly,
+.animate-astronaut-wander {
   will-change: transform, top, left;
 }
 
@@ -437,6 +714,13 @@ const wanderingDragons = [{ id: 1, size: '18rem', delay: '0s', duration: '17s' }
 
 .animate-dragon-roam { animation: dragon-roam linear infinite; }
 .animate-fire-flicker { animation: fire-flicker 1.5s ease-in-out infinite alternate; }
+
+.animate-star-twinkle { animation: star-twinkle ease-in-out infinite; }
+.animate-constellation-pulse { animation: constellation-pulse 6s ease-in-out infinite; }
+.animate-moon-bob { animation: moon-bob 7s ease-in-out infinite; }
+.animate-meteor-streak { animation: meteor-streak linear infinite; }
+.animate-rocket-fly { animation: rocket-fly 34s linear infinite; }
+.animate-astronaut-wander { animation: astronaut-wander 26s ease-in-out infinite; }
 
 .lottie-strict-bounds :deep(canvas), .lottie-strict-bounds :deep(svg) {
   width: 100% !important;

@@ -23,7 +23,16 @@ export function useCanvasPreview() {
 	// Store the chunked JSON here so we don't have to calculate it on send
 	let cachedJson: any = null;
 
-	async function createPreview(canvas: Canvas) {
+	// The in-flight preview generation, so getDataToSend can wait for it
+	// instead of racing a heavy (gallery/swiper-loaded) canvas.
+	let previewPromise: Promise<void> | null = null;
+
+	function createPreview(canvas: Canvas): Promise<void> {
+		previewPromise = runPreview(canvas);
+		return previewPromise;
+	}
+
+	async function runPreview(canvas: Canvas) {
 		if (abortController) {
 			abortController.abort();
 		}
@@ -88,9 +97,20 @@ export function useCanvasPreview() {
 		originalCanvas = null;
 		croppedRect = undefined;
 		cachedJson = null;
+		if (handleAbort) previewPromise = null;
 	}
 
 	async function getDataToSend() {
+		// Wait for any in-flight preview so a fast tap (or a heavy, slow-to-load
+		// gallery/swiper canvas) can't read half-built state.
+		if (previewPromise) {
+			try {
+				await previewPromise;
+			} catch {
+				// fall through to the readiness check below
+			}
+		}
+
 		if (!originalCanvas || !preview.value) {
 			throw new Error("Canvas or preview not ready");
 		}

@@ -17,23 +17,27 @@
         :user-lookup="config.userLookup"
       />
 
-      <swiper-container
-        class="w-full grow"
-        :initial-slide="slide"
-        :zoom="{ maxRatio: 3 }"
-        @swiperslidechange="handleSlideChange"
-        ref="swiper"
-      >
-        <swiper-slide v-for="(item, i) in collection" :key="item._id || i">
-          <div class="swiper-zoom-container" v-if="Math.abs(slide - i) < 3">
-            <PhotoSwiperItem
-              :thumbnail="resolveThumbnail(item)"
-              :image="resolveImage(item)"
-              :switch-to-image="Math.abs(slide - i) < 3"
-            />
-          </div>
-        </swiper-slide>
-      </swiper-container>
+      <div class="relative w-full grow overflow-hidden flex">
+        <swiper-container
+          class="w-full grow"
+          :initial-slide="slide"
+          :zoom="{ maxRatio: 3 }"
+          @swiperslidechange="handleSlideChange"
+          ref="swiper"
+        >
+          <swiper-slide v-for="(item, i) in collection" :key="item._id || i">
+            <div class="swiper-zoom-container" v-if="Math.abs(slide - i) < 3">
+              <PhotoSwiperItem
+                :thumbnail="resolveThumbnail(item)"
+                :image="resolveImage(item)"
+                :switch-to-image="Math.abs(slide - i) < 3"
+              />
+            </div>
+          </swiper-slide>
+        </swiper-container>
+
+        <ReactionBurst ref="reactionBurst" />
+      </div>
 
       <PhotoSwiperFooter
         v-if="user && currItem"
@@ -87,6 +91,7 @@ import PhotoSwiperHeader from "@/components/photoswiper/PhotoSwiperHeader.vue";
 import PhotoSwiperFooter from "@/components/photoswiper/PhotoSwiperFooter.vue";
 import SwiperCommentDrawer from "@/components/photoswiper/SwiperCommentDrawer.vue";
 import SwiperFollowersDrawer from "@/components/photoswiper/SwiperFollowersDrawer.vue";
+import ReactionBurst from "@/components/general/ReactionBurst.vue";
 
 register();
 
@@ -101,6 +106,7 @@ const showComments = ref(true);
 const isCommentDrawerOpen = ref(false);
 const isFollowerDrawerOpen = ref(false);
 const swiper = ref<any>();
+const reactionBurst = ref<{ play: (r: string) => void } | null>(null);
 
 const canDelete = computed(() => {
 	if (!user.value || !currItem.value) return false;
@@ -193,6 +199,7 @@ function handleDelete() {
 }
 
 function handleReact(type: string) {
+	reactionBurst.value?.play(type);
 	if (config.value.onReact) config.value.onReact(currItem.value, type);
 }
 

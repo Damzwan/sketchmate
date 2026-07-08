@@ -385,6 +385,17 @@ const WORLD_SKUS: ShopSku[] = [
     desc: 'Fiery peaks & a roaming dragon',
     refId: 'dragon',
     emoji: '🐉'
+  },
+  {
+    id: 'world.space',
+    kind: 'single',
+    rcProductId: 'sm_world_space',
+    grants: ['world.space'],
+    category: 'world',
+    name: 'Cosmic Drift',
+    desc: 'Meteor showers, a drifting astronaut & launching rockets',
+    refId: 'space',
+    emoji: '🚀'
   }
 ]
 
@@ -501,7 +512,8 @@ export const FREE_ITEMS = new Set<string>([
   'brush.circle',
   'brush.pixel',
   'brush.crayon',
-  'brush.charcoal'
+  'brush.charcoal',
+  'world.space',
 ])
 
 /** Build the canonical item ID for a given category + refId combo. */

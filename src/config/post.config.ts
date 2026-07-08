@@ -1,8 +1,8 @@
-import love from '@/assets/stickers/love.png'
-import cry from '@/assets/stickers/cry.png'
-import fire from '@/assets/stickers/fire.png'
-import sleep from '@/assets/stickers/sleep.png'
-import crazy from '@/assets/stickers/crazy.png'
+import love from '@/assets/stickers/love.webp'
+import cry from '@/assets/stickers/cry.webp'
+import fire from '@/assets/stickers/fire.webp'
+import sleep from '@/assets/stickers/sleep.webp'
+import crazy from '@/assets/stickers/crazy.webp'
 
 export const reactionImages: Record<any, any> = {
   love: love,
@@ -14,42 +14,86 @@ export const reactionImages: Record<any, any> = {
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics'
 import { isNative } from '@/helper/general.helper'
 
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const impact = (style: ImpactStyle) => Haptics.impact({ style })
+
+/**
+ * How long each reaction's on-image animation runs. The overlay is kept
+ * mounted for exactly this long so nothing gets clipped mid-flight.
+ */
+export const reactionAnimDuration: Record<string, number> = {
+  love: 1450,
+  fire: 1500,
+  cry: 1550,
+  crazy: 1900,
+  sleep: 1700
+}
+
+/**
+ * Hand-tuned haptic choreography per emotion. Each pattern is a short
+ * sequence that physically mirrors the feeling of the reaction — a
+ * heartbeat for love, a crackling staccato for fire, and so on.
+ */
 export const playHapticPattern = async (reaction: string) => {
   if (!isNative()) return
   try {
     switch (reaction) {
       case 'love':
-        // A soft heartbeat feel
-        await Haptics.impact({ style: ImpactStyle.Medium })
-        setTimeout(() => Haptics.impact({ style: ImpactStyle.Light }), 150)
+        // Two "lub-dub" heartbeats.
+        await impact(ImpactStyle.Medium)
+        await wait(110)
+        await impact(ImpactStyle.Light)
+        await wait(260)
+        await impact(ImpactStyle.Medium)
+        await wait(110)
+        await impact(ImpactStyle.Light)
         break
 
       case 'fire':
-        // Rapid, intense staccato
-        for (let i = 0; i < 3; i++) {
-          await Haptics.impact({ style: ImpactStyle.Heavy })
-          await new Promise(r => setTimeout(r, 80))
+        // Accelerating crackle that builds to a peak.
+        for (let i = 0; i < 5; i++) {
+          await impact(i < 3 ? ImpactStyle.Light : ImpactStyle.Heavy)
+          await wait(90 - i * 12)
         }
         break
 
       case 'crazy':
-        // A chaotic, vibrating burst
+        // Erratic, off-kilter jolts.
+        await impact(ImpactStyle.Heavy)
+        await wait(60)
+        await impact(ImpactStyle.Light)
+        await wait(40)
+        await impact(ImpactStyle.Medium)
         await Haptics.notification({ type: NotificationType.Warning })
-        await Haptics.impact({ style: ImpactStyle.Heavy })
         break
 
       case 'cry':
-        // A long, soft drop (like a tear falling)
-        await Haptics.impact({ style: ImpactStyle.Light })
-        setTimeout(() => Haptics.impact({ style: ImpactStyle.Light }), 200)
+        // One sob, then two slow falling tears.
+        await impact(ImpactStyle.Medium)
+        await wait(300)
+        await impact(ImpactStyle.Light)
+        await wait(350)
+        await impact(ImpactStyle.Light)
         break
 
       case 'sleep':
-        // A very subtle, slow "fade out"
-        await Haptics.impact({ style: ImpactStyle.Light })
+        // Two long, faint breaths.
+        await impact(ImpactStyle.Light)
+        await wait(600)
+        await impact(ImpactStyle.Light)
         break
     }
   } catch (e) {
     // Graceful fallback for non-native environments
+  }
+}
+
+/** Light confirmation tick when a long-press arms the reaction picker. */
+export const playSelectionTick = async () => {
+  if (!isNative()) return
+  try {
+    await impact(ImpactStyle.Medium)
+  } catch (e) {
+    // no-op off-device
   }
 }

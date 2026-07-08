@@ -404,8 +404,18 @@ function goToPro() {
   useMenuStore().openMenu(Menu.Shop)
 }
 
-function executeShares() {
-  if (noActionSelected.value) return
+function leaveShare() {
+  // Go back to wherever we came from (gallery, swiper, canvas); fall back to
+  // home when there's nothing to go back to.
+  if (router.canGoBack()) {
+    router.back()
+  } else {
+    router.replace(FRONTEND_ROUTES.home)
+  }
+}
+
+async function executeShares() {
+  if (noActionSelected.value || shareService.isSending) return
 
   // 1. SYNCHRONOUSLY SNAPSHOT ALL UI STATE IMMEDIATELY
   const directRecipients =
@@ -422,58 +432,66 @@ function executeShares() {
 
   shareService.isSending = true
 
+  // 2. CAPTURE THE DRAWING *BEFORE* tearing down the canvas or navigating.
+  // getDataToSend awaits any in-flight preview, so a slow gallery/swiper load
+  // (or a fast tap) can't read half-built state.
+  let processedData
+  try {
+    processedData = await getDataToSend()
+  } catch (error) {
+    console.error('Failed to prepare drawing to share:', error)
+    shareService.isSending = false
+    return
+  }
+
+  // 3. Data is safely in hand — now reset the canvas and leave the screen.
   if (!useDrawSyncer().isLobby) {
     resetCanvas()
   }
   shareService.preSelected = 'mate'
   drawUI.isForceExiting = true
-  router.replace(FRONTEND_ROUTES.home)
+  leaveShare()
   resetMates()
 
-  setTimeout(async () => {
-    try {
-      // Data generation happens here now, safely out of the user's way
-      const processedData = await getDataToSend()
+  // 4. Fire the network work in the background.
+  try {
+    const tasks: Array<() => Promise<void>> = []
 
-      const tasks: Array<() => Promise<void>> = []
-
-      if (directRecipients.length > 0) {
-        tasks.push(() => shareService.sendToMates(processedData, directRecipients))
-      }
-
-      if (wantsPost) {
-        tasks.push(() =>
-          shareService
-            .publishCommunityPost(processedData, {
-              caption: captionSnapshot,
-              enable_comments: enableCommentsSnapshot,
-              enable_remix: enableRemixSnapshot
-            })
-            .then(() => {
-              quotaStore.decrementPost()
-            })
-        )
-      }
-
-      if (wantsBalloon) {
-        tasks.push(() =>
-          shareService.releaseBalloon(processedData, balloonSnapshot).then(() => {
-            quotaStore.decrementBalloon()
-          })
-        )
-      }
-
-      // Execute network tasks
-      await shareService.runBatch(tasks)
-
-      const loadStore = useDrawLoadStore()
-      void loadStore.removeDraft()
-    } catch (error) {
-      console.error('Background sharing failed:', error)
-    } finally {
-      shareService.isSending = false
+    if (directRecipients.length > 0) {
+      tasks.push(() => shareService.sendToMates(processedData, directRecipients))
     }
-  }, 50)
+
+    if (wantsPost) {
+      tasks.push(() =>
+        shareService
+          .publishCommunityPost(processedData, {
+            caption: captionSnapshot,
+            enable_comments: enableCommentsSnapshot,
+            enable_remix: enableRemixSnapshot
+          })
+          .then(() => {
+            quotaStore.decrementPost()
+          })
+      )
+    }
+
+    if (wantsBalloon) {
+      tasks.push(() =>
+        shareService.releaseBalloon(processedData, balloonSnapshot).then(() => {
+          quotaStore.decrementBalloon()
+        })
+      )
+    }
+
+    await shareService.runBatch(tasks)
+
+    const loadStore = useDrawLoadStore()
+    void loadStore.removeDraft()
+  } catch (error) {
+    console.error('Background sharing failed:', error)
+  } finally {
+    shareService.isSending = false
+  }
 }
 </script>
 

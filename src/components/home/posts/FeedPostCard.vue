@@ -54,6 +54,7 @@
       </div>
 
       <div
+        ref="reactionSurface"
         class="relative w-full flex items-center justify-center overflow-hidden bg-[#FAF8F5] border-y border-primary/10 select-none"
         @dblclick="handleDoubleTap"
       >
@@ -108,24 +109,7 @@
           </div>
         </div>
 
-        <div
-          v-if="activeAnim"
-          class="reaction-overlay absolute inset-0 z-50 flex items-center justify-center pointer-events-none"
-        >
-          <img
-            :src="reactionImages[activeAnim]"
-            :class="[
-      'w-32 h-32 drop-shadow-2xl object-contain absolute z-20',
-      `anim-react-${activeAnim}`
-    ]"
-          />
-
-          <div class="reaction-burst z-10"></div>
-
-          <div class="particles z-0">
-            <span v-for="i in 8" :key="i"></span>
-          </div>
-        </div>
+        <ReactionBurst ref="reactionBurst" />
       </div>
 
       <!-- Footer: reaction proof · action bar · comment previews -->
@@ -241,6 +225,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { onLongPress } from '@vueuse/core'
 import { actionSheetController, alertController, IonIcon } from '@ionic/vue'
 import {
   mdiChatOutline,
@@ -255,7 +240,7 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { svg } from '@/helper/general.helper'
 import { FeedPost } from '@/types/server.types'
-import { playHapticPattern, reactionImages } from '@/config/post.config'
+import { playSelectionTick, reactionImages } from '@/config/post.config'
 import { useMenuStore } from '@/store/menu.store'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
@@ -264,6 +249,7 @@ import { Menu } from '@/draw/types/draw.types'
 import { useModerationStore } from '@/store/moderation.store'
 
 import UserAvatar from '@/components/profile/customization/UserAvatar.vue'
+import ReactionBurst from '@/components/general/ReactionBurst.vue'
 import {
   calculateSignatureStroke,
   hydrateCustomization,
@@ -288,7 +274,8 @@ const { openUserActions } = useUserContextSheet()
 const menuStore = useMenuStore()
 
 const imageLoaded = ref(false)
-const activeAnim = ref<string | null>(null)
+const reactionSurface = ref<HTMLElement | null>(null)
+const reactionBurst = ref<{ play: (r: string) => void } | null>(null)
 
 const authorCustomization = computed(() =>
   hydrateCustomization(props.post.author?.customization)
@@ -333,14 +320,20 @@ watch(
   () => props.post.user_reaction,
   (newVal, oldVal) => {
     if (newVal && newVal !== oldVal) {
-      activeAnim.value = newVal
-      playHapticPattern(newVal)
-
-      setTimeout(() => {
-        activeAnim.value = null
-      }, 1000)
+      reactionBurst.value?.play(newVal)
     }
   }
+)
+
+// Long-press anywhere on the artwork opens the reaction picker, mirroring
+// the existing double-tap gesture. A light haptic confirms it armed.
+onLongPress(
+  reactionSurface,
+  (e) => {
+    playSelectionTick()
+    emit('open-reaction-popover', { event: e, post: props.post })
+  },
+  { delay: 400, modifiers: { prevent: true } }
 )
 
 const openUser = (userId: string) => openUserActions({ _id: userId })
@@ -431,368 +424,3 @@ const presentActionSheet = async () => {
   await actionSheet.present()
 }
 </script>
-
-<style scoped>
-.reaction-overlay {
-  perspective: 800px;
-}
-
-/* ---------- GLOBAL IMPACT ---------- */
-
-.reaction-burst {
-  position: absolute;
-  width: 120px;
-  height: 120px;
-  border-radius: 9999px;
-  background: radial-gradient(
-    circle,
-    rgba(255,255,255,.95),
-    rgba(255,255,255,0) 70%
-  );
-  animation: impactBurst .7s cubic-bezier(.2,.8,.2,1) forwards;
-}
-
-@keyframes impactBurst {
-  0% {
-    transform: scale(.1);
-    opacity:0;
-  }
-
-  25% {
-    opacity:1;
-  }
-
-  100% {
-    transform:scale(3);
-    opacity:0;
-  }
-}
-
-
-/* ---------- PARTICLES ---------- */
-
-.particles span {
-  position:absolute;
-  width:12px;
-  height:12px;
-  border-radius:50%;
-  animation:
-    particleExplode 900ms cubic-bezier(.15,.8,.3,1) forwards;
-}
-
-
-@keyframes particleExplode {
-  from {
-    transform:translate(0,0) scale(1);
-    opacity:1;
-  }
-
-  to {
-    transform:
-      translate(var(--tx),var(--ty))
-      rotate(180deg)
-      scale(0);
-    opacity:0;
-  }
-}
-
-
-/* stagger particles */
-
-.particles span:nth-child(1){--tx:-90px;--ty:-70px}
-.particles span:nth-child(2){--tx:90px;--ty:-50px}
-.particles span:nth-child(3){--tx:-110px;--ty:20px}
-.particles span:nth-child(4){--tx:110px;--ty:30px}
-.particles span:nth-child(5){--tx:-60px;--ty:100px}
-.particles span:nth-child(6){--tx:70px;--ty:90px}
-.particles span:nth-child(7){--tx:0px;--ty:-120px}
-.particles span:nth-child(8){--tx:0px;--ty:120px}
-
-
-
-/* =========================
-   LOVE ❤️
-========================= */
-
-.anim-react-love {
-
-  animation:
-    loveEntrance .35s cubic-bezier(.2,1.6,.4,1) forwards,
-    loveFloat .8s .35s ease-in-out forwards,
-    loveExit .25s 1.15s ease forwards;
-
-}
-
-
-@keyframes loveEntrance {
-
-  from {
-    transform:
-      scale(0)
-      rotate(-30deg);
-  }
-
-  to {
-    transform:
-      scale(1.25)
-      rotate(10deg);
-  }
-
-}
-
-
-@keyframes loveFloat {
-
-  0% {
-    transform:scale(1.25) rotate(10deg);
-  }
-
-  50% {
-    transform:scale(1.05) rotate(-10deg);
-  }
-
-  100% {
-    transform:scale(1.15) rotate(0);
-  }
-
-}
-
-
-@keyframes loveExit {
-
-  to {
-    transform:scale(0);
-    opacity:0;
-  }
-
-}
-
-
-
-
-/* =========================
-   FIRE 🔥
-========================= */
-
-
-.anim-react-fire {
-
-  animation:
-    fireIgnite .25s ease-out forwards,
-    fireDance .8s .25s ease-in-out forwards,
-    fireDisappear .3s 1.05s forwards;
-
-}
-
-
-@keyframes fireIgnite {
-
-  from {
-    transform:
-      translateY(80px)
-      scale(.3);
-    opacity:0;
-  }
-
-  to {
-    transform:
-      translateY(0)
-      scale(1.3);
-    opacity:1;
-  }
-
-}
-
-
-@keyframes fireDance {
-
-  0% {
-    transform:scale(1.3) rotate(-10deg);
-  }
-
-  25% {
-    transform:scale(1.1) rotate(10deg);
-  }
-
-  50% {
-    transform:scale(1.25) rotate(-8deg);
-  }
-
-  100% {
-    transform:
-      translateY(-40px)
-      scale(.9);
-  }
-
-}
-
-
-@keyframes fireDisappear {
-
-  to {
-    opacity:0;
-    transform:
-      translateY(-100px)
-      scale(.4);
-  }
-
-}
-
-
-
-/* =========================
-   CRY 😭
-========================= */
-
-
-.anim-react-cry {
-
-  animation:
-    cryAppear .35s ease-out forwards,
-    cryDrop 1s .35s ease-in forwards;
-
-}
-
-
-@keyframes cryAppear {
-
-  from {
-    transform:
-      translateY(-50px)
-      scale(.5);
-    opacity:0;
-  }
-
-  to {
-    transform:
-      translateY(0)
-      scale(1.1);
-    opacity:1;
-  }
-
-}
-
-
-@keyframes cryDrop {
-
-  0% {
-    transform:translateY(0);
-  }
-
-  40% {
-    transform:translateY(10px);
-  }
-
-  100% {
-    transform:
-      translateY(90px)
-      scale(.8);
-    opacity:0;
-  }
-
-}
-
-
-
-/* =========================
-   CRAZY 🤪
-========================= */
-
-
-.anim-react-crazy {
-
-  animation:
-    crazyShake .9s cubic-bezier(.36,.07,.19,.97) forwards;
-
-}
-
-
-@keyframes crazyShake {
-
-  0% {
-    transform:
-      scale(.2)
-      rotate(0);
-    opacity:0;
-  }
-
-  20% {
-    transform:
-      scale(1.3)
-      rotate(20deg);
-    opacity:1;
-  }
-
-  40% {
-    transform:
-      scale(1)
-      rotate(-20deg);
-  }
-
-  60% {
-    transform:
-      scale(1.2)
-      rotate(15deg);
-  }
-
-  80% {
-    transform:
-      scale(1)
-      rotate(-10deg);
-  }
-
-  100% {
-    transform:
-      scale(.3)
-      rotate(360deg);
-    opacity:0;
-  }
-
-}
-
-
-
-/* =========================
-   SLEEP 😴
-========================= */
-
-
-.anim-react-sleep {
-
-  animation:
-    sleepFloat 1.5s ease-in-out forwards;
-
-}
-
-
-@keyframes sleepFloat {
-
-  0% {
-    transform:
-      translateY(40px)
-      scale(.6);
-    opacity:0;
-  }
-
-  30% {
-    opacity:1;
-    transform:
-      translateY(0)
-      scale(1);
-  }
-
-  70% {
-    transform:
-      translateY(-30px)
-      scale(1.1);
-  }
-
-  100% {
-    transform:
-      translateY(-80px)
-      scale(.7);
-    opacity:0;
-  }
-
-}
-</style>

@@ -34,7 +34,7 @@
           <!-- Title + cat share the top row so the cat reads as part of the card -->
           <div class="flex items-start justify-between gap-3">
             <h3 class="text-2xl font-black text-black tracking-tight leading-none cabin-sketch-regular pt-1">Pro</h3>
-            <img :src="proCat" alt="" class="w-24 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
+            <img :src="fireCat" alt="" class="w-24 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
           </div>
 
           <!-- Billing cycle chips -->
@@ -102,7 +102,7 @@
               </p>
               <p class="text-[14px] text-black/70 mt-0.5">One time purchase, forever yours</p>
             </div>
-            <img :src="lifetimeCat" alt="" class="w-28 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
+            <img :src="crazyCat" alt="" class="w-28 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
           </div>
 
           <ul class="mt-4 space-y-2.5">
@@ -258,31 +258,31 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { IonModal, IonContent, IonIcon, IonButton } from '@ionic/vue'
+import { IonButton, IonContent, IonIcon, IonModal } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { Purchases, type PurchasesPackage } from '@revenuecat/purchases-capacitor'
 import { Browser } from '@capacitor/browser'
 import { chevronBackOutline } from 'ionicons/icons'
 import {
-  mdiCheck,
-  mdiMinus,
-  mdiCrown,
-  mdiHeart,
+  mdiAccountGroup,
   mdiBrush,
+  mdiCheck,
+  mdiCheckAll,
+  mdiCrown,
+  mdiCrownOutline,
+  mdiHeart,
+  mdiInfinity,
+  mdiMinus,
   mdiMotionPlayOutline,
   mdiPalette,
-  mdiCrownOutline,
-  mdiAccountGroup,
-  mdiCheckAll,
-  mdiInfinity,
   mdiShimmer
 } from '@mdi/js'
-import { svg, isNative } from '@/helper/general.helper'
+import { isNative, svg } from '@/helper/general.helper'
 import logo from '@/assets/logo.webp'
 import bigbossImage from '@/assets/bigboss.jpg'
 // TODO: swap in two distinct cat illustrations later; same image for now.
-import proCat from '@/assets/illustrations/store_cat.webp'
-import lifetimeCat from '@/assets/illustrations/store_cat.webp'
+import crazyCat from '@/assets/stickers/crazy.webp'
+import fireCat from '@/assets/stickers/fire.webp'
 import { useMenuStore } from '@/store/menu.store'
 import { useSubscriptionStore } from '@/store/subscription.store'
 import { LIFETIME_RC_PRODUCT } from '@/config/catalog.config'

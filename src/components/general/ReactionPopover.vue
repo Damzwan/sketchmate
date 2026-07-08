@@ -8,22 +8,33 @@
     side="top"
     alignment="center"
   >
-    <div class="flex items-center px-2 py-1.5 space-x-1 animate-pop-in overflow-visible">
+    <div class="reaction-tray animate-tray-in">
       <button
-        v-for="(imgSrc, type) in reactionImages"
+        v-for="(imgSrc, type, i) in reactionImages"
         :key="type"
         @click="$emit('select', type)"
-        class="group relative w-18 h-18 p-1 cursor-pointer transition-all duration-300 hover:scale-110 active:scale-90"
+        class="reaction-item group"
+        :style="{ '--i': i }"
+        :aria-label="reactionLabels[type] || type"
       >
+        <!-- Floating label, appears on hover / when it's the active one -->
+        <span
+          class="reaction-label"
+          :class="{ 'reaction-label--shown': userReaction === type }"
+        >
+          {{ reactionLabels[type] || type }}
+        </span>
+
         <img
           :src="imgSrc"
-          class="h-full w-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:-translate-y-1.5"
+          class="reaction-img"
+          :class="{ 'reaction-img--active': userReaction === type }"
           alt="reaction"
         />
 
-        <div
+        <span
           v-if="userReaction === type"
-          class="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-secondary animate-pulse"
+          class="reaction-dot"
         />
       </button>
     </div>
@@ -31,16 +42,24 @@
 </template>
 
 <script setup lang="ts">
-import { IonPopover } from '@ionic/vue';
-import { reactionImages } from '@/config/post.config';
+import { IonPopover } from '@ionic/vue'
+import { reactionImages } from '@/config/post.config'
+
+const reactionLabels: Record<string, string> = {
+  love: 'Love',
+  fire: 'Fire',
+  cry: 'Cry',
+  sleep: 'Sleep',
+  crazy: 'Crazy'
+}
 
 defineProps<{
-  isOpen: boolean;
-  event: Event | null;
-  userReaction?: string;
-}>();
+  isOpen: boolean
+  event: Event | null
+  userReaction?: string
+}>()
 
-defineEmits(['close', 'select']);
+defineEmits(['close', 'select'])
 </script>
 
 <style scoped>
@@ -51,12 +70,127 @@ ion-popover.liquid-popover {
   overflow: visible;
 }
 
-@keyframes popIn {
-  0% { opacity: 0; transform: scale(0.85) translateY(6px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
+ion-popover.liquid-popover::part(content) {
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
 }
 
-.animate-pop-in {
-  animation: popIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+/* Themed frosted tray — reads on both the light feed and the dark viewer. */
+.reaction-tray {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 9999px;
+  background: rgba(var(--ion-color-tertiary-rgb, 255, 242, 228), 0.92);
+  border: 1.5px solid rgba(var(--ion-color-primary-rgb, 250, 224, 194), 0.9);
+  box-shadow:
+    0 10px 30px -6px rgba(var(--ion-color-secondary-rgb, 185, 70, 58), 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.reaction-item {
+  position: relative;
+  width: 3.35rem;
+  height: 3.35rem;
+  padding: 0.3rem;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  /* Cascade in, one after another. */
+  opacity: 0;
+  transform: translateY(8px) scale(0.6);
+  animation: itemIn 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation-delay: calc(var(--i) * 45ms + 60ms);
+}
+
+.reaction-img {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.28s ease;
+}
+
+/* Hover / focus lift — springy and prominent, Messenger-style. */
+.reaction-item:hover .reaction-img,
+.reaction-item:focus-visible .reaction-img {
+  transform: translateY(-0.7rem) scale(1.3);
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.25));
+}
+
+.reaction-item:active .reaction-img {
+  transform: translateY(-0.3rem) scale(1.12);
+}
+
+.reaction-img--active {
+  transform: scale(1.12);
+}
+
+/* Floating name bubble above each reaction. */
+.reaction-label {
+  position: absolute;
+  top: -1.35rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: white;
+  background: rgba(var(--ion-color-secondary-rgb, 185, 70, 58), 0.95);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.reaction-item:hover .reaction-label,
+.reaction-item:focus-visible .reaction-label,
+.reaction-label--shown {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Active selection marker under the current reaction. */
+.reaction-dot {
+  position: absolute;
+  bottom: 0.05rem;
+  left: 50%;
+  width: 0.3rem;
+  height: 0.3rem;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: rgb(var(--ion-color-secondary-rgb, 185, 70, 58));
+  box-shadow: 0 0 6px rgba(var(--ion-color-secondary-rgb, 185, 70, 58), 0.8);
+}
+
+@keyframes itemIn {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-tray-in {
+  animation: trayIn 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes trayIn {
+  from { opacity: 0; transform: scale(0.85) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction-item,
+  .animate-tray-in { animation-duration: 0.01ms; }
+  .reaction-item { opacity: 1; transform: none; }
 }
 </style>

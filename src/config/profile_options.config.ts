@@ -374,7 +374,7 @@ export const resolveEffect = (id?: string): ProfileEffectDef =>
   PROFILE_EFFECTS.find((e) => e.id === id) || PROFILE_EFFECTS[0]
 
 // ─── WORLDS (FOREGROUND ENVIRONMENTS) ───────────────────────────────────
-export type WorldKind = 'none' | 'ocean' | 'cat' | 'autumn' | 'dragon';
+export type WorldKind = 'none' | 'ocean' | 'cat' | 'autumn' | 'dragon' | 'space';
 
 export interface WorldDef {
   id: string;
@@ -403,6 +403,12 @@ export const WORLDS: WorldDef[] = [
     name: 'Dragon\'s Lair',
     desc: 'Fiery peaks & roaming beasts',
     kind: 'dragon'
+  },
+  {
+    id: 'space',
+    name: 'Cosmic Drift',
+    desc: 'Stars, meteors & a drifting astronaut',
+    kind: 'space'
   }
 ]
 

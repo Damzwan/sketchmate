@@ -1,5 +1,8 @@
 <template>
-  <div class="fixed top-safe mt-20 right-4 z-100 flex flex-col gap-2 w-64 pointer-events-none">
+  <div
+    class="fixed top-safe right-4 z-100 flex flex-col gap-2 w-64 pointer-events-none transition-all duration-300"
+    :class="isLoadingCanvas ? 'mt-32' : 'mt-20'"
+  >
     <TransitionGroup name="share-toast">
 
       <div
@@ -100,6 +103,7 @@ import {
   useShareToastStore
 } from '@/draw/store/useShareToastStore.store'
 import { useShareService } from '@/draw/store/useShareService.store' // Imported share service
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useInboxSwiper } from '@/composables/gallery/useInboxSwiper'
 import { usePostSwiper } from '@/composables/home/usePostSwiper'
 import Lottie from '@/components/general/Lottie.vue'
@@ -112,6 +116,9 @@ const { toasts } = storeToRefs(shareToastStore)
 
 // Access the global sending state
 const shareService = useShareService()
+
+// Keep vertical offset in lockstep with ChatToasts (drops while the canvas loads).
+const { isLoadingCanvas } = storeToRefs(useDrawSyncer())
 
 const inboxSwiper = useInboxSwiper()
 const postSwiper = usePostSwiper()

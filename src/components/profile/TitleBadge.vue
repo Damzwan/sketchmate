@@ -25,17 +25,17 @@
       class="title-popover"
       @did-dismiss="open = false"
     >
-      <div class="p-4 w-60">
+      <div class="p-4 w-60 cabin-sketch-regular">
         <div class="flex items-center gap-2 mb-1">
           <span class="text-2xl">{{ def.emoji }}</span>
-          <h3 class="text-base font-black text-black leading-none">{{ def.name }}</h3>
+          <h3 class="text-xl font-black text-black leading-none">{{ def.name }}</h3>
         </div>
-        <p class="text-xs italic text-black/50 mb-2">{{ def.desc }}</p>
+        <p class=" text-black/80 mb-2">{{ def.desc }}</p>
         <div class="rounded-2xl bg-secondary/10 px-3 py-2">
-          <p class="text-[10px] font-black uppercase tracking-widest text-secondary mb-0.5">
+          <p class="text-lg font-black uppercase tracking-widest text-secondary mb-0.5">
             {{ owned ? 'Unlocked' : 'How to earn' }}
           </p>
-          <p class="text-xs font-semibold text-black/70 leading-snug">{{ def.howTo }}</p>
+          <p class=" font-semibold text-black/70 leading-snug">{{ def.howTo }}</p>
         </div>
       </div>
     </ion-popover>
@@ -45,10 +45,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { IonPopover } from "@ionic/vue";
-import {
-	resolveTitleDef,
-	type Theme,
-} from "@/config/profile_options.config";
+import { resolveTitleDef, type Theme } from "@/config/profile_options.config";
 import { buildItemId } from "@/config/catalog.config";
 import { useInventoryStore } from "@/store/inventory.store";
 

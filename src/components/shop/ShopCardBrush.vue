@@ -2,9 +2,8 @@
   <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
     <template #preview>
       <div class="h-28 bg-[#FAF6F0] relative flex items-center justify-center p-2 border-b border-black/5">
-        <canvas ref="canvasEl" class="max-w-full pointer-events-none"></canvas>
+        <canvas :ref="initCanvas" class="max-w-full pointer-events-none"></canvas>
 
-        <!-- Floated organic pencil badge icon -->
         <div class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white border border-black/10 shadow-sm flex items-center justify-center text-black">
           <ion-icon :icon="svg(brushIcon)" class="text-sm" />
         </div>
@@ -14,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, nextTick } from "vue";
+import { ref, computed } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { Canvas, Point } from "fabric";
 import type { ShopSku } from "@/config/catalog.config";
@@ -30,7 +29,6 @@ const props = defineProps<{
 }>();
 defineEmits(["purchase"]);
 
-const canvasEl = ref<HTMLCanvasElement | null>(null);
 const brushType = computed<BrushType>(() => {
 	if (props.sku.refId === "neon") return BrushType.Neon;
 	if (props.sku.refId === "calligraphy") return BrushType.CalliGraphy;
@@ -38,15 +36,20 @@ const brushType = computed<BrushType>(() => {
 });
 const brushIcon = computed(() => penIconMapping[brushType.value]);
 
-onMounted(async () => {
-	await nextTick();
-	if (!canvasEl.value) return;
-	const canvas = new Canvas(canvasEl.value, {
+// Keep track of the instance to avoid duplicate setups if the slot re-renders
+let canvasInstance: Canvas | null = null;
+
+const initCanvas = (el: HTMLCanvasElement | null) => {
+	if (!el || canvasInstance) return;
+
+	const canvas = new Canvas(el, {
 		width: 150,
 		height: 75,
 		selection: false,
 	});
+	canvasInstance = canvas;
 	canvas.backgroundColor = "rgba(0,0,0,0)";
+
 	try {
 		canvas.freeDrawingBrush = penBrushMapping[brushType.value](canvas);
 		const brush = canvas.freeDrawingBrush as any;
@@ -72,5 +75,5 @@ onMounted(async () => {
 	} catch (e) {
 		console.warn("[ShopCardBrush] preview failed", e);
 	}
-});
+};
 </script>

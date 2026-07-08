@@ -94,9 +94,9 @@
         <div class="p-3 w-[230px] bg-tertiary">
           <div class="flex items-center gap-2">
             <ion-icon :icon="svg(saveIcon)" :class="saveIconClass" class="w-5 h-5" />
-            <span class="text-sm font-black text-heading">{{ saveStatusText }}</span>
+            <span class="text-lg font-black text-heading">{{ saveStatusText }}</span>
           </div>
-          <p class="text-xs text-black/80 mt-1 mb-3 cabin-sketch-regular">
+          <p class=" text-black/80 mt-1 mb-3 cabin-sketch-regular">
             Your drawing autosaves to this device every {{ AUTOSAVE_SECONDS }}s.
           </p>
           <ion-button  @click="onSaveNow" shape="round" color="secondary"
@@ -185,7 +185,7 @@ const saveIcon = computed(
 const saveIconClass = computed(
 	() =>
 		({
-			saving: "text-black/50",
+			saving: "text-black/80",
 			dirty: "text-amber-500",
 			saved: "text-secondary",
 		})[saveState.value],

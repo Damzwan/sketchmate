@@ -76,6 +76,17 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
 
   const pendingDrafts = ref<Map<string, PendingDraft>>(new Map())
 
+  // Ids hidden from draft lists the moment they're sent/discarded, so the UI
+  // (home MyDrafts) drops them instantly instead of waiting for the async IDB
+  // delete + a re-fetch. The actual delete still happens in removeDraft.
+  const removedDraftIds = ref<Set<string>>(new Set())
+
+  function markDraftRemoved(id: string) {
+    if (removedDraftIds.value.has(id)) return
+    removedDraftIds.value.add(id)
+    removedDraftIds.value = new Set(removedDraftIds.value)
+  }
+
   // --- Internal non-reactive refs ---
   let activeCanvas: Canvas | undefined
   let saveInterval: ReturnType<typeof setInterval> | undefined
@@ -476,6 +487,8 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     const targetId = id || currentDraftId.value
     if (!targetId) return
 
+    markDraftRemoved(targetId)
+
     const pending = pendingDrafts.value.get(targetId)
     if (pending) {
       pendingDrafts.value.delete(targetId)
@@ -539,6 +552,8 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
     isPreExistingDraft, // Exported to be consumed by DrawExitGuard.vue
     pendingDrafts,
     pendingDraftsList,
+    removedDraftIds,
+    markDraftRemoved,
     loadCanvas,
     startAutosave,
     stopAutosave,

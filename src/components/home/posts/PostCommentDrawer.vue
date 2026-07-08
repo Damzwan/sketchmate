@@ -137,21 +137,23 @@
 import { ref, nextTick, watch } from "vue";
 import { useInfiniteScroll } from "@vueuse/core";
 import {
-  IonModal,
-  IonSpinner,
-  IonIcon,
-  IonAvatar,
-  IonInput,
-  actionSheetController,
-  alertController, IonButton
-} from '@ionic/vue'
+	IonModal,
+	IonSpinner,
+	IonIcon,
+	IonAvatar,
+	IonInput,
+	actionSheetController,
+	alertController,
+	IonButton,
+} from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import {
-  mdiSend,
-  mdiFlagVariantOutline,
-  mdiDeleteOutline,
-  mdiDotsHorizontal, mdiClose
-} from '@mdi/js'
+	mdiSend,
+	mdiFlagVariantOutline,
+	mdiDeleteOutline,
+	mdiDotsHorizontal,
+	mdiClose,
+} from "@mdi/js";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { svg } from "@/helper/general.helper";
@@ -201,8 +203,18 @@ watch(
 	async (openState) => {
 		if (!openState || !props.post) return;
 
-		hasMore.value = false;
+		// Initialize with the preview comments if they exist
 		comments.value = props.post.comments ? [...props.post.comments] : [];
+
+		if (comments.value.length === 0) {
+			hasMore.value = false;
+			loading.value = false;
+			await nextTick();
+			input.value?.$el?.setFocus();
+			return;
+		}
+
+		hasMore.value = false;
 		loading.value = true;
 
 		try {
@@ -210,7 +222,6 @@ watch(
 			comments.value = res.comments;
 			hasMore.value = res.hasMore;
 
-			// Check if empty after loading
 			if (comments.value.length === 0) {
 				await nextTick();
 				input.value?.$el?.setFocus();

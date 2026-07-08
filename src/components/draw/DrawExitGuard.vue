@@ -34,7 +34,7 @@ const requestExit = async () => {
 
 watch(() => uiStore.exitRequested, requestExit);
 
-const commitExit = () => {
+const commitExit = (goBack = true) => {
 	isNavigationConfirmed = true;
 	loadStore.stopAutosave();
 
@@ -55,6 +55,7 @@ const commitExit = () => {
 	const sessionStore = useSessionStore();
 	sessionStore.setQueryParams(undefined);
 
+	if (!goBack) return;
 	if (router.canGoBack()) {
 		router.back();
 	} else {
@@ -98,33 +99,33 @@ const resolveExit = async (): Promise<boolean> => {
 // Hooks
 // ─────────────────────────────────────────────────────────────────────────
 onBeforeRouteLeave(async (_to, _from, next) => {
-  // If we already confirmed, just go
-  if (isNavigationConfirmed) return next();
+	// If we already confirmed, just go
+	if (isNavigationConfirmed) return next();
 
-  // BYPASS: If we are coming from a successful share, skip the modal
-  if (uiStore.isForceExiting) {
-    uiStore.isForceExiting = false; // Reset it for the next session
-    commitExit();
-    return next();
-  }
+	// BYPASS: If we are coming from a successful share, skip the modal
+	if (uiStore.isForceExiting) {
+		uiStore.isForceExiting = false; // Reset it for the next session
+		commitExit(false); // we are already calling the exit logic from our sendhub.vue
+		return next();
+	}
 
-  // NORMAL CASE: Prompt the user with the modal
-  const shouldLeave = await resolveExit();
-  if (shouldLeave) {
-    commitExit();
-    next();
-  } else {
-    next(false);
-  }
+	// NORMAL CASE: Prompt the user with the modal
+	const shouldLeave = await resolveExit();
+	if (shouldLeave) {
+		commitExit();
+		next();
+	} else {
+		next(false);
+	}
 });
 
 const backButtonSubscription = useBackButton(1, async (processNextHandler) => {
-  if (isNavigationConfirmed) {
-    processNextHandler()
-    return
-  }
-  await requestExit()
-})
+	if (isNavigationConfirmed) {
+		processNextHandler();
+		return;
+	}
+	await requestExit();
+});
 
 onUnmounted(() => {
 	if (backButtonSubscription) backButtonSubscription.unregister();

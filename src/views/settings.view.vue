@@ -10,21 +10,21 @@
         <div class="grow space-y-6">
 
           <section>
-            <h3 class="text-[11px] font-bold text-black/50 px-1 mb-2 uppercase tracking-widest">
+            <h3 class="text-lg font-bold text-black/90 px-1 mb-2 uppercase tracking-widest">
               Account
             </h3>
             <AccountSettings />
           </section>
 
           <section>
-            <h3 class="text-[11px] font-bold text-black/50 px-1 mb-2 uppercase tracking-widest">
+            <h3 class="text-lg font-bold text-black/90 px-1 mb-2 uppercase tracking-widest">
               Preferences
             </h3>
             <SettingSwitches />
           </section>
 
           <section v-if="user?.subscriptions?.length" class="animate-fade-in">
-            <h3 class="text-[11px] font-bold text-black/50 px-1 mb-2 uppercase tracking-widest">
+            <h3 class="text-lg font-bold text-black/90 px-1 mb-2 uppercase tracking-widest">
               Network Sync
             </h3>
             <SubscriptionManager
@@ -35,10 +35,11 @@
           </section>
 
           <section>
-            <h3 class="text-[11px] font-bold text-black/50 px-1 mb-2 uppercase tracking-widest">
+            <h3 class="text-lg font-bold text-black/90 px-1 mb-2 uppercase tracking-widest">
               More
             </h3>
             <SettingLinks />
+            <div class="h-12 w-full aria-hidden"></div>
           </section>
 
         </div>

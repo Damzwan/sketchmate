@@ -15,21 +15,21 @@
           <canvas ref="preview_canvas"></canvas>
           <span class="preview-tag">Preview</span>
 
-          <div
+          <button
             v-if="previewedLockedBrush"
+            type="button"
             class="unlock-banner"
-            @click="goToShopForBrush(previewedLockedBrush)"
+            :disabled="purchasing"
+            @click="buyPreviewedBrush"
           >
             <div class="flex items-center gap-2 min-w-0">
               <ion-icon :icon="svg(mdiLock)" class="text-base shrink-0" />
-              <span class="text-xs font-black uppercase tracking-wide truncate">
-                Unlock {{ brushDisplayName(previewedLockedBrush) }}
+              <span class="text-xs font-black tracking-tight truncate">
+                {{ purchasing ? 'Unlocking…' : `Unlock ${brushDisplayName(previewedLockedBrush)}` }}
               </span>
             </div>
-            <span class="text-[10px] font-bold opacity-90 whitespace-nowrap ml-2">
-              Get it →
-            </span>
-          </div>
+            <ion-icon :icon="svg(mdiArrowRight)" class="text-base shrink-0 ml-2" />
+          </button>
         </div>
       </div>
 
@@ -116,7 +116,7 @@ import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { onMounted, ref, watch } from "vue";
 import { BrushType, DrawTool } from "@/draw/types/draw.types";
-import { mdiLock } from "@mdi/js";
+import { mdiLock, mdiArrowRight } from "@mdi/js";
 import { isNative, svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
@@ -135,8 +135,8 @@ import {
   PENMENUTOOLS,
 } from "@/draw/config/tools.config";
 import { useToolSelection } from "@/draw/store/tools/toolSelection.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
 import { useInventoryStore } from "@/store/inventory.store";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import { buildItemId } from "@/config/catalog.config";
 
 const { selectTool } = useToolSelection();
@@ -144,9 +144,8 @@ const { selectedTool } = storeToRefs(useToolSelection());
 const { brushSize, brushColor, brushType, opacity, density, dotWidth, pixelSize } =
   storeToRefs(usePen());
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore());
-const menuStore = useMenuStore();
-const subStore = useSubscriptionStore();
 const inventoryStore = useInventoryStore();
+const { purchasing, unlockItem } = useUnlockItem();
 
 const preview_canvas = ref<HTMLCanvasElement>();
 let canvas: Canvas | undefined;
@@ -204,11 +203,19 @@ const brushDisplayName = (type: BrushType): string => {
 
 const previewedLockedBrush = ref<BrushType | null>(null);
 
-const goToShopForBrush = (type: BrushType) => {
+// Buy the previewed locked brush in place (same flow as FontModal / EffectModal
+// via useUnlockItem) instead of bouncing the user out to the shop. On success
+// the brush is owned, so select it immediately.
+const buyPreviewedBrush = async () => {
+  const type = previewedLockedBrush.value;
+  if (type == null) return;
   const id = brushItemId(type);
   if (!id) return;
-  penMenuOpen.value = false;
-  setTimeout(() => menuStore.openShop(id), 200);
+  const ok = await unlockItem(id);
+  if (ok) {
+    previewedLockedBrush.value = null;
+    selectBrushType(type);
+  }
 };
 
 onMounted(() => {
@@ -358,9 +365,9 @@ watch(penMenuOpen, (open) => {
 }
 
 .unlock-banner {
-  @apply absolute inset-x-0 bottom-0 px-3 py-2 bg-gradient-to-r from-purple-600 to-pink-500
-  text-white flex items-center justify-between cursor-pointer
-  active:scale-[0.99] transition-transform;
+  @apply absolute inset-x-0 bottom-0 w-full px-3 py-2 bg-secondary text-white border-0
+  flex items-center justify-between cursor-pointer cabin-sketch-regular
+  active:scale-[0.99] transition-transform disabled:opacity-70;
 }
 
 .pen-body {

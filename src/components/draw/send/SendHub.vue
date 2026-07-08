@@ -293,6 +293,7 @@ import { useDrawUIStore } from "@/draw/store/drawUI.store";
 import { useDrawStore } from "@/draw/store/draw.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
+import { masterAnimation } from "@/helper/animation.helper";
 
 dayjs.extend(duration);
 
@@ -427,11 +428,12 @@ function leaveShare() {
 		void nav?.popToRoot();
 		return;
 	}
+
 	if (router.canGoBack()) {
 		router.back();
-	} else {
-		router.replace(FRONTEND_ROUTES.home);
+		return;
 	}
+	router.replace(FRONTEND_ROUTES.home, masterAnimation);
 }
 
 async function executeShares() {
@@ -460,7 +462,14 @@ async function executeShares() {
 		return;
 	}
 
-	if (!useDrawSyncer().isLobby) {
+	const isLobby = useDrawSyncer().isLobby;
+	// Grab the draft id BEFORE reset and hide it immediately so home doesn't flash
+	// the draft we're sending. The IDB delete itself runs later with the batch.
+	const loadStore = useDrawLoadStore();
+	const sentDraftId = loadStore.currentDraftId;
+	if (!isLobby && sentDraftId) loadStore.markDraftRemoved(sentDraftId);
+
+	if (!isLobby) {
 		resetCanvas();
 	}
 	shareService.preSelected = "mate";
@@ -468,46 +477,57 @@ async function executeShares() {
 	leaveShare();
 	resetMates();
 
-	try {
-		const tasks: Array<() => Promise<void>> = [];
+	// The actual encode+upload (exportDrawingBlobs re-rasterises the drawing per
+	// task, on the main thread) is what makes the leave animation stutter. Kick
+	// it off only AFTER the page transition has settled so it never competes with
+	// the animation for the main thread — the whole batch is background work
+	// anyway (toasts report progress once it lands).
+	const runBackgroundShares = async () => {
+		try {
+			const tasks: Array<() => Promise<void>> = [];
 
-		if (directRecipients.length > 0) {
-			tasks.push(() =>
-				shareService.sendToMates(processedData, directRecipients),
-			);
+			if (directRecipients.length > 0) {
+				tasks.push(() =>
+					shareService.sendToMates(processedData, directRecipients),
+				);
+			}
+
+			if (wantsPost) {
+				tasks.push(() =>
+					shareService
+						.publishCommunityPost(processedData, {
+							caption: captionSnapshot,
+							enable_comments: enableCommentsSnapshot,
+							enable_remix: enableRemixSnapshot,
+						})
+						.then(() => {
+							quotaStore.decrementPost();
+						}),
+				);
+			}
+
+			if (wantsBalloon) {
+				tasks.push(() =>
+					shareService
+						.releaseBalloon(processedData, balloonSnapshot)
+						.then(() => {
+							quotaStore.decrementBalloon();
+						}),
+				);
+			}
+
+			await shareService.runBatch(tasks);
+
+			if (!isLobby) void loadStore.removeDraft(sentDraftId);
+		} catch (error) {
+			console.error("Background sharing failed:", error);
+		} finally {
+			shareService.isSending = false;
 		}
+	};
 
-		if (wantsPost) {
-			tasks.push(() =>
-				shareService
-					.publishCommunityPost(processedData, {
-						caption: captionSnapshot,
-						enable_comments: enableCommentsSnapshot,
-						enable_remix: enableRemixSnapshot,
-					})
-					.then(() => {
-						quotaStore.decrementPost();
-					}),
-			);
-		}
-
-		if (wantsBalloon) {
-			tasks.push(() =>
-				shareService.releaseBalloon(processedData, balloonSnapshot).then(() => {
-					quotaStore.decrementBalloon();
-				}),
-			);
-		}
-
-		await shareService.runBatch(tasks);
-
-		const loadStore = useDrawLoadStore();
-		void loadStore.removeDraft();
-	} catch (error) {
-		console.error("Background sharing failed:", error);
-	} finally {
-		shareService.isSending = false;
-	}
+	// ~ion transition duration; lets the navigation animation finish at 60fps.
+	setTimeout(runBackgroundShares, 400);
 }
 </script>
 

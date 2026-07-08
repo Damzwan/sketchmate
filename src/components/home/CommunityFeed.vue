@@ -45,14 +45,14 @@
         <!-- End of Feed Tactile Caught-Up Graphics Block -->
         <div
           v-if="!loading && posts.length > 0 && !hasMore"
-          class="pb-6 text-center"
+          class="pb-2 text-center"
         >
           <div
             class="inline-block p-8 bg-tertiary border border-dashed border-primary/80 rounded-[2.5rem] shadow-sm max-w-xs mx-auto">
             <h3 class="cabin-sketch-regular text-xl font-black text-black tracking-tight leading-none mb-1.5">
               You're all caught up!
             </h3>
-            <p class="text-[11px] text-black/40 uppercase tracking-wider leading-relaxed">
+            <p class="text-[11px] text-black/80 uppercase tracking-wider leading-relaxed">
               No more scrolling :)
             </p>
           </div>
@@ -78,179 +78,179 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
-import { IonSpinner, IonPopover } from '@ionic/vue'
-import { storeToRefs } from 'pinia'
-import { useIntersectionObserver } from '@vueuse/core'
+import { ref, watch, onUnmounted } from "vue";
+import { IonSpinner, IonPopover } from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { useIntersectionObserver } from "@vueuse/core";
 
-import { useAuthStore } from '@/store/auth.store'
-import { usePostStore } from '@/store/post.store'
-import { useToast } from '@/service/toast.service'
-import { logPostViews, deletePost } from '@/service/api/post.api'
-import { FeedPost } from '@/types/server.types'
-import { reactionImages } from '@/config/post.config'
+import { useAuthStore } from "@/store/auth.store";
+import { usePostStore } from "@/store/post.store";
+import { useToast } from "@/service/toast.service";
+import { logPostViews, deletePost } from "@/service/api/post.api";
+import { FeedPost } from "@/types/server.types";
+import { reactionImages } from "@/config/post.config";
 
-import FeedPostCard from '@/components/home/posts/FeedPostCard.vue'
-import PostCommentDrawer from '@/components/home/posts/PostCommentDrawer.vue'
-import { mixpanelEvents, trackEvent } from '@/service/mixpanel'
-import ReactionPopover from '@/components/general/ReactionPopover.vue'
+import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
+import PostCommentDrawer from "@/components/home/posts/PostCommentDrawer.vue";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import ReactionPopover from "@/components/general/ReactionPopover.vue";
 
-const authStore = useAuthStore()
-const postStore = usePostStore()
-const { toast } = useToast()
+const authStore = useAuthStore();
+const postStore = usePostStore();
+const { toast } = useToast();
 
-const { user } = storeToRefs(authStore)
-const { feedPosts: posts, isFeedDirty } = storeToRefs(postStore)
+const { user } = storeToRefs(authStore);
+const { feedPosts: posts, isFeedDirty } = storeToRefs(postStore);
 
-const loading = ref(true)
-const hasMore = ref(false)
+const loading = ref(true);
+const hasMore = ref(false);
 
-const isCommentsOpen = ref(false)
-const activePost = ref<FeedPost | null>(null)
+const isCommentsOpen = ref(false);
+const activePost = ref<FeedPost | null>(null);
 
-const popoverOpen = ref(false)
-const popoverEvent = ref<Event | null>(null)
-const activePopoverPost = ref<FeedPost | null>(null)
-const REACTION_POPOVER_SPACING = 10
+const popoverOpen = ref(false);
+const popoverEvent = ref<Event | null>(null);
+const activePopoverPost = ref<FeedPost | null>(null);
+const REACTION_POPOVER_SPACING = 10;
 
 const openComments = (post: FeedPost) => {
-  activePost.value = post
-  isCommentsOpen.value = true
-}
+	activePost.value = post;
+	isCommentsOpen.value = true;
+};
 
 const handleOpenReactionPopover = ({
-                                     event,
-                                     post
-                                   }: {
-  event: any;
-  post: FeedPost;
+	event,
+	post,
+}: {
+	event: any;
+	post: FeedPost;
 }) => {
-  activePopoverPost.value = post
-  const x =
-    event.clientX || (event.touches && event.touches[0].clientX) || event.pageX
-  const y =
-    event.clientY || (event.touches && event.touches[0].clientY) || event.pageY
+	activePopoverPost.value = post;
+	const x =
+		event.clientX || (event.touches && event.touches[0].clientX) || event.pageX;
+	const y =
+		event.clientY || (event.touches && event.touches[0].clientY) || event.pageY;
 
-  popoverEvent.value = {
-    target: {
-      getBoundingClientRect: () => ({
-        left: x,
-        top: y - REACTION_POPOVER_SPACING,
-        right: x,
-        bottom: y,
-        width: 0,
-        height: 0
-      })
-    }
-  } as any
-  popoverOpen.value = true
-}
+	popoverEvent.value = {
+		target: {
+			getBoundingClientRect: () => ({
+				left: x,
+				top: y - REACTION_POPOVER_SPACING,
+				right: x,
+				bottom: y,
+				width: 0,
+				height: 0,
+			}),
+		},
+	} as any;
+	popoverOpen.value = true;
+};
 
 const selectReaction = async (type: string) => {
-  popoverOpen.value = false
-  if (!activePopoverPost.value) return
-  const post = activePopoverPost.value
-  const isRemoving = post.user_reaction === type
-  trackEvent(mixpanelEvents.postReact, {
-    post_id: post._id,
-    author_id: post.author_id,
-    reaction_type: type,
-    removed: isRemoving,
-    is_own_post: post.author_id === user.value?._id
-  })
-  try {
-    await postStore.toggleReactionLocally(post._id, type)
-  } catch (e) {
-    console.error('Reaction sync failed', e)
-  }
-}
+	popoverOpen.value = false;
+	if (!activePopoverPost.value) return;
+	const post = activePopoverPost.value;
+	const isRemoving = post.user_reaction === type;
+	trackEvent(mixpanelEvents.postReact, {
+		post_id: post._id,
+		author_id: post.author_id,
+		reaction_type: type,
+		removed: isRemoving,
+		is_own_post: post.author_id === user.value?._id,
+	});
+	try {
+		await postStore.toggleReactionLocally(post._id, type);
+	} catch (e) {
+		console.error("Reaction sync failed", e);
+	}
+};
 
 const handleDelete = async (post: FeedPost) => {
-  try {
-    await deletePost(post._id)
-    postStore.removePostLocally(post._id)
-    toast('Post deleted')
-  } catch (e) {
-    toast('Failed to delete', { color: 'danger' })
-  }
-}
+	try {
+		await deletePost(post._id);
+		postStore.removePostLocally(post._id);
+		toast("Post deleted");
+	} catch (e) {
+		toast("Failed to delete", { color: "danger" });
+	}
+};
 
 /* --- LOGICAL INTERSECTION VIEW OBSERVERS --- */
-const viewedPosts = new Set<string>()
-const pendingViewSync = new Set<string>()
-const postElements = new Map<string, HTMLElement>()
-let syncTimeout: any = null
+const viewedPosts = new Set<string>();
+const pendingViewSync = new Set<string>();
+const postElements = new Map<string, HTMLElement>();
+let syncTimeout: any = null;
 
 const scheduleViewSync = () => {
-  if (syncTimeout) return
-  syncTimeout = setTimeout(async () => {
-    if (pendingViewSync.size === 0) return
-    const idsToSync = Array.from(pendingViewSync)
-    pendingViewSync.clear()
-    syncTimeout = null
-    try {
-      await logPostViews(idsToSync)
-    } catch (e) {
-      console.error('View sync failed', e)
-    }
-  }, 3000)
-}
+	if (syncTimeout) return;
+	syncTimeout = setTimeout(async () => {
+		if (pendingViewSync.size === 0) return;
+		const idsToSync = Array.from(pendingViewSync);
+		pendingViewSync.clear();
+		syncTimeout = null;
+		try {
+			await logPostViews(idsToSync);
+		} catch (e) {
+			console.error("View sync failed", e);
+		}
+	}, 3000);
+};
 
 const registerPostRef = (el: any, postId: string) => {
-  if (!el) return
-  const target =
-    el.$el instanceof HTMLElement
-      ? el.$el
-      : el instanceof HTMLElement
-        ? el
-        : null
-  if (!target || postElements.has(postId)) return
+	if (!el) return;
+	const target =
+		el.$el instanceof HTMLElement
+			? el.$el
+			: el instanceof HTMLElement
+				? el
+				: null;
+	if (!target || postElements.has(postId)) return;
 
-  postElements.set(postId, target)
-  let timer: any = null
+	postElements.set(postId, target);
+	let timer: any = null;
 
-  const { stop } = useIntersectionObserver(
-    target,
-    ([{ isIntersecting }]) => {
-      if (viewedPosts.has(postId)) {
-        stop()
-        return
-      }
-      if (isIntersecting) {
-        timer = setTimeout(() => {
-          if (!viewedPosts.has(postId)) {
-            viewedPosts.add(postId)
-            pendingViewSync.add(postId)
-            scheduleViewSync()
-            stop()
-          }
-        }, 1500)
-      } else if (timer) {
-        clearTimeout(timer)
-      }
-    },
-    { threshold: 0.6 }
-  )
-}
+	const { stop } = useIntersectionObserver(
+		target,
+		([{ isIntersecting }]) => {
+			if (viewedPosts.has(postId)) {
+				stop();
+				return;
+			}
+			if (isIntersecting) {
+				timer = setTimeout(() => {
+					if (!viewedPosts.has(postId)) {
+						viewedPosts.add(postId);
+						pendingViewSync.add(postId);
+						scheduleViewSync();
+						stop();
+					}
+				}, 1500);
+			} else if (timer) {
+				clearTimeout(timer);
+			}
+		},
+		{ threshold: 0.6 },
+	);
+};
 
 watch(
-  user,
-  (newVal) => {
-    if (!newVal) return
-    if (posts.value.length === 0 || isFeedDirty.value) {
-      postStore.getFeed().finally(() => {
-        loading.value = false
-      })
-    } else {
-      loading.value = false
-    }
-  },
-  { immediate: true }
-)
+	user,
+	(newVal) => {
+		if (!newVal) return;
+		if (posts.value.length === 0 || isFeedDirty.value) {
+			postStore.getFeed().finally(() => {
+				loading.value = false;
+			});
+		} else {
+			loading.value = false;
+		}
+	},
+	{ immediate: true },
+);
 
 onUnmounted(() => {
-  if (syncTimeout) clearTimeout(syncTimeout)
-})
+	if (syncTimeout) clearTimeout(syncTimeout);
+});
 </script>
 
 <style scoped>

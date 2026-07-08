@@ -1,8 +1,11 @@
 <template>
-  <Teleport to="body">
-    <button
-      v-show="hasSelection"
-      class="fixed z-40 cursor-pointer rounded-2xl border border-primary/60 bg-white/10 backdrop-blur-md shadow-lg active:scale-95 transition-all"
+  <!-- Rendered inside the draw page (NOT teleported to body) so it lives in the
+       page's stacking context and stays UNDER SendHub / RoomMenu / ChatWidget
+       instead of floating above them. pointer-events-auto re-enables taps since
+       the Toolbars wrapper is pointer-events-none. -->
+  <button
+    v-show="hasSelection"
+    class="fixed z-40 pointer-events-auto cursor-pointer rounded-2xl border border-primary/60 bg-white/10 backdrop-blur-md shadow-lg active:scale-95 transition-all"
       :style="{
         width: BOX + 'px',
         height: BOX + 'px',
@@ -28,11 +31,21 @@
 
     <div
       v-if="bigOpen"
-      class="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 bg-black/60 backdrop-blur-sm p-8"
+      class="fixed inset-0 z-[9999] pointer-events-auto flex flex-col items-center justify-center gap-4 bg-black/60 backdrop-blur-sm"
+      :style="{
+        paddingTop: 'calc(2rem + var(--ion-safe-area-top, 0px))',
+        paddingBottom: 'calc(2rem + var(--ion-safe-area-bottom, 0px))',
+        paddingLeft: 'calc(2rem + var(--ion-safe-area-left, 0px))',
+        paddingRight: 'calc(2rem + var(--ion-safe-area-right, 0px))',
+      }"
       @click="bigOpen = false"
     >
       <ion-button
-        class="absolute top-2 right-2"
+        class="absolute"
+        :style="{
+          top: 'calc(0.5rem + var(--ion-safe-area-top, 0px))',
+          right: 'calc(0.5rem + var(--ion-safe-area-right, 0px))',
+        }"
         fill="clear"
         color="light"
         aria-label="Close"
@@ -54,7 +67,6 @@
         Share
       </ion-button>
     </div>
-  </Teleport>
 </template>
 
 <script setup lang="ts">

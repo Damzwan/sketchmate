@@ -1,13 +1,16 @@
 <template>
-  <Teleport to="body">
-    <div
-      v-show="enabled"
-      class="fixed z-40 flex flex-col gap-2"
-      :style="{
-        right: 'calc(0.75rem + env(safe-area-inset-right))',
-        bottom: 'calc(9rem + env(safe-area-inset-bottom))',
-      }"
-    >
+  <!-- Rendered inside the draw page (NOT teleported to body) so it lives in the
+       page's stacking context and stays UNDER SendHub / RoomMenu / ChatWidget
+       instead of floating above them. pointer-events-auto re-enables taps since
+       the Toolbars wrapper is pointer-events-none. -->
+  <div
+    v-show="enabled"
+    class="fixed z-40 flex flex-col gap-2 pointer-events-auto"
+    :style="{
+      right: 'calc(0.75rem + env(safe-area-inset-right))',
+      bottom: 'calc(9rem + env(safe-area-inset-bottom))',
+    }"
+  >
       <button
         v-for="(p, i) in profiles"
         :key="i"
@@ -44,7 +47,6 @@
         <ColorPicker v-model:color="brushColor" :reset="pickerOpen" />
       </div>
     </ion-popover>
-  </Teleport>
 </template>
 
 <script setup lang="ts">

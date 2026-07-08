@@ -153,7 +153,7 @@ function dismissGuestWarning() {
 }
 
 const loadStore = useDrawLoadStore();
-const { pendingDraftsList } = storeToRefs(loadStore);
+const { pendingDraftsList, removedDraftIds } = storeToRefs(loadStore);
 
 const localDrafts = ref<DrawingDraft[]>([]);
 const isLoadingDrafts = ref(true);
@@ -210,10 +210,12 @@ const pendingDraftIds = computed(
 
 const mergedDrafts = computed<DrawingDraft[]>(() => {
 	const pendingIds = pendingDraftIds.value;
-	const real = localDrafts.value.filter((d) => !pendingIds.has(d.id));
-	return [...pendingDraftsList.value, ...real].sort(
-		(a, b) => b.updatedAt - a.updatedAt,
+	const removed = removedDraftIds.value;
+	const real = localDrafts.value.filter(
+		(d) => !pendingIds.has(d.id) && !removed.has(d.id),
 	);
+	const pending = pendingDraftsList.value.filter((p) => !removed.has(p.id));
+	return [...pending, ...real].sort((a, b) => b.updatedAt - a.updatedAt);
 });
 
 onMounted(() => {

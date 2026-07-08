@@ -126,6 +126,11 @@ export function changeFabricSettings() {
     cornerSize: 30,
     originX: 'center',
     originY: 'center',
+    // Dragging the br handle past the opposite side drives scaleX/scaleY
+    // negative (mirror); the drag/commit/undo pipeline can't round-trip a
+    // reflection cleanly. Flips stay available via the explicit FlipX/FlipY
+    // actions.
+    lockScalingFlip: true,
     _controlsVisibility: {
       bl: false,
       br: true,

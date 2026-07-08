@@ -88,6 +88,10 @@ const confirmText = () => {
     }
 
     textObj.set({ text: localText.value })
+    // Recompute glyph metrics NOW so getBoundingRect is correct the moment the
+    // object is indexed/baked — a stale ~0 rect would drop it from the tiles.
+    textObj.initDimensions?.()
+    textObj.setCoords()
 
     if (textObj.init) {
       textObj.init = false

@@ -96,7 +96,7 @@
             <ion-icon :icon="svg(saveIcon)" :class="saveIconClass" class="w-5 h-5" />
             <span class="text-sm font-black text-heading">{{ saveStatusText }}</span>
           </div>
-          <p class="text-xs text-black/50 mt-1 mb-3 leading-snug">
+          <p class="text-xs text-black/80 mt-1 mb-3 cabin-sketch-regular">
             Your drawing autosaves to this device every {{ AUTOSAVE_SECONDS }}s.
           </p>
           <button
@@ -114,32 +114,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useMenuStore } from '@/store/menu.store'
-import ToolButton from './ToolButton.vue'
+import { ref, computed } from "vue";
+import { storeToRefs } from "pinia";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useMenuStore } from "@/store/menu.store";
+import ToolButton from "./ToolButton.vue";
 import {
-  mdiAccountGroupOutline,
-  mdiCloudCheckOutline,
-  mdiCloudSyncOutline,
-  mdiContentSaveEditOutline,
-  mdiDotsHorizontal,
-  mdiFullscreen,
-  mdiSend
-} from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { Menu } from '@/draw/types/draw.types'
-import SendHub from '../send/SendHub.vue'
-import { useAuthStore } from '@/store/auth.store'
-import { useFriendStore } from '@/store/friend.store'
-import { bulbOutline, chatbubblesOutline, megaphoneOutline, peopleOutline } from 'ionicons/icons'
-import { useChatWidgetStore } from '@/store/chatWidget.store'
-import { useChatStore } from '@/store/chat.store'
-import { useToast } from '@/service/toast.service'
-import { IonContent, IonIcon, IonItem, IonList, IonPopover, modalController } from '@ionic/vue'
-import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
-import ReportUserMenu from '@/components/moderation/ReportUserMenu.vue'
+	mdiAccountGroupOutline,
+	mdiCloudCheckOutline,
+	mdiCloudSyncOutline,
+	mdiContentSaveEditOutline,
+	mdiDotsHorizontal,
+	mdiFullscreen,
+	mdiSend,
+} from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { Menu } from "@/draw/types/draw.types";
+import SendHub from "../send/SendHub.vue";
+import { useAuthStore } from "@/store/auth.store";
+import { useFriendStore } from "@/store/friend.store";
+import {
+	bulbOutline,
+	chatbubblesOutline,
+	megaphoneOutline,
+	peopleOutline,
+} from "ionicons/icons";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useChatStore } from "@/store/chat.store";
+import { useToast } from "@/service/toast.service";
+import {
+	IonContent,
+	IonIcon,
+	IonItem,
+	IonList,
+	IonPopover,
+	modalController,
+} from "@ionic/vue";
+import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import ReportUserMenu from "@/components/moderation/ReportUserMenu.vue";
 
 const emit = defineEmits(["toggle-fullscreen"]);
 
@@ -148,7 +160,9 @@ const { onlineFriends } = storeToRefs(useFriendStore());
 const { openMenu } = useMenuStore();
 const { isLoggedIn, user } = storeToRefs(useAuthStore());
 const { openPanel } = useChatWidgetStore();
-const { isSaving, isDirty, sessionHasContent } = storeToRefs(useDrawLoadStore());
+const { isSaving, isDirty, sessionHasContent } = storeToRefs(
+	useDrawLoadStore(),
+);
 const { saveNow } = useDrawLoadStore();
 
 const { totalUnreadCount } = storeToRefs(useChatStore());
@@ -160,32 +174,32 @@ const AUTOSAVE_SECONDS = 20;
 const showSave = computed(() => !isLobby.value && sessionHasContent.value);
 
 // Accurate three-state status — "saved" only when truly persisted (not dirty).
-const saveState = computed<'saving' | 'dirty' | 'saved'>(() =>
-  isSaving.value ? 'saving' : isDirty.value ? 'dirty' : 'saved'
+const saveState = computed<"saving" | "dirty" | "saved">(() =>
+	isSaving.value ? "saving" : isDirty.value ? "dirty" : "saved",
 );
 const saveIcon = computed(
-  () =>
-    ({
-      saving: mdiCloudSyncOutline,
-      dirty: mdiContentSaveEditOutline,
-      saved: mdiCloudCheckOutline
-    })[saveState.value]
+	() =>
+		({
+			saving: mdiCloudSyncOutline,
+			dirty: mdiContentSaveEditOutline,
+			saved: mdiCloudCheckOutline,
+		})[saveState.value],
 );
 const saveIconClass = computed(
-  () =>
-    ({
-      saving: 'text-black/50',
-      dirty: 'text-amber-500',
-      saved: 'text-secondary'
-    })[saveState.value]
+	() =>
+		({
+			saving: "text-black/50",
+			dirty: "text-amber-500",
+			saved: "text-secondary",
+		})[saveState.value],
 );
 const saveStatusText = computed(
-  () =>
-    ({
-      saving: 'Saving…',
-      dirty: 'Unsaved changes',
-      saved: 'All changes saved'
-    })[saveState.value]
+	() =>
+		({
+			saving: "Saving…",
+			dirty: "Unsaved changes",
+			saved: "All changes saved",
+		})[saveState.value],
 );
 
 // Save-info popover + manual-save throttle (mirrors store cooldown so the
@@ -195,15 +209,15 @@ const saveInfoEvent = ref<Event | undefined>();
 const cooling = ref(false);
 
 const openSaveInfo = (e: Event) => {
-  saveInfoEvent.value = e;
-  saveInfoOpen.value = true;
+	saveInfoEvent.value = e;
+	saveInfoOpen.value = true;
 };
 
 const onSaveNow = async () => {
-  if (!isDirty.value || isSaving.value || cooling.value) return;
-  cooling.value = true;
-  setTimeout(() => (cooling.value = false), 3000);
-  await saveNow();
+	if (!isDirty.value || isSaving.value || cooling.value) return;
+	cooling.value = true;
+	setTimeout(() => (cooling.value = false), 3000);
+	await saveNow();
 };
 
 // Overflow popover state
@@ -211,34 +225,36 @@ const moreOpen = ref(false);
 const moreEvent = ref<Event | undefined>();
 
 const openMore = (e: Event) => {
-  moreEvent.value = e;
-  moreOpen.value = true;
+	moreEvent.value = e;
+	moreOpen.value = true;
 };
 
 const runFromMore = (action: () => void) => {
-  moreOpen.value = false;
-  action();
+	moreOpen.value = false;
+	action();
 };
 
 const onFullscreen = () => {
-  toast('Fullscreen: Messages Silenced');
-  emit('toggle-fullscreen');
+	requestAnimationFrame(() => {
+		toast("Fullscreen: Messages Silenced");
+		emit("toggle-fullscreen");
+	});
 };
 
 const startSendFlow = async (e: Event) => {
-  const nav = (e.target as HTMLElement).closest("ion-nav");
-  nav?.push(SendHub);
+	const nav = (e.target as HTMLElement).closest("ion-nav");
+	nav?.push(SendHub);
 };
 
 async function openUserReportMenu() {
-  const modal = await modalController.create({
-    component: ReportUserMenu,
-    componentProps: {
-      roomMembers: roomMembers.value.filter((u) => u._id !== user.value!._id),
-    },
-    cssClass: "sketch-modal",
-  });
-  await modal.present();
+	const modal = await modalController.create({
+		component: ReportUserMenu,
+		componentProps: {
+			roomMembers: roomMembers.value.filter((u) => u._id !== user.value!._id),
+		},
+		cssClass: "sketch-modal",
+	});
+	await modal.present();
 }
 </script>
 
@@ -264,5 +280,9 @@ ion-list {
   transform: scale(0.6);
   width: 0;
   margin: 0;
+}
+
+ion-popover {
+  --width: auto;
 }
 </style>

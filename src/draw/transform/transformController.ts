@@ -184,9 +184,19 @@ export function commit(c: Canvas): void {
 
     s.target.setCoords()
     if (pureMove) {
+      // A directly-grabbed single object IS its own session.target, so fabric's
+      // object:modified (fired on mouse:up, BEFORE this commit) already moved
+      // its quadtree entry to the new absolute position via the owned branch of
+      // onObjectModified. offsetQuadTree would then shift that already-moved
+      // entry by (dx,dy) AGAIN → the bake queries the wrong tiles and the object
+      // vanishes / partly shows. Recompute absolutely instead — idempotent, and
+      // cheap for one object. A multi-object selection is NOT indexed itself, so
+      // its children were never pre-shifted and the offset fast-path stays exact.
+      const single = s.objects.length === 1
       for (const o of s.objects) {
         o.setCoords()
-        if (dx !== 0 || dy !== 0) mgr.offsetQuadTree(o, dx, dy)
+        if (single) mgr.updateQuadTree(o)
+        else if (dx !== 0 || dy !== 0) mgr.offsetQuadTree(o, dx, dy)
       }
     } else {
       for (const o of s.objects) {
@@ -575,10 +585,32 @@ function bakeSelectionBitmap(
     )
   }
 
+  // Prep the object EXACTLY like isolatedTileRenderer (the proven-good tile
+  // path). A brand-new IText grabbed before its first tile bake would otherwise
+  // render to an EMPTY bitmap the first time through this path — invisible drag
+  // layer until release, when the tile renderer takes over and looks fine.
+  //   • isOnScreen: bypass fabric off-screen culling of a canvas-attached obj.
+  //   • objectCaching off + dirty: force IText to (re)build its char metrics
+  //     and render directly instead of blitting a not-yet-populated cache.
+  //   • visible: never skip.
+  const prep = target as any
+  const origIsOnScreen = prep.isOnScreen
+  const origCaching = prep.objectCaching
+  const origDirty = prep.dirty
+  const origVisible = prep.visible
+  prep.isOnScreen = () => true
+  prep.objectCaching = false
+  prep.dirty = true
+  prep.visible = true
   try {
     target.render(ctx as any)
   } catch (err) {
     console.warn('[transformController] bake render failed', err)
+  } finally {
+    prep.isOnScreen = origIsOnScreen
+    prep.objectCaching = origCaching
+    prep.dirty = origDirty
+    prep.visible = origVisible
   }
 
   let bitmap: ImageBitmap

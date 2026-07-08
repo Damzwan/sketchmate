@@ -11,6 +11,15 @@ export const reactionImages: Record<any, any> = {
   sleep: sleep,
   crazy: crazy
 }
+
+/** Human-readable labels per reaction, for breakdowns and a11y. */
+export const reactionLabels: Record<string, string> = {
+  love: 'Love',
+  fire: 'Fire',
+  cry: 'Tears',
+  sleep: 'Sleepy',
+  crazy: 'Crazy'
+}
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics'
 import { isNative } from '@/helper/general.helper'
 

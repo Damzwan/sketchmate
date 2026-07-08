@@ -114,23 +114,30 @@
 
       <!-- Footer: reaction proof · action bar · comment previews -->
       <div class="px-4 pt-3 pb-4 shrink-0 flex flex-col gap-3">
-        <!-- LinkedIn-style reaction social proof -->
-        <div v-if="totalReactionCount > 0" class="flex items-center gap-2">
+        <!-- Reaction social proof: tappable pill opening a full breakdown -->
+        <button
+          v-if="totalReactionCount > 0"
+          @click="showReactionSheet = true"
+          class="flex items-center gap-2 self-start cursor-pointer active:scale-95 hover:scale-[1.02] transition-all"
+          aria-label="See who reacted"
+        >
           <div class="flex items-center">
             <div
               v-for="(key, i) in activeReactions.slice(0, 3)"
               :key="key"
-              class="w-6 h-6 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center"
-              :class="i !== 0 ? '-ml-2' : ''"
+              class="w-8 h-8 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center"
+              :class="i !== 0 ? '-ml-2.5' : ''"
               :style="{ zIndex: 3 - i }"
             >
-              <img :src="reactionImages[key]" class="w-4 h-4 object-contain" alt="" />
+              <img :src="reactionImages[key]" class="w-5 h-5 object-contain" alt="" />
             </div>
           </div>
-          <span class="text-xs font-black text-black/70 tracking-tight">
+          <span class="text-sm font-black text-black/80 tracking-tight">
             {{ totalReactionCount }}
+            <span class="text-black/50">{{ totalReactionCount === 1 ? 'reaction' : 'reactions' }}</span>
           </span>
-        </div>
+          <ion-icon :icon="svg(mdiChevronRight)" class="text-base text-black/30 -ml-0.5" />
+        </button>
 
         <!-- Action bar: one cohesive, clear button style -->
         <div class="flex items-center justify-between">
@@ -220,6 +227,44 @@
         </p>
       </div>
     </div>
+
+    <!-- Reaction breakdown: per-emotion tally with proportion bars -->
+    <BaseSheetModal
+      :is-open="showReactionSheet"
+      title="Reactions"
+      :subtitle="`${totalReactionCount} total`"
+      @close="showReactionSheet = false"
+    >
+      <div class="flex flex-col gap-3 pt-1">
+        <div
+          v-for="key in sortedReactions"
+          :key="key"
+          class="flex items-center gap-3.5"
+        >
+          <div class="w-12 h-12 rounded-2xl bg-white border border-black/5 shadow-sm flex items-center justify-center shrink-0">
+            <img :src="reactionImages[key]" class="w-8 h-8 object-contain" alt="" />
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline justify-between mb-1.5">
+              <span class="text-sm font-black text-black/80 tracking-tight">
+                {{ reactionLabels[key] || key }}
+              </span>
+              <span class="text-sm font-black text-black/60 tracking-tight shrink-0 ml-2">
+                {{ post.reaction_counts[key] }}
+                <span class="text-black/40">· {{ reactionPercent(key) }}%</span>
+              </span>
+            </div>
+            <div class="h-2 w-full rounded-full bg-black/5 overflow-hidden">
+              <div
+                class="h-full rounded-full bg-secondary transition-all duration-500"
+                :style="{ width: reactionPercent(key) + '%' }"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </BaseSheetModal>
   </div>
 </template>
 
@@ -229,6 +274,7 @@ import { onLongPress } from '@vueuse/core'
 import { actionSheetController, alertController, IonIcon } from '@ionic/vue'
 import {
   mdiChatOutline,
+  mdiChevronRight,
   mdiDeleteOutline,
   mdiDotsHorizontal,
   mdiFlagVariantOutline,
@@ -240,7 +286,7 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { svg } from '@/helper/general.helper'
 import { FeedPost } from '@/types/server.types'
-import { playSelectionTick, reactionImages } from '@/config/post.config'
+import { playSelectionTick, reactionImages, reactionLabels } from '@/config/post.config'
 import { useMenuStore } from '@/store/menu.store'
 import router from '@/router'
 import { FRONTEND_ROUTES } from '@/types/router.types'
@@ -250,6 +296,7 @@ import { useModerationStore } from '@/store/moderation.store'
 
 import UserAvatar from '@/components/profile/customization/UserAvatar.vue'
 import ReactionBurst from '@/components/general/ReactionBurst.vue'
+import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
 import {
   calculateSignatureStroke,
   hydrateCustomization,
@@ -306,6 +353,19 @@ const totalReactionCount = computed(() =>
     0
   )
 )
+
+// Breakdown sheet: reactions ordered most-popular first.
+const showReactionSheet = ref(false)
+const sortedReactions = computed(() =>
+  [...activeReactions.value].sort(
+    (a, b) => props.post.reaction_counts[b] - props.post.reaction_counts[a]
+  )
+)
+const reactionPercent = (key: string) => {
+  const total = totalReactionCount.value
+  if (!total) return 0
+  return Math.round((props.post.reaction_counts[key] / total) * 100)
+}
 
 // Up to two embedded comments to preview inline.
 const previewComments = computed(() => props.post.comments?.slice(0, 2) ?? [])

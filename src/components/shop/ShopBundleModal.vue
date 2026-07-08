@@ -12,6 +12,15 @@
       </div>
     </template>
 
+    <!-- Live preview: the whole look applied to the user's own card, so it's
+         obvious what the bundle turns their profile into. Brushes have no card
+         field, so they're skipped here (still listed in the grid below). -->
+    <template v-if="sku" #sub-header>
+      <div class="px-3">
+        <PreviewProfileCard :user="user" :customization="previewCustomization" />
+      </div>
+    </template>
+
     <div v-if="sku" data-content-scroll="true" @touchmove.stop class="grid grid-cols-2 gap-3 pb-4">
       <div
         v-for="item in contents"
@@ -53,14 +62,21 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { IonButton } from "@ionic/vue";
-import { describeGrant, type ShopSku } from "@/config/catalog.config";
+import {
+	describeGrant,
+	type ItemCategory,
+	type ShopSku,
+} from "@/config/catalog.config";
+import type { Customization } from "@/config/profile_options.config";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
+import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 
 const props = defineProps<{
 	isOpen: boolean;
 	sku: ShopSku | null;
 	owned: boolean;
+	user?: any;
 	userImg?: string;
 }>();
 defineEmits(["close", "purchase"]);
@@ -68,4 +84,28 @@ defineEmits(["close", "purchase"]);
 const contents = computed(() =>
 	(props.sku?.grants ?? []).map((g) => ({ id: g, ...describeGrant(g) })),
 );
+
+// Which customization field each grant category drives on the card. Brushes
+// (and anything not listed) have no card representation, so they're left out of
+// the preview — the grid below still lists them.
+const GRANT_FIELD: Partial<Record<ItemCategory, keyof Customization>> = {
+	theme: "themeId",
+	world: "worldId",
+	effect: "effectId",
+	decoration: "decorationId",
+	font: "fontId",
+	font_effect: "fontEffectId",
+	title: "titleId",
+};
+
+// Fold the bundle's grants into a single customization = the whole look at once.
+const previewCustomization = computed<Partial<Customization>>(() => {
+	const c: Partial<Customization> = {};
+	for (const grant of props.sku?.grants ?? []) {
+		const [cat, ...rest] = grant.split(".");
+		const field = GRANT_FIELD[cat as ItemCategory];
+		if (field) c[field] = rest.join(".");
+	}
+	return c;
+});
 </script>

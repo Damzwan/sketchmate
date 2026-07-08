@@ -183,6 +183,7 @@
         :is-open="!!previewBundle"
         :sku="previewBundle"
         :owned="previewBundle ? isItemOwned(previewBundle.id) : false"
+        :user="user"
         :user-img="user?.img"
         @close="previewBundle = null"
         @purchase="previewBundle && purchaseItem(previewBundle)"

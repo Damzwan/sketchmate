@@ -18,7 +18,7 @@
           <button
             v-if="previewedLockedBrush"
             type="button"
-            class="unlock-banner"
+            class="unlock-banner cabin-sketch-regular"
             :disabled="purchasing"
             @click="buyPreviewedBrush"
           >
@@ -124,15 +124,15 @@ import BrushTile from "./BrushTile.vue";
 import { usePen } from "@/draw/store/tools/pen.store";
 import { Canvas, Point } from "fabric";
 import {
-  hexWithOpacity,
-  isColorTooLight,
-  percentToAlphaHex,
+	hexWithOpacity,
+	isColorTooLight,
+	percentToAlphaHex,
 } from "@/draw/utils/color.utils";
 import { BLACK, WHITE } from "@/draw/config/canvas.config";
 import {
-  penBrushMapping,
-  penIconMapping,
-  PENMENUTOOLS,
+	penBrushMapping,
+	penIconMapping,
+	PENMENUTOOLS,
 } from "@/draw/config/tools.config";
 import { useToolSelection } from "@/draw/store/tools/toolSelection.store";
 import { useInventoryStore } from "@/store/inventory.store";
@@ -141,8 +141,15 @@ import { buildItemId } from "@/config/catalog.config";
 
 const { selectTool } = useToolSelection();
 const { selectedTool } = storeToRefs(useToolSelection());
-const { brushSize, brushColor, brushType, opacity, density, dotWidth, pixelSize } =
-  storeToRefs(usePen());
+const {
+	brushSize,
+	brushColor,
+	brushType,
+	opacity,
+	density,
+	dotWidth,
+	pixelSize,
+} = storeToRefs(usePen());
 const { penMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 const inventoryStore = useInventoryStore();
 const { purchasing, unlockItem } = useUnlockItem();
@@ -151,54 +158,54 @@ const preview_canvas = ref<HTMLCanvasElement>();
 let canvas: Canvas | undefined;
 
 const BRUSHES: { type: BrushType; accent: string }[] = [
-  { type: BrushType.Pencil,      accent: "text-green-600" },
-  { type: BrushType.WaterColor,  accent: "text-rose-500" },
-  { type: BrushType.Spray,       accent: "text-blue-500" },
-  { type: BrushType.Circle,      accent: "text-amber-500" },
-  { type: BrushType.Pixel,       accent: "text-emerald-500" },
-  { type: BrushType.Crayon,      accent: "text-orange-500" },
-  { type: BrushType.Charcoal,    accent: "text-neutral-600" },
-  { type: BrushType.Neon,        accent: "text-indigo-500" },
-  { type: BrushType.CalliGraphy, accent: "text-sky-500" },
+	{ type: BrushType.Pencil, accent: "text-green-600" },
+	{ type: BrushType.WaterColor, accent: "text-rose-500" },
+	{ type: BrushType.Spray, accent: "text-blue-500" },
+	{ type: BrushType.Circle, accent: "text-amber-500" },
+	{ type: BrushType.Pixel, accent: "text-emerald-500" },
+	{ type: BrushType.Crayon, accent: "text-orange-500" },
+	{ type: BrushType.Charcoal, accent: "text-neutral-600" },
+	{ type: BrushType.Neon, accent: "text-indigo-500" },
+	{ type: BrushType.CalliGraphy, accent: "text-sky-500" },
 ];
 
 const BRUSH_NAMES: Partial<Record<BrushType, string>> = {
-  [BrushType.Pencil]: "Pencil",
-  [BrushType.WaterColor]: "Watercolor",
-  [BrushType.Spray]: "Spray",
-  [BrushType.Circle]: "Circle",
-  [BrushType.Pixel]: "Pixel",
-  [BrushType.Crayon]: "Crayon",
-  [BrushType.Charcoal]: "Charcoal",
-  [BrushType.Neon]: "Neon",
-  [BrushType.CalliGraphy]: "Calligraphy",
+	[BrushType.Pencil]: "Pencil",
+	[BrushType.WaterColor]: "Watercolor",
+	[BrushType.Spray]: "Spray",
+	[BrushType.Circle]: "Circle",
+	[BrushType.Pixel]: "Pixel",
+	[BrushType.Crayon]: "Crayon",
+	[BrushType.Charcoal]: "Charcoal",
+	[BrushType.Neon]: "Neon",
+	[BrushType.CalliGraphy]: "Calligraphy",
 };
 
 const brushTileName = (type: BrushType): string => BRUSH_NAMES[type] ?? "Brush";
 
 const PAID_BRUSH_ITEM_IDS: Partial<Record<BrushType, string>> = {
-  [BrushType.Neon]: buildItemId("brush", "neon"),
-  [BrushType.CalliGraphy]: buildItemId("brush", "calligraphy"),
+	[BrushType.Neon]: buildItemId("brush", "neon"),
+	[BrushType.CalliGraphy]: buildItemId("brush", "calligraphy"),
 };
 
 const brushItemId = (type: BrushType): string | null =>
-  PAID_BRUSH_ITEM_IDS[type] ?? null;
+	PAID_BRUSH_ITEM_IDS[type] ?? null;
 
 const isBrushOwned = (type: BrushType): boolean => {
-  const id = brushItemId(type);
-  if (!id) return true;
-  return inventoryStore.isOwned(id);
+	const id = brushItemId(type);
+	if (!id) return true;
+	return inventoryStore.isOwned(id);
 };
 
 const brushDisplayName = (type: BrushType): string => {
-  switch (type) {
-    case BrushType.Neon:
-      return "Neon Pen";
-    case BrushType.CalliGraphy:
-      return "Calligraphy";
-    default:
-      return "Brush";
-  }
+	switch (type) {
+		case BrushType.Neon:
+			return "Neon Pen";
+		case BrushType.CalliGraphy:
+			return "Calligraphy";
+		default:
+			return "Brush";
+	}
 };
 
 const previewedLockedBrush = ref<BrushType | null>(null);
@@ -207,104 +214,104 @@ const previewedLockedBrush = ref<BrushType | null>(null);
 // via useUnlockItem) instead of bouncing the user out to the shop. On success
 // the brush is owned, so select it immediately.
 const buyPreviewedBrush = async () => {
-  const type = previewedLockedBrush.value;
-  if (type == null) return;
-  const id = brushItemId(type);
-  if (!id) return;
-  const ok = await unlockItem(id);
-  if (ok) {
-    previewedLockedBrush.value = null;
-    selectBrushType(type);
-  }
+	const type = previewedLockedBrush.value;
+	if (type == null) return;
+	const id = brushItemId(type);
+	if (!id) return;
+	const ok = await unlockItem(id);
+	if (ok) {
+		previewedLockedBrush.value = null;
+		selectBrushType(type);
+	}
 };
 
 onMounted(() => {
-  renderPreview();
+	renderPreview();
 });
 
 const renderPreview = () => {
-  if (!canvas) {
-    canvas = new Canvas(preview_canvas.value!, {
-      width: 256,
-      height: 64,
-      selection: false,
-    });
-  } else {
-    canvas.clear();
-  }
+	if (!canvas) {
+		canvas = new Canvas(preview_canvas.value!, {
+			width: 256,
+			height: 64,
+			selection: false,
+		});
+	} else {
+		canvas.clear();
+	}
 
-  const brushColorValue = hexWithOpacity(
-    brushColor.value,
-    percentToAlphaHex(opacity.value),
-  );
-  canvas.backgroundColor = isColorTooLight(brushColorValue) ? BLACK : WHITE;
-  canvas.freeDrawingBrush = penBrushMapping[brushType.value](canvas);
-  const brush = canvas.freeDrawingBrush as any;
-  brush.color = brushColorValue;
-  if (brushType.value === BrushType.Spray) {
-    brush.density = density.value;
-    brush.dotWidth = dotWidth.value;
-  }
-  if (brushType.value === BrushType.Pixel) {
-    brush.pixelSize = pixelSize.value;
-  }
-  brush.width = brushSize.value;
+	const brushColorValue = hexWithOpacity(
+		brushColor.value,
+		percentToAlphaHex(opacity.value),
+	);
+	canvas.backgroundColor = isColorTooLight(brushColorValue) ? BLACK : WHITE;
+	canvas.freeDrawingBrush = penBrushMapping[brushType.value](canvas);
+	const brush = canvas.freeDrawingBrush as any;
+	brush.color = brushColorValue;
+	if (brushType.value === BrushType.Spray) {
+		brush.density = density.value;
+		brush.dotWidth = dotWidth.value;
+	}
+	if (brushType.value === BrushType.Pixel) {
+		brush.pixelSize = pixelSize.value;
+	}
+	brush.width = brushSize.value;
 
-  const amplitude = 20;
-  const frequency = 0.05;
-  const yOffset = canvas.height! / 2;
+	const amplitude = 20;
+	const frequency = 0.05;
+	const yOffset = canvas.height! / 2;
 
-  const points = [[0, yOffset]];
-  for (let x = 1; x <= canvas.width!; x += 10) {
-    const y = yOffset + amplitude * Math.sin(frequency * x);
-    points.push([x, y]);
-  }
-  const convertedPoints = points.map((p) => new Point(p[0], p[1]));
+	const points = [[0, yOffset]];
+	for (let x = 1; x <= canvas.width!; x += 10) {
+		const y = yOffset + amplitude * Math.sin(frequency * x);
+		points.push([x, y]);
+	}
+	const convertedPoints = points.map((p) => new Point(p[0], p[1]));
 
-  brush.onMouseDown(convertedPoints[0], { e: new MouseEvent("mousedown") });
-  for (let i = 1; i < points.length; i++) {
-    brush.onMouseMove(convertedPoints[i], { e: new MouseEvent("mousemove") });
-  }
-  brush.onMouseUp({ e: new MouseEvent("mouseup") });
-  canvas.getObjects().forEach((obj) => obj.set("selectable", false));
-  canvas.renderAll();
+	brush.onMouseDown(convertedPoints[0], { e: new MouseEvent("mousedown") });
+	for (let i = 1; i < points.length; i++) {
+		brush.onMouseMove(convertedPoints[i], { e: new MouseEvent("mousemove") });
+	}
+	brush.onMouseUp({ e: new MouseEvent("mouseup") });
+	canvas.getObjects().forEach((obj) => obj.set("selectable", false));
+	canvas.renderAll();
 };
 
 function onDismiss() {
-  penMenuOpen.value = false;
-  previewedLockedBrush.value = null;
+	penMenuOpen.value = false;
+	previewedLockedBrush.value = null;
 }
 
 function selectBrushType(newBrushType: BrushType) {
-  if (selectedTool.value != DrawTool.Pen) selectTool(DrawTool.Pen);
-  brushType.value = newBrushType;
-  renderPreview();
+	if (selectedTool.value != DrawTool.Pen) selectTool(DrawTool.Pen);
+	brushType.value = newBrushType;
+	renderPreview();
 }
 
 function isBrushTypeSelected(type: BrushType) {
-  return brushType.value == type && selectedTool.value == DrawTool.Pen;
+	return brushType.value == type && selectedTool.value == DrawTool.Pen;
 }
 
 async function onBrushTap(type: BrushType) {
-  const owned = isBrushOwned(type);
+	const owned = isBrushOwned(type);
 
-  if (owned) {
-    previewedLockedBrush.value = null;
-    selectBrushType(type);
-    return;
-  }
+	if (owned) {
+		previewedLockedBrush.value = null;
+		selectBrushType(type);
+		return;
+	}
 
-  if (!isNative()) {
-    selectBrushType(type);
-    return;
-  }
+	if (!isNative()) {
+		selectBrushType(type);
+		return;
+	}
 
-  const prevType = brushType.value;
-  previewedLockedBrush.value = type;
+	const prevType = brushType.value;
+	previewedLockedBrush.value = type;
 
-  brushType.value = type;
-  renderPreview();
-  brushType.value = prevType;
+	brushType.value = type;
+	renderPreview();
+	brushType.value = prevType;
 }
 
 watch(brushSize, renderPreview);
@@ -314,17 +321,17 @@ watch(density, renderPreview);
 watch(dotWidth, renderPreview);
 watch(pixelSize, renderPreview);
 watch(brushType, () => {
-  if (isBrushOwned(brushType.value)) {
-    previewedLockedBrush.value = null;
-  }
+	if (isBrushOwned(brushType.value)) {
+		previewedLockedBrush.value = null;
+	}
 });
 watch(selectedTool, () =>
-  selectedTool.value && PENMENUTOOLS.includes(selectedTool.value)
-    ? renderPreview()
-    : null,
+	selectedTool.value && PENMENUTOOLS.includes(selectedTool.value)
+		? renderPreview()
+		: null,
 );
 watch(penMenuOpen, (open) => {
-  if (!open) previewedLockedBrush.value = null;
+	if (!open) previewedLockedBrush.value = null;
 });
 </script>
 
@@ -366,7 +373,7 @@ watch(penMenuOpen, (open) => {
 
 .unlock-banner {
   @apply absolute inset-x-0 bottom-0 w-full px-3 py-2 bg-secondary text-white border-0
-  flex items-center justify-between cursor-pointer cabin-sketch-regular
+  flex items-center justify-between cursor-pointer
   active:scale-[0.99] transition-transform disabled:opacity-70;
 }
 

@@ -42,7 +42,15 @@
       </div>
 
       <div class="flex flex-col items-center relative mt-2">
-        <div ref="doodleZoneRef" class="js-doodle-zone relative w-full flex flex-col items-center py-6">
+        <div
+          ref="doodleZoneRef"
+          class="js-doodle-zone relative w-full flex flex-col items-center py-6 transition-all"
+          :class="allowSketchEdit ? 'cursor-pointer rounded-[2rem] border-2 border-dashed hover:bg-black/[0.03] active:scale-[0.99]' : ''"
+          :style="allowSketchEdit ? { borderColor: theme.cardBorderColor } : {}"
+          role="button"
+          :aria-label="allowSketchEdit ? 'Edit card doodle' : undefined"
+          @click="allowSketchEdit && $emit('edit-sketch')"
+        >
           <BackgroundSketch
             :path="effectiveCustomization.backgroundSketchPath"
             :view-box="effectiveCustomization.backgroundSketchViewBox"
@@ -50,18 +58,16 @@
             class="absolute inset-0 z-0"
           />
 
-          <button
+          <span
             v-if="allowSketchEdit"
-            type="button"
-            @click="$emit('edit-sketch')"
-            class="absolute top-0 right-0 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full cursor-pointer hover:scale-105 active:scale-90 transition-all bg-white/40 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/60"
-            aria-label="Edit card doodle"
+            class="absolute top-2 right-2 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full shadow-md border-2 border-white transition-transform"
+            :style="{ background: theme.accentColor }"
           >
-            <ion-icon :icon="svg(mdiBrush)" class="w-4 h-4" :style="{ color: theme.accentColor }" />
-            <span class="text-[10px] font-black uppercase tracking-widest" :style="{ color: theme.nameColor }">
+            <ion-icon :icon="svg(mdiBrush)" class="w-3.5 h-3.5 text-white" />
+            <span class="text-[10px] font-black uppercase tracking-widest text-white">
               Doodle
             </span>
-          </button>
+          </span>
 
           <div class="relative z-30 mb-6">
             <UserAvatar
@@ -151,27 +157,16 @@
           class="w-full mt-6 pt-4 border-t flex flex-col items-center transition-colors duration-500 relative"
           :style="{ borderColor: theme.cardBorderColor }"
         >
-          <button
-            v-if="allowSketchEdit"
-            type="button"
-            @click="$emit('edit-signature')"
-            class="absolute top-3 right-0 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full cursor-pointer hover:scale-105 active:scale-90 transition-all bg-white/40 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/60"
-            aria-label="Edit signature"
-          >
-            <ion-icon :icon="svg(mdiDraw)" class="w-4 h-4" :style="{ color: theme.accentColor }" />
-            <span class="text-[10px] font-black uppercase tracking-widest" :style="{ color: theme.nameColor }">
-              Sign
-            </span>
-          </button>
-
           <span
-            class="text-[14px] font-bold uppercase tracking-widest mb-1 transition-colors duration-500"
+            class="text-[14px] font-bold uppercase tracking-widest mb-2 transition-colors duration-500"
             :style="{ color: theme.descColor }"
           >
             — Signed —
           </span>
+
+          <!-- Static display -->
           <svg
-            v-if="effectiveCustomization.signaturePath"
+            v-if="!allowSketchEdit && effectiveCustomization.signaturePath"
             class="w-32 h-12 drop-shadow-sm transition-colors duration-500"
             :viewBox="effectiveCustomization.signatureViewBox || '0 0 300 150'"
             preserveAspectRatio="xMidYMid meet"
@@ -185,13 +180,49 @@
               stroke-linejoin="round"
             />
           </svg>
-          <span
-            v-else
-            class="text-xs font-bold italic transition-colors duration-500"
-            :style="{ color: theme.descColor }"
+
+          <!-- Edit: the signature itself IS the button -->
+          <button
+            v-else-if="allowSketchEdit"
+            type="button"
+            @click="$emit('edit-signature')"
+            class="group relative flex items-center justify-center w-44 h-16 rounded-[1.25rem] border-2 border-dashed cursor-pointer hover:scale-[1.03] active:scale-95 transition-all"
+            :style="{ borderColor: theme.cardBorderColor }"
+            aria-label="Edit signature"
           >
-            Tap to add your signature
-          </span>
+            <svg
+              v-if="effectiveCustomization.signaturePath"
+              class="w-32 h-12 drop-shadow-sm transition-colors duration-500"
+              :viewBox="effectiveCustomization.signatureViewBox || '0 0 300 150'"
+              preserveAspectRatio="xMidYMid meet"
+            >
+              <path
+                :d="effectiveCustomization.signaturePath"
+                fill="none"
+                :stroke="theme.accentColor"
+                :stroke-width="signatureStrokeWidth"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <span
+              v-else
+              class="text-xs font-bold italic transition-colors duration-500"
+              :style="{ color: theme.descColor }"
+            >
+              Tap to sign
+            </span>
+
+            <span
+              class="absolute -top-2 -right-2 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full shadow-md border-2 border-white transition-transform group-hover:scale-110"
+              :style="{ background: theme.accentColor }"
+            >
+              <ion-icon :icon="svg(mdiDraw)" class="w-3.5 h-3.5 text-white" />
+              <span class="text-[10px] font-black uppercase tracking-widest text-white">
+                Sign
+              </span>
+            </span>
+          </button>
         </div>
 
       </div>

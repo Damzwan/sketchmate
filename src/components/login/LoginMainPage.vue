@@ -2,8 +2,9 @@
   <ion-content class="bg-primary my-safe-area">
     <div class="w-full h-full p-4 flex flex-col justify-between">
       <div>
-        <div class="w-full flex justify-center items-center gap-2">
+        <div class="w-fit mx-auto flex items-center relative">
           <p class="cabin-sketch-regular text-5xl">SketchMate</p>
+          <img :src="logo" alt="" class="w-12 h-12 absolute -mr-12 mb-4 right-0" />
         </div>
 
         <div class="w-full flex flex-col gap-4 pt-4">
@@ -243,6 +244,7 @@ import {
 	mdiSend,
 } from "@mdi/js";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
+import logo from "@/assets/logo.webp";
 
 const drawings1 = shuffleArray([
 	drawing1,

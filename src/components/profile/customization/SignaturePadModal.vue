@@ -136,207 +136,212 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed } from 'vue'
-import { IonModal, IonButton, IonIcon } from '@ionic/vue'
-import { mdiCheck, mdiClose, mdiLeadPencil, mdiLock, mdiUndoVariant } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { useSubscriptionStore } from '@/store/subscription.store'
+import { ref, nextTick, computed } from "vue";
+import { IonModal, IonButton, IonIcon } from "@ionic/vue";
+import {
+	mdiCheck,
+	mdiClose,
+	mdiLeadPencil,
+	mdiLock,
+	mdiUndoVariant,
+} from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { useSubscriptionStore } from "@/store/subscription.store";
 
 type Point = [number, number];
 
-const props = defineProps<{ isOpen: boolean; color: string }>()
-const emit = defineEmits(['close', 'save'])
+const props = defineProps<{ isOpen: boolean; color: string }>();
+const emit = defineEmits(["close", "save"]);
 
-const subscriptionStore = useSubscriptionStore()
-const isPro = computed(() => subscriptionStore.isPro)
+const subscriptionStore = useSubscriptionStore();
+const isPro = computed(() => subscriptionStore.isPro);
 
-const padRef = ref<HTMLElement | null>(null)
-const padWidth = ref(300)
-const padHeight = ref(200)
+const padRef = ref<HTMLElement | null>(null);
+const padWidth = ref(300);
+const padHeight = ref(200);
 
 const measurePad = async () => {
-  await nextTick()
-  if (padRef.value) {
-    padWidth.value = padRef.value.clientWidth || 300
-    padHeight.value = padRef.value.clientHeight || 280
-  }
-}
+	await nextTick();
+	if (padRef.value) {
+		padWidth.value = padRef.value.clientWidth || 300;
+		padHeight.value = padRef.value.clientHeight || 280;
+	}
+};
 
-const strokes = ref<Point[][]>([])
-const currentStroke = ref<Point[]>([])
-const isDrawing = ref(false)
+const strokes = ref<Point[][]>([]);
+const currentStroke = ref<Point[]>([]);
+const isDrawing = ref(false);
 
 const getPoint = (e: PointerEvent): Point => {
-  const rect = padRef.value!.getBoundingClientRect()
-  const scaleX = padWidth.value / rect.width
-  const scaleY = padHeight.value / rect.height
-  return [
-    Number(((e.clientX - rect.left) * scaleX).toFixed(1)),
-    Number(((e.clientY - rect.top) * scaleY).toFixed(1))
-  ]
-}
+	const rect = padRef.value!.getBoundingClientRect();
+	const scaleX = padWidth.value / rect.width;
+	const scaleY = padHeight.value / rect.height;
+	return [
+		Number(((e.clientX - rect.left) * scaleX).toFixed(1)),
+		Number(((e.clientY - rect.top) * scaleY).toFixed(1)),
+	];
+};
 
 const presentPaywall = () => {
-  subscriptionStore.presentPaywall();
+	subscriptionStore.openPaywall();
 };
 
 const applyOrUpgrade = () => {
-  if (!isPro.value) {
-    presentPaywall();
-    return;
-  }
+	if (!isPro.value) {
+		presentPaywall();
+		return;
+	}
 
-  save();
+	save();
 };
 
 const startStroke = (e: PointerEvent) => {
-  if (!padRef.value) return
-  padRef.value.setPointerCapture(e.pointerId)
-  isDrawing.value = true
-  currentStroke.value = [getPoint(e)]
-}
+	if (!padRef.value) return;
+	padRef.value.setPointerCapture(e.pointerId);
+	isDrawing.value = true;
+	currentStroke.value = [getPoint(e)];
+};
 
 const draw = (e: PointerEvent) => {
-  if (!isDrawing.value) return
+	if (!isDrawing.value) return;
 
-  const newPoint = getPoint(e)
-  const lastPoint = currentStroke.value[currentStroke.value.length - 1]
+	const newPoint = getPoint(e);
+	const lastPoint = currentStroke.value[currentStroke.value.length - 1];
 
-  if (lastPoint) {
-    const dx = newPoint[0] - lastPoint[0]
-    const dy = newPoint[1] - lastPoint[1]
-    const distance = Math.sqrt(dx * dx + dy * dy)
+	if (lastPoint) {
+		const dx = newPoint[0] - lastPoint[0];
+		const dy = newPoint[1] - lastPoint[1];
+		const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance < 2) return
-  }
+		if (distance < 2) return;
+	}
 
-  currentStroke.value.push(newPoint)
-}
-
+	currentStroke.value.push(newPoint);
+};
 
 const endStroke = (e: PointerEvent) => {
-  if (!isDrawing.value) return
-  isDrawing.value = false
-  padRef.value?.releasePointerCapture(e.pointerId)
+	if (!isDrawing.value) return;
+	isDrawing.value = false;
+	padRef.value?.releasePointerCapture(e.pointerId);
 
-  if (currentStroke.value.length === 1) {
-    // Saves standalone points/taps
-    strokes.value.push([currentStroke.value[0]])
-  } else if (currentStroke.value.length > 1) {
-    const optimizedStroke = simplifyPath(currentStroke.value, 1.5)
-    strokes.value.push(optimizedStroke)
-  }
-  currentStroke.value = []
-}
+	if (currentStroke.value.length === 1) {
+		// Saves standalone points/taps
+		strokes.value.push([currentStroke.value[0]]);
+	} else if (currentStroke.value.length > 1) {
+		const optimizedStroke = simplifyPath(currentStroke.value, 1.5);
+		strokes.value.push(optimizedStroke);
+	}
+	currentStroke.value = [];
+};
 
 function getSqSegDist(p: Point, p1: Point, p2: Point): number {
-  let x = p1[0],
-    y = p1[1],
-    dx = p2[0] - x,
-    dy = p2[1] - y
-  if (dx !== 0 || dy !== 0) {
-    const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy)
-    if (t > 1) {
-      x = p2[0]
-      y = p2[1]
-    } else if (t > 0) {
-      x += dx * t
-      y += dy * t
-    }
-  }
-  dx = p[0] - x
-  dy = p[1] - y
-  return dx * dx + dy * dy
+	let x = p1[0],
+		y = p1[1],
+		dx = p2[0] - x,
+		dy = p2[1] - y;
+	if (dx !== 0 || dy !== 0) {
+		const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy);
+		if (t > 1) {
+			x = p2[0];
+			y = p2[1];
+		} else if (t > 0) {
+			x += dx * t;
+			y += dy * t;
+		}
+	}
+	dx = p[0] - x;
+	dy = p[1] - y;
+	return dx * dx + dy * dy;
 }
 
 function simplifyDPStep(
-  points: Point[],
-  first: number,
-  last: number,
-  sqTolerance: number,
-  simplified: Point[]
+	points: Point[],
+	first: number,
+	last: number,
+	sqTolerance: number,
+	simplified: Point[],
 ) {
-  let maxSqDist = sqTolerance,
-    index = -1
-  for (let i = first + 1; i < last; i++) {
-    const sqDist = getSqSegDist(points[i], points[first], points[last])
-    if (sqDist > maxSqDist) {
-      index = i
-      maxSqDist = sqDist
-    }
-  }
-  if (index > -1) {
-    if (index - first > 1)
-      simplifyDPStep(points, first, index, sqTolerance, simplified)
-    simplified.push(points[index])
-    if (last - index > 1)
-      simplifyDPStep(points, index, last, sqTolerance, simplified)
-  }
+	let maxSqDist = sqTolerance,
+		index = -1;
+	for (let i = first + 1; i < last; i++) {
+		const sqDist = getSqSegDist(points[i], points[first], points[last]);
+		if (sqDist > maxSqDist) {
+			index = i;
+			maxSqDist = sqDist;
+		}
+	}
+	if (index > -1) {
+		if (index - first > 1)
+			simplifyDPStep(points, first, index, sqTolerance, simplified);
+		simplified.push(points[index]);
+		if (last - index > 1)
+			simplifyDPStep(points, index, last, sqTolerance, simplified);
+	}
 }
 
 function simplifyPath(points: Point[], tolerance = 1.5): Point[] {
-  if (points.length <= 2) return points
-  const sqTolerance = tolerance * tolerance
-  const simplified: Point[] = [points[0]]
-  simplifyDPStep(points, 0, points.length - 1, sqTolerance, simplified)
-  simplified.push(points[points.length - 1])
-  return simplified
+	if (points.length <= 2) return points;
+	const sqTolerance = tolerance * tolerance;
+	const simplified: Point[] = [points[0]];
+	simplifyDPStep(points, 0, points.length - 1, sqTolerance, simplified);
+	simplified.push(points[points.length - 1]);
+	return simplified;
 }
 
 const buildPath = (points: Point[]): string => {
-  if (points.length === 0) return ''
-  if (points.length === 1) {
-    const [x, y] = points[0]
-    return `M${x},${y} L${x},${y}`
-  }
+	if (points.length === 0) return "";
+	if (points.length === 1) {
+		const [x, y] = points[0];
+		return `M${x},${y} L${x},${y}`;
+	}
 
-  const d: string[] = []
-  d.push(`M${points[0][0]},${points[0][1]}`)
+	const d: string[] = [];
+	d.push(`M${points[0][0]},${points[0][1]}`);
 
-  for (let i = 1; i < points.length - 1; i++) {
-    const midX = Number(((points[i][0] + points[i + 1][0]) / 2).toFixed(1))
-    const midY = Number(((points[i][1] + points[i + 1][1]) / 2).toFixed(1))
-    d.push(`Q${points[i][0]},${points[i][1]} ${midX},${midY}`)
-  }
+	for (let i = 1; i < points.length - 1; i++) {
+		const midX = Number(((points[i][0] + points[i + 1][0]) / 2).toFixed(1));
+		const midY = Number(((points[i][1] + points[i + 1][1]) / 2).toFixed(1));
+		d.push(`Q${points[i][0]},${points[i][1]} ${midX},${midY}`);
+	}
 
-  const last = points[points.length - 1]
-  d.push(`L${last[0]},${last[1]}`)
+	const last = points[points.length - 1];
+	d.push(`L${last[0]},${last[1]}`);
 
-  return d.join('')
-}
+	return d.join("");
+};
 
 const undo = () => {
-  strokes.value.pop()
-}
+	strokes.value.pop();
+};
 
 const clear = () => {
-  strokes.value = []
-  currentStroke.value = []
-}
+	strokes.value = [];
+	currentStroke.value = [];
+};
 
 const save = () => {
-  if (!isPro.value) return
-  if (strokes.value.length === 0) return
+	if (!isPro.value) return;
+	if (strokes.value.length === 0) return;
 
-  const combinedPath = strokes.value.map(buildPath).join(' ')
-  const viewBox = `0 0 ${padWidth.value} ${padHeight.value}`
+	const combinedPath = strokes.value.map(buildPath).join(" ");
+	const viewBox = `0 0 ${padWidth.value} ${padHeight.value}`;
 
-  const encoder = new TextEncoder()
-  const pathBytes = encoder.encode(combinedPath).length
-  console.log(`Signature Path Size: ${(pathBytes / 1024).toFixed(2)} KB`)
+	const encoder = new TextEncoder();
+	const pathBytes = encoder.encode(combinedPath).length;
+	console.log(`Signature Path Size: ${(pathBytes / 1024).toFixed(2)} KB`);
 
-  emit('save', {
-    path: combinedPath,
-    viewBox: viewBox
-  })
+	emit("save", {
+		path: combinedPath,
+		viewBox: viewBox,
+	});
 
-  clear()
-}
+	clear();
+};
 
 const handleDismiss = () => {
-  clear()
-  emit('close')
-}
+	clear();
+	emit("close");
+};
 </script>
 
 <style scoped>

@@ -5,7 +5,7 @@
     <ion-content class="bg-background ">
 
       <div
-        class="w-full max-w-3xl mx-auto px-4 sm:px-6 pt-4 pb-[calc(3rem+var(--ion-safe-area-bottom,32px))] flex flex-col min-h-full cabin-sketch-regular">
+        class="w-full max-w-3xl mx-auto px-4 sm:px-6 pt-4 mb-8 pb-[calc(3rem+var(--ion-safe-area-bottom,32px))] flex flex-col min-h-full cabin-sketch-regular">
 
         <div class="grow space-y-6">
 
@@ -48,41 +48,41 @@
 </template>
 
 <script setup lang="ts">
-import { IonPage, IonContent } from '@ionic/vue'
-import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/store/auth.store'
-import { useToast } from '@/service/toast.service'
+import { IonPage, IonContent } from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { useAuthStore } from "@/store/auth.store";
+import { useToast } from "@/service/toast.service";
 
-import SubPageBar from '@/components/general/SubPageBar.vue'
-import SettingLinks from '@/components/settings/SettingLinks.vue'
-import SubscriptionManager from '@/components/settings/SubscriptionManager.vue'
-import SettingSwitches from '@/components/settings/SettingSwitches.vue'
-import AccountSettings from '@/components/settings/AccountSettings.vue'
-import { ref } from 'vue'
-import { NotificationSubscription } from '@/types/server.types'
-import { unsubscribe } from '@/service/api/user.api'
+import SubPageBar from "@/components/general/SubPageBar.vue";
+import SettingLinks from "@/components/settings/SettingLinks.vue";
+import SubscriptionManager from "@/components/settings/SubscriptionManager.vue";
+import SettingSwitches from "@/components/settings/SettingSwitches.vue";
+import AccountSettings from "@/components/settings/AccountSettings.vue";
+import { ref } from "vue";
+import { NotificationSubscription } from "@/types/server.types";
+import { unsubscribe } from "@/service/api/user.api";
 
-const authStore = useAuthStore()
-const { user } = storeToRefs(authStore)
+const authStore = useAuthStore();
+const { user } = storeToRefs(authStore);
 
-const pendingFingerprint = ref<string | null>(null)
+const pendingFingerprint = ref<string | null>(null);
 
 async function handleDeleteSubscription(sub: NotificationSubscription) {
-  if (!user.value) return
-  pendingFingerprint.value = sub.fingerprint
-  try {
-    await unsubscribe({
-      user_id: user.value._id,
-      fingerprint: sub.fingerprint
-    })
-    user.value.subscriptions = user.value.subscriptions.filter(
-      (s) => s.fingerprint !== sub.fingerprint
-    )
-  } catch (e) {
-    useToast().toast('Could not remove device', { color: 'danger' })
-  } finally {
-    pendingFingerprint.value = null
-  }
+	if (!user.value) return;
+	pendingFingerprint.value = sub.fingerprint;
+	try {
+		await unsubscribe({
+			user_id: user.value._id,
+			fingerprint: sub.fingerprint,
+		});
+		user.value.subscriptions = user.value.subscriptions.filter(
+			(s) => s.fingerprint !== sub.fingerprint,
+		);
+	} catch (e) {
+		useToast().toast("Could not remove device", { color: "danger" });
+	} finally {
+		pendingFingerprint.value = null;
+	}
 }
 </script>
 

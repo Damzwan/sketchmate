@@ -93,39 +93,6 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		}
 	}
 
-	async function presentPaywall(): Promise<boolean> {
-		if (!isNative()) {
-			const { toast } = useToast();
-			toast("Pro features are currently available only on the mobile app! 📱", {
-				color: "warning",
-			});
-			return false;
-		}
-		trackEvent(mixpanelEvents.presentPaywall);
-
-		const offerings = await Purchases.getOfferings();
-		const specificOffering = offerings.all["paywall_items"];
-		const { result } = await RevenueCatUI.presentPaywall({
-			offering: specificOffering,
-		});
-
-		const successStates = [PAYWALL_RESULT.PURCHASED, PAYWALL_RESULT.RESTORED];
-		const isSuccess = successStates.includes(result);
-
-		if (isSuccess) {
-			showConfetti.value = true;
-			isPro.value = true;
-			useInventoryStore().grantOptimistic(["title.supporter"]);
-		}
-
-		// ...then re-read customerInfo so Lifetime vs Pro is resolved correctly
-		// and the right tier is persisted to the backend (force sync: optimistic
-		// isPro above would otherwise mask the free→pro transition).
-		await checkProStatus(true);
-
-		return isSuccess;
-	}
-
 	// ─── Individual SKU purchase ─────────────────────────────────────────────
 	/**
 	 * Buy a non-subscription SKU (brush, theme, pack, etc).
@@ -316,7 +283,6 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		isLoading,
 		checkProStatus,
 		clearSubscriptionState,
-		presentPaywall,
 		openPaywall,
 		purchaseSubscription,
 		purchaseSku,

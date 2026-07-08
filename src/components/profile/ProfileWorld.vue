@@ -315,12 +315,10 @@
         >
 
         <div
-          class="absolute left-[2%] top-[45%] -translate-y-1/2 w-[54%] gratitude-text"
+          class="absolute left-[4%] top-[65%] -translate-y-1/2 w-[54%] gratitude-text"
           :style="{ fontFamily: font }"
         >
-          <p class="gratitude-lead">To you, an OG early tester.</p>
           <p class="gratitude-thanks">Thank you,<br />eternally.</p>
-          <p class="gratitude-sign">— SketchMate Big Boss</p>
         </div>
       </div>
     </div>

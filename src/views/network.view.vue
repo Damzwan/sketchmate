@@ -65,7 +65,7 @@
                   : 'bg-white/50 border border-black/10 shadow-sm hover:border-secondary/20'
               ]"
             >
-              <div class="relative shrink-0 w-11 h-11 flex items-center justify-center select-none">
+              <div class="relative shrink-0 flex items-center justify-center select-none">
                 <UserAvatar
                   :user="person"
                   :customization="hydrateCustomization(person.customization)"

@@ -83,7 +83,7 @@
               <ion-item
                 v-for="mate in foundMates"
                 :key="mate._id"
-                class="rounded-2xl mb-1 bg-white/40 last:mb-0"
+                class="rounded-2xl mb-1 bg-white/40 last:mb-0 cursor-pointer"
                 @click="openUserActions(mate)"
               >
                 <UserAvatar

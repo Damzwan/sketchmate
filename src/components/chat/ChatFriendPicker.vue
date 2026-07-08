@@ -13,7 +13,7 @@
     <!-- Add a friend — always available, opens the connection flow -->
     <button
       @click="openConnectionMenu"
-      class="group w-full flex items-center gap-3 p-3 rounded-[1.6rem] border border-secondary/40 bg-secondary/5 shadow-sm transition-all active:scale-[0.98] text-left"
+      class="group w-full flex items-center cursor-pointer gap-3 p-3 rounded-[1.6rem] border border-secondary/40 bg-secondary/5 shadow-sm transition-all active:scale-[0.98] text-left"
     >
       <span class="shrink-0 flex items-center justify-center w-11 h-11 rounded-full bg-secondary text-white shadow-sm transition-transform group-hover:scale-105">
         <ion-icon :icon="svg(mdiAccountPlusOutline)" class="text-xl" />

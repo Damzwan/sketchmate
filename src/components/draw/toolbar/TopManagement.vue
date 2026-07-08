@@ -99,13 +99,10 @@
           <p class="text-xs text-black/80 mt-1 mb-3 cabin-sketch-regular">
             Your drawing autosaves to this device every {{ AUTOSAVE_SECONDS }}s.
           </p>
-          <button
-            @click="onSaveNow"
-            :disabled="!isDirty || isSaving || cooling"
-            class="w-full h-9 rounded-xl bg-secondary text-white text-sm font-black active:scale-95 transition-all disabled:opacity-40 disabled:active:scale-100"
-          >
+          <ion-button  @click="onSaveNow" shape="round" color="secondary"
+                       :disabled="!isDirty || isSaving || cooling">
             {{ isSaving ? 'Saving…' : !isDirty ? 'All saved' : 'Save now' }}
-          </button>
+          </ion-button>
         </div>
       </ion-content>
     </ion-popover>

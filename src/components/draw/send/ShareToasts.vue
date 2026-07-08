@@ -1,7 +1,7 @@
 <template>
   <div
     class="fixed top-safe right-4 z-100 flex flex-col gap-2 w-64 pointer-events-none transition-all duration-300"
-    :class="isLoadingCanvas ? 'mt-32' : 'mt-20'"
+    :class="toastMarginTop"
   >
     <TransitionGroup name="share-toast">
 
@@ -91,113 +91,126 @@
 </template>
 
 <script setup lang="ts">
-import { storeToRefs } from 'pinia'
-import { IonIcon, IonSpinner } from '@ionic/vue'
-import { mdiCheck } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
+import { storeToRefs } from "pinia";
+import { IonIcon, IonSpinner } from "@ionic/vue";
+import { mdiCheck } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
-import balloonLottie from '@/assets/lottie/balloon.json'
+import balloonLottie from "@/assets/lottie/balloon.json";
 import {
-  ShareToast,
-  ShareToastKind,
-  useShareToastStore
-} from '@/draw/store/useShareToastStore.store'
-import { useShareService } from '@/draw/store/useShareService.store' // Imported share service
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useInboxSwiper } from '@/composables/gallery/useInboxSwiper'
-import { usePostSwiper } from '@/composables/home/usePostSwiper'
-import Lottie from '@/components/general/Lottie.vue'
-import { useMenuStore } from '@/store/menu.store'
-import { useChatWidgetStore } from '@/store/chatWidget.store'
-import { Menu } from '@/draw/types/draw.types'
+	ShareToast,
+	ShareToastKind,
+	useShareToastStore,
+} from "@/draw/store/useShareToastStore.store";
+import { useShareService } from "@/draw/store/useShareService.store"; // Imported share service
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
+import { usePostSwiper } from "@/composables/home/usePostSwiper";
+import Lottie from "@/components/general/Lottie.vue";
+import { useMenuStore } from "@/store/menu.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { Menu } from "@/draw/types/draw.types";
+import { useRoute } from "vue-router";
+import { computed } from "vue";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
-const shareToastStore = useShareToastStore()
-const { toasts } = storeToRefs(shareToastStore)
+const shareToastStore = useShareToastStore();
+const { toasts } = storeToRefs(shareToastStore);
 
 // Access the global sending state
-const shareService = useShareService()
+const shareService = useShareService();
 
 // Keep vertical offset in lockstep with ChatToasts (drops while the canvas loads).
-const { isLoadingCanvas } = storeToRefs(useDrawSyncer())
+const { isLoadingCanvas } = storeToRefs(useDrawSyncer());
 
-const inboxSwiper = useInboxSwiper()
-const postSwiper = usePostSwiper()
+const inboxSwiper = useInboxSwiper();
+const postSwiper = usePostSwiper();
+
+const route = useRoute();
+
+const toastMarginTop = computed(() => {
+	if (route.path === `/${FRONTEND_ROUTES.draw}`) {
+		return isLoadingCanvas.value ? "mt-32" : "mt-20";
+	} else {
+		return "mt-14";
+	}
+});
 
 const borderColor = (kind: ShareToastKind) => {
-  switch (kind) {
-    case 'drawing':
-      return 'bg-secondary'
-    case 'shared':
-      return 'bg-secondary'
-    case 'post':
-      return 'bg-cyan-400'
-    case 'balloon':
-      return 'bg-amber-400 animate-pulse'
-    case 'saved':
-      return 'bg-emerald-400' // Fresh green for success
-    case 'title':
-      return 'bg-fuchsia-400'
-  }
-}
+	switch (kind) {
+		case "drawing":
+			return "bg-secondary";
+		case "shared":
+			return "bg-secondary";
+		case "post":
+			return "bg-cyan-400";
+		case "balloon":
+			return "bg-amber-400 animate-pulse";
+		case "saved":
+			return "bg-emerald-400"; // Fresh green for success
+		case "title":
+			return "bg-fuchsia-400";
+	}
+};
 
 const kindLabel = (kind: ShareToastKind) => {
-  switch (kind) {
-    case 'drawing':
-      return 'Direct'
-    case 'shared':
-      return 'Sent to mates'
-    case 'post':
-      return 'Community'
-    case 'balloon':
-      return 'Balloon'
-    case 'saved':
-      return 'Library'
-    case 'title':
-      return 'Title Earned'
-  }
-}
+	switch (kind) {
+		case "drawing":
+			return "Direct";
+		case "shared":
+			return "Sent to mates";
+		case "post":
+			return "Community";
+		case "balloon":
+			return "Balloon";
+		case "saved":
+			return "Library";
+		case "title":
+			return "Title Earned";
+	}
+};
 
 const onTap = (toast: ShareToast) => {
-  shareToastStore.dismiss(toast.id)
+	shareToastStore.dismiss(toast.id);
 
-  if (toast.kind === 'shared') {
-    const widget = useChatWidgetStore()
-    if (toast.shareTargetType === 'chat' && toast.shareTargetId) {
-      widget.openPrivateChat(toast.shareTargetId)
-    } else if (toast.shareTargetType === 'user' && toast.shareTargetId) {
-      widget.openChatWithUser(toast.shareTargetId)
-    } else {
-      widget.openOverview()
-    }
-    return
-  }
+	if (toast.kind === "shared") {
+		const widget = useChatWidgetStore();
+		if (toast.shareTargetType === "chat" && toast.shareTargetId) {
+			widget.openPrivateChat(toast.shareTargetId);
+		} else if (toast.shareTargetType === "user" && toast.shareTargetId) {
+			widget.openChatWithUser(toast.shareTargetId);
+		} else {
+			widget.openOverview();
+		}
+		return;
+	}
 
-  if (toast.kind === 'drawing' && toast.inboxId) {
-    const item = shareToastStore.getInboxItem(toast.inboxId)
-    if (item) {
-      inboxSwiper.openInboxSwiper([item], 0)
-    }
-    return
-  }
+	if (toast.kind === "drawing" && toast.inboxId) {
+		const item = shareToastStore.getInboxItem(toast.inboxId);
+		if (item) {
+			inboxSwiper.openInboxSwiper([item], 0);
+		}
+		return;
+	}
 
-  if (toast.kind === 'post' && toast.postId) {
-    const post = shareToastStore.getPost(toast.postId)
-    if (post) {
-      postSwiper.openPostSwiper([post], 0)
-    }
-    return
-  }
+	if (toast.kind === "post" && toast.postId) {
+		const post = shareToastStore.getPost(toast.postId);
+		if (post) {
+			postSwiper.openPostSwiper([post], 0);
+		}
+		return;
+	}
 
-  if (toast.kind === 'balloon') {
-    useMenuStore().openMenu(Menu.BalloonMenu)
-    return
-  }
+	if (toast.kind === "balloon") {
+		useMenuStore().openMenu(Menu.BalloonMenu);
+		return;
+	}
 
-  if (toast.kind === 'saved') {
-    useMenuStore().openMenu(Menu.StickerEmblemSaved)
-    return
-  }
-}
+	if (toast.kind === "saved") {
+		useMenuStore().openMenu(Menu.StickerEmblemSaved);
+		return;
+	}
+};
 </script>
 
 <style scoped>

@@ -23,15 +23,18 @@
       >
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
-            <p class="text-xl font-bold text-black leading-none">
-              {{ sortedMates.length > 0 ? 'Save & Share' : 'Save to Gallery' }}
-            </p>
+            <div class="flex items-center gap-2">
+              <ion-icon :icon="imagesOutline" class="text-secondary text-[24px] shrink-0" />
+              <p class="text-xl font-bold text-black leading-none pt-1">
+                {{ sortedMates.length > 0 ? 'Gallery & Mates' : 'Save to Gallery' }}
+              </p>
+            </div>
 
-            <p class="text-sm text-black/80 mt-1">
+            <p class="text-sm text-black/80 mt-2 pl-[32px]">
               {{
                 sortedMates.length > 0
-                  ? 'Saved to gallery. Share with mates.'
-                  : 'Store it in your gallery'
+                  ? 'Save your drawing and send it directly to mates.'
+                  : 'Store it in your personal gallery.'
               }}
             </p>
           </div>
@@ -48,15 +51,14 @@
           </div>
         </div>
 
-        <!-- Only show mate selection when mates exist -->
         <div
           v-if="isSaveAndSend && sortedMates.length > 0"
-          class="pt-3 border-t border-primary/20 animate-fade-in"
+          class="pt-2 border-t border-primary/20 animate-fade-in"
           @click.stop
         >
-          <p class="text-xs font-black text-black/70 mb-2">
-            Share with mates
-          </p>
+          <div>
+            <p class="text-sm font-black text-black leading-none">Share with mates</p>
+          </div>
 
           <div class="flex overflow-x-auto space-x-3 pb-1 hide-scrollbar px-1">
             <button
@@ -105,8 +107,11 @@
                :class="{ 'ring-2 ring-secondary/50': isSaveAndSend }" @click="toggleSection('direct')">
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
-            <p class="text-xl font-bold text-black leading-none">Save to gallery</p>
-            <p class="text-sm text-black/80 mt-1">Keep this drawing in your personal gallery.</p>
+            <div class="flex items-center gap-2">
+              <ion-icon :icon="imagesOutline" class="text-secondary text-[24px] shrink-0" />
+              <p class="text-xl font-bold text-black leading-none pt-1">Save to Gallery</p>
+            </div>
+            <p class="text-sm text-black/80 mt-2 pl-[32px]">Keep this drawing in your personal gallery.</p>
           </div>
           <div
             class="w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all shrink-0 border-secondary"
@@ -123,8 +128,12 @@
         ]" @click="quotaStore.canCreatePost && toggleSection('post')">
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
-            <p class="text-xl font-bold text-black leading-none">Community Post</p>
-            <div class="text-sm text-black/80 mt-1">
+            <div class="flex items-center gap-2">
+              <ion-icon :icon="svg(mdiEarth)" class="text-secondary text-[24px] shrink-0" />
+              <p class="text-xl font-bold text-black leading-none pt-1">Community Post</p>
+            </div>
+
+            <div class="text-sm text-black/80 mt-2 pl-[32px]">
               <template v-if="quotaStore.canCreatePost">
                 <div>Publish to the public feed.</div>
                 <div class="text-secondary mt-1">{{ quotaStore.posts.remaining }}/{{ quotaStore.posts.limit }} left
@@ -183,11 +192,11 @@
         ]" @click="quotaStore.canSendBalloon && toggleSection('balloon')">
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
-            <p class="text-xl font-bold text-black leading-none">
-              <ion-icon :icon="svg(mdiBalloon)" class="text-secondary mr-1 align-[-2px]" />
-              Release Balloon
-            </p>
-            <div class="text-sm text-black/80 mt-1">
+            <div class="flex items-center gap-2">
+              <ion-icon :icon="svg(mdiBalloon)" class="text-secondary text-[24px] shrink-0" />
+              <p class="text-xl font-bold text-black leading-none pt-1">Release Balloon</p>
+            </div>
+            <div class="text-sm text-black/80 mt-2 pl-[32px]">
               <template v-if="quotaStore.canSendBalloon">
                 <div>Send to a stranger.</div>
                 <div class="text-secondary mt-1">{{ quotaStore.balloons.remaining }}/{{ quotaStore.balloons.limit }}
@@ -247,257 +256,262 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import {
-  IonButton,
-  IonIcon,
-  IonSpinner,
-  IonToggle,
-  useIonRouter
-} from '@ionic/vue'
-import { mdiCheck, mdiChevronLeft, mdiStar, mdiBalloon, mdiSprout } from '@mdi/js'
-import { storeToRefs } from 'pinia'
-import { svg } from '@/helper/general.helper'
-import dayjs from 'dayjs'
-import duration from 'dayjs/plugin/duration'
+	IonButton,
+	IonIcon,
+	IonSpinner,
+	IonToggle,
+	useIonRouter,
+} from "@ionic/vue";
+import { imagesOutline } from "ionicons/icons";
+import {
+	mdiCheck,
+	mdiChevronLeft,
+	mdiStar,
+	mdiBalloon,
+	mdiSprout,
+	mdiEarth,
+} from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { svg } from "@/helper/general.helper";
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
 
-import { useAuthStore } from '@/store/auth.store'
-import { useFriendStore } from '@/store/friend.store'
-import { useMateSelection } from '@/draw/services/useMateSelection'
-import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
-import { useShareService } from '@/draw/store/useShareService.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useQuotaStore } from '@/store/quota.store'
-import { FRONTEND_ROUTES } from '@/types/router.types'
+import { useAuthStore } from "@/store/auth.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useMateSelection } from "@/draw/services/useMateSelection";
+import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { useShareService } from "@/draw/store/useShareService.store";
+import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useQuotaStore } from "@/store/quota.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 // @ts-ignore
-import PreviewDrawing from '@/components/draw/PreviewDrawing.vue'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { useMenuStore } from '@/store/menu.store'
-import { Menu } from '@/draw/types/draw.types'
+import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
+import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { useDrawStore } from "@/draw/store/draw.store";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
 
-dayjs.extend(duration)
+dayjs.extend(duration);
 
-const router = useIonRouter()
+const router = useIonRouter();
 
-const { user, isUnderAge } = storeToRefs(useAuthStore())
-const friendStore = useFriendStore()
-const { allConnectedPartners } = storeToRefs(friendStore)
+const { user, isUnderAge } = storeToRefs(useAuthStore());
+const friendStore = useFriendStore();
+const { allConnectedPartners } = storeToRefs(friendStore);
 
-const drawStore = useDrawStore()
-const { preview, newPreview } = storeToRefs(drawStore)
+const drawStore = useDrawStore();
+const { preview, newPreview } = storeToRefs(drawStore);
 const {
-  getDataToSend,
-  getAspectRatio,
-  crop,
-  createPreview,
-  resetPreview,
-  reset: resetCanvas
-} = drawStore
+	getDataToSend,
+	getAspectRatio,
+	crop,
+	createPreview,
+	resetPreview,
+	reset: resetCanvas,
+} = drawStore;
 
-const shareService = useShareService()
-const quotaStore = useQuotaStore()
-const drawUI = useDrawUIStore()
+const shareService = useShareService();
+const quotaStore = useQuotaStore();
+const drawUI = useDrawUIStore();
 
-const { selected, toggle, reset: resetMates } = useMateSelection()
+const { selected, toggle, reset: resetMates } = useMateSelection();
 
 const isBalloon = ref(
-  !isUnderAge.value && shareService.preSelected === 'balloon'
-)
+	!isUnderAge.value && shareService.preSelected === "balloon",
+);
 const isSaveAndSend = ref(
-  isUnderAge.value || shareService.preSelected !== 'balloon'
-)
+	isUnderAge.value || shareService.preSelected !== "balloon",
+);
 
-const isPublicPost = ref(false)
-const postCaption = ref('')
-const postEnableComments = ref(true)
-const postEnableRemix = ref(true)
-const balloonNote = ref('')
+const isPublicPost = ref(false);
+const postCaption = ref("");
+const postEnableComments = ref(true);
+const postEnableRemix = ref(true);
+const balloonNote = ref("");
 
-const isOnline = (id: string) => friendStore.isFriendOnline(id)
+const isOnline = (id: string) => friendStore.isFriendOnline(id);
 
 const sortedMates = computed(() =>
-  [...allConnectedPartners.value].sort((a, b) => {
-    const aOnline = isOnline(a._id) ? 1 : 0
-    const bOnline = isOnline(b._id) ? 1 : 0
-    return bOnline - aOnline
-  })
-)
+	[...allConnectedPartners.value].sort((a, b) => {
+		const aOnline = isOnline(a._id) ? 1 : 0;
+		const bOnline = isOnline(b._id) ? 1 : 0;
+		return bOnline - aOnline;
+	}),
+);
 
-const now = ref(Date.now())
-let timer: ReturnType<typeof setInterval> | null = null
+const now = ref(Date.now());
+let timer: ReturnType<typeof setInterval> | null = null;
 
 function ensureTicker() {
-  if (timer) return
-  timer = setInterval(() => {
-    now.value = Date.now()
-  }, 1000)
+	if (timer) return;
+	timer = setInterval(() => {
+		now.value = Date.now();
+	}, 1000);
 }
 
 onUnmounted(() => {
-  if (timer) clearInterval(timer)
-})
+	if (timer) clearInterval(timer);
+});
 
 function fmtCountdown(resetIso: string): string {
-  const diff = dayjs(resetIso).diff(dayjs(now.value))
-  if (diff <= 0) return '0m 0s'
+	const diff = dayjs(resetIso).diff(dayjs(now.value));
+	if (diff <= 0) return "0m 0s";
 
-  const dur = dayjs.duration(diff)
-  const h = Math.floor(dur.asHours())
-  const m = dur.minutes()
+	const dur = dayjs.duration(diff);
+	const h = Math.floor(dur.asHours());
+	const m = dur.minutes();
 
-  return h > 0 ? `${h}h ${m}m` : `${m}m ${dur.seconds()}s`
+	return h > 0 ? `${h}h ${m}m` : `${m}m ${dur.seconds()}s`;
 }
 
 const balloonResetCountdown = computed(() =>
-  fmtCountdown(quotaStore.balloons.reset_at)
-)
+	fmtCountdown(quotaStore.balloons.reset_at),
+);
 const postResetCountdown = computed(() =>
-  fmtCountdown(quotaStore.posts.reset_at)
-)
+	fmtCountdown(quotaStore.posts.reset_at),
+);
 
 const sendButtonLabel = computed(() => {
-  if (isUnderAge.value && sortedMates.value.length === 0) return 'Save'
-  return 'Send'
-})
+	if (isUnderAge.value && sortedMates.value.length === 0) return "Save";
+	return "Send";
+});
 
 onMounted(async () => {
-  drawUI.chatToastsSilenced = true
-  if (isBalloon.value && (!quotaStore.canSendBalloon || isUnderAge.value)) {
-    isBalloon.value = false
-    isSaveAndSend.value = true
-  }
+	drawUI.chatToastsSilenced = true;
+	if (isBalloon.value && (!quotaStore.canSendBalloon || isUnderAge.value)) {
+		isBalloon.value = false;
+		isSaveAndSend.value = true;
+	}
 
-  ensureTicker()
+	ensureTicker();
 
-  const canvas = drawStore.getCanvas()
-  setTimeout(
-    () => createPreview(canvas),
-    canvas.getObjects().length > 1000 ? 250 : 50
-  )
-})
+	const canvas = drawStore.getCanvas();
+	setTimeout(
+		() => createPreview(canvas),
+		canvas.getObjects().length > 1000 ? 250 : 50,
+	);
+});
 
 onUnmounted(() => {
-  resetPreview()
-  drawUI.chatToastsSilenced = false
-})
+	resetPreview();
+	drawUI.chatToastsSilenced = false;
+});
 
 const noActionSelected = computed(
-  () => !isSaveAndSend.value && !isPublicPost.value && !isBalloon.value
-)
+	() => !isSaveAndSend.value && !isPublicPost.value && !isBalloon.value,
+);
 
 const goBack = (e: Event) => {
-  const nav = (e.target as HTMLElement).closest('ion-nav')
-  nav?.pop()
-}
+	const nav = (e.target as HTMLElement).closest("ion-nav");
+	nav?.pop();
+};
 
-function toggleSection(section: 'direct' | 'post' | 'balloon') {
-  if ((section === 'post' || section === 'balloon') && isUnderAge.value) return
+function toggleSection(section: "direct" | "post" | "balloon") {
+	if ((section === "post" || section === "balloon") && isUnderAge.value) return;
 
-  if (section === 'direct') isSaveAndSend.value = !isSaveAndSend.value
-  if (section === 'post') isPublicPost.value = !isPublicPost.value
-  if (section === 'balloon') isBalloon.value = !isBalloon.value
+	if (section === "direct") isSaveAndSend.value = !isSaveAndSend.value;
+	if (section === "post") isPublicPost.value = !isPublicPost.value;
+	if (section === "balloon") isBalloon.value = !isBalloon.value;
 }
 
 function goToPro() {
-  useMenuStore().openMenu(Menu.Shop)
+	useMenuStore().openMenu(Menu.Shop);
 }
 
 function leaveShare() {
-  // Go back to wherever we came from (gallery, swiper, canvas); fall back to
-  // home when there's nothing to go back to.
-  if (router.canGoBack()) {
-    router.back()
-  } else {
-    router.replace(FRONTEND_ROUTES.home)
-  }
+	if (useDrawSyncer().isLobby) {
+		const nav = document.querySelector("ion-nav");
+		void nav?.popToRoot();
+		return;
+	}
+	if (router.canGoBack()) {
+		router.back();
+	} else {
+		router.replace(FRONTEND_ROUTES.home);
+	}
 }
 
 async function executeShares() {
-  if (noActionSelected.value || shareService.isSending) return
+	if (noActionSelected.value || shareService.isSending) return;
 
-  // 1. SYNCHRONOUSLY SNAPSHOT ALL UI STATE IMMEDIATELY
-  const directRecipients =
-    isSaveAndSend.value && user.value
-      ? [...Array.from(selected.value), user.value._id]
-      : []
+	const directRecipients =
+		isSaveAndSend.value && user.value
+			? [...Array.from(selected.value), user.value._id]
+			: [];
 
-  const wantsPost = isPublicPost.value && !isUnderAge.value
-  const captionSnapshot = postCaption.value
-  const enableCommentsSnapshot = postEnableComments.value
-  const enableRemixSnapshot = postEnableRemix.value
-  const wantsBalloon = isBalloon.value && !isUnderAge.value
-  const balloonSnapshot = balloonNote.value
+	const wantsPost = isPublicPost.value && !isUnderAge.value;
+	const captionSnapshot = postCaption.value;
+	const enableCommentsSnapshot = postEnableComments.value;
+	const enableRemixSnapshot = postEnableRemix.value;
+	const wantsBalloon = isBalloon.value && !isUnderAge.value;
+	const balloonSnapshot = balloonNote.value;
 
-  shareService.isSending = true
+	shareService.isSending = true;
 
-  // 2. CAPTURE THE DRAWING *BEFORE* tearing down the canvas or navigating.
-  // getDataToSend awaits any in-flight preview, so a slow gallery/swiper load
-  // (or a fast tap) can't read half-built state.
-  let processedData
-  try {
-    processedData = await getDataToSend()
-  } catch (error) {
-    console.error('Failed to prepare drawing to share:', error)
-    shareService.isSending = false
-    return
-  }
+	let processedData;
+	try {
+		processedData = await getDataToSend();
+	} catch (error) {
+		console.error("Failed to prepare drawing to share:", error);
+		shareService.isSending = false;
+		return;
+	}
 
-  // 3. Data is safely in hand — now reset the canvas and leave the screen.
-  if (!useDrawSyncer().isLobby) {
-    resetCanvas()
-  }
-  shareService.preSelected = 'mate'
-  drawUI.isForceExiting = true
-  leaveShare()
-  resetMates()
+	if (!useDrawSyncer().isLobby) {
+		resetCanvas();
+	}
+	shareService.preSelected = "mate";
+	drawUI.isForceExiting = true;
+	leaveShare();
+	resetMates();
 
-  // 4. Fire the network work in the background.
-  try {
-    const tasks: Array<() => Promise<void>> = []
+	try {
+		const tasks: Array<() => Promise<void>> = [];
 
-    if (directRecipients.length > 0) {
-      tasks.push(() => shareService.sendToMates(processedData, directRecipients))
-    }
+		if (directRecipients.length > 0) {
+			tasks.push(() =>
+				shareService.sendToMates(processedData, directRecipients),
+			);
+		}
 
-    if (wantsPost) {
-      tasks.push(() =>
-        shareService
-          .publishCommunityPost(processedData, {
-            caption: captionSnapshot,
-            enable_comments: enableCommentsSnapshot,
-            enable_remix: enableRemixSnapshot
-          })
-          .then(() => {
-            quotaStore.decrementPost()
-          })
-      )
-    }
+		if (wantsPost) {
+			tasks.push(() =>
+				shareService
+					.publishCommunityPost(processedData, {
+						caption: captionSnapshot,
+						enable_comments: enableCommentsSnapshot,
+						enable_remix: enableRemixSnapshot,
+					})
+					.then(() => {
+						quotaStore.decrementPost();
+					}),
+			);
+		}
 
-    if (wantsBalloon) {
-      tasks.push(() =>
-        shareService.releaseBalloon(processedData, balloonSnapshot).then(() => {
-          quotaStore.decrementBalloon()
-        })
-      )
-    }
+		if (wantsBalloon) {
+			tasks.push(() =>
+				shareService.releaseBalloon(processedData, balloonSnapshot).then(() => {
+					quotaStore.decrementBalloon();
+				}),
+			);
+		}
 
-    await shareService.runBatch(tasks)
+		await shareService.runBatch(tasks);
 
-    const loadStore = useDrawLoadStore()
-    void loadStore.removeDraft()
-  } catch (error) {
-    console.error('Background sharing failed:', error)
-  } finally {
-    shareService.isSending = false
-  }
+		const loadStore = useDrawLoadStore();
+		void loadStore.removeDraft();
+	} catch (error) {
+		console.error("Background sharing failed:", error);
+	} finally {
+		shareService.isSending = false;
+	}
 }
 </script>
 
 <style scoped>
-
-
 ion-button {
   --border-radius: 9999px;
   font-weight: 700;

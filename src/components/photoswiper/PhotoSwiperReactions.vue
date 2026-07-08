@@ -2,7 +2,7 @@
   <div class="relative flex items-center">
     <button
       @click.stop="(e) => $emit('open-popover', e)"
-      class="flex items-center space-x-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-2xl transition-all active:scale-90 border border-white/5 shadow-inner"
+      class="flex cursor-pointer items-center space-x-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-2xl transition-all active:scale-90 border border-white/5 shadow-inner"
     >
       <!-- Icon Stack -->
       <div class="flex -space-x-2.5 mr-1">
@@ -22,24 +22,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 const props = defineProps<{
-  item: any;
-  reactionImages: Record<string, string>;
+	item: any;
+	reactionImages: Record<string, string>;
 }>();
 
-defineEmits(['open-popover']);
+defineEmits(["open-popover"]);
 
 const totalCount = computed(() => {
-  const counts = props.item.reaction_counts || {};
-  return Object.values(counts).reduce((a: any, b: any) => a + b, 0) as number;
+	const counts = props.item.reaction_counts || {};
+	return Object.values(counts).reduce((a: any, b: any) => a + b, 0) as number;
 });
 
 const activeReactions = computed(() => {
-  const counts = props.item.reaction_counts || {};
-  return Object.keys(counts).filter(key => counts[key] > 0).slice(0, 3);
+	const counts = props.item.reaction_counts || {};
+	return Object.keys(counts)
+		.filter((key) => counts[key] > 0)
+		.slice(0, 3);
 });
 
-const formatNumber = (num: number) => num >= 1000 ? (num / 1000).toFixed(1) + 'k' : num;
+const formatNumber = (num: number) =>
+	num >= 1000 ? (num / 1000).toFixed(1) + "k" : num;
 </script>

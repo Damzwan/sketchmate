@@ -298,6 +298,86 @@ export function invalidateCache(): void {
   cachedBake = null
 }
 
+// ─── selection thumbnail (tooldock preview) ──────────────────────────────────
+
+/**
+ * Render the given objects into a small, transparent bitmap for the tooldock
+ * preview. Position- AND zoom-independent (fits `maxPx`), stable regardless of
+ * canvas pan/zoom, and never touches the drag cache. Renders the REAL selected
+ * objects (their own world transforms), z-sorted, exactly like a tile bake —
+ * NOT c.getActiveObject(), which in this app's custom selection flow is often
+ * null or a throwaway ActiveSelection wrapper, so the preview came out blank.
+ * One downscaled pass, so even a 500-object selection is cheap.
+ */
+export function bakeThumbnail(
+  c: Canvas,
+  maxPx = 96,
+  objects?: FabricObject[]
+): { bitmap: ImageBitmap; cssW: number; cssH: number } | null {
+  const objs = objects && objects.length ? objects : activeObjects().slice()
+  if (!objs.length) return null
+
+  // Fresh, absolute union bbox of the real objects. setCoords first: the
+  // preview bakes on selection change, before aCoords are guaranteed current.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const o of objs) {
+    o.setCoords()
+    const b = o.getBoundingRect()
+    if (!isFinite(b.left) || b.width <= 0 || b.height <= 0) continue
+    minX = Math.min(minX, b.left)
+    minY = Math.min(minY, b.top)
+    maxX = Math.max(maxX, b.left + b.width)
+    maxY = Math.max(maxY, b.top + b.height)
+  }
+  const worldW = maxX - minX
+  const worldH = maxY - minY
+  if (!isFinite(worldW) || worldW <= 0 || worldH <= 0) return null
+
+  const dpr = window.devicePixelRatio || 1
+  const fit = maxPx / Math.max(worldW, worldH)
+  const cssW = Math.max(1, Math.round(worldW * fit))
+  const cssH = Math.max(1, Math.round(worldH * fit))
+  const physW = Math.max(1, Math.round(cssW * dpr))
+  const physH = Math.max(1, Math.round(cssH * dpr))
+
+  const off = new OffscreenCanvas(physW, physH)
+  const ctx = off.getContext('2d', { alpha: true })
+  if (!ctx) return null
+  ctx.scale(physW / worldW, physH / worldH)
+  ctx.translate(-minX, -minY)
+
+  const zMap = useDrawObjectManager().getZIndexMap()
+  const ordered = objs
+    .slice()
+    .sort((a, b2) => (zMap.get(a) ?? 0) - (zMap.get(b2) ?? 0))
+
+  for (const o of ordered) {
+    const prep = o as any
+    const oIsOnScreen = prep.isOnScreen
+    const oCaching = prep.objectCaching
+    const oDirty = prep.dirty
+    const oVisible = prep.visible
+    prep.isOnScreen = () => true
+    prep.objectCaching = false
+    prep.dirty = true
+    prep.visible = true
+    try {
+      o.render(ctx as any)
+    } catch { /* ignore */ } finally {
+      prep.isOnScreen = oIsOnScreen
+      prep.objectCaching = oCaching
+      prep.dirty = oDirty
+      prep.visible = oVisible
+    }
+  }
+
+  try {
+    return { bitmap: off.transferToImageBitmap(), cssW, cssH }
+  } catch {
+    return null
+  }
+}
+
 // ─── idle prewarm ────────────────────────────────────────────────────────────
 
 const requestIdle: (cb: () => void, timeout: number) => number =

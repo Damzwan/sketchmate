@@ -2,7 +2,7 @@
 <template>
   <div v-if="!isExpanded && !isFullscreen && !chatToastsSilenced"
        class="fixed top-safe right-4 z-[10] flex flex-col gap-2 w-64 pointer-events-none transition-all duration-300"
-       :class="isLoadingCanvas ? 'mt-32' : 'mt-20'">
+       :class="toastMarginTop">
     <TransitionGroup name="chat-toast">
       <div
         v-for="group in notifications"
@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from "vue";
+import { computed, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { IonIcon } from "@ionic/vue";
 import { mdiClockOutline, mdiHeart } from "@mdi/js";
@@ -65,7 +65,9 @@ import { useChatStore } from "@/store/chat.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useDrawUIStore } from "@/draw/store/drawUI.store";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
-import { useFriendStore } from "@/store/friend.store"; // <-- Added FriendStore
+import { useFriendStore } from "@/store/friend.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { useRoute } from "vue-router"; // <-- Added FriendStore
 
 const chatWidget = useChatWidgetStore();
 const chatStore = useChatStore();
@@ -195,6 +197,15 @@ const openFromNotification = (tabId: string) => {
 		chatWidget.openChatWithUser(tabId);
 	}
 };
+
+const route = useRoute();
+const toastMarginTop = computed(() => {
+	if (route.path === `/${FRONTEND_ROUTES.draw}`) {
+		return isLoadingCanvas.value ? "mt-32" : "mt-20";
+	} else {
+		return "mt-14";
+	}
+});
 </script>
 
 <style scoped>

@@ -15,16 +15,7 @@
         @click="$emit('select', type)"
         class="reaction-item group"
         :style="{ '--i': i }"
-        :aria-label="reactionLabels[type] || type"
       >
-        <!-- Floating label, appears on hover / when it's the active one -->
-        <span
-          class="reaction-label"
-          :class="{ 'reaction-label--shown': userReaction === type }"
-        >
-          {{ reactionLabels[type] || type }}
-        </span>
-
         <img
           :src="imgSrc"
           class="reaction-img"
@@ -42,24 +33,16 @@
 </template>
 
 <script setup lang="ts">
-import { IonPopover } from '@ionic/vue'
-import { reactionImages } from '@/config/post.config'
-
-const reactionLabels: Record<string, string> = {
-  love: 'Love',
-  fire: 'Fire',
-  cry: 'Cry',
-  sleep: 'Sleep',
-  crazy: 'Crazy'
-}
+import { IonPopover } from "@ionic/vue";
+import { reactionImages } from "@/config/post.config";
 
 defineProps<{
-  isOpen: boolean
-  event: Event | null
-  userReaction?: string
-}>()
+	isOpen: boolean;
+	event: Event | null;
+	userReaction?: string;
+}>();
 
-defineEmits(['close', 'select'])
+defineEmits(["close", "select"]);
 </script>
 
 <style scoped>
@@ -131,33 +114,6 @@ ion-popover.liquid-popover::part(content) {
   transform: scale(1.12);
 }
 
-/* Floating name bubble above each reaction. */
-.reaction-label {
-  position: absolute;
-  top: -1.35rem;
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  padding: 0.1rem 0.5rem;
-  border-radius: 9999px;
-  font-size: 0.6rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  color: white;
-  background: rgba(var(--ion-color-secondary-rgb, 185, 70, 58), 0.95);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.reaction-item:hover .reaction-label,
-.reaction-item:focus-visible .reaction-label,
-.reaction-label--shown {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
 
 /* Active selection marker under the current reaction. */
 .reaction-dot {

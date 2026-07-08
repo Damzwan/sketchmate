@@ -49,6 +49,15 @@
       </div>
     </div>
 
+    <!-- Always mounted (self-hides via v-show) so its watcher exists BEFORE the
+         first selection — otherwise the very first selection is set before the
+         component mounts and the preview stays blank. -->
+    <SelectionPreview />
+
+    <!-- A/B color slots — bottom-right, active only in pen/bucket mode. Shares
+         the corner with SelectionPreview (mutually exclusive tool modes). -->
+    <ColorSwatches />
+
   </div>
 </template>
 
@@ -60,6 +69,8 @@ import { mdiChevronLeft, mdiFullscreenExit } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { useSelect } from '@/draw/store/tools/select.store'
 import TopManagement from '@/components/draw/toolbar/TopManagement.vue'
+import SelectionPreview from '@/components/draw/toolbar/SelectionPreview.vue'
+import ColorSwatches from '@/components/draw/toolbar/ColorSwatches.vue'
 import ToolDockText from '@/components/draw/toolbar/ToolDockText.vue'
 import ToolDockSelect from '@/components/draw/toolbar/ToolDockSelect.vue'
 import ToolDockDraw from '@/components/draw/toolbar/ToolDockDraw.vue'

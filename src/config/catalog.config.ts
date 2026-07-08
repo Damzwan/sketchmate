@@ -499,7 +499,7 @@ export const FREE_ITEMS = new Set<string>([
 	"decoration.none",
 	"effect.none",
 	"font.sketch",
-	"font_effect.", // empty string font effect = "None"
+	"font_effect.",
 	// Default brushes
 	"brush.pencil",
 	"brush.watercolor",
@@ -508,7 +508,6 @@ export const FREE_ITEMS = new Set<string>([
 	"brush.pixel",
 	"brush.crayon",
 	"brush.charcoal",
-	"world.space",
 ]);
 
 /** Build the canonical item ID for a given category + refId combo. */

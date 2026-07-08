@@ -18,7 +18,7 @@
 
       <div class="absolute inset-0 pointer-events-none z-0">
         <ProfileEffect :effect-id="effectiveCustomization.effectId" />
-        <ProfileWorld :world-id="effectiveCustomization.worldId" />
+        <ProfileWorld :world-id="effectiveCustomization.worldId" :accent="theme.accentColor" :font="resolvedFontFamily" />
       </div>
 
       <div class="h-full overflow-y-auto hide-scrollbar relative z-10" @touchmove.stop>

@@ -18,9 +18,9 @@
       class="grid grid-cols-2 gap-3 pb-4"
     >
       <button
-        v-for="effect in PROFILE_EFFECTS"
+        v-for="effect in visibleEffects"
         :key="effect.id"
-        class="relative rounded-[2rem] border-2 bg-tertiary active:scale-95 transition-all overflow-hidden h-28 text-left"
+        class="relative cursor-pointer rounded-[2rem] border-2 bg-tertiary active:scale-95 transition-all overflow-hidden h-28 text-left"
         :class="[
           localSelection === effect.id
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
@@ -130,6 +130,12 @@ watch(
 
 const isItemOwned = (effectId: string) =>
 	inventoryStore.isOwned(buildItemId("effect", effectId));
+
+// Exclusive (OG) effects are granted, never sold — so there's no unlock path.
+// Only surface them to users who already own them; hide from everyone else.
+const visibleEffects = computed(() =>
+	PROFILE_EFFECTS.filter((e) => !e.exclusive || isItemOwned(e.id)),
+);
 
 const selectionLocked = computed(() => !isItemOwned(localSelection.value));
 

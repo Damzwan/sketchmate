@@ -77,6 +77,24 @@
       <span class="glass-glint glass-glint--c" style="left: 78%; top: 58%"></span>
     </div>
 
+    <!-- ── CRUMPLED PAPER (OG-exclusive) ──────────────────────────────────
+         Three passes of the same paper photo: a multiply layer bakes the
+         crease shadows onto the card, a soft-light layer lifts the ridges,
+         and a slow light sweep makes the folds catch the light as it moves. -->
+    <div v-else-if="def.kind === 'crumpled'" class="absolute inset-0">
+      <div
+        class="absolute inset-0 crumple-shadows"
+        :style="{ backgroundImage: `url(${paper})` }"
+      ></div>
+      <div
+        class="absolute inset-0 crumple-highlights"
+        :style="{ backgroundImage: `url(${paper})` }"
+      ></div>
+      <div class="absolute -inset-[100%] crumple-sheen" :class="speedClass"></div>
+      <!-- Deepen the four corners so the sheet reads as pressed flat onto the card -->
+      <div class="absolute inset-0 crumple-vignette"></div>
+    </div>
+
   </div>
 </template>
 
@@ -86,6 +104,7 @@ import {
   resolveEffect,
   type ProfileEffectDef
 } from '@/config/profile_options.config'
+import paper from '@/assets/textures/paper.webp'
 
 const props = withDefaults(
   defineProps<{
@@ -329,6 +348,60 @@ const shimmerStyle = computed(() => {
   }
   .glass-facets polygon {
     opacity: 0.7;
+  }
+}
+
+/* ─── CRUMPLED PAPER ──────────────────────────────────────────────── */
+/* cover so the crease pattern fills the card at any size. */
+.crumple-shadows,
+.crumple-highlights {
+  background-size: cover;
+  background-position: center;
+}
+
+/* Multiply drops the paper's own crease shadows onto the card colour. Kept
+   light so the theme background stays dominant — creases whisper, not shout. */
+.crumple-shadows {
+  mix-blend-mode: multiply;
+  opacity: 0.18;
+}
+
+/* Soft-light re-uses the same photo to pop the lit ridges back out, so folds
+   have both a dark and a bright side without tinting the card grey. */
+.crumple-highlights {
+  mix-blend-mode: soft-light;
+  opacity: 0.35;
+}
+
+/* A slow, faint glare travelling over the sheet — a subtle catch of light on
+   the ridges, not a spotlight. */
+.crumple-sheen {
+  background: linear-gradient(
+    115deg,
+    transparent 44%,
+    rgba(255, 255, 255, 0.14) 50%,
+    transparent 56%
+  );
+  mix-blend-mode: overlay;
+  animation-name: shimmer;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Barely press the corners so the note settles into the card. */
+.crumple-vignette {
+  background: radial-gradient(
+    120% 120% at 50% 45%,
+    transparent 62%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+  mix-blend-mode: multiply;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crumple-sheen {
+    animation: none;
+    opacity: 0;
   }
 }
 

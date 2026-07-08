@@ -20,7 +20,7 @@
       <button
         v-for="theme in THEMES"
         :key="theme.id"
-        class="relative rounded-[2rem] border-2 p-4 text-left active:scale-95 transition-all overflow-hidden"
+        class="relative rounded-[2rem] cursor-pointer border-2 p-4 text-left active:scale-95 transition-all overflow-hidden"
         :class="[
           localSelection === theme.id
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'

@@ -2,77 +2,90 @@
 
 /* 1. Puffy Sticker: A thick white border with a playful, rubbery bounce */
 @keyframes puffy-bounce {
-    0%, 100% {
-        transform: scale(1.02) rotate(-2deg);
-    }
-    50% {
-        transform: scale(1.08) rotate(1deg);
-    }
+	0%,
+	100% {
+		/* Resting heavily on the card */
+		transform: translateY(0) scaleX(1) scaleY(1);
+	}
+	50% {
+		/* Lifts off the page, inflating and stretching upward slightly */
+		transform: translateY(-4px) scaleX(0.98) scaleY(1.05);
+	}
 }
 
 .animate-puffy-bounce {
-    animation: puffy-bounce 3s cubic-bezier(0.25, 1.5, 0.5, 1) infinite;
-    display: inline-block;
+	/* Slightly faster loop for a lively heartbeat feel */
+	animation: puffy-bounce 2.8s ease-in-out infinite;
+	display: inline-block;
+	/* CRITICAL: Grounds the animation so it "pushes" off the baseline instead of expanding in all directions */
+	transform-origin: center bottom;
+	will-change: transform;
 }
 
 /* 2. Jawbreaker: Stacked, vibrant cyan/magenta/yellow retro 3D layers */
 @keyframes jawbreaker-float {
-    0%, 100% {
-        transform: translateY(0) rotate(-1deg);
-    }
-    50% {
-        transform: translateY(-8px) rotate(2deg);
-    }
+	0%,
+	100% {
+		transform: translateY(0) rotate(-1deg);
+	}
+	50% {
+		transform: translateY(-8px) rotate(2deg);
+	}
 }
 
 .animate-jawbreaker-float {
-    animation: jawbreaker-float 4s ease-in-out infinite;
-    display: inline-block;
+	animation: jawbreaker-float 4s ease-in-out infinite;
+	display: inline-block;
 }
-
 
 /* 4. Supernova: A hyper-fast, flowing rainbow holographic foil */
 @keyframes supernova-flow {
-    to {
-        background-position: -300% center;
-    }
+	to {
+		background-position: -300% center;
+	}
 }
 
 .animate-supernova-flow {
-    animation: supernova-flow 5s linear infinite;
-    -webkit-background-clip: text;
-    color: transparent !important;
+	animation: supernova-flow 5s linear infinite;
+	-webkit-background-clip: text;
+	color: transparent !important;
 }
 
 /* 5. Lava Lamp: A vertical molten gradient that slowly drips up and down */
 @keyframes lava-flow {
-    0%, 100% {
-        background-position: center 0%;
-    }
-    50% {
-        background-position: center 100%;
-    }
+	0%,
+	100% {
+		background-position: center 0%;
+	}
+	50% {
+		background-position: center 100%;
+	}
 }
 
 .animate-lava-flow {
-    animation: lava-flow 4s ease-in-out infinite;
-    -webkit-background-clip: text;
-    color: transparent !important;
+	animation: lava-flow 4s ease-in-out infinite;
+	-webkit-background-clip: text;
+	color: transparent !important;
 }
 
 /* 3. Midnight Velvet: A sophisticated, dark-luxury glow with a soft drift */
 @keyframes velvet-glow {
-    0%, 100% {
-        text-shadow: 0 0 10px rgba(79, 70, 229, 0.4), 0 0 20px rgba(79, 70, 229, 0.2);
-        transform: translateY(0);
-    }
-    50% {
-        text-shadow: 0 0 20px rgba(129, 140, 248, 0.8), 0 0 40px rgba(129, 140, 248, 0.4);
-        transform: translateY(-5px);
-    }
+	0%,
+	100% {
+		text-shadow:
+			0 0 10px rgba(79, 70, 229, 0.4),
+			0 0 20px rgba(79, 70, 229, 0.2);
+		transform: translateY(0);
+	}
+	50% {
+		text-shadow:
+			0 0 20px rgba(129, 140, 248, 0.8),
+			0 0 40px rgba(129, 140, 248, 0.4);
+		transform: translateY(-5px);
+	}
 }
 
 .animate-velvet-glow {
-    animation: velvet-glow 4s ease-in-out infinite;
-    display: inline-block;
+	animation: velvet-glow 4s ease-in-out infinite;
+	display: inline-block;
 }

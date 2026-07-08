@@ -18,9 +18,9 @@
       class="grid grid-cols-2 gap-3 pb-4"
     >
       <button
-        v-for="world in WORLDS"
+        v-for="world in visibleWorlds"
         :key="world.id"
-        class="relative rounded-[2rem] border-2 bg-tertiary active:scale-95 transition-all overflow-hidden h-28 text-left"
+        class="relative cursor-pointer rounded-[2rem] border-2 bg-tertiary active:scale-95 transition-all overflow-hidden h-28 text-left"
         :class="[
           localSelection === world.id
             ? 'border-secondary shadow-lg ring-2 ring-secondary/30'
@@ -118,16 +118,13 @@ const emit = defineEmits(["close", "select"]);
 const inventoryStore = useInventoryStore();
 const { purchasing, unlockItem } = useUnlockItem();
 
-const localSelection = ref(
-	props.customization.worldId || DEFAULT_WORLD_ID,
-);
+const localSelection = ref(props.customization.worldId || DEFAULT_WORLD_ID);
 
 watch(
 	() => props.isOpen,
 	(open) => {
 		if (open)
-			localSelection.value =
-				props.customization.worldId || DEFAULT_WORLD_ID;
+			localSelection.value = props.customization.worldId || DEFAULT_WORLD_ID;
 	},
 );
 
@@ -135,6 +132,12 @@ const isItemOwned = (worldId: string) => {
 	if (worldId === "none") return true;
 	return inventoryStore.isOwned(buildItemId("world", worldId));
 };
+
+// Exclusive (OG) worlds are granted, never sold — so there's no unlock path.
+// Only surface them to users who already own them; hide from everyone else.
+const visibleWorlds = computed(() =>
+	WORLDS.filter((w) => !w.exclusive || isItemOwned(w.id)),
+);
 
 const selectionLocked = computed(() => !isItemOwned(localSelection.value));
 const selectionName = computed(

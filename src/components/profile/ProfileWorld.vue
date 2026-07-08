@@ -269,6 +269,61 @@
                       class="w-full h-full lottie-strict-bounds drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]" />
       </div>
     </div>
+
+    <!-- ── GRATITUDE (OG-exclusive) ─────────────────────────────────────
+         Ambient card decoration (not an opaque scene): a soft accent glow lets
+         the theme background show through, hearts drift up, and the SketchMate
+         logo sits big on the right — masked so it takes the THEME ACCENT — with
+         a personal thank-you to the founder on the left. All tinted with
+         --world-accent so it reads on light & dark themes alike. -->
+    <!-- Unlike the ambient full-bleed worlds, gratitude has ANCHORED content
+         (text + logo), so it can't stretch to its host. In the card the host is
+         ~card-sized; in UserContextSheet it's the whole ~full-screen sheet, which
+         would fling the text to mid-scroll and blow the cqw fonts up. So we pin a
+         fixed-size STAGE to the top-centre (like the card doodle's capped header
+         box) and make THAT the query container — identical placement everywhere. -->
+    <div
+      v-else-if="def.kind === 'gratitude'"
+      class="absolute inset-0 gratitude-frame"
+      :style="{ '--world-accent': accent }"
+    >
+      <div class="gratitude">
+        <!-- Big logo on the RIGHT, recoloured to the theme accent via mask. -->
+        <div
+          class="absolute right-[5%] top-8/12 w-[25%] -translate-y-1/2 aspect-square gratitude-logo animate-logo-bob"
+          :style="{
+            '-webkit-mask-image': `url(${logo})`,
+            'mask-image': `url(${logo})`,
+          }"
+        ></div>
+        <!-- ↑ width/right also tuned per card-width in the @container rules below. -->
+
+        <!-- Hearts drifting up between the text and the logo. -->
+        <span
+          v-for="h in hearts"
+          :key="'gh' + h.id"
+          class="absolute gratitude-heart animate-heart-float"
+          :style="{
+            left: h.left,
+            bottom: h.bottom,
+            fontSize: h.size,
+            animationDelay: h.delay,
+            animationDuration: h.duration,
+            '--target-opacity': h.opacity,
+          }"
+          >♥</span
+        >
+
+        <div
+          class="absolute left-[2%] top-[45%] -translate-y-1/2 w-[54%] gratitude-text"
+          :style="{ fontFamily: font }"
+        >
+          <p class="gratitude-lead">To you, an OG early tester.</p>
+          <p class="gratitude-thanks">Thank you,<br />eternally.</p>
+          <p class="gratitude-sign">— SketchMate Big Boss</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -283,6 +338,8 @@ import catLottie from "@/assets/lottie/avatar/cat.lottie";
 import plantLottie from "@/assets/lottie/avatar/plant.lottie";
 import mushroom_walking from "@/assets/lottie/avatar/mushroom.lottie";
 import autumn_leaves from "@/assets/lottie/avatar/autumn_leaves.lottie";
+
+import logo from "@/assets/logo.webp";
 
 import meteor from "@/assets/lottie/avatar/meteor.lottie";
 import astronaut from "@/assets/lottie/avatar/astronaut.lottie";
@@ -301,6 +358,9 @@ const props = withDefaults(
 		previewScale?: number;
 		/** Current theme accent — tints the space world's sky. */
 		accent?: string;
+		/** Selected profile font — applied to gratitude's thank-you text, which
+		    lives in this layer (outside the card's fontFamily wrapper). */
+		font?: string;
 	}>(),
 	{ preview: false, previewScale: 0.5, accent: "#7c5cff" },
 );
@@ -460,6 +520,24 @@ const constellationNodes = [
 	{ x: 70, y: 20, r: 2.8 },
 	{ x: 90, y: 44, r: 1.8 },
 ];
+
+// Hearts drifting up the card. Seeded so the layout is stable across renders;
+// capped hard in preview tiles like the rest of the worlds.
+const hearts = computed(() =>
+	cap(
+		Array.from({ length: 9 }, (_, i) => ({
+			id: i,
+			left: `${8 + seededRandom(i * 31) * 78}%`,
+			bottom: `${seededRandom(i * 17) * 70}%`,
+			size: `${Math.floor(seededRandom(i * 23) * 12) + 12}px`,
+			delay: `-${seededRandom(i * 7) * 9}s`,
+			duration: `${Math.floor(seededRandom(i * 5) * 6) + 9}s`,
+			opacity: seededRandom(i * 11) * 0.35 + 0.2,
+		})),
+		9,
+		4,
+	),
+);
 
 // Meteor shower: big, slow diagonal streaks. The lottie itself falls
 // up-left→down-right; the container adds a slow drift in the same direction and
@@ -721,6 +799,129 @@ const meteors = computed(() =>
 .animate-meteor-streak { animation: meteor-streak linear infinite; }
 .animate-rocket-fly { animation: rocket-fly 34s linear infinite; }
 .animate-astronaut-wander { animation: astronaut-wander 26s ease-in-out infinite; }
+
+/* ── Gratitude / Constellation ── */
+/* The logo, recoloured to the theme accent via mask (its own fill is
+   discarded — only the shape remains, filled with an accent gradient). */
+.gratitude-logo {
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--world-accent, #7c5cff) 78%, #fff) 0%,
+    var(--world-accent, #7c5cff) 55%,
+    color-mix(in srgb, var(--world-accent, #7c5cff) 70%, #000) 100%
+  );
+  opacity: 0.9;
+  filter: drop-shadow(0 4px 14px color-mix(in srgb, var(--world-accent, #7c5cff) 45%, transparent));
+}
+
+/* Drifting hearts, accent-coloured so they read on any theme. */
+.gratitude-heart {
+  color: var(--world-accent, #7c5cff);
+  line-height: 1;
+  opacity: 0;
+  text-shadow: 0 1px 6px color-mix(in srgb, var(--world-accent, #7c5cff) 45%, transparent);
+  will-change: transform, opacity;
+}
+
+/* Fixed stage for the anchored gratitude content. Pinned top-centre with a
+   capped width + fixed aspect, so it lands in the same spot at the same scale
+   whether the host is a card or the full-height UserContextSheet (mirrors the
+   card doodle's capped header box). It's also the query container, so the cqw
+   fonts size to THIS stage, not the host. */
+.gratitude-frame {
+  overflow: hidden;
+}
+.gratitude {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 440px;
+  aspect-ratio: 4 / 3;
+  container-type: inline-size;
+}
+
+/* Thank-you text — accent-coloured with a soft glow so it holds on either
+   theme without needing the full theme palette passed in. Font sizes are
+   fluid (cqw = 1% of card width) with clamped floors/ceilings, so they stay
+   readable on a tiny phone and don't balloon on a big card. */
+.gratitude-text {
+  color: var(--world-accent, #7c5cff);
+  text-align: left;
+  text-shadow: 0 1px 6px color-mix(in srgb, var(--world-accent, #7c5cff) 40%, transparent);
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+.gratitude-lead {
+  font-size: clamp(0.5rem, 3.9cqw, 0.5rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  opacity: 0.8;
+  margin-bottom: 0.35rem;
+}
+.gratitude-thanks {
+  font-size: clamp(0.95rem, 8.4cqw, 1.4rem);
+  font-weight: 900;
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+}
+.gratitude-sign {
+  font-size: clamp(0.5rem, 3.6cqw, 0.45rem);
+  font-weight: 700;
+  font-style: italic;
+  opacity: 0.75;
+  margin-top: 0.5rem;
+}
+
+/* On narrow cards the fixed 54% text box + 25% logo leaves the words no room,
+   so give the text more width and pull the logo smaller/further out as the card
+   shrinks. Selectors are card-scoped (.gratitude …) so they beat the inline
+   Tailwind width utilities. Container units, so this tracks CARD width. */
+@container (max-width: 360px) {
+  .gratitude .gratitude-text { width: 60%; }
+  .gratitude .gratitude-logo { width: 22%; right: 7%; }
+}
+@container (max-width: 300px) {
+  .gratitude .gratitude-text { width: 66%; }
+  .gratitude .gratitude-logo { width: 18%; right: 5%; opacity: 0.75; }
+  .gratitude-thanks { letter-spacing: -0.01em; }
+}
+
+/* Gentle in-place bob for the logo. */
+@keyframes logo-bob {
+  0%, 100% { transform: translateY(-50%) rotate(-2deg); }
+  50% { transform: translateY(calc(-50% - 8px)) rotate(2deg); }
+}
+.animate-logo-bob {
+  animation: logo-bob 8s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Hearts rise, sway, and fade — a soft rising affection. */
+@keyframes heart-float {
+  0% { transform: translateY(0) scale(0.8) rotate(-6deg); opacity: 0; }
+  20%, 75% { opacity: var(--target-opacity, 0.4); }
+  100% { transform: translateY(-140px) scale(1.05) rotate(8deg); opacity: 0; }
+}
+.animate-heart-float {
+  animation: heart-float linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-logo-bob { animation: none; }
+  .animate-heart-float {
+    animation: none;
+    opacity: var(--target-opacity, 0.4);
+  }
+}
 
 .lottie-strict-bounds :deep(canvas), .lottie-strict-bounds :deep(svg) {
   width: 100% !important;

@@ -15,7 +15,7 @@
       <div
         v-for="title in TITLES"
         :key="title.id"
-        class="group relative flex items-center gap-4 p-4 rounded-[2rem] border transition-all duration-300 active:scale-[0.97]"
+        class="group relative flex items-center cursor-pointer gap-4 p-4 rounded-[2rem] border transition-all duration-300 active:scale-[0.97]"
         :class="[
           localSelection === title.id
             ? 'bg-white border-secondary shadow-md'
@@ -77,56 +77,56 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { IonButton, IonIcon } from '@ionic/vue'
-import { mdiCheck, mdiLockOutline } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { TITLES, type Title } from '@/config/profile_options.config'
-import { buildItemId } from '@/config/catalog.config'
-import { useInventoryStore } from '@/store/inventory.store'
-import { useToast } from '@/service/toast.service'
-import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
+import { ref, watch } from "vue";
+import { IonButton, IonIcon } from "@ionic/vue";
+import { mdiCheck, mdiLockOutline } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { TITLES, type Title } from "@/config/profile_options.config";
+import { buildItemId } from "@/config/catalog.config";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useToast } from "@/service/toast.service";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 
 const props = defineProps<{
-  isOpen: boolean;
-  currentTitleId: string;
-}>()
+	isOpen: boolean;
+	currentTitleId: string;
+}>();
 
-const emit = defineEmits(['close', 'select'])
+const emit = defineEmits(["close", "select"]);
 
-const inventoryStore = useInventoryStore()
-const { toast } = useToast()
+const inventoryStore = useInventoryStore();
+const { toast } = useToast();
 
-const localSelection = ref(props.currentTitleId)
+const localSelection = ref(props.currentTitleId);
 
 // "None" (id: '') is always available; everything else needs the inventory item.
 const isUnlocked = (id: string): boolean =>
-  !id || inventoryStore.isOwned(buildItemId('title', id))
+	!id || inventoryStore.isOwned(buildItemId("title", id));
 
 watch(
-  () => props.isOpen,
-  (open) => {
-    if (open) localSelection.value = props.currentTitleId
-  }
-)
+	() => props.isOpen,
+	(open) => {
+		if (open) localSelection.value = props.currentTitleId;
+	},
+);
 
 const onTap = (title: Title) => {
-  if (!isUnlocked(title.id)) {
-    toast(title.howTo, { color: 'secondary' })
-    return
-  }
-  localSelection.value = localSelection.value === title.id ? '' : title.id
-}
+	if (!isUnlocked(title.id)) {
+		toast(title.howTo, { color: "secondary" });
+		return;
+	}
+	localSelection.value = localSelection.value === title.id ? "" : title.id;
+};
 
 const confirmSelection = () => {
-  if (!isUnlocked(localSelection.value)) return
-  emit('select', localSelection.value)
-  emit('close')
-}
+	if (!isUnlocked(localSelection.value)) return;
+	emit("select", localSelection.value);
+	emit("close");
+};
 
 const handleDismiss = () => {
-  emit('close')
-}
+	emit("close");
+};
 </script>
 
 <style scoped></style>

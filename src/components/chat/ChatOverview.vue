@@ -80,23 +80,23 @@
         </div>
 
         <div v-else-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby">
-          <p class="px-1 mb-3 text-[13px] text-black/55 leading-snug">
-            No conversations yet — pick a way to start drawing with someone.
+          <p class="px-1 mb-3 text-[13px] text-black/75 cabin-sketch-regular">
+            No conversations yet, pick a way to start drawing with someone.
           </p>
 
           <div class="space-y-2">
             <button
               v-for="cta in emptyCtas"
               :key="cta.label"
-              class="w-full flex items-center gap-3 bg-white border border-primary/30 rounded-[1.6rem] p-3 shadow-sm active:scale-[0.98] md:hover:border-primary transition-all text-left"
+              class="w-full flex items-center cursor-pointer gap-3 bg-white border border-primary/30 rounded-[1.6rem] p-3 shadow-sm active:scale-[0.98] md:hover:border-primary transition-all text-left"
               @click="cta.action"
             >
               <span class="w-11 h-11 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
                 <ion-icon :icon="svg(cta.icon)" class="text-xl text-secondary" />
               </span>
               <span class="min-w-0 flex-1">
-                <span class="block text-[14px] font-black text-black leading-tight tracking-tight">{{ cta.label }}</span>
-                <span class="block text-[12px] text-black/55 leading-tight mt-0.5">{{ cta.sub }}</span>
+                <span class="block text-[14px] font-black text-black cabin-sketch-regular leading-tight tracking-tight">{{ cta.label }}</span>
+                <span class="block text-[12px] text-black/75 cabin-sketch-regular leading-tight mt-0.5">{{ cta.sub }}</span>
               </span>
               <ion-icon :icon="svg(mdiChevronRight)" class="text-lg text-black/25 shrink-0" />
             </button>
@@ -231,7 +231,9 @@ const invitesExpanded = ref(false);
 const inviteCount = computed(
 	() => fauxInvitations.value.length + actionableChats.value.length,
 );
-const showInvites = computed(() => invitesExpanded.value || inviteCount.value <= 2);
+const showInvites = computed(
+	() => invitesExpanded.value || inviteCount.value <= 2,
+);
 const showLoadingState = computed(
 	() =>
 		!chatsHydrated.value &&

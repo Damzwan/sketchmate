@@ -50,6 +50,19 @@
             class="absolute inset-0 z-0"
           />
 
+          <button
+            v-if="allowSketchEdit"
+            type="button"
+            @click="$emit('edit-sketch')"
+            class="absolute top-0 right-0 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full cursor-pointer hover:scale-105 active:scale-90 transition-all bg-white/40 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/60"
+            aria-label="Edit card doodle"
+          >
+            <ion-icon :icon="svg(mdiBrush)" class="w-4 h-4" :style="{ color: theme.accentColor }" />
+            <span class="text-[10px] font-black uppercase tracking-widest" :style="{ color: theme.nameColor }">
+              Doodle
+            </span>
+          </button>
+
           <div class="relative z-30 mb-6">
             <UserAvatar
               :user="user"
@@ -134,10 +147,23 @@
         </div>
 
         <div
-          v-if="effectiveCustomization.signaturePath"
-          class="w-full mt-6 pt-4 border-t flex flex-col items-center transition-colors duration-500"
+          v-if="effectiveCustomization.signaturePath || allowSketchEdit"
+          class="w-full mt-6 pt-4 border-t flex flex-col items-center transition-colors duration-500 relative"
           :style="{ borderColor: theme.cardBorderColor }"
         >
+          <button
+            v-if="allowSketchEdit"
+            type="button"
+            @click="$emit('edit-signature')"
+            class="absolute top-3 right-0 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full cursor-pointer hover:scale-105 active:scale-90 transition-all bg-white/40 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/60"
+            aria-label="Edit signature"
+          >
+            <ion-icon :icon="svg(mdiDraw)" class="w-4 h-4" :style="{ color: theme.accentColor }" />
+            <span class="text-[10px] font-black uppercase tracking-widest" :style="{ color: theme.nameColor }">
+              Sign
+            </span>
+          </button>
+
           <span
             class="text-[14px] font-bold uppercase tracking-widest mb-1 transition-colors duration-500"
             :style="{ color: theme.descColor }"
@@ -145,6 +171,7 @@
             — Signed —
           </span>
           <svg
+            v-if="effectiveCustomization.signaturePath"
             class="w-32 h-12 drop-shadow-sm transition-colors duration-500"
             :viewBox="effectiveCustomization.signatureViewBox || '0 0 300 150'"
             preserveAspectRatio="xMidYMid meet"
@@ -158,6 +185,13 @@
               stroke-linejoin="round"
             />
           </svg>
+          <span
+            v-else
+            class="text-xs font-bold italic transition-colors duration-500"
+            :style="{ color: theme.descColor }"
+          >
+            Tap to add your signature
+          </span>
         </div>
 
       </div>
@@ -168,7 +202,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiAccountPlusOutline, mdiCog, mdiPalette } from "@mdi/js";
+import { mdiAccountPlusOutline, mdiBrush, mdiCog, mdiDraw, mdiPalette } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
@@ -192,11 +226,13 @@ const props = withDefaults(
 		customization?: Partial<Customization>;
 		isOwnProfile?: boolean;
 		isPreview?: boolean;
+		allowSketchEdit?: boolean;
 		worldRemountKey?: number | string;
 	}>(),
 	{
 		isOwnProfile: false,
 		isPreview: false,
+		allowSketchEdit: false,
 		worldRemountKey: 0,
 	},
 );
@@ -208,6 +244,8 @@ defineEmits([
 	"open-connection",
 	"add-friend",
 	"message",
+	"edit-sketch",
+	"edit-signature",
 ]);
 
 const doodleZoneRef = ref<HTMLElement | null>(null);

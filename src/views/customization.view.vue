@@ -14,6 +14,7 @@
               :is-preview="true"
               :allow-sketch-edit="true"
               @edit-sketch="sketchModalOpen = true"
+              @edit-signature="signatureModalOpen = true"
             />
           </div>
         </section>

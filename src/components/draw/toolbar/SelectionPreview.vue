@@ -50,7 +50,7 @@
       </div>
 
       <ion-button color="secondary" shape="round" @click.stop="shareSelection">
-        <ion-icon :icon="svg(mdiShareVariant)" slot="start" />
+        <ion-icon :icon="svg(mdiShareVariant)" class="mr-2" slot="start" />
         Share
       </ion-button>
     </div>
@@ -58,90 +58,96 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { IonIcon, IonButton } from '@ionic/vue'
-import { mdiShareVariant, mdiClose } from '@mdi/js'
-import { useSelect } from '@/draw/store/tools/select.store'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { bakeThumbnail } from '@/draw/transform/transformController'
-import { shareImg } from '@/helper/share.helper'
-import { svg } from '@/helper/general.helper'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { storeToRefs } from "pinia";
+import { IonIcon, IonButton } from "@ionic/vue";
+import { mdiShareVariant, mdiClose } from "@mdi/js";
+import { useSelect } from "@/draw/store/tools/select.store";
+import { useDrawStore } from "@/draw/store/draw.store";
+import { bakeThumbnail } from "@/draw/transform/transformController";
+import { shareImg } from "@/helper/share.helper";
+import { svg } from "@/helper/general.helper";
 
-const BOX = 52 // tooldock thumbnail px — kept small on purpose
+const BOX = 52; // tooldock thumbnail px — kept small on purpose
 
-const { selectedObjectsRef } = storeToRefs(useSelect())
-const { getCanvas } = useDrawStore()
+const { selectedObjectsRef } = storeToRefs(useSelect());
+const { getCanvas } = useDrawStore();
 
-const thumb = ref<HTMLCanvasElement | null>(null)
-const big = ref<HTMLCanvasElement | null>(null)
-const bigOpen = ref(false)
-const bgColor = ref('#ffffff')
+const thumb = ref<HTMLCanvasElement | null>(null);
+const big = ref<HTMLCanvasElement | null>(null);
+const bigOpen = ref(false);
+const bgColor = ref("#ffffff");
 
 function canvasBg(): string {
-  return (getCanvas()?.backgroundColor as string) || '#ffffff'
+	return (getCanvas()?.backgroundColor as string) || "#ffffff";
 }
 
-const count = computed(() => selectedObjectsRef.value.length)
-const hasSelection = computed(() => count.value > 0)
+const count = computed(() => selectedObjectsRef.value.length);
+const hasSelection = computed(() => count.value > 0);
 
 function paint(canvasEl: HTMLCanvasElement | null, maxPx: number) {
-  if (!canvasEl) return
-  const c = getCanvas()
-  if (!c) return
-  const res = bakeThumbnail(c, maxPx, selectedObjectsRef.value)
-  const ctx = canvasEl.getContext('2d')
-  if (!ctx) return
-  if (!res) {
-    canvasEl.width = canvasEl.height = 0
-    return
-  }
-  canvasEl.width = res.bitmap.width
-  canvasEl.height = res.bitmap.height
-  // Keep aspect on the big preview; the small thumb fills its square box.
-  if (canvasEl === big.value) canvasEl.style.aspectRatio = `${res.cssW} / ${res.cssH}`
-  ctx.clearRect(0, 0, canvasEl.width, canvasEl.height)
-  // Paint the canvas background behind the selection so it reads like a real
-  // crop of the drawing, not floating on plain white.
-  ctx.fillStyle = canvasBg()
-  ctx.fillRect(0, 0, canvasEl.width, canvasEl.height)
-  ctx.drawImage(res.bitmap, 0, 0)
-  res.bitmap.close()
+	if (!canvasEl) return;
+	const c = getCanvas();
+	if (!c) return;
+	const res = bakeThumbnail(c, maxPx, selectedObjectsRef.value);
+	const ctx = canvasEl.getContext("2d");
+	if (!ctx) return;
+	if (!res) {
+		canvasEl.width = canvasEl.height = 0;
+		return;
+	}
+	canvasEl.width = res.bitmap.width;
+	canvasEl.height = res.bitmap.height;
+	// Keep aspect on the big preview; the small thumb fills its square box.
+	if (canvasEl === big.value)
+		canvasEl.style.aspectRatio = `${res.cssW} / ${res.cssH}`;
+	ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+	// Paint the canvas background behind the selection so it reads like a real
+	// crop of the drawing, not floating on plain white.
+	ctx.fillStyle = canvasBg();
+	ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
+	ctx.drawImage(res.bitmap, 0, 0);
+	res.bitmap.close();
 }
 
 async function refreshThumb() {
-  if (!hasSelection.value) return
-  await nextTick()
-  paint(thumb.value, 128)
+	if (!hasSelection.value) return;
+	await nextTick();
+	paint(thumb.value, 128);
 }
 
 async function openBig() {
-  bgColor.value = canvasBg()
-  bigOpen.value = true
-  await nextTick()
-  paint(big.value, 1024)
+	bgColor.value = canvasBg();
+	bigOpen.value = true;
+	await nextTick();
+	paint(big.value, 1024);
 }
 
 async function shareSelection() {
-  const c = getCanvas()
-  if (!c) return
-  const res = bakeThumbnail(c, 2048, selectedObjectsRef.value)
-  if (!res) return
-  // Close the overlay first — else the copy/share toast renders beneath it.
-  bigOpen.value = false
-  // Composite onto white so a transparent selection isn't exported as
-  // black-on-transparent on platforms that flatten alpha.
-  const cv = document.createElement('canvas')
-  cv.width = res.bitmap.width
-  cv.height = res.bitmap.height
-  const ctx = cv.getContext('2d')
-  if (ctx) ctx.fillStyle = canvasBg()
-  ctx?.fillRect(0, 0, cv.width, cv.height)
-  ctx?.drawImage(res.bitmap, 0, 0)
-  res.bitmap.close()
-  await shareImg(cv.toDataURL('image/png'), undefined, undefined, 'Share selection')
+	const c = getCanvas();
+	if (!c) return;
+	const res = bakeThumbnail(c, 2048, selectedObjectsRef.value);
+	if (!res) return;
+	// Close the overlay first — else the copy/share toast renders beneath it.
+	bigOpen.value = false;
+	// Composite onto white so a transparent selection isn't exported as
+	// black-on-transparent on platforms that flatten alpha.
+	const cv = document.createElement("canvas");
+	cv.width = res.bitmap.width;
+	cv.height = res.bitmap.height;
+	const ctx = cv.getContext("2d");
+	if (ctx) ctx.fillStyle = canvasBg();
+	ctx?.fillRect(0, 0, cv.width, cv.height);
+	ctx?.drawImage(res.bitmap, 0, 0);
+	res.bitmap.close();
+	await shareImg(
+		cv.toDataURL("image/png"),
+		undefined,
+		undefined,
+		"Share selection",
+	);
 }
 
-watch(selectedObjectsRef, refreshThumb, { immediate: true, deep: false })
-onBeforeUnmount(() => (bigOpen.value = false))
+watch(selectedObjectsRef, refreshThumb, { immediate: true, deep: false });
+onBeforeUnmount(() => (bigOpen.value = false));
 </script>

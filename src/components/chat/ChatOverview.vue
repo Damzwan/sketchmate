@@ -2,9 +2,7 @@
   <div class="flex flex-col h-full overflow-visible">
     <ChatFriendPicker
       v-if="isCreatingChat"
-      :friends="friendStore.networkLists.mates"
       :min-chat-version="MIN_CHAT_VERSION"
-      :is-friend-online="isFriendOnline"
       @cancel="isCreatingChat = false"
       @select-friend="startChatWithFriend"
     />

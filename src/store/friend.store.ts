@@ -194,12 +194,23 @@ export const useFriendStore = defineStore("friend", () => {
 		}
 	}
 
+	// Monotonic token per list type. A new request bumps the token; when an
+	// in-flight response resolves it is dropped unless it is still the latest.
+	// Kills races where a stale page (e.g. page 2 of a previous search term)
+	// lands after a fresh page-1 reset and pollutes the list.
+	const networkRequestToken: Record<string, number> = {
+		mates: 0,
+		following: 0,
+		followers: 0,
+	};
+
 	async function getNetworkList(
 		type: "mates" | "following" | "followers",
 		userId: string,
 		page = 1,
 		search = "",
 	) {
+		const token = ++networkRequestToken[type];
 		if (page === 1) networkLoading.value = true;
 		try {
 			// API now returns an object shape: { total: number, data: any[] }
@@ -211,6 +222,9 @@ export const useFriendStore = defineStore("friend", () => {
 					relationship_id?: string;
 				})[];
 			} = await fetchNetworkType(userId, type, { page, search, limit: 20 });
+
+			// Stale response — a newer request superseded this one. Drop it.
+			if (token !== networkRequestToken[type]) return;
 
 			const records = res.data || [];
 			const totalCount = res.total || 0;
@@ -229,23 +243,38 @@ export const useFriendStore = defineStore("friend", () => {
 				relationship_id: u.relationship_id,
 			}));
 
+			const before = networkLists.value[type].length;
 			if (page === 1) {
 				networkLists.value[type] = entries;
 			} else {
-				networkLists.value[type].push(...entries);
+				// Dedupe on append — guards against overlapping page fetches
+				// adding the same relationship twice.
+				const seen = new Set(networkLists.value[type].map((e) => e._id));
+				networkLists.value[type].push(
+					...entries.filter((e) => !seen.has(e._id)),
+				);
 			}
 
-			// Evaluate more matches using the absolute total count threshold criteria
-			hasMore.value = networkLists.value[type].length < totalCount;
+			// Stop paging when the list is complete OR a page made no progress
+			// (empty page / all duplicates). The progress guard means we can
+			// never loop forever even if `totalCount` never becomes reachable
+			// (e.g. relationships whose target user was deleted).
+			const added =
+				page === 1
+					? networkLists.value[type].length
+					: networkLists.value[type].length - before;
+			hasMore.value =
+				added > 0 && networkLists.value[type].length < totalCount;
 		} catch (e) {
 			console.error(`Failed to fetch ${type}`, e);
+			if (token !== networkRequestToken[type]) return;
 			hasMore.value = false;
 			if (page === 1) {
 				networkLists.value[type] = [];
 				totalCounts.value[type] = 0;
 			}
 		} finally {
-			networkLoading.value = false;
+			if (token === networkRequestToken[type]) networkLoading.value = false;
 		}
 	}
 	async function fetchBlockedUsers() {

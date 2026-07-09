@@ -25,20 +25,49 @@
       <ion-icon :icon="svg(mdiChevronRight)" class="ml-auto shrink-0 text-secondary text-lg transition-transform group-hover:translate-x-0.5" />
     </button>
 
-    <!-- Loading state — only show on first ever load -->
-    <div v-if="loading && friends.length === 0" class="flex items-center justify-center py-12">
+    <!-- Search -->
+    <div class="relative">
+      <ion-icon :icon="svg(mdiMagnify)" class="absolute left-3.5 top-1/2 -translate-y-1/2 text-black/40 text-lg pointer-events-none" />
+      <input
+        v-model="searchQuery"
+        @input="handleSearch"
+        type="text"
+        placeholder="Search mates (min. 3 chars)..."
+        class="w-full bg-white border border-primary/30 rounded-2xl py-2.5 pl-11 pr-10 text-sm font-bold text-black focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
+      />
+      <button
+        v-if="searchQuery"
+        @click="clearSearch"
+        class="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-black/10 text-black/50 active:scale-90 transition-transform"
+      >
+        <ion-icon :icon="svg(mdiClose)" class="text-sm" />
+      </button>
+    </div>
+
+    <!-- Loading state — only show on first page load -->
+    <div v-if="networkLoading && currentPage === 1" class="flex items-center justify-center py-12">
       <ion-spinner name="bubbles" color="secondary" />
+    </div>
+
+    <!-- Query too short hint -->
+    <div
+      v-else-if="isQueryTooShort"
+      class="text-center py-10 bg-white rounded-[2rem] border border-dashed border-amber-400/50"
+    >
+      <p class="cabin-sketch-regular text-base text-amber-700">Type at least 3 characters to search...</p>
     </div>
 
     <!-- Empty state -->
     <div
-      v-else-if="friends.length === 0"
+      v-else-if="sortedFriends.length === 0"
       class="text-center py-10 bg-white rounded-[2rem] border border-dashed border-primary/40"
     >
-      <p class="cabin-sketch-regular text-base text-black/60">No mates yet. Add a friend above!</p>
+      <p class="cabin-sketch-regular text-base text-black/60">
+        {{ searchQuery.trim() ? 'No mates match your search.' : 'No mates yet. Add a friend above!' }}
+      </p>
     </div>
 
-    <div v-else class="flex flex-col gap-2">
+    <div v-else class="flex flex-col gap-2.5">
       <p class="text-[9px] font-black text-black/70 uppercase px-1 tracking-widest">
         Your Mates
       </p>
@@ -48,51 +77,74 @@
         :key="friend._id"
         @click="!isDisabled(friend) && $emit('select-friend', friend)"
         :disabled="isDisabled(friend)"
-        class="group relative w-full flex items-center gap-3 p-3 rounded-[1.6rem] border transition-all cursor-pointer overflow-hidden active:scale-[0.98] text-left"
+        class="group flex items-center p-3 rounded-[1.5rem] border transition-all cursor-pointer text-left w-full"
         :class="[
           isDisabled(friend)
             ? 'bg-black/5 border-black/5 opacity-60 grayscale'
-            : 'bg-white border-primary/30 shadow-sm hover:border-primary'
+            : 'bg-white/50 border-black/10 shadow-sm hover:border-secondary/20'
         ]"
       >
-        <div class="relative shrink-0 flex items-center justify-center">
+        <div class="relative shrink-0 flex items-center justify-center select-none">
           <UserAvatar
             :user="friend"
-            :customization="friend.customization"
+            :customization="hydrateCustomization(friend.customization)"
             size="sm"
+            static
           />
           <div
             v-if="isFriendOnline(friend._id) && !isDisabled(friend)"
-            class="absolute -bottom-0.5 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white z-20"
+            class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white shadow-sm z-10"
           ></div>
         </div>
 
-        <div class="flex flex-col flex-1 min-w-0">
-          <span class="text-[14px] leading-none font-black truncate tracking-tight text-black">
+        <div class="ml-3.5 flex-1 min-w-0">
+          <p class="font-black text-black text-base tracking-tight truncate">
             {{ friend.name }}
-          </span>
-          <p class="text-[12px] truncate cabin-sketch-regular tracking-wide pr-2 mt-1 leading-none" :class="isDisabled(friend) ? 'font-bold text-red-500' : 'text-black/60'">
+          </p>
+          <p
+            class="text-[11px] font-bold italic truncate mt-0.5"
+            :class="isDisabled(friend) ? 'text-red-500' : isFriendOnline(friend._id) ? 'text-emerald-600' : 'text-black/60'"
+          >
             <span v-if="isDisabled(friend)">Needs update to chat</span>
-            <span v-else-if="isFriendOnline(friend._id)" class="text-green-600">Online now</span>
+            <span v-else-if="isFriendOnline(friend._id)">Online now</span>
             <span v-else>Offline</span>
           </p>
         </div>
+
+        <ion-icon
+          v-if="!isDisabled(friend)"
+          :icon="svg(mdiChevronRight)"
+          class="text-black/30 group-hover:text-secondary transition-colors text-base ml-1 shrink-0"
+        />
       </button>
+
+      <!-- Infinite-scroll sentinel -->
+      <div ref="sentinel" class="h-1 w-full shrink-0"></div>
+      <div v-if="loadingMore" class="flex items-center justify-center py-3">
+        <ion-spinner name="dots" color="secondary" />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { IonSpinner, IonIcon } from "@ionic/vue";
-import { mdiAccountPlusOutline, mdiChevronRight } from "@mdi/js";
+import {
+	mdiAccountPlusOutline,
+	mdiChevronRight,
+	mdiClose,
+	mdiMagnify,
+} from "@mdi/js";
 import { compareVersions, svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
+import { useUserCacheStore } from "@/store/userCache.store";
 import { useMenuStore } from "@/store/menu.store";
+import { hydrateCustomization } from "@/config/profile_options.config";
 import { Menu } from "@/draw/types/draw.types";
 
 const props = defineProps<{
@@ -103,40 +155,40 @@ defineEmits(["cancel", "select-friend"]);
 
 const authStore = useAuthStore();
 const friendStore = useFriendStore();
+const userCache = useUserCacheStore();
 const menuStore = useMenuStore();
-const { allConnectedPartners, isFriendOnline } = storeToRefs(friendStore);
+const { networkLists, networkLoading, hasMore, isFriendOnline } =
+	storeToRefs(friendStore);
 
 const openConnectionMenu = () => menuStore.openMenu(Menu.ConnectionMenu);
 
-const loading = ref(false);
+const searchQuery = ref("");
+const currentPage = ref(1);
+const loadingMore = ref(false);
+let debounceTimeout: any = null;
 
-// Module-level flag so we only do the one-time mates fetch once per session.
-// If the user closes and reopens the picker, no re-fetch.
-let matesFetchedThisSession = false;
-
-/**
- * On first mount, top up the mates list if we haven't already.
- * After that, the cache + chat list keeps things current.
- */
-onMounted(async () => {
-	if (matesFetchedThisSession || !authStore.user?._id) return;
-	matesFetchedThisSession = true;
-
-	// Only show loading spinner if we have nothing to show yet —
-	// if `allConnectedPartners` already has data from chats, render
-	// immediately and refresh in the background
-	if (allConnectedPartners.value.length === 0) loading.value = true;
-
-	try {
-		await friendStore.getNetworkList("mates", authStore.user._id, 1);
-	} catch (e) {
-		console.error("Failed to load mates:", e);
-	} finally {
-		loading.value = false;
-	}
+const isQueryTooShort = computed(() => {
+	const q = searchQuery.value.trim();
+	return q.length > 0 && q.length < 3;
 });
 
-const friends = computed(() => allConnectedPartners.value);
+// Hydrate the relationship entries with cached profile data (name, avatar,
+// customization, last_seen_version) — mirrors network.view.
+const friends = computed(() => {
+	if (isQueryTooShort.value) return [];
+	return networkLists.value.mates.map((entry) => {
+		const cached = userCache.getUser(entry._id);
+		return {
+			...(cached || {
+				_id: entry._id,
+				name: "Artist",
+				img: "",
+				customization: undefined,
+			}),
+			...entry,
+		} as any;
+	});
+});
 
 const isDisabled = (friend: any) => {
 	return (
@@ -157,5 +209,91 @@ const sortedFriends = computed(() => {
 
 		return a.name.localeCompare(b.name);
 	});
+});
+
+async function fetchData(reset = false) {
+	if (!authStore.user?._id) return;
+	if (reset) currentPage.value = 1;
+
+	const term = searchQuery.value.trim();
+	if (term.length > 0 && term.length < 3) return;
+
+	try {
+		await friendStore.getNetworkList(
+			"mates",
+			authStore.user._id,
+			currentPage.value,
+			term,
+		);
+	} catch (e) {
+		console.error("Failed to load mates:", e);
+	}
+}
+
+function handleSearch() {
+	clearTimeout(debounceTimeout);
+	const term = searchQuery.value.trim();
+	if (term.length === 0) {
+		fetchData(true);
+		return;
+	}
+	debounceTimeout = setTimeout(() => fetchData(true), 400);
+}
+
+function clearSearch() {
+	searchQuery.value = "";
+	clearTimeout(debounceTimeout);
+	fetchData(true);
+}
+
+async function loadMore() {
+	// `networkLoading` only tracks page 1 in the store, so guard page>1
+	// fetches with a local flag — otherwise the observer fires repeatedly
+	// and stacks duplicate pages.
+	if (
+		!hasMore.value ||
+		loadingMore.value ||
+		networkLoading.value ||
+		isQueryTooShort.value
+	)
+		return;
+	loadingMore.value = true;
+	currentPage.value++;
+	try {
+		await fetchData();
+	} finally {
+		loadingMore.value = false;
+	}
+}
+
+// Infinite scroll via IntersectionObserver against the viewport — the picker
+// flows inside the chat widget's own scroll container (no ion-content), so a
+// nested scroll area would clip/shrink the list.
+const sentinel = ref<HTMLElement | null>(null);
+let observer: IntersectionObserver | null = null;
+
+function attachObserver() {
+	observer?.disconnect();
+	if (!sentinel.value) return;
+	observer = new IntersectionObserver(
+		(entries) => {
+			if (entries[0]?.isIntersecting) loadMore();
+		},
+		{ threshold: 0.1 },
+	);
+	observer.observe(sentinel.value);
+}
+
+// Re-attach whenever the sentinel remounts (list toggles between states).
+watch(sentinel, () => attachObserver());
+
+onMounted(() => {
+	fetchData(true);
+	attachObserver();
+});
+
+onBeforeUnmount(() => {
+	observer?.disconnect();
+	clearTimeout(debounceTimeout);
 });
 </script>

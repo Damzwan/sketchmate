@@ -1,5 +1,5 @@
 <template>
-  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
+  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" previewable @purchase="$emit('purchase')" @preview="$emit('preview')">
     <template #preview>
       <div class="h-28 flex items-center justify-center px-3 border-b border-primary/30 bg-[#FFF9F2] select-none overflow-hidden">
         <span
@@ -24,6 +24,6 @@ const props = defineProps<{
 	owned: boolean;
 	highlight?: boolean;
 }>();
-defineEmits(["purchase"]);
+defineEmits(["purchase", "preview"]);
 const effectClass = computed(() => resolveFontEffectClass(props.sku.refId));
 </script>

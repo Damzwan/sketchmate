@@ -1,5 +1,5 @@
 <template>
-  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
+  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" previewable @purchase="$emit('purchase')" @preview="$emit('preview')">
     <template #preview>
       <div class="h-28 relative overflow-hidden border-b border-primary/30 world-stage">
         <ProfileWorld v-if="worldDef" :def="worldDef" :preview="true" :preview-scale="0.42" />
@@ -20,7 +20,7 @@ const props = defineProps<{
 	owned: boolean;
 	highlight?: boolean;
 }>();
-defineEmits(["purchase"]);
+defineEmits(["purchase", "preview"]);
 const worldDef = computed(() => resolveWorld(props.sku.refId));
 </script>
 

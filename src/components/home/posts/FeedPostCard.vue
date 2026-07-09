@@ -229,259 +229,232 @@
       </div>
     </div>
 
-    <!-- Reaction breakdown: per-emotion tally with proportion bars -->
-    <BaseSheetModal
+    <ReactionBreakdownSheet
       :is-open="showReactionSheet"
-      title="Reactions"
-      :subtitle="`${totalReactionCount} total`"
+      :post="post"
       @close="showReactionSheet = false"
-    >
-      <div class="flex flex-col gap-3 pt-1">
-        <div
-          v-for="key in sortedReactions"
-          :key="key"
-          class="flex items-center gap-3.5"
-        >
-          <div class="w-12 h-12 rounded-2xl bg-white border border-black/5 shadow-sm flex items-center justify-center shrink-0">
-            <img :src="reactionImages[key]" class="w-8 h-8 object-contain" alt="" />
-          </div>
-
-          <div class="flex-1 min-w-0">
-            <div class="flex items-baseline justify-between mb-1.5">
-              <span class="text-sm font-black text-black/80 tracking-tight">
-                {{ reactionLabels[key] || key }}
-              </span>
-              <span class="text-sm font-black text-black/60 tracking-tight shrink-0 ml-2">
-                {{ post.reaction_counts[key] }}
-                <span class="text-black/40">· {{ reactionPercent(key) }}%</span>
-              </span>
-            </div>
-            <div class="h-2 w-full rounded-full bg-black/5 overflow-hidden">
-              <div
-                class="h-full rounded-full bg-secondary transition-all duration-500"
-                :style="{ width: reactionPercent(key) + '%' }"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </BaseSheetModal>
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { onLongPress } from '@vueuse/core'
-import { actionSheetController, alertController, IonIcon } from '@ionic/vue'
+import { computed, ref, watch } from "vue";
+import { onLongPress } from "@vueuse/core";
+import { actionSheetController, alertController, IonIcon } from "@ionic/vue";
 import {
-  mdiChatOutline,
-  mdiChevronRight,
-  mdiDeleteOutline,
-  mdiDotsHorizontal,
-  mdiFlagVariantOutline,
-  mdiHeartOutline,
-  mdiPencilOutline,
-  mdiSendOutline
-} from '@mdi/js'
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
-import { svg } from '@/helper/general.helper'
-import { FeedPost } from '@/types/server.types'
-import { playSelectionTick, reactionImages, reactionLabels } from '@/config/post.config'
-import { useMenuStore } from '@/store/menu.store'
-import router from '@/router'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import { useUserContextSheet } from '@/composables/profile/useUserContextSheet'
-import { Menu } from '@/draw/types/draw.types'
-import { useModerationStore } from '@/store/moderation.store'
-
-import UserAvatar from '@/components/profile/customization/UserAvatar.vue'
-import ReactionBurst from '@/components/general/ReactionBurst.vue'
-import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
+	mdiChatOutline,
+	mdiChevronRight,
+	mdiDeleteOutline,
+	mdiDotsHorizontal,
+	mdiFlagVariantOutline,
+	mdiHeartOutline,
+	mdiPencilOutline,
+	mdiSendOutline,
+} from "@mdi/js";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { svg } from "@/helper/general.helper";
+import { FeedPost } from "@/types/server.types";
 import {
-  calculateSignatureStroke,
-  hydrateCustomization,
-  resolveFontEffectClass,
-  resolveFontFamily,
-  resolveTheme,
-  resolveTitle
-} from '@/config/profile_options.config'
-import { useShareService } from '@/draw/store/useShareService.store'
-import { mixpanelEvents, trackEvent } from '@/service/mixpanel'
+	playSelectionTick,
+	reactionImages,
+	reactionLabels,
+} from "@/config/post.config";
+import { useMenuStore } from "@/store/menu.store";
+import router from "@/router";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { Menu } from "@/draw/types/draw.types";
+import { useModerationStore } from "@/store/moderation.store";
 
-dayjs.extend(relativeTime)
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import ReactionBurst from "@/components/general/ReactionBurst.vue";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import {
+	calculateSignatureStroke,
+	hydrateCustomization,
+	resolveFontEffectClass,
+	resolveFontFamily,
+	resolveTheme,
+	resolveTitle,
+} from "@/config/profile_options.config";
+import { useShareService } from "@/draw/store/useShareService.store";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 
-const props = defineProps<{ post: FeedPost; isMine: boolean }>()
+dayjs.extend(relativeTime);
+
+const props = defineProps<{ post: FeedPost; isMine: boolean }>();
 const emit = defineEmits([
-  'open-comments',
-  'open-reaction-popover',
-  'delete-post'
-])
+	"open-comments",
+	"open-reaction-popover",
+	"delete-post",
+]);
 
-const { openUserActions } = useUserContextSheet()
-const menuStore = useMenuStore()
+const { openUserActions } = useUserContextSheet();
+const menuStore = useMenuStore();
 
-const imageLoaded = ref(false)
-const reactionSurface = ref<HTMLElement | null>(null)
-const reactionBurst = ref<{ play: (r: string) => void } | null>(null)
+const imageLoaded = ref(false);
+const reactionSurface = ref<HTMLElement | null>(null);
+const reactionBurst = ref<{ play: (r: string) => void } | null>(null);
 
 const authorCustomization = computed(() =>
-  hydrateCustomization(props.post.author?.customization)
-)
-const theme = computed(() => resolveTheme(authorCustomization.value.themeId))
+	hydrateCustomization(props.post.author?.customization),
+);
+const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
 const resolvedFontFamily = computed(() =>
-  resolveFontFamily(authorCustomization.value.fontId)
-)
+	resolveFontFamily(authorCustomization.value.fontId),
+);
 const fontEffectClass = computed(() =>
-  resolveFontEffectClass(authorCustomization.value.fontEffectId)
-)
+	resolveFontEffectClass(authorCustomization.value.fontEffectId),
+);
 const displayTitle = computed(() =>
-  resolveTitle(authorCustomization.value.titleId)
-)
+	resolveTitle(authorCustomization.value.titleId),
+);
 const signatureStrokeWidth = computed(() =>
-  calculateSignatureStroke(authorCustomization.value.signatureViewBox)
-)
+	calculateSignatureStroke(authorCustomization.value.signatureViewBox),
+);
 
 const activeReactions = computed(() =>
-  Object.keys(props.post.reaction_counts || {}).filter(
-    (key) => props.post.reaction_counts[key] > 0
-  )
-)
+	Object.keys(props.post.reaction_counts || {}).filter(
+		(key) => props.post.reaction_counts[key] > 0,
+	),
+);
 
 const totalReactionCount = computed(() =>
-  Object.values(props.post.reaction_counts || {}).reduce(
-    (sum, count) => sum + count,
-    0
-  )
-)
+	Object.values(props.post.reaction_counts || {}).reduce(
+		(sum, count) => sum + count,
+		0,
+	),
+);
 
 // Breakdown sheet: reactions ordered most-popular first.
-const showReactionSheet = ref(false)
+const showReactionSheet = ref(false);
 const sortedReactions = computed(() =>
-  [...activeReactions.value].sort(
-    (a, b) => props.post.reaction_counts[b] - props.post.reaction_counts[a]
-  )
-)
+	[...activeReactions.value].sort(
+		(a, b) => props.post.reaction_counts[b] - props.post.reaction_counts[a],
+	),
+);
 const reactionPercent = (key: string) => {
-  const total = totalReactionCount.value
-  if (!total) return 0
-  return Math.round((props.post.reaction_counts[key] / total) * 100)
-}
+	const total = totalReactionCount.value;
+	if (!total) return 0;
+	return Math.round((props.post.reaction_counts[key] / total) * 100);
+};
 
 // Up to two embedded comments to preview inline.
-const previewComments = computed(() => props.post.comments?.slice(0, 2) ?? [])
+const previewComments = computed(() => props.post.comments?.slice(0, 2) ?? []);
 
 // "View all" should only appear when there are comments beyond what's previewed,
 // i.e. genuinely hidden comments — never "View all 1 comments".
 const hasMoreComments = computed(
-  () => (props.post.comment_count ?? 0) > previewComments.value.length
-)
+	() => (props.post.comment_count ?? 0) > previewComments.value.length,
+);
 
 watch(
-  () => props.post.user_reaction,
-  (newVal, oldVal) => {
-    if (newVal && newVal !== oldVal) {
-      reactionBurst.value?.play(newVal)
-    }
-  }
-)
+	() => props.post.user_reaction,
+	(newVal, oldVal) => {
+		if (newVal && newVal !== oldVal) {
+			reactionBurst.value?.play(newVal);
+		}
+	},
+);
 
 // Long-press anywhere on the artwork opens the reaction picker, mirroring
 // the existing double-tap gesture. A light haptic confirms it armed.
 onLongPress(
-  reactionSurface,
-  (e) => {
-    playSelectionTick()
-    emit('open-reaction-popover', { event: e, post: props.post })
-  },
-  { delay: 400, modifiers: { prevent: true } }
-)
+	reactionSurface,
+	(e) => {
+		playSelectionTick();
+		emit("open-reaction-popover", { event: e, post: props.post });
+	},
+	{ delay: 400, modifiers: { prevent: true } },
+);
 
-const openUser = (userId: string) => openUserActions({ _id: userId })
-const shareService = useShareService()
+const openUser = (userId: string) => openUserActions({ _id: userId });
+const shareService = useShareService();
 
 const openShare = () => {
-  trackEvent(mixpanelEvents.postShareOpen, {
-    post_id: props.post._id,
-    author_id: props.post.author._id,
-    is_mine: props.isMine
-  })
-  shareService.setActiveShareItem({ type: 'post', data: props.post })
-  menuStore.openMenu(Menu.SharePostMenu)
-}
+	trackEvent(mixpanelEvents.postShareOpen, {
+		post_id: props.post._id,
+		author_id: props.post.author._id,
+		is_mine: props.isMine,
+	});
+	shareService.setActiveShareItem({ type: "post", data: props.post });
+	menuStore.openMenu(Menu.SharePostMenu);
+};
 
 const openComments = () => {
-  trackEvent(mixpanelEvents.postCommentsOpen, {
-    post_id: props.post._id,
-    author_id: props.post.author._id,
-    comment_count: props.post.comment_count ?? 0
-  })
-  emit('open-comments', props.post)
-}
+	trackEvent(mixpanelEvents.postCommentsOpen, {
+		post_id: props.post._id,
+		author_id: props.post.author._id,
+		comment_count: props.post.comment_count ?? 0,
+	});
+	emit("open-comments", props.post);
+};
 
 const remixPost = async () => {
-  const alert = await alertController.create({
-    header: 'Start a remix?',
-    message:
-      'You\'ll leave this room and open a fresh canvas with this drawing.',
-    cssClass: 'liquid-alert',
-    buttons: [
-      { text: 'Cancel', role: 'cancel' },
-      {
-        text: 'Let\'s draw',
-        handler: () => {
-          trackEvent(mixpanelEvents.postRemix, {
-            post_id: props.post._id,
-            author_id: props.post.author._id
-          })
-          setTimeout(() => {
-            router.push({
-              path: FRONTEND_ROUTES.draw,
-              query: { canvas_url: props.post.drawing_url, mode: 'solo' }
-            })
-          }, 100)
-        }
-      }
-    ]
-  })
-  await alert.present()
-}
+	const alert = await alertController.create({
+		header: "Start a remix?",
+		message:
+			"You'll leave this room and open a fresh canvas with this drawing.",
+		cssClass: "liquid-alert",
+		buttons: [
+			{ text: "Cancel", role: "cancel" },
+			{
+				text: "Let's draw",
+				handler: () => {
+					trackEvent(mixpanelEvents.postRemix, {
+						post_id: props.post._id,
+						author_id: props.post.author._id,
+					});
+					setTimeout(() => {
+						router.push({
+							path: FRONTEND_ROUTES.draw,
+							query: { canvas_url: props.post.drawing_url, mode: "solo" },
+						});
+					}, 100);
+				},
+			},
+		],
+	});
+	await alert.present();
+};
 
 const handleDoubleTap = (e: MouseEvent | TouchEvent) => {
-  e.preventDefault()
-  emit('open-reaction-popover', { event: e, post: props.post })
-}
+	e.preventDefault();
+	emit("open-reaction-popover", { event: e, post: props.post });
+};
 
 const presentActionSheet = async () => {
-  const buttons: any[] = [
-    {
-      text: 'Report Artwork',
-      role: 'destructive',
-      icon: svg(mdiFlagVariantOutline),
-      handler: () => {
-        useModerationStore().openReport({
-          type: 'post',
-          id: props.post._id,
-          label: `${props.post.author.name}'s post`
-        })
-      }
-    }
-  ]
-  if (props.isMine) {
-    buttons.unshift({
-      text: 'Delete Post',
-      role: 'destructive',
-      icon: svg(mdiDeleteOutline),
-      handler: () => emit('delete-post', props.post)
-    })
-  }
-  buttons.push({ text: 'Cancel', role: 'cancel' })
+	const buttons: any[] = [
+		{
+			text: "Report Artwork",
+			role: "destructive",
+			icon: svg(mdiFlagVariantOutline),
+			handler: () => {
+				useModerationStore().openReport({
+					type: "post",
+					id: props.post._id,
+					label: `${props.post.author.name}'s post`,
+				});
+			},
+		},
+	];
+	if (props.isMine) {
+		buttons.unshift({
+			text: "Delete Post",
+			role: "destructive",
+			icon: svg(mdiDeleteOutline),
+			handler: () => emit("delete-post", props.post),
+		});
+	}
+	buttons.push({ text: "Cancel", role: "cancel" });
 
-  const actionSheet = await actionSheetController.create({
-    header: 'Post Options',
-    cssClass: 'liquid-action-sheet',
-    buttons
-  })
-  await actionSheet.present()
-}
+	const actionSheet = await actionSheetController.create({
+		header: "Post Options",
+		cssClass: "liquid-action-sheet",
+		buttons,
+	});
+	await actionSheet.present();
+};
 </script>

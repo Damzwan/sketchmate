@@ -1,5 +1,5 @@
 <template>
-  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
+  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" previewable @purchase="$emit('purchase')" @preview="$emit('preview')">
     <template #preview>
       <!-- Container frame: mimics the warm gallery easel backdrop -->
       <div class="h-32 relative overflow-hidden flex items-center justify-center bg-[#3d1a14]/5 p-3.5 border-b border-[#3d1a14]/10">
@@ -89,7 +89,7 @@ const props = defineProps<{
 	highlight?: boolean;
 }>();
 
-defineEmits(["purchase"]);
+defineEmits(["purchase", "preview"]);
 
 const theme = computed(() => resolveTheme(props.sku.refId));
 </script>

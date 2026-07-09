@@ -18,9 +18,9 @@
         <p class="text-[13px] text-black/80 leading-snug">{{ sku.desc }}</p>
       </div>
 
-      <!-- Variety strip: one tile per item. A magnifier badge fades in over the
-           right edge so it reads as "open me" without a text prompt. -->
-      <div class="relative pb-3">
+      <!-- Variety strip: one tile per item. Tapping the card opens the full
+           preview; the CTA below buys. -->
+      <div class="relative pb-3 overflow-hidden">
         <div class="flex gap-1.5 px-4">
           <div
             v-for="item in contents"
@@ -30,11 +30,8 @@
             <ShopGrantPreview :item-id="item.id" :user-img="userImg" />
           </div>
         </div>
-        <div class="absolute inset-y-0 right-0 w-20 flex items-center justify-end pr-3 pointer-events-none bg-gradient-to-l from-tertiary via-tertiary/90 to-transparent">
-          <span class="flex items-center justify-center w-9 h-9 rounded-full bg-secondary text-white shadow-md transition-transform duration-200 group-hover:scale-110">
-            <ion-icon :icon="svg(mdiMagnifyPlusOutline)" class="text-xl" />
-          </span>
-        </div>
+        <!-- Soft right-edge fade hints the strip continues / is tappable. -->
+        <div class="absolute inset-y-0 right-0 w-12 pointer-events-none bg-gradient-to-l from-tertiary to-transparent"></div>
       </div>
     </button>
 
@@ -63,8 +60,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiCheck, mdiMagnifyPlusOutline } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { mdiCheck } from "@mdi/js";
 import { describeGrant, type ShopSku } from "@/config/catalog.config";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
 

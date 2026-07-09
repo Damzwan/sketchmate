@@ -1,5 +1,5 @@
 <template>
-  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
+  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" previewable @purchase="$emit('purchase')" @preview="$emit('preview')">
     <template #preview>
       <!-- Mid slate + faux name line so subtle effects (shattered glass, shimmer)
            are actually visible instead of washing out on white. -->
@@ -23,7 +23,7 @@ const props = defineProps<{
 	owned: boolean;
 	highlight?: boolean;
 }>();
-defineEmits(["purchase"]);
+defineEmits(["purchase", "preview"]);
 const effectDef = computed(() => resolveEffect(props.sku.refId));
 </script>
 

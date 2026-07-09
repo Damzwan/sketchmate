@@ -1,15 +1,20 @@
 <template>
   <div
     ref="rootEl"
-    class="relative cursor-pointer rounded-[2rem] overflow-hidden flex flex-col bg-tertiary border shadow-sm transition-all duration-300 md:hover:scale-[1.02] md:hover:shadow-md"
+    class="relative rounded-[2rem] overflow-hidden flex flex-col bg-tertiary border shadow-sm transition-all duration-300 md:hover:scale-[1.02] md:hover:shadow-md"
     :class="[
       owned ? 'border-emerald-400/60' : 'border-primary/40',
-      highlight && 'highlight-pulse'
+      highlight && 'highlight-pulse',
+      previewable ? 'cursor-pointer' : ''
     ]"
+    :role="previewable ? 'button' : undefined"
+    @click="previewable && $emit('preview')"
   >
     <!-- Heavy previews (lotties, animated effects, mini profile cards) only
          mount while near the viewport, so a full grid of them doesn't animate
-         off-screen and tank the scroll. Placeholder keeps the layout steady. -->
+         off-screen and tank the scroll. Placeholder keeps the layout steady.
+         Tapping anywhere on the card opens the full profile preview; only the
+         price button below buys. -->
     <slot v-if="previewVisible" name="preview" />
     <div v-else class="h-28 bg-[#3d1a14]/5 animate-pulse border-b border-[#3d1a14]/10"></div>
 
@@ -56,8 +61,8 @@ import { IonButton, IonIcon } from '@ionic/vue'
 import { mdiCheck } from '@mdi/js'
 import type { ShopSku } from '@/config/catalog.config'
 
-defineProps<{ sku: ShopSku; owned: boolean; highlight?: boolean }>()
-defineEmits(['purchase'])
+defineProps<{ sku: ShopSku; owned: boolean; highlight?: boolean; previewable?: boolean }>()
+defineEmits(['purchase', 'preview'])
 
 // Lazy-mount the preview slot based on proximity to the viewport. A generous
 // rootMargin pre-warms the next row so cards are ready before they scroll in,

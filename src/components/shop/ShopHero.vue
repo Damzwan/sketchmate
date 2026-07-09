@@ -1,6 +1,9 @@
 <template>
   <div
-    class="snap-center cursor-pointer shrink-0 w-[290px] relative rounded-[2rem] overflow-hidden border border-primary/40 bg-tertiary shadow-sm transition-all duration-200 md:hover:scale-[1.02] md:hover:shadow-md"
+    class="snap-center shrink-0 w-[290px] relative rounded-[2rem] overflow-hidden border border-primary/40 bg-tertiary shadow-sm transition-all duration-200 md:hover:scale-[1.02] md:hover:shadow-md"
+    :class="previewable ? 'cursor-pointer' : ''"
+    :role="previewable ? 'button' : undefined"
+    @click="previewable && $emit('preview')"
   >
     <!-- Live preview backdrop (muted slate — not a flashy neon gradient) -->
     <div class="h-40 relative overflow-hidden hero-stage">
@@ -30,7 +33,7 @@
         shape="round"
         size="small"
         class="m-0 tracking-tight"
-        @click="$emit('purchase')"
+        @click.stop="$emit('purchase')"
       >
         {{ (sku as any).priceString || 'Unlock' }}
       </ion-button>
@@ -54,8 +57,10 @@ import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue"
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 
 const props = defineProps<{ sku: ShopSku; owned: boolean }>();
-defineEmits(["purchase"]);
+defineEmits(["purchase", "preview"]);
 
+// Brushes have no profile surface, so nothing to preview.
+const previewable = computed(() => props.sku.category !== "brush");
 const isEffect = computed(() => props.sku.category === "effect");
 const isWorld = computed(() => props.sku.category === "world");
 const effectDef = computed(() =>

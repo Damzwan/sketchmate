@@ -1,5 +1,5 @@
 <template>
-  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
+  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" previewable @purchase="$emit('purchase')" @preview="$emit('preview')">
     <template #preview>
       <div class="h-28 bg-[#FAF6F0] relative flex items-center justify-center border-b border-black/5">
         <div class="relative w-12 h-12">
@@ -30,6 +30,6 @@ const props = defineProps<{
 	owned: boolean;
 	highlight?: boolean;
 }>();
-defineEmits(["purchase"]);
+defineEmits(["purchase", "preview"]);
 const decorationDef = computed(() => resolveDecoration(props.sku.refId));
 </script>

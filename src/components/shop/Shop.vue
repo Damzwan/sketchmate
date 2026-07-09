@@ -111,6 +111,7 @@
                 :owned="isItemOwned(item.id)"
                 :data-shop-id="item.id"
                 @purchase="purchaseItem(item)"
+                @preview="previewSku = item"
               />
             </div>
           </section>
@@ -128,7 +129,7 @@
                 :data-shop-id="pack.id"
                 :highlight="highlightedId === pack.id"
                 @purchase="purchaseItem(pack)"
-                @preview="previewBundle = pack"
+                @preview="previewSku = pack"
               />
             </div>
           </section>
@@ -157,8 +158,6 @@
               </div>
             </div>
 
-            <!-- Filtered item feed. In 'all' the order is shuffled (see
-                 activeItems) so it reads as a mixed shelf, not category blocks. -->
             <div class="min-h-[260px] mt-3">
               <div class="grid grid-cols-2 gap-3">
                 <component
@@ -171,6 +170,7 @@
                   :data-shop-id="sku.id"
                   :highlight="highlightedId === sku.id"
                   @purchase="purchaseItem(sku)"
+                  @preview="previewSku = sku"
                 />
               </div>
             </div>
@@ -179,14 +179,14 @@
         </template>
       </div>
 
-      <ShopBundleModal
-        :is-open="!!previewBundle"
-        :sku="previewBundle"
-        :owned="previewBundle ? isItemOwned(previewBundle.id) : false"
+      <ShopPreviewModal
+        :is-open="!!previewSku"
+        :sku="previewSku"
+        :owned="previewSku ? isItemOwned(previewSku.id) : false"
         :user="user"
         :user-img="user?.img"
-        @close="previewBundle = null"
-        @purchase="previewBundle && purchaseItem(previewBundle)"
+        @close="previewSku = null"
+        @purchase="previewSku && purchaseItem(previewSku)"
       />
 
       <!-- ─── Collection sheet (owned items) ─── -->
@@ -225,219 +225,224 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
-import { IonModal, IonContent, IonIcon, IonButton } from '@ionic/vue'
-import { storeToRefs } from 'pinia'
-import { Purchases } from '@revenuecat/purchases-capacitor'
-import { mdiArrowRight, mdiCheckCircle, mdiCrown, mdiTreasureChestOutline } from '@mdi/js'
-import { chevronBackOutline } from 'ionicons/icons'
-import bigbossImage from '@/assets/bigboss.jpg'
-
-import { isNative, svg } from '@/helper/general.helper'
-import { useMenuStore } from '@/store/menu.store'
-import { useSubscriptionStore } from '@/store/subscription.store'
-import { useInventoryStore } from '@/store/inventory.store'
-import { useToast } from '@/service/toast.service'
+import { computed, nextTick, ref, watch } from "vue";
+import { IonModal, IonContent, IonIcon, IonButton } from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { Purchases } from "@revenuecat/purchases-capacitor";
 import {
-  CATALOG,
-  CATALOG_BY_ID,
-  HIGHLIGHT_IDS,
-  type ShopSku,
-  type ItemCategory
-} from '@/config/catalog.config'
+	mdiArrowRight,
+	mdiCheckCircle,
+	mdiCrown,
+	mdiTreasureChestOutline,
+} from "@mdi/js";
+import { chevronBackOutline } from "ionicons/icons";
+import bigbossImage from "@/assets/bigboss.jpg";
 
-import ShopSupportNote from './ShopSupportNote.vue'
-import ShopHero from './ShopHero.vue'
-import ShopCardPack from './ShopCardPack.vue'
-import ShopBundleModal from './ShopBundleModal.vue'
-import ShopCardTheme from './ShopCardTheme.vue'
-import ShopCardBrush from './ShopCardBrush.vue'
-import ShopCardDecoration from './ShopCardDecoration.vue'
-import ShopCardEffect from './ShopCardEffect.vue'
-import ShopCardWorld from './ShopCardWorld.vue'
-import ShopCardFont from './ShopCardFont.vue'
-import ShopCardFontEffect from './ShopCardFontEffect.vue'
-import ShopGrantPreview from './ShopGrantPreview.vue'
-import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
-import { useAuthStore } from '@/store/auth.store'
+import { isNative, svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useToast } from "@/service/toast.service";
+import {
+	CATALOG,
+	CATALOG_BY_ID,
+	HIGHLIGHT_IDS,
+	type ShopSku,
+	type ItemCategory,
+} from "@/config/catalog.config";
 
-const menuStore = useMenuStore()
-const subStore = useSubscriptionStore()
-const inventoryStore = useInventoryStore()
-const userStore = useAuthStore()
-const { toast } = useToast()
+import ShopSupportNote from "./ShopSupportNote.vue";
+import ShopHero from "./ShopHero.vue";
+import ShopCardPack from "./ShopCardPack.vue";
+import ShopPreviewModal from "./ShopPreviewModal.vue";
+import ShopCardTheme from "./ShopCardTheme.vue";
+import ShopCardBrush from "./ShopCardBrush.vue";
+import ShopCardDecoration from "./ShopCardDecoration.vue";
+import ShopCardEffect from "./ShopCardEffect.vue";
+import ShopCardWorld from "./ShopCardWorld.vue";
+import ShopCardFont from "./ShopCardFont.vue";
+import ShopCardFontEffect from "./ShopCardFontEffect.vue";
+import ShopGrantPreview from "./ShopGrantPreview.vue";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { useAuthStore } from "@/store/auth.store";
 
-const { isShopOpen, shopScrollTarget } = storeToRefs(menuStore)
-const user = computed(() => userStore.user)
-const isLoading = ref(true)
+const menuStore = useMenuStore();
+const subStore = useSubscriptionStore();
+const inventoryStore = useInventoryStore();
+const userStore = useAuthStore();
+const { toast } = useToast();
+
+const { isShopOpen, shopScrollTarget } = storeToRefs(menuStore);
+const user = computed(() => userStore.user);
+const isLoading = ref(true);
 // Shop content waits on ALL of: RC prices, subscription status resolved, and
 // inventory hydrated — else it flashes upsell/unowned to an owner before load.
 const ready = computed(
-  () => !isLoading.value && !subStore.isLoading && inventoryStore.hydrated
-)
+	() => !isLoading.value && !subStore.isLoading && inventoryStore.hydrated,
+);
 const skusWithPrices = ref<
-  Record<string, ShopSku & { priceString?: string; rcPackage?: any }>
->({})
-const contentEl = ref<any>(null)
-const highlightedId = ref<string | null>(null)
-const previewBundle = ref<ShopSku | null>(null)
-const collectionOpen = ref(false)
+	Record<string, ShopSku & { priceString?: string; rcPackage?: any }>
+>({});
+const contentEl = ref<any>(null);
+const highlightedId = ref<string | null>(null);
+const previewSku = ref<ShopSku | null>(null);
+const collectionOpen = ref(false);
 
 function withPrice(sku: ShopSku) {
-  return skusWithPrices.value[sku.id] || sku
+	return skusWithPrices.value[sku.id] || sku;
 }
 
 const featuredPacks = computed(() =>
-  CATALOG.filter((s) => s.kind === 'bundle' && s.featured).map(withPrice)
-)
+	CATALOG.filter((s) => s.kind === "bundle" && s.featured).map(withPrice),
+);
 
 const highlights = computed(() =>
-  HIGHLIGHT_IDS.map((id) => CATALOG_BY_ID[id])
-    .filter(Boolean)
-    .map(withPrice)
-)
+	HIGHLIGHT_IDS.map((id) => CATALOG_BY_ID[id])
+		.filter(Boolean)
+		.map(withPrice),
+);
 
 // Browse-all by default, then filter down. 'all' shows every single item so
 // users can just scroll; the rest narrow to one category. Grouped by feel:
 // card looks first, then text, then tools.
-type CategoryFilter = ItemCategory | 'all'
+type CategoryFilter = ItemCategory | "all";
 const categories: { id: CategoryFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'theme', label: 'Themes' },
-  { id: 'world', label: 'Worlds' },
-  { id: 'effect', label: 'Effects' },
-  { id: 'decoration', label: 'Decor' },
-  { id: 'font', label: 'Fonts' },
-  { id: 'font_effect', label: 'Text' },
-  { id: 'brush', label: 'Brushes' }
-]
+	{ id: "all", label: "All" },
+	{ id: "theme", label: "Themes" },
+	{ id: "world", label: "Worlds" },
+	{ id: "effect", label: "Effects" },
+	{ id: "decoration", label: "Decor" },
+	{ id: "font", label: "Fonts" },
+	{ id: "font_effect", label: "Text" },
+	{ id: "brush", label: "Brushes" },
+];
 
 const cardComponents: Partial<Record<ItemCategory, any>> = {
-  theme: ShopCardTheme,
-  world: ShopCardWorld,
-  effect: ShopCardEffect,
-  decoration: ShopCardDecoration,
-  brush: ShopCardBrush,
-  font: ShopCardFont,
-  font_effect: ShopCardFontEffect
-}
-const cardFor = (cat: ItemCategory) => cardComponents[cat] || ShopCardTheme
+	theme: ShopCardTheme,
+	world: ShopCardWorld,
+	effect: ShopCardEffect,
+	decoration: ShopCardDecoration,
+	brush: ShopCardBrush,
+	font: ShopCardFont,
+	font_effect: ShopCardFontEffect,
+};
+const cardFor = (cat: ItemCategory) => cardComponents[cat] || ShopCardTheme;
 
 // The single item feed. Bundles live in their own section, so this is singles
 // only — either all of them ('all') or one category.
-const activeCategory = ref<CategoryFilter>('all')
+const activeCategory = ref<CategoryFilter>("all");
 
 // Fisher-Yates. 'all' shows a shuffled mix so the shelf feels browseable
 // instead of grouped in obvious category blocks. Shuffled ONCE per session so
 // the order is stable (doesn't jump when prices finish loading / user filters).
-const shuffle = <T, >(arr: T[]): T[] => {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
+const shuffle = <T>(arr: T[]): T[] => {
+	const a = [...arr];
+	for (let i = a.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[a[i], a[j]] = [a[j], a[i]];
+	}
+	return a;
+};
 const shuffledSingleIds = shuffle(
-  CATALOG.filter((s) => s.kind === 'single').map((s) => s.id)
-)
+	CATALOG.filter((s) => s.kind === "single").map((s) => s.id),
+);
 
 const activeItems = computed(() => {
-  if (activeCategory.value === 'all')
-    return shuffledSingleIds.map((id) => withPrice(CATALOG_BY_ID[id]))
-  return CATALOG.filter(
-    (s) => s.kind === 'single' && s.category === activeCategory.value
-  ).map(withPrice)
-})
+	if (activeCategory.value === "all")
+		return shuffledSingleIds.map((id) => withPrice(CATALOG_BY_ID[id]));
+	return CATALOG.filter(
+		(s) => s.kind === "single" && s.category === activeCategory.value,
+	).map(withPrice);
+});
 
 const ownedSkus = computed(() =>
-  CATALOG.filter((s) => s.kind === 'single' && inventoryStore.owned.has(s.id))
-)
+	CATALOG.filter((s) => s.kind === "single" && inventoryStore.owned.has(s.id)),
+);
 
 // Ownership is decided entirely by the inventory store (which knows the
 // Lifetime / Pro / locked-category rules). A bundle is owned only when every
 // grant inside it is.
 const isItemOwned = (skuId: string): boolean => {
-  const sku = CATALOG_BY_ID[skuId]
-  if (!sku) return false
-  if (sku.kind === 'bundle')
-    return sku.grants.every((g) => inventoryStore.isOwned(g))
-  return inventoryStore.isOwned(sku.id)
-}
+	const sku = CATALOG_BY_ID[skuId];
+	if (!sku) return false;
+	if (sku.kind === "bundle")
+		return sku.grants.every((g) => inventoryStore.isOwned(g));
+	return inventoryStore.isOwned(sku.id);
+};
 
 const closeShop = () => {
-  isShopOpen.value = false
-  highlightedId.value = null
-}
+	isShopOpen.value = false;
+	highlightedId.value = null;
+};
 
 const loadOfferings = async () => {
-  if (!isNative()) {
-    skusWithPrices.value = Object.fromEntries(
-      CATALOG.map((s) => [
-        s.id,
-        { ...s, priceString: s.kind === 'bundle' ? '$4.99' : '$1.99' }
-      ])
-    )
-    isLoading.value = false
-    return
-  }
-  try {
-    isLoading.value = true
-    const offerings = await Purchases.getOfferings()
-    const shopPackages = offerings.all['shop_items']?.availablePackages || []
-    const priced: Record<
-      string,
-      ShopSku & { priceString?: string; rcPackage?: any }
-    > = {}
-    for (const sku of CATALOG) {
-      const pkg = shopPackages.find(
-        (p) => p.product.identifier === sku.rcProductId
-      )
-      priced[sku.id] = {
-        ...sku,
-        priceString: pkg?.product.priceString,
-        rcPackage: pkg
-      }
-    }
-    skusWithPrices.value = priced
-  } catch (e) {
-    toast('Could not load shop prices', { color: 'danger' })
-  } finally {
-    isLoading.value = false
-  }
-}
+	if (!isNative()) {
+		skusWithPrices.value = Object.fromEntries(
+			CATALOG.map((s) => [
+				s.id,
+				{ ...s, priceString: s.kind === "bundle" ? "$4.99" : "$1.99" },
+			]),
+		);
+		isLoading.value = false;
+		return;
+	}
+	try {
+		isLoading.value = true;
+		const offerings = await Purchases.getOfferings();
+		const shopPackages = offerings.all["shop_items"]?.availablePackages || [];
+		const priced: Record<
+			string,
+			ShopSku & { priceString?: string; rcPackage?: any }
+		> = {};
+		for (const sku of CATALOG) {
+			const pkg = shopPackages.find(
+				(p) => p.product.identifier === sku.rcProductId,
+			);
+			priced[sku.id] = {
+				...sku,
+				priceString: pkg?.product.priceString,
+				rcPackage: pkg,
+			};
+		}
+		skusWithPrices.value = priced;
+	} catch (e) {
+		toast("Could not load shop prices", { color: "danger" });
+	} finally {
+		isLoading.value = false;
+	}
+};
 
 const purchaseItem = async (sku: ShopSku) => {
-  const ok = await subStore.purchaseSku(sku.id)
-  if (ok) highlightedId.value = null
-}
+	const ok = await subStore.purchaseSku(sku.id);
+	if (ok) highlightedId.value = null;
+};
 
 watch(isShopOpen, async (open) => {
-  if (!open) return
-  if (Object.keys(skusWithPrices.value).length === 0) await loadOfferings()
-  if (shopScrollTarget.value) {
-    const targetItem = shopScrollTarget.value
-    const targetSku =
-      CATALOG_BY_ID[targetItem] ??
-      CATALOG.find((s) => s.grants.includes(targetItem))
-    if (targetSku) {
-      if (targetSku.category !== 'pack')
-        activeCategory.value = targetSku.category
-      highlightedId.value = targetSku.id
-      await nextTick()
-      setTimeout(() => {
-        const el = document.querySelector(
-          `[data-shop-id="${targetSku.id}"]`
-        ) as HTMLElement | null
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }, 150)
-      setTimeout(() => {
-        highlightedId.value = null
-      }, 4000)
-    }
-    shopScrollTarget.value = null
-  }
-})
+	if (!open) return;
+	if (Object.keys(skusWithPrices.value).length === 0) await loadOfferings();
+	if (shopScrollTarget.value) {
+		const targetItem = shopScrollTarget.value;
+		const targetSku =
+			CATALOG_BY_ID[targetItem] ??
+			CATALOG.find((s) => s.grants.includes(targetItem));
+		if (targetSku) {
+			if (targetSku.category !== "pack")
+				activeCategory.value = targetSku.category;
+			highlightedId.value = targetSku.id;
+			await nextTick();
+			setTimeout(() => {
+				const el = document.querySelector(
+					`[data-shop-id="${targetSku.id}"]`,
+				) as HTMLElement | null;
+				el?.scrollIntoView({ behavior: "smooth", block: "center" });
+			}, 150);
+			setTimeout(() => {
+				highlightedId.value = null;
+			}, 4000);
+		}
+		shopScrollTarget.value = null;
+	}
+});
 </script>
 
 <style scoped>

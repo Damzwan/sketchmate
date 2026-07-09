@@ -128,7 +128,7 @@
         </template>
 
         <div
-          v-if="!isPreview"
+          v-if="displayStats"
           class="grid grid-cols-3 w-full mt-6 border-t pt-4 transition-colors duration-500"
           :style="{ borderColor: theme.cardBorderColor }"
         >
@@ -259,6 +259,7 @@ const props = withDefaults(
 		isPreview?: boolean;
 		allowSketchEdit?: boolean;
 		worldRemountKey?: number | string;
+			showStats?: boolean;
 	}>(),
 	{
 		isOwnProfile: false,
@@ -280,6 +281,10 @@ defineEmits([
 ]);
 
 const doodleZoneRef = ref<HTMLElement | null>(null);
+
+// Stats normally hide in the compact preview, but a caller (e.g. the shop's
+// card preview) can force them back on to show the full card.
+const displayStats = computed(() => props.showStats ?? !props.isPreview);
 
 const effectiveCustomization = computed(() =>
 	hydrateCustomization(props.customization),

@@ -1,5 +1,5 @@
 <template>
-  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
+  <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" previewable @purchase="$emit('purchase')" @preview="$emit('preview')">
     <template #preview>
       <div class="h-28 bg-[#FFF9F2] flex items-center justify-center px-3 border-b border-black/5 select-none">
         <span
@@ -24,7 +24,7 @@ const props = defineProps<{
 	owned: boolean;
 	highlight?: boolean;
 }>();
-defineEmits(["purchase"]);
+defineEmits(["purchase", "preview"]);
 
 const fontFamily = computed(() => resolveFontFamily(props.sku.refId));
 const preview = computed(

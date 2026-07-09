@@ -52,9 +52,10 @@
         <button
           v-if="msg.shared_post_id"
           @click="openSharedPost"
+          @contextmenu.prevent
           :disabled="loadingPost || unavailable"
           :class="[
-            'block w-40 rounded-2xl overflow-hidden border shadow-sm relative transition-all duration-200 text-left p-1.5 bg-white border-primary/50 hover:scale-[1.02] active:scale-[0.98]',
+            'tap-guard block w-40 rounded-2xl overflow-hidden border shadow-sm relative transition-all duration-200 text-left p-1.5 bg-white border-primary/50 hover:scale-[1.02] active:scale-[0.98]',
             unavailable ? 'opacity-40 cursor-not-allowed bg-black/5' : ''
           ]"
         >
@@ -86,13 +87,13 @@
           </div>
         </button>
 
-        <!-- POLAROID LOOKBOOK LAYOUT: SHARED PRIVATE GALLERY SKETCHES -->
         <button
           v-else-if="msg.shared_inbox_item_id"
           @click="openSharedInboxItem"
+          @contextmenu.prevent
           :disabled="loadingInbox || unavailableInbox"
           :class="[
-            'block w-40 rounded-2xl overflow-hidden border shadow-sm relative transition-all duration-200 text-left p-1.5 bg-white border-primary/50 hover:scale-[1.02] active:scale-[0.98]',
+            'tap-guard block w-40 rounded-2xl overflow-hidden border shadow-sm relative transition-all duration-200 text-left p-1.5 bg-white border-primary/50 hover:scale-[1.02] active:scale-[0.98]',
             unavailableInbox ? 'opacity-40 cursor-not-allowed bg-black/5' : ''
           ]"
         >
@@ -156,148 +157,148 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import dayjs from 'dayjs'
-import { IonIcon, IonSpinner } from '@ionic/vue'
+import { ref, computed, onMounted } from "vue";
+import dayjs from "dayjs";
+import { IonIcon, IonSpinner } from "@ionic/vue";
 import {
-  timeOutline,
-  alertCircleOutline,
-  checkmarkDoneOutline
-} from 'ionicons/icons'
-import { mdiDraw, mdiImageBroken, mdiBalloon } from '@mdi/js'
-import { storeToRefs } from 'pinia'
-import { svg } from '@/helper/general.helper'
-import { usePostStore } from '@/store/post.store'
-import { usePostSwiper } from '@/composables/home/usePostSwiper'
-import { useAuthStore } from '@/store/auth.store'
+	timeOutline,
+	alertCircleOutline,
+	checkmarkDoneOutline,
+} from "ionicons/icons";
+import { mdiDraw, mdiImageBroken, mdiBalloon } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { svg } from "@/helper/general.helper";
+import { usePostStore } from "@/store/post.store";
+import { usePostSwiper } from "@/composables/home/usePostSwiper";
+import { useAuthStore } from "@/store/auth.store";
 
-import UserAvatar from '@/components/profile/customization/UserAvatar.vue'
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import {
-  hydrateCustomization,
-  resolveTheme,
-  resolveFontFamily,
-  resolveFontEffectClass,
-  resolveTitle
-} from '@/config/profile_options.config'
-import { useInboxStore } from '@/store/inbox.store'
-import { useInboxSwiper } from '@/composables/gallery/useInboxSwiper'
+	hydrateCustomization,
+	resolveTheme,
+	resolveFontFamily,
+	resolveFontEffectClass,
+	resolveTitle,
+} from "@/config/profile_options.config";
+import { useInboxStore } from "@/store/inbox.store";
+import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 
 const props = defineProps<{
-  msg: any;
-  partner: any;
-  isMe: boolean;
-  isCompact: boolean;
-  activeTab: string;
-}>()
+	msg: any;
+	partner: any;
+	isMe: boolean;
+	isCompact: boolean;
+	activeTab: string;
+}>();
 
-defineEmits(['inspect-profile'])
+defineEmits(["inspect-profile"]);
 
-const postStore = usePostStore()
-const { postCache } = storeToRefs(postStore)
-const { openPostSwiper } = usePostSwiper()
-const { user: me } = storeToRefs(useAuthStore())
+const postStore = usePostStore();
+const { postCache } = storeToRefs(postStore);
+const { openPostSwiper } = usePostSwiper();
+const { user: me } = storeToRefs(useAuthStore());
 
-const loadingPost = ref(false)
-const unavailable = ref(false)
+const loadingPost = ref(false);
+const unavailable = ref(false);
 
-const sender = computed(() => props.msg.member || props.partner)
+const sender = computed(() => props.msg.member || props.partner);
 const isSystemMessage = computed(
-  () =>
-    props.msg.type && props.msg.type !== 'message' && props.msg.type !== 'user'
-)
+	() =>
+		props.msg.type && props.msg.type !== "message" && props.msg.type !== "user",
+);
 const isAcceptor = computed(
-  () => props.msg.system_payload?.acceptor_id === me.value?._id
-)
+	() => props.msg.system_payload?.acceptor_id === me.value?._id,
+);
 
 const otherPartyName = computed(() => {
-  const payload = props.msg.system_payload
-  if (!payload) return 'someone'
-  return isAcceptor.value
-    ? props.partner?.name || 'someone'
-    : payload.acceptor_name || props.partner?.name || 'someone'
-})
+	const payload = props.msg.system_payload;
+	if (!payload) return "someone";
+	return isAcceptor.value
+		? props.partner?.name || "someone"
+		: payload.acceptor_name || props.partner?.name || "someone";
+});
 
 const senderCustomization = computed(() =>
-  hydrateCustomization(sender.value?.customization)
-)
-const theme = computed(() => resolveTheme(senderCustomization.value.themeId))
+	hydrateCustomization(sender.value?.customization),
+);
+const theme = computed(() => resolveTheme(senderCustomization.value.themeId));
 const resolvedFontFamily = computed(() =>
-  resolveFontFamily(senderCustomization.value.fontId)
-)
+	resolveFontFamily(senderCustomization.value.fontId),
+);
 const fontEffectClass = computed(() =>
-  resolveFontEffectClass(senderCustomization.value.fontEffectId)
-)
+	resolveFontEffectClass(senderCustomization.value.fontEffectId),
+);
 const displayTitle = computed(() =>
-  resolveTitle(senderCustomization.value.titleId)
-)
+	resolveTitle(senderCustomization.value.titleId),
+);
 
-const inboxStore = useInboxStore()
-const { openInboxSwiper } = useInboxSwiper()
+const inboxStore = useInboxStore();
+const { openInboxSwiper } = useInboxSwiper();
 
-const loadingInbox = ref(false)
-const unavailableInbox = ref(false)
+const loadingInbox = ref(false);
+const unavailableInbox = ref(false);
 
 const sharedPost = computed(() =>
-  props.msg.shared_post_id
-    ? postCache.value[props.msg.shared_post_id] || null
-    : null
-)
+	props.msg.shared_post_id
+		? postCache.value[props.msg.shared_post_id] || null
+		: null,
+);
 const sharedInboxItem = computed(() => {
-  if (!props.msg.shared_inbox_item_id) return null
-  return (
-    inboxStore.inbox.find((i) => i._id === props.msg.shared_inbox_item_id) ||
-    null
-  )
-})
+	if (!props.msg.shared_inbox_item_id) return null;
+	return (
+		inboxStore.inbox.find((i) => i._id === props.msg.shared_inbox_item_id) ||
+		null
+	);
+});
 
 onMounted(async () => {
-  if (props.msg.shared_post_id && !sharedPost.value) {
-    loadingPost.value = true
-    const post = await postStore.fetchSinglePost(props.msg.shared_post_id)
-    if (!post) unavailable.value = true
-    loadingPost.value = false
-  }
-  if (props.msg.shared_inbox_item_id && !sharedInboxItem.value) {
-    loadingInbox.value = true
-    const item = await inboxStore.fetchSingleInboxItem(
-      props.msg.shared_inbox_item_id
-    )
-    if (!item) unavailableInbox.value = true
-    loadingInbox.value = false
-  }
-})
+	if (props.msg.shared_post_id && !sharedPost.value) {
+		loadingPost.value = true;
+		const post = await postStore.fetchSinglePost(props.msg.shared_post_id);
+		if (!post) unavailable.value = true;
+		loadingPost.value = false;
+	}
+	if (props.msg.shared_inbox_item_id && !sharedInboxItem.value) {
+		loadingInbox.value = true;
+		const item = await inboxStore.fetchSingleInboxItem(
+			props.msg.shared_inbox_item_id,
+		);
+		if (!item) unavailableInbox.value = true;
+		loadingInbox.value = false;
+	}
+});
 
 const openSharedPost = async () => {
-  if (unavailable.value) return
-  let post = sharedPost.value
-  if (!post && props.msg.shared_post_id) {
-    loadingPost.value = true
-    post = await postStore.fetchSinglePost(props.msg.shared_post_id)
-    loadingPost.value = false
-    if (!post) {
-      unavailable.value = true
-      return
-    }
-  }
-  if (post) openPostSwiper([post], 0)
-}
+	if (unavailable.value) return;
+	let post = sharedPost.value;
+	if (!post && props.msg.shared_post_id) {
+		loadingPost.value = true;
+		post = await postStore.fetchSinglePost(props.msg.shared_post_id);
+		loadingPost.value = false;
+		if (!post) {
+			unavailable.value = true;
+			return;
+		}
+	}
+	if (post) openPostSwiper([post], 0);
+};
 
 const openSharedInboxItem = async () => {
-  if (unavailableInbox.value) return
-  let item = sharedInboxItem.value
-  if (!item && props.msg.shared_inbox_item_id) {
-    loadingInbox.value = true
-    item = await inboxStore.fetchSingleInboxItem(
-      props.msg.shared_inbox_item_id
-    )
-    loadingInbox.value = false
-    if (!item) {
-      unavailableInbox.value = true
-      return
-    }
-  }
-  if (item) openInboxSwiper([item], 0)
-}
+	if (unavailableInbox.value) return;
+	let item = sharedInboxItem.value;
+	if (!item && props.msg.shared_inbox_item_id) {
+		loadingInbox.value = true;
+		item = await inboxStore.fetchSingleInboxItem(
+			props.msg.shared_inbox_item_id,
+		);
+		loadingInbox.value = false;
+		if (!item) {
+			unavailableInbox.value = true;
+			return;
+		}
+	}
+	if (item) openInboxSwiper([item], 0);
+};
 </script>
 
 <style scoped>

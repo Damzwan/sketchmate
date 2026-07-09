@@ -48,7 +48,7 @@
           class="pb-2 text-center"
         >
           <div
-            class="inline-block p-8 bg-tertiary border border-dashed border-primary/80 rounded-[2.5rem] shadow-sm max-w-xs mx-auto">
+            class="inline-block p-8 bg-tertiary border border-dashed border-primary/80 rounded-[2.5rem] shadow-sm max-w-xs mx-auto mb-4">
             <h3 class="cabin-sketch-regular text-xl font-black text-black tracking-tight leading-none mb-1.5">
               You're all caught up!
             </h3>

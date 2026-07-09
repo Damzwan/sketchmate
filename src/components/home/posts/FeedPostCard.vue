@@ -55,8 +55,9 @@
 
       <div
         ref="reactionSurface"
-        class="relative w-full flex items-center justify-center overflow-hidden bg-[#FAF8F5] border-y border-primary/10 select-none"
+        class="tap-guard relative w-full flex items-center justify-center overflow-hidden bg-[#FAF8F5] border-y border-primary/10 select-none"
         @dblclick="handleDoubleTap"
+        @contextmenu.prevent
       >
         <img
           :src="post.image_url"

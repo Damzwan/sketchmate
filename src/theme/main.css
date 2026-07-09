@@ -1,6 +1,33 @@
 @import "tailwindcss";
 @import "tailwindcss-animated";
 
+/*
+ * Native long-press guard.
+ *
+ * On iOS/Android WebViews a long-press on an <img> fires the OS image
+ * callout / drag gesture. If that native gesture is interrupted (finger lift,
+ * hardware back button) the WebView can be left with a stuck touch state and
+ * the whole app stops responding to taps. vueuse's onLongPress `prevent`
+ * runs a JS timer and does NOT suppress that native gesture — only these CSS
+ * properties do. Applied globally so every image surface is covered.
+ */
+img {
+    -webkit-user-drag: none;
+    -webkit-touch-callout: none;
+}
+
+/*
+ * Attach to any element that is itself long-pressable (reaction surfaces,
+ * shared-media cards) so surrounding chrome/text can't start a native
+ * selection callout either.
+ */
+.tap-guard {
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
 .safe-area {
     padding-top: var(--ion-safe-area-top, 0);
     padding-bottom: var(--ion-safe-area-bottom, 0);

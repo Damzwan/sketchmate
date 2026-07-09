@@ -56,36 +56,47 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { IonButton, IonIcon } from '@ionic/vue'
-import { mdiCheck } from '@mdi/js'
-import type { ShopSku } from '@/config/catalog.config'
+import { onBeforeUnmount, onMounted, ref } from "vue";
+import { IonButton, IonIcon } from "@ionic/vue";
+import { mdiCheck } from "@mdi/js";
+import type { ShopSku } from "@/config/catalog.config";
 
-defineProps<{ sku: ShopSku; owned: boolean; highlight?: boolean; previewable?: boolean }>()
-defineEmits(['purchase', 'preview'])
+defineProps<{
+	sku: ShopSku;
+	owned: boolean;
+	highlight?: boolean;
+	previewable?: boolean;
+}>();
+defineEmits(["purchase", "preview"]);
 
-// Lazy-mount the preview slot based on proximity to the viewport. A generous
-// rootMargin pre-warms the next row so cards are ready before they scroll in,
-// and unmounts them again once well off-screen to stop their animations.
-const rootEl = ref<HTMLElement>()
-const previewVisible = ref(false)
-let observer: IntersectionObserver | undefined
+const rootEl = ref<HTMLElement>();
+const previewVisible = ref(false);
+let observer: IntersectionObserver | undefined;
 
 onMounted(() => {
-  if (typeof IntersectionObserver === 'undefined') {
-    previewVisible.value = true
-    return
-  }
-  observer = new IntersectionObserver(
-    ([entry]) => {
-      previewVisible.value = entry.isIntersecting
-    },
-    { rootMargin: '300px 0px' }
-  )
-  if (rootEl.value) observer.observe(rootEl.value)
-})
+	if (typeof IntersectionObserver === "undefined") {
+		previewVisible.value = true;
+		return;
+	}
 
-onBeforeUnmount(() => observer?.disconnect())
+	observer = new IntersectionObserver(
+		(entries) => {
+			// Safely iterate through all entries in case the browser batches them
+			entries.forEach((entry) => {
+				previewVisible.value = entry.isIntersecting;
+			});
+		},
+		{ rootMargin: "300px 0px" },
+	);
+
+	setTimeout(() => {
+		if (rootEl.value) {
+			observer!.observe(rootEl.value);
+		}
+	}, 150);
+});
+
+onBeforeUnmount(() => observer?.disconnect());
 </script>
 
 <style scoped>

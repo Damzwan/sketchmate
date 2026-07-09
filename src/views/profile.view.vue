@@ -27,6 +27,7 @@
             @go-customize="goToCustomize"
             @go-network="goToNetwork"
             @open-connection="openMenu(Menu.ConnectionMenu)"
+            show-stats
           />
 
           <ProfilePost :posts="userPosts" :loading="loadingPosts" />
@@ -62,6 +63,7 @@ import ProfileCardSkeleton from "@/components/profile/ProfileCardSkeleton.vue";
 import ProfilePost from "@/components/profile/ProfilePost.vue";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
+import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 
 const router = useIonRouter();
 const authStore = useAuthStore();

@@ -54,7 +54,7 @@
           <BackgroundSketch
             :path="effectiveCustomization.backgroundSketchPath"
             :view-box="effectiveCustomization.backgroundSketchViewBox"
-            :stroke-color="theme.nameColor"
+            :stroke-color="activeColors.name"
             class="absolute inset-0 z-0"
           />
 
@@ -87,7 +87,7 @@
 
             <h2
               class="text-3xl font-black drop-shadow-sm transition-colors duration-500"
-              :style="{ color: theme.nameColor }"
+              :style="{ color: activeColors.name }"
               :class="fontEffectClass"
             >
               {{ user.name }}
@@ -95,7 +95,7 @@
 
             <p
               class="text-sm font-bold italic mt-3 px-4 leading-snug whitespace-pre-wrap transition-colors duration-500"
-              :style="{ color: theme.descColor }"
+              :style="{ color: activeColors.desc }"
             >
               "{{ user.description || 'No description yet.' }}"
             </p>
@@ -119,7 +119,7 @@
               fill="outline"
               shape="round"
               class="flex-1 m-0 text-sm font-black uppercase tracking-widest transition-all duration-500"
-              :style="{ '--color': theme.nameColor, '--border-color': theme.cardBorderColor, '--border-width': '2px' }"
+              :style="{ '--color': activeColors.name, '--border-color': theme.cardBorderColor, '--border-width': '2px' }"
               @click="$emit('message')"
             >
               Message
@@ -142,11 +142,11 @@
           >
             <span
               class="block text-xl font-black transition-colors duration-500"
-              :style="{ color: stat === 'mates' ? theme.accentColor : theme.nameColor }"
+              :style="{ color: stat === 'mates' ? theme.accentColor : activeColors.name }"
             >
               {{ formatStatNumber(getStatCount(stat)) }}
             </span>
-            <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">
+            <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">
               {{ stat }}
             </span>
           </button>
@@ -159,7 +159,7 @@
         >
           <span
             class="text-[14px] font-bold uppercase tracking-widest mb-2 transition-colors duration-500"
-            :style="{ color: theme.descColor }"
+            :style="{ color: activeColors.desc }"
           >
             — Signed —
           </span>
@@ -208,7 +208,7 @@
             <span
               v-else
               class="text-xs font-bold italic transition-colors duration-500"
-              :style="{ color: theme.descColor }"
+              :style="{ color: activeColors.desc }"
             >
               Tap to sign
             </span>
@@ -233,7 +233,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiAccountPlusOutline, mdiBrush, mdiCog, mdiDraw, mdiPalette } from "@mdi/js";
+import {
+	mdiAccountPlusOutline,
+	mdiBrush,
+	mdiCog,
+	mdiDraw,
+	mdiPalette,
+} from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
@@ -248,6 +254,7 @@ import {
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
+	resolveWorld,
 	type Customization,
 } from "@/config/profile_options.config";
 
@@ -259,7 +266,7 @@ const props = withDefaults(
 		isPreview?: boolean;
 		allowSketchEdit?: boolean;
 		worldRemountKey?: number | string;
-			showStats?: boolean;
+		showStats?: boolean;
 	}>(),
 	{
 		isOwnProfile: false,
@@ -282,8 +289,6 @@ defineEmits([
 
 const doodleZoneRef = ref<HTMLElement | null>(null);
 
-// Stats normally hide in the compact preview, but a caller (e.g. the shop's
-// card preview) can force them back on to show the full card.
 const displayStats = computed(() => props.showStats ?? !props.isPreview);
 
 const effectiveCustomization = computed(() =>
@@ -299,6 +304,17 @@ const resolvedFontFamily = computed(() =>
 const fontEffectClass = computed(() =>
 	resolveFontEffectClass(effectiveCustomization.value.fontEffectId),
 );
+
+// Contrast resolution handling logic
+const activeWorld = computed(() =>
+	resolveWorld(effectiveCustomization.value.worldId),
+);
+const isWorldDark = computed(() => activeWorld.value.isDark === true);
+
+const activeColors = computed(() => ({
+	name: isWorldDark.value ? theme.value.nameColorDark : theme.value.nameColor,
+	desc: isWorldDark.value ? theme.value.descColorDark : theme.value.descColor,
+}));
 
 const cardStyle = computed(() => ({
 	background: theme.value.cardBg,

@@ -16,7 +16,7 @@
               <BackgroundSketch
                 :path="c.backgroundSketchPath"
                 :view-box="c.backgroundSketchViewBox"
-                :stroke-color="theme.nameColor"
+                :stroke-color="activeColors.name"
                 class="absolute inset-0 w-full h-full"
               />
             </div>
@@ -33,7 +33,7 @@
 
             <h2
               class="text-3xl font-black mt-2 leading-tight drop-shadow-sm transition-colors duration-500"
-              :style="{ color: theme.nameColor }"
+              :style="{ color: activeColors.name }"
               :class="fontEffectClass"
             >
               {{ user?.name || 'Loading...' }}
@@ -44,7 +44,7 @@
             <slot name="description">
               <p
                 class="text-sm font-bold italic mt-4 leading-snug whitespace-pre-wrap px-2 transition-colors duration-500"
-                :style="{ color: theme.descColor }"
+                :style="{ color: activeColors.desc }"
               >
                 "{{ user?.description || 'This artist is a mystery...' }}"
               </p>
@@ -70,17 +70,17 @@
             <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform"
                     @click="$emit('go-network', 'mates')">
               <span class="text-xl font-black transition-colors duration-500" :style="{ color: theme.accentColor }">{{ user.stats?.mates || 0 }}</span>
-              <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">Mates</span>
+              <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Mates</span>
             </button>
             <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform border-x"
                     :style="{ borderColor: theme.cardBorderColor }" @click="$emit('go-network', 'followers')">
-              <span class="text-xl font-black transition-colors duration-500" :style="{ color: theme.nameColor }">{{ user.stats?.followers || 0 }}</span>
-              <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">Followers</span>
+              <span class="text-xl font-black transition-colors duration-500" :style="{ color: activeColors.name }">{{ user.stats?.followers || 0 }}</span>
+              <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Followers</span>
             </button>
             <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform"
                     @click="$emit('go-network', 'following')">
-              <span class="text-xl font-black transition-colors duration-500" :style="{ color: theme.nameColor }">{{ user.stats?.following || 0 }}</span>
-              <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: theme.descColor }">Following</span>
+              <span class="text-xl font-black transition-colors duration-500" :style="{ color: activeColors.name }">{{ user.stats?.following || 0 }}</span>
+              <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Following</span>
             </button>
           </template>
         </div>
@@ -92,7 +92,7 @@
         >
           <span
             class="text-[10px] font-bold uppercase tracking-widest mb-1 transition-colors duration-500"
-            :style="{ color: theme.descColor }"
+            :style="{ color: activeColors.desc }"
           >— Signed —</span>
           <svg
             class="w-32 h-12 drop-shadow-sm transition-colors duration-500"
@@ -112,7 +112,7 @@
 
         <div v-if="showPortfolio" class="mt-8 mb-16">
           <div class="flex items-center justify-between mb-3 px-1">
-            <h3 class="text-lg font-black italic transition-colors duration-500" :style="{ color: theme.nameColor }">Portfolio</h3>
+            <h3 class="text-lg font-black italic transition-colors duration-500" :style="{ color: activeColors.name }">Portfolio</h3>
           </div>
           <div v-if="postsLoading && posts.length === 0" class="grid grid-cols-3 gap-2">
             <div v-for="i in 6" :key="i" class="aspect-square bg-black/5 rounded-[1.5rem] animate-pulse"></div>
@@ -120,7 +120,7 @@
           <div v-else-if="posts.length === 0"
                class="text-center py-10 rounded-[2rem] border-2 border-dashed transition-colors duration-500"
                :style="{ borderColor: theme.cardBorderColor, backgroundColor: 'rgba(0,0,0,0.02)' }">
-            <p class="text-sm font-bold italic transition-colors duration-500" :style="{ color: theme.descColor }">No public sketches yet.</p>
+            <p class="text-sm font-bold italic transition-colors duration-500" :style="{ color: activeColors.desc }">No public sketches yet.</p>
           </div>
           <div v-else class="grid grid-cols-3 gap-2">
             <div v-for="(post, index) in posts" :key="post._id"
@@ -148,6 +148,7 @@ import {
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
+	resolveWorld,
 	type Customization,
 } from "@/config/profile_options.config";
 
@@ -179,6 +180,15 @@ const fontEffectClass = computed(() =>
 const signatureStrokeWidth = computed(() =>
 	calculateSignatureStroke(c.value.signatureViewBox),
 );
+
+// Contrast check configuration layout lookup
+const activeWorld = computed(() => resolveWorld(c.value.worldId));
+const isWorldDark = computed(() => activeWorld.value.isDark === true);
+
+const activeColors = computed(() => ({
+	name: isWorldDark.value ? theme.value.nameColorDark : theme.value.nameColor,
+	desc: isWorldDark.value ? theme.value.descColorDark : theme.value.descColor,
+}));
 
 // Expose theme/font to hosts that style slotted content (action menu).
 defineExpose({ theme, font });

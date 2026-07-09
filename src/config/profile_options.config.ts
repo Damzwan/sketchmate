@@ -163,6 +163,8 @@ export interface Theme {
 	cardBorderColor: string;
 	nameColor: string;
 	descColor: string;
+	nameColorDark: string;
+	descColorDark: string;
 	titleBg: string;
 	accentColor: string;
 	swatches: string[];
@@ -177,6 +179,8 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(185,70,58,0.2)",
 		nameColor: "#3d1a14",
 		descColor: "rgba(61,26,20,0.7)",
+		nameColorDark: "#fdf8f5", // Lightened for dark bg
+		descColorDark: "rgba(253,248,245,0.8)", // Lightened for dark bg
 		titleBg: "#FFF2E4",
 		accentColor: "#B9463A",
 		swatches: ["#FAE0C2", "#B9463A", "#FFF2E4"],
@@ -189,6 +193,8 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(255,255,255,0.15)",
 		nameColor: "#f8fafc",
 		descColor: "rgba(248,250,252,0.7)",
+		nameColorDark: "#f8fafc", // Already light
+		descColorDark: "rgba(248,250,252,0.7)", // Already light
 		titleBg: "rgba(255,255,255,0.08)",
 		accentColor: "#a5b4fc",
 		swatches: ["#1a1a2e", "#a5b4fc", "#f8fafc"],
@@ -201,6 +207,8 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(194,65,12,0.2)",
 		nameColor: "#7c2d12",
 		descColor: "rgba(124,45,18,0.7)",
+		nameColorDark: "#ffedd5",
+		descColorDark: "rgba(255,237,213,0.8)",
 		titleBg: "rgba(255,255,255,0.5)",
 		accentColor: "#ea580c",
 		swatches: ["#fed7aa", "#ea580c", "#7c2d12"],
@@ -213,6 +221,8 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(20,83,45,0.2)",
 		nameColor: "#14532d",
 		descColor: "rgba(20,83,45,0.7)",
+		nameColorDark: "#ecfdf5",
+		descColorDark: "rgba(236,253,245,0.8)",
 		titleBg: "rgba(255,255,255,0.5)",
 		accentColor: "#15803d",
 		swatches: ["#dcfce7", "#15803d", "#14532d"],
@@ -225,6 +235,8 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(190,24,93,0.2)",
 		nameColor: "#831843",
 		descColor: "rgba(131,24,67,0.7)",
+		nameColorDark: "#fdf2f8",
+		descColorDark: "rgba(253,242,248,0.8)",
 		titleBg: "rgba(255,255,255,0.6)",
 		accentColor: "#db2777",
 		swatches: ["#fce7f3", "#db2777", "#831843"],
@@ -237,6 +249,8 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(14,116,144,0.2)",
 		nameColor: "#164e63",
 		descColor: "rgba(22,78,99,0.7)",
+		nameColorDark: "#cffafe",
+		descColorDark: "rgba(207,250,254,0.8)",
 		titleBg: "rgba(255,255,255,0.5)",
 		accentColor: "#0891b2",
 		swatches: ["#cffafe", "#0891b2", "#164e63"],
@@ -249,6 +263,8 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(255,255,255,0.2)",
 		nameColor: "#fafafa",
 		descColor: "rgba(250,250,250,0.6)",
+		nameColorDark: "#fafafa", // Already light
+		descColorDark: "rgba(250,250,250,0.6)", // Already light
 		titleBg: "rgba(255,255,255,0.1)",
 		accentColor: "#fafafa",
 		swatches: ["#0a0a0a", "#fafafa", "#525252"],
@@ -261,6 +277,8 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(146,64,14,0.3)",
 		nameColor: "#78350f",
 		descColor: "rgba(120,53,15,0.7)",
+		nameColorDark: "#fef3c7",
+		descColorDark: "rgba(254,243,199,0.8)",
 		titleBg: "rgba(255,255,255,0.5)",
 		accentColor: "#d97706",
 		swatches: ["#fde68a", "#d97706", "#78350f"],
@@ -414,6 +432,7 @@ export interface WorldDef {
 	kind: WorldKind;
 	/** OG-only: granted, never sold. Hidden from pickers unless already owned. */
 	exclusive?: boolean;
+	isDark?: boolean;
 }
 
 export const WORLDS: WorldDef[] = [
@@ -442,6 +461,7 @@ export const WORLDS: WorldDef[] = [
 		name: "Cosmic Drift",
 		desc: "Stars, meteors & a drifting astronaut",
 		kind: "space",
+		isDark: true,
 	},
 	{
 		id: "gratitude",

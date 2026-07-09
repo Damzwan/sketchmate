@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import {
 	Purchases,
 	type PurchasesPackage,
@@ -23,6 +23,7 @@ import {
 } from "@/config/catalog.config";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
+import { useShareToastStore } from "@/draw/store/useShareToastStore.store";
 
 /**
  * Subscription + shop-purchase store.
@@ -40,6 +41,14 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 	const isLoading = ref(true);
 	// Toggled true after any successful purchase; drives the Confetti overlay.
 	const showConfetti = ref(false);
+	const pendingSupporterToast = ref(false);
+
+	watch(showConfetti, (visible, wasVisible) => {
+		if (wasVisible && !visible && pendingSupporterToast.value) {
+			pendingSupporterToast.value = false;
+			useShareToastStore().pushTitleToast("title.supporter");
+		}
+	});
 
 	type Tier = "free" | "pro" | "lifetime";
 
@@ -163,10 +172,12 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 			// Optimistic update — UI feels instant. Any purchase also earns the
 			// Supporter title (backend reconciles via webhook + title sync).
 			const inventoryStore = useInventoryStore();
+			const hadSupporter = inventoryStore.isOwned("title.supporter");
 			inventoryStore.grantOptimistic([
 				...grantsForSku(skuId),
 				"title.supporter",
 			]);
+			if (!hadSupporter) pendingSupporterToast.value = true;
 
 			// Reconcile with backend after webhook has a chance to fire (~2-3s)
 			setTimeout(() => {
@@ -194,8 +205,6 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		isLifetime.value = false;
 	}
 
-	// Opens RC's Customer Center — only meaningful for the Pro subscription
-	// (cancel, view renewal). Lifetime uses restorePurchases() instead.
 	async function manageSubscription() {
 		try {
 			await RevenueCatUI.presentCustomerCenter();
@@ -260,10 +269,13 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 			return false;
 		}
 		try {
+			const inventoryStore = useInventoryStore();
+			const hadSupporter = inventoryStore.isOwned("title.supporter");
 			await Purchases.purchasePackage({ aPackage: pkg });
 			showConfetti.value = true;
 			isPro.value = true;
-			useInventoryStore().grantOptimistic(["title.supporter"]);
+			inventoryStore.grantOptimistic(["title.supporter"]);
+			if (!hadSupporter) pendingSupporterToast.value = true;
 			await checkProStatus(true);
 			useMenuStore().isPaywallOpen = false;
 			return true;

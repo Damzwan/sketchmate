@@ -2,7 +2,7 @@
   <ion-modal
     :is-open="open"
     @did-dismiss="close"
-    @did-present="scrollToBottom"
+    @did-present="onDidPresent"
     :initial-breakpoint="1"
     :breakpoints="[0, 1]"
     handle-behavior="cycle"
@@ -213,12 +213,12 @@ watch(
 			? [...props.currItem.comments]
 			: [];
 
-		if (comments.value.length === 0) {
+		// Skip the network only when the server also says there are none.
+		// Preview array can be empty while comment_count > 0 (no preview loaded).
+		if (comments.value.length === 0 && !(props.currItem.comment_count > 0)) {
 			hasMore.value = false;
 			loading.value = false;
-			await nextTick();
-			input.value?.$el?.setFocus();
-			return; // Save network request and exit early
+			return; // Focus handled by onDidPresent
 		}
 
 		hasMore.value = false;
@@ -354,6 +354,17 @@ const scrollToBottom = async () => {
 		scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight;
 	}
 };
+
+// Fires once the modal is fully presented — the only reliable moment to focus
+// the input on iOS. Empty thread → focus to invite a comment; otherwise scroll.
+async function onDidPresent() {
+	await nextTick();
+	if (!loading.value && comments.value.length === 0) {
+		input.value?.$el?.setFocus();
+	} else {
+		scrollToBottom();
+	}
+}
 
 function close() {
 	emit("update:open", false);

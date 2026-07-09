@@ -30,18 +30,14 @@
           @click="handleTap(follower)"
           class="w-full flex items-center px-3 py-3 rounded-2xl active:bg-black/5 transition-colors text-left cursor-pointer"
         >
-          <div
-            class="h-[44px] w-[44px] rounded-2xl bg-white/60 border border-black/5 shadow-sm overflow-hidden shrink-0 flex items-center justify-center">
-            <img
-              v-if="resolveImg(follower)"
-              :src="resolveImg(follower)"
-              :alt="resolveName(follower)"
-              class="w-full h-full object-cover"
-            />
-            <span v-else class="font-bold text-black">
-              {{ resolveName(follower).charAt(0) }}
-            </span>
-          </div>
+          <UserAvatar
+            :user="resolveUser(follower)"
+            :img="resolveImg(follower)"
+            :customization="resolveUser(follower)?.customization"
+            size="sm"
+            static
+            class="shrink-0"
+          />
 
           <div class="flex-1 ml-3 min-w-0">
             <p class="text-sm font-black text-black truncate">
@@ -65,6 +61,7 @@ import { IonModal, IonIcon } from '@ionic/vue'
 import { mdiChevronRight, mdiClose } from '@mdi/js'
 import { svg, senderImg, senderName } from '@/helper/general.helper'
 import { useUserContextSheet } from '@/composables/profile/useUserContextSheet'
+import UserAvatar from '@/components/profile/customization/UserAvatar.vue'
 
 const props = defineProps<{
   followers: string[];

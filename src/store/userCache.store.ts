@@ -29,7 +29,13 @@ export const useUserCacheStore = defineStore("userCache", () => {
 		const next = new Map(cache.value);
 		const now = Date.now();
 		for (const u of users) {
-			next.set(u._id, { data: u, fetchedAt: now });
+			// Merge, don't replace. A partial payload (e.g. the public_users
+			// batch, which omits customization) must never strip richer fields
+			// a fuller source already seeded — otherwise decorations disappear
+			// on the next cache-miss or soft-stale refresh.
+			const prev = next.get(u._id)?.data;
+			const data = prev ? { ...prev, ...u } : u;
+			next.set(u._id, { data, fetchedAt: now });
 		}
 		cache.value = next;
 		triggerRef(cache);

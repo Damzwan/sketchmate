@@ -448,8 +448,9 @@ async function onUnfriend() {
         role: 'destructive',
         handler: async () => {
           try {
-            await unfriendUser(partner._id)
+            const res = await unfriendUser(partner._id)
             friendStore.removeFriendLocally(partner._id)
+            useChatStore().expireChatWithCooldown(partner._id, res?.cooldown_until)
             toast(isPermanent ? `Removed ${partner.name}` : 'Trial ended')
             closeSheet()
           } catch {

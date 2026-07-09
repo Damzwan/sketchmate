@@ -43,7 +43,7 @@ export async function fetchNetworkType(
  * Moves status to 'expired' and sets a cooldown.
  */
 export async function unfriendUser(targetId: string) {
-	return await request<{ success: boolean }>(
+	return await request<{ success: boolean; cooldown_until?: string }>(
 		`/relationship/unfriend/${targetId}`,
 		{
 			method: "PUT",

@@ -807,6 +807,23 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  // Local mirror of the server unfriend: 'expired' + 48h cooldown so the
+  // relationship banner flips to "Cooling down…" without a refetch.
+  function expireChatWithCooldown(userId: string, cooldownUntil?: string) {
+    const idx = activeChats.value.findIndex((c) =>
+      c.participants.some((p) => p._id === userId)
+    )
+    if (idx > -1) {
+      activeChats.value[idx] = {
+        ...activeChats.value[idx],
+        status: 'expired',
+        cooldown_until:
+          cooldownUntil ?? dayjs().add(48, 'hours').toISOString(),
+        initiator_id: undefined
+      }
+    }
+  }
+
   async function handleCancelMateRequest(conversationId: string) {
     try {
       const response = (await cancelMateRequest(conversationId)) as any
@@ -856,6 +873,7 @@ export const useChatStore = defineStore('chat', () => {
     sendTypingIndicator,
     respondToRequest,
     resetChatWithUser,
+    expireChatWithCooldown,
     handleCancelMateRequest
   }
 })

@@ -93,7 +93,7 @@
           @contextmenu.prevent
           :disabled="loadingInbox || unavailableInbox"
           :class="[
-            'tap-guard block w-40 rounded-2xl overflow-hidden border shadow-sm relative transition-all duration-200 text-left p-1.5 bg-white border-primary/50 hover:scale-[1.02] active:scale-[0.98]',
+            'tap-guard block w-40 cursor-pointer rounded-2xl overflow-hidden border shadow-sm relative transition-all duration-200 text-left p-1.5 bg-white border-primary/50 hover:scale-[1.02] active:scale-[0.98]',
             unavailableInbox ? 'opacity-40 cursor-not-allowed bg-black/5' : ''
           ]"
         >

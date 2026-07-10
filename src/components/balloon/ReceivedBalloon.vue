@@ -7,7 +7,6 @@
       />
     </Transition>
 
-
     <Transition name="float-down" @after-enter="handleLanded" @before-leave="handleBalloonLeave">
       <div
         v-if="balloonStore.receivedBalloon"
@@ -23,7 +22,6 @@
             class="drop-shadow-2xl shrink-0"
             :class="isSuperShortScreen ? 'h-[12vh]' : 'h-[17vh]'"
           />
-
 
           <div class="w-full flex-1 min-h-0 flex items-center justify-center pb-24">
             <div
@@ -57,7 +55,6 @@
                       class="min-h-12 overflow-y-auto overflow-x-hidden px-5 py-4 text-center wrap-break-word"
                       :class="isSuperShortScreen ? 'max-h-20' : 'max-h-28'"
                     >
-
                       <!-- If they left a message -->
                       <template v-if="balloonStore.receivedBalloon.message">
                         <span
@@ -74,7 +71,6 @@
                           A sketch from {{ balloonStore.senderInfo?.name || 'a fellow patient' }}
                         </span>
                       </template>
-
                     </div>
                   </div>
                 </div>
@@ -98,22 +94,26 @@
           <!-- Symmetric Top Pill Buttons -->
           <div class="flex items-center justify-between pointer-events-auto">
             <!-- Stop Receiving -->
-            <button
+            <ion-button
               @click="disableConfirmationOpen = true"
-              class="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg text-white cursor-pointer transition-all hover:bg-white/20 active:bg-white/20"
+              shape="round"
+              color="light"
+              fill="clear"
             >
-              <ion-icon :icon="svg(mdiBellOffOutline)" class="text-sm opacity-80" />
-              <span class="text-[10px] font-black uppercase tracking-widest">Turn Off</span>
-            </button>
+              <ion-icon slot="start" :icon="svg(mdiBellOffOutline)"></ion-icon>
+              Turn Off
+            </ion-button>
 
             <!-- Report -->
-            <button
+            <ion-button
               @click="reportBalloon"
-              class="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg text-red-100 cursor-pointer transition-all hover:bg-red-500/20 active:bg-red-500/20"
+              shape="round"
+              color="danger"
+              fill="clear"
             >
-              <ion-icon :icon="svg(mdiFlagVariantOutline)" class="text-sm opacity-80" />
-              <span class="text-[10px] font-black uppercase tracking-widest">Report</span>
-            </button>
+              <ion-icon slot="start" :icon="svg(mdiFlagVariantOutline)"></ion-icon>
+              Report
+            </ion-button>
           </div>
 
           <!-- QTE Title & Timer -->
@@ -137,20 +137,27 @@
         <div class="w-full px-4 pb-4 pointer-events-auto flex justify-center">
           <div class="flex gap-3 w-full max-w-sm">
             <!-- Secondary Action: Float -->
-            <button
+            <ion-button
               @click="balloonStore.refuseReceived"
-              class="flex-1 h-16 rounded-[2rem] bg-white/10 backdrop-blur-md border border-white/20 text-white shadow-xl cursor-pointer transition-all hover:bg-white/20 hover:scale-[1.02] active:scale-95 active:bg-white/20 flex flex-col items-center justify-center"
+              class="flex-1"
+              size="large"
+              shape="round"
+              color="light"
+              fill="outline"
             >
-              <span class="text-[12px] font-black uppercase tracking-widest opacity-90">Let it float</span>
-            </button>
+              Let it float
+            </ion-button>
 
             <!-- Primary Action: Catch -->
-            <button
+            <ion-button
               @click="balloonStore.acceptReceived"
-              class="flex-1 h-16 rounded-[2rem] bg-secondary/90 backdrop-blur-md border border-secondary/50 text-white shadow-xl cursor-pointer transition-all hover:bg-secondary hover:scale-[1.02] active:scale-95 flex flex-col items-center justify-center"
+              class="flex-1"
+              size="large"
+              shape="round"
+              color="secondary"
             >
-              <span class="text-[14px] font-black uppercase tracking-widest drop-shadow-md">Catch It</span>
-            </button>
+              Catch It
+            </ion-button>
           </div>
         </div>
       </div>
@@ -167,108 +174,109 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { IonIcon } from '@ionic/vue'
-import { mdiBellOffOutline, mdiFlagVariantOutline } from '@mdi/js'
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { IonIcon, IonButton } from "@ionic/vue";
+import { mdiBellOffOutline, mdiFlagVariantOutline } from "@mdi/js";
 
-import { useBalloonStore } from '@/store/balloon.store'
-import { useModerationStore } from '@/store/moderation.store'
-import { svg } from '@/helper/general.helper'
+import { useBalloonStore } from "@/store/balloon.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { svg } from "@/helper/general.helper";
 
-import balloonLottie from '@/assets/lottie/balloon.json'
-import Lottie from '@/components/general/Lottie.vue'
-import ConfirmationAlert from '@/components/general/ConfirmationAlert.vue'
+import balloonLottie from "@/assets/lottie/balloon.json";
+import Lottie from "@/components/general/Lottie.vue";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 
-const balloonStore = useBalloonStore()
-const disableConfirmationOpen = ref(false)
+const balloonStore = useBalloonStore();
+const disableConfirmationOpen = ref(false);
 
-const hasLanded = ref(false)
-const showDetails = ref(false)
-const showButtons = ref(false)
-const isSuperShortScreen = ref(false)
+const hasLanded = ref(false);
+const showDetails = ref(false);
+const showButtons = ref(false);
+const isSuperShortScreen = ref(false);
 
 // Natural width/height ratio, used only as a fallback when the balloon has no
 // stored aspect_ratio (older records). Loaded off-screen, never blocks render.
-const naturalRatio = ref<number | null>(null)
+const naturalRatio = ref<number | null>(null);
 
 // Frame aspect ratio (width / height). Prefer the value stored on the balloon
 // so the frosted frame hugs the drawing immediately, with no image round-trip.
 const imageAspectRatio = computed(() => {
-  const stored = balloonStore.receivedBalloon?.aspect_ratio
-  if (typeof stored === 'number' && Number.isFinite(stored) && stored > 0) {
-    return String(stored)
-  }
-  if (naturalRatio.value) return String(naturalRatio.value)
-  return '1'
-})
+	const stored = balloonStore.receivedBalloon?.aspect_ratio;
+	if (typeof stored === "number" && Number.isFinite(stored) && stored > 0) {
+		return String(stored);
+	}
+	if (naturalRatio.value) return String(naturalRatio.value);
+	return "1";
+});
 
 // Screen sizing
 function checkScreenHeight() {
-  isSuperShortScreen.value = window.innerHeight < 700
+	isSuperShortScreen.value = window.innerHeight < 700;
 }
 
 onMounted(() => {
-  checkScreenHeight()
-  window.addEventListener('resize', checkScreenHeight)
-})
+	checkScreenHeight();
+	window.addEventListener("resize", checkScreenHeight);
+});
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkScreenHeight)
-})
+	window.removeEventListener("resize", checkScreenHeight);
+});
 
 // Fallback aspect-ratio probe (only relied on if the balloon lacks aspect_ratio)
 function loadNaturalRatio(src: string) {
-  const img = new Image()
-  img.onload = () => {
-    if (img.naturalWidth && img.naturalHeight) {
-      naturalRatio.value = img.naturalWidth / img.naturalHeight
-    }
-  }
-  img.src = src
+	const img = new Image();
+	img.onload = () => {
+		if (img.naturalWidth && img.naturalHeight) {
+			naturalRatio.value = img.naturalWidth / img.naturalHeight;
+		}
+	};
+	img.src = src;
 }
 
 watch(
-  () => balloonStore.receivedBalloon,
-  (val) => {
-    naturalRatio.value = null
-    if (val?.img) loadNaturalRatio(val.img)
-  }
-)
+	() => balloonStore.receivedBalloon,
+	(val) => {
+		naturalRatio.value = null;
+		if (val?.img) loadNaturalRatio(val.img);
+	},
+);
 
 // Animation Lifecycle
 function handleLanded() {
-  if (!balloonStore.receivedBalloon) return
-  hasLanded.value = true
+	if (!balloonStore.receivedBalloon) return;
+	hasLanded.value = true;
 
-  const hasMessage = (balloonStore.receivedBalloon.message?.trim().length ?? 0) > 0
+	const hasMessage =
+		(balloonStore.receivedBalloon.message?.trim().length ?? 0) > 0;
 
-  // Slightly faster pop-in for QTE responsiveness
-  setTimeout(() => {
-    showDetails.value = true
-  }, 600)
+	// Slightly faster pop-in for QTE responsiveness
+	setTimeout(() => {
+		showDetails.value = true;
+	}, 600);
 
-  setTimeout(
-    () => {
-      showButtons.value = true
-    },
-    hasMessage ? 1500 : 800
-  )
+	setTimeout(
+		() => {
+			showButtons.value = true;
+		},
+		hasMessage ? 1500 : 800,
+	);
 }
 
 function handleBalloonLeave() {
-  hasLanded.value = false
-  showDetails.value = false
-  showButtons.value = false
+	hasLanded.value = false;
+	showDetails.value = false;
+	showButtons.value = false;
 }
 
 // Report
 function reportBalloon() {
-  if (!balloonStore.receivedBalloon) return
-  useModerationStore().openReport({
-    type: 'balloon',
-    id: balloonStore.receivedBalloon._id,
-    label: `Balloon from ${balloonStore.senderInfo?.name || 'Artist'}`
-  })
+	if (!balloonStore.receivedBalloon) return;
+	useModerationStore().openReport({
+		type: "balloon",
+		id: balloonStore.receivedBalloon._id,
+		label: `Balloon from ${balloonStore.senderInfo?.name || "Artist"}`,
+	});
 }
 </script>
 

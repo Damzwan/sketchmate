@@ -37,6 +37,7 @@ export const useMenuStore = defineStore("menu", () => {
 	const isShopOpen = ref(false);
 	const isOnlineUpgradeMenuOpen = ref(false);
 	const isPaywallOpen = ref(false);
+	const isWhatsNewOpen = ref(false);
 
 	const shopScrollTarget = ref<string | null>(null);
 
@@ -142,5 +143,6 @@ export const useMenuStore = defineStore("menu", () => {
 		isPaywallOpen,
 		shopScrollTarget,
 		openShop,
+		isWhatsNewOpen,
 	};
 });

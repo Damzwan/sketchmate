@@ -22,6 +22,8 @@ import { shouldShowThoughtPrompt } from "@/helper/general.helper";
 import { recordEngagementAction, updateProfile } from "@/service/api/user.api";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
+import { useGalleryData } from "@/composables/gallery/useGalleryData";
+import { useRoute } from "vue-router";
 
 export interface PostSettings {
 	caption: string;
@@ -122,7 +124,7 @@ export const useShareService = defineStore("shareService", () => {
 		});
 
 		const inboxStore = useInboxStore();
-		inboxStore.inbox.push(inbox_item);
+		inboxStore.inbox.unshift(inbox_item);
 
 		const me = user.value!._id;
 		const recipients = followers.filter((f) => f !== me);

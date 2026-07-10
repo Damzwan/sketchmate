@@ -13,6 +13,17 @@
       </template>
     </SettingCard>
 
+    <SettingCard
+      v-if="form"
+      :icon="mdiPartyPopper"
+      label="What's New"
+      @click="useMenuStore().isWhatsNewOpen = true"
+    >
+      <template #trailing>
+        <ion-icon :icon="svg(mdiChevronRight)" class="text-xl text-black/30" />
+      </template>
+    </SettingCard>
+
     <!-- Feedback -->
     <SettingCard
       v-if="form"
@@ -117,6 +128,7 @@ import {
 	mdiChevronRight,
 	mdiEmailOutline,
 	mdiFlagOutline,
+	mdiPartyPopper,
 	mdiLogoutVariant,
 	mdiMessageStarOutline,
 	mdiNewspaperVariantOutline,

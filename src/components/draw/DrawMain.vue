@@ -12,6 +12,8 @@
       />
 
       <MultiplayerAvatars v-if="roomId" />
+
+      <ClaimAreaOverlay v-if="roomId" />
     </div>
 
     <Toolbars :draw-mode="currentMode" />
@@ -43,6 +45,7 @@ import { useShareService } from "@/draw/store/useShareService.store";
 // Components
 import Toolbars from "@/components/draw/toolbar/Toolbars.vue";
 import MultiplayerAvatars from "@/components/draw/MultiplayerAvatars.vue";
+import ClaimAreaOverlay from "@/components/draw/ClaimAreaOverlay.vue";
 import DrawMenus from "@/components/draw/menus/DrawMenus.vue";
 import DrawStatusIndicator from "@/components/draw/DrawStatusIndicator.vue";
 import DrawExitGuard from "@/components/draw/DrawExitGuard.vue";

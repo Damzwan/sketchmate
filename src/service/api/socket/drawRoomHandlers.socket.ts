@@ -14,6 +14,7 @@ import { exportBoundingBoxImage } from "@/draw/helpers/export.helper";
 import { fitToDensestRegion } from "@/draw/helpers/viewport.helper";
 import { useFriendStore } from "@/store/friend.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
+import { useClaimArea } from "@/draw/store/claimArea.store";
 import { useModerationStore } from "@/store/moderation.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
@@ -34,7 +35,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 
 	socket.on(
 		"room-joined",
-		async ({ roomId, users, isCreator, sessionId, isPublic }) => {
+		async ({ roomId, users, isCreator, sessionId, isPublic, claimedAreas }) => {
 			const {
 				roomId: rm,
 				roomMembers,
@@ -50,8 +51,22 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			currentSessionId.value = sessionId;
 			addRoomIdToUrl(roomId);
 			isPublicLobby.value = isPublic;
+			useClaimArea().setAreas(claimedAreas);
 		},
 	);
+
+	// ── Claimed-area sync ──────────────────────────────────────────────────
+	socket.on("area-claimed", ({ area }) => {
+		useClaimArea().upsertArea(area);
+	});
+
+	socket.on("area-released", ({ areaId }) => {
+		useClaimArea().removeAreaById(areaId);
+	});
+
+	socket.on("areas-state", (areas) => {
+		useClaimArea().setAreas(areas);
+	});
 
 	socket.on("user-joined", ({ user, timestamp, id }) => {
 		const { roomMembers, lobbyChatMessages } = storeToRefs(useDrawSyncer());

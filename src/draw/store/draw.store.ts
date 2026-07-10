@@ -20,6 +20,7 @@ import { computeBounds } from "@/draw/helpers/export.helper";
 import { useCanvasPreview } from "@/draw/services/useCanvasPreview";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useGestureStore } from "@/draw/store/tools/gesture.store";
+import { useClaimArea } from "@/draw/store/claimArea.store";
 
 export const useDrawStore = defineStore("draw", () => {
 	const canvasSvc = useCanvasService();
@@ -69,6 +70,7 @@ export const useDrawStore = defineStore("draw", () => {
 		toolSelection.init(c);
 		drawHistory.init(c);
 		drawObjectManager.init(c);
+		useClaimArea().init(c);
 		shortcutManager.init(c);
 		drawSyncEngine.init();
 		drawUI.init(c);

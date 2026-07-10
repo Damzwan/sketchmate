@@ -50,6 +50,18 @@
           <ion-icon :icon="svg(mdiContentSave)" />
           <p class="pl-2 text-base">Saved Drawings</p>
         </ion-item>
+
+        <!-- Lobby-only: claim a private region others can't edit -->
+        <ion-item v-if="inLobby" color="tertiary" :button="true" @click="onClaimArea">
+          <ion-icon :icon="svg(mdiSelectionDrag)" />
+          <p class="pl-2 text-base">My Area</p>
+          <p class="pl-2 text-sm opacity-60">{{ myAreaCount }}/2</p>
+        </ion-item>
+
+        <ion-item v-if="inLobby && myAreaCount > 0" color="tertiary" :button="true" @click="onReleaseAreas">
+          <ion-icon :icon="svg(mdiSelectionRemove)" />
+          <p class="pl-2 text-base">Release My Area{{ myAreaCount > 1 ? 's' : '' }}</p>
+        </ion-item>
       </ion-list>
       <ion-action-sheet
         id="action-sheet"
@@ -86,11 +98,13 @@ import {
   mdiImagePlusOutline,
   mdiPaletteOutline,
   mdiPanoramaVariantOutline,
+  mdiSelectionDrag,
+  mdiSelectionRemove,
   mdiShapeOutline,
   mdiStickerCircleOutline,
   mdiStickerEmoji
 } from '@mdi/js'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { DrawAction, Menu } from '@/draw/types/draw.types'
 import { useDrawStore } from '@/draw/store/draw.store'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
@@ -102,6 +116,23 @@ import { useAuthStore } from '@/store/auth.store'
 
 import { createSketchFromDataURL } from '@/draw/helpers/export.helper'
 import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { useClaimArea } from '@/draw/store/claimArea.store'
+import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+
+const claimArea = useClaimArea()
+const { roomId } = storeToRefs(useDrawSyncer())
+const inLobby = computed(() => !!roomId.value)
+const myAreaCount = computed(() => claimArea.myAreas.length)
+
+function onClaimArea() {
+  closePopover()
+  claimArea.enterClaimMode()
+}
+
+function onReleaseAreas() {
+  claimArea.releaseMine()
+  closePopover()
+}
 
 const imgInput = ref<HTMLInputElement>()
 const compressedImgDataUrl = ref<string | undefined>()

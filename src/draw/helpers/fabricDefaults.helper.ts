@@ -12,6 +12,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { BACKGROUND } from '@/draw/config/canvas.config'
 import { useAuthStore } from '@/store/auth.store'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
+import { useClaimArea } from '@/draw/store/claimArea.store'
+import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
 
 // Brush Imports
 import { PixelStroke } from '@/draw/utils/brushes/PixelBrush'
@@ -67,6 +69,31 @@ export function changeFabricSettings() {
   const originalAdd = Canvas.prototype.add
   Canvas.prototype.add = function(...objs: any[]) {
     objs.forEach(injectMeta)
+
+    // Claimed-area guard: drop the local user's OWN new content whose bounding
+    // box crosses a foreign area (catches a stroke that starts outside but
+    // crosses in — the mouse-down guard only checks the start point). Only for
+    // genuine user actions; history/sync/load re-adds run with events suspended
+    // and pass through untouched.
+    const claim = useClaimArea()
+    if (!useDrawEventManager().isSuspended() && claim.foreignAreas.length > 0) {
+      const myId = useAuthStore().user?._id
+      const allowed = objs.filter(
+        (o) => !(o.userId === myId && claim.objectIntersectsForeignArea(o))
+      )
+      if (allowed.length !== objs.length) {
+        claim.notifyBlocked()
+        // The brush already rendered the rejected stroke onto the top context;
+        // clear it and request a frame so nothing lingers where we blocked it.
+        try {
+          this.clearContext(this.getTopContext())
+        } catch { /* ignore */ }
+        useDrawObjectManager().renderMain()
+        // originalAdd with no objects is a no-op that still returns the count.
+        return originalAdd.call(this, ...allowed)
+      }
+    }
+
     return originalAdd.call(this, ...objs)
   }
 
@@ -207,6 +234,12 @@ export function overrideFindTarget(c: Canvas) {
 
     const targetInfo = this.searchPossibleTargets(candidates, pointer)
 
+    // Objects inside another user's claimed area are read-only: hide them from
+    // targeting so they can't be selected or dragged.
+    if (targetInfo.target && useClaimArea().isObjectProtected(targetInfo.target)) {
+      return { target: undefined, subTargets: [], currentSubTargets: [] }
+    }
+
     return {
       ...targetInfo,
       currentSubTargets: targetInfo.subTargets,
@@ -327,6 +360,19 @@ export function overrideMouseDown(c: Canvas) {
       (!this.isDrawingMode && !this._isMainEvent(e))
     )
       return
+
+    // Claimed-area enforcement: pressing inside a FOREIGN area warns, and in a
+    // drawing tool it also blocks the stroke from starting there.
+    const claim = useClaimArea()
+    if (claim.foreignAreas.length > 0) {
+      const scene = this.getScenePoint(e)
+      const foreign = claim.pointInForeignArea(scene.x, scene.y)
+      if (foreign) {
+        claim.notifyBlocked(foreign)
+        if (this.isDrawingMode) return
+      }
+    }
+
     if (this.isDrawingMode) return this._onMouseDownInDrawingMode(e)
 
     let shouldRender = this._shouldRender(target)
@@ -453,8 +499,11 @@ export function overrideHandleSelection(c: Canvas) {
 
     const isClick = x === x + deltaX && y === y + deltaY
 
+    const claim = useClaimArea()
     const collected = mgr.query(lassoBounds).filter((obj) => {
       if (!obj.selectable || !obj.visible) return false
+      // Skip objects locked inside another user's claimed area.
+      if (claim.isObjectProtected(obj)) return false
 
       obj.setCoords()
 

@@ -53,6 +53,13 @@ export const useDrawEventManager = defineStore('draw-event-manager', () => {
 
   let deactivationStack = 0
 
+  // True while events are suspended (history/sync/load run through
+  // actionWithoutEvents). Lets guards tell a genuine user action apart from a
+  // programmatic re-add.
+  function isSuspended() {
+    return deactivationStack > 0
+  }
+
   async function actionWithoutEvents(action: () => Promise<void> | void) {
     deactivationStack++
 
@@ -81,6 +88,7 @@ export const useDrawEventManager = defineStore('draw-event-manager', () => {
     removeEventsOfService,
     switchToolEvents,
     actionWithoutEvents,
+    isSuspended,
     activateExclusiveEvents,
     deActivateExclusiveEvents,
     addPermanentEvents

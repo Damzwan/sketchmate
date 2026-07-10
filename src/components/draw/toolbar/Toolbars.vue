@@ -74,15 +74,19 @@ import ColorSwatches from '@/components/draw/toolbar/ColorSwatches.vue'
 import ToolDockText from '@/components/draw/toolbar/ToolDockText.vue'
 import ToolDockSelect from '@/components/draw/toolbar/ToolDockSelect.vue'
 import ToolDockDraw from '@/components/draw/toolbar/ToolDockDraw.vue'
+import ToolDockClaimArea from '@/components/draw/toolbar/ToolDockClaimArea.vue'
 import ToolButton from '@/components/draw/toolbar/ToolButton.vue'
+import { useClaimArea } from '@/draw/store/claimArea.store'
 
 const { addTextMode, isFullscreen } = storeToRefs(useDrawUIStore())
 const { triggerManualExit } = useDrawUIStore()
 const { isSelectActive } = storeToRefs(useSelect())
+const { isClaiming } = storeToRefs(useClaimArea())
 
 const goBack = () => triggerManualExit()
 
 const activeDockComponent = computed(() => {
+  if (isClaiming.value) return ToolDockClaimArea
   if (addTextMode.value) return ToolDockText
   if (isSelectActive.value) return ToolDockSelect
   return ToolDockDraw

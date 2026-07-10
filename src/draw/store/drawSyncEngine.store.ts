@@ -24,6 +24,7 @@ import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import { useDrawHistoryManager } from "@/draw/store/drawHistoryManager.store";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useClaimArea } from "@/draw/store/claimArea.store";
 import { socket } from "@/service/api/socket/socket.service";
 import { useToast } from "@/service/toast.service";
 import { ToastDuration } from "@/types/toast.types";
@@ -178,6 +179,10 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 				const { getCanvas } = useDrawStore();
 
 				const obj = e.target;
+
+				// Moving/transforming into another user's area is not allowed:
+				// revert locally + warn, and skip the sync so it never propagates.
+				if (useClaimArea().rejectMoveIfProtected()) return;
 
 				if (!e.transform && isText([obj])) {
 					const action = handleTextModificationSync(obj);

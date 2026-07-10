@@ -9,6 +9,7 @@ import { v4 } from 'uuid'
 import { analyzeErasureInWorker } from '@/draw/helpers/tools/eraser.helper'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useAuthStore } from '@/store/auth.store'
+import { useClaimArea } from '@/draw/store/claimArea.store'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { createYielder } from '@/draw/helpers/yielding.helper'
 import { isActive as transformSessionActive } from '@/draw/transform/transformController'
@@ -476,6 +477,15 @@ export const useEraser = defineStore('eraser', (): Eraser => {
         const { user } = useAuthStore()
         e.detail.targets = (e.detail.targets || []).filter(
           (o: FabricObject) => o.userId === user?._id
+        )
+      }
+
+      // Also protect anything inside another user's claimed area (applies to
+      // private online lobbies too, where the ownership filter above doesn't).
+      const claim = useClaimArea()
+      if (claim.foreignAreas.length > 0) {
+        e.detail.targets = (e.detail.targets || []).filter(
+          (o: FabricObject) => !claim.isObjectProtected(o)
         )
       }
 

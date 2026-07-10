@@ -16,7 +16,7 @@
       </div>
 
       <section
-        v-if="!isUnderAge || sortedMates.length > 0"
+        v-if="!isUnderAge || hasMates"
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
         :class="{ 'ring-2 ring-secondary/50': isSaveAndSend }"
         @click="toggleSection('direct')"
@@ -26,13 +26,13 @@
             <div class="flex items-center gap-2">
               <ion-icon :icon="imagesOutline" class="text-secondary text-[24px] shrink-0" />
               <p class="text-xl font-bold text-black leading-none pt-1">
-                {{ sortedMates.length > 0 ? 'Gallery & Mates' : 'Save to Gallery' }}
+                {{ hasMates ? 'Gallery & Mates' : 'Save to Gallery' }}
               </p>
             </div>
 
             <p class="text-sm text-black/80 mt-2 pl-[32px]">
               {{
-                sortedMates.length > 0
+                hasMates
                   ? 'Save your drawing and send it directly to mates.'
                   : 'Store it in your personal gallery.'
               }}
@@ -52,57 +52,112 @@
         </div>
 
         <div
-          v-if="isSaveAndSend && sortedMates.length > 0"
+          v-if="isSaveAndSend && hasMates"
           class="pt-2 border-t border-primary/20 animate-fade-in"
           @click.stop
         >
-          <div>
+          <div class="flex items-center justify-between">
             <p class="text-sm font-black text-black leading-none">Share with mates</p>
+            <button
+              v-if="selected.size > 0"
+              @click.stop="resetMates"
+              class="text-sm cursor-pointer font-black text-secondary uppercase tracking-wider active:opacity-50"
+            >
+              Clear ({{ selected.size }})
+            </button>
           </div>
 
-          <div class="flex overflow-x-auto space-x-3 pb-1 hide-scrollbar px-1">
+          <!-- Search -->
+          <div class="relative mt-2">
+            <ion-icon
+              :icon="svg(mdiMagnify)"
+              class="absolute left-3 top-1/2 -translate-y-1/2 text-black/40 text-base pointer-events-none"
+            />
+            <input
+              v-model="mateSearch"
+              @input="onMateSearch"
+              type="text"
+              placeholder="Search mates..."
+              class="w-full bg-primary/10 border border-primary/30 rounded-xl py-2 pl-9 pr-8 text-sm font-bold text-black outline-none placeholder:font-normal placeholder:text-black/50"
+            />
             <button
-              v-for="mate in sortedMates"
-              :key="mate._id"
-              @click.stop="toggle(mate._id)"
-              class="relative w-[64px] h-[64px] mt-2 cursor-pointer hover:scale-105 shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center"
-              :class="
-          selected.has(mate._id)
-            ? 'border-secondary shadow-md scale-105 bg-secondary/20'
-            : 'border-transparent bg-primary/60'
-        "
+              v-if="mateSearch"
+              @click.stop="clearMateSearch"
+              class="absolute right-2 cursor-pointer top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-black/10 text-black/50 active:scale-90"
             >
-              <div class="relative mb-1">
-                <img
-                  :src="mate.img"
-                  class="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm"
-                />
+              <ion-icon :icon="svg(mdiClose)" class="text-xs" />
+            </button>
+          </div>
+
+          <!-- Results strip (horizontal, infinite scroll) -->
+          <div
+            ref="mateScroll"
+            class="flex overflow-x-auto space-x-3 pb-1 hide-scrollbar px-1 mt-2 min-h-[84px] items-center"
+          >
+            <div
+              v-if="networkLoading && matePage === 1"
+              class="w-full flex items-center justify-center py-6"
+            >
+              <ion-spinner name="dots" color="secondary" />
+            </div>
+
+            <p
+              v-else-if="displayMates.length === 0"
+              class="w-full text-center text-xs text-black/50 italic py-6 px-1"
+            >
+              {{ mateSearch.trim() ? 'No mates match your search.' : 'No mates found.' }}
+            </p>
+
+            <template v-else>
+              <button
+                v-for="mate in displayMates"
+                :key="mate._id"
+                @click.stop="toggle(mate._id)"
+                class="relative w-[64px] h-[64px] mt-2 cursor-pointer hover:scale-105 shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center"
+                :class="
+            selected.has(mate._id)
+              ? 'border-secondary shadow-md scale-105 bg-secondary/20'
+              : 'border-transparent bg-primary/60'
+          "
+              >
+                <div class="relative mb-1">
+                  <img
+                    :src="mate.img"
+                    class="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm"
+                  />
+
+                  <div
+                    v-if="isOnline(mate._id)"
+                    class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-white shadow-sm"
+                  />
+                </div>
 
                 <div
-                  v-if="isOnline(mate._id)"
-                  class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-white shadow-sm"
-                />
-              </div>
+                  v-if="selected.has(mate._id)"
+                  class="absolute -top-1.5 -right-1.5 bg-secondary rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-10"
+                >
+                  <ion-icon
+                    :icon="svg(mdiCheck)"
+                    class="text-white w-4 h-4"
+                  />
+                </div>
 
-              <div
-                v-if="selected.has(mate._id)"
-                class="absolute -top-1.5 -right-1.5 bg-secondary rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm z-10"
-              >
-                <ion-icon
-                  :icon="svg(mdiCheck)"
-                  class="text-white w-4 h-4"
-                />
-              </div>
+                <span class="text-[10px] font-black truncate w-full text-center px-1 text-black">
+            {{ mate.name }}
+          </span>
+              </button>
 
-              <span class="text-[10px] font-black truncate w-full text-center px-1 text-black">
-          {{ mate.name }}
-        </span>
-            </button>
+              <!-- Infinite-scroll sentinel + spinner -->
+              <div ref="mateSentinel" class="shrink-0 w-1 h-1"></div>
+              <div v-if="loadingMoreMates" class="flex items-center px-2 shrink-0">
+                <ion-spinner name="dots" color="secondary" />
+              </div>
+            </template>
           </div>
         </div>
       </section>
 
-      <section v-if="isUnderAge && sortedMates.length === 0"
+      <section v-if="isUnderAge && !hasMates"
                class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
                :class="{ 'ring-2 ring-secondary/50': isSaveAndSend }" @click="toggleSection('direct')">
         <div class="flex items-center justify-between">
@@ -256,7 +311,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import {
+	computed,
+	onBeforeUnmount,
+	onMounted,
+	onUnmounted,
+	ref,
+	watch,
+} from "vue";
 import {
 	IonButton,
 	IonIcon,
@@ -272,6 +334,8 @@ import {
 	mdiBalloon,
 	mdiSprout,
 	mdiEarth,
+	mdiMagnify,
+	mdiClose,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { svg } from "@/helper/general.helper";
@@ -280,6 +344,7 @@ import duration from "dayjs/plugin/duration";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
+import { useUserCacheStore } from "@/store/userCache.store";
 import { useMateSelection } from "@/draw/services/useMateSelection";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useShareService } from "@/draw/store/useShareService.store";
@@ -301,7 +366,9 @@ const router = useIonRouter();
 
 const { user, isUnderAge } = storeToRefs(useAuthStore());
 const friendStore = useFriendStore();
-const { allConnectedPartners } = storeToRefs(friendStore);
+const userCache = useUserCacheStore();
+const { allConnectedPartners, networkLists, networkLoading, hasMore } =
+	storeToRefs(friendStore);
 
 const drawStore = useDrawStore();
 const { preview, newPreview } = storeToRefs(drawStore);
@@ -335,13 +402,127 @@ const balloonNote = ref("");
 
 const isOnline = (id: string) => friendStore.isFriendOnline(id);
 
-const sortedMates = computed(() =>
-	[...allConnectedPartners.value].sort((a, b) => {
+// ── Searchable / paginated mate picker ──────────────────────────────────────
+// The old strip read `allConnectedPartners` (only page-1 mates + active chats)
+// so users with many mates couldn't see or find everyone. We now drive the
+// strip from the same paginated + searchable source as ChatFriendPicker
+// (friendStore.getNetworkList → networkLists.mates, hydrated via userCache),
+// with server-side search and infinite scroll along the strip.
+const mateSearch = ref("");
+const matePage = ref(1);
+const loadingMoreMates = ref(false);
+let mateDebounce: ReturnType<typeof setTimeout> | null = null;
+
+// Whether to show the "Gallery & Mates" section at all. Uses the store's total
+// mate count (seeded on app start) plus any active-chat partners.
+const hasMates = computed(
+	() =>
+		(friendStore.totalCounts.mates ?? 0) > 0 ||
+		allConnectedPartners.value.length > 0,
+);
+
+// Hydrate relationship entries with cached profile data (name, avatar).
+const fetchedMates = computed(() =>
+	networkLists.value.mates.map((entry) => {
+		const cached = userCache.getUser(entry._id);
+		return {
+			...(cached || { _id: entry._id, name: "Artist", img: "" }),
+			...entry,
+		} as any;
+	}),
+);
+
+// Displayed list: already-selected mates are pinned first so they stay visible
+// even while a search filters the fetched results, then the fetched mates
+// (online first). Deduped by id.
+const displayMates = computed(() => {
+	const map = new Map<string, any>();
+	for (const id of selected.value) {
+		const m = friendStore.resolvePartnerInfo(id);
+		if (m) map.set(m._id, m);
+	}
+	for (const m of fetchedMates.value) if (!map.has(m._id)) map.set(m._id, m);
+
+	return [...map.values()].sort((a, b) => {
+		const aSel = selected.value.has(a._id) ? 1 : 0;
+		const bSel = selected.value.has(b._id) ? 1 : 0;
+		if (aSel !== bSel) return bSel - aSel;
 		const aOnline = isOnline(a._id) ? 1 : 0;
 		const bOnline = isOnline(b._id) ? 1 : 0;
 		return bOnline - aOnline;
-	}),
-);
+	});
+});
+
+async function fetchMates(reset = false) {
+	if (!user.value?._id) return;
+	if (reset) matePage.value = 1;
+	const term = mateSearch.value.trim();
+	// Match the rest of the app: server search kicks in at 3+ chars; shorter
+	// non-empty terms keep the current list rather than refetching.
+	if (term.length > 0 && term.length < 3) return;
+	try {
+		await friendStore.getNetworkList(
+			"mates",
+			user.value._id,
+			matePage.value,
+			term,
+		);
+	} catch (e) {
+		console.error("Failed to load mates:", e);
+	}
+}
+
+function onMateSearch() {
+	if (mateDebounce) clearTimeout(mateDebounce);
+	if (mateSearch.value.trim().length === 0) {
+		fetchMates(true);
+		return;
+	}
+	mateDebounce = setTimeout(() => fetchMates(true), 400);
+}
+
+function clearMateSearch() {
+	mateSearch.value = "";
+	if (mateDebounce) clearTimeout(mateDebounce);
+	fetchMates(true);
+}
+
+async function loadMoreMates() {
+	if (
+		!hasMore.value ||
+		loadingMoreMates.value ||
+		networkLoading.value ||
+		(mateSearch.value.trim().length > 0 && mateSearch.value.trim().length < 3)
+	)
+		return;
+	loadingMoreMates.value = true;
+	matePage.value++;
+	try {
+		await fetchMates();
+	} finally {
+		loadingMoreMates.value = false;
+	}
+}
+
+// Infinite scroll along the horizontal strip: observe a trailing sentinel with
+// the scroll container as the root so scrolling right loads the next page.
+const mateScroll = ref<HTMLElement | null>(null);
+const mateSentinel = ref<HTMLElement | null>(null);
+let mateObserver: IntersectionObserver | null = null;
+
+function attachMateObserver() {
+	mateObserver?.disconnect();
+	if (!mateSentinel.value) return;
+	mateObserver = new IntersectionObserver(
+		(entries) => {
+			if (entries[0]?.isIntersecting) loadMoreMates();
+		},
+		{ root: mateScroll.value ?? null, threshold: 0.1 },
+	);
+	mateObserver.observe(mateSentinel.value);
+}
+
+watch(mateSentinel, () => attachMateObserver());
 
 const now = ref(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -376,7 +557,7 @@ const postResetCountdown = computed(() =>
 );
 
 const sendButtonLabel = computed(() => {
-	if (isUnderAge.value && sortedMates.value.length === 0) return "Save";
+	if (isUnderAge.value && !hasMates.value) return "Save";
 	return "Send";
 });
 
@@ -386,6 +567,9 @@ onMounted(async () => {
 		isBalloon.value = false;
 		isSaveAndSend.value = true;
 	}
+
+	void fetchMates(true);
+	attachMateObserver();
 
 	ensureTicker();
 
@@ -399,6 +583,11 @@ onMounted(async () => {
 onUnmounted(() => {
 	resetPreview();
 	drawUI.chatToastsSilenced = false;
+});
+
+onBeforeUnmount(() => {
+	mateObserver?.disconnect();
+	if (mateDebounce) clearTimeout(mateDebounce);
 });
 
 const noActionSelected = computed(

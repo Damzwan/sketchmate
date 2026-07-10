@@ -29,50 +29,58 @@
       </span>
     </button>
 
-    <div
-      v-if="bigOpen"
-      class="fixed inset-0 z-[9999] pointer-events-auto flex flex-col items-center justify-center gap-4 bg-black/60 backdrop-blur-sm"
-      :style="{
-        paddingTop: 'calc(2rem + var(--ion-safe-area-top, 0px))',
-        paddingBottom: 'calc(2rem + var(--ion-safe-area-bottom, 0px))',
-        paddingLeft: 'calc(2rem + var(--ion-safe-area-left, 0px))',
-        paddingRight: 'calc(2rem + var(--ion-safe-area-right, 0px))',
-      }"
-      @click="bigOpen = false"
+    <!-- Full-screen preview as a native ion-modal: proper backdrop, swipe/back
+         dismissal and focus handling instead of a hand-rolled fixed overlay. -->
+    <ion-modal
+      :is-open="bigOpen"
+      class="selection-preview-modal"
+      @didPresent="paintBig"
+      @didDismiss="bigOpen = false"
     >
-      <ion-button
-        class="absolute"
-        :style="{
-          top: 'calc(0.5rem + var(--ion-safe-area-top, 0px))',
-          right: 'calc(0.5rem + var(--ion-safe-area-right, 0px))',
-        }"
-        fill="clear"
-        color="light"
-        aria-label="Close"
-        @click.stop="bigOpen = false"
-      >
-        <ion-icon slot="icon-only" :icon="svg(mdiClose)" />
-      </ion-button>
-
       <div
-        class="rounded-3xl shadow-2xl p-4 max-w-[90vw] max-h-[70vh] flex items-center justify-center"
-        :style="{ backgroundColor: bgColor }"
-        @click.stop
+        class="w-full h-full flex flex-col items-center justify-center gap-4"
+        :style="{
+          paddingTop: 'calc(2rem + var(--ion-safe-area-top, 0px))',
+          paddingBottom: 'calc(2rem + var(--ion-safe-area-bottom, 0px))',
+          paddingLeft: 'calc(2rem + var(--ion-safe-area-left, 0px))',
+          paddingRight: 'calc(2rem + var(--ion-safe-area-right, 0px))',
+        }"
+        @click="bigOpen = false"
       >
-        <canvas ref="big" class="max-w-full max-h-[60vh] rounded-xl" />
-      </div>
+        <ion-button
+          class="absolute"
+          :style="{
+            top: 'calc(0.5rem + var(--ion-safe-area-top, 0px))',
+            right: 'calc(0.5rem + var(--ion-safe-area-right, 0px))',
+          }"
+          fill="clear"
+          color="light"
+          aria-label="Close"
+          @click.stop="bigOpen = false"
+        >
+          <ion-icon slot="icon-only" :icon="svg(mdiClose)" />
+        </ion-button>
 
-      <ion-button color="secondary" shape="round" @click.stop="shareSelection">
-        <ion-icon :icon="svg(mdiShareVariant)" class="mr-2" slot="start" />
-        Share
-      </ion-button>
-    </div>
+        <div
+          class="rounded-3xl shadow-2xl p-4 max-w-[90vw] max-h-[70vh] flex items-center justify-center"
+          :style="{ backgroundColor: bgColor }"
+          @click.stop
+        >
+          <canvas ref="big" class="max-w-full max-h-[60vh] rounded-xl" />
+        </div>
+
+        <ion-button color="secondary" shape="round" @click.stop="shareSelection">
+          <ion-icon :icon="svg(mdiShareVariant)" class="mr-2" slot="start" />
+          Share
+        </ion-button>
+      </div>
+    </ion-modal>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { IonIcon, IonButton } from "@ionic/vue";
+import { IonIcon, IonButton, IonModal } from "@ionic/vue";
 import { mdiShareVariant, mdiClose } from "@mdi/js";
 import { useSelect } from "@/draw/store/tools/select.store";
 import { useDrawStore } from "@/draw/store/draw.store";
@@ -122,15 +130,28 @@ function paint(canvasEl: HTMLCanvasElement | null, maxPx: number) {
 	res.bitmap.close();
 }
 
-async function refreshThumb() {
+// The thumbnail bake re-renders every selected object synchronously. Firing it
+// on each selection:created/updated event janks when a lasso/select-all pulls
+// in many objects. Coalesce to a single rAF-deferred bake so rapid selection
+// changes in one frame collapse into one render, off the event's critical path.
+let thumbRaf = 0;
+function scheduleThumb() {
+	if (thumbRaf) cancelAnimationFrame(thumbRaf);
 	if (!hasSelection.value) return;
-	await nextTick();
-	paint(thumb.value, 128);
+	thumbRaf = requestAnimationFrame(() => {
+		thumbRaf = 0;
+		paint(thumb.value, 128);
+	});
 }
 
-async function openBig() {
+function openBig() {
 	bgColor.value = canvasBg();
 	bigOpen.value = true;
+	// The canvas lives inside the modal, which mounts lazily — paint once the
+	// modal has actually presented (see @didPresent → paintBig).
+}
+
+async function paintBig() {
 	await nextTick();
 	paint(big.value, 1024);
 }
@@ -160,6 +181,21 @@ async function shareSelection() {
 	);
 }
 
-watch(selectedObjectsRef, refreshThumb, { immediate: true, deep: false });
-onBeforeUnmount(() => (bigOpen.value = false));
+watch(selectedObjectsRef, scheduleThumb, { immediate: true, deep: false });
+onBeforeUnmount(() => {
+	if (thumbRaf) cancelAnimationFrame(thumbRaf);
+	bigOpen.value = false;
+});
 </script>
+
+<style scoped>
+/* Transparent full-screen modal so the drawing's own backdrop shows through
+   Ionic's native backdrop, matching the previous hand-rolled overlay look. */
+.selection-preview-modal {
+	--background: transparent;
+	--box-shadow: none;
+	--width: 100%;
+	--height: 100%;
+	--border-radius: 0;
+}
+</style>

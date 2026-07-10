@@ -112,6 +112,11 @@ export class RenderCore<T extends Bounded> {
   }
 
   private renderNow(): void {
+    // While loading (room join / big load) the tiles + overview are being reset
+    // and rebuilt. Painting now would show an empty committed layer + null
+    // overview bitmap = a full white frame. Suppress every frame until the load
+    // reveal (setLoading(false)) explicitly requests the first content frame.
+    if (this.loading) return
     this.frameCounter++
     const ctx = this.surface.getContext()
     if (!ctx) return
@@ -530,6 +535,20 @@ export class RenderCore<T extends Bounded> {
     void this.committed.overview
       .rebuildIfNeeded(this.contentBounds, this.makeYielder() as any, new AbortController().signal)
       .then(() => this.requestFrame())
+  }
+
+  /**
+   * Build the overview bitmap and RESOLVE only once it's ready. Used by the load
+   * reveal: after a room-join reset the overview is null, so the caller awaits
+   * this (paints are suppressed by the loading gate meanwhile) before flipping
+   * loading off — the very first painted frame then shows the overview as the
+   * base layer instead of a blank white flash. Never throws.
+   */
+  async warmOverviewBlocking(): Promise<void> {
+    try {
+      await this.committed.overview.rebuildIfNeeded(
+        this.contentBounds, this.makeYielder() as any, new AbortController().signal)
+    } catch { /* non-fatal — fall through to the normal frame */ }
   }
 
   /**

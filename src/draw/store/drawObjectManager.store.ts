@@ -594,6 +594,13 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     core?.requestFrame()
   }
 
+  /** Await a full overview (base-layer) build. Called during the load reveal so
+   *  the first painted frame after a room join already has content — no white
+   *  flash. Paints stay suppressed by the core's loading gate until endLoading. */
+  async function warmOverviewBlocking() {
+    await core?.warmOverviewBlocking()
+  }
+
   function rebuildSpatialIndex() {
     if (!c || !core) return
     rebuildIndexFromCanvas()
@@ -664,6 +671,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     endLoading,
     isLoading,
     resetTileCache,
+    warmOverviewBlocking,
     rebuildSpatialIndex,
     scheduleRectPatch,
     scheduleObjectPatch,

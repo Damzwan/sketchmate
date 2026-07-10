@@ -263,6 +263,11 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			fitToDensestRegion(canvas);
 
 			mgr.resetTileCache();
+			// Build the overview base layer BEFORE the reveal. Paints are
+			// suppressed while loading, so without this the first frame after
+			// endLoading paints an empty canvas (white flash) until the async
+			// overview build lands a frame later.
+			await mgr.warmOverviewBlocking();
 			mgr.endLoading();
 
 			mgr.renderViewport(true);
@@ -299,6 +304,9 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			mgr.resetTileCache();
 		}
 
+		// Ensure the overview base layer is ready before revealing (see
+		// initial-canvas-state) so the reveal frame never flashes white.
+		await mgr.warmOverviewBlocking();
 		mgr.endLoading();
 		mgr.renderViewport(true);
 		isLoadingCanvas.value = false;

@@ -25,7 +25,7 @@
 
     <template v-else>
       <!-- Empty Conversation Vibe Checklist -->
-      <div v-if="isBrandNewChat && partner" class="flex flex-col items-center justify-center py-16 opacity-30 animate-fade-in text-center">
+      <div v-if="isBrandNewChat && partner" class="flex flex-col items-center justify-center py-16 opacity-80 animate-fade-in text-center">
         <ion-icon :icon="svg(mdiChatOutline)" class="text-5xl mb-3 text-black" />
         <p class="cabin-sketch-regular text-xl font-bold text-black leading-none">
           Say hi to<br />{{ partner.name }}!

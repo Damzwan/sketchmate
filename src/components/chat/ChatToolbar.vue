@@ -31,7 +31,7 @@
         <div class="flex flex-col min-w-0 justify-center">
           <div class="flex items-center gap-1.5 leading-none">
             <span
-              class="text-[15px] font-black leading-none truncate tracking-tight transition-colors drop-shadow-sm"
+              class="text-lg font-black cabin-sketch-regular leading-none truncate tracking-tight transition-colors drop-shadow-sm"
               :class="[
                 isExpired ? 'text-black/40' : 'text-black',
                 (!isExpired && activeTab !== 'lobby') ? fontEffectClass : ''
@@ -61,7 +61,7 @@
                 <span class="text-black/30">Artist</span>
               </template>
             </span>
-            <span v-else class="text-[8px] font-black uppercase tracking-widest text-secondary leading-none">
+            <span v-else class="text-xs cabin-sketch-regular uppercase font-bold tracking-widest text-secondary leading-none">
                {{ isPublicLobby ? 'Public Canvas' : 'Private Session' }} · {{ roomMembers.length }} here
             </span>
           </div>

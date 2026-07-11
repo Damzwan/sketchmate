@@ -329,6 +329,7 @@ async function onUnfriend() {
 					try {
 						const res = await unfriendUser(partner._id);
 						friendStore.removeFriendLocally(partner._id);
+						void friendStore.refreshMyStats();
 						useChatStore().expireChatWithCooldown(
 							partner._id,
 							res?.cooldown_until,
@@ -374,6 +375,7 @@ async function confirmToggleBlock() {
 					try {
 						await blockUser(target._id);
 						friendStore.blockUserLocally(target._id);
+						void friendStore.refreshMyStats();
 						if (useDrawSyncer().isLobby) {
 							useDrawObjectManager().purgeBlockedObjects();
 						}

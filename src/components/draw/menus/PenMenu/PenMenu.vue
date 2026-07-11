@@ -14,23 +14,25 @@
         <div class="preview-stage bg-[#FAF8F5] border border-primary/10">
           <canvas ref="preview_canvas"></canvas>
           <span class="preview-tag">Preview</span>
-
-          <button
-            v-if="previewedLockedBrush"
-            type="button"
-            class="unlock-banner cabin-sketch-regular"
-            :disabled="purchasing"
-            @click="buyPreviewedBrush"
-          >
-            <div class="flex items-center gap-2 min-w-0">
-              <ion-icon :icon="svg(mdiLock)" class="text-base shrink-0" />
-              <span class="text-xs font-black tracking-tight truncate">
-                {{ purchasing ? 'Unlocking…' : `Unlock ${brushDisplayName(previewedLockedBrush)}` }}
-              </span>
-            </div>
-            <ion-icon :icon="svg(mdiArrowRight)" class="text-base shrink-0 ml-2" />
-          </button>
         </div>
+
+        <!-- Unlock CTA sits BELOW the preview so the brush stroke stays fully
+             visible — the user can see what they're buying. -->
+        <button
+          v-if="previewedLockedBrush"
+          type="button"
+          class="unlock-banner cabin-sketch-regular"
+          :disabled="purchasing"
+          @click="buyPreviewedBrush"
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <ion-icon :icon="svg(mdiLock)" class="text-base shrink-0" />
+            <span class="text-xs font-black tracking-tight truncate">
+              {{ purchasing ? 'Unlocking…' : `Unlock ${brushDisplayName(previewedLockedBrush)}` }}
+            </span>
+          </div>
+          <ion-icon :icon="svg(mdiArrowRight)" class="text-base shrink-0 ml-2" />
+        </button>
       </div>
 
       <div class="pen-body hide-scrollbar">
@@ -372,7 +374,7 @@ watch(penMenuOpen, (open) => {
 }
 
 .unlock-banner {
-  @apply absolute inset-x-0 bottom-0 w-full px-3 py-2 bg-secondary text-white border-0
+  @apply mt-2 w-full px-3 py-2 rounded-2xl bg-secondary text-white border-0
   flex items-center justify-between cursor-pointer
   active:scale-[0.99] transition-transform disabled:opacity-70;
 }

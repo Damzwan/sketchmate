@@ -34,7 +34,8 @@
     <ion-modal
       :is-open="bigOpen"
       class="selection-preview-modal"
-      @didPresent="paintBig"
+      :keep-contents-mounted="true"
+      @willPresent="paintBig"
       @didDismiss="bigOpen = false"
     >
       <div
@@ -147,8 +148,10 @@ function scheduleThumb() {
 function openBig() {
 	bgColor.value = canvasBg();
 	bigOpen.value = true;
-	// The canvas lives inside the modal, which mounts lazily — paint once the
-	// modal has actually presented (see @didPresent → paintBig).
+	// keep-contents-mounted keeps the big canvas alive, so paint it NOW — the
+	// bitmap is ready before the enter animation, no blank→image flicker.
+	// paintBig also re-runs on willPresent as a safety net.
+	nextTick(() => paint(big.value, 1024));
 }
 
 async function paintBig() {

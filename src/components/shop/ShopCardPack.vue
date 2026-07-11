@@ -3,6 +3,15 @@
     class="snap-start shrink-0 w-[260px] relative rounded-[2rem] overflow-hidden border bg-tertiary shadow-sm flex flex-col transition-all duration-200 md:hover:scale-[1.02] md:hover:shadow-md"
     :class="[owned ? 'border-emerald-400/60' : 'border-primary/40', highlight && 'ring-2 ring-secondary']"
   >
+    <!-- Savings ribbon: only when we can prove a real discount vs buying the
+         items separately. -->
+    <div
+      v-if="!owned && savingsPct > 0"
+      class="absolute top-0 right-0 z-10 px-2.5 py-1 rounded-bl-2xl rounded-tr-[2rem] bg-secondary text-white text-[12px] font-black tracking-tight shadow-sm select-none"
+    >
+      Save {{ savingsPct }}%
+    </div>
+
     <!-- Whole body is tappable and opens the full preview -->
     <button
       class="text-left active:opacity-90 transition-opacity cursor-pointer w-full group"
@@ -64,12 +73,17 @@ import { mdiCheck } from "@mdi/js";
 import { describeGrant, type ShopSku } from "@/config/catalog.config";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
 
-const props = defineProps<{
-	sku: ShopSku;
-	owned: boolean;
-	highlight?: boolean;
-	userImg?: string;
-}>();
+const props = withDefaults(
+	defineProps<{
+		sku: ShopSku;
+		owned: boolean;
+		highlight?: boolean;
+		userImg?: string;
+		/** % saved vs buying every grant separately. 0 = don't show a badge. */
+		savingsPct?: number;
+	}>(),
+	{ savingsPct: 0 },
+);
 defineEmits(["purchase", "preview"]);
 
 const contents = computed(() =>

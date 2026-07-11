@@ -1,5 +1,5 @@
 <template>
-  <section class="min-h-[300px] pb-10 max-w-2xl mx-auto overflow-visible">
+  <section ref="rootEl" class="min-h-[300px] pb-10 max-w-2xl mx-auto overflow-visible">
     <!-- Header Subhead Segment -->
     <div class="flex items-center justify-between px-1 mb-4 pt-2">
       <h2 class="uppercase tracking-widest font-black text-black/80">
@@ -64,7 +64,7 @@
       :is-open="popoverOpen"
       :event="popoverEvent"
       :user-reaction="activePopoverPost?.user_reaction"
-      @close="popoverOpen = false"
+      @close="closeReactionPopover"
       @select="selectReaction"
     />
 
@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import { IonSpinner, IonPopover } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { useIntersectionObserver } from "@vueuse/core";
@@ -113,6 +113,39 @@ const popoverEvent = ref<Event | null>(null);
 const activePopoverPost = ref<FeedPost | null>(null);
 const REACTION_POPOVER_SPACING = 10;
 
+// Opening the reaction ion-popover makes Ionic yank the surrounding ion-content
+// scroll (focus/positioning side-effect), sometimes all the way to the top. We
+// snapshot the scroll offset when the picker opens and pin it back for a few
+// frames across present + dismiss so the feed stays exactly where the user was.
+const rootEl = ref<HTMLElement | null>(null);
+let scrollEl: HTMLElement | null = null;
+let savedScrollTop = 0;
+
+async function resolveScrollEl(): Promise<HTMLElement | null> {
+	if (scrollEl?.isConnected) return scrollEl;
+	const content = rootEl.value?.closest("ion-content") as any;
+	scrollEl = content?.getScrollElement ? await content.getScrollElement() : null;
+	return scrollEl;
+}
+
+function pinScroll() {
+	if (scrollEl?.isConnected && Math.abs(scrollEl.scrollTop - savedScrollTop) > 2)
+		scrollEl.scrollTop = savedScrollTop;
+}
+
+function guardScrollWhileOpening() {
+	// Cover the present animation window; each pin snaps back if Ionic moved it.
+	requestAnimationFrame(pinScroll);
+	setTimeout(pinScroll, 60);
+	setTimeout(pinScroll, 160);
+	setTimeout(pinScroll, 300);
+}
+
+function closeReactionPopover() {
+	popoverOpen.value = false;
+	pinScroll();
+}
+
 const openComments = (post: FeedPost) => {
 	activePost.value = post;
 	isCommentsOpen.value = true;
@@ -126,6 +159,8 @@ const handleOpenReactionPopover = ({
 	post: FeedPost;
 }) => {
 	activePopoverPost.value = post;
+	// Snapshot scroll before Ionic can move it, then keep it pinned while opening.
+	savedScrollTop = scrollEl?.isConnected ? scrollEl.scrollTop : 0;
 	const x =
 		event.clientX || (event.touches && event.touches[0].clientX) || event.pageX;
 	const y =
@@ -144,12 +179,14 @@ const handleOpenReactionPopover = ({
 		},
 	} as any;
 	popoverOpen.value = true;
+	guardScrollWhileOpening();
 };
 
 const selectReaction = async (type: string) => {
 	popoverOpen.value = false;
 	if (!activePopoverPost.value) return;
 	const post = activePopoverPost.value;
+	pinScroll();
 	const isRemoving = post.user_reaction === type;
 	trackEvent(mixpanelEvents.postReact, {
 		post_id: post._id,
@@ -247,6 +284,12 @@ watch(
 	},
 	{ immediate: true },
 );
+
+onMounted(() => {
+	// Warm the scroll-element handle so the reaction picker can read/pin scroll
+	// synchronously on first use.
+	void resolveScrollEl();
+});
 
 onUnmounted(() => {
 	if (syncTimeout) clearTimeout(syncTimeout);

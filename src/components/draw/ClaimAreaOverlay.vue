@@ -11,7 +11,6 @@
         width: b.width + 'px',
         height: b.height + 'px',
         border: `2px dashed ${b.mine ? 'rgba(34,197,94,0.95)' : 'rgba(239,68,68,0.95)'}`,
-        backgroundColor: b.mine ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
       }"
     >
       <span

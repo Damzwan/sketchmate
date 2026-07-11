@@ -10,6 +10,7 @@ import { getPendingRequests } from "@/service/api/chat.api";
 import { fetchOnlineFriends, getFullProfile } from "@/service/api/user.api";
 import {
 	fetchNetworkType,
+	fetchUserStats,
 	getBlockedIds,
 	toggleFollow,
 } from "@/service/api/relationship.api";
@@ -277,6 +278,21 @@ export const useFriendStore = defineStore("friend", () => {
 			if (token === networkRequestToken[type]) networkLoading.value = false;
 		}
 	}
+	// Reconcile my own counters with the server. Block/unfriend mutate mates,
+	// followers AND following server-side (follow links get severed too), and the
+	// exact delta depends on follow direction the client doesn't track — so pull
+	// the authoritative numbers instead of trying to replicate the math locally.
+	async function refreshMyStats() {
+		const me = authStore.user?._id;
+		if (!me || !authStore.user) return;
+		try {
+			const stats = await fetchUserStats(me);
+			authStore.user.stats = { ...authStore.user.stats, ...stats };
+		} catch (e) {
+			console.error("Failed to refresh my stats", e);
+		}
+	}
+
 	async function fetchBlockedUsers() {
 		try {
 			const blockedIds: string[] = await getBlockedIds();
@@ -381,5 +397,6 @@ export const useFriendStore = defineStore("friend", () => {
 		removeFriendLocally,
 		toggleFollowUser,
 		addFriendLocally,
+		refreshMyStats,
 	};
 });

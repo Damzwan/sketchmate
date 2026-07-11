@@ -10,6 +10,7 @@ export interface Title {
 	desc: string;
 	/** How a user earns this title — shown in the title badge explainer. */
 	howTo: string;
+	exclusive?: boolean;
 }
 
 export const TITLES: Title[] = [
@@ -40,6 +41,14 @@ export const TITLES: Title[] = [
 		emoji: "❤️",
 		desc: "Backed the project",
 		howTo: "Make any purchase.",
+	},
+	{
+		id: "creator",
+		name: "Creator",
+		emoji: "🙏️",
+		desc: "I created the app haha",
+		howTo: "Make the whole app.",
+		exclusive: true,
 	},
 ];
 
@@ -146,8 +155,7 @@ export const FONT_EFFECTS: FontEffect[] = [
 ];
 
 export const FONT_EFFECT_MAP: Record<string, string> = {
-	puffy:
-		"[-webkit-text-stroke:1px_rgba(0,0,0,0.15)] [text-shadow:0_-2px_2px_rgba(255,255,255,0.6),0_4px_6px_rgba(0,0,0,0.3)] animate-puffy-bounce",
+	puffy: "font-effect-puffy animate-puffy-bounce",
 	jawbreaker:
 		"[text-shadow:2px_2px_0_#06b6d4,4px_4px_0_#ec4899,6px_6px_0_#eab308,8px_8px_0_#8b5cf6,12px_16px_25px_rgba(0,0,0,0.35)] animate-jawbreaker-float",
 	velvet:

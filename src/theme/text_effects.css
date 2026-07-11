@@ -22,6 +22,18 @@
 	will-change: transform;
 }
 
+/* Real puffy-sticker look: a thick WHITE outline hugging the letters with a
+   soft grounded drop-shadow. paint-order:stroke keeps the stroke BEHIND the
+   fill so the letter colour stays crisp and the white reads as a die-cut
+   border, not a smear over the glyph. */
+.font-effect-puffy {
+	-webkit-text-stroke: 5px #fff;
+	paint-order: stroke fill;
+	text-shadow:
+		0 2px 1px rgba(0, 0, 0, 0.18),
+		0 5px 7px rgba(0, 0, 0, 0.28);
+}
+
 /* 2. Jawbreaker: Stacked, vibrant cyan/magenta/yellow retro 3D layers */
 @keyframes jawbreaker-float {
 	0%,

@@ -13,7 +13,7 @@
       class="space-y-3 pb-4"
     >
       <div
-        v-for="title in TITLES"
+        v-for="title in visibleTitles"
         :key="title.id"
         class="group relative flex items-center cursor-pointer gap-4 p-4 rounded-[2rem] border transition-all duration-300 active:scale-[0.97]"
         :class="[
@@ -77,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiCheck, mdiLockOutline } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
@@ -102,6 +102,13 @@ const localSelection = ref(props.currentTitleId);
 // "None" (id: '') is always available; everything else needs the inventory item.
 const isUnlocked = (id: string): boolean =>
 	!id || inventoryStore.isOwned(buildItemId("title", id));
+
+const isItemOwned = (titleId: string) =>
+	inventoryStore.isOwned(buildItemId("title", titleId));
+
+const visibleTitles = computed(() =>
+	TITLES.filter((title: Title) => !title.exclusive || isItemOwned(title.id)),
+);
 
 watch(
 	() => props.isOpen,

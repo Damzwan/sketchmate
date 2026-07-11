@@ -103,7 +103,7 @@
           <!-- ─── New (hero highlights) ─── -->
           <section v-if="highlights.length">
             <h2 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">New</h2>
-            <div class="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory hide-scrollbar -mx-4 px-4">
+            <div class="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory hide-scrollbar -mx-4 px-4 scroll-pl-4 scroll-pr-4">
               <ShopHero
                 v-for="item in highlights"
                 :key="item.id"
@@ -119,13 +119,14 @@
           <!-- ─── Bundles ─── -->
           <section v-if="featuredPacks.length">
             <h2 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">Bundles</h2>
-            <div class="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory hide-scrollbar -mx-4 px-4">
+            <div class="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory hide-scrollbar -mx-4 px-4 scroll-pl-4 scroll-pr-4">
               <ShopCardPack
                 v-for="pack in featuredPacks"
                 :key="pack.id"
                 :sku="pack"
                 :owned="isItemOwned(pack.id)"
                 :user-img="user?.img"
+                :savings-pct="bundleSavingsPct(pack)"
                 :data-shop-id="pack.id"
                 :highlight="highlightedId === pack.id"
                 @purchase="purchaseItem(pack)"
@@ -301,6 +302,36 @@ const highlights = computed(() =>
 		.filter(Boolean)
 		.map(withPrice),
 );
+
+// Numeric price for a sku id, preferring RevenueCat's real price, falling back
+// to parsing the formatted priceString (web/dev). null = unknown.
+function priceOf(id: string): number | null {
+	const priced = skusWithPrices.value[id] as any;
+	if (!priced) return null;
+	const rc = priced.rcPackage?.product?.price;
+	if (typeof rc === "number" && rc > 0) return rc;
+	if (priced.priceString) {
+		const n = Number(String(priced.priceString).replace(/[^0-9.]/g, ""));
+		if (Number.isFinite(n) && n > 0) return n;
+	}
+	return null;
+}
+
+// A single sku's id equals its lone grant id, so a bundle's grants map straight
+// to buyable singles. Only return a % when EVERY grant has a known price, so we
+// never show a misleading discount.
+function bundleSavingsPct(pack: ShopSku): number {
+	const bundle = priceOf(pack.id);
+	if (!bundle) return 0;
+	let separate = 0;
+	for (const g of pack.grants) {
+		const p = priceOf(g);
+		if (!p) return 0;
+		separate += p;
+	}
+	if (separate <= bundle) return 0;
+	return Math.round((1 - bundle / separate) * 100);
+}
 
 // Browse-all by default, then filter down. 'all' shows every single item so
 // users can just scroll; the rest narrow to one category. Grouped by feel:

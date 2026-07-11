@@ -109,6 +109,20 @@ export async function getBlockedIds() {
 	return await request<string[]>(`/relationship/blocked-ids`);
 }
 
+/**
+ * Authoritative social counts for a user. Used to reconcile local optimistic
+ * counters after block/unfriend, where the exact delta depends on server-side
+ * follow direction the client can't reliably reproduce.
+ */
+export async function fetchUserStats(userId: string) {
+	return await request<{
+		mates: number;
+		followers: number;
+		following: number;
+		posts: number;
+	}>(`/relationship/${userId}/stats`);
+}
+
 export async function respondToRelationship(
 	relationshipId: string,
 	action: "accept" | "decline",

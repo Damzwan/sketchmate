@@ -10,7 +10,7 @@
     >
       <span class="title-pin__sheen"></span>
       <span
-        class="relative w-4 h-4 rounded-full flex items-center justify-center text-[10px] leading-none shadow-inner"
+        class="relative w-4 h-4 rounded-full flex items-center justify-center text-base leading-none shadow-inner"
         :style="{ background: 'rgba(255,255,255,0.35)' }"
       >{{ def.emoji }}</span>
       <span class="relative">{{ def.name }}</span>

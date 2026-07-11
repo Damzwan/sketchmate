@@ -57,7 +57,7 @@
           />
 
           <!-- Artistic Dynamic Portfolio Feed Grid -->
-          <div class="h-full px-4 pt-4 pb-12" v-else>
+          <div class="h-full px-4 pt-4 gallery-feed-pad" v-else>
             <div v-for="date in sortDates(Object.keys(groupedInboxItems))" :key="date" class="pb-6">
 
               <!-- Month Stamp Divider Subhead -->
@@ -94,10 +94,11 @@
               :disabled="allLoaded"
               threshold="30%"
               position="bottom"
+              class="gallery-infinite"
             >
               <ion-infinite-scroll-content
                 loading-spinner="dots"
-                loading-text="loading"
+                loading-text="Loading more…"
               />
             </ion-infinite-scroll>
           </div>
@@ -249,6 +250,25 @@ ion-content{
 }
 ion-refresher {
   --color: var(--ion-color-secondary);
+}
+/* Keep the feed (and its infinite-scroll loader) clear of the floating tab dock
+   — the dock is ~54px tall, lifted 12px + the bottom safe-area off the edge, so
+   without this the "Loading more…" row renders underneath it. */
+.gallery-feed-pad {
+  padding-bottom: calc(6rem + var(--ion-safe-area-bottom, 0px));
+}
+/* Make the loader actually readable on mobile (was a faint tiny grey row). */
+.gallery-infinite {
+  --color: var(--ion-color-secondary);
+}
+.gallery-infinite :deep(.infinite-loading-text) {
+  color: var(--ion-color-secondary);
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+.gallery-infinite :deep(.infinite-loading) {
+  margin-top: 0.5rem;
 }
 /* Style adjustments to make the custom ion buttons compact inside selection pill */
 .--padding-start-0 {

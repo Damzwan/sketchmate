@@ -1,6 +1,6 @@
 <template>
   <section
-    class="rounded-[3rem] border-2 shadow-lg relative px-2 pb-2 pt-4 transition-all duration-500"
+    class="rounded-[3rem] border shadow-lg relative px-2 pb-2 pt-4 transition-all duration-500"
     :style="cardStyle"
   >
     <div class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
@@ -85,6 +85,7 @@
               :theme="theme"
               extra-class="mb-1"
             />
+            <div v-else class="mt-4"/>
 
             <h2
               class="text-3xl mt-2 font-black drop-shadow-sm transition-colors duration-500"

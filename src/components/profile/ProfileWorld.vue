@@ -323,7 +323,7 @@
           class="absolute left-[4%] top-[65%] -translate-y-1/2 w-[54%] gratitude-text"
           :style="{ fontFamily: font }"
         >
-          <p class="gratitude-thanks">Thank you,<br />eternally.</p>
+          <p class="gratitude-thanks">OG User</p>
         </div>
       </div>
     </div>
@@ -390,8 +390,11 @@ onMounted(() => {
 		(entries) => {
 			active.value = entries.some((e) => e.isIntersecting);
 		},
-		// Pre-mount a little before the card scrolls in so there's no pop-in.
-		{ rootMargin: "250px" },
+		// Grid tiles (preview) gate tightly so only a few lottie players run at
+		// once. The full hero card uses a huge margin so ordinary in-page scroll
+		// never unmounts + re-mounts its world (the pop-in flicker); it still
+		// deactivates when the whole page is hidden (display:none ⇒ no box).
+		{ rootMargin: props.preview ? "250px" : "9999px" },
 	);
 	// Re-observe whenever the root element appears/changes. Root is v-if'd on
 	// def.kind !== 'none', so switching FROM a 'none' world creates the root only

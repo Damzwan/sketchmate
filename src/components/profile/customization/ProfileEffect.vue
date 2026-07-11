@@ -138,7 +138,11 @@ onMounted(() => {
     (entries) => {
       active.value = entries.some((e) => e.isIntersecting)
     },
-    { rootMargin: '250px' }
+    // Grid tiles (preview) gate tightly to cap concurrent GPU work. The full
+    // hero card uses a huge margin so ordinary in-page scrolling never tears it
+    // down and re-mounts it (the pop-in flicker) — it still deactivates when the
+    // whole page is hidden (display:none ⇒ no box ⇒ not intersecting).
+    { rootMargin: props.preview ? '250px' : '9999px' }
   )
   // Re-observe whenever the root element appears/changes. Root is v-if'd on
   // def.kind !== 'none', so switching FROM a 'none' effect creates the root only

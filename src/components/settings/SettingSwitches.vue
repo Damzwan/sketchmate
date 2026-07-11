@@ -35,7 +35,7 @@
       <template #label>
         <span class="flex items-center gap-1 font-bold text-base text-black">
           <span>Balloons</span>
-          <button id="balloon-info" class="flex items-center justify-center p-1 rounded-full active:bg-black/5 transition-colors">
+          <button id="balloon-info" class="flex items-center justify-center p-1 rounded-full cursor-pointer active:bg-black/5 transition-colors">
             <ion-icon :icon="svg(mdiInformationOutline)" class="text-sm text-black/30" />
           </button>
         </span>
@@ -50,6 +50,29 @@
         />
       </template>
     </SettingCard>
+
+    <div class="w-full bg-tertiary border border-primary/40 rounded-[1.5rem] p-3 shadow-sm">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-secondary/10">
+          <ion-icon :icon="svg(mdiViewDashboardOutline)" class="text-xl text-secondary" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block font-bold text-base leading-tight text-black">Home feed</span>
+          <span class="block text-base text-black/80 mt-0.5 ">{{ feedLevelSublabel }}</span>
+        </span>
+      </div>
+      <ion-segment
+        mode="ios"
+        :value="feedLevel"
+        :disabled="feedLevelBusy"
+        color="primary"
+        @ionChange="handleFeedLevelChange"
+      >
+        <ion-segment-button value="off"><ion-label>Off</ion-label></ion-segment-button>
+        <ion-segment-button value="mates"><ion-label>Mates</ion-label></ion-segment-button>
+        <ion-segment-button value="open"><ion-label>Open</ion-label></ion-segment-button>
+      </ion-segment>
+    </div>
 
     <ion-popover trigger="balloon-info" trigger-action="click" class="cabin-sketch-regular">
       <div class="p-4 text-sm text-black bg-background border border-primary/20 rounded-2xl">
@@ -75,15 +98,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { ToggleCustomEvent } from "@ionic/vue";
-import { IonIcon, IonPopover, IonSpinner, IonToggle } from "@ionic/vue";
+import {
+	IonIcon,
+	IonLabel,
+	IonPopover,
+	IonSegment,
+	IonSegmentButton,
+	IonSpinner,
+	IonToggle,
+} from "@ionic/vue";
 import { isNative, svg } from "@/helper/general.helper";
 import {
 	mdiBalloon,
 	mdiBellOff,
 	mdiBellRing,
 	mdiInformationOutline,
+	mdiViewDashboardOutline,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { useAuthStore } from "@/store/auth.store";
@@ -101,6 +133,39 @@ const { deviceNotificationsAllowed } = storeToRefs(useNotificationStore());
 
 const notificationToggleBusy = ref(false);
 const balloonToggleBusy = ref(false);
+const feedLevelBusy = ref(false);
+
+type FeedLevel = "off" | "mates" | "open";
+const feedLevel = computed<FeedLevel>(() => user.value?.feed_level ?? "open");
+const feedLevelSublabel = computed(() => {
+	switch (feedLevel.value) {
+		case "off":
+			return "No feed on your home screen.";
+		case "mates":
+			return "Only posts from your mates and follows.";
+		default:
+			return "Mates first, then discover other artists.";
+	}
+});
+
+async function handleFeedLevelChange(event: CustomEvent) {
+	const val = (event.detail as { value?: FeedLevel }).value;
+	if (!user.value || !val || val === feedLevel.value) return;
+	if (feedLevelBusy.value) return;
+
+	feedLevelBusy.value = true;
+	const previous = user.value.feed_level;
+	user.value.feed_level = val;
+
+	try {
+		await updateUser({ _id: user.value._id, feed_level: val });
+	} catch (e) {
+		if (user.value) user.value.feed_level = previous;
+		useToast().toast("Could not update feed preference", { color: "danger" });
+	} finally {
+		feedLevelBusy.value = false;
+	}
+}
 
 async function handleNotificationChange(event: ToggleCustomEvent) {
 	const desired = event.detail.checked;

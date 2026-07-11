@@ -5,7 +5,7 @@
     <ion-content class="--background-custom">
       <div class="w-full max-w-2xl mx-auto px-4 pt-4 flex flex-col min-h-full bot-pad-safe">
 
-        <div class="mb-4 p-1 bg-black/5 rounded-[1.5rem] border border-black/10 flex shrink-0 backdrop-blur-sm select-none">
+        <div class="mb-4 p-1 bg-tertiary rounded-[1.5rem] border border-primary/40 flex shrink-0 select-none">
           <button
             v-for="tab in ['mates', 'followers', 'following']"
             :key="tab"
@@ -13,7 +13,7 @@
             class="flex-1 py-2 text-[11px] font-black uppercase tracking-widest rounded-[1.2rem] transition-all"
             :class="activeTab === tab
               ? 'bg-secondary text-white shadow-sm'
-              : 'text-black/60 hover:text-black'"
+              : 'text-black/50 hover:text-black'"
           >
             {{ tab }}
           </button>

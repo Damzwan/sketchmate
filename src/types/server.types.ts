@@ -213,6 +213,9 @@ export interface User {
 	description?: string;
 	img: string;
 	subscription_tier?: string;
+	/** Home feed visibility: 'off' (hidden), 'mates' (connections only) or
+	    'open' (connections + global discovery). Defaults to 'open'. */
+	feed_level?: "off" | "mates" | "open";
 	stats: UserStats;
 
 	// Moderation — both optional so legacy clients don't crash if absent.

@@ -1,5 +1,4 @@
-import { BaseBrush, Canvas, FabricImage, Point } from "fabric";
-import * as fabric from "fabric";
+import { BaseBrush, Canvas, Path, Point } from "fabric";
 import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
 
 // ------------------------------------------------------------------
@@ -31,7 +30,7 @@ export class CalligraphyBrush extends BaseBrush {
 	private _rawPoints: RawPoint[] = [];
 	private _seed: number = 0;
 
-	// FIX: Added explicit drawing state to prevent the "menu switch ghost stroke" bug
+	// Explicit drawing state prevents the "menu switch ghost stroke" bug.
 	private _isDrawing: boolean = false;
 
 	constructor(canvas: Canvas) {
@@ -46,7 +45,7 @@ export class CalligraphyBrush extends BaseBrush {
 	}
 
 	onMouseMove(pointer: Point) {
-		// FIX: Strict guardrail. Only draw if we explicitly started a stroke
+		// Strict guardrail: only draw once a stroke has explicitly started.
 		if (!this._isDrawing || !this._rawPoints || this._rawPoints.length === 0)
 			return;
 
@@ -54,7 +53,7 @@ export class CalligraphyBrush extends BaseBrush {
 		const dx = pointer.x - lastPt.x;
 		const dy = pointer.y - lastPt.y;
 
-		// Small interpolation buffer
+		// Small interpolation buffer.
 		if (Math.sqrt(dx * dx + dy * dy) > 2) {
 			this._rawPoints.push({ x: pointer.x, y: pointer.y, time: Date.now() });
 			this._drawTemporaryStroke();
@@ -64,382 +63,355 @@ export class CalligraphyBrush extends BaseBrush {
 	onMouseUp() {
 		if (!this._isDrawing) return false;
 		this._isDrawing = false;
-
-		const finalMouseUpTime = Date.now();
 		this.canvas.clearContext(this.canvas.contextTop);
 
-		if (this._rawPoints && this._rawPoints.length > 1) {
-			// 1. Generate the visual canvas as before
-			const tempImg = generateCalligraphyImage(
-				this._rawPoints,
-				this._seed,
-				this.color as string,
-				this.width,
-				finalMouseUpTime,
-			);
-
-			if (tempImg) {
-				// 2. Wrap it in our Sync-Friendly class
-				const calligraphyStroke = new CalligraphyStroke(tempImg.getElement(), {
-					...tempImg.toObject(),
+		const pts = this._rawPoints;
+		// length 1 (a quick tap) is valid — it stamps a single nib footprint.
+		if (pts && pts.length >= 1) {
+			const pathStr = buildCalligraphyPathString(pts, this._seed, this.width);
+			if (pathStr) {
+				const base = parseColor(this.color as string);
+				const stroke = new CalligraphyStroke(pathStr, {
+					fill: this.color,
+					// Dark capillary edge = inked depth, not a flat cutout.
+					stroke: rgba(mix(base, 0, 0, 0, 0.5), base.a * 0.55),
+					strokeWidth: Math.max(0.6, this.width * 0.05),
+					strokeLineJoin: "round",
+					strokeLineCap: "round",
+					fillRule: "nonzero",
+					interactive: false,
 					seed: this._seed,
-					rawPoints: [...this._rawPoints], // The raw DNA
-					endTime: finalMouseUpTime,
-					color: this.color,
 					baseWidth: this.width,
+					rawPoints: [...pts],
 				});
 
-				this.canvas.add(calligraphyStroke);
-				this.canvas.fire("path:created", { path: calligraphyStroke });
+				this.canvas.add(stroke);
+				this.canvas.fire("path:created", { path: stroke });
 			}
 		}
 		this._rawPoints = [];
 		return false;
 	}
 
+	// Live preview: paint the exact SAME vector geometry the committed stroke
+	// uses (via Path2D), so what you see while dragging is what you get. Cheap —
+	// one fill + one thin edge stroke, no per-frame raster.
 	private _drawTemporaryStroke() {
 		const ctx = this.canvas.contextTop;
 		this.canvas.clearContext(ctx);
-		ctx.save();
 
+		const pathStr = buildCalligraphyPathString(
+			this._rawPoints,
+			this._seed,
+			this.width,
+		);
+		if (!pathStr) return;
+
+		ctx.save();
 		if (this.canvas.viewportTransform) {
 			const v = this.canvas.viewportTransform;
 			ctx.transform(v[0], v[1], v[2], v[3], v[4], v[5]);
 		}
 
-		// FIX: Render the exact same visual logic for the live preview,
-		// but pass `isTemp: true` to skip heavy splatters and ink pools.
-		renderCalligraphyEngine(
-			ctx,
-			this._rawPoints,
-			this._seed,
-			this.color as string,
-			this.width,
-			Date.now(),
-			true,
-		);
-
+		const p2d = new Path2D(pathStr);
+		const base = parseColor(this.color as string);
+		ctx.fillStyle = this.color as string;
+		ctx.fill(p2d);
+		ctx.strokeStyle = rgba(mix(base, 0, 0, 0, 0.5), base.a * 0.55);
+		ctx.lineWidth = Math.max(0.6, this.width * 0.05);
+		ctx.lineJoin = "round";
+		ctx.lineCap = "round";
+		ctx.stroke(p2d);
 		ctx.restore();
 	}
 }
 
 // ------------------------------------------------------------------
-// 3. THE EPIC RENDER ENGINE (UNIFIED)
+// 3. COLOR + GEOMETRY HELPERS (self-contained, no external deps)
 // ------------------------------------------------------------------
 
-export function generateCalligraphyImage(
-	rawPoints: RawPoint[],
-	seed: number,
-	color: string,
-	baseWidth: number = 40,
-	endTime: number = Date.now(),
-): FabricImage | null {
-	if (rawPoints.length < 2) return null;
-
-	let minX = Infinity,
-		minY = Infinity,
-		maxX = -Infinity,
-		maxY = -Infinity;
-	const padding = baseWidth;
-
-	rawPoints.forEach((p) => {
-		if (p.x < minX) minX = p.x;
-		if (p.y < minY) minY = p.y;
-		if (p.x > maxX) maxX = p.x;
-		if (p.y > maxY) maxY = p.y;
-	});
-
-	minX -= padding;
-	minY -= padding;
-	maxX += padding;
-	maxY += padding;
-
-	// FIX 1: Dynamically pull the device's actual pixel ratio to cure the blurriness
-	const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-
-	const canvas = document.createElement("canvas");
-	canvas.width = (maxX - minX) * dpr;
-	canvas.height = (maxY - minY) * dpr;
-	const ctx = canvas.getContext("2d");
-
-	if (!ctx) return null;
-	ctx.scale(dpr, dpr);
-	ctx.translate(-minX, -minY);
-
-	renderCalligraphyEngine(
-		ctx,
-		rawPoints,
-		seed,
-		color,
-		baseWidth,
-		endTime,
-		false,
-	);
-
-	const width = maxX - minX;
-	const height = maxY - minY;
-
-	return new FabricImage(canvas, {
-		left: minX + width / 2,
-		top: minY + height / 2,
-		originX: "center",
-		originY: "center",
-		scaleX: 1 / dpr,
-		scaleY: 1 / dpr,
-		objectCaching: false,
-		interactive: false,
-	});
+interface RGBA {
+	r: number;
+	g: number;
+	b: number;
+	a: number;
 }
 
-function renderCalligraphyEngine(
-	ctx: CanvasRenderingContext2D,
+// Parses #rgb / #rrggbb / #rrggbbaa / rgb() / rgba(). The pen feeds an 8-digit
+// hex (colour + opacity), so alpha must survive.
+function parseColor(input: string): RGBA {
+	const s = (input || "#000000").trim();
+	if (s[0] === "#") {
+		let hex = s.slice(1);
+		if (hex.length === 3)
+			hex = hex
+				.split("")
+				.map((c) => c + c)
+				.join("");
+		if (hex.length === 6) hex += "ff";
+		const n = parseInt(hex, 16) >>> 0;
+		return {
+			r: (n >>> 24) & 255,
+			g: (n >>> 16) & 255,
+			b: (n >>> 8) & 255,
+			a: (n & 255) / 255,
+		};
+	}
+	const m = s.match(/rgba?\(([^)]+)\)/i);
+	if (m) {
+		const p = m[1].split(",").map((v) => parseFloat(v));
+		return { r: p[0] || 0, g: p[1] || 0, b: p[2] || 0, a: p[3] ?? 1 };
+	}
+	return { r: 0, g: 0, b: 0, a: 1 };
+}
+
+function mix(c: RGBA, tr: number, tg: number, tb: number, amt: number): RGBA {
+	return {
+		r: c.r + (tr - c.r) * amt,
+		g: c.g + (tg - c.g) * amt,
+		b: c.b + (tb - c.b) * amt,
+		a: c.a,
+	};
+}
+
+const rgba = (c: RGBA, a: number) =>
+	`rgba(${c.r | 0},${c.g | 0},${c.b | 0},${a})`;
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+	if (edge1 <= edge0) return x < edge0 ? 0 : 1;
+	const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+	return t * t * (3 - 2 * t);
+}
+
+interface NibSample {
+	x: number;
+	y: number;
+	press: number; // 0..1 nib load
+}
+
+// Catmull-Rom resample of the raw trace into a dense, evenly-spaced centreline
+// carrying a velocity-derived load. Smooth centreline = glassy edges; the
+// committed stroke is a VECTOR path (below), so it stays razor-crisp at any
+// stroke width or zoom — no raster blur.
+function buildCenterline(rawPoints: RawPoint[], baseWidth: number): NibSample[] {
+	const pts: NibSample[] = [];
+	for (let i = 0; i < rawPoints.length; i++) {
+		const p = rawPoints[i];
+		if (i > 0) {
+			const prev = rawPoints[i - 1];
+			if (Math.hypot(p.x - prev.x, p.y - prev.y) < 0.01) continue;
+			const dt = Math.max(1, p.time - prev.time);
+			const v = Math.hypot(p.x - prev.x, p.y - prev.y) / dt; // px/ms
+			// Rigid broad nib: load barely varies with speed (real dip pens don't).
+			// Thick↔thin comes from stroke DIRECTION vs the nib, which is what
+			// reads as authentic calligraphy. Speed only trims the swell slightly.
+			const load = 0.8 + 0.2 * Math.max(0, Math.min(1, 1 - v / 3));
+			pts.push({ x: p.x, y: p.y, press: load });
+		} else {
+			pts.push({ x: p.x, y: p.y, press: 0.9 });
+		}
+	}
+	if (pts.length < 2) return pts;
+
+	// EMA-smooth load both directions so swells read as fluid.
+	for (let i = 1; i < pts.length; i++)
+		pts[i].press = pts[i].press * 0.4 + pts[i - 1].press * 0.6;
+	for (let i = pts.length - 2; i >= 0; i--)
+		pts[i].press = pts[i].press * 0.4 + pts[i + 1].press * 0.6;
+
+	const spacing = Math.max(1, Math.min(2.5, baseWidth * 0.08));
+	const out: NibSample[] = [];
+	const P = (i: number) => pts[Math.max(0, Math.min(pts.length - 1, i))];
+
+	for (let i = 0; i < pts.length - 1; i++) {
+		const p0 = P(i - 1);
+		const p1 = P(i);
+		const p2 = P(i + 1);
+		const p3 = P(i + 2);
+		const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+		const steps = Math.max(1, Math.ceil(segLen / spacing));
+		for (let s = 0; s < steps; s++) {
+			const t = s / steps;
+			const t2 = t * t;
+			const t3 = t2 * t;
+			const x =
+				0.5 *
+				(2 * p1.x +
+					(-p0.x + p2.x) * t +
+					(2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+					(-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+			const y =
+				0.5 *
+				(2 * p1.y +
+					(-p0.y + p2.y) * t +
+					(2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+					(-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+			out.push({ x, y, press: p1.press + (p2.press - p1.press) * t });
+		}
+	}
+	out.push({ ...pts[pts.length - 1] });
+	return out;
+}
+
+// ------------------------------------------------------------------
+// 4. THE INK ENGINE — flat broad nib, emitted as a VECTOR outline
+// ------------------------------------------------------------------
+
+const NIB_ANGLE = -Math.PI / 4; // classic broad-nib italic tilt
+
+// The two nib edges: each centreline point offset ±half along the FIXED nib
+// axis. Because the offset axis is fixed, moving along the nib collapses the
+// ribbon to a hairline while moving across it opens to full width — authentic
+// calligraphic contrast. Tapered terminals mimic a lifted pen.
+function buildCalligraphyEdges(
 	rawPoints: RawPoint[],
 	seed: number,
-	color: string,
 	baseWidth: number,
-	endTime: number,
-	isTemp: boolean,
-) {
-	const random = seededRandom(seed);
-	const nibAngle = -Math.PI / 4;
-	const maxInkDistance = 2500;
+): { left: { x: number; y: number }[]; right: { x: number; y: number }[] } | null {
+	const samples = buildCenterline(rawPoints, baseWidth);
+	if (samples.length < 2) return null;
 
-	ctx.fillStyle = color;
-	ctx.strokeStyle = color;
-	ctx.lineCap = "round";
-	ctx.lineJoin = "round";
+	const ex = Math.cos(NIB_ANGLE);
+	const ey = Math.sin(NIB_ANGLE);
 
-	// Disable smoothing during preview for ultra-fast, stutter-free performance
-	if (isTemp) {
-		ctx.imageSmoothingEnabled = false;
-	}
-
-	let currentDist = 0;
-	let lastWidth = baseWidth * 0.6;
-
-	// Arrays to hold the left and right edges of the continuous stroke
-	const pathLeft: { x: number; y: number }[] = [];
-	const pathRight: { x: number; y: number }[] = [];
-
-	// 1. Core Ribbon Rendering (Unified Path)
-	for (let i = 1; i < rawPoints.length; i++) {
-		const p1 = rawPoints[i - 1];
-		const p2 = rawPoints[i];
-
-		const dx = p2.x - p1.x;
-		const dy = p2.y - p1.y;
-		const distance = Math.sqrt(dx * dx + dy * dy);
-		if (distance < 0.5) continue;
-
-		currentDist += distance;
-		const timeDiff = Math.max(1, p2.time - p1.time);
-		const velocity = distance / timeDiff;
-
-		const angle = Math.atan2(dy, dx);
-		const angleDiff = angle - nibAngle;
-
-		const widthRatio = 0.15 + 0.85 * Math.abs(Math.sin(angleDiff));
-		const targetWidth = Math.max(
-			baseWidth * 0.1,
-			baseWidth * widthRatio - velocity * 2,
+	let total = 0;
+	const cum = new Array(samples.length).fill(0);
+	for (let i = 1; i < samples.length; i++) {
+		total += Math.hypot(
+			samples[i].x - samples[i - 1].x,
+			samples[i].y - samples[i - 1].y,
 		);
-
-		const currentWidth = lastWidth + (targetWidth - lastWidth) * 0.2;
-		const perpAngle = nibAngle + Math.PI / 2;
-
-		// FIX 2: Calculate boundaries once and store them, rather than filling immediately
-		if (pathLeft.length === 0) {
-			const w1 = lastWidth / 2;
-			pathLeft.push({
-				x: p1.x + Math.cos(perpAngle) * w1,
-				y: p1.y + Math.sin(perpAngle) * w1,
-			});
-			pathRight.push({
-				x: p1.x - Math.cos(perpAngle) * w1,
-				y: p1.y - Math.sin(perpAngle) * w1,
-			});
-		}
-
-		const w2 = currentWidth / 2;
-		pathLeft.push({
-			x: p2.x + Math.cos(perpAngle) * w2,
-			y: p2.y + Math.sin(perpAngle) * w2,
-		});
-		pathRight.push({
-			x: p2.x - Math.cos(perpAngle) * w2,
-			y: p2.y - Math.sin(perpAngle) * w2,
-		});
-
-		lastWidth = currentWidth;
+		cum[i] = total;
 	}
+	const taper = Math.min(baseWidth * 0.9, total * 0.4);
+	const random = seededRandom(seed);
 
-	// Draw the unified continuous ribbon to cure white-line artifacts
-	if (pathLeft.length > 0) {
-		ctx.beginPath();
-		ctx.moveTo(pathLeft[0].x, pathLeft[0].y);
-
-		for (let i = 1; i < pathLeft.length; i++) {
-			ctx.lineTo(pathLeft[i].x, pathLeft[i].y);
-		}
-		for (let i = pathRight.length - 1; i >= 0; i--) {
-			ctx.lineTo(pathRight[i].x, pathRight[i].y);
-		}
-
-		ctx.closePath();
-
-		// Dynamic ink depletion: prevents thin strokes from disappearing
-		const minOpacity = baseWidth < 2 ? 0.7 : 0.25;
-		const inkRemaining = Math.max(minOpacity, 1 - currentDist / maxInkDistance);
-		ctx.globalAlpha = inkRemaining;
-
-		ctx.fill();
-		ctx.globalAlpha = 1.0;
+	const left: { x: number; y: number }[] = [];
+	const right: { x: number; y: number }[] = [];
+	for (let i = 0; i < samples.length; i++) {
+		const s = samples[i];
+		const tip = Math.min(
+			smoothstep(0, taper, cum[i]),
+			smoothstep(0, taper, total - cum[i]),
+		);
+		// Whisper of deterministic edge wobble = organic ink, sub-pixel, no blur.
+		const jitter = (random() - 0.5) * 0.4;
+		const half = Math.max(0.3, (baseWidth / 2) * s.press * tip + jitter);
+		left.push({ x: s.x + ex * half, y: s.y + ey * half });
+		right.push({ x: s.x - ex * half, y: s.y - ey * half });
 	}
-
-	// 2. Splatters & Bristles (Final image only)
-	if (!isTemp) {
-		currentDist = 0;
-		lastWidth = baseWidth * 0.6;
-
-		for (let i = 1; i < rawPoints.length; i++) {
-			const p1 = rawPoints[i - 1];
-			const p2 = rawPoints[i];
-			const distance = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-			if (distance < 0.5) continue;
-
-			const velocity = distance / Math.max(1, p2.time - p1.time);
-			const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-			const widthRatio = 0.15 + 0.85 * Math.abs(Math.sin(angle - nibAngle));
-			const targetWidth = Math.max(
-				baseWidth * 0.1,
-				baseWidth * widthRatio - velocity * 2,
-			);
-			const currentWidth = lastWidth + (targetWidth - lastWidth) * 0.2;
-
-			if (velocity > 1.5 && random() > 0.8) {
-				ctx.globalAlpha = 0.9;
-				ctx.beginPath();
-				ctx.ellipse(
-					p2.x + (random() - 0.5) * baseWidth,
-					p2.y + (random() - 0.5) * baseWidth,
-					random() * 2 + 1,
-					random() + 0.5,
-					angle,
-					0,
-					Math.PI * 2,
-				);
-				ctx.fill();
-			}
-
-			if (velocity > 2.5) {
-				ctx.globalAlpha = 0.5;
-				ctx.beginPath();
-				ctx.lineWidth = random() * 2;
-				ctx.moveTo(
-					p1.x + (random() - 0.5) * currentWidth,
-					p1.y + (random() - 0.5) * currentWidth,
-				);
-				ctx.lineTo(
-					p2.x + (random() - 0.5) * currentWidth,
-					p2.y + (random() - 0.5) * currentWidth,
-				);
-				ctx.stroke();
-			}
-			lastWidth = currentWidth;
-		}
-	}
-
-	// 3. Ink Pooling (Final render only)
-	if (!isTemp && rawPoints.length > 0) {
-		const lastRawPoint = rawPoints[rawPoints.length - 1];
-		const timeHeld = endTime - lastRawPoint.time;
-
-		if (timeHeld > 150) {
-			const poolRadius = Math.min(
-				baseWidth * 0.8,
-				(timeHeld / 100) * (baseWidth * 0.2),
-			);
-			ctx.globalAlpha = 0.4;
-			ctx.beginPath();
-			ctx.arc(lastRawPoint.x, lastRawPoint.y, poolRadius, 0, Math.PI * 2);
-			ctx.fill();
-		}
-	}
-
-	ctx.globalAlpha = 1.0;
+	return { left, right };
 }
 
-export class CalligraphyStroke extends FabricImage {
+// A single nib footprint for a tap (no travel): the flat nib pressed once — a
+// short, thick diagonal at the nib angle. Deterministic, so a tap syncs and
+// rebuilds identically on every device.
+function nibDabPath(p: RawPoint, baseWidth: number): string {
+	const ex = Math.cos(NIB_ANGLE); // along the nib
+	const ey = Math.sin(NIB_ANGLE);
+	const px = -ey; // across the nib (its thickness)
+	const py = ex;
+	const L = Math.max(1, baseWidth * 0.55);
+	const T = Math.max(0.5, baseWidth * 0.16);
+	const c = [
+		[p.x + ex * L + px * T, p.y + ey * L + py * T],
+		[p.x - ex * L + px * T, p.y - ey * L + py * T],
+		[p.x - ex * L - px * T, p.y - ey * L - py * T],
+		[p.x + ex * L - px * T, p.y + ey * L - py * T],
+	];
+	return (
+		`M ${c[0][0].toFixed(2)} ${c[0][1].toFixed(2)} ` +
+		`L ${c[1][0].toFixed(2)} ${c[1][1].toFixed(2)} ` +
+		`L ${c[2][0].toFixed(2)} ${c[2][1].toFixed(2)} ` +
+		`L ${c[3][0].toFixed(2)} ${c[3][1].toFixed(2)} Z`
+	);
+}
+
+// Full ribbon outline as an SVG path (down one edge, back the other, closed).
+// nonzero fill unions any self-overlap at sharp turns, so no interior holes.
+export function buildCalligraphyPathString(
+	rawPoints: RawPoint[],
+	seed: number,
+	baseWidth: number,
+): string {
+	if (!rawPoints || rawPoints.length === 0) return "";
+	if (rawPoints.length < 2) return nibDabPath(rawPoints[0], baseWidth);
+
+	const edges = buildCalligraphyEdges(rawPoints, seed, baseWidth);
+	if (!edges) return nibDabPath(rawPoints[0], baseWidth);
+
+	const { left, right } = edges;
+	let d = `M ${left[0].x.toFixed(2)} ${left[0].y.toFixed(2)} `;
+	for (let i = 1; i < left.length; i++)
+		d += `L ${left[i].x.toFixed(2)} ${left[i].y.toFixed(2)} `;
+	for (let i = right.length - 1; i >= 0; i--)
+		d += `L ${right[i].x.toFixed(2)} ${right[i].y.toFixed(2)} `;
+	d += "Z";
+	return d;
+}
+
+function inflateTrace(compressed: number[]): RawPoint[] {
+	const out: RawPoint[] = [];
+	let lastX = 0,
+		lastY = 0,
+		lastTime = 0;
+	for (let i = 0; i < compressed.length; i += 3) {
+		let ix = compressed[i];
+		let iy = compressed[i + 1];
+		let it = compressed[i + 2];
+		if (i > 0) {
+			ix += lastX;
+			iy += lastY;
+			it += lastTime;
+		}
+		lastX = ix;
+		lastY = iy;
+		lastTime = it;
+		out.push({ x: ix / 10, y: iy / 10, time: it });
+	}
+	return out;
+}
+
+// ------------------------------------------------------------------
+// 5. THE STROKE — a real vector Path (crisp everywhere, sync-friendly)
+// ------------------------------------------------------------------
+export class CalligraphyStroke extends Path {
 	static type = "CalligraphyStroke";
-	// Added 'compressedTrace' to cacheProperties to ensure it's tracked
 	static cacheProperties = [
-		...FabricImage.cacheProperties,
+		...Path.cacheProperties,
 		"seed",
-		"endTime",
-		"color",
 		"baseWidth",
 		"compressedTrace",
 	];
 
 	public seed: number = 0;
-	public rawPoints: RawPoint[] = [];
-	public endTime: number = 0;
-	public color: string = "#000000";
 	public baseWidth: number = 40;
+	public rawPoints: RawPoint[] = [];
 
-	constructor(element: any, options: any) {
-		// FabricImage constructor expects the element first
-		super(element, options);
-
-		this.seed = options.seed;
-		this.color = options.color;
-		this.baseWidth = options.baseWidth;
-		this.endTime = options.endTime;
-
-		// INFLATION: Logic moved to a helper to keep constructor clean
+	constructor(path: string | any[], options: any) {
+		super(path, options);
+		this.seed = options.seed ?? 0;
+		this.baseWidth = options.baseWidth ?? 40;
 		if (options.compressedTrace) {
-			this.rawPoints = this._inflateTrace(options.compressedTrace);
+			this.rawPoints = inflateTrace(options.compressedTrace);
 		} else {
 			this.rawPoints = options.rawPoints || [];
 		}
 	}
 
-	private _inflateTrace(compressed: number[]): RawPoint[] {
-		const inflated: RawPoint[] = [];
-		let lastX = 0,
-			lastY = 0,
-			lastTime = 0;
-		for (let i = 0; i < compressed.length; i += 3) {
-			let ix = compressed[i];
-			let iy = compressed[i + 1];
-			let it = compressed[i + 2];
-
-			if (i > 0) {
-				ix += lastX;
-				iy += lastY;
-				it += lastTime;
-			}
-			lastX = ix;
-			lastY = iy;
-			lastTime = it;
-			inflated.push({ x: ix / 10, y: iy / 10, time: it });
-		}
-		return inflated;
-	}
-
 	// @ts-ignore
 	toObject(additionalProperties: string[] = []) {
+		// Ship only the delta-encoded raw trace (x, y, time). The heavy `path`
+		// geometry is regenerated deterministically on the other side.
 		const flatTrace: number[] = [];
 		let lastX = 0,
 			lastY = 0,
 			lastTime = 0;
-
 		for (let i = 0; i < this.rawPoints.length; i++) {
 			const p = this.rawPoints[i];
 			const ix = Math.round(p.x * 10);
 			const iy = Math.round(p.y * 10);
 			const it = p.time;
-
 			if (i === 0) {
 				flatTrace.push(ix, iy, it);
 			} else {
@@ -452,14 +424,10 @@ export class CalligraphyStroke extends FabricImage {
 
 		const baseObj = super.toObject([
 			"seed",
-			"color",
 			"baseWidth",
-			"endTime",
 			...additionalProperties,
 		] as any);
-
-		// Remove the heavy DataURL/Src to keep the sync payload small
-		delete (baseObj as any).src;
+		delete (baseObj as any).path;
 
 		return {
 			...baseObj,
@@ -468,52 +436,12 @@ export class CalligraphyStroke extends FabricImage {
 	}
 
 	static async fromObject(object: any) {
-		// 1. If we are syncing, we won't have an image element or src
-		if (!object.src) {
-			// Manually inflate the trace to regenerate the image
-			const tempPoints: RawPoint[] = [];
-			let lastX = 0,
-				lastY = 0,
-				lastTime = 0;
-			const compressed = object.compressedTrace || [];
-
-			for (let i = 0; i < compressed.length; i += 3) {
-				let ix = compressed[i],
-					iy = compressed[i + 1],
-					it = compressed[i + 2];
-				if (i > 0) {
-					ix += lastX;
-					iy += lastY;
-					it += lastTime;
-				}
-				lastX = ix;
-				lastY = iy;
-				lastTime = it;
-				tempPoints.push({ x: ix / 10, y: iy / 10, time: it });
-			}
-
-			// 2. Generate the actual HTMLCanvasElement
-			const calligraphyImg = generateCalligraphyImage(
-				tempPoints,
-				object.seed,
-				object.color,
-				object.baseWidth,
-				object.endTime,
-			);
-
-			if (calligraphyImg) {
-				// Use the generated canvas as the element for the new FabricImage
-				const enlivenedProps = await enlivenStrokeProps(object);
-				return new CalligraphyStroke(
-					calligraphyImg.getElement(),
-					enlivenedProps,
-				);
-			}
+		let path = object.path;
+		if (!path || (Array.isArray(path) && path.length === 0)) {
+			const pts = inflateTrace(object.compressedTrace || []);
+			path = buildCalligraphyPathString(pts, object.seed, object.baseWidth);
 		}
-
-		// Fallback to standard FabricImage loading if src exists
-		return fabric.util
-			.enlivenObjects([object])
-			.then((enlivened) => enlivened[0]);
+		const enlivened = await enlivenStrokeProps(object);
+		return new CalligraphyStroke(path, enlivened);
 	}
 }

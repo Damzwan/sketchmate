@@ -46,7 +46,7 @@
           :key="comment._id || idx"
           class="flex items-start px-4 py-3 relative"
         >
-          <button @click="openUser(getAuthorId(comment))" class="shrink-0 active:scale-95 transition-transform">
+          <button @click="openUser(getAuthorId(comment))" class="shrink-0 cursor-pointer active:scale-95 transition-transform">
             <ion-avatar class="h-[38px] w-[38px] bg-white/80 shadow-sm border border-black/5 overflow-hidden">
               <img v-if="getAuthorImg(comment)" :src="getAuthorImg(comment)" class="aspect-square object-cover" />
               <span v-else class="w-full h-full flex items-center justify-center font-bold text-black text-sm">
@@ -62,7 +62,7 @@
             <div class="flex items-baseline justify-between gap-2">
               <button
                 @click="openUser(getAuthorId(comment))"
-                class="text-sm font-black text-black truncate active:opacity-60 transition-opacity text-left"
+                class="text-sm font-black cursor-pointer text-black truncate active:opacity-60 transition-opacity text-left"
               >
                 {{ getAuthorName(comment) }}
               </button>
@@ -78,7 +78,7 @@
 
           <button
             @click.stop="openCommentActions(comment)"
-            class="absolute top-3 right-3 p-1.5 active:scale-90 transition-transform"
+            class="absolute cursor-pointer top-3 right-3 p-1.5 active:scale-90 transition-transform"
           >
             <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg text-black/80" />
           </button>
@@ -109,7 +109,7 @@
             @mousedown.prevent
             @click="submitComment"
             :disabled="isSubmitting"
-            class="shrink-0 active:scale-90 transition-transform pl-2"
+            class="shrink-0 active:scale-90 cursor-pointer transition-transform pl-2"
           >
             <ion-icon :icon="svg(mdiSend)" class="text-2xl text-secondary" />
           </button>

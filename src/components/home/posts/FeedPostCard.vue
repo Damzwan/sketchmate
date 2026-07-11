@@ -7,7 +7,7 @@
         <div class="flex items-center justify-between">
           <button
             @click="openUser(post.author._id)"
-            class="flex items-center active:scale-98 transition-all text-left min-w-0"
+            class="flex cursor-pointer items-center active:scale-98 transition-all text-left min-w-0"
           >
             <div class="flex items-center justify-center shrink-0">
               <UserAvatar
@@ -42,7 +42,7 @@
           </button>
 
           <button @click="presentActionSheet"
-                  class="p-2 active:scale-90 transition-transform shrink-0 text-black/30 hover:text-black">
+                  class="p-2 active:scale-90 transition-transform shrink-0 text-black/70 cursor-pointer hover:text-black">
             <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-xl" />
           </button>
         </div>

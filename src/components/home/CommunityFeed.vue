@@ -7,7 +7,18 @@
       </h2>
     </div>
 
-    <transition name="fade-slow" mode="out-in">
+    <!-- Feed turned off in Settings — keep home clean, just a gentle pointer. -->
+    <div
+      v-if="feedOff"
+      class="mt-1 p-6 rounded-[2rem] border border-dashed border-primary/60 bg-tertiary text-center"
+    >
+      <p class="cabin-sketch-regular text-xl font-black text-black leading-none mb-1.5">Your feed is off</p>
+      <p class="text-base text-black/80 leading-snug">
+        Turn it back on from Settings → Home feed to see posts from your mates.
+      </p>
+    </div>
+
+    <transition v-else name="fade-slow" mode="out-in">
       <!-- Loading Shimmer State Cards -->
       <div v-if="loading" key="loading" class="space-y-6">
         <div
@@ -78,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { IonSpinner, IonPopover } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { useIntersectionObserver } from "@vueuse/core";
@@ -124,12 +135,17 @@ let savedScrollTop = 0;
 async function resolveScrollEl(): Promise<HTMLElement | null> {
 	if (scrollEl?.isConnected) return scrollEl;
 	const content = rootEl.value?.closest("ion-content") as any;
-	scrollEl = content?.getScrollElement ? await content.getScrollElement() : null;
+	scrollEl = content?.getScrollElement
+		? await content.getScrollElement()
+		: null;
 	return scrollEl;
 }
 
 function pinScroll() {
-	if (scrollEl?.isConnected && Math.abs(scrollEl.scrollTop - savedScrollTop) > 2)
+	if (
+		scrollEl?.isConnected &&
+		Math.abs(scrollEl.scrollTop - savedScrollTop) > 2
+	)
 		scrollEl.scrollTop = savedScrollTop;
 }
 
@@ -270,19 +286,35 @@ const registerPostRef = (el: any, postId: string) => {
 	);
 };
 
-watch(
-	user,
-	(newVal) => {
-		if (!newVal) return;
-		if (posts.value.length === 0 || isFeedDirty.value) {
-			postStore.getFeed().finally(() => {
-				loading.value = false;
-			});
-		} else {
+// 'off' hides the feed entirely — no fetch, a small placeholder instead.
+const feedOff = computed(() => user.value?.feed_level === "off");
+
+function loadFeedIfNeeded() {
+	if (!user.value) return;
+	if (feedOff.value) {
+		posts.value = [];
+		loading.value = false;
+		return;
+	}
+	if (posts.value.length === 0 || isFeedDirty.value) {
+		postStore.getFeed().finally(() => {
 			loading.value = false;
-		}
+		});
+	} else {
+		loading.value = false;
+	}
+}
+
+watch(user, loadFeedIfNeeded, { immediate: true });
+
+// Re-pull (or clear) the feed when the level preference flips.
+watch(
+	() => user.value?.feed_level,
+	() => {
+		postStore.markFeedDirty();
+		loading.value = !feedOff.value;
+		loadFeedIfNeeded();
 	},
-	{ immediate: true },
 );
 
 onMounted(() => {

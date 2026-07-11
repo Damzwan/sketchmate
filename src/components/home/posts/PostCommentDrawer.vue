@@ -56,7 +56,7 @@
           <!-- User Avatar -->
           <button
             @click="openUser(comment.author?._id)"
-            class="shrink-0 active:scale-95 transition-transform mt-0.5"
+            class="shrink-0 cursor-pointer active:scale-95 transition-transform mt-0.5"
           >
             <UserAvatar
               static
@@ -74,7 +74,7 @@
             <div class="flex items-baseline justify-between gap-2">
               <button
                 @click="openUser(comment.author?._id)"
-                class="text-sm font-black text-black truncate active:opacity-60 transition-opacity text-left max-w-[70%]"
+                class="text-sm font-black cursor-pointer text-black truncate active:opacity-60 transition-opacity text-left max-w-[70%]"
               >
                 {{ comment.author?.name || 'Sketcher' }}
               </button>
@@ -91,7 +91,7 @@
             <!-- Context Options Button -->
             <button
               @click.stop="openCommentActions(comment)"
-              class="absolute top-3 right-3 p-1.5 active:scale-90 transition-transform"
+              class="absolute top-3 cursor-pointer right-3 p-1.5 active:scale-90 transition-transform"
             >
               <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg text-black/80" />
             </button>
@@ -123,7 +123,7 @@
             @mousedown.prevent
             @click="submitComment"
             :disabled="isSubmitting"
-            class="shrink-0 active:scale-90 transition-transform pl-2"
+            class="shrink-0 cursor-pointer active:scale-90 transition-transform pl-2"
           >
             <ion-icon :icon="svg(mdiSend)" class="text-2xl text-secondary" />
           </button>

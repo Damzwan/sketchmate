@@ -83,6 +83,15 @@ interface Draw {
   dh: number;
 }
 
+interface CompositeCell {
+  tx: number;
+  ty: number;
+  dx: number;
+  dy: number;
+  dw: number;
+  dh: number;
+}
+
 export class CommittedLayer<T extends Bounded> {
   private readonly TILE: number
   private readonly OS: number
@@ -102,6 +111,15 @@ export class CommittedLayer<T extends Bounded> {
   private tiles = new Map<string, Tile>()
   private gen = new Map<string, number>()
   private memoryBytes = 0
+
+  // Reusable per-frame composite scratch. Filled count-tracked (slots
+  // overwritten in place, not re-allocated) so a steady-state composite frame
+  // allocates no tile draw descriptors — was O(visible tiles) object literals
+  // + 4 arrays every frame. Never retained past the synchronous composite call.
+  private _present: Draw[] = []
+  private _uncovered: CompositeCell[] = []
+  private _needsOverview: CompositeCell[] = []
+  private _fallback: Draw[] = []
 
   private pool: OffscreenCanvas[] = []
   private poolBytes = 0
@@ -284,8 +302,11 @@ export class CommittedLayer<T extends Bounded> {
     const a = vpt[0] * dpr, d = vpt[3] * dpr, e = vpt[4] * dpr, f = vpt[5] * dpr
     const tws = this.TILE / this.ZOOM_TIERS[tier]
 
-    const present: Draw[] = []
-    const uncovered: { tx: number; ty: number; dx: number; dy: number; dw: number; dh: number }[] = []
+    // Reuse per-frame scratch (see fields). Counts track fill length; slots are
+    // overwritten in place so a steady-state frame allocates no descriptors.
+    const present = this._present
+    const uncovered = this._uncovered
+    let presentN = 0, uncoveredN = 0
     let anyNonFresh = false
 
     for (let ty = range.ty0; ty <= range.ty1; ty++) {
@@ -303,44 +324,48 @@ export class CommittedLayer<T extends Bounded> {
         if (!t || !fresh) anyNonFresh = true
 
         if (t && t.bitmap) {
-          present.push({
-            bmp: t.bitmap,
-            sx: this.OS,
-            sy: this.OS,
-            sw: this.TILE,
-            sh: this.TILE,
-            dx: dx0,
-            dy: dy0,
-            dw,
-            dh
-          })
+          const dr = present[presentN] ??
+            (present[presentN] = { bmp: t.bitmap, sx: 0, sy: 0, sw: 0, sh: 0, dx: 0, dy: 0, dw: 0, dh: 0 })
+          dr.bmp = t.bitmap
+          dr.sx = this.OS; dr.sy = this.OS; dr.sw = this.TILE; dr.sh = this.TILE
+          dr.dx = dx0; dr.dy = dy0; dr.dw = dw; dr.dh = dh
+          presentN++
           continue
         }
         if (t && fresh && !t.bitmap) continue // fresh-empty → genuinely empty
 
-        uncovered.push({ tx, ty, dx: dx0, dy: dy0, dw, dh })
+        const uc = uncovered[uncoveredN] ??
+          (uncovered[uncoveredN] = { tx: 0, ty: 0, dx: 0, dy: 0, dw: 0, dh: 0 })
+        uc.tx = tx; uc.ty = ty; uc.dx = dx0; uc.dy = dy0; uc.dw = dw; uc.dh = dh
+        uncoveredN++
       }
     }
 
-    const fallback: Draw[] = []
-    const needsOverview: { dx: number; dy: number; dw: number; dh: number }[] = []
+    const fallback = this._fallback
+    fallback.length = 0
+    const needsOverview = this._needsOverview
+    let needsOverviewN = 0
 
-    for (const cell of uncovered) {
+    for (let i = 0; i < uncoveredN; i++) {
+      const cell = uncovered[i]
       const fbs = this.findBestSource(tier, cell.tx, cell.ty, cell.dx, cell.dy, cell.dw, cell.dh, maxDepth)
       if (fbs.length) {
-        fallback.push(...fbs)
+        for (let j = 0; j < fbs.length; j++) fallback.push(fbs[j])
       } else {
         // Cells ONLY fallback to the overview if no coarser/finer tile chunks exist
-        needsOverview.push(cell)
+        needsOverview[needsOverviewN++] = cell
       }
     }
 
     // Render the overview background strictly for gaps missing tile data
-    if (needsOverview.length > 0) {
+    if (needsOverviewN > 0) {
       ctx.save()
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.beginPath()
-      for (const cell of needsOverview) ctx.rect(cell.dx, cell.dy, cell.dw, cell.dh)
+      for (let i = 0; i < needsOverviewN; i++) {
+        const cell = needsOverview[i]
+        ctx.rect(cell.dx, cell.dy, cell.dw, cell.dh)
+      }
       ctx.clip()
       this.overview.composite(ctx, vpt, px, dpr, vw)
       ctx.restore()
@@ -352,11 +377,16 @@ export class CommittedLayer<T extends Bounded> {
     // @ts-ignore
     ctx.imageSmoothingQuality = 'low'
 
-    // Draw tiles on top safely without stacking transparency
-    for (const dr of fallback)
+    // Draw tiles on top safely without stacking transparency. Iterate by fill
+    // count — the scratch arrays keep a stale tail from prior frames.
+    for (let i = 0; i < fallback.length; i++) {
+      const dr = fallback[i]
       ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh)
-    for (const dr of present)
+    }
+    for (let i = 0; i < presentN; i++) {
+      const dr = present[i]
       ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh)
+    }
     ctx.restore()
 
     // bottom instrumentation hook (debug only)
@@ -367,8 +397,8 @@ export class CommittedLayer<T extends Bounded> {
       s.frames++
       s.ms += dt
       s.maxMs = Math.max(s.maxMs, dt)
-      s.cells += uncovered.length
-      if (needsOverview.length > 0) s.missFrames++
+      s.cells += uncoveredN
+      if (needsOverviewN > 0) s.missFrames++
     }
 
     return { needsBake: anyNonFresh }

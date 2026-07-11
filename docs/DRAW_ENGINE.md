@@ -1,0 +1,632 @@
+# SketchMate Drawing Engine
+
+A deep reference for the custom canvas rendering engine: how it works, why it is
+built the way it is, where it hurts today, and what to do next.
+
+> **Audience:** engineers working on the `src/draw/` module. Assumes familiarity
+> with Fabric.js, the Canvas 2D API, and `OffscreenCanvas`/`ImageBitmap`.
+
+---
+
+## Table of contents
+
+1. [TL;DR](#tldr)
+2. [Why a custom renderer](#why-a-custom-renderer)
+3. [Architecture at a glance](#architecture-at-a-glance)
+4. [The layers](#the-layers)
+   - [RenderCore — the orchestrator](#rendercore--the-orchestrator)
+   - [CommittedLayer — the tiled cache](#committedlayer--the-tiled-cache)
+   - [WorldOverview — the low-res base](#worldoverview--the-low-res-base)
+   - [LiveLayer — in-flight objects](#livelayer--in-flight-objects)
+5. [Supporting systems](#supporting-systems)
+   - [Spatial index (drawObjectManager + QuadTree)](#spatial-index-drawobjectmanager--quadtree)
+   - [TransformController — the GPU drag layer](#transformcontroller--the-gpu-drag-layer)
+   - [The tile renderer](#the-tile-renderer)
+   - [The yielder](#the-yielder)
+6. [How a frame is produced](#how-a-frame-is-produced)
+7. [How an edit propagates (invalidation seams)](#how-an-edit-propagates-invalidation-seams)
+8. [Coordinate systems, tiers and zoom](#coordinate-systems-tiers-and-zoom)
+9. [Memory management](#memory-management)
+10. [Sync & history integration](#sync--history-integration)
+11. [Key invariants (read before you touch anything)](#key-invariants-read-before-you-touch-anything)
+12. [Instrumentation & debugging](#instrumentation--debugging)
+13. [Current limitations](#current-limitations)
+14. [Roadmap / next steps](#roadmap--next-steps)
+15. [Recent optimizations](#recent-optimizations)
+16. [Glossary](#glossary)
+
+---
+
+## TL;DR
+
+SketchMate draws on an **infinite canvas** that can hold thousands of objects.
+Fabric's default renderer repaints every object every frame, which collapses on
+large boards and low-end phones. So we **replaced Fabric's renderer** and keep
+Fabric only as an **object model + event bus + input/transform system**.
+
+Our renderer is a **tiled, cached compositor**:
+
+- The world is diced into **tiles** at several **zoom tiers**. Each tile is an
+  `ImageBitmap` that is a *pure function of (objects in that region, generation)*.
+- Every frame we **composite** the handful of tiles under the viewport with a few
+  `drawImage` calls — no per-object rendering in the steady state.
+- A single low-res **overview** bitmap is the far-zoom picture and the fallback
+  under any not-yet-baked tile, so the screen is never blank.
+- **In-flight** objects (the stroke you are drawing, a remote drag) render
+  directly over the tiles until they settle and bake.
+- Baking is **incremental, debounced, viewport-prioritized and yield-friendly**,
+  so it never blocks input.
+
+The result: frame cost is **O(visible tiles)**, essentially independent of total
+object count, and heavy work is chunked so the main thread stays responsive.
+
+---
+
+## Why a custom renderer
+
+Fabric's `canvas.renderAll()` iterates **every** object and re-rasterizes it into
+the visible canvas on each frame. Problems on our workload:
+
+- **Unbounded frame cost.** A 5,000-object collaborative board repaints 5,000
+  objects per frame even when 20 are visible.
+- **No spatial culling worth the name.** Fabric's `isOnScreen` helps, but the
+  per-object iteration and state churn still dominate.
+- **Object caching backfires.** Per-object `_cacheCanvas` bitmaps multiply memory
+  and thrash on zoom, and clip/erase groups (`needsItsOwnCache`) re-rasterize
+  whole clip stacks.
+- **Jank on commit.** Big selection drags, erases, undo/redo each triggered
+  full-canvas repaints.
+
+We keep everything Fabric is genuinely good at — the object model, serialization
+(`toObject`/`enlivenObjects`), hit-testing, controls, and the input/transform
+pipeline — and we take over **only the pixels**.
+
+`changeFabricSettings()` in
+[`fabricDefaults.helper.ts`](../src/draw/helpers/fabricDefaults.helper.ts) is
+where Fabric is reconfigured for this: `objectCaching = false` globally,
+`renderOnAddRemove = false`, custom `findTarget`/`__onMouseDown`/`__onMouseUp`/
+`handleSelection`, and custom control rendering.
+
+---
+
+## Architecture at a glance
+
+```
+                         ┌──────────────────────────────────────────┐
+   Fabric.Canvas         │            drawObjectManager (store)      │
+   (object model,        │  • objectMap: id → FabricObject           │
+    events, input) ─────▶│  • InfiniteQuadtreeManager (spatial index)│
+                         │  • z-index map (__z stamps)               │
+                         │  • fabric events → core lifecycle calls   │
+                         └───────────────┬──────────────────────────┘
+                                         │  spatialIndex.query(rect) → z-sorted objs
+                                         ▼
+                         ┌──────────────────────────────────────────┐
+                         │                RenderCore                 │
+                         │  frame loop · bake loop · coalescing      │
+                         └───┬───────────────┬───────────────┬───────┘
+                             │               │               │
+                             ▼               ▼               ▼
+                   ┌───────────────┐ ┌──────────────┐ ┌──────────────┐
+                   │ CommittedLayer│ │ WorldOverview │ │  LiveLayer   │
+                   │ tiled bitmap  │ │ 1 low-res bmp │ │ in-flight    │
+                   │ cache (tiers) │ │ (base/fallbk) │ │ objects      │
+                   └───────────────┘ └──────────────┘ └──────────────┘
+                             │               │               │
+                             └───────────────┴───────────────┘
+                                         │ every frame:
+                                         ▼  committed.composite() → live.composite()
+                                  ┌──────────────┐
+                                  │ visible <canvas> (lower ctx) │
+                                  └──────────────┘
+
+   Parallel path (not in the frame loop):
+   TransformController → GPU drag <canvas> layer (CSS-transformed ImageBitmap)
+```
+
+Files:
+
+| Concern | File |
+| --- | --- |
+| Orchestrator | [`renderCore.ts`](../src/draw/renderCore.ts) |
+| Tiled cache | [`committedLayer.ts`](../src/draw/committedLayer.ts) |
+| Low-res base | [`worldOverview.ts`](../src/draw/worldOverview.ts) |
+| In-flight objects | [`liveLayer.ts`](../src/draw/liveLayer.ts) |
+| Spatial index + fabric glue | [`store/drawObjectManager.store.ts`](../src/draw/store/drawObjectManager.store.ts) |
+| Quadtree | [`utils/QuadTree.ts`](../src/draw/utils/QuadTree.ts) |
+| Drag layer | [`transform/transformController.ts`](../src/draw/transform/transformController.ts) |
+| Tile object renderer | [`helpers/drawTileRenderer.helper.ts`](../src/draw/helpers/drawTileRenderer.helper.ts) |
+| Cooperative yielding | [`helpers/yielding.helper.ts`](../src/draw/helpers/yielding.helper.ts) |
+| Fabric overrides | [`helpers/fabricDefaults.helper.ts`](../src/draw/helpers/fabricDefaults.helper.ts) |
+| Orphaned bake worker | [`workers/tile.worker.ts`](../src/draw/workers/tile.worker.ts) |
+
+---
+
+## The layers
+
+### RenderCore — the orchestrator
+
+[`renderCore.ts`](../src/draw/renderCore.ts) owns two loops and all the lifecycle
+seams the store delegates to.
+
+- **Frame loop** — `requestFrame()` schedules one `requestAnimationFrame`;
+  `renderNow()` clears the canvas, composites the committed tiles, then composites
+  the live layer on top. Frames are **only** scheduled on change or gesture — this
+  is not a free-running 60 Hz loop.
+- **Bake loop** — `scheduleBake()` debounces (`bakeDebounceMs`, default 80 ms)
+  and runs `runBake()`, which asks `CommittedLayer` to rebuild stale/missing tiles
+  under the viewport. Bakes are abortable (`AbortController`) and re-entrancy-safe
+  (`baking` / `bakeAgain`).
+
+RenderCore also implements the cleverness that keeps things smooth:
+
+- **Viewport gating** — off-screen edits invalidate cheaply but never take a live
+  slot or schedule a composite.
+- **Remote-modify coalescing** — `onObjectChangedCoalesced()` collapses a stream
+  of remote drag events into **one** destructive rebuild per frame on the unioned
+  rect, while the live overlay stays smooth per event.
+- **Batch invalidation** — `invalidateRegions()` drains a batch of edits (remote
+  sync, undo/redo) into one pass: drop regions, patch/defer overview, a single
+  frame + bake. Nearby rects merge; far-apart rects stay separate so we don't
+  over-invalidate the empty span between two edits.
+- **Deferred off-screen overview patches** — `pendingOverview` holds patches for
+  invisible regions and flushes them on bake / pan-end, so an invisible edit
+  doesn't pay a clip+redraw.
+- **Stamping fast paths** — draw commit (`additiveStamp`), erase
+  (`eraseStamp`), and transform commit (`stampBitmapRegion`) punch pixels straight
+  into existing fresh tiles instead of re-rendering objects.
+
+### CommittedLayer — the tiled cache
+
+[`committedLayer.ts`](../src/draw/committedLayer.ts) is the heart. Core idea:
+
+> A tile is a **pure function** of *(the objects intersecting its region, a
+> generation counter)*. Tiles are **never mutated in place** during normal
+> invalidation — they are dropped or rebuilt wholesale from the spatial index.
+
+Key state:
+
+- `tiles: Map<"tier:tx:ty", Tile>` — each `Tile` holds an `ImageBitmap | null`
+  (null = "fresh empty", genuinely nothing there), its `builtGen`, `lastUsed`,
+  and byte cost.
+- `gen: Map<key, number>` — the **current** generation of a tile key. A tile is
+  **fresh** iff `tile.builtGen === gen.get(key)`. Invalidation = bump the gen.
+  This is how a rebuild-in-flight is detected as stale and discarded.
+- A **pool** of `OffscreenCanvas` for baking, shrunk to `0×0` when idle to release
+  backing store on mobile.
+
+Compositing (`composite()`): for the active tier, walk the tiles under the
+viewport. Present tiles are `drawImage`'d directly. Missing/stale tiles look for a
+**fallback**: a coarser tile scaled up or finer tiles scaled down
+(`findBestSource`, bounded by `FALLBACK_DEPTH`, capped to 1 while gesturing).
+Anything still uncovered is filled by the **overview**, clipped to just those
+cells. Draw order is always: overview → fallback tiles → present tiles.
+
+Baking (`bake()` → `rebuildTile()`): query the index for the tile's padded world
+rect, render each object into a pooled `OffscreenCanvas` through the tile
+renderer, `transferToImageBitmap()` (zero-copy), gen-check, store. Work is
+prioritized center-out from the viewport and yields every `CHUNK` objects.
+
+There is also a **synchronous** repair path (`rebuildRectSync` / `rebuildTileSync`,
+bounded by `maxTiles`) used for instant feedback at drag seams, where waiting for
+the async bake would show a hole.
+
+### WorldOverview — the low-res base
+
+[`worldOverview.ts`](../src/draw/worldOverview.ts) is **one** low-res
+`OffscreenCanvas` (2048² desktop, 1024² low-end) mapped to the content bounds. It
+plays two roles:
+
+1. The **far-zoom picture** — at or below `OVERVIEW_TIER` we just `drawImage` the
+   overview, no tiles.
+2. The **base layer** under every not-yet-baked tile, so the viewport is never
+   blank and never flashes white.
+
+It is kept *correct* (not merely approximate) by **localized patching**:
+`patchRect(rect)` clears that sub-region and redraws exactly the objects there
+from the index — so add / remove / move / erase / undo all stay consistent with
+zero drift. A full `rebuildIfNeeded()` (O(all objects), low-res, yielded) only
+runs on growth/init. `patchRect` bails to the async rebuild past
+`overviewPatchMax` objects (a dense patch would jank the frame).
+
+### LiveLayer — in-flight objects
+
+[`liveLayer.ts`](../src/draw/liveLayer.ts) is a small, bounded (`liveMax`, 64/32)
+set of objects rendered **directly** over the committed tiles every frame in world
+space, viewport-culled. Used for:
+
+- The stroke you are actively drawing.
+- A newly-added object during its bake window (sharp vector until the tile lands).
+- Remote drags (smooth per-event while the destructive rebuild coalesces).
+
+Items carry a TTL (`NORMAL_TTL_MS` 5 s, `ERASE_TTL_MS` 1.5 s) so a missed
+demotion can never leave the layer permanently full. `gcExpired()` returns expired
+normal rects so their overview patch (deferred at add time) can be folded in.
+
+**Demotion** (`demoteSettled` in RenderCore): once a live object's region is fully
+baked, remove it from the live layer and fold its rect into the overview — one
+extra frame ensures the semi-transparent stroke isn't drawn twice (live + tile).
+
+---
+
+## Supporting systems
+
+### Spatial index (drawObjectManager + QuadTree)
+
+[`drawObjectManager.store.ts`](../src/draw/store/drawObjectManager.store.ts) is the
+bridge between Fabric and the engine, and the owner of the spatial index.
+
+- **`InfiniteQuadtreeManager`** ([`QuadTree.ts`](../src/draw/utils/QuadTree.ts)) —
+  the world is chunked into 4096-unit cells, each an independent quadtree, so the
+  index is unbounded without one giant tree. A tile query almost always hits one
+  chunk (fast path, no dedup).
+- **`spatialIndex.query(rect)`** returns objects **z-sorted** (via `__z` stamps
+  from the z-index map). This is what every bake and overview patch calls.
+- **Bounds caching** — `cachedBounds()` memoizes `getBoundingRect()` keyed by a
+  transform signature (`boundsSig`), so measuring an object is cheap and repeated
+  measures during a commit collapse to one.
+- **Fabric events → core** — `object:added/removed/modified`, `erasing:end`,
+  style/layer/flip/filter change events are translated into `core.onObjectAdded`,
+  `onObjectRemoved`, `onObjectChanged(Coalesced)`, `onErase`, `invalidateRegions`.
+- **Batch mode** — `beginBatch()`/`endBatch()` collect region rects and flush one
+  `invalidateRegions` pass; used by undo/redo and bulk removals.
+
+### TransformController — the GPU drag layer
+
+[`transformController.ts`](../src/draw/transform/transformController.ts) makes
+moving/scaling/rotating a selection cheap and smooth. Instead of re-rendering N
+objects every pointer move, it:
+
+1. **Bakes the selection once** into an `ImageBitmap` (cached, keyed on shape +
+   zoom, *not* position; prewarmed during idle so the next grab is a cache hit).
+2. Puts that bitmap on a **separate `<canvas>` layer** above Fabric's, and moves
+   it with a pure **CSS transform** (`translate/rotate/scale`) — GPU-composited,
+   zero canvas work per frame.
+3. On commit, **stamps** the bitmap into the tiles at the new position
+   (`stampBitmapRegion` → O(touched tiles) `drawImage`), drops the old footprint,
+   and schedules a bake to repaint the tiles exactly (correct z-order). The GPU
+   layer hides only once the new position is actually baked (`hideWhenReady`).
+
+Ownership (`ownedIds`) persists through the post-commit bake so the manager keeps
+skipping the object's own modified-events until its tiles land.
+
+### The tile renderer
+
+[`drawTileRenderer.helper.ts`](../src/draw/helpers/drawTileRenderer.helper.ts) —
+`isolatedTileRenderer(ctx, obj)` renders a single object into a tile. It forces
+`visible = true` (guards against transient undefined-visible during load),
+`objectCaching = false` (render directly, never blit a stale per-object cache),
+and `isOnScreen = () => true` (bypass Fabric's main-viewport culling — we are
+baking off-screen background tiles). **All three are saved and restored** so
+baking never permanently mutates object state. It deliberately does **not** force
+`obj.dirty` — that re-rasterized clip/erase groups on every tile render (the
+historical super-linear erase lag).
+
+### The yielder
+
+[`yielding.helper.ts`](../src/draw/helpers/yielding.helper.ts) — a cooperative
+scheduler. `createYielder({ budgetMs })` gives back a `shouldYield()` /
+`yield()` pair. `shouldYield()` is true when the per-frame time budget is spent
+**or** `navigator.scheduling.isInputPending()` reports pending input. `yield()`
+uses `MessageChannel` (faster than `setTimeout(0)`, not clamped to 4 ms) normally,
+or a full `requestAnimationFrame` when input is pending so the browser can
+dispatch input and paint before we resume. Budget is 8 ms desktop, 4 ms low-end.
+
+This is what lets a big bake or overview rebuild run without freezing the UI.
+
+---
+
+## How a frame is produced
+
+```
+requestFrame()                    // dedup: at most one RAF in flight
+  └─ requestAnimationFrame
+       └─ renderNow()
+            ├─ if loading → bail (loading gate prevents white flash)
+            ├─ live.gcExpired() → patchOverview(expired rects)
+            ├─ committed.composite(ctx, vpt, size, dpr, bg, gesturing?1:0)
+            │     ├─ clear + bg fill
+            │     ├─ tier ≤ OVERVIEW_TIER → just overview.composite(); done
+            │     ├─ else walk viewport tiles → present / uncovered
+            │     ├─ uncovered → findBestSource (coarser↑ / finer↓) or overview
+            │     └─ drawImage: overview gaps → fallback tiles → present tiles
+            ├─ live.composite(ctx, vpt, dpr, renderLive, viewWorld)  // culled
+            ├─ if pendingDemote & !needsBake → demoteSettled()
+            ├─ if needsBake → scheduleBake()
+            └─ afterComposite()   // re-render active-object selection controls
+```
+
+Steady state (no stale tiles) is a clear + a handful of `drawImage` calls. As of
+the latest optimization pass, the composite tile-walk also **allocates no
+per-frame descriptors** — the scratch buffers are reused.
+
+---
+
+## How an edit propagates (invalidation seams)
+
+Every mutation must reach the engine through a **seam** or its pixels won't
+repaint. The seams and what they do:
+
+| Event / call | Handler | Engine effect |
+| --- | --- | --- |
+| `object:added` | `onObjectAdded` | index insert; stamp into tiles if topmost & stampable, else live overlay + mark dirty |
+| `object:removed` | `onObjectRemoved` | index remove; destructive invalidate old rect |
+| `object:modified` | `onObjectModified` | index update; coalesced destructive rebuild (or owned by transform controller) |
+| `erasing:end` | `onErase` | stamp `destination-out` into tiles + overview (fast path), or rebuild |
+| style/layer/flip/filter | `handleStyleChange` | index update; single → precise, multi → merged `invalidateRegions` |
+| transform commit | `commit()` | `offsetQuadTree`/`updateQuadTree`, drop old, stamp bitmap into new, bake |
+| remote batch / undo / redo | `beginBatch`/`endBatch` | collect rects → one `invalidateRegions` |
+
+**The invariant:** *invalidate exactly where you mutate.* A new mutation path must
+either fire one of these events or call `updateQuadTree` / `markDirty` /
+`invalidateRegions`. If it doesn't, the tile cache never learns the region
+changed and the screen shows stale pixels.
+
+---
+
+## Coordinate systems, tiers and zoom
+
+- **World space** — the infinite drawing coordinate system. Object bounds, quadtree
+  entries, tile regions and the overview all live here.
+- **Screen/device space** — world through the viewport transform `vpt` and DPR.
+- **Zoom tiers** — `ZOOM_TIERS = [0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16]`.
+  `pickActiveTier(zoom)` selects the tier ≥ effective zoom (×`renderScale`, with a
+  1.15 tolerance). Each tier has its own tile grid; a tile's world size is
+  `TILE / tier`.
+- **`OVERVIEW_TIER` (2)** — at or below this tier the overview *is* the picture;
+  tiles aren't composited at all. Above it, tiles are authoritative and the
+  overview only fills gaps.
+- **`renderScale`** — `min(devicePixelRatio, maxRenderScale)` (2 desktop, 1.5
+  low-end). Caps the resolution we bake at.
+- **Tile size** — 512 px desktop, 256 px low-end, plus a 2 px overscan (`OS`) to
+  avoid seams.
+
+Usable zoom is clamped to `[ZOOM_TIERS[0], ZOOM_TIERS[last]] / renderScale` so we
+never ask for a tier we don't bake.
+
+---
+
+## Memory management
+
+- **Honest budget.** `memoryBudgetMB` (256 desktop, 96 low-end) is the total.
+  Fixed costs (overview bitmap + pool ceiling) are **subtracted** up front so the
+  real total stays under the device limit, not just the tile portion.
+- **Tile eviction (`ensureMemory`).** When storing a tile would exceed the hard
+  cap, evict least-recently-used tiles down to a low-water mark (85%) in one
+  sorted pass — this amortizes so a burst of stores during a pan doesn't re-sort
+  the whole tile map every store.
+- **Pool trimming (`trimPool`).** Idle `OffscreenCanvas` pool entries are shrunk
+  to `0×0` on bake-done / reset so backing store is released promptly.
+- **Empty-tile pruning (`pruneEmpties`).** Long-untouched "fresh empty" tiles are
+  dropped (and their gen entry) so the maps don't grow unbounded on a sparse
+  infinite canvas.
+- **Zero-copy transfer.** `transferToImageBitmap()` (not `createImageBitmap`)
+  moves the canvas pixels into a bitmap with no memcpy; the canvas resets and
+  stays poolable.
+
+---
+
+## Sync & history integration
+
+The engine is **local** — it renders whatever is in the Fabric canvas. Multiplayer
+and undo/redo are separate systems that mutate the canvas, and those mutations
+reach the engine through the same seams as local edits.
+
+- **Bundle split.** `drawSyncing.store.ts` is *light* room/lobby state (no fabric
+  imports). `drawSyncEngine.store.ts` is the *heavy* canvas-sync engine, loaded
+  only inside a live session. This keeps the fabric/render engine out of the
+  app-start bundle. (See `docs`-adjacent memory `draw-bundle-split`.)
+- **Wire.** The client emits `draw-event { roomId, action }`; the server
+  (`sketchmate_server`) buffers by **spreading** `action` into a replay buffer and
+  re-broadcasts to peers (mixed client versions v1/v2/v3, with legacy bridge paths
+  for snapshots). Remote actions are applied via `drawSyncingMapping`
+  ([`config/drawSyncing.config.ts`](../src/draw/config/drawSyncing.config.ts)),
+  which calls the same history/action helpers as local edits.
+- **History.** `drawHistoryManager.store.ts` records undo/redo actions; the
+  handlers in `config/drawHistory.config.ts` + `helpers/history/*` apply them,
+  wrapped in `beginBatch/endBatch` so a multi-region undo coalesces into one
+  invalidation. Object moves are stored as **diffs** (`getObjectDiff`) and applied
+  in bulk (`applyObjectModificationsBulk`), which tracks old and new footprints
+  separately so a long move doesn't invalidate the empty span between them.
+- **Payload compaction.** `OptimizedPencilStroke.toObject` serializes a
+  delta-encoded, rounded `compressedTrace` and drops the raw `path`, shrinking the
+  most common stroke on the wire and in snapshots.
+
+---
+
+## Key invariants (read before you touch anything)
+
+1. **Invalidate exactly where you mutate.** Every mutation path fires a seam event
+   or calls `updateQuadTree`/`markDirty`/`invalidateRegions`. Miss it → stale tiles.
+2. **A tile is a pure function of (objects, gen).** Never mutate a tile bitmap in
+   place except via the explicit stamp paths, which bump the gen.
+3. **Freshness is gen equality.** `builtGen === gen.get(key)`. A rebuild that
+   `await`s must re-check the gen before storing, or it stores a stale bitmap.
+4. **Semi-transparent strokes must not be drawn twice.** A live overlay's overview
+   patch is deferred until demote; demote happens only after the tile is baked.
+   Breaking this doubles opacity (0.45 → 0.70) until the next pan/zoom.
+5. **All-or-nothing stamping.** Only stamp a region when *every* covered tile is
+   stampable; a partial stamp leaves stale tiles with no live fallback → flicker.
+6. **The loading gate suppresses paints** during a room join until the overview is
+   warmed, or you get a white flash.
+7. **`isolatedTileRenderer` restores every flag it forces.** Baking must be
+   side-effect free on object state.
+8. **The bake worker mirror (if wired) must be fed a delta at every seam** and its
+   messages must stay FIFO — see the roadmap.
+
+---
+
+## Instrumentation & debugging
+
+- **`__comp` counters.** When `CommittedLayer` is constructed with `debug: true`,
+  `composite()` accumulates `globalThis.__comp = { frames, ms, maxMs, cells,
+  missFrames }`. Read it from the console to profile composite cost and overview
+  "miss" frames. Off (and free) in production.
+- **`debug` flag** also enables render-failure warnings in the bake paths.
+- **Fabric debug** — [`utils/fabricDebug.ts`](../src/utils/fabricDebug.ts).
+- Handy console probes: `useDrawObjectManager().getVisibleObjects().length`,
+  `getContentBounds()`, `getZoomLimits()`.
+
+---
+
+## Current limitations
+
+1. **Baking is 100% main-thread.** `rebuildTile` renders Fabric objects into an
+   `OffscreenCanvas` on the main thread. It is chunked and yields, but a dense
+   region (hundreds of objects in a tile, complex clip/erase groups) still spends
+   real main-thread time, and a burst of invalidations (paste, big remote batch,
+   undo of a large action) can produce visible hitching on low-end devices. This
+   is the single biggest remaining jank source.
+2. **A fully-built bake worker exists but is wired to nothing.**
+   [`workers/tile.worker.ts`](../src/draw/workers/tile.worker.ts) implements the
+   entire protocol (`upsert`/`batch-upsert`/`remove`/`clear`/`bake`/`additive`, a
+   worker-side Fabric mirror with `document`/`img` mocks, transferable bitmaps) but
+   has **zero importers**. Only the eraser and bucket-fill workers are actually
+   used. The design is done; the wiring and its invariants are not.
+3. **Text + fonts in a worker are unsolved.** A worker has no `@font-face`, so
+   text would bake blank there. Any worker offload needs either FontFace loading
+   in the worker or a client-side refusal of text tiles (main-thread fallback).
+4. **Overview is a single fixed-resolution bitmap.** On a very large board the
+   2048² overview becomes coarse; there is no mip pyramid, so mid-zoom fallback
+   quality is limited between the overview tier and the first baked tile tier.
+5. **Compositing is CPU `drawImage`.** Fine for a few dozen tiles, but there is no
+   GPU batch path; a pathological viewport (many small fallback fragments from
+   `findBestSource`) does many `drawImage` calls.
+6. **Sync payloads are JSON, and the server is not payload-agnostic.** It spreads
+   `action` into its buffer and replays to mixed-version peers, so a binary wire
+   format is **not** backwards-compatible without a server bridge + version gate.
+   Only pencil/watercolor/eraser strokes are compacted; texture brushes serialize
+   full point arrays.
+7. **Bounds signatures are strings.** `boundsSig` builds a template string per
+   bounds check; cheap individually, but it is on hot paths (every commit, every
+   quadtree update).
+8. **`computeContentBounds` is O(all objects).** Recomputed on every batch end /
+   load end / reset rather than maintained incrementally.
+9. **No persistent tile cache.** Every room join re-bakes from scratch; nothing is
+   kept across reloads.
+10. **Per-frame control re-render.** `afterComposite` clears and re-renders active
+    selection controls every frame when something is selected; minor, but it is
+    unconditional.
+
+---
+
+## Roadmap / next steps
+
+Ordered roughly by value-to-risk. Items 1–2 are the headline wins.
+
+### 1. Offload baking to the tile worker (staged) — *highest impact*
+
+The worker is already written; the risk is wiring, mirror drift, fonts and
+latency, not authoring. Stage it so the app stays stable:
+
+- **Phase 0 — pilot on the overview.** Wire `tile.worker` behind a flag for the
+  **overview rebuild only** (rare, one bitmap out, visually forgiving). This
+  proves the worker-side Fabric mirror stays in sync, that `@font-face` loading in
+  the worker works, and that bitmap transfer plumbing is correct — on the surface
+  where a small mistake is least visible.
+- **Phase 1 — async tile bakes.** Route *full* `rebuildTile` bakes through the
+  worker. Keep the gen-check on return (discard stale), add a kill-switch after N
+  failures that falls back to the existing main-thread `rebuildTileSync` path
+  seamlessly.
+- **Phase 2 — keep stamps on the main thread.** `additiveStamp`, `eraseStamp`,
+  `stampBitmapRegion` are already O(touched tiles) and latency-sensitive; leave
+  them local. Only whole-object rebuilds go async.
+- **Invariant to enforce:** every mutation seam must feed the worker mirror a
+  per-object delta (or `updateQuadTree` equivalent), and worker messages must stay
+  FIFO (never concurrent, never upsert-before-bake reordering) or the mirror
+  drifts.
+
+Expected result: the last main-thread jank source disappears; baking a dense
+region no longer competes with input.
+
+### 2. Stroke/point compaction beyond pencil — *source-level win*
+
+Pencil/watercolor/eraser already Douglas–Peucker simplify at capture. Extend
+**coordinate rounding + compact serialization** (à la `compressedTrace`) to the
+texture brushes' custom point arrays. Do **not** drop points from texture brushes
+(density is the look) — only round and delta-encode in `toObject`. Cuts serialize
+cost, wire bytes, snapshot size and enliven cost everywhere at once.
+
+### 3. Backwards-compatible sync payload shrink (not binary) — *stability-first*
+
+Full binary is not server-BC (see limitation 6). Instead:
+
+- Round/compact all stroke payloads (item 2).
+- Strip default/unused Fabric props from `toObject` for our stroke types.
+- If/when a true binary wire is worth it, do it as a **v4** with a server bridge
+  (decode binary → object for legacy peers, pass-through for v4), mirroring the
+  existing v3 snapshot url/buffer bridge. Big, stateful — schedule deliberately.
+
+### 4. Overview mip pyramid — *quality*
+
+Replace the single overview bitmap with 2–3 resolution levels so mid-zoom fallback
+between the overview tier and the finest baked tier stays crisp on large boards.
+
+### 5. Persistent tile cache (IndexedDB) — *cold-start*
+
+Key tiles by `(roomId, tier, tx, ty, contentHash/gen)` and persist bitmaps. On
+rejoin, warm from disk instead of re-baking. Instant warm reloads, less cold-start
+CPU. Needs an invalidation story tied to the sync sequence id.
+
+### 6. WebGL / WebGPU tile compositor — *endgame*
+
+Replace the N `drawImage` calls in `composite()` with one textured-quad batch.
+Turns compositing into a single GPU draw regardless of tile count, and makes
+sub-pixel scaling of fallback tiers free. Large change; the right move only once
+the worker bake lands and CPU compositing is the measured bottleneck.
+
+### 7. Incremental content bounds — *cleanup*
+
+Maintain `contentBounds` incrementally as objects are added/removed/moved instead
+of recomputing O(all objects) at every batch/load boundary.
+
+### 8. Numeric bounds signature — *micro*
+
+Replace `boundsSig`'s template string with a cheap numeric hash to cut string
+allocation on commit/update hot paths. Low priority; measure first.
+
+### 9. Formalize instrumentation — *process*
+
+Promote `__comp` into a dev HUD (frame ms, bake queue depth, tile count, memory,
+miss rate) and wire a CI perf budget (e.g. a headless bench that fails if composite
+p95 regresses). Makes future perf work measurable instead of anecdotal.
+
+---
+
+## Recent optimizations
+
+Applied in the latest pass (all low-risk, behavior-preserving):
+
+- **Instrumentation gated behind `debug`** — the `__comp` counters + two
+  `performance.now()` calls no longer run every composite frame in production.
+- **Amortized tile eviction** — `ensureMemory` evicts LRU to an 85% low-water mark
+  in one sorted pass instead of snapshotting+sorting the whole tile map on every
+  store during a pan (the "eviction storm").
+- **Zero-allocation composite** — the per-frame `present`/`uncovered`/`fallback`/
+  `needsOverview` arrays and their `Draw` descriptors are now reused instance
+  scratch, count-tracked; a steady-state frame allocates nothing.
+- **Non-destructive tile render** — `isolatedTileRenderer` now saves/restores
+  `visible` (previously forced `true` permanently), so baking can't leak
+  meant-to-be-hidden content or corrupt object state.
+
+---
+
+## Glossary
+
+| Term | Meaning |
+| --- | --- |
+| **Tile** | A cached `ImageBitmap` for one `tier:tx:ty` cell; pure function of its objects + gen. |
+| **Tier** | A zoom level with its own tile grid (`ZOOM_TIERS`). |
+| **Overview** | The single low-res bitmap: far-zoom picture + fallback base under unbaked tiles. |
+| **Live / in-flight** | Objects rendered directly over tiles each frame until they settle and bake. |
+| **Bake** | Rebuilding a stale/missing tile from the objects in its region. |
+| **Stamp** | Punching pixels (a stroke, an eraser, a drag bitmap) straight into fresh tiles without re-rendering objects. |
+| **Generation (gen)** | Per-tile-key counter; invalidation bumps it; freshness is `builtGen === gen`. |
+| **Demote** | Removing a settled live object once its tile is baked, folding it into the overview. |
+| **Seam** | A mutation point that must invalidate the engine. |
+| **Content bounds** | The world bounding box of all objects; drives overview coverage. |
+
+---
+
+*Last updated: 2026-07-11. Keep this in sync with `src/draw/` — especially the
+invariants section and the worker status in "Current limitations".*

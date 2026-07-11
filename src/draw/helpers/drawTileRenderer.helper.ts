@@ -5,10 +5,16 @@ export const isolatedTileRenderer = (
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   obj: FabricObject
 ) => {
-  obj.visible = true
-
-
+  const origVisible = obj.visible
   const origCaching = obj.objectCaching
+
+  // Force the object to render INTO the tile even if its transient flags would
+  // skip it: `visible` can be undefined/false for a beat during a room load
+  // (why some lobby objects baked blank), and objectCaching would blit a
+  // possibly-empty cache. Both are RESTORED in finally below — a permanent
+  // visible=true corrupts object state and can leak content that is meant to
+  // stay hidden (e.g. private/claimed areas).
+  obj.visible = true
   obj.objectCaching = false
 
   // Do NOT force obj.dirty / clipPath.dirty here. Objects with a ClippingGroup
@@ -31,7 +37,8 @@ export const isolatedTileRenderer = (
   } finally {
     ctx.restore()
 
-    // Restore original states so the live layer behaves normally
+    // Restore original states so baking never permanently mutates the object.
+    obj.visible = origVisible
     obj.objectCaching = origCaching
     obj.isOnScreen = origIsOnScreen
   }

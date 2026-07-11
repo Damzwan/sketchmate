@@ -483,18 +483,26 @@ export const useEraser = defineStore('eraser', (): Eraser => {
       // Also protect anything inside another user's claimed area (applies to
       // private online lobbies too, where the ownership filter above doesn't).
       const claim = useClaimArea()
+      const touchesForeignArea =
+        claim.foreignAreas.length > 0 &&
+        claim.objectIntersectsForeignArea(e.detail.path)
       if (claim.foreignAreas.length > 0) {
         e.detail.targets = (e.detail.targets || []).filter(
           (o: FabricObject) => !claim.isObjectProtected(o)
         )
       }
+      if (touchesForeignArea) claim.notifyBlocked()
 
       await b.commit(e.detail)
 
       const targets: FabricObject[] = e.detail.targets || []
 
       e.detail.deletedObjects = []
-      e.detail.selective = isPublicLobby
+      // `selective` forces onErase to REBUILD the region from objects instead of
+      // stamping the eraser hole into the tiles. Public lobbies already do this;
+      // also do it whenever the stroke crosses a foreign area so the protected
+      // (unclipped) content repaints intact instead of showing a punched hole.
+      e.detail.selective = isPublicLobby || touchesForeignArea
       c!.fire('erasing:end', e as any)
 
       enqueueErasedCheck(targets, e.detail.path)

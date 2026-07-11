@@ -1,9 +1,11 @@
 <template>
   <div
     v-if="def && def.kind !== 'none'"
+    ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]"
     aria-hidden="true"
   >
+    <template v-if="active">
     <div
       v-if="def.kind === 'grain'"
       class="absolute inset-0 grain-bg"
@@ -94,12 +96,13 @@
       <!-- Deepen the four corners so the sheet reads as pressed flat onto the card -->
       <div class="absolute inset-0 crumple-vignette"></div>
     </div>
+    </template>
 
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   resolveEffect,
   type ProfileEffectDef
@@ -119,6 +122,30 @@ const props = withDefaults(
 const def = computed<ProfileEffectDef>(
   () => props.def || resolveEffect(props.effectId)
 )
+
+// Only run the (GPU-heavy: blur / conic-gradient / mix-blend / SVG) effect
+// while the card is on/near screen. Off-screen cards in a grid drop it.
+const root = ref<HTMLElement | null>(null)
+const active = ref(false)
+let io: IntersectionObserver | null = null
+
+onMounted(() => {
+  if (typeof IntersectionObserver === 'undefined') {
+    active.value = true
+    return
+  }
+  io = new IntersectionObserver(
+    (entries) => {
+      active.value = entries.some((e) => e.isIntersecting)
+    },
+    { rootMargin: '250px' }
+  )
+  nextTick(() => {
+    if (root.value) io!.observe(root.value)
+  })
+})
+
+onBeforeUnmount(() => io?.disconnect())
 
 const speedClass = computed(() => {
   if (props.preview) return 'speed-fast'

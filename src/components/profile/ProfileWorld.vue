@@ -1,11 +1,16 @@
 <template>
   <div
     v-if="def && def.kind !== 'none'"
+    ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]"
     :class="{ 'world-preview': preview }"
     :style="preview ? { '--world-scale': previewScale } : undefined"
     aria-hidden="true"
   >
+    <!-- Heavy lottie players only exist while the card is on/near screen. In a
+         shop/customization grid the off-screen worlds unmount, so only the few
+         visible cards run wasm/canvas players at once. -->
+    <template v-if="active">
     <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-40">
       <div
         v-for="j in jellyfishes"
@@ -322,11 +327,12 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
 import { DotLottieVue } from "@lottiefiles/dotlottie-vue";
 import turtleLottie from "@/assets/lottie/avatar/turtle.lottie";
@@ -364,12 +370,50 @@ const props = withDefaults(
 );
 const def = computed<WorldDef>(() => props.def || resolveWorld(props.worldId));
 
+// ── On-screen gating ───────────────────────────────────────────────────────
+// Mount the (expensive) lottie players only while the card is visible. Off-
+// screen cards in a grid unmount their world entirely, so the number of live
+// wasm/canvas players tracks what's actually on screen, not the whole list.
+const root = ref<HTMLElement | null>(null);
+const active = ref(false);
+let io: IntersectionObserver | null = null;
+
+onMounted(() => {
+	if (typeof IntersectionObserver === "undefined") {
+		active.value = true;
+		return;
+	}
+	io = new IntersectionObserver(
+		(entries) => {
+			active.value = entries.some((e) => e.isIntersecting);
+		},
+		// Pre-mount a little before the card scrolls in so there's no pop-in.
+		{ rootMargin: "250px" },
+	);
+	nextTick(() => {
+		if (root.value) io!.observe(root.value);
+	});
+});
+
+onBeforeUnmount(() => io?.disconnect());
+
 // freezeOnOffscreen (default true) freezes the player when its canvas is
 // hidden/offscreen. Ionic keeps the previous page mounted as `ion-page-hidden`
 // (display:none), so when a world edit re-renders these sprites while the card
 // is behind another page, frozen players lock onto a stale/zero canvas size and
 // never repaint at the right size — sprites come back smaller. Keep them live.
-const renderConfig = { freezeOnOffscreen: false };
+//
+// devicePixelRatio is capped so the lottie canvases don't render at a phone's
+// full 3x retina density (the dominant fill cost). Preview tiles render at 1x
+// (they're tiny); on-card worlds at ≤1.5x — visually indistinguishable, far
+// cheaper to composite.
+const renderConfig = computed(() => ({
+	freezeOnOffscreen: false,
+	devicePixelRatio: Math.min(
+		typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+		props.preview ? 1 : 1.5,
+	),
+}));
 
 // Each DotLottie is a full wasm/canvas player, so instance count is the main
 // cost. We keep the on-card swarm modest and, in preview tiles, cut it hard —

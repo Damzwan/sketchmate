@@ -20,7 +20,7 @@
         @contextmenu.prevent
         @load="isLoading = false"
         :loading="props.eager ? 'eager' : 'lazy'"
-        class="w-full h-full relative object-cover pointer-events-none transition-all duration-300"
+        class="w-full h-full relative object-contain pointer-events-none transition-all duration-300"
         :class="[
           multiSelectedItems.includes(itemId) ? 'opacity-50 blur-[1px]' : 'opacity-100'
         ]"

@@ -261,8 +261,8 @@ export class CommittedLayer<T extends Bounded> {
     const tier = this.pickActiveTier(zoom)
     const vw = this.viewWorld(vpt, px, dpr)
 
-    // top instrumentation hook
-    const __t0 = performance.now()
+    // top instrumentation hook (debug only — dead telemetry off the hot path in prod)
+    const __t0 = this.debug ? performance.now() : 0
 
     const maxDepth = fallbackDepth > 0 ? fallbackDepth : this.FALLBACK_DEPTH
 
@@ -359,15 +359,17 @@ export class CommittedLayer<T extends Bounded> {
       ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh)
     ctx.restore()
 
-    // bottom instrumentation hook
-    const g = globalThis as any
-    const s = (g.__comp ||= { frames: 0, ms: 0, maxMs: 0, cells: 0, missFrames: 0 })
-    const dt = performance.now() - __t0
-    s.frames++
-    s.ms += dt
-    s.maxMs = Math.max(s.maxMs, dt)
-    s.cells += uncovered.length
-    if (needsOverview.length > 0) s.missFrames++
+    // bottom instrumentation hook (debug only)
+    if (this.debug) {
+      const g = globalThis as any
+      const s = (g.__comp ||= { frames: 0, ms: 0, maxMs: 0, cells: 0, missFrames: 0 })
+      const dt = performance.now() - __t0
+      s.frames++
+      s.ms += dt
+      s.maxMs = Math.max(s.maxMs, dt)
+      s.cells += uncovered.length
+      if (needsOverview.length > 0) s.missFrames++
+    }
 
     return { needsBake: anyNonFresh }
   }
@@ -691,14 +693,19 @@ export class CommittedLayer<T extends Bounded> {
   // ── memory + pool ─────────────────────────────────────────────────────────
   private ensureMemory(need: number): boolean {
     if (this.memoryBytes + need <= this.MEM_HARD) return true
+    // Evict LRU down to a low-water mark in ONE pass, so the following tile
+    // stores in the same bake burst don't each re-snapshot+sort the whole
+    // tile map (the pan-over-dense-board eviction storm). Strict-LRU order is
+    // preserved; only triggers when actually at the hard cap.
+    const target = this.MEM_HARD * 0.85 - need
     const sorted = [...this.tiles.entries()].sort((a, b) => a[1].lastUsed - b[1].lastUsed)
     for (const [k, t] of sorted) {
+      if (this.memoryBytes <= target) break
       if (t.bitmap) t.bitmap.close()
       this.memoryBytes -= t.bytes
       this.tiles.delete(k)
-      if (this.memoryBytes + need <= this.MEM_HARD) return true
     }
-    return false
+    return this.memoryBytes + need <= this.MEM_HARD
   }
 
   private acquire(): OffscreenCanvas {

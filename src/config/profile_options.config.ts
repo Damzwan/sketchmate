@@ -100,6 +100,12 @@ export const FONTS: Font[] = [
 		family: '"Rubik Puddles", cursive',
 		preview: "Bubbly",
 	},
+	{
+		value: "medieval",
+		label: "Medieval",
+		family: '"Celtic MD", sans-serif',
+		preview: "Medieval",
+	},
 ];
 
 export const DEFAULT_FONT_ID = "sketch";

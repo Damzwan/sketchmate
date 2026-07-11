@@ -9,7 +9,7 @@
     <div
       v-if="def.kind === 'grain'"
       class="absolute inset-0 grain-bg"
-      :style="{ opacity: preview ? 0.7 : 0.5 }"
+      :style="{ opacity: preview ? 0.8 : 0.6 }"
     ></div>
 
     <div
@@ -102,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   resolveEffect,
   type ProfileEffectDef
@@ -140,9 +140,18 @@ onMounted(() => {
     },
     { rootMargin: '250px' }
   )
-  nextTick(() => {
-    if (root.value) io!.observe(root.value)
-  })
+  // Re-observe whenever the root element appears/changes. Root is v-if'd on
+  // def.kind !== 'none', so switching FROM a 'none' effect creates the root only
+  // after mount — a one-shot observe would miss it and the newly selected effect
+  // would never activate (blank until re-triggered).
+  watch(
+    root,
+    (el) => {
+      io?.disconnect()
+      if (el) io?.observe(el)
+    },
+    { immediate: true, flush: 'post' }
+  )
 })
 
 onBeforeUnmount(() => io?.disconnect())
@@ -174,8 +183,16 @@ const shimmerStyle = computed(() => {
 
 <style scoped>
 .grain-bg {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 180px 180px;
+  /* Opaque, contrast-boosted GRAYSCALE noise (both light AND dark speckles),
+     blended with `overlay` so it reads on ANY backdrop — light themes, dark
+     themes and the space world alike. The old effect was black alpha-only noise
+     on normal blend, which vanished on anything dark. The feColorMatrix maps the
+     turbulence to gray (luminance) with a 1.6× contrast stretch about 0.5 and
+     forces alpha to 1; overlay then lightens where the grain is bright and
+     darkens where it's dark, so the texture is present regardless of theme. */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0.544 0.544 0.544 0 -0.3 0.544 0.544 0.544 0 -0.3 0.544 0.544 0.544 0 -0.3 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  mix-blend-mode: overlay;
 }
 
 @keyframes shimmer {

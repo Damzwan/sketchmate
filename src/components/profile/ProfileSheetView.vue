@@ -32,7 +32,7 @@
             <TitleBadge v-if="c.titleId" :title-id="c.titleId" :theme="theme" extra-class="mt-4" />
 
             <h2
-              class="text-3xl font-black mt-2 leading-tight drop-shadow-sm transition-colors duration-500"
+              class="text-3xl font-black mt-4 leading-tight drop-shadow-sm transition-colors duration-500"
               :style="{ color: activeColors.name }"
               :class="fontEffectClass"
             >

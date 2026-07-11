@@ -332,7 +332,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
 import { DotLottieVue } from "@lottiefiles/dotlottie-vue";
 import turtleLottie from "@/assets/lottie/avatar/turtle.lottie";
@@ -393,9 +393,18 @@ onMounted(() => {
 		// Pre-mount a little before the card scrolls in so there's no pop-in.
 		{ rootMargin: "250px" },
 	);
-	nextTick(() => {
-		if (root.value) io!.observe(root.value);
-	});
+	// Re-observe whenever the root element appears/changes. Root is v-if'd on
+	// def.kind !== 'none', so switching FROM a 'none' world creates the root only
+	// after mount — a one-shot observe would miss it and the newly selected world
+	// would never activate (blank card until re-triggered).
+	watch(
+		root,
+		(el) => {
+			io?.disconnect();
+			if (el) io?.observe(el);
+		},
+		{ immediate: true, flush: "post" },
+	);
 });
 
 onBeforeUnmount(() => io?.disconnect());

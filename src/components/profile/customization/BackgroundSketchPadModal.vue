@@ -36,6 +36,7 @@
                 :is-own-profile="false"
                 :is-preview="true"
                 :static-world="true"
+                :static-avatar-decoration="true"
               />
             </div>
 

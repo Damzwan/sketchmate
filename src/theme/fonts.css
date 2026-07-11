@@ -1,85 +1,95 @@
-
 .cabin-sketch-regular {
-    font-family: "Cabin Sketch", sans-serif;
-    font-weight: 400;
-    text-rendering: optimizeLegibility;
+	font-family: "Cabin Sketch", sans-serif;
+	font-weight: 400;
+	text-rendering: optimizeLegibility;
 }
 
-
 @font-face {
-    font-family: "Amatic SC";
-    src: url('../assets/fonts/amatic-sc-v28-latin-regular.woff2') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
+	font-family: "Amatic SC";
+	src: url("../assets/fonts/amatic-sc-v28-latin-regular.woff2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
 }
 
 /* Anton */
 @font-face {
-    font-family: "Anton";
-    src: url('../assets/fonts/anton-v27-latin-regular.woff2') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
+	font-family: "Anton";
+	src: url("../assets/fonts/anton-v27-latin-regular.woff2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
 }
 
 @font-face {
-    font-family: "Cabin Sketch";
-    src: url('../assets/fonts/CabinSketch-Regular.ttf') format('truetype');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
+	font-family: "Cabin Sketch";
+	src: url("../assets/fonts/CabinSketch-Regular.ttf") format("truetype");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
 }
 
 @font-face {
-    font-family: "Cabin Sketch";
-    src: url('../assets/fonts/CabinSketch-Bold.ttf') format('truetype');
-    font-weight: 700;
-    font-style: normal;
-    font-display: swap;
+	font-family: "Cabin Sketch";
+	src: url("../assets/fonts/CabinSketch-Bold.ttf") format("truetype");
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
 }
 
 /* Chokokutai */
 @font-face {
-    font-family: "Chokokutai";
-    src: url('../assets/fonts/chokokutai-v12-latin-regular.woff2') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
+	font-family: "Chokokutai";
+	src: url("../assets/fonts/chokokutai-v12-latin-regular.woff2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
 }
 
 /* Dancing Script */
 @font-face {
-    font-family: "Dancing Script";
-    src: url('../assets/fonts/dancing-script-v29-latin-regular.woff2') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
+	font-family: "Dancing Script";
+	src: url("../assets/fonts/dancing-script-v29-latin-regular.woff2")
+		format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
 }
 
 /* Indie Flower */
 @font-face {
-    font-family: "Indie Flower";
-    src: url('../assets/fonts/indie-flower-v24-latin-regular.woff2') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
+	font-family: "Indie Flower";
+	src: url("../assets/fonts/indie-flower-v24-latin-regular.woff2")
+		format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
 }
 
 /* Krub */
 @font-face {
-    font-family: "Krub";
-    src: url('../assets/fonts/krub-v11-latin-regular.woff2') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
+	font-family: "Krub";
+	src: url("../assets/fonts/krub-v11-latin-regular.woff2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
 }
 
 /* Rubik Puddles */
 @font-face {
-    font-family: "Rubik Puddles";
-    src: url('../assets/fonts/rubik-puddles-v2-latin-regular.woff2') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
+	font-family: "Rubik Puddles";
+	src: url("../assets/fonts/rubik-puddles-v2-latin-regular.woff2")
+		format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+/* Medieval */
+@font-face {
+	font-family: "Celtic MD";
+	src: url("../assets/fonts/celticmd.ttf") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
 }

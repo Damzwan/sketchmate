@@ -74,6 +74,7 @@
               :user="user"
               :customization="effectiveCustomization"
               size="xl"
+              :static="staticAvatarDecoration"
             />
           </div>
 
@@ -86,7 +87,7 @@
             />
 
             <h2
-              class="text-3xl font-black drop-shadow-sm transition-colors duration-500"
+              class="text-3xl mt-2 font-black drop-shadow-sm transition-colors duration-500"
               :style="{ color: activeColors.name }"
               :class="fontEffectClass"
             >
@@ -270,6 +271,7 @@ const props = withDefaults(
 		/** Freeze the background world (no lottie/CSS motion) — e.g. behind the
 		    doodle pad, where the animation drains perf and distracts. */
 		staticWorld?: boolean;
+		staticAvatarDecoration?: boolean;
 	}>(),
 	{
 		isOwnProfile: false,
@@ -277,6 +279,7 @@ const props = withDefaults(
 		allowSketchEdit: false,
 		worldRemountKey: 0,
 		staticWorld: false,
+		staticAvatarDecoration: false,
 	},
 );
 

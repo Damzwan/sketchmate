@@ -92,7 +92,7 @@
 
       <div class="flex flex-col gap-2 mt-6 shrink-0 pb-2">
         <p
-          v-if="!isPro"
+          v-if="!isPro && strokes.length > 0"
           class="text-center text-[11px] font-bold text-secondary/70 uppercase tracking-wider flex items-center justify-center gap-1"
         >
           <ion-icon :icon="svg(mdiLock)" class="text-xs" />
@@ -117,7 +117,7 @@
             @click="applyOrUpgrade"
           >
             <div class="flex items-center justify-center gap-2">
-              <template v-if="isPro">
+              <template v-if="isPro || strokes.length === 0">
                 <span>Apply</span>
                 <ion-icon :icon="svg(mdiCheck)" class="text-base" />
               </template>
@@ -187,7 +187,8 @@ const presentPaywall = () => {
 };
 
 const applyOrUpgrade = () => {
-	if (!isPro.value) {
+	// Non-pro may still apply an empty pad (a clear); anything else upsells.
+	if (!isPro.value && strokes.value.length > 0) {
 		presentPaywall();
 		return;
 	}
@@ -320,15 +321,16 @@ const clear = () => {
 };
 
 const save = () => {
-	if (!isPro.value) return;
-	if (strokes.value.length === 0) return;
+	// Clearing (empty result) is allowed even for non-pro users, so a lapsed
+	// subscriber can remove a signature they set while pro. Saving a NEW
+	// signature still requires pro.
+	const isClearing = strokes.value.length === 0;
+	if (!isPro.value && !isClearing) return;
 
-	const combinedPath = strokes.value.map(buildPath).join(" ");
-	const viewBox = `0 0 ${padWidth.value} ${padHeight.value}`;
-
-	const encoder = new TextEncoder();
-	const pathBytes = encoder.encode(combinedPath).length;
-	console.log(`Signature Path Size: ${(pathBytes / 1024).toFixed(2)} KB`);
+	const combinedPath = isClearing
+		? ""
+		: strokes.value.map(buildPath).join(" ");
+	const viewBox = isClearing ? "" : `0 0 ${padWidth.value} ${padHeight.value}`;
 
 	emit("save", {
 		path: combinedPath,

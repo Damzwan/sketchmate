@@ -3,7 +3,7 @@
     v-if="def && def.kind !== 'none'"
     ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]"
-    :class="{ 'world-preview': preview }"
+    :class="{ 'world-preview': preview, 'world-static': staticMode }"
     :style="preview ? { '--world-scale': previewScale } : undefined"
     aria-hidden="true"
   >
@@ -11,7 +11,7 @@
          shop/customization grid the off-screen worlds unmount, so only the few
          visible cards run wasm/canvas players at once. -->
     <template v-if="active">
-    <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-40">
+    <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-40 sprite-stage">
       <div
         v-for="j in jellyfishes"
         :key="'jf' + j.id"
@@ -26,7 +26,7 @@
       >
         <DotLottieVue
           :src="jellyFishLottie"
-          :autoplay="true"
+          :autoplay="!staticMode"
           :loop="true"
           :render-config="renderConfig"
           class="w-full h-full lottie-strict-bounds"
@@ -47,7 +47,7 @@
       >
         <DotLottieVue
           :src="turtleLottie"
-          :autoplay="true"
+          :autoplay="!staticMode"
           :loop="true"
           :render-config="renderConfig"
           class="w-full h-full lottie-strict-bounds"
@@ -68,7 +68,7 @@
       >
         <DotLottieVue
           :src="fishLottie"
-          :autoplay="true"
+          :autoplay="!staticMode"
           :loop="true"
           :render-config="renderConfig"
           class="w-full h-full lottie-strict-bounds"
@@ -94,25 +94,25 @@
 
       <div class="absolute top-[26%] left-[0%] w-36 h-36 flex items-end justify-center pointer-events-none z-10">
         <div class="absolute bottom-[35%] left-[-10%] w-20 h-20 origin-bottom animate-plant-sway opacity-70 z-0">
-          <DotLottieVue :src="plantLottie" :autoplay="true" :loop="true"
+          <DotLottieVue :src="plantLottie" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                         class="w-full h-full lottie-strict-bounds" />
         </div>
         <div
           class="absolute bottom-[40%] right-[-10%] w-18 h-18 origin-bottom animate-plant-sway opacity-60 z-0 transform scaleX(-1)">
-          <DotLottieVue :src="plantLottie" :autoplay="true" :loop="true"
+          <DotLottieVue :src="plantLottie" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                         class="w-full h-full lottie-strict-bounds" />
         </div>
         <div class="w-32 h-32 opacity-95 filter drop-shadow-sm z-10">
-          <DotLottieVue :src="catLottie" :autoplay="true" :loop="true"
+          <DotLottieVue :src="catLottie" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                         class="w-full h-full lottie-strict-bounds" />
         </div>
       </div>
     </div>
 
-    <div v-else-if="def.kind === 'autumn'" class="absolute inset-0 z-20 opacity-70">
+    <div v-else-if="def.kind === 'autumn'" class="absolute inset-0 z-20 opacity-70 sprite-stage">
       <div
         v-for="leaf in fallingLeaves"
         :key="'lf' + leaf.id"
@@ -125,7 +125,7 @@
           animationDuration: leaf.duration,
         }"
       >
-        <DotLottieVue :src="autumn_leaves" :autoplay="true" :loop="true"
+        <DotLottieVue :src="autumn_leaves" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds" />
       </div>
@@ -142,7 +142,7 @@
           animationDuration: shroom.duration,
         }"
       >
-        <DotLottieVue :src="mushroom_walking" :autoplay="true" :loop="true"
+        <DotLottieVue :src="mushroom_walking" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds" />
       </div>
@@ -161,7 +161,7 @@
           animationDelay: f.delay,
         }"
       >
-        <DotLottieVue :src="fire" :autoplay="true" :loop="true"
+        <DotLottieVue :src="fire" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds" />
       </div>
@@ -177,7 +177,7 @@
           animationDuration: d.duration,
         }"
       >
-        <DotLottieVue :src="dragon" :autoplay="true" :loop="true"
+        <DotLottieVue :src="dragon" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds drop-shadow-[0_15px_25px_rgba(0,0,0,0.7)]" />
       </div>
@@ -246,14 +246,14 @@
           animationDuration: m.duration,
         }"
       >
-        <DotLottieVue :src="meteor" :autoplay="true" :loop="true"
+        <DotLottieVue :src="meteor" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds" />
       </div>
 
       <!-- Moon: fixed in its corner, gentle in-place bob -->
       <div class="absolute top-[10%] right-[8%] w-24 h-24 animate-moon-bob z-10">
-        <DotLottieVue :src="moon" :autoplay="true" :loop="true"
+        <DotLottieVue :src="moon" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds drop-shadow-[0_0_18px_rgba(200,215,255,0.5)]" />
       </div>
@@ -262,14 +262,14 @@
            different diagonal, at a different size, exits past the top edge,
            then reappears at the bottom for the next launch. -->
       <div class="absolute left-[40%] top-0 w-28 h-28 animate-rocket-fly z-10">
-        <DotLottieVue :src="rocket" :autoplay="true" :loop="true"
+        <DotLottieVue :src="rocket" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds" />
       </div>
 
       <!-- Astronaut: quirky slow wander from place to place -->
       <div class="absolute top-0 left-0 w-20 h-20 animate-astronaut-wander z-20">
-        <DotLottieVue :src="astronaut" :autoplay="true" :loop="true"
+        <DotLottieVue :src="astronaut" :autoplay="!staticMode" :loop="true"
           :render-config="renderConfig"
                       class="w-full h-full lottie-strict-bounds drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]" />
       </div>
@@ -365,8 +365,11 @@ const props = withDefaults(
 		/** Selected profile font — applied to gratitude's thank-you text, which
 		    lives in this layer (outside the card's fontFamily wrapper). */
 		font?: string;
+		/** Freeze the world: no lottie autoplay, no CSS motion. For contexts
+		    where the animation drains perf / distracts (e.g. the doodle pad). */
+		staticMode?: boolean;
 	}>(),
-	{ preview: false, previewScale: 0.5, accent: "#7c5cff" },
+	{ preview: false, previewScale: 0.5, accent: "#7c5cff", staticMode: false },
 );
 const def = computed<WorldDef>(() => props.def || resolveWorld(props.worldId));
 
@@ -633,22 +636,26 @@ const meteors = computed(() =>
   transform-origin: center;
 }
 
+/* Travel is driven by transform (translateX/Y in container units) instead of
+   left/top, so these sprites animate on the GPU compositor with no per-frame
+   layout. cqw/cqh resolve against the card-sized `.sprite-stage` wrapper, so
+   the motion is identical to the old percentage left/top. */
 @keyframes turtle-swim-lane {
-  0% { left: -35%; transform: translateY(0px) rotate(-6deg); }
-  50% { transform: translateY(20px) rotate(4deg); }
-  100% { left: 135%; transform: translateY(-5px) rotate(-3deg); }
+  0% { transform: translateX(-35cqw) translateY(0px) rotate(-6deg); }
+  50% { transform: translateX(50cqw) translateY(20px) rotate(4deg); }
+  100% { transform: translateX(135cqw) translateY(-5px) rotate(-3deg); }
 }
 
 @keyframes fish-swim-lane {
-  0% { left: 135%; transform: translateY(0px) rotate(4deg); }
-  50% { transform: translateY(-25px) rotate(-5deg); }
-  100% { left: -35%; transform: translateY(0px) rotate(3deg); }
+  0% { transform: translateX(135cqw) translateY(0px) rotate(4deg); }
+  50% { transform: translateX(50cqw) translateY(-25px) rotate(-5deg); }
+  100% { transform: translateX(-35cqw) translateY(0px) rotate(3deg); }
 }
 
 @keyframes jellyfish-drift {
-  0% { top: 110%; transform: translateX(0px) rotate(-5deg); }
-  50% { transform: translateX(20px) rotate(5deg); }
-  100% { top: -25%; transform: translateX(-5px) rotate(-2deg); }
+  0% { transform: translateY(110cqh) translateX(0px) rotate(-5deg); }
+  50% { transform: translateY(42.5cqh) translateX(20px) rotate(5deg); }
+  100% { transform: translateY(-25cqh) translateX(-5px) rotate(-2deg); }
 }
 
 @keyframes dust-drift {
@@ -663,14 +670,14 @@ const meteors = computed(() =>
 }
 
 @keyframes leaf-fall {
-  0% { top: -20%; transform: translateX(0) rotate(0deg); }
-  50% { transform: translateX(28px) rotate(180deg); }
-  100% { top: 118%; transform: translateX(-18px) rotate(360deg); }
+  0% { transform: translateY(-20cqh) translateX(0) rotate(0deg); }
+  50% { transform: translateY(49cqh) translateX(28px) rotate(180deg); }
+  100% { transform: translateY(118cqh) translateX(-18px) rotate(360deg); }
 }
 
 @keyframes walker-cross {
-  from { left: -40%; }
-  to { left: 140%; }
+  from { transform: translateX(-40cqw); }
+  to { transform: translateX(140cqw); }
 }
 
 /* ── Dragon: full-screen passes with off-screen turns ──
@@ -811,6 +818,23 @@ const meteors = computed(() =>
   100% { transform: translate(40%, 60%) rotate(0deg); }
 }
 
+/* Card-sized query container so the sprites' cqw/cqh travel resolves against
+   the whole card (they animate transform in container units instead of
+   left/top). Applied to the ocean & autumn wrappers, which already establish a
+   stacking context (z-20 + opacity<1), so `container-type` adds no new one —
+   important: doing this on the SPACE world's root would trap its -z-10 sky. */
+.sprite-stage {
+  container-type: size;
+}
+
+/* Frozen world (staticMode): no CSS motion. Combined with autoplay=false on the
+   lottie players, the whole scene sits still — cheap + non-distracting while
+   drawing. animation:none leaves each sprite at its base (non-animated)
+   position, so nothing vanishes off-screen. */
+.world-static [class*="animate-"] {
+  animation: none !important;
+}
+
 /* Promote moving sprites to their own GPU layer for smoother compositing. */
 .animate-turtle-swim-lane,
 .animate-fish-swim-lane,
@@ -821,7 +845,7 @@ const meteors = computed(() =>
 .animate-meteor-streak,
 .animate-rocket-fly,
 .animate-astronaut-wander {
-  will-change: transform, top, left;
+  will-change: transform;
 }
 
 .animate-turtle-swim-lane { animation: turtle-swim-lane linear infinite; }

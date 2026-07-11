@@ -20,6 +20,7 @@
         @contextmenu.prevent
         @load="isLoading = false"
         :loading="props.eager ? 'eager' : 'lazy'"
+        decoding="async"
         class="w-full h-full relative object-contain pointer-events-none transition-all duration-300"
         :class="[
           multiSelectedItems.includes(itemId) ? 'opacity-50 blur-[1px]' : 'opacity-100'
@@ -40,7 +41,7 @@
           class="absolute left-2 top-2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border"
           :class="multiSelectedItems.includes(itemId)
             ? 'bg-secondary border-secondary scale-110'
-            : 'bg-white/70 backdrop-blur-md border-black/10 scale-100'"
+            : 'bg-white/70 border-black/10 scale-100'"
         >
           <ion-icon
             :icon="svg(multiSelectedItems.includes(itemId) ? mdiCheckboxMarkedCircleOutline : mdiCheckboxBlankCircleOutline)"
@@ -59,7 +60,7 @@
           >
           <div
             v-if="inboxItem.followers.length > badgesCountToShow"
-            class="w-6 h-6 rounded-full border border-white bg-white/90 backdrop-blur-sm flex justify-center items-center shadow-sm"
+            class="w-6 h-6 rounded-full border border-white bg-white/90 flex justify-center items-center shadow-sm"
             :style="{ zIndex: badgesCountToShow }"
           >
             <span class="text-[8px] font-black text-black/60">
@@ -75,7 +76,7 @@
 
         <div
           v-if="props.inboxItem.comments.length > 0"
-          class="absolute right-2 bottom-2 px-1.5 py-0.5 flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-sm text-white shadow-sm pointer-events-auto transition-all active:scale-90 group-hover:bg-secondary"
+          class="absolute right-2 bottom-2 px-1.5 py-0.5 flex items-center gap-1 rounded-full bg-black/60 text-white shadow-sm pointer-events-auto transition-all active:scale-90 group-hover:bg-secondary"
         >
           <div class="w-1 h-1 bg-green-400 rounded-full animate-ping" v-if="isNewComment" />
           <span class="text-[9px] font-black tracking-tight leading-none mb-[0.5px]">

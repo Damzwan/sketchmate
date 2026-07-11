@@ -199,6 +199,7 @@ const shimmerStyle = computed(() => {
   animation-name: shimmer;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
+  will-change: transform;
 }
 
 .speed-slow {
@@ -234,6 +235,15 @@ const shimmerStyle = computed(() => {
   opacity: 0.5;
   transform-origin: 55% 35%;
   animation: glass-drift 18s linear infinite;
+  /* Own compositor layer: the expensive blur(14px) rasterizes ONCE and the
+     rotation is composited on the GPU, instead of re-blurring every frame. */
+  will-change: transform;
+}
+
+/* Low-end: shrink the priciest standalone blur (the global backdrop-filter
+   kill in main.css doesn't touch `filter: blur`). */
+html.low-end .glass-prism {
+  filter: blur(6px) saturate(1.2);
 }
 
 /* Specular sheen sweep — gives the surface a polished, moving glare */
@@ -413,6 +423,7 @@ const shimmerStyle = computed(() => {
   animation-name: shimmer;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
+  will-change: transform;
 }
 
 /* Barely press the corners so the note settles into the card. */

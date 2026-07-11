@@ -4,7 +4,7 @@
 
       <!-- ─── Header with left back button ─── -->
       <div
-        class="sticky top-0 z-50 px-2 pb-3 backdrop-blur-xl flex items-center gap-1 border-b border-primary/40 header-bg"
+        class="sticky top-0 z-50 px-2 pb-3 flex items-center gap-1 border-b border-primary/40 header-bg"
         :style="{ paddingTop: 'calc(8px + var(--ion-safe-area-top, 0px))' }"
       >
         <ion-button fill="clear" class="m-0 active:scale-90 transition-transform" @click="closeShop">
@@ -140,7 +140,7 @@
                containing block is on screen). -->
           <section>
             <h2 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">Browse</h2>
-            <div class="sticky top-[54px] z-40 -mx-4 px-4 py-2.5 backdrop-blur-md border-y border-primary/40 navbar-bg">
+            <div class="sticky top-[54px] z-40 -mx-4 px-4 py-2.5 border-y border-primary/40 navbar-bg">
               <div class="flex gap-2 overflow-x-auto hide-scrollbar">
                 <button
                   v-for="cat in categories"
@@ -442,7 +442,7 @@ watch(isShopOpen, async (open) => {
 		}
 		shopScrollTarget.value = null;
 	}
-});
+}, { immediate: true });
 </script>
 
 <style scoped>

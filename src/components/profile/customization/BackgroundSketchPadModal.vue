@@ -35,6 +35,7 @@
                 :customization="cardCustomization"
                 :is-own-profile="false"
                 :is-preview="true"
+                :static-world="true"
               />
             </div>
 
@@ -56,12 +57,12 @@
                 xmlns="http://www.w3.org/2000/svg"
               >
                 <path
-                  v-for="(stroke, i) in strokes"
+                  v-for="(p, i) in committedPaths"
                   :key="i"
-                  :d="safeBuildPath(stroke)"
+                  :d="p.d"
                   fill="none"
                   :stroke="strokeColor"
-                  :stroke-width="stroke.width"
+                  :stroke-width="p.width"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   vector-effect="non-scaling-stroke"
@@ -219,7 +220,7 @@
               class="flex-1 ion-no-margin"
               @click="applyOrUpgrade"
             >
-              <template v-if="isPro">
+              <template v-if="isPro || strokes.length === 0">
                 Apply
               </template>
 
@@ -231,7 +232,7 @@
           </div>
 
           <p
-            v-if="!isPro"
+            v-if="!isPro && strokes.length > 0"
             class="text-center text-[9px] font-bold text-secondary/70 uppercase tracking-widest pb-0.5 flex items-center justify-center gap-1"
           >
             <ion-icon :icon="svg(mdiLock)" class="text-xs" />
@@ -507,6 +508,11 @@ const pointers = new Map<number, { x: number; y: number }>();
 type GestureMode = "none" | "draw" | "transform" | "lock";
 let mode: GestureMode = "none";
 
+// Pad rect captured at the start of a draw/erase gesture and reused for every
+// move — the pad can't move mid-stroke (pan/zoom take 2 pointers → transform
+// mode cancels the stroke), so this drops a forced layout per pointermove.
+let activeRect: DOMRect | null = null;
+
 let pinchStartDist = 0;
 let pinchStartScale = 1;
 let pinchAnchor = { wx: 0, wy: 0 };
@@ -525,7 +531,7 @@ const pxPerCanonical = () => {
 
 const getPoint = (clientX: number, clientY: number): Point | null => {
 	if (!padRef.value || CANONICAL_ZONE_WIDTH.value === 0) return null;
-	const rect = padRef.value.getBoundingClientRect();
+	const rect = activeRect ?? padRef.value.getBoundingClientRect();
 	if (rect.width === 0) return null;
 	const sx = CANONICAL_ZONE_WIDTH.value / rect.width;
 	const sy = CANONICAL_ZONE_HEIGHT.value / rect.height;
@@ -558,11 +564,13 @@ const onPointerDown = (e: PointerEvent) => {
 	if (tool.value === "erase") {
 		mode = "draw";
 		beginHistory();
+		activeRect = padRef.value?.getBoundingClientRect() ?? null;
 		updateEraserCursor(e);
 		eraseAt(e.clientX, e.clientY);
 	} else {
 		mode = "draw";
 		beginHistory();
+		activeRect = padRef.value?.getBoundingClientRect() ?? null;
 		const p = getPoint(e.clientX, e.clientY);
 		if (!p) {
 			mode = "none";
@@ -623,7 +631,10 @@ const onPointerUp = (e: PointerEvent) => {
 			isDrawing.value = false;
 			commitStroke();
 		}
-		if (pointers.size === 0) mode = "none";
+		if (pointers.size === 0) {
+			mode = "none";
+			activeRect = null;
+		}
 	}
 };
 
@@ -631,6 +642,7 @@ const cancelStroke = () => {
 	isDrawing.value = false;
 	currentStroke.value = [];
 	gestureSnapshot = null;
+	activeRect = null;
 };
 
 const commitStroke = () => {
@@ -813,8 +825,12 @@ const clear = () => {
 };
 
 const save = () => {
-	if (!isPro.value) return;
-	if (strokes.value.length === 0) {
+	// Clearing (empty result) is allowed even for non-pro users, so a lapsed
+	// subscriber can remove a doodle they set while pro. Saving NEW content
+	// still requires pro.
+	const isClearing = strokes.value.length === 0;
+	if (!isPro.value && !isClearing) return;
+	if (isClearing) {
 		emit("save", { path: "", viewBox: "" });
 		return;
 	}
@@ -891,11 +907,6 @@ function simplifyPath(points: Point[], tolerance = 0.75): Point[] {
 	return simplified;
 }
 
-const safeBuildPath = (stroke: Stroke): string => {
-	if (!stroke || !stroke.points) return "";
-	return buildPath(stroke.points);
-};
-
 const buildPath = (points: Point[]): string => {
 	if (points.length === 0) return "";
 	if (points.length === 1) {
@@ -913,6 +924,15 @@ const buildPath = (points: Point[]): string => {
 	d.push(`L${last[0]},${last[1]}`);
 	return d.join("");
 };
+
+// Committed strokes' path `d` strings, cached by the `strokes` ref. Recomputes
+// ONLY when strokes changes (commit / erase / undo / redo / clear), NOT while
+// the in-progress currentStroke updates every pointermove — so drawing no
+// longer rebuilds every committed <path> each frame (the lag that grew with the
+// doodle).
+const committedPaths = computed(() =>
+	strokes.value.map((s) => ({ d: buildPath(s.points), width: s.width })),
+);
 
 function parsePathToStrokes(pathStr: string): Stroke[] {
 	if (!pathStr) return [];
@@ -966,7 +986,8 @@ const presentPaywall = () => {
 };
 
 const applyOrUpgrade = () => {
-	if (!isPro.value) {
+	// Non-pro may still apply an empty canvas (a clear); anything else upsells.
+	if (!isPro.value && strokes.value.length > 0) {
 		presentPaywall();
 		return;
 	}

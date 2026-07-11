@@ -78,6 +78,23 @@ ion-alert.liquid-alert {
     -webkit-backdrop-filter: blur(2px);
 }
 
+/* ── Low-end devices (mobile, ≤4 cores; flag stamped in main.ts) ──────────────
+   backdrop-filter is the single biggest GPU cost on weak webviews — it
+   re-rasterizes the blurred region every frame content moves underneath. Kill
+   it everywhere, and shrink the standalone decorative blur radii. Visual hit
+   only on devices that can't afford the effect. */
+html.low-end *,
+html.low-end *::before,
+html.low-end *::after {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Tailwind blur-* utilities set --tw-blur; halve the heaviest tiers so any
+   `filter: blur()` decoration stays cheap without disappearing. */
+html.low-end .blur-2xl { --tw-blur: blur(16px); }
+html.low-end .blur-3xl { --tw-blur: blur(24px); }
+
 button.alert-button.alert-button-confirm,
 button.alert-button.alert-button-cancel,
 button.alert-button.alert-button-destructive {

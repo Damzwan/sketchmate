@@ -72,7 +72,7 @@
                 <div
                   v-for="(inboxItem, i) in groupedInboxItems[date]"
                   :key="inboxItem._id"
-                  class="transition-all duration-300 overflow-visible"
+                  class="gv-cell transition-all duration-300 overflow-visible"
                   :class="inboxItem.aspect_ratio > 1.2 ? 'col-span-2' : 'col-span-1'"
                 >
                   <Thumbnail
@@ -238,6 +238,14 @@ ion-content{
 }
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+/* Windowing-lite: off-screen thumbnails skip layout/paint/style (and their
+   img decode + ResizeObserver work) until scrolled near, so a large gallery no
+   longer pays for every loaded item. `auto` intrinsic-size lets the browser
+   remember each cell's real height after first render (no scroll jumping). */
+.gv-cell {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
 }
 ion-refresher {
   --color: var(--ion-color-secondary);

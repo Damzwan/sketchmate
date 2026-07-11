@@ -23,6 +23,7 @@ import {
 	handleWebDeeplink,
 	initBilling,
 	initFirebase,
+	isMobile,
 	setupDeeplinkListener,
 	setupPwa,
 	setupWidget
@@ -42,6 +43,14 @@ dayjs.extend(isToday)
 dayjs.extend(isYesterday)
 
 export const EventBus = mitt()
+
+// Low-end device flag: mobile + ≤4 logical cores (matches the draw engine's
+// IS_LOW_END). Stamped on <html> before mount so CSS can drop the GPU-expensive
+// backdrop blurs and shrink blur radii on weak webviews (see main.css).
+if (isMobile() && (navigator.hardwareConcurrency || 4) <= 4) {
+  document.documentElement.classList.add('low-end')
+}
+
 const app = createApp(App).use(IonicVue).use(pinia).use(router)
 
 app.mount('#app')

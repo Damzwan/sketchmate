@@ -2,26 +2,25 @@
   <ion-app>
     <CircularLoader class="z-50" v-if="!isRouterReady" bg-color="bg-background" />
     <ion-router-outlet />
-    <WhatsNewModal />
-    <ChatBubble />
+    <LazyMount :when="isLoggedIn"><WhatsNewModal /></LazyMount>
+    <LazyMount :when="isLoggedIn"><ChatBubble /></LazyMount>
 
     <GlobalToast />
-    <PhotoSwiper />
-    <UserContextSheet/>
-
-    <FeedbackMenu />
-    <DateOfBirthConfirmation />
-    <Confetti />
-    <ReceivedBalloon />
-    <BalloonMenu/>
-    <ConnectionHub />
-    <ModerationMenu/>
-    <SharePostMenu/>
-    <ReportMenu/>
-    <ShareToasts/>
-    <Shop/>
-    <PaywallModal/>
-    <OnlineUpgradeModal/>
+    <LazyMount :when="isLoggedIn"><PhotoSwiper /></LazyMount>
+    <LazyMount :when="isLoggedIn"><UserContextSheet/></LazyMount>
+    <LazyMount :when="feedbackMenuOpen"><FeedbackMenu /></LazyMount>
+    <LazyMount :when="isLoggedIn"><DateOfBirthConfirmation /></LazyMount>
+    <LazyMount :when="isLoggedIn"><Confetti /></LazyMount>
+    <LazyMount :when="isLoggedIn"><ReceivedBalloon /></LazyMount>
+    <LazyMount :when="balloonMenuOpen"><BalloonMenu/></LazyMount>
+    <LazyMount :when="connectionMenuOpen"><ConnectionHub /></LazyMount>
+    <LazyMount :when="isLoggedIn"><ModerationMenu/></LazyMount>
+    <LazyMount :when="sharePostMenuOpen"><SharePostMenu/></LazyMount>
+    <LazyMount :when="reportMenuOpen"><ReportMenu/></LazyMount>
+    <LazyMount :when="isLoggedIn"><ShareToasts/></LazyMount>
+    <LazyMount :when="isShopOpen"><Shop/></LazyMount>
+    <LazyMount :when="isPaywallOpen"><PaywallModal/></LazyMount>
+    <LazyMount :when="isOnlineUpgradeMenuOpen"><OnlineUpgradeModal/></LazyMount>
   </ion-app>
 </template>
 
@@ -42,6 +41,8 @@ import { useActiveViewSync } from "@/service/activeViewSync";
 // Eagerly loaded components
 import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
 import WhatsNewModal from "@/components/general/WhatsNewModal.vue";
+import LazyMount from "@/components/general/LazyMount.vue";
+import { useMenuStore } from "@/store/menu.store";
 import { useSessionStore } from "@/store/session.store";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import OnlineUpgradeModal from "@/components/general/OnlineUpgradeModal.vue";
@@ -108,7 +109,24 @@ const { initIonRouter } = useAuthStore();
 initIonRouter(ionRouter);
 useActiveViewSync();
 
-const { isAuthLoading, showForceUpdateModal } = storeToRefs(useAuthStore());
+const { isAuthLoading, showForceUpdateModal, isLoggedIn } = storeToRefs(
+	useAuthStore(),
+);
+
+// Flags that gate the deferred overlay chunks (see LazyMount). Each modal is
+// opened by an external store flag, so it can stay unmounted — and its JS chunk
+// off the boot path — until first opened.
+const {
+	isShopOpen,
+	isPaywallOpen,
+	isOnlineUpgradeMenuOpen,
+	feedbackMenuOpen,
+	connectionMenuOpen,
+	sharePostMenuOpen,
+	reportMenuOpen,
+	balloonMenuOpen,
+} = storeToRefs(useMenuStore());
+
 const networkStore = useNetworkStore();
 
 const isRouterReady = ref(false);

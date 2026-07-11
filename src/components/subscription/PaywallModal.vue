@@ -380,7 +380,7 @@ watch(isPaywallOpen, (open) => {
   if (!open) return
   if (isPro.value) selectedPlan.value = 'lifetime'
   if (!monthly.value && !yearly.value && !lifetime.value) void loadPackages()
-})
+}, { immediate: true })
 
 // ─── Purchasing ──────────────────────────────────────────────────────────────
 const purchasing = ref(false)

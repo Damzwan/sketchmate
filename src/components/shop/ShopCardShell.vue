@@ -1,7 +1,7 @@
 <template>
   <div
     ref="rootEl"
-    class="relative rounded-[2rem] overflow-hidden flex flex-col bg-tertiary border shadow-sm transition-all duration-300 md:hover:scale-[1.02] md:hover:shadow-md"
+    class="relative rounded-[2rem] cursor-pointer overflow-hidden flex flex-col bg-tertiary border shadow-sm transition-all duration-300 md:hover:scale-[1.02] md:hover:shadow-md"
     :class="[
       owned ? 'border-emerald-400/60' : 'border-primary/40',
       highlight && 'highlight-pulse',

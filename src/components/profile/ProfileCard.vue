@@ -5,7 +5,7 @@
   >
     <div class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
       <ProfileEffect :effect-id="effectiveCustomization.effectId" />
-      <ProfileWorld :key="worldRemountKey" :world-id="effectiveCustomization.worldId" :accent="theme.accentColor" :font="resolvedFontFamily" />
+      <ProfileWorld :key="worldRemountKey" :world-id="effectiveCustomization.worldId" :accent="theme.accentColor" :font="resolvedFontFamily" :static-mode="staticWorld" />
     </div>
 
     <div class="relative z-10" :style="{ fontFamily: resolvedFontFamily }">
@@ -267,12 +267,16 @@ const props = withDefaults(
 		allowSketchEdit?: boolean;
 		worldRemountKey?: number | string;
 		showStats?: boolean;
+		/** Freeze the background world (no lottie/CSS motion) — e.g. behind the
+		    doodle pad, where the animation drains perf and distracts. */
+		staticWorld?: boolean;
 	}>(),
 	{
 		isOwnProfile: false,
 		isPreview: false,
 		allowSketchEdit: false,
 		worldRemountKey: 0,
+		staticWorld: false,
 	},
 );
 

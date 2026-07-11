@@ -3,7 +3,7 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import lottie from 'lottie-web/build/player/lottie_light.min.js'
 
 const lottieRef = ref()
@@ -42,6 +42,14 @@ onMounted(() => {
     animationData: props.json
   })
   animationInstance.setSpeed(props.speed)
+})
+
+// lottie-web keeps its own RAF loop + SVG DOM alive until destroyed. Without
+// this, every mount/unmount (loaders, toasts, balloons cycle constantly) leaks
+// a running animation.
+onBeforeUnmount(() => {
+  animationInstance?.destroy()
+  animationInstance = null
 })
 
 watch(

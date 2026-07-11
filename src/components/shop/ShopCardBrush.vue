@@ -2,7 +2,7 @@
   <ShopCardShell :sku="sku" :owned="owned" :highlight="highlight" @purchase="$emit('purchase')">
     <template #preview>
       <div class="h-28 bg-[#FAF6F0] relative flex items-center justify-center p-2 border-b border-black/5">
-        <canvas :ref="initCanvas" class="max-w-full pointer-events-none"></canvas>
+        <img v-if="previewUrl" :src="previewUrl" class="max-w-full pointer-events-none" alt="" />
 
         <div class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white border border-black/10 shadow-sm flex items-center justify-center text-black">
           <ion-icon :icon="svg(brushIcon)" class="text-sm" />
@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { Canvas, Point } from "fabric";
 import type { ShopSku } from "@/config/catalog.config";
@@ -36,30 +36,35 @@ const brushType = computed<BrushType>(() => {
 });
 const brushIcon = computed(() => penIconMapping[brushType.value]);
 
-// Keep track of the instance to avoid duplicate setups if the slot re-renders
-let canvasInstance: Canvas | null = null;
+const previewUrl = ref("");
 
-const initCanvas = (el: HTMLCanvasElement | null) => {
-	if (!el || canvasInstance) return;
+// Bake the sample stroke ONCE into a static data-URL image, off a DETACHED
+// canvas. Fabric wraps and mutates whatever <canvas> DOM node it's handed; when
+// the shop's category chips re-render / reorder the card list, Vue's patch
+// desynced from fabric's injected wrapper and the live canvas blanked (and the
+// old `if (canvasInstance) return` guard then blocked any redraw). A plain
+// <img> built off-tree is immune to every list re-render.
+onMounted(() => {
+	const el = document.createElement("canvas");
+	el.style.position = "fixed";
+	el.style.left = "-9999px";
+	el.style.top = "0";
+	document.body.appendChild(el);
 
-	const canvas = new Canvas(el, {
-		width: 150,
-		height: 75,
-		selection: false,
-	});
-	canvasInstance = canvas;
-	canvas.backgroundColor = "rgba(0,0,0,0)";
-
+	let canvas: Canvas | null = null;
 	try {
-		canvas.freeDrawingBrush = penBrushMapping[brushType.value](canvas);
-		const brush = canvas.freeDrawingBrush as any;
+		canvas = new Canvas(el, { width: 150, height: 75, selection: false });
+		canvas.backgroundColor = "rgba(0,0,0,0)";
+
+		const brush = penBrushMapping[brushType.value](canvas) as any;
+		canvas.freeDrawingBrush = brush;
 		brush.color = "#1e1e1f";
 		brush.width = brushType.value === BrushType.CalliGraphy ? 6 : 3;
 
 		const amplitude = 10;
 		const frequency = 0.07;
 		const yOffset = 38;
-		const pts = [[10, yOffset]];
+		const pts: number[][] = [[10, yOffset]];
 		for (let x = 18; x <= 140; x += 8) {
 			pts.push([x, yOffset + amplitude * Math.sin(frequency * x)]);
 		}
@@ -70,10 +75,21 @@ const initCanvas = (el: HTMLCanvasElement | null) => {
 			brush.onMouseMove(points[i], { e: new MouseEvent("mousemove") });
 		}
 		brush.onMouseUp({ e: new MouseEvent("mouseup") });
-		canvas.getObjects().forEach((o) => o.set("selectable", false));
 		canvas.renderAll();
+
+		previewUrl.value = canvas.toDataURL({
+			format: "png",
+			multiplier: Math.min(window.devicePixelRatio || 1, 2),
+		});
 	} catch (e) {
 		console.warn("[ShopCardBrush] preview failed", e);
+	} finally {
+		try {
+			canvas?.dispose();
+		} catch {
+			/* ignore */
+		}
+		el.remove();
 	}
-};
+});
 </script>

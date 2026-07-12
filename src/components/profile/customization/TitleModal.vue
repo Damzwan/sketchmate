@@ -38,8 +38,8 @@
           >
             {{ title.name }}
           </span>
-          <p class="text-[11px] mt-1 leading-tight italic"
-             :class="isUnlocked(title.id) ? 'text-black/60' : 'text-secondary/80'">
+          <p class="text-xs mt-1 leading-tight italic"
+             :class="isUnlocked(title.id) ? 'text-black/70' : 'text-secondary/80'">
             {{ title.howTo }}
           </p>
         </div>

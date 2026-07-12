@@ -76,7 +76,7 @@
             </div>
 
             <span
-              class="text-[13px] font-bold text-center truncate w-20 leading-none transition-colors"
+              class="text-sm font-bold text-center truncate w-20 leading-none transition-colors"
               :class="member._id === user?._id ? 'text-secondary' : 'text-heading'"
             >
               {{ member._id === user?._id ? 'You' : member.name.split(' ')[0] }}

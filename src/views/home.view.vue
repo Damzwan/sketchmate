@@ -5,58 +5,9 @@
     <ion-content class="--background-custom">
       <div class="px-4 pt-4 space-y-6 json-layout-wrapper pb-10">
 
-        <!-- GUEST WARNING — art is only local until they connect an account -->
-        <section
-          v-if="showGuestWarning"
-          class="bg-amber-50/60 backdrop-blur-sm border border-amber-200/80 rounded-3xl p-4 flex gap-3 shadow-sm cabin-sketch-regular"
-        >
-          <ion-icon :icon="svg(mdiContentSaveAlertOutline)" class="text-2xl shrink-0 text-amber-700" />
-          <div class="flex-1 min-w-0">
-            <p class="font-black text-sm text-amber-900 leading-tight">
-              You're drawing as a guest
-            </p>
-            <p class="text-[12px] text-amber-800/90 mt-1 leading-snug">
-              Your art lives only on this device. Connect an account so you never lose it if you log out or switch phones.
-            </p>
-            <div class="flex items-center gap-4 mt-3">
-              <button
-                :id="guestUpgradeTriggerId"
-                class="text-[12px] font-black text-amber-900 underline active:opacity-60"
-              >
-                Connect account
-              </button>
-              <button
-                @click="dismissGuestWarning"
-                class="text-[11px] font-bold text-amber-800/60 active:opacity-60"
-              >
-                Don't remind me
-              </button>
-            </div>
-          </div>
-        </section>
-        <UpgradeAccountModal v-if="showGuestWarning" :trigger="guestUpgradeTriggerId" />
+        <GuestWarningBanner />
 
-        <!-- AGE-GATED BANNER (soft mode) -->
-        <section
-          v-if="isUnderAge"
-          class="bg-amber-50/60 backdrop-blur-sm border border-amber-200/80 rounded-3xl p-4 flex gap-3 shadow-sm"
-        >
-          <ion-icon :icon="svg(mdiSproutOutline)" class="text-2xl shrink-0 text-amber-700" />
-          <div class="flex-1 min-w-0">
-            <p class="font-black text-sm text-amber-900 leading-tight">
-              Public features unlock at 13
-            </p>
-            <p class="text-[12px] text-amber-800/90 mt-1 leading-snug">
-              You can draw, save drafts, add mates, and draw together with them. Public lobbies, posts, and balloons will turn on when you're old enough.
-            </p>
-            <button
-              @click="goToAgeSettings"
-              class="text-[11px] font-bold text-amber-900 underline mt-2 block active:opacity-60"
-            >
-              Entered the wrong birthday? Fix it
-            </button>
-          </div>
-        </section>
+        <AgeGatedBanner />
 
         <HomeQuickActions
           :is-under-age="isUnderAge"
@@ -81,7 +32,7 @@
         />
 
         <!-- COMMUNITY FEED -->
-        <CommunityFeed v-if="!isUnderAge" />
+        <CommunityFeed v-if="!isUnderAge" ref="communityFeed" />
 
       </div>
     </ion-content>
@@ -92,13 +43,10 @@
 import { computed, onMounted, ref, watch } from "vue";
 import {
 	IonContent,
-	IonIcon,
 	IonPage,
 	onIonViewDidEnter,
 	useIonRouter,
 } from "@ionic/vue";
-import { mdiContentSaveAlertOutline, mdiSproutOutline } from "@mdi/js";
-import { Preferences } from "@capacitor/preferences";
 import { storeToRefs } from "pinia";
 import TopBar from "../components/general/TopBar.vue";
 import ActiveLobbies from "../components/home/ActiveLobbies.vue";
@@ -124,39 +72,24 @@ import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
 import draw_together from "@/assets/illustrations/home/draw_together.webp";
 import share from "@/assets/illustrations/home/share.webp";
 import balloonLottie from "@/assets/lottie/balloon.json";
-import { svg, whenIdle } from "@/helper/general.helper";
+import { whenIdle } from "@/helper/general.helper";
 import HomeQuickActions from "@/components/home/HomeQuickActions.vue";
-import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
-import { LocalStorage } from "@/types/storage.types";
+import GuestWarningBanner from "@/components/home/GuestWarningBanner.vue";
+import AgeGatedBanner from "@/components/home/AgeGatedBanner.vue";
 
 const r = useIonRouter();
 
 const drawSyncerStore = useDrawSyncer();
 const { publicLobbies } = storeToRefs(drawSyncerStore);
 const { openMenu } = useMenuStore();
-const { isUnderAge, firebaseUser } = storeToRefs(useAuthStore());
-
-// Guest = anonymous firebase account; art is device-only until they link one.
-const guestUpgradeTriggerId = "home-guest-upgrade-trigger";
-const guestWarningDismissed = ref(false);
-const showGuestWarning = computed(
-	() => !!firebaseUser.value?.isAnonymous && !guestWarningDismissed.value,
-);
-
-Preferences.get({ key: LocalStorage.guestUpgradeDismissed }).then(({ value }) => {
-	guestWarningDismissed.value = value === "true";
-});
-
-function dismissGuestWarning() {
-	guestWarningDismissed.value = true;
-	Preferences.set({ key: LocalStorage.guestUpgradeDismissed, value: "true" });
-}
+const { isUnderAge } = storeToRefs(useAuthStore());
 
 const loadStore = useDrawLoadStore();
 const { pendingDraftsList, removedDraftIds } = storeToRefs(loadStore);
 
 const localDrafts = ref<DrawingDraft[]>([]);
 const isLoadingDrafts = ref(true);
+const communityFeed = ref<{ reloadIfDirty: () => void } | null>(null);
 
 const ALL_QUICK_ACTIONS = [
 	{ id: "draw_alone", label: "Draw", img: draw_alone, requiresAge: false },
@@ -227,6 +160,11 @@ onMounted(() => {
 onIonViewDidEnter(() => {
 	fetchDrafts();
 
+	// Re-pull the community feed if the feed-level preference changed while we
+	// were away (e.g. flipped off→open in Settings). CommunityFeed owns the feed
+	// state; the child's own view hook doesn't fire, so drive it from here.
+	communityFeed.value?.reloadIfDirty();
+
 	if (!isUnderAge.value) {
 		useAuthStore()
 			.waitUntilInitialized()
@@ -295,10 +233,6 @@ const handleDeleteDraft = async (id: string) => {
 const openDraft = (id: string) => {
 	trackEvent(mixpanelEvents.draftOpen, { draft_id: id });
 	r.push(`${FRONTEND_ROUTES.draw}?id=${id}`, masterAnimation);
-};
-
-const goToAgeSettings = () => {
-	r.push(FRONTEND_ROUTES.settings, masterAnimation);
 };
 </script>
 

@@ -70,11 +70,11 @@
           v-if="hasSearched || isSearchingUsers || searchWarning"
           class="bg-white/30 rounded-[2rem] border border-white/50 overflow-hidden animate-fade-in p-2"
         >
-          <div v-if="searchWarning" class="p-4 text-center text-xs font-bold text-amber-700 italic">
+          <div v-if="searchWarning" class="p-4 text-center text-sm font-bold text-amber-700 italic">
             {{ searchWarning }}
           </div>
 
-          <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-xs text-black/80 italic">
+          <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-sm text-black/80 italic">
             No artists found with that name
           </div>
 

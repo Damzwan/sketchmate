@@ -5,15 +5,14 @@ import dayjs from "dayjs";
 import { useInboxStore } from "@/store/inbox.store";
 import { useSessionStore } from "@/store/session.store";
 import { useAuthStore } from "@/store/auth.store";
-import { usePhotoSwiper } from "@/store/photoswiper.store";
-import { EventBus } from "@/main";
+import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 
 export function useGalleryData() {
 	const route = useRoute();
 	const { isLoggedIn } = storeToRefs(useAuthStore());
 	const { queryParams } = storeToRefs(useSessionStore());
 	const { setQueryParams } = useSessionStore();
-	const { open, slide } = storeToRefs(usePhotoSwiper());
+	const { openInboxSwiper } = useInboxSwiper();
 
 	const inboxStore = useInboxStore();
 	const { inbox, isInboxLoading, allLoaded, hasFetchedInitial } =
@@ -67,9 +66,10 @@ export function useGalleryData() {
 		if (foundIdx === -1) return;
 
 		setQueryParams(undefined);
-		slide.value = foundIdx;
-		open.value = true;
-		EventBus.emit("goToSlide");
+		// Must go through openInboxSwiper so the swiper gets its collection AND
+		// config (imageResolver etc). Poking open/slide alone left the collection
+		// empty on a cold widget deep-link → black screen.
+		openInboxSwiper(inbox.value, foundIdx);
 	}
 
 	watch(isLoggedIn, fetchInitialInbox);

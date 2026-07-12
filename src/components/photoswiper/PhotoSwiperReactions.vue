@@ -7,7 +7,7 @@
       <!-- Icon Stack -->
       <div class="flex -space-x-2.5 mr-1">
         <!-- Colored heart if no reactions, otherwise top 3 active emojis -->
-        <img v-if="activeReactions.length === 0" :src="reactionImages.heart"
+        <img v-if="activeReactions.length === 0" :src="reactionImages.love"
              class="w-7 h-7 object-contain drop-shadow-md" />
         <img v-else v-for="type in activeReactions" :key="type" :src="reactionImages[type]"
              class="w-7 h-7 object-contain drop-shadow-md" />

@@ -28,10 +28,10 @@
         key="empty"
         class="bg-tertiary rounded-[2rem] p-6 border border-dashed border-primary/60 flex flex-col items-center justify-center text-center shadow-sm"
       >
-        <p class="cabin-sketch-regular text-base font-black text-black/80 tracking-tight">
+        <p class="cabin-sketch-regular text-xl font-black text-black/80">
           Your creative workspace is clean!
         </p>
-        <p class="text-[10px] uppercase tracking-widest text-black/60 mt-0.5">
+        <p class="text-base text-black/80 mt-0.5">
           Start a new sketch above
         </p>
       </div>
@@ -114,7 +114,12 @@ import {
 	IonSpinner,
 } from "@ionic/vue";
 import { DrawingDraft } from "@/draw/store/drawLoad.store";
-import { mdiDeleteOutline, mdiDotsVertical, mdiPencilOutline, mdiShareOutline } from "@mdi/js";
+import {
+	mdiDeleteOutline,
+	mdiDotsVertical,
+	mdiPencilOutline,
+	mdiShareOutline,
+} from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { shareImg } from "@/helper/share.helper";
 

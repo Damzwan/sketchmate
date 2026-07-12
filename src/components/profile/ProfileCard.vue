@@ -64,7 +64,7 @@
             :style="{ background: theme.accentColor }"
           >
             <ion-icon :icon="svg(mdiBrush)" class="w-3.5 h-3.5 text-white" />
-            <span class="text-[10px] font-black uppercase tracking-widest text-white">
+            <span class="text-xs font-black uppercase tracking-widest text-white">
               Doodle
             </span>
           </span>
@@ -96,7 +96,7 @@
             </h2>
 
             <p
-              class="text-sm font-bold italic mt-3 px-4 leading-snug whitespace-pre-wrap transition-colors duration-500"
+              class="text-base font-bold italic mt-3 px-4 leading-snug whitespace-pre-wrap transition-colors duration-500"
               :style="{ color: activeColors.desc }"
             >
               "{{ user.description || 'No description yet.' }}"
@@ -148,7 +148,7 @@
             >
               {{ formatStatNumber(getStatCount(stat)) }}
             </span>
-            <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">
+            <span class="text-[11px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">
               {{ stat }}
             </span>
           </button>
@@ -220,7 +220,7 @@
               :style="{ background: theme.accentColor }"
             >
               <ion-icon :icon="svg(mdiDraw)" class="w-3.5 h-3.5 text-white" />
-              <span class="text-[10px] font-black uppercase tracking-widest text-white">
+              <span class="text-xs font-black uppercase tracking-widest text-white">
                 Sign
               </span>
             </span>

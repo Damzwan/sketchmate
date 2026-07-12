@@ -43,10 +43,10 @@
         </div>
 
         <div class="absolute inset-x-0 bottom-0 bg-white/85 backdrop-blur-sm px-3 py-2">
-          <p class="text-[11px] font-black uppercase tracking-wider text-black leading-none">
+          <p class="text-xs font-black uppercase tracking-wider text-black leading-none">
             {{ world.name }}
           </p>
-          <p class="text-[9px] text-black/50 italic leading-tight mt-0.5">
+          <p class="text-xs text-black/70 italic leading-tight mt-0.5">
             {{ world.desc }}
           </p>
         </div>

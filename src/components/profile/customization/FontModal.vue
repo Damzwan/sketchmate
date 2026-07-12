@@ -32,7 +32,7 @@
         <span class="block text-2xl font-bold leading-tight truncate" :style="{ fontFamily: f.family }">
           {{ f.preview }}
         </span>
-        <span class="block text-[9px] font-black uppercase tracking-widest text-black/40 mt-2">
+        <span class="block text-xs font-black uppercase tracking-widest text-black/70 mt-2">
           {{ f.label }}
         </span>
 

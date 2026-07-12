@@ -31,7 +31,7 @@
     <SettingCard :icon="mdiCakeVariantOutline" @click="openAgeModal">
       <template #label>
         <span class="block font-bold text-black text-base leading-tight">Date of birth</span>
-        <span v-if="user?.date_of_birth" class="block text-[12px] text-black/50 mt-0.5 truncate">
+        <span v-if="user?.date_of_birth" class="block text-base text-black/80 mt-0.5 truncate">
           {{ formattedDob }}
           <span v-if="isUnderAge" class="text-amber-700">· social features hidden</span>
         </span>
@@ -57,36 +57,36 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon, IonButton, useIonRouter } from '@ionic/vue'
-import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import dayjs from 'dayjs'
-import { mdiCakeVariantOutline, mdiPalette, mdiPencilOutline } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { useAuthStore } from '@/store/auth.store'
-import { useDateOfBirthModalStore } from '@/store/dateOfBirth.store'
-import UpgradeAccountModal from '@/components/settings/UpgradeAccountModal.vue'
-import SettingCard from '@/components/settings/SettingCard.vue'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import { masterAnimation } from '@/helper/animation.helper'
+import { IonIcon, IonButton, useIonRouter } from "@ionic/vue";
+import { computed } from "vue";
+import { storeToRefs } from "pinia";
+import dayjs from "dayjs";
+import { mdiCakeVariantOutline, mdiPalette, mdiPencilOutline } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
+import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
+import SettingCard from "@/components/settings/SettingCard.vue";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { masterAnimation } from "@/helper/animation.helper";
 
-const r = useIonRouter()
+const r = useIonRouter();
 
-const { user, firebaseUser, isUnderAge } = storeToRefs(useAuthStore())
-const dobModal = useDateOfBirthModalStore()
+const { user, firebaseUser, isUnderAge } = storeToRefs(useAuthStore());
+const dobModal = useDateOfBirthModalStore();
 
 const formattedDob = computed(() =>
-  user.value?.date_of_birth
-    ? dayjs(user.value.date_of_birth).format('MMM D, YYYY')
-    : ''
-)
+	user.value?.date_of_birth
+		? dayjs(user.value.date_of_birth).format("MMM D, YYYY")
+		: "",
+);
 
 function openAgeModal() {
-  const mode = user.value?.date_of_birth ? 'edit' : 'initial'
-  void dobModal.open(mode)
+	const mode = user.value?.date_of_birth ? "edit" : "initial";
+	void dobModal.open(mode);
 }
 
 function goToCustomization() {
-  r.push(FRONTEND_ROUTES.customization, masterAnimation)
+	r.push(FRONTEND_ROUTES.customization, masterAnimation);
 }
 </script>

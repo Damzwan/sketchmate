@@ -55,26 +55,42 @@ export const usePostStore = defineStore("post", () => {
 		userPosts.value = userPosts.value.filter((p) => p._id !== postId);
 	}
 
-	async function toggleReactionLocally(postId: string, type: string) {
-		const findAndToggle = (list: FeedPost[]) => {
-			const post = list.find((p) => p._id === postId);
-			if (!post) return;
+	function applyReactionToggle(post: FeedPost, type: string) {
+		const isRemoving = post.user_reaction === type;
+		const previousReaction = post.user_reaction;
 
-			const isRemoving = post.user_reaction === type;
-			const previousReaction = post.user_reaction;
+		if (isRemoving) {
+			post.user_reaction = null;
+			post.reaction_counts[type]--;
+		} else {
+			if (previousReaction) post.reaction_counts[previousReaction]--;
+			post.user_reaction = type;
+			post.reaction_counts[type] = (post.reaction_counts[type] || 0) + 1;
+		}
+	}
 
-			if (isRemoving) {
-				post.user_reaction = null;
-				post.reaction_counts[type]--;
-			} else {
-				if (previousReaction) post.reaction_counts[previousReaction]--;
-				post.user_reaction = type;
-				post.reaction_counts[type] = (post.reaction_counts[type] || 0) + 1;
-			}
+	/**
+	 * Optimistically toggle a reaction. Applies to every copy of the post we hold
+	 * (feed list, profile list, plus the optional `target` object the caller is
+	 * rendering — e.g. the photoswiper's currItem, which may be a separate object
+	 * reference and otherwise wouldn't update its count). Deduped by identity so a
+	 * post that lives in two of those never gets double-counted.
+	 */
+	async function toggleReactionLocally(
+		postId: string,
+		type: string,
+		target?: FeedPost,
+	) {
+		const seen = new Set<FeedPost>();
+		const collect = (post?: FeedPost) => {
+			if (post && post._id === postId && !seen.has(post)) seen.add(post);
 		};
 
-		findAndToggle(feedPosts.value);
-		findAndToggle(userPosts.value);
+		collect(feedPosts.value.find((p) => p._id === postId));
+		collect(userPosts.value.find((p) => p._id === postId));
+		collect(target);
+
+		seen.forEach((post) => applyReactionToggle(post, type));
 
 		return await apiReact(postId, type);
 	}

@@ -164,6 +164,7 @@ import drawingImg from '@/assets/login_images/1.webp'
 import { useAuthStore } from '@/store/auth.store'
 import { useQuotaStore } from '@/store/quota.store'
 import { useMenuStore } from '@/store/menu.store'
+import { useSubscriptionStore } from '@/store/subscription.store'
 import { cancelBalloon, fetchMyBalloons } from '@/service/api/balloon.api'
 import type { Balloon } from '@/types/server.types'
 import { Menu } from '@/draw/types/draw.types'
@@ -273,7 +274,8 @@ function handlePrimaryAction() {
   if (quotaStore.canSendBalloon) {
     onCreateNew()
   } else if (!quotaStore.isPro) {
-    close()
+    // Out of balloons on the free tier — same as everywhere else: open the paywall.
+    useSubscriptionStore().openPaywall()
   }
 }
 

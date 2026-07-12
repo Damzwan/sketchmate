@@ -81,31 +81,7 @@
     </ion-popover>
 
     <!-- Save status + manual save -->
-    <ion-popover
-      class="mgmt-more-popover"
-      :is-open="saveInfoOpen"
-      :event="saveInfoEvent"
-      side="bottom"
-      alignment="start"
-      :show-backdrop="false"
-      @didDismiss="saveInfoOpen = false"
-    >
-      <ion-content>
-        <div class="p-3 w-[230px] bg-tertiary">
-          <div class="flex items-center gap-2">
-            <ion-icon :icon="svg(saveIcon)" :class="saveIconClass" class="w-5 h-5" />
-            <span class="text-lg font-black text-heading">{{ saveStatusText }}</span>
-          </div>
-          <p class=" text-black/80 mt-1 mb-3 cabin-sketch-regular">
-            Your drawing autosaves to this device every {{ AUTOSAVE_SECONDS }}s.
-          </p>
-          <ion-button  @click="onSaveNow" shape="round" color="secondary"
-                       :disabled="!isDirty || isSaving || cooling">
-            {{ isSaving ? 'Saving…' : !isDirty ? 'All saved' : 'Save now' }}
-          </ion-button>
-        </div>
-      </ion-content>
-    </ion-popover>
+    <SavePopover ref="savePopover" />
 
   </div>
 </template>
@@ -149,6 +125,7 @@ import {
 } from "@ionic/vue";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import ReportUserMenu from "@/components/moderation/ReportUserMenu.vue";
+import SavePopover from "./SavePopover.vue";
 
 const emit = defineEmits(["toggle-fullscreen"]);
 
@@ -160,12 +137,9 @@ const { openPanel } = useChatWidgetStore();
 const { isSaving, isDirty, sessionHasContent } = storeToRefs(
 	useDrawLoadStore(),
 );
-const { saveNow } = useDrawLoadStore();
 
 const { totalUnreadCount } = storeToRefs(useChatStore());
 const { toast } = useToast();
-
-const AUTOSAVE_SECONDS = 20;
 
 // Autosave only runs outside a lobby, so only reassure there.
 const showSave = computed(() => !isLobby.value && sessionHasContent.value);
@@ -190,32 +164,9 @@ const saveIconClass = computed(
 			saved: "text-secondary",
 		})[saveState.value],
 );
-const saveStatusText = computed(
-	() =>
-		({
-			saving: "Saving…",
-			dirty: "Unsaved changes",
-			saved: "All changes saved",
-		})[saveState.value],
-);
-
-// Save-info popover + manual-save throttle (mirrors store cooldown so the
-// button visibly disables between presses; store enforces the hard floor).
-const saveInfoOpen = ref(false);
-const saveInfoEvent = ref<Event | undefined>();
-const cooling = ref(false);
-
-const openSaveInfo = (e: Event) => {
-	saveInfoEvent.value = e;
-	saveInfoOpen.value = true;
-};
-
-const onSaveNow = async () => {
-	if (!isDirty.value || isSaving.value || cooling.value) return;
-	cooling.value = true;
-	setTimeout(() => (cooling.value = false), 3000);
-	await saveNow();
-};
+// Save-status popover (its own component owns the status + manual-save throttle).
+const savePopover = ref<InstanceType<typeof SavePopover> | null>(null);
+const openSaveInfo = (e: Event) => savePopover.value?.open(e);
 
 // Overflow popover state
 const moreOpen = ref(false);

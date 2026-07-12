@@ -41,7 +41,7 @@
         <h3 class="font-black text-lg leading-none" :style="{ color: theme.nameColor }">
           {{ theme.name }}
         </h3>
-        <p class="text-[11px] font-bold italic mt-1 leading-tight" :style="{ color: theme.descColor }">
+        <p class="text-xs font-bold italic mt-1 leading-tight" :style="{ color: theme.descColor }">
           {{ theme.desc }}
         </p>
 

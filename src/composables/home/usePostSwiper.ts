@@ -66,7 +66,9 @@ export function usePostSwiper() {
 				}
 			},
 			onReact: async (item, type) => {
-				await postStore.toggleReactionLocally(item._id, type);
+				// Pass the swiper's own item so its footer count updates even when it's
+				// a separate object from the ones in the feed/profile lists.
+				await postStore.toggleReactionLocally(item._id, type, item);
 			},
 			// onComment NOT needed for posts — drawer hits postComment API directly
 		});

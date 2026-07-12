@@ -78,12 +78,12 @@
               @input="onMateSearch"
               type="text"
               placeholder="Search mates..."
-              class="w-full bg-primary/10 border border-primary/30 rounded-xl py-2 pl-9 pr-8 text-sm font-bold text-black outline-none placeholder:font-normal placeholder:text-black/50"
+              class="w-full bg-primary/10 border border-primary/30 rounded-xl py-2 pl-9 pr-8 text-sm font-bold text-black outline-none placeholder:font-normal placeholder:text-black/70"
             />
             <button
               v-if="mateSearch"
               @click.stop="clearMateSearch"
-              class="absolute right-2 cursor-pointer top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-black/10 text-black/50 active:scale-90"
+              class="absolute right-2 cursor-pointer top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-black/10 text-black/70 active:scale-90"
             >
               <ion-icon :icon="svg(mdiClose)" class="text-xs" />
             </button>
@@ -103,7 +103,7 @@
 
             <p
               v-else-if="displayMates.length === 0"
-              class="w-full text-center text-xs text-black/50 italic py-6 px-1"
+              class="w-full text-center text-xs text-black/70 italic py-6 px-1"
             >
               {{ mateSearch.trim() ? 'No mates match your search.' : 'No mates found.' }}
             </p>
@@ -142,7 +142,7 @@
                   />
                 </div>
 
-                <span class="text-[10px] font-black truncate w-full text-center px-1 text-black">
+                <span class="text-[11px] font-black truncate w-full text-center px-1 text-black">
             {{ mate.name }}
           </span>
               </button>
@@ -218,13 +218,13 @@
 
         <div v-if="isPublicPost" class="pt-4 mt-3 border-t border-primary/20 animate-fade-in space-y-3" @click.stop>
           <textarea v-model="postCaption" placeholder="Write a caption... (optional)"
-                    class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 resize-none outline-none font-bold text-black placeholder:font-normal placeholder:text-black/50 h-20"
+                    class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 resize-none outline-none font-bold text-black placeholder:font-normal placeholder:text-black/70 h-20"
                     maxlength="200" />
 
           <div class="flex items-center justify-between bg-primary/10 rounded-xl p-3">
             <div class="flex-1 pr-3">
               <p class="text-sm font-black text-black leading-none">Allow comments</p>
-              <p class="text-[11px] text-black/80 mt-1 leading-none">Let viewers leave a note.</p>
+              <p class="text-xs text-black/80 mt-1 leading-none">Let viewers leave a note.</p>
             </div>
             <ion-toggle v-model="postEnableComments" color="secondary" />
           </div>
@@ -232,7 +232,7 @@
           <div class="flex items-center justify-between bg-primary/10 rounded-xl p-3">
             <div class="flex-1 pr-3">
               <p class="text-sm font-black text-black leading-none">Allow remix</p>
-              <p class="text-[11px] text-black/80 mt-1 leading-none">Anyone can start a session from this
+              <p class="text-xs text-black/80 mt-1 leading-none">Anyone can start a session from this
                 drawing.</p>
             </div>
             <ion-toggle v-model="postEnableRemix" color="secondary" />
@@ -281,17 +281,17 @@
 
         <div v-if="isBalloon" class="pt-4 mt-3 border-t border-primary/20 animate-fade-in" @click.stop>
           <input v-model="balloonNote" type="text" placeholder="Attach a short note... (optional)" maxlength="40"
-                 class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 outline-none font-bold text-black placeholder:font-normal placeholder:text-black/50" />
+                 class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 outline-none font-bold text-black placeholder:font-normal placeholder:text-black/70" />
         </div>
       </section>
 
       <section v-if="isUnderAge" class="bg-amber-50 border border-amber-200 rounded-3xl p-4 flex gap-3">
         <ion-icon :icon="svg(mdiSprout)" class="text-2xl shrink-0 text-amber-600" />
         <div class="flex-1 min-w-0">
-          <p class="font-black text-sm text-amber-900 leading-tight">
+          <p class="font-black text-base text-amber-900 leading-tight">
             More sharing options unlock at 13
           </p>
-          <p class="text-[12px] text-amber-800/80 mt-1 leading-snug">
+          <p class="text-sm text-amber-900/90 mt-1 leading-snug">
             Community posts and balloons will turn on when you're old enough. For now, you can save your work and send
             to
             mates.

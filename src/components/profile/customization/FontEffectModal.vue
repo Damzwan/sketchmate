@@ -34,10 +34,10 @@
             >
               Aa
             </span>
-            <span class="block text-[10px] font-black uppercase tracking-widest text-black mt-3">
+            <span class="block text-xs font-black uppercase tracking-widest text-black mt-3">
               {{ e.label }}
             </span>
-            <span class="block text-[9px] italic text-black/40 leading-tight mt-0.5">
+            <span class="block text-xs italic text-black/70 leading-tight mt-0.5">
               {{ e.desc }}
             </span>
 

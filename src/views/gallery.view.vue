@@ -96,10 +96,16 @@
               position="bottom"
               class="gallery-infinite"
             >
-              <ion-infinite-scroll-content
-                loading-spinner="dots"
-                loading-text="Loading more…"
-              />
+              <ion-infinite-scroll-content class="gallery-infinite-content">
+                <div class="flex justify-center py-4">
+                  <div
+                    class="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-tertiary border border-primary/40 shadow-md"
+                  >
+                    <ion-spinner name="dots" class="text-secondary w-6 h-6" />
+                    <span class="text-sm font-black text-secondary">Loading more…</span>
+                  </div>
+                </div>
+              </ion-infinite-scroll-content>
             </ion-infinite-scroll>
           </div>
         </div>
@@ -135,6 +141,7 @@ import {
 	IonPage,
 	IonRefresher,
 	IonRefresherContent,
+	IonSpinner,
 	onIonViewWillEnter,
 	onIonViewWillLeave,
 	useBackButton,
@@ -253,22 +260,15 @@ ion-refresher {
 }
 /* Keep the feed (and its infinite-scroll loader) clear of the floating tab dock
    — the dock is ~54px tall, lifted 12px + the bottom safe-area off the edge, so
-   without this the "Loading more…" row renders underneath it. */
+   without this the loader pill renders underneath it. Extra room so the custom
+   pill sits comfortably above the dock instead of hugging it. */
 .gallery-feed-pad {
-  padding-bottom: calc(6rem + var(--ion-safe-area-bottom, 0px));
+  padding-bottom: calc(7rem + var(--ion-safe-area-bottom, 0px));
 }
-/* Make the loader actually readable on mobile (was a faint tiny grey row). */
-.gallery-infinite {
-  --color: var(--ion-color-secondary);
-}
-.gallery-infinite :deep(.infinite-loading-text) {
-  color: var(--ion-color-secondary);
-  font-weight: 800;
-  font-size: 0.8rem;
-  letter-spacing: 0.02em;
-}
-.gallery-infinite :deep(.infinite-loading) {
-  margin-top: 0.5rem;
+/* Custom loader pill — the default infinite-scroll row was a faint tiny grey
+   line that vanished behind the dock; give it real presence + margin. */
+.gallery-infinite-content :deep(.infinite-loading) {
+  margin: 0.25rem 0 1rem;
 }
 /* Style adjustments to make the custom ion buttons compact inside selection pill */
 .--padding-start-0 {

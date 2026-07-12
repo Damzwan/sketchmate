@@ -43,7 +43,7 @@
 
             <slot name="description">
               <p
-                class="text-sm font-bold italic mt-4 leading-snug whitespace-pre-wrap px-2 transition-colors duration-500"
+                class="text-base font-bold italic mt-4 leading-snug whitespace-pre-wrap px-2 transition-colors duration-500"
                 :style="{ color: activeColors.desc }"
               >
                 "{{ user?.description || 'This artist is a mystery...' }}"
@@ -70,17 +70,17 @@
             <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform"
                     @click="$emit('go-network', 'mates')">
               <span class="text-xl font-black transition-colors duration-500" :style="{ color: theme.accentColor }">{{ user.stats?.mates || 0 }}</span>
-              <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Mates</span>
+              <span class="text-[11px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Mates</span>
             </button>
             <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform border-x"
                     :style="{ borderColor: theme.cardBorderColor }" @click="$emit('go-network', 'followers')">
               <span class="text-xl font-black transition-colors duration-500" :style="{ color: activeColors.name }">{{ user.stats?.followers || 0 }}</span>
-              <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Followers</span>
+              <span class="text-[11px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Followers</span>
             </button>
             <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform"
                     @click="$emit('go-network', 'following')">
               <span class="text-xl font-black transition-colors duration-500" :style="{ color: activeColors.name }">{{ user.stats?.following || 0 }}</span>
-              <span class="text-[9px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Following</span>
+              <span class="text-[11px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Following</span>
             </button>
           </template>
         </div>
@@ -91,7 +91,7 @@
           :style="{ borderColor: theme.cardBorderColor }"
         >
           <span
-            class="text-[10px] font-bold uppercase tracking-widest mb-1 transition-colors duration-500"
+            class="text-xs font-bold uppercase tracking-widest mb-1 transition-colors duration-500"
             :style="{ color: activeColors.desc }"
           >— Signed —</span>
           <svg
@@ -112,7 +112,7 @@
 
         <div v-if="showPortfolio" class="mt-8 mb-16">
           <div class="flex items-center justify-between mb-3 px-1">
-            <h3 class="text-lg font-black italic transition-colors duration-500" :style="{ color: activeColors.name }">Portfolio</h3>
+            <h3 class="text-xl font-black italic transition-colors duration-500" :style="{ color: activeColors.name }">Portfolio</h3>
           </div>
           <div v-if="postsLoading && posts.length === 0" class="grid grid-cols-3 gap-2">
             <div v-for="i in 6" :key="i" class="aspect-square bg-black/5 rounded-[1.5rem] animate-pulse"></div>

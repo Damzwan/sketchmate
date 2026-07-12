@@ -12,7 +12,7 @@
       v-if="feedOff"
       class="mt-1 p-6 rounded-[2rem] border border-dashed border-primary/60 bg-tertiary text-center"
     >
-      <p class="cabin-sketch-regular text-xl font-black text-black leading-none mb-1.5">Your feed is off</p>
+      <p class="cabin-sketch-regular text-xl font-black text-black mb-1.5">Your feed is off</p>
       <p class="text-base text-black/80 leading-snug">
         Turn it back on from Settings → Home feed to see posts from your mates.
       </p>
@@ -149,8 +149,11 @@ function pinScroll() {
 		scrollEl.scrollTop = savedScrollTop;
 }
 
-function guardScrollWhileOpening() {
-	// Cover the present animation window; each pin snaps back if Ionic moved it.
+// Pin repeatedly across an animation window (present OR dismiss); each frame
+// snaps the scroll back if Ionic moved it. Dismiss (native back / tapping a
+// reaction) restores focus to the trigger and can yank the feed several frames
+// AFTER the popover closes, so we have to keep pinning past the close too.
+function guardScroll() {
 	requestAnimationFrame(pinScroll);
 	setTimeout(pinScroll, 60);
 	setTimeout(pinScroll, 160);
@@ -159,7 +162,7 @@ function guardScrollWhileOpening() {
 
 function closeReactionPopover() {
 	popoverOpen.value = false;
-	pinScroll();
+	guardScroll();
 }
 
 const openComments = (post: FeedPost) => {
@@ -195,14 +198,14 @@ const handleOpenReactionPopover = ({
 		},
 	} as any;
 	popoverOpen.value = true;
-	guardScrollWhileOpening();
+	guardScroll();
 };
 
 const selectReaction = async (type: string) => {
 	popoverOpen.value = false;
 	if (!activePopoverPost.value) return;
 	const post = activePopoverPost.value;
-	pinScroll();
+	guardScroll();
 	const isRemoving = post.user_reaction === type;
 	trackEvent(mixpanelEvents.postReact, {
 		post_id: post._id,
@@ -307,15 +310,31 @@ function loadFeedIfNeeded() {
 
 watch(user, loadFeedIfNeeded, { immediate: true });
 
-// Re-pull (or clear) the feed when the level preference flips.
+// Flipping the level preference (usually done from Settings while Home sits in
+// the background) only marks the feed dirty + clears it if turned off. The
+// actual re-pull happens when we land back on Home, below.
 watch(
 	() => user.value?.feed_level,
 	() => {
 		postStore.markFeedDirty();
-		loading.value = !feedOff.value;
-		loadFeedIfNeeded();
+		if (feedOff.value) {
+			posts.value = [];
+			loading.value = false;
+		}
 	},
 );
+
+// Coming back to Home: if the preference changed (feed dirty) re-fetch so a
+// just-enabled feed shows immediately instead of staying blank. Ionic view
+// lifecycle hooks don't reliably fire in nested children, so the Home page
+// drives this via its own onIonViewDidEnter → exposed below.
+function reloadIfDirty() {
+	if (!isFeedDirty.value) return;
+	loading.value = !feedOff.value;
+	loadFeedIfNeeded();
+}
+
+defineExpose({ reloadIfDirty });
 
 onMounted(() => {
 	// Warm the scroll-element handle so the reaction picker can read/pin scroll

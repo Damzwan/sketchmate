@@ -22,7 +22,7 @@
         >
           {{ label }}
         </span>
-        <span v-if="sublabel" class="block text-[12px] text-black/50 truncate mt-0.5">{{ sublabel }}</span>
+        <span v-if="sublabel" class="block text-base text-black/80 truncate mt-0.5">{{ sublabel }}</span>
       </slot>
     </span>
 
@@ -59,8 +59,12 @@ const props = withDefaults(
 
 defineEmits(["click"]);
 
-const tag = computed(() => (props.href ? "a" : props.interactive ? "button" : "div"));
-const resolvedIcon = computed(() => (props.rawIcon ? props.icon : svg(props.icon)));
+const tag = computed(() =>
+	props.href ? "a" : props.interactive ? "button" : "div",
+);
+const resolvedIcon = computed(() =>
+	props.rawIcon ? props.icon : svg(props.icon),
+);
 </script>
 
 <style scoped>

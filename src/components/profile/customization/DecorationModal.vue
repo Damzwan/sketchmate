@@ -41,10 +41,10 @@
         </div>
 
         <div class="text-center min-h-[2rem]">
-          <p class="text-[11px] font-black uppercase tracking-wider text-black leading-tight">
+          <p class="text-xs font-black uppercase tracking-wider text-black leading-tight">
             {{ dec.name }}
           </p>
-          <p class="text-[9px] text-black/40 italic leading-tight mt-0.5">
+          <p class="text-xs text-black/70 italic leading-tight mt-0.5">
             {{ dec.desc }}
           </p>
         </div>

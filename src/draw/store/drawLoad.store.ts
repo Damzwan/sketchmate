@@ -374,12 +374,18 @@ export const useDrawLoadStore = defineStore('drawLoad', () => {
       const snapshot = await snapshotCanvas(currentDraftId.value, signal) // Added signal
       if (!snapshot || signal.aborted) return
       await runSave(snapshot, signal)
+      if (signal.aborted) return
       isDirty.value = false
       lastSavedAt.value = Date.now()
     } catch (error: any) {
       if (error.name !== 'AbortError') console.error('🔥 Save Error:', error)
     } finally {
-      isSaving.value = false
+      // Only the save that still owns the controller clears the flag. If this
+      // save was superseded (e.g. a manual "Save now" tapped while autosave was
+      // mid-flight, or vice-versa), the newer save now owns the controller and
+      // is still running — flipping isSaving off here would flicker the UI to
+      // "saved" while a write is in progress.
+      if (liveAbortController?.signal === signal) isSaving.value = false
     }
   }
 

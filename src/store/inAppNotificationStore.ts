@@ -6,6 +6,7 @@ import {
 	fetchNotifications,
 	fetchNotificationCounts,
 	markAllSeen as apiMarkAllSeen,
+	markAllRead as apiMarkAllRead,
 	markRead as apiMarkRead,
 	deleteNotification as apiDeleteNotification,
 } from "@/service/api/notification.api";
@@ -184,7 +185,9 @@ export const useInAppNotificationStore = defineStore(
 			unseen.value = 0;
 
 			try {
-				await apiMarkAllSeen();
+				// Must hit /read-all (sets read:true) — /seen only clears the bell badge
+				// and left every item's unread marker behind on the server.
+				await apiMarkAllRead();
 			} catch (e) {
 				console.error("markAllRead failed:", e);
 				// Refresh from server to recover

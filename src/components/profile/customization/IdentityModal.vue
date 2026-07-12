@@ -14,7 +14,7 @@
       />
 
       <div class="w-full mb-4">
-        <div class="flex justify-between items-center px-2 mb-1.5 text-[11px] font-bold uppercase tracking-widest">
+        <div class="flex justify-between items-center px-2 mb-1.5 text-xs font-bold uppercase tracking-widest">
           <span class="text-black/80">Artist Name</span>
         </div>
         <ion-input
@@ -31,7 +31,7 @@
         />
 
         <!-- Name-change cooldown notice -->
-        <div class="px-2 mt-2 flex items-start gap-1.5 text-[11px] leading-snug">
+        <div class="px-2 mt-2 flex items-start gap-1.5 text-xs leading-snug">
           <ion-icon
             :icon="nameLocked ? svg(mdiLockClock) : svg(mdiInformationOutline)"
             class="text-sm shrink-0 mt-px"
@@ -41,14 +41,14 @@
             Name locked — you can change it again in
             {{ daysUntilNameChange }} {{ daysUntilNameChange === 1 ? 'day' : 'days' }}.
           </span>
-          <span v-else class="text-black/60">
+          <span v-else class="text-black/70">
             You can only change your name once every {{ NAME_CHANGE_COOLDOWN_DAYS }} days.
           </span>
         </div>
       </div>
 
       <div class="w-full">
-        <span class="px-2 mb-1.5 block text-[11px] font-bold uppercase tracking-widest text-black/80">Bio</span>
+        <span class="px-2 mb-1.5 block text-xs font-bold uppercase tracking-widest text-black/80">Bio</span>
         <ion-textarea
           v-model="localDesc"
           color="secondary"

@@ -10,10 +10,10 @@
             v-for="tab in ['mates', 'followers', 'following']"
             :key="tab"
             @click="switchTab(tab as any)"
-            class="flex-1 py-2 text-[11px] font-black uppercase tracking-widest rounded-[1.2rem] transition-all"
+            class="flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-[1.2rem] transition-all"
             :class="activeTab === tab
               ? 'bg-secondary text-white shadow-sm'
-              : 'text-black/50 hover:text-black'"
+              : 'text-black/70 hover:text-black'"
           >
             {{ tab }}
           </button>
@@ -37,7 +37,7 @@
             <h3 class="cabin-sketch-regular text-2xl font-black text-black capitalize tracking-tight">
               {{ activeTab }}
             </h3>
-            <span v-if="currentList.length && !isQueryTooShort" class="text-[10px] font-black text-black/60 uppercase tracking-widest">
+            <span v-if="currentList.length && !isQueryTooShort" class="text-xs font-black text-black/70 uppercase tracking-widest">
               {{ globalTotalCount }} total
             </span>
           </div>
@@ -82,7 +82,7 @@
                   v-if="person.chat_status === 'temporary' || person.chat_status === 'pending_mate'"
                   class="absolute -top-1 -left-1 bg-secondary text-white rounded-full p-0.5 border border-white shadow-sm z-10"
                 >
-                  <ion-icon :icon="svg(mdiClockOutline)" class="text-[9px] block" />
+                  <ion-icon :icon="svg(mdiClockOutline)" class="text-[11px] block" />
                 </div>
               </div>
 
@@ -94,25 +94,25 @@
 
                   <span
                     v-if="person.chat_status === 'temporary'"
-                    class="text-[8px] font-black uppercase bg-secondary/15 text-secondary px-2 py-0.5 rounded-md shrink-0 tracking-wider"
+                    class="text-[11px] font-black uppercase bg-secondary/15 text-secondary px-2 py-0.5 rounded-md shrink-0 tracking-wider"
                   >
                     Temporary Mates
                   </span>
                   <span
                     v-else-if="person.chat_status === 'pending_mate'"
-                    class="text-[8px] font-black uppercase bg-black/10 text-black/60 px-2 py-0.5 rounded-md shrink-0 tracking-wider"
+                    class="text-[11px] font-black uppercase bg-black/10 text-black/70 px-2 py-0.5 rounded-md shrink-0 tracking-wider"
                   >
                     Pending Request
                   </span>
                 </div>
 
-                <p class="text-[11px] font-bold text-black/60 italic truncate mt-0.5">
-                  {{ person.description || 'No custom bio shared yet' }}
+                <p v-if="person.description" class="text-sm font-bold text-black/70 italic truncate mt-0.5">
+                  {{ person.description }}
                 </p>
               </div>
 
               <div v-if="person.expires_at && person.chat_status === 'temporary'" class="mr-2 text-right shrink-0 select-none">
-                <p class="text-[9px] font-black text-secondary tracking-wider uppercase">
+                <p class="text-[11px] font-black text-secondary tracking-wider uppercase">
                   {{ getTimeRemaining(person.expires_at) }}
                 </p>
               </div>
@@ -126,7 +126,7 @@
 
           <div v-else class="flex-1 flex flex-col items-center justify-center py-16 text-center select-none">
             <ion-icon :icon="peopleOutline" class="text-4xl text-black/20 mb-3" />
-            <p class="cabin-sketch-regular text-lg font-black text-black/60 leading-none">
+            <p class="cabin-sketch-regular text-lg font-black text-black/70 leading-none">
               Nobody listed here yet
             </p>
           </div>

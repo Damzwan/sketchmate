@@ -10,7 +10,7 @@
         <span class="flex items-center gap-1 font-bold text-base text-black">
           <span>Alerts</span>
           <button id="notif-info" class="flex items-center justify-center p-1 rounded-full active:bg-black/5 transition-colors">
-            <ion-icon :icon="svg(mdiInformationOutline)" class="text-sm text-black/30" />
+            <ion-icon :icon="svg(mdiInformationOutline)" class="text-base text-black/50" />
           </button>
         </span>
       </template>
@@ -36,7 +36,7 @@
         <span class="flex items-center gap-1 font-bold text-base text-black">
           <span>Balloons</span>
           <button id="balloon-info" class="flex items-center justify-center p-1 rounded-full cursor-pointer active:bg-black/5 transition-colors">
-            <ion-icon :icon="svg(mdiInformationOutline)" class="text-sm text-black/30" />
+            <ion-icon :icon="svg(mdiInformationOutline)" class="text-base text-black/50" />
           </button>
         </span>
       </template>
@@ -75,19 +75,19 @@
     </div>
 
     <ion-popover trigger="balloon-info" trigger-action="click" class="cabin-sketch-regular">
-      <div class="p-4 text-sm text-black bg-background border border-primary/20 rounded-2xl">
+      <div class="p-4 text-lg text-black bg-background border border-primary/20 rounded-2xl">
         <p class="font-bold mb-1 border-b border-secondary/20 pb-1 text-secondary">Incoming Balloons</p>
         <p class="mt-1 leading-snug">
           Toggle off to stop receiving balloons from strangers.
-          <strong class="block mt-1 text-xs text-black/60">You can still send balloons to others!</strong>
+          <strong class="block mt-1 text-sm text-black/60">You can still send balloons to others!</strong>
         </p>
       </div>
     </ion-popover>
 
     <ion-popover trigger="notif-info" trigger-action="click" class="cabin-sketch-regular">
-      <div class="p-4 text-sm text-black bg-background border border-primary/20 rounded-2xl">
-        <p class="font-bold mb-1 border-b border-secondary/20 pb-1 text-secondary">Why enable Alerts?</p>
-        <ul class="list-disc pl-4 space-y-1 mt-1 leading-snug">
+      <div class="p-4 text-lg text-black bg-background border border-primary/20 rounded-2xl">
+        <p class="font-bold text-lg mb-1 border-b border-secondary/20 pb-1 text-secondary">Why enable Alerts?</p>
+        <ul class="list-disc pl-4 space-y-1 mt-1 leading-snug text-lg">
           <li>Receive sketches from your mates</li>
           <li>Receive messages from your mates</li>
           <li v-if="!isNative()">Get daily reminders</li>

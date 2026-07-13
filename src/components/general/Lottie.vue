@@ -1,5 +1,11 @@
 <template>
-  <canvas ref="canvasRef" />
+  <!-- Root wrapper receives the passed size classes (e.g. w-24 h-24). The canvas
+       fills it. Previously the canvas WAS the root, and the scoped
+       `canvas{width/height:100%}` rule below beat the utility classes, so the
+       size prop was ignored and the balloon stretched to the parent → bigger. -->
+  <div class="lottie-wrap">
+    <canvas ref="canvasRef" />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -40,6 +46,12 @@ onMounted(() => {
 		src: props.src,
 		loop: props.loop,
 		autoplay: props.autoplay,
+		layout: { fit: "contain", align: [0.5, 0.5] },
+		// ADD THIS CONFIGURATION BLOCK
+		renderConfig: {
+			devicePixelRatio: window.devicePixelRatio,
+			autoResize: true,
+		},
 	});
 
 	player.setSpeed(props.speed);
@@ -71,7 +83,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-canvas {
+.lottie-wrap {
+  display: block;
+}
+.lottie-wrap canvas {
   display: block;
   width: 100%;
   height: 100%;

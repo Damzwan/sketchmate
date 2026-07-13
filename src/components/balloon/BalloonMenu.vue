@@ -23,7 +23,7 @@
 
         <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
           <div class="animate-fly-direct flex flex-col items-center">
-            <Lottie :src="balloonLottie" :loop="true" :speed="0.8" class="w-24 h-24 drop-shadow-md" />
+            <Lottie :src="balloonLottie" :loop="true" :speed="0.8" class="h-24 drop-shadow-md" />
             <div class="w-10 h-12 bg-white border-2 border-primary/30 rounded-md overflow-hidden animate-swing">
               <img :src="drawingImg" class="w-full h-full object-cover opacity-95" />
             </div>

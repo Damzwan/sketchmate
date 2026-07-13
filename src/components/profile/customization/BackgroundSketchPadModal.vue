@@ -21,7 +21,7 @@
       >
         <div
           ref="worldRef"
-          class="absolute top-0 left-0 origin-top-left will-change-transform backface-hidden"
+          class="absolute top-0 left-0 origin-top-left will-change-transform"
           :style="worldStyle"
         >
           <div
@@ -30,6 +30,13 @@
             :style="{ width: `${CANONICAL_CARD_WIDTH}px` }"
           >
             <div class="pointer-events-none" :style="{ opacity: cardOpacity }">
+              <!-- disable-ambient drops ProfileWorld + ProfileEffect entirely.
+                   Those are dozens of separate compositor layers (sprite canvases,
+                   blur, mix-blend); freezing their animation doesn't help — the
+                   cost is the GPU re-compositing all of them every frame the live
+                   stroke repaints. Collapsing to a single flat card layer is what
+                   makes drawing/zoom buttery. The theme bg + avatar + name (the
+                   things you actually trace around) stay. -->
               <ProfileCard
                 :user="user || {}"
                 :customization="cardCustomization"
@@ -37,6 +44,7 @@
                 :is-preview="true"
                 :static-world="true"
                 :static-avatar-decoration="true"
+                :disable-ambient="true"
               />
             </div>
 
@@ -50,19 +58,32 @@
                 height: `${zoneRenderHeight}px`,
               }"
             >
-              <!-- BACKGROUND CANVAS: Only updates when strokes are committed or erased -->
-              <canvas
-                ref="bgCanvasRef"
-                class="absolute inset-0 w-full h-full transform-gpu"
-                v-show="zoneRenderWidth > 0"
-              ></canvas>
-
-              <!-- FOREGROUND CANVAS: Updates 120 times a second, drawing ONLY the active line -->
-              <canvas
-                ref="fgCanvasRef"
-                class="absolute inset-0 w-full h-full transform-gpu"
-                v-show="zoneRenderWidth > 0"
-              ></canvas>
+              <!-- COMMITTED strokes only. SVG keeps them VECTOR → crisp at any
+                   zoom; `non-scaling-stroke` holds width constant in the pad's
+                   space (then the world scale makes it grow with zoom, matching
+                   the live canvas). Cached via `committedPaths`, so this re-renders
+                   only on commit/erase/undo — never during a drag. The in-progress
+                   stroke is drawn on the screen-space canvas overlay below. -->
+              <svg
+                v-if="zoneRenderWidth > 0"
+                class="absolute inset-0 w-full h-full"
+                :viewBox="`0 0 ${CANONICAL_ZONE_WIDTH} ${CANONICAL_ZONE_HEIGHT}`"
+                preserveAspectRatio="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  v-for="(p, i) in committedPaths"
+                  :key="i"
+                  :d="p.d"
+                  fill="none"
+                  :stroke="strokeColor"
+                  :stroke-width="p.width"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  vector-effect="non-scaling-stroke"
+                  :opacity="EDIT_OPACITY"
+                />
+              </svg>
             </div>
 
             <div
@@ -79,6 +100,16 @@
             ></div>
           </div>
         </div>
+
+        <!-- LIVE-STROKE OVERLAY: screen-space canvas, OUTSIDE the zoomed world.
+             Redrawn on rAF (O(n) raster, no DOM/`d`-string reparse — that
+             reparse was the O(n²) ramp on long detailed strokes). Zoom/pan is
+             folded into the point mapping, so raster cost is flat at any zoom.
+             Width/position match the committed in-world SVG → seamless pen-up. -->
+        <canvas
+          ref="liveCanvasRef"
+          class="absolute inset-0 w-full h-full pointer-events-none"
+        ></canvas>
 
         <div
           v-if="tool === 'erase' && eraserCursor.visible"
@@ -122,7 +153,7 @@
       <div
         class="absolute z-20 inset-x-0 bottom-0 px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pointer-events-none">
         <div
-          class="pointer-events-auto rounded-3xl bg-white/90 backdrop-blur-xl border border-white/60 shadow-lg px-3 py-2 flex flex-col gap-2">
+          class="pointer-events-auto rounded-3xl bg-white/95 border border-white/60 shadow-lg px-3 py-2 flex flex-col gap-2">
 
           <div class="flex items-center gap-1">
             <ion-button fill="clear" color="dark" class="ion-no-margin h-9 w-9" :disabled="!canUndo" @click="undo">
@@ -228,15 +259,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-	computed,
-	nextTick,
-	onBeforeUnmount,
-	reactive,
-	ref,
-	shallowRef,
-	watch,
-} from "vue";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { IonModal, IonButton, IonIcon, IonRange } from "@ionic/vue";
 import {
 	mdiClose,
@@ -257,8 +280,7 @@ import {
 import { useSubscriptionStore } from "@/store/subscription.store";
 
 type Point = [number, number];
-type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
-type Stroke = { points: Point[]; width: number; bounds: Bounds };
+type Stroke = { points: Point[]; width: number };
 type Tool = "draw" | "erase";
 
 const CANONICAL_CARD_WIDTH = 360;
@@ -267,8 +289,8 @@ const CANONICAL_ZONE_HEIGHT = ref(0);
 
 const MIN_BRUSH = 2;
 const MAX_BRUSH = 28;
-const MIN_SCALE = 0.65;
-const MAX_SCALE = 6.0;
+const MIN_SCALE = 0.35;
+const MAX_SCALE = 10;
 
 const SKETCH_FONT = '"Cabin Sketch", cursive';
 const EDIT_OPACITY = 0.35;
@@ -294,6 +316,7 @@ const isPro = computed(() => subscriptionStore.isPro);
 const tool = ref<Tool>("draw");
 const brushWidth = ref<number>(8);
 const cardOpacity = 0.4;
+
 const sizeDotPx = computed(() => Math.max(6, Math.min(22, brushWidth.value)));
 
 /* ----------------------------- refs ------------------------------ */
@@ -301,111 +324,9 @@ const viewportRef = ref<HTMLElement | null>(null);
 const worldRef = ref<HTMLElement | null>(null);
 const cardWrapperRef = ref<HTMLElement | null>(null);
 const padRef = ref<HTMLElement | null>(null);
-
-/* ----------------------- CANVAS ENGINE -------------------------- */
-const bgCanvasRef = ref<HTMLCanvasElement | null>(null);
-const fgCanvasRef = ref<HTMLCanvasElement | null>(null);
-let bgCtx: CanvasRenderingContext2D | null = null;
-let fgCtx: CanvasRenderingContext2D | null = null;
-let fgRenderQueued = false;
-
-const initCanvas = () => {
-	if (!bgCanvasRef.value || !fgCanvasRef.value || !CANONICAL_ZONE_WIDTH.value)
-		return;
-	const dpr = window.devicePixelRatio || 1;
-
-	bgCanvasRef.value.width = CANONICAL_ZONE_WIDTH.value * dpr;
-	bgCanvasRef.value.height = CANONICAL_ZONE_HEIGHT.value * dpr;
-	fgCanvasRef.value.width = CANONICAL_ZONE_WIDTH.value * dpr;
-	fgCanvasRef.value.height = CANONICAL_ZONE_HEIGHT.value * dpr;
-
-	// desynchronized: true forces the browser to bypass the compositor for pure native stylus latency
-	bgCtx = bgCanvasRef.value.getContext("2d", { desynchronized: true });
-	fgCtx = fgCanvasRef.value.getContext("2d", { desynchronized: true });
-
-	if (bgCtx) {
-		bgCtx.scale(dpr, dpr);
-		bgCtx.lineCap = "round";
-		bgCtx.lineJoin = "round";
-	}
-	if (fgCtx) {
-		fgCtx.scale(dpr, dpr);
-		fgCtx.lineCap = "round";
-		fgCtx.lineJoin = "round";
-	}
-
-	renderBgCanvas();
-};
-
-const renderBgCanvas = () => {
-	if (!bgCtx || !bgCanvasRef.value) return;
-	bgCtx.clearRect(
-		0,
-		0,
-		CANONICAL_ZONE_WIDTH.value,
-		CANONICAL_ZONE_HEIGHT.value,
-	);
-	bgCtx.globalAlpha = EDIT_OPACITY;
-
-	const color = strokeColor.value;
-	for (const stroke of strokes.value) {
-		drawStrokeOnCanvas(bgCtx, stroke.points, stroke.width, color);
-	}
-};
-
-const scheduleFgRender = () => {
-	if (!fgRenderQueued) {
-		fgRenderQueued = true;
-		requestAnimationFrame(renderFgCanvas);
-	}
-};
-
-const renderFgCanvas = () => {
-	fgRenderQueued = false;
-	if (!fgCtx || !fgCanvasRef.value) return;
-	fgCtx.clearRect(
-		0,
-		0,
-		CANONICAL_ZONE_WIDTH.value,
-		CANONICAL_ZONE_HEIGHT.value,
-	);
-	fgCtx.globalAlpha = EDIT_OPACITY;
-
-	if (activeStrokePoints.length > 0) {
-		drawStrokeOnCanvas(
-			fgCtx,
-			activeStrokePoints,
-			brushWidth.value,
-			strokeColor.value,
-		);
-	}
-};
-
-const drawStrokeOnCanvas = (
-	context: CanvasRenderingContext2D,
-	pts: Point[],
-	width: number,
-	color: string,
-) => {
-	if (pts.length === 0) return;
-	context.beginPath();
-	context.strokeStyle = color;
-	context.lineWidth = width;
-
-	context.moveTo(pts[0][0], pts[0][1]);
-	if (pts.length === 1) {
-		context.lineTo(pts[0][0], pts[0][1]);
-	} else {
-		for (let i = 1; i < pts.length - 1; i++) {
-			const midX = (pts[i][0] + pts[i + 1][0]) / 2;
-			const midY = (pts[i][1] + pts[i + 1][1]) / 2;
-			context.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
-		}
-		const last = pts[pts.length - 1];
-		context.lineTo(last[0], last[1]);
-	}
-	context.stroke();
-};
+const liveCanvasRef = ref<HTMLCanvasElement | null>(null);
+let liveCtx: CanvasRenderingContext2D | null = null;
+let liveRaf = 0;
 
 /* --------------------------- zone layout -------------------------- */
 const zoneRenderTop = ref(0);
@@ -424,9 +345,76 @@ const worldStyle = computed(() => ({
 const zoomPct = computed(() => Math.round(scale.value * 100));
 
 /* --------------------------- stroke state ------------------------- */
-const strokes = shallowRef<Stroke[]>([]);
-let activeStrokePoints: Point[] = [];
+const strokes = ref<Stroke[]>([]);
+// The in-progress stroke is a PLAIN (non-reactive) array. Points are pushed on
+// every pointermove and painted onto the screen-space canvas overlay via an
+// rAF-batched drawLive() — deliberately outside Vue's reactivity so a fast drag
+// never triggers a component re-render (that reactive churn was the real "lag").
+let activePoints: Point[] = [];
 const isDrawing = ref(false);
+
+/* -------- live-stroke canvas overlay (screen space) -------- */
+const sizeLiveOverlay = () => {
+	if (!liveCanvasRef.value || !viewportRef.value) return;
+	const dpr = window.devicePixelRatio || 1;
+	const r = viewportRef.value.getBoundingClientRect();
+	if (r.width === 0 || r.height === 0) return;
+	liveCanvasRef.value.width = Math.round(r.width * dpr);
+	liveCanvasRef.value.height = Math.round(r.height * dpr);
+	liveCtx = liveCanvasRef.value.getContext("2d", { desynchronized: true });
+	if (liveCtx) {
+		liveCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		liveCtx.lineCap = "round";
+		liveCtx.lineJoin = "round";
+	}
+};
+
+const scheduleLive = () => {
+	if (!liveRaf) liveRaf = requestAnimationFrame(drawLive);
+};
+
+function drawLive() {
+	liveRaf = 0;
+	const ctx = liveCtx;
+	const cv = liveCanvasRef.value;
+	if (!ctx || !cv || !viewportRef.value) return;
+
+	const vp = viewportRef.value.getBoundingClientRect();
+	ctx.clearRect(0, 0, vp.width, vp.height);
+	if (activePoints.length === 0) return;
+
+	// Canonical → viewport: worldTranslate + worldScale·(padOffset + canonical).
+	const s = scale.value;
+	const offX = tx.value + s * zoneRenderLeft.value;
+	const offY = ty.value + s * zoneRenderTop.value;
+
+	ctx.globalAlpha = EDIT_OPACITY;
+	ctx.strokeStyle = strokeColor.value;
+	ctx.lineWidth = brushWidth.value * s; // match committed (non-scaling·worldScale)
+	ctx.beginPath();
+
+	const p0 = activePoints[0];
+	ctx.moveTo(offX + s * p0[0], offY + s * p0[1]);
+	if (activePoints.length === 1) {
+		ctx.lineTo(offX + s * p0[0], offY + s * p0[1]);
+	} else {
+		for (let i = 1; i < activePoints.length - 1; i++) {
+			const a = activePoints[i];
+			const b = activePoints[i + 1];
+			const mx = (a[0] + b[0]) / 2;
+			const my = (a[1] + b[1]) / 2;
+			ctx.quadraticCurveTo(
+				offX + s * a[0],
+				offY + s * a[1],
+				offX + s * mx,
+				offY + s * my,
+			);
+		}
+		const last = activePoints[activePoints.length - 1];
+		ctx.lineTo(offX + s * last[0], offY + s * last[1]);
+	}
+	ctx.stroke();
+}
 
 /* ----- colour ---------------------------------------------------- */
 const effectiveCustomization = computed(() =>
@@ -439,35 +427,16 @@ const strokeColor = computed(
 	() => theme.value.nameColor || props.color || "#1c1c1e",
 );
 
-watch(strokeColor, renderBgCanvas);
-
 /* --------------------------- history ------------------------------ */
-const past = shallowRef<Stroke[][]>([]);
-const future = shallowRef<Stroke[][]>([]);
+const past = ref<Stroke[][]>([]);
+const future = ref<Stroke[][]>([]);
 const canUndo = computed(() => past.value.length > 0);
 const canRedo = computed(() => future.value.length > 0);
 let gestureSnapshot: string | null = null;
 
-const calculateBounds = (points: Point[]): Bounds => {
-	if (points.length === 0) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-	let minX = points[0][0],
-		maxX = points[0][0];
-	let minY = points[0][1],
-		maxY = points[0][1];
-	for (let i = 1; i < points.length; i++) {
-		const p = points[i];
-		if (p[0] < minX) minX = p[0];
-		if (p[0] > maxX) maxX = p[0];
-		if (p[1] < minY) minY = p[1];
-		if (p[1] > maxY) maxY = p[1];
-	}
-	return { minX, maxX, minY, maxY };
-};
-
 const cloneStrokes = (s: Stroke[]): Stroke[] =>
 	s.map((st) => ({
 		width: st.width,
-		bounds: { ...st.bounds },
 		points: st.points.map((p) => [p[0], p[1]] as Point),
 	}));
 
@@ -476,28 +445,21 @@ const beginHistory = () => {
 };
 const commitHistory = () => {
 	if (gestureSnapshot === null) return;
-	const currentSerialized = JSON.stringify(strokes.value);
-	if (gestureSnapshot !== currentSerialized) {
-		past.value = [...past.value, JSON.parse(gestureSnapshot)];
+	if (gestureSnapshot !== JSON.stringify(strokes.value)) {
+		past.value.push(JSON.parse(gestureSnapshot));
 		future.value = [];
 	}
 	gestureSnapshot = null;
 };
 const undo = () => {
 	if (!canUndo.value) return;
-	const nextPast = [...past.value];
-	future.value = [...future.value, cloneStrokes(strokes.value)];
-	strokes.value = nextPast.pop()!;
-	past.value = nextPast;
-	renderBgCanvas();
+	future.value.push(cloneStrokes(strokes.value));
+	strokes.value = past.value.pop()!;
 };
 const redo = () => {
 	if (!canRedo.value) return;
-	const nextFuture = [...future.value];
-	past.value = [...past.value, cloneStrokes(strokes.value)];
-	strokes.value = nextFuture.pop()!;
-	future.value = nextFuture;
-	renderBgCanvas();
+	past.value.push(cloneStrokes(strokes.value));
+	strokes.value = future.value.pop()!;
 };
 
 /* --------------------------- card preview ------------------------- */
@@ -518,6 +480,7 @@ const measureZone = () => {
 
 	const zoneEl =
 		wrapper.querySelector<HTMLElement>(".js-doodle-zone") ?? wrapper;
+
 	const wRect = wrapper.getBoundingClientRect();
 	const zRect = zoneEl.getBoundingClientRect();
 	if (zRect.width === 0 || zRect.height === 0) return;
@@ -531,7 +494,6 @@ const measureZone = () => {
 	if (CANONICAL_ZONE_WIDTH.value === 0) {
 		CANONICAL_ZONE_WIDTH.value = zoneRenderWidth.value;
 		CANONICAL_ZONE_HEIGHT.value = zoneRenderHeight.value;
-		nextTick(initCanvas);
 	}
 };
 
@@ -568,7 +530,9 @@ const fitView = (animate = false) => {
 		window.setTimeout(() => {
 			if (worldRef.value) worldRef.value.style.transition = "";
 		}, 300);
-	} else apply();
+	} else {
+		apply();
+	}
 };
 
 /* ================================================================== *
@@ -583,20 +547,19 @@ const onPresent = async () => {
 	CANONICAL_ZONE_HEIGHT.value = 0;
 	past.value = [];
 	future.value = [];
-	activeStrokePoints = [];
-
-	if (bgCtx && bgCanvasRef.value)
-		bgCtx.clearRect(0, 0, bgCanvasRef.value.width, bgCanvasRef.value.height);
-	if (fgCtx && fgCanvasRef.value)
-		fgCtx.clearRect(0, 0, fgCanvasRef.value.width, fgCanvasRef.value.height);
+	activePoints = [];
+	isDrawing.value = false;
 
 	await nextTick();
 	measureZone();
 	fitView();
+	sizeLiveOverlay();
+	scheduleLive();
 
 	window.setTimeout(() => {
 		measureZone();
 		fitView();
+		sizeLiveOverlay();
 	}, 180);
 
 	if (cardWrapperRef.value && typeof ResizeObserver !== "undefined") {
@@ -611,10 +574,12 @@ const onPresent = async () => {
 	strokes.value = props.initialPath
 		? parsePathToStrokes(props.initialPath)
 		: [];
-	renderBgCanvas();
 };
 
-onBeforeUnmount(() => resizeObserver?.disconnect());
+onBeforeUnmount(() => {
+	resizeObserver?.disconnect();
+	if (liveRaf) cancelAnimationFrame(liveRaf);
+});
 
 watch(
 	() => props.initialPath,
@@ -623,7 +588,6 @@ watch(
 			strokes.value = val ? parsePathToStrokes(val) : [];
 			past.value = [];
 			future.value = [];
-			renderBgCanvas();
 		}
 	},
 );
@@ -635,14 +599,20 @@ const pointers = new Map<number, { x: number; y: number }>();
 type GestureMode = "none" | "draw" | "transform" | "lock";
 let mode: GestureMode = "none";
 
+// Pad rect captured at the start of a draw/erase gesture and reused for every
+// move — the pad can't move mid-stroke (pan/zoom take 2 pointers → transform
+// mode cancels the stroke), so this drops a forced layout per pointermove.
 let activeRect: DOMRect | null = null;
+
 let pinchStartDist = 0;
 let pinchStartScale = 1;
 let pinchAnchor = { wx: 0, wy: 0 };
+
 const eraserCursor = reactive({ visible: false, x: 0, y: 0, size: 0 });
 
 const vpRect = () =>
 	viewportRef.value?.getBoundingClientRect() ?? new DOMRect();
+
 const pxPerCanonical = () => {
 	if (!padRef.value || !CANONICAL_ZONE_WIDTH.value) return scale.value;
 	return (
@@ -698,14 +668,15 @@ const onPointerDown = (e: PointerEvent) => {
 			return;
 		}
 		isDrawing.value = true;
-		activeStrokePoints = [p];
-		scheduleFgRender();
+		activePoints = [p];
+		scheduleLive();
 	}
 };
 
 const onPointerMove = (e: PointerEvent) => {
-	if (pointers.has(e.pointerId))
+	if (pointers.has(e.pointerId)) {
 		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+	}
 	if (tool.value === "erase") updateEraserCursor(e);
 
 	if (mode === "transform" && pointers.size >= 2) {
@@ -722,15 +693,14 @@ const onPointerMove = (e: PointerEvent) => {
 	if (!isDrawing.value) return;
 	const p = getPoint(e.clientX, e.clientY);
 	if (!p) return;
-	const last = activeStrokePoints[activeStrokePoints.length - 1];
+	const last = activePoints[activePoints.length - 1];
 	if (last) {
 		const dx = p[0] - last[0];
 		const dy = p[1] - last[1];
 		if (dx * dx + dy * dy < 1) return;
 	}
-
-	activeStrokePoints.push(p);
-	scheduleFgRender();
+	activePoints.push(p);
+	scheduleLive();
 };
 
 const onPointerUp = (e: PointerEvent) => {
@@ -763,37 +733,32 @@ const onPointerUp = (e: PointerEvent) => {
 
 const cancelStroke = () => {
 	isDrawing.value = false;
-	activeStrokePoints = [];
+	activePoints = [];
+	scheduleLive();
 	gestureSnapshot = null;
 	activeRect = null;
-	renderFgCanvas(); // clears the foreground
 };
 
 const commitStroke = () => {
-	let finalPoints: Point[] = [];
-	if (activeStrokePoints.length === 1) finalPoints = [activeStrokePoints[0]];
-	else if (activeStrokePoints.length > 1)
-		finalPoints = simplifyPath(activeStrokePoints, 0.75);
-
-	if (finalPoints.length > 0) {
-		strokes.value = [
-			...strokes.value,
-			{
-				points: finalPoints,
-				width: brushWidth.value,
-				bounds: calculateBounds(finalPoints),
-			},
-		];
+	if (activePoints.length === 1) {
+		strokes.value.push({
+			points: [activePoints[0]],
+			width: brushWidth.value,
+		});
+	} else if (activePoints.length > 1) {
+		strokes.value.push({
+			points: simplifyPath(activePoints, 0.75),
+			width: brushWidth.value,
+		});
 	}
-	activeStrokePoints = [];
+	// Clear the live layer as the committed path is pushed, so there's no
+	// one-frame double-draw.
+	activePoints = [];
+	scheduleLive();
 	commitHistory();
-
-	// Push the final stroke to the background, and clear the foreground
-	renderBgCanvas();
-	renderFgCanvas();
 };
 
-/* ----------------------------- pinch / wheel ------------------------------ */
+/* ----------------------------- pinch ------------------------------ */
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
 	Math.hypot(a.x - b.x, a.y - b.y);
 const mid = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
@@ -824,6 +789,7 @@ const updatePinch = () => {
 	ty.value = center.y - rect.top - pinchAnchor.wy * next;
 };
 
+/* ----------------------------- wheel ------------------------------ */
 const onWheel = (e: WheelEvent) => {
 	const rect = vpRect();
 	const px = e.clientX - rect.left;
@@ -859,30 +825,22 @@ const eraseAt = (clientX: number, clientY: number) => {
 
 	const nextStrokes: Stroke[] = [];
 	let mutated = false;
-	const ex = p[0];
-	const ey = p[1];
 
 	for (const stroke of strokes.value) {
 		const r = radius + stroke.width / 2;
 		const r2 = r * r;
-
-		if (
-			ex + r < stroke.bounds.minX ||
-			ex - r > stroke.bounds.maxX ||
-			ey + r < stroke.bounds.minY ||
-			ey - r > stroke.bounds.maxY
-		) {
-			nextStrokes.push(stroke);
-			continue;
-		}
-
 		const pts = stroke.points;
+
 		if (pts.length === 0) continue;
+
 		if (pts.length === 1) {
-			const dx = pts[0][0] - ex;
-			const dy = pts[0][1] - ey;
-			if (dx * dx + dy * dy <= r2) mutated = true;
-			else nextStrokes.push(stroke);
+			const dx = pts[0][0] - p[0];
+			const dy = pts[0][1] - p[1];
+			if (dx * dx + dy * dy <= r2) {
+				mutated = true;
+			} else {
+				nextStrokes.push(stroke);
+			}
 			continue;
 		}
 
@@ -890,10 +848,14 @@ const eraseAt = (clientX: number, clientY: number) => {
 		let strokeHitOccurred = false;
 		const subStrokes: Stroke[] = [];
 
-		const d0x = pts[0][0] - ex;
-		const d0y = pts[0][1] - ey;
-		if (d0x * d0x + d0y * d0y > r2) currentSubPoints.push(pts[0]);
-		else strokeHitOccurred = true;
+		// Check entry point
+		const d0x = pts[0][0] - p[0];
+		const d0y = pts[0][1] - p[1];
+		if (d0x * d0x + d0y * d0y > r2) {
+			currentSubPoints.push(pts[0]);
+		} else {
+			strokeHitOccurred = true;
+		}
 
 		for (let i = 0; i < pts.length - 1; i++) {
 			const p1 = pts[i];
@@ -901,22 +863,24 @@ const eraseAt = (clientX: number, clientY: number) => {
 
 			if (getSqSegDist(p, p1, p2) <= r2) {
 				strokeHitOccurred = true;
-				const segmentDist = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
-				const steps = Math.max(1, Math.ceil(segmentDist / 2));
+
+				// INTERPOLATION ENGINE: Walk the segment and keep safe points
+				const segDist = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+				const steps = Math.max(1, Math.ceil(segDist / 2)); // ~2px granularity
 
 				for (let j = 1; j <= steps; j++) {
 					const t = j / steps;
 					const ix = Number((p1[0] + (p2[0] - p1[0]) * t).toFixed(1));
 					const iy = Number((p1[1] + (p2[1] - p1[1]) * t).toFixed(1));
-					const dx = ix - ex;
-					const dy = ey - iy;
+					const dx = ix - p[0];
+					const dy = iy - p[1];
 
-					if (dx * dx + dy * dy > r2) currentSubPoints.push([ix, iy]);
-					else if (currentSubPoints.length > 0) {
+					if (dx * dx + dy * dy > r2) {
+						currentSubPoints.push([ix, iy]);
+					} else if (currentSubPoints.length > 0) {
 						subStrokes.push({
 							points: currentSubPoints,
 							width: stroke.width,
-							bounds: calculateBounds(currentSubPoints),
 						});
 						currentSubPoints = [];
 					}
@@ -930,51 +894,48 @@ const eraseAt = (clientX: number, clientY: number) => {
 		if (strokeHitOccurred) {
 			mutated = true;
 			if (currentSubPoints.length > 0) {
-				subStrokes.push({
-					points: currentSubPoints,
-					width: stroke.width,
-					bounds: calculateBounds(currentSubPoints),
-				});
+				subStrokes.push({ points: currentSubPoints, width: stroke.width });
 			}
 			nextStrokes.push(...subStrokes);
-		} else nextStrokes.push(stroke);
+		} else {
+			nextStrokes.push(stroke);
+		}
 	}
 
 	if (mutated) {
 		strokes.value = nextStrokes;
-		renderBgCanvas(); // Only update the background canvas when erasing
 	}
 };
 
 /* ----------------------------- actions ---------------------------- */
 const clear = () => {
-	if (strokes.value.length === 0 && activeStrokePoints.length === 0) return;
+	if (strokes.value.length === 0 && activePoints.length === 0) return;
 	beginHistory();
 	strokes.value = [];
-	activeStrokePoints = [];
+	activePoints = [];
+	scheduleLive();
 	commitHistory();
-	renderBgCanvas();
-	renderFgCanvas();
 };
 
 const save = () => {
+	// Clearing (empty result) is allowed even for non-pro users, so a lapsed
+	// subscriber can remove a doodle they set while pro. Saving NEW content
+	// still requires pro.
 	const isClearing = strokes.value.length === 0;
 	if (!isPro.value && !isClearing) return;
 	if (isClearing) {
 		emit("save", { path: "", viewBox: "" });
 		return;
 	}
-
 	const combinedPath = strokes.value
 		.map((s) => `[${s.width}]${buildPath(s.points)}`)
 		.join(" ");
 	const viewBox = `0 0 ${CANONICAL_ZONE_WIDTH.value} ${CANONICAL_ZONE_HEIGHT.value}`;
-
 	emit("save", { path: combinedPath, viewBox });
 };
 
 const handleDismiss = () => {
-	activeStrokePoints = [];
+	activePoints = [];
 	eraserCursor.visible = false;
 	emit("close");
 };
@@ -1041,9 +1002,12 @@ function simplifyPath(points: Point[], tolerance = 0.75): Point[] {
 
 const buildPath = (points: Point[]): string => {
 	if (points.length === 0) return "";
-	if (points.length === 1)
-		return `M${points[0][0]},${points[0][1]} L${points[0][0]},${points[0][1]}`;
-	const d: string[] = [`M${points[0][0]},${points[0][1]}`];
+	if (points.length === 1) {
+		const [x, y] = points[0];
+		return `M${x},${y} L${x},${y}`;
+	}
+	const d: string[] = [];
+	d.push(`M${points[0][0]},${points[0][1]}`);
 	for (let i = 1; i < points.length - 1; i++) {
 		const midX = Number(((points[i][0] + points[i + 1][0]) / 2).toFixed(1));
 		const midY = Number(((points[i][1] + points[i + 1][1]) / 2).toFixed(1));
@@ -1054,6 +1018,14 @@ const buildPath = (points: Point[]): string => {
 	return d.join("");
 };
 
+// Committed strokes' path `d` strings, cached by the `strokes` ref. Recomputes
+// ONLY when strokes changes (commit / erase / undo / redo / clear), NOT while
+// the in-progress stroke updates every pointermove — that live stroke is drawn
+// on the screen-space canvas overlay instead.
+const committedPaths = computed(() =>
+	strokes.value.map((s) => ({ d: buildPath(s.points), width: s.width })),
+);
+
 function parsePathToStrokes(pathStr: string): Stroke[] {
 	if (!pathStr) return [];
 	const out: Stroke[] = [];
@@ -1061,17 +1033,15 @@ function parsePathToStrokes(pathStr: string): Stroke[] {
 	if (hasWidthPrefixes) {
 		const segments = pathStr.split(/\s*(?=\[\d)/);
 		for (const seg of segments) {
-			const m = seg.match(/^\[(\d+(?:\.\d+?)?)\](.*)$/s);
+			const m = seg.match(/^\[(\d+(?:\.\d+)?)\](.*)$/s);
 			if (!m) continue;
 			const width = Number(m[1]) || 6;
 			const points = parsePointsFromPath(m[2]);
-			if (points.length >= 1)
-				out.push({ points, width, bounds: calculateBounds(points) });
+			if (points.length >= 1) out.push({ points, width });
 		}
 	} else {
 		const points = parsePointsFromPath(pathStr);
-		if (points.length >= 1)
-			out.push({ points, width: 6, bounds: calculateBounds(points) });
+		if (points.length >= 1) out.push({ points, width: 6 });
 	}
 	return out;
 }
@@ -1103,22 +1073,68 @@ function parsePointsFromPath(pathStr: string): Point[] {
 	return points;
 }
 
-const presentPaywall = () => subscriptionStore.openPaywall();
+const presentPaywall = () => {
+	subscriptionStore.openPaywall();
+};
+
 const applyOrUpgrade = () => {
+	// Non-pro may still apply an empty canvas (a clear); anything else upsells.
 	if (!isPro.value && strokes.value.length > 0) {
 		presentPaywall();
 		return;
 	}
+
 	save();
 };
 </script>
 
 <style scoped>
-ion-modal.liquid-sketch-modal { --width: 100%; --height: 100%; --border-radius: 0; --background: var(--ion-color-tertiary); }
-.custom-toggle-group { display: flex; background: rgba(var(--ion-color-light-rgb, 244, 245, 246), 0.85); padding: 3px; border-radius: 14px; border: 1px solid rgba(0, 0, 0, 0.04); }
-.toggle-btn { display: flex; align-items: center; justify-content: center; width: 52px; height: 32px; border-radius: 11px; border: none; background: transparent; color: var(--ion-color-medium); transition: all 0.15s ease; cursor: pointer; }
-.toggle-btn.active { background: #ffffff; color: var(--ion-color-secondary); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08); }
-.liquid-range { --bar-height: 5px; --knob-size: 20px; --height: 32px; padding: 0; }
-.backface-hidden { backface-visibility: hidden; perspective: 1000px; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+ion-modal.liquid-sketch-modal {
+  --width: 100%;
+  --height: 100%;
+  --border-radius: 0;
+  --background: var(--ion-color-tertiary);
+}
+
+/* Custom crisp tool toggle styling */
+.custom-toggle-group {
+  display: flex;
+  background: rgba(var(--ion-color-light-rgb, 244, 245, 246), 0.85);
+  padding: 3px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 32px;
+  border-radius: 11px;
+  border: none;
+  background: transparent;
+  color: var(--ion-color-medium);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.toggle-btn.active {
+  background: #ffffff;
+  color: var(--ion-color-secondary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.liquid-range {
+  --bar-height: 5px;
+  --knob-size: 20px;
+  --height: 32px;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
 </style>

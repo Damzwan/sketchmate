@@ -3,7 +3,7 @@
     v-if="def && def.kind !== 'none'"
     ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none"
-    :class="[radiusClass, { 'world-preview': preview, 'world-static': staticMode, 'world-mini': mini }]"
+    :class="[radiusClass, { 'world-preview': preview, 'world-static': staticMode, 'world-mini': mini, 'world-paused': paused && !staticMode }]"
     :style="preview ? { '--world-scale': previewScale } : undefined"
     aria-hidden="true"
   >
@@ -15,8 +15,10 @@
       style="opacity: 0.001; overflow: hidden;"
     ></div>
 
-    <!-- STAGGERED MOUNT: Wait for layout to finish before injecting proxy canvases -->
-    <template v-if="active && renderLottie">
+    <!-- Latched mount: once the card has been on-screen we KEEP the canvases in
+         the DOM (we merely play/pause the players) so scrolling back to a card
+         never re-mounts and pops-in → no flicker. -->
+    <template v-if="hasMounted">
 
       <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-80 sprite-stage">
         <div
@@ -275,6 +277,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { DotLottie } from "@lottiefiles/dotlottie-web";
 import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
 
 import turtleLottie from "@/assets/lottie/avatar/turtle.lottie";
 import fishLottie from "@/assets/lottie/avatar/fish.lottie";
@@ -315,33 +318,45 @@ const props = withDefaults(
 
 const def = computed<WorldDef>(() => props.def || resolveWorld(props.worldId));
 
-// ── On-screen gating & Staggered Mount Engine ───────────────────────────────
+// ── On-screen gating & run-state engine ─────────────────────────────────────
 const root = ref<HTMLElement | null>(null);
 const masterContainer = ref<HTMLElement | null>(null);
-const active = ref(false);
-const renderLottie = ref(false);
+const onScreen = ref(false);
+// Latched: flips true the first time the card is on-screen and never back — the
+// canvases stay mounted so re-scrolling doesn't re-create them (that was the
+// pop-in flicker). Playback is governed by `paused` instead.
+const hasMounted = ref(false);
+const swiper = usePhotoSwiper();
 let io: IntersectionObserver | null = null;
+
+// Animation runs only when the card is on-screen, not static, and no fullscreen
+// photo swiper is covering the app (worlds behind it are invisible but were
+// still burning GPU + rAF — the profileSheet→photoswiper lag).
+const paused = computed(() => {
+	return props.staticMode || !onScreen.value || swiper.open;
+});
+
+function applyRunState() {
+	if (paused.value) {
+		stopLoop();
+		masters.forEach((m) => m.player.pause());
+	} else {
+		masters.forEach((m) => m.player.play());
+		startLoop();
+	}
+}
 
 onMounted(() => {
 	if (typeof IntersectionObserver === "undefined") {
-		active.value = true;
-		renderLottie.value = true;
+		onScreen.value = true;
+		hasMounted.value = true;
 		return;
 	}
 	io = new IntersectionObserver(
 		(entries) => {
-			active.value = entries.some((e) => e.isIntersecting);
-
-			if (active.value && !renderLottie.value) {
-				requestAnimationFrame(() => {
-					setTimeout(() => {
-						renderLottie.value = true;
-					}, 120);
-				});
-			} else if (!active.value) {
-				renderLottie.value = false;
-				stopLoop();
-			}
+			onScreen.value = entries.some((e) => e.isIntersecting);
+			if (onScreen.value) hasMounted.value = true;
+			applyRunState();
 		},
 		{ rootMargin: props.preview ? "1500px" : "9999px" },
 	);
@@ -355,6 +370,8 @@ onMounted(() => {
 		{ immediate: true, flush: "post" },
 	);
 });
+
+watch(paused, applyRunState);
 
 onBeforeUnmount(() => {
 	io?.disconnect();
@@ -464,8 +481,11 @@ const bindCanvas = (el: any, src: string) => {
 	const masterGroup = masters.get(src)!;
 	masterGroup.targets.add(ctx);
 
-	// FIX: Force a quick direct canvas draw invocation for cards using staticMode/mini layouts
-	if (props.staticMode) {
+	// Static / paused: stamp one freeze-frame once loaded. Otherwise let the
+	// central run-state governor decide whether to actually run (it respects
+	// on-screen + swiper visibility, so a canvas mounted while a swiper is open
+	// won't start burning frames).
+	if (paused.value) {
 		requestAnimationFrame(() => {
 			ctx.clearRect(0, 0, canvasResolution, canvasResolution);
 			ctx.drawImage(
@@ -477,29 +497,20 @@ const bindCanvas = (el: any, src: string) => {
 			);
 		});
 	} else {
-		startLoop();
+		applyRunState();
 	}
 };
 
 watch(
 	() => props.staticMode,
 	(isStatic) => {
-		masters.forEach((m) => {
-			if (isStatic) {
-				m.player.pause();
-			} else {
-				m.player.play();
-			}
-		});
-
+		// `paused` already folds in staticMode, so the watch(paused) governor
+		// handles play/pause + the rAF loop. We just stamp a clean freeze-frame
+		// on the transition into static.
 		if (isStatic) {
-			stopLoop();
-			// FIX: Force layout draw upon transition to freeze cleanly
 			requestAnimationFrame(() => {
 				copyMasterFramesToTargets();
 			});
-		} else {
-			startLoop();
 		}
 	},
 );
@@ -853,6 +864,12 @@ const meteors = computed(() =>
 .world-static [class*="animate-"] { animation: none !important; }
 .world-static .animate-astronaut-wander { top: 40%; left: 22%; }
 .world-static .animate-rocket-fly { top: 46%; left: 56%; }
+
+/* Off-screen / behind the photoswiper: FREEZE the CSS travel animations where
+   they are (unlike world-static, which resets to fixed positions). Pairs with
+   the DotLottie player pause + rAF stop so sprites are fully frozen — no drift
+   while hidden, and they resume from the same spot with no jump. */
+.world-paused [class*="animate-"] { animation-play-state: paused !important; }
 
 .animate-turtle-swim-lane, .animate-fish-swim-lane, .animate-jellyfish-drift,
 .animate-leaf-fall, .animate-walker-cross, .animate-dragon-roam,

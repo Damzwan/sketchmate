@@ -3,10 +3,10 @@
     v-if="def && def.kind !== 'none'"
     ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none"
-    :class="radiusClass"
+    :class="[radiusClass, { 'fx-frozen': paused }]"
     aria-hidden="true"
   >
-    <template v-if="active">
+    <template v-if="hasMounted">
     <div
       v-if="def.kind === 'grain'"
       class="absolute inset-0 grain-bg"
@@ -108,7 +108,9 @@ import {
 	resolveEffect,
 	type ProfileEffectDef,
 } from "@/config/profile_options.config";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
 import paper from "@/assets/textures/paper.webp";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
 
 const props = withDefaults(
 	defineProps<{
@@ -120,28 +122,43 @@ const props = withDefaults(
         'rounded-none' when hosting in a rectangular surface (chat toolbar, feed
         header) so the clip doesn't leave odd rounded corners. */
 		radiusClass?: string;
+		/** Permanently freeze the effect (e.g. behind the doodle pad, where a
+		    scaled-up animating effect layer tanks GPU while drawing). */
+		staticEffect?: boolean;
 	}>(),
-	{ preview: false, radiusClass: "rounded-[2.5rem]" },
+	{ preview: false, radiusClass: "rounded-[2.5rem]", staticEffect: false },
 );
 
 const def = computed<ProfileEffectDef>(
 	() => props.def || resolveEffect(props.effectId),
 );
 
-// Only run the (GPU-heavy: blur / conic-gradient / mix-blend / SVG) effect
-// while the card is on/near screen. Off-screen cards in a grid drop it.
+// Only ANIMATE the (GPU-heavy: blur / conic-gradient / mix-blend / SVG) effect
+// while the card is on/near screen and no fullscreen photo swiper is covering
+// the app. We keep the DOM mounted once shown (latched) and merely freeze the
+// animations via `.fx-frozen` — tearing it down and re-building on every scroll
+// was the pop-in flicker.
 const root = ref<HTMLElement | null>(null);
-const active = ref(false);
+const onScreen = ref(false);
+const hasMounted = ref(false);
+const swiper = usePhotoSwiper();
+const chatWidget = useChatWidgetStore();
+
+const paused = computed(
+	() => props.staticEffect || !onScreen.value || swiper.open,
+);
 let io: IntersectionObserver | null = null;
 
 onMounted(() => {
 	if (typeof IntersectionObserver === "undefined") {
-		active.value = true;
+		onScreen.value = true;
+		hasMounted.value = true;
 		return;
 	}
 	io = new IntersectionObserver(
 		(entries) => {
-			active.value = entries.some((e) => e.isIntersecting);
+			onScreen.value = entries.some((e) => e.isIntersecting);
+			if (onScreen.value) hasMounted.value = true;
 		},
 		// Grid tiles (preview) gate tightly to cap concurrent GPU work. The full
 		// hero card uses a huge margin so ordinary in-page scrolling never tears it
@@ -191,6 +208,15 @@ const shimmerStyle = computed(() => {
 </script>
 
 <style scoped>
+/* Off-screen or behind a fullscreen swiper: freeze every animation so the blur
+   / conic-gradient layers stop re-rasterising, without unmounting (which would
+   flicker on scroll-back). */
+.fx-frozen *,
+.fx-frozen *::before,
+.fx-frozen *::after {
+  animation-play-state: paused !important;
+}
+
 .grain-bg {
   /* Opaque, contrast-boosted GRAYSCALE noise (both light AND dark speckles),
      blended with `overlay` so it reads on ANY backdrop — light themes, dark

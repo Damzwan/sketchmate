@@ -58,6 +58,11 @@ export const useDrawStore = defineStore("draw", () => {
 		drawUI.destroy();
 
 		const c = canvasSvc.createCanvas(el);
+		// Mark the real drawing surface. The global Canvas.prototype.add override
+		// (fabricDefaults) runs its claimed-area guard only for this canvas, so
+		// throwaway fabric canvases (PenMenu brush preview, avatar previews, …)
+		// aren't affected by lobby claim state.
+		(c as any).__isMainDrawCanvas = true;
 
 		const loadStore = useDrawLoadStore();
 		loadStore.init(c);

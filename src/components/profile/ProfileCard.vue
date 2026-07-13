@@ -3,8 +3,8 @@
     class="rounded-[3rem] border shadow-lg relative px-2 pb-2 pt-4 transition-all duration-500"
     :style="cardStyle"
   >
-    <div class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
-      <ProfileEffect :effect-id="effectiveCustomization.effectId" />
+    <div v-if="!disableAmbient" class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
+      <ProfileEffect :effect-id="effectiveCustomization.effectId" :static-effect="staticWorld" />
       <ProfileWorld :key="worldRemountKey" :world-id="effectiveCustomization.worldId" :accent="theme.accentColor" :font="resolvedFontFamily" :static-mode="staticWorld" />
     </div>
 
@@ -273,6 +273,10 @@ const props = withDefaults(
 		    doodle pad, where the animation drains perf and distracts. */
 		staticWorld?: boolean;
 		staticAvatarDecoration?: boolean;
+		/** Skip the ambient world + effect layers entirely (not just freeze them).
+		    Used behind the doodle pad, where dozens of sprite canvases + blur
+		    re-composite on every zoom step and tank pan/zoom smoothness. */
+		disableAmbient?: boolean;
 	}>(),
 	{
 		isOwnProfile: false,
@@ -281,6 +285,7 @@ const props = withDefaults(
 		worldRemountKey: 0,
 		staticWorld: false,
 		staticAvatarDecoration: false,
+		disableAmbient: false,
 	},
 );
 

@@ -502,23 +502,46 @@ export const useChatStore = defineStore('chat', () => {
     if (socket) emitTypingStatus(socket, receiver_id, is_typing)
   }
 
-  async function loadMessages(conversationId: string, isInitial = true) {
+  async function loadMessages(conversationId: string, isInitial = true, force = false) {
     const existing = (messagesByChat.value[conversationId] || []).filter(m => !m.isOptimistic)
-    if (isInitial && existing.length > 0) return existing.length
+    // `force` re-fetches the latest page even when we already hold messages —
+    // used on app resume, where the socket was disconnected while backgrounded
+    // and live messages were missed.
+    if (isInitial && !force && existing.length > 0) return existing.length
     try {
       const before =
         !isInitial && existing.length ? existing[0].createdAt : undefined
       const response = (await getChatMessages(conversationId, before)) as any
       hasMoreMessagesByChat.value[conversationId] = response.hasMore
 
-      messagesByChat.value[conversationId] = isInitial
-        ? response.data
-        : [...response.data, ...existing]
+      if (isInitial && force) {
+        // Merge the fresh server page with any still-pending optimistic sends so
+        // an in-flight message the user just typed isn't wiped by the refetch.
+        const pending = (messagesByChat.value[conversationId] || []).filter(
+          (m) => m.isOptimistic && !response.data.some((s: any) => s._id === m._id)
+        )
+        messagesByChat.value[conversationId] = [...response.data, ...pending]
+      } else {
+        messagesByChat.value[conversationId] = isInitial
+          ? response.data
+          : [...response.data, ...existing]
+      }
       return response.data.length
     } catch (e) {
       console.error('History sync failed:', e)
       return 0
     }
+  }
+
+  /**
+   * Refetch the currently-open conversation's latest messages. Called on app
+   * resume so the open chat shows messages that arrived while backgrounded.
+   */
+  async function syncActiveConversation() {
+    const tab = useChatWidgetStore().activeTab
+    if (!tab || tab === 'overview' || tab === 'lobby') return
+    await loadMessages(tab, true, true)
+    clearUnreads(tab)
   }
 
   async function clearUnreads(conversationId: string) {
@@ -858,6 +881,7 @@ export const useChatStore = defineStore('chat', () => {
     injectSharedInboxOptimistic,
     sendMessage,
     loadMessages,
+    syncActiveConversation,
     clearUnreads,
     switchToConversation,
     addNotification,

@@ -22,7 +22,6 @@ import android.widget.RemoteViews;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,6 +33,12 @@ public class Widget extends AppWidgetProvider {
 
     private static final String ACTION_NEXT = "ninja.sketchmate.app.ACTION_NEXT";
     private static final String PREFS_NAME = "WidgetPrefs";
+
+    // Backend is fixed and Capacitor Preferences doesn't reliably persist a
+    // "backend_url" key into CapacitorStorage, so reading it here often returned
+    // null → a permanent "Not logged in" error that no retry could clear.
+    // Hardcode it; keep VITE_BACKEND=https://server.sketchmate.ninja in sync.
+    private static final String BACKEND_URL = "https://server.sketchmate.ninja";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -59,9 +64,9 @@ public class Widget extends AppWidgetProvider {
     private void updateWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
         SharedPreferences prefs = context.getSharedPreferences("CapacitorStorage", Activity.MODE_PRIVATE);
         String userID = prefs.getString("user_id", null);
-        String backendURL = prefs.getString("backend_url", null);
+        String backendURL = BACKEND_URL;
 
-        if (userID == null || backendURL == null) {
+        if (userID == null) {
             renderError(context, appWidgetManager, appWidgetId, "Not logged in", "Tap to refresh");
             return;
         }
@@ -149,25 +154,30 @@ public class Widget extends AppWidgetProvider {
     }
 
     private Bitmap loadScaledBitmapFromUrl(String urlString, int maxSize) throws IOException {
-        InputStream in = new URL(urlString).openStream();
-        BufferedInputStream bis = new BufferedInputStream(in);
-
-        // Decode only bounds to check size
+        // Pass 1: bounds-only decode to read the intrinsic size.
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
-        bis.mark(1024 * 1024); // Mark stream if supported, or just open twice
-        BitmapFactory.decodeStream(bis, null, options);
+        InputStream boundsIn = null;
+        try {
+            boundsIn = new URL(urlString).openStream();
+            BitmapFactory.decodeStream(boundsIn, null, options);
+        } finally {
+            if (boundsIn != null) boundsIn.close();
+        }
 
-        // Calculate sample size
+        // Pass 2: real decode WITH the computed sample size applied. The previous
+        // version dropped `options` here, so inSampleSize was never used and full
+        // resolution bitmaps were loaded → OOM crashes ("Memory/Image error").
         options.inSampleSize = calculateInSampleSize(options, maxSize, maxSize);
         options.inJustDecodeBounds = false;
 
-        // Reset stream and decode
-        bis.close();
-        in = new URL(urlString).openStream();
-        Bitmap result = BitmapFactory.decodeStream(in);
-        in.close();
-        return result;
+        InputStream in = null;
+        try {
+            in = new URL(urlString).openStream();
+            return BitmapFactory.decodeStream(in, null, options);
+        } finally {
+            if (in != null) in.close();
+        }
     }
 
     private static int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {

@@ -3,6 +3,7 @@ import { onMounted, onUnmounted } from "vue";
 import { App } from "@capacitor/app";
 import { PluginListenerHandle } from "@capacitor/core";
 import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
 
 /**
  * Refresh app data when returning to foreground after being backgrounded
@@ -35,6 +36,10 @@ export function useActiveViewSync() {
 
 		try {
 			await authStore.refresh();
+			// refresh() reloads the chat LIST but not the messages inside the chat
+			// the user currently has open — the socket was down while backgrounded,
+			// so those live messages were missed. Force-refetch the open thread.
+			await useChatStore().syncActiveConversation();
 		} catch (error) {
 			console.error("Failed to refresh on resume:", error);
 		}

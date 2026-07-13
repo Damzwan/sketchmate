@@ -76,7 +76,11 @@ export function changeFabricSettings() {
     // genuine user actions; history/sync/load re-adds run with events suspended
     // and pass through untouched.
     const claim = useClaimArea()
-    if (!useDrawEventManager().isSuspended() && claim.foreignAreas.length > 0) {
+    if (
+      (this as any).__isMainDrawCanvas &&
+      !useDrawEventManager().isSuspended() &&
+      claim.foreignAreas.length > 0
+    ) {
       const myId = useAuthStore().user?._id
       const allowed = objs.filter(
         (o) => !(o.userId === myId && claim.objectIntersectsForeignArea(o))

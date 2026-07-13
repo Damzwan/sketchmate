@@ -31,7 +31,7 @@
 
         <!-- SKETCHMATE CUSTOM DATE PICKER -->
         <div class="bg-tertiary border border-primary/40 rounded-[1.5rem] shadow-sm p-6 flex flex-col items-center gap-4">
-          <span class="text-[10px] font-bold uppercase tracking-widest text-black/50">Select birthdate</span>
+          <span class="text-sm font-bold uppercase tracking-widest text-black/80">Select birthdate</span>
           <SketchDatePicker v-model="computedDob" />
         </div>
 

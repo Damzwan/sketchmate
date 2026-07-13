@@ -4,129 +4,92 @@
     @didDismiss="isWhatsNewOpen = false"
     class="sketch-modal"
   >
-    <div class="bg-background p-5 overflow-y-auto max-h-[85vh] hide-scrollbar relative">
-      <div class="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+    <div class="wn-paper bg-background p-5 pt-6 overflow-y-auto max-h-[85vh] hide-scrollbar relative">
+      <!-- soft warm glow -->
+      <div class="absolute -top-10 -right-10 w-32 h-32 bg-secondary/10 rounded-full blur-3xl pointer-events-none" />
 
       <div class="relative flex flex-col gap-6">
 
-        <!-- Header / Version -->
-        <div class="text-center">
-          <h2 class="text-3xl font-bold mb-1 cabin-sketch-regular tracking-wide text-secondary">
-            What is new
-          </h2>
-          <p class="text-[10px] uppercase tracking-widest text-black/50">
-            Release v{{ appVersion }}
-          </p>
-        </div>
-
-        <div class="absolute top-2 right-2 z-20">
+        <!-- Close -->
+        <div class="absolute -top-1 -right-1 z-20">
           <ion-button @click="isWhatsNewOpen=false" fill="clear" color="dark" class="m-0">
             <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-2xl" />
           </ion-button>
         </div>
 
-        <!-- Big Boss Solo Dev Message -->
-        <div class="flex items-start gap-3">
-          <img
-            :src="bigbossImage"
-            alt="Developer"
-            class="w-12 h-12 rounded-full object-cover border-2 border-primary/50 shadow-sm shrink-0"
-          />
-          <div class="relative flex-1 min-w-0 rounded-2xl rounded-tl-sm border border-primary/40 bg-tertiary px-3.5 py-3 shadow-sm">
-            <span class="absolute -left-1.5 top-3 w-3 h-3 rotate-45 bg-tertiary border-l border-b border-primary/40"></span>
-
-            <p class="text-[14px] font-black text-black leading-none cabin-sketch-regular text-lg">
-              SketchMate Big Boss
-            </p>
-            <div class="text-[13px] text-black/80 leading-snug mt-2 space-y-2.5">
-              <p>
-                Hey! I'm the solo dev behind SketchMate. Over the last 2 years, I've invested thousands of hours and personal funds into this app.
-              </p>
-              <p>
-                To keep SketchMate alive, mainly free, and ad-free, I'm introducing monetization through customization. I know this is a big shift, but it's the only way to sustain the project's costs.
-              </p>
-              <p class="font-black text-secondary">
-                As a thank you to existing users, I've gifted you an exclusive "Gratitude" World and a "Crumbled Paper" profile effect that can never be bought.
-              </p>
-
-              <p class="font-black text-secondary">
-                For the people that supported the project in the past by donating will be rewarded a lifetime subscription
-              </p>
-            </div>
+        <!-- Header / Version -->
+        <div class="wn-rise text-center pt-1">
+          <h2 class="relative inline-block text-4xl font-bold cabin-sketch-regular tracking-wide text-secondary leading-none">
+            What's New
+            <!-- hand-drawn underline squiggle -->
+            <svg class="wn-squiggle absolute -bottom-3 left-1/2 -translate-x-1/2" width="150" height="12" viewBox="0 0 150 12" fill="none">
+              <path d="M2 7C22 2 42 10 62 6C82 2 102 10 122 6C132 4 142 5 148 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+            </svg>
+          </h2>
+          <!-- inked rubber stamp -->
+          <div class="wn-stamp mt-5 mx-auto">
+            v{{ appVersion }}
           </div>
         </div>
 
-        <!-- Changelog Features -->
-        <div class="space-y-4 px-1 mt-1">
-
-          <!-- Social -->
-          <div class="flex gap-3 items-center">
-            <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center border border-secondary/20">
-              <ion-icon :icon="svg(mdiAccountGroupOutline)" class="text-xl text-secondary" />
-            </div>
-            <div>
-              <h3 class="font-bold text-lg leading-tight cabin-sketch-regular text-black/90">Social</h3>
-              <p class="text-[13px] text-black/70 mt-0.5 leading-snug">
-                Posts, chatting, reacting, and a non-addictive chronological feed.
+        <!-- Big Boss Solo Dev Message — pinned sketchbook note -->
+        <div class="wn-rise wn-note relative bg-tertiary rounded-2xl px-4 py-4 shadow-md mt-1" style="--d: .06s">
+          <span class="wn-tape" aria-hidden="true"></span>
+          <div class="flex items-center gap-3 mb-2.5">
+            <img
+              :src="bigbossImage"
+              alt="Developer"
+              class="w-11 h-11 rounded-full object-cover shadow-sm shrink-0"
+              style="border: 2.5px solid var(--ion-color-secondary)"
+            />
+            <div class="leading-tight">
+              <p class="text-lg font-black text-secondary cabin-sketch-regular leading-none">
+                SketchMate Big Boss
               </p>
+              <p class="text-[11px] uppercase tracking-widest text-black/80 mt-1">a note from the solo dev</p>
             </div>
           </div>
-
-          <!-- Better Drawing -->
-          <div class="flex gap-3 items-center">
-            <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center border border-secondary/20">
-              <ion-icon :icon="svg(mdiPaletteOutline)" class="text-xl text-secondary" />
-            </div>
-            <div>
-              <h3 class="font-bold text-lg leading-tight cabin-sketch-regular text-black/90">Better Drawing</h3>
-              <p class="text-[13px] text-black/70 mt-0.5 leading-snug">
-                Improved drawing engine, significantly less lag, and new tools.
-              </p>
-            </div>
+          <div class="text-[15px] text-black/80 leading-relaxed space-y-2.5">
+            <p>
+              Hey! I'm the solo dev behind SketchMate. Over the last 2 years, I've poured thousands of hours and my own money into this app.
+            </p>
+            <p>
+              To keep it alive, mostly free, and ad-free, I'm introducing monetization through customization. It's a big shift, but the only way to cover the running costs.
+            </p>
           </div>
 
-          <!-- Anti-Griefing -->
-          <div class="flex gap-3 items-center">
-            <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center border border-secondary/20">
-              <ion-icon :icon="svg(mdiShieldCheckOutline)" class="text-xl text-secondary" />
+          <!-- Gift sticker -->
+          <div class="wn-gift mt-3">
+            <div class="flex items-center gap-2 mb-1.5">
+              <ion-icon :icon="svg(mdiGiftOutline)" class="text-xl text-secondary" />
+              <p class="cabin-sketch-regular text-lg font-black text-secondary leading-none">A thank-you, from me to you</p>
             </div>
-            <div>
-              <h3 class="font-bold text-lg leading-tight cabin-sketch-regular text-black/90">Community Safety</h3>
-              <p class="text-[13px] text-black/70 mt-0.5 leading-snug">
-                Reporting, blocking, and private drawing areas within public lobbies.
-              </p>
-            </div>
+            <p class="text-[15px] text-black/80 leading-relaxed">
+              Existing users get an exclusive <b>"Gratitude"</b> World,  a <b>"Crumbled Paper"</b> profile effect and a <b>"Early Tester"</b> title that can <i>never</i> be bought. Past donors get a <b>lifetime subscription</b>. ❤️
+            </p>
           </div>
+        </div>
 
-          <!-- Customization -->
-          <div class="flex gap-3 items-center">
-            <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center border border-secondary/20">
-              <ion-icon :icon="svg(mdiBrushVariant)" class="text-xl text-secondary" />
+        <!-- Changelog Features — sketchbook list with dashed rail -->
+        <div class="wn-list relative pl-1 mt-1">
+          <div
+            v-for="(f, i) in features"
+            :key="f.title"
+            class="wn-rise wn-item flex gap-3 items-center"
+            :style="{ '--d': 0.12 + i * 0.07 + 's' }"
+          >
+            <div class="wn-icon flex-shrink-0 w-11 h-11 flex items-center justify-center">
+              <ion-icon :icon="svg(f.icon)" class="text-xl text-secondary" />
             </div>
             <div>
-              <h3 class="font-bold text-lg leading-tight cabin-sketch-regular text-black/90">Customization</h3>
-              <p class="text-[13px] text-black/70 mt-0.5 leading-snug">
-                Extensive new ways to personalize your profile and presence.
-              </p>
-            </div>
-          </div>
-
-          <!-- UI -->
-          <div class="flex gap-3 items-center">
-            <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center border border-secondary/20">
-              <ion-icon :icon="svg(mdiLayersOutline)" class="text-xl text-secondary" />
-            </div>
-            <div>
-              <h3 class="font-bold text-lg leading-tight cabin-sketch-regular text-black/90">Reworked UI</h3>
-              <p class="text-[13px] text-black/70 mt-0.5 leading-snug">
-                A cleaner, faster, and more polished interface across the app.
-              </p>
+              <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-black/90">{{ f.title }}</h3>
+              <p class="text-[15px] text-black/80 mt-0.5 leading-snug">{{ f.text }}</p>
             </div>
           </div>
         </div>
 
         <!-- Actions -->
-        <div class="flex flex-col gap-3 mt-2">
+        <div class="wn-rise flex flex-col gap-3 mt-2" style="--d: .5s">
           <ion-button
             expand="block"
             class="cabin-sketch-regular text-xl tracking-wide m-0"
@@ -134,16 +97,8 @@
             color="secondary"
             @click="isWhatsNewOpen = false"
           >
-            Awesome!
+            Let's draw! ✏️
           </ion-button>
-
-<!--          <a-->
-<!--            href="https://sketchmate.ninja/blog/"-->
-<!--            target="_blank"-->
-<!--            class="text-center text-[13px] font-bold text-black/60 active:scale-95 transition-transform"-->
-<!--          >-->
-<!--            Read the full story on the blog <ion-icon :icon="svg(mdiOpenInNew)" class="align-[-2px] ml-0.5" />-->
-<!--          </a>-->
         </div>
       </div>
     </div>
@@ -163,8 +118,8 @@ import {
 	mdiShieldCheckOutline,
 	mdiPaletteOutline,
 	mdiLayersOutline,
-	mdiOpenInNew,
 	mdiClose,
+	mdiGiftOutline,
 } from "@mdi/js";
 import { useRoute } from "vue-router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
@@ -177,6 +132,34 @@ const { isWhatsNewOpen } = storeToRefs(menuStore);
 const { user } = storeToRefs(useAuthStore());
 const route = useRoute();
 const appVersion = __APP_VERSION__;
+
+const features = [
+	{
+		icon: mdiAccountGroupOutline,
+		title: "Social",
+		text: "Posts, chatting, reacting, and a non-addictive chronological feed.",
+	},
+	{
+		icon: mdiPaletteOutline,
+		title: "Better Drawing",
+		text: "Improved drawing engine, significantly less lag, and new tools.",
+	},
+	{
+		icon: mdiShieldCheckOutline,
+		title: "Community Safety",
+		text: "Reporting, blocking, and private drawing areas within public lobbies.",
+	},
+	{
+		icon: mdiBrushVariant,
+		title: "Customization",
+		text: "Extensive new ways to personalize your profile and presence.",
+	},
+	{
+		icon: mdiLayersOutline,
+		title: "Reworked UI",
+		text: "A cleaner, faster, and more polished interface across the app.",
+	},
+];
 
 watchEffect(() => {
 	if (
@@ -231,5 +214,98 @@ ion-modal.sketch-modal {
 
 .bg-background {
   background-color: var(--ion-color-background);
+}
+
+/* ── Inked rubber-stamp version badge ── */
+.wn-stamp {
+  display: inline-block;
+  transform: rotate(-4deg);
+  padding: 3px 12px;
+  border: 2px solid rgba(var(--ion-color-secondary-rgb), 0.65);
+  border-radius: 8px;
+  color: rgba(var(--ion-color-secondary-rgb), 0.85);
+  font-family: "Cabin Sketch", sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  box-shadow: inset 0 0 0 1px rgba(var(--ion-color-secondary-rgb), 0.25);
+}
+
+/* ── Dev note: pinned paper, slightly askew with a strip of tape ── */
+.wn-note {
+  transform: rotate(-0.6deg);
+  border: 1.5px solid rgba(var(--ion-color-secondary-rgb), 0.18);
+}
+.wn-tape {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2.5deg);
+  width: 74px;
+  height: 20px;
+  background: rgba(var(--ion-color-secondary-rgb), 0.14);
+  border: 1px dashed rgba(var(--ion-color-secondary-rgb), 0.3);
+  border-radius: 2px;
+}
+
+/* ── Gift sticker: torn-paper highlight ── */
+.wn-gift {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px dashed rgba(var(--ion-color-secondary-rgb), 0.45);
+  background: rgba(var(--ion-color-secondary-rgb), 0.06);
+}
+
+/* ── Changelog dashed rail + sketchy icon frames ── */
+.wn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.wn-list::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: 8px;
+  bottom: 8px;
+  border-left: 2px dashed rgba(var(--ion-color-secondary-rgb), 0.22);
+}
+.wn-icon {
+  border: 2px solid rgba(var(--ion-color-secondary-rgb), 0.35);
+  border-radius: 14px 12px 15px 11px; /* wobbly hand-drawn corners */
+  background: var(--ion-color-tertiary);
+}
+.wn-item:nth-child(even) .wn-icon { transform: rotate(3deg); }
+.wn-item:nth-child(odd) .wn-icon { transform: rotate(-3deg); }
+
+/* ── Entrance: staggered rise-in ── */
+@keyframes wn-rise-kf {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.wn-rise {
+  opacity: 0;
+  animation: wn-rise-kf 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--d, 0s);
+}
+/* keep the note's tilt after it rises in */
+.wn-note.wn-rise { animation-name: wn-note-rise-kf; }
+@keyframes wn-note-rise-kf {
+  from { opacity: 0; transform: translateY(10px) rotate(-0.6deg); }
+  to   { opacity: 1; transform: translateY(0) rotate(-0.6deg); }
+}
+
+/* squiggle draws itself in */
+@keyframes wn-draw { from { stroke-dashoffset: 320; } to { stroke-dashoffset: 0; } }
+.wn-squiggle path {
+  stroke-dasharray: 320;
+  stroke-dashoffset: 320;
+  animation: wn-draw 0.9s ease-out 0.35s forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wn-rise { opacity: 1; animation: none; }
+  .wn-squiggle path { stroke-dashoffset: 0; animation: none; }
 }
 </style>

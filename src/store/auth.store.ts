@@ -33,7 +33,6 @@ import { useInAppNotificationStore } from '@/store/inAppNotificationStore'
 import { refreshPublicLobbies } from '@/service/api/socket/drawSyncing.socket'
 import { useDateOfBirthModalStore } from '@/store/dateOfBirth.store'
 import { useInventoryStore } from '@/store/inventory.store'
-import { useShareToastStore } from '@/draw/store/useShareToastStore.store'
 import { useSubscriptionStore } from '@/store/subscription.store'
 import { Purchases } from '@revenuecat/purchases-capacitor'
 
@@ -296,16 +295,9 @@ export const useAuthStore = defineStore("auth", () => {
 				});
 			}
 
-			// Backfill server-verifiable titles (early-tester, supporter) once per
-			// login, not on every picker open. Toast anything newly earned.
-			if (opts.arrivedFromLogin) {
-				void useInventoryStore()
-					.syncTitles()
-					.then((granted) => {
-						for (const id of granted)
-							useShareToastStore().pushTitleToast(id);
-					});
-			}
+			// Engagement titles + the OG founder gift are granted server-side by the
+			// v1 migration (see migrationGrants in the server helper) and arrive in
+			// the hydrated user.inventory — no client re-check needed.
 
 			lastHydratedAt.value = Date.now();
 		} finally {

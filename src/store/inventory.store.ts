@@ -10,7 +10,6 @@ import {
 	type ItemCategory,
 	type ShopSku,
 } from "@/config/catalog.config";
-import { syncTitles as syncTitlesApi } from "@/service/api/user.api";
 
 const DEV_UNLOCK_ALL = true;
 
@@ -83,20 +82,6 @@ export const useInventoryStore = defineStore("inventory", () => {
 		grantOptimistic(grantsForSku(skuId));
 	};
 
-	// Ask the backend to grant any engagement titles the user now qualifies for
-	// (early-tester, supporter). Merges whatever it grants into local state.
-	const syncTitles = async (): Promise<string[]> => {
-		try {
-			const res = await syncTitlesApi();
-			const granted = res?.granted ?? [];
-			if (granted.length) grantOptimistic(granted);
-			return granted;
-		} catch (e) {
-			console.error("[inventory] title sync failed", e);
-			return [];
-		}
-	};
-
 	const clear = () => {
 		owned.value = new Set();
 		hydrated.value = false;
@@ -124,7 +109,6 @@ export const useInventoryStore = defineStore("inventory", () => {
 		refresh,
 		grantOptimistic,
 		grantSkuOptimistic,
-		syncTitles,
 		findSkuForItem,
 		clear,
 		devUnlockAll,

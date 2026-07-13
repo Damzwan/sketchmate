@@ -50,14 +50,6 @@ export async function uploadProfileImg(blob: Blob, previousImageUrl?: string, mi
 
 // --- TITLES (engagement unlocks) ---
 
-/** Re-evaluate server-verifiable titles (early-tester, supporter) and grant
- *  any the user now qualifies for. Returns the item IDs that were granted. */
-export async function syncTitles() {
-  return await request<{ granted: string[] }>('/user/titles/sync', {
-    method: 'POST'
-  })
-}
-
 /** Submit feedback; the backend grants the Contributor title on receipt. */
 export async function submitFeedback(payload: { message: string }) {
   return await request<{ granted: string[] }>('/user/titles/feedback', {

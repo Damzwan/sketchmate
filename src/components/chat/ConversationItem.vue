@@ -4,6 +4,7 @@
     @click="$emit('open', chat._id)"
     class="group relative w-full flex items-center gap-3 p-3 rounded-[1.6rem] border cursor-pointer overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.97]"
     :class="cardClass"
+    :style="showTheme ? cardStyle : {}"
   >
     <!-- Soft accent glow, only when this card wants attention -->
     <div
@@ -12,8 +13,15 @@
       :class="accent.glow"
     ></div>
 
+    <!-- Partner's profile surface on resting mate/active rows: their theme cardBg
+         is painted on the card root, their effect layered over it. No world — a
+         lottie per list row is too heavy; theme colour + effect carry it. -->
+    <div v-if="showTheme" class="absolute inset-0 z-0 pointer-events-none">
+      <ProfileEffect :effect-id="partnerCustomization.effectId" />
+    </div>
+
     <!-- Avatar + single contextual badge -->
-    <div class="relative shrink-0">
+    <div class="relative z-10 shrink-0">
       <UserAvatar
         v-if="partner"
         :user="partner"
@@ -46,12 +54,13 @@
     </div>
 
     <!-- Body -->
-    <div class="flex-1 min-w-0">
+    <div class="relative z-10 flex-1 min-w-0">
       <!-- Row 1 — name · status chip · time -->
       <div class="flex items-center gap-1.5 min-w-0">
         <span
           class="text-[14px] leading-none font-black truncate tracking-tight"
-          :class="nameClass"
+          :class="[nameClass, showTheme ? fontEffectClass : '']"
+          :style="showTheme ? { color: theme.nameColor, fontFamily: resolvedFontFamily } : {}"
         >
           {{ partner?.name || 'Unknown User' }}
         </span>
@@ -64,7 +73,10 @@
           {{ chipText }}
         </span>
 
-        <span class="ml-auto shrink-0 text-[8px] uppercase tracking-wider opacity-50 whitespace-nowrap mt-0.5">
+        <span
+          class="ml-auto shrink-0 text-[8px] uppercase tracking-wider opacity-50 whitespace-nowrap mt-0.5"
+          :style="showTheme ? { color: theme.descColor, opacity: 1 } : {}"
+        >
           {{ rel.kind === 'live_invite' ? 'NOW' : formattedTime }}
         </span>
       </div>
@@ -74,6 +86,7 @@
         <p
           class="flex-1 min-w-0 text-[12px] truncate cabin-sketch-regular tracking-wide leading-none"
           :class="statusClass"
+          :style="showTheme && !isTyping ? { color: theme.descColor } : {}"
         >
           {{ statusLine }}
         </p>
@@ -127,11 +140,18 @@ import { svg } from "@/helper/general.helper";
 import { PopulatedConversation } from "@/types/server.types";
 import { useFriendStore } from "@/store/friend.store";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import {
   resolveRelationship,
   JOURNEY_STEPS,
   RELATIONSHIP_ACCENT,
 } from "@/config/relationship.config";
+import {
+  hydrateCustomization,
+  resolveFontEffectClass,
+  resolveFontFamily,
+  resolveTheme,
+} from "@/config/profile_options.config";
 
 dayjs.extend(relativeTime);
 
@@ -166,6 +186,33 @@ const rel = computed(() =>
 );
 const accent = computed(() => RELATIONSHIP_ACCENT[rel.value.accent]);
 const activeIdx = computed(() => rel.value.step - 1);
+
+/* --- partner customization (theme colour + ambient effect) --- */
+const partnerCustomization = computed(() =>
+  hydrateCustomization(partner.value?.customization),
+);
+const theme = computed(() => resolveTheme(partnerCustomization.value.themeId));
+const resolvedFontFamily = computed(() =>
+  resolveFontFamily(partnerCustomization.value.fontId),
+);
+const fontEffectClass = computed(() =>
+  resolveFontEffectClass(partnerCustomization.value.fontEffectId),
+);
+// Only the calm resting states get themed — actionable/blocked/expired/invite
+// rows keep their relationship-state colours so the signal isn't muddied.
+const showTheme = computed(
+  () =>
+    !isBlocked.value &&
+    !isExpired.value &&
+    (rel.value.kind === "active" || rel.value.kind === "mate"),
+);
+// Paint the partner's theme surface (cardBg, often a gradient) + themed border,
+// overriding the default white resting-card look. No world layer here, so each
+// theme's own nameColor/descColor already match its cardBg (no dark variants).
+const cardStyle = computed(() => ({
+  background: theme.value.cardBg,
+  borderColor: theme.value.cardBorderColor,
+}));
 
 /* --- derived display bits --- */
 const lastMessage = computed(() => {

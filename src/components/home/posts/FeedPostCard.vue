@@ -1,9 +1,17 @@
 <template>
   <div class="post-container relative w-full overflow-visible" :data-post-id="post._id">
     <div
-      class="rounded-[2.25rem] border border-primary/40 shadow-sm overflow-hidden pt-3.5 flex flex-col h-full bg-tertiary"
+      class="rounded-[2.25rem] border border-primary/40 shadow-sm overflow-hidden flex flex-col h-full bg-tertiary"
     >
-      <div class="px-4 pb-3 shrink-0">
+      <!-- Artist intro banner: the author's own theme surface + effect behind the
+           header, so each post opens with a taste of that artist's profile. No
+           world — a lottie per feed card is too heavy; theme + effect carry it. -->
+      <div class="relative shrink-0 overflow-hidden" :style="{ background: theme.cardBg }">
+        <div class="absolute inset-0 z-0 pointer-events-none">
+          <ProfileEffect :effect-id="authorCustomization.effectId" radius-class="rounded-none" />
+        </div>
+
+        <div class="relative z-10 px-4 pt-3.5 pb-3">
         <div class="flex items-center justify-between">
           <button
             @click="openUser(post.author._id)"
@@ -35,22 +43,25 @@
                   · {{ displayTitle }}
                 </span>
               </div>
-              <p class="text-xs text-black/60 uppercase mt-1 tracking-wider">
+              <p class="text-xs uppercase mt-1 tracking-wider opacity-80" :style="{ color: theme.descColor }">
                 {{ dayjs(post.createdAt).fromNow() }}
               </p>
             </div>
           </button>
 
           <button @click="presentActionSheet"
-                  class="p-2 active:scale-90 transition-transform shrink-0 text-black/70 cursor-pointer hover:text-black">
+                  class="p-2 active:scale-90 transition-transform shrink-0 cursor-pointer opacity-70 hover:opacity-100"
+                  :style="{ color: theme.nameColor }">
             <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-xl" />
           </button>
         </div>
 
         <p v-if="post.description"
-           class="cabin-sketch-regular text-base font-bold text-black/80 line-clamp-2 mt-2 px-0.5 leading-snug">
+           class="cabin-sketch-regular text-base font-bold line-clamp-2 mt-2 px-0.5 leading-snug"
+           :style="{ color: theme.descColor }">
           {{ post.description }}
         </p>
+        </div>
       </div>
 
       <div
@@ -268,6 +279,7 @@ import { Menu } from "@/draw/types/draw.types";
 import { useModerationStore } from "@/store/moderation.store";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import {

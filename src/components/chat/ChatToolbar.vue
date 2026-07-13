@@ -1,9 +1,24 @@
 <template>
   <div
     v-if="activeTab !== 'overview'"
-    class="flex flex-col bg-tertiary shrink-0 border-b border-primary/10"
+    class="relative flex flex-col bg-tertiary shrink-0 border-b border-primary/10 overflow-hidden"
+    :style="toolbarStyle"
   >
-    <div class="flex items-center justify-between px-4 pt-3 pb-2.5">
+    <!-- Partner's profile surface, in miniature: their theme cardBg (painted on
+         the root above) with their effect + world layered over it, exactly like
+         their ProfileCard. Private live chats only (not lobby/expired). -->
+    <div v-if="showThemeBackdrop" class="absolute inset-0 z-0 pointer-events-none">
+      <ProfileEffect :effect-id="partnerCustomization.effectId" radius-class="rounded-none" />
+      <ProfileWorld
+        :world-id="partnerCustomization.worldId"
+        :accent="theme.accentColor"
+        :font="resolvedFontFamily"
+        static-mode
+        radius-class="rounded-none"
+      />
+    </div>
+
+    <div class="relative z-10 flex items-center justify-between px-4 pt-3 pb-2.5">
       <div
         class="flex items-center gap-3 min-w-0 cursor-pointer group active:scale-[0.99] transition-all"
         @click="handleHeaderClick"
@@ -36,7 +51,7 @@
                 isExpired ? 'text-black/40' : 'text-black',
                 (!isExpired && activeTab !== 'lobby') ? fontEffectClass : ''
               ]"
-              :style="(!isExpired && activeTab !== 'lobby') ? { color: theme.nameColor, fontFamily: resolvedFontFamily } : {}"
+              :style="(!isExpired && activeTab !== 'lobby') ? { color: activeColors.name, fontFamily: resolvedFontFamily } : {}"
             >
               {{ panelTitle }}
             </span>
@@ -49,16 +64,16 @@
           </div>
 
           <div class="flex items-center mt-1 leading-none">
-            <span v-if="activeTab !== 'lobby'" class="text-[8px] font-black uppercase tracking-widest leading-none">
+            <span v-if="activeTab !== 'lobby'" class="text-[8px] font-black uppercase tracking-widest leading-none" :style="showThemeBackdrop ? { color: activeColors.desc } : {}">
               <template v-if="isExpired">
                 <span class="text-black/30">Archived History</span>
               </template>
               <template v-else-if="isTrackingOnline">
                 <span v-if="isOnline" class="text-green-600 font-bold">Online</span>
-                <span v-else class="text-black/30">Offline</span>
+                <span v-else :class="showThemeBackdrop ? '' : 'text-black/30'">Offline</span>
               </template>
               <template v-else>
-                <span class="text-black/30">Artist</span>
+                <span :class="showThemeBackdrop ? '' : 'text-black/30'">Artist</span>
               </template>
             </span>
             <span v-else class="text-xs cabin-sketch-regular uppercase font-bold tracking-widest text-secondary leading-none">
@@ -81,6 +96,7 @@
 
     <LobbyMemberBar
       v-if="activeTab === 'lobby'"
+      class="relative z-10"
       :members="roomMembers"
       :currentUserId="user?._id"
       @inspect="(ev, member) => $emit('inspect-profile', ev, member)"
@@ -101,12 +117,15 @@ import {
 import { svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import {
 	hydrateCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
 	resolveTitle,
+	resolveWorld,
 } from "@/config/profile_options.config";
 
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -163,6 +182,32 @@ const resolvedFontFamily = computed(() =>
 );
 const fontEffectClass = computed(() =>
 	resolveFontEffectClass(partnerCustomization.value.fontEffectId),
+);
+
+// World can be dark (space/dragon) — pick the matching name colour so it stays
+// readable over the backdrop, same rule ProfileCard/ProfileSheetView use.
+const isWorldDark = computed(
+	() => resolveWorld(partnerCustomization.value.worldId).isDark === true,
+);
+const activeColors = computed(() => ({
+	name: isWorldDark.value ? theme.value.nameColorDark : theme.value.nameColor,
+	desc: isWorldDark.value ? theme.value.descColorDark : theme.value.descColor,
+}));
+
+// Only dress the header with the partner's world/effect for a real, live
+// private chat — never the lobby or an archived (expired) thread.
+const showThemeBackdrop = computed(
+	() => activeTab.value !== "lobby" && !!partner.value && !isExpired.value,
+);
+// Paint the partner's theme surface (cardBg — often a gradient) + themed border
+// onto the header root; the effect/world layer sits over it.
+const toolbarStyle = computed(() =>
+	showThemeBackdrop.value
+		? {
+				background: theme.value.cardBg,
+				borderColor: theme.value.cardBorderColor,
+			}
+		: {},
 );
 
 const chatStatus = computed(

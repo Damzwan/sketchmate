@@ -2,7 +2,8 @@
   <div
     v-if="def && def.kind !== 'none'"
     ref="root"
-    class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]"
+    class="absolute inset-0 overflow-hidden pointer-events-none"
+    :class="radiusClass"
     aria-hidden="true"
   >
     <template v-if="active">
@@ -115,8 +116,12 @@ const props = withDefaults(
     def?: ProfileEffectDef;
     /** Preview mode shortens delays and speeds animations */
     preview?: boolean;
+    /** Corner radius of the clip box. Default matches the profile card; pass
+        'rounded-none' when hosting in a rectangular surface (chat toolbar, feed
+        header) so the clip doesn't leave odd rounded corners. */
+    radiusClass?: string;
   }>(),
-  { preview: false }
+  { preview: false, radiusClass: 'rounded-[2.5rem]' }
 )
 
 const def = computed<ProfileEffectDef>(

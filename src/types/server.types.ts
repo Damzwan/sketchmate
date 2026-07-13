@@ -82,6 +82,8 @@ export interface Mate {
 	name: string;
 	img: string;
 	last_seen_version?: string;
+	customization?: Partial<UserCustomization>;
+	chat_status?: ChatStatus;
 }
 
 export interface Saved {
@@ -335,7 +337,12 @@ export interface BasePost {
 }
 
 export type FeedPost = Omit<BasePost, "createdAt" | "updatedAt"> & {
-	author: { _id: string; name: string; img: string };
+	author: {
+		_id: string;
+		name: string;
+		img: string;
+		customization?: Partial<UserCustomization>;
+	};
 	user_reaction: string | null;
 	comments: any[];
 	createdAt: string;

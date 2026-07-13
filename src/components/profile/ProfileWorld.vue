@@ -2,8 +2,8 @@
   <div
     v-if="def && def.kind !== 'none'"
     ref="root"
-    class="absolute inset-0 overflow-hidden pointer-events-none rounded-[2.5rem]"
-    :class="{ 'world-preview': preview, 'world-static': staticMode }"
+    class="absolute inset-0 overflow-hidden pointer-events-none"
+    :class="[radiusClass, { 'world-preview': preview, 'world-static': staticMode }]"
     :style="preview ? { '--world-scale': previewScale } : undefined"
     aria-hidden="true"
   >
@@ -368,8 +368,18 @@ const props = withDefaults(
 		/** Freeze the world: no lottie autoplay, no CSS motion. For contexts
 		    where the animation drains perf / distracts (e.g. the doodle pad). */
 		staticMode?: boolean;
+		/** Corner radius of the clip box. Default matches the profile card; pass
+		    'rounded-none' in a rectangular host (chat toolbar) so the clip doesn't
+		    leave odd rounded corners. */
+		radiusClass?: string;
 	}>(),
-	{ preview: false, previewScale: 0.5, accent: "#7c5cff", staticMode: false },
+	{
+		preview: false,
+		previewScale: 0.5,
+		accent: "#7c5cff",
+		staticMode: false,
+		radiusClass: "rounded-[2.5rem]",
+	},
 );
 const def = computed<WorldDef>(() => props.def || resolveWorld(props.worldId));
 

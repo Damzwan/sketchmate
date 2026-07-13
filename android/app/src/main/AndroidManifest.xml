@@ -60,38 +60,34 @@
             android:label="@string/title_activity_main"
             android:launchMode="singleTask"
             android:theme="@style/AppTheme.NoActionBarLaunch">
+
+            <!-- Standard App Icon / Launcher Filter -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Deep Link Handler: Handles app.sketchmate.ninja via HTTP and HTTPS for any path (e.g. /draw, /, etc.) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data
-                    android:host="app.sketchmate.ninja"
-                    android:scheme="http" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="app.sketchmate.ninja" />
+
+                <!-- This is the fix: pathPrefix="/" safely matches the root AND any sub-paths -->
+                <data android:pathPrefix="/" />
             </intent-filter>
+
+            <!-- Custom URI Scheme Handler (e.g. sketchmate://) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <category android:name="android.intent.category.LAUNCHER" />
-
-                <data
-                    android:host="app.sketchmate.ninja"
-                    android:pathPattern="/.*"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <category android:name="android.intent.category.LAUNCHER" />
 
                 <data android:scheme="@string/custom_url_scheme" />
             </intent-filter>

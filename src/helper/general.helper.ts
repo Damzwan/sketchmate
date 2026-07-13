@@ -30,6 +30,7 @@ import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import { Purchases } from "@revenuecat/purchases-capacitor";
 import { updateUser } from "@/service/api/user.api";
+import { masterAnimation } from "@/helper/animation.helper";
 
 export const IS_PROD = import.meta.env.VITE_ENVIRONMENT === "prod";
 export const IS_DEV = !IS_PROD;
@@ -327,23 +328,13 @@ export function isOldEnough(dob: Date | string): boolean {
 export function setupDeeplinkListener() {
 	App.addListener("appUrlOpen", async (data: any) => {
 		const url = new URL(data.url);
-		const { redirectIntent } = storeToRefs(useSessionStore());
-
-		// TODO i think we should come with a more clever approach to handle deep links, this is very messy. I think it is better to handle them here instead of at their respective page
-		const roomId = url.searchParams.get("room_id");
-		if (roomId) {
-			const {} = useAuthStore();
-			redirectIntent.value = window.location.pathname + window.location.search;
-			await socketLoggedInPromise; // TODO only not crashing because of this part
-			socketJoinRoom({ roomId, intent: "join" });
-			return;
-		}
-
 		const { setQueryParams } = useSessionStore();
+
 		setQueryParams(url.searchParams);
 
-		const path = url.pathname.substring(1);
-		router.push(path);
+		const targetRoute = url.pathname + url.search;
+
+		router.push(targetRoute);
 	});
 }
 

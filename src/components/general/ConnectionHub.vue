@@ -185,7 +185,7 @@ const { connectionMenuOpen } = storeToRefs(useMenuStore());
 const { openUserActions } = useUserContextSheet();
 
 const qrURL = computed(() =>
-	createPersonalShareLink(user.value?._id || "", ""),
+	createPersonalShareLink(user.value?._id || "", "/home"),
 );
 
 // Logic

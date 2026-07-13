@@ -9,20 +9,19 @@
       >
         <div class="absolute inset-0 bg-black/25"></div>
 
-        <DotLottieVue
-          class="absolute pointer-events-none"
-          style="width: 100vw; height: 100vh; max-width: 1200px; max-height: 1200px;"
-          :src="confetti"
-          :loop="false"
-          autoplay
-          @complete="onAnimationComplete"
-        />
+        <!-- Optimized raw canvas replacing the framework wrapper wrapper -->
+        <canvas
+          ref="confettiCanvas"
+          class="absolute pointer-events-none w-screen h-screen"
+          style="max-width: 1200px; max-height: 1200px;"
+        ></canvas>
 
         <div
-          class="relative z-10 w-full max-w-sm bg-tertiary shadow-xl rounded-[2rem] border border-primary/40 p-8 text-center">
-
+          class="relative z-10 w-full max-w-sm bg-tertiary shadow-xl rounded-[2rem] border border-primary/40 p-8 text-center"
+        >
           <div
-            class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary/10 border border-primary/30 mb-5">
+            class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary/10 border border-primary/30 mb-5"
+          >
             <ion-icon :icon="svg(mdiHeart)" class="text-4xl animate-pulse text-secondary" />
           </div>
 
@@ -33,7 +32,6 @@
             Thank you for supporting SketchMate.<br />
             This project can't exist without your help.
           </p>
-
         </div>
       </div>
     </Transition>
@@ -41,32 +39,72 @@
 </template>
 
 <script setup lang="ts">
-import { watch, onUnmounted } from 'vue'
-import { storeToRefs } from 'pinia'
-import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
-import { IonIcon } from '@ionic/vue'
-import { mdiHeart } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import confetti from '@/assets/lottie/confetti.lottie'
-import { useSubscriptionStore } from '@/store/subscription.store'
+import { watch, onUnmounted, ref, nextTick } from "vue";
+import { storeToRefs } from "pinia";
+import { DotLottie } from "@lottiefiles/dotlottie-web";
+import { IonIcon } from "@ionic/vue";
+import { mdiHeart } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import confetti from "@/assets/lottie/confetti.lottie";
+import { useSubscriptionStore } from "@/store/subscription.store";
 
-const { showConfetti } = storeToRefs(useSubscriptionStore())
+const { showConfetti } = storeToRefs(useSubscriptionStore());
+const confettiCanvas = ref<HTMLCanvasElement | null>(null);
+let playerInstance: DotLottie | null = null;
 
 const hide = () => {
-  showConfetti.value = false
-}
+	showConfetti.value = false;
+};
 
-// Prefer the lottie's own end event...
-const onAnimationComplete = () => hide()
+const destroyPlayer = () => {
+	if (playerInstance) {
+		playerInstance.destroy();
+		playerInstance = null;
+	}
+};
 
-// ...but guarantee dismissal: the @complete event doesn't fire reliably (looping
-// asset / missed event), which left the overlay stuck. Auto-hide after a beat.
-let hideTimer: ReturnType<typeof setTimeout> | undefined
-watch(showConfetti, (visible) => {
-  clearTimeout(hideTimer)
-  if (visible) hideTimer = setTimeout(hide, 3500)
-})
-onUnmounted(() => clearTimeout(hideTimer))
+// Handles asset parsing and initialization manually onto the target canvas template node
+const initLottie = async () => {
+	destroyPlayer();
+	await nextTick(); // Wait for Vue to un-hide the DOM elements and bind the canvas ref
+
+	if (!confettiCanvas.value) return;
+
+	playerInstance = new DotLottie({
+		canvas: confettiCanvas.value,
+		src: confetti,
+		loop: false,
+		autoplay: true,
+		renderConfig: {
+			devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5), // Performance safeguard
+		},
+	});
+
+	playerInstance.addEventListener("complete", () => {
+		hide();
+	});
+};
+
+let hideTimer: ReturnType<typeof setTimeout> | undefined;
+
+watch(
+	showConfetti,
+	(visible) => {
+		clearTimeout(hideTimer);
+		if (visible) {
+			initLottie();
+			hideTimer = setTimeout(hide, 3500);
+		} else {
+			destroyPlayer();
+		}
+	},
+	{ immediate: true },
+);
+
+onUnmounted(() => {
+	clearTimeout(hideTimer);
+	destroyPlayer();
+});
 </script>
 
 <style scoped>

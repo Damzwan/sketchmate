@@ -16,7 +16,7 @@
         <div class="flex flex-col items-center w-full max-w-[500px] h-full min-h-0">
 
           <Lottie
-            :json="balloonLottie"
+            :src="balloonLottie"
             :loop="true"
             :speed="0.5"
             class="drop-shadow-2xl shrink-0"
@@ -182,7 +182,7 @@ import { useBalloonStore } from "@/store/balloon.store";
 import { useModerationStore } from "@/store/moderation.store";
 import { svg } from "@/helper/general.helper";
 
-import balloonLottie from "@/assets/lottie/balloon.json";
+import balloonLottie from "@/assets/lottie/balloon.lottie";
 import Lottie from "@/components/general/Lottie.vue";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 

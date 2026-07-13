@@ -1,67 +1,79 @@
 <template>
-  <div ref="lottieRef" />
+  <canvas ref="canvasRef" />
 </template>
 
-<script lang="ts" setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import lottie from 'lottie-web/build/player/lottie_light.min.js'
+<script setup lang="ts">
+import { DotLottie } from "@lottiefiles/dotlottie-web";
+import { onMounted, onBeforeUnmount, ref, watch } from "vue";
 
-const lottieRef = ref()
-let animationInstance: any = null
+const canvasRef = ref<HTMLCanvasElement | null>(null);
+let player: DotLottie | null = null;
 
 const props = defineProps({
-  loop: {
-    type: Boolean,
-    default: false
-  },
-  autoplay: {
-    type: Boolean,
-    default: true
-  },
-  play: {
-    type: Boolean,
-    default: false
-  },
-  speed: {
-    type: Number,
-    default: 1
-  },
-  json: {
-    type: Object,
-    required: true
-  }
-})
-
+	src: {
+		type: String,
+		required: true,
+	},
+	loop: {
+		type: Boolean,
+		default: false,
+	},
+	autoplay: {
+		type: Boolean,
+		default: true,
+	},
+	play: {
+		type: Boolean,
+		default: false,
+	},
+	speed: {
+		type: Number,
+		default: 1,
+	},
+});
 
 onMounted(() => {
-  animationInstance = lottie.loadAnimation({
-    container: lottieRef.value,
-    renderer: 'svg',
-    loop: props.loop,
-    autoplay: props.loop,
-    animationData: props.json
-  })
-  animationInstance.setSpeed(props.speed)
-})
+	if (!canvasRef.value) return;
 
-// lottie-web keeps its own RAF loop + SVG DOM alive until destroyed. Without
-// this, every mount/unmount (loaders, toasts, balloons cycle constantly) leaks
-// a running animation.
-onBeforeUnmount(() => {
-  animationInstance?.destroy()
-  animationInstance = null
-})
+	player = new DotLottie({
+		canvas: canvasRef.value,
+		src: props.src,
+		loop: props.loop,
+		autoplay: props.autoplay,
+	});
+
+	player.setSpeed(props.speed);
+
+	if (!props.play && !props.autoplay) {
+		player.stop();
+	}
+});
 
 watch(
-  () => props.play,
-  newValue => {
-    if (newValue && animationInstance) {
-      animationInstance.play()
-    } else if (!newValue && animationInstance) {
-      animationInstance.stop()
-    }
-  }
-)
+	() => props.play,
+	(play) => {
+		if (!player) return;
+		play ? player.play() : player.stop();
+	},
+);
+
+watch(
+	() => props.speed,
+	(speed) => {
+		player?.setSpeed(speed);
+	},
+);
+
+onBeforeUnmount(() => {
+	player?.destroy();
+	player = null;
+});
 </script>
 
-<style scoped></style>
+<style scoped>
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+</style>

@@ -71,7 +71,7 @@ import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
 import draw_together from "@/assets/illustrations/home/draw_together.webp";
 import share from "@/assets/illustrations/home/share.webp";
-import balloonLottie from "@/assets/lottie/balloon.json";
+import balloonLottie from "@/assets/lottie/balloon.lottie";
 import { whenIdle } from "@/helper/general.helper";
 import HomeQuickActions from "@/components/home/HomeQuickActions.vue";
 import GuestWarningBanner from "@/components/home/GuestWarningBanner.vue";

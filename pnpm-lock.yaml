@@ -98,12 +98,9 @@ importers:
       '@ionic/vue-router':
         specifier: ^8.8.1
         version: 8.8.1(@stencil/core@4.43.2)(vue-router@4.6.4(vue@3.5.30(typescript@5.9.3)))(vue@3.5.30(typescript@5.9.3))
-      '@jaames/iro':
-        specifier: ^5.5.2
-        version: 5.5.2
-      '@lottiefiles/dotlottie-vue':
-        specifier: ^0.11.8
-        version: 0.11.8(vue@3.5.30(typescript@5.9.3))
+      '@lottiefiles/dotlottie-web':
+        specifier: ^0.77.1
+        version: 0.77.1
       '@revenuecat/purchases-capacitor':
         specifier: ^12.3.2
         version: 12.3.2(@capacitor/core@8.2.0)
@@ -164,9 +161,6 @@ importers:
       install:
         specifier: ^0.13.0
         version: 0.13.0
-      lottie-web:
-        specifier: ^5.13.0
-        version: 5.13.0
       mitt:
         specifier: ^3.0.1
         version: 3.0.1
@@ -1730,9 +1724,6 @@ packages:
   '@ionic/vue@8.8.1':
     resolution: {integrity: sha512-tdNErYs6WrNiDJps1nRRY4UeyLffr2hbdkpawrMYFZxzzMd5yuExWsRAofrk5Uy6rSFObSZrfg7AgqyudDcJpQ==}
 
-  '@irojs/iro-core@1.2.1':
-    resolution: {integrity: sha512-p2OvsBSSmidsDsTSkID6jEyXDF7lcyxPrkh3qBzasBZFpjkYd6kZ3yMWai3MlAaQ3F7li/Et7rSJVV09Fpei+A==}
-
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
@@ -1744,9 +1735,6 @@ packages:
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
-
-  '@jaames/iro@5.5.2':
-    resolution: {integrity: sha512-Fbi5U4Vdkw6UsF+R3oMlPONqkvUDMkwzh+mX718gQsDFt3+1r1jvGsrfCbedmXAAy0WsjDHOrefK0BkDk99TQg==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -1767,13 +1755,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@lottiefiles/dotlottie-vue@0.11.8':
-    resolution: {integrity: sha512-aoT+WC/byhgPh4GXlE8Z01SbDSkPRJJdExr89uu2Zof36zYIKn+Ym64AJr7AhUmmVDdRMccvjoTYSNmToi+aZQ==}
-    peerDependencies:
-      vue: ^3.3.4
-
-  '@lottiefiles/dotlottie-web@0.68.0':
-    resolution: {integrity: sha512-trxJccn9EGm/i1cLetbxXVN6HAoH9mSpt2qJJCDpRGtpCG/SGd+u8QPEsYzc54H5dr3WZD9bqczEAzHjgBe90w==}
+  '@lottiefiles/dotlottie-web@0.77.1':
+    resolution: {integrity: sha512-WHRQMyACH9VFCk3MI54IuqrTu5pbTnTrvQoJoyH76P6WHhkcNH+lINn3LduhbEciqI+DRKgdM4MwtOPoN2GbDA==}
+    engines: {node: '>=18.17.0', npm: '>=9.5.0'}
 
   '@mdi/js@7.4.47':
     resolution: {integrity: sha512-KPnNOtm5i2pMabqZxpUz7iQf+mfrYZyKCZ8QNz85czgEt7cuHcGorWfdzUMWYA0SD+a6Hn4FmJ+YhzzzjkTZrQ==}
@@ -4334,9 +4318,6 @@ packages:
   long@5.3.2:
     resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
 
-  lottie-web@5.13.0:
-    resolution: {integrity: sha512-+gfBXl6sxXMPe8tKQm7qzLnUy5DUPJPKIyRHwtpCpyUEYjHYRJC/5gjUvdkuO2c3JllrPtHXH5UJJK8LRYl5yQ==}
-
   loupe@2.3.7:
     resolution: {integrity: sha512-zSMINGVYkdpYSOBmLi0D1Uo7JU9nVdQKrHxC8eYlV+9YKK9WePqAlL7lSlorG/U2Fw1w0hTBmaa/jrQ3UbPHtA==}
 
@@ -4785,9 +4766,6 @@ packages:
   powershell-utils@0.1.0:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
-
-  preact@10.29.1:
-    resolution: {integrity: sha512-gQCLc/vWroE8lIpleXtdJhTFDogTdZG9AjMUpVkDf2iTCNwYNWA+u16dL41TqUDJO4gm2IgrcMv3uTpjd4Pwmg==}
 
   prebuild-install@7.1.3:
     resolution: {integrity: sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug==}
@@ -7576,8 +7554,6 @@ snapshots:
       - vue
       - vue-router
 
-  '@irojs/iro-core@1.2.1': {}
-
   '@isaacs/cliui@8.0.2':
     dependencies:
       string-width: 5.1.2
@@ -7592,11 +7568,6 @@ snapshots:
   '@isaacs/fs-minipass@4.0.1':
     dependencies:
       minipass: 7.1.3
-
-  '@jaames/iro@5.5.2':
-    dependencies:
-      '@irojs/iro-core': 1.2.1
-      preact: 10.29.1
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -7622,12 +7593,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lottiefiles/dotlottie-vue@0.11.8(vue@3.5.30(typescript@5.9.3))':
-    dependencies:
-      '@lottiefiles/dotlottie-web': 0.68.0
-      vue: 3.5.30(typescript@5.9.3)
-
-  '@lottiefiles/dotlottie-web@0.68.0': {}
+  '@lottiefiles/dotlottie-web@0.77.1': {}
 
   '@mdi/js@7.4.47': {}
 
@@ -10350,8 +10316,6 @@ snapshots:
 
   long@5.3.2: {}
 
-  lottie-web@5.13.0: {}
-
   loupe@2.3.7:
     dependencies:
       get-func-name: 2.0.2
@@ -10702,8 +10666,6 @@ snapshots:
       source-map-js: 1.2.1
 
   powershell-utils@0.1.0: {}
-
-  preact@10.29.1: {}
 
   prebuild-install@7.1.3:
     dependencies:

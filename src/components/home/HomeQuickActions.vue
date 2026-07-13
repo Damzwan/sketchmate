@@ -14,7 +14,7 @@
             class="absolute pointer-events-none transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 z-20"
             :class="getImageLayoutClasses(action.id)"
           >
-            <Lottie :json="balloonLottie" :loop="true" :speed="0.5" class="w-full h-full" />
+            <Lottie :src="balloonLottie" :loop="true" :speed="0.5" class="w-full h-full" />
           </div>
         </template>
         <template v-else>
@@ -44,38 +44,45 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 import Lottie from "@/components/general/Lottie.vue";
-import balloonLottie from "@/assets/lottie/balloon.json";
+import balloonLottie from "@/assets/lottie/balloon.lottie";
 import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
 import draw_together from "@/assets/illustrations/home/draw_together.webp";
 import share from "@/assets/illustrations/home/share.webp";
 
 const props = defineProps<{ isUnderAge: boolean }>();
-defineEmits(['action']);
+defineEmits(["action"]);
 
 const ALL_QUICK_ACTIONS = [
-  { id: "draw_alone", label: "Draw", img: draw_alone, requiresAge: false },
-  { id: "draw_together", label: "Together", img: draw_together, requiresAge: false },
-  { id: "share", label: "Add Mate", img: share, requiresAge: false },
-  { id: "balloon", label: "Balloon", img: null, requiresAge: true },
+	{ id: "draw_alone", label: "Draw", img: draw_alone, requiresAge: false },
+	{
+		id: "draw_together",
+		label: "Together",
+		img: draw_together,
+		requiresAge: false,
+	},
+	{ id: "share", label: "Add Mate", img: share, requiresAge: false },
+	{ id: "balloon", label: "Balloon", img: null, requiresAge: true },
 ];
 
-const visibleActions = computed(() => ALL_QUICK_ACTIONS.filter((a) => !a.requiresAge || !props.isUnderAge));
+const visibleActions = computed(() =>
+	ALL_QUICK_ACTIONS.filter((a) => !a.requiresAge || !props.isUnderAge),
+);
 
 const getCardLayoutClasses = (id: string) => {
-  const isBig = ['draw_alone', 'draw_together'].includes(id);
-  return {
-    'col-span-3 border border-primary/40 bg-tertiary hover:border-secondary/40': true,
-    'h-28': isBig,
-    'h-20': !isBig
-  };
+	const isBig = ["draw_alone", "draw_together"].includes(id);
+	return {
+		"col-span-3 border border-primary/40 bg-tertiary hover:border-secondary/40": true,
+		"h-28": isBig,
+		"h-20": !isBig,
+	};
 };
 
 const getImageLayoutClasses = (id: string) => ({
-  'w-18 h-18 -right-1 -bottom-1': id === 'draw_alone',
-  'w-18 h-18 right-1 -bottom-1': id === 'draw_together',
-  'w-14 h-14 right-2 bottom-1': id === 'share',
-  'w-14 h-14 right-2 bottom-0.5': id === 'balloon'
+	"w-18 h-18 -right-1 -bottom-1": id === "draw_alone",
+	"w-18 h-18 right-1 -bottom-1": id === "draw_together",
+	"w-14 h-14 right-2 bottom-1": id === "share",
+	"w-14 h-14 right-2 bottom-0.5": id === "balloon",
 });
 </script>

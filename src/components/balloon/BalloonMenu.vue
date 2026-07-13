@@ -23,7 +23,7 @@
 
         <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
           <div class="animate-fly-direct flex flex-col items-center">
-            <Lottie :json="balloonLottie" :loop="true" :speed="0.8" class="w-24 h-24 drop-shadow-md" />
+            <Lottie :src="balloonLottie" :loop="true" :speed="0.8" class="w-24 h-24 drop-shadow-md" />
             <div class="w-10 h-12 bg-white border-2 border-primary/30 rounded-md overflow-hidden animate-swing">
               <img :src="drawingImg" class="w-full h-full object-cover opacity-95" />
             </div>
@@ -149,145 +149,152 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
-import { IonButton, IonIcon, IonSpinner, useIonRouter } from '@ionic/vue'
-import { mdiChevronRight, mdiAccount, mdiHelp, mdiHeart, mdiHistory, mdiStar } from '@mdi/js'
-import { storeToRefs } from 'pinia'
-import { svg } from '@/helper/general.helper'
-import { useRoute } from 'vue-router'
+import { computed, onUnmounted, ref } from "vue";
+import { IonButton, IonIcon, IonSpinner, useIonRouter } from "@ionic/vue";
+import {
+	mdiChevronRight,
+	mdiAccount,
+	mdiHelp,
+	mdiHeart,
+	mdiHistory,
+	mdiStar,
+} from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { svg } from "@/helper/general.helper";
+import { useRoute } from "vue-router";
 
-import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
-import balloonLottie from '@/assets/lottie/balloon.json'
-import Lottie from '@/components/general/Lottie.vue'
-import drawingImg from '@/assets/login_images/1.webp'
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import balloonLottie from "@/assets/lottie/balloon.lottie";
+import Lottie from "@/components/general/Lottie.vue";
+import drawingImg from "@/assets/login_images/1.webp";
 
-import { useAuthStore } from '@/store/auth.store'
-import { useQuotaStore } from '@/store/quota.store'
-import { useMenuStore } from '@/store/menu.store'
-import { useSubscriptionStore } from '@/store/subscription.store'
-import { cancelBalloon, fetchMyBalloons } from '@/service/api/balloon.api'
-import type { Balloon } from '@/types/server.types'
-import { Menu } from '@/draw/types/draw.types'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-import { masterAnimation } from '@/helper/animation.helper'
+import { useAuthStore } from "@/store/auth.store";
+import { useQuotaStore } from "@/store/quota.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
+import { cancelBalloon, fetchMyBalloons } from "@/service/api/balloon.api";
+import type { Balloon } from "@/types/server.types";
+import { Menu } from "@/draw/types/draw.types";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { masterAnimation } from "@/helper/animation.helper";
 
-const router = useIonRouter()
-const route = useRoute()
+const router = useIonRouter();
+const route = useRoute();
 
-const authStore = useAuthStore()
-const { user } = storeToRefs(authStore)
+const authStore = useAuthStore();
+const { user } = storeToRefs(authStore);
 
-const menuStore = useMenuStore()
-const { balloonMenuOpen } = storeToRefs(menuStore)
+const menuStore = useMenuStore();
+const { balloonMenuOpen } = storeToRefs(menuStore);
 
-type Section = 'home' | 'manage';
-const section = ref<Section>('home')
+type Section = "home" | "manage";
+const section = ref<Section>("home");
 
-const quotaStore = useQuotaStore()
-const { balloons } = storeToRefs(quotaStore)
+const quotaStore = useQuotaStore();
+const { balloons } = storeToRefs(quotaStore);
 
-const myBalloons = ref<Balloon[]>([])
-const isLoadingMine = ref(false)
-const cancellingId = ref<string | null>(null)
+const myBalloons = ref<Balloon[]>([]);
+const isLoadingMine = ref(false);
+const cancellingId = ref<string | null>(null);
 
-const now = ref(Date.now())
-let timer: ReturnType<typeof setInterval> | null = null
+const now = ref(Date.now());
+let timer: ReturnType<typeof setInterval> | null = null;
 
 function startTicker() {
-  if (timer) return
-  timer = setInterval(() => {
-    now.value = Date.now()
-  }, 1000)
+	if (timer) return;
+	timer = setInterval(() => {
+		now.value = Date.now();
+	}, 1000);
 }
 
 function stopTicker() {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
+	if (timer) {
+		clearInterval(timer);
+		timer = null;
+	}
 }
 
-onUnmounted(stopTicker)
+onUnmounted(stopTicker);
 
 const resetCountdown = computed(() => {
-  const resetMs = new Date(balloons.value.reset_at).getTime()
-  const diff = Math.max(0, resetMs - now.value)
-  const h = Math.floor(diff / 3_600_000)
-  const m = Math.floor((diff % 3_600_000) / 60_000)
-  if (h > 0) return `${h}h ${m}m`
-  const s = Math.floor((diff % 60_000) / 1_000)
-  return `${m}m ${s}s`
-})
+	const resetMs = new Date(balloons.value.reset_at).getTime();
+	const diff = Math.max(0, resetMs - now.value);
+	const h = Math.floor(diff / 3_600_000);
+	const m = Math.floor((diff % 3_600_000) / 60_000);
+	if (h > 0) return `${h}h ${m}m`;
+	const s = Math.floor((diff % 60_000) / 1_000);
+	return `${m}m ${s}s`;
+});
 
 const sectionSubtitle = computed(() =>
-  section.value === 'home'
-    ? 'Find a mate across the skies'
-    : 'Recall balloons before they are caught'
-)
+	section.value === "home"
+		? "Find a mate across the skies"
+		: "Recall balloons before they are caught",
+);
 
 function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60_000)
-  if (m < 1) return 'just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
+	const diff = Date.now() - new Date(iso).getTime();
+	const m = Math.floor(diff / 60_000);
+	if (m < 1) return "just now";
+	if (m < 60) return `${m}m ago`;
+	const h = Math.floor(m / 60);
+	if (h < 24) return `${h}h ago`;
+	return `${Math.floor(h / 24)}d ago`;
 }
 
 async function loadMyBalloons() {
-  isLoadingMine.value = true
-  try {
-    const { balloons } = await fetchMyBalloons()
-    myBalloons.value = balloons
-  } catch (e) {
-    console.error('Failed to load balloons:', e)
-  } finally {
-    isLoadingMine.value = false
-  }
+	isLoadingMine.value = true;
+	try {
+		const { balloons } = await fetchMyBalloons();
+		myBalloons.value = balloons;
+	} catch (e) {
+		console.error("Failed to load balloons:", e);
+	} finally {
+		isLoadingMine.value = false;
+	}
 }
 
 async function onCancel(b: Balloon) {
-  if (cancellingId.value) return
-  cancellingId.value = b._id
-  try {
-    await cancelBalloon(b._id)
-    quotaStore.incrementBalloon()
-    myBalloons.value = myBalloons.value.filter((x) => x._id !== b._id)
-  } catch (e) {
-    console.error('Failed to cancel balloon:', e)
-  } finally {
-    cancellingId.value = null
-  }
+	if (cancellingId.value) return;
+	cancellingId.value = b._id;
+	try {
+		await cancelBalloon(b._id);
+		quotaStore.incrementBalloon();
+		myBalloons.value = myBalloons.value.filter((x) => x._id !== b._id);
+	} catch (e) {
+		console.error("Failed to cancel balloon:", e);
+	} finally {
+		cancellingId.value = null;
+	}
 }
 
 function onCreateNew() {
-  close()
-  if (route.path === `/${FRONTEND_ROUTES.draw}`) return
-  router.push(
-    { path: FRONTEND_ROUTES.draw, query: { type: 'balloon' } },
-    masterAnimation
-  )
+	close();
+	if (route.path === `/${FRONTEND_ROUTES.draw}`) return;
+	router.push(
+		{ path: FRONTEND_ROUTES.draw, query: { type: "balloon" } },
+		masterAnimation,
+	);
 }
 
 function handlePrimaryAction() {
-  if (quotaStore.canSendBalloon) {
-    onCreateNew()
-  } else if (!quotaStore.isPro) {
-    // Out of balloons on the free tier — same as everywhere else: open the paywall.
-    useSubscriptionStore().openPaywall()
-  }
+	if (quotaStore.canSendBalloon) {
+		onCreateNew();
+	} else if (!quotaStore.isPro) {
+		// Out of balloons on the free tier — same as everywhere else: open the paywall.
+		useSubscriptionStore().openPaywall();
+	}
 }
 
 function close() {
-  stopTicker()
-  menuStore.closeMenu(Menu.BalloonMenu)
+	stopTicker();
+	menuStore.closeMenu(Menu.BalloonMenu);
 }
 
 function onPresent() {
-  startTicker()
-  section.value = 'home'
-  void loadMyBalloons()
+	startTicker();
+	section.value = "home";
+	void loadMyBalloons();
 }
 </script>
 

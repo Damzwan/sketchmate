@@ -103,91 +103,91 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
-  resolveEffect,
-  type ProfileEffectDef
-} from '@/config/profile_options.config'
-import paper from '@/assets/textures/paper.webp'
+	resolveEffect,
+	type ProfileEffectDef,
+} from "@/config/profile_options.config";
+import paper from "@/assets/textures/paper.webp";
 
 const props = withDefaults(
-  defineProps<{
-    effectId?: string;
-    def?: ProfileEffectDef;
-    /** Preview mode shortens delays and speeds animations */
-    preview?: boolean;
-    /** Corner radius of the clip box. Default matches the profile card; pass
+	defineProps<{
+		effectId?: string;
+		def?: ProfileEffectDef;
+		/** Preview mode shortens delays and speeds animations */
+		preview?: boolean;
+		/** Corner radius of the clip box. Default matches the profile card; pass
         'rounded-none' when hosting in a rectangular surface (chat toolbar, feed
         header) so the clip doesn't leave odd rounded corners. */
-    radiusClass?: string;
-  }>(),
-  { preview: false, radiusClass: 'rounded-[2.5rem]' }
-)
+		radiusClass?: string;
+	}>(),
+	{ preview: false, radiusClass: "rounded-[2.5rem]" },
+);
 
 const def = computed<ProfileEffectDef>(
-  () => props.def || resolveEffect(props.effectId)
-)
+	() => props.def || resolveEffect(props.effectId),
+);
 
 // Only run the (GPU-heavy: blur / conic-gradient / mix-blend / SVG) effect
 // while the card is on/near screen. Off-screen cards in a grid drop it.
-const root = ref<HTMLElement | null>(null)
-const active = ref(false)
-let io: IntersectionObserver | null = null
+const root = ref<HTMLElement | null>(null);
+const active = ref(false);
+let io: IntersectionObserver | null = null;
 
 onMounted(() => {
-  if (typeof IntersectionObserver === 'undefined') {
-    active.value = true
-    return
-  }
-  io = new IntersectionObserver(
-    (entries) => {
-      active.value = entries.some((e) => e.isIntersecting)
-    },
-    // Grid tiles (preview) gate tightly to cap concurrent GPU work. The full
-    // hero card uses a huge margin so ordinary in-page scrolling never tears it
-    // down and re-mounts it (the pop-in flicker) — it still deactivates when the
-    // whole page is hidden (display:none ⇒ no box ⇒ not intersecting).
-    { rootMargin: props.preview ? '250px' : '9999px' }
-  )
-  // Re-observe whenever the root element appears/changes. Root is v-if'd on
-  // def.kind !== 'none', so switching FROM a 'none' effect creates the root only
-  // after mount — a one-shot observe would miss it and the newly selected effect
-  // would never activate (blank until re-triggered).
-  watch(
-    root,
-    (el) => {
-      io?.disconnect()
-      if (el) io?.observe(el)
-    },
-    { immediate: true, flush: 'post' }
-  )
-})
+	if (typeof IntersectionObserver === "undefined") {
+		active.value = true;
+		return;
+	}
+	io = new IntersectionObserver(
+		(entries) => {
+			active.value = entries.some((e) => e.isIntersecting);
+		},
+		// Grid tiles (preview) gate tightly to cap concurrent GPU work. The full
+		// hero card uses a huge margin so ordinary in-page scrolling never tears it
+		// down and re-mounts it (the pop-in flicker) — it still deactivates when the
+		// whole page is hidden (display:none ⇒ no box ⇒ not intersecting).
+		{ rootMargin: props.preview ? "1500px" : "9999px" },
+	);
+	// Re-observe whenever the root element appears/changes. Root is v-if'd on
+	// def.kind !== 'none', so switching FROM a 'none' effect creates the root only
+	// after mount — a one-shot observe would miss it and the newly selected effect
+	// would never activate (blank until re-triggered).
+	watch(
+		root,
+		(el) => {
+			io?.disconnect();
+			if (el) io?.observe(el);
+		},
+		{ immediate: true, flush: "post" },
+	);
+});
 
-onBeforeUnmount(() => io?.disconnect())
+onBeforeUnmount(() => io?.disconnect());
 
 const speedClass = computed(() => {
-  if (props.preview) return 'speed-fast'
-  switch (def.value.speed) {
-    case 'slow':
-      return 'speed-slow'
-    case 'fast':
-      return 'speed-fast'
-    default:
-      return 'speed-normal'
-  }
-})
+	if (props.preview) return "speed-fast";
+	switch (def.value.speed) {
+		case "slow":
+			return "speed-slow";
+		case "fast":
+			return "speed-fast";
+		default:
+			return "speed-normal";
+	}
+});
 
 const shimmerStyle = computed(() => {
-  if (def.value.color === 'rainbow') {
-    return {
-      background:
-        'linear-gradient(115deg, transparent 30%, rgba(255,0,150,0.3) 40%, rgba(0,200,255,0.3) 50%, rgba(255,200,0,0.3) 60%, transparent 70%)'
-    }
-  }
-  return {
-    background: `linear-gradient(115deg, transparent 40%, ${def.value.color || 'rgba(255,255,255,0.4)'} 50%, transparent 60%)`
-  }
-})
+	if (def.value.color === "rainbow") {
+		return {
+			background:
+				"linear-gradient(115deg, transparent 30%, rgba(255,0,150,0.3) 40%, rgba(0,200,255,0.3) 50%, rgba(255,200,0,0.3) 60%, transparent 70%)",
+		};
+	}
+	return {
+		background: `linear-gradient(115deg, transparent 40%, ${def.value.color || "rgba(255,255,255,0.4)"} 50%, transparent 60%)`,
+	};
+});
 </script>
 
 <style scoped>

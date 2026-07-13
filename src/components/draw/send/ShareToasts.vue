@@ -38,7 +38,7 @@
           <template v-if="toast.kind === 'balloon'">
             <div class="w-10 h-10 flex items-center justify-center -my-1">
               <Lottie
-                :json="balloonLottie"
+                :src="balloonLottie"
                 :loop="true"
                 :speed="0.5"
                 class="h-10 w-10"
@@ -96,7 +96,7 @@ import { IonIcon, IonSpinner } from "@ionic/vue";
 import { mdiCheck } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 
-import balloonLottie from "@/assets/lottie/balloon.json";
+import balloonLottie from "@/assets/lottie/balloon.lottie";
 import {
 	ShareToast,
 	ShareToastKind,

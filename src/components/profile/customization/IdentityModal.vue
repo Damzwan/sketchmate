@@ -30,7 +30,7 @@
           :class="{ 'opacity-60': nameLocked }"
         />
 
-        <!-- Name-change cooldown notice -->
+        <!-- One-time rename notice -->
         <div class="px-2 mt-2 flex items-start gap-1.5 text-xs leading-snug">
           <ion-icon
             :icon="nameLocked ? svg(mdiLockClock) : svg(mdiInformationOutline)"
@@ -38,11 +38,10 @@
             :class="nameLocked ? 'text-amber-600' : 'text-black/40'"
           />
           <span v-if="nameLocked" class="font-bold text-amber-700">
-            Name locked — you can change it again in
-            {{ daysUntilNameChange }} {{ daysUntilNameChange === 1 ? 'day' : 'days' }}.
+            Your name is locked — it can't be changed anymore.
           </span>
           <span v-else class="text-black/70">
-            You can only change your name once every {{ NAME_CHANGE_COOLDOWN_DAYS }} days.
+            Choose carefully — you can change your name only once.
           </span>
         </div>
       </div>
@@ -80,15 +79,12 @@
 import { computed, ref, watch } from 'vue'
 import { IonButton, IonIcon, IonInput, IonTextarea } from '@ionic/vue'
 import { mdiInformationOutline, mdiLockClock } from '@mdi/js'
-import dayjs from 'dayjs'
 import ProfilePictureSelector from '@/components/account/ProfilePictureSelector.vue'
 import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
-import {
-  NAME_CHANGE_COOLDOWN_DAYS,
-  type Customization
-} from '@/config/profile_options.config'
+import { type Customization } from '@/config/profile_options.config'
 import { svg } from '@/helper/general.helper'
 import { useProfileUpload } from '@/composables/general/useProfileUpload'
+import { useSubscriptionStore } from '@/store/subscription.store'
 
 const props = defineProps<{
   isOpen: boolean;
@@ -109,21 +105,13 @@ const displayImg = computed(
   () => localImg.value ?? props.previewImg ?? props.user.img
 )
 
-// Name-change cooldown. `last_name_change` is the last time the name was
-// updated; a new change is only allowed once the cooldown has elapsed.
-const nextNameChangeAt = computed(() => {
-  const last = props.user?.last_name_change
-  if (!last) return null
-  return dayjs(last).add(NAME_CHANGE_COOLDOWN_DAYS, 'day')
-})
-
-const daysUntilNameChange = computed(() => {
-  if (!nextNameChangeAt.value) return 0
-  const hours = nextNameChangeAt.value.diff(dayjs(), 'hour')
-  return hours > 0 ? Math.ceil(hours / 24) : 0
-})
-
-const nameLocked = computed(() => daysUntilNameChange.value > 0)
+// One-time rename lock. The signup name (from the default 'Anonymous') is free;
+// the first real rename stamps `last_name_change` server-side, which locks it.
+// Pro/Lifetime are exempt. `last_name_change` present ⇒ the one edit was used.
+const subStore = useSubscriptionStore()
+const nameLocked = computed(
+  () => !subStore.isPro && Boolean(props.user?.last_name_change)
+)
 
 watch(
   () => props.isOpen,

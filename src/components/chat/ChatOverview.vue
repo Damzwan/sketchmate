@@ -172,6 +172,7 @@ import { storeToRefs } from "pinia";
 import { IonFab, IonFabButton, IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	mdiAccountMultiplePlusOutline,
+	mdiAccountSearchOutline,
 	mdiBalloon,
 	mdiChatPlusOutline,
 	mdiChevronDown,
@@ -316,6 +317,15 @@ const router = useIonRouter();
 const { openMenu } = useMenuStore();
 
 const emptyCtas = [
+	{
+		icon: mdiAccountSearchOutline,
+		label: "Message a mate",
+		sub: "Start a chat with a mate you already have",
+		// Same as the FAB: opens the inline mate picker.
+		action: () => {
+			isCreatingChat.value = true;
+		},
+	},
 	{
 		icon: mdiPencilPlusOutline,
 		label: "Draw together",

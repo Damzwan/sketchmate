@@ -112,7 +112,7 @@
                 Slots full ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }})
               </p>
               <div class="grid grid-cols-2 gap-3 w-full max-w-[260px]">
-                <ion-button fill="clear" shape="round" class="cursor-pointer" @click="$emit('decline')">Decline</ion-button>
+                <ion-button fill="clear" color="secondary" shape="round" class="cursor-pointer" @click="$emit('decline')">Decline</ion-button>
                 <ion-button color="secondary" shape="round" class="cursor-pointer" @click="$emit('upgrade')">
                   <ion-icon :icon="svg(mdiStar)" slot="start" class="text-sm mr-1" />
                   Upgrade
@@ -125,7 +125,7 @@
               <h3 class="cabin-sketch-regular text-lg font-black text-black">{{ partner?.name }} wants to be
                 Mates!</h3>
               <p class="text-xs text-black/70 uppercase tracking-widest mt-1.5 mb-4">Max limit reached</p>
-              <ion-button fill="clear" shape="round" class="cursor-pointer" @click="$emit('decline')">Decline</ion-button>
+              <ion-button fill="clear" color="secondary" shape="round" class="cursor-pointer" @click="$emit('decline')">Decline</ion-button>
             </div>
 
             <div v-else class="flex flex-col items-center w-full">
@@ -133,7 +133,7 @@
               <h3 class="cabin-sketch-regular text-lg font-black text-black">{{ partner?.name }} wants to be
                 Mates!</h3>
               <div class="grid grid-cols-2 gap-3 w-full max-w-[260px] mt-2">
-                <ion-button fill="clear" color="dark" shape="round" class="cursor-pointer" @click="$emit('decline')">Decline</ion-button>
+                <ion-button fill="clear" color="secondary" shape="round" class="cursor-pointer" @click="$emit('decline')">Decline</ion-button>
                 <ion-button color="secondary" shape="round" class="cursor-pointer" @click="$emit('accept')">Accept</ion-button>
               </div>
             </div>

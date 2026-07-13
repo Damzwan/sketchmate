@@ -92,6 +92,16 @@
         >
           {{ isBundle ? 'Get the bundle' : 'Unlock' }} · {{ (sku as any).priceString || '' }}
         </ion-button>
+        <ion-button
+          v-else-if="canEquip"
+          expand="block"
+          color="secondary"
+          shape="round"
+          size="large"
+          @click="$emit('equip', equipPatch)"
+        >
+          {{ isBundle ? 'Equip this look' : 'Equip' }}
+        </ion-button>
         <ion-button v-else expand="block" fill="outline" shape="round" size="large" disabled>
           In your collection
         </ion-button>
@@ -123,7 +133,7 @@ const props = defineProps<{
 	user?: any;
 	userImg?: string;
 }>();
-defineEmits(["close", "purchase"]);
+defineEmits(["close", "purchase", "equip"]);
 
 type Mode = "card" | "sheet";
 const tabs: { id: Mode; label: string }[] = [
@@ -165,6 +175,23 @@ const previewCustomization = computed<Partial<Customization>>(() => {
 	}
 	return c;
 });
+
+// Just this item's grants mapped to their customization fields (no existing
+// user fields) — emitted on "Equip" so the parent applies the whole look. A
+// single item sets one field; a bundle sets all of them at once.
+const equipPatch = computed<Partial<Customization>>(() => {
+	const patch: Partial<Customization> = {};
+	for (const grant of props.sku?.grants ?? []) {
+		const [cat, ...rest] = grant.split(".");
+		const field = GRANT_FIELD[cat as ItemCategory];
+		if (field) patch[field] = rest.join(".");
+	}
+	return patch;
+});
+
+// Brushes (and other tool-only grants) have no profile field, so there's
+// nothing to "equip" from here — fall back to the plain collection label.
+const canEquip = computed(() => Object.keys(equipPatch.value).length > 0);
 
 // Your own portfolio, so the full view shows real sketches like the live sheet.
 const postStore = usePostStore();

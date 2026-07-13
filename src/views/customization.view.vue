@@ -220,6 +220,7 @@ import {
 import { storeToRefs } from "pinia";
 import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
@@ -259,6 +260,7 @@ import {
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
+const subStore = useSubscriptionStore();
 const { toast } = useToast();
 
 onIonViewDidEnter(() => {
@@ -441,7 +443,11 @@ const save = async () => {
 
 		if (user.value) {
 			user.value.customization = JSON.parse(JSON.stringify(draft.value));
-			if (profileDraft.value.name.trim() !== savedProfileDraft.value.name)
+			// Mirror the server's one-time-rename stamp: the signup name (from
+			// 'Anonymous') is free, Pro is exempt; any other rename locks the name.
+			const prevName = savedProfileDraft.value.name;
+			const nameChanged = profileDraft.value.name.trim() !== prevName;
+			if (nameChanged && !subStore.isPro && prevName !== "Anonymous")
 				user.value.last_name_change = new Date().toISOString();
 			user.value.name = profileDraft.value.name.trim();
 			user.value.description = profileDraft.value.description.trim();

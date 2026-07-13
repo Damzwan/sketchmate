@@ -15,6 +15,11 @@ const DEV_UNLOCK_ALL = true;
 
 export const useInventoryStore = defineStore("inventory", () => {
 	const owned = ref<Set<string>>(new Set());
+	// Items granted optimistically after a purchase that the server hasn't
+	// confirmed yet. Kept sticky across hydrate/refresh so a slow purchase
+	// webhook (bundles especially) can't visually revert a just-bought item —
+	// each id is dropped from here the moment the server inventory includes it.
+	const optimisticGrants = ref<Set<string>>(new Set());
 	const isLoading = ref(false);
 	// True once we've populated from a real user object at least once — the shop
 	// gates its content on this so it never flashes "unowned"/upsell before load.
@@ -53,7 +58,14 @@ export const useInventoryStore = defineStore("inventory", () => {
 
 	// Populate from a user object — called by auth.store after bootstrap/refresh.
 	const hydrateFromUser = (user: { inventory?: string[] } | null) => {
-		owned.value = new Set(user?.inventory ?? []);
+		const server = new Set(user?.inventory ?? []);
+		// Fold in any still-unconfirmed optimistic grants; drop the ones the
+		// server now vouches for (webhook landed) so nothing stays phantom.
+		for (const id of optimisticGrants.value) {
+			if (server.has(id)) optimisticGrants.value.delete(id);
+			else server.add(id);
+		}
+		owned.value = server;
 		hydrated.value = true;
 		setDevUnlockAll(DEV_UNLOCK_ALL);
 	};
@@ -73,9 +85,13 @@ export const useInventoryStore = defineStore("inventory", () => {
 	};
 
 	// Optimistic grants keep the UI instant after a purchase; the webhook +
-	// refresh() reconcile a beat later.
+	// refresh() reconcile a beat later. Tracked as sticky (see optimisticGrants)
+	// so a slow webhook can't drop them on the next hydrate.
 	const grantOptimistic = (items: string[]) => {
-		for (const id of items) owned.value.add(id);
+		for (const id of items) {
+			owned.value.add(id);
+			optimisticGrants.value.add(id);
+		}
 	};
 
 	const grantSkuOptimistic = (skuId: string) => {
@@ -84,6 +100,7 @@ export const useInventoryStore = defineStore("inventory", () => {
 
 	const clear = () => {
 		owned.value = new Set();
+		optimisticGrants.value = new Set();
 		hydrated.value = false;
 	};
 

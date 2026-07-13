@@ -413,11 +413,13 @@ const matePage = ref(1);
 const loadingMoreMates = ref(false);
 let mateDebounce: ReturnType<typeof setTimeout> | null = null;
 
-// Whether to show the "Gallery & Mates" section at all. Uses the store's total
-// mate count (seeded on app start) plus any active-chat partners.
+// Whether to show the "Gallery & Mates" section at all. Reads the authoritative
+// mate count off the user (search-independent) plus any active-chat partners.
+// NOT friendStore.totalCounts.mates — a search overwrites that with the filtered
+// match count, so an empty search result would wrongly flip this to "no mates".
 const hasMates = computed(
 	() =>
-		(friendStore.totalCounts.mates ?? 0) > 0 ||
+		(user.value?.stats?.mates ?? 0) > 0 ||
 		allConnectedPartners.value.length > 0,
 );
 

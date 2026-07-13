@@ -188,6 +188,7 @@
         :user-img="user?.img"
         @close="previewSku = null"
         @purchase="previewSku && purchaseItem(previewSku)"
+        @equip="equipSku"
       />
 
       <!-- ─── Collection sheet (owned items) ─── -->
@@ -244,6 +245,7 @@ import { useMenuStore } from "@/store/menu.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useToast } from "@/service/toast.service";
+import { updateProfile } from "@/service/api/user.api";
 import {
 	CATALOG,
 	CATALOG_BY_ID,
@@ -446,6 +448,28 @@ const loadOfferings = async () => {
 const purchaseItem = async (sku: ShopSku) => {
 	const ok = await subStore.purchaseSku(sku.id);
 	if (ok) highlightedId.value = null;
+};
+
+// Equip an owned item/bundle: fold its grant fields into the user's
+// customization (a bundle sets a whole head-to-toe look at once), persist, and
+// close the preview. Optimistic with rollback on failure.
+const equipSku = async (patch: Record<string, any>) => {
+	const u = user.value;
+	if (!u || !patch || Object.keys(patch).length === 0) {
+		previewSku.value = null;
+		return;
+	}
+	const prev = { ...(u.customization ?? {}) };
+	const next = { ...prev, ...patch };
+	u.customization = next as any;
+	previewSku.value = null;
+	try {
+		await updateProfile({ customization: next });
+		toast("Equipped! ✨", { color: "success" });
+	} catch (e) {
+		u.customization = prev as any;
+		toast("Couldn't equip that. Please try again.", { color: "danger" });
+	}
 };
 
 watch(isShopOpen, async (open) => {

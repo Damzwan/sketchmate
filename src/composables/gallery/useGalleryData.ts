@@ -33,16 +33,23 @@ export function useGalleryData() {
 	const noMessages = computed(() => inbox.value.length === 0);
 
 	async function fetchInitialInbox() {
-		if (isLoggedIn.value) {
+		if (!isLoggedIn.value) {
+			isLoading.value = false;
+			return;
+		}
+		// finally guarantees the loader clears on EVERY path — the warm-revisit
+		// branch (hasFetchedInitial → syncNewItems) and errors included. Missing
+		// that left an empty gallery spinning forever (loader gates on isLoading
+		// && inbox.length === 0, so it only ever showed when there were no items).
+		try {
 			if (!hasFetchedInitial.value) {
 				isLoading.value = true;
 				await inboxStore.getInboxBatch(true);
-				isLoading.value = false;
 			} else {
 				await inboxStore.syncNewItems();
 			}
 			checkQueryParams();
-		} else {
+		} finally {
 			isLoading.value = false;
 		}
 	}

@@ -43,6 +43,10 @@ class CustomMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
 
+        if (isAppInForeground()) {
+            return
+        }
+
         val data = remoteMessage.data
         val type = data["type"] ?: return
 
@@ -513,5 +517,18 @@ class CustomMessagingService : FirebaseMessagingService() {
         }
 
         return PendingIntent.getActivity(this, requestCode, intent, flags)
+    }
+
+    private fun isAppInForeground(): Boolean {
+        val activityManager = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+        val appProcesses = activityManager.runningAppProcesses ?: return false
+        val packageName = packageName
+        for (appProcess in appProcesses) {
+            if (appProcess.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+                && appProcess.processName == packageName) {
+                return true
+            }
+        }
+        return false
     }
 }

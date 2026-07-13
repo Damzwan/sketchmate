@@ -124,17 +124,20 @@
             ? 'bg-secondary text-white rounded-2xl rounded-tr-sm'
             : 'bg-white text-black rounded-2xl rounded-tl-sm border border-primary/40'"
         >
-          <!-- Dynamic Room Title Headers (Visible only if messaging inside lobbies) -->
           <div v-if="!isCompact && !isMe && activeTab === 'lobby'"
                class="mb-1 flex items-baseline gap-1 whitespace-nowrap leading-none">
+
+            <!-- 1. Swap nameColor for nameColorOnLight -->
             <span class="text-xs font-black uppercase tracking-tight"
-                  :style="{ color: theme.nameColor, fontFamily: resolvedFontFamily }">
-              {{ sender?.name }}
-            </span>
+                  :style="{ color: theme.nameColorOnLight, fontFamily: resolvedFontFamily }">
+    {{ sender?.name }}
+  </span>
+
+            <!-- 2. Swap descColor for descColorOnLight -->
             <span v-if="displayTitle" class="text-[10px] uppercase tracking-widest opacity-80 truncate"
-                  :style="{ color: theme.descColor, fontFamily: resolvedFontFamily }">
-              • {{ displayTitle }}
-            </span>
+                  :style="{ color: theme.descColorOnLight, fontFamily: resolvedFontFamily }">
+    • {{ displayTitle }}
+  </span>
           </div>
 
           <div class="cabin-sketch-regular leading-snug break-words pr-2">{{ msg.content || msg.message }}</div>
@@ -282,6 +285,16 @@ const openSharedPost = async () => {
 	}
 	if (post) openPostSwiper([post], 0);
 };
+
+// Add this inside <script setup lang="ts"> in your chat bubble component:
+
+const resolvedNameColor = computed(() => {
+	const lightColorThemes = ["midnight", "noir"];
+	if (lightColorThemes.includes(theme.value.id)) {
+		return "#1e293b";
+	}
+	return theme.value.nameColor;
+});
 
 const openSharedInboxItem = async () => {
 	if (unavailableInbox.value) return;

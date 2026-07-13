@@ -219,7 +219,7 @@
         <div v-if="isPublicPost" class="pt-4 mt-3 border-t border-primary/20 animate-fade-in space-y-3" @click.stop>
           <textarea v-model="postCaption" placeholder="Write a caption... (optional)"
                     class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 resize-none outline-none font-bold text-black placeholder:font-normal placeholder:text-black/70 h-20"
-                    maxlength="200" />
+                    maxlength="100" />
 
           <div class="flex items-center justify-between bg-primary/10 rounded-xl p-3">
             <div class="flex-1 pr-3">

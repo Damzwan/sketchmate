@@ -500,13 +500,13 @@ class CustomMessagingService : FirebaseMessagingService() {
     ): PendingIntent {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            // Capacitor's PushNotificationsPlugin reads all string extras from the
-            // launching intent and forwards them as `notification.data` in JS.
+
+            // Pass the unique notification ID to MainActivity so it can dismiss it on start
+            putExtra("EXTRA_NOTIFICATION_ID", requestCode)
+
             for ((key, value) in data) {
                 putExtra(key, value)
             }
-            // Marker so the plugin knows this came from a push tap (some versions
-            // of the plugin look for this; harmless if unused).
             putExtra("google.message_id", data["google.message_id"] ?: "")
         }
 

@@ -179,6 +179,9 @@ export interface Theme {
 	descColor: string;
 	nameColorDark: string;
 	descColorDark: string;
+	// NEW fields for rendering on standard white/light containers (like chat bubbles)
+	nameColorOnLight: string;
+	descColorOnLight: string;
 	titleBg: string;
 	accentColor: string;
 	swatches: string[];
@@ -193,8 +196,10 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(185,70,58,0.2)",
 		nameColor: "#3d1a14",
 		descColor: "rgba(61,26,20,0.7)",
-		nameColorDark: "#fdf8f5", // Lightened for dark bg
-		descColorDark: "rgba(253,248,245,0.8)", // Lightened for dark bg
+		nameColorDark: "#fdf8f5",
+		descColorDark: "rgba(253,248,245,0.8)",
+		nameColorOnLight: "#3d1a14", // Same as nameColor (it is already dark)
+		descColorOnLight: "rgba(61,26,20,0.7)",
 		titleBg: "#FFF2E4",
 		accentColor: "#B9463A",
 		swatches: ["#FAE0C2", "#B9463A", "#FFF2E4"],
@@ -207,8 +212,10 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(255,255,255,0.15)",
 		nameColor: "#f8fafc",
 		descColor: "rgba(248,250,252,0.7)",
-		nameColorDark: "#f8fafc", // Already light
-		descColorDark: "rgba(248,250,252,0.7)", // Already light
+		nameColorDark: "#f8fafc",
+		descColorDark: "rgba(248,250,252,0.7)",
+		nameColorOnLight: "#1e293b", // Slate 800 for light backgrounds
+		descColorOnLight: "rgba(30,41,59,0.7)",
 		titleBg: "rgba(255,255,255,0.08)",
 		accentColor: "#a5b4fc",
 		swatches: ["#1a1a2e", "#a5b4fc", "#f8fafc"],
@@ -223,6 +230,8 @@ export const THEMES: Theme[] = [
 		descColor: "rgba(124,45,18,0.7)",
 		nameColorDark: "#ffedd5",
 		descColorDark: "rgba(255,237,213,0.8)",
+		nameColorOnLight: "#7c2d12",
+		descColorOnLight: "rgba(124,45,18,0.7)",
 		titleBg: "rgba(255,255,255,0.5)",
 		accentColor: "#ea580c",
 		swatches: ["#fed7aa", "#ea580c", "#7c2d12"],
@@ -237,6 +246,8 @@ export const THEMES: Theme[] = [
 		descColor: "rgba(20,83,45,0.7)",
 		nameColorDark: "#ecfdf5",
 		descColorDark: "rgba(236,253,245,0.8)",
+		nameColorOnLight: "#14532d",
+		descColorOnLight: "rgba(20,83,45,0.7)",
 		titleBg: "rgba(255,255,255,0.5)",
 		accentColor: "#15803d",
 		swatches: ["#dcfce7", "#15803d", "#14532d"],
@@ -251,6 +262,8 @@ export const THEMES: Theme[] = [
 		descColor: "rgba(131,24,67,0.7)",
 		nameColorDark: "#fdf2f8",
 		descColorDark: "rgba(253,242,248,0.8)",
+		nameColorOnLight: "#831843",
+		descColorOnLight: "rgba(131,24,67,0.7)",
 		titleBg: "rgba(255,255,255,0.6)",
 		accentColor: "#db2777",
 		swatches: ["#fce7f3", "#db2777", "#831843"],
@@ -265,6 +278,8 @@ export const THEMES: Theme[] = [
 		descColor: "rgba(22,78,99,0.7)",
 		nameColorDark: "#cffafe",
 		descColorDark: "rgba(207,250,254,0.8)",
+		nameColorOnLight: "#164e63",
+		descColorOnLight: "rgba(22,78,99,0.7)",
 		titleBg: "rgba(255,255,255,0.5)",
 		accentColor: "#0891b2",
 		swatches: ["#cffafe", "#0891b2", "#164e63"],
@@ -277,8 +292,10 @@ export const THEMES: Theme[] = [
 		cardBorderColor: "rgba(255,255,255,0.2)",
 		nameColor: "#fafafa",
 		descColor: "rgba(250,250,250,0.6)",
-		nameColorDark: "#fafafa", // Already light
-		descColorDark: "rgba(250,250,250,0.6)", // Already light
+		nameColorDark: "#fafafa",
+		descColorDark: "rgba(250,250,250,0.6)",
+		nameColorOnLight: "#171717", // Neutral 800/900 for light backgrounds
+		descColorOnLight: "rgba(23,23,23,0.6)",
 		titleBg: "rgba(255,255,255,0.1)",
 		accentColor: "#fafafa",
 		swatches: ["#0a0a0a", "#fafafa", "#525252"],
@@ -293,6 +310,8 @@ export const THEMES: Theme[] = [
 		descColor: "rgba(120,53,15,0.7)",
 		nameColorDark: "#fef3c7",
 		descColorDark: "rgba(254,243,199,0.8)",
+		nameColorOnLight: "#78350f",
+		descColorOnLight: "rgba(120,53,15,0.7)",
 		titleBg: "rgba(255,255,255,0.5)",
 		accentColor: "#d97706",
 		swatches: ["#fde68a", "#d97706", "#78350f"],

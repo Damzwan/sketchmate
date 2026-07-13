@@ -43,6 +43,10 @@ img {
     padding-top: var(--ion-safe-area-top, 0);
 }
 
+.top-margin-safe {
+    padding-top: var(--ion-safe-area-top, 0);
+}
+
 .top-safe {
     top: var(--ion-safe-area-top, 0);
 }

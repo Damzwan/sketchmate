@@ -4,6 +4,7 @@
     ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none"
     :class="[radiusClass, { 'fx-frozen': paused }]"
+    style="will-change: transform; isolation: isolate;"
     aria-hidden="true"
   >
     <template v-if="hasMounted">

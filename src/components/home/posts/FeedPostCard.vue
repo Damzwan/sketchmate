@@ -99,6 +99,7 @@
       <div
         ref="reactionSurface"
         class="tap-guard relative z-10 w-full flex items-center justify-center overflow-hidden bg-[#FAF8F5] border-y border-primary/10 select-none"
+        style="transform: translateZ(0); will-change: transform;"
         @dblclick="handleDoubleTap"
         @contextmenu.prevent
       >
@@ -266,11 +267,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { svg } from "@/helper/general.helper";
 import { FeedPost } from "@/types/server.types";
-import {
-	playSelectionTick,
-	reactionImages,
-	reactionLabels,
-} from "@/config/post.config";
+import { playSelectionTick, reactionImages } from "@/config/post.config";
 import { useMenuStore } from "@/store/menu.store";
 import router from "@/router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
@@ -282,7 +279,6 @@ import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import {
 	calculateSignatureStroke,
 	DEFAULT_THEME_ID,
@@ -331,8 +327,13 @@ const cardStyle = computed(() =>
 		? {
 				background: theme.value.cardBg,
 				borderColor: theme.value.cardBorderColor,
+				transform: "translateZ(0)",
+				isolation: "isolate",
 			}
-		: {},
+		: {
+				transform: "translateZ(0)",
+				isolation: "isolate",
+			},
 );
 // Footer text colours on a themed card — undefined falls back to the default
 // black/x classes for base-theme cards.

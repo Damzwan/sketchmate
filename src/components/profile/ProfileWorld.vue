@@ -5,6 +5,7 @@
     class="absolute inset-0 overflow-hidden pointer-events-none"
     :class="[radiusClass, { 'world-preview': preview, 'world-static': staticMode, 'world-mini': mini, 'world-paused': paused && !staticMode }]"
     :style="preview ? { '--world-scale': previewScale } : undefined"
+    style="will-change: transform; isolation: isolate;"
     aria-hidden="true"
   >
     <!-- MASTER CONTAINER: This holds the invisible, single-instance canvases.

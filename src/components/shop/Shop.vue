@@ -141,7 +141,10 @@
                containing block is on screen). -->
           <section>
             <h2 class="text-[18px] font-black text-black tracking-tight mb-2 px-1">Browse</h2>
-            <div class="sticky top-[54px] z-40 -mx-4 px-4 py-2.5 border-y border-primary/40 navbar-bg">
+            <div
+              class="sticky z-40 -mx-4 px-4 py-2.5 border-y border-primary/40 navbar-bg"
+              :style="{ top: 'calc(54px + var(--ion-safe-area-top, 0px))' }"
+            >
               <div class="flex gap-2 overflow-x-auto hide-scrollbar">
                 <button
                   v-for="cat in categories"
@@ -472,32 +475,36 @@ const equipSku = async (patch: Record<string, any>) => {
 	}
 };
 
-watch(isShopOpen, async (open) => {
-	if (!open) return;
-	if (Object.keys(skusWithPrices.value).length === 0) await loadOfferings();
-	if (shopScrollTarget.value) {
-		const targetItem = shopScrollTarget.value;
-		const targetSku =
-			CATALOG_BY_ID[targetItem] ??
-			CATALOG.find((s) => s.grants.includes(targetItem));
-		if (targetSku) {
-			if (targetSku.category !== "pack")
-				activeCategory.value = targetSku.category;
-			highlightedId.value = targetSku.id;
-			await nextTick();
-			setTimeout(() => {
-				const el = document.querySelector(
-					`[data-shop-id="${targetSku.id}"]`,
-				) as HTMLElement | null;
-				el?.scrollIntoView({ behavior: "smooth", block: "center" });
-			}, 150);
-			setTimeout(() => {
-				highlightedId.value = null;
-			}, 4000);
+watch(
+	isShopOpen,
+	async (open) => {
+		if (!open) return;
+		if (Object.keys(skusWithPrices.value).length === 0) await loadOfferings();
+		if (shopScrollTarget.value) {
+			const targetItem = shopScrollTarget.value;
+			const targetSku =
+				CATALOG_BY_ID[targetItem] ??
+				CATALOG.find((s) => s.grants.includes(targetItem));
+			if (targetSku) {
+				if (targetSku.category !== "pack")
+					activeCategory.value = targetSku.category;
+				highlightedId.value = targetSku.id;
+				await nextTick();
+				setTimeout(() => {
+					const el = document.querySelector(
+						`[data-shop-id="${targetSku.id}"]`,
+					) as HTMLElement | null;
+					el?.scrollIntoView({ behavior: "smooth", block: "center" });
+				}, 150);
+				setTimeout(() => {
+					highlightedId.value = null;
+				}, 4000);
+			}
+			shopScrollTarget.value = null;
 		}
-		shopScrollTarget.value = null;
-	}
-}, { immediate: true });
+	},
+	{ immediate: true },
+);
 </script>
 
 <style scoped>

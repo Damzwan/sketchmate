@@ -3,7 +3,7 @@
     v-if="def && def.kind !== 'none'"
     ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none"
-    :class="[radiusClass, { 'world-preview': preview, 'world-static': staticMode }]"
+    :class="[radiusClass, { 'world-preview': preview, 'world-static': staticMode, 'world-mini': mini }]"
     :style="preview ? { '--world-scale': previewScale } : undefined"
     aria-hidden="true"
   >
@@ -11,7 +11,7 @@
          shop/customization grid the off-screen worlds unmount, so only the few
          visible cards run wasm/canvas players at once. -->
     <template v-if="active">
-    <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-40 sprite-stage">
+    <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-80 sprite-stage">
       <div
         v-for="j in jellyfishes"
         :key="'jf' + j.id"
@@ -41,6 +41,7 @@
           width: t.size,
           height: t.size,
           top: t.initialTop,
+          left: staticMode ? t.staticLeft : undefined,
           animationDelay: t.delay,
           animationDuration: t.duration,
         }"
@@ -62,6 +63,7 @@
           width: f.size,
           height: f.size,
           top: f.top,
+          left: staticMode ? f.staticLeft : undefined,
           animationDelay: f.delay,
           animationDuration: f.duration,
         }"
@@ -76,7 +78,7 @@
       </div>
     </div>
 
-    <div v-else-if="def.kind === 'cat'" class="absolute inset-0 z-20 opacity-60">
+    <div v-else-if="def.kind === 'cat'" class="absolute inset-0 z-20 opacity-90">
       <div
         v-for="m in dustMotes"
         :key="'dm' + m.id"
@@ -372,6 +374,11 @@ const props = withDefaults(
 		    'rounded-none' in a rectangular host (chat toolbar) so the clip doesn't
 		    leave odd rounded corners. */
 		radiusClass?: string;
+		/** Mini mode: a frozen (never-playing) scene shrunk into a faded, right-
+		    anchored vignette, for small/wide spaces (feed header, chat toolbar,
+		    conversation rows) where the full card-sized world doesn't fit. Implies
+		    static; still gated on-screen so off-screen rows mount nothing. */
+		mini?: boolean;
 	}>(),
 	{
 		preview: false,
@@ -379,6 +386,7 @@ const props = withDefaults(
 		accent: "#7c5cff",
 		staticMode: false,
 		radiusClass: "rounded-[2.5rem]",
+		mini: false,
 	},
 );
 const def = computed<WorldDef>(() => props.def || resolveWorld(props.worldId));
@@ -463,6 +471,7 @@ const experimentalTurtles = computed(() =>
 				id: 1,
 				size: "7.2rem",
 				initialTop: "14%",
+				staticLeft: "8%",
 				delay: "0s",
 				duration: "36s",
 			},
@@ -470,6 +479,7 @@ const experimentalTurtles = computed(() =>
 				id: 2,
 				size: "5.5rem",
 				initialTop: "28%",
+				staticLeft: "58%",
 				delay: "-9s",
 				duration: "46s",
 			},
@@ -478,12 +488,15 @@ const experimentalTurtles = computed(() =>
 		1,
 	),
 );
+// staticLeft spreads the swim-lane sprites horizontally when frozen (mini/static):
+// they normally have no `left` and rely on the swim animation for spacing, so a
+// paused scene would otherwise collapse them all to the left edge.
 const fishes = computed(() =>
 	cap(
 		[
-			{ id: 1, size: "4.0rem", top: "20%", delay: "-5s", duration: "28s" },
-			{ id: 2, size: "3.2rem", top: "36%", delay: "-14s", duration: "24s" },
-			{ id: 3, size: "3.6rem", top: "8%", delay: "-25s", duration: "32s" },
+			{ id: 1, size: "4.0rem", top: "20%", staticLeft: "12%", delay: "-5s", duration: "28s" },
+			{ id: 2, size: "3.2rem", top: "44%", staticLeft: "48%", delay: "-14s", duration: "24s" },
+			{ id: 3, size: "3.6rem", top: "8%", staticLeft: "74%", delay: "-25s", duration: "32s" },
 		],
 		3,
 		2,
@@ -656,6 +669,24 @@ const meteors = computed(() =>
   height: 280px;
   transform: translate(-50%, -50%) scale(var(--world-scale, 0.5));
   transform-origin: center;
+}
+
+/* Mini: same faithful card-sized stage as preview (so sprite rem sizes shrink
+   proportionally), but shrunk harder and anchored to the RIGHT of a small/wide
+   host, faded + left-masked so it reads as an ambient vignette that never
+   crowds the avatar/name on the left. Always paired with static-mode. */
+.world-mini {
+  inset: auto;
+  top: 50%;
+  right: 6%;
+  left: auto;
+  width: 320px;
+  height: 280px;
+  transform: translateY(-50%) scale(0.52);
+  transform-origin: right center;
+  opacity: 0.72;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 42%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 42%);
 }
 
 /* Travel is driven by transform (translateX/Y in container units) instead of
@@ -855,6 +886,18 @@ const meteors = computed(() =>
    position, so nothing vanishes off-screen. */
 .world-static [class*="animate-"] {
   animation: none !important;
+}
+
+/* Frozen space: the rocket & astronaut animate from the top/left edges, so a
+   paused scene otherwise bunches them at the very top ("too high up"). Rest them
+   nearer the centre so the mini vignette reads as a proper little space scene. */
+.world-static .animate-astronaut-wander {
+  top: 40%;
+  left: 22%;
+}
+.world-static .animate-rocket-fly {
+  top: 46%;
+  left: 56%;
 }
 
 /* Promote moving sprites to their own GPU layer for smoother compositing. */

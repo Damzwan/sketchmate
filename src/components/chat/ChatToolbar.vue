@@ -14,6 +14,7 @@
         :accent="theme.accentColor"
         :font="resolvedFontFamily"
         static-mode
+        mini
         radius-class="rounded-none"
       />
     </div>

@@ -62,7 +62,10 @@
             class="flex flex-col items-center gap-2 snap-start min-w-[70px] active:scale-95 transition-transform cursor-pointer py-1"
             @click="openUserActions(member)"
           >
-            <div class="relative flex items-center justify-center p-1">
+            <div
+              class="relative flex items-center justify-center p-1"
+              :style="{ filter: `drop-shadow(0 1px 6px ${accentOf(member)}80)` }"
+            >
               <UserAvatar
                 :user="member"
                 :customization="member.customization"
@@ -202,6 +205,10 @@ import { useToast } from "@/service/toast.service";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import {
+	hydrateCustomization,
+	resolveTheme,
+} from "@/config/profile_options.config";
 
 const router = useIonRouter();
 
@@ -228,6 +235,11 @@ const isCodeComplete = computed(() =>
 
 const invitePopoverOpen = ref(false);
 const inviteEvent = ref<Event | null>(null);
+
+// Soft per-member accent glow — a cheap, performant customization cue for the
+// roster (no lottie world per avatar).
+const accentOf = (m: any) =>
+	resolveTheme(hydrateCustomization(m?.customization).themeId).accentColor;
 
 const openInvitePopover = (ev: Event) => {
 	inviteEvent.value = ev;

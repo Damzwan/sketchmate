@@ -7,7 +7,10 @@
       @click="$emit('inspect', $event, member)"
     >
 
-      <div class="transition-transform active:scale-90 flex-shrink-0">
+      <div
+        class="transition-transform active:scale-90 flex-shrink-0"
+        :style="{ filter: `drop-shadow(0 1px 6px ${accentOf(member)}80)` }"
+      >
         <UserAvatar
           :user="member"
           :customization="member.customization"
@@ -28,6 +31,10 @@
 
 <script setup lang="ts">
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import {
+	hydrateCustomization,
+	resolveTheme,
+} from "@/config/profile_options.config";
 
 defineProps<{
 	members: any[];
@@ -35,6 +42,11 @@ defineProps<{
 }>();
 
 defineEmits(["inspect"]);
+
+// Cheap per-member customization cue: a soft glow in their theme accent. No
+// lottie/world per avatar here — a member bar can hold many at once.
+const accentOf = (m: any) =>
+	resolveTheme(hydrateCustomization(m?.customization).themeId).accentColor;
 </script>
 
 <style scoped>

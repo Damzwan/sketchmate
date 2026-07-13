@@ -30,8 +30,8 @@
 
         <div class="flex-1 min-w-0 ml-2.5 flex flex-col">
           <div class="flex items-center justify-between mb-0.5">
-            <span class="text-[9px] font-black text-white/50 uppercase tracking-widest">
-              {{ group.subtitle }}
+            <span class="text-[9px] font-black text-white/50 uppercase tracking-widest truncate">
+              {{ group.subtitle }}<span v-if="group.title" class="text-white/30"> · {{ group.title }}</span>
             </span>
             <!-- Contextual Badges -->
             <span v-if="group.isRequest || group.isMateProposal"

@@ -1,18 +1,32 @@
 <template>
   <div class="post-container relative w-full overflow-visible" :data-post-id="post._id">
     <div
-      class="rounded-[2.25rem] border border-primary/40 shadow-sm overflow-hidden flex flex-col h-full bg-tertiary"
+      class="relative rounded-[2.25rem] border border-primary/40 shadow-sm overflow-hidden flex flex-col h-full bg-tertiary"
+      :style="cardStyle"
     >
-      <!-- Artist intro banner: the author's own theme surface + effect behind the
-           header, so each post opens with a taste of that artist's profile. No
-           world — a lottie per feed card is too heavy; theme + effect carry it. -->
-      <div class="relative shrink-0 overflow-hidden" :style="{ background: theme.cardBg }">
-        <div class="absolute inset-0 z-0 pointer-events-none">
-          <ProfileEffect :effect-id="authorCustomization.effectId" radius-class="rounded-none" />
+      <!-- ONE card-wide effect layer behind everything, so the effect on the
+           header and the footer are the same continuous sheet (they read as
+           synced). The opaque artwork strip covers it through the middle. One
+           instance keeps it cheap. Base-theme authors get the plain default. -->
+      <div v-if="showArtistTheme" class="absolute inset-0 z-0 pointer-events-none">
+        <ProfileEffect :effect-id="authorCustomization.effectId" radius-class="rounded-none" />
+      </div>
+
+      <!-- Artist intro banner: transparent so the card surface + effect show
+           through; the world vignette lives here, up by the author. -->
+      <div class="relative shrink-0 overflow-hidden">
+        <div v-if="showArtistTheme" class="absolute inset-0 z-0 pointer-events-none">
+          <ProfileWorld
+            :world-id="authorCustomization.worldId"
+            :accent="theme.accentColor"
+            static-mode
+            mini
+            radius-class="rounded-none"
+          />
         </div>
 
         <div class="relative z-10 px-4 pt-3.5 pb-3">
-        <div class="flex items-center justify-between">
+        <div class="flex items-start justify-between gap-2">
           <button
             @click="openUser(post.author._id)"
             class="flex cursor-pointer items-center active:scale-98 transition-all text-left min-w-0"
@@ -49,11 +63,29 @@
             </div>
           </button>
 
-          <button @click="presentActionSheet"
-                  class="p-2 active:scale-90 transition-transform shrink-0 cursor-pointer opacity-70 hover:opacity-100"
-                  :style="{ color: theme.nameColor }">
-            <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-xl" />
-          </button>
+          <div class="flex flex-col items-end shrink-0 -mr-1">
+            <button @click="presentActionSheet"
+                    class="p-2 active:scale-90 transition-transform cursor-pointer opacity-70 hover:opacity-100"
+                    :style="{ color: theme.nameColor }">
+              <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-xl" />
+            </button>
+            <svg
+              v-if="authorCustomization.signaturePath"
+              class="w-24 h-11 -mt-1 mr-1 drop-shadow-sm scale-150"
+              :viewBox="authorCustomization.signatureViewBox || '0 0 300 150'"
+              preserveAspectRatio="xMidYMid meet"
+              aria-label="Artist signature"
+            >
+              <path
+                :d="authorCustomization.signaturePath"
+                fill="none"
+                :stroke="theme.accentColor || 'var(--ion-color-secondary)'"
+                :stroke-width="signatureStrokeWidth"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
         </div>
 
         <p v-if="post.description"
@@ -66,7 +98,7 @@
 
       <div
         ref="reactionSurface"
-        class="tap-guard relative w-full flex items-center justify-center overflow-hidden bg-[#FAF8F5] border-y border-primary/10 select-none"
+        class="tap-guard relative z-10 w-full flex items-center justify-center overflow-hidden bg-[#FAF8F5] border-y border-primary/10 select-none"
         @dblclick="handleDoubleTap"
         @contextmenu.prevent
       >
@@ -87,45 +119,11 @@
           alt="Main illustration content"
         />
 
-        <!--
-          Signature plaque: framed on a small frosted card with the author's name
-          underneath, so it reads as a clear signed attribution rather than part
-          of the artwork itself. Kept pointer-events-none so it never blocks the
-          double-tap-to-react gesture.
-        -->
-        <div
-          v-if="authorCustomization.signaturePath"
-          class="absolute bottom-2.5 right-2.5 z-20 pointer-events-none transition-opacity duration-500"
-          :class="imageLoaded ? 'opacity-100' : 'opacity-0'"
-        >
-          <div
-            class="flex flex-col items-center rounded-xl bg-white/75 backdrop-blur-md px-2 pt-1 pb-1 shadow-sm border border-black/5"
-          >
-            <svg
-              class="w-14 h-7"
-              :viewBox="authorCustomization.signatureViewBox || '0 0 300 150'"
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <path
-                :d="authorCustomization.signaturePath"
-                fill="none"
-                :stroke="theme.accentColor || 'var(--ion-color-secondary)'"
-                :stroke-width="signatureStrokeWidth"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <span class="text-[7px] font-black uppercase tracking-[0.2em] text-black/70 leading-none mt-0.5">
-              {{ post.author.name }}
-            </span>
-          </div>
-        </div>
-
         <ReactionBurst ref="reactionBurst" />
       </div>
 
       <!-- Footer: reaction proof · action bar · comment previews -->
-      <div class="px-4 pt-3 pb-4 shrink-0 flex flex-col gap-3">
+      <div class="relative z-10 px-4 pt-3 pb-4 shrink-0 flex flex-col gap-3">
         <!-- Reaction social proof: tappable pill opening a full breakdown -->
         <button
           v-if="totalReactionCount > 0"
@@ -144,11 +142,11 @@
               <img :src="reactionImages[key]" class="w-5 h-5 object-contain" alt="" />
             </div>
           </div>
-          <span class="text-sm font-black text-black/80 tracking-tight">
+          <span class="text-sm font-black text-black/80 tracking-tight" :style="{ color: strongText }">
             {{ totalReactionCount }}
-            <span class="text-black/50">{{ totalReactionCount === 1 ? 'reaction' : 'reactions' }}</span>
+            <span class="text-black/50" :style="{ color: mutedText }">{{ totalReactionCount === 1 ? 'reaction' : 'reactions' }}</span>
           </span>
-          <ion-icon :icon="svg(mdiChevronRight)" class="text-base text-black/30 -ml-0.5" />
+          <ion-icon :icon="svg(mdiChevronRight)" class="text-base text-black/30 -ml-0.5 opacity-60" :style="{ color: mutedText }" />
         </button>
 
         <!-- Action bar: one cohesive, clear button style -->
@@ -216,14 +214,15 @@
             :key="comment._id"
             class="flex items-start gap-1.5 text-xs leading-snug"
           >
-            <span class="text-black font-black shrink-0 tracking-tight">{{ comment.author.name }}</span>
-            <span class="text-black/80 truncate tracking-tight">{{ comment.message }}</span>
+            <span class="text-black font-black shrink-0 tracking-tight" :style="{ color: strongText }">{{ comment.author.name }}</span>
+            <span class="text-black/80 truncate tracking-tight" :style="{ color: mutedText }">{{ comment.message }}</span>
           </div>
 
           <!-- Only when there are genuinely more comments than we're previewing -->
           <p
             v-if="hasMoreComments"
             class="text-xs font-black text-black/70 mt-0.5 tracking-wide"
+            :style="{ color: mutedText }"
           >
             View all {{ post.comment_count }} comments
           </p>
@@ -234,6 +233,7 @@
           v-else-if="post.enable_comments"
           @click="openComments"
           class="text-xs font-black text-black/70 uppercase tracking-widest cursor-pointer active:opacity-60"
+          :style="{ color: mutedText }"
         >
           Start the conversation
         </p>
@@ -280,10 +280,12 @@ import { useModerationStore } from "@/store/moderation.store";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import {
 	calculateSignatureStroke,
+	DEFAULT_THEME_ID,
 	hydrateCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
@@ -314,6 +316,32 @@ const authorCustomization = computed(() =>
 	hydrateCustomization(props.post.author?.customization),
 );
 const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
+// Only dress the card when the artist actually picked a theme — base-theme
+// authors get the plain default so the feed doesn't look busy for nothing.
+const showArtistTheme = computed(
+	() =>
+		!!authorCustomization.value.themeId &&
+		authorCustomization.value.themeId !== DEFAULT_THEME_ID,
+);
+// Subtle whole-card theming: paint the artist's surface + border on the whole
+// card (header + footer), leaving the artwork strip neutral. Not applied for the
+// base theme.
+const cardStyle = computed(() =>
+	showArtistTheme.value
+		? {
+				background: theme.value.cardBg,
+				borderColor: theme.value.cardBorderColor,
+			}
+		: {},
+);
+// Footer text colours on a themed card — undefined falls back to the default
+// black/x classes for base-theme cards.
+const strongText = computed(() =>
+	showArtistTheme.value ? theme.value.nameColor : undefined,
+);
+const mutedText = computed(() =>
+	showArtistTheme.value ? theme.value.descColor : undefined,
+);
 const resolvedFontFamily = computed(() =>
 	resolveFontFamily(authorCustomization.value.fontId),
 );

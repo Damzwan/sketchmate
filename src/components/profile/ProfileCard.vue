@@ -1,11 +1,11 @@
 <template>
   <section
-    class="rounded-[3rem] border shadow-lg relative px-2 pb-2 pt-4 transition-all duration-500"
+    class="rounded-[3rem] border shadow-lg relative px-2 pb-2 pt-4 transition-[background-color,border-color] duration-500"
     :style="cardStyle"
   >
     <div v-if="!disableAmbient" class="absolute inset-0 rounded-[3rem] overflow-hidden pointer-events-none z-0">
-      <ProfileEffect :effect-id="effectiveCustomization.effectId" :static-effect="staticWorld" />
       <ProfileWorld :key="worldRemountKey" :world-id="effectiveCustomization.worldId" :accent="theme.accentColor" :font="resolvedFontFamily" :static-mode="staticWorld" />
+      <ProfileEffect :effect-id="effectiveCustomization.effectId" :static-effect="staticWorld" />
     </div>
 
     <div class="relative z-10" :style="{ fontFamily: resolvedFontFamily }">
@@ -44,7 +44,7 @@
       <div class="flex flex-col items-center relative mt-2">
         <div
           ref="doodleZoneRef"
-          class="js-doodle-zone relative w-full flex flex-col items-center py-6 transition-all"
+          class="js-doodle-zone relative w-full flex flex-col items-center py-6 transition-[transform,background-color]"
           :class="allowSketchEdit ? 'cursor-pointer rounded-[2rem] border-2 border-dashed hover:bg-black/[0.03] active:scale-[0.99]' : ''"
           :style="allowSketchEdit ? { borderColor: theme.cardBorderColor } : {}"
           role="button"

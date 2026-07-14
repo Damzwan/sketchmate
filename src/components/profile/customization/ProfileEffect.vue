@@ -4,7 +4,7 @@
     ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none"
     :class="[radiusClass, { 'fx-frozen': paused }]"
-    style="will-change: transform; isolation: isolate;"
+    style="isolation: isolate;"
     aria-hidden="true"
   >
     <template v-if="hasMounted">
@@ -297,6 +297,21 @@ const shimmerStyle = computed(() => {
    kill in main.css doesn't touch `filter: blur`). */
 html.low-end .glass-prism {
   filter: blur(6px) saturate(1.2);
+}
+
+/* Low-end: mix-blend groups re-rasterize every frame anything inside moves and
+   are the WebView flash/lag culprit. Drop blend, freeze the facet opacity churn,
+   and cut the filtered glint layers. Prism still drifts, so glass still reads. */
+html.low-end .glass-sheen,
+html.low-end .glass-facets {
+  mix-blend-mode: normal;
+}
+html.low-end .glass-facets polygon {
+  animation: none;
+  opacity: 0.7;
+}
+html.low-end .glass-glint {
+  display: none;
 }
 
 /* Specular sheen sweep — gives the surface a polished, moving glare */

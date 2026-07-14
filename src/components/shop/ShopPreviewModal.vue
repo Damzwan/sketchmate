@@ -37,7 +37,7 @@
       <!-- Full-view (sheet) preview: the real ProfileSheetView with YOUR own
            profile — stats, signature, portfolio and all — so it's exactly what
            mates see, just with this item applied. -->
-      <div v-show="mode === 'sheet'" class="px-1 pb-4">
+      <div v-if="mode === 'sheet'" class="px-1 pb-4">
         <div class="mx-auto w-full max-w-[380px] h-[560px] rounded-[2.25rem] overflow-hidden border-2 border-primary/40 shadow-lg">
           <ProfileSheetView
             :user="user"
@@ -50,7 +50,7 @@
 
       <!-- Card preview — wider, with stats + signature, so it's the full
            ProfileCard just like the profile page shows. -->
-      <div v-show="mode === 'card'" class="px-1 pt-2 pb-4">
+      <div v-if="mode === 'card'" class="px-1 pt-2 pb-4">
         <PreviewProfileCard
           :user="user"
           :customization="previewCustomization"

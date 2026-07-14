@@ -5,7 +5,7 @@
     class="absolute inset-0 overflow-hidden pointer-events-none"
     :class="[radiusClass, { 'world-preview': preview, 'world-static': staticMode, 'world-mini': mini, 'world-paused': paused && !staticMode }]"
     :style="preview ? { '--world-scale': previewScale } : undefined"
-    style="will-change: transform; isolation: isolate;"
+    style="isolation: isolate;"
     aria-hidden="true"
   >
     <!-- MASTER CONTAINER: This holds the invisible, single-instance canvases.
@@ -330,6 +330,12 @@ const hasMounted = ref(false);
 const swiper = usePhotoSwiper();
 let io: IntersectionObserver | null = null;
 
+// Weak phones (flag stamped in main.ts). Two mitigations hang off this: fewer
+// sprites (see `cap`) and a freeze-frame lottie mode (see `applyRunState`).
+const lowEnd =
+	typeof document !== "undefined" &&
+	document.documentElement.classList.contains("low-end");
+
 // Animation runs only when the card is on-screen, not static, and no fullscreen
 // photo swiper is covering the app (worlds behind it are invisible but were
 // still burning GPU + rAF — the profileSheet→photoswiper lag).
@@ -341,6 +347,17 @@ function applyRunState() {
 	if (paused.value) {
 		stopLoop();
 		masters.forEach((m) => m.player.pause());
+	} else if (lowEnd) {
+		// Low-end: decode ONE frame per sprite, stamp it to the visible canvases,
+		// then freeze the players — no per-frame wasm decode (the biggest main-
+		// thread cost). The CSS travel animations keep sprites gliding via cheap
+		// GPU transforms, so the scene still moves without pegging the CPU.
+		stopLoop();
+		masters.forEach((m) => m.player.play());
+		requestAnimationFrame(() => {
+			copyMasterFramesToTargets();
+			masters.forEach((m) => m.player.pause());
+		});
 	} else {
 		masters.forEach((m) => m.player.play());
 		startLoop();
@@ -428,9 +445,17 @@ const copyMasterFramesToTargets = () => {
 	});
 };
 
-const renderLoop = () => {
+// Ambient background sprites — cap the frame-copy at ~30fps. Halves the
+// per-frame drawImage cost across every sprite canvas; imperceptible on slow
+// drifting motion.
+let lastCopyTs = 0;
+const COPY_INTERVAL = 1000 / 30;
+const renderLoop = (ts = 0) => {
 	if (props.staticMode) return;
-	copyMasterFramesToTargets();
+	if (ts - lastCopyTs >= COPY_INTERVAL) {
+		lastCopyTs = ts;
+		copyMasterFramesToTargets();
+	}
 	animationFrameId = requestAnimationFrame(renderLoop);
 };
 
@@ -469,12 +494,9 @@ const bindCanvas = (el: any, src: string) => {
 			renderConfig: { devicePixelRatio: 1 },
 		});
 
-		// FIX: When a player loads its layout data, instantly stamp a static frame
-		player.addEventListener("load", () => {
-			requestAnimationFrame(() => {
-				copyMasterFramesToTargets();
-			});
-		});
+		// Re-assert run-state once the asset is ready — handles the load/observer
+		// race, and on low-end stamps a decoded frame then freezes the player.
+		player.addEventListener("load", applyRunState);
 
 		masters.set(src, { canvas: hiddenCanvas, player, targets: new Set() });
 	}
@@ -517,8 +539,10 @@ watch(
 );
 
 // ── Positional List Generation Mechanics ────────────────────────────────────
+// Low-end phones get the trimmed preview counts too — fewer sprites means fewer
+// concurrent lottie decoders, the single biggest main-thread cost on weak GPUs.
 const cap = <T>(list: T[], full: number, prev: number): T[] =>
-	list.slice(0, props.preview ? prev : full);
+	list.slice(0, props.preview || lowEnd ? prev : full);
 
 const jellyfishes = computed(() =>
 	cap(
@@ -809,8 +833,8 @@ const meteors = computed(() =>
   );
 }
 @keyframes star-twinkle {
-  0%, 100% { opacity: 0.25; transform: scale(0.8); box-shadow: var(--star-glow); }
-  50% { opacity: 1; transform: scale(1.15); box-shadow: var(--star-glow); }
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
 }
 @keyframes constellation-pulse {
   0%, 100% { opacity: 0.55; }
@@ -886,7 +910,7 @@ const meteors = computed(() =>
 .animate-walker-cross { animation: walker-cross linear infinite; }
 .animate-dragon-roam { animation: dragon-roam linear infinite; }
 .animate-fire-flicker { animation: fire-flicker 1.5s ease-in-out infinite alternate; }
-.animate-star-twinkle { animation: star-twinkle ease-in-out infinite; }
+.animate-star-twinkle { animation: star-twinkle ease-in-out infinite; box-shadow: var(--star-glow); }
 .animate-constellation-pulse { animation: constellation-pulse 6s ease-in-out infinite; }
 .animate-moon-bob { animation: moon-bob 7s ease-in-out infinite; }
 .animate-meteor-streak { animation: meteor-streak linear infinite; }

@@ -3,8 +3,9 @@
     <slot name="overlay" />
 
     <div class="absolute inset-0 pointer-events-none z-0">
-      <ProfileEffect :effect-id="c.effectId" />
       <ProfileWorld :world-id="c.worldId" :accent="theme.accentColor" :font="font" />
+      <ProfileEffect :effect-id="c.effectId" />
+
     </div>
 
     <div class="h-full overflow-y-auto hide-scrollbar relative z-10" @touchmove.stop>

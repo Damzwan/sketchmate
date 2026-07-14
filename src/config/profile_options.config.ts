@@ -158,8 +158,7 @@ export const FONT_EFFECT_MAP: Record<string, string> = {
 	puffy: "font-effect-puffy animate-puffy-bounce",
 	jawbreaker:
 		"[text-shadow:2px_2px_0_#06b6d4,4px_4px_0_#ec4899,6px_6px_0_#eab308,8px_8px_0_#8b5cf6,12px_16px_25px_rgba(0,0,0,0.35)] animate-jawbreaker-float",
-	velvet:
-		"text-indigo-950 animate-velvet-glow drop-shadow-[0_0_8px_rgba(79,70,229,0.6)]",
+	velvet: "text-indigo-950 animate-velvet-glow",
 	supernova:
 		"animate-supernova-flow bg-[linear-gradient(90deg,#ff0055,#ffaa00,#00ffaa,#00aaff,#ff00ff,#ff0055)] bg-[length:300%_auto] text-transparent bg-clip-text drop-shadow-[0_5px_15px_rgba(0,255,170,0.4)]",
 	lava: "animate-lava-flow bg-[linear-gradient(180deg,#fef08a,#f59e0b,#ef4444,#f59e0b,#fef08a)] bg-[length:100%_300%] text-transparent bg-clip-text drop-shadow-[0_4px_12px_rgba(239,68,68,0.5)]",

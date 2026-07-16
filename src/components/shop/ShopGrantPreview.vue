@@ -19,12 +19,14 @@
       <ProfileEffect v-if="effectDef" :def="effectDef" :preview="true" />
     </div>
 
-    <!-- World: living scene -->
+    <!-- World: static vignette. These 96px tiles appear a dozen at a time
+         (bundle contents, collection sheet) — frozen frames + no CSS travel
+         cost nothing, and at this size a still scene reads just as well. -->
     <div
       v-else-if="category === 'world'"
       class="w-full h-full bg-gradient-to-br from-[#26324a] to-[#161d2e]"
     >
-      <ProfileWorld v-if="worldDef" :def="worldDef" :preview="true" :preview-scale="0.3" />
+      <ProfileWorld v-if="worldDef" :def="worldDef" :preview="true" :preview-scale="0.3" static-mode />
     </div>
 
     <!-- Decoration: framed avatar -->

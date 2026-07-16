@@ -163,7 +163,7 @@
             </div>
 
             <div class="min-h-[260px] mt-3">
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-2 gap-3 shop-grid">
                 <component
                   v-for="sku in activeItems"
                   :is="cardFor(sku.category)"
@@ -207,7 +207,7 @@
           </div>
         </template>
 
-        <div data-content-scroll="true" @touchmove.stop class="grid grid-cols-2 gap-3 pb-4">
+        <div data-content-scroll="true" @touchmove.stop class="grid grid-cols-2 gap-3 pb-4 shop-grid">
           <div
             v-for="sku in ownedSkus"
             :key="sku.id"
@@ -539,5 +539,13 @@ ion-modal.full-screen-modal {
 .hide-scrollbar {
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
+}
+
+/* Off-screen grid tiles skip layout/paint entirely — the browser doesn't even
+   rasterize their world/effect previews until they approach the viewport. The
+   intrinsic-size placeholder keeps scrollbar/scroll-anchor geometry stable. */
+.shop-grid > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 230px;
 }
 </style>

@@ -202,8 +202,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { IonContent, IonPage, IonButton, IonIcon, onIonViewDidEnter } from "@ionic/vue";
+import { useAmbientPause } from "@/store/ambientPause.store";
 import {
 	mdiAccountCircleOutline,
 	mdiAutoFix,
@@ -279,6 +280,28 @@ const worldModalOpen = ref(false);
 const titlesModalOpen = ref(false);
 const signatureModalOpen = ref(false);
 const sketchModalOpen = ref(false);
+
+// While ANY picker sheet is up, freeze the hero ProfileCard (and every other
+// ambient layer) behind it — all GPU/CPU goes to the sheet's own live preview,
+// which keeps animating because BaseSheetModal provides AMBIENT_FOREGROUND.
+const ambient = useAmbientPause();
+const anyModalOpen = computed(
+	() =>
+		identityModalOpen.value ||
+		themeModalOpen.value ||
+		fontModalOpen.value ||
+		fontEffectModalOpen.value ||
+		decorationModalOpen.value ||
+		effectModalOpen.value ||
+		worldModalOpen.value ||
+		titlesModalOpen.value ||
+		signatureModalOpen.value ||
+		sketchModalOpen.value,
+);
+watch(anyModalOpen, (open) => (open ? ambient.hold() : ambient.release()));
+onBeforeUnmount(() => {
+	if (anyModalOpen.value) ambient.release();
+});
 
 const saved = ref<Customization>(
 	hydrateCustomization(user.value?.customization),

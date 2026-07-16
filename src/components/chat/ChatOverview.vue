@@ -8,6 +8,19 @@
     />
 
     <div v-else class="animate-fade-in pb-24 overflow-y-auto hide-scrollbar overflow-visible">
+
+      <!-- GOOGLE PLAY POLICY: Child Safety Reminder -->
+      <div
+        v-if="isUnderAge"
+        class="mx-1 mb-4 bg-amber-100/90 border border-amber-300/60 p-3.5 rounded-[1.2rem] flex items-start gap-3 shadow-sm"
+      >
+        <ion-icon :icon="svg(mdiShieldAlertOutline)" class="text-2xl text-amber-600 shrink-0 mt-0.5" />
+        <div class="text-amber-900 leading-tight">
+          <p class="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Stay Safe Online</p>
+          <p class="text-[13px] font-medium opacity-90">Keep your private info private. Never share your real name, school, passwords, or where you live.</p>
+        </div>
+      </div>
+
       <LobbyConversationItem
         v-if="isInLobby"
         :unreadCount="lobbyUnreadCount"
@@ -77,27 +90,43 @@
           </div>
         </div>
 
-        <div v-else-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby">
-          <p class="px-1 mb-3 text-[13px] text-black/75 cabin-sketch-regular">
-            No conversations yet, pick a way to start drawing with someone.
-          </p>
+        <div v-else-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby" class="px-1">
+          <!-- PRIMARY CTA -->
+          <button
+            class="w-full bg-secondary text-white rounded-[2rem] p-6 flex flex-col items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all mb-4"
+            @click="primaryCta.action"
+          >
+            <ion-icon :icon="svg(primaryCta.icon)" class="text-5xl opacity-90" />
+            <div class="text-center">
+              <span class="block font-black text-2xl cabin-sketch-regular tracking-tight leading-none mb-1">{{ primaryCta.label }}</span>
+              <span class="block text-[13px] font-medium opacity-90 leading-tight">{{ primaryCta.sub }}</span>
+            </div>
+          </button>
 
-          <div class="space-y-2">
-            <button
-              v-for="cta in emptyCtas"
-              :key="cta.label"
-              class="w-full flex items-center cursor-pointer gap-3 bg-white border border-primary/30 rounded-[1.6rem] p-3 shadow-sm active:scale-[0.98] md:hover:border-primary transition-all text-left"
-              @click="cta.action"
-            >
-              <span class="w-11 h-11 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
-                <ion-icon :icon="svg(cta.icon)" class="text-xl text-secondary" />
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block text-[14px] font-black text-black cabin-sketch-regular leading-tight tracking-tight">{{ cta.label }}</span>
-                <span class="block text-[12px] text-black/75 cabin-sketch-regular leading-tight mt-0.5">{{ cta.sub }}</span>
-              </span>
-              <ion-icon :icon="svg(mdiChevronRight)" class="text-lg text-black/25 shrink-0" />
-            </button>
+          <!-- SECONDARY CTAs -->
+          <div v-if="secondaryCtas.length > 0">
+            <div class="flex items-center gap-3 mb-3 mt-1">
+              <div class="h-px bg-primary/20 flex-1"></div>
+              <span class="text-[9px] font-black text-black/40 uppercase tracking-widest">{{ hasMates ? 'Or explore' : 'Connect with others' }}</span>
+              <div class="h-px bg-primary/20 flex-1"></div>
+            </div>
+
+            <div class="grid gap-2.5" :class="secondaryCtas.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+              <button
+                v-for="cta in secondaryCtas"
+                :key="cta.label"
+                class="bg-white border border-primary/20 rounded-[1.2rem] p-3.5 shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center gap-2 text-center"
+                @click="cta.action"
+              >
+                <div class="w-11 h-11 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
+                  <ion-icon :icon="svg(cta.icon)" class="text-xl text-secondary" />
+                </div>
+                <div>
+                  <span class="block text-[14px] font-black text-black cabin-sketch-regular leading-tight">{{ cta.label }}</span>
+                  <span class="block text-[11px] text-black/60 font-medium mt-1 leading-tight">{{ cta.sub }}</span>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -179,6 +208,7 @@ import {
 	mdiChevronRight,
 	mdiHeart,
 	mdiPencilPlusOutline,
+	mdiShieldAlertOutline,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
@@ -209,23 +239,25 @@ const quotaStore = useQuotaStore();
 
 const { activeChats, typingStatuses, chatsHydrated } = storeToRefs(chatStore);
 const { isExpanded } = storeToRefs(chatWidget);
-const { user } = storeToRefs(useAuthStore());
+const { user, isUnderAge } = storeToRefs(useAuthStore());
 const { isFriendOnline, pendingRequests, onlineFriends } =
 	storeToRefs(friendStore);
 const { lobbyChatMessages, roomMembers, invitations } = storeToRefs(drawSyncer);
+
+const router = useIonRouter();
+const { openMenu } = useMenuStore();
 
 const isCreatingChat = ref(false);
 const isInLobby = computed(() => !!roomMembers.value?.length);
 const lobbyUnreadCount = ref(0);
 
-// Reset the transient "new message" screen whenever the panel closes, so
-// reopening always lands back on the conversation list.
+// Proxy for having existing mates
+const hasMates = computed(() => quotaStore.mates.used > 0);
+
 watch(isExpanded, (open) => {
 	if (!open) isCreatingChat.value = false;
 });
 
-// Live draw invites + incoming requests share one "needs attention" bucket.
-// When it gets crowded we collapse it so it can't swallow the whole overview.
 const invitesExpanded = ref(false);
 const inviteCount = computed(
 	() => fauxInvitations.value.length + actionableChats.value.length,
@@ -303,42 +335,25 @@ const startChatWithFriend = (friend: any) => {
 	isCreatingChat.value = false;
 };
 
-// Tapping the mates quota pill nudges toward more slots when full; otherwise
-// it's just a status readout, so leave the panel where it is.
 const handleQuotaPillClick = () => {
 	if (quotaStore.canAddMate || quotaStore.isPro) return;
 	chatWidget.closePanel();
 	openMenu(Menu.Shop);
 };
 
-// Empty-state CTAs — collapse the widget first so the target menu/route is
-// front-and-centre instead of buried under the chat panel.
-const router = useIonRouter();
-const { openMenu } = useMenuStore();
-
-const emptyCtas = [
-	{
-		icon: mdiAccountSearchOutline,
-		label: "Message a mate",
-		sub: "Start a chat with a mate you already have",
-		// Same as the FAB: opens the inline mate picker.
-		action: () => {
-			isCreatingChat.value = true;
-		},
-	},
-	{
-		icon: mdiPencilPlusOutline,
-		label: "Draw together",
-		sub: "Join a public lobby",
-		action: () => {
-			chatWidget.closePanel();
-			router.push(
-				{ path: FRONTEND_ROUTES.draw, query: { together: "true" } },
-				masterAnimation,
-			);
-		},
-	},
-	{
+// Dynamic Primary CTA
+const primaryCta = computed(() => {
+	if (hasMates.value) {
+		return {
+			icon: mdiAccountSearchOutline,
+			label: "Message a mate",
+			sub: "Start a chat with someone you know",
+			action: () => {
+				isCreatingChat.value = true;
+			},
+		};
+	}
+	return {
 		icon: mdiAccountMultiplePlusOutline,
 		label: "Add a mate",
 		sub: "Share or scan a friend code",
@@ -346,17 +361,53 @@ const emptyCtas = [
 			chatWidget.closePanel();
 			openMenu(Menu.ConnectionMenu);
 		},
-	},
-	{
-		icon: mdiBalloon,
-		label: "Send a balloon",
-		sub: "Send a sketch to a stranger",
-		action: () => {
-			chatWidget.closePanel();
-			openMenu(Menu.BalloonMenu);
-		},
-	},
-];
+	};
+});
+
+// Dynamic Secondary CTAs
+const secondaryCtas = computed(() => {
+	const ctas = [];
+
+	// If they have mates, "Add a mate" moves down here to secondary
+	if (hasMates.value) {
+		ctas.push({
+			icon: mdiAccountMultiplePlusOutline,
+			label: "Add Mate",
+			sub: "Scan a code",
+			action: () => {
+				chatWidget.closePanel();
+				openMenu(Menu.ConnectionMenu);
+			},
+		});
+	}
+
+	// Only push stranger interactions if they are strictly allowed (over 13)
+	if (!isUnderAge.value) {
+		ctas.push({
+			icon: mdiPencilPlusOutline,
+			label: "Public Lobby",
+			sub: "Draw together",
+			action: () => {
+				chatWidget.closePanel();
+				router.push(
+					{ path: FRONTEND_ROUTES.draw, query: { together: "true" } },
+					masterAnimation,
+				);
+			},
+		});
+		ctas.push({
+			icon: mdiBalloon,
+			label: "Balloons",
+			sub: "Send to a stranger",
+			action: () => {
+				chatWidget.closePanel();
+				openMenu(Menu.BalloonMenu);
+			},
+		});
+	}
+
+	return ctas;
+});
 </script>
 
 <style scoped>

@@ -27,7 +27,7 @@
           }"
         >
           <!-- DUMB CANVAS: Receives frames dynamically from the master memory buffer -->
-          <canvas :ref="(el) => bindCanvas(el, jellyFishLottie)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.jellyfish)" class="w-full h-full object-contain"></canvas>
         </div>
 
         <div
@@ -43,7 +43,7 @@
             animationDuration: t.duration,
           }"
         >
-          <canvas :ref="(el) => bindCanvas(el, turtleLottie)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.turtle)" class="w-full h-full object-contain"></canvas>
         </div>
 
         <div
@@ -59,7 +59,7 @@
             animationDuration: f.duration,
           }"
         >
-          <canvas :ref="(el) => bindCanvas(el, fishLottie)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.fish)" class="w-full h-full object-contain"></canvas>
         </div>
       </div>
 
@@ -81,13 +81,13 @@
 
         <div class="absolute top-[26%] left-[0%] w-36 h-36 flex items-end justify-center pointer-events-none z-10">
           <div class="absolute bottom-[35%] left-[-10%] w-20 h-20 origin-bottom animate-plant-sway opacity-70 z-0">
-            <canvas :ref="(el) => bindCanvas(el, plantLottie)" class="w-full h-full object-contain"></canvas>
+            <canvas :ref="(el) => bindCanvas(el, SPRITES.plant)" class="w-full h-full object-contain"></canvas>
           </div>
           <div class="absolute bottom-[40%] right-[-10%] w-18 h-18 origin-bottom animate-plant-sway opacity-60 z-0 transform scaleX(-1)">
-            <canvas :ref="(el) => bindCanvas(el, plantLottie)" class="w-full h-full object-contain"></canvas>
+            <canvas :ref="(el) => bindCanvas(el, SPRITES.plant)" class="w-full h-full object-contain"></canvas>
           </div>
           <div class="w-32 h-32 opacity-100 filter drop-shadow-sm z-10">
-            <canvas :ref="(el) => bindCanvas(el, catLottie)" class="w-full h-full object-contain"></canvas>
+            <canvas :ref="(el) => bindCanvas(el, SPRITES.cat)" class="w-full h-full object-contain"></canvas>
           </div>
         </div>
       </div>
@@ -105,7 +105,7 @@
             animationDuration: leaf.duration,
           }"
         >
-          <canvas :ref="(el) => bindCanvas(el, autumn_leaves)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.leaves)" class="w-full h-full object-contain"></canvas>
         </div>
 
         <div
@@ -120,7 +120,7 @@
             animationDuration: shroom.duration,
           }"
         >
-          <canvas :ref="(el) => bindCanvas(el, mushroom_walking)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.mushroom)" class="w-full h-full object-contain"></canvas>
         </div>
       </div>
 
@@ -137,7 +137,7 @@
             animationDelay: f.delay,
           }"
         >
-          <canvas :ref="(el) => bindCanvas(el, fire)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.fire)" class="w-full h-full object-contain"></canvas>
         </div>
 
         <div
@@ -151,7 +151,7 @@
             animationDuration: d.duration,
           }"
         >
-          <canvas :ref="(el) => bindCanvas(el, dragon)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.dragon)" class="w-full h-full object-contain"></canvas>
         </div>
       </div>
 
@@ -209,19 +209,19 @@
             animationDuration: m.duration,
           }"
         >
-          <canvas :ref="(el) => bindCanvas(el, meteor)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.meteor)" class="w-full h-full object-contain"></canvas>
         </div>
 
         <div class="absolute top-[10%] right-[8%] w-24 h-24 animate-moon-bob z-10">
-          <canvas :ref="(el) => bindCanvas(el, moon)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.moon)" class="w-full h-full object-contain"></canvas>
         </div>
 
         <div class="absolute left-[40%] top-0 w-28 h-28 animate-rocket-fly z-10">
-          <canvas :ref="(el) => bindCanvas(el, rocket)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.rocket)" class="w-full h-full object-contain"></canvas>
         </div>
 
         <div class="absolute top-0 left-0 w-20 h-20 animate-astronaut-wander z-20">
-          <canvas :ref="(el) => bindCanvas(el, astronaut)" class="w-full h-full object-contain"></canvas>
+          <canvas :ref="(el) => bindCanvas(el, SPRITES.astronaut)" class="w-full h-full object-contain"></canvas>
         </div>
       </div>
 
@@ -277,7 +277,13 @@ import {
 	toValue,
 	watch,
 } from "vue";
-import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
+import {
+	acquireSprite,
+	SPRITE_DPR,
+	prefetchSprite,
+	warmFrozenFrame,
+	type SpriteHandle,
+} from "@/helper/lottie_sprite.helper";
 import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
 import {
 	AMBIENT_FOREGROUND,
@@ -348,17 +354,59 @@ const lowEnd =
 	typeof document !== "undefined" &&
 	document.documentElement.classList.contains("low-end");
 
-// ── Per-canvas sprite players ───────────────────────────────────────────────
-// Each visible sprite canvas gets its OWN player via createLottie — a
-// DotLottieWorker on web (WASM decode + raster off the main thread) and a
-// main-thread DotLottie on native (Android WebView doesn't drive rAF inside a
-// worker/OffscreenCanvas, so the worker would freeze on frame 0). This replaces
-// the old master→dumb-canvas copy pipeline, which had to read frames back on the
-// main thread (drawImage) and so could never move off it at all. Trade-off: N
-// players instead of 1-per-sprite-type, but sprite counts are capped (`cap` +
-// lowEnd) and on web they're off the main thread entirely.
-type Sprite = { el: HTMLCanvasElement; player: LottiePlayer };
+// ── Sprite canvases via the shared pool (lottie_sprite.helper) ──────────────
+// Android WebView can't run DotLottieWorker (no rAF inside Worker/Offscreen-
+// Canvas ⇒ frozen on frame 0), so on native the pool decodes each sprite TYPE
+// once into a hidden master canvas and fans frames out with cheap drawImage
+// blits — 1 decoder per type instead of 1 per canvas. On web each canvas keeps
+// its own DotLottieWorker (fully off the main thread). Sprites whose motion is
+// carried by the CSS travel animation anyway (`frozen` below), plus whole
+// static/low-end worlds, render ONE cached snapshot and never own a player.
+type Sprite = { el: HTMLCanvasElement; handle: SpriteHandle };
 const sprites = new Set<Sprite>();
+
+// Per-type spec: src + the largest on-screen size of that sprite (drives the
+// master/snapshot resolution) + whether its own frames ever need to advance.
+type SpriteSpec = { src: string; maxRem: number; frozen?: boolean };
+const remPx = (rem: number) => Math.round(rem * 16 * SPRITE_DPR);
+const SPRITES = {
+	jellyfish: { src: jellyFishLottie, maxRem: 6 },
+	turtle: { src: turtleLottie, maxRem: 7.2 },
+	fish: { src: fishLottie, maxRem: 4 },
+	cat: { src: catLottie, maxRem: 8 },
+	// Sway/tumble/streak/bob/wander all come from CSS transforms — a frozen
+	// frame reads identical in motion, so these never pay for a player.
+	plant: { src: plantLottie, maxRem: 5, frozen: true },
+	leaves: { src: autumn_leaves, maxRem: 13.5, frozen: true },
+	mushroom: { src: mushroom_walking, maxRem: 8.5 },
+	fire: { src: fire, maxRem: 8 },
+	dragon: { src: dragon, maxRem: 18 },
+	// NOT frozen: the meteor asset is a sparse thin streak on every single
+	// frame (~0.5% of its box) — its visible life IS the animated trail.
+	meteor: { src: meteor, maxRem: 13 },
+	moon: { src: moon, maxRem: 6, frozen: true },
+	rocket: { src: rocket, maxRem: 7 },
+	astronaut: { src: astronaut, maxRem: 5, frozen: true },
+} satisfies Record<string, SpriteSpec>;
+
+// Warm the sprite pipeline once, off the critical path: pre-decode the
+// always-frozen snapshots (shop tiles/previews then stamp instantly instead of
+// popping in after a load+decode round-trip) and prime the HTTP cache for the
+// animated ones so their players load from cache when a preview mounts.
+let spritesWarmed = false;
+function warmSprites() {
+	if (spritesWarmed) return;
+	spritesWarmed = true;
+	const kick = () => {
+		Object.values(SPRITES).forEach((spec: SpriteSpec) => {
+			if (spec.frozen) warmFrozenFrame(spec.src, remPx(spec.maxRem));
+			else prefetchSprite(spec.src);
+		});
+	};
+	"requestIdleCallback" in window
+		? requestIdleCallback(kick, { timeout: 2000 })
+		: setTimeout(kick, 300);
+}
 
 // Static worlds (feed/toolbar minis) AND low-end phones show a single frozen
 // frame — the player renders one frame then holds it, so there's zero ongoing
@@ -374,17 +422,12 @@ const paused = computed(
 );
 
 function applyRunState() {
-	const shouldPause = paused.value;
-	sprites.forEach(({ player }) => {
-		try {
-			shouldPause ? player.pause() : player.play();
-		} catch {
-			/* player torn down mid-transition */
-		}
-	});
+	const active = !paused.value;
+	sprites.forEach(({ handle }) => handle.setActive(active));
 }
 
 onMounted(() => {
+	warmSprites();
 	if (typeof IntersectionObserver === "undefined") {
 		onScreen.value = true;
 		hasMounted.value = true;
@@ -396,9 +439,11 @@ onMounted(() => {
 			if (onScreen.value) hasMounted.value = true;
 			applyRunState();
 		},
+		// preview: shop/picker grids mount dozens of tiles — only ~a row ahead may
+		// spin up players. contained: feed/list instances. default: hero card.
 		{
 			rootMargin: props.preview
-				? "1500px"
+				? "300px"
 				: props.contained
 					? "300px"
 					: "9999px",
@@ -418,30 +463,20 @@ onMounted(() => {
 watch(paused, applyRunState);
 
 const destroyAllSprites = () => {
-	sprites.forEach((s) => {
-		try {
-			s.player.destroy();
-		} catch {
-			/* already gone */
-		}
-	});
+	sprites.forEach((s) => s.handle.destroy());
 	sprites.clear();
 };
 
 // Switching world kind unmounts the old sprite canvases and mounts new ones.
-// After the DOM settles, tear down any player whose canvas has detached so the
-// old world's workers don't leak (the freshly-mounted ones stay connected).
+// After the DOM settles, release any handle whose canvas has detached so the
+// old world's players don't leak (the freshly-mounted ones stay connected).
 watch(
 	() => def.value.kind,
 	async () => {
 		await nextTick();
 		sprites.forEach((s) => {
 			if (!s.el.isConnected) {
-				try {
-					s.player.destroy();
-				} catch {
-					/* already gone */
-				}
+				s.handle.destroy();
 				sprites.delete(s);
 			}
 		});
@@ -453,45 +488,24 @@ onBeforeUnmount(() => {
 	destroyAllSprites();
 });
 
-const spriteDpr = Math.min(
-	typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
-	1.5,
-);
-
-const bindCanvas = (el: any, src: string) => {
+const bindCanvas = (el: any, spec: SpriteSpec) => {
 	if (!el) return;
 	const canvas = el as HTMLCanvasElement;
 	// The :ref callback can fire repeatedly for the same element; bind once.
 	if ((canvas as any).__pwBound) return;
 	(canvas as any).__pwBound = true;
 
-	const player = createLottie({
-		canvas,
-		src,
-		loop: true,
-		autoplay: false,
-		layout: { fit: "contain", align: [0.5, 0.5] },
-		renderConfig: { devicePixelRatio: spriteDpr, autoResize: true },
-	});
-
-	const sprite: Sprite = { el: canvas, player };
-	sprites.add(sprite);
-
-	// Draw at least one frame so freeze-frame worlds aren't blank, then hand off
-	// to the run-state governor (which respects on-screen + overlay visibility).
-	player.addEventListener("load", () => {
-		if (paused.value) {
-			player.play();
-			requestAnimationFrame(() => {
-				try {
-					player.pause();
-				} catch {
-					/* torn down */
-				}
-			});
-		} else {
-			player.play();
-		}
+	// Frozen-ness is decided once at bind: either the sprite type never animates
+	// its own frames, or the whole world is a freeze-frame (static/low-end).
+	sprites.add({
+		el: canvas,
+		handle: acquireSprite({
+			canvas,
+			src: spec.src,
+			frozen: spec.frozen || freezeFrame.value,
+			active: !paused.value,
+			masterSize: remPx(spec.maxRem),
+		}),
 	});
 };
 

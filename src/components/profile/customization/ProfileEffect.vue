@@ -4,7 +4,10 @@
     ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none"
     :class="[radiusClass, { 'fx-frozen': paused }]"
-    style="isolation: isolate;"
+    :style="{
+    isolation: 'isolate',
+    visibility: (!onScreen && hasMounted) ? 'hidden' : 'visible'
+  }"
     aria-hidden="true"
   >
     <template v-if="hasMounted">
@@ -26,15 +29,18 @@
       class="absolute inset-0 glass"
       :class="speedClass"
     >
-      <!-- Prismatic refraction drifting beneath the cracks -->
+      <!-- Prismatic refraction drifting beneath the cracks (composited rotation) -->
       <div class="absolute inset-0 glass-prism"></div>
 
-      <!-- Specular sheen sweeping across the surface -->
-      <div class="absolute inset-0 glass-sheen"></div>
+      <!-- Specular sheen: oversized pre-painted gradient SWEPT BY TRANSFORM.
+           The old version animated background-position, which repaints the full
+           card layer every frame — a transform sweep is pure compositor work. -->
+      <div class="absolute -inset-[60%] glass-sheen"></div>
 
-      <!-- Fracture mesh: shards catch the light independently -->
+      <!-- Static fracture mesh: strokes + impact cracks, painted exactly once.
+           No filter, no animation — this layer never invalidates. -->
       <svg
-        class="absolute inset-0 w-full h-full glass-facets"
+        class="absolute inset-0 w-full h-full glass-lines"
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
       >
@@ -46,25 +52,18 @@
           </linearGradient>
         </defs>
         <g
-          fill="url(#glassFacet)"
           stroke="rgba(255,255,255,0.45)"
           stroke-width="0.4"
+          fill="none"
           stroke-linejoin="round"
         >
           <polygon points="60,32 72,0 100,0" />
-          <polygon points="60,32 100,0 100,40" />
           <polygon points="60,32 100,40 100,78" />
-          <polygon points="60,32 100,78 100,100" />
           <polygon points="60,32 100,100 70,100" />
-          <polygon points="60,32 70,100 30,100" />
           <polygon points="60,32 30,100 0,100" />
-          <polygon points="60,32 0,100 0,66" />
           <polygon points="60,32 0,66 0,24" />
-          <polygon points="60,32 0,24 0,0" />
           <polygon points="60,32 0,0 28,0" />
-          <polygon points="60,32 28,0 72,0" />
         </g>
-        <!-- Crisp impact-point highlight cracks -->
         <g
           stroke="rgba(255,255,255,0.6)"
           stroke-width="0.25"
@@ -72,6 +71,24 @@
           stroke-linecap="round"
         >
           <path d="M60,32 L72,0 M60,32 L100,40 M60,32 L100,100 M60,32 L30,100 M60,32 L0,66 M60,32 L0,24 M60,32 L28,0" />
+        </g>
+      </svg>
+
+      <!-- Shard fills, split into three groups. Each group animates WHOLE-SVG
+           opacity (compositor-driven, no SVG-internal repaint) with staggered
+           delays, so light still ripples across the break — the old version
+           animated every polygon individually, re-rasterising the entire SVG
+           (plus its drop-shadow filter) every single frame. -->
+      <svg
+        v-for="(group, gi) in facetGroups"
+        :key="'fg' + gi"
+        class="absolute inset-0 w-full h-full glass-shards"
+        :class="'glass-shards--' + gi"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <g fill="url(#glassFacet)" stroke="none">
+          <polygon v-for="(pts, pi) in group" :key="pi" :points="pts" />
         </g>
       </svg>
 
@@ -185,13 +202,14 @@ onMounted(() => {
 			onScreen.value = entries.some((e) => e.isIntersecting);
 			if (onScreen.value) hasMounted.value = true;
 		},
-		// Grid tiles (preview) gate tightly to cap concurrent GPU work. The full
-		// hero card uses a huge margin so ordinary in-page scrolling never tears it
-		// down and re-mounts it (the pop-in flicker) — it still deactivates when the
-		// whole page is hidden (display:none ⇒ no box ⇒ not intersecting).
+		// Grid tiles (preview) gate tightly — a shop shelf mounts dozens at once,
+		// so only ~a row ahead may animate. The full hero card uses a huge margin
+		// so ordinary in-page scrolling never tears it down and re-mounts it (the
+		// pop-in flicker) — it still deactivates when the whole page is hidden
+		// (display:none ⇒ no box ⇒ not intersecting).
 		{
 			rootMargin: props.preview
-				? "1500px"
+				? "300px"
 				: props.contained
 					? "300px"
 					: "9999px",
@@ -212,6 +230,26 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => io?.disconnect());
+
+// Fracture fan around the impact point, interleaved into 3 groups so the
+// staggered group opacities read as light rippling shard-to-shard.
+const GLASS_POLYGONS = [
+	"60,32 72,0 100,0",
+	"60,32 100,0 100,40",
+	"60,32 100,40 100,78",
+	"60,32 100,78 100,100",
+	"60,32 100,100 70,100",
+	"60,32 70,100 30,100",
+	"60,32 30,100 0,100",
+	"60,32 0,100 0,66",
+	"60,32 0,66 0,24",
+	"60,32 0,24 0,0",
+	"60,32 0,0 28,0",
+	"60,32 28,0 72,0",
+];
+const facetGroups = [0, 1, 2].map((g) =>
+	GLASS_POLYGONS.filter((_, i) => i % 3 === g),
+);
 
 const speedClass = computed(() => {
 	if (props.preview) return "speed-fast";
@@ -241,11 +279,13 @@ const shimmerStyle = computed(() => {
 <style scoped>
 /* Off-screen or behind a fullscreen swiper: freeze every animation so the blur
    / conic-gradient layers stop re-rasterising, without unmounting (which would
-   flicker on scroll-back). */
+   flicker on scroll-back). Dropping will-change lets the GPU evict the frozen
+   layers' textures. */
 .fx-frozen *,
 .fx-frozen *::before,
 .fx-frozen *::after {
   animation-play-state: paused !important;
+  will-change: auto !important;
 }
 
 .grain-bg {
@@ -338,53 +378,53 @@ html.low-end .glass-prism {
 }
 
 /* Low-end: mix-blend groups re-rasterize every frame anything inside moves and
-   are the WebView flash/lag culprit. Drop blend, freeze the facet opacity churn,
+   are the WebView flash/lag culprit. Drop blend, freeze the shard opacity churn,
    and cut the filtered glint layers. Prism still drifts, so glass still reads. */
 html.low-end .glass-sheen,
-html.low-end .glass-facets {
+html.low-end .glass-shards,
+html.low-end .glass-lines {
   mix-blend-mode: normal;
 }
-html.low-end .glass-facets polygon {
+html.low-end .glass-shards {
   animation: none;
-  opacity: 0.7;
+  opacity: 0.55;
 }
 html.low-end .glass-glint {
   display: none;
 }
 
-/* Specular sheen sweep — gives the surface a polished, moving glare */
+/* Specular sheen sweep — a pre-painted oversized gradient translated across the
+   card. transform+opacity only ⇒ rasterized once, animated on the compositor. */
 .glass-sheen {
   background: linear-gradient(
     115deg,
-    transparent 38%,
+    transparent 42%,
     rgba(255, 255, 255, 0.55) 49%,
     rgba(255, 255, 255, 0.15) 53%,
-    transparent 64%
+    transparent 60%
   );
   mix-blend-mode: overlay;
-  background-size: 250% 250%;
   animation: glass-sweep 7s ease-in-out infinite;
+  will-change: transform;
 }
 
-/* Fracture mesh — overlay blend so the prism colors refract through */
-.glass-facets {
+/* Static crack strokes — painted once, never invalidated. */
+.glass-lines {
   mix-blend-mode: overlay;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
 }
-.glass-facets polygon {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: glass-facet-flick 5s ease-in-out infinite;
+
+/* Shard fill groups — element-level opacity animation is compositor-driven;
+   nothing inside the SVG ever changes, so the texture uploads once. */
+.glass-shards {
+  mix-blend-mode: overlay;
+  animation: glass-shard-pulse 5s ease-in-out infinite;
+  will-change: opacity;
 }
-/* Stagger each shard so light ripples across the break */
-.glass-facets polygon:nth-child(2n) {
-  animation-delay: -1.3s;
+.glass-shards--1 {
+  animation-delay: -1.66s;
 }
-.glass-facets polygon:nth-child(3n) {
-  animation-delay: -2.6s;
-}
-.glass-facets polygon:nth-child(4n) {
-  animation-delay: -3.9s;
+.glass-shards--2 {
+  animation-delay: -3.33s;
 }
 
 /* Sparkle glints at the impact vertices */
@@ -431,19 +471,19 @@ html.low-end .glass-glint {
 }
 @keyframes glass-sweep {
   0% {
-    background-position: 0% 0%;
+    transform: translate3d(-26%, -26%, 0);
   }
   100% {
-    background-position: 100% 100%;
+    transform: translate3d(26%, 26%, 0);
   }
 }
-@keyframes glass-facet-flick {
+@keyframes glass-shard-pulse {
   0%,
   100% {
-    opacity: 0.4;
+    opacity: 0.35;
   }
   50% {
-    opacity: 0.95;
+    opacity: 0.9;
   }
 }
 @keyframes glass-twinkle {
@@ -478,18 +518,18 @@ html.low-end .glass-glint {
 .speed-fast .glass-sheen {
   animation-duration: 3.5s;
 }
-.speed-fast .glass-facets polygon {
+.speed-fast .glass-shards {
   animation-duration: 2.5s;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .glass-prism,
   .glass-sheen,
-  .glass-facets polygon,
+  .glass-shards,
   .glass-glint {
     animation: none;
   }
-  .glass-facets polygon {
+  .glass-shards {
     opacity: 0.7;
   }
 }

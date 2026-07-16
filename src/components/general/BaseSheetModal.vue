@@ -57,9 +57,18 @@
 </template>
 
 <script setup lang="ts">
+import { provide } from "vue";
 import { IonModal, IonButton, IonIcon } from "@ionic/vue";
 import { mdiClose, mdiChevronLeft } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
+import { AMBIENT_FOREGROUND } from "@/store/ambientPause.store";
+
+// Sheet content IS the overlay the user is looking at — worlds/effects inside
+// it (theme/effect/world pickers, shop previews) must keep animating while the
+// global ambient pause freezes everything behind the sheet. Closed-but-mounted
+// sheets are harmless: their content has no box, so the IntersectionObserver
+// gate keeps those instances paused anyway.
+provide(AMBIENT_FOREGROUND, true);
 
 withDefaults(
 	defineProps<{

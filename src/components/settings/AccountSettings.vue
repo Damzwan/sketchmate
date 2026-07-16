@@ -28,19 +28,26 @@
       <UpgradeAccountModal />
     </div>
 
-    <SettingCard :icon="mdiCakeVariantOutline" @click="openAgeModal">
+
+    <SettingCard :icon="isUnderAge ? mdiShieldAccountOutline : mdiCakeVariantOutline" @click="openAgeModal">
       <template #label>
-        <span class="block font-bold text-black text-base leading-tight">Date of birth</span>
-        <span v-if="user?.date_of_birth" class="block text-base text-black/80 mt-0.5 truncate">
-          {{ formattedDob }}
-          <span v-if="isUnderAge" class="text-amber-700">· social features hidden</span>
+        <span class="block font-bold text-black text-base leading-tight">
+          {{ isUnderAge ? 'Parental Controls' : 'Date of birth' }}
         </span>
+        <template v-if="user?.date_of_birth">
+          <span class="block text-base text-black/80 mt-0.5" :class="{ truncate: !isUnderAge }">
+            {{ formattedDob }}
+          </span>
+          <span v-if="isUnderAge" class="block text-[12px] font-bold text-amber-700 mt-0.5 leading-tight">
+            Safety on: chat with known mates only, hidden from search, no public posts
+          </span>
+        </template>
         <span v-else class="block text-[12px] text-amber-600 font-bold mt-0.5">
           Not set — tap to add
         </span>
       </template>
       <template #trailing>
-        <ion-icon :icon="svg(mdiPencilOutline)" class="text-lg text-black/30" />
+        <ion-icon :icon="svg(isUnderAge ? mdiLockOutline : mdiPencilOutline)" class="text-lg text-black/30" />
       </template>
     </SettingCard>
 
@@ -61,8 +68,16 @@ import { IonIcon, IonButton, useIonRouter } from "@ionic/vue";
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import dayjs from "dayjs";
-import { mdiCakeVariantOutline, mdiPalette, mdiPencilOutline } from "@mdi/js";
+import {
+	mdiCakeVariantOutline,
+	mdiLockOutline,
+	mdiPalette,
+	mdiPencilOutline,
+	mdiShieldAccountOutline,
+} from "@mdi/js";
 import { svg } from "@/helper/general.helper";
+import { presentAdultGate } from "@/helper/adultGate.helper";
+import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
 import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
@@ -81,8 +96,28 @@ const formattedDob = computed(() =>
 		: "",
 );
 
-function openAgeModal() {
-	const mode = user.value?.date_of_birth ? "edit" : "initial";
+const { toast } = useToast();
+
+async function openAgeModal() {
+	// A child could lift every restriction by editing their own birth date —
+	// the whole point of the gate. Adults sail through one math question.
+	if (isUnderAge.value) {
+		const result = await presentAdultGate();
+		if (result === "fail") {
+			toast("That answer wasn't right — ask a parent or guardian to help.", {
+				color: "warning",
+			});
+			return;
+		}
+		if (result !== "pass") return;
+	}
+	// Under-age (gate just passed): parental variant — same picker, plus the
+	// for-parents rundown of which social features are blocked / would unlock.
+	const mode = isUnderAge.value
+		? "parental"
+		: user.value?.date_of_birth
+			? "edit"
+			: "initial";
 	void dobModal.open(mode);
 }
 

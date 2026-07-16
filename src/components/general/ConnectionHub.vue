@@ -17,6 +17,7 @@
 
     <div v-show="!isScanning" class="space-y-6 animate-fade-in pt-1">
 
+      <!-- PERSONAL QR CODE -->
       <div class="bg-white/60 border border-white p-5 rounded-[2.5rem] flex items-center justify-between relative mt-1 backdrop-blur-md">
         <div class="flex flex-col z-10 w-full pr-4 min-w-0">
           <span class="text-xs font-black text-black/80 uppercase tracking-widest mb-2">
@@ -47,57 +48,72 @@
         </div>
       </div>
 
+      <!-- SEARCH SECTION (Gated by Age) -->
       <section class="space-y-3">
-        <p class="text-xs font-black text-black/80 uppercase tracking-widest px-2">
-          Search by name
-        </p>
-        <div class="relative">
-          <input
-            v-model="mateName"
-            @keyup.enter="searchUsers"
-            placeholder="Artist name..."
-            class="w-full bg-white/50 border border-white rounded-2xl px-5 py-4 text-lg font-black text-black focus:outline-none focus:ring-2 focus:ring-secondary/50 transition-all"
-          />
-          <div class="absolute right-2 top-1/2 -translate-y-1/2">
-            <ion-button fill="clear" color="secondary" @click="searchUsers" :disabled="!mateName">
-              <ion-spinner v-if="isSearchingUsers" name="bubbles" size="small" />
-              <ion-icon v-else slot="icon-only" :icon="svg(mdiSend)" />
-            </ion-button>
+        <template v-if="!isUnderAge">
+          <p class="text-xs font-black text-black/80 uppercase tracking-widest px-2">
+            Search by name
+          </p>
+          <div class="relative">
+            <input
+              v-model="mateName"
+              @keyup.enter="searchUsers"
+              placeholder="Artist name..."
+              class="w-full bg-white/50 border border-white rounded-2xl px-5 py-4 text-lg font-black text-black focus:outline-none focus:ring-2 focus:ring-secondary/50 transition-all"
+            />
+            <div class="absolute right-2 top-1/2 -translate-y-1/2">
+              <ion-button fill="clear" color="secondary" @click="searchUsers" :disabled="!mateName">
+                <ion-spinner v-if="isSearchingUsers" name="bubbles" size="small" />
+                <ion-icon v-else slot="icon-only" :icon="svg(mdiSend)" />
+              </ion-button>
+            </div>
           </div>
-        </div>
 
+          <div
+            v-if="hasSearched || isSearchingUsers || searchWarning"
+            class="bg-white/30 rounded-[2rem] border border-white/50 overflow-hidden animate-fade-in p-2"
+          >
+            <div v-if="searchWarning" class="p-4 text-center text-sm font-bold text-amber-700 italic">
+              {{ searchWarning }}
+            </div>
+
+            <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-sm text-black/80 italic">
+              No artists found with that name
+            </div>
+
+            <div v-else class="max-h-40 overflow-y-auto hide-scrollbar">
+              <ion-list lines="none" class="bg-transparent p-0">
+                <ion-item
+                  v-for="mate in foundMates"
+                  :key="mate._id"
+                  class="rounded-2xl mb-1 bg-white/40 last:mb-0 cursor-pointer"
+                  @click="openUserActions(mate)"
+                >
+                  <UserAvatar
+                    static
+                    :user="mate"
+                    :customization="mate.customization"
+                    size="sm"
+                  />
+                  <ion-label class="ml-2">
+                    <h2 class="font-black text-black">{{ mate.name }}</h2>
+                  </ion-label>
+                  <ion-icon slot="end" :icon="svg(mdiChevronRight)" class="opacity-30" />
+                </ion-item>
+              </ion-list>
+            </div>
+          </div>
+        </template>
+
+        <!-- CHILD SAFETY OVERRIDE -->
         <div
-          v-if="hasSearched || isSearchingUsers || searchWarning"
-          class="bg-white/30 rounded-[2rem] border border-white/50 overflow-hidden animate-fade-in p-2"
+          v-else
+          class="bg-amber-100/90 border border-amber-300/60 p-4 rounded-[1.5rem] flex items-center gap-3 shadow-sm mx-1"
         >
-          <div v-if="searchWarning" class="p-4 text-center text-sm font-bold text-amber-700 italic">
-            {{ searchWarning }}
-          </div>
-
-          <div v-else-if="foundMates.length === 0 && !isSearchingUsers" class="p-4 text-center text-sm text-black/80 italic">
-            No artists found with that name
-          </div>
-
-          <div v-else class="max-h-40 overflow-y-auto hide-scrollbar">
-            <ion-list lines="none" class="bg-transparent p-0">
-              <ion-item
-                v-for="mate in foundMates"
-                :key="mate._id"
-                class="rounded-2xl mb-1 bg-white/40 last:mb-0 cursor-pointer"
-                @click="openUserActions(mate)"
-              >
-                <UserAvatar
-                  static
-                  :user="mate"
-                  :customization="mate.customization"
-                  size="sm"
-                />
-                <ion-label class="ml-2">
-                  <h2 class="font-black text-black">{{ mate.name }}</h2>
-                </ion-label>
-                <ion-icon slot="end" :icon="svg(mdiChevronRight)" class="opacity-30" />
-              </ion-item>
-            </ion-list>
+          <ion-icon :icon="svg(mdiShieldAlertOutline)" class="text-3xl text-amber-600 shrink-0" />
+          <div class="text-amber-900 leading-tight">
+            <p class="text-[11px] font-black uppercase tracking-widest mb-1 opacity-80">Search Disabled</p>
+            <p class="text-[13px] font-medium opacity-90">To keep Sketchmate safe, searching for strangers is locked. You can still add mates in person using a scan code!</p>
           </div>
         </div>
       </section>
@@ -108,6 +124,7 @@
         <div class="h-px bg-black flex-1 rounded-full"></div>
       </div>
 
+      <!-- SCAN CAMERA CTA -->
       <ion-button
         @click="startCameraView"
         color="secondary"
@@ -120,6 +137,7 @@
       </ion-button>
     </div>
 
+    <!-- SCANNER VIEW -->
     <div v-show="isScanning" class="flex flex-col h-full animate-fade-in pt-1 pb-2">
       <div class="flex-1 w-full bg-primary/10 rounded-[2.5rem] border border-primary/20 overflow-hidden relative">
         <div v-if="!isNative()" class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -154,6 +172,7 @@ import {
 	mdiQrcodeScan,
 	mdiSend,
 	mdiShareVariant,
+	mdiShieldAlertOutline,
 } from "@mdi/js";
 
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
@@ -178,7 +197,7 @@ const hasSearched = ref(false);
 const searchWarning = ref("");
 
 // Stores/Composables
-const { user } = storeToRefs(useAuthStore());
+const { user, isUnderAge } = storeToRefs(useAuthStore());
 const { toast } = useToast();
 const { startScanning, stopScanning, resetScanning } = useScanner(video);
 const { connectionMenuOpen } = storeToRefs(useMenuStore());

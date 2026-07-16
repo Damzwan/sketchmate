@@ -14,7 +14,12 @@
         transform: def.lottieConfig?.offset || 'translate(-50%, -50%)'
       }"
     >
+      <!-- Keyed per decoration: on web the worker TRANSFERS the canvas
+           (OffscreenCanvas), which is a one-shot — a new player can never
+           rebind the same element, so a decoration switch must get a fresh
+           canvas. -->
       <canvas
+        :key="def.lottieId"
         :ref="(el) => bindCanvas(el, getLottieSrc(def.lottieId!))"
         class="w-full h-full object-cover block"
       ></canvas>
@@ -70,6 +75,7 @@ let io: IntersectionObserver | null = null;
 
 let player: LottiePlayer | null = null;
 let currentSrc = "";
+let boundEl: HTMLCanvasElement | null = null;
 
 // Freeze when explicitly static (e.g. behind the doodle pad) or scrolled away.
 const paused = computed(() => !!props.static || !onScreen.value);
@@ -83,21 +89,27 @@ const destroyPlayer = () => {
 	player?.destroy();
 	player = null;
 	currentSrc = "";
+	boundEl = null;
 };
 
-// Inline function-ref → Vue re-invokes it every render, so a decoration change
-// (new src) rebuilds the player; an unchanged src is a no-op.
+// Inline function-ref → Vue re-invokes it every render. Rebuild when the SRC
+// changes (new decoration) OR when the ELEMENT changes — a re-render that
+// re-creates the canvas (avatar/identity update) would otherwise leave the
+// player rendering into the old detached canvas: frozen decoration.
 const bindCanvas = (el: any, src: string) => {
 	if (!el || !src) {
-		if (!src) destroyPlayer();
+		// Ref fired with null (canvas unmounted) or decoration has no lottie —
+		// either way the current player has nothing to paint on.
+		destroyPlayer();
 		return;
 	}
-	if (player && currentSrc === src) return;
+	if (player && currentSrc === src && boundEl === el) return;
 
 	destroyPlayer();
 	const canvas = el as HTMLCanvasElement;
 
 	currentSrc = src;
+	boundEl = canvas;
 	// On web the worker takes ownership of the canvas (OffscreenCanvas transfer),
 	// so don't set canvas.width/height — autoResize + the CSS box size the buffer.
 	player = createLottie({

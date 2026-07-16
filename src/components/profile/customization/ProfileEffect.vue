@@ -377,16 +377,46 @@ html.low-end .glass-prism {
   filter: blur(6px) saturate(1.2);
 }
 
-/* Low-end: mix-blend groups re-rasterize every frame anything inside moves and
-   are the WebView flash/lag culprit. Drop blend, freeze the shard opacity churn,
-   and cut the filtered glint layers. Prism still drifts, so glass still reads. */
+/* Android WebView (EVERY Android, not only low-end): mix-blend groups
+   composited near self-repainting content (GIF avatar, foil name) make the
+   compositor re-rasterize the whole card — the flicker. Swap every blend for
+   tuned normal alpha; all remaining animation is compositor-only
+   (transform/element-opacity), so the card surface never repaints. */
+html.android-wv .glass-prism,
+html.android-wv .glass-sheen,
+html.android-wv .glass-shards,
+html.android-wv .glass-lines,
+html.low-end .glass-prism,
 html.low-end .glass-sheen,
 html.low-end .glass-shards,
 html.low-end .glass-lines {
   mix-blend-mode: normal;
 }
+html.android-wv .glass-sheen {
+  opacity: 0.55;
+}
+/* Static shards on Android: without animation + will-change they stop being
+   THREE separate full-card GPU layers and flatten into the parent's single
+   texture — the ripple is traded for ~3 fewer big compositor surfaces per
+   glass instance (the shop preview stacks several instances). */
+html.android-wv .glass-shards {
+  animation: none;
+  will-change: auto;
+  opacity: 0.6;
+}
+html.android-wv .glass-prism {
+  filter: blur(8px) saturate(1.2);
+  opacity: 0.4;
+}
+/* Glints carry a drop-shadow filter each — not worth their layers here. */
+html.android-wv .glass-glint {
+  display: none;
+}
+
+/* Low-end additionally stills the shard pulse and drops the filtered glints. */
 html.low-end .glass-shards {
   animation: none;
+  will-change: auto;
   opacity: 0.55;
 }
 html.low-end .glass-glint {

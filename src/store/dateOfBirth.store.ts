@@ -1,7 +1,11 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
-type Mode = "initial" | "edit";
+// "parental" = the edit flow reached through the parental gate on an
+// under-age account: same picker, but the modal explains to the parent which
+// social features are currently blocked and what saving an older birthday
+// switches on.
+type Mode = "initial" | "edit" | "parental";
 
 export const useDateOfBirthModalStore = defineStore("dateOfBirthModal", () => {
 	const isOpen = ref(false);

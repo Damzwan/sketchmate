@@ -3,12 +3,19 @@
     :is-open="isOpen"
     scrollable
     title="Theme"
-    subtitle="A curated look for your profile"
     @close="handleDismiss"
   >
     <template #sub-header>
       <div class="px-3">
-        <PreviewProfileCard :user="user" :customization="previewCustomization" />
+        <PreviewSurfacePager
+          :user="user"
+          :customization="previewCustomization"
+          :active="isOpen"
+          :pane-height="280"
+          :card-zoom="0.45"
+          :post-zoom="0.6"
+          :chat-zoom="0.95"
+        />
       </div>
     </template>
 
@@ -101,7 +108,7 @@ import { THEMES, type Customization } from "@/config/profile_options.config";
 import { buildItemId } from "@/config/catalog.config";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useUnlockItem } from "@/composables/shop/useUnlockItem";
-import PreviewProfileCard from "../PreviewProfileCard.vue";
+import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue"; // Import your base modal
 
 const props = defineProps<{

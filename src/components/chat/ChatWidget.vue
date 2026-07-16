@@ -69,7 +69,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { IonModal, useIonRouter, IonIcon } from "@ionic/vue";
+import { alertController, IonModal, useIonRouter, IonIcon } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { mdiChevronDown } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
@@ -223,6 +223,46 @@ function onWillPresent() {
 		chatWidget.activeTab = "lobby";
 	}
 	scrollToBottom(true);
+	maybeShowSafetyReminder();
+}
+
+// ── Families policy: online-safety reminder ────────────────────────────────
+// Under-age accounts get a clear, prominent safety notice BEFORE they can
+// exchange messages/media — once per device, re-shown after 30 days.
+const SAFETY_ACK_KEY = "sm_chat_safety_ack";
+const SAFETY_ACK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function maybeShowSafetyReminder() {
+	if (!authStore.isUnderAge) return;
+	try {
+		const last = Number(localStorage.getItem(SAFETY_ACK_KEY) || 0);
+		if (Date.now() - last < SAFETY_ACK_TTL_MS) return;
+	} catch {
+		/* storage unavailable → show the reminder */
+	}
+	const alert = await alertController.create({
+		header: "Stay safe online",
+		cssClass: "liquid-alert",
+		backdropDismiss: false,
+		message:
+			"Chatting online has real-world risks. Only chat with people you know in person, " +
+			"never share personal information (like your full name, address, school or photos of yourself), " +
+			"and tell a trusted adult if anything feels wrong. You can report or block anyone from their profile.",
+		buttons: [
+			{
+				text: "I understand",
+				role: "confirm",
+				handler: () => {
+					try {
+						localStorage.setItem(SAFETY_ACK_KEY, String(Date.now()));
+					} catch {
+						/* fine — it'll show again next open */
+					}
+				},
+			},
+		],
+	});
+	await alert.present();
 }
 </script>
 

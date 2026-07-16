@@ -51,6 +51,16 @@ if (isMobile() && (navigator.hardwareConcurrency || 4) <= 4) {
   document.documentElement.classList.add('low-end')
 }
 
+// Android System WebView flag (ALL Androids, not just low-end): its compositor
+// mishandles mix-blend-mode groups that sit near self-repainting content (GIF
+// avatars, background-clip:text foil) — the whole card surface re-rasterizes
+// and visibly flickers. CSS keyed off this class swaps blends for tuned normal
+// alpha and stills the per-frame glyph repaints (see ProfileEffect /
+// text_effects.css).
+if (Capacitor.getPlatform() === 'android') {
+  document.documentElement.classList.add('android-wv')
+}
+
 const app = createApp(App).use(IonicVue).use(pinia).use(router)
 
 app.mount('#app')

@@ -8,8 +8,16 @@
 
     </div>
 
-    <div class="h-full overflow-y-auto hide-scrollbar relative z-10" @touchmove.stop>
-      <div class="px-6 pb-24 pb-safe flex flex-col transition-all duration-500" :style="{ fontFamily: font }">
+    <div
+      class="h-full hide-scrollbar relative z-10"
+      :class="scrollable ? 'overflow-y-auto' : 'overflow-hidden'"
+      @touchmove.stop
+    >
+      <div
+        class="px-6 flex flex-col transition-all duration-500"
+        :class="scrollable ? 'pb-24 pb-safe' : 'pb-4'"
+        :style="{ fontFamily: font }"
+      >
 
         <div class="relative w-full flex flex-col items-center text-center shrink-0 pt-8 pb-6">
           <div class="absolute inset-0 pointer-events-none z-0 flex justify-center">
@@ -161,12 +169,16 @@ const props = withDefaults(
 		postsLoading?: boolean;
 		statsLoading?: boolean;
 		showPortfolio?: boolean;
+		/** false = fixed vignette (preview pagers): no inner scroll, content
+		    clipped to the frame. Pair with show-portfolio=false. */
+		scrollable?: boolean;
 	}>(),
 	{
 		posts: () => [],
 		postsLoading: false,
 		statsLoading: false,
 		showPortfolio: true,
+		scrollable: true,
 	},
 );
 

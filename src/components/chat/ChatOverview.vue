@@ -76,6 +76,7 @@
       </div>
 
       <div class="space-y-2.5 px-0.5">
+        <!-- LOADING STATE -->
         <div v-if="showLoadingState" class="space-y-2.5 pt-1">
           <div
             v-for="i in 4"
@@ -90,46 +91,67 @@
           </div>
         </div>
 
-        <div v-else-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby" class="px-1">
+        <!-- EMPTY STATE CTAs -->
+        <div v-else-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby" class="px-1 pt-1">
+
+          <!-- Explainer Header -->
+          <div class="text-center px-4 mb-6 mt-2">
+            <p class="text-[17px] font-black cabin-sketch-regular text-black tracking-tight leading-none mb-1.5">
+              It's a bit quiet here...
+            </p>
+            <p class="text-[13px] text-black/60 leading-snug">
+              {{ hasMates ? 'Start a conversation with one of your mates.' : "You don't have any mates yet. Add someone to start chatting!" }}
+            </p>
+          </div>
+
           <!-- PRIMARY CTA -->
           <button
-            class="w-full bg-secondary text-white rounded-[2rem] p-6 flex flex-col items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all mb-4"
+            class="w-full flex items-center gap-4 bg-white border-2 border-secondary/20 rounded-[1.4rem] p-4 shadow-sm cursor-pointer hover:scale-105 active:scale-95 transition-all text-left group mb-2"
             @click="primaryCta.action"
           >
-            <ion-icon :icon="svg(primaryCta.icon)" class="text-5xl opacity-90" />
-            <div class="text-center">
-              <span class="block font-black text-2xl cabin-sketch-regular tracking-tight leading-none mb-1">{{ primaryCta.label }}</span>
-              <span class="block text-[13px] font-medium opacity-90 leading-tight">{{ primaryCta.sub }}</span>
+            <div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center shrink-0 group-hover:bg-secondary/20 transition-colors">
+              <ion-icon :icon="svg(primaryCta.icon)" class="text-2xl text-secondary" />
             </div>
+            <div class="flex-1 min-w-0">
+              <span class="block text-[15px] font-black text-black cabin-sketch-regular leading-tight tracking-tight">{{ primaryCta.label }}</span>
+              <span class="block text-[12px] text-black/60 font-medium leading-tight mt-0.5">{{ primaryCta.sub }}</span>
+            </div>
+            <ion-icon :icon="svg(mdiChevronRight)" class="text-xl text-black/20 shrink-0 group-hover:text-secondary transition-colors" />
           </button>
 
           <!-- SECONDARY CTAs -->
           <div v-if="secondaryCtas.length > 0">
-            <div class="flex items-center gap-3 mb-3 mt-1">
+            <!-- Clearer Divider -->
+            <div class="flex items-center gap-3 my-5">
               <div class="h-px bg-primary/20 flex-1"></div>
-              <span class="text-[9px] font-black text-black/40 uppercase tracking-widest">{{ hasMates ? 'Or explore' : 'Connect with others' }}</span>
+              <span class="text-xs font-black text-black/40 uppercase tracking-widest">
+                {{ hasMates ? 'Or explore' : 'Connect with others' }}
+              </span>
               <div class="h-px bg-primary/20 flex-1"></div>
             </div>
 
-            <div class="grid gap-2.5" :class="secondaryCtas.length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+            <!-- List of secondary options -->
+            <div class="space-y-3">
               <button
                 v-for="cta in secondaryCtas"
                 :key="cta.label"
-                class="bg-white border border-primary/20 rounded-[1.2rem] p-3.5 shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center gap-2 text-center"
+                class="w-full flex items-center gap-4 bg-white/60 border border-primary/20 rounded-[1.4rem] p-3.5 shadow-sm cursor-pointer hover:scale-105 active:scale-95 transition-all text-left group"
                 @click="cta.action"
               >
-                <div class="w-11 h-11 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
-                  <ion-icon :icon="svg(cta.icon)" class="text-xl text-secondary" />
+                <div class="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center shrink-0 group-hover:bg-black/10 transition-colors">
+                  <ion-icon :icon="svg(cta.icon)" class="text-xl text-black/60" />
                 </div>
-                <div>
+                <div class="flex-1 min-w-0">
                   <span class="block text-[14px] font-black text-black cabin-sketch-regular leading-tight">{{ cta.label }}</span>
-                  <span class="block text-[11px] text-black/60 font-medium mt-1 leading-tight">{{ cta.sub }}</span>
+                  <span class="block text-[11px] text-black/60 font-medium leading-tight mt-0.5">{{ cta.sub }}</span>
                 </div>
+                <ion-icon :icon="svg(mdiChevronRight)" class="text-xl text-black/20 shrink-0 group-hover:text-black/40 transition-colors" />
               </button>
             </div>
           </div>
         </div>
 
+        <!-- INVITES & CHATS -->
         <div v-if="inviteCount > 0" class="space-y-2.5">
           <button
             class="w-full flex items-center gap-1.5 pt-1 pl-1 pr-0.5 disabled:cursor-default"

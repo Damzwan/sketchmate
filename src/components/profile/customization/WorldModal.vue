@@ -3,12 +3,19 @@
     :is-open="isOpen"
     scrollable
     title="World"
-    subtitle="Environment for your card"
     @close="handleDismiss"
   >
     <template #sub-header>
       <div class="px-3">
-        <PreviewProfileCard :user="user" :customization="previewCustomization" />
+        <PreviewSurfacePager
+          :user="user"
+          :customization="previewCustomization"
+          :active="isOpen"
+          :pane-height="280"
+          :card-zoom="0.45"
+          :post-zoom="0.6"
+          :chat-zoom="0.95"
+        />
       </div>
     </template>
 
@@ -103,7 +110,7 @@ import {
 import { buildItemId } from "@/config/catalog.config";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useUnlockItem } from "@/composables/shop/useUnlockItem";
-import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
+import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 

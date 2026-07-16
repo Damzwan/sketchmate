@@ -94,7 +94,7 @@ defineEmits(["close", "back", "present"]);
 ion-modal.liquid-base-modal {
   --border-radius: 2.5rem 2.5rem 0 0;
   --height: auto; /* Default layout behaviors match tiny/modal size limits */
-  --max-height: 90vh;
+  --max-height: 95vh;
   --background: var(--ion-color-tertiary);
 }
 

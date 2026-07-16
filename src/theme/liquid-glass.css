@@ -83,6 +83,10 @@ ion-popover.liquid-popover::part(content) {
 	box-shadow: 4px 4px 0px var(--ion-color-dark, #2f2f2f);
 }
 
+.liquid-alert .alert-message {
+	color: rgba(0, 0, 0, 0.8) !important;
+}
+
 .liquid-alert .alert-title {
 	color: var(--ion-color-dark);
 }

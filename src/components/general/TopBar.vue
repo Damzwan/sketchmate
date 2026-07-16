@@ -21,7 +21,7 @@
           @click="openMessages"
           class="active:scale-90 transition-transform m-0"
         >
-          <div class="flex items-center group">
+          <div class="flex items-center">
             <div class="relative shrink-0">
               <ion-icon :icon="chatbubblesOutline" class="text-[30px] text-black" />
               <span
@@ -32,12 +32,14 @@
               </span>
             </div>
 
-            <div class="flex items-center gap-1 ml-2">
-              <ion-icon :icon="peopleOutline" class="text-[18px] text-black" />
-              <span class="cabin-sketch-regular text-[13px] font-bold text-black leading-none">
-                {{ onlineFriends.length }}
-              </span>
-            </div>
+            <!-- Presence: a labeled pill instead of a second bare icon — the
+                 word "online" is the affordance. Hidden at zero (no dead UI);
+                 taps fall through to the same chat panel where the online
+                 mates actually live. -->
+            <span v-if="onlineFriends.length > 0" class="online-pill ml-1.5">
+              <span class="online-dot"></span>
+              {{ onlineFriends.length }} online
+            </span>
           </div>
         </ion-button>
 
@@ -75,7 +77,6 @@ import {
   bulbOutline,
   notificationsOutline,
   storefrontOutline,
-  peopleOutline,
 } from "ionicons/icons";
 import { Menu } from "@/draw/types/draw.types";
 import { useMenuStore } from "@/store/menu.store";
@@ -127,5 +128,32 @@ const openNotifications = () => {
 ion-button::part(native) {
   overflow: visible;
   contain: none;
+}
+
+/* Presence pill: self-explanatory ("3 online"), green = live. */
+.online-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #047857;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+.online-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #10b981;
+  animation: online-pulse 2.4s ease-in-out infinite;
+}
+@keyframes online-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.8); }
 }
 </style>

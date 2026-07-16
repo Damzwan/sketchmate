@@ -126,6 +126,18 @@ html.low-end .animate-velvet-glow {
 	animation: none !important;
 }
 
+/* Android WebView (all tiers): the foil effects' background-position animation
+   repaints the glyphs on the CPU every frame; that repaint region overlaps the
+   glass blend layers and the GIF avatar, and the compositor answers with a
+   full-card re-raster — the flicker. Hold the static gradient (look survives).
+   Velvet's animated text-shadow is a glyph repaint too. The pure-transform
+   effects (puffy/jawbreaker) stay animated: compositor-only, never repaint. */
+html.android-wv .animate-supernova-flow,
+html.android-wv .animate-lava-flow,
+html.android-wv .animate-velvet-glow {
+	animation: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.animate-supernova-flow,
 	.animate-lava-flow,

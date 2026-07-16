@@ -375,11 +375,18 @@ let activePoints: Point[] = [];
 const isDrawing = ref(false);
 
 /* -------- live-stroke canvas overlay (screen space) -------- */
+// CSS-pixel size of the live canvas, cached at (re)size time so drawLive never
+// calls getBoundingClientRect — that forced layout ran EVERY rAF of a drag.
+let liveW = 0;
+let liveH = 0;
+
 const sizeLiveOverlay = () => {
 	if (!liveCanvasRef.value || !viewportRef.value) return;
 	const dpr = window.devicePixelRatio || 1;
 	const r = viewportRef.value.getBoundingClientRect();
 	if (r.width === 0 || r.height === 0) return;
+	liveW = r.width;
+	liveH = r.height;
 	liveCanvasRef.value.width = Math.round(r.width * dpr);
 	liveCanvasRef.value.height = Math.round(r.height * dpr);
 	liveCtx = liveCanvasRef.value.getContext("2d", { desynchronized: true });
@@ -394,14 +401,24 @@ const scheduleLive = () => {
 	if (!liveRaf) liveRaf = requestAnimationFrame(drawLive);
 };
 
+// Wipe the live overlay IN THIS TASK. Used on commit: the committed SVG path
+// appears in the same paint the reactive push triggers, so the live copy must
+// vanish in that exact paint too. Clearing via the next rAF left one frame
+// where BOTH were visible — 0.35 + 0.35 opacity stacked into a dark flash.
+const clearLiveNow = () => {
+	if (liveRaf) {
+		cancelAnimationFrame(liveRaf);
+		liveRaf = 0;
+	}
+	liveCtx?.clearRect(0, 0, liveW, liveH);
+};
+
 function drawLive() {
 	liveRaf = 0;
 	const ctx = liveCtx;
-	const cv = liveCanvasRef.value;
-	if (!ctx || !cv || !viewportRef.value) return;
+	if (!ctx || !liveCanvasRef.value) return;
 
-	const vp = viewportRef.value.getBoundingClientRect();
-	ctx.clearRect(0, 0, vp.width, vp.height);
+	ctx.clearRect(0, 0, liveW, liveH);
 	if (activePoints.length === 0) return;
 
 	// Canonical → viewport: worldTranslate + worldScale·(padOffset + canonical).
@@ -600,6 +617,7 @@ const onPresent = async () => {
 onBeforeUnmount(() => {
 	resizeObserver?.disconnect();
 	if (liveRaf) cancelAnimationFrame(liveRaf);
+	if (eraseRaf) cancelAnimationFrame(eraseRaf);
 	if (ambientHeld) {
 		ambient.release();
 		ambientHeld = false;
@@ -629,6 +647,10 @@ let mode: GestureMode = "none";
 // mode cancels the stroke), so this drops a forced layout per pointermove.
 let activeRect: DOMRect | null = null;
 
+// Erase batching (see onPointerMove): latest pointer position + pending rAF.
+let pendingErase: [number, number] | null = null;
+let eraseRaf = 0;
+
 let pinchStartDist = 0;
 let pinchStartScale = 1;
 let pinchAnchor = { wx: 0, wy: 0 };
@@ -638,11 +660,11 @@ const eraserCursor = reactive({ visible: false, x: 0, y: 0, size: 0 });
 const vpRect = () =>
 	viewportRef.value?.getBoundingClientRect() ?? new DOMRect();
 
+// The pad renders at zoneRenderWidth (≈ canonical) × world scale, so px per
+// canonical unit ≡ the world scale — no getBoundingClientRect per cursor move.
 const pxPerCanonical = () => {
-	if (!padRef.value || !CANONICAL_ZONE_WIDTH.value) return scale.value;
-	return (
-		padRef.value.getBoundingClientRect().width / CANONICAL_ZONE_WIDTH.value
-	);
+	if (!CANONICAL_ZONE_WIDTH.value) return scale.value;
+	return (zoneRenderWidth.value / CANONICAL_ZONE_WIDTH.value) * scale.value;
 };
 
 const getPoint = (clientX: number, clientY: number): Point | null => {
@@ -711,7 +733,19 @@ const onPointerMove = (e: PointerEvent) => {
 	if (mode !== "draw") return;
 
 	if (tool.value === "erase") {
-		eraseAt(e.clientX, e.clientY);
+		// rAF-batch the erase: pointermove can fire 120Hz+, and every eraseAt
+		// walks all stroke points AND replaces the reactive array (full SVG
+		// re-patch). One erase per painted frame is all the eye can see anyway.
+		pendingErase = [e.clientX, e.clientY];
+		if (!eraseRaf) {
+			eraseRaf = requestAnimationFrame(() => {
+				eraseRaf = 0;
+				if (pendingErase && mode === "draw" && tool.value === "erase") {
+					eraseAt(pendingErase[0], pendingErase[1]);
+					pendingErase = null;
+				}
+			});
+		}
 		return;
 	}
 
@@ -743,6 +777,15 @@ const onPointerUp = (e: PointerEvent) => {
 
 	if (mode === "draw") {
 		if (tool.value === "erase") {
+			// Flush the last batched erase so the final wisp isn't dropped.
+			if (pendingErase) {
+				eraseAt(pendingErase[0], pendingErase[1]);
+				pendingErase = null;
+			}
+			if (eraseRaf) {
+				cancelAnimationFrame(eraseRaf);
+				eraseRaf = 0;
+			}
 			commitHistory();
 			if (pointers.size === 0) eraserCursor.visible = false;
 		} else if (isDrawing.value) {
@@ -759,7 +802,7 @@ const onPointerUp = (e: PointerEvent) => {
 const cancelStroke = () => {
 	isDrawing.value = false;
 	activePoints = [];
-	scheduleLive();
+	clearLiveNow();
 	gestureSnapshot = null;
 	activeRect = null;
 };
@@ -776,10 +819,10 @@ const commitStroke = () => {
 			width: brushWidth.value,
 		});
 	}
-	// Clear the live layer as the committed path is pushed, so there's no
-	// one-frame double-draw.
+	// Synchronous wipe: committed SVG appears and the live copy disappears in
+	// the SAME paint — an rAF-deferred clear double-drew for one frame (flash).
 	activePoints = [];
-	scheduleLive();
+	clearLiveNow();
 	commitHistory();
 };
 
@@ -938,7 +981,7 @@ const clear = () => {
 	beginHistory();
 	strokes.value = [];
 	activePoints = [];
-	scheduleLive();
+	clearLiveNow();
 	commitHistory();
 };
 
@@ -1043,12 +1086,24 @@ const buildPath = (points: Point[]): string => {
 	return d.join("");
 };
 
-// Committed strokes' path `d` strings, cached by the `strokes` ref. Recomputes
-// ONLY when strokes changes (commit / erase / undo / redo / clear), NOT while
-// the in-progress stroke updates every pointermove — that live stroke is drawn
-// on the screen-space canvas overlay instead.
+// Committed strokes' path `d` strings. Recomputes ONLY when `strokes` changes
+// (commit / erase / undo / redo / clear), NOT while the in-progress stroke
+// updates every pointermove — that live stroke is drawn on the screen-space
+// canvas overlay instead. The WeakMap memoizes per stroke OBJECT: an erase
+// drag replaces the array every move, but untouched strokes keep their
+// identity, so only split/new sub-strokes pay buildPath — not the whole
+// doodle, every move, O(total points).
+const dCache = new WeakMap<Stroke, string>();
+const strokeD = (s: Stroke): string => {
+	let d = dCache.get(s);
+	if (d === undefined) {
+		d = buildPath(s.points);
+		dCache.set(s, d);
+	}
+	return d;
+};
 const committedPaths = computed(() =>
-	strokes.value.map((s) => ({ d: buildPath(s.points), width: s.width })),
+	strokes.value.map((s) => ({ d: strokeD(s), width: s.width })),
 );
 
 function parsePathToStrokes(pathStr: string): Stroke[] {

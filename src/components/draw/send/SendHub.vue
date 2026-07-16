@@ -285,6 +285,27 @@
         </div>
       </section>
 
+      <!-- NEW: Native OS Share Option -->
+      <section
+        class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer active:scale-95"
+        @click="shareOutsideApp"
+      >
+        <div class="flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <div class="flex items-center gap-2">
+              <ion-icon :icon="svg(mdiShareVariant)" class="text-secondary text-[24px] shrink-0" />
+              <p class="text-xl font-bold text-black leading-none pt-1">Share Outside App</p>
+            </div>
+            <p class="text-sm text-black/80 mt-2 pl-[32px]">
+              Export as an image to messages, social media, or save to your device.
+            </p>
+          </div>
+          <div class="w-7 h-7 rounded-xl flex items-center justify-center transition-all shrink-0 bg-secondary/10 text-secondary">
+            <ion-icon :icon="svg(mdiShareVariant)" class="w-4 h-4 font-black" />
+          </div>
+        </div>
+      </section>
+
       <section v-if="isUnderAge" class="bg-amber-50 border border-amber-200 rounded-3xl p-4 flex gap-3">
         <ion-icon :icon="svg(mdiSprout)" class="text-2xl shrink-0 text-amber-600" />
         <div class="flex-1 min-w-0">
@@ -336,6 +357,7 @@ import {
 	mdiEarth,
 	mdiMagnify,
 	mdiClose,
+	mdiShareVariant, // Added icon import
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { svg } from "@/helper/general.helper";
@@ -359,6 +381,7 @@ import { useDrawStore } from "@/draw/store/draw.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import { masterAnimation } from "@/helper/animation.helper";
+import { shareImg } from "@/helper/share.helper"; // Added share helper
 
 dayjs.extend(duration);
 
@@ -403,27 +426,17 @@ const balloonNote = ref("");
 const isOnline = (id: string) => friendStore.isFriendOnline(id);
 
 // ── Searchable / paginated mate picker ──────────────────────────────────────
-// The old strip read `allConnectedPartners` (only page-1 mates + active chats)
-// so users with many mates couldn't see or find everyone. We now drive the
-// strip from the same paginated + searchable source as ChatFriendPicker
-// (friendStore.getNetworkList → networkLists.mates, hydrated via userCache),
-// with server-side search and infinite scroll along the strip.
 const mateSearch = ref("");
 const matePage = ref(1);
 const loadingMoreMates = ref(false);
 let mateDebounce: ReturnType<typeof setTimeout> | null = null;
 
-// Whether to show the "Gallery & Mates" section at all. Reads the authoritative
-// mate count off the user (search-independent) plus any active-chat partners.
-// NOT friendStore.totalCounts.mates — a search overwrites that with the filtered
-// match count, so an empty search result would wrongly flip this to "no mates".
 const hasMates = computed(
 	() =>
 		(user.value?.stats?.mates ?? 0) > 0 ||
 		allConnectedPartners.value.length > 0,
 );
 
-// Hydrate relationship entries with cached profile data (name, avatar).
 const fetchedMates = computed(() =>
 	networkLists.value.mates.map((entry) => {
 		const cached = userCache.getUser(entry._id);
@@ -434,9 +447,6 @@ const fetchedMates = computed(() =>
 	}),
 );
 
-// Displayed list: already-selected mates are pinned first so they stay visible
-// even while a search filters the fetched results, then the fetched mates
-// (online first). Deduped by id.
 const displayMates = computed(() => {
 	const map = new Map<string, any>();
 	for (const id of selected.value) {
@@ -459,8 +469,6 @@ async function fetchMates(reset = false) {
 	if (!user.value?._id) return;
 	if (reset) matePage.value = 1;
 	const term = mateSearch.value.trim();
-	// Match the rest of the app: server search kicks in at 3+ chars; shorter
-	// non-empty terms keep the current list rather than refetching.
 	if (term.length > 0 && term.length < 3) return;
 	try {
 		await friendStore.getNetworkList(
@@ -506,8 +514,6 @@ async function loadMoreMates() {
 	}
 }
 
-// Infinite scroll along the horizontal strip: observe a trailing sentinel with
-// the scroll container as the root so scrolling right loads the next page.
 const mateScroll = ref<HTMLElement | null>(null);
 const mateSentinel = ref<HTMLElement | null>(null);
 let mateObserver: IntersectionObserver | null = null;
@@ -627,6 +633,16 @@ function leaveShare() {
 	router.replace(FRONTEND_ROUTES.home, masterAnimation);
 }
 
+// ── Native OS Share Method ───────────────────────────────────────────────
+async function shareOutsideApp() {
+	if (!preview.value) return;
+	try {
+		await shareImg(preview.value, undefined, undefined, "Share drawing");
+	} catch (error) {
+		console.error("Failed to trigger native share:", error);
+	}
+}
+
 async function executeShares() {
 	if (noActionSelected.value || shareService.isSending) return;
 
@@ -654,8 +670,6 @@ async function executeShares() {
 	}
 
 	const isLobby = useDrawSyncer().isLobby;
-	// Grab the draft id BEFORE reset and hide it immediately so home doesn't flash
-	// the draft we're sending. The IDB delete itself runs later with the batch.
 	const loadStore = useDrawLoadStore();
 	const sentDraftId = loadStore.currentDraftId;
 	if (!isLobby && sentDraftId) loadStore.markDraftRemoved(sentDraftId);
@@ -668,11 +682,6 @@ async function executeShares() {
 	leaveShare();
 	resetMates();
 
-	// The actual encode+upload (exportDrawingBlobs re-rasterises the drawing per
-	// task, on the main thread) is what makes the leave animation stutter. Kick
-	// it off only AFTER the page transition has settled so it never competes with
-	// the animation for the main thread — the whole batch is background work
-	// anyway (toasts report progress once it lands).
 	const runBackgroundShares = async () => {
 		try {
 			const tasks: Array<() => Promise<void>> = [];
@@ -717,7 +726,6 @@ async function executeShares() {
 		}
 	};
 
-	// ~ion transition duration; lets the navigation animation finish at 60fps.
 	setTimeout(runBackgroundShares, 400);
 }
 </script>

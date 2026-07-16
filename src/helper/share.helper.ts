@@ -46,6 +46,19 @@ async function urlToBase64(img_url: string) {
 	return "data:image/png;base64," + response.data;
 }
 
+function base64ToBlobSync(base64: string): Blob {
+	const parts = base64.split(",");
+	const mime = parts[0].match(/:(.*?);/)?.[1] || "image/png";
+	const bstr = atob(parts[1]);
+	let n = bstr.length;
+	const u8arr = new Uint8Array(n);
+
+	while (n--) {
+		u8arr[n] = bstr.charCodeAt(n);
+	}
+
+	return new Blob([u8arr], { type: mime });
+}
 const isBase64 = (str: string) => str.startsWith("data:");
 export async function shareImg(
 	img_url: string,
@@ -54,6 +67,7 @@ export async function shareImg(
 	dialogTitle = "Share image",
 ) {
 	const can_share = await Share.canShare();
+
 	if (isNative() && can_share.value) {
 		const base64Data = isBase64(img_url) ? img_url : await urlToBase64(img_url);
 		const savedFile = await Filesystem.writeFile({
@@ -70,17 +84,32 @@ export async function shareImg(
 		});
 	} else {
 		try {
-			const response = await fetch(img_url, {});
-			const blob = await response.blob();
+			// 1. Get the blob (synchronously if base64 to preserve user gesture context)
+			let blob: Blob;
+			if (isBase64(img_url)) {
+				blob = base64ToBlobSync(img_url);
+			} else {
+				const response = await fetch(img_url);
+				blob = await response.blob();
+			}
 
-			const item = new ClipboardItem({ [blob.type]: blob });
+			// 3. Fallback to Clipboard if Web Share isn't supported
+			// Browsers strictly require image/png for clipboard images
+			const clipboardBlob =
+				blob.type === "image/png"
+					? blob
+					: new Blob([blob], { type: "image/png" });
+
+			const item = new ClipboardItem({ [clipboardBlob.type]: clipboardBlob });
 			await navigator.clipboard.write([item]);
-			toast("Copied image");
+			toast("Copied image to clipboard!");
 		} catch (e) {
+			console.error("Failed to share/copy image:", e);
+			// 4. Ultimate fallback: copy string
 			await Clipboard.write({
 				string: img_url,
 			});
-			toast("Copied image link!");
+			toast(isBase64(img_url) ? "Copied image data!" : "Copied image link!");
 		}
 	}
 }

@@ -51,20 +51,28 @@
         </p>
       </div>
 
-      <div
-        class="bg-white/80 border border-primary/20 rounded-2xl px-5 py-4 mb-4 flex items-center justify-between"
-        :class="!quotaStore.canSendBalloon && 'opacity-70'"
+      <div class="bg-white/80 border border-primary/20 rounded-2xl p-5 mb-4 flex flex-col gap-3"
+           :class="!quotaStore.canSendBalloon && 'opacity-70'"
       >
-        <div class="flex flex-col">
-          <span class="text-xs uppercase tracking-widest text-black/60">Today's Budget</span>
-          <span v-if="!quotaStore.canSendBalloon" class="text-[10px] font-bold text-secondary mt-1">
-            <template v-if="quotaStore.isPro">Resets in {{ resetCountdown }}</template>
-            <template v-else>Limit Reached</template>
-          </span>
+        <div class="flex items-center justify-between">
+          <div class="flex flex-col">
+            <span class="text-lg uppercase tracking-widest text-black/80">Daily Balloons</span>
+            <span v-if="!quotaStore.canSendBalloon" class="text-base font-bold text-secondary mt-1">
+        <template v-if="quotaStore.isPro">Resets in {{ resetCountdown }}</template>
+        <template v-else>Limit Reached</template>
+      </span>
+          </div>
+          <div class="flex items-baseline gap-1">
+            <span class="text-3xl font-black text-secondary leading-none">{{ balloons.remaining }}</span>
+            <span class="text-lg text-black/60 leading-none">/ {{ balloons.limit }}</span>
+          </div>
         </div>
-        <div class="flex items-baseline gap-1">
-          <span class="text-3xl font-black text-secondary leading-none">{{ balloons.remaining }}</span>
-          <span class="text-lg text-black/60 leading-none">/ {{ balloons.limit }}</span>
+
+        <!-- The "Why" explanation -->
+        <div class="border-t border-black/5 pt-2">
+          <p class="text-sm text-black/80 leading-relaxed">
+            We limit daily balloons so every connection is thoughtful, slow, and genuine.
+          </p>
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 <template>
   <ion-page>
     <ion-tabs>
-      <ion-router-outlet :animation="masterAnimation" :key="sessionKey"/>
+      <ion-router-outlet :animation="masterAnimation" />
 
       <!-- Tab Dock: Lifted, transparent glass dock wrapper layout -->
       <ion-tab-bar
@@ -64,8 +64,7 @@ import { computed } from "vue";
 const router = useIonRouter();
 const route = useRoute();
 
-const { localUserImg: profileImg, user } = storeToRefs(useAuthStore());
-const sessionKey = computed(() => user.value?._id ?? "anon");
+const { localUserImg: profileImg } = storeToRefs(useAuthStore());
 
 const tabs = [
 	{ route: FRONTEND_ROUTES.home, icon: homeOutline },

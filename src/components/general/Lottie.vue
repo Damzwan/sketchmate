@@ -42,7 +42,10 @@ const props = defineProps({
 });
 
 onMounted(() => {
-	if (!canvasRef.value) return;
+	// Guard re-entry: Ionic keeps the outgoing page mounted during the enter
+	// animation, so this component can exist twice for the transition window.
+	// The guard keeps a single instance from ever leaking a second player.
+	if (player || !canvasRef.value) return;
 
 	player = createLottie({
 		canvas: canvasRef.value,
@@ -57,17 +60,23 @@ onMounted(() => {
 	});
 
 	player.setSpeed(props.speed);
-	if (player.isLoaded) {
-		loaded.value = true;
-	} else {
-		player.addEventListener("load", () => {
-			loaded.value = true;
-		});
-	}
 
-	if (!props.play && !props.autoplay) {
+	const willPlay = props.play || props.autoplay;
+	if (!willPlay) {
 		player.stop();
 	}
+
+	// Reveal only once a real frame is rasterised. Fading in on "load" (data
+	// ready, canvas still blank) leaves a beat of empty canvas that then jumps
+	// to the first frame — the visible flicker. "frame" fires after the raster.
+	// A stopped player never emits "frame", so fall back to "load" there (its
+	// static first frame is drawn on load).
+	const revealEvent = willPlay ? "frame" : "load";
+	const reveal = () => {
+		loaded.value = true;
+		player?.removeEventListener(revealEvent, reveal);
+	};
+	player.addEventListener(revealEvent, reveal);
 });
 
 watch(

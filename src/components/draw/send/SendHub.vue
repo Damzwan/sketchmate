@@ -15,6 +15,20 @@
                         :aspectRatio="getAspectRatio()" />
       </div>
 
+      <!-- External share sits with the drawing, apart from the in-app share
+           cards below (those all fire together via Send). This is an instant,
+           standalone export to the device's own share sheet. -->
+      <div class="flex justify-center -mt-1">
+        <button
+          @click="shareOutsideApp"
+          class="inline-flex cursor-pointer hover:scale-105 items-center gap-2 px-4
+          py-2 rounded-full bg-white/70 border border-primary/40 shadow-sm text-secondary font-bold active:scale-95 transition-all"
+        >
+          <ion-icon :icon="svg(mdiShareVariant)" class="text-[20px]" />
+          <span class="text-sm pt-0.5">Share to other apps</span>
+        </button>
+      </div>
+
       <section
         v-if="!isUnderAge || hasMates"
         class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer"
@@ -282,27 +296,6 @@
         <div v-if="isBalloon" class="pt-4 mt-3 border-t border-primary/20 animate-fade-in" @click.stop>
           <input v-model="balloonNote" type="text" placeholder="Attach a short note... (optional)" maxlength="40"
                  class="w-full bg-primary/10 border border-primary/30 rounded-xl p-3 outline-none font-bold text-black placeholder:font-normal placeholder:text-black/70" />
-        </div>
-      </section>
-
-      <!-- NEW: Native OS Share Option -->
-      <section
-        class="bg-white/60 border border-primary/40 rounded-3xl p-4 shadow-sm transition-all cursor-pointer active:scale-95"
-        @click="shareOutsideApp"
-      >
-        <div class="flex items-center justify-between">
-          <div class="flex-1 pr-4">
-            <div class="flex items-center gap-2">
-              <ion-icon :icon="svg(mdiShareVariant)" class="text-secondary text-[24px] shrink-0" />
-              <p class="text-xl font-bold text-black leading-none pt-1">Share Outside App</p>
-            </div>
-            <p class="text-sm text-black/80 mt-2 pl-[32px]">
-              Export as an image to messages, social media, or save to your device.
-            </p>
-          </div>
-          <div class="w-7 h-7 rounded-xl flex items-center justify-center transition-all shrink-0 bg-secondary/10 text-secondary">
-            <ion-icon :icon="svg(mdiShareVariant)" class="w-4 h-4 font-black" />
-          </div>
         </div>
       </section>
 

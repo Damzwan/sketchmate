@@ -18,6 +18,7 @@
     <div
       ref="pagerRef"
       class="preview-pager hide-scrollbar"
+      :style="pagerVars"
       @scroll.passive="onPagerScroll"
       @touchmove.stop
     >
@@ -111,6 +112,13 @@ const props = withDefaults(
      apply modals where the item grid needs the room, larger (~420) for a
      dedicated preview sheet like the shop. */
 		paneHeight?: number;
+		/** Pane box width. Small pick-and-apply modals keep the default narrow
+     peek; a dedicated preview sheet (shop) passes something wider like
+     "min(92%, 480px)" so the look reads big while the next item still peeks. */
+		paneWidth?: string;
+		/** Cap for the Post surface's drawing image. Scale it up alongside a
+     taller paneHeight so the post preview isn't a tiny letterbox. */
+		postImgMaxHeight?: string;
 		/** Per-surface zoom. Content width auto-compensates (100%/zoom), so any
      zoom still fills the pane; height crops at the bottom if it outgrows
      the box. */
@@ -121,11 +129,20 @@ const props = withDefaults(
 	{
 		active: true,
 		paneHeight: 420,
+		paneWidth: "min(76%, 340px)",
+		postImgMaxHeight: "190px",
 		cardZoom: 0.68,
 		postZoom: 0.92,
 		chatZoom: 1,
 	},
 );
+
+// CSS custom props drive pane sizing so the same pager serves a compact picker
+// and a big shop preview without duplicate markup.
+const pagerVars = computed(() => ({
+	"--pane-w": props.paneWidth,
+	"--post-img-max-h": props.postImgMaxHeight,
+}));
 
 type Mode = "card" | "post" | "chat";
 const tabs: { id: Mode; label: string; icon: string }[] = [
@@ -314,7 +331,7 @@ const chatPreview = computed<any>(() => {
 
 .post-preview :deep(.tap-guard),
 .post-preview :deep(.tap-guard > img) {
-  max-height: 190px;
+  max-height: var(--post-img-max-h, 190px);
 }
 
 
@@ -326,7 +343,7 @@ const chatPreview = computed<any>(() => {
   scroll-snap-type: x mandatory;
   overscroll-behavior-x: contain;
 
-  --pane-w: min(76%, 340px);
+  --pane-w: min(76%, 340px); /* fallback; host overrides via :style */
   padding: 4px calc(50% - (var(--pane-w) / 2)) 0;
 }
 

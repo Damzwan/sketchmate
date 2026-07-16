@@ -16,14 +16,19 @@
     </template>
 
     <div v-if="sku" data-content-scroll="true" @touchmove.stop>
+      <!-- Shop = the dedicated "show it off" surface: wide panes so the look
+           reads big and clear, with the neighbour still peeking (tap or swipe
+           to it). Taller box + higher zoom than the compact in-app pickers. -->
       <PreviewSurfacePager
         :user="user"
         :customization="previewCustomization"
         :active="isOpen && !!sku"
-        :pane-height="280"
-        :card-zoom="0.45"
-        :post-zoom="0.6"
-        :chat-zoom="0.95"
+        pane-width="min(92%, 480px)"
+        :pane-height="440"
+        post-img-max-height="300px"
+        :card-zoom="0.72"
+        :post-zoom="0.7"
+        :chat-zoom="1"
       />
 
       <!-- Bundle contents grid (bundles only — a single item is redundant here) -->

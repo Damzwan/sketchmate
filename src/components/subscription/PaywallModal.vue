@@ -34,7 +34,7 @@
           <!-- Title + cat share the top row so the cat reads as part of the card -->
           <div class="flex items-start justify-between gap-3">
             <h3 class="text-2xl font-black text-black tracking-tight leading-none cabin-sketch-regular pt-1">Pro</h3>
-            <img :src="fireCat" alt="" class="w-24 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
+            <img :src="crazyCat" alt="" class="w-24 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
           </div>
 
           <!-- Billing cycle chips -->
@@ -102,7 +102,7 @@
               </p>
               <p class="text-[14px] text-black/70 mt-0.5">One time purchase, forever yours</p>
             </div>
-            <img :src="crazyCat" alt="" class="w-28 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
+            <img :src="fireCat" alt="" class="w-28 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
           </div>
 
           <ul class="mt-4 space-y-2.5">
@@ -175,7 +175,7 @@
             class="relative flex-1 min-w-0 rounded-2xl rounded-tl-sm border border-primary/40 bg-tertiary px-3.5 py-2.5">
             <span
               class="absolute -left-1.5 top-3 w-3 h-3 rotate-45 bg-tertiary border-l border-b border-primary/40"></span>
-            <p class="text-[14px] text-black leading-snug">
+            <p class="text-base text-black leading-snug">
               Going Pro supports the project and helps keep SketchMate high-quality and
               ad-free for everyone
               <ion-icon :icon="svg(mdiHeart)" class="text-secondary text-sm align-[-1px]" />
@@ -257,190 +257,224 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { IonButton, IonContent, IonIcon, IonModal } from '@ionic/vue'
-import { storeToRefs } from 'pinia'
-import { Purchases, type PurchasesPackage } from '@revenuecat/purchases-capacitor'
-import { Browser } from '@capacitor/browser'
-import { chevronBackOutline } from 'ionicons/icons'
+import { computed, ref, watch } from "vue";
+import { IonButton, IonContent, IonIcon, IonModal } from "@ionic/vue";
+import { storeToRefs } from "pinia";
 import {
-  mdiAccountGroup,
-  mdiBrush,
-  mdiCheck,
-  mdiCheckAll,
-  mdiCrown,
-  mdiCrownOutline,
-  mdiHeart,
-  mdiInfinity,
-  mdiMinus,
-  mdiMotionPlayOutline,
-  mdiPalette,
-  mdiShimmer
-} from '@mdi/js'
-import { isNative, svg } from '@/helper/general.helper'
-import logo from '@/assets/logo.webp'
-import bigbossImage from '@/assets/bigboss.jpg'
+	Purchases,
+	type PurchasesPackage,
+} from "@revenuecat/purchases-capacitor";
+import { Browser } from "@capacitor/browser";
+import { chevronBackOutline } from "ionicons/icons";
+import {
+	mdiAccountGroup,
+	mdiBrush,
+	mdiCheck,
+	mdiCheckAll,
+	mdiCrown,
+	mdiCrownOutline,
+	mdiHeart,
+	mdiInfinity,
+	mdiMinus,
+	mdiMotionPlayOutline,
+	mdiPalette,
+	mdiShimmer,
+} from "@mdi/js";
+import { isNative, svg } from "@/helper/general.helper";
+import logo from "@/assets/logo.webp";
+import bigbossImage from "@/assets/bigboss.jpg";
 // TODO: swap in two distinct cat illustrations later; same image for now.
-import crazyCat from '@/assets/stickers/crazy.webp'
-import fireCat from '@/assets/stickers/fire.webp'
-import { useMenuStore } from '@/store/menu.store'
-import { useSubscriptionStore } from '@/store/subscription.store'
-import { LIFETIME_RC_PRODUCT } from '@/config/catalog.config'
-import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
+import crazyCat from "@/assets/stickers/crazy.webp";
+import fireCat from "@/assets/stickers/fire.webp";
+import { useMenuStore } from "@/store/menu.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
+import { LIFETIME_RC_PRODUCT } from "@/config/catalog.config";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 
 // TODO: point these at the live pages before release.
-const TERMS_URL = 'https://sketchmate.app/terms'
-const PRIVACY_URL = 'https://sketchmate.ninja/legal'
+const TERMS_URL = "https://sketchmate.app/terms";
+const PRIVACY_URL = "https://sketchmate.ninja/legal";
 
-const menuStore = useMenuStore()
-const subStore = useSubscriptionStore()
-const { isPaywallOpen } = storeToRefs(menuStore)
+const menuStore = useMenuStore();
+const subStore = useSubscriptionStore();
+const { isPaywallOpen } = storeToRefs(menuStore);
 
 // Already Pro → the only upgrade left is Lifetime. Hide every Pro-subscription
 // surface (card, comparison, monthly/yearly plans) so the flow is Pro → Lifetime.
-const isPro = computed(() => subStore.isPro)
+const isPro = computed(() => subStore.isPro);
 
 // ─── Static marketing content ────────────────────────────────────────────────
 const proBullets = [
-  { label: 'All brushes', icon: mdiBrush },
-  { label: 'Animated avatar', icon: mdiMotionPlayOutline },
-  { label: 'Advanced profile customization', icon: mdiPalette },
-  { label: 'VIP lobby slots', icon: mdiCrownOutline },
-  { label: 'More friends, posts & balloons', icon: mdiAccountGroup }
-]
+	{ label: "All brushes", icon: mdiBrush },
+	{ label: "Animated avatar", icon: mdiMotionPlayOutline },
+	{ label: "Advanced profile customization", icon: mdiPalette },
+	{ label: "VIP lobby slots", icon: mdiCrownOutline },
+	{ label: "More friends, posts & balloons", icon: mdiAccountGroup },
+];
 const lifetimeBullets = [
-  { label: 'Everything in Pro', icon: mdiCheckAll, special: false },
-  { label: 'Permanent access', icon: mdiInfinity, special: false },
-  { label: 'All cosmetics unlocked', icon: mdiShimmer, special: true }
-]
+	{ label: "Everything in Pro", icon: mdiCheckAll, special: false },
+	{ label: "Lifetime access", icon: mdiInfinity, special: false },
+	{ label: "All cosmetics unlocked", icon: mdiShimmer, special: true },
+];
 // Mirrors the RevenueCat comparison table. string = value, boolean = check/dash.
-const compare: { label: string; pro: boolean | string; life: boolean | string }[] = [
-  { label: 'Unlock all cosmetics', pro: false, life: true },
-  { label: 'All brushes', pro: true, life: true },
-  { label: 'Animated avatar', pro: true, life: true },
-  { label: 'Custom signature & card doodle', pro: true, life: true },
-  { label: 'VIP lobby slots', pro: true, life: true },
-  { label: 'More mates', pro: '50', life: '50' },
-  { label: 'More posts', pro: '6', life: '6' },
-  { label: 'More balloons', pro: '5', life: '5' }
-]
+const compare: {
+	label: string;
+	pro: boolean | string;
+	life: boolean | string;
+}[] = [
+	{ label: "Unlock all cosmetics", pro: false, life: true },
+	{ label: "All brushes", pro: true, life: true },
+	{ label: "Animated avatar", pro: true, life: true },
+	{ label: "Custom signature & card doodle", pro: true, life: true },
+	{ label: "VIP lobby slots", pro: true, life: true },
+	{ label: "More mates", pro: "50", life: "50" },
+	{ label: "More posts", pro: "6", life: "6" },
+	{ label: "More balloons", pro: "5", life: "5" },
+];
 
 // ─── RC packages ─────────────────────────────────────────────────────────────
-const monthly = ref<PurchasesPackage>()
-const yearly = ref<PurchasesPackage>()
-const lifetime = ref<PurchasesPackage>()
+const monthly = ref<PurchasesPackage>();
+const yearly = ref<PurchasesPackage>();
+const lifetime = ref<PurchasesPackage>();
 
-const proCycle = ref<'yearly' | 'monthly'>('yearly')
+const proCycle = ref<"yearly" | "monthly">("yearly");
 const selectedProPkg = computed(() =>
-  proCycle.value === 'yearly' ? yearly.value : monthly.value
-)
+	proCycle.value === "yearly" ? yearly.value : monthly.value,
+);
 
 const yearlyDiscount = computed(() => {
-  const m = monthly.value?.product.price
-  const y = yearly.value?.product.price
-  if (!m || !y) return null
-  const pct = Math.round((1 - y / (m * 12)) * 100)
-  return pct > 0 ? pct : null
-})
+	const m = monthly.value?.product.price;
+	const y = yearly.value?.product.price;
+	if (!m || !y) return null;
+	const pct = Math.round((1 - y / (m * 12)) * 100);
+	return pct > 0 ? pct : null;
+});
 
 // Web has no RevenueCat — fake a few packages in dev so the whole paywall
 // (cards, discount %, table, plan sheet) is verifiable in the browser.
-function mockPkg(id: string, type: string, price: number, priceString: string): PurchasesPackage {
-  return {
-    identifier: id,
-    packageType: type,
-    product: { identifier: id, price, priceString }
-  } as unknown as PurchasesPackage
+function mockPkg(
+	id: string,
+	type: string,
+	price: number,
+	priceString: string,
+): PurchasesPackage {
+	return {
+		identifier: id,
+		packageType: type,
+		product: { identifier: id, price, priceString },
+	} as unknown as PurchasesPackage;
 }
 
 async function loadPackages() {
-  if (!isNative()) {
-    if (import.meta.env.DEV) {
-      monthly.value = mockPkg('sm_pro_monthly', 'MONTHLY', 2.99, '$2.99')
-      yearly.value = mockPkg('sm_pro_yearly', 'ANNUAL', 19.99, '$19.99')
-      lifetime.value = mockPkg(LIFETIME_RC_PRODUCT, 'LIFETIME', 39.99, '$39.99')
-    }
-    return
-  }
-  try {
-    const offerings = await Purchases.getOfferings()
-    const pkgs = offerings.all['paywall_items']?.availablePackages ?? []
-    monthly.value = pkgs.find((p) => p.packageType === 'MONTHLY')
-    yearly.value = pkgs.find((p) => p.packageType === 'ANNUAL')
-    lifetime.value =
-      pkgs.find((p) => p.product.identifier === LIFETIME_RC_PRODUCT) ??
-      pkgs.find((p) => p.packageType === 'LIFETIME')
-  } catch (e) {
-    console.error('[paywall] failed to load offerings', e)
-  }
+	if (!isNative()) {
+		if (import.meta.env.DEV) {
+			monthly.value = mockPkg("sm_pro_monthly", "MONTHLY", 2.99, "$2.99");
+			yearly.value = mockPkg("sm_pro_yearly", "ANNUAL", 19.99, "$19.99");
+			lifetime.value = mockPkg(
+				LIFETIME_RC_PRODUCT,
+				"LIFETIME",
+				39.99,
+				"$39.99",
+			);
+		}
+		return;
+	}
+	try {
+		const offerings = await Purchases.getOfferings();
+		const pkgs = offerings.all["paywall_items"]?.availablePackages ?? [];
+		monthly.value = pkgs.find((p) => p.packageType === "MONTHLY");
+		yearly.value = pkgs.find((p) => p.packageType === "ANNUAL");
+		lifetime.value =
+			pkgs.find((p) => p.product.identifier === LIFETIME_RC_PRODUCT) ??
+			pkgs.find((p) => p.packageType === "LIFETIME");
+	} catch (e) {
+		console.error("[paywall] failed to load offerings", e);
+	}
 }
 
 // Load once when the paywall opens.
-watch(isPaywallOpen, (open) => {
-  if (!open) return
-  if (isPro.value) selectedPlan.value = 'lifetime'
-  if (!monthly.value && !yearly.value && !lifetime.value) void loadPackages()
-}, { immediate: true })
+watch(
+	isPaywallOpen,
+	(open) => {
+		if (!open) return;
+		if (isPro.value) selectedPlan.value = "lifetime";
+		if (!monthly.value && !yearly.value && !lifetime.value) void loadPackages();
+	},
+	{ immediate: true },
+);
 
 // ─── Purchasing ──────────────────────────────────────────────────────────────
-const purchasing = ref(false)
+const purchasing = ref(false);
 
 async function buyPkg(pkg?: PurchasesPackage) {
-  if (!pkg || purchasing.value) return false
-  purchasing.value = true
-  const ok = await subStore.purchaseSubscription(pkg)
-  purchasing.value = false
-  return ok
+	if (!pkg || purchasing.value) return false;
+	purchasing.value = true;
+	const ok = await subStore.purchaseSubscription(pkg);
+	purchasing.value = false;
+	return ok;
 }
 
 // Direct per-card purchases.
-const buyCycle = () => buyPkg(selectedProPkg.value)
-const buyLifetime = () => buyPkg(lifetime.value)
+const buyCycle = () => buyPkg(selectedProPkg.value);
+const buyLifetime = () => buyPkg(lifetime.value);
 
 // ─── Plan selection sheet ────────────────────────────────────────────────────
-const selectOpen = ref(false)
-type PlanId = 'monthly' | 'yearly' | 'lifetime'
-const selectedPlan = ref<PlanId>('yearly')
+const selectOpen = ref(false);
+type PlanId = "monthly" | "yearly" | "lifetime";
+const selectedPlan = ref<PlanId>("yearly");
 
 const planOptions = computed(() => {
-  const out: { id: PlanId; title: string; sub?: string; price: string; badge?: string }[] = []
-  if (yearly.value && !isPro.value)
-    out.push({
-      id: 'yearly',
-      title: 'Yearly',
-      sub: 'Billed once a year',
-      price: yearly.value.product.priceString,
-      badge: yearlyDiscount.value ? `Save ${yearlyDiscount.value}%` : 'Best value'
-    })
-  if (monthly.value && !isPro.value)
-    out.push({ id: 'monthly', title: 'Monthly', sub: 'Billed monthly', price: monthly.value.product.priceString })
-  if (lifetime.value)
-    out.push({
-      id: 'lifetime',
-      title: 'Lifetime',
-      sub: 'One-time · forever yours',
-      price: lifetime.value.product.priceString
-    })
-  return out
-})
+	const out: {
+		id: PlanId;
+		title: string;
+		sub?: string;
+		price: string;
+		badge?: string;
+	}[] = [];
+	if (yearly.value && !isPro.value)
+		out.push({
+			id: "yearly",
+			title: "Yearly",
+			sub: "Billed once a year",
+			price: yearly.value.product.priceString,
+			badge: yearlyDiscount.value
+				? `Save ${yearlyDiscount.value}%`
+				: "Best value",
+		});
+	if (monthly.value && !isPro.value)
+		out.push({
+			id: "monthly",
+			title: "Monthly",
+			sub: "Billed monthly",
+			price: monthly.value.product.priceString,
+		});
+	if (lifetime.value)
+		out.push({
+			id: "lifetime",
+			title: "Lifetime",
+			sub: "One-time · forever yours",
+			price: lifetime.value.product.priceString,
+		});
+	return out;
+});
 
 const selectedPkg = computed<PurchasesPackage | undefined>(() => {
-  if (selectedPlan.value === 'yearly') return yearly.value
-  if (selectedPlan.value === 'monthly') return monthly.value
-  return lifetime.value
-})
+	if (selectedPlan.value === "yearly") return yearly.value;
+	if (selectedPlan.value === "monthly") return monthly.value;
+	return lifetime.value;
+});
 
 async function buy() {
-  const ok = await buyPkg(selectedPkg.value)
-  if (ok) selectOpen.value = false
+	const ok = await buyPkg(selectedPkg.value);
+	if (ok) selectOpen.value = false;
 }
 
 function close() {
-  isPaywallOpen.value = false
+	isPaywallOpen.value = false;
 }
 
 function openLink(url: string) {
-  void Browser.open({ url })
+	void Browser.open({ url });
 }
 </script>
 

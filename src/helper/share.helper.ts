@@ -60,6 +60,33 @@ function base64ToBlobSync(base64: string): Blob {
 	return new Blob([u8arr], { type: mime });
 }
 const isBase64 = (str: string) => str.startsWith("data:");
+const isBlobUrl = (str: string) => str.startsWith("blob:");
+
+function blobToBase64(blob: Blob): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onloadend = () => resolve(reader.result as string);
+		reader.onerror = reject;
+		reader.readAsDataURL(blob);
+	});
+}
+
+// Resolve any image source the app hands us into a real Blob.
+//   • data:  → decode inline (sync, keeps the user-gesture window)
+//   • blob:  → in-webview object; plain fetch() reads it. CapacitorHttp can't
+//              (it's a native HTTP client and has no handle on the JS blob).
+//   • http(s) → CapacitorHttp to dodge webview CORS on remote assets.
+// The old path sent blob: URLs straight to CapacitorHttp, which threw on native
+// and killed the share — that was the "sharing doesn't work on mobile" bug.
+async function resolveBlob(img_url: string): Promise<Blob> {
+	if (isBase64(img_url)) return base64ToBlobSync(img_url);
+	if (isBlobUrl(img_url)) return await (await fetch(img_url)).blob();
+	return base64ToBlobSync(await urlToBase64(img_url));
+}
+
+const extForBlob = (blob: Blob) =>
+	blob.type.includes("webp") ? "webp" : "png";
+
 export async function shareImg(
 	img_url: string,
 	title = undefined,
@@ -69,9 +96,10 @@ export async function shareImg(
 	const can_share = await Share.canShare();
 
 	if (isNative() && can_share.value) {
-		const base64Data = isBase64(img_url) ? img_url : await urlToBase64(img_url);
+		const blob = await resolveBlob(img_url);
+		const base64Data = await blobToBase64(blob);
 		const savedFile = await Filesystem.writeFile({
-			path: "sketchmate_img.png",
+			path: `sketchmate_img.${extForBlob(blob)}`,
 			data: base64Data.split(",")[1],
 			directory: Directory.Cache,
 		});
@@ -82,35 +110,37 @@ export async function shareImg(
 			files: [savedFile.uri],
 			dialogTitle: dialogTitle,
 		});
-	} else {
-		try {
-			// 1. Get the blob (synchronously if base64 to preserve user gesture context)
-			let blob: Blob;
-			if (isBase64(img_url)) {
-				blob = base64ToBlobSync(img_url);
-			} else {
-				const response = await fetch(img_url);
-				blob = await response.blob();
-			}
+		return;
+	}
 
-			// 3. Fallback to Clipboard if Web Share isn't supported
-			// Browsers strictly require image/png for clipboard images
-			const clipboardBlob =
-				blob.type === "image/png"
-					? blob
-					: new Blob([blob], { type: "image/png" });
+	// Web (incl. mobile browsers). Prefer the OS share sheet with the actual
+	// image file; fall back to clipboard, then to copying the link.
+	try {
+		const blob = await resolveBlob(img_url);
+		const file = new File([blob], `sketchmate.${extForBlob(blob)}`, {
+			type: blob.type || "image/png",
+		});
 
-			const item = new ClipboardItem({ [clipboardBlob.type]: clipboardBlob });
-			await navigator.clipboard.write([item]);
-			toast("Copied image to clipboard!");
-		} catch (e) {
-			console.error("Failed to share/copy image:", e);
-			// 4. Ultimate fallback: copy string
-			await Clipboard.write({
-				string: img_url,
-			});
-			toast(isBase64(img_url) ? "Copied image data!" : "Copied image link!");
+		const nav = navigator as any;
+		if (isMobile() && nav.canShare?.({ files: [file] })) {
+			await nav.share({ files: [file], title, text: description });
+			return;
 		}
+
+		// Clipboard wants image/png — re-wrap non-png (webp) bytes under that type.
+		const clipboardBlob =
+			blob.type === "image/png"
+				? blob
+				: new Blob([blob], { type: "image/png" });
+		await navigator.clipboard.write([
+			new ClipboardItem({ [clipboardBlob.type]: clipboardBlob }),
+		]);
+		toast("Copied image to clipboard!");
+		return;
+	} catch (e) {
+		console.error("Failed to share/copy image:", e);
+		await Clipboard.write({ string: img_url });
+		toast(isBase64(img_url) ? "Copied image data!" : "Copied image link!");
 	}
 }
 

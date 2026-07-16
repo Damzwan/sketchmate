@@ -230,8 +230,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, provide, ref, watch } from "vue";
 import { IonModal, IonContent, IonIcon, IonButton } from "@ionic/vue";
+import { AMBIENT_FOREGROUND } from "@/store/ambientPause.store";
 import { storeToRefs } from "pinia";
 import { Purchases } from "@revenuecat/purchases-capacitor";
 import {
@@ -272,6 +273,16 @@ import ShopGrantPreview from "./ShopGrantPreview.vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import { useAuthStore } from "@/store/auth.store";
 
+// Shop cards animate (foreground) while browsing — but the moment a preview
+// modal opens, freeze the whole grid behind it so ALL the GPU/CPU goes to the
+// one thing being previewed. The preview modal re-provides `true` for its own
+// subtree, so only it keeps animating.
+const previewSku = ref<ShopSku | null>(null);
+provide(
+	AMBIENT_FOREGROUND,
+	computed(() => !previewSku.value),
+);
+
 const menuStore = useMenuStore();
 const subStore = useSubscriptionStore();
 const inventoryStore = useInventoryStore();
@@ -291,7 +302,6 @@ const skusWithPrices = ref<
 >({});
 const contentEl = ref<any>(null);
 const highlightedId = ref<string | null>(null);
-const previewSku = ref<ShopSku | null>(null);
 const collectionOpen = ref(false);
 
 function withPrice(sku: ShopSku) {

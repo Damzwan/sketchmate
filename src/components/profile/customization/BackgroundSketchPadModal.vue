@@ -278,6 +278,7 @@ import {
 	type Customization,
 } from "@/config/profile_options.config";
 import { useSubscriptionStore } from "@/store/subscription.store";
+import { useAmbientPause } from "@/store/ambientPause.store";
 
 type Point = [number, number];
 type Stroke = { points: Point[]; width: number };
@@ -311,6 +312,26 @@ const emit = defineEmits<{
 
 const subscriptionStore = useSubscriptionStore();
 const isPro = computed(() => subscriptionStore.isPro);
+
+// While the doodle pad is up it covers the whole app. Freeze every ambient
+// world/effect elsewhere (the profile page underneath) so all GPU/CPU goes to a
+// buttery draw surface. Balanced on the isOpen edge — idempotent across the
+// button→emit→did-dismiss double-fire.
+const ambient = useAmbientPause();
+let ambientHeld = false;
+watch(
+	() => props.isOpen,
+	(open) => {
+		if (open && !ambientHeld) {
+			ambient.hold();
+			ambientHeld = true;
+		} else if (!open && ambientHeld) {
+			ambient.release();
+			ambientHeld = false;
+		}
+	},
+	{ immediate: true },
+);
 
 /* ----------------------------- tools ----------------------------- */
 const tool = ref<Tool>("draw");
@@ -579,6 +600,10 @@ const onPresent = async () => {
 onBeforeUnmount(() => {
 	resizeObserver?.disconnect();
 	if (liveRaf) cancelAnimationFrame(liveRaf);
+	if (ambientHeld) {
+		ambient.release();
+		ambientHeld = false;
+	}
 });
 
 watch(

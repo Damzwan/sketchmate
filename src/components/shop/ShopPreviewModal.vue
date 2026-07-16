@@ -60,6 +60,29 @@
         />
       </div>
 
+      <!-- Post preview — exactly how a feed post looks wearing this item.
+           Display-only (pointer-events-none) so taps don't fire real actions;
+           scaled down so it doesn't dominate the sheet. -->
+      <div v-if="mode === 'post'" class="px-1 pt-2 pb-4 pointer-events-none">
+        <div class="post-preview mx-auto w-full max-w-[360px]">
+          <FeedPostCard :post="mockPost" :is-mine="true" />
+        </div>
+      </div>
+
+      <!-- Chat preview — the chat header (ChatToolbar) AND the conversation-list
+           row, so both surfaces the look shows up on are covered. -->
+      <div v-if="mode === 'chat'" class="px-1 pt-2 pb-4 pointer-events-none space-y-4">
+        <div class="rounded-[1.5rem] overflow-hidden border border-primary/40 shadow-sm">
+          <ChatToolbar :preview="chatPreview" />
+        </div>
+        <ConversationItem
+          :chat="mockChat"
+          current-user-id="preview-me"
+          :is-online="true"
+          :is-typing="false"
+        />
+      </div>
+
       <!-- Bundle contents grid (bundles only — a single item is redundant here) -->
       <div v-if="isBundle" class="grid grid-cols-2 gap-3 px-1 pt-4 pb-4">
         <div
@@ -111,8 +134,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, provide, ref, watch } from "vue";
 import { IonButton } from "@ionic/vue";
+import { AMBIENT_FOREGROUND } from "@/store/ambientPause.store";
 import { storeToRefs } from "pinia";
 import {
 	describeGrant,
@@ -125,6 +149,10 @@ import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
 import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import ProfileSheetView from "@/components/profile/ProfileSheetView.vue";
+import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
+import ConversationItem from "@/components/chat/ConversationItem.vue";
+import ChatToolbar from "@/components/chat/ChatToolbar.vue";
+import exampleImg from "@/assets/example.webp";
 
 const props = defineProps<{
 	isOpen: boolean;
@@ -135,10 +163,16 @@ const props = defineProps<{
 }>();
 defineEmits(["close", "purchase", "equip"]);
 
-type Mode = "card" | "sheet";
+// The previewed item is the ONE thing that should animate — the shop grid behind
+// (which provides `false` while a preview is open) stays frozen.
+provide(AMBIENT_FOREGROUND, true);
+
+type Mode = "card" | "sheet" | "post" | "chat";
 const tabs: { id: Mode; label: string }[] = [
 	{ id: "card", label: "Card" },
 	{ id: "sheet", label: "Full view" },
+	{ id: "post", label: "Post" },
+	{ id: "chat", label: "Chat" },
 ];
 // Full view first — it's the important "what mates actually see" surface and it
 // fills the sheet, so there's no empty space on single items.
@@ -174,6 +208,71 @@ const previewCustomization = computed<Partial<Customization>>(() => {
 		if (field) c[field] = rest.join(".");
 	}
 	return c;
+});
+
+// A synthetic feed post wearing the previewed look — the user's own artwork if
+// they have any, so "how my post looks with this" is real. Rendered display-only.
+const mockPost = computed<any>(() => {
+	const u = props.user ?? {};
+	return {
+		_id: "preview-post",
+		author_id: u._id ?? "preview-me",
+		author: {
+			_id: u._id ?? "preview-me",
+			name: u.name ?? "You",
+			img: u.img,
+			avatar: u.img,
+			customization: previewCustomization.value,
+		},
+		image_url: exampleImg,
+		drawing_url: exampleImg,
+		description: u.description || "Fresh from the canvas ✨",
+		createdAt: new Date().toISOString(),
+		reaction_counts: { love: 12, fire: 4 },
+		user_reaction: null,
+		comment_count: 0,
+		comments: [],
+		views: 128,
+		enable_comments: true,
+		enable_remix: true,
+	};
+});
+
+// A synthetic active conversation row wearing the previewed look. currentUserId
+// is "preview-me", so the OTHER participant carries the customization.
+const mockChat = computed<any>(() => {
+	const u = props.user ?? {};
+	return {
+		_id: "preview-chat",
+		participants: [
+			{ _id: "preview-me", name: "You" },
+			{
+				_id: "preview-partner",
+				name: u.name ?? "You",
+				img: u.img,
+				customization: previewCustomization.value,
+			},
+		],
+		status: "active",
+		initiator_id: "preview-me",
+		last_message: { type: "text", content: "This is how your chats look 🎨" },
+		unread_counts: { "preview-me": 2 },
+		updatedAt: new Date().toISOString(),
+	};
+});
+
+// Partner descriptor for the ChatToolbar header preview (bypasses its store
+// resolution). Same look as the conversation row's partner.
+const chatPreview = computed<any>(() => {
+	const u = props.user ?? {};
+	return {
+		partner: {
+			_id: "preview-partner",
+			name: u.name ?? "You",
+			img: u.img,
+			customization: previewCustomization.value,
+		},
+	};
 });
 
 // Just this item's grants mapped to their customization fields (no existing
@@ -214,3 +313,13 @@ watch(
 	},
 );
 </script>
+
+<style scoped>
+/* The feed card's height is driven by its artwork strip (`.tap-guard`), whose
+   image is `max-h-[50vh]` — huge inside a tall sheet. Cap that strip so the post
+   preview is compact; the header/footer keep their natural size. */
+.post-preview :deep(.tap-guard),
+.post-preview :deep(.tap-guard > img) {
+	max-height: 190px;
+}
+</style>

@@ -8,24 +8,16 @@
     style="isolation: isolate;"
     aria-hidden="true"
   >
-    <!-- MASTER CONTAINER: This holds the invisible, single-instance canvases.
-         It MUST be in the DOM with a non-zero size so DotLottie doesn't auto-pause it. -->
-    <div
-      ref="masterContainer"
-      class="absolute inset-0 pointer-events-none z-[-1]"
-      style="opacity: 0.001; overflow: hidden;"
-    ></div>
-
     <!-- Latched mount: once the card has been on-screen we KEEP the canvases in
          the DOM (we merely play/pause the players) so scrolling back to a card
          never re-mounts and pops-in → no flicker. -->
     <template v-if="hasMounted">
 
-      <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-80 sprite-stage">
+      <div v-if="def.kind === 'ocean'" class="absolute inset-0 z-20 opacity-90 sprite-stage">
         <div
           v-for="j in jellyfishes"
           :key="'jf' + j.id"
-          class="absolute animate-jellyfish-drift"
+          class="absolute animate-jellyfish-drift opacity-75"
           :style="{
             left: j.left,
             width: j.size,
@@ -71,7 +63,7 @@
         </div>
       </div>
 
-      <div v-else-if="def.kind === 'cat'" class="absolute inset-0 z-20 opacity-90">
+      <div v-else-if="def.kind === 'cat'" class="absolute inset-0 z-20 opacity-100">
         <div
           v-for="m in dustMotes"
           :key="'dm' + m.id"
@@ -94,7 +86,7 @@
           <div class="absolute bottom-[40%] right-[-10%] w-18 h-18 origin-bottom animate-plant-sway opacity-60 z-0 transform scaleX(-1)">
             <canvas :ref="(el) => bindCanvas(el, plantLottie)" class="w-full h-full object-contain"></canvas>
           </div>
-          <div class="w-32 h-32 opacity-95 filter drop-shadow-sm z-10">
+          <div class="w-32 h-32 opacity-100 filter drop-shadow-sm z-10">
             <canvas :ref="(el) => bindCanvas(el, catLottie)" class="w-full h-full object-contain"></canvas>
           </div>
         </div>
@@ -132,7 +124,7 @@
         </div>
       </div>
 
-      <div v-else-if="def.kind === 'dragon'" class="absolute inset-0 z-20 opacity-90">
+      <div v-else-if="def.kind === 'dragon'" class="absolute inset-0 z-20 opacity-100">
         <div
           v-for="f in fieryPits"
           :key="'fr' + f.id"
@@ -275,10 +267,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { DotLottie } from "@lottiefiles/dotlottie-web";
+import {
+	computed,
+	inject,
+	nextTick,
+	onBeforeUnmount,
+	onMounted,
+	ref,
+	toValue,
+	watch,
+} from "vue";
+import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
 import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
-import { usePhotoSwiper } from "@/store/photoswiper.store";
+import {
+	AMBIENT_FOREGROUND,
+	useAmbientPause,
+} from "@/store/ambientPause.store";
 
 import turtleLottie from "@/assets/lottie/avatar/turtle.lottie";
 import fishLottie from "@/assets/lottie/avatar/fish.lottie";
@@ -306,6 +310,11 @@ const props = withDefaults(
 		staticMode?: boolean;
 		radiusClass?: string;
 		mini?: boolean;
+		/** Gate player creation tightly to the viewport instead of the giant hero
+		    margin. Set on LIST instances (feed cards, chat toolbar) so only worlds
+		    near the viewport ever spin up lottie workers — a 20-item feed must not
+		    instantiate 20×N players up front. */
+		contained?: boolean;
 	}>(),
 	{
 		preview: false,
@@ -314,6 +323,7 @@ const props = withDefaults(
 		staticMode: false,
 		radiusClass: "rounded-[2.5rem]",
 		mini: false,
+		contained: false,
 	},
 );
 
@@ -321,13 +331,15 @@ const def = computed<WorldDef>(() => props.def || resolveWorld(props.worldId));
 
 // ── On-screen gating & run-state engine ─────────────────────────────────────
 const root = ref<HTMLElement | null>(null);
-const masterContainer = ref<HTMLElement | null>(null);
 const onScreen = ref(false);
 // Latched: flips true the first time the card is on-screen and never back — the
 // canvases stay mounted so re-scrolling doesn't re-create them (that was the
 // pop-in flicker). Playback is governed by `paused` instead.
 const hasMounted = ref(false);
-const swiper = usePhotoSwiper();
+const ambient = useAmbientPause();
+// Foreground subtrees (inside the shop / a preview modal) ignore the global
+// overlay pause — they ARE the overlay's content and must keep animating.
+const foreground = inject(AMBIENT_FOREGROUND, false);
 let io: IntersectionObserver | null = null;
 
 // Weak phones (flag stamped in main.ts). Two mitigations hang off this: fewer
@@ -336,32 +348,40 @@ const lowEnd =
 	typeof document !== "undefined" &&
 	document.documentElement.classList.contains("low-end");
 
-// Animation runs only when the card is on-screen, not static, and no fullscreen
-// photo swiper is covering the app (worlds behind it are invisible but were
-// still burning GPU + rAF — the profileSheet→photoswiper lag).
-const paused = computed(() => {
-	return props.staticMode || !onScreen.value || swiper.open;
-});
+// ── Per-canvas sprite players ───────────────────────────────────────────────
+// Each visible sprite canvas gets its OWN player via createLottie — a
+// DotLottieWorker on web (WASM decode + raster off the main thread) and a
+// main-thread DotLottie on native (Android WebView doesn't drive rAF inside a
+// worker/OffscreenCanvas, so the worker would freeze on frame 0). This replaces
+// the old master→dumb-canvas copy pipeline, which had to read frames back on the
+// main thread (drawImage) and so could never move off it at all. Trade-off: N
+// players instead of 1-per-sprite-type, but sprite counts are capped (`cap` +
+// lowEnd) and on web they're off the main thread entirely.
+type Sprite = { el: HTMLCanvasElement; player: LottiePlayer };
+const sprites = new Set<Sprite>();
+
+// Static worlds (feed/toolbar minis) AND low-end phones show a single frozen
+// frame — the player renders one frame then holds it, so there's zero ongoing
+// decode. The CSS travel animations still glide the sprites via cheap GPU
+// transforms, so the scene reads as alive without any per-frame wasm cost.
+const freezeFrame = computed(() => props.staticMode || lowEnd);
+
+const paused = computed(
+	() =>
+		freezeFrame.value ||
+		!onScreen.value ||
+		(!toValue(foreground) && ambient.paused),
+);
 
 function applyRunState() {
-	if (paused.value) {
-		stopLoop();
-		masters.forEach((m) => m.player.pause());
-	} else if (lowEnd) {
-		// Low-end: decode ONE frame per sprite, stamp it to the visible canvases,
-		// then freeze the players — no per-frame wasm decode (the biggest main-
-		// thread cost). The CSS travel animations keep sprites gliding via cheap
-		// GPU transforms, so the scene still moves without pegging the CPU.
-		stopLoop();
-		masters.forEach((m) => m.player.play());
-		requestAnimationFrame(() => {
-			copyMasterFramesToTargets();
-			masters.forEach((m) => m.player.pause());
-		});
-	} else {
-		masters.forEach((m) => m.player.play());
-		startLoop();
-	}
+	const shouldPause = paused.value;
+	sprites.forEach(({ player }) => {
+		try {
+			shouldPause ? player.pause() : player.play();
+		} catch {
+			/* player torn down mid-transition */
+		}
+	});
 }
 
 onMounted(() => {
@@ -376,7 +396,13 @@ onMounted(() => {
 			if (onScreen.value) hasMounted.value = true;
 			applyRunState();
 		},
-		{ rootMargin: props.preview ? "1500px" : "9999px" },
+		{
+			rootMargin: props.preview
+				? "1500px"
+				: props.contained
+					? "300px"
+					: "9999px",
+		},
 	);
 
 	watch(
@@ -391,152 +417,83 @@ onMounted(() => {
 
 watch(paused, applyRunState);
 
-onBeforeUnmount(() => {
-	io?.disconnect();
-	stopLoop();
-	masters.forEach((m) => m.player.destroy());
-	masters.clear();
-});
-
-// ── Master Pipeline Frame Copy Mechanics ───────────────────────────────────
-const canvasResolution = 200;
-const masters = new Map<
-	string,
-	{
-		canvas: HTMLCanvasElement;
-		player: DotLottie;
-		targets: Set<CanvasRenderingContext2D>;
-	}
->();
-let animationFrameId: number | null = null;
-
-const startLoop = () => {
-	if (!animationFrameId && !props.staticMode) {
-		renderLoop();
-	}
-};
-
-const stopLoop = () => {
-	if (animationFrameId) {
-		cancelAnimationFrame(animationFrameId);
-		animationFrameId = null;
-	}
-};
-
-// Isolated core drawer routine to handle individual stamping operations cleanly
-const copyMasterFramesToTargets = () => {
-	masters.forEach((master) => {
-		if (master.targets.size > 0) {
-			master.targets.forEach((targetCtx) => {
-				if (!document.body.contains(targetCtx.canvas)) {
-					master.targets.delete(targetCtx);
-					return;
-				}
-				targetCtx.clearRect(0, 0, canvasResolution, canvasResolution);
-				targetCtx.drawImage(
-					master.canvas,
-					0,
-					0,
-					canvasResolution,
-					canvasResolution,
-				);
-			});
+const destroyAllSprites = () => {
+	sprites.forEach((s) => {
+		try {
+			s.player.destroy();
+		} catch {
+			/* already gone */
 		}
 	});
+	sprites.clear();
 };
 
-// Ambient background sprites — cap the frame-copy at ~30fps. Halves the
-// per-frame drawImage cost across every sprite canvas; imperceptible on slow
-// drifting motion.
-let lastCopyTs = 0;
-const COPY_INTERVAL = 1000 / 30;
-const renderLoop = (ts = 0) => {
-	if (props.staticMode) return;
-	if (ts - lastCopyTs >= COPY_INTERVAL) {
-		lastCopyTs = ts;
-		copyMasterFramesToTargets();
-	}
-	animationFrameId = requestAnimationFrame(renderLoop);
-};
+// Switching world kind unmounts the old sprite canvases and mounts new ones.
+// After the DOM settles, tear down any player whose canvas has detached so the
+// old world's workers don't leak (the freshly-mounted ones stay connected).
+watch(
+	() => def.value.kind,
+	async () => {
+		await nextTick();
+		sprites.forEach((s) => {
+			if (!s.el.isConnected) {
+				try {
+					s.player.destroy();
+				} catch {
+					/* already gone */
+				}
+				sprites.delete(s);
+			}
+		});
+	},
+);
+
+onBeforeUnmount(() => {
+	io?.disconnect();
+	destroyAllSprites();
+});
+
+const spriteDpr = Math.min(
+	typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+	1.5,
+);
 
 const bindCanvas = (el: any, src: string) => {
 	if (!el) return;
-	const targetCanvas = el as HTMLCanvasElement;
+	const canvas = el as HTMLCanvasElement;
+	// The :ref callback can fire repeatedly for the same element; bind once.
+	if ((canvas as any).__pwBound) return;
+	(canvas as any).__pwBound = true;
 
-	if (targetCanvas.width !== canvasResolution) {
-		targetCanvas.width = canvasResolution;
-		targetCanvas.height = canvasResolution;
-	}
+	const player = createLottie({
+		canvas,
+		src,
+		loop: true,
+		autoplay: false,
+		layout: { fit: "contain", align: [0.5, 0.5] },
+		renderConfig: { devicePixelRatio: spriteDpr, autoResize: true },
+	});
 
-	const ctx = targetCanvas.getContext("2d", { alpha: true });
-	if (!ctx) return;
+	const sprite: Sprite = { el: canvas, player };
+	sprites.add(sprite);
 
-	if (!masters.has(src)) {
-		const hiddenCanvas = document.createElement("canvas");
-		hiddenCanvas.width = canvasResolution;
-		hiddenCanvas.height = canvasResolution;
-
-		hiddenCanvas.style.width = `${canvasResolution}px`;
-		hiddenCanvas.style.height = `${canvasResolution}px`;
-		hiddenCanvas.style.position = "absolute";
-		hiddenCanvas.style.top = "0";
-		hiddenCanvas.style.left = "0";
-
-		if (masterContainer.value) {
-			masterContainer.value.appendChild(hiddenCanvas);
-		}
-
-		const player = new DotLottie({
-			canvas: hiddenCanvas,
-			src: src,
-			loop: true,
-			autoplay: !props.staticMode,
-			renderConfig: { devicePixelRatio: 1 },
-		});
-
-		// Re-assert run-state once the asset is ready — handles the load/observer
-		// race, and on low-end stamps a decoded frame then freezes the player.
-		player.addEventListener("load", applyRunState);
-
-		masters.set(src, { canvas: hiddenCanvas, player, targets: new Set() });
-	}
-
-	const masterGroup = masters.get(src)!;
-	masterGroup.targets.add(ctx);
-
-	// Static / paused: stamp one freeze-frame once loaded. Otherwise let the
-	// central run-state governor decide whether to actually run (it respects
-	// on-screen + swiper visibility, so a canvas mounted while a swiper is open
-	// won't start burning frames).
-	if (paused.value) {
-		requestAnimationFrame(() => {
-			ctx.clearRect(0, 0, canvasResolution, canvasResolution);
-			ctx.drawImage(
-				masterGroup.canvas,
-				0,
-				0,
-				canvasResolution,
-				canvasResolution,
-			);
-		});
-	} else {
-		applyRunState();
-	}
-};
-
-watch(
-	() => props.staticMode,
-	(isStatic) => {
-		// `paused` already folds in staticMode, so the watch(paused) governor
-		// handles play/pause + the rAF loop. We just stamp a clean freeze-frame
-		// on the transition into static.
-		if (isStatic) {
+	// Draw at least one frame so freeze-frame worlds aren't blank, then hand off
+	// to the run-state governor (which respects on-screen + overlay visibility).
+	player.addEventListener("load", () => {
+		if (paused.value) {
+			player.play();
 			requestAnimationFrame(() => {
-				copyMasterFramesToTargets();
+				try {
+					player.pause();
+				} catch {
+					/* torn down */
+				}
 			});
+		} else {
+			player.play();
 		}
-	},
-);
+	});
+};
 
 // ── Positional List Generation Mechanics ────────────────────────────────────
 // Low-end phones get the trimmed preview counts too — fewer sprites means fewer

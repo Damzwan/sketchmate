@@ -9,7 +9,7 @@
            synced). The opaque artwork strip covers it through the middle. One
            instance keeps it cheap. Base-theme authors get the plain default. -->
       <div v-if="showArtistTheme" class="absolute inset-0 z-0 pointer-events-none">
-        <ProfileEffect :effect-id="authorCustomization.effectId" radius-class="rounded-none" />
+        <ProfileEffect :effect-id="authorCustomization.effectId" radius-class="rounded-none" contained />
       </div>
 
       <!-- Artist intro banner: transparent so the card surface + effect show
@@ -21,6 +21,7 @@
             :accent="theme.accentColor"
             static-mode
             mini
+            contained
             radius-class="rounded-none"
           />
         </div>

@@ -104,14 +104,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+	computed,
+	inject,
+	onBeforeUnmount,
+	onMounted,
+	ref,
+	toValue,
+	watch,
+} from "vue";
 import {
 	resolveEffect,
 	type ProfileEffectDef,
 } from "@/config/profile_options.config";
-import { usePhotoSwiper } from "@/store/photoswiper.store";
+import {
+	AMBIENT_FOREGROUND,
+	useAmbientPause,
+} from "@/store/ambientPause.store";
 import paper from "@/assets/textures/paper.webp";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
 
 const props = withDefaults(
 	defineProps<{
@@ -126,8 +136,18 @@ const props = withDefaults(
 		/** Permanently freeze the effect (e.g. behind the doodle pad, where a
 		    scaled-up animating effect layer tanks GPU while drawing). */
 		staticEffect?: boolean;
+		/** Gate tightly to the viewport instead of the giant hero margin. Set on
+		    LIST instances (feed cards) so off-screen effects actually freeze —
+		    the default 9999px margin keeps a single hero card alive across scroll,
+		    but in a 20-item feed it means every conic-blur layer animates forever. */
+		contained?: boolean;
 	}>(),
-	{ preview: false, radiusClass: "rounded-[2.5rem]", staticEffect: false },
+	{
+		preview: false,
+		radiusClass: "rounded-[2.5rem]",
+		staticEffect: false,
+		contained: false,
+	},
 );
 
 const def = computed<ProfileEffectDef>(
@@ -142,11 +162,15 @@ const def = computed<ProfileEffectDef>(
 const root = ref<HTMLElement | null>(null);
 const onScreen = ref(false);
 const hasMounted = ref(false);
-const swiper = usePhotoSwiper();
-const chatWidget = useChatWidgetStore();
+const ambient = useAmbientPause();
+// Foreground subtrees (shop / preview modal) ignore the global overlay pause.
+const foreground = inject(AMBIENT_FOREGROUND, false);
 
 const paused = computed(
-	() => props.staticEffect || !onScreen.value || swiper.open,
+	() =>
+		props.staticEffect ||
+		!onScreen.value ||
+		(!toValue(foreground) && ambient.paused),
 );
 let io: IntersectionObserver | null = null;
 
@@ -165,7 +189,13 @@ onMounted(() => {
 		// hero card uses a huge margin so ordinary in-page scrolling never tears it
 		// down and re-mounts it (the pop-in flicker) — it still deactivates when the
 		// whole page is hidden (display:none ⇒ no box ⇒ not intersecting).
-		{ rootMargin: props.preview ? "1500px" : "9999px" },
+		{
+			rootMargin: props.preview
+				? "1500px"
+				: props.contained
+					? "300px"
+					: "9999px",
+		},
 	);
 	// Re-observe whenever the root element appears/changes. Root is v-if'd on
 	// def.kind !== 'none', so switching FROM a 'none' effect creates the root only
@@ -270,6 +300,14 @@ const shimmerStyle = computed(() => {
 /* ─── SHATTERED GLASS ─────────────────────────────────────────────── */
 .glass {
   /* speedClass sets --dur via animation-duration on children below */
+  /* Own compositor layer + isolation so the mix-blend sheen/facets composite
+     against THIS group only, not the live card behind (a GIF avatar / animated
+     name repainting behind an un-isolated blend group is the flicker source). */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  isolation: isolate;
 }
 
 /* Prismatic refraction: slow rotating rainbow, blurred, peeking through facets */

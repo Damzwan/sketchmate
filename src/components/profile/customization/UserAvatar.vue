@@ -2,7 +2,7 @@
   <div class="relative inline-block" :style="containerStyle">
     <!-- Applied dynamic borderClass -->
     <div
-      class="w-full h-full rounded-full flex items-center justify-center overflow-hidden transition-all duration-500"
+      class="avatar-frame w-full h-full rounded-full flex items-center justify-center overflow-hidden transition-all duration-500"
       :class="borderClass"
       :style="{ borderColor: borderColor }"
     >
@@ -57,3 +57,20 @@ const borderColor = computed(() => {
 	return resolveTheme(props.customization.themeId).accentColor;
 });
 </script>
+
+<style scoped>
+/* An animated GIF avatar repaints every frame. Without its own compositor layer
+   that repaint invalidates the whole card region — so the shattered-glass
+   mix-blend layers and the animated foil name re-rasterise at the GIF's frame
+   rate too → tearing/flicker on the WebView. Promote the avatar to its own
+   isolated layer (`translateZ` + paint containment) so the GIF's repaint is
+   confined to its circle and never touches the effect/text layers. */
+.avatar-frame {
+	transform: translateZ(0);
+	-webkit-transform: translateZ(0);
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+	contain: paint;
+	isolation: isolate;
+}
+</style>

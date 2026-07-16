@@ -48,6 +48,7 @@
 .animate-jawbreaker-float {
 	animation: jawbreaker-float 4s ease-in-out infinite;
 	display: inline-block;
+	will-change: transform;
 }
 
 /* 4. Supernova: A hyper-fast, flowing rainbow holographic foil */
@@ -61,6 +62,11 @@
 	animation: supernova-flow 5s linear infinite;
 	-webkit-background-clip: text;
 	color: transparent !important;
+	/* Own layer so the per-frame foil repaint stays on this element's texture and
+	   doesn't invalidate the card region shared with the glass effect / GIF
+	   avatar. will-change (not an actual transform) keeps background-clip:text
+	   intact — `contain: paint` would clip the drop-shadow glow. */
+	will-change: transform;
 }
 
 /* 5. Lava Lamp: A vertical molten gradient that slowly drips up and down */
@@ -78,6 +84,7 @@
 	animation: lava-flow 4s ease-in-out infinite;
 	-webkit-background-clip: text;
 	color: transparent !important;
+	will-change: transform;
 }
 
 /* 3. Midnight Velvet: A sophisticated, dark-luxury glow with a soft drift */
@@ -100,4 +107,31 @@
 .animate-velvet-glow {
 	animation: velvet-glow 4s ease-in-out infinite;
 	display: inline-block;
+	will-change: transform;
+}
+
+/* ── Perf guard ──────────────────────────────────────────────────────────────
+   The foil effects (supernova/lava) animate `background-position` on a
+   background-clip:text fill — that repaints every glyph on the CPU each frame
+   and can't be composited. Harmless on one hero name, but a feed/list shows
+   many at once. On weak webviews (and when the user asks for less motion) drop
+   the ANIMATION and hold a static gradient — the look survives, the per-frame
+   text repaint doesn't. The layered/shadow effects (puffy/jawbreaker/velvet)
+   animate cheap transforms, so only their motion is stilled on low-end. */
+html.low-end .animate-supernova-flow,
+html.low-end .animate-lava-flow,
+html.low-end .animate-puffy-bounce,
+html.low-end .animate-jawbreaker-float,
+html.low-end .animate-velvet-glow {
+	animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.animate-supernova-flow,
+	.animate-lava-flow,
+	.animate-puffy-bounce,
+	.animate-jawbreaker-float,
+	.animate-velvet-glow {
+		animation: none !important;
+	}
 }

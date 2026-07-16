@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { DotLottie } from "@lottiefiles/dotlottie-web";
+import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
 import {
 	type Decoration,
 	resolveDecoration,
@@ -64,14 +64,11 @@ const getLottieSrc = (id: string) => {
 	}
 };
 
-// Avatars are small — a low internal buffer keeps memory tiny; CSS scales it up.
-const canvasResolution = 150;
-
 const root = ref<HTMLElement | null>(null);
 const onScreen = ref(false);
 let io: IntersectionObserver | null = null;
 
-let player: DotLottie | null = null;
+let player: LottiePlayer | null = null;
 let currentSrc = "";
 
 // Freeze when explicitly static (e.g. behind the doodle pad) or scrolled away.
@@ -99,16 +96,23 @@ const bindCanvas = (el: any, src: string) => {
 
 	destroyPlayer();
 	const canvas = el as HTMLCanvasElement;
-	canvas.width = canvasResolution;
-	canvas.height = canvasResolution;
 
 	currentSrc = src;
-	player = new DotLottie({
+	// On web the worker takes ownership of the canvas (OffscreenCanvas transfer),
+	// so don't set canvas.width/height — autoResize + the CSS box size the buffer.
+	player = createLottie({
 		canvas,
 		src,
 		loop: true,
 		autoplay: !paused.value,
-		renderConfig: { devicePixelRatio: 1 },
+		layout: { fit: "contain", align: [0.5, 0.5] },
+		renderConfig: {
+			devicePixelRatio: Math.min(
+				typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+				1.5,
+			),
+			autoResize: true,
+		},
 	});
 	// On a cold load the asset isn't cached, so any play() from the Intersection
 	// Observer can land BEFORE the animation data is ready and get dropped

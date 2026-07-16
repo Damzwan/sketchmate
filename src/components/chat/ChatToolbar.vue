@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="activeTab !== 'overview'"
+    v-if="previewMode || activeTab !== 'overview'"
     class="relative flex flex-col bg-tertiary shrink-0 border-b border-primary/10 overflow-hidden"
     :style="toolbarStyle"
   >
@@ -15,6 +15,7 @@
         :font="resolvedFontFamily"
         static-mode
         mini
+        contained
         radius-class="rounded-none"
       />
     </div>
@@ -138,6 +139,14 @@ import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import LobbyMemberBar from "./LobbyMemberBar.vue";
 
+// Optional preview descriptor (shop preview modal) — when set, the toolbar
+// renders from these props instead of resolving partner/room from the chat
+// stores, so it can be shown outside a live chat as a "here's how it looks".
+const props = defineProps<{
+	preview?: { partner: any };
+}>();
+const previewMode = computed(() => !!props.preview);
+
 const chatWidget = useChatWidgetStore();
 const chatStore = useChatStore();
 const friendStore = useFriendStore();
@@ -164,6 +173,7 @@ const activeConversation = computed(() => {
 });
 
 const partner = computed(() => {
+	if (previewMode.value) return props.preview!.partner;
 	if (activeTab.value === "overview" || activeTab.value === "lobby")
 		return null;
 	if (activeConversation.value) {
@@ -198,7 +208,9 @@ const activeColors = computed(() => ({
 // Only dress the header with the partner's world/effect for a real, live
 // private chat — never the lobby or an archived (expired) thread.
 const showThemeBackdrop = computed(
-	() => activeTab.value !== "lobby" && !!partner.value && !isExpired.value,
+	() =>
+		previewMode.value ||
+		(activeTab.value !== "lobby" && !!partner.value && !isExpired.value),
 );
 // Paint the partner's theme surface (cardBg — often a gradient) + themed border
 // onto the header root; the effect/world layer sits over it.
@@ -221,6 +233,12 @@ const isTrackingOnline = computed(() =>
 );
 
 const panelTitle = computed(() => {
+	if (previewMode.value) {
+		const title = resolveTitle(partnerCustomization.value.titleId);
+		return title
+			? `${partner.value?.name} • ${title}`
+			: (partner.value?.name ?? "Chat");
+	}
 	if (activeTab.value === "lobby")
 		return isPublicLobby.value ? publicLobbyName.value : "Session Lobby";
 	if (!activeConversation.value && partner.value)

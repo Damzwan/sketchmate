@@ -9,11 +9,13 @@
 </template>
 
 <script setup lang="ts">
-import { DotLottie } from "@lottiefiles/dotlottie-web";
+import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
 import { onMounted, onBeforeUnmount, ref, watch } from "vue";
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
-let player: DotLottie | null = null;
+// Worker player on web (WASM decode off the main thread), main-thread player on
+// native — see createLottie for why. Renders straight to its own canvas.
+let player: LottiePlayer | null = null;
 
 const props = defineProps({
 	src: {
@@ -41,13 +43,12 @@ const props = defineProps({
 onMounted(() => {
 	if (!canvasRef.value) return;
 
-	player = new DotLottie({
+	player = createLottie({
 		canvas: canvasRef.value,
 		src: props.src,
 		loop: props.loop,
 		autoplay: props.autoplay,
 		layout: { fit: "contain", align: [0.5, 0.5] },
-		// ADD THIS CONFIGURATION BLOCK
 		renderConfig: {
 			devicePixelRatio: window.devicePixelRatio,
 			autoResize: true,

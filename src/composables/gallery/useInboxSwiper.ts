@@ -63,16 +63,22 @@ export function useInboxSwiper() {
 					return;
 				}
 
+				const isOnDrawPage =
+					router.currentRoute.value.path === `/${FRONTEND_ROUTES.draw}`;
+
 				const alert = await alertController.create({
-					header: "Start New Session?",
-					subHeader: "This will leave your current lobby.",
-					message:
-						"You are about to start a private drawing session based upon this post.",
+					header: "Copy and Edit Drawing?",
+					subHeader: isOnDrawPage
+						? "This will replace your current canvas."
+						: "Create a copy of this drawing to make your own edits.",
+					message: isOnDrawPage
+						? "Your current unsaved changes will be lost. Do you want to load this drawing as a new template?"
+						: "This will open a copy of the drawing in your workspace. Your original drawing remains safe.",
 					cssClass: "liquid-alert",
 					buttons: [
 						{ text: "Cancel", role: "cancel", cssClass: "alert-button-cancel" },
 						{
-							text: "Start Drawing",
+							text: "Copy & Edit",
 							cssClass: "alert-button-confirm",
 							handler: async () => {
 								swiperStore.close();
@@ -80,19 +86,12 @@ export function useInboxSwiper() {
 								const queryParams = {
 									canvas_url: item.drawing,
 									mode: "solo",
-									// Force a new random draft ID so lifecycle rules recognize a new session
 									id: crypto.randomUUID(),
 								};
 
-								if (
-									router.currentRoute.value.path === `/${FRONTEND_ROUTES.draw}`
-								) {
-									// 1. Update the URL parameters silently so deep-links match our state
+								if (isOnDrawPage) {
 									await router.replace({ query: queryParams });
 
-									// 2. Reach directly into the active draw store to re-initialize the board.
-									// Imported lazily so the draw engine stays out of the app-start
-									// bundle; this only runs while already on the draw route.
 									const { useDrawStore } = await import(
 										"@/draw/store/draw.store"
 									);
@@ -109,7 +108,6 @@ export function useInboxSwiper() {
 										});
 									}
 								} else {
-									// Fallback behavior: Standard navigation if we are coming from a feed/lobby
 									router.push({
 										path: FRONTEND_ROUTES.draw,
 										query: queryParams,

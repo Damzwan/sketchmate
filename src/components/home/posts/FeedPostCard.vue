@@ -436,14 +436,14 @@ const openComments = () => {
 
 const remixPost = async () => {
 	const alert = await alertController.create({
-		header: "Start a remix?",
+		header: "Remix this drawing?",
 		message:
-			"You'll leave this room and open a fresh canvas with this drawing.",
+			"This will open a copy of this drawing on your canvas so you can edit it.",
 		cssClass: "liquid-alert",
 		buttons: [
 			{ text: "Cancel", role: "cancel" },
 			{
-				text: "Let's draw",
+				text: "Remix Drawing",
 				handler: () => {
 					trackEvent(mixpanelEvents.postRemix, {
 						post_id: props.post._id,

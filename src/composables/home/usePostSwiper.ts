@@ -24,16 +24,16 @@ export function usePostSwiper() {
 					toast("Not allowed when in a lobby", { color: "warning" });
 					return;
 				}
+
 				const alert = await alertController.create({
-					header: "Start New Session?",
-					subHeader: "This will leave your current lobby.",
+					header: "Remix this Drawing?",
 					message:
-						"You are about to start a private drawing session based upon this post.",
+						"This will load a copy of this drawing onto your canvas so you can edit and reply to it.",
 					cssClass: "liquid-alert",
 					buttons: [
 						{ text: "Cancel", role: "cancel", cssClass: "alert-button-cancel" },
 						{
-							text: "Start Drawing",
+							text: "Start Remixing",
 							cssClass: "alert-button-confirm",
 							handler: () => {
 								swiperStore.close();

@@ -9,6 +9,11 @@
     :keepContentsMounted="true"
     :style="{ '--background': theme.cardBg, transition: 'background-color 0.5s ease' }"
   >
+    <!-- Keep this sheet's worlds/effects animating when it's the topmost overlay
+         above an open photo swiper (flow: swiper → profile tap → this sheet).
+         When the swiper opened AFTER the sheet (chat → sheet → swiper) the sheet
+         is buried, so it stays frozen by the global ambient pause. -->
+    <AmbientScope :active="isTopmostOverSwiper">
     <ProfileSheetView
       class="rounded-t-[2.5rem]"
       :user="resolvedUser"
@@ -121,11 +126,12 @@
           </div>
       </template>
     </ProfileSheetView>
+    </AmbientScope>
   </ion-modal>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { alertController, IonButton, IonIcon, IonModal } from "@ionic/vue";
 import {
@@ -143,8 +149,10 @@ import {
 import { compareVersions, svg } from "@/helper/general.helper";
 
 import ProfileSheetView from "@/components/profile/ProfileSheetView.vue";
+import AmbientScope from "@/components/general/AmbientScope.vue";
 
 import { useAuthStore } from "@/store/auth.store";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
@@ -176,7 +184,24 @@ const { closeSheet } = useUserContextSheet();
 const { openPostSwiper } = usePostSwiper();
 const { toast } = useToast();
 
+const swiper = usePhotoSwiper();
 const { viewProfileMenuOpen } = storeToRefs(menuStore);
+
+// Stamp when this sheet opens so we can compare against the swiper's open time.
+const openedAt = ref(0);
+watch(viewProfileMenuOpen, (open) => {
+	if (open) openedAt.value = Date.now();
+});
+
+// Foreground (keep animating) only while this sheet sits ON TOP of an open
+// swiper — i.e. it opened at/after the swiper. Otherwise it's either buried
+// under the swiper or under some other overlay, and the global pause wins.
+const isTopmostOverSwiper = computed(
+	() =>
+		viewProfileMenuOpen.value &&
+		swiper.open &&
+		openedAt.value >= swiper.openedAt,
+);
 const { targetProfile, targetPosts, loadingProfile, isFriendOnline } =
 	storeToRefs(friendStore);
 const { user: me } = storeToRefs(authStore);

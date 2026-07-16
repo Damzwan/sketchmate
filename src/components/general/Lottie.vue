@@ -4,7 +4,7 @@
        `canvas{width/height:100%}` rule below beat the utility classes, so the
        size prop was ignored and the balloon stretched to the parent → bigger. -->
   <div class="lottie-wrap">
-    <canvas ref="canvasRef" />
+    <canvas ref="canvasRef" :class="{ 'is-loaded': loaded }" />
   </div>
 </template>
 
@@ -13,6 +13,7 @@ import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
 import { onMounted, onBeforeUnmount, ref, watch } from "vue";
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
+const loaded = ref(false);
 // Worker player on web (WASM decode off the main thread), main-thread player on
 // native — see createLottie for why. Renders straight to its own canvas.
 let player: LottiePlayer | null = null;
@@ -56,6 +57,13 @@ onMounted(() => {
 	});
 
 	player.setSpeed(props.speed);
+	if (player.isLoaded) {
+		loaded.value = true;
+	} else {
+		player.addEventListener("load", () => {
+			loaded.value = true;
+		});
+	}
 
 	if (!props.play && !props.autoplay) {
 		player.stop();
@@ -91,5 +99,10 @@ onBeforeUnmount(() => {
   display: block;
   width: 100%;
   height: 100%;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.lottie-wrap canvas.is-loaded {
+  opacity: 1;
 }
 </style>

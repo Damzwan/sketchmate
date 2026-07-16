@@ -23,12 +23,7 @@
         :user="user"
         :customization="previewCustomization"
         :active="isOpen && !!sku"
-        pane-width="min(92%, 480px)"
-        :pane-height="440"
-        post-img-max-height="300px"
-        :card-zoom="0.72"
-        :post-zoom="0.7"
-        :chat-zoom="1"
+        v-bind="SHOWCASE_PREVIEW"
       />
 
       <!-- Bundle contents grid (bundles only — a single item is redundant here) -->
@@ -92,6 +87,7 @@ import {
 import type { Customization } from "@/config/profile_options.config";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
+import { SHOWCASE_PREVIEW } from "@/config/preview.config";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
 
 const props = defineProps<{

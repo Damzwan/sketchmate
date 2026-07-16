@@ -98,26 +98,66 @@
               </div>
               <p class="text-[18px] font-black text-black mt-2">
                 {{ lifetime?.product.priceString ?? '—' }}
-                <span class="text-[14px] text-black/60">· one-time</span>
+                <span class="text-[14px] text-black/80">· one-time</span>
               </p>
-              <p class="text-[14px] text-black/70 mt-0.5">One time purchase, forever yours</p>
+              <p class="text-[14px] text-black/90 mt-0.5">One time purchase, forever yours</p>
             </div>
             <img :src="fireCat" alt="" class="w-28 -mt-2 -mr-1 shrink-0 select-none pointer-events-none" />
           </div>
 
-          <ul class="mt-4 space-y-2.5">
-            <li v-for="b in lifetimeBullets" :key="b.label" class="flex items-center gap-2.5">
-              <span
-                class="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center"
-                :class="b.special ? 'bg-secondary' : 'bg-secondary/10'"
-              >
-                <ion-icon :icon="svg(b.icon)" class="text-base" :class="b.special ? 'text-white' : 'text-secondary'" />
+          <!-- Spell out that Lifetime is the SUPERSET: every Pro perk, plus the
+               whole cosmetics shop, forever. The two folded groups (Pro perks +
+               cosmetic categories) kill the "is this less than Pro?" confusion. -->
+          <div class="mt-4 space-y-3">
+            <!-- Everything in Pro — recap the Pro perks inline so it's concrete -->
+            <div class="rounded-2xl border border-primary/40 bg-white/60 p-3">
+              <div class="flex items-center gap-2">
+                <span class="shrink-0 w-6 h-6 rounded-lg bg-secondary flex items-center justify-center">
+                  <ion-icon :icon="svg(mdiCheckAll)" class="text-white text-sm" />
+                </span>
+                <span class="text-base font-black text-black">Everything in Pro included</span>
+              </div>
+              <div class="flex flex-wrap gap-1.5 mt-2.5 pl-8">
+                <span
+                  v-for="b in proBullets"
+                  :key="b.label"
+                  class="text-xs text-black/90 bg-primary/20 rounded-full px-2 py-0.5"
+                >
+                  {{ b.label }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Every cosmetic — name the shop categories so "cosmetics" is clear -->
+            <div class="rounded-2xl border-2 border-secondary/40 bg-secondary/[0.07] p-3">
+              <div class="flex items-center gap-2">
+                <span class="shrink-0 w-6 h-6 rounded-lg bg-secondary flex items-center justify-center">
+                  <ion-icon :icon="svg(mdiShimmer)" class="text-white text-sm" />
+                </span>
+                <span class="text-base font-black text-black">Every cosmetic unlocked</span>
+              </div>
+              <p class="text-base text-black/80 mt-1 pl-8 leading-snug">
+                The whole shop, no buying items one at a time.
+              </p>
+              <div class="flex flex-wrap gap-1.5 mt-2 pl-8">
+                <span
+                  v-for="c in cosmeticTypes"
+                  :key="c"
+                  class="text-xs text-secondary bg-secondary/10 rounded-full px-2 py-0.5"
+                >
+                  {{ c }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Forever -->
+            <div class="flex items-center gap-2.5 px-1">
+              <span class="shrink-0 w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+                <ion-icon :icon="svg(mdiInfinity)" class="text-secondary text-base" />
               </span>
-              <span class="text-[15px] text-black" :class="b.special ? 'font-black' : ''">
-                {{ b.label }}
-              </span>
-            </li>
-          </ul>
+              <span class="text-[15px] text-black">Yours forever! One payment, no subscription</span>
+            </div>
+          </div>
 
           <ion-button
             expand="block"
@@ -311,11 +351,10 @@ const proBullets = [
 	{ label: "VIP lobby slots", icon: mdiCrownOutline },
 	{ label: "More friends, posts & balloons", icon: mdiAccountGroup },
 ];
-const lifetimeBullets = [
-	{ label: "Everything in Pro", icon: mdiCheckAll, special: false },
-	{ label: "Lifetime access", icon: mdiInfinity, special: false },
-	{ label: "All cosmetics unlocked", icon: mdiShimmer, special: true },
-];
+// The cosmetic shop categories Lifetime unlocks (mirrors Shop.vue's filter bar,
+// minus brushes — those already come with Pro). Naming them makes the abstract
+// word "cosmetics" concrete on the paywall.
+const cosmeticTypes = ["Themes", "Worlds", "Effects", "Decor", "Fonts", "Text"];
 // Mirrors the RevenueCat comparison table. string = value, boolean = check/dash.
 const compare: {
 	label: string;

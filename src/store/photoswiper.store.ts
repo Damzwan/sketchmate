@@ -17,6 +17,9 @@ export interface SwiperConfig {
 
 export const usePhotoSwiper = defineStore("photoswiper", () => {
 	const open = ref(false);
+	// Monotonic stamp of the last open — lets another overlay (the user sheet)
+	// tell whether it opened ABOVE this swiper or was already underneath it.
+	const openedAt = ref(0);
 	const slide = ref(0);
 	const collection = ref<any[]>([]);
 	const config = ref<SwiperConfig>({});
@@ -32,6 +35,7 @@ export const usePhotoSwiper = defineStore("photoswiper", () => {
 		collection.value = items;
 		slide.value = startIndex;
 		open.value = true;
+		openedAt.value = Date.now();
 	}
 
 	function seeItem() {
@@ -48,6 +52,7 @@ export const usePhotoSwiper = defineStore("photoswiper", () => {
 
 	return {
 		open,
+		openedAt,
 		slide,
 		collection,
 		currentItem,

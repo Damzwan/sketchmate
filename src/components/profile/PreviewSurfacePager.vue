@@ -15,59 +15,51 @@
     </div>
 
 
-    <div
-      ref="pagerRef"
-      class="preview-pager hide-scrollbar"
-      :style="pagerVars"
-      @scroll.passive="onPagerScroll"
-      @touchmove.stop
-    >
-      <section
-        v-for="tab in tabs"
-        :key="'pane' + tab.id"
-        class="preview-pane"
-        :style="{ height: `${paneHeight}px` }"
-        @click.capture="onPaneClick(tab.id, $event)"
+    <div class="relative">
+      <div
+        ref="pagerRef"
+        class="preview-pager hide-scrollbar"
+        :style="pagerVars"
+        @scroll.passive="onPagerScroll"
+        @touchmove.stop
       >
-        <AmbientScope :active="mode === tab.id">
-          <div
-            v-if="visited.has(tab.id)"
-            class="pane-zoom"
-            :style="zoomStyle(tab.id)"
-          >
-            <!-- Card: the compact profile card, stats + signature. -->
-            <PreviewProfileCard
-              v-if="tab.id === 'card'"
-              class="w-full flex justify-center"
-              :user="user"
-              :customization="customization"
-              :zoom="1"
-              :max-width="480"
-              show-stats
-            />
-
-            <!-- Post: how a feed post looks wearing this look. Display-only.
-                 Restrict max-width so it maintains a natural aspect ratio before scaling. -->
-            <div v-else-if="tab.id === 'post'" class="post-preview w-full max-w-[420px] pointer-events-none">
-              <FeedPostCard :post="mockPost" :is-mine="true" />
-            </div>
-
-            <!-- Chat: chat header (ChatToolbar) + conversation-list row.
-                 Restrict max-width and add slight padding to avoid shadow clipping. -->
-            <div v-else-if="tab.id === 'chat'" class="w-full max-w-[420px] px-1 pointer-events-none space-y-4">
-              <div class="rounded-[1.5rem] overflow-hidden border border-primary/40 shadow-sm">
-                <ChatToolbar :preview="chatPreview" />
-              </div>
-              <ConversationItem
-                :chat="mockChat"
-                current-user-id="preview-me"
-                :is-online="true"
-                :is-typing="false"
+        <section
+          v-for="tab in tabs"
+          :key="'pane' + tab.id"
+          class="preview-pane"
+          :style="{ height: `${paneHeight}px` }"
+          @click.capture="onPaneClick(tab.id, $event)"
+        >
+          <!-- While the fullscreen overlay is up, freeze every pane so we never
+               animate two copies of the same surface at once. -->
+          <AmbientScope :active="mode === tab.id && !zoomOpen">
+            <div
+              v-if="visited.has(tab.id)"
+              class="pane-zoom"
+              :style="zoomStyle(tab.id)"
+            >
+              <PreviewSurface
+                :mode="tab.id"
+                :user="user"
+                :customization="customization"
+                :mock-post="mockPost"
+                :mock-chat="mockChat"
+                :chat-preview="chatPreview"
               />
             </div>
-          </div>
-        </AmbientScope>
-      </section>
+          </AmbientScope>
+        </section>
+      </div>
+
+      <!-- Expand → fullscreen. Only on the active pane, only when opted in. -->
+      <button
+        v-if="zoomable"
+        class="preview-expand"
+        aria-label="View fullscreen"
+        @click="openZoom"
+      >
+        <ion-icon :icon="svg(mdiArrowExpand)" />
+      </button>
     </div>
 
     <!-- Swipe position dots -->
@@ -81,24 +73,73 @@
         @click="setMode(tab.id)"
       ></button>
     </div>
+
+    <!-- Fullscreen zoom as a native ion-modal: proper backdrop + hardware/back
+         button + swipe-to-dismiss instead of a hand-rolled overlay. Mounts ONE
+         surface, only while open. A manual ambient hold (see script) freezes
+         every background world in ALL host contexts, and this AmbientScope
+         re-arms the foreground so only the zoomed surface keeps animating. -->
+    <ion-modal
+      :is-open="zoomOpen"
+      class="ps-zoom-modal"
+      @didDismiss="zoomOpen = false"
+    >
+      <div
+        class="ps-zoom-overlay"
+        :style="{ '--post-img-max-h': '48vh' }"
+        @click.self="zoomOpen = false"
+      >
+        <button class="ps-zoom-close" aria-label="Close" @click="zoomOpen = false">
+          <ion-icon :icon="svg(mdiClose)" />
+        </button>
+
+        <!-- Surface chips so the user can still switch Card/Post/Chat zoomed.
+             Drive the overlay's OWN state — never the pager's mode. -->
+        <div class="ps-zoom-chips">
+          <button
+            v-for="tab in tabs"
+            :key="'z' + tab.id"
+            class="preview-chip"
+            :class="{ 'preview-chip--active': zoomMode === tab.id }"
+            @click="zoomMode = tab.id"
+          >
+            <ion-icon :icon="svg(tab.icon)" class="text-[15px]" />
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <div class="ps-zoom-stage" @click.self="zoomOpen = false">
+          <AmbientScope :active="true">
+            <PreviewSurface
+              :mode="zoomMode"
+              :user="user"
+              :customization="customization"
+              :mock-post="mockPost"
+              :mock-chat="mockChat"
+              :chat-preview="chatPreview"
+            />
+          </AmbientScope>
+        </div>
+      </div>
+    </ion-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
-import { IonIcon } from "@ionic/vue";
+import { IonIcon, IonModal } from "@ionic/vue";
 import {
+	mdiArrowExpand,
 	mdiCardAccountDetailsOutline,
 	mdiChatOutline,
+	mdiClose,
 	mdiImageOutline,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import type { Customization } from "@/config/profile_options.config";
 import AmbientScope from "@/components/general/AmbientScope.vue";
-import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
-import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
-import ConversationItem from "@/components/chat/ConversationItem.vue";
-import ChatToolbar from "@/components/chat/ChatToolbar.vue";
+import PreviewSurface from "@/components/profile/PreviewSurface.vue";
+import { useAmbientPause } from "@/store/ambientPause.store";
 import exampleImg from "@/assets/example.webp";
 
 const props = withDefaults(
@@ -125,6 +166,9 @@ const props = withDefaults(
 		cardZoom?: number;
 		postZoom?: number;
 		chatZoom?: number;
+		/** Show an expand control that blows the active surface up to a
+     fullscreen overlay. Opt-in — only the shop's showcase wants it. */
+		zoomable?: boolean;
 	}>(),
 	{
 		active: true,
@@ -134,6 +178,7 @@ const props = withDefaults(
 		cardZoom: 0.68,
 		postZoom: 0.92,
 		chatZoom: 1,
+		zoomable: false,
 	},
 );
 
@@ -151,6 +196,32 @@ const tabs: { id: Mode; label: string; icon: string }[] = [
 	{ id: "chat", label: "Chat", icon: mdiChatOutline },
 ];
 const mode = ref<Mode>("card");
+
+// Fullscreen zoom overlay for the active surface (opt-in via `zoomable`).
+// Its own surface state — switching chips inside the overlay must NOT move the
+// pager underneath (that desyncs when the overlay closes). Seeded from the
+// pager's mode on open, then independent.
+const zoomOpen = ref(false);
+const zoomMode = ref<Mode>("card");
+const openZoom = () => {
+	zoomMode.value = mode.value;
+	zoomOpen.value = true;
+};
+
+// A manual ambient hold while zoomed freezes every background world regardless
+// of host context (the customization sheets don't engage the menu-tracked
+// pause the shop does). Balanced release on close/unmount so the hold can't leak.
+const ambient = useAmbientPause();
+let holding = false;
+watch(zoomOpen, (open) => {
+	if (open && !holding) {
+		holding = true;
+		ambient.hold();
+	} else if (!open && holding) {
+		holding = false;
+		ambient.release();
+	}
+});
 
 const zooms = computed<Record<Mode, number>>(() => ({
 	card: props.cardZoom,
@@ -251,6 +322,7 @@ watch(
 			scrollToPane(0, false);
 			neighborTimer = window.setTimeout(() => markVisited(mode.value), 450);
 		} else {
+			zoomOpen.value = false;
 			visited.clear();
 		}
 	},
@@ -260,6 +332,10 @@ watch(
 onBeforeUnmount(() => {
 	if (pagerRaf) cancelAnimationFrame(pagerRaf);
 	window.clearTimeout(neighborTimer);
+	if (holding) {
+		holding = false;
+		ambient.release();
+	}
 });
 
 // ── Mock surfaces wearing the previewed look ────────────────────────────────
@@ -329,12 +405,6 @@ const chatPreview = computed<any>(() => {
 
 <style scoped>
 
-.post-preview :deep(.tap-guard),
-.post-preview :deep(.tap-guard > img) {
-  max-height: var(--post-img-max-h, 190px);
-}
-
-
 .preview-pager {
   display: flex;
   gap: 12px;
@@ -365,6 +435,92 @@ const chatPreview = computed<any>(() => {
   align-items: center;
   width: 100%;
   flex-shrink: 0;
+}
+
+/* ── Expand button (bottom-right of the pager) ──────────────────────────── */
+.preview-expand {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(var(--ion-color-primary-rgb), 0.35);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ion-color-secondary);
+  font-size: 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  z-index: 5;
+}
+.preview-expand:active {
+  transform: scale(0.9);
+}
+
+/* ── Fullscreen zoom overlay (fills the transparent ion-modal) ──────────── */
+.ps-zoom-modal {
+  --background: transparent;
+  --box-shadow: none;
+  --width: 100%;
+  --height: 100%;
+  --border-radius: 0;
+}
+
+.ps-zoom-overlay {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(16px + var(--ion-safe-area-top, 0px)) 16px
+    calc(16px + var(--ion-safe-area-bottom, 0px));
+  background: rgba(24, 14, 8, 0.82);
+  /* Single static layer — composited once, not per frame. */
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.ps-zoom-stage {
+  width: 100%;
+  max-width: 520px;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  /* Top-anchor so a tall surface (the Post card) scrolls fully instead of
+     being centre-clipped with its header unreachable. */
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.ps-zoom-chips {
+  position: absolute;
+  top: calc(12px + var(--ion-safe-area-top, 0px));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ps-zoom-close {
+  position: absolute;
+  top: calc(12px + var(--ion-safe-area-top, 0px));
+  right: 14px;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 2;
 }
 
 .hide-scrollbar::-webkit-scrollbar {

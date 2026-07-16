@@ -11,10 +11,7 @@
           :user="user"
           :customization="previewCustomization"
           :active="isOpen"
-          :pane-height="280"
-          :card-zoom="0.45"
-          :post-zoom="0.6"
-          :chat-zoom="0.95"
+          v-bind="pickerPreview"
         />
       </div>
     </template>
@@ -118,7 +115,10 @@ import { useInventoryStore } from "@/store/inventory.store";
 import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import AvatarDecoration from "./AvatarDecoration.vue";
 import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
+import { usePickerPreview } from "@/config/preview.config";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+
+const pickerPreview = usePickerPreview();
 
 const props = defineProps<{
 	isOpen: boolean;

@@ -87,26 +87,34 @@
 	will-change: transform;
 }
 
-/* 3. Midnight Velvet: A sophisticated, dark-luxury glow with a soft drift */
-@keyframes velvet-glow {
+/* 3. Midnight Velvet: deep-indigo glyphs wrapped in a soft luminous halo.
+   The luxury look is STATIC (painted once) so it always survives — even when
+   the perf guards below still the motion. Nothing here animates text-shadow:
+   that's a per-frame glyph repaint. Motion is transform + opacity only, which
+   the compositor runs on its own layer without ever re-rasterising the text. */
+.font-effect-velvet {
+	color: #312e81; /* indigo-900 — rich, readable on the light cards */
+	text-shadow:
+		0 0 8px rgba(129, 140, 248, 0.55),
+		0 0 20px rgba(79, 70, 229, 0.35);
+}
+
+@keyframes velvet-drift {
 	0%,
 	100% {
-		text-shadow:
-			0 0 10px rgba(79, 70, 229, 0.4),
-			0 0 20px rgba(79, 70, 229, 0.2);
 		transform: translateY(0);
+		opacity: 0.9;
 	}
 	50% {
-		text-shadow:
-			0 0 20px rgba(129, 140, 248, 0.8),
-			0 0 40px rgba(129, 140, 248, 0.4);
-		transform: translateY(-5px);
+		transform: translateY(-4px);
+		opacity: 1;
 	}
 }
 
 .animate-velvet-glow {
-	animation: velvet-glow 4s ease-in-out infinite;
+	animation: velvet-drift 4s ease-in-out infinite;
 	display: inline-block;
+	transform-origin: center;
 	will-change: transform;
 }
 
@@ -117,7 +125,8 @@
    many at once. On weak webviews (and when the user asks for less motion) drop
    the ANIMATION and hold a static gradient — the look survives, the per-frame
    text repaint doesn't. The layered/shadow effects (puffy/jawbreaker/velvet)
-   animate cheap transforms, so only their motion is stilled on low-end. */
+   animate cheap transforms over a static base, so stilling their motion still
+   leaves the full look on screen. */
 html.low-end .animate-supernova-flow,
 html.low-end .animate-lava-flow,
 html.low-end .animate-puffy-bounce,
@@ -130,11 +139,10 @@ html.low-end .animate-velvet-glow {
    repaints the glyphs on the CPU every frame; that repaint region overlaps the
    glass blend layers and the GIF avatar, and the compositor answers with a
    full-card re-raster — the flicker. Hold the static gradient (look survives).
-   Velvet's animated text-shadow is a glyph repaint too. The pure-transform
-   effects (puffy/jawbreaker) stay animated: compositor-only, never repaint. */
+   The pure-transform effects (puffy/jawbreaker/velvet) stay animated:
+   compositor-only, they never repaint the glyphs. */
 html.android-wv .animate-supernova-flow,
-html.android-wv .animate-lava-flow,
-html.android-wv .animate-velvet-glow {
+html.android-wv .animate-lava-flow {
 	animation: none !important;
 }
 

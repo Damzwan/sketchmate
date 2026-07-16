@@ -99,7 +99,7 @@
             <p class="text-[17px] font-black cabin-sketch-regular text-black tracking-tight leading-none mb-1.5">
               It's a bit quiet here...
             </p>
-            <p class="text-[13px] text-black/60 leading-snug">
+            <p class="text-sm text-black/80 cabin-sketch-regular leading-snug">
               {{ hasMates ? 'Start a conversation with one of your mates.' : "You don't have any mates yet. Add someone to start chatting!" }}
             </p>
           </div>

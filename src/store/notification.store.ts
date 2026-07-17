@@ -88,9 +88,13 @@ export const useNotificationStore = defineStore("notification", () => {
 			}
 
 			// ── Subscribe / update path ───────────────────────────────────────
-			// Skip if everything is already in sync.
+			// Skip if everything is already in sync. `logged_in === false` means the
+			// server has our token but marked it inactive (e.g. after a prior logout);
+			// we must re-subscribe to flip it back on, or pushes stay silently gated.
 			const alreadySynced =
-				localSubscription.value === token && existingServerSub?.token === token;
+				localSubscription.value === token &&
+				existingServerSub?.token === token &&
+				existingServerSub?.logged_in !== false;
 			if (alreadySynced) return;
 
 			const deviceInfo = await Device.getInfo();
@@ -180,10 +184,12 @@ export const useNotificationStore = defineStore("notification", () => {
 			notificationsAllowed.value = false;
 		} else if (
 			localSubscription.value &&
-			(!serverSub || serverSub.token !== localSubscription.value)
+			(!serverSub ||
+				serverSub.token !== localSubscription.value ||
+				serverSub.logged_in === false)
 		) {
-			// We have permission and a local token, but the server is stale or out of sync.
-			// Silently reconcile.
+			// We have permission and a local token, but the server is stale, out of
+			// sync, or has us marked logged-out. Silently reconcile.
 			try {
 				await setNotifications(localSubscription.value);
 				notificationsAllowed.value = true;

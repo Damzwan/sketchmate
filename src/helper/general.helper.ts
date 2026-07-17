@@ -12,7 +12,6 @@ import {
 	minimum_age_social_features,
 } from "@/config/general.config";
 import avatar from "@/assets/avatar.svg";
-import { Device } from "@capacitor/device";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { Ref, watch } from "vue";
 import { SplashScreen } from "@capacitor/splash-screen";
@@ -171,26 +170,24 @@ export function getRandomStockAvatar() {
 	return `${account_blob}/stock_${randomNum}.webp`;
 }
 
-export async function generateDeviceFingerprint() {
-	const info = await Device.getInfo();
-	const userAgent = navigator.userAgent;
+/**
+ * Stable, unique-per-install device identifier. Persisted once and reused, so
+ * it survives token rotation and never collides between two identical devices
+ * (the old `browser-platform-model` scheme did). The server keys each push
+ * subscription on this value.
+ */
+export async function generateDeviceFingerprint(): Promise<string> {
+	const existing = await Preferences.get({ key: LocalStorage.installId });
+	if (existing.value) return existing.value;
 
-	// Remove IP address from the user agent string
+	const id =
+		globalThis.crypto?.randomUUID?.() ??
+		`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random()
+			.toString(36)
+			.slice(2)}`;
 
-	// Extract browser name from the user agent string
-	let browserName = "Unknown";
-	if (/(Edge|Edg)\/(\d+)/.test(userAgent)) {
-		browserName = "Microsoft Edge";
-	} else if (/Firefox\//.test(userAgent)) {
-		browserName = "Firefox";
-	} else if (/Chrome\//.test(userAgent)) {
-		browserName = "Chrome";
-	} else if (/Safari\//.test(userAgent)) {
-		browserName = "Safari";
-	}
-
-	// Combine collected information to create a fingerprint
-	return `${browserName}-${info.platform}-${info.model}`;
+	await Preferences.set({ key: LocalStorage.installId, value: id });
+	return id;
 }
 
 export const getCurrentUser = async () => {

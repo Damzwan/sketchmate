@@ -11,5 +11,6 @@ export enum LocalStorage {
   reviewPromptCount='reviewPromptCount',
   login='login',
   notificationToken='notification_token',
+  installId='install_id',
   guestUpgradeDismissed='guest_upgrade_dismissed'
 }

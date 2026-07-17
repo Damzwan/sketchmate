@@ -295,11 +295,16 @@ export const useAuthStore = defineStore("auth", () => {
 			]);
 
 			if (opts.arrivedFromLogin && deviceFingerprint.value) {
-				onLoginEvent({
+				// Awaited so the device's subscription is reliably re-activated before
+				// we consider login complete; a silent fire-and-forget here was the
+				// source of "enabled notifications but never receive one" after re-login.
+				await onLoginEvent({
 					user_id: u._id,
 					fingerprint: deviceFingerprint.value,
 					loggedIn: true,
-				});
+				}).catch((err) =>
+					console.warn("Failed to mark device logged-in for push", err),
+				);
 			}
 
 			// Engagement titles + the OG founder gift are granted server-side by the
@@ -361,18 +366,25 @@ export const useAuthStore = defineStore("auth", () => {
 		showEnableNotificationsAfterLogin.value = false;
 
 		Preferences.remove({ key: LocalStorage.user_id });
-		Preferences.remove({ key: LocalStorage.notificationToken });
+		// Keep the notification token: it identifies this install, not the user.
+		// Retaining it lets init() silently re-activate push on the next login
+		// without forcing the user to re-grant. Explicit "disable notifications"
+		// still removes it (via setNotifications(undefined)).
 		useModerationStore().reset();
 		useInAppNotificationStore().reset();
 		useInventoryStore().clear();
 		useSubscriptionStore().clearSubscriptionState();
 
+		// Deactivate this device's push server-side BEFORE signing out, so the
+		// authenticated request actually lands (previously it raced signOut()).
 		if (deviceFingerprint.value && user.value) {
-			onLoginEvent({
+			await onLoginEvent({
 				user_id: user.value._id,
 				fingerprint: deviceFingerprint.value,
 				loggedIn: false,
-			});
+			}).catch((err) =>
+				console.warn("Failed to mark device logged-out for push", err),
+			);
 		}
 
 		socketDisconnect();

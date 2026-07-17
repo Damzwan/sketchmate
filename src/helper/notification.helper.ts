@@ -1,5 +1,7 @@
 // helper/notification.helper.ts
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { Preferences } from "@capacitor/preferences";
+import { LocalStorage } from "@/types/storage.types";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import router from "@/router";
 import {
@@ -120,7 +122,13 @@ async function registerForPush(): Promise<void> {
 
 	const tokenPromise = waitForNextRegistration(PUSH_REGISTRATION_TIMEOUT_MS);
 	await PushNotifications.register();
-	await tokenPromise;
+	const token = await tokenPromise;
+
+	// Don't report success until the token is actually synced to the server.
+	// The persistent listener also syncs, but it runs independently — awaiting
+	// here guarantees the subscription exists before the caller navigates away.
+	// setNotifications is idempotent + serialized, so the double call is a no-op.
+	await useNotificationStore().setNotifications(token);
 }
 
 /**
@@ -255,7 +263,15 @@ async function setupNativeListeners(): Promise<void> {
 		try {
 			const { waitUntilInitialized, user } = useAuthStore();
 			await waitUntilInitialized();
-			if (!user) return; // No logged-in user — drop the token; store will pick it up post-login via init()
+			if (!user) {
+				// No logged-in user yet — persist the token so init() adopts and
+				// syncs it after login instead of losing it.
+				await Preferences.set({
+					key: LocalStorage.notificationToken,
+					value: token.value,
+				});
+				return;
+			}
 			await useNotificationStore().handleTokenRefresh(token.value);
 		} catch (e) {
 			console.error("Failed to handle registration event", e);

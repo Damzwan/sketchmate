@@ -32,7 +32,16 @@ import java.net.URL;
 public class Widget extends AppWidgetProvider {
 
     private static final String ACTION_NEXT = "ninja.sketchmate.app.ACTION_NEXT";
+    private static final String ACTION_PREV = "ninja.sketchmate.app.ACTION_PREV";
+    private static final String ACTION_RESET = "ninja.sketchmate.app.ACTION_RESET";
     private static final String PREFS_NAME = "WidgetPrefs";
+
+    // RemoteViews bitmaps are parceled across a Binder transaction to the
+    // launcher process, which has a hard ~1MB ceiling. Anything larger throws
+    // and can take the launcher (or us) down, so we cap every bitmap we send.
+    private static final int MAX_REMOTEVIEW_BYTES = 900 * 1024;
+    private static final int DRAWING_MAX_PX = 480;   // 480*480*4 ≈ 900KB worst case
+    private static final int AVATAR_MAX_PX = 160;    // crisp at 44dp on xxhdpi
 
     // Backend is fixed and Capacitor Preferences doesn't reliably persist a
     // "backend_url" key into CapacitorStorage, so reading it here often returned
@@ -43,15 +52,28 @@ public class Widget extends AppWidgetProvider {
     @Override
     public void onReceive(Context context, Intent intent) {
         super.onReceive(context, intent);
-        if (ACTION_NEXT.equals(intent.getAction())) {
-            int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
-            if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-                int currentOffset = prefs.getInt("offset_" + appWidgetId, 0);
-                prefs.edit().putInt("offset_" + appWidgetId, currentOffset + 1).apply();
-                updateWidget(context, AppWidgetManager.getInstance(context), appWidgetId);
-            }
+        String action = intent.getAction();
+        if (!ACTION_NEXT.equals(action) && !ACTION_PREV.equals(action) && !ACTION_RESET.equals(action)) {
+            return;
         }
+
+        int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return;
+
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        int offset = prefs.getInt("offset_" + appWidgetId, 0);
+
+        int next;
+        if (ACTION_RESET.equals(action)) {
+            next = 0;
+        } else if (ACTION_PREV.equals(action)) {
+            next = Math.max(0, offset - 1);   // clamp at newest
+        } else {
+            next = offset + 1;
+        }
+
+        prefs.edit().putInt("offset_" + appWidgetId, next).apply();
+        updateWidget(context, AppWidgetManager.getInstance(context), appWidgetId);
     }
 
     @Override
@@ -92,19 +114,26 @@ public class Widget extends AppWidgetProvider {
                         renderError(context, appWidgetManager, appWidgetId, "Inbox is empty", "Tap to refresh");
                     } else {
                         JsonObject json = new Gson().fromJson(response, JsonObject.class);
-                        String image = json.get("image").getAsString();
-                        String id = json.get("_id").getAsString();
-                        String senderName = json.has("senderName") ? json.get("senderName").getAsString() : "Unknown";
-                        String senderImg = json.has("senderImg") ? json.get("senderImg").getAsString() : "";
+                        String image = optString(json, "image");
+                        String id = optString(json, "_id");
 
-                        displayInboxItem(context, appWidgetManager, appWidgetId, image, id, senderName, senderImg);
+                        if (image == null || id == null) {
+                            // Well-formed JSON but no usable item — treat as empty, not a crash.
+                            renderError(context, appWidgetManager, appWidgetId, "Inbox is empty", "Tap to refresh");
+                        } else {
+                            String senderName = json.has("senderName") ? optString(json, "senderName") : "Unknown";
+                            String senderImg = json.has("senderImg") ? optString(json, "senderImg") : "";
+                            displayInboxItem(context, appWidgetManager, appWidgetId, image, id,
+                                    senderName != null ? senderName : "Unknown",
+                                    senderImg != null ? senderImg : "");
+                        }
                     }
                 } else if (responseCode == 404) {
                     renderError(context, appWidgetManager, appWidgetId, "Image deleted", "Tap next to skip");
                 } else {
                     renderError(context, appWidgetManager, appWidgetId, "Server error", "Tap to try again");
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 Log.e("Widget", "Update failed", e);
                 renderError(context, appWidgetManager, appWidgetId, "Connection failed", "Tap to retry");
             } finally {
@@ -118,36 +147,38 @@ public class Widget extends AppWidgetProvider {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_image);
 
         try {
-            // 1. Load Main Drawing with Downsampling
-            Bitmap rawDrawing = loadScaledBitmapFromUrl(imageUrl, 800);
-            if (rawDrawing != null) {
-                Bitmap roundedDrawing = getRoundedCornerBitmap(rawDrawing, 30);
-                views.setImageViewBitmap(R.id.widget_image_drawing, roundedDrawing);
-                rawDrawing.recycle(); // Important: free memory immediately
-            }
-
+            // Top bar: sender name + circular avatar (real views, off the image).
             views.setTextViewText(R.id.widget_image_user, senderName);
-
-            // 2. Load Avatar
             if (senderImg != null && !senderImg.trim().isEmpty()) {
                 try {
-                    Bitmap rawAvatar = loadScaledBitmapFromUrl(senderImg, 100);
+                    Bitmap rawAvatar = loadScaledBitmapFromUrl(senderImg, AVATAR_MAX_PX);
                     if (rawAvatar != null) {
-                        int radius = Math.min(rawAvatar.getWidth(), rawAvatar.getHeight()) / 2;
-                        Bitmap roundedAvatar = getRoundedCornerBitmap(rawAvatar, radius);
-                        views.setImageViewBitmap(R.id.widget_image_avatar, roundedAvatar);
+                        Bitmap circleAvatar = getCircularBitmap(rawAvatar);
                         rawAvatar.recycle();
+                        views.setImageViewBitmap(R.id.widget_image_avatar, circleAvatar);
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     Log.e("Widget", "Avatar load failed", e);
                 }
+            }
+
+            // Whole drawing (no crop → fitCenter shows all of it) with rounded corners,
+            // capped to the Binder budget.
+            Bitmap rawDrawing = loadScaledBitmapFromUrl(imageUrl, DRAWING_MAX_PX);
+            if (rawDrawing != null) {
+                Bitmap roundedDrawing = getRoundedCornerBitmap(rawDrawing, 30);
+                rawDrawing.recycle();
+                roundedDrawing = capForRemoteViews(roundedDrawing);
+                views.setImageViewBitmap(R.id.widget_image_drawing, roundedDrawing);
             }
 
             // Setup Intents
             setupIntents(context, views, appWidgetId, inboxId);
 
             appWidgetManager.updateAppWidget(appWidgetId, views);
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // Catch Throwable, not Exception: OutOfMemoryError is an Error and would
+            // otherwise crash the process instead of degrading to an error card.
             Log.e("Widget", "Display failed", e);
             renderError(context, appWidgetManager, appWidgetId, "Memory/Image error", "Tap to reload");
         }
@@ -168,7 +199,8 @@ public class Widget extends AppWidgetProvider {
         // Pass 2: real decode WITH the computed sample size applied. The previous
         // version dropped `options` here, so inSampleSize was never used and full
         // resolution bitmaps were loaded → OOM crashes ("Memory/Image error").
-        options.inSampleSize = calculateInSampleSize(options, maxSize, maxSize);
+        options.inSampleSize = calculateInSampleSize(options, maxSize);
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888; // alpha needed for rounded corners
         options.inJustDecodeBounds = false;
 
         InputStream in = null;
@@ -180,18 +212,33 @@ public class Widget extends AppWidgetProvider {
         }
     }
 
-    private static int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
-        final int height = options.outHeight;
-        final int width = options.outWidth;
+    // Shrink so BOTH dimensions end up <= maxSize. The old version required both
+    // half-dims to stay >= the target, so a wide/tall (non-square) image barely
+    // sampled and decoded at near-full resolution — the main OOM trigger.
+    private static int calculateInSampleSize(BitmapFactory.Options options, int maxSize) {
+        int height = options.outHeight;
+        int width = options.outWidth;
         int inSampleSize = 1;
-        if (height > reqHeight || width > reqWidth) {
-            final int halfHeight = height / 2;
-            final int halfWidth = width / 2;
-            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
-                inSampleSize *= 2;
-            }
+        while ((height / inSampleSize) > maxSize || (width / inSampleSize) > maxSize) {
+            inSampleSize *= 2;
         }
         return inSampleSize;
+    }
+
+    // Final safety net before crossing the Binder boundary: if the bitmap still
+    // exceeds the RemoteViews budget, scale it down proportionally. Recycles the
+    // source when a smaller copy is produced.
+    private Bitmap capForRemoteViews(Bitmap src) {
+        if (src == null) return null;
+        int bytes = src.getAllocationByteCount();
+        if (bytes <= MAX_REMOTEVIEW_BYTES) return src;
+
+        double scale = Math.sqrt((double) MAX_REMOTEVIEW_BYTES / bytes);
+        int w = Math.max(1, (int) (src.getWidth() * scale));
+        int h = Math.max(1, (int) (src.getHeight() * scale));
+        Bitmap scaled = Bitmap.createScaledBitmap(src, w, h, true);
+        if (scaled != src) src.recycle();
+        return scaled;
     }
 
     private void setupIntents(Context context, RemoteViews views, int appWidgetId, String inboxId) {
@@ -202,12 +249,20 @@ public class Widget extends AppWidgetProvider {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         views.setOnClickPendingIntent(R.id.widget_image_drawing, galleryPi);
 
-        Intent nextIntent = new Intent(context, Widget.class);
-        nextIntent.setAction(ACTION_NEXT);
-        nextIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
-        PendingIntent nextPi = PendingIntent.getBroadcast(context, appWidgetId, nextIntent,
+        views.setOnClickPendingIntent(R.id.widget_button_next, offsetIntent(context, appWidgetId, ACTION_NEXT));
+        views.setOnClickPendingIntent(R.id.widget_button_prev, offsetIntent(context, appWidgetId, ACTION_PREV));
+        views.setOnClickPendingIntent(R.id.widget_button_reset, offsetIntent(context, appWidgetId, ACTION_RESET));
+    }
+
+    // Distinct requestCode per (widget, action) so the three PendingIntents don't
+    // collide and overwrite each other under FLAG_UPDATE_CURRENT.
+    private PendingIntent offsetIntent(Context context, int appWidgetId, String action) {
+        Intent intent = new Intent(context, Widget.class);
+        intent.setAction(action);
+        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+        int requestCode = (appWidgetId * 31) + action.hashCode();
+        return PendingIntent.getBroadcast(context, requestCode, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        views.setOnClickPendingIntent(R.id.widget_button_next, nextPi);
     }
 
     private void renderError(Context context, AppWidgetManager appWidgetManager, int appWidgetId, String t1, String t2) {
@@ -230,6 +285,13 @@ public class Widget extends AppWidgetProvider {
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }
 
+    // Null-safe JSON string read: returns null for a missing key or JSON null,
+    // so a partial payload degrades gracefully instead of NPE-ing.
+    private static String optString(JsonObject json, String key) {
+        if (json == null || !json.has(key) || json.get(key).isJsonNull()) return null;
+        return json.get(key).getAsString();
+    }
+
     private String readStream(InputStream is) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(is));
         StringBuilder sb = new StringBuilder();
@@ -237,6 +299,26 @@ public class Widget extends AppWidgetProvider {
         while ((line = reader.readLine()) != null) sb.append(line).append('\n');
         reader.close();
         return sb.toString();
+    }
+
+    // Center-crops to a square, then masks to a circle → a perfect circle even
+    // when the source isn't square (e.g. a GIF's first frame). The drawing itself
+    // is left uncropped (fitCenter); only the avatar is force-cropped.
+    private static Bitmap getCircularBitmap(Bitmap src) {
+        int size = Math.min(src.getWidth(), src.getHeight());
+        int left = (src.getWidth() - size) / 2;
+        int top = (src.getHeight() - size) / 2;
+
+        Bitmap output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(output);
+        Paint paint = new Paint();
+        paint.setAntiAlias(true);
+        float radius = size / 2f;
+        canvas.drawCircle(radius, radius, radius, paint);
+        paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
+        canvas.drawBitmap(src, new Rect(left, top, left + size, top + size),
+                new Rect(0, 0, size, size), paint);
+        return output;
     }
 
     private static Bitmap getRoundedCornerBitmap(Bitmap bitmap, int cornerRadius) {

@@ -4,7 +4,7 @@
     android:id="@+id/widget_error_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5E6D3"
+    android:background="@android:color/transparent"
     android:gravity="center">
 
     <LinearLayout
@@ -12,6 +12,7 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:orientation="vertical"
+        android:background="#E6F5E6D3"
         android:padding="16dp">
 
         <TextView

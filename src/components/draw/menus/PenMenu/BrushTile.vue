@@ -1,7 +1,13 @@
 <template>
+  <!-- Name is no longer painted under the swatch, so the label has to survive as
+       the accessible name (and as a desktop tooltip) — otherwise these become
+       nine unnamed buttons to a screen reader. -->
   <button
     type="button"
     class="brush_tile"
+    :aria-label="label"
+    :aria-pressed="selected"
+    :title="label"
     @click="$emit('tap', type)"
   >
     <div
@@ -22,12 +28,6 @@
       </div>
     </div>
 
-    <span
-      class="brush_name"
-      :class="{ 'brush_name--selected': selected }"
-    >
-      {{ label }}
-    </span>
   </button>
 </template>
 
@@ -56,12 +56,13 @@ defineEmits<{
 @reference "@/theme/main.css";
 
 .brush_tile {
-  @apply flex flex-col items-center gap-1 py-1 bg-transparent border-0
-  active:scale-95 transition-transform cursor-pointer w-full;
+  @apply flex items-center justify-center bg-transparent border-0
+  active:scale-95 transition-transform cursor-pointer w-full min-w-0;
 }
 
+/* Stays 44px — this is the touch target; only the surrounding air shrank. */
 .brush_swatch {
-  @apply relative w-11 h-11 rounded-2xl flex items-center justify-center
+  @apply relative w-11 h-11 rounded-xl flex items-center justify-center
   bg-black/5 ring-1 ring-black/5 transition-all duration-200;
 }
 
@@ -75,14 +76,6 @@ defineEmits<{
 
 .brush_swatch--previewed {
   @apply ring-2 ring-purple-500;
-}
-
-.brush_name {
-  @apply text-[10px] text-black/60 tracking-tight leading-none;
-}
-
-.brush_name--selected {
-  @apply text-secondary font-black;
 }
 
 .brush_lock {

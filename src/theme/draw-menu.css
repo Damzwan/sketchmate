@@ -1,0 +1,157 @@
+/* ─── Draw tool menus ────────────────────────────────────────────────────────
+   Shared chrome for the tool popovers (pen / bucket / eraser). These three used
+   to carry byte-identical copies of every token below in their own scoped
+   blocks, which is how they drifted apart on padding and radius.
+
+   Mobile-first: the popover takes the width the phone actually has instead of a
+   fixed 296px, and each control is ONE row — short label, slider, value pill —
+   rather than a label row stacked above a slider row. Everything here is
+   namespaced under .draw-menu / .draw-menu-popover so it can live globally
+   without leaking into other ion-ranges in the app.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.draw-menu-popover {
+  /* Was a flat 296px. On a 375pt phone this yields ~351px of usable width —
+     the extra ~55px is what buys the single-row controls their slider track. */
+  --width: min(21.5rem, calc(100vw - 1.5rem));
+  --border-radius: 22px;
+  --backdrop-opacity: 0;
+  --background: transparent;
+  --box-shadow: 0 24px 64px -18px rgba(0, 0, 0, 0.25);
+}
+
+.draw-menu-popover::part(content) {
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.draw-menu {
+  display: flex;
+  flex-direction: column;
+  max-height: min(85vh, 640px);
+}
+
+/* Fixed header region (preview stage). Sits above the scrolling body. */
+.draw-menu-head {
+  flex: 0 0 auto;
+  padding: 0.625rem 0.625rem 0;
+}
+
+.draw-menu-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.draw-menu .control_card {
+  background: var(--ion-color-background);
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.2);
+  border-radius: 1.125rem;
+  padding: 0.625rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.draw-menu .card_divider {
+  height: 1px;
+  background: rgba(var(--ion-color-primary-rgb), 0.35);
+  /* Ionic gives ion-range its own internal vertical padding on top of the row
+     box, so symmetric margins here read as a much bigger gap below the last
+     slider than above the divider. Pull the top side in to even it out. */
+  margin: 0.125rem 0 0.375rem;
+}
+
+/* One control = one row: label | slider | value.
+   `minmax(0, …)` on the track column is what lets the slider shrink instead of
+   forcing the grid wider than the popover on narrow screens. */
+.draw-menu .control_row {
+  display: grid;
+  grid-template-columns: minmax(0, 4.25rem) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+
+.draw-menu .control_label {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgb(0 0 0 / 0.4);
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draw-menu .value_pill {
+  font-size: 10px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--ion-color-secondary);
+  background: rgba(var(--ion-color-secondary-rgb), 0.1);
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  line-height: 1.4;
+  /* Reserve the widest value ("100%") so the slider track doesn't reflow as the
+     number changes while dragging. */
+  min-width: 2.5rem;
+  text-align: center;
+}
+
+.draw-menu .section_label {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgb(0 0 0 / 0.4);
+  line-height: 1;
+  margin-bottom: 0.375rem;
+}
+
+.draw-menu .preview-tag {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.5rem;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.35);
+  backdrop-filter: blur(4px);
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgb(255 255 255 / 0.8);
+  pointer-events: none;
+}
+
+/* Slim track, full-size knob. The knob stays 18px because it's the touch
+   target — only the bar and the row padding shrink. */
+.draw-menu ion-range {
+  --bar-height: 4px;
+  --bar-border-radius: 8px;
+  --bar-background: rgba(0, 0, 0, 0.08);
+  --bar-background-active: var(--ion-color-secondary);
+  --knob-size: 18px;
+  --knob-background: #fff;
+  --knob-box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  padding: 0;
+  min-height: 28px;
+}
+
+.draw-menu .hide-scrollbar::-webkit-scrollbar,
+.draw-menu.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.draw-menu .hide-scrollbar,
+.draw-menu.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

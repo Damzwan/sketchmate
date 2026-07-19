@@ -127,7 +127,6 @@ import {
 	resolveFontFamily,
 	resolveTheme,
 	resolveTitle,
-	resolveWorld,
 } from "@/config/profile_options.config";
 
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -195,14 +194,18 @@ const fontEffectClass = computed(() =>
 	resolveFontEffectClass(partnerCustomization.value.fontEffectId),
 );
 
-// World can be dark (space/dragon) — pick the matching name colour so it stays
-// readable over the backdrop, same rule ProfileCard/ProfileSheetView use.
-const isWorldDark = computed(
-	() => resolveWorld(partnerCustomization.value.worldId).isDark === true,
-);
+// Always the theme's OWN colours — never the dark variants.
+//
+// This used to flip to nameColorDark/descColorDark whenever the WORLD was dark
+// (space/dragon), which is the rule ProfileCard uses. That rule doesn't hold
+// here: on the profile card the world fills the surface, but in the toolbar
+// (and in ConversationItem) it's a small masked vignette on one side, so the
+// text still sits on the theme's cardBg. Flipping to dark-mode text put light
+// glyphs on a light theme surface. Each theme's nameColor/descColor is already
+// tuned to its own cardBg, so this matches ConversationItem exactly.
 const activeColors = computed(() => ({
-	name: isWorldDark.value ? theme.value.nameColorDark : theme.value.nameColor,
-	desc: isWorldDark.value ? theme.value.descColorDark : theme.value.descColor,
+	name: theme.value.nameColor,
+	desc: theme.value.descColor,
 }));
 
 // Only dress the header with the partner's world/effect for a real, live

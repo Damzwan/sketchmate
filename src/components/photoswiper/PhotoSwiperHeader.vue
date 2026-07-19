@@ -22,15 +22,11 @@
     </div>
 
     <ion-buttons slot="end" class="self-start mt-1">
-      <ion-button
-        v-if="displayCommentCount > 0"
-        @click="$emit('update:showComments', !showComments)"
-        color="light"
-        class="pr-2"
-      >
-        <ion-icon :icon="svg(showComments ? mdiChatRemoveOutline : mdiChatOutline)" class="w-[25px] h-[25px]" />
-      </ion-button>
-
+      <!-- The comment-visibility toggle used to live here. It's gone: a control
+           in the header for a strip at the bottom, next to a footer button that
+           opened the full thread, meant three related controls in three places
+           and an unlabelled icon nobody could decode. The footer comment button
+           now owns the peek strip. -->
       <button
         v-if="type === 'inbox' && currItem.followers && currItem.followers.length > 0"
         class="flex -space-x-6 pr-2 cursor-pointer"
@@ -57,27 +53,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonToolbar, IonButtons, IonButton, IonIcon } from "@ionic/vue";
 import { arrowBack } from "ionicons/icons";
-import { mdiChatOutline, mdiChatRemoveOutline } from "@mdi/js";
-import { svg, senderImg } from "@/helper/general.helper";
+import { senderImg } from "@/helper/general.helper";
 
 const props = defineProps<{
 	currItem: any;
 	type: "post" | "inbox";
-	showComments: boolean;
 	userLookup?: (userId: string) => any;
 }>();
 
-defineEmits(["close", "open-followers", "update:showComments"]);
+defineEmits(["close", "open-followers"]);
 
 const badgesCountToShow = 3;
-
-const displayCommentCount = computed(() => {
-	if (props.type === "post") return props.currItem?.comment_count || 0;
-	return props.currItem?.comments?.length || 0;
-});
 
 function resolveUser(userId: string) {
 	return props.userLookup ? props.userLookup(userId) : userId;

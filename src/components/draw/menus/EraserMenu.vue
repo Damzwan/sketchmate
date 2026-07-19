@@ -5,18 +5,15 @@
     @didDismiss="close"
     :keepContentsMounted="true"
     :showBackdrop="false"
-    class="eraser-popover"
+    class="draw-menu-popover"
     side="top" alignment="center"
   >
-    <div class="eraser-shell bg-tertiary border border-primary/20">
-      <div class="eraser-body hide-scrollbar">
+    <div class="draw-menu bg-tertiary border border-primary/20">
+      <div class="draw-menu-body hide-scrollbar">
 
         <div class="control_card shadow-sm">
-          <div>
-            <div class="control_row">
-              <label class="control_label">Eraser Size</label>
-              <span class="value_pill">{{ eraserSize }}</span>
-            </div>
+          <div class="control_row">
+            <label class="control_label">Size</label>
             <ion-range
               aria-label="Eraser Size"
               v-model="eraserSize"
@@ -25,12 +22,13 @@
               :max="150"
               color="secondary"
             />
+            <span class="value_pill">{{ eraserSize }}</span>
           </div>
 
           <div class="card_divider"></div>
 
           <button class="action_button" @click="clearAll">
-            <ion-icon :icon="svg(mdiNuke)" class="text-lg" />
+            <ion-icon :icon="svg(mdiNuke)" class="text-base" />
             <span>Clear all</span>
           </button>
         </div>
@@ -78,69 +76,12 @@ function close() {
 <style scoped>
 @reference "@/theme/main.css";
 
-.eraser-popover {
-  --border-radius: 26px;
-  --box-shadow: 0 24px 64px -18px rgba(0, 0, 0, 0.25);
-  --width: 296px;
-}
-
-.eraser-popover::part(content) {
-  border-radius: 26px;
-  overflow: hidden;
-}
-
-.eraser-shell {
-  display: flex;
-  flex-direction: column;
-  max-height: min(85vh, 640px);
-}
-
-.eraser-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  @apply p-3;
-}
-
-.control_card {
-  @apply bg-background border border-primary/20 rounded-[1.75rem] p-4 space-y-3;
-}
-
-.card_divider {
-  @apply h-px bg-primary/10 my-1;
-}
-
-.control_row {
-  @apply flex items-center justify-between mb-0.5;
-}
-
-.control_label {
-  @apply block text-[11px] font-black uppercase tracking-widest text-black/40;
-}
-
-.value_pill {
-  @apply text-[11px] font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-full tabular-nums;
-}
+/* Shell, control rows, range and scrollbar tokens are shared across the tool
+   menus — see src/theme/draw-menu.css. Only the destructive action is local. */
 
 .action_button {
-  @apply w-full flex items-center justify-center gap-2 py-2.5 mt-1 rounded-2xl
-  bg-red-500/10 text-red-500 font-bold text-sm
+  @apply w-full flex items-center justify-center gap-1.5 py-2 rounded-xl
+  bg-red-500/10 text-red-500 font-bold text-xs
   active:scale-95 transition-transform cursor-pointer border-0;
 }
-
-ion-range {
-  --bar-height: 4px;
-  --bar-border-radius: 8px;
-  --bar-background: rgba(0, 0, 0, 0.08);
-  --bar-background-active: var(--ion-color-secondary);
-  --knob-size: 18px;
-  --knob-background: #fff;
-  --knob-box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
-  padding: 4px 2px;
-}
-
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

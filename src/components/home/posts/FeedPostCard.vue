@@ -7,20 +7,25 @@
       <!-- ONE card-wide effect layer behind everything, so the effect on the
            header and the footer are the same continuous sheet (they read as
            synced). The opaque artwork strip covers it through the middle. One
-           instance keeps it cheap. Base-theme authors get the plain default. -->
-      <div v-if="showArtistTheme" class="absolute inset-0 z-0 pointer-events-none">
+           instance keeps it cheap. Gated on the effect itself, not the theme. -->
+      <div v-if="showEffect" class="absolute inset-0 z-0 pointer-events-none">
         <ProfileEffect :effect-id="authorCustomization.effectId" radius-class="rounded-none" contained />
       </div>
 
       <!-- Artist intro banner: transparent so the card surface + effect show
-           through; the world vignette lives here, up by the author. -->
-      <div class="relative shrink-0 overflow-hidden">
-        <div v-if="showArtistTheme" class="absolute inset-0 z-0 pointer-events-none">
+           through; the world vignette lives here, up by the author. When a world
+           is present the header gets a floor so the scene has room to resolve
+           instead of being clipped by whatever the text happens to occupy. -->
+      <div
+        class="relative shrink-0 overflow-hidden"
+        :class="showWorld ? 'min-h-[7.5rem]' : ''"
+      >
+        <div v-if="showWorld" class="absolute inset-0 z-0 pointer-events-none">
           <ProfileWorld
             :world-id="authorCustomization.worldId"
             :accent="theme.accentColor"
             static-mode
-            mini
+            banner
             contained
             radius-class="rounded-none"
           />
@@ -64,28 +69,14 @@
             </div>
           </button>
 
+          <!-- Signature moved out of here onto the artwork itself: it was
+               fighting the world layer for the same top-right corner. -->
           <div class="flex flex-col items-end shrink-0 -mr-1">
             <button @click="presentActionSheet"
                     class="p-2 active:scale-90 transition-transform cursor-pointer opacity-70 hover:opacity-100"
                     :style="{ color: theme.nameColor }">
               <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-xl" />
             </button>
-            <svg
-              v-if="authorCustomization.signaturePath"
-              class="w-24 h-11 -mt-1 mr-1 drop-shadow-sm scale-150"
-              :viewBox="authorCustomization.signatureViewBox || '0 0 300 150'"
-              preserveAspectRatio="xMidYMid meet"
-              aria-label="Artist signature"
-            >
-              <path
-                :d="authorCustomization.signaturePath"
-                fill="none"
-                :stroke="theme.accentColor || 'var(--ion-color-secondary)'"
-                :stroke-width="signatureStrokeWidth"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
           </div>
         </div>
 
@@ -99,15 +90,16 @@
 
       <div
         ref="reactionSurface"
-        class="tap-guard relative z-10 w-full flex items-center justify-center overflow-hidden bg-[#FAF8F5] border-y border-primary/10 select-none"
-        style="transform: translateZ(0); will-change: transform;"
+        class="tap-guard relative z-10 w-full flex items-center justify-center overflow-hidden border-y select-none"
+        :class="showCardTheme ? '' : 'bg-[#FAF8F5] border-primary/10'"
+        :style="artworkStyle"
         @dblclick="handleDoubleTap"
         @contextmenu.prevent
       >
         <img
           :src="post.image_url"
-          class="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-40 pointer-events-none transition-opacity duration-500"
-          :class="imageLoaded ? 'opacity-40' : 'opacity-0'"
+          class="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl pointer-events-none transition-opacity duration-500"
+          :class="imageLoaded ? blurredBackdropOpacity : 'opacity-0'"
           alt=""
         />
 
@@ -120,6 +112,55 @@
           @load="imageLoaded = true"
           alt="Main illustration content"
         />
+
+        <!-- Signature, signed onto the artwork like a real canvas. Pinned
+             bottom-right with its own soft scrim so it stays readable over busy
+             drawings.
+
+             Stacked caption-above-mark, matching ProfileCard's signature block
+             — that's the signature-line convention (label, then the mark under
+             it). Side by side, the label read as a tag pinned next to a
+             scribble instead of as part of one signature. -->
+        <div
+          v-if="authorCustomization.signaturePath"
+          class="absolute bottom-1.5 right-2 z-20 pointer-events-none flex flex-col items-center signature-plate"
+        >
+          <span class="signature-caption">— Signed —</span>
+          <!-- Both sizes are exactly 2:1, matching the default 300×150 viewBox,
+               so `meet` fills the box rather than letterboxing (an off-ratio box
+               silently shrinks the mark and leaves dead space around it).
+               Smaller on phones, where it otherwise crowds the artwork. -->
+          <svg
+            class="w-20 h-10 sm:w-28 sm:h-14 drop-shadow-sm -mt-0.5"
+            :viewBox="authorCustomization.signatureViewBox || '0 0 300 150'"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label="Artist signature"
+          >
+            <path
+              :d="authorCustomization.signaturePath"
+              fill="none"
+              stroke="rgba(255,255,255,0.95)"
+              :stroke-width="signatureStrokeWidth"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+
+        <!-- Fullscreen. An explicit control rather than a tap handler: this
+             surface already owns double-tap (react) and long-press (reaction
+             picker), and a single-tap would need a disambiguation timer that
+             makes opening feel laggy. -->
+        <button
+          @click.stop="openFullscreen"
+          class="absolute top-2 right-2 z-20 h-9 w-9 rounded-full flex items-center justify-center
+                 bg-black/40 text-white backdrop-blur-sm border border-white/20
+                 active:scale-90 hover:bg-black/55 transition-all cursor-pointer"
+          aria-label="View drawing fullscreen"
+        >
+          <ion-icon :icon="svg(mdiArrowExpand)" class="text-lg" />
+        </button>
 
         <ReactionBurst ref="reactionBurst" />
       </div>
@@ -255,6 +296,7 @@ import { computed, ref, watch } from "vue";
 import { onLongPress } from "@vueuse/core";
 import { actionSheetController, alertController, IonIcon } from "@ionic/vue";
 import {
+	mdiArrowExpand,
 	mdiChatOutline,
 	mdiChevronRight,
 	mdiDeleteOutline,
@@ -282,7 +324,9 @@ import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import {
 	calculateSignatureStroke,
+	DEFAULT_EFFECT_ID,
 	DEFAULT_THEME_ID,
+	DEFAULT_WORLD_ID,
 	hydrateCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
@@ -290,6 +334,7 @@ import {
 	resolveTitle,
 } from "@/config/profile_options.config";
 import { useShareService } from "@/draw/store/useShareService.store";
+import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 
@@ -313,18 +358,29 @@ const authorCustomization = computed(() =>
 	hydrateCustomization(props.post.author?.customization),
 );
 const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
-// Only dress the card when the artist actually picked a theme — base-theme
-// authors get the plain default so the feed doesn't look busy for nothing.
-const showArtistTheme = computed(
+// Theme, effect and world are three INDEPENDENT purchases — gate them
+// separately. They used to share one `showArtistTheme` flag keyed off themeId,
+// which meant an artist who bought an effect or a world but kept the `classic`
+// theme rendered neither of them.
+const showCardTheme = computed(
 	() =>
 		!!authorCustomization.value.themeId &&
 		authorCustomization.value.themeId !== DEFAULT_THEME_ID,
+);
+// Both components already self-guard on `def.kind !== 'none'`; this just keeps
+// the wrapper element (and its compositing layer) out of the DOM entirely for
+// the overwhelmingly common "no effect / no world" author.
+const showEffect = computed(
+	() => authorCustomization.value.effectId !== DEFAULT_EFFECT_ID,
+);
+const showWorld = computed(
+	() => authorCustomization.value.worldId !== DEFAULT_WORLD_ID,
 );
 // Subtle whole-card theming: paint the artist's surface + border on the whole
 // card (header + footer), leaving the artwork strip neutral. Not applied for the
 // base theme.
 const cardStyle = computed(() =>
-	showArtistTheme.value
+	showCardTheme.value
 		? {
 				background: theme.value.cardBg,
 				borderColor: theme.value.cardBorderColor,
@@ -336,13 +392,36 @@ const cardStyle = computed(() =>
 				isolation: "isolate",
 			},
 );
+// The artwork strip is object-contain, so on any image that isn't the strip's
+// exact aspect there is letterbox padding around it. That padding was a
+// hardcoded cream (#FAF8F5) regardless of theme, which read as a foreign band
+// cutting the card in half. Carry the artist's surface through it instead, and
+// keep the translateZ/will-change promotion that was previously inline.
+const artworkStyle = computed(() => ({
+	transform: "translateZ(0)",
+	willChange: "transform",
+	...(showCardTheme.value
+		? {
+				background: theme.value.cardBg,
+				borderColor: theme.value.cardBorderColor,
+			}
+		: {}),
+}));
+
+// The blurred art backdrop fills the letterbox with the drawing's own colours.
+// At the untouched 40% it would smother the theme surface underneath, so on a
+// themed card it steps back and lets the artist's colour lead.
+const blurredBackdropOpacity = computed(() =>
+	showCardTheme.value ? "opacity-20" : "opacity-40",
+);
+
 // Footer text colours on a themed card — undefined falls back to the default
 // black/x classes for base-theme cards.
 const strongText = computed(() =>
-	showArtistTheme.value ? theme.value.nameColor : undefined,
+	showCardTheme.value ? theme.value.nameColor : undefined,
 );
 const mutedText = computed(() =>
-	showArtistTheme.value ? theme.value.descColor : undefined,
+	showCardTheme.value ? theme.value.descColor : undefined,
 );
 const resolvedFontFamily = computed(() =>
 	resolveFontFamily(authorCustomization.value.fontId),
@@ -411,6 +490,19 @@ onLongPress(
 	},
 	{ delay: 400, modifiers: { prevent: true } },
 );
+
+const { openPostSwiper } = usePostSwiper();
+
+// Fullscreen this one post. The swiper takes a collection + index, so a single
+// card opens as a one-item collection — same viewer the profile grid and
+// notifications already use, so reactions/comments/delete behave identically.
+const openFullscreen = () => {
+	trackEvent(mixpanelEvents.postFullscreenOpen, {
+		post_id: props.post._id,
+		author_id: props.post.author._id,
+	});
+	openPostSwiper([props.post], 0);
+};
 
 const openUser = (userId: string) => openUserActions({ _id: userId });
 const shareService = useShareService();
@@ -500,3 +592,23 @@ const presentActionSheet = async () => {
 	await actionSheet.present();
 };
 </script>
+
+<style scoped>
+@reference "@/theme/main.css";
+
+/* The signature sits directly on the drawing, so it can't rely on the card
+   surface for contrast — it carries its own scrim. Kept soft and small so it
+   reads as a signature on the artwork, not a watermark stamped over it. */
+/* Stacked block, so a pill no longer fits it — a soft rounded plate does.
+   Padding tracks the mark size so the plate doesn't stay phone-oversized. */
+.signature-plate {
+  @apply px-2.5 pt-0.5 pb-0.5 rounded-xl sm:px-3 sm:pt-1 sm:rounded-2xl
+  bg-black/35 backdrop-blur-[2px] border border-white/15;
+}
+
+/* No `mb` nudge — optical spacing comes from the -mt-0.5 on the mark, so the
+   caption keeps its natural line box. */
+.signature-caption {
+  @apply text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] text-white/65 leading-none;
+}
+</style>

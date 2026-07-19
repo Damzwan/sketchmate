@@ -3,7 +3,7 @@
     v-if="def && def.kind !== 'none'"
     ref="root"
     class="absolute inset-0 overflow-hidden pointer-events-none"
-    :class="[radiusClass, { 'world-preview': preview, 'world-static': staticMode, 'world-mini': mini, 'world-paused': paused && !staticMode }]"
+    :class="[radiusClass, { 'world-preview': preview, 'world-static': staticMode, 'world-mini': mini, 'world-banner': banner, 'world-paused': paused && !staticMode }]"
     :style="preview ? { '--world-scale': previewScale } : undefined"
     style="isolation: isolate;"
     aria-hidden="true"
@@ -316,6 +316,12 @@ const props = withDefaults(
 		staticMode?: boolean;
 		radiusClass?: string;
 		mini?: boolean;
+		/** Feed-post header variant. `mini` is tuned for a chat-list ROW — it hard
+		    clips against a short box and anchors hard right, which in a post header
+		    collides with the artist signature and cuts the scene off mid-sprite.
+		    `banner` instead dissolves the scene into the card on every edge and
+		    sits low-right, clear of the signature. */
+		banner?: boolean;
 		/** Gate player creation tightly to the viewport instead of the giant hero
 		    margin. Set on LIST instances (feed cards, chat toolbar) so only worlds
 		    near the viewport ever spin up lottie workers — a 20-item feed must not
@@ -329,6 +335,7 @@ const props = withDefaults(
 		staticMode: false,
 		radiusClass: "rounded-[2.5rem]",
 		mini: false,
+		banner: false,
 		contained: false,
 	},
 );
@@ -733,18 +740,66 @@ const meteors = computed(() =>
   transform: translate(-50%, -50%) scale(var(--world-scale, 0.5));
   transform-origin: center;
 }
-.world-mini {
+/* Feed-post header. Two things made the mini variant read as an afterthought
+   here: the scene ended on a hard edge where the header box clipped it, and it
+   was anchored at the same right-centre point the signature occupies.
+
+   The radial mask dissolves the scene on EVERY edge instead of clipping it, so
+   there is no cut line to notice; anchoring bottom-right and pushing it down
+   past the baseline keeps it under the description rather than behind the
+   signature. Lower opacity puts it firmly behind the text. */
+.world-banner {
+  /* Centre-anchored like .world-preview, NOT bottom-anchored with a downward
+     translate — that scaled about a point below the header, which put the whole
+     sprite band under the clip line and made the world render as nothing. */
   inset: auto;
   top: 50%;
-  right: 6%;
+  right: 0;
   left: auto;
   width: 320px;
   height: 280px;
-  transform: translateY(-50%) scale(0.52);
+  transform: translateY(-50%) scale(0.46);
+  transform-origin: right center;
+  opacity: 0.85;
+
+  /* Two masks intersected: fade out to the LEFT so the artist's name always sits
+     on clean card, and soften top/bottom so the scene dissolves into the header
+     instead of ending on the clip edge. */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 48%),
+    linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 48%),
+    linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
+  mask-composite: intersect;
+}
+
+.world-mini {
+  inset: auto;
+  top: 50%;
+  /* Flush to the card edge, not inset 6%. The left-fade gradient is what ends
+     the scene, so an inset left a strip of bare card to the RIGHT of the world
+     — the gradient resolved into card instead of running off the edge. */
+  right: 0;
+  left: auto;
+  width: 320px;
+  height: 280px;
+  /* The 280px stage has to fit a ~76px list row. At the old 0.52 the lowest
+     sprite was only ~54% visible (measured) — that half-cut sprite is what made
+     space/dragon look broken here. 0.34 puts every sprite fully inside at both
+     76px and 88px row heights. Smaller sprites, but whole ones. */
+  transform: translateY(-50%) scale(0.34);
   transform-origin: right center;
   opacity: 0.72;
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 42%);
-  mask-image: linear-gradient(to right, transparent 0%, #000 42%);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 48%),
+    linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 48%),
+    linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%);
+  mask-composite: intersect;
 }
 @keyframes turtle-swim-lane {
   0% { transform: translateX(-35cqw) translateY(0px) rotate(-6deg); }

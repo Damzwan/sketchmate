@@ -15,6 +15,7 @@ export enum mixpanelEvents {
 	// --- v2 Posts ---
 	postReact = "post_react",
 	postCommentsOpen = "post_comments_open",
+	postFullscreenOpen = "post_fullscreen_open",
 	postShareOpen = "post_share_open",
 	postRemix = "post_remix",
 

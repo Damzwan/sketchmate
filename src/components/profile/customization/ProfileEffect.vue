@@ -576,14 +576,21 @@ html.low-end .glass-glint {
    light so the theme background stays dominant — creases whisper, not shout. */
 .crumple-shadows {
   mix-blend-mode: multiply;
-  opacity: 0.18;
+  /* Was 0.18. On the light `classic` theme the crease shadows landed close to
+     the body-text colour and text sat directly on top of them, so glyph edges
+     fought the creases. Dropping the darkest pass is what buys back contrast —
+     the highlight pass below still carries the fold geometry. */
+  opacity: 0.1;
 }
 
 /* Soft-light re-uses the same photo to pop the lit ridges back out, so folds
    have both a dark and a bright side without tinting the card grey. */
 .crumple-highlights {
   mix-blend-mode: soft-light;
-  opacity: 0.35;
+  /* Soft-light barely shifts luminance where text sits, so it can carry more of
+     the effect than the multiply pass — nudged up to keep the folds legible as
+     folds now that the shadow pass is lighter. */
+  opacity: 0.42;
 }
 
 /* A slow, faint glare travelling over the sheet — a subtle catch of light on
@@ -607,7 +614,7 @@ html.low-end .glass-glint {
   background: radial-gradient(
     120% 120% at 50% 45%,
     transparent 62%,
-    rgba(0, 0, 0, 0.08) 100%
+    rgba(0, 0, 0, 0.055) 100%
   );
   mix-blend-mode: multiply;
 }

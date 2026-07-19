@@ -5,13 +5,13 @@
     @didDismiss="onDismiss"
     :keepContentsMounted="true"
     :showBackdrop="false"
-    class="pen-popover"
+    class="draw-menu-popover"
     side="top" alignment="center"
   >
-    <div class="pen-shell bg-tertiary border border-primary/20">
+    <div class="draw-menu bg-tertiary border border-primary/20">
 
-      <div class="pen-preview">
-        <div class="preview-stage bg-[#FAF8F5] border border-primary/10">
+      <div class="draw-menu-head">
+        <div ref="preview_stage" class="preview-stage bg-[#FAF8F5] border border-primary/10">
           <canvas ref="preview_canvas"></canvas>
           <span class="preview-tag">Preview</span>
         </div>
@@ -35,75 +35,67 @@
         </button>
       </div>
 
-      <div class="pen-body hide-scrollbar">
+      <div class="draw-menu-body hide-scrollbar">
+        <!-- Labels are deliberately one word ("Width", not "Stroke Width") —
+             that's what lets label, slider and value share a single row at
+             phone width without the track collapsing. -->
         <div class="control_card shadow-sm">
-          <div>
-            <div class="control_row">
-              <label class="control_label">Stroke Width</label>
-              <span class="value_pill">{{ brushSize }}</span>
-            </div>
+          <div class="control_row">
+            <label class="control_label">Width</label>
             <ion-range aria-label="Stroke width" v-model="brushSize"
                        :min="0.1" :step="0.1" :max="50" color="secondary" />
+            <span class="value_pill">{{ brushSize }}</span>
           </div>
 
-          <div>
-            <div class="control_row">
-              <label class="control_label">Opacity</label>
-              <span class="value_pill">{{ opacity }}%</span>
-            </div>
+          <div class="control_row">
+            <label class="control_label">Opacity</label>
             <ion-range aria-label="Opacity" v-model="opacity"
                        :min="0" :max="100" color="secondary" />
+            <span class="value_pill">{{ opacity }}%</span>
           </div>
 
           <template v-if="brushType === BrushType.Spray">
-            <div>
-              <div class="control_row">
-                <label class="control_label">Density</label>
-                <span class="value_pill">{{ density }}</span>
-              </div>
+            <div class="control_row">
+              <label class="control_label">Density</label>
               <ion-range aria-label="Density" v-model="density"
                          :min="1" :max="100" color="secondary" />
+              <span class="value_pill">{{ density }}</span>
             </div>
 
-            <div>
-              <div class="control_row">
-                <label class="control_label">Dot Width</label>
-                <span class="value_pill">{{ dotWidth }}</span>
-              </div>
+            <div class="control_row">
+              <label class="control_label">Dot</label>
               <ion-range aria-label="Dot width" v-model="dotWidth"
                          :min="0.5" :max="5" color="secondary" />
+              <span class="value_pill">{{ dotWidth }}</span>
             </div>
           </template>
 
           <template v-if="brushType === BrushType.Pixel">
-            <div>
-              <div class="control_row">
-                <label class="control_label">Pixel Size</label>
-                <span class="value_pill">{{ pixelSize }}</span>
-              </div>
+            <div class="control_row">
+              <label class="control_label">Pixel</label>
               <ion-range aria-label="Pixel size" v-model="pixelSize"
                          :min="3" :max="30" :step="1" color="secondary" />
+              <span class="value_pill">{{ pixelSize }}</span>
             </div>
           </template>
 
           <div class="card_divider"></div>
 
-          <div>
-            <label class="control_label">Brush</label>
-            <div class="grid grid-cols-3 gap-x-1.5 gap-y-1 mt-1.5">
-              <BrushTile
-                v-for="b in BRUSHES"
-                :key="b.type"
-                :type="b.type"
-                :accent="b.accent"
-                :selected="isBrushTypeSelected(b.type)"
-                :owned="isBrushOwned(b.type)"
-                :previewed="previewedLockedBrush === b.type"
-                :label="brushTileName(b.type)"
-                :icon-path="penIconMapping[b.type]"
-                @tap="onBrushTap"
-              />
-            </div>
+          <!-- Swatch-only grid: with the names gone the tiles are square, so 5
+               columns fits 9 brushes in 2 rows instead of 3. -->
+          <div class="brush_grid">
+            <BrushTile
+              v-for="b in BRUSHES"
+              :key="b.type"
+              :type="b.type"
+              :accent="b.accent"
+              :selected="isBrushTypeSelected(b.type)"
+              :owned="isBrushOwned(b.type)"
+              :previewed="previewedLockedBrush === b.type"
+              :label="brushTileName(b.type)"
+              :icon-path="penIconMapping[b.type]"
+              @tap="onBrushTap"
+            />
           </div>
         </div>
 
@@ -116,7 +108,7 @@
 <script lang="ts" setup>
 import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { onMounted, ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { BrushType, DrawTool } from "@/draw/types/draw.types";
 import { mdiLock, mdiArrowRight } from "@mdi/js";
 import { isNative, svg } from "@/helper/general.helper";
@@ -157,7 +149,17 @@ const inventoryStore = useInventoryStore();
 const { purchasing, unlockItem } = useUnlockItem();
 
 const preview_canvas = ref<HTMLCanvasElement>();
+const preview_stage = ref<HTMLElement>();
 let canvas: Canvas | undefined;
+
+const PREVIEW_HEIGHT = 56;
+const PREVIEW_FALLBACK_WIDTH = 256;
+
+// The stage is fluid now (it used to be a fixed 256px island inside a 296px
+// popover). While the popover is closed `keepContentsMounted` leaves it in the
+// DOM at zero width, so fall back until it has actually been laid out.
+const previewWidth = (): number =>
+	Math.round(preview_stage.value?.clientWidth || 0) || PREVIEW_FALLBACK_WIDTH;
 
 const BRUSHES: { type: BrushType; accent: string }[] = [
 	{ type: BrushType.Pencil, accent: "text-green-600" },
@@ -227,19 +229,43 @@ const buyPreviewedBrush = async () => {
 	}
 };
 
+let stageObserver: ResizeObserver | null = null;
+
 onMounted(() => {
 	renderPreview();
+
+	// The popover animates in, so the stage's final width isn't known at mount
+	// OR at the first nextTick — measuring too early left the stroke ending
+	// mid-card at the fallback width. Re-render whenever the box actually
+	// settles, which also covers rotation and split-screen resizes.
+	if (typeof ResizeObserver === "undefined" || !preview_stage.value) return;
+	stageObserver = new ResizeObserver(() => {
+		if (!preview_stage.value?.clientWidth) return;
+		if (canvas && canvas.width === previewWidth()) return;
+		renderPreview();
+	});
+	stageObserver.observe(preview_stage.value);
+});
+
+onBeforeUnmount(() => {
+	stageObserver?.disconnect();
+	canvas?.dispose();
+	canvas = undefined;
 });
 
 const renderPreview = () => {
+	const width = previewWidth();
 	if (!canvas) {
 		canvas = new Canvas(preview_canvas.value!, {
-			width: 256,
-			height: 64,
+			width,
+			height: PREVIEW_HEIGHT,
 			selection: false,
 		});
 	} else {
 		canvas.clear();
+		if (canvas.width !== width) {
+			canvas.setDimensions({ width, height: PREVIEW_HEIGHT });
+		}
 	}
 
 	const brushColorValue = hexWithOpacity(
@@ -263,11 +289,12 @@ const renderPreview = () => {
 	const frequency = 0.05;
 	const yOffset = canvas.height! / 2;
 
+	const wave = (x: number) => yOffset + amplitude * Math.sin(frequency * x);
 	const points = [[0, yOffset]];
-	for (let x = 1; x <= canvas.width!; x += 10) {
-		const y = yOffset + amplitude * Math.sin(frequency * x);
-		points.push([x, y]);
-	}
+	for (let x = 1; x <= width; x += 10) points.push([x, wave(x)]);
+	// The step can stop up to 9px short of the edge, which reads as the stroke
+	// being cut off rather than running off the card. Land exactly on the edge.
+	if (points[points.length - 1][0] < width) points.push([width, wave(width)]);
 	const convertedPoints = points.map((p) => new Point(p[0], p[1]));
 
 	brush.onMouseDown(convertedPoints[0], { e: new MouseEvent("mousedown") });
@@ -332,93 +359,43 @@ watch(selectedTool, () =>
 		? renderPreview()
 		: null,
 );
-watch(penMenuOpen, (open) => {
-	if (!open) previewedLockedBrush.value = null;
+watch(penMenuOpen, async (open) => {
+	if (!open) {
+		previewedLockedBrush.value = null;
+		return;
+	}
+	// Re-render once the popover is actually laid out — only then does the fluid
+	// stage report a real width, so the first paint isn't stuck at the fallback.
+	await nextTick();
+	renderPreview();
 });
 </script>
 
 <style scoped>
 @reference "@/theme/main.css";
 
-.pen-popover {
-  --border-radius: 26px;
-  --backdrop-opacity: 0;
-  --background: transparent;
-  --box-shadow: 0 24px 64px -18px rgba(0, 0, 0, 0.25);
-  --width: 296px;
-}
+/* Shell, control rows, range, preview tag and scrollbar tokens are shared
+   across the tool menus — see src/theme/draw-menu.css. */
 
-.pen-popover::part(content) {
-  border-radius: 26px;
-  overflow: hidden;
-}
-
-.pen-shell {
-  display: flex;
-  flex-direction: column;
-  max-height: 70vh;
-}
-
-.pen-preview {
-  flex: 0 0 auto;
-  @apply p-3 pb-0;
-}
-
+/* Full-bleed stage: the canvas is sized to this element's measured width in
+   renderPreview(), so no `w-fit` here — it must stretch to be measurable. */
 .preview-stage {
-  @apply relative rounded-2xl overflow-hidden shadow-inner w-fit mx-auto;
+  @apply relative rounded-xl overflow-hidden shadow-inner w-full;
 }
 
-.preview-tag {
-  @apply absolute top-1.5 left-2 px-1.5 py-0.5 rounded-full bg-black/35 backdrop-blur-sm
-  text-[8px] font-black uppercase tracking-widest text-white/80 pointer-events-none;
+/* auto-fit rather than a fixed column count: the tiles are a fixed 44px, so the
+   row packs as many as the popover width allows and stays centred. */
+.brush_grid {
+  @apply grid gap-1 justify-items-center;
+  /* 3rem (not the 2.75rem tile width) packs 5 per row rather than 6 at phone
+     width — same two rows for 9 brushes, but 17px of air between tiles instead
+     of 6px. */
+  grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr));
 }
 
 .unlock-banner {
-  @apply mt-2 w-full px-3 py-2 rounded-2xl bg-secondary text-white border-0
+  @apply mt-1.5 w-full px-2.5 py-1.5 rounded-xl bg-secondary text-white border-0
   flex items-center justify-between cursor-pointer
   active:scale-[0.99] transition-transform disabled:opacity-70;
 }
-
-.pen-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  @apply p-3 space-y-2.5;
-}
-
-.control_card {
-  @apply bg-background border border-primary/20 rounded-[1.75rem] p-3.5 space-y-2.5;
-}
-
-.card_divider {
-  @apply h-px bg-primary/10;
-}
-
-.control_row {
-  @apply flex items-center justify-between mb-0.5;
-}
-
-.control_label {
-  @apply block text-[11px] font-black uppercase tracking-widest text-black/40;
-}
-
-.value_pill {
-  @apply text-[11px] font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-full tabular-nums;
-}
-
-ion-range {
-  --bar-height: 4px;
-  --bar-border-radius: 8px;
-  --bar-background: rgba(0, 0, 0, 0.08);
-  --bar-background-active: var(--ion-color-secondary);
-  --knob-size: 18px;
-  --knob-background: #fff;
-  --knob-box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
-  padding: 2px 2px;
-}
-
-.hide-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

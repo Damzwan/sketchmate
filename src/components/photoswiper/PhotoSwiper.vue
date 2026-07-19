@@ -11,7 +11,6 @@
         v-if="user && currItem"
         :curr-item="currItem"
         :type="config.type ?? 'inbox'"
-        v-model:show-comments="showComments"
         @close="close"
         @open-followers="isFollowerDrawerOpen = true"
         :user-lookup="config.userLookup"
@@ -48,6 +47,7 @@
         :can-delete="canDelete"
         :user-lookup="config.userLookup"
         @open-comments="isCommentDrawerOpen = true"
+        @update:show-comments="showComments = $event"
         @reply="handleReply"
         @delete="handleDelete"
         @react="handleReact"
@@ -94,6 +94,10 @@ import SwiperFollowersDrawer from "@/components/photoswiper/SwiperFollowersDrawe
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
 
 register();
+
+// How many comments to pull for the on-image preview. The overlay shows the
+// most recent few; the full thread lives in the comment drawer.
+const COMMENT_PREVIEW_LIMIT = 6;
 
 const swiperStore = usePhotoSwiper();
 const { open, slide, collection, config } = storeToRefs(swiperStore);
@@ -148,8 +152,36 @@ function close() {
 	window.removeEventListener("keydown", keyboardListener);
 }
 
+/**
+ * Load the latest comments for the current POST so the on-image CommentPreview
+ * has something to show.
+ *
+ * The previous call was `fetchPostComments(id, 1, 5)`, but the signature is
+ * `(postId, limit, beforeDate)` — so it asked for limit=1 and passed 5 as
+ * beforeDate. Server-side that became `createdAt <= new Date("5")` (May 2001),
+ * which matched nothing, so posts ALWAYS came back with zero comments and the
+ * preview never appeared. Correct call is limit-only.
+ */
+async function prefetchComments() {
+	const item = currItem.value;
+	if (!item || config.value.type !== "post" || item.commentsLoaded) return;
+	try {
+		const res = await fetchPostComments(item._id, COMMENT_PREVIEW_LIMIT);
+		item.comments = res.comments || [];
+		item.commentsLoaded = true;
+	} catch (e) {
+		console.error("Failed to pre-fetch comments", e);
+	}
+}
+
 async function onDidPresent() {
 	window.addEventListener("keydown", keyboardListener);
+
+	// The `currItem` watcher doesn't fire for the post the swiper OPENS on when
+	// that item was already the current one, so prefetch here too — otherwise
+	// the first post you open is the one with no comments.
+	await prefetchComments();
+
 	const swiperEl = swiper.value?.swiper;
 	if (!swiperEl) return;
 
@@ -164,15 +196,7 @@ watch(currItem, async () => {
 	if (!currItem.value || !open.value) return;
 	if (config.value.onSeen) config.value.onSeen(currItem.value);
 
-	if (config.value.type === "post" && !currItem.value.commentsLoaded) {
-		try {
-			const res = await fetchPostComments(currItem.value._id, 1, 5);
-			currItem.value.comments = res.comments || [];
-			currItem.value.commentsLoaded = true;
-		} catch (e) {
-			console.error("Failed to pre-fetch comments", e);
-		}
-	}
+	await prefetchComments();
 });
 
 EventBus.on("goToSlide", () => {

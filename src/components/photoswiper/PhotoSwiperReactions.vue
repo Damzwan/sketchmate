@@ -1,35 +1,50 @@
 <template>
-  <div class="relative flex items-center">
+  <!-- One pill, two jobs — the same split FeedPostCard uses: the emoji stack is
+       "react", the count is "who reacted". They were fused into a single button,
+       so there was no way to reach the breakdown from the viewer at all. -->
+  <div class="relative flex items-center rounded-2xl bg-white/10 border border-white/5 shadow-inner overflow-hidden">
     <button
       @click.stop="(e) => $emit('open-popover', e)"
-      class="flex cursor-pointer items-center space-x-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-2xl transition-all active:scale-90 border border-white/5 shadow-inner"
+      class="flex cursor-pointer items-center pl-3 py-2 hover:bg-white/10 transition-all active:scale-90"
+      :class="totalCount > 0 ? 'pr-2' : 'pr-3'"
+      aria-label="React to this drawing"
     >
-      <!-- Icon Stack -->
-      <div class="flex -space-x-2.5 mr-1">
+      <div class="flex -space-x-2.5">
         <!-- Colored heart if no reactions, otherwise top 3 active emojis -->
         <img v-if="activeReactions.length === 0" :src="reactionImages.love"
              class="w-7 h-7 object-contain drop-shadow-md" />
         <img v-else v-for="type in activeReactions" :key="type" :src="reactionImages[type]"
              class="w-7 h-7 object-contain drop-shadow-md" />
       </div>
+    </button>
 
-      <!-- Count -->
-      <span v-if="totalCount > 0" class="text-xs font-black text-white drop-shadow-sm cabin-sketch-regular">
+    <button
+      v-if="totalCount > 0"
+      @click.stop="$emit('open-breakdown')"
+      class="flex cursor-pointer items-center gap-0.5 self-stretch pl-2 pr-2.5 border-l border-white/10
+             hover:bg-white/10 transition-all active:scale-90"
+      aria-label="See who reacted"
+    >
+      <span class="text-xs font-black text-white drop-shadow-sm cabin-sketch-regular">
         {{ formatNumber(totalCount) }}
       </span>
+      <ion-icon :icon="svg(mdiChevronRight)" class="w-3 h-3 text-white/50" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { IonIcon } from "@ionic/vue";
+import { mdiChevronRight } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
 const props = defineProps<{
 	item: any;
 	reactionImages: Record<string, string>;
 }>();
 
-defineEmits(["open-popover"]);
+defineEmits(["open-popover", "open-breakdown"]);
 
 const totalCount = computed(() => {
 	const counts = props.item.reaction_counts || {};

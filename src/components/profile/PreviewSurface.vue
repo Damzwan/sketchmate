@@ -18,7 +18,10 @@
 
   <!-- Chat: chat header (ChatToolbar) + conversation-list row. -->
   <div v-else class="w-full max-w-[420px] px-1 pointer-events-none space-y-4">
-    <div class="rounded-[1.5rem] overflow-hidden border border-primary/40 shadow-sm">
+    <!-- Chrome matched to ConversationItem's own root (rounded-[1.6rem],
+         border-primary/30, shadow-sm) so the two stacked surfaces share one
+         radius and border weight instead of being off by a notch. -->
+    <div class="rounded-[1.6rem] overflow-hidden border border-primary/30 shadow-sm">
       <ChatToolbar :preview="chatPreview" />
     </div>
     <ConversationItem

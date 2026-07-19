@@ -55,6 +55,10 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 	async function syncWithBackend(tier: Tier) {
 		try {
 			await updateProfile({ subscription_tier: tier });
+			// Mirror it locally so the next `checkProStatus` compares against what
+			// the backend now holds instead of re-PUTing the same value forever.
+			const { user } = useAuthStore();
+			if (user) user.subscription_tier = tier;
 		} catch (e) {
 			console.error("Failed to sync subscription tier to backend", e);
 		}
@@ -86,11 +90,19 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 				);
 			const active = lifetime || typeof ent[PRO_ENTITLEMENT] !== "undefined";
 
-			const changed = active !== isPro.value || lifetime !== isLifetime.value;
 			isLifetime.value = lifetime;
 			isPro.value = active;
-			if (changed || force) {
-				await syncWithBackend(currentTier());
+
+			// Compare against what the BACKEND holds, not against the previous local
+			// refs. Those init to false, so a refunded subscriber came back from RC
+			// as "not pro", matched the local default, and the sync never fired —
+			// leaving `subscription_tier: 'pro'` in the DB and Pro quotas with it.
+			const { waitUntilInitialized } = useAuthStore();
+			await waitUntilInitialized();
+			const { user } = useAuthStore();
+			const tier = currentTier();
+			if (tier !== (user?.subscription_tier ?? "free") || force) {
+				await syncWithBackend(tier);
 				const quotaStore = useQuotaStore();
 				void quotaStore.refresh(true);
 			}

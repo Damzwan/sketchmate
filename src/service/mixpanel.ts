@@ -1,6 +1,7 @@
 import { IS_DEV, isNative } from "@/helper/general.helper";
 
 export enum mixpanelEvents {
+	login = "login",
 	presentPaywall = "paywall-present",
 
 	// --- v2 Navigation / engagement ---

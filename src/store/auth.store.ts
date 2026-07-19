@@ -30,7 +30,11 @@ import {
 	socketLogin,
 } from "@/service/api/socket/socket.service";
 import { useSessionStore } from "@/store/session.store";
-import { mixpanelIdentify } from "@/service/mixpanel";
+import {
+	mixpanelEvents,
+	mixpanelIdentify,
+	trackEvent,
+} from "@/service/mixpanel";
 import { useFriendStore } from "@/store/friend.store";
 import { useChatStore } from "@/store/chat.store";
 import { useModerationStore } from "@/store/moderation.store";
@@ -240,7 +244,6 @@ export const useAuthStore = defineStore("auth", () => {
 
 			Preferences.set({ key: LocalStorage.user_id, value: user.value._id });
 			Preferences.set({ key: LocalStorage.img, value: user.value.img });
-			mixpanelIdentify(user.value._id);
 
 			return true;
 		} catch (e) {
@@ -295,9 +298,6 @@ export const useAuthStore = defineStore("auth", () => {
 			]);
 
 			if (opts.arrivedFromLogin && deviceFingerprint.value) {
-				// Awaited so the device's subscription is reliably re-activated before
-				// we consider login complete; a silent fire-and-forget here was the
-				// source of "enabled notifications but never receive one" after re-login.
 				await onLoginEvent({
 					user_id: u._id,
 					fingerprint: deviceFingerprint.value,
@@ -307,13 +307,12 @@ export const useAuthStore = defineStore("auth", () => {
 				);
 			}
 
-			// Engagement titles + the OG founder gift are granted server-side by the
-			// v1 migration (see migrationGrants in the server helper) and arrive in
-			// the hydrated user.inventory — no client re-check needed.
-
 			lastHydratedAt.value = Date.now();
 		} finally {
 			isHydrating.value = false;
+
+			await mixpanelIdentify(u._id);
+			void trackEvent(mixpanelEvents.login);
 		}
 	}
 

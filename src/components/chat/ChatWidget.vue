@@ -73,7 +73,7 @@ import { alertController, IonModal, useIonRouter, IonIcon } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { useThrottleFn } from "@vueuse/core";
 import { mdiChevronDown } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { svg, isNative } from "@/helper/general.helper";
 
 import ChatToasts from "./ChatToasts.vue";
 import ChatTabsHeader from "./ChatTabsHeader.vue";
@@ -287,6 +287,7 @@ async function maybeShowSafetyReminder() {
 const keyboardHeight = ref(0);
 
 onMounted(() => {
+	if (!isNative()) return;
 	Keyboard.addListener("keyboardWillShow", (info) => {
 		keyboardHeight.value = info.keyboardHeight;
 		forceScrollToBottom();
@@ -298,6 +299,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+	if (!isNative()) return;
 	Keyboard.removeAllListeners();
 });
 </script>

@@ -24,6 +24,8 @@ export const usePhotoSwiper = defineStore("photoswiper", () => {
 	const collection = ref<any[]>([]);
 	const config = ref<SwiperConfig>({});
 
+	const isCommentDrawerOpen = ref(false);
+
 	const currentItem = computed(() => collection.value[slide.value]);
 
 	function openSwiper(
@@ -60,5 +62,6 @@ export const usePhotoSwiper = defineStore("photoswiper", () => {
 		openSwiper,
 		seeItem,
 		close,
+		isCommentDrawerOpen,
 	};
 });

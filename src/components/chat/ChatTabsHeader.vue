@@ -5,7 +5,7 @@
     <div class="flex-1 flex items-center gap-3 overflow-x-auto hide-scrollbar overflow-visible py-2 pl-1">
     <div
       @click="activeTab = 'overview'"
-      class="relative shrink-0 w-11 h-11 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
+      class="relative shrink-0 w-12 h-12 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
       :class="
         activeTab === 'overview'
           ? 'bg-secondary text-white shadow-md scale-105'
@@ -29,7 +29,7 @@
     <div
       v-if="isInLobby"
       @click="activeTab = 'lobby'"
-      class="relative shrink-0 w-11 h-11 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
+      class="relative shrink-0 w-12 h-12 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
       :class="
         activeTab === 'lobby'
           ? 'bg-cyan-500 shadow-md text-white scale-105'
@@ -49,7 +49,7 @@
       v-for="head in activeChatHeads"
       :key="head.id"
       @click="activeTab = head.id"
-      class="relative shrink-0 w-11 h-11 rounded-[1.25rem] transition-all duration-300 cursor-pointer overflow-visible"
+      class="relative shrink-0 w-12 h-12 rounded-full transition-all duration-300 cursor-pointer overflow-visible"
       :class="
         activeTab === head.id
           ? 'ring-2 ring-secondary/80 scale-105 shadow-sm'
@@ -57,11 +57,17 @@
       "
     >
       <template v-if="getPartner(head.id)">
-        <img
-          :src="getPartner(head.id)?.img"
-          class="w-full h-full rounded-[1.15rem] object-cover"
+        <!-- UserAvatar rather than a bare <img>: this strip was the one place
+             showing a partner without their themed accent ring or their avatar
+             decoration, so a user's customisation silently vanished the moment
+             they became a tab. `static` freezes decoration animation — these are
+             navigation chips, not a place to run N animated frames. -->
+        <UserAvatar
+          :user="getPartner(head.id)"
+          :customization="avatarCustomization(head.id)"
+          size="sm"
+          static
           :class="{ 'grayscale opacity-50': isExpired(head.id) }"
-          alt="avatar"
         />
 
         <div
@@ -72,7 +78,7 @@
 
       <div
         v-else
-        class="w-full h-full bg-primary/20 animate-pulse rounded-[1.15rem] flex items-center justify-center"
+        class="w-full h-full bg-primary/20 animate-pulse rounded-full flex items-center justify-center"
       >
         <ion-icon :icon="chatbubblesOutline" class="text-secondary/30 text-sm" />
       </div>
@@ -113,6 +119,9 @@ import { IonButton, IonIcon } from "@ionic/vue";
 import { chatbubblesOutline } from "ionicons/icons";
 import { mdiEarth, mdiClose } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
+
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { resolveSenderStyle } from "@/composables/chat/useSenderStyle";
 
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
@@ -176,6 +185,13 @@ const getPartner = (headId: string) => {
 		return chat.participants.find((p: any) => p._id !== user.value?._id);
 	return friendStore.resolvePartnerInfo(headId);
 };
+
+// Goes through the shared sender-style cache rather than calling
+// hydrateCustomization per head per render — the strip re-renders on every
+// unread-count and online-status change, and these are the same few users the
+// message bubbles already resolved.
+const avatarCustomization = (headId: string) =>
+	resolveSenderStyle(getPartner(headId)).customization;
 
 const isPartnerOnline = (headId: string) => {
 	const partner = getPartner(headId);

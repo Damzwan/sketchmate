@@ -7,6 +7,8 @@ import { deletePost, postComment } from "@/service/api/post.api";
 import { usePostStore } from "@/store/post.store";
 import { useUserCacheStore } from "@/store/userCache.store";
 import { alertController } from "@ionic/vue";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/draw/types/draw.types";
 
 export function usePostSwiper() {
 	const swiperStore = usePhotoSwiper();
@@ -14,6 +16,13 @@ export function usePostSwiper() {
 	const postStore = usePostStore();
 
 	function openPostSwiper(posts: any[], index: number) {
+		if (swiperStore.open && useMenuStore().viewProfileMenuOpen) {
+			useMenuStore().closeMenu(Menu.ViewProfileMenu);
+			if (swiperStore.isCommentDrawerOpen) {
+				swiperStore.isCommentDrawerOpen = false;
+			}
+		}
+
 		swiperStore.openSwiper(posts, index, {
 			type: "post",
 			imageResolver: (item) => item.image_url,

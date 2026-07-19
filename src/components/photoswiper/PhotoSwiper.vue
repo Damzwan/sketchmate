@@ -35,7 +35,12 @@
         <ReactionBurst ref="reactionBurst" />
       </div>
 
-      <Transition name="chrome-top">
+      <!-- `:css` is false until a tap actually toggles the chrome, so opening the
+           viewer paints the bars in place instead of sliding them in. The v-if
+           here flips on OPEN too (currItem goes null → set), which is what was
+           animating every time — the transition is meant for the tap-to-hide
+           gesture only, not for mount. -->
+      <Transition name="chrome-top" :css="chromeAnimated">
         <div v-if="user && currItem && chromeVisible" class="absolute top-0 inset-x-0 z-20 top-pad-safe bg-black/85">
           <PhotoSwiperHeader
             :curr-item="currItem"
@@ -47,7 +52,7 @@
         </div>
       </Transition>
 
-      <Transition name="chrome-bottom">
+      <Transition name="chrome-bottom" :css="chromeAnimated">
         <!-- Background lives on the wrapper, not on the bar, so it extends under
              the gesture/home inset instead of leaving a see-through strip. -->
         <div v-if="user && currItem && chromeVisible" class="absolute bottom-0 inset-x-0 z-20 bot-pad-safe bg-black/60 backdrop-blur-xl">
@@ -114,7 +119,8 @@ register();
 const COMMENT_PREVIEW_LIMIT = 6;
 
 const swiperStore = usePhotoSwiper();
-const { open, slide, collection, config } = storeToRefs(swiperStore);
+const { open, slide, collection, config, isCommentDrawerOpen } =
+	storeToRefs(swiperStore);
 const { user } = storeToRefs(useAuthStore());
 const { updateSlide } = storeToRefs(useSessionStore());
 
@@ -124,8 +130,11 @@ const showComments = ref(true);
 // Tap the art to get the bars out of the way, tap again to bring them back —
 // the gallery-app convention.
 const chromeVisible = ref(true);
+// Gates the chrome Transitions' CSS. Only a tap turns this on, so the bars are
+// painted in place when the viewer opens and only ever slide in response to the
+// gesture that's supposed to move them.
+const chromeAnimated = ref(false);
 let tapTimer: ReturnType<typeof setTimeout> | null = null;
-const isCommentDrawerOpen = ref(false);
 const isFollowerDrawerOpen = ref(false);
 const swiper = ref<any>();
 const reactionBurst = ref<{ play: (r: string) => void } | null>(null);
@@ -165,6 +174,8 @@ function onSwiperTap() {
 	if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return;
 	if (tapTimer) clearTimeout(tapTimer);
 	tapTimer = setTimeout(() => {
+		// Arm the transition only now — this is the one path that should animate.
+		chromeAnimated.value = true;
 		chromeVisible.value = !chromeVisible.value;
 		tapTimer = null;
 	}, 260);
@@ -189,6 +200,17 @@ function close() {
 	open.value = false;
 	swiper.value?.swiper?.zoom?.out();
 	window.removeEventListener("keydown", keyboardListener);
+
+	// Reset the chrome so the next open starts with the bars up and unanimated.
+	// `keep-contents-mounted` means this component is never torn down, so any
+	// state left behind here is state the next open inherits — a viewer closed
+	// with the UI hidden would otherwise reopen hidden.
+	if (tapTimer) {
+		clearTimeout(tapTimer);
+		tapTimer = null;
+	}
+	chromeVisible.value = true;
+	chromeAnimated.value = false;
 }
 
 /**
@@ -214,9 +236,10 @@ async function prefetchComments() {
 }
 
 async function onDidPresent() {
-	// Always reopen with the chrome up; a hidden-UI state carried over from the
-	// last viewing would look like a broken screen.
+	// Belt and braces alongside the reset in close(): the modal can also be
+	// dismissed by swipe or hardware back, which don't all route through close().
 	chromeVisible.value = true;
+	chromeAnimated.value = false;
 	window.addEventListener("keydown", keyboardListener);
 
 	// The `currItem` watcher doesn't fire for the post the swiper OPENS on when

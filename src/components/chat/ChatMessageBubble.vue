@@ -1,6 +1,6 @@
 <template>
   <div class="w-full overflow-visible msg-row"
-       :class="{ 'mt-[-5px]': isCompact && !isSystemMessage }">
+       :class="{ 'mt-[-5px]': isCompact && !isSystemMessage, 'msg-row--media': isMediaMessage }">
     <!-- SYSTEM LEVEL MESSAGES -->
     <div v-if="isSystemMessage" class="flex justify-center w-full my-1.5 select-none">
       <!-- BALLOON MATCH STATUS ALERT CARD -->
@@ -129,20 +129,28 @@
             ? 'bg-secondary text-white rounded-2xl rounded-tr-sm'
             : 'bg-white text-black rounded-2xl rounded-tl-sm border border-primary/40'"
         >
+          <!-- Name + earned title on one baseline row.
+               `min-w-0` on the row AND on both spans is what makes this work: a
+               flex item defaults to `min-width: auto`, so neither span would
+               shrink below its own text and the pair overflowed the bubble's
+               max-w-[75%]. That used to spill visibly; now that `.msg-row`
+               carries content-visibility (and with it paint containment) the
+               overflow is CLIPPED instead — which is why the title vanished
+               rather than merely looking wrong. Both spans truncate, so a long
+               name and a long title give ground together instead of one
+               shoving the other out. -->
           <div v-if="!isCompact && !isMe && activeTab === 'lobby'"
-               class="mb-1 flex items-baseline gap-1 whitespace-nowrap leading-none">
+               class="mb-1 flex items-baseline gap-1 leading-none min-w-0 max-w-full">
+            <span
+              class="text-xs font-black uppercase tracking-tight truncate min-w-0"
+              :style="{ color: theme.nameColorOnLight, fontFamily: resolvedFontFamily }"
+            >{{ sender?.name }}</span>
 
-            <!-- 1. Swap nameColor for nameColorOnLight -->
-            <span class="text-xs font-black uppercase tracking-tight"
-                  :style="{ color: theme.nameColorOnLight, fontFamily: resolvedFontFamily }">
-    {{ sender?.name }}
-  </span>
-
-            <!-- 2. Swap descColor for descColorOnLight -->
-            <span v-if="displayTitle" class="text-[10px] uppercase tracking-widest opacity-80 truncate"
-                  :style="{ color: theme.descColorOnLight, fontFamily: resolvedFontFamily }">
-    • {{ displayTitle }}
-  </span>
+            <span
+              v-if="displayTitle"
+              class="text-[10px] uppercase tracking-widest opacity-80 truncate min-w-0"
+              :style="{ color: theme.descColorOnLight, fontFamily: resolvedFontFamily }"
+            >• {{ displayTitle }}</span>
           </div>
 
           <div class="cabin-sketch-regular leading-snug break-words pr-2">{{ msg.content || msg.message }}</div>
@@ -229,6 +237,12 @@ const statusTick = computed(() => {
 		classOnBubble: "text-white/80",
 	};
 });
+
+// Shared-sketch bubbles are ~3.5x the height of a text line, so they need their
+// own `contain-intrinsic-size` — see the note in the style block.
+const isMediaMessage = computed(
+	() => !!(props.msg.shared_post_id || props.msg.shared_inbox_item_id),
+);
 
 const sender = computed(() => props.msg.member || props.partner);
 const isSystemMessage = computed(
@@ -349,5 +363,16 @@ const openSharedInboxItem = async () => {
 .msg-row {
   content-visibility: auto;
   contain-intrinsic-size: auto 64px;
+}
+
+/* A shared-sketch bubble is a fixed 160px thumbnail plus caption and timestamp
+ * — roughly 232px, versus the 64px a text line takes. Leaving these on the
+ * default estimate made `scrollHeight` under-report by ~165px per off-screen
+ * media bubble, so "scroll to bottom" on a media-heavy thread landed well short
+ * of the newest message. `useScrollAnchor` re-pins until the height settles,
+ * which covers the residual error; this keeps that error small to begin with so
+ * there is less visible catch-up. */
+.msg-row--media {
+  contain-intrinsic-size: auto 232px;
 }
 </style>

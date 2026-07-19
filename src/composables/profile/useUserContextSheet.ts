@@ -6,6 +6,14 @@ let lastFetchedId: string | null = null;
 let lastFetchedAt = 0;
 const PROFILE_FRESHNESS_MS = 120_000;
 
+// Ionic's sheet leave transition. Waiting on the real `didDismiss` event would
+// mean reaching into the modal instance from here; the sheet's animation is a
+// fixed duration, so a timer is enough and keeps this composable decoupled from
+// the component. Slightly generous so a slow frame can't land us mid-dismiss.
+const SHEET_DISMISS_MS = 320;
+const waitForSheetDismiss = () =>
+	new Promise((resolve) => setTimeout(resolve, SHEET_DISMISS_MS));
+
 export const useUserContextSheet = () => {
 	const menuStore = useMenuStore();
 	const friendStore = useFriendStore();
@@ -35,7 +43,20 @@ export const useUserContextSheet = () => {
 			friendStore.targetPosts = [];
 		}
 
-		// 3. Open the sheet immediately
+		// 3. Open the sheet immediately.
+		//
+		// If it's ALREADY open, assigning `true` again is a no-op and the sheet
+		// stays wherever it is in the overlay stack. That's the bug behind
+		// sheet → photoswiper → comments → tap a user: the sheet is open but
+		// buried beneath the swiper, so the profile silently changed underneath
+		// while nothing appeared to happen. Dismiss and re-present so Ionic puts
+		// it back on top of whatever is currently showing.
+		if (menuStore.viewProfileMenuOpen) {
+			menuStore.viewProfileMenuOpen = false;
+			// Ionic needs the leave transition to finish before the same modal can
+			// present again; re-presenting mid-dismiss leaves it stuck hidden.
+			await waitForSheetDismiss();
+		}
 		menuStore.viewProfileMenuOpen = true;
 
 		const now = Date.now();

@@ -38,7 +38,21 @@
       </div>
 
       <!-- Main Message Stream Content Node -->
-      <TransitionGroup name="msg-bubble" tag="div" class="flex flex-col gap-2.5 w-full overflow-visible" :class="{ 'is-fetching-history': isFetchingHistory }">
+      <!-- Plain div, NOT a TransitionGroup. TransitionGroup runs FLIP: on every
+           insert it reads getBoundingClientRect() for every child, so one
+           arriving message forced a full layout read across the whole thread —
+           O(n) synchronous reflows per message, which is what made a long chat
+           crawl. Only the message that just arrived needs to animate, and it can
+           do that with a plain CSS keyframe on mount.
+
+           Do NOT add `v-memo` here. Its cache is POSITIONAL (indexed into the
+           component's renderCache), and this list is not positionally stable:
+           `handleLoadMore` prepends older history, and switching conversations
+           swaps in a different-length array on the same reused component
+           instance. Either one leaves the cache pointing at slots that no
+           longer exist, and the patch crashes on an undefined vnode
+           ("Cannot read properties of undefined (reading 'el')"). -->
+      <div class="flex flex-col gap-2.5 w-full overflow-visible">
         <ChatMessageBubble
           v-for="(msg, index) in messages"
           :key="msg.localKey || msg._id || index"
@@ -47,10 +61,10 @@
           :activeTab="activeTab"
           :isMe="isMe(msg)"
           :isCompact="isCompact(msg, index)"
-          :class="{ 'skip-anim': msg.isOptimistic !== true || isFetchingHistory}"
-          @inspect-profile="(ev, info) => $emit('inspect-profile', ev, info)"
+          :class="{ 'msg-pop-in': msg.isOptimistic === true && !isFetchingHistory }"
+          @inspect-profile="onInspectProfile"
         />
-      </TransitionGroup>
+      </div>
 
       <!-- Collaborative Drawing Invite Card Notification Block -->
       <div v-if="activeInvite" class="flex justify-center w-full my-4 animate-bounce-in">
@@ -174,6 +188,17 @@ const dismissInvite = () => {
 	);
 };
 
+// Hoisted, NOT an inline arrow in the template. An inline handler is a fresh
+// function identity on every parent render, which counts as a changed prop on
+// every bubble — that alone forces all N children to re-render whenever the
+// list changes. With this stable and `msg` objects markRaw'd in the store (so
+// their references are stable too), Vue's own `shouldUpdateComponent` bailout
+// skips re-rendering every bubble whose data didn't actually move. That is the
+// win `v-memo` was reaching for, without v-memo's positional cache — which
+// crashes on a list that prepends history.
+const onInspectProfile = (ev: Event, info: any) =>
+	emit("inspect-profile", ev, info);
+
 const isMe = (msg: any) =>
 	msg.sender_id === user.value?._id || msg.member?._id === user.value?._id;
 const isCompact = (msg: any, index: number) => {
@@ -190,6 +215,14 @@ const isCompact = (msg: any, index: number) => {
 </script>
 
 <style scoped>
+/* Replaces the TransitionGroup enter animation. Runs once on mount, on the one
+   bubble that was just sent — no FLIP pass over the rest of the thread. */
+.msg-pop-in { animation: msgPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes msgPopIn {
+  from { opacity: 0; transform: scale(0.9) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
 .animate-tab-in { animation: tabIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 @keyframes tabIn {
   from { opacity: 0; transform: translateY(4px); }

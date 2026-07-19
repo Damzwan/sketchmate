@@ -112,7 +112,7 @@ ion-popover.liquid-popover::part(content) {
    6. LIQUID CHAT INTERFACE DOCK OVERRIDES
    ========================================================================== */
 ion-modal.liquid-chat-modal {
-	--height: 85vh;
+	--height: 95vh;
 	--border-radius: 2.5rem 2.5rem 0 0 !important;
 	--box-shadow: 0 -10px 40px rgba(var(--ion-color-dark-rgb, 30, 30, 31), 0.08);
 }

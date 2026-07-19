@@ -206,13 +206,14 @@ const resolvedFontFamily = computed(() =>
 const fontEffectClass = computed(() =>
 	resolveFontEffectClass(partnerCustomization.value.fontEffectId),
 );
-// Only the calm resting states get themed — actionable/blocked/expired/invite
-// rows keep their relationship-state colours so the signal isn't muddied.
+// Rows that need the user to DO something keep their relationship-state colours
+// so the call to action isn't muddied by a partner's theme; everything at rest
+// gets themed. That's exactly what `actionable` already encodes in
+// relationship.config, so read it rather than maintaining a parallel list of
+// kinds here — the hand-written list is what silently dropped `trial` and
+// `outgoing_invite` (invite sent, nothing for you to do) out of theming.
 const showTheme = computed(
-	() =>
-		!isBlocked.value &&
-		!isExpired.value &&
-		(rel.value.kind === "active" || rel.value.kind === "mate"),
+	() => !isBlocked.value && !isExpired.value && !rel.value.actionable,
 );
 // Paint the partner's theme surface (cardBg, often a gradient) + themed border,
 // overriding the default white resting-card look. No world layer here, so each

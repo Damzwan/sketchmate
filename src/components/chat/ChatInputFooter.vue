@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col shrink-0 w-full z-10 relative">
-    <div v-if="showRelationshipBanner && partner" class="bg-tertiary px-3 pt-2 pb-1 w-full overflow-visible">
+    <div v-if="showRelationshipBanner && partner" class="bg-background px-3 pt-2 pb-1 w-full overflow-visible">
       <ChatRelationshipBanner
         :chat="currentChat"
         :partner="partner"
@@ -15,7 +15,11 @@
       />
     </div>
 
-    <div class="px-4 pt-3 pb-3 bg-tertiary border-t border-primary/10 backdrop-blur-xl pb-safe">
+    <!-- `pb-safe` was a no-op — this project defines `bot-pad-safe`, not
+         `pb-safe` — so the input bar sat directly on the gesture/home bar.
+         Stated as one calc so the inset ADDS to the bar's own breathing room
+         instead of replacing it (the two padding utilities would have fought). -->
+    <div class="px-4 pt-3 chat-footer-pad bg-background border-t border-primary/10">
       <div class="flex items-center gap-1">
 
         <ion-button
@@ -282,3 +286,9 @@ const handleSend = () => {
 	});
 };
 </script>
+
+<style scoped>
+.chat-footer-pad {
+  padding-bottom: calc(var(--ion-safe-area-bottom, 0px) + 0.75rem);
+}
+</style>

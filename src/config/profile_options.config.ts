@@ -191,7 +191,13 @@ export const THEMES: Theme[] = [
 		id: "classic",
 		name: "Classic",
 		desc: "SketchMate house colors",
-		cardBg: "#FAE0C2",
+		// Built around the tertiary cream (#FFF2E4), not the primary peach.
+		// Classic is the app-wide BASELINE card look now, and #FAE0C2 as a large
+		// fill went muddy wherever a texture pass (crumpled paper's gray multiply)
+		// or a translucent overlay sat on it — mid-strength warm tones gray out
+		// under a neutral multiply, while the near-white cream barely shifts. The
+		// primary peach moves to titleBg, so the pairing survives inverted.
+		cardBg: "#FFF2E4",
 		cardBorderColor: "rgba(185,70,58,0.2)",
 		nameColor: "#3d1a14",
 		descColor: "rgba(61,26,20,0.7)",
@@ -199,9 +205,9 @@ export const THEMES: Theme[] = [
 		descColorDark: "rgba(253,248,245,0.8)",
 		nameColorOnLight: "#3d1a14", // Same as nameColor (it is already dark)
 		descColorOnLight: "rgba(61,26,20,0.7)",
-		titleBg: "#FFF2E4",
+		titleBg: "#FAE0C2",
 		accentColor: "#B9463A",
-		swatches: ["#FAE0C2", "#B9463A", "#FFF2E4"],
+		swatches: ["#FFF2E4", "#B9463A", "#FAE0C2"],
 	},
 	{
 		id: "midnight",

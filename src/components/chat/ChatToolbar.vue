@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="previewMode || activeTab !== 'overview'"
-    class="relative flex flex-col bg-tertiary shrink-0 border-b border-primary/10 overflow-hidden"
+    class="relative flex flex-col bg-background shrink-0 border-b border-primary/10 overflow-hidden"
     :style="toolbarStyle"
   >
     <!-- Partner's profile surface, in miniature: their theme cardBg (painted on

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, markRaw, ref } from 'vue'
 import dayjs from 'dayjs'
 import {
   BaseMessage,
@@ -37,7 +37,50 @@ type FrontendMessage = BaseMessage & {
 export const useChatStore = defineStore('chat', () => {
   // --- STATE ---
   const activeChats = ref<PopulatedConversation[]>([])
+  // Deep `ref`, but every SETTLED message goes in via `freeze()` below. A
+  // delivered message is immutable data — nothing ever mutates one in place, so
+  // there is no reason to pay for a reactive Proxy per message and a tracked
+  // dep per property. The array itself stays reactive, which is all the UI
+  // needs (append / prepend / splice). Only in-flight optimistic messages stay
+  // reactive, because their `status` genuinely changes under them, and there
+  // are never more than a handful of those.
   const messagesByChat = ref<Record<string, FrontendMessage[]>>({})
+
+  const freeze = <T extends object>(m: T): T => markRaw(m)
+  const freezeAll = (list: any[]): FrontendMessage[] =>
+    list.map((m) => freeze(m) as FrontendMessage)
+
+  // Bound on retained messages per chat. Each message is a mounted component
+  // with ~10 computeds behind it, so an unbounded thread keeps accumulating
+  // instances and reactive effects for history the user has scrolled far past.
+  // `content-visibility` already stops offscreen rows costing layout or paint;
+  // this is about the instances themselves.
+  //
+  // Two thresholds, not one: trimming AT the cap would re-slice the array on
+  // every single new message once a thread got long. Trimming down to
+  // TRIM_TARGET means it fires once per (MAX - TARGET) messages instead.
+  const MAX_RETAINED_MESSAGES = 300
+  const TRIM_TARGET = 200
+
+  /**
+   * Drop the oldest retained messages for a chat.
+   *
+   * ONLY safe to call while the user is pinned to the bottom of that thread —
+   * removing rows above the viewport shifts the scroll anchor, which would
+   * yank the view out from under someone reading history. The caller owns that
+   * decision because the store has no idea where the list is scrolled; see
+   * ChatWidget's length watcher.
+   *
+   * Re-arms `hasMore` so the top sentinel can fetch the dropped page back if
+   * they do scroll up: `loadMessages(false)` pages on `existing[0].createdAt`,
+   * which after the slice is simply a later cursor.
+   */
+  function trimOldMessages(chatId: string) {
+    const msgs = messagesByChat.value[chatId]
+    if (!msgs || msgs.length <= MAX_RETAINED_MESSAGES) return
+    messagesByChat.value[chatId] = msgs.slice(msgs.length - TRIM_TARGET)
+    hasMoreMessagesByChat.value[chatId] = true
+  }
   const typingStatuses = ref<Record<string, boolean>>({})
   const hasMoreMessagesByChat = ref<Record<string, boolean>>({})
   const notifications = ref<any[]>([])
@@ -155,7 +198,9 @@ export const useChatStore = defineStore('chat', () => {
     if (
       !messagesByChat.value[conversation_id].some((m) => m._id === message._id)
     ) {
-      messagesByChat.value[conversation_id].push(message as FrontendMessage)
+      messagesByChat.value[conversation_id].push(
+        freeze(message) as FrontendMessage
+      )
     }
 
     // 2. Determine if the incoming socket payload actually contains populated profiles
@@ -473,15 +518,20 @@ export const useChatStore = defineStore('chat', () => {
       )
       if (duplicateIndex !== -1) {
         chatMessages.splice(index, 1)
-        targetArray[duplicateIndex].status = 'sent'
-        targetArray[duplicateIndex].localKey = resolvedMessage.localKey
+        // Replaced, not mutated in place: the duplicate is a settled message and
+        // therefore raw, so a property write on it would not be tracked.
+        targetArray.splice(duplicateIndex, 1, {
+          ...targetArray[duplicateIndex],
+          status: 'sent',
+          localKey: resolvedMessage.localKey
+        })
       } else {
         if (actualConversationId && actualConversationId !== chatId) {
           chatMessages.splice(index, 1)
           if (!messagesByChat.value[targetId])
             messagesByChat.value[targetId] = []
-          messagesByChat.value[targetId].push(resolvedMessage)
-        } else chatMessages.splice(index, 1, resolvedMessage)
+          messagesByChat.value[targetId].push(freeze(resolvedMessage))
+        } else chatMessages.splice(index, 1, freeze(resolvedMessage))
       }
     }
   }
@@ -520,11 +570,14 @@ export const useChatStore = defineStore('chat', () => {
         const pending = (messagesByChat.value[conversationId] || []).filter(
           (m) => m.isOptimistic && !response.data.some((s: any) => s._id === m._id)
         )
-        messagesByChat.value[conversationId] = [...response.data, ...pending]
+        messagesByChat.value[conversationId] = [
+          ...freezeAll(response.data),
+          ...pending
+        ]
       } else {
         messagesByChat.value[conversationId] = isInitial
-          ? response.data
-          : [...response.data, ...existing]
+          ? freezeAll(response.data)
+          : [...freezeAll(response.data), ...existing]
       }
       return response.data.length
     } catch (e) {
@@ -881,6 +934,7 @@ export const useChatStore = defineStore('chat', () => {
     injectSharedInboxOptimistic,
     sendMessage,
     loadMessages,
+    trimOldMessages,
     syncActiveConversation,
     clearUnreads,
     switchToConversation,

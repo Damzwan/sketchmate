@@ -1,8 +1,16 @@
 <template>
-  <div class="flex z-10 justify-between w-full items-center h-16 relative px-6 bg-black/60 backdrop-blur-xl">
+  <!-- The translucent plate is on the wrapper in PhotoSwiper.vue so it can cover
+       the bottom safe-area inset too; this bar just carries layout. -->
+  <div class="flex z-10 justify-between w-full items-center h-16 relative px-6">
     <!-- Lives INSIDE the bar so `bottom-full` anchors it to the bar's top edge —
          one continuous surface with the chrome instead of an island over art. -->
+    <!-- Keyed on the item. Without this the preview is ONE instance reused
+         across slides, so swiping to the next post left its two <Transition>s
+         mid-flight: the outgoing panel is still in the DOM for 200ms rendering
+         the PREVIOUS post's comments over the new one. Re-keying tears the old
+         instance down at the slide boundary — new post, new panel, no ghost. -->
     <CommentPreview
+      :key="currItem._id"
       :visible="showComments"
       :comments="currItem.comments || []"
       :commentCount="currItem.comment_count"

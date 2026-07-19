@@ -325,7 +325,6 @@ import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import {
 	calculateSignatureStroke,
 	DEFAULT_EFFECT_ID,
-	DEFAULT_THEME_ID,
 	DEFAULT_WORLD_ID,
 	hydrateCustomization,
 	resolveFontEffectClass,
@@ -362,11 +361,13 @@ const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
 // separately. They used to share one `showArtistTheme` flag keyed off themeId,
 // which meant an artist who bought an effect or a world but kept the `classic`
 // theme rendered neither of them.
-const showCardTheme = computed(
-	() =>
-		!!authorCustomization.value.themeId &&
-		authorCustomization.value.themeId !== DEFAULT_THEME_ID,
-);
+// Classic is the SketchMate house palette (#FAE0C2 primary + #B9463A accent),
+// so it's the baseline card look, not an opt-out. The old
+// `!== DEFAULT_THEME_ID` clause excluded exactly that theme — which, since
+// `hydrateCustomization` defaults themeId to `classic`, made deliberately
+// choosing Classic indistinguishable from never choosing a theme at all: the
+// post card silently fell back to the hardcoded #FAF8F5.
+const showCardTheme = computed(() => !!authorCustomization.value.themeId);
 // Both components already self-guard on `def.kind !== 'none'`; this just keeps
 // the wrapper element (and its compositing layer) out of the DOM entirely for
 // the overwhelmingly common "no effect / no world" author.

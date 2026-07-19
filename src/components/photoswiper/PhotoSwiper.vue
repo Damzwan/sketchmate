@@ -6,22 +6,19 @@
     :keep-contents-mounted="true"
     class="liquid-photoswiper"
   >
-    <div class="w-full h-full bg-black flex flex-col safe-area">
-      <PhotoSwiperHeader
-        v-if="user && currItem"
-        :curr-item="currItem"
-        :type="config.type ?? 'inbox'"
-        @close="close"
-        @open-followers="isFollowerDrawerOpen = true"
-        :user-lookup="config.userLookup"
-      />
-
-      <div class="relative w-full grow overflow-hidden flex">
+    <!-- Chrome overlays the art rather than sitting beside it in a column. That
+         is what makes tap-to-hide worth having: hiding the bars reveals more of
+         the DRAWING instead of just resizing the box it lives in, and nothing
+         reflows on toggle. -->
+    <div class="w-full h-full bg-black relative overflow-hidden">
+      <div class="absolute inset-0 flex">
         <swiper-container
           class="w-full grow"
           :initial-slide="slide"
           :zoom="{ maxRatio: 3 }"
           @swiperslidechange="handleSlideChange"
+          @swipertap="onSwiperTap"
+          @swiperdoubletap="onSwiperDoubleTap"
           ref="swiper"
         >
           <swiper-slide v-for="(item, i) in collection" :key="item._id || i">
@@ -38,20 +35,37 @@
         <ReactionBurst ref="reactionBurst" />
       </div>
 
-      <PhotoSwiperFooter
-        v-if="user && currItem"
-        :curr-item="currItem"
-        :type="config.type ?? 'inbox'"
-        :show-comments="showComments"
-        :can-reply="config.canReply"
-        :can-delete="canDelete"
-        :user-lookup="config.userLookup"
-        @open-comments="isCommentDrawerOpen = true"
-        @update:show-comments="showComments = $event"
-        @reply="handleReply"
-        @delete="handleDelete"
-        @react="handleReact"
-      />
+      <Transition name="chrome-top">
+        <div v-if="user && currItem && chromeVisible" class="absolute top-0 inset-x-0 z-20 top-pad-safe bg-black/85">
+          <PhotoSwiperHeader
+            :curr-item="currItem"
+            :type="config.type ?? 'inbox'"
+            @close="close"
+            @open-followers="isFollowerDrawerOpen = true"
+            :user-lookup="config.userLookup"
+          />
+        </div>
+      </Transition>
+
+      <Transition name="chrome-bottom">
+        <!-- Background lives on the wrapper, not on the bar, so it extends under
+             the gesture/home inset instead of leaving a see-through strip. -->
+        <div v-if="user && currItem && chromeVisible" class="absolute bottom-0 inset-x-0 z-20 bot-pad-safe bg-black/60 backdrop-blur-xl">
+          <PhotoSwiperFooter
+            :curr-item="currItem"
+            :type="config.type ?? 'inbox'"
+            :show-comments="showComments"
+            :can-reply="config.canReply"
+            :can-delete="canDelete"
+            :user-lookup="config.userLookup"
+            @open-comments="isCommentDrawerOpen = true"
+            @update:show-comments="showComments = $event"
+            @reply="handleReply"
+            @delete="handleDelete"
+            @react="handleReact"
+          />
+        </div>
+      </Transition>
 
       <SwiperCommentDrawer
         v-model:open="isCommentDrawerOpen"
@@ -107,6 +121,10 @@ const { updateSlide } = storeToRefs(useSessionStore());
 const currItem = computed(() => collection.value[slide.value] || null);
 
 const showComments = ref(true);
+// Tap the art to get the bars out of the way, tap again to bring them back —
+// the gallery-app convention.
+const chromeVisible = ref(true);
+let tapTimer: ReturnType<typeof setTimeout> | null = null;
 const isCommentDrawerOpen = ref(false);
 const isFollowerDrawerOpen = ref(false);
 const swiper = ref<any>();
@@ -123,9 +141,11 @@ const canDelete = computed(() => {
 });
 
 function handleSlideChange(event: any) {
-	if (!open.value || !event.target.swiper || !event.target.swiper.activeIndex)
-		return;
-	slide.value = event.target.swiper.activeIndex;
+	const s = event.target?.swiper;
+	// `!s.activeIndex` also rejected index 0, so swiping back to the first item
+	// never updated `slide` — the header/footer/comments kept showing item 1.
+	if (!open.value || !s || typeof s.activeIndex !== "number") return;
+	slide.value = s.activeIndex;
 }
 
 watch(
@@ -137,6 +157,25 @@ watch(
 	},
 	{ deep: true },
 );
+
+// Swiper fires `tap` for the first tap of a double-tap too, so hold the toggle
+// for one double-tap interval and let `doubleTap` (zoom) cancel it — otherwise
+// zooming in also flashes the chrome off.
+function onSwiperTap() {
+	if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return;
+	if (tapTimer) clearTimeout(tapTimer);
+	tapTimer = setTimeout(() => {
+		chromeVisible.value = !chromeVisible.value;
+		tapTimer = null;
+	}, 260);
+}
+
+function onSwiperDoubleTap() {
+	if (tapTimer) {
+		clearTimeout(tapTimer);
+		tapTimer = null;
+	}
+}
 
 const keyboardListener = (event: KeyboardEvent) => {
 	event.stopPropagation();
@@ -175,6 +214,9 @@ async function prefetchComments() {
 }
 
 async function onDidPresent() {
+	// Always reopen with the chrome up; a hidden-UI state carried over from the
+	// last viewing would look like a broken screen.
+	chromeVisible.value = true;
 	window.addEventListener("keydown", keyboardListener);
 
 	// The `currItem` watcher doesn't fire for the post the swiper OPENS on when
@@ -244,5 +286,41 @@ ion-modal.liquid-photoswiper {
   --width: 100%;
   --height: 100%;
   --border-radius: 0;
+}
+
+.chrome-top-enter-active,
+.chrome-top-leave-active,
+.chrome-bottom-enter-active,
+.chrome-bottom-leave-active {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
+  will-change: transform, opacity;
+}
+
+.chrome-top-enter-from,
+.chrome-top-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.chrome-bottom-enter-from,
+.chrome-bottom-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chrome-top-enter-active,
+  .chrome-top-leave-active,
+  .chrome-bottom-enter-active,
+  .chrome-bottom-leave-active {
+    transition: opacity 120ms linear;
+  }
+
+  .chrome-top-enter-from,
+  .chrome-top-leave-to,
+  .chrome-bottom-enter-from,
+  .chrome-bottom-leave-to {
+    transform: none;
+  }
 }
 </style>

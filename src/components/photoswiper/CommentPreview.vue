@@ -124,8 +124,14 @@ defineEmits(["open-comments", "update:visible"]);
    at 0.8 the plate composites to #333 (~12.6:1), at 0.9 to #191919 (~18.3:1).
    backdrop-blur is decoration here — the alpha alone has to carry legibility,
    because Android WebViews can drop backdrop-filter entirely. */
+/* No backdrop-blur here, deliberately. This panel sits inside the footer, which
+   is itself a backdrop-filter surface — a second, ANIMATING backdrop-filter
+   nested in it forces the compositor to re-resolve the footer's backdrop every
+   frame of the enter/leave, which reads as the footer flickering. The alpha
+   already carries legibility on its own (see the note above), so the blur was
+   pure cost. */
 .peek-panel {
-  @apply w-[230px] max-w-[78vw] rounded-l-2xl bg-black/90 backdrop-blur-md
+  @apply w-[230px] max-w-[78vw] rounded-l-2xl bg-black/90
   border border-r-0 border-white/15 shadow-xl;
   /* Stated in CSS, not as a utility class, so it can't be lost to class-order
      or to a transition class being applied on top. */
@@ -143,7 +149,7 @@ defineEmits(["open-comments", "update:visible"]);
 
 .peek-handle {
   @apply flex items-center gap-1 pl-2 pr-2.5 py-2.5 rounded-l-xl
-  bg-black/90 backdrop-blur-md border border-r-0 border-white/15
+  bg-black/90 border border-r-0 border-white/15
   text-white shadow-xl active:scale-95 transition-transform cursor-pointer;
   pointer-events: auto;
   touch-action: manipulation;
@@ -153,6 +159,9 @@ defineEmits(["open-comments", "update:visible"]);
 .peek-panel-enter-active,
 .peek-handle-enter-active {
   transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease-out;
+  /* Own compositor layer for the duration of the move, so sliding it across the
+     footer repaints the layer instead of the bar underneath it. */
+  will-change: transform, opacity;
 }
 
 /* The two states overlap for the duration of a toggle: the outgoing panel is
@@ -164,6 +173,7 @@ defineEmits(["open-comments", "update:visible"]);
 .peek-panel-leave-active,
 .peek-handle-leave-active {
   transition: transform 200ms cubic-bezier(0.4, 0, 1, 1), opacity 150ms ease-in;
+  will-change: transform, opacity;
   position: absolute;
   right: 0;
   bottom: 0.5rem;

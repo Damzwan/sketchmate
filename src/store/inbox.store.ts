@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { InboxItem, CommentRes, GetInboxRes } from "@/types/server.types";
 import { useAuthStore } from "@/store/auth.store";
 import { useUserCacheStore } from "@/store/userCache.store";
@@ -12,6 +12,18 @@ import {
 export const useInboxStore = defineStore("inbox", () => {
 	const inbox = ref<InboxItem[]>([]);
 	const isInboxLoading = ref(false);
+
+	// Id → item index. Chat renders one bubble per message and each shared-sketch
+	// bubble used to `inbox.find(...)`, so looking up N bubbles cost N × inbox
+	// length. Built once per inbox change and shared by every lookup instead.
+	const inboxById = computed(() => {
+		const map = new Map<string, InboxItem>();
+		for (const item of inbox.value) map.set(item._id, item);
+		return map;
+	});
+
+	const getInboxItem = (id?: string | null) =>
+		id ? (inboxById.value.get(id) ?? null) : null;
 
 	const allLoaded = ref(false);
 
@@ -137,11 +149,13 @@ export const useInboxStore = defineStore("inbox", () => {
 	}
 
 	function hasItem(inboxId: string): boolean {
-		return inbox.value.some((item) => item._id === inboxId);
+		return inboxById.value.has(inboxId);
 	}
 
 	return {
 		inbox,
+		inboxById,
+		getInboxItem,
 		isInboxLoading,
 		allLoaded,
 		hasFetchedInitial,

@@ -1,5 +1,6 @@
 <template>
-  <div class="w-full overflow-visible">
+  <div class="w-full overflow-visible msg-row"
+       :class="{ 'mt-[-5px]': isCompact && !isSystemMessage }">
     <!-- SYSTEM LEVEL MESSAGES -->
     <div v-if="isSystemMessage" class="flex justify-center w-full my-1.5 select-none">
       <!-- BALLOON MATCH STATUS ALERT CARD -->
@@ -36,8 +37,12 @@
     </div>
 
     <!-- STANDARD USER MESSAGES -->
+    <!-- The compact -5px lives on the ROW (see the class binding on the root),
+         not here. `content-visibility` brings paint containment with it, which
+         clips anything drawn outside this element's box — a child pulled up by
+         a negative margin would have had its top shaved off. -->
     <div v-else class="flex items-start gap-2.5 px-0.5 py-0.5 w-full"
-         :class="{'flex-row-reverse': isMe, 'mt-[-5px]': isCompact}">
+         :class="{'flex-row-reverse': isMe}">
       <!-- External Partner User Avatar Node -->
       <div class="w-8 h-8 shrink-0 flex items-center justify-center cursor-pointer" v-if="!isMe && !isCompact"
            @click="$emit('inspect-profile', $event, sender)">
@@ -80,9 +85,9 @@
           <div class="flex justify-end px-0.5 pb-0.5 text-xs font-sans text-black/80 gap-0.5">
             <span>{{ dayjs(msg.createdAt).format('HH:mm') }}</span>
             <span v-if="isMe && activeTab !== 'lobby'" class="text-[9px] flex items-center">
-              <ion-icon v-if="msg.status === 'sending'" :icon="timeOutline" class="opacity-40" />
-              <ion-icon v-else-if="msg.status === 'error'" :icon="alertCircleOutline" class="text-red-400" />
-              <ion-icon v-else :icon="checkmarkDoneOutline" class="text-secondary" />
+              <svg viewBox="0 0 24 24" class="w-3 h-3 fill-current" :class="statusTick.class" aria-hidden="true">
+                <path :d="statusTick.path" />
+              </svg>
             </span>
           </div>
         </button>
@@ -147,9 +152,9 @@
             class="text-xs mt-1 cabin-sketch-regular opacity-80 flex justify-end items-center gap-0.5 select-none leading-none">
             <span>{{ dayjs(msg.createdAt).format('HH:mm') }}</span>
             <span v-if="isMe && activeTab !== 'lobby'" class="text-[9px] flex items-center leading-none">
-              <ion-icon v-if="msg.status === 'sending'" :icon="timeOutline" class="opacity-50" />
-              <ion-icon v-else-if="msg.status === 'error'" :icon="alertCircleOutline" class="text-red-300" />
-              <ion-icon v-else :icon="checkmarkDoneOutline" class="text-white/80" />
+              <svg viewBox="0 0 24 24" class="w-3 h-3 fill-current" :class="statusTick.classOnBubble" aria-hidden="true">
+                <path :d="statusTick.path" />
+              </svg>
             </span>
           </div>
         </div>
@@ -164,11 +169,13 @@ import { ref, computed, onMounted } from "vue";
 import dayjs from "dayjs";
 import { IonIcon, IonSpinner } from "@ionic/vue";
 import {
-	timeOutline,
-	alertCircleOutline,
-	checkmarkDoneOutline,
-} from "ionicons/icons";
-import { mdiDraw, mdiImageBroken, mdiBalloon } from "@mdi/js";
+	mdiAlertCircleOutline,
+	mdiBalloon,
+	mdiCheckAll,
+	mdiClockOutline,
+	mdiDraw,
+	mdiImageBroken,
+} from "@mdi/js";
 import { storeToRefs } from "pinia";
 import { svg } from "@/helper/general.helper";
 import { usePostStore } from "@/store/post.store";
@@ -176,13 +183,7 @@ import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { useAuthStore } from "@/store/auth.store";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import {
-	hydrateCustomization,
-	resolveTheme,
-	resolveFontFamily,
-	resolveFontEffectClass,
-	resolveTitle,
-} from "@/config/profile_options.config";
+import { useSenderStyle } from "@/composables/chat/useSenderStyle";
 import { useInboxStore } from "@/store/inbox.store";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 
@@ -204,6 +205,31 @@ const { user: me } = storeToRefs(useAuthStore());
 const loadingPost = ref(false);
 const unavailable = ref(false);
 
+// Inline <svg>, not <ion-icon>. Every ion-icon is a custom element that upgrades,
+// attaches a shadow root and resolves its icon asynchronously — negligible once,
+// but this renders on roughly every message the user sent, so a long thread was
+// paying for hundreds of shadow roots and icon lookups. The path data is a plain
+// string from @mdi/js, so inlining costs one <path> node and nothing else.
+const statusTick = computed(() => {
+	if (props.msg.status === "sending")
+		return {
+			path: mdiClockOutline,
+			class: "opacity-40",
+			classOnBubble: "opacity-50",
+		};
+	if (props.msg.status === "error")
+		return {
+			path: mdiAlertCircleOutline,
+			class: "text-red-400",
+			classOnBubble: "text-red-300",
+		};
+	return {
+		path: mdiCheckAll,
+		class: "text-secondary",
+		classOnBubble: "text-white/80",
+	};
+});
+
 const sender = computed(() => props.msg.member || props.partner);
 const isSystemMessage = computed(
 	() =>
@@ -221,19 +247,13 @@ const otherPartyName = computed(() => {
 		: payload.acceptor_name || props.partner?.name || "someone";
 });
 
-const senderCustomization = computed(() =>
-	hydrateCustomization(sender.value?.customization),
-);
-const theme = computed(() => resolveTheme(senderCustomization.value.themeId));
-const resolvedFontFamily = computed(() =>
-	resolveFontFamily(senderCustomization.value.fontId),
-);
-const fontEffectClass = computed(() =>
-	resolveFontEffectClass(senderCustomization.value.fontEffectId),
-);
-const displayTitle = computed(() =>
-	resolveTitle(senderCustomization.value.titleId),
-);
+// One computed, resolved once per SENDER and shared across every bubble — see
+// useSenderStyle. Was five per bubble, each doing a linear config scan.
+const senderStyle = useSenderStyle(sender);
+const senderCustomization = computed(() => senderStyle.value.customization);
+const theme = computed(() => senderStyle.value.theme);
+const resolvedFontFamily = computed(() => senderStyle.value.fontFamily);
+const displayTitle = computed(() => senderStyle.value.title);
 
 const inboxStore = useInboxStore();
 const { openInboxSwiper } = useInboxSwiper();
@@ -246,13 +266,11 @@ const sharedPost = computed(() =>
 		? postCache.value[props.msg.shared_post_id] || null
 		: null,
 );
-const sharedInboxItem = computed(() => {
-	if (!props.msg.shared_inbox_item_id) return null;
-	return (
-		inboxStore.inbox.find((i) => i._id === props.msg.shared_inbox_item_id) ||
-		null
-	);
-});
+// Indexed lookup, not `inbox.find(...)` — one bubble per message meant this was
+// O(messages × inbox) across the thread.
+const sharedInboxItem = computed(() =>
+	inboxStore.getInboxItem(props.msg.shared_inbox_item_id),
+);
 
 onMounted(async () => {
 	if (props.msg.shared_post_id && !sharedPost.value) {
@@ -286,16 +304,6 @@ const openSharedPost = async () => {
 	if (post) openPostSwiper([post], 0);
 };
 
-// Add this inside <script setup lang="ts"> in your chat bubble component:
-
-const resolvedNameColor = computed(() => {
-	const lightColorThemes = ["midnight", "noir"];
-	if (lightColorThemes.includes(theme.value.id)) {
-		return "#1e293b";
-	}
-	return theme.value.nameColor;
-});
-
 const openSharedInboxItem = async () => {
 	if (unavailableInbox.value) return;
 	let item = sharedInboxItem.value;
@@ -315,12 +323,31 @@ const openSharedInboxItem = async () => {
 </script>
 
 <style scoped>
-.msg-bubble-enter-active {
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
+/* The enter animation moved to ChatMessageFlow.vue (`.msg-pop-in`) when the
+   TransitionGroup was removed — see the note there. */
 
-.msg-bubble-enter-from {
-  opacity: 0;
-  transform: scale(0.9) translateY(8px);
+/* Browser-native virtualisation for the message list.
+ *
+ * `content-visibility: auto` lets the engine skip layout, style and paint for
+ * any row currently outside the viewport, which is the actual frame-time cost
+ * of a long thread — a 600-message chat only ever lays out the dozen rows you
+ * can see. Android System WebView is Chromium, so this is supported on the
+ * target and degrades to "no optimisation" anywhere it isn't.
+ *
+ * `contain-intrinsic-size: auto 64px` is the load-bearing half. Without the
+ * `auto` keyword every skipped row would claim a flat 64px, so the scrollbar
+ * and `scrollHeight` would lurch as rows enter and reveal their true height —
+ * which would in turn break useScrollAnchor's prepend restore. `auto` tells
+ * the engine to remember each row's last real rendered size and keep using it
+ * while skipped, so the scroll metrics stay honest.
+ *
+ * Chosen over a JS virtual scroller deliberately: a real virtualiser would
+ * have to take ownership of scroll position, and this list already has three
+ * things driving it (bottom pinning, the prepend anchor, and the top sentinel
+ * that triggers history loads). This gets the rendering win without touching
+ * any of that. */
+.msg-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
 }
 </style>

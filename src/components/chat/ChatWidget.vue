@@ -10,7 +10,7 @@
     :breakpoints="[0, 1]"
     class="liquid-chat-modal"
   >
-    <div class="flex flex-col h-full bg-tertiary backdrop-blur-2xl relative">
+    <div class="flex flex-col h-full bg-background relative" :style="{ paddingBottom: keyboardHeight + 'px' }">
 
       <ChatTabsHeader />
 
@@ -26,14 +26,14 @@
         ref="messageContainer"
       >
         <ChatOverview
-          v-if="activeTab === 'overview'"
+          v-if="isExpanded && activeTab === 'overview'"
           @join-session="joinSession"
         />
 
         <ChatMessageFlow
-          v-else
+          v-else-if="isExpanded"
           :messages="currentMessages"
-          @inspect-profile="(_: any ,info: any) => openUserActions(info)"
+          @inspect-profile="onInspectProfile"
           @join-session="joinSession"
           @load-more="handleLoadMore"
           :isFetchingHistory="isFetchingHistory"
@@ -68,9 +68,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch, onMounted, onUnmounted } from "vue";
 import { alertController, IonModal, useIonRouter, IonIcon } from "@ionic/vue";
 import { storeToRefs } from "pinia";
+import { useThrottleFn } from "@vueuse/core";
 import { mdiChevronDown } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 
@@ -91,6 +92,7 @@ import { masterAnimation } from "@/helper/animation.helper";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { useScrollAnchor } from "@/composables/general/useScrollAnchor";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { Keyboard } from "@capacitor/keyboard";
 
 const authStore = useAuthStore();
 const chatWidget = useChatWidgetStore();
@@ -113,12 +115,20 @@ const { scrollToBottom, captureScrollState, restoreScrollState } =
 const isAtBottom = ref(true);
 const showNewMessageBadge = ref(false);
 
-const onScroll = (e: Event) => {
-	const el = e.target as HTMLElement;
-	isAtBottom.value =
-		Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 100;
-	if (isAtBottom.value) showNewMessageBadge.value = false;
-};
+// scrollHeight/scrollTop/clientHeight are all layout-forcing reads. Unthrottled
+// that's a synchronous reflow on every scroll frame, over a DOM the size of the
+// whole thread. 100ms is far below the "am I at the bottom" decision's real
+// resolution, so nothing observable is lost.
+const onScroll = useThrottleFn(
+	(e: Event) => {
+		const el = e.target as HTMLElement;
+		isAtBottom.value =
+			Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 100;
+		if (isAtBottom.value) showNewMessageBadge.value = false;
+	},
+	100,
+	true,
+);
 
 const forceScrollToBottom = () => {
 	scrollToBottom(true);
@@ -142,6 +152,11 @@ watch(
 		if (newLen > oldLen) {
 			nextTick(() => {
 				if (isAtBottom.value) {
+					// The only moment trimming is invisible: pinned to the bottom
+					// means the dropped rows sit far above the viewport, so no
+					// scroll anchor shifts. Trim before scrolling so the scroll
+					// lands on the final height, not one about to change.
+					chatStore.trimOldMessages(activeTab.value);
 					scrollToBottom(true);
 				} else {
 					const lastMsg = currentMessages.value[
@@ -174,6 +189,10 @@ watch(
 	},
 	{ immediate: true },
 );
+
+// Stable identity so ChatMessageFlow (and every bubble under it) isn't handed a
+// new prop on each render of this component — see the note in ChatMessageFlow.
+const onInspectProfile = (_ev: Event, info: any) => openUserActions(info);
 
 const openLobbyInvitePopover = (ev: Event) => {
 	inviteEvent.value = ev;
@@ -264,6 +283,23 @@ async function maybeShowSafetyReminder() {
 	});
 	await alert.present();
 }
+
+const keyboardHeight = ref(0);
+
+onMounted(() => {
+	Keyboard.addListener("keyboardWillShow", (info) => {
+		keyboardHeight.value = info.keyboardHeight;
+		forceScrollToBottom();
+	});
+
+	Keyboard.addListener("keyboardWillHide", () => {
+		keyboardHeight.value = 0;
+	});
+});
+
+onUnmounted(() => {
+	Keyboard.removeAllListeners();
+});
 </script>
 
 <style scoped>

@@ -89,11 +89,17 @@ let isInitialLobbyLoad = true;
 /**
  * WATCHER: Lobby Messages
  */
+// Keyed on LENGTH, not `{ deep: true }`. A deep watcher here re-traversed every
+// property of every lobby message on each change — and this component is
+// mounted app-wide, so while you were drawing in a lobby that traversal ran on
+// the draw thread for every message that arrived. Only the newest message is
+// ever read, and only appends matter, so the length is the whole signal.
 watch(
-	lobbyChatMessages,
-	(messages) => {
-		if (messages.length === 0) return;
+	() => lobbyChatMessages.value.length,
+	(len) => {
+		if (len === 0) return;
 
+		const messages = lobbyChatMessages.value;
 		const latest = messages[messages.length - 1] as any;
 		const senderId = latest.member?._id || "system";
 
@@ -143,17 +149,18 @@ watch(
 			isRequest: false,
 		});
 	},
-	{ deep: true },
 );
 
 /**
  * WATCHER: Drawing Invitations
  */
+// Was `{ deep: true }` while the body only ever compared lengths — the deep
+// traversal bought nothing.
 watch(
-	invitations,
-	(newInvites, oldInvites) => {
-		if (newInvites.length <= (oldInvites?.length || 0)) return;
-		const latest = newInvites[newInvites.length - 1];
+	() => invitations.value.length,
+	(newLen, oldLen) => {
+		if (newLen <= (oldLen || 0)) return;
+		const latest = invitations.value[invitations.value.length - 1];
 		if (!latest) return;
 
 		chatStore.addNotification({
@@ -166,7 +173,6 @@ watch(
 			isRequest: true,
 		});
 	},
-	{ deep: true },
 );
 
 const getBorderColor = (group: any) => {

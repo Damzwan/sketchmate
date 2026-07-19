@@ -7,16 +7,16 @@
     </ion-buttons>
 
     <div v-if="type === 'post'" class="flex flex-col justify-center flex-1 px-2 text-white mt-1 mb-1">
-      <div class="flex items-center space-x-2 mb-1">
+      <div class="flex items-center space-x-2.5 mb-1">
         <img
           :src="currItem.author?.img || senderImg(currItem.author_id)"
-          class="w-6 h-6 rounded-full object-cover border border-white/20"
+          class="w-9 h-9 rounded-full object-cover border border-white/20"
         />
-        <span class="text-sm font-bold cabin-sketch-regular">
+        <span class="text-base font-bold cabin-sketch-regular">
           {{ currItem.author?.name || 'Sketcher' }}
         </span>
       </div>
-      <p v-if="currItem.description" class="text-xs cabin-sketch-regular opacity-80 line-clamp-2 leading-tight">
+      <p v-if="currItem.description" class="text-[13px] cabin-sketch-regular opacity-85 line-clamp-2 leading-snug">
         {{ currItem.description }}
       </p>
     </div>

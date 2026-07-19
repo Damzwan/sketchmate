@@ -570,6 +570,11 @@ html.low-end .glass-glint {
 .crumple-highlights {
   background-size: cover;
   background-position: center;
+  /* The source photo is a cold blue-gray. Multiplying that onto the warm cream
+     themes tinted every crease toward concrete and dragged the whole card
+     grayish. Sepia rebuilds the same luminance ramp in warm browns first, so
+     what lands on the card is a paper-colored crease, not a gray one. */
+  filter: sepia(0.55) saturate(1.15) brightness(1.04);
 }
 
 /* Multiply drops the paper's own crease shadows onto the card colour. Kept

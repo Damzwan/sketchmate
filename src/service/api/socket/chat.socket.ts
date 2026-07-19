@@ -52,7 +52,6 @@ export function registerChatHandlers(socket: Socket) {
 			conversation: PopulatedConversation;
 			conversation_id: string;
 		}) => {
-			console.log('si')
 			const me = authStore.user?._id;
 			if (
 				payload.message?.type !== "system" &&
@@ -97,7 +96,9 @@ export function registerChatHandlers(socket: Socket) {
 				// Tiny earned-title tag next to the name (e.g. "· EARLY TESTER") — the
 				// one bit of customization we surface on toasts; kept text-only so
 				// the toast never gets cluttered.
-				title: resolveTitle(hydrateCustomization(partner?.customization).titleId),
+				title: resolveTitle(
+					hydrateCustomization(partner?.customization).titleId,
+				),
 				text: notifText,
 				img: partner?.img || "",
 				isTrial: payload.conversation.status === "temporary",

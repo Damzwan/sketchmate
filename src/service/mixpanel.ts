@@ -2,6 +2,10 @@ import { IS_DEV, isNative } from "@/helper/general.helper";
 
 export enum mixpanelEvents {
 	login = "login",
+	// Fired once, on the session where the server reports `new_account`. Kept
+	// separate from `login` so signup can be funnelled without having to
+	// reconstruct "first ever login" from the login stream.
+	createAccount = "create_account",
 	presentPaywall = "paywall-present",
 
 	// --- v2 Navigation / engagement ---

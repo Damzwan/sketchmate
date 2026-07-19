@@ -282,6 +282,16 @@ export async function mergeObjects(params: DrawActionParams[DrawAction.Merge]) {
 	const { getCanvas } = useDrawStore();
 	const c = getCanvas();
 
+	const { isPublicLobby } = useDrawSyncer();
+	if (isPublicLobby) {
+		const { user } = useAuthStore();
+		if (params.objects.some((o) => o.userId !== user?._id)) {
+			const { toast } = useToast();
+			toast("You can only merge your own drawings", { color: "warning" });
+			return;
+		}
+	}
+
 	const { actionWithoutEvents } = useDrawEventManager();
 
 	let createdGroup: Group | undefined;

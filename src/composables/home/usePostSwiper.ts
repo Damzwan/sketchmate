@@ -27,7 +27,11 @@ export function usePostSwiper() {
 			type: "post",
 			imageResolver: (item) => item.image_url,
 			thumbnailResolver: (item) => item.thumbnail_url,
-			canReply: true,
+			// Exactly FeedPostCard's `v-if="post.enable_remix"`, so the fullscreen
+			// viewer and the feed card can't disagree about a post. (The server
+			// normalises the field with `?? true` on every read path, so legacy
+			// posts arrive as a real boolean rather than undefined.)
+			canReply: (item) => !!item.enable_remix,
 			onReply: async (item) => {
 				if (isInRoom()) {
 					toast("Not allowed when in a lobby", { color: "warning" });

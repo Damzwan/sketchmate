@@ -32,12 +32,15 @@
           aria-label="Open all comments"
           @click.stop="$emit('open-comments')"
         >
+          <!-- items-start, not items-center: the text block is now multi-line,
+               so centring would float the avatar to the middle of the comment
+               instead of aligning it with its first line. -->
           <div
             v-for="(comment, i) in visibleComments"
             :key="comment._id || i"
-            class="flex items-center gap-2 min-w-0 py-[3px]"
+            class="flex items-start gap-2 min-w-0 py-[3px]"
           >
-            <ion-avatar class="w-[22px] h-[22px] shrink-0 border border-white/25 overflow-hidden">
+            <ion-avatar class="w-[22px] h-[22px] shrink-0 border border-white/25 overflow-hidden mt-[1px]">
               <img
                 :src="comment.author?.img || senderImg(resolveUser(comment.sender || comment.author_id))"
                 class="block object-cover w-full h-full"
@@ -45,15 +48,23 @@
               />
             </ion-avatar>
 
-            <!-- min-w-0 on BOTH the row and this <p> is what actually lets
-                 `truncate` bite — without it the flex item refuses to shrink
-                 below its content and long comments blow the panel width. -->
-            <p class="text-[12.5px] cabin-sketch-regular leading-tight truncate min-w-0 flex-1">
-              <span class="font-black text-white">
+            <!-- min-w-0 is what actually lets the clamp bite — without it the
+                 flex item refuses to shrink below its content and long comments
+                 blow the panel width. -->
+            <div class="min-w-0 flex-1">
+              <!-- The name gets its own line and its own truncation. Inline with
+                   the message it competed for the same clamp budget, so a long
+                   display name ate the whole comment. -->
+              <p class="text-[12.5px] cabin-sketch-regular font-black text-white leading-tight truncate">
                 {{ comment.author?.name || senderName(resolveUser(comment.sender || comment.author_id)) }}
-              </span>
-              <span class="text-white/85 ml-1.5">{{ comment.message }}</span>
-            </p>
+              </p>
+              <!-- Three lines ≈ 1–2 sentences at this width, and line-clamp
+                   renders a real ellipsis on the last line, so it's visible that
+                   there IS more rather than the text just stopping. -->
+              <p class="text-[12.5px] cabin-sketch-regular text-white/85 leading-snug line-clamp-3 break-words">
+                {{ comment.message }}
+              </p>
+            </div>
           </div>
 
           <p class="text-[11px] font-bold text-white/60 italic cabin-sketch-regular mt-1 pl-[30px] truncate">
@@ -130,8 +141,11 @@ defineEmits(["open-comments", "update:visible"]);
    frame of the enter/leave, which reads as the footer flickering. The alpha
    already carries legibility on its own (see the note above), so the blur was
    pure cost. */
+/* Widened from 230px: two comments at ~1–2 sentences each need the room, and at
+   the old width almost every comment clipped on its first line. Capped against
+   the viewport so it still can't cover the artwork on a small phone. */
 .peek-panel {
-  @apply w-[230px] max-w-[78vw] rounded-l-2xl bg-black/90
+  @apply w-[290px] max-w-[80vw] rounded-l-2xl bg-black/90
   border border-r-0 border-white/15 shadow-xl;
   /* Stated in CSS, not as a utility class, so it can't be lost to class-order
      or to a transition class being applied on top. */

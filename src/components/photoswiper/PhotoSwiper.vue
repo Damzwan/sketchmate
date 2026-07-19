@@ -11,7 +11,7 @@
          the DRAWING instead of just resizing the box it lives in, and nothing
          reflows on toggle. -->
     <div class="w-full h-full bg-black relative overflow-hidden">
-      <div class="absolute inset-0 flex">
+      <div class="absolute inset-0 flex" ref="artSurface">
         <swiper-container
           class="w-full grow"
           :initial-slide="slide"
@@ -60,7 +60,7 @@
             :curr-item="currItem"
             :type="config.type ?? 'inbox'"
             :show-comments="showComments"
-            :can-reply="config.canReply"
+            :can-reply="canReply"
             :can-delete="canDelete"
             :user-lookup="config.userLookup"
             @open-comments="isCommentDrawerOpen = true"
@@ -71,6 +71,18 @@
           />
         </div>
       </Transition>
+
+      <!-- Long-press the artwork to react, the same gesture FeedPostCard offers.
+           Lives here rather than in the footer because it has to be reachable
+           with the chrome hidden — that's the state people are in when they're
+           actually looking at the drawing. -->
+      <ReactionPopover
+        :is-open="longPressPopoverOpen"
+        :event="longPressEvent"
+        :user-reaction="currItem?.user_reaction"
+        @close="closeLongPressPopover"
+        @select="onLongPressReaction"
+      />
 
       <SwiperCommentDrawer
         v-model:open="isCommentDrawerOpen"
@@ -96,7 +108,9 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { IonModal } from "@ionic/vue";
 import { storeToRefs } from "pinia";
+import { onLongPress } from "@vueuse/core";
 import { register } from "swiper/element/bundle";
+import { playSelectionTick } from "@/config/post.config";
 
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -111,6 +125,7 @@ import PhotoSwiperFooter from "@/components/photoswiper/PhotoSwiperFooter.vue";
 import SwiperCommentDrawer from "@/components/photoswiper/SwiperCommentDrawer.vue";
 import SwiperFollowersDrawer from "@/components/photoswiper/SwiperFollowersDrawer.vue";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
+import ReactionPopover from "@/components/general/ReactionPopover.vue";
 
 register();
 
@@ -149,6 +164,16 @@ const canDelete = computed(() => {
 	);
 });
 
+// Resolved per SLIDE, not per collection. The footer's remix button used to be
+// driven by a static `canReply: true`, so a post whose author disabled remixing
+// still offered it in fullscreen even though the feed card hides it.
+const canReply = computed(() => {
+	const c = config.value.canReply;
+	if (!c || !currItem.value) return false;
+	if (typeof c === "function") return c(currItem.value, user.value);
+	return true;
+});
+
 function handleSlideChange(event: any) {
 	const s = event.target?.swiper;
 	// `!s.activeIndex` also rejected index 0, so swiping back to the first item
@@ -172,6 +197,14 @@ watch(
 // zooming in also flashes the chrome off.
 function onSwiperTap() {
 	if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return;
+	// Releasing a long press still produces swiper's `tap`, so without this the
+	// gesture that opened the reaction tray ALSO toggled the chrome away
+	// underneath it. Consume exactly one tap, then go back to normal.
+	if (suppressNextTap) {
+		suppressNextTap = false;
+		return;
+	}
+	if (longPressPopoverOpen.value) return;
 	if (tapTimer) clearTimeout(tapTimer);
 	tapTimer = setTimeout(() => {
 		// Arm the transition only now — this is the one path that should animate.
@@ -291,6 +324,80 @@ function handleReact(type: string) {
 	reactionBurst.value?.play(type);
 	if (config.value.onReact) config.value.onReact(currItem.value, type);
 }
+
+// ── Long-press to react ────────────────────────────────────────────────────
+const artSurface = ref<HTMLElement | null>(null);
+const longPressPopoverOpen = ref(false);
+const longPressEvent = ref<Event | null>(null);
+// Set the moment the press fires, cleared by the tap it inevitably generates.
+// Plain `let`, not a ref — nothing renders from it.
+let suppressNextTap = false;
+
+// How far above the finger the tray floats, so it isn't under the thumb.
+const REACTION_POPOVER_SPACING = 20;
+
+// Dropping the flag here too: if the press ends without swiper ever emitting a
+// tap (finger lifted over the tray, popover dismissed by backdrop), a stale
+// `true` would silently eat the user's next real tap on the artwork.
+function closeLongPressPopover() {
+	longPressPopoverOpen.value = false;
+	suppressNextTap = false;
+}
+
+function onLongPressReaction(type: string) {
+	closeLongPressPopover();
+	handleReact(type);
+}
+
+onLongPress(
+	artSurface,
+	(e: PointerEvent) => {
+		// Reactions are a post concept; inbox drawings have no reaction bar.
+		if (config.value.type !== "post" || !currItem.value) return;
+		if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return;
+
+		// A long press is also the first half of a tap as far as swiper is
+		// concerned. Kill the pending toggle AND arm the one-shot suppression, or
+		// the tray opens and the chrome disappears behind it in the same gesture.
+		if (tapTimer) {
+			clearTimeout(tapTimer);
+			tapTimer = null;
+		}
+		suppressNextTap = true;
+
+		playSelectionTick();
+
+		// A SYNTHETIC anchor, not the raw event — the same trick CommunityFeed
+		// uses. ion-popover positions itself against `event.target`, and here the
+		// target is a swiper slide: it's transformed on every swipe and recycled
+		// between slides, so anchoring to it made the tray land in the wrong place
+		// or vanish outright as soon as swiper touched the element. A bare rect at
+		// the finger has nothing to be invalidated by.
+		const x = e.clientX ?? 0;
+		const y = e.clientY ?? 0;
+		longPressEvent.value = {
+			target: {
+				getBoundingClientRect: () => ({
+					left: x,
+					top: y - REACTION_POPOVER_SPACING,
+					right: x,
+					bottom: y,
+					width: 0,
+					height: 0,
+				}),
+			},
+		} as any;
+		longPressPopoverOpen.value = true;
+	},
+	{
+		delay: 400,
+		// No `prevent` here, unlike FeedPostCard: this surface owns swipe and
+		// pinch-zoom, and preventing the default on pointerdown kills both.
+		// distanceThreshold cancels the press as soon as the finger travels, so a
+		// swipe never arms the tray.
+		distanceThreshold: 10,
+	},
+);
 
 function resolveImage(item: any) {
 	if (!config.value.imageResolver) return;

@@ -297,10 +297,21 @@ export const useAuthStore = defineStore("auth", () => {
 				useInventoryStore().hydrateFromUser(user.value),
 			]);
 
-			if (opts.arrivedFromLogin && deviceFingerprint.value) {
+			if (opts.arrivedFromLogin) {
+				// Await the fingerprint instead of reading the ref. It's populated by
+				// a floating promise started at store creation, so on a cold start it
+				// was routinely still undefined here — the call was skipped, and a
+				// device that had been marked logged_in:false by a previous logout
+				// stayed that way server-side. sendToTokens filters on that flag, so
+				// the user got no pushes at all until something else happened to
+				// re-subscribe them.
+				const fingerprint =
+					deviceFingerprint.value ?? (await generateDeviceFingerprint());
+				deviceFingerprint.value = fingerprint;
+
 				await onLoginEvent({
 					user_id: u._id,
-					fingerprint: deviceFingerprint.value,
+					fingerprint,
 					loggedIn: true,
 				}).catch((err) =>
 					console.warn("Failed to mark device logged-in for push", err),
@@ -312,6 +323,18 @@ export const useAuthStore = defineStore("auth", () => {
 			isHydrating.value = false;
 
 			await mixpanelIdentify(u._id);
+
+			// Signup fires alongside — not instead of — login, so the login series
+			// stays continuous and `create_account` marks day zero of the funnel.
+			// Guarded on `arrivedFromLogin` as well as `isNewAccount`: the flag
+			// survives on the store for the whole session, and a re-hydrate
+			// (refresh, resume) must not re-fire it.
+			if (opts.arrivedFromLogin && isNewAccount.value) {
+				void trackEvent(mixpanelEvents.createAccount, {
+					provider: firebaseUser.value?.providerId ?? "unknown",
+				});
+			}
+
 			void trackEvent(mixpanelEvents.login);
 		}
 	}
@@ -376,10 +399,16 @@ export const useAuthStore = defineStore("auth", () => {
 
 		// Deactivate this device's push server-side BEFORE signing out, so the
 		// authenticated request actually lands (previously it raced signOut()).
-		if (deviceFingerprint.value && user.value) {
+		if (user.value) {
+			// Same reason as in hydrateBackground: don't drop the call just because
+			// the fingerprint promise hasn't resolved yet.
+			const fingerprint =
+				deviceFingerprint.value ?? (await generateDeviceFingerprint());
+			deviceFingerprint.value = fingerprint;
+
 			await onLoginEvent({
 				user_id: user.value._id,
-				fingerprint: deviceFingerprint.value,
+				fingerprint,
 				loggedIn: false,
 			}).catch((err) =>
 				console.warn("Failed to mark device logged-out for push", err),

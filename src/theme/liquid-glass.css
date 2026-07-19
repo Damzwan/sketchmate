@@ -111,10 +111,25 @@ ion-popover.liquid-popover::part(content) {
 /* ==========================================================================
    6. LIQUID CHAT INTERFACE DOCK OVERRIDES
    ========================================================================== */
+/* Height, and why it isn't 95vh.
+   `vh` is the LARGEST viewport — it ignores the browser's collapsible URL bar
+   and bottom toolbar. On a native shell there is no such chrome, so 95vh looked
+   right; in a browser the sheet was measured against a taller viewport than the
+   one actually on screen, so the bottom ~10% (the input bar) sat under the
+   toolbar. `dvh` tracks the viewport that is really visible right now, on both.
+   The `vh` line stays first as the fallback for engines without dvh. */
 ion-modal.liquid-chat-modal {
 	--height: 95vh;
+	--height: 95dvh;
+	/* Hard ceiling regardless of unit support: the sheet can never exceed the
+	   space Ionic actually gives it, so it cannot overflow its own container. */
+	--max-height: 100%;
 	--border-radius: 2.5rem 2.5rem 0 0 !important;
 	--box-shadow: 0 -10px 40px rgba(var(--ion-color-dark-rgb, 30, 30, 31), 0.08);
+}
+
+ion-modal.liquid-chat-modal::part(content) {
+	max-height: 100%;
 }
 
 ion-modal.liquid-chat-modal::part(content) {

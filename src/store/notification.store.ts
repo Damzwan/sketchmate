@@ -182,7 +182,28 @@ export const useNotificationStore = defineStore("notification", () => {
 				await disableNotifications();
 			}
 			notificationsAllowed.value = false;
-		} else if (
+			if (arrivedFromLogin) showEnableNotificationsAfterLogin.value = true;
+			return;
+		}
+
+		// Permission is granted, so re-arm FCM on every start.
+		//
+		// The 'registration' event — the ONLY thing that ever hands us a token —
+		// fires in response to register(), and register() was previously called
+		// from requestNotifications() alone, i.e. exactly once, on the run where
+		// the user first opted in. So when FCM rotated the token afterwards (app
+		// restore, app update, 270-day refresh, Play Services cache clear) the
+		// app never learned the new value, the server kept pushing to a dead one,
+		// and notifications just stopped with the UI still saying they're on.
+		// register() is idempotent; on an unchanged token this is a no-op beyond
+		// the listener re-confirming what we already have.
+		if (isNative()) {
+			await PushNotifications.register().catch((e) =>
+				console.warn("[notifications] register() failed", e),
+			);
+		}
+
+		if (
 			localSubscription.value &&
 			(!serverSub ||
 				serverSub.token !== localSubscription.value ||

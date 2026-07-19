@@ -21,6 +21,12 @@
 
 
   <meta name="color-scheme" content="light dark" />
+  <!-- Deliberately NO `interactive-widget`. `resizes-visual` was tried and
+       reverted: as well as shrinking the visual viewport it lets the engine
+       SCROLL that viewport to reveal the focused input, which drags the whole
+       page — chat header and toolbar included — up off the screen. Capacitor is
+       configured with `resize: KeyboardResize.None`, so the default leaves the
+       layout completely still and the chat sheet pads itself instead. -->
   <meta
     name="viewport"
     content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"

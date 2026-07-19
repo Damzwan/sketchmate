@@ -152,7 +152,11 @@
              surface already owns double-tap (react) and long-press (reaction
              picker), and a single-tap would need a disambiguation timer that
              makes opening feel laggy. -->
+        <!-- Not in `preview` mode: the customization preview renders this card as
+             a display-only mock of a post that doesn't exist, so a fullscreen
+             control there opens a viewer onto nothing. -->
         <button
+          v-if="!preview"
           @click.stop="openFullscreen"
           class="absolute top-2 right-2 z-20 h-9 w-9 rounded-full flex items-center justify-center
                  bg-black/40 text-white backdrop-blur-sm border border-white/20
@@ -339,7 +343,15 @@ import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.
 
 dayjs.extend(relativeTime);
 
-const props = defineProps<{ post: FeedPost; isMine: boolean }>();
+const props = defineProps<{
+	post: FeedPost;
+	isMine: boolean;
+	/**
+	 * Rendered as a non-interactive mock of a post (customization preview).
+	 * Suppresses controls that only make sense against a real, persisted post.
+	 */
+	preview?: boolean;
+}>();
 const emit = defineEmits([
 	"open-comments",
 	"open-reaction-popover",

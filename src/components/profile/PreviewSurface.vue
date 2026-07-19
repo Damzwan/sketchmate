@@ -13,7 +13,7 @@
   <!-- Post: how a feed post looks wearing this look. Display-only. Restrict
        max-width so it keeps a natural aspect ratio before scaling. -->
   <div v-else-if="mode === 'post'" class="post-preview w-full max-w-[420px] pointer-events-none">
-    <FeedPostCard :post="mockPost" :is-mine="true" />
+    <FeedPostCard :post="mockPost" :is-mine="true" preview />
   </div>
 
   <!-- Chat: chat header (ChatToolbar) + conversation-list row. -->

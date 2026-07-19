@@ -8,7 +8,10 @@ export interface SwiperConfig {
 	onReply?: (item: any) => void;
 	userLookup?: (userId: string) => any; // Function to resolve user details (name, avatar)
 	canDelete?: (item: any, user: any) => boolean; // Custom delete logic
-	canReply?: boolean; // Toggle reply button
+	// Per-item, like canDelete — a plain boolean can't express "this collection
+	// supports remixing but THIS post has it switched off", which is exactly the
+	// case for posts with `enable_remix === false`.
+	canReply?: boolean | ((item: any, user: any) => boolean);
 	imageResolver?: (item: any) => string;
 	thumbnailResolver?: (item: any) => string;
 	onComment?: (item: any, message: string) => Promise<void>;

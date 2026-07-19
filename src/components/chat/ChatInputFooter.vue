@@ -1,6 +1,19 @@
 <template>
-  <div class="flex flex-col shrink-0 w-full z-10 relative">
-    <div v-if="showRelationshipBanner && partner" class="bg-background px-3 pt-2 pb-1 w-full overflow-visible">
+  <!-- No `shrink-0` on the root, deliberately. The banner can be tall (the
+       "Why invites?" panel especially), and with the keyboard open the column
+       above has ~300px less to give. When every child refused to shrink, the
+       fixed-height items outgrew the column, the message list's flex-1
+       collapsed to 0, and the parent's overflow-hidden clipped the bottom of
+       this footer — the input bar — clean off the screen. Now the footer can
+       shrink; the banner absorbs it (below) and the input bar can't. -->
+  <div class="flex flex-col w-full z-10 relative min-h-0">
+    <!-- The banner is the part that yields. It scrolls inside its own box
+         rather than pushing the input bar out of the viewport, and the cap is
+         in dvh so it tracks the real viewport on web too. -->
+    <div
+      v-if="showRelationshipBanner && partner"
+      class="bg-background px-3 pt-2 pb-1 w-full min-h-0 overflow-y-auto max-h-[40dvh] hide-scrollbar"
+    >
       <ChatRelationshipBanner
         :chat="currentChat"
         :partner="partner"
@@ -19,7 +32,9 @@
          `pb-safe` — so the input bar sat directly on the gesture/home bar.
          Stated as one calc so the inset ADDS to the bar's own breathing room
          instead of replacing it (the two padding utilities would have fought). -->
-    <div class="px-4 pt-3 chat-footer-pad bg-background border-t border-primary/10">
+    <!-- shrink-0 lives HERE now, not on the root: the input bar is the one part
+         of this footer that must never be compressed or clipped away. -->
+    <div class="px-4 pt-3 chat-footer-pad bg-background border-t border-primary/10 shrink-0">
       <div class="flex items-center gap-1">
 
         <ion-button
@@ -291,4 +306,7 @@ const handleSend = () => {
 .chat-footer-pad {
   padding-bottom: calc(var(--ion-safe-area-bottom, 0px) + 0.75rem);
 }
+
+.hide-scrollbar::-webkit-scrollbar { display: none !important; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

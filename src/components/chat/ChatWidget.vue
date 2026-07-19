@@ -10,7 +10,13 @@
     :breakpoints="[0, 1]"
     class="liquid-chat-modal"
   >
-    <div class="flex flex-col h-full bg-background relative" :style="{ paddingBottom: keyboardHeight + 'px' }">
+    <!-- overscroll-none stops a flick inside the thread from chaining into the
+         page behind the sheet, which is what made the panel feel like it could
+         still be scrolled once the keyboard had pushed it up. -->
+    <div
+      class="flex flex-col h-full bg-background relative overflow-hidden overscroll-none"
+      :style="{ paddingBottom: keyboardInset + 'px' }"
+    >
 
       <ChatTabsHeader />
 
@@ -22,7 +28,7 @@
       <div
         @scroll="onScroll"
         @touchmove.stop
-        class="flex-1 overflow-y-auto relative hide-scrollbar px-3 py-3"
+        class="flex-1 min-h-0 overflow-y-auto relative hide-scrollbar px-3 py-3"
         ref="messageContainer"
       >
         <ChatOverview
@@ -68,12 +74,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch, onMounted, onUnmounted } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { alertController, IonModal, useIonRouter, IonIcon } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { useThrottleFn } from "@vueuse/core";
 import { mdiChevronDown } from "@mdi/js";
-import { svg, isNative } from "@/helper/general.helper";
+import { svg } from "@/helper/general.helper";
 
 import ChatToasts from "./ChatToasts.vue";
 import ChatTabsHeader from "./ChatTabsHeader.vue";
@@ -92,7 +98,7 @@ import { masterAnimation } from "@/helper/animation.helper";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { useScrollAnchor } from "@/composables/general/useScrollAnchor";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { Keyboard } from "@capacitor/keyboard";
+import { useKeyboardInset } from "@/composables/general/useKeyboardInset";
 
 const authStore = useAuthStore();
 const chatWidget = useChatWidgetStore();
@@ -284,24 +290,17 @@ async function maybeShowSafetyReminder() {
 	await alert.present();
 }
 
-const keyboardHeight = ref(0);
-
-onMounted(() => {
-	if (!isNative()) return;
-	Keyboard.addListener("keyboardWillShow", (info) => {
-		keyboardHeight.value = info.keyboardHeight;
-		forceScrollToBottom();
-	});
-
-	Keyboard.addListener("keyboardWillHide", () => {
-		keyboardHeight.value = 0;
-	});
+// Measured from the visual viewport rather than from Capacitor's reported
+// keyboard height, so the same code aligns the footer on native and in a
+// browser. See useKeyboardInset for why the plugin number wasn't enough.
+const { keyboardInset } = useKeyboardInset({
+	onWillShow: () => forceScrollToBottom(),
 });
 
-onUnmounted(() => {
-	if (!isNative()) return;
-	Keyboard.removeAllListeners();
-});
+// Re-pin to the bottom once the viewport has actually settled as well. The
+// `willShow` hint fires before the resize, so on its own it scrolls to a
+// bottom that is about to move.
+watch(keyboardInset, () => nextTick(() => forceScrollToBottom()));
 </script>
 
 <style scoped>

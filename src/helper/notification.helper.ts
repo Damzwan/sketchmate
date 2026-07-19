@@ -116,10 +116,11 @@ async function ensureNativePermission(): Promise<boolean> {
  * arrives, so the UI doesn't hang.
  */
 async function registerForPush(): Promise<void> {
-	// Make sure any previous registration is torn down first so the OS reliably
-	// fires a fresh 'registration' event.
-	await PushNotifications.unregister().catch(() => {});
-
+	// No unregister() first, deliberately. It deletes the FCM instance token,
+	// and register() already fires 'registration' with the current token on
+	// every call — so the teardown bought nothing and opened a window where the
+	// app could persist a token the OS had just invalidated, leaving the device
+	// subscribed with a dead token and silently receiving nothing.
 	const tokenPromise = waitForNextRegistration(PUSH_REGISTRATION_TIMEOUT_MS);
 	await PushNotifications.register();
 	const token = await tokenPromise;

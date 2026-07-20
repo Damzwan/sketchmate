@@ -70,31 +70,17 @@
         />
       </div>
 
-      <!-- Collaborative Drawing Invite Card Notification Block -->
-      <div v-if="activeInvite" class="flex justify-center w-full my-4 animate-bounce-in">
-        <div class="flex flex-col items-center gap-3 p-4 bg-white border border-secondary/40 rounded-[2.25rem] w-full max-w-[240px] shadow-md relative overflow-hidden">
-          <div class="absolute -left-6 -bottom-6 w-16 h-16 rounded-full bg-secondary/10 blur-xl pointer-events-none"></div>
-          <button @click="dismissInvite" class="absolute top-2.5 right-2.5 text-black/30 hover:text-black transition-colors">
-            <ion-icon :icon="closeCircle" class="text-lg" />
-          </button>
-
-          <div class="relative">
-            <img :src="activeInvite.friend?.img" class="w-12 h-12 rounded-xl border border-black/5 shadow-sm object-cover" alt="" />
-            <div class="absolute -bottom-1 -right-1 bg-secondary rounded-full p-1 border border-white shadow-sm flex items-center justify-center">
-              <ion-icon :icon="svg(mdiDraw)" class="text-[9px] text-white" />
-            </div>
-          </div>
-
-          <div class="text-center px-1">
-            <p class="text-[12px] font-bold text-black italic cabin-sketch-regular leading-tight">
-              <span class="text-secondary font-black not-italic uppercase text-xs tracking-tight">{{ activeInvite.friend?.name }}</span><br />invited you to draw!
-            </p>
-          </div>
-
-          <ion-button color="secondary" expand="block" @click="$emit('join-session', activeInvite.roomId)">
-            Join Session
-          </ion-button>
-        </div>
+      <!-- Collaborative drawing invite. Full width like every other decision
+           surface in the thread — the old card was clamped to max-w-[240px],
+           which left it floating in the middle of the panel instead of sitting
+           in the conversation. -->
+      <div v-if="activeInvite" class="w-full my-4 px-1">
+        <ChatDrawInviteCard
+          :invite="activeInvite"
+          @join="$emit('join-session', $event)"
+          @dismiss="dismissInvite"
+          @inspect-profile="openUserActions"
+        />
       </div>
     </template>
   </div>
@@ -117,6 +103,7 @@ import { useChatStore } from "@/store/chat.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useIntersectionObserver } from "@vueuse/core";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import ChatDrawInviteCard from "@/components/chat/ChatDrawInviteCard.vue";
 
 const props = defineProps<{ messages: any[]; isFetchingHistory: boolean }>();
 const emit = defineEmits(["inspect-profile", "join-session", "load-more"]);

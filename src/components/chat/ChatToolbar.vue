@@ -103,6 +103,20 @@
       :currentUserId="user?._id"
       @inspect="(ev, member) => $emit('inspect-profile', ev, member)"
     />
+
+    <!-- Ambient relationship status lives with the person it's about, pinned
+         under their name, permanently. Costs one line and never has to be
+         dismissed — which is the whole reason the banner no longer carries
+         trials, sent invites or pending mate requests. -->
+    <ChatRelationshipStrip
+      v-if="!previewMode && activeTab !== 'lobby' && activeConversation"
+      :chat="activeConversation"
+      :current-user-id="user?._id"
+      :dark="stripOnDarkWorld"
+      :name-color="theme.nameColorDark"
+      :desc-color="theme.descColorDark"
+      @open-info="chatWidget.openRelationshipInfo()"
+    />
   </div>
 </template>
 
@@ -127,6 +141,7 @@ import {
 	resolveFontFamily,
 	resolveTheme,
 	resolveTitle,
+	resolveWorld,
 } from "@/config/profile_options.config";
 
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -137,6 +152,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import LobbyMemberBar from "./LobbyMemberBar.vue";
+import ChatRelationshipStrip from "./ChatRelationshipStrip.vue";
 
 // Optional preview descriptor (shop preview modal) — when set, the toolbar
 // renders from these props instead of resolving partner/room from the chat
@@ -207,6 +223,21 @@ const activeColors = computed(() => ({
 	name: theme.value.nameColor,
 	desc: theme.value.descColor,
 }));
+
+// The relationship strip is the exception to the rule above.
+//
+// The name row sits at the top of the header where the theme's cardBg still
+// dominates, so it keeps the theme's own light-surface colours. The strip is
+// the LAST row — the world layer is `absolute inset-0` and its artwork reaches
+// furthest down there, so on a dark world (Cosmic Drift, `isDark` in the world
+// catalog) dark text on the strip lands on a starfield and disappears. Only
+// that row flips to the dark variants.
+const activeWorld = computed(() =>
+	resolveWorld(partnerCustomization.value.worldId),
+);
+const stripOnDarkWorld = computed(
+	() => showThemeBackdrop.value && activeWorld.value.isDark === true,
+);
 
 // Only dress the header with the partner's world/effect for a real, live
 // private chat — never the lobby or an archived (expired) thread.

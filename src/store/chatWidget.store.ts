@@ -13,17 +13,15 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
   const bouncingBubbles = ref<string[]>([])
   const showLobbyPreview = ref(false)
 
-  // Chats whose relationship banner the user has collapsed. Remembered so a
-  // temporary-trial nudge they've already seen stays out of the way instead of
-  // re-inflating every time they reopen the thread.
-  const minimizedBanners = ref<string[]>([])
-  const isBannerMinimized = (chatId: string) =>
-    minimizedBanners.value.includes(chatId)
-  const toggleBannerMinimized = (chatId: string) => {
-    if (isBannerMinimized(chatId))
-      minimizedBanners.value = minimizedBanners.value.filter((id) => id !== chatId)
-    else minimizedBanners.value.push(chatId)
-  }
+  // The "How connections work" sheet. Opened from the header strip and from
+  // any decision banner, so it's held here rather than in either of them.
+  //
+  // Replaces the old `minimizedBanners` list, which existed purely so a trial
+  // nudge the user had already dismissed wouldn't re-inflate on every reopen.
+  // Nothing needs dismissing now: ambient states are a one-line header strip
+  // and only genuine decisions get a card.
+  const relationshipInfoOpen = ref(false)
+  const openRelationshipInfo = () => (relationshipInfoOpen.value = true)
 
   const showWidget = () => (isVisible.value = true)
   const hideWidget = () => {
@@ -89,7 +87,7 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
 
   return {
     isVisible, isExpanded, activeTab, activeChatHeads, bouncingBubbles, showLobbyPreview,
-    minimizedBanners, isBannerMinimized, toggleBannerMinimized,
+    relationshipInfoOpen, openRelationshipInfo,
     showWidget, hideWidget, openPanel, closePanel, togglePanel,
     openOverview, openLobby, openPrivateChat, openChatWithUser, addChatHead, removeChatHead,
     triggerNewMessageAlert

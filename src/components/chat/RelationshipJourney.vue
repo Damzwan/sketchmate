@@ -89,18 +89,12 @@ const toggleInfo = (index: number) => {
 	activeInfo.value = activeInfo.value === index ? null : index;
 };
 
-const infoText = computed(() => {
-	switch (activeInfo.value) {
-		case 0:
-			return "Send or accept an invite to initiate a connection.";
-		case 1:
-			return "Chat and sketch together in a temporary 24-hour window.";
-		case 2:
-			return "If it's a match, upgrade to permanent Mates before time runs out!";
-		default:
-			return "";
-	}
-});
+// Read from the step definition rather than a parallel switch keyed by index —
+// the two copies of this text had already diverged in tone, and an index-based
+// switch silently breaks the moment a step is inserted.
+const infoText = computed(() =>
+	activeInfo.value === null ? "" : JOURNEY_STEPS[activeInfo.value].info,
+);
 
 /* full nodes */
 const nodeClass = (i: number) => {

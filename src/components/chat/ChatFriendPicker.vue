@@ -4,7 +4,7 @@
       <span class="text-xl font-normal cabin-sketch-regular text-black tracking-tight">New message</span>
       <button
         @click="$emit('cancel')"
-        class="text-[9px] cursor-pointer font-black text-secondary uppercase tracking-widest active:opacity-50 md:hover:opacity-70"
+        class="text-sm cursor-pointer font-black text-secondary uppercase tracking-wide active:opacity-50 md:hover:opacity-70"
       >
         Cancel
       </button>
@@ -13,34 +13,35 @@
     <!-- Add a friend — always available, opens the connection flow -->
     <button
       @click="openConnectionMenu"
-      class="group w-full flex items-center cursor-pointer gap-3 p-3 rounded-[1.6rem] border border-secondary/40 bg-secondary/5 shadow-sm transition-all active:scale-[0.98] text-left"
+      class="group w-full flex items-center cursor-pointer gap-3 p-3.5 rounded-[1.6rem] border-2 border-secondary/30 bg-tertiary shadow-sm transition-all active:scale-[0.98] md:hover:border-secondary/50 text-left"
     >
       <span class="shrink-0 flex items-center justify-center w-11 h-11 rounded-full bg-secondary text-white shadow-sm transition-transform group-hover:scale-105">
         <ion-icon :icon="svg(mdiAccountPlusOutline)" class="text-xl" />
       </span>
       <div class="flex flex-col min-w-0">
-        <span class="text-base leading-none font-black text-black">Add a Friend</span>
-        <span class="text-[12px] cabin-sketch-regular text-black/60 mt-0.5">Grow your circle of mates</span>
+        <span class="text-base leading-tight font-black text-black cabin-sketch-regular">Add a friend</span>
+        <span class="text-sm text-black/80 mt-0.5 leading-snug">Grow your circle of mates</span>
       </div>
-      <ion-icon :icon="svg(mdiChevronRight)" class="ml-auto shrink-0 text-secondary text-lg transition-transform group-hover:translate-x-0.5" />
+      <ion-icon :icon="svg(mdiChevronRight)" class="ml-auto shrink-0 text-secondary text-xl transition-transform group-hover:translate-x-0.5" />
     </button>
 
     <!-- Search -->
     <div class="relative">
-      <ion-icon :icon="svg(mdiMagnify)" class="absolute left-3.5 top-1/2 -translate-y-1/2 text-black/40 text-lg pointer-events-none" />
+      <ion-icon :icon="svg(mdiMagnify)" class="absolute left-3.5 top-1/2 -translate-y-1/2 text-black/80 text-xl pointer-events-none" />
       <input
         v-model="searchQuery"
         @input="handleSearch"
         type="text"
-        placeholder="Search mates (min. 3 chars)..."
-        class="w-full bg-white border border-primary/30 rounded-2xl py-2.5 pl-11 pr-10 text-sm font-bold text-black focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
+        placeholder="Search mates…"
+        class="w-full bg-tertiary border border-primary/30 rounded-2xl py-3 pl-11 pr-10 text-base font-bold text-black placeholder:text-black/50 placeholder:font-normal focus:border-secondary/40 focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
       />
       <button
         v-if="searchQuery"
         @click="clearSearch"
-        class="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-black/10 text-black/50 active:scale-90 transition-transform"
+        class="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-black/10 text-black/80 active:scale-90 transition-transform cursor-pointer"
+        aria-label="Clear search"
       >
-        <ion-icon :icon="svg(mdiClose)" class="text-sm" />
+        <ion-icon :icon="svg(mdiClose)" class="text-base" />
       </button>
     </div>
 
@@ -52,24 +53,33 @@
     <!-- Query too short hint -->
     <div
       v-else-if="isQueryTooShort"
-      class="text-center py-10 bg-white rounded-[2rem] border border-dashed border-amber-400/50"
+      class="flex flex-col items-center text-center py-10 px-6 bg-tertiary rounded-[2rem] border border-dashed border-amber-400/60"
     >
-      <p class="cabin-sketch-regular text-base text-amber-700">Type at least 3 characters to search...</p>
+      <ion-icon :icon="svg(mdiMagnify)" class="text-3xl text-amber-600 mb-2" />
+      <p class="cabin-sketch-regular text-base text-amber-800 leading-snug">
+        Keep typing — searching needs at least 3 characters.
+      </p>
     </div>
 
     <!-- Empty state -->
     <div
       v-else-if="sortedFriends.length === 0"
-      class="text-center py-10 bg-white rounded-[2rem] border border-dashed border-primary/40"
+      class="flex flex-col items-center text-center py-10 px-6 bg-tertiary rounded-[2rem] border border-dashed border-primary/40"
     >
-      <p class="cabin-sketch-regular text-base text-black/60">
-        {{ searchQuery.trim() ? 'No mates match your search.' : 'No mates yet. Add a friend above!' }}
+      <ion-icon
+        :icon="svg(searchQuery.trim() ? mdiMagnify : mdiAccountPlusOutline)"
+        class="text-3xl text-black/80 mb-2"
+      />
+      <p class="cabin-sketch-regular text-base text-black/80 leading-snug">
+        {{ searchQuery.trim()
+          ? `No mates match “${searchQuery.trim()}”.`
+          : 'No mates yet — add a friend above and they’ll show up here.' }}
       </p>
     </div>
 
     <div v-else class="flex flex-col gap-2.5">
-      <p class="text-[9px] font-black text-black/70 uppercase px-1 tracking-widest">
-        Your Mates
+      <p class="text-sm font-black text-black/80 uppercase px-1 tracking-wide">
+        Your mates
       </p>
 
       <button
@@ -80,8 +90,8 @@
         class="group flex items-center p-3 rounded-[1.5rem] border transition-all cursor-pointer text-left w-full"
         :class="[
           isDisabled(friend)
-            ? 'bg-black/5 border-black/5 opacity-60 grayscale'
-            : 'bg-white/50 border-black/10 shadow-sm hover:border-secondary/20'
+            ? 'bg-black/5 border-black/10 opacity-70 grayscale cursor-default'
+            : 'bg-tertiary border-primary/30 shadow-sm md:hover:border-secondary/40 active:scale-[0.98]'
         ]"
       >
         <div class="relative shrink-0 flex items-center justify-center select-none">
@@ -91,21 +101,23 @@
             size="sm"
             static
           />
+          <!-- Ring matches the row surface (tertiary), not white — a cold
+               outline on a warm card is the same mismatch the banner had. -->
           <div
             v-if="isFriendOnline(friend._id) && !isDisabled(friend)"
-            class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white shadow-sm z-10"
+            class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-tertiary shadow-sm z-10"
           ></div>
         </div>
 
         <div class="ml-3.5 flex-1 min-w-0">
-          <p class="font-black text-black text-base tracking-tight truncate">
+          <p class="font-black text-black text-base tracking-tight truncate cabin-sketch-regular">
             {{ friend.name }}
           </p>
           <p
-            class="text-[11px] font-bold italic truncate mt-0.5"
-            :class="isDisabled(friend) ? 'text-red-500' : isFriendOnline(friend._id) ? 'text-emerald-600' : 'text-black/60'"
+            class="text-sm font-bold truncate mt-0.5"
+            :class="isDisabled(friend) ? 'text-red-600' : isFriendOnline(friend._id) ? 'text-emerald-700' : 'text-black/80'"
           >
-            <span v-if="isDisabled(friend)">Needs update to chat</span>
+            <span v-if="isDisabled(friend)">Needs an update to chat</span>
             <span v-else-if="isFriendOnline(friend._id)">Online now</span>
             <span v-else>Offline</span>
           </p>
@@ -114,7 +126,7 @@
         <ion-icon
           v-if="!isDisabled(friend)"
           :icon="svg(mdiChevronRight)"
-          class="text-black/30 group-hover:text-secondary transition-colors text-base ml-1 shrink-0"
+          class="text-black/80 group-hover:text-secondary transition-all text-lg ml-1 shrink-0 group-hover:translate-x-0.5"
         />
       </button>
 

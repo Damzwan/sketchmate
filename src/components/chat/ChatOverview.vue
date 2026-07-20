@@ -91,65 +91,14 @@
           </div>
         </div>
 
-        <!-- EMPTY STATE CTAs -->
-        <div v-else-if="fauxInvitations.length === 0 && actionableChats.length === 0 && regularChats.length === 0 && !isInLobby" class="px-1 pt-1">
-
-          <!-- Explainer Header -->
-          <div class="text-center px-4 mb-6 mt-2">
-            <p class="text-[17px] font-black cabin-sketch-regular text-black tracking-tight leading-none mb-1.5">
-              It's a bit quiet here...
-            </p>
-            <p class="text-sm text-black/80 cabin-sketch-regular leading-snug">
-              {{ hasMates ? 'Start a conversation with one of your mates.' : "You don't have any mates yet. Add someone to start chatting!" }}
-            </p>
-          </div>
-
-          <!-- PRIMARY CTA -->
-          <button
-            class="w-full flex items-center gap-4 bg-white border-2 border-secondary/20 rounded-[1.4rem] p-4 shadow-sm cursor-pointer hover:scale-105 active:scale-95 transition-all text-left group mb-2"
-            @click="primaryCta.action"
-          >
-            <div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center shrink-0 group-hover:bg-secondary/20 transition-colors">
-              <ion-icon :icon="svg(primaryCta.icon)" class="text-2xl text-secondary" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <span class="block text-[15px] font-black text-black cabin-sketch-regular leading-tight tracking-tight">{{ primaryCta.label }}</span>
-              <span class="block text-[12px] text-black/60 font-medium leading-tight mt-0.5">{{ primaryCta.sub }}</span>
-            </div>
-            <ion-icon :icon="svg(mdiChevronRight)" class="text-xl text-black/20 shrink-0 group-hover:text-secondary transition-colors" />
-          </button>
-
-          <!-- SECONDARY CTAs -->
-          <div v-if="secondaryCtas.length > 0">
-            <!-- Clearer Divider -->
-            <div class="flex items-center gap-3 my-5">
-              <div class="h-px bg-primary/20 flex-1"></div>
-              <span class="text-xs font-black text-black/40 uppercase tracking-widest">
-                {{ hasMates ? 'Or explore' : 'Connect with others' }}
-              </span>
-              <div class="h-px bg-primary/20 flex-1"></div>
-            </div>
-
-            <!-- List of secondary options -->
-            <div class="space-y-3">
-              <button
-                v-for="cta in secondaryCtas"
-                :key="cta.label"
-                class="w-full flex items-center gap-4 bg-white/60 border border-primary/20 rounded-[1.4rem] p-3.5 shadow-sm cursor-pointer hover:scale-105 active:scale-95 transition-all text-left group"
-                @click="cta.action"
-              >
-                <div class="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center shrink-0 group-hover:bg-black/10 transition-colors">
-                  <ion-icon :icon="svg(cta.icon)" class="text-xl text-black/60" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <span class="block text-[14px] font-black text-black cabin-sketch-regular leading-tight">{{ cta.label }}</span>
-                  <span class="block text-[11px] text-black/60 font-medium leading-tight mt-0.5">{{ cta.sub }}</span>
-                </div>
-                <ion-icon :icon="svg(mdiChevronRight)" class="text-xl text-black/20 shrink-0 group-hover:text-black/40 transition-colors" />
-              </button>
-            </div>
-          </div>
-        </div>
+        <!-- EMPTY STATE — its own component, along with the CTA logic that only
+             ever served it. It was ~60 lines of markup and two computeds
+             wedged into the middle of the conversation list, which made the
+             list itself hard to read. -->
+        <ChatOverviewEmptyState
+          v-else-if="isEmpty"
+          @start-chat="isCreatingChat = true"
+        />
 
         <!-- INVITES & CHATS -->
         <div v-if="inviteCount > 0" class="space-y-2.5">
@@ -220,27 +169,22 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { IonFab, IonFabButton, IonIcon, useIonRouter } from "@ionic/vue";
+import { IonFab, IonFabButton, IonIcon } from "@ionic/vue";
 import {
-	mdiAccountMultiplePlusOutline,
-	mdiAccountSearchOutline,
-	mdiBalloon,
 	mdiChatPlusOutline,
 	mdiChevronDown,
 	mdiChevronRight,
 	mdiHeart,
-	mdiPencilPlusOutline,
 	mdiShieldAlertOutline,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
 
 import LobbyConversationItem from "./LobbyConversationItem.vue";
 import ConversationItem from "./ConversationItem.vue";
 import ChatFriendPicker from "./ChatFriendPicker.vue";
+import ChatOverviewEmptyState from "./ChatOverviewEmptyState.vue";
 
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
@@ -266,15 +210,20 @@ const { isFriendOnline, pendingRequests, onlineFriends } =
 	storeToRefs(friendStore);
 const { lobbyChatMessages, roomMembers, invitations } = storeToRefs(drawSyncer);
 
-const router = useIonRouter();
 const { openMenu } = useMenuStore();
 
 const isCreatingChat = ref(false);
 const isInLobby = computed(() => !!roomMembers.value?.length);
 const lobbyUnreadCount = ref(0);
 
-// Proxy for having existing mates
-const hasMates = computed(() => quotaStore.mates.used > 0);
+// Genuinely nothing to show — no invites, no threads, not even a live lobby row.
+const isEmpty = computed(
+	() =>
+		fauxInvitations.value.length === 0 &&
+		actionableChats.value.length === 0 &&
+		regularChats.value.length === 0 &&
+		!isInLobby.value,
+);
 
 watch(isExpanded, (open) => {
 	if (!open) isCreatingChat.value = false;
@@ -363,73 +312,6 @@ const handleQuotaPillClick = () => {
 	openMenu(Menu.Shop);
 };
 
-// Dynamic Primary CTA
-const primaryCta = computed(() => {
-	if (hasMates.value) {
-		return {
-			icon: mdiAccountSearchOutline,
-			label: "Message a mate",
-			sub: "Start a chat with someone you know",
-			action: () => {
-				isCreatingChat.value = true;
-			},
-		};
-	}
-	return {
-		icon: mdiAccountMultiplePlusOutline,
-		label: "Add a mate",
-		sub: "Share or scan a friend code",
-		action: () => {
-			chatWidget.closePanel();
-			openMenu(Menu.ConnectionMenu);
-		},
-	};
-});
-
-// Dynamic Secondary CTAs
-const secondaryCtas = computed(() => {
-	const ctas = [];
-
-	// If they have mates, "Add a mate" moves down here to secondary
-	if (hasMates.value) {
-		ctas.push({
-			icon: mdiAccountMultiplePlusOutline,
-			label: "Add Mate",
-			sub: "Scan a code",
-			action: () => {
-				chatWidget.closePanel();
-				openMenu(Menu.ConnectionMenu);
-			},
-		});
-	}
-
-	// Only push stranger interactions if they are strictly allowed (over 13)
-	if (!isUnderAge.value) {
-		ctas.push({
-			icon: mdiPencilPlusOutline,
-			label: "Public Lobby",
-			sub: "Draw together",
-			action: () => {
-				chatWidget.closePanel();
-				router.push(
-					{ path: FRONTEND_ROUTES.draw, query: { together: "true" } },
-					masterAnimation,
-				);
-			},
-		});
-		ctas.push({
-			icon: mdiBalloon,
-			label: "Balloons",
-			sub: "Send to a stranger",
-			action: () => {
-				chatWidget.closePanel();
-				openMenu(Menu.BalloonMenu);
-			},
-		});
-	}
-
-	return ctas;
-});
 </script>
 
 <style scoped>

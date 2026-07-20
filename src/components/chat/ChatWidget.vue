@@ -71,6 +71,16 @@
     :event="inviteEvent"
     @close="invitePopoverOpen = false"
   />
+
+  <!-- Mounted as a SIBLING of the chat sheet, not inside it: it's opened from
+       both the header strip and the composer banner, and nesting an ion-modal
+       inside the sheet it overlays makes the two fight over the backdrop. -->
+  <RelationshipInfoModal
+    v-model:open="relationshipInfoOpen"
+    :chat="activeConversation"
+    :partner="activePartner"
+    :current-user-id="authStore.user?._id"
+  />
 </template>
 
 <script setup lang="ts">
@@ -88,10 +98,12 @@ import ChatOverview from "./ChatOverview.vue";
 import ChatMessageFlow from "./ChatMessageFlow.vue";
 import ChatInputFooter from "./ChatInputFooter.vue";
 import LobbyInvitePopover from "./LobbyInvitePopover.vue";
+import RelationshipInfoModal from "./RelationshipInfoModal.vue";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
+import { useFriendStore } from "@/store/friend.store";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { masterAnimation } from "@/helper/animation.helper";
@@ -102,7 +114,8 @@ import { useKeyboardInset } from "@/composables/general/useKeyboardInset";
 
 const authStore = useAuthStore();
 const chatWidget = useChatWidgetStore();
-const { isVisible, isExpanded, activeTab } = storeToRefs(chatWidget);
+const { isVisible, isExpanded, activeTab, relationshipInfoOpen } =
+	storeToRefs(chatWidget);
 const { messagesByChat } = storeToRefs(useChatStore());
 const { lobbyChatMessages } = storeToRefs(useDrawSyncer());
 const { invitations } = storeToRefs(useDrawSyncer());
@@ -112,6 +125,7 @@ const invitePopoverOpen = ref(false);
 const inviteEvent = ref<Event | null>(null);
 const { openUserActions } = useUserContextSheet();
 const chatStore = useChatStore();
+const friendStore = useFriendStore();
 const router = useIonRouter();
 
 const isFetchingHistory = ref(false);
@@ -145,6 +159,24 @@ const onMessageSent = async () => {
 	await nextTick();
 	forceScrollToBottom();
 };
+
+// Resolved here rather than passed down, because the info sheet is mounted
+// outside the chat panel and can't reach the footer's own `currentChat`.
+const activeConversation = computed(() => {
+	if (activeTab.value === "overview" || activeTab.value === "lobby") return null;
+	return (
+		[...chatStore.activeChats, ...friendStore.pendingRequests].find(
+			(c) => c._id === activeTab.value,
+		) ?? null
+	);
+});
+
+const activePartner = computed(
+	() =>
+		activeConversation.value?.participants?.find(
+			(p: any) => p._id !== authStore.user?._id,
+		) ?? null,
+);
 
 const currentMessages = computed(() => {
 	return activeTab.value === "lobby"

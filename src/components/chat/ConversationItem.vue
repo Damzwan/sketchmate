@@ -111,22 +111,17 @@
         />
       </div>
 
-      <!-- Row 3 — the journey rail, only while a relationship is in flight -->
-      <div v-if="showJourney" class="flex items-center gap-1.5 mt-2.5 pr-1">
-        <template v-for="(stepDef, i) in JOURNEY_STEPS" :key="stepDef.label">
-          <div class="flex items-center gap-1 shrink-0">
-            <div class="rounded-full transition-all duration-300" :class="dotClass(i)"></div>
-            <span class="text-[7px] font-black uppercase tracking-wider transition-colors" :class="stepLabelClass(i)">
-              {{ stepDef.label }}
-            </span>
-          </div>
-          <div
-            v-if="i < JOURNEY_STEPS.length - 1"
-            class="flex-1 h-px rounded-full transition-colors"
-            :class="i < activeIdx ? 'bg-black/20' : 'bg-black/10'"
-          ></div>
-        </template>
-      </div>
+      <!-- Row 3 — the journey rail, only while a relationship is in flight.
+           RelationshipJourney's `compact` mode renders exactly this markup;
+           it was duplicated here byte for byte, so the two drifted whenever
+           only one got touched. -->
+      <RelationshipJourney
+        v-if="showJourney"
+        class="mt-2.5 pr-1"
+        :step="rel.step"
+        :accent="rel.accent"
+        compact
+      />
     </div>
   </div>
 </template>
@@ -151,9 +146,9 @@ import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue"
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import {
 	resolveRelationship,
-	JOURNEY_STEPS,
 	RELATIONSHIP_ACCENT,
 } from "@/config/relationship.config";
+import RelationshipJourney from "./RelationshipJourney.vue";
 import {
 	hydrateCustomization,
 	resolveFontEffectClass,
@@ -193,7 +188,6 @@ const rel = computed(() =>
 	}),
 );
 const accent = computed(() => RELATIONSHIP_ACCENT[rel.value.accent]);
-const activeIdx = computed(() => rel.value.step - 1);
 
 /* --- partner customization (theme colour + ambient effect) --- */
 const partnerCustomization = computed(() =>
@@ -272,13 +266,33 @@ const showJourney = computed(
 );
 
 /* --- text --- */
+// Kinds where there is no thread to preview yet, or where the hint IS the
+// point. Everything else shows the actual last message.
+//
+// This used to be an allow-list of just `active` and `mate`, which meant a
+// running trial — a real conversation people are actively using — permanently
+// displayed "24-hour trial — see if you vibe" instead of what was said. The
+// state is already carried three other ways on this row (the chip, the accent,
+// the journey rail), so the message line was spending itself on a fourth copy
+// of information the user already had.
+const HINT_ONLY_KINDS = ["incoming_invite", "outgoing_invite", "live_invite"];
+
+const showsMessage = computed(
+	() =>
+		!isBlocked.value &&
+		!isExpired.value &&
+		!HINT_ONLY_KINDS.includes(rel.value.kind) &&
+		!!props.chat.last_message,
+);
+
 const statusLine = computed(() => {
 	if (isBlocked.value) return "User is blocked";
 	if (props.isTyping && !isExpired.value) return "typing…";
 	if (isExpired.value) return deleteCountdown.value;
-	if (rel.value.kind === "active" || rel.value.kind === "mate")
-		return lastMessage.value;
-	return rel.value.hint;
+	// No messages exchanged yet → the hint is more useful than "Started a
+	// conversation".
+	if (!showsMessage.value) return rel.value.hint || lastMessage.value;
+	return lastMessage.value;
 });
 
 const showChip = computed(
@@ -345,22 +359,14 @@ const statusClass = computed(() => {
 		return rel.value.accent === "amber"
 			? "text-amber-700 font-black italic"
 			: "text-secondary font-black italic";
-	if (rel.value.kind === "active" || rel.value.kind === "mate")
+	// A real message reads like a message — including the unread bolding —
+	// whatever stage the relationship is at. Previously only `active`/`mate`
+	// qualified, so an unread message during a trial rendered flat grey.
+	if (showsMessage.value)
 		return unreadCount.value > 0 ? "font-black text-black" : "text-black/60";
 	return "text-black/60";
 });
 
-/* --- journey rail per-step styling --- */
-const dotClass = (i: number) => {
-	if (i === activeIdx.value) return `w-2 h-2 ${accent.value.dot} shadow-sm`;
-	if (i < activeIdx.value) return "w-1.5 h-1.5 bg-black/25";
-	return "w-1.5 h-1.5 bg-black/10";
-};
-const stepLabelClass = (i: number) => {
-	if (i === activeIdx.value) return accent.value.text;
-	if (i < activeIdx.value) return "text-black/35";
-	return "text-black/20";
-};
 </script>
 
 <style scoped>

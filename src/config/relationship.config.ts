@@ -45,10 +45,58 @@ export interface RelationshipState {
 
 /** The three visible stops on the journey, in order. Used to render the progress rail. */
 export const JOURNEY_STEPS = [
-  { label: "Invite", icon: mdiSendOutline },
-  { label: "Trial", icon: mdiClockOutline },
-  { label: "Mates", icon: mdiHeart },
+  {
+    label: "Invite",
+    icon: mdiSendOutline,
+    info: "Send or accept an invite to start a connection.",
+  },
+  {
+    label: "Trial",
+    icon: mdiClockOutline,
+    info: "Chat and sketch together for 24 hours, no strings attached.",
+  },
+  {
+    label: "Mates",
+    icon: mdiHeart,
+    info: "If it clicks, become permanent Mates before the trial runs out.",
+  },
 ] as const;
+
+/**
+ * Does this state DEMAND something from the user right now?
+ *
+ * The line this draws is the whole point of the chat-surface split:
+ *
+ *   decision  → the banner above the composer. It interrupts, on purpose,
+ *               because the conversation can't meaningfully continue until the
+ *               user answers.
+ *   otherwise → a slim strip in the header. It's status, not a question, so it
+ *               should be glanceable and permanent rather than a card that has
+ *               to be dismissed every single time the thread is opened.
+ *
+ * `actionable` is deliberately NOT reused for this. It means "this row wants
+ * attention" for list styling, and the two sets genuinely differ: a running
+ * trial is not actionable yet still offers an action, and an expired
+ * connection is not actionable yet still needs a decision surface.
+ */
+const DECISION_KINDS: readonly RelationshipKind[] = [
+  "incoming_invite", // accept or ignore
+  "incoming_mate",   // accept or decline
+  "trial_expired",   // become mates, upgrade, or let it go
+  "expired",         // send a new invite, or wait out the cooldown
+];
+
+export function needsDecision(kind: RelationshipKind): boolean {
+  return DECISION_KINDS.includes(kind);
+}
+
+/**
+ * States that are worth surfacing in the header strip. Everything else — a
+ * settled mate, a plain active thread — gets no chrome at all.
+ */
+export function hasAmbientStatus(kind: RelationshipKind): boolean {
+  return kind !== "mate" && kind !== "active" && kind !== "live_invite";
+}
 
 interface ResolveArgs {
   status?: string;
@@ -199,12 +247,18 @@ export const RELATIONSHIP_ACCENT: Record<
     solid: "bg-cyan-500 text-white",
     ring: "ring-cyan-400/25",
   },
+  // `neutral` reads as "nothing for you to do", but it still has to be READ —
+  // it's the accent on every waiting state (invite sent, mate request sent),
+  // which is exactly what the header strip shows. At black/40 on a light
+  // surface that was decoration rather than information, so text and dot are
+  // pulled up to a legible weight. The muted feel now comes from the flat chip
+  // background, not from making the words hard to see.
   neutral: {
-    chip: "bg-black/5 text-black/40",
-    dot: "bg-black/30",
+    chip: "bg-black/10 text-black/80",
+    dot: "bg-black/60",
     glow: "bg-black/5",
-    text: "text-black/40",
-    solid: "bg-black/40 text-white",
+    text: "text-black/80",
+    solid: "bg-black/60 text-white",
     ring: "ring-black/10",
   },
   danger: {

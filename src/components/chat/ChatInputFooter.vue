@@ -14,17 +14,16 @@
       v-if="showRelationshipBanner && partner"
       class="bg-background px-3 pt-2 pb-1 w-full min-h-0 overflow-y-auto max-h-[40dvh] hide-scrollbar"
     >
+      <!-- All the relationship mutations moved into useRelationshipActions, so
+           the banner runs them itself instead of emitting six events for this
+           component to re-implement. The header strip and the info modal call
+           the same composable, which is the only way three surfaces can stay
+           in agreement about local optimistic state. -->
       <ChatRelationshipBanner
         :chat="currentChat"
         :partner="partner"
         :currentUserId="authStore.user?._id"
-        @accept-invite="chatStore.respondToRequest(currentChat._id, 'accept')"
-        @decline-invite="chatStore.respondToRequest(currentChat._id, 'decline')"
-        @request="handleMateRequest"
-        @accept="handleMateAccept"
-        @decline="handleMateDecline"
-        @cancel-mate="chatStore.handleCancelMateRequest(currentChat._id)"
-        @upgrade="() => useSubscriptionStore().openPaywall()"
+        @open-info="chatWidget.openRelationshipInfo()"
       />
     </div>
 
@@ -117,18 +116,11 @@ import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/draw/types/draw.types";
 import {
-	acceptMatership,
-	declineMatership,
-	requestMatership,
-} from "@/service/api/relationship.api";
-import {
 	inviteFriendToRoom,
 	leaveRoom,
 	sendLobbyMessage,
 	socketJoinRoom,
 } from "@/service/api/socket/drawSyncing.socket";
-import { PopulatedConversation } from "@/types/server.types";
-import { useSubscriptionStore } from "@/store/subscription.store";
 
 const emit = defineEmits(["sent", "open-invite-popover"]);
 
@@ -161,62 +153,11 @@ const partner = computed(() => {
 	return friendStore.resolvePartnerInfo(activeTab.value);
 });
 
-const showRelationshipBanner = computed(() => {
-	if (!currentChat.value) return false;
-	return ["pending_invite", "temporary", "pending_mate", "expired"].includes(
-		currentChat.value.status as string,
-	);
-});
-
-async function handleMateRequest() {
-	if (!currentChat.value?.relationship_id) return;
-	try {
-		await requestMatership(currentChat.value._id);
-		const idx = chatStore.activeChats.findIndex(
-			(c) => c._id === currentChat.value!._id,
-		);
-		if (idx !== -1)
-			chatStore.activeChats[idx] = {
-				...chatStore.activeChats[idx],
-				status: "pending_mate",
-				initiator_id: authStore.user?._id?.toString(),
-			};
-	} catch (e) {
-		console.error(e);
-	}
-}
-
-async function handleMateAccept() {
-	if (!currentChat.value?.relationship_id) return;
-	try {
-		const { conversation } = (await acceptMatership(
-			currentChat.value.relationship_id,
-		)) as { conversation: PopulatedConversation };
-		chatStore.handleMateMatched({ conversation });
-	} catch (e) {
-		console.error(e);
-	}
-}
-
-async function handleMateDecline() {
-	if (!currentChat.value?.relationship_id) return;
-	try {
-		const { status } = (await declineMatership(
-			currentChat.value.relationship_id,
-		)) as any;
-		const idx = chatStore.activeChats.findIndex(
-			(c) => c._id === currentChat.value!._id,
-		);
-		if (idx !== -1)
-			chatStore.activeChats[idx] = {
-				...chatStore.activeChats[idx],
-				status,
-				initiator_id: undefined,
-			};
-	} catch (e) {
-		console.error(e);
-	}
-}
+// The banner decides for itself whether it has a decision to present — that
+// rule lives in relationship.config's needsDecision, so this only has to ask
+// whether there's a partner to talk about at all. The old hardcoded status list
+// here was a second, drifting copy of the same rule.
+const showRelationshipBanner = computed(() => !!currentChat.value);
 
 const handleInviteClick = (ev: Event) => {
 	if (activeTab.value === "lobby") emit("open-invite-popover", ev);

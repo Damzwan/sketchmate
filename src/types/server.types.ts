@@ -559,6 +559,13 @@ export interface PopulatedConversation
 	trial_expires_at?: string;
 	cooldown_until?: string;
 	relationship_id?: string;
+
+	// Anti-pestering state, resolved server-side FOR THE CURRENT VIEWER — never
+	// the partner's. `locked` means the partner has declined enough times that
+	// no further request is possible in this relationship; `cooldown_until` is
+	// the escalating wait after a decline (or the short one after a cancel).
+	mate_request_locked?: boolean;
+	mate_request_cooldown_until?: string | null;
 }
 
 export interface Relationship {

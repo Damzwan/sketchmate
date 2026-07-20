@@ -1,5 +1,5 @@
+<!-- components/profile/PreviewSurface.vue -->
 <template>
-  <!-- Card: the compact profile card, stats + signature. -->
   <PreviewProfileCard
     v-if="mode === 'card'"
     class="w-full flex justify-center"
@@ -10,26 +10,33 @@
     show-stats
   />
 
-  <!-- Post: how a feed post looks wearing this look. Display-only. Restrict
-       max-width so it keeps a natural aspect ratio before scaling. -->
   <div v-else-if="mode === 'post'" class="post-preview w-full max-w-[420px] pointer-events-none">
     <FeedPostCard :post="mockPost" :is-mine="true" preview />
   </div>
 
-  <!-- Chat: chat header (ChatToolbar) + conversation-list row. -->
-  <div v-else class="w-full max-w-[420px] px-1 pointer-events-none space-y-4">
-    <!-- Chrome matched to ConversationItem's own root (rounded-[1.6rem],
-         border-primary/30, shadow-sm) so the two stacked surfaces share one
-         radius and border weight instead of being off by a notch. -->
-    <div class="rounded-[1.6rem] overflow-hidden border border-primary/30 shadow-sm">
+  <!-- Chat: Toolbar + Conversation + Scaled Toast Preview -->
+  <div v-else class="w-full max-w-[420px] px-1 pointer-events-none flex flex-col gap-4">
+
+    <div class="rounded-[1.6rem] overflow-hidden border border-primary/30 shadow-sm relative z-10">
       <ChatToolbar :preview="chatPreview" />
     </div>
+
     <ConversationItem
+      class="relative z-10"
       :chat="mockChat"
       current-user-id="preview-me"
       :is-online="true"
       :is-typing="false"
     />
+
+    <!-- Mock Join Toast: Pinned below the chat, scaled up to look bigger purely in the preview -->
+    <div class="flex justify-center w-full pb-4 relative z-20">
+      <ChatToastItem
+        v-if="mockToast"
+        :toast="mockToast"
+        class="w-[260px] transform scale-[1.35] origin-top"
+      />
+    </div>
   </div>
 </template>
 
@@ -39,10 +46,8 @@ import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
 import ConversationItem from "@/components/chat/ConversationItem.vue";
 import ChatToolbar from "@/components/chat/ChatToolbar.vue";
+import ChatToastItem from "@/components/chat/ChatToastItem.vue";
 
-// One mock look wearing a customization, rendered as a Card / Post / Chat
-// surface. Extracted so the pager pane AND the fullscreen zoom overlay render
-// the SAME markup from one source — no duplicated surface trees to drift.
 defineProps<{
 	mode: "card" | "post" | "chat";
 	user?: any;
@@ -50,12 +55,11 @@ defineProps<{
 	mockPost: any;
 	mockChat: any;
 	chatPreview: any;
+	mockToast?: any;
 }>();
 </script>
 
 <style scoped>
-/* Post drawing image cap — driven by the host's --post-img-max-h var so the
-   compact pane and the roomy fullscreen stage each size it differently. */
 .post-preview :deep(.tap-guard),
 .post-preview :deep(.tap-guard > img) {
   max-height: var(--post-img-max-h, 190px);

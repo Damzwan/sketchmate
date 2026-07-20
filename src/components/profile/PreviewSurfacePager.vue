@@ -45,6 +45,7 @@
                 :mock-post="mockPost"
                 :mock-chat="mockChat"
                 :chat-preview="chatPreview"
+                :mock-toast="mockToast"
               />
             </div>
           </AmbientScope>
@@ -117,6 +118,8 @@
               :mock-post="mockPost"
               :mock-chat="mockChat"
               :chat-preview="chatPreview"
+              :mock-toast="mockToast"
+
             />
           </AmbientScope>
         </div>
@@ -228,6 +231,22 @@ const zooms = computed<Record<Mode, number>>(() => ({
 	post: props.postZoom,
 	chat: props.chatZoom,
 }));
+
+// Add this to your PreviewPager.vue script
+const mockToast = computed<any>(() => {
+	const u = props.user ?? {};
+	return {
+		tabId: "preview-toast",
+		subtitle: u.name ?? "You",
+		title: "Lobby",
+		text: "You hopped into the room!",
+		img: u.img,
+		isTrial: false,
+		isRequest: false,
+		isJoin: true,
+		customization: props.customization,
+	};
+});
 
 // zoom scales layout using transforms, so width 100%/z re-fills the pane at any scale level.
 const zoomStyle = (id: Mode) => {

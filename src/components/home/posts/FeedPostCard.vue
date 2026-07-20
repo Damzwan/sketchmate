@@ -1,7 +1,15 @@
 <template>
-  <div class="post-container relative w-full overflow-visible" :data-post-id="post._id">
+  <!-- The drop shadow lives on THIS element, not the card below it. `.post-container`
+       carries `content-visibility`, which brings paint containment — that clips
+       descendants to this box, so a shadow drawn by the inner card would lose its
+       outer couple of pixels. An element's own box-shadow is exempt from its own
+       containment, so hoisting it here (with a matching radius) keeps it intact. -->
+  <div
+    class="post-container relative w-full rounded-[2.25rem] shadow-sm"
+    :data-post-id="post._id"
+  >
     <div
-      class="relative rounded-[2.25rem] border border-primary/40 shadow-sm overflow-hidden flex flex-col h-full bg-tertiary"
+      class="relative rounded-[2.25rem] border border-primary/40 overflow-hidden flex flex-col h-full bg-tertiary"
       :style="cardStyle"
     >
       <!-- ONE card-wide effect layer behind everything, so the effect on the
@@ -655,6 +663,31 @@ const presentActionSheet = async () => {
 
 <style scoped>
 @reference "@/theme/main.css";
+
+/* Browser-native virtualisation for the feed, the same technique the message
+ * list uses (see the long note in ChatMessageBubble.vue).
+ *
+ * `content-visibility: auto` lets the engine skip layout, style and paint for
+ * any card outside the viewport. A feed card is far heavier than a chat row —
+ * a full-bleed artwork image, a blurred backdrop copy of that same image, an
+ * optional ProfileWorld scene and a ProfileEffect sheet — so skipping the
+ * offscreen ones is worth more here per row than it is in a thread, even
+ * though the list is capped at 20. Android System WebView is Chromium, so this
+ * is supported on the target and simply does nothing where it isn't.
+ *
+ * `contain-intrinsic-size: auto 420px` — 420px is not a guess, it's the height
+ * CommunityFeed's own loading skeleton reserves for a card. The `auto` keyword
+ * is the load-bearing half: without it every skipped card would claim a flat
+ * 420px forever, and since real card heights vary with artwork aspect ratio,
+ * `scrollHeight` would lurch as cards enter and reveal their true size. `auto`
+ * makes the engine remember each card's last real rendered height and keep
+ * using it while skipped, which keeps the scroll metrics honest — that matters
+ * because the reaction picker pins `scrollTop` across its open/close animation
+ * and would otherwise be pinning against a moving target. */
+.post-container {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 420px;
+}
 
 /* The signature sits directly on the drawing, so it can't rely on the card
    surface for contrast — it carries its own scrim. Kept soft and small so it

@@ -69,35 +69,39 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 	});
 
 	socket.on("user-joined", ({ user, timestamp, id }) => {
-		const { roomMembers, lobbyChatMessages } = storeToRefs(useDrawSyncer());
+		const drawSyncer = useDrawSyncer();
+		const { roomMembers } = storeToRefs(drawSyncer);
 
 		if (!roomMembers.value.find((i) => i._id === user._id)) {
 			roomMembers.value = [...roomMembers.value, user];
 		}
 
-		lobbyChatMessages.value.push({
-			type: "join",
-			member: user,
-			timestamp,
-			_id: id,
-		});
+		drawSyncer.pushLobbyItems([
+			{
+				type: "join",
+				member: user,
+				timestamp,
+				_id: id,
+			},
+		]);
 	});
 
 	socket.on("user-left", async ({ user, id, timestamp }) => {
-		const { roomMembers, invitedFriends, lobbyChatMessages } = storeToRefs(
-			useDrawSyncer(),
-		);
+		const drawSyncer = useDrawSyncer();
+		const { roomMembers, invitedFriends } = storeToRefs(drawSyncer);
 		roomMembers.value = roomMembers.value.filter(
 			(member) => member._id !== user._id,
 		);
 		invitedFriends.value = invitedFriends.value.filter((m) => m !== user._id);
 
-		lobbyChatMessages.value.push({
-			type: "leave",
-			member: user,
-			timestamp,
-			_id: id,
-		});
+		drawSyncer.pushLobbyItems([
+			{
+				type: "leave",
+				member: user,
+				timestamp,
+				_id: id,
+			},
+		]);
 	});
 
 	socket.on("join-error", async ({ reason, message, restriction, action }) => {
@@ -388,15 +392,17 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 		}
 
 		// If it's a message from someone else, just push it normally
-		drawSyncer.lobbyChatMessages.push({
-			type: "message",
-			message,
-			member,
-			timestamp,
-			createdAt: timestamp,
-			_id: id,
-			isOptimistic: false,
-		});
+		drawSyncer.pushLobbyItems([
+			{
+				type: "message",
+				message,
+				member,
+				timestamp,
+				createdAt: timestamp,
+				_id: id,
+				isOptimistic: false,
+			},
+		]);
 	});
 
 	socket.on("disconnect", () => {
@@ -405,12 +411,9 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 	});
 
 	socket.on("missed-lobby-messages", (missedMessages: LobbyChatItem[]) => {
-		const { lobbyChatMessages } = storeToRefs(useDrawSyncer());
-		lobbyChatMessages.value.push(...missedMessages);
-		lobbyChatMessages.value.sort(
-			(a, b) =>
-				new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-		);
+		// `resort` matters here: this backfill appends but belongs earlier in
+		// time, so it has to be ordered before the cap is applied.
+		useDrawSyncer().pushLobbyItems(missedMessages, { resort: true });
 	});
 
 	// this will only trigger after relogging in aka reconnect

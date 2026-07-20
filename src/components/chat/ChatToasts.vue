@@ -96,8 +96,12 @@ let isInitialLobbyLoad = true;
 // ever read, and only appends matter, so the length is the whole signal.
 watch(
 	() => lobbyChatMessages.value.length,
-	(len) => {
+	(len, prevLen = 0) => {
 		if (len === 0) return;
+		// Only APPENDS are news. The array is capped now, so it can also shrink —
+		// and a shrink left the newest message sitting at a new index, which this
+		// watcher would read as an arrival and re-toast a message already shown.
+		if (len <= prevLen) return;
 
 		const messages = lobbyChatMessages.value;
 		const latest = messages[messages.length - 1] as any;

@@ -21,6 +21,8 @@ import {
   bakeryClear,
   bakeryMarkDirty,
   bakeryRemove,
+  bakerySeed,
+  bakeryTranslate,
   initTileBakery
 } from '@/draw/services/tileBakery.service'
 
@@ -200,7 +202,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
    * cache exists yet.
    */
   function offsetQuadTree(obj: FabricObject, dx: number, dy: number) {
-    bakeryMarkDirty(obj) // translation commit still moves the mirrored copy
+    // NB: the worker mirror is moved in ONE batched `bakeryTranslate` by the
+    // caller (transformController.commit) — NOT per object here, which would be
+    // N postMessages + N re-serializations for a big selection drop.
     const e = entryMap.get(obj.id)
     if (!e) return
     const a = obj as any
@@ -513,7 +517,11 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       if (obj.id) {
         objectMap.set(obj.id, obj)
         addToQuadTree(obj)
-        bakeryMarkDirty(obj) // reseed lazily — serialized only when a bake needs it
+        // Prefer the JSON the object was enlivened FROM (stashed at load) so the
+        // mirror seeds with zero toJSON; fall back to a lazy serialize otherwise.
+        const src = (obj as any).__bakeJSON
+        if (src) bakerySeed(obj, src)
+        else bakeryMarkDirty(obj)
       }
     }
   }
@@ -580,6 +588,18 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
   function recordPanDelta(_dx: number, _dy: number) { /* directional prefetch retired */
+  }
+
+  /**
+   * Batched mirror move for a pure-translation drag commit. One message shifts
+   * every selected object's mirrored coords by (dx,dy) — no per-object toJSON.
+   * Paired with offsetQuadTree, which handles the main-thread spatial index.
+   */
+  function translateMirror(objects: FabricObject[], dx: number, dy: number) {
+    if (dx === 0 && dy === 0) return
+    const ids: string[] = []
+    for (const o of objects) if (o.id) ids.push(o.id)
+    bakeryTranslate(ids, dx, dy)
   }
 
   // ── loading ──────────────────────────────────────────────────────────────
@@ -719,6 +739,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     getVisibleObjects,
     getObjectById,
     getObjectsById,
+    translateMirror,
     beginLoading,
     endLoading,
     isLoading,

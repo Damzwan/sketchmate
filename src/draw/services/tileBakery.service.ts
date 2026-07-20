@@ -80,7 +80,6 @@ function getWorker(): Worker | null {
 				type: "module",
 			},
 		);
-		console.log("wow");
 	} catch {
 		disabled = true;
 		return null;
@@ -102,7 +101,17 @@ function getWorker(): Worker | null {
 
 /** Warm the worker during canvas init so the first bake doesn't pay spawn+parse. */
 export function initTileBakery(): void {
-	getWorker();
+	const w = getWorker();
+	if (!w) return;
+	// Bound the worker's enliven LRU by device class. Must comfortably exceed
+	// the densest single tile's object count (a bake never evicts its own ids),
+	// so keep it generous — these are JSON-backed, re-enliven on demand.
+	const mobile =
+		typeof navigator !== "undefined" &&
+		/Mobi|Android/i.test(navigator.userAgent);
+	const hw = (navigator as any)?.hardwareConcurrency || 4;
+	const lowEnd = mobile && hw <= 4;
+	w.postMessage({ t: "config", liveMax: lowEnd ? 768 : 3072 });
 }
 
 export function isBakeryActive(): boolean {
@@ -111,7 +120,44 @@ export function isBakeryActive(): boolean {
 
 export function bakeryMarkDirty(obj: FabricObject): void {
 	if (disabled || !obj?.id) return;
+	// The cached serialization is now stale — force a fresh toJSON at next flush.
+	(obj as any).__bakeJSON = undefined;
 	dirty.set(obj.id, obj);
+}
+
+/**
+ * Seed the mirror straight from the JSON the object was enlivened FROM — no
+ * toJSON. Used at load, where re-serializing N objects we just deserialized was
+ * the main-thread spike (and crash) on big canvases. Stashes the blob on the
+ * object so flush ships it as-is until the object actually mutates.
+ */
+export function bakerySeed(obj: FabricObject, srcJSON: any): void {
+	if (disabled || !obj?.id || !srcJSON) return;
+	(obj as any).__bakeJSON = srcJSON;
+	dirty.set(obj.id, obj);
+}
+
+/**
+ * Pure-translation drag commit: shift the mirror's coords by (dx,dy) instead of
+ * re-serializing every selected object. Turns a 500-object drop from 500
+ * synchronous toJSON calls into one tiny message. The main thread has already
+ * moved the live objects, so their stale __bakeJSON is dropped — a later full
+ * flush (if any) re-serializes with correct coords.
+ */
+export function bakeryTranslate(ids: string[], dx: number, dy: number): void {
+	if (disabled || ids.length === 0) return;
+	if (dx === 0 && dy === 0) return;
+	// Drop any pending full-serialization flush for these ids: it would carry
+	// pre-translate coords and race the delta. The worker's json is now the
+	// authority for their position.
+	for (const id of ids) {
+		const o = dirty.get(id);
+		if (o) {
+			(o as any).__bakeJSON = undefined;
+			dirty.delete(id);
+		}
+	}
+	getWorker()?.postMessage({ t: "translate", ids, dx, dy });
 }
 
 export function bakeryRemove(id: string): void {
@@ -134,15 +180,37 @@ function serialize(obj: FabricObject): any | null {
 	}
 }
 
+/**
+ * The worker mirror is deliberately LEAN: it only ever needs objects it can
+ * bake. Text and images are always refused per-tile (see bakeryBakeTile), so
+ * their JSON is dead weight in the mirror — skip it. Grouped objects serialize
+ * group-relative, so their coords would be wrong; keep them dirty until they
+ * leave the group.
+ */
+function shippable(obj: any): boolean {
+	if (obj.group) return false;
+	if (obj.text !== undefined) return false;
+	if (obj.type === "image") return false;
+	return true;
+}
+
 function flush(w: Worker): void {
 	if (dirty.size === 0) return;
 	const items: { id: string; json: any }[] = [];
 	for (const [id, obj] of dirty) {
-		// A grouped object serializes group-relative — flushing it now would park
-		// wrong coords in the mirror. Keep it dirty; it flushes after ungrouping.
-		if ((obj as any).group) continue;
-		const json = serialize(obj);
-		if (json) items.push({ id, json });
+		const a = obj as any;
+		if (a.group) continue; // may ungroup later → keep dirty, don't drop
+		if (!shippable(a)) {
+			dirty.delete(id);
+			continue;
+		}
+		// Prefer the stashed source JSON (load / unchanged) over a fresh toJSON —
+		// that recursive serialization is the main-thread cost we are avoiding.
+		const json = a.__bakeJSON ?? serialize(obj);
+		if (json) {
+			a.__bakeJSON = json; // cache until the next bakeryMarkDirty invalidates
+			items.push({ id, json });
+		}
 		dirty.delete(id);
 	}
 	if (items.length) w.postMessage({ t: "upsert", items });
@@ -196,6 +264,8 @@ export async function bakeryBakeTile(
 		if (!obj.id) return null;
 		// font fidelity: text renders with main-thread @font-face only
 		if (a.text !== undefined) return null;
+		// images never enter the worker (no fetch / CORS / img-mock) → main bake
+		if (a.type === "image") return null;
 		// group-relative transform / transiently hidden → live state only
 		if (a.group) return null;
 		if (a.opacity === 0 || a.visible === false) return null;

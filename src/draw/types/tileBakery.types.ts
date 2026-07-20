@@ -3,7 +3,9 @@
 // requests carry only tile geometry + z-ordered ids.
 
 export type BakeryRequest =
+  | { t: 'config'; liveMax?: number }
   | { t: 'upsert'; items: { id: string; json: any }[] }
+  | { t: 'translate'; ids: string[]; dx: number; dy: number }
   | { t: 'remove'; ids: string[] }
   | { t: 'clear' }
   | {

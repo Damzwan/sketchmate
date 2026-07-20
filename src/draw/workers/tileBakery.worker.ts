@@ -1,17 +1,22 @@
 // tileBakery.worker.ts
 //
-// Persistent fabric mirror + tile rasterizer. The main thread streams object
-// DELTAS (upsert/remove/clear) exactly once per settled mutation — the same
-// cadence as the multiplayer socket protocol — so the scene is never
-// re-serialized wholesale. Bake requests then carry only tile geometry and
-// z-ordered object ids; the reply is a transferable ImageBitmap (zero-copy).
+// Off-thread tile rasterizer backed by a LEAN mirror. Two lessons from the
+// first attempt drive this design:
 //
-// Guarantees relied on by the main-side client (tileBakery.service.ts):
-//   • postMessage delivery is FIFO and handling below is FIFO-chained, so an
-//     upsert posted before a bake is always applied before that bake renders.
-//   • enliven is async (images fetch lazily); a bake that needs a not-yet-ready
-//     object waits briefly, then reports { missing } so the caller can fall
-//     back to a main-thread bake for that tile. Nothing ever renders half-ready.
+//   1. The mirror is NOT a second scene graph. It stores raw JSON (cheap
+//      strings) per id and enlivens fabric objects ON DEMAND for the tile being
+//      baked, keeping at most LIVE_MAX of them (LRU). Worker live-object memory
+//      is therefore bounded by the working set (a screenful of tiles), not the
+//      scene size — no "double RAM tax", no GC panic on a 10k-object board.
+//   2. The worker never touches images: image tiles are refused main-side, so
+//      there is no fetch, no CORS surprise, no double download, and no fake
+//      HTMLImageElement to keep fabric happy. The only DOM shim is a canvas.
+//
+// Consistency guarantees the main-side client (tileBakery.service.ts) relies on:
+//   • postMessage is FIFO and the handler below is FIFO-chained, so an upsert /
+//     translate posted before a bake is applied before that bake renders.
+//   • A bake for an id the mirror lacks replies { missing }; the client
+//     re-upserts once and retries, then falls back to a main-thread bake.
 //   • Rendering matches CommittedLayer.rebuildTile exactly: same overscan
 //     translate, same pad+clip, objects drawn in the id order provided.
 
@@ -29,7 +34,7 @@ import { SprayStroke } from '@/draw/utils/brushes/CustomSprayBrush'
 import { CrayonStroke } from '@/draw/utils/brushes/CrayonBrush'
 import type { BakeryRequest, BakeryResponse } from '@/draw/types/tileBakery.types'
 
-// --- MOCK DOM & DISGUISE (same pattern as preview/eraser workers) ----------
+// --- minimal DOM shim (canvas only; images never reach the worker) ----------
 const applyCanvasDisguise = (canvas: any) => {
   canvas.hasAttribute = () => false
   canvas.getAttribute = () => null
@@ -48,55 +53,10 @@ const applyCanvasDisguise = (canvas: any) => {
 if (typeof document === 'undefined') {
   (globalThis as any).document = {
     createElement: (tag: string) => {
-      if (tag === 'canvas') {
-        return applyCanvasDisguise(new OffscreenCanvas(1, 1))
-      }
-      if (tag === 'img') {
-        const img = {
-          style: {},
-          onload: null as any,
-          onerror: null as any,
-          _src: '',
-          _bitmap: null as ImageBitmap | null,
-
-          get nodeName() {
-            return 'IMG'
-          },
-
-          set ['src'](value: string) {
-            this._src = value
-            fetch(value)
-              .then((res) => res.blob())
-              .then((blob) => createImageBitmap(blob))
-              .then((bitmap) => {
-                this._bitmap = bitmap;
-                (this as any).width = bitmap.width;
-                (this as any).height = bitmap.height;
-                (this as any).complete = true
-                if (this.onload) this.onload()
-              })
-              .catch((err) => {
-                if (this.onerror) this.onerror(err)
-              })
-          },
-          get ['src']() {
-            return this._src
-          },
-
-          width: 0,
-          height: 0,
-          nodeType: 1,
-          parentNode: null,
-          ownerDocument: (globalThis as any).document,
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          getAttribute: (name: string) => (name === 'src' ? (img as any)._src : null),
-          hasAttribute: () => false,
-          setAttribute: () => {},
-          classList: { add: () => {}, remove: () => {} }
-        }
-        return img
-      }
+      if (tag === 'canvas') return applyCanvasDisguise(new OffscreenCanvas(1, 1))
+      // Images are refused main-side, so nothing here should ask for an <img>.
+      // Return an inert stub rather than throwing — a stray measurement probe
+      // must not kill the whole tile.
       throw new Error(`Worker mock document cannot create ${tag}`)
     }
   };
@@ -118,45 +78,49 @@ const brushes = [
 ] as const
 brushes.forEach(([cls, name]) => classRegistry.setClass(cls as any, name))
 
-// --- mirror ------------------------------------------------------------------
-const mirror = new Map<string, any>()
-/** Objects whose async enliven (image fetch, …) hasn't finished yet. */
-const settling = new Map<string, Promise<void>>()
+// --- lean mirror -------------------------------------------------------------
+// json: the source of truth — one raw JSON blob per id. Cheap to hold at scale.
+// live: bounded LRU of enlivened fabric objects. Map insertion order === LRU
+//       order (touch = delete+set). Evicted down to LIVE_MAX after each bake.
+const json = new Map<string, any>()
+const live = new Map<string, any>()
 
-const IMAGE_WAIT_MS = 3000
+// Bounded by the DENSEST single tile's object count, not the scene. Tuned for
+// low-end from the main-side device probe carried on the first message.
+let LIVE_MAX = 1536
 
-function waitForImage(obj: any): Promise<void> {
-  return new Promise((resolve) => {
-    const el = obj._element
-    if (!el || el._bitmap) return resolve()
-    const prev = el.onload
-    el.onload = () => {
-      if (prev) prev()
-      resolve()
-    }
-    setTimeout(() => resolve(), IMAGE_WAIT_MS)
-  })
+function touch(id: string, obj: any): void {
+  live.delete(id)
+  live.set(id, obj)
 }
 
-function upsertOne(id: string, json: any): void {
-  const p = (async () => {
-    const [obj] = await util.enlivenObjects([json])
-    const o: any = obj
-    if (o.type === 'image' && o._element) {
-      await waitForImage(o)
-      if (o._element?._bitmap) o._element = o._element._bitmap
-    }
-    mirror.set(id, o)
-  })()
-    .catch(() => {
-      // Enliven failed (unknown class, bad payload) — leave the id absent so
-      // bakes report it missing and the main thread keeps its local fallback.
-      mirror.delete(id)
-    })
-    .finally(() => {
-      if (settling.get(id) === p) settling.delete(id)
-    })
-  settling.set(id, p)
+function evictLive(protectedIds?: Set<string>): void {
+  if (live.size <= LIVE_MAX) return
+  for (const id of live.keys()) {
+    if (live.size <= LIVE_MAX) break
+    if (protectedIds?.has(id)) continue
+    live.delete(id) // drop the enlivened copy; json stays, re-enlivens on demand
+  }
+}
+
+/** Enliven (or fetch from LRU) the object for `id`. Null if json unknown. */
+async function ensureLive(id: string): Promise<any | null> {
+  const cached = live.get(id)
+  if (cached) {
+    touch(id, cached)
+    return cached
+  }
+  const j = json.get(id)
+  if (!j) return null
+  let obj: any
+  try {
+    ;[obj] = await util.enlivenObjects([j])
+  } catch {
+    return null
+  }
+  if (!obj) return null
+  touch(id, obj)
+  return obj
 }
 
 // --- rasterizer --------------------------------------------------------------
@@ -172,20 +136,16 @@ function getRenderCanvas(size: number): OffscreenCanvas {
 async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
   const { msgId, ids, world, scale, overscan, size } = req
 
-  // Wait for in-flight enlivens of the ids this tile needs (bounded — image
-  // waits are already capped inside upsertOne).
-  const waits: Promise<void>[] = []
-  for (const id of ids) {
-    const p = settling.get(id)
-    if (p) waits.push(p)
-  }
-  if (waits.length) await Promise.allSettled(waits)
-
-  const missing = ids.filter((id) => !mirror.has(id))
+  const missing = ids.filter((id) => !json.has(id))
   if (missing.length) {
     post({ msgId, missing })
     return
   }
+
+  // Enliven exactly the ids this tile needs (LRU-cached across overlapping
+  // tiles in a bake burst). Runs off the main thread, so no UI jank.
+  const objs: any[] = new Array(ids.length)
+  for (let i = 0; i < ids.length; i++) objs[i] = await ensureLive(ids[i])
 
   const canvas = getRenderCanvas(size)
   const ctx = canvas.getContext('2d')
@@ -207,8 +167,8 @@ async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
   ctx.rect(world.x - pad, world.y - pad, world.w + 2 * pad, world.h + 2 * pad)
   ctx.clip()
 
-  for (const id of ids) {
-    const obj = mirror.get(id)
+  for (let i = 0; i < objs.length; i++) {
+    const obj = objs[i]
     if (!obj) continue
     obj.visible = true
     obj.canvas = null
@@ -225,6 +185,9 @@ async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
   }
   ctx.restore()
 
+  // Keep this tile's objects; trim the rest of the LRU back to the cap.
+  evictLive(new Set(ids))
+
   const bitmap = canvas.transferToImageBitmap()
   post({ msgId, bitmap }, [bitmap])
 }
@@ -234,8 +197,7 @@ function post(msg: BakeryResponse, transfer: Transferable[] = []): void {
 }
 
 // --- FIFO message pump -------------------------------------------------------
-// Handlers are async (enliven awaits, image barriers); chaining keeps the
-// upsert-before-bake ordering that the whole consistency model depends on.
+// Chained so upsert/translate posted before a bake is applied before it renders.
 let chain: Promise<void> = Promise.resolve()
 
 self.onmessage = (e: MessageEvent<BakeryRequest>) => {
@@ -243,18 +205,43 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
   chain = chain.then(async () => {
     try {
       switch (msg.t) {
-        case 'upsert':
-          for (const item of msg.items) upsertOne(item.id, item.json)
+        case 'config':
+          if (typeof msg.liveMax === 'number' && msg.liveMax > 0) LIVE_MAX = msg.liveMax
           break
+        case 'upsert':
+          for (const item of msg.items) {
+            json.set(item.id, item.json)
+            live.delete(item.id) // geometry may have changed → re-enliven fresh
+          }
+          break
+        case 'translate': {
+          // Pure world translation (drag commit): patch coords in place instead
+          // of shipping N re-serialized objects. Top-level objects only, so a
+          // world shift is a left/top shift.
+          const { dx, dy } = msg
+          for (const id of msg.ids) {
+            const j = json.get(id)
+            if (j) {
+              if (typeof j.left === 'number') j.left += dx
+              if (typeof j.top === 'number') j.top += dy
+            }
+            const o = live.get(id)
+            if (o) {
+              o.set({ left: (o.left ?? 0) + dx, top: (o.top ?? 0) + dy })
+              o.setCoords()
+            }
+          }
+          break
+        }
         case 'remove':
           for (const id of msg.ids) {
-            mirror.delete(id)
-            settling.delete(id)
+            json.delete(id)
+            live.delete(id)
           }
           break
         case 'clear':
-          mirror.clear()
-          settling.clear()
+          json.clear()
+          live.clear()
           break
         case 'bake':
           await bake(msg)

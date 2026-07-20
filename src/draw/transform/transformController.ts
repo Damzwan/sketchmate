@@ -198,6 +198,9 @@ export function commit(c: Canvas): void {
         if (single) mgr.updateQuadTree(o)
         else if (dx !== 0 || dy !== 0) mgr.offsetQuadTree(o, dx, dy)
       }
+      // Move the worker mirror in ONE batched message (multi-select only; the
+      // single-object path already resynced via updateQuadTree above).
+      if (!single && (dx !== 0 || dy !== 0)) mgr.translateMirror(s.objects, dx, dy)
     } else {
       for (const o of s.objects) {
         o.setCoords()

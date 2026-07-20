@@ -60,8 +60,17 @@ export async function enlivenObjectsTimeSlivered(
 
 		// Re-check block status post-enliven (blocked list might have changed
 		// during the async enliven call).
-		for (const obj of enlivened) {
+		for (let k = 0; k < enlivened.length; k++) {
+			const obj = enlivened[k];
 			if (obj && !isBlocked(obj.userId)) {
+				// Stash the exact JSON we enlivened from. The tile-bakery worker
+				// enlivens the SAME blob, so this lets the mirror be seeded without
+				// a second toJSON of every object at load (the big-canvas spike).
+				try {
+					(obj as any).__bakeJSON = batch[k];
+				} catch {
+					/* non-fatal */
+				}
 				try {
 					onObjectEnlivened(obj);
 				} catch (e) {

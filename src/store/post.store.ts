@@ -7,10 +7,25 @@ import {
 	fetchFeed,
 	fetchPost,
 	toggleReaction as apiReact,
+	type FeedTab,
 } from "@/service/api/post.api";
 
+export const FEED_TABS: FeedTab[] = ["for_you", "mates", "latest"];
+
 export const usePostStore = defineStore("post", () => {
-	const feedPosts = ref<FeedPost[]>([]);
+	// One cached list per tab. Switching tabs shouldn't re-hit the network for a
+	// list we already pulled this session — the feed is a single capped fetch, so
+	// there's nothing to page in and a refetch would just reshuffle under the user.
+	const feedByTab = ref<Record<FeedTab, FeedPost[]>>({
+		for_you: [],
+		mates: [],
+		latest: [],
+	});
+	const fetchedTabs = ref<Record<FeedTab, boolean>>({
+		for_you: false,
+		mates: false,
+		latest: false,
+	});
 	const userPosts = ref<FeedPost[]>([]);
 	const userPage = ref(1);
 	const hasMoreUserPosts = ref(true);
@@ -19,15 +34,29 @@ export const usePostStore = defineStore("post", () => {
 	const limit = 20;
 	const postCache = ref<Record<string, FeedPost>>({});
 
-	async function getFeed(isRefresh = false) {
+	async function getFeed(tab: FeedTab = "for_you") {
 		try {
-			const res = await fetchFeed(limit);
-			feedPosts.value = res.feed;
+			const res = await fetchFeed(tab, limit);
+			feedByTab.value[tab] = res.feed;
+			fetchedTabs.value[tab] = true;
 			isFeedDirty.value = false;
 		} catch (error) {
 			console.error("Failed to fetch feed", error);
 			throw error;
 		}
+	}
+
+	/** Force every tab to re-pull on next view (feed_level changed, feed cleared). */
+	function resetFeeds() {
+		for (const tab of FEED_TABS) {
+			feedByTab.value[tab] = [];
+			fetchedTabs.value[tab] = false;
+		}
+	}
+
+	/** Apply a mutation to every cached copy of a post across all three tabs. */
+	function eachFeedList(fn: (list: FeedPost[]) => void) {
+		for (const tab of FEED_TABS) fn(feedByTab.value[tab]);
 	}
 
 	async function getUserPosts(userId: string, isInitial = false) {
@@ -51,7 +80,11 @@ export const usePostStore = defineStore("post", () => {
 	}
 
 	function removePostLocally(postId: string) {
-		feedPosts.value = feedPosts.value.filter((p) => p._id !== postId);
+		for (const tab of FEED_TABS) {
+			feedByTab.value[tab] = feedByTab.value[tab].filter(
+				(p) => p._id !== postId,
+			);
+		}
 		userPosts.value = userPosts.value.filter((p) => p._id !== postId);
 	}
 
@@ -86,7 +119,9 @@ export const usePostStore = defineStore("post", () => {
 			if (post && post._id === postId && !seen.has(post)) seen.add(post);
 		};
 
-		collect(feedPosts.value.find((p) => p._id === postId));
+		// The same post can sit in several tabs at once (For You and Latest, say),
+		// and each is a distinct object — react in one, all of them must update.
+		eachFeedList((list) => collect(list.find((p) => p._id === postId)));
 		collect(userPosts.value.find((p) => p._id === postId));
 		collect(target);
 
@@ -100,6 +135,9 @@ export const usePostStore = defineStore("post", () => {
 	}
 	function markFeedDirty() {
 		isFeedDirty.value = true;
+		// Every tab is derived from feed_level, so a change invalidates all three —
+		// not just whichever one happens to be on screen.
+		resetFeeds();
 	}
 
 	async function deletePostComment(postId: string, commentId: string) {
@@ -113,7 +151,7 @@ export const usePostStore = defineStore("post", () => {
 				post.comment_count--;
 			}
 		};
-		removeFrom(feedPosts.value);
+		eachFeedList(removeFrom);
 		removeFrom(userPosts.value);
 
 		return await deleteComment(postId, commentId);
@@ -134,7 +172,9 @@ export const usePostStore = defineStore("post", () => {
 	}
 
 	return {
-		feedPosts,
+		feedByTab,
+		fetchedTabs,
+		resetFeeds,
 		userPosts,
 		userPage,
 		hasMoreUserPosts,

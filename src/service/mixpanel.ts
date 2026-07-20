@@ -23,6 +23,7 @@ export enum mixpanelEvents {
 	postFullscreenOpen = "post_fullscreen_open",
 	postShareOpen = "post_share_open",
 	postRemix = "post_remix",
+	feedTabSwitched = "feed_tab_switched",
 
 	// --- v2 Relationships (client intent; server is authoritative) ---
 	mateAdd = "mate_add", // tapped follow / add-mate

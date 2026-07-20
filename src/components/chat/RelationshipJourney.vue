@@ -16,6 +16,7 @@
             <span
               class="mt-2 text-[9px] font-black uppercase tracking-wider leading-none transition-colors"
               :class="labelClass(i)"
+              :style="labelStyle(i)"
             >
               {{ s.label }}
             </span>
@@ -24,14 +25,17 @@
           <div
             v-if="i < JOURNEY_STEPS.length - 1"
             class="flex-1 h-0.5 rounded-full mt-[20px] transition-colors"
-            :class="i < activeIdx ? accent.dot : 'bg-black/10'"
+            :class="connectorClass(i)"
           ></div>
         </template>
       </div>
 
       <div
         v-if="activeInfo !== null"
-        class="mt-3.5 px-4 py-2.5 cabin-sketch-regular bg-tertiary rounded-xl border border-black/5 text-base text-black/90 animate-fade-in text-center max-w-[280px]"
+        class="mt-3.5 px-4 py-2.5 cabin-sketch-regular rounded-xl border text-base animate-fade-in text-center max-w-[280px]"
+        :class="dark
+          ? 'bg-black/40 border-white/10 text-white/90'
+          : 'bg-tertiary border-black/5 text-black/90'"
       >
         {{ infoText }}
       </div>
@@ -44,6 +48,7 @@
           <span
             class="text-[7px] font-black uppercase tracking-wider transition-colors"
             :class="compactLabelClass(i)"
+            :style="labelStyle(i)"
           >
             {{ s.label }}
           </span>
@@ -51,7 +56,7 @@
         <div
           v-if="i < JOURNEY_STEPS.length - 1"
           class="flex-1 h-px rounded-full transition-colors"
-          :class="i < activeIdx ? 'bg-black/20' : 'bg-black/10'"
+          :class="compactConnectorClass(i)"
         ></div>
       </template>
     </div>
@@ -75,8 +80,22 @@ const props = withDefaults(
 		step: number;
 		accent?: RelationshipAccent;
 		compact?: boolean;
+		/**
+		 * The rail is sitting over a dark world (Cosmic Drift). Every resting
+		 * colour here is a `black/xx` tint tuned for a light card, which turns
+		 * invisible on a starfield — this flips the whole scale to white and
+		 * swaps the labels onto the theme's *Dark* text colours.
+		 *
+		 * Same contract as ChatRelationshipStrip, deliberately: both render the
+		 * relationship state over a partner's world, so they take the same props.
+		 */
+		dark?: boolean;
+		/** theme.nameColorDark — the ACTIVE step's label. Supplied when `dark`. */
+		nameColor?: string;
+		/** theme.descColorDark — every other label. Supplied when `dark`. */
+		descColor?: string;
 	}>(),
-	{ accent: "secondary", compact: false },
+	{ accent: "secondary", compact: false, dark: false },
 );
 
 const accent = computed(() => RELATIONSHIP_ACCENT[props.accent]);
@@ -104,38 +123,79 @@ const nodeClass = (i: number) => {
 	} else if (i < activeIdx.value) {
 		baseClass = `${accent.value.dot} text-white border-transparent`;
 	} else {
-		baseClass = "bg-white border-black/10 text-black/25";
+		// Only the RESTING node is a light-card colour — the other two are accent
+		// fills that read fine on either surface.
+		baseClass = props.dark
+			? "bg-white/10 border-white/25 text-white/55"
+			: "bg-white border-black/10 text-black/25";
 	}
 
 	// Highlight actively selected info node for better context
 	if (activeInfo.value === i && i !== activeIdx.value) {
-		baseClass += " ring-2 ring-black/10";
+		baseClass += props.dark ? " ring-2 ring-white/20" : " ring-2 ring-black/10";
 	}
 
 	return baseClass;
 };
 
+// On a dark world the accent classes go too: `text-secondary` on a starfield is
+// the same low-contrast problem the black tints have. The theme's own *Dark
+// colours are already tuned against its cardBg, so the labels ride those and
+// pick up the `.on-world` halo instead.
 const labelClass = (i: number) => {
+	if (props.dark) {
+		return i === activeIdx.value
+			? "on-world font-black"
+			: "on-world" + (activeInfo.value === i ? " font-bold" : "");
+	}
 	if (i === activeIdx.value) return `${accent.value.text} font-black`;
 	if (activeInfo.value === i) return "text-secondary font-bold";
 	if (i < activeIdx.value) return "text-black/45";
 	return "text-black/25";
 };
 
+/** Inline colour for a label, so `dark` can use the theme's supplied values. */
+const labelStyle = (i: number) => {
+	if (!props.dark) return {};
+	const color = i === activeIdx.value ? props.nameColor : props.descColor;
+	// Opacity carries the done/upcoming distinction that the black tints used to.
+	return color
+		? { color, opacity: i <= activeIdx.value ? 1 : 0.6 }
+		: {};
+};
+
+const connectorClass = (i: number) => {
+	if (i < activeIdx.value) return props.dark ? "bg-white/45" : accent.value.dot;
+	return props.dark ? "bg-white/15" : "bg-black/10";
+};
+
 /* compact dots */
 const dotClass = (i: number) => {
 	if (i === activeIdx.value) return `w-2 h-2 ${accent.value.dot} shadow-sm`;
-	if (i < activeIdx.value) return "w-1.5 h-1.5 bg-black/25";
-	return "w-1.5 h-1.5 bg-black/10";
+	if (i < activeIdx.value)
+		return props.dark ? "w-1.5 h-1.5 bg-white/60" : "w-1.5 h-1.5 bg-black/25";
+	return props.dark ? "w-1.5 h-1.5 bg-white/25" : "w-1.5 h-1.5 bg-black/10";
 };
 const compactLabelClass = (i: number) => {
+	if (props.dark) return "on-world";
 	if (i === activeIdx.value) return accent.value.text;
 	if (i < activeIdx.value) return "text-black/35";
 	return "text-black/20";
 };
+const compactConnectorClass = (i: number) => {
+	if (i < activeIdx.value) return props.dark ? "bg-white/40" : "bg-black/20";
+	return props.dark ? "bg-white/15" : "bg-black/10";
+};
 </script>
 
 <style scoped>
+/* Same halo ChatRelationshipStrip uses over a world: the theme's *Dark colours
+   carry the contrast, this just holds the glyph edges against a busy starfield
+   without putting a plate behind the rail and hiding the world. */
+.on-world {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
 @keyframes nodePulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.08); }

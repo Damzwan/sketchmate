@@ -14,8 +14,9 @@
     ></div>
 
     <!-- Partner's profile surface on resting mate/active rows: their theme cardBg
-         is painted on the card root, their effect layered over it. No world — a
-         lottie per list row is too heavy; theme colour + effect carry it. -->
+         is painted on the card root, their effect and world layered over it.
+         The world runs in `mini` + `static-mode` — a frozen frame, not a live
+         lottie per list row. -->
     <div v-if="showTheme" class="absolute inset-0 z-0 pointer-events-none">
       <ProfileEffect :effect-id="partnerCustomization.effectId" radius-class="rounded-[1.6rem]" />
       <ProfileWorld
@@ -66,8 +67,8 @@
       <div class="flex items-center gap-1.5 min-w-0">
         <span
           class="text-[14px] leading-none font-black truncate tracking-tight"
-          :class="[nameClass, showTheme ? fontEffectClass : '']"
-          :style="showTheme ? { color: theme.nameColor, fontFamily: resolvedFontFamily } : {}"
+          :class="[nameClass, showTheme ? fontEffectClass : '', onDarkWorld ? 'on-world' : '']"
+          :style="showTheme ? { color: themedNameColor, fontFamily: resolvedFontFamily } : {}"
         >
           {{ partner?.name || 'Unknown User' }}
         </span>
@@ -82,7 +83,8 @@
 
         <span
           class="ml-auto shrink-0 text-[8px] uppercase tracking-wider opacity-50 whitespace-nowrap mt-0.5"
-          :style="showTheme ? { color: theme.descColor, opacity: 1 } : {}"
+          :class="onDarkWorld ? 'on-world' : ''"
+          :style="showTheme ? { color: themedDescColor, opacity: 1 } : {}"
         >
           {{ rel.kind === 'live_invite' ? 'NOW' : formattedTime }}
         </span>
@@ -92,8 +94,8 @@
       <div class="flex items-center gap-1.5 mt-1.5">
         <p
           class="flex-1 min-w-0 text-[12px] truncate cabin-sketch-regular tracking-wide leading-none"
-          :class="statusClass"
-          :style="showTheme && !isTyping ? { color: theme.descColor } : {}"
+          :class="[statusClass, onDarkWorld ? 'on-world' : '']"
+          :style="showTheme && !isTyping ? { color: themedDescColor } : {}"
         >
           {{ statusLine }}
         </p>
@@ -120,6 +122,9 @@
         class="mt-2.5 pr-1"
         :step="rel.step"
         :accent="rel.accent"
+        :dark="onDarkWorld"
+        :name-color="theme.nameColorDark"
+        :desc-color="theme.descColorDark"
         compact
       />
     </div>
@@ -154,6 +159,7 @@ import {
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
+	resolveWorld,
 } from "@/config/profile_options.config";
 
 dayjs.extend(relativeTime);
@@ -210,12 +216,36 @@ const showTheme = computed(
 	() => !isBlocked.value && !isExpired.value && !rel.value.actionable,
 );
 // Paint the partner's theme surface (cardBg, often a gradient) + themed border,
-// overriding the default white resting-card look. No world layer here, so each
-// theme's own nameColor/descColor already match its cardBg (no dark variants).
+// overriding the default white resting-card look. The world layer sits on top
+// of it — see `onDarkWorld` for why that matters to the text colours.
 const cardStyle = computed(() => ({
 	background: theme.value.cardBg,
 	borderColor: theme.value.cardBorderColor,
 }));
+
+// A themed row DOES render the partner's world (`world-mini`), and on Cosmic
+// Drift that world is dark. `world-mini` is a right-hand vignette ~320px wide
+// fading in from 48%, and the body column sits entirely inside that span — so
+// every text row here lands on the starfield, not on the theme's cardBg.
+//
+// The theme's own nameColor/descColor are tuned against a LIGHT cardBg, which
+// is why they vanished. On a dark world the *Dark variants apply instead.
+//
+// Note this is the opposite call to ChatToolbar, deliberately: there the world
+// is a small vignette on ONE side and the name row genuinely sits on cardBg, so
+// only its bottom strip flips. Here the vignette covers the whole text column.
+const activeWorld = computed(() =>
+	resolveWorld(partnerCustomization.value.worldId),
+);
+const onDarkWorld = computed(
+	() => showTheme.value && activeWorld.value.isDark === true,
+);
+const themedNameColor = computed(() =>
+	onDarkWorld.value ? theme.value.nameColorDark : theme.value.nameColor,
+);
+const themedDescColor = computed(() =>
+	onDarkWorld.value ? theme.value.descColorDark : theme.value.descColor,
+);
 
 /* --- derived display bits --- */
 const lastMessage = computed(() => {
@@ -370,6 +400,13 @@ const statusClass = computed(() => {
 </script>
 
 <style scoped>
+/* Legibility over a dark world, matching ChatRelationshipStrip: the theme's
+   *Dark colours carry the contrast, this only holds the glyph edges against a
+   busy starfield. No plate behind the text — that would hide the world. */
+.on-world {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
 .animate-bounce-in {
   animation: bounceIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }

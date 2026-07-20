@@ -27,8 +27,12 @@ export async function publishPost(
 	});
 }
 
-export async function fetchFeed(limit = 20) {
-	return await request<{ feed: FeedPost[] }>(`/post/feed?limit=${limit}`);
+export type FeedTab = "for_you" | "mates" | "latest";
+
+export async function fetchFeed(tab: FeedTab = "for_you", limit = 20) {
+	return await request<{ feed: FeedPost[]; tab: FeedTab }>(
+		`/post/feed?tab=${tab}&limit=${limit}`,
+	);
 }
 
 export async function toggleReaction(

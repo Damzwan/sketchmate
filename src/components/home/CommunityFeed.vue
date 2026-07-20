@@ -1,10 +1,25 @@
 <template>
   <section ref="rootEl" class="min-h-[300px] pb-10 max-w-2xl mx-auto overflow-visible">
     <!-- Header Subhead Segment -->
-    <div class="flex items-center justify-between px-1 mb-4 pt-2">
+    <div class="flex items-center justify-between px-1 mb-3 pt-2">
       <h2 class="uppercase tracking-widest font-black text-black/80">
         Community Vibes
       </h2>
+    </div>
+
+    <!-- Feed tabs. Each is its own capped fetch — no infinite scroll anywhere. -->
+    <div v-if="!feedOff" class="flex gap-1.5 mb-4 px-0.5">
+      <button
+        v-for="tab in TABS"
+        :key="tab.id"
+        @click="selectTab(tab.id)"
+        class="flex-1 py-2 px-1 rounded-2xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer border"
+        :class="activeTab === tab.id
+          ? 'bg-secondary text-white border-secondary shadow-sm'
+          : 'bg-tertiary text-black/70 border-primary/40'"
+      >
+        {{ tab.label }}
+      </button>
     </div>
 
     <!-- Feed turned off in Settings — keep home clean, just a gentle pointer. -->
@@ -28,8 +43,20 @@
         />
       </div>
 
+      <!-- Nothing in this tab yet (usually Mates before you've added any) -->
+      <div
+        v-else-if="posts.length === 0"
+        key="empty"
+        class="mt-1 p-6 rounded-[2rem] border border-dashed border-primary/60 bg-tertiary text-center"
+      >
+        <p class="cabin-sketch-regular text-xl font-black text-black mb-1.5">
+          {{ emptyState.title }}
+        </p>
+        <p class="text-base text-black/80 leading-snug">{{ emptyState.body }}</p>
+      </div>
+
       <!-- Main Activity Stream List -->
-      <div v-else key="data" class="space-y-6 overflow-visible">
+      <div v-else :key="`data-${activeTab}`" class="space-y-6 overflow-visible">
         <FeedPostCard
           v-for="post in posts"
           :key="post._id"
@@ -41,23 +68,10 @@
           @delete-post="handleDelete"
         />
 
-        <!-- Infinite Scrolling Trigger Zone -->
-        <div
-          ref="loadMoreTrigger"
-          class="h-8 w-full flex justify-center items-center"
-        >
-          <ion-spinner
-            v-if="!loading && hasMore"
-            name="dots"
-            class="text-secondary w-6 h-6"
-          />
-        </div>
-
-        <!-- End of Feed Tactile Caught-Up Graphics Block -->
-        <div
-          v-if="!loading && posts.length > 0 && !hasMore"
-          class="pb-2 text-center"
-        >
+        <!-- End of Feed Tactile Caught-Up Graphics Block.
+             There is deliberately no load-more trigger here: the feed is one
+             capped fetch per tab, and it ends. -->
+        <div v-if="!loading" class="pb-2 text-center pt-2">
           <div
             class="inline-block p-8 bg-tertiary border border-dashed border-primary/80 rounded-[2.5rem] shadow-sm max-w-xs mx-auto mb-4">
             <h3 class="cabin-sketch-regular text-xl font-black text-black tracking-tight leading-none mb-1.5">
@@ -90,16 +104,14 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { IonSpinner, IonPopover } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { useIntersectionObserver } from "@vueuse/core";
 
 import { useAuthStore } from "@/store/auth.store";
 import { usePostStore } from "@/store/post.store";
 import { useToast } from "@/service/toast.service";
-import { logPostViews, deletePost } from "@/service/api/post.api";
+import { logPostViews, deletePost, type FeedTab } from "@/service/api/post.api";
 import { FeedPost } from "@/types/server.types";
-import { reactionImages } from "@/config/post.config";
 
 import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
 import PostCommentDrawer from "@/components/home/posts/PostCommentDrawer.vue";
@@ -111,10 +123,34 @@ const postStore = usePostStore();
 const { toast } = useToast();
 
 const { user } = storeToRefs(authStore);
-const { feedPosts: posts, isFeedDirty } = storeToRefs(postStore);
+const { feedByTab, fetchedTabs, isFeedDirty } = storeToRefs(postStore);
+
+const TABS: { id: FeedTab; label: string }[] = [
+	{ id: "for_you", label: "For You" },
+	{ id: "mates", label: "Mates" },
+	{ id: "latest", label: "Latest" },
+];
+
+const activeTab = ref<FeedTab>("for_you");
+const posts = computed(() => feedByTab.value[activeTab.value]);
+
+const EMPTY_STATES: Record<FeedTab, { title: string; body: string }> = {
+	for_you: {
+		title: "Nothing here yet",
+		body: "Once people start posting, their drawings will show up here.",
+	},
+	mates: {
+		title: "No posts from mates",
+		body: "Add a few mates or follow some artists, and their drawings land here.",
+	},
+	latest: {
+		title: "Nothing new",
+		body: "No fresh posts right now. Check back a little later.",
+	},
+};
+const emptyState = computed(() => EMPTY_STATES[activeTab.value]);
 
 const loading = ref(true);
-const hasMore = ref(false);
 
 const isCommentsOpen = ref(false);
 const activePost = ref<FeedPost | null>(null);
@@ -295,17 +331,34 @@ const feedOff = computed(() => user.value?.feed_level === "off");
 function loadFeedIfNeeded() {
 	if (!user.value) return;
 	if (feedOff.value) {
-		posts.value = [];
+		postStore.resetFeeds();
 		loading.value = false;
 		return;
 	}
-	if (posts.value.length === 0 || isFeedDirty.value) {
-		postStore.getFeed().finally(() => {
-			loading.value = false;
-		});
-	} else {
+	// Already pulled this tab and nothing invalidated it — keep what's on screen.
+	// Refetching on every visit would reshuffle the page under someone who just
+	// scrolled down it.
+	if (fetchedTabs.value[activeTab.value] && !isFeedDirty.value) {
 		loading.value = false;
+		return;
 	}
+	loading.value = true;
+	postStore.getFeed(activeTab.value).finally(() => {
+		loading.value = false;
+	});
+}
+
+function selectTab(tab: FeedTab) {
+	if (tab === activeTab.value) return;
+	activeTab.value = tab;
+	// Switching tabs re-renders the list, so the cached elements are detached.
+	// Drop them or a post carried over from the previous tab never gets a fresh
+	// observer — and never gets logged as seen, which is what drives the
+	// server's repeat-suppression. `viewedPosts` deliberately persists, so a
+	// post shown in two tabs still only counts once per session.
+	postElements.clear();
+	trackEvent(mixpanelEvents.feedTabSwitched, { tab });
+	loadFeedIfNeeded();
 }
 
 watch(user, loadFeedIfNeeded, { immediate: true });
@@ -318,7 +371,7 @@ watch(
 	() => {
 		postStore.markFeedDirty();
 		if (feedOff.value) {
-			posts.value = [];
+			postStore.resetFeeds();
 			loading.value = false;
 		}
 	},

@@ -57,6 +57,15 @@ interface Tile {
   lastUsed: number;
 }
 
+/**
+ * Off-main-thread tile renderer (tileBakery worker). Receives the z-sorted
+ * objects covering one tile plus the exact tile geometry; resolves with the
+ * rendered bitmap, or null → caller falls back to the local renderer.
+ */
+export type RemoteBaker<T> = (
+  objects: T[], world: WorldRect, scale: number, overscan: number, size: number
+) => Promise<ImageBitmap | null>;
+
 export interface CommittedOptions {
   poolMax?: number
   tileSize?: number;
@@ -69,6 +78,8 @@ export interface CommittedOptions {
   renderChunk?: number;
   fallbackDepth?: number;
   debug?: boolean;
+  /** Optional worker-side tile renderer; async bakes try it first. */
+  remoteBaker?: RemoteBaker<any>;
 }
 
 interface Draw {
@@ -106,6 +117,7 @@ export class CommittedLayer<T extends Bounded> {
 
   private readonly index: SpatialIndex<T>
   private readonly renderer: TileRenderer<T>
+  private readonly remoteBaker?: RemoteBaker<T>
   public readonly overview: WorldOverview<T>
 
   private tiles = new Map<string, Tile>()
@@ -135,6 +147,7 @@ export class CommittedLayer<T extends Bounded> {
       [ 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16]
 
     this.POOL_MAX = opts.poolMax ?? 16
+    this.remoteBaker = opts.remoteBaker
     this.OVERVIEW_TIER = opts.overviewTier ?? 2
     this.CHUNK = opts.renderChunk ?? 64
     this.FALLBACK_DEPTH = opts.fallbackDepth ?? 3
@@ -545,6 +558,31 @@ export class CommittedLayer<T extends Bounded> {
     if (objects.length === 0) {
       this.store(key, tier, tx, ty, null, 4, builtGen)
       return
+    }
+
+    // Worker bake first: main thread pays only the (lazy, coalesced) toJSON
+    // deltas + a drawImage on store — the rasterization runs off-thread.
+    if (this.remoteBaker) {
+      let bmp: ImageBitmap | null = null
+      try {
+        bmp = await this.remoteBaker(objects, world, scale, this.OS, this.BMP)
+      } catch { /* worker hiccup → local fallback */ }
+      if (signal.aborted || (this.gen.get(key) ?? 0) !== builtGen) {
+        // Aborted or content changed while awaiting — discard; bakeAgain
+        // (or the next scheduled bake) produces the correct tile.
+        bmp?.close()
+        return
+      }
+      if (bmp) {
+        const bytes = this.BMP * this.BMP * 4
+        if (!this.ensureMemory(bytes)) {
+          bmp.close()
+          return
+        }
+        this.store(key, tier, tx, ty, bmp, bytes, builtGen)
+        return
+      }
+      // null → refused (text / grouped / hidden) or failed: local render below.
     }
 
     const off = this.acquire()

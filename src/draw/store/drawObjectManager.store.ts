@@ -16,6 +16,13 @@ import { rerenderActiveObjectControls } from '@/draw/helpers/render.helper'
 import * as localTransform from '@/draw/transform/transformController'
 import { RenderCore, type Surface } from '@/draw/renderCore'
 import type { WorldRect } from '@/draw/committedLayer'
+import {
+  bakeryBakeTile,
+  bakeryClear,
+  bakeryMarkDirty,
+  bakeryRemove,
+  initTileBakery
+} from '@/draw/services/tileBakery.service'
 
 const IS_MOBILE = isMobile()
 const HW = (navigator as any).hardwareConcurrency || 4
@@ -171,6 +178,10 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
   function updateQuadTree(obj: FabricObject) {
+    // Geometry changed ⇒ the worker mirror must resync too. This catches every
+    // path that moves an object without firing a fabric event (e.g. a drag
+    // committed by transformController when a gesture interrupts it).
+    bakeryMarkDirty(obj)
     const e = entryMap.get(obj.id)
     if (!e) return
     const b = cachedBounds(obj)
@@ -189,6 +200,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
    * cache exists yet.
    */
   function offsetQuadTree(obj: FabricObject, dx: number, dy: number) {
+    bakeryMarkDirty(obj) // translation commit still moves the mirrored copy
     const e = entryMap.get(obj.id)
     if (!e) return
     const a = obj as any
@@ -287,7 +299,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   function onObjectAdded(obj: FabricObject) {
     if (!obj.id) return
     objectMap.set(obj.id, obj)
-    if (isLoading()) return
+    if (isLoading()) return // bulk loads reseed the bakery in rebuildIndexFromCanvas
+    bakeryMarkDirty(obj)
     addToQuadTree(obj)
     isZIndexDirty = true
     if (noteRegion(objectBounds(obj))) return
@@ -300,6 +313,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     if (!obj.id) return
     const oldRect = objectBounds(obj)
     objectMap.delete(obj.id)
+    bakeryRemove(obj.id)
     removeFromQuadTree(obj)
     invalidateZIndex()
     if (isLoading()) return
@@ -369,6 +383,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     {
       on: 'fullErase',
       handler: () => {
+        bakeryClear()
         core?.reset()
         core?.requestFrame()
       }
@@ -419,6 +434,10 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         const path = d.path as FabricObject | undefined
         const rect = d.dirtyRect as WorldRect | undefined
         localTransform.invalidateCache() // selected pixels may have changed
+        // targets now carry the new eraser clipPath — mirror must resync them
+        for (const t of (d.targets ?? []) as FabricObject[]) {
+          if (t?.id) bakeryMarkDirty(t)
+        }
         if (isBatching()) {
           if (rect) noteRegion(rect)
           return
@@ -437,6 +456,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   // ── init / lifecycle ─────────────────────────────────────────────────────
   function init(canvas: Canvas) {
     c = canvas
+    initTileBakery() // warm the worker so the first bake doesn't pay spawn+parse
 
     const surface: Surface = {
       getContext: () => c!.getContext(),
@@ -463,7 +483,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         tileSize: IS_LOW_END ? 256 : 512,
         poolMax: IS_LOW_END ? 6 : 16,
         maxRenderScale: IS_LOW_END ? 1.5 : 2,
-        overviewPatchMax: IS_LOW_END ? 80 : 200
+        overviewPatchMax: IS_LOW_END ? 80 : 200,
+        remoteBaker: bakeryBakeTile
       }
     )
 
@@ -480,6 +501,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     objectMap.clear()
     entryMap.clear()
     quadtree.clear()
+    bakeryClear()
     isZIndexDirty = true
     const objs = c!.getObjects()
     for (let i = objs.length - 1; i >= 0; i--) {
@@ -491,6 +513,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
       if (obj.id) {
         objectMap.set(obj.id, obj)
         addToQuadTree(obj)
+        bakeryMarkDirty(obj) // reseed lazily — serialized only when a bake needs it
       }
     }
   }
@@ -671,6 +694,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     objectMap.clear()
     entryMap.clear()
     quadtree.clear()
+    bakeryClear()
     zIndexMap.clear()
     isZIndexDirty = true
     core.reset()

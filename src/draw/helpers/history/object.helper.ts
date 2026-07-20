@@ -179,17 +179,33 @@ export async function redoObjectsDeleted(
 	return action;
 }
 
-function patchObjectsAppearance(objects: FabricObject[]): void {
+/**
+ * Repaint the region a style undo/redo just touched.
+ *
+ * Unions the OLD footprint in as well as the new one: a restored style can be
+ * smaller than what replaced it (a narrower font above all), and patching only
+ * the new rect leaves the vacated pixels baked into the tiles.
+ *
+ * Must be called AFTER the objects have been mutated — it reads the stale
+ * bounds cache to recover where they used to be.
+ */
+export function patchObjectsAppearance(objects: FabricObject[]): void {
   const mgr = useDrawObjectManager();
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const swallow = (x: number, y: number, w: number, h: number) => {
+    if (!isFinite(x)) return;
+    minX = Math.min(minX, x); minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+  };
   for (const obj of objects) {
     if (!obj) continue;
+    const old = mgr.getStaleObjectBounds(obj);
+    if (old) swallow(old.x, old.y, old.w, old.h);
     mgr.updateQuadTree(obj); // strokeWidth etc. can shift bounds slightly
     // @ts-ignore
     const b = obj.getBoundingRect(true, true);
     if (!b || !isFinite(b.left)) continue;
-    minX = Math.min(minX, b.left); minY = Math.min(minY, b.top);
-    maxX = Math.max(maxX, b.left + b.width); maxY = Math.max(maxY, b.top + b.height);
+    swallow(b.left, b.top, b.width, b.height);
   }
   if (minX === Infinity) return;
   const PAD = 8;

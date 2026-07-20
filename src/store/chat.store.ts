@@ -84,6 +84,9 @@ export const useChatStore = defineStore('chat', () => {
   const typingStatuses = ref<Record<string, boolean>>({})
   const hasMoreMessagesByChat = ref<Record<string, boolean>>({})
   const notifications = ref<any[]>([])
+  // Conversations this session has already read. Kept outside `activeChats` so
+  // a read survives the conversation list being re-fetched and replaced.
+  const readAcknowledged = new Set<string>()
   // True once the first conversation fetch resolves — lets the overview show a
   // skeleton instead of flashing the empty state while the list loads.
   const chatsHydrated = ref(false)
@@ -177,6 +180,7 @@ export const useChatStore = defineStore('chat', () => {
       for (const chat of chats) {
         userCache.upsertMany(chat.participants as any)
       }
+      reapplyLocalReads()
     } catch (e) {
       console.error('Failed to load active chats:', e)
     } finally {
@@ -315,7 +319,12 @@ export const useChatStore = defineStore('chat', () => {
       ) {
         if (!processedChat.unread_counts) processedChat.unread_counts = {}
         processedChat.unread_counts[me] = 0
+        readAcknowledged.add(conversation_id)
         markAsRead(conversation_id).catch(console.error)
+      } else if (message.sender_id !== me) {
+        // Genuinely unread again — drop the session ack so a later
+        // `loadActiveChats()` doesn't zero this badge back out.
+        readAcknowledged.delete(conversation_id)
       }
 
       // 6. PROPER ROUTING: Push to pending if they need to accept it
@@ -598,16 +607,51 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function clearUnreads(conversationId: string) {
-    const chat = activeChats.value.find((c) => c._id === conversationId)
-    if (!chat || !authStore.user) return
-    if (!chat.unread_counts) chat.unread_counts = {}
-    if (chat.unread_counts[authStore.user._id] === 0) return
-    chat.unread_counts[authStore.user._id] = 0
+    const me = authStore.user?._id
+    if (!me) return
+
+    const chat =
+      activeChats.value.find((c) => c._id === conversationId) ||
+      friendStore.pendingRequests.find((c) => c._id === conversationId)
+
+    const hadUnread = (chat?.unread_counts?.[me] ?? 0) > 0
+    if (chat) {
+      if (!chat.unread_counts) chat.unread_counts = {}
+      chat.unread_counts[me] = 0
+    }
+
+    // Record the read even when the conversation isn't in the list yet.
+    // Opening a chat from a push notification jumps straight into the tab,
+    // which can beat `loadActiveChats()` to the punch — without this we'd
+    // neither tell the server nor survive that fetch re-hydrating the badge.
+    const wasAcknowledged = readAcknowledged.has(conversationId)
+    readAcknowledged.add(conversationId)
+
+    if (!hadUnread && wasAcknowledged) return
+
     try {
       await markAsRead(conversationId)
     } catch (e) {
       console.error('Failed to mark as read:', e)
+      readAcknowledged.delete(conversationId)
     }
+  }
+
+  /**
+   * Re-zero the unread counts of conversations the user has already opened this
+   * session. `loadActiveChats()` swaps in whole server objects, which are stale
+   * for any tab opened before that fetch landed.
+   */
+  function reapplyLocalReads() {
+    const me = authStore.user?._id
+    if (!me || readAcknowledged.size === 0) return
+    const apply = (chat: PopulatedConversation) => {
+      if (!readAcknowledged.has(chat._id)) return
+      if (!chat.unread_counts) chat.unread_counts = {}
+      chat.unread_counts[me] = 0
+    }
+    activeChats.value.forEach(apply)
+    friendStore.pendingRequests.forEach(apply)
   }
 
   async function switchToConversation(conversationId: string) {

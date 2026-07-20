@@ -628,9 +628,12 @@ function leaveShare() {
 
 // ── Native OS Share Method ───────────────────────────────────────────────
 async function shareOutsideApp() {
-	if (!preview.value) return;
+	// Mirror what PreviewDrawing shows: the cropped image when a crop is active,
+	// otherwise the full bounding-box preview.
+	const img = newPreview.value || preview.value;
+	if (!img) return;
 	try {
-		await shareImg(preview.value, undefined, undefined, "Share drawing");
+		await shareImg(img, undefined, undefined, "Share drawing");
 	} catch (error) {
 		console.error("Failed to trigger native share:", error);
 	}

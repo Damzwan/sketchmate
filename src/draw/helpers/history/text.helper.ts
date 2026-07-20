@@ -3,6 +3,7 @@ import { HistoryAction, HistoryEvent } from "@/draw/types/drawHistory.types";
 import { HistoryContext } from "@/draw/config/drawHistory.config";
 import { DrawSyncingEvent } from "@/draw/types/drawSyncing.types";
 import { toJSON } from "@/draw/helpers/object.helper";
+import { patchObjectsAppearance } from "@/draw/helpers/history/object.helper";
 
 /**
  * Triggered after text editing is complete.
@@ -43,6 +44,9 @@ export async function undoTextChanged(
 	if (textObject) {
 		currentText = textObject.text;
 		textObject.set("text", action.params.prevText);
+		// Undo/redo runs with fabric events suppressed, so nothing else will
+		// invalidate the tiles this text is baked into.
+		patchObjectsAppearance([textObject]);
 	}
 
 	return { ...action, params: { ...action.params, prevText: currentText } };
@@ -59,6 +63,9 @@ export async function redoTextChanged(
 	if (textObject) {
 		currentText = textObject.text;
 		textObject.set("text", action.params.prevText);
+		// Undo/redo runs with fabric events suppressed, so nothing else will
+		// invalidate the tiles this text is baked into.
+		patchObjectsAppearance([textObject]);
 	}
 
 	return { ...action, params: { ...action.params, prevText: currentText } };
@@ -79,6 +86,11 @@ export async function undoTextStyleChanged(
 			textObject.set(key as any, value);
 		});
 
+		// Font properties resize the text, so the committed tiles under it are
+		// now wrong in BOTH directions — stale glyphs where it shrank, missing
+		// glyphs where it grew. Without this the object mutates but the baked
+		// raster never rebuilds, and the undo looks like it did nothing at all.
+		patchObjectsAppearance([textObject]);
 	}
 
 	// Return a new object rather than modifying 'action'
@@ -106,6 +118,11 @@ export async function redoTextStyleChanged(
 			textObject.set(key as any, value);
 		});
 
+		// Font properties resize the text, so the committed tiles under it are
+		// now wrong in BOTH directions — stale glyphs where it shrank, missing
+		// glyphs where it grew. Without this the object mutates but the baked
+		// raster never rebuilds, and the undo looks like it did nothing at all.
+		patchObjectsAppearance([textObject]);
 	}
 
 	// Return a new object rather than modifying 'action'

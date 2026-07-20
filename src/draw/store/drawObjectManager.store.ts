@@ -113,6 +113,22 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     return cachedBounds(obj)
   }
 
+  /**
+   * Where the object USED to be — its cached footprint, but only while that
+   * cache still predates the object's current geometry. Null once the cache is
+   * current (nothing actually moved) or was never built.
+   *
+   * Style edits reach us already applied, so unlike `collectOldRect` there is no
+   * `transform.original` to rewind to. The bounds cache is the only surviving
+   * record of the old footprint, and it IS still intact at that point because
+   * nothing has re-measured the object yet.
+   */
+  function staleBounds(obj: FabricObject): WorldRect | null {
+    const a = obj as any
+    if (!a.__br) return null
+    return a.__brSig === boundsSig(obj) ? null : { ...(a.__br as WorldRect) }
+  }
+
   function unionRect(a: WorldRect, b: WorldRect): WorldRect {
     const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y)
     const x2 = Math.max(a.x + a.w, b.x + b.w), y2 = Math.max(a.y + a.h, b.y + b.h)
@@ -318,11 +334,22 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     const list = (Array.isArray(e.target) ? e.target : [e.target]) as FabricObject[]
     const rects: WorldRect[] = []
     let firstObj: FabricObject | null = null
+    let firstOldRect: WorldRect | undefined
     for (const obj of list) {
       if (!obj?.id) continue
+      // Grab the pre-mutation footprint BEFORE updateQuadTree re-measures and
+      // overwrites the cache. A style change can SHRINK an object — swapping to
+      // a narrower font, mainly — and invalidating only the new (smaller) rect
+      // is purely additive, so the pixels it vacated stay baked into the tiles
+      // as leftover specks.
+      const oldRect = staleBounds(obj)
       updateQuadTree(obj)
-      if (!firstObj) firstObj = obj
-      rects.push(objectBounds(obj))
+      const cur = objectBounds(obj)
+      if (!firstObj) {
+        firstObj = obj
+        firstOldRect = oldRect ?? undefined
+      }
+      rects.push(oldRect ? unionRect(cur, oldRect) : cur)
     }
     if (!firstObj) return
     if (isBatching()) {
@@ -331,7 +358,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     }
     // Single object keeps the precise per-object path; multi-object collapses
     // into ONE merged invalidation instead of N overview patches + N bakes.
-    if (rects.length === 1) core.onObjectChanged(firstObj)
+    if (rects.length === 1) core.onObjectChanged(firstObj, firstOldRect)
     else core.invalidateRegions(rects)
   }
 
@@ -664,6 +691,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     updateQuadTree,
     offsetQuadTree,
     getObjectBounds: objectBounds,
+    getStaleObjectBounds: staleBounds,
     getVisibleObjects,
     getObjectById,
     getObjectsById,

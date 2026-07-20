@@ -46,6 +46,12 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
     addChatHead(chatId, 'chat')
     activeTab.value = chatId
     openPanel()
+    // Opening a chat *is* reading it. Don't leave this to ChatWidget's
+    // activeTab watcher: entering from a push notification can run before that
+    // component is mounted, and before the tab was ever a different one — so
+    // the watcher may never fire and the message stays visibly unread until
+    // the user bounces out to the overview and back.
+    void useChatStore().clearUnreads(chatId)
   }
 
   /**

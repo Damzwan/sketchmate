@@ -60,11 +60,12 @@
 
           <span
             v-if="allowSketchEdit"
-            class="absolute top-2 right-2 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full shadow-md border-2 border-white transition-transform"
+            class="absolute top-2 right-2 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full shadow-md border-2 transition-transform"
+            :class="isDarkContext ? 'border-black/30 text-black/80' : 'border-white text-white'"
             :style="{ background: theme.accentColor }"
           >
-            <ion-icon :icon="svg(mdiBrush)" class="w-3.5 h-3.5 text-white" />
-            <span class="text-xs font-black uppercase tracking-widest text-white">
+            <ion-icon :icon="svg(mdiBrush)" class="w-3.5 h-3.5" />
+            <span class="text-xs font-black uppercase tracking-widest">
               Doodle
             </span>
           </span>
@@ -216,11 +217,12 @@
             </span>
 
             <span
-              class="absolute -top-2 -right-2 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full shadow-md border-2 border-white transition-transform group-hover:scale-110"
+              class="absolute -top-2 -right-2 z-40 flex items-center gap-1 px-2.5 py-1.5 rounded-full shadow-md border-2 transition-transform group-hover:scale-110"
+              :class="isDarkContext ? 'border-black/30 text-black/80' : 'border-white text-white'"
               :style="{ background: theme.accentColor }"
             >
-              <ion-icon :icon="svg(mdiDraw)" class="w-3.5 h-3.5 text-white" />
-              <span class="text-xs font-black uppercase tracking-widest text-white">
+              <ion-icon :icon="svg(mdiDraw)" class="w-3.5 h-3.5" />
+              <span class="text-xs font-black uppercase tracking-widest">
                 Sign
               </span>
             </span>
@@ -256,6 +258,7 @@ import {
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
+	isLightTheme,
 	resolveWorld,
 	type Customization,
 } from "@/config/profile_options.config";
@@ -323,6 +326,9 @@ const activeWorld = computed(() =>
 	resolveWorld(effectiveCustomization.value.worldId),
 );
 const isWorldDark = computed(() => activeWorld.value.isDark === true);
+const isDarkContext = computed(
+	() => isWorldDark.value || !isLightTheme(theme.value),
+);
 
 const activeColors = computed(() => ({
 	name: isWorldDark.value ? theme.value.nameColorDark : theme.value.nameColor,

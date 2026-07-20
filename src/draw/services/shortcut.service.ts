@@ -88,7 +88,33 @@ export function useShortcutManager() {
 		dismissPopover();
 	}
 
+	/**
+	 * These shortcuts are bound on `window`, so they also fire while the user is
+	 * typing in an input somewhere else in the app — the chat composer overlays
+	 * the draw view, so its keydowns reach here. Arrow keys, Delete and Escape
+	 * are all `preventDefault()`ed unconditionally below, which silently killed
+	 * caret movement and forward-delete inside every text field on desktop.
+	 * A canvas shortcut has no business firing while a text field has focus.
+	 */
+	function isTypingTarget(target: any): boolean {
+		if (!target) return false;
+		if (target.isContentEditable) return true;
+		const tag = target.tagName;
+		return (
+			tag === "INPUT" ||
+			tag === "TEXTAREA" ||
+			tag === "SELECT" ||
+			// Ionic's form controls are custom elements wrapping the native one;
+			// the event target is the host when the shadow input has focus.
+			tag === "ION-INPUT" ||
+			tag === "ION-TEXTAREA" ||
+			tag === "ION-SEARCHBAR"
+		);
+	}
+
 	async function handleKeydown(event: any) {
+		if (isTypingTarget(event.target)) return;
+
 		const { selectAction } = useDrawStore();
 		const { selectedTool, selectTool } = useToolSelection();
 

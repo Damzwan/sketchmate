@@ -1,5 +1,9 @@
 <template>
-  <div @touchmove.stop class="space-y-3 pb-4 flex flex-col justify-end min-h-full animate-tab-in">
+  <!-- pb-1, not pb-4. This padding stacked with the scroller's own bottom
+       padding and the composer's top padding, so the last bubble sat ~40px
+       clear of the input bar — the thread read as detached from the composer
+       rather than continuous with it. -->
+  <div @touchmove.stop class="space-y-3 pb-1 flex flex-col justify-end min-h-full animate-tab-in">
 
     <!-- Blocked User Interface Callout Box -->
     <div v-if="isBlocked" class="flex-1 flex flex-col items-center justify-center p-6 animate-fade-in">

@@ -20,18 +20,42 @@
   >
     <div class="px-4 py-4 flex flex-col items-center text-center">
 
-      <template v-if="rel.kind === 'incoming_invite'">
-        <div class="relative mb-3">
-          <!-- These rings exist to separate the avatar and the badge from the
-               surface they sit on, so they track that surface — tertiary now,
-               not white, or they'd draw a cold outline on a warm card. The
-               glyph inside the secondary badge stays white: that one is
-               contrast against the accent fill, not a surface match. -->
-          <img :src="partner?.img" class="w-14 h-14 rounded-2xl border-2 border-tertiary shadow-sm object-cover" alt="" />
-          <div class="absolute -bottom-1.5 -right-1.5 bg-secondary rounded-full p-1.5 border border-tertiary shadow-sm flex items-center justify-center">
-            <ion-icon :icon="svg(mdiPalette)" class="text-xs text-white" />
-          </div>
+      <!-- Every INCOMING request is a person asking for something, so all of
+           them lead with that person — UserAvatar (their frame, theme ring and
+           decoration, tappable through to their profile), badged with the glyph
+           for what's being asked. The mate request used to lead with a bare
+           heart icon instead, which made two requests from the same person look
+           like they came from different places.
+           The ENDED states below deliberately keep their icon: nobody is asking
+           anything there, so there is no one to put a face to. -->
+      <button
+        v-if="rel.kind === 'incoming_invite' || rel.kind === 'incoming_mate'"
+        type="button"
+        class="relative mb-3 cursor-pointer active:scale-95 transition-transform"
+        @click="openPartner"
+      >
+        <UserAvatar
+          :user="partner"
+          :customization="partner?.customization"
+          size="md"
+          static
+          class="pointer-events-none"
+        />
+        <!-- This ring separates the badge from the surface it sits on, so it
+             tracks that surface — tertiary, not white, or it'd draw a cold
+             outline on a warm card. The glyph inside the badge stays white:
+             that one is contrast against the fill, not a surface match.
+             At the mate limit the badge goes muted, matching the old outlined
+             heart — the request is still real, but not currently actionable. -->
+        <div
+          class="absolute -bottom-1.5 -right-1.5 rounded-full p-1.5 border border-tertiary shadow-sm flex items-center justify-center"
+          :class="badgeMuted ? 'bg-black/40' : 'bg-secondary'"
+        >
+          <ion-icon :icon="svg(badgeIcon)" class="text-xs text-white" />
         </div>
+      </button>
+
+      <template v-if="rel.kind === 'incoming_invite'">
         <h3 class="cabin-sketch-regular text-xl font-black text-black leading-tight">
           Sketch with {{ partner?.name }}?
         </h3>
@@ -49,12 +73,6 @@
       </template>
 
       <template v-else-if="rel.kind === 'incoming_mate'">
-        <!-- Decorative state glyphs sit at /50 rather than /80: they're large
-             marks, not copy, and pushing them to text contrast made a muted
-             "ended" state shout as loudly as an actionable one. -->
-        <ion-icon :icon="svg(atMateLimit ? mdiHeartOutline : mdiHeart)"
-                  class="text-4xl mb-2.5"
-                  :class="atMateLimit ? 'text-black/50' : 'text-secondary'" />
         <h3 class="cabin-sketch-regular text-xl font-black text-black leading-tight">
           {{ partner?.name }} wants to be Mates!
         </h3>
@@ -165,6 +183,8 @@ import { useNow } from "@vueuse/core";
 import { needsDecision, resolveRelationship } from "@/config/relationship.config";
 import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
 import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
 dayjs.extend(relativeTime);
 
@@ -173,6 +193,25 @@ defineEmits(["open-info"]);
 
 const quotaStore = useQuotaStore();
 const actions = useRelationshipActions(() => props.chat);
+const { openUserActions } = useUserContextSheet();
+
+const openPartner = () => {
+	if (props.partner?._id) openUserActions(props.partner);
+};
+
+// The glyph badged onto the partner's avatar says WHAT is being asked: a
+// palette for a draw invite, a heart for a mate request. Outlined + muted when
+// the request can't currently be accepted.
+const badgeIcon = computed(() =>
+	rel.value.kind === "incoming_invite"
+		? mdiPalette
+		: atMateLimit.value
+			? mdiHeartOutline
+			: mdiHeart,
+);
+const badgeMuted = computed(
+	() => rel.value.kind === "incoming_mate" && atMateLimit.value,
+);
 
 const rel = computed(() =>
 	resolveRelationship({

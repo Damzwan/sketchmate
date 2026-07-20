@@ -33,8 +33,8 @@
          instead of replacing it (the two padding utilities would have fought). -->
     <!-- shrink-0 lives HERE now, not on the root: the input bar is the one part
          of this footer that must never be compressed or clipped away. -->
-    <div class="px-4 pt-3 chat-footer-pad bg-background border-t border-primary/10 shrink-0">
-      <div class="flex items-center gap-1">
+    <div class="px-2 pt-1.5 chat-footer-pad bg-background shrink-0">
+      <div class="flex items-center gap-0.5">
 
         <ion-button
           fill="clear"
@@ -60,7 +60,7 @@
             @keyup.enter="handleSend"
             :disabled="!chatStore.canSendMessage(activeTab)"
             :placeholder="chatStore.chatInputPlaceholder(activeTab)"
-            class="font-bold px-2 text-[15px] min-h-[36px]"
+            class="chat-composer-input font-bold px-2 text-[15px]"
             color="secondary"
           />
 
@@ -107,6 +107,10 @@ import {
 import { generateRandomCode, svg } from "@/helper/general.helper";
 
 import ChatRelationshipBanner from "./ChatRelationshipBanner.vue";
+import {
+	needsDecision,
+	resolveRelationship,
+} from "@/config/relationship.config";
 
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
@@ -153,11 +157,25 @@ const partner = computed(() => {
 	return friendStore.resolvePartnerInfo(activeTab.value);
 });
 
-// The banner decides for itself whether it has a decision to present — that
-// rule lives in relationship.config's needsDecision, so this only has to ask
-// whether there's a partner to talk about at all. The old hardcoded status list
-// here was a second, drifting copy of the same rule.
-const showRelationshipBanner = computed(() => !!currentChat.value);
+// Same rule the banner applies to itself (relationship.config's needsDecision),
+// asked here too — NOT a second drifting copy of the status list, but the same
+// helper. It has to be asked here because this wrapper carries its own padding:
+// with only `!!currentChat` the wrapper rendered for every DM, and on the
+// overwhelmingly common "no decision pending" chat the banner inside it drew
+// nothing — leaving a permanent empty band of padding between the thread and
+// the input bar with no visible element to explain it.
+const showRelationshipBanner = computed(() => {
+	if (!currentChat.value) return false;
+	const chat = currentChat.value as any;
+	return needsDecision(
+		resolveRelationship({
+			status: chat.status,
+			initiatorId: chat.initiator_id,
+			currentUserId: authStore.user?._id,
+			trialExpiresAt: chat.trial_expires_at,
+		}).kind,
+	);
+});
 
 const handleInviteClick = (ev: Event) => {
 	if (activeTab.value === "lobby") emit("open-invite-popover", ev);
@@ -245,7 +263,28 @@ const handleSend = () => {
 
 <style scoped>
 .chat-footer-pad {
-  padding-bottom: calc(var(--ion-safe-area-bottom, 0px) + 0.75rem);
+  padding-bottom: calc(var(--ion-safe-area-bottom, 0px) + 0.375rem);
+}
+
+/*
+ * Emoji glyphs come from the OS colour-emoji font, whose ascent/descent are
+ * taller than the Latin face's. With an auto line box the native input grew a
+ * few px the moment an emoji was typed and shrank again when it was deleted —
+ * the composer visibly jumping, and (because the footer sits in a flex column
+ * over a keyboard-inset panel) the whole thread re-laying out under it. Pinning
+ * the line box and the control's height makes the row a fixed 36px regardless
+ * of which font renders the glyphs; the emoji simply overflows its line box,
+ * which is invisible inside a single-line field.
+ */
+.chat-composer-input {
+  --padding-top: 0;
+  --padding-bottom: 0;
+  min-height: 36px;
+}
+
+.chat-composer-input :deep(input) {
+  height: 36px;
+  line-height: 36px;
 }
 
 .hide-scrollbar::-webkit-scrollbar { display: none !important; }

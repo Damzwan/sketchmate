@@ -7,15 +7,33 @@
     </ion-buttons>
 
     <div v-if="type === 'post'" class="flex flex-col justify-center flex-1 px-2 text-white mt-1 mb-1">
-      <div class="flex items-center space-x-2.5 mb-1">
-        <img
-          :src="currItem.author?.img || senderImg(currItem.author_id)"
-          class="w-9 h-9 rounded-full object-cover border border-white/20"
+      <!-- UserAvatar rather than a plain <img>: the fullscreen viewer is the
+           one place a post was shown without its author's frame/decoration,
+           so a customised artist lost their look exactly where the artwork is
+           biggest. Tapping the row opens their profile. -->
+      <button
+        type="button"
+        class="flex items-center space-x-2.5 mb-1 text-left cursor-pointer"
+        @click="openAuthor"
+      >
+        <!-- pointer-events-none: UserAvatar's frame promotes itself to its own
+             compositing layer (translateZ + `contain: paint`), and inside the
+             swiper's gesture surface that layer swallowed the tap — the name
+             beside it opened the profile but the avatar itself did nothing.
+             Nothing inside the avatar is interactive, so letting every pointer
+             event fall straight through to this button is the whole fix. -->
+        <UserAvatar
+          :user="currItem.author"
+          :img="currItem.author?.img || senderImg(currItem.author_id)"
+          :customization="currItem.author?.customization"
+          size="xs"
+          static
+          class="pointer-events-none"
         />
         <span class="text-base font-bold cabin-sketch-regular">
           {{ currItem.author?.name || 'Sketcher' }}
         </span>
-      </div>
+      </button>
       <p v-if="currItem.description" class="text-[13px] cabin-sketch-regular opacity-85 line-clamp-2 leading-snug">
         {{ currItem.description }}
       </p>
@@ -56,6 +74,8 @@
 import { IonToolbar, IonButtons, IonButton, IonIcon } from "@ionic/vue";
 import { arrowBack } from "ionicons/icons";
 import { senderImg } from "@/helper/general.helper";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 
 const props = defineProps<{
 	currItem: any;
@@ -66,6 +86,14 @@ const props = defineProps<{
 defineEmits(["close", "open-followers"]);
 
 const badgesCountToShow = 3;
+const { openUserActions } = useUserContextSheet();
+
+const openAuthor = () => {
+	const author = props.currItem.author;
+	const id = author?._id || props.currItem.author_id;
+	if (!id) return;
+	openUserActions({ _id: id, name: author?.name, img: author?.img });
+};
 
 function resolveUser(userId: string) {
 	return props.userLookup ? props.userLookup(userId) : userId;

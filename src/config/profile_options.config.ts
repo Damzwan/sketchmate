@@ -328,6 +328,17 @@ export const DEFAULT_THEME_ID = "classic";
 export const resolveTheme = (id?: string): Theme =>
 	THEMES.find((t) => t.id === id) || THEMES[0];
 
+/**
+ * Whether a theme's card surface is light (dark text on it) or dark.
+ *
+ * Derived rather than stored: `nameColorOnLight` is by definition the name
+ * colour to use over a light surface, so a theme whose own `nameColor` already
+ * equals it is a light-surfaced theme. Keeping it derived means a new theme
+ * can't be added with the flag set wrong — there is no flag to get wrong.
+ */
+export const isLightTheme = (theme: Theme): boolean =>
+	theme.nameColor === theme.nameColorOnLight;
+
 // ─── AVATAR DECORATIONS ──────────────────────────────────────────────────────
 export type DecorationKind =
 	| "none"

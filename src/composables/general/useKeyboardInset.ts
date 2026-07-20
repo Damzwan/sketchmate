@@ -31,24 +31,58 @@ export function useKeyboardInset(opts: { onWillShow?: () => void } = {}) {
 	let detachWeb: (() => void) | undefined;
 
 	if (isNative()) {
+		// One handler for every "the keyboard is now N px tall" signal, because
+		// the keyboard's height is NOT fixed for the lifetime of a focus session:
+		// switching to the emoji panel (and back), or to a suggestion strip, or
+		// rotating, all resize it. Treating only the first `willShow` as the real
+		// height is what left a stale gap under the composer once the taller emoji
+		// panel opened — the panel was padded for the alphabetic keyboard.
+		//
+		// Android's plugin re-fires `keyboardDidShow` on each of those resizes, so
+		// this listener must apply the new height AND re-assert "open" + re-run the
+		// scroll hook, not just correct a number. Previously `didShow` only wrote
+		// the height: if Android had emitted a hide/show pair around the panel
+		// switch, `isKeyboardOpen` stayed false and the thread never re-pinned.
+		const applyHeight = (height: number) => {
+			const next = Math.round(height);
+			if (next === keyboardInset.value) return;
+			keyboardInset.value = next;
+			isKeyboardOpen.value = next > 0;
+			if (next > 0) opts.onWillShow?.();
+		};
+
 		handles.push(
-			Keyboard.addListener("keyboardWillShow", (info) => {
-				keyboardInset.value = info.keyboardHeight;
-				isKeyboardOpen.value = true;
-				opts.onWillShow?.();
-			}),
+			Keyboard.addListener("keyboardWillShow", (info) =>
+				applyHeight(info.keyboardHeight),
+			),
 			// `didShow` as well: on Android the height reported by `willShow` can be
-			// the pre-animation estimate, and the final value only lands here. Same
-			// number in the common case, so this is a cheap correction rather than a
-			// second layout pass.
-			Keyboard.addListener("keyboardDidShow", (info) => {
-				keyboardInset.value = info.keyboardHeight;
-			}),
-			Keyboard.addListener("keyboardWillHide", () => {
-				keyboardInset.value = 0;
-				isKeyboardOpen.value = false;
-			}),
+			// the pre-animation estimate, and the final value only lands here — and
+			// it's the event that carries every subsequent resize.
+			Keyboard.addListener("keyboardDidShow", (info) =>
+				applyHeight(info.keyboardHeight),
+			),
+			Keyboard.addListener("keyboardWillHide", () => applyHeight(0)),
+			// `didHide` too: Android does not reliably emit `willHide`, so without
+			// this the inset could stay stuck at the last keyboard height after the
+			// keyboard was dismissed.
+			Keyboard.addListener("keyboardDidHide", () => applyHeight(0)),
 		);
+
+		// The plugin's events above only fire when the IME ANIMATES (they come
+		// from a WindowInsetsAnimation callback on the native side). Switching
+		// between the alphabetic keyboard and the taller emoji panel resizes the
+		// IME without an animation, so the plugin never reports it and the panel
+		// keeps the previous keyboard's padding. MainActivity forwards every
+		// OnApplyWindowInsets change as this window event, animated or not —
+		// making it the authoritative height; the plugin listeners above now
+		// mostly matter for firing `willShow` early enough to pre-scroll.
+		const onNativeInset = (e: Event) => {
+			const height = (e as CustomEvent<{ height: number }>).detail?.height;
+			if (typeof height === "number") applyHeight(height);
+		};
+		window.addEventListener("nativeImeInset", onNativeInset);
+		detachWeb = () =>
+			window.removeEventListener("nativeImeInset", onNativeInset);
 	} else if (typeof window !== "undefined" && window.visualViewport) {
 		const vv = window.visualViewport;
 		// Sub-pixel jitter is normal while the viewport animates; anything under a

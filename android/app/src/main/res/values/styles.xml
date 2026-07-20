@@ -8,8 +8,21 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
-    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
-        <item name="android:background">@color/SplashScreenColor</item>
+    <!-- windowBackground, NOT android:background.
+         `android:background` in a theme is the default background attr for
+         EVERY view inflated under it — which is how the text-selection
+         handles, their popup container and the Cut/Copy/Paste ActionMode all
+         ended up painted in the app's cream: they were views like any other,
+         inheriting a "background" that was only ever meant for the window.
+         `windowBackground` paints just the window surface behind the WebView
+         and leaves every system popup with its stock look — which is also why
+         no custom selection/ActionMode styling belongs here at all.
+
+         Light, not DayNight: the app is light-only, and under DayNight a
+         device in dark mode rendered the selection popup as a dark panel with
+         gray labels floating over the light UI. -->
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/SplashScreenColor</item>
         <item name="android:navigationBarColor">@color/SplashScreenColor</item>
         <item name="android:statusBarColor">@color/SplashScreenColor</item>
         <item name="android:windowLightStatusBar">true</item>

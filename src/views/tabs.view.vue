@@ -74,8 +74,29 @@ const tabs = [
 
 const isTabActive = (tabRoute: string) => route.path.includes(tabRoute);
 
+/**
+ * Tapping the tab you're already on scrolls that tab back to the top — the
+ * convention every feed app follows, and the only way back up from deep in the
+ * community feed short of flicking. Resolved from the DOM rather than through a
+ * ref because the pages live inside `ion-router-outlet`, which keeps previous
+ * tabs mounted-but-hidden; the visible one is the single `.ion-page` without
+ * Ionic's `ion-page-hidden` marker.
+ */
+const scrollActiveTabToTop = async () => {
+	const pages = document.querySelectorAll<HTMLElement>(
+		"ion-router-outlet .ion-page:not(.ion-page-hidden) > ion-content",
+	);
+	// Last match: nested outlets stack, and the deepest visible page is the one
+	// actually on screen.
+	const content = pages[pages.length - 1] as any;
+	await content?.scrollToTop?.(400);
+};
+
 const handleTabClick = (tabRoute: string) => {
-	if (isTabActive(tabRoute)) return;
+	if (isTabActive(tabRoute)) {
+		scrollActiveTabToTop();
+		return;
+	}
 	router.push(`/${tabRoute}`);
 };
 </script>

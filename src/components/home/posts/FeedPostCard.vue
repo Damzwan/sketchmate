@@ -48,22 +48,30 @@
 
             <div class="ml-3 flex flex-col justify-center min-w-0">
               <div class="flex items-baseline gap-1 truncate">
+                <!-- Sizes step up on a textured card: at text-sm/text-xs the
+                     type was thin enough that the crease detail cut through the
+                     strokes. Bigger glyphs carry more of their own colour. -->
                 <p
-                  class="text-sm p-2 leading-none font-black drop-shadow-sm truncate"
-                  :class="fontEffectClass"
-                  :style="{ color: theme.nameColor, fontFamily: resolvedFontFamily }"
+                  class="p-2 leading-none font-black drop-shadow-sm truncate"
+                  :class="[fontEffectClass, isTexturedEffect ? 'text-base' : 'text-sm']"
+                  :style="{ color: theme.nameColor, fontFamily: resolvedFontFamily, textShadow: textureHalo }"
                 >
                   {{ post.author.name }}
                 </p>
                 <span
                   v-if="displayTitle"
-                  class="text-xs font-black uppercase tracking-widest opacity-70 shrink-0 truncate ml-0.5"
-                  :style="{ color: theme.descColor }"
+                  class="font-black uppercase tracking-widest shrink-0 truncate ml-0.5"
+                  :class="isTexturedEffect ? 'text-[13px] opacity-90' : 'text-xs opacity-70'"
+                  :style="{ color: theme.descColor, textShadow: textureHalo }"
                 >
                   · {{ displayTitle }}
                 </span>
               </div>
-              <p class="text-xs uppercase mt-1 tracking-wider opacity-80" :style="{ color: theme.descColor }">
+              <p
+                class="uppercase mt-1 tracking-wider"
+                :class="isTexturedEffect ? 'text-[13px] opacity-95' : 'text-xs opacity-80'"
+                :style="{ color: theme.descColor, textShadow: textureHalo }"
+              >
                 {{ dayjs(post.createdAt).fromNow() }}
               </p>
             </div>
@@ -81,8 +89,9 @@
         </div>
 
         <p v-if="post.description"
-           class="cabin-sketch-regular text-base font-bold line-clamp-2 mt-2 px-0.5 leading-snug"
-           :style="{ color: theme.descColor }">
+           class="cabin-sketch-regular font-bold line-clamp-2 mt-2 px-0.5 leading-snug"
+           :class="isTexturedEffect ? 'text-[17px]' : 'text-base'"
+           :style="{ color: theme.descColor, textShadow: textureHalo }">
           {{ post.description }}
         </p>
         </div>
@@ -189,7 +198,7 @@
               <img :src="reactionImages[key]" class="w-5 h-5 object-contain" alt="" />
             </div>
           </div>
-          <span class="text-sm font-black text-black/80 tracking-tight" :style="{ color: strongText }">
+          <span class="text-sm font-black text-black/80 tracking-tight" :style="{ color: strongText, textShadow: textureHalo }">
             {{ totalReactionCount }}
             <span class="text-black/50" :style="{ color: mutedText }">{{ totalReactionCount === 1 ? 'reaction' : 'reactions' }}</span>
           </span>
@@ -250,7 +259,13 @@
           </button>
         </div>
 
-        <!-- Comment previews -->
+        <!-- Comment previews.
+             On a textured card these are the smallest, most muted type on the
+             card, so the crease detail eats them first. No plate/backdrop — a
+             box here read as a card-on-a-card. Instead the textured variant is
+             a step larger, the message half drops its mute (it renders in the
+             full-strength name colour with a bolder weight), and the halo does
+             the separating from the paper grain. -->
         <div
           v-if="previewComments.length"
           @click="openComments"
@@ -259,17 +274,22 @@
           <div
             v-for="comment in previewComments"
             :key="comment._id"
-            class="flex items-start gap-1.5 text-xs leading-snug"
+            class="flex items-start gap-1.5 leading-snug"
+            :class="isTexturedEffect ? 'text-[13px]' : 'text-xs'"
           >
-            <span class="text-black font-black shrink-0 tracking-tight" :style="{ color: strongText }">{{ comment.author.name }}</span>
-            <span class="text-black/80 truncate tracking-tight" :style="{ color: mutedText }">{{ comment.message }}</span>
+            <span class="text-black font-black shrink-0 tracking-tight" :style="{ color: strongText, textShadow: textureHalo }">{{ comment.author.name }}</span>
+            <span
+              class="truncate tracking-tight"
+              :class="isTexturedEffect ? 'font-bold' : 'text-black/80'"
+              :style="{ color: isTexturedEffect ? strongText : mutedText, textShadow: textureHalo }"
+            >{{ comment.message }}</span>
           </div>
 
           <!-- Only when there are genuinely more comments than we're previewing -->
           <p
             v-if="hasMoreComments"
             class="text-xs font-black text-black/70 mt-0.5 tracking-wide"
-            :style="{ color: mutedText }"
+            :style="{ color: isTexturedEffect ? strongText : mutedText, textShadow: textureHalo }"
           >
             View all {{ post.comment_count }} comments
           </p>
@@ -280,7 +300,7 @@
           v-else-if="post.enable_comments"
           @click="openComments"
           class="text-xs font-black text-black/70 uppercase tracking-widest cursor-pointer active:opacity-60"
-          :style="{ color: mutedText }"
+          :style="{ color: mutedText, textShadow: textureHalo }"
         >
           Start the conversation
         </p>
@@ -331,6 +351,8 @@ import {
 	DEFAULT_EFFECT_ID,
 	DEFAULT_WORLD_ID,
 	hydrateCustomization,
+	isLightTheme,
+	resolveEffect,
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
@@ -385,6 +407,31 @@ const showCardTheme = computed(() => !!authorCustomization.value.themeId);
 // the overwhelmingly common "no effect / no world" author.
 const showEffect = computed(
 	() => authorCustomization.value.effectId !== DEFAULT_EFFECT_ID,
+);
+
+/**
+ * Text legibility over a TEXTURED effect layer.
+ *
+ * `crumpled` and `grain` paint per-pixel luminance noise across the whole card,
+ * including straight through the header and footer copy. The colour contrast is
+ * still nominally fine, but the crease/grain detail sits at roughly the stroke
+ * width of the type, so glyph edges compete with it — worst on `classic`, whose
+ * cream surface leaves the least headroom. A soft halo in the surface's own
+ * colour re-separates the glyphs from the texture without touching the text
+ * colour or dimming the effect, and it's keyed to surface lightness so a
+ * light-on-dark theme gets a dark halo rather than a white one.
+ */
+const effectDef = computed(() => resolveEffect(authorCustomization.value.effectId));
+const isTexturedEffect = computed(
+	() => effectDef.value.kind === "crumpled" || effectDef.value.kind === "grain",
+);
+const onLightSurface = computed(() => isLightTheme(theme.value));
+const textureHalo = computed(() =>
+	isTexturedEffect.value
+		? onLightSurface.value
+			? "0 0 5px rgba(255,255,255,0.85), 0 1px 1px rgba(255,255,255,0.7)"
+			: "0 0 5px rgba(0,0,0,0.7), 0 1px 1px rgba(0,0,0,0.55)"
+		: undefined,
 );
 const showWorld = computed(
 	() => authorCustomization.value.worldId !== DEFAULT_WORLD_ID,

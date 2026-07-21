@@ -356,6 +356,11 @@ const handlers: Partial<Record<NotificationType, NotificationHandler>> = {
 	[NotificationType.moderation_lifted]: async () => {
 		pushToRoute(FRONTEND_ROUTES.moderation);
 	},
+	// Standing page explains the state of your content and your account, which is
+	// the question someone taps this notification to answer.
+	[NotificationType.moderation_content]: async () => {
+		pushToRoute(FRONTEND_ROUTES.moderation);
+	},
 };
 
 async function handlePushAction(notification: ActionPerformed) {

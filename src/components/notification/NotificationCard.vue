@@ -171,6 +171,20 @@ const typeConfig = computed(() => {
         icon: mdiShieldAlertOutline,
         verb: () => "",
       };
+    case "moderation_content":
+      // Review is a temporary, neutral state; removal is not. Colouring both red
+      // would tell someone whose post is merely queued that they've been
+      // penalised.
+      return {
+        color:
+          props.notification.payload?.status === "removed"
+            ? "var(--ion-color-danger, #f04141)"
+            : props.notification.payload?.status === "restored"
+              ? "var(--ion-color-success)"
+              : "var(--ion-color-warning, #ffd534)",
+        icon: mdiShieldAlertOutline,
+        verb: () => "",
+      };
     case "announcement":
       return {
         color: "var(--ion-color-secondary)",
@@ -196,6 +210,9 @@ const headline = computed(() => {
   if (props.notification.type === "moderation_lifted") {
     return "Welcome back";
   }
+  if (props.notification.type === "moderation_content") {
+    return props.notification.payload?.title ?? "Content update";
+  }
   if (props.notification.type === "announcement") {
     return props.notification.payload?.title ?? "Announcement";
   }
@@ -208,6 +225,9 @@ const body = computed(() => {
   }
   if (props.notification.type === "moderation_lifted") {
     return "Your restriction has been lifted.";
+  }
+  if (props.notification.type === "moderation_content") {
+    return props.notification.payload?.body ?? "";
   }
   if (props.notification.type === "announcement") {
     return props.notification.payload?.body ?? "";
@@ -248,7 +268,11 @@ async function handleTap() {
       if (n.target_id) openUserActions({ _id: n.target_id });
       break;
     case "system":
-      if (n.type === "moderation_strike" || n.type === "moderation_lifted") {
+      if (
+        n.type === "moderation_strike" ||
+        n.type === "moderation_lifted" ||
+        n.type === "moderation_content"
+      ) {
         r.push(FRONTEND_ROUTES.moderation, masterAnimation);
       }
       break;

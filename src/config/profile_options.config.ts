@@ -216,9 +216,12 @@ export const THEMES: Theme[] = [
 		cardBg: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
 		cardBorderColor: "rgba(255,255,255,0.15)",
 		nameColor: "#f8fafc",
-		descColor: "rgba(248,250,252,0.7)",
+		// Light-on-dark loses more perceived contrast per point of alpha than
+		// dark-on-light, so the dark themes run hotter than the 0.7 the light
+		// themes use.
+		descColor: "rgba(248,250,252,0.8)",
 		nameColorDark: "#f8fafc",
-		descColorDark: "rgba(248,250,252,0.7)",
+		descColorDark: "rgba(248,250,252,0.8)",
 		nameColorOnLight: "#1e293b", // Slate 800 for light backgrounds
 		descColorOnLight: "rgba(30,41,59,0.7)",
 		titleBg: "rgba(255,255,255,0.08)",
@@ -296,11 +299,16 @@ export const THEMES: Theme[] = [
 		cardBg: "#0a0a0a",
 		cardBorderColor: "rgba(255,255,255,0.2)",
 		nameColor: "#fafafa",
-		descColor: "rgba(250,250,250,0.6)",
+		// 0.6 was the lowest desc alpha of any theme and it sat on the darkest
+		// surface of any theme, which is the pairing that punishes low alpha most:
+		// the secondary copy (post description, bio, stat labels) landed near #9a9a9a
+		// and read as disabled text. Bumped in line with the other dark theme
+		// (midnight, 0.8) so "muted" still reads as muted, not as greyed out.
+		descColor: "rgba(250,250,250,0.82)",
 		nameColorDark: "#fafafa",
-		descColorDark: "rgba(250,250,250,0.6)",
+		descColorDark: "rgba(250,250,250,0.82)",
 		nameColorOnLight: "#171717", // Neutral 800/900 for light backgrounds
-		descColorOnLight: "rgba(23,23,23,0.6)",
+		descColorOnLight: "rgba(23,23,23,0.75)",
 		titleBg: "rgba(255,255,255,0.1)",
 		accentColor: "#fafafa",
 		swatches: ["#0a0a0a", "#fafafa", "#525252"],

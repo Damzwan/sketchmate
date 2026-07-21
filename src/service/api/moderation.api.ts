@@ -17,21 +17,6 @@ export async function getStanding() {
 	return await request<UserStandingData>("/moderation/standing");
 }
 
-export async function resolveReport(
-	reportId: string,
-	action: "uphold" | "dismiss",
-) {
-	return await request<{ success: boolean }>(
-		`/moderation/${reportId}/resolve`,
-		{
-			method: "POST",
-			body: JSON.stringify({ action }),
-		},
-	);
-}
-
-// --- UTILITY COMPONENTS WRAPPERS MAPS ---
-
 export function reportPost(
 	post_id: string,
 	reason: ReportReason,

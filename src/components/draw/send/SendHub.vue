@@ -71,13 +71,17 @@
           @click.stop
         >
           <div class="flex items-center justify-between">
-            <p class="text-sm font-black text-black leading-none">Share with mates</p>
+            <p class="text-sm font-black text-black leading-none">
+              Share with mates
+              <span class="font-bold text-black/50">· up to {{ MAX_SEND_MATES }}</span>
+            </p>
             <button
               v-if="selected.size > 0"
               @click.stop="resetMates"
-              class="text-sm cursor-pointer font-black text-secondary uppercase tracking-wider active:opacity-50"
+              class="text-sm cursor-pointer font-black uppercase tracking-wider active:opacity-50"
+              :class="mateLimitReached ? 'text-amber-600' : 'text-secondary'"
             >
-              Clear ({{ selected.size }})
+              Clear ({{ selected.size }}/{{ MAX_SEND_MATES }})
             </button>
           </div>
 
@@ -126,12 +130,14 @@
               <button
                 v-for="mate in displayMates"
                 :key="mate._id"
-                @click.stop="toggle(mate._id)"
-                class="relative w-[64px] h-[64px] mt-2 cursor-pointer hover:scale-105 shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center"
+                @click.stop="toggleMate(mate._id)"
+                class="relative w-[64px] h-[64px] mt-2 cursor-pointer shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center"
                 :class="
             selected.has(mate._id)
-              ? 'border-secondary shadow-md scale-105 bg-secondary/20'
-              : 'border-transparent bg-primary/60'
+              ? 'border-secondary shadow-md scale-105 bg-secondary/20 hover:scale-105'
+              : mateLimitReached
+                ? 'border-transparent bg-primary/60 opacity-40'
+                : 'border-transparent bg-primary/60 hover:scale-105'
           "
               >
                 <div class="relative mb-1">
@@ -360,7 +366,11 @@ import duration from "dayjs/plugin/duration";
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useUserCacheStore } from "@/store/userCache.store";
-import { useMateSelection } from "@/draw/services/useMateSelection";
+import {
+	MAX_SEND_MATES,
+	useMateSelection,
+} from "@/draw/services/useMateSelection";
+import { useToast } from "@/service/toast.service";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useShareService } from "@/draw/store/useShareService.store";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
@@ -401,7 +411,19 @@ const shareService = useShareService();
 const quotaStore = useQuotaStore();
 const drawUI = useDrawUIStore();
 
-const { selected, toggle, reset: resetMates } = useMateSelection();
+const {
+	selected,
+	toggle,
+	isFull: mateLimitReached,
+	reset: resetMates,
+} = useMateSelection();
+const { toast } = useToast();
+
+// Refusals are silent at the composable level — say why here, once, instead of
+// letting the tile look broken.
+function toggleMate(id: string) {
+	if (!toggle(id)) toast(`You can send to ${MAX_SEND_MATES} mates at a time`);
+}
 
 const isBalloon = ref(
 	!isUnderAge.value && shareService.preSelected === "balloon",

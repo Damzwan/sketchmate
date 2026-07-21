@@ -15,10 +15,15 @@
 
     <div class="w-[2px] h-6 bg-primary-shade mx-1 rounded-full"></div>
 
-    <!-- Combined chat button — chat icon + unread badge AND online-friends
-         count in ONE pill, like TopBar. -->
+    <!-- Combined chat button — chat icon + unread badge AND online-friends count.
+         Presence is TopBar's green pill rather than a second bare icon (two
+         monochrome glyphs side by side read as two separate buttons), but
+         without the word "online": this toolbar shares its row with five other
+         controls, and the label alone cost more width than the whole pill does.
+         The dot carries the meaning; it collapses to nothing at zero, so the
+         common case is narrower than the two-icon version it replaces. -->
     <button :disabled="!isLoggedIn" @click="openPanel"
-      class="relative flex items-center gap-1.5 pl-2 pr-2.5 h-10 rounded-xl transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+      class="relative flex items-center gap-1 pl-2 pr-2 h-10 rounded-xl transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
       :class="!isLoggedIn ? '' : 'hover:bg-primary/20 cursor-pointer'">
       <div class="relative flex items-center justify-center">
         <ion-icon :icon="chatbubblesOutline" class="w-6 h-6 text-black" />
@@ -27,12 +32,11 @@
           {{ totalUnreadCount > 99 ? '99+' : totalUnreadCount }}
         </span>
       </div>
-      <div class="flex items-center gap-0.5">
-        <ion-icon :icon="peopleOutline" class="w-[18px] h-[18px] text-black" />
-        <span class="cabin-sketch-regular text-sm font-bold text-black leading-none">
-          {{ onlineFriends.length > 99 ? '99+' : onlineFriends.length }}
-        </span>
-      </div>
+
+      <span v-if="onlineFriends.length > 0" class="online-pill">
+        <span class="online-dot"></span>
+        {{ onlineFriends.length > 99 ? '99+' : onlineFriends.length }}
+      </span>
     </button>
 
 
@@ -110,7 +114,6 @@ import {
 	bulbOutline,
 	chatbubblesOutline,
 	megaphoneOutline,
-	peopleOutline,
 } from "ionicons/icons";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
@@ -232,5 +235,34 @@ ion-list {
 
 ion-popover {
   --width: auto;
+}
+
+/* Presence pill — TopBar's language, count only. Green = live. */
+.online-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #047857;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.online-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: #10b981;
+  animation: online-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes online-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.8); }
 }
 </style>

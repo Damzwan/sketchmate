@@ -29,12 +29,17 @@
       :is-typing="false"
     />
 
-    <!-- Mock Join Toast: Pinned below the chat, scaled up to look bigger purely in the preview -->
+    <!-- Mock Join Toast, sized like every other surface in this column.
+         It used to be a 260px box blown up with `scale-[1.35]`: a transform
+         doesn't change the LAYOUT box, so the pane only reserved 260px while
+         the toast painted ~350px wide and spilled out of the frame — worse on
+         mobile, where the pager's own zoom transform shrinks the pane. Plain
+         width, no transform, so painted size and reserved size agree. -->
     <div class="flex justify-center w-full pb-4 relative z-20">
       <ChatToastItem
         v-if="mockToast"
         :toast="mockToast"
-        class="w-[260px] transform scale-[1.35] origin-top"
+        class="w-full"
       />
     </div>
   </div>

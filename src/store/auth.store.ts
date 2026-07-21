@@ -244,6 +244,7 @@ export const useAuthStore = defineStore("auth", () => {
 
 			Preferences.set({ key: LocalStorage.user_id, value: user.value._id });
 			Preferences.set({ key: LocalStorage.img, value: user.value.img });
+			Preferences.remove({ key: LocalStorage.loggedOut });
 
 			return true;
 		} catch (e) {
@@ -388,6 +389,9 @@ export const useAuthStore = defineStore("auth", () => {
 		showEnableNotificationsAfterLogin.value = false;
 
 		Preferences.remove({ key: LocalStorage.user_id });
+		// Tells the Android widget this is a real sign-out, not a cold start it
+		// happened to beat — it drops its cached drawing on seeing this.
+		Preferences.set({ key: LocalStorage.loggedOut, value: "1" });
 		// Keep the notification token: it identifies this install, not the user.
 		// Retaining it lets init() silently re-activate push on the next login
 		// without forcing the user to re-grant. Explicit "disable notifications"

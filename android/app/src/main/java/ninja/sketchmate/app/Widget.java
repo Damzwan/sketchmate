@@ -49,6 +49,11 @@ public class Widget extends AppWidgetProvider {
     // Hardcode it; keep VITE_BACKEND=https://server.sketchmate.ninja in sync.
     private static final String BACKEND_URL = "https://server.sketchmate.ninja";
 
+    // A failed update sticks until the next hourly tick or a user tap, so it is
+    // worth a few seconds of in-place retrying before giving up.
+    private static final int FETCH_ATTEMPTS = 3;
+    private static final long RETRY_BACKOFF_MS = 1500;
+
     @Override
     public void onReceive(Context context, Intent intent) {
         super.onReceive(context, intent);
@@ -85,65 +90,192 @@ public class Widget extends AppWidgetProvider {
 
     private void updateWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
         SharedPreferences prefs = context.getSharedPreferences("CapacitorStorage", Activity.MODE_PRIVATE);
-        String userID = prefs.getString("user_id", null);
+        String userID = readUserId(prefs);
         String backendURL = BACKEND_URL;
 
+        SharedPreferences widgetPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+
         if (userID == null) {
-            renderError(context, appWidgetManager, appWidgetId, "Not logged in", "Tap to refresh");
+            // A missing id has two very different causes. An explicit sign-out sets
+            // the logged-out marker (see LocalStorage.loggedOut) and must clear the
+            // cached drawing — someone else's art shouldn't linger on the home
+            // screen of a signed-out phone. Everything else is a timing artifact:
+            // the launcher updates widgets long before the WebView has ever run, so
+            // treating that as "logged out" is what produced the sticky error card.
+            if ("1".equals(prefs.getString("widget_logged_out", null))) {
+                clearCache(widgetPrefs, appWidgetId);
+                renderError(context, appWidgetManager, appWidgetId, "Not logged in", "Open SketchMate, then tap");
+                return;
+            }
+            // Off the main thread: onUpdate runs there, and renderCached fetches
+            // the drawing over the network (NetworkOnMainThreadException otherwise).
+            new Thread(() -> {
+                if (!renderCached(context, appWidgetManager, appWidgetId, widgetPrefs)) {
+                    renderError(context, appWidgetManager, appWidgetId, "Not logged in", "Open SketchMate, then tap");
+                }
+            }).start();
             return;
         }
 
-        renderLoading(context, appWidgetManager, appWidgetId);
+        // Only show the spinner when there is nothing to fall back to. With a
+        // cached drawing on screen, blanking it to "loading" on every refresh is
+        // a downgrade — especially when the refresh is about to fail anyway.
+        if (!hasCached(widgetPrefs, appWidgetId)) {
+            renderLoading(context, appWidgetManager, appWidgetId);
+        }
 
-        SharedPreferences widgetPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         int offset = widgetPrefs.getInt("offset_" + appWidgetId, 0);
 
         new Thread(() -> {
-            HttpURLConnection conn = null;
-            try {
-                URL url = new URL(backendURL + "/user/inbox/latest?user_id=" + userID + "&offset=" + offset);
-                conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(10000);
+            String url = backendURL + "/user/inbox/latest?user_id=" + userID + "&offset=" + offset;
 
-                int responseCode = conn.getResponseCode();
-                if (responseCode == 200) {
-                    String response = readStream(conn.getInputStream());
-                    if (response == null || response.trim().equals("null") || response.isEmpty()) {
-                        renderError(context, appWidgetManager, appWidgetId, "Inbox is empty", "Tap to refresh");
-                    } else {
-                        JsonObject json = new Gson().fromJson(response, JsonObject.class);
-                        String image = optString(json, "image");
-                        String id = optString(json, "_id");
-
-                        if (image == null || id == null) {
-                            // Well-formed JSON but no usable item — treat as empty, not a crash.
-                            renderError(context, appWidgetManager, appWidgetId, "Inbox is empty", "Tap to refresh");
-                        } else {
-                            String senderName = json.has("senderName") ? optString(json, "senderName") : "Unknown";
-                            String senderImg = json.has("senderImg") ? optString(json, "senderImg") : "";
-                            displayInboxItem(context, appWidgetManager, appWidgetId, image, id,
-                                    senderName != null ? senderName : "Unknown",
-                                    senderImg != null ? senderImg : "");
-                        }
+            Throwable lastError = null;
+            // Widget updates are rare (hourly, or on a tap), so a failure sticks
+            // around for a long time. Transient failures are the common case —
+            // radio asleep, captive portal, a dropped keep-alive — so spend a few
+            // seconds retrying here rather than leaving a dead card up for an hour.
+            for (int attempt = 0; attempt < FETCH_ATTEMPTS; attempt++) {
+                if (attempt > 0) {
+                    try {
+                        Thread.sleep(RETRY_BACKOFF_MS * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
                     }
-                } else if (responseCode == 404) {
-                    renderError(context, appWidgetManager, appWidgetId, "Image deleted", "Tap next to skip");
-                } else {
-                    renderError(context, appWidgetManager, appWidgetId, "Server error", "Tap to try again");
                 }
-            } catch (Throwable e) {
-                Log.e("Widget", "Update failed", e);
+
+                HttpURLConnection conn = null;
+                try {
+                    conn = (HttpURLConnection) new URL(url).openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(10000);
+
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode == 200) {
+                        String response = readStream(conn.getInputStream());
+                        handleInboxResponse(context, appWidgetManager, appWidgetId, widgetPrefs, response);
+                        return;
+                    }
+                    if (responseCode == 404) {
+                        renderError(context, appWidgetManager, appWidgetId, "Image deleted", "Tap next to skip");
+                        return;
+                    }
+                    if (responseCode < 500) {
+                        // 4xx other than 404 won't fix itself by retrying.
+                        renderError(context, appWidgetManager, appWidgetId, "Server error", "Tap to try again");
+                        return;
+                    }
+                    lastError = new IOException("HTTP " + responseCode);
+                } catch (Throwable e) {
+                    lastError = e;
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+            }
+
+            Log.e("Widget", "Update failed after " + FETCH_ATTEMPTS + " attempts", lastError);
+            // Every attempt failed. A stale drawing is a far better widget than an
+            // error card, and it still carries the tap-to-refresh intent.
+            if (!renderCached(context, appWidgetManager, appWidgetId, widgetPrefs)) {
                 renderError(context, appWidgetManager, appWidgetId, "Connection failed", "Tap to retry");
-            } finally {
-                if (conn != null) conn.disconnect();
             }
         }).start();
     }
 
-    private void displayInboxItem(Context context, AppWidgetManager appWidgetManager, int appWidgetId,
-                                  String imageUrl, String inboxId, String senderName, String senderImg) {
+    private void handleInboxResponse(Context context, AppWidgetManager appWidgetManager, int appWidgetId,
+                                     SharedPreferences widgetPrefs, String response) {
+        if (response == null || response.trim().isEmpty() || response.trim().equals("null")) {
+            renderError(context, appWidgetManager, appWidgetId, "Inbox is empty", "Tap to refresh");
+            return;
+        }
+
+        JsonObject json = new Gson().fromJson(response, JsonObject.class);
+        String image = optString(json, "image");
+        String id = optString(json, "_id");
+
+        if (image == null || id == null) {
+            // Well-formed JSON but no usable item — treat as empty, not a crash.
+            renderError(context, appWidgetManager, appWidgetId, "Inbox is empty", "Tap to refresh");
+            return;
+        }
+
+        String senderName = optString(json, "senderName");
+        String senderImg = optString(json, "senderImg");
+        if (senderName == null) senderName = "Unknown";
+        if (senderImg == null) senderImg = "";
+
+        cacheItem(widgetPrefs, appWidgetId, image, id, senderName, senderImg);
+        if (!displayInboxItem(context, appWidgetManager, appWidgetId, image, id, senderName, senderImg)) {
+            renderError(context, appWidgetManager, appWidgetId, "Memory/Image error", "Tap to reload");
+        }
+    }
+
+    /**
+     * Capacitor Preferences writes plain strings, but a value that arrived from a
+     * JSON round-trip elsewhere can come back quoted, and a logged-out session can
+     * leave an empty string behind rather than removing the key. Both look like a
+     * valid id to getString() and produced a request for user_id="" → a permanent
+     * error card. Normalise to "usable id, or null".
+     */
+    private static String readUserId(SharedPreferences prefs) {
+        String raw = prefs.getString("user_id", null);
+        if (raw == null) return null;
+        String id = raw.trim();
+        if (id.length() >= 2 && id.startsWith("\"") && id.endsWith("\"")) {
+            id = id.substring(1, id.length() - 1).trim();
+        }
+        return id.isEmpty() || id.equals("null") ? null : id;
+    }
+
+    // ── Last-good item cache ────────────────────────────────────────────────
+    // Keyed per widget id, cleared alongside the offset in onDeleted.
+
+    private static void cacheItem(SharedPreferences widgetPrefs, int appWidgetId,
+                                  String image, String id, String senderName, String senderImg) {
+        widgetPrefs.edit()
+                .putString("cached_image_" + appWidgetId, image)
+                .putString("cached_id_" + appWidgetId, id)
+                .putString("cached_sender_" + appWidgetId, senderName)
+                .putString("cached_sender_img_" + appWidgetId, senderImg)
+                .apply();
+    }
+
+    private static void clearCache(SharedPreferences widgetPrefs, int appWidgetId) {
+        widgetPrefs.edit()
+                .remove("cached_image_" + appWidgetId)
+                .remove("cached_id_" + appWidgetId)
+                .remove("cached_sender_" + appWidgetId)
+                .remove("cached_sender_img_" + appWidgetId)
+                .apply();
+    }
+
+    private static boolean hasCached(SharedPreferences widgetPrefs, int appWidgetId) {
+        return widgetPrefs.getString("cached_image_" + appWidgetId, null) != null;
+    }
+
+    /** @return true if a cached item was rendered; false if there was nothing cached. */
+    private boolean renderCached(Context context, AppWidgetManager appWidgetManager, int appWidgetId,
+                                 SharedPreferences widgetPrefs) {
+        String image = widgetPrefs.getString("cached_image_" + appWidgetId, null);
+        String id = widgetPrefs.getString("cached_id_" + appWidgetId, null);
+        if (image == null || id == null) return false;
+
+        String senderName = widgetPrefs.getString("cached_sender_" + appWidgetId, "Unknown");
+        String senderImg = widgetPrefs.getString("cached_sender_img_" + appWidgetId, "");
+        // The cached DATA survives, but the image still comes off the network, so
+        // this can fail too (offline). False here just means "no fallback after
+        // all" and the caller falls back to the error card.
+        return displayInboxItem(context, appWidgetManager, appWidgetId, image, id, senderName, senderImg);
+    }
+
+    /**
+     * @return true if the widget was actually updated with the drawing. The
+     * caller decides what a false means — a fresh fetch shows an error card, a
+     * cached-item render just falls through to whatever the caller had planned.
+     */
+    private boolean displayInboxItem(Context context, AppWidgetManager appWidgetManager, int appWidgetId,
+                                     String imageUrl, String inboxId, String senderName, String senderImg) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_image);
 
         try {
@@ -165,22 +297,25 @@ public class Widget extends AppWidgetProvider {
             // Whole drawing (no crop → fitCenter shows all of it) with rounded corners,
             // capped to the Binder budget.
             Bitmap rawDrawing = loadScaledBitmapFromUrl(imageUrl, DRAWING_MAX_PX);
-            if (rawDrawing != null) {
-                Bitmap roundedDrawing = getRoundedCornerBitmap(rawDrawing, 30);
-                rawDrawing.recycle();
-                roundedDrawing = capForRemoteViews(roundedDrawing);
-                views.setImageViewBitmap(R.id.widget_image_drawing, roundedDrawing);
-            }
+            // No drawing means an empty frame, which is indistinguishable from a
+            // broken widget. Report it instead of pushing a blank card.
+            if (rawDrawing == null) return false;
+
+            Bitmap roundedDrawing = getRoundedCornerBitmap(rawDrawing, 30);
+            rawDrawing.recycle();
+            roundedDrawing = capForRemoteViews(roundedDrawing);
+            views.setImageViewBitmap(R.id.widget_image_drawing, roundedDrawing);
 
             // Setup Intents
             setupIntents(context, views, appWidgetId, inboxId);
 
             appWidgetManager.updateAppWidget(appWidgetId, views);
+            return true;
         } catch (Throwable e) {
             // Catch Throwable, not Exception: OutOfMemoryError is an Error and would
             // otherwise crash the process instead of degrading to an error card.
             Log.e("Widget", "Display failed", e);
-            renderError(context, appWidgetManager, appWidgetId, "Memory/Image error", "Tap to reload");
+            return false;
         }
     }
 
@@ -188,12 +323,12 @@ public class Widget extends AppWidgetProvider {
         // Pass 1: bounds-only decode to read the intrinsic size.
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
-        InputStream boundsIn = null;
+        HttpURLConnection boundsConn = null;
         try {
-            boundsIn = new URL(urlString).openStream();
-            BitmapFactory.decodeStream(boundsIn, null, options);
+            boundsConn = openImageConnection(urlString);
+            BitmapFactory.decodeStream(boundsConn.getInputStream(), null, options);
         } finally {
-            if (boundsIn != null) boundsIn.close();
+            if (boundsConn != null) boundsConn.disconnect();
         }
 
         // Pass 2: real decode WITH the computed sample size applied. The previous
@@ -203,13 +338,28 @@ public class Widget extends AppWidgetProvider {
         options.inPreferredConfig = Bitmap.Config.ARGB_8888; // alpha needed for rounded corners
         options.inJustDecodeBounds = false;
 
-        InputStream in = null;
+        HttpURLConnection conn = null;
         try {
-            in = new URL(urlString).openStream();
-            return BitmapFactory.decodeStream(in, null, options);
+            conn = openImageConnection(urlString);
+            return BitmapFactory.decodeStream(conn.getInputStream(), null, options);
         } finally {
-            if (in != null) in.close();
+            if (conn != null) conn.disconnect();
         }
+    }
+
+    /**
+     * URL.openStream() inherits the platform's default timeouts, which are
+     * effectively "forever" — a half-open connection (dozing radio, captive
+     * portal) parked the update thread indefinitely and the widget just sat on
+     * whatever it was showing. Every network read here goes through a connection
+     * with explicit, bounded timeouts.
+     */
+    private static HttpURLConnection openImageConnection(String urlString) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) new URL(urlString).openConnection();
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(15000);
+        conn.setInstanceFollowRedirects(true);
+        return conn;
     }
 
     // Shrink so BOTH dimensions end up <= maxSize. The old version required both
@@ -340,6 +490,10 @@ public class Widget extends AppWidgetProvider {
         SharedPreferences.Editor editor = prefs.edit();
         for (int appWidgetId : appWidgetIds) {
             editor.remove("offset_" + appWidgetId);
+            editor.remove("cached_image_" + appWidgetId);
+            editor.remove("cached_id_" + appWidgetId);
+            editor.remove("cached_sender_" + appWidgetId);
+            editor.remove("cached_sender_img_" + appWidgetId);
         }
         editor.apply();
         super.onDeleted(context, appWidgetIds);

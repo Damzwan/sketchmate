@@ -6,6 +6,7 @@ export enum NotificationType {
 	dm_message = "dm_message",
 	moderation_strike = "moderation_strike",
 	moderation_lifted = "moderation_lifted",
+	moderation_content = "moderation_content",
 	mate_request = "mate_request",
 	request_accepted = "request_accepted",
 
@@ -59,6 +60,7 @@ export enum SOCKET_ENDPONTS {
 	friend_invitation = "friend-invitation",
 	moderation_strike = "moderation:strike",
 	moderation_restriction_lifted = "moderation:restriction_lifted",
+	moderation_content = "moderation:content",
 }
 
 // --- SHARED TYPES ---
@@ -869,6 +871,9 @@ export type NotificationKind =
 	| "follow"
 	| "moderation_strike"
 	| "moderation_lifted"
+	// Content lifecycle notice — quarantined / removed / restored, discriminated
+	// by payload.status. Mirrors NotificationKind on the server.
+	| "moderation_content"
 	| "lobby_invitation"
 	| "announcement";
 

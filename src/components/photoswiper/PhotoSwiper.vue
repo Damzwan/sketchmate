@@ -108,7 +108,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { IonModal } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { onLongPress } from "@vueuse/core";
+import { onLongPress, useEventListener } from "@vueuse/core";
 import { register } from "swiper/element/bundle";
 import { playSelectionTick } from "@/config/post.config";
 
@@ -333,6 +333,32 @@ const longPressEvent = ref<Event | null>(null);
 // Plain `let`, not a ref — nothing renders from it.
 let suppressNextTap = false;
 
+/**
+ * Inspecting the drawing and reacting to it are different intents that share
+ * one gesture surface, so the press has to know which one is in flight.
+ *
+ * Two signals, both read at fire time (400ms in) rather than at pointerdown,
+ * because that's when the user's intent is actually knowable:
+ *
+ *  - MULTI-TOUCH. A pinch is two fingers, and the first of them looks exactly
+ *    like the start of a long press. `distanceThreshold` doesn't save us: the
+ *    anchoring finger of a pinch barely travels, so the press survives the
+ *    whole zoom gesture and the tray pops up mid-pinch.
+ *  - ALREADY ZOOMED. Past 1× the surface belongs to panning. Holding still for
+ *    a beat before dragging is normal panning behaviour, and it was arming the
+ *    tray every time. Reacting stays available — pinch back out (or double-tap)
+ *    and the press works again.
+ */
+const activePointers = new Set<number>();
+const onArtPointerDown = (e: PointerEvent) => activePointers.add(e.pointerId);
+const onArtPointerUp = (e: PointerEvent) => activePointers.delete(e.pointerId);
+
+useEventListener(artSurface, "pointerdown", onArtPointerDown, { passive: true });
+useEventListener(artSurface, "pointerup", onArtPointerUp, { passive: true });
+useEventListener(artSurface, "pointercancel", onArtPointerUp, { passive: true });
+
+const isZoomedIn = () => (swiper.value?.swiper?.zoom?.scale ?? 1) > 1.01;
+
 // How far above the finger the tray floats, so it isn't under the thumb.
 const REACTION_POPOVER_SPACING = 20;
 
@@ -355,6 +381,10 @@ onLongPress(
 		// Reactions are a post concept; inbox drawings have no reaction bar.
 		if (config.value.type !== "post" || !currItem.value) return;
 		if (isCommentDrawerOpen.value || isFollowerDrawerOpen.value) return;
+		// Pinching or panning a zoomed drawing — this press is navigation, not a
+		// reaction. Bail BEFORE touching suppressNextTap, or the tap that ends the
+		// gesture gets eaten and the chrome toggle stops responding.
+		if (activePointers.size > 1 || isZoomedIn()) return;
 
 		// A long press is also the first half of a tap as far as swiper is
 		// concerned. Kill the pending toggle AND arm the one-shot suppression, or

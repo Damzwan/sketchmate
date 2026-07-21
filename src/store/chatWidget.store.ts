@@ -23,6 +23,16 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
   const relationshipInfoOpen = ref(false)
   const openRelationshipInfo = () => (relationshipInfoOpen.value = true)
 
+  // The "why is there a weekly limit" sheet. Reachable from the overview pill,
+  // the header strip and the decision banner, so it lives here for the same
+  // reason the one above does.
+  const mateQuotaInfoOpen = ref(false)
+  // Returns void, not the assigned boolean — callers pass this straight into
+  // action-descriptor slots typed `() => void | Promise<void>`.
+  const openMateQuotaInfo = (): void => {
+    mateQuotaInfoOpen.value = true
+  }
+
   const showWidget = () => (isVisible.value = true)
   const hideWidget = () => {
     isVisible.value = false
@@ -94,6 +104,7 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
   return {
     isVisible, isExpanded, activeTab, activeChatHeads, bouncingBubbles, showLobbyPreview,
     relationshipInfoOpen, openRelationshipInfo,
+    mateQuotaInfoOpen, openMateQuotaInfo,
     showWidget, hideWidget, openPanel, closePanel, togglePanel,
     openOverview, openLobby, openPrivateChat, openChatWithUser, addChatHead, removeChatHead,
     triggerNewMessageAlert

@@ -97,7 +97,6 @@ import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useQuotaStore } from "@/store/quota.store";
 import { Menu } from "@/draw/types/draw.types";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { masterAnimation } from "@/helper/animation.helper";
@@ -108,12 +107,14 @@ import { masterAnimation } from "@/helper/animation.helper";
 const emit = defineEmits(["start-chat"]);
 
 const chatWidget = useChatWidgetStore();
-const quotaStore = useQuotaStore();
 const { openMenu } = useMenuStore();
-const { isUnderAge } = storeToRefs(useAuthStore());
+const { isUnderAge, user } = storeToRefs(useAuthStore());
 const router = useIonRouter();
 
-const hasMates = computed(() => quotaStore.mates.used > 0);
+// TOTAL mates, from the user's own stat — not the quota's `used`, which now
+// counts only mates made THIS WEEK. A user with 30 mates and a quiet week still
+// "has mates" and should get the "message a mate" CTA, not "add your first".
+const hasMates = computed(() => (user.value?.stats?.mates ?? 0) > 0);
 
 const primaryCta = computed(() => {
 	if (hasMates.value) {

@@ -31,8 +31,15 @@ export const useQuotaStore = defineStore("quota", () => {
 	const canCreatePost = computed(() =>
 		summary.value ? posts.value.remaining > 0 : true,
 	);
+	// `limit === null` is the unlimited (Pro) tier — no weekly cap on new mates.
 	const canAddMate = computed(() =>
-		summary.value ? mates.value.remaining > 0 : true,
+		summary.value
+			? mates.value.limit === null || mates.value.remaining > 0
+			: true,
+	);
+	/** True only for a capped tier that has run out — drives the paywall nudge. */
+	const mateWeeklyLimitReached = computed(
+		() => !!summary.value && mates.value.limit !== null && mates.value.remaining <= 0,
 	);
 
 	async function refresh(force = false): Promise<void> {
@@ -48,25 +55,38 @@ export const useQuotaStore = defineStore("quota", () => {
 		}
 	}
 
+	/**
+	 * Re-derive `remaining` after a local `used` nudge.
+	 *
+	 * `limit === null` means unlimited (only mates use it today, but the field is
+	 * shared) — there is nothing to count down against, so leave `remaining`
+	 * alone rather than computing `null - used`.
+	 */
+	function syncRemaining(s: QuotaState) {
+		if (s.limit === null) return;
+		s.used = Math.min(s.limit, Math.max(0, s.used));
+		s.remaining = Math.max(0, s.limit - s.used);
+	}
+
 	function decrementBalloon() {
 		if (!summary.value) return;
 		const s = summary.value.balloons;
-		s.used = Math.min(s.limit, s.used + 1);
-		s.remaining = Math.max(0, s.limit - s.used);
+		s.used += 1;
+		syncRemaining(s);
 	}
 
 	function incrementBalloon() {
 		if (!summary.value) return;
 		const s = summary.value.balloons;
-		s.used = Math.max(0, s.used - 1);
-		s.remaining = Math.max(0, s.limit - s.used);
+		s.used -= 1;
+		syncRemaining(s);
 	}
 
 	function decrementPost() {
 		if (!summary.value) return;
 		const s = summary.value.posts;
-		s.used = Math.min(s.limit, s.used + 1);
-		s.remaining = Math.max(0, s.limit - s.used);
+		s.used += 1;
+		syncRemaining(s);
 	}
 
 	return {
@@ -78,6 +98,7 @@ export const useQuotaStore = defineStore("quota", () => {
 		canSendBalloon,
 		canCreatePost,
 		canAddMate,
+		mateWeeklyLimitReached,
 		isLoading,
 		refresh,
 		decrementBalloon,

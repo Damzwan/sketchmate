@@ -349,7 +349,8 @@ const proBullets = [
 	{ label: "Animated avatar", icon: mdiMotionPlayOutline },
 	{ label: "Advanced profile customization", icon: mdiPalette },
 	{ label: "VIP lobby slots", icon: mdiCrownOutline },
-	{ label: "More friends, posts & balloons", icon: mdiAccountGroup },
+	{ label: "Unlimited new mates every week", icon: mdiAccountGroup },
+	{ label: "More posts & balloons", icon: mdiCrownOutline },
 ];
 // The cosmetic shop categories Lifetime unlocks (mirrors Shop.vue's filter bar,
 // minus brushes — those already come with Pro). Naming them makes the abstract
@@ -366,7 +367,7 @@ const compare: {
 	{ label: "Animated avatar", pro: true, life: true },
 	{ label: "Custom signature & card doodle", pro: true, life: true },
 	{ label: "VIP lobby slots", pro: true, life: true },
-	{ label: "More mates", pro: "50", life: "50" },
+	{ label: "New mates / week", pro: "Unlimited", life: "Unlimited" },
 	{ label: "More posts", pro: "6", life: "6" },
 	{ label: "More balloons", pro: "5", life: "5" },
 ];

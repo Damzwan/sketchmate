@@ -1,11 +1,16 @@
 <template>
+  <!-- Vertical budget: this row used to spend ~96px (pt-5 + inner py-2 + 48px
+       chips + inner py-2 + pb-3) to show one row of 48px chips. The inner
+       padding only exists so the `-top-1` unread badges and the `scale-105`
+       active chip aren't clipped by the horizontal scroller, and 6px covers
+       both. Down to ~72px, all of it given back to the message list. -->
   <div
-    class="flex items-center gap-1 px-3 pt-5 pb-3 min-h-[68px] bg-background rounded-t-[2.5rem] shrink-0"
+    class="flex items-center gap-1 px-3 pt-2.5 pb-1.5 bg-background rounded-t-[2.5rem] shrink-0"
   >
-    <div class="flex-1 flex items-center gap-3 overflow-x-auto hide-scrollbar overflow-visible py-2 pl-1">
+    <div class="flex-1 flex items-center gap-2.5 overflow-x-auto hide-scrollbar overflow-visible py-1.5 pl-1">
     <div
       @click="activeTab = 'overview'"
-      class="relative shrink-0 w-12 h-12 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
+      class="relative shrink-0 w-11 h-11 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
       :class="
         activeTab === 'overview'
           ? 'bg-secondary text-white shadow-md scale-105'
@@ -29,7 +34,7 @@
     <div
       v-if="isInLobby"
       @click="activeTab = 'lobby'"
-      class="relative shrink-0 w-12 h-12 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
+      class="relative shrink-0 w-11 h-11 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
       :class="
         activeTab === 'lobby'
           ? 'bg-cyan-500 shadow-md text-white scale-105'
@@ -49,7 +54,7 @@
       v-for="head in activeChatHeads"
       :key="head.id"
       @click="activeTab = head.id"
-      class="relative shrink-0 w-12 h-12 rounded-full transition-all duration-300 cursor-pointer overflow-visible"
+      class="relative shrink-0 w-11 h-11 rounded-full transition-all duration-300 cursor-pointer overflow-visible"
       :class="
         activeTab === head.id
           ? 'ring-2 ring-secondary/80 scale-105 shadow-sm'

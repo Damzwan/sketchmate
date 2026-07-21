@@ -67,7 +67,7 @@
       <div class="flex items-center gap-1.5 min-w-0">
         <span
           class="text-[14px] leading-none font-black truncate tracking-tight"
-          :class="[nameClass, showTheme ? fontEffectClass : '', onDarkWorld ? 'on-world' : '']"
+          :class="[nameClass, showTheme ? fontEffectClass : '', onDarkSurface ? 'on-world' : '']"
           :style="showTheme ? { color: themedNameColor, fontFamily: resolvedFontFamily } : {}"
         >
           {{ partner?.name || 'Unknown User' }}
@@ -83,7 +83,7 @@
 
         <span
           class="ml-auto shrink-0 text-[8px] uppercase tracking-wider opacity-50 whitespace-nowrap mt-0.5"
-          :class="onDarkWorld ? 'on-world' : ''"
+          :class="onDarkSurface ? 'on-world' : ''"
           :style="showTheme ? { color: themedDescColor, opacity: 1 } : {}"
         >
           {{ rel.kind === 'live_invite' ? 'NOW' : formattedTime }}
@@ -94,7 +94,7 @@
       <div class="flex items-center gap-1.5 mt-1.5">
         <p
           class="flex-1 min-w-0 text-[12px] truncate cabin-sketch-regular tracking-wide leading-none"
-          :class="[statusClass, onDarkWorld ? 'on-world' : '']"
+          :class="[statusClass, onDarkSurface ? 'on-world' : '']"
           :style="showTheme && !isTyping ? { color: themedDescColor } : {}"
         >
           {{ statusLine }}
@@ -122,9 +122,9 @@
         class="mt-2.5 pr-1"
         :step="rel.step"
         :accent="rel.accent"
-        :dark="onDarkWorld"
-        :name-color="theme.nameColorDark"
-        :desc-color="theme.descColorDark"
+        :dark="onDarkSurface"
+        :name-color="themedNameColor"
+        :desc-color="themedDescColor"
         compact
       />
     </div>
@@ -223,22 +223,33 @@ const cardStyle = computed(() => ({
 	borderColor: theme.value.cardBorderColor,
 }));
 
-// A themed row DOES render the partner's world (`world-mini`), and on Cosmic
-// Drift that world is dark. `world-mini` is a right-hand vignette ~320px wide
-// fading in from 48%, and the body column sits entirely inside that span — so
-// every text row here lands on the starfield, not on the theme's cardBg.
+// Two independent ways this row's text can end up on a dark backdrop, and they
+// need different answers:
 //
-// The theme's own nameColor/descColor are tuned against a LIGHT cardBg, which
-// is why they vanished. On a dark world the *Dark variants apply instead.
+//  - DARK WORLD. `world-mini` is a right-hand vignette ~320px wide fading in
+//    from 48%, and the body column sits entirely inside that span, so on Cosmic
+//    Drift every text row lands on the starfield rather than the theme's cardBg.
+//    The theme's own nameColor/descColor are tuned against its (light) cardBg,
+//    so the *Dark* variants apply instead.
+//    (Opposite call to ChatToolbar, deliberately: there the vignette is on ONE
+//    side and the name row genuinely sits on cardBg.)
+//  - DARK THEME. Noir and Midnight paint a near-black cardBg with no world at
+//    all. Their own nameColor/descColor are ALREADY light, so no swap is needed
+//    — but the black-tinted resting colours further down (the journey rail, the
+//    time stamp's opacity trick) and the glyph halo still have to flip.
 //
-// Note this is the opposite call to ChatToolbar, deliberately: there the world
-// is a small vignette on ONE side and the name row genuinely sits on cardBg, so
-// only its bottom strip flips. Here the vignette covers the whole text column.
+// Hence two flags. `themedNameColor` answers "which variant is the light one",
+// `onDarkSurface` answers "is the backdrop dark at all". Collapsing them would
+// have swapped Noir onto nameColorDark (identical, harmless) but left the rail
+// drawing black-on-black.
 const activeWorld = computed(() =>
 	resolveWorld(partnerCustomization.value.worldId),
 );
 const onDarkWorld = computed(
 	() => showTheme.value && activeWorld.value.isDark === true,
+);
+const onDarkSurface = computed(
+	() => showTheme.value && (theme.value.isDark || onDarkWorld.value),
 );
 const themedNameColor = computed(() =>
 	onDarkWorld.value ? theme.value.nameColorDark : theme.value.nameColor,

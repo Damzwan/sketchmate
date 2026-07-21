@@ -8,7 +8,7 @@
   <button
     v-if="rel && showStrip"
     type="button"
-    class="relative z-10 w-full flex items-center gap-2 px-4 py-2 border-t text-left cursor-pointer active:opacity-70 transition"
+    class="relative z-10 w-full flex items-center gap-2 px-4 py-1.5 border-t text-left cursor-pointer active:opacity-70 transition"
     :class="stripClass"
     :aria-label="`${rel.label}. Tap to learn how connections work.`"
     @click.stop="$emit('open-info')"
@@ -53,7 +53,8 @@
            a healthy trial belongs here, not in a card that covers the thread. -->
       <span
         v-if="inlineAction"
-        class="px-3 py-1.5 rounded-full text-xs cabin-sketch-regular font-black uppercase tracking-wide bg-secondary text-white shadow-sm"
+        class="px-3 py-1.5 rounded-full text-xs cabin-sketch-regular font-black uppercase tracking-wide shadow-sm"
+        :class="inlineAction.muted ? 'bg-amber-500 text-white' : 'bg-secondary text-white'"
         @click.stop="inlineAction.run"
       >
         {{ inlineAction.label }}
@@ -96,28 +97,29 @@ import {
 import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
 import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
 import { useQuotaStore } from "@/store/quota.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
 
 const props = defineProps<{
 	chat: any;
 	currentUserId?: string;
 	/**
-	 * The partner's world renders BEHIND this row (the toolbar's world layer is
-	 * `absolute inset-0`, so it covers the strip too). On a dark world — Cosmic
-	 * Drift is flagged `isDark` in the world catalog — black/80 text and a
-	 * black dot vanish into it.
+	 * Is the surface under this row dark? That is the partner's THEME
+	 * (`theme.isDark`) — Noir and Midnight — not their world. The world in the
+	 * toolbar is a masked vignette on one side and never sits under this text.
 	 *
 	 * Resolved by ChatToolbar and passed down rather than re-derived here: it
-	 * already hydrates the partner's customization, theme and world, and a
-	 * second copy of that chain is a second thing to keep in sync.
+	 * already hydrates the partner's customization and theme, and a second copy
+	 * of that chain is a second thing to keep in sync.
 	 */
 	dark?: boolean;
-	/** theme.nameColorDark / descColorDark, supplied when `dark`. */
+	/** theme.nameColor / descColor — already light on a dark theme. */
 	nameColor?: string;
 	descColor?: string;
 }>();
 defineEmits(["open-info"]);
 
 const quotaStore = useQuotaStore();
+const chatWidget = useChatWidgetStore();
 const { requestMate } = useRelationshipActions(() => props.chat);
 
 // One minute is plenty for a 24-hour countdown and keeps this off the frame
@@ -186,23 +188,30 @@ const { canRequest, shortReason } = useMateRequestGate(() => props.chat, now);
 // Only worth saying during a trial, where "Become Mates" is the thing they'd
 // otherwise be reaching for. Elsewhere it's noise about a button that was
 // never on screen.
+// The `canAddMate` condition that used to be here meant a user who was BOTH
+// cooling down and out of weekly slots got neither the pill nor the button —
+// the busiest state produced the emptiest row.
 const showGateReason = computed(
-	() =>
-		rel.value?.kind === "trial" &&
-		quotaStore.canAddMate &&
-		!!shortReason.value,
+	() => rel.value?.kind === "trial" && !!shortReason.value,
 );
 
 const inlineAction = computed(() => {
-	// Only during a live trial, and only when they actually have a slot free.
-	// Offering a button that opens a paywall from a status strip would be a
-	// dark pattern; the paywall route lives in the modal, framed properly.
 	if (rel.value?.kind !== "trial") return null;
-	if (!quotaStore.canAddMate) return null;
 	// Cooling down or locked out after declines — the strip says so instead
 	// (see the pill below), rather than offering a button that 429s.
 	if (!canRequest.value) return null;
-	return { label: "Become Mates", run: requestMate };
+	// Out of weekly slots. This used to render nothing at all, so the offer
+	// simply vanished mid-trial with no explanation — indistinguishable from a
+	// bug, and it hid the one fact the user needed. Say it, and make it lead
+	// somewhere: the sheet explains the limit and carries the Pro CTA. Still not
+	// a naked paywall button in a status row.
+	if (quotaStore.mateWeeklyLimitReached)
+		return {
+			label: "Weekly limit",
+			run: chatWidget.openMateQuotaInfo,
+			muted: true,
+		};
+	return { label: "Become Mates", run: requestMate, muted: false };
 });
 </script>
 

@@ -41,7 +41,7 @@ sorted `users` array:
   conversation_id, action_user_id, blocked_by,
   follows: [{ follower, followed }],
   mate_requests: [{ requester, declines, attempts, last_requested_at, cooldown_until }],
-  expires_at, cooldown_until, deleted_at
+  expires_at, deleted_at
 }
 ```
 
@@ -276,10 +276,24 @@ next request rejected.
 
 `PUT /unfriend/:target_id` → `expired`, plus:
 
-- `cooldown_until = now + 48h` — a re-invite cooldown, separate from the mate
-  ladder.
 - `deleted_at = now + 30d` — the TTL index removes the document after that.
 - The conversation gets the same 30-day `deleted_at`.
+
+**There is no re-invite cooldown.** There used to be a 48h `cooldown_until` on
+the relationship document, and it was *never enforced* — nothing on the server
+read it before creating a `pending_invite`, so anyone who reached the pair from
+the friend picker or a profile sheet re-invited immediately. It only greyed out
+the banner button for the user who read it and believed it.
+
+It was also aimed wrong. It fires on the **pair**, so a mis-tap or a fight
+patched up an hour later cost both people two days, while the case it looks like
+it guards — being re-invited by someone who just removed you — is what `block`
+is for. The weekly mate cap is the real brake now: re-friending spends a slot,
+which paces churn without a timer the user can't see coming.
+
+Don't confuse it with `mate_requests[].cooldown_until` (the decline ladder),
+which is a different field, IS enforced, and should stay: that one is asymmetric
+— it protects the person being asked from the person asking.
 
 Also a compare-and-set, for the same reason as the accept path. This one is
 documented at length in the source because it caused **negative `stats.mates`**:
@@ -328,9 +342,36 @@ path that touches them has been a source of drift at some point. Rules:
 
 Two independent gates sit in front of these routes:
 
-**Mate quota** — `max_mates` per tier (free 10, pro/lifetime 50), checked by
-`assertMateQuota`. Note the accept path checks **both** users, so a request
-cannot be accepted if either side is full.
+**Mate quota** — a *rate*, not a ceiling: `mates_per_week` per tier (free 3,
+pro/lifetime `null` = unlimited), checked by `assertMateQuota`.
+
+> **Why it is not a total cap any more.** It used to be `max_mates` (free 10,
+> pro 50). That punished people for friendships they already had: a user who
+> arrived with 12 mates was permanently at the limit and every relationship
+> surface told them so. It also asked them to *manage* a friends list, which is
+> not a thing anyone wants to do. The goal was always to slow connecting down,
+> not to bound it — so the limit moved onto the rate of new bonds and left the
+> existing ones alone. Everyone starts at 0 used, because the counter only sees
+> mates formed after the change.
+
+Usage lives in `quota_usage_model.mates_made`, one row per user per UTC day, and
+the gate sums a rolling `MATE_WINDOW_DAYS` (7) window ending today. Slots
+therefore free up one at a time — a mate made on day D stops counting at the
+start of D+7 — and `reset_at` carries the moment the oldest one ages out.
+
+Both sides of a new friendship spend a slot, so:
+
+- The accept path checks **both** users and refuses if either is out. The 429
+  carries `blocker: 'self' | 'partner'`, because "you're out" is upgradeable and
+  "they're out" is not.
+- `recordMateMade` runs for both users, and only inside the
+  `modifiedCount > 0` branch of the compare-and-set — otherwise a double-tapped
+  accept would spend two weekly slots on one friendship.
+- Unfriending and blocking do **not** refund a slot. You spent it when the bond
+  formed; giving it back would make unfriend-and-refriend a way around the pace.
+
+The send route gates the asker up front too, so a capped user isn't invited to
+queue a request they can't complete this week.
 
 **Moderation capabilities** — `requireCapability(...)` middleware:
 
@@ -383,12 +424,16 @@ Read before touching this module:
 
 ## Known limitations
 
-- **No global outbound cap.** The ladder is per pair, so someone can send one
-  request each to hundreds of different users and trip nothing. Per-pair
-  pestering is the annoying case; mass-blasting is the dangerous one, and it is
-  currently unguarded. `quota_usage_model` already has the shape for a daily
-  cap (see `posts_created`, `balloons_sent`); a decline-ratio circuit breaker
-  would be the industry-standard companion. Deliberately deferred.
+- **No global outbound cap on *requests*.** The ladder is per pair, so someone
+  can send one request each to hundreds of different users and trip nothing. The
+  weekly mate quota bounds how many of those can actually *land* (3/week on
+  free), which takes the worst of the mass-blast case off the table, but the
+  outbound requests themselves — and the notification each one fires — are still
+  unguarded on a per-target basis. A decline-ratio circuit breaker would be the
+  industry-standard companion. Deliberately deferred.
+- **Pro has no pace limit at all.** Unlimited is the product decision, not an
+  oversight, but it does mean the abuse ceiling for a paying account is set
+  entirely by the per-pair ladder.
 - **No expiry sweeper.** `temporary` → `expired` only materialises on the next
   interaction, so a query filtering on `chat_status: 'temporary'` can match
   pairs whose trial actually lapsed. Anything that cares must also check

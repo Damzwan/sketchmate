@@ -7,12 +7,12 @@
       @select-friend="startChatWithFriend"
     />
 
-    <div v-else class="animate-fade-in pb-24 overflow-y-auto hide-scrollbar overflow-visible">
+    <div v-else class="animate-fade-in pb-20 overflow-y-auto hide-scrollbar overflow-visible">
 
       <!-- GOOGLE PLAY POLICY: Child Safety Reminder -->
       <div
         v-if="isUnderAge"
-        class="mx-1 mb-4 bg-amber-100/90 border border-amber-300/60 p-3.5 rounded-[1.2rem] flex items-start gap-3 shadow-sm"
+        class="mx-1 mb-3 bg-amber-100/90 border border-amber-300/60 p-3 rounded-[1.2rem] flex items-start gap-3 shadow-sm"
       >
         <ion-icon :icon="svg(mdiShieldAlertOutline)" class="text-2xl text-amber-600 shrink-0 mt-0.5" />
         <div class="text-amber-900 leading-tight">
@@ -27,12 +27,12 @@
         :memberCount="roomMembers.length"
         :lastMessage="lastLobbyMessage"
         @open="chatWidget.openLobby()"
-        class="mb-4"
+        class="mb-3"
       />
 
       <div v-if="onlineMates.length > 0" class="pt-0.5">
-        <div class="px-1 mb-2 text-[9px] font-black text-black/70 uppercase tracking-widest">Online Now</div>
-        <div class="flex overflow-x-auto hide-scrollbar gap-4 px-1 mb-4 overflow-visible">
+        <div class="px-1 mb-1.5 text-[9px] font-black text-black/70 uppercase tracking-widest">Online Now</div>
+        <div class="flex overflow-x-auto hide-scrollbar gap-3.5 px-1 mb-3 overflow-visible">
           <div
             v-for="friend in onlineMates"
             :key="friend._id"
@@ -55,29 +55,74 @@
         </div>
       </div>
 
-      <div class="px-1 mb-2.5 flex items-center justify-between">
-        <span class="text-xl font-normal cabin-sketch-regular text-black tracking-tight">
-          Conversations
-        </span>
-
-        <div
-          v-if="quotaStore.mates.limit > 0"
-          class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border shadow-sm transition-all active:scale-95 cursor-pointer"
-          :class="!quotaStore.canAddMate && !quotaStore.isPro
-            ? 'bg-amber-500 border-amber-500 text-white'
-            : 'bg-white/80 border-primary/40 text-black/50'"
-          @click="handleQuotaPillClick"
-        >
-          <ion-icon :icon="svg(mdiHeart)" class="text-[9px]" :class="!quotaStore.canAddMate && !quotaStore.isPro ? 'text-white' : 'text-black/30'" />
-          <span class="text-[9px] font-black uppercase tracking-widest mt-[0.5px]">
-            {{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }} Mates
+      <div class="px-1 mb-2 flex items-center justify-between gap-2">
+        <div class="flex items-baseline gap-2 min-w-0">
+          <span class="text-xl font-normal cabin-sketch-regular text-black tracking-tight shrink-0">
+            Conversations
           </span>
+
+          <!-- Clearing the badge required opening every unread thread one by
+               one, which is busywork for a notification dot. Grouped with the
+               heading rather than with the chips on the right: it's an action ON
+               this list, and the right side is already carrying two controls. -->
+          <button
+            v-if="chatStore.totalUnreadCount > 0"
+            type="button"
+            class="shrink-0 text-[9px] font-black uppercase tracking-widest text-secondary underline decoration-secondary/30 underline-offset-4 active:opacity-50 transition cursor-pointer disabled:opacity-40"
+            :disabled="markingAllRead"
+            @click="readAll"
+          >
+            Read all
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <!-- Weekly new-mate pace, capped tier only. Hidden for Pro (limit null),
+               where there's nothing to count down.
+
+               Says what's LEFT, not "1/1 this week" — a bare fraction doesn't
+               say what's being counted, which way it fills, or whether it's a
+               good or bad number. Tapping opens the explainer rather than the
+               paywall: the limit needs a reason before it needs an upsell. -->
+          <button
+            v-if="quotaStore.mates.limit !== null"
+            type="button"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border shadow-sm transition-all active:scale-95 cursor-pointer"
+            :class="quotaStore.mateWeeklyLimitReached
+              ? 'bg-amber-500 border-amber-500 text-white'
+              : 'bg-white/80 border-primary/40 text-black/60'"
+            @click="chatWidget.openMateQuotaInfo()"
+          >
+            <ion-icon :icon="svg(mdiHeart)" class="text-[9px]" :class="quotaStore.mateWeeklyLimitReached ? 'text-white' : 'text-black/30'" />
+            <span class="text-[9px] font-black uppercase tracking-widest mt-[0.5px]">
+              {{ matePaceLabel }}
+            </span>
+            <ion-icon :icon="svg(mdiInformationOutline)" class="text-[11px] -mr-0.5" :class="quotaStore.mateWeeklyLimitReached ? 'text-white/80' : 'text-black/30'" />
+          </button>
+
+          <!-- The network list was reachable only from the profile tab's card,
+               which is a strange place to keep "everyone you're connected to"
+               when the chat panel is where you think about those people.
+
+               Icon-only: this row also carries the pace pill and the
+               "Conversations" heading, and a second labelled chip pushed the
+               pill's own label (the one that had to become legible) off a
+               narrow phone. ConnectionHub carries the fully labelled version. -->
+          <button
+            type="button"
+            class="w-7 h-7 flex items-center justify-center rounded-full border border-primary/40 bg-white/80 shadow-sm transition-all active:scale-95 cursor-pointer"
+            aria-label="Open your network"
+            title="Your network"
+            @click="openNetwork()"
+          >
+            <ion-icon :icon="svg(mdiAccountGroupOutline)" class="text-[13px] text-black/50" />
+          </button>
         </div>
       </div>
 
-      <div class="space-y-2.5 px-0.5">
+      <div class="space-y-2 px-0.5">
         <!-- LOADING STATE -->
-        <div v-if="showLoadingState" class="space-y-2.5 pt-1">
+        <div v-if="showLoadingState" class="space-y-2 pt-1">
           <div
             v-for="i in 4"
             :key="i"
@@ -101,14 +146,14 @@
         />
 
         <!-- INVITES & CHATS -->
-        <div v-if="inviteCount > 0" class="space-y-2.5">
+        <div v-if="inviteCount > 0" class="space-y-2">
           <button
-            class="w-full flex items-center gap-1.5 pt-1 pl-1 pr-0.5 disabled:cursor-default"
+            class="w-full flex items-center gap-1.5 pt-1 pl-1 pr-0.5 disabled:cursor-default cursor-pointer"
             :disabled="inviteCount <= 2"
             @click="invitesExpanded = !invitesExpanded"
           >
             <span class="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"></span>
-            <span class="text-[9px] font-black text-secondary uppercase tracking-widest">Invites</span>
+            <span class="text-xs font-black text-secondary uppercase tracking-widest">Invites</span>
             <span class="min-w-[14px] h-3.5 px-1 rounded-full bg-secondary/15 text-secondary text-[8px] font-black flex items-center justify-center">
               {{ inviteCount }}
             </span>
@@ -171,15 +216,15 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { IonFab, IonFabButton, IonIcon } from "@ionic/vue";
 import {
+	mdiAccountGroupOutline,
 	mdiChatPlusOutline,
 	mdiChevronDown,
 	mdiChevronRight,
 	mdiHeart,
+	mdiInformationOutline,
 	mdiShieldAlertOutline,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
-import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
 
 import LobbyConversationItem from "./LobbyConversationItem.vue";
 import ConversationItem from "./ConversationItem.vue";
@@ -194,6 +239,9 @@ import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { MIN_CHAT_VERSION } from "@/config/general.config";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useQuotaStore } from "@/store/quota.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { masterAnimation } from "@/helper/animation.helper";
+import { useIonRouter } from "@ionic/vue";
 
 defineEmits(["join-session"]);
 
@@ -209,8 +257,6 @@ const { user, isUnderAge } = storeToRefs(useAuthStore());
 const { isFriendOnline, pendingRequests, onlineFriends } =
 	storeToRefs(friendStore);
 const { lobbyChatMessages, roomMembers, invitations } = storeToRefs(drawSyncer);
-
-const { openMenu } = useMenuStore();
 
 const isCreatingChat = ref(false);
 const isInLobby = computed(() => !!roomMembers.value?.length);
@@ -306,12 +352,40 @@ const startChatWithFriend = (friend: any) => {
 	isCreatingChat.value = false;
 };
 
-const handleQuotaPillClick = () => {
-	if (quotaStore.canAddMate || quotaStore.isPro) return;
-	chatWidget.closePanel();
-	openMenu(Menu.Shop);
+// Reads as a sentence at a glance, in the pill's ~20 characters. The old
+// "1/1 this week" left the reader to work out what was being counted and which
+// direction it filled — at a 1-per-week limit it even looked like a ratio that
+// was somehow complete.
+const matePaceLabel = computed(() => {
+	const { limit, remaining } = quotaStore.mates;
+	if (limit === null) return "";
+	// "this week" is the half that made the old label meaningless without it —
+	// the heart icon in front supplies the "mates" half, which is what buys the
+	// room to keep the timeframe.
+	return remaining <= 0 ? "None left this week" : `${remaining} left this week`;
+});
+
+// Guarded because `markAllRead` fans out one request per unread conversation —
+// a double tap would fire the whole set twice.
+const markingAllRead = ref(false);
+const readAll = async () => {
+	if (markingAllRead.value) return;
+	markingAllRead.value = true;
+	try {
+		await chatStore.markAllRead();
+	} finally {
+		markingAllRead.value = false;
+	}
 };
 
+const router = useIonRouter();
+
+// Leaves the panel first — routing under an open sheet lands the user on a page
+// with the chat modal still covering it.
+const openNetwork = (tab: "mates" | "followers" | "following" = "mates") => {
+	chatWidget.closePanel();
+	router.push(`/${FRONTEND_ROUTES.network}?tab=${tab}`, masterAnimation);
+};
 </script>
 
 <style scoped>

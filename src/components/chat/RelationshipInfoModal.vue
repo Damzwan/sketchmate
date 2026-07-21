@@ -86,6 +86,7 @@ import RelationshipJourney from "./RelationshipJourney.vue";
 import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
 import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
 import { useQuotaStore } from "@/store/quota.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
 
 const props = defineProps<{
 	open: boolean;
@@ -96,9 +97,8 @@ const props = defineProps<{
 const emit = defineEmits(["update:open"]);
 
 const quotaStore = useQuotaStore();
-const { requestMate, cancelMate, openPaywall } = useRelationshipActions(
-	() => props.chat,
-);
+const chatWidget = useChatWidgetStore();
+const { requestMate, cancelMate } = useRelationshipActions(() => props.chat);
 
 const now = useNow({ interval: 60_000 });
 const { canRequest, longReason } = useMateRequestGate(() => props.chat, now);
@@ -159,12 +159,12 @@ const actions = computed<InfoAction[]>(() => {
 			// no action
 		} else if (quotaStore.canAddMate) {
 			out.push({ label: "Become Mates", run: requestMate, icon: mdiHeart });
-		} else if (!quotaStore.isPro) {
-			// The paywall is framed here, with the count visible, rather than
-			// ambushing them from a status strip.
+		} else if (quotaStore.mateWeeklyLimitReached) {
+			// Hands off to the sheet that owns this explanation rather than
+			// duplicating a second, thinner version of it here.
 			out.push({
-				label: `Upgrade to add more (${quotaStore.mates.used}/${quotaStore.mates.limit})`,
-				run: openPaywall,
+				label: "Why can't I add them?",
+				run: chatWidget.openMateQuotaInfo,
 				icon: mdiStar,
 			});
 		}

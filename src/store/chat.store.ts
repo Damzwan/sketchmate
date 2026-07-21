@@ -638,6 +638,27 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * Mark every conversation read in one go.
+   *
+   * Goes through `clearUnreads` per conversation rather than zeroing the counts
+   * locally and firing one bulk call: that function already owns the optimistic
+   * patch, the `readAcknowledged` bookkeeping that survives a re-fetch, and the
+   * rollback when the server write fails. A second path doing the same job by
+   * hand is how the badge starts coming back after a refresh.
+   *
+   * Only conversations that actually have unreads are touched, so this is a
+   * no-op call count of zero when the badge is already clear.
+   */
+  async function markAllRead() {
+    const me = authStore.user?._id
+    if (!me) return
+    const ids = [...activeChats.value, ...friendStore.pendingRequests]
+      .filter((c) => (c.unread_counts?.[me] || 0) > 0)
+      .map((c) => c._id)
+    await Promise.all(ids.map((id) => clearUnreads(id)))
+  }
+
+  /**
    * Re-zero the unread counts of conversations the user has already opened this
    * session. `loadActiveChats()` swaps in whole server objects, which are stale
    * for any tab opened before that fetch landed.
@@ -927,9 +948,11 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  // Local mirror of the server unfriend: 'expired' + 48h cooldown so the
-  // relationship banner flips to "Cooling down…" without a refetch.
-  function expireChatWithCooldown(userId: string, cooldownUntil?: string) {
+  // Local mirror of the server unfriend, so the relationship banner flips to
+  // "Connection ended" without a refetch. It used to stamp a 48h
+  // `cooldown_until` here too — that lock is gone (it was never enforced), and
+  // this is the one place that could have kept resurrecting it client-side.
+  function expireChat(userId: string) {
     const idx = activeChats.value.findIndex((c) =>
       c.participants.some((p) => p._id === userId)
     )
@@ -937,8 +960,7 @@ export const useChatStore = defineStore('chat', () => {
       activeChats.value[idx] = {
         ...activeChats.value[idx],
         status: 'expired',
-        cooldown_until:
-          cooldownUntil ?? dayjs().add(48, 'hours').toISOString(),
+        cooldown_until: undefined,
         initiator_id: undefined
       }
     }
@@ -981,6 +1003,7 @@ export const useChatStore = defineStore('chat', () => {
     trimOldMessages,
     syncActiveConversation,
     clearUnreads,
+    markAllRead,
     switchToConversation,
     addNotification,
     removeNotification,
@@ -995,7 +1018,7 @@ export const useChatStore = defineStore('chat', () => {
     sendTypingIndicator,
     respondToRequest,
     resetChatWithUser,
-    expireChatWithCooldown,
+    expireChat,
     handleCancelMateRequest
   }
 })

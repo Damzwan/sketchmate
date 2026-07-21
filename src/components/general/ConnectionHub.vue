@@ -135,6 +135,25 @@
         <ion-icon slot="start" :icon="svg(mdiQrcodeScan)" class="mr-2" />
         Scan a Mate
       </ion-button>
+
+      <!-- This sheet is subtitled "Grow Your Network" but had no way to SEE
+           that network — the list lived behind the profile tab's stat buttons
+           and nowhere else. Adding people and reviewing who you've added are
+           the same errand. -->
+      <button
+        type="button"
+        class="w-full flex items-center gap-3 px-4 py-3 rounded-[1.5rem] border border-white bg-white/50 text-left transition-all active:scale-[0.98] cursor-pointer"
+        @click="goToNetwork"
+      >
+        <span class="shrink-0 w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center">
+          <ion-icon :icon="svg(mdiAccountGroupOutline)" class="text-secondary text-lg" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-base font-black text-black leading-tight">Your network</span>
+          <span class="block text-sm text-black/70 leading-snug">Mates, followers and following</span>
+        </span>
+        <ion-icon :icon="svg(mdiChevronRight)" class="opacity-30 shrink-0" />
+      </button>
     </div>
 
     <!-- SCANNER VIEW -->
@@ -165,9 +184,11 @@ import {
 	IonList,
 	IonSpinner,
 	modalController,
+	useIonRouter,
 } from "@ionic/vue";
 import QrcodeVue from "qrcode.vue";
 import {
+	mdiAccountGroupOutline,
 	mdiChevronRight,
 	mdiQrcodeScan,
 	mdiSend,
@@ -186,6 +207,8 @@ import { useMenuStore } from "@/store/menu.store";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { searchMate } from "@/service/api/user.api";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import { masterAnimation } from "@/helper/animation.helper";
 
 // State
 const isScanning = ref(false);
@@ -203,9 +226,17 @@ const { startScanning, stopScanning, resetScanning } = useScanner(video);
 const { connectionMenuOpen } = storeToRefs(useMenuStore());
 const { openUserActions } = useUserContextSheet();
 
+const router = useIonRouter();
+
 const qrURL = computed(() =>
 	createPersonalShareLink(user.value?._id || "", "/home"),
 );
+
+// Dismiss first: the network page would otherwise load underneath this sheet.
+function goToNetwork() {
+	onDismiss();
+	router.push(`/${FRONTEND_ROUTES.network}?tab=mates`, masterAnimation);
+}
 
 // Logic
 const startCameraView = async () => {

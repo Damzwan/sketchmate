@@ -20,7 +20,7 @@
       />
     </div>
 
-    <div class="relative z-10 flex items-center justify-between px-4 pt-3 pb-2.5">
+    <div class="relative z-10 flex items-center justify-between px-4 pt-2 pb-2">
       <div
         class="flex items-center gap-3 min-w-0 cursor-pointer group active:scale-[0.99] transition-all"
         @click="handleHeaderClick"
@@ -65,7 +65,7 @@
             />
           </div>
 
-          <div class="flex items-center mt-1 leading-none">
+          <div class="flex items-center mt-0.5 leading-none">
             <span v-if="activeTab !== 'lobby'" class="text-[8px] font-black uppercase tracking-widest leading-none" :style="showThemeBackdrop ? { color: activeColors.desc } : {}">
               <template v-if="isExpired">
                 <span class="text-black/30">Archived History</span>
@@ -112,9 +112,9 @@
       v-if="!previewMode && activeTab !== 'lobby' && activeConversation"
       :chat="activeConversation"
       :current-user-id="user?._id"
-      :dark="stripOnDarkWorld"
-      :name-color="theme.nameColorDark"
-      :desc-color="theme.descColorDark"
+      :dark="stripOnDarkTheme"
+      :name-color="theme.nameColor"
+      :desc-color="theme.descColor"
       @open-info="chatWidget.openRelationshipInfo()"
     />
   </div>
@@ -141,7 +141,6 @@ import {
 	resolveFontFamily,
 	resolveTheme,
 	resolveTitle,
-	resolveWorld,
 } from "@/config/profile_options.config";
 
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -224,19 +223,18 @@ const activeColors = computed(() => ({
 	desc: theme.value.descColor,
 }));
 
-// The relationship strip is the exception to the rule above.
+// The strip's text tone follows the THEME's surface, not the world.
 //
-// The name row sits at the top of the header where the theme's cardBg still
-// dominates, so it keeps the theme's own light-surface colours. The strip is
-// the LAST row — the world layer is `absolute inset-0` and its artwork reaches
-// furthest down there, so on a dark world (Cosmic Drift, `isDark` in the world
-// catalog) dark text on the strip lands on a starfield and disappears. Only
-// that row flips to the dark variants.
-const activeWorld = computed(() =>
-	resolveWorld(partnerCustomization.value.worldId),
-);
-const stripOnDarkWorld = computed(
-	() => showThemeBackdrop.value && activeWorld.value.isDark === true,
+// It used to key on the world being dark (Cosmic Drift), which got both cases
+// wrong. The world here is `mini` + `contained` — a masked vignette pinned to
+// one side — so the strip's text never sits on it; it sits on the theme's
+// cardBg, exactly like the name row above it. That meant a dark world on a
+// light theme flipped the strip to near-white text over a cream surface, while
+// a dark theme (Noir, Midnight) with no world kept black text over near-black.
+//
+// `theme.isDark` is the actual question, and it's now declared on the theme.
+const stripOnDarkTheme = computed(
+	() => showThemeBackdrop.value && theme.value.isDark,
 );
 
 // Only dress the header with the partner's world/effect for a real, live

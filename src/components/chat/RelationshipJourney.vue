@@ -81,18 +81,23 @@ const props = withDefaults(
 		accent?: RelationshipAccent;
 		compact?: boolean;
 		/**
-		 * The rail is sitting over a dark world (Cosmic Drift). Every resting
-		 * colour here is a `black/xx` tint tuned for a light card, which turns
-		 * invisible on a starfield — this flips the whole scale to white and
-		 * swaps the labels onto the theme's *Dark* text colours.
+		 * The rail is sitting on a DARK backdrop — either a dark world (Cosmic
+		 * Drift) or a dark theme surface (Noir, Midnight). Every resting colour
+		 * here is a `black/xx` tint tuned for a light card: the nodes, the
+		 * connectors and the info bubble all disappear on either one. This flips
+		 * the whole scale to white.
+		 *
+		 * The caller decides WHY it's dark, because the two causes need different
+		 * label colours (see ConversationItem) — the rail only needs to know that
+		 * it is.
 		 *
 		 * Same contract as ChatRelationshipStrip, deliberately: both render the
-		 * relationship state over a partner's world, so they take the same props.
+		 * relationship state on a partner's surface, so they take the same props.
 		 */
 		dark?: boolean;
-		/** theme.nameColorDark — the ACTIVE step's label. Supplied when `dark`. */
+		/** The already-resolved LIGHT name colour — the ACTIVE step's label. */
 		nameColor?: string;
-		/** theme.descColorDark — every other label. Supplied when `dark`. */
+		/** The already-resolved LIGHT desc colour — every other label. */
 		descColor?: string;
 	}>(),
 	{ accent: "secondary", compact: false, dark: false },

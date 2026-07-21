@@ -81,6 +81,10 @@
     :partner="activePartner"
     :current-user-id="authStore.user?._id"
   />
+
+  <!-- Same sibling placement, same reason: opened from the overview pill, the
+       header strip and the banner. -->
+  <MateQuotaInfoModal v-model:open="mateQuotaInfoOpen" />
 </template>
 
 <script setup lang="ts">
@@ -99,6 +103,7 @@ import ChatMessageFlow from "./ChatMessageFlow.vue";
 import ChatInputFooter from "./ChatInputFooter.vue";
 import LobbyInvitePopover from "./LobbyInvitePopover.vue";
 import RelationshipInfoModal from "./RelationshipInfoModal.vue";
+import MateQuotaInfoModal from "./MateQuotaInfoModal.vue";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -114,7 +119,7 @@ import { useKeyboardInset } from "@/composables/general/useKeyboardInset";
 
 const authStore = useAuthStore();
 const chatWidget = useChatWidgetStore();
-const { isVisible, isExpanded, activeTab, relationshipInfoOpen } =
+const { isVisible, isExpanded, activeTab, relationshipInfoOpen, mateQuotaInfoOpen } =
 	storeToRefs(chatWidget);
 const { messagesByChat } = storeToRefs(useChatStore());
 const { lobbyChatMessages } = storeToRefs(useDrawSyncer());

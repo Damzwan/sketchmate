@@ -77,9 +77,8 @@
           {{ partner?.name }} wants to be Mates!
         </h3>
 
-        <p v-if="atMateLimit" class="mt-1.5 text-sm font-black uppercase tracking-wide"
-           :class="canUpgrade ? 'text-secondary' : 'text-black/80'">
-          {{ canUpgrade ? `Slots full (${quotaStore.mates.used}/${quotaStore.mates.limit})` : 'Max limit reached' }}
+        <p v-if="atMateLimit" class="mt-1.5 text-sm font-black uppercase tracking-wide text-secondary">
+          {{ mateLimitLabel }}
         </p>
 
         <div class="grid gap-3 mt-3.5 w-full max-w-[280px]"
@@ -100,11 +99,8 @@
           Trial with {{ firstName }} ended
         </h3>
         <p class="mt-1.5 text-sm uppercase tracking-wide"
-           :class="atMateLimit && canUpgrade ? 'text-secondary font-black' : 'text-black/80'">
-          <template v-if="atMateLimit && canUpgrade">
-            Slots full ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }})
-          </template>
-          <template v-else-if="atMateLimit">Maximum limit reached</template>
+           :class="atMateLimit ? 'text-secondary font-black' : 'text-black/80'">
+          <template v-if="atMateLimit">{{ mateLimitLabel }}</template>
           <template v-else>Become Mates to stay connected</template>
         </p>
         <ion-button v-if="secondaryChoice" color="secondary" shape="round" class="cursor-pointer mt-3.5" @click="secondaryChoice.run">
@@ -113,30 +109,22 @@
         </ion-button>
       </template>
 
+      <!-- No "Cooling down…" state any more: the 48h re-invite lock it reported
+           was never enforced on the server, so it stopped only the people who
+           read it. Ending a connection and changing your mind an hour later is
+           the common case, not the abuse case. -->
       <template v-else-if="rel.kind === 'expired'">
-        <template v-if="isUnderCooldown">
-          <ion-icon :icon="svg(mdiClockOutline)" class="text-3xl text-black/50 mb-2" />
-          <h3 class="cabin-sketch-regular text-xl font-black text-black">Cooling down…</h3>
-          <p class="mt-1.5 text-sm font-black text-secondary uppercase tracking-wide">
-            Available {{ formattedCooldown }}
-          </p>
-        </template>
-        <template v-else>
-          <ion-icon :icon="svg(mdiHeartBroken)" class="text-3xl text-black/50 mb-2" />
-          <h3 class="cabin-sketch-regular text-xl font-black text-black">Connection ended</h3>
-          <p class="mt-1.5 text-sm uppercase tracking-wide"
-             :class="atMateLimit && canUpgrade ? 'text-secondary font-black' : 'text-black/80'">
-            <template v-if="atMateLimit && canUpgrade">
-              Slots full ({{ quotaStore.mates.used }}/{{ quotaStore.mates.limit }})
-            </template>
-            <template v-else-if="atMateLimit">Maximum limit reached</template>
-            <template v-else>Start fresh with a new invite?</template>
-          </p>
-          <ion-button v-if="secondaryChoice" color="secondary" shape="round" class="cursor-pointer mt-3.5" @click="secondaryChoice.run">
-            <ion-icon v-if="secondaryChoice.icon" :icon="svg(secondaryChoice.icon)" slot="start" class="text-sm mr-1" />
-            {{ secondaryChoice.label }}
-          </ion-button>
-        </template>
+        <ion-icon :icon="svg(mdiHeartBroken)" class="text-3xl text-black/50 mb-2" />
+        <h3 class="cabin-sketch-regular text-xl font-black text-black">Connection ended</h3>
+        <p class="mt-1.5 text-sm uppercase tracking-wide"
+           :class="atMateLimit ? 'text-secondary font-black' : 'text-black/80'">
+          <template v-if="atMateLimit">{{ mateLimitLabel }}</template>
+          <template v-else>Start fresh with a new invite?</template>
+        </p>
+        <ion-button v-if="secondaryChoice" color="secondary" shape="round" class="cursor-pointer mt-3.5" @click="secondaryChoice.run">
+          <ion-icon v-if="secondaryChoice.icon" :icon="svg(secondaryChoice.icon)" slot="start" class="text-sm mr-1" />
+          {{ secondaryChoice.label }}
+        </ion-button>
       </template>
 
       <!-- When the action was withheld, say why. A card that states a problem
@@ -173,12 +161,12 @@ import {
 	mdiHeartBroken,
 	mdiHeartOutline,
 	mdiHeartPlusOutline,
-	mdiClockOutline,
 	mdiPalette,
 	mdiStar,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { useQuotaStore } from "@/store/quota.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useNow } from "@vueuse/core";
 import { needsDecision, resolveRelationship } from "@/config/relationship.config";
 import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
@@ -192,6 +180,7 @@ const props = defineProps<{ chat: any; partner: any; currentUserId?: string }>()
 defineEmits(["open-info"]);
 
 const quotaStore = useQuotaStore();
+const chatWidget = useChatWidgetStore();
 const actions = useRelationshipActions(() => props.chat);
 const { openUserActions } = useUserContextSheet();
 
@@ -230,17 +219,14 @@ const containerClass = computed(() =>
 	rel.value.accent === "amber" ? "border-amber-400/40" : "border-secondary/30",
 );
 
-const isUnderCooldown = computed(() =>
-	props.chat?.cooldown_until
-		? dayjs().isBefore(dayjs(props.chat.cooldown_until))
-		: false,
-);
-const formattedCooldown = computed(() =>
-	dayjs(props.chat?.cooldown_until).fromNow(),
-);
-
-const atMateLimit = computed(() => !quotaStore.canAddMate);
+// Weekly new-mate cap, free tier only (Pro is uncapped, so this is never true
+// for them). "This week" is the whole point — it's a pace limit, not a ceiling.
+const atMateLimit = computed(() => quotaStore.mateWeeklyLimitReached);
 const canUpgrade = computed(() => !quotaStore.isPro);
+const mateLimitLabel = computed(
+	() =>
+		`Weekly limit reached (${quotaStore.mates.used}/${quotaStore.mates.limit})`,
+);
 
 const now = useNow({ interval: 60_000 });
 const { canRequest, longReason } = useMateRequestGate(() => props.chat, now);
@@ -254,10 +240,16 @@ const { canRequest, longReason } = useMateRequestGate(() => props.chat, now);
 const secondaryChoice = computed<
 	{ label: string; run: () => void; icon?: string } | null
 >(() => {
+	// At the weekly limit the card keeps an affirmative action instead of
+	// collapsing to a lone "Decline" — it routes to the explainer sheet, which
+	// states the limit, when the next slot opens, and carries the Pro CTA.
+	// Straight to the paywall would be an upsell in place of an answer.
 	if (atMateLimit.value) {
-		return canUpgrade.value
-			? { label: "Upgrade", run: actions.openPaywall, icon: mdiStar }
-			: null;
+		return {
+			label: canUpgrade.value ? "Why the limit?" : "Weekly limit",
+			run: chatWidget.openMateQuotaInfo,
+			icon: mdiStar,
+		};
 	}
 
 	switch (rel.value.kind) {

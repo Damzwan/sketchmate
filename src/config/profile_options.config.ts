@@ -172,6 +172,18 @@ export interface Theme {
 	id: string;
 	name: string;
 	desc: string;
+	/**
+	 * Is `cardBg` a DARK surface? Declared, not derived.
+	 *
+	 * This used to be inferred from `nameColor === nameColorOnLight`, which
+	 * happened to be right but described the wrong thing: it answered "is the
+	 * name colour already dark enough for a light background", and callers had
+	 * to trust that this coincided with the surface being light. Anything that
+	 * needs to pick text against a theme's own surface — the chat relationship
+	 * strip, texture halos, world-agnostic contrast — should ask the surface
+	 * directly.
+	 */
+	isDark: boolean;
 	cardBg: string;
 	cardBorderColor: string;
 	nameColor: string;
@@ -189,6 +201,7 @@ export interface Theme {
 export const THEMES: Theme[] = [
 	{
 		id: "classic",
+		isDark: false,
 		name: "Classic",
 		desc: "SketchMate house colors",
 		// Built around the tertiary cream (#FFF2E4), not the primary peach.
@@ -211,6 +224,7 @@ export const THEMES: Theme[] = [
 	},
 	{
 		id: "midnight",
+		isDark: true,
 		name: "Midnight",
 		desc: "Deep ink & moonlight",
 		cardBg: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
@@ -230,6 +244,7 @@ export const THEMES: Theme[] = [
 	},
 	{
 		id: "sunset",
+		isDark: false,
 		name: "Sunset",
 		desc: "Warm peach & coral",
 		cardBg: "linear-gradient(135deg, #fed7aa 0%, #fecaca 100%)",
@@ -246,6 +261,7 @@ export const THEMES: Theme[] = [
 	},
 	{
 		id: "forest",
+		isDark: false,
 		name: "Forest",
 		desc: "Mossy & grounded",
 		cardBg: "linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%)",
@@ -262,6 +278,7 @@ export const THEMES: Theme[] = [
 	},
 	{
 		id: "sakura",
+		isDark: false,
 		name: "Sakura",
 		desc: "Soft cherry blossom",
 		cardBg: "linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)",
@@ -278,6 +295,7 @@ export const THEMES: Theme[] = [
 	},
 	{
 		id: "ocean",
+		isDark: false,
 		name: "Ocean",
 		desc: "Cool tide & seafoam",
 		cardBg: "linear-gradient(135deg, #cffafe 0%, #a5f3fc 100%)",
@@ -294,16 +312,12 @@ export const THEMES: Theme[] = [
 	},
 	{
 		id: "noir",
+		isDark: true,
 		name: "Noir",
 		desc: "Mono & moody",
 		cardBg: "#0a0a0a",
 		cardBorderColor: "rgba(255,255,255,0.2)",
 		nameColor: "#fafafa",
-		// 0.6 was the lowest desc alpha of any theme and it sat on the darkest
-		// surface of any theme, which is the pairing that punishes low alpha most:
-		// the secondary copy (post description, bio, stat labels) landed near #9a9a9a
-		// and read as disabled text. Bumped in line with the other dark theme
-		// (midnight, 0.8) so "muted" still reads as muted, not as greyed out.
 		descColor: "rgba(250,250,250,0.82)",
 		nameColorDark: "#fafafa",
 		descColorDark: "rgba(250,250,250,0.82)",
@@ -315,6 +329,7 @@ export const THEMES: Theme[] = [
 	},
 	{
 		id: "gold",
+		isDark: false,
 		name: "Gold Leaf",
 		desc: "Luxe & lavish",
 		cardBg: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
@@ -339,13 +354,13 @@ export const resolveTheme = (id?: string): Theme =>
 /**
  * Whether a theme's card surface is light (dark text on it) or dark.
  *
- * Derived rather than stored: `nameColorOnLight` is by definition the name
- * colour to use over a light surface, so a theme whose own `nameColor` already
- * equals it is a light-surfaced theme. Keeping it derived means a new theme
- * can't be added with the flag set wrong — there is no flag to get wrong.
+ * Now a thin read of the declared `isDark` flag. It used to sniff
+ * `nameColor === nameColorOnLight`, which was true for every current theme but
+ * only by coincidence: a light theme whose author picked a slightly different
+ * on-light name colour would have been classified dark, and the failure would
+ * have shown up as unreadable text three components away.
  */
-export const isLightTheme = (theme: Theme): boolean =>
-	theme.nameColor === theme.nameColorOnLight;
+export const isLightTheme = (theme: Theme): boolean => !theme.isDark;
 
 // ─── AVATAR DECORATIONS ──────────────────────────────────────────────────────
 export type DecorationKind =

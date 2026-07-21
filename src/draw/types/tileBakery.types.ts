@@ -17,6 +17,17 @@ export type BakeryRequest =
       overscan: number
       size: number
     }
+  | {
+      // Whole-board low-res render (the WorldOverview base layer). `ids` are
+      // z-ordered and already bbox-filtered main-side; the worker renders them
+      // into a px×px bitmap mapped to `bounds`.
+      t: 'overview'
+      msgId: number
+      ids: string[]
+      bounds: { x: number; y: number; w: number; h: number }
+      px: number
+      scale: number
+    }
 
 export interface BakeryResponse {
   msgId: number

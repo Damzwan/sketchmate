@@ -184,6 +184,7 @@ export const useDrawHistoryManager = defineStore("history", () => {
 					params: {
 						objectIds: toObjectsIds(e.target),
 						prevObjectPositions: e?.prevObjectPositions,
+						prevZ: e?.prevZ,
 					},
 				});
 			},

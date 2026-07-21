@@ -118,16 +118,25 @@ export function moveObjectToFront(
 	const prevObjectPositions: number[] = [];
 	const stack = (c as any)._objects as FabricObject[]; // live ref, no copy per object
 
+	// Snapshot z BEFORE the move so undo can restore it. Order matches objectIds
+	// (= toObjectsIds(params.objects)), which is what undo looks up.
+	const ids = toObjectsIds(params.objects);
+	const prevZ = useDrawObjectManager().zGet(ids);
+
 	sortedObjects.forEach((obj: any) => {
 		const currI = stack.indexOf(obj);
 		prevObjectPositions.push(currI);
 		c.bringObjectToFront(obj);
 	});
 
+	// Explicit z is the render/hit-test authority (canvas order is cosmetic now).
+	useDrawObjectManager().zToFront(ids);
+
 	c.fire("layer:changed", {
 		target: params.objects,
 		type: DrawAction.MoveObjectToFront,
 		prevObjectPositions,
+		prevZ,
 	});
 }
 
@@ -141,16 +150,22 @@ export function moveObjectToBack(
 	const prevObjectPositions: number[] = [];
 	const stack = (c as any)._objects as FabricObject[];
 
+	const ids = toObjectsIds(params.objects);
+	const prevZ = useDrawObjectManager().zGet(ids);
+
 	sortedObjects.forEach((obj: any) => {
 		const currI = stack.indexOf(obj);
 		prevObjectPositions.push(currI);
 		c.sendObjectToBack(obj);
 	});
 
+	useDrawObjectManager().zToBack(ids);
+
 	c.fire("layer:changed", {
 		target: params.objects,
 		type: DrawAction.MoveObjectToBack,
 		prevObjectPositions,
+		prevZ,
 	});
 }
 
@@ -167,6 +182,8 @@ export function moveObjectUpOneLayer(
 		const currI = stack.indexOf(obj);
 		c.moveObjectTo(obj, Math.min(currI + 1, objectsLength));
 	});
+
+	useDrawObjectManager().zUpOne(toObjectsIds(params.objects));
 
 	c.fire("layer:changed", {
 		target: params.objects,
@@ -187,6 +204,8 @@ export function moveObjectDownOneLayer(
 		const currI = stack.indexOf(obj);
 		c.moveObjectTo(obj, Math.max(currI - 1, 0));
 	});
+
+	useDrawObjectManager().zDownOne(toObjectsIds(params.objects));
 
 	c.fire("layer:changed", {
 		target: params.objects,

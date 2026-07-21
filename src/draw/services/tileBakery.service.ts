@@ -207,10 +207,11 @@ function flush(w: Worker): void {
 		// Prefer the stashed source JSON (load / unchanged) over a fresh toJSON —
 		// that recursive serialization is the main-thread cost we are avoiding.
 		const json = a.__bakeJSON ?? serialize(obj);
-		if (json) {
-			a.__bakeJSON = json; // cache until the next bakeryMarkDirty invalidates
-			items.push({ id, json });
-		}
+		if (json) items.push({ id, json });
+		// Reclaim: the worker now owns this blob. Retaining it on the main-thread
+		// object would keep N parsed JSON graphs alive next to the live objects —
+		// pure memory waste at 10k. Re-serialize on the rare later flush instead.
+		a.__bakeJSON = undefined;
 		dirty.delete(id);
 	}
 	if (items.length) w.postMessage({ t: "upsert", items });
@@ -242,6 +243,78 @@ function requestBake(
 			size,
 		});
 	});
+}
+
+/**
+ * Whole-board overview render, off the main thread. `objects` are the z-ordered
+ * objects covering the overview bounds (the WorldOverview already queried them).
+ * Strokes go to the worker; text / images can't render there, so they come back
+ * in `skipped` for the caller to overlay locally onto the returned bitmap.
+ * Returns null → caller renders the whole overview locally (unchanged path).
+ */
+export async function bakeryRenderOverview(
+	objects: FabricObject[],
+	bounds: WorldRect,
+	px: number,
+	scale: number,
+): Promise<{ bitmap: ImageBitmap; skipped: FabricObject[] } | null> {
+	const w = getWorker();
+	if (!w) return null;
+
+	const ids: string[] = [];
+	const skipped: FabricObject[] = [];
+	for (const obj of objects) {
+		const a = obj as any;
+		if (!obj.id) return null;
+		if (!shippable(a)) {
+			skipped.push(obj); // text / image / grouped → overlaid on the main side
+			continue;
+		}
+		ids.push(obj.id);
+	}
+
+	const request = (): Promise<BakeryResponse | null> => {
+		const msgId = ++msgSeq;
+		return new Promise((resolve) => {
+			const timer = setTimeout(() => {
+				pending.delete(msgId);
+				fail();
+				resolve(null);
+			}, BAKE_TIMEOUT_MS);
+			pending.set(msgId, { resolve, timer });
+			w.postMessage({
+				t: "overview",
+				msgId,
+				ids,
+				bounds: { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h },
+				px,
+				scale,
+			});
+		});
+	};
+
+	flush(w);
+	let res = await request();
+
+	if (res?.missing?.length) {
+		// Mirror not seeded for these ids yet (e.g. first overview at load, before
+		// any tile bake flushed them). Re-serialize from the live objects we were
+		// handed, upsert, retry once — else fall back to a local render.
+		const items: { id: string; json: any }[] = [];
+		for (const obj of objects) {
+			if (res.missing.includes(obj.id)) {
+				const json = serialize(obj);
+				if (json) items.push({ id: obj.id, json });
+			}
+		}
+		if (items.length !== res.missing.length) return null;
+		w.postMessage({ t: "upsert", items });
+		res = await request();
+	}
+
+	if (!res || res.error || !res.bitmap) return null;
+	failures = 0;
+	return { bitmap: res.bitmap, skipped };
 }
 
 /**

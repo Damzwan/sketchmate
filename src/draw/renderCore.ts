@@ -532,9 +532,10 @@ export class RenderCore<T extends Bounded> {
   }
 
   warmOverview(): void {
+    const repaint = () => this.requestFrame()
     void this.committed.overview
       .rebuildIfNeeded(this.contentBounds, this.makeYielder() as any, new AbortController().signal)
-      .then(() => this.requestFrame())
+      .then(repaint, repaint) // repaint even if the build rejected — never leave a blank first frame
   }
 
   /**

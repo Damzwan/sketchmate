@@ -21,6 +21,7 @@ import {
   bakeryClear,
   bakeryMarkDirty,
   bakeryRemove,
+  bakeryRenderOverview,
   bakerySeed,
   bakeryTranslate,
   initTileBakery
@@ -40,6 +41,21 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
 
   const zIndexMap = new Map<FabricObject, number>()
   let isZIndexDirty = true
+
+  // ── explicit z-order (decoupled from canvas membership) ───────────────────
+  // Canonical stacking is this id→z map, NOT c.getObjects() order. That's the
+  // prerequisite for dehydration: an off-canvas object still has a defined z.
+  // Seeded from canvas order at load; new objects go on top (++zTop); layer ops
+  // mutate it explicitly (front/back = counters, up/down = neighbour swap).
+  // Values are only compared, never assumed contiguous — gaps from removals are
+  // fine. Rendering + hit-test rank by these via getZIndexMap.
+  const zById = new Map<string, number>()
+  let zTop = -1
+  let zBottom = 0
+
+  function zSortedIds(): string[] {
+    return [...zById.entries()].sort((a, b) => a[1] - b[1]).map((e) => e[0])
+  }
 
   let loadingDepth = 0
   const isLoading = () => loadingDepth > 0
@@ -147,14 +163,78 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   function getZIndexMap(): Map<FabricObject, number> {
     if (isZIndexDirty) {
       zIndexMap.clear()
-      const objs = c!.getObjects()
-      for (let i = 0; i < objs.length; i++) {
-        zIndexMap.set(objs[i], i);
-        (objs[i] as any).__z = i
+      // Rank by the explicit z, NOT canvas order — so the stamps stay correct
+      // even once off-screen objects have left the fabric canvas (phase 2b).
+      for (const [id, obj] of objectMap) {
+        const z = zById.get(id) ?? 0
+        zIndexMap.set(obj, z);
+        (obj as any).__z = z
       }
       isZIndexDirty = false
     }
     return zIndexMap
+  }
+
+  // ── explicit-z mutators (used by layer ops + history) ─────────────────────
+  function zGet(ids: string[]): number[] {
+    return ids.map((id) => zById.get(id) ?? 0)
+  }
+
+  function zRestore(ids: string[], zs: number[]): void {
+    for (let i = 0; i < ids.length; i++) zById.set(ids[i], zs[i])
+    isZIndexDirty = true
+  }
+
+  function zToFront(ids: string[]): void {
+    // Preserve the moved set's own relative order as it lands on top.
+    const ordered = [...ids].sort((a, b) => (zById.get(a) ?? 0) - (zById.get(b) ?? 0))
+    for (const id of ordered) zById.set(id, ++zTop)
+    isZIndexDirty = true
+  }
+
+  function zToBack(ids: string[]): void {
+    const ordered = [...ids].sort((a, b) => (zById.get(b) ?? 0) - (zById.get(a) ?? 0))
+    for (const id of ordered) zById.set(id, --zBottom)
+    isZIndexDirty = true
+  }
+
+  function zUpOne(ids: string[]): void {
+    const order = zSortedIds()
+    const pos = new Map(order.map((id, i) => [id, i]))
+    const sel = new Set(ids)
+    // Process top-most first so a moved object never leapfrogs another moved one.
+    const chosen = [...ids].sort((a, b) => (pos.get(b) ?? 0) - (pos.get(a) ?? 0))
+    for (const id of chosen) {
+      const i = pos.get(id)
+      if (i == null || i >= order.length - 1) continue
+      const above = order[i + 1]
+      if (sel.has(above)) continue
+      const zi = zById.get(id)!, za = zById.get(above)!
+      zById.set(id, za)
+      zById.set(above, zi)
+      order[i] = above; order[i + 1] = id
+      pos.set(above, i); pos.set(id, i + 1)
+    }
+    isZIndexDirty = true
+  }
+
+  function zDownOne(ids: string[]): void {
+    const order = zSortedIds()
+    const pos = new Map(order.map((id, i) => [id, i]))
+    const sel = new Set(ids)
+    const chosen = [...ids].sort((a, b) => (pos.get(a) ?? 0) - (pos.get(b) ?? 0))
+    for (const id of chosen) {
+      const i = pos.get(id)
+      if (i == null || i <= 0) continue
+      const below = order[i - 1]
+      if (sel.has(below)) continue
+      const zi = zById.get(id)!, zb = zById.get(below)!
+      zById.set(id, zb)
+      zById.set(below, zi)
+      order[i] = below; order[i - 1] = id
+      pos.set(below, i); pos.set(id, i - 1)
+    }
+    isZIndexDirty = true
   }
 
   function invalidateZIndex() {
@@ -221,9 +301,12 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
   }
 
   function computeContentBounds(): WorldRect | null {
+    // From the quadtree ENTRIES (bbox per id), not live objects — so this stays
+    // correct once off-screen objects dehydrate off the fabric canvas (2b). The
+    // entry set is the full scene; objectMap is only the hydrated subset.
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
-    for (const obj of objectMap.values()) {
-      const b = objectBounds(obj)
+    for (const e of entryMap.values()) {
+      const b = e.bounds
       if (!isFinite(b.x) || b.w <= 0 || b.h <= 0) continue
       x0 = Math.min(x0, b.x)
       y0 = Math.min(y0, b.y)
@@ -306,6 +389,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     if (isLoading()) return // bulk loads reseed the bakery in rebuildIndexFromCanvas
     bakeryMarkDirty(obj)
     addToQuadTree(obj)
+    zById.set(obj.id, ++zTop) // new object lands on top
     isZIndexDirty = true
     if (noteRegion(objectBounds(obj))) return
     const arr = c!.getObjects()
@@ -317,6 +401,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     if (!obj.id) return
     const oldRect = objectBounds(obj)
     objectMap.delete(obj.id)
+    zById.delete(obj.id)
     bakeryRemove(obj.id)
     removeFromQuadTree(obj)
     invalidateZIndex()
@@ -488,7 +573,8 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         poolMax: IS_LOW_END ? 6 : 16,
         maxRenderScale: IS_LOW_END ? 1.5 : 2,
         overviewPatchMax: IS_LOW_END ? 80 : 200,
-        remoteBaker: bakeryBakeTile
+        remoteBaker: bakeryBakeTile,
+        remoteOverview: bakeryRenderOverview
       }
     )
 
@@ -505,6 +591,7 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     objectMap.clear()
     entryMap.clear()
     quadtree.clear()
+    zById.clear()
     bakeryClear()
     isZIndexDirty = true
     const objs = c!.getObjects()
@@ -522,6 +609,18 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
         const src = (obj as any).__bakeJSON
         if (src) bakerySeed(obj, src)
         else bakeryMarkDirty(obj)
+      }
+    }
+    // Seed z from the final canvas order (0 = back). After this, canvas order is
+    // no longer the z authority — layer ops + adds maintain zById directly.
+    const finalObjs = c!.getObjects()
+    zTop = -1
+    zBottom = 0
+    for (let i = 0; i < finalObjs.length; i++) {
+      const id = finalObjs[i].id
+      if (id) {
+        zById.set(id, i)
+        zTop = i
       }
     }
   }
@@ -716,6 +815,9 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     quadtree.clear()
     bakeryClear()
     zIndexMap.clear()
+    zById.clear()
+    zTop = -1
+    zBottom = 0
     isZIndexDirty = true
     core.reset()
     core.setContentBounds(null)
@@ -740,6 +842,12 @@ export const useDrawObjectManager = defineStore('drawObjectManager', () => {
     getObjectById,
     getObjectsById,
     translateMirror,
+    zToFront,
+    zToBack,
+    zUpOne,
+    zDownOne,
+    zGet,
+    zRestore,
     beginLoading,
     endLoading,
     isLoading,

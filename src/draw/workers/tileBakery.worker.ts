@@ -192,6 +192,60 @@ async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
   post({ msgId, bitmap }, [bitmap])
 }
 
+/**
+ * Whole-board overview render. Same math as WorldOverview's local rebuild:
+ * fit `bounds` into px×px, draw z-ordered ids. Objects are enlivened through
+ * the same LRU as tiles (so a subsequent viewport bake reuses them). A fresh
+ * offscreen is used per call — the overview canvas outlives the request on the
+ * main side as a bitmap, so we must not reuse the tile scratch.
+ */
+async function overview(req: Extract<BakeryRequest, { t: 'overview' }>): Promise<void> {
+  const { msgId, ids, bounds, px, scale } = req
+  if (bounds.w <= 0 || bounds.h <= 0) {
+    post({ msgId, error: 'bad bounds' })
+    return
+  }
+  // Report unknown ids instead of silently rendering a blank overview — the
+  // caller re-upserts + retries, else falls back to a local render. Without
+  // this a not-yet-seeded mirror produces an empty base layer = blank canvas
+  // when zoomed out (overview tier is the whole picture).
+  const missing = ids.filter((id) => !json.has(id))
+  if (missing.length) {
+    post({ msgId, missing })
+    return
+  }
+  const canvas = new OffscreenCanvas(px, px)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    post({ msgId, error: 'no 2d context' })
+    return
+  }
+  const sx = px / bounds.w
+  const sy = px / bounds.h
+  ctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy)
+
+  for (let i = 0; i < ids.length; i++) {
+    const obj = await ensureLive(ids[i])
+    if (!obj) continue
+    obj.visible = true
+    obj.canvas = null
+    obj.objectCaching = false
+    obj.dirty = true
+    if (obj.clipPath) obj.clipPath.dirty = true
+    ctx.save()
+    try {
+      obj.render(ctx as any)
+    } catch { /* one bad object must not kill the overview */
+    } finally {
+      ctx.restore()
+    }
+  }
+  evictLive()
+
+  const bitmap = canvas.transferToImageBitmap()
+  post({ msgId, bitmap }, [bitmap])
+}
+
 function post(msg: BakeryResponse, transfer: Transferable[] = []): void {
   ;(self as any).postMessage(msg, transfer)
 }
@@ -245,6 +299,9 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
           break
         case 'bake':
           await bake(msg)
+          break
+        case 'overview':
+          await overview(msg)
           break
       }
     } catch (err: any) {

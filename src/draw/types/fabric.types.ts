@@ -45,6 +45,7 @@ declare module "fabric" {
 			target: FabricObject[];
 			type: DrawAction;
 			prevObjectPositions?: number[];
+			prevZ?: number[];
 		};
 
 		fullErase: Partial<TEvent> & {

@@ -66,6 +66,16 @@ export type RemoteBaker<T> = (
   objects: T[], world: WorldRect, scale: number, overscan: number, size: number
 ) => Promise<ImageBitmap | null>;
 
+/**
+ * Off-main-thread whole-board overview render. Gets the z-ordered objects
+ * covering `bounds`; resolves with the rendered bitmap plus the objects it
+ * could NOT render (text / images) for the caller to overlay locally. Null →
+ * caller renders the overview locally.
+ */
+export type RemoteOverview<T> = (
+  objects: T[], bounds: WorldRect, px: number, scale: number
+) => Promise<{ bitmap: ImageBitmap; skipped: T[] } | null>;
+
 export interface CommittedOptions {
   poolMax?: number
   tileSize?: number;
@@ -80,6 +90,8 @@ export interface CommittedOptions {
   debug?: boolean;
   /** Optional worker-side tile renderer; async bakes try it first. */
   remoteBaker?: RemoteBaker<any>;
+  /** Optional worker-side overview renderer; full rebuilds try it first. */
+  remoteOverview?: RemoteOverview<any>;
 }
 
 interface Draw {
@@ -166,7 +178,10 @@ export class CommittedLayer<T extends Bounded> {
       (opts.memoryBudgetMB ?? 256) * 1024 * 1024 - overviewBytes - poolCeiling
     )
 
-    this.overview = new WorldOverview<T>(index, renderer, { px: opts.overviewPx ?? 2048 })
+    this.overview = new WorldOverview<T>(index, renderer, {
+      px: opts.overviewPx ?? 2048,
+      remoteOverview: opts.remoteOverview
+    })
   }
 
   get overviewTier(): number {

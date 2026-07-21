@@ -15,6 +15,7 @@
 
 import type {
   Bounded,
+  RemoteOverview,
   SpatialIndex,
   TileRenderer,
   WorldRect,
@@ -25,6 +26,7 @@ import { Yielder } from '@/draw/helpers/yielding.helper'
 interface OverviewOptions {
   px?: number;
   renderChunk?: number;
+  remoteOverview?: RemoteOverview<any>;
 }
 
 export class WorldOverview<T extends Bounded> {
@@ -32,6 +34,7 @@ export class WorldOverview<T extends Bounded> {
   private readonly CHUNK: number
   private readonly index: SpatialIndex<T>
   private readonly renderer: TileRenderer<T>
+  private readonly remoteOverview?: RemoteOverview<T>
 
   private canvas: OffscreenCanvas | null = null
   private ctx: OffscreenCanvasRenderingContext2D | null = null
@@ -49,6 +52,7 @@ export class WorldOverview<T extends Bounded> {
     this.renderer = renderer
     this.PX = opts.px ?? 2048
     this.CHUNK = opts.renderChunk ?? 128
+    this.remoteOverview = opts.remoteOverview
   }
 
   markDirty(): void {
@@ -193,22 +197,66 @@ export class WorldOverview<T extends Bounded> {
     if (!tctx) return
     const sx = this.PX / bounds.w
     const sy = this.PX / bounds.h
+    const minPx = 0.75
+
+    // Objects big enough to leave a mark at overview resolution, z-ordered.
+    const objects = this.index.query(bounds)
+    const visible: T[] = []
+    for (let i = 0; i < objects.length; i++) {
+      const b = objects[i].getBoundingRect(true, true)
+      if (b.width * sx >= minPx || b.height * sy >= minPx) visible.push(objects[i])
+    }
+
+    // Worker path: render the whole board off the main thread (the O(N) render
+    // was the main-thread stall on big boards). Strokes bake in the worker;
+    // text / images come back in `skipped` and are overlaid locally below.
+    if (this.remoteOverview) {
+      // Any failure in here (worker unavailable, timeout, bad bitmap) must fall
+      // through to the local render — never leave the overview unbuilt, or the
+      // far-zoom base layer stays blank until the user interacts.
+      try {
+        const remote = await this.remoteOverview(visible, bounds, this.PX, Math.max(sx, sy))
+        if (signal.aborted) {
+          remote?.bitmap.close()
+          return
+        }
+        if (remote) {
+          tctx.setTransform(1, 0, 0, 1, 0, 0)
+          tctx.clearRect(0, 0, this.PX, this.PX)
+          tctx.drawImage(remote.bitmap, 0, 0)
+          remote.bitmap.close()
+          if (remote.skipped.length) {
+            tctx.save()
+            tctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy)
+            for (let i = 0; i < remote.skipped.length; i++) {
+              try {
+                this.renderer(tctx as any, remote.skipped[i], Math.max(sx, sy))
+              } catch { /* ignore */ }
+            }
+            tctx.restore()
+          }
+          this.canvas = tmp
+          this.ctx = tctx
+          this.bounds = bounds
+          this.sx = sx
+          this.sy = sy
+          this.dirty = false
+          return
+        }
+      } catch { /* fall through to local render */ }
+      // null / threw → local render below.
+    }
 
     tctx.setTransform(1, 0, 0, 1, 0, 0)
     tctx.clearRect(0, 0, this.PX, this.PX)
     tctx.save()
     tctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy)
 
-    const objects = this.index.query(bounds)
     yielder.reset()
-    const minPx = 0.75
-    for (let i = 0; i < objects.length; i++) {
-      const b = objects[i].getBoundingRect(true, true)
-      if (b.width * sx >= minPx || b.height * sy >= minPx) {
-        try {
-          this.renderer(tctx as any, objects[i], Math.max(sx, sy))
-        } catch { /* ignore */
-        }
+    for (let i = 0; i < visible.length; i++) {
+      try {
+        this.renderer(tctx as any, visible[i], Math.max(sx, sy))
+      } catch { /* ignore */
       }
       await yielder.maybeYield()
       if (signal.aborted) {

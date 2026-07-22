@@ -39,6 +39,46 @@ export const useDrawHistoryManager = defineStore("history", () => {
 
 	const MAX_HISTORY = 50;
 
+	// The count cap alone cannot bound memory: a single action can retain the
+	// JSON of hundreds of objects (an erase across a dense region) or of the
+	// WHOLE canvas (prevCanvasJSON on a full erase). On a big board that is tens
+	// of MB per entry, pinned until 50 more actions push it out. So also cap the
+	// total number of serialized objects held across the stack, evicting oldest
+	// first — but never below MIN_ACTIONS, so recent undo always works.
+	const IS_MOBILE_HISTORY =
+		typeof navigator !== "undefined" &&
+		/Mobi|Android/i.test(navigator.userAgent);
+	const MAX_RETAINED_OBJECTS = IS_MOBILE_HISTORY ? 400 : 1200;
+	const MIN_ACTIONS = 5;
+
+	/** Approximate retained-object count for one action; cached on the action. */
+	function actionWeight(action: any): number {
+		if (typeof action.__w === "number") return action.__w;
+		let w = 1;
+		const p = action?.params ?? {};
+		for (const key of Object.keys(p)) {
+			const v = p[key];
+			if (Array.isArray(v)) w += v.length;
+			else if (v && typeof v === "object" && Array.isArray(v.objects)) {
+				w += v.objects.length; // prevCanvasJSON — a whole-canvas snapshot
+			}
+		}
+		action.__w = w;
+		return w;
+	}
+
+	function trimUndoStack(): void {
+		if (undoStack.length > MAX_HISTORY) {
+			undoStack.splice(0, undoStack.length - MAX_HISTORY);
+		}
+		let total = 0;
+		for (const a of undoStack) total += actionWeight(a);
+		while (total > MAX_RETAINED_OBJECTS && undoStack.length > MIN_ACTIONS) {
+			total -= actionWeight(undoStack[0]);
+			undoStack.shift();
+		}
+	}
+
 	const { updateQuadTree, getObjectById, getObjectsById, beginBatch, endBatch } =
 		useDrawObjectManager();
 	const { unSelect } = useSelect();
@@ -384,9 +424,7 @@ export const useDrawHistoryManager = defineStore("history", () => {
 
 	function addToUndoStack<T extends HistoryEvent>(action: HistoryAction<T>) {
 		undoStack.push(action);
-		if (undoStack.length > MAX_HISTORY) {
-			undoStack.shift();
-		}
+		trimUndoStack();
 		undoStackCounter.value = undoStack.length;
 		EventBus.emit("add_to_undo_stack", action);
 	}

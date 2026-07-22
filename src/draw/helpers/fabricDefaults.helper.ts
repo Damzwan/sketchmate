@@ -31,6 +31,15 @@ import { SprayStroke } from '@/draw/utils/brushes/CustomSprayBrush'
 import { CrayonStroke } from '@/draw/utils/brushes/CrayonBrush'
 
 export function changeFabricSettings() {
+  // The prototype assignment alone is DEAD: FabricObject's constructor runs
+  // `Object.assign(this, FabricObject.ownDefaults)` and ownDefaults carries
+  // `objectCaching: true`, so every instance gets an own property shadowing the
+  // prototype (fabric's own source comments say defaults "win over prototype").
+  // Symptom: children of a merged Group kept caching and were rasterized at the
+  // wrong scale (zoom 1 in the bake worker) → merged art rendered blurry while
+  // the identical ungrouped paths stayed sharp. Mutate the defaults too.
+  const ownDefaults = (FabricObject as any).ownDefaults
+  if (ownDefaults) ownDefaults.objectCaching = false
   FabricObject.prototype.objectCaching = false
   IText.prototype.editable = false
   FabricObject.customProperties = [

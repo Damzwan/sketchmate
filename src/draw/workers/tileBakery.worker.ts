@@ -85,9 +85,33 @@ brushes.forEach(([cls, name]) => classRegistry.setClass(cls as any, name))
 const json = new Map<string, any>()
 const live = new Map<string, any>()
 
-// Bounded by the DENSEST single tile's object count, not the scene. Tuned for
-// low-end from the main-side device probe carried on the first message.
+// Two caps, deliberately. LIVE_MAX is the WORKING cap during a bake pass: it
+// must exceed the whole viewport's object count or tiles evict each other's
+// objects and re-enliven them (thrash). IDLE_MAX is the AT-REST cap: a few
+// seconds after the last bake the cache shrinks back, so a board smaller than
+// LIVE_MAX doesn't sit permanently fully-enlivened here — that would recreate
+// the "double RAM" second scene graph this mirror exists to avoid.
 let LIVE_MAX = 1536
+let IDLE_MAX = 192
+const IDLE_SHRINK_MS = 4000
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+
+/** Drop the LRU tail down to `cap`. json stays — objects re-enliven on demand. */
+function shrinkTo(cap: number): void {
+  while (live.size > cap) {
+    const oldest = live.keys().next()
+    if (oldest.done) break
+    live.delete(oldest.value)
+  }
+}
+
+function scheduleIdleShrink(): void {
+  if (idleTimer) clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => {
+    idleTimer = null
+    shrinkTo(IDLE_MAX)
+  }, IDLE_SHRINK_MS)
+}
 
 function touch(id: string, obj: any): void {
   live.delete(id)
@@ -121,6 +145,63 @@ async function ensureLive(id: string): Promise<any | null> {
   if (!obj) return null
   touch(id, obj)
   return obj
+}
+
+/**
+ * Make an object report the TIER scale as its total scaling for this render.
+ *
+ * `objectCaching = false` does not stop fabric caching: shouldCache() is
+ * `objectCaching && … || needsItsOwnCache()`, and needsItsOwnCache() is true
+ * whenever there's a clipPath — every ERASED object. The cache resolution comes
+ * from getTotalObjectScaling(), which here (canvas === null) is just the object
+ * scale, i.e. ZOOM 1 — so an erased object baked into a tier-8 tile was a
+ * zoom-1 cache blown up 8x and never sharpened however far you zoomed.
+ *
+ * Reporting the tier scale makes _updateCacheCanvas() see zoomChanged and
+ * regenerate the cache at tile resolution by itself.
+ */
+function rectHitsBounds(
+  r: { x: number; y: number; w: number; h: number },
+  b: { left: number; top: number; width: number; height: number }
+): boolean {
+  return !(b.left + b.width < r.x || b.left > r.x + r.w ||
+           b.top + b.height < r.y || b.top > r.y + r.h)
+}
+
+function applyTierScaling(
+  obj: any,
+  tierScale: number,
+  clipRect?: { x: number; y: number; w: number; h: number }
+): void {
+  obj.objectCaching = false
+  obj.getTotalObjectScaling = function () {
+    return this.getObjectScaling().scalarMultiply(tierScale)
+  }
+  // Recurse into groups. A merged drawing is a Group: clearing caching on the
+  // group alone left its CHILDREN caching (fabric assigns `objectCaching: true`
+  // per instance from ownDefaults, and enlivened JSON carries it back), each
+  // rasterized at zoom 1 here because `canvas` is null — merged art came out
+  // visibly blurrier than the same paths ungrouped.
+  if (!Array.isArray(obj._objects)) return
+  for (let i = 0; i < obj._objects.length; i++) {
+    const child = obj._objects[i]
+    // CULL: the group is ONE index entry spanning all its children, so every
+    // tile overlapping that union would otherwise render every child (fabric
+    // does not cull children of a group, and canvas is null here so there is no
+    // offscreen check at all) — children × tiles work instead of children.
+    // NB: mirror objects persist in the LRU across bakes, so `visible` MUST be
+    // reset every time — never left false from a previous tile, or the child
+    // vanishes from later tiles and from the overview (which passes no clip).
+    let inTile = true
+    if (clipRect) {
+      try {
+        inTile = rectHitsBounds(clipRect, child.getBoundingRect())
+      } catch { /* un-measurable child: render it */ }
+    }
+    child.visible = inTile
+    if (!inTile) continue
+    applyTierScaling(child, tierScale, clipRect)
+  }
 }
 
 // --- rasterizer --------------------------------------------------------------
@@ -163,8 +244,12 @@ async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
 
   // Same pad+clip as CommittedLayer.rebuildTile — pixel-identical output.
   const pad = overscan / scale + 4 / scale
+  const q = {
+    x: world.x - pad, y: world.y - pad,
+    w: world.w + 2 * pad, h: world.h + 2 * pad
+  }
   ctx.beginPath()
-  ctx.rect(world.x - pad, world.y - pad, world.w + 2 * pad, world.h + 2 * pad)
+  ctx.rect(q.x, q.y, q.w, q.h)
   ctx.clip()
 
   for (let i = 0; i < objs.length; i++) {
@@ -175,6 +260,7 @@ async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
     obj.objectCaching = false
     obj.dirty = true
     if (obj.clipPath) obj.clipPath.dirty = true
+    applyTierScaling(obj, scale, q)
     ctx.save()
     try {
       obj.render(ctx as any)
@@ -187,6 +273,7 @@ async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
 
   // Keep this tile's objects; trim the rest of the LRU back to the cap.
   evictLive(new Set(ids))
+  scheduleIdleShrink()
 
   const bitmap = canvas.transferToImageBitmap()
   post({ msgId, bitmap }, [bitmap])
@@ -232,6 +319,7 @@ async function overview(req: Extract<BakeryRequest, { t: 'overview' }>): Promise
     obj.objectCaching = false
     obj.dirty = true
     if (obj.clipPath) obj.clipPath.dirty = true
+    applyTierScaling(obj, Math.max(sx, sy))
     ctx.save()
     try {
       obj.render(ctx as any)
@@ -241,6 +329,7 @@ async function overview(req: Extract<BakeryRequest, { t: 'overview' }>): Promise
     }
   }
   evictLive()
+  scheduleIdleShrink()
 
   const bitmap = canvas.transferToImageBitmap()
   post({ msgId, bitmap }, [bitmap])
@@ -260,7 +349,10 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
     try {
       switch (msg.t) {
         case 'config':
-          if (typeof msg.liveMax === 'number' && msg.liveMax > 0) LIVE_MAX = msg.liveMax
+          if (typeof msg.liveMax === 'number' && msg.liveMax > 0) {
+            LIVE_MAX = msg.liveMax
+            IDLE_MAX = Math.max(128, Math.floor(LIVE_MAX / 16))
+          }
           break
         case 'upsert':
           for (const item of msg.items) {

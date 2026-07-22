@@ -36,7 +36,11 @@ export interface SpatialIndex<T extends Bounded> {
 
 export type TileRenderer<T extends Bounded> = (
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  obj: T, tierScale: number
+  obj: T, tierScale: number,
+  /** World rect being rasterized. Lets the renderer cull a GROUP's children:
+   *  a merged Group is ONE index entry with the union bbox, so without this
+   *  every tile it overlaps re-renders all of its children. */
+  clipRect?: WorldRect
 ) => void;
 
 export interface Yieldable {
@@ -348,7 +352,7 @@ export class CommittedLayer<T extends Bounded> {
         const key = `${tier}:${tx}:${ty}`
         const t = this.tiles.get(key)
         const fresh = t ? this.isFresh(key, t) : false
-        if (t) t.lastUsed = performance.now()
+        if (t) this.touchTile(key, t)
         if (!t || !fresh) anyNonFresh = true
 
         if (t && t.bitmap) {
@@ -468,7 +472,7 @@ export class CommittedLayer<T extends Bounded> {
     const fx = (cwx - ctxi * ctws) / ctws
     const fy = (cwy - ctyi * ctws) / ctws
     const fw = cww / ctws
-    t.lastUsed = performance.now()
+    this.touchTile(key, t)
     return {
       bmp: t.bitmap,
       sx: this.OS + fx * this.TILE, sy: this.OS + fy * this.TILE,
@@ -514,7 +518,7 @@ export class CommittedLayer<T extends Bounded> {
         const ddw = (ix1 - ix0) * dpw
         const ddh = (iy1 - iy0) * dph
 
-        t.lastUsed = performance.now()
+        this.touchTile(k, t)
         draws.push({ bmp: t.bitmap, sx, sy, sw, sh, dx: ddx, dy: ddy, dw: ddw, dh: ddh })
       }
     }
@@ -551,11 +555,25 @@ export class CommittedLayer<T extends Bounded> {
     todo.sort((p, q) => p.pri - q.pri)
 
     yielder.reset()
-    for (const { tx, ty } of todo) {
-      if (signal.aborted) return
-      await this.rebuildTile(tier, tx, ty, yielder, signal)
-      if (yielder.shouldYield()) await yielder.yield()
+
+    // With a remote baker each tile costs a postMessage round-trip, and awaiting
+    // them one at a time leaves the worker idle between tiles — the viewport
+    // stays blurry for the whole serial chain. Run a few chains concurrently so
+    // the worker queue stays fed (it still renders FIFO internally). The local
+    // path is main-thread CPU, so overlapping it buys nothing: keep it serial.
+    const lanes = this.remoteBaker ? 4 : 1
+    let next = 0
+    const drain = async (): Promise<void> => {
+      while (next < todo.length) {
+        if (signal.aborted) return
+        const { tx, ty } = todo[next++]
+        await this.rebuildTile(tier, tx, ty, yielder, signal)
+        if (yielder.shouldYield()) await yielder.yield()
+      }
     }
+    await Promise.all(
+      Array.from({ length: Math.min(lanes, todo.length) }, () => drain())
+    )
   }
 
   private async rebuildTile(
@@ -582,9 +600,7 @@ export class CommittedLayer<T extends Bounded> {
       try {
         bmp = await this.remoteBaker(objects, world, scale, this.OS, this.BMP)
       } catch { /* worker hiccup → local fallback */ }
-      if (signal.aborted || (this.gen.get(key) ?? 0) !== builtGen) {
-        // Aborted or content changed while awaiting — discard; bakeAgain
-        // (or the next scheduled bake) produces the correct tile.
+      if (signal.aborted) {
         bmp?.close()
         return
       }
@@ -594,6 +610,16 @@ export class CommittedLayer<T extends Bounded> {
           bmp.close()
           return
         }
+        // Store even if `gen` advanced while we awaited the worker. It is kept
+        // under the ORIGINAL builtGen, so isFresh() stays false and the next
+        // bake repaints it exactly — same contract as stampBitmapRegion.
+        //
+        // Discarding here livelocked: the worker round-trip is far longer than
+        // the old sync render, so on a busy board (multiplayer peers bumping
+        // gen) invalidation outran every bake, no tile ever persisted, and the
+        // view stayed on an upscaled coarser tile — "never gets sharper", with
+        // stale leftovers. A sharp slightly-stale tile that converges beats a
+        // blurry one that never does.
         this.store(key, tier, tx, ty, bmp, bytes, builtGen)
         return
       }
@@ -617,7 +643,7 @@ export class CommittedLayer<T extends Bounded> {
     c2d.clip()
     for (let i = 0; i < objects.length; i++) {
       try {
-        this.renderer(c2d as any, objects[i], scale)
+        this.renderer(c2d as any, objects[i], scale, q)
       } catch (err) {
         if (this.debug) console.warn('[Committed] render threw', err)
       }
@@ -708,7 +734,7 @@ export class CommittedLayer<T extends Bounded> {
     c2d.clip()
     for (let i = 0; i < objects.length; i++) {
       try {
-        this.renderer(c2d as any, objects[i], scale)
+        this.renderer(c2d as any, objects[i], scale, q)
       } catch (err) {
         if (this.debug) console.warn('[Committed] sync render threw', err)
       }
@@ -736,6 +762,11 @@ export class CommittedLayer<T extends Bounded> {
     if (prev) {
       if (prev.bitmap) prev.bitmap.close()
       this.memoryBytes -= prev.bytes
+      // Delete before re-setting so the fresh tile lands at the LRU tail —
+      // Map.set on an existing key keeps its original insertion position, which
+      // would leave a just-baked tile looking like the oldest and get it evicted
+      // first (see touchTile / ensureMemory).
+      this.tiles.delete(key)
     }
     this.tiles.set(key, { bitmap, tier, tx, ty, bytes, builtGen, lastUsed: performance.now() })
     this.memoryBytes += bytes
@@ -774,15 +805,28 @@ export class CommittedLayer<T extends Bounded> {
   }
 
   // ── memory + pool ─────────────────────────────────────────────────────────
+  /**
+   * Mark a tile most-recently-used. `tiles` is kept in LRU order — a Map
+   * preserves insertion order and `set` on an EXISTING key does not move it, so
+   * we delete first to re-insert at the tail. O(1), and it lets ensureMemory
+   * evict from the head without sorting.
+   */
+  private touchTile(key: string, t: Tile): void {
+    t.lastUsed = performance.now()
+    if (this.tiles.delete(key)) this.tiles.set(key, t)
+  }
+
   private ensureMemory(need: number): boolean {
     if (this.memoryBytes + need <= this.MEM_HARD) return true
-    // Evict LRU down to a low-water mark in ONE pass, so the following tile
-    // stores in the same bake burst don't each re-snapshot+sort the whole
-    // tile map (the pan-over-dense-board eviction storm). Strict-LRU order is
-    // preserved; only triggers when actually at the hard cap.
+    // Evict from the head (least recently used) down to a low-water mark.
+    //
+    // This used to snapshot AND sort the entire tile map — `[...entries()].sort()`
+    // — on the main thread on every store that hit the cap. During a zoom the new
+    // tier stores dozens of tiles back to back, so that O(n log n) + full array
+    // alloc ran per tile and spiked exactly as the picture sharpened. Map order
+    // is already LRU (see touchTile), so this is O(evicted) with no allocation.
     const target = this.MEM_HARD * 0.85 - need
-    const sorted = [...this.tiles.entries()].sort((a, b) => a[1].lastUsed - b[1].lastUsed)
-    for (const [k, t] of sorted) {
+    for (const [k, t] of this.tiles) {
       if (this.memoryBytes <= target) break
       if (t.bitmap) t.bitmap.close()
       this.memoryBytes -= t.bytes
@@ -873,7 +917,7 @@ export class CommittedLayer<T extends Bounded> {
         c2d.beginPath()
         c2d.rect(q.x, q.y, q.w, q.h)
         c2d.clip()
-        try { this.renderer(c2d as any, obj, scale) } catch { /* ignore */ }
+        try { this.renderer(c2d as any, obj, scale, q) } catch { /* ignore */ }
         c2d.restore()
 
         let bmp: ImageBitmap
@@ -944,7 +988,7 @@ export class CommittedLayer<T extends Bounded> {
         c2d.beginPath()
         c2d.rect(q.x, q.y, q.w, q.h)
         c2d.clip()
-        try { this.renderer(c2d as any, obj, scale) } catch { /* ignore */ }
+        try { this.renderer(c2d as any, obj, scale, q) } catch { /* ignore */ }
         c2d.restore()
 
         let bmp: ImageBitmap

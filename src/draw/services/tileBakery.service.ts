@@ -103,15 +103,19 @@ function getWorker(): Worker | null {
 export function initTileBakery(): void {
 	const w = getWorker();
 	if (!w) return;
-	// Bound the worker's enliven LRU by device class. Must comfortably exceed
-	// the densest single tile's object count (a bake never evicts its own ids),
-	// so keep it generous — these are JSON-backed, re-enliven on demand.
+	// Bound the worker's enliven LRU by device class. This must exceed the
+	// WHOLE VIEWPORT's working set, not just one tile: a bake pass walks ~dozens
+	// of tiles back-to-back, so a cap smaller than their combined object count
+	// makes each tile evict the previous tile's objects and re-enliven them —
+	// thrash that stalls bakes and leaves the view blurry on dense boards.
+	// These are JSON-backed and re-enliven on demand, so over-provisioning only
+	// costs worker RAM, which is still bounded (and far cheaper than a stall).
 	const mobile =
 		typeof navigator !== "undefined" &&
 		/Mobi|Android/i.test(navigator.userAgent);
 	const hw = (navigator as any)?.hardwareConcurrency || 4;
 	const lowEnd = mobile && hw <= 4;
-	w.postMessage({ t: "config", liveMax: lowEnd ? 768 : 3072 });
+	w.postMessage({ t: "config", liveMax: lowEnd ? 2048 : 8192 });
 }
 
 export function isBakeryActive(): boolean {
@@ -147,15 +151,18 @@ export function bakerySeed(obj: FabricObject, srcJSON: any): void {
 export function bakeryTranslate(ids: string[], dx: number, dy: number): void {
 	if (disabled || ids.length === 0) return;
 	if (dx === 0 && dy === 0) return;
-	// Drop any pending full-serialization flush for these ids: it would carry
-	// pre-translate coords and race the delta. The worker's json is now the
-	// authority for their position.
+	// An object with a PENDING full upsert must stay dirty. The delta would be
+	// applied to whatever stale version the mirror still holds (v_old + delta
+	// instead of v_current + delta) — and because the id IS present, the worker
+	// never reports it `missing`, so nothing ever corrects it. That was a
+	// permanently warped tile after a few moves. Keeping it dirty costs one
+	// toJSON at the next flush, which then overwrites the mirror with the
+	// authoritative state (main has already applied the move); postMessage is
+	// FIFO, so translate-then-upsert converges correctly.
+	// Objects already in sync are NOT dirty and keep the cheap delta path.
 	for (const id of ids) {
 		const o = dirty.get(id);
-		if (o) {
-			(o as any).__bakeJSON = undefined;
-			dirty.delete(id);
-		}
+		if (o) (o as any).__bakeJSON = undefined; // coords moved — re-serialize
 	}
 	getWorker()?.postMessage({ t: "translate", ids, dx, dy });
 }
@@ -194,10 +201,45 @@ function shippable(obj: any): boolean {
 	return true;
 }
 
+/**
+ * Max objects shipped in one synchronous flush.
+ *
+ * postMessage deep-clones its payload on the CALLING thread, so posting the
+ * whole scene in one message was a single blocking clone of every object's JSON
+ * (tens of MB on a big board). That is the "load a big canvas, zoom immediately,
+ * spike" — the first bake's flush dumped everything at once. Bounded here and
+ * drained on idle; a bake that needs a not-yet-sent id gets `missing` back and
+ * the existing self-heal re-upserts just that tile's objects.
+ */
+const MAX_FLUSH_ITEMS = 192;
+let idleFlushHandle: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleIdleFlush(): void {
+	if (idleFlushHandle !== null || dirty.size === 0) return;
+	const run = () => {
+		idleFlushHandle = null;
+		const w = getWorker();
+		if (!w) return;
+		flush(w);
+		if (dirty.size > 0) scheduleIdleFlush();
+	};
+	const ric = (globalThis as any).requestIdleCallback;
+	idleFlushHandle = ric
+		? (ric(run, { timeout: 500 }) as any)
+		: setTimeout(run, 0);
+}
+
+/** Seed the mirror ahead of the first bake, in idle-sized chunks. */
+export function bakeryFlushSoon(): void {
+	if (disabled) return;
+	scheduleIdleFlush();
+}
+
 function flush(w: Worker): void {
 	if (dirty.size === 0) return;
 	const items: { id: string; json: any }[] = [];
 	for (const [id, obj] of dirty) {
+		if (items.length >= MAX_FLUSH_ITEMS) break;
 		const a = obj as any;
 		if (a.group) continue; // may ungroup later → keep dirty, don't drop
 		if (!shippable(a)) {
@@ -214,7 +256,72 @@ function flush(w: Worker): void {
 		a.__bakeJSON = undefined;
 		dirty.delete(id);
 	}
-	if (items.length) w.postMessage({ t: "upsert", items });
+	if (items.length) postUpsert(w, items);
+	if (dirty.size > 0) scheduleIdleFlush(); // rest goes out between frames
+}
+
+/**
+ * postMessage the upsert batch, surviving un-cloneable payloads.
+ *
+ * Some serialized objects carry a FUNCTION-valued property, which makes
+ * structured clone throw DataCloneError. That used to escape out of `flush()`
+ * — and because `flush` is called from `bakeryBakeTile`, the throw was caught
+ * by rebuildTile's `try` around the remote baker and silently turned into a
+ * local main-thread bake. So a single bad object could quietly disable
+ * worker baking for the whole board: exactly the kind of silent degradation
+ * that looks like "the worker isn't helping".
+ *
+ * Fast path stays allocation-free. Only on failure do we pay a JSON round-trip,
+ * which drops function props (they are not renderable data anyway).
+ */
+/**
+ * Force-sync the mirror for exactly these objects before a render that needs
+ * them. MANDATORY: the general flush is capped (MAX_FLUSH_ITEMS) and drains the
+ * rest on idle, so a render could otherwise proceed while the mirror still held
+ * an OLD version of a dirty object. The worker HAS that id, just stale, so it
+ * never reports `missing` and the self-heal never fires — the stale pixels come
+ * back, `gen` has not moved, and they get stored as FRESH. That is a permanent
+ * wrong tile at the current tier (it only looked fixed after zooming, because a
+ * different tier baked from scratch). Cost is bounded by how many of THESE
+ * objects are dirty, not by the scene.
+ */
+function flushObjects(w: Worker, objects: FabricObject[]): void {
+	if (dirty.size === 0) return;
+	const items: { id: string; json: any }[] = [];
+	for (const obj of objects) {
+		const id = obj.id;
+		if (!id || !dirty.has(id)) continue;
+		const a = obj as any;
+		if (a.group) continue; // still group-relative — cannot ship yet
+		if (!shippable(a)) {
+			dirty.delete(id);
+			continue;
+		}
+		const json = a.__bakeJSON ?? serialize(obj);
+		if (json) items.push({ id, json });
+		a.__bakeJSON = undefined;
+		dirty.delete(id);
+	}
+	if (items.length) postUpsert(w, items);
+}
+
+function postUpsert(w: Worker, items: { id: string; json: any }[]): void {
+	try {
+		w.postMessage({ t: "upsert", items });
+		return;
+	} catch {
+		/* falls through to the sanitized retry */
+	}
+	try {
+		w.postMessage({ t: "upsert", items: JSON.parse(JSON.stringify(items)) });
+		console.warn(
+			"[TileBakery] upsert payload was not structured-cloneable; sent a JSON-sanitized copy",
+		);
+	} catch (err) {
+		// Undeliverable batch: drop it rather than kill the flush loop. The tiles
+		// that need these ids get `missing` back and fall back to a local bake.
+		console.warn("[TileBakery] dropped an un-serializable upsert batch", err);
+	}
 }
 
 function requestBake(
@@ -294,6 +401,9 @@ export async function bakeryRenderOverview(
 	};
 
 	flush(w);
+	// MUST follow: the capped flush above may have left some of THESE objects
+	// stale in the mirror, which renders wrong pixels that get stored as fresh.
+	flushObjects(w, objects);
 	let res = await request();
 
 	if (res?.missing?.length) {
@@ -308,7 +418,7 @@ export async function bakeryRenderOverview(
 			}
 		}
 		if (items.length !== res.missing.length) return null;
-		w.postMessage({ t: "upsert", items });
+		postUpsert(w, items);
 		res = await request();
 	}
 
@@ -346,6 +456,9 @@ export async function bakeryBakeTile(
 	}
 
 	flush(w);
+	// MUST follow: the capped flush above may have left some of THESE objects
+	// stale in the mirror, which renders wrong pixels that get stored as fresh.
+	flushObjects(w, objects);
 	let res = await requestBake(w, ids, world, scale, overscan, size);
 
 	if (res?.missing?.length) {
@@ -358,7 +471,7 @@ export async function bakeryBakeTile(
 			}
 		}
 		if (items.length !== res.missing.length) return null;
-		w.postMessage({ t: "upsert", items });
+		postUpsert(w, items);
 		res = await requestBake(w, ids, world, scale, overscan, size);
 	}
 

@@ -4,6 +4,7 @@ import { computed, ref } from "vue";
 import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
 import { DrawAction, FabricEvent } from "@/draw/types/draw.types";
 import { useSelect } from "@/draw/store/tools/select.store";
+import { useEraser } from "@/draw/store/tools/eraser.store";
 import {
 	HistoryContext,
 	redoActionMapping,
@@ -51,13 +52,66 @@ export const useDrawHistoryManager = defineStore("history", () => {
 	const MAX_RETAINED_OBJECTS = IS_MOBILE_HISTORY ? 400 : 1200;
 	const MIN_ACTIONS = 5;
 
+	/**
+	 * Attach a JSON param that is only serialized if something actually reads it.
+	 *
+	 * A wide erase can delete hundreds of objects, and `toJSON()` on each ran
+	 * SYNCHRONOUSLY in the erase frame just to fill the undo entry — paid on
+	 * every erase, but only ever USED if the user undoes. Deleted objects are
+	 * off-canvas and never mutate again, so deferring is safe: serializing later
+	 * yields the identical JSON.
+	 *
+	 * NB the property must stay writable — `erasing:cleanup_done` appends to it.
+	 * And nothing may enumerate-and-read params casually (see actionWeight),
+	 * or the getter fires and the laziness is lost.
+	 */
+	function defineLazyJSON(
+		params: any,
+		key: string,
+		objects: FabricObject[],
+	): void {
+		let cached: any[] | null = null;
+		let pending: FabricObject[] = objects.slice();
+		Object.defineProperty(params, key, {
+			configurable: true,
+			enumerable: true,
+			get() {
+				if (!cached) cached = toJSON(pending);
+				return cached;
+			},
+			set(v: any[]) {
+				cached = v;
+				pending = [];
+			},
+		});
+		// Append MORE objects without forcing serialization (erasing:cleanup_done
+		// reports late deletions). Reading the param to concat would have
+		// serialized the whole pending set right back on the hot path.
+		Object.defineProperty(params, `__append_${key}`, {
+			configurable: true,
+			enumerable: false,
+			value: (more: FabricObject[]) => {
+				if (cached) cached = [...cached, ...toJSON(more)];
+				else pending = [...pending, ...more];
+			},
+		});
+	}
+
 	/** Approximate retained-object count for one action; cached on the action. */
 	function actionWeight(action: any): number {
 		if (typeof action.__w === "number") return action.__w;
 		let w = 1;
 		const p = action?.params ?? {};
 		for (const key of Object.keys(p)) {
-			const v = p[key];
+			// NEVER read through an accessor. Lazy params (defineLazyJSON)
+			// serialize on first read, which is the exact cost they exist to
+			// avoid — merely weighing the stack would have forced every deferred
+			// erase payload to materialize on the hot path. Actions carrying a
+			// lazy param must precompute `__w` (see the Erasing handler); an
+			// un-precomputed one is simply under-counted, which is safe.
+			const d = Object.getOwnPropertyDescriptor(p, key);
+			if (!d || d.get) continue;
+			const v = d.value;
 			if (Array.isArray(v)) w += v.length;
 			else if (v && typeof v === "object" && Array.isArray(v.objects)) {
 				w += v.objects.length; // prevCanvasJSON — a whole-canvas snapshot
@@ -67,16 +121,56 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		return w;
 	}
 
-	function trimUndoStack(): void {
+	function stackWeight(stack: HistoryAction[]): number {
+		let total = 0;
+		for (const a of stack) total += actionWeight(a);
+		return total;
+	}
+
+	/** Drop oldest entries until `stack` is under `budget` or hits MIN_ACTIONS.
+	 *  Returns the weight left. Index 0 is oldest in BOTH stacks (undo and redo
+	 *  are both pushed and popped from the tail). */
+	function evictOldest(stack: HistoryAction[], budget: number): number {
+		let total = stackWeight(stack);
+		while (total > budget && stack.length > MIN_ACTIONS) {
+			total -= actionWeight(stack[0]);
+			stack.shift();
+		}
+		return total;
+	}
+
+	/**
+	 * Bound BOTH stacks, by count and by retained objects.
+	 *
+	 * The redo stack used to be completely uncapped — no count limit, no weight
+	 * limit. Every undo moves its action to the redo stack, so undoing N times
+	 * on a big board migrated N heavy entries (whole-canvas `prevCanvasJSON`
+	 * snapshots, erase `deletedObjectsJSON`) into a container nothing ever
+	 * trimmed. Worse, undoing an erase FORCES its lazy payload to materialize,
+	 * so what lands in the redo stack is the fully-serialized version. Holding
+	 * undo down on a dense canvas was therefore an unbounded main-thread heap
+	 * climb — on precisely the low-memory devices already showing
+	 * `libwebviewchromium.so` SIGTRAP (a Chromium OOM CHECK).
+	 *
+	 * The budget is now COMBINED rather than per-stack, so the ceiling doesn't
+	 * silently double. Redo is evicted first: the user explicitly undid past
+	 * those, so losing the far end of redo is less harmful than losing the undo
+	 * they are about to reach for.
+	 */
+	function trimStacks(): void {
 		if (undoStack.length > MAX_HISTORY) {
 			undoStack.splice(0, undoStack.length - MAX_HISTORY);
 		}
-		let total = 0;
-		for (const a of undoStack) total += actionWeight(a);
-		while (total > MAX_RETAINED_OBJECTS && undoStack.length > MIN_ACTIONS) {
-			total -= actionWeight(undoStack[0]);
-			undoStack.shift();
+		if (redoStack.length > MAX_HISTORY) {
+			redoStack.splice(0, redoStack.length - MAX_HISTORY);
 		}
+		const undoTotal = stackWeight(undoStack);
+		if (undoTotal + stackWeight(redoStack) <= MAX_RETAINED_OBJECTS) return;
+		const redoTotal = evictOldest(
+			redoStack,
+			Math.max(0, MAX_RETAINED_OBJECTS - undoTotal),
+		);
+		evictOldest(undoStack, Math.max(0, MAX_RETAINED_OBJECTS - redoTotal));
 	}
 
 	const { updateQuadTree, getObjectById, getObjectsById, beginBatch, endBatch } =
@@ -93,15 +187,22 @@ export const useDrawHistoryManager = defineStore("history", () => {
 				// Assuming you can access the newly created eraser path from the event or brush
 				const eraserStroke = e.detail.path;
 
-				addToUndoStackWithResetRedo({
-					type: HistoryEvent.Erasing,
-					params: {
-						objectIds: toObjectsIds(targets),
-						deletedObjectsJSON: toJSON(e.detail.deletedObjects),
-						strokeJSON: eraserStroke.toJSON(),
-						strokeId: eraserStroke.id,
-					},
-				});
+				const deleted = (e.detail.deletedObjects ?? []) as FabricObject[];
+				const params: any = {
+					objectIds: toObjectsIds(targets),
+					strokeJSON: eraserStroke.toJSON(),
+					strokeId: eraserStroke.id,
+				};
+				// Deferred: serializing every deleted object here cost a synchronous
+				// toJSON per object in the erase frame, for an entry most users never
+				// undo. See defineLazyJSON.
+				defineLazyJSON(params, "deletedObjectsJSON", deleted);
+
+				const action: any = { type: HistoryEvent.Erasing, params };
+				// Precompute the trim weight so trimStacks never reads the lazy
+				// param (which would serialize it and defeat the whole point).
+				action.__w = 1 + targets.length + deleted.length;
+				addToUndoStackWithResetRedo(action);
 			},
 		},
 		{
@@ -109,23 +210,58 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			handler: (e: any) => {
 				const { strokeId, deletedObjects } = e;
 
-				for (let i = undoStack.length - 1; i >= 0; i--) {
-					const action: any = undoStack[i];
-					if (
-						action.type === HistoryEvent.Erasing &&
-						action.params.strokeId === strokeId
-					) {
-						const newDeletedJSON = toJSON(deletedObjects);
-						action.params.deletedObjectsJSON = [
-							...(action.params.deletedObjectsJSON || []),
-							...newDeletedJSON,
-						];
-						break;
+				// Search BOTH stacks. The cleanup sweep is deferred, so the user may
+				// already have undone (or undone+redone) this erase, moving its entry
+				// to the redo stack. Scanning only the undo stack dropped the deletion
+				// on the floor — the objects were gone with no entry able to restore
+				// them, i.e. the erase stayed applied permanently.
+				const findErasingAction = (stack: HistoryAction[]) => {
+					for (let i = stack.length - 1; i >= 0; i--) {
+						const a: any = stack[i];
+						if (
+							a.type === HistoryEvent.Erasing &&
+							a.params.strokeId === strokeId
+						) {
+							return a;
+						}
 					}
+					return undefined;
+				};
+
+				const action: any =
+					findErasingAction(undoStack) ?? findErasingAction(redoStack);
+				if (!action) return;
+
+				const append = action.params.__append_deletedObjectsJSON;
+				if (append) {
+					// Stays deferred — no toJSON unless this entry is undone.
+					append(deletedObjects as FabricObject[]);
+					if (typeof action.__w === "number") {
+						action.__w += (deletedObjects as FabricObject[]).length;
+					}
+				} else {
+					action.params.deletedObjectsJSON = [
+						...(action.params.deletedObjectsJSON || []),
+						...toJSON(deletedObjects),
+					];
 				}
 			},
 		},
 		{
+			// NB: EAGER on purpose, unlike the delete/erase payloads.
+			//
+			// This fires on every stroke commit, and `toJSON()` on a long
+			// OptimizedPencilStroke measures ~0.2ms desktop / ~2ms mid-Android —
+			// real, and on an already-crowded frame, but small. Deferring it is
+			// NOT equivalent to the delete case: an added object stays on the
+			// canvas and keeps mutating, so a lazy serialization would capture
+			// whatever state it had at UNDO time, not at add time. That is only
+			// safe while every intervening mutation has its own history entry
+			// undone first — true today, but a silent redo-restores-wrong-state
+			// bug the moment it isn't. Not worth 2ms.
+			//
+			// The scalable win here is making the stroke cheaper to serialize
+			// (roadmap item 2 in DRAW_ENGINE.md), not deferring it.
 			on: "object:added",
 			handler: (e: any) => {
 				addToUndoStackWithResetRedo({
@@ -148,10 +284,23 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			on: "objectsDeleted",
 			handler: (e: any) => {
 				const targets = e.target as FabricObject[];
-				addToUndoStackWithResetRedo({
+				// Deferred for the same reason as the erase payload: deleting a
+				// 300-object selection ran 300 synchronous `toJSON()` calls in the
+				// delete frame, and the result is only ever read if the user
+				// UNDOES. Deleted objects are off-canvas and never mutate again,
+				// so serializing later yields identical JSON.
+				//
+				// `redoObjectsDeleted` only reads `.id`, so a redo after an undo
+				// costs nothing extra — the undo already materialized it.
+				const params: any = {};
+				defineLazyJSON(params, "objectsJSON", targets);
+				const action: any = {
 					type: HistoryEvent.ObjectsDeleted,
-					params: { objectsJSON: toJSON(targets) },
-				});
+					params,
+				};
+				// Precompute so trimStacks/actionWeight never reads the lazy param.
+				action.__w = 1 + targets.length;
+				addToUndoStackWithResetRedo(action);
 			},
 		},
 
@@ -325,74 +474,119 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		};
 	}
 
-	async function undo() {
-		if (undoStack.length == 0) return;
+	// ─── history op serialization ────────────────────────────────────────────
+	// Undo/redo handlers are ASYNC (erase undo enlivens the stroke, awaits
+	// eraseObject, etc). Without a lock, spamming undo started handler #2 while
+	// #1 was parked at an await — two handlers then mutated the SAME object's
+	// clipPath interleaved (a corrupt clip neither undo alone would produce:
+	// the object is PERMANENTLY changed, no bake can fix it), and because the
+	// push to the opposite stack happens after the await, out-of-order
+	// completion also scrambled redo-stack order. All ops run through one FIFO
+	// chain; the stack pop happens INSIDE the queued task so it reads stack
+	// state at execution time, not at click time.
+	let historyChain: Promise<unknown> = Promise.resolve();
 
-		const action = undoStack.pop() as HistoryAction;
-
-		unSelect();
-		// Batch: a multi-region undo (move/style/multi-delete) coalesces into ONE
-		// invalidateRegions pass instead of per-region sync tile rebuilds.
-		beginBatch();
-		try {
-			await actionWithoutEvents(async () => {
-				const newAction = await undoActionMapping[action.type](
-					createHistoryContext(),
-					action as any,
-				);
-				addToRedoStack(newAction);
-			});
-		} finally {
-			endBatch();
-		}
-		undoStackCounter.value = undoStack.length;
-
-		lastActionType.value = "undo"; // important that it needs to be before the emit
-		c!.fire("undo", action);
+	function enqueueHistoryOp<T>(fn: () => Promise<T>): Promise<T> {
+		// Also wait out any in-flight erase commit. The eraser brush fires "end"
+		// synchronously and does not await its async handler, so the stroke is
+		// already applied to every target's clipPath while its undo entry does
+		// not exist yet. An undo landing there popped the PREVIOUS action, and
+		// the late addToUndoStackWithResetRedo then wiped the redo entry it had
+		// just created — the newest stroke stayed applied, unundoable.
+		const gated = async () => {
+			try {
+				await useEraser().whenErasingSettled();
+			} catch {
+				/* never block history on a broken barrier */
+			}
+			return fn();
+		};
+		const run = historyChain.then(gated, gated);
+		historyChain = run.catch(() => {}); // one failed op must not jam the chain
+		return run;
 	}
 
-	async function redo() {
-		if (redoStack.length == 0) return;
-		const action = redoStack.pop() as HistoryAction;
-		unSelect();
-		beginBatch();
-		try {
-			await actionWithoutEvents(async () => {
-				const newAction = await redoActionMapping[action.type](
-					createHistoryContext(),
-					action as any,
-				);
-				addToUndoStack(newAction);
-			});
-		} finally {
-			endBatch();
-		}
-		redoStackCounter.value = redoStack.length;
-		lastActionType.value = "redo";
-		c!.fire("redo", action);
+	function undo() {
+		return enqueueHistoryOp(async () => {
+			if (undoStack.length == 0) return;
+
+			const action = undoStack.pop() as HistoryAction;
+
+			unSelect();
+			// Batch: a multi-region undo (move/style/multi-delete) coalesces into ONE
+			// invalidateRegions pass instead of per-region sync tile rebuilds.
+			beginBatch();
+			try {
+				await actionWithoutEvents(async () => {
+					const newAction = await undoActionMapping[action.type](
+						createHistoryContext(),
+						action as any,
+					);
+					addToRedoStack(newAction);
+				});
+			} finally {
+				endBatch();
+			}
+			undoStackCounter.value = undoStack.length;
+
+			lastActionType.value = "undo"; // important that it needs to be before the emit
+			c!.fire("undo", action);
+		});
+	}
+
+	function redo() {
+		return enqueueHistoryOp(async () => {
+			if (redoStack.length == 0) return;
+			const action = redoStack.pop() as HistoryAction;
+			unSelect();
+			beginBatch();
+			try {
+				await actionWithoutEvents(async () => {
+					const newAction = await redoActionMapping[action.type](
+						createHistoryContext(),
+						action as any,
+					);
+					addToUndoStack(newAction);
+				});
+			} finally {
+				endBatch();
+			}
+			redoStackCounter.value = redoStack.length;
+			lastActionType.value = "redo";
+			c!.fire("redo", action);
+		});
 	}
 
 	// used when we want to cancel the last action for multiplayer, used in the syncing logic only
-	async function silentUndo() {
-		const action = undoStack.pop() as HistoryAction;
-		await actionWithoutEvents(async () => {
-			await undoActionMapping[action.type](
-				createHistoryContext(),
-				action as any,
-			);
+	// Same FIFO chain as undo/redo — the sync engine can fire these while a
+	// user-triggered undo is mid-await, and the same clip-mutation interleaving
+	// applies.
+	function silentUndo() {
+		return enqueueHistoryOp(async () => {
+			const action = undoStack.pop() as HistoryAction | undefined;
+			if (!action) return;
+			await actionWithoutEvents(async () => {
+				await undoActionMapping[action.type](
+					createHistoryContext(),
+					action as any,
+				);
+			});
+			reset();
 		});
-		reset();
 	}
 
-	async function silentRedo() {
-		const action = redoStack.pop() as HistoryAction;
-		await actionWithoutEvents(async () => {
-			await redoActionMapping[action.type](
-				createHistoryContext(),
-				action as any,
-			);
+	function silentRedo() {
+		return enqueueHistoryOp(async () => {
+			const action = redoStack.pop() as HistoryAction | undefined;
+			if (!action) return;
+			await actionWithoutEvents(async () => {
+				await redoActionMapping[action.type](
+					createHistoryContext(),
+					action as any,
+				);
+			});
+			reset();
 		});
-		reset();
 	}
 
 	function init(canvas: Canvas) {
@@ -424,13 +618,18 @@ export const useDrawHistoryManager = defineStore("history", () => {
 
 	function addToUndoStack<T extends HistoryEvent>(action: HistoryAction<T>) {
 		undoStack.push(action);
-		trimUndoStack();
+		trimStacks();
 		undoStackCounter.value = undoStack.length;
+		redoStackCounter.value = redoStack.length;
 		EventBus.emit("add_to_undo_stack", action);
 	}
 
 	function addToRedoStack<T extends HistoryEvent>(action: HistoryAction<T>) {
 		redoStack.push(action);
+		// Undo is the ONLY way entries reach this stack, so this is where an
+		// unbounded redo heap used to grow. Trim here too.
+		trimStacks();
+		undoStackCounter.value = undoStack.length;
 		redoStackCounter.value = redoStack.length;
 	}
 

@@ -30,10 +30,16 @@ export type BakeryRequest =
     }
 
 export interface BakeryResponse {
+  /** Correlates with the request. -1 marks an UNSOLICITED notification (the
+   *  font-registration result), which no pending request is waiting on. */
   msgId: number
   /** Rendered tile — transferred, zero-copy. */
   bitmap?: ImageBitmap
   /** Ids the mirror doesn't have (enliven failed / never upserted). */
   missing?: string[]
   error?: string
+  /** Font families successfully registered in the worker's FontFaceSet. Text
+   *  using any OTHER family stays refused — a missing face would silently bake
+   *  fallback glyphs into a committed tile. Empty = no worker font support. */
+  fonts?: string[]
 }

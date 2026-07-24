@@ -57,6 +57,18 @@ function prepareForBake(
 		o.getTotalObjectScaling = prevScaling;
 	});
 
+	// The clipPath — an eraser ClippingGroup — is ALWAYS cached for masking
+	// (`renderCache({ forClipping: true })`), at ITS OWN total scaling. During a
+	// bake `canvas` is null, so that scaling is object-scale × zoom-1 = 1: the
+	// erase MASK rasterizes at 1x and is then upscaled to the tile's tier,
+	// blurring every erased edge when zoomed in. Prep the clip (and its stroke
+	// children) exactly like the object so the mask bakes at tile resolution.
+	// No clipRect — a clip must render whole, never culled.
+	const clip = o.clipPath;
+	if (clip && typeof clip === "object" && typeof clip.getObjectScaling === "function") {
+		prepareForBake(clip, tierScale, undo);
+	}
+
 	if (!Array.isArray(o._objects)) return;
 
 	for (let i = 0; i < o._objects.length; i++) {

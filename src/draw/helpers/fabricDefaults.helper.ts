@@ -3,11 +3,13 @@ import {
   Canvas,
   CanvasOptions,
   classRegistry,
+  config,
   FabricObject,
   IText,
   Point,
   TPointerEvent
 } from 'fabric'
+import { getRenderDpr } from '@/draw/config/renderQuality.config'
 import { v4 as uuidv4 } from 'uuid'
 import { BACKGROUND } from '@/draw/config/canvas.config'
 import { useAuthStore } from '@/store/auth.store'
@@ -30,7 +32,32 @@ import { NeonStroke } from '@/draw/utils/brushes/NeonSignBrush'
 import { SprayStroke } from '@/draw/utils/brushes/CustomSprayBrush'
 import { CrayonStroke } from '@/draw/utils/brushes/CrayonBrush'
 
+/**
+ * CAP THE RENDER RESOLUTION.
+ *
+ * fabric's `getRetinaScaling()` reads `config.devicePixelRatio`, so this ONE
+ * assignment caps every fabric-internal consumer at once: the lower + upper
+ * canvas backing stores, the eraser's screen-space clip rect, the lasso, and
+ * hit-test tolerances.
+ *
+ * On a DPR-3 phone the lower and upper canvases were ~2.4Mpx EACH, cleared and
+ * refilled every frame, while tiles only ever rasterize at MAX_RENDER_SCALE —
+ * so those extra device pixels were pure upscale for tile content. That fill
+ * rate is the prime suspect behind the "Unresponsive GPU" / libGLESv2_adreno
+ * ANRs (docs/DRAW_ENGINE_PERF.md, finding F4).
+ *
+ * MUST run BEFORE any Canvas is constructed — fabric sizes the backing store in
+ * the constructor. It is called from `createCanvas` for exactly that reason,
+ * and repeated here so any other entry point into `changeFabricSettings` is
+ * also covered. Idempotent.
+ */
+export function applyRenderDpr() {
+  config.devicePixelRatio = getRenderDpr()
+}
+
 export function changeFabricSettings() {
+  applyRenderDpr()
+
   // The prototype assignment alone is DEAD: FabricObject's constructor runs
   // `Object.assign(this, FabricObject.ownDefaults)` and ownDefaults carries
   // `objectCaching: true`, so every instance gets an own property shadowing the

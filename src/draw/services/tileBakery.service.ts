@@ -23,13 +23,69 @@
 //   • transiently hidden objects (opacity 0 / visible false — mid-drag hide by
 //     the transform controller) — the mirror still has them visible, so a
 //     worker bake would ghost them back in; the local baker reads live state.
+//
+// Refusals are counted (drawMetrics) — the refusal RATE is what decides whether
+// worker-side fonts / image transferables are worth building. See
+// docs/DRAW_ENGINE_PERF.md finding F3.
 
+import { FabricImage } from "fabric";
 import type { FabricObject } from "fabric";
-import type { WorldRect } from "@/draw/committedLayer";
+import type { RemoteBakeResult, WorldRect } from "@/draw/committedLayer";
 import type { BakeryResponse } from "@/draw/types/tileBakery.types";
+import {
+	recordBakeHardError,
+	recordBakeMissingRetry,
+	recordBakeryDisabled,
+	recordBakeryPause,
+	recordBakeTimeout,
+	recordFlush,
+	recordTileFailed,
+	recordTileHybrid,
+	recordTileRefused,
+	recordTileRemote,
+	type RefusalReason,
+} from "@/draw/services/drawMetrics.service";
 
-const BAKE_TIMEOUT_MS = 2500;
-const MAX_FAILURES = 3;
+// ─── health model ────────────────────────────────────────────────────────────
+//
+// A TIMEOUT IS NOT A FAULT. It is back-pressure: the worker may simply be slow
+// (cold module parse, a dense first bake, a device under memory pressure).
+//
+// The previous model counted every timeout toward a 3-strike budget that only
+// reset on success. CommittedLayer.bake runs FOUR concurrent lanes, so a single
+// slow first pass produced four timeouts before any success could land — and
+// the bakery shut itself down PERMANENTLY for the session. After that every
+// tile baked on the main thread, and dropRegionLight went from 0 sync tiles
+// back to 8 per drag commit: strictly worse than the pre-worker build, with no
+// signal beyond a console.warn. That is finding F2, and it is the leading
+// suspect for the ANR cohort.
+//
+// New model:
+//   • timeout      → abandon THAT request, count it, keep going. Only a long
+//                    unbroken run of them (no reply of any kind in between)
+//                    pauses the bakery.
+//   • hard error   → a real fault (worker.onerror, or an { error } reply).
+//                    Bounded budget, decays on every healthy reply.
+//   • pause        → terminate + cooldown, then RE-ARM. Never permanent.
+//   • disable      → only for an unsupported environment, or after so many
+//                    pauses that the worker is clearly unusable here.
+
+/** Generous while the worker is still cold: module parse + first enliven. */
+const COLD_TIMEOUT_MS = 20_000;
+/** Steady state, once the worker has replied at least once. */
+const WARM_TIMEOUT_MS = 8_000;
+/** Structured errors tolerated before a pause. Decays on healthy replies. */
+const MAX_HARD_FAILURES = 5;
+/** Consecutive timeouts with NO reply in between before a pause. Must exceed
+ *  the bake lane count (4) so one stalled pass cannot trip it. */
+const MAX_CONSECUTIVE_TIMEOUTS = 8;
+/** Cooldown before a paused bakery re-arms with a fresh worker. */
+const PAUSE_MS = 30_000;
+/** Pauses tolerated before giving up on this device for the session. */
+const MAX_PAUSES = 4;
+/** Safety valve so a stalled worker cannot be queue-flooded. Bake uses 4 lanes
+ *  plus at most one overview, so this is never hit in normal operation. */
+const MAX_IN_FLIGHT = 8;
 
 interface PendingBake {
 	resolve: (r: BakeryResponse | null) => void;
@@ -37,72 +93,162 @@ interface PendingBake {
 }
 
 let worker: Worker | null = null;
+/** Permanent for this session. Unsupported env, or too many pauses. */
 let disabled = false;
-let failures = 0;
+/** Wall-clock ms; > 0 means paused. Re-arms once `Date.now()` passes it. */
+let pausedUntil = 0;
+let pauses = 0;
+let hardFailures = 0;
+let consecutiveTimeouts = 0;
+/** The worker has replied at least once since the last (re)spawn. */
+let sawReply = false;
 let msgSeq = 0;
+let liveMaxConfig = 8192;
+/**
+ * Font families the worker has registered in its own FontFaceSet.
+ *
+ * Empty until the worker reports back (and permanently empty where
+ * WorkerGlobalScope.fonts is unsupported), so text tiles are refused by
+ * default — a face the worker lacks would bake FALLBACK GLYPHS into a
+ * committed tile, which is a correctness bug, not a perf trade. Cleared on
+ * teardown because a re-armed worker must re-register before we trust it.
+ */
+let workerFonts = new Set<string>();
+
 const pending = new Map<number, PendingBake>();
 /** id → live object ref; serialized lazily on flush. */
 const dirty = new Map<string, FabricObject>();
 
-function fail(): void {
-	failures++;
-	if (failures >= MAX_FAILURES) shutdown();
+function isPaused(): boolean {
+	if (!pausedUntil) return false;
+	if (Date.now() < pausedUntil) return true;
+	rearm();
+	return false;
 }
 
-function shutdown(): void {
-	disabled = true;
+function rearm(): void {
+	pausedUntil = 0;
+	hardFailures = 0;
+	consecutiveTimeouts = 0;
+	sawReply = false; // fresh worker → cold timeouts apply again
+	// The terminated worker took its mirror with it. Nothing is re-seeded
+	// eagerly: objects marked dirty DURING the pause are still parked here and
+	// go out on the next idle flush, and any id the fresh worker does not have
+	// comes back `{ missing }` and is re-upserted by the existing self-heal.
+}
+
+function noteReply(): void {
+	sawReply = true;
+	consecutiveTimeouts = 0;
+	// Decay rather than reset: an alternating error/success pattern must still
+	// accumulate toward a pause instead of being cleared every other message.
+	if (hardFailures > 0) hardFailures--;
+}
+
+function noteTimeout(): void {
+	recordBakeTimeout();
+	consecutiveTimeouts++;
+	if (consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS) pause("timeout");
+}
+
+function noteHardError(): void {
+	recordBakeHardError();
+	hardFailures++;
+	if (hardFailures >= MAX_HARD_FAILURES) pause("error");
+}
+
+function pause(reason: "timeout" | "error"): void {
+	if (disabled || pausedUntil) return;
+	pauses++;
+	recordBakeryPause(reason);
+	teardown();
+	if (pauses > MAX_PAUSES) {
+		disable(`repeated ${reason} pauses`);
+		return;
+	}
+	pausedUntil = Date.now() + PAUSE_MS;
 	console.warn(
-		"[TileBakery] disabled after repeated failures — tile baking falls back to the main thread",
+		`[TileBakery] paused for ${PAUSE_MS}ms after ${reason}; tiles bake on the main thread until it re-arms`,
 	);
+}
+
+function disable(reason: string): void {
+	disabled = true;
+	recordBakeryDisabled();
+	teardown();
+	// NB: dirty is only cleared here, on the permanent path. A PAUSE keeps the
+	// parked refs so the re-armed worker gets seeded from them.
+	dirty.clear();
+	console.warn(
+		`[TileBakery] disabled for this session (${reason}) — all tile baking falls back to the main thread`,
+	);
+}
+
+/** Kill the worker and settle everything waiting on it. */
+function teardown(): void {
 	if (worker) {
 		worker.terminate();
 		worker = null;
 	}
+	// A fresh worker has an empty FontFaceSet until it re-registers.
+	workerFonts.clear();
 	for (const [, p] of pending) {
 		clearTimeout(p.timer);
 		p.resolve(null);
 	}
 	pending.clear();
-	dirty.clear();
 }
 
 function getWorker(): Worker | null {
 	if (disabled) return null;
+	if (isPaused()) return null;
 	if (worker) return worker;
 	if (typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined") {
-		disabled = true;
+		disable("no Worker / OffscreenCanvas");
 		return null;
 	}
 	try {
 		worker = new Worker(
 			new URL("../workers/tileBakery.worker.ts", import.meta.url),
-			{
-				type: "module",
-			},
+			{ type: "module" },
 		);
 	} catch {
-		disabled = true;
+		disable("worker construction threw");
 		return null;
 	}
-	worker.onerror = () => fail();
+	worker.onerror = () => noteHardError();
 	worker.onmessage = (e: MessageEvent<BakeryResponse>) => {
+		// Unsolicited notification: which font families the worker registered.
+		// Until this lands, `workerFonts` is empty and every text tile is refused
+		// — the safe default.
+		if (e.data.fonts !== undefined) {
+			workerFonts = new Set(e.data.fonts);
+			noteReply();
+			return;
+		}
 		const p = pending.get(e.data.msgId);
 		if (!p) {
-			// late reply after timeout — free the bitmap, it will never be used
+			// Late reply after we abandoned the request — free the bitmap, it will
+			// never be used. Still counts as proof of life.
 			e.data.bitmap?.close();
+			noteReply();
 			return;
 		}
 		pending.delete(e.data.msgId);
 		clearTimeout(p.timer);
+		// Any reply — including `{ missing }` — means the worker is alive.
+		if (e.data.error) noteHardError();
+		else noteReply();
 		p.resolve(e.data);
 	};
+	// Re-send config on every spawn: after a re-arm the fresh worker would
+	// otherwise sit at its default LIVE_MAX and thrash its enliven cache.
+	worker.postMessage({ t: "config", liveMax: liveMaxConfig });
 	return worker;
 }
 
 /** Warm the worker during canvas init so the first bake doesn't pay spawn+parse. */
 export function initTileBakery(): void {
-	const w = getWorker();
-	if (!w) return;
 	// Bound the worker's enliven LRU by device class. This must exceed the
 	// WHOLE VIEWPORT's working set, not just one tile: a bake pass walks ~dozens
 	// of tiles back-to-back, so a cap smaller than their combined object count
@@ -115,11 +261,12 @@ export function initTileBakery(): void {
 		/Mobi|Android/i.test(navigator.userAgent);
 	const hw = (navigator as any)?.hardwareConcurrency || 4;
 	const lowEnd = mobile && hw <= 4;
-	w.postMessage({ t: "config", liveMax: lowEnd ? 2048 : 8192 });
+	liveMaxConfig = lowEnd ? 2048 : 8192;
+	getWorker(); // spawn now; the config message goes out with it
 }
 
 export function isBakeryActive(): boolean {
-	return !disabled && worker !== null;
+	return !disabled && !isPaused() && worker !== null;
 }
 
 export function bakeryMarkDirty(obj: FabricObject): void {
@@ -127,6 +274,10 @@ export function bakeryMarkDirty(obj: FabricObject): void {
 	// The cached serialization is now stale — force a fresh toJSON at next flush.
 	(obj as any).__bakeJSON = undefined;
 	dirty.set(obj.id, obj);
+	// Drain in the background. The bake path no longer flushes the global dirty
+	// set (see bakeryBakeTile), so this idle drain is what keeps the mirror warm
+	// and stops bakes from paying a `missing` round-trip.
+	scheduleIdleFlush();
 }
 
 /**
@@ -194,10 +345,36 @@ function serialize(obj: FabricObject): any | null {
  * group-relative, so their coords would be wrong; keep them dirty until they
  * leave the group.
  */
+/**
+ * True when the worker has a registered face for this text object's family, so
+ * it will render with the SAME metrics the main thread would. Anything else —
+ * no worker font support, a face that failed to load, a family we never ship —
+ * stays refused.
+ */
+function textRenderable(obj: any): boolean {
+	if (workerFonts.size === 0) return false;
+	const family = obj.fontFamily;
+	if (typeof family !== "string" || family.length === 0) return false;
+	// fontFamily can be a CSS stack ("Anton, sans-serif"); every named face has
+	// to be one we loaded, or a fallback could win for some glyph.
+	return family
+		.split(",")
+		.every((f) => workerFonts.has(f.trim().replace(/^["']|["']$/g, "")));
+}
+
 function shippable(obj: any): boolean {
 	if (obj.group) return false;
-	if (obj.text !== undefined) return false;
+	if (obj.text !== undefined) return textRenderable(obj);
+	// ANY FabricImage-backed object, not just `type === 'image'`. The Neon, Spray
+	// and Crayon STROKES extend FabricImage but serialize under their own type
+	// ('NeonStroke' etc.), so a bare `type === 'image'` check missed them: they
+	// were shipped to the worker, which has no image element to render, so they
+	// rendered blank / threw and VANISHED from worker-baked tiles — the
+	// "brushes appear/disappear when zooming" report. instanceof catches every
+	// image subclass at once.
+	if (obj instanceof FabricImage) return false;
 	if (obj.type === "image") return false;
+	if (obj.__hasImageClip) return false;
 	return true;
 }
 
@@ -212,14 +389,25 @@ function shippable(obj: any): boolean {
  * the existing self-heal re-upserts just that tile's objects.
  */
 const MAX_FLUSH_ITEMS = 192;
+/** Retry cadence for the idle drain while the bakery is paused. */
+const PAUSED_RETRY_MS = 2_000;
 let idleFlushHandle: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleIdleFlush(): void {
-	if (idleFlushHandle !== null || dirty.size === 0) return;
+	if (idleFlushHandle !== null || dirty.size === 0 || disabled) return;
 	const run = () => {
 		idleFlushHandle = null;
+		if (disabled) return;
 		const w = getWorker();
-		if (!w) return;
+		if (!w) {
+			// Paused. Keep the parked refs and try again after the cooldown rather
+			// than dropping the drain — the re-armed worker starts with an empty
+			// mirror and these are exactly what it needs.
+			if (dirty.size > 0) {
+				idleFlushHandle = setTimeout(run, PAUSED_RETRY_MS);
+			}
+			return;
+		}
 		flush(w);
 		if (dirty.size > 0) scheduleIdleFlush();
 	};
@@ -235,8 +423,14 @@ export function bakeryFlushSoon(): void {
 	scheduleIdleFlush();
 }
 
+/**
+ * Drain up to MAX_FLUSH_ITEMS of the global dirty set.
+ *
+ * IDLE ONLY. This must never be called from the bake path — see bakeryBakeTile.
+ */
 function flush(w: Worker): void {
 	if (dirty.size === 0) return;
+	const t0 = performance.now();
 	const items: { id: string; json: any }[] = [];
 	for (const [id, obj] of dirty) {
 		if (items.length >= MAX_FLUSH_ITEMS) break;
@@ -257,36 +451,26 @@ function flush(w: Worker): void {
 		dirty.delete(id);
 	}
 	if (items.length) postUpsert(w, items);
+	recordFlush(performance.now() - t0, items.length);
 	if (dirty.size > 0) scheduleIdleFlush(); // rest goes out between frames
 }
 
 /**
- * postMessage the upsert batch, surviving un-cloneable payloads.
- *
- * Some serialized objects carry a FUNCTION-valued property, which makes
- * structured clone throw DataCloneError. That used to escape out of `flush()`
- * — and because `flush` is called from `bakeryBakeTile`, the throw was caught
- * by rebuildTile's `try` around the remote baker and silently turned into a
- * local main-thread bake. So a single bad object could quietly disable
- * worker baking for the whole board: exactly the kind of silent degradation
- * that looks like "the worker isn't helping".
- *
- * Fast path stays allocation-free. Only on failure do we pay a JSON round-trip,
- * which drops function props (they are not renderable data anyway).
- */
-/**
  * Force-sync the mirror for exactly these objects before a render that needs
- * them. MANDATORY: the general flush is capped (MAX_FLUSH_ITEMS) and drains the
- * rest on idle, so a render could otherwise proceed while the mirror still held
- * an OLD version of a dirty object. The worker HAS that id, just stale, so it
- * never reports `missing` and the self-heal never fires — the stale pixels come
- * back, `gen` has not moved, and they get stored as FRESH. That is a permanent
- * wrong tile at the current tier (it only looked fixed after zooming, because a
- * different tier baked from scratch). Cost is bounded by how many of THESE
- * objects are dirty, not by the scene.
+ * them. MANDATORY: the idle drain is capped (MAX_FLUSH_ITEMS) and spread across
+ * idle callbacks, so a render could otherwise proceed while the mirror still
+ * held an OLD version of a dirty object. The worker HAS that id, just stale, so
+ * it never reports `missing` and the self-heal never fires — the stale pixels
+ * come back, `gen` has not moved, and they get stored as FRESH. That is a
+ * permanent wrong tile at the current tier (it only looked fixed after zooming,
+ * because a different tier baked from scratch).
+ *
+ * Cost is bounded by how many of THESE objects are dirty, not by the scene —
+ * which is the whole point of calling this instead of flush() on the bake path.
  */
 function flushObjects(w: Worker, objects: FabricObject[]): void {
 	if (dirty.size === 0) return;
+	const t0 = performance.now();
 	const items: { id: string; json: any }[] = [];
 	for (const obj of objects) {
 		const id = obj.id;
@@ -303,8 +487,23 @@ function flushObjects(w: Worker, objects: FabricObject[]): void {
 		dirty.delete(id);
 	}
 	if (items.length) postUpsert(w, items);
+	recordFlush(performance.now() - t0, items.length);
 }
 
+/**
+ * postMessage the upsert batch, surviving un-cloneable payloads.
+ *
+ * Some serialized objects carry a FUNCTION-valued property, which makes
+ * structured clone throw DataCloneError. That used to escape out of `flush()`
+ * — and because `flush` was called from `bakeryBakeTile`, the throw was caught
+ * by rebuildTile's `try` around the remote baker and silently turned into a
+ * local main-thread bake. So a single bad object could quietly disable
+ * worker baking for the whole board: exactly the kind of silent degradation
+ * that looks like "the worker isn't helping".
+ *
+ * Fast path stays allocation-free. Only on failure do we pay a JSON round-trip,
+ * which drops function props (they are not renderable data anyway).
+ */
 function postUpsert(w: Worker, items: { id: string; json: any }[]): void {
 	try {
 		w.postMessage({ t: "upsert", items });
@@ -324,31 +523,35 @@ function postUpsert(w: Worker, items: { id: string; json: any }[]): void {
 	}
 }
 
-function requestBake(
+/**
+ * Post a request and track its reply. Timeouts abandon the request without
+ * blaming the worker for it (see the health model at the top of this file).
+ */
+function track(
 	w: Worker,
-	ids: string[],
-	world: WorldRect,
-	scale: number,
-	overscan: number,
-	size: number,
+	msg: Record<string, unknown>,
 ): Promise<BakeryResponse | null> {
+	// Back-pressure: never pile more onto a worker that is already behind.
+	if (pending.size >= MAX_IN_FLIGHT) return Promise.resolve(null);
 	const msgId = ++msgSeq;
+	const timeoutMs = sawReply ? WARM_TIMEOUT_MS : COLD_TIMEOUT_MS;
 	return new Promise((resolve) => {
 		const timer = setTimeout(() => {
 			pending.delete(msgId);
-			fail();
+			noteTimeout();
 			resolve(null);
-		}, BAKE_TIMEOUT_MS);
+		}, timeoutMs);
 		pending.set(msgId, { resolve, timer });
-		w.postMessage({
-			t: "bake",
-			msgId,
-			ids,
-			world: { x: world.x, y: world.y, w: world.w, h: world.h },
-			scale,
-			overscan,
-			size,
-		});
+		msg.msgId = msgId;
+		try {
+			w.postMessage(msg);
+		} catch (err) {
+			clearTimeout(timer);
+			pending.delete(msgId);
+			noteHardError();
+			console.warn("[TileBakery] request postMessage failed", err);
+			resolve(null);
+		}
 	});
 }
 
@@ -380,36 +583,26 @@ export async function bakeryRenderOverview(
 		ids.push(obj.id);
 	}
 
-	const request = (): Promise<BakeryResponse | null> => {
-		const msgId = ++msgSeq;
-		return new Promise((resolve) => {
-			const timer = setTimeout(() => {
-				pending.delete(msgId);
-				fail();
-				resolve(null);
-			}, BAKE_TIMEOUT_MS);
-			pending.set(msgId, { resolve, timer });
-			w.postMessage({
-				t: "overview",
-				msgId,
-				ids,
-				bounds: { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h },
-				px,
-				scale,
-			});
+	const request = (): Promise<BakeryResponse | null> =>
+		track(w, {
+			t: "overview",
+			ids,
+			bounds: { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h },
+			px,
+			scale,
 		});
-	};
 
-	flush(w);
-	// MUST follow: the capped flush above may have left some of THESE objects
-	// stale in the mirror, which renders wrong pixels that get stored as fresh.
+	// Only THESE objects need to be current. The global dirty set drains on idle
+	// — draining it here was the per-call main-thread spike (finding F1).
 	flushObjects(w, objects);
 	let res = await request();
 
 	if (res?.missing?.length) {
 		// Mirror not seeded for these ids yet (e.g. first overview at load, before
-		// any tile bake flushed them). Re-serialize from the live objects we were
-		// handed, upsert, retry once — else fall back to a local render.
+		// any tile bake flushed them, or a freshly re-armed worker). Re-serialize
+		// from the live objects we were handed, upsert, retry once — else fall
+		// back to a local render.
+		recordBakeMissingRetry();
 		const items: { id: string; json: any }[] = [];
 		for (const obj of objects) {
 			if (res.missing.includes(obj.id)) {
@@ -423,13 +616,47 @@ export async function bakeryRenderOverview(
 	}
 
 	if (!res || res.error || !res.bitmap) return null;
-	failures = 0;
 	return { bitmap: res.bitmap, skipped };
 }
 
+function refuse(reason: RefusalReason): null {
+	recordTileRefused(reason);
+	return null;
+}
+
 /**
- * Remote baker handed to CommittedLayer. Returns the tile bitmap, or null to
- * make the caller fall back to the local (main-thread) renderer.
+ * Can the worker render this object at all? Text needs a registered face;
+ * images, image-clips and grouped objects can't be shipped (group transforms
+ * are group-relative, images have no worker element). Everything else — every
+ * stroke type — ships.
+ */
+function workerCanRender(a: any): boolean {
+	if (a.text !== undefined) return textRenderable(a);
+	// FabricImage subclasses (Neon/Spray/Crayon strokes + real images) have no
+	// renderable element in the worker — see shippable().
+	if (a instanceof FabricImage) return false;
+	if (a.type === "image") return false;
+	if (a.__hasImageClip) return false;
+	if (a.group) return false;
+	return true;
+}
+
+/**
+ * Remote baker handed to CommittedLayer.
+ *
+ * HYBRID (F3-C): objects the worker can render are baked off-thread; objects it
+ * can't (an image, a group, text with an unloaded face) are returned in
+ * `skipped` for the caller to overlay on the main thread. On a real board most
+ * tiles are strokes plus the odd sticker — this bakes the strokes off-thread
+ * and only paints the sticker locally, instead of refusing the whole tile.
+ *
+ * Correctness rests on ONE guard: `skipped` must all sit z-ABOVE everything
+ * shipped, so "draw bitmap, then draw skipped over it" reproduces the true
+ * stacking. `objects` arrive z-sorted ascending, so the shippable set must be a
+ * PREFIX — the moment a shippable object appears after an un-shippable one, the
+ * z-orders interleave and we bail to a full local bake (`null`).
+ *
+ * Returns null → caller does a full local render.
  */
 export async function bakeryBakeTile(
 	objects: FabricObject[],
@@ -437,45 +664,80 @@ export async function bakeryBakeTile(
 	scale: number,
 	overscan: number,
 	size: number,
-): Promise<ImageBitmap | null> {
+): Promise<RemoteBakeResult<FabricObject> | null> {
 	const w = getWorker();
 	if (!w) return null;
 
+	const shippable: FabricObject[] = [];
 	const ids: string[] = [];
+	const skipped: FabricObject[] = [];
+	let seenSkipped = false;
 	for (const obj of objects) {
 		const a = obj as any;
-		if (!obj.id) return null;
-		// font fidelity: text renders with main-thread @font-face only
-		if (a.text !== undefined) return null;
-		// images never enter the worker (no fetch / CORS / img-mock) → main bake
-		if (a.type === "image") return null;
-		// group-relative transform / transiently hidden → live state only
-		if (a.group) return null;
-		if (a.opacity === 0 || a.visible === false) return null;
-		ids.push(obj.id);
+		// Transiently hidden (mid-drag hide by the transform controller): render
+		// in NEITHER layer. The mirror still has them visible so the worker would
+		// ghost them, and the local overlay renderer force-sets visible=true so it
+		// would un-hide them too. Being invisible, they also don't affect z-order,
+		// so skip them without tripping the prefix guard.
+		if (a.opacity === 0 || a.visible === false) continue;
+
+		if (workerCanRender(a) && obj.id) {
+			// A shippable object ABOVE a skipped one → overlay-on-top would reorder
+			// them. Bail to a full local bake.
+			if (seenSkipped) return refuse("zorder");
+			shippable.push(obj);
+			ids.push(obj.id);
+		} else {
+			seenSkipped = true;
+			skipped.push(obj);
+		}
 	}
 
-	flush(w);
-	// MUST follow: the capped flush above may have left some of THESE objects
-	// stale in the mirror, which renders wrong pixels that get stored as fresh.
-	flushObjects(w, objects);
-	let res = await requestBake(w, ids, world, scale, overscan, size);
+	// Nothing for the worker to do (empty tile, or all overlay) → local render.
+	// An empty tile is handled by the caller before we're even reached; an
+	// all-skipped tile isn't worth a round-trip.
+	if (ids.length === 0) return null;
+
+	// NO global flush() here. Draining the WHOLE dirty set per tile — up to 192
+	// synchronous toJSON() across four bake lanes inside an un-yieldable stretch
+	// — was finding F1. Only THIS tile's shippable objects must be current.
+	flushObjects(w, shippable);
+
+	const request = (): Promise<BakeryResponse | null> =>
+		track(w, {
+			t: "bake",
+			ids,
+			world: { x: world.x, y: world.y, w: world.w, h: world.h },
+			scale,
+			overscan,
+			size,
+		});
+
+	let res = await request();
 
 	if (res?.missing?.length) {
 		// Self-heal once: re-upsert from the live refs, retry.
+		recordBakeMissingRetry();
 		const items: { id: string; json: any }[] = [];
-		for (const obj of objects) {
+		for (const obj of shippable) {
 			if (res.missing.includes(obj.id)) {
 				const json = serialize(obj);
 				if (json) items.push({ id: obj.id, json });
 			}
 		}
-		if (items.length !== res.missing.length) return null;
+		if (items.length !== res.missing.length) {
+			recordTileFailed();
+			return null;
+		}
 		postUpsert(w, items);
-		res = await requestBake(w, ids, world, scale, overscan, size);
+		res = await request();
 	}
 
-	if (!res || res.error || !res.bitmap) return null;
-	failures = 0;
-	return res.bitmap;
+	if (!res || res.error || !res.bitmap) {
+		recordTileFailed();
+		return null;
+	}
+	recordTileRemote();
+	if (skipped.length) recordTileHybrid(skipped.length);
+	return { bitmap: res.bitmap, skipped };
 }

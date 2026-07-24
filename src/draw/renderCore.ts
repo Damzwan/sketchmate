@@ -60,6 +60,7 @@ export class RenderCore<T extends Bounded> {
   private readonly overviewPatchMax: number
 
   private frameScheduled = false
+  private progressRaf = 0
   private bakeTimer: any = null
   private overviewTimer: any = null
   private bakeCtrl: AbortController | null = null
@@ -108,6 +109,35 @@ export class RenderCore<T extends Bounded> {
     requestAnimationFrame(() => {
       this.frameScheduled = false
       this.renderNow()
+    })
+  }
+
+  /**
+   * Coalesced intermediate repaint DURING a bake pass (F9). Composites whatever
+   * tiles have been stored so far so the viewport fills in progressively instead
+   * of staying on the overview/fallback for the whole ~40-tile pass.
+   *
+   * Deliberately does NOT go through renderNow: it must not run gcExpired /
+   * demote / scheduleBake (we are mid-bake — a fresh scheduleBake would just set
+   * bakeAgain and thrash). Pure composite + live overlay + control re-render.
+   */
+  private requestBakeProgressFrame(): void {
+    if (this.progressRaf || this.frameScheduled || this.loading || this.erasing) return
+    this.progressRaf = requestAnimationFrame(() => {
+      this.progressRaf = 0
+      if (this.loading || this.erasing) return
+      const ctx = this.surface.getContext()
+      if (!ctx) return
+      this.frameCounter++
+      const vpt = this.surface.getVpt()
+      const size = this.surface.getSize()
+      const dpr = this.surface.getDpr()
+      this.committed.composite(
+        ctx, vpt, size, dpr, this.surface.getBackground(), this.gesturing ? 1 : 0
+      )
+      const vw = this.committed.viewWorld(vpt, size, dpr)
+      this.live.composite(ctx, vpt, dpr, this.liveRender, vw)
+      this.afterComposite?.()
     })
   }
 
@@ -167,6 +197,10 @@ export class RenderCore<T extends Bounded> {
       clearTimeout(this.bakeTimer)
       this.bakeTimer = null
     }
+    if (this.progressRaf) {
+      cancelAnimationFrame(this.progressRaf)
+      this.progressRaf = 0
+    }
   }
   private pendingDemote = false
 
@@ -184,7 +218,8 @@ export class RenderCore<T extends Bounded> {
     try {
       await this.committed.bake(
         this.surface.getVpt(), this.surface.getSize(), this.surface.getDpr(),
-        this.makeYielder(), ctrl.signal, this.contentBounds
+        this.makeYielder, ctrl.signal, this.contentBounds,
+        () => this.requestBakeProgressFrame()
       )
     } catch { /* aborted / transient */
     }

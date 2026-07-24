@@ -1,6 +1,11 @@
 import * as fabric from "fabric";
 import { Canvas, FabricObject, Group, Path, PencilBrush } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
+import { bakeryMarkDirty } from "@/draw/services/tileBakery.service";
+import { createYielder } from "@/draw/helpers/yielding.helper";
+
+const IS_MOBILE_ERASE =
+	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
 
 function isPrimaryPointer(ev: Event | undefined): boolean {
 	if (!ev) return true;
@@ -730,41 +735,46 @@ export class CustomEraserBrush extends PencilBrush {
 								 path,
 								 targets,
 							 }: EventDetailMap["end"]): Promise<Map<fabric.FabricObject, fabric.Path>> {
-		const result = new Map(
-			await Promise.all([
-				...targets.map(async (object) => {
-					return [object, await eraseObject(object, path)] as const;
-				}),
-				...(
-					[
-						[
-							this.canvas.backgroundImage,
-							!this.canvas.backgroundVpt
-								? this.canvas.viewportTransform
-								: undefined,
-						],
-						[
-							this.canvas.overlayImage,
-							!this.canvas.overlayVpt
-								? this.canvas.viewportTransform
-								: undefined,
-						],
-					] as const
-				)
-					.filter(([object]) => !!object?.erasable)
-					.map(async ([object, vptFlag]) => {
-						return [
-							object,
-							await eraseCanvasDrawable(object as FabricObject, vptFlag, path),
-						] as [fabric.FabricObject, fabric.Path];
-					}),
-			]),
-		);
+		// A big erase hits MANY objects. `eraseObject` per target — clone the
+		// stroke into the object plane + add a clip child — is synchronous, and
+		// running them all through Promise.all fired every body back-to-back with
+		// NO yield to input: one long main-thread block that made a pan/zoom right
+		// after a big erase stutter (ANR territory). Drive them through a yielder
+		// so input can interleave. `eraseObject` bodies are synchronous, so this
+		// is purely about spacing them, not concurrency — order is irrelevant
+		// (destination-out masks commute).
+		const result = new Map<fabric.FabricObject, fabric.Path>();
+		const yielder = createYielder({ budgetMs: IS_MOBILE_ERASE ? 4 : 8 });
+		for (const object of targets) {
+			result.set(object, await eraseObject(object, path));
+			if (yielder.shouldYield()) await yielder.yield();
+		}
+
+		// Background / overlay drawables (at most two) — cheap, no yield needed.
+		const drawables = [
+			[
+				this.canvas.backgroundImage,
+				!this.canvas.backgroundVpt ? this.canvas.viewportTransform : undefined,
+			],
+			[
+				this.canvas.overlayImage,
+				!this.canvas.overlayVpt ? this.canvas.viewportTransform : undefined,
+			],
+		] as const;
+		for (const [object, vptFlag] of drawables) {
+			if (!object?.erasable) continue;
+			result.set(
+				object as FabricObject,
+				await eraseCanvasDrawable(object as FabricObject, vptFlag, path),
+			);
+		}
 
 		// Bound clip-path growth. Only objects hit by THIS stroke can have grown,
 		// so we only check those. Amortized O(1) per stroke: a bake happens once
-		// every `flattenClipAfter` strokes per object.
+		// every `flattenClipAfter` strokes per object. Yielded too — a flatten
+		// bake (toCanvasElement + toDataURL) is itself heavy.
 		if (this.flattenClipAfter > 0) {
+			yielder.reset();
 			for (const object of targets) {
 				try {
 					await this.bakeClipGroupIfNeeded(object);
@@ -772,6 +782,7 @@ export class CustomEraserBrush extends PencilBrush {
 					// On ANY failure, leave the existing clip untouched. Never risk
 					// corrupting a drawing for the sake of a perf optimization.
 				}
+				if (yielder.shouldYield()) await yielder.yield();
 			}
 		}
 
@@ -860,6 +871,12 @@ export class CustomEraserBrush extends PencilBrush {
 			// punches exactly the same holes.
 			globalCompositeOperation: "destination-out",
 		});
+		try {
+			(baked as any).src = el.toDataURL("image/png");
+		} catch {
+			/* fallback if canvas toDataURL fails */
+		}
+		(object as any).__hasImageClip = true;
 
 		// Swap ONLY the baked (oldest) children for the single union image; the
 		// newest `keepVectorClips` stay as-is. Order among destination-out
@@ -868,10 +885,29 @@ export class CustomEraserBrush extends PencilBrush {
 		cg.add(baked as unknown as FabricObject);
 		cg.set("dirty", true);
 		object.set("dirty", true);
+		bakeryMarkDirty(object);
 
-		// Best-effort release of the now-dead nodes.
+		// RETAIN the baked strokes OFF the render tree so erase-undo can still
+		// remove them (undo matches by stroke id, which the image no longer
+		// carries). They are small vectors and NOT in `cg._objects`, so they add
+		// no render cost — only the image renders. On undo of a baked stroke the
+		// clip is un-flattened from this list (see removeStrokeFromClip in
+		// erase.helper), which also drops the image and its base64, freeing
+		// memory. Bounded so a pathologically-erased object can't grow it without
+		// limit; dropping the oldest just makes those very old erases
+		// un-undoable, which is exactly the pre-fix behaviour.
+		const RETAIN_CAP = 400;
+		const prevRetained: FabricObject[] = (object as any).__bakedClipStrokes ?? [];
+		let retained = [...prevRetained, ...toBake];
+		if (retained.length > RETAIN_CAP) {
+			const drop = retained.slice(0, retained.length - RETAIN_CAP);
+			drop.forEach((s) => (s as any).dispose?.());
+			retained = retained.slice(retained.length - RETAIN_CAP);
+		}
+		(object as any).__bakedClipStrokes = retained;
+
+		// Only the temporary source-over clones are dead; the originals are kept.
 		clones.forEach((clone) => (clone as any).dispose?.());
-		toBake.forEach((child) => (child as any).dispose?.());
 	}
 
 	/**

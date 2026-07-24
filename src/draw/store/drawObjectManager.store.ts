@@ -8,7 +8,13 @@ import {
 	InfiniteQuadtreeManager,
 	QuadtreeEntry,
 } from "@/draw/utils/QuadTree";
-import { isMobile } from "@/helper/general.helper";
+import {
+	getRenderDpr,
+	IS_LOW_END_DEVICE,
+	IS_MOBILE_DEVICE,
+	MAX_RENDER_SCALE,
+} from "@/draw/config/renderQuality.config";
+import { initDrawMetrics } from "@/draw/services/drawMetrics.service";
 import { createYielder } from "@/draw/helpers/yielding.helper";
 import { isolatedTileRenderer } from "@/draw/helpers/drawTileRenderer.helper";
 import { useFriendStore } from "@/store/friend.store";
@@ -29,14 +35,11 @@ import {
 	initTileBakery,
 } from "@/draw/services/tileBakery.service";
 
-const IS_MOBILE = isMobile();
-const HW = (navigator as any).hardwareConcurrency || 4;
-const DEVICE_MEM_GB = (navigator as any).deviceMemory || (IS_MOBILE ? 4 : 8);
-// hardwareConcurrency alone was a bad proxy for "can this device hold a big
-// tile cache": an 8-core phone failed `HW <= 4` and got the full DESKTOP budget
-// (~223MB of tiles + a 16.8MB overview) — the ANR/OOM driver on mobile. Device
-// memory is the honest signal, and any mobile stays conservative regardless.
-const IS_LOW_END = IS_MOBILE && (HW <= 4 || DEVICE_MEM_GB <= 4);
+// Device class + the render-resolution cap now live in renderQuality.config so
+// the tile bake scale (maxRenderScale) and the canvas/composite DPR cannot
+// drift apart — they are the same constant. See that file for why.
+const IS_MOBILE = IS_MOBILE_DEVICE;
+const IS_LOW_END = IS_LOW_END_DEVICE;
 
 /**
  * Tile-cache budget — the dominant allocation in this engine, NOT the objects.
@@ -73,6 +76,63 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		return [...zById.entries()].sort((a, b) => a[1] - b[1]).map((e) => e[0]);
 	}
 
+	/**
+	 * Give a newly-added object its z.
+	 *
+	 * A fresh stroke is appended to the top of the canvas → ++zTop, the cheap
+	 * common case. But history RESTORES land mid-stack via `canvas.insertAt(idx)`
+	 * (erase undo bringing back fully-erased objects, delete undo, ungroup...),
+	 * and blindly stamping ++zTop there put them ON TOP of everything —
+	 * permanently, since explicit z (not canvas order) is what rendering ranks
+	 * by. Spamming undo/redo climbed them higher every cycle.
+	 *
+	 * So for a mid-stack insert, place z BETWEEN the nearest indexed neighbours
+	 * in canvas order. Values are only ever compared, so a fractional midpoint is
+	 * fine and needs no renumbering.
+	 */
+	function assignZOnAdd(obj: FabricObject): void {
+		const objs = c!.getObjects();
+		// Fast path: appended on top (every freshly drawn object).
+		if (objs.length === 0 || objs[objs.length - 1] === obj) {
+			zById.set(obj.id, ++zTop);
+			return;
+		}
+		const i = objs.indexOf(obj);
+		if (i < 0) {
+			zById.set(obj.id, ++zTop);
+			return;
+		}
+		let below: number | undefined;
+		for (let k = i - 1; k >= 0; k--) {
+			const z = objs[k].id ? zById.get(objs[k].id) : undefined;
+			if (z !== undefined) {
+				below = z;
+				break;
+			}
+		}
+		let above: number | undefined;
+		for (let k = i + 1; k < objs.length; k++) {
+			const z = objs[k].id ? zById.get(objs[k].id) : undefined;
+			if (z !== undefined) {
+				above = z;
+				break;
+			}
+		}
+		let z: number;
+		if (above === undefined) {
+			z = ++zTop;
+		} else if (below === undefined) {
+			z = above - 1;
+			if (z < zBottom) zBottom = z;
+		} else {
+			z = (below + above) / 2;
+			// Degenerate gap (neighbours equal / float exhausted) — fall back to
+			// sitting just under `above` rather than silently colliding.
+			if (!(z > below && z < above)) z = above;
+		}
+		zById.set(obj.id, z);
+	}
+
 	let loadingDepth = 0;
 	const isLoading = () => loadingDepth > 0;
 
@@ -94,7 +154,14 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		// Batched changes (remote sync, undo/redo) may have altered objects that
 		// are currently selected — the drag-layer bitmap can't be trusted anymore.
 		localTransform.invalidateCache();
-		core.setContentBounds(computeContentBounds());
+		// NB: do NOT recompute content bounds here. computeContentBounds is
+		// O(all objects) and this runs on EVERY undo/redo and every remote-sync
+		// batch — an all-scene scan per interaction on a big board. It is also
+		// redundant: invalidateRegions() below calls growContentBounds() for
+		// every rect, so growth is already covered. The only thing skipped is
+		// SHRINK after a removal, and a slightly-loose content bound merely makes
+		// the overview cover a bit of extra empty space — harmless. The full
+		// recompute still runs on load / reset (endLoading, resetTileCache).
 		core.invalidateRegions(rects);
 	}
 
@@ -394,24 +461,43 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	}
 
 	// ── renderers handed to the core ─────────────────────────────────────────
+	/**
+	 * Render one in-flight object directly over the composited tiles.
+	 *
+	 * Runs EVERY FRAME for every live item, so what it does per call matters.
+	 *
+	 * It used to force `a.dirty = true`. `isolatedTileRenderer` deliberately
+	 * does not (see the note there): fabric force-caches any object with a
+	 * clipPath — every ERASED object — via `needsItsOwnCache()`, and forcing
+	 * dirty makes `_updateCacheCanvas` re-rasterize the whole clip stack. Doing
+	 * that on the tile path was the historical super-linear erase lag; doing it
+	 * here did the same thing at 60Hz for the duration of every live overlay.
+	 *
+	 * Instead, mirror the tile renderer: clear caching and report the VIEWPORT
+	 * scale as the total object scaling, so fabric's own `zoomChanged` check
+	 * regenerates the cache exactly once per real change and blits it after.
+	 * Real mutations (set(), commitErasing) still flag dirty themselves.
+	 */
 	function renderLive(ctx: CanvasRenderingContext2D, obj: FabricObject) {
 		const a = obj as any;
 		const needsCanvas = !!a.clipPath || !!a.shadow;
 		const prevCanvas = a.canvas;
 		const prevCaching = a.objectCaching;
-		const prevDirty = a.dirty;
+		const prevScaling = a.getTotalObjectScaling;
 
 		if (!needsCanvas) a.canvas = null;
 		a.objectCaching = false;
-		a.dirty = true;
 
-		// --- NEW: Scale shadow for the live layer based on viewport zoom ---
 		const vpt = c!.viewportTransform!;
+		const liveScale = Math.abs(vpt[0]) || 1;
+		a.getTotalObjectScaling = function () {
+			return this.getObjectScaling().scalarMultiply(liveScale);
+		};
+
+		// Shadow blur is in world units here but fabric applies it in the
+		// current context space, so scale it with the viewport.
 		const originalBlur = a.shadow?.blur;
-		if (a.shadow) {
-			a.shadow.blur = originalBlur * vpt[0];
-		}
-		// ------------------------------------------------------------------
+		if (a.shadow) a.shadow.blur = originalBlur * vpt[0];
 
 		try {
 			obj.render(ctx);
@@ -420,11 +506,8 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		} finally {
 			if (!needsCanvas) a.canvas = prevCanvas;
 			a.objectCaching = prevCaching;
-			a.dirty = prevDirty;
-
-			// --- NEW: Restore original shadow ---
+			a.getTotalObjectScaling = prevScaling;
 			if (a.shadow) a.shadow.blur = originalBlur;
-			// ------------------------------------
 		}
 	}
 
@@ -435,8 +518,20 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		if (isLoading()) return; // bulk loads reseed the bakery in rebuildIndexFromCanvas
 		bakeryMarkDirty(obj);
 		addToQuadTree(obj);
-		zById.set(obj.id, ++zTop); // new object lands on top
-		isZIndexDirty = true;
+		assignZOnAdd(obj);
+		// INCREMENTAL z-stamp. assignZOnAdd only assigns THIS object's z (append,
+		// or a fractional midpoint on a mid-stack insert) — no existing object's z
+		// changes. So stamp just this one instead of flagging isZIndexDirty, which
+		// forces getZIndexMap to rebuild O(all objects) on the next bake. That
+		// rebuild fires after EVERY stroke commit, so on an N-object board drawing
+		// was O(N) per stroke — O(N²) over a session. If a full rebuild is already
+		// pending, let it subsume this. Layer ops still set the flag (they move
+		// many objects' z); removal drops the entry (onObjectRemoved).
+		if (!isZIndexDirty) {
+			const z = zById.get(obj.id) ?? 0;
+			(obj as any).__z = z;
+			zIndexMap.set(obj, z);
+		}
 		if (noteRegion(objectBounds(obj))) return;
 		const arr = c!.getObjects();
 		const topmost = arr.length > 0 && arr[arr.length - 1] === obj;
@@ -450,7 +545,10 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		zById.delete(obj.id);
 		bakeryRemove(obj.id);
 		removeFromQuadTree(obj);
-		invalidateZIndex();
+		// Removing an object changes no OTHER object's z, so no O(all) rebuild —
+		// just drop it from the denormalized map (mirrors the incremental add in
+		// onObjectAdded). If a full rebuild is already pending, it will handle it.
+		if (!isZIndexDirty) zIndexMap.delete(obj);
 		if (isLoading()) return;
 		if (noteRegion(oldRect)) return;
 		core?.onObjectRemoved(obj, oldRect);
@@ -596,13 +694,17 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	// ── init / lifecycle ─────────────────────────────────────────────────────
 	function init(canvas: Canvas) {
 		c = canvas;
+		initDrawMetrics(getRenderDpr); // counters for the ANR investigation
 		initTileBakery(); // warm the worker so the first bake doesn't pay spawn+parse
 
 		const surface: Surface = {
 			getContext: () => c!.getContext(),
 			getSize: () => ({ w: c!.getElement().width, h: c!.getElement().height }),
 			getVpt: () => c!.viewportTransform!,
-			getDpr: () => window.devicePixelRatio || 1,
+			// MUST equal fabric's getRetinaScaling(): getSize() reports the backing
+			// store fabric sized from config.devicePixelRatio, and viewWorld divides
+			// by this. A mismatch scales the whole composite wrong.
+			getDpr: getRenderDpr,
 			getBackground: () => c!.backgroundColor as string,
 		};
 
@@ -635,7 +737,11 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				// of the blur — see the tier-scale cache fix in
 				// drawTileRenderer.helper.ts. Raise it only as a deliberate
 				// sharpness-for-memory trade.
-				maxRenderScale: IS_LOW_END ? 1.5 : 2,
+				// UPDATE: bake scale and composite DPR are now the SAME constant
+				// (MAX_RENDER_SCALE also feeds fabric's config.devicePixelRatio), so
+				// the upscale described above no longer exists — tiles bake and
+				// composite at identical resolution.
+				maxRenderScale: MAX_RENDER_SCALE,
 				overviewPatchMax: IS_LOW_END ? 80 : 200,
 				remoteBaker: bakeryBakeTile,
 				remoteOverview: bakeryRenderOverview,
@@ -726,16 +832,52 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	 *  selection itself is unchanged by a move, and nuking the cache here would
 	 *  force a full re-bake on every re-grab. Callers whose change DOES alter
 	 *  selected pixels (erase undo/redo) pass `invalidateSelectionCache`. */
-	function dropRegionLight(rect: WorldRect, invalidateSelectionCache = false) {
+	/**
+	 * @param coveredByLayer true only when the caller keeps something on screen
+	 *   over the dropped region until the async bake lands (the transform
+	 *   controller's GPU drag layer). Then the synchronous tile repair is
+	 *   redundant main-thread work — 4-8 full object renders per commit, which
+	 *   is what made a spammed move stall — and we can skip it.
+	 *
+	 *   ERASE UNDO MUST NOT SET THIS. Nothing covers the region there, and the
+	 *   overview still holds the hole punched into it by `overview.eraseObject`
+	 *   at erase time, so dropping the tiles with no sync repair composites the
+	 *   stale overview and the undone stroke stays visible until a later bake.
+	 */
+	function dropRegionLight(
+		rect: WorldRect,
+		invalidateSelectionCache = false,
+		coveredByLayer = false,
+		maxSyncTilesOverride?: number,
+	) {
 		if (invalidateSelectionCache) localTransform.invalidateCache();
-		// The sync repair exists to refill the VACATED footprint instantly. With
-		// the worker baking, it is redundant main-thread work: dropAllTiers already
-		// removes the stale tiles, so the region falls back to the (just-patched)
-		// overview for a beat and the async bake repaints it properly. Rendering
-		// 4-8 tiles synchronously per commit is what made a spammed move stall —
-		// each one is a full object render on the main thread.
-		const syncTiles = isBakeryActive() ? 0 : IS_LOW_END ? 4 : 8;
+		const syncTiles =
+			maxSyncTilesOverride ??
+			(coveredByLayer && isBakeryActive() ? 0 : IS_LOW_END ? 4 : 8);
 		core?.dropRegionLight(rect, syncTiles);
+	}
+
+	/**
+	 * Region repair for an ERASE undo/redo. The old path sync-rebuilt up to 8
+	 * tiles on the main thread over the (often large) union of every object the
+	 * stroke touched, rendering their clip groups each time — the "everything
+	 * gets laggier after erase undo/redo". When the worker bakery is alive it
+	 * bakes the exact same region correctly OFF-thread (erased objects with a
+	 * ClippingGroup clip are worker-shippable), so we only need a couple of sync
+	 * tiles for instant feedback under the cursor and let the async bake +
+	 * overview cover the rest. Falls back to the full sync repair when the
+	 * bakery is unavailable (no async help then).
+	 */
+	function dropRegionEraseUndo(rect: WorldRect) {
+		// ZERO sync tiles when the bakery is alive. Even 2 synchronous tile
+		// rebuilds render every touched object's clip group on the main thread —
+		// enough to make a pan started right after an undo stutter/BLOCK. The
+		// overview patch inside dropRegionLight already re-renders the region from
+		// the (now un-erased) objects, so the composite is correct immediately at
+		// overview resolution, and the worker rebakes the exact tiles off-thread.
+		// A pan aborts that bake; the overview covers meanwhile. Fall back to the
+		// full sync repair only when there is no worker to lean on.
+		dropRegionLight(rect, true, false, isBakeryActive() ? 0 : undefined);
 	}
 
 	/**
@@ -945,6 +1087,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		setErasing,
 		dropRegion,
 		dropRegionLight,
+		dropRegionEraseUndo,
 		eraseStampCommit,
 		stampRegionBitmap,
 		patchRectSync,

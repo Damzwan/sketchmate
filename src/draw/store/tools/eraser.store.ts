@@ -17,6 +17,10 @@ import { isActive as transformSessionActive } from '@/draw/transform/transformCo
 interface Eraser extends ToolService {
   eraserSize: Ref<number>;
   cancelErase: () => void;
+  /** Abandon the deferred fully-erased sweep for a stroke (called by erase undo). */
+  cancelErasedCheck: (strokeId: string) => void;
+  /** Resolves once no erase commit is mid-flight (see erasingSettled). */
+  whenErasingSettled: () => Promise<void>;
 }
 
 interface CleanupJob {
@@ -74,6 +78,37 @@ export const useEraser = defineStore('eraser', (): Eraser => {
   const cleanupQueue: CleanupJob[] = []
   let draining = false
   const coverage = new Map<string, CoverageEntry>()
+
+  // ─── erase-commit barrier ───────────────────────────────────────────────
+  // The brush dispatches "end" SYNCHRONOUSLY and does not await our async
+  // handler, which mutates every target's clipPath (`await b.commit(...)`)
+  // BEFORE firing `erasing:end` — the event that records the undo entry. So
+  // there is a window where the erase is already applied to the objects but no
+  // history action exists for it. An undo landing in that window pops the
+  // PREVIOUS action, and the late `addToUndoStackWithResetRedo` then wipes the
+  // redo entry it just made — leaving the newest stroke applied with nothing
+  // able to undo it. The window widens as clip stacks grow, which is why it hit
+  // "after quite a few erases, spamming undo right after the last stroke".
+  //
+  // History ops await this so they can never interleave with a commit.
+  let erasingSettled: Promise<void> = Promise.resolve()
+  let releaseErasing: (() => void) | null = null
+
+  function beginErasingCommit(): void {
+    if (releaseErasing) return // already inside one
+    erasingSettled = new Promise<void>((resolve) => {
+      releaseErasing = resolve
+    })
+  }
+
+  function endErasingCommit(): void {
+    releaseErasing?.()
+    releaseErasing = null
+  }
+
+  function whenErasingSettled(): Promise<void> {
+    return erasingSettled
+  }
 
   function objectStillPresent(obj: FabricObject): boolean {
     return !!obj?.id && objMgr.getObjectById(obj.id) === obj
@@ -209,6 +244,28 @@ export const useEraser = defineStore('eraser', (): Eraser => {
       path
     })
     scheduleDrain()
+  }
+
+  /**
+   * Abandon the deferred "is it fully erased?" pass for a stroke.
+   *
+   * The drain runs in idle time (up to 2s) plus a worker analysis, so it can
+   * still be in flight when the user undoes that erase. If it then deletes
+   * objects, the erase action has already moved to the redo stack, so
+   * `erasing:cleanup_done` finds nothing to record against — the objects are
+   * removed with NO undo entry able to bring them back. Undo calls this first.
+   */
+  function cancelErasedCheck(strokeId: string): void {
+    if (!strokeId) return
+    for (let i = cleanupQueue.length - 1; i >= 0; i--) {
+      if ((cleanupQueue[i].path as any)?.id === strokeId) {
+        // In-flight job (index 0 while draining): neutralise it in place so the
+        // drain loop finishes without deleting anything.
+        cleanupQueue[i].deleted.length = 0
+        cleanupQueue[i].cursor = cleanupQueue[i].targets.length
+        cleanupQueue[i].targets.length = 0
+      }
+    }
   }
 
   /** Start the drain in IDLE time — the per-object work (toCanvasElement /
@@ -458,6 +515,18 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     })
 
     b.on('end', async (e: any) => {
+      // Hold history ops off until the clip mutation AND its undo entry both
+      // exist — the brush fires "end" synchronously and never awaits us, so
+      // without this an undo can land between them (see beginErasingCommit).
+      beginErasingCommit()
+      try {
+        await handleEraseEnd(e)
+      } finally {
+        endErasingCommit()
+      }
+    })
+
+    const handleEraseEnd = async (e: any) => {
       // Resume compositing FIRST, so the erasing:end → onErase rect patch
       // and rebake below can actually run (requestFrame is suppressed while
       // erasing). Idempotent with the mouse:up backstop.
@@ -506,7 +575,7 @@ export const useEraser = defineStore('eraser', (): Eraser => {
       c!.fire('erasing:end', e as any)
 
       enqueueErasedCheck(targets, e.detail.path)
-    })
+    }
 
     b.on('redraw', (e: any) => {
       // The initial drawEffect on mousedown already produced the mask.
@@ -523,5 +592,13 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     updateEraserCursor()
   })
 
-  return { init, select, eraserSize, events, cancelErase }
+  return {
+    init,
+    select,
+    eraserSize,
+    events,
+    cancelErase,
+    cancelErasedCheck,
+    whenErasingSettled
+  }
 })

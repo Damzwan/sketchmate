@@ -6,6 +6,12 @@ built the way it is, where it hurts today, and what to do next.
 > **Audience:** engineers working on the `src/draw/` module. Assumes familiarity
 > with Fabric.js, the Canvas 2D API, and `OffscreenCanvas`/`ImageBitmap`.
 
+> **Production ANRs / crashes:** see
+> [`DRAW_ENGINE_PERF.md`](./DRAW_ENGINE_PERF.md) — the ranked remediation plan
+> for the 0.4.3 Android ANR + GPU-driver crash signatures. Note that the "Current
+> limitations" and "Roadmap" sections below **predate the tileBakery worker
+> landing**; the perf doc supersedes them on worker status.
+
 ---
 
 ## Table of contents

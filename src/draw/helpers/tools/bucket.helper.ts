@@ -209,7 +209,6 @@ export async function bucketFill(
       height: imgData.height,
       fillX,
       fillY,
-      brushColor,
       pxScale,
       worldRectX: worldRect.x,
       worldRectY: worldRect.y,

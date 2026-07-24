@@ -1,6 +1,7 @@
 import { Canvas, FabricObject, InteractiveFabricObject } from 'fabric'
 import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
 import { useGestureStore } from '@/draw/store/tools/gesture.store'
+import { getRenderDpr } from '@/draw/config/renderQuality.config'
 
 interface Refs {
   left: number;
@@ -115,12 +116,16 @@ export function markMoved(): void {
   // move frame (and invalidated our own bitmap cache). Bounded sync repair +
   // overview fallback is enough — the GPU layer shows the selection.
   const mgr = useDrawObjectManager()
-  mgr.dropRegionLight({
-    x: s.origin.left,
-    y: s.origin.top,
-    w: s.origin.width,
-    h: s.origin.height
-  })
+  mgr.dropRegionLight(
+    {
+      x: s.origin.left,
+      y: s.origin.top,
+      w: s.origin.width,
+      h: s.origin.height
+    },
+    false,
+    true // GPU drag layer covers the region — skip the sync tile repair
+  )
 
   const el = ensureLayer(s.canvas)
   el.style.display = 'block'
@@ -214,12 +219,16 @@ export function commit(c: Canvas): void {
     // 3. DROP the OLD footprint (object has left it) → correct empty overview,
     //    never a sharp stale-exact ghost. Bounded sync repair only — the full
     //    ≤32-tile sync rebuild was the release-frame freeze on big selections.
-    mgr.dropRegionLight({
-      x: s.origin.left,
-      y: s.origin.top,
-      w: s.origin.width,
-      h: s.origin.height
-    })
+    mgr.dropRegionLight(
+      {
+        x: s.origin.left,
+        y: s.origin.top,
+        w: s.origin.width,
+        h: s.origin.height
+      },
+      false,
+      true // GPU drag layer still covers this until the bake lands
+    )
 
     // 4. Mark the NEW footprint dirty (stale-exact OK — the GPU layer covers it
     //    until the tiles are baked).
@@ -336,7 +345,7 @@ export function bakeThumbnail(
   const worldH = maxY - minY
   if (!isFinite(worldW) || worldW <= 0 || worldH <= 0) return null
 
-  const dpr = window.devicePixelRatio || 1
+  const dpr = getRenderDpr()
   const fit = maxPx / Math.max(worldW, worldH)
   const cssW = Math.max(1, Math.round(worldW * fit))
   const cssH = Math.max(1, Math.round(worldH * fit))
@@ -636,7 +645,10 @@ function bakeSelectionBitmap(
   const worldH = b.height + PAD * 2
   if (worldW <= 0 || worldH <= 0) return null
 
-  const dpr = window.devicePixelRatio || 1
+  // Capped DPR, not the raw device ratio: this bitmap is stamped straight into
+  // the tiles on commit (stampBitmapRegion), so it must be baked at the same
+  // resolution the tiles are. See renderQuality.config.ts.
+  const dpr = getRenderDpr()
   let scale = zoom * dpr
 
   if (childCount > 150) scale *= 0.5

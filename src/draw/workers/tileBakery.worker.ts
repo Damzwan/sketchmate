@@ -21,6 +21,7 @@
 //     translate, same pad+clip, objects drawn in the id order provided.
 
 import { classRegistry, util } from 'fabric'
+import { ClippingGroup } from '@erase2d/fabric'
 import { OptimizedEraserStroke } from '@/draw/utils/brushes/CustomEraserBrush'
 import { OptimizedPencilStroke } from '@/draw/utils/brushes/CustomPencilBrush'
 import { PixelStroke } from '@/draw/utils/brushes/PixelBrush'
@@ -33,6 +34,39 @@ import { NeonStroke } from '@/draw/utils/brushes/NeonSignBrush'
 import { SprayStroke } from '@/draw/utils/brushes/CustomSprayBrush'
 import { CrayonStroke } from '@/draw/utils/brushes/CrayonBrush'
 import type { BakeryRequest, BakeryResponse } from '@/draw/types/tileBakery.types'
+import { WORKER_FONTS } from '@/draw/config/workerFonts.config'
+
+// --- fonts -------------------------------------------------------------------
+// A worker has no CSS, so text used to be refused per-tile (wrong metrics in a
+// committed tile is a correctness bug). Chromium exposes WorkerGlobalScope.fonts,
+// so register the same faces the page uses and text becomes bakeable here.
+//
+// The main side is told EXACTLY which families succeeded and refuses any tile
+// whose text uses something else — a partially-loaded set must never silently
+// fall back to a default face.
+const loadedFamilies = new Set<string>()
+
+async function loadFonts(): Promise<string[]> {
+  const fonts = (self as any).fonts
+  if (!fonts || typeof FontFace === 'undefined') return []
+  await Promise.all(
+    WORKER_FONTS.map(async (spec) => {
+      try {
+        const face = new FontFace(spec.family, `url(${spec.url})`, {
+          weight: spec.weight,
+          style: 'normal'
+        })
+        await face.load()
+        fonts.add(face)
+        loadedFamilies.add(spec.family)
+      } catch {
+        /* one bad face must not block the rest — main side just keeps
+           refusing tiles that use it */
+      }
+    })
+  )
+  return [...loadedFamilies]
+}
 
 // --- minimal DOM shim (canvas only; images never reach the worker) ----------
 const applyCanvasDisguise = (canvas: any) => {
@@ -54,10 +88,21 @@ if (typeof document === 'undefined') {
   (globalThis as any).document = {
     createElement: (tag: string) => {
       if (tag === 'canvas') return applyCanvasDisguise(new OffscreenCanvas(1, 1))
-      // Images are refused main-side, so nothing here should ask for an <img>.
-      // Return an inert stub rather than throwing — a stray measurement probe
-      // must not kill the whole tile.
-      throw new Error(`Worker mock document cannot create ${tag}`)
+      if (tag === 'img') {
+        return {
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          setAttribute: () => {},
+          getAttribute: () => null,
+          style: {},
+          width: 0,
+          height: 0,
+          complete: true,
+          naturalWidth: 0,
+          naturalHeight: 0
+        }
+      }
+      return {}
     }
   };
   (globalThis as any).window = globalThis
@@ -77,6 +122,14 @@ const brushes = [
   [CrayonStroke, CrayonStroke.type]
 ] as const
 brushes.forEach(([cls, name]) => classRegistry.setClass(cls as any, name))
+
+// Register the eraser's clip class (type 'clipping'). It self-registers via a
+// module side-effect on the MAIN thread (CustomEraserBrush imports it), but the
+// worker never imported it — so enlivening an erased object here found no class
+// for 'clipping' and dropped its clip. Result: erased holes REAPPEARED in
+// worker-baked tiles (or the object failed to enliven and vanished). Explicit
+// setClass so the import isn't tree-shaken and the mask bakes correctly.
+classRegistry.setClass(ClippingGroup as any)
 
 // --- lean mirror -------------------------------------------------------------
 // json: the source of truth — one raw JSON blob per id. Cheap to hold at scale.
@@ -134,10 +187,16 @@ async function ensureLive(id: string): Promise<any | null> {
     touch(id, cached)
     return cached
   }
-  const j = json.get(id)
-  if (!j) return null
+  const raw = json.get(id)
+  if (raw === undefined) return null
   let obj: any
   try {
+    // The mirror stores STRINGS (see the upsert handler) — a JSON string is far
+    // smaller than its parsed object graph, and the mirror holds the whole
+    // shippable scene forever, so on a big board this is the dominant non-tile
+    // allocation. Parse on demand here (off the main thread); enliven parses
+    // its input anyway, so the extra cost is small. Tolerates a legacy object.
+    const j = typeof raw === 'string' ? JSON.parse(raw) : raw
     ;[obj] = await util.enlivenObjects([j])
   } catch {
     return null
@@ -177,6 +236,14 @@ function applyTierScaling(
   obj.getTotalObjectScaling = function () {
     return this.getObjectScaling().scalarMultiply(tierScale)
   }
+  // The clipPath (eraser ClippingGroup) is ALWAYS cached for masking, at its OWN
+  // scaling = zoom 1 here (canvas null) — so the erase mask rasterizes at 1x and
+  // upscales to the tile tier, blurring erased edges when zoomed in. Give the
+  // clip (and its stroke children) the same tier scaling so the mask bakes
+  // sharp. No clip cull — a mask must render whole.
+  if (obj.clipPath && typeof obj.clipPath.getObjectScaling === 'function') {
+    applyTierScaling(obj.clipPath, tierScale)
+  }
   // Recurse into groups. A merged drawing is a Group: clearing caching on the
   // group alone left its CHILDREN caching (fabric assigns `objectCaching: true`
   // per instance from ownDefaults, and enlivened JSON carries it back), each
@@ -212,6 +279,17 @@ function getRenderCanvas(size: number): OffscreenCanvas {
     renderCanvas = new OffscreenCanvas(size, size)
   }
   return renderCanvas
+}
+
+// Separate from the tile scratch: an overview render is px×px (1024/2048) and
+// would otherwise force the tile canvas to resize back and forth every rebuild.
+let overviewCanvas: OffscreenCanvas | null = null
+
+function getOverviewCanvas(px: number): OffscreenCanvas {
+  if (!overviewCanvas || overviewCanvas.width !== px || overviewCanvas.height !== px) {
+    overviewCanvas = new OffscreenCanvas(px, px)
+  }
+  return overviewCanvas
 }
 
 async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
@@ -301,12 +379,20 @@ async function overview(req: Extract<BakeryRequest, { t: 'overview' }>): Promise
     post({ msgId, missing })
     return
   }
-  const canvas = new OffscreenCanvas(px, px)
+  // Pooled, like the tile scratch. This was a fresh `new OffscreenCanvas(px,px)`
+  // per call — 4MB on mobile (1024²) or 16MB on desktop (2048²), allocated and
+  // thrown away on every overview rebuild. On Adreno that allocation churn is
+  // part of what faults libgsl (docs/DRAW_ENGINE_PERF.md finding F5).
+  // transferToImageBitmap() detaches the backing store and leaves the canvas
+  // reusable at the same size, so one instance serves every rebuild.
+  const canvas = getOverviewCanvas(px)
   const ctx = canvas.getContext('2d')
   if (!ctx) {
     post({ msgId, error: 'no 2d context' })
     return
   }
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, px, px)
   const sx = px / bounds.w
   const sy = px / bounds.h
   ctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy)
@@ -353,23 +439,41 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
             LIVE_MAX = msg.liveMax
             IDLE_MAX = Math.max(128, Math.floor(LIVE_MAX / 16))
           }
+          // Register fonts and tell the client which families are safe to send.
+          // Chained like every other message, so no bake can render text before
+          // the faces are in this worker's FontFaceSet.
+          post({ msgId: -1, fonts: await loadFonts() })
           break
         case 'upsert':
           for (const item of msg.items) {
-            json.set(item.id, item.json)
+            // Store as a STRING, not the parsed graph — see ensureLive. Halves
+            // the mirror's steady-state memory on a large board (its biggest
+            // non-tile cost). Stringify runs off the main thread. Fall back to
+            // the object if it isn't serializable (main already sanitizes).
+            let stored: any = item.json
+            try {
+              stored = JSON.stringify(item.json)
+            } catch { /* keep the object */ }
+            json.set(item.id, stored)
             live.delete(item.id) // geometry may have changed → re-enliven fresh
           }
           break
         case 'translate': {
           // Pure world translation (drag commit): patch coords in place instead
           // of shipping N re-serialized objects. Top-level objects only, so a
-          // world shift is a left/top shift.
+          // world shift is a left/top shift. The stored json is a string, so
+          // parse+patch+re-stringify here (off the main thread); the main side
+          // still sends only this one tiny message.
           const { dx, dy } = msg
           for (const id of msg.ids) {
-            const j = json.get(id)
-            if (j) {
-              if (typeof j.left === 'number') j.left += dx
-              if (typeof j.top === 'number') j.top += dy
+            const raw = json.get(id)
+            if (raw !== undefined) {
+              try {
+                const j = typeof raw === 'string' ? JSON.parse(raw) : raw
+                if (typeof j.left === 'number') j.left += dx
+                if (typeof j.top === 'number') j.top += dy
+                json.set(id, typeof raw === 'string' ? JSON.stringify(j) : j)
+              } catch { /* leave as-is; a later upsert corrects it */ }
             }
             const o = live.get(id)
             if (o) {

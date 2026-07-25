@@ -1,13 +1,20 @@
 import { BaseBrush, FabricObject, Point } from "fabric";
+import { getTopContextEpoch } from "@/draw/helpers/render.helper";
 import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
 
 // @ts-ignore
 export class CustomCircleBrush extends BaseBrush {
 	width = 10;
 	private _activePoints: { x: number; y: number; r: number; a: number }[] = [];
+	/** Live-preview incremental state — see _renderTemp. */
+	private _renderedUpTo = 0;
+	private _renderedVpt = "";
+	private _renderedEpoch = -1;
 
 	onMouseDown(pointer: Point) {
 		this._activePoints = [];
+		this._renderedUpTo = 0; // new stroke → repaint from scratch
+		this._renderedVpt = "";
 		this._addCirclePoint(pointer);
 		this.canvas.clearContext(this.canvas.contextTop);
 		this._renderTemp();
@@ -26,8 +33,8 @@ export class CustomCircleBrush extends BaseBrush {
 		// Only add a new circle if we've moved significantly (25% of brush width)
 		// This prevents the "Action size" from exploding during slow movements.
 		if (distance > this.width / 4) {
+			// NB: no clearContext — _renderTemp draws only the NEW circles.
 			this._addCirclePoint(pointer);
-			this.canvas.clearContext(this.canvas.contextTop);
 			this._renderTemp();
 		}
 	}
@@ -60,19 +67,44 @@ export class CustomCircleBrush extends BaseBrush {
 		return false;
 	}
 
+	/**
+	 * INCREMENTAL live preview — draws only circles added since the last call.
+	 * Was clear + redraw-all on EVERY qualifying pointer move, i.e. O(n^2) fills
+	 * over a stroke. Each circle is composited exactly once either way, so the
+	 * result is identical. Repaints in full when the viewport moved (the preview
+	 * is drawn in world space) or a new stroke started.
+	 */
 	private _renderTemp() {
 		const ctx = this.canvas.contextTop;
 		if (!ctx) return;
-		this._saveAndTransform(ctx);
 
+		const vpt = this.canvas.viewportTransform;
+		const vptKey = vpt ? vpt.join(",") : "";
+		const stale =
+			vptKey !== this._renderedVpt ||
+			getTopContextEpoch() !== this._renderedEpoch ||
+			this._renderedUpTo > this._activePoints.length;
+
+		let from = this._renderedUpTo;
+		if (stale) {
+			this.canvas.clearContext(ctx);
+			from = 0;
+		}
+
+		this._saveAndTransform(ctx);
 		ctx.fillStyle = this.color as string;
-		for (const p of this._activePoints) {
+		for (let i = from; i < this._activePoints.length; i++) {
+			const p = this._activePoints[i];
 			ctx.globalAlpha = p.a;
 			ctx.beginPath();
 			ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
 			ctx.fill();
 		}
 		ctx.restore();
+
+		this._renderedUpTo = this._activePoints.length;
+		this._renderedVpt = vptKey;
+		this._renderedEpoch = getTopContextEpoch();
 	}
 }
 

@@ -1,8 +1,13 @@
 import { BaseBrush, Canvas, FabricObject, Point } from "fabric";
 import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
+import { getTopContextEpoch } from "@/draw/helpers/render.helper";
 import * as fabric from "fabric";
 
 export class PixelBrush extends BaseBrush {
+	/** Live-preview incremental state — see _render. */
+	private _renderedUpTo = 0;
+	private _renderedVpt = "";
+	private _renderedEpoch = -1;
 	private _points: Point[] = [];
 	public pixelSize: number = 5;
 
@@ -57,16 +62,16 @@ export class PixelBrush extends BaseBrush {
 
 	onMouseDown(pointer: Point) {
 		this._points = [];
+		this._renderedUpTo = 0; // new stroke → repaint from scratch
+		this._renderedVpt = "";
 		this._stampCanvas = this._generateBrushTipCanvas(); // Bake the stamp!
 		this._addPoint(pointer, true);
 	}
 
 	// RE-ATTACHED ORGAN: The mouse move handler
 	onMouseMove(pointer: Point) {
-		if (this._addPoint(pointer)) {
-			this.canvas.clearContext(this.canvas.contextTop);
-			this._render();
-		}
+		// NB: no clearContext — _render draws only the NEW stamps (see there).
+		if (this._addPoint(pointer)) this._render();
 	}
 
 	onMouseUp() {
@@ -141,17 +146,44 @@ export class PixelBrush extends BaseBrush {
 		return pointsAdded;
 	}
 
+	/**
+	 * INCREMENTAL live preview — draws only stamps added since the last call.
+	 * Was clear + redraw-all on EVERY pointer move, i.e. O(n^2) blits over a
+	 * stroke. Each stamp is composited exactly once either way, so the result is
+	 * identical. Falls back to a full repaint when the viewport moved (the
+	 * preview is drawn in world space) or a new stroke started.
+	 */
 	_render(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
-		ctx.save();
 		const vpt = this.canvas.viewportTransform;
+		const vptKey = vpt ? vpt.join(",") : "";
+		const isTop = ctx === this.canvas.contextTop;
+		const stale =
+			vptKey !== this._renderedVpt ||
+			getTopContextEpoch() !== this._renderedEpoch ||
+			this._renderedUpTo > this._points.length;
+
+		let from = this._renderedUpTo;
+		if (!isTop || stale) {
+			if (isTop) this.canvas.clearContext(ctx);
+			from = 0;
+		}
+
+		ctx.save();
 		if (vpt) ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
 		ctx.imageSmoothingEnabled = false;
 
 		const offset = this._stampSize / 2;
-		for (const p of this._points) {
+		for (let i = from; i < this._points.length; i++) {
+			const p = this._points[i];
 			ctx.drawImage(this._stampCanvas, Math.round(p.x - offset), Math.round(p.y - offset));
 		}
 		ctx.restore();
+
+		if (isTop) {
+			this._renderedUpTo = this._points.length;
+			this._renderedVpt = vptKey;
+			this._renderedEpoch = getTopContextEpoch();
+		}
 	}
 }
 

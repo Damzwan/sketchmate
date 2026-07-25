@@ -15,6 +15,7 @@ import { HistoryAction, HistoryEvent } from "@/draw/types/drawHistory.types";
 import { isText } from "@/draw/helpers/text.helper";
 import {
 	getAbsoluteState,
+	serializeOnce,
 	toJSON,
 	toObjectsIds,
 } from "@/draw/helpers/object.helper";
@@ -266,7 +267,8 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			handler: (e: any) => {
 				addToUndoStackWithResetRedo({
 					type: HistoryEvent.ObjectsAdded,
-					params: { objectsJSON: [e.target.toJSON()] },
+					// Shared with the sync emit + bakery mirror on this same dispatch.
+					params: { objectsJSON: [serializeOnce(e.target)] },
 				});
 			},
 		},

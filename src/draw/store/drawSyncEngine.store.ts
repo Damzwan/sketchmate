@@ -11,6 +11,7 @@ import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
 import { FabricObject } from "fabric";
 import {
 	getAbsoluteState,
+	serializeOnce,
 	toJSON,
 	toObjectsIds,
 } from "@/draw/helpers/object.helper";
@@ -153,7 +154,9 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 				const target = e.target as FabricObject;
 				emitDrawSyncingEvent({
 					type: DrawSyncingEvent.added,
-					params: { objectJSONS: [target.toJSON()] },
+					// serializeOnce: history + the bakery mirror serialize this same
+					// stroke on this same dispatch; share one toJSON (identical output).
+					params: { objectJSONS: [serializeOnce(target)] },
 				});
 			},
 		},

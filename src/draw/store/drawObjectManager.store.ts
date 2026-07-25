@@ -17,6 +17,7 @@ import {
 import { initDrawMetrics } from "@/draw/services/drawMetrics.service";
 import { createYielder } from "@/draw/helpers/yielding.helper";
 import { isolatedTileRenderer } from "@/draw/helpers/drawTileRenderer.helper";
+import { serializeOnce } from "@/draw/helpers/object.helper";
 import { useFriendStore } from "@/store/friend.store";
 import { rerenderActiveObjectControls } from "@/draw/helpers/render.helper";
 import * as localTransform from "@/draw/transform/transformController";
@@ -538,7 +539,13 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		if (!obj.id) return;
 		objectMap.set(obj.id, obj);
 		if (isLoading()) return; // bulk loads reseed the bakery in rebuildIndexFromCanvas
-		bakeryMarkDirty(obj);
+		// Seed the mirror from the SHARED serialization instead of marking dirty
+		// (which would make the idle flush run a third toJSON of this same
+		// stroke). serializeOnce is memoized for this dispatch, so the sync emit
+		// and the history entry have already paid for it — or will reuse ours.
+		// bakerySeed stashes it and drops the stash on the next real mutation.
+		bakerySeed(obj, serializeOnce(obj));
+		bakeryFlushSoon();
 		addToQuadTree(obj);
 		assignZOnAdd(obj);
 		// INCREMENTAL z-stamp. assignZOnAdd only assigns THIS object's z (append,

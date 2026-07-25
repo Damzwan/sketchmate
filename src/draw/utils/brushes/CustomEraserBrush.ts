@@ -871,11 +871,22 @@ export class CustomEraserBrush extends PencilBrush {
 			// punches exactly the same holes.
 			globalCompositeOperation: "destination-out",
 		});
-		try {
-			(baked as any).src = el.toDataURL("image/png");
-		} catch {
-			/* fallback if canvas toDataURL fails */
-		}
+		// DELIBERATELY NOT setting `baked.src` here.
+		//
+		// This used to do `baked.src = el.toDataURL("image/png")` — a SYNCHRONOUS
+		// PNG encode of a canvas up to MAX_BAKE_PX (~4MP), on the main thread, in
+		// the middle of the erase commit. That is an atomic, un-yieldable block of
+		// roughly 100-500ms on mobile: on its own enough to trip an ANR, and it
+		// fired every `flattenClipAfter` strokes per object.
+		//
+		// It was also pure waste. fabric's `getSrc()` (used by `toObject`) checks
+		// `if (element.toDataURL) return element.toDataURL()` FIRST — and our
+		// element is a canvas — so serialization produces the identical data URL
+		// on its own, from the canvas, whether or not `src` is set. Nothing in the
+		// RENDER path reads `src` (only toObject/toString do), so dropping the
+		// eager encode changes no pixels and no persisted output; it just moves
+		// the cost to the moment something actually serializes, which is already
+		// a yielded/background path (save, sync).
 		(object as any).__hasImageClip = true;
 
 		// Swap ONLY the baked (oldest) children for the single union image; the

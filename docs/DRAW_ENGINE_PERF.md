@@ -625,6 +625,215 @@ GPU churn (F5) and the flatten memory (E3), both scoped above.
 
 ---
 
+## Tenth review — cheaper per-stroke serialization (H4)
+
+### Can it go to a worker? — No, and it's worth being precise about why
+
+`toJSON()` cannot be off-threaded. The live fabric object exists **only** on the
+main thread, and serializing it *is* the act of making it transferable — you
+cannot hand the object to a worker without first serializing it. Chicken and egg.
+What already runs off-thread is everything *after*: the tile-bakery worker does
+its own `JSON.stringify` of the mirror payload on the worker side.
+
+### Can compression help? — Not for this cost
+
+Compression reduces **bytes**, not the object-graph traversal that `toJSON()`
+performs, and that traversal is the main-thread cost being measured. Compressing
+on the main thread would *add* to it. (The existing `compressedTrace` delta+round
+encoding already shrinks the payload for pencil/eraser/watercolor; extending it to
+the remaining brushes is worth doing for wire and snapshot size — see H4 — but it
+does not move this frame cost.)
+
+### X3 — ✅ FIXED — the same stroke was serialized THREE times per commit
+
+The real lever, and it needs no format change at all. Committing one stroke fired
+three separate `toJSON()` calls off the **same** `object:added` dispatch:
+
+1. `drawSyncEngine` — the `draw-event` wire payload;
+2. `drawHistoryManager` — the undo entry;
+3. the tile-bakery mirror — via `bakeryMarkDirty` → deferred flush → `serialize()`.
+
+At ~0.2 ms desktop / ~2 ms mid-Android for a long stroke, that is ~6 ms per
+stroke on the very frame that is also stamping tiles.
+
+**Fixed** with `serializeOnce()` (`helpers/object.helper.ts`): `toJSON()` memoized
+per object per **microtask tick**. All three consumers now share one result, and
+the bakery is seeded from it directly (`bakerySeed(obj, serializeOnce(obj))`)
+instead of marking dirty and re-serializing later. **3 → 1.**
+
+Output is byte-identical to `toJSON()`, so the wire format, history entries and
+stored drawings are all unchanged — **fully backwards compatible**, purely
+de-duplicated work.
+
+**Why a tick and not a persistent cache:** a stale serialization would silently
+corrupt an undo entry or a synced stroke. Scoping the memo to a single microtask
+makes staleness structurally impossible — nothing mutates an object between two
+handlers of the same synchronous event — while still catching all three
+consumers.
+
+**Invariant:** the result is shared, so callers must treat it as READ-ONLY.
+Verified across the codebase: every consumer only reads it (`insertedIndex` and
+friends are written to the *live object*, never the payload). Fabric's
+`fromObject` *does* mutate the JSON it is handed, but that happens at enliven
+time — undo/redo/remote-apply — long after this tick.
+
+**Verified** (standalone harness, `serializeOnce` semantics):
+
+```
+same tick        -> toJSON calls: 1   (was 3), all consumers share one ref
+after tick + mutation -> recomputes, reflects the new value, no stale reuse
+```
+
+## Ninth review — full sweep for remaining main-thread blockers
+
+Targeted scan of `drawObjectManager`, `drawHistoryManager`, `drawSyncEngine` +
+`drawSyncing.config`, `renderCore`, `committedLayer`, `worldOverview` and the
+eraser, looking for the classic blockers: unbounded synchronous loops, pixel
+readbacks, image encodes, clones, and serialization on hot paths.
+
+### X1 — ✅ FIXED — a redundant synchronous PNG encode inside the erase commit
+
+The single worst thing left, and it was pure waste.
+
+`bakeClipGroupIfNeeded` did:
+
+```ts
+(baked as any).src = el.toDataURL("image/png");
+```
+
+That is a **synchronous PNG encode of a canvas up to `MAX_BAKE_PX` (~4 MP)**, on
+the main thread, in the middle of the erase commit — atomic and un-yieldable,
+roughly 100–500 ms on mobile, firing every `flattenClipAfter` strokes per
+object. On its own enough to trip an ANR.
+
+And it was **redundant**. fabric's `getSrc()` — which is what `toObject` uses —
+begins with:
+
+```js
+if (element.toDataURL) return element.toDataURL();
+```
+
+Our element *is* a canvas, so serialization already produces the identical data
+URL from it whether or not `src` was set. Nothing in the RENDER path reads `src`
+(only `toObject`/`toString` do). So the eager encode changed no pixels and no
+persisted output — it just moved a large cost onto the erase frame instead of
+the moment something actually serializes, which is already a yielded background
+path (save, sync). Deleted.
+
+### X2 — ✅ FIXED — incremental previews could be wiped by a mid-stroke frame
+
+A hazard introduced by D1 (previous review). `rerenderActiveObjectControls`
+clears the shared TOP context on every composited frame while an object is
+selected, and a frame can land mid-stroke (a remote sync edit, a demote
+repaint). The old redraw-everything previews self-healed on the next pointer
+move; the new incremental ones would not — the stroke would stay invisible until
+pointer-up.
+
+Fixed with a top-context epoch (`render.helper.ts`): the clear bumps it, and
+each incremental brush repaints in full when it changes. Cheap, and it makes the
+O(n) preview safe against any future clear as long as it goes through the helper.
+
+### Checked and clean — no action needed
+
+| Area | Why it's fine |
+| --- | --- |
+| Erased-check sweep (`eraser.store`) — `toCanvasElement` + `getImageData` per object | Already idle-scheduled, yielded (8 ms budget), coverage-capped with FIFO eviction, and the readback context uses `willReadFrequently: true`, which keeps the canvas CPU-backed and avoids a GPU pipeline stall. Good hygiene. |
+| `getZIndexMap()` — O(all objects) | Already incremental: adds/removes stamp a single object; the full rebuild only runs on wholesale z changes (layer ops). |
+| `computeContentBounds()` — O(all objects) | Already removed from `endBatch`; growth is covered incrementally by `growContentBounds`, and the full scan only runs on load/reset. |
+| `composite()` per frame | Reuses instance scratch for the tile-draw descriptors; a steady-state frame allocates nothing. |
+| Remote-sync drain | Sliced + yielded + per-slice batched (S1). |
+| History | Lazy JSON payloads, both stacks capped, `actionWeight` no longer forces serialization (H1–H3). |
+| `bake()` sort / lane setup | Bake-time, not per-frame, and bounded by the viewport tile count. |
+
+### Inherent, accepted (not blockers)
+
+- **~2 ms `toJSON` per committed stroke**, paid twice — once for the history
+  entry, once for the sync wire. Required by both formats; the scalable fix is
+  cheaper stroke serialization (H4), not deferral.
+- **`union.toCanvasElement()` in the flatten** — a real render, still on the main
+  thread, but it is actual work (not waste like X1) and is yielded between
+  objects. Bounded by `MAX_BAKE_PX`.
+- **Clip-asset transfer + lowering `flattenClipAfter`** — the remaining
+  ceiling-lifter for erase, scoped in the eighth review.
+
+## Eighth review — can per-object erase clips go? + O(n²) live previews
+
+### Can we drop per-object `ClippingGroup` clips entirely? — analysed: NO, and why
+
+The proposal: stop clipping each erased object and instead put the eraser stroke
+in the scene as a z-ordered `destination-out` object, so a tile just composites
+it in order. Attractive — it would make erased objects exactly as cheap as any
+other. Three blockers, in increasing severity:
+
+1. **It changes user-visible behaviour.** The clip lives in OBJECT space, so
+   erased holes travel WITH the object: move an erased stroke and it stays
+   erased (a layer mask). A scene-level mark stays where it was drawn, so
+   dragging the object out from under it would UN-ERASE it. That is a semantic
+   regression, not a refactor.
+2. **It breaks selective erasing.** Scene-level `destination-out` hits
+   everything below it in z — including content that must survive (other users'
+   objects in a public lobby, claimed areas; the `selective` path). Restricting
+   a mark to "only these objects" is per-object clipping again, just relocated.
+3. **Wire + persistence.** The server spreads `action` into its replay buffer and
+   re-broadcasts to MIXED-VERSION clients (see the `draw-sync-wire` note), so a
+   new erase-mark object type would reach older clients as an unknown object —
+   or a solid black stroke. Every stored drawing (IDB drafts, snapshots) also
+   holds clip-based erases, so both representations would have to be supported
+   indefinitely. That needs a v4 gate plus a bridge.
+
+So the wholesale replacement is not the right move. **The bounded path that gets
+most of the win without touching semantics or the wire is different — and the
+asset work from the seventh review just unblocked it:**
+
+`bakeClipGroupIfNeeded` already bounds per-render clip cost by collapsing old
+strokes into one image. But that sets `__hasImageClip`, which the bakery
+**refuses** → those objects fall back to MAIN-THREAD baking. So today the very
+mechanism that bounds clip cost pushes work back onto the main thread, and
+`flattenClipAfter` (50) can't be lowered without making that worse.
+
+Fix, in order:
+  1. Extend the `{ t:'asset' }` transfer to **clip** bitmaps — ship the flattened
+     clip image keyed by object id (a second asset slot), have the worker
+     rebuild a `ClippingGroup` around it, and drop the `__hasImageClip` refusal.
+  2. Then lower `flattenClipAfter` from 50 to ~8. Per-render clip cost drops
+     roughly 6× **and** those objects stay off the main thread.
+
+Step 2 alone is a one-line change and is **not** safe before step 1 — it would
+simply convert clip cost into main-thread bake cost. Scoped, not implemented:
+it needs the second asset key plus worker-side clip reconstruction, and this
+environment cannot verify rendering.
+
+### D1 — ✅ FIXED — live stroke previews were O(n²) (Charcoal, Pixel, Circle)
+
+Hunting the "drawing and zooming still lag on busy canvases" report. The
+object-count-scaled suspects were already handled (incremental `__z` stamping;
+`endBatch` no longer recomputing content bounds), so the remaining cost is
+per-stroke — and it is significant.
+
+All three stamp brushes did, on **every** qualifying pointer move:
+
+```ts
+this.canvas.clearContext(this.canvas.contextTop);
+this._render();          // ← redraws EVERY stamp accumulated so far
+```
+
+So a stroke of n stamps costs **O(n²)** draw calls: a 500-stamp charcoal stroke
+issues ~125 000 `drawImage`s instead of 500, and it gets progressively worse the
+longer you hold the pointer down — while competing with the tile engine for the
+same frames. That matches "lags a bit, especially on busy canvases", where the
+main thread has least headroom to absorb it.
+
+**Fixed** by rendering incrementally: each brush tracks how far it has drawn and
+paints only the stamps added since. Because the old code cleared first, every
+stamp was composited exactly once — and it still is — so output is
+**pixel-identical** at O(n) total. Two cases still force a full repaint and are
+handled explicitly: the viewport moved (the preview is drawn in WORLD space
+through the vpt, so a mid-stroke zoom/pan invalidates what's on screen), and a
+new stroke started.
+
+WaterColor is deliberately left alone: it strokes a single alpha path, so
+drawing only the new segment would double-composite at the joins.
+
 ## Seventh review — F3-B bitmap assets + bucket-fill escalation
 
 ### F3-B — ✅ IMPLEMENTED — bitmap-backed strokes now bake in the worker

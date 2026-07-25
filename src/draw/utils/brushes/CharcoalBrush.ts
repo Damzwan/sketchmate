@@ -1,6 +1,7 @@
 import { BaseBrush, Point, Canvas, FabricObject } from "fabric";
 import * as fabric from "fabric";
 import { enlivenStrokeProps, TEXTURE_SUPERSAMPLE } from "@/draw/utils/brushes/brush.helpers";
+import { getTopContextEpoch } from "@/draw/helpers/render.helper";
 
 // --- Utility: Deterministic Generator ---
 export function seededRandom(seed: number) {
@@ -55,6 +56,10 @@ export class CharcoalBrush extends BaseBrush {
 
 	private _drawnDistance: number = 0;
 	public maxDistance: number = 600;
+	/** Live-preview incremental state — see _render. */
+	private _renderedUpTo = 0;
+	private _renderedVpt = "";
+	private _renderedEpoch = -1;
 
 	constructor(canvas: Canvas) {
 		super(canvas);
@@ -66,15 +71,15 @@ export class CharcoalBrush extends BaseBrush {
 		this._seed = Math.floor(Math.random() * 1_000_000);
 		this._stampSize = this.width * 2;
 		this._stampCanvas = generateCharcoalStamp(this._seed, this.width, this.color);
+		this._renderedUpTo = 0; // new stroke → repaint from scratch
+		this._renderedVpt = "";
 		this._lastPoint = pointer;
 		this._addPoint(pointer, true);
 	}
 
 	onMouseMove(pointer: Point) {
-		if (this._addPoint(pointer)) {
-			this.canvas.clearContext(this.canvas.contextTop);
-			this._render();
-		}
+		// NB: no clearContext here — _render draws only the NEW stamps (see there).
+		if (this._addPoint(pointer)) this._render();
 	}
 
 	onMouseUp() {
@@ -128,16 +133,52 @@ export class CharcoalBrush extends BaseBrush {
 		return pointsAdded;
 	}
 
+	/**
+	 * INCREMENTAL live preview.
+	 *
+	 * This used to clear the top context and redraw EVERY stamp on every pointer
+	 * move, so a stroke of n stamps cost O(n²) `drawImage` calls — a 500-stamp
+	 * stroke ≈ 125k blits instead of 500, getting worse the longer you draw, and
+	 * competing with the tile engine on a busy canvas.
+	 *
+	 * Each stamp is composited exactly once either way (the old code cleared
+	 * first), so drawing only the NEW ones is pixel-identical and O(n) total.
+	 *
+	 * Two cases still force a full repaint, both handled here:
+	 *   • the viewport moved — the preview is drawn in WORLD space through the
+	 *     vpt, so a mid-stroke zoom/pan invalidates everything already on screen;
+	 *   • the trace shrank / a new stroke started (`_renderedUpTo` out of range).
+	 */
 	_render(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
-		ctx.save();
 		const vpt = this.canvas.viewportTransform;
+		const vptKey = vpt ? vpt.join(",") : "";
+		const isTop = ctx === this.canvas.contextTop;
+		const stale =
+			vptKey !== this._renderedVpt ||
+			getTopContextEpoch() !== this._renderedEpoch ||
+			this._renderedUpTo > this._trace.length;
+
+		let from = this._renderedUpTo;
+		if (!isTop || stale) {
+			if (isTop) this.canvas.clearContext(ctx);
+			from = 0;
+		}
+
+		ctx.save();
 		if (vpt) ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
 		const radius = this._stampSize / 2;
-		for (const p of this._trace) {
+		for (let i = from; i < this._trace.length; i++) {
+			const p = this._trace[i];
 			ctx.globalAlpha = p.opacity;
 			ctx.drawImage(this._stampCanvas, p.x + p.offsetX - radius, p.y + p.offsetY - radius, this._stampSize, this._stampSize);
 		}
 		ctx.restore();
+
+		if (isTop) {
+			this._renderedUpTo = this._trace.length;
+			this._renderedVpt = vptKey;
+			this._renderedEpoch = getTopContextEpoch();
+		}
 	}
 }
 

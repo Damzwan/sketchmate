@@ -69,8 +69,9 @@ export class NeonBrush extends BaseBrush {
     const h = Math.ceil(maxY - minY)
     if (w <= 0 || h <= 0) return null
 
-    const baseDpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1
-    const dpr = Math.min(baseDpr * 2, 3)
+    // Device-independent — see TEXTURE_SUPERSAMPLE. (Also fixes NaN dimensions:
+    // the old expression had no `|| 1`, so off-main it read undefined.)
+    const dpr = TEXTURE_SUPERSAMPLE
 
     const off = document.createElement('canvas')
     off.width = Math.ceil(w * dpr)
@@ -166,7 +167,7 @@ export class NeonBrush extends BaseBrush {
   }
 }
 
-import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
+import { enlivenStrokeProps, TEXTURE_SUPERSAMPLE } from '@/draw/utils/brushes/brush.helpers'
 
 // Pure renderer: (points, width, color) → glow bitmap wrapped as FabricImage.
 // Deterministic, so the bitmap can be dropped from the payload and rebuilt.
@@ -196,8 +197,8 @@ export function generateNeonImage(
   const h = Math.ceil(maxY - minY)
   if (w <= 0 || h <= 0) return null
 
-  const baseDpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1
-  const dpr = Math.min(baseDpr * 2, 3)
+  // Device-independent — see TEXTURE_SUPERSAMPLE.
+  const dpr = TEXTURE_SUPERSAMPLE
 
   const off = document.createElement('canvas')
   off.width = Math.ceil(w * dpr)

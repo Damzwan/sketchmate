@@ -175,7 +175,10 @@ export async function handleErasedAction(
     }
 
     for (const obj of objects) {
-      if (obj) mgr.updateQuadTree(obj)
+      // clipChanged, NOT updateQuadTree: an erase only touched the clip, so sync
+      // the mirror at clip granularity instead of re-serializing the whole
+      // object — that full re-serialize was the pan-after-undo block.
+      if (obj) mgr.clipChanged(obj)
       if (yielder.shouldYield()) await yielder.yield()
     }
 
@@ -244,7 +247,10 @@ export async function handleErasedAction(
     }
 
     for (const obj of allAffected) {
-      if (obj) mgr.updateQuadTree(obj)
+      // Restored (previously fully-erased) objects re-added above go through the
+      // normal object:added path; here we only need the clip-granular mirror
+      // sync for the survivors whose clip lost a stroke.
+      if (obj) mgr.clipChanged(obj)
       if (yielder.shouldYield()) await yielder.yield()
     }
 

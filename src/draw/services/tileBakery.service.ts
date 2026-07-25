@@ -281,6 +281,46 @@ export function bakeryMarkDirty(obj: FabricObject): void {
 }
 
 /**
+ * CLIP-granular mirror sync for an ERASE (commit / undo / redo).
+ *
+ * An erase mutates only the object's clipPath, never its path or transform, so
+ * marking the whole object dirty forced the bake path to re-serialize the ENTIRE
+ * object (its own — often large — path + all props + the clip) for every touched
+ * object. Doing that for a big erase, then panning, was the block.
+ *
+ * Instead ship just `clipPath.toObject()` — exactly the sub-tree a full toJSON
+ * would put under `clipPath`, so the worker mirror ends up identical — and CLEAR
+ * the dirty flag so the bake path re-serializes nothing. The clip serialization
+ * itself runs in the (yielded) erase loops, not on the bake/pan frame.
+ *
+ * `obj.clipPath === undefined` (undo removed the last erase) sends `clip: null`,
+ * which clears it in the mirror.
+ *
+ * NB: a FLATTENED clip (`__hasImageClip`) must NOT come here — its clip holds a
+ * base64 image whose toObject would be a huge postMessage, and such objects are
+ * refused by the worker anyway. Callers guard on that and fall back to
+ * bakeryMarkDirty (flushObjects then drops it as unshippable).
+ */
+export function bakeryClipSet(obj: FabricObject): void {
+	if (disabled || !obj?.id) return;
+	let clip: any = null;
+	const cp = (obj as any).clipPath;
+	if (cp) {
+		try {
+			clip = cp.toObject();
+		} catch {
+			// Un-serializable clip → fall back to a full re-serialize path.
+			bakeryMarkDirty(obj);
+			return;
+		}
+	}
+	// The clip delta supersedes any pending full re-serialize for this object.
+	dirty.delete(obj.id);
+	(obj as any).__bakeJSON = undefined;
+	getWorker()?.postMessage({ t: "clipSet", id: obj.id, clip });
+}
+
+/**
  * Seed the mirror straight from the JSON the object was enlivened FROM — no
  * toJSON. Used at load, where re-serializing N objects we just deserialized was
  * the main-thread spike (and crash) on big canvases. Stashes the blob on the
@@ -362,8 +402,17 @@ function textRenderable(obj: any): boolean {
 		.every((f) => workerFonts.has(f.trim().replace(/^["']|["']$/g, "")));
 }
 
+/** A stroke class can opt out of worker baking (static `bakesOnMainThread`) when
+ *  its render depends on something the worker can't reconstruct — e.g. a
+ *  stampCanvas rebuilt from a dataURL via image decoding (PixelStroke). Such an
+ *  object baked BLANK in the worker and vanished at worker tiers / after a move. */
+function bakesOnMain(obj: any): boolean {
+	return (obj?.constructor as any)?.bakesOnMainThread === true;
+}
+
 function shippable(obj: any): boolean {
 	if (obj.group) return false;
+	if (bakesOnMain(obj)) return false;
 	if (obj.text !== undefined) return textRenderable(obj);
 	// ANY FabricImage-backed object, not just `type === 'image'`. The Neon, Spray
 	// and Crayon STROKES extend FabricImage but serialize under their own type
@@ -631,6 +680,9 @@ function refuse(reason: RefusalReason): null {
  * stroke type — ships.
  */
 function workerCanRender(a: any): boolean {
+	// Strokes that opt out (PixelStroke: stampCanvas rebuilt via image decoding,
+	// impossible in a worker) → main-thread bake / hybrid overlay.
+	if (bakesOnMain(a)) return false;
 	if (a.text !== undefined) return textRenderable(a);
 	// FabricImage subclasses (Neon/Spray/Crayon strokes + real images) have no
 	// renderable element in the worker — see shippable().

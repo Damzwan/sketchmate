@@ -1,6 +1,6 @@
 import { PatternBrush, Canvas, Point, FabricImage } from 'fabric'
 import * as fabric from 'fabric'
-import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
+import { enlivenStrokeProps, TEXTURE_SUPERSAMPLE } from '@/draw/utils/brushes/brush.helpers'
 
 // Deterministic PRNG so the random crayon texture regenerates identically from
 // a stored seed (no need to serialise the bitmap — same trick as charcoal).
@@ -94,8 +94,8 @@ export function generateCrayonImage(
 
   // Textural brush → softening on extreme zoom-in is acceptable; keep memory
   // modest with a small headroom multiplier.
-  const baseDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
-  const dpr = Math.min(baseDpr * 1.5, 3)
+  // Device-independent — see TEXTURE_SUPERSAMPLE.
+  const dpr = TEXTURE_SUPERSAMPLE
 
   const off = document.createElement('canvas')
   off.width = Math.ceil(w * dpr)

@@ -6,6 +6,18 @@ export type BakeryRequest =
   | { t: 'config'; liveMax?: number }
   | { t: 'upsert'; items: { id: string; json: any }[] }
   | { t: 'translate'; ids: string[]; dx: number; dy: number }
+  | {
+      // CLIP-granular sync. An erase only changes an object's clipPath, not its
+      // path/props, so re-serializing the WHOLE object (upsert) is wasteful —
+      // and doing it for every touched object is what made a pan right after a
+      // big erase / undo block. This ships only the object's serialized clip
+      // (exactly clipPath.toObject(), so no shape guessing). `clip: null` clears
+      // it (undo of the last erase on an object). No-op if the id is unknown to
+      // the mirror — the next bake reports it `missing` and re-upserts in full.
+      t: 'clipSet'
+      id: string
+      clip: any | null
+    }
   | { t: 'remove'; ids: string[] }
   | { t: 'clear' }
   | {

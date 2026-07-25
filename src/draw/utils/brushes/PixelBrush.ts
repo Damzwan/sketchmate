@@ -158,6 +158,17 @@ export class PixelBrush extends BaseBrush {
 export class PixelStroke extends FabricObject {
 	static type = "PixelStroke";
 
+	// The tile worker CANNOT render this stroke: `_render` blits `stampCanvas`,
+	// and the worker rebuilds it via `fromObject` → `fabric.util.loadImage(
+	// stampDataUrl)` — image decoding that doesn't exist in a worker. So a
+	// worker bake produced a BLANK tile: the stroke showed at overview / locally-
+	// baked tiers but VANISHED at worker-baked tiers, and disappeared after a
+	// move (which triggers a worker re-bake). This flag makes the bakery refuse
+	// it → it bakes on the main thread (or overlays via the hybrid path), where
+	// image loading works. Charcoal rebuilds its stamp procedurally and Circle is
+	// vector, so only this one needs it.
+	static bakesOnMainThread = true;
+
 	static cacheProperties = [
 		...FabricObject.cacheProperties,
 		"points",

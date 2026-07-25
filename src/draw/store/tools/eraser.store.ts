@@ -424,7 +424,13 @@ export const useEraser = defineStore('eraser', (): Eraser => {
         cancelCircle = false
         // Backstop: guarantee compositing resumes even if a stroke was
         // cancelled or 'start' was prevented (so the flag can't stick).
-        objMgr.setErasing(false)
+        //
+        // BUT NOT while a commit is in flight. The brush's onMouseUp fires
+        // 'end' → beginErasingCommit (setting releaseErasing) SYNCHRONOUSLY,
+        // before fabric fires this 'mouse:up', so releaseErasing is already set
+        // here for a real stroke. Resuming now would composite the un-stamped
+        // tiles for a frame (the flash) — handleEraseEnd resumes after stamping.
+        if (!releaseErasing) objMgr.setErasing(false)
       }
     }
   ]
@@ -527,54 +533,62 @@ export const useEraser = defineStore('eraser', (): Eraser => {
     })
 
     const handleEraseEnd = async (e: any) => {
-      // Resume compositing FIRST, so the erasing:end → onErase rect patch
-      // and rebake below can actually run (requestFrame is suppressed while
-      // erasing). Idempotent with the mouse:up backstop.
-      objMgr.setErasing(false)
+      // Keep the compositor SUSPENDED through the commit + stamp. The brush's
+      // destination-out result is on the lower context, so the screen shows the
+      // correct erased state meanwhile. We resume (→ one composite of the now-
+      // STAMPED tiles) only in the finally. Resuming first — as before — let a
+      // composite paint the still-un-stamped tiles for a frame: the flash. The
+      // mouse:up backstop is gated on the in-flight commit so it can't resume
+      // early either.
+      try {
+        e.detail.path.id = v4()
 
-      e.detail.path.id = v4()
+        if (isCancelling) {
+          isCancelling = false
+          await b.commit(e.detail)
+          return
+        }
 
-      if (isCancelling) {
-        isCancelling = false
+        // 1. FILTER TARGETS FIRST: Remove objects belonging to other users
+        const { isPublicLobby } = useDrawSyncer()
+        if (isPublicLobby) {
+          const { user } = useAuthStore()
+          e.detail.targets = (e.detail.targets || []).filter(
+            (o: FabricObject) => o.userId === user?._id
+          )
+        }
+
+        // Also protect anything inside another user's claimed area (applies to
+        // private online lobbies too, where the ownership filter above doesn't).
+        const claim = useClaimArea()
+        const touchesForeignArea =
+          claim.foreignAreas.length > 0 &&
+          claim.objectIntersectsForeignArea(e.detail.path)
+        if (claim.foreignAreas.length > 0) {
+          e.detail.targets = (e.detail.targets || []).filter(
+            (o: FabricObject) => !claim.isObjectProtected(o)
+          )
+        }
+        if (touchesForeignArea) claim.notifyBlocked()
+
         await b.commit(e.detail)
-        return
+
+        const targets: FabricObject[] = e.detail.targets || []
+
+        e.detail.deletedObjects = []
+        // `selective` forces onErase to REBUILD the region from objects instead of
+        // stamping the eraser hole into the tiles. Public lobbies already do this;
+        // also do it whenever the stroke crosses a foreign area so the protected
+        // (unclipped) content repaints intact instead of showing a punched hole.
+        e.detail.selective = isPublicLobby || touchesForeignArea
+        c!.fire('erasing:end', e as any)
+
+        enqueueErasedCheck(targets, e.detail.path)
+      } finally {
+        // ALWAYS resume — even on error — so the flag can never stick. Its
+        // requestFrame paints the stamped tiles in one clean frame.
+        objMgr.setErasing(false)
       }
-
-      // 1. FILTER TARGETS FIRST: Remove objects belonging to other users
-      const { isPublicLobby } = useDrawSyncer()
-      if (isPublicLobby) {
-        const { user } = useAuthStore()
-        e.detail.targets = (e.detail.targets || []).filter(
-          (o: FabricObject) => o.userId === user?._id
-        )
-      }
-
-      // Also protect anything inside another user's claimed area (applies to
-      // private online lobbies too, where the ownership filter above doesn't).
-      const claim = useClaimArea()
-      const touchesForeignArea =
-        claim.foreignAreas.length > 0 &&
-        claim.objectIntersectsForeignArea(e.detail.path)
-      if (claim.foreignAreas.length > 0) {
-        e.detail.targets = (e.detail.targets || []).filter(
-          (o: FabricObject) => !claim.isObjectProtected(o)
-        )
-      }
-      if (touchesForeignArea) claim.notifyBlocked()
-
-      await b.commit(e.detail)
-
-      const targets: FabricObject[] = e.detail.targets || []
-
-      e.detail.deletedObjects = []
-      // `selective` forces onErase to REBUILD the region from objects instead of
-      // stamping the eraser hole into the tiles. Public lobbies already do this;
-      // also do it whenever the stroke crosses a foreign area so the protected
-      // (unclipped) content repaints intact instead of showing a punched hole.
-      e.detail.selective = isPublicLobby || touchesForeignArea
-      c!.fire('erasing:end', e as any)
-
-      enqueueErasedCheck(targets, e.detail.path)
     }
 
     b.on('redraw', (e: any) => {

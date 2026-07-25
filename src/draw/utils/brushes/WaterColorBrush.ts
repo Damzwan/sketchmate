@@ -8,13 +8,37 @@ import {
 // ==========================================
 // DETERMINISTIC NOISE HELPER
 // ==========================================
+/**
+ * Position-hashed noise. CHAOTIC by construction (`sin(x*k)*43758` mod 1), so an
+ * arbitrarily small change in x or y yields a COMPLETELY different value — it is
+ * a hash, not a continuous function.
+ *
+ * That matters because `WaterColorStroke.toObject` stores `basePoints` rounded
+ * to 0.1 (`Math.round(p.x * 10) / 10`) and drops the baked `path`, so
+ * `fromObject` re-derives the bristle geometry from the ROUNDED points. Feeding
+ * the hash unrounded coords when drawing and rounded coords when re-hydrating
+ * produced two entirely different sets of bristles — the stroke visibly changed
+ * shape the moment a tile baked from the serialized copy (the worker mirror
+ * round-trips through exactly this path), and again after a reload or a sync.
+ *
+ * Fix: quantize to the SAME 0.1 grid the serializer uses, inside the hash. Then
+ * `noise(x) === noise(round(x, 0.1))`, so live, committed, worker-baked and
+ * reloaded renders are byte-identical. Quantizing here (not at the call sites)
+ * makes the invariant impossible to forget.
+ *
+ * Keep this grid in sync with `toObject`'s rounding factor (10).
+ */
+const NOISE_GRID = 10; // 0.1 units — must match toObject's Math.round(p * 10)
+
 function getDeterministicNoise(
 	x: number,
 	y: number,
 	b: number,
 ): { nx: number; ny: number } {
-	const seedX = x * 12.9898 + y * 78.233 + b * 13.5;
-	const seedY = x * 78.233 + y * 12.9898 + b * 31.7;
+	const qx = Math.round(x * NOISE_GRID) / NOISE_GRID;
+	const qy = Math.round(y * NOISE_GRID) / NOISE_GRID;
+	const seedX = qx * 12.9898 + qy * 78.233 + b * 13.5;
+	const seedY = qx * 78.233 + qy * 12.9898 + b * 31.7;
 	const nx = (Math.abs(Math.sin(seedX) * 43758.5453) % 1) - 0.5;
 	const ny = (Math.abs(Math.sin(seedY) * 43758.5453) % 1) - 0.5;
 	return { nx, ny };

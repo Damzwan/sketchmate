@@ -23,6 +23,10 @@ import { handleTextModificationSync } from "@/draw/helpers/history/text.helper";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import { useDrawHistoryManager } from "@/draw/store/drawHistoryManager.store";
+import { createYielder } from "@/draw/helpers/yielding.helper";
+
+const IS_MOBILE_SYNC =
+	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useClaimArea } from "@/draw/store/claimArea.store";
 import { socket } from "@/service/api/socket/socket.service";
@@ -364,6 +368,32 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 		}
 	}
 
+	/**
+	 * Drain the remote-action queue in YIELDED, individually-batched slices.
+	 *
+	 * Previously this was one `while` loop over the entire queue inside a single
+	 * beginBatch/endBatch. Two problems, both hitting the LOCAL user's
+	 * smoothness while someone else draws:
+	 *
+	 *  1. No yield. `await` on an already-resolved promise only drains
+	 *     microtasks, so a burst (a fast remote drawer, or the replay buffer on
+	 *     join) applied every queued action back-to-back — enliven + add + index
+	 *     per action — with no chance for input to dispatch. That is exactly the
+	 *     "someone else's events wreck my pan/zoom" case.
+	 *  2. One batch for the whole drain. Simply adding a yield inside it would
+	 *     hold the batch open across frames, so a LOCAL stroke made meanwhile
+	 *     would have its invalidation deferred to the very end of the burst.
+	 *
+	 * So: slice it. Each slice opens its own batch, applies actions until the
+	 * time budget is spent, closes the batch (→ one coalesced invalidateRegions
+	 * for that slice, so the screen keeps up), then yields. `yielder.yield()`
+	 * waits a full RAF when input is pending, so an active gesture naturally
+	 * throttles the drain to one slice per frame instead of competing with it.
+	 *
+	 * Re-entrancy is unchanged: `isProcessingQueue` keeps a second drain from
+	 * starting, and actions pushed while we yield are picked up by the outer
+	 * loop below.
+	 */
 	async function processActionQueue(): Promise<void> {
 		isProcessingQueue.value = true;
 		const { actionWithoutEvents } = useDrawEventManager();
@@ -373,24 +403,36 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 
 		canvas.fire("sync:queue:start" as any);
 
-		objMgr.beginBatch();
+		const yielder = createYielder({ budgetMs: IS_MOBILE_SYNC ? 4 : 8 });
 		try {
 			while (actionQueue.length > 0) {
-				const action = actionQueue.shift();
-				if (!action) continue;
+				objMgr.beginBatch();
+				try {
+					yielder.reset();
+					while (actionQueue.length > 0) {
+						const action = actionQueue.shift();
+						if (!action) continue;
 
-				const start = performance.now();
-				await actionWithoutEvents(async () => {
-					// @ts-ignore
-					await drawSyncingMapping[action.type](action.params);
-				});
-				canvas.fire("sync:action:done" as any, {
-					type: action.type,
-					duration: performance.now() - start,
-				});
+						const start = performance.now();
+						await actionWithoutEvents(async () => {
+							// @ts-ignore
+							await drawSyncingMapping[action.type](action.params);
+						});
+						canvas.fire("sync:action:done" as any, {
+							type: action.type,
+							duration: performance.now() - start,
+						});
+
+						// Budget spent (or input pending) → close this slice's batch so
+						// its regions repaint, then yield below.
+						if (yielder.shouldYield()) break;
+					}
+				} finally {
+					objMgr.endBatch();
+				}
+				if (actionQueue.length > 0) await yielder.yield();
 			}
 		} finally {
-			objMgr.endBatch();
 			isProcessingQueue.value = false;
 			canvas.fire("sync:queue:end" as any);
 		}

@@ -625,6 +625,148 @@ GPU churn (F5) and the flatten memory (E3), both scoped above.
 
 ---
 
+## Sixth review — brush determinism (the "mismatch"/"flash") + remote-sync smoothness
+
+### B1 — ✅ FIXED — WaterColor changed shape once its tile baked
+
+`getDeterministicNoise` is a position **hash** (`sin(x*k)*43758 mod 1`) — chaotic,
+so any change to `x`/`y`, however small, gives a completely different value.
+`WaterColorStroke.toObject` stores `basePoints` **rounded to 0.1** and DROPS the
+baked `path`, so `fromObject` re-derives the bristle geometry from the rounded
+points. Live/just-drawn used exact floats; anything re-hydrated (the worker
+mirror round-trips through exactly this, plus reloads and sync) used rounded ones
+→ **an entirely different set of bristles**. The stroke visibly changed the
+moment its tile baked. That is the "watercolor looks different after commit".
+
+**Fixed** by quantizing to the same 0.1 grid *inside* the hash, so
+`noise(x) === noise(round(x, 0.1))` and serialize→deserialize is idempotent.
+Live, committed, worker-baked and reloaded renders now agree. (The `wave` term
+uses `sin(totalDist)`, which is continuous — rounding perturbs it
+imperceptibly, so it needs no change.)
+
+### B2 — ✅ FIXED — procedural brush textures differed between worker and main
+
+`generateCharcoalStamp` and the Crayon/Neon/Spray pattern builders sized their
+texture from `window.devicePixelRatio`. The tile worker's DOM shim aliases
+`window` to `globalThis`, which **has no `devicePixelRatio`** — so the worker
+supersampled at 1 while the main thread used 2–3, and the same stroke rendered
+with different grain depending on where it was rasterized. On a worker-baked
+tile the texture visibly changed. Two of the call sites (Spray, Neon) also had
+**no `|| 1` fallback**, so off-main they computed `NaN` canvas dimensions.
+
+**Fixed** with a shared device-independent `TEXTURE_SUPERSAMPLE` constant in
+`brush.helpers.ts`. A brush texture is a small fixed asset, not viewport pixels —
+pinning it makes rasterization deterministic across worker/main and across
+devices, which is what a shared tile cache and multiplayer both require.
+
+Together B1+B2 remove the two *provable* live-vs-committed divergences behind the
+reported "flash / funky / looks different after drawing". Not visually confirmed
+here (sandbox is backend-gated) — worth re-checking per brush on a device.
+
+### S1 — ✅ FIXED — a remote burst blocked the local user's pan/zoom
+
+Audit of `drawSyncEngine.processActionQueue`. What was already right: actions are
+**queued**, the drain is **batched** (`beginBatch`/`endBatch` → one coalesced
+`invalidateRegions`), and it is **gesture-gated on entry** (`isUsingGestures`).
+
+What was wrong: the drain was a single `while` over the **entire** queue with no
+yield. `await` on an already-resolved promise only drains microtasks, so a burst
+(a fast remote drawer, or the replay buffer on join) applied every queued action
+— enliven + add + index each — back-to-back with no chance for input to
+dispatch. Exactly the "other people's events ruin my smoothness" case. And
+naively adding a yield inside that one batch would have held it open across
+frames, deferring a *local* stroke's invalidation to the end of the burst.
+
+**Fixed** by slicing: each slice opens its own batch, applies actions until an
+8 ms (4 ms mobile) budget is spent, closes the batch so that slice repaints, then
+yields. Since `yielder.yield()` waits a full RAF when input is pending, an active
+gesture throttles the drain to one slice per frame instead of competing with it.
+Re-entrancy is unchanged.
+
+**Not** done: viewport culling of remote actions. Off-screen remote edits still
+pay enliven+add (they must — the object has to exist in the scene); only their
+*rendering* is viewport-gated, by `invalidateRegions`. Time-slicing is the right
+lever here, and that is what landed.
+
+### Still open after this pass
+
+- **All brushes worker-bakeable.** Blocked on the four bitmap-backed strokes
+  (Pixel via `stampDataUrl`; Neon/Spray/Crayon as `FabricImage`). They bake on
+  main today (correctly — see R1/R2). The fix is F3-B: `createImageBitmap` the
+  element on main and post it as a **transferable** into the mirror, so the
+  worker can `drawImage` it. Real project — new mirror protocol, per-object
+  bitmap lifetime/eviction — and not safe to land without visual verification.
+- **Eraser structural rewrite.** E9 removed the whole-object re-serialize; the
+  remaining cost is that every erase still attaches a per-object `ClippingGroup`,
+  so erased objects stay costlier to bake and bound forever. The ceiling-lifter
+  is to stop representing erases as N per-object clips — see the note at the end
+  of the fourth review. Still the largest single item.
+- **Bucket fill "area too big"** — needs a repro to disambiguate (fill leaking
+  past its enclosure vs. the `Area too large` toast firing on legitimate fills);
+  the guards are the edge-touch test and `MAX_WORLD_AREA` in
+  `bucketFill.worker.ts`, sized against `MAX_WORLD_DIM = 2500`.
+
+## Fifth review — the structural erase change: clip-granular mirror sync + flash
+
+### E9 — ✅ STRUCTURAL — erase syncs the worker mirror at CLIP granularity, not whole-object
+
+**The root of "undo then pan lags with a lot of objects."** An erase mutates
+only an object's `clipPath`, but the mirror sync marked the whole object dirty,
+so the bake path re-serialized the ENTIRE object (its own — often large — path +
+all props + the clip) for *every* touched object, on the pan/undo frame.
+
+Two structural alternatives were rejected as wire/correctness-breaking:
+
+- **Z-order eraser objects** (drop per-object clips, add a destination-out stroke
+  above targets): cleanest for perf and undo, but destination-out hits *everything*
+  below it → breaks selective erasing / claimed-area protection, and it changes
+  the persisted + multiplayer representation (the server spreads `action` to
+  mixed clients — see the `draw-sync-wire` memory). A v4 wire + a selective
+  fallback — a multi-session project, not a safe single change.
+- **Full stroke-delta protocol**: guessing the `ClippingGroup` JSON shape mirror-
+  side is exactly where an unverifiable bug would hide.
+
+**What landed** (`t: 'clipSet'`): erase commit / undo / redo ship just
+`clipPath.toObject()` — the exact sub-tree a full `toJSON` puts under `clipPath`,
+so the worker mirror ends up byte-identical — and CLEAR the object's dirty flag.
+The bake/pan frame then re-serializes nothing. The clip serialization runs in the
+already-yielded erase loops, not on the pan frame. `clip: null` clears it (undo
+of the last erase). Unknown id → no-op → the next bake reports `missing` and
+re-upserts in full (the safety net). Flattened clips (`__hasImageClip`, a base64
+image) are excluded and take the old full-dirty path (they're worker-refused
+anyway). Wire, persistence and undo semantics are all unchanged — this is purely
+the local main↔worker mirror.
+
+Net: an erase (or its undo/redo) no longer re-serializes whole objects on the
+main thread. What remains on the erase frame is the clip `toObject` (yielded) and
+the bounded `eraseStamp` over visible tiles.
+
+### E10 — ✅ FIXED — the erase "flash"
+
+On pointer-up the `mouse:up` backstop resumed the compositor immediately, while
+the async (now yielded, so longer) commit + tile-stamp was still in flight — so a
+composite painted the still-**un-stamped** (un-erased) tiles for a frame, then the
+stamp landed: a flash. Fixed by keeping the compositor suspended through the
+commit + stamp (the brush's destination-out result stays on the lower context, so
+the screen shows the correct erased state meanwhile) and resuming — one clean
+composite of the stamped tiles — only in `handleEraseEnd`'s `finally`. The
+backstop is gated on the in-flight commit (`releaseErasing`, set synchronously by
+`beginErasingCommit` on the brush's `onMouseUp`, before fabric fires `mouse:up`),
+so it can't resume early. Worst case if the ordering assumption is ever wrong: the
+flash persists — never a stuck/blank canvas (the `finally` always resumes).
+
+### E8b — spam correctness — `clipContainsStroke` now checks baked strokes (prev turn), and clipSet keeps the mirror exact
+
+Combined with E8 (redo idempotency across baked strokes), erase undo/redo is now
+add/remove-one-clip-child on the object plus an exact clip delta to the mirror.
+The residual known gap stays E3's `RETAIN_CAP` (an erase older than 400 strokes
+on ONE object is dropped and can't be undone) — extreme, and unchanged.
+
+> **Verification:** none of this could be exercised here (the sandbox can't open a
+> solo-draw session — backend-gated). All build-clean and reasoned; the definitive
+> check on a device is `__drawPerf().longTaskMsMax` before/after a big erase +
+> pan, and a visual check of the flash + undo/redo spam.
+
 ## Fourth review — big-erase main-thread blocks + a spam correctness bug
 
 ### E7 — ✅ FIXED — the erase commit and undo/redo loops were unyielded O(objects)
@@ -759,12 +901,27 @@ device is available.
 
 | Stroke | Base | Worker-safe? |
 | --- | --- | --- |
-| Pencil, WaterColor, Calligraphy | `Path` | Yes — vector |
-| Pixel, Charcoal, Circle | `FabricObject` | Yes — offscreen 2D canvas via the worker `document` shim |
-| Eraser (`OptimizedEraserStroke`) | `Path` + `ClippingGroup` clip | Yes, since ClippingGroup is now registered in the worker |
-| **Neon, Spray, Crayon** | **`FabricImage`** | **No** — baked-bitmap strokes; now refused → local/overlay bake (R1) |
+| Pencil, WaterColor, Calligraphy, BucketFill | `Path` | Yes — vector |
+| Circle | `FabricObject` | Yes — vector (`arc`/`fill`) |
+| Charcoal | `FabricObject` | Yes — stamp rebuilt PROCEDURALLY from a seed (deterministic canvas ops) |
+| Eraser (`OptimizedEraserStroke`) | `Path` + `ClippingGroup` clip | Yes, since ClippingGroup is registered in the worker |
+| **Pixel** | **`FabricObject`** | **No** — `_render` blits a `stampCanvas` the worker rebuilds via `loadImage(stampDataUrl)` (image decoding, absent in a worker) → baked BLANK → vanished at worker tiers / after a move. Now refused via `static bakesOnMainThread` (R2). |
+| **Neon, Spray, Crayon** | **`FabricImage`** | **No** — baked-bitmap strokes; refused → local/overlay bake (R1). |
 
-The image-backed three are the only ones that can't go off-thread. Making them
+### R2 — ✅ FIXED — PixelStroke vanished at worker tiers and after a move
+
+Same disappear-on-zoom/move class as R1 but PixelStroke extends `FabricObject`,
+not `FabricImage`, so the R1 guard missed it. It carries a `stampCanvas` (a small
+tip bitmap) that its `fromObject` rebuilds from a base64 `stampDataUrl` via
+`fabric.util.loadImage` — image decoding that a worker can't do. The worker baked
+it blank; it survived at the overview tier and on main-thread bakes, and vanished
+after a move (which forces a worker re-bake). Fixed with an explicit, extensible
+opt-out: `static bakesOnMainThread = true` on PixelStroke, checked by
+`workerCanRender` / `shippable`. It now bakes on the main thread (or via the F3-C
+hybrid overlay), where `loadImage` works. Charcoal (procedural stamp) and Circle
+(vector) were checked and stay on the worker.
+
+The image-backed strokes are the only ones that can't go off-thread. Making them
 worker-bakeable = F3-B (ship their baked bitmap as a transferable into the
 mirror), worth it only if `tileRefusals.image` shows they dominate on real
 boards — the metric is already there.

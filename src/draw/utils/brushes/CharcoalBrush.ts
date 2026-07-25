@@ -1,6 +1,6 @@
 import { BaseBrush, Point, Canvas, FabricObject } from "fabric";
 import * as fabric from "fabric";
-import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
+import { enlivenStrokeProps, TEXTURE_SUPERSAMPLE } from "@/draw/utils/brushes/brush.helpers";
 
 // --- Utility: Deterministic Generator ---
 export function seededRandom(seed: number) {
@@ -12,8 +12,11 @@ export function seededRandom(seed: number) {
 
 export function generateCharcoalStamp(seed: number, width: number, color: string): HTMLCanvasElement {
 	const rand = seededRandom(seed);
-	const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-	const SS = Math.min(dpr * 2, 3);
+	// Device-independent — see TEXTURE_SUPERSAMPLE. Was devicePixelRatio-based,
+	// which made the worker (no devicePixelRatio → 1) and the main thread (2–3)
+	// generate DIFFERENT grain for the same stroke, so it changed appearance the
+	// moment its tile baked.
+	const SS = TEXTURE_SUPERSAMPLE;
 	const stampSize = width * 2;
 	const physical = Math.ceil(stampSize * SS);
 

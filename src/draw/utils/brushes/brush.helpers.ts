@@ -2,6 +2,29 @@ import * as fabric from 'fabric'
 import { TSimplePathData } from 'fabric'
 
 /**
+ * Supersampling factor for procedurally generated brush TEXTURES (charcoal
+ * stamps, crayon/spray/neon pattern canvases).
+ *
+ * DELIBERATELY DEVICE-INDEPENDENT. These generators used to read
+ * `window.devicePixelRatio`, which made the same stroke render differently
+ * depending on WHERE it was rasterized:
+ *   • the tile worker defines `window` (the DOM shim aliases globalThis) but has
+ *     no `devicePixelRatio`, so it fell back to 1 while the main thread used
+ *     2–3 → a worker-baked tile and the live/local render disagreed on the
+ *     texture, i.e. the stroke visibly changed the moment its tile baked;
+ *   • two devices with different DPRs produced different art for the same
+ *     drawing after a reload or a sync.
+ * Two of the call sites also read `window.devicePixelRatio` with NO `|| 1`
+ * fallback, so in a worker they computed NaN canvas dimensions outright.
+ *
+ * A texture is a small fixed-size asset, not viewport pixels — it does not need
+ * to track the display. Pinning it makes the render deterministic everywhere,
+ * which is what the tile cache (and multiplayer) requires. 2 keeps the grain
+ * crisp at the zoom levels tiles bake at.
+ */
+export const TEXTURE_SUPERSAMPLE = 2
+
+/**
  * Ensures that nested properties like clipPath and shadow are converted
  * from raw JSON objects into real Fabric class instances before
  * the parent object is instantiated.

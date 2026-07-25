@@ -483,6 +483,24 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
           }
           break
         }
+        case 'clipSet': {
+          // An erase changed only this object's clipPath. Patch it in the stored
+          // JSON instead of re-serializing the whole object main-side. `clip` is
+          // exactly what clipPath.toObject() produced, so this yields the
+          // identical mirror a full upsert would. No-op if the id is unknown —
+          // the next bake reports `missing` and re-upserts in full.
+          const raw = json.get(msg.id)
+          if (raw !== undefined) {
+            try {
+              const j = typeof raw === 'string' ? JSON.parse(raw) : raw
+              if (msg.clip) j.clipPath = msg.clip
+              else delete j.clipPath
+              json.set(msg.id, typeof raw === 'string' ? JSON.stringify(j) : j)
+            } catch { /* leave as-is; a later upsert / missing self-heal corrects it */ }
+            live.delete(msg.id) // clip changed → re-enliven fresh
+          }
+          break
+        }
         case 'remove':
           for (const id of msg.ids) {
             json.delete(id)

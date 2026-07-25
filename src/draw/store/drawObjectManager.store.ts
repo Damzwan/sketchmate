@@ -25,6 +25,7 @@ import type { WorldRect } from "@/draw/committedLayer";
 import {
 	bakeryBakeTile,
 	bakeryClear,
+	bakeryClipSet,
 	bakeryFlushSoon,
 	isBakeryActive,
 	bakeryMarkDirty,
@@ -374,6 +375,27 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	}
 
 	/**
+	 * The object's CLIP changed (an erase undo/redo), nothing else. Refresh the
+	 * quadtree bounds (usually a no-op — a clip doesn't change geometry) and sync
+	 * the mirror at clip granularity instead of re-serializing the whole object.
+	 * This is what keeps an erase undo + immediate pan off the main thread. A
+	 * flattened clip carries a base64 image and is worker-refused → full-dirty.
+	 */
+	function clipChanged(obj: FabricObject) {
+		const e = entryMap.get(obj.id);
+		if (e) {
+			const b = cachedBounds(obj);
+			e.bounds.x = b.x;
+			e.bounds.y = b.y;
+			e.bounds.w = b.w;
+			e.bounds.h = b.h;
+			quadtree.update(e);
+		}
+		if ((obj as any).__hasImageClip) bakeryMarkDirty(obj);
+		else bakeryClipSet(obj);
+	}
+
+	/**
 	 * Fast-path index update for a PURE TRANSLATION (drag commit): the world
 	 * bounds of every object in the selection shift by exactly (dx, dy), so we
 	 * shift the entry and the bounds cache instead of recomputing the full
@@ -672,9 +694,15 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				const path = d.path as FabricObject | undefined;
 				const rect = d.dirtyRect as WorldRect | undefined;
 				localTransform.invalidateCache(); // selected pixels may have changed
-				// targets now carry the new eraser clipPath — mirror must resync them
+				// Targets now carry the new eraser clipPath. Sync the mirror at CLIP
+				// granularity — only the clip changed, so shipping the whole object
+				// (bakeryMarkDirty) re-serializes its full path + props for nothing.
+				// A flattened clip holds a base64 image (huge to ship) and is refused
+				// by the worker anyway → full-dirty path, which flushObjects drops.
 				for (const t of (d.targets ?? []) as FabricObject[]) {
-					if (t?.id) bakeryMarkDirty(t);
+					if (!t?.id) continue;
+					if ((t as any).__hasImageClip) bakeryMarkDirty(t);
+					else bakeryClipSet(t);
 				}
 				if (isBatching()) {
 					if (rect) noteRegion(rect);
@@ -1061,6 +1089,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		query,
 		getZIndexMap,
 		updateQuadTree,
+		clipChanged,
 		offsetQuadTree,
 		getObjectBounds: objectBounds,
 		getStaleObjectBounds: staleBounds,

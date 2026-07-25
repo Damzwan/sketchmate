@@ -190,6 +190,13 @@ export class CrayonStroke extends FabricImage {
   }
 
   static async fromObject(object: any) {
+    // Pixels supplied by the tile worker (transferred ImageBitmap). Use them
+    // directly instead of re-running the generator on every enliven — that
+    // regeneration is why these strokes were refused off-thread.
+    if (object.__workerBitmap) {
+      const props = await enlivenStrokeProps(object)
+      return new CrayonStroke(object.__workerBitmap, props)
+    }
     if (!object.src) {
       const pts: Point[] = []
       let lastX = 0, lastY = 0

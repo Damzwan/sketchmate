@@ -18,6 +18,25 @@ export type BakeryRequest =
       id: string
       clip: any | null
     }
+  | {
+      // Pixel ASSET for a bitmap-backed stroke (Pixel's brush-tip stamp;
+      // Neon/Spray/Crayon's rasterized artwork). Sent as a TRANSFERABLE, so the
+      // pixels move to the worker with no copy and no main-thread encode.
+      //
+      // Without this the worker had to rebuild those bitmaps itself — via image
+      // decoding (Pixel's `stampDataUrl`, impossible in a worker) or by re-running
+      // the generator on every enliven (Neon's blurred glow, expensive) — so those
+      // strokes were refused and their whole tile fell back to a main-thread bake.
+      // With the asset present the worker renders them like any other object.
+      //
+      // Lifetime: the sender caps how many/how large a set it ships and never
+      // re-sends; the worker holds each until the object is removed or the mirror
+      // is cleared. An id with no asset is simply refused → main-thread bake, i.e.
+      // the previous behaviour, so this can only add capability.
+      t: 'asset'
+      id: string
+      bitmap: ImageBitmap
+    }
   | { t: 'remove'; ids: string[] }
   | { t: 'clear' }
   | {

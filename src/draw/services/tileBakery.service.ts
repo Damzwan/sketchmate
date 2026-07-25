@@ -361,12 +361,16 @@ export function bakeryTranslate(ids: string[], dx: number, dy: number): void {
 export function bakeryRemove(id: string): void {
 	if (disabled || !id) return;
 	dirty.delete(id);
+	forgetAsset(id); // worker closes the bitmap; we release the budget
 	getWorker()?.postMessage({ t: "remove", ids: [id] });
 }
 
 export function bakeryClear(): void {
 	if (disabled) return;
 	dirty.clear();
+	sentAssets.clear();
+	pendingAssets.clear();
+	assetBytes = 0;
 	getWorker()?.postMessage({ t: "clear" });
 }
 
@@ -405,25 +409,118 @@ function textRenderable(obj: any): boolean {
 /** A stroke class can opt out of worker baking (static `bakesOnMainThread`) when
  *  its render depends on something the worker can't reconstruct — e.g. a
  *  stampCanvas rebuilt from a dataURL via image decoding (PixelStroke). Such an
- *  object baked BLANK in the worker and vanished at worker tiers / after a move. */
+ *  object baked BLANK in the worker and vanished at worker tiers / after a move.
+ *  Sending the pixels as an ASSET lifts the restriction (see assetSourceOf). */
 function bakesOnMain(obj: any): boolean {
 	return (obj?.constructor as any)?.bakesOnMainThread === true;
 }
 
+// ─── bitmap assets ───────────────────────────────────────────────────────────
+//
+// Bitmap-backed strokes (Pixel's tip stamp; Neon/Spray/Crayon's rasterized
+// artwork) can't be rebuilt in the worker — Pixel needs image decoding, and the
+// others would have to re-run an expensive generator on every enliven. So we
+// ship the PIXELS once, as a transferable ImageBitmap, and the worker renders
+// them like anything else. Until an object's asset has landed it stays refused
+// and bakes on the main thread, i.e. exactly the previous behaviour — this can
+// only add capability, never regress it.
+//
+// Budget: bitmaps are the memory here, so cap the total shipped. Past the cap
+// nothing more is sent and the remaining objects keep baking locally. We never
+// re-send or evict: worker-side eviction would silently strand an object.
+const ASSET_BUDGET_BYTES = (() => {
+	const mobile =
+		typeof navigator !== "undefined" &&
+		/Mobi|Android/i.test(navigator.userAgent);
+	return mobile ? 24 * 1024 * 1024 : 64 * 1024 * 1024;
+})();
+
+/** ids whose pixels the worker already holds. */
+const sentAssets = new Set<string>();
+/** ids with a createImageBitmap in flight, so we don't start a second one. */
+const pendingAssets = new Set<string>();
+let assetBytes = 0;
+
+/**
+ * The source pixels for a bitmap-backed stroke, or null if it isn't one.
+ * FabricImage subclasses (Neon/Spray/Crayon) expose their element; PixelStroke
+ * keeps a small `stampCanvas`.
+ */
+function assetSourceOf(obj: any): CanvasImageSource | null {
+	if (obj?.stampCanvas) return obj.stampCanvas as CanvasImageSource;
+	const el = obj?.getElement?.();
+	return el ?? null;
+}
+
+function isBitmapBacked(obj: any): boolean {
+	return bakesOnMain(obj) || obj instanceof FabricImage;
+}
+
+/**
+ * Ship this object's pixels to the worker if we haven't already. Async and
+ * fire-and-forget: `createImageBitmap` is off the critical path, so the current
+ * bake still takes the local route and the NEXT one gets the worker.
+ */
+function ensureAsset(obj: any): void {
+	const id = obj?.id;
+	if (!id || sentAssets.has(id) || pendingAssets.has(id)) return;
+	if (assetBytes >= ASSET_BUDGET_BYTES) return;
+	if (typeof createImageBitmap === "undefined") return;
+	const src = assetSourceOf(obj);
+	if (!src) return;
+	const w = (src as any).width | 0;
+	const h = (src as any).height | 0;
+	if (w <= 0 || h <= 0) return;
+	const bytes = w * h * 4;
+	if (assetBytes + bytes > ASSET_BUDGET_BYTES) return;
+
+	pendingAssets.add(id);
+	createImageBitmap(src).then(
+		(bitmap) => {
+			pendingAssets.delete(id);
+			const w2 = getWorker();
+			if (!w2) {
+				bitmap.close();
+				return;
+			}
+			try {
+				w2.postMessage({ t: "asset", id, bitmap }, [bitmap]);
+				sentAssets.add(id);
+				assetBytes += bytes;
+			} catch {
+				bitmap.close();
+			}
+		},
+		() => {
+			pendingAssets.delete(id);
+		},
+	);
+}
+
+function forgetAsset(id: string): void {
+	// The worker frees the bitmap on its side; we only release the budget.
+	sentAssets.delete(id);
+	pendingAssets.delete(id);
+}
+
 function shippable(obj: any): boolean {
 	if (obj.group) return false;
-	if (bakesOnMain(obj)) return false;
 	if (obj.text !== undefined) return textRenderable(obj);
-	// ANY FabricImage-backed object, not just `type === 'image'`. The Neon, Spray
-	// and Crayon STROKES extend FabricImage but serialize under their own type
-	// ('NeonStroke' etc.), so a bare `type === 'image'` check missed them: they
-	// were shipped to the worker, which has no image element to render, so they
-	// rendered blank / threw and VANISHED from worker-baked tiles — the
-	// "brushes appear/disappear when zooming" report. instanceof catches every
-	// image subclass at once.
-	if (obj instanceof FabricImage) return false;
-	if (obj.type === "image") return false;
 	if (obj.__hasImageClip) return false;
+	// A real user image: never shipped. Checked BEFORE the bitmap-asset path —
+	// a real image is also `instanceof FabricImage`, but its pixels are a photo
+	// (budget) and may be cross-origin, so it keeps baking locally.
+	if (obj.type === "image") return false;
+	// Bitmap-backed strokes — Pixel (stamp rebuilt via image decoding) and the
+	// FabricImage subclasses Neon/Spray/Crayon, which serialize under their own
+	// type so a bare `type === 'image'` check missed them. The worker can render
+	// these ONLY once it holds their pixels; until then they're refused and bake
+	// locally. Kick off the (async) transfer so the next bake can use the worker.
+	if (isBitmapBacked(obj)) {
+		if (sentAssets.has(obj.id)) return true;
+		ensureAsset(obj);
+		return false;
+	}
 	return true;
 }
 
@@ -680,16 +777,20 @@ function refuse(reason: RefusalReason): null {
  * stroke type — ships.
  */
 function workerCanRender(a: any): boolean {
-	// Strokes that opt out (PixelStroke: stampCanvas rebuilt via image decoding,
-	// impossible in a worker) → main-thread bake / hybrid overlay.
-	if (bakesOnMain(a)) return false;
-	if (a.text !== undefined) return textRenderable(a);
-	// FabricImage subclasses (Neon/Spray/Crayon strokes + real images) have no
-	// renderable element in the worker — see shippable().
-	if (a instanceof FabricImage) return false;
-	if (a.type === "image") return false;
-	if (a.__hasImageClip) return false;
 	if (a.group) return false;
+	if (a.__hasImageClip) return false;
+	if (a.text !== undefined) return textRenderable(a);
+	// Real user image → local bake (no fetch/CORS in the worker). Must precede
+	// the asset check: a real image is also `instanceof FabricImage`.
+	if (a.type === "image") return false;
+	// Bitmap-backed stroke: renderable in the worker only once its pixels have
+	// been transferred. Otherwise refused → local bake (previous behaviour), with
+	// the transfer kicked off for next time. See shippable().
+	if (isBitmapBacked(a)) {
+		if (sentAssets.has(a.id)) return true;
+		ensureAsset(a);
+		return false;
+	}
 	return true;
 }
 

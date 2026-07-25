@@ -304,6 +304,13 @@ export class NeonStroke extends FabricImage {
   }
 
   static async fromObject(object: any) {
+    // Pixels supplied by the tile worker (transferred ImageBitmap). Use them
+    // directly instead of re-running the generator on every enliven — that
+    // regeneration is why these strokes were refused off-thread.
+    if (object.__workerBitmap) {
+      const props = await enlivenStrokeProps(object)
+      return new NeonStroke(object.__workerBitmap, props)
+    }
     if (!object.src) {
       // Rebuild points, regenerate the glow bitmap deterministically.
       const pts: Point[] = []

@@ -233,6 +233,13 @@ export class SprayStroke extends FabricImage {
   }
 
   static async fromObject(object: any) {
+    // Pixels supplied by the tile worker (transferred ImageBitmap). Use them
+    // directly instead of re-running the generator on every enliven — that
+    // regeneration is why these strokes were refused off-thread.
+    if (object.__workerBitmap) {
+      const props = await enlivenStrokeProps(object)
+      return new SprayStroke(object.__workerBitmap, props)
+    }
     if (!object.src) {
       const dots: SprayBrushPoint[] = []
       let lastX = 0, lastY = 0

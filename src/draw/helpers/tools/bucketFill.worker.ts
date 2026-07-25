@@ -21,6 +21,11 @@ export interface FloodFillRequest {
 export interface FloodFillResponse {
   ok: boolean;
   tooLarge?: boolean;
+  /** The fill reached the buffer border, so the enclosure (if any) extends past
+   *  the working region. Distinct from `tooLarge` on absolute area: the caller
+   *  RETRIES this with a bigger buffer before giving up, because a genuinely
+   *  large-but-closed shape looks identical to a leak at this resolution. */
+  edgeTouched?: boolean;
   svgPath?: string;
   centerX?: number;
   centerY?: number;
@@ -155,11 +160,18 @@ self.onmessage = (e: MessageEvent<FloodFillRequest>) => {
     modifiedArea.maxX >= width - 1 ||
     modifiedArea.maxY >= height - 1
 
-  if (touchesEdge) return post({ ok: false, tooLarge: true })
+  // Reported separately from the absolute-area rejection: the caller escalates
+  // the buffer and retries on this, because at a fixed buffer a genuinely large
+  // CLOSED shape is indistinguishable from a leak into open space. Only when the
+  // fill still reaches the border at the largest affordable buffer is it truly
+  // unbounded.
+  if (touchesEdge) return post({ ok: false, tooLarge: true, edgeTouched: true })
 
   const worldArea =
     (modifiedArea.width / pxScale) * (modifiedArea.height / pxScale)
 
+  // Enclosed but enormous. The edge test above is the meaningful "unbounded"
+  // signal; this is only a final sanity cap on the vector we're about to build.
   if (worldArea > maxWorldArea) return post({ ok: false, tooLarge: true })
 
   // Build the contour field straight from the fill MASK rather than

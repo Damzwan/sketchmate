@@ -137,6 +137,19 @@ classRegistry.setClass(ClippingGroup as any)
 //       order (touch = delete+set). Evicted down to LIVE_MAX after each bake.
 const json = new Map<string, any>()
 const live = new Map<string, any>()
+// id → transferred pixels for a bitmap-backed stroke (see the 'asset' message).
+// NOT evicted here: the main side owns the budget and never re-sends, so a
+// silent eviction would leave an object permanently unrenderable. Freed only on
+// remove/clear, where the bitmap is explicitly closed.
+const assets = new Map<string, ImageBitmap>()
+
+function dropAsset(id: string): void {
+  const a = assets.get(id)
+  if (a) {
+    a.close()
+    assets.delete(id)
+  }
+}
 
 // Two caps, deliberately. LIVE_MAX is the WORKING cap during a bake pass: it
 // must exceed the whole viewport's object count or tiles evict each other's
@@ -197,7 +210,16 @@ async function ensureLive(id: string): Promise<any | null> {
     // allocation. Parse on demand here (off the main thread); enliven parses
     // its input anyway, so the extra cost is small. Tolerates a legacy object.
     const j = typeof raw === 'string' ? JSON.parse(raw) : raw
-    ;[obj] = await util.enlivenObjects([j])
+    // Hand a bitmap-backed stroke its pixels. The stroke classes prefer
+    // `__workerBitmap` over regenerating/decoding (Pixel takes it as
+    // `stampCanvas`, short-circuiting its loadImage). Shallow-copied so the
+    // stored JSON stays clean and re-enlivening picks the asset up again.
+    const asset = assets.get(id)
+    ;[obj] = await util.enlivenObjects([
+      asset
+        ? { ...j, __workerBitmap: asset, stampCanvas: j.stampCanvas ?? asset }
+        : j
+    ])
   } catch {
     return null
   }
@@ -501,15 +523,24 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
           }
           break
         }
+        case 'asset': {
+          dropAsset(msg.id) // replace → free the old pixels
+          assets.set(msg.id, msg.bitmap)
+          live.delete(msg.id) // re-enliven so the new bitmap is picked up
+          break
+        }
         case 'remove':
           for (const id of msg.ids) {
             json.delete(id)
             live.delete(id)
+            dropAsset(id)
           }
           break
         case 'clear':
           json.clear()
           live.clear()
+          for (const [, a] of assets) a.close()
+          assets.clear()
           break
         case 'bake':
           await bake(msg)

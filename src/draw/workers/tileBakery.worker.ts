@@ -20,21 +20,24 @@
 //   • Rendering matches CommittedLayer.rebuildTile exactly: same overscan
 //     translate, same pad+clip, objects drawn in the id order provided.
 
-import { classRegistry, util } from 'fabric'
-import { ClippingGroup } from '@erase2d/fabric'
-import { OptimizedEraserStroke } from '@/draw/utils/brushes/CustomEraserBrush'
-import { OptimizedPencilStroke } from '@/draw/utils/brushes/CustomPencilBrush'
-import { PixelStroke } from '@/draw/utils/brushes/PixelBrush'
-import { CharcoalStroke } from '@/draw/utils/brushes/CharcoalBrush'
-import { WaterColorStroke } from '@/draw/utils/brushes/WaterColorBrush'
-import { CalligraphyStroke } from '@/draw/utils/brushes/CalligraphyBrush'
-import { BucketFillPath } from '@/draw/utils/BucketFillPath'
-import { CircleStroke } from '@/draw/utils/brushes/CustomCircleBrush'
-import { NeonStroke } from '@/draw/utils/brushes/NeonSignBrush'
-import { SprayStroke } from '@/draw/utils/brushes/CustomSprayBrush'
-import { CrayonStroke } from '@/draw/utils/brushes/CrayonBrush'
-import type { BakeryRequest, BakeryResponse } from '@/draw/types/tileBakery.types'
-import { WORKER_FONTS } from '@/draw/config/workerFonts.config'
+import { classRegistry, util } from "fabric";
+import { ClippingGroup } from "@erase2d/fabric";
+import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
+import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
+import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
+import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
+import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
+import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
+import { BucketFillPath } from "@/draw/utils/BucketFillPath";
+import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
+import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
+import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
+import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
+import type {
+	BakeryRequest,
+	BakeryResponse,
+} from "@/draw/types/tileBakery.types";
+import { WORKER_FONTS } from "@/draw/config/workerFonts.config";
 
 // --- fonts -------------------------------------------------------------------
 // A worker has no CSS, so text used to be refused per-tile (wrong metrics in a
@@ -44,84 +47,135 @@ import { WORKER_FONTS } from '@/draw/config/workerFonts.config'
 // The main side is told EXACTLY which families succeeded and refuses any tile
 // whose text uses something else — a partially-loaded set must never silently
 // fall back to a default face.
-const loadedFamilies = new Set<string>()
+const loadedFamilies = new Set<string>();
 
 async function loadFonts(): Promise<string[]> {
-  const fonts = (self as any).fonts
-  if (!fonts || typeof FontFace === 'undefined') return []
-  await Promise.all(
-    WORKER_FONTS.map(async (spec) => {
-      try {
-        const face = new FontFace(spec.family, `url(${spec.url})`, {
-          weight: spec.weight,
-          style: 'normal'
-        })
-        await face.load()
-        fonts.add(face)
-        loadedFamilies.add(spec.family)
-      } catch {
-        /* one bad face must not block the rest — main side just keeps
+	const fonts = (self as any).fonts;
+	if (!fonts || typeof FontFace === "undefined") return [];
+	await Promise.all(
+		WORKER_FONTS.map(async (spec) => {
+			try {
+				const face = new FontFace(spec.family, `url(${spec.url})`, {
+					weight: spec.weight,
+					style: "normal",
+				});
+				await face.load();
+				fonts.add(face);
+				loadedFamilies.add(spec.family);
+			} catch {
+				/* one bad face must not block the rest — main side just keeps
            refusing tiles that use it */
-      }
-    })
-  )
-  return [...loadedFamilies]
+			}
+		}),
+	);
+	return [...loadedFamilies];
 }
 
 // --- minimal DOM shim (canvas only; images never reach the worker) ----------
 const applyCanvasDisguise = (canvas: any) => {
-  canvas.hasAttribute = () => false
-  canvas.getAttribute = () => null
-  canvas.setAttribute = () => {}
-  canvas.removeAttribute = () => {}
-  canvas.style = {}
-  canvas.classList = {
-    add: () => {}, remove: () => {}, contains: () => false, toggle: () => {}
-  }
-  canvas.addEventListener = () => {}
-  canvas.removeEventListener = () => {}
-  canvas.dir = 'ltr'
-  return canvas
-}
+	canvas.hasAttribute = () => false;
+	canvas.getAttribute = () => null;
+	canvas.setAttribute = () => {};
+	canvas.removeAttribute = () => {};
+	canvas.style = {};
+	canvas.classList = {
+		add: () => {},
+		remove: () => {},
+		contains: () => false,
+		toggle: () => {},
+	};
+	canvas.addEventListener = () => {};
+	canvas.removeEventListener = () => {};
+	canvas.dir = "ltr";
+	return canvas;
+};
 
-if (typeof document === 'undefined') {
-  (globalThis as any).document = {
-    createElement: (tag: string) => {
-      if (tag === 'canvas') return applyCanvasDisguise(new OffscreenCanvas(1, 1))
-      if (tag === 'img') {
-        return {
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          setAttribute: () => {},
-          getAttribute: () => null,
-          style: {},
-          width: 0,
-          height: 0,
-          complete: true,
-          naturalWidth: 0,
-          naturalHeight: 0
-        }
-      }
-      return {}
-    }
-  };
-  (globalThis as any).window = globalThis
+if (typeof document === "undefined") {
+	(globalThis as any).document = {
+		createElement: (tag: string) => {
+			if (tag === "canvas")
+				return applyCanvasDisguise(new OffscreenCanvas(1, 1));
+			if (tag === "img") {
+				// FAIL FAST — never hang.
+				//
+				// fabric's `loadImage` does `img.onload = …; img.onerror = …; img.src = url`
+				// and returns a promise that settles from those events. This shim used
+				// to swallow all of it, so NO event ever fired and the promise NEVER
+				// SETTLED. Any enliven that touched an image — e.g. an erased object
+				// whose clipPath holds a flattened bitmap mask — hung forever, and
+				// because the message pump is serial that parked EVERY later message:
+				// `case 'bake'` simply stopped running and every request timed out.
+				// A hang is also invisible to `Promise.allSettled`, so the per-object
+				// isolation could not contain it either.
+				//
+				// Rejecting immediately turns that unrecoverable stall into one
+				// skipped object: the tile bakes without it and the pump keeps going.
+				// The main side additionally refuses such objects up front (see
+				// hasImageClip) so they render correctly via a local bake.
+				const el: any = {
+					_src: "",
+					_handlers: Object.create(null),
+					addEventListener(type: string, cb: any) {
+						el._handlers[type] = cb;
+					},
+					removeEventListener(type: string) {
+						delete el._handlers[type];
+					},
+					setAttribute: () => {},
+					getAttribute: () => null,
+					style: {},
+					width: 0,
+					height: 0,
+					complete: false,
+					naturalWidth: 0,
+					naturalHeight: 0,
+					onload: null as any,
+					onerror: null as any,
+				};
+				Object.defineProperty(el, "src", {
+					get: () => el._src,
+					set: (v: string) => {
+						el._src = v;
+						if (!v) return;
+						queueMicrotask(() => {
+							const err = new Error(
+								"image loading is unsupported in the tile worker",
+							);
+							try {
+								el.onerror?.(err);
+							} catch {
+								/* ignore */
+							}
+							try {
+								el._handlers.error?.(err);
+							} catch {
+								/* ignore */
+							}
+						});
+					},
+				});
+				return el;
+			}
+			return {};
+		},
+	};
+	(globalThis as any).window = globalThis;
 }
 
 const brushes = [
-  [OptimizedEraserStroke, 'OptimizedEraserStroke'],
-  [PixelStroke, 'PixelStroke'],
-  [CharcoalStroke, 'CharcoalStroke'],
-  [WaterColorStroke, 'WaterColorStroke'],
-  [CalligraphyStroke, 'CalligraphyStroke'],
-  [BucketFillPath, 'BucketFillPath'],
-  [OptimizedPencilStroke, 'OptimizedPencilStroke'],
-  [CircleStroke, CircleStroke.type],
-  [SprayStroke, SprayStroke.type],
-  [NeonStroke, NeonStroke.type],
-  [CrayonStroke, CrayonStroke.type]
-] as const
-brushes.forEach(([cls, name]) => classRegistry.setClass(cls as any, name))
+	[OptimizedEraserStroke, "OptimizedEraserStroke"],
+	[PixelStroke, "PixelStroke"],
+	[CharcoalStroke, "CharcoalStroke"],
+	[WaterColorStroke, "WaterColorStroke"],
+	[CalligraphyStroke, "CalligraphyStroke"],
+	[BucketFillPath, "BucketFillPath"],
+	[OptimizedPencilStroke, "OptimizedPencilStroke"],
+	[CircleStroke, CircleStroke.type],
+	[SprayStroke, SprayStroke.type],
+	[NeonStroke, NeonStroke.type],
+	[CrayonStroke, CrayonStroke.type],
+] as const;
+brushes.forEach(([cls, name]) => classRegistry.setClass(cls as any, name));
 
 // Register the eraser's clip class (type 'clipping'). It self-registers via a
 // module side-effect on the MAIN thread (CustomEraserBrush imports it), but the
@@ -129,103 +183,212 @@ brushes.forEach(([cls, name]) => classRegistry.setClass(cls as any, name))
 // for 'clipping' and dropped its clip. Result: erased holes REAPPEARED in
 // worker-baked tiles (or the object failed to enliven and vanished). Explicit
 // setClass so the import isn't tree-shaken and the mask bakes correctly.
-classRegistry.setClass(ClippingGroup as any)
+classRegistry.setClass(ClippingGroup as any);
 
 // --- lean mirror -------------------------------------------------------------
 // json: the source of truth — one raw JSON blob per id. Cheap to hold at scale.
 // live: bounded LRU of enlivened fabric objects. Map insertion order === LRU
 //       order (touch = delete+set). Evicted down to LIVE_MAX after each bake.
-const json = new Map<string, any>()
-const live = new Map<string, any>()
+const json = new Map<string, any>();
+const live = new Map<string, any>();
 // id → transferred pixels for a bitmap-backed stroke (see the 'asset' message).
 // NOT evicted here: the main side owns the budget and never re-sends, so a
 // silent eviction would leave an object permanently unrenderable. Freed only on
 // remove/clear, where the bitmap is explicitly closed.
-const assets = new Map<string, ImageBitmap>()
+const assets = new Map<string, ImageBitmap>();
 
 function dropAsset(id: string): void {
-  const a = assets.get(id)
-  if (a) {
-    a.close()
-    assets.delete(id)
-  }
+	const a = assets.get(id);
+	if (a) {
+		a.close();
+		assets.delete(id);
+	}
 }
 
 // Two caps, deliberately. LIVE_MAX is the WORKING cap during a bake pass: it
 // must exceed the whole viewport's object count or tiles evict each other's
-// objects and re-enliven them (thrash). IDLE_MAX is the AT-REST cap: a few
-// seconds after the last bake the cache shrinks back, so a board smaller than
-// LIVE_MAX doesn't sit permanently fully-enlivened here — that would recreate
-// the "double RAM" second scene graph this mirror exists to avoid.
-let LIVE_MAX = 1536
-let IDLE_MAX = 192
-const IDLE_SHRINK_MS = 4000
-let idleTimer: ReturnType<typeof setTimeout> | null = null
+// objects and re-enliven them (thrash). IDLE_MAX is the AT-REST cap so a board
+// smaller than LIVE_MAX doesn't sit permanently fully-enlivened here — that
+// would recreate the "double RAM" second scene graph this mirror exists to
+// avoid.
+//
+// BUT the at-rest cap must not fire between ordinary INTERACTIONS. It was 192
+// objects after 4s, which meant: pause for four seconds, then zoom — and the
+// worker had thrown away nearly every enlivened object and had to rebuild them
+// all from JSON. That was masked for a long time because the remote OVERVIEW
+// re-enlivened the entire scene on every rebuild and kept the LRU hot as a side
+// effect; once the overview moved back to the main thread (R7, and correctly so)
+// nothing re-warmed it, and every zoom paid a full cold re-enliven. Hence
+// "sharpening takes ages" appearing right after that fix.
+//
+// A pause of a few seconds is normal use, not "at rest". 30s with a much larger
+// floor keeps the working set across interaction while still releasing memory on
+// a genuinely idle canvas.
+let LIVE_MAX = 1536;
+let IDLE_MAX = 768;
+const IDLE_SHRINK_MS = 30_000;
+let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Drop the LRU tail down to `cap`. json stays — objects re-enliven on demand. */
 function shrinkTo(cap: number): void {
-  while (live.size > cap) {
-    const oldest = live.keys().next()
-    if (oldest.done) break
-    live.delete(oldest.value)
-  }
+	while (live.size > cap) {
+		const oldest = live.keys().next();
+		if (oldest.done) break;
+		live.delete(oldest.value);
+	}
 }
 
 function scheduleIdleShrink(): void {
-  if (idleTimer) clearTimeout(idleTimer)
-  idleTimer = setTimeout(() => {
-    idleTimer = null
-    shrinkTo(IDLE_MAX)
-  }, IDLE_SHRINK_MS)
+	if (idleTimer) clearTimeout(idleTimer);
+	idleTimer = setTimeout(() => {
+		idleTimer = null;
+		shrinkTo(IDLE_MAX);
+	}, IDLE_SHRINK_MS);
 }
 
 function touch(id: string, obj: any): void {
-  live.delete(id)
-  live.set(id, obj)
+	live.delete(id);
+	live.set(id, obj);
 }
 
 function evictLive(protectedIds?: Set<string>): void {
-  if (live.size <= LIVE_MAX) return
-  for (const id of live.keys()) {
-    if (live.size <= LIVE_MAX) break
-    if (protectedIds?.has(id)) continue
-    live.delete(id) // drop the enlivened copy; json stays, re-enlivens on demand
-  }
+	if (live.size <= LIVE_MAX) return;
+	for (const id of live.keys()) {
+		if (live.size <= LIVE_MAX) break;
+		if (protectedIds?.has(id)) continue;
+		live.delete(id); // drop the enlivened copy; json stays, re-enlivens on demand
+	}
 }
 
 /** Enliven (or fetch from LRU) the object for `id`. Null if json unknown. */
 async function ensureLive(id: string): Promise<any | null> {
-  const cached = live.get(id)
-  if (cached) {
-    touch(id, cached)
-    return cached
-  }
-  const raw = json.get(id)
-  if (raw === undefined) return null
-  let obj: any
-  try {
-    // The mirror stores STRINGS (see the upsert handler) — a JSON string is far
-    // smaller than its parsed object graph, and the mirror holds the whole
-    // shippable scene forever, so on a big board this is the dominant non-tile
-    // allocation. Parse on demand here (off the main thread); enliven parses
-    // its input anyway, so the extra cost is small. Tolerates a legacy object.
-    const j = typeof raw === 'string' ? JSON.parse(raw) : raw
-    // Hand a bitmap-backed stroke its pixels. The stroke classes prefer
-    // `__workerBitmap` over regenerating/decoding (Pixel takes it as
-    // `stampCanvas`, short-circuiting its loadImage). Shallow-copied so the
-    // stored JSON stays clean and re-enlivening picks the asset up again.
-    const asset = assets.get(id)
-    ;[obj] = await util.enlivenObjects([
-      asset
-        ? { ...j, __workerBitmap: asset, stampCanvas: j.stampCanvas ?? asset }
-        : j
-    ])
-  } catch {
-    return null
-  }
-  if (!obj) return null
-  touch(id, obj)
-  return obj
+	const cached = live.get(id);
+	if (cached) {
+		touch(id, cached);
+		return cached;
+	}
+	const raw = json.get(id);
+	if (raw === undefined) return null;
+	let obj: any;
+	try {
+		// The mirror stores STRINGS (see the upsert handler) — a JSON string is far
+		// smaller than its parsed object graph, and the mirror holds the whole
+		// shippable scene forever, so on a big board this is the dominant non-tile
+		// allocation. Parse on demand here (off the main thread); enliven parses
+		// its input anyway, so the extra cost is small. Tolerates a legacy object.
+		const j = typeof raw === "string" ? JSON.parse(raw) : raw;
+		// Hand a bitmap-backed stroke its pixels. The stroke classes prefer
+		// `__workerBitmap` over regenerating/decoding (Pixel takes it as
+		// `stampCanvas`, short-circuiting its loadImage). Shallow-copied so the
+		// stored JSON stays clean and re-enlivening picks the asset up again.
+		const asset = assets.get(id);
+		[obj] = await util.enlivenObjects([
+			asset
+				? { ...j, __workerBitmap: asset, stampCanvas: j.stampCanvas ?? asset }
+				: j,
+		]);
+	} catch {
+		return null;
+	}
+	if (!obj) return null;
+	touch(id, obj);
+	return obj;
+}
+
+/**
+ * Enliven MANY ids in one pass, in LRU order, returning them aligned to `ids`.
+ *
+ * The per-id `ensureLive` above awaits ONE `enlivenObjects` call per object, so
+ * a dense tile paid N sequential promise round-trips — the reason a dense zoom
+ * took "ages" and, with 4 bake lanes queued behind the FIFO chain, why later
+ * requests blew their timeout and paused the bakery. Everything not already in
+ * the LRU is collected and handed to fabric in a SINGLE `enlivenObjects` call,
+ * which processes the array without a per-object await.
+ */
+async function ensureLiveMany(ids: string[]): Promise<(any | null)[]> {
+	const out: (any | null)[] = new Array(ids.length).fill(null);
+	const needIdx: number[] = [];
+	let needJson: any[] = [];
+
+	for (let i = 0; i < ids.length; i++) {
+		const id = ids[i];
+		const cached = live.get(id);
+		if (cached) {
+			touch(id, cached);
+			out[i] = cached;
+			continue;
+		}
+		const raw = json.get(id);
+		if (raw === undefined) continue;
+		try {
+			const j = typeof raw === "string" ? JSON.parse(raw) : raw;
+			const asset = assets.get(id);
+			needJson.push(
+				asset
+					? { ...j, __workerBitmap: asset, stampCanvas: j.stampCanvas ?? asset }
+					: j,
+			);
+			needIdx.push(i);
+		} catch {
+			/* unparseable → stays null, tile renders without it */
+		}
+	}
+
+	if (needJson.length) {
+		// PER-OBJECT ISOLATION, still concurrent.
+		//
+		// `util.enlivenObjects(all)` is ALL-OR-NOTHING: one object whose
+		// `fromObject` throws rejects the whole batch. The old fallback then
+		// re-enlivened every object in the tile SEQUENTIALLY — so a single broken
+		// stroke turned every bake of every tile containing it into the slowest
+		// possible path. That is what made a dense board take "ages" and then blow
+		// its timeout. (Observed with a WaterColorStroke.)
+		//
+		// allSettled over one-object calls keeps the concurrency — they all start
+		// immediately, we await the set rather than each in turn — while containing
+		// a failure to its own slot: the tile renders everything else and only the
+		// broken object is missing.
+		const results = await Promise.allSettled(
+			needJson.map((j) => util.enlivenObjects([j])),
+		);
+		for (let k = 0; k < results.length; k++) {
+			const r = results[k];
+			const i = needIdx[k];
+			if (r.status === "fulfilled" && r.value[0]) {
+				out[i] = r.value[0];
+				touch(ids[i], out[i]);
+			} else {
+				noteEnlivenFailure(
+					ids[i],
+					needJson[k],
+					r.status === "rejected" ? r.reason : null,
+				);
+			}
+		}
+	}
+
+	return out;
+}
+
+/**
+ * Surface an object the worker cannot enliven.
+ *
+ * This was swallowed by a bare `catch {}`, so a stroke that consistently failed
+ * was invisible: it silently vanished from every worker-baked tile AND dragged
+ * the bake onto the slow path. Reported once per type, so a systematically
+ * broken class is obvious without spamming a dense board.
+ */
+const reportedEnlivenFailures = new Set<string>();
+
+function noteEnlivenFailure(id: string, srcJson: any, reason: any): void {
+	const type = srcJson?.type ?? "unknown";
+	if (reportedEnlivenFailures.has(type)) return;
+	reportedEnlivenFailures.add(type);
+	console.warn(
+		`[TileBakery] worker cannot enliven "${type}" (id ${id}) — it will be ` +
+			`missing from worker-baked tiles. Real bug in that class's fromObject:`,
+		reason,
+	);
 }
 
 /**
@@ -242,141 +405,193 @@ async function ensureLive(id: string): Promise<any | null> {
  * regenerate the cache at tile resolution by itself.
  */
 function rectHitsBounds(
-  r: { x: number; y: number; w: number; h: number },
-  b: { left: number; top: number; width: number; height: number }
+	r: { x: number; y: number; w: number; h: number },
+	b: { left: number; top: number; width: number; height: number },
 ): boolean {
-  return !(b.left + b.width < r.x || b.left > r.x + r.w ||
-           b.top + b.height < r.y || b.top > r.y + r.h)
+	return !(
+		b.left + b.width < r.x ||
+		b.left > r.x + r.w ||
+		b.top + b.height < r.y ||
+		b.top > r.y + r.h
+	);
 }
 
 function applyTierScaling(
-  obj: any,
-  tierScale: number,
-  clipRect?: { x: number; y: number; w: number; h: number }
+	obj: any,
+	tierScale: number,
+	clipRect?: { x: number; y: number; w: number; h: number },
 ): void {
-  obj.objectCaching = false
-  obj.getTotalObjectScaling = function () {
-    return this.getObjectScaling().scalarMultiply(tierScale)
-  }
-  // The clipPath (eraser ClippingGroup) is ALWAYS cached for masking, at its OWN
-  // scaling = zoom 1 here (canvas null) — so the erase mask rasterizes at 1x and
-  // upscales to the tile tier, blurring erased edges when zoomed in. Give the
-  // clip (and its stroke children) the same tier scaling so the mask bakes
-  // sharp. No clip cull — a mask must render whole.
-  if (obj.clipPath && typeof obj.clipPath.getObjectScaling === 'function') {
-    applyTierScaling(obj.clipPath, tierScale)
-  }
-  // Recurse into groups. A merged drawing is a Group: clearing caching on the
-  // group alone left its CHILDREN caching (fabric assigns `objectCaching: true`
-  // per instance from ownDefaults, and enlivened JSON carries it back), each
-  // rasterized at zoom 1 here because `canvas` is null — merged art came out
-  // visibly blurrier than the same paths ungrouped.
-  if (!Array.isArray(obj._objects)) return
-  for (let i = 0; i < obj._objects.length; i++) {
-    const child = obj._objects[i]
-    // CULL: the group is ONE index entry spanning all its children, so every
-    // tile overlapping that union would otherwise render every child (fabric
-    // does not cull children of a group, and canvas is null here so there is no
-    // offscreen check at all) — children × tiles work instead of children.
-    // NB: mirror objects persist in the LRU across bakes, so `visible` MUST be
-    // reset every time — never left false from a previous tile, or the child
-    // vanishes from later tiles and from the overview (which passes no clip).
-    let inTile = true
-    if (clipRect) {
-      try {
-        inTile = rectHitsBounds(clipRect, child.getBoundingRect())
-      } catch { /* un-measurable child: render it */ }
-    }
-    child.visible = inTile
-    if (!inTile) continue
-    applyTierScaling(child, tierScale, clipRect)
-  }
+	obj.objectCaching = false;
+	obj.getTotalObjectScaling = function () {
+		return this.getObjectScaling().scalarMultiply(tierScale);
+	};
+	// The clipPath (eraser ClippingGroup) is ALWAYS cached for masking, at its OWN
+	// scaling = zoom 1 here (canvas null) — so the erase mask rasterizes at 1x and
+	// upscales to the tile tier, blurring erased edges when zoomed in. Give the
+	// clip (and its stroke children) the same tier scaling so the mask bakes
+	// sharp. No clip cull — a mask must render whole.
+	if (obj.clipPath && typeof obj.clipPath.getObjectScaling === "function") {
+		applyTierScaling(obj.clipPath, tierScale);
+	}
+	// Recurse into groups. A merged drawing is a Group: clearing caching on the
+	// group alone left its CHILDREN caching (fabric assigns `objectCaching: true`
+	// per instance from ownDefaults, and enlivened JSON carries it back), each
+	// rasterized at zoom 1 here because `canvas` is null — merged art came out
+	// visibly blurrier than the same paths ungrouped.
+	if (!Array.isArray(obj._objects)) return;
+	for (let i = 0; i < obj._objects.length; i++) {
+		const child = obj._objects[i];
+		// CULL: the group is ONE index entry spanning all its children, so every
+		// tile overlapping that union would otherwise render every child (fabric
+		// does not cull children of a group, and canvas is null here so there is no
+		// offscreen check at all) — children × tiles work instead of children.
+		// NB: mirror objects persist in the LRU across bakes, so `visible` MUST be
+		// reset every time — never left false from a previous tile, or the child
+		// vanishes from later tiles and from the overview (which passes no clip).
+		let inTile = true;
+		if (clipRect) {
+			try {
+				inTile = rectHitsBounds(clipRect, child.getBoundingRect());
+			} catch {
+				/* un-measurable child: render it */
+			}
+		}
+		child.visible = inTile;
+		if (!inTile) continue;
+		applyTierScaling(child, tierScale, clipRect);
+	}
+}
+
+// --- cancellation ------------------------------------------------------------
+//
+// The main side aborts a bake pass the moment a gesture starts, but that abort
+// used to be a MAIN-THREAD flag only: every request already posted kept
+// enlivening and rasterizing here, and the result was thrown away on arrival.
+// On mobile that is the worst possible time to be busy — the worker's canvas is
+// GPU-backed, so its raster and `transferToImageBitmap` contend with the very
+// compositor frames the gesture needs (docs/DRAW_ENGINE_PERF.md findings F5/R5).
+//
+// `cancelEpoch` is the generation of the newest `cancel` seen. A request whose
+// own epoch is older belongs to an abandoned pass and is dropped.
+let cancelEpoch = 0;
+
+function isStale(epoch: number | undefined): boolean {
+	return epoch !== undefined && epoch < cancelEpoch;
 }
 
 // --- rasterizer --------------------------------------------------------------
-let renderCanvas: OffscreenCanvas | null = null
+let renderCanvas: OffscreenCanvas | null = null;
 
 function getRenderCanvas(size: number): OffscreenCanvas {
-  if (!renderCanvas || renderCanvas.width !== size || renderCanvas.height !== size) {
-    renderCanvas = new OffscreenCanvas(size, size)
-  }
-  return renderCanvas
+	if (
+		!renderCanvas ||
+		renderCanvas.width !== size ||
+		renderCanvas.height !== size
+	) {
+		renderCanvas = new OffscreenCanvas(size, size);
+	}
+	return renderCanvas;
 }
 
 // Separate from the tile scratch: an overview render is px×px (1024/2048) and
 // would otherwise force the tile canvas to resize back and forth every rebuild.
-let overviewCanvas: OffscreenCanvas | null = null
+let overviewCanvas: OffscreenCanvas | null = null;
 
 function getOverviewCanvas(px: number): OffscreenCanvas {
-  if (!overviewCanvas || overviewCanvas.width !== px || overviewCanvas.height !== px) {
-    overviewCanvas = new OffscreenCanvas(px, px)
-  }
-  return overviewCanvas
+	if (
+		!overviewCanvas ||
+		overviewCanvas.width !== px ||
+		overviewCanvas.height !== px
+	) {
+		overviewCanvas = new OffscreenCanvas(px, px);
+	}
+	return overviewCanvas;
 }
 
-async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
-  const { msgId, ids, world, scale, overscan, size } = req
+async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
+	const { msgId, ids, world, scale, overscan, size } = req;
 
-  const missing = ids.filter((id) => !json.has(id))
-  if (missing.length) {
-    post({ msgId, missing })
-    return
-  }
+	// Gesture started while this sat in the FIFO queue. Rasterizing it now would
+	// burn the worker AND the GPU on pixels the main side has already decided to
+	// discard — and on mobile that raster contends with the compositor driving
+	// the gesture. Drop it before doing any work.
+	if (isStale(req.epoch)) {
+		post({ msgId, aborted: true });
+		return;
+	}
 
-  // Enliven exactly the ids this tile needs (LRU-cached across overlapping
-  // tiles in a bake burst). Runs off the main thread, so no UI jank.
-  const objs: any[] = new Array(ids.length)
-  for (let i = 0; i < ids.length; i++) objs[i] = await ensureLive(ids[i])
+	const missing = ids.filter((id) => !json.has(id));
+	if (missing.length) {
+		post({ msgId, missing });
+		return;
+	}
 
-  const canvas = getRenderCanvas(size)
-  const ctx = canvas.getContext('2d')
-  if (!ctx) {
-    post({ msgId, error: 'no 2d context' })
-    return
-  }
+	// Enliven exactly the ids this tile needs (LRU-cached across overlapping
+	// tiles in a bake burst). Runs off the main thread, so no UI jank.
+	// ONE enliven pass for everything this tile needs (see ensureLiveMany).
+	const objs = await ensureLiveMany(ids);
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.clearRect(0, 0, size, size)
-  ctx.save()
-  ctx.translate(overscan, overscan)
-  ctx.scale(scale, scale)
-  ctx.translate(-world.x, -world.y)
+	// Re-check: `ensureLiveMany` is the only await in here and the dominant cost
+	// on a dense tile, so it is also the only window in which a `cancel` can be
+	// delivered. Bail here and the expensive part — render + transferToImageBitmap
+	// — never runs.
+	if (isStale(req.epoch)) {
+		post({ msgId, aborted: true });
+		return;
+	}
 
-  // Same pad+clip as CommittedLayer.rebuildTile — pixel-identical output.
-  const pad = overscan / scale + 4 / scale
-  const q = {
-    x: world.x - pad, y: world.y - pad,
-    w: world.w + 2 * pad, h: world.h + 2 * pad
-  }
-  ctx.beginPath()
-  ctx.rect(q.x, q.y, q.w, q.h)
-  ctx.clip()
+	const canvas = getRenderCanvas(size);
+	const ctx = canvas.getContext("2d");
+	if (!ctx) {
+		post({ msgId, error: "no 2d context" });
+		return;
+	}
 
-  for (let i = 0; i < objs.length; i++) {
-    const obj = objs[i]
-    if (!obj) continue
-    obj.visible = true
-    obj.canvas = null
-    obj.objectCaching = false
-    obj.dirty = true
-    if (obj.clipPath) obj.clipPath.dirty = true
-    applyTierScaling(obj, scale, q)
-    ctx.save()
-    try {
-      obj.render(ctx as any)
-    } catch { /* one bad object must not kill the tile */
-    } finally {
-      ctx.restore()
-    }
-  }
-  ctx.restore()
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.clearRect(0, 0, size, size);
+	ctx.save();
+	ctx.translate(overscan, overscan);
+	ctx.scale(scale, scale);
+	ctx.translate(-world.x, -world.y);
 
-  // Keep this tile's objects; trim the rest of the LRU back to the cap.
-  evictLive(new Set(ids))
-  scheduleIdleShrink()
+	// Same pad+clip as CommittedLayer.rebuildTile — pixel-identical output.
+	const pad = overscan / scale + 4 / scale;
+	const q = {
+		x: world.x - pad,
+		y: world.y - pad,
+		w: world.w + 2 * pad,
+		h: world.h + 2 * pad,
+	};
+	ctx.beginPath();
+	ctx.rect(q.x, q.y, q.w, q.h);
+	ctx.clip();
 
-  const bitmap = canvas.transferToImageBitmap()
-  post({ msgId, bitmap }, [bitmap])
+	for (let i = 0; i < objs.length; i++) {
+		const obj = objs[i];
+		if (!obj) continue;
+		obj.visible = true;
+		obj.canvas = null;
+		obj.objectCaching = false;
+		obj.dirty = true;
+		if (obj.clipPath) obj.clipPath.dirty = true;
+		applyTierScaling(obj, scale, q);
+		ctx.save();
+		try {
+			obj.render(ctx as any);
+		} catch {
+			/* one bad object must not kill the tile */
+		} finally {
+			ctx.restore();
+		}
+	}
+	ctx.restore();
+
+	// Keep this tile's objects; trim the rest of the LRU back to the cap.
+	evictLive(new Set(ids));
+	scheduleIdleShrink();
+
+	const bitmap = canvas.transferToImageBitmap();
+	post({ msgId, bitmap }, [bitmap]);
 }
 
 /**
@@ -386,173 +601,259 @@ async function bake(req: Extract<BakeryRequest, { t: 'bake' }>): Promise<void> {
  * offscreen is used per call — the overview canvas outlives the request on the
  * main side as a bitmap, so we must not reuse the tile scratch.
  */
-async function overview(req: Extract<BakeryRequest, { t: 'overview' }>): Promise<void> {
-  const { msgId, ids, bounds, px, scale } = req
-  if (bounds.w <= 0 || bounds.h <= 0) {
-    post({ msgId, error: 'bad bounds' })
-    return
-  }
-  // Report unknown ids instead of silently rendering a blank overview — the
-  // caller re-upserts + retries, else falls back to a local render. Without
-  // this a not-yet-seeded mirror produces an empty base layer = blank canvas
-  // when zoomed out (overview tier is the whole picture).
-  const missing = ids.filter((id) => !json.has(id))
-  if (missing.length) {
-    post({ msgId, missing })
-    return
-  }
-  // Pooled, like the tile scratch. This was a fresh `new OffscreenCanvas(px,px)`
-  // per call — 4MB on mobile (1024²) or 16MB on desktop (2048²), allocated and
-  // thrown away on every overview rebuild. On Adreno that allocation churn is
-  // part of what faults libgsl (docs/DRAW_ENGINE_PERF.md finding F5).
-  // transferToImageBitmap() detaches the backing store and leaves the canvas
-  // reusable at the same size, so one instance serves every rebuild.
-  const canvas = getOverviewCanvas(px)
-  const ctx = canvas.getContext('2d')
-  if (!ctx) {
-    post({ msgId, error: 'no 2d context' })
-    return
-  }
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.clearRect(0, 0, px, px)
-  const sx = px / bounds.w
-  const sy = px / bounds.h
-  ctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy)
+async function overview(
+	req: Extract<BakeryRequest, { t: "overview" }>,
+): Promise<void> {
+	const { msgId, ids, bounds, px, scale } = req;
+	if (isStale(req.epoch)) {
+		post({ msgId, aborted: true });
+		return;
+	}
+	if (bounds.w <= 0 || bounds.h <= 0) {
+		post({ msgId, error: "bad bounds" });
+		return;
+	}
+	// Report unknown ids instead of silently rendering a blank overview — the
+	// caller re-upserts + retries, else falls back to a local render. Without
+	// this a not-yet-seeded mirror produces an empty base layer = blank canvas
+	// when zoomed out (overview tier is the whole picture).
+	const missing = ids.filter((id) => !json.has(id));
+	if (missing.length) {
+		post({ msgId, missing });
+		return;
+	}
+	// Pooled, like the tile scratch. This was a fresh `new OffscreenCanvas(px,px)`
+	// per call — 4MB on mobile (1024²) or 16MB on desktop (2048²), allocated and
+	// thrown away on every overview rebuild. On Adreno that allocation churn is
+	// part of what faults libgsl (docs/DRAW_ENGINE_PERF.md finding F5).
+	// transferToImageBitmap() detaches the backing store and leaves the canvas
+	// reusable at the same size, so one instance serves every rebuild.
+	const canvas = getOverviewCanvas(px);
+	const ctx = canvas.getContext("2d");
+	if (!ctx) {
+		post({ msgId, error: "no 2d context" });
+		return;
+	}
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.clearRect(0, 0, px, px);
+	const sx = px / bounds.w;
+	const sy = px / bounds.h;
+	ctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy);
 
-  for (let i = 0; i < ids.length; i++) {
-    const obj = await ensureLive(ids[i])
-    if (!obj) continue
-    obj.visible = true
-    obj.canvas = null
-    obj.objectCaching = false
-    obj.dirty = true
-    if (obj.clipPath) obj.clipPath.dirty = true
-    applyTierScaling(obj, Math.max(sx, sy))
-    ctx.save()
-    try {
-      obj.render(ctx as any)
-    } catch { /* one bad object must not kill the overview */
-    } finally {
-      ctx.restore()
-    }
-  }
-  evictLive()
-  scheduleIdleShrink()
+	for (let i = 0; i < ids.length; i++) {
+		// Unlike bake(), this loop awaits PER OBJECT, so a `cancel` can land at any
+		// iteration — check every time rather than only up front. The half-rendered
+		// canvas is scratch; it is cleared at the start of the next overview.
+		if (isStale(req.epoch)) {
+			post({ msgId, aborted: true });
+			return;
+		}
+		const obj = await ensureLive(ids[i]);
+		if (!obj) continue;
+		obj.visible = true;
+		obj.canvas = null;
+		obj.objectCaching = false;
+		obj.dirty = true;
+		if (obj.clipPath) obj.clipPath.dirty = true;
+		applyTierScaling(obj, Math.max(sx, sy));
+		ctx.save();
+		try {
+			obj.render(ctx as any);
+		} catch {
+			/* one bad object must not kill the overview */
+		} finally {
+			ctx.restore();
+		}
+	}
+	evictLive();
+	scheduleIdleShrink();
 
-  const bitmap = canvas.transferToImageBitmap()
-  post({ msgId, bitmap }, [bitmap])
+	const bitmap = canvas.transferToImageBitmap();
+	post({ msgId, bitmap }, [bitmap]);
 }
 
 function post(msg: BakeryResponse, transfer: Transferable[] = []): void {
-  ;(self as any).postMessage(msg, transfer)
+	(self as any).postMessage(msg, transfer);
 }
 
 // --- FIFO message pump -------------------------------------------------------
 // Chained so upsert/translate posted before a bake is applied before it renders.
-let chain: Promise<void> = Promise.resolve()
+let chain: Promise<void> = Promise.resolve();
+
+/**
+ * Hard ceiling on a single awaited handler (bake / overview).
+ *
+ * The pump is strictly serial, so ONE handler that never settles parks every
+ * later message FOREVER — the worker goes silent, every request times out, and
+ * the bakery pauses while the worker looks "stuck" because it genuinely is. That
+ * is not hypothetical: several `fromObject` implementations await image decoding
+ * (`fabric.util.loadImage`), and the worker's `img` DOM shim never fires a load
+ * or error event, so such a promise can hang indefinitely.
+ *
+ * Losing one tile to a local bake is always better than losing the pump.
+ */
+const HANDLER_WATCHDOG_MS = 15_000;
+
+function withWatchdog<T>(work: Promise<T>, what: string): Promise<T> {
+	return Promise.race([
+		work,
+		new Promise<T>((_, reject) =>
+			setTimeout(
+				() => reject(new Error(`${what} exceeded ${HANDLER_WATCHDOG_MS}ms`)),
+				HANDLER_WATCHDOG_MS,
+			),
+		),
+	]);
+}
 
 self.onmessage = (e: MessageEvent<BakeryRequest>) => {
-  const msg = e.data
-  chain = chain.then(async () => {
-    try {
-      switch (msg.t) {
-        case 'config':
-          if (typeof msg.liveMax === 'number' && msg.liveMax > 0) {
-            LIVE_MAX = msg.liveMax
-            IDLE_MAX = Math.max(128, Math.floor(LIVE_MAX / 16))
-          }
-          // Register fonts and tell the client which families are safe to send.
-          // Chained like every other message, so no bake can render text before
-          // the faces are in this worker's FontFaceSet.
-          post({ msgId: -1, fonts: await loadFonts() })
-          break
-        case 'upsert':
-          for (const item of msg.items) {
-            // Store as a STRING, not the parsed graph — see ensureLive. Halves
-            // the mirror's steady-state memory on a large board (its biggest
-            // non-tile cost). Stringify runs off the main thread. Fall back to
-            // the object if it isn't serializable (main already sanitizes).
-            let stored: any = item.json
-            try {
-              stored = JSON.stringify(item.json)
-            } catch { /* keep the object */ }
-            json.set(item.id, stored)
-            live.delete(item.id) // geometry may have changed → re-enliven fresh
-          }
-          break
-        case 'translate': {
-          // Pure world translation (drag commit): patch coords in place instead
-          // of shipping N re-serialized objects. Top-level objects only, so a
-          // world shift is a left/top shift. The stored json is a string, so
-          // parse+patch+re-stringify here (off the main thread); the main side
-          // still sends only this one tiny message.
-          const { dx, dy } = msg
-          for (const id of msg.ids) {
-            const raw = json.get(id)
-            if (raw !== undefined) {
-              try {
-                const j = typeof raw === 'string' ? JSON.parse(raw) : raw
-                if (typeof j.left === 'number') j.left += dx
-                if (typeof j.top === 'number') j.top += dy
-                json.set(id, typeof raw === 'string' ? JSON.stringify(j) : j)
-              } catch { /* leave as-is; a later upsert corrects it */ }
-            }
-            const o = live.get(id)
-            if (o) {
-              o.set({ left: (o.left ?? 0) + dx, top: (o.top ?? 0) + dy })
-              o.setCoords()
-            }
-          }
-          break
-        }
-        case 'clipSet': {
-          // An erase changed only this object's clipPath. Patch it in the stored
-          // JSON instead of re-serializing the whole object main-side. `clip` is
-          // exactly what clipPath.toObject() produced, so this yields the
-          // identical mirror a full upsert would. No-op if the id is unknown —
-          // the next bake reports `missing` and re-upserts in full.
-          const raw = json.get(msg.id)
-          if (raw !== undefined) {
-            try {
-              const j = typeof raw === 'string' ? JSON.parse(raw) : raw
-              if (msg.clip) j.clipPath = msg.clip
-              else delete j.clipPath
-              json.set(msg.id, typeof raw === 'string' ? JSON.stringify(j) : j)
-            } catch { /* leave as-is; a later upsert / missing self-heal corrects it */ }
-            live.delete(msg.id) // clip changed → re-enliven fresh
-          }
-          break
-        }
-        case 'asset': {
-          dropAsset(msg.id) // replace → free the old pixels
-          assets.set(msg.id, msg.bitmap)
-          live.delete(msg.id) // re-enliven so the new bitmap is picked up
-          break
-        }
-        case 'remove':
-          for (const id of msg.ids) {
-            json.delete(id)
-            live.delete(id)
-            dropAsset(id)
-          }
-          break
-        case 'clear':
-          json.clear()
-          live.clear()
-          for (const [, a] of assets) a.close()
-          assets.clear()
-          break
-        case 'bake':
-          await bake(msg)
-          break
-        case 'overview':
-          await overview(msg)
-          break
-      }
-    } catch (err: any) {
-      if ((msg as any).msgId !== undefined) {
-        post({ msgId: (msg as any).msgId, error: err?.message ?? 'worker error' })
-      }
-    }
-  })
-}
+	const msg = e.data;
+	// OUT OF BAND — deliberately NOT chained.
+	//
+	// The pump below is strictly serial, so a chained `cancel` would queue behind
+	// the very bake it is meant to cancel and only take effect once that bake had
+	// already finished: worse than useless. Applying it here, synchronously in the
+	// message handler, means it lands during the in-flight bake's `await` and
+	// every request still sitting in the chain sees the new epoch immediately.
+	//
+	// Safe to reorder because it carries no state the FIFO guarantee protects: it
+	// only ever raises a counter, and requests are compared against it, never
+	// mutated by it.
+	if (msg.t === "cancel") {
+		if (msg.epoch > cancelEpoch) cancelEpoch = msg.epoch;
+		return;
+	}
+	const run = async () => {
+		try {
+			switch (msg.t) {
+				case "config":
+					if (typeof msg.liveMax === "number" && msg.liveMax > 0) {
+						LIVE_MAX = msg.liveMax;
+						// Keep a real working set at rest — see the IDLE_MAX note above.
+						IDLE_MAX = Math.max(768, Math.floor(LIVE_MAX / 4));
+					}
+					// Register fonts and tell the client which families are safe to send.
+					//
+					// DELIBERATELY NOT AWAITED. This handler runs inside the FIFO chain, so
+					// `await loadFonts()` here parked EVERY subsequent message — every
+					// upsert, every bake — behind ~10 font fetches + decodes. On a cold
+					// cache that stalled the whole mirror for seconds: the drawing stayed
+					// blank long after the loading indicator went away, and the first
+					// zoom took far longer to sharpen. Fire it off and reply when it
+					// lands; the FIFO guarantee we actually need (upserts applied before
+					// the bake that reads them) is unaffected, and text tiles stay refused
+					// main-side until the `fonts` reply arrives, so nothing can bake with
+					// a missing face in the meantime.
+					void loadFonts().then((fonts) => post({ msgId: -1, fonts }));
+					break;
+				case "upsert":
+					for (const item of msg.items) {
+						// Store as a STRING, not the parsed graph — see ensureLive. Halves
+						// the mirror's steady-state memory on a large board (its biggest
+						// non-tile cost). Stringify runs off the main thread. Fall back to
+						// the object if it isn't serializable (main already sanitizes).
+						let stored: any = item.json;
+						try {
+							stored = JSON.stringify(item.json);
+						} catch {
+							/* keep the object */
+						}
+						json.set(item.id, stored);
+						live.delete(item.id); // geometry may have changed → re-enliven fresh
+					}
+					break;
+				case "translate": {
+					// Pure world translation (drag commit): patch coords in place instead
+					// of shipping N re-serialized objects. Top-level objects only, so a
+					// world shift is a left/top shift. The stored json is a string, so
+					// parse+patch+re-stringify here (off the main thread); the main side
+					// still sends only this one tiny message.
+					const { dx, dy } = msg;
+					for (const id of msg.ids) {
+						const raw = json.get(id);
+						if (raw !== undefined) {
+							try {
+								const j = typeof raw === "string" ? JSON.parse(raw) : raw;
+								if (typeof j.left === "number") j.left += dx;
+								if (typeof j.top === "number") j.top += dy;
+								json.set(id, typeof raw === "string" ? JSON.stringify(j) : j);
+							} catch {
+								/* leave as-is; a later upsert corrects it */
+							}
+						}
+						const o = live.get(id);
+						if (o) {
+							o.set({ left: (o.left ?? 0) + dx, top: (o.top ?? 0) + dy });
+							o.setCoords();
+						}
+					}
+					break;
+				}
+				case "clipSet": {
+					// An erase changed only this object's clipPath. Patch it in the stored
+					// JSON instead of re-serializing the whole object main-side. `clip` is
+					// exactly what clipPath.toObject() produced, so this yields the
+					// identical mirror a full upsert would. No-op if the id is unknown —
+					// the next bake reports `missing` and re-upserts in full.
+					const raw = json.get(msg.id);
+					if (raw !== undefined) {
+						try {
+							const j = typeof raw === "string" ? JSON.parse(raw) : raw;
+							if (msg.clip) j.clipPath = msg.clip;
+							else delete j.clipPath;
+							json.set(msg.id, typeof raw === "string" ? JSON.stringify(j) : j);
+						} catch {
+							/* leave as-is; a later upsert / missing self-heal corrects it */
+						}
+						live.delete(msg.id); // clip changed → re-enliven fresh
+					}
+					break;
+				}
+				case "asset": {
+					dropAsset(msg.id); // replace → free the old pixels
+					assets.set(msg.id, msg.bitmap);
+					live.delete(msg.id); // re-enliven so the new bitmap is picked up
+					break;
+				}
+				case "remove":
+					for (const id of msg.ids) {
+						json.delete(id);
+						live.delete(id);
+						dropAsset(id);
+					}
+					break;
+				case "clear":
+					json.clear();
+					live.clear();
+					for (const [, a] of assets) a.close();
+					assets.clear();
+					break;
+				case "bake":
+					await withWatchdog(bake(msg), "bake");
+					break;
+				case "overview":
+					await withWatchdog(overview(msg), "overview");
+					break;
+			}
+		} catch (err: any) {
+			// Must not throw out of here — see the chain note below.
+			try {
+				if ((msg as any).msgId !== undefined) {
+					post({
+						msgId: (msg as any).msgId,
+						error: err?.message ?? "worker error",
+					});
+				}
+			} catch {
+				/* reporting failed; the client's timeout still covers this request */
+			}
+		}
+	};
+	// REJECTION-PROOF. `chain.then(run)` alone means a single rejected handler
+	// poisons the chain permanently: every later `.then(onFulfilled)` is skipped,
+	// so the worker silently stops processing messages — no bake ever runs again
+	// and every request times out until the bakery pauses. Passing `run` as BOTH
+	// handlers makes the pump resume after a failure, and the trailing catch keeps
+	// the stored promise settled. (Same pattern as enqueueHistoryOp.)
+	chain = chain.then(run, run).catch(() => {});
+};

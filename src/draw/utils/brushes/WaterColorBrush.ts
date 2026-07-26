@@ -3,6 +3,8 @@ import { opacityFromOpacityHex } from "@/draw/utils/color.utils";
 import {
 	enlivenStrokeProps,
 	simplifyPathDouglasPeucker,
+	stripType,
+	toObjectWithoutPath,
 } from "@/draw/utils/brushes/brush.helpers";
 
 // ==========================================
@@ -237,7 +239,15 @@ export class WaterColorStroke extends Path {
 				this.basePoints.push(new Point(ix / 10, iy / 10));
 			}
 		} else {
-			this.basePoints = options.basePoints || [];
+			// Deserialized JSON gives bare `{x, y}`, not Point instances — rehydrate
+			// so anything downstream can rely on Point methods. Malformed entries
+			// are dropped rather than allowed to throw during enliven.
+			const rawPoints = options.basePoints || [];
+			this.basePoints = rawPoints
+				.filter((p: any) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
+				.map((p: any) =>
+					typeof p.distanceFrom === "function" ? p : new Point(p.x, p.y),
+				);
 		}
 	}
 
@@ -261,8 +271,13 @@ export class WaterColorStroke extends Path {
 			lastY = iy;
 		}
 
-		const baseObj = super.toObject([...additionalProperties] as any);
-		delete (baseObj as any).path;
+		// Path.toObject deep-copies every segment and it is discarded — fromObject
+		// rebuilds from `compressedTrace`. A watercolor stroke is 3 bristles × N
+		// base points, so `this.path` holds ~3N commands: the worst case of the
+		// waste toObjectWithoutPath exists to remove.
+		const baseObj = toObjectWithoutPath(this, (p) => super.toObject(p as any), [
+			...additionalProperties,
+		]);
 
 		return {
 			...baseObj,
@@ -272,7 +287,22 @@ export class WaterColorStroke extends Path {
 
 	static async fromObject(object: any) {
 		if (!object.path || object.path.length === 0) {
-			const tempInstance = new WaterColorStroke([], object);
+			// This temp instance exists ONLY to decode `compressedTrace` into
+			// basePoints, so hand it the BARE minimum.
+			//
+			// It is constructed BEFORE enlivenStrokeProps, so `clipPath` and
+			// `shadow` are still raw JSON at this point. Passing those into a fabric
+			// constructor is a real hazard — fabric expects live instances and calls
+			// methods on them — and an ERASED WaterColorStroke always carries a
+			// clipPath. That threw, and because `enlivenObjects` was all-or-nothing
+			// it took the whole tile batch down with it (see ensureLiveMany).
+			// `type` is dropped too, or fabric logs "Setting type has no effect".
+			const {
+				clipPath: _clipPath,
+				shadow: _shadow,
+				...bare
+			} = stripType(object) as any;
+			const tempInstance = new WaterColorStroke([], bare);
 			object.path = WaterColorStroke.buildPathString(
 				tempInstance.basePoints,
 				object.strokeWidth / 0.8,
@@ -285,12 +315,23 @@ export class WaterColorStroke extends Path {
 	static buildPathString(basePoints: Point[], width: number): string {
 		const bristlePoints: Point[][] = [[], [], []];
 		let totalDist = 0;
+		// A non-finite width propagates into every coordinate below and yields
+		// "M NaN NaN ..." — which fabric cannot parse. Older payloads may lack
+		// strokeWidth entirely (the caller divides it), so clamp here.
+		if (!Number.isFinite(width) || width <= 0) width = 10;
 
 		for (let i = 0; i < basePoints.length; i++) {
 			const point = basePoints[i];
 			let dist = 0;
 			if (i > 0) {
-				dist = basePoints[i - 1].distanceFrom(point);
+				// Plain arithmetic, NOT `Point.distanceFrom`. `basePoints` comes from
+				// callers and from deserialized JSON, where a point is a bare
+				// `{x, y}` — `distanceFrom` is then undefined and this threw, which
+				// rejected `enlivenObjects` for the whole tile batch. Older
+				// WaterColorStrokes (serialized before `compressedTrace`, so their
+				// points round-trip as plain objects) hit this every time.
+				const prev = basePoints[i - 1];
+				dist = Math.hypot(point.x - prev.x, point.y - prev.y);
 				totalDist += dist;
 			}
 

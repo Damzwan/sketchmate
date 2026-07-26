@@ -39,8 +39,10 @@ import {
 	recordBakeryPause,
 	recordBakeTimeout,
 	recordFlush,
+	recordPhase,
 	recordTileFailed,
 	recordTileHybrid,
+	recordBakeTiming,
 	recordTileRefused,
 	recordTileRemote,
 	type RefusalReason,
@@ -103,6 +105,12 @@ let consecutiveTimeouts = 0;
 /** The worker has replied at least once since the last (re)spawn. */
 let sawReply = false;
 let msgSeq = 0;
+/**
+ * Cancellation generation. Bumped by `bakeryCancel()` (gesture start) and
+ * stamped onto every bake / overview request, so the worker can drop work that
+ * belongs to an abandoned pass instead of rasterizing pixels nobody will use.
+ */
+let epoch = 0;
 let liveMaxConfig = 8192;
 /**
  * Font families the worker has registered in its own FontFaceSet.
@@ -236,7 +244,9 @@ function getWorker(): Worker | null {
 		}
 		pending.delete(e.data.msgId);
 		clearTimeout(p.timer);
-		// Any reply — including `{ missing }` — means the worker is alive.
+		// Any reply — including `{ missing }` and `{ aborted }` — means the worker
+		// is alive. An `aborted` reply is our OWN cancel coming back, so it is
+		// proof of life and must never touch the hard-failure budget.
 		if (e.data.error) noteHardError();
 		else noteReply();
 		p.resolve(e.data);
@@ -267,6 +277,41 @@ export function initTileBakery(): void {
 
 export function isBakeryActive(): boolean {
 	return !disabled && !isPaused() && worker !== null;
+}
+
+/**
+ * ABANDON every bake / overview currently issued. Call at gesture start.
+ *
+ * `RenderCore.abortBakes()` only aborts the MAIN-THREAD loop: requests already
+ * posted kept enlivening and rasterizing in the worker, and their bitmaps were
+ * closed on arrival. That is pure waste at the worst moment — the worker's
+ * canvas is GPU-backed, so on mobile its raster contends with the compositor
+ * frames driving the gesture. This tells the worker to drop them (it compares
+ * each request's epoch against the newest cancel, out of band so the message is
+ * not stuck behind the bake it cancels).
+ *
+ * Pending promises settle `null` locally rather than waiting for the worker's
+ * `aborted` replies, so the caller is not held up. Deliberately NOT counted as
+ * timeouts — a cancel is our decision, not worker ill-health, and charging it
+ * would march `consecutiveTimeouts` toward a 30s bakery pause every time the
+ * user pans.
+ *
+ * CALL ORDER MATTERS: the caller's AbortSignal must already be aborted, because
+ * a `null` here means "worker declined" to `rebuildTile`, which would otherwise
+ * fall through to a synchronous MAIN-THREAD bake — the exact opposite of what a
+ * cancel is for. `RenderCore.setGesturing(true)` aborts first, then calls this.
+ */
+export function bakeryCancel(): void {
+	if (disabled) return;
+	epoch++;
+	for (const [, p] of pending) {
+		clearTimeout(p.timer);
+		p.resolve(null);
+	}
+	pending.clear();
+	// No getWorker() here: it would re-arm a paused bakery just to tell it to
+	// cancel work it never received.
+	worker?.postMessage({ t: "cancel", epoch });
 }
 
 export function bakeryMarkDirty(obj: FabricObject): void {
@@ -503,10 +548,38 @@ function forgetAsset(id: string): void {
 	pendingAssets.delete(id);
 }
 
+/**
+ * Does this object's clip contain a rasterized mask (a flattened erase)?
+ *
+ * `bakeClipGroupIfNeeded` collapses old eraser strokes into a `fabric.Image`
+ * inside the ClippingGroup and sets `__hasImageClip`. But that flag is a RUNTIME
+ * marker — it is not serialized. So after a save + reload the flag is gone while
+ * the image is still in the clip, the refusal guards passed, and the object was
+ * shipped to a worker that CANNOT decode an image: the enliven hung forever and
+ * took the whole message pump with it.
+ *
+ * So inspect the live clip instead of trusting the flag, and memoize the answer
+ * back onto the flag (a clip only gains an image via flatten; the un-flatten path
+ * clears it explicitly).
+ */
+function hasImageClip(obj: any): boolean {
+	if (obj.__hasImageClip) return true;
+	const kids = obj.clipPath?._objects;
+	if (!Array.isArray(kids)) return false;
+	for (let i = 0; i < kids.length; i++) {
+		const k = kids[i];
+		if (k && (k.type === "image" || k instanceof FabricImage)) {
+			obj.__hasImageClip = true;
+			return true;
+		}
+	}
+	return false;
+}
+
 function shippable(obj: any): boolean {
 	if (obj.group) return false;
 	if (obj.text !== undefined) return textRenderable(obj);
-	if (obj.__hasImageClip) return false;
+	if (hasImageClip(obj)) return false;
 	// A real user image: never shipped. Checked BEFORE the bitmap-asset path —
 	// a real image is also `instanceof FabricImage`, but its pixels are a photo
 	// (budget) and may be cross-origin, so it keeps baking locally.
@@ -535,15 +608,54 @@ function shippable(obj: any): boolean {
  * the existing self-heal re-upserts just that tile's objects.
  */
 const MAX_FLUSH_ITEMS = 192;
+/** Wall-clock ceiling for ONE flush batch when the idle callback gives us no
+ *  deadline (the setTimeout fallback path). */
+const FLUSH_BUDGET_MS = 6;
+/** Normal `requestIdleCallback` deadline for the background drain. */
+const IDLE_FLUSH_TIMEOUT_MS = 500;
+/** Deadline used when resuming after a gesture — must beat RenderCore's
+ *  `bakeDebounce` (80ms), or the bake path inherits the un-shipped items. */
+const URGENT_FLUSH_TIMEOUT_MS = 40;
 /** Retry cadence for the idle drain while the bakery is paused. */
 const PAUSED_RETRY_MS = 2_000;
 let idleFlushHandle: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Suspends the idle drain for the duration of a gesture (see bakeryPauseFlush).
+ */
+let flushPaused = false;
 
-function scheduleIdleFlush(): void {
+/**
+ * Stop / resume the idle drain around a gesture.
+ *
+ * `requestIdleCallback` fires in the gaps between frames — and during a gesture
+ * those gaps are LARGE, because the bake pass has just been aborted. So the
+ * drain went off on almost every gesture frame, and each run was a synchronous
+ * block: up to MAX_FLUSH_ITEMS `toJSON()` plus one structured clone of the whole
+ * batch inside `postMessage`. `touchmove` is a non-passive listener
+ * (gestureDetector), so that block lands directly on input latency.
+ *
+ * Nothing is lost by waiting: the dirty set is still parked, and the resume call
+ * re-arms the drain. A bake that needs an id we haven't shipped yet gets
+ * `missing` back and the existing self-heal re-upserts it.
+ */
+export function bakeryPauseFlush(on: boolean): void {
+	flushPaused = on;
+	// Resume URGENTLY. The bake pass restarts `bakeDebounce` (80ms) after the
+	// gesture ends, and whatever the drain has not shipped by then is paid for on
+	// the BAKE path instead — `flushObjects` per tile, i.e. a structured clone
+	// inside each tile's un-yieldable prologue. A plain idle callback can be
+	// hundreds of ms out (its own timeout is 500), so it routinely lost that race
+	// and the pause simply moved the cost rather than removing it. Each batch is
+	// still time-boxed, so an urgent drain is not a long block.
+	if (!on) scheduleIdleFlush(URGENT_FLUSH_TIMEOUT_MS);
+}
+
+function scheduleIdleFlush(timeoutMs = IDLE_FLUSH_TIMEOUT_MS): void {
 	if (idleFlushHandle !== null || dirty.size === 0 || disabled) return;
-	const run = () => {
+	if (flushPaused) return; // re-armed by bakeryPauseFlush(false)
+	const run = (deadline?: { timeRemaining(): number }) => {
 		idleFlushHandle = null;
-		if (disabled) return;
+		if (disabled || flushPaused) return;
 		const w = getWorker();
 		if (!w) {
 			// Paused. Keep the parked refs and try again after the cooldown rather
@@ -554,12 +666,12 @@ function scheduleIdleFlush(): void {
 			}
 			return;
 		}
-		flush(w);
+		flush(w, deadline);
 		if (dirty.size > 0) scheduleIdleFlush();
 	};
 	const ric = (globalThis as any).requestIdleCallback;
 	idleFlushHandle = ric
-		? (ric(run, { timeout: 500 }) as any)
+		? (ric(run, { timeout: timeoutMs }) as any)
 		: setTimeout(run, 0);
 }
 
@@ -574,12 +686,24 @@ export function bakeryFlushSoon(): void {
  *
  * IDLE ONLY. This must never be called from the bake path — see bakeryBakeTile.
  */
-function flush(w: Worker): void {
+function flush(w: Worker, deadline?: { timeRemaining(): number }): void {
 	if (dirty.size === 0) return;
 	const t0 = performance.now();
 	const items: { id: string; json: any }[] = [];
 	for (const [id, obj] of dirty) {
 		if (items.length >= MAX_FLUSH_ITEMS) break;
+		// TIME, not just count. `toJSON()` cost per object spans ~two orders of
+		// magnitude — a 3-point line vs a 4000-point watercolor path — so a flat
+		// item cap is not a time cap, and a batch of dense strokes blew the frame
+		// even though it was "only" 192 items. Stop on the real budget and let the
+		// next idle callback take the rest; the loop re-arms itself below.
+		if (
+			items.length > 0 &&
+			(deadline
+				? deadline.timeRemaining() <= 1
+				: performance.now() - t0 >= FLUSH_BUDGET_MS)
+		)
+			break;
 		const a = obj as any;
 		if (a.group) continue; // may ungroup later → keep dirty, don't drop
 		if (!shippable(a)) {
@@ -597,7 +721,9 @@ function flush(w: Worker): void {
 		dirty.delete(id);
 	}
 	if (items.length) postUpsert(w, items);
-	recordFlush(performance.now() - t0, items.length);
+	const ms = performance.now() - t0;
+	recordFlush(ms, items.length);
+	recordPhase("flushIdle", ms);
 	if (dirty.size > 0) scheduleIdleFlush(); // rest goes out between frames
 }
 
@@ -633,7 +759,11 @@ function flushObjects(w: Worker, objects: FabricObject[]): void {
 		dirty.delete(id);
 	}
 	if (items.length) postUpsert(w, items);
-	recordFlush(performance.now() - t0, items.length);
+	const ms = performance.now() - t0;
+	recordFlush(ms, items.length);
+	// Separate bucket from the idle drain: this one runs INSIDE a tile's bake
+	// prologue, i.e. on the frames the user is panning. flushIdle does not.
+	recordPhase("flushBake", ms);
 }
 
 /**
@@ -673,14 +803,38 @@ function postUpsert(w: Worker, items: { id: string; json: any }[]): void {
  * Post a request and track its reply. Timeouts abandon the request without
  * blaming the worker for it (see the health model at the top of this file).
  */
+/** Extra budget per object in a request. A tile holding 1200 strokes has to
+ *  enliven and render 1200 strokes — it is legitimately slower than one holding
+ *  five, and a flat budget declared it "stuck". Generous: this only decides when
+ *  we give up, never how long we wait for a healthy reply. */
+const PER_OBJECT_TIMEOUT_MS = 6;
+
 function track(
 	w: Worker,
 	msg: Record<string, unknown>,
+	/** Objects this request must enliven + render — its real cost driver. */
+	weight = 0,
 ): Promise<BakeryResponse | null> {
 	// Back-pressure: never pile more onto a worker that is already behind.
 	if (pending.size >= MAX_IN_FLIGHT) return Promise.resolve(null);
 	const msgId = ++msgSeq;
-	const timeoutMs = sawReply ? WARM_TIMEOUT_MS : COLD_TIMEOUT_MS;
+	// QUEUE-AWARE. The worker handles messages through a strictly serial FIFO
+	// chain, but the timer starts when we POST — so a request sitting behind
+	// others was charged for their run time as well as its own. `bake()` keeps 4
+	// lanes in flight, so on a dense board (~2s per tile) the 4th request blew an
+	// 8s budget while the worker was healthy and busy. Eight of those in a row
+	// tripped MAX_CONSECUTIVE_TIMEOUTS and PAUSED the bakery for 30s, dumping
+	// every tile onto the main thread — the "sharpening takes ages" report.
+	//
+	// Budget each request for its own work PLUS the work queued ahead of it, so a
+	// timeout once again means "the worker is stuck", not "the worker is busy".
+	const base = sawReply ? WARM_TIMEOUT_MS : COLD_TIMEOUT_MS;
+	// Budget = own work (scaled by how many objects the tile actually holds)
+	// + the work already queued ahead of it in the worker's serial FIFO chain.
+	// A DENSE tile is slow, not stuck; charging it a flat budget is what tripped
+	// MAX_CONSECUTIVE_TIMEOUTS and paused the bakery for 30s.
+	const timeoutMs =
+		(base + PER_OBJECT_TIMEOUT_MS * weight) * (1 + pending.size);
 	return new Promise((resolve) => {
 		const timer = setTimeout(() => {
 			pending.delete(msgId);
@@ -689,6 +843,9 @@ function track(
 		}, timeoutMs);
 		pending.set(msgId, { resolve, timer });
 		msg.msgId = msgId;
+		// Stamp the cancellation generation so the worker can drop this request if
+		// a `cancel` overtakes it in the queue (see bakeryCancel).
+		msg.epoch = epoch;
 		try {
 			w.postMessage(msg);
 		} catch (err) {
@@ -736,12 +893,13 @@ export async function bakeryRenderOverview(
 			bounds: { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h },
 			px,
 			scale,
-		});
+		}, ids.length);
 
 	// Only THESE objects need to be current. The global dirty set drains on idle
 	// — draining it here was the per-call main-thread spike (finding F1).
 	flushObjects(w, objects);
 	let res = await request();
+	if (res?.aborted) return null; // cancelled by a gesture — not a failure
 
 	if (res?.missing?.length) {
 		// Mirror not seeded for these ids yet (e.g. first overview at load, before
@@ -759,6 +917,7 @@ export async function bakeryRenderOverview(
 		if (items.length !== res.missing.length) return null;
 		postUpsert(w, items);
 		res = await request();
+		if (res?.aborted) return null;
 	}
 
 	if (!res || res.error || !res.bitmap) return null;
@@ -778,7 +937,7 @@ function refuse(reason: RefusalReason): null {
  */
 function workerCanRender(a: any): boolean {
 	if (a.group) return false;
-	if (a.__hasImageClip) return false;
+	if (hasImageClip(a)) return false;
 	if (a.text !== undefined) return textRenderable(a);
 	// Real user image → local bake (no fetch/CORS in the worker). Must precede
 	// the asset check: a real image is also `instanceof FabricImage`.
@@ -864,9 +1023,15 @@ export async function bakeryBakeTile(
 			scale,
 			overscan,
 			size,
-		});
+		}, ids.length);
 
+	const bakeStartedAt = performance.now();
 	let res = await request();
+
+	// Dropped by a cancel (gesture start). Not a failure — don't blame the tile,
+	// and don't retry. The caller's signal is already aborted, so it bails before
+	// the main-thread fallback.
+	if (res?.aborted) return null;
 
 	if (res?.missing?.length) {
 		// Self-heal once: re-upsert from the live refs, retry.
@@ -884,6 +1049,7 @@ export async function bakeryBakeTile(
 		}
 		postUpsert(w, items);
 		res = await request();
+		if (res?.aborted) return null;
 	}
 
 	if (!res || res.error || !res.bitmap) {
@@ -891,6 +1057,7 @@ export async function bakeryBakeTile(
 		return null;
 	}
 	recordTileRemote();
+	recordBakeTiming(performance.now() - bakeStartedAt, ids.length);
 	if (skipped.length) recordTileHybrid(skipped.length);
 	return { bitmap: res.bitmap, skipped };
 }

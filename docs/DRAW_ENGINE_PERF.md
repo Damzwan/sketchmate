@@ -625,6 +625,880 @@ GPU churn (F5) and the flatten memory (E3), both scoped above.
 
 ---
 
+## Twentieth review — "gesture right as the tiles unblur" lags
+
+*Written 2026-07-26.*
+
+Report: zoom into a dense board, wait until the tiles are **about to sharpen**,
+then start a gesture — it hitches. That moment is peak worker + GPU load, and
+the abort path turned out to be main-thread-only.
+
+`onGestureStart` → `RenderCore.setGesturing(true)` → `abortBakes()` flips an
+`AbortController` ([`renderCore.ts:579`](../src/draw/renderCore.ts#L579)). That
+stops the main-thread `drain()` loop and nothing else. Four consequences, all
+fixed below.
+
+### R20 — ✅ FIXED — the worker was never told to stop — **P0**
+
+`abortBakes()` aborts a signal the *worker* cannot see. Every request already
+posted (2 lanes, plus a possible overview) kept running: `ensureLiveMany` over a
+dense tile's objects, a full render, `transferToImageBitmap` — and on arrival
+`rebuildTile` closed the bitmap and threw it away
+([`committedLayer.ts:658`](../src/draw/committedLayer.ts#L658)).
+
+That is the worst possible moment to be busy. The worker's `OffscreenCanvas` is
+GPU-backed, so its raster and the `transferToImageBitmap` flush contend with the
+compositor frames driving the gesture — the same contention the `libgsl` /
+"Unresponsive GPU" signatures point at (F5). It also explains why the symptom is
+specific to *dense* boards and to the *unblur* moment: that is exactly when the
+per-tile worker cost peaks.
+
+**Fixed:** an epoch/cancel protocol.
+
+- `bakeryCancel()` bumps `epoch`, settles every pending promise locally, and
+  posts `{ t: 'cancel', epoch }`.
+- The worker handles `cancel` **out of band** — before the FIFO `chain`. Chained,
+  it would queue behind the very bake it cancels and land after it finished.
+- `bake()` checks the epoch twice: at entry (drops queued tiles for free) and
+  again after `ensureLiveMany`, its only await and its dominant cost. `overview()`
+  checks per iteration, since it awaits per object.
+- Stale requests reply `{ aborted: true }`. That is proof of life, never a fault:
+  it must not touch `hardFailures` / `consecutiveTimeouts` (a cancel on every pan
+  would otherwise march the bakery toward its 30s pause) and never
+  `recordTileFailed()`.
+
+**Call order is load-bearing.** `setGesturing(true)` must run *before*
+`bakeryCancel()`. Cancelled requests resolve `null`, and `null` means "worker
+declined" to `rebuildTile` — which falls through to a synchronous **main-thread**
+bake. With the signal already aborted, `rebuildTile` bails first. Reversed, a
+gesture would stop offloading tiles and start rendering them on the thread the
+cancel exists to free.
+
+### R21 — ✅ FIXED — the abandoned tile's pixels were binned — **P1 (perceived)**
+
+The aborted in-flight bitmap was valid, finished, and paid for, and it got
+`close()`d — so after the gesture the same tile baked again from scratch. Double
+cost: the lag, then a slow re-sharpen.
+
+**Fixed:** on abort, store it, guarded on `skipped` being empty (`overlaySkipped`
+is a synchronous main-thread render — exactly what the abort is avoiding) and on
+`gen` not having moved. `store()` itself is cheap: no GPU upload happens until
+something draws the tile, and a tier change may mean it never is.
+
+### R22 — ✅ FIXED — the idle flush ran *on* gesture frames — **P1**
+
+`scheduleIdleFlush` → `requestIdleCallback(run, { timeout: 500 })` → `flush()`
+drains up to `MAX_FLUSH_ITEMS` (192) `toJSON()` plus one structured clone inside
+`postMessage`, then re-arms immediately while `dirty.size > 0`.
+
+During a gesture the bake pass has just been aborted, so the main thread is idle
+between frames — long idle windows, so the drain fired on nearly every gesture
+frame. And `touchmove` is registered `{ passive: false }`
+([`gestureDetector.ts:107`](../src/draw/utils/gestureDetector.ts#L107)), so any
+main-thread block lands directly on input latency rather than merely dropping a
+frame. On a freshly-loaded dense board `dirty` holds thousands (`bakerySeed`
+marks every object at load), so this ran and ran.
+
+**Fixed:** two changes.
+
+- `bakeryPauseFlush(on)` parks the drain for the gesture; `onGestureEnd` re-arms
+  it. Nothing is lost — the dirty refs stay parked, and a bake needing an
+  unshipped id gets `missing` back and self-heals.
+- `flush()` is now bounded by **time**, not just item count: it honours
+  `deadline.timeRemaining()` (or `FLUSH_BUDGET_MS` on the `setTimeout` fallback).
+  Per-object `toJSON()` cost spans ~two orders of magnitude — a 3-point line vs a
+  4000-point watercolor path — so a flat 192 cap was never a time cap.
+
+### R23 — ✅ FIXED — overview patches ran on gesture frames — **P2**
+
+`renderNow` → `live.gcExpired()` → `patchOverview(rect)` →
+`overview.patchRect(rect, overviewPatchMax)` is a synchronous render of up to 200
+objects into the overview canvas. It reaches a gesture frame via TTL: a live
+overlay whose demote never happened (because the bake was aborted) hits
+`NORMAL_TTL_MS` mid-gesture and folds itself into the overview right then.
+
+**Fixed:** `gesturing` now defers like an off-screen edit — the existing
+`pendingOverview` queue, flushed by `setGesturing(false)` before its
+`requestFrame()`. The >256 overflow valve would have re-introduced the same
+synchronous patch on a gesture frame, so while gesturing it coalesces to one
+bounding rect (arithmetic only) instead of flushing.
+
+Trade: a remote edit arriving mid-gesture is not folded into the overview until
+the gesture ends. Bounded by gesture duration, and the tiles/`live` layer still
+cover the common cases.
+
+### R24 — ✅ FIXED — the overview rebuild could not be interrupted — **P0**
+
+Follow-up report: *"load a heavy drawing and try to zoom — it lags"*, and
+*"zoom in, wait a micro bit, then pan — sometimes still lags"*. R20–R23 covered
+the bake and the flush; the overview was untouched, and it is the single most
+expensive main-thread thing this engine does.
+
+`WorldOverview.rebuildIfNeeded` is an O(whole scene) render. Both callers passed
+`new AbortController().signal` — a controller nobody held and nobody ever
+aborted. So once a rebuild started it ran to completion regardless of what the
+user did. Right after loading a heavy board the overview is dirty
+(`markAllDirty()`), so a rebuild is exactly what is running when the user's first
+zoom arrives.
+
+**Fixed:** `RenderCore` tracks `overviewCtrl`; `abortBakes()` aborts it alongside
+the bake, and `setGesturing(false)` re-arms via `scheduleOverviewRebuild()` when
+the overview is still dirty (nothing else would — `patchOverview` only schedules
+on a patch *failure*, so an interrupted rebuild would otherwise never finish).
+Abandoning it is free: the rebuild builds into a TEMP canvas and only swaps at
+the end, so the previous overview stays on screen throughout.
+
+`warmOverviewBlocking` deliberately keeps a non-abortable signal. The load reveal
+flips `loading` off the moment it resolves, and an aborted rebuild leaves the
+overview null — the blank white first frame that method exists to prevent.
+
+### R25 — ✅ FIXED — an un-yielded O(N) block *before* the yielded render — **P1**
+
+Inside the same function, the "is this object big enough to leave a mark at
+overview resolution" filter ran as a synchronous, un-yielded, un-abortable loop
+over every object in the scene — and `getBoundingRect(true, true)` **recomputes**
+coords rather than reading them. On a big board that is a single multi-hundred-ms
+block landing *before* the carefully-yielded render loop even starts. R24's abort
+cannot help here: there is no await to abort at.
+
+**Fixed:** `SpatialIndex` gained an optional `queryBounds(rect)` returning the
+rects the quadtree already tracks (kept current by `updateQuadTree` →
+`cachedBounds`), so the recompute disappears entirely — the filter becomes a
+plain arithmetic pass. The old path is kept for indexes without it, now yielded
+every 128 objects and abort-checked.
+
+### R26 — ✅ FIXED — R22's pause moved the flush cost onto the bake path — **P2**
+
+Parking the idle drain for the gesture (R22) meant the dirty set was still deep
+when the gesture ended. `RenderCore` restarts the bake `bakeDebounce` (80ms)
+later, and everything not yet shipped is then paid for by `flushObjects` *inside
+each tile's un-yieldable prologue* — a structured clone per tile. A plain idle
+callback (timeout 500) routinely lost that race, so the pause relocated the cost
+instead of removing it. This is the second half of "wait a micro bit, then pan".
+
+**Fixed:** resuming after a gesture schedules the drain with a 40ms deadline so
+it beats the bake debounce. Batches stay time-boxed (R22), so urgency does not
+mean a long block. Subsequent batches return to the normal 500ms cadence.
+
+### R27 — ✅ FIXED — every stroke class serialized a path array it threw away — **P1**
+
+Third report, on a **watercolor-heavy** board: still hitches, and *"it happens at
+the moment it wants to switch — the baking is done and we just have to replace
+it"*.
+
+`Path.toObject` is `{ ...super.toObject(props), path: this.path.map(cmd =>
+cmd.slice()) }` — a deep copy of every segment. **Five** stroke classes then do
+`delete baseObj.path`, because each rebuilds its geometry in `fromObject` from a
+compact form instead: `WaterColorStroke`, `OptimizedPencilStroke`,
+`OptimizedEraserStroke`, `CalligraphyStroke`, `BucketFillPath`. So that copy was
+allocated and discarded on every single serialize — and serialization runs on the
+MAIN thread, in each idle flush batch (192 objects) and in `flushObjects` inside
+every tile's bake prologue.
+
+Watercolor is the worst case by construction: `buildPathString` emits **3
+bristles**, so `this.path` holds ~3N commands for N base points. Measured: a
+120-point stroke is 363 path segments.
+
+**Fixed:** `toObjectWithoutPath` in `brush.helpers` empties `this.path` for the
+duration of the `super.toObject()` call (try/finally — a throw must never leave
+the live object path-less), making the `.map` a no-op. All five classes use it.
+
+**Measured, desktop node, 500 watercolor strokes: 7.1ms → 4.5ms.** Verified
+round-trip: `path` still absent from the output, live path restored by reference,
+`compressedTrace` identical, `fromObject` rebuilds the same 363 segments.
+
+Worth being straight about the size of this: it removes ~37% of serialization
+cost, not the whole hitch. The remaining 4.5ms is `super.toObject()` itself.
+
+### R28 — ✅ FIXED — demotion fired one overview patch PER STROKE — **P1**
+
+`demoteSettled` ran `patchOverview(rect)` for every demoted id, and `patchRect`
+is a synchronous clear + redraw of every object in that rect. Demotion is
+all-at-once — it fires on the frame a bake pass completes — so a full live layer
+meant up to `liveMax` (32–64) of those in ONE frame, landing exactly on the frame
+where tiles replace the blur. Strokes drawn together also overlap, so each patch
+re-rendered its neighbours' objects again.
+
+**Fixed:** collect the rects, `mergeRects` them, patch the merged set. The
+clustered common case collapses to one or two patches; far-apart edits stay
+separate. A merged rect too dense for `overviewPatchMax` fails the gate and
+defers to the async yielded rebuild, which is the correct outcome.
+
+NB this only bites when the live layer is populated (you drew, then zoomed). On a
+freshly *loaded* board `live` is empty and demotion is a no-op — so it is not the
+whole story for the load-then-zoom repro.
+
+### R29 — ✅ FIXED — the progress-frame throttle DROPPED frames instead of deferring — **P1**
+
+`requestBakeProgressFrame` returned early inside its 120ms window without
+scheduling anything. So every tile that landed inside that window was never
+composited progressively — its bitmap's first `drawImage`, and therefore its GPU
+texture upload, was saved up for the single frame at the end of the pass. On a
+dense board that is dozens of uploads in one frame: precisely "the switch is an
+intense operation".
+
+**Fixed:** a trailing timer re-requests at the end of the window, so uploads
+actually spread at the intended ~8/sec instead of clumping. Cancelled in
+`abortBakes()` with the rest.
+
+### R30 — ✅ FIXED — the local bake checked abort every 64 objects — **P1**
+
+Fourth report: better, but gesturing *while a bake is running* still spikes, and
+it is watercolor-specific — *"pencil is just less heavy so you don't notice it"*.
+
+That phrasing points at a cost that scales with per-object render weight, on the
+main thread, during a gesture. `rebuildTile`'s LOCAL fallback is exactly that:
+
+```ts
+if (i % this.CHUNK === this.CHUNK - 1 && yielder.shouldYield()) {
+  await yielder.yield()
+  if (signal.aborted) { … return }
+}
+```
+
+`CHUNK` defaulted to 64, and the abort is only checked when that condition
+fires — so a gesture starting mid-tile waits for up to 64 objects to rasterize.
+The count is standing in for a time budget, which only works if objects are
+cheap. A `WaterColorStroke` is 3 bristles × N base points (measured: 363 path
+segments for 120 points), stroked with round joins at `objectCaching = false`, so
+64 of them is a tens-of-ms block with no way out of it.
+
+**Fixed:** `renderChunk` is now device-aware — 8 low-end / 16 mobile / 32 desktop
+— keeping the worst-case uninterruptible stretch to roughly a frame. The extra
+`isInputPending()` calls cost far less than the block they interrupt.
+
+NB this only fires for tiles the worker did **not** bake. If `localBake` shows up
+big in the phase metrics below, the real question is *why* those tiles took the
+local path — a paused bakery (`bakeryPauses`) dumps every tile onto the main
+thread for 30s at a time, which would look exactly like this report.
+
+### R31 — ✅ FIXED — `flushPendingOverview` was an unbounded synchronous loop — **P2**
+
+It ran its whole queue in one go, at `setGesturing(false)` and at the head of
+every bake pass, with each `patchRect` a synchronous clear + redraw of every
+object in its rect. A pan is a *sequence* of gesture / 180ms-settle cycles, so
+this fired repeatedly through what the user experiences as one continuous
+gesture.
+
+**Fixed:** merge the queued rects first (deferred rects overlap, so they were
+re-rendering each other's objects), then spend at most 8ms and requeue the rest
+for the next flush point.
+
+### R32 — what the worker actually bought, and what it did not
+
+Fifth report, and the right question: *"I thought the whole point of the bake
+worker is that the main thread is super free — but zooming still lags when
+baking a lot of tiles."*
+
+Correct, and R20–R31 were all treating symptoms around the edge of it. **The
+worker only moved RASTERIZATION off the main thread.** The main thread still
+owns, per bake pass:
+
+1. `index.query(q)` + a z-`sort()` — **per tile**
+2. an O(objects-in-tile) `workerCanRender` loop building `shippable` / `ids` /
+   `skipped` — **per tile**, and objects on tile seams are visited by several
+3. `flushObjects` → `toJSON` + a structured clone — **per tile**
+4. `postMessage` of the id list — **per tile**
+5. `store()` + `ImageBitmap.close()` of the tile it replaces
+6. **the entire composite, on every single frame**
+
+(6) is the one that matters for the reported symptom, because **during a gesture
+the bake is aborted — so the composite is the ONLY thing running.** If zooming
+janks, it is not the bake. It is a full-surface clear + fill plus one `drawImage`
+per visible tile, at `MAX_RENDER_SCALE`, every frame.
+
+Two fixes land now; the structural answer is below them.
+
+#### R32a — ✅ FIXED — the composite wrote the full surface TWICE per frame
+
+```ts
+ctx.clearRect(0, 0, px.w, px.h)
+if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, px.w, px.h) }
+```
+
+When the background is opaque the fill already overwrites every pixel, so the
+clear is pure waste — and it is the biggest *fixed* cost of a composite, paid on
+every frame of every pan and zoom regardless of content. At `MAX_RENDER_SCALE` 2
+on a phone that is ~1.3Mpx written twice.
+
+**Fixed:** clear only when no opaque fill is coming. `isOpaqueColor` is
+deliberately conservative — anything unrecognised keeps the old clear+fill, so
+the worst case is the previous behaviour and never a stale-pixel bug.
+
+#### R32b — ✅ FIXED — every gesture frame painted TWO frames late
+
+`gestures.helper` did: `touchmove` → `requestAnimationFrame` → `syncVisuals()` →
+`renderViewport()` → `core.requestFrame()` → **another** `requestAnimationFrame`
+→ composite. Two chained RAFs, so the pixels for a touchmove at frame N landed at
+frame N+2 — unconditionally, with **no CPU cost involved at all**. Constant
+latency on every pan and zoom reads exactly like "the main thread is busy" even
+when it is completely idle, and `touchmove` being a non-passive listener means
+nothing can hide it.
+
+**Fixed:** `RenderCore.renderFrameNow()` composites synchronously for callers
+already inside a RAF, and cancels any frame already queued so it supersedes it
+rather than doubling the work (hence `frameRaf` now being tracked).
+
+#### The structural answer — move the composite off the main thread
+
+To actually make the main thread free during pan/zoom, compositing has to leave
+it, via `transferControlToOffscreen()` on a dedicated tile canvas in a worker.
+It cannot be done to fabric's lower canvas — fabric owns that element and draws
+selection/live content into it — so it means a separate composite layer beneath
+fabric's, with fabric's own canvas kept transparent and used only for live
+strokes and controls. Tile bitmaps would then be transferred worker→worker and
+never touch the main thread at all; a pan/zoom would be one `postMessage` of the
+viewport matrix per frame.
+
+That is the real end state. It is a large change and is NOT done here.
+
+Cheaper items in the same direction, none done yet:
+- Cache the `workerCanRender` verdict per object (invalidated on dirty) instead
+  of recomputing it for every object of every tile of every pass.
+- `hasImageClip` memoizes only the TRUE answer; the false case re-walks
+  `clipPath._objects` on every call, i.e. per object per tile. Memoize both.
+- Move the spatial query itself into the worker. The mirror already receives
+  every object via `upsert`/`translate`/`remove`, so it could hold bounds + z and
+  resolve "which ids are in this tile" itself — collapsing items 1–4 above to a
+  single message per bake pass instead of per tile.
+
+### Instrumentation — composite + phase attribution (stop guessing)
+
+Three rounds of reasoning got the obvious offenders but the switch frame was
+still being diagnosed from the outside. A composite is a clear + fill, an
+overview `drawImage`, a fallback-tier search, and one `drawImage` per visible
+tile — with very different fixes. `recordComposite` now times the three parts
+separately on every frame (three `performance.now()` pairs around blocks that
+already cost milliseconds), surfaced in `__drawPerf()`:
+
+| Field | Reads as |
+| --- | --- |
+| `tileDrawMsMax` high | GPU texture upload / fill rate — finding F5, and R29's clumping |
+| `searchMsMax` high | `findBestSource` walking tiers per cell (depth 3 when not gesturing) |
+| `compositeMsMax` high, both others low | the clear + fill itself → DPR / surface size |
+| `flushMsMax` high | serialization — R27's territory |
+| `longTaskMsMax` | ground truth that the main thread blocked at all |
+
+And `phaseMsMax` / `phaseMsTotal` / `phaseCount` attribute every remaining
+main-thread block that renders or serializes OBJECTS — i.e. everything whose cost
+scales with brush weight, which is what makes a watercolor board hurt where the
+same board in pencil does not:
+
+| Phase | What it is | If it dominates |
+| --- | --- | --- |
+| `flushBake` | `toJSON` + structured clone inside a tile's bake prologue | R27 territory; the remaining cost is `super.toObject()` |
+| `flushIdle` | the same, on the background drain | should be near-zero during gestures (R22 parks it) |
+| `localBake` | a tile the worker refused → full main-thread render | check `bakeryPauses` and `tileRefusals` — *why* is it local? |
+| `overlaySkipped` | hybrid tile: worker bitmap + main-thread objects on top | un-yielded by design; only safe while `skipped` is small |
+| `overviewPatch` | `patchRect`: clear + redraw a region of the overview | R28 / R31 territory |
+| `overviewBuild` | full O(scene) overview render (WALL CLOCK — it yields) | compare against `longTasks`, not against frame time |
+| `rebuildSync` | synchronous tile repair (`destructiveInvalidate` et al) | still ungated — see "Still open" |
+
+### Still open after this pass
+
+- **`destructiveInvalidate` → `rebuildRectSync` is not gesture-gated.** A remote
+  `object:removed` / `object:modified` arriving mid-gesture still does a
+  synchronous ≤32-tile main-thread rebuild. The *streamed* path is already
+  deferred (`scheduleRemoteFlush` re-schedules while gesturing); the one-shot
+  callers are not. Same class of block as R23, larger.
+- **`setErasing(true)` does not `bakeryCancel()`.** Identical waste to R20 —
+  bakes are aborted, the worker keeps rasterizing — just on the erase seam
+  instead of the gesture seam. One line, deliberately left out of this pass.
+- **`findBestSource` allocates per frame.** `coarserDraw` / `finerDraws` build
+  fresh `Draw` literals (and a fresh array) per uncovered cell per frame, unlike
+  the pooled `_present` / `_uncovered`. Bites during a tier change, when every
+  cell is uncovered. GC pressure only.
+- **`spatialIndex.query` sorts per tile** (the surviving half of F7). ~40 sorts
+  per bake pass, inside each tile's un-yieldable prologue. The `getZIndexMap()`
+  half of F7 is NOT the problem the finding claims — `isZIndexDirty` is set by
+  layer ops and resets, not by plain `object:added`, so the map is cached across
+  a pass.
+- **`flushObjects`'s per-tile structured clone** is now the largest remaining
+  item in the tile prologue (R26 reduces how often it is loaded, not its cost).
+  Bounded by the tile's own dirty objects by design (F1), so this is a real
+  floor, not a bug — but it is un-yieldable and it is what a pan lands on.
+- **Field confirmation.** Still desktop + code reasoning. The GPU-contention half
+  of R20 does not reproduce on a desktop GPU.
+
+---
+
+## Nineteenth review — the real stall: the worker's `img` shim never settles
+
+R17 was a genuine bug but not the one causing the stall — filtering
+`WaterColorStroke` out of the enliven batch still "fixed" it afterwards. Every
+case also enlivened cleanly in an isolated Node harness, which proved the class
+was fine and the failure was **environmental**.
+
+### R18 — ✅ FIXED — `loadImage` hangs forever in the worker
+
+fabric's `loadImage`:
+
+```js
+const img = createImage();   // → document.createElement('img') → our worker SHIM
+img.onload = done;  img.onerror = reject;  img.src = url;
+```
+
+The shim returned a plain object that ignored all of that, so **no event ever
+fired and the promise never settled**. Any enliven touching an image hung
+forever — and since the message pump is serial, that parked every later message:
+`case 'bake'` simply stopped executing and every request timed out into the 30s
+pause. A hang is also invisible to `Promise.allSettled`, so the per-object
+isolation from R15 could not contain it either. That is why only *removing* the
+object helped.
+
+**Why WaterColorStroke, and why only old ones:** it is not about the class. Those
+were strokes that had been **erased**, and `bakeClipGroupIfNeeded` flattens old
+eraser strokes into a `fabric.Image` inside the ClippingGroup. Enlivening such an
+object reaches `loadImage` → hang.
+
+### R19 — ✅ FIXED — `__hasImageClip` is a runtime flag and does not survive a reload
+
+The guards already refused image-clipped objects via `obj.__hasImageClip` — but
+that flag is set at flatten time and **is never serialized**. After a save +
+reload the image is still in the clip while the flag is gone, so the object
+sailed past every guard and into the worker. Hence "older strokes": ones
+flattened in a previous session.
+
+**Fixed** on both sides, defence in depth:
+
+- **Worker (containment):** the `img` shim now rejects asynchronously as soon as
+  `src` is set. An unrecoverable pump stall becomes one skipped object.
+- **Main (correctness):** `hasImageClip()` inspects the live `clipPath` for an
+  image child instead of trusting the flag, memoizing the result back onto it. So
+  these objects are refused up front and **bake locally, where images work** —
+  they render correctly rather than merely failing safely.
+
+The general lesson, which this whole sequence keeps repeating: a worker shim that
+silently no-ops is far more dangerous than one that throws. Anything that hangs
+in a serial pump takes the entire subsystem down with no error to trace.
+
+## Eighteenth review — CONFIRMED root cause: `distanceFrom is not a function`
+
+The trigger behind R15/R16, now reproduced rather than inferred.
+
+### R17 — ✅ FIXED — `buildPathString` called Point methods on deserialized data
+
+```ts
+dist = basePoints[i - 1].distanceFrom(point);   // Point METHOD
+```
+
+`basePoints` comes from callers **and from deserialized JSON**, where a point is
+a bare `{x, y}` object with no prototype. `distanceFrom` is then `undefined`:
+
+```
+old impl on same data -> throws: TypeError: prev.distanceFrom is not a function
+```
+
+**Older** WaterColorStrokes hit this every time — they were serialized before
+`compressedTrace` existed, so their points round-trip as plain objects and take
+the `options.basePoints` branch. Newer strokes decode `compressedTrace` into real
+`Point`s in the constructor and were unaffected, which is exactly why this looked
+like "only some strokes, only old drawings".
+
+The throw rejected `util.enlivenObjects`, which (R15) was all-or-nothing — so one
+old stroke destroyed the enliven of **every tile it appeared in**, and the old
+fallback then re-enlivened those tiles sequentially. That is the whole chain:
+old stroke → batch reject → slow sequential path → bake exceeds its budget →
+timeouts → 30s pause → main-thread baking.
+
+**Fixed** by making the geometry data-shape agnostic:
+
+- `buildPathString` computes distance with plain arithmetic
+  (`Math.hypot(point.x - prev.x, …)`), so it accepts `Point`s *and* bare
+  `{x, y}`. The bristle points it builds internally are still real `Point`s, so
+  `midPointFrom` stays valid.
+- `width` is clamped when non-finite — older payloads can lack `strokeWidth`, and
+  the caller divides it, which produced `NaN` coordinates and an unparseable
+  `"M NaN NaN …"` path string.
+- The constructor drops malformed `basePoints` entries instead of letting them
+  throw mid-enliven.
+
+Verified against the exact old shape (bare `{x,y}` points, missing
+`strokeWidth`): now produces a valid path, and the old implementation throws on
+the same input.
+
+**The lesson worth keeping:** a class whose `fromObject` must survive JSON from
+*every* app version cannot assume its own runtime types. Prototypes do not
+survive serialization. Any `fromObject` reading array/point data should treat it
+as plain data — the other brushes are worth auditing on the same basis.
+
+## Seventeenth review — one broken stroke poisoned every tile it touched
+
+Field finding: `ensureLiveMany` fails on a `WaterColorStroke`. Two defects — the
+amplifier and (most likely) the trigger.
+
+### R15 — ✅ FIXED — `enlivenObjects` is all-or-nothing, and the fallback was the slow path
+
+```ts
+const enlivened = await util.enlivenObjects(needJson)   // ONE bad object → whole batch rejects
+} catch {
+  for (...) out[i] = await ensureLive(ids[i])           // → re-enliven EVERYTHING, sequentially
+}
+```
+
+So a single stroke whose `fromObject` throws made **every bake of every tile
+containing it** take the slowest possible route — N sequential enlivens — and the
+object still ended up missing. That is the "dense board takes ages then times
+out" behaviour, and it was invisible because the failure was swallowed by a bare
+`catch {}`.
+
+**Fixed:** `Promise.allSettled` over per-object enlivens. Concurrency is kept
+(they all start immediately; we await the set, not each in turn) while a failure
+is contained to its own slot — the tile renders everything else. And failures are
+now **reported once per type** (`noteEnlivenFailure`) instead of silently
+swallowed, so a systematically broken class is visible rather than merely slow.
+
+### R16 — ✅ FIXED (most likely trigger) — WaterColorStroke built a temp instance from RAW json
+
+`WaterColorStroke.fromObject` is the only class that constructs an instance
+*before* `enlivenStrokeProps` runs:
+
+```ts
+const tempInstance = new WaterColorStroke([], stripType(object));
+```
+
+At that point `clipPath` and `shadow` are still **raw JSON**. Handing those to a
+fabric constructor is a genuine hazard — fabric expects live instances and calls
+methods on them — and an **erased** WaterColorStroke always carries a `clipPath`
+(the reported object has `erasable: true`). That throw is what took the batch
+down.
+
+**Fixed:** the temp instance exists only to decode `compressedTrace` into
+`basePoints`, so it is now built from a bare copy with `clipPath`/`shadow` (and
+`type`) stripped. The real instance still gets fully-enlivened props.
+
+R16 is a strong hypothesis rather than a confirmed stack trace — but R15 makes
+its cost survivable either way, and the new per-type warning will name the
+culprit outright if anything else is still failing.
+
+## Sixteenth review — `case 'bake'` never runs: the message pump was poisoned
+
+Decisive observation from the field: a `console.log` inside the worker's
+`case "bake"` **never fires** on a big drawing. So the tile was never rendered at
+all — every request simply sat until its timeout, which is why no amount of
+timeout tuning helped. Two structural defects in the pump, both fatal.
+
+### R13 — ✅ FIXED — one rejected handler killed the pump permanently
+
+```ts
+chain = chain.then(async () => { ... })   // no rejection handler
+```
+
+`chain.then(onFulfilled)` **skips** `onFulfilled` when the chain is already
+rejected, and propagates the rejection. So a single handler that rejects poisons
+the chain **forever**: every later message is silently dropped, `case 'bake'`
+never executes again, and every request times out until the bakery pauses. The
+worker looks stuck because it effectively is — while still being alive enough to
+receive messages.
+
+Reproduced standalone:
+
+```
+OLD processed: ["old:a"]              ran the bakes after the failure: false
+NEW processed: ["new:a","new:bake1","new:bake2"]   ran the bakes: true
+```
+
+**Fixed:** `chain = chain.then(run, run).catch(() => {})` — `run` is installed as
+*both* the fulfilled and rejected handler, so the pump resumes after a failure,
+and the trailing `catch` keeps the stored promise settled. (Same pattern already
+used by `enqueueHistoryOp`.) The inner error reporting is now also wrapped, so a
+failure while reporting a failure cannot escape.
+
+### R14 — ✅ FIXED — a handler that never settles parks the pump forever
+
+The pump is strictly serial, so one awaited handler that never resolves blocks
+every later message just as completely as a rejection — same silent-stall
+symptom, no error anywhere.
+
+That is not hypothetical here: several `fromObject` implementations await image
+decoding (`fabric.util.loadImage`), and the worker's `img` DOM shim never fires a
+`load` or `error` event, so such a promise can hang indefinitely. A dense drawing
+is simply more likely to contain one.
+
+**Fixed:** `bake` and `overview` now run under a 15s watchdog
+(`withWatchdog`). On expiry the handler rejects, the client falls back to a local
+bake for that tile, and — critically — **the pump moves on**. Losing one tile is
+always better than losing the worker.
+
+Together these turn a permanent silent stall into, at worst, one slow tile.
+
+## Fifteenth review — dense-tile timeouts: budget by WEIGHT, and measure it
+
+Still timing out on a dense board after the fourteenth review. Two more real
+defects, plus instrumentation — because this has now been diagnosed by inference
+three times and needs a number instead.
+
+### R11 — ✅ FIXED — the timeout ignored how much work the tile actually contained
+
+The budget was flat (8s warm), later scaled only by queue depth. But the cost of
+a tile is driven by **how many objects it holds**: a tile with 1200 strokes has
+to enliven and render 1200 strokes. On a dense board that is legitimately slow,
+and a flat budget declared it *stuck* — 8 in a row → 30s pause → everything on
+the main thread, which is exactly the reported symptom.
+
+**Fixed:** the budget is now
+`(base + 6ms × objectCount) × (1 + queueDepth)`. A 1200-object tile gets ~15s of
+its own budget instead of 8s for any tile. This only decides when we give up; it
+never delays a healthy reply.
+
+### R12 — ✅ FIXED — 4 bake lanes against a strictly serial worker
+
+The worker renders through a **serial FIFO chain**, so extra lanes buy **no
+parallelism at all** — they only deepen its queue. With 4 lanes every tile waited
+behind 3 others, so each tile's end-to-end latency was ~4× its own render time.
+Two consequences, both matching the report: tiles landed in late clumps rather
+than sharpening one by one, and requests blew their budget while the worker was
+perfectly healthy.
+
+**Fixed:** `lanes` 4 → 2. Enough to keep the worker fed (one rendering, one
+queued) at half the latency and half the queue depth.
+
+### Instrumentation — stop guessing
+
+`__drawPerf()` now reports the numbers that settle this:
+
+| Field | Meaning |
+| --- | --- |
+| `bakeMsMax` / `bakeMsMean` | worker round-trip for ONE tile bake |
+| `bakeObjectsMax` | objects in the heaviest tile dispatched |
+| `bakeTimeouts` vs `bakeryPauses` | abandoned requests vs actual pauses |
+
+That distinguishes the two remaining hypotheses, which need very different fixes:
+
+- **`bakeObjectsMax` is huge (say >800) and `bakeMsMax` scales with it** → the
+  tile genuinely contains that many objects. Long strokes have large bounding
+  boxes, so each one is re-rendered in *every* tile it crosses: the cost is
+  O(strokes × tiles crossed), not O(ink). The fix is finer-grained indexing
+  (segment-level entries, or splitting long strokes), not tuning timeouts.
+- **`bakeObjectsMax` is modest but `bakeMsMax` is still seconds** → the per-object
+  cost is the problem (shadows on strokes are the prime suspect — canvas
+  `shadowBlur` is extremely expensive and would be paid per object per tile).
+
+Both are addressable, but they are different changes, and picking the wrong one
+wastes another round.
+
+## Fourteenth review — slow tile sharpening + the spurious 30s bakery pause
+
+`[TileBakery] paused for 30000ms after timeout` on a dense zoom. Three causes,
+compounding. The pause is a *symptom*: the worker was healthy and busy, not stuck.
+
+### R8 — ✅ FIXED — the timeout charged a request for the queue ahead of it
+
+The worker handles messages through a strictly serial FIFO chain, but the timer
+started when we **posted**. `bake()` keeps **4 lanes** in flight, so on a dense
+board (~2s per tile) the 4th request had already burned 6s queued before it even
+started, and blew the 8s budget. Eight of those in a row tripped
+`MAX_CONSECUTIVE_TIMEOUTS` → **pause 30s → every tile on the main thread**, which
+is what made sharpening crawl.
+
+**Fixed:** the budget now scales with queue depth —
+`base * (1 + pending.size)` — so a timeout once again means "the worker is
+stuck", not "the worker is busy".
+
+### R9 — ✅ FIXED — the worker LRU went cold 4s after the last bake
+
+`IDLE_SHRINK_MS = 4000` with `IDLE_MAX = 192` meant: pause four seconds, then
+zoom, and the worker had thrown away nearly every enlivened object and had to
+rebuild them all from JSON.
+
+This was **masked for a long time** because the remote overview re-enlivened the
+entire scene on every rebuild and kept the LRU hot as a side effect. Removing it
+(R7 — still the right call) took that away, so every zoom started paying a full
+cold re-enliven. That is why this surfaced immediately after the load fix.
+
+**Fixed:** a pause of a few seconds is normal *interaction*, not "at rest" —
+`IDLE_SHRINK_MS` 4s → 30s and `IDLE_MAX` 192 → 768 (`LIVE_MAX/4`). The working
+set survives normal use; a genuinely idle canvas still releases the memory.
+
+### R10 — ✅ FIXED — the worker enlivened a tile's objects one await at a time
+
+```ts
+for (let i = 0; i < ids.length; i++) objs[i] = await ensureLive(ids[i])
+```
+
+N sequential promise round-trips per tile — the same shape as the overview bug,
+just per-tile. Replaced with `ensureLiveMany`, which collects everything not
+already in the LRU and hands it to fabric in a **single** `enlivenObjects` call.
+Falls back to the per-id path if that batch throws, so one bad object cannot
+lose the tile.
+
+**Verified** (standalone, index alignment — wrong order would corrupt z-order):
+
+```
+ids: ['a','b'(cached),'MISSING','c','d']
+result: ["NEW_a","LIVE_b",null,"NEW_c","NEW_d"]   order preserved: true
+```
+
+Together: bakes get materially faster (R10), stop going cold between
+interactions (R9), and can no longer trigger a false pause when they are merely
+slow (R8).
+
+## Thirteenth review — the 10–15s load: the worker overview re-enlivened the whole scene
+
+### R7 — ✅ FIXED — `remoteOverview` was a pessimization, and it sat on the critical path
+
+~1500 pencil strokes took 10–15s before anything appeared. Cause:
+
+The overview is **one low-res bitmap covering the WHOLE board**, so rendering it
+in the worker means the worker needs *every object in the scene*. Its loop is:
+
+```ts
+for (let i = 0; i < ids.length; i++) {
+  const obj = await ensureLive(ids[i])   // JSON.parse + enlivenObjects, ONE AT A TIME
+```
+
+and `ensureLive` rebuilds each object from its JSON — for a pencil stroke that is
+`inflateTrace` plus a `new Path(...)` with fabric's path normalisation. So the
+worker re-created, **sequentially**, all 1500 objects that the main thread had
+*just finished enlivening* during load. A complete duplicate enliven of the
+drawing — and the load reveal **awaits it** (`warmOverviewBlocking`), so the user
+watches a blank canvas throughout.
+
+The LOCAL path renders the same overview directly from `visible[]` — the live,
+already-enlivened objects — with **no rebuild at all**, yielding per object so it
+never blocks input. Strictly less total work, which is exactly why the
+pre-worker behaviour was faster.
+
+**Fixed:** `remoteOverview` is no longer wired. The worker keeps what it is
+genuinely good at — **tiles**: high-res, numerous, re-baked constantly, and each
+one needs only the handful of objects intersecting it, so its enliven cost is
+bounded per tile and amortized by the LRU instead of being O(whole scene) on the
+path to first paint.
+
+**The general lesson** (worth remembering before adding the next worker path):
+moving work off-thread is only a win if the worker doesn't have to *reconstruct
+state the main thread already holds*. Tiles pay that cost once per object and
+reuse it across many bakes; a single whole-board bitmap pays it for every object
+and uses each exactly once.
+
+`bakeryRenderOverview` is left in the service, unwired — re-enabling it is a
+one-line change if the mirror is ever kept permanently live, but it should not be
+used for a cold load.
+
+Cost of the revert: the overview render is main-thread again, O(N) *low-res*
+renders, yielded. On a very large board that is a few hundred ms spread across
+frames — versus 10–15s of nothing.
+
+## Twelfth review — the dense-load stall: an un-cloneable upsert payload
+
+### R6 — ✅ FIXED — `fromObject` polluted the blob that gets posted to the worker
+
+Symptom: `[TileBakery] upsert payload was not structured-cloneable; sent a
+JSON-sanitized copy`, and dense drawings loading slowly.
+
+That warning is not cosmetic. It means `postMessage` **threw**, and the fallback
+ran `JSON.parse(JSON.stringify(items))` — a full serialize *and* re-parse of up
+to `MAX_FLUSH_ITEMS` (192) objects, **on the main thread, for every batch**. On a
+dense drawing that is the load stall.
+
+Root cause: `drawload.helper` stashes the exact source JSON an object was
+enlivened FROM as `__bakeJSON` (to seed the mirror without a second `toJSON`) —
+and it stashes it **after** `enlivenObjects` has run. Our `fromObject`
+implementations mutate that blob in place:
+
+| Where | Wrote into the source JSON | Cloneable? |
+| --- | --- | --- |
+| `PixelStroke.fromObject` | `object.stampCanvas = <HTMLCanvasElement>` | **No** |
+| `CharcoalStroke.fromObject` | `object.stampCanvas = <HTMLCanvasElement>` | **No** |
+| `enlivenStrokeProps` | `object.clipPath` / `object.shadow` = live fabric instances | **No** |
+| `stripType` (mine, R4) | `delete object.type` | cloneable, but the worker then **cannot resolve the class** |
+
+The first three predate this work; the fourth was mine from the previous review
+and was worse than slow — it silently broke worker enlivening for every stroke
+routed through `enlivenStrokeProps`.
+
+**Fixed** by making the enliven path **non-destructive**:
+
+- `enlivenStrokeProps` copies first (`const out = { ...object }`) and enlivens
+  `clipPath`/`shadow` only on the copy. The worker wants the RAW clipPath JSON
+  anyway — it enlivens it itself.
+- `stripType` returns a copy instead of deleting in place, so `type` survives in
+  the blob the worker needs it in.
+- `PixelStroke` / `CharcoalStroke` attach their stamp canvas to the returned
+  copy, never to `object`.
+
+So `__bakeJSON` stays pristine: fully structured-cloneable (zero-copy
+`postMessage`, no sanitize fallback) and complete (worker can resolve the class).
+
+**Verified** (standalone, `structuredClone`):
+
+```
+source keeps type: true          props has no type: true
+source.clipPath still plain JSON: true
+source structured-clones: true
+polluted shape: throws DataCloneError  -> the slow JSON-sanitize path
+```
+
+**Worth keeping in mind:** the `postUpsert` fallback silently converts this class
+of bug into a large main-thread cost with only a `console.warn`. If that warning
+ever reappears, something is writing a live object into a serialized blob again.
+
+## Eleventh review — a self-inflicted load regression, fabric warnings, unblur cost
+
+### R3 — ✅ FIXED (REGRESSION I INTRODUCED) — worker font loading blocked the whole message chain
+
+**This is why loading and first-unblur got dramatically slower.** The worker's
+`config` handler did:
+
+```ts
+post({ msgId: -1, fonts: await loadFonts() })
+```
+
+`loadFonts()` fetches and decodes **~10 font files**. That `await` sits inside
+the FIFO-chained message handler (`chain = chain.then(...)`), so **every
+subsequent message — every `upsert`, every `bake` — queued behind it.** On a cold
+cache the entire mirror stalled for seconds: the drawing stayed blank long after
+the loading indicator disappeared, and the first zoom took far longer to sharpen.
+Introduced with the worker-fonts work (F3-A) and matches the report exactly
+("before this was really fast").
+
+**Fixed:** fire it off without awaiting —
+`void loadFonts().then((fonts) => post({ msgId: -1, fonts }))`. The FIFO
+guarantee we actually rely on (an upsert applied before the bake that reads it)
+is untouched, and text tiles stay refused main-side until the `fonts` reply
+arrives, so nothing can bake with a missing face meanwhile.
+
+### R4 — ✅ FIXED — `fabric: Setting type has no effect` on every stroke enliven
+
+fabric v6 derives `type` from the **class** (`static type`), so assigning it
+per-instance does nothing and logs a warning. Our `fromObject` implementations
+pass the raw JSON — which carries `type` — straight into `new XStroke(props)`,
+whose `super()` assigns the options onto the instance. So it fired **once per
+stroke on every enliven**: the whole scene on load, and again on every worker
+re-enliven (the LRU re-enlivens constantly). Not just log noise — fabric builds
+the message string every time.
+
+Fixed centrally with `stripType()` in `brush.helpers`, called from
+`enlivenStrokeProps` (covers Pencil, Charcoal, Circle, Calligraphy, Neon, Spray,
+Crayon, Pixel, BucketFill) plus two paths that bypass that helper and had to be
+handled directly: `OptimizedEraserStroke.fromObject` (never calls it) and
+`WaterColorStroke.fromObject`'s temp instance (built from the raw JSON *before*
+the helper runs).
+
+### R5 — ⚠️ PARTLY FIXED — the hitch exactly when tiles replace the blur
+
+Correctly diagnosed in the report: the cost is at tile-STORE time. Three
+contributors, one of which I added:
+
+1. **The F9 progress repaint (mine).** It fires once per stored tile, and a pass
+   stores dozens — so a full composite ran on *every* animation frame for the
+   whole bake pass, where previously there was a single composite at the end.
+   A composite is a full-surface clear plus a `drawImage` per visible tile.
+   **Fixed:** skip entirely while gesturing (covers tiles already in flight when
+   the gesture starts — bakes are aborted, but in-flight ones still land), and
+   throttle to ~8 updates/sec. Still visibly progressive, far cheaper. The final
+   composite is still guaranteed by `runBake`'s own `requestFrame()`.
+2. **GPU texture upload.** The first `drawImage` of each freshly stored
+   `ImageBitmap` uploads it as a texture. Many tiles landing at once = many
+   uploads in one frame. Inherent to the tile design — this is F5, still open,
+   and the reason `dropOtherTiers` churn matters.
+3. **`overlaySkipped` on hybrid tiles** — a synchronous main-thread render per
+   tile that has skipped objects. Only bites on boards mixing images/bitmap
+   strokes with strokes; F3-B's asset transfer reduces how often it triggers.
+
+> None of this is verified in-app (sandbox is backend-gated). R3 is the one to
+> check first — load time should return to what it was.
+
 ## Tenth review — cheaper per-stroke serialization (H4)
 
 ### Can it go to a worker? — No, and it's worth being precise about why

@@ -1,5 +1,5 @@
 import { Path } from 'fabric'
-import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
+import { enlivenStrokeProps, toObjectWithoutPath } from '@/draw/utils/brushes/brush.helpers'
 
 export class BucketFillPath extends Path {
   static type = 'BucketFillPath'
@@ -11,8 +11,13 @@ export class BucketFillPath extends Path {
 
   // @ts-ignore
   toObject(additionalProperties: string[] = []) {
-    // 1. Get the standard base object
-    const baseObj = super.toObject(['isBucketFill', ...additionalProperties] as any)
+    // 1. Get the standard base object. Path.toObject deep-copies every segment
+    // and it is discarded at step 3 — fromObject rebuilds from
+    // `compressedTrace`. See toObjectWithoutPath.
+    const baseObj = toObjectWithoutPath(this, (p) => super.toObject(p as any), [
+      'isBucketFill',
+      ...additionalProperties
+    ])
 
     // 2. DEFLATION: Compress the parsed path array Fabric generated
     const compressedTrace: (number | string)[] = []
@@ -41,8 +46,7 @@ export class BucketFillPath extends Path {
       }
     }
 
-    // 3. Strip the heavy array and attach the lightweight trace
-    delete (baseObj as any).path
+    // 3. Attach the lightweight trace (the heavy array was never built)
     return {
       ...baseObj,
       compressedTrace

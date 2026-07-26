@@ -22,6 +22,7 @@ import type {
   Yieldable
 } from './committedLayer'
 import { Yielder } from '@/draw/helpers/yielding.helper'
+import { recordPhase } from '@/draw/services/drawMetrics.service'
 
 interface OverviewOptions {
   px?: number;
@@ -120,6 +121,10 @@ export class WorldOverview<T extends Bounded> {
   patchRect(rect: WorldRect, maxObjects = Infinity): boolean {
     if (!this.canvas || !this.ctx || !this.bounds) return false
     if (!this.contains(this.bounds, rect)) return false
+    // Timed: this is a SYNCHRONOUS re-render of every object in the rect, and its
+    // cost tracks brush weight (`objectCaching` is off during a bake render, so a
+    // watercolor path is stroked in full every time).
+    const __t0 = performance.now()
     const ctx = this.ctx
 
     // Pad by ~2 overview-px (in world units) so stroke width / AA at the
@@ -143,7 +148,10 @@ export class WorldOverview<T extends Bounded> {
     const objects = this.index
       .query(r)
       .filter((o: any) => o.visible !== false && o.opacity !== 0)
-    if (objects.length > maxObjects) return false
+    if (objects.length > maxObjects) {
+      recordPhase('overviewPatch', performance.now() - __t0)
+      return false
+    }
 
     // Clear the sub-rect (identity space).
     const cx = (r.x - this.bounds.x) * this.sx
@@ -169,6 +177,7 @@ export class WorldOverview<T extends Bounded> {
       }
     }
     ctx.restore()
+    recordPhase('overviewPatch', performance.now() - __t0)
     return true
   }
 
@@ -182,6 +191,7 @@ export class WorldOverview<T extends Bounded> {
     if (!this.dirty && fits) return
 
 
+    const __t0 = performance.now()
     const pad = 0.15
     const bounds: WorldRect = {
       x: contentBounds.x - contentBounds.w * pad,
@@ -200,12 +210,36 @@ export class WorldOverview<T extends Bounded> {
     const minPx = 0.75
 
     // Objects big enough to leave a mark at overview resolution, z-ordered.
-    const objects = this.index.query(bounds)
+    //
+    // This filter was a SYNCHRONOUS, un-yielded, un-abortable O(all objects)
+    // loop, and `getBoundingRect(true, true)` recomputes the object's coords
+    // rather than reading them — so on a big board it was a single multi-hundred
+    // ms main-thread block before the (properly yielded) render even started.
+    // That block is what a gesture ran into right after loading a heavy drawing.
+    //
+    // `queryBounds` gets the same rects from the spatial index, which already
+    // tracks them, so the recompute disappears entirely. Where the index doesn't
+    // offer it we keep the old call but yield through the loop.
+    const withBounds = this.index.queryBounds?.(bounds)
     const visible: T[] = []
-    for (let i = 0; i < objects.length; i++) {
-      const b = objects[i].getBoundingRect(true, true)
-      if (b.width * sx >= minPx || b.height * sy >= minPx) visible.push(objects[i])
+    if (withBounds) {
+      for (let i = 0; i < withBounds.length; i++) {
+        const b = withBounds[i].bounds
+        if (b.w * sx >= minPx || b.h * sy >= minPx) visible.push(withBounds[i].obj)
+      }
+    } else {
+      const objects = this.index.query(bounds)
+      yielder.reset()
+      for (let i = 0; i < objects.length; i++) {
+        const b = objects[i].getBoundingRect(true, true)
+        if (b.width * sx >= minPx || b.height * sy >= minPx) visible.push(objects[i])
+        if ((i & 127) === 127) {
+          await yielder.maybeYield()
+          if (signal.aborted) return
+        }
+      }
     }
+    if (signal.aborted) return
 
     // Worker path: render the whole board off the main thread (the O(N) render
     // was the main-thread stall on big boards). Strokes bake in the worker;
@@ -273,6 +307,11 @@ export class WorldOverview<T extends Bounded> {
     this.sx = sx
     this.sy = sy
     this.dirty = false
+    // WALL CLOCK, not CPU: this loop yields, so a large number here means the
+    // rebuild spanned many frames, not that it blocked for that long. The
+    // per-frame cost is bounded by the yielder's budget. `longTasks` is the
+    // check for whether it actually blocked.
+    recordPhase('overviewBuild', performance.now() - __t0)
   }
 
   /** Draw the overview region matching the viewport into ctx (screen space). */

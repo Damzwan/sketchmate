@@ -308,17 +308,23 @@ export class PixelStroke extends FabricObject {
 	}
 
 	static async fromObject(object: any) {
-		if (object.stampDataUrl && !object.stampCanvas) {
+		// enlivenStrokeProps returns a COPY, so the stamp canvas is attached to
+		// that — never to `object`. Writing an HTMLCanvasElement into the source
+		// blob made it un-structured-cloneable, and at load that blob is stashed
+		// as `__bakeJSON` and posted to the tile worker: postMessage threw and the
+		// fallback re-serialized the whole batch with JSON.stringify/parse on the
+		// main thread. That was the dense-drawing load stall.
+		const props = await enlivenStrokeProps(object);
+		if (object.stampDataUrl && !props.stampCanvas) {
 			const img = await fabric.util.loadImage(object.stampDataUrl);
 
 			const canvas = document.createElement("canvas");
 			canvas.width = canvas.height = object.stampSize;
 			canvas.getContext("2d")?.drawImage(img, 0, 0);
 
-			object.stampCanvas = canvas;
+			props.stampCanvas = canvas;
 		}
 
-		const enlivenedProps = await enlivenStrokeProps(object);
-		return new PixelStroke(enlivenedProps);
+		return new PixelStroke(props);
 	}
 }

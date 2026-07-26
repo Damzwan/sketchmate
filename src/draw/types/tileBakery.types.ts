@@ -40,8 +40,18 @@ export type BakeryRequest =
   | { t: 'remove'; ids: string[] }
   | { t: 'clear' }
   | {
+      // ABANDON everything issued before `epoch` (gesture start). Handled OUT OF
+      // BAND — see the worker's onmessage. Carries no msgId: it is not a request
+      // and gets no reply; the sender settles its own pending promises.
+      t: 'cancel'
+      epoch: number
+    }
+  | {
       t: 'bake'
       msgId: number
+      /** Cancellation generation this request belongs to. The worker drops it if
+       *  a later `cancel` has already raised its epoch. */
+      epoch: number
       ids: string[]
       world: { x: number; y: number; w: number; h: number }
       scale: number
@@ -54,6 +64,7 @@ export type BakeryRequest =
       // into a px×px bitmap mapped to `bounds`.
       t: 'overview'
       msgId: number
+      epoch: number
       ids: string[]
       bounds: { x: number; y: number; w: number; h: number }
       px: number
@@ -69,6 +80,10 @@ export interface BakeryResponse {
   /** Ids the mirror doesn't have (enliven failed / never upserted). */
   missing?: string[]
   error?: string
+  /** The request was dropped because its epoch is stale (a `cancel` landed).
+   *  NOT a fault: it must not count toward the timeout / hard-error budgets, and
+   *  it must not be reported as a failed tile. */
+  aborted?: boolean
   /** Font families successfully registered in the worker's FontFaceSet. Text
    *  using any OTHER family stays refused — a missing face would silently bake
    *  fallback glyphs into a committed tile. Empty = no worker font support. */

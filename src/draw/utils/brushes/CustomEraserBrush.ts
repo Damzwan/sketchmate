@@ -2,6 +2,7 @@ import * as fabric from "fabric";
 import { Canvas, FabricObject, Group, Path, PencilBrush } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
 import { bakeryMarkDirty } from "@/draw/services/tileBakery.service";
+import { stripType, toObjectWithoutPath } from "@/draw/utils/brushes/brush.helpers";
 import { createYielder } from "@/draw/helpers/yielding.helper";
 
 const IS_MOBILE_ERASE =
@@ -989,11 +990,13 @@ export class OptimizedEraserStroke extends Path {
 
 	// @ts-ignore
 	toObject(additionalProperties: string[] = []) {
-		// Preserve the composite operation essential for the masking effect
-		const baseObj = super.toObject([
+		// Preserve the composite operation essential for the masking effect.
+		// Path.toObject deep-copies every segment and it is discarded below —
+		// fromObject rebuilds from `compressedTrace`. See toObjectWithoutPath.
+		const baseObj = toObjectWithoutPath(this, (p) => super.toObject(p as any), [
 			"globalCompositeOperation",
 			...additionalProperties,
-		] as any);
+		]);
 
 		// DEFLATION: Compress the parsed path array
 		const compressedTrace: (number | string)[] = [];
@@ -1032,7 +1035,6 @@ export class OptimizedEraserStroke extends Path {
 			}
 		}
 
-		delete (baseObj as any).path;
 		return {
 			...baseObj,
 			compressedTrace,
@@ -1079,6 +1081,8 @@ export class OptimizedEraserStroke extends Path {
 			}
 			object.path = svg.trim();
 		}
-		return new OptimizedEraserStroke(object.path, object);
+		// stripType: this path bypasses enlivenStrokeProps, so `type` would reach
+		// the constructor and trigger fabric's "Setting type has no effect" log.
+		return new OptimizedEraserStroke(object.path, stripType(object));
 	}
 }

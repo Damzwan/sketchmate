@@ -256,10 +256,15 @@ export class CharcoalStroke extends FabricObject {
 	}
 
 	static async fromObject(object: any) {
-		if (!object.stampCanvas && object.seed !== undefined) {
-			object.stampCanvas = generateCharcoalStamp(object.seed, object.baseWidth, object.fill);
+		// Attach the stamp to the COPY, never to `object`. An HTMLCanvasElement in
+		// the source blob makes it un-structured-cloneable, and at load that blob
+		// is stashed as `__bakeJSON` and posted to the tile worker — postMessage
+		// then threw and the fallback re-serialized the whole batch with
+		// JSON.stringify/parse on the main thread (the dense-load stall).
+		const props = await enlivenStrokeProps(object);
+		if (!props.stampCanvas && object.seed !== undefined) {
+			props.stampCanvas = generateCharcoalStamp(object.seed, object.baseWidth, object.fill);
 		}
-		const enlivenedProps = await enlivenStrokeProps(object);
-		return new CharcoalStroke(enlivenedProps);
+		return new CharcoalStroke(props);
 	}
 }

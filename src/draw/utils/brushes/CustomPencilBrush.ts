@@ -1,6 +1,6 @@
 import type { TSimplePathData } from 'fabric'
 import { Path, PencilBrush, Shadow } from 'fabric'
-import { enlivenStrokeProps, simplifyPathDouglasPeucker } from '@/draw/utils/brushes/brush.helpers'
+import { enlivenStrokeProps, simplifyPathDouglasPeucker, toObjectWithoutPath } from '@/draw/utils/brushes/brush.helpers'
 
 // ==========================================
 // THE OPTIMIZED BRUSH
@@ -126,7 +126,11 @@ export class OptimizedPencilStroke extends Path {
 
   // @ts-ignore
   toObject(additionalProperties: string[] = []) {
-    const baseObj = super.toObject([...additionalProperties] as any)
+    // Path.toObject deep-copies every segment and we discard it below —
+    // fromObject rebuilds from `compressedTrace`. See toObjectWithoutPath.
+    const baseObj = toObjectWithoutPath(this, (p) =>
+      super.toObject(p as any)
+    , [...additionalProperties])
     const compressedTrace: (number | string)[] = []
     let lastX = 0, lastY = 0
 
@@ -155,7 +159,6 @@ export class OptimizedPencilStroke extends Path {
     }
 
 
-    delete (baseObj as any).path
     return { ...baseObj, compressedTrace }
   }
 

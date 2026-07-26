@@ -15,6 +15,7 @@
 //     and untouched empty tiles are pruned to prevent map bloat.
 
 import { WorldOverview } from './worldOverview'
+import { recordComposite, recordPhase } from '@/draw/services/drawMetrics.service'
 
 export interface WorldRect {
   x: number;
@@ -32,6 +33,19 @@ export interface Bounded {
 
 export interface SpatialIndex<T extends Bounded> {
   query(rect: WorldRect): T[]
+
+  /**
+   * Same z-ordered result as `query`, but paired with the bounds the index
+   * already holds for each object.
+   *
+   * Callers that only need to SIZE-FILTER a large result (the overview's
+   * "is this big enough to leave a mark" pass) would otherwise call
+   * `getBoundingRect(true, true)` per object, which RECOMPUTES coords the index
+   * has already tracked — an O(all objects) main-thread block on a big board.
+   * Optional: implementations without it fall back to the slow path. The rects
+   * may be the index's LIVE entry bounds — treat them as read-only.
+   */
+  queryBounds?(rect: WorldRect): { obj: T; bounds: WorldRect }[]
 }
 
 export type TileRenderer<T extends Bounded> = (
@@ -133,6 +147,27 @@ interface CompositeCell {
   dy: number;
   dw: number;
   dh: number;
+}
+
+/**
+ * Is this CSS colour fully opaque, i.e. does filling with it overwrite every
+ * pixel? Deliberately CONSERVATIVE — anything unrecognised is treated as
+ * possibly-transparent, so the worst case is the old clear+fill behaviour and
+ * never a stale-pixel bug. Board backgrounds are a solid hex in practice.
+ */
+function isOpaqueColor(c: string): boolean {
+  const s = c.trim().toLowerCase()
+  if (s === 'transparent' || s === 'none') return false
+  // #rgb / #rrggbb are opaque; #rgba / #rrggbbaa carry alpha.
+  if (s.startsWith('#')) return s.length === 4 || s.length === 7
+  if (s.startsWith('rgb(') || s.startsWith('hsl(')) return true
+  // rgba()/hsla() are opaque only at alpha exactly 1.
+  if (s.startsWith('rgba(') || s.startsWith('hsla(')) {
+    const parts = s.slice(s.indexOf('(') + 1, s.lastIndexOf(')')).split(/[,/]/)
+    if (parts.length < 4) return true // no alpha component given
+    return parseFloat(parts[3]) >= 1
+  }
+  return false // named colours, gradients, anything else: keep the clear
 }
 
 export class CommittedLayer<T extends Bounded> {
@@ -343,6 +378,7 @@ export class CommittedLayer<T extends Bounded> {
     bg?: string,
     fallbackDepth = 0   // 0 → use FALLBACK_DEPTH; >0 → cap (1 while gesturing)
   ): { needsBake: boolean } {
+    const __t0all = performance.now()
     const zoom = vpt[0]
     const tier = this.pickActiveTier(zoom)
     const vw = this.viewWorld(vpt, px, dpr)
@@ -354,15 +390,27 @@ export class CommittedLayer<T extends Bounded> {
 
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, px.w, px.h)
-    if (bg) {
+    // clearRect + fillRect is TWO full-surface writes per frame. When the
+    // background is opaque the fill already overwrites every pixel, so the clear
+    // is pure waste — and this is the single biggest fixed cost of a composite:
+    // at MAX_RENDER_SCALE 2 on a phone that is ~1.3Mpx, written twice, on EVERY
+    // frame of every pan and zoom. Only clear when there is no opaque fill
+    // coming (transparent / unset background), where it is load-bearing.
+    if (bg && isOpaqueColor(bg)) {
       ctx.fillStyle = bg
       ctx.fillRect(0, 0, px.w, px.h)
+    } else {
+      ctx.clearRect(0, 0, px.w, px.h)
+      if (bg) {
+        ctx.fillStyle = bg
+        ctx.fillRect(0, 0, px.w, px.h)
+      }
     }
     ctx.restore()
 
     if (tier <= this.OVERVIEW_TIER) {
       this.overview.composite(ctx, vpt, px, dpr, vw)
+      recordComposite(performance.now() - __t0all, 0, 0, 0)
       return { needsBake: this.overview.isDirty() }
     }
 
@@ -414,6 +462,7 @@ export class CommittedLayer<T extends Bounded> {
     const needsOverview = this._needsOverview
     let needsOverviewN = 0
 
+    const __tSearch = performance.now()
     for (let i = 0; i < uncoveredN; i++) {
       const cell = uncovered[i]
       const fbs = this.findBestSource(tier, cell.tx, cell.ty, cell.dx, cell.dy, cell.dw, cell.dh, maxDepth)
@@ -424,6 +473,7 @@ export class CommittedLayer<T extends Bounded> {
         needsOverview[needsOverviewN++] = cell
       }
     }
+    const searchMs = performance.now() - __tSearch
 
     // Render the overview background strictly for gaps missing tile data
     if (needsOverviewN > 0) {
@@ -447,6 +497,12 @@ export class CommittedLayer<T extends Bounded> {
 
     // Draw tiles on top safely without stacking transparency. Iterate by fill
     // count — the scratch arrays keep a stale tail from prior frames.
+    //
+    // Timed separately: the FIRST drawImage of a freshly-baked ImageBitmap also
+    // uploads it as a GPU texture, so a bake pass landing dozens of tiles shows
+    // up here and nowhere else. That is the difference between "the composite is
+    // slow" (fill rate / DPR) and "the switch frame is slow" (upload burst).
+    const __tDraw = performance.now()
     for (let i = 0; i < fallback.length; i++) {
       const dr = fallback[i]
       ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh)
@@ -455,7 +511,12 @@ export class CommittedLayer<T extends Bounded> {
       const dr = present[i]
       ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh)
     }
+    const tileDrawMs = performance.now() - __tDraw
     ctx.restore()
+    recordComposite(
+      performance.now() - __t0all, tileDrawMs, searchMs,
+      presentN + fallback.length
+    )
 
     // bottom instrumentation hook (debug only)
     if (this.debug) {
@@ -595,11 +656,17 @@ export class CommittedLayer<T extends Bounded> {
     todo.sort((p, q) => p.pri - q.pri)
 
     // With a remote baker each tile costs a postMessage round-trip, and awaiting
-    // them one at a time leaves the worker idle between tiles — the viewport
-    // stays blurry for the whole serial chain. Run a few chains concurrently so
-    // the worker queue stays fed (it still renders FIFO internally). The local
-    // path is main-thread CPU, so overlapping it buys nothing: keep it serial.
-    const lanes = this.remoteBaker ? 4 : 1
+    // them one at a time leaves the worker idle between tiles — so keep MORE
+    // THAN ONE in flight to ensure the worker is never idle waiting for us.
+    //
+    // But only just more than one. The worker renders through a strictly SERIAL
+    // FIFO chain, so extra lanes buy NO parallelism — they only deepen its
+    // queue. With 4 lanes every tile waited behind 3 others, so on a dense board
+    // each tile's end-to-end latency was ~4x its own render: tiles landed in
+    // late clumps instead of one at a time, and requests blew their timeout
+    // while the worker was perfectly healthy (which paused the bakery for 30s).
+    // 2 keeps the pipeline fed — one rendering, one queued — at half the latency.
+    const lanes = this.remoteBaker ? 2 : 1
     let next = 0
     const drain = async (): Promise<void> => {
       // Per-lane yielder (F8). A single shared yielder had every lane call
@@ -650,6 +717,26 @@ export class CommittedLayer<T extends Bounded> {
           res = await this.remoteBaker(objects, world, scale, this.OS, this.BMP)
         } catch { /* worker hiccup → local fallback */ }
         if (signal.aborted) {
+          // Aborted mid-flight (a gesture started). The pixels are already paid
+          // for and still correct, so KEEP them rather than closing the bitmap
+          // and re-baking the same tile from scratch after the gesture — that
+          // double cost is what made "gesture during the unblur" both lag and
+          // then take ages to sharpen again.
+          //
+          // store() is cheap: no GPU upload happens until something draws the
+          // tile, and if the gesture changed tier it may never be drawn at all.
+          //
+          // Two guards. `skipped` must be empty — overlaySkipped is a SYNCHRONOUS
+          // main-thread render, exactly the work an abort exists to avoid. And
+          // `gen` must not have moved, since an unchanged gen is what makes these
+          // pixels current.
+          if (res && !res.skipped.length && (this.gen.get(key) ?? 0) === builtGen) {
+            const bytes = this.BMP * this.BMP * 4
+            if (this.ensureMemory(bytes)) {
+              this.store(key, tier, tx, ty, res.bitmap, bytes, builtGen)
+              return
+            }
+          }
           res?.bitmap.close()
           return
         }
@@ -684,6 +771,12 @@ export class CommittedLayer<T extends Bounded> {
         // null → refused (interleaved z / all-unshippable) or failed: local below.
       }
 
+      // LOCAL FALLBACK. The worker refused this tile (or is paused/failed), so
+      // every object in it rasterizes HERE, on the main thread. Timed because it
+      // is the single biggest per-object main-thread block in the engine and the
+      // one whose cost tracks brush weight — a watercolor tile is far heavier
+      // than the same tile in pencil.
+      const __tLocal = performance.now()
       const off = this.acquire()
       const c2d = off.getContext('2d')
       if (!c2d) {
@@ -742,6 +835,7 @@ export class CommittedLayer<T extends Bounded> {
         return
       }
       this.store(key, tier, tx, ty, bmp, bytes, builtGen)
+      recordPhase('localBake', performance.now() - __tLocal)
     } finally {
       this.inFlight.delete(key)
     }
@@ -762,6 +856,7 @@ export class CommittedLayer<T extends Bounded> {
   private overlaySkipped(
     base: ImageBitmap, skipped: T[], world: WorldRect, scale: number, q: WorldRect
   ): ImageBitmap | null {
+    const __t0 = performance.now()
     const off = this.acquire()
     const c2d = off.getContext('2d')
     if (!c2d) {
@@ -802,22 +897,28 @@ export class CommittedLayer<T extends Bounded> {
       return null
     }
     this.release(off)
+    recordPhase('overlaySkipped', performance.now() - __t0)
     return out
   }
 
   rebuildRectSync(rect: WorldRect, tier: number, clip?: WorldRect, maxTiles = 32): void {
     if (tier < 0 || tier >= this.ZOOM_TIERS.length) return
+    const __t0 = performance.now()
     const r = this.tileRange(rect, tier)
     const cr = clip ? this.tileRange(clip, tier) : null
     let count = 0
     for (let ty = r.ty0; ty <= r.ty1; ty++) {
       for (let tx = r.tx0; tx <= r.tx1; tx++) {
         if (cr && (tx < cr.tx0 || tx > cr.tx1 || ty < cr.ty0 || ty > cr.ty1)) continue
-        if (count >= maxTiles) return
+        if (count >= maxTiles) {
+          recordPhase('rebuildSync', performance.now() - __t0)
+          return
+        }
         this.rebuildTileSync(tier, tx, ty)
         count++
       }
     }
+    if (count) recordPhase('rebuildSync', performance.now() - __t0)
   }
 
   private rebuildTileSync(tier: number, tx: number, ty: number): void {

@@ -63,6 +63,12 @@ export interface DrawMetricsSnapshot {
 	/** Tiles dispatched but not returned (timeout / error / paused). */
 	tilesFailed: number;
 	tileRefusals: Record<string, number>;
+	/** Worker round-trip for ONE tile bake: worst and mean, in ms. The number
+	 *  that says whether a dense tile is genuinely slow or merely queued. */
+	bakeMsMax: number;
+	bakeMsMean: number;
+	/** Objects in the heaviest tile dispatched — the cost driver behind bakeMs. */
+	bakeObjectsMax: number;
 	/** tilesRefused / (tilesRemote + tilesRefused + tilesFailed). The single
 	 *  number that decides how much of F3 is worth building. */
 	refusalRate: number;
@@ -73,6 +79,46 @@ export interface DrawMetricsSnapshot {
 	flushMsTotal: number;
 	/** Worst single synchronous flush block. This is the number F1 is about. */
 	flushMsMax: number;
+
+	// ── composite attribution: WHERE the switch-frame time goes ───────────
+	//
+	// The "it hitches right as the blur is replaced by tiles" report could not
+	// be attributed from the outside: a composite is a clear + fill, an overview
+	// drawImage, a fallback-tier search, and one drawImage per visible tile — and
+	// the FIRST drawImage of a freshly-baked ImageBitmap also uploads it as a GPU
+	// texture. Those have very different fixes, so they are timed separately.
+	//   • tileDrawMsMax high  → GPU texture upload / fill rate (finding F5).
+	//   • searchMsMax high    → findBestSource walking tiers per cell.
+	//   • compositeMsMax high with both low → the clear+fill itself (DPR).
+	compositeFrames: number;
+	compositeMsMax: number;
+	compositeMsMean: number;
+	/** Worst time inside the tile drawImage loops alone. */
+	tileDrawMsMax: number;
+	/** Worst time in the fallback-tier search (findBestSource over all cells). */
+	searchMsMax: number;
+	/** Tiles drawn in the heaviest composite. */
+	compositeTilesMax: number;
+
+	// ── phase attribution: WHICH main-thread block is costing ─────────────
+	//
+	// Every entry here renders or serializes OBJECTS on the main thread, so each
+	// one scales with per-object cost — which is why a watercolor board hurts and
+	// the same board in pencil does not (a WaterColorStroke is ~3x the path
+	// segments of a pencil stroke, stroked with round joins at `objectCaching =
+	// false`). They have completely different fixes, so guessing between them
+	// from the outside does not work. Read `phaseMsMax` first: that is the spike.
+	//
+	//   flushBake      — toJSON + structured clone inside a tile's bake prologue
+	//   flushIdle      — the same, on the background drain
+	//   localBake      — a tile the worker refused → full main-thread render
+	//   overlaySkipped — hybrid tile: worker bitmap + main-thread objects on top
+	//   overviewPatch  — patchRect: clear + redraw a region of the overview
+	//   overviewBuild  — full O(scene) overview render
+	//   rebuildSync    — synchronous tile repair (destructiveInvalidate et al)
+	phaseMsTotal: Record<string, number>;
+	phaseMsMax: Record<string, number>;
+	phaseCount: Record<string, number>;
 
 	// ── main thread blocked at all ─────────────────────────────────────────
 	longTasks: number;
@@ -103,13 +149,31 @@ interface Counters {
 	tilesRefused: number;
 	tilesFailed: number;
 	tileRefusals: Record<string, number>;
+	bakeMsTotal: number;
+	bakeMsMax: number;
+	bakeMsCount: number;
+	bakeObjectsMax: number;
 	flushCount: number;
 	flushItems: number;
 	flushMsTotal: number;
 	flushMsMax: number;
+	compositeFrames: number;
+	compositeMsTotal: number;
+	compositeMsMax: number;
+	tileDrawMsMax: number;
+	searchMsMax: number;
+	compositeTilesMax: number;
+	phaseMsTotal: Record<string, number>;
+	phaseMsMax: Record<string, number>;
+	phaseCount: Record<string, number>;
 	longTasks: number;
 	longTaskMsTotal: number;
 	longTaskMsMax: number;
+}
+
+/** Sub-millisecond composite numbers matter here, so don't round to integers. */
+function round2(v: number): number {
+	return Math.round(v * 100) / 100;
 }
 
 function blank(): Counters {
@@ -126,10 +190,23 @@ function blank(): Counters {
 		tilesRefused: 0,
 		tilesFailed: 0,
 		tileRefusals: {},
+		bakeMsTotal: 0,
+		bakeMsMax: 0,
+		bakeMsCount: 0,
+		bakeObjectsMax: 0,
 		flushCount: 0,
 		flushItems: 0,
 		flushMsTotal: 0,
 		flushMsMax: 0,
+		compositeFrames: 0,
+		compositeMsTotal: 0,
+		compositeMsMax: 0,
+		tileDrawMsMax: 0,
+		searchMsMax: 0,
+		compositeTilesMax: 0,
+		phaseMsTotal: {},
+		phaseMsMax: {},
+		phaseCount: {},
 		longTasks: 0,
 		longTaskMsTotal: 0,
 		longTaskMsMax: 0,
@@ -168,6 +245,14 @@ export function recordTileRemote(): void {
 	m.tilesRemote++;
 }
 
+/** One completed worker tile bake: round-trip ms and how many objects it held. */
+export function recordBakeTiming(ms: number, objects: number): void {
+	m.bakeMsTotal += ms;
+	m.bakeMsCount++;
+	if (ms > m.bakeMsMax) m.bakeMsMax = ms;
+	if (objects > m.bakeObjectsMax) m.bakeObjectsMax = objects;
+}
+
 /** A hybrid tile: worker bitmap + `skippedCount` objects overlaid on main. */
 export function recordTileHybrid(skippedCount: number): void {
 	m.tilesHybrid++;
@@ -191,6 +276,50 @@ export function recordFlush(ms: number, items: number): void {
 	if (ms > m.flushMsMax) m.flushMsMax = ms;
 }
 
+/**
+ * One composite pass. Called from CommittedLayer.composite on EVERY frame, so it
+ * must stay integer adds — the three `performance.now()` pairs at the call site
+ * are the entire cost, around blocks that already cost milliseconds.
+ */
+export function recordComposite(
+	totalMs: number,
+	tileDrawMs: number,
+	searchMs: number,
+	tiles: number,
+): void {
+	m.compositeFrames++;
+	m.compositeMsTotal += totalMs;
+	if (totalMs > m.compositeMsMax) m.compositeMsMax = totalMs;
+	if (tileDrawMs > m.tileDrawMsMax) m.tileDrawMsMax = tileDrawMs;
+	if (searchMs > m.searchMsMax) m.searchMsMax = searchMs;
+	if (tiles > m.compositeTilesMax) m.compositeTilesMax = tiles;
+}
+
+export type DrawPhase =
+	| "flushBake"
+	| "flushIdle"
+	| "localBake"
+	| "overlaySkipped"
+	| "overviewPatch"
+	| "overviewBuild"
+	| "rebuildSync";
+
+/**
+ * One synchronous main-thread block, attributed. Call sites wrap work that
+ * already costs milliseconds, so the two `performance.now()` reads are free.
+ */
+export function recordPhase(phase: DrawPhase, ms: number): void {
+	m.phaseMsTotal[phase] = (m.phaseMsTotal[phase] ?? 0) + ms;
+	if (ms > (m.phaseMsMax[phase] ?? 0)) m.phaseMsMax[phase] = ms;
+	m.phaseCount[phase] = (m.phaseCount[phase] ?? 0) + 1;
+}
+
+function roundMap(src: Record<string, number>): Record<string, number> {
+	const out: Record<string, number> = {};
+	for (const k in src) out[k] = round2(src[k]);
+	return out;
+}
+
 // ── snapshot / reset ─────────────────────────────────────────────────────────
 
 export function snapshotDrawMetrics(): DrawMetricsSnapshot {
@@ -211,10 +340,24 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 		tilesFailed: m.tilesFailed,
 		tileRefusals: { ...m.tileRefusals },
 		refusalRate: attempted > 0 ? m.tilesRefused / attempted : 0,
+		bakeMsMax: Math.round(m.bakeMsMax),
+		bakeMsMean: m.bakeMsCount ? Math.round(m.bakeMsTotal / m.bakeMsCount) : 0,
+		bakeObjectsMax: m.bakeObjectsMax,
 		flushCount: m.flushCount,
 		flushItems: m.flushItems,
 		flushMsTotal: Math.round(m.flushMsTotal),
 		flushMsMax: Math.round(m.flushMsMax),
+		compositeFrames: m.compositeFrames,
+		compositeMsMax: round2(m.compositeMsMax),
+		compositeMsMean: m.compositeFrames
+			? round2(m.compositeMsTotal / m.compositeFrames)
+			: 0,
+		tileDrawMsMax: round2(m.tileDrawMsMax),
+		searchMsMax: round2(m.searchMsMax),
+		compositeTilesMax: m.compositeTilesMax,
+		phaseMsTotal: roundMap(m.phaseMsTotal),
+		phaseMsMax: roundMap(m.phaseMsMax),
+		phaseCount: { ...m.phaseCount },
 		longTasks: m.longTasks,
 		longTaskMsTotal: Math.round(m.longTaskMsTotal),
 		longTaskMsMax: Math.round(m.longTaskMsMax),

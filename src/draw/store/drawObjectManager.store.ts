@@ -25,13 +25,14 @@ import { RenderCore, type Surface } from "@/draw/renderCore";
 import type { WorldRect } from "@/draw/committedLayer";
 import {
 	bakeryBakeTile,
+	bakeryCancel,
 	bakeryClear,
 	bakeryClipSet,
 	bakeryFlushSoon,
+	bakeryPauseFlush,
 	isBakeryActive,
 	bakeryMarkDirty,
 	bakeryRemove,
-	bakeryRenderOverview,
 	bakerySeed,
 	bakeryTranslate,
 	initTileBakery,
@@ -185,6 +186,29 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				if (o) objs.push(o);
 			}
 			return objs.sort((a, b) => ((a as any).__z ?? 0) - ((b as any).__z ?? 0));
+		},
+		/**
+		 * z-ordered, carrying the bounds the quadtree already tracks (kept current
+		 * by updateQuadTree / cachedBounds). Lets the overview's size filter skip
+		 * `getBoundingRect(true, true)` — a coord RECOMPUTE per object, which on a
+		 * big board was a single un-yielded O(N) block on the main thread.
+		 *
+		 * The returned rects are the LIVE entry bounds, not copies — read only.
+		 */
+		queryBounds: (
+			rect: WorldRect,
+		): { obj: FabricObject; bounds: WorldRect }[] => {
+			getZIndexMap();
+			const entries = quadtree.query(rect);
+			const out: { obj: FabricObject; bounds: WorldRect }[] = [];
+			for (let i = 0; i < entries.length; i++) {
+				const o = objectMap.get(entries[i].id);
+				if (o) out.push({ obj: o, bounds: entries[i].bounds });
+			}
+			return out.sort(
+				(a, b) =>
+					((a.obj as any).__z ?? 0) - ((b.obj as any).__z ?? 0),
+			);
 		},
 	};
 
@@ -778,8 +802,37 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				// composite at identical resolution.
 				maxRenderScale: MAX_RENDER_SCALE,
 				overviewPatchMax: IS_LOW_END ? 80 : 200,
+			// Objects rendered between yield/abort checks in a LOCAL (main-thread)
+			// tile bake. The default 64 assumes cheap objects; it is a per-object
+			// count standing in for a time budget, and heavy brushes break that
+			// assumption badly — a WaterColorStroke is ~3x the path segments of a
+			// pencil stroke (3 bristles) and strokes with round joins uncached, so
+			// 64 of them is a tens-of-ms block with no abort check inside it. A
+			// gesture that starts mid-tile has to wait it out. 16 keeps the worst
+			// case to roughly a frame; the extra `isInputPending()` calls are far
+			// cheaper than the block they interrupt.
+			renderChunk: IS_LOW_END ? 8 : IS_MOBILE ? 16 : 32,
 				remoteBaker: bakeryBakeTile,
-				remoteOverview: bakeryRenderOverview,
+				// remoteOverview: DELIBERATELY NOT WIRED — it was a pessimization.
+				//
+				// The overview is ONE low-res bitmap covering the WHOLE board, so the
+				// worker had to `ensureLive` every object in the scene: a JSON.parse +
+				// enlivenObjects + path rebuild EACH, awaited ONE AT A TIME. That
+				// re-created from scratch the exact objects the main thread had just
+				// finished enlivening during load — a full duplicate enliven of the
+				// entire drawing, and the load reveal awaits it
+				// (`warmOverviewBlocking`). On ~1500 pencil strokes that was 10–15s of
+				// staring at nothing.
+				//
+				// The LOCAL path renders the same overview straight from the live,
+				// already-enlivened objects — no rebuild at all — and yields per
+				// object, so it does not block input. Strictly less total work.
+				//
+				// The worker keeps what it is actually good at: TILES. A tile is
+				// high-res, there are many, they are re-baked constantly, and each one
+				// needs only the handful of objects that intersect it — so its enliven
+				// cost is bounded and amortized by the LRU, not O(whole scene) on the
+				// critical path to first paint.
 			},
 		);
 
@@ -843,14 +896,37 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		core?.requestFrame();
 	}
 
+	/**
+	 * Composite synchronously — ONLY for callers already inside a RAF callback
+	 * (the gesture scheduler). Going through requestFrame() there costs a second
+	 * RAF hop, so every pan/zoom frame painted two frames late. See
+	 * RenderCore.renderFrameNow.
+	 */
+	function renderViewportNow() {
+		core?.renderFrameNow();
+	}
+
 	function onGestureStart() {
 		if (!c || !core) return;
 		if (localTransform.isActive()) localTransform.commit(c);
+		// ORDER MATTERS. setGesturing(true) aborts the bake signal FIRST; only then
+		// may we cancel the worker. bakeryCancel settles pending requests `null`,
+		// and a `null` from the remote baker means "worker declined" — which sends
+		// rebuildTile into a synchronous MAIN-THREAD bake unless the signal is
+		// already aborted. Reverse these two lines and a gesture stops offloading
+		// tiles and starts rendering them on the thread it was trying to free.
 		core.setGesturing(true);
+		// The worker keeps rasterizing whatever was already posted otherwise, and
+		// its GPU-backed canvas contends with the compositor driving this gesture.
+		bakeryCancel();
+		// The idle drain fires in the (now large) gaps between gesture frames and
+		// each run is a synchronous toJSON + structured-clone block. Park it.
+		bakeryPauseFlush(true);
 	}
 
 	function onGestureEnd() {
 		core?.setGesturing(false);
+		bakeryPauseFlush(false);
 	}
 
 	function setErasing(on: boolean) {
@@ -1089,6 +1165,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		init,
 		renderMain,
 		renderViewport,
+		renderViewportNow,
 		onGestureStart,
 		onGestureEnd,
 		recordPanDelta,

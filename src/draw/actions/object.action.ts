@@ -474,10 +474,9 @@ export async function addSavedFabricObjectToCanvas(
 	const drawObjects = useDrawObjectManager();
 	const drawui = useDrawUIStore();
 
-	drawui.isLoadingDrawing = true;
-
 	const c = getCanvas();
 	if (!c) return;
+	drawui.isLoadingDrawing = true;
 
 	try {
 		let jsonData = params.json;
@@ -561,6 +560,12 @@ export async function addSavedFabricObjectToCanvas(
 			}
 		});
 
+		// object:added was intentionally detached above, so explicitly seed the
+		// custom renderer's quadtree, worker mirror, overview and tile invalidation.
+		// Otherwise Fabric can show the active selection, but zooming redraws from
+		// an index that does not contain these saved objects and they disappear.
+		drawObjects.registerAddedObjects(objects);
+
 		if (selectedTool !== DrawTool.Select) {
 			selectTool(DrawTool.Select);
 		}
@@ -578,9 +583,9 @@ export async function addSavedFabricObjectToCanvas(
 				}),
 			);
 		}
-		drawui.isLoadingDrawing = false;
 	} catch (error) {
 		console.error("Failed to load saved drawing:", error);
 	} finally {
+		drawui.isLoadingDrawing = false;
 	}
 }

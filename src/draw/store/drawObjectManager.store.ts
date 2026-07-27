@@ -591,6 +591,22 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		core?.onObjectAdded(obj, topmost);
 	}
 
+	/**
+	 * Register objects added while actionWithoutEvents() had Fabric's
+	 * object:added listener detached. Without this, they exist only in Fabric's
+	 * display list: the active-object layer can show them briefly, but the tile
+	 * renderer cannot find them after the next viewport redraw.
+	 */
+	function registerAddedObjects(objects: FabricObject[]) {
+		if (!objects.length) return;
+		beginBatch();
+		try {
+			for (const obj of objects) onObjectAdded(obj);
+		} finally {
+			endBatch();
+		}
+	}
+
 	function onObjectRemoved(obj: FabricObject) {
 		if (!obj.id) return;
 		const oldRect = objectBounds(obj);
@@ -1197,6 +1213,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		getVisibleObjects,
 		getObjectById,
 		getObjectsById,
+		registerAddedObjects,
 		translateMirror,
 		zToFront,
 		zToBack,

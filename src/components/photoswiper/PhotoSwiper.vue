@@ -1,7 +1,8 @@
 <template>
   <ion-modal
     :is-open="open"
-    @did-dismiss="close"
+    @will-dismiss="onWillDismiss"
+    @did-dismiss="onDidDismiss"
     @did-present="onDidPresent"
     :keep-contents-mounted="true"
     class="liquid-photoswiper"
@@ -26,7 +27,7 @@
               <PhotoSwiperItem
                 :thumbnail="resolveThumbnail(item)"
                 :image="resolveImage(item)"
-                :switch-to-image="Math.abs(slide - i) < 3"
+                :load-full-image="i === slide"
               />
             </div>
           </swiper-slide>
@@ -153,6 +154,7 @@ let tapTimer: ReturnType<typeof setTimeout> | null = null;
 const isFollowerDrawerOpen = ref(false);
 const swiper = ref<any>();
 const reactionBurst = ref<{ play: (r: string) => void } | null>(null);
+let dismissingOpenedAt = 0;
 
 const canDelete = computed(() => {
 	if (!user.value || !currItem.value) return false;
@@ -183,13 +185,12 @@ function handleSlideChange(event: any) {
 }
 
 watch(
-	collection,
-	(first, second) => {
-		if (first?.length == second?.length || !updateSlide.value) return;
+	() => collection.value.length,
+	(firstLength, secondLength) => {
+		if (firstLength === secondLength || !updateSlide.value) return;
 		nextTick(() => swiper.value?.swiper?.update());
 		updateSlide.value = false;
 	},
-	{ deep: true },
 );
 
 // Swiper fires `tap` for the first tap of a double-tap too, so hold the toggle
@@ -244,6 +245,21 @@ function close() {
 	}
 	chromeVisible.value = true;
 	chromeAnimated.value = false;
+}
+
+function onWillDismiss() {
+	dismissingOpenedAt = swiperStore.openedAt;
+}
+
+function onDidDismiss() {
+	// A different collection was opened while the old modal was leaving. Do not
+	// let the stale dismissal wipe the new request.
+	if (swiperStore.openedAt !== dismissingOpenedAt) return;
+	close();
+	isFollowerDrawerOpen.value = false;
+	longPressPopoverOpen.value = false;
+	activePointers.clear();
+	swiperStore.releaseRetainedContent();
 }
 
 /**

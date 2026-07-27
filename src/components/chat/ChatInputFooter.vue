@@ -61,7 +61,6 @@
             :disabled="!chatStore.canSendMessage(activeTab)"
             :placeholder="chatStore.chatInputPlaceholder(activeTab)"
             class="chat-composer-input font-bold px-2 text-[15px]"
-            color="secondary"
           />
 
           <ion-button
@@ -277,12 +276,22 @@ const handleSend = () => {
  * which is invisible inside a single-line field.
  */
 .chat-composer-input {
+  /* Do not inherit a profile/theme/font-effect color from the customized chat
+     surface. Ionic otherwise decides the native input color through its host
+     context, which can produce pale or transparent typed text. */
+  --color: #18181b;
+  --placeholder-color: rgba(24, 24, 27, 0.48);
+  --placeholder-opacity: 1;
+  --highlight-color-focused: var(--ion-color-secondary);
   --padding-top: 0;
   --padding-bottom: 0;
   min-height: 36px;
 }
 
 .chat-composer-input :deep(input) {
+  color: #18181b !important;
+  -webkit-text-fill-color: #18181b;
+  caret-color: var(--ion-color-secondary);
   height: 36px;
   line-height: 36px;
 }

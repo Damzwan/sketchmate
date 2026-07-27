@@ -400,6 +400,7 @@ export const useAuthStore = defineStore("auth", () => {
 		useInAppNotificationStore().reset();
 		useInventoryStore().clear();
 		useSubscriptionStore().clearSubscriptionState();
+		useChatStore().clearRuntimeState();
 
 		// Deactivate this device's push server-side BEFORE signing out, so the
 		// authenticated request actually lands (previously it raced signOut()).

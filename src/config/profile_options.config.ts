@@ -52,6 +52,8 @@ export const TITLES: Title[] = [
 	},
 ];
 
+const TITLE_BY_ID = new Map(TITLES.map((title) => [title.id, title]));
+
 // ─── FONTS ───────────────────────────────────────────────────────────────────
 export interface Font {
 	value: string;
@@ -117,10 +119,12 @@ export const FONTS: Font[] = [
 	},
 ];
 
+const FONT_BY_ID = new Map(FONTS.map((font) => [font.value, font]));
+
 export const DEFAULT_FONT_ID = "sketch";
 
 export const resolveFontFamily = (key?: string): string =>
-	FONTS.find((f) => f.value === key)?.family ?? FONTS[0].family;
+	(key && FONT_BY_ID.get(key)?.family) ?? FONTS[0].family;
 
 // ─── FONT EFFECTS ────────────────────────────────────────────────────────────
 export interface FontEffect {
@@ -161,7 +165,7 @@ export const FONT_EFFECT_MAP: Record<string, string> = {
 	velvet: "font-effect-velvet animate-velvet-glow",
 	supernova:
 		"animate-supernova-flow bg-[linear-gradient(90deg,#ff0055,#ffaa00,#00ffaa,#00aaff,#ff00ff,#ff0055)] bg-[length:300%_auto] text-transparent bg-clip-text drop-shadow-[0_5px_15px_rgba(0,255,170,0.4)]",
-	lava: "animate-lava-flow bg-[linear-gradient(180deg,#fef08a,#f59e0b,#ef4444,#f59e0b,#fef08a)] bg-[length:100%_300%] text-transparent bg-clip-text drop-shadow-[0_4px_12px_rgba(239,68,68,0.5)]",
+	lava: "animate-lava-flow bg-[linear-gradient(180deg,#fff7a3,#ffb000,#ff4d00,#b91c1c,#ff6b00,#fff7a3)] bg-[length:100%_350%] text-transparent bg-clip-text drop-shadow-[0_4px_14px_rgba(255,69,0,0.68)]",
 };
 
 export const resolveFontEffectClass = (key?: string): string =>
@@ -346,10 +350,12 @@ export const THEMES: Theme[] = [
 	},
 ];
 
+const THEME_BY_ID = new Map(THEMES.map((theme) => [theme.id, theme]));
+
 export const DEFAULT_THEME_ID = "classic";
 
 export const resolveTheme = (id?: string): Theme =>
-	THEMES.find((t) => t.id === id) || THEMES[0];
+	(id && THEME_BY_ID.get(id)) || THEMES[0];
 
 /**
  * Whether a theme's card surface is light (dark text on it) or dark.
@@ -414,10 +420,14 @@ export const DECORATIONS: Decoration[] = [
 	},
 ];
 
+const DECORATION_BY_ID = new Map(
+	DECORATIONS.map((decoration) => [decoration.id, decoration]),
+);
+
 export const DEFAULT_DECORATION_ID = "none";
 
 export const resolveDecoration = (id?: string): Decoration =>
-	DECORATIONS.find((d) => d.id === id) || DECORATIONS[0];
+	(id && DECORATION_BY_ID.get(id)) || DECORATIONS[0];
 
 export type EffectKind = "none" | "grain" | "shimmer" | "glass" | "crumpled";
 
@@ -482,10 +492,14 @@ export const PROFILE_EFFECTS: ProfileEffectDef[] = [
 	},
 ];
 
+const EFFECT_BY_ID = new Map(
+	PROFILE_EFFECTS.map((effect) => [effect.id, effect]),
+);
+
 export const DEFAULT_EFFECT_ID = "none";
 
 export const resolveEffect = (id?: string): ProfileEffectDef =>
-	PROFILE_EFFECTS.find((e) => e.id === id) || PROFILE_EFFECTS[0];
+	(id && EFFECT_BY_ID.get(id)) || PROFILE_EFFECTS[0];
 
 // ─── WORLDS (FOREGROUND ENVIRONMENTS) ───────────────────────────────────
 export type WorldKind =
@@ -544,10 +558,12 @@ export const WORLDS: WorldDef[] = [
 	},
 ];
 
+const WORLD_BY_ID = new Map(WORLDS.map((world) => [world.id, world]));
+
 export const DEFAULT_WORLD_ID = "none";
 
 export const resolveWorld = (id?: string): WorldDef =>
-	WORLDS.find((a) => a.id === id) || WORLDS[0];
+	(id && WORLD_BY_ID.get(id)) || WORLDS[0];
 
 // ─── CUSTOMIZATION SHAPE ─────────────────────────────────────────────────────
 export interface Customization {
@@ -582,12 +598,48 @@ export const hydrateCustomization = (
 
 export const resolveTitle = (id?: string): string => {
 	if (!id) return "";
-	return TITLES.find((t) => t.id === id)?.name || "";
+	return TITLE_BY_ID.get(id)?.name || "";
 };
 
 /** Full title definition (name + emoji + howTo) for the clickable badge. */
 export const resolveTitleDef = (id?: string): Title | undefined =>
-	id ? TITLES.find((t) => t.id === id) : undefined;
+	id ? TITLE_BY_ID.get(id) : undefined;
+
+export interface ReadableCustomizationPalette {
+	name: string;
+	desc: string;
+	isDark: boolean;
+	/** A small translucent plate for compact surfaces over busy worlds. */
+	scrim: string;
+	/** Keeps ordinary text readable without replacing premium font effects. */
+	textShadow: string;
+}
+
+/**
+ * One contrast policy for every surface that displays customization.
+ *
+ * Worlds can replace much of the theme background, so the theme alone is not
+ * enough to choose text. Compact surfaces such as chat toasts additionally get
+ * a translucent scrim: animated sprites and shimmer can otherwise cross behind
+ * glyphs and destroy contrast even when the nominal colors are correct.
+ */
+export const resolveReadableCustomizationPalette = (
+	theme: Theme,
+	world?: WorldDef,
+): ReadableCustomizationPalette => {
+	const worldIsDark = world?.isDark === true;
+	const isDark = theme.isDark || worldIsDark;
+
+	return {
+		name: worldIsDark ? theme.nameColorDark : theme.nameColor,
+		desc: worldIsDark ? theme.descColorDark : theme.descColor,
+		isDark,
+		scrim: isDark ? "rgba(0,0,0,0.34)" : "rgba(255,255,255,0.52)",
+		textShadow: isDark
+			? "0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.35)"
+			: "0 1px 2px rgba(255,255,255,0.9)",
+	};
+};
 
 export const NAME_CHANGE_COOLDOWN_DAYS = 31;
 

@@ -53,7 +53,13 @@
                 isExpired ? 'text-black/40' : 'text-black',
                 (!isExpired && activeTab !== 'lobby') ? fontEffectClass : ''
               ]"
-              :style="(!isExpired && activeTab !== 'lobby') ? { color: activeColors.name, fontFamily: resolvedFontFamily } : {}"
+              :style="(!isExpired && activeTab !== 'lobby')
+                ? {
+                    color: activeColors.name,
+                    fontFamily: resolvedFontFamily,
+                    textShadow: fontEffectClass ? undefined : activeColors.textShadow,
+                  }
+                : {}"
             >
               {{ panelTitle }}
             </span>
@@ -66,7 +72,7 @@
           </div>
 
           <div class="flex items-center mt-0.5 leading-none">
-            <span v-if="activeTab !== 'lobby'" class="text-[8px] font-black uppercase tracking-widest leading-none" :style="showThemeBackdrop ? { color: activeColors.desc } : {}">
+            <span v-if="activeTab !== 'lobby'" class="text-[8px] font-black uppercase tracking-widest leading-none" :style="showThemeBackdrop ? { color: activeColors.desc, textShadow: activeColors.textShadow } : {}">
               <template v-if="isExpired">
                 <span class="text-black/30">Archived History</span>
               </template>
@@ -139,6 +145,7 @@ import {
 	hydrateCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
+	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveTitle,
 } from "@/config/profile_options.config";
@@ -218,10 +225,9 @@ const fontEffectClass = computed(() =>
 // text still sits on the theme's cardBg. Flipping to dark-mode text put light
 // glyphs on a light theme surface. Each theme's nameColor/descColor is already
 // tuned to its own cardBg, so this matches ConversationItem exactly.
-const activeColors = computed(() => ({
-	name: theme.value.nameColor,
-	desc: theme.value.descColor,
-}));
+const activeColors = computed(() =>
+	resolveReadableCustomizationPalette(theme.value),
+);
 
 // The strip's text tone follows the THEME's surface, not the world.
 //

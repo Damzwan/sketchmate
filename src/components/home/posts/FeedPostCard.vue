@@ -62,7 +62,11 @@
                 <p
                   class="p-2 leading-none font-black drop-shadow-sm truncate"
                   :class="[fontEffectClass, isTexturedEffect ? 'text-base' : 'text-sm']"
-                  :style="{ color: theme.nameColor, fontFamily: resolvedFontFamily, textShadow: textureHalo }"
+                  :style="{
+                    color: headerPalette.name,
+                    fontFamily: resolvedFontFamily,
+                    textShadow: fontEffectClass ? undefined : headerTextShadow,
+                  }"
                 >
                   {{ post.author.name }}
                 </p>
@@ -70,7 +74,7 @@
                   v-if="displayTitle"
                   class="font-black uppercase tracking-widest shrink-0 truncate ml-0.5"
                   :class="isTexturedEffect ? 'text-[13px] opacity-90' : 'text-xs opacity-70'"
-                  :style="{ color: theme.descColor, textShadow: textureHalo }"
+                  :style="{ color: headerPalette.desc, textShadow: headerTextShadow }"
                 >
                   · {{ displayTitle }}
                 </span>
@@ -78,7 +82,7 @@
               <p
                 class="uppercase mt-1 tracking-wider"
                 :class="isTexturedEffect ? 'text-[13px] opacity-95' : 'text-xs opacity-80'"
-                :style="{ color: theme.descColor, textShadow: textureHalo }"
+                :style="{ color: headerPalette.desc, textShadow: headerTextShadow }"
               >
                 {{ dayjs(post.createdAt).fromNow() }}
               </p>
@@ -90,7 +94,7 @@
           <div class="flex flex-col items-end shrink-0 -mr-1">
             <button @click="presentActionSheet"
                     class="p-2 active:scale-90 transition-transform cursor-pointer opacity-70 hover:opacity-100"
-                    :style="{ color: theme.nameColor }">
+                    :style="{ color: headerPalette.name, textShadow: headerTextShadow }">
               <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-xl" />
             </button>
           </div>
@@ -99,7 +103,7 @@
         <p v-if="post.description"
            class="cabin-sketch-regular font-bold line-clamp-2 mt-2 px-0.5 leading-snug"
            :class="isTexturedEffect ? 'text-[17px]' : 'text-base'"
-           :style="{ color: theme.descColor, textShadow: textureHalo }">
+           :style="{ color: headerPalette.desc, textShadow: headerTextShadow }">
           {{ post.description }}
         </p>
         </div>
@@ -324,7 +328,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type CSSProperties } from "vue";
 import { onLongPress } from "@vueuse/core";
 import { actionSheetController, alertController, IonIcon } from "@ionic/vue";
 import {
@@ -363,8 +367,10 @@ import {
 	resolveEffect,
 	resolveFontEffectClass,
 	resolveFontFamily,
+	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveTitle,
+	resolveWorld,
 } from "@/config/profile_options.config";
 import { useShareService } from "@/draw/store/useShareService.store";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
@@ -399,6 +405,12 @@ const authorCustomization = computed(() =>
 	hydrateCustomization(props.post.author?.customization),
 );
 const theme = computed(() => resolveTheme(authorCustomization.value.themeId));
+const world = computed(() => resolveWorld(authorCustomization.value.worldId));
+// The world fills the author header, so its luminance—not only the card
+// theme—must participate in choosing readable header text.
+const headerPalette = computed(() =>
+	resolveReadableCustomizationPalette(theme.value, world.value),
+);
 // Theme, effect and world are three INDEPENDENT purchases — gate them
 // separately. They used to share one `showArtistTheme` flag keyed off themeId,
 // which meant an artist who bought an effect or a world but kept the `classic`
@@ -429,7 +441,9 @@ const showEffect = computed(
  * colour or dimming the effect, and it's keyed to surface lightness so a
  * light-on-dark theme gets a dark halo rather than a white one.
  */
-const effectDef = computed(() => resolveEffect(authorCustomization.value.effectId));
+const effectDef = computed(() =>
+	resolveEffect(authorCustomization.value.effectId),
+);
 const isTexturedEffect = computed(
 	() => effectDef.value.kind === "crumpled" || effectDef.value.kind === "grain",
 );
@@ -441,13 +455,16 @@ const textureHalo = computed(() =>
 			: "0 0 5px rgba(0,0,0,0.7), 0 1px 1px rgba(0,0,0,0.55)"
 		: undefined,
 );
+const headerTextShadow = computed(
+	() => textureHalo.value ?? headerPalette.value.textShadow,
+);
 const showWorld = computed(
 	() => authorCustomization.value.worldId !== DEFAULT_WORLD_ID,
 );
 // Subtle whole-card theming: paint the artist's surface + border on the whole
 // card (header + footer), leaving the artwork strip neutral. Not applied for the
 // base theme.
-const cardStyle = computed(() =>
+const cardStyle = computed<CSSProperties>(() =>
 	showCardTheme.value
 		? {
 				background: theme.value.cardBg,

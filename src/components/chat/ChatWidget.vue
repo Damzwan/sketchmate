@@ -1,70 +1,91 @@
 <template>
-  <ChatToasts />
-
-  <ion-modal
-    :is-open="isVisible && isExpanded"
-    @will-present="onWillPresent"
-    @did-dismiss="chatWidget.closePanel()"
-    :keepContentsMounted="true"
-    :initial-breakpoint="1"
-    :breakpoints="[0, 1]"
-    class="liquid-chat-modal"
-  >
-    <!-- overscroll-none stops a flick inside the thread from chaining into the
-         page behind the sheet, which is what made the panel feel like it could
-         still be scrolled once the keyboard had pushed it up. -->
-    <div
-      class="flex flex-col h-full bg-background relative overflow-hidden overscroll-none"
-      :style="{ paddingBottom: keyboardInset + 'px' }"
-    >
-
-      <ChatTabsHeader />
-
-      <ChatToolbar
-        @inspect-profile="(_: any ,info: any) => openUserActions(info)"
-        @open-report="openUserActions"
-      />
-
+  <!-- Keep the custom sheet inside Ionic's stacking context. Ionic appends
+       modals to ion-app at z-index 20000+, so profile/photo overlays can layer
+       naturally above this z-9999 sheet and reveal it unchanged on dismiss. -->
+  <Teleport to="ion-app">
+    <Transition name="fade" appear>
       <div
-        @scroll="onScroll"
-        @touchmove.stop
-        class="flex-1 min-h-0 overflow-y-auto relative hide-scrollbar px-3 pt-3 pb-1"
-        ref="messageContainer"
+        v-show="isVisible && isExpanded"
+        class="fixed inset-0 bg-black/40 z-[9998] touch-none"
+        @click="chatWidget.closePanel()"
+      ></div>
+    </Transition>
+
+    <Transition name="sheet" appear>
+      <div
+        v-show="isVisible && isExpanded"
+        class="sheet-wrapper fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top,0px)] z-[9999] flex flex-col bg-background overflow-hidden overscroll-none rounded-t-[2.5rem] shadow-2xl"
+        :class="{
+          'is-dragging': isDragging,
+          'is-active': isExpanded,
+        }"
+        :style="{
+          paddingBottom: keyboardInset + 'px',
+          ...(sheetOffset > 0 ? { transform: `translate3d(0, ${sheetOffset}px, 0)` } : {})
+        }"
       >
-        <ChatOverview
-          v-if="isExpanded && activeTab === 'overview'"
-          @join-session="joinSession"
-        />
-
-        <ChatMessageFlow
-          v-else-if="isExpanded"
-          :messages="currentMessages"
-          @inspect-profile="onInspectProfile"
-          @join-session="joinSession"
-          @load-more="handleLoadMore"
-          :isFetchingHistory="isFetchingHistory"
-        />
-      </div>
-
-      <Transition name="badge">
-        <div v-if="showNewMessageBadge" class="absolute bottom-24 left-0 w-full flex justify-center z-50 pointer-events-none">
-          <button
-            @click.stop="forceScrollToBottom"
-            class="bg-secondary text-white rounded-full px-4 py-2 shadow-lg flex items-center justify-center gap-1.5 active:scale-95 transition-transform border border-white/20 pointer-events-auto"
-          >
-            <span class="text-[10px] font-black uppercase tracking-widest mt-0.5">New Message</span>
-            <ion-icon :icon="svg(mdiChevronDown)" class="text-base" />
-          </button>
+        <div
+          class="w-full flex justify-center pt-3 pb-3 bg-background shrink-0 touch-none cursor-grab active:cursor-grabbing"
+          @pointerdown="onDragStart"
+          @pointermove.prevent="onDragMove"
+          @pointerup="onDragEnd"
+          @pointercancel="onDragEnd"
+        >
+          <div class="w-12 h-1.5 bg-black/10 rounded-full pointer-events-none"></div>
         </div>
-      </Transition>
 
-      <ChatInputFooter
-        v-if="activeTab !== 'overview'"
-        @sent="onMessageSent"
-        @open-invite-popover="openLobbyInvitePopover"
-      />
-    </div>
-  </ion-modal>
+        <!-- Frequent closes keep the hot subtree alive briefly. Long-idle panels
+             release avatars, images and message component effects. -->
+        <template v-if="contentMounted">
+          <ChatTabsHeader />
+
+          <ChatToolbar
+            @inspect-profile="(_: any ,info: any) => openUserActions(info)"
+            @open-report="openUserActions"
+          />
+
+          <div
+            ref="messageContainer"
+            class="flex-1 min-h-0 overflow-y-auto relative hide-scrollbar px-3 pt-3 pb-1"
+            @scroll="onScroll"
+            @touchmove.stop
+          >
+            <ChatOverview
+              v-if="activeTab === 'overview'"
+              @join-session="joinSession"
+            />
+
+            <ChatMessageFlow
+              v-else
+              :messages="currentMessages"
+              @inspect-profile="onInspectProfile"
+              @join-session="joinSession"
+              @load-more="handleLoadMore"
+              :isFetchingHistory="isFetchingHistory"
+            />
+          </div>
+
+          <Transition name="badge">
+            <div v-if="showNewMessageBadge" class="absolute bottom-24 left-0 w-full flex justify-center z-50 pointer-events-none">
+              <button
+                @click.stop="forceScrollToBottom"
+                class="bg-secondary text-white rounded-full px-4 py-2 shadow-lg flex items-center justify-center gap-1.5 active:scale-95 transition-transform border border-white/20 pointer-events-auto"
+              >
+                <span class="text-[10px] font-black uppercase tracking-widest mt-0.5">New Message</span>
+                <ion-icon :icon="svg(mdiChevronDown)" class="text-base" />
+              </button>
+            </div>
+          </Transition>
+
+          <ChatInputFooter
+            v-if="activeTab !== 'overview'"
+            @sent="onMessageSent"
+            @open-invite-popover="openLobbyInvitePopover"
+          />
+        </template>
+      </div>
+    </Transition>
+  </Teleport>
 
   <LobbyInvitePopover
     :is-open="invitePopoverOpen"
@@ -88,14 +109,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
-import { alertController, IonModal, useIonRouter, IonIcon } from "@ionic/vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import {
+	alertController,
+	useBackButton,
+	useIonRouter,
+	IonIcon,
+} from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { useThrottleFn } from "@vueuse/core";
 import { mdiChevronDown } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 
-import ChatToasts from "./ChatToasts.vue";
 import ChatTabsHeader from "./ChatTabsHeader.vue";
 import ChatToolbar from "./ChatToolbar.vue";
 import ChatOverview from "./ChatOverview.vue";
@@ -109,6 +134,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { masterAnimation } from "@/helper/animation.helper";
@@ -116,14 +142,21 @@ import { FRONTEND_ROUTES } from "@/types/router.types";
 import { useScrollAnchor } from "@/composables/general/useScrollAnchor";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { useKeyboardInset } from "@/composables/general/useKeyboardInset";
+import { useEscapeKey } from "@/composables/general/useEscapeKey";
 
 const authStore = useAuthStore();
 const chatWidget = useChatWidgetStore();
-const { isVisible, isExpanded, activeTab, relationshipInfoOpen, mateQuotaInfoOpen } =
-	storeToRefs(chatWidget);
+const {
+	isVisible,
+	isExpanded,
+	activeTab,
+	relationshipInfoOpen,
+	mateQuotaInfoOpen,
+} = storeToRefs(chatWidget);
 const { messagesByChat } = storeToRefs(useChatStore());
 const { lobbyChatMessages } = storeToRefs(useDrawSyncer());
 const { invitations } = storeToRefs(useDrawSyncer());
+const { viewProfileMenuOpen } = storeToRefs(useMenuStore());
 
 const messageContainer = ref<HTMLElement | null>(null);
 const invitePopoverOpen = ref(false);
@@ -139,6 +172,105 @@ const { scrollToBottom, captureScrollState, restoreScrollState } =
 
 const isAtBottom = ref(true);
 const showNewMessageBadge = ref(false);
+const contentMounted = ref(isExpanded.value);
+const lowEnd =
+	typeof document !== "undefined" &&
+	document.documentElement.classList.contains("low-end");
+const CLOSED_CONTENT_TTL_MS = lowEnd ? 3_000 : 20_000;
+let contentReleaseTimer: ReturnType<typeof setTimeout> | null = null;
+
+const sheetOffset = ref(0);
+const isDragging = ref(false);
+let dragStartY = 0;
+let dragStartTime = 0;
+
+const clearContentReleaseTimer = () => {
+	if (!contentReleaseTimer) return;
+	clearTimeout(contentReleaseTimer);
+	contentReleaseTimer = null;
+};
+
+watch(
+	isExpanded,
+	(expanded) => {
+		clearContentReleaseTimer();
+		if (expanded) {
+			contentMounted.value = true;
+			sheetOffset.value = 0;
+			onWillPresent();
+			return;
+		}
+		contentReleaseTimer = setTimeout(() => {
+			contentMounted.value = false;
+			contentReleaseTimer = null;
+		}, CLOSED_CONTENT_TTL_MS);
+	},
+	{ immediate: true },
+);
+
+const onDragStart = (event: PointerEvent) => {
+	dragStartY = event.clientY;
+	dragStartTime = performance.now();
+	isDragging.value = true;
+	(event.currentTarget as HTMLElement)?.setPointerCapture(event.pointerId);
+};
+
+const onDragMove = (event: PointerEvent) => {
+	if (!isDragging.value) return;
+	sheetOffset.value = Math.max(0, event.clientY - dragStartY);
+};
+
+const onDragEnd = (event: PointerEvent) => {
+	if (!isDragging.value) return;
+	isDragging.value = false;
+	const handle = event.currentTarget as HTMLElement | null;
+	if (handle?.hasPointerCapture(event.pointerId))
+		handle.releasePointerCapture(event.pointerId);
+
+	const distance = sheetOffset.value;
+	const velocity = distance / Math.max(1, performance.now() - dragStartTime);
+	if (distance > 150 || velocity > 0.5) {
+		chatWidget.closePanel();
+		setTimeout(() => {
+			sheetOffset.value = 0;
+		}, 250);
+	} else {
+		sheetOffset.value = 0;
+	}
+};
+
+useBackButton(101, (processNextHandler) => {
+	if (viewProfileMenuOpen.value) {
+		processNextHandler();
+		return;
+	}
+	if (isVisible.value && isExpanded.value) chatWidget.closePanel();
+	else processNextHandler();
+});
+
+// Ionic modals handle Escape themselves. The chat sheet is now a lightweight
+// custom overlay, so give it the same desktop/browser behavior without closing
+// it underneath a profile or relationship overlay.
+const hasPresentedIonicOverlay = () =>
+	!!document.querySelector(
+		[
+			"ion-modal:not(.overlay-hidden)",
+			"ion-alert:not(.overlay-hidden)",
+			"ion-action-sheet:not(.overlay-hidden)",
+			"ion-popover:not(.overlay-hidden)",
+		].join(","),
+	);
+
+useEscapeKey(() => chatWidget.closePanel(), {
+	enabled: () =>
+		isVisible.value &&
+		isExpanded.value &&
+		!viewProfileMenuOpen.value &&
+		!relationshipInfoOpen.value &&
+		!mateQuotaInfoOpen.value &&
+		!invitePopoverOpen.value &&
+		!hasPresentedIonicOverlay(),
+});
 
 // scrollHeight/scrollTop/clientHeight are all layout-forcing reads. Unthrottled
 // that's a synchronous reflow on every scroll frame, over a DOM the size of the
@@ -168,7 +300,8 @@ const onMessageSent = async () => {
 // Resolved here rather than passed down, because the info sheet is mounted
 // outside the chat panel and can't reach the footer's own `currentChat`.
 const activeConversation = computed(() => {
-	if (activeTab.value === "overview" || activeTab.value === "lobby") return null;
+	if (activeTab.value === "overview" || activeTab.value === "lobby")
+		return null;
 	return (
 		[...chatStore.activeChats, ...friendStore.pendingRequests].find(
 			(c) => c._id === activeTab.value,
@@ -338,14 +471,46 @@ const { keyboardInset } = useKeyboardInset({
 // `willShow` hint fires before the resize, so on its own it scrolls to a
 // bottom that is about to move.
 watch(keyboardInset, () => nextTick(() => forceScrollToBottom()));
+
+onBeforeUnmount(() => {
+	clearContentReleaseTimer();
+});
 </script>
 
 <style scoped>
 .hide-scrollbar::-webkit-scrollbar { display: none !important; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+.sheet-wrapper {
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sheet-wrapper.is-active,
+.sheet-wrapper.is-dragging {
+  will-change: transform;
+}
+.sheet-wrapper.is-dragging {
+  transition: none;
+}
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sheet-enter-from,
+.sheet-leave-to {
+  transform: translate3d(0, 100%, 0) !important;
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 .badge-enter-active, .badge-leave-active {
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .badge-enter-from, .badge-leave-to {
   opacity: 0;

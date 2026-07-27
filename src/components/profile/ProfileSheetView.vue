@@ -42,7 +42,10 @@
 
             <h2
               class="text-3xl font-black mt-4 leading-tight drop-shadow-sm transition-colors duration-500"
-              :style="{ color: activeColors.name }"
+              :style="{
+                color: activeColors.name,
+                textShadow: fontEffectClass ? undefined : activeColors.textShadow,
+              }"
               :class="fontEffectClass"
             >
               {{ user?.name || 'Loading...' }}
@@ -53,7 +56,7 @@
             <slot name="description">
               <p
                 class="text-base font-bold italic mt-4 leading-snug whitespace-pre-wrap px-2 transition-colors duration-500"
-                :style="{ color: activeColors.desc }"
+                :style="{ color: activeColors.desc, textShadow: activeColors.textShadow }"
               >
                 "{{ user?.description || 'This artist is a mystery...' }}"
               </p>
@@ -156,6 +159,7 @@ import {
 	hydrateCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
+	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveWorld,
 	type Customization,
@@ -196,12 +200,9 @@ const signatureStrokeWidth = computed(() =>
 
 // Contrast check configuration layout lookup
 const activeWorld = computed(() => resolveWorld(c.value.worldId));
-const isWorldDark = computed(() => activeWorld.value.isDark === true);
-
-const activeColors = computed(() => ({
-	name: isWorldDark.value ? theme.value.nameColorDark : theme.value.nameColor,
-	desc: isWorldDark.value ? theme.value.descColorDark : theme.value.descColor,
-}));
+const activeColors = computed(() =>
+	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+);
 
 // Expose theme/font to hosts that style slotted content (action menu).
 defineExpose({ theme, font });

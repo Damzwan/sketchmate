@@ -16,7 +16,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, defineAsyncComponent, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
@@ -27,7 +27,11 @@ import { useFriendStore } from "@/store/friend.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { useRoute } from "vue-router";
 
-import ChatToastItem from "@/components/chat/ChatToastItem.vue"; // <-- Import it here
+// The listener/controller stays tiny at login. Cosmetic worlds/effects load
+// only when the first visible toast actually needs rendering.
+const ChatToastItem = defineAsyncComponent(
+	() => import("@/components/chat/ChatToastItem.vue"),
+);
 
 const chatWidget = useChatWidgetStore();
 const chatStore = useChatStore();
@@ -81,10 +85,8 @@ watch(
 				isRequest: false,
 				isJoin: latest.type === "join",
 				customization:
-					latest.type === "join"
-						? latest.member?.customization ||
-							(isMe ? user.value?.customization : null)
-						: null,
+					latest.member?.customization ||
+					(isMe ? user.value?.customization : null),
 			} as any);
 
 			isInitialLobbyLoad = false;
@@ -106,6 +108,7 @@ watch(
 			img: latest.member?.img || "",
 			isTrial: false,
 			isRequest: false,
+			customization: latest.member?.customization,
 		});
 	},
 );
@@ -127,6 +130,7 @@ watch(
 			img: latest.friend.img,
 			isTrial: false,
 			isRequest: true,
+			customization: latest.friend.customization,
 		});
 	},
 );

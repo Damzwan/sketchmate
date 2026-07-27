@@ -2,7 +2,7 @@
 <template>
   <div
     @click="$emit('open', chat._id)"
-    class="group relative w-full flex items-center gap-3 p-3 rounded-[1.6rem] border cursor-pointer overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.97]"
+    class="conversation-row group relative w-full flex items-center gap-3 p-3 rounded-[1.6rem] border cursor-pointer overflow-hidden transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.97]"
     :class="cardClass"
     :style="showTheme ? cardStyle : {}"
   >
@@ -43,7 +43,7 @@
         v-else
         class="flex items-center justify-center w-11 h-11 bg-secondary/10 text-base font-black text-secondary rounded-full border border-primary/40"
       >
-        {{ partner?.name?.charAt(0) || '?' }}
+        ?
       </span>
 
       <!-- One badge to rule them all: the most important state wins -->
@@ -83,8 +83,7 @@
 
         <span
           class="ml-auto shrink-0 text-[8px] uppercase tracking-wider opacity-50 whitespace-nowrap mt-0.5"
-          :class="onDarkSurface ? 'on-world' : ''"
-          :style="showTheme ? { color: themedDescColor, opacity: 1 } : {}"
+          :style="showTheme ? { color: timestampColor, opacity: 1 } : {}"
         >
           {{ rel.kind === 'live_invite' ? 'NOW' : formattedTime }}
         </span>
@@ -257,6 +256,12 @@ const themedNameColor = computed(() =>
 const themedDescColor = computed(() =>
 	onDarkWorld.value ? theme.value.descColorDark : theme.value.descColor,
 );
+// The time sits at the far edge of the row, outside the part of most mini
+// worlds that is reliably dark. Using the world's global `isDark` flag made
+// timestamps turn white on otherwise light cards.
+const timestampColor = computed(() =>
+	theme.value.isDark ? theme.value.descColor : theme.value.descColorOnLight,
+);
 
 /* --- derived display bits --- */
 const lastMessage = computed(() => {
@@ -407,10 +412,14 @@ const statusClass = computed(() => {
 		return unreadCount.value > 0 ? "font-black text-black" : "text-black/60";
 	return "text-black/60";
 });
-
 </script>
 
 <style scoped>
+.conversation-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
+}
+
 /* Legibility over a dark world, matching ChatRelationshipStrip: the theme's
    *Dark colours carry the contrast, this only holds the glyph edges against a
    busy starfield. No plate behind the text — that would hide the world. */

@@ -13,7 +13,15 @@ export default defineConfig({
     '__APP_VERSION__': JSON.stringify(process.env.npm_package_version)
   },
   plugins: [
-    vue(),
+    vue({
+      template: {
+        compilerOptions: {
+          // Swiper Element registers these web components at runtime. Without
+          // this, Vue tries to resolve them as Vue components on every render.
+          isCustomElement: (tag) => tag.startsWith('swiper-')
+        }
+      }
+    }),
     tailwindcss(),
     visualizer() as any,
     VitePWA({

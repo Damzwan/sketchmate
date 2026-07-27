@@ -62,6 +62,8 @@
 	animation: supernova-flow 5s linear infinite;
 	-webkit-background-clip: text;
 	color: transparent !important;
+	-webkit-text-stroke: 0.45px rgba(15, 23, 42, 0.72);
+	paint-order: stroke fill;
 	/* Own layer so the per-frame foil repaint stays on this element's texture and
 	   doesn't invalidate the card region shared with the glass effect / GIF
 	   avatar. will-change (not an actual transform) keeps background-clip:text
@@ -81,9 +83,12 @@
 }
 
 .animate-lava-flow {
-	animation: lava-flow 4s ease-in-out infinite;
+	animation: lava-flow 3.6s ease-in-out infinite;
 	-webkit-background-clip: text;
 	color: transparent !important;
+	-webkit-text-stroke: 0.45px rgba(15, 23, 42, 0.72);
+	filter: saturate(1.12) contrast(1.05);
+	paint-order: stroke fill;
 	will-change: transform;
 }
 
@@ -93,7 +98,9 @@
    that's a per-frame glyph repaint. Motion is transform + opacity only, which
    the compositor runs on its own layer without ever re-rasterising the text. */
 .font-effect-velvet {
-	color: #312e81; /* indigo-900 — rich, readable on the light cards */
+	/* Inherit the contrast-safe theme color. A fixed indigo fill disappeared on
+	   Midnight/Noir and any dark world. The halo still supplies the velvet look. */
+	color: inherit;
 	text-shadow:
 		0 0 8px rgba(129, 140, 248, 0.55),
 		0 0 20px rgba(79, 70, 229, 0.35);

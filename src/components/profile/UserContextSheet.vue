@@ -13,7 +13,7 @@
          above an open photo swiper (flow: swiper → profile tap → this sheet).
          When the swiper opened AFTER the sheet (chat → sheet → swiper) the sheet
          is buried, so it stays frozen by the global ambient pause. -->
-    <AmbientScope :active="isTopmostOverSwiper">
+    <AmbientScope v-if="contentMounted" :active="isTopmostOverSwiper">
     <ProfileSheetView
       class="rounded-t-[2.5rem]"
       :user="resolvedUser"
@@ -62,7 +62,7 @@
         </div>
         <p v-else
            class="text-sm font-bold italic mt-4 leading-snug whitespace-pre-wrap px-2 transition-colors duration-500"
-           :style="{ color: theme.descColor }">
+           :style="{ color: readablePalette.desc, textShadow: readablePalette.textShadow }">
           "{{ resolvedUser?.description || 'This artist is a mystery...' }}"
         </p>
       </template>
@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { alertController, IonButton, IonIcon, IonModal } from "@ionic/vue";
 import {
@@ -167,7 +167,9 @@ import {
 import { useToast } from "@/service/toast.service";
 import {
 	hydrateCustomization,
+	resolveReadableCustomizationPalette,
 	resolveTheme,
+	resolveWorld,
 } from "@/config/profile_options.config";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
@@ -186,11 +188,29 @@ const { toast } = useToast();
 
 const swiper = usePhotoSwiper();
 const { viewProfileMenuOpen } = storeToRefs(menuStore);
+const contentMounted = ref(viewProfileMenuOpen.value);
+const lowEnd =
+	typeof document !== "undefined" &&
+	document.documentElement.classList.contains("low-end");
+const CLOSED_CONTENT_TTL_MS = lowEnd ? 3_000 : 15_000;
+let contentReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Stamp when this sheet opens so we can compare against the swiper's open time.
 const openedAt = ref(0);
 watch(viewProfileMenuOpen, (open) => {
-	if (open) openedAt.value = Date.now();
+	if (contentReleaseTimer) {
+		clearTimeout(contentReleaseTimer);
+		contentReleaseTimer = null;
+	}
+	if (open) {
+		contentMounted.value = true;
+		openedAt.value = Date.now();
+		return;
+	}
+	contentReleaseTimer = setTimeout(() => {
+		contentMounted.value = false;
+		contentReleaseTimer = null;
+	}, CLOSED_CONTENT_TTL_MS);
 });
 
 // Foreground (keep animating) only while this sheet sits ON TOP of an open
@@ -218,6 +238,12 @@ const effectiveCustomization = computed(() =>
 );
 const theme = computed(() =>
 	resolveTheme(effectiveCustomization.value.themeId),
+);
+const readablePalette = computed(() =>
+	resolveReadableCustomizationPalette(
+		theme.value,
+		resolveWorld(effectiveCustomization.value.worldId),
+	),
 );
 
 const isMe = computed(() => targetProfile.value?._id === me.value?._id);
@@ -421,6 +447,10 @@ function report() {
 		label: targetProfile.value.name,
 	});
 }
+
+onBeforeUnmount(() => {
+	if (contentReleaseTimer) clearTimeout(contentReleaseTimer);
+});
 </script>
 
 <style scoped>

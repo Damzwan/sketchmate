@@ -57,48 +57,48 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonIcon } from '@ionic/vue'
-import { mdiChevronRight, mdiClose } from '@mdi/js'
-import { svg, senderImg, senderName } from '@/helper/general.helper'
-import { useUserContextSheet } from '@/composables/profile/useUserContextSheet'
-import UserAvatar from '@/components/profile/customization/UserAvatar.vue'
+import { IonModal, IonIcon, IonButton } from "@ionic/vue";
+import { mdiChevronRight, mdiClose } from "@mdi/js";
+import { svg, senderImg, senderName } from "@/helper/general.helper";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
 const props = defineProps<{
-  followers: string[];
-  user: any;
-  open: boolean;
-  userLookup?: (userId: string) => any;
-}>()
+	followers: string[];
+	user: any;
+	open: boolean;
+	userLookup?: (userId: string) => any;
+}>();
 
-const emit = defineEmits(['update:open'])
+const emit = defineEmits(["update:open"]);
 
-const { openUserActions } = useUserContextSheet()
+const { openUserActions } = useUserContextSheet();
 
 function resolveUser(id: string) {
-  return props.userLookup ? props.userLookup(id) : null
+	return props.userLookup ? props.userLookup(id) : null;
 }
 
 function resolveImg(id: string): string | undefined {
-  const u = resolveUser(id)
-  return u?.img || senderImg(u)
+	const u = resolveUser(id);
+	return u?.img || senderImg(u);
 }
 
 function resolveName(id: string): string {
-  const u = resolveUser(id)
-  return u?.name || senderName(u) || 'Sketcher'
+	const u = resolveUser(id);
+	return u?.name || senderName(u) || "Sketcher";
 }
 
 function handleTap(followerId: string) {
-  const userInfo = resolveUser(followerId)
-  openUserActions({
-    _id: followerId,
-    name: userInfo?.name,
-    img: userInfo?.img
-  })
+	const userInfo = resolveUser(followerId);
+	openUserActions({
+		_id: followerId,
+		name: userInfo?.name,
+		img: userInfo?.img,
+	});
 }
 
 function close() {
-  emit('update:open', false)
+	emit("update:open", false);
 }
 </script>
 

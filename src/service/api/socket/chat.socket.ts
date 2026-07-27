@@ -104,6 +104,7 @@ export function registerChatHandlers(socket: Socket) {
 				isTrial: payload.conversation.status === "temporary",
 				isRequest: payload.conversation.status === "pending_invite",
 				isMateProposal: payload.conversation.status === "pending_mate",
+				customization: partner?.customization,
 			});
 		},
 	);

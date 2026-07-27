@@ -55,6 +55,15 @@ export const usePhotoSwiper = defineStore("photoswiper", () => {
 		open.value = false;
 	}
 
+	// Called only after the modal's leave animation. Dropping these references
+	// unmounts slide images and lets the WebView release their decoded bitmaps.
+	function releaseRetainedContent() {
+		collection.value = [];
+		config.value = {};
+		slide.value = 0;
+		isCommentDrawerOpen.value = false;
+	}
+
 	return {
 		open,
 		openedAt,
@@ -65,6 +74,7 @@ export const usePhotoSwiper = defineStore("photoswiper", () => {
 		openSwiper,
 		seeItem,
 		close,
+		releaseRetainedContent,
 		isCommentDrawerOpen,
 	};
 });

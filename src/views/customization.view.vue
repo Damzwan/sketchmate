@@ -105,7 +105,7 @@
           >
             <template #preview>
               <div class="w-6 h-6 rounded-md bg-gradient-to-br from-zinc-100 to-zinc-200 overflow-hidden relative">
-                <ProfileEffect :effect-id="draft.effectId" />
+                <ProfileEffect :effect-id="draft.effectId" static-effect />
               </div>
             </template>
           </CustomizeOptionRow>
@@ -118,7 +118,12 @@
           >
             <template #preview>
               <div class="w-6 h-6 rounded-md bg-gradient-to-br from-blue-100 to-blue-200 overflow-hidden relative">
-                <ProfileWorld :world-id="draft.worldId" :preview="true" :preview-scale="0.085" />
+                <ProfileWorld
+                  :world-id="draft.worldId"
+                  :preview="true"
+                  :preview-scale="0.085"
+                  static-mode
+                />
               </div>
             </template>
           </CustomizeOptionRow>
@@ -178,32 +183,64 @@
     </ion-content>
 
     <!-- Modals -->
-    <IdentityModal
-      :is-open="identityModalOpen"
-      :user="user"
-      :customization="draft"
-      :initial-name="profileDraft.name"
-      :initial-desc="profileDraft.description"
-      :preview-img="pendingImg"
-      @close="identityModalOpen = false"
-      @save="handleIdentitySave"
-    />
+    <LazyMount :when="identityModalOpen">
+      <IdentityModal
+        :is-open="identityModalOpen"
+        :user="user"
+        :customization="draft"
+        :initial-name="profileDraft.name"
+        :initial-desc="profileDraft.description"
+        :preview-img="pendingImg"
+        @close="identityModalOpen = false"
+        @save="handleIdentitySave"
+      />
+    </LazyMount>
 
-    <ThemeModal :is-open="themeModalOpen" :user="user" :customization="draft" @close="themeModalOpen = false" @select="(id: any) => updateField('themeId', id)" />
-    <FontModal :is-open="fontModalOpen" :user="user" :customization="draft" @close="fontModalOpen = false" @select="(id: any) => updateField('fontId', id)" />
-    <FontEffectModal :is-open="fontEffectModalOpen" :user="user" :customization="draft" @close="fontEffectModalOpen = false" @select="(id: any) => updateField('fontEffectId', id)" />
-    <DecorationModal :is-open="decorationModalOpen" :user="user" :customization="draft" @close="decorationModalOpen = false" @select="(id: any) => updateField('decorationId', id)" />
-    <EffectModal :is-open="effectModalOpen" :user="user" :customization="draft" @close="effectModalOpen = false" @select="(id: any) => updateField('effectId', id)" />
-    <WorldModal :is-open="worldModalOpen" :user="user" :customization="draft" @close="worldModalOpen = false" @select="(id: any) => updateField('worldId', id)" />
-    <TitleModal :is-open="titlesModalOpen" :current-title-id="draft.titleId" @close="titlesModalOpen = false" @select="(id: any) => updateField('titleId', draft.titleId === id ? '' : id)" />
-    <SignaturePadModal :is-open="signatureModalOpen" :color="currentTheme.accentColor" @close="signatureModalOpen = false" @save="handleSaveSignature" />
-    <BackgroundSketchPadModal :is-open="sketchModalOpen" :color="currentTheme.nameColor" :customization="draft" :user="user" :initial-path="draft.backgroundSketchPath" :initial-view-box="draft.backgroundSketchViewBox" @close="sketchModalOpen = false" @save="handleSaveSketch" />
+    <LazyMount :when="themeModalOpen">
+      <ThemeModal :is-open="themeModalOpen" :user="user" :customization="draft" @close="themeModalOpen = false" @select="(id: any) => updateField('themeId', id)" />
+    </LazyMount>
+    <LazyMount :when="fontModalOpen">
+      <FontModal :is-open="fontModalOpen" :user="user" :customization="draft" @close="fontModalOpen = false" @select="(id: any) => updateField('fontId', id)" />
+    </LazyMount>
+    <LazyMount :when="fontEffectModalOpen">
+      <FontEffectModal :is-open="fontEffectModalOpen" :user="user" :customization="draft" @close="fontEffectModalOpen = false" @select="(id: any) => updateField('fontEffectId', id)" />
+    </LazyMount>
+    <LazyMount :when="decorationModalOpen">
+      <DecorationModal :is-open="decorationModalOpen" :user="user" :customization="draft" @close="decorationModalOpen = false" @select="(id: any) => updateField('decorationId', id)" />
+    </LazyMount>
+    <LazyMount :when="effectModalOpen">
+      <EffectModal :is-open="effectModalOpen" :user="user" :customization="draft" @close="effectModalOpen = false" @select="(id: any) => updateField('effectId', id)" />
+    </LazyMount>
+    <LazyMount :when="worldModalOpen">
+      <WorldModal :is-open="worldModalOpen" :user="user" :customization="draft" @close="worldModalOpen = false" @select="(id: any) => updateField('worldId', id)" />
+    </LazyMount>
+    <LazyMount :when="titlesModalOpen">
+      <TitleModal :is-open="titlesModalOpen" :current-title-id="draft.titleId" @close="titlesModalOpen = false" @select="(id: any) => updateField('titleId', draft.titleId === id ? '' : id)" />
+    </LazyMount>
+    <LazyMount :when="signatureModalOpen">
+      <SignaturePadModal :is-open="signatureModalOpen" :color="currentTheme.accentColor" @close="signatureModalOpen = false" @save="handleSaveSignature" />
+    </LazyMount>
+    <LazyMount :when="sketchModalOpen">
+      <BackgroundSketchPadModal :is-open="sketchModalOpen" :color="currentTheme.nameColor" :customization="draft" :user="user" :initial-path="draft.backgroundSketchPath" :initial-view-box="draft.backgroundSketchViewBox" @close="sketchModalOpen = false" @save="handleSaveSketch" />
+    </LazyMount>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { IonContent, IonPage, IonButton, IonIcon, onIonViewDidEnter } from "@ionic/vue";
+import {
+	computed,
+	defineAsyncComponent,
+	onBeforeUnmount,
+	ref,
+	watch,
+} from "vue";
+import {
+	IonContent,
+	IonPage,
+	IonButton,
+	IonIcon,
+	onIonViewDidEnter,
+} from "@ionic/vue";
 import { useAmbientPause } from "@/store/ambientPause.store";
 import {
 	mdiAccountCircleOutline,
@@ -232,18 +269,40 @@ import CustomizeOptionRow from "@/components/profile/customization/CustomizeOpti
 import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
+import LazyMount from "@/components/general/LazyMount.vue";
 
-// Modal Imports
-import IdentityModal from "@/components/profile/customization/IdentityModal.vue";
-import ThemeModal from "@/components/profile/customization/ThemeModal.vue";
-import FontModal from "@/components/profile/customization/FontModal.vue";
-import FontEffectModal from "@/components/profile/customization/FontEffectModal.vue";
-import DecorationModal from "@/components/profile/customization/DecorationModal.vue";
-import EffectModal from "@/components/profile/customization/EffectModal.vue";
-import WorldModal from "@/components/profile/customization/WorldModal.vue";
-import TitleModal from "@/components/profile/customization/TitleModal.vue";
-import SignaturePadModal from "@/components/profile/customization/SignaturePadModal.vue";
-import BackgroundSketchPadModal from "@/components/profile/customization/BackgroundSketchPadModal.vue";
+// Each picker is a separate chunk and is not instantiated until first use.
+const IdentityModal = defineAsyncComponent(
+	() => import("@/components/profile/customization/IdentityModal.vue"),
+);
+const ThemeModal = defineAsyncComponent(
+	() => import("@/components/profile/customization/ThemeModal.vue"),
+);
+const FontModal = defineAsyncComponent(
+	() => import("@/components/profile/customization/FontModal.vue"),
+);
+const FontEffectModal = defineAsyncComponent(
+	() => import("@/components/profile/customization/FontEffectModal.vue"),
+);
+const DecorationModal = defineAsyncComponent(
+	() => import("@/components/profile/customization/DecorationModal.vue"),
+);
+const EffectModal = defineAsyncComponent(
+	() => import("@/components/profile/customization/EffectModal.vue"),
+);
+const WorldModal = defineAsyncComponent(
+	() => import("@/components/profile/customization/WorldModal.vue"),
+);
+const TitleModal = defineAsyncComponent(
+	() => import("@/components/profile/customization/TitleModal.vue"),
+);
+const SignaturePadModal = defineAsyncComponent(
+	() => import("@/components/profile/customization/SignaturePadModal.vue"),
+);
+const BackgroundSketchPadModal = defineAsyncComponent(
+	() =>
+		import("@/components/profile/customization/BackgroundSketchPadModal.vue"),
+);
 
 import {
 	FONTS,
@@ -358,9 +417,7 @@ const currentDecorationName = computed(
 const currentEffectName = computed(
 	() => resolveEffect(draft.value.effectId).name,
 );
-const currentWorldName = computed(
-	() => resolveWorld(draft.value.worldId).name,
-);
+const currentWorldName = computed(() => resolveWorld(draft.value.worldId).name);
 const currentTitleName = computed(() => resolveTitle(draft.value.titleId));
 const currentFontLabel = computed(
 	() => FONTS.find((f) => f.value === draft.value.fontId)?.label || "Sketch",

@@ -3,11 +3,13 @@
     <CircularLoader class="z-50" v-if="!isRouterReady" bg-color="bg-background" />
     <ion-router-outlet />
     <LazyMount :when="isLoggedIn"><WhatsNewModal /></LazyMount>
-    <LazyMount :when="isLoggedIn"><ChatBubble /></LazyMount>
+    <!-- Toast listeners stay live after login; the heavy panel loads on first open. -->
+    <LazyMount :when="isLoggedIn"><ChatToasts /></LazyMount>
+    <LazyMount :when="isLoggedIn && chatPanelOpen"><ChatPanel /></LazyMount>
 
     <GlobalToast />
-    <LazyMount :when="isLoggedIn"><PhotoSwiper /></LazyMount>
-    <LazyMount :when="isLoggedIn"><UserContextSheet/></LazyMount>
+    <LazyMount :when="isLoggedIn && photoSwiperOpen"><PhotoSwiper /></LazyMount>
+    <LazyMount :when="isLoggedIn && viewProfileMenuOpen"><UserContextSheet/></LazyMount>
     <LazyMount :when="feedbackMenuOpen"><FeedbackMenu /></LazyMount>
     <LazyMount :when="isLoggedIn"><DateOfBirthConfirmation /></LazyMount>
     <LazyMount :when="isLoggedIn"><Confetti /></LazyMount>
@@ -26,7 +28,7 @@
 
 <script setup lang="ts">
 import { IonApp, IonRouterOutlet, useIonRouter } from "@ionic/vue";
-import { defineAsyncComponent, onMounted, ref } from "vue";
+import { defineAsyncComponent, onMounted, ref, watch } from "vue";
 import { defineCustomElements } from "@ionic/pwa-elements/loader";
 import {
 	setupBackButtonBehavior,
@@ -46,6 +48,8 @@ import { useMenuStore } from "@/store/menu.store";
 import { useSessionStore } from "@/store/session.store";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import OnlineUpgradeModal from "@/components/general/OnlineUpgradeModal.vue";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
 
 // LAZY LOADED COMPONENTS (Will create separate js chunks)
 const GlobalToast = defineAsyncComponent(
@@ -54,8 +58,10 @@ const GlobalToast = defineAsyncComponent(
 const PhotoSwiper = defineAsyncComponent(
 	() => import("@/components/photoswiper/PhotoSwiper.vue"),
 );
-const ChatBubble = defineAsyncComponent(
-	() => import("./components/chat/ChatWidget.vue"),
+const loadChatPanel = () => import("./components/chat/ChatWidget.vue");
+const ChatPanel = defineAsyncComponent(loadChatPanel);
+const ChatToasts = defineAsyncComponent(
+	() => import("@/components/chat/ChatToasts.vue"),
 );
 const FeedbackMenu = defineAsyncComponent(
 	() => import("@/components/general/FeedbackMenu.vue"),
@@ -125,12 +131,34 @@ const {
 	sharePostMenuOpen,
 	reportMenuOpen,
 	balloonMenuOpen,
+	viewProfileMenuOpen,
 } = storeToRefs(useMenuStore());
+
+const { open: photoSwiperOpen } = storeToRefs(usePhotoSwiper());
+const { isExpanded: chatPanelOpen } = storeToRefs(useChatWidgetStore());
 
 const networkStore = useNetworkStore();
 
 const isRouterReady = ref(false);
 const { openUserActions } = useUserContextSheet();
+
+let chatPanelPrefetchQueued = false;
+watch(
+	isLoggedIn,
+	(loggedIn) => {
+		if (
+			!loggedIn ||
+			chatPanelPrefetchQueued ||
+			!("requestIdleCallback" in window)
+		)
+			return;
+		chatPanelPrefetchQueued = true;
+		// Warm only the JS chunk during genuine browser idle time. The panel
+		// remains unmounted, and no timeout forces parsing during a draw frame.
+		window.requestIdleCallback(() => void loadChatPanel());
+	},
+	{ immediate: true },
+);
 
 onMounted(async () => {
 	defineCustomElements(window);

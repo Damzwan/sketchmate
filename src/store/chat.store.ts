@@ -61,6 +61,11 @@ export const useChatStore = defineStore('chat', () => {
   // TRIM_TARGET means it fires once per (MAX - TARGET) messages instead.
   const MAX_RETAINED_MESSAGES = 300
   const TRIM_TARGET = 200
+  // Full message histories are the expensive part of chat state. Keep only the
+  // most recently used conversations resident; evicted threads reload on open.
+  const MAX_CACHED_CONVERSATIONS = 8
+  const messageCacheAccess = new Map<string, number>()
+  let messageCacheClock = 0
 
   /**
    * Drop the oldest retained messages for a chat.
@@ -80,6 +85,59 @@ export const useChatStore = defineStore('chat', () => {
     if (!msgs || msgs.length <= MAX_RETAINED_MESSAGES) return
     messagesByChat.value[chatId] = msgs.slice(msgs.length - TRIM_TARGET)
     hasMoreMessagesByChat.value[chatId] = true
+  }
+
+  function touchMessageCache(chatId: string) {
+    if (!chatId || chatId === 'overview' || chatId === 'lobby') return
+    messageCacheAccess.set(chatId, ++messageCacheClock)
+  }
+
+  function pruneMessageCaches() {
+    const ids = Object.keys(messagesByChat.value)
+    if (ids.length <= MAX_CACHED_CONVERSATIONS) return
+
+    const protectedId =
+      chatWidget.isExpanded &&
+      !['overview', 'lobby'].includes(chatWidget.activeTab)
+        ? chatWidget.activeTab
+        : null
+
+    const candidates = ids
+      .filter((id) => {
+        if (id === protectedId) return false
+        return !(messagesByChat.value[id] || []).some(
+          (m) => m.isOptimistic && m.status === 'sending'
+        )
+      })
+      .sort(
+        (a, b) =>
+          (messageCacheAccess.get(a) || 0) -
+          (messageCacheAccess.get(b) || 0)
+      )
+
+    let retained = ids.length
+    for (const id of candidates) {
+      if (retained <= MAX_CACHED_CONVERSATIONS) break
+      delete messagesByChat.value[id]
+      delete hasMoreMessagesByChat.value[id]
+      messageCacheAccess.delete(id)
+      retained--
+    }
+  }
+
+  function clearRuntimeState() {
+    notifications.value.forEach((notification) =>
+      clearTimeout(notification.timer)
+    )
+    activeChats.value = []
+    messagesByChat.value = {}
+    typingStatuses.value = {}
+    hasMoreMessagesByChat.value = {}
+    notifications.value = []
+    chatsHydrated.value = false
+    readAcknowledged.clear()
+    messageCacheAccess.clear()
+    messageCacheClock = 0
   }
   const typingStatuses = ref<Record<string, boolean>>({})
   const hasMoreMessagesByChat = ref<Record<string, boolean>>({})
@@ -205,6 +263,16 @@ export const useChatStore = defineStore('chat', () => {
       messagesByChat.value[conversation_id].push(
         freeze(message) as FrontendMessage
       )
+      // Inactive threads have no scroll anchor to preserve, so they can be
+      // bounded immediately. The visible thread still trims only at the bottom.
+      if (
+        !chatWidget.isExpanded ||
+        chatWidget.activeTab !== conversation_id
+      ) {
+        trimOldMessages(conversation_id)
+      }
+      touchMessageCache(conversation_id)
+      pruneMessageCaches()
     }
 
     // 2. Determine if the incoming socket payload actually contains populated profiles
@@ -350,9 +418,12 @@ export const useChatStore = defineStore('chat', () => {
             ...(messagesByChat.value[conversation_id] || [])
           ]
           delete messagesByChat.value[legacyConvo._id]
+          messageCacheAccess.delete(legacyConvo._id)
+          touchMessageCache(conversation_id)
         }
       }
     }
+    pruneMessageCaches()
   }
 
   // --- MESSAGING & OPTIMISTIC ENGINE ---
@@ -402,6 +473,8 @@ export const useChatStore = defineStore('chat', () => {
             ...tempMsgs
           ]
           delete messagesByChat.value[currentTabId]
+          messageCacheAccess.delete(currentTabId)
+          touchMessageCache(realChatId)
 
           if (!activeChats.value.some((c) => c._id === realChatId)) {
             activeChats.value.unshift(
@@ -458,6 +531,8 @@ export const useChatStore = defineStore('chat', () => {
   function addOptimisticMessage(chatId: string, message: any) {
     if (!messagesByChat.value[chatId]) messagesByChat.value[chatId] = []
     messagesByChat.value[chatId].push(message)
+    touchMessageCache(chatId)
+    pruneMessageCaches()
   }
 
   /**
@@ -543,6 +618,8 @@ export const useChatStore = defineStore('chat', () => {
         } else chatMessages.splice(index, 1, freeze(resolvedMessage))
       }
     }
+    touchMessageCache(targetId)
+    pruneMessageCaches()
   }
 
   // --- TYPING STATUS ---
@@ -562,6 +639,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function loadMessages(conversationId: string, isInitial = true, force = false) {
+    touchMessageCache(conversationId)
     const existing = (messagesByChat.value[conversationId] || []).filter(m => !m.isOptimistic)
     // `force` re-fetches the latest page even when we already hold messages —
     // used on app resume, where the socket was disconnected while backgrounded
@@ -588,6 +666,7 @@ export const useChatStore = defineStore('chat', () => {
           ? freezeAll(response.data)
           : [...freezeAll(response.data), ...existing]
       }
+      pruneMessageCaches()
       return response.data.length
     } catch (e) {
       console.error('History sync failed:', e)
@@ -677,6 +756,8 @@ export const useChatStore = defineStore('chat', () => {
 
   async function switchToConversation(conversationId: string) {
     if (['lobby', 'overview'].includes(conversationId)) return
+    touchMessageCache(conversationId)
+    pruneMessageCaches()
     const realMessages = (messagesByChat.value[conversationId] ?? []).filter(m => !m.isOptimistic)
     if (realMessages.length == 0)
       await loadMessages(conversationId, true)
@@ -684,6 +765,8 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // --- NOTIFICATIONS ---
+
+  const MAX_VISIBLE_NOTIFICATIONS = 3
 
   function addNotification(notif: any) {
     if (chatWidget.isExpanded && chatWidget.activeTab === notif.tabId) return
@@ -699,6 +782,13 @@ export const useChatStore = defineStore('chat', () => {
         lines: [{ id: Date.now(), text: notif.text }],
         timer: setTimeout(() => removeNotification(notif.tabId), 8000)
       })
+      // Keep each person's customized toast intact. Under bursts, discard the
+      // oldest toast instead of aggregating unrelated users into one generic
+      // "and others" card.
+      while (notifications.value.length > MAX_VISIBLE_NOTIFICATIONS) {
+        const oldest = notifications.value.shift()
+        if (oldest?.timer) clearTimeout(oldest.timer)
+      }
     }
   }
 
@@ -741,7 +831,8 @@ export const useChatStore = defineStore('chat', () => {
       subtitle: partner?.name || 'Sketchmate',
       text: 'Accepted your request! You have 24h to vibe.',
       img: partner?.img || '',
-      isTrial: true
+      isTrial: true,
+      customization: partner?.customization
     })
   }
 
@@ -768,7 +859,8 @@ export const useChatStore = defineStore('chat', () => {
       subtitle: partner?.name || 'Artist',
       text: 'Not ready to connect yet. Keep sketching!',
       img: partner?.img || '',
-      isRequest: false
+      isRequest: false,
+      customization: partner?.customization
     })
   }
 
@@ -788,10 +880,11 @@ export const useChatStore = defineStore('chat', () => {
     if (partner) friendStore.addFriendLocally(partner as any)
     addNotification({
       tabId: payload.conversation._id,
-      subtitle: 'New Mate!',
+      subtitle: partner?.name || 'New Mate!',
       text: `You and ${partner?.name} are now Mates!`,
       img: partner?.img || '',
-      isMateProposal: true
+      isMateProposal: true,
+      customization: partner?.customization
     })
 
     useQuotaStore().refresh(true)
@@ -825,7 +918,8 @@ export const useChatStore = defineStore('chat', () => {
         : `${partner?.name} wants to stay in the trial phase.`,
       img: partner?.img || '',
       isTrial: !isExpired,
-      isRequest: false
+      isRequest: false,
+      customization: partner?.customization
     })
   }
 
@@ -854,7 +948,8 @@ export const useChatStore = defineStore('chat', () => {
       subtitle: 'Connection Ended',
       text: `Matership with ${partner?.name || 'Artist'} has ended.`,
       img: partner?.img || '',
-      isTrial: false
+      isTrial: false,
+      customization: partner?.customization
     })
     useQuotaStore().refresh(true)
   }
@@ -884,7 +979,8 @@ export const useChatStore = defineStore('chat', () => {
         ? 'Wants to re-match as Mates! 🎨'
         : 'Wants to be Mates! 💖',
       img: partner?.img || '',
-      isMateProposal: true
+      isMateProposal: true,
+      customization: partner?.customization
     })
     useChatWidgetStore().triggerNewMessageAlert(payload.conversation_id)
   }
@@ -1001,6 +1097,7 @@ export const useChatStore = defineStore('chat', () => {
     sendMessage,
     loadMessages,
     trimOldMessages,
+    clearRuntimeState,
     syncActiveConversation,
     clearUnreads,
     markAllRead,

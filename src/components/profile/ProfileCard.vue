@@ -90,7 +90,10 @@
 
             <h2
               class="text-3xl mt-2 font-black drop-shadow-sm transition-colors duration-500"
-              :style="{ color: activeColors.name }"
+              :style="{
+                color: activeColors.name,
+                textShadow: fontEffectClass ? undefined : activeColors.textShadow,
+              }"
               :class="fontEffectClass"
             >
               {{ user.name }}
@@ -98,7 +101,7 @@
 
             <p
               class="text-base font-bold italic mt-3 px-4 leading-snug whitespace-pre-wrap transition-colors duration-500"
-              :style="{ color: activeColors.desc }"
+              :style="{ color: activeColors.desc, textShadow: activeColors.textShadow }"
             >
               "{{ user.description || 'No description yet.' }}"
             </p>
@@ -257,8 +260,8 @@ import {
 	hydrateCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
+	resolveReadableCustomizationPalette,
 	resolveTheme,
-	isLightTheme,
 	resolveWorld,
 	type Customization,
 } from "@/config/profile_options.config";
@@ -325,15 +328,11 @@ const fontEffectClass = computed(() =>
 const activeWorld = computed(() =>
 	resolveWorld(effectiveCustomization.value.worldId),
 );
-const isWorldDark = computed(() => activeWorld.value.isDark === true);
-const isDarkContext = computed(
-	() => isWorldDark.value || !isLightTheme(theme.value),
+const readablePalette = computed(() =>
+	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
 );
-
-const activeColors = computed(() => ({
-	name: isWorldDark.value ? theme.value.nameColorDark : theme.value.nameColor,
-	desc: isWorldDark.value ? theme.value.descColorDark : theme.value.descColor,
-}));
+const isDarkContext = computed(() => readablePalette.value.isDark);
+const activeColors = computed(() => readablePalette.value);
 
 const cardStyle = computed(() => ({
 	background: theme.value.cardBg,

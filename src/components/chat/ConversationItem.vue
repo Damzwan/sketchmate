@@ -77,13 +77,14 @@
           v-if="showChip"
           class="shrink-0 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-wider whitespace-nowrap"
           :class="chipClass"
+          :style="chipStyle"
         >
           {{ chipText }}
         </span>
 
         <span
-          class="ml-auto shrink-0 text-[8px] uppercase tracking-wider opacity-50 whitespace-nowrap mt-0.5"
-          :style="showTheme ? { color: timestampColor, opacity: 1 } : {}"
+          class="ml-auto shrink-0 text-[10px] leading-none font-black uppercase tracking-wide whitespace-nowrap mt-0.5"
+          :style="timestampStyle"
         >
           {{ rel.kind === 'live_invite' ? 'NOW' : formattedTime }}
         </span>
@@ -256,12 +257,13 @@ const themedNameColor = computed(() =>
 const themedDescColor = computed(() =>
 	onDarkWorld.value ? theme.value.descColorDark : theme.value.descColor,
 );
-// The time sits at the far edge of the row, outside the part of most mini
-// worlds that is reliably dark. Using the world's global `isDark` flag made
-// timestamps turn white on otherwise light cards.
-const timestampColor = computed(() =>
-	theme.value.isDark ? theme.value.descColor : theme.value.descColorOnLight,
-);
+// Time is tiny utility text, not part of the user's font/theme treatment.
+// Keep it predictably black on light cards and white on every dark surface.
+const timestampStyle = computed(() => ({
+	color: onDarkSurface.value ? "#ffffff" : "#18181b",
+	opacity: onDarkSurface.value ? 0.9 : 0.68,
+	textShadow: onDarkSurface.value ? "0 1px 3px rgba(0, 0, 0, 0.65)" : "none",
+}));
 
 /* --- derived display bits --- */
 const lastMessage = computed(() => {
@@ -392,8 +394,16 @@ const nameClass = computed(() => {
 	return "text-black/80";
 });
 
-const chipClass = computed(() =>
-	isBlocked.value ? "bg-zinc-500 text-white" : accent.value.chip,
+const chipClass = computed(() => {
+	if (isBlocked.value) return "bg-zinc-500 text-white";
+	if (rel.value.kind === "trial_expired") return "bg-amber-300/35 text-black";
+	return accent.value.chip;
+});
+
+// Do not let an inherited/customized foreground turn the light amber
+// "Trial ended" pill white.
+const chipStyle = computed(() =>
+	rel.value.kind === "trial_expired" ? { color: "#18181b" } : {},
 );
 
 const statusClass = computed(() => {

@@ -101,7 +101,8 @@
 
             <p
               class="text-base font-bold italic mt-3 px-4 leading-snug whitespace-pre-wrap transition-colors duration-500"
-              :style="{ color: activeColors.desc, textShadow: activeColors.textShadow }"
+              :class="{ 'rounded-2xl py-2.5': needsDescriptionScrim }"
+              :style="descriptionStyle"
             >
               "{{ user.description || 'No description yet.' }}"
             </p>
@@ -333,6 +334,25 @@ const readablePalette = computed(() =>
 );
 const isDarkContext = computed(() => readablePalette.value.isDark);
 const activeColors = computed(() => readablePalette.value);
+const needsDescriptionScrim = computed(
+	() => effectiveCustomization.value.effectId === "crumpled-paper",
+);
+const descriptionStyle = computed(() => ({
+	color: needsDescriptionScrim.value
+		? activeColors.value.name
+		: activeColors.value.desc,
+	textShadow: activeColors.value.textShadow,
+	backgroundColor: needsDescriptionScrim.value
+		? activeColors.value.scrim
+		: "transparent",
+	boxShadow: needsDescriptionScrim.value
+		? `inset 0 0 0 1px ${
+				activeColors.value.isDark
+					? "rgba(255,255,255,0.12)"
+					: "rgba(0,0,0,0.08)"
+			}`
+		: "none",
+}));
 
 const cardStyle = computed(() => ({
 	background: theme.value.cardBg,

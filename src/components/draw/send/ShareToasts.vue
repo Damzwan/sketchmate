@@ -6,7 +6,7 @@
     <TransitionGroup name="share-toast">
 
       <div
-        v-if="shareService.isSending"
+        v-if="isSending"
         key="sending-indicator"
         class="relative flex items-center p-2.5 rounded-xl border backdrop-blur-xl shadow-2xl pointer-events-none overflow-hidden transition-all bg-zinc-900/80 border-white/10"
       >
@@ -102,7 +102,6 @@ import {
 	ShareToastKind,
 	useShareToastStore,
 } from "@/draw/store/useShareToastStore.store";
-import { useShareService } from "@/draw/store/useShareService.store"; // Imported share service
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
@@ -115,10 +114,7 @@ import { computed } from "vue";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const shareToastStore = useShareToastStore();
-const { toasts } = storeToRefs(shareToastStore);
-
-// Access the global sending state
-const shareService = useShareService();
+const { toasts, isSending } = storeToRefs(shareToastStore);
 
 // Keep vertical offset in lockstep with ChatToasts (drops while the canvas loads).
 const { isLoadingCanvas } = storeToRefs(useDrawSyncer());

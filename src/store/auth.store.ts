@@ -45,6 +45,9 @@ import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
+import { usePostStore } from "@/store/post.store";
+import { useUserCacheStore } from "@/store/userCache.store";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import { Purchases } from "@revenuecat/purchases-capacitor";
 
 export const useAuthStore = defineStore("auth", () => {
@@ -401,6 +404,9 @@ export const useAuthStore = defineStore("auth", () => {
 		useInventoryStore().clear();
 		useSubscriptionStore().clearSubscriptionState();
 		useChatStore().clearRuntimeState();
+		usePostStore().clearRuntimeState();
+		useUserCacheStore().clear();
+		useOverlayRuntimeStore().reset();
 
 		// Deactivate this device's push server-side BEFORE signing out, so the
 		// authenticated request actually lands (previously it raced signOut()).

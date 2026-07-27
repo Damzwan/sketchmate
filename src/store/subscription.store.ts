@@ -215,6 +215,8 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 	function clearSubscriptionState() {
 		isPro.value = false;
 		isLifetime.value = false;
+		showConfetti.value = false;
+		pendingSupporterToast.value = false;
 	}
 
 	async function manageSubscription() {

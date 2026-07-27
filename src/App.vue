@@ -2,7 +2,7 @@
   <ion-app>
     <CircularLoader class="z-50" v-if="!isRouterReady" bg-color="bg-background" />
     <ion-router-outlet />
-    <LazyMount :when="isLoggedIn"><WhatsNewModal /></LazyMount>
+    <LazyMount :when="isLoggedIn && isWhatsNewOpen"><WhatsNewModal /></LazyMount>
     <!-- Toast listeners stay live after login; the heavy panel loads on first open. -->
     <LazyMount :when="isLoggedIn"><ChatToasts /></LazyMount>
     <LazyMount :when="isLoggedIn && chatPanelOpen"><ChatPanel /></LazyMount>
@@ -11,15 +11,15 @@
     <LazyMount :when="isLoggedIn && photoSwiperOpen"><PhotoSwiper /></LazyMount>
     <LazyMount :when="isLoggedIn && viewProfileMenuOpen"><UserContextSheet/></LazyMount>
     <LazyMount :when="feedbackMenuOpen"><FeedbackMenu /></LazyMount>
-    <LazyMount :when="isLoggedIn"><DateOfBirthConfirmation /></LazyMount>
-    <LazyMount :when="isLoggedIn"><Confetti /></LazyMount>
-    <LazyMount :when="isLoggedIn"><ReceivedBalloon /></LazyMount>
+    <LazyMount :when="isLoggedIn && dateOfBirthOpen"><DateOfBirthConfirmation /></LazyMount>
+    <LazyMount :when="isLoggedIn && showConfetti"><Confetti /></LazyMount>
+    <LazyMount :when="isLoggedIn && !!receivedBalloon"><ReceivedBalloon /></LazyMount>
     <LazyMount :when="balloonMenuOpen"><BalloonMenu/></LazyMount>
     <LazyMount :when="connectionMenuOpen"><ConnectionHub /></LazyMount>
-    <LazyMount :when="isLoggedIn"><ModerationMenu/></LazyMount>
+    <LazyMount :when="isLoggedIn && moderationMenuOpen"><ModerationMenu/></LazyMount>
     <LazyMount :when="sharePostMenuOpen"><SharePostMenu/></LazyMount>
     <LazyMount :when="reportMenuOpen"><ReportMenu/></LazyMount>
-    <LazyMount :when="isLoggedIn"><ShareToasts/></LazyMount>
+    <LazyMount :when="isLoggedIn && (shareToasts.length > 0 || shareIsSending)"><ShareToasts/></LazyMount>
     <LazyMount :when="isShopOpen"><Shop/></LazyMount>
     <LazyMount :when="isPaywallOpen"><PaywallModal/></LazyMount>
     <LazyMount :when="isOnlineUpgradeMenuOpen"><OnlineUpgradeModal/></LazyMount>
@@ -42,18 +42,24 @@ import { useActiveViewSync } from "@/service/activeViewSync";
 
 // Eagerly loaded components
 import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
-import WhatsNewModal from "@/components/general/WhatsNewModal.vue";
 import LazyMount from "@/components/general/LazyMount.vue";
 import { useMenuStore } from "@/store/menu.store";
 import { useSessionStore } from "@/store/session.store";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import OnlineUpgradeModal from "@/components/general/OnlineUpgradeModal.vue";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
+import { useBalloonStore } from "@/store/balloon.store";
+import { useShareToastStore } from "@/draw/store/useShareToastStore.store";
+import { useWhatsNewPrompt } from "@/composables/general/useWhatsNewPrompt";
 
 // LAZY LOADED COMPONENTS (Will create separate js chunks)
 const GlobalToast = defineAsyncComponent(
 	() => import("@/components/general/GlobalToast.vue"),
+);
+const WhatsNewModal = defineAsyncComponent(
+	() => import("@/components/general/WhatsNewModal.vue"),
 );
 const PhotoSwiper = defineAsyncComponent(
 	() => import("@/components/photoswiper/PhotoSwiper.vue"),
@@ -109,15 +115,16 @@ const Shop = defineAsyncComponent(() => import("@/components/shop/Shop.vue"));
 const PaywallModal = defineAsyncComponent(
 	() => import("@/components/subscription/PaywallModal.vue"),
 );
+const OnlineUpgradeModal = defineAsyncComponent(
+	() => import("@/components/general/OnlineUpgradeModal.vue"),
+);
 
 const ionRouter = useIonRouter();
 const { initIonRouter } = useAuthStore();
 initIonRouter(ionRouter);
 useActiveViewSync();
 
-const { isAuthLoading, showForceUpdateModal, isLoggedIn } = storeToRefs(
-	useAuthStore(),
-);
+const { isAuthLoading, isLoggedIn } = storeToRefs(useAuthStore());
 
 // Flags that gate the deferred overlay chunks (see LazyMount). Each modal is
 // opened by an external store flag, so it can stay unmounted — and its JS chunk
@@ -132,10 +139,18 @@ const {
 	reportMenuOpen,
 	balloonMenuOpen,
 	viewProfileMenuOpen,
+	moderationMenuOpen,
+	isWhatsNewOpen,
 } = storeToRefs(useMenuStore());
 
 const { open: photoSwiperOpen } = storeToRefs(usePhotoSwiper());
 const { isExpanded: chatPanelOpen } = storeToRefs(useChatWidgetStore());
+const { isOpen: dateOfBirthOpen } = storeToRefs(useDateOfBirthModalStore());
+const { showConfetti } = storeToRefs(useSubscriptionStore());
+const { receivedBalloon } = storeToRefs(useBalloonStore());
+const { toasts: shareToasts, isSending: shareIsSending } = storeToRefs(
+	useShareToastStore(),
+);
 
 const networkStore = useNetworkStore();
 
@@ -178,6 +193,7 @@ setupRouterReadyWatcher(isRouterReady, isAuthLoading);
 setupBackButtonBehavior();
 setupPWAPromptListener();
 networkStore.init();
+useWhatsNewPrompt();
 </script>
 
 <style lang="scss">

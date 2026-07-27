@@ -37,12 +37,15 @@ export const useShareToastStore = defineStore("shareToast", () => {
 	const postStore = usePostStore();
 
 	const toasts = ref<ShareToast[]>([]);
+	// Presentation-only progress state. Keeping it here lets the global toast
+	// renderer stay independent from the drawing export pipeline.
+	const isSending = ref(false);
 	const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 	// Helper to get the actual item from stores reactively
 	const getInboxItem = (id: string) =>
 		inboxStore.inbox.find((i) => i._id === id);
-	const getPost = (id: string) => postStore.postCache[id];
+	const getPost = (id: string) => postStore.getCachedPost(id);
 
 	function push(toast: ShareToast) {
 		if (toasts.value.length >= 4) {
@@ -158,6 +161,7 @@ export const useShareToastStore = defineStore("shareToast", () => {
 
 	return {
 		toasts,
+		isSending,
 		dismiss,
 		pushDrawingToast,
 		pushSharedToast,

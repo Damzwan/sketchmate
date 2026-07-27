@@ -1,5 +1,5 @@
 import { defineStore, storeToRefs } from "pinia";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import {
 	DrawingExportInput,
 	exportDrawingBlobs,
@@ -36,8 +36,8 @@ export type ShareableItem =
 	| { type: "inbox"; data: InboxItem };
 
 export const useShareService = defineStore("shareService", () => {
-	const isSending = ref(false);
 	const toasts = useShareToastStore();
+	const isSending = computed(() => toasts.isSending);
 	const quota = useQuotaStore();
 	const preSelected = ref<"mate" | "balloon" | "post">("mate");
 	const { user } = storeToRefs(useAuthStore());
@@ -177,7 +177,7 @@ export const useShareService = defineStore("shareService", () => {
 		});
 
 		const postStore = usePostStore();
-		postStore.postCache[post._id] = post;
+		postStore.cachePost(post);
 		postStore.markProfileDirty();
 
 		quota.decrementPost();
@@ -207,7 +207,7 @@ export const useShareService = defineStore("shareService", () => {
 
 	async function runBatch(tasks: Array<() => Promise<void>>): Promise<void> {
 		if (tasks.length === 0) return;
-		isSending.value = true;
+		toasts.isSending = true;
 		try {
 			const results = await Promise.allSettled(tasks.map((t) => t()));
 			const anySucceeded = results.some((r) => r.status === "fulfilled");
@@ -215,7 +215,7 @@ export const useShareService = defineStore("shareService", () => {
 				await recordEngagementAndMaybePrompt();
 			}
 		} finally {
-			isSending.value = false;
+			toasts.isSending = false;
 			void quota.refresh(true);
 		}
 	}

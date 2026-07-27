@@ -5,11 +5,13 @@ import { getPartialUsers } from "@/service/api/user.api";
 interface CacheEntry {
 	data: any;
 	fetchedAt: number;
+	lastAccessed: number;
 }
 
 const SOFT_TTL_MS = 5 * 60 * 1000;
 const BATCH_DEBOUNCE_MS = 50;
 const BATCH_MAX_SIZE = 100;
+const MAX_CACHE_ENTRIES = 300;
 
 export const useUserCacheStore = defineStore("userCache", () => {
 	const cache = shallowRef<Map<string, CacheEntry>>(new Map());
@@ -21,6 +23,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	// In-flight dedupe — promises per id so concurrent reads of the same
 	// missing user share one network round-trip
 	const inflight = new Map<string, Promise<any | null>>();
+	let accessClock = 0;
 
 	// ─── INTERNAL ──────────────────────────────────────────────────────────
 
@@ -35,7 +38,21 @@ export const useUserCacheStore = defineStore("userCache", () => {
 			// on the next cache-miss or soft-stale refresh.
 			const prev = next.get(u._id)?.data;
 			const data = prev ? { ...prev, ...u } : u;
-			next.set(u._id, { data, fetchedAt: now });
+			next.set(u._id, {
+				data,
+				fetchedAt: now,
+				lastAccessed: ++accessClock,
+			});
+		}
+
+		if (next.size > MAX_CACHE_ENTRIES) {
+			const overflow = next.size - MAX_CACHE_ENTRIES;
+			const evictionCandidates = [...next.entries()]
+				.filter(([id]) => !pendingIds.has(id) && !inflight.has(id))
+				.sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
+			for (let i = 0; i < overflow && i < evictionCandidates.length; i++) {
+				next.delete(evictionCandidates[i][0]);
+			}
 		}
 		cache.value = next;
 		triggerRef(cache);
@@ -121,7 +138,9 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	 * cheaply.
 	 */
 	const peek = (id: string): any | undefined => {
-		return cache.value.get(id)?.data;
+		const entry = cache.value.get(id);
+		if (entry) entry.lastAccessed = ++accessClock;
+		return entry?.data;
 	};
 
 	/**
@@ -142,6 +161,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 			enqueue(id);
 			return undefined;
 		}
+		entry.lastAccessed = ++accessClock;
 
 		// Soft-stale — return current data and trigger a background refresh
 		if (Date.now() - entry.fetchedAt > SOFT_TTL_MS && !inflight.has(id)) {
@@ -216,6 +236,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 		pendingIds.clear();
 		inflight.clear();
 		inflightResolvers.clear();
+		accessClock = 0;
 		if (pendingTimer) {
 			clearTimeout(pendingTimer);
 			pendingTimer = null;

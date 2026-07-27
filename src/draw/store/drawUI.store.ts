@@ -1,9 +1,11 @@
 import { defineStore } from "pinia";
 import { ShapeCreationMode } from "@/draw/types/draw.types";
 import { ref } from "vue";
+import { storeToRefs } from "pinia";
 import { useDrawStore } from "@/draw/store/draw.store";
 import { Canvas, Point } from "fabric";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 
 const AVATAR_DISAPPEAR_TIMEOUT_MS = 3000;
 
@@ -16,12 +18,14 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 	const loadingText = ref("");
 	const canResetView = ref(false);
 	const activeAvatars = ref(new Map());
-	const isFullscreen = ref(false);
-	const chatToastsSilenced = ref(false);
+	// Re-export the lightweight global refs so existing drawing consumers keep
+	// their API while ChatToasts no longer needs to import this Fabric-backed store.
+	const { isFullscreen, chatToastsSilenced } = storeToRefs(
+		useOverlayRuntimeStore(),
+	);
 	const isSavingDrawing = ref(false);
 	const isLoadingDrawing = ref(false);
 	const isForceExiting = ref(false);
-
 
 	const exitRequested = ref(0);
 
@@ -98,6 +102,6 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 		chatToastsSilenced,
 		isSavingDrawing,
 		isLoadingDrawing,
-		isForceExiting
+		isForceExiting,
 	};
 });

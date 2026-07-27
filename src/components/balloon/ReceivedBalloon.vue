@@ -7,7 +7,12 @@
       />
     </Transition>
 
-    <Transition name="float-down" @after-enter="handleLanded" @before-leave="handleBalloonLeave">
+    <Transition
+      name="float-down"
+      appear
+      @after-enter="handleLanded"
+      @before-leave="handleBalloonLeave"
+    >
       <div
         v-if="balloonStore.receivedBalloon"
         class="fixed inset-0 z-[45] flex flex-col items-center px-4 pointer-events-none"
@@ -240,6 +245,7 @@ watch(
 		naturalRatio.value = null;
 		if (val?.img) loadNaturalRatio(val.img);
 	},
+	{ immediate: true },
 );
 
 // Animation Lifecycle

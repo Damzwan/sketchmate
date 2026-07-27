@@ -107,11 +107,9 @@
 
 <script setup lang="ts">
 import { IonModal, IonButton, IonIcon } from "@ionic/vue";
-import { watchEffect } from "vue";
 import { storeToRefs } from "pinia";
-import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
-import { compareVersions, svg } from "@/helper/general.helper";
+import { svg } from "@/helper/general.helper";
 import {
 	mdiAccountGroupOutline,
 	mdiBrushVariant,
@@ -121,16 +119,11 @@ import {
 	mdiClose,
 	mdiGiftOutline,
 } from "@mdi/js";
-import { useRoute } from "vue-router";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { updateUser } from "@/service/api/user.api";
 import bigbossImage from "@/assets/bigboss.jpg";
 
 const menuStore = useMenuStore();
 const { isWhatsNewOpen } = storeToRefs(menuStore);
 
-const { user } = storeToRefs(useAuthStore());
-const route = useRoute();
 const appVersion = __APP_VERSION__;
 
 const features = [
@@ -160,39 +153,6 @@ const features = [
 		text: "A cleaner, faster, and more polished interface across the app.",
 	},
 ];
-
-watchEffect(() => {
-	if (
-		isWhatsNewOpen.value ||
-		!user.value ||
-		route.path === `/${FRONTEND_ROUTES.login}`
-	)
-		return;
-
-	const lastSeen = user.value.last_seen_version;
-
-	if (!lastSeen) {
-		user.value.last_seen_version = appVersion;
-		void updateUser({
-			_id: user.value._id,
-			last_seen_version: appVersion,
-		});
-		return;
-	}
-
-	if (compareVersions(appVersion, lastSeen) === 1) {
-		setTimeout(() => {
-			if (!user.value) return;
-			isWhatsNewOpen.value = true;
-		}, 2000);
-
-		user.value.last_seen_version = appVersion;
-		void updateUser({
-			_id: user.value._id,
-			last_seen_version: appVersion,
-		});
-	}
-});
 </script>
 
 <style scoped>

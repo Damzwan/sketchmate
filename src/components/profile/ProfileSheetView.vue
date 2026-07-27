@@ -54,9 +54,18 @@
             <slot name="status" />
 
             <slot name="description">
+              <div
+                v-if="descriptionLoading && !user?.description"
+                class="mt-4 flex flex-col items-center gap-1.5 w-full px-8"
+              >
+                <div class="h-3.5 w-full bg-black/5 rounded-full animate-pulse"></div>
+                <div class="h-3.5 w-2/3 bg-black/5 rounded-full animate-pulse"></div>
+              </div>
               <p
+                v-else
                 class="text-base font-bold italic mt-4 leading-snug whitespace-pre-wrap px-2 transition-colors duration-500"
-                :style="{ color: activeColors.desc, textShadow: activeColors.textShadow }"
+                :class="{ 'rounded-2xl py-2.5 px-4': needsDescriptionScrim }"
+                :style="descriptionStyle"
               >
                 "{{ user?.description || 'This artist is a mystery...' }}"
               </p>
@@ -172,6 +181,7 @@ const props = withDefaults(
 		posts?: any[];
 		postsLoading?: boolean;
 		statsLoading?: boolean;
+		descriptionLoading?: boolean;
 		showPortfolio?: boolean;
 		/** false = fixed vignette (preview pagers): no inner scroll, content
 		    clipped to the frame. Pair with show-portfolio=false. */
@@ -181,6 +191,7 @@ const props = withDefaults(
 		posts: () => [],
 		postsLoading: false,
 		statsLoading: false,
+		descriptionLoading: false,
 		showPortfolio: true,
 		scrollable: true,
 	},
@@ -203,6 +214,25 @@ const activeWorld = computed(() => resolveWorld(c.value.worldId));
 const activeColors = computed(() =>
 	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
 );
+const needsDescriptionScrim = computed(
+	() => c.value.effectId === "crumpled-paper",
+);
+const descriptionStyle = computed(() => ({
+	color: needsDescriptionScrim.value
+		? activeColors.value.name
+		: activeColors.value.desc,
+	textShadow: activeColors.value.textShadow,
+	backgroundColor: needsDescriptionScrim.value
+		? activeColors.value.scrim
+		: "transparent",
+	boxShadow: needsDescriptionScrim.value
+		? `inset 0 0 0 1px ${
+				activeColors.value.isDark
+					? "rgba(255,255,255,0.12)"
+					: "rgba(0,0,0,0.08)"
+			}`
+		: "none",
+}));
 
 // Expose theme/font to hosts that style slotted content (action menu).
 defineExpose({ theme, font });

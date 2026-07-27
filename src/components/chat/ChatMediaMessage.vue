@@ -64,7 +64,6 @@
 import { computed, onMounted, ref } from "vue";
 import { IonIcon, IonSpinner } from "@ionic/vue";
 import { mdiDraw, mdiImageBroken } from "@mdi/js";
-import { storeToRefs } from "pinia";
 import { svg } from "@/helper/general.helper";
 import { usePostStore } from "@/store/post.store";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
@@ -80,7 +79,6 @@ const props = defineProps<{
 
 const postStore = usePostStore();
 const inboxStore = useInboxStore();
-const { postCache } = storeToRefs(postStore);
 const { openPostSwiper } = usePostSwiper();
 const { openInboxSwiper } = useInboxSwiper();
 
@@ -91,7 +89,7 @@ const unavailableInbox = ref(false);
 
 const sharedPost = computed(() =>
 	props.msg.shared_post_id
-		? postCache.value[props.msg.shared_post_id] || null
+		? postStore.getCachedPost(props.msg.shared_post_id)
 		: null,
 );
 const sharedInboxItem = computed(() =>

@@ -1,5 +1,8 @@
 <template>
-  <section ref="rootEl" class="min-h-[300px] pb-10 max-w-2xl mx-auto overflow-visible">
+  <section
+    ref="rootEl"
+    class="min-h-[300px] pb-10 max-w-2xl mx-auto overflow-visible"
+  >
     <!-- Header Subhead Segment -->
     <div class="flex items-center justify-between px-1 mb-3 pt-2">
       <h2 class="uppercase tracking-widest font-black text-black/80">
@@ -65,6 +68,8 @@
           :is-mine="post.author_id === user?._id"
           @open-comments="openComments"
           @open-reaction-popover="handleOpenReactionPopover"
+          @open-reaction-breakdown="openReactionBreakdown"
+          @open-fullscreen="handleOpenFullscreen"
           @delete-post="handleDelete"
         />
 
@@ -88,7 +93,7 @@
     <ReactionPopover
       :is-open="popoverOpen"
       :event="popoverEvent"
-      :user-reaction="activePopoverPost?.user_reaction"
+      :user-reaction="activePopoverPost?.user_reaction || undefined"
       @close="closeReactionPopover"
       @select="selectReaction"
     />
@@ -98,6 +103,14 @@
       :is-open="isCommentsOpen"
       :post="activePost"
       @close="isCommentsOpen = false"
+    />
+
+    <!-- One sheet for the feed. It used to be instantiated once per post. -->
+    <ReactionBreakdownSheet
+      v-if="reactionSheetPost"
+      :is-open="reactionSheetOpen"
+      :post="reactionSheetPost"
+      @close="reactionSheetOpen = false"
     />
   </section>
 </template>
@@ -109,6 +122,7 @@ import { useIntersectionObserver } from "@vueuse/core";
 
 import { useAuthStore } from "@/store/auth.store";
 import { usePostStore } from "@/store/post.store";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useToast } from "@/service/toast.service";
 import { logPostViews, deletePost, type FeedTab } from "@/service/api/post.api";
 import { FeedPost } from "@/types/server.types";
@@ -117,13 +131,18 @@ import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
 import PostCommentDrawer from "@/components/home/posts/PostCommentDrawer.vue";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
+import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
+import { usePostSwiper } from "@/composables/home/usePostSwiper";
 
 const authStore = useAuthStore();
 const postStore = usePostStore();
+const photoSwiperStore = usePhotoSwiper();
+const { openPostSwiper } = usePostSwiper();
 const { toast } = useToast();
 
 const { user } = storeToRefs(authStore);
 const { feedByTab, fetchedTabs, isFeedDirty } = storeToRefs(postStore);
+const { open: photoSwiperOpen } = storeToRefs(photoSwiperStore);
 
 const TABS: { id: FeedTab; label: string }[] = [
 	{ id: "for_you", label: "For You" },
@@ -154,19 +173,30 @@ const loading = ref(true);
 
 const isCommentsOpen = ref(false);
 const activePost = ref<FeedPost | null>(null);
+const reactionSheetOpen = ref(false);
+const reactionSheetPost = ref<FeedPost | null>(null);
+
+const openReactionBreakdown = (post: FeedPost) => {
+	reactionSheetPost.value = post;
+	reactionSheetOpen.value = true;
+};
 
 const popoverOpen = ref(false);
 const popoverEvent = ref<Event | null>(null);
 const activePopoverPost = ref<FeedPost | null>(null);
 const REACTION_POPOVER_SPACING = 10;
 
-// Opening the reaction ion-popover makes Ionic yank the surrounding ion-content
-// scroll (focus/positioning side-effect), sometimes all the way to the top. We
-// snapshot the scroll offset when the picker opens and pin it back for a few
-// frames across present + dismiss so the feed stays exactly where the user was.
+// Ionic restores focus after an overlay closes, while fullscreen comment
+// prefetching and first reactions can also change the card's height underneath
+// it. Hold both scrollTop and Chromium's scroll anchor for the full overlay
+// lifetime, then keep pinning through the dismissal/update frames.
 const rootEl = ref<HTMLElement | null>(null);
 let scrollEl: HTMLElement | null = null;
 let savedScrollTop = 0;
+let previousOverflowAnchor: string | null = null;
+let scrollGuardFrame: number | null = null;
+let scrollGuardUntil = 0;
+let releaseAnchorWhenGuardEnds = false;
 
 async function resolveScrollEl(): Promise<HTMLElement | null> {
 	if (scrollEl?.isConnected) return scrollEl;
@@ -177,28 +207,84 @@ async function resolveScrollEl(): Promise<HTMLElement | null> {
 	return scrollEl;
 }
 
+function blurOverlayTrigger() {
+	const active = document.activeElement;
+	if (active instanceof HTMLElement && active !== document.body) active.blur();
+}
+
+async function captureOverlayScroll() {
+	const el = await resolveScrollEl();
+	if (!el) return;
+
+	if (scrollGuardFrame !== null) cancelAnimationFrame(scrollGuardFrame);
+	scrollGuardFrame = null;
+	scrollGuardUntil = 0;
+	releaseAnchorWhenGuardEnds = false;
+
+	savedScrollTop = el.scrollTop;
+	if (previousOverflowAnchor === null) {
+		previousOverflowAnchor = el.style.overflowAnchor;
+		el.style.overflowAnchor = "none";
+	}
+	blurOverlayTrigger();
+}
+
 function pinScroll() {
 	if (
 		scrollEl?.isConnected &&
 		Math.abs(scrollEl.scrollTop - savedScrollTop) > 2
 	)
-		scrollEl.scrollTop = savedScrollTop;
+			scrollEl.scrollTop = savedScrollTop;
 }
 
-// Pin repeatedly across an animation window (present OR dismiss); each frame
-// snaps the scroll back if Ionic moved it. Dismiss (native back / tapping a
-// reaction) restores focus to the trigger and can yank the feed several frames
-// AFTER the popover closes, so we have to keep pinning past the close too.
-function guardScroll() {
-	requestAnimationFrame(pinScroll);
-	setTimeout(pinScroll, 60);
-	setTimeout(pinScroll, 160);
-	setTimeout(pinScroll, 300);
+function releaseScrollAnchor() {
+	if (scrollEl?.isConnected && previousOverflowAnchor !== null) {
+		scrollEl.style.overflowAnchor = previousOverflowAnchor;
+	}
+	previousOverflowAnchor = null;
 }
+
+function stopScrollGuard(releaseAnchor = true) {
+	if (scrollGuardFrame !== null) cancelAnimationFrame(scrollGuardFrame);
+	scrollGuardFrame = null;
+	scrollGuardUntil = 0;
+	releaseAnchorWhenGuardEnds = false;
+	if (releaseAnchor) releaseScrollAnchor();
+}
+
+function guardScroll(duration = 500, releaseAnchorAfter = false) {
+	scrollGuardUntil = Math.max(scrollGuardUntil, performance.now() + duration);
+	releaseAnchorWhenGuardEnds ||= releaseAnchorAfter;
+	if (scrollGuardFrame !== null) return;
+
+	const tick = () => {
+		pinScroll();
+		if (performance.now() < scrollGuardUntil) {
+			scrollGuardFrame = requestAnimationFrame(tick);
+			return;
+		}
+
+		scrollGuardFrame = null;
+		if (releaseAnchorWhenGuardEnds) releaseScrollAnchor();
+		releaseAnchorWhenGuardEnds = false;
+	};
+	scrollGuardFrame = requestAnimationFrame(tick);
+}
+
+function cancelScrollGuardOnInteraction() {
+	if (!popoverOpen.value && !feedFullscreenOpen) stopScrollGuard();
+}
+const scrollIntentListenerOptions: AddEventListenerOptions = {
+	capture: true,
+	passive: true,
+};
 
 function closeReactionPopover() {
 	popoverOpen.value = false;
-	guardScroll();
+	// `close` is emitted on ion-popover's didDismiss. At this point the
+	// animation is over, so only cover the final focus-restoration frames.
+	stopScrollGuard(false);
+	guardScroll(48, true);
 }
 
 const openComments = (post: FeedPost) => {
@@ -206,21 +292,21 @@ const openComments = (post: FeedPost) => {
 	isCommentsOpen.value = true;
 };
 
-const handleOpenReactionPopover = ({
+const handleOpenReactionPopover = async ({
 	event,
 	post,
 }: {
 	event: any;
 	post: FeedPost;
 }) => {
-	activePopoverPost.value = post;
-	// Snapshot scroll before Ionic can move it, then keep it pinned while opening.
-	savedScrollTop = scrollEl?.isConnected ? scrollEl.scrollTop : 0;
+	// Read the coordinates before awaiting: touch lists are short-lived.
 	const x =
 		event.clientX || (event.touches && event.touches[0].clientX) || event.pageX;
 	const y =
 		event.clientY || (event.touches && event.touches[0].clientY) || event.pageY;
 
+	await captureOverlayScroll();
+	activePopoverPost.value = post;
 	popoverEvent.value = {
 		target: {
 			getBoundingClientRect: () => ({
@@ -234,14 +320,16 @@ const handleOpenReactionPopover = ({
 		},
 	} as any;
 	popoverOpen.value = true;
-	guardScroll();
+	guardScroll(300);
 };
 
 const selectReaction = async (type: string) => {
 	popoverOpen.value = false;
 	if (!activePopoverPost.value) return;
 	const post = activePopoverPost.value;
-	guardScroll();
+	// Fallback while the popover dismisses. Its didDismiss handler above
+	// shortens this immediately once Ionic has actually released the overlay.
+	guardScroll(450, true);
 	const isRemoving = post.user_reaction === type;
 	trackEvent(mixpanelEvents.postReact, {
 		post_id: post._id,
@@ -257,6 +345,24 @@ const selectReaction = async (type: string) => {
 	}
 };
 
+let feedFullscreenOpen = false;
+
+const handleOpenFullscreen = async (post: FeedPost) => {
+	await captureOverlayScroll();
+	feedFullscreenOpen = true;
+	openPostSwiper([post], 0);
+	guardScroll(350);
+};
+
+watch(photoSwiperOpen, (open) => {
+	if (open || !feedFullscreenOpen) return;
+	feedFullscreenOpen = false;
+	// The store closes at will-dismiss. A normal Ionic dismissal is ~300 ms;
+	// leave only a small buffer instead of swallowing input for almost a second.
+	// Any real pointer/touch/wheel intent cancels this fallback immediately.
+	guardScroll(450, true);
+});
+
 const handleDelete = async (post: FeedPost) => {
 	try {
 		await deletePost(post._id);
@@ -268,28 +374,50 @@ const handleDelete = async (post: FeedPost) => {
 };
 
 /* --- LOGICAL INTERSECTION VIEW OBSERVERS --- */
-const viewedPosts = new Set<string>();
 const pendingViewSync = new Set<string>();
 const postElements = new Map<string, HTMLElement>();
-let syncTimeout: any = null;
+const postObservers = new Map<
+	string,
+	{ stop: () => void; timer: ReturnType<typeof setTimeout> | null }
+>();
+let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const flushViewSync = async () => {
+	if (syncTimeout) clearTimeout(syncTimeout);
+	syncTimeout = null;
+	if (pendingViewSync.size === 0) return;
+
+	const idsToSync = Array.from(pendingViewSync);
+	pendingViewSync.clear();
+	try {
+		await logPostViews(idsToSync);
+	} catch (e) {
+		console.error("View sync failed", e);
+	}
+};
 
 const scheduleViewSync = () => {
 	if (syncTimeout) return;
-	syncTimeout = setTimeout(async () => {
-		if (pendingViewSync.size === 0) return;
-		const idsToSync = Array.from(pendingViewSync);
-		pendingViewSync.clear();
-		syncTimeout = null;
-		try {
-			await logPostViews(idsToSync);
-		} catch (e) {
-			console.error("View sync failed", e);
-		}
-	}, 3000);
+	syncTimeout = setTimeout(() => void flushViewSync(), 3000);
+};
+
+const stopPostObserver = (postId: string) => {
+	const observer = postObservers.get(postId);
+	if (observer?.timer) clearTimeout(observer.timer);
+	observer?.stop();
+	postObservers.delete(postId);
+	postElements.delete(postId);
+};
+
+const stopAllPostObservers = () => {
+	for (const postId of [...postObservers.keys()]) stopPostObserver(postId);
 };
 
 const registerPostRef = (el: any, postId: string) => {
-	if (!el) return;
+	if (!el) {
+		stopPostObserver(postId);
+		return;
+	}
 	const target =
 		el.$el instanceof HTMLElement
 			? el.$el
@@ -299,30 +427,35 @@ const registerPostRef = (el: any, postId: string) => {
 	if (!target || postElements.has(postId)) return;
 
 	postElements.set(postId, target);
-	let timer: any = null;
+	let timer: ReturnType<typeof setTimeout> | null = null;
 
 	const { stop } = useIntersectionObserver(
 		target,
 		([{ isIntersecting }]) => {
-			if (viewedPosts.has(postId)) {
-				stop();
+			if (postStore.hasViewedFeedPost(postId)) {
+				stopPostObserver(postId);
 				return;
 			}
-			if (isIntersecting) {
+			if (isIntersecting && !timer) {
 				timer = setTimeout(() => {
-					if (!viewedPosts.has(postId)) {
-						viewedPosts.add(postId);
+					if (postStore.markFeedPostViewed(postId)) {
 						pendingViewSync.add(postId);
 						scheduleViewSync();
-						stop();
 					}
+					stopPostObserver(postId);
 				}, 1500);
+				const observer = postObservers.get(postId);
+				if (observer) observer.timer = timer;
 			} else if (timer) {
 				clearTimeout(timer);
+				timer = null;
+				const observer = postObservers.get(postId);
+				if (observer) observer.timer = null;
 			}
 		},
 		{ threshold: 0.6 },
 	);
+	postObservers.set(postId, { stop, timer });
 };
 
 // 'off' hides the feed entirely — no fetch, a small placeholder instead.
@@ -351,12 +484,9 @@ function loadFeedIfNeeded() {
 function selectTab(tab: FeedTab) {
 	if (tab === activeTab.value) return;
 	activeTab.value = tab;
-	// Switching tabs re-renders the list, so the cached elements are detached.
-	// Drop them or a post carried over from the previous tab never gets a fresh
-	// observer — and never gets logged as seen, which is what drives the
-	// server's repeat-suppression. `viewedPosts` deliberately persists, so a
-	// post shown in two tabs still only counts once per session.
-	postElements.clear();
+	// Switching tabs detaches every card. Stop observers and visibility timers
+	// rather than leaving closures holding the old card elements.
+	stopAllPostObservers();
 	trackEvent(mixpanelEvents.feedTabSwitched, { tab });
 	loadFeedIfNeeded();
 }
@@ -393,10 +523,46 @@ onMounted(() => {
 	// Warm the scroll-element handle so the reaction picker can read/pin scroll
 	// synchronously on first use.
 	void resolveScrollEl();
+
+	// Ionic overlays remain above the feed during their leave animation. Listen
+	// at document capture level so the first touch after close can cancel the
+	// guard even if that fading overlay, rather than this section, receives it.
+	document.addEventListener(
+		"pointerdown",
+		cancelScrollGuardOnInteraction,
+		scrollIntentListenerOptions,
+	);
+	document.addEventListener(
+		"touchstart",
+		cancelScrollGuardOnInteraction,
+		scrollIntentListenerOptions,
+	);
+	document.addEventListener(
+		"wheel",
+		cancelScrollGuardOnInteraction,
+		scrollIntentListenerOptions,
+	);
 });
 
 onUnmounted(() => {
-	if (syncTimeout) clearTimeout(syncTimeout);
+	document.removeEventListener(
+		"pointerdown",
+		cancelScrollGuardOnInteraction,
+		scrollIntentListenerOptions,
+	);
+	document.removeEventListener(
+		"touchstart",
+		cancelScrollGuardOnInteraction,
+		scrollIntentListenerOptions,
+	);
+	document.removeEventListener(
+		"wheel",
+		cancelScrollGuardOnInteraction,
+		scrollIntentListenerOptions,
+	);
+	stopScrollGuard();
+	stopAllPostObservers();
+	void flushViewSync();
 });
 </script>
 

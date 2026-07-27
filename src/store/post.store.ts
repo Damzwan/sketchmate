@@ -33,6 +33,53 @@ export const usePostStore = defineStore("post", () => {
 	const isFeedDirty = ref(false);
 	const limit = 20;
 	const postCache = ref<Record<string, FeedPost>>({});
+	const POST_CACHE_LIMIT = 60;
+	const postCacheAccess = new Map<string, number>();
+	const viewedFeedPostIds = new Set<string>();
+	const VIEWED_FEED_POST_LIMIT = 500;
+	let postCacheClock = 0;
+
+	function prunePostCache() {
+		const ids = Object.keys(postCache.value);
+		if (ids.length <= POST_CACHE_LIMIT) return;
+		ids
+			.sort(
+				(a, b) => (postCacheAccess.get(a) || 0) - (postCacheAccess.get(b) || 0),
+			)
+			.slice(0, ids.length - POST_CACHE_LIMIT)
+			.forEach((id) => {
+				delete postCache.value[id];
+				postCacheAccess.delete(id);
+			});
+	}
+
+	function cachePost(post: FeedPost) {
+		if (!post?._id) return;
+		postCache.value[post._id] = post;
+		postCacheAccess.set(post._id, ++postCacheClock);
+		prunePostCache();
+	}
+
+	function getCachedPost(postId: string): FeedPost | null {
+		const post = postCache.value[postId] || null;
+		if (post) postCacheAccess.set(postId, ++postCacheClock);
+		return post;
+	}
+
+	function hasViewedFeedPost(postId: string) {
+		return viewedFeedPostIds.has(postId);
+	}
+
+	/** Returns true only for the first qualifying view this app session. */
+	function markFeedPostViewed(postId: string) {
+		if (viewedFeedPostIds.has(postId)) return false;
+		viewedFeedPostIds.add(postId);
+		if (viewedFeedPostIds.size > VIEWED_FEED_POST_LIMIT) {
+			const oldest = viewedFeedPostIds.values().next().value;
+			if (oldest) viewedFeedPostIds.delete(oldest);
+		}
+		return true;
+	}
 
 	async function getFeed(tab: FeedTab = "for_you") {
 		try {
@@ -158,17 +205,31 @@ export const usePostStore = defineStore("post", () => {
 	}
 
 	async function fetchSinglePost(postId: string): Promise<FeedPost | null> {
-		if (postCache.value[postId]) return postCache.value[postId];
+		const cached = getCachedPost(postId);
+		if (cached) return cached;
 		try {
 			const res = await fetchPost(postId);
 			if (res?.post) {
-				postCache.value[postId] = res.post;
+				cachePost(res.post);
 				return res.post;
 			}
 		} catch (e) {
 			console.error("Failed to fetch shared post:", e);
 		}
 		return null;
+	}
+
+	function clearRuntimeState() {
+		resetFeeds();
+		userPosts.value = [];
+		userPage.value = 1;
+		hasMoreUserPosts.value = true;
+		isProfileDirty.value = false;
+		isFeedDirty.value = false;
+		postCache.value = {};
+		postCacheAccess.clear();
+		viewedFeedPostIds.clear();
+		postCacheClock = 0;
 	}
 
 	return {
@@ -188,6 +249,11 @@ export const usePostStore = defineStore("post", () => {
 		markProfileDirty,
 		markFeedDirty,
 		fetchSinglePost,
+		cachePost,
+		getCachedPost,
+		hasViewedFeedPost,
+		markFeedPostViewed,
+		clearRuntimeState,
 		postCache,
 	};
 });

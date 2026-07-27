@@ -118,9 +118,12 @@
         @contextmenu.prevent
       >
         <img
-          :src="post.image_url"
+          :src="post.thumbnail_url || post.image_url"
           class="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl pointer-events-none transition-opacity duration-500"
           :class="imageLoaded ? blurredBackdropOpacity : 'opacity-0'"
+          loading="lazy"
+          decoding="async"
+          fetchpriority="low"
           alt=""
         />
 
@@ -130,6 +133,8 @@
           :src="post.image_url"
           class="relative z-10 w-full object-contain transition-opacity duration-500 max-h-[50vh]"
           :class="imageLoaded ? 'opacity-100' : 'opacity-0'"
+          loading="lazy"
+          decoding="async"
           @load="imageLoaded = true"
           alt="Main illustration content"
         />
@@ -195,7 +200,7 @@
         <!-- Reaction social proof: tappable pill opening a full breakdown -->
         <button
           v-if="totalReactionCount > 0"
-          @click="showReactionSheet = true"
+          @click="$emit('open-reaction-breakdown', post)"
           class="flex items-center gap-2 self-start cursor-pointer active:scale-95 hover:scale-[1.02] transition-all"
           aria-label="See who reacted"
         >
@@ -319,11 +324,6 @@
       </div>
     </div>
 
-    <ReactionBreakdownSheet
-      :is-open="showReactionSheet"
-      :post="post"
-      @close="showReactionSheet = false"
-    />
   </div>
 </template>
 
@@ -373,9 +373,7 @@ import {
 	resolveWorld,
 } from "@/config/profile_options.config";
 import { useShareService } from "@/draw/store/useShareService.store";
-import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
-import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 
 dayjs.extend(relativeTime);
 
@@ -391,6 +389,8 @@ const props = defineProps<{
 const emit = defineEmits([
 	"open-comments",
 	"open-reaction-popover",
+	"open-reaction-breakdown",
+	"open-fullscreen",
 	"delete-post",
 ]);
 
@@ -534,19 +534,6 @@ const totalReactionCount = computed(() =>
 	),
 );
 
-// Breakdown sheet: reactions ordered most-popular first.
-const showReactionSheet = ref(false);
-const sortedReactions = computed(() =>
-	[...activeReactions.value].sort(
-		(a, b) => props.post.reaction_counts[b] - props.post.reaction_counts[a],
-	),
-);
-const reactionPercent = (key: string) => {
-	const total = totalReactionCount.value;
-	if (!total) return 0;
-	return Math.round((props.post.reaction_counts[key] / total) * 100);
-};
-
 // Up to two embedded comments to preview inline.
 const previewComments = computed(() => props.post.comments?.slice(0, 2) ?? []);
 
@@ -576,8 +563,6 @@ onLongPress(
 	{ delay: 400, modifiers: { prevent: true } },
 );
 
-const { openPostSwiper } = usePostSwiper();
-
 // Fullscreen this one post. The swiper takes a collection + index, so a single
 // card opens as a one-item collection — same viewer the profile grid and
 // notifications already use, so reactions/comments/delete behave identically.
@@ -586,7 +571,7 @@ const openFullscreen = () => {
 		post_id: props.post._id,
 		author_id: props.post.author._id,
 	});
-	openPostSwiper([props.post], 0);
+	emit("open-fullscreen", props.post);
 };
 
 const openUser = (userId: string) => openUserActions({ _id: userId });

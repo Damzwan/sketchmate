@@ -21,6 +21,7 @@
       :posts="targetPosts"
       :posts-loading="loadingProfile"
       :stats-loading="loadingProfile"
+      :description-loading="loadingProfile"
       @open-post="onOpenPost"
       @go-network="goToNetwork"
     >
@@ -52,19 +53,6 @@
           <span v-if="targetProfile?.relationship?.areFollowingMe && !isFollowing && !isMe"
                 class="bg-black/5 text-black/80 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Follows You</span>
         </div>
-      </template>
-
-      <template #description>
-        <div v-if="loadingProfile && !resolvedUser?.description"
-             class="mt-4 flex flex-col items-center gap-1.5 w-full px-8">
-          <div class="h-3.5 w-full bg-black/5 rounded-full animate-pulse"></div>
-          <div class="h-3.5 w-2/3 bg-black/5 rounded-full animate-pulse"></div>
-        </div>
-        <p v-else
-           class="text-sm font-bold italic mt-4 leading-snug whitespace-pre-wrap px-2 transition-colors duration-500"
-           :style="{ color: readablePalette.desc, textShadow: readablePalette.textShadow }">
-          "{{ resolvedUser?.description || 'This artist is a mystery...' }}"
-        </p>
       </template>
 
       <template #actions>
@@ -167,12 +155,9 @@ import {
 import { useToast } from "@/service/toast.service";
 import {
 	hydrateCustomization,
-	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 } from "@/config/profile_options.config";
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
-import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import { useChatStore } from "@/store/chat.store";
 import { useModerationStore } from "@/store/moderation.store";
 
@@ -239,13 +224,6 @@ const effectiveCustomization = computed(() =>
 const theme = computed(() =>
 	resolveTheme(effectiveCustomization.value.themeId),
 );
-const readablePalette = computed(() =>
-	resolveReadableCustomizationPalette(
-		theme.value,
-		resolveWorld(effectiveCustomization.value.worldId),
-	),
-);
-
 const isMe = computed(() => targetProfile.value?._id === me.value?._id);
 const isBlocked = computed(() =>
 	targetProfile.value?._id
@@ -425,6 +403,11 @@ async function confirmToggleBlock() {
 						friendStore.blockUserLocally(target._id);
 						void friendStore.refreshMyStats();
 						if (useDrawSyncer().isLobby) {
+							// Only a live lobby needs canvas cleanup. Keep the Fabric-backed
+							// object manager out of ordinary profile-sheet chunks.
+							const { useDrawObjectManager } = await import(
+								"@/draw/store/drawObjectManager.store"
+							);
 							useDrawObjectManager().purgeBlockedObjects();
 						}
 

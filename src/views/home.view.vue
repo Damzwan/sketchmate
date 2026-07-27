@@ -32,7 +32,10 @@
         />
 
         <!-- COMMUNITY FEED -->
-        <CommunityFeed v-if="!isUnderAge" ref="communityFeed" />
+        <CommunityFeed
+          v-if="!isUnderAge && communityFeedMounted"
+          ref="communityFeed"
+        />
 
       </div>
     </ion-content>
@@ -40,11 +43,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
 	IonContent,
 	IonPage,
+	onIonViewDidLeave,
 	onIonViewDidEnter,
+	onIonViewWillEnter,
 	useIonRouter,
 } from "@ionic/vue";
 import { storeToRefs } from "pinia";
@@ -90,6 +95,13 @@ const { pendingDraftsList, removedDraftIds } = storeToRefs(loadStore);
 const localDrafts = ref<DrawingDraft[]>([]);
 const isLoadingDrafts = ref(true);
 const communityFeed = ref<{ reloadIfDirty: () => void } | null>(null);
+const communityFeedMounted = ref(true);
+const constrainedDevice =
+	typeof document !== "undefined" &&
+	(document.documentElement.classList.contains("low-end") ||
+		document.documentElement.classList.contains("android-wv"));
+const FEED_RELEASE_DELAY_MS = constrainedDevice ? 0 : 15_000;
+let feedReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 
 const ALL_QUICK_ACTIONS = [
 	{ id: "draw_alone", label: "Draw", img: draw_alone, requiresAge: false },
@@ -175,6 +187,28 @@ onIonViewDidEnter(() => {
 			startWatchingLobbies();
 		});
 	}
+});
+
+onIonViewWillEnter(() => {
+	if (feedReleaseTimer) {
+		clearTimeout(feedReleaseTimer);
+		feedReleaseTimer = null;
+	}
+	communityFeedMounted.value = true;
+});
+
+onIonViewDidLeave(() => {
+	if (feedReleaseTimer) clearTimeout(feedReleaseTimer);
+	feedReleaseTimer = setTimeout(() => {
+		// Pinia keeps the capped post data. Only the expensive card DOM, decoded
+		// images, canvases and observers are released while another page runs.
+		communityFeedMounted.value = false;
+		feedReleaseTimer = null;
+	}, FEED_RELEASE_DELAY_MS);
+});
+
+onBeforeUnmount(() => {
+	if (feedReleaseTimer) clearTimeout(feedReleaseTimer);
 });
 
 watch(

@@ -20,6 +20,8 @@
 // There is deliberately no network call in this file. The app has no analytics
 // transport today; `setDrawMetricsSink` is the seam to wire one in later.
 
+import type { DrawRenderBackend } from "@/draw/config/renderBackend.config";
+
 export type RefusalReason =
 	| "text"
 	| "image"
@@ -34,6 +36,8 @@ export type BakeryStopReason = "timeout" | "error";
 export interface DrawMetricsSnapshot {
 	/** ms since the metrics module was initialised. */
 	uptimeMs: number;
+	/** A/B cohort. Compare performance only between snapshots with this set. */
+	renderBackend: DrawRenderBackend;
 
 	// ── bakery health (finding F2) ─────────────────────────────────────────
 	/** Times the worker was torn down and put on cooldown. Should be 0. */
@@ -49,6 +53,15 @@ export interface DrawMetricsSnapshot {
 	/** Tiles that came back `{ missing }` and needed a re-upsert + retry.
 	 *  Elevated after a bakery re-arm (fresh worker = empty mirror). */
 	bakeMissingRetries: number;
+	/** In-flight worker requests abandoned because a gesture started. */
+	workerCancelRequests: number;
+	/** Cancelled requests the worker acknowledged before producing a result. */
+	workerCancelAcks: number;
+	/** Cancelled requests that still completed too late (usually with a bitmap). */
+	workerCancelLateResults: number;
+	/** Time from the gesture cancel signal until the worker replied. */
+	workerCancelMsMax: number;
+	workerCancelMsMean: number;
 
 	// ── worker utilisation (finding F3) ────────────────────────────────────
 	/** Tiles the worker actually rendered. */
@@ -143,6 +156,12 @@ interface Counters {
 	bakeTimeouts: number;
 	bakeHardErrors: number;
 	bakeMissingRetries: number;
+	workerCancelRequests: number;
+	workerCancelAcks: number;
+	workerCancelLateResults: number;
+	workerCancelMsTotal: number;
+	workerCancelMsMax: number;
+	workerCancelMsCount: number;
 	tilesRemote: number;
 	tilesHybrid: number;
 	hybridSkippedTotal: number;
@@ -184,6 +203,12 @@ function blank(): Counters {
 		bakeTimeouts: 0,
 		bakeHardErrors: 0,
 		bakeMissingRetries: 0,
+		workerCancelRequests: 0,
+		workerCancelAcks: 0,
+		workerCancelLateResults: 0,
+		workerCancelMsTotal: 0,
+		workerCancelMsMax: 0,
+		workerCancelMsCount: 0,
 		tilesRemote: 0,
 		tilesHybrid: 0,
 		hybridSkippedTotal: 0,
@@ -217,6 +242,7 @@ let m = blank();
 let startedAt = Date.now();
 let longTaskObserver: PerformanceObserver | null = null;
 let renderDprFn: () => number = () => 1;
+let renderBackendFn: () => DrawRenderBackend = () => "main";
 
 // ── recorders (hot path — keep these trivial) ────────────────────────────────
 
@@ -239,6 +265,18 @@ export function recordBakeHardError(): void {
 
 export function recordBakeMissingRetry(): void {
 	m.bakeMissingRetries++;
+}
+
+export function recordWorkerCancelRequests(count: number): void {
+	m.workerCancelRequests += count;
+}
+
+export function recordWorkerCancelResult(ms: number, aborted: boolean): void {
+	if (aborted) m.workerCancelAcks++;
+	else m.workerCancelLateResults++;
+	m.workerCancelMsTotal += ms;
+	m.workerCancelMsCount++;
+	if (ms > m.workerCancelMsMax) m.workerCancelMsMax = ms;
 }
 
 export function recordTileRemote(): void {
@@ -327,12 +365,20 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 	const nav = typeof navigator !== "undefined" ? (navigator as any) : {};
 	return {
 		uptimeMs: Date.now() - startedAt,
+		renderBackend: renderBackendFn(),
 		bakeryPauses: m.bakeryPauses,
 		bakeryPauseReasons: { ...m.bakeryPauseReasons },
 		bakeryDisabled: m.bakeryDisabled,
 		bakeTimeouts: m.bakeTimeouts,
 		bakeHardErrors: m.bakeHardErrors,
 		bakeMissingRetries: m.bakeMissingRetries,
+		workerCancelRequests: m.workerCancelRequests,
+		workerCancelAcks: m.workerCancelAcks,
+		workerCancelLateResults: m.workerCancelLateResults,
+		workerCancelMsMax: round2(m.workerCancelMsMax),
+		workerCancelMsMean: m.workerCancelMsCount
+			? round2(m.workerCancelMsTotal / m.workerCancelMsCount)
+			: 0,
 		tilesRemote: m.tilesRemote,
 		tilesHybrid: m.tilesHybrid,
 		hybridSkippedTotal: m.hybridSkippedTotal,
@@ -450,8 +496,12 @@ export function stopDrawMetrics(): void {
  * `getRenderDpr` is injected rather than imported to keep this module free of
  * draw-engine dependencies (it is imported BY the bakery service).
  */
-export function initDrawMetrics(getRenderDpr: () => number): void {
+export function initDrawMetrics(
+	getRenderDpr: () => number,
+	getRenderBackend: () => DrawRenderBackend = () => "main",
+): void {
 	renderDprFn = getRenderDpr;
+	renderBackendFn = getRenderBackend;
 	startLongTaskObserver();
 	// Console handle for local profiling and for asking a user to read a number
 	// back during a support conversation.

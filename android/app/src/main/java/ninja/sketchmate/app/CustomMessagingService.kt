@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -22,7 +21,6 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import java.io.File
 import java.io.FileOutputStream
-import java.net.URL
 import kotlin.collections.iterator
 
 class CustomMessagingService : FirebaseMessagingService() {
@@ -38,6 +36,13 @@ class CustomMessagingService : FirebaseMessagingService() {
         // Stable summary IDs so we always update — not stack — the summary card
         private const val CHAT_SUMMARY_ID = 1_000_001
         private const val ALERT_SUMMARY_ID = 1_000_002
+
+        // Notification bitmaps must stay small: FCM gives onMessageReceived a
+        // short execution window, and source-resolution images caused large
+        // transient allocations. Glide decodes directly near these dimensions.
+        private const val AVATAR_MAX_PX = 192
+        private const val DRAWING_MAX_PX = 720
+        private const val IMAGE_TIMEOUT_MS = 4_000
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
@@ -138,8 +143,7 @@ class CustomMessagingService : FirebaseMessagingService() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
         // Sender avatar — circular-cropped for the LargeIcon and Person
-        val rawAvatar = getBitmapFromUrl(data["sender_img"])
-        val avatarBitmap = rawAvatar?.let { circularBitmap(it) }
+        val avatarBitmap = getCircularBitmapFromUrl(data["sender_img"])
 
         val senderPerson = Person.Builder()
             .setName(senderName)
@@ -175,12 +179,16 @@ class CustomMessagingService : FirebaseMessagingService() {
             if (!drawingUrl.isNullOrEmpty()) {
                 // Try to attach the drawing inline. Requires a content:// URI;
                 // for a remote URL we fall back to text + LargeIcon.
-                val drawingBitmap = getBitmapFromUrl(drawingUrl)
+                val drawingBitmap = getBitmapFromUrl(drawingUrl, DRAWING_MAX_PX)
                 if (drawingBitmap != null) {
-                    val uri =
-                        bitmapToContentUri(drawingBitmap, "drawing_${System.currentTimeMillis()}")
-                    if (uri != null) {
-                        newMessage.setData("image/png", uri)
+                    try {
+                        val uri =
+                            bitmapToContentUri(drawingBitmap, "drawing_${System.currentTimeMillis()}")
+                        if (uri != null) {
+                            newMessage.setData("image/png", uri)
+                        }
+                    } finally {
+                        drawingBitmap.recycle()
                     }
                 }
             }
@@ -283,7 +291,7 @@ class CustomMessagingService : FirebaseMessagingService() {
         val notificationId = (senderName + type).hashCode()
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
-        val avatarBitmap = getBitmapFromUrl(data["sender_img"])?.let { circularBitmap(it) }
+        val avatarBitmap = getCircularBitmapFromUrl(data["sender_img"])
 
         val builder = NotificationCompat.Builder(this, SYSTEM_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_name)
@@ -336,8 +344,7 @@ class CustomMessagingService : FirebaseMessagingService() {
 
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
-        val rawAvatar = getBitmapFromUrl(data["sender_img"])
-        val avatarBitmap = rawAvatar?.let { circularBitmap(it) }
+        val avatarBitmap = getCircularBitmapFromUrl(data["sender_img"])
 
         val senderPerson = Person.Builder()
             .setName(senderName)
@@ -429,17 +436,22 @@ class CustomMessagingService : FirebaseMessagingService() {
         }
     }
 
-    private fun getBitmapFromUrl(urlStr: String?): Bitmap? {
+    private fun getBitmapFromUrl(urlStr: String?, maxSize: Int): Bitmap? {
         if (urlStr.isNullOrEmpty()) return null
         return try {
-            val url = URL(urlStr)
-            val conn = url.openConnection()
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            BitmapFactory.decodeStream(conn.getInputStream())
+            RemoteBitmapLoader.load(this, urlStr, maxSize, IMAGE_TIMEOUT_MS)
         } catch (e: Exception) {
             e.printStackTrace()
             null
+        }
+    }
+
+    private fun getCircularBitmapFromUrl(urlStr: String?): Bitmap? {
+        val source = getBitmapFromUrl(urlStr, AVATAR_MAX_PX) ?: return null
+        return try {
+            circularBitmap(source)
+        } finally {
+            source.recycle()
         }
     }
 

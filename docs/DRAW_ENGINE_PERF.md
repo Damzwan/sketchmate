@@ -214,7 +214,7 @@ more than anything else in this document.
 Ship it behind a remote flag and A/B it against the ANR rate — it is a visible
 quality trade and worth confirming the win is real.
 
-### F5 — ⚠️ PARTLY FIXED (overview pool) — Tile bitmap churn is the GPU allocation storm — **P1 (GPU)** — *lazy dropOtherTiers still deferred, see below*
+### F5 — ⚠️ MATERIALLY REDUCED — Tile bitmap churn is the GPU allocation storm — **P1 (GPU)** — *lazy cross-tier invalidation + overview pool landed; field validation remains*
 
 Every bake pass replaces ~40 `ImageBitmap`s: `transferToImageBitmap()` in the
 worker, transfer, `store()` closes the previous one
@@ -225,10 +225,10 @@ zoom. That is exactly the workload that faults `libgsl` / `libGLESv2_adreno`.
 
 Contributing:
 
-- `dropOtherTiers` runs on nearly every seam
-  ([`renderCore.ts:708–713`](../src/draw/renderCore.ts#L708)) — an edit at tier 5
-  destroys the tier 3/4/6/7 tiles covering that rect, all of which get re-baked
-  the moment the user zooms. Amplifies churn a lot for a modest quality gain.
+- `dropOtherTiers` runs on nearly every seam. It now marks affected cross-tier
+  tiles stale instead of immediately closing their `ImageBitmap`s. Stale tiles
+  are rejected by both normal compositing and fallback search (no ghosting), and
+  are reclaimed before fresh tiles when the existing memory budget is pressured.
 - The worker allocates a **fresh** `new OffscreenCanvas(px, px)` per overview
   render ([`tileBakery.worker.ts:315`](../src/draw/workers/tileBakery.worker.ts#L315))
   — 4 MB on mobile, never pooled. Tile renders correctly reuse one canvas
@@ -370,6 +370,26 @@ churn fixes are measured.
 
 ## Progress
 
+### Worker / main-thread A/B backend
+
+The optimized pre-worker raster path is restored as the default, while the
+worker backend remains available as an experiment. Both modes use the current
+`CommittedLayer`: identical tiles, DPR cap, memory budget, spatial queries,
+invalidation, progressive repaint, cancellation and yielded object chunks. Only
+tile rasterization moves:
+
+- `main` (default): the pooled, yield-friendly local tile baker rasterizes
+  everything; the worker is not spawned and mirror serialization/sync hooks are
+  disabled.
+- `worker` (shown as **Experimental rendering** in the UI):
+  `tileBakery.worker.ts` rasterizes eligible tile content.
+
+Use `?drawBackend=main` or `?drawBackend=worker` for an A/B link. For a
+persistent device choice, run `__setDrawBackend("main")` (or `"worker"`) in the
+console and reload. `__drawBackend()` reports the active selection, and every
+`__drawPerf()` snapshot includes `renderBackend` so cohorts stay identifiable.
+Changing the setting never hot-swaps a live canvas.
+
 ### Landed (2026-07-24)
 
 **P0**
@@ -437,7 +457,7 @@ biting here. The field numbers are still the open question.
 | # | Item | Finding | Note |
 | --- | --- | --- | --- |
 | 6 | Images as transferable `ImageBitmap` in the mirror — bake images fully off-thread | F3-B | **Superseded in practice by F3-C** for the common case (image overlaid locally, strokes off-thread). Only worth building if `hybridSkippedTotal / tilesHybrid` shows image-heavy tiles are a measured cost. |
-| 8 | Lazy `dropOtherTiers` (mark stale, don't destroy) + re-tuned mobile tile budget | F5 | Still deferred. Marking stale instead of destroying keeps the bitmap in memory but `findBestSource` rejects stale tiles, so it buys nothing without ALSO allowing stale-tile fallback — which is the ghosting risk. Wants the field churn numbers (`tiles.evictions_per_min`) before committing. |
+| 8 | Re-tuned mobile tile budget | F5 | Lazy `dropOtherTiers` has landed without stale fallback: it spreads texture destruction to actual memory pressure / tier reuse while preserving correctness. The 40/72 MB mobile budget is unchanged pending field churn numbers. |
 | 13 | Incremental `__z` stamping; zero-alloc `spatialIndex.query` | F7 | Lower value than the finding implies: adds are already batched (`beginBatch`/`endBatch`), so the O(all) `getZIndexMap` rebuild coalesces to once per batch, not per add. The zero-alloc scratch array is also UNSAFE with 4 concurrent bake lanes (a shared scratch clobbers between interleaved queries). Deprioritised. |
 | 14 | Group mirroring with absolute transforms — bake groups off-thread | F3-D | Superseded by F3-C for correctness (groups overlay locally). Only build if `tileRefusals.zorder` shows groups force many interleave fallbacks. |
 | — | A transport for `setDrawMetricsSink` — the counters exist but go nowhere in production | — | The gap between "fixed" and "confirmed fixed". No analytics backend exists yet. |
@@ -616,7 +636,7 @@ images dominate — the metrics now expose exactly that.
 | `nativePollOnce` (main-thread busy) from erase | **Reduced.** E1 stops erase-heavy boards from constantly falling back to main-thread bakes; E4 removes the 8-tile sync rebuild per undo/redo. |
 | Unbounded clip growth on undo/redo spam | **Fixed** (E2). |
 | `libwebviewchromium.so` SIGTRAP (OOM) | **Better.** History redo stack fixed earlier (H1); E3 now FREES the flatten image on undo and bounds retained strokes to 400. Residual: a still-flattened object keeps one base64 image until undone — acceptable. |
-| `libGLESv2_adreno` / `libgsl` (GPU churn) | **Unchanged** — F5 lazy `dropOtherTiers` + budget still deferred pending field churn numbers. Still the top *crash* (not ANR) suspect. |
+| `libGLESv2_adreno` / `libgsl` (GPU churn) | **Reduced, unconfirmed** — cross-tier edits no longer immediately destroy every affected texture. The mobile budget still needs field validation. |
 | Field confirmation | **Still the gap.** No metrics transport; every number here is desktop + code reasoning. |
 
 Net: the erase path — the loudest of the six reports and a genuine main-thread /
@@ -996,14 +1016,12 @@ same board in pencil does not:
 
 ### Still open after this pass
 
-- **`destructiveInvalidate` → `rebuildRectSync` is not gesture-gated.** A remote
-  `object:removed` / `object:modified` arriving mid-gesture still does a
-  synchronous ≤32-tile main-thread rebuild. The *streamed* path is already
-  deferred (`scheduleRemoteFlush` re-schedules while gesturing); the one-shot
-  callers are not. Same class of block as R23, larger.
-- **`setErasing(true)` does not `bakeryCancel()`.** Identical waste to R20 —
-  bakes are aborted, the worker keeps rasterizing — just on the erase seam
-  instead of the gesture seam. One line, deliberately left out of this pass.
+- **Fixed:** `destructiveInvalidate` / `markDirtyAndRebuildSync` skip synchronous
+  repair during gestures, loading and erasing. Outside interaction, repair is
+  capped at 6 tiles (including the `CommittedLayer` default), down from 32.
+- **Fixed:** `setErasing(true)` now aborts the core first and then calls
+  `bakeryCancel()`, so already-posted GPU-backed worker bakes do not compete with
+  the eraser.
 - **`findBestSource` allocates per frame.** `coarserDraw` / `finerDraws` build
   fresh `Draw` literals (and a fresh array) per uncovered cell per frame, unlike
   the pooled `_present` / `_uncovered`. Bites during a tier change, when every
@@ -2276,6 +2294,39 @@ stroke; the normal different-colour path is geometrically unchanged.
 **Worth noting separately:** `if (!img) return` in
 [`bucket.store.ts`](../src/draw/store/tools/bucket.store.ts) still swallows every
 other failure mode without feedback. Only `tooLarge` toasts.
+
+---
+
+## Twenty-first review — final crash / ANR guardrails
+
+*Written 2026-07-27.*
+
+This pass closed the remaining concrete, locally-provable hazards from the
+post-rotation audit:
+
+- **Saved-selection OOM:** scratch `StaticCanvas` instances no longer use
+  unbounded world dimensions as physical pixel dimensions. They are 1×1 object
+  containers; the real export remains bounded by its existing output-size cap.
+  Scratch canvases are explicitly disposed on success and failure.
+- **Bitmap-asset lifetime:** the bakery now accounts bytes per asset, reserves
+  bytes while `createImageBitmap` is pending, invalidates late completions after
+  remove/clear/worker teardown, and clears the main-side sent set when a fresh
+  worker has lost its mirror.
+- **Remote queue lifetime:** the queue is room-generation scoped, consumed with
+  an O(1) cursor instead of repeated `shift()`, nulls consumed payloads
+  immediately, and stops an old-room drain after the currently awaited action.
+  A 2,048-action / estimated-32 MB hard ceiling fails closed by leaving the room
+  with a visible rejoin message; it never silently drops actions and continues
+  with a divergent canvas.
+- **Synchronous tile work:** destructive repair is interaction-gated and capped
+  at 6 tiles. Hybrid `overlaySkipped` refuses lists above 8 objects or 32 direct
+  group children, falling back to the normal yielded local bake.
+- **GPU churn:** `dropOtherTiers` now invalidates lazily. Stale textures cannot be
+  composited or used as fallback and are the first reclaimed under memory
+  pressure.
+
+What remains is evidence, not another known P0 code defect: the production
+metrics transport and Android release/device validation below.
 
 ---
 

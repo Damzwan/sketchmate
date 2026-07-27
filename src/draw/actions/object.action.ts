@@ -402,6 +402,7 @@ export async function saveFabricObject(
 
 	drawui.isSavingDrawing = true;
 	await new Promise((resolve) => setTimeout(resolve, 10));
+	let tempCanvas: fabric.StaticCanvas | null = null;
 
 	try {
 		if (params.objects.length > 1) {
@@ -410,10 +411,18 @@ export async function saveFabricObject(
 
 		const bounds = computeBounds(params.objects, 0);
 
-		const tempCanvas = new fabric.StaticCanvas(undefined, {
-			width: bounds.width,
-			height: bounds.height,
+		// The canvas is only an object container for chunked JSON + the bounded
+		// export helper below. Giving it the selection's WORLD dimensions creates a
+		// physical backing store of width×height pixels; two far-apart objects could
+		// therefore request a multi-gigabyte canvas and crash the WebView before the
+		// export helper gets a chance to scale it down. Keep the backing store tiny —
+		// object coordinates and serialization do not depend on canvas dimensions.
+		const scratchCanvas = new fabric.StaticCanvas(undefined, {
+			width: 1,
+			height: 1,
+			renderOnAddRemove: false,
 		});
+		tempCanvas = scratchCanvas;
 
 		const clonedObjects = await Promise.all(
 			params.objects.map((obj: fabric.Object) => obj.clone()),
@@ -425,17 +434,15 @@ export async function saveFabricObject(
 				top: obj.top! - bounds.minY,
 				userId: user._id,
 			});
-			tempCanvas.add(obj);
+			scratchCanvas.add(obj);
 		});
 
-		tempCanvas.renderAll();
-
 		// 1. Chunked JSON & Image Generation
-		tempCanvas.backgroundColor = "transparent";
-		const jsonObj = await generateChunkedJSON(tempCanvas as any);
+		scratchCanvas.backgroundColor = "transparent";
+		const jsonObj = await generateChunkedJSON(scratchCanvas as any);
 		const jsonString = JSON.stringify(jsonObj);
 
-		const exportResult = await exportBoundingBoxImage(tempCanvas as any, {
+		const exportResult = await exportBoundingBoxImage(scratchCanvas as any, {
 			maxSize: 1080,
 			asBuffer: true,
 			quality: 0.9,
@@ -450,17 +457,26 @@ export async function saveFabricObject(
 			img: exportResult.img,
 		});
 
-		if (params.objects.length > 1) {
-			c.setActiveObject(
-				new fabric.ActiveSelection(params.objects, { canvas: c }),
-			);
-		}
-
 		shareToastStore.pushSavedToast({ saved });
 	} catch (error) {
 		console.error("Save failed:", error);
 	} finally {
-		drawui.isSavingDrawing = false;
+		// Explicitly release cloned objects and the native backing store. Relying on
+		// GC here caused repeated saves to stack canvas memory on mobile.
+		try {
+			tempCanvas?.dispose();
+		} catch {
+			/* cleanup must not leave the save UI stuck */
+		}
+		try {
+			if (params.objects.length > 1) {
+				c.setActiveObject(
+					new fabric.ActiveSelection(params.objects, { canvas: c }),
+				);
+			}
+		} finally {
+			drawui.isSavingDrawing = false;
+		}
 	}
 }
 

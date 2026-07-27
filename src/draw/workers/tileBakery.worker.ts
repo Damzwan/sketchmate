@@ -340,19 +340,29 @@ async function ensureLive(id: string): Promise<any | null> {
 }
 
 /**
- * Enliven MANY ids in one pass, in LRU order, returning them aligned to `ids`.
+ * Maximum cold objects constructed concurrently.
  *
- * The per-id `ensureLive` above awaits ONE `enlivenObjects` call per object, so
- * a dense tile paid N sequential promise round-trips — the reason a dense zoom
- * took "ages" and, with 4 bake lanes queued behind the FIFO chain, why later
- * requests blew their timeout and paused the bakery. Everything not already in
- * the LRU is collected and handed to fabric in a SINGLE `enlivenObjects` call,
- * which processes the array without a per-object await.
+ * A Pixel trace found a 399-object tile taking 305ms. Starting every
+ * `enlivenObjects` promise at once made that whole burst effectively
+ * uninterruptible: the worker could not service a gesture's cancel message
+ * until all of them settled. Sixteen keeps Fabric's useful parallelism without
+ * turning a dense tile into one giant CPU/allocation spike.
  */
-async function ensureLiveMany(ids: string[]): Promise<(any | null)[]> {
+const ENLIVEN_BATCH_SIZE = 16;
+
+/**
+ * Enliven MANY ids in bounded batches, returning them aligned to `ids`.
+ *
+ * Returns null when the request epoch becomes stale. Partial results stay in
+ * the LRU: they are correct and make the eventual post-gesture bake cheaper.
+ */
+async function ensureLiveMany(
+	ids: string[],
+	requestEpoch: number,
+): Promise<(any | null)[] | null> {
 	const out: (any | null)[] = new Array(ids.length).fill(null);
 	const needIdx: number[] = [];
-	let needJson: any[] = [];
+	const needJson: any[] = [];
 
 	for (let i = 0; i < ids.length; i++) {
 		const id = ids[i];
@@ -374,13 +384,20 @@ async function ensureLiveMany(ids: string[]): Promise<(any | null)[]> {
 					: j,
 			);
 			needIdx.push(i);
+			// JSON.parse itself is part of the cold-object burst. Yield while
+			// PREPARING the Fabric inputs as well as while enlivening them, otherwise
+			// a tile with several large path payloads can still hide cancellation.
+			if (needJson.length % ENLIVEN_BATCH_SIZE === 0) {
+				await yieldToWorkerTasks();
+				if (isStale(requestEpoch)) return null;
+			}
 		} catch {
 			/* unparseable → stays null, tile renders without it */
 		}
 	}
 
 	if (needJson.length) {
-		// PER-OBJECT ISOLATION, still concurrent.
+		// PER-OBJECT ISOLATION, concurrent only inside each bounded batch.
 		//
 		// `util.enlivenObjects(all)` is ALL-OR-NOTHING: one object whose
 		// `fromObject` throws rejects the whole batch. The old fallback then
@@ -389,26 +406,34 @@ async function ensureLiveMany(ids: string[]): Promise<(any | null)[]> {
 		// possible path. That is what made a dense board take "ages" and then blow
 		// its timeout. (Observed with a WaterColorStroke.)
 		//
-		// allSettled over one-object calls keeps the concurrency — they all start
-		// immediately, we await the set rather than each in turn — while containing
-		// a failure to its own slot: the tile renders everything else and only the
-		// broken object is missing.
-		const results = await Promise.allSettled(
-			needJson.map((j) => util.enlivenObjects([j])),
-		);
-		for (let k = 0; k < results.length; k++) {
-			const r = results[k];
-			const i = needIdx[k];
-			if (r.status === "fulfilled" && r.value[0]) {
-				out[i] = r.value[0];
-				touch(ids[i], out[i]);
-			} else {
-				noteEnlivenFailure(
-					ids[i],
-					needJson[k],
-					r.status === "rejected" ? r.reason : null,
-				);
+		// allSettled over one-object calls contains a failure to its own slot. A
+		// REAL task yield after every batch lets the out-of-band cancel handler
+		// raise cancelEpoch before we construct the next batch.
+		for (let start = 0; start < needJson.length; start += ENLIVEN_BATCH_SIZE) {
+			if (isStale(requestEpoch)) return null;
+			const end = Math.min(start + ENLIVEN_BATCH_SIZE, needJson.length);
+			const jobs: Promise<any[]>[] = [];
+			for (let k = start; k < end; k++) {
+				jobs.push(util.enlivenObjects([needJson[k]]));
 			}
+			const results = await Promise.allSettled(jobs);
+			for (let offset = 0; offset < results.length; offset++) {
+				const k = start + offset;
+				const r = results[offset];
+				const i = needIdx[k];
+				if (r.status === "fulfilled" && r.value[0]) {
+					out[i] = r.value[0];
+					touch(ids[i], out[i]);
+				} else {
+					noteEnlivenFailure(
+						ids[i],
+						needJson[k],
+						r.status === "rejected" ? r.reason : null,
+					);
+				}
+			}
+			await yieldToWorkerTasks();
+			if (isStale(requestEpoch)) return null;
 		}
 	}
 
@@ -524,6 +549,39 @@ function isStale(epoch: number | undefined): boolean {
 	return epoch !== undefined && epoch < cancelEpoch;
 }
 
+/**
+ * Give the worker event loop a real TASK boundary so an out-of-band `cancel`
+ * message can run while a dense tile is being rasterized.
+ *
+ * `await Promise.resolve()` is not enough: it only yields to the microtask
+ * queue, while Worker `message` events are tasks. A persistent MessageChannel
+ * avoids the timer clamp and per-yield channel allocation. The timeout fallback
+ * is only for unusual runtimes without MessageChannel.
+ */
+const workerYieldResolvers: Array<() => void> = [];
+const workerYieldChannel =
+	typeof MessageChannel !== "undefined" ? new MessageChannel() : null;
+if (workerYieldChannel) {
+	workerYieldChannel.port1.onmessage = () => {
+		workerYieldResolvers.shift()?.();
+	};
+}
+
+function yieldToWorkerTasks(): Promise<void> {
+	if (!workerYieldChannel) {
+		return new Promise((resolve) => setTimeout(resolve, 0));
+	}
+	return new Promise((resolve) => {
+		workerYieldResolvers.push(resolve);
+		workerYieldChannel.port2.postMessage(0);
+	});
+}
+
+/** Keep cancellation latency within roughly one frame without yielding after
+ * every cheap object. One unusually expensive object remains the smallest unit
+ * Fabric can safely interrupt. */
+const RASTER_SLICE_MS = 8;
+
 // --- rasterizer --------------------------------------------------------------
 let renderCanvas: OffscreenCanvas | null = null;
 
@@ -572,15 +630,13 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 	}
 
 	// Enliven exactly the ids this tile needs (LRU-cached across overlapping
-	// tiles in a bake burst). Runs off the main thread, so no UI jank.
-	// ONE enliven pass for everything this tile needs (see ensureLiveMany).
-	const objs = await ensureLiveMany(ids);
+	// tiles in a bake burst). Cold objects are constructed in bounded batches so
+	// a gesture can cancel before the whole dense tile has been materialized.
+	const objs = await ensureLiveMany(ids, req.epoch);
 
-	// Re-check: `ensureLiveMany` is the only await in here and the dominant cost
-	// on a dense tile, so it is also the only window in which a `cancel` can be
-	// delivered. Bail here and the expensive part — render + transferToImageBitmap
-	// — never runs.
-	if (isStale(req.epoch)) {
+	// Re-check after enlivening. The raster loop below also creates real task
+	// boundaries so cancellation can land after rendering has begun.
+	if (!objs || isStale(req.epoch)) {
 		post({ msgId, aborted: true });
 		return;
 	}
@@ -611,6 +667,7 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 	ctx.rect(q.x, q.y, q.w, q.h);
 	ctx.clip();
 
+	let sliceStartedAt = performance.now();
 	for (let i = 0; i < objs.length; i++) {
 		const obj = objs[i];
 		if (!obj) continue;
@@ -627,6 +684,16 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 			/* one bad object must not kill the tile */
 		} finally {
 			ctx.restore();
+		}
+
+		if (performance.now() - sliceStartedAt >= RASTER_SLICE_MS) {
+			await yieldToWorkerTasks();
+			if (isStale(req.epoch)) {
+				ctx.restore();
+				post({ msgId, aborted: true });
+				return;
+			}
+			sliceStartedAt = performance.now();
 		}
 	}
 	ctx.restore();
@@ -685,10 +752,11 @@ async function overview(
 	const sy = px / bounds.h;
 	ctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy);
 
+	let sliceStartedAt = performance.now();
 	for (let i = 0; i < ids.length; i++) {
-		// Unlike bake(), this loop awaits PER OBJECT, so a `cancel` can land at any
-		// iteration — check every time rather than only up front. The half-rendered
-		// canvas is scratch; it is cleared at the start of the next overview.
+		// A warm-cache `await ensureLive()` only crosses a microtask boundary, which
+		// does NOT let a Worker message task run. The timed task yield below is what
+		// makes an in-progress overview genuinely cancellable.
 		if (isStale(req.epoch)) {
 			post({ msgId, aborted: true });
 			return;
@@ -713,6 +781,15 @@ async function overview(
 		// to remain live until the whole 10k-object board finishes. Keep the LRU
 		// bounded throughout, not only after the final object.
 		if ((i & 63) === 63) shrinkTo(LIVE_MAX);
+
+		if (performance.now() - sliceStartedAt >= RASTER_SLICE_MS) {
+			await yieldToWorkerTasks();
+			if (isStale(req.epoch)) {
+				post({ msgId, aborted: true });
+				return;
+			}
+			sliceStartedAt = performance.now();
+		}
 	}
 	evictLive();
 	scheduleIdleShrink();

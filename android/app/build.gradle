@@ -59,6 +59,10 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
     implementation 'com.google.code.gson:gson:2.8.9'
+    // Bounded decode, memory/disk cache and bitmap pooling for notifications
+    // and the home-screen widget. No annotation processor is needed because we
+    // do not use a generated Glide API or custom module.
+    implementation 'com.github.bumptech.glide:glide:5.0.7'
 }
 
 apply from: 'capacitor.build.gradle'

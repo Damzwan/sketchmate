@@ -17,6 +17,11 @@
 import { WorldOverview } from './worldOverview'
 import { recordComposite, recordPhase } from '@/draw/services/drawMetrics.service'
 
+/** Hybrid overlay is synchronous. Above these small bounds, the caller falls
+ * back to the normal local bake, whose object loop yields to input. */
+const MAX_SYNC_OVERLAY_OBJECTS = 8
+const MAX_SYNC_OVERLAY_CHILDREN = 32
+
 export interface WorldRect {
   x: number;
   y: number;
@@ -364,10 +369,55 @@ export class CommittedLayer<T extends Bounded> {
     for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) this.dropTiles(rect, tier)
   }
 
+  /** Invalidate one tier without destroying its ImageBitmaps.
+   *
+   * Cross-tier edits used to close every affected texture immediately, even
+   * though most of those tiers would never be visited again. That created a GPU
+   * destroy/recreate storm. A stale tile is already excluded by isFresh() from
+   * both normal compositing and fallback search, so retaining it is visually
+   * safe; the existing memory budget/LRU reclaims it under pressure. */
+  private markTierDirty(rect: WorldRect, tier: number): void {
+    const r = this.tileRange(rect, tier)
+    const cells = (r.tx1 - r.tx0 + 1) * (r.ty1 - r.ty0 + 1)
+    if (cells > this.tiles.size) {
+      for (const [key, tile] of this.tiles) {
+        if (tile.tier !== tier) continue
+        if (
+          tile.tx >= r.tx0 && tile.tx <= r.tx1 &&
+          tile.ty >= r.ty0 && tile.ty <= r.ty1
+        ) {
+          this.gen.set(key, (this.gen.get(key) ?? 0) + 1)
+        }
+      }
+      for (const key of this.inFlight) {
+        const [rawTier, rawTx, rawTy] = key.split(':')
+        const inFlightTier = parseInt(rawTier, 10)
+        const tx = parseInt(rawTx, 10)
+        const ty = parseInt(rawTy, 10)
+        if (
+          inFlightTier === tier &&
+          tx >= r.tx0 && tx <= r.tx1 &&
+          ty >= r.ty0 && ty <= r.ty1
+        ) {
+          this.gen.set(key, (this.gen.get(key) ?? 0) + 1)
+        }
+      }
+      return
+    }
+    for (let ty = r.ty0; ty <= r.ty1; ty++) {
+      for (let tx = r.tx0; tx <= r.tx1; tx++) {
+        const key = `${tier}:${tx}:${ty}`
+        if (this.tiles.has(key) || this.inFlight.has(key)) {
+          this.gen.set(key, (this.gen.get(key) ?? 0) + 1)
+        }
+      }
+    }
+  }
+
   dropOtherTiers(rect: WorldRect, keepTier: number): void {
     for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
       if (tier === keepTier) continue
-      this.dropTiles(rect, tier)
+      this.markTierDirty(rect, tier)
     }
   }
 
@@ -439,7 +489,13 @@ export class CommittedLayer<T extends Bounded> {
         if (t) this.touchTile(key, t)
         if (!t || !fresh) anyNonFresh = true
 
-        if (t && t.bitmap) {
+        // A retained bitmap may be stale after an edit. Cross-tier
+        // invalidation deliberately keeps those textures alive to avoid a GPU
+        // destroy/recreate storm, but they must never reach the compositor.
+        // Fallback lookup already checks isFresh(); the active-tier path must
+        // enforce the same rule or a zoom started before the rebake briefly
+        // resurrects moved objects / pre-fill tile contents.
+        if (t && fresh && t.bitmap) {
           const dr = present[presentN] ??
             (present[presentN] = { bmp: t.bitmap, sx: 0, sy: 0, sw: 0, sh: 0, dx: 0, dy: 0, dw: 0, dh: 0 })
           dr.bmp = t.bitmap
@@ -868,6 +924,21 @@ export class CommittedLayer<T extends Bounded> {
     base: ImageBitmap, skipped: T[], world: WorldRect, scale: number, q: WorldRect
   ): ImageBitmap | null {
     const __t0 = performance.now()
+    let childCount = 0
+    for (let i = 0; i < skipped.length; i++) {
+      const children = (skipped[i] as any)?._objects
+      if (Array.isArray(children)) childCount += children.length
+    }
+    if (
+      skipped.length > MAX_SYNC_OVERLAY_OBJECTS ||
+      childCount > MAX_SYNC_OVERLAY_CHILDREN
+    ) {
+      // `base` is owned by this method. Closing before returning null lets the
+      // caller safely enter the yielded full-local fallback without retaining
+      // a worker bitmap nobody will draw.
+      base.close()
+      return null
+    }
     const off = this.acquire()
     const c2d = off.getContext('2d')
     if (!c2d) {
@@ -912,7 +983,7 @@ export class CommittedLayer<T extends Bounded> {
     return out
   }
 
-  rebuildRectSync(rect: WorldRect, tier: number, clip?: WorldRect, maxTiles = 32): void {
+  rebuildRectSync(rect: WorldRect, tier: number, clip?: WorldRect, maxTiles = 6): void {
     if (tier < 0 || tier >= this.ZOOM_TIERS.length) return
     const __t0 = performance.now()
     const r = this.tileRange(rect, tier)
@@ -1047,14 +1118,26 @@ export class CommittedLayer<T extends Bounded> {
 
   private ensureMemory(need: number): boolean {
     if (this.memoryBytes + need <= this.MEM_HARD) return true
-    // Evict from the head (least recently used) down to a low-water mark.
+    // Reclaim retained stale cross-tier textures first. They can never be drawn,
+    // while a fresh LRU tile may still be useful as an active/fallback source.
+    // The map is budget-bounded, so this scan is small and allocation-free.
+    const target = this.MEM_HARD * 0.85 - need
+    for (const [key, tile] of this.tiles) {
+      if (this.memoryBytes <= target) break
+      if (this.isFresh(key, tile)) continue
+      if (tile.bitmap) tile.bitmap.close()
+      this.memoryBytes -= tile.bytes
+      this.tiles.delete(key)
+    }
+
+    // Still over budget: evict from the head (least recently used) down to the
+    // same low-water mark.
     //
     // This used to snapshot AND sort the entire tile map — `[...entries()].sort()`
     // — on the main thread on every store that hit the cap. During a zoom the new
     // tier stores dozens of tiles back to back, so that O(n log n) + full array
     // alloc ran per tile and spiked exactly as the picture sharpened. Map order
     // is already LRU (see touchTile), so this is O(evicted) with no allocation.
-    const target = this.MEM_HARD * 0.85 - need
     for (const [k, t] of this.tiles) {
       if (this.memoryBytes <= target) break
       if (t.bitmap) t.bitmap.close()

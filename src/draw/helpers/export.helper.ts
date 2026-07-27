@@ -437,33 +437,38 @@ export async function exportCroppedJson(
 	if (keepObjects.length === 0) return null;
 
 	const tempCanvas = new StaticCanvas(undefined, {
-		width: absCrop.width,
-		height: absCrop.height,
+		// This canvas is only used as a serialization container. Allocating the
+		// world-space crop dimensions as physical pixels can OOM on a very large or
+		// widely-spaced selection even though no render is needed here.
+		width: 1,
+		height: 1,
 		backgroundColor: canvas.backgroundColor,
+		renderOnAddRemove: false,
 	});
 
-	const clonedObjects = await Promise.all(
-		keepObjects.map((obj) => obj.clone()),
-	);
+	try {
+		const clonedObjects = await Promise.all(
+			keepObjects.map((obj) => obj.clone()),
+		);
 
-	const cropCenterX = absCrop.left + absCrop.width / 2;
-	const cropCenterY = absCrop.top + absCrop.height / 2;
-	const targetCenterX = CANVAS_SIZE / 2;
-	const targetCenterY = CANVAS_SIZE / 2;
+		const cropCenterX = absCrop.left + absCrop.width / 2;
+		const cropCenterY = absCrop.top + absCrop.height / 2;
+		const targetCenterX = CANVAS_SIZE / 2;
+		const targetCenterY = CANVAS_SIZE / 2;
 
-	const shiftX = targetCenterX - cropCenterX;
-	const shiftY = targetCenterY - cropCenterY;
+		const shiftX = targetCenterX - cropCenterX;
+		const shiftY = targetCenterY - cropCenterY;
 
-	clonedObjects.forEach((obj) => {
-		obj.set({
-			left: obj.left + shiftX,
-			top: obj.top + shiftY,
+		clonedObjects.forEach((obj) => {
+			obj.set({
+				left: obj.left + shiftX,
+				top: obj.top + shiftY,
+			});
+			tempCanvas.add(obj);
 		});
-		tempCanvas.add(obj);
-	});
 
-	const jsonOutput = tempCanvas.toJSON();
-	tempCanvas.dispose();
-
-	return jsonOutput;
+		return tempCanvas.toJSON();
+	} finally {
+		tempCanvas.dispose();
+	}
 }

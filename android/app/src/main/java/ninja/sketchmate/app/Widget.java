@@ -8,7 +8,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
@@ -283,7 +282,7 @@ public class Widget extends AppWidgetProvider {
             views.setTextViewText(R.id.widget_image_user, senderName);
             if (senderImg != null && !senderImg.trim().isEmpty()) {
                 try {
-                    Bitmap rawAvatar = loadScaledBitmapFromUrl(senderImg, AVATAR_MAX_PX);
+                    Bitmap rawAvatar = loadScaledBitmapFromUrl(context, senderImg, AVATAR_MAX_PX);
                     if (rawAvatar != null) {
                         Bitmap circleAvatar = getCircularBitmap(rawAvatar);
                         rawAvatar.recycle();
@@ -296,7 +295,7 @@ public class Widget extends AppWidgetProvider {
 
             // Whole drawing (no crop → fitCenter shows all of it) with rounded corners,
             // capped to the Binder budget.
-            Bitmap rawDrawing = loadScaledBitmapFromUrl(imageUrl, DRAWING_MAX_PX);
+            Bitmap rawDrawing = loadScaledBitmapFromUrl(context, imageUrl, DRAWING_MAX_PX);
             // No drawing means an empty frame, which is indistinguishable from a
             // broken widget. Report it instead of pushing a blank card.
             if (rawDrawing == null) return false;
@@ -319,60 +318,11 @@ public class Widget extends AppWidgetProvider {
         }
     }
 
-    private Bitmap loadScaledBitmapFromUrl(String urlString, int maxSize) throws IOException {
-        // Pass 1: bounds-only decode to read the intrinsic size.
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inJustDecodeBounds = true;
-        HttpURLConnection boundsConn = null;
-        try {
-            boundsConn = openImageConnection(urlString);
-            BitmapFactory.decodeStream(boundsConn.getInputStream(), null, options);
-        } finally {
-            if (boundsConn != null) boundsConn.disconnect();
-        }
-
-        // Pass 2: real decode WITH the computed sample size applied. The previous
-        // version dropped `options` here, so inSampleSize was never used and full
-        // resolution bitmaps were loaded → OOM crashes ("Memory/Image error").
-        options.inSampleSize = calculateInSampleSize(options, maxSize);
-        options.inPreferredConfig = Bitmap.Config.ARGB_8888; // alpha needed for rounded corners
-        options.inJustDecodeBounds = false;
-
-        HttpURLConnection conn = null;
-        try {
-            conn = openImageConnection(urlString);
-            return BitmapFactory.decodeStream(conn.getInputStream(), null, options);
-        } finally {
-            if (conn != null) conn.disconnect();
-        }
-    }
-
-    /**
-     * URL.openStream() inherits the platform's default timeouts, which are
-     * effectively "forever" — a half-open connection (dozing radio, captive
-     * portal) parked the update thread indefinitely and the widget just sat on
-     * whatever it was showing. Every network read here goes through a connection
-     * with explicit, bounded timeouts.
-     */
-    private static HttpURLConnection openImageConnection(String urlString) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) new URL(urlString).openConnection();
-        conn.setConnectTimeout(10000);
-        conn.setReadTimeout(15000);
-        conn.setInstanceFollowRedirects(true);
-        return conn;
-    }
-
-    // Shrink so BOTH dimensions end up <= maxSize. The old version required both
-    // half-dims to stay >= the target, so a wide/tall (non-square) image barely
-    // sampled and decoded at near-full resolution — the main OOM trigger.
-    private static int calculateInSampleSize(BitmapFactory.Options options, int maxSize) {
-        int height = options.outHeight;
-        int width = options.outWidth;
-        int inSampleSize = 1;
-        while ((height / inSampleSize) > maxSize || (width / inSampleSize) > maxSize) {
-            inSampleSize *= 2;
-        }
-        return inSampleSize;
+    private Bitmap loadScaledBitmapFromUrl(Context context, String urlString, int maxSize) throws IOException {
+        // Glide downloads once, caches the source, decodes near the requested
+        // dimensions and pools its intermediate bitmap. The returned copy is
+        // owned by this widget and remains safe for the existing recycle calls.
+        return RemoteBitmapLoader.load(context, urlString, maxSize, 10_000);
     }
 
     // Final safety net before crossing the Binder boundary: if the bitmap still

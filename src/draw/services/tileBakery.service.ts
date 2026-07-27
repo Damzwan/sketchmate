@@ -45,6 +45,8 @@ import {
 	recordBakeTiming,
 	recordTileRefused,
 	recordTileRemote,
+	recordWorkerCancelRequests,
+	recordWorkerCancelResult,
 	type RefusalReason,
 } from "@/draw/services/drawMetrics.service";
 
@@ -95,6 +97,11 @@ interface PendingBake {
 }
 
 let worker: Worker | null = null;
+/**
+ * Explicit experiment gate. This is separate from `disabled`: main-thread mode
+ * is a healthy, intentional cohort and must not count as a bakery failure.
+ */
+let enabled = true;
 /** Permanent for this session. Unsupported env, or too many pauses. */
 let disabled = false;
 /** Wall-clock ms; > 0 means paused. Re-arms once `Date.now()` passes it. */
@@ -126,6 +133,9 @@ let jsonMaxBytesConfig = 96 * 1024 * 1024;
 let workerFonts = new Set<string>();
 
 const pending = new Map<number, PendingBake>();
+/** Requests settled locally by bakeryCancel, awaiting the worker's eventual
+ * reply so we can measure how long it actually remained busy. */
+const cancelledAt = new Map<number, number>();
 /** id → live object ref; serialized lazily on flush. */
 const dirty = new Map<string, FabricObject>();
 
@@ -168,7 +178,7 @@ function noteHardError(): void {
 }
 
 function pause(reason: "timeout" | "error"): void {
-	if (disabled || pausedUntil) return;
+	if (!enabled || disabled || pausedUntil) return;
 	pauses++;
 	recordBakeryPause(reason);
 	teardown();
@@ -200,6 +210,11 @@ function teardown(): void {
 		worker.terminate();
 		worker = null;
 	}
+	// The terminated worker took every transferred bitmap with it. Keeping the
+	// main-side `sentAssets` set would make a fresh worker appear asset-complete,
+	// so bitmap-backed strokes could be omitted from worker tiles. This also
+	// invalidates createImageBitmap promises that may still resolve later.
+	resetAssetTracking();
 	// A fresh worker has an empty FontFaceSet until it re-registers.
 	workerFonts.clear();
 	for (const [, p] of pending) {
@@ -207,10 +222,11 @@ function teardown(): void {
 		p.resolve(null);
 	}
 	pending.clear();
+	cancelledAt.clear();
 }
 
 function getWorker(): Worker | null {
-	if (disabled) return null;
+	if (!enabled || disabled) return null;
 	if (isPaused()) return null;
 	if (worker) return worker;
 	if (typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined") {
@@ -235,6 +251,14 @@ function getWorker(): Worker | null {
 			workerFonts = new Set(e.data.fonts);
 			noteReply();
 			return;
+		}
+		const cancelStartedAt = cancelledAt.get(e.data.msgId);
+		if (cancelStartedAt !== undefined) {
+			cancelledAt.delete(e.data.msgId);
+			recordWorkerCancelResult(
+				performance.now() - cancelStartedAt,
+				e.data.aborted === true,
+			);
 		}
 		const p = pending.get(e.data.msgId);
 		if (!p) {
@@ -264,8 +288,25 @@ function getWorker(): Worker | null {
 	return worker;
 }
 
+/**
+ * Select whether this module participates in rendering at all.
+ *
+ * Disabling tears down the worker and drops its mirror bookkeeping. All public
+ * sync hooks become no-ops, so main-thread A/B mode does not secretly pay worker
+ * serialization, message or bitmap costs.
+ */
+export function configureTileBakery(on: boolean): void {
+	if (enabled === on) return;
+	enabled = on;
+	if (on) return;
+	teardown();
+	dirty.clear();
+	flushPaused = false;
+}
+
 /** Warm the worker during canvas init so the first bake doesn't pay spawn+parse. */
 export function initTileBakery(): void {
+	if (!enabled) return;
 	// Bound the worker's enliven LRU by device class. This must exceed the
 	// WHOLE VIEWPORT's working set, not just one tile: a bake pass walks ~dozens
 	// of tiles back-to-back, so a cap smaller than their combined object count
@@ -289,7 +330,7 @@ export function initTileBakery(): void {
 }
 
 export function isBakeryActive(): boolean {
-	return !disabled && !isPaused() && worker !== null;
+	return enabled && !disabled && !isPaused() && worker !== null;
 }
 
 /**
@@ -315,12 +356,17 @@ export function isBakeryActive(): boolean {
  * cancel is for. `RenderCore.setGesturing(true)` aborts first, then calls this.
  */
 export function bakeryCancel(): void {
-	if (disabled) return;
+	if (!enabled || disabled) return;
 	epoch++;
-	for (const [, p] of pending) {
+	const now = performance.now();
+	let cancelled = 0;
+	for (const [msgId, p] of pending) {
+		cancelledAt.set(msgId, now);
+		cancelled++;
 		clearTimeout(p.timer);
 		p.resolve(null);
 	}
+	if (cancelled) recordWorkerCancelRequests(cancelled);
 	pending.clear();
 	// No getWorker() here: it would re-arm a paused bakery just to tell it to
 	// cancel work it never received.
@@ -328,7 +374,7 @@ export function bakeryCancel(): void {
 }
 
 export function bakeryMarkDirty(obj: FabricObject): void {
-	if (disabled || !obj?.id) return;
+	if (!enabled || disabled || !obj?.id) return;
 	// The cached serialization is now stale — force a fresh toJSON at next flush.
 	(obj as any).__bakeJSON = undefined;
 	dirty.set(obj.id, obj);
@@ -360,7 +406,7 @@ export function bakeryMarkDirty(obj: FabricObject): void {
  * bakeryMarkDirty (flushObjects then drops it as unshippable).
  */
 export function bakeryClipSet(obj: FabricObject): void {
-	if (disabled || !obj?.id) return;
+	if (!enabled || disabled || !obj?.id) return;
 	let clip: any = null;
 	const cp = (obj as any).clipPath;
 	if (cp) {
@@ -385,7 +431,7 @@ export function bakeryClipSet(obj: FabricObject): void {
  * object so flush ships it as-is until the object actually mutates.
  */
 export function bakerySeed(obj: FabricObject, srcJSON: any): void {
-	if (disabled || !obj?.id || !srcJSON) return;
+	if (!enabled || disabled || !obj?.id || !srcJSON) return;
 	(obj as any).__bakeJSON = srcJSON;
 	dirty.set(obj.id, obj);
 }
@@ -398,7 +444,7 @@ export function bakerySeed(obj: FabricObject, srcJSON: any): void {
  * flush (if any) re-serializes with correct coords.
  */
 export function bakeryTranslate(ids: string[], dx: number, dy: number): void {
-	if (disabled || ids.length === 0) return;
+	if (!enabled || disabled || ids.length === 0) return;
 	if (dx === 0 && dy === 0) return;
 	// An object with a PENDING full upsert must stay dirty. The delta would be
 	// applied to whatever stale version the mirror still holds (v_old + delta
@@ -417,18 +463,16 @@ export function bakeryTranslate(ids: string[], dx: number, dy: number): void {
 }
 
 export function bakeryRemove(id: string): void {
-	if (disabled || !id) return;
+	if (!enabled || disabled || !id) return;
 	dirty.delete(id);
 	forgetAsset(id); // worker closes the bitmap; we release the budget
 	getWorker()?.postMessage({ t: "remove", ids: [id] });
 }
 
 export function bakeryClear(): void {
-	if (disabled) return;
+	if (!enabled || disabled) return;
 	dirty.clear();
-	sentAssets.clear();
-	pendingAssets.clear();
-	assetBytes = 0;
+	resetAssetTracking();
 	getWorker()?.postMessage({ t: "clear" });
 }
 
@@ -495,9 +539,37 @@ const ASSET_BUDGET_BYTES = (() => {
 
 /** ids whose pixels the worker already holds. */
 const sentAssets = new Set<string>();
+/** Exact byte cost for each asset held by the worker. */
+const assetSizes = new Map<string, number>();
+/** Per-id generation. Removal invalidates only that object's pending transfer. */
+const assetVersions = new Map<string, number>();
+interface PendingAsset {
+	epoch: number;
+	version: number;
+	bytes: number;
+}
 /** ids with a createImageBitmap in flight, so we don't start a second one. */
-const pendingAssets = new Set<string>();
+const pendingAssets = new Map<string, PendingAsset>();
 let assetBytes = 0;
+let reservedAssetBytes = 0;
+/** Invalidates every pending transfer after clear or worker termination. */
+let assetEpoch = 0;
+
+function releasePendingAsset(id: string, transfer: PendingAsset): void {
+	if (pendingAssets.get(id) !== transfer) return;
+	pendingAssets.delete(id);
+	reservedAssetBytes = Math.max(0, reservedAssetBytes - transfer.bytes);
+}
+
+function resetAssetTracking(): void {
+	assetEpoch++;
+	sentAssets.clear();
+	assetSizes.clear();
+	assetVersions.clear();
+	pendingAssets.clear();
+	assetBytes = 0;
+	reservedAssetBytes = 0;
+}
 
 /**
  * The source pixels for a bitmap-backed stroke, or null if it isn't one.
@@ -522,7 +594,7 @@ function isBitmapBacked(obj: any): boolean {
 function ensureAsset(obj: any): void {
 	const id = obj?.id;
 	if (!id || sentAssets.has(id) || pendingAssets.has(id)) return;
-	if (assetBytes >= ASSET_BUDGET_BYTES) return;
+	if (assetBytes + reservedAssetBytes >= ASSET_BUDGET_BYTES) return;
 	if (typeof createImageBitmap === "undefined") return;
 	const src = assetSourceOf(obj);
 	if (!src) return;
@@ -530,12 +602,27 @@ function ensureAsset(obj: any): void {
 	const h = (src as any).height | 0;
 	if (w <= 0 || h <= 0) return;
 	const bytes = w * h * 4;
-	if (assetBytes + bytes > ASSET_BUDGET_BYTES) return;
+	if (assetBytes + reservedAssetBytes + bytes > ASSET_BUDGET_BYTES) return;
 
-	pendingAssets.add(id);
+	const transfer: PendingAsset = {
+		epoch: assetEpoch,
+		version: assetVersions.get(id) ?? 0,
+		bytes,
+	};
+	pendingAssets.set(id, transfer);
+	reservedAssetBytes += bytes;
 	createImageBitmap(src).then(
 		(bitmap) => {
-			pendingAssets.delete(id);
+			releasePendingAsset(id, transfer);
+			// remove/clear/teardown may have happened while decoding. Never let that
+			// stale completion recreate an asset the current worker should not own.
+			if (
+				transfer.epoch !== assetEpoch ||
+				transfer.version !== (assetVersions.get(id) ?? 0)
+			) {
+				bitmap.close();
+				return;
+			}
 			const w2 = getWorker();
 			if (!w2) {
 				bitmap.close();
@@ -544,21 +631,30 @@ function ensureAsset(obj: any): void {
 			try {
 				w2.postMessage({ t: "asset", id, bitmap }, [bitmap]);
 				sentAssets.add(id);
+				assetSizes.set(id, bytes);
 				assetBytes += bytes;
 			} catch {
 				bitmap.close();
 			}
 		},
 		() => {
-			pendingAssets.delete(id);
+			releasePendingAsset(id, transfer);
 		},
 	);
 }
 
 function forgetAsset(id: string): void {
-	// The worker frees the bitmap on its side; we only release the budget.
+	// Invalidate an in-flight createImageBitmap before releasing its reservation.
+	assetVersions.set(id, (assetVersions.get(id) ?? 0) + 1);
+	const pendingAsset = pendingAssets.get(id);
+	if (pendingAsset) releasePendingAsset(id, pendingAsset);
+
+	// The worker frees the bitmap on its side; release the matching main-side
+	// budget so a long create/delete session cannot permanently exhaust it.
+	const bytes = assetSizes.get(id) ?? 0;
+	assetSizes.delete(id);
+	assetBytes = Math.max(0, assetBytes - bytes);
 	sentAssets.delete(id);
-	pendingAssets.delete(id);
 }
 
 /**
@@ -652,6 +748,7 @@ let flushPaused = false;
  * `missing` back and the existing self-heal re-upserts it.
  */
 export function bakeryPauseFlush(on: boolean): void {
+	if (!enabled || disabled) return;
 	flushPaused = on;
 	// Resume URGENTLY. The bake pass restarts `bakeDebounce` (80ms) after the
 	// gesture ends, and whatever the drain has not shipped by then is paid for on
@@ -664,11 +761,12 @@ export function bakeryPauseFlush(on: boolean): void {
 }
 
 function scheduleIdleFlush(timeoutMs = IDLE_FLUSH_TIMEOUT_MS): void {
-	if (idleFlushHandle !== null || dirty.size === 0 || disabled) return;
+	if (idleFlushHandle !== null || dirty.size === 0 || !enabled || disabled)
+		return;
 	if (flushPaused) return; // re-armed by bakeryPauseFlush(false)
 	const run = (deadline?: { timeRemaining(): number }) => {
 		idleFlushHandle = null;
-		if (disabled || flushPaused) return;
+		if (!enabled || disabled || flushPaused) return;
 		const w = getWorker();
 		if (!w) {
 			// Paused. Keep the parked refs and try again after the cooldown rather
@@ -690,7 +788,7 @@ function scheduleIdleFlush(timeoutMs = IDLE_FLUSH_TIMEOUT_MS): void {
 
 /** Seed the mirror ahead of the first bake, in idle-sized chunks. */
 export function bakeryFlushSoon(): void {
-	if (disabled) return;
+	if (!enabled || disabled) return;
 	scheduleIdleFlush();
 }
 
@@ -944,13 +1042,17 @@ export async function bakeryRenderOverview(
 	}
 
 	const request = (): Promise<BakeryResponse | null> =>
-		track(w, {
-			t: "overview",
-			ids,
-			bounds: { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h },
-			px,
-			scale,
-		}, ids.length);
+		track(
+			w,
+			{
+				t: "overview",
+				ids,
+				bounds: { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h },
+				px,
+				scale,
+			},
+			ids.length,
+		);
 
 	// Only THESE objects need to be current. The global dirty set drains on idle
 	// — draining it here was the per-call main-thread spike (finding F1).
@@ -1066,6 +1168,7 @@ export async function bakeryBakeTile(
 	// An empty tile is handled by the caller before we're even reached; an
 	// all-skipped tile isn't worth a round-trip.
 	if (ids.length === 0) return null;
+	const requestEpoch = epoch;
 
 	// NO global flush() here. Draining the WHOLE dirty set per tile — up to 192
 	// synchronous toJSON() across four bake lanes inside an un-yieldable stretch
@@ -1073,14 +1176,18 @@ export async function bakeryBakeTile(
 	flushObjects(w, shippable);
 
 	const request = (): Promise<BakeryResponse | null> =>
-		track(w, {
-			t: "bake",
-			ids,
-			world: { x: world.x, y: world.y, w: world.w, h: world.h },
-			scale,
-			overscan,
-			size,
-		}, ids.length);
+		track(
+			w,
+			{
+				t: "bake",
+				ids,
+				world: { x: world.x, y: world.y, w: world.w, h: world.h },
+				scale,
+				overscan,
+				size,
+			},
+			ids.length,
+		);
 
 	const bakeStartedAt = performance.now();
 	let res = await request();
@@ -1088,7 +1195,7 @@ export async function bakeryBakeTile(
 	// Dropped by a cancel (gesture start). Not a failure — don't blame the tile,
 	// and don't retry. The caller's signal is already aborted, so it bails before
 	// the main-thread fallback.
-	if (res?.aborted) return null;
+	if (epoch !== requestEpoch || res?.aborted) return null;
 
 	if (res?.missing?.length) {
 		// Self-heal once: re-upsert from the live refs, retry.
@@ -1106,7 +1213,7 @@ export async function bakeryBakeTile(
 		}
 		postUpsert(w, items);
 		res = await request();
-		if (res?.aborted) return null;
+		if (epoch !== requestEpoch || res?.aborted) return null;
 	}
 
 	if (!res || res.error || !res.bitmap) {

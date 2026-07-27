@@ -14,6 +14,10 @@ import {
 	IS_MOBILE_DEVICE,
 	MAX_RENDER_SCALE,
 } from "@/draw/config/renderQuality.config";
+import {
+	getDrawRenderBackend,
+	installDrawRenderBackendDebugApi,
+} from "@/draw/config/renderBackend.config";
 import { initDrawMetrics } from "@/draw/services/drawMetrics.service";
 import { createYielder } from "@/draw/helpers/yielding.helper";
 import { isolatedTileRenderer } from "@/draw/helpers/drawTileRenderer.helper";
@@ -35,6 +39,7 @@ import {
 	bakeryRemove,
 	bakerySeed,
 	bakeryTranslate,
+	configureTileBakery,
 	initTileBakery,
 } from "@/draw/services/tileBakery.service";
 
@@ -206,8 +211,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				if (o) out.push({ obj: o, bounds: entries[i].bounds });
 			}
 			return out.sort(
-				(a, b) =>
-					((a.obj as any).__z ?? 0) - ((b.obj as any).__z ?? 0),
+				(a, b) => ((a.obj as any).__z ?? 0) - ((b.obj as any).__z ?? 0),
 			);
 		},
 	};
@@ -769,8 +773,11 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	// ── init / lifecycle ─────────────────────────────────────────────────────
 	function init(canvas: Canvas) {
 		c = canvas;
-		initDrawMetrics(getRenderDpr); // counters for the ANR investigation
-		initTileBakery(); // warm the worker so the first bake doesn't pay spawn+parse
+		const renderBackend = getDrawRenderBackend();
+		installDrawRenderBackendDebugApi();
+		initDrawMetrics(getRenderDpr, () => renderBackend);
+		configureTileBakery(renderBackend === "worker");
+		initTileBakery(); // no-op in main mode; otherwise warms worker parse
 
 		const surface: Surface = {
 			getContext: () => c!.getContext(),
@@ -802,7 +809,7 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				},
 				// 256px tiles are ~270KB vs ~1.02MB at 512 — 4x finer eviction
 				// granularity and far less wasted area on sparse regions.
-				tileSize: IS_MOBILE ? 256 : 512,
+				tileSize: IS_LOW_END ? 384 : IS_MOBILE ? 384 : 512,
 				// The pool holds IDLE tile-sized canvases; 16 of them was 16MB parked.
 				poolMax: IS_LOW_END ? 3 : IS_MOBILE ? 4 : 8,
 				// NB: tiles rasterize at `zoom * renderScale` but composite at
@@ -818,17 +825,20 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				// composite at identical resolution.
 				maxRenderScale: MAX_RENDER_SCALE,
 				overviewPatchMax: IS_LOW_END ? 80 : 200,
-			// Objects rendered between yield/abort checks in a LOCAL (main-thread)
-			// tile bake. The default 64 assumes cheap objects; it is a per-object
-			// count standing in for a time budget, and heavy brushes break that
-			// assumption badly — a WaterColorStroke is ~3x the path segments of a
-			// pencil stroke (3 bristles) and strokes with round joins uncached, so
-			// 64 of them is a tens-of-ms block with no abort check inside it. A
-			// gesture that starts mid-tile has to wait it out. 16 keeps the worst
-			// case to roughly a frame; the extra `isInputPending()` calls are far
-			// cheaper than the block they interrupt.
+				// Objects rendered between yield/abort checks in a LOCAL (main-thread)
+				// tile bake. The default 64 assumes cheap objects; it is a per-object
+				// count standing in for a time budget, and heavy brushes break that
+				// assumption badly — a WaterColorStroke is ~3x the path segments of a
+				// pencil stroke (3 bristles) and strokes with round joins uncached, so
+				// 64 of them is a tens-of-ms block with no abort check inside it. A
+				// gesture that starts mid-tile has to wait it out. 16 keeps the worst
+				// case to roughly a frame; the extra `isInputPending()` calls are far
+				// cheaper than the block they interrupt.
 				renderChunk: IS_LOW_END ? 8 : IS_MOBILE ? 16 : 32,
-				remoteBaker: bakeryBakeTile,
+				// Omitting the remote baker activates CommittedLayer's maintained,
+				// pooled and yield-friendly local path. Every other engine option is
+				// identical, keeping this a one-variable A/B comparison.
+				remoteBaker: renderBackend === "worker" ? bakeryBakeTile : undefined,
 				// Keep the whole-board overview local. A hybrid worker overview
 				// cannot flatten interleaved skipped objects without changing z/order
 				// and alpha compositing, and a bad overview means every uncovered tile
@@ -957,6 +967,10 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 
 	function setErasing(on: boolean) {
 		core?.setErasing(on);
+		// Match the gesture seam: abort the core first, then settle/cancel already
+		// posted worker bakes. Otherwise the worker keeps rasterizing into its
+		// GPU-backed canvas while the eraser is trying to own the frame budget.
+		if (on) bakeryCancel();
 	}
 
 	function dropRegion(rect: WorldRect) {

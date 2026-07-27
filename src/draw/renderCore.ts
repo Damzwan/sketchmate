@@ -32,6 +32,9 @@ import { LiveLayer, type LiveMode, type LiveRenderer } from "./liveLayer";
  * requestBakeProgressFrame). ~8 updates/sec: still visibly progressive,
  * without a full composite every frame for the whole bake pass. */
 const PROGRESS_FRAME_MS = 120;
+/** Synchronous repair exists only to hide a small seam. Anything beyond this
+ * belongs in the yielded bake path; 32 dense tiles was an ANR-sized task. */
+const MAX_SYNC_REPAIR_TILES = 6;
 
 export interface Surface {
 	getContext(): CanvasRenderingContext2D;
@@ -410,10 +413,9 @@ export class RenderCore<T extends Bounded> {
 			return;
 		}
 
-		// Fallback: live overlay covers the stroke sharply until the tile bakes.
-		const willLive = this.intersectsView(rect) && topmost;
-		this.committed.dropOtherTiers(rect, tier);
-		this.committed.markDirty(rect);
+			// Fallback: live overlay covers the stroke sharply until the tile bakes.
+			const willLive = this.intersectsView(rect) && topmost;
+			this.committed.markDirty(rect);
 		if (willLive) {
 			// Do NOT patch the overview here — the live overlay is the sole copy
 			// during the bake window, so a semi-transparent stroke stays single.
@@ -489,7 +491,7 @@ export class RenderCore<T extends Bounded> {
 
 	/**
 	 * BATCH invalidation for a drained remote-event queue (item A). Many
-	 * adds/removes/edits collapse into ONE pass: drop each region at every tier
+	 * adds/removes/edits collapse into ONE pass: invalidate each region at every tier
 	 * (so removed / moved objects can't ghost), patch the overview (on-screen) or
 	 * defer it (off-screen), then a SINGLE requestFrame + scheduleBake. No
 	 * per-rect synchronous rebuild — the async bake refreshes; the overview
@@ -500,11 +502,9 @@ export class RenderCore<T extends Bounded> {
 		if (rects.length === 0) return;
 		const merged = this.mergeRects(rects);
 		let anyInView = false;
-		for (const rect of merged) {
-			this.growContentBounds(rect);
-			const tier = this.committed.pickActiveTier(this.surface.getVpt()[0]);
-			this.committed.dropOtherTiers(rect, tier); // additive: keep active-tier sharp
-			this.committed.markDirty(rect);
+			for (const rect of merged) {
+				this.growContentBounds(rect);
+				this.committed.markDirty(rect);
 			this.patchOverview(rect);
 			if (this.intersectsView(rect)) anyInView = true;
 		}
@@ -549,12 +549,28 @@ export class RenderCore<T extends Bounded> {
 	private destructiveInvalidate(rect: WorldRect): void {
 		const vpt = this.surface.getVpt();
 		const tier = this.committed.pickActiveTier(vpt[0]);
-		this.committed.dropAllTiers(rect);
-		if (tier > this.committed.overviewTier) {
+		// Logical invalidation is enough: stale tiles are excluded from both direct
+		// compositing and fallback search. Retaining their textures until LRU
+		// pressure avoids an immediate GPU destruction storm.
+		this.committed.markDirty(rect);
+		// Never put synchronous object rendering on an active interaction frame.
+		// The overview/fallback covers the hole and the normal yielded bake resumes
+		// after the gesture/load/erase seam.
+		if (
+			!this.gesturing &&
+			!this.loading &&
+			!this.erasing &&
+			tier > this.committed.overviewTier
+		) {
 			const size = this.surface.getSize();
 			const dpr = this.surface.getDpr();
 			const vw = this.committed.viewWorld(vpt, size, dpr);
-			this.committed.rebuildRectSync(rect, tier, vw);
+			this.committed.rebuildRectSync(
+				rect,
+				tier,
+				vw,
+				MAX_SYNC_REPAIR_TILES,
+			);
 		}
 		this.patchOverview(rect);
 	}
@@ -566,9 +582,9 @@ export class RenderCore<T extends Bounded> {
 	}
 
 	/**
-	 * Destructive drop with BOUNDED sync repair, for drag seams on big
-	 * selections. dropRegion()'s full ≤32-tile sync rebuild froze the release
-	 * frame when the region was dense; here at most `maxSyncTiles` viewport
+	 * Logical invalidation with BOUNDED sync repair, for drag seams on big
+	 * selections. The old ≤32-tile sync rebuild froze the release frame when the
+	 * region was dense; here at most `maxSyncTiles` viewport
 	 * tiles rebuild synchronously for instant feedback and the rest show the
 	 * overview fallback until the async bake lands (the GPU drag layer covers
 	 * the selection itself throughout).
@@ -576,7 +592,7 @@ export class RenderCore<T extends Bounded> {
 	dropRegionLight(rect: WorldRect, maxSyncTiles = 6): void {
 		const vpt = this.surface.getVpt();
 		const tier = this.committed.pickActiveTier(vpt[0]);
-		this.committed.dropAllTiers(rect);
+		this.committed.markDirty(rect);
 		if (maxSyncTiles > 0 && tier > this.committed.overviewTier) {
 			const vw = this.committed.viewWorld(
 				vpt,
@@ -634,16 +650,25 @@ export class RenderCore<T extends Bounded> {
 
 	markDirtyAndRebuildSync(rect: WorldRect, tier: number): void {
 		this.growContentBounds(rect);
-		this.committed.dropOtherTiers(rect, tier);
 		this.committed.markDirty(rect);
-		if (tier > this.committed.overviewTier) {
+		if (
+			!this.gesturing &&
+			!this.loading &&
+			!this.erasing &&
+			tier > this.committed.overviewTier
+		) {
 			const vpt = this.surface.getVpt();
 			const vw = this.committed.viewWorld(
 				vpt,
 				this.surface.getSize(),
 				this.surface.getDpr(),
 			);
-			this.committed.rebuildRectSync(rect, tier, vw);
+			this.committed.rebuildRectSync(
+				rect,
+				tier,
+				vw,
+				MAX_SYNC_REPAIR_TILES,
+			);
 		}
 		this.patchOverview(rect);
 		this.requestFrame();
@@ -974,8 +999,6 @@ export class RenderCore<T extends Bounded> {
 	}
 
 	private additiveInvalidate(rect: WorldRect): void {
-		const tier = this.committed.pickActiveTier(this.surface.getVpt()[0]);
-		this.committed.dropOtherTiers(rect, tier);
 		this.committed.markDirty(rect);
 		this.patchOverview(rect);
 	}

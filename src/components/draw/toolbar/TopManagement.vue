@@ -80,6 +80,24 @@
             <p class="pl-2 text-base">Report User</p>
             <p v-if="!isLobby" class="pl-2 text-sm">lobby only</p>
           </ion-item>
+
+          <ion-item color="tertiary" :detail="false">
+            <ion-icon :icon="hardwareChipOutline" />
+            <div class="pl-2 min-w-0 flex-1">
+              <p class="text-base">Experimental rendering</p>
+              <p class="text-sm text-black/60 leading-tight">
+                {{ renderBackendPending ? 'Reopen drawing to apply' : 'Web worker based' }}
+              </p>
+            </div>
+            <ion-toggle
+              slot="end"
+              mode="ios"
+              color="secondary"
+              aria-label="Use experimental web-worker rendering"
+              :checked="selectedRenderBackend === 'worker'"
+              @ionChange="onRenderBackendChange"
+            />
+          </ion-item>
         </ion-list>
       </ion-content>
     </ion-popover>
@@ -113,6 +131,7 @@ import { useFriendStore } from "@/store/friend.store";
 import {
 	bulbOutline,
 	chatbubblesOutline,
+	hardwareChipOutline,
 	megaphoneOutline,
 } from "ionicons/icons";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -124,11 +143,19 @@ import {
 	IonItem,
 	IonList,
 	IonPopover,
+	IonToggle,
 	modalController,
+	type ToggleCustomEvent,
 } from "@ionic/vue";
 import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import ReportUserMenu from "@/components/moderation/ReportUserMenu.vue";
 import SavePopover from "./SavePopover.vue";
+import {
+	DRAW_RENDER_BACKEND_QUERY_KEY,
+	type DrawRenderBackend,
+	getDrawRenderBackend,
+	setDrawRenderBackend,
+} from "@/draw/config/renderBackend.config";
 
 const emit = defineEmits(["toggle-fullscreen"]);
 
@@ -174,10 +201,38 @@ const openSaveInfo = (e: Event) => savePopover.value?.open(e);
 // Overflow popover state
 const moreOpen = ref(false);
 const moreEvent = ref<Event | undefined>();
+const activeRenderBackend = getDrawRenderBackend();
+const selectedRenderBackend = ref<DrawRenderBackend>(activeRenderBackend);
+const renderBackendPending = computed(
+	() => selectedRenderBackend.value !== activeRenderBackend,
+);
 
 const openMore = (e: Event) => {
 	moreEvent.value = e;
 	moreOpen.value = true;
+};
+
+const onRenderBackendChange = (e: ToggleCustomEvent) => {
+	const backend: DrawRenderBackend = e.detail.checked ? "worker" : "main";
+	if (!setDrawRenderBackend(backend)) {
+		toast("Could not save renderer setting");
+		return;
+	}
+	selectedRenderBackend.value = backend;
+
+	// If this canvas was opened through an A/B URL, keep that explicit override
+	// in sync too; query parameters intentionally win over local persistence.
+	const url = new URL(window.location.href);
+	if (url.searchParams.has(DRAW_RENDER_BACKEND_QUERY_KEY)) {
+		url.searchParams.set(DRAW_RENDER_BACKEND_QUERY_KEY, backend);
+		window.history.replaceState(window.history.state, "", url);
+	}
+
+	if (renderBackendPending.value) {
+		toast("Renderer saved — reopen the drawing to apply");
+	} else {
+		toast("Renderer change cancelled");
+	}
 };
 
 const runFromMore = (action: () => void) => {

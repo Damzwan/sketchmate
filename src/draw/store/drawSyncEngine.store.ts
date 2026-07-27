@@ -25,14 +25,17 @@ import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
 import { useDrawHistoryManager } from "@/draw/store/drawHistoryManager.store";
 import { createYielder } from "@/draw/helpers/yielding.helper";
-
-const IS_MOBILE_SYNC =
-	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
 import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
 import { useClaimArea } from "@/draw/store/claimArea.store";
 import { socket } from "@/service/api/socket/socket.service";
+import { leaveRoom } from "@/service/api/socket/drawSyncing.socket";
 import { useToast } from "@/service/toast.service";
 import { ToastDuration } from "@/types/toast.types";
+
+const IS_MOBILE_SYNC =
+	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
+const MAX_QUEUED_ACTIONS = 2048;
+const MAX_QUEUED_ACTION_BYTES = 32 * 1024 * 1024;
 
 /**
  * Emits a local draw action to the room. Lives here (heavy, draw-only) rather
@@ -87,20 +90,120 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 	const { roomId, isLoadingCanvas } = storeToRefs(session);
 
 	const isProcessingQueue = ref(false);
-	const isUsingGestures = ref(false);
-	const actionQueue: DrawSyncingAction[] = [];
+	type QueuedAction = {
+		action: DrawSyncingAction;
+		generation: number;
+		bytes: number;
+	};
+	// Cursor queue: repeated Array.shift() can turn a large replay burst into
+	// quadratic array compaction. Consumed slots are nulled immediately so their
+	// potentially-large JSON payloads are collectable before the next compaction.
+	const actionQueue: Array<QueuedAction | null> = [];
+	let queueHead = 0;
+	let queueGeneration = 0;
+	let queuedBytes = 0;
+	let queueOverloaded = false;
+
+	function queuedActionCount(): number {
+		return actionQueue.length - queueHead;
+	}
+
+	function compactActionQueue(): void {
+		if (queueHead === 0) return;
+		if (queueHead >= actionQueue.length) {
+			actionQueue.length = 0;
+			queueHead = 0;
+			return;
+		}
+		if (queueHead >= 256 && queueHead * 2 >= actionQueue.length) {
+			actionQueue.splice(0, queueHead);
+			queueHead = 0;
+		}
+	}
+
+	function clearActionQueue(): void {
+		queueGeneration++;
+		actionQueue.length = 0;
+		queueHead = 0;
+		queuedBytes = 0;
+	}
+
+	function estimateActionBytes(action: DrawSyncingAction): number {
+		try {
+			// JS strings are normally two bytes/code unit. Deliberately
+			// overestimate retained heap instead of trusting the wire size.
+			return JSON.stringify(action).length * 2;
+		} catch {
+			return MAX_QUEUED_ACTION_BYTES + 1;
+		}
+	}
+
+	function rejectQueueOverload(): void {
+		if (queueOverloaded) return;
+		queueOverloaded = true;
+		clearActionQueue();
+		const { toast } = useToast();
+		toast("Live sync overloaded. Please rejoin the drawing.", {
+			color: "danger",
+			duration: ToastDuration.long,
+		});
+		// Never continue with silently missing collaborator actions. In this
+		// exceptional state, leaving is safer than either OOMing or diverging.
+		queueMicrotask(() => leaveRoom());
+	}
+
+	function enqueueAction(action: DrawSyncingAction): boolean {
+		const bytes = estimateActionBytes(action);
+		if (
+			queuedActionCount() >= MAX_QUEUED_ACTIONS ||
+			queuedBytes + bytes > MAX_QUEUED_ACTION_BYTES
+		) {
+			rejectQueueOverload();
+			return false;
+		}
+		actionQueue.push({ action, generation: queueGeneration, bytes });
+		queuedBytes += bytes;
+		return true;
+	}
+
+	function dequeueAction(): QueuedAction | null {
+		while (queueHead < actionQueue.length) {
+			const queued = actionQueue[queueHead];
+			actionQueue[queueHead] = null;
+			queueHead++;
+			if (queued) {
+				queuedBytes = Math.max(0, queuedBytes - queued.bytes);
+				return queued;
+			}
+		}
+		return null;
+	}
 
 	watch(
 		[roomId, isLoadingCanvas],
-		([newRoomId, loading]) => {
+		([newRoomId, loading], oldValues) => {
 			const { addEventsOfService, removeEventsOfService } =
 				useDrawEventManager();
+			const oldRoomId = oldValues?.[0];
+
+			// A Pinia store survives canvas/room navigation. Never let actions from a
+			// previous room drain into the next canvas, and invalidate an in-progress
+			// drain so it stops after its current awaited action.
+			if (oldValues && newRoomId !== oldRoomId) {
+				queueOverloaded = false;
+				clearActionQueue();
+			}
 
 			// CASE 1: Joined a room and FINISHED loading the canvas
 			if (newRoomId && !loading) {
 				// Only attach the 'actionSyncer' events (drawing, moving, etc.)
 				// now that the canvas is quiet and ready for input
 				addEventsOfService("actionSyncer", events);
+				// A previous drain may have been invalidated by the room generation
+				// while this canvas was loading. Pick up only the new room's queue.
+				if (!isProcessingQueue.value && queuedActionCount() > 0) {
+					queueMicrotask(() => void processActionQueue());
+				}
 			}
 
 			// CASE 2: Left a room or started a fresh load
@@ -352,21 +455,21 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 		await loadCanvas(getCanvas(), { json: canvasJSON, isLobby: true });
 
 		// Drains everything queued while the canvas was loading.
-		if (actionQueue.length > 0) {
+		if (queuedActionCount() > 0) {
 			await processActionQueue();
 		}
 	}
 
 	function addToDrawSyncingActionQueue(action: DrawSyncingAction) {
-		actionQueue.push(action);
+		enqueueAction(action);
 	}
 
 	async function executeDrawSyncingAction(
 		action: DrawSyncingAction,
 	): Promise<void> {
-		actionQueue.push(action);
+		if (!enqueueAction(action)) return;
 
-		if (!isProcessingQueue.value && !isUsingGestures.value) {
+		if (!isProcessingQueue.value) {
 			await processActionQueue();
 		}
 	}
@@ -398,7 +501,9 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 	 * loop below.
 	 */
 	async function processActionQueue(): Promise<void> {
+		if (isProcessingQueue.value) return;
 		isProcessingQueue.value = true;
+		const drainGeneration = queueGeneration;
 		const { actionWithoutEvents } = useDrawEventManager();
 		const objMgr = useDrawObjectManager();
 		const { getCanvas } = useDrawStore();
@@ -408,13 +513,20 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 
 		const yielder = createYielder({ budgetMs: IS_MOBILE_SYNC ? 4 : 8 });
 		try {
-			while (actionQueue.length > 0) {
+			while (
+				queuedActionCount() > 0 &&
+				drainGeneration === queueGeneration
+			) {
 				objMgr.beginBatch();
 				try {
 					yielder.reset();
-					while (actionQueue.length > 0) {
-						const action = actionQueue.shift();
-						if (!action) continue;
+					while (
+						queuedActionCount() > 0 &&
+						drainGeneration === queueGeneration
+					) {
+						const queued = dequeueAction();
+						if (!queued || queued.generation !== drainGeneration) continue;
+						const action = queued.action;
 
 						const start = performance.now();
 						await actionWithoutEvents(async () => {
@@ -433,11 +545,24 @@ export const useDrawSyncEngine = defineStore("drawSyncEngine", () => {
 				} finally {
 					objMgr.endBatch();
 				}
-				if (actionQueue.length > 0) await yielder.yield();
+				compactActionQueue();
+				if (
+					queuedActionCount() > 0 &&
+					drainGeneration === queueGeneration
+				) {
+					await yielder.yield();
+				}
 			}
 		} finally {
+			compactActionQueue();
 			isProcessingQueue.value = false;
 			canvas.fire("sync:queue:end" as any);
+			// If the room generation changed while an action was awaiting, its drain
+			// stops intentionally. A non-loading replacement room can safely start a
+			// fresh drain now; a loading room is resumed by loadRoomCanvas/watcher.
+			if (queuedActionCount() > 0 && !isLoadingCanvas.value) {
+				queueMicrotask(() => void processActionQueue());
+			}
 		}
 	}
 

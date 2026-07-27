@@ -3,7 +3,13 @@
 // requests carry only tile geometry + z-ordered ids.
 
 export type BakeryRequest =
-  | { t: 'config'; liveMax?: number }
+  | {
+      t: 'config'
+      liveMax?: number
+      idleMax?: number
+      /** At-rest cap for the worker's compact serialized scene mirror. */
+      jsonMaxBytes?: number
+    }
   | { t: 'upsert'; items: { id: string; json: any }[] }
   | { t: 'translate'; ids: string[]; dx: number; dy: number }
   | {

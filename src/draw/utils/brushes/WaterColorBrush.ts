@@ -9,6 +9,7 @@ import {
 	buildWatercolorPathData,
 	decodeWatercolorTrace,
 	deterministicWatercolorNoise,
+	encodeWatercolorTrace,
 	normalizeWatercolorPoints,
 	type WatercolorPathCommand,
 } from "@/draw/utils/brushes/watercolorGeometry";
@@ -77,7 +78,7 @@ export class WaterColorBrush extends BaseBrush {
 				opacity: baseOpacity * 0.45,
 				globalCompositeOperation: "source-over",
 				interactive: false,
-				basePoints: [...this._basePoints],
+				compressedTrace: encodeWatercolorTrace(this._basePoints),
 			});
 
 			// Shadow attachment block completely removed here.
@@ -182,47 +183,28 @@ export class WaterColorBrush extends BaseBrush {
 // ==========================================
 export class WaterColorStroke extends Path {
 	static type = "WaterColorStroke";
-	static cacheProperties = [...Path.cacheProperties, "basePoints"];
+	static cacheProperties = [...Path.cacheProperties, "compressedTrace"];
 
-	public basePoints: Point[];
+	public readonly compressedTrace: number[];
 
 	constructor(path: string | any[], options: any) {
 		super(path, options);
 
 		if (options.compressedTrace && Array.isArray(options.compressedTrace)) {
-			this.basePoints = decodeWatercolorTrace(options.compressedTrace).map(
-				(point) => new Point(point.x, point.y),
-			);
+			// Immutable after construction. Sharing this array avoids a second
+			// trace while loading or saving a dense watercolor drawing.
+			this.compressedTrace = options.compressedTrace;
 		} else {
-			// Deserialized JSON gives bare `{x, y}`, not Point instances — rehydrate
-			// so anything downstream can rely on Point methods. Malformed entries
-			// are dropped rather than allowed to throw during enliven.
-			this.basePoints = normalizeWatercolorPoints(options.basePoints).map(
-				(point) => new Point(point.x, point.y),
+			// Compact legacy `{x, y}` objects once instead of retaining another
+			// object graph for the lifetime of the stroke.
+			this.compressedTrace = encodeWatercolorTrace(
+				normalizeWatercolorPoints(options.basePoints),
 			);
 		}
 	}
 
 	// @ts-ignore
 	toObject(additionalProperties: string[] = []) {
-		const flatTrace: number[] = [];
-		let lastX = 0,
-			lastY = 0;
-
-		for (let i = 0; i < this.basePoints.length; i++) {
-			const p = this.basePoints[i];
-			const ix = Math.round(p.x * 10);
-			const iy = Math.round(p.y * 10);
-
-			if (i === 0) {
-				flatTrace.push(ix, iy);
-			} else {
-				flatTrace.push(ix - lastX, iy - lastY);
-			}
-			lastX = ix;
-			lastY = iy;
-		}
-
 		// Path.toObject deep-copies every segment and it is discarded — fromObject
 		// rebuilds from `compressedTrace`. A watercolor stroke is 3 bristles × N
 		// base points, so `this.path` holds ~3N commands: the worst case of the
@@ -233,7 +215,7 @@ export class WaterColorStroke extends Path {
 
 		return {
 			...baseObj,
-			compressedTrace: flatTrace,
+			compressedTrace: this.compressedTrace,
 		};
 	}
 

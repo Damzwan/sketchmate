@@ -11,15 +11,48 @@ export function seededRandom(seed: number) {
 	};
 }
 
+const CHARCOAL_MAX_SUPERSAMPLE = 4;
+const CHARCOAL_MAX_STAMP_DIMENSION = 200;
+const CHARCOAL_REFINEMENT_MAX_DIMENSION = 128;
+
+/**
+ * Give normal charcoal tips enough source pixels to stay crisp through the
+ * common high-resolution tile tiers, without letting large brush widths create
+ * oversized per-stroke canvases. Width 50 already produced a 200px stamp at the
+ * shared 2x baseline, so this does not raise the existing worst-case dimension.
+ */
+export function charcoalTextureSupersample(width: number): number {
+	const stampSize = Math.max(0.2, width * 2);
+	return Math.max(
+		TEXTURE_SUPERSAMPLE,
+		Math.min(
+			CHARCOAL_MAX_SUPERSAMPLE,
+			CHARCOAL_REFINEMENT_MAX_DIMENSION / stampSize,
+		),
+	);
+}
+
+export function charcoalTextureDimension(width: number): number {
+	const stampSize = Math.max(0.2, width * 2);
+	return Math.max(
+		1,
+		Math.min(
+			CHARCOAL_MAX_STAMP_DIMENSION,
+			Math.ceil(stampSize * charcoalTextureSupersample(width)),
+		),
+	);
+}
+
 export function generateCharcoalStamp(seed: number, width: number, color: string): HTMLCanvasElement {
 	const rand = seededRandom(seed);
 	// Device-independent — see TEXTURE_SUPERSAMPLE. Was devicePixelRatio-based,
 	// which made the worker (no devicePixelRatio → 1) and the main thread (2–3)
 	// generate DIFFERENT grain for the same stroke, so it changed appearance the
-	// moment its tile baked.
-	const SS = TEXTURE_SUPERSAMPLE;
+	// moment its tile baked. This charcoal-only value is still deterministic:
+	// it depends only on the serialized width, never on the rendering device.
 	const stampSize = width * 2;
-	const physical = Math.ceil(stampSize * SS);
+	const physical = charcoalTextureDimension(width);
+	const SS = physical / stampSize;
 
 	const canvas = document.createElement("canvas");
 	canvas.width = canvas.height = physical;

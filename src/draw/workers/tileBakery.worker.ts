@@ -190,6 +190,7 @@ classRegistry.setClass(ClippingGroup as any);
 // live: bounded LRU of enlivened fabric objects. Map insertion order === LRU
 //       order (touch = delete+set). Evicted down to LIVE_MAX after each bake.
 const json = new Map<string, any>();
+let jsonBytes = 0;
 const live = new Map<string, any>();
 // id → transferred pixels for a bitmap-backed stroke (see the 'asset' message).
 // NOT evicted here: the main side owns the budget and never re-sends, so a
@@ -226,8 +227,49 @@ function dropAsset(id: string): void {
 // a genuinely idle canvas.
 let LIVE_MAX = 1536;
 let IDLE_MAX = 768;
+let JSON_MAX_BYTES = 96 * 1024 * 1024;
 const IDLE_SHRINK_MS = 30_000;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+function storedJsonBytes(raw: any): number {
+	if (typeof raw === "string") return raw.length * 2;
+	try {
+		return JSON.stringify(raw).length * 2;
+	} catch {
+		return 0;
+	}
+}
+
+function setJson(id: string, raw: any): void {
+	const previous = json.get(id);
+	if (previous !== undefined) jsonBytes -= storedJsonBytes(previous);
+	json.delete(id);
+	json.set(id, raw);
+	jsonBytes += storedJsonBytes(raw);
+}
+
+function touchJson(id: string, raw: any): void {
+	json.delete(id);
+	json.set(id, raw);
+}
+
+function dropJson(id: string): void {
+	const raw = json.get(id);
+	if (raw === undefined) return;
+	jsonBytes -= storedJsonBytes(raw);
+	json.delete(id);
+}
+
+function shrinkJsonToBytes(cap: number): void {
+	while (jsonBytes > cap) {
+		const oldest = json.keys().next();
+		if (oldest.done) break;
+		dropJson(oldest.value);
+		// The live copy can carry path and clipping cache canvases. Keeping it
+		// after its source was evicted defeats the mirror's memory ceiling.
+		live.delete(oldest.value);
+	}
+}
 
 /** Drop the LRU tail down to `cap`. json stays — objects re-enliven on demand. */
 function shrinkTo(cap: number): void {
@@ -243,6 +285,7 @@ function scheduleIdleShrink(): void {
 	idleTimer = setTimeout(() => {
 		idleTimer = null;
 		shrinkTo(IDLE_MAX);
+		shrinkJsonToBytes(JSON_MAX_BYTES);
 	}, IDLE_SHRINK_MS);
 }
 
@@ -269,6 +312,7 @@ async function ensureLive(id: string): Promise<any | null> {
 	}
 	const raw = json.get(id);
 	if (raw === undefined) return null;
+	touchJson(id, raw);
 	let obj: any;
 	try {
 		// The mirror stores STRINGS (see the upsert handler) — a JSON string is far
@@ -320,6 +364,7 @@ async function ensureLiveMany(ids: string[]): Promise<(any | null)[]> {
 		}
 		const raw = json.get(id);
 		if (raw === undefined) continue;
+		touchJson(id, raw);
 		try {
 			const j = typeof raw === "string" ? JSON.parse(raw) : raw;
 			const asset = assets.get(id);
@@ -733,9 +778,16 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 				case "config":
 					if (typeof msg.liveMax === "number" && msg.liveMax > 0) {
 						LIVE_MAX = msg.liveMax;
-						// Keep a real working set at rest — see the IDLE_MAX note above.
-						IDLE_MAX = Math.max(768, Math.floor(LIVE_MAX / 4));
 					}
+					IDLE_MAX =
+						typeof msg.idleMax === "number" && msg.idleMax > 0
+							? Math.min(LIVE_MAX, msg.idleMax)
+							: Math.max(768, Math.floor(LIVE_MAX / 4));
+					if (typeof msg.jsonMaxBytes === "number" && msg.jsonMaxBytes > 0) {
+						JSON_MAX_BYTES = msg.jsonMaxBytes;
+					}
+					shrinkTo(LIVE_MAX);
+					shrinkJsonToBytes(JSON_MAX_BYTES);
 					// Register fonts and tell the client which families are safe to send.
 					//
 					// DELIBERATELY NOT AWAITED. This handler runs inside the FIFO chain, so
@@ -762,9 +814,10 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 						} catch {
 							/* keep the object */
 						}
-						json.set(item.id, stored);
+						setJson(item.id, stored);
 						live.delete(item.id); // geometry may have changed → re-enliven fresh
 					}
+					scheduleIdleShrink();
 					break;
 				case "translate": {
 					// Pure world translation (drag commit): patch coords in place instead
@@ -780,7 +833,7 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 								const j = typeof raw === "string" ? JSON.parse(raw) : raw;
 								if (typeof j.left === "number") j.left += dx;
 								if (typeof j.top === "number") j.top += dy;
-								json.set(id, typeof raw === "string" ? JSON.stringify(j) : j);
+								setJson(id, typeof raw === "string" ? JSON.stringify(j) : j);
 							} catch {
 								/* leave as-is; a later upsert corrects it */
 							}
@@ -791,6 +844,7 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 							o.setCoords();
 						}
 					}
+					scheduleIdleShrink();
 					break;
 				}
 				case "clipSet": {
@@ -805,12 +859,13 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 							const j = typeof raw === "string" ? JSON.parse(raw) : raw;
 							if (msg.clip) j.clipPath = msg.clip;
 							else delete j.clipPath;
-							json.set(msg.id, typeof raw === "string" ? JSON.stringify(j) : j);
+							setJson(msg.id, typeof raw === "string" ? JSON.stringify(j) : j);
 						} catch {
 							/* leave as-is; a later upsert / missing self-heal corrects it */
 						}
 						live.delete(msg.id); // clip changed → re-enliven fresh
 					}
+					scheduleIdleShrink();
 					break;
 				}
 				case "asset": {
@@ -821,13 +876,14 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 				}
 				case "remove":
 					for (const id of msg.ids) {
-						json.delete(id);
+						dropJson(id);
 						live.delete(id);
 						dropAsset(id);
 					}
 					break;
 				case "clear":
 					json.clear();
+					jsonBytes = 0;
 					live.clear();
 					for (const [, a] of assets) a.close();
 					assets.clear();

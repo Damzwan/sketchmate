@@ -112,6 +112,8 @@ let msgSeq = 0;
  */
 let epoch = 0;
 let liveMaxConfig = 8192;
+let idleMaxConfig = 768;
+let jsonMaxBytesConfig = 96 * 1024 * 1024;
 /**
  * Font families the worker has registered in its own FontFaceSet.
  *
@@ -253,7 +255,12 @@ function getWorker(): Worker | null {
 	};
 	// Re-send config on every spawn: after a re-arm the fresh worker would
 	// otherwise sit at its default LIVE_MAX and thrash its enliven cache.
-	worker.postMessage({ t: "config", liveMax: liveMaxConfig });
+	worker.postMessage({
+		t: "config",
+		liveMax: liveMaxConfig,
+		idleMax: idleMaxConfig,
+		jsonMaxBytes: jsonMaxBytesConfig,
+	});
 	return worker;
 }
 
@@ -270,8 +277,14 @@ export function initTileBakery(): void {
 		typeof navigator !== "undefined" &&
 		/Mobi|Android/i.test(navigator.userAgent);
 	const hw = (navigator as any)?.hardwareConcurrency || 4;
-	const lowEnd = mobile && hw <= 4;
+	const deviceMemory = (navigator as any)?.deviceMemory || (mobile ? 4 : 8);
+	const lowEnd = mobile && (hw <= 4 || deviceMemory <= 4);
 	liveMaxConfig = lowEnd ? 2048 : 8192;
+	// Active bakes keep their large working set. After a genuinely idle period,
+	// collapse both duplicate worker representations. Evicted JSON self-heals
+	// through the existing `{ missing }` retry on the next relevant tile.
+	idleMaxConfig = lowEnd ? 128 : mobile ? 256 : 768;
+	jsonMaxBytesConfig = (lowEnd ? 24 : mobile ? 48 : 96) * 1024 * 1024;
 	getWorker(); // spawn now; the config message goes out with it
 }
 

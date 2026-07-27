@@ -19,8 +19,9 @@ import { TSimplePathData } from 'fabric'
  *
  * A texture is a small fixed-size asset, not viewport pixels — it does not need
  * to track the display. Pinning it makes the render deterministic everywhere,
- * which is what the tile cache (and multiplayer) requires. 2 keeps the grain
- * crisp at the zoom levels tiles bake at.
+ * which is what the tile cache (and multiplayer) requires. 2 is the shared
+ * baseline; a generator may deterministically supersample further under its own
+ * bounded pixel budget (charcoal does this for sharper grain).
  */
 export const TEXTURE_SUPERSAMPLE = 2
 

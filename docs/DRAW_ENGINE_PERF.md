@@ -1811,6 +1811,12 @@ tile the texture visibly changed. Two of the call sites (Spray, Neon) also had
 pinning it makes rasterization deterministic across worker/main and across
 devices, which is what a shared tile cache and multiplayer both require.
 
+Charcoal now applies a deterministic, bounded refinement on top: common brush
+widths use up to 4x texture supersampling, tapering to the shared 2x baseline as
+the brush grows. The physical stamp remains capped at the old width-50 worst
+case (200x200), and the wire still carries only seed + compact trace, so this
+adds neither a larger worst-case stamp nor any network bytes.
+
 Together B1+B2 remove the two *provable* live-vs-committed divergences behind the
 reported "flash / funky / looks different after drawing". Not visually confirmed
 here (sandbox is backend-gated) — worth re-checking per brush on a device.
@@ -2021,9 +2027,10 @@ board it still spends real main-thread time. Four callers, two shapes:
 - **Live main canvas** — `useCanvasPreview.runPreview` (send preview) and
   `drawRoomHandlers` (lobby thumbnail, 400px). These re-render the whole live
   scene *while the user is interacting* → the "super lag".
-- **Clone canvas** — `drawLoad.runSave` (autosave thumbnail, 300px, already
-  yielded on cloned objects) and `object.action` (save action, 1080px, one-shot
-  user action). These don't compete with the live tile engine.
+- **Clone canvas** — `object.action` (save action, 1080px, one-shot user
+  action). Autosave no longer belongs here: it uses the already-rendered live
+  canvas preview and persists a time-sliced JSON snapshot without cloning the
+  Fabric scene.
 
 **The live-canvas cases don't need a new worker at all.** The engine already
 holds the whole scene as off-thread `ImageBitmap` tiles *and* a worker-built
@@ -2039,10 +2046,8 @@ right move is:
    ample and essentially free.
 2. Point `useCanvasPreview` and `drawRoomHandlers` at it, falling back to the
    current `exportBoundingBoxImage` when the cache/overview isn't warm.
-3. Leave the clone-canvas callers as-is (or feed them the same content bitmap
-   captured at snapshot time) — a true off-thread render of *cloned* objects
-   would need images shipped to the worker (F3-B), which isn't worth it for a
-   thumbnail.
+3. Leave the explicit 1080px save action as-is. Autosave already takes the
+   low-memory path and no longer constructs a clone canvas.
 
 Not implemented this turn: it is a user-facing image path (gallery + lobby
 thumbnails) and the overview→thumbnail mapping (padding, bounds) needs a live
@@ -2105,6 +2110,15 @@ smaller than its parsed graph, roughly halving the mirror, and enliven parses
 its input anyway so the extra cost is negligible and off-thread. `translate`
 parses/patches/re-stringifies per id on the worker; the main side still sends
 one tiny message. Legacy-tolerant (handles a stored object too).
+
+The string mirror is now also a byte-bounded LRU at rest: 24 MB on low-end
+mobile, 48 MB on other mobile, and 96 MB on desktop. It is trimmed only after
+30 seconds idle, so an active multi-tile pass keeps its complete working set.
+An evicted id uses the existing `{ missing }` self-heal path: main re-upserts
+that tile's authoritative objects and retries once. The enlivened Fabric LRU is
+trimmed at the same idle boundary (128 / 256 / 768 objects respectively), so
+path graphs and clipping cache canvases do not recreate a second whole scene
+inside the worker while the drawing is idle.
 
 ### P3 — ✅ FIXED — z-index map rebuilt O(all objects) after every stroke commit
 

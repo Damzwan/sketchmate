@@ -1,19 +1,18 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import { ActiveSelection, Canvas, FabricObject, StaticCanvas } from "fabric";
+import { ActiveSelection, Canvas } from "fabric";
 import { EventBus } from "@/main";
 import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
 import {
 	centerObjectInViewport,
 	precalculateAndSetViewport,
 } from "@/draw/helpers/viewport.helper";
-import { exportBoundingBoxImage } from "@/draw/helpers/export.helper";
 import { v4 as uuidv4 } from "uuid";
 import {
 	enlivenObjectsTimeSlivered,
+	generateChunkedJSON,
 	migrateLegacyOrigin,
 } from "@/draw/helpers/drawload.helper";
-import { createYielder } from "@/draw/helpers/yielding.helper";
 
 export interface DrawingDraft {
 	id: string;
@@ -34,20 +33,12 @@ export interface PendingDraft {
 }
 
 /**
- * Decoupled-from-canvas snapshot. Holds *cloned* fabric objects plus the
- * canvas-level metadata needed to reconstruct a faithful render. Because
- * everything is cloned, the live Canvas may be disposed immediately after
- * snapshotting without affecting the in-flight save.
+ * Detached JSON snapshot. Serializing directly avoids keeping a second Fabric
+ * scene alive while IndexedDB finishes writing the draft.
  */
 interface CanvasSnapshot {
 	draftId: string;
-	version: any;
-	backgroundColor: any;
-	clipPath: any;
-	backgroundImage: any;
-	objects: FabricObject[]; // CLONED — safe to outlive the live canvas
-	// Quick optimistic thumbnail captured synchronously from the live canvas.
-	// Used until the proper offscreen render completes.
+	json: any;
 	optimisticThumb: string;
 }
 
@@ -257,23 +248,13 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 			/* non-fatal */
 		}
 
-		// FIX: Use yielder instead of Promise.all to prevent thread locking
-		const objects: FabricObject[] = [];
-		const yielder = createYielder({ budgetMs: 6, signal });
-
-		for (let i = 0; i < liveObjects.length; i++) {
-			if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-			objects.push(await (liveObjects[i].clone() as Promise<FabricObject>));
-			if (yielder.shouldYield()) await yielder.yield();
-		}
+		// Serialize once, in short slices. Cloning first built a complete second
+		// Fabric scene (including expanded watercolor paths), then serialized it.
+		const json = await generateChunkedJSON(activeCanvas, signal);
 
 		return {
 			draftId,
-			version: (activeCanvas as any).version,
-			backgroundColor: activeCanvas.backgroundColor,
-			clipPath: activeCanvas.clipPath,
-			backgroundImage: activeCanvas.backgroundImage,
-			objects,
+			json,
 			optimisticThumb,
 		};
 	}
@@ -286,73 +267,10 @@ export const useDrawLoadStore = defineStore("drawLoad", () => {
 		if (!db.value) throw new Error("DB not available");
 		if (signal.aborted) throw new DOMException("Aborted", "AbortError");
 
-		const json: any = {
-			version: snapshot.version,
-			objects: [],
-			background: snapshot.backgroundColor,
-		};
-		if (snapshot.clipPath) {
-			try {
-				json.clipPath = snapshot.clipPath.toJSON();
-			} catch {
-				/* ignore */
-			}
-		}
-		if (snapshot.backgroundImage) {
-			try {
-				json.backgroundImage = snapshot.backgroundImage.toJSON();
-			} catch {
-				/* ignore */
-			}
-		}
-
-		const yielder = createYielder({ budgetMs: 6, signal });
-		yielder.reset();
-		for (let i = 0; i < snapshot.objects.length; i++) {
-			if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-			try {
-				json.objects.push(snapshot.objects[i].toJSON());
-			} catch (e) {
-				console.warn("[save] object toJSON failed, skipping:", e);
-			}
-			if (yielder.shouldYield()) await yielder.yield();
-		}
-
-		let thumbnail = snapshot.optimisticThumb;
-		let offscreen: StaticCanvas | null = null;
-		try {
-			offscreen = new StaticCanvas(undefined, {
-				backgroundColor: snapshot.backgroundColor,
-				renderOnAddRemove: false,
-				enableRetinaScaling: false,
-			});
-			for (const obj of snapshot.objects) offscreen.add(obj);
-
-			const exportResult = await exportBoundingBoxImage(offscreen as any, {
-				maxSize: 300,
-				asDataUrl: true,
-				quality: 0.3,
-				signal,
-			});
-			if (exportResult?.img) thumbnail = exportResult.img as string;
-		} catch (e) {
-			if (!(e instanceof DOMException && e.name === "AbortError")) {
-				console.warn("[save] thumbnail render failed, using optimistic:", e);
-			}
-		} finally {
-			try {
-				offscreen?.dispose();
-			} catch {
-				/* ignore */
-			}
-		}
-
-		if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-
 		const draft: DrawingDraft = {
 			id: snapshot.draftId,
-			json,
-			thumbnail,
+			json: snapshot.json,
+			thumbnail: snapshot.optimisticThumb,
 			updatedAt: Date.now(),
 		};
 		const transaction = db.value.transaction([objectStoreName], "readwrite");

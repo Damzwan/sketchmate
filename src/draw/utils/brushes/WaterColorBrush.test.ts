@@ -20,6 +20,8 @@ describe("WaterColorStroke compact rehydration", () => {
 		expect(source).toEqual(original);
 		expect(source.path).toBeUndefined();
 		expect(stroke.path.length).toBeGreaterThan(0);
-		expect(stroke.basePoints).toHaveLength(3);
+		expect(stroke.compressedTrace).toBe(source.compressedTrace);
+		expect((stroke as any).basePoints).toBeUndefined();
+		expect(stroke.toObject().compressedTrace).toBe(stroke.compressedTrace);
 	});
 });

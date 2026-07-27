@@ -3,6 +3,7 @@ import {
 	buildWatercolorBristles,
 	buildWatercolorPathData,
 	decodeWatercolorTrace,
+	encodeWatercolorTrace,
 	traceWatercolorPath,
 	watercolorComplexity,
 } from "./watercolorGeometry";
@@ -17,6 +18,15 @@ describe("watercolor geometry", () => {
 			{ x: 12, y: 21 },
 		]);
 		expect(trace).toEqual(before);
+	});
+
+	it("round-trips points through the compact trace", () => {
+		const points = [
+			{ x: 10, y: 20 },
+			{ x: 10.5, y: 19 },
+			{ x: 12, y: 21 },
+		];
+		expect(decodeWatercolorTrace(encodeWatercolorTrace(points))).toEqual(points);
 	});
 
 	it("builds the same three-subpath command shape", () => {

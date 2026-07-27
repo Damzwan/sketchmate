@@ -406,6 +406,11 @@ never ask for a tier we don't bake.
 - **Empty-tile pruning (`pruneEmpties`).** Long-untouched "fresh empty" tiles are
   dropped (and their gen entry) so the maps don't grow unbounded on a sparse
   infinite canvas.
+- **Worker-mirror virtualization.** The bakery keeps a large hot Fabric working
+  set while tiles are actively baking, then trims it after 30 seconds idle. Its
+  compact JSON source mirror is independently byte-capped (24 MB low-end
+  mobile, 48 MB other mobile, 96 MB desktop). Missing evicted entries are
+  restored lazily through the normal authoritative-main-scene retry path.
 - **Zero-copy transfer.** `transferToImageBitmap()` (not `createImageBitmap`)
   moves the canvas pixels into a bitmap with no memcpy; the canvas resets and
   stays poolable.
@@ -434,9 +439,13 @@ reach the engine through the same seams as local edits.
   invalidation. Object moves are stored as **diffs** (`getObjectDiff`) and applied
   in bulk (`applyObjectModificationsBulk`), which tracks old and new footprints
   separately so a long move doesn't invalidate the empty span between them.
-- **Payload compaction.** `OptimizedPencilStroke.toObject` serializes a
-  delta-encoded, rounded `compressedTrace` and drops the raw `path`, shrinking the
-  most common stroke on the wire and in snapshots.
+- **Payload compaction.** Pencil and watercolor strokes serialize a
+  delta-encoded, rounded `compressedTrace` and drop the raw `path`. A live
+  watercolor stroke also retains only that numeric trace, not a second
+  `Point[]` graph beside its expanded Fabric path.
+- **Autosave snapshot.** Autosave serializes the live scene once in short time
+  slices and persists that detached JSON directly. It does not clone every
+  Fabric object or rebuild a second `StaticCanvas` for the draft thumbnail.
 
 ---
 

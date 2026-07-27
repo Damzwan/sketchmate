@@ -24,6 +24,22 @@ export interface WatercolorPathContext {
 
 const NOISE_GRID = 10;
 
+export function encodeWatercolorTrace(
+	points: readonly WatercolorPoint[],
+): number[] {
+	const trace: number[] = [];
+	let lastX = 0;
+	let lastY = 0;
+	for (let i = 0; i < points.length; i++) {
+		const ix = Math.round(points[i].x * 10);
+		const iy = Math.round(points[i].y * 10);
+		trace.push(i === 0 ? ix : ix - lastX, i === 0 ? iy : iy - lastY);
+		lastX = ix;
+		lastY = iy;
+	}
+	return trace;
+}
+
 export function deterministicWatercolorNoise(
 	x: number,
 	y: number,

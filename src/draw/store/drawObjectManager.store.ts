@@ -811,28 +811,12 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			// gesture that starts mid-tile has to wait it out. 16 keeps the worst
 			// case to roughly a frame; the extra `isInputPending()` calls are far
 			// cheaper than the block they interrupt.
-			renderChunk: IS_LOW_END ? 8 : IS_MOBILE ? 16 : 32,
+				renderChunk: IS_LOW_END ? 8 : IS_MOBILE ? 16 : 32,
 				remoteBaker: bakeryBakeTile,
-				// remoteOverview: DELIBERATELY NOT WIRED — it was a pessimization.
-				//
-				// The overview is ONE low-res bitmap covering the WHOLE board, so the
-				// worker had to `ensureLive` every object in the scene: a JSON.parse +
-				// enlivenObjects + path rebuild EACH, awaited ONE AT A TIME. That
-				// re-created from scratch the exact objects the main thread had just
-				// finished enlivening during load — a full duplicate enliven of the
-				// entire drawing, and the load reveal awaits it
-				// (`warmOverviewBlocking`). On ~1500 pencil strokes that was 10–15s of
-				// staring at nothing.
-				//
-				// The LOCAL path renders the same overview straight from the live,
-				// already-enlivened objects — no rebuild at all — and yields per
-				// object, so it does not block input. Strictly less total work.
-				//
-				// The worker keeps what it is actually good at: TILES. A tile is
-				// high-res, there are many, they are re-baked constantly, and each one
-				// needs only the handful of objects that intersect it — so its enliven
-				// cost is bounded and amortized by the LRU, not O(whole scene) on the
-				// critical path to first paint.
+				// Keep the whole-board overview local. A hybrid worker overview
+				// cannot flatten interleaved skipped objects without changing z/order
+				// and alpha compositing, and a bad overview means every uncovered tile
+				// is visibly blank or wrong while zoom sharpening catches up.
 			},
 		);
 
@@ -844,31 +828,35 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		core.requestFrame();
 	}
 
-	function rebuildIndexFromCanvas() {
-		const { isBlocked } = useFriendStore();
+	function beginIndexRebuild() {
 		objectMap.clear();
 		entryMap.clear();
 		quadtree.clear();
 		zById.clear();
 		bakeryClear();
 		isZIndexDirty = true;
-		const objs = c!.getObjects();
-		for (let i = objs.length - 1; i >= 0; i--) {
-			const obj = objs[i];
-			if (isBlocked(obj.userId)) {
-				c?.remove(obj);
-				continue;
-			}
-			if (obj.id) {
-				objectMap.set(obj.id, obj);
-				addToQuadTree(obj);
-				// Prefer the JSON the object was enlivened FROM (stashed at load) so the
-				// mirror seeds with zero toJSON; fall back to a lazy serialize otherwise.
-				const src = (obj as any).__bakeJSON;
-				if (src) bakerySeed(obj, src);
-				else bakeryMarkDirty(obj);
-			}
+	}
+
+	function indexCanvasObject(
+		obj: FabricObject,
+		isBlocked: (userId: string) => boolean,
+	) {
+		if (isBlocked(obj.userId)) {
+			c?.remove(obj);
+			return;
 		}
+		if (obj.id) {
+			objectMap.set(obj.id, obj);
+			addToQuadTree(obj);
+			// Prefer the JSON the object was enlivened FROM (stashed at load) so the
+			// mirror seeds with zero toJSON; fall back to a lazy serialize otherwise.
+			const src = (obj as any).__bakeJSON;
+			if (src) bakerySeed(obj, src);
+			else bakeryMarkDirty(obj);
+		}
+	}
+
+	function finishIndexRebuild() {
 		// Seed z from the final canvas order (0 = back). After this, canvas order is
 		// no longer the z authority — layer ops + adds maintain zById directly.
 		const finalObjs = c!.getObjects();
@@ -882,9 +870,31 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			}
 		}
 		// Start seeding the worker mirror NOW, in idle-sized chunks, instead of
-		// letting the first bake ship the whole scene in one blocking postMessage
-		// (the "load big canvas → zoom immediately → spike").
+		// letting the first bake ship the whole scene in one blocking postMessage.
 		bakeryFlushSoon();
+	}
+
+	function rebuildIndexFromCanvas() {
+		const { isBlocked } = useFriendStore();
+		beginIndexRebuild();
+		const objs = c!.getObjects();
+		for (let i = objs.length - 1; i >= 0; i--) {
+			indexCanvasObject(objs[i], isBlocked);
+		}
+		finishIndexRebuild();
+	}
+
+	async function rebuildIndexFromCanvasYielded() {
+		const { isBlocked } = useFriendStore();
+		const yielder = createYielder({ budgetMs: IS_LOW_END ? 4 : 6 });
+		beginIndexRebuild();
+		const objs = c!.getObjects();
+		yielder.reset();
+		for (let i = objs.length - 1; i >= 0; i--) {
+			indexCanvasObject(objs[i], isBlocked);
+			await yielder.maybeYield();
+		}
+		finishIndexRebuild();
 	}
 
 	// ── gesture / frame ──────────────────────────────────────────────────────
@@ -1036,15 +1046,22 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		loadingDepth++;
 	}
 
-	function endLoading() {
+	async function endLoading() {
 		loadingDepth = Math.max(0, loadingDepth - 1);
 		if (loadingDepth !== 0) return;
-		core?.setLoading(false);
-		rebuildIndexFromCanvas();
-		core?.setContentBounds(computeContentBounds());
-		core?.markAllDirty();
-		core?.warmOverview();
-		core?.requestFrame();
+		if (!core || !c) return;
+
+		// One load finalization pass. Callers used to rebuild the index, reset all
+		// tiles, synchronously warm the overview, then come through here and do
+		// the same rebuild/dirty/warm sequence again. Besides the duplicate CPU
+		// and allocations, both overview jobs could overlap.
+		core.reset();
+		await rebuildIndexFromCanvasYielded();
+		core.setContentBounds(computeContentBounds());
+		await core.warmOverviewBlocking();
+		core.setLoading(false);
+		core.requestFrame();
+		core.scheduleBake();
 	}
 
 	// ── blocked users ────────────────────────────────────────────────────────

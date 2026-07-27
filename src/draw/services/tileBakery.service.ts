@@ -767,6 +767,50 @@ function flushObjects(w: Worker, objects: FabricObject[]): void {
 }
 
 /**
+ * Overview variant of flushObjects. A whole-board request can touch thousands
+ * of dirty objects, so one postMessage would structured-clone the whole scene
+ * in a single main-thread task. Ship small batches and yield between them.
+ */
+async function flushObjectsYielded(
+	w: Worker,
+	objects: FabricObject[],
+): Promise<void> {
+	let items: { id: string; json: any }[] = [];
+	let sliceStart = performance.now();
+	const yieldFrame = () =>
+		new Promise<void>((resolve) => {
+			if (typeof requestAnimationFrame === "function") {
+				requestAnimationFrame(() => resolve());
+			} else {
+				setTimeout(resolve, 0);
+			}
+		});
+
+	for (const obj of objects) {
+		const id = obj.id;
+		if (!id || !dirty.has(id)) continue;
+		const a = obj as any;
+		if (a.group) continue;
+		if (!shippable(a)) {
+			dirty.delete(id);
+			continue;
+		}
+		const json = a.__bakeJSON ?? serialize(obj);
+		if (json) items.push({ id, json });
+		a.__bakeJSON = undefined;
+		dirty.delete(id);
+
+		if (items.length >= 32 || performance.now() - sliceStart >= 4) {
+			postUpsert(w, items);
+			items = [];
+			await yieldFrame();
+			sliceStart = performance.now();
+		}
+	}
+	if (items.length) postUpsert(w, items);
+}
+
+/**
  * postMessage the upsert batch, surviving un-cloneable payloads.
  *
  * Some serialized objects carry a FUNCTION-valued property, which makes
@@ -897,7 +941,7 @@ export async function bakeryRenderOverview(
 
 	// Only THESE objects need to be current. The global dirty set drains on idle
 	// — draining it here was the per-call main-thread spike (finding F1).
-	flushObjects(w, objects);
+	await flushObjectsYielded(w, objects);
 	let res = await request();
 	if (res?.aborted) return null; // cancelled by a gesture — not a failure
 

@@ -3,48 +3,15 @@ import { opacityFromOpacityHex } from "@/draw/utils/color.utils";
 import {
 	enlivenStrokeProps,
 	simplifyPathDouglasPeucker,
-	stripType,
 	toObjectWithoutPath,
 } from "@/draw/utils/brushes/brush.helpers";
-
-// ==========================================
-// DETERMINISTIC NOISE HELPER
-// ==========================================
-/**
- * Position-hashed noise. CHAOTIC by construction (`sin(x*k)*43758` mod 1), so an
- * arbitrarily small change in x or y yields a COMPLETELY different value — it is
- * a hash, not a continuous function.
- *
- * That matters because `WaterColorStroke.toObject` stores `basePoints` rounded
- * to 0.1 (`Math.round(p.x * 10) / 10`) and drops the baked `path`, so
- * `fromObject` re-derives the bristle geometry from the ROUNDED points. Feeding
- * the hash unrounded coords when drawing and rounded coords when re-hydrating
- * produced two entirely different sets of bristles — the stroke visibly changed
- * shape the moment a tile baked from the serialized copy (the worker mirror
- * round-trips through exactly this path), and again after a reload or a sync.
- *
- * Fix: quantize to the SAME 0.1 grid the serializer uses, inside the hash. Then
- * `noise(x) === noise(round(x, 0.1))`, so live, committed, worker-baked and
- * reloaded renders are byte-identical. Quantizing here (not at the call sites)
- * makes the invariant impossible to forget.
- *
- * Keep this grid in sync with `toObject`'s rounding factor (10).
- */
-const NOISE_GRID = 10; // 0.1 units — must match toObject's Math.round(p * 10)
-
-function getDeterministicNoise(
-	x: number,
-	y: number,
-	b: number,
-): { nx: number; ny: number } {
-	const qx = Math.round(x * NOISE_GRID) / NOISE_GRID;
-	const qy = Math.round(y * NOISE_GRID) / NOISE_GRID;
-	const seedX = qx * 12.9898 + qy * 78.233 + b * 13.5;
-	const seedY = qx * 78.233 + qy * 12.9898 + b * 31.7;
-	const nx = (Math.abs(Math.sin(seedX) * 43758.5453) % 1) - 0.5;
-	const ny = (Math.abs(Math.sin(seedY) * 43758.5453) % 1) - 0.5;
-	return { nx, ny };
-}
+import {
+	buildWatercolorPathData,
+	decodeWatercolorTrace,
+	deterministicWatercolorNoise,
+	normalizeWatercolorPoints,
+	type WatercolorPathCommand,
+} from "@/draw/utils/brushes/watercolorGeometry";
 
 // ==========================================
 // THE OPTIMIZED WATERCOLOR BRUSH
@@ -93,15 +60,15 @@ export class WaterColorBrush extends BaseBrush {
 			return false;
 		}
 
-		const pathString = WaterColorStroke.buildPathString(
+		const pathData = WaterColorStroke.buildPathData(
 			this._basePoints,
 			this.width,
 		);
 
-		if (pathString) {
+		if (pathData.length) {
 			const baseOpacity = opacityFromOpacityHex(this.color) || 0.6;
 
-			const path = new WaterColorStroke(pathString, {
+			const path = new WaterColorStroke(pathData, {
 				fill: "",
 				stroke: this.color,
 				strokeWidth: this.width * 0.8,
@@ -165,7 +132,7 @@ export class WaterColorBrush extends BaseBrush {
 				Math.sin(this._totalDistance * 0.05 + b) *
 				(this.width * 0.15 * spreadMultiplier);
 
-			const { nx, ny } = getDeterministicNoise(point.x, point.y, b);
+			const { nx, ny } = deterministicWatercolorNoise(point.x, point.y, b);
 			const noiseX = nx * (this.width * 0.2 * spreadMultiplier);
 			const noiseY = ny * (this.width * 0.2 * spreadMultiplier);
 
@@ -223,31 +190,16 @@ export class WaterColorStroke extends Path {
 		super(path, options);
 
 		if (options.compressedTrace && Array.isArray(options.compressedTrace)) {
-			this.basePoints = [];
-			let lastX = 0,
-				lastY = 0;
-			for (let i = 0; i < options.compressedTrace.length; i += 2) {
-				let ix = options.compressedTrace[i];
-				let iy = options.compressedTrace[i + 1];
-
-				if (i > 0) {
-					ix += lastX;
-					iy += lastY;
-				}
-				lastX = ix;
-				lastY = iy;
-				this.basePoints.push(new Point(ix / 10, iy / 10));
-			}
+			this.basePoints = decodeWatercolorTrace(options.compressedTrace).map(
+				(point) => new Point(point.x, point.y),
+			);
 		} else {
 			// Deserialized JSON gives bare `{x, y}`, not Point instances — rehydrate
 			// so anything downstream can rely on Point methods. Malformed entries
 			// are dropped rather than allowed to throw during enliven.
-			const rawPoints = options.basePoints || [];
-			this.basePoints = rawPoints
-				.filter((p: any) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
-				.map((p: any) =>
-					typeof p.distanceFrom === "function" ? p : new Point(p.x, p.y),
-				);
+			this.basePoints = normalizeWatercolorPoints(options.basePoints).map(
+				(point) => new Point(point.x, point.y),
+			);
 		}
 	}
 
@@ -286,87 +238,32 @@ export class WaterColorStroke extends Path {
 	}
 
 	static async fromObject(object: any) {
-		if (!object.path || object.path.length === 0) {
-			// This temp instance exists ONLY to decode `compressedTrace` into
-			// basePoints, so hand it the BARE minimum.
-			//
-			// It is constructed BEFORE enlivenStrokeProps, so `clipPath` and
-			// `shadow` are still raw JSON at this point. Passing those into a fabric
-			// constructor is a real hazard — fabric expects live instances and calls
-			// methods on them — and an ERASED WaterColorStroke always carries a
-			// clipPath. That threw, and because `enlivenObjects` was all-or-nothing
-			// it took the whole tile batch down with it (see ensureLiveMany).
-			// `type` is dropped too, or fabric logs "Setting type has no effect".
-			const {
-				clipPath: _clipPath,
-				shadow: _shadow,
-				...bare
-			} = stripType(object) as any;
-			const tempInstance = new WaterColorStroke([], bare);
-			object.path = WaterColorStroke.buildPathString(
-				tempInstance.basePoints,
-				object.strokeWidth / 0.8,
-			);
+		// Never write the expanded path back into `object`. drawload.helper stashes
+		// that exact source blob as __bakeJSON; mutating it made the compact trace
+		// carry a second, huge SVG path through structured clone and into the
+		// worker's permanent mirror.
+		let path = object.path;
+		if (!path || path.length === 0) {
+			const points = Array.isArray(object.compressedTrace)
+				? decodeWatercolorTrace(object.compressedTrace)
+				: normalizeWatercolorPoints(object.basePoints);
+			path = buildWatercolorPathData(points, object.strokeWidth / 0.8);
 		}
 		const enlivenedProps = await enlivenStrokeProps(object);
-		return new WaterColorStroke(object.path, enlivenedProps);
+		return new WaterColorStroke(path, enlivenedProps);
 	}
 
+	static buildPathData(
+		basePoints: Point[],
+		width: number,
+	): WatercolorPathCommand[] {
+		return buildWatercolorPathData(basePoints, width);
+	}
+
+	/** Compatibility helper for old callers/tools that expect SVG path text. */
 	static buildPathString(basePoints: Point[], width: number): string {
-		const bristlePoints: Point[][] = [[], [], []];
-		let totalDist = 0;
-		// A non-finite width propagates into every coordinate below and yields
-		// "M NaN NaN ..." — which fabric cannot parse. Older payloads may lack
-		// strokeWidth entirely (the caller divides it), so clamp here.
-		if (!Number.isFinite(width) || width <= 0) width = 10;
-
-		for (let i = 0; i < basePoints.length; i++) {
-			const point = basePoints[i];
-			let dist = 0;
-			if (i > 0) {
-				// Plain arithmetic, NOT `Point.distanceFrom`. `basePoints` comes from
-				// callers and from deserialized JSON, where a point is a bare
-				// `{x, y}` — `distanceFrom` is then undefined and this threw, which
-				// rejected `enlivenObjects` for the whole tile batch. Older
-				// WaterColorStrokes (serialized before `compressedTrace`, so their
-				// points round-trip as plain objects) hit this every time.
-				const prev = basePoints[i - 1];
-				dist = Math.hypot(point.x - prev.x, point.y - prev.y);
-				totalDist += dist;
-			}
-
-			const speedFactor = Math.min(1, dist / 20);
-			const spreadMultiplier = 1.2 - speedFactor * 0.7;
-
-			for (let b = 0; b < 3; b++) {
-				const wave =
-					Math.sin(totalDist * 0.05 + b) * (width * 0.15 * spreadMultiplier);
-
-				const { nx, ny } = getDeterministicNoise(point.x, point.y, b);
-				const noiseX = nx * (width * 0.2 * spreadMultiplier);
-				const noiseY = ny * (width * 0.2 * spreadMultiplier);
-
-				bristlePoints[b].push(
-					new Point(point.x + wave + noiseX, point.y + wave + noiseY),
-				);
-			}
-		}
-
-		let pathString = "";
-		for (let b = 0; b < bristlePoints.length; b++) {
-			const points = bristlePoints[b];
-			if (points.length > 0) {
-				let p1 = points[0];
-				pathString += `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} `;
-				for (let i = 1; i < points.length; i++) {
-					const p2 = points[i];
-					const mid = p1.midPointFrom(p2);
-					pathString += `Q ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} ${mid.x.toFixed(2)} ${mid.y.toFixed(2)} `;
-					p1 = p2;
-				}
-				pathString += `L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} `;
-			}
-		}
-		return pathString;
+		return buildWatercolorPathData(basePoints, width)
+			.map((command) => command.join(" "))
+			.join(" ");
 	}
 }

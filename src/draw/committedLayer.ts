@@ -793,12 +793,23 @@ export class CommittedLayer<T extends Bounded> {
       c2d.rect(q.x, q.y, q.w, q.h)
       c2d.clip()
       for (let i = 0; i < objects.length; i++) {
+        if (i > 0 && yielder.shouldYield()) {
+          await yielder.yield()
+          if (signal.aborted) {
+            c2d.restore()
+            this.release(off)
+            return
+          }
+        }
         try {
           this.renderer(c2d as any, objects[i], scale, q)
         } catch (err) {
           if (this.debug) console.warn('[Committed] render threw', err)
         }
-        if (i % this.CHUNK === this.CHUNK - 1 && yielder.shouldYield()) {
+        if (
+          i % this.CHUNK === this.CHUNK - 1 ||
+          yielder.shouldYield()
+        ) {
           await yielder.yield()
           if (signal.aborted) {
             c2d.restore()

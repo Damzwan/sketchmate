@@ -43,6 +43,8 @@ export class WorldOverview<T extends Bounded> {
   private sx = 1
   private sy = 1 // world → overview px
   private dirty = true
+  private dirtyRevision = 1
+  private rebuildInFlight: Promise<void> | null = null
 
   constructor(
     index: SpatialIndex<T>,
@@ -58,6 +60,7 @@ export class WorldOverview<T extends Bounded> {
 
   markDirty(): void {
     this.dirty = true
+    this.dirtyRevision++
   }
 
   isDirty(): boolean {
@@ -67,14 +70,14 @@ export class WorldOverview<T extends Bounded> {
   /** Incrementally fold one freshly-committed object into the overview. */
   add(obj: T): void {
     if (!this.canvas || !this.ctx || !this.bounds) {
-      this.dirty = true
+      this.markDirty()
       return
     }
     const b = obj.getBoundingRect(true, true)
     const r: WorldRect = { x: b.left, y: b.top, w: b.width, h: b.height }
     // Object outside current coverage → grow lazily via full rebuild.
     if (!this.contains(this.bounds, r)) {
-      this.dirty = true
+      this.markDirty()
       return
     }
     this.paintOne(this.ctx, obj)
@@ -190,7 +193,36 @@ export class WorldOverview<T extends Bounded> {
     const fits = this.canvas && this.bounds && this.contains(this.bounds, contentBounds)
     if (!this.dirty && fits) return
 
+    // Coalesce callers. Loading, reset and the regular warm path used to start
+    // separate full-scene renders against separate temp canvases. If content is
+    // dirtied while the shared build runs, the revision check below preserves
+    // that dirtiness and the waiting caller may start one follow-up build.
+    if (this.rebuildInFlight) {
+      await this.rebuildInFlight
+      if (signal.aborted) return
+      const stillFits =
+        this.canvas && this.bounds && this.contains(this.bounds, contentBounds)
+      if (this.dirty || !stillFits) {
+        return this.rebuildIfNeeded(contentBounds, yielder, signal)
+      }
+      return
+    }
 
+    const task = this.performRebuild(contentBounds, yielder, signal)
+    this.rebuildInFlight = task
+    try {
+      await task
+    } finally {
+      if (this.rebuildInFlight === task) this.rebuildInFlight = null
+    }
+  }
+
+  private async performRebuild(
+    contentBounds: WorldRect,
+    yielder: Yielder,
+    signal: AbortSignal
+  ): Promise<void> {
+    const buildRevision = this.dirtyRevision
     const __t0 = performance.now()
     const pad = 0.15
     const bounds: WorldRect = {
@@ -274,7 +306,7 @@ export class WorldOverview<T extends Bounded> {
           this.bounds = bounds
           this.sx = sx
           this.sy = sy
-          this.dirty = false
+          this.dirty = this.dirtyRevision !== buildRevision
           return
         }
       } catch { /* fall through to local render */ }
@@ -306,7 +338,7 @@ export class WorldOverview<T extends Bounded> {
     this.bounds = bounds
     this.sx = sx
     this.sy = sy
-    this.dirty = false
+    this.dirty = this.dirtyRevision !== buildRevision
     // WALL CLOCK, not CPU: this loop yields, so a large number here means the
     // rebuild spanned many frames, not that it blocked for that long. The
     // per-frame cost is bounded by the yielder's budget. `longTasks` is the
@@ -355,7 +387,7 @@ export class WorldOverview<T extends Bounded> {
     this.canvas = null
     this.ctx = null
     this.bounds = null
-    this.dirty = true
+    this.markDirty()
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────

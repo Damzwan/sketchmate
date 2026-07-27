@@ -664,6 +664,10 @@ async function overview(
 		} finally {
 			ctx.restore();
 		}
+		// The overview is a streaming render: objects already painted do not need
+		// to remain live until the whole 10k-object board finishes. Keep the LRU
+		// bounded throughout, not only after the final object.
+		if ((i & 63) === 63) shrinkTo(LIVE_MAX);
 	}
 	evictLive();
 	scheduleIdleShrink();

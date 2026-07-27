@@ -1,19 +1,24 @@
-import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
-import { ActiveSelection, Canvas, FabricObject, StaticCanvas } from 'fabric'
-import { EventBus } from '@/main'
-import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { centerObjectInViewport, precalculateAndSetViewport } from '@/draw/helpers/viewport.helper'
-import { exportBoundingBoxImage } from '@/draw/helpers/export.helper'
-import { v4 as uuidv4 } from 'uuid'
-import { enlivenObjectsTimeSlivered, migrateLegacyOrigin } from '@/draw/helpers/drawload.helper'
-import { createYielder } from '@/draw/helpers/yielding.helper'
+import { computed, ref } from "vue";
+import { defineStore } from "pinia";
+import { ActiveSelection, Canvas } from "fabric";
+import { EventBus } from "@/main";
+import { useDrawEventManager } from "@/draw/store/drawEventManager.store";
+import {
+	centerObjectInViewport,
+	precalculateAndSetViewport,
+} from "@/draw/helpers/viewport.helper";
+import { v4 as uuidv4 } from "uuid";
+import {
+	enlivenObjectsTimeSlivered,
+	generateChunkedJSON,
+	migrateLegacyOrigin,
+} from "@/draw/helpers/drawload.helper";
 
 export interface DrawingDraft {
-  id: string;
-  json: any;
-  updatedAt: number;
-  thumbnail: string;
+	id: string;
+	json: any;
+	updatedAt: number;
+	thumbnail: string;
 }
 
 /**
@@ -21,555 +26,476 @@ export interface DrawingDraft {
  * a pending placeholder and disable interaction until the IDB write lands.
  */
 export interface PendingDraft {
-  id: string;
-  updatedAt: number;
-  thumbnail: string; // optimistic preview from the live canvas
-  promise: Promise<void>;
+	id: string;
+	updatedAt: number;
+	thumbnail: string; // optimistic preview from the live canvas
+	promise: Promise<void>;
 }
 
 /**
- * Decoupled-from-canvas snapshot. Holds *cloned* fabric objects plus the
- * canvas-level metadata needed to reconstruct a faithful render. Because
- * everything is cloned, the live Canvas may be disposed immediately after
- * snapshotting without affecting the in-flight save.
+ * Detached JSON snapshot. Serializing directly avoids keeping a second Fabric
+ * scene alive while IndexedDB finishes writing the draft.
  */
 interface CanvasSnapshot {
-  draftId: string;
-  version: any;
-  backgroundColor: any;
-  clipPath: any;
-  backgroundImage: any;
-  objects: FabricObject[]; // CLONED — safe to outlive the live canvas
-  // Quick optimistic thumbnail captured synchronously from the live canvas.
-  // Used until the proper offscreen render completes.
-  optimisticThumb: string;
+	draftId: string;
+	json: any;
+	optimisticThumb: string;
 }
 
-export const useDrawLoadStore = defineStore('drawLoad', () => {
-  const { actionWithoutEvents } = useDrawEventManager()
+export const useDrawLoadStore = defineStore("drawLoad", () => {
+	const { actionWithoutEvents } = useDrawEventManager();
 
-  // --- Database Config ---
-  const db = ref<IDBDatabase | undefined>()
-  const dbName = 'canvasDB'
-  const objectStoreName = 'canvasHistory'
+	// --- Database Config ---
+	const db = ref<IDBDatabase | undefined>();
+	const dbName = "canvasDB";
+	const objectStoreName = "canvasHistory";
 
-  // --- Reactive State ---
-  const currentDraftId = ref<string | undefined>()
-  const isSaving = ref(false)
-  const isDirty = ref(false)
+	// --- Reactive State ---
+	const currentDraftId = ref<string | undefined>();
+	const isSaving = ref(false);
+	const isDirty = ref(false);
 
-  // Reactive "this session has drawable content", so the autosave chip can stay
-  // visible from the first stroke onward. hasContent() reads the live canvas and
-  // is not reactive, so the UI can't watch it directly.
-  const sessionHasContent = ref(false)
+	// Reactive "this session has drawable content", so the autosave chip can stay
+	// visible from the first stroke onward. hasContent() reads the live canvas and
+	// is not reactive, so the UI can't watch it directly.
+	const sessionHasContent = ref(false);
 
-  // Timestamp of the last successful persist — surfaced so the UI can show
-  // "saved N seconds ago" and reason about manual-save throttling.
-  const lastSavedAt = ref<number | undefined>()
+	// Timestamp of the last successful persist — surfaced so the UI can show
+	// "saved N seconds ago" and reason about manual-save throttling.
+	const lastSavedAt = ref<number | undefined>();
 
-  // Anti-spam floor for the user-triggered "Save now" button.
-  let lastManualSaveAt = 0
-  const MANUAL_SAVE_COOLDOWN_MS = 3000
+	// Anti-spam floor for the user-triggered "Save now" button.
+	let lastManualSaveAt = 0;
+	const MANUAL_SAVE_COOLDOWN_MS = 3000;
 
-  // FIX: Track if the current session was loaded from a pre-existing local draft
-  const isPreExistingDraft = ref(false)
+	// FIX: Track if the current session was loaded from a pre-existing local draft
+	const isPreExistingDraft = ref(false);
 
-  const pendingDrafts = ref<Map<string, PendingDraft>>(new Map())
+	const pendingDrafts = ref<Map<string, PendingDraft>>(new Map());
 
-  // Ids hidden from draft lists the moment they're sent/discarded, so the UI
-  // (home MyDrafts) drops them instantly instead of waiting for the async IDB
-  // delete + a re-fetch. The actual delete still happens in removeDraft.
-  const removedDraftIds = ref<Set<string>>(new Set())
+	// Ids hidden from draft lists the moment they're sent/discarded, so the UI
+	// (home MyDrafts) drops them instantly instead of waiting for the async IDB
+	// delete + a re-fetch. The actual delete still happens in removeDraft.
+	const removedDraftIds = ref<Set<string>>(new Set());
 
-  function markDraftRemoved(id: string) {
-    if (removedDraftIds.value.has(id)) return
-    removedDraftIds.value.add(id)
-    removedDraftIds.value = new Set(removedDraftIds.value)
-  }
+	function markDraftRemoved(id: string) {
+		if (removedDraftIds.value.has(id)) return;
+		removedDraftIds.value.add(id);
+		removedDraftIds.value = new Set(removedDraftIds.value);
+	}
 
-  // --- Internal non-reactive refs ---
-  let activeCanvas: Canvas | undefined
-  let saveInterval: ReturnType<typeof setInterval> | undefined
-  let liveAbortController: AbortController | undefined
+	// --- Internal non-reactive refs ---
+	let activeCanvas: Canvas | undefined;
+	let saveInterval: ReturnType<typeof setInterval> | undefined;
+	let liveAbortController: AbortController | undefined;
 
-  const SAVE_INTERVAL_MS = 20000
-  const saveEvents = ['undo', 'redo', 'add_to_undo_stack']
+	const SAVE_INTERVAL_MS = 20000;
+	const saveEvents = ["undo", "redo", "add_to_undo_stack"];
 
-  // ==========================================
-  // 💾 DATABASE
-  // ==========================================
-  async function initDB() {
-    if (db.value) return
+	// ==========================================
+	// 💾 DATABASE
+	// ==========================================
+	async function initDB() {
+		if (db.value) return;
 
-    const open = () =>
-      new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open(dbName, 2)
-        request.onupgradeneeded = (event) => {
-          const localDb = (event.target as IDBOpenDBRequest).result
-          if (localDb.objectStoreNames.contains(objectStoreName)) {
-            localDb.deleteObjectStore(objectStoreName)
-          }
-          localDb.createObjectStore(objectStoreName, { keyPath: 'id' })
-        }
-        request.onsuccess = (e) =>
-          resolve((e.target as IDBOpenDBRequest).result)
-        request.onerror = () => reject(new Error('Error opening IndexedDB'))
-      })
+		const open = () =>
+			new Promise<IDBDatabase>((resolve, reject) => {
+				const request = indexedDB.open(dbName, 2);
+				request.onupgradeneeded = (event) => {
+					const localDb = (event.target as IDBOpenDBRequest).result;
+					if (localDb.objectStoreNames.contains(objectStoreName)) {
+						localDb.deleteObjectStore(objectStoreName);
+					}
+					localDb.createObjectStore(objectStoreName, { keyPath: "id" });
+				};
+				request.onsuccess = (e) =>
+					resolve((e.target as IDBOpenDBRequest).result);
+				request.onerror = () => reject(new Error("Error opening IndexedDB"));
+			});
 
-    let database = await open()
-    if (!validateSchema(database)) database = await open()
-    db.value = database
-  }
+		let database = await open();
+		if (!validateSchema(database)) database = await open();
+		db.value = database;
+	}
 
-  function validateSchema(db: IDBDatabase) {
-    const tx = db.transaction([objectStoreName], 'readonly')
-    const store = tx.objectStore(objectStoreName)
-    if (store.keyPath !== 'id') {
-      console.warn('❌ Invalid schema detected. Rebuilding DB...')
-      db.close()
-      indexedDB.deleteDatabase(dbName)
-      return false
-    }
-    return true
-  }
+	function validateSchema(db: IDBDatabase) {
+		const tx = db.transaction([objectStoreName], "readonly");
+		const store = tx.objectStore(objectStoreName);
+		if (store.keyPath !== "id") {
+			console.warn("❌ Invalid schema detected. Rebuilding DB...");
+			db.close();
+			indexedDB.deleteDatabase(dbName);
+			return false;
+		}
+		return true;
+	}
 
-  // ==========================================
-  // 📥 LOAD
-  // ==========================================
-  async function loadCanvas(
-    c: Canvas,
-    options: {
-      isLobby: boolean;
-      draftId?: string;
-      canvasUrl?: string;
-      json?: any;
-    }
-  ) {
-    const finalId = options.draftId || currentDraftId.value || uuidv4()
-    currentDraftId.value = finalId
+	// ==========================================
+	// 📥 LOAD
+	// ==========================================
+	async function loadCanvas(
+		c: Canvas,
+		options: {
+			isLobby: boolean;
+			draftId?: string;
+			canvasUrl?: string;
+			json?: any;
+		},
+	) {
+		const finalId = options.draftId || currentDraftId.value || uuidv4();
+		currentDraftId.value = finalId;
 
-    // Reset draft lineage tracking flag for the new workspace lifecycle
-    isPreExistingDraft.value = false
+		// Reset draft lineage tracking flag for the new workspace lifecycle
+		isPreExistingDraft.value = false;
 
-    let json: any = null
-    let isExternalLoad = false
+		let json: any = null;
+		let isExternalLoad = false;
 
-    try {
-      if (options.json) {
-        json = options.json
-        isExternalLoad = true
-      } else if (options.canvasUrl) {
-        const response = await fetch(options.canvasUrl)
-        if (!response.ok) throw new Error('Failed to fetch remote canvas')
-        const isGzipped =
-          options.canvasUrl.endsWith('.gz') ||
-          options.canvasUrl.endsWith('.gzip')
-        if (isGzipped) {
-          const ds = new DecompressionStream('gzip')
-          const decompressedStream = response.body?.pipeThrough(ds)
-          json = await new Response(decompressedStream).json()
-        } else {
-          json = await response.json()
-        }
-        isExternalLoad = true
-      } else if (!options.isLobby && options.draftId) {
-        await initDB()
-        const draft = await getDraft(options.draftId)
-        if (draft) {
-          json = draft.json
-          // FIX: Flag that this draft exists in IndexedDB storage
-          isPreExistingDraft.value = true
-        }
-      }
+		try {
+			if (options.json) {
+				json = options.json;
+				isExternalLoad = true;
+			} else if (options.canvasUrl) {
+				const response = await fetch(options.canvasUrl);
+				if (!response.ok) throw new Error("Failed to fetch remote canvas");
+				const isGzipped =
+					options.canvasUrl.endsWith(".gz") ||
+					options.canvasUrl.endsWith(".gzip");
+				if (isGzipped) {
+					const ds = new DecompressionStream("gzip");
+					const decompressedStream = response.body?.pipeThrough(ds);
+					json = await new Response(decompressedStream).json();
+				} else {
+					json = await response.json();
+				}
+				isExternalLoad = true;
+			} else if (!options.isLobby && options.draftId) {
+				await initDB();
+				const draft = await getDraft(options.draftId);
+				if (draft) {
+					json = draft.json;
+					// FIX: Flag that this draft exists in IndexedDB storage
+					isPreExistingDraft.value = true;
+				}
+			}
 
-      if (json) {
-        if (json.objects && json.objects.length > 0) {
-          json.objects = json.objects.map(migrateLegacyOrigin)
-          precalculateAndSetViewport(c, json.objects)
-          sessionHasContent.value = true
-        }
+			if (json) {
+				if (json.objects && json.objects.length > 0) {
+					json.objects = json.objects.map(migrateLegacyOrigin);
+					precalculateAndSetViewport(c, json.objects);
+					sessionHasContent.value = true;
+				}
 
-        if (json.version === '5.5.2') {
-          delete json.width
-          delete json.height
-          json.objects = json.objects?.filter(
-            (obj: any) => obj.id !== 'boundary'
-          )
-        }
+				if (json.version === "5.5.2") {
+					delete json.width;
+					delete json.height;
+					json.objects = json.objects?.filter(
+						(obj: any) => obj.id !== "boundary",
+					);
+				}
 
-        await actionWithoutEvents(async () => {
-          c.clear()
-          if (json.objects && json.objects.length > 0) {
-            await enlivenObjectsTimeSlivered(json.objects, (obj) => {
-              c.add(obj)
-            })
-          }
-          if (json.version === '5.5.2' && c.getObjects().length > 0) {
-            const selection = new ActiveSelection(c.getObjects(), {
-              canvas: c
-            })
-            centerObjectInViewport(c, selection)
-            selection.removeAll()
-            selection.dispose()
-          }
-        })
-        c.backgroundColor = json.background
-      }
+				await actionWithoutEvents(async () => {
+					c.clear();
+					if (json.objects && json.objects.length > 0) {
+						await enlivenObjectsTimeSlivered(json.objects, (obj) => {
+							c.add(obj);
+						});
+					}
 
-      if (!options.isLobby) {
-        startAutosave(c, finalId)
-        if (isExternalLoad && hasContent()) {
-          markAsDirty()
-          performLiveSave()
-        }
-      }
-    } catch (error) {
-      console.error('❌ loadCanvas Failed:', error)
-    } finally {
-      if (!isExternalLoad) isDirty.value = false
-    }
-  }
+					if (json.version === "5.5.2" && c.getObjects().length > 0) {
+						const selection = new ActiveSelection(c.getObjects(), {
+							canvas: c,
+						});
+						centerObjectInViewport(c, selection);
+						selection.removeAll();
+						selection.dispose();
+					}
+				});
+				c.backgroundColor = json.background;
+			}
 
-  async function snapshotCanvas(
-    draftId: string,
-    signal?: AbortSignal // Added signal parameter
-  ): Promise<CanvasSnapshot | null> {
-    if (!activeCanvas) return null
-    const liveObjects = activeCanvas.getObjects()
-    if (liveObjects.length === 0) return null
+			if (!options.isLobby) {
+				startAutosave(c, finalId);
+				if (isExternalLoad && hasContent()) {
+					markAsDirty();
+					performLiveSave();
+				}
+			}
+		} catch (error) {
+			console.error("❌ loadCanvas Failed:", error);
+		} finally {
+			if (!isExternalLoad) isDirty.value = false;
+		}
+	}
 
-    let optimisticThumb = ''
-    try {
-      const el =
-        (activeCanvas as any).lowerCanvasEl ??
-        (activeCanvas as any).getElement?.()
-      if (el && typeof el.toDataURL === 'function') {
-        optimisticThumb = el.toDataURL('image/webp', 0.3)
-      }
-    } catch {
-      /* non-fatal */
-    }
+	async function snapshotCanvas(
+		draftId: string,
+		signal?: AbortSignal, // Added signal parameter
+	): Promise<CanvasSnapshot | null> {
+		if (!activeCanvas) return null;
+		const liveObjects = activeCanvas.getObjects();
+		if (liveObjects.length === 0) return null;
 
-    // FIX: Use yielder instead of Promise.all to prevent thread locking
-    const objects: FabricObject[] = []
-    const yielder = createYielder({ budgetMs: 6, signal })
+		let optimisticThumb = "";
+		try {
+			const el =
+				(activeCanvas as any).lowerCanvasEl ??
+				(activeCanvas as any).getElement?.();
+			if (el && typeof el.toDataURL === "function") {
+				optimisticThumb = el.toDataURL("image/webp", 0.3);
+			}
+		} catch {
+			/* non-fatal */
+		}
 
-    for (let i = 0; i < liveObjects.length; i++) {
-      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-      objects.push(await (liveObjects[i].clone() as Promise<FabricObject>))
-      if (yielder.shouldYield()) await yielder.yield()
-    }
+		// Serialize once, in short slices. Cloning first built a complete second
+		// Fabric scene (including expanded watercolor paths), then serialized it.
+		const json = await generateChunkedJSON(activeCanvas, signal);
 
-    return {
-      draftId,
-      version: (activeCanvas as any).version,
-      backgroundColor: activeCanvas.backgroundColor,
-      clipPath: activeCanvas.clipPath,
-      backgroundImage: activeCanvas.backgroundImage,
-      objects,
-      optimisticThumb
-    }
-  }
+		return {
+			draftId,
+			json,
+			optimisticThumb,
+		};
+	}
 
-  async function runSave(
-    snapshot: CanvasSnapshot,
-    signal: AbortSignal
-  ): Promise<void> {
-    await initDB()
-    if (!db.value) throw new Error('DB not available')
-    if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+	async function runSave(
+		snapshot: CanvasSnapshot,
+		signal: AbortSignal,
+	): Promise<void> {
+		await initDB();
+		if (!db.value) throw new Error("DB not available");
+		if (signal.aborted) throw new DOMException("Aborted", "AbortError");
 
-    const json: any = {
-      version: snapshot.version,
-      objects: [],
-      background: snapshot.backgroundColor
-    }
-    if (snapshot.clipPath) {
-      try {
-        json.clipPath = snapshot.clipPath.toJSON()
-      } catch {
-        /* ignore */
-      }
-    }
-    if (snapshot.backgroundImage) {
-      try {
-        json.backgroundImage = snapshot.backgroundImage.toJSON()
-      } catch {
-        /* ignore */
-      }
-    }
+		const draft: DrawingDraft = {
+			id: snapshot.draftId,
+			json: snapshot.json,
+			thumbnail: snapshot.optimisticThumb,
+			updatedAt: Date.now(),
+		};
+		const transaction = db.value.transaction([objectStoreName], "readwrite");
+		await new Promise<void>((resolve, reject) => {
+			const req = transaction.objectStore(objectStoreName).put(draft);
+			req.onsuccess = () => resolve();
+			req.onerror = () => reject(req.error);
+		});
+	}
 
-    const yielder = createYielder({ budgetMs: 6, signal })
-    yielder.reset()
-    for (let i = 0; i < snapshot.objects.length; i++) {
-      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      try {
-        json.objects.push(snapshot.objects[i].toJSON())
-      } catch (e) {
-        console.warn('[save] object toJSON failed, skipping:', e)
-      }
-      if (yielder.shouldYield()) await yielder.yield()
-    }
+	async function performLiveSave() {
+		if (
+			!activeCanvas ||
+			!currentDraftId.value ||
+			!isDirty.value ||
+			!hasContent()
+		) {
+			return;
+		}
+		if (liveAbortController) liveAbortController.abort();
+		liveAbortController = new AbortController();
+		const signal = liveAbortController.signal;
 
-    let thumbnail = snapshot.optimisticThumb
-    let offscreen: StaticCanvas | null = null
-    try {
-      offscreen = new StaticCanvas(undefined, {
-        backgroundColor: snapshot.backgroundColor,
-        renderOnAddRemove: false,
-        enableRetinaScaling: false
-      })
-      for (const obj of snapshot.objects) offscreen.add(obj)
+		try {
+			isSaving.value = true;
+			const snapshot = await snapshotCanvas(currentDraftId.value, signal); // Added signal
+			if (!snapshot || signal.aborted) return;
+			await runSave(snapshot, signal);
+			if (signal.aborted) return;
+			isDirty.value = false;
+			lastSavedAt.value = Date.now();
+		} catch (error: any) {
+			if (error.name !== "AbortError") console.error("🔥 Save Error:", error);
+		} finally {
+			// Only the save that still owns the controller clears the flag. If this
+			// save was superseded (e.g. a manual "Save now" tapped while autosave was
+			// mid-flight, or vice-versa), the newer save now owns the controller and
+			// is still running — flipping isSaving off here would flicker the UI to
+			// "saved" while a write is in progress.
+			if (liveAbortController?.signal === signal) isSaving.value = false;
+		}
+	}
 
-      const exportResult = await exportBoundingBoxImage(offscreen as any, {
-        maxSize: 300,
-        asDataUrl: true,
-        quality: 0.3,
-        signal
-      })
-      if (exportResult?.img) thumbnail = exportResult.img as string
-    } catch (e) {
-      if (!(e instanceof DOMException && e.name === 'AbortError')) {
-        console.warn('[save] thumbnail render failed, using optimistic:', e)
-      }
-    } finally {
-      try {
-        offscreen?.dispose()
-      } catch {
-        /* ignore */
-      }
-    }
+	/**
+	 * User-triggered immediate save. Returns a status so the UI can give
+	 * feedback. Throttled so mashing the button can't spam IndexedDB writes;
+	 * no-ops when already saving or when there's nothing new to persist.
+	 */
+	async function saveNow(): Promise<"saved" | "clean" | "busy" | "cooldown"> {
+		if (isSaving.value) return "busy";
+		if (!isDirty.value) return "clean";
+		const now = Date.now();
+		if (now - lastManualSaveAt < MANUAL_SAVE_COOLDOWN_MS) return "cooldown";
+		lastManualSaveAt = now;
+		await performLiveSave();
+		return "saved";
+	}
 
-    if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+	function init(c: Canvas) {
+		activeCanvas = c;
+		EventBus.off("room:joining", stopAutosave);
+		EventBus.on("room:joining", stopAutosave);
+	}
 
-    const draft: DrawingDraft = {
-      id: snapshot.draftId,
-      json,
-      thumbnail,
-      updatedAt: Date.now()
-    }
-    const transaction = db.value.transaction([objectStoreName], 'readwrite')
-    await new Promise<void>((resolve, reject) => {
-      const req = transaction.objectStore(objectStoreName).put(draft)
-      req.onsuccess = () => resolve()
-      req.onerror = () => reject(req.error)
-    })
-  }
+	function startAutosave(canvas: Canvas, drawingId: string) {
+		currentDraftId.value = drawingId;
+		saveEvents.forEach((e) => EventBus.on(e, markAsDirty));
+		saveInterval = setInterval(() => {
+			if (isDirty.value) performLiveSave();
+		}, SAVE_INTERVAL_MS);
+	}
 
-  async function performLiveSave() {
-    if (
-      !activeCanvas ||
-      !currentDraftId.value ||
-      !isDirty.value ||
-      !hasContent()
-    ) {
-      return
-    }
-    if (liveAbortController) liveAbortController.abort()
-    liveAbortController = new AbortController()
-    const signal = liveAbortController.signal
+	function stopAutosave() {
+		saveEvents.forEach((e) => EventBus.off(e, markAsDirty));
+		if (saveInterval) clearInterval(saveInterval);
+		if (liveAbortController) liveAbortController.abort();
+	}
 
-    try {
-      isSaving.value = true
-      const snapshot = await snapshotCanvas(currentDraftId.value, signal) // Added signal
-      if (!snapshot || signal.aborted) return
-      await runSave(snapshot, signal)
-      if (signal.aborted) return
-      isDirty.value = false
-      lastSavedAt.value = Date.now()
-    } catch (error: any) {
-      if (error.name !== 'AbortError') console.error('🔥 Save Error:', error)
-    } finally {
-      // Only the save that still owns the controller clears the flag. If this
-      // save was superseded (e.g. a manual "Save now" tapped while autosave was
-      // mid-flight, or vice-versa), the newer save now owns the controller and
-      // is still running — flipping isSaving off here would flicker the UI to
-      // "saved" while a write is in progress.
-      if (liveAbortController?.signal === signal) isSaving.value = false
-    }
-  }
+	const markAsDirty = () => {
+		isDirty.value = true;
+		sessionHasContent.value = true;
+	};
 
-  /**
-   * User-triggered immediate save. Returns a status so the UI can give
-   * feedback. Throttled so mashing the button can't spam IndexedDB writes;
-   * no-ops when already saving or when there's nothing new to persist.
-   */
-  async function saveNow(): Promise<'saved' | 'clean' | 'busy' | 'cooldown'> {
-    if (isSaving.value) return 'busy'
-    if (!isDirty.value) return 'clean'
-    const now = Date.now()
-    if (now - lastManualSaveAt < MANUAL_SAVE_COOLDOWN_MS) return 'cooldown'
-    lastManualSaveAt = now
-    await performLiveSave()
-    return 'saved'
-  }
+	async function queueBackgroundSave(
+		draftId: string,
+	): Promise<PendingDraft | null> {
+		if (!hasContent()) return null;
 
-  function init(c: Canvas) {
-    activeCanvas = c
-    EventBus.off('room:joining', stopAutosave)
-    EventBus.on('room:joining', stopAutosave)
-  }
+		if (liveAbortController) liveAbortController.abort();
 
-  function startAutosave(canvas: Canvas, drawingId: string) {
-    currentDraftId.value = drawingId
-    saveEvents.forEach((e) => EventBus.on(e, markAsDirty))
-    saveInterval = setInterval(() => {
-      if (isDirty.value) performLiveSave()
-    }, SAVE_INTERVAL_MS)
-  }
+		const ctrl = new AbortController();
 
-  function stopAutosave() {
-    saveEvents.forEach((e) => EventBus.off(e, markAsDirty))
-    if (saveInterval) clearInterval(saveInterval)
-    if (liveAbortController) liveAbortController.abort()
-  }
+		const snapshot = await snapshotCanvas(draftId, ctrl.signal);
+		if (!snapshot) return null;
 
-  const markAsDirty = () => {
-    isDirty.value = true
-    sessionHasContent.value = true
-  }
+		const promise = runSave(snapshot, ctrl.signal)
+			.then(() => {
+				pendingDrafts.value.delete(draftId);
+				pendingDrafts.value = new Map(pendingDrafts.value);
+			})
+			.catch((e) => {
+				// Ignore abort errors visually, log others
+				if (e.name !== "AbortError")
+					console.error("🔥 Background save failed:", e);
+				pendingDrafts.value.delete(draftId);
+				pendingDrafts.value = new Map(pendingDrafts.value);
+			});
 
-  async function queueBackgroundSave(
-    draftId: string
-  ): Promise<PendingDraft | null> {
-    if (!hasContent()) return null
+		const pending: PendingDraft = {
+			id: draftId,
+			updatedAt: Date.now(),
+			thumbnail: snapshot.optimisticThumb,
+			promise,
+		};
+		pendingDrafts.value.set(draftId, pending);
+		pendingDrafts.value = new Map(pendingDrafts.value);
+		return pending;
+	}
 
-    if (liveAbortController) liveAbortController.abort()
+	const exitWithBackgroundSave = async (): Promise<PendingDraft | null> => {
+		if (!currentDraftId.value) currentDraftId.value = uuidv4();
+		if (!hasContent()) return null;
+		return await queueBackgroundSave(currentDraftId.value);
+	};
 
-    const ctrl = new AbortController()
+	async function awaitPendingSaves(): Promise<void> {
+		const promises = Array.from(pendingDrafts.value.values()).map(
+			(p) => p.promise,
+		);
+		if (promises.length === 0) return;
+		await Promise.allSettled(promises);
+	}
 
-    const snapshot = await snapshotCanvas(draftId, ctrl.signal)
-    if (!snapshot) return null
+	async function getDraft(id: string): Promise<DrawingDraft | undefined> {
+		await initDB();
+		return new Promise((resolve) => {
+			const req = db
+				.value!.transaction([objectStoreName], "readonly")
+				.objectStore(objectStoreName)
+				.get(id);
+			req.onsuccess = (e) => resolve((e.target as IDBRequest).result);
+		});
+	}
 
-    const promise = runSave(snapshot, ctrl.signal)
-      .then(() => {
-        pendingDrafts.value.delete(draftId)
-        pendingDrafts.value = new Map(pendingDrafts.value)
-      })
-      .catch((e) => {
-        // Ignore abort errors visually, log others
-        if (e.name !== 'AbortError') console.error('🔥 Background save failed:', e)
-        pendingDrafts.value.delete(draftId)
-        pendingDrafts.value = new Map(pendingDrafts.value)
-      })
+	async function removeDraft(id?: string): Promise<void> {
+		const targetId = id || currentDraftId.value;
+		if (!targetId) return;
 
-    const pending: PendingDraft = {
-      id: draftId,
-      updatedAt: Date.now(),
-      thumbnail: snapshot.optimisticThumb,
-      promise
-    }
-    pendingDrafts.value.set(draftId, pending)
-    pendingDrafts.value = new Map(pendingDrafts.value)
-    return pending
-  }
+		markDraftRemoved(targetId);
 
-  const exitWithBackgroundSave = async (): Promise<PendingDraft | null> => {
-    if (!currentDraftId.value) currentDraftId.value = uuidv4()
-    if (!hasContent()) return null
-    return await queueBackgroundSave(currentDraftId.value)
-  }
+		const pending = pendingDrafts.value.get(targetId);
+		if (pending) {
+			pendingDrafts.value.delete(targetId);
+			pendingDrafts.value = new Map(pendingDrafts.value);
+			try {
+				await pending.promise;
+			} catch {
+				/* ignore */
+			}
+		}
 
-  async function awaitPendingSaves(): Promise<void> {
-    const promises = Array.from(pendingDrafts.value.values()).map(
-      (p) => p.promise
-    )
-    if (promises.length === 0) return
-    await Promise.allSettled(promises)
-  }
+		await initDB();
+		const tx = db.value!.transaction([objectStoreName], "readwrite");
+		tx.objectStore(objectStoreName).delete(targetId);
+		await new Promise((resolve, reject) => {
+			tx.oncomplete = () => resolve(null);
+			tx.onerror = () => reject(tx.error);
+		});
+	}
 
-  async function getDraft(id: string): Promise<DrawingDraft | undefined> {
-    await initDB()
-    return new Promise((resolve) => {
-      const req = db
-        .value!.transaction([objectStoreName], 'readonly')
-        .objectStore(objectStoreName)
-        .get(id)
-      req.onsuccess = (e) => resolve((e.target as IDBRequest).result)
-    })
-  }
+	async function getAllDrafts(): Promise<DrawingDraft[]> {
+		await initDB();
+		return new Promise((resolve) => {
+			const req = db
+				.value!.transaction([objectStoreName], "readonly")
+				.objectStore(objectStoreName)
+				.getAll();
+			req.onsuccess = (e) => resolve((e.target as IDBRequest).result || []);
+		});
+	}
 
-  async function removeDraft(id?: string): Promise<void> {
-    const targetId = id || currentDraftId.value
-    if (!targetId) return
+	function hasContent(): boolean {
+		if (!activeCanvas) return false;
+		return activeCanvas.getObjects().length > 0;
+	}
 
-    markDraftRemoved(targetId)
+	function resetToNewDraft() {
+		currentDraftId.value = uuidv4();
+		isDirty.value = false;
+		isSaving.value = false;
+		isPreExistingDraft.value = false;
+		sessionHasContent.value = false;
+	}
 
-    const pending = pendingDrafts.value.get(targetId)
-    if (pending) {
-      pendingDrafts.value.delete(targetId)
-      pendingDrafts.value = new Map(pendingDrafts.value)
-      try {
-        await pending.promise
-      } catch {
-        /* ignore */
-      }
-    }
+	const pendingDraftsList = computed<DrawingDraft[]>(() => {
+		return Array.from(pendingDrafts.value.values()).map((p) => ({
+			id: p.id,
+			json: null,
+			thumbnail: p.thumbnail,
+			updatedAt: p.updatedAt,
+		}));
+	});
 
-    await initDB()
-    const tx = db.value!.transaction([objectStoreName], 'readwrite')
-    tx.objectStore(objectStoreName).delete(targetId)
-    await new Promise((resolve, reject) => {
-      tx.oncomplete = () => resolve(null)
-      tx.onerror = () => reject(tx.error)
-    })
-  }
-
-  async function getAllDrafts(): Promise<DrawingDraft[]> {
-    await initDB()
-    return new Promise((resolve) => {
-      const req = db
-        .value!.transaction([objectStoreName], 'readonly')
-        .objectStore(objectStoreName)
-        .getAll()
-      req.onsuccess = (e) => resolve((e.target as IDBRequest).result || [])
-    })
-  }
-
-  function hasContent(): boolean {
-    if (!activeCanvas) return false
-    return activeCanvas.getObjects().length > 0
-  }
-
-  function resetToNewDraft() {
-    currentDraftId.value = uuidv4()
-    isDirty.value = false
-    isSaving.value = false
-    isPreExistingDraft.value = false
-    sessionHasContent.value = false
-  }
-
-  const pendingDraftsList = computed<DrawingDraft[]>(() => {
-    return Array.from(pendingDrafts.value.values()).map((p) => ({
-      id: p.id,
-      json: null,
-      thumbnail: p.thumbnail,
-      updatedAt: p.updatedAt
-    }))
-  })
-
-  return {
-    currentDraftId,
-    isSaving,
-    isDirty,
-    sessionHasContent,
-    lastSavedAt,
-    saveNow,
-    isPreExistingDraft, // Exported to be consumed by DrawExitGuard.vue
-    pendingDrafts,
-    pendingDraftsList,
-    removedDraftIds,
-    markDraftRemoved,
-    loadCanvas,
-    startAutosave,
-    stopAutosave,
-    exitWithBackgroundSave,
-    awaitPendingSaves,
-    getDraft,
-    removeDraft,
-    getAllDrafts,
-    hasContent,
-    init,
-    resetToNewDraft
-  }
-})
+	return {
+		currentDraftId,
+		isSaving,
+		isDirty,
+		sessionHasContent,
+		lastSavedAt,
+		saveNow,
+		isPreExistingDraft, // Exported to be consumed by DrawExitGuard.vue
+		pendingDrafts,
+		pendingDraftsList,
+		removedDraftIds,
+		markDraftRemoved,
+		loadCanvas,
+		startAutosave,
+		stopAutosave,
+		exitWithBackgroundSave,
+		awaitPendingSaves,
+		getDraft,
+		removeDraft,
+		getAllDrafts,
+		hasContent,
+		init,
+		resetToNewDraft,
+	};
+});

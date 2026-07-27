@@ -1,8 +1,13 @@
 import { BaseBrush, Canvas, FabricObject, Point } from "fabric";
 import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
+import { getTopContextEpoch } from "@/draw/helpers/render.helper";
 import * as fabric from "fabric";
 
 export class PixelBrush extends BaseBrush {
+	/** Live-preview incremental state — see _render. */
+	private _renderedUpTo = 0;
+	private _renderedVpt = "";
+	private _renderedEpoch = -1;
 	private _points: Point[] = [];
 	public pixelSize: number = 5;
 
@@ -57,16 +62,16 @@ export class PixelBrush extends BaseBrush {
 
 	onMouseDown(pointer: Point) {
 		this._points = [];
+		this._renderedUpTo = 0; // new stroke → repaint from scratch
+		this._renderedVpt = "";
 		this._stampCanvas = this._generateBrushTipCanvas(); // Bake the stamp!
 		this._addPoint(pointer, true);
 	}
 
 	// RE-ATTACHED ORGAN: The mouse move handler
 	onMouseMove(pointer: Point) {
-		if (this._addPoint(pointer)) {
-			this.canvas.clearContext(this.canvas.contextTop);
-			this._render();
-		}
+		// NB: no clearContext — _render draws only the NEW stamps (see there).
+		if (this._addPoint(pointer)) this._render();
 	}
 
 	onMouseUp() {
@@ -141,22 +146,60 @@ export class PixelBrush extends BaseBrush {
 		return pointsAdded;
 	}
 
+	/**
+	 * INCREMENTAL live preview — draws only stamps added since the last call.
+	 * Was clear + redraw-all on EVERY pointer move, i.e. O(n^2) blits over a
+	 * stroke. Each stamp is composited exactly once either way, so the result is
+	 * identical. Falls back to a full repaint when the viewport moved (the
+	 * preview is drawn in world space) or a new stroke started.
+	 */
 	_render(ctx: CanvasRenderingContext2D = this.canvas.contextTop) {
-		ctx.save();
 		const vpt = this.canvas.viewportTransform;
+		const vptKey = vpt ? vpt.join(",") : "";
+		const isTop = ctx === this.canvas.contextTop;
+		const stale =
+			vptKey !== this._renderedVpt ||
+			getTopContextEpoch() !== this._renderedEpoch ||
+			this._renderedUpTo > this._points.length;
+
+		let from = this._renderedUpTo;
+		if (!isTop || stale) {
+			if (isTop) this.canvas.clearContext(ctx);
+			from = 0;
+		}
+
+		ctx.save();
 		if (vpt) ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
 		ctx.imageSmoothingEnabled = false;
 
 		const offset = this._stampSize / 2;
-		for (const p of this._points) {
+		for (let i = from; i < this._points.length; i++) {
+			const p = this._points[i];
 			ctx.drawImage(this._stampCanvas, Math.round(p.x - offset), Math.round(p.y - offset));
 		}
 		ctx.restore();
+
+		if (isTop) {
+			this._renderedUpTo = this._points.length;
+			this._renderedVpt = vptKey;
+			this._renderedEpoch = getTopContextEpoch();
+		}
 	}
 }
 
 export class PixelStroke extends FabricObject {
 	static type = "PixelStroke";
+
+	// The tile worker CANNOT render this stroke: `_render` blits `stampCanvas`,
+	// and the worker rebuilds it via `fromObject` → `fabric.util.loadImage(
+	// stampDataUrl)` — image decoding that doesn't exist in a worker. So a
+	// worker bake produced a BLANK tile: the stroke showed at overview / locally-
+	// baked tiers but VANISHED at worker-baked tiers, and disappeared after a
+	// move (which triggers a worker re-bake). This flag makes the bakery refuse
+	// it → it bakes on the main thread (or overlays via the hybrid path), where
+	// image loading works. Charcoal rebuilds its stamp procedurally and Circle is
+	// vector, so only this one needs it.
+	static bakesOnMainThread = true;
 
 	static cacheProperties = [
 		...FabricObject.cacheProperties,
@@ -265,17 +308,23 @@ export class PixelStroke extends FabricObject {
 	}
 
 	static async fromObject(object: any) {
-		if (object.stampDataUrl && !object.stampCanvas) {
+		// enlivenStrokeProps returns a COPY, so the stamp canvas is attached to
+		// that — never to `object`. Writing an HTMLCanvasElement into the source
+		// blob made it un-structured-cloneable, and at load that blob is stashed
+		// as `__bakeJSON` and posted to the tile worker: postMessage threw and the
+		// fallback re-serialized the whole batch with JSON.stringify/parse on the
+		// main thread. That was the dense-drawing load stall.
+		const props = await enlivenStrokeProps(object);
+		if (object.stampDataUrl && !props.stampCanvas) {
 			const img = await fabric.util.loadImage(object.stampDataUrl);
 
 			const canvas = document.createElement("canvas");
 			canvas.width = canvas.height = object.stampSize;
 			canvas.getContext("2d")?.drawImage(img, 0, 0);
 
-			object.stampCanvas = canvas;
+			props.stampCanvas = canvas;
 		}
 
-		const enlivenedProps = await enlivenStrokeProps(object);
-		return new PixelStroke(enlivenedProps);
+		return new PixelStroke(props);
 	}
 }

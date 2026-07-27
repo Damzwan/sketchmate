@@ -115,7 +115,7 @@ export class FastSprayBrush extends BaseBrush {
 }
 
 
-import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
+import { enlivenStrokeProps, TEXTURE_SUPERSAMPLE } from '@/draw/utils/brushes/brush.helpers'
 
 // Pure renderer: (dots, color, dpr) → spray bitmap. Deterministic given the
 // stored dot list, so the bitmap is regenerable and need not be serialized.
@@ -143,8 +143,9 @@ export function generateSprayImage(
   const w = maxX - minX, h = maxY - minY
   if (w <= 0 || h <= 0) return null
 
-  const baseDpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1
-  const dpr = Math.min(baseDpr * 2, 3)
+  // Device-independent — see TEXTURE_SUPERSAMPLE. (Also fixes NaN dimensions:
+  // the old expression had no `|| 1`, so off-main it read undefined.)
+  const dpr = TEXTURE_SUPERSAMPLE
 
   const off = document.createElement('canvas')
   off.width = w * dpr
@@ -232,6 +233,13 @@ export class SprayStroke extends FabricImage {
   }
 
   static async fromObject(object: any) {
+    // Pixels supplied by the tile worker (transferred ImageBitmap). Use them
+    // directly instead of re-running the generator on every enliven — that
+    // regeneration is why these strokes were refused off-thread.
+    if (object.__workerBitmap) {
+      const props = await enlivenStrokeProps(object)
+      return new SprayStroke(object.__workerBitmap, props)
+    }
     if (!object.src) {
       const dots: SprayBrushPoint[] = []
       let lastX = 0, lastY = 0

@@ -4,6 +4,7 @@ import { storeToRefs } from "pinia";
 import { CANVAS_SIZE } from "@/draw/config/canvas.config";
 import { useDrawUIStore } from "@/draw/store/drawUI.store";
 import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
+import { createYielder } from "@/draw/helpers/yielding.helper";
 
 export function initViewport(c: Canvas) {
 	const initX = (c.width - CANVAS_SIZE) / 2;
@@ -142,7 +143,7 @@ export function fitAndCenterAllActualObjects(
 	canvas.setViewportTransform([fitZoom, 0, 0, fitZoom, panX, panY]);
 }
 
-export function fitToDensestRegion(
+export async function fitToDensestRegion(
 	canvas: Canvas,
 	padding = 0.8,
 	maxZoom = 1.0,
@@ -161,6 +162,8 @@ export function fitToDensestRegion(
 		b: { x: number; y: number; w: number; h: number };
 	};
 	const items: Item[] = [];
+	const yielder = createYielder({ budgetMs: 5 });
+	yielder.reset();
 	for (const o of objects) {
 		// @ts-ignore — same call as objectBounds()
 		const b = o.getBoundingRect(true, true);
@@ -171,6 +174,7 @@ export function fitToDensestRegion(
 			cy: b.top + b.height / 2,
 			b: { x: b.left, y: b.top, w: b.width, h: b.height },
 		});
+		await yielder.maybeYield();
 	}
 	if (items.length === 0) return;
 
@@ -208,6 +212,7 @@ export function fitToDensestRegion(
 			bestCount = count;
 			bestKey = key;
 		}
+		await yielder.maybeYield();
 	}
 
 	// 4. Build the union rect from the items in the winning 3x3 neighborhood.

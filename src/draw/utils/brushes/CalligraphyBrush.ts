@@ -1,5 +1,5 @@
 import { BaseBrush, Canvas, Path, Point } from "fabric";
-import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
+import { enlivenStrokeProps, toObjectWithoutPath } from "@/draw/utils/brushes/brush.helpers";
 
 // ------------------------------------------------------------------
 // 1. DETERMINISTIC UTILITIES
@@ -422,12 +422,13 @@ export class CalligraphyStroke extends Path {
 			lastTime = it;
 		}
 
-		const baseObj = super.toObject([
+		// Path.toObject deep-copies every segment and it is discarded —
+		// fromObject rebuilds from `compressedTrace`. See toObjectWithoutPath.
+		const baseObj = toObjectWithoutPath(this, (p) => super.toObject(p as any), [
 			"seed",
 			"baseWidth",
 			...additionalProperties,
-		] as any);
-		delete (baseObj as any).path;
+		]);
 
 		return {
 			...baseObj,

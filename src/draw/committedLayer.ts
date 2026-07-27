@@ -15,6 +15,7 @@
 //     and untouched empty tiles are pruned to prevent map bloat.
 
 import { WorldOverview } from './worldOverview'
+import { recordComposite, recordPhase } from '@/draw/services/drawMetrics.service'
 
 export interface WorldRect {
   x: number;
@@ -32,11 +33,28 @@ export interface Bounded {
 
 export interface SpatialIndex<T extends Bounded> {
   query(rect: WorldRect): T[]
+
+  /**
+   * Same z-ordered result as `query`, but paired with the bounds the index
+   * already holds for each object.
+   *
+   * Callers that only need to SIZE-FILTER a large result (the overview's
+   * "is this big enough to leave a mark" pass) would otherwise call
+   * `getBoundingRect(true, true)` per object, which RECOMPUTES coords the index
+   * has already tracked — an O(all objects) main-thread block on a big board.
+   * Optional: implementations without it fall back to the slow path. The rects
+   * may be the index's LIVE entry bounds — treat them as read-only.
+   */
+  queryBounds?(rect: WorldRect): { obj: T; bounds: WorldRect }[]
 }
 
 export type TileRenderer<T extends Bounded> = (
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  obj: T, tierScale: number
+  obj: T, tierScale: number,
+  /** World rect being rasterized. Lets the renderer cull a GROUP's children:
+   *  a merged Group is ONE index entry with the union bbox, so without this
+   *  every tile it overlaps re-renders all of its children. */
+  clipRect?: WorldRect
 ) => void;
 
 export interface Yieldable {
@@ -57,6 +75,41 @@ interface Tile {
   lastUsed: number;
 }
 
+/**
+ * Result of a hybrid worker bake. `bitmap` holds every object the worker could
+ * render; `skipped` holds objects it could NOT (an image, a group, text with an
+ * unloaded face) that the caller must overlay on top on the main thread.
+ *
+ * INVARIANT the baker guarantees: every object in `skipped` sits z-ABOVE every
+ * object baked into `bitmap`. That is what makes "draw bitmap, then draw skipped
+ * over it" pixel-correct. If the real z-order interleaves them, the baker
+ * returns null instead (→ full local bake), never a wrong `skipped`.
+ */
+export interface RemoteBakeResult<T> {
+  bitmap: ImageBitmap;
+  skipped: T[];
+}
+
+/**
+ * Off-main-thread tile renderer (tileBakery worker). Receives the z-sorted
+ * objects covering one tile plus the exact tile geometry; resolves with the
+ * rendered bitmap (+ any objects to overlay locally), or null → caller falls
+ * back to the full local renderer.
+ */
+export type RemoteBaker<T> = (
+  objects: T[], world: WorldRect, scale: number, overscan: number, size: number
+) => Promise<RemoteBakeResult<T> | null>;
+
+/**
+ * Off-main-thread whole-board overview render. Gets the z-ordered objects
+ * covering `bounds`; resolves with the rendered bitmap plus the objects it
+ * could NOT render (text / images) for the caller to overlay locally. Null →
+ * caller renders the overview locally.
+ */
+export type RemoteOverview<T> = (
+  objects: T[], bounds: WorldRect, px: number, scale: number
+) => Promise<{ bitmap: ImageBitmap; skipped: T[] } | null>;
+
 export interface CommittedOptions {
   poolMax?: number
   tileSize?: number;
@@ -69,6 +122,10 @@ export interface CommittedOptions {
   renderChunk?: number;
   fallbackDepth?: number;
   debug?: boolean;
+  /** Optional worker-side tile renderer; async bakes try it first. */
+  remoteBaker?: RemoteBaker<any>;
+  /** Optional worker-side overview renderer; full rebuilds try it first. */
+  remoteOverview?: RemoteOverview<any>;
 }
 
 interface Draw {
@@ -92,6 +149,27 @@ interface CompositeCell {
   dh: number;
 }
 
+/**
+ * Is this CSS colour fully opaque, i.e. does filling with it overwrite every
+ * pixel? Deliberately CONSERVATIVE — anything unrecognised is treated as
+ * possibly-transparent, so the worst case is the old clear+fill behaviour and
+ * never a stale-pixel bug. Board backgrounds are a solid hex in practice.
+ */
+function isOpaqueColor(c: string): boolean {
+  const s = c.trim().toLowerCase()
+  if (s === 'transparent' || s === 'none') return false
+  // #rgb / #rrggbb are opaque; #rgba / #rrggbbaa carry alpha.
+  if (s.startsWith('#')) return s.length === 4 || s.length === 7
+  if (s.startsWith('rgb(') || s.startsWith('hsl(')) return true
+  // rgba()/hsla() are opaque only at alpha exactly 1.
+  if (s.startsWith('rgba(') || s.startsWith('hsla(')) {
+    const parts = s.slice(s.indexOf('(') + 1, s.lastIndexOf(')')).split(/[,/]/)
+    if (parts.length < 4) return true // no alpha component given
+    return parseFloat(parts[3]) >= 1
+  }
+  return false // named colours, gradients, anything else: keep the clear
+}
+
 export class CommittedLayer<T extends Bounded> {
   private readonly TILE: number
   private readonly OS: number
@@ -106,10 +184,12 @@ export class CommittedLayer<T extends Bounded> {
 
   private readonly index: SpatialIndex<T>
   private readonly renderer: TileRenderer<T>
+  private readonly remoteBaker?: RemoteBaker<T>
   public readonly overview: WorldOverview<T>
 
   private tiles = new Map<string, Tile>()
   private gen = new Map<string, number>()
+  private inFlight = new Set<string>()
   private memoryBytes = 0
 
   // Reusable per-frame composite scratch. Filled count-tracked (slots
@@ -135,6 +215,7 @@ export class CommittedLayer<T extends Bounded> {
       [ 0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16]
 
     this.POOL_MAX = opts.poolMax ?? 16
+    this.remoteBaker = opts.remoteBaker
     this.OVERVIEW_TIER = opts.overviewTier ?? 2
     this.CHUNK = opts.renderChunk ?? 64
     this.FALLBACK_DEPTH = opts.fallbackDepth ?? 3
@@ -153,7 +234,10 @@ export class CommittedLayer<T extends Bounded> {
       (opts.memoryBudgetMB ?? 256) * 1024 * 1024 - overviewBytes - poolCeiling
     )
 
-    this.overview = new WorldOverview<T>(index, renderer, { px: opts.overviewPx ?? 2048 })
+    this.overview = new WorldOverview<T>(index, renderer, {
+      px: opts.overviewPx ?? 2048,
+      remoteOverview: opts.remoteOverview
+    })
   }
 
   get overviewTier(): number {
@@ -214,6 +298,15 @@ export class CommittedLayer<T extends Bounded> {
         if (t.tx >= r.tx0 && t.tx <= r.tx1 && t.ty >= r.ty0 && t.ty <= r.ty1)
           this.gen.set(k, (this.gen.get(k) ?? 0) + 1)
       }
+      for (const k of this.inFlight) {
+        const parts = k.split(':')
+        const tier = parseInt(parts[0], 10)
+        const tx = parseInt(parts[1], 10)
+        const ty = parseInt(parts[2], 10)
+        const r = ranges[tier]
+        if (tx >= r.tx0 && tx <= r.tx1 && ty >= r.ty0 && ty <= r.ty1)
+          this.gen.set(k, (this.gen.get(k) ?? 0) + 1)
+      }
       return
     }
     for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
@@ -221,7 +314,7 @@ export class CommittedLayer<T extends Bounded> {
       for (let ty = r.ty0; ty <= r.ty1; ty++)
         for (let tx = r.tx0; tx <= r.tx1; tx++) {
           const k = `${tier}:${tx}:${ty}`
-          if (this.tiles.has(k)) this.gen.set(k, (this.gen.get(k) ?? 0) + 1)
+          if (this.tiles.has(k) || this.inFlight.has(k)) this.gen.set(k, (this.gen.get(k) ?? 0) + 1)
         }
     }
   }
@@ -243,11 +336,21 @@ export class CommittedLayer<T extends Bounded> {
         this.memoryBytes -= t.bytes
         this.tiles.delete(k)
       }
+      for (const k of this.inFlight) {
+        const parts = k.split(':')
+        const t_tier = parseInt(parts[0], 10)
+        const t_tx = parseInt(parts[1], 10)
+        const t_ty = parseInt(parts[2], 10)
+        if (t_tier !== tier) continue
+        if (t_tx >= r.tx0 && t_tx <= r.tx1 && t_ty >= r.ty0 && t_ty <= r.ty1)
+          this.gen.set(k, (this.gen.get(k) ?? 0) + 1)
+      }
       return
     }
     for (let ty = r.ty0; ty <= r.ty1; ty++)
       for (let tx = r.tx0; tx <= r.tx1; tx++) {
         const k = `${tier}:${tx}:${ty}`
+        if (this.inFlight.has(k)) this.gen.set(k, (this.gen.get(k) ?? 0) + 1)
         const t = this.tiles.get(k)
         if (t) {
           if (t.bitmap) t.bitmap.close()
@@ -275,6 +378,7 @@ export class CommittedLayer<T extends Bounded> {
     bg?: string,
     fallbackDepth = 0   // 0 → use FALLBACK_DEPTH; >0 → cap (1 while gesturing)
   ): { needsBake: boolean } {
+    const __t0all = performance.now()
     const zoom = vpt[0]
     const tier = this.pickActiveTier(zoom)
     const vw = this.viewWorld(vpt, px, dpr)
@@ -286,15 +390,27 @@ export class CommittedLayer<T extends Bounded> {
 
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, px.w, px.h)
-    if (bg) {
+    // clearRect + fillRect is TWO full-surface writes per frame. When the
+    // background is opaque the fill already overwrites every pixel, so the clear
+    // is pure waste — and this is the single biggest fixed cost of a composite:
+    // at MAX_RENDER_SCALE 2 on a phone that is ~1.3Mpx, written twice, on EVERY
+    // frame of every pan and zoom. Only clear when there is no opaque fill
+    // coming (transparent / unset background), where it is load-bearing.
+    if (bg && isOpaqueColor(bg)) {
       ctx.fillStyle = bg
       ctx.fillRect(0, 0, px.w, px.h)
+    } else {
+      ctx.clearRect(0, 0, px.w, px.h)
+      if (bg) {
+        ctx.fillStyle = bg
+        ctx.fillRect(0, 0, px.w, px.h)
+      }
     }
     ctx.restore()
 
     if (tier <= this.OVERVIEW_TIER) {
       this.overview.composite(ctx, vpt, px, dpr, vw)
+      recordComposite(performance.now() - __t0all, 0, 0, 0)
       return { needsBake: this.overview.isDirty() }
     }
 
@@ -320,7 +436,7 @@ export class CommittedLayer<T extends Bounded> {
         const key = `${tier}:${tx}:${ty}`
         const t = this.tiles.get(key)
         const fresh = t ? this.isFresh(key, t) : false
-        if (t) t.lastUsed = performance.now()
+        if (t) this.touchTile(key, t)
         if (!t || !fresh) anyNonFresh = true
 
         if (t && t.bitmap) {
@@ -346,6 +462,7 @@ export class CommittedLayer<T extends Bounded> {
     const needsOverview = this._needsOverview
     let needsOverviewN = 0
 
+    const __tSearch = performance.now()
     for (let i = 0; i < uncoveredN; i++) {
       const cell = uncovered[i]
       const fbs = this.findBestSource(tier, cell.tx, cell.ty, cell.dx, cell.dy, cell.dw, cell.dh, maxDepth)
@@ -356,6 +473,7 @@ export class CommittedLayer<T extends Bounded> {
         needsOverview[needsOverviewN++] = cell
       }
     }
+    const searchMs = performance.now() - __tSearch
 
     // Render the overview background strictly for gaps missing tile data
     if (needsOverviewN > 0) {
@@ -379,6 +497,12 @@ export class CommittedLayer<T extends Bounded> {
 
     // Draw tiles on top safely without stacking transparency. Iterate by fill
     // count — the scratch arrays keep a stale tail from prior frames.
+    //
+    // Timed separately: the FIRST drawImage of a freshly-baked ImageBitmap also
+    // uploads it as a GPU texture, so a bake pass landing dozens of tiles shows
+    // up here and nowhere else. That is the difference between "the composite is
+    // slow" (fill rate / DPR) and "the switch frame is slow" (upload burst).
+    const __tDraw = performance.now()
     for (let i = 0; i < fallback.length; i++) {
       const dr = fallback[i]
       ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh)
@@ -387,7 +511,12 @@ export class CommittedLayer<T extends Bounded> {
       const dr = present[i]
       ctx.drawImage(dr.bmp, dr.sx, dr.sy, dr.sw, dr.sh, dr.dx, dr.dy, dr.dw, dr.dh)
     }
+    const tileDrawMs = performance.now() - __tDraw
     ctx.restore()
+    recordComposite(
+      performance.now() - __t0all, tileDrawMs, searchMs,
+      presentN + fallback.length
+    )
 
     // bottom instrumentation hook (debug only)
     if (this.debug) {
@@ -440,7 +569,7 @@ export class CommittedLayer<T extends Bounded> {
     const fx = (cwx - ctxi * ctws) / ctws
     const fy = (cwy - ctyi * ctws) / ctws
     const fw = cww / ctws
-    t.lastUsed = performance.now()
+    this.touchTile(key, t)
     return {
       bmp: t.bitmap,
       sx: this.OS + fx * this.TILE, sy: this.OS + fy * this.TILE,
@@ -486,7 +615,7 @@ export class CommittedLayer<T extends Bounded> {
         const ddw = (ix1 - ix0) * dpw
         const ddh = (iy1 - iy0) * dph
 
-        t.lastUsed = performance.now()
+        this.touchTile(k, t)
         draws.push({ bmp: t.bitmap, sx, sy, sw, sh, dx: ddx, dy: ddy, dw: ddw, dh: ddh })
       }
     }
@@ -496,14 +625,18 @@ export class CommittedLayer<T extends Bounded> {
   // ── baking ───────────────────────────────────────────────────────────────
   async bake(
     vpt: number[], px: { w: number; h: number }, dpr: number,
-    yielder: Yieldable, signal: AbortSignal, contentBounds: WorldRect | null
+    makeYielder: () => Yieldable, signal: AbortSignal,
+    contentBounds: WorldRect | null,
+    /** Called after each tile is stored so the caller can composite the partial
+     *  result (F9). Coalesced by the caller — safe to invoke per tile. */
+    onProgress?: () => void
   ): Promise<void> {
     const zoom = vpt[0]
     const tier = this.pickActiveTier(zoom)
     const vw = this.viewWorld(vpt, px, dpr)
 
     if (tier <= this.OVERVIEW_TIER) {
-      await this.overview.rebuildIfNeeded(contentBounds, yielder as any, signal)
+      await this.overview.rebuildIfNeeded(contentBounds, makeYielder() as any, signal)
       return
     }
 
@@ -522,12 +655,39 @@ export class CommittedLayer<T extends Bounded> {
       }
     todo.sort((p, q) => p.pri - q.pri)
 
-    yielder.reset()
-    for (const { tx, ty } of todo) {
-      if (signal.aborted) return
-      await this.rebuildTile(tier, tx, ty, yielder, signal)
-      if (yielder.shouldYield()) await yielder.yield()
+    // With a remote baker each tile costs a postMessage round-trip, and awaiting
+    // them one at a time leaves the worker idle between tiles — so keep MORE
+    // THAN ONE in flight to ensure the worker is never idle waiting for us.
+    //
+    // But only just more than one. The worker renders through a strictly SERIAL
+    // FIFO chain, so extra lanes buy NO parallelism — they only deepen its
+    // queue. With 4 lanes every tile waited behind 3 others, so on a dense board
+    // each tile's end-to-end latency was ~4x its own render: tiles landed in
+    // late clumps instead of one at a time, and requests blew their timeout
+    // while the worker was perfectly healthy (which paused the bakery for 30s).
+    // 2 keeps the pipeline fed — one rendering, one queued — at half the latency.
+    const lanes = this.remoteBaker ? 2 : 1
+    let next = 0
+    const drain = async (): Promise<void> => {
+      // Per-lane yielder (F8). A single shared yielder had every lane call
+      // reset() on the same budget timer, so the effective per-lane budget
+      // collapsed to budgetMs / lanes and input-pending checks fought each
+      // other. One timer per chain restores the intended budget.
+      const yielder = makeYielder()
+      yielder.reset()
+      while (next < todo.length) {
+        if (signal.aborted) return
+        const { tx, ty } = todo[next++]
+        await this.rebuildTile(tier, tx, ty, yielder, signal)
+        // Repaint the partial result now — otherwise the viewport stays on
+        // overview/fallback for the entire ~40-tile pass (F9). Coalesced caller.
+        if (!signal.aborted) onProgress?.()
+        if (yielder.shouldYield()) await yielder.yield()
+      }
     }
+    await Promise.all(
+      Array.from({ length: Math.min(lanes, todo.length) }, () => drain())
+    )
   }
 
   private async rebuildTile(
@@ -542,19 +702,189 @@ export class CommittedLayer<T extends Bounded> {
     const key = `${tier}:${tx}:${ty}`
     const builtGen = this.gen.get(key) ?? 0
 
-    if (objects.length === 0) {
-      this.store(key, tier, tx, ty, null, 4, builtGen)
-      return
-    }
+    this.inFlight.add(key)
+    try {
+      if (objects.length === 0) {
+        this.store(key, tier, tx, ty, null, 4, builtGen)
+        return
+      }
 
+      // Worker bake first: main thread pays only the (lazy, coalesced) toJSON
+      // deltas + a drawImage on store — the rasterization runs off-thread.
+      if (this.remoteBaker) {
+        let res: RemoteBakeResult<T> | null = null
+        try {
+          res = await this.remoteBaker(objects, world, scale, this.OS, this.BMP)
+        } catch { /* worker hiccup → local fallback */ }
+        if (signal.aborted) {
+          // Aborted mid-flight (a gesture started). The pixels are already paid
+          // for and still correct, so KEEP them rather than closing the bitmap
+          // and re-baking the same tile from scratch after the gesture — that
+          // double cost is what made "gesture during the unblur" both lag and
+          // then take ages to sharpen again.
+          //
+          // store() is cheap: no GPU upload happens until something draws the
+          // tile, and if the gesture changed tier it may never be drawn at all.
+          //
+          // Two guards. `skipped` must be empty — overlaySkipped is a SYNCHRONOUS
+          // main-thread render, exactly the work an abort exists to avoid. And
+          // `gen` must not have moved, since an unchanged gen is what makes these
+          // pixels current.
+          if (res && !res.skipped.length && (this.gen.get(key) ?? 0) === builtGen) {
+            const bytes = this.BMP * this.BMP * 4
+            if (this.ensureMemory(bytes)) {
+              this.store(key, tier, tx, ty, res.bitmap, bytes, builtGen)
+              return
+            }
+          }
+          res?.bitmap.close()
+          return
+        }
+        if (res) {
+          // Hybrid tile (F3-C): the worker rendered everything it could; overlay
+          // the few objects it couldn't (image / group / unshippable text) on
+          // top on the main thread. The baker guarantees those all sit z-above
+          // what's in the bitmap. `skipped` empty → pure worker bitmap, no
+          // overlay (the common case).
+          let bmp: ImageBitmap | null = res.bitmap
+          if (res.skipped.length) {
+            bmp = this.overlaySkipped(res.bitmap, res.skipped, world, scale, q)
+          }
+          if (signal.aborted) {
+            bmp?.close()
+            return
+          }
+          if (bmp) {
+            const bytes = this.BMP * this.BMP * 4
+            if (!this.ensureMemory(bytes)) {
+              bmp.close()
+              return
+            }
+            // Store even if `gen` advanced while we awaited the worker. It is kept
+            // under the ORIGINAL builtGen, so isFresh() stays false and the next
+            // bake repaints it exactly — same contract as stampBitmapRegion.
+            this.store(key, tier, tx, ty, bmp, bytes, builtGen)
+            return
+          }
+          // overlay failed → fall through to a full local render below.
+        }
+        // null → refused (interleaved z / all-unshippable) or failed: local below.
+      }
+
+      // LOCAL FALLBACK. The worker refused this tile (or is paused/failed), so
+      // every object in it rasterizes HERE, on the main thread. Timed because it
+      // is the single biggest per-object main-thread block in the engine and the
+      // one whose cost tracks brush weight — a watercolor tile is far heavier
+      // than the same tile in pencil.
+      const __tLocal = performance.now()
+      const off = this.acquire()
+      const c2d = off.getContext('2d')
+      if (!c2d) {
+        this.release(off)
+        return
+      }
+      c2d.setTransform(1, 0, 0, 1, 0, 0)
+      c2d.clearRect(0, 0, this.BMP, this.BMP)
+      c2d.save()
+      c2d.translate(this.OS, this.OS)
+      c2d.scale(scale, scale)
+      c2d.translate(-world.x, -world.y)
+      c2d.beginPath()
+      c2d.rect(q.x, q.y, q.w, q.h)
+      c2d.clip()
+      for (let i = 0; i < objects.length; i++) {
+        if (i > 0 && yielder.shouldYield()) {
+          await yielder.yield()
+          if (signal.aborted) {
+            c2d.restore()
+            this.release(off)
+            return
+          }
+        }
+        try {
+          this.renderer(c2d as any, objects[i], scale, q)
+        } catch (err) {
+          if (this.debug) console.warn('[Committed] render threw', err)
+        }
+        if (
+          i % this.CHUNK === this.CHUNK - 1 ||
+          yielder.shouldYield()
+        ) {
+          await yielder.yield()
+          if (signal.aborted) {
+            c2d.restore()
+            this.release(off)
+            return
+          }
+        }
+      }
+      c2d.restore()
+
+      // Zero-copy transfer
+      let bmp: ImageBitmap
+      try {
+        bmp = off.transferToImageBitmap()
+      } catch {
+        this.release(off)
+        return
+      }
+      this.release(off)
+      if (signal.aborted) {
+        bmp.close()
+        return
+      }
+
+      // Gen may have advanced during an await yield above → drop stale bitmap;
+      if ((this.gen.get(key) ?? 0) !== builtGen) {
+        bmp.close()
+        return
+      }
+
+      const bytes = this.BMP * this.BMP * 4
+      if (!this.ensureMemory(bytes)) {
+        bmp.close()
+        return
+      }
+      this.store(key, tier, tx, ty, bmp, bytes, builtGen)
+      recordPhase('localBake', performance.now() - __tLocal)
+    } finally {
+      this.inFlight.delete(key)
+    }
+  }
+
+  /**
+   * Composite the worker's tile bitmap with the objects it couldn't render
+   * (F3-C). Draws `base` into a pooled canvas, then renders each `skipped`
+   * object over it at the exact tile transform — same translate/scale/clip as
+   * a full bake, so the overlaid objects land pixel-identically to a local
+   * bake. `base` is consumed (closed) here. Returns the composited bitmap, or
+   * null on failure (→ caller does a full local render).
+   *
+   * Synchronous and un-yielded on purpose: `skipped` is a HANDFUL of objects (a
+   * sticker, an image) — the whole point is that the many strokes were baked
+   * off-thread. Rendering a few images on main is the residual cost we accept.
+   */
+  private overlaySkipped(
+    base: ImageBitmap, skipped: T[], world: WorldRect, scale: number, q: WorldRect
+  ): ImageBitmap | null {
+    const __t0 = performance.now()
     const off = this.acquire()
     const c2d = off.getContext('2d')
     if (!c2d) {
       this.release(off)
-      return
+      base.close()
+      return null
     }
     c2d.setTransform(1, 0, 0, 1, 0, 0)
     c2d.clearRect(0, 0, this.BMP, this.BMP)
+    try {
+      c2d.drawImage(base, 0, 0)
+    } catch {
+      this.release(off)
+      base.close()
+      return null
+    }
+    base.close()
     c2d.save()
     c2d.translate(this.OS, this.OS)
     c2d.scale(scale, scale)
@@ -562,66 +892,44 @@ export class CommittedLayer<T extends Bounded> {
     c2d.beginPath()
     c2d.rect(q.x, q.y, q.w, q.h)
     c2d.clip()
-    for (let i = 0; i < objects.length; i++) {
+    for (let i = 0; i < skipped.length; i++) {
       try {
-        this.renderer(c2d as any, objects[i], scale)
+        this.renderer(c2d as any, skipped[i], scale, q)
       } catch (err) {
-        if (this.debug) console.warn('[Committed] render threw', err)
-      }
-      if (i % this.CHUNK === this.CHUNK - 1 && yielder.shouldYield()) {
-        await yielder.yield()
-        if (signal.aborted) {
-          c2d.restore()
-          this.release(off)
-          return
-        }
+        if (this.debug) console.warn('[Committed] overlay render threw', err)
       }
     }
     c2d.restore()
-
-    // Zero-copy transfer (was createImageBitmap → full-frame memcpy every bake).
-    // transferToImageBitmap is sync and resets the canvas so it stays poolable.
-    let bmp: ImageBitmap
+    let out: ImageBitmap
     try {
-      bmp = off.transferToImageBitmap()
+      out = off.transferToImageBitmap()
     } catch {
       this.release(off)
-      return
+      return null
     }
     this.release(off)
-    if (signal.aborted) {
-      bmp.close()
-      return
-    }
-
-    // Gen may have advanced during an await yield above → drop stale bitmap;
-    // bakeAgain will produce the correct one. Prevents a 1-frame ghost.
-    if ((this.gen.get(key) ?? 0) !== builtGen) {
-      bmp.close()
-      return
-    }
-
-    const bytes = this.BMP * this.BMP * 4
-    if (!this.ensureMemory(bytes)) {
-      bmp.close()
-      return
-    }
-    this.store(key, tier, tx, ty, bmp, bytes, builtGen)
+    recordPhase('overlaySkipped', performance.now() - __t0)
+    return out
   }
 
   rebuildRectSync(rect: WorldRect, tier: number, clip?: WorldRect, maxTiles = 32): void {
     if (tier < 0 || tier >= this.ZOOM_TIERS.length) return
+    const __t0 = performance.now()
     const r = this.tileRange(rect, tier)
     const cr = clip ? this.tileRange(clip, tier) : null
     let count = 0
     for (let ty = r.ty0; ty <= r.ty1; ty++) {
       for (let tx = r.tx0; tx <= r.tx1; tx++) {
         if (cr && (tx < cr.tx0 || tx > cr.tx1 || ty < cr.ty0 || ty > cr.ty1)) continue
-        if (count >= maxTiles) return
+        if (count >= maxTiles) {
+          recordPhase('rebuildSync', performance.now() - __t0)
+          return
+        }
         this.rebuildTileSync(tier, tx, ty)
         count++
       }
     }
+    if (count) recordPhase('rebuildSync', performance.now() - __t0)
   }
 
   private rebuildTileSync(tier: number, tx: number, ty: number): void {
@@ -655,7 +963,7 @@ export class CommittedLayer<T extends Bounded> {
     c2d.clip()
     for (let i = 0; i < objects.length; i++) {
       try {
-        this.renderer(c2d as any, objects[i], scale)
+        this.renderer(c2d as any, objects[i], scale, q)
       } catch (err) {
         if (this.debug) console.warn('[Committed] sync render threw', err)
       }
@@ -683,6 +991,11 @@ export class CommittedLayer<T extends Bounded> {
     if (prev) {
       if (prev.bitmap) prev.bitmap.close()
       this.memoryBytes -= prev.bytes
+      // Delete before re-setting so the fresh tile lands at the LRU tail —
+      // Map.set on an existing key keeps its original insertion position, which
+      // would leave a just-baked tile looking like the oldest and get it evicted
+      // first (see touchTile / ensureMemory).
+      this.tiles.delete(key)
     }
     this.tiles.set(key, { bitmap, tier, tx, ty, bytes, builtGen, lastUsed: performance.now() })
     this.memoryBytes += bytes
@@ -721,15 +1034,28 @@ export class CommittedLayer<T extends Bounded> {
   }
 
   // ── memory + pool ─────────────────────────────────────────────────────────
+  /**
+   * Mark a tile most-recently-used. `tiles` is kept in LRU order — a Map
+   * preserves insertion order and `set` on an EXISTING key does not move it, so
+   * we delete first to re-insert at the tail. O(1), and it lets ensureMemory
+   * evict from the head without sorting.
+   */
+  private touchTile(key: string, t: Tile): void {
+    t.lastUsed = performance.now()
+    if (this.tiles.delete(key)) this.tiles.set(key, t)
+  }
+
   private ensureMemory(need: number): boolean {
     if (this.memoryBytes + need <= this.MEM_HARD) return true
-    // Evict LRU down to a low-water mark in ONE pass, so the following tile
-    // stores in the same bake burst don't each re-snapshot+sort the whole
-    // tile map (the pan-over-dense-board eviction storm). Strict-LRU order is
-    // preserved; only triggers when actually at the hard cap.
+    // Evict from the head (least recently used) down to a low-water mark.
+    //
+    // This used to snapshot AND sort the entire tile map — `[...entries()].sort()`
+    // — on the main thread on every store that hit the cap. During a zoom the new
+    // tier stores dozens of tiles back to back, so that O(n log n) + full array
+    // alloc ran per tile and spiked exactly as the picture sharpened. Map order
+    // is already LRU (see touchTile), so this is O(evicted) with no allocation.
     const target = this.MEM_HARD * 0.85 - need
-    const sorted = [...this.tiles.entries()].sort((a, b) => a[1].lastUsed - b[1].lastUsed)
-    for (const [k, t] of sorted) {
+    for (const [k, t] of this.tiles) {
       if (this.memoryBytes <= target) break
       if (t.bitmap) t.bitmap.close()
       this.memoryBytes -= t.bytes
@@ -820,7 +1146,7 @@ export class CommittedLayer<T extends Bounded> {
         c2d.beginPath()
         c2d.rect(q.x, q.y, q.w, q.h)
         c2d.clip()
-        try { this.renderer(c2d as any, obj, scale) } catch { /* ignore */ }
+        try { this.renderer(c2d as any, obj, scale, q) } catch { /* ignore */ }
         c2d.restore()
 
         let bmp: ImageBitmap
@@ -891,7 +1217,7 @@ export class CommittedLayer<T extends Bounded> {
         c2d.beginPath()
         c2d.rect(q.x, q.y, q.w, q.h)
         c2d.clip()
-        try { this.renderer(c2d as any, obj, scale) } catch { /* ignore */ }
+        try { this.renderer(c2d as any, obj, scale, q) } catch { /* ignore */ }
         c2d.restore()
 
         let bmp: ImageBitmap

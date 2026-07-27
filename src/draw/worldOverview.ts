@@ -15,16 +15,19 @@
 
 import type {
   Bounded,
+  RemoteOverview,
   SpatialIndex,
   TileRenderer,
   WorldRect,
   Yieldable
 } from './committedLayer'
 import { Yielder } from '@/draw/helpers/yielding.helper'
+import { recordPhase } from '@/draw/services/drawMetrics.service'
 
 interface OverviewOptions {
   px?: number;
   renderChunk?: number;
+  remoteOverview?: RemoteOverview<any>;
 }
 
 export class WorldOverview<T extends Bounded> {
@@ -32,6 +35,7 @@ export class WorldOverview<T extends Bounded> {
   private readonly CHUNK: number
   private readonly index: SpatialIndex<T>
   private readonly renderer: TileRenderer<T>
+  private readonly remoteOverview?: RemoteOverview<T>
 
   private canvas: OffscreenCanvas | null = null
   private ctx: OffscreenCanvasRenderingContext2D | null = null
@@ -39,6 +43,8 @@ export class WorldOverview<T extends Bounded> {
   private sx = 1
   private sy = 1 // world → overview px
   private dirty = true
+  private dirtyRevision = 1
+  private rebuildInFlight: Promise<void> | null = null
 
   constructor(
     index: SpatialIndex<T>,
@@ -49,10 +55,12 @@ export class WorldOverview<T extends Bounded> {
     this.renderer = renderer
     this.PX = opts.px ?? 2048
     this.CHUNK = opts.renderChunk ?? 128
+    this.remoteOverview = opts.remoteOverview
   }
 
   markDirty(): void {
     this.dirty = true
+    this.dirtyRevision++
   }
 
   isDirty(): boolean {
@@ -62,14 +70,14 @@ export class WorldOverview<T extends Bounded> {
   /** Incrementally fold one freshly-committed object into the overview. */
   add(obj: T): void {
     if (!this.canvas || !this.ctx || !this.bounds) {
-      this.dirty = true
+      this.markDirty()
       return
     }
     const b = obj.getBoundingRect(true, true)
     const r: WorldRect = { x: b.left, y: b.top, w: b.width, h: b.height }
     // Object outside current coverage → grow lazily via full rebuild.
     if (!this.contains(this.bounds, r)) {
-      this.dirty = true
+      this.markDirty()
       return
     }
     this.paintOne(this.ctx, obj)
@@ -116,6 +124,10 @@ export class WorldOverview<T extends Bounded> {
   patchRect(rect: WorldRect, maxObjects = Infinity): boolean {
     if (!this.canvas || !this.ctx || !this.bounds) return false
     if (!this.contains(this.bounds, rect)) return false
+    // Timed: this is a SYNCHRONOUS re-render of every object in the rect, and its
+    // cost tracks brush weight (`objectCaching` is off during a bake render, so a
+    // watercolor path is stroked in full every time).
+    const __t0 = performance.now()
     const ctx = this.ctx
 
     // Pad by ~2 overview-px (in world units) so stroke width / AA at the
@@ -139,7 +151,10 @@ export class WorldOverview<T extends Bounded> {
     const objects = this.index
       .query(r)
       .filter((o: any) => o.visible !== false && o.opacity !== 0)
-    if (objects.length > maxObjects) return false
+    if (objects.length > maxObjects) {
+      recordPhase('overviewPatch', performance.now() - __t0)
+      return false
+    }
 
     // Clear the sub-rect (identity space).
     const cx = (r.x - this.bounds.x) * this.sx
@@ -165,6 +180,7 @@ export class WorldOverview<T extends Bounded> {
       }
     }
     ctx.restore()
+    recordPhase('overviewPatch', performance.now() - __t0)
     return true
   }
 
@@ -177,7 +193,37 @@ export class WorldOverview<T extends Bounded> {
     const fits = this.canvas && this.bounds && this.contains(this.bounds, contentBounds)
     if (!this.dirty && fits) return
 
+    // Coalesce callers. Loading, reset and the regular warm path used to start
+    // separate full-scene renders against separate temp canvases. If content is
+    // dirtied while the shared build runs, the revision check below preserves
+    // that dirtiness and the waiting caller may start one follow-up build.
+    if (this.rebuildInFlight) {
+      await this.rebuildInFlight
+      if (signal.aborted) return
+      const stillFits =
+        this.canvas && this.bounds && this.contains(this.bounds, contentBounds)
+      if (this.dirty || !stillFits) {
+        return this.rebuildIfNeeded(contentBounds, yielder, signal)
+      }
+      return
+    }
 
+    const task = this.performRebuild(contentBounds, yielder, signal)
+    this.rebuildInFlight = task
+    try {
+      await task
+    } finally {
+      if (this.rebuildInFlight === task) this.rebuildInFlight = null
+    }
+  }
+
+  private async performRebuild(
+    contentBounds: WorldRect,
+    yielder: Yielder,
+    signal: AbortSignal
+  ): Promise<void> {
+    const buildRevision = this.dirtyRevision
+    const __t0 = performance.now()
     const pad = 0.15
     const bounds: WorldRect = {
       x: contentBounds.x - contentBounds.w * pad,
@@ -193,22 +239,90 @@ export class WorldOverview<T extends Bounded> {
     if (!tctx) return
     const sx = this.PX / bounds.w
     const sy = this.PX / bounds.h
+    const minPx = 0.75
+
+    // Objects big enough to leave a mark at overview resolution, z-ordered.
+    //
+    // This filter was a SYNCHRONOUS, un-yielded, un-abortable O(all objects)
+    // loop, and `getBoundingRect(true, true)` recomputes the object's coords
+    // rather than reading them — so on a big board it was a single multi-hundred
+    // ms main-thread block before the (properly yielded) render even started.
+    // That block is what a gesture ran into right after loading a heavy drawing.
+    //
+    // `queryBounds` gets the same rects from the spatial index, which already
+    // tracks them, so the recompute disappears entirely. Where the index doesn't
+    // offer it we keep the old call but yield through the loop.
+    const withBounds = this.index.queryBounds?.(bounds)
+    const visible: T[] = []
+    if (withBounds) {
+      for (let i = 0; i < withBounds.length; i++) {
+        const b = withBounds[i].bounds
+        if (b.w * sx >= minPx || b.h * sy >= minPx) visible.push(withBounds[i].obj)
+      }
+    } else {
+      const objects = this.index.query(bounds)
+      yielder.reset()
+      for (let i = 0; i < objects.length; i++) {
+        const b = objects[i].getBoundingRect(true, true)
+        if (b.width * sx >= minPx || b.height * sy >= minPx) visible.push(objects[i])
+        if ((i & 127) === 127) {
+          await yielder.maybeYield()
+          if (signal.aborted) return
+        }
+      }
+    }
+    if (signal.aborted) return
+
+    // Worker path: render the whole board off the main thread (the O(N) render
+    // was the main-thread stall on big boards). Strokes bake in the worker;
+    // text / images come back in `skipped` and are overlaid locally below.
+    if (this.remoteOverview) {
+      // Any failure in here (worker unavailable, timeout, bad bitmap) must fall
+      // through to the local render — never leave the overview unbuilt, or the
+      // far-zoom base layer stays blank until the user interacts.
+      try {
+        const remote = await this.remoteOverview(visible, bounds, this.PX, Math.max(sx, sy))
+        if (signal.aborted) {
+          remote?.bitmap.close()
+          return
+        }
+        if (remote) {
+          tctx.setTransform(1, 0, 0, 1, 0, 0)
+          tctx.clearRect(0, 0, this.PX, this.PX)
+          tctx.drawImage(remote.bitmap, 0, 0)
+          remote.bitmap.close()
+          if (remote.skipped.length) {
+            tctx.save()
+            tctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy)
+            for (let i = 0; i < remote.skipped.length; i++) {
+              try {
+                this.renderer(tctx as any, remote.skipped[i], Math.max(sx, sy))
+              } catch { /* ignore */ }
+            }
+            tctx.restore()
+          }
+          this.canvas = tmp
+          this.ctx = tctx
+          this.bounds = bounds
+          this.sx = sx
+          this.sy = sy
+          this.dirty = this.dirtyRevision !== buildRevision
+          return
+        }
+      } catch { /* fall through to local render */ }
+      // null / threw → local render below.
+    }
 
     tctx.setTransform(1, 0, 0, 1, 0, 0)
     tctx.clearRect(0, 0, this.PX, this.PX)
     tctx.save()
     tctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy)
 
-    const objects = this.index.query(bounds)
     yielder.reset()
-    const minPx = 0.75
-    for (let i = 0; i < objects.length; i++) {
-      const b = objects[i].getBoundingRect(true, true)
-      if (b.width * sx >= minPx || b.height * sy >= minPx) {
-        try {
-          this.renderer(tctx as any, objects[i], Math.max(sx, sy))
-        } catch { /* ignore */
-        }
+    for (let i = 0; i < visible.length; i++) {
+      try {
+        this.renderer(tctx as any, visible[i], Math.max(sx, sy))
+      } catch { /* ignore */
       }
       await yielder.maybeYield()
       if (signal.aborted) {
@@ -224,7 +338,12 @@ export class WorldOverview<T extends Bounded> {
     this.bounds = bounds
     this.sx = sx
     this.sy = sy
-    this.dirty = false
+    this.dirty = this.dirtyRevision !== buildRevision
+    // WALL CLOCK, not CPU: this loop yields, so a large number here means the
+    // rebuild spanned many frames, not that it blocked for that long. The
+    // per-frame cost is bounded by the yielder's budget. `longTasks` is the
+    // check for whether it actually blocked.
+    recordPhase('overviewBuild', performance.now() - __t0)
   }
 
   /** Draw the overview region matching the viewport into ctx (screen space). */
@@ -268,7 +387,7 @@ export class WorldOverview<T extends Bounded> {
     this.canvas = null
     this.ctx = null
     this.bounds = null
-    this.dirty = true
+    this.markDirty()
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────

@@ -38,8 +38,12 @@ function cancelPendingSettle() {
 
 
 function syncVisuals(c: Canvas) {
-  const { renderViewport } = useDrawObjectManager()
-  renderViewport()
+  // renderViewportNow, NOT renderViewport. We are already inside a RAF callback
+  // here, and renderViewport() only *schedules* another one — so the composite
+  // for this gesture frame landed on the NEXT frame, putting every pan and zoom
+  // two frames behind the finger with no CPU cost involved at all.
+  const { renderViewportNow } = useDrawObjectManager()
+  renderViewportNow()
 
   const { recalculateAvatarPositions } = useDrawUIStore()
   recalculateAvatarPositions()

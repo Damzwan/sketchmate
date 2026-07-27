@@ -1,6 +1,6 @@
 import { PatternBrush, Canvas, Point, FabricImage } from 'fabric'
 import * as fabric from 'fabric'
-import { enlivenStrokeProps } from '@/draw/utils/brushes/brush.helpers'
+import { enlivenStrokeProps, TEXTURE_SUPERSAMPLE } from '@/draw/utils/brushes/brush.helpers'
 
 // Deterministic PRNG so the random crayon texture regenerates identically from
 // a stored seed (no need to serialise the bitmap — same trick as charcoal).
@@ -94,8 +94,8 @@ export function generateCrayonImage(
 
   // Textural brush → softening on extreme zoom-in is acceptable; keep memory
   // modest with a small headroom multiplier.
-  const baseDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
-  const dpr = Math.min(baseDpr * 1.5, 3)
+  // Device-independent — see TEXTURE_SUPERSAMPLE.
+  const dpr = TEXTURE_SUPERSAMPLE
 
   const off = document.createElement('canvas')
   off.width = Math.ceil(w * dpr)
@@ -190,6 +190,13 @@ export class CrayonStroke extends FabricImage {
   }
 
   static async fromObject(object: any) {
+    // Pixels supplied by the tile worker (transferred ImageBitmap). Use them
+    // directly instead of re-running the generator on every enliven — that
+    // regeneration is why these strokes were refused off-thread.
+    if (object.__workerBitmap) {
+      const props = await enlivenStrokeProps(object)
+      return new CrayonStroke(object.__workerBitmap, props)
+    }
     if (!object.src) {
       const pts: Point[] = []
       let lastX = 0, lastY = 0

@@ -253,12 +253,17 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 				} else {
 					gzipBytes = canvasState;
 				}
-				const stream = new Blob([gzipBytes])
+				const blobBytes =
+					gzipBytes instanceof Uint8Array
+						? new Uint8Array(gzipBytes).buffer
+						: gzipBytes;
+				const stream = new Blob([blobBytes])
 					.stream()
 					.pipeThrough(new DecompressionStream("gzip"));
 				decompressedString = await new Response(stream).text();
 			} catch (e) {
 				console.error("Failed to load canvas snapshot:", e);
+				await mgr.endLoading();
 				isLoadingCanvas.value = false;
 				return;
 			}
@@ -277,19 +282,10 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			const { getCanvas } = useDrawStore();
 			const canvas = getCanvas();
 
-			canvas.getObjects().forEach((o) => o.setCoords());
-			mgr.rebuildSpatialIndex?.();
-			fitToDensestRegion(canvas);
+			await fitToDensestRegion(canvas);
+			await mgr.endLoading();
 
-			mgr.resetTileCache();
-			// Build the overview base layer BEFORE the reveal. Paints are
-			// suppressed while loading, so without this the first frame after
-			// endLoading paints an empty canvas (white flash) until the async
-			// overview build lands a frame later.
-			await mgr.warmOverviewBlocking();
-			mgr.endLoading();
-
-			mgr.renderViewport(true);
+			mgr.renderViewport();
 			isLoadingCanvas.value = false;
 		},
 	);
@@ -317,17 +313,12 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 		const canvas = getCanvas();
 
 		if (isInitialSync) {
-			canvas.getObjects().forEach((o) => o.setCoords());
-			mgr.rebuildSpatialIndex();
-			fitToDensestRegion(canvas);
-			mgr.resetTileCache();
+			await fitToDensestRegion(canvas);
 		}
 
-		// Ensure the overview base layer is ready before revealing (see
-		// initial-canvas-state) so the reveal frame never flashes white.
-		await mgr.warmOverviewBlocking();
-		mgr.endLoading();
-		mgr.renderViewport(true);
+		// endLoading owns the single index/reset/overview finalization pass.
+		await mgr.endLoading();
+		mgr.renderViewport();
 		isLoadingCanvas.value = false;
 	});
 

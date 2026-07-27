@@ -41,6 +41,9 @@ function moveObjectsToOriginalPosition(
   }
 
   const mgr = useDrawObjectManager()
+  // Restore the explicit z (the render/hit-test authority); canvas order above
+  // is now only cosmetic. Guard for actions recorded before prevZ existed.
+  if (action.params.prevZ) mgr.zRestore(action.params.objectIds, action.params.prevZ)
   mgr.markZIndexDirty()
   patchObjectsRegion(canvasObjects)
 }
@@ -53,11 +56,12 @@ export async function redoMoveObjectsToFront(
 ): Promise<HistoryAction<HistoryEvent.MoveObjectToFront>> {
   const objects = ctx.getObjectsById(action.params.objectIds)
   const prevObjectPositions = objects.map((o) => ctx.canvas.getObjects().indexOf(o!))
+  const prevZ = useDrawObjectManager().zGet(action.params.objectIds)
 
   drawActionMapping[DrawAction.MoveObjectToFront]({ objects })
   patchObjectsRegion(objects)
 
-  return { ...action, params: { ...action.params, prevObjectPositions } }
+  return { ...action, params: { ...action.params, prevObjectPositions, prevZ } }
 }
 
 export async function redoMoveObjectsToBack(
@@ -66,11 +70,12 @@ export async function redoMoveObjectsToBack(
 ): Promise<HistoryAction<HistoryEvent.MoveObjectToBack>> {
   const objects = ctx.getObjectsById(action.params.objectIds)
   const prevObjectPositions = objects.map((o) => ctx.canvas.getObjects().indexOf(o!))
+  const prevZ = useDrawObjectManager().zGet(action.params.objectIds)
 
   drawActionMapping[DrawAction.MoveObjectToBack]({ objects })
   patchObjectsRegion(objects)
 
-  return { ...action, params: { ...action.params, prevObjectPositions } }
+  return { ...action, params: { ...action.params, prevObjectPositions, prevZ } }
 }
 
 export async function redoMoveObjectsUpOneLayer(

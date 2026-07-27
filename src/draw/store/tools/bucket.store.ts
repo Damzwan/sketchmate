@@ -27,7 +27,12 @@ export const useBucket = defineStore('bucket', (): Bucket => {
         if (fillInProgress) return
         if (!isMobile() && o.e.button !== 0) return
 
-        const dpr = window.devicePixelRatio || 1
+        // MUST be the canvas's OWN retina scaling, not window.devicePixelRatio:
+        // the backing store is sized from fabric's config.devicePixelRatio,
+        // which is capped at MAX_RENDER_SCALE (renderQuality.config.ts). Using
+        // the raw device ratio here would index getImageData past the sampled
+        // pixel on any DPR-3 phone and pick the wrong fill colour.
+        const dpr = c!.getRetinaScaling()
 
         const screenPoint = c!.getViewportPoint(o.e)
         const ctx = c!.getContext()

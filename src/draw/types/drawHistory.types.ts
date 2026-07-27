@@ -34,10 +34,10 @@ export type HistoryParamsMap = {
   }
   [HistoryEvent.Erasing]: { objectIds: string[], strokeId: string, strokeJSON: any, deletedObjectsJSON: any[] }
   [HistoryEvent.FullErase]: { prevCanvasJSON: any }
-  [HistoryEvent.MoveObjectToFront]: { objectIds: string[]; prevObjectPositions: number[] }
-  [HistoryEvent.MoveObjectToBack]: { objectIds: string[]; prevObjectPositions: number[] }
-  [HistoryEvent.MoveObjectUpOneLayer]: { objectIds: string[]; prevObjectPositions: number[] }
-  [HistoryEvent.MoveObjectDownOneLayer]: { objectIds: string[]; prevObjectPositions: number[] }
+  [HistoryEvent.MoveObjectToFront]: { objectIds: string[]; prevObjectPositions: number[]; prevZ?: number[] }
+  [HistoryEvent.MoveObjectToBack]: { objectIds: string[]; prevObjectPositions: number[]; prevZ?: number[] }
+  [HistoryEvent.MoveObjectUpOneLayer]: { objectIds: string[]; prevObjectPositions: number[]; prevZ?: number[] }
+  [HistoryEvent.MoveObjectDownOneLayer]: { objectIds: string[]; prevObjectPositions: number[]; prevZ?: number[] }
   [HistoryEvent.FlipX]: { objectIds: string[] }
   [HistoryEvent.FlipY]: { objectIds: string[] }
   [HistoryEvent.ObjectsCopied]: { objectsJSON: any[] }

@@ -16,8 +16,35 @@ type Point = { x: number; y: number };
 const MAX_WORLD_DIM = 2500 // Largest workspace — thick strokes / big fills / no strokes
 const MIN_WORLD_DIM = 600 // Smallest workspace — hairline strokes get max resolution
 const RDP_TOLERANCE = 1.2 // Vector simplification tuning variable
-const MAX_WORLD_AREA = 2500000 // Maximum vector area threshold before safety guard triggers
-const MAX_OFFSCREEN_PIXELS = 1200 // Fixed offscreen buffer edge (px); perf-bounded
+const MAX_WORLD_AREA = 40_000_000 // Final sanity cap on the vector we build (see ESCALATION)
+const MAX_OFFSCREEN_PIXELS = 1200 // Offscreen buffer edge (px) for the FIRST attempt
+
+/**
+ * ESCALATION — buffer sizes tried, in order, when a fill reaches the buffer
+ * border.
+ *
+ * The edge-touch test is the only reliable "this fill is unbounded" signal, but
+ * at a fixed buffer it cannot tell a genuinely LARGE CLOSED shape (a big circle)
+ * from a leak into open space — both run off the edge. That is why filling a
+ * large circle failed with "Area too large".
+ *
+ * The fix is to retry with a bigger BUFFER while holding `pxScale` CONSTANT.
+ * Barrier legibility depends only on pxScale (a stroke must rasterize to
+ * >= MIN_BARRIER_PX or the flood leaks through it), so keeping pxScale fixed and
+ * growing the buffer buys proportionally more world coverage with IDENTICAL leak
+ * behaviour — strictly more area, no accuracy trade. Only the transient
+ * ImageData grows (4 bytes/px: 1200²≈5.8MB, 2048²≈16.8MB, 2600²≈27MB), and it
+ * lives in the worker for the duration of one fill.
+ *
+ * A true empty-canvas flood still runs off the edge at every level and is
+ * rejected at the last one — the original protection is intact, just no longer
+ * trigger-happy on legitimate shapes. Mobile stops one level early on memory.
+ */
+const IS_MOBILE_FILL =
+  typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)
+const ESCALATION_BUFFERS = IS_MOBILE_FILL
+  ? [MAX_OFFSCREEN_PIXELS, 2048]
+  : [MAX_OFFSCREEN_PIXELS, 2048, 2600]
 const MIN_BARRIER_PX = 3 // Barrier must render >= this many px to block the radius-2 flood
 const BASE_BLEED = 1.5 // Fill bleed (world units) tucked under surrounding strokes
 
@@ -88,7 +115,13 @@ function thinnestStroke(objs: FabricObject[]): number {
  * Hairline strokes → high res + small region; thick / no strokes → base res +
  * full region. No stroke bump needed: barriers are real at every scale.
  */
-function buildSmartOffscreenCanvas(c: Canvas, clickPoint: Point) {
+function buildSmartOffscreenCanvas(
+  c: Canvas,
+  clickPoint: Point,
+  /** Buffer edge in px. Larger = more world coverage at the SAME pxScale (see
+   *  ESCALATION_BUFFERS), i.e. more reach with unchanged barrier legibility. */
+  bufferPx: number = MAX_OFFSCREEN_PIXELS
+) {
   const { query, getZIndexMap } = useDrawObjectManager()
 
   // Probe a small neighborhood around the click for the thinnest stroke — the
@@ -103,18 +136,21 @@ function buildSmartOffscreenCanvas(c: Canvas, clickPoint: Point) {
   }
   const probeMinStroke = thinnestStroke(query(probeRect))
 
+  // pxScale is derived from the BASE buffer, so it is identical at every
+  // escalation level — barrier legibility (and therefore leak behaviour) never
+  // changes as we grow. A bigger buffer then simply covers MORE WORLD at that
+  // same resolution.
   const minPxScale = MAX_OFFSCREEN_PIXELS / MAX_WORLD_DIM // full region, base res
   const maxPxScale = MAX_OFFSCREEN_PIXELS / MIN_WORLD_DIM // tightest region, max res
   const pxScale = Math.min(
     maxPxScale,
     Math.max(minPxScale, MIN_BARRIER_PX / probeMinStroke)
   )
-  const worldDim = MAX_OFFSCREEN_PIXELS / pxScale // in [MIN_WORLD_DIM, MAX_WORLD_DIM]
+  const off = bufferPx // buffer edge for THIS attempt
+  const worldDim = off / pxScale // grows with the buffer; pxScale held fixed
 
   const expandLeft = clickPoint.x - worldDim / 2
   const expandTop = clickPoint.y - worldDim / 2
-
-  const off = MAX_OFFSCREEN_PIXELS // buffer edge is always fixed
   const offscreen = document.createElement('canvas')
   offscreen.width = off
   offscreen.height = off
@@ -179,45 +215,66 @@ export async function bucketFill(
   // @ts-ignore
   FabricObject.NUM_FRACTION_DIGITS = 1
 
-  // Generate localized virtual environment
-  const { offscreen, worldRect, pxScale, minStrokeWorld } =
-    buildSmartOffscreenCanvas(c, p)
-
-  // Map absolute click onto localized pixels
-  const fillX = Math.round((p.x - worldRect.x) * pxScale)
-  const fillY = Math.round((p.y - worldRect.y) * pxScale)
-
-  if (
-    fillX < 0 ||
-    fillY < 0 ||
-    fillX >= offscreen.width ||
-    fillY >= offscreen.height
-  ) {
-    return null
-  }
-
-  const offCtx = offscreen.getContext('2d')!
-  const imgData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height)
   const brushColor = brushColorWithOpacity()
 
-  // Hand the pixel scan + contour tracing to the worker. The ImageData buffer
-  // is transferred (zero-copy) — it's not used again on this thread.
-  const result = await runFloodFill(
-    {
-      buffer: imgData.data.buffer,
-      width: imgData.width,
-      height: imgData.height,
-      fillX,
-      fillY,
-      brushColor,
-      pxScale,
-      worldRectX: worldRect.x,
-      worldRectY: worldRect.y,
-      rdpTolerance: RDP_TOLERANCE,
-      maxWorldArea: MAX_WORLD_AREA
-    },
-    [imgData.data.buffer]
-  )
+  // Try progressively larger buffers while the fill keeps reaching the border.
+  // Level 0 is EXACTLY the previous behaviour, so the common (small) fill costs
+  // nothing extra — only a fill that would previously have been rejected as
+  // "Area too large" pays for a retry. See ESCALATION_BUFFERS.
+  let result!: FloodFillResponse
+  let worldRect!: Rect
+  let pxScale = 0
+  let minStrokeWorld = 0
+
+  for (let level = 0; level < ESCALATION_BUFFERS.length; level++) {
+    const built = buildSmartOffscreenCanvas(c, p, ESCALATION_BUFFERS[level])
+    const offscreen = built.offscreen
+    worldRect = built.worldRect
+    pxScale = built.pxScale
+    minStrokeWorld = built.minStrokeWorld
+
+    // Map absolute click onto localized pixels
+    const fillX = Math.round((p.x - worldRect.x) * pxScale)
+    const fillY = Math.round((p.y - worldRect.y) * pxScale)
+
+    if (
+      fillX < 0 ||
+      fillY < 0 ||
+      fillX >= offscreen.width ||
+      fillY >= offscreen.height
+    ) {
+      return null
+    }
+
+    const offCtx = offscreen.getContext('2d')!
+    const imgData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height)
+
+    // Hand the pixel scan + contour tracing to the worker. The ImageData buffer
+    // is transferred (zero-copy) — it's not used again on this thread.
+    result = await runFloodFill(
+      {
+        buffer: imgData.data.buffer,
+        width: imgData.width,
+        height: imgData.height,
+        fillX,
+        fillY,
+        pxScale,
+        worldRectX: worldRect.x,
+        worldRectY: worldRect.y,
+        rdpTolerance: RDP_TOLERANCE,
+        maxWorldArea: MAX_WORLD_AREA
+      },
+      [imgData.data.buffer]
+    )
+
+    // Release the (now large) scratch canvas before a retry allocates the next.
+    offscreen.width = offscreen.height = 0
+
+    // Only an EDGE rejection is worth retrying — it means "didn't fit", which a
+    // bigger buffer can fix. Anything else (success, empty, enclosed-but-huge)
+    // is final.
+    if (!(result.edgeTouched && level < ESCALATION_BUFFERS.length - 1)) break
+  }
 
   if (!result.ok) {
     if (result.tooLarge) {

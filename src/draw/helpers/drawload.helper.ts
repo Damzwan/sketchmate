@@ -1,6 +1,42 @@
 import { Canvas, FabricObject, util } from "fabric";
 import { useFriendStore } from "@/store/friend.store";
 import { createYielder, nextFrame } from "@/draw/helpers/yielding.helper";
+import { watercolorComplexity } from "@/draw/utils/brushes/watercolorGeometry";
+
+function enlivenComplexity(source: any): number {
+	if (!source || typeof source !== "object") return 1;
+	if (source.type === "WaterColorStroke") return watercolorComplexity(source);
+	if (Array.isArray(source.objects)) {
+		let total = 1;
+		for (const child of source.objects) {
+			total += enlivenComplexity(child);
+			if (total >= 10_000) return total;
+		}
+		return total;
+	}
+	if (Array.isArray(source.path)) return Math.max(1, source.path.length);
+	return 1;
+}
+
+function takeEnlivenBatch(
+	objects: any[],
+	start: number,
+	maxCount: number,
+	maxComplexity: number,
+): { batch: any[]; complexity: number } {
+	let end = start;
+	let complexity = 0;
+	while (end < objects.length && end - start < maxCount) {
+		const next = enlivenComplexity(objects[end]);
+		// A single huge stroke is unavoidable, but never put more work behind it
+		// in the same synchronous Fabric enliven call.
+		if (end > start && complexity + next > maxComplexity) break;
+		complexity += next;
+		end++;
+		if (complexity >= maxComplexity) break;
+	}
+	return { batch: objects.slice(start, end), complexity };
+}
 
 /**
  * Enlivens Fabric objects from JSON in time-slices to avoid main-thread blocking,
@@ -34,6 +70,7 @@ export async function enlivenObjectsTimeSlivered(
 	// that one batch doesn't exceed a frame. Empirically ~32 on desktop and
 	// ~16 on mobile lands in the right range.
 	const BATCH_SIZE = IS_MOBILE ? 16 : 32;
+	const BATCH_COMPLEXITY = IS_MOBILE ? 1_200 : 3_000;
 
 	const yielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal });
 	yielder.reset();
@@ -42,7 +79,13 @@ export async function enlivenObjectsTimeSlivered(
 	while (i < filtered.length) {
 		if (signal?.aborted) return;
 
-		const batch = filtered.slice(i, i + BATCH_SIZE);
+		const picked = takeEnlivenBatch(
+			filtered,
+			i,
+			BATCH_SIZE,
+			BATCH_COMPLEXITY,
+		);
+		const batch = picked.batch;
 		i += batch.length;
 
 		// Enliven the batch concurrently. Most objects enliven synchronously
@@ -60,8 +103,17 @@ export async function enlivenObjectsTimeSlivered(
 
 		// Re-check block status post-enliven (blocked list might have changed
 		// during the async enliven call).
-		for (const obj of enlivened) {
+		for (let k = 0; k < enlivened.length; k++) {
+			const obj = enlivened[k];
 			if (obj && !isBlocked(obj.userId)) {
+				// Stash the exact JSON we enlivened from. The tile-bakery worker
+				// enlivens the SAME blob, so this lets the mirror be seeded without
+				// a second toJSON of every object at load (the big-canvas spike).
+				try {
+					(obj as any).__bakeJSON = batch[k];
+				} catch {
+					/* non-fatal */
+				}
 				try {
 					onObjectEnlivened(obj);
 				} catch (e) {
@@ -72,7 +124,10 @@ export async function enlivenObjectsTimeSlivered(
 		}
 
 		// Yield if budget exhausted OR input pending. The check is in the yielder.
-		if (i < filtered.length && yielder.shouldYield()) {
+		if (
+			i < filtered.length &&
+			(picked.complexity >= BATCH_COMPLEXITY || yielder.shouldYield())
+		) {
 			await yielder.yield();
 			if (signal?.aborted) return;
 		}
@@ -100,6 +155,7 @@ export async function enlivenAllBatched(
 		typeof navigator !== "undefined" &&
 		/Mobi|Android/i.test(navigator.userAgent);
 	const BATCH_SIZE = IS_MOBILE ? 16 : 32;
+	const BATCH_COMPLEXITY = IS_MOBILE ? 1_200 : 3_000;
 
 	const yielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal });
 	yielder.reset();
@@ -110,7 +166,13 @@ export async function enlivenAllBatched(
 		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
 		const start = i;
-		const batch = objectsJson.slice(i, i + BATCH_SIZE);
+		const picked = takeEnlivenBatch(
+			objectsJson,
+			i,
+			BATCH_SIZE,
+			BATCH_COMPLEXITY,
+		);
+		const batch = picked.batch;
 		i += batch.length;
 
 		const enlivened = await util.enlivenObjects<FabricObject>(batch);
@@ -118,7 +180,10 @@ export async function enlivenAllBatched(
 
 		// Yield between batches to stay responsive. Safe: nothing is on the
 		// canvas yet, so yielding here cannot cause a partial paint.
-		if (i < objectsJson.length && yielder.shouldYield()) {
+		if (
+			i < objectsJson.length &&
+			(picked.complexity >= BATCH_COMPLEXITY || yielder.shouldYield())
+		) {
 			await yielder.yield();
 		}
 	}

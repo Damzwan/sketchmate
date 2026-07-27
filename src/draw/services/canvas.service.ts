@@ -1,5 +1,6 @@
 import { Canvas } from 'fabric'
 import {
+  applyRenderDpr,
   changeFabricSettings,
   initCanvasOptions,
   overrideFindTarget,
@@ -40,6 +41,12 @@ export function useCanvasService() {
 
   function createCanvas(canvasEl: HTMLCanvasElement): Canvas {
     destroyCanvas()
+
+    // BEFORE `new Canvas`: fabric sizes the lower/upper backing stores in the
+    // constructor from config.devicePixelRatio, so capping it afterwards (which
+    // is where changeFabricSettings runs) would be too late and leave both
+    // canvases at full device resolution. See renderQuality.config.ts.
+    applyRenderDpr()
 
     const bbox = canvasEl.getBoundingClientRect()
     c = new Canvas(canvasEl, initCanvasOptions(bbox.width, bbox.height))

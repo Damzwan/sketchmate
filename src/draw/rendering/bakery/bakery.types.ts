@@ -66,13 +66,14 @@ export type BakeryRequest =
 	| {
 			// Whole-board low-res render (the WorldOverview base layer). `ids` are
 			// z-ordered and already bbox-filtered main-side; the worker renders them
-			// into a px×px bitmap mapped to `bounds`.
+			// into a content-shaped bitmap mapped to `bounds`.
 			t: "overview";
 			msgId: number;
 			epoch: number;
 			ids: string[];
 			bounds: { x: number; y: number; w: number; h: number };
-			px: number;
+			width: number;
+			height: number;
 			scale: number;
 	  };
 

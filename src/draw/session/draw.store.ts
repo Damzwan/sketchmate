@@ -16,6 +16,7 @@ import { ref } from "vue";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { computeBounds } from "@/draw/document/export";
 import { useCanvasPreview } from "@/draw/document/canvasPreview";
 import { useDocumentStore } from "@/draw/document/document.store";
 import { useGestureStore } from "@/draw/tools/gesture.store";
@@ -99,6 +100,13 @@ export const useDrawStore = defineStore("draw", () => {
 		gestureStore.setRenderedVpt(canvasController.getCanvas().viewportTransform);
 	}
 
+	function getAspectRatio(): number {
+		const c = canvasController.getCanvas();
+		if (!c) return 0;
+		const bounds = computeBounds(c.getObjects());
+		return bounds.width / bounds.height;
+	}
+
 	return {
 		initCanvas,
 		reset,
@@ -106,6 +114,7 @@ export const useDrawStore = defineStore("draw", () => {
 		getCanvas: canvasController.getCanvas,
 		backgroundColor: canvasController.backgroundColor,
 		prevDrawingMode,
+		getAspectRatio,
 		isGesturing,
 		createPreview,
 		preview,

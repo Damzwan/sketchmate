@@ -596,17 +596,17 @@ function getRenderCanvas(size: number): OffscreenCanvas {
 	return renderCanvas;
 }
 
-// Separate from the tile scratch: an overview render is px×px (1024/2048) and
-// would otherwise force the tile canvas to resize back and forth every rebuild.
+// Separate from the tile scratch so overview rebuilds do not resize the tile
+// canvas back and forth.
 let overviewCanvas: OffscreenCanvas | null = null;
 
-function getOverviewCanvas(px: number): OffscreenCanvas {
+function getOverviewCanvas(width: number, height: number): OffscreenCanvas {
 	if (
 		!overviewCanvas ||
-		overviewCanvas.width !== px ||
-		overviewCanvas.height !== px
+		overviewCanvas.width !== width ||
+		overviewCanvas.height !== height
 	) {
-		overviewCanvas = new OffscreenCanvas(px, px);
+		overviewCanvas = new OffscreenCanvas(width, height);
 	}
 	return overviewCanvas;
 }
@@ -708,7 +708,7 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 
 /**
  * Whole-board overview render. Same math as WorldOverview's local rebuild:
- * fit `bounds` into px×px, draw z-ordered ids. Objects are enlivened through
+ * fit `bounds` into the requested bitmap, draw z-ordered ids. Objects are enlivened through
  * the same LRU as tiles (so a subsequent viewport bake reuses them). A fresh
  * offscreen is used per call — the overview canvas outlives the request on the
  * main side as a bitmap, so we must not reuse the tile scratch.
@@ -716,7 +716,7 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 async function overview(
 	req: Extract<BakeryRequest, { t: "overview" }>,
 ): Promise<void> {
-	const { msgId, ids, bounds, px, scale } = req;
+	const { msgId, ids, bounds, width, height, scale } = req;
 	if (isStale(req.epoch)) {
 		post({ msgId, aborted: true });
 		return;
@@ -734,22 +734,20 @@ async function overview(
 		post({ msgId, missing });
 		return;
 	}
-	// Pooled, like the tile scratch. This was a fresh `new OffscreenCanvas(px,px)`
-	// per call — 4MB on mobile (1024²) or 16MB on desktop (2048²), allocated and
-	// thrown away on every overview rebuild. On Adreno that allocation churn is
-	// part of what faults libgsl (docs/DRAW_ENGINE_PERF.md finding F5).
+	// Pooled, like the tile scratch. Reallocating this bitmap every rebuild was
+	// significant GPU-memory churn on Adreno.
 	// transferToImageBitmap() detaches the backing store and leaves the canvas
 	// reusable at the same size, so one instance serves every rebuild.
-	const canvas = getOverviewCanvas(px);
+	const canvas = getOverviewCanvas(width, height);
 	const ctx = canvas.getContext("2d");
 	if (!ctx) {
 		post({ msgId, error: "no 2d context" });
 		return;
 	}
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
-	ctx.clearRect(0, 0, px, px);
-	const sx = px / bounds.w;
-	const sy = px / bounds.h;
+	ctx.clearRect(0, 0, width, height);
+	const sx = width / bounds.w;
+	const sy = height / bounds.h;
 	ctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy);
 
 	let sliceStartedAt = performance.now();

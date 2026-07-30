@@ -23,15 +23,18 @@ import type {
 } from "./committedLayer";
 import { Yielder } from "@/draw/scheduling/yielder";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { chooseOverviewDimensions } from "./overviewSizing";
 
 interface OverviewOptions {
 	px?: number;
+	targetDensity?: number;
 	renderChunk?: number;
 	remoteOverview?: RemoteOverview<any>;
 }
 
 export class WorldOverview<T extends Bounded> {
-	private readonly PX: number;
+	private readonly PIXEL_BUDGET_EDGE: number;
+	private readonly TARGET_DENSITY: number;
 	private readonly CHUNK: number;
 	private readonly index: SpatialIndex<T>;
 	private readonly renderer: TileRenderer<T>;
@@ -53,7 +56,8 @@ export class WorldOverview<T extends Bounded> {
 	) {
 		this.index = index;
 		this.renderer = renderer;
-		this.PX = opts.px ?? 2048;
+		this.PIXEL_BUDGET_EDGE = opts.px ?? 2048;
+		this.TARGET_DENSITY = opts.targetDensity ?? 0.5;
 		this.CHUNK = opts.renderChunk ?? 128;
 		this.remoteOverview = opts.remoteOverview;
 	}
@@ -232,14 +236,19 @@ export class WorldOverview<T extends Bounded> {
 			w: contentBounds.w * (1 + 2 * pad),
 			h: contentBounds.h * (1 + 2 * pad),
 		};
+		const { width, height } = chooseOverviewDimensions(
+			bounds,
+			this.TARGET_DENSITY,
+			this.PIXEL_BUDGET_EDGE,
+		);
 
 		// Build into a TEMP canvas. The currently-displayed overview stays untouched
 		// until we swap atomically at the end — never cleared mid-repaint.
-		const tmp = new OffscreenCanvas(this.PX, this.PX);
+		const tmp = new OffscreenCanvas(width, height);
 		const tctx = tmp.getContext("2d");
 		if (!tctx) return;
-		const sx = this.PX / bounds.w;
-		const sy = this.PX / bounds.h;
+		const sx = width / bounds.w;
+		const sy = height / bounds.h;
 		const minPx = 0.75;
 
 		// Objects big enough to leave a mark at overview resolution, z-ordered.
@@ -287,7 +296,8 @@ export class WorldOverview<T extends Bounded> {
 				const remote = await this.remoteOverview(
 					visible,
 					bounds,
-					this.PX,
+					width,
+					height,
 					Math.max(sx, sy),
 				);
 				if (signal.aborted) {
@@ -296,7 +306,7 @@ export class WorldOverview<T extends Bounded> {
 				}
 				if (remote) {
 					tctx.setTransform(1, 0, 0, 1, 0, 0);
-					tctx.clearRect(0, 0, this.PX, this.PX);
+					tctx.clearRect(0, 0, width, height);
 					tctx.drawImage(remote.bitmap, 0, 0);
 					remote.bitmap.close();
 					if (remote.skipped.length) {
@@ -326,7 +336,7 @@ export class WorldOverview<T extends Bounded> {
 		}
 
 		tctx.setTransform(1, 0, 0, 1, 0, 0);
-		tctx.clearRect(0, 0, this.PX, this.PX);
+		tctx.clearRect(0, 0, width, height);
 		tctx.save();
 		tctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy);
 

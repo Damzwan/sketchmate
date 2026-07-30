@@ -98,7 +98,8 @@ export type RemoteBaker<T> = (
 export type RemoteOverview<T> = (
 	objects: T[],
 	bounds: WorldRect,
-	px: number,
+	width: number,
+	height: number,
 	scale: number,
 ) => Promise<{ bitmap: ImageBitmap; skipped: T[] } | null>;
 
@@ -296,6 +297,9 @@ export class TileLayerBase<T extends Bounded> {
 
 		this.overview = new WorldOverview<T>(index, renderer, {
 			px: opts.overviewPx ?? 2048,
+			targetDensity:
+				this.ZOOM_TIERS[this.OVERVIEW_TIER + 1] ??
+				this.ZOOM_TIERS[this.ZOOM_TIERS.length - 1],
 			remoteOverview: opts.remoteOverview,
 		});
 	}

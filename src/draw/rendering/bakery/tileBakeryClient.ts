@@ -778,7 +778,8 @@ function track(
 export async function bakeryRenderOverview(
 	objects: FabricObject[],
 	bounds: WorldRect,
-	px: number,
+	width: number,
+	height: number,
 	scale: number,
 ): Promise<{ bitmap: ImageBitmap; skipped: FabricObject[] } | null> {
 	const w = getWorker();
@@ -803,7 +804,8 @@ export async function bakeryRenderOverview(
 				t: "overview",
 				ids,
 				bounds: { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h },
-				px,
+				width,
+				height,
 				scale,
 			},
 			ids.length,

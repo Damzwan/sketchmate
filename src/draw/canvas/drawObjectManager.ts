@@ -31,6 +31,7 @@ import {
 	bakeryFlushSoon,
 	bakeryMarkDirty,
 	bakeryRemove,
+	bakeryRenderOverview,
 	bakerySeed,
 	configureTileBakery,
 	initTileBakery,
@@ -308,6 +309,8 @@ export function createDrawObjectManager() {
 					if (c) rerenderActiveObjectControls(c);
 				},
 				remoteBaker: renderBackend === "worker" ? bakeryBakeTile : undefined,
+				remoteOverview:
+					renderBackend === "worker" ? bakeryRenderOverview : undefined,
 			},
 		);
 

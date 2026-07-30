@@ -227,9 +227,10 @@ the async bake would show a hole.
 
 ### WorldOverview — the low-res base
 
-[`worldOverview.ts`](../src/draw/worldOverview.ts) is **one** low-res
-`OffscreenCanvas` (2048² desktop, 1024² low-end) mapped to the content bounds. It
-plays two roles:
+[`worldOverview.ts`](../src/draw/rendering/worldOverview.ts) is one adaptive
+`OffscreenCanvas` mapped to the content bounds. Its dimensions follow the
+content aspect ratio and target the first tile-backed tier's density. The
+configured `overviewPx²` remains a hard pixel budget. It plays two roles:
 
 1. The **far-zoom picture** — at or below `OVERVIEW_TIER` we just `drawImage` the
    overview, no tiles.
@@ -527,9 +528,9 @@ reach the engine through the same seams as local edits.
 3. **Text + fonts in a worker are unsolved.** A worker has no `@font-face`, so
    text would bake blank there. Any worker offload needs either FontFace loading
    in the worker or a client-side refusal of text tiles (main-thread fallback).
-4. **Overview is a single fixed-resolution bitmap.** On a very large board the
-   2048² overview becomes coarse; there is no mip pyramid, so mid-zoom fallback
-   quality is limited between the overview tier and the first baked tile tier.
+4. **Overview resolution is bounded.** A very large board can still exceed the
+   overview pixel budget. The tile-backed zoom floor and progressive tile bakes
+   keep that lower-resolution bitmap temporary.
 5. **Compositing is CPU `drawImage`.** Fine for a few dozen tiles, but there is no
    GPU batch path; a pathological viewport (many small fallback fragments from
    `findBestSource`) does many `drawImage` calls.
@@ -600,8 +601,8 @@ Full binary is not server-BC (see limitation 6). Instead:
 
 ### 4. Overview mip pyramid — *quality*
 
-Replace the single overview bitmap with 2–3 resolution levels so mid-zoom fallback
-between the overview tier and the finest baked tier stays crisp on large boards.
+Reconsider overview mip levels only if the Phase 5 benchmark shows temporary
+fallback blur remains visible after adaptive sizing and progressive tile bakes.
 
 ### 5. Persistent tile cache (IndexedDB) — *cold-start*
 

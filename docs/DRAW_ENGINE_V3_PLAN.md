@@ -393,25 +393,27 @@ usually stops the user well before even that.
 
 ---
 
-## Phase 2 — the overview stops being a single bitmap
+## Phase 2 — adaptive overview ✅ complete
 
-Even with A3 + Z2 the overview is the base layer, and on a lobby board it is
-`1024px / 40000 world units`. Two options, in order of cost:
+The fixed square overview wasted pixels on empty space for wide or tall boards.
+It now targets the density of the first tile-backed tier and follows the content
+aspect ratio.
 
-### O1 — size the overview to the content, not to a constant
+The existing `overviewPx²` allocation is a hard pixel budget, not a starting
+size. Small boards allocate only the pixels needed for the target density.
+Large boards scale down uniformly to stay inside the budget, and no edge may
+exceed 4096 pixels. This improves fallback sharpness without reducing the tile
+cache or increasing peak overview memory.
 
-`PX` is fixed (1024 mobile / 2048 desktop) regardless of board size. Make it
-`clamp(boardDiagonal × targetDensity, 1024, 4096)` on rebuild, with the byte
-cost checked against the same memory budget the tiles use. A small board gets a
-crisp overview for free; a huge board is capped as today. One-line-ish, no new
-concepts, strictly better than the constant.
+The worker protocol now accepts overview width and height separately, and the
+worker overview renderer is connected to the engine when the worker backend is
+enabled.
 
-### O2 — overview mip chain (roadmap #4)
+### O2 — overview mip chain: not needed
 
-2–3 levels (`PX`, `PX/2`, `PX/4`) so the far-zoom picture and the
-under-tile base can pick a level matched to the current zoom instead of always
-sampling the full-board bitmap. Bounded win once Z2 lands (tiles cover most
-zooms), so **do O1 first and re-measure** before building this.
+The fixed tile-backed zoom floor means users cannot settle in the overview-only
+range. The overview is now a temporary base while tiles bake. Maintaining 2–3
+extra bitmaps would increase memory and update cost for little visible benefit.
 
 ---
 

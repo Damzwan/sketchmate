@@ -303,7 +303,7 @@ export abstract class RenderOverviewCoordinator<
 	}
 
 	get minZoom(): number {
-		return this.committed.minUsableZoom;
+		return this.committed.minTiledZoom;
 	}
 
 	get maxZoom(): number {

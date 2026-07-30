@@ -6,9 +6,6 @@ export const useGestureStore = defineStore("gestureStore", () => {
 
 	const isGesturing = ref(false);
 
-	const minZoom = ref(0.2);
-	const maxZoom = ref(50);
-
 	function setRenderedVpt(vpt: number[]) {
 		renderedVpt.value = [...vpt];
 	}
@@ -16,8 +13,6 @@ export const useGestureStore = defineStore("gestureStore", () => {
 	return {
 		renderedVpt,
 		isGesturing,
-		minZoom,
-		maxZoom,
 		setRenderedVpt,
 	};
 });

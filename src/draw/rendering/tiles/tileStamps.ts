@@ -1,5 +1,6 @@
 import { TileBaker } from "./tileBaker";
 import type { Bounded, WorldRect } from "./tileLayerBase";
+import { minimumTiledZoom } from "../zoomLevels";
 
 export class TileStamps<T extends Bounded> extends TileBaker<T> {
 	additiveStamp(rect: WorldRect, obj: T, tier: number): boolean {
@@ -265,8 +266,12 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 		return complete;
 	}
 
-	get minUsableZoom(): number {
-		return this.ZOOM_TIERS[0] / this.renderScale;
+	get minTiledZoom(): number {
+		return minimumTiledZoom(
+			this.renderScale,
+			this.ZOOM_TIERS,
+			this.OVERVIEW_TIER,
+		);
 	}
 	get maxUsableZoom(): number {
 		// Finest tier ÷ renderScale — past this we'd ask for a tier we never bake.

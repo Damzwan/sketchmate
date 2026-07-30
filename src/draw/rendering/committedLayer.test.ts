@@ -59,6 +59,14 @@ function fakeCtx() {
 }
 
 describe("CommittedLayer safety bounds", () => {
+	it("uses the first tile-backed tier as the minimum zoom", () => {
+		const layer = makeLayer();
+
+		expect(layer.pickActiveTier(layer.minTiledZoom)).toBeGreaterThan(
+			layer.overviewTier,
+		);
+	});
+
 	it("marks cross-tier tiles stale without closing their bitmaps", () => {
 		const layer = makeLayer() as any;
 		const stale = tile(3, 0, 0);

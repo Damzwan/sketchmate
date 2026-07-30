@@ -14,17 +14,6 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import * as transform from "@/draw/transform/transformController";
 
-const MIN_ZOOM = 0.2;
-let dynamicMinZoom = MIN_ZOOM;
-
-/**
- * Zoom clamps, re-read at the START of every gesture.
- *
- * These used to be captured ONCE when the gesture handlers were installed, so
- * the values reflected an empty canvas forever: the content-aware zoom-out
- * floor could never take effect, and a board that grew after setup was clamped
- * against limits computed before it had any content.
- */
 function zoomLimits() {
 	return useDrawObjectManager().getZoomLimits();
 }
@@ -99,8 +88,7 @@ export function enablePCGestures(c: Canvas) {
 				if (!isWheeling) {
 					cancelPendingSettle();
 					isWheeling = true;
-					limits = zoomLimits(); // content may have grown since the last gesture
-					dynamicMinZoom = limits.min;
+					limits = zoomLimits();
 					onGestureStart();
 					gestureStore.isGesturing = true;
 					c.fire("gestureStart");
@@ -108,7 +96,7 @@ export function enablePCGestures(c: Canvas) {
 
 				const rawZoomFactor = Math.exp(-e.deltaY / 300);
 				let newZoom = Math.max(
-					dynamicMinZoom,
+					limits.min,
 					Math.min(c.getZoom() * rawZoomFactor, limits.max),
 				);
 
@@ -270,8 +258,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 			c.skipTargetFind = true;
 			c.isDrawingMode = false;
 			cancelPreviousAction(c);
-			limits = zoomLimits(); // content may have grown since the last gesture
-			dynamicMinZoom = limits.min;
+			limits = zoomLimits();
 			cancelPendingSettle();
 			onGestureStart();
 			gestureStore.isGesturing = true;
@@ -316,7 +303,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 
 			const rawZoomFactor = scale / previousScale;
 			let newZoom = Math.max(
-				dynamicMinZoom,
+				limits.min,
 				Math.min(c.getZoom() * rawZoomFactor, limits.max),
 			);
 

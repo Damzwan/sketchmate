@@ -1,6 +1,7 @@
 import type { Canvas, FabricObject } from "fabric";
 import { getRenderDpr } from "../config/renderQuality.config";
 import type { RenderEngine } from "../rendering/renderEngine";
+import { minimumTiledZoom } from "../rendering/zoomLevels";
 import {
 	bakeryCancel,
 	bakeryPauseFlush,
@@ -101,30 +102,11 @@ export function createGestureController(options: GestureControllerOptions) {
 	}
 
 	function getZoomLimits() {
-		const canvas = options.getCanvas();
 		const renderEngine = engine();
-		if (!canvas || !renderEngine) return { min: 0.03125, max: 32 };
-
-		const { minZoom: min, maxZoom: max } = renderEngine;
-		const bounds = renderEngine.getContentBounds();
-		if (!bounds || bounds.w <= 0 || bounds.h <= 0) return { min, max };
-
-		try {
-			const element = canvas.getElement();
-			if (!element) return { min, max };
-
-			const dpr = getRenderDpr();
-			const viewportWidth = element.width / dpr;
-			const viewportHeight = element.height / dpr;
-			if (!(viewportWidth > 0) || !(viewportHeight > 0)) return { min, max };
-
-			const fitZoom =
-				Math.min(viewportWidth / bounds.w, viewportHeight / bounds.h) * 0.55;
-			return { min: Math.min(Math.max(min, fitZoom), 1), max };
-		} catch {
-			// The Pinia store can briefly retain a disposed canvas during re-entry.
-			return { min, max };
+		if (!renderEngine) {
+			return { min: minimumTiledZoom(getRenderDpr()), max: 16 };
 		}
+		return { min: renderEngine.minZoom, max: renderEngine.maxZoom };
 	}
 
 	return {

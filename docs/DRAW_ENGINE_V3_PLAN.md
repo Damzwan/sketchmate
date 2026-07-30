@@ -336,28 +336,20 @@ TypeError: Cannot read properties of undefined (reading 'el')
     at enablePCGestures (input/gestures.ts)
 ```
 
-The store is a pinia singleton that **outlives the canvas**. On re-entry
-`enableGestures` runs before `init(canvas)` rebinds `c`, so `c` still points at
-the previous session's disposed canvas and fabric's `getElement()` throws. A5's
-content-aware floor was the first thing to read the DOM element from there.
+The store is a Pinia singleton that **outlives the canvas**. The former
+content-aware limit read the old canvas element during setup. Zoom limits no
+longer inspect the canvas or DOM; they come directly from the render tier
+configuration.
 
-Guarded with try/catch falling back to the tier limits, which are always valid.
-Rule for this store: a UX refinement must never be able to break canvas setup —
-anything touching `c` outside a seam needs to tolerate a stale canvas.
+### A5 — fixed tile-backed zoom floor ✅ implemented
 
-### A5 — content-aware zoom floor + live limits ✅ implemented
+The earlier content-aware floor made navigation unpredictable: drawing farther
+from the center changed how far the same user could zoom out.
 
-`getZoomLimits()` was captured **once** at gesture-handler setup
-([`input/gestures.ts:73`](../src/draw/input/gestures.ts#L73),
-[`:194`](../src/draw/input/gestures.ts#L194)), so the value used for
-clamping never reflected the board that later grew. Now read per gesture.
-
-The floor itself is no longer a pure constant: it is
-`max(tierFloor, fitZoom × ZOOM_OUT_SLACK)` where `fitZoom` is the zoom at which
-`contentBounds` exactly fills the viewport. A user can zoom out until the
-drawing is comfortably framed plus some slack, and no further — which is what
-report #4 asks for, and it scales correctly for a lobby board with 40 drawings
-(large content → higher floor) versus a single sketch.
+The floor is now `firstTileBackedTier / renderScale`. With the default ladder,
+tiers `0` and `1` are overview-only, so tier `2` (`0.5`) defines the minimum.
+At render scale `2`, the viewport floor is therefore `0.25`. Content bounds no
+longer affect zoom limits.
 
 ### Z1 — retier ✅ implemented
 
@@ -368,9 +360,8 @@ report #4 asks for, and it scales correctly for a lobby board with 40 drawings
 
 Agreed with the report, and worth being explicit about what it buys:
 
-- `minUsableZoom` = `tiers[0] / renderScale` → 0.031 → **0.0625**. The removed
-  tier was the blurriest thing in the app and covered a zoom range no one
-  usefully draws at.
+- The ladder's mathematical floor moved from 0.031 to 0.0625 at render scale
+  `2`. Navigation now uses the stricter tile-backed floor from A5.
 - `maxUsableZoom` = `tiers[last] / renderScale` → 8 → **16**. An 8× ceiling is
   low for a sketch app; the added tier is baked at `MAX_RENDER_SCALE`, so it is
   genuinely sharper, not an upscale.
@@ -621,7 +612,7 @@ cohort.
 | A2 stamp-before-invalidate on transform commit | `transformController.ts`, `renderEngine.ts` |
 | A3 sub-tile dirty rects + partial stale overlay in `composite()` | `committedLayer.ts` |
 | A4 outward-snapped fallback + overview destinations | `committedLayer.ts`, `worldOverview.ts` |
-| A5 content-aware zoom floor, limits re-read per gesture | `canvas/drawObjectManager.ts`, `input/gestures.ts`, `renderEngine.ts` |
+| A5 fixed tile-backed zoom floor | `rendering/zoomLevels.ts`, `input/gestures.ts`, `canvas/viewport.ts` |
 | A6 batch-shared sync repair + adds replayed through the add path | `renderEngine.ts`, `committedLayer.ts`, `canvas/drawObjectManager.ts` |
 | A7 `markStale` for additive adds | `committedLayer.ts`, `renderEngine.ts` |
 | A8 style change: one merged invalidation, then one repair | `renderEngine.ts` |

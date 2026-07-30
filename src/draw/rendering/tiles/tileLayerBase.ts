@@ -7,6 +7,7 @@ import {
 	type WorldRect,
 } from "./tileGeometry";
 import { type Tile, TileStore } from "./tileStore";
+import { DEFAULT_OVERVIEW_TIER, DEFAULT_ZOOM_TIERS } from "../zoomLevels";
 
 export type { WorldRect } from "./tileGeometry";
 
@@ -253,21 +254,20 @@ export class TileLayerBase<T extends Bounded> {
 		this.OS = Math.max(0, opts.overscanPx ?? 2);
 		this.BMP = this.TILE + 2 * this.OS;
 		// Tier ladder. Shifted one step UP from [0.0625 … 16]:
-		//   • the old 0.0625 tier put the usable zoom floor at 0.031 (renderScale 2)
-		//     — a zoom nobody draws at, rendered from the coarsest data we have, and
-		//     the single blurriest thing in the app.
+		//   • the old 0.0625 tier covered a zoom nobody usefully draws at and
+		//     produced the blurriest overview fallback in the app.
 		//   • the added 32 tier lifts the ceiling from 8x to 16x. It BAKES at that
 		//     tier, so it is real detail, not an upscale.
 		// Count is unchanged (9), so tile memory and the fallback search depth are
 		// unchanged. NB `overviewTier` is an INDEX into this array — moving the
 		// ladder without moving that index silently doubles the pure-overview zone.
-		this.ZOOM_TIERS = opts.zoomTiers ?? [0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32];
+		this.ZOOM_TIERS = opts.zoomTiers ?? [...DEFAULT_ZOOM_TIERS];
 
 		this.POOL_MAX = opts.poolMax ?? 16;
 		this.remoteBaker = opts.remoteBaker;
 		// Index into ZOOM_TIERS, so it moved with the ladder (was 2 against
 		// [0.0625 … 16]). 1 keeps the same zoom threshold, 0.25.
-		this.OVERVIEW_TIER = opts.overviewTier ?? 1;
+		this.OVERVIEW_TIER = opts.overviewTier ?? DEFAULT_OVERVIEW_TIER;
 		this.CHUNK = opts.renderChunk ?? 64;
 		// How many tiers the fallback search may walk away from the active one.
 		// 3 was too shallow for the case that hurts most: zoom from 1x to 16x and

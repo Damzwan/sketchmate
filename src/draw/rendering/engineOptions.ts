@@ -4,6 +4,7 @@ import {
 	MAX_RENDER_SCALE,
 } from "@/draw/config/renderQuality.config";
 import type { RenderEngineOptions } from "@/draw/rendering/renderEngine";
+import { DEFAULT_OVERVIEW_TIER } from "@/draw/rendering/zoomLevels";
 
 export const isLowEndDrawDevice = IS_LOW_END_DEVICE;
 export const isMobileDrawDevice = IS_MOBILE_DEVICE;
@@ -18,8 +19,7 @@ export function createEngineOptions(): RenderEngineOptions {
 	return {
 		memoryBudgetMB,
 		overviewPx: isMobileDrawDevice ? 1024 : 2048,
-		// Tier 1 preserves the 0.25 overview threshold after the tier ladder shift.
-		overviewTier: 1,
+		overviewTier: DEFAULT_OVERVIEW_TIER,
 		liveMax: isLowEndDrawDevice ? 32 : 64,
 		tileSize: isMobileDrawDevice ? 384 : 512,
 		poolMax: isLowEndDrawDevice ? 3 : isMobileDrawDevice ? 4 : 8,

@@ -383,20 +383,21 @@ changed and the screen shows stale pixels.
 - **World space** — the infinite drawing coordinate system. Object bounds, quadtree
   entries, tile regions and the overview all live here.
 - **Screen/device space** — world through the viewport transform `vpt` and DPR.
-- **Zoom tiers** — `ZOOM_TIERS = [0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16]`.
+- **Zoom tiers** — `ZOOM_TIERS = [0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32]`.
   `pickActiveTier(zoom)` selects the tier ≥ effective zoom (×`renderScale`, with a
   1.15 tolerance). Each tier has its own tile grid; a tile's world size is
   `TILE / tier`.
-- **`OVERVIEW_TIER` (2)** — at or below this tier the overview *is* the picture;
+- **`OVERVIEW_TIER` (1)** — at or below this tier the overview *is* the picture;
   tiles aren't composited at all. Above it, tiles are authoritative and the
   overview only fills gaps.
 - **`renderScale`** — `min(devicePixelRatio, maxRenderScale)` (2 desktop, 1.5
   low-end). Caps the resolution we bake at.
-- **Tile size** — 512 px desktop, 256 px low-end, plus a 2 px overscan (`OS`) to
+- **Tile size** — 512 px desktop, 384 px mobile, plus a 2 px overscan (`OS`) to
   avoid seams.
 
-Usable zoom is clamped to `[ZOOM_TIERS[0], ZOOM_TIERS[last]] / renderScale` so we
-never ask for a tier we don't bake.
+Minimum zoom is the first tier above `OVERVIEW_TIER`, divided by `renderScale`.
+The viewport therefore never settles in the overview-only range. Maximum zoom
+is `ZOOM_TIERS[last] / renderScale`.
 
 ---
 

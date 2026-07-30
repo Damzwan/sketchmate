@@ -1,6 +1,6 @@
 import { Canvas, FabricObject, InteractiveFabricObject } from 'fabric'
-import { useDrawObjectManager } from '@/draw/store/drawObjectManager.store'
-import { useGestureStore } from '@/draw/store/tools/gesture.store'
+import { useDrawObjectManager } from '@/draw/canvas/drawObjectManager'
+import { useGestureStore } from '@/draw/tools/gesture.store'
 import { getRenderDpr } from '@/draw/config/renderQuality.config'
 
 interface Refs {

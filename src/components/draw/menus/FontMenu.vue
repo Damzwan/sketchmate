@@ -13,12 +13,12 @@
 
 <script lang="ts" setup>
 import { IonContent, IonItem, IonList, IonPopover } from "@ionic/vue";
-import { useDrawStore } from "@/draw/store/draw.store";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import { useMenuStore } from "@/store/menu.store";
-import { useSelect } from "@/draw/store/tools/select.store";
-import { DrawAction } from "@/draw/types/draw.types";
+import { useSelect } from "@/draw/tools/select.store";
+import { DrawAction } from "@/draw/actions/drawAction.types";
 import { IText } from "fabric";
 
 import { FONTS } from "@/draw/config/fonts.config";

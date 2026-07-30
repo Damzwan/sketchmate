@@ -36,11 +36,11 @@ import { storeToRefs } from "pinia";
 import { v4 as uuidv4 } from "uuid";
 
 // Stores
-import { useDrawStore } from "@/draw/store/draw.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useSessionStore } from "@/store/session.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useShareService } from "@/draw/store/useShareService.store";
+import { useShareService } from "@/draw/sharing/shareService.store";
 
 // Components
 import Toolbars from "@/components/draw/toolbar/Toolbars.vue";
@@ -53,7 +53,7 @@ import DrawExitGuard from "@/components/draw/DrawExitGuard.vue";
 // Services & Sockets
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 
 const route = useRoute();
 const router = useRouter();

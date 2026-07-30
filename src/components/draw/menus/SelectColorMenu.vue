@@ -117,15 +117,15 @@ import {
 } from "@ionic/vue";
 import { computed, ref } from "vue";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
-import { useDrawStore } from "@/draw/store/draw.store";
-import { DrawAction } from "@/draw/types/draw.types";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { DrawAction } from "@/draw/actions/drawAction.types";
 import { storeToRefs } from "pinia";
 import { useMenuStore } from "@/store/menu.store";
-import { useSelect } from "@/draw/store/tools/select.store";
-import { focusText, isText } from "@/draw/helpers/text.helper";
+import { useSelect } from "@/draw/tools/select.store";
+import { focusText, isText } from "@/draw/tools/textEditing";
 import { hexWithTransparencyToNormal } from "@/draw/utils/color.utils";
 import { BLACK } from "@/draw/config/canvas.config";
-import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { IText } from "fabric";
 
 const props = defineProps<{

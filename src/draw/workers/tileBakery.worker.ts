@@ -12,7 +12,7 @@
 //      there is no fetch, no CORS surprise, no double download, and no fake
 //      HTMLImageElement to keep fabric happy. The only DOM shim is a canvas.
 //
-// Consistency guarantees the main-side client (tileBakery.service.ts) relies on:
+// Consistency guarantees the main-thread bakery client relies on:
 //   • postMessage is FIFO and the handler below is FIFO-chained, so an upsert /
 //     translate posted before a bake is applied before that bake renders.
 //   • A bake for an id the mirror lacks replies { missing }; the client
@@ -36,7 +36,7 @@ import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
 import type {
 	BakeryRequest,
 	BakeryResponse,
-} from "@/draw/types/tileBakery.types";
+} from "@/draw/rendering/bakery/bakery.types";
 import { WORKER_FONTS } from "@/draw/config/workerFonts.config";
 
 // --- fonts -------------------------------------------------------------------

@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { storeToRefs } from "pinia";
 import { useToast } from "@/service/toast.service";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { useInboxStore } from "@/store/inbox.store";
 import { useBalloonStore } from "@/store/balloon.store";
 import { registerChatHandlers } from "@/service/api/socket/chat.socket";

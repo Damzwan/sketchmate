@@ -109,13 +109,13 @@
 import { IonIcon, IonPopover, IonRange } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { BrushType, DrawTool } from "@/draw/types/draw.types";
+import { BrushType, DrawTool } from "@/draw/tools/tool.types";
 import { mdiLock, mdiArrowRight } from "@mdi/js";
 import { isNative, svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
 import BrushTile from "./BrushTile.vue";
-import { usePen } from "@/draw/store/tools/pen.store";
+import { usePen } from "@/draw/tools/pen.store";
 import { Canvas, Point } from "fabric";
 import {
 	hexWithOpacity,
@@ -128,7 +128,7 @@ import {
 	penIconMapping,
 	PENMENUTOOLS,
 } from "@/draw/config/tools.config";
-import { useToolSelection } from "@/draw/store/tools/toolSelection.store";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useUnlockItem } from "@/composables/shop/useUnlockItem";
 import { buildItemId } from "@/config/catalog.config";

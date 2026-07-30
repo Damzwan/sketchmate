@@ -39,7 +39,7 @@ import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { useMenuStore } from '@/store/menu.store'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { usePen } from '@/draw/store/tools/pen.store'
+import { usePen } from '@/draw/tools/pen.store'
 import { hexWithOpacity, percentToAlphaHex } from '@/draw/utils/color.utils'
 
 const { bucketMenuOpen, menuEvent } = storeToRefs(useMenuStore())

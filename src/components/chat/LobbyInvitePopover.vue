@@ -67,7 +67,7 @@ import { ref, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { IonPopover } from '@ionic/vue'
 import { useFriendStore } from '@/store/friend.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { useDrawSyncer } from '@/draw/sync/session.store'
 import { inviteFriendToRoom } from '@/service/api/socket/drawSyncing.socket'
 import { useToast } from '@/service/toast.service'
 

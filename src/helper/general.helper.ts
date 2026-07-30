@@ -16,7 +16,7 @@ import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { Ref, watch } from "vue";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { useAuthStore } from "@/store/auth.store";
 import { useToast } from "@/service/toast.service";
 import { ToastDuration } from "@/types/toast.types";

@@ -62,7 +62,7 @@ import ProfileCard from "@/components/profile/ProfileCard.vue";
 import ProfileCardSkeleton from "@/components/profile/ProfileCardSkeleton.vue";
 import ProfilePost from "@/components/profile/ProfilePost.vue";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 
 const router = useIonRouter();

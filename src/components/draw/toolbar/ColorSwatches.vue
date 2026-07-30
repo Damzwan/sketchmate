@@ -54,10 +54,10 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { IonPopover, IonRange } from '@ionic/vue'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { useColorProfiles, type ColorProfile } from '@/draw/store/tools/colorProfiles.store'
-import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
-import { usePen } from '@/draw/store/tools/pen.store'
-import { DrawTool } from '@/draw/types/draw.types'
+import { useColorProfiles, type ColorProfile } from '@/draw/tools/colorProfiles.store'
+import { useToolSelection } from '@/draw/tools/toolSelection.store'
+import { usePen } from '@/draw/tools/pen.store'
+import { DrawTool } from "@/draw/tools/tool.types";
 import { hexWithOpacity, percentToAlphaHex } from '@/draw/utils/color.utils'
 
 const { profiles, activeIndex } = storeToRefs(useColorProfiles())

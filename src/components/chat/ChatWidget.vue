@@ -135,7 +135,7 @@ import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { masterAnimation } from "@/helper/animation.helper";
 import { FRONTEND_ROUTES } from "@/types/router.types";

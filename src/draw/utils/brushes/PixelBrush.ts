@@ -1,6 +1,6 @@
 import { BaseBrush, Canvas, FabricObject, Point } from "fabric";
 import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
-import { getTopContextEpoch } from "@/draw/helpers/render.helper";
+import { getTopContextEpoch } from "@/draw/rendering/fabricRenderState";
 import * as fabric from "fabric";
 
 export class PixelBrush extends BaseBrush {

@@ -20,7 +20,7 @@ built the way it is, where it hurts today, and what to do next.
 2. [Why a custom renderer](#why-a-custom-renderer)
 3. [Architecture at a glance](#architecture-at-a-glance)
 4. [The layers](#the-layers)
-   - [RenderCore — the orchestrator](#rendercore--the-orchestrator)
+   - [RenderEngine — the orchestrator](#rendercore--the-orchestrator)
    - [CommittedLayer — the tiled cache](#committedlayer--the-tiled-cache)
    - [WorldOverview — the low-res base](#worldoverview--the-low-res-base)
    - [LiveLayer — in-flight objects](#livelayer--in-flight-objects)
@@ -87,11 +87,10 @@ We keep everything Fabric is genuinely good at — the object model, serializati
 (`toObject`/`enlivenObjects`), hit-testing, controls, and the input/transform
 pipeline — and we take over **only the pixels**.
 
-`changeFabricSettings()` in
-[`fabricDefaults.helper.ts`](../src/draw/helpers/fabricDefaults.helper.ts) is
-where Fabric is reconfigured for this: `objectCaching = false` globally,
-`renderOnAddRemove = false`, custom `findTarget`/`__onMouseDown`/`__onMouseUp`/
-`handleSelection`, and custom control rendering.
+[`fabricSetup.ts`](../src/draw/canvas/fabricSetup.ts) applies global Fabric
+defaults once. Per-canvas target finding, mouse handling, selection, and
+transforms live in
+[`fabricInteractions.ts`](../src/draw/canvas/fabricInteractions.ts).
 
 ---
 
@@ -108,7 +107,7 @@ where Fabric is reconfigured for this: `objectCaching = false` globally,
                                          │  spatialIndex.query(rect) → z-sorted objs
                                          ▼
                          ┌──────────────────────────────────────────┐
-                         │                RenderCore                 │
+                         │                RenderEngine                 │
                          │  frame loop · bake loop · coalescing      │
                          └───┬───────────────┬───────────────┬───────┘
                              │               │               │
@@ -134,26 +133,33 @@ Files:
 
 | Concern | File |
 | --- | --- |
-| Orchestrator | [`renderCore.ts`](../src/draw/renderCore.ts) |
-| Tiled cache | [`committedLayer.ts`](../src/draw/committedLayer.ts) |
-| Low-res base | [`worldOverview.ts`](../src/draw/worldOverview.ts) |
-| In-flight objects | [`liveLayer.ts`](../src/draw/liveLayer.ts) |
-| Spatial index + fabric glue | [`store/drawObjectManager.store.ts`](../src/draw/store/drawObjectManager.store.ts) |
+| Render engine entry | [`rendering/renderEngine.ts`](../src/draw/rendering/renderEngine.ts) |
+| Frames, baking, invalidation, and overview | [`rendering/coordination/`](../src/draw/rendering/coordination/) |
+| Committed tile-cache entry | [`rendering/committedLayer.ts`](../src/draw/rendering/committedLayer.ts) |
+| Tile geometry, compositing, baking, and stamps | [`rendering/tiles/`](../src/draw/rendering/tiles/) |
+| Low-res base | [`rendering/worldOverview.ts`](../src/draw/rendering/worldOverview.ts) |
+| In-flight objects | [`rendering/liveLayer.ts`](../src/draw/rendering/liveLayer.ts) |
+| Canvas/engine bridge | [`canvas/drawObjectManager.ts`](../src/draw/canvas/drawObjectManager.ts) |
+| Fabric events and interactions | [`canvas/`](../src/draw/canvas/) |
+| Gestures and shortcuts | [`input/`](../src/draw/input/) |
+| Spatial index and z-order | [`objects/indexing/`](../src/draw/objects/indexing/) |
 | Quadtree | [`utils/QuadTree.ts`](../src/draw/utils/QuadTree.ts) |
 | Drag layer | [`transform/transformController.ts`](../src/draw/transform/transformController.ts) |
-| Tile object renderer | [`helpers/drawTileRenderer.helper.ts`](../src/draw/helpers/drawTileRenderer.helper.ts) |
-| Cooperative yielding | [`helpers/yielding.helper.ts`](../src/draw/helpers/yielding.helper.ts) |
-| Fabric overrides | [`helpers/fabricDefaults.helper.ts`](../src/draw/helpers/fabricDefaults.helper.ts) |
+| Tile object renderer | [`rendering/fabricTileRenderer.ts`](../src/draw/rendering/fabricTileRenderer.ts) |
+| Cooperative yielding | [`scheduling/yielder.ts`](../src/draw/scheduling/yielder.ts) |
+| Fabric setup and interactions | [`canvas/`](../src/draw/canvas/) |
 | Orphaned bake worker | [`workers/tile.worker.ts`](../src/draw/workers/tile.worker.ts) |
 
 ---
 
 ## The layers
 
-### RenderCore — the orchestrator
+### RenderEngine — the orchestrator
 
-[`renderCore.ts`](../src/draw/renderCore.ts) owns two loops and all the lifecycle
-seams the store delegates to.
+[`renderEngine.ts`](../src/draw/rendering/renderEngine.ts) is the only public
+engine entry. Frame, bake, invalidation, and overview behavior live in focused
+modules under
+[`rendering/coordination/`](../src/draw/rendering/coordination/).
 
 - **Frame loop** — `requestFrame()` schedules one `requestAnimationFrame`;
   `renderNow()` clears the canvas, composites the committed tiles, then composites
@@ -164,7 +170,7 @@ seams the store delegates to.
   under the viewport. Bakes are abortable (`AbortController`) and re-entrancy-safe
   (`baking` / `bakeAgain`).
 
-RenderCore also implements the cleverness that keeps things smooth:
+RenderEngine also implements the cleverness that keeps things smooth:
 
 - **Viewport gating** — off-screen edits invalidate cheaply but never take a live
   slot or schedule a composite.
@@ -184,7 +190,9 @@ RenderCore also implements the cleverness that keeps things smooth:
 
 ### CommittedLayer — the tiled cache
 
-[`committedLayer.ts`](../src/draw/committedLayer.ts) is the heart. Core idea:
+[`committedLayer.ts`](../src/draw/committedLayer.ts) is the only public tile-cache
+entry. Geometry, storage, compositing, baking, and stamping live under
+[`tiles/`](../src/draw/rendering/tiles/). Core idea:
 
 > A tile is a **pure function** of *(the objects intersecting its region, a
 > generation counter)*. Tiles are **never mutated in place** during normal
@@ -249,7 +257,7 @@ Items carry a TTL (`NORMAL_TTL_MS` 5 s, `ERASE_TTL_MS` 1.5 s) so a missed
 demotion can never leave the layer permanently full. `gcExpired()` returns expired
 normal rects so their overview patch (deferred at add time) can be folded in.
 
-**Demotion** (`demoteSettled` in RenderCore): once a live object's region is fully
+**Demotion** (`demoteSettled` in RenderEngine): once a live object's region is fully
 baked, remove it from the live layer and fold its rect into the overview — one
 extra frame ensures the semi-transparent stroke isn't drawn twice (live + tile).
 
@@ -259,7 +267,7 @@ extra frame ensures the semi-transparent stroke isn't drawn twice (live + tile).
 
 ### Spatial index (drawObjectManager + QuadTree)
 
-[`drawObjectManager.store.ts`](../src/draw/store/drawObjectManager.store.ts) is the
+[`drawObjectManager.ts`](../src/draw/canvas/drawObjectManager.ts) is the
 bridge between Fabric and the engine, and the owner of the spatial index.
 
 - **`InfiniteQuadtreeManager`** ([`QuadTree.ts`](../src/draw/utils/QuadTree.ts)) —
@@ -298,7 +306,7 @@ skipping the object's own modified-events until its tiles land.
 
 ### The tile renderer
 
-[`drawTileRenderer.helper.ts`](../src/draw/helpers/drawTileRenderer.helper.ts) —
+[`drawTileRenderer.helper.ts`](../src/draw/rendering/fabricTileRenderer.ts) —
 `isolatedTileRenderer(ctx, obj)` renders a single object into a tile. It forces
 `visible = true` (guards against transient undefined-visible during load),
 `objectCaching = false` (render directly, never blit a stale per-object cache),
@@ -310,7 +318,7 @@ historical super-linear erase lag).
 
 ### The yielder
 
-[`yielding.helper.ts`](../src/draw/helpers/yielding.helper.ts) — a cooperative
+[`yielding.helper.ts`](../src/draw/scheduling/yielder.ts) — a cooperative
 scheduler. `createYielder({ budgetMs })` gives back a `shouldYield()` /
 `yield()` pair. `shouldYield()` is true when the per-frame time budget is spent
 **or** `navigator.scheduling.isInputPending()` reports pending input. `yield()`
@@ -423,18 +431,18 @@ The engine is **local** — it renders whatever is in the Fabric canvas. Multipl
 and undo/redo are separate systems that mutate the canvas, and those mutations
 reach the engine through the same seams as local edits.
 
-- **Bundle split.** `drawSyncing.store.ts` is *light* room/lobby state (no fabric
-  imports). `drawSyncEngine.store.ts` is the *heavy* canvas-sync engine, loaded
+- **Bundle split.** `sync/session.store.ts` is *light* room/lobby state (no fabric
+  imports). `sync/drawSyncEngine.ts` is the *heavy* canvas-sync engine, loaded
   only inside a live session. This keeps the fabric/render engine out of the
   app-start bundle. (See `docs`-adjacent memory `draw-bundle-split`.)
 - **Wire.** The client emits `draw-event { roomId, action }`; the server
   (`sketchmate_server`) buffers by **spreading** `action` into a replay buffer and
   re-broadcasts to peers (mixed client versions v1/v2/v3, with legacy bridge paths
   for snapshots). Remote actions are applied via `drawSyncingMapping`
-  ([`config/drawSyncing.config.ts`](../src/draw/config/drawSyncing.config.ts)),
+  ([`sync/syncActions.ts`](../src/draw/sync/syncActions.ts)),
   which calls the same history/action helpers as local edits.
-- **History.** `drawHistoryManager.store.ts` records undo/redo actions; the
-  handlers in `config/drawHistory.config.ts` + `helpers/history/*` apply them,
+- **History.** `history/history.store.ts` records undo/redo actions; the
+  handlers in `history/historyActions.ts` + `history/operations/*` apply them,
   wrapped in `beginBatch/endBatch` so a multi-region undo coalesces into one
   invalidation. Object moves are stored as **diffs** (`getObjectDiff`) and applied
   in bulk (`applyObjectModificationsBulk`), which tracks old and new footprints

@@ -113,7 +113,7 @@ import {
 	IonIcon,
 	IonSpinner,
 } from "@ionic/vue";
-import { DrawingDraft } from "@/draw/store/drawLoad.store";
+import { DrawingDraft } from "@/draw/document/document.store";
 import {
 	mdiDeleteOutline,
 	mdiDotsVertical,

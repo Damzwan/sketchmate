@@ -101,14 +101,14 @@ import {
 	ShareToast,
 	ShareToastKind,
 	useShareToastStore,
-} from "@/draw/store/useShareToastStore.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+} from "@/draw/sharing/shareToast.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
 import Lottie from "@/components/general/Lottie.vue";
 import { useMenuStore } from "@/store/menu.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { useRoute } from "vue-router";
 import { computed } from "vue";
 import { FRONTEND_ROUTES } from "@/types/router.types";

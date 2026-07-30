@@ -152,8 +152,7 @@ the repair path was reached at all.
 
 `drawHistoryManager.undo()` / `redo()` wrap *every* action in
 `beginBatch()`/`endBatch()`
-([:520](../src/draw/store/drawHistoryManager.store.ts#L520),
-[:544](../src/draw/store/drawHistoryManager.store.ts#L544)). Batch mode routed
+([history.store.ts](../src/draw/history/history.store.ts)). Batch mode routed
 everything through `noteRegion()` → one `invalidateRegions()` at flush, which
 did **logical invalidation only**. Two consequences:
 
@@ -234,7 +233,7 @@ main-thread clip renders), so the whole thing sat on the overview until the
 worker came back.
 
 The two rects mean different things and now get different treatment, via
-`RenderCore.invalidateChanged(changedRect, rebakeRect, maxSyncTiles)`:
+`RenderEngine.invalidateChanged(changedRect, rebakeRect, maxSyncTiles)`:
 
 - `rebakeRect` (the union) → `markStale`: those tiles must re-render from
   objects whose clips changed, but their pixels are not wrong yet.
@@ -333,8 +332,8 @@ exact clip rects.
 
 ```
 TypeError: Cannot read properties of undefined (reading 'el')
-    at getZoomLimits (drawObjectManager.store.ts)
-    at enablePCGestures (gestures.helper.ts)
+    at getZoomLimits (canvas/drawObjectManager.ts)
+    at enablePCGestures (input/gestures.ts)
 ```
 
 The store is a pinia singleton that **outlives the canvas**. On re-entry
@@ -349,8 +348,8 @@ anything touching `c` outside a seam needs to tolerate a stale canvas.
 ### A5 — content-aware zoom floor + live limits ✅ implemented
 
 `getZoomLimits()` was captured **once** at gesture-handler setup
-([`gestures.helper.ts:73`](../src/draw/helpers/gestures.helper.ts#L73),
-[`:194`](../src/draw/helpers/gestures.helper.ts#L194)), so the value used for
+([`input/gestures.ts:73`](../src/draw/input/gestures.ts#L73),
+[`:194`](../src/draw/input/gestures.ts#L194)), so the value used for
 clamping never reflected the board that later grew. Now read per gesture.
 
 The floor itself is no longer a pure constant: it is
@@ -501,15 +500,27 @@ prologue) is the bottleneck.
 
 ## Phase 4 — de-god-ing the modules
 
-Pure mechanical extraction, no behaviour change, one module per commit, existing
-tests as the guard. Facades keep every call site identical.
+Pure mechanical extraction, no behaviour change, with existing tests as the
+guard.
+
+**Status: complete.** Each subsystem has one public entry:
+
+- `rendering/renderEngine.ts` exports `RenderEngine`.
+- `rendering/committedLayer.ts` exports `CommittedLayer`.
+- `canvas/drawObjectManager.ts` connects Fabric to the render engine.
+
+The implementation folders are deliberately internal:
+`rendering/coordination/` owns scheduling and invalidation,
+`rendering/tiles/` owns the committed cache, and `rendering/bakery/` owns worker
+support. Fabric integration lives in `canvas/`, gestures in `input/`, and object
+lookup in `objects/indexing/`.
 
 | File | Now | Split into |
 | --- | --- | --- |
-| `committedLayer.ts` | 1435 | `tiles/tileGeometry.ts` (tier math, ranges, world↔tile) · `tiles/tileStore.ts` (map, gen, dirtyRects, memory/LRU, pool) · `tiles/tileCompositor.ts` (composite, findBestSource) · `tiles/tileBaker.ts` (bake, rebuildTile, local render, overlaySkipped) · `tiles/tileStamps.ts` (additive/erase/bitmap) |
-| `renderCore.ts` | 1013 | `core/frameScheduler.ts` · `core/bakeScheduler.ts` · `core/overviewCoordinator.ts` (patch queue, rebuild scheduling) · `core/invalidation.ts` (the seams) |
-| `drawObjectManager.store.ts` | 1263 | `index/spatialIndex.ts` · `index/zIndex.ts` · `index/fabricEventBridge.ts` · `index/engineOptions.ts` |
-| `tileBakery.service.ts` | 1227 | `bakery/protocol.ts` · `bakery/health.ts` · `bakery/mirrorSync.ts` · `bakery/assets.ts` |
+| `committedLayer.ts` | 1435 | `rendering/tiles/tileGeometry.ts` · `tileStore.ts` · `tileCompositor.ts` · `tileBaker.ts` · `tileStamps.ts` |
+| `renderEngine.ts` | 1013 | `rendering/coordination/renderFrames.ts` · `renderBakeCoordinator.ts` · `renderInvalidationCoordinator.ts` · `renderOverviewCoordinator.ts` |
+| `drawObjectManager.ts` | 1263 | `objects/indexing/spatialIndex.ts` · `zIndex.ts` · `canvas/fabricEventBridge.ts` · `input/gestureController.ts` · `rendering/liveObjectRenderer.ts` |
+| `tileBakeryClient.ts` | 1227 | `rendering/bakery/protocol.ts` · `health.ts` · `assets.ts` |
 
 Ordering rule: **do this after Phase 1 lands and before Phase 3.** Phase 3
 rewrites the bake path; doing it inside a 1400-line file is how the previous 21
@@ -538,7 +549,7 @@ required:
 
 ### B2 — scripted scenarios, driven at the engine API
 
-`src/draw/testing/benchScenarios.ts`, each a pure sequence against `RenderCore`
+`src/draw/testing/benchScenarios.ts`, each a pure sequence against `RenderEngine`
 with a fake `Surface`: `zoomInLadder`, `zoomOutLadder`, `panSweep`,
 `undoRedoStorm`, `remoteAddBurst`, `moveSelection`, `eraseSweep`,
 `gestureDuringBake` (the R20 case).
@@ -607,18 +618,18 @@ cohort.
 | Change | Files |
 | --- | --- |
 | A1 `Tile.usable` + `invalidateKey` as the single invalidation door | `committedLayer.ts` |
-| A2 stamp-before-invalidate on transform commit | `transformController.ts`, `renderCore.ts` |
+| A2 stamp-before-invalidate on transform commit | `transformController.ts`, `renderEngine.ts` |
 | A3 sub-tile dirty rects + partial stale overlay in `composite()` | `committedLayer.ts` |
 | A4 outward-snapped fallback + overview destinations | `committedLayer.ts`, `worldOverview.ts` |
-| A5 content-aware zoom floor, limits re-read per gesture | `drawObjectManager.store.ts`, `gestures.helper.ts`, `renderCore.ts` |
-| A6 batch-shared sync repair + adds replayed through the add path | `renderCore.ts`, `committedLayer.ts`, `drawObjectManager.store.ts` |
-| A7 `markStale` for additive adds | `committedLayer.ts`, `renderCore.ts` |
-| A8 style change: one merged invalidation, then one repair | `renderCore.ts` |
-| A9 erase undo/redo: changed-rect vs rebake-rect split | `renderCore.ts`, `drawObjectManager.store.ts`, `history/erase.helper.ts` |
-| A10 stale cross-tier fallbacks with hole punch, depth 3→5, vacated-region repair, `dropOtherTiers` after stamp | `committedLayer.ts`, `renderCore.ts`, `transformController.ts` |
+| A5 content-aware zoom floor, limits re-read per gesture | `canvas/drawObjectManager.ts`, `input/gestures.ts`, `renderEngine.ts` |
+| A6 batch-shared sync repair + adds replayed through the add path | `renderEngine.ts`, `committedLayer.ts`, `canvas/drawObjectManager.ts` |
+| A7 `markStale` for additive adds | `committedLayer.ts`, `renderEngine.ts` |
+| A8 style change: one merged invalidation, then one repair | `renderEngine.ts` |
+| A9 erase undo/redo: changed-rect vs rebake-rect split | `renderEngine.ts`, `canvas/drawObjectManager.ts`, `history/erase.helper.ts` |
+| A10 stale cross-tier fallbacks with hole punch, depth 3→5, vacated-region repair, `dropOtherTiers` after stamp | `committedLayer.ts`, `renderEngine.ts`, `transformController.ts` |
 | A11 coverage is a partition, one source per pixel; shared-edge fragment snap | `committedLayer.ts` |
-| A12 `getZoomLimits` tolerates a stale canvas | `drawObjectManager.store.ts` |
-| Z1/Z2 ladder `[0.125 … 32]`, `overviewTier: 1` | `committedLayer.ts`, `drawObjectManager.store.ts` |
+| A12 `getZoomLimits` tolerates a stale canvas | `canvas/drawObjectManager.ts` |
+| Z1/Z2 ladder `[0.125 … 32]`, `overviewTier: 1` | `committedLayer.ts`, `canvas/drawObjectManager.ts` |
 
 Guarded by 6 new cases in `committedLayer.test.ts` (stamped-tile compositing,
 partial overlay, whole-tile edit, `markStale` showability, rect union,

@@ -1,6 +1,6 @@
 import { Canvas, FabricObject } from 'fabric'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
-import { useDrawLoadStore } from '@/draw/store/drawLoad.store'
+import { useDrawSyncer } from '@/draw/sync/session.store'
+import { useDocumentStore } from '@/draw/document/document.store'
 
 /**
  * 🎨 EZPZ Canvas Debugger (Advanced Edition)
@@ -18,7 +18,7 @@ export function setupCanvasDebugger(canvas: Canvas) {
     // console.log("after:render")
   })
   // const syncer = useDrawSyncer()
-  // const loadStore = useDrawLoadStore()
+  // const loadStore = useDocumentStore()
   //
   // let pipelineStart = 0, framesTaken = 0, isInspecting = false
   // let sortedReport: any[] = [], currentIndex = 0

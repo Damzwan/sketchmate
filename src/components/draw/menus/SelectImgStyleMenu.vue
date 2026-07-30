@@ -22,7 +22,7 @@
 <script lang="ts" setup>
 import { IonContent, IonList, IonPopover, IonToggle, IonItem, IonIcon } from '@ionic/vue'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { DrawAction } from '@/draw/types/draw.types'
+import { DrawAction } from "@/draw/actions/drawAction.types";
 import { computed } from 'vue'
 import { svg } from '@/helper/general.helper'
 import { mdiClose } from '@mdi/js'

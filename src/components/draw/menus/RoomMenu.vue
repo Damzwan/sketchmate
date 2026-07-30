@@ -190,7 +190,7 @@ import { mdiAccountPlus, mdiCamera, mdiShareVariant } from "@mdi/js";
 import QrcodeVue from "qrcode.vue";
 
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useScanner } from "@/service/scanner.service";
@@ -200,11 +200,11 @@ import { createRoomLink, shareUrl } from "@/helper/share.helper";
 
 import LobbyInvitePopover from "@/components/chat/LobbyInvitePopover.vue";
 import ActiveLobbies from "@/components/home/ActiveLobbies.vue";
-import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { useDocumentStore } from "@/draw/document/document.store";
 import { useToast } from "@/service/toast.service";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import {
 	hydrateCustomization,
 	resolveTheme,
@@ -263,7 +263,7 @@ function createRoom() {
 
 async function joinRoom(joinCode: string) {
 	if (joinCode == "") return;
-	const { exitWithBackgroundSave, hasContent } = useDrawLoadStore();
+	const { exitWithBackgroundSave, hasContent } = useDocumentStore();
 	if (hasContent()) {
 		const { toast } = useToast();
 		toast("Saving draft before joining...");

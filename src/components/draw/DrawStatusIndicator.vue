@@ -25,11 +25,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
-import { useShareService } from "@/draw/store/useShareService.store";
-import { useBucket } from "@/draw/store/tools/bucket.store";
-import { useDrawStore } from "@/draw/store/draw.store";
-import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { useShareService } from "@/draw/sharing/shareService.store";
+import { useBucket } from "@/draw/tools/bucket.store";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 
 const drawSyncer = useDrawSyncer();
 const { isSending } = storeToRefs(useShareService());

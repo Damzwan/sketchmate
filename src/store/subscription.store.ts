@@ -23,7 +23,7 @@ import {
 } from "@/config/catalog.config";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useShareToastStore } from "@/draw/store/useShareToastStore.store";
+import { useShareToastStore } from "@/draw/sharing/shareToast.store";
 
 /**
  * Subscription + shop-purchase store.

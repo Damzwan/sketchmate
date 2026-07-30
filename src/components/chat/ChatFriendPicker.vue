@@ -157,7 +157,7 @@ import { useFriendStore } from "@/store/friend.store";
 import { useUserCacheStore } from "@/store/userCache.store";
 import { useMenuStore } from "@/store/menu.store";
 import { hydrateCustomization } from "@/config/profile_options.config";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 
 const props = defineProps<{
 	minChatVersion: string;

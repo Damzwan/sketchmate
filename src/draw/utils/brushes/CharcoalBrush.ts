@@ -1,7 +1,7 @@
 import { BaseBrush, Point, Canvas, FabricObject } from "fabric";
 import * as fabric from "fabric";
 import { enlivenStrokeProps, TEXTURE_SUPERSAMPLE } from "@/draw/utils/brushes/brush.helpers";
-import { getTopContextEpoch } from "@/draw/helpers/render.helper";
+import { getTopContextEpoch } from "@/draw/rendering/fabricRenderState";
 
 // --- Utility: Deterministic Generator ---
 export function seededRandom(seed: number) {

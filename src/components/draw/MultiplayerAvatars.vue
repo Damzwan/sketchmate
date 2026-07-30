@@ -25,8 +25,8 @@
 
 <script setup lang="ts">
 import { IonAvatar } from '@ionic/vue'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useGestureStore } from '@/draw/store/tools/gesture.store'
+import { useDrawUIStore } from '@/draw/ui/drawUI.store'
+import { useGestureStore } from '@/draw/tools/gesture.store'
 import { storeToRefs } from 'pinia'
 
 const { activeAvatars } = storeToRefs(useDrawUIStore())

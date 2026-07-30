@@ -80,10 +80,10 @@ import StickerEmblemSavedItem from "@/components/draw/menus/stickersEmblemsSaved
 
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useDrawStore } from "@/draw/store/draw.store";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { useToast } from "@/service/toast.service";
 
-import { DrawAction } from "@/draw/types/draw.types";
+import { DrawAction } from "@/draw/actions/drawAction.types";
 import { svg } from "@/helper/general.helper";
 import {
 	fetchSavedDrawings,

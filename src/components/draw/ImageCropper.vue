@@ -25,7 +25,7 @@ import { FRONTEND_ROUTES } from '@/types/router.types'
 // import 'cropperjs/dist/cropper.min.css'
 import Cropper from 'cropperjs'
 import { ref } from 'vue'
-import { useDrawStore } from '@/draw/store/draw.store'
+import { useDrawStore } from '@/draw/session/draw.store'
 import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
 
 const { cropperMenuOpen } = storeToRefs(useMenuStore())

@@ -34,8 +34,8 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { IonButton } from '@ionic/vue'
-import { useSelect } from '@/draw/store/tools/select.store'
-import { useDrawStore } from '@/draw/store/draw.store'
+import { useSelect } from '@/draw/tools/select.store'
+import { useDrawStore } from '@/draw/session/draw.store'
 import { IText } from 'fabric'
 import { storeToRefs } from 'pinia'
 import { useMenuStore } from '@/store/menu.store'

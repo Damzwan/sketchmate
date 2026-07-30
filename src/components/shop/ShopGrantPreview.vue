@@ -71,7 +71,7 @@ import {
 	resolveFontEffectClass,
 	FONTS,
 } from "@/config/profile_options.config";
-import { BrushType } from "@/draw/types/draw.types";
+import { BrushType } from "@/draw/tools/tool.types";
 import { penBrushMapping } from "@/draw/config/tools.config";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";

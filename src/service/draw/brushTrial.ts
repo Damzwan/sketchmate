@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { Preferences } from '@capacitor/preferences'
-import { BrushType } from '@/draw/types/draw.types'
+import { BrushType } from "@/draw/tools/tool.types";
 
 const BRUSH_USAGE_KEY_PREFIX = 'brush_usage_'
 const LAST_RESET_KEY = 'brush_usage_last_reset'

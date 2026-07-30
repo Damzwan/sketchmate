@@ -93,7 +93,7 @@ import { AppReview } from '@capawesome/capacitor-app-review'
 import { useSubscriptionStore } from '@/store/subscription.store'
 import { setFeedbackOptOut, submitFeedback } from '@/service/api/user.api'
 import { useInventoryStore } from '@/store/inventory.store'
-import { useShareToastStore } from '@/draw/store/useShareToastStore.store'
+import { useShareToastStore } from '@/draw/sharing/shareToast.store'
 
 enum FeedbackOptions {
   like = 'like',

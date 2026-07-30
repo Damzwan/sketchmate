@@ -1,9 +1,9 @@
 import * as fabric from "fabric";
 import { Canvas, FabricObject, Group, Path, PencilBrush } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
-import { bakeryMarkDirty } from "@/draw/services/tileBakery.service";
+import { bakeryMarkDirty } from "@/draw/rendering/bakery/tileBakeryClient";
 import { stripType, toObjectWithoutPath } from "@/draw/utils/brushes/brush.helpers";
-import { createYielder } from "@/draw/helpers/yielding.helper";
+import { createYielder } from "@/draw/scheduling/yielder";
 
 const IS_MOBILE_ERASE =
 	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);

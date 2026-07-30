@@ -52,7 +52,7 @@ export function getDrawRenderBackend(): DrawRenderBackend {
 
 /**
  * Persist a cohort choice. This intentionally does not hot-swap a live canvas:
- * RenderCore captures its baker during construction and changing it mid-bake
+ * RenderEngine captures its baker during construction and changing it mid-bake
  * would make the comparison both unsafe and meaningless.
  */
 export function setDrawRenderBackend(backend: DrawRenderBackend): boolean {

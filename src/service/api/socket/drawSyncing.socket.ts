@@ -3,12 +3,12 @@ import { storeToRefs } from "pinia";
 import {
 	PublicLobby,
 	useDrawSyncer,
-} from "@/draw/store/drawSyncing.store";
+} from "@/draw/sync/session.store";
 import router from "@/router";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useChatStore } from "@/store/chat.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { EventBus } from "@/main";
 import { v4 as uuidv4 } from "uuid";
 import { fetchPublicLobbies } from "@/service/api/user.api";

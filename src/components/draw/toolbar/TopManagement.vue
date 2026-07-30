@@ -111,7 +111,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useMenuStore } from "@/store/menu.store";
 import ToolButton from "./ToolButton.vue";
 import {
@@ -124,7 +124,7 @@ import {
 	mdiSend,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import SendHub from "../send/SendHub.vue";
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
@@ -147,7 +147,7 @@ import {
 	modalController,
 	type ToggleCustomEvent,
 } from "@ionic/vue";
-import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { useDocumentStore } from "@/draw/document/document.store";
 import ReportUserMenu from "@/components/moderation/ReportUserMenu.vue";
 import SavePopover from "./SavePopover.vue";
 import {
@@ -165,7 +165,7 @@ const { openMenu } = useMenuStore();
 const { isLoggedIn, user } = storeToRefs(useAuthStore());
 const { openPanel } = useChatWidgetStore();
 const { isSaving, isDirty, sessionHasContent } = storeToRefs(
-	useDrawLoadStore(),
+	useDocumentStore(),
 );
 
 const { totalUnreadCount } = storeToRefs(useChatStore());

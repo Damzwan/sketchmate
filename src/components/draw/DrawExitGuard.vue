@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onBeforeRouteLeave } from "vue-router";
 import { modalController, useBackButton, useIonRouter } from "@ionic/vue";
-import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
-import { useDrawStore } from "@/draw/store/draw.store";
+import { useDocumentStore } from "@/draw/document/document.store";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { onUnmounted, ref, watch } from "vue";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { slideTransition } from "@/helper/animation.helper";
-import { useDrawUIStore } from "@/draw/store/drawUI.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import DrawExitModal from "@/components/draw/DrawExitModal.vue";
 import { useSessionStore } from "@/store/session.store";
 
@@ -16,7 +16,7 @@ const props = defineProps<{
 }>();
 
 const router = useIonRouter();
-const loadStore = useDrawLoadStore();
+const documentStore = useDocumentStore();
 const drawStore = useDrawStore();
 const uiStore = useDrawUIStore();
 
@@ -36,18 +36,18 @@ watch(() => uiStore.exitRequested, requestExit);
 
 const commitExit = (goBack = true) => {
 	isNavigationConfirmed = true;
-	loadStore.stopAutosave();
+	documentStore.stopAutosave();
 
 	if (!props.isLobby) {
 		const canvas = drawStore.getCanvas();
 		const totalObjects = canvas ? canvas.getObjects().length : 0;
-		const isPreExistingDraft = loadStore.isPreExistingDraft || false;
+		const isPreExistingDraft = documentStore.isPreExistingDraft || false;
 
 		// FIX: Drop empty drawings from cache tracking completely if they were previous records
 		if (totalObjects === 0 && isPreExistingDraft) {
-			loadStore.removeDraft(props.draftId);
+			documentStore.removeDraft(props.draftId);
 		} else {
-			loadStore.exitWithBackgroundSave();
+			documentStore.exitWithBackgroundSave();
 		}
 	}
 
@@ -71,7 +71,7 @@ const resolveExit = async (): Promise<boolean> => {
 
 	const canvas = drawStore.getCanvas();
 	const totalObjects = canvas ? canvas.getObjects().length : 0;
-	const isPreExistingDraft = loadStore.isPreExistingDraft || false;
+	const isPreExistingDraft = documentStore.isPreExistingDraft || false;
 
 	// Flag determining whether exit causes an implicit wipe out execution
 	const isEmptyDeletion =

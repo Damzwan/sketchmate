@@ -57,17 +57,17 @@ import TopBar from "../components/general/TopBar.vue";
 import ActiveLobbies from "../components/home/ActiveLobbies.vue";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { masterAnimation } from "@/helper/animation.helper";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import {
 	refreshPublicLobbies,
 	startWatchingLobbies,
 } from "@/service/api/socket/drawSyncing.socket";
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import MyDrafts from "@/components/home/MyDrafts.vue";
-import { DrawingDraft, useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { DrawingDraft, useDocumentStore } from "@/draw/document/document.store";
 import CommunityFeed from "@/components/home/CommunityFeed.vue";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { useAuthStore } from "@/store/auth.store";
 import Lottie from "@/components/general/Lottie.vue";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
@@ -89,8 +89,8 @@ const { publicLobbies } = storeToRefs(drawSyncerStore);
 const { openMenu } = useMenuStore();
 const { isUnderAge } = storeToRefs(useAuthStore());
 
-const loadStore = useDrawLoadStore();
-const { pendingDraftsList, removedDraftIds } = storeToRefs(loadStore);
+const documentStore = useDocumentStore();
+const { pendingDraftsList, removedDraftIds } = storeToRefs(documentStore);
 
 const localDrafts = ref<DrawingDraft[]>([]);
 const isLoadingDrafts = ref(true);
@@ -220,7 +220,7 @@ watch(
 
 const fetchDraftsBackground = async () => {
 	try {
-		localDrafts.value = await loadStore.getAllDrafts();
+		localDrafts.value = await documentStore.getAllDrafts();
 	} catch (error) {
 		console.error("[home] background fetch failed:", error);
 	}
@@ -249,7 +249,7 @@ const joinLobby = (lobbyId: string) => {
 const fetchDrafts = async () => {
 	isLoadingDrafts.value = true;
 	try {
-		localDrafts.value = await loadStore.getAllDrafts();
+		localDrafts.value = await documentStore.getAllDrafts();
 	} finally {
 		isLoadingDrafts.value = false;
 	}
@@ -257,7 +257,7 @@ const fetchDrafts = async () => {
 
 const handleDeleteDraft = async (id: string) => {
 	try {
-		await loadStore.removeDraft(id);
+		await documentStore.removeDraft(id);
 		localDrafts.value = localDrafts.value.filter((d) => d.id !== id);
 	} catch (error) {
 		console.error("[home] delete failed:", error);

@@ -65,8 +65,9 @@ import {
   mdiVectorLine,
   mdiVectorPolygon
 } from '@mdi/js'
-import { DrawAction, Shape } from '@/draw/types/draw.types'
-import { useDrawStore } from '@/draw/store/draw.store'
+import { DrawAction } from "@/draw/actions/drawAction.types";
+import { Shape } from "@/draw/tools/tool.types";
+import { useDrawStore } from '@/draw/session/draw.store'
 import { storeToRefs } from 'pinia'
 import { useMenuStore } from '@/store/menu.store'
 

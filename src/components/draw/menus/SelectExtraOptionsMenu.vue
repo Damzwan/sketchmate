@@ -53,7 +53,7 @@
 </template>
 
 <script lang="ts" setup>
-import { DrawAction } from '@/draw/types/draw.types'
+import { DrawAction } from "@/draw/actions/drawAction.types";
 import { svg } from '@/helper/general.helper'
 import {
   mdiContentCopy,
@@ -67,11 +67,11 @@ import {
   mdiFlipVertical
 } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
-import { useDrawStore } from '@/draw/store/draw.store'
+import { useDrawStore } from '@/draw/session/draw.store'
 import { storeToRefs } from 'pinia'
 import { useMenuStore } from '@/store/menu.store'
-import { useSelect } from '@/draw/store/tools/select.store'
-import { toObjectsIds } from '@/draw/helpers/object.helper'
+import { useSelect } from '@/draw/tools/select.store'
+import { toObjectsIds } from '@/draw/objects/objectSerialization'
 
 const { selectAction } = useDrawStore()
 const { selectedObjectsRef } = storeToRefs(useSelect())

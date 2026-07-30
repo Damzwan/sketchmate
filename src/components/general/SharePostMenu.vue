@@ -163,8 +163,8 @@ import { useAuthStore } from '@/store/auth.store'
 import { useFriendStore } from '@/store/friend.store'
 import { useMenuStore } from '@/store/menu.store'
 import { useToast } from '@/service/toast.service'
-import { Menu } from '@/draw/types/draw.types'
-import { useShareService } from '@/draw/store/useShareService.store'
+import { Menu } from "@/types/menu.types";
+import { useShareService } from '@/draw/sharing/shareService.store'
 
 const authStore = useAuthStore()
 const friendStore = useFriendStore()

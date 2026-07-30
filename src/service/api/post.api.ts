@@ -1,6 +1,6 @@
 import { request } from "./http";
 import { FeedPost } from "@/types/server.types";
-import type { PresignedUploadBundle } from "@/draw/shareDrawings";
+import type { PresignedUploadBundle } from "@/draw/sharing/shareDrawings";
 
 export interface PublishPostParams {
 	drawing_url: string;

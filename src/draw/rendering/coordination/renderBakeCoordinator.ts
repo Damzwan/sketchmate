@@ -6,7 +6,7 @@ export abstract class RenderBakeCoordinator<
 > extends RenderFrames<T> {
 	// ── bake ─────────────────────────────────────────────────────────────────
 	scheduleBake(): void {
-		if (this.gesturing || this.loading || this.erasing) return;
+		if (this.gesturing || this.loading || this.erasing || this.mutating) return;
 		if (this.baking) {
 			this.bakeAgain = true;
 			return;
@@ -42,7 +42,7 @@ export abstract class RenderBakeCoordinator<
 		}
 	}
 	protected async runBake(): Promise<void> {
-		if (this.gesturing || this.loading || this.erasing) return;
+		if (this.gesturing || this.loading || this.erasing || this.mutating) return;
 		if (this.baking) {
 			this.bakeAgain = true;
 			return;

@@ -6,12 +6,17 @@ import { RenderInvalidationCoordinator } from "./renderInvalidationCoordinator";
 export abstract class RenderOverviewCoordinator<
 	T extends Bounded,
 > extends RenderInvalidationCoordinator<T> {
+	/** Dense overview regions being subdivided instead of triggering a full
+	 *  O(scene) rebuild. Never merged — see scheduleOverviewSplitDrain. */
+	protected overviewSplitQueue: WorldRect[] = [];
+	protected overviewSplitTimer: any = null;
+
 	// ── gesture / loading / erase seams ──────────────────────────────────────
 	setGesturing(on: boolean): void {
 		this.gesturing = on;
 		if (on) this.abortBakes();
 		else {
-			this.flushPendingOverview(); // regions we panned toward may now be visible
+			if (!this.erasing) this.flushPendingOverview();
 			this.requestFrame();
 			this.scheduleBake();
 			// abortBakes() may have killed a rebuild mid-flight. It left the overview
@@ -34,9 +39,32 @@ export abstract class RenderOverviewCoordinator<
 		this.erasing = on;
 		if (on) this.abortBakes();
 		else {
+			if (!this.gesturing) this.flushPendingOverview();
 			this.requestFrame();
 			this.scheduleBake();
 		}
+	}
+
+	/**
+	 * Open/close a multi-step scene mutation (one history op, or a whole burst of
+	 * them while the user holds undo).
+	 *
+	 * Baking is suspended for the duration. A history op applies its clip/object
+	 * changes one at a time and YIELDS between them, so without this a bake runs
+	 * against a half-applied scene and stores the result as a fresh tile — the
+	 * permanent holes after undo spam. Frames keep running, so the user still
+	 * sees each step.
+	 */
+	setMutating(on: boolean): void {
+		if (this.mutating === on) return;
+		this.mutating = on;
+		if (on) {
+			this.abortBakes();
+			return;
+		}
+		if (!this.gesturing && !this.erasing) this.flushPendingOverview();
+		this.requestFrame();
+		this.scheduleBake();
 	}
 
 	pickActiveTier(zoom: number): number {
@@ -124,23 +152,16 @@ export abstract class RenderOverviewCoordinator<
 	 * an O(objects-in-region) clip+redraw per invisible edit.
 	 */
 	protected patchOverview(rect: WorldRect): void {
-		// GESTURING defers too. patchRect is a synchronous render of up to
+		// Active gestures and erase bursts defer too. patchRect is a synchronous
+		// render of up to
 		// overviewPatchMax objects into the overview canvas — the same class of
 		// main-thread block as a bake, and it lands on a gesture frame. It gets
 		// there via renderNow's gcExpired(): a live overlay whose demote never
 		// happened (because the bake was aborted) hits its TTL mid-gesture and
 		// folds itself into the overview right then. Defer to the flush that
-		// setGesturing(false) already performs.
-		if (this.gesturing || !this.intersectsView(rect)) {
-			this.pendingOverview.push({ ...rect });
-			if (this.pendingOverview.length > 256) {
-				// The overflow valve must not become a way for a gesture frame to run
-				// the very patchRect we just deferred. Collapse to one bounding rect
-				// instead — pure arithmetic, and the flush at gesture end patches the
-				// union (or, if it's too dense, falls through to the async rebuild).
-				if (this.gesturing) this.coalescePendingOverview();
-				else this.flushPendingOverview();
-			}
+		// the interaction-end flush already performs.
+		if (this.gesturing || this.erasing || !this.intersectsView(rect)) {
+			this.deferOverview(rect);
 			return;
 		}
 		// Cost is gated by OBJECT COUNT, not area: patchRect re-renders only the
@@ -151,8 +172,85 @@ export abstract class RenderOverviewCoordinator<
 		// spot during a fast drag. The count gate clears that footprint instantly
 		// when it's sparse, and still defers genuinely dense regions.
 		if (this.committed.overview.patchRect(rect, this.overviewPatchMax)) return;
-		this.committed.overview.markDirty();
-		this.scheduleOverviewRebuild();
+		this.splitOverviewPatch(rect);
+	}
+
+	/**
+	 * A patch that is too dense is SPLIT, not escalated to a full rebuild.
+	 *
+	 * `patchRect` refuses a region holding more than `overviewPatchMax` objects,
+	 * and the old answer was `markDirty()` + `scheduleOverviewRebuild()` — an
+	 * O(whole scene) re-render (measured 267–472 ms) to fix a region that might
+	 * be a few percent of the board. On a dense drawing an erase burst tripped
+	 * that repeatedly.
+	 *
+	 * Quadrants hold roughly a quarter of the objects each, so one or two splits
+	 * puts every piece under the cap. Total work stays proportional to the
+	 * objects in the ORIGINAL rect (only boundary objects render twice), and the
+	 * pieces are drained on a time budget instead of in one block. A full
+	 * rebuild remains the last resort for a region too small to split — that
+	 * means genuinely thousands of objects in a few world units.
+	 */
+	protected splitOverviewPatch(rect: WorldRect): void {
+		const MIN_SPLIT = 8; // world units
+		if (
+			rect.w <= MIN_SPLIT ||
+			rect.h <= MIN_SPLIT ||
+			this.overviewSplitQueue.length >= 512 ||
+			// Outside the bitmap's mapping (content grew). No subdivision of it can
+			// ever be patched — only a rebuild, which re-maps to the new bounds.
+			!this.committed.overview.covers(rect)
+		) {
+			this.committed.overview.markDirty();
+			this.scheduleOverviewRebuild();
+			return;
+		}
+		const hw = rect.w / 2;
+		const hh = rect.h / 2;
+		this.overviewSplitQueue.push(
+			{ x: rect.x, y: rect.y, w: hw, h: hh },
+			{ x: rect.x + hw, y: rect.y, w: hw, h: hh },
+			{ x: rect.x, y: rect.y + hh, w: hw, h: hh },
+			{ x: rect.x + hw, y: rect.y + hh, w: hw, h: hh },
+		);
+		this.scheduleOverviewSplitDrain();
+	}
+
+	/**
+	 * Drain split pieces on a time budget. Deliberately NOT the `pendingOverview`
+	 * queue: that one merges nearby rects at flush time, which would glue the
+	 * quadrants straight back into the rect they came from — an endless
+	 * split/merge loop.
+	 */
+	protected scheduleOverviewSplitDrain(): void {
+		if (this.overviewSplitTimer !== null) return;
+		this.overviewSplitTimer = setTimeout(() => {
+			this.overviewSplitTimer = null;
+			if (this.gesturing || this.loading || this.erasing || this.mutating) {
+				this.scheduleOverviewSplitDrain();
+				return;
+			}
+			const budgetMs = 8;
+			const t0 = performance.now();
+			while (this.overviewSplitQueue.length) {
+				if (performance.now() - t0 >= budgetMs) break;
+				const piece = this.overviewSplitQueue.shift()!;
+				if (!this.committed.overview.patchRect(piece, this.overviewPatchMax)) {
+					this.splitOverviewPatch(piece);
+				}
+			}
+			if (this.overviewSplitQueue.length) this.scheduleOverviewSplitDrain();
+			else this.requestFrame();
+		}, 0);
+	}
+
+	protected deferOverview(rect: WorldRect): void {
+		this.pendingOverview.push({ ...rect });
+		if (this.pendingOverview.length <= 256) return;
+
+		// Never turn queue pressure into synchronous rendering on an interaction.
+		// Arithmetic coalescing is cheap; the next bake/settle flush does the paint.
+		this.coalescePendingOverview();
 	}
 
 	/** Collapse the deferred-patch queue to a single bounding rect. Allocation
@@ -184,7 +282,6 @@ export abstract class RenderOverviewCoordinator<
 		if (this.pendingOverview.length === 0) return;
 		const rects = this.mergeRects(this.pendingOverview);
 		this.pendingOverview = [];
-		let needRebuild = false;
 		const t0 = performance.now();
 		for (let i = 0; i < rects.length; i++) {
 			if (i > 0 && performance.now() - t0 >= budgetMs) {
@@ -193,12 +290,9 @@ export abstract class RenderOverviewCoordinator<
 					this.pendingOverview.push(rects[j]);
 				break;
 			}
+			// Too dense → subdivide instead of escalating to a full rebuild.
 			if (!this.committed.overview.patchRect(rects[i], this.overviewPatchMax))
-				needRebuild = true;
-		}
-		if (needRebuild) {
-			this.committed.overview.markDirty();
-			this.scheduleOverviewRebuild();
+				this.splitOverviewPatch(rects[i]);
 		}
 	}
 
@@ -237,6 +331,11 @@ export abstract class RenderOverviewCoordinator<
 			cancelAnimationFrame(this.remoteRaf);
 			this.remoteRaf = 0;
 		}
+		if (this.overviewSplitTimer !== null) {
+			clearTimeout(this.overviewSplitTimer);
+			this.overviewSplitTimer = null;
+		}
+		this.overviewSplitQueue = [];
 		this.pendingRemote = null;
 		this.pendingOverview = [];
 		this.live.clear();

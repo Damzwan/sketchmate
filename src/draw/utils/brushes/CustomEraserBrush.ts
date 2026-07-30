@@ -4,6 +4,11 @@ import { ClippingGroup } from "@erase2d/fabric";
 import { bakeryMarkDirty } from "@/draw/rendering/bakery/tileBakeryClient";
 import { stripType, toObjectWithoutPath } from "@/draw/utils/brushes/brush.helpers";
 import { createYielder } from "@/draw/scheduling/yielder";
+import {
+	FLATTEN_ERASE_CLIP_AFTER,
+	LIVE_ERASE_STROKES,
+} from "@/draw/history/eraseUndoPolicy";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
 
 const IS_MOBILE_ERASE =
 	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
@@ -430,16 +435,16 @@ export class CustomEraserBrush extends PencilBrush {
 	 * otherwise grows with every erase and makes repeated erasing super-linear.
 	 * Set to 0 to disable (keep fully-vector clips).
 	 */
-	flattenClipAfter = 50;
+	flattenClipAfter = FLATTEN_ERASE_CLIP_AFTER;
 
 	/**
 	 * When a flatten fires, this many of the NEWEST stroke children are kept as
 	 * individual vectors (with their ids) so undo — which removes a stroke from
 	 * the clip by id — still works for recent erases. Only the older overflow is
 	 * baked into the single union image. Keep this comfortably above the erase
-	 * undo depth a user realistically reaches on ONE object; MAX_HISTORY is 50.
+	 * undo depth retained by history.
 	 */
-	keepVectorClips = 40;
+	keepVectorClips = LIVE_ERASE_STROKES;
 
 	private eventEmitter: EventTarget;
 	private active = false;
@@ -747,7 +752,12 @@ export class CustomEraserBrush extends PencilBrush {
 		const result = new Map<fabric.FabricObject, fabric.Path>();
 		const yielder = createYielder({ budgetMs: IS_MOBILE_ERASE ? 4 : 8 });
 		for (const object of targets) {
-			result.set(object, await eraseObject(object, path));
+			const startedAt = performance.now();
+			try {
+				result.set(object, await eraseObject(object, path));
+			} finally {
+				recordPhase("eraseClipApply", performance.now() - startedAt);
+			}
 			if (yielder.shouldYield()) await yielder.yield();
 		}
 
@@ -823,7 +833,14 @@ export class CustomEraserBrush extends PencilBrush {
 		if (!(cg instanceof ClippingGroup)) return;
 
 		const children = cg.getObjects();
-		if (children.length <= this.flattenClipAfter) return;
+		const bakedImages = children.filter((child) => child.type === "image");
+		const vectorStrokes = children.filter((child) => child.type !== "image");
+		if (
+			vectorStrokes.length <= this.flattenClipAfter &&
+			bakedImages.length <= 1
+		) {
+			return;
+		}
 
 		// PARTIAL flatten: bake only the OLDEST overflow, keep the newest
 		// `keepVectorClips` as individual vector children WITH their stroke ids so
@@ -831,7 +848,13 @@ export class CustomEraserBrush extends PencilBrush {
 		// destination-out is commutative over the mask union, so baking a subset
 		// and keeping the rest yields the identical hole. (A full flatten wiped
 		// EVERY id, which is why undo stopped matching the original.)
-		const toBake = children.slice(0, children.length - this.keepVectorClips);
+		const vectorOverflow = vectorStrokes.slice(
+			0,
+			Math.max(0, vectorStrokes.length - this.keepVectorClips),
+		);
+		// Include an existing baked image so every compaction replaces it instead
+		// of accumulating one image child per batch.
+		const toBake = [...bakedImages, ...vectorOverflow];
 		if (toBake.length === 0) return;
 
 		// Render the union of the existing strokes' SHAPES (force source-over so
@@ -858,7 +881,9 @@ export class CustomEraserBrush extends PencilBrush {
 		if (area > MAX_BAKE_PX) multiplier *= Math.sqrt(MAX_BAKE_PX / area);
 
 		// @ts-ignore — toCanvasElement exists on Group
+		const flattenStartedAt = performance.now();
 		const el: HTMLCanvasElement = union.toCanvasElement({ multiplier });
+		recordPhase("eraseClipFlatten", performance.now() - flattenStartedAt);
 		if (!el.width || !el.height) return;
 
 		const baked = new fabric.Image(el, {
@@ -909,8 +934,10 @@ export class CustomEraserBrush extends PencilBrush {
 		// limit; dropping the oldest just makes those very old erases
 		// un-undoable, which is exactly the pre-fix behaviour.
 		const RETAIN_CAP = 400;
-		const prevRetained: FabricObject[] = (object as any).__bakedClipStrokes ?? [];
-		let retained = [...prevRetained, ...toBake];
+		const prevRetained: FabricObject[] = (
+			(object as any).__bakedClipStrokes ?? []
+		).filter((child: FabricObject) => child.type !== "image");
+		let retained = [...prevRetained, ...vectorOverflow];
 		if (retained.length > RETAIN_CAP) {
 			const drop = retained.slice(0, retained.length - RETAIN_CAP);
 			drop.forEach((s) => (s as any).dispose?.());

@@ -192,6 +192,20 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 				// null → refused (interleaved z / all-unshippable) or failed: local below.
 			}
 
+			// SUB-RECT REPAIR. If this tile still holds a bitmap and we know exactly
+			// which sub-region an edit invalidated, repaint only that — same trick as
+			// the synchronous path. An erase (or its undo) marks a thin trail dirty,
+			// yet a full local bake re-renders every object in the tile at ~25 ms
+			// each. Only valid when nothing else has already dropped the bitmap.
+			const known = this.dirtyRects.get(key);
+			if (known && this.tiles.get(key)?.bitmap) {
+				const __tRepair = performance.now();
+				if (this.repairTileRegionSync(tier, tx, ty, known)) {
+					recordPhase("localBake", performance.now() - __tRepair);
+					return;
+				}
+			}
+
 			// LOCAL FALLBACK. The worker refused this tile (or is paused/failed), so
 			// every object in it rasterizes HERE, on the main thread. Timed because it
 			// is the single biggest per-object main-thread block in the engine and the
@@ -370,7 +384,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 					recordPhase("rebuildSync", performance.now() - __t0);
 					return count;
 				}
-				this.rebuildTileSync(tier, tx, ty);
+				this.rebuildTileSync(tier, tx, ty, rect);
 				count++;
 			}
 		}
@@ -378,7 +392,139 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		return count;
 	}
 
-	protected rebuildTileSync(tier: number, tx: number, ty: number): void {
+	/**
+	 * Repair only the part of a tile an edit actually touched.
+	 *
+	 * A full `rebuildTileSync` re-renders EVERY object in the tile — on a dense
+	 * board that is tens of objects, each with an eraser ClippingGroup whose mask
+	 * fabric rasterizes at tier resolution. Measured at ~13 ms per call (max
+	 * 268 ms) during an erase-undo burst, for edits whose changed region is a
+	 * thin eraser trail covering a few percent of the tile.
+	 *
+	 * When the tile already holds a bitmap and we know WHERE it went wrong
+	 * (`dirtyRects`), the correct repair is: keep the bitmap, clear just that
+	 * sub-rect, and re-render only the objects intersecting it, in z-order,
+	 * clipped to it. Cost then scales with the edit, not with the tile.
+	 *
+	 * Falls back to the full rebuild when the sub-rect is unknown, covers most
+	 * of the tile anyway, or the tile has no bitmap to patch.
+	 */
+	private repairTileRegionSync(
+		tier: number,
+		tx: number,
+		ty: number,
+		changed: WorldRect,
+	): boolean {
+		const key = `${tier}:${tx}:${ty}`;
+		const tile = this.tiles.get(key);
+		if (!tile?.bitmap) return false;
+
+		// A repair marks the tile FRESH, so it must cover EVERYTHING still owed on
+		// this tile — not merely the region the current caller cares about.
+		//
+		// The caller's rect is one edit. A tile can be carrying several: erase A
+		// invalidates region A and its bake is still pending when undo B repairs
+		// region B of the same tile. Repairing only B and declaring the tile fresh
+		// silently drops A — the erase hole from A stays on screen for the rest of
+		// the session, and nothing will ever invalidate it again. That is the
+		// residual "small permanent holes", and it is worst early on, when the
+		// cache is cold and several tiles carry a backlog at once.
+		//
+		// `dirtyRects` is the authoritative record of what is owed:
+		//   rect      → repair the union of it and the caller's rect
+		//   null      → whole tile is wrong; a sub-rect repair cannot be correct
+		//   undefined → nothing recorded. Fine if the tile is fresh (a forced
+		//               repair), never fine if it is stale for reasons unknown.
+		const owed = this.dirtyRects.get(key);
+		if (owed === null) return false;
+		const isFresh = tile.builtGen === (this.gen.get(key) ?? 0);
+		if (owed === undefined && !isFresh) return false;
+		if (owed) {
+			const ux = Math.min(owed.x, changed.x);
+			const uy = Math.min(owed.y, changed.y);
+			const ux2 = Math.max(owed.x + owed.w, changed.x + changed.w);
+			const uy2 = Math.max(owed.y + owed.h, changed.y + changed.h);
+			changed = { x: ux, y: uy, w: ux2 - ux, h: uy2 - uy };
+		}
+
+		const scale = this.ZOOM_TIERS[tier];
+		const world = this.tileToWorld(tier, tx, ty);
+		// Intersect with the tile's own world rect, padded like a normal bake so
+		// stroke width and antialiasing at the seam are redrawn, never clipped.
+		const pad = this.OS / scale + 4 / scale;
+		const x0 = Math.max(world.x - pad, changed.x - pad);
+		const y0 = Math.max(world.y - pad, changed.y - pad);
+		const x1 = Math.min(world.x + world.w + pad, changed.x + changed.w + pad);
+		const y1 = Math.min(world.y + world.h + pad, changed.y + changed.h + pad);
+		if (x1 <= x0 || y1 <= y0) return false;
+		const sub: WorldRect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+
+		// Not worth the extra bitmap copy if we would redraw most of the tile.
+		const tileArea = (world.w + 2 * pad) * (world.h + 2 * pad);
+		if (sub.w * sub.h > tileArea * 0.6) return false;
+
+		const objects = this.index.query(sub);
+		const builtGen = this.gen.get(key) ?? 0;
+
+		const off = this.acquire();
+		const c2d = off.getContext("2d");
+		if (!c2d) {
+			this.release(off);
+			return false;
+		}
+		c2d.setTransform(1, 0, 0, 1, 0, 0);
+		c2d.clearRect(0, 0, this.BMP, this.BMP);
+		try {
+			c2d.drawImage(tile.bitmap, 0, 0);
+		} catch {
+			this.release(off);
+			return false;
+		}
+		c2d.save();
+		c2d.translate(this.OS, this.OS);
+		c2d.scale(scale, scale);
+		c2d.translate(-world.x, -world.y);
+		c2d.beginPath();
+		c2d.rect(sub.x, sub.y, sub.w, sub.h);
+		c2d.clip();
+		// Clear inside the clip, then repaint that region from scratch in z-order.
+		c2d.clearRect(sub.x, sub.y, sub.w, sub.h);
+		for (let i = 0; i < objects.length; i++) {
+			try {
+				this.renderer(c2d as any, objects[i], scale, sub);
+			} catch (err) {
+				if (this.debug) console.warn("[Committed] region repair threw", err);
+			}
+		}
+		c2d.restore();
+
+		let bmp: ImageBitmap;
+		try {
+			bmp = off.transferToImageBitmap();
+		} catch {
+			this.release(off);
+			return false;
+		}
+		this.release(off);
+		const bytes = this.BMP * this.BMP * 4;
+		if (!this.ensureMemory(bytes)) {
+			bmp.close();
+			return false;
+		}
+		this.store(key, tier, tx, ty, bmp, bytes, builtGen);
+		return true;
+	}
+
+	protected rebuildTileSync(
+		tier: number,
+		tx: number,
+		ty: number,
+		changed?: WorldRect,
+	): void {
+		// Sub-rect repair first: an erase (or its undo) changes a thin trail, not a
+		// whole tile, and re-rendering every object in the tile was the dominant
+		// `rebuildSync` cost. Falls through to the full rebuild when it declines.
+		if (changed && this.repairTileRegionSync(tier, tx, ty, changed)) return;
 		const scale = this.ZOOM_TIERS[tier];
 		const world = this.tileToWorld(tier, tx, ty);
 		const pad = this.OS / scale + 4 / scale;

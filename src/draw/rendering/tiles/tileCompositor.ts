@@ -54,7 +54,17 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 
 		if (tier <= this.OVERVIEW_TIER) {
 			this.overview.composite(ctx, vpt, px, dpr, vw);
-			recordComposite(performance.now() - __t0all, 0, 0, 0);
+			recordComposite(
+				performance.now() - __t0all,
+				0,
+				0,
+				0,
+				this.tiles.size,
+				this.memoryBytes,
+				this.MEM_HARD,
+				this.dirtyRects.size,
+				this.inFlight.size,
+			);
 			return { needsBake: this.overview.isDirty() };
 		}
 
@@ -383,6 +393,11 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 			tileDrawMs,
 			searchMs,
 			presentN + fallback.length + partialN,
+			this.tiles.size,
+			this.memoryBytes,
+			this.MEM_HARD,
+			this.dirtyRects.size,
+			this.inFlight.size,
 		);
 
 		// bottom instrumentation hook (debug only)

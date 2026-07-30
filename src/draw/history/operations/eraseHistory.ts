@@ -6,6 +6,8 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { useEraser } from "@/draw/tools/eraser.store";
 import { WorldRect } from "@/draw/rendering/committedLayer";
 import { createYielder } from "@/draw/scheduling/yielder";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { stripClipStrokes } from "@/draw/history/operations/eraseClip";
 
 const IS_MOBILE_ERASE =
 	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
@@ -198,11 +200,7 @@ export async function handleErasedAction(
 		}
 
 		const footprint = strokeFootprint(enlivenedStroke);
-		const rect = footprint
-			? unionBounds(objects)
-				? unionRect(footprint, unionBounds(objects))
-				: footprint
-			: unionBounds(objects);
+		const rect = footprint ?? unionBounds(objects);
 
 		if (rect) {
 			// Redo of a plain erase IS the original erase: punch the stroke
@@ -216,12 +214,8 @@ export async function handleErasedAction(
 			) {
 				mgr.eraseStampCommit(enlivenedStroke, rect);
 			} else {
-				// Off-thread repair: the worker rebakes the region (erased objects are
-				// shippable), so only a couple of sync tiles under the cursor — not 8
-				// main-thread clip renders — are needed for instant feedback.
-				// `footprint` is passed separately because it is the only region whose
-				// PIXELS change; `rect` (the union with every touched object's bounds)
-				// only needs a re-bake. Blurring the union was blurring the drawing.
+				// Off-thread repair is limited to the stroke footprint. Clip changes
+				// cannot alter pixels elsewhere on the affected objects.
 				mgr.dropRegionEraseUndo(rect, footprint ?? undefined);
 			}
 		}
@@ -253,12 +247,38 @@ export async function handleErasedAction(
 			}
 		}
 
+		// A restored object carries the clip it had when the sweep DELETED it —
+		// including erases that have since been undone.
+		//
+		// Two eraser strokes that INTERSECT are what expose this. Stroke A and
+		// stroke B both erase object O; together they consume it, so O's clip
+		// snapshot at deletion holds {A, B} and O is recorded as deleted by
+		// whichever action's sweep ran. Undo B does nothing to O (it is off the
+		// canvas). Undo A restores O from the snapshot and removes only A — so O
+		// comes back still erased by B, whose undo already happened. That erase is
+		// now permanent: a hole exactly where the strokes crossed. Non-intersecting
+		// strokes never share an object, which is why they always undo cleanly.
+		//
+		// Everything on the redo stack is undone by definition, so its strokes must
+		// not survive the restore.
+		if (restoredObjects.length) {
+			const undone = ctx.undoneEraseStrokeIds();
+			if (undone.size) {
+				for (const obj of restoredObjects) {
+					stripClipStrokes(obj as fabric.Object, undone);
+				}
+			}
+		}
+
 		const objectsOnCanvas = getObjectsById(objectIds);
 		const allAffected = [...objectsOnCanvas, ...restoredObjects];
 
 		for (const canvasObj of allAffected) {
 			if (!canvasObj || !canvasObj.clipPath) continue;
-			if (!removeStrokeFromClip(canvasObj, strokeId)) {
+			const startedAt = performance.now();
+			const removed = removeStrokeFromClip(canvasObj, strokeId);
+			recordPhase("eraseClipUndo", performance.now() - startedAt);
+			if (!removed) {
 				// Not removable as vector OR baked (id truly gone — e.g. dropped past
 				// RETAIN_CAP): this object keeps the erase. Surface it rather than fail
 				// silently.
@@ -282,12 +302,7 @@ export async function handleErasedAction(
 		}
 
 		const footprint = strokeFootprint(enlivenedStroke);
-		const uBounds = unionBounds(allAffected);
-		const rect = footprint
-			? uBounds
-				? unionRect(footprint, uBounds)
-				: footprint
-			: uBounds;
+		const rect = footprint ?? unionBounds(allAffected);
 
 		// Un-erase ADDS pixels back, so tiles must re-render from objects — no
 		// stamp possible. The worker rebakes the region off-thread (erased objects
@@ -295,9 +310,7 @@ export async function handleErasedAction(
 		// couple of sync tiles are done on the main thread for instant feedback;
 		// the async bake + overview cover the rest. The old 8-tile sync repair,
 		// rendering every touched object's clip group, was the erase-undo jank.
-		// Only the eraser stroke's own footprint changes pixels (the hole fills back
-		// in); the union with every affected object's bounds is just what has to
-		// re-bake. Passing both keeps the rest of those objects sharp.
+		// Only the eraser stroke's footprint changes when the hole fills back in.
 		if (rect) mgr.dropRegionEraseUndo(rect, footprint ?? undefined);
 	}
 
@@ -360,27 +373,4 @@ function strokeFootprint(
 	} catch {
 		return null;
 	}
-}
-
-function intersectRect(
-	a: WorldRect | null,
-	b: WorldRect | null,
-): WorldRect | null {
-	if (!a) return b;
-	if (!b) return a;
-	const x1 = Math.max(a.x, b.x),
-		y1 = Math.max(a.y, b.y);
-	const x2 = Math.min(a.x + a.w, b.x + b.w),
-		y2 = Math.min(a.y + a.h, b.y + b.h);
-	return x2 <= x1 || y2 <= y1 ? null : { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
-}
-
-function unionRect(a: WorldRect | null, b: WorldRect | null): WorldRect | null {
-	if (!a) return b;
-	if (!b) return a;
-	const x1 = Math.min(a.x, b.x),
-		y1 = Math.min(a.y, b.y);
-	const x2 = Math.max(a.x + a.w, b.x + b.w),
-		y2 = Math.max(a.y + a.h, b.y + b.h);
-	return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
 }

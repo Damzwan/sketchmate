@@ -117,6 +117,29 @@ export function createDrawObjectManager() {
 		return true;
 	}
 
+	/**
+	 * Erase undo/redo region repair, batch-aware.
+	 *
+	 * Holding undo queues one history op per keypress, and each one used to run a
+	 * full repair pass: a synchronous tile rebuild, an overview patch and a bake
+	 * of the whole invalidated region. Measured over a 23s erase session that was
+	 * 163 sync repairs (2.1s) and 307 overview patches (0.9s) of pure main-thread
+	 * time, most of it immediately thrown away by the next undo.
+	 *
+	 * Inside a batch the changed rect just joins the batch — ONE repair for the
+	 * whole burst. The re-bake region is still marked stale immediately, since
+	 * that is bookkeeping only (no rendering) and keeps the tiles showable.
+	 */
+	function dropRegionEraseUndo(rect: WorldRect, changedRect?: WorldRect) {
+		if (isBatching()) {
+			localTransform.invalidateCache();
+			if (changedRect) renderEngine?.markRegionStale(rect);
+			batchRects.push(changedRect ?? rect);
+			return;
+		}
+		gestures.dropEraseRegion(rect, changedRect);
+	}
+
 	const {
 		spatialIndex,
 		queryObjects,
@@ -539,7 +562,8 @@ export function createDrawObjectManager() {
 		setErasing: gestures.setErasing,
 		dropRegion: gestures.dropRegion,
 		dropRegionLight: gestures.dropRegionLight,
-		dropRegionEraseUndo: gestures.dropEraseRegion,
+		dropRegionEraseUndo,
+		setMutating: (on: boolean) => renderEngine?.setMutating(on),
 		eraseStampCommit: gestures.commitEraseStamp,
 		stampRegionBitmap: gestures.stampRegionBitmap,
 		patchRectSync,

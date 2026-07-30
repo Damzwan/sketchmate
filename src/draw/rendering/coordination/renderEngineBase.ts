@@ -60,6 +60,19 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected gesturing = false;
 	protected loading = false;
 	protected erasing = false;
+	/**
+	 * A multi-step scene mutation (a history op, or a burst of them) is running.
+	 *
+	 * Baking must not start here. A history op mutates objects one at a time,
+	 * yielding between them, so a bake that lands mid-op rasterizes a
+	 * HALF-APPLIED state — some objects un-erased, some not — and stores that as
+	 * a FRESH tile. Nothing invalidates it again, so the wrong pixels stay:
+	 * "spam undo and the drawing keeps holes".
+	 *
+	 * Unlike `erasing` this does NOT suppress frames; the user should still see
+	 * the composite update as the undo proceeds.
+	 */
+	protected mutating = false;
 	protected baking = false;
 	protected bakeAgain = false;
 	protected pendingDemote = false;
@@ -104,6 +117,7 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected abstract requestBakeProgressFrame(): void;
 	protected abstract demoteSettled(): number;
 	protected abstract patchOverview(rect: WorldRect): void;
+	protected abstract deferOverview(rect: WorldRect): void;
 	protected abstract scheduleOverviewRebuild(): void;
 	protected abstract flushPendingOverview(budgetMs?: number): void;
 	protected abstract newOverviewSignal(): AbortSignal;

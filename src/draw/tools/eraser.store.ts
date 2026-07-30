@@ -15,14 +15,23 @@ import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { createYielder } from "@/draw/scheduling/yielder";
+import { createYielder, yieldToMain } from "@/draw/scheduling/yielder";
 import { isActive as transformSessionActive } from "@/draw/transform/transformController";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
 
 interface Eraser extends ToolService {
 	eraserSize: Ref<number>;
 	cancelErase: () => void;
+	commitProgrammaticErase: (
+		path: Path,
+		targets: FabricObject[],
+	) => Promise<void>;
+	releaseProgrammaticEraser: () => void;
 	/** Abandon the deferred fully-erased sweep for a stroke (called by erase undo). */
 	cancelErasedCheck: (strokeId: string) => void;
+	/** Installed by the history store: "is this erase still undoable?". The sweep
+	 *  refuses to delete anything no history entry could restore. */
+	setErasureDeletionGuard: (fn: (strokeId: string) => boolean) => void;
 	/** Resolves once no erase commit is mid-flight (see erasingSettled). */
 	whenErasingSettled: () => Promise<void>;
 }
@@ -73,14 +82,27 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 	const eraserSize = ref<EraserSize>(EraserSize.small);
 	let isCancelling = false;
 	let cancelCircle = false;
+	let pointerEraseActive = false;
 	// One brush per canvas, reused across tool selections. Each brush owns a
 	// full-screen retina effect canvas; constructing a fresh one per select()
 	// stacked those canvases until GC — real memory pressure on iOS.
 	let brush: CustomEraserBrush | null = null;
+	let programmaticBrush: CustomEraserBrush | null = null;
 
 	const cleanupQueue: CleanupJob[] = [];
 	let draining = false;
 	const coverage = new Map<string, CoverageEntry>();
+
+	/**
+	 * "Can an undo still restore what this stroke's sweep wants to delete?"
+	 * Installed by the history store at init (it imports us, so we must not
+	 * import it back). Absent → no guard, i.e. the pre-existing behaviour.
+	 */
+	let erasureDeletionGuard: ((strokeId: string) => boolean) | null = null;
+
+	function setErasureDeletionGuard(fn: (strokeId: string) => boolean) {
+		erasureDeletionGuard = fn;
+	}
 
 	// ─── erase-commit barrier ───────────────────────────────────────────────
 	// The brush dispatches "end" SYNCHRONOUSLY and does not await our async
@@ -96,6 +118,8 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 	// History ops await this so they can never interleave with a commit.
 	let erasingSettled: Promise<void> = Promise.resolve();
 	let releaseErasing: (() => void) | null = null;
+	let pendingEraseCommits = 0;
+	let eraseCommitChain: Promise<void> = Promise.resolve();
 
 	function beginErasingCommit(): void {
 		if (releaseErasing) return; // already inside one
@@ -111,6 +135,32 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 
 	function whenErasingSettled(): Promise<void> {
 		return erasingSettled;
+	}
+
+	function enqueueEraseCommit(work: () => Promise<void>): Promise<void> {
+		if (pendingEraseCommits++ === 0) beginErasingCommit();
+
+		const execute = async () => {
+			const startedAt = performance.now();
+			try {
+				await work();
+			} finally {
+				recordPhase("eraseCommit", performance.now() - startedAt);
+			}
+			// A frantic burst contains many individually-small commits. Without a
+			// task boundary, their promise continuations form one giant microtask
+			// drain and the browser cannot dispatch input or paint between strokes.
+			if (pendingEraseCommits > 1) await yieldToMain();
+		};
+		const run = eraseCommitChain.then(execute, execute);
+		eraseCommitChain = run.catch(() => {});
+		return run.finally(() => {
+			pendingEraseCommits--;
+			if (pendingEraseCommits === 0) {
+				if (!pointerEraseActive) objMgr.setErasing(false);
+				endErasingCommit();
+			}
+		});
 	}
 
 	function objectStillPresent(obj: FabricObject): boolean {
@@ -300,6 +350,7 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		if (draining) return;
 		draining = true;
 
+		const sweepStartedAt = performance.now();
 		const yielder = createYielder({ budgetMs: 8 });
 
 		try {
@@ -347,6 +398,7 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 			}
 		} finally {
 			draining = false;
+			recordPhase("erasedSweep", performance.now() - sweepStartedAt);
 			if (cleanupQueue.length > 0) scheduleDrain();
 		}
 	}
@@ -354,6 +406,17 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 	function finalizeCleanup(job: CleanupJob) {
 		if (!c) return;
 		const strokeId = (job.path as any).id;
+
+		// NEVER delete something no history entry can bring back.
+		//
+		// The sweep is deferred, so by the time it lands the erase action may have
+		// been trimmed out of history entirely. `erasing:cleanup_done` then finds
+		// no action to record the deletion on and drops it — the objects are gone
+		// from the canvas with nothing able to restore them. That is a permanent
+		// hole in the drawing, and it is exactly what a long erase + undo session
+		// produces. Keeping a fully-erased object costs a little memory and no
+		// pixels (it renders to nothing), which is strictly the better failure.
+		if (erasureDeletionGuard && !erasureDeletionGuard(strokeId)) return;
 		const removable = job.deleted.filter(objectStillPresent).filter((obj) => {
 			// The check runs deferred — an undo may have pulled this stroke out of
 			// the object's clip in the meantime. Deleting then would vanish a
@@ -375,9 +438,26 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 			(obj as any).insertedIndex = stack.indexOf(obj);
 		}
 
-		for (const obj of removable) {
-			forgetCoverage(obj.id as string);
-			c.remove(obj);
+		// BATCHED. Each `c.remove` fires object:removed → a destructive
+		// invalidation: a synchronous tile repair AND an overview patch, per
+		// object. A heavy erase fully consumes hundreds of objects, and the sweep
+		// deleted them one at a time — measured as 621 sync repairs (3.6 s) and
+		// 637 overview patches (2.2 s) in one 18 s session, dwarfing everything
+		// the erase itself cost. One batch → one repair pass for the whole sweep.
+		const mgr = useDrawObjectManager();
+		// Also a MUTATION window: removing objects one at a time is a multi-step
+		// scene change, and a bake landing inside it stores a tile that is missing
+		// some deletions and not others — permanently, since the tile is fresh.
+		mgr.setMutating(true);
+		mgr.beginBatch();
+		try {
+			for (const obj of removable) {
+				forgetCoverage(obj.id as string);
+				c.remove(obj);
+			}
+		} finally {
+			mgr.endBatch();
+			mgr.setMutating(false);
 		}
 
 		c.fire("erasing:cleanup_done", {
@@ -454,6 +534,10 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 			brush.dispose();
 			brush = null;
 		}
+		if (programmaticBrush && programmaticBrush.canvas !== canvas) {
+			programmaticBrush.dispose();
+			programmaticBrush = null;
+		}
 		c = canvas;
 	}
 
@@ -470,8 +554,90 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		if (!c) return;
 		const brush = c.freeDrawingBrush as CustomEraserBrush;
 		if (!brush) return;
+		pointerEraseActive = false;
 		brush.cancel();
-		objMgr.setErasing(false); // resume compositing after a hard cancel
+		if (pendingEraseCommits === 0) objMgr.setErasing(false);
+	}
+
+	async function applyErase(
+		activeBrush: CustomEraserBrush,
+		detail: {
+			path: Path;
+			targets: FabricObject[];
+			dirtyRect?: { x: number; y: number; w: number; h: number };
+		},
+		checkForDeletedObjects: boolean,
+	): Promise<void> {
+		detail.path.id ||= v4();
+
+		const { isPublicLobby } = useDrawSyncer();
+		if (isPublicLobby) {
+			const { user } = useAuthStore();
+			detail.targets = detail.targets.filter(
+				(object) => object.userId === user?._id,
+			);
+		}
+
+		const claim = useClaimArea();
+		const touchesForeignArea =
+			claim.foreignAreas.length > 0 &&
+			claim.objectIntersectsForeignArea(detail.path);
+		if (claim.foreignAreas.length > 0) {
+			detail.targets = detail.targets.filter(
+				(object) => !claim.isObjectProtected(object),
+			);
+		}
+		if (touchesForeignArea) claim.notifyBlocked();
+
+		await activeBrush.commit(detail);
+
+		const eventDetail = {
+			...detail,
+			deletedObjects: [],
+			selective: isPublicLobby || touchesForeignArea,
+		};
+		c!.fire("erasing:end", { detail: eventDetail } as any);
+
+		if (checkForDeletedObjects) {
+			enqueueErasedCheck(detail.targets, detail.path);
+		}
+	}
+
+	async function commitProgrammaticErase(
+		path: Path,
+		targets: FabricObject[],
+	): Promise<void> {
+		if (!c) throw new Error("Eraser has not been initialized");
+
+		if (!programmaticBrush || programmaticBrush.canvas !== c) {
+			programmaticBrush?.dispose();
+			programmaticBrush = new CustomEraserBrush(c);
+		}
+		const bounds = path.getBoundingRect(true, true);
+		const pad = (path.strokeWidth ?? 0) * 1.5;
+
+		objMgr.setErasing(true);
+		await enqueueEraseCommit(async () => {
+			await applyErase(
+				programmaticBrush,
+				{
+					path,
+					targets,
+					dirtyRect: {
+						x: bounds.left - pad,
+						y: bounds.top - pad,
+						w: bounds.width + pad * 2,
+						h: bounds.height + pad * 2,
+					},
+				},
+				false,
+			);
+		});
+	}
+
+	function releaseProgrammaticEraser(): void {
+		programmaticBrush?.dispose();
+		programmaticBrush = null;
 	}
 
 	async function select() {
@@ -524,24 +690,24 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		// post-composites destination-out after each render). Suspend the tile
 		// compositor for the stroke so the two don't race and flicker.
 		b.on("start", () => {
+			pointerEraseActive = true;
 			objMgr.setErasing(true);
 		});
 
 		// Stroke ended without a usable path (<2 points): resume immediately.
 		b.on("cancel", () => {
-			objMgr.setErasing(false);
+			pointerEraseActive = false;
+			if (pendingEraseCommits === 0) objMgr.setErasing(false);
 		});
 
-		b.on("end", async (e: any) => {
+		b.on("end", (e: any) => {
+			pointerEraseActive = false;
 			// Hold history ops off until the clip mutation AND its undo entry both
 			// exist — the brush fires "end" synchronously and never awaits us, so
 			// without this an undo can land between them (see beginErasingCommit).
-			beginErasingCommit();
-			try {
-				await handleEraseEnd(e);
-			} finally {
-				endErasingCommit();
-			}
+			void enqueueEraseCommit(() => handleEraseEnd(e)).catch((error) => {
+				console.error("[Eraser] stroke commit failed", error);
+			});
 		});
 
 		const handleEraseEnd = async (e: any) => {
@@ -552,55 +718,14 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 			// composite paint the still-un-stamped tiles for a frame: the flash. The
 			// mouse:up backstop is gated on the in-flight commit so it can't resume
 			// early either.
-			try {
-				e.detail.path.id = v4();
+			e.detail.path.id = v4();
 
-				if (isCancelling) {
-					isCancelling = false;
-					await b.commit(e.detail);
-					return;
-				}
-
-				// 1. FILTER TARGETS FIRST: Remove objects belonging to other users
-				const { isPublicLobby } = useDrawSyncer();
-				if (isPublicLobby) {
-					const { user } = useAuthStore();
-					e.detail.targets = (e.detail.targets || []).filter(
-						(o: FabricObject) => o.userId === user?._id,
-					);
-				}
-
-				// Also protect anything inside another user's claimed area (applies to
-				// private online lobbies too, where the ownership filter above doesn't).
-				const claim = useClaimArea();
-				const touchesForeignArea =
-					claim.foreignAreas.length > 0 &&
-					claim.objectIntersectsForeignArea(e.detail.path);
-				if (claim.foreignAreas.length > 0) {
-					e.detail.targets = (e.detail.targets || []).filter(
-						(o: FabricObject) => !claim.isObjectProtected(o),
-					);
-				}
-				if (touchesForeignArea) claim.notifyBlocked();
-
+			if (isCancelling) {
+				isCancelling = false;
 				await b.commit(e.detail);
-
-				const targets: FabricObject[] = e.detail.targets || [];
-
-				e.detail.deletedObjects = [];
-				// `selective` forces onErase to REBUILD the region from objects instead of
-				// stamping the eraser hole into the tiles. Public lobbies already do this;
-				// also do it whenever the stroke crosses a foreign area so the protected
-				// (unclipped) content repaints intact instead of showing a punched hole.
-				e.detail.selective = isPublicLobby || touchesForeignArea;
-				c!.fire("erasing:end", e as any);
-
-				enqueueErasedCheck(targets, e.detail.path);
-			} finally {
-				// ALWAYS resume — even on error — so the flag can never stick. Its
-				// requestFrame paints the stamped tiles in one clean frame.
-				objMgr.setErasing(false);
+				return;
 			}
+			await applyErase(b, e.detail, true);
 		};
 
 		b.on("redraw", (e: any) => {
@@ -624,7 +749,10 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		eraserSize,
 		events,
 		cancelErase,
+		commitProgrammaticErase,
+		releaseProgrammaticEraser,
 		cancelErasedCheck,
+		setErasureDeletionGuard,
 		whenErasingSettled,
 	};
 });

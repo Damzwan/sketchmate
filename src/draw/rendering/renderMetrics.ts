@@ -110,6 +110,16 @@ export interface DrawMetricsSnapshot {
 	searchMsMax: number;
 	/** Tiles drawn in the heaviest composite. */
 	compositeTilesMax: number;
+	/** Latest and peak tile-cache occupancy, excluding overview/pool reserves. */
+	tileCacheCount: number;
+	tileCacheCountMax: number;
+	tileMemoryMB: number;
+	tileMemoryMBMax: number;
+	tileMemoryLimitMB: number;
+	/** Current cache bytes / configured cache limit. */
+	tileMemoryPressure: number;
+	dirtyTiles: number;
+	inFlightTiles: number;
 
 	// ── phase attribution: WHICH main-thread block is costing ─────────────
 	//
@@ -180,6 +190,13 @@ interface Counters {
 	tileDrawMsMax: number;
 	searchMsMax: number;
 	compositeTilesMax: number;
+	tileCacheCount: number;
+	tileCacheCountMax: number;
+	tileMemoryBytes: number;
+	tileMemoryBytesMax: number;
+	tileMemoryLimitBytes: number;
+	dirtyTiles: number;
+	inFlightTiles: number;
 	phaseMsTotal: Record<string, number>;
 	phaseMsMax: Record<string, number>;
 	phaseCount: Record<string, number>;
@@ -227,6 +244,13 @@ function blank(): Counters {
 		tileDrawMsMax: 0,
 		searchMsMax: 0,
 		compositeTilesMax: 0,
+		tileCacheCount: 0,
+		tileCacheCountMax: 0,
+		tileMemoryBytes: 0,
+		tileMemoryBytesMax: 0,
+		tileMemoryLimitBytes: 0,
+		dirtyTiles: 0,
+		inFlightTiles: 0,
 		phaseMsTotal: {},
 		phaseMsMax: {},
 		phaseCount: {},
@@ -322,6 +346,11 @@ export function recordComposite(
 	tileDrawMs: number,
 	searchMs: number,
 	tiles: number,
+	cacheCount = 0,
+	cacheMemoryBytes = 0,
+	cacheMemoryLimitBytes = 0,
+	dirtyTiles = 0,
+	inFlightTiles = 0,
 ): void {
 	m.compositeFrames++;
 	m.compositeMsTotal += totalMs;
@@ -329,6 +358,13 @@ export function recordComposite(
 	if (tileDrawMs > m.tileDrawMsMax) m.tileDrawMsMax = tileDrawMs;
 	if (searchMs > m.searchMsMax) m.searchMsMax = searchMs;
 	if (tiles > m.compositeTilesMax) m.compositeTilesMax = tiles;
+	m.tileCacheCount = cacheCount;
+	m.tileCacheCountMax = Math.max(m.tileCacheCountMax, cacheCount);
+	m.tileMemoryBytes = cacheMemoryBytes;
+	m.tileMemoryBytesMax = Math.max(m.tileMemoryBytesMax, cacheMemoryBytes);
+	m.tileMemoryLimitBytes = cacheMemoryLimitBytes;
+	m.dirtyTiles = dirtyTiles;
+	m.inFlightTiles = inFlightTiles;
 }
 
 export type DrawPhase =
@@ -338,7 +374,18 @@ export type DrawPhase =
 	| "overlaySkipped"
 	| "overviewPatch"
 	| "overviewBuild"
-	| "rebuildSync";
+	| "rebuildSync"
+	| "eraseClipApply"
+	| "eraseClipUndo"
+	| "eraseClipFlatten"
+	// WALL CLOCK, not CPU: both yield internally, so a big number means the work
+	// spanned many frames, not that it blocked for that long. They exist to
+	// attribute what the phase list above kept missing — `longTaskMsMax` has
+	// repeatedly been several times larger than any measured phase, which means
+	// the block was outside the instrumented set. Compare against `longTasks`.
+	| "historyOp"
+	| "eraseCommit"
+	| "erasedSweep";
 
 /**
  * One synchronous main-thread block, attributed. Call sites wrap work that
@@ -399,6 +446,16 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 		tileDrawMsMax: round2(m.tileDrawMsMax),
 		searchMsMax: round2(m.searchMsMax),
 		compositeTilesMax: m.compositeTilesMax,
+		tileCacheCount: m.tileCacheCount,
+		tileCacheCountMax: m.tileCacheCountMax,
+		tileMemoryMB: round2(m.tileMemoryBytes / 1024 / 1024),
+		tileMemoryMBMax: round2(m.tileMemoryBytesMax / 1024 / 1024),
+		tileMemoryLimitMB: round2(m.tileMemoryLimitBytes / 1024 / 1024),
+		tileMemoryPressure: m.tileMemoryLimitBytes
+			? round2(m.tileMemoryBytes / m.tileMemoryLimitBytes)
+			: 0,
+		dirtyTiles: m.dirtyTiles,
+		inFlightTiles: m.inFlightTiles,
 		phaseMsTotal: roundMap(m.phaseMsTotal),
 		phaseMsMax: roundMap(m.phaseMsMax),
 		phaseCount: { ...m.phaseCount },

@@ -22,6 +22,8 @@
 
     <DrawMenus />
 
+    <DrawPerformancePanel v-if="showPerformancePanel" />
+
     <DrawExitGuard
       :draft-id="draftId"
       :is-lobby="isLobby"
@@ -30,7 +32,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, onUnmounted } from "vue";
+import {
+	computed,
+	defineAsyncComponent,
+	onMounted,
+	ref,
+	onUnmounted,
+} from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { v4 as uuidv4 } from "uuid";
@@ -82,6 +90,15 @@ const drawTogether = computed(() => !!getParam("together"));
 const type = computed(() => getParam("type"));
 const targetRoomId = computed(() => getParam("room_id"));
 const canvasUrl = computed(() => getParam("canvas_url"));
+const showPerformancePanel = computed(
+	() => import.meta.env.DEV && route.query.perf === "1",
+);
+const DrawPerformancePanel = import.meta.env.DEV
+	? defineAsyncComponent(
+			() =>
+				import("@/components/draw/benchmark/DrawPerformancePanel.vue"),
+		)
+	: undefined;
 
 const draftId = ref(getParam("id"));
 

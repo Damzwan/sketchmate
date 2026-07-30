@@ -67,6 +67,18 @@ export class WorldOverview<T extends Bounded> {
 		this.dirtyRevision++;
 	}
 
+	/**
+	 * Does the bitmap cover this region at all? A `patchRect` failure has two
+	 * very different causes — "too many objects here" (subdivide) and "this is
+	 * outside what the bitmap maps" (only a rebuild can fix it, since the
+	 * mapping itself has to grow). Callers that subdivide MUST check this first,
+	 * or they split a region into pieces that can never be patched.
+	 */
+	covers(rect: WorldRect): boolean {
+		if (!this.canvas || !this.bounds) return false;
+		return this.contains(this.bounds, rect);
+	}
+
 	isDirty(): boolean {
 		return this.dirty || !this.canvas;
 	}

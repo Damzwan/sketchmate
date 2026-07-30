@@ -13,6 +13,277 @@ have existed before any of the previous 21 passes.
 
 ---
 
+## Erase performance — read this first (2026-07-30, second pass)
+
+Measured, not guessed: a 23 s session of *zoom in → erase a lot → zoom out →
+spam undo* on a dense board, main backend, desktop DPR 1.
+
+```
+longTaskMsMax 2447    longTaskMsTotal 4102    frames.maxMs 2850
+phaseMsTotal: localBake 2534 | rebuildSync 2148 | overviewBuild 1032 | overviewPatch 937
+phaseCount:   localBake  101 | rebuildSync  163 | overviewBuild    6 | overviewPatch  307
+              eraseClipApply 3168 (118 ms total)  eraseClipUndo 2956 (16 ms total)
+compositeMsMax 0.8    tileDrawMsMax 0.1    searchMsMax 0.1
+```
+
+**The clip work is not the problem.** 3168 clip applies cost 118 ms and 2956
+clip undos cost 16 ms — a rounding error. Every millisecond that hurts is spent
+**re-rasterizing tiles and the overview**: 6.6 s of the 23 s session, and the
+composite itself is idle (0.8 ms worst frame).
+
+Three mechanisms, in order of size:
+
+### EP1 — a repair re-rendered the whole tile for a thin trail ✅ implemented
+
+`rebuildTileSync` re-queried and re-rendered **every object in the tile** even
+when the edit was a 40-unit eraser trail crossing a 384-unit tile. On a dense
+board with erased objects (each one a `ClippingGroup` whose mask fabric
+rasterizes at tier resolution) that measured **13 ms per call, 268 ms worst**,
+163 times.
+
+`repairTileRegionSync(tier, tx, ty, changedRect)` keeps the existing bitmap,
+clears only the changed sub-rect (intersected with the tile, padded like a
+normal bake), and re-renders only the objects intersecting it, in z-order,
+clipped. Cost scales with the **edit**, not the tile. Declines and falls back to
+a full rebuild when the sub-rect covers >60% of the tile, when the tile has no
+bitmap, or when nothing recorded what changed.
+
+Wired into both paths: `rebuildRectSync` passes its rect, and the **async local
+bake** now tries the same repair first using the tile's recorded `dirtyRects`
+entry — turning many 25 ms full bakes into single-digit-ms patches.
+
+### EP2 — every undo in a burst paid for a full repair pass ✅ implemented
+
+Holding undo queues one history op per keypress. Each op ran its own
+invalidation: a synchronous tile repair, an overview patch, and a bake of the
+whole invalidated region — then the next keypress threw all of it away. That is
+the 163 sync repairs and 307 overview patches above.
+
+`enqueueHistoryOp` now opens a **burst window** at ENQUEUE time and closes it
+when the last queued op finishes:
+
+- `setMutating(true)` + `beginBatch()` on the first enqueue,
+- `endBatch()` (one coalesced invalidation + one repair) then
+  `setMutating(false)` when the queue drains.
+
+`dropRegionEraseUndo` became batch-aware to match: inside a batch it records the
+changed rect and marks the re-bake region stale (bookkeeping only, no
+rendering), instead of invalidating immediately. 50 undos → **one** repair pass.
+
+Trade: during a long burst a restored object only becomes visible when the burst
+ends. Bursts are key-repeat length, and the alternative is what the metrics
+show.
+
+### EP3 — bakes rasterized half-applied undos → permanent holes ✅ implemented
+
+The correctness half of the report ("my drawing will have a lot of holes").
+
+A history op mutates objects one at a time and **yields between them** (added
+deliberately, to keep input responsive). A bake scheduled by the previous action
+lands in one of those gaps, rasterizes a scene where some objects have had the
+stroke removed and others have not, and stores it as a **fresh** tile. Nothing
+invalidates it again — so the wrong pixels are permanent until something else
+happens to touch that region.
+
+New `mutating` flag on the engine (distinct from `erasing`: it suspends baking
+but NOT frames, so the user still sees each step). `scheduleBake` and `runBake`
+both respect it, and `setMutating(true)` aborts anything already in flight.
+
+**Invariant 19: never bake while a multi-step mutation is in progress.** Any
+future path that mutates the scene across an `await` must hold the mutation
+window, or it will bake a torn state and store it as correct.
+
+### Third capture (18 s, heavier erase) — what moved and what got worse
+
+```
+localBake      2534 ms / 101  →   761 ms / 25     EP1 working
+overviewBuild  1032 ms /   6  →   345 ms /  2
+rebuildSync    2148 ms / 163  →  3578 ms / 621    WORSE
+overviewPatch   937 ms / 307  →  2200 ms / 637    WORSE
+longTaskMsMax      2447 ms    →  3447 ms
+```
+
+`rebuildSync` and `overviewPatch` moved together, ~620 times each — one call
+site doing both, once per object. Not undo (that is batched now): it is the
+**deferred fully-erased sweep deleting objects one at a time**.
+
+### EP4 — the erased-check sweep deleted objects unbatched ✅ implemented
+
+`finalizeCleanup` looped `c.remove(obj)`. Every removal fires `object:removed` →
+`destructiveInvalidate` → a synchronous tile repair **and** an overview patch,
+per object. A heavy erase fully consumes hundreds of objects, so the sweep alone
+produced 621 sync repairs (3.6 s) and 637 overview patches (2.2 s) — more than
+everything the erase itself cost.
+
+Now wrapped in `beginBatch()`/`endBatch()` **and** a mutation window: one repair
+pass for the whole sweep, and no bake can land between two deletions and store a
+tile that has some of them and not others.
+
+### EP5 — the sweep could delete objects nothing could restore ✅ implemented
+
+The other half of "erasing + zooming + undoing keeps holes".
+
+The sweep is deferred, so by the time it deletes, its erase action may have been
+**trimmed out of history** (`MAX_HISTORY_ACTIONS` is 50, and a long erase burst
+pushes 50 actions quickly). `erasing:cleanup_done` then finds no action to
+record the deletion on and returns — but `finalizeCleanup` has already removed
+the objects. They are gone from the canvas with nothing able to bring them back:
+a permanent hole, exactly matching "erase a lot, undo a lot, holes remain".
+
+`finalizeCleanup` now asks history first (`hasErasingAction(strokeId)`, checking
+both stacks) and skips the deletion entirely when the answer is no. Keeping a
+fully-erased object costs a little memory and renders to nothing — strictly the
+better failure mode. The guard is **injected** at history init rather than
+imported, because history already imports the eraser store and a cycle between
+two pinia stores is its own class of bug.
+
+### EP6 — a dense overview patch no longer triggers an O(scene) rebuild ✅ implemented
+
+`patchRect` refuses a region holding more than `overviewPatchMax` objects, and
+the old answer was `markDirty()` + a full rebuild: 267–472 ms re-rendering the
+**whole board** to fix a region that might be a few percent of it.
+
+`splitOverviewPatch` subdivides into quadrants instead — each holds roughly a
+quarter of the objects, so one or two splits puts every piece under the cap.
+Pieces drain on an 8 ms budget. Total work stays proportional to the objects in
+the original rect (only boundary objects render twice).
+
+The split queue is deliberately **separate from `pendingOverview`**: that queue
+merges nearby rects at flush time, which would glue the quadrants straight back
+into the rect they came from — an endless split/merge loop. A full rebuild
+survives only as the last resort for a region too small to split further.
+
+### EP7 — the biggest number was the least actionable ✅ instrumented
+
+`longTaskMsMax` has now twice been several times larger than any measured phase
+(2447 ms, then 3447 ms), which means the block was **outside** the instrumented
+set. Added `historyOp`, `eraseCommit` and `erasedSweep` phases (wall clock —
+all three yield internally, so compare them against `longTasks`, not against
+frame time). Next capture should attribute it.
+
+### Fourth capture — perf resolved, one hole mechanism left
+
+```
+longTasks 0    longTaskMsMax 0    frames.maxMs 50    slowFrameRate 0.45%
+rebuildSync 118 ms / 16    overviewPatch 180 ms / 232    overviewBuild 0 ms / 0
+localBake 433 ms / 77      erasedSweep 1861 ms / 10 (wall clock, yields)
+historyOp 180 ms / 12      eraseCommit 56 ms / 11
+```
+
+Every phase is inside budget and the Long Tasks API reports **nothing**. The
+remaining report is correctness only: small permanent holes, "more in the
+beginning".
+
+### EP8 — a sub-rect repair marked a tile fresh while still owing another edit ✅ implemented
+
+That is the hole, and the "in the beginning" detail is the tell.
+
+`repairTileRegionSync` repainted the rect the CALLER passed and then stored the
+tile under the current generation — i.e. **fresh**. But a tile can owe more than
+one edit: erase A invalidates region A, its bake is still pending, and undo B
+then repairs region B of the same tile. Region A is silently dropped, the tile
+is declared correct, and nothing will ever invalidate it again. The erase hole
+from A is on screen for the rest of the session.
+
+It is worst early on because that is when the tile cache is cold and several
+tiles are carrying a backlog at the same time — exactly the reported pattern.
+
+The repair now consults `dirtyRects`, which is the authoritative record of what
+is owed on that tile, and repaints the **union** of it and the caller's rect.
+Two refusals were added with it: a `null` entry (whole tile wrong) and a stale
+tile with no recorded region both fall through to the full rebuild, since a
+sub-rect repair cannot be correct there.
+
+**Invariant 21: a partial repair may only mark a tile fresh if it covered
+everything the tile owed.** Anything that stores a tile as current while
+`dirtyRects` still holds an unrepainted region creates permanently wrong pixels.
+
+### EP9 — the overview split could chase a region it can never patch ✅ implemented
+
+`patchRect` fails for two very different reasons: too many objects (subdivide —
+EP6) and *outside the bitmap's mapping* because content grew (only a rebuild can
+fix it, since the mapping itself must change). EP6 treated both as "subdivide",
+so an out-of-coverage rect was split down to the 8-unit floor before finally
+falling back. `overview.covers(rect)` now separates the two up front.
+
+### EP10 — intersecting erase strokes revived an undone erase ✅ implemented
+
+The residual holes, and the "only with INTERSECTING strokes" report is what
+identifies it exactly.
+
+Strokes A and B both erase object O (they intersect, so they share targets).
+Together they consume O, so the fully-erased sweep deletes it — and the sweep is
+DEFERRED, so the sweep that finishes may be **A's**, while O's clip snapshot at
+that moment already holds `{A, B}`.
+
+```
+erase A        O.clip = {A}
+erase B        O.clip = {A, B}
+A's sweep runs → O fully erased → deleted, snapshot clip = {A, B}, recorded under A
+undo B         → O is off-canvas; nothing happens
+undo A         → O restored from snapshot {A, B}, then A removed → {B}
+```
+
+O comes back still erased by B — whose undo already happened. That erase is now
+permanent, and the hole sits exactly where the two strokes crossed. Two strokes
+that do NOT intersect never share an object, which is why they always undo
+cleanly, and a single stroke has nothing to revive.
+
+Fix: everything on the **redo stack is undone by definition**, so a restored
+snapshot must not keep its strokes. `undoneEraseStrokeIds()` is exposed through
+`HistoryContext` (not imported — the history store owns the stacks and an
+operation module importing it back would be a cycle), and `stripClipStrokes`
+drops those children from every revived object, clearing the clipPath entirely
+when nothing is left.
+
+`stripClipStrokes` lives in `operations/eraseClip.ts`, a deliberate LEAF module
+with no store/canvas imports, so it is unit-testable without pulling the engine
+and the DOM into the test env.
+
+**Invariant 22: a snapshot restored from history is not automatically valid.**
+It captures the state at capture time; any action undone since must be
+re-subtracted from it before the object goes back on the canvas.
+
+### Still open on the eraser, in priority order
+
+1. ~~Overview rebuild is O(scene) and fires on patch failure.~~ Done — EP6.
+2. **Erased objects are expensive to rasterize, per tile.** Fabric force-caches
+   any object with a clipPath (`needsItsOwnCache`), and the cache is
+   invalidated on every clip mutation — so an undo re-rasterizes each affected
+   object's whole mask at tier scale. A per-object mask cache keyed by
+   `(id, clipRevision, tier)`, reused across tiles and across repairs, is the
+   structural fix. Measure `localBake` per tile after EP1 before building it.
+3. **`FLATTEN_ERASE_CLIP_AFTER` is 72** (`LIVE_ERASE_STROKES` 64 + 8), so the
+   mask stays a 60+ child vector stack for a heavily erased object. That is a
+   deliberate trade for undo fidelity — every stroke in history stays a vector
+   — but it is also why per-object render cost stays high. Item 2 removes the
+   need to trade at all.
+4. **`__bakedClipStrokes` is runtime-only.** It is never serialized, so any
+   object re-enlivened after a flatten (reload, remote apply, undo of an add)
+   loses the retained vectors and its baked erases become permanently
+   un-undoable — the `[EraseUndo] … not removable` warning. Fix is to serialize
+   the retained stroke ids alongside the flattened mask.
+
+### Other big performance concerns spotted in the same capture
+
+- **`overviewBuild` 472 ms worst** — see item 1 above. It is yielded, so it does
+  not show as one long task, but it is 1 s of main-thread work per session.
+- **`longTaskMsMax` 2447 ms is not attributed.** No single measured phase
+  accounts for it, so something outside the instrumented set is blocking:
+  candidates are the erased-check sweep (`toCanvasElement` + readback per
+  object), `computeContentBounds`, and the enliven of restored objects. Next
+  capture should wrap the whole history op in a `historyOp` phase and the erase
+  commit in an `eraseCommit` phase; without that the biggest number in the
+  report is the least actionable one.
+- **`tileMemoryPressure` 56% with 172 tiles at DPR 1.** On a DPR-3 phone the
+  same board is ~4x the bytes at the same tile count. Worth re-checking the
+  mobile budget against a real device before the next release.
+- The `/bench` route is not earning its keep (agreed). The **manual capture is
+  the useful artifact** — keep the metric catalog and the export, drop the
+  scripted scenarios unless they start catching regressions.
+
+---
+
 ## TL;DR — what is actually wrong
 
 Six reports, four root causes, and they are **not** independent:
@@ -527,6 +798,12 @@ Every finding in `DRAW_ENGINE_PERF.md` is "desktop + code reasoning". The
 counters exist (`snapshotDrawMetrics()` / `__drawPerf()`); what is missing is a
 **repeatable scene + repeatable interaction + a stored baseline**.
 
+> **Implemented foundation:** seeded scene factory, reusable scenario driver,
+> deterministic CI baseline (`pnpm bench:check`), dev-only `/bench` dashboard,
+> real-device frame recorder, explained metric budgets, and JSON export. See
+> [`DRAW_BENCHMARK.md`](./DRAW_BENCHMARK.md). Automated real-pixel artifact
+> assertions remain the next extension.
+
 ### B1 — deterministic scene factory
 
 `src/draw/testing/sceneFactory.ts` — seeded RNG, no network, no fabric canvas
@@ -685,3 +962,21 @@ Append these to `DRAW_ENGINE.md`'s invariant list when Phase 1 lands:
 18. **The object manager outlives the canvas.** It is a pinia singleton, and on
     re-entry gestures are wired before `init(canvas)` rebinds `c`. Anything
     reading `c` outside a seam must tolerate a disposed canvas.
+19. **Never bake while a multi-step mutation is in progress.** A history op — or
+    any scene edit spanning an `await` — must hold the engine's mutation window
+    (`setMutating`). A bake landing between its yields rasterizes a torn scene
+    and stores it as a FRESH tile, which nothing invalidates again: permanent
+    wrong pixels, e.g. holes that survive an undo.
+20. **Repair the region that changed, not the tile that contains it.** A tile is
+    the cache granularity, not the edit granularity. `dirtyRects` already
+    records where the edit was — use it. A full tile rebuild for a thin erase
+    trail is 10-50x the necessary work on a dense board.
+21. **A partial repair may only mark a tile fresh if it covered everything the
+    tile owed.** `dirtyRects` is the record of what is owed; repaint the union
+    of it and whatever the caller asked for, or decline. Storing a tile as
+    current while an unrepainted region is still recorded produces permanently
+    wrong pixels that no later invalidation will fix.
+22. **A snapshot restored from history is not automatically valid.** It captures
+    the state at capture time. Anything undone since (everything on the redo
+    stack) must be re-subtracted before the object goes back on the canvas —
+    otherwise restoring it silently re-applies an edit the user already undid.

@@ -72,11 +72,11 @@ export function createGestureController(options: GestureControllerOptions) {
 
 	function dropEraseRegion(rect: WorldRect, changedRect?: WorldRect) {
 		transformLayer.invalidateCache();
-		const syncTiles = isBakeryActive() ? 2 : options.isLowEndDevice ? 4 : 8;
 		engine()?.invalidateChanged(
 			changedRect ?? rect,
 			changedRect ? rect : null,
-			syncTiles,
+			0,
+			true,
 		);
 	}
 

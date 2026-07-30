@@ -17,6 +17,25 @@ function makeLayer(query: SpatialIndex<TestObject>["query"] = () => []) {
 	});
 }
 
+/** Minimal OffscreenCanvas so the pooled bake canvases work under vitest. */
+function stubOffscreenCanvas(): void {
+	if ((globalThis as any).OffscreenCanvas) return;
+	(globalThis as any).OffscreenCanvas = class {
+		width: number;
+		height: number;
+		constructor(w: number, h: number) {
+			this.width = w;
+			this.height = h;
+		}
+		getContext() {
+			return fakeCtx();
+		}
+		transferToImageBitmap() {
+			return { close: vi.fn() } as unknown as ImageBitmap;
+		}
+	};
+}
+
 function tile(
 	tier: number,
 	tx: number,
@@ -50,6 +69,8 @@ function fakeCtx() {
 		rect: vi.fn(),
 		clip: vi.fn(),
 		drawImage: vi.fn(),
+		translate: vi.fn(),
+		scale: vi.fn(),
 		imageSmoothingEnabled: true,
 		imageSmoothingQuality: "low",
 	} as unknown as CanvasRenderingContext2D & {
@@ -175,8 +196,12 @@ describe("CommittedLayer safety bounds", () => {
 
 		layer.markStale({ x: 0, y: 0, w: 10, h: 10 });
 
+		// Trust is preserved...
 		expect(layer.tiles.get(key).usable).toBe(true);
-		expect(layer.dirtyRects.has(key)).toBe(false);
+		// ...but the region IS recorded: the sub-rect repair path has to know the
+		// added object's footprint needs repainting, or the object never lands in
+		// the tile and vanishes when its live overlay demotes.
+		expect(layer.dirtyRects.get(key)).toEqual({ x: 0, y: 0, w: 10, h: 10 });
 
 		const ctx = fakeCtx();
 		vi.spyOn(layer.overview, "composite").mockImplementation(() => {});
@@ -289,6 +314,91 @@ describe("CommittedLayer safety bounds", () => {
 		layer.rebuildRectSync(rect, 4);
 
 		expect(query).toHaveBeenCalledTimes(6);
+	});
+
+	it("repairs only the changed sub-rect of a tile", () => {
+		// A 20-unit erase trail inside a 256-unit tile must query (and therefore
+		// re-render) only the objects in that trail — not every object in the tile.
+		stubOffscreenCanvas();
+		const queried: WorldRect[] = [];
+		const query = vi.fn((rect: WorldRect) => {
+			queried.push(rect);
+			return [] as TestObject[];
+		});
+		const layer = makeLayer(query) as any;
+		const tier = 4;
+		const key = `${tier}:0:0`;
+		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
+		const changed: WorldRect = { x: 10, y: 10, w: 20, h: 20 };
+
+		const repaired = layer.repairTileRegionSync(tier, 0, 0, changed);
+
+		expect(repaired).toBe(true);
+		expect(queried).toHaveLength(1);
+		expect(queried[0].w).toBeLessThan(60); // the trail, not the tile
+		expect(queried[0].h).toBeLessThan(60);
+	});
+
+	it("repairs everything owed on the tile, not just the caller's rect", () => {
+		// Erase A invalidates region A and its bake is still pending when undo B
+		// repairs region B of the same tile. Repairing only B and marking the tile
+		// fresh drops A forever — a permanent hole.
+		stubOffscreenCanvas();
+		const queried: WorldRect[] = [];
+		const query = vi.fn((rect: WorldRect) => {
+			queried.push(rect);
+			return [] as TestObject[];
+		});
+		const layer = makeLayer(query) as any;
+		const tier = 4;
+		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
+
+		layer.markDirty({ x: 0, y: 0, w: 10, h: 10 }); // edit A, still owed
+		const repaired = layer.repairTileRegionSync(tier, 0, 0, {
+			x: 20,
+			y: 20,
+			w: 10,
+			h: 10,
+		}); // edit B
+
+		expect(repaired).toBe(true);
+		// The repainted region spans both edits.
+		expect(queried[0].x).toBeLessThanOrEqual(0);
+		expect(queried[0].x + queried[0].w).toBeGreaterThanOrEqual(30);
+	});
+
+	it("declines a sub-rect repair when the whole tile is dirty", () => {
+		stubOffscreenCanvas();
+		const query = vi.fn(() => [] as TestObject[]);
+		const layer = makeLayer(query) as any;
+		const tier = 4;
+		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
+
+		layer.markAllDirty(); // records null = whole tile, provenance unknown
+
+		expect(
+			layer.repairTileRegionSync(tier, 0, 0, { x: 0, y: 0, w: 10, h: 10 }),
+		).toBe(false);
+		expect(query).not.toHaveBeenCalled();
+	});
+
+	it("declines a sub-rect repair that covers most of the tile", () => {
+		const query = vi.fn(() => []);
+		const layer = makeLayer(query) as any;
+		const tier = 4;
+		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
+
+		// Whole-tile change → the plain full rebuild is cheaper than copying the
+		// old bitmap first.
+		const repaired = layer.repairTileRegionSync(tier, 0, 0, {
+			x: -10,
+			y: -10,
+			w: 400,
+			h: 400,
+		});
+
+		expect(repaired).toBe(false);
+		expect(query).not.toHaveBeenCalled();
 	});
 
 	it("refuses a large synchronous hybrid overlay before allocating a canvas", () => {

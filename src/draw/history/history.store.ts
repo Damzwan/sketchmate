@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { type Canvas, type FabricObject } from "fabric";
 import { computed, ref } from "vue";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { MAX_HISTORY_ACTIONS } from "@/draw/history/eraseUndoPolicy";
 import { DrawAction } from "@/draw/actions/drawAction.types";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { useSelect } from "@/draw/tools/select.store";
@@ -24,6 +25,9 @@ import { handleTextModification } from "@/draw/history/operations/textHistory";
 import { getObjectDiff } from "@/draw/history/operations/objectHistory";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { yieldToMain } from "@/draw/scheduling/yielder";
+import { eraseHistoryWeight } from "@/draw/history/historyBudget";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
 
 export const useDrawHistoryManager = defineStore("history", () => {
 	let c: Canvas | undefined = undefined;
@@ -39,8 +43,6 @@ export const useDrawHistoryManager = defineStore("history", () => {
 	const redoDisabled = computed(() => redoStackCounter.value === 0);
 
 	const lastActionType = ref<"normal" | "undo" | "redo">();
-
-	const MAX_HISTORY = 50;
 
 	// The count cap alone cannot bound memory: a single action can retain the
 	// JSON of hundreds of objects (an erase across a dense region) or of the
@@ -160,11 +162,11 @@ export const useDrawHistoryManager = defineStore("history", () => {
 	 * they are about to reach for.
 	 */
 	function trimStacks(): void {
-		if (undoStack.length > MAX_HISTORY) {
-			undoStack.splice(0, undoStack.length - MAX_HISTORY);
+		if (undoStack.length > MAX_HISTORY_ACTIONS) {
+			undoStack.splice(0, undoStack.length - MAX_HISTORY_ACTIONS);
 		}
-		if (redoStack.length > MAX_HISTORY) {
-			redoStack.splice(0, redoStack.length - MAX_HISTORY);
+		if (redoStack.length > MAX_HISTORY_ACTIONS) {
+			redoStack.splice(0, redoStack.length - MAX_HISTORY_ACTIONS);
 		}
 		const undoTotal = stackWeight(undoStack);
 		if (undoTotal + stackWeight(redoStack) <= MAX_RETAINED_OBJECTS) return;
@@ -191,7 +193,6 @@ export const useDrawHistoryManager = defineStore("history", () => {
 				if (e.detail.targets.length === 0) return;
 
 				const targets = e.detail.targets as FabricObject[];
-				// Assuming you can access the newly created eraser path from the event or brush
 				const eraserStroke = e.detail.path;
 
 				const deleted = (e.detail.deletedObjects ?? []) as FabricObject[];
@@ -208,7 +209,10 @@ export const useDrawHistoryManager = defineStore("history", () => {
 				const action: any = { type: HistoryEvent.Erasing, params };
 				// Precompute the trim weight so trimStacks never reads the lazy
 				// param (which would serialize it and defeat the whole point).
-				action.__w = 1 + targets.length + deleted.length;
+				action.__w = eraseHistoryWeight(
+					targets.length,
+					deleted.length,
+				);
 				addToUndoStackWithResetRedo(action);
 			},
 		},
@@ -479,7 +483,20 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			unSelect,
 			getObjectById,
 			getObjectsById,
+			undoneEraseStrokeIds,
 		};
+	}
+
+	/** Every erase currently sitting on the REDO stack, i.e. undone and not
+	 *  redone. Their clip strokes must not survive on a restored object. */
+	function undoneEraseStrokeIds(): Set<string> {
+		const ids = new Set<string>();
+		for (const action of redoStack as any[]) {
+			if (action?.type === HistoryEvent.Erasing && action.params?.strokeId) {
+				ids.add(action.params.strokeId);
+			}
+		}
+		return ids;
 	}
 
 	// ─── history op serialization ────────────────────────────────────────────
@@ -494,6 +511,32 @@ export const useDrawHistoryManager = defineStore("history", () => {
 	// state at execution time, not at click time.
 	let historyChain: Promise<unknown> = Promise.resolve();
 
+	/**
+	 * Ops queued but not yet finished. While this is > 0 the engine is held in a
+	 * single mutation + batch window, so a burst of undos (key repeat) costs ONE
+	 * repair pass instead of one per keypress — and no bake can rasterize a
+	 * half-applied step in between.
+	 */
+	let queuedHistoryOps = 0;
+
+	function openHistoryBurst() {
+		if (queuedHistoryOps++ > 0) return;
+		const mgr = useDrawObjectManager();
+		mgr.setMutating(true);
+		mgr.beginBatch();
+	}
+
+	function closeHistoryBurst() {
+		if (--queuedHistoryOps > 0) return;
+		queuedHistoryOps = 0;
+		const mgr = useDrawObjectManager();
+		// endBatch first: it performs the single coalesced invalidation + repair
+		// while baking is still suspended, so the bake that follows sees the
+		// finished scene exactly once.
+		mgr.endBatch();
+		mgr.setMutating(false);
+	}
+
 	function enqueueHistoryOp<T>(fn: () => Promise<T>): Promise<T> {
 		// Also wait out any in-flight erase commit. The eraser brush fires "end"
 		// synchronously and does not await its async handler, so the stroke is
@@ -507,8 +550,23 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			} catch {
 				/* never block history on a broken barrier */
 			}
-			return fn();
+			const startedAt = performance.now();
+			try {
+				const result = await fn();
+				// Key-repeat and the benchmark can queue many individually-small
+				// operations. A task boundary prevents their promise continuations from
+				// becoming one uninterrupted undo/redo long task.
+				await yieldToMain();
+				return result;
+			} finally {
+				recordPhase("historyOp", performance.now() - startedAt);
+				closeHistoryBurst();
+			}
 		};
+		// Opened at ENQUEUE time, not at run time: that is what makes a key-repeat
+		// burst one window. The counter only returns to zero once the last queued
+		// op has finished.
+		openHistoryBurst();
 		const run = historyChain.then(gated, gated);
 		historyChain = run.catch(() => {}); // one failed op must not jam the chain
 		return run;
@@ -597,11 +655,34 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		});
 	}
 
+	/**
+	 * Is this erase still recorded in history — i.e. could an undo restore what
+	 * its deferred cleanup sweep is about to delete?
+	 *
+	 * Both stacks, because the user may already have undone (and redone) it.
+	 * A `false` means the entry has been trimmed, so a deletion made now could
+	 * never be reversed.
+	 */
+	function hasErasingAction(strokeId: string): boolean {
+		if (!strokeId) return false;
+		const inStack = (stack: HistoryAction[]) =>
+			stack.some(
+				(a: any) =>
+					a.type === HistoryEvent.Erasing && a.params?.strokeId === strokeId,
+			);
+		return inStack(undoStack) || inStack(redoStack);
+	}
+
 	function init(canvas: Canvas) {
 		c = canvas;
 
 		const drawEventManager = useDrawEventManager();
 		drawEventManager.addEventsOfService("history", events);
+		// Injected rather than imported: the eraser store cannot import history
+		// (history already imports the eraser for its erase-settled barrier), and
+		// a cycle between two pinia stores is how "cannot access before
+		// initialization" bugs start.
+		useEraser().setErasureDeletionGuard(hasErasingAction);
 		resetUndoStack();
 		resetRedoStack();
 	}
@@ -641,6 +722,23 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		redoStackCounter.value = redoStack.length;
 	}
 
+	/**
+	 * The live benchmark mutates the loaded drawing and must never undo past the
+	 * strokes it created. Verify the complete chronological tail before it
+	 * starts replaying history.
+	 */
+	function hasRecentEraseActions(strokeIds: string[]): boolean {
+		if (strokeIds.length > undoStack.length) return false;
+		const offset = undoStack.length - strokeIds.length;
+		return strokeIds.every((strokeId, index) => {
+			const action = undoStack[offset + index] as any;
+			return (
+				action.type === HistoryEvent.Erasing &&
+				action.params.strokeId === strokeId
+			);
+		});
+	}
+
 	function clearStackOfPolygonHistory() {
 		undoStack = undoStack.filter(
 			(historyAction: HistoryAction) =>
@@ -676,5 +774,6 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		silentRedo,
 		undoDisabled,
 		redoDisabled,
+		hasRecentEraseActions,
 	};
 });

@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "test:e2e": "cypress run",
     "test:unit": "vitest",
+    "bench:check": "node scripts/benchCompare.mjs",
     "lint": "eslint",
     "lint_fix_and_add": "git add .",
     "heroku:start": "node server.js",

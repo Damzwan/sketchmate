@@ -351,10 +351,19 @@ export class TileLayerBase<T extends Bounded> {
 	 * bumps a gen without going through here loses the sub-rect and silently
 	 * degrades to a full-tile blur.
 	 */
-	protected invalidateKey(key: string, rect: WorldRect | null): void {
+	/**
+	 * @param keepUsable the pixels on screen are still CORRECT, they are merely
+	 *   incomplete (an additive add covered by the live layer). The re-bake and
+	 *   the recorded region are unchanged — only trust is.
+	 */
+	protected invalidateKey(
+		key: string,
+		rect: WorldRect | null,
+		keepUsable = false,
+	): void {
 		this.gen.set(key, (this.gen.get(key) ?? 0) + 1);
 		const t = this.tiles.get(key);
-		if (t) t.usable = false;
+		if (t && !keepUsable) t.usable = false;
 		if (rect === null) {
 			this.dirtyRects.set(key, null);
 			return;
@@ -430,6 +439,13 @@ export class TileLayerBase<T extends Bounded> {
 	 * the existing pixels became untrustworthy.
 	 */
 	markStale(rect: WorldRect): void {
+		// The RECT is recorded exactly like a destructive invalidation — only
+		// `usable` is preserved. Without the record, a tile stale purely from an
+		// additive add has no dirty region, and the sub-rect repair path would
+		// then repaint some other edit's trail and mark the tile fresh WITHOUT
+		// ever drawing the added object: the stroke would vanish when its live
+		// overlay demoted. What differs between stale and dirty is trust, not
+		// what needs repainting.
 		for (let tier = 0; tier < this.ZOOM_TIERS.length; tier++) {
 			const r = this.tileRange(rect, tier);
 			const cells = (r.tx1 - r.tx0 + 1) * (r.ty1 - r.ty0 + 1);
@@ -437,7 +453,7 @@ export class TileLayerBase<T extends Bounded> {
 				for (const [k, t] of this.tiles) {
 					if (t.tier !== tier) continue;
 					if (t.tx >= r.tx0 && t.tx <= r.tx1 && t.ty >= r.ty0 && t.ty <= r.ty1)
-						this.gen.set(k, (this.gen.get(k) ?? 0) + 1);
+						this.invalidateKey(k, rect, true);
 				}
 				continue;
 			}
@@ -445,7 +461,7 @@ export class TileLayerBase<T extends Bounded> {
 				for (let tx = r.tx0; tx <= r.tx1; tx++) {
 					const k = `${tier}:${tx}:${ty}`;
 					if (this.tiles.has(k) || this.inFlight.has(k))
-						this.gen.set(k, (this.gen.get(k) ?? 0) + 1);
+						this.invalidateKey(k, rect, true);
 				}
 		}
 	}

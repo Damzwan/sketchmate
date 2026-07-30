@@ -102,10 +102,21 @@ export abstract class RenderInvalidationCoordinator<
 	 * showable outside the stroke: `markStale` queues the re-bake without
 	 * touching trust, `markDirty` marks only the stroke's own footprint wrong.
 	 */
+	/**
+	 * Queue a re-bake for a region WITHOUT touching what is currently shown.
+	 * For a caller that is coalescing several edits and will invalidate the
+	 * actually-changed pixels once at the end.
+	 */
+	markRegionStale(rect: WorldRect): void {
+		this.growContentBounds(rect);
+		this.committed.markStale(rect);
+	}
+
 	invalidateChanged(
 		changedRect: WorldRect,
 		rebakeRect: WorldRect | null,
 		maxSyncTiles = MAX_SYNC_REPAIR_TILES,
+		deferOverview = false,
 	): void {
 		this.growContentBounds(changedRect);
 		if (rebakeRect) {
@@ -132,7 +143,8 @@ export abstract class RenderInvalidationCoordinator<
 		// The overview carries the erase hole punched into it at erase time, so it
 		// MUST be repainted from the (now un-erased) objects or the undone stroke
 		// stays visible in every fallback.
-		this.patchOverview(changedRect);
+		if (deferOverview) this.deferOverview(changedRect);
+		else this.patchOverview(changedRect);
 		if (this.intersectsView(changedRect)) this.requestFrame();
 		this.scheduleBake();
 	}

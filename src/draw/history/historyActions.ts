@@ -62,6 +62,19 @@ export interface HistoryContext {
 	getObjectsById: (ids: string[]) => FabricObject[];
 	updateQuadTree: (obj: FabricObject) => void;
 	unSelect: () => void;
+	/**
+	 * Stroke ids of erases that are currently UNDONE — i.e. every Erasing action
+	 * sitting on the redo stack.
+	 *
+	 * An object deleted by the fully-erased sweep is restored from a JSON
+	 * snapshot taken at deletion time, and that snapshot carries whatever clip it
+	 * had THEN. If a later erase has since been undone, restoring the snapshot
+	 * silently re-applies it. Handlers that revive objects must strip these.
+	 *
+	 * Supplied through the context rather than imported: the history store owns
+	 * the stacks, and an operation module importing it back would be a cycle.
+	 */
+	undoneEraseStrokeIds: () => Set<string>;
 }
 
 export type HistoryHandler<K extends HistoryEvent> = (

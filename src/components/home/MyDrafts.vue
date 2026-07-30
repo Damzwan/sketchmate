@@ -52,7 +52,7 @@
             <img
               v-if="draft.thumbnail"
               :src="draft.thumbnail"
-              class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+              class="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-105"
               :class="{ 'opacity-40': isPending(draft.id) }"
               alt="Draft snapshot"
             />

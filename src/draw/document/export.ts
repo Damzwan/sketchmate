@@ -69,13 +69,15 @@ export async function exportBoundingBoxImage(
 		quality?: number;
 		signal?: AbortSignal;
 		asDataUrl?: boolean;
+		format?: "image/webp" | "image/png";
 	} = {},
 ) {
 	const settings = {
-		maxSize: options.maxSize || 2000,
-		asBuffer: options.asBuffer || false,
-		asDataUrl: options.asDataUrl || false,
-		quality: options.quality || 0.8,
+		maxSize: options.maxSize ?? 2000,
+		asBuffer: options.asBuffer ?? false,
+		asDataUrl: options.asDataUrl ?? false,
+		quality: options.quality ?? 0.8,
+		format: options.format ?? "image/webp",
 		signal: options.signal,
 	};
 
@@ -103,6 +105,7 @@ async function exportWithMainThreadChunking(
 		quality: number;
 		signal?: AbortSignal;
 		asDataUrl?: boolean;
+		format: "image/webp" | "image/png";
 	},
 ): Promise<{ img: string | ArrayBuffer; aspect_ratio: number } | null> {
 	const { signal } = options;
@@ -137,7 +140,7 @@ async function exportWithMainThreadChunking(
 						resolve({ img: URL.createObjectURL(blob), aspect_ratio: 1 });
 					}
 				},
-				options.asDataUrl ? "image/png" : "image/webp",
+				options.format,
 				options.quality,
 			);
 		});
@@ -262,12 +265,16 @@ async function exportWithMainThreadChunking(
 						img: await blob.arrayBuffer(),
 						aspect_ratio: width / height,
 					});
-				}
-				if (options.asDataUrl) {
-					const reader = new FileReader();
-					// @ts-ignore
-					reader.onloadend = () =>
-						resolve({ img: reader.result, aspect_ratio: width / height });
+					}
+					if (options.asDataUrl) {
+						const reader = new FileReader();
+						reader.onloadend = () => {
+							if (typeof reader.result !== "string") return resolve(null);
+							resolve({
+								img: reader.result,
+								aspect_ratio: width / height,
+							});
+						};
 					reader.readAsDataURL(blob);
 					return;
 				}
@@ -276,7 +283,7 @@ async function exportWithMainThreadChunking(
 					aspect_ratio: width / height,
 				});
 			},
-			options.asDataUrl ? "image/png" : "image/webp",
+			options.format,
 			options.quality,
 		);
 	});

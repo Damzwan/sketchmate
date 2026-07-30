@@ -13,6 +13,7 @@ import {
 	generateChunkedJSON,
 	migrateLegacyOrigin,
 } from "@/draw/document/serialization";
+import { createDraftThumbnail } from "@/draw/document/draftThumbnail";
 
 export interface DrawingDraft {
 	id: string;
@@ -28,7 +29,7 @@ export interface DrawingDraft {
 export interface PendingDraft {
 	id: string;
 	updatedAt: number;
-	thumbnail: string; // optimistic preview from the live canvas
+	thumbnail: string;
 	promise: Promise<void>;
 }
 
@@ -39,7 +40,7 @@ export interface PendingDraft {
 interface CanvasSnapshot {
 	draftId: string;
 	json: any;
-	optimisticThumb: string;
+	thumbnail: string;
 }
 
 export const useDocumentStore = defineStore("drawDocument", () => {
@@ -236,26 +237,23 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		const liveObjects = activeCanvas.getObjects();
 		if (liveObjects.length === 0) return null;
 
-		let optimisticThumb = "";
+		let thumbnail = "";
 		try {
-			const el =
-				(activeCanvas as any).lowerCanvasEl ??
-				(activeCanvas as any).getElement?.();
-			if (el && typeof el.toDataURL === "function") {
-				optimisticThumb = el.toDataURL("image/webp", 0.3);
+			thumbnail = await createDraftThumbnail(activeCanvas, signal);
+		} catch (error) {
+			if (error instanceof DOMException && error.name === "AbortError") {
+				throw error;
 			}
-		} catch {
-			/* non-fatal */
+			console.warn("Draft thumbnail generation failed:", error);
 		}
+		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-		// Serialize once, in short slices. Cloning first built a complete second
-		// Fabric scene (including expanded watercolor paths), then serialized it.
 		const json = await generateChunkedJSON(activeCanvas, signal);
 
 		return {
 			draftId,
 			json,
-			optimisticThumb,
+			thumbnail,
 		};
 	}
 
@@ -270,7 +268,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		const draft: DrawingDraft = {
 			id: snapshot.draftId,
 			json: snapshot.json,
-			thumbnail: snapshot.optimisticThumb,
+			thumbnail: snapshot.thumbnail,
 			updatedAt: Date.now(),
 		};
 		const transaction = db.value.transaction([objectStoreName], "readwrite");
@@ -382,7 +380,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		const pending: PendingDraft = {
 			id: draftId,
 			updatedAt: Date.now(),
-			thumbnail: snapshot.optimisticThumb,
+			thumbnail: snapshot.thumbnail,
 			promise,
 		};
 		pendingDrafts.value.set(draftId, pending);

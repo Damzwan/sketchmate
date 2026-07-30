@@ -147,6 +147,23 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	// ── batch mode ─────────────────────────────────────────────────────────
 	let batchDepth = 0;
 	let batchRects: WorldRect[] = [];
+	/**
+	 * Objects ADDED during a batch, held back so they can go through the normal
+	 * per-object add path at flush time instead of being flattened into a
+	 * destructive rect invalidation.
+	 *
+	 * An add is ADDITIVE: the surrounding tile pixels are still perfectly valid,
+	 * so `core.onObjectAdded` can stamp the object straight into the fresh tiles
+	 * (or overlay it live) and nothing ever blurs. Turning it into a plain
+	 * `markDirty(rect)` — which is what noteRegion did — threw the whole
+	 * footprint away and rendered it from the overview until the bake landed.
+	 * Every redo of a stroke went through exactly that path.
+	 */
+	let batchAdds: FabricObject[] = [];
+	/** Past this, stamping each object individually costs more than one
+	 *  coalesced invalidation (each stamp re-renders into every covered tile). A
+	 *  bulk paste / big remote replay keeps the old behaviour. */
+	const MAX_BATCH_STAMPED_ADDS = 16;
 	const isBatching = () => batchDepth > 0;
 
 	function beginBatch() {
@@ -157,8 +174,11 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		batchDepth = Math.max(0, batchDepth - 1);
 		if (batchDepth !== 0) return;
 		const rects = batchRects;
+		const adds = batchAdds;
 		batchRects = [];
-		if (isLoading() || !core || rects.length === 0) return;
+		batchAdds = [];
+		if (isLoading() || !core) return;
+		if (rects.length === 0 && adds.length === 0) return;
 		// Batched changes (remote sync, undo/redo) may have altered objects that
 		// are currently selected — the drag-layer bitmap can't be trusted anymore.
 		localTransform.invalidateCache();
@@ -170,7 +190,19 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		// SHRINK after a removal, and a slightly-loose content bound merely makes
 		// the overview cover a bit of extra empty space — harmless. The full
 		// recompute still runs on load / reset (endLoading, resetTileCache).
-		core.invalidateRegions(rects);
+		if (rects.length) core.invalidateRegions(rects);
+		// AFTER the destructive pass, never before: a stamp needs fresh tiles, so
+		// running it first would only have it invalidated a moment later. If a
+		// rect in this same batch did invalidate the region, the add falls back to
+		// the live overlay by itself — correct either way.
+		if (adds.length) {
+			const order = c!.getObjects();
+			const top = order.length ? order[order.length - 1] : null;
+			for (const obj of adds) {
+				if (!obj.id || !objectMap.has(obj.id)) continue; // added then removed
+				core.onObjectAdded(obj, obj === top);
+			}
+		}
 	}
 
 	/** Returns true if the region was absorbed by the batch (skip per-event core). */
@@ -589,7 +621,14 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 			(obj as any).__z = z;
 			zIndexMap.set(obj, z);
 		}
-		if (noteRegion(objectBounds(obj))) return;
+		if (isBatching()) {
+			// Hold it for the flush so it keeps the ADDITIVE path (stamp / live
+			// overlay) instead of collapsing into a destructive rect. Past the cap,
+			// fall back to the coalesced invalidation.
+			if (batchAdds.length < MAX_BATCH_STAMPED_ADDS) batchAdds.push(obj);
+			else noteRegion(objectBounds(obj));
+			return;
+		}
 		const arr = c!.getObjects();
 		const topmost = arr.length > 0 && arr[arr.length - 1] === obj;
 		core?.onObjectAdded(obj, topmost);
@@ -802,7 +841,22 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 				// rebuild (worker canvas + returned bitmap). 1024² = 4.2MB and the
 				// overview is a low-res approximation anyway.
 				overviewPx: IS_MOBILE ? 1024 : 2048,
-				overviewTier: 2,
+				// Tier INDEX at and below which the overview IS the picture and no
+				// tiles are composited. This is an INDEX, and the ladder moved up one
+				// step (0.0625 dropped, 32 added) — so 2 → 1 keeps the same *zoom*
+				// threshold (0.25) it has always had.
+				//
+				// Do not lower it to 0 without solving tile count first: tier 1 tiles
+				// are `tileSize / 0.25` = ~1.5k world units each, and at the zoom
+				// where tier 1 is active the viewport spans ~18k × 36k world units on
+				// a phone — ~290 tiles, ~170MB, against a 40–72MB mobile budget. The
+				// coarse end of the zoom range needs the overview until tiles there
+				// are cheaper (see docs/DRAW_ENGINE_V3_PLAN.md, O1/O2).
+				//
+				// What actually shrinks the blurry zone today is the tier floor
+				// (0.031 → 0.0625) plus the content-aware zoom clamp in
+				// getZoomLimits().
+				overviewTier: 1,
 				liveMax: IS_LOW_END ? 32 : 64,
 				afterComposite: () => {
 					if (c) rerenderActiveObjectControls(c);
@@ -1019,16 +1073,26 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 	 * overview cover the rest. Falls back to the full sync repair when the
 	 * bakery is unavailable (no async help then).
 	 */
-	function dropRegionEraseUndo(rect: WorldRect) {
-		// ZERO sync tiles when the bakery is alive. Even 2 synchronous tile
-		// rebuilds render every touched object's clip group on the main thread —
-		// enough to make a pan started right after an undo stutter/BLOCK. The
-		// overview patch inside dropRegionLight already re-renders the region from
-		// the (now un-erased) objects, so the composite is correct immediately at
-		// overview resolution, and the worker rebakes the exact tiles off-thread.
-		// A pan aborts that bake; the overview covers meanwhile. Fall back to the
-		// full sync repair only when there is no worker to lean on.
-		dropRegionLight(rect, true, false, isBakeryActive() ? 0 : undefined);
+	/**
+	 * @param rect       union of the stroke footprint and every object it
+	 *                   touched — the region whose TILES must be re-baked.
+	 * @param changedRect the eraser stroke's own footprint: the only place the
+	 *                   PIXELS actually differ. Optional; without it the union
+	 *                   is treated as changed (the old, blurry behaviour).
+	 */
+	function dropRegionEraseUndo(rect: WorldRect, changedRect?: WorldRect) {
+		localTransform.invalidateCache();
+		// Splitting the two rects is what fixes "undo an erase and the whole
+		// drawing blurs": an eraser stroke across a big drawing unions with every
+		// object's FULL bounds, so the old single-rect invalidation threw away a
+		// screenful of correct pixels to repaint a thin trail.
+		//
+		// Sync tiles stay small: the changed rect is now the stroke, not the
+		// union, so this is a couple of tile renders under the cursor rather than
+		// 8 clip renders over the whole footprint (the erase-undo jank of the
+		// fourth review). Without a worker to lean on, repair more.
+		const syncTiles = isBakeryActive() ? 2 : IS_LOW_END ? 4 : 8;
+		core?.invalidateChanged(changedRect ?? rect, changedRect ? rect : null, syncTiles);
 	}
 
 	/**
@@ -1186,10 +1250,53 @@ export const useDrawObjectManager = defineStore("drawObjectManager", () => {
 		core.markDirtyAndRebuildSync(rect, tier);
 	}
 
+	/**
+	 * How much empty space around the drawing the user may zoom out to. 0.55 =>
+	 * the content is allowed to shrink to ~55% of the viewport before the zoom
+	 * stops. Below that the whole board is a handful of pixels wide, every pixel
+	 * comes from the coarsest data we have, and nothing useful is visible —
+	 * which is exactly the "fully zoomed out is too blurry" report, and it is
+	 * worst in a lobby where the content bounds span many drawings.
+	 */
+	const ZOOM_OUT_SLACK = 0.55;
+
+	/**
+	 * Zoom clamps. The tier floor/ceiling are hard engine limits (we cannot bake
+	 * a tier that does not exist); the CONTENT floor is a UX limit that scales
+	 * with how much there is to look at.
+	 *
+	 * Read this per gesture, never once at setup: the content bounds grow while
+	 * the user draws and while remote strokes arrive.
+	 */
 	function getZoomLimits() {
-		return core
-			? { min: core.minZoom, max: core.maxZoom }
-			: { min: 0.03125, max: 32 };
+		if (!core || !c) return { min: 0.03125, max: 32 };
+		const min = core.minZoom;
+		const max = core.maxZoom;
+		const bounds = core.getContentBounds();
+		if (!bounds || bounds.w <= 0 || bounds.h <= 0) return { min, max };
+		// This store is a pinia singleton and OUTLIVES the canvas: on re-entering
+		// the draw view, `enableGestures` runs before `init(canvas)` rebinds `c`,
+		// so `c` still points at the DISPOSED canvas of the previous session.
+		// fabric's getElement() then throws "Cannot read properties of undefined
+		// (reading 'el')". The tier limits are always valid, so fall back to them
+		// rather than letting a UX refinement break canvas setup.
+		let vw = 0;
+		let vh = 0;
+		try {
+			const el = c.getElement();
+			if (!el) return { min, max };
+			const dpr = getRenderDpr();
+			vw = el.width / dpr;
+			vh = el.height / dpr;
+		} catch {
+			return { min, max };
+		}
+		if (!(vw > 0) || !(vh > 0)) return { min, max };
+		// Zoom at which the content exactly fills the viewport, times the slack.
+		const fit = Math.min(vw / bounds.w, vh / bounds.h) * ZOOM_OUT_SLACK;
+		// Never TIGHTEN past the tier ceiling, and never let a tiny drawing raise
+		// the floor above 1 (you must always be able to see a stroke at 1:1).
+		return { min: Math.min(Math.max(min, fit), 1), max };
 	}
 
 	function clearAllObjects() {

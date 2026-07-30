@@ -16,6 +16,18 @@ import * as transform from '@/draw/transform/transformController'
 
 const MIN_ZOOM = 0.2
 let dynamicMinZoom = MIN_ZOOM
+
+/**
+ * Zoom clamps, re-read at the START of every gesture.
+ *
+ * These used to be captured ONCE when the gesture handlers were installed, so
+ * the values reflected an empty canvas forever: the content-aware zoom-out
+ * floor could never take effect, and a board that grew after setup was clamped
+ * against limits computed before it had any content.
+ */
+function zoomLimits() {
+  return useDrawObjectManager().getZoomLimits()
+}
 let visibilityTimeout: any = null
 const SETTLE_DELAY = 180
 
@@ -70,7 +82,7 @@ export function enablePCGestures(c: Canvas) {
   const gestureStore = useGestureStore()
   const { addEventsOfService } = useDrawEventManager()
   const { onGestureStart } = useDrawObjectManager()
-  const limits = useDrawObjectManager().getZoomLimits()
+  let limits = zoomLimits()
 
   let isWheeling = false
   let pcWheelTimeout: any = null
@@ -88,6 +100,7 @@ export function enablePCGestures(c: Canvas) {
         if (!isWheeling) {
           cancelPendingSettle()
           isWheeling = true
+          limits = zoomLimits() // content may have grown since the last gesture
           dynamicMinZoom = limits.min
           onGestureStart()
           gestureStore.isGesturing = true
@@ -191,7 +204,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
   let isObjectScaling = false
   let totalObjectAngleDelta = 0
   let gestureFrameScheduled = false
-  const limits = useDrawObjectManager().getZoomLimits()
+  let limits = zoomLimits()
 
   function scheduleObjectUpdate() {
     if (gestureFrameScheduled || !gestureTarget) return
@@ -256,6 +269,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
       c.skipTargetFind = true
       c.isDrawingMode = false
       cancelPreviousAction(c)
+      limits = zoomLimits() // content may have grown since the last gesture
       dynamicMinZoom = limits.min
       cancelPendingSettle()
       onGestureStart()

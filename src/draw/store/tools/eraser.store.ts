@@ -6,7 +6,7 @@ import { CustomEraserBrush } from '@/draw/utils/brushes/CustomEraserBrush'
 import { isMobile } from '@/helper/general.helper'
 import { updateFreeDrawingCursor } from '@/draw/helpers/tools/cursor.helper'
 import { v4 } from 'uuid'
-import { analyzeErasureInWorker } from '@/draw/helpers/tools/eraser.helper'
+import { analyzeErasureInWorker, toReadbackCanvas } from '@/draw/helpers/tools/eraser.helper'
 import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
 import { useAuthStore } from '@/store/auth.store'
 import { useClaimArea } from '@/draw/store/claimArea.store'
@@ -147,11 +147,20 @@ export const useEraser = defineStore('eraser', (): Eraser => {
         COVERAGE_MAX_DIM / Math.max(bbox.width, bbox.height)
       )
       // Current clipped state — i.e. what survives RIGHT NOW, history included.
-      const fp: HTMLCanvasElement = (obj as any).toCanvasElement({
+      const rendered: HTMLCanvasElement = (obj as any).toCanvasElement({
         multiplier: mult
       })
-      const ctx = fp.getContext('2d', { willReadFrequently: true })
-      if (!ctx || !fp.width || !fp.height) return null
+      // Copy into a canvas we created WITH willReadFrequently. Asking the
+      // fabric-made element for a context with that attribute is a no-op — it
+      // already has one — so this entry was doing a GPU readback on every
+      // coverage check. It is read far more often than it is written.
+      const readback = toReadbackCanvas(rendered)
+      rendered.width = 0
+      rendered.height = 0
+      if (!readback) return null
+      const fp = readback.canvas
+      const ctx = readback.ctx
+      if (!fp.width || !fp.height) return null
 
       // Stale rebuild replaces the old canvas — release it explicitly.
       if (existing) forgetCoverage(id)

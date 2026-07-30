@@ -368,10 +368,15 @@ export class WorldOverview<T extends Bounded> {
       d = vpt[3] * dpr,
       e = vpt[4] * dpr,
       f = vpt[5] * dpr
-    const dx = inter.x * a + e,
-      dy = inter.y * d + f
-    const dw = inter.w * a,
-      dh = inter.h * d
+    // Destination snapped OUTWARD by up to a pixel. This is drawn as the base
+    // under uncovered tile cells and is clipped to exactly those cells, so
+    // growing it cannot leak — while leaving it fractional put an
+    // antialiased edge against transparent right where a tile boundary is,
+    // i.e. the thin background-coloured lines seen during a bake.
+    const dx = Math.floor(inter.x * a + e),
+      dy = Math.floor(inter.y * d + f)
+    const dw = Math.ceil((inter.x + inter.w) * a + e) - dx,
+      dh = Math.ceil((inter.y + inter.h) * d + f) - dy
     if (srcW <= 0 || srcH <= 0 || dw <= 0 || dh <= 0) return
 
     ctx.save()

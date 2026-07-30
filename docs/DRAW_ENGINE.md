@@ -468,6 +468,23 @@ reach the engine through the same seams as local edits.
    side-effect free on object state.
 8. **The bake worker mirror (if wired) must be fed a delta at every seam** and its
    messages must stay FIFO — see the roadmap.
+9. **`usable` and `fresh` are different questions.** `fresh` (`builtGen === gen`)
+   means "no re-bake needed"; `usable` means "these pixels are safe to show".
+   A stamp produces `usable && !fresh` (draw now, re-bake for exact z); an
+   invalidation produces `!usable && !fresh`. Never collapse them into one flag —
+   doing so silently sends every drag commit to the blurry overview.
+10. **Anything that bumps a generation must say WHERE.** Go through
+    `invalidateKey(key, rect)`; `null` means "whole tile" and is always safe. A
+    missing dirty-rect entry is treated as whole-tile dirty, never as clean.
+11. **Never invalidate a region you are about to stamp.** The stamp bumps the
+    generation itself, so a pre-emptive `markDirty` turns the fast path into
+    dead code with no error anywhere.
+12. **Composite destinations are integer-snapped outward.** Fragments overlap by
+    <1px; they never gap. A gap shows the canvas background and reads as a
+    rendering defect (the "white lines" report).
+
+> Visual-artifact / zoom / worker roadmap: see
+> [`DRAW_ENGINE_V3_PLAN.md`](./DRAW_ENGINE_V3_PLAN.md).
 
 ---
 

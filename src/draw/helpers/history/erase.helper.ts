@@ -200,7 +200,10 @@ export async function handleErasedAction(
         // Off-thread repair: the worker rebakes the region (erased objects are
         // shippable), so only a couple of sync tiles under the cursor — not 8
         // main-thread clip renders — are needed for instant feedback.
-        mgr.dropRegionEraseUndo(rect)
+        // `footprint` is passed separately because it is the only region whose
+        // PIXELS change; `rect` (the union with every touched object's bounds)
+        // only needs a re-bake. Blurring the union was blurring the drawing.
+        mgr.dropRegionEraseUndo(rect, footprint ?? undefined)
       }
     }
 
@@ -266,7 +269,10 @@ export async function handleErasedAction(
     // couple of sync tiles are done on the main thread for instant feedback;
     // the async bake + overview cover the rest. The old 8-tile sync repair,
     // rendering every touched object's clip group, was the erase-undo jank.
-    if (rect) mgr.dropRegionEraseUndo(rect)
+    // Only the eraser stroke's own footprint changes pixels (the hole fills back
+    // in); the union with every affected object's bounds is just what has to
+    // re-bake. Passing both keeps the rest of those objects sharp.
+    if (rect) mgr.dropRegionEraseUndo(rect, footprint ?? undefined)
   }
 
   return action

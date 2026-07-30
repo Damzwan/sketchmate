@@ -219,6 +219,12 @@ export function commit(c: Canvas): void {
     // 3. DROP the OLD footprint (object has left it) → correct empty overview,
     //    never a sharp stale-exact ghost. Bounded sync repair only — the full
     //    ≤32-tile sync rebuild was the release-frame freeze on big selections.
+    // NB `coveredByLayer` is false on purpose. The GPU drag layer is at the NEW
+    // position — nothing covers the VACATED region, so skipping its repair (what
+    // coveredByLayer does) left the area the object came from showing the
+    // overview until the bake landed. Invisible at 1x, obvious when zoomed in,
+    // where that rect is most of the screen. Bounded to 4 tiles: half the old
+    // pre-worker cost, enough for the visible seam.
     mgr.dropRegionLight(
       {
         x: s.origin.left,
@@ -227,11 +233,10 @@ export function commit(c: Canvas): void {
         h: s.origin.height
       },
       false,
-      true // GPU drag layer still covers this until the bake lands
+      false,
+      4
     )
 
-    // 4. Mark the NEW footprint dirty (stale-exact OK — the GPU layer covers it
-    //    until the tiles are baked).
     const tb = s.target.getBoundingRect()
     const PAD = 8
     const newRect = {
@@ -240,20 +245,39 @@ export function commit(c: Canvas): void {
       w: tb.width + PAD * 2,
       h: tb.height + PAD * 2
     }
-    mgr.scheduleRectPatch(newRect)
 
-    // 5. Stamp the drag-layer pixels straight into the tiles at the new
+    // 4. Stamp the drag-layer pixels straight into the tiles at the new
     //    position: the commit costs O(touched tiles) drawImage instead of
     //    re-rendering N objects, and the result is pixel-identical to what
-    //    the layer already shows. Tiles are stored stale — the scheduled
-    //    bake repaints them exactly (correct z where the selection sits
-    //    under other content) without any visible change.
+    //    the layer already shows. Tiles are stored stale-but-USABLE — the
+    //    scheduled bake repaints them exactly (correct z where the selection
+    //    sits under other content) without any visible change.
+    //
+    // NB: this MUST come before any invalidation of `newRect`. A
+    // scheduleRectPatch(newRect) used to run here first, which bumped the
+    // generation of every tile the stamp was about to write — so
+    // stampBitmapRegion found all of them stale, skipped all of them, and the
+    // fast path never executed once. The engine now grows content bounds and
+    // patches the overview inside stampRegionBitmap, and tiles the stamp could
+    // NOT cover are invalidated by the stamp itself, so nothing is lost.
     let stamped = false
+    let attempted = false
     if (c.viewportTransform![0] === s.baseZoom) {
       try {
+        attempted = true
         stamped = mgr.stampRegionBitmap(newRect, s.bitmap, bitmapToWorldMatrix(s))
-      } catch { /* bitmap closed / detached — fall back to the bake cover */ }
+      } catch {
+        // bitmap closed / detached, possibly mid-region — fall back to the
+        // ordinary invalidate so nothing is left half-written.
+        attempted = false
+      }
     }
+    // 5. The stamp did not run at all (zoom changed mid-drag, bitmap gone) → the
+    //    ordinary invalidate + bake path owns the new footprint. A stamp that
+    //    RAN needs nothing here: it invalidated whatever it could not cover and
+    //    scheduled the bake itself, and re-invalidating would just undo the
+    //    tiles it did cover.
+    if (!attempted) mgr.scheduleRectPatch(newRect)
 
     const elRef = el
     const idsToClear = new Set(ownedIds)

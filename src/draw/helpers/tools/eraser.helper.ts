@@ -138,6 +138,40 @@ export const isCompletelyErased = (
 }
 
 /**
+ * Copy a fabric-produced canvas into one we created ourselves WITH
+ * `willReadFrequently`, and hand back that context.
+ *
+ * `toCanvasElement()` creates the canvas *and* takes its 2D context internally
+ * to render into. A later `getContext('2d', { willReadFrequently: true })` on
+ * the same element returns that existing context and **silently ignores the
+ * attributes** — which is what produces
+ *   "Canvas2D: Multiple readback operations using getImageData are faster with
+ *    the willReadFrequently attribute set to true"
+ * and, more importantly, leaves every `getImageData` here as a GPU→CPU readback
+ * stall. That is on the erase path (the erased-check sweep), once per object.
+ *
+ * One `drawImage` into a CPU-backed canvas is far cheaper than the stall it
+ * avoids. The source canvas is released immediately — it is a throwaway.
+ */
+export function toReadbackCanvas(src: HTMLCanvasElement): {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D
+} | null {
+  if (!src.width || !src.height) return null
+  const canvas = document.createElement('canvas')
+  canvas.width = src.width
+  canvas.height = src.height
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return null
+  try {
+    ctx.drawImage(src, 0, 0)
+  } catch {
+    return null
+  }
+  return { canvas, ctx }
+}
+
+/**
  * Render the object at `multiplier` and count pixels with alpha >= threshold,
  * early-exiting once `cap` survivors are seen.
  *
@@ -164,14 +198,20 @@ function countSurvivors(
   const h = canvasEl.height
   if (w === 0 || h === 0) return 0
 
-  const ctx = canvasEl.getContext('2d', { willReadFrequently: true })
-  if (!ctx) return null
+  const readback = toReadbackCanvas(canvasEl)
+  // Release the fabric-rendered canvas as soon as its pixels are copied.
+  canvasEl.width = 0
+  canvasEl.height = 0
+  if (!readback) return null
 
   let data: Uint8ClampedArray
   try {
-    data = ctx.getImageData(0, 0, w, h).data
+    data = readback.ctx.getImageData(0, 0, w, h).data
   } catch {
     return null
+  } finally {
+    readback.canvas.width = 0
+    readback.canvas.height = 0
   }
 
   let visible = 0

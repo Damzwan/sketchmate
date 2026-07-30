@@ -413,15 +413,24 @@ export class RenderCore<T extends Bounded> {
 			return;
 		}
 
-			// Fallback: live overlay covers the stroke sharply until the tile bakes.
-			const willLive = this.intersectsView(rect) && topmost;
-			this.committed.markDirty(rect);
+		// Fallback: live overlay covers the stroke sharply until the tile bakes.
+		//
+		// An add is ADDITIVE and, when it is topmost and source-over, the existing
+		// tile pixels stay exactly right — the live overlay supplies the only
+		// thing they are missing. So the tiles are marked stale (re-bake) but stay
+		// USABLE, and the composite shows sharp tiles + a sharp live object.
+		// Marking them dirty instead dropped the whole footprint to the overview
+		// for the entire bake round-trip, which is the "redo a stroke and
+		// everything around it blurs for a second" report.
+		const willLive =
+			topmost && stampSafe && this.intersectsView(rect) && this.live.add(obj, rect, "normal");
 		if (willLive) {
+			this.committed.markStale(rect);
 			// Do NOT patch the overview here — the live overlay is the sole copy
 			// during the bake window, so a semi-transparent stroke stays single.
 			// The overview is folded in at demote (see demoteSettled).
-			this.live.add(obj, rect, "normal");
 		} else {
+			this.committed.markDirty(rect);
 			this.patchOverview(rect);
 		}
 		this.requestFrame();
@@ -440,15 +449,67 @@ export class RenderCore<T extends Bounded> {
 
 	onObjectChanged(obj: T, oldRect?: WorldRect): void {
 		const rect = this.boundsOf(obj);
-		if (oldRect) this.destructiveInvalidate(oldRect);
-		if (rect) {
-			this.growContentBounds(rect);
-			this.additiveInvalidate(rect);
+		// ONE pass over both footprints.
+		//
+		// This used to be `destructiveInvalidate(oldRect)` — which does the
+		// bounded synchronous repair — followed by `additiveInvalidate(rect)`,
+		// which marks the very same tiles dirty again. For a style change (stroke
+		// colour, width, opacity) the two rects are the SAME region, so the repair
+		// was undone the instant it happened and the object's footprint fell to
+		// the overview until the async bake: the "changing an object's style
+		// blurs it for a second" report. invalidateRegions merges overlapping
+		// rects, invalidates everything first, then repairs once.
+		const rects: WorldRect[] = [];
+		if (oldRect) rects.push(oldRect);
+		if (rect) rects.push(rect);
+		if (!rects.length) return;
+		this.invalidateRegions(rects);
+	}
+
+	/**
+	 * An edit whose CHANGED pixels are smaller than the region that must
+	 * re-bake. Erase undo/redo is the case that matters: the pixels change only
+	 * under the eraser stroke, but every object that stroke touched has a
+	 * different clip now and must be re-rendered — and those objects' bounds can
+	 * cover most of the drawing.
+	 *
+	 * Invalidating the union made the whole union unusable, i.e. blurred an
+	 * entire drawing to undo one small erase. Splitting it keeps every tile
+	 * showable outside the stroke: `markStale` queues the re-bake without
+	 * touching trust, `markDirty` marks only the stroke's own footprint wrong.
+	 */
+	invalidateChanged(
+		changedRect: WorldRect,
+		rebakeRect: WorldRect | null,
+		maxSyncTiles = MAX_SYNC_REPAIR_TILES,
+	): void {
+		this.growContentBounds(changedRect);
+		if (rebakeRect) {
+			this.growContentBounds(rebakeRect);
+			this.committed.markStale(rebakeRect);
 		}
-		const inView =
-			(rect ? this.intersectsView(rect) : false) ||
-			(oldRect ? this.intersectsView(oldRect) : false);
-		if (inView) this.requestFrame();
+		this.committed.markDirty(changedRect);
+		const vpt = this.surface.getVpt();
+		const tier = this.committed.pickActiveTier(vpt[0]);
+		if (
+			maxSyncTiles > 0 &&
+			!this.gesturing &&
+			!this.loading &&
+			!this.erasing &&
+			tier > this.committed.overviewTier
+		) {
+			const vw = this.committed.viewWorld(
+				vpt,
+				this.surface.getSize(),
+				this.surface.getDpr(),
+			);
+			this.committed.rebuildRectSync(changedRect, tier, vw, maxSyncTiles);
+		}
+		// The overview carries the erase hole punched into it at erase time, so it
+		// MUST be repainted from the (now un-erased) objects or the undone stroke
+		// stays visible in every fallback.
+		this.patchOverview(changedRect);
+		if (this.intersectsView(changedRect)) this.requestFrame();
 		this.scheduleBake();
 	}
 
@@ -502,11 +563,51 @@ export class RenderCore<T extends Bounded> {
 		if (rects.length === 0) return;
 		const merged = this.mergeRects(rects);
 		let anyInView = false;
-			for (const rect of merged) {
-				this.growContentBounds(rect);
-				this.committed.markDirty(rect);
+
+		// BOUNDED SYNCHRONOUS REPAIR, shared across the whole batch.
+		//
+		// A single (unbatched) edit has always repaired up to MAX_SYNC_REPAIR_TILES
+		// visible tiles right away — that is what makes a delete or a style change
+		// look instant. Every undo and redo, however, runs inside
+		// beginBatch/endBatch (drawHistoryManager wraps them unconditionally), and
+		// this path did logical invalidation ONLY. So the edited region fell to the
+		// low-res overview for the whole 80ms debounce + bake round-trip: the
+		// "undo a stroke and it goes blurry for a second" report.
+		//
+		// The budget is per BATCH, not per rect, so a 300-object undo still costs
+		// at most the same handful of tile renders as one deletion. Interaction
+		// seams (gesture / load / erase) still skip it — there the async bake and
+		// the overview are the right answer.
+		const vpt = this.surface.getVpt();
+		const tier = this.committed.pickActiveTier(vpt[0]);
+		const canRepair =
+			!this.gesturing &&
+			!this.loading &&
+			!this.erasing &&
+			tier > this.committed.overviewTier;
+		const vw = canRepair
+			? this.committed.viewWorld(
+					vpt,
+					this.surface.getSize(),
+					this.surface.getDpr(),
+				)
+			: null;
+		let repairBudget = MAX_SYNC_REPAIR_TILES;
+
+		for (const rect of merged) {
+			this.growContentBounds(rect);
+			this.committed.markDirty(rect);
+			const inView = this.intersectsView(rect);
+			if (vw && inView && repairBudget > 0) {
+				repairBudget -= this.committed.rebuildRectSync(
+					rect,
+					tier,
+					vw,
+					repairBudget,
+				);
+			}
 			this.patchOverview(rect);
-			if (this.intersectsView(rect)) anyInView = true;
+			if (inView) anyInView = true;
 		}
 		if (anyInView) this.requestFrame();
 		this.scheduleBake();
@@ -617,8 +718,27 @@ export class RenderCore<T extends Bounded> {
 		m: [number, number, number, number, number, number],
 	): boolean {
 		const tier = this.committed.pickActiveTier(this.surface.getVpt()[0]);
-		if (tier <= this.committed.overviewTier) return false;
+		if (tier <= this.committed.overviewTier) {
+			// No tiles at this zoom — the overview IS the picture, so fall back to
+			// the normal invalidation path. Callers must not have to know that.
+			this.markDirty(rect);
+			return false;
+		}
+		// The moved content may extend the board, and the overview has to show it
+		// at its NEW position (it is the base under every unbaked tile, and the
+		// whole picture when zoomed out). This used to be done by the CALLER via a
+		// markDirty of the same rect — which also invalidated every tile we are
+		// about to stamp, making the stamp fail on all of them. Doing the two
+		// halves here keeps the bookkeeping without destroying the fast path.
+		this.growContentBounds(rect);
 		const complete = this.committed.stampBitmapRegion(rect, tier, bmp, m);
+		// Only the ACTIVE tier gets the stamped pixels, so every other tier still
+		// shows this region without the object that just moved into it. Mark them
+		// (lazily — no texture is destroyed) so the cross-tier fallback punches
+		// that rect out and takes the overview there instead, which was patched
+		// below and does have the object.
+		this.committed.dropOtherTiers(rect, tier);
+		this.patchOverview(rect);
 		if (this.intersectsView(rect)) this.requestFrame();
 		this.scheduleBake(); // stamped tiles are stale — bake repaints them exactly
 		return complete;
@@ -714,6 +834,13 @@ export class RenderCore<T extends Bounded> {
 
 	setContentBounds(rect: WorldRect | null): void {
 		this.contentBounds = rect ? { ...rect } : null;
+	}
+
+	/** The bounds the engine currently believes content occupies — maintained
+	 *  incrementally by growContentBounds, so this is O(1) unlike the store's
+	 *  full recompute. Read-only: callers must not mutate the returned rect. */
+	getContentBounds(): WorldRect | null {
+		return this.contentBounds;
 	}
 
 	markAllDirty(): void {

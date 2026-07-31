@@ -195,7 +195,12 @@ describe("RenderEngine erase bursts", () => {
 		engine.reset();
 	});
 
-	it("retains both transform footprints until their tiles are replaced", () => {
+	it("treats transform footprints as WRONG, not merely incomplete", () => {
+		// A move is not additive: the old footprint still shows an object that has
+		// left it. Marking those tiles stale-but-usable keeps them composited in
+		// full AND advertises them hole-free to the cross-tier fallback at every
+		// tier — so zooming after an undo/redo sources pre-move pixels and the
+		// object appears back at its previous position.
 		const engine = makeEngine() as any;
 		const markStale = vi.spyOn(engine.committed, "markStale");
 		const markDirty = vi.spyOn(engine.committed, "markDirty");
@@ -206,8 +211,8 @@ describe("RenderEngine erase bursts", () => {
 
 		engine.retainRegionsUntilRebaked(rects);
 
-		expect(markStale).toHaveBeenCalledTimes(2);
-		expect(markDirty).not.toHaveBeenCalled();
+		expect(markDirty).toHaveBeenCalledTimes(2);
+		expect(markStale).not.toHaveBeenCalled();
 		engine.reset();
 	});
 

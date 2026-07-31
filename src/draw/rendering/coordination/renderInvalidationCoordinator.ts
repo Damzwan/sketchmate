@@ -130,13 +130,26 @@ export abstract class RenderInvalidationCoordinator<
 	 */
 	retainRegionsUntilRebaked(rects: readonly WorldRect[]): void {
 		if (rects.length === 0) return;
-		for (const rect of rects) {
-			this.growContentBounds(rect);
-			this.committed.markStale(rect);
-		}
-		for (const rect of this.mergeRects([...rects])) this.patchOverview(rect);
-		this.requestFrame();
-		this.scheduleBake();
+		// `markStale` is the WRONG primitive here and this is where "after an
+		// undo/redo the objects show at their previous position when I zoom" comes
+		// from.
+		//
+		// markStale means "a re-bake is owed but the pixels are CORRECT" — true
+		// only for an additive change, where a live overlay supplies the missing
+		// part. A transform or a removal is not additive: the old footprint still
+		// shows an object that has left it, and the new one does not show it yet.
+		// Because markStale keeps `usable = true`, those tiles are composited in
+		// FULL at the active tier AND reported hole-free to the cross-tier fallback
+		// search, at EVERY tier. Zooming then happily sources pre-move pixels — the
+		// object appears where it used to be, and nothing corrects it until that
+		// tier happens to re-bake.
+		//
+		// The coherence this was reaching for now comes from the honest path:
+		// markDirty records WHERE it changed, the stale tile still paints
+		// everywhere outside that region, the hole takes a fresh coarser tile
+		// before the overview, and the bounded synchronous repair repaints the
+		// visible footprint before the next frame.
+		this.invalidateRegions([...rects]);
 	}
 
 	invalidateChanged(

@@ -1854,3 +1854,56 @@ land.
 
 32. **Exact covers must replace pixels, not blend over them.** Overlaying a
     supposedly equivalent translucent color changes the result by definition.
+
+### R6 — transform footprints were marked stale-but-USABLE ✅ fixed
+
+Report: after moving an object — and especially after undo/redo of a transform —
+zooming shows the objects at their **previous** position.
+
+`retainRegionsUntilRebaked` (used by transform undo/redo and by history removals)
+marked both the old and the new footprint with `markStale`. That primitive means
+*"a re-bake is owed but the pixels are CORRECT"*, which is true only for an
+ADDITIVE change, where a live overlay supplies the missing part.
+
+A move is not additive. The old footprint still shows an object that has left it,
+and the new one does not show it yet. And because `markStale` keeps
+`usable = true`, those tiles are
+
+- composited in FULL at the active tier (`fresh || usable`), and
+- reported **hole-free** to the cross-tier fallback search, at EVERY tier.
+
+So the pre-move pixels were not merely retained, they were advertised as
+trustworthy. Zooming picks a tier whose tiles were never re-baked, the fallback
+search happily sources them, and the object reappears where it used to be —
+persisting until that tier happens to re-bake. Undo/redo is the loudest path
+because it is the only caller.
+
+Now delegates to `invalidateRegions`: `markDirty` records WHERE it changed, the
+stale tile still paints everywhere outside that region, the hole takes a fresh
+coarser tile before the overview, and the bounded synchronous repair repaints the
+visible footprint before the next frame. The coherence the retain path was
+reaching for, without lying about correctness.
+
+Audited the remaining `markStale` callers: the additive-add path (live overlay
+covers it), the non-topmost insert (bucket fill — content is late, never
+misplaced), and the erase re-bake rect (its changed rect is `markDirty`ed
+separately). Those are honest uses.
+
+### R7 — the drag origin was left uncovered ✅ fixed
+
+`markMoved` dropped the origin footprint with `coveredByLayer: true`, which skips
+the synchronous repair entirely. The GPU drag layer carries the SELECTION — it
+has already left that rect, and nothing covers what stays behind. So the moment a
+drag started, the vacated area fell to a coarse fallback: a soft ghost of the
+stroke just grabbed, and the same flash again at the origin on release. Same
+mistake the commit path had (A10), one call site later. Repairs are sub-rect and
+time-budgeted now, so the first move frame can afford one.
+
+27. **`markStale` is only for ADDITIVE changes.** It asserts the pixels are
+    correct, which makes the tile usable at the active tier and hole-free to the
+    fallback search at every tier. Anything that MOVES or REMOVES content must
+    use `markDirty` — otherwise the old pixels are not just kept, they are
+    advertised as true, and a later zoom will resurrect them.
+28. **The drag layer covers the selection, never the space it left.** Any path
+    passing `coveredByLayer` for a VACATED region is claiming cover that does not
+    exist.

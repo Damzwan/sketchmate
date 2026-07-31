@@ -1,5 +1,7 @@
 import { FabricImage } from "fabric";
 
+export type AssetRefusalReason = "text" | "image" | "imageClip" | "grouped";
+
 interface PendingAsset {
 	epoch: number;
 	version: number;
@@ -22,7 +24,13 @@ export class BakeryAssets {
 	private reservedBytes = 0;
 	private epoch = 0;
 
-	constructor(private readonly getWorker: () => Worker | null) {}
+	constructor(
+		private readonly send: (
+			id: string,
+			bitmap: ImageBitmap,
+			bytes: number,
+		) => boolean,
+	) {}
 
 	setFonts(fonts: readonly string[]): void {
 		this.fonts = new Set(fonts);
@@ -50,14 +58,25 @@ export class BakeryAssets {
 	}
 
 	canShip(object: any): boolean {
-		if (object.group || this.hasImageClip(object)) return false;
-		if (object.text !== undefined) return this.canRenderText(object);
-		if (object.type === "image") return false;
-		if (!this.isBitmapBacked(object)) return true;
-		if (this.sent.has(object.id)) return true;
+		return this.refusalReason(object) === null;
+	}
+
+	refusalReason(object: any): AssetRefusalReason | null {
+		if (object.group && !this.isActiveSelection(object.group)) return "grouped";
+		if (this.hasImageClip(object)) return "imageClip";
+		if (object.text !== undefined) {
+			return this.canRenderText(object) ? null : "text";
+		}
+		if (object.type === "image") return "image";
+		if (!this.isBitmapBacked(object)) return null;
+		if (this.sent.has(object.id)) return null;
 
 		this.ensureTransferred(object);
-		return false;
+		return "image";
+	}
+
+	private isActiveSelection(group: any): boolean {
+		return String(group?.type ?? "").toLowerCase() === "activeselection";
 	}
 
 	private canRenderText(object: any): boolean {
@@ -141,13 +160,11 @@ export class BakeryAssets {
 			return;
 		}
 
-		const worker = this.getWorker();
-		if (!worker) {
-			bitmap.close();
-			return;
-		}
 		try {
-			worker.postMessage({ t: "asset", id, bitmap }, [bitmap]);
+			if (!this.send(id, bitmap, transfer.bytes)) {
+				bitmap.close();
+				return;
+			}
 			this.sent.add(id);
 			this.sizes.set(id, transfer.bytes);
 			this.usedBytes += transfer.bytes;

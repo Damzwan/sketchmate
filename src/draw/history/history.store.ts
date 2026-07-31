@@ -28,6 +28,7 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { yieldToMain } from "@/draw/scheduling/yielder";
 import { eraseHistoryWeight } from "@/draw/history/historyBudget";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
+import * as transform from "@/draw/transform/transformController";
 
 export const useDrawHistoryManager = defineStore("history", () => {
 	let c: Canvas | undefined = undefined;
@@ -76,16 +77,18 @@ export const useDrawHistoryManager = defineStore("history", () => {
 	): void {
 		let cached: any[] | null = null;
 		let pending: FabricObject[] = objects.slice();
+		let pendingSerialized: any[] = [];
 		Object.defineProperty(params, key, {
 			configurable: true,
 			enumerable: true,
 			get() {
-				if (!cached) cached = toJSON(pending);
+				if (!cached) cached = [...toJSON(pending), ...pendingSerialized];
 				return cached;
 			},
 			set(v: any[]) {
 				cached = v;
 				pending = [];
+				pendingSerialized = [];
 			},
 		});
 		// Append MORE objects without forcing serialization (erasing:cleanup_done
@@ -97,6 +100,14 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			value: (more: FabricObject[]) => {
 				if (cached) cached = [...cached, ...toJSON(more)];
 				else pending = [...pending, ...more];
+			},
+		});
+		Object.defineProperty(params, `__append_${key}_serialized`, {
+			configurable: true,
+			enumerable: false,
+			value: (more: any[]) => {
+				if (cached) cached = [...cached, ...more];
+				else pendingSerialized = [...pendingSerialized, ...more];
 			},
 		});
 	}
@@ -209,17 +220,14 @@ export const useDrawHistoryManager = defineStore("history", () => {
 				const action: any = { type: HistoryEvent.Erasing, params };
 				// Precompute the trim weight so trimStacks never reads the lazy
 				// param (which would serialize it and defeat the whole point).
-				action.__w = eraseHistoryWeight(
-					targets.length,
-					deleted.length,
-				);
+				action.__w = eraseHistoryWeight(targets.length, deleted.length);
 				addToUndoStackWithResetRedo(action);
 			},
 		},
 		{
 			on: "erasing:cleanup_done",
 			handler: (e: any) => {
-				const { strokeId, deletedObjects } = e;
+				const { strokeId, deletedObjects, deletedObjectsJSON } = e;
 
 				// Search BOTH stacks. The cleanup sweep is deferred, so the user may
 				// already have undone (or undone+redone) this erase, moving its entry
@@ -243,17 +251,28 @@ export const useDrawHistoryManager = defineStore("history", () => {
 					findErasingAction(undoStack) ?? findErasingAction(redoStack);
 				if (!action) return;
 
-				const append = action.params.__append_deletedObjectsJSON;
-				if (append) {
-					// Stays deferred — no toJSON unless this entry is undone.
-					append(deletedObjects as FabricObject[]);
+				const appendSerialized =
+					action.params.__append_deletedObjectsJSON_serialized;
+				const appendObjects = action.params.__append_deletedObjectsJSON;
+				if (appendSerialized && Array.isArray(deletedObjectsJSON)) {
+					// Worker analysis already needed this exact snapshot. Reuse it
+					// so the first undo does not serialize every deleted object in
+					// one uninterruptible main-thread block.
+					appendSerialized(deletedObjectsJSON);
+					if (typeof action.__w === "number") {
+						action.__w += (deletedObjects as FabricObject[]).length;
+					}
+				} else if (appendObjects) {
+					appendObjects(deletedObjects as FabricObject[]);
 					if (typeof action.__w === "number") {
 						action.__w += (deletedObjects as FabricObject[]).length;
 					}
 				} else {
 					action.params.deletedObjectsJSON = [
 						...(action.params.deletedObjectsJSON || []),
-						...toJSON(deletedObjects),
+						...(Array.isArray(deletedObjectsJSON)
+							? deletedObjectsJSON
+							: toJSON(deletedObjects)),
 					];
 				}
 			},
@@ -328,30 +347,57 @@ export const useDrawHistoryManager = defineStore("history", () => {
 					return;
 				}
 
-				const activeObject = c!.getActiveObject()!;
+				const captureStartedAt = performance.now();
+				try {
+					const activeObject = c!.getActiveObject()!;
+					const objects = c!.getActiveObjects();
+					const translation = transform.activeTranslationDelta();
+					const { getSelectedObjectOriginalStates } = useSelect();
+					const originalStates = getSelectedObjectOriginalStates();
 
-				const objects = c!.getActiveObjects();
+					const changes = objects.map((obj) => {
+						if (translation) {
+							const forward = {
+								left: translation.x,
+								top: translation.y,
+								scaleX: 0,
+								scaleY: 0,
+								angle: 0,
+							};
+							return {
+								id: obj.id,
+								forward,
+								backward: {
+									left: -forward.left,
+									top: -forward.top,
+									scaleX: 0,
+									scaleY: 0,
+									angle: 0,
+								},
+							};
+						}
+						const original = originalStates.get(obj.id);
+						const current = getAbsoluteState(obj);
+						return {
+							id: obj.id,
+							forward: getObjectDiff(current, original),
+							backward: getObjectDiff(original, current),
+						};
+					});
 
-				const { getSelectedObjectOriginalStates } = useSelect();
-				const originalStates = getSelectedObjectOriginalStates();
-
-				const changes = objects.map((obj) => {
-					const original = originalStates.get(obj.id);
-					const current = getAbsoluteState(obj);
-					return {
-						id: obj.id,
-						forward: getObjectDiff(current, original),
-						backward: getObjectDiff(original, current),
-					};
-				});
-
-				addToUndoStackWithResetRedo({
-					type: HistoryEvent.ObjectModified,
-					params: {
-						changes: changes,
-						activeObjectId: activeObject?.id ?? null,
-					},
-				});
+					addToUndoStackWithResetRedo({
+						type: HistoryEvent.ObjectModified,
+						params: {
+							changes,
+							activeObjectId: activeObject?.id ?? null,
+						},
+					});
+				} finally {
+					recordPhase(
+						"historyTransformCapture",
+						performance.now() - captureStartedAt,
+					);
+				}
 			},
 		},
 		{
@@ -518,9 +564,18 @@ export const useDrawHistoryManager = defineStore("history", () => {
 	 * half-applied step in between.
 	 */
 	let queuedHistoryOps = 0;
+	let historyBurstOpen = false;
+	let historyBurstCloseTimer: ReturnType<typeof setTimeout> | null = null;
+	const HISTORY_BURST_GRACE_MS = 60;
 
 	function openHistoryBurst() {
-		if (queuedHistoryOps++ > 0) return;
+		queuedHistoryOps++;
+		if (historyBurstCloseTimer !== null) {
+			clearTimeout(historyBurstCloseTimer);
+			historyBurstCloseTimer = null;
+		}
+		if (historyBurstOpen) return;
+		historyBurstOpen = true;
 		const mgr = useDrawObjectManager();
 		mgr.setMutating(true);
 		mgr.beginBatch();
@@ -529,12 +584,32 @@ export const useDrawHistoryManager = defineStore("history", () => {
 	function closeHistoryBurst() {
 		if (--queuedHistoryOps > 0) return;
 		queuedHistoryOps = 0;
-		const mgr = useDrawObjectManager();
-		// endBatch first: it performs the single coalesced invalidation + repair
-		// while baking is still suspended, so the bake that follows sees the
-		// finished scene exactly once.
-		mgr.endBatch();
-		mgr.setMutating(false);
+		if (historyBurstCloseTimer !== null) {
+			clearTimeout(historyBurstCloseTimer);
+		}
+		historyBurstCloseTimer = setTimeout(() => {
+			historyBurstCloseTimer = null;
+			if (queuedHistoryOps > 0 || !historyBurstOpen) return;
+			historyBurstOpen = false;
+			const mgr = useDrawObjectManager();
+			const flushStartedAt = performance.now();
+			// CLOSE THE MUTATION FIRST, then flush.
+			//
+			// `mutating` makes the engine skip synchronous repair and overview
+			// patches, because mid-burst the scene is half-applied and rendering it
+			// would rasterize a torn state. But the batch flush is the ONE moment
+			// where the scene IS settled and the repair has to happen — running it
+			// while still "mutating" meant every undo and redo skipped its repair
+			// entirely and sat on a coarse fallback until the async bake landed.
+			// That is the "undo/move/erase-undo pops a low-res version" report.
+			//
+			// Closing first costs nothing: setMutating(false) only requests a frame
+			// (RAF) and schedules a debounced bake, both of which land after the
+			// synchronous endBatch below.
+			mgr.setMutating(false);
+			mgr.endBatch();
+			recordPhase("historyBurstFlush", performance.now() - flushStartedAt);
+		}, HISTORY_BURST_GRACE_MS);
 	}
 
 	function enqueueHistoryOp<T>(fn: () => Promise<T>): Promise<T> {
@@ -556,7 +631,7 @@ export const useDrawHistoryManager = defineStore("history", () => {
 				// Key-repeat and the benchmark can queue many individually-small
 				// operations. A task boundary prevents their promise continuations from
 				// becoming one uninterrupted undo/redo long task.
-				await yieldToMain();
+				await yieldToMain("history-queue");
 				return result;
 			} finally {
 				recordPhase("historyOp", performance.now() - startedAt);

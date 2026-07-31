@@ -2,6 +2,11 @@ import { Canvas, FabricObject, util } from "fabric";
 import { useFriendStore } from "@/store/friend.store";
 import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
 import { watercolorComplexity } from "@/draw/utils/brushes/watercolorGeometry";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
+import {
+	rememberSerializedObject,
+	serializeAtRevision,
+} from "@/draw/objects/objectSerialization";
 
 function enlivenComplexity(source: any): number {
 	if (!source || typeof source !== "object") return 1;
@@ -72,7 +77,11 @@ export async function enlivenObjectsTimeSlivered(
 	const BATCH_SIZE = IS_MOBILE ? 16 : 32;
 	const BATCH_COMPLEXITY = IS_MOBILE ? 1_200 : 3_000;
 
-	const yielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal });
+	const yielder = createYielder({
+		budgetMs: IS_MOBILE ? 4 : 6,
+		signal,
+		label: "document-enliven",
+	});
 	yielder.reset();
 
 	let i = 0;
@@ -111,6 +120,7 @@ export async function enlivenObjectsTimeSlivered(
 				}
 				try {
 					onObjectEnlivened(obj);
+					rememberSerializedObject(obj, batch[k]);
 				} catch (e) {
 					// eslint-disable-next-line no-console
 					console.error("[enliven] onObjectEnlivened threw", e);
@@ -152,7 +162,11 @@ export async function enlivenAllBatched(
 	const BATCH_SIZE = IS_MOBILE ? 16 : 32;
 	const BATCH_COMPLEXITY = IS_MOBILE ? 1_200 : 3_000;
 
-	const yielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal });
+	const yielder = createYielder({
+		budgetMs: IS_MOBILE ? 4 : 6,
+		signal,
+		label: "document-clone-enliven",
+	});
 	yielder.reset();
 
 	const out: FabricObject[] = new Array(objectsJson.length);
@@ -240,17 +254,23 @@ export async function generateChunkedJSON(
 	const IS_MOBILE =
 		typeof navigator !== "undefined" &&
 		/Mobi|Android/i.test(navigator.userAgent);
-	const yielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal });
+	const yielder = createYielder({
+		budgetMs: IS_MOBILE ? 4 : 6,
+		signal,
+		label: "document-serialize",
+	});
 
 	// Defer one frame so the caller's UI update can paint before we start.
-	await nextFrame();
+	await nextFrame("document-serialize");
 	if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
 	yielder.reset();
 	for (let i = 0; i < objects.length; i++) {
 		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-		json.objects.push(objects[i].toJSON());
+		const objectStartedAt = performance.now();
+		json.objects.push(serializeAtRevision(objects[i]));
+		recordPhase("documentSerializeObject", performance.now() - objectStartedAt);
 
 		if (yielder.shouldYield()) {
 			await yielder.yield();

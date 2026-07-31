@@ -19,6 +19,8 @@
 // transport today; `setDrawMetricsSink` is the seam to wire one in later.
 
 import type { DrawRenderBackend } from "@/draw/config/renderBackend.config";
+import type { WorkerTiming } from "@/draw/rendering/bakery/protocol";
+import { yieldLabelAt } from "@/draw/scheduling/yielder";
 
 export type RefusalReason =
 	| "text"
@@ -30,6 +32,29 @@ export type RefusalReason =
 	| "noId";
 
 export type BakeryStopReason = "timeout" | "error";
+export type LocalFallbackReason =
+	| "worker-unavailable"
+	| "backpressure"
+	| "timeout"
+	| "missing"
+	| "refusal"
+	| "z-order"
+	| "hard-error"
+	| "hybrid-overlay-failed";
+
+export interface LongFrameScriptAttribution {
+	frameDurationMs: number;
+	durationMs: number;
+	pauseMs: number;
+	forcedStyleLayoutMs: number;
+	functionName: string;
+	source: string;
+	sourceCharPosition: number;
+	executionStartMs: number;
+	invoker: string;
+	invokerType: string;
+	yieldLabel: string;
+}
 
 export interface DrawMetricsSnapshot {
 	/** ms since the metrics module was initialised. */
@@ -60,6 +85,18 @@ export interface DrawMetricsSnapshot {
 	/** Time from the gesture cancel signal until the worker replied. */
 	workerCancelMsMax: number;
 	workerCancelMsMean: number;
+	workerProtocolVersion: number;
+	sceneCommits: number;
+	sceneDeltas: number;
+	workerQueueDepthMax: number;
+	workerRequestBytes: number;
+	workerResultBytes: number;
+	workerTimingMsMax: Record<string, number>;
+	workerTimingMsMean: Record<string, number>;
+	localFallbacks: number;
+	localFallbackReasons: Record<string, number>;
+	workerDeferrals: number;
+	workerDeferralReasons: Record<string, number>;
 
 	// ── worker utilisation (finding F3) ────────────────────────────────────
 	/** Tiles the worker actually rendered. */
@@ -146,6 +183,14 @@ export interface DrawMetricsSnapshot {
 	longTaskMsTotal: number;
 	longTaskMsMax: number;
 	longTaskObserved: boolean;
+	longAnimationFrames: number;
+	longAnimationFrameMsMax: number;
+	longAnimationFrameBlockingMsMax: number;
+	longAnimationFrameRenderMsMax: number;
+	longAnimationFrameStyleLayoutMsMax: number;
+	longAnimationFrameInputDelayMsMax: number;
+	longAnimationFrameObserved: boolean;
+	longFrameScripts: LongFrameScriptAttribution[];
 
 	// ── device context, to cross-reference against the crash cohort ────────
 	device: {
@@ -170,6 +215,19 @@ interface Counters {
 	workerCancelMsTotal: number;
 	workerCancelMsMax: number;
 	workerCancelMsCount: number;
+	workerProtocolVersion: number;
+	sceneCommits: number;
+	sceneDeltas: number;
+	workerQueueDepthMax: number;
+	workerRequestBytes: number;
+	workerResultBytes: number;
+	workerTimingMsTotal: Record<string, number>;
+	workerTimingMsMax: Record<string, number>;
+	workerTimingCount: number;
+	localFallbacks: number;
+	localFallbackReasons: Record<string, number>;
+	workerDeferrals: number;
+	workerDeferralReasons: Record<string, number>;
 	tilesRemote: number;
 	tilesHybrid: number;
 	hybridSkippedTotal: number;
@@ -203,6 +261,13 @@ interface Counters {
 	longTasks: number;
 	longTaskMsTotal: number;
 	longTaskMsMax: number;
+	longAnimationFrames: number;
+	longAnimationFrameMsMax: number;
+	longAnimationFrameBlockingMsMax: number;
+	longAnimationFrameRenderMsMax: number;
+	longAnimationFrameStyleLayoutMsMax: number;
+	longAnimationFrameInputDelayMsMax: number;
+	longFrameScripts: LongFrameScriptAttribution[];
 }
 
 /** Sub-millisecond composite numbers matter here, so don't round to integers. */
@@ -224,6 +289,19 @@ function blank(): Counters {
 		workerCancelMsTotal: 0,
 		workerCancelMsMax: 0,
 		workerCancelMsCount: 0,
+		workerProtocolVersion: 1,
+		sceneCommits: 0,
+		sceneDeltas: 0,
+		workerQueueDepthMax: 0,
+		workerRequestBytes: 0,
+		workerResultBytes: 0,
+		workerTimingMsTotal: {},
+		workerTimingMsMax: {},
+		workerTimingCount: 0,
+		localFallbacks: 0,
+		localFallbackReasons: {},
+		workerDeferrals: 0,
+		workerDeferralReasons: {},
 		tilesRemote: 0,
 		tilesHybrid: 0,
 		hybridSkippedTotal: 0,
@@ -257,12 +335,20 @@ function blank(): Counters {
 		longTasks: 0,
 		longTaskMsTotal: 0,
 		longTaskMsMax: 0,
+		longAnimationFrames: 0,
+		longAnimationFrameMsMax: 0,
+		longAnimationFrameBlockingMsMax: 0,
+		longAnimationFrameRenderMsMax: 0,
+		longAnimationFrameStyleLayoutMsMax: 0,
+		longAnimationFrameInputDelayMsMax: 0,
+		longFrameScripts: [],
 	};
 }
 
 let m = blank();
 let startedAt = Date.now();
 let longTaskObserver: PerformanceObserver | null = null;
+let longAnimationFrameObserver: PerformanceObserver | null = null;
 let renderDprFn: () => number = () => 1;
 let renderBackendFn: () => DrawRenderBackend = () => "main";
 
@@ -299,6 +385,49 @@ export function recordWorkerCancelResult(ms: number, aborted: boolean): void {
 	m.workerCancelMsTotal += ms;
 	m.workerCancelMsCount++;
 	if (ms > m.workerCancelMsMax) m.workerCancelMsMax = ms;
+}
+
+export function setWorkerProtocolVersion(version: number): void {
+	m.workerProtocolVersion = version;
+}
+
+export function recordSceneCommit(deltas: number): void {
+	m.sceneCommits++;
+	m.sceneDeltas += deltas;
+}
+
+export function recordWorkerQueueDepth(depth: number): void {
+	if (depth > m.workerQueueDepthMax) m.workerQueueDepthMax = depth;
+}
+
+export function recordWorkerMessage(
+	requestBytes: number,
+	resultBytes = 0,
+): void {
+	m.workerRequestBytes += Math.max(0, requestBytes);
+	m.workerResultBytes += Math.max(0, resultBytes);
+}
+
+export function recordWorkerTiming(timing: WorkerTiming | undefined): void {
+	if (!timing) return;
+	m.workerTimingCount++;
+	for (const [name, value] of Object.entries(timing)) {
+		if (!Number.isFinite(value)) continue;
+		m.workerTimingMsTotal[name] = (m.workerTimingMsTotal[name] ?? 0) + value;
+		if (value > (m.workerTimingMsMax[name] ?? 0)) {
+			m.workerTimingMsMax[name] = value;
+		}
+	}
+}
+
+export function recordLocalFallback(reason: LocalFallbackReason): void {
+	m.localFallbacks++;
+	m.localFallbackReasons[reason] = (m.localFallbackReasons[reason] ?? 0) + 1;
+}
+
+export function recordWorkerDeferral(reason: LocalFallbackReason): void {
+	m.workerDeferrals++;
+	m.workerDeferralReasons[reason] = (m.workerDeferralReasons[reason] ?? 0) + 1;
 }
 
 export function recordTileRemote(): void {
@@ -370,6 +499,14 @@ export function recordComposite(
 export type DrawPhase =
 	| "flushBake"
 	| "flushIdle"
+	| "workerPrepQuerySort"
+	| "workerPrepClassify"
+	| "workerPrepSerialize"
+	| "workerPrepPost"
+	| "workerResponseDispatch"
+	| "workerResultCommit"
+	| "overviewResultCommit"
+	| "overviewOverlayObject"
 	| "localBake"
 	| "overlaySkipped"
 	| "overviewPatch"
@@ -378,12 +515,35 @@ export type DrawPhase =
 	| "eraseClipApply"
 	| "eraseClipUndo"
 	| "eraseClipFlatten"
+	| "eraseCleanupDispatch"
+	| "eraseCleanupFinalize"
+	| "lassoHitTest"
+	| "lassoOverlay"
+	| "lassoSelectionCommit"
+	| "lassoSelectionSort"
+	| "lassoSelectionConstruct"
+	| "lassoSelectionActivate"
+	| "lassoSelectionControls"
+	| "lassoSelectionPrewarm"
+	| "selectionBake"
+	| "selectionThumbnail"
+	| "selectionThumbnailFallback"
+	| "selectionTransformCommit"
+	| "selectionTransformLayout"
+	| "selectionTransformOldRegion"
+	| "selectionTransformStamp"
+	| "historyTransformCapture"
+	| "historyTransformApply"
+	| "documentSerializeObject"
+	| "thumbnailTransfer"
+	| "draftPersistDispatch"
 	// WALL CLOCK, not CPU: both yield internally, so a big number means the work
 	// spanned many frames, not that it blocked for that long. They exist to
 	// attribute what the phase list above kept missing — `longTaskMsMax` has
 	// repeatedly been several times larger than any measured phase, which means
 	// the block was outside the instrumented set. Compare against `longTasks`.
 	| "historyOp"
+	| "historyBurstFlush"
 	| "eraseCommit"
 	| "erasedSweep";
 
@@ -424,6 +584,23 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 		workerCancelMsMean: m.workerCancelMsCount
 			? round2(m.workerCancelMsTotal / m.workerCancelMsCount)
 			: 0,
+		workerProtocolVersion: m.workerProtocolVersion,
+		sceneCommits: m.sceneCommits,
+		sceneDeltas: m.sceneDeltas,
+		workerQueueDepthMax: m.workerQueueDepthMax,
+		workerRequestBytes: m.workerRequestBytes,
+		workerResultBytes: m.workerResultBytes,
+		workerTimingMsMax: roundMap(m.workerTimingMsMax),
+		workerTimingMsMean: Object.fromEntries(
+			Object.entries(m.workerTimingMsTotal).map(([name, total]) => [
+				name,
+				round2(total / Math.max(1, m.workerTimingCount)),
+			]),
+		),
+		localFallbacks: m.localFallbacks,
+		localFallbackReasons: { ...m.localFallbackReasons },
+		workerDeferrals: m.workerDeferrals,
+		workerDeferralReasons: { ...m.workerDeferralReasons },
 		tilesRemote: m.tilesRemote,
 		tilesHybrid: m.tilesHybrid,
 		hybridSkippedTotal: m.hybridSkippedTotal,
@@ -463,6 +640,18 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 		longTaskMsTotal: Math.round(m.longTaskMsTotal),
 		longTaskMsMax: Math.round(m.longTaskMsMax),
 		longTaskObserved: longTaskObserver !== null,
+		longAnimationFrames: m.longAnimationFrames,
+		longAnimationFrameMsMax: round2(m.longAnimationFrameMsMax),
+		longAnimationFrameBlockingMsMax: round2(m.longAnimationFrameBlockingMsMax),
+		longAnimationFrameRenderMsMax: round2(m.longAnimationFrameRenderMsMax),
+		longAnimationFrameStyleLayoutMsMax: round2(
+			m.longAnimationFrameStyleLayoutMsMax,
+		),
+		longAnimationFrameInputDelayMsMax: round2(
+			m.longAnimationFrameInputDelayMsMax,
+		),
+		longAnimationFrameObserved: longAnimationFrameObserver !== null,
+		longFrameScripts: m.longFrameScripts.map((script) => ({ ...script })),
 		device: {
 			dpr: typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
 			renderDpr: renderDprFn(),
@@ -474,7 +663,9 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 }
 
 export function resetDrawMetrics(): void {
+	const workerProtocolVersion = m.workerProtocolVersion;
 	m = blank();
+	m.workerProtocolVersion = workerProtocolVersion;
 	startedAt = Date.now();
 }
 
@@ -537,9 +728,96 @@ function startLongTaskObserver(): void {
 	}
 }
 
+function sourceLabel(sourceURL: string): string {
+	if (!sourceURL) return "";
+	try {
+		return new URL(sourceURL, globalThis.location?.href).pathname;
+	} catch {
+		return sourceURL.slice(0, 160);
+	}
+}
+
+function startLongAnimationFrameObserver(): void {
+	if (longAnimationFrameObserver) return;
+	if (typeof PerformanceObserver === "undefined") return;
+	try {
+		const observer = new PerformanceObserver((list) => {
+			for (const rawEntry of list.getEntries()) {
+				const entry = rawEntry as any;
+				const frameEnd = entry.startTime + entry.duration;
+				const renderMs =
+					entry.renderStart > 0 ? Math.max(0, frameEnd - entry.renderStart) : 0;
+				const styleLayoutMs =
+					entry.styleAndLayoutStart > 0
+						? Math.max(0, frameEnd - entry.styleAndLayoutStart)
+						: 0;
+				const inputDelayMs =
+					entry.firstUIEventTimestamp > 0 && entry.renderStart > 0
+						? Math.max(0, entry.renderStart - entry.firstUIEventTimestamp)
+						: 0;
+
+				m.longAnimationFrames++;
+				m.longAnimationFrameMsMax = Math.max(
+					m.longAnimationFrameMsMax,
+					entry.duration ?? 0,
+				);
+				m.longAnimationFrameBlockingMsMax = Math.max(
+					m.longAnimationFrameBlockingMsMax,
+					entry.blockingDuration ?? 0,
+				);
+				m.longAnimationFrameRenderMsMax = Math.max(
+					m.longAnimationFrameRenderMsMax,
+					renderMs,
+				);
+				m.longAnimationFrameStyleLayoutMsMax = Math.max(
+					m.longAnimationFrameStyleLayoutMsMax,
+					styleLayoutMs,
+				);
+				m.longAnimationFrameInputDelayMsMax = Math.max(
+					m.longAnimationFrameInputDelayMsMax,
+					inputDelayMs,
+				);
+
+				for (const script of entry.scripts ?? []) {
+					m.longFrameScripts.push({
+						frameDurationMs: round2(entry.duration ?? 0),
+						durationMs: round2(script.duration ?? 0),
+						pauseMs: round2(script.pauseDuration ?? 0),
+						forcedStyleLayoutMs: round2(
+							script.forcedStyleAndLayoutDuration ?? 0,
+						),
+						functionName:
+							script.sourceFunctionName || script.invoker || "(anonymous)",
+						source: sourceLabel(script.sourceURL ?? ""),
+						sourceCharPosition: script.sourceCharPosition ?? 0,
+						executionStartMs: round2(script.executionStart ?? 0),
+						invoker: script.invoker ?? "",
+						invokerType: script.invokerType ?? "",
+						yieldLabel: yieldLabelAt(script.executionStart ?? -1),
+					});
+				}
+			}
+			m.longFrameScripts.sort(
+				(a, b) =>
+					b.durationMs +
+					b.pauseMs +
+					b.forcedStyleLayoutMs -
+					(a.durationMs + a.pauseMs + a.forcedStyleLayoutMs),
+			);
+			m.longFrameScripts.length = Math.min(8, m.longFrameScripts.length);
+		});
+		observer.observe({ type: "long-animation-frame", buffered: true } as any);
+		longAnimationFrameObserver = observer;
+	} catch {
+		/* unsupported */
+	}
+}
+
 export function stopDrawMetrics(): void {
 	longTaskObserver?.disconnect();
 	longTaskObserver = null;
+	longAnimationFrameObserver?.disconnect();
+	longAnimationFrameObserver = null;
 	if (sinkTimer !== null) {
 		clearInterval(sinkTimer);
 		sinkTimer = null;
@@ -558,6 +836,7 @@ export function initDrawMetrics(
 	renderDprFn = getRenderDpr;
 	renderBackendFn = getRenderBackend;
 	startLongTaskObserver();
+	startLongAnimationFrameObserver();
 	// Console handle for local profiling and for asking a user to read a number
 	// back during a support conversation.
 	(globalThis as any).__drawPerf = snapshotDrawMetrics;

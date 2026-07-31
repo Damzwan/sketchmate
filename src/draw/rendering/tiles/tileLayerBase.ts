@@ -75,11 +75,31 @@ export interface RemoteBakeResult<T> {
 	skipped: T[];
 }
 
+export type RemoteBakeFailureReason =
+	| "worker-unavailable"
+	| "backpressure"
+	| "timeout"
+	| "missing"
+	| "refusal"
+	| "z-order"
+	| "hard-error";
+
+export interface RemoteBakeFailure {
+	fallbackReason: RemoteBakeFailureReason;
+	kind: "deferred" | "unsupported" | "failed";
+}
+
+export function isRemoteBakeFailure<T extends Bounded>(
+	result: RemoteBakeFailure | RemoteBakeResult<T>,
+): result is RemoteBakeFailure {
+	return "fallbackReason" in result;
+}
+
 /**
  * Off-main-thread tile renderer (tileBakery worker). Receives the z-sorted
  * objects covering one tile plus the exact tile geometry; resolves with the
- * rendered bitmap (+ any objects to overlay locally), or null → caller falls
- * back to the full local renderer.
+ * rendered bitmap (+ any objects to overlay locally), or a named failure so
+ * diagnostics retain the reason for a main-thread fallback.
  */
 export type RemoteBaker<T> = (
 	objects: T[],
@@ -87,7 +107,7 @@ export type RemoteBaker<T> = (
 	scale: number,
 	overscan: number,
 	size: number,
-) => Promise<RemoteBakeResult<T> | null>;
+) => Promise<RemoteBakeResult<T> | RemoteBakeFailure>;
 
 /**
  * Off-main-thread whole-board overview render. Gets the z-ordered objects
@@ -137,6 +157,17 @@ export interface Draw {
 	hy: number;
 	hw: number;
 	hh: number;
+	/**
+	 * Device-px sub-rect this source may paint INSIDE, if set (zero-size = the
+	 * whole destination). Used to fill another source's hole without overlapping
+	 * it: the stale tile paints `dest minus hole`, the filler paints `keep minus
+	 * its own hole`. Keeping them disjoint is what stops semi-transparent
+	 * strokes being composited twice.
+	 */
+	kx?: number;
+	ky?: number;
+	kw?: number;
+	kh?: number;
 }
 
 export interface CompositeCell {
@@ -173,6 +204,10 @@ export const NO_HOLE = Symbol("no-hole");
  *  to keep the untouched 95% of an edited tile sharp, not to rebuild the frame
  *  out of fragments. Beyond this the plain fallback ladder is fine. */
 export const MAX_PARTIAL_OVERLAYS = 24;
+
+/** Distinct invalidated regions tracked per tile before they collapse into one
+ *  union. Small on purpose — this is walked per source per cell per frame. */
+export const MAX_DIRTY_RECTS = 6;
 
 /**
  * Is this CSS colour fully opaque, i.e. does filling with it overwrite every
@@ -356,6 +391,28 @@ export class TileLayerBase<T extends Bounded> {
 	 *   incomplete (an additive add covered by the live layer). The re-bake and
 	 *   the recorded region are unchanged — only trust is.
 	 */
+	/**
+	 * Every recorded region of a tile, as ONE rect. For callers whose target IS
+	 * the whole tile (the active-tier overlay, and the repair, which must cover
+	 * everything owed). `null` when the record is missing or whole-tile.
+	 */
+	protected unionDirtyRects(key: string): WorldRect | null {
+		const rects = this.dirtyRects.get(key);
+		if (!rects || rects.length === 0) return null;
+		let x = rects[0].x;
+		let y = rects[0].y;
+		let x2 = rects[0].x + rects[0].w;
+		let y2 = rects[0].y + rects[0].h;
+		for (let i = 1; i < rects.length; i++) {
+			const r = rects[i];
+			x = Math.min(x, r.x);
+			y = Math.min(y, r.y);
+			x2 = Math.max(x2, r.x + r.w);
+			y2 = Math.max(y2, r.y + r.h);
+		}
+		return { x, y, w: x2 - x, h: y2 - y };
+	}
+
 	protected invalidateKey(
 		key: string,
 		rect: WorldRect | null,
@@ -371,17 +428,46 @@ export class TileLayerBase<T extends Bounded> {
 		const prev = this.dirtyRects.get(key);
 		if (prev === null) return; // already whole-tile dirty; can't get dirtier
 		if (prev === undefined) {
-			this.dirtyRects.set(key, { x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+			this.dirtyRects.set(key, [
+				{ x: rect.x, y: rect.y, w: rect.w, h: rect.h },
+			]);
 			return;
 		}
-		const x = Math.min(prev.x, rect.x);
-		const y = Math.min(prev.y, rect.y);
-		const x2 = Math.max(prev.x + prev.w, rect.x + rect.w);
-		const y2 = Math.max(prev.y + prev.h, rect.y + rect.h);
-		prev.x = x;
-		prev.y = y;
-		prev.w = x2 - x;
-		prev.h = y2 - y;
+		// Merge into an entry it already touches; otherwise keep it SEPARATE.
+		// Unioning unrelated edits is what makes a coarse tile look entirely
+		// unusable after a few edits in different places.
+		for (const r of prev) {
+			if (
+				r.x <= rect.x + rect.w &&
+				rect.x <= r.x + r.w &&
+				r.y <= rect.y + rect.h &&
+				rect.y <= r.y + r.h
+			) {
+				const x = Math.min(r.x, rect.x);
+				const y = Math.min(r.y, rect.y);
+				const x2 = Math.max(r.x + r.w, rect.x + rect.w);
+				const y2 = Math.max(r.y + r.h, rect.y + rect.h);
+				r.x = x;
+				r.y = y;
+				r.w = x2 - x;
+				r.h = y2 - y;
+				return;
+			}
+		}
+		prev.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+		if (prev.length <= MAX_DIRTY_RECTS) return;
+		// Too many to track — collapse to one union. Coarser, but still bounded
+		// and still correct.
+		let u = prev[0];
+		for (let i = 1; i < prev.length; i++) {
+			const r = prev[i];
+			const x = Math.min(u.x, r.x);
+			const y = Math.min(u.y, r.y);
+			const x2 = Math.max(u.x + u.w, r.x + r.w);
+			const y2 = Math.max(u.y + u.h, r.y + r.h);
+			u = { x, y, w: x2 - x, h: y2 - y };
+		}
+		this.dirtyRects.set(key, [u]);
 	}
 
 	markDirty(rect: WorldRect): void {
@@ -429,11 +515,10 @@ export class TileLayerBase<T extends Bounded> {
 	 * on screen are not WRONG — they are merely incomplete, and the caller is
 	 * covering the difference (a live overlay of the new object).
 	 *
-	 * Only valid when the new content is strictly on top and strictly additive
-	 * (source-over, topmost z). Under that condition the stale tile plus the live
-	 * overlay is pixel-identical to the baked result, so a redo / remote add
-	 * costs zero visible quality instead of dropping the whole footprint to the
-	 * overview for a bake round-trip.
+	 * For a topmost add, a live overlay supplies the missing object and the result
+	 * is pixel-identical. For a lower-z add there is no correct flattened overlay;
+	 * retaining the previous sharp tile gives us an atomic old→new tile swap once
+	 * the z-correct bake lands, instead of a sharp→overview→sharp transition.
 	 *
 	 * Deliberately leaves `usable` and the dirty sub-rect alone: nothing about
 	 * the existing pixels became untrustworthy.

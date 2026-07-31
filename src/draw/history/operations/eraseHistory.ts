@@ -164,7 +164,10 @@ export async function handleErasedAction(
 	// updateQuadTree loops below are O(objects) of synchronous main-thread work.
 	// Undoing/redoing one right before a pan blocked the thread (ANR territory).
 	// Drive the loops through a yielder so input can interleave.
-	const yielder = createYielder({ budgetMs: IS_MOBILE_ERASE ? 4 : 8 });
+	const yielder = createYielder({
+		budgetMs: IS_MOBILE_ERASE ? 4 : 8,
+		label: `erase-${actionType}`,
+	});
 
 	if (actionType === "redo") {
 		const objects = getObjectsById(objectIds);

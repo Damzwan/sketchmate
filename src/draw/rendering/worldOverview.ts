@@ -67,6 +67,10 @@ export class WorldOverview<T extends Bounded> {
 		this.dirtyRevision++;
 	}
 
+	usesRemoteRenderer(): boolean {
+		return this.remoteOverview !== undefined;
+	}
+
 	/**
 	 * Does the bitmap cover this region at all? A `patchRect` failure has two
 	 * very different causes — "too many objects here" (subdivide) and "this is
@@ -317,18 +321,33 @@ export class WorldOverview<T extends Bounded> {
 					return;
 				}
 				if (remote) {
+					const resultCommitStartedAt = performance.now();
 					tctx.setTransform(1, 0, 0, 1, 0, 0);
 					tctx.clearRect(0, 0, width, height);
 					tctx.drawImage(remote.bitmap, 0, 0);
 					remote.bitmap.close();
+					recordPhase(
+						"overviewResultCommit",
+						performance.now() - resultCommitStartedAt,
+					);
 					if (remote.skipped.length) {
 						tctx.save();
 						tctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy);
 						for (let i = 0; i < remote.skipped.length; i++) {
+							const overlayStartedAt = performance.now();
 							try {
 								this.renderer(tctx as any, remote.skipped[i], Math.max(sx, sy));
 							} catch {
 								/* ignore */
+							}
+							recordPhase(
+								"overviewOverlayObject",
+								performance.now() - overlayStartedAt,
+							);
+							await yielder.maybeYield();
+							if (signal.aborted) {
+								tctx.restore();
+								return;
 							}
 						}
 						tctx.restore();
@@ -344,7 +363,15 @@ export class WorldOverview<T extends Bounded> {
 			} catch {
 				/* fall through to local render */
 			}
-			// null / threw → local render below.
+			// A cancelled, superseded, or temporarily busy worker should not turn
+			// into a full-scene main-thread render. Keep the last coherent bitmap
+			// and remain dirty; the coordinator will re-arm this rebuild.
+			if (this.canvas) {
+				this.dirty = true;
+				return;
+			}
+			// Initial load has no fallback bitmap yet, so retain the yielded local
+			// path below as the final correctness fallback.
 		}
 
 		tctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -403,23 +430,41 @@ export class WorldOverview<T extends Bounded> {
 			d = vpt[3] * dpr,
 			e = vpt[4] * dpr,
 			f = vpt[5] * dpr;
-		// Destination snapped OUTWARD by up to a pixel. This is drawn as the base
-		// under uncovered tile cells and is clipped to exactly those cells, so
-		// growing it cannot leak — while leaving it fractional put an
-		// antialiased edge against transparent right where a tile boundary is,
-		// i.e. the thin background-coloured lines seen during a bake.
-		const dx = Math.floor(inter.x * a + e),
-			dy = Math.floor(inter.y * d + f);
-		const dw = Math.ceil((inter.x + inter.w) * a + e) - dx,
-			dh = Math.ceil((inter.y + inter.h) * d + f) - dy;
+		// Snapped OUTWARD by up to a pixel: this is the base under uncovered tile
+		// cells and is clipped to exactly those cells, so growing it cannot leak,
+		// while a fractional edge puts antialiasing against transparent right at a
+		// tile boundary — the thin background-coloured line seen during a bake.
+		//
+		// The SOURCE rect grows by the same amount. Expanding only the destination
+		// stretches the bitmap by up to a pixel over the region, so overview
+		// content sits at a slightly different place than the tiles covering the
+		// rest of the screen — and at high zoom "slightly" is many device pixels.
+		// That is the "it goes blurry AND shifts" half of the artifact: not just a
+		// resolution drop, a visible jump. Scaling both rects keeps world→device
+		// identical to the tile path; only the coverage grows.
+		const dxf = inter.x * a + e;
+		const dyf = inter.y * d + f;
+		const dxf1 = (inter.x + inter.w) * a + e;
+		const dyf1 = (inter.y + inter.h) * d + f;
+		const dx = Math.floor(dxf),
+			dy = Math.floor(dyf);
+		const dw = Math.ceil(dxf1) - dx,
+			dh = Math.ceil(dyf1) - dy;
 		if (srcW <= 0 || srcH <= 0 || dw <= 0 || dh <= 0) return;
+		// device px → source px, so the same expansion is applied on both sides.
+		const spx = srcW / Math.max(1e-6, dxf1 - dxf);
+		const spy = srcH / Math.max(1e-6, dyf1 - dyf);
+		const sx = srcX - (dxf - dx) * spx;
+		const sy = srcY - (dyf - dy) * spy;
+		const sw = dw * spx;
+		const sh = dh * spy;
 
 		ctx.save();
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.imageSmoothingEnabled = true;
 		// @ts-ignore
 		ctx.imageSmoothingQuality = "low";
-		ctx.drawImage(this.canvas, srcX, srcY, srcW, srcH, dx, dy, dw, dh);
+		ctx.drawImage(this.canvas, sx, sy, sw, sh, dx, dy, dw, dh);
 		ctx.restore();
 	}
 

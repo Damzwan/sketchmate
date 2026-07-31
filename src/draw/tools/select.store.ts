@@ -117,9 +117,13 @@ export const useSelect = defineStore("select", (): Select => {
 				const active = c!._activeObject;
 				if (active?.isType("activeselection")) active.id = v4(); // TODO is this necessary?
 
-				setSelection(e.selected);
+				const members = active?.isType("activeselection")
+					? ([...(active as any)._objects] as FabricObject[])
+					: e.selected;
+				setSelection(members);
 				temporarilyDisableGestures();
 				transform.invalidateCache();
+				transform.prewarm(c!);
 			},
 		},
 		{
@@ -136,6 +140,7 @@ export const useSelect = defineStore("select", (): Select => {
 				setSelection(currentSelection);
 				temporarilyDisableGestures();
 				transform.invalidateCache();
+				transform.prewarm(c!);
 			},
 		},
 		{

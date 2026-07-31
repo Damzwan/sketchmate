@@ -12,6 +12,41 @@ export function toJSON(objects: FabricObject[]): string[] {
 	return objects.map((item) => serializeOnce(item));
 }
 
+const MUTATION_REVISION = "__drawMutationRevision";
+const serializedByRevision = new WeakMap<
+	object,
+	{ revision: number; json: any }
+>();
+
+export function objectMutationRevision(obj: FabricObject): number {
+	return Number((obj as any)[MUTATION_REVISION] ?? 0);
+}
+
+export function markObjectMutated(obj: FabricObject): void {
+	(obj as any)[MUTATION_REVISION] = objectMutationRevision(obj) + 1;
+}
+
+export function rememberSerializedObject(obj: FabricObject, json: any): void {
+	serializedByRevision.set(obj, {
+		revision: objectMutationRevision(obj),
+		json,
+	});
+}
+
+/**
+ * Return the last exact serialization while the object remains unchanged.
+ * Rendering, history, and worker synchronization share this mutation revision.
+ */
+export function serializeAtRevision(obj: FabricObject): any {
+	const revision = objectMutationRevision(obj);
+	const cached = serializedByRevision.get(obj);
+	if (cached?.revision === revision) return cached.json;
+
+	const json = serializeOnce(obj);
+	serializedByRevision.set(obj, { revision, json });
+	return json;
+}
+
 /**
  * `obj.toJSON()`, computed at most ONCE per object per microtask tick.
  *
@@ -28,11 +63,9 @@ export function toJSON(objects: FabricObject[]): string[] {
  * entries and the stored drawings are all unchanged — this is purely
  * de-duplicated work, and fully backwards compatible.
  *
- * WHY A TICK, NOT A LONG-LIVED CACHE: an object can be mutated at any time, and
- * a stale serialization would silently corrupt an undo entry or a synced stroke.
- * Scoping the memo to one microtask makes staleness impossible — nothing mutates
- * an object between two handlers of the same synchronous event — while still
- * catching all three consumers above.
+ * The short-lived memo is also revision-aware. Most consumers run during one
+ * event dispatch, but a mutation followed by serialization in the same turn
+ * must still observe the new object state.
  *
  * INVARIANT: callers must treat the result as READ-ONLY. It is shared, so
  * mutating it would corrupt the other consumers. (Verified: every consumer only
@@ -40,7 +73,8 @@ export function toJSON(objects: FabricObject[]): string[] {
  * the payload. Fabric's `fromObject` DOES mutate the JSON it is handed, but that
  * happens at enliven time — undo/redo/remote-apply — long after this tick.)
  */
-let serializeMemo: WeakMap<object, any> | null = null;
+let serializeMemo: WeakMap<object, { revision: number; json: any }> | null =
+	null;
 
 export function serializeOnce(obj: FabricObject): any {
 	if (!serializeMemo) {
@@ -50,10 +84,12 @@ export function serializeOnce(obj: FabricObject): any {
 			serializeMemo = null;
 		});
 	}
+	const revision = objectMutationRevision(obj);
 	const cached = serializeMemo.get(obj);
-	if (cached !== undefined) return cached;
+	if (cached?.revision === revision) return cached.json;
 	const json = (obj as any).toJSON();
-	serializeMemo.set(obj, json);
+	serializeMemo.set(obj, { revision, json });
+	rememberSerializedObject(obj, json);
 	return json;
 }
 

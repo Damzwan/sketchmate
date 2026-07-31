@@ -19,6 +19,9 @@ export abstract class RenderBakeCoordinator<
 	}
 
 	abortBakes(): void {
+		// Abort local continuations first. bakeryCancel settles its promises with
+		// a declined result, which must observe an already-aborted signal or it
+		// could enter the compatibility renderer on main.
 		this.bakeCtrl?.abort();
 		this.bakeCtrl = null;
 		// The overview rebuild is O(whole scene) on the MAIN thread — by far the
@@ -27,6 +30,7 @@ export abstract class RenderBakeCoordinator<
 		// canvas it was building is simply dropped).
 		this.overviewCtrl?.abort();
 		this.overviewCtrl = null;
+		this.cancelRemoteWork?.();
 		this.bakeAgain = false;
 		if (this.bakeTimer !== null) {
 			clearTimeout(this.bakeTimer);
@@ -76,6 +80,12 @@ export abstract class RenderBakeCoordinator<
 		}
 		this.pendingDemote = true;
 		this.requestFrame();
+		if (this.committed.overview.isDirty()) {
+			// Visible tiles outrank overview work in the worker. If an overview
+			// yielded to this bake pass, retry it now that the interactive queue
+			// has drained.
+			this.scheduleOverviewRebuild();
+		}
 		if (this.bakeAgain) {
 			this.bakeAgain = false;
 			this.scheduleBake();

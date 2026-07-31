@@ -13,7 +13,7 @@
 //     layer's generation check discards stale bitmaps, and { missing } replies
 //     trigger one re-upsert + retry, then fall back to the main-thread baker.
 //
-// Refused tiles (return null → main-thread bake):
+// Objects kept out of worker tiles:
 //   • text — the worker has no @font-face registry; wrong glyph metrics in a
 //     committed tile would be a visible correctness bug, not a perf trade.
 //   • objects inside a group / ActiveSelection — their serialized transform is
@@ -28,6 +28,7 @@
 
 import type { FabricObject } from "fabric";
 import type {
+	RemoteBakeFailure,
 	RemoteBakeResult,
 	WorldRect,
 } from "@/draw/rendering/committedLayer";
@@ -47,6 +48,11 @@ import {
 	recordTileRemote,
 	recordWorkerCancelRequests,
 	recordWorkerCancelResult,
+	recordSceneCommit,
+	recordWorkerMessage,
+	recordWorkerQueueDepth,
+	recordWorkerTiming,
+	setWorkerProtocolVersion,
 	type RefusalReason,
 } from "@/draw/rendering/renderMetrics";
 import { BakeryAssets } from "@/draw/rendering/bakery/assets";
@@ -58,7 +64,12 @@ import {
 import {
 	type PendingBake,
 	requestTimeoutMs,
+	SceneRevisionClock,
+	type SceneDelta,
+	WORKER_PROTOCOL_VERSION,
 } from "@/draw/rendering/bakery/protocol";
+import { getWorkerProtocolMode } from "@/draw/config/workerProtocol.config";
+import { serializeOnce } from "@/draw/objects/objectSerialization";
 
 // ─── health model ────────────────────────────────────────────────────────────
 //
@@ -119,8 +130,69 @@ const pending = new Map<number, PendingBake>();
 const cancelledAt = new Map<number, number>();
 /** id → live object ref; serialized lazily on flush. */
 const dirty = new Map<string, FabricObject>();
-const assets = new BakeryAssets(() => getWorker());
 const health = new BakeryHealth();
+const sceneClock = new SceneRevisionClock();
+const assets = new BakeryAssets((id, bitmap, bytes) => {
+	const activeWorker = getWorker();
+	if (!activeWorker) return false;
+	const objectRevision = usesProtocolV2()
+		? sceneClock.nextObjectRevision(id)
+		: undefined;
+	postMeasured(
+		activeWorker,
+		{ t: "asset", id, bitmap, objectRevision },
+		[bitmap],
+		bytes,
+	);
+	return true;
+});
+let sceneBatchDepth = 0;
+let batchedSceneDeltas: SceneDelta[] = [];
+
+function usesProtocolV2(): boolean {
+	return getWorkerProtocolMode() === "v2";
+}
+
+interface SerializedItem {
+	id: string;
+	json: any;
+	bounds?: { x: number; y: number; w: number; h: number };
+	z?: number;
+}
+
+function serializedItem(obj: FabricObject, json: any): SerializedItem {
+	const source = obj as any;
+	return {
+		id: obj.id,
+		json,
+		bounds: source.__br ? { ...source.__br } : undefined,
+		z: typeof source.__z === "number" ? source.__z : undefined,
+	};
+}
+
+function postMeasured(
+	w: Worker,
+	message: Record<string, unknown>,
+	transfer?: Transferable[],
+	estimatedBytes = 0,
+): void {
+	const startedAt = performance.now();
+	if (transfer) w.postMessage(message, transfer);
+	else w.postMessage(message);
+	recordPhase("workerPrepPost", performance.now() - startedAt);
+	recordWorkerMessage(estimatedBytes);
+}
+
+function estimateItemBytes(item: SerializedItem): number {
+	const json = item.json;
+	if (typeof json === "string") return item.id.length * 2 + json.length * 2;
+	const pathLength = Array.isArray(json?.path) ? json.path.length : 0;
+	const traceLength =
+		typeof json?.compressedTrace === "string"
+			? json.compressedTrace.length * 2
+			: 0;
+	return 256 + item.id.length * 2 + pathLength * 32 + traceLength;
+}
 
 function isPaused(): boolean {
 	if (!pausedUntil) return false;
@@ -216,42 +288,63 @@ function getWorker(): Worker | null {
 	}
 	worker.onerror = () => noteHardError();
 	worker.onmessage = (e: MessageEvent<BakeryResponse>) => {
-		// Unsolicited notification: which font families the worker registered.
-		// Until this lands, `workerFonts` is empty and every text tile is refused
-		// — the safe default.
-		if (e.data.fonts !== undefined) {
-			assets.setFonts(e.data.fonts);
-			noteReply();
-			return;
-		}
-		const cancelStartedAt = cancelledAt.get(e.data.msgId);
-		if (cancelStartedAt !== undefined) {
-			cancelledAt.delete(e.data.msgId);
-			recordWorkerCancelResult(
-				performance.now() - cancelStartedAt,
-				e.data.aborted === true,
+		const responseStartedAt = performance.now();
+		try {
+			// Unsolicited notification: which font families the worker registered.
+			// Until this lands, `workerFonts` is empty and every text tile is refused
+			// — the safe default.
+			if (e.data.fonts !== undefined) {
+				assets.setFonts(e.data.fonts);
+				noteReply();
+				return;
+			}
+			recordWorkerTiming(e.data.workerTiming);
+			const cancelStartedAt = cancelledAt.get(e.data.msgId);
+			if (cancelStartedAt !== undefined) {
+				cancelledAt.delete(e.data.msgId);
+				recordWorkerCancelResult(
+					performance.now() - cancelStartedAt,
+					e.data.aborted === true,
+				);
+			}
+			const p = pending.get(e.data.msgId);
+			if (!p) {
+				// Late reply after we abandoned the request — free the bitmap, it will
+				// never be used. Still counts as proof of life.
+				e.data.bitmap?.close();
+				noteReply();
+				return;
+			}
+			pending.delete(e.data.msgId);
+			clearTimeout(p.timer);
+			if (
+				p.expectedSceneRevision !== undefined &&
+				e.data.sceneRevision !== p.expectedSceneRevision
+			) {
+				e.data.bitmap?.close();
+				noteReply();
+				p.resolve({
+					msgId: e.data.msgId,
+					error: "scene-revision-mismatch",
+				});
+				return;
+			}
+			// Any reply — including `{ missing }` and `{ aborted }` — means the worker
+			// is alive. An `aborted` reply is our OWN cancel coming back, so it is
+			// proof of life and must never touch the hard-failure budget.
+			if (e.data.error) noteHardError();
+			else noteReply();
+			p.resolve(e.data);
+		} finally {
+			recordPhase(
+				"workerResponseDispatch",
+				performance.now() - responseStartedAt,
 			);
 		}
-		const p = pending.get(e.data.msgId);
-		if (!p) {
-			// Late reply after we abandoned the request — free the bitmap, it will
-			// never be used. Still counts as proof of life.
-			e.data.bitmap?.close();
-			noteReply();
-			return;
-		}
-		pending.delete(e.data.msgId);
-		clearTimeout(p.timer);
-		// Any reply — including `{ missing }` and `{ aborted }` — means the worker
-		// is alive. An `aborted` reply is our OWN cancel coming back, so it is
-		// proof of life and must never touch the hard-failure budget.
-		if (e.data.error) noteHardError();
-		else noteReply();
-		p.resolve(e.data);
 	};
 	// Re-send config on every spawn: after a re-arm the fresh worker would
 	// otherwise sit at its default LIVE_MAX and thrash its enliven cache.
-	worker.postMessage({
+	postMeasured(worker, {
 		t: "config",
 		liveMax: liveMaxConfig,
 		idleMax: idleMaxConfig,
@@ -279,6 +372,7 @@ export function configureTileBakery(on: boolean): void {
 /** Warm the worker during canvas init so the first bake doesn't pay spawn+parse. */
 export function initTileBakery(): void {
 	if (!enabled) return;
+	setWorkerProtocolVersion(usesProtocolV2() ? WORKER_PROTOCOL_VERSION : 1);
 	// Bound the worker's enliven LRU by device class. This must exceed the
 	// WHOLE VIEWPORT's working set, not just one tile: a bake pass walks ~dozens
 	// of tiles back-to-back, so a cap smaller than their combined object count
@@ -393,7 +487,20 @@ export function bakeryClipSet(obj: FabricObject): void {
 	// The clip delta supersedes any pending full re-serialize for this object.
 	dirty.delete(obj.id);
 	(obj as any).__bakeJSON = undefined;
-	getWorker()?.postMessage({ t: "clipSet", id: obj.id, clip });
+	const worker = getWorker();
+	if (!worker) return;
+	if (usesProtocolV2()) {
+		postSceneDeltas(worker, [
+			{
+				kind: "clip",
+				id: obj.id,
+				objectRevision: sceneClock.nextObjectRevision(obj.id),
+				clip,
+			},
+		]);
+	} else {
+		postMeasured(worker, { t: "clipSet", id: obj.id, clip });
+	}
 }
 
 /**
@@ -431,28 +538,83 @@ export function bakeryTranslate(ids: string[], dx: number, dy: number): void {
 		const o = dirty.get(id);
 		if (o) (o as any).__bakeJSON = undefined; // coords moved — re-serialize
 	}
-	getWorker()?.postMessage({ t: "translate", ids, dx, dy });
+	const worker = getWorker();
+	if (!worker) return;
+	if (usesProtocolV2()) {
+		postSceneDeltas(worker, [
+			{
+				kind: "translate",
+				ids,
+				objectRevisions: sceneClock.nextObjectRevisions(ids),
+				dx,
+				dy,
+			},
+		]);
+	} else {
+		postMeasured(worker, { t: "translate", ids, dx, dy });
+	}
 }
 
 export function bakeryRemove(id: string): void {
 	if (!enabled || disabled || !id) return;
 	dirty.delete(id);
 	assets.forget(id);
-	getWorker()?.postMessage({ t: "remove", ids: [id] });
+	const worker = getWorker();
+	if (!worker) return;
+	if (usesProtocolV2()) {
+		postSceneDeltas(worker, [
+			{
+				kind: "remove",
+				id,
+				objectRevision: sceneClock.nextObjectRevision(id),
+			},
+		]);
+	} else {
+		postMeasured(worker, { t: "remove", ids: [id] });
+	}
+}
+
+export function bakeryZOrder(ids: string[], z: number[]): void {
+	if (
+		!enabled ||
+		disabled ||
+		ids.length === 0 ||
+		ids.length !== z.length ||
+		!usesProtocolV2()
+	) {
+		return;
+	}
+	const worker = getWorker();
+	if (!worker) return;
+	postSceneDeltas(worker, [
+		{
+			kind: "zOrder",
+			ids,
+			objectRevisions: sceneClock.nextObjectRevisions(ids),
+			z,
+		},
+	]);
 }
 
 export function bakeryClear(): void {
 	if (!enabled || disabled) return;
 	dirty.clear();
 	assets.reset();
-	getWorker()?.postMessage({ t: "clear" });
+	sceneClock.resetObjects();
+	const worker = getWorker();
+	if (!worker) return;
+	if (usesProtocolV2()) postSceneDeltas(worker, [{ kind: "reset" }]);
+	else postMeasured(worker, { t: "clear" });
 }
 
 function serialize(obj: FabricObject): any | null {
+	const startedAt = performance.now();
 	try {
-		return (obj as any).toJSON();
+		return serializeOnce(obj);
 	} catch {
 		return null;
+	} finally {
+		recordPhase("workerPrepSerialize", performance.now() - startedAt);
 	}
 }
 
@@ -563,7 +725,7 @@ export function bakeryFlushSoon(): void {
 function flush(w: Worker, deadline?: { timeRemaining(): number }): void {
 	if (dirty.size === 0) return;
 	const t0 = performance.now();
-	const items: { id: string; json: any }[] = [];
+	const items: SerializedItem[] = [];
 	for (const [id, obj] of dirty) {
 		if (items.length >= MAX_FLUSH_ITEMS) break;
 		// TIME, not just count. `toJSON()` cost per object spans ~two orders of
@@ -587,7 +749,7 @@ function flush(w: Worker, deadline?: { timeRemaining(): number }): void {
 		// Prefer the stashed source JSON (load / unchanged) over a fresh toJSON —
 		// that recursive serialization is the main-thread cost we are avoiding.
 		const json = a.__bakeJSON ?? serialize(obj);
-		if (json) items.push({ id, json });
+		if (json) items.push(serializedItem(obj, json));
 		// Reclaim: the worker now owns this blob. Retaining it on the main-thread
 		// object would keep N parsed JSON graphs alive next to the live objects —
 		// pure memory waste at 10k. Re-serialize on the rare later flush instead.
@@ -617,7 +779,7 @@ function flush(w: Worker, deadline?: { timeRemaining(): number }): void {
 function flushObjects(w: Worker, objects: FabricObject[]): void {
 	if (dirty.size === 0) return;
 	const t0 = performance.now();
-	const items: { id: string; json: any }[] = [];
+	const items: SerializedItem[] = [];
 	for (const obj of objects) {
 		const id = obj.id;
 		if (!id || !dirty.has(id)) continue;
@@ -628,7 +790,7 @@ function flushObjects(w: Worker, objects: FabricObject[]): void {
 			continue;
 		}
 		const json = a.__bakeJSON ?? serialize(obj);
-		if (json) items.push({ id, json });
+		if (json) items.push(serializedItem(obj, json));
 		a.__bakeJSON = undefined;
 		dirty.delete(id);
 	}
@@ -649,7 +811,7 @@ async function flushObjectsYielded(
 	w: Worker,
 	objects: FabricObject[],
 ): Promise<void> {
-	let items: { id: string; json: any }[] = [];
+	let items: SerializedItem[] = [];
 	let sliceStart = performance.now();
 	const yieldFrame = () =>
 		new Promise<void>((resolve) => {
@@ -670,7 +832,7 @@ async function flushObjectsYielded(
 			continue;
 		}
 		const json = a.__bakeJSON ?? serialize(obj);
-		if (json) items.push({ id, json });
+		if (json) items.push(serializedItem(obj, json));
 		a.__bakeJSON = undefined;
 		dirty.delete(id);
 
@@ -698,15 +860,90 @@ async function flushObjectsYielded(
  * Fast path stays allocation-free. Only on failure do we pay a JSON round-trip,
  * which drops function props (they are not renderable data anyway).
  */
-function postUpsert(w: Worker, items: { id: string; json: any }[]): void {
+function postSceneDeltas(w: Worker, deltas: SceneDelta[]): void {
+	if (sceneBatchDepth > 0) {
+		batchedSceneDeltas.push(...deltas);
+		return;
+	}
+	const chunks = sceneClock.commit(deltas);
+	if (chunks.length === 0) return;
+	recordSceneCommit(deltas.length);
+	for (const chunk of chunks) {
+		const bytes =
+			128 +
+			chunk.deltas.reduce((total, delta) => {
+				if (delta.kind !== "upsert") return total + 64;
+				return total + estimateItemBytes({ id: delta.id, json: delta.json });
+			}, 0);
+		try {
+			postMeasured(w, chunk as any, undefined, bytes);
+		} catch {
+			try {
+				postMeasured(w, JSON.parse(JSON.stringify(chunk)), undefined, bytes);
+			} catch (error) {
+				console.warn(
+					"[TileBakery] dropped an un-serializable scene commit",
+					error,
+				);
+			}
+		}
+	}
+}
+
+/**
+ * Groups the direct deltas produced by one history/sync operation into a
+ * single scene revision. Nested batches are supported because draw actions can
+ * wrap helpers that already batch.
+ */
+export function bakeryBeginSceneBatch(): void {
+	if (!enabled || disabled || !usesProtocolV2()) return;
+	sceneBatchDepth++;
+}
+
+export function bakeryEndSceneBatch(): void {
+	if (!enabled || disabled || !usesProtocolV2() || sceneBatchDepth === 0)
+		return;
+	sceneBatchDepth--;
+	if (sceneBatchDepth > 0 || batchedSceneDeltas.length === 0) return;
+	const deltas = batchedSceneDeltas;
+	batchedSceneDeltas = [];
+	const worker = getWorker();
+	if (worker) postSceneDeltas(worker, deltas);
+}
+
+function postUpsert(w: Worker, items: SerializedItem[]): void {
+	if (usesProtocolV2()) {
+		postSceneDeltas(
+			w,
+			items.map((item) => ({
+				kind: "upsert",
+				id: item.id,
+				objectRevision: sceneClock.nextObjectRevision(item.id),
+				json: item.json,
+				bounds: item.bounds,
+				z: item.z,
+			})),
+		);
+		return;
+	}
+
+	const estimatedBytes = items.reduce(
+		(total, item) => total + estimateItemBytes(item),
+		64,
+	);
 	try {
-		w.postMessage({ t: "upsert", items });
+		postMeasured(w, { t: "upsert", items }, undefined, estimatedBytes);
 		return;
 	} catch {
 		/* falls through to the sanitized retry */
 	}
 	try {
-		w.postMessage({ t: "upsert", items: JSON.parse(JSON.stringify(items)) });
+		postMeasured(
+			w,
+			{ t: "upsert", items: JSON.parse(JSON.stringify(items)) },
+			undefined,
+			estimatedBytes,
+		);
 		console.warn(
 			"[TileBakery] upsert payload was not structured-cloneable; sent a JSON-sanitized copy",
 		);
@@ -728,8 +965,16 @@ function track(
 	weight = 0,
 ): Promise<BakeryResponse | null> {
 	// Back-pressure: never pile more onto a worker that is already behind.
-	if (pending.size >= MAX_BAKERY_IN_FLIGHT) return Promise.resolve(null);
+	if (pending.size >= MAX_BAKERY_IN_FLIGHT) {
+		return Promise.resolve({ msgId: -1, error: "backpressure" });
+	}
 	const msgId = ++msgSeq;
+	const expectedSceneRevision = usesProtocolV2()
+		? sceneClock.currentSceneRevision
+		: undefined;
+	if (expectedSceneRevision !== undefined) {
+		msg.sceneRevision = expectedSceneRevision;
+	}
 	// QUEUE-AWARE. The worker handles messages through a strictly serial FIFO
 	// chain, but the timer starts when we POST — so a request sitting behind
 	// others was charged for their run time as well as its own. `bake()` keeps 4
@@ -749,21 +994,23 @@ function track(
 		const timer = setTimeout(() => {
 			pending.delete(msgId);
 			noteTimeout();
-			resolve(null);
+			resolve({ msgId, error: "timeout" });
 		}, timeoutMs);
-		pending.set(msgId, { resolve, timer });
+		pending.set(msgId, { resolve, timer, expectedSceneRevision });
+		recordWorkerQueueDepth(pending.size);
 		msg.msgId = msgId;
 		// Stamp the cancellation generation so the worker can drop this request if
 		// a `cancel` overtakes it in the queue (see bakeryCancel).
 		msg.epoch = epoch;
 		try {
-			w.postMessage(msg);
+			const estimatedBytes = 128 + weight * 40;
+			postMeasured(w, msg, undefined, estimatedBytes);
 		} catch (err) {
 			clearTimeout(timer);
 			pending.delete(msgId);
 			noteHardError();
 			console.warn("[TileBakery] request postMessage failed", err);
-			resolve(null);
+			resolve({ msgId, error: "hard-error" });
 		}
 	});
 }
@@ -787,6 +1034,7 @@ export async function bakeryRenderOverview(
 
 	const ids: string[] = [];
 	const skipped: FabricObject[] = [];
+	const classifyStartedAt = performance.now();
 	for (const obj of objects) {
 		const a = obj as any;
 		if (!obj.id) return null;
@@ -796,6 +1044,7 @@ export async function bakeryRenderOverview(
 		}
 		ids.push(obj.id);
 	}
+	recordPhase("workerPrepClassify", performance.now() - classifyStartedAt);
 
 	const request = (): Promise<BakeryResponse | null> =>
 		track(
@@ -823,11 +1072,11 @@ export async function bakeryRenderOverview(
 		// from the live objects we were handed, upsert, retry once — else fall
 		// back to a local render.
 		recordBakeMissingRetry();
-		const items: { id: string; json: any }[] = [];
+		const items: SerializedItem[] = [];
 		for (const obj of objects) {
 			if (res.missing.includes(obj.id)) {
 				const json = serialize(obj);
-				if (json) items.push({ id: obj.id, json });
+				if (json) items.push(serializedItem(obj, json));
 			}
 		}
 		if (items.length !== res.missing.length) return null;
@@ -837,7 +1086,55 @@ export async function bakeryRenderOverview(
 	}
 
 	if (!res || res.error || !res.bitmap) return null;
+	recordWorkerMessage(0, width * height * 4);
 	return { bitmap: res.bitmap, skipped };
+}
+
+/**
+ * Pre-render a large selection for the GPU drag layer without touching Fabric
+ * on the main thread. This uses only objects already committed to the worker
+ * mirror: a missing, dirty, or unsupported object makes the request decline,
+ * leaving the transform controller's compatibility path in charge.
+ */
+export async function bakeryRenderSelection(
+	objects: FabricObject[],
+	bounds: WorldRect,
+	width: number,
+	height: number,
+): Promise<ImageBitmap | null> {
+	const w = getWorker();
+	if (!w || width <= 0 || height <= 0) return null;
+
+	const ids: string[] = [];
+	for (const obj of objects) {
+		if (
+			!obj.id ||
+			dirty.has(obj.id) ||
+			assets.refusalReason(obj as any) !== null
+		) {
+			return null;
+		}
+		ids.push(obj.id);
+	}
+
+	const res = await track(
+		w,
+		{
+			t: "overview",
+			ids,
+			bounds: { x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h },
+			width,
+			height,
+			scale: Math.max(width / bounds.w, height / bounds.h),
+		},
+		ids.length,
+	);
+	if (!res || res.aborted || res.error || res.missing?.length || !res.bitmap) {
+		res?.bitmap?.close();
+		return null;
+	}
+	recordWorkerMessage(0, width * height * 4);
+	return res.bitmap;
 }
 
 function refuse(reason: RefusalReason): null {
@@ -874,14 +1171,16 @@ export async function bakeryBakeTile(
 	scale: number,
 	overscan: number,
 	size: number,
-): Promise<RemoteBakeResult<FabricObject> | null> {
+): Promise<RemoteBakeResult<FabricObject> | RemoteBakeFailure> {
 	const w = getWorker();
-	if (!w) return null;
+	if (!w) return { kind: "failed", fallbackReason: "worker-unavailable" };
 
 	const shippable: FabricObject[] = [];
 	const ids: string[] = [];
 	const skipped: FabricObject[] = [];
 	let seenSkipped = false;
+	let firstRefusal: RefusalReason | null = null;
+	const classifyStartedAt = performance.now();
 	for (const obj of objects) {
 		const a = obj as any;
 		// Transiently hidden (mid-drag hide by the transform controller): render
@@ -891,22 +1190,41 @@ export async function bakeryBakeTile(
 		// so skip them without tripping the prefix guard.
 		if (a.opacity === 0 || a.visible === false) continue;
 
-		if (assets.canShip(a) && obj.id) {
+		const selectedWithPendingFullSync =
+			!!obj.id &&
+			dirty.has(obj.id) &&
+			String(a.group?.type ?? "").toLowerCase() === "activeselection";
+		const refusalReason = selectedWithPendingFullSync
+			? "grouped"
+			: assets.refusalReason(a);
+		if (!refusalReason && obj.id) {
 			// A shippable object ABOVE a skipped one → overlay-on-top would reorder
 			// them. Bail to a full local bake.
-			if (seenSkipped) return refuse("zorder");
+			if (seenSkipped) {
+				recordPhase(
+					"workerPrepClassify",
+					performance.now() - classifyStartedAt,
+				);
+				refuse("zorder");
+				return { kind: "unsupported", fallbackReason: "z-order" };
+			}
 			shippable.push(obj);
 			ids.push(obj.id);
 		} else {
 			seenSkipped = true;
 			skipped.push(obj);
+			firstRefusal ??= refusalReason ?? "noId";
 		}
 	}
+	recordPhase("workerPrepClassify", performance.now() - classifyStartedAt);
 
 	// Nothing for the worker to do (empty tile, or all overlay) → local render.
 	// An empty tile is handled by the caller before we're even reached; an
 	// all-skipped tile isn't worth a round-trip.
-	if (ids.length === 0) return null;
+	if (ids.length === 0) {
+		refuse(firstRefusal ?? "noId");
+		return { kind: "unsupported", fallbackReason: "refusal" };
+	}
 	const requestEpoch = epoch;
 
 	// NO global flush() here. Draining the WHOLE dirty set per tile — up to 192
@@ -934,33 +1252,56 @@ export async function bakeryBakeTile(
 	// Dropped by a cancel (gesture start). Not a failure — don't blame the tile,
 	// and don't retry. The caller's signal is already aborted, so it bails before
 	// the main-thread fallback.
-	if (epoch !== requestEpoch || res?.aborted) return null;
+	if (epoch !== requestEpoch || res?.aborted) {
+		return { kind: "deferred", fallbackReason: "backpressure" };
+	}
 
 	if (res?.missing?.length) {
 		// Self-heal once: re-upsert from the live refs, retry.
 		recordBakeMissingRetry();
-		const items: { id: string; json: any }[] = [];
+		const items: SerializedItem[] = [];
 		for (const obj of shippable) {
 			if (res.missing.includes(obj.id)) {
 				const json = serialize(obj);
-				if (json) items.push({ id: obj.id, json });
+				if (json) items.push(serializedItem(obj, json));
 			}
 		}
 		if (items.length !== res.missing.length) {
 			recordTileFailed();
-			return null;
+			return { kind: "deferred", fallbackReason: "missing" };
 		}
 		postUpsert(w, items);
 		res = await request();
-		if (epoch !== requestEpoch || res?.aborted) return null;
+		if (epoch !== requestEpoch || res?.aborted) {
+			return { kind: "deferred", fallbackReason: "backpressure" };
+		}
 	}
 
 	if (!res || res.error || !res.bitmap) {
 		recordTileFailed();
-		return null;
+		const reason =
+			res?.error === "backpressure"
+				? "backpressure"
+				: res?.error === "timeout"
+					? "timeout"
+					: res?.error === "scene-revision-mismatch" ||
+							res?.error === "scene revision not committed" ||
+							res?.error === "stale scene revision"
+						? "missing"
+						: res?.missing?.length
+							? "missing"
+							: "hard-error";
+		return {
+			kind:
+				reason === "backpressure" || reason === "missing"
+					? "deferred"
+					: "failed",
+			fallbackReason: reason,
+		};
 	}
 	recordTileRemote();
 	recordBakeTiming(performance.now() - bakeStartedAt, ids.length);
+	recordWorkerMessage(0, size * size * 4);
 	if (skipped.length) recordTileHybrid(skipped.length);
 	return { bitmap: res.bitmap, skipped };
 }

@@ -75,7 +75,7 @@ async function syncObjectsModified(
 		diff: c.backward,
 	}));
 
-	applyObjectModificationsBulk(createHistoryContext(), bulkChanges);
+	await applyObjectModificationsBulk(createHistoryContext(), bulkChanges);
 
 	// 3. Update the collaborator's cursor/avatar position
 	if (params.creator && params.changes.length > 0) {

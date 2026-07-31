@@ -33,6 +33,8 @@ export interface Surface {
 export interface RenderEngineOptions extends CommittedOptions {
 	liveMax?: number;
 	bakeDebounceMs?: number;
+	/** Cancels render requests already posted to the remote renderer. */
+	cancelRemoteWork?: () => void;
 	/** Max objects a sync overview patch may render; denser regions defer to
 	 *  the async yielded rebuild. */
 	overviewPatchMax?: number;
@@ -44,8 +46,9 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected readonly live: LiveLayer<T>;
 	protected readonly surface: Surface;
 	protected readonly liveRender: LiveRenderer<T>;
-	protected readonly makeYielder: () => Yieldable;
+	protected readonly makeYielder: (label?: string) => Yieldable;
 	protected readonly afterComposite?: () => void;
+	protected readonly cancelRemoteWork?: () => void;
 	protected readonly bakeDebounce: number;
 	protected readonly overviewPatchMax: number;
 
@@ -92,7 +95,7 @@ export abstract class RenderEngineBase<T extends Bounded> {
 		tileRenderer: TileRenderer<T>,
 		liveRenderer: LiveRenderer<T>,
 		surface: Surface,
-		makeYielder: () => Yieldable,
+		makeYielder: (label?: string) => Yieldable,
 		opts: RenderEngineOptions = {},
 	) {
 		this.committed = new CommittedLayer<T>(index, tileRenderer, opts);
@@ -101,6 +104,7 @@ export abstract class RenderEngineBase<T extends Bounded> {
 		this.liveRender = liveRenderer;
 		this.makeYielder = makeYielder;
 		this.afterComposite = opts.afterComposite;
+		this.cancelRemoteWork = opts.cancelRemoteWork;
 		this.bakeDebounce = opts.bakeDebounceMs ?? 80;
 		this.overviewPatchMax = opts.overviewPatchMax ?? 200;
 		this.frames = new FrameScheduler(() => this.renderNow());

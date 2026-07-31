@@ -8,8 +8,10 @@ import {
 import {
 	bakeryClipSet,
 	bakeryMarkDirty,
+	bakeryZOrder,
 } from "../../rendering/bakery/tileBakeryClient";
 import type { ExplicitZIndex } from "./zIndex";
+import { markObjectMutated } from "../objectSerialization";
 
 export function createDrawingSpatialIndex(
 	objectMap: Map<string, FabricObject>,
@@ -123,22 +125,32 @@ export function createDrawingSpatialIndex(
 
 	function zRestore(ids: string[], zs: number[]): void {
 		zIndex.restore(ids, zs);
+		getZIndexMap();
+		bakeryZOrder(ids, zIndex.get(ids));
 	}
 
 	function zToFront(ids: string[]): void {
 		zIndex.toFront(ids);
+		getZIndexMap();
+		bakeryZOrder(ids, zIndex.get(ids));
 	}
 
 	function zToBack(ids: string[]): void {
 		zIndex.toBack(ids);
+		getZIndexMap();
+		bakeryZOrder(ids, zIndex.get(ids));
 	}
 
 	function zUpOne(ids: string[]): void {
 		zIndex.upOne(ids);
+		getZIndexMap();
+		bakeryZOrder(ids, zIndex.get(ids));
 	}
 
 	function zDownOne(ids: string[]): void {
 		zIndex.downOne(ids);
+		getZIndexMap();
+		bakeryZOrder(ids, zIndex.get(ids));
 	}
 
 	function invalidateZIndex() {
@@ -164,6 +176,7 @@ export function createDrawingSpatialIndex(
 	}
 
 	function updateQuadTree(obj: FabricObject) {
+		markObjectMutated(obj);
 		// Geometry changed ⇒ the worker mirror must resync too. This catches every
 		// path that moves an object without firing a fabric event (e.g. a drag
 		// committed by transformController when a gesture interrupts it).
@@ -186,6 +199,7 @@ export function createDrawingSpatialIndex(
 	 * flattened clip carries a base64 image and is worker-refused → full-dirty.
 	 */
 	function clipChanged(obj: FabricObject) {
+		markObjectMutated(obj);
 		const e = entryMap.get(obj.id);
 		if (e) {
 			const b = cachedBounds(obj);
@@ -210,6 +224,7 @@ export function createDrawingSpatialIndex(
 		// NB: the worker mirror is moved in ONE batched `bakeryTranslate` by the
 		// caller (transformController.commit) — NOT per object here, which would be
 		// N postMessages + N re-serializations for a big selection drop.
+		markObjectMutated(obj);
 		const e = entryMap.get(obj.id);
 		if (!e) return;
 		const a = obj as any;
@@ -220,9 +235,7 @@ export function createDrawingSpatialIndex(
 		const br = a.__br as WorldRect;
 		a.__br = { x: br.x + dx, y: br.y + dy, w: br.w, h: br.h };
 		a.__brSig = boundsSig(obj);
-		e.bounds.x += dx;
-		e.bounds.y += dy;
-		quadtree.update(e);
+		quadtree.translate(e, dx, dy);
 	}
 
 	function computeContentBounds(): WorldRect | null {

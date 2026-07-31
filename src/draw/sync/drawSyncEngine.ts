@@ -509,7 +509,10 @@ export function createDrawSyncEngine() {
 
 		canvas.fire("sync:queue:start" as any);
 
-		const yielder = createYielder({ budgetMs: IS_MOBILE_SYNC ? 4 : 8 });
+		const yielder = createYielder({
+			budgetMs: IS_MOBILE_SYNC ? 4 : 8,
+			label: "sync-action-queue",
+		});
 		try {
 			while (queuedActionCount() > 0 && drainGeneration === queueGeneration) {
 				objMgr.beginBatch();

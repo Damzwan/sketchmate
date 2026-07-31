@@ -8,6 +8,8 @@ import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { isMobile } from "@/helper/general.helper";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { Rect } from "@/draw/utils/QuadTree";
+import * as transform from "@/draw/transform/transformController";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
 
 type FabricObjectWithCache = FabricObject & {
 	_lassoPoints?: number[][];
@@ -29,6 +31,13 @@ export function createLassoTool(): ToolService {
 	};
 	let pendingPointer: { x: number; y: number } | null = null;
 	let ghostHighlighted: FabricObject[] = [];
+	let lastHitTestAt = 0;
+	let selectionRevision = 0;
+	let interactionActive = false;
+
+	const HIT_TEST_INTERVAL_MS = 32;
+	const HIT_TEST_SLICE_MS = 5;
+	const MAX_GHOST_HIGHLIGHTS = 150;
 
 	const events: FabricEvent[] = [
 		{ on: "mouse:down", handler: onMouseDown },
@@ -47,6 +56,7 @@ export function createLassoTool(): ToolService {
 
 	function renderOverlay(highlightedObjects: FabricObject[]) {
 		if (!upperCtx || !c) return;
+		const renderStartedAt = performance.now();
 		const el = (c as any).upperCanvasEl as HTMLCanvasElement;
 		const vpt = c.viewportTransform as number[];
 		const retina = c.getRetinaScaling();
@@ -83,7 +93,7 @@ export function createLassoTool(): ToolService {
 		const padding = 4 / vpt[0];
 		upperCtx.fillStyle = "rgba(0, 123, 255, 0.35)";
 
-		highlightedObjects.forEach((obj) => {
+		highlightedObjects.slice(0, MAX_GHOST_HIGHLIGHTS).forEach((obj) => {
 			if (!upperCtx) return;
 			const coords = obj.getCoords(); // [tl, tr, br, bl]
 
@@ -109,12 +119,18 @@ export function createLassoTool(): ToolService {
 		});
 
 		upperCtx.restore();
+		recordPhase("lassoOverlay", performance.now() - renderStartedAt);
 	}
 
 	// ─── Handlers ────────────────────────────────────────────────────────────────
 
 	function onMouseDown(o: any) {
 		if (!isMobile() && o.e.button !== 0) return;
+		selectionRevision++;
+		if (!interactionActive) {
+			useDrawObjectManager().onGestureStart();
+			interactionActive = true;
+		}
 		isDrawing = true;
 		const pointer = c!.getScenePoint(o.e);
 		lassoPolygonPoints = [[pointer.x, pointer.y]];
@@ -124,62 +140,141 @@ export function createLassoTool(): ToolService {
 			maxX: pointer.x,
 			maxY: pointer.y,
 		};
+		pendingPointer = null;
+		lastHitTestAt = 0;
 	}
 
 	function onMouseMove(o: any) {
 		if (!isDrawing) return;
 		pendingPointer = c!.getScenePoint(o.e);
-		if (rafId === null) rafId = requestAnimationFrame(processMove);
+		if (rafId === null) {
+			rafId = requestAnimationFrame(() => processMove(false));
+		}
 	}
 
-	function processMove() {
+	function appendPendingPointer(force: boolean): boolean {
+		if (!pendingPointer) return false;
+		const { x, y } = pendingPointer;
+		const last = lassoPolygonPoints[lassoPolygonPoints.length - 1];
+		const sampleDistance = 6 / Math.max(0.01, c!.getZoom());
+		const shouldSample = Math.hypot(x - last[0], y - last[1]) >= sampleDistance;
+		if (shouldSample) {
+			lassoPolygonPoints.push([x, y]);
+			lassoBBox.minX = Math.min(lassoBBox.minX, x);
+			lassoBBox.minY = Math.min(lassoBBox.minY, y);
+			lassoBBox.maxX = Math.max(lassoBBox.maxX, x);
+			lassoBBox.maxY = Math.max(lassoBBox.maxY, y);
+		}
+		return shouldSample || force;
+	}
+
+	function processMove(forceHitTest = false) {
 		rafId = null;
 		if (!isDrawing || !pendingPointer) return;
-		const { x, y } = pendingPointer;
+		if (!appendPendingPointer(forceHitTest)) return;
 
-		const last = lassoPolygonPoints[lassoPolygonPoints.length - 1];
-		if (Math.hypot(x - last[0], y - last[1]) < 5) return;
+		const now = performance.now();
+		if (!forceHitTest && now - lastHitTestAt < HIT_TEST_INTERVAL_MS) {
+			renderOverlay(ghostHighlighted);
+			return;
+		}
+		lastHitTestAt = now;
 
-		lassoPolygonPoints.push([x, y]);
-		lassoBBox.minX = Math.min(lassoBBox.minX, x);
-		lassoBBox.minY = Math.min(lassoBBox.minY, y);
-		lassoBBox.maxX = Math.max(lassoBBox.maxX, x);
-		lassoBBox.maxY = Math.max(lassoBBox.maxY, y);
+		ghostHighlighted = previewHits(queryCandidates(), lassoPolygonPoints);
 
-		const { query } = useDrawObjectManager();
+		renderOverlay(ghostHighlighted);
+	}
+
+	async function onMouseUp() {
+		if (rafId !== null) cancelAnimationFrame(rafId);
+		rafId = null;
+		if (!isDrawing) return;
+		appendPendingPointer(true);
+		isDrawing = false;
+		const revision = ++selectionRevision;
+		const polygon = lassoPolygonPoints.map((point) => [...point]);
+		const candidates = queryCandidates();
+
+		try {
+			const selected = await collectFinalHits(candidates, polygon, revision);
+			if (selected === null || revision !== selectionRevision) return;
+			await new Promise<void>((resolve) =>
+				requestAnimationFrame(() => resolve()),
+			);
+			if (revision !== selectionRevision) return;
+			const el = (c as any).upperCanvasEl as HTMLCanvasElement;
+			upperCtx?.clearRect(0, 0, el.width, el.height);
+			if (selected.length > 0) applyFinalSelection(selected);
+		} finally {
+			if (revision === selectionRevision) {
+				lassoPolygonPoints = [];
+				ghostHighlighted = [];
+				pendingPointer = null;
+				if (interactionActive) {
+					interactionActive = false;
+					useDrawObjectManager().onGestureEnd();
+				}
+			}
+		}
+	}
+
+	// ─── Logic ───────────────────────────────────────────────────────────────────
+
+	function queryCandidates(): FabricObject[] {
+		const queryStartedAt = performance.now();
 		const rect: Rect = {
 			x: lassoBBox.minX,
 			y: lassoBBox.minY,
 			w: lassoBBox.maxX - lassoBBox.minX,
 			h: lassoBBox.maxY - lassoBBox.minY,
 		};
-		const candidates = query(rect) as FabricObject[];
-
-		ghostHighlighted = candidates.filter((obj) => {
-			const pts = getPointRepresentation(obj);
-			return isInsideLasso(pts, lassoPolygonPoints, obj);
-		});
-
-		renderOverlay(ghostHighlighted);
+		const candidates = useDrawObjectManager().query(rect) as FabricObject[];
+		recordPhase("lassoHitTest", performance.now() - queryStartedAt);
+		return candidates;
 	}
 
-	function onMouseUp() {
-		isDrawing = false;
-		if (rafId) cancelAnimationFrame(rafId);
-		rafId = null;
-
-		const el = (c as any).upperCanvasEl as HTMLCanvasElement;
-		upperCtx?.clearRect(0, 0, el.width, el.height);
-
-		if (ghostHighlighted.length > 0) {
-			applyFinalSelection(ghostHighlighted);
+	function previewHits(
+		candidates: FabricObject[],
+		polygon: number[][],
+	): FabricObject[] {
+		const hits: FabricObject[] = [];
+		const sliceStartedAt = performance.now();
+		for (let i = 0; i < candidates.length; i++) {
+			const obj = candidates[i];
+			if (isInsideLasso(getPointRepresentation(obj), polygon, obj))
+				hits.push(obj);
+			if (performance.now() - sliceStartedAt >= HIT_TEST_SLICE_MS) break;
 		}
-
-		lassoPolygonPoints = [];
-		ghostHighlighted = [];
+		recordPhase("lassoHitTest", performance.now() - sliceStartedAt);
+		return hits;
 	}
 
-	// ─── Logic ───────────────────────────────────────────────────────────────────
+	async function collectFinalHits(
+		candidates: FabricObject[],
+		polygon: number[][],
+		revision: number,
+	): Promise<FabricObject[] | null> {
+		const hits: FabricObject[] = [];
+		let sliceStartedAt = performance.now();
+		for (let i = 0; i < candidates.length; i++) {
+			const obj = candidates[i];
+			if (isInsideLasso(getPointRepresentation(obj), polygon, obj))
+				hits.push(obj);
+			if (
+				i + 1 < candidates.length &&
+				performance.now() - sliceStartedAt >= HIT_TEST_SLICE_MS
+			) {
+				recordPhase("lassoHitTest", performance.now() - sliceStartedAt);
+				await new Promise<void>((resolve) =>
+					requestAnimationFrame(() => resolve()),
+				);
+				if (revision !== selectionRevision) return null;
+				sliceStartedAt = performance.now();
+			}
+		}
+		recordPhase("lassoHitTest", performance.now() - sliceStartedAt);
+		return hits;
+	}
 
 	function isInsideLasso(
 		pts: number[][],
@@ -264,22 +359,52 @@ export function createLassoTool(): ToolService {
 	}
 
 	function applyFinalSelection(objects: FabricObject[]) {
-		const { selectTool } = useToolSelection();
-		selectTool(DrawTool.Select);
-		// Quadtree query order is arbitrary — sort by z like the normal drag
-		// select does, else copies of the selection stack in the wrong order.
-		const zMap = useDrawObjectManager().getZIndexMap();
-		const sorted = [...objects].sort(
-			(a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0),
-		);
-		if (sorted.length > 1) {
-			c!.setActiveObject(new ActiveSelection(sorted, { canvas: c }));
-		} else {
-			c!.setActiveObject(sorted[0]);
+		const commitStartedAt = performance.now();
+		try {
+			const { selectTool } = useToolSelection();
+			selectTool(DrawTool.Select);
+			// Quadtree query order is arbitrary — sort by z like the normal drag
+			// select does, else copies of the selection stack in the wrong order.
+			const zMap = useDrawObjectManager().getZIndexMap();
+			const sortStartedAt = performance.now();
+			const sorted = [...objects].sort(
+				(a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0),
+			);
+			recordPhase("lassoSelectionSort", performance.now() - sortStartedAt);
+			let activeObject: FabricObject | undefined;
+			if (sorted.length > 1) {
+				const constructStartedAt = performance.now();
+				activeObject = new ActiveSelection(sorted, { canvas: c });
+				recordPhase(
+					"lassoSelectionConstruct",
+					performance.now() - constructStartedAt,
+				);
+			} else {
+				activeObject = sorted[0];
+			}
+			if (!activeObject) return;
+			const activateStartedAt = performance.now();
+			c!.setActiveObject(activeObject);
+			recordPhase(
+				"lassoSelectionActivate",
+				performance.now() - activateStartedAt,
+			);
+			const topCtx = c!.getTopContext();
+			const controlsStartedAt = performance.now();
+			activeObject?._renderControls(topCtx);
+			recordPhase(
+				"lassoSelectionControls",
+				performance.now() - controlsStartedAt,
+			);
+			const prewarmStartedAt = performance.now();
+			transform.prewarm(c!);
+			recordPhase(
+				"lassoSelectionPrewarm",
+				performance.now() - prewarmStartedAt,
+			);
+		} finally {
+			recordPhase("lassoSelectionCommit", performance.now() - commitStartedAt);
 		}
-		const topCtx = c!.getTopContext();
-		const activeObject = c!.getActiveObject();
-		activeObject?._renderControls(topCtx);
 	}
 
 	async function select() {

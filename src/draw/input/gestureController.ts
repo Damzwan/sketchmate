@@ -3,7 +3,6 @@ import { getRenderDpr } from "../config/renderQuality.config";
 import type { RenderEngine } from "../rendering/renderEngine";
 import { minimumTiledZoom } from "../rendering/zoomLevels";
 import {
-	bakeryCancel,
 	bakeryPauseFlush,
 	bakeryTranslate,
 	isBakeryActive,
@@ -34,22 +33,29 @@ export function createGestureController(options: GestureControllerOptions) {
 		if (!canvas || !renderEngine) return;
 
 		if (transformLayer.isActive()) transformLayer.commit(canvas);
+		startTransform();
+	}
 
-		// Abort engine bakes before cancelling worker requests. A cancelled worker
-		// request otherwise falls back to a synchronous main-thread bake.
+	function startTransform() {
+		const renderEngine = engine();
+		if (!renderEngine) return;
+		// The engine aborts local continuations before its remote cancellation
+		// hook settles worker promises, preventing a compatibility render on main.
 		renderEngine.setGesturing(true);
-		bakeryCancel();
 		bakeryPauseFlush(true);
 	}
 
-	function end() {
+	function endTransform() {
 		engine()?.setGesturing(false);
 		bakeryPauseFlush(false);
 	}
 
+	function end() {
+		endTransform();
+	}
+
 	function setErasing(active: boolean) {
 		engine()?.setErasing(active);
-		if (active) bakeryCancel();
 	}
 
 	function dropRegion(rect: WorldRect) {
@@ -62,12 +68,13 @@ export function createGestureController(options: GestureControllerOptions) {
 		invalidateSelectionCache = false,
 		coveredByLayer = false,
 		maxSyncTiles?: number,
+		repairOverviewNow = false,
 	) {
 		if (invalidateSelectionCache) transformLayer.invalidateCache();
 		const syncTiles =
 			maxSyncTiles ??
 			(coveredByLayer && isBakeryActive() ? 0 : options.isLowEndDevice ? 4 : 8);
-		engine()?.dropRegionLight(rect, syncTiles);
+		engine()?.dropRegionLight(rect, syncTiles, repairOverviewNow);
 	}
 
 	function dropEraseRegion(rect: WorldRect, changedRect?: WorldRect) {
@@ -114,6 +121,8 @@ export function createGestureController(options: GestureControllerOptions) {
 		renderFrameNow,
 		start,
 		end,
+		startTransform,
+		endTransform,
 		setErasing,
 		dropRegion,
 		dropRegionLight,

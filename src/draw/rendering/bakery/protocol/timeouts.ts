@@ -3,6 +3,7 @@ import type { BakeryResponse } from "@/draw/rendering/bakery/bakery.types";
 export interface PendingBake {
 	resolve: (response: BakeryResponse | null) => void;
 	timer: ReturnType<typeof setTimeout>;
+	expectedSceneRevision?: number;
 }
 
 export const PER_OBJECT_TIMEOUT_MS = 6;

@@ -7,6 +7,8 @@ export type {
 	Bounded,
 	CommittedOptions,
 	RemoteBaker,
+	RemoteBakeFailure,
+	RemoteBakeFailureReason,
 	RemoteBakeResult,
 	RemoteOverview,
 	SpatialIndex,

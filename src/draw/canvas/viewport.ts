@@ -162,7 +162,10 @@ export async function fitToDensestRegion(
 		b: { x: number; y: number; w: number; h: number };
 	};
 	const items: Item[] = [];
-	const yielder = createYielder({ budgetMs: 5 });
+	const yielder = createYielder({
+		budgetMs: 5,
+		label: "viewport-density-scan",
+	});
 	yielder.reset();
 	for (const o of objects) {
 		// @ts-ignore — same call as objectBounds()

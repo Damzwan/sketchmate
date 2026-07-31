@@ -750,7 +750,10 @@ export class CustomEraserBrush extends PencilBrush {
 		// is purely about spacing them, not concurrency — order is irrelevant
 		// (destination-out masks commute).
 		const result = new Map<fabric.FabricObject, fabric.Path>();
-		const yielder = createYielder({ budgetMs: IS_MOBILE_ERASE ? 4 : 8 });
+		const yielder = createYielder({
+			budgetMs: IS_MOBILE_ERASE ? 4 : 8,
+			label: "erase-apply",
+		});
 		for (const object of targets) {
 			const startedAt = performance.now();
 			try {

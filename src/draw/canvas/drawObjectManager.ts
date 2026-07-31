@@ -26,8 +26,11 @@ import { createEngineOptions } from "@/draw/rendering/engineOptions";
 import type { WorldRect } from "@/draw/rendering/committedLayer";
 import {
 	bakeryBakeTile,
+	bakeryBeginSceneBatch,
+	bakeryCancel,
 	bakeryClear,
 	bakeryClipSet,
+	bakeryEndSceneBatch,
 	bakeryFlushSoon,
 	bakeryMarkDirty,
 	bakeryRemove,
@@ -52,6 +55,8 @@ export function createDrawObjectManager() {
 	// ── batch mode ─────────────────────────────────────────────────────────
 	let batchDepth = 0;
 	let batchRects: WorldRect[] = [];
+	let batchRetainedRemovalRects: WorldRect[] = [];
+	let retainedRemovalDepth = 0;
 	/**
 	 * Objects ADDED during a batch, held back so they can go through the normal
 	 * per-object add path at flush time instead of being flattened into a
@@ -72,18 +77,27 @@ export function createDrawObjectManager() {
 	const isBatching = () => batchDepth > 0;
 
 	function beginBatch() {
+		if (batchDepth === 0) bakeryBeginSceneBatch();
 		batchDepth++;
 	}
 
 	function endBatch() {
 		batchDepth = Math.max(0, batchDepth - 1);
 		if (batchDepth !== 0) return;
+		bakeryEndSceneBatch();
 		const rects = batchRects;
+		const retainedRemovalRects = batchRetainedRemovalRects;
 		const adds = batchAdds;
 		batchRects = [];
+		batchRetainedRemovalRects = [];
 		batchAdds = [];
 		if (isLoading() || !renderEngine) return;
-		if (rects.length === 0 && adds.length === 0) return;
+		if (
+			rects.length === 0 &&
+			retainedRemovalRects.length === 0 &&
+			adds.length === 0
+		)
+			return;
 		// Batched changes (remote sync, undo/redo) may have altered objects that
 		// are currently selected — the drag-layer bitmap can't be trusted anymore.
 		localTransform.invalidateCache();
@@ -95,6 +109,11 @@ export function createDrawObjectManager() {
 		// SHRINK after a removal, and a slightly-loose content bound merely makes
 		// the overview cover a bit of extra empty space — harmless. The full
 		// recompute still runs on load / reset (endLoading, resetTileCache).
+		// History removals swap the old sharp tile directly for its replacement.
+		// Any destructive invalidation in the same batch runs afterwards and wins.
+		if (retainedRemovalRects.length) {
+			renderEngine.retainRegionsUntilRebaked(retainedRemovalRects);
+		}
 		if (rects.length) renderEngine.invalidateRegions(rects);
 		// AFTER the destructive pass, never before: a stamp needs fresh tiles, so
 		// running it first would only have it invalidated a moment later. If a
@@ -115,6 +134,15 @@ export function createDrawObjectManager() {
 		if (!isBatching()) return false;
 		if (rect) batchRects.push(rect);
 		return true;
+	}
+
+	function withRetainedRemovalTiles<T>(operation: () => T): T {
+		retainedRemovalDepth++;
+		try {
+			return operation();
+		} finally {
+			retainedRemovalDepth--;
+		}
 	}
 
 	/**
@@ -175,6 +203,7 @@ export function createDrawObjectManager() {
 	// ── fabric events → renderEngine lifecycle ───────────────────────────────────────
 	function onObjectAdded(obj: FabricObject) {
 		if (!obj.id) return;
+		localTransform.invalidateVacatedCache();
 		objectMap.set(obj.id, obj);
 		if (isLoading()) return; // bulk loads reseed the bakery in rebuildIndexFromCanvas
 		// Seed the mirror from the SHARED serialization instead of marking dirty
@@ -217,12 +246,19 @@ export function createDrawObjectManager() {
 
 	function onObjectRemoved(obj: FabricObject) {
 		if (!obj.id) return;
+		localTransform.invalidateVacatedCache();
 		const oldRect = objectBounds(obj);
 		objectMap.delete(obj.id);
 		zIndex.remove(obj);
 		bakeryRemove(obj.id);
 		removeFromQuadTree(obj);
 		if (isLoading()) return;
+		if (retainedRemovalDepth > 0) {
+			renderEngine?.removeLiveObject(obj.id);
+			if (isBatching()) batchRetainedRemovalRects.push(oldRect);
+			else renderEngine?.retainRegionsUntilRebaked([oldRect]);
+			return;
+		}
 		if (noteRegion(oldRect)) return;
 		renderEngine?.onObjectRemoved(obj, oldRect);
 	}
@@ -235,6 +271,7 @@ export function createDrawObjectManager() {
 			updateQuadTree(obj);
 			return;
 		}
+		localTransform.invalidateVacatedCache();
 
 		const oldRect = collectOldRect(obj, e.transform);
 		updateQuadTree(obj);
@@ -325,7 +362,11 @@ export function createDrawObjectManager() {
 			isolatedTileRenderer,
 			renderLive,
 			surface,
-			() => createYielder({ budgetMs: IS_LOW_END ? 4 : 8 }) as any,
+			(label) =>
+				createYielder({
+					budgetMs: IS_LOW_END ? 4 : 8,
+					label: label ?? "render-work",
+				}) as any,
 			{
 				...createEngineOptions(),
 				afterComposite: () => {
@@ -334,6 +375,7 @@ export function createDrawObjectManager() {
 				remoteBaker: renderBackend === "worker" ? bakeryBakeTile : undefined,
 				remoteOverview:
 					renderBackend === "worker" ? bakeryRenderOverview : undefined,
+				cancelRemoteWork: renderBackend === "worker" ? bakeryCancel : undefined,
 			},
 		);
 
@@ -390,7 +432,10 @@ export function createDrawObjectManager() {
 
 	async function rebuildIndexFromCanvasYielded() {
 		const { isBlocked } = useFriendStore();
-		const yielder = createYielder({ budgetMs: IS_LOW_END ? 4 : 6 });
+		const yielder = createYielder({
+			budgetMs: IS_LOW_END ? 4 : 6,
+			label: "spatial-index-rebuild",
+		});
 		beginIndexRebuild();
 		const objs = c!.getObjects();
 		yielder.reset();
@@ -511,6 +556,10 @@ export function createDrawObjectManager() {
 		renderEngine.markDirtyAndRebuildSync(rect, tier);
 	}
 
+	function retainRegionsUntilRebaked(rects: readonly WorldRect[]) {
+		renderEngine?.retainRegionsUntilRebaked(rects);
+	}
+
 	function clearAllObjects() {
 		if (!c || !renderEngine) return;
 		objectMap.clear();
@@ -529,6 +578,8 @@ export function createDrawObjectManager() {
 		renderViewportNow: gestures.renderFrameNow,
 		onGestureStart: gestures.start,
 		onGestureEnd: gestures.end,
+		onTransformStart: gestures.startTransform,
+		onTransformEnd: gestures.endTransform,
 		recordPanDelta: () => {},
 		purgeBlockedObjects,
 		query,
@@ -567,6 +618,8 @@ export function createDrawObjectManager() {
 		eraseStampCommit: gestures.commitEraseStamp,
 		stampRegionBitmap: gestures.stampRegionBitmap,
 		patchRectSync,
+		retainRegionsUntilRebaked,
+		withRetainedRemovalTiles,
 		beginBatch,
 		endBatch,
 		isBatching,

@@ -151,12 +151,20 @@ async function exportWithMainThreadChunking(
 	const IS_MOBILE =
 		typeof navigator !== "undefined" &&
 		/Mobi|Android/i.test(navigator.userAgent);
-	const mathYielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal });
-	const renderYielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal });
+	const mathYielder = createYielder({
+		budgetMs: IS_MOBILE ? 4 : 6,
+		signal,
+		label: "export-layout",
+	});
+	const renderYielder = createYielder({
+		budgetMs: IS_MOBILE ? 4 : 6,
+		signal,
+		label: "export-render",
+	});
 
 	// Defer one frame before starting — if the caller just kicked us off after
 	// some UI event, this lets that event's paint finish first.
-	await nextFrame();
+	await nextFrame("export-layout");
 	if (signal?.aborted) return null;
 
 	// ── 1. Bounding box pass ──────────────────────────────────────────────────
@@ -362,7 +370,11 @@ export async function cropCanvas(
 	const IS_MOBILE =
 		typeof navigator !== "undefined" &&
 		/Mobi|Android/i.test(navigator.userAgent);
-	const yielder = createYielder({ budgetMs: IS_MOBILE ? 4 : 6, signal });
+	const yielder = createYielder({
+		budgetMs: IS_MOBILE ? 4 : 6,
+		signal,
+		label: "export-raster",
+	});
 
 	const wasSkipOffscreen = (canvas as any).skipOffscreen;
 	(canvas as any).skipOffscreen = false;

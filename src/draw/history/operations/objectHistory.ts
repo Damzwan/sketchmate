@@ -6,9 +6,10 @@ import { drawActionMapping } from "@/draw/actions/drawActions";
 import { DrawAction } from "@/draw/actions/drawAction.types";
 import { toObjectsIds } from "@/draw/objects/objectSerialization";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { yieldToMain } from "@/draw/scheduling/yielder";
 
-/** Coalesce N add/remove invalidations into one pass. Single object skips the
- *  batch so it keeps the immediate sync-rebuild path. */
+/** Coalesce multiple Fabric lifecycle events into one render pass. */
 function runBatched(count: number, fn: () => void): void {
 	const mgr = useDrawObjectManager();
 	if (count > 1) mgr.beginBatch();
@@ -19,7 +20,35 @@ function runBatched(count: number, fn: () => void): void {
 	}
 }
 
-export function applyObjectModificationsBulk(
+function removeObjectsWithTileHandoff(
+	ctx: HistoryContext,
+	objects: FabricObject[],
+): void {
+	if (objects.length === 0) return;
+	const mgr = useDrawObjectManager();
+	runBatched(objects.length, () => {
+		mgr.withRetainedRemovalTiles(() => ctx.canvas.remove(...objects));
+	});
+}
+
+export async function applyObjectModificationsBulk(
+	ctx: HistoryContext,
+	changes: { id: string; diff: any }[],
+): Promise<void> {
+	const translation = commonTranslation(changes);
+	if (translation) {
+		await applyTranslation(ctx, changes, translation.x, translation.y);
+		return;
+	}
+	const startedAt = performance.now();
+	try {
+		applyObjectModifications(ctx, changes);
+	} finally {
+		recordPhase("historyTransformApply", performance.now() - startedAt);
+	}
+}
+
+function applyObjectModifications(
 	ctx: HistoryContext,
 	changes: { id: string; diff: any }[],
 ): void {
@@ -95,28 +124,100 @@ export function applyObjectModificationsBulk(
 				}
 			: null;
 
-	// Inside undo()/redo() these are batch-absorbed and coalesce into ONE
-	// invalidateRegions pass at endBatch. Overlapping rects (short move)
-	// collapse to their union so an unbatched caller doesn't rebuild the
-	// shared tiles twice.
-	if (oldRect && newRect && rectsOverlap(oldRect, newRect)) {
-		mgr.patchRectSync(unionOf(oldRect, newRect));
-	} else {
-		if (oldRect) mgr.patchRectSync(oldRect);
-		if (newRect) mgr.patchRectSync(newRect);
-	}
+	retainTransformRegions(mgr, oldRect, newRect);
 }
 
-function rectsOverlap(
-	a: { x: number; y: number; w: number; h: number },
-	b: { x: number; y: number; w: number; h: number },
-): boolean {
-	return !(
-		a.x + a.w < b.x ||
-		b.x + b.w < a.x ||
-		a.y + a.h < b.y ||
-		b.y + b.h < a.y
-	);
+function commonTranslation(
+	changes: { diff: any }[],
+): { x: number; y: number } | null {
+	if (changes.length === 0) return null;
+	const first = changes[0].diff;
+	const x = -(first.left ?? 0);
+	const y = -(first.top ?? 0);
+	const epsilon = 1e-4;
+	for (const { diff } of changes) {
+		if (
+			Math.abs(diff.scaleX ?? 0) > epsilon ||
+			Math.abs(diff.scaleY ?? 0) > epsilon ||
+			Math.abs(diff.angle ?? 0) > epsilon ||
+			Math.abs(-(diff.left ?? 0) - x) > epsilon ||
+			Math.abs(-(diff.top ?? 0) - y) > epsilon
+		) {
+			return null;
+		}
+	}
+	return { x, y };
+}
+
+async function applyTranslation(
+	ctx: HistoryContext,
+	changes: { id: string; diff: any }[],
+	dx: number,
+	dy: number,
+): Promise<void> {
+	const mgr = useDrawObjectManager();
+	const moved: FabricObject[] = [];
+	let oldRect: { x: number; y: number; w: number; h: number } | null = null;
+	let newRect: { x: number; y: number; w: number; h: number } | null = null;
+	let sliceStartedAt = performance.now();
+
+	for (let index = 0; index < changes.length; index++) {
+		const { id } = changes[index];
+		const obj = ctx.getObjectById(id);
+		if (!obj) continue;
+		const before = mgr.getObjectBounds(obj);
+		oldRect = oldRect ? unionOf(oldRect, before) : { ...before };
+
+		obj.set({
+			left: (obj.left ?? 0) + dx,
+			top: (obj.top ?? 0) + dy,
+		});
+		obj.setCoords();
+		mgr.offsetQuadTree(obj, dx, dy);
+		moved.push(obj);
+
+		const after = { ...before, x: before.x + dx, y: before.y + dy };
+		newRect = newRect ? unionOf(newRect, after) : after;
+
+		if (index + 1 < changes.length && performance.now() - sliceStartedAt >= 5) {
+			recordPhase("historyTransformApply", performance.now() - sliceStartedAt);
+			await yieldToMain("history-translation");
+			sliceStartedAt = performance.now();
+		}
+	}
+
+	if (moved.length === 0) {
+		recordPhase("historyTransformApply", performance.now() - sliceStartedAt);
+		return;
+	}
+	mgr.translateMirror(moved, dx, dy);
+
+	const PAD = 8;
+	const paddedOld = oldRect && padRect(oldRect, PAD);
+	const paddedNew = newRect && padRect(newRect, PAD);
+	retainTransformRegions(mgr, paddedOld, paddedNew);
+	recordPhase("historyTransformApply", performance.now() - sliceStartedAt);
+}
+
+function retainTransformRegions(
+	mgr: ReturnType<typeof useDrawObjectManager>,
+	oldRect: { x: number; y: number; w: number; h: number } | null,
+	newRect: { x: number; y: number; w: number; h: number } | null,
+): void {
+	const rects = [oldRect, newRect].filter((rect) => rect !== null);
+	mgr.retainRegionsUntilRebaked(rects);
+}
+
+function padRect(
+	rect: { x: number; y: number; w: number; h: number },
+	padding: number,
+) {
+	return {
+		x: rect.x - padding,
+		y: rect.y - padding,
+		w: rect.w + padding * 2,
+		h: rect.h + padding * 2,
+	};
 }
 
 function unionOf(
@@ -180,7 +281,7 @@ export async function redoObjectModified(
 		diff: c.backward,
 	}));
 
-	applyObjectModificationsBulk(ctx, changes);
+	await applyObjectModificationsBulk(ctx, changes);
 
 	return action;
 }
@@ -203,7 +304,7 @@ export async function redoObjectsDeleted(
 	const objects = ctx.getObjectsById(
 		action.params.objectsJSON.map((item) => item.id),
 	);
-	runBatched(objects.length, () => ctx.canvas.remove(...objects));
+	removeObjectsWithTileHandoff(ctx, objects);
 	return action;
 }
 
@@ -277,7 +378,7 @@ export async function undoObjectAdded(
 ) {
 	const object = ctx.getObjectById(action.params.objectJSON.id);
 	if (object) {
-		ctx.canvas.remove(object);
+		removeObjectsWithTileHandoff(ctx, [object]);
 	}
 	return action;
 }
@@ -290,7 +391,7 @@ export async function undoObjectsAdded(
 	const toRemove = (action.params.objectsJSON ?? [])
 		.map((obj) => ctx.getObjectById(obj.id))
 		.filter(Boolean) as FabricObject[];
-	runBatched(toRemove.length, () => ctx.canvas.remove(...toRemove));
+	removeObjectsWithTileHandoff(ctx, toRemove);
 
 	return action;
 }
@@ -304,7 +405,7 @@ export async function undoObjectModified(
 		diff: c.forward,
 	}));
 
-	applyObjectModificationsBulk(ctx, changes);
+	await applyObjectModificationsBulk(ctx, changes);
 
 	return action;
 }
@@ -447,14 +548,14 @@ export async function undoObjectsCopied(
 	ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.ObjectsCopied>,
 ): Promise<HistoryAction<HistoryEvent.ObjectsCopied>> {
-	const { canvas, getObjectsById, unSelect } = ctx;
+	const { getObjectsById, unSelect } = ctx;
 
 	unSelect(); // TODO necessary?
 
 	const ids = toObjectsIds(action.params.objectsJSON as FabricObject[]);
 	const canvasObjects = getObjectsById(ids);
 
-	runBatched(canvasObjects.length, () => canvas.remove(...canvasObjects));
+	removeObjectsWithTileHandoff(ctx, canvasObjects);
 
 	return action;
 }

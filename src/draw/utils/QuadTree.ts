@@ -217,6 +217,27 @@ export class InfiniteQuadtreeManager<T> {
 		this.insert(entry);
 	}
 
+	/**
+	 * Move an entry without rebuilding its tree placement when its current node
+	 * still contains the translated bounds. Crossing a node or chunk boundary
+	 * falls back to the normal remove-and-insert path.
+	 */
+	translate(entry: QuadtreeEntry<T>, dx: number, dy: number) {
+		const previousNodes = entry.__nodes ? [...entry.__nodes] : [];
+		entry.bounds.x += dx;
+		entry.bounds.y += dy;
+
+		if (
+			previousNodes.length === 1 &&
+			rectContains(previousNodes[0].boundary, entry.bounds)
+		) {
+			return;
+		}
+
+		this.remove(entry);
+		this.insert(entry);
+	}
+
 	remove(entry: QuadtreeEntry<T>) {
 		if (entry.__nodes) {
 			const nodesToClear = [...entry.__nodes];

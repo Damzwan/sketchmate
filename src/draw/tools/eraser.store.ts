@@ -7,10 +7,7 @@ import { CustomEraserBrush } from "@/draw/utils/brushes/CustomEraserBrush";
 import { isMobile } from "@/helper/general.helper";
 import { updateFreeDrawingCursor } from "@/draw/tools/cursor";
 import { v4 } from "uuid";
-import {
-	analyzeErasureInWorker,
-	toReadbackCanvas,
-} from "@/draw/tools/eraserWorker";
+import { analyzeErasureInWorker } from "@/draw/tools/erasureAnalysisClient";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
@@ -18,6 +15,11 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { createYielder, yieldToMain } from "@/draw/scheduling/yielder";
 import { isActive as transformSessionActive } from "@/draw/transform/transformController";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
+import {
+	bakeryBeginSceneBatch,
+	bakeryEndSceneBatch,
+} from "@/draw/rendering/bakery/tileBakeryClient";
+import { objectMutationRevision } from "@/draw/objects/objectSerialization";
 
 interface Eraser extends ToolService {
 	eraserSize: Ref<number>;
@@ -39,38 +41,8 @@ interface Eraser extends ToolService {
 interface CleanupJob {
 	targets: FabricObject[];
 	cursor: number;
-	deleted: FabricObject[];
+	deleted: Array<{ object: FabricObject; json: any; revision: number }>;
 	path: Path;
-}
-
-interface CoverageEntry {
-	canvas: HTMLCanvasElement;
-	ctx: CanvasRenderingContext2D;
-	bboxLeft: number;
-	bboxTop: number;
-	sx: number;
-	sy: number;
-	matrixKey: string;
-	pixels: number;
-}
-
-const COVERAGE_MAX_DIM = 96;
-const COVERAGE_ALPHA = 15; // alpha >= this counts as "still there"
-// Each entry holds a canvas (~36KB backing store at 96x96). iOS Safari has a
-// hard total-canvas-memory budget, and 3000 live canvases was enough to blow
-// it during long erase sessions. 256 covers any realistic stroke burst; the
-// cache is a pure perf hint, so eviction only costs a rebuild on next touch.
-const COVERAGE_MAX_ENTRIES = 256;
-
-function matrixKey(obj: FabricObject): string {
-	try {
-		return obj
-			.calcTransformMatrix()
-			.map((n) => n.toFixed(2))
-			.join(",");
-	} catch {
-		return "";
-	}
 }
 
 const IS_MOBILE = isMobile();
@@ -91,7 +63,6 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 
 	const cleanupQueue: CleanupJob[] = [];
 	let draining = false;
-	const coverage = new Map<string, CoverageEntry>();
 
 	/**
 	 * "Can an undo still restore what this stroke's sweep wants to delete?"
@@ -150,7 +121,7 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 			// A frantic burst contains many individually-small commits. Without a
 			// task boundary, their promise continuations form one giant microtask
 			// drain and the browser cannot dispatch input or paint between strokes.
-			if (pendingEraseCommits > 1) await yieldToMain();
+			if (pendingEraseCommits > 1) await yieldToMain("erase-commit-queue");
 		};
 		const run = eraseCommitChain.then(execute, execute);
 		eraseCommitChain = run.catch(() => {});
@@ -165,136 +136,6 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 
 	function objectStillPresent(obj: FabricObject): boolean {
 		return !!obj?.id && objMgr.getObjectById(obj.id) === obj;
-	}
-
-	function forgetCoverage(id?: string) {
-		if (!id) return;
-		const entry = coverage.get(id);
-		if (entry) {
-			// Zero the dims so the backing store is released NOW, not at next GC —
-			// iOS counts canvas memory the moment it's allocated.
-			entry.canvas.width = 0;
-			entry.canvas.height = 0;
-			coverage.delete(id);
-		}
-	}
-
-	/**
-	 * Get (or lazily build) the low-res "remaining content" bitmap for an
-	 * object. Rebuilds if the object has been transformed since capture.
-	 * Returns null if it can't be rendered — caller treats that as "uncertain".
-	 */
-	function ensureCoverage(obj: FabricObject): CoverageEntry | null {
-		const id = obj.id as string | undefined;
-		if (!id) return null;
-
-		const existing = coverage.get(id);
-		if (existing && existing.matrixKey === matrixKey(obj)) return existing;
-
-		try {
-			const bbox = (obj as any).getBoundingRect(true, true);
-			if (!bbox.width || !bbox.height) return null;
-
-			const mult = Math.min(
-				1,
-				COVERAGE_MAX_DIM / Math.max(bbox.width, bbox.height),
-			);
-			// Current clipped state — i.e. what survives RIGHT NOW, history included.
-			const rendered: HTMLCanvasElement = (obj as any).toCanvasElement({
-				multiplier: mult,
-			});
-			// Copy into a canvas we created WITH willReadFrequently. Asking the
-			// fabric-made element for a context with that attribute is a no-op — it
-			// already has one — so this entry was doing a GPU readback on every
-			// coverage check. It is read far more often than it is written.
-			const readback = toReadbackCanvas(rendered);
-			rendered.width = 0;
-			rendered.height = 0;
-			if (!readback) return null;
-			const fp = readback.canvas;
-			const ctx = readback.ctx;
-			if (!fp.width || !fp.height) return null;
-
-			// Stale rebuild replaces the old canvas — release it explicitly.
-			if (existing) forgetCoverage(id);
-			// FIFO eviction (Map preserves insertion order) instead of clear-all.
-			while (coverage.size >= COVERAGE_MAX_ENTRIES) {
-				const oldest = coverage.keys().next().value;
-				if (oldest === undefined) break;
-				forgetCoverage(oldest);
-			}
-
-			const entry: CoverageEntry = {
-				canvas: fp,
-				ctx,
-				bboxLeft: bbox.left,
-				bboxTop: bbox.top,
-				sx: fp.width / bbox.width,
-				sy: fp.height / bbox.height,
-				matrixKey: matrixKey(obj),
-				pixels: fp.width * fp.height,
-			};
-			coverage.set(id, entry);
-			return entry;
-		} catch {
-			forgetCoverage(id);
-			return null;
-		}
-	}
-
-	/**
-	 * Punch the new eraser stroke into the remaining-content bitmap. The path is
-	 * in scene/world coords (it has not been sent to any object's plane — only
-	 * the per-object CLONES are), and the bitmap maps world -> pixels via the
-	 * object's world bounding box, so the placement is plane-agnostic.
-	 */
-	function stampCoverage(entry: CoverageEntry, path: Path): boolean {
-		// Only plain (destination-out) erasing maps cleanly to "remove coverage".
-		// Inverted / undo strokes add content back — punt those to the
-		// authoritative check.
-		if ((path as any).globalCompositeOperation !== "destination-out") {
-			return false;
-		}
-		try {
-			const ctx = entry.ctx;
-			ctx.save();
-			ctx.setTransform(
-				entry.sx,
-				0,
-				0,
-				entry.sy,
-				-entry.bboxLeft * entry.sx,
-				-entry.bboxTop * entry.sy,
-			);
-			// Path carries its own destination-out gco, so render() punches a hole.
-			(path as any).render(ctx);
-			ctx.restore();
-			return true;
-		} catch {
-			return false;
-		}
-	}
-
-	/**
-	 * @returns true if the bitmap CONFIDENTLY still holds content (=> skip the
-	 * expensive check). false means "looks nearly empty — confirm it".
-	 */
-	function coverageSaysPresent(entry: CoverageEntry): boolean {
-		try {
-			const { width, height } = entry.canvas;
-			const data = entry.ctx.getImageData(0, 0, width, height).data;
-			const floor = Math.max(12, Math.floor(entry.pixels * 0.005)); // 0.5%
-			let count = 0;
-			for (let i = 3; i < data.length; i += 4) {
-				if (data[i] >= COVERAGE_ALPHA) {
-					count++;
-					if (count >= floor) return true;
-				}
-			}
-			return false;
-		} catch {
-			return false; // tainted / failed read -> confirm authoritatively
-		}
 	}
 
 	function enqueueErasedCheck(targets: FabricObject[], path: Path) {
@@ -330,9 +171,7 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		}
 	}
 
-	/** Start the drain in IDLE time — the per-object work (toCanvasElement /
-	 *  toJSON) is chunky and used to land right after the stroke commit, on top
-	 *  of the tile rebake. */
+	/** Start cleanup in idle time so serialization does not compete with a stroke. */
 	function scheduleDrain() {
 		if (draining) return;
 		const ric = (window as any).requestIdleCallback as
@@ -351,7 +190,10 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		draining = true;
 
 		const sweepStartedAt = performance.now();
-		const yielder = createYielder({ budgetMs: 8 });
+		const yielder = createYielder({
+			budgetMs: 8,
+			label: "erase-cleanup",
+		});
 
 		try {
 			while (cleanupQueue.length > 0) {
@@ -370,25 +212,23 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 						return;
 					}
 					const obj = job.targets[job.cursor++];
-					if (!objectStillPresent(obj)) {
-						forgetCoverage(obj?.id as string);
-						continue;
-					}
+					if (!objectStillPresent(obj)) continue;
 
-					// --- cheap gate: update the remaining-content bitmap ---------
-					let confirm = true; // default: run the authoritative check
-					const entry = ensureCoverage(obj);
-					if (entry) {
-						stampCoverage(entry, job.path);
-						// If content is confidently still there, skip the costly check.
-						if (coverageSaysPresent(entry)) confirm = false;
-					}
-					if (!confirm) continue;
-
-					// --- authoritative confirm (rare) ---------------------------
 					try {
-						const shouldErase = await analyzeErasureInWorker(obj);
-						if (shouldErase) job.deleted.push(obj);
+						const dispatchStartedAt = performance.now();
+						const result = analyzeErasureInWorker(obj);
+						recordPhase(
+							"eraseCleanupDispatch",
+							performance.now() - dispatchStartedAt,
+						);
+						const analysis = await result;
+						if (analysis.fullyErased) {
+							job.deleted.push({
+								object: obj,
+								json: analysis.objectJSON,
+								revision: analysis.objectRevision,
+							});
+						}
 					} catch {
 						// Never delete on uncertainty.
 					}
@@ -405,6 +245,7 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 
 	function finalizeCleanup(job: CleanupJob) {
 		if (!c) return;
+		const finalizeStartedAt = performance.now();
 		const strokeId = (job.path as any).id;
 
 		// NEVER delete something no history entry can bring back.
@@ -417,25 +258,36 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		// produces. Keeping a fully-erased object costs a little memory and no
 		// pixels (it renders to nothing), which is strictly the better failure.
 		if (erasureDeletionGuard && !erasureDeletionGuard(strokeId)) return;
-		const removable = job.deleted.filter(objectStillPresent).filter((obj) => {
+		const removable = job.deleted.filter(({ object, revision }) => {
+			if (!objectStillPresent(object)) return false;
+			// The worker JSON is also the future undo snapshot. If the object
+			// changed while earlier candidates were being analysed, keep it on the
+			// canvas; a later erase sweep can safely reconsider the newer state.
+			if (objectMutationRevision(object) !== revision) return false;
 			// The check runs deferred — an undo may have pulled this stroke out of
 			// the object's clip in the meantime. Deleting then would vanish a
-			// visible object AND the erase action is no longer in the undo stack,
-			// so nothing could restore it. Only delete while THIS stroke still
-			// erases the object. (A flattened clip loses stroke ids — that also
-			// lands here and safely keeps the object.)
-			const clip: any = obj.clipPath;
+			// visible object with no history action able to restore it.
+			const clip: any = object.clipPath;
 			return !!clip?._objects?.some((o: any) => o?.id === strokeId);
 		});
-		if (!removable.length) return;
+		if (!removable.length) {
+			recordPhase(
+				"eraseCleanupFinalize",
+				performance.now() - finalizeStartedAt,
+			);
+			return;
+		}
+		const removableObjects = removable.map(({ object }) => object);
 
 		// Record stack positions BEFORE removing anything, so erase-undo can
 		// restore each object at its original z instead of dropping it on top.
 		// All indexes are captured against the same full stack, so ascending
 		// re-insertion reproduces them exactly.
 		const stack = c.getObjects();
-		for (const obj of removable) {
-			(obj as any).insertedIndex = stack.indexOf(obj);
+		for (const record of removable) {
+			const index = stack.indexOf(record.object);
+			(record.object as any).insertedIndex = index;
+			record.json.insertedIndex = index;
 		}
 
 		// BATCHED. Each `c.remove` fires object:removed → a destructive
@@ -451,19 +303,22 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		mgr.setMutating(true);
 		mgr.beginBatch();
 		try {
-			for (const obj of removable) {
-				forgetCoverage(obj.id as string);
-				c.remove(obj);
-			}
+			c.remove(...removableObjects);
 		} finally {
-			mgr.endBatch();
+			// Close the mutation BEFORE flushing: `mutating` makes the engine skip
+			// synchronous repair, and the flush is the settled point where it has to
+			// run — otherwise the swept region shows a coarse fallback until the
+			// async bake lands. Same ordering rule as closeHistoryBurst.
 			mgr.setMutating(false);
+			mgr.endBatch();
 		}
 
 		c.fire("erasing:cleanup_done", {
 			strokeId,
-			deletedObjects: removable,
+			deletedObjects: removableObjects,
+			deletedObjectsJSON: removable.map(({ json }) => json),
 		} as any);
+		recordPhase("eraseCleanupFinalize", performance.now() - finalizeStartedAt);
 	}
 
 	const events: FabricEvent[] = [
@@ -596,7 +451,12 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 			deletedObjects: [],
 			selective: isPublicLobby || touchesForeignArea,
 		};
-		c!.fire("erasing:end", { detail: eventDetail } as any);
+		bakeryBeginSceneBatch();
+		try {
+			c!.fire("erasing:end", { detail: eventDetail } as any);
+		} finally {
+			bakeryEndSceneBatch();
+		}
 
 		if (checkForDeletedObjects) {
 			enqueueErasedCheck(detail.targets, detail.path);

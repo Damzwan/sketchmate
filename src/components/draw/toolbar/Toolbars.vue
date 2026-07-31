@@ -36,6 +36,7 @@
             key="mgmt-pill"
             class="col-start-1 row-start-1"
             @toggle-fullscreen="isFullscreen = true"
+            @start-benchmark="emit('start-benchmark')"
           />
         </Transition>
       </div>
@@ -62,35 +63,37 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useDrawUIStore } from '@/draw/ui/drawUI.store'
-import { mdiChevronLeft, mdiFullscreenExit } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { useSelect } from '@/draw/tools/select.store'
-import TopManagement from '@/components/draw/toolbar/TopManagement.vue'
-import SelectionPreview from '@/components/draw/toolbar/SelectionPreview.vue'
-import ColorSwatches from '@/components/draw/toolbar/ColorSwatches.vue'
-import ToolDockText from '@/components/draw/toolbar/ToolDockText.vue'
-import ToolDockSelect from '@/components/draw/toolbar/ToolDockSelect.vue'
-import ToolDockDraw from '@/components/draw/toolbar/ToolDockDraw.vue'
-import ToolDockClaimArea from '@/components/draw/toolbar/ToolDockClaimArea.vue'
-import ToolButton from '@/components/draw/toolbar/ToolButton.vue'
-import { useClaimArea } from '@/draw/claims/claimArea.store'
+import { computed } from "vue";
+import { storeToRefs } from "pinia";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { mdiChevronLeft, mdiFullscreenExit } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { useSelect } from "@/draw/tools/select.store";
+import TopManagement from "@/components/draw/toolbar/TopManagement.vue";
+import SelectionPreview from "@/components/draw/toolbar/SelectionPreview.vue";
+import ColorSwatches from "@/components/draw/toolbar/ColorSwatches.vue";
+import ToolDockText from "@/components/draw/toolbar/ToolDockText.vue";
+import ToolDockSelect from "@/components/draw/toolbar/ToolDockSelect.vue";
+import ToolDockDraw from "@/components/draw/toolbar/ToolDockDraw.vue";
+import ToolDockClaimArea from "@/components/draw/toolbar/ToolDockClaimArea.vue";
+import ToolButton from "@/components/draw/toolbar/ToolButton.vue";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
 
-const { addTextMode, isFullscreen } = storeToRefs(useDrawUIStore())
-const { triggerManualExit } = useDrawUIStore()
-const { isSelectActive } = storeToRefs(useSelect())
-const { isClaiming } = storeToRefs(useClaimArea())
+const emit = defineEmits(["start-benchmark"]);
 
-const goBack = () => triggerManualExit()
+const { addTextMode, isFullscreen } = storeToRefs(useDrawUIStore());
+const { triggerManualExit } = useDrawUIStore();
+const { isSelectActive } = storeToRefs(useSelect());
+const { isClaiming } = storeToRefs(useClaimArea());
+
+const goBack = () => triggerManualExit();
 
 const activeDockComponent = computed(() => {
-  if (isClaiming.value) return ToolDockClaimArea
-  if (addTextMode.value) return ToolDockText
-  if (isSelectActive.value) return ToolDockSelect
-  return ToolDockDraw
-})
+	if (isClaiming.value) return ToolDockClaimArea;
+	if (addTextMode.value) return ToolDockText;
+	if (isSelectActive.value) return ToolDockSelect;
+	return ToolDockDraw;
+});
 </script>
 
 <style scoped>

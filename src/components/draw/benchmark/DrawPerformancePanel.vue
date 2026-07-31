@@ -1,11 +1,19 @@
 <template>
-	<aside class="perf-panel">
+	<aside class="perf-panel" :class="{ compact: running }">
 		<header class="perf-header">
 			<div>
 				<p class="perf-eyebrow">Draw engine bench</p>
 				<h2>{{ running ? "Recording…" : report ? report.name : "Ready" }}</h2>
 			</div>
 			<span v-if="running" class="perf-timer">{{ elapsedSeconds }}s</span>
+			<button
+				v-else
+				class="perf-close"
+				aria-label="Close performance capture"
+				@click="emit('close')"
+			>
+				×
+			</button>
 		</header>
 
 		<p v-if="!running && !report" class="perf-intro">
@@ -64,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useDrawStore } from "@/draw/session/draw.store";
 import {
@@ -77,6 +85,13 @@ import {
 } from "@/draw/benchmark/benchmarkSession";
 import type { BenchmarkReport } from "@/draw/benchmark/benchmark.types";
 
+const props = withDefaults(
+	defineProps<{
+		autoStartSignal?: number;
+	}>(),
+	{ autoStartSignal: 0 },
+);
+const emit = defineEmits(["close"]);
 const session = ref<BenchmarkSession | null>(null);
 const report = ref<BenchmarkReport | null>(null);
 const elapsedSeconds = ref(0);
@@ -115,6 +130,7 @@ const criticalCount = computed(
 );
 
 function start() {
+	if (session.value) return;
 	report.value = null;
 	message.value = "";
 	session.value = startBenchmarkSession();
@@ -126,6 +142,17 @@ function start() {
 		);
 	}, 250);
 }
+
+onMounted(() => {
+	if (props.autoStartSignal > 0) start();
+});
+
+watch(
+	() => props.autoStartSignal,
+	(next, previous) => {
+		if (next > previous) start();
+	},
+);
 
 function finish() {
 	if (!session.value) return;
@@ -198,6 +225,10 @@ onBeforeUnmount(() => {
 	backdrop-filter: blur(16px);
 }
 
+.perf-panel.compact {
+	width: min(230px, calc(100vw - 24px));
+}
+
 .perf-header,
 .perf-actions,
 .perf-summary,
@@ -223,6 +254,20 @@ onBeforeUnmount(() => {
 h2 {
 	margin: 0;
 	font-size: 18px;
+}
+
+.perf-close {
+	display: grid;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: 0;
+	border-radius: 10px;
+	background: rgb(255 255 255 / 8%);
+	color: #f8fafc;
+	font-size: 22px;
+	line-height: 1;
+	place-items: center;
 }
 
 .perf-timer,

@@ -16,13 +16,17 @@
       <ClaimAreaOverlay v-if="roomId" />
     </div>
 
-    <Toolbars :draw-mode="currentMode" />
+    <Toolbars :draw-mode="currentMode" @start-benchmark="openPerformanceCapture" />
 
     <DrawStatusIndicator />
 
     <DrawMenus />
 
-    <DrawPerformancePanel v-if="showPerformancePanel" />
+    <DrawPerformancePanel
+      v-if="showPerformancePanel"
+      :auto-start-signal="performanceAutoStartSignal"
+      @close="closePerformancePanel"
+    />
 
     <DrawExitGuard
       :draft-id="draftId"
@@ -90,15 +94,28 @@ const drawTogether = computed(() => !!getParam("together"));
 const type = computed(() => getParam("type"));
 const targetRoomId = computed(() => getParam("room_id"));
 const canvasUrl = computed(() => getParam("canvas_url"));
+const performancePanelRequested = ref(false);
+const performanceAutoStartSignal = ref(0);
 const showPerformancePanel = computed(
-	() => import.meta.env.DEV && route.query.perf === "1",
+	() => performancePanelRequested.value || route.query.perf === "1",
 );
-const DrawPerformancePanel = import.meta.env.DEV
-	? defineAsyncComponent(
-			() =>
-				import("@/components/draw/benchmark/DrawPerformancePanel.vue"),
-		)
-	: undefined;
+const DrawPerformancePanel = defineAsyncComponent(
+	() => import("@/components/draw/benchmark/DrawPerformancePanel.vue"),
+);
+
+function openPerformanceCapture() {
+	performancePanelRequested.value = true;
+	performanceAutoStartSignal.value++;
+}
+
+function closePerformancePanel() {
+	performancePanelRequested.value = false;
+	if (route.query.perf !== "1") return;
+	const query = { ...route.query };
+	delete query.perf;
+	delete query.bench;
+	void router.replace({ query });
+}
 
 const draftId = ref(getParam("id"));
 

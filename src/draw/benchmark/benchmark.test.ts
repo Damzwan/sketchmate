@@ -20,6 +20,18 @@ function emptyEngineMetrics(): DrawMetricsSnapshot {
 		workerCancelLateResults: 0,
 		workerCancelMsMax: 0,
 		workerCancelMsMean: 0,
+		workerProtocolVersion: 2,
+		sceneCommits: 0,
+		sceneDeltas: 0,
+		workerQueueDepthMax: 0,
+		workerRequestBytes: 0,
+		workerResultBytes: 0,
+		workerTimingMsMax: {},
+		workerTimingMsMean: {},
+		localFallbacks: 0,
+		localFallbackReasons: {},
+		workerDeferrals: 0,
+		workerDeferralReasons: {},
 		tilesRemote: 0,
 		tilesHybrid: 0,
 		hybridSkippedTotal: 0,
@@ -55,6 +67,14 @@ function emptyEngineMetrics(): DrawMetricsSnapshot {
 		longTaskMsTotal: 0,
 		longTaskMsMax: 0,
 		longTaskObserved: true,
+		longAnimationFrames: 0,
+		longAnimationFrameMsMax: 0,
+		longAnimationFrameBlockingMsMax: 0,
+		longAnimationFrameRenderMsMax: 0,
+		longAnimationFrameStyleLayoutMsMax: 0,
+		longAnimationFrameInputDelayMsMax: 0,
+		longAnimationFrameObserved: false,
+		longFrameScripts: [],
 		device: {
 			dpr: 1,
 			renderDpr: 1,
@@ -95,6 +115,9 @@ describe("draw benchmark", () => {
 		const engine = emptyEngineMetrics();
 		engine.compositeMsMax = 20;
 		engine.bakeHardErrors = 1;
+		engine.phaseMsMax.workerResponseDispatch = 4;
+		engine.phaseMsMax.workerResultCommit = 12;
+		engine.phaseMsMax.overviewResultCommit = 7;
 		const metrics = evaluateDrawMetrics(engine, summarizeFrameTimes([16, 17]));
 
 		expect(metrics.find((metric) => metric.id === "compositeMax")?.status).toBe(
@@ -103,23 +126,19 @@ describe("draw benchmark", () => {
 		expect(metrics.find((metric) => metric.id === "hardErrors")?.status).toBe(
 			"critical",
 		);
+		expect(
+			metrics.find((metric) => metric.id === "workerResultMainMax")?.value,
+		).toBe(12);
 		expect(metrics.every((metric) => metric.meaning.length > 0)).toBe(true);
 	});
 
 	it("runs reusable scenarios against the deterministic counting driver", async () => {
-		const first = await runHeadlessBenchmark(
-			"pencil-500",
-			"undo-redo-storm",
-		);
-		const second = await runHeadlessBenchmark(
-			"pencil-500",
-			"undo-redo-storm",
-		);
+		const first = await runHeadlessBenchmark("pencil-500", "undo-redo-storm");
+		const second = await runHeadlessBenchmark("pencil-500", "undo-redo-storm");
 
 		expect(first).toEqual(second);
 		expect(first.invalidations).toBe(40);
 		expect(first.maxInvalidatedCellsPerEdit).toBeGreaterThan(0);
 		expect(first.weightedObjectWork).toBeGreaterThan(0);
 	});
-
 });

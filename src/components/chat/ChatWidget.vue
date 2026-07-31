@@ -484,6 +484,8 @@ onBeforeUnmount(() => {
 .sheet-wrapper {
   transform: translate3d(0, 0, 0);
   transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  max-width: 520px;
+  margin: auto;;
 }
 .sheet-wrapper.is-active,
 .sheet-wrapper.is-dragging {

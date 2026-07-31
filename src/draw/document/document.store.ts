@@ -13,7 +13,9 @@ import {
 	generateChunkedJSON,
 	migrateLegacyOrigin,
 } from "@/draw/document/serialization";
-import { createDraftThumbnail } from "@/draw/document/draftThumbnail";
+import { createDraftSnapshotAssets } from "@/draw/document/draftThumbnail";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
 
 export interface DrawingDraft {
 	id: string;
@@ -40,6 +42,7 @@ export interface PendingDraft {
 interface CanvasSnapshot {
 	draftId: string;
 	json: any;
+	jsonBlob?: Blob;
 	thumbnail: string;
 }
 
@@ -88,9 +91,12 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	// --- Internal non-reactive refs ---
 	let activeCanvas: Canvas | undefined;
 	let saveInterval: ReturnType<typeof setInterval> | undefined;
+	let autosaveQuietTimer: ReturnType<typeof setTimeout> | undefined;
 	let liveAbortController: AbortController | undefined;
+	let lastDirtyAt = 0;
 
 	const SAVE_INTERVAL_MS = 20000;
+	const AUTOSAVE_QUIET_MS = 1500;
 	const saveEvents = ["undo", "redo", "add_to_undo_stack"];
 
 	// ==========================================
@@ -174,7 +180,12 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				await initDB();
 				const draft = await getDraft(options.draftId);
 				if (draft) {
-					json = draft.json;
+					json =
+						draft.json instanceof Blob
+							? JSON.parse(await draft.json.text())
+							: typeof draft.json === "string"
+								? JSON.parse(draft.json)
+								: draft.json;
 					// FIX: Flag that this draft exists in IndexedDB storage
 					isPreExistingDraft.value = true;
 				}
@@ -237,9 +248,24 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		const liveObjects = activeCanvas.getObjects();
 		if (liveObjects.length === 0) return null;
 
+		// The same detached JSON powers both persistence and the thumbnail worker.
+		// Rendering the live Fabric scene here made autosave block interaction for
+		// 289–585 ms on a heavy drawing.
+		const bounds = useDrawObjectManager().getContentBounds();
+		const json = await generateChunkedJSON(activeCanvas, signal);
+		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
 		let thumbnail = "";
+		let jsonBlob: Blob | undefined;
 		try {
-			thumbnail = await createDraftThumbnail(activeCanvas, signal);
+			const assets = await createDraftSnapshotAssets(
+				activeCanvas,
+				signal,
+				json,
+				bounds,
+			);
+			thumbnail = assets.thumbnail;
+			jsonBlob = assets.jsonBlob;
 		} catch (error) {
 			if (error instanceof DOMException && error.name === "AbortError") {
 				throw error;
@@ -248,11 +274,10 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		}
 		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-		const json = await generateChunkedJSON(activeCanvas, signal);
-
 		return {
 			draftId,
 			json,
+			jsonBlob,
 			thumbnail,
 		};
 	}
@@ -267,13 +292,18 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 		const draft: DrawingDraft = {
 			id: snapshot.draftId,
-			json: snapshot.json,
+			json: snapshot.jsonBlob ?? snapshot.json,
 			thumbnail: snapshot.thumbnail,
 			updatedAt: Date.now(),
 		};
 		const transaction = db.value.transaction([objectStoreName], "readwrite");
 		await new Promise<void>((resolve, reject) => {
+			const dispatchStartedAt = performance.now();
 			const req = transaction.objectStore(objectStoreName).put(draft);
+			recordPhase(
+				"draftPersistDispatch",
+				performance.now() - dispatchStartedAt,
+			);
 			req.onsuccess = () => resolve();
 			req.onerror = () => reject(req.error);
 		});
@@ -335,22 +365,41 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 	function startAutosave(canvas: Canvas, drawingId: string) {
 		currentDraftId.value = drawingId;
+		saveEvents.forEach((event) => EventBus.off(event, markAsDirty));
 		saveEvents.forEach((e) => EventBus.on(e, markAsDirty));
+		if (saveInterval) clearInterval(saveInterval);
 		saveInterval = setInterval(() => {
-			if (isDirty.value) performLiveSave();
+			if (isDirty.value) saveWhenQuiet();
 		}, SAVE_INTERVAL_MS);
 	}
 
 	function stopAutosave() {
 		saveEvents.forEach((e) => EventBus.off(e, markAsDirty));
 		if (saveInterval) clearInterval(saveInterval);
+		if (autosaveQuietTimer) clearTimeout(autosaveQuietTimer);
+		saveInterval = undefined;
+		autosaveQuietTimer = undefined;
 		if (liveAbortController) liveAbortController.abort();
 	}
 
 	const markAsDirty = () => {
 		isDirty.value = true;
 		sessionHasContent.value = true;
+		lastDirtyAt = Date.now();
 	};
+
+	function saveWhenQuiet() {
+		if (!isDirty.value || autosaveQuietTimer) return;
+		const wait = Math.max(0, lastDirtyAt + AUTOSAVE_QUIET_MS - Date.now());
+		if (wait > 0) {
+			autosaveQuietTimer = setTimeout(() => {
+				autosaveQuietTimer = undefined;
+				saveWhenQuiet();
+			}, wait);
+			return;
+		}
+		void performLiveSave();
+	}
 
 	async function queueBackgroundSave(
 		draftId: string,

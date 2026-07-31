@@ -23,11 +23,54 @@ const _isVisible = (): boolean => {
  * or paused entirely — in that case we fall back to a 16ms timeout so
  * background work still progresses.
  */
-export function nextFrame(): Promise<void> {
-	if (!_isVisible()) {
-		return new Promise((resolve) => setTimeout(resolve, 16));
+interface YieldResume {
+	at: number;
+	label: string;
+}
+
+const recentYieldResumes: YieldResume[] = [];
+const MAX_YIELD_RESUMES = 256;
+
+function recordYieldResume(label: string): void {
+	recentYieldResumes.push({ at: performance.now(), label });
+	if (recentYieldResumes.length > MAX_YIELD_RESUMES) recentYieldResumes.shift();
+}
+
+/**
+ * Resolve a Long Animation Frame script start to the scheduler continuation
+ * that began at the same time. Chrome otherwise reports every continuation as
+ * the shared `MessagePort.onmessage`, hiding the subsystem that resumed.
+ */
+export function yieldLabelAt(executionStart: number): string {
+	let closest: YieldResume | undefined;
+	let closestDistance = Infinity;
+	for (let i = recentYieldResumes.length - 1; i >= 0; i--) {
+		const resume = recentYieldResumes[i];
+		const distance = Math.abs(resume.at - executionStart);
+		if (distance < closestDistance) {
+			closest = resume;
+			closestDistance = distance;
+		}
+		if (resume.at < executionStart - 10) break;
 	}
-	return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+	return closestDistance <= 3 ? (closest?.label ?? "") : "";
+}
+
+export function nextFrame(label = "unattributed"): Promise<void> {
+	if (!_isVisible()) {
+		return new Promise((resolve) =>
+			setTimeout(() => {
+				recordYieldResume(label);
+				resolve();
+			}, 16),
+		);
+	}
+	return new Promise((resolve) =>
+		requestAnimationFrame(() => {
+			recordYieldResume(label);
+			resolve();
+		}),
+	);
 }
 
 /**
@@ -39,8 +82,8 @@ export function nextFrame(): Promise<void> {
  * If input IS pending, we wait a full RAF instead so the browser can dispatch
  * the input event AND repaint before we resume.
  */
-export function yieldToMain(): Promise<void> {
-	if (_isInputPending()) return nextFrame();
+export function yieldToMain(label = "unattributed"): Promise<void> {
+	if (_isInputPending()) return nextFrame(label);
 
 	// MessageChannel postMessage is the fastest reliable yield. It runs as a
 	// task (not microtask), so it allows input/network/etc to interleave, but
@@ -49,13 +92,20 @@ export function yieldToMain(): Promise<void> {
 		return new Promise((resolve) => {
 			const channel = new MessageChannel();
 			channel.port1.onmessage = () => {
+				recordYieldResume(label);
 				channel.port1.close();
+				channel.port2.close();
 				resolve();
 			};
 			channel.port2.postMessage(null);
 		});
 	}
-	return new Promise((resolve) => setTimeout(resolve, 0));
+	return new Promise((resolve) =>
+		setTimeout(() => {
+			recordYieldResume(label);
+			resolve();
+		}, 0),
+	);
 }
 
 export interface Yielder {
@@ -76,6 +126,8 @@ export interface YielderOptions {
 	budgetMs?: number;
 	/** Signal that aborts pending yields. */
 	signal?: AbortSignal;
+	/** Stable subsystem name used to attribute resumed long-frame work. */
+	label?: string;
 }
 
 /**
@@ -85,6 +137,7 @@ export interface YielderOptions {
 export function createYielder(opts: YielderOptions = {}): Yielder {
 	const budgetMs = opts.budgetMs ?? 8;
 	const signal = opts.signal;
+	const label = opts.label ?? "unattributed";
 	let frameStart = performance.now();
 
 	const shouldYield = () => {
@@ -102,9 +155,9 @@ export function createYielder(opts: YielderOptions = {}): Yielder {
 		// input events and paints before we resume. A short yield isn't enough
 		// because we'd just re-enter our loop before the input task runs.
 		if (_isInputPending()) {
-			await nextFrame();
+			await nextFrame(label);
 		} else {
-			await yieldToMain();
+			await yieldToMain(label);
 		}
 		reset();
 	};

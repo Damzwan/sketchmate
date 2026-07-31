@@ -5,6 +5,7 @@ import {
 	type SpatialIndex,
 	type WorldRect,
 } from "./committedLayer";
+import { NO_HOLE } from "./tiles/tileLayerBase";
 
 interface TestObject extends Bounded {}
 
@@ -201,7 +202,7 @@ describe("CommittedLayer safety bounds", () => {
 		// ...but the region IS recorded: the sub-rect repair path has to know the
 		// added object's footprint needs repainting, or the object never lands in
 		// the tile and vanishes when its live overlay demotes.
-		expect(layer.dirtyRects.get(key)).toEqual({ x: 0, y: 0, w: 10, h: 10 });
+		expect(layer.dirtyRects.get(key)).toEqual([{ x: 0, y: 0, w: 10, h: 10 }]);
 
 		const ctx = fakeCtx();
 		vi.spyOn(layer.overview, "composite").mockImplementation(() => {});
@@ -288,7 +289,7 @@ describe("CommittedLayer safety bounds", () => {
 		expect(ctx.drawImage).not.toHaveBeenCalled();
 	});
 
-	it("unions successive edits into one dirty sub-rect", () => {
+	it("keeps disjoint edits separate and merges touching ones", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
 		const key = `${tier}:0:0`;
@@ -297,13 +298,68 @@ describe("CommittedLayer safety bounds", () => {
 		layer.markDirty({ x: 0, y: 0, w: 10, h: 10 });
 		layer.markDirty({ x: 20, y: 30, w: 5, h: 5 });
 
-		expect(layer.dirtyRects.get(key)).toEqual({ x: 0, y: 0, w: 25, h: 35 });
+		// Two far-apart edits must NOT become one rect spanning both: unioning
+		// them makes the tile look unusable everywhere in between, which is what
+		// collapsed the fallback ladder to the blurry overview as a session went on.
+		expect(layer.dirtyRects.get(key)).toHaveLength(2);
+
+		// Overlapping edits do merge, so the list stays short.
+		layer.markDirty({ x: 5, y: 5, w: 10, h: 10 });
+		expect(layer.dirtyRects.get(key)).toHaveLength(2);
 
 		// markAllDirty has no rect → whole tile, and that must win permanently.
 		layer.markAllDirty();
 		expect(layer.dirtyRects.get(key)).toBeNull();
 		layer.markDirty({ x: 0, y: 0, w: 1, h: 1 });
 		expect(layer.dirtyRects.get(key)).toBeNull();
+	});
+
+	it("fills an edit hole from a coarser tile before the overview", () => {
+		// The active tile is stale in one small region; a coarser tile of the same
+		// area is fresh. That patch must come from the coarser TILE, not from the
+		// whole-board overview — the overview is what makes an edit look like the
+		// picture dissolves for a moment.
+		const layer = makeLayer() as any;
+		const tier = layer.pickActiveTier(1);
+		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(`${tier - 1}:0:0`, tile(tier - 1, 0, 0, vi.fn(), true).value);
+		// Only the active tier is invalidated, so the coarser tile stays fresh.
+		layer.markTierDirty({ x: 0, y: 0, w: 10, h: 10 }, tier);
+
+		const ctx = fakeCtx();
+		const overviewComposite = vi
+			.spyOn(layer.overview, "composite")
+			.mockImplementation(() => {});
+		layer.composite(ctx, [1, 0, 0, 1, 0, 0], { w: 100, h: 100 }, 1, "#ffffff");
+
+		// Stale tile outside the hole + coarser tile inside it.
+		expect(ctx.drawImage).toHaveBeenCalledTimes(2);
+		// Nothing left for the overview to cover.
+		expect(overviewComposite).not.toHaveBeenCalled();
+	});
+
+	it("trusts a fallback tile that was dirtied somewhere else", () => {
+		// The whole point of tracking regions separately: a coarse tile edited far
+		// from this cell is still exact here, so it must be usable as a fallback
+		// instead of dropping the cell to the whole-board overview.
+		const layer = makeLayer() as any;
+		const tier = layer.pickActiveTier(1);
+		const key = `${tier}:0:0`;
+		const t = tile(tier, 0, 0, vi.fn(), true).value;
+		layer.tiles.set(key, t);
+		layer.markDirty({ x: 0, y: 0, w: 10, h: 10 });
+
+		// Region far from the recorded edit → fully trusted.
+		expect(layer.fallbackHole(key, t, { x: 900, y: 900, w: 50, h: 50 })).toBe(
+			NO_HOLE,
+		);
+		// Region over it → a hole, but only that one.
+		expect(layer.fallbackHole(key, t, { x: 0, y: 0, w: 50, h: 50 })).toEqual({
+			x: 0,
+			y: 0,
+			w: 10,
+			h: 10,
+		});
 	});
 
 	it("caps default synchronous repair at six tiles", () => {

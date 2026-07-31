@@ -80,6 +80,8 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		const present = this._present;
 		const uncovered = this._uncovered;
 		const partial = this._partial;
+		const fallback = this._fallback;
+		fallback.length = 0;
 		const needsOverview = this._needsOverview;
 		let presentN = 0,
 			uncoveredN = 0,
@@ -161,8 +163,9 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 				// painting one over the other composites them twice (0.45 → 0.70) —
 				// visible as darker, tile-shaped patches.
 				if (t && t.bitmap && partialN < MAX_PARTIAL_OVERLAYS) {
-					const dirty = this.dirtyRects.get(key);
-					// undefined/null → provenance unknown → assume the whole tile changed.
+					// The tile IS the cell here, so every recorded region applies —
+					// union them. `null`/absent → provenance unknown → whole tile.
+					const dirty = this.unionDirtyRects(key);
 					if (dirty) {
 						// world → device, snapped OUTWARD so no stale pixel survives inside
 						// the changed region (a gap here would be a ghost, not a seam).
@@ -204,14 +207,51 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 							pd.hw = Math.max(0, hx1 - hx0);
 							pd.hh = Math.max(0, hy1 - hy0);
 							partialN++;
-							// The overview fills the hole ONLY — never the whole cell, or it
-							// would sit under the tile pixels we just kept and double them.
+							// Fill the hole from the NEXT-BEST TILE before considering the
+							// overview. The overview is the whole board in one bitmap; a
+							// coarser tile of this exact region is orders of magnitude
+							// closer to the truth, and the visible "edit → everything goes
+							// soft for a moment" is almost entirely this one choice.
+							//
+							// The partition still holds: the stale tile paints cell MINUS
+							// hole, this filler paints ONLY inside the hole (`k*`) minus its
+							// own recorded hole, and the overview gets whatever is still
+							// unclaimed. No pixel is painted twice, so semi-transparent
+							// strokes keep their alpha.
 							if (pd.hw > 0 && pd.hh > 0) {
+								const filler = this.holeFiller(
+									tier,
+									tx,
+									ty,
+									dx0,
+									dy0,
+									dw,
+									dh,
+									maxDepth,
+									a,
+									d,
+									e,
+									f,
+									pd,
+								);
+								if (filler) fallback.push(filler);
+								// Overview covers what neither the stale tile nor the filler
+								// claimed: the filler's own hole, or the whole hole if there
+								// was no filler at all.
 								const ov = needsOverviewAt(needsOverviewN++);
-								ov.dx = pd.hx;
-								ov.dy = pd.hy;
-								ov.dw = pd.hw;
-								ov.dh = pd.hh;
+								if (filler && filler.hw > 0 && filler.hh > 0) {
+									ov.dx = filler.hx;
+									ov.dy = filler.hy;
+									ov.dw = filler.hw;
+									ov.dh = filler.hh;
+								} else if (filler) {
+									needsOverviewN--; // fully covered by the filler
+								} else {
+									ov.dx = pd.hx;
+									ov.dy = pd.hy;
+									ov.dw = pd.hw;
+									ov.dh = pd.hh;
+								}
 							}
 							continue;
 						}
@@ -237,9 +277,6 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 				uncoveredN++;
 			}
 		}
-
-		const fallback = this._fallback;
-		fallback.length = 0;
 
 		const __tSearch = performance.now();
 		for (let i = 0; i < uncoveredN; i++) {
@@ -314,13 +351,17 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		const __tDraw = performance.now();
 		for (let i = 0; i < fallback.length; i++) {
 			const dr = fallback[i];
-			if (dr.hw > 0 && dr.hh > 0) {
+			const keeps = (dr.kw ?? 0) > 0 && (dr.kh ?? 0) > 0;
+			if (keeps || (dr.hw > 0 && dr.hh > 0)) {
 				// Stale cross-tier source: trusted everywhere except the region an edit
 				// changed. Punch that out (even-odd) and let the overview show through.
+				// A `keep` rect restricts it further — that is a hole-filler, confined
+				// to another source's hole so the two never overlap.
 				ctx.save();
 				ctx.beginPath();
-				ctx.rect(dr.dx, dr.dy, dr.dw, dr.dh);
-				ctx.rect(dr.hx, dr.hy, dr.hw, dr.hh);
+				if (keeps) ctx.rect(dr.kx!, dr.ky!, dr.kw!, dr.kh!);
+				else ctx.rect(dr.dx, dr.dy, dr.dw, dr.dh);
+				if (dr.hw > 0 && dr.hh > 0) ctx.rect(dr.hx, dr.hy, dr.hw, dr.hh);
 				ctx.clip("evenodd");
 				ctx.drawImage(
 					dr.bmp,
@@ -437,14 +478,113 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 	 * than the active tier, and outside the recorded dirty rect it is exactly
 	 * correct.
 	 */
+	/**
+	 * @param region the WORLD area this source is about to paint. Only the
+	 *   recorded regions that actually intersect it matter — a coarse tile
+	 *   invalidated somewhere far away is perfectly good here, and treating it
+	 *   as unusable is what collapsed the fallback ladder to the overview after
+	 *   a handful of edits.
+	 */
 	protected fallbackHole(
 		key: string,
 		t: Tile,
+		region: WorldRect,
 	): WorldRect | null | typeof NO_HOLE {
 		if (this.isFresh(key, t) || t.usable) return NO_HOLE;
-		const dr = this.dirtyRects.get(key);
+		const rects = this.dirtyRects.get(key);
 		// undefined → never recorded; null → whole tile. Either way, unusable.
-		return dr ?? null;
+		if (!rects) return null;
+		let hole: WorldRect | null = null;
+		for (const r of rects) {
+			if (
+				r.x > region.x + region.w ||
+				region.x > r.x + r.w ||
+				r.y > region.y + region.h ||
+				region.y > r.y + r.h
+			) {
+				continue;
+			}
+			if (!hole) {
+				hole = { x: r.x, y: r.y, w: r.w, h: r.h };
+				continue;
+			}
+			const x = Math.min(hole.x, r.x);
+			const y = Math.min(hole.y, r.y);
+			const x2 = Math.max(hole.x + hole.w, r.x + r.w);
+			const y2 = Math.max(hole.y + hole.h, r.y + r.h);
+			hole.x = x;
+			hole.y = y;
+			hole.w = x2 - x;
+			hole.h = y2 - y;
+		}
+		// Nothing recorded touches this region → the source is exact here.
+		return hole ?? NO_HOLE;
+	}
+
+	/**
+	 * Find a tile source to paint INSIDE another source's hole.
+	 *
+	 * Used when an edit leaves part of an otherwise-good tile untrustworthy. The
+	 * alternative for that patch is the whole-board overview, which is what makes
+	 * an edit look like the picture briefly dissolves. A coarser tile of the same
+	 * region is far closer to correct, and the result stays a strict partition:
+	 * this draw is confined to `keep` (the hole) minus its own recorded hole.
+	 *
+	 * Deliberately COARSER-only: `finerDraws` returns several fragments, and
+	 * intersecting each of them with the hole for a partition guarantee is not
+	 * worth the complexity for the rarer zoomed-out case.
+	 */
+	protected holeFiller(
+		tier: number,
+		tx: number,
+		ty: number,
+		dx: number,
+		dy: number,
+		dw: number,
+		dh: number,
+		maxDepth: number,
+		a: number,
+		d: number,
+		e: number,
+		f: number,
+		hole: PartialDraw,
+	): Draw | null {
+		const maxOut = Math.min(maxDepth, this.ZOOM_TIERS.length);
+		for (let step = 1; step <= maxOut; step++) {
+			const coarser = tier - step;
+			if (coarser <= this.OVERVIEW_TIER) break;
+			const c = this.coarserDraw(
+				tier,
+				tx,
+				ty,
+				coarser,
+				dx,
+				dy,
+				dw,
+				dh,
+				a,
+				d,
+				e,
+				f,
+				true,
+			);
+			if (!c) continue;
+			// STRICTLY FRESH ONLY.
+			//
+			// The hole is precisely where content changed, so any source that
+			// predates the change paints the OLD content there — the object at its
+			// previous position, or an erase that was just undone, for one frame.
+			// That reads as the picture flashing, which is worse than the blur it
+			// was meant to replace. Outside a hole a stale source is merely older
+			// and still correct; inside one it is actively wrong.
+			if (c.hw > 0 || c.hh > 0) continue;
+			c.kx = hole.hx;
+			c.ky = hole.hy;
+			c.kw = hole.hw;
+			c.kh = hole.hh;
+			return c;
+		}
+		return null;
 	}
 
 	protected findBestSource(
@@ -541,6 +681,9 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		d: number,
 		e: number,
 		f: number,
+		/** Reject anything that owes a re-bake at all. For painting INSIDE a hole,
+		 *  where "stale but trusted here" is not good enough — see holeFiller. */
+		requireFresh = false,
 	): Draw | null {
 		const tws = this.TILE / this.ZOOM_TIERS[tier];
 		const cwx = tx * tws,
@@ -551,8 +694,16 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		const ctyi = Math.floor(cwy / ctws);
 		const key = `${ct}:${ctxi}:${ctyi}`;
 		const t = this.tiles.get(key);
+		if (requireFresh && (!t || !this.isFresh(key, t) || this.dirtyRects.has(key)))
+			return null;
 		if (!t || !t.bitmap) return null;
-		const hole = this.fallbackHole(key, t);
+		// Only the part of the coarse tile that maps to THIS cell is in play.
+		const hole = this.fallbackHole(key, t, {
+			x: cwx,
+			y: cwy,
+			w: cww,
+			h: cww,
+		});
 		if (hole === null) return null;
 		const fx = (cwx - ctxi * ctws) / ctws;
 		const fy = (cwy - ctyi * ctws) / ctws;
@@ -608,9 +759,6 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 				const k = `${ft}:${ftx}:${fty}`;
 				const t = this.tiles.get(k);
 				if (!t) return [];
-				const hole = this.fallbackHole(k, t);
-				if (hole === null) return []; // one untrusted fragment → drop the set
-				if (!t.bitmap) continue;
 
 				const fwx = ftx * ftws,
 					fwy = fty * ftws;
@@ -619,6 +767,17 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 				const ix1 = Math.min(fwx + ftws, cellWorld.x + cellWorld.w);
 				const iy1 = Math.min(fwy + ftws, cellWorld.y + cellWorld.h);
 				if (ix1 <= ix0 || iy1 <= iy0) continue;
+
+				// Scoped to the fragment's own slice of the cell, not the whole
+				// finer tile: an edit elsewhere in it does not disqualify this piece.
+				const hole = this.fallbackHole(k, t, {
+					x: ix0,
+					y: iy0,
+					w: ix1 - ix0,
+					h: iy1 - iy0,
+				});
+				if (hole === null) return []; // one untrusted fragment → drop the set
+				if (!t.bitmap) continue;
 
 				const fineScale = this.TILE / ftws;
 				const sx = this.OS + (ix0 - fwx) * fineScale;

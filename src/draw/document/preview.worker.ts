@@ -1,164 +1,352 @@
-import { util, StaticCanvas, classRegistry } from "fabric";
+import { classRegistry, util } from "fabric";
+import { ClippingGroup } from "@erase2d/fabric";
+import { WORKER_FONTS } from "@/draw/config/workerFonts.config";
+import { BucketFillPath } from "@/draw/utils/BucketFillPath";
+import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
+import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
+import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
 import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
 import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
+import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
+import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
+import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
+import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
+import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
 
-// --- THE DISGUISE FUNCTION ---
-// Equips an OffscreenCanvas with fake DOM methods so Fabric doesn't crash
+interface PreviewStart {
+	type: "start";
+	background?: string;
+	document?: Record<string, any>;
+	maxSize: number;
+	quality: number;
+	bounds?: { x: number; y: number; w: number; h: number } | null;
+}
+
+type PreviewMessage =
+	| PreviewStart
+	| { type: "append"; objects: any[] }
+	| { type: "render" };
+
 const applyCanvasDisguise = (canvas: any) => {
 	canvas.hasAttribute = () => false;
 	canvas.getAttribute = () => null;
 	canvas.setAttribute = () => {};
 	canvas.removeAttribute = () => {};
 	canvas.style = {};
-
-	// The missing piece: fake classList
 	canvas.classList = {
 		add: () => {},
 		remove: () => {},
 		contains: () => false,
 		toggle: () => {},
 	};
-
-	// Just in case it tries to bind events or read text direction
 	canvas.addEventListener = () => {};
 	canvas.removeEventListener = () => {};
 	canvas.dir = "ltr";
-
 	return canvas;
 };
 
-// 1. THE MOCK DOM (Catches internal scratch canvases Fabric might try to create)
-// 1. THE MOCK DOM - Now with Image support
+function imageElement() {
+	const image: any = {
+		style: {},
+		_src: "",
+		_bitmap: null as ImageBitmap | null,
+		onload: null,
+		onerror: null,
+		width: 0,
+		height: 0,
+		naturalWidth: 0,
+		naturalHeight: 0,
+		complete: false,
+		nodeType: 1,
+		nodeName: "IMG",
+		parentNode: null,
+		ownerDocument: null,
+		addEventListener: () => {},
+		removeEventListener: () => {},
+		getAttribute: (name: string) => (name === "src" ? image._src : null),
+		hasAttribute: () => false,
+		setAttribute: () => {},
+		classList: { add: () => {}, remove: () => {} },
+	};
+	Object.defineProperty(image, "src", {
+		get: () => image._src,
+		set: (value: string) => {
+			image._src = value;
+			if (!value) return;
+			void fetch(value)
+				.then((response) => response.blob())
+				.then((blob) => createImageBitmap(blob))
+				.then((bitmap) => {
+					image._bitmap = bitmap;
+					image.width = bitmap.width;
+					image.height = bitmap.height;
+					image.naturalWidth = bitmap.width;
+					image.naturalHeight = bitmap.height;
+					image.complete = true;
+					image.onload?.();
+				})
+				.catch((error) => image.onerror?.(error));
+		},
+	});
+	return image;
+}
+
 if (typeof document === "undefined") {
-	(globalThis as any).document = {
+	const workerDocument: any = {
 		createElement: (tag: string) => {
-			if (tag === "canvas") {
-				const mockCanvas = new OffscreenCanvas(1, 1);
-				return applyCanvasDisguise(mockCanvas);
-			}
+			if (tag === "canvas")
+				return applyCanvasDisguise(new OffscreenCanvas(1, 1));
 			if (tag === "img") {
-				const img = {
-					style: {},
-					onload: null as any,
-					onerror: null as any,
-					_src: "",
-					_bitmap: null as ImageBitmap | null,
-
-					// Fabric v7 internal check helper
-					get nodeName() {
-						return "IMG";
-					},
-
-					set ["src"](value: string) {
-						this._src = value;
-						fetch(value)
-							.then((res) => res.blob())
-							.then((blob) => createImageBitmap(blob))
-							.then((bitmap) => {
-								this._bitmap = bitmap;
-								(this as any).width = bitmap.width;
-								(this as any).height = bitmap.height;
-
-								// Fabric uses the 'complete' property to check status
-								(this as any).complete = true;
-
-								if (this.onload) this.onload();
-							})
-							.catch((err) => {
-								console.error("Worker Image Load Error:", err);
-								if (this.onerror) this.onerror(err);
-							});
-					},
-					get ["src"]() {
-						return this._src;
-					},
-
-					// CRITICAL: When Fabric calls drawImage, it usually passes its internal '_element'.
-					// We need to trick the proxying if Fabric tries to read this object.
-					width: 0,
-					height: 0,
-					nodeType: 1,
-					parentNode: null,
-					ownerDocument: (globalThis as any).document,
-					addEventListener: () => {},
-					removeEventListener: () => {},
-					getAttribute: (name: string) =>
-						name === "src" ? (img as any)._src : null,
-					hasAttribute: () => false,
-					setAttribute: () => {},
-					classList: {
-						add: () => {},
-						remove: () => {},
-					},
-				};
-				return img;
+				const image = imageElement();
+				image.ownerDocument = workerDocument;
+				return image;
 			}
-			throw new Error(`Worker mock document cannot create ${tag}`);
+			return {};
 		},
 	};
+	(globalThis as any).document = workerDocument;
 	(globalThis as any).window = globalThis;
 }
 
-self.onmessage = async (e: MessageEvent) => {
-	const { objects, width, height, backgroundColor, scale } = e.data;
+const brushes = [
+	[OptimizedEraserStroke, "OptimizedEraserStroke"],
+	[PixelStroke, "PixelStroke"],
+	[CharcoalStroke, "CharcoalStroke"],
+	[WaterColorStroke, "WaterColorStroke"],
+	[CalligraphyStroke, "CalligraphyStroke"],
+	[BucketFillPath, "BucketFillPath"],
+	[OptimizedPencilStroke, "OptimizedPencilStroke"],
+	[CircleStroke, CircleStroke.type],
+	[SprayStroke, SprayStroke.type],
+	[NeonStroke, NeonStroke.type],
+	[CrayonStroke, CrayonStroke.type],
+] as const;
+brushes.forEach(([type, name]) => classRegistry.setClass(type as any, name));
+classRegistry.setClass(ClippingGroup as any);
 
-	try {
-		let offscreen = new OffscreenCanvas(width * scale, height * scale) as any;
-		offscreen = applyCanvasDisguise(offscreen);
+let fontsReady: Promise<void> | null = null;
 
-		const fabricCanvas = new StaticCanvas(offscreen);
-		fabricCanvas.backgroundColor = backgroundColor;
-
-		classRegistry.setClass(OptimizedEraserStroke, "OptimizedEraserStroke");
-		classRegistry.setClass(OptimizedPencilStroke, "OptimizedPencilStroke");
-
-		// 1. Enliven the objects
-		const enlivenedObjects = await util.enlivenObjects(objects);
-
-		// 2. THE ASYNC BARRIER: Wait for all images to actually have bitmaps
-		const imageWaiters = enlivenedObjects
-			.filter((obj: any) => obj.type === "image" && obj._element)
-			.map((obj: any) => {
-				return new Promise((resolve) => {
-					const imgMock = obj._element;
-					// If already loaded, resolve immediately
-					if (imgMock._bitmap) return resolve(true);
-
-					// Otherwise, hook into the onload we defined in the mock
-					const originalOnload = imgMock.onload;
-					imgMock.onload = () => {
-						if (originalOnload) originalOnload();
-						resolve(true);
-					};
-					// Safety timeout: don't hang the worker forever if an image 404s
-					setTimeout(() => resolve(false), 5000);
+function loadFonts(): Promise<void> {
+	if (fontsReady) return fontsReady;
+	fontsReady = (async () => {
+		const fontSet = (self as any).fonts;
+		if (!fontSet || typeof FontFace === "undefined") return;
+		await Promise.allSettled(
+			WORKER_FONTS.map(async ({ family, url, weight }) => {
+				const face = new FontFace(family, `url(${url})`, {
+					weight,
+					style: "normal",
 				});
-			});
+				await face.load();
+				fontSet.add(face);
+			}),
+		);
+	})();
+	return fontsReady;
+}
 
-		await Promise.all(imageWaiters);
+function collectImages(object: any, output: any[] = []): any[] {
+	if (!object) return output;
+	if (object.type === "image" && object._element) output.push(object);
+	const children =
+		object._objects ??
+		(typeof object.getObjects === "function" ? object.getObjects() : null);
+	if (Array.isArray(children)) {
+		for (const child of children) collectImages(child, output);
+	}
+	if (object.clipPath) collectImages(object.clipPath, output);
+	return output;
+}
 
-		// 3. THE SWAP: Now that we KNOW bitmaps exist, swap them
-		enlivenedObjects.forEach((obj: any) => {
-			if (obj.type === "image" && obj._element && obj._element._bitmap) {
-				// Swap the mock object for the actual native ImageBitmap
-				obj._element = obj._element._bitmap;
+async function waitForImages(objects: any[]): Promise<void> {
+	const images = objects.flatMap((object) => collectImages(object));
+	await Promise.all(
+		images.map(
+			(object) =>
+				new Promise<void>((resolve) => {
+					const element = object._element;
+					if (element?._bitmap) return resolve();
+					const previousLoad = element?.onload;
+					const previousError = element?.onerror;
+					if (element) {
+						element.onload = () => {
+							previousLoad?.();
+							resolve();
+						};
+						element.onerror = (error: unknown) => {
+							previousError?.(error);
+							resolve();
+						};
+					} else {
+						resolve();
+					}
+				}),
+		),
+	);
+	for (const object of images) {
+		if (object._element?._bitmap) object._element = object._element._bitmap;
+	}
+}
+
+function drawingBounds(objects: any[]) {
+	let minX = Infinity;
+	let minY = Infinity;
+	let maxX = -Infinity;
+	let maxY = -Infinity;
+	for (const object of objects) {
+		object.setCoords?.();
+		const bounds = object.getBoundingRect(true, true);
+		if (
+			!Number.isFinite(bounds.left) ||
+			!Number.isFinite(bounds.top) ||
+			bounds.width <= 0 ||
+			bounds.height <= 0
+		) {
+			continue;
+		}
+		minX = Math.min(minX, bounds.left);
+		minY = Math.min(minY, bounds.top);
+		maxX = Math.max(maxX, bounds.left + bounds.width);
+		maxY = Math.max(maxY, bounds.top + bounds.height);
+	}
+	if (!Number.isFinite(minX)) return null;
+	const padding = 50;
+	return {
+		x: minX - padding,
+		y: minY - padding,
+		w: maxX - minX + padding * 2,
+		h: maxY - minY + padding * 2,
+	};
+}
+
+async function renderPreview(
+	request: PreviewStart,
+	sources: any[],
+): Promise<Blob | null> {
+	if (sources.length === 0) return null;
+
+	await loadFonts();
+	let objects: any[] | null = null;
+	let bounds = request.bounds;
+	if (bounds) {
+		const padding = 50;
+		bounds = {
+			x: bounds.x - padding,
+			y: bounds.y - padding,
+			w: bounds.w + padding * 2,
+			h: bounds.h + padding * 2,
+		};
+	} else {
+		const enlivened = await enlivenSources(sources);
+		objects = enlivened;
+		await waitForImages(objects);
+		bounds = drawingBounds(objects);
+	}
+	if (!bounds || bounds.w <= 0 || bounds.h <= 0) return null;
+
+	const scale = request.maxSize / Math.max(bounds.w, bounds.h);
+	const width = Math.max(1, Math.round(bounds.w * scale));
+	const height = Math.max(1, Math.round(bounds.h * scale));
+	const canvas = new OffscreenCanvas(width, height);
+	const context = canvas.getContext("2d", { alpha: true });
+	if (!context) return null;
+
+	const background = request.background;
+	if (background && background !== "transparent") {
+		context.fillStyle = background;
+		context.fillRect(0, 0, width, height);
+	}
+	context.setTransform(
+		scale,
+		0,
+		0,
+		scale,
+		-bounds.x * scale,
+		-bounds.y * scale,
+	);
+
+	const renderObjects = async (batch: any[]) => {
+		await waitForImages(batch);
+		for (const object of batch) {
+			const visible = object.visible;
+			const caching = object.objectCaching;
+			object.visible = true;
+			object.objectCaching = false;
+			object.dirty = true;
+			context.save();
+			try {
+				object.render(context as any);
+			} catch {
+				// One unsupported object should not discard the entire draft preview.
+			} finally {
+				context.restore();
+				object.visible = visible;
+				object.objectCaching = caching;
 			}
-		});
+		}
+	};
 
-		// 4. Render
-		// @ts-ignore
-		fabricCanvas.add(...enlivenedObjects);
-		fabricCanvas.setZoom(scale);
-		fabricCanvas.renderAll();
+	if (objects) {
+		await renderObjects(objects);
+	} else {
+		const BATCH_SIZE = 32;
+		for (let index = 0; index < sources.length; index += BATCH_SIZE) {
+			await renderObjects(
+				await enlivenSources(sources.slice(index, index + BATCH_SIZE)),
+			);
+		}
+	}
 
-		// 5. Export
-		const blob = await offscreen.convertToBlob({
-			type: "image/webp",
-			quality: 0.8,
+	return canvas.convertToBlob({
+		type: "image/webp",
+		quality: request.quality,
+	});
+}
+
+async function enlivenSources(sources: any[]): Promise<any[]> {
+	const settled = await Promise.allSettled(
+		sources.map(async (source) => {
+			const [object] = await util.enlivenObjects([source]);
+			return object;
+		}),
+	);
+	return settled.flatMap((result) =>
+		result.status === "fulfilled" && result.value ? [result.value] : [],
+	);
+}
+
+let request: PreviewStart | null = null;
+const sources: any[] = [];
+
+self.onmessage = async (event: MessageEvent<PreviewMessage>) => {
+	if (event.data.type === "start") {
+		request = event.data;
+		sources.length = 0;
+		return;
+	}
+	if (event.data.type === "append") {
+		sources.push(...event.data.objects);
+		return;
+	}
+	if (!request) {
+		self.postMessage({ error: "Preview render started without metadata" });
+		return;
+	}
+	try {
+		const jsonBlob = new Blob(
+			[
+				JSON.stringify({
+					...request.document,
+					objects: sources,
+				}),
+			],
+			{ type: "application/json" },
+		);
+		const blob = await renderPreview(request, sources);
+		self.postMessage({ blob, jsonBlob });
+	} catch (error) {
+		self.postMessage({
+			error: error instanceof Error ? error.message : "Preview worker failed",
 		});
-		self.postMessage({ blob });
-	} catch (error: any) {
-		console.error("Worker Render Error:", error);
-		self.postMessage({ error: error.message || "Worker crash" });
 	}
 };

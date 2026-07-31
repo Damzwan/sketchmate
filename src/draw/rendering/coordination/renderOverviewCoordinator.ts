@@ -62,7 +62,15 @@ export abstract class RenderOverviewCoordinator<
 			this.abortBakes();
 			return;
 		}
-		if (!this.gesturing && !this.erasing) this.flushPendingOverview();
+		if (this.pendingOverview.length > 0) {
+			// A history burst can touch thousands of clipped objects. Patching the
+			// queued regions here renders them synchronously on main just as the
+			// user releases Undo. Rebuild from the committed worker mirror instead;
+			// the previous overview remains a coherent fallback until it lands.
+			this.pendingOverview = [];
+			this.committed.overview.markDirty();
+			this.scheduleOverviewRebuild();
+		}
 		this.requestFrame();
 		this.scheduleBake();
 	}
@@ -93,7 +101,7 @@ export abstract class RenderOverviewCoordinator<
 		void this.committed.overview
 			.rebuildIfNeeded(
 				this.contentBounds,
-				this.makeYielder() as any,
+				this.makeYielder("overview-build") as any,
 				this.newOverviewSignal(),
 			)
 			.then(repaint, repaint); // repaint even if the build rejected — never leave a blank first frame
@@ -136,7 +144,7 @@ export abstract class RenderOverviewCoordinator<
 			// mid-load must not be able to cause that.
 			await this.committed.overview.rebuildIfNeeded(
 				this.contentBounds,
-				this.makeYielder() as any,
+				this.makeYielder("overview-load") as any,
 				new AbortController().signal,
 			);
 		} catch {
@@ -152,6 +160,14 @@ export abstract class RenderOverviewCoordinator<
 	 * an O(objects-in-region) clip+redraw per invisible edit.
 	 */
 	protected patchOverview(rect: WorldRect): void {
+		if (this.committed.overview.usesRemoteRenderer()) {
+			// Keep the previous overview coherent while the existing worker path
+			// rebuilds it. A local patch would synchronously redraw every object
+			// intersecting this edit, which is unbounded for dense erase regions.
+			this.committed.overview.markDirty();
+			this.scheduleOverviewRebuild();
+			return;
+		}
 		// Active gestures and erase bursts defer too. patchRect is a synchronous
 		// render of up to
 		// overviewPatchMax objects into the overview canvas — the same class of
@@ -160,7 +176,12 @@ export abstract class RenderOverviewCoordinator<
 		// happened (because the bake was aborted) hits its TTL mid-gesture and
 		// folds itself into the overview right then. Defer to the flush that
 		// the interaction-end flush already performs.
-		if (this.gesturing || this.erasing || !this.intersectsView(rect)) {
+		if (
+			this.gesturing ||
+			this.erasing ||
+			this.mutating ||
+			!this.intersectsView(rect)
+		) {
 			this.deferOverview(rect);
 			return;
 		}
@@ -280,6 +301,12 @@ export abstract class RenderOverviewCoordinator<
 	 */
 	protected flushPendingOverview(budgetMs = 8): void {
 		if (this.pendingOverview.length === 0) return;
+		if (this.committed.overview.usesRemoteRenderer()) {
+			this.pendingOverview = [];
+			this.committed.overview.markDirty();
+			this.scheduleOverviewRebuild();
+			return;
+		}
 		const rects = this.mergeRects(this.pendingOverview);
 		this.pendingOverview = [];
 		const t0 = performance.now();
@@ -300,14 +327,14 @@ export abstract class RenderOverviewCoordinator<
 		if (this.overviewTimer !== null) return;
 		this.overviewTimer = setTimeout(() => {
 			this.overviewTimer = null;
-			if (this.gesturing || this.loading) {
+			if (this.gesturing || this.loading || this.erasing || this.mutating) {
 				this.scheduleOverviewRebuild();
 				return;
 			}
 			void this.committed.overview
 				.rebuildIfNeeded(
 					this.contentBounds,
-					this.makeYielder() as any,
+					this.makeYielder("overview-rebuild") as any,
 					this.newOverviewSignal(),
 				)
 				.then(() => {

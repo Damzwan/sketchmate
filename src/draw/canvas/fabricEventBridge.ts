@@ -9,6 +9,7 @@ import type { WorldRect } from "../rendering/committedLayer";
 import * as transformLayer from "../transform/transformController";
 import type { ExplicitZIndex } from "../objects/indexing/zIndex";
 import type { FabricEvent } from "./fabricEvent.types";
+import { markObjectMutated } from "../objects/objectSerialization";
 
 interface FabricEventBridgeOptions {
 	getEngine: () => RenderEngine<FabricObject> | null;
@@ -50,7 +51,10 @@ export function createFabricEventBridge(
 		},
 		{
 			on: "backgroundColorChanged",
-			handler: () => options.getEngine()?.requestFrame(),
+			handler: () => {
+				transformLayer.invalidateVacatedCache();
+				options.getEngine()?.requestFrame();
+			},
 		},
 		{ on: "invalidateCanvas", handler: styleEvent },
 		{
@@ -114,6 +118,7 @@ function handleEraseEnd(event: any, options: FabricEventBridgeOptions): void {
 
 	for (const target of (detail.targets ?? []) as FabricObject[]) {
 		if (!target?.id) continue;
+		markObjectMutated(target);
 		if ((target as any).__hasImageClip) bakeryMarkDirty(target);
 		else bakeryClipSet(target);
 	}

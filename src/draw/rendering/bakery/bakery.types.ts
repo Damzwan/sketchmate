@@ -1,6 +1,11 @@
 // Deltas keep the worker's Fabric mirror in sync. Bake requests carry only tile
 // geometry and z-ordered object ids.
 
+import type {
+	SceneCommitChunk,
+	WorkerTiming,
+} from "@/draw/rendering/bakery/protocol/messages";
+
 export type BakeryRequest =
 	| {
 			t: "config";
@@ -41,9 +46,11 @@ export type BakeryRequest =
 			t: "asset";
 			id: string;
 			bitmap: ImageBitmap;
+			objectRevision?: number;
 	  }
 	| { t: "remove"; ids: string[] }
 	| { t: "clear" }
+	| SceneCommitChunk
 	| {
 			// ABANDON everything issued before `epoch` (gesture start). Handled OUT OF
 			// BAND — see the worker's onmessage. Carries no msgId: it is not a request
@@ -62,6 +69,7 @@ export type BakeryRequest =
 			scale: number;
 			overscan: number;
 			size: number;
+			sceneRevision?: number;
 	  }
 	| {
 			// Whole-board low-res render (the WorldOverview base layer). `ids` are
@@ -75,6 +83,7 @@ export type BakeryRequest =
 			width: number;
 			height: number;
 			scale: number;
+			sceneRevision?: number;
 	  };
 
 export interface BakeryResponse {
@@ -94,4 +103,8 @@ export interface BakeryResponse {
 	 *  using any OTHER family stays refused — a missing face would silently bake
 	 *  fallback glyphs into a committed tile. Empty = no worker font support. */
 	fonts?: string[];
+	/** Scene revision used for this render. Protocol-v1 workers omit it. */
+	sceneRevision?: number;
+	/** Worker-only attribution. Missing on legacy or non-render replies. */
+	workerTiming?: WorkerTiming;
 }

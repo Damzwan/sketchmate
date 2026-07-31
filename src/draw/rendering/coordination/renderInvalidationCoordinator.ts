@@ -20,6 +20,7 @@ export abstract class RenderInvalidationCoordinator<
 			stampSafe &&
 			tier > this.committed.overviewTier &&
 			!this.gesturing &&
+			!this.mutating &&
 			this.intersectsView(rect) &&
 			// All-or-nothing: only stamp when EVERY covered tile is stampable.
 			// A partial stamp leaves stale tiles with no live fallback → flicker.
@@ -54,7 +55,12 @@ export abstract class RenderInvalidationCoordinator<
 			// during the bake window, so a semi-transparent stroke stays single.
 			// The overview is folded in at demote (see demoteSettled).
 		} else {
-			this.committed.markDirty(rect);
+			// An insertion never makes the old pixels incorrect; they are only
+			// missing the new object. For a non-topmost object (bucket fill is the
+			// common case) there is no z-correct live overlay, so retain the sharp
+			// previous tile until its replacement lands. Exposing the overview here
+			// made the whole fill footprint pixelate before sharpening again.
+			this.committed.markStale(rect);
 			this.patchOverview(rect);
 		}
 		this.requestFrame();
@@ -63,12 +69,16 @@ export abstract class RenderInvalidationCoordinator<
 
 	onObjectRemoved(obj: T, oldRect?: WorldRect): void {
 		const rect = oldRect ?? this.boundsOf(obj);
-		if (obj.id) this.live.remove(obj.id);
+		if (obj.id) this.removeLiveObject(obj.id);
 		if (rect) {
 			this.destructiveInvalidate(rect);
 			if (this.intersectsView(rect)) this.requestFrame();
 		}
 		this.scheduleBake();
+	}
+
+	removeLiveObject(id: string): void {
+		this.live.remove(id);
 	}
 
 	onObjectChanged(obj: T, oldRect?: WorldRect): void {
@@ -112,6 +122,23 @@ export abstract class RenderInvalidationCoordinator<
 		this.committed.markStale(rect);
 	}
 
+	/**
+	 * Keep the previous full-resolution pixels visible while several related
+	 * regions are replaced. Transform undo/redo uses this for its old and new
+	 * footprints: the old frame remains coherent until z-correct tiles arrive,
+	 * instead of exposing the overview between history states.
+	 */
+	retainRegionsUntilRebaked(rects: readonly WorldRect[]): void {
+		if (rects.length === 0) return;
+		for (const rect of rects) {
+			this.growContentBounds(rect);
+			this.committed.markStale(rect);
+		}
+		for (const rect of this.mergeRects([...rects])) this.patchOverview(rect);
+		this.requestFrame();
+		this.scheduleBake();
+	}
+
 	invalidateChanged(
 		changedRect: WorldRect,
 		rebakeRect: WorldRect | null,
@@ -131,6 +158,7 @@ export abstract class RenderInvalidationCoordinator<
 			!this.gesturing &&
 			!this.loading &&
 			!this.erasing &&
+			!this.mutating &&
 			tier > this.committed.overviewTier
 		) {
 			const vw = this.committed.viewWorld(
@@ -200,26 +228,29 @@ export abstract class RenderInvalidationCoordinator<
 		const merged = this.mergeRects(rects);
 		let anyInView = false;
 
-		// BOUNDED SYNCHRONOUS REPAIR, shared across the whole batch.
+		// Bounded synchronous repair for ordinary, settled batches.
 		//
 		// A single (unbatched) edit has always repaired up to MAX_SYNC_REPAIR_TILES
 		// visible tiles right away — that is what makes a delete or a style change
-		// look instant. Every undo and redo, however, runs inside
-		// beginBatch/endBatch (drawHistoryManager wraps them unconditionally), and
-		// this path did logical invalidation ONLY. So the edited region fell to the
-		// low-res overview for the whole 80ms debounce + bake round-trip: the
-		// "undo a stroke and it goes blurry for a second" report.
+		// look instant.
 		//
-		// The budget is per BATCH, not per rect, so a 300-object undo still costs
-		// at most the same handful of tile renders as one deletion. Interaction
-		// seams (gesture / load / erase) still skip it — there the async bake and
-		// the overview are the right answer.
+		// `mutating` DEFERS this repair, it must not cancel it: mid-burst the scene
+		// is half-applied and repairing would rasterize a torn state, but the flush
+		// that closes the burst has to repair or the edit is left showing a
+		// fallback until the async bake lands — the "undo goes blurry for a moment"
+		// report. That is why the burst closes with setMutating(false) BEFORE
+		// endBatch (see closeHistoryBurst); if that order is ever flipped back,
+		// every undo and redo silently loses its repair again.
+		//
+		// The budget is per batch, not per rect. Interaction seams (gesture, load,
+		// erase) still skip repair and keep the previous tiles visible.
 		const vpt = this.surface.getVpt();
 		const tier = this.committed.pickActiveTier(vpt[0]);
 		const canRepair =
 			!this.gesturing &&
 			!this.loading &&
 			!this.erasing &&
+			!this.mutating &&
 			tier > this.committed.overviewTier;
 		const vw = canRepair
 			? this.committed.viewWorld(
@@ -321,7 +352,11 @@ export abstract class RenderInvalidationCoordinator<
 	 * overview fallback until the async bake lands (the GPU drag layer covers
 	 * the selection itself throughout).
 	 */
-	dropRegionLight(rect: WorldRect, maxSyncTiles = 6): void {
+	dropRegionLight(
+		rect: WorldRect,
+		maxSyncTiles = 6,
+		repairOverviewNow = false,
+	): void {
 		const vpt = this.surface.getVpt();
 		const tier = this.committed.pickActiveTier(vpt[0]);
 		this.committed.markDirty(rect);
@@ -333,7 +368,14 @@ export abstract class RenderInvalidationCoordinator<
 			);
 			this.committed.rebuildRectSync(rect, tier, vw, maxSyncTiles);
 		}
-		this.patchOverview(rect);
+		// A transform exposes the old footprint immediately. Its fallback must be
+		// repaired in the same task, otherwise a deferred/remote overview can show
+		// the object at its original position for a frame. Other invalidations keep
+		// the normal budgeted policy.
+		const overviewPatched =
+			repairOverviewNow &&
+			this.committed.overview.patchRect(rect, this.overviewPatchMax);
+		if (!overviewPatched) this.patchOverview(rect);
 		if (this.intersectsView(rect)) this.requestFrame();
 		this.scheduleBake();
 	}

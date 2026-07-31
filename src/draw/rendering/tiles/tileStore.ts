@@ -15,7 +15,21 @@ export class TileStore {
 	readonly tiles = new Map<string, Tile>();
 	readonly generations = new Map<string, number>();
 	readonly inFlight = new Set<string>();
-	readonly dirtyRects = new Map<string, WorldRect | null>();
+	/**
+	 * Which parts of a tile an edit invalidated, in world coords.
+	 *
+	 * A LIST, not one union rect. One union looks equivalent and is not: a
+	 * coarse tile covers a huge world area, so two edits at opposite corners
+	 * union into a rect spanning the whole tile, and the compositor then treats
+	 * the tile as useless for every cell — the fallback ladder collapses to the
+	 * whole-board overview and the picture goes blurry. It degrades as a session
+	 * goes on, which is exactly how it presents.
+	 *
+	 * `null` means the whole tile (provenance unknown — always safe). Entries
+	 * are merged when they overlap and collapsed to one union past
+	 * `MAX_DIRTY_RECTS`, so the list stays small.
+	 */
+	readonly dirtyRects = new Map<string, WorldRect[] | null>();
 	memoryBytes = 0;
 
 	private readonly pool: OffscreenCanvas[] = [];

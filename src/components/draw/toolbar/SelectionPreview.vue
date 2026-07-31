@@ -85,7 +85,11 @@ import { IonIcon, IonButton, IonModal } from "@ionic/vue";
 import { mdiShareVariant, mdiClose } from "@mdi/js";
 import { useSelect } from "@/draw/tools/select.store";
 import { useDrawStore } from "@/draw/session/draw.store";
-import { bakeThumbnail } from "@/draw/transform/transformController";
+import {
+	bakeCachedThumbnail,
+	bakeThumbnail,
+} from "@/draw/transform/transformController";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { shareImg } from "@/helper/share.helper";
 import { svg } from "@/helper/general.helper";
 
@@ -106,11 +110,18 @@ function canvasBg(): string {
 const count = computed(() => selectedObjectsRef.value.length);
 const hasSelection = computed(() => count.value > 0);
 
-function paint(canvasEl: HTMLCanvasElement | null, maxPx: number) {
+function paint(
+	canvasEl: HTMLCanvasElement | null,
+	maxPx: number,
+	measureFallback = false,
+) {
 	if (!canvasEl) return;
 	const c = getCanvas();
 	if (!c) return;
+	const startedAt = performance.now();
 	const res = bakeThumbnail(c, maxPx, selectedObjectsRef.value);
+	if (measureFallback)
+		recordPhase("selectionThumbnailFallback", performance.now() - startedAt);
 	const ctx = canvasEl.getContext("2d");
 	if (!ctx) return;
 	if (!res) {
@@ -131,17 +142,77 @@ function paint(canvasEl: HTMLCanvasElement | null, maxPx: number) {
 	res.bitmap.close();
 }
 
-// The thumbnail bake re-renders every selected object synchronously. Firing it
-// on each selection:created/updated event janks when a lasso/select-all pulls
-// in many objects. Coalesce to a single rAF-deferred bake so rapid selection
-// changes in one frame collapse into one render, off the event's critical path.
 let thumbRaf = 0;
-function scheduleThumb() {
+let thumbIdle = 0;
+let thumbRevision = 0;
+
+function cancelThumbWork() {
 	if (thumbRaf) cancelAnimationFrame(thumbRaf);
-	if (!hasSelection.value) return;
-	thumbRaf = requestAnimationFrame(() => {
+	thumbRaf = 0;
+	if (!thumbIdle) return;
+	if (typeof window.cancelIdleCallback === "function")
+		window.cancelIdleCallback(thumbIdle);
+	else clearTimeout(thumbIdle);
+	thumbIdle = 0;
+}
+
+function scheduleIdleFallback(revision: number) {
+	const run = async () => {
+		thumbIdle = 0;
+		if (revision !== thumbRevision) return;
+		const c = getCanvas();
+		if (!c) return;
+		const cached = await bakeCachedThumbnail(c, 128, selectedObjectsRef.value);
+		if (revision !== thumbRevision) {
+			cached?.bitmap.close();
+			return;
+		}
+		if (cached) drawThumb(cached);
+		else paint(thumb.value, 128, true);
+	};
+	thumbIdle =
+		typeof window.requestIdleCallback === "function"
+			? window.requestIdleCallback(() => void run(), { timeout: 500 })
+			: window.setTimeout(run, 250);
+}
+
+function drawThumb(res: { bitmap: ImageBitmap; cssW: number; cssH: number }) {
+	const canvasEl = thumb.value;
+	const ctx = canvasEl?.getContext("2d");
+	if (!canvasEl || !ctx) {
+		res.bitmap.close();
+		return;
+	}
+	canvasEl.width = res.bitmap.width;
+	canvasEl.height = res.bitmap.height;
+	ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+	ctx.fillStyle = canvasBg();
+	ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
+	ctx.drawImage(res.bitmap, 0, 0);
+	res.bitmap.close();
+}
+
+function scheduleThumb() {
+	cancelThumbWork();
+	const revision = ++thumbRevision;
+	if (!hasSelection.value) {
+		if (thumb.value) thumb.value.width = thumb.value.height = 0;
+		return;
+	}
+	thumbRaf = requestAnimationFrame(async () => {
 		thumbRaf = 0;
-		paint(thumb.value, 128);
+		const c = getCanvas();
+		if (!c) return;
+		const res = await bakeCachedThumbnail(c, 128, selectedObjectsRef.value);
+		if (revision !== thumbRevision) {
+			res?.bitmap.close();
+			return;
+		}
+		if (!res) {
+			scheduleIdleFallback(revision);
+			return;
+		}
+		drawThumb(res);
 	});
 }
 
@@ -186,7 +257,8 @@ async function shareSelection() {
 
 watch(selectedObjectsRef, scheduleThumb, { immediate: true, deep: false });
 onBeforeUnmount(() => {
-	if (thumbRaf) cancelAnimationFrame(thumbRaf);
+	thumbRevision++;
+	cancelThumbWork();
 	bigOpen.value = false;
 });
 </script>

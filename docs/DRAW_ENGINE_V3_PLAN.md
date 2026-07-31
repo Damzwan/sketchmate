@@ -688,77 +688,683 @@ extra bitmaps would increase memory and update cost for little visible benefit.
 
 ---
 
-## Phase 3 — the worker
+## Phase 3 — worker-first rendering for low-end Android
 
-### W1 — answering the three hypotheses directly
+This is the final architectural phase. The worker exists and can already bake
+tiles and full overviews, but enabling it does **not** yet mean the main thread
+is protected:
 
-**"GPU texture upload stampede"** — real, but not in the shape described. Two
-mitigations already exist: `lanes = 2`
-([`committedLayer.ts:725`](../src/draw/committedLayer.ts#L725)) so at most two
-bakes are in flight, and `requestBakeProgressFrame`'s trailing-timer throttle
-(~8 composites/sec, R29). The burst that survives is the **final composite of a
-pass** and any **tier change**, where every visible cell is new at once. Fix is
-admission control, not more throttling — see W2.
+1. Main still resolves every tile through the quadtree, sorts it, classifies
+   shippable objects, serializes dirty Fabric objects, and calls `postMessage`.
+2. A refusal, timeout, pause, or hybrid-overlay failure falls through to a full
+   local tile bake. The worker therefore puts the expensive work back on main
+   exactly when it is overloaded.
+3. Overview patches still rasterize on main.
+4. Fresh worker bitmaps are uploaded by the main canvas compositor. A completed
+   bake pass can still create a GPU burst even if its CPU work was off-thread.
+5. `tileBakery.worker.ts` is one serial queue. Two main-side bake lanes do not
+   make its Fabric rasterization parallel.
 
-**"Message queue flooding"** — does not apply as coded. With 2 lanes the worker
-can have at most 2 bake replies outstanding; there is no 30-message dump. The
-message volume that *is* unbounded is `upsert`/flush, and that is already
-time-budgeted and idle-scheduled (R22/R26). Do not spend effort here without a
-`__drawPerf()` number showing otherwise.
+The goal is not “zero main-thread code”. Pointer input, Fabric's live drawing
+surface, final canvas composition, and UI must remain there. The goal is:
 
-**"Style recalculation / layout thrashing"** — plausible and untested. Cheap to
-settle: `PerformanceObserver` for `layout-shift` plus a check for Vue
-reactivity wired to zoom/tile state (a zoom-percentage indicator re-rendering on
-every gesture frame would do it). Add it to the bench (Phase 5) rather than
-guessing.
+> **No scene-sized, tile-raster, or retry work may run in an input task. Every
+> main-thread render task is bounded; worker pressure may delay sharpness but
+> may never delay touch handling.**
 
-### W2 — GPU upload admission control
+That is the relevant ANR contract for a Capacitor Android WebView.
 
-The first `drawImage` of a freshly-stored `ImageBitmap` uploads it as a texture.
-Cap how many *newly stored* bitmaps a single composite may touch (start at 4):
-above the cap, the remaining cells keep drawing their existing fallback for one
-more frame and are admitted next frame. Uploads then spread over frames by
-construction instead of clumping on the switch frame. `tileDrawMsMax` is the
-before/after number and already exists.
+### Target architecture
 
-### W3 — move the tile→object resolution into the worker
+```mermaid
+flowchart LR
+    M["Main thread<br/>input + live overlay + final composite"]
+    C["Coordinator worker<br/>scene + index + queue + raster lane 0"]
+    R1["Optional raster worker<br/>bounded hot Fabric cache"]
 
-The largest remaining per-tile main-thread cost (R32's list): `index.query` + a
-z-sort + a `workerCanRender` scan + `flushObjects`' structured clone, **per
-tile**. The worker mirror already receives every object via
-`upsert`/`translate`/`remove`, so it can hold bounds + z and answer "which ids
-are in this tile" itself. That collapses ~4 main-thread items × ~40 tiles into
-**one message per bake pass**.
+    M -- "scene deltas + one bake-pass request" --> C
+    C -- "transferable ImageBitmap" --> M
+    C -. "resolved jobs, capable devices only" .-> R1
+    R1 -. "transferable ImageBitmap" .-> M
+    M -- "bitmap credits + stale/cancel ACK" --> C
+```
 
-This is the single biggest worker win left and the prerequisite for the
-composite ever leaving the main thread (`transferControlToOffscreen`, R32's
-structural answer).
+The coordinator is the only process that owns the complete serialized scene
+and its spatial index. Its built-in raster lane keeps low-end Android at one
+worker total. Optional raster workers receive only the objects needed for their
+current jobs and keep a bounded hot cache. We do **not** run N copies of the
+current bakery worker.
 
-### W4 — would multiple workers help? — **No, not in this architecture.**
+Low-end Android starts and normally stays at **one fused worker**. The
+architecture supports one additional raster worker, but parallelism is earned
+by device measurements; it is not assumed from `hardwareConcurrency`.
 
-Each bakery worker owns a **full mirror of the scene** (JSON strings + an
-enlivened Fabric LRU + bitmap assets). N workers means:
+### Work that deliberately stays on main
 
-- N× mirror memory, on devices already showing `libwebviewchromium` OOM.
-- N× `postMessage` + structured clone **on the main thread** for every upsert —
-  i.e. more of exactly the cost we are removing.
-- N× enliven of the same objects, since the LRUs are independent.
-- On the Android cohort, `hardwareConcurrency` is 4–8 and is *shared with the
-  compositor and GPU threads* — the ones already in the ANR signature. Adding
-  raster threads there competes with the thing that is timing out.
+| Work | Why it stays | Budget |
+| --- | --- | --- |
+| Pointer events and current free-draw stroke | Latency and Fabric canvas ownership | No unrelated work in the same task |
+| Live transform/eraser overlay | Immediate feedback before committed tiles exist | ≤ 4 ms per frame on low-end Android |
+| Final tile composite | The visible Fabric lower canvas is main-owned; measured cost is currently tiny | ≤ 8 ms max |
+| Small scene-delta creation | The live Fabric object originates on main | ≤ 4 ms per slice, never in a gesture |
+| Bitmap admission/close | Main owns the committed cache and GPU presentation | Fixed credits; O(accepted results) |
 
-What DOES parallelize, in order:
+`transferControlToOffscreen` is explicitly **not** part of this phase. It is
+one-way, complicates Fabric's lower/upper-canvas relationship, and attacks a
+composite currently measured below 1 ms. Revisit only if `compositeMsMax`,
+excluding upload time, becomes the proven bottleneck.
 
-1. W3 first (one worker that owns the index) — then the tile loop is inside the
-   worker, and *that* is where a raster pool can be added without touching the
-   main thread at all.
-2. A pool of **stateless** raster workers behind the owner worker, fed
-   transferables. No mirror duplication because they render pre-resolved
-   display lists, not scene objects.
-3. Desktop-only, behind a flag, gated on `hardwareConcurrency >= 8`.
+### Non-negotiable correctness rules
 
-Verdict: revisit after W3 ships and the bench shows worker raster (not the
-prologue) is the bottleneck.
+1. **One scene revision.** Every mutation batch gets a monotonic revision.
+   Results identify the revision they rendered. Main never stores a result from
+   an older revision as fresh.
+2. **Per-object revision.** Upsert, style, transform, clip, asset, and removal
+   deltas carry an object revision. Duplicate and reordered deltas are
+   idempotent.
+3. **Atomic mutation batches.** A history operation or erased-object cleanup is
+   visible to the coordinator as one committed revision, never as a half-edited
+   scene.
+4. **Generation still wins.** The existing tile generation check remains the
+   final authority after a bitmap returns.
+5. **Cancellation is normal.** A stale epoch is neither an error nor a reason
+   to run the tile locally.
+6. **No interaction fallback.** Worker refusal or delay leaves the best stale
+   tile/overview visible and queues a safe retry. It never triggers a
+   synchronous full tile raster while drawing, panning, zooming, or replaying
+   history.
+7. **Bounded ownership.** Every transferred `ImageBitmap` has exactly one owner
+   and is either stored or closed. Every scratch canvas and cached asset has a
+   device-class memory cap.
+
+### W0 — establish the Android baseline and attribution
+
+**Implementation status (2026-07-31):** instrumentation is in place for
+main-thread worker preparation, worker queue/enliven/raster/transfer time,
+protocol traffic, queue depth, scene-delta volume, and named local-fallback
+reasons. The next required step is capturing the release Android A/B reports;
+that device evidence remains the W2 gate.
+
+Do this before changing the protocol. Current metrics say *that* main blocked,
+but not how much of a worker pass main prepared or why a local fallback ran.
+
+Add:
+
+- `workerPrepQuery`, `workerPrepSort`, `workerPrepClassify`,
+  `workerPrepSerialize`, and `workerPrepPost` timing;
+- worker-side `queueWait`, `indexQuery`, `enliven`, `raster`, and
+  `bitmapTransfer` timing in responses;
+- `localFallbackReason` counts: unavailable, backpressure, timeout, missing,
+  refusal, z-order, hybrid-too-large, overlay-failed, hard-error;
+- request/result bytes, dirty-delta count, queue depth, outstanding bitmap
+  credits, and active raster-worker count;
+- time from interaction settle until all visible active-tier tiles are fresh;
+- estimated coordinator JSON, hot Fabric, asset, scratch-canvas, and pending
+  bitmap bytes.
+
+Record a main/worker A/B baseline on at least:
+
+- a 2–4 GB / 4-core Android WebView device;
+- a mid-range 6 GB Android device;
+- desktop Chrome as a debugging cohort.
+
+Use release Capacitor builds. DevTools and debug WebViews materially change
+scheduling and memory behaviour.
+
+**Gate:** no architectural work starts until a report can distinguish worker
+queueing from main preparation and local fallback.
+
+**Desktop A/B finding (2026-07-31):** the first worker-v2 capture did not
+justify W2 or a raster pool yet. Query/sort and classification stayed below
+2 ms, mean worker queue wait was 3.81 ms, and the maximum queue depth was 2.
+The worker did expose a different main-thread escape: the deferred eraser
+cleanup rasterized every touched object with `toCanvasElement()` before asking
+its worker for confirmation. That gate has been removed. Cleanup now serializes
+and dispatches directly to the eraser worker, records
+`eraseCleanupDispatchMax`, and never rasterizes on main. Live clip deltas are
+also committed once per stroke instead of once per affected object.
+
+The capture reset also preserved counters but lost the active protocol label,
+so a v2 run was exported as version 1. Reset now preserves
+`workerProtocolVersion`.
+
+### W1 — give the worker protocol explicit revisions and batches
+
+**Implementation status (2026-07-31):** protocol v2 is implemented behind the
+`workerProtocol=legacy` rollback switch. Scene and object revisions, runtime
+validation, chunk assembly, atomic draw-manager batches, response revision
+checks, compact translate/clip/z-order deltas, and source-JSON reuse are active.
+Protocol parity on a real Android WebView remains required before removing the
+legacy adapter.
+
+The current protocol is tile-oriented and depends on FIFO ordering. FIFO is
+helpful but too implicit for a pool and cannot express an atomic multi-object
+history mutation.
+
+Replace ad-hoc message shapes with a versioned protocol:
+
+```ts
+type SceneDelta =
+	| { kind: "upsert"; id: string; objectRevision: number; json: unknown; bounds: Rect; z: number }
+	| { kind: "translate"; ids: string[]; revisions: number[]; dx: number; dy: number }
+	| { kind: "clip"; id: string; objectRevision: number; clip: unknown | null }
+	| { kind: "style"; id: string; objectRevision: number; patch: RenderStylePatch }
+	| { kind: "remove"; id: string; objectRevision: number }
+	| { kind: "zOrder"; ids: string[]; z: number[] };
+
+interface SceneCommit {
+	type: "sceneCommit";
+	protocolVersion: 2;
+	sceneRevision: number;
+	deltas: SceneDelta[];
+}
+```
+
+Implementation points:
+
+- Create `rendering/bakery/protocol/` for messages, runtime validation, revision
+  helpers, and response types.
+- Keep `serializeOnce` as the shared seam for history, sync, and rendering.
+  A mutation is serialized at most once.
+- Preserve source JSON during document load and transfer it in yielded chunks.
+- Keep translations, z changes, styles, and clips as small deltas. Full
+  `toJSON()` is for object creation or changes that genuinely replace geometry.
+- Never serialize from `bakeryBakeTile`. A tile request finding an uncommitted
+  dirty object waits for its pending scene commit; it does not pay serialization
+  inside the bake path.
+- Send large batches in bounded chunks, but publish the new `sceneRevision`
+  only after the final chunk arrives. The coordinator cannot render a partial
+  commit.
+
+The existing protocol remains behind an adapter until parity tests pass.
+
+**Tests:** duplicated deltas, missing chunks, late commits, clear/reload,
+translate-after-upsert, clip undo/redo, and cancellation between commit chunks.
+
+### W2 — move spatial lookup and renderability decisions into the coordinator
+
+**Status:** deferred until an Android capture shows meaningful main-thread
+query/classification cost. The first desktop worker-v2 report measured less
+than 2 ms for both, while eraser cleanup and overview patches were materially
+larger. Building this now would add protocol complexity without addressing the
+observed ANR risk.
+
+This removes the largest structural main-thread prologue.
+
+The coordinator stores, per object:
+
+- compact serialized render data;
+- bounds;
+- explicit z-order;
+- object revision;
+- render capability and required asset/font keys.
+
+It owns a worker-safe spatial index. `bake()` becomes one pass request:
+
+```ts
+interface BakePassRequest {
+	type: "bakePass";
+	passId: number;
+	epoch: number;
+	sceneRevision: number;
+	tier: number;
+	scale: number;
+	tileSize: number;
+	overscan: number;
+	suppressedIds: string[];
+	tiles: Array<{
+		key: string;
+		generation: number;
+		world: Rect;
+		priority: number;
+	}>;
+}
+```
+
+For the whole pass the worker:
+
+1. queries its own index;
+2. sorts by worker-owned z values;
+3. removes hidden/transient objects using the pass-level `suppressedIds`
+   captured from the active transform session;
+4. checks fonts/assets/render capability;
+5. schedules the tile by viewport priority.
+
+Main sends geometry once and receives streamed tile results. It no longer sends
+z-sorted object arrays per tile.
+
+Start with the coordinator doing rasterization itself, using the existing
+worker renderer. This deliberately keeps one worker while proving the new
+scene/index contract.
+
+**Gate:**
+
+- `workerPrepQuery`, `workerPrepSort`, and `workerPrepClassify` become zero;
+- no visual difference against the current backend across every seeded scene;
+- a 40-tile pass produces one pass request, not 40 independently prepared
+  requests;
+- changing tier or epoch drops queued jobs before rasterization.
+
+### W3 — make backpressure safe instead of falling back to main
+
+**Implementation status (2026-07-31):** the outcome contract now distinguishes
+deferred, unsupported, and failed worker work. Deferred work never enters local
+rasterization. Unsupported/failed tiles enter an idle-only compatibility path
+only when object count, group size, erase-clip depth, path size, and source
+bitmap size are bounded. Heavy or unknown work retains correct overview/stale
+pixels and is reported through `workerDeferrals` instead of risking an ANR.
+Bitmap credits remain open.
+
+The second W3 capture confirmed that local compatibility bakes fell to zero.
+Its dominant deferrals were temporary lasso `ActiveSelection` grouping, not
+real grouped drawing content. Active-selection children are now allowed to use
+their already-committed worker-mirror entries, while real groups remain
+unsupported. Large lasso selections also pre-render their drag bitmap through
+the worker; main-thread lasso hit testing is screen-density sampled, capped at
+30 Hz, and reported separately from selection-preview baking.
+
+The next erase-heavy capture showed that clip removal itself was healthy
+(`eraseClipUndo` stayed below 7 ms), while history-burst close still performed
+main-thread tile repair and overview patching. History operations now share a
+60 ms grace window, synchronous repair is disabled for the entire mutation,
+and pending overview regions become one worker-capable rebuild when the burst
+closes. `historyBurstFlushMax` measures only the remaining invalidation and
+worker-scheduling boundary.
+
+Two follow-up captures reduced synchronous history repair to two bounded calls,
+but exposed a separate undo cost: fully erased objects were retained as live
+Fabric instances and serialized together when undo first read the lazy history
+payload. Erasure analysis now returns the JSON it already sends to its worker,
+and cleanup attaches that snapshot to history ahead of undo. Per-object mutation
+revisions reject stale analysis snapshots, and `eraseCleanupFinalizeMax`
+attributes the remaining canvas/index removal boundary.
+
+The next captures bounded cleanup finalization below 9 ms and reduced the worst
+long task to 418/256 ms. Synchronous overview patches then became the largest
+identified main-thread render at up to 104 ms. Worker-backed engines no longer
+run localized Fabric overview patches on main: edits dirty the overview and
+coalesce into the existing remote rebuild while the previous bitmap remains
+visible. Unsupported overlay objects are yielded during composition.
+
+The main-thread control capture confirmed that the worker direction is correct:
+without it, local tile baking consumed 1.2 seconds and overview rendering
+consumed 779 ms during the same workflow, with a 907 ms main-thread block. The
+two worker captures removed those costs, but exposed long worker queue waits
+(448–880 ms), expensive bitmap production/transfer, and no worker cancellation
+requests.
+
+Remote work now participates in the render coordinator's existing abort path.
+Starting a newer interaction cancels locally awaited worker results and posts an
+out-of-band epoch update to the worker. Overview requests are latest-wins and
+yield to queued visible tile work; an aborted overview keeps the last coherent
+bitmap instead of falling back to a full main-thread rebuild. Once visible tiles
+settle, a still-dirty overview is scheduled again.
+
+`workerResultMainMax` now attributes the synchronous response handler, tile-cache
+commit, overview bitmap commit, and unsupported overview overlays. The next
+Android capture should show non-zero cancellation requests during the stress
+sequence, zero worker-backed overview patches, and lower queue wait. Cancellation
+acknowledgement and late-result timing must remain bounded. Bitmap credits remain
+the next W3 gate if result production or transfer still arrives in bursts.
+
+The following two Android captures passed that cancellation gate: requests were
+observed, acknowledgements returned within 60–73 ms, and maximum worker queue wait
+fell from 448–880 ms to 104–109 ms. Tile compositing, cache admission, and bitmap
+transfer were healthy. The remaining reported hitch moved to lasso interaction:
+live hit testing reached 22–28 ms, transform history operations reached 39–48 ms,
+and one unsupported overview overlay reached 36 ms.
+
+Lasso drawing now opens the same interaction seam as pan/zoom, cancelling
+zoom-settle work before candidate processing begins. Live containment work has a
+5 ms frame budget, while the final correctness pass yields between slices.
+Overlay drawing and Fabric selection construction are measured separately.
+Pure multi-object translations now capture one shared history delta and undo/redo
+through cached bound offsets plus one worker-mirror translation, avoiding an
+O(selection size) serialization flush. The next capture should keep
+`lassoHitTestMax`, `historyTransformCaptureMax`, and `historyTransformApplyMax`
+below one frame; `lassoSelectionCommitMax` identifies whether Fabric
+`ActiveSelection` itself is the remaining synchronous boundary.
+
+The next pair confirmed the fast paths: lasso hit testing fell to 8–12 ms,
+history capture to 0.5 ms, and translation undo to 13–16 ms. Fabric selection
+construction remained a repeatable 45–49 ms boundary. Final containment and
+selection construction now run on separate frames, and translation undo/redo
+yields after 5 ms of coordinate/index work so a large selection cannot consume
+one whole frame.
+
+One capture still contained a 1.69 second main-thread block while every
+instrumented application phase stayed below 74 ms. The benchmark now observes
+the browser's Long Animation Frames API when available. It exports blocking,
+rendering, style/layout, and input-delay maxima plus the eight heaviest script
+attributions (`engine.longFrameScripts`). This distinguishes application
+JavaScript from Fabric layout, forced style, browser rendering, and pause/GC-like
+time before another architectural change is chosen.
+
+The first attributed pair narrowed the remaining 350–486 ms blocks to a
+continuation resumed through the shared `MessageChannel` scheduler. Layout was
+not responsible, and the optimized boundaries stayed small: transform history
+5–9 ms, lasso hit testing 10–12 ms, and erase clip work 1–6 ms. A production
+chunk name cannot identify the continuation because every scheduler client
+shares the same `MessagePort.onmessage`. Scheduler yields now carry stable
+subsystem labels, and Long Animation Frame entries correlate their
+`executionStart` with those resumptions. The next report's
+`engine.longFrameScripts[].yieldLabel` is the gate: optimize the named owner,
+not the `transformController` chunk as a whole.
+
+That gate identified `export-render` in both follow-up runs: 289 ms and 585 ms.
+The captures lasted 20–23 seconds, aligning exactly with the draft autosave's
+20-second interval. Autosave was traversing and rasterizing the entire live
+Fabric scene on main to create its thumbnail while the user was still drawing.
+Draft serialization now runs first, then a short-lived preview worker enlivens
+that detached JSON, calculates document bounds, renders the 640 px thumbnail,
+encodes WebP, and terminates. Autosave no longer renders live drawing objects or
+performs a second scene traversal on main. The JSON is posted in yielded batches
+instead of one whole-scene structured clone, and the worker enlivens/renders 32
+objects at a time to cap its live memory on Android. `draftSerializationMax` and
+`thumbnailTransferMax` expose the only remaining main-thread autosave seams.
+The 20-second interval also waits for 1.5 seconds without a drawing mutation
+before starting, so even off-thread thumbnail CPU and JSON serialization do not
+compete with an active stroke or undo burst.
+
+Three follow-up captures confirmed the autosave fix: thumbnail transfer stayed
+below 4 ms and draft serialization below 11 ms. The largest repeatable
+post-lasso script was instead the automatic tooldock selection preview, which
+re-rendered every selected Fabric object on main for a 52 px thumbnail and took
+74–104 ms. It now downscales the bitmap already prepared by the selection
+worker. Pure repeated translations also stop launching a redundant worker
+prewarm when their position-independent bitmap cache is still valid.
+`selectionThumbnailMax` measures the cheap bitmap downscale, while
+`selectionTransformCommitMax` covers the synchronous mouse-up work that remains
+after each move.
+
+The next pair confirmed that automatic selection thumbnails fell to 0.2–0.3 ms
+with no local fallback. The newly exposed repeated cost was selection release:
+38–64 ms for each moved lasso selection. Pure translations now retain their
+quadtree placement when the translated bounds still fit the current node,
+falling back to remove-and-insert only across node or chunk boundaries.
+Selection layout, old-region repair, and tile stamping are measured separately
+to decide whether the next step is spatial work or a retained background
+snapshot.
+
+One capture also found a 170 ms `toJSON()` call during autosave. Document
+serialization now reuses exact JSON snapshots keyed by the engine's object
+mutation revision, including the source JSON used when a document is enlivened.
+Unchanged objects no longer serialize again on every autosave; changed objects
+invalidate their snapshot at the same boundary used by rendering and worker
+synchronization.
+
+The following pair showed the snapshot cache working: worst per-object
+serialization fell from 170 ms to 0.7–11 ms. Selection release attribution
+showed tile stamping at only 0.8–1.5 ms; the cost was Fabric child-coordinate
+recomputation (about 33 ms) and synchronous old-region repair (11–40 ms).
+Pure ActiveSelection translation now refreshes only the selection wrapper
+because child-local coordinates do not change, and old-region repair is fully
+worker-backed instead of rendering dense tiles inside `touchend`.
+
+The remaining 88–140 ms `FileReader.onloadend` task occurs after the thumbnail
+blob exists. The preview worker now serializes the exact document snapshot it
+already received. Initial captures showed that storing the resulting string
+still spent 26–32 ms copying bytes during IndexedDB dispatch, so the worker now
+wraps the JSON in an immutable Blob. IndexedDB stores that Blob without cloning
+the document bytes on the UI thread. Object-form and string-form drafts remain
+backward compatible at load. `draftPersistDispatchMax` directly measures the
+synchronous IndexedDB dispatch.
+
+Repeated selection moves are now consistently below 5 ms, including layout,
+old-region repair, and tile stamping. The remaining lasso boundary is initial
+selection creation at 35–59 ms. Construction, activation, control rendering,
+and preview prewarm now have separate phase timings; the next capture can target
+the dominant Fabric step without changing selection semantics speculatively.
+
+The last visible transform seam came from the overview fallback, not either
+tile backend. Drag start invalidated the old footprint after hiding the selected
+objects, but gesture and worker policies deferred the corresponding overview
+patch. The stale overview could therefore resurrect the selection at its old
+position for a frame at both drag start and release. Transform-only footprint
+drops now patch that localized overview region immediately from the live index;
+all other overview work retains its normal budgeted/worker policy.
+
+The next visual-quality pass removed two unnecessary overview transitions.
+The vacated drag footprint is repaired once at movement start; release no
+longer invalidates that same sharp background a second time. Transform movement
+also suspends tile work explicitly, preventing the worker mirror from rebaking
+the still-old position during the gesture. Non-topmost additions such as bucket
+fills now retain the previous full-resolution tile until the z-correct updated
+tile is ready, producing one atomic sharp-to-sharp swap instead of exposing the
+low-resolution overview between them.
+
+Transform undo/redo previously bypassed this policy: history collected the old
+and new footprints into the generic destructive batch invalidation, so both
+regions still fell through to the overview. History transforms now mark both
+footprints as retained replacements. Their existing full-resolution tiles stay
+visible until the updated history-state tiles arrive; scale and rotation history
+use the same path, not only pure translation.
+
+Current `null` from the bakery means “render locally”. That contract is unsafe:
+a busy or timed-out worker creates the main-thread spike we were trying to
+remove.
+
+Replace the nullable result with an explicit outcome:
+
+```ts
+type WorkerTileOutcome =
+	| { kind: "ready"; bitmap: ImageBitmap; ... }
+	| { kind: "overlay"; bitmap: ImageBitmap; overlayIds: string[]; ... }
+	| { kind: "deferred"; reason: "busy" | "cancelled" | "stale" | "missing" }
+	| { kind: "unsupported"; reason: WorkerRefusalReason }
+	| { kind: "failed"; fault: WorkerFault };
+```
+
+Policy:
+
+- `deferred`: keep fallback pixels, requeue after settle;
+- `cancelled`/`stale`: discard with no health penalty and no local render;
+- `missing`: request the missing scene revision, then retry once;
+- `unsupported`: use a bounded overlay when correct; otherwise schedule an
+  idle-only local compatibility bake;
+- `failed`: trip a circuit breaker, but enter **safe local mode**, not an
+  immediate local bake storm.
+
+Safe local mode uses one lane, capped DPR/tier, no sync repair, and only starts
+after interaction settles. A Fabric object render cannot be interrupted once it
+starts, so local compatibility work is admitted only for object classes and
+complexity ranges already measured below the device budget. Unknown or heavy
+objects keep the stale/overview fallback instead. Slight temporary blur is
+acceptable; an unresponsive app is not.
+
+Add bitmap credits:
+
+- low-end Android: at most 2 produced-but-not-consumed results;
+- other mobile: start at 3;
+- desktop: start at 4;
+- main returns a credit only after storing or closing the bitmap.
+
+The coordinator cannot outproduce the committed cache or flood the GPU upload
+queue.
+
+### W4 — move overview rebuilds and patches off main
+
+Full overview rebuild already has a worker path; localized patches do not.
+Create an `OverviewJob` in the coordinator using the same scene index and
+revision as tiles.
+
+- Merge and split patch rectangles before dispatch.
+- Render bounded patch bitmaps off-thread.
+- Return mapping metadata plus `sceneRevision`.
+- Main applies a patch only when its mapping and revision still match.
+- Coalesce repeated erase/history patches; latest revision wins.
+- Keep one coordinator-owned overview scratch canvas and cap its dimensions
+  with the existing overview pixel budget.
+
+Do not transfer the whole overview after every small edit. Return only the
+changed patch where possible.
+
+**Gate:** `overviewPatchMax` and `overviewBuildMax` on main become zero for
+worker-compatible scenes. The main-side work is only `drawImage` of a bounded
+patch.
+
+### W5 — remove the common worker refusals
+
+A worker-first backend only works if normal Sketchmate content stays there.
+Fix refusals in measured order, not by file order:
+
+1. **Fonts/text:** retain the current registered-font handshake; include font
+   revision in capability state and invalidate affected worker objects when a
+   face becomes available.
+2. **Bitmap-backed brushes:** keep transferable assets, add explicit asset
+   revision and acknowledgement so a restarted worker cannot appear seeded.
+3. **Images/stickers:** transfer decoded `ImageBitmap` assets and enliven them
+   through a worker-specific Fabric image adapter. Never fetch user URLs again
+   inside a worker.
+4. **Flattened erase masks:** transfer the mask bitmap as an asset instead of
+   rejecting every object with an image clip.
+5. **Groups:** serialize the top-level group in absolute scene coordinates, or
+   compile it to a worker render record. Do not ship group-relative children as
+   independent indexed objects.
+6. **Interleaved z-order:** only after the object types above are handled.
+   Prefer making the objects worker-compatible over returning many bitmap
+   layers and forcing extra GPU uploads.
+
+Each capability gets a pixel-parity fixture and its own refusal counter.
+
+**Gate:** on `sticker-mix`, common-content refusal rate is below 5%; no refusal
+causes an interaction-time full local tile bake.
+
+### W6 — GPU upload admission on the main compositor
+
+The first `drawImage` of a new bitmap may upload a texture. Worker
+parallelization can make that burst worse by completing several tiles together.
+
+- Mark newly stored tiles as awaiting first-use admission.
+- Admit at most 2 new bitmaps per frame on low-end Android, 3 on other mobile,
+  and 4 on desktop.
+- Non-admitted cells keep drawing their existing cross-tier/overview fallback.
+- Prioritize the viewport centre, then the pointer region, then edges.
+- Lower admission dynamically when `tileDrawMsMax` crosses 8 ms or frame time
+  crosses 20 ms.
+
+This is separate from worker bitmap credits: credits bound produced memory;
+admission bounds GPU work per frame.
+
+### W7 — make the single coordinator worker the Android default
+
+The current backend defaults to `main`. Do not flip it when W2 merely “works”.
+Flip only when the device gates below pass:
+
+- zero worker hard errors and zero permanent disables;
+- no main long task above 50 ms in the benchmark interactions;
+- frame p95 ≤ 20 ms and slow frames ≤ 5%;
+- no interaction-time local tile bakes;
+- worker preparation slices ≤ 4 ms;
+- visible active-tier freshness p95 ≤ 500 ms after settle and max ≤ 1500 ms;
+- pixel parity passes for pencil, watercolor, erased-heavy, text, image,
+  bitmap-backed brush, and group fixtures;
+- estimated extra worker memory stays within the low-end budget;
+- background/foreground, WebView pause/resume, rotation, and document switch
+  release or rebuild all worker-owned resources correctly.
+
+Keep the query/storage kill switch for field rollback. Report the effective
+mode as `worker`, `worker-degraded`, or `local-safe`, not only the requested
+backend.
+
+### W8 — optional raster pool, after the single-worker gates pass
+
+This is where a multi-worker architecture may help. It is intentionally last.
+
+The pool is **not** multiple full bakery mirrors:
+
+- The coordinator alone owns complete JSON, bounds, z-order, and the index.
+- A raster worker receives a resolved tile job plus only missing/revised object
+  payloads for that job.
+- Each raster worker has a small LRU of enlivened Fabric objects and no
+  whole-scene JSON store.
+- Main creates workers and `MessageChannel`s for broad WebView compatibility,
+  then the coordinator schedules directly through the transferred ports. Main
+  does not route each tile.
+- Assets have explicit ownership. Do not duplicate large bitmaps across workers
+  unless the asset budget says both copies fit.
+
+Additional-worker policy:
+
+```text
+low-end Android                 0 additional (one fused worker total)
+unknown deviceMemory           0 additional
+mobile, >= 6 cores and >= 6 GB start at 0; trial 1 after settle
+desktop                         max 1 additional initially
+```
+
+An additional worker is enabled only when:
+
+- worker `raster` dominates end-to-end time;
+- coordinator queue wait is sustained;
+- main-thread metrics are already healthy;
+- bitmap credits are not saturated;
+- memory pressure is below 70%;
+- a short two-worker trial improves freshness without worsening frame time.
+
+It is removed again on memory pressure, backgrounding, repeated cancellation,
+slower throughput, or higher frame time. The coordinator's built-in raster lane
+remains. Pool changes occur only between bake passes.
+
+Do not build a second additional raster worker until device results show the
+first one scaling without GPU or memory regressions.
+
+### Planned module shape
+
+```text
+rendering/bakery/
+  index.ts                         public main-thread API
+  client/
+    renderWorkerClient.ts          lifecycle, requests, result ownership
+    sceneDeltaEncoder.ts           Fabric event → versioned scene deltas
+    bitmapCredits.ts               result backpressure
+    workerHealth.ts                mode transitions and circuit breaker
+  protocol/
+    messages.ts
+    revisions.ts
+    validation.ts
+  coordinator/
+    sceneMirror.ts                 compact JSON + object revisions
+    workerSpatialIndex.ts
+    renderQueue.ts
+    overviewJobs.ts
+    rasterPool.ts                  introduced only in W8
+  raster/
+    fabricRegistry.ts
+    hotObjectCache.ts
+    tileRasterizer.ts
+    assetStore.ts
+workers/
+  renderCoordinator.worker.ts
+  tileRaster.worker.ts             introduced only in W8
+```
+
+`tileBakeryClient.ts` and `tileBakery.worker.ts` remain as adapters during the
+transition, then disappear. `CommittedLayer` continues to consume a small
+`RemoteBaker` interface and does not learn worker protocol details.
+
+### Rollout and rollback
+
+Every W-step is separately flaggable:
+
+```text
+workerProtocolV2
+workerSceneIndex
+workerSafeBackpressure
+workerOverviewPatches
+workerExpandedAssets
+workerBitmapAdmission
+workerRasterPool
+```
+
+Roll forward in this order: internal dev → benchmark route → selected Android
+test devices → small Android cohort → all Android → desktop. A flag may only
+advance when the previous stage has enough exported reports to satisfy its
+gate.
+
+Rollback never discards the drawing scene. Tear down worker resources, keep the
+committed tiles already owned by main, mark stale regions for safe local mode,
+and preserve the canonical Fabric scene.
 
 ---
 
@@ -786,9 +1392,8 @@ lookup in `objects/indexing/`.
 | `drawObjectManager.ts` | 1263 | `objects/indexing/spatialIndex.ts` · `zIndex.ts` · `canvas/fabricEventBridge.ts` · `input/gestureController.ts` · `rendering/liveObjectRenderer.ts` |
 | `tileBakeryClient.ts` | 1227 | `rendering/bakery/protocol.ts` · `health.ts` · `assets.ts` |
 
-Ordering rule: **do this after Phase 1 lands and before Phase 3.** Phase 3
-rewrites the bake path; doing it inside a 1400-line file is how the previous 21
-reviews each found a bug in a seam nobody could see.
+This was completed before the Phase 3 rewrite. The worker work must preserve
+these subsystem boundaries rather than growing a new coordinator god-module.
 
 ---
 
@@ -872,14 +1477,20 @@ cohort.
 
 ## Suggested order of work
 
-1. **Phase 1** (A1–A5, Z1, Z2) — the visible artifacts. Small, contained,
-   individually revertable.
-2. **Phase 5 Tier A** (B1–B3a) — before touching the bake path again, so Phase 3
-   is measured rather than reasoned about.
-3. **Phase 4** — split the modules while behaviour is stable and tested.
-4. **Phase 3** (W2, W3) — the worker's remaining structural cost.
-5. **Phase 2** (O1, then maybe O2) — re-measure first; Z2 may have absorbed it.
-6. **W4 revisit** — only if the bench says raster, not the prologue, dominates.
+Phases 1, 2, 4, and the Phase 5 benchmark foundation are complete. Continue in
+small, separately measurable Phase 3 iterations:
+
+1. **W0** — add attribution and capture the Android main/worker baseline.
+2. **W1** — introduce versioned scene commits behind the existing adapter.
+3. **W2** — move lookup, z-order, classification, and pass scheduling into one
+   coordinator worker.
+4. **W3** — remove interaction-time local fallback and add bitmap credits.
+5. **W4** — move overview patch rendering into the coordinator.
+6. **W5** — remove common refusal reasons in measured order.
+7. **W6** — admit new GPU textures over multiple frames.
+8. **W7** — make the proven single-worker backend the Android default.
+9. **W8** — trial a second raster worker only on devices and scenes where
+   worker raster time is still the measured bottleneck.
 
 ---
 
@@ -980,3 +1591,226 @@ Append these to `DRAW_ENGINE.md`'s invariant list when Phase 1 lands:
     the state at capture time. Anything undone since (everything on the redo
     stack) must be re-subtracted before the object goes back on the canvas —
     otherwise restoring it silently re-applies an edit the user already undid.
+
+---
+
+## Regression pass — blur/shift and seams came back (2026-07-31)
+
+Reported after the worker + refactor work, on BOTH backends: the edit blur is
+back, the zoom step to the overview is too big, and white seams now survive
+*after* a bake. The A-series mitigations were all still wired (`usable`,
+partial overlays, hole-punched cross-tier fallback, coverage partition, stamp
+ordering) — these are four new causes, three of them introduced by the erase
+work.
+
+### R1 — the sub-rect repair cut objects mid-pixel ✅ fixed
+
+EP1's `repairTileRegionSync` clears a region and redraws it **clipped**, leaving
+the pixels outside untouched. With a fractional boundary, the boundary pixel
+gets partial coverage from the clip's antialiasing where the old bitmap had full
+coverage — a permanently lighter 1px line through the tile, and because the tile
+is stored **fresh**, no later composite or bake ever repaints it. That is
+"seams still there after baking", and it did not exist before EP1.
+
+The sub-rect is now snapped to whole TILE pixels (`px = OS + (world - origin) *
+scale`, floor/ceil, expanded outward), so the clip edge is pixel-exact: a pixel
+is either fully repainted or fully untouched.
+
+### R2 — one dirty rect per tile grew until the tile was useless ✅ fixed
+
+`dirtyRects` stored a single union per tile. A coarse tile covers a huge world
+area, so two edits in different corners unioned into a rect spanning it, and
+`fallbackHole` then reported the whole tile untrusted — the cross-tier ladder
+collapsed and every uncovered cell fell to the whole-board overview. It
+**degrades as a session goes on**, which is exactly how the report reads
+("problems returned").
+
+Now a bounded list (`MAX_DIRTY_RECTS` 6): overlapping edits merge, disjoint ones
+stay separate, and past the cap they collapse to one union as before.
+`fallbackHole` takes the WORLD REGION the source is about to paint and unions
+only the records intersecting it — so a coarse tile edited far away is now
+**fully trusted** for this cell instead of being discarded. Callers whose target
+is the whole tile (the active-tier overlay, and the repair, which must cover
+everything owed) use `unionDirtyRects`.
+
+### R3 — the overview was stretched, not just coarse ✅ fixed
+
+A4 snapped the overview's DESTINATION rect outward to kill the antialiased edge,
+but left the source rect alone — stretching the bitmap by up to a device pixel
+across the region. Overview content therefore sits slightly off from the tiles
+around it, and at high zoom "slightly" is many pixels: the picture does not just
+soften, it **jumps**. That is the "blurry AND moves" half of report #1.
+
+The source rect now grows by the same amount, so world→device stays identical to
+the tile path and only the coverage grows.
+
+### R4 — synchronous repair was budgeted in tiles, not work ✅ fixed
+
+`rebuildRectSync` stopped after `maxTiles` regardless of what each tile cost.
+After EP1 most repairs are thin-trail repaints costing a fraction of a rebuild,
+so the cap left an edit's footprint only partly repaired — and the unrepaired
+part is precisely what drops to a coarser tier or the overview for a beat.
+Budget is now in cost units (`FULL_REBUILD_COST` 4 : repair 1), so a small edit
+is repaired across its whole visible footprint while a dense region still stops
+after ~`maxTiles` real rebuilds.
+
+### Invariants added
+
+23. **A partial repaint must land on whole pixels.** Clearing and redrawing a
+    fractional sub-rect antialiases against pixels that were already correct,
+    and marking the tile fresh makes that line permanent. Snap to the tile's own
+    pixel grid, expanding outward.
+24. **Never union invalidated regions that do not touch.** One rect per tile
+    looks equivalent and silently converts "two small edits" into "this whole
+    tile is wrong" — worst on coarse tiers, and it accumulates over a session.
+25. **Snapping a destination rect means snapping its source too.** Growing only
+    the destination rescales the image and shifts its content relative to
+    everything drawn from the same world coordinates.
+
+### R5 — the overview was the FIRST fallback for an edit hole, not the last ✅ fixed
+
+Follow-up question, and it is the right one: *is using the world overview as a
+transition not itself the problem?* Yes — for an EDIT it is. Two different jobs
+were being conflated:
+
+| Job | Verdict |
+| --- | --- |
+| Never-blank base: first paint, panning into never-baked space, a tier with no data at any level | **Correct.** Something must be on screen, and nothing else exists. |
+| Transitional cover for the region an edit just invalidated | **Wrong.** The pixels for that region are cheap to produce and a far better source usually already exists. |
+
+The compositor had the right structure — stale tile outside the changed
+sub-rect, cover inside it — but the cover was hard-wired to the overview, i.e. a
+single bitmap of the ENTIRE board upscaled to that patch. On any large drawing
+that is a drastic quality drop for a region a coarser TILE describes almost
+exactly.
+
+`holeFiller` now looks for a coarser tile of the same region first, and the
+overview only gets what neither the stale tile nor the filler claimed. The
+partition invariant (17) is preserved by a new `keep` rect on `Draw`: the stale
+tile paints `cell − hole`, the filler paints `hole − its own hole`, the overview
+paints the remainder. No pixel is painted twice, so semi-transparent strokes keep
+their alpha.
+
+Coarser-only on purpose: `finerDraws` returns several fragments and intersecting
+each with the hole for a partition guarantee is not worth it for the rarer
+zoomed-out case.
+
+**What is left, honestly:** an edit whose region has no baked tile at ANY tier
+still shows the overview, and a coarser tile is still softer than the active
+tier — that step is real, just far smaller. Removing it entirely means having
+the correct pixels sooner, which is the bake-latency work (worker plan), not
+more compositing tricks.
+
+26. **The overview is a LAST resort, never a transition.** If any tile at any
+    tier describes the region, use it — the overview is the whole board in one
+    bitmap and is the single biggest quality cliff in the engine. Reach for it
+    only when nothing else covers the pixels at all.
+
+### R6 — `mutating` cancelled the repair instead of deferring it ✅ fixed
+
+The actual reason the blur survived every compositing fix.
+
+`mutating` makes the engine skip synchronous repair and overview patches —
+correct mid-burst, where the scene is half-applied and rendering it would
+rasterize a torn state. But both burst owners flushed their batch *inside* the
+window:
+
+```ts
+mgr.endBatch();        // ← the one settled point where repair must run
+mgr.setMutating(false);
+```
+
+`endBatch` is what calls `invalidateRegions`, so the repair was gated off at the
+exact moment it was needed, on **every undo, redo, move and erase-undo**. The
+region then had nothing but a fallback until the async bake landed — which is
+precisely the "low-res version pops up" report, and no amount of compositing work
+could fix it because the correct pixels were never produced in time.
+
+Both owners now close the mutation first (`closeHistoryBurst`,
+`finalizeCleanup`). Closing costs nothing: `setMutating(false)` only requests a
+frame (RAF) and schedules a debounced bake, both of which land after the
+synchronous `endBatch`.
+
+Guarded by `repairs the edit once the mutation has closed`, next to the existing
+test asserting repair stays off DURING the mutation — the two together pin the
+rule.
+
+### R7 — the hole filler could paint pre-edit pixels ✅ fixed
+
+New symptom from R5: moving an object made it **flash** for a frame. The filler
+accepted any source `coarserDraw` would return, including tiles that are stale
+but "trusted outside their own hole". Inside a hole that is exactly wrong: the
+hole is where content changed, so an older source paints the object at its
+previous position for one frame. A flash is worse than the blur it replaced.
+
+Hole fillers are now **strictly fresh**: `coarserDraw(..., requireFresh)` rejects
+anything whose generation is behind or that has any recorded dirty region.
+Outside a hole, stale-but-trusted remains fine — it is merely older, not wrong.
+
+### R8 — synchronous repair stopped on tile count, not time ✅ fixed
+
+A long stroke at high zoom crosses far more tiles than the cap, so everything
+past it dropped to a fallback for a beat. Repairs are cheap now, so the honest
+bound is a slice of a frame: `REPAIR_BUDGET_MS` (6 ms) alongside the existing
+cost ceiling. Small and medium edits now get their whole visible footprint
+repaired before the next paint and never show a fallback at all.
+
+27. **A suspend flag must defer work, not drop it.** `mutating`, `gesturing`,
+    `erasing` all skip work that would otherwise run — every one of them needs a
+    matching resume that performs it. Two seams have now shipped where the
+    suspend had no resume (A2's stamp, R6's repair); when adding a gate, name the
+    line that runs the deferred work.
+28. **Inside a hole, only fresh sources.** Outside a changed region a stale tile
+    is older but correct; inside it, it is a ghost of what the edit removed.
+
+### R9 — mobile drag start exposed the repair budget ✅ fixed
+
+The transform controller used to mark every tile under the selection dirty and
+then synchronously reconstruct the vacated pixels. That reconstruction stops
+after a 6 ms wall-clock slice. Desktop commonly finished a small footprint;
+Android WebView commonly did not, leaving the changed part of the tile on a
+coarse fallback for the whole drag. An unfinished tile could also retain the
+stroke at its old position while the CSS drag copy moved away.
+
+Selection idle time now prepares a second bitmap containing the old footprint
+without the selected objects. At drag start this fixed background patch is
+revealed below the moving selection bitmap, while the original full-resolution
+tiles remain usable and rebake asynchronously. Both CSS layers stay until the
+old and new tile regions are ready, including when their footprints overlap.
+An isolated stroke over plain canvas gets a zero-render 1px transparent patch,
+so its first drag does not depend on idle prewarming.
+
+The handoff must not have a time limit. The first implementation still tried to
+stamp the new position into tiles after marking the old position stale; when
+the two positions shared a tile, the stamp correctly refused it. A 1-second
+safety timeout then hid both exact layers anyway and exposed the overview.
+Prepared-background transforms now retain the new footprint too, skip that
+incompatible stamp, and remove both layers only after both active-tier regions
+report ready (or the viewport zoom changes and invalidates their coordinates).
+
+Cold preparation is also explicit now. If an overlapping selection is grabbed
+before its background worker result arrives, the committed drawing is left
+untouched instead of entering the 6 ms destructive-repair fallback. The
+selection catches up to the pointer when its exact cover is ready, and a quick
+release waits for the same promise before committing. Only a real render failure
+uses the bounded compatibility repair; device timing alone can no longer select
+the blurry path.
+
+29. **Interaction quality cannot depend on finishing optional work inside a
+    frame budget.** A budget may cap latency, but anything it does not finish
+    needs an exact visual cover—not an overview fallback the user can see.
+
+### R10 — undoing an add exposed the overview ✅ fixed
+
+Removing an object through history used the destructive invalidation path. That
+made its full-resolution tiles unusable immediately, so undo briefly displayed
+the world overview while object-free tiles baked.
+
+History removals now use an atomic tile handoff: any live overlay is removed at
+once, the previous sharp committed tile stays visible, and it is replaced only
+when the new object-free tile is ready. Batched removals retain their individual
+footprints and still schedule one coalesced bake.
+
+30. **A settled history state should replace the previous state atomically.**
+    If the replacement cannot be produced synchronously, keep an exact cover;
+    never expose the overview as a transition frame.

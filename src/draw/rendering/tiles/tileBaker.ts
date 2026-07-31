@@ -1,7 +1,12 @@
-import { recordPhase } from "@/draw/rendering/renderMetrics";
+import {
+	recordLocalFallback,
+	recordPhase,
+	recordWorkerDeferral,
+} from "@/draw/rendering/renderMetrics";
 import { TileCompositor } from "./tileCompositor";
 import {
 	type Bounded,
+	isRemoteBakeFailure,
 	type RemoteBakeResult,
 	type Yieldable,
 	type WorldRect,
@@ -9,13 +14,21 @@ import {
 	MAX_SYNC_OVERLAY_OBJECTS,
 } from "./tileLayerBase";
 
+/** Relative cost of a full tile rebuild vs a sub-rect repair. Used to budget
+ *  synchronous repair by work rather than by tile count. */
+const FULL_REBUILD_COST = 4;
+
+/** Wall-clock slice a synchronous repair may spend. Sized to fit inside one
+ *  frame alongside the composite that follows it. */
+const REPAIR_BUDGET_MS = 6;
+
 export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 	// ── baking ───────────────────────────────────────────────────────────────
 	async bake(
 		vpt: number[],
 		px: { w: number; h: number },
 		dpr: number,
-		makeYielder: () => Yieldable,
+		makeYielder: (label?: string) => Yieldable,
 		signal: AbortSignal,
 		contentBounds: WorldRect | null,
 		/** Called after each tile is stored so the caller can composite the partial
@@ -29,7 +42,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		if (tier <= this.OVERVIEW_TIER) {
 			await this.overview.rebuildIfNeeded(
 				contentBounds,
-				makeYielder() as any,
+				makeYielder("overview-build") as any,
 				signal,
 			);
 			return;
@@ -74,7 +87,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			// reset() on the same budget timer, so the effective per-lane budget
 			// collapsed to budgetMs / lanes and input-pending checks fought each
 			// other. One timer per chain restores the intended budget.
-			const yielder = makeYielder();
+			const yielder = makeYielder("tile-bake");
 			yielder.reset();
 			while (next < todo.length) {
 				if (signal.aborted) return;
@@ -107,9 +120,26 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			w: world.w + 2 * pad,
 			h: world.h + 2 * pad,
 		};
+		const queryStartedAt = performance.now();
 		const objects = this.index.query(q);
+		if (this.remoteBaker) {
+			// The current spatial index returns an already z-sorted array, so W0
+			// measures the two together. W2 moves both operations into the worker.
+			recordPhase("workerPrepQuerySort", performance.now() - queryStartedAt);
+		}
 		const key = `${tier}:${tx}:${ty}`;
 		const builtGen = this.gen.get(key) ?? 0;
+		let localFallbackReason:
+			| "worker-unavailable"
+			| "backpressure"
+			| "timeout"
+			| "missing"
+			| "refusal"
+			| "z-order"
+			| "hard-error"
+			| "hybrid-overlay-failed"
+			| null = null;
+		let remoteFailureKind: "unsupported" | "failed" | null = null;
 
 		this.inFlight.add(key);
 		try {
@@ -123,14 +153,26 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			if (this.remoteBaker) {
 				let res: RemoteBakeResult<T> | null = null;
 				try {
-					res = await this.remoteBaker(
+					const outcome = await this.remoteBaker(
 						objects,
 						world,
 						scale,
 						this.OS,
 						this.BMP,
 					);
+					if (isRemoteBakeFailure(outcome)) {
+						if (outcome.kind === "deferred") {
+							recordWorkerDeferral(outcome.fallbackReason);
+							return;
+						}
+						localFallbackReason = outcome.fallbackReason;
+						remoteFailureKind = outcome.kind;
+					} else {
+						res = outcome;
+					}
 				} catch {
+					localFallbackReason = "hard-error";
+					remoteFailureKind = "failed";
 					/* worker hiccup → local fallback */
 				}
 				if (signal.aborted) {
@@ -153,10 +195,18 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 						(this.gen.get(key) ?? 0) === builtGen
 					) {
 						const bytes = this.BMP * this.BMP * 4;
-						if (this.ensureMemory(bytes)) {
-							this.store(key, tier, tx, ty, res.bitmap, bytes, builtGen);
+						if (
+							this.commitRemoteBitmap(
+								key,
+								tier,
+								tx,
+								ty,
+								res.bitmap,
+								bytes,
+								builtGen,
+							)
+						)
 							return;
-						}
 					}
 					res?.bitmap.close();
 					return;
@@ -170,6 +220,10 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 					let bmp: ImageBitmap | null = res.bitmap;
 					if (res.skipped.length) {
 						bmp = this.overlaySkipped(res.bitmap, res.skipped, world, scale, q);
+						if (!bmp) {
+							localFallbackReason = "hybrid-overlay-failed";
+							remoteFailureKind = "unsupported";
+						}
 					}
 					if (signal.aborted) {
 						bmp?.close();
@@ -177,14 +231,12 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 					}
 					if (bmp) {
 						const bytes = this.BMP * this.BMP * 4;
-						if (!this.ensureMemory(bytes)) {
+						if (
+							!this.commitRemoteBitmap(key, tier, tx, ty, bmp, bytes, builtGen)
+						) {
 							bmp.close();
 							return;
 						}
-						// Store even if `gen` advanced while we awaited the worker. It is kept
-						// under the ORIGINAL builtGen, so isFresh() stays false and the next
-						// bake repaints it exactly — same contract as stampBitmapRegion.
-						this.store(key, tier, tx, ty, bmp, bytes, builtGen);
 						return;
 					}
 					// overlay failed → fall through to a full local render below.
@@ -192,12 +244,34 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 				// null → refused (interleaved z / all-unshippable) or failed: local below.
 			}
 
+			if (
+				this.remoteBaker &&
+				localFallbackReason &&
+				remoteFailureKind &&
+				!this.isSafeCompatibilityBake(objects)
+			) {
+				recordWorkerDeferral(localFallbackReason);
+				return;
+			}
+
+			if (this.remoteBaker && localFallbackReason) {
+				const admitted = await this.waitForIdle(signal);
+				if (
+					!admitted ||
+					signal.aborted ||
+					(this.gen.get(key) ?? 0) !== builtGen
+				) {
+					recordWorkerDeferral(localFallbackReason);
+					return;
+				}
+			}
+
 			// SUB-RECT REPAIR. If this tile still holds a bitmap and we know exactly
 			// which sub-region an edit invalidated, repaint only that — same trick as
 			// the synchronous path. An erase (or its undo) marks a thin trail dirty,
 			// yet a full local bake re-renders every object in the tile at ~25 ms
 			// each. Only valid when nothing else has already dropped the bitmap.
-			const known = this.dirtyRects.get(key);
+			const known = this.unionDirtyRects(key);
 			if (known && this.tiles.get(key)?.bitmap) {
 				const __tRepair = performance.now();
 				if (this.repairTileRegionSync(tier, tx, ty, known)) {
@@ -211,6 +285,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			// is the single biggest per-object main-thread block in the engine and the
 			// one whose cost tracks brush weight — a watercolor tile is far heavier
 			// than the same tile in pencil.
+			if (localFallbackReason) recordLocalFallback(localFallbackReason);
 			const __tLocal = performance.now();
 			const off = this.acquire();
 			const c2d = off.getContext("2d");
@@ -282,6 +357,58 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		} finally {
 			this.inFlight.delete(key);
 		}
+	}
+
+	/**
+	 * Main-thread compatibility rendering is the last correctness fallback for
+	 * objects the worker cannot represent. Admit only work with a predictable
+	 * upper bound; dense groups, deep erase clips, large paths, and large source
+	 * images keep the overview/stale pixels until worker support catches up.
+	 */
+	private isSafeCompatibilityBake(objects: T[]): boolean {
+		const mobile =
+			typeof navigator !== "undefined" &&
+			/Mobi|Android/i.test(navigator.userAgent);
+		if (objects.length > (mobile ? 4 : 8)) return false;
+
+		const maxChildren = mobile ? 16 : 32;
+		const maxClipChildren = mobile ? 6 : 12;
+		const maxPathPoints = mobile ? 750 : 2_000;
+		const maxSourcePixels = mobile ? 512 * 512 : 1_024 * 1_024;
+
+		for (const object of objects as any[]) {
+			if (object.__hasImageClip) return false;
+			if (
+				Array.isArray(object._objects) &&
+				object._objects.length > maxChildren
+			) {
+				return false;
+			}
+			if (
+				Array.isArray(object.clipPath?._objects) &&
+				object.clipPath._objects.length > maxClipChildren
+			) {
+				return false;
+			}
+			if (Array.isArray(object.path) && object.path.length > maxPathPoints) {
+				return false;
+			}
+
+			const source = object.getElement?.() ?? object.stampCanvas;
+			const sourcePixels = (source?.width ?? 0) * (source?.height ?? 0);
+			if (sourcePixels > maxSourcePixels) return false;
+		}
+		return true;
+	}
+
+	private waitForIdle(signal: AbortSignal): Promise<boolean> {
+		if (signal.aborted) return Promise.resolve(false);
+		return new Promise((resolve) => {
+			const run = () => resolve(!signal.aborted);
+			const requestIdle = (globalThis as any).requestIdleCallback;
+			if (requestIdle) requestIdle(run, { timeout: 1_000 });
+			else setTimeout(run, 32);
+		});
 	}
 
 	/**
@@ -376,15 +503,37 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		const r = this.tileRange(rect, tier);
 		const cr = clip ? this.tileRange(clip, tier) : null;
 		let count = 0;
+		// Budget in COST, not tiles. A sub-rect repair repaints a thin trail and
+		// costs a fraction of a full rebuild, so charging both the same left an
+		// edit's footprint only partly repaired — and the unrepaired part is what
+		// the user sees drop to a coarser tier or the overview for a moment. This
+		// lets a small edit be fixed across its whole visible footprint in one go,
+		// while a dense region still stops after ~`maxTiles` real rebuilds.
+		const budget = maxTiles * FULL_REBUILD_COST;
+		let cost = 0;
 		for (let ty = r.ty0; ty <= r.ty1; ty++) {
 			for (let tx = r.tx0; tx <= r.tx1; tx++) {
 				if (cr && (tx < cr.tx0 || tx > cr.tx1 || ty < cr.ty0 || ty > cr.ty1))
 					continue;
-				if (count >= maxTiles) {
+				// Stop on WORK or on TIME, whichever comes first.
+				//
+				// A count-only cap is what leaves an edit half-repaired: a long
+				// stroke at high zoom crosses far more tiles than the cap, and every
+				// tile past it is what visibly drops to a coarser tier for a beat.
+				// Repairs are cheap now, so the honest bound is a slice of a frame —
+				// small and medium edits then get their whole visible footprint
+				// repaired before the next paint and never show a fallback at all,
+				// while a pathological region still stops on schedule.
+				if (
+					cost >= budget ||
+					(count > 0 && performance.now() - __t0 >= REPAIR_BUDGET_MS)
+				) {
 					recordPhase("rebuildSync", performance.now() - __t0);
 					return count;
 				}
-				this.rebuildTileSync(tier, tx, ty, rect);
+				cost += this.rebuildTileSync(tier, tx, ty, rect)
+					? 1
+					: FULL_REBUILD_COST;
 				count++;
 			}
 		}
@@ -435,10 +584,13 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		//   null      → whole tile is wrong; a sub-rect repair cannot be correct
 		//   undefined → nothing recorded. Fine if the tile is fresh (a forced
 		//               repair), never fine if it is stale for reasons unknown.
-		const owed = this.dirtyRects.get(key);
-		if (owed === null) return false;
+		const recorded = this.dirtyRects.get(key);
+		if (recorded === null) return false;
 		const isFresh = tile.builtGen === (this.gen.get(key) ?? 0);
-		if (owed === undefined && !isFresh) return false;
+		if (recorded === undefined && !isFresh) return false;
+		// The repair marks the tile fresh, so it must cover EVERY recorded region,
+		// not just the ones near the caller's rect.
+		const owed = this.unionDirtyRects(key);
 		if (owed) {
 			const ux = Math.min(owed.x, changed.x);
 			const uy = Math.min(owed.y, changed.y);
@@ -452,11 +604,33 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		// Intersect with the tile's own world rect, padded like a normal bake so
 		// stroke width and antialiasing at the seam are redrawn, never clipped.
 		const pad = this.OS / scale + 4 / scale;
-		const x0 = Math.max(world.x - pad, changed.x - pad);
-		const y0 = Math.max(world.y - pad, changed.y - pad);
-		const x1 = Math.min(world.x + world.w + pad, changed.x + changed.w + pad);
-		const y1 = Math.min(world.y + world.h + pad, changed.y + changed.h + pad);
+		let x0 = Math.max(world.x - pad, changed.x - pad);
+		let y0 = Math.max(world.y - pad, changed.y - pad);
+		let x1 = Math.min(world.x + world.w + pad, changed.x + changed.w + pad);
+		let y1 = Math.min(world.y + world.h + pad, changed.y + changed.h + pad);
 		if (x1 <= x0 || y1 <= y0) return false;
+
+		// SNAP TO WHOLE TILE PIXELS.
+		//
+		// The repair clears this region and redraws it clipped, while the pixels
+		// outside stay as they were. If the boundary falls mid-pixel, that pixel
+		// gets PARTIAL coverage from the clip's antialiasing instead of the full
+		// coverage the old bitmap had — a permanently lighter 1px line straight
+		// through the tile, which survives every later composite because the tile
+		// is stored fresh. That is the "white seams that are still there after
+		// baking". On an integer boundary the clip is pixel-exact: a pixel is
+		// either fully repainted or fully untouched.
+		//
+		// Tile space is `px = OS + (world - tileOrigin) * scale`, so snapping in
+		// px and converting back is what guarantees it. Expanding OUTWARD is safe:
+		// a repainted pixel is redrawn from the objects, never approximated.
+		const toPx = (w: number, origin: number) => this.OS + (w - origin) * scale;
+		const toWorld = (px: number, origin: number) =>
+			origin + (px - this.OS) / scale;
+		x0 = toWorld(Math.floor(toPx(x0, world.x)), world.x);
+		y0 = toWorld(Math.floor(toPx(y0, world.y)), world.y);
+		x1 = toWorld(Math.ceil(toPx(x1, world.x)), world.x);
+		y1 = toWorld(Math.ceil(toPx(y1, world.y)), world.y);
 		const sub: WorldRect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 
 		// Not worth the extra bitmap copy if we would redraw most of the tile.
@@ -515,16 +689,17 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		return true;
 	}
 
+	/** @returns true when the cheap sub-rect repair handled it. */
 	protected rebuildTileSync(
 		tier: number,
 		tx: number,
 		ty: number,
 		changed?: WorldRect,
-	): void {
+	): boolean {
 		// Sub-rect repair first: an erase (or its undo) changes a thin trail, not a
 		// whole tile, and re-rendering every object in the tile was the dominant
 		// `rebuildSync` cost. Falls through to the full rebuild when it declines.
-		if (changed && this.repairTileRegionSync(tier, tx, ty, changed)) return;
+		if (changed && this.repairTileRegionSync(tier, tx, ty, changed)) return true;
 		const scale = this.ZOOM_TIERS[tier];
 		const world = this.tileToWorld(tier, tx, ty);
 		const pad = this.OS / scale + 4 / scale;
@@ -540,14 +715,14 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 
 		if (objects.length === 0) {
 			this.store(key, tier, tx, ty, null, 4, builtGen);
-			return;
+			return false;
 		}
 
 		const off = this.acquire();
 		const c2d = off.getContext("2d");
 		if (!c2d) {
 			this.release(off);
-			return;
+			return false;
 		}
 		c2d.setTransform(1, 0, 0, 1, 0, 0);
 		c2d.clearRect(0, 0, this.BMP, this.BMP);
@@ -572,15 +747,17 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			bmp = off.transferToImageBitmap();
 		} catch {
 			this.release(off);
-			return;
+			return false;
 		}
 		this.release(off);
 		const bytes = this.BMP * this.BMP * 4;
 		if (!this.ensureMemory(bytes)) {
 			bmp.close();
-			return;
+			return false;
 		}
 		this.store(key, tier, tx, ty, bmp, bytes, builtGen);
+
+		return false;
 	}
 
 	/**
@@ -592,6 +769,27 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 	 *   it must NOT be trusted wholesale. Only stamping passes `true` explicitly,
 	 *   because there the pixels are what the user is already looking at.
 	 */
+	private commitRemoteBitmap(
+		key: string,
+		tier: number,
+		tx: number,
+		ty: number,
+		bitmap: ImageBitmap,
+		bytes: number,
+		builtGen: number,
+	): boolean {
+		const startedAt = performance.now();
+		try {
+			if (!this.ensureMemory(bytes)) return false;
+			// Keep a result even if its generation advanced during the round-trip.
+			// It remains non-fresh and its dirty sub-rect records what changed.
+			this.store(key, tier, tx, ty, bitmap, bytes, builtGen);
+			return true;
+		} finally {
+			recordPhase("workerResultCommit", performance.now() - startedAt);
+		}
+	}
+
 	protected store(
 		key: string,
 		tier: number,

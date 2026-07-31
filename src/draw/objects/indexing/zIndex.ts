@@ -112,9 +112,9 @@ export class ExplicitZIndex {
 
 	private setObjectZ(object: FabricObject, z: number): number {
 		this.byId.set(object.id, z);
+		(object as any).__z = z;
 		if (!this.dirty) {
 			this.byObject.set(object, z);
-			(object as any).__z = z;
 		}
 		return z;
 	}

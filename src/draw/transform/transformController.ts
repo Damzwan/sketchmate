@@ -8,6 +8,11 @@ import {
 	isBakeryActive,
 } from "@/draw/rendering/bakery/tileBakeryClient";
 import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
+import {
+	rectangularHoleClipPath,
+	snapRectToDevicePixels,
+} from "@/draw/transform/vacatedLayerMask";
+import { paintVacatedLayer } from "@/draw/transform/vacatedLayerPainter";
 
 interface Refs {
 	left: number;
@@ -86,6 +91,11 @@ const ownedIds = new Set<string>();
 // Reused DOM layers: the fixed background patch sits below the moving bitmap.
 let layerCanvas: HTMLCanvasElement | null = null;
 let vacatedLayerCanvas: HTMLCanvasElement | null = null;
+let maskedLowerCanvas: {
+	element: HTMLCanvasElement;
+	clipPath: string;
+	webkitClipPath: string;
+} | null = null;
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -227,7 +237,6 @@ export function commit(c: Canvas): void {
 	if (s.rafId !== null) cancelAnimationFrame(s.rafId);
 
 	const el = layerCanvas;
-	const vacatedEl = vacatedLayerCanvas;
 
 	if (s.moveHappened) {
 		const mgr = useDrawObjectManager();
@@ -351,7 +360,6 @@ export function commit(c: Canvas): void {
 		recordPhase("selectionTransformStamp", performance.now() - stampStartedAt);
 
 		const elRef = el;
-		const vacatedElRef = vacatedEl;
 		const idsToClear = new Set(ownedIds);
 
 		if (stamped && !hasVacatedPatch) {
@@ -372,7 +380,7 @@ export function commit(c: Canvas): void {
 				const newReady = stamped || mgr.isRegionBaked(newRect);
 				if (currentZoom !== s.baseZoom || (oldReady && newReady)) {
 					if (elRef) elRef.style.display = "none";
-					if (vacatedElRef) vacatedElRef.style.display = "none";
+					hideVacatedLayer();
 					idsToClear.forEach((id) => ownedIds.delete(id));
 					renderControls(c);
 				} else {
@@ -383,7 +391,7 @@ export function commit(c: Canvas): void {
 		}
 	} else {
 		if (el) el.style.display = "none";
-		if (vacatedEl) vacatedEl.style.display = "none";
+		hideVacatedLayer();
 		s.target.setCoords();
 		ownedIds.clear();
 		renderControls(c);
@@ -909,7 +917,7 @@ function beginNew(c: Canvas, target: FabricObject, objs: FabricObject[]): void {
 	placeLayer(c, session);
 	placeVacatedLayer(c, session);
 	if (layerCanvas) layerCanvas.style.display = "none";
-	if (vacatedLayerCanvas) vacatedLayerCanvas.style.display = "none";
+	hideVacatedLayer();
 	if (!session.vacatedBitmap) {
 		const activeSession = session;
 		activeSession.vacatedPromise = prepareVacatedForSession(activeSession);
@@ -930,7 +938,7 @@ function rebaseline(c: Canvas, s: Session): void {
 	s.vacatedBitmap = null;
 	s.vacatedPromise = null;
 	s.oldRegionRetained = false;
-	if (vacatedLayerCanvas) vacatedLayerCanvas.style.display = "none";
+	hideVacatedLayer();
 	s.origin = baked.origin;
 	s.refs = {
 		left: t.left ?? 0,
@@ -972,8 +980,10 @@ function ensureLayer(c: Canvas): HTMLCanvasElement {
 
 function ensureVacatedLayer(c: Canvas): HTMLCanvasElement {
 	const wrapper = (c as any).wrapperEl as HTMLElement;
-	const moving = ensureLayer(c);
+	const lower = c.lowerCanvasEl;
+	ensureLayer(c);
 	if (vacatedLayerCanvas && vacatedLayerCanvas.parentElement === wrapper) {
+		wrapper.insertBefore(vacatedLayerCanvas, lower);
 		return vacatedLayerCanvas;
 	}
 
@@ -986,7 +996,7 @@ function ensureVacatedLayer(c: Canvas): HTMLCanvasElement {
 		pointerEvents: "none",
 		display: "none",
 	} as Partial<CSSStyleDeclaration>);
-	wrapper.insertBefore(el, moving);
+	wrapper.insertBefore(el, lower);
 	vacatedLayerCanvas = el;
 	return el;
 }
@@ -1003,8 +1013,12 @@ function placeVacatedLayer(c: Canvas, s: Session): void {
 	}
 	const ctx = el.getContext("2d");
 	if (ctx) {
-		ctx.clearRect(0, 0, el.width, el.height);
-		ctx.drawImage(s.vacatedBitmap, 0, 0);
+		paintVacatedLayer(
+			ctx,
+			{ width: el.width, height: el.height },
+			String(c.backgroundColor ?? "transparent"),
+			s.vacatedBitmap,
+		);
 	}
 
 	const vpt = c.viewportTransform!;
@@ -1013,21 +1027,68 @@ function placeVacatedLayer(c: Canvas, s: Session): void {
 	el.style.top = `${s.origin.top * zoom + vpt[5]}px`;
 	el.style.width = `${s.origin.width * zoom}px`;
 	el.style.height = `${s.origin.height * zoom}px`;
-	el.style.backgroundColor = String(c.backgroundColor ?? "transparent");
+	// A CSS background takes a different alpha-compositing path than the lower
+	// canvas. The background is already rasterized above, just like a composite.
+	el.style.backgroundColor = "transparent";
 }
 
-function showVacatedLayer(): void {
+function showVacatedLayer(s: Session): void {
 	// beginNew already copied and positioned the bitmap. Do not draw from the
 	// source again here: a remote edit may have invalidated and closed the cache
 	// between pointer-down and the first movement frame.
+	maskCommittedCanvas(s);
 	if (vacatedLayerCanvas) vacatedLayerCanvas.style.display = "block";
+}
+
+function maskCommittedCanvas(s: Session): void {
+	const lower = s.canvas.lowerCanvasEl;
+	const vpt = s.canvas.viewportTransform!;
+	const zoom = vpt[0];
+	const hole = snapRectToDevicePixels(
+		{
+			left: s.origin.left * zoom + vpt[4],
+			top: s.origin.top * zoom + vpt[5],
+			width: s.origin.width * zoom,
+			height: s.origin.height * zoom,
+		},
+		getRenderDpr(),
+	);
+	const clipPath = rectangularHoleClipPath(
+		{ width: s.canvas.getWidth(), height: s.canvas.getHeight() },
+		hole,
+	);
+	if (!clipPath) return;
+
+	if (maskedLowerCanvas?.element !== lower) clearCommittedCanvasMask();
+	if (!maskedLowerCanvas) {
+		maskedLowerCanvas = {
+			element: lower,
+			clipPath: lower.style.clipPath,
+			webkitClipPath: lower.style.webkitClipPath,
+		};
+	}
+	lower.style.clipPath = clipPath;
+	lower.style.webkitClipPath = clipPath;
+}
+
+function hideVacatedLayer(): void {
+	if (vacatedLayerCanvas) vacatedLayerCanvas.style.display = "none";
+	clearCommittedCanvasMask();
+}
+
+function clearCommittedCanvasMask(): void {
+	if (!maskedLowerCanvas) return;
+	const { element, clipPath, webkitClipPath } = maskedLowerCanvas;
+	element.style.clipPath = clipPath;
+	element.style.webkitClipPath = webkitClipPath;
+	maskedLowerCanvas = null;
 }
 
 function activatePreparedCover(s: Session, mgr = useDrawObjectManager()): void {
 	if (!s.vacatedBitmap || s.oldRegionRetained) return;
 	s.oldRegionRetained = true;
 	mgr.retainRegionsUntilRebaked([sessionOriginRect(s)]);
-	showVacatedLayer();
+	showVacatedLayer(s);
 	const moving = ensureLayer(s.canvas);
 	moving.style.display = "block";
 	applyTransform(s);

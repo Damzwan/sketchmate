@@ -1834,3 +1834,23 @@ attach that deletion to the wrong history action.
 31. **Cleanup optimizations require positive proof.** Rendering failure,
     insufficient resolution, or an unsupported object means “keep”, never
     “delete”.
+
+### R12 — translucent backgrounds tinted the drag cover ✅ fixed
+
+The vacated-footprint canvas used to sit above the committed canvas and paint
+the board background over it. That works only for opaque colors. With alpha,
+the same background was composited an additional time inside the patch, making
+its rectangle visibly darker or differently colored.
+
+The patch now sits behind the committed canvas. During the handoff, a temporary
+CSS clip cuts its exact rectangle out of the committed canvas, so the patch
+replaces those pixels instead of blending over them. The patch also rasterizes
+the board background before its object bitmap, matching the committed canvas'
+paint order. A CSS background looked equivalent but produced a softly tinted
+rectangle when alpha was below 100%. The clip boundary is snapped to physical
+device pixels; fractional CSS-pixel edges otherwise anti-alias into two faint
+vertical seams. The clip is restored together with the patch when sharp tiles
+land.
+
+32. **Exact covers must replace pixels, not blend over them.** Overlaying a
+    supposedly equivalent translucent color changes the result by definition.

@@ -208,7 +208,10 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 			gestureTarget.set("angle", newAngle);
 			gestureTarget.setCoords();
 
-			if (transform.isActive()) transform.schedule();
+			if (transform.isActive()) {
+				transform.markMoved();
+				transform.schedule();
+			}
 		});
 	}
 
@@ -244,8 +247,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 						scaleY: obj.scaleY,
 						angle: obj.angle,
 					};
-
-					transform.markMoved();
 
 					if (!transform.isActive()) {
 						transform.beginOrContinue(c, obj);
@@ -317,7 +318,6 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 		onRotate: (delta) => {
 			if (!isActiveObjectGesture || !gestureTarget) return;
 			totalObjectAngleDelta += delta;
-			transform.markMoved();
 			scheduleObjectUpdate();
 		},
 

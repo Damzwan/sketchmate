@@ -285,8 +285,14 @@ export function overrideTransform(canvas: Canvas) {
 		this._currentTransform.altKey =
 			!!this.centeredKey && (e as any)[this.centeredKey];
 
-		transform.markMoved();
 		this._performTransformAction(e, this._currentTransform, local);
+
+		if (this._currentTransform.actionPerformed) {
+			// Render the drag layer and controls only after Fabric has applied the
+			// new transform. Rendering first leaves one frame of controls at the
+			// selection's original position.
+			transform.markMoved();
+		}
 
 		if (this._currentTransform.actionPerformed && transform.isActive()) {
 			transform.schedule();

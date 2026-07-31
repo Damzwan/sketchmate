@@ -48,13 +48,13 @@ function settle(reqId: number, value: boolean) {
 }
 
 worker.onmessage = (e) => {
-	const { reqId, survivors, error } = e.data;
+	const { reqId, fullyErased, error } = e.data;
 	if (error) {
 		console.error("Erasure Worker Error:", error);
 		settle(reqId, false);
 		return;
 	}
-	settle(reqId, survivors < 20);
+	settle(reqId, fullyErased === true);
 };
 
 worker.onerror = () => {

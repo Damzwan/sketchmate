@@ -1814,3 +1814,23 @@ footprints and still schedule one coalesced bake.
 30. **A settled history state should replace the previous state atomically.**
     If the replacement cannot be produced synchronously, keep an exact cover;
     never expose the overview as a transition frame.
+
+### R11 — fully-erased cleanup deleted visible objects ✅ fixed
+
+The deferred cleanup treated fewer than 20 surviving pixels in a half-scale
+worker render as complete erasure. That threshold was unsafe for small strokes,
+thin remnants, and anti-aliased edges; a zero-sized render was also accepted as
+empty.
+
+The coarse render is now rejection-only. Deletion requires a bounded precise
+render whose remainder is faint, absolutely tiny, and below 0.5% of the
+unerased object's alpha coverage. A second render with erasing disabled proves
+the worker can render the original object. Small objects are checked at up to
+4× resolution, while oversized, strongly opaque, or uncertain cases are kept.
+Candidates are also pinned to their post-stroke mutation revision. A delayed
+job from an older stroke cannot inspect a state created by newer strokes or
+attach that deletion to the wrong history action.
+
+31. **Cleanup optimizations require positive proof.** Rendering failure,
+    insufficient resolution, or an unsupported object means “keep”, never
+    “delete”.

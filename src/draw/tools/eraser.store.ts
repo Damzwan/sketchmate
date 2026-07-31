@@ -39,7 +39,7 @@ interface Eraser extends ToolService {
 }
 
 interface CleanupJob {
-	targets: FabricObject[];
+	targets: Array<{ object: FabricObject; revision: number }>;
 	cursor: number;
 	deleted: Array<{ object: FabricObject; json: any; revision: number }>;
 	path: Path;
@@ -141,7 +141,10 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 	function enqueueErasedCheck(targets: FabricObject[], path: Path) {
 		if (!targets.length) return;
 		cleanupQueue.push({
-			targets: targets.slice(),
+			targets: targets.map((object) => ({
+				object,
+				revision: objectMutationRevision(object),
+			})),
 			cursor: 0,
 			deleted: [],
 			path,
@@ -211,8 +214,12 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 						cleanupQueue.length = 0;
 						return;
 					}
-					const obj = job.targets[job.cursor++];
+					const candidate = job.targets[job.cursor++];
+					const obj = candidate.object;
 					if (!objectStillPresent(obj)) continue;
+					// An older stroke must never analyze the state produced by newer
+					// strokes. The newer cleanup job owns that revision and its history.
+					if (objectMutationRevision(obj) !== candidate.revision) continue;
 
 					try {
 						const dispatchStartedAt = performance.now();
@@ -222,7 +229,10 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 							performance.now() - dispatchStartedAt,
 						);
 						const analysis = await result;
-						if (analysis.fullyErased) {
+						if (
+							analysis.fullyErased &&
+							analysis.objectRevision === candidate.revision
+						) {
 							job.deleted.push({
 								object: obj,
 								json: analysis.objectJSON,

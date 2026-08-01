@@ -34,13 +34,34 @@ describe("vacated layer mask", () => {
 });
 
 describe("snapRectToDevicePixels", () => {
-	it("snaps every edge to the render pixel grid", () => {
+	it("snaps every edge INWARD onto the render pixel grid", () => {
+		// Inward, never outward: the rect is a hole, and a hole wider than the
+		// pixels painted behind it shows bare background as a seam.
 		expect(
 			snapRectToDevicePixels(
 				{ left: 10.24, top: 20.26, width: 30.37, height: 40.38 },
 				2,
 			),
-		).toEqual({ left: 10, top: 20.5, width: 30.5, height: 40 });
+		).toEqual({ left: 10.5, top: 20.5, width: 30, height: 40 });
+	});
+
+	it("never grows the rectangle it was given", () => {
+		const dpr = 3;
+		for (const rect of [
+			{ left: 0.9, top: 0.1, width: 10.9, height: 10.1 },
+			{ left: 5.5, top: 5.5, width: 20.5, height: 20.5 },
+			{ left: 12.34, top: 56.78, width: 90.12, height: 34.56 },
+		]) {
+			const snapped = snapRectToDevicePixels(rect, dpr);
+			expect(snapped.left).toBeGreaterThanOrEqual(rect.left);
+			expect(snapped.top).toBeGreaterThanOrEqual(rect.top);
+			expect(snapped.left + snapped.width).toBeLessThanOrEqual(
+				rect.left + rect.width,
+			);
+			expect(snapped.top + snapped.height).toBeLessThanOrEqual(
+				rect.top + rect.height,
+			);
+		}
 	});
 
 	it("leaves the rectangle alone when DPR is invalid", () => {

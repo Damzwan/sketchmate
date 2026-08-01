@@ -69,12 +69,12 @@
           :aria-label="layer.visible ? 'Hide layer' : 'Show layer'"
           @click="layers.setVisible(layer.id, !layer.visible)"
         />
-        <ToolButton
-          :icon="svg(layer.locked ? mdiLockOutline : mdiLockOpenVariantOutline)"
-          :icon-class="layer.locked ? 'text-black' : 'text-black/40'"
-          :aria-label="layer.locked ? 'Unlock layer' : 'Lock layer'"
-          @click="layers.setLocked(layer.id, !layer.locked)"
-        />
+<!--        <ToolButton-->
+<!--          :icon="svg(layer.locked ? mdiLockOutline : mdiLockOpenVariantOutline)"-->
+<!--          :icon-class="layer.locked ? 'text-black' : 'text-black/40'"-->
+<!--          :aria-label="layer.locked ? 'Unlock layer' : 'Lock layer'"-->
+<!--          @click="layers.setLocked(layer.id, !layer.locked)"-->
+<!--        />-->
 
         <!-- Structural controls only on the row you are editing: six 40px
              buttons per row does not fit a phone. -->
@@ -117,6 +117,7 @@
             expand="block"
             class="flex-1"
             color="secondary"
+            shape="round"
             :disabled="!canAddLayer"
             @click="add"
           >
@@ -128,6 +129,7 @@
             class="flex-1"
             color="danger"
             fill="outline"
+            shape="round"
             :disabled="!canDeleteLayer"
             @click="remove"
           >

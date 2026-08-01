@@ -1,6 +1,10 @@
 import type { Bounded, WorldRect } from "../committedLayer";
 import type { LiveMode } from "../liveLayer";
-import { MAX_SYNC_REPAIR_TILES } from "./renderEngineBase";
+import {
+	DISCRETE_REPAIR_BUDGET_MS,
+	DISCRETE_REPAIR_TILES,
+	MAX_SYNC_REPAIR_TILES,
+} from "./renderEngineBase";
 import { RenderBakeCoordinator } from "./renderBakeCoordinator";
 
 export abstract class RenderInvalidationCoordinator<
@@ -301,25 +305,33 @@ export abstract class RenderInvalidationCoordinator<
 					this.surface.getDpr(),
 				)
 			: null;
-		let repairBudget = MAX_SYNC_REPAIR_TILES;
+		// Budgeted by TIME, not by tile count. A six-tile cap was exhausted by any
+		// stroke longer than a few tiles, and everything past it dropped to the
+		// overview until the async bake landed — the blur after an undo/redo. The
+		// work is bounded anyway: repairs are clipped to `vw`, so at worst this
+		// repaints one screenful, and each repair is a sub-rect repaint of the
+		// edit's own footprint rather than a whole tile.
+		const deadline = performance.now() + DISCRETE_REPAIR_BUDGET_MS;
+		let unrepaired = false;
 
 		for (const rect of merged) {
 			this.growContentBounds(rect);
 			this.committed.markDirty(rect);
 			const inView = this.intersectsView(rect);
-			if (vw && inView && repairBudget > 0) {
-				repairBudget -= this.committed.rebuildRectSync(
-					rect,
-					tier,
-					vw,
-					repairBudget,
-				);
+			if (vw && inView) {
+				if (performance.now() < deadline) {
+					this.committed.rebuildRectSync(rect, tier, vw, DISCRETE_REPAIR_TILES);
+				} else {
+					unrepaired = true;
+				}
 			}
 			this.patchOverview(rect);
 			if (inView) anyInView = true;
 		}
 		if (anyInView) this.requestFrame();
-		this.scheduleBake();
+		// Whatever the repair could not reach is showing a fallback right now, so
+		// it has nothing to gain from waiting out the coalescing debounce.
+		this.scheduleBake(unrepaired);
 	}
 
 	/**
@@ -503,7 +515,21 @@ export abstract class RenderInvalidationCoordinator<
 				this.surface.getSize(),
 				this.surface.getDpr(),
 			);
-			this.committed.rebuildRectSync(rect, tier, vw, MAX_SYNC_REPAIR_TILES);
+			// One discrete edit (an erase that had to fall back to re-rendering, a
+			// history repair): repair its whole VISIBLE footprint. The tile cap is
+			// a backstop — `rebuildRectSync` stops on its own wall-clock slice, and
+			// the rect is clipped to the viewport. A six-tile cap here left the far
+			// end of any long stroke on the overview.
+			const repaired = this.committed.rebuildRectSync(
+				rect,
+				tier,
+				vw,
+				DISCRETE_REPAIR_TILES,
+			);
+			this.patchOverview(rect);
+			this.requestFrame();
+			this.scheduleBake(repaired === 0);
+			return;
 		}
 		this.patchOverview(rect);
 		this.requestFrame();

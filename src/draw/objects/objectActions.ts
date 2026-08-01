@@ -286,6 +286,15 @@ export function mergeHelper(
 		id: groupId,
 	} as any);
 
+	// Entering a group rewrites each child's transform into the group's plane but
+	// leaves its cached `aCoords` in the world plane (fabric only refreshes nested
+	// coords when `subTargetCheck` is on). Anything that measures a child after
+	// this — the tile renderer's per-child cull above all — then gets a rect
+	// offset by the group's centre. Refresh once here; the renderer also guards
+	// itself, since groups arrive from history and sync too.
+	group.setCoords();
+	group.forEachObject((obj) => obj.setCoords());
+
 	objects.forEach((obj) => canvas.remove(obj));
 
 	const targetIndex = Math.max(0, highestIndex - objects.length + 1);

@@ -10,14 +10,32 @@ interface Rect {
 	height: number;
 }
 
-/** Keep clip edges on physical pixels so translucent layers never blend at a
- * fractional CSS-pixel boundary. */
+/**
+ * Keep clip edges on physical pixels so translucent layers never blend at a
+ * fractional CSS-pixel boundary — snapped INWARD.
+ *
+ * Direction is the whole point. This rect becomes a HOLE cut in the committed
+ * canvas, and what shows through it is the vacated layer, which paints the
+ * drag origin's replacement pixels and plain background everywhere else. Round
+ * an edge OUTWARD and the hole exceeds the replacement by a sliver, so that
+ * sliver renders as bare background: a hairline of canvas colour along the
+ * region the drag started from — the "white seams left behind where I picked
+ * the object up".
+ *
+ * `Math.round` did exactly that on any edge past the half-pixel. Shrinking
+ * instead can leave at most a sub-pixel hairline of the OLD committed content
+ * at the boundary, which is both less visible and self-correcting on the next
+ * bake. Never gap; overlap.
+ *
+ * Same principle as the compositor's integer-snapped destinations (invariant
+ * 12), inverted because this is a hole rather than a fill.
+ */
 export function snapRectToDevicePixels(rect: Rect, dpr: number): Rect {
 	if (!Number.isFinite(dpr) || dpr <= 0) return rect;
-	const left = Math.round(rect.left * dpr) / dpr;
-	const top = Math.round(rect.top * dpr) / dpr;
-	const right = Math.round((rect.left + rect.width) * dpr) / dpr;
-	const bottom = Math.round((rect.top + rect.height) * dpr) / dpr;
+	const left = Math.ceil(rect.left * dpr) / dpr;
+	const top = Math.ceil(rect.top * dpr) / dpr;
+	const right = Math.floor((rect.left + rect.width) * dpr) / dpr;
+	const bottom = Math.floor((rect.top + rect.height) * dpr) / dpr;
 	if (right <= left || bottom <= top) return rect;
 	return { left, top, width: right - left, height: bottom - top };
 }

@@ -407,7 +407,10 @@ feature is asked for.
 `objectCaching = false` (render directly, never blit a stale per-object cache),
 and `isOnScreen = () => true` (bypass Fabric's main-viewport culling — we are
 baking off-screen background tiles). **All three are saved and restored** so
-baking never permanently mutates object state. It deliberately does **not** force
+baking never permanently mutates object state. It also culls a group's children
+against the tile rect (a group is ONE index entry, so every tile under its union
+would otherwise render every child) — and `setCoords()` each child first, per
+invariant 16. It deliberately does **not** force
 `obj.dirty` — that re-rasterized clip/erase groups on every tile render (the
 historical super-linear erase lag).
 
@@ -590,6 +593,40 @@ reach the engine through the same seams as local edits.
 13. **Composite destinations are integer-snapped outward.** Fragments overlap by
     <1px; they never gap. A gap shows the canvas background and reads as a
     rendering defect (the "white lines" report).
+
+14. **A synchronous repair is budgeted in TIME, not in tiles.** A tile count is
+    a proxy that any edit wider than the cap silently exceeds, leaving the tail
+    of the edit on the overview until the async bake — which is what a blurry
+    undo/redo actually is. Repairs are clipped to the viewport, so the work is
+    bounded regardless; `DISCRETE_REPAIR_BUDGET_MS` is the real limit. And when
+    a repair does run out of time, the follow-up bake skips the coalescing
+    debounce: the unrepaired part has nothing to coalesce with.
+15. **Snap a HOLE inward and a FILL outward.** Both rules exist to prevent a
+    sub-pixel gap. A composite destination is snapped outward so fragments
+    overlap (12); a clip hole — the drag-origin cut in `vacatedLayerMask` — must
+    be snapped inward, or the hole outruns the pixels painted behind it and the
+    sliver renders as bare canvas colour.
+
+16. **A group child's `getBoundingRect()` lies until you `setCoords()` it.**
+    Fabric caches `aCoords` in the object's PARENT plane and multiplies by the
+    group matrix at read time. Entering a group rewrites the child's transform
+    into the group's plane but refreshes nested coords only when
+    `subTargetCheck` is on — it is off. So every child of a freshly built group
+    (a merge) still carries its old world coords and measures a phantom rect
+    offset by the group's centre. The tile renderer's per-child cull then
+    rejected every child in the tiles it actually occupies and the merged
+    drawing baked BLANK — invisible after the first bake, while still selectable
+    (the group's own bounds are fine) and still visible before it, because the
+    stamp and live paths pass no `clipRect` and never cull.
+17. **An invalidation without its repair is a blur.** `markDirty` drops the
+    region to a fallback; the bounded synchronous repair is what makes that
+    invisible. The engine refuses that repair while `gesturing` / `mutating` /
+    `loading` / `erasing`, and `scheduleBake` refuses too — so a caller that
+    invalidates inside one of those windows must either be covering those pixels
+    itself (the transform controller's CSS layers) or hand the rects to the
+    batch and let the flush do it AFTER the flag clears. Invalidating mid-window
+    and hoping is what left a moved selection, and its undo/redo, sitting on the
+    overview until the debounced bake landed.
 
 > Visual-artifact / zoom / worker roadmap: see
 > [`DRAW_ENGINE_V3_PLAN.md`](./DRAW_ENGINE_V3_PLAN.md).

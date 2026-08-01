@@ -81,7 +81,7 @@
             <p v-if="!isLobby" class="pl-2 text-sm">lobby only</p>
           </ion-item>
 
-          <ion-item color="tertiary" :button="true" :detail="false"
+          <ion-item color="tertiary" :button="true" :detail="false" v-if="IS_TESTING_DRAW"
             @click="runFromMore(() => emit('start-benchmark'))">
             <ion-icon :icon="playCircleOutline" />
             <div class="pl-2 min-w-0 flex-1">
@@ -92,7 +92,7 @@
             </div>
           </ion-item>
 
-          <ion-item color="tertiary" :detail="false">
+          <ion-item color="tertiary" :detail="false" v-if="IS_TESTING_DRAW">
             <ion-icon :icon="hardwareChipOutline" />
             <div class="pl-2 min-w-0 flex-1">
               <p class="text-base">Worker rendering</p>
@@ -110,7 +110,7 @@
             />
           </ion-item>
 
-          <ion-item color="tertiary" :detail="false"
+          <ion-item color="tertiary" :detail="false" v-if="IS_TESTING_DRAW"
             :disabled="selectedRenderBackend !== 'worker'">
             <ion-icon :icon="gitBranchOutline" />
             <div class="pl-2 min-w-0 flex-1">
@@ -205,6 +205,7 @@ const { openPanel } = useChatWidgetStore();
 const { isSaving, isDirty, sessionHasContent } = storeToRefs(
 	useDocumentStore(),
 );
+const IS_TESTING_DRAW = import.meta.env.VITE_DRAW_TESTING === "si";
 
 const { totalUnreadCount } = storeToRefs(useChatStore());
 const { toast } = useToast();

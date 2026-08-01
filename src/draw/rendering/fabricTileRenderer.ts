@@ -86,6 +86,19 @@ function prepareForBake(
 		// invisible; render() bails on `visible` before doing any path work.
 		if (clipRect) {
 			try {
+				// MEASURE ON FRESH COORDS. `getBoundingRect()` reads the CACHED
+				// `aCoords`, which fabric computes in the object's PARENT plane and
+				// then multiplies by the group matrix. Entering a group rewrites a
+				// child's left/top to be group-relative (`applyTransformToObject`)
+				// but only refreshes nested coords when `subTargetCheck` is on — it
+				// is off. So every child of a freshly built group (a merge) still
+				// carries the absolute coords it had as a top-level object, and
+				// measuring it returns a phantom rect offset by the group's centre.
+				// Every child then failed this test in the tiles it really occupies
+				// and the whole merged drawing baked blank — visible only until the
+				// first real bake, because the stamp/live paths pass no clipRect and
+				// so never cull. Recomputing is idempotent and always correct.
+				child.setCoords();
 				if (!intersects(clipRect, child.getBoundingRect())) {
 					const prevVisible = child.visible;
 					child.visible = false;

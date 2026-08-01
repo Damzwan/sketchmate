@@ -296,6 +296,21 @@ export function commit(c: Canvas): void {
 		// background away and expose the overview for a bake round-trip.
 		// Tile bakes can now see the objects at their committed position.
 		s.objects.forEach((o, i) => (o.opacity = s.savedOpacity[i]));
+
+		// END THE GESTURE HERE, not at the bottom of commit.
+		//
+		// Everything below invalidates: the old footprint, the new one, or both.
+		// While `gesturing` is true the engine refuses the synchronous repair that
+		// goes with an invalidation AND refuses to schedule a bake, so the whole
+		// moved region dropped to the overview and stayed there until the gesture
+		// flag cleared and a debounced bake finally landed — the low-res patch that
+		// follows a drag around. With the gesture closed first, each invalidation
+		// below repairs its own visible footprint in the same task.
+		//
+		// It must come AFTER the opacity restore directly above: a repair renders
+		// these objects from the index, and at opacity 0 it would bake them out.
+		mgr.onTransformEnd();
+
 		if (!s.oldRegionRetained) {
 			// Only an actual preparation failure reaches this compatibility path.
 			// Repair after the index moved so the old footprint cannot recapture the
@@ -397,7 +412,6 @@ export function commit(c: Canvas): void {
 		ownedIds.clear();
 		renderControls(c);
 	}
-	if (s.moveHappened) useDrawObjectManager().onTransformEnd();
 
 	// Upgrade / refresh the bake cache during idle so the NEXT grab of this
 	// selection is instant: converts a fast low-quality bake to full quality,

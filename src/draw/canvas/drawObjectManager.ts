@@ -642,7 +642,27 @@ export function createDrawObjectManager() {
 		renderEngine.markDirtyAndRebuildSync(rect, tier);
 	}
 
+	/**
+	 * Batch-aware, and it has to be.
+	 *
+	 * This invalidates (see `RenderEngine.retainRegionsUntilRebaked`) — the name
+	 * describes the intent, `markDirty` is the honest implementation. An
+	 * invalidation is only invisible if the synchronous repair runs with it, and
+	 * the engine deliberately skips that repair while `mutating`.
+	 *
+	 * History's transform undo/redo called this straight through, from INSIDE the
+	 * burst: the footprints were marked unusable with the repair suppressed, and
+	 * nothing repaired them afterwards either, so both the old and the new
+	 * position sat on the low-res overview until the debounced async bake landed.
+	 * That is the "undo/redo a move and it blurs" report. Joining the batch means
+	 * the flush invalidates AND repairs, after `setMutating(false)`.
+	 */
 	function retainRegionsUntilRebaked(rects: readonly WorldRect[]) {
+		if (!rects.length) return;
+		if (isBatching()) {
+			batchRetainedRemovalRects.push(...rects);
+			return;
+		}
 		renderEngine?.retainRegionsUntilRebaked(rects);
 	}
 

@@ -18,6 +18,26 @@ export const PROGRESS_FRAME_MS = 120;
  * belongs in the yielded bake path; 32 dense tiles was an ANR-sized task. */
 export const MAX_SYNC_REPAIR_TILES = 6;
 
+/**
+ * Wall-clock a DISCRETE edit (undo, redo, delete, style change) may spend
+ * repairing what is on screen, shared across every rect in the batch.
+ *
+ * A tile COUNT was the wrong bound here. Any stroke longer than a few tiles
+ * exhausted a 6-tile budget, and every tile past it sat on the low-res overview
+ * until the async bake landed — 80 ms of debounce plus a worker round-trip.
+ * That is the "undo, and it is blurry for a second" report: not a missing fast
+ * path, just a budget that ran out mid-edit.
+ *
+ * Time is the honest bound, and the work is inherently capped anyway because
+ * repairs are clipped to the viewport. Repairs are also cheap now — a sub-rect
+ * repair repaints an edit's own footprint, not a whole tile.
+ */
+export const DISCRETE_REPAIR_BUDGET_MS = 12;
+
+/** Per-rect tile cap inside a discrete repair; the deadline above is the real
+ *  limit, this only stops one pathological rect from owning the whole slice. */
+export const DISCRETE_REPAIR_TILES = 24;
+
 export interface Surface {
 	getContext(): CanvasRenderingContext2D;
 

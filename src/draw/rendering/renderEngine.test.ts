@@ -219,6 +219,47 @@ describe("RenderEngine erase bursts", () => {
 		engine.reset();
 	});
 
+	it("repairs an undo across more than six tiles before the bake", () => {
+		// The old budget was a six-TILE count, so any edit wider than that left
+		// its tail on the overview until the async bake — the blur after an
+		// undo/redo. The bound is wall-clock now, and the work is already capped
+		// by the viewport clip.
+		const engine = makeEngine() as any;
+		const repair = vi
+			.spyOn(engine.committed, "rebuildRectSync")
+			.mockReturnValue(1);
+
+		engine.invalidateRegions([{ x: 0, y: 0, w: 4000, h: 40 }]);
+
+		expect(repair).toHaveBeenCalledOnce();
+		expect(repair.mock.calls[0][3]).toBeGreaterThan(6);
+		engine.reset();
+	});
+
+	it("skips the coalescing debounce when a repair ran out of time", () => {
+		const engine = makeEngine() as any;
+		vi.spyOn(engine.committed, "rebuildRectSync").mockImplementation(() => {
+			// Burn the shared slice so the next rect cannot be repaired.
+			const until = performance.now() + 15;
+			while (performance.now() < until) {
+				/* spin */
+			}
+			return 1;
+		});
+		const bake = vi.spyOn(engine, "scheduleBake");
+
+		// Both ON SCREEN (the surface is 800x600 at identity) and far enough apart
+		// to stay separate rects — an off-screen rect is never repaired and so
+		// could never report itself unrepaired.
+		engine.invalidateRegions([
+			{ x: 0, y: 0, w: 40, h: 40 },
+			{ x: 700, y: 500, w: 40, h: 40 },
+		]);
+
+		expect(bake).toHaveBeenCalledWith(true);
+		engine.reset();
+	});
+
 	it("refuses to punch an erase across layers", () => {
 		// The tile bitmap is the composite of every layer, so a destination-out
 		// punch cannot tell the erased layer's pixels from anyone else's.

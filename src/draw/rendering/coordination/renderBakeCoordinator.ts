@@ -5,17 +5,31 @@ export abstract class RenderBakeCoordinator<
 	T extends Bounded,
 > extends RenderFrames<T> {
 	// ── bake ─────────────────────────────────────────────────────────────────
-	scheduleBake(): void {
+	/**
+	 * @param immediate Skip the debounce. The debounce exists to coalesce a
+	 *   STREAM of edits (a remote drag, a burst of sync actions). A discrete
+	 *   edit that could not finish repairing itself has nothing to coalesce
+	 *   with, and every millisecond of debounce is a millisecond the unrepaired
+	 *   part spends on the overview.
+	 */
+	scheduleBake(immediate = false): void {
 		if (this.gesturing || this.loading || this.erasing || this.mutating) return;
 		if (this.baking) {
 			this.bakeAgain = true;
 			return;
 		}
-		if (this.bakeTimer !== null) return;
-		this.bakeTimer = setTimeout(() => {
+		if (this.bakeTimer !== null) {
+			if (!immediate) return;
+			clearTimeout(this.bakeTimer);
 			this.bakeTimer = null;
-			void this.runBake();
-		}, this.bakeDebounce);
+		}
+		this.bakeTimer = setTimeout(
+			() => {
+				this.bakeTimer = null;
+				void this.runBake();
+			},
+			immediate ? 0 : this.bakeDebounce,
+		);
 	}
 
 	abortBakes(): void {

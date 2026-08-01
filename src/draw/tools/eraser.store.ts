@@ -20,6 +20,8 @@ import {
 	bakeryEndSceneBatch,
 } from "@/draw/rendering/bakery/tileBakeryClient";
 import { objectMutationRevision } from "@/draw/objects/objectSerialization";
+import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import { isEraseProtected, isEraseTarget } from "@/draw/tools/erasePolicy";
 
 interface Eraser extends ToolService {
 	eraserSize: Ref<number>;
@@ -510,16 +512,58 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		programmaticBrush = null;
 	}
 
+	/**
+	 * Everything that makes a brush instance behave correctly for the CURRENT
+	 * scene. Idempotent, so it can be re-applied to a reused brush.
+	 */
+	function attachProviders(b: CustomEraserBrush): void {
+		// The live mask is built from PROTECTED objects only.
+		//
+		// It used to receive every visible object and rely on `draw()` dimming the
+		// erasable ones away. That works, but it makes the mask's correctness
+		// depend on a second predicate agreeing with this one — and when they
+		// disagreed, other layers visibly vanished under the pointer and came back
+		// on release. Handing over only what must survive the stroke removes the
+		// disagreement, and renders strictly fewer objects per mask build.
+		//
+		// Still viewport-scoped: an off-screen object cannot contribute a pixel to
+		// a screen-space mask.
+		b.protectObjectsProvider = () => {
+			const objects = objMgr.getVisibleObjects().filter(isEraseProtected);
+			objMgr.getZIndexMap();
+			return objects.sort(compareRenderOrder);
+		};
+
+		// Commit side of the same rule. `walk()` still runs the precise
+		// intersection test, so a padded over-query is safe.
+		b.erasableFilter = isEraseTarget;
+		b.targetCandidatesProvider = (path: Path) => {
+			const r = (path as any).getBoundingRect(true, true);
+			const pad = (path as any).strokeWidth ?? 0;
+			return objMgr.querySelectable({
+				x: r.left - pad,
+				y: r.top - pad,
+				w: r.width + 2 * pad,
+				h: r.height + 2 * pad,
+			});
+		};
+	}
+
 	async function select() {
 		c!.isDrawingMode = true;
 		c!.selection = false;
 		c!.skipTargetFind = true;
 
 		if (brush && brush.canvas === c) {
-			// Reuse: providers + handlers already attached. Only the dims may be
-			// stale (rotation / keyboard resize since last use).
+			// Reuse: handlers are already attached. Only the dims may be stale
+			// (rotation / keyboard resize since last use).
 			brush.syncDimensions();
 			brush.width = eraserSize.value;
+			// Re-attach the providers rather than trusting what a long-lived brush
+			// happens to carry. A brush instance outlives tool selections and dev
+			// hot-reloads, and a brush missing one of these fails SILENTLY — it
+			// simply erases more than it should.
+			attachProviders(brush);
 			c!.freeDrawingBrush = brush;
 			updateEraserCursor();
 			return;
@@ -530,31 +574,7 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		brush = b;
 
 		b.width = eraserSize.value;
-
-		// Restrict the (expensive) selective-erase mask render to on-screen
-		// objects, returned in paint (z) order. Off-viewport objects can never
-		// contribute a visible pixel to a screen-space mask, so this is correct
-		// and avoids a full native re-render of every object on mousedown.
-		b.protectObjectsProvider = () => {
-			const objs = objMgr.getVisibleObjects();
-			const z = objMgr.getZIndexMap();
-			return objs.sort((a, b2) => (z.get(a) ?? 0) - (z.get(b2) ?? 0));
-		};
-
-		// Resolve eraser targets through the spatial index instead of scanning
-		// every object. walk() still runs the precise intersection test, so a
-		// padded over-query is safe. Assumes targets are indexed (have ids) —
-		// which they are for everything synced through drawObjectManager.
-		b.targetCandidatesProvider = (path: Path) => {
-			const r = (path as any).getBoundingRect(true, true);
-			const pad = (path as any).strokeWidth ?? 0;
-			return objMgr.query({
-				x: r.left - pad,
-				y: r.top - pad,
-				w: r.width + 2 * pad,
-				h: r.height + 2 * pad,
-			});
-		};
+		attachProviders(b);
 
 		// Stroke begins: the brush now owns the canvas's lower context (it
 		// post-composites destination-out after each render). Suspend the tile

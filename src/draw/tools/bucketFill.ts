@@ -2,6 +2,7 @@ import { Canvas, FabricObject } from "fabric";
 import { usePen } from "@/draw/tools/pen.store";
 import { BucketFillPath } from "@/draw/utils/BucketFillPath";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { Rect } from "@/draw/utils/QuadTree";
 import { useToast } from "@/service/toast.service";
 import type {
@@ -176,11 +177,9 @@ function buildSmartOffscreenCanvas(
 	};
 
 	const objectsToRender = query(renderRect);
-	const zIndexMap = getZIndexMap();
+	getZIndexMap();
 
-	objectsToRender.sort(
-		(a, b) => (zIndexMap.get(a) ?? 0) - (zIndexMap.get(b) ?? 0),
-	);
+	objectsToRender.sort(compareRenderOrder);
 
 	// ZOOM-INDEPENDENT BARRIERS
 	// Fabric caches each object's bitmap at a resolution tied to the on-screen

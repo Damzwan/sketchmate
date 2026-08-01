@@ -25,6 +25,12 @@ import { createGestureController } from "@/draw/input/gestureController";
 import { createEngineOptions } from "@/draw/rendering/engineOptions";
 import type { WorldRect } from "@/draw/rendering/committedLayer";
 import {
+	isOnActiveLayer,
+	isOnTopLayer,
+	layerCount,
+	layerOrderOf,
+} from "@/draw/layers/layerRegistry";
+import {
 	bakeryBakeTile,
 	bakeryBeginSceneBatch,
 	bakeryCancel,
@@ -120,11 +126,9 @@ export function createDrawObjectManager() {
 		// rect in this same batch did invalidate the region, the add falls back to
 		// the live overlay by itself — correct either way.
 		if (adds.length) {
-			const order = c!.getObjects();
-			const top = order.length ? order[order.length - 1] : null;
 			for (const obj of adds) {
 				if (!obj.id || !objectMap.has(obj.id)) continue; // added then removed
-				renderEngine.onObjectAdded(obj, obj === top);
+				renderEngine.onObjectAdded(obj, isRenderTopmost(obj));
 			}
 		}
 	}
@@ -171,6 +175,11 @@ export function createDrawObjectManager() {
 	const {
 		spatialIndex,
 		queryObjects,
+		queryObjectsRaw,
+		queryInteractiveObjects,
+		querySelectableObjects,
+		layerContentBounds,
+		objectIdsOnLayer,
 		clearSpatialIndex,
 		addToQuadTree,
 		removeFromQuadTree,
@@ -200,6 +209,58 @@ export function createDrawObjectManager() {
 		isLowEndDevice: IS_LOW_END,
 	});
 
+	/**
+	 * "Can anything paint over this object?" — the question `onObjectAdded`'s
+	 * fast paths actually depend on. Both of them (the additive tile stamp and
+	 * the live overlay) draw the object ON TOP of what is already there, which is
+	 * only correct when nothing outranks it.
+	 *
+	 * Canvas order alone was the test, and with layers that is wrong: a stroke
+	 * drawn on a low layer is still appended LAST to the canvas, so it claimed
+	 * both fast paths and appeared over content that must cover it — until the
+	 * bake landed and it snapped underneath.
+	 *
+	 * The layer check is nearly free (a rank compare) and short-circuits the
+	 * common cases: one layer, or drawing on the top layer. Only a genuine
+	 * draw-underneath pays the overlap query, which is bounded by the new
+	 * object's own footprint.
+	 */
+	function isRenderTopmost(obj: FabricObject): boolean {
+		const arr = c!.getObjects();
+		if (arr.length === 0 || arr[arr.length - 1] !== obj) return false;
+		if (layerCount() < 2 || isOnTopLayer((obj as any).layerId)) return true;
+		const rank = layerOrderOf((obj as any).layerId);
+		for (const other of queryObjects(objectBounds(obj))) {
+			if (other === obj) continue;
+			if (layerOrderOf((other as any).layerId) > rank) return false;
+		}
+		return true;
+	}
+
+	/**
+	 * "Does this region belong to exactly one layer?"
+	 *
+	 * Gate for the engine's destination-out fast paths (the erase stamp and the
+	 * overview punch). Those subtract pixels from a bitmap that already holds
+	 * every layer composited together, so a punch cannot distinguish the erased
+	 * layer's pixels from anything sitting under the stroke — which is precisely
+	 * how an erase on one layer visibly ate content on another.
+	 *
+	 * Short-circuits on a single-layer document, so the overwhelmingly common
+	 * case keeps the fast path and pays one boolean. Otherwise it costs one
+	 * quadtree query per erase COMMIT (not per frame), bounded by the stroke's
+	 * own footprint, and returns false only when another layer really does have
+	 * content there — an erase in a region only your layer occupies still gets
+	 * the cheap punch.
+	 */
+	function isRegionSingleLayer(rect: WorldRect): boolean {
+		if (layerCount() < 2) return true;
+		for (const obj of queryObjects(rect)) {
+			if (!isOnActiveLayer((obj as any).layerId)) return false;
+		}
+		return true;
+	}
+
 	// ── fabric events → renderEngine lifecycle ───────────────────────────────────────
 	function onObjectAdded(obj: FabricObject) {
 		if (!obj.id) return;
@@ -223,9 +284,7 @@ export function createDrawObjectManager() {
 			else noteRegion(objectBounds(obj));
 			return;
 		}
-		const arr = c!.getObjects();
-		const topmost = arr.length > 0 && arr[arr.length - 1] === obj;
-		renderEngine?.onObjectAdded(obj, topmost);
+		renderEngine?.onObjectAdded(obj, isRenderTopmost(obj));
 	}
 
 	/**
@@ -372,6 +431,7 @@ export function createDrawObjectManager() {
 				afterComposite: () => {
 					if (c) rerenderActiveObjectControls(c);
 				},
+				canPunchRegion: isRegionSingleLayer,
 				remoteBaker: renderBackend === "worker" ? bakeryBakeTile : undefined,
 				remoteOverview:
 					renderBackend === "worker" ? bakeryRenderOverview : undefined,
@@ -495,6 +555,32 @@ export function createDrawObjectManager() {
 		return queryObjects(rect);
 	}
 
+	/**
+	 * A layer's visibility or order changed. Nothing about the objects changed,
+	 * only which of them the index hands out and in what order — so the correct
+	 * response is a plain destructive invalidation of the region that layer
+	 * covers, exactly like a bulk remote edit there.
+	 *
+	 * Bounded on purpose: a decoration layer in one corner must not cost the
+	 * whole tile cache. `null` (layer is empty, or order changed globally) falls
+	 * back to marking everything dirty, which is the honest cost of a reorder.
+	 */
+	function invalidateLayer(layerId: string | null) {
+		if (!renderEngine) return;
+		markZIndexDirty();
+		localTransform.invalidateCache();
+		localTransform.invalidateVacatedCache();
+		const rect = layerId ? layerContentBounds(layerId) : null;
+		if (rect) {
+			renderEngine.invalidateRegions([rect]);
+		} else {
+			renderEngine.markAllDirty();
+			renderEngine.warmOverview();
+			renderEngine.requestFrame();
+		}
+		renderEngine.scheduleBake();
+	}
+
 	function getVisibleObjects(): FabricObject[] {
 		return queryObjects(getViewportRect(c!));
 	}
@@ -583,6 +669,11 @@ export function createDrawObjectManager() {
 		recordPanDelta: () => {},
 		purgeBlockedObjects,
 		query,
+		queryAll: queryObjectsRaw,
+		queryInteractive: queryInteractiveObjects,
+		querySelectable: querySelectableObjects,
+		invalidateLayer,
+		objectIdsOnLayer,
 		getZIndexMap,
 		updateQuadTree,
 		clipChanged,

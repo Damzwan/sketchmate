@@ -39,6 +39,19 @@ export interface RenderEngineOptions extends CommittedOptions {
 	 *  the async yielded rebuild. */
 	overviewPatchMax?: number;
 	afterComposite?: () => void;
+	/**
+	 * "Is a destination-out punch safe over this region?"
+	 *
+	 * The erase fast path subtracts the stroke straight out of the tile bitmap
+	 * and the overview. Those hold the COMPOSITE of every layer, so the punch
+	 * removes whatever else happens to sit under the stroke — content the erase
+	 * is not allowed to touch. Returning false sends that erase down the honest
+	 * path (invalidate + re-render from objects), where only the clipPaths that
+	 * actually changed are applied.
+	 *
+	 * Left undefined = always safe, i.e. the pre-layers behaviour.
+	 */
+	canPunchRegion?: (rect: WorldRect) => boolean;
 }
 
 export abstract class RenderEngineBase<T extends Bounded> {
@@ -48,6 +61,7 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected readonly liveRender: LiveRenderer<T>;
 	protected readonly makeYielder: (label?: string) => Yieldable;
 	protected readonly afterComposite?: () => void;
+	protected readonly canPunchRegion?: (rect: WorldRect) => boolean;
 	protected readonly cancelRemoteWork?: () => void;
 	protected readonly bakeDebounce: number;
 	protected readonly overviewPatchMax: number;
@@ -104,6 +118,7 @@ export abstract class RenderEngineBase<T extends Bounded> {
 		this.liveRender = liveRenderer;
 		this.makeYielder = makeYielder;
 		this.afterComposite = opts.afterComposite;
+		this.canPunchRegion = opts.canPunchRegion;
 		this.cancelRemoteWork = opts.cancelRemoteWork;
 		this.bakeDebounce = opts.bakeDebounceMs ?? 80;
 		this.overviewPatchMax = opts.overviewPatchMax ?? 200;

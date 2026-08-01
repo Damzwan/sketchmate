@@ -12,6 +12,17 @@ import {
 } from "../../rendering/bakery/tileBakeryClient";
 import type { ExplicitZIndex } from "./zIndex";
 import { markObjectMutated } from "../objectSerialization";
+import { BASE_LAYER_ID } from "@/draw/layers/layer.types";
+import {
+	activeLayerId,
+	compareRenderOrder,
+	hasHiddenLayers,
+	hasLockedLayers,
+	isLayerHidden,
+	isLayerLocked,
+	layerCount,
+	layerOrderOf,
+} from "@/draw/layers/layerRegistry";
 
 export function createDrawingSpatialIndex(
 	objectMap: Map<string, FabricObject>,
@@ -21,16 +32,36 @@ export function createDrawingSpatialIndex(
 	const entryMap = new Map<string, QuadtreeEntry<FabricObject>>();
 
 	// ── spatial index handed to the renderer (z-sorted query) ────────────────
+	//
+	// LAYERS ENTER HERE AND (almost) NOWHERE ELSE. Tiles, the overview, the live
+	// layer and the sync/history repair paths all funnel through these two
+	// functions, so filtering a hidden layer here is what makes every surface
+	// agree. Doing it per-consumer instead is how a hidden stroke survives in the
+	// overview but not the tiles.
+	//
+	// The hidden check is guarded by `hasHiddenLayers()` — a Set size read — so
+	// the overwhelmingly common case (nothing hidden) pays nothing per object.
+	//
+	// `__lo` (the layer rank the sort reads) is refreshed in the SAME loop that
+	// already visits each object. One Map lookup per object per query, versus
+	// making correctness depend on every path that can change an object's layer
+	// remembering to invalidate a cached stamp — an undo of a layer move goes
+	// through generic style-restore code that knows nothing about layers.
 	const spatialIndex = {
 		query: (rect: WorldRect): FabricObject[] => {
-			getZIndexMap(); // ensure __z stamps are current
+			getZIndexMap(); // ensure __z / __lo stamps are current
 			const entries = quadtree.query(rect);
 			const objs: FabricObject[] = [];
+			const filterHidden = hasHiddenLayers();
 			for (let i = 0; i < entries.length; i++) {
 				const o = objectMap.get(entries[i].id);
-				if (o) objs.push(o);
+				if (!o) continue;
+				const a = o as any;
+				if (filterHidden && isLayerHidden(a.layerId)) continue;
+				a.__lo = layerOrderOf(a.layerId);
+				objs.push(o);
 			}
-			return objs.sort((a, b) => ((a as any).__z ?? 0) - ((b as any).__z ?? 0));
+			return objs.sort(compareRenderOrder);
 		},
 		/**
 		 * z-ordered, carrying the bounds the quadtree already tracks (kept current
@@ -46,13 +77,16 @@ export function createDrawingSpatialIndex(
 			getZIndexMap();
 			const entries = quadtree.query(rect);
 			const out: { obj: FabricObject; bounds: WorldRect }[] = [];
+			const filterHidden = hasHiddenLayers();
 			for (let i = 0; i < entries.length; i++) {
 				const o = objectMap.get(entries[i].id);
-				if (o) out.push({ obj: o, bounds: entries[i].bounds });
+				if (!o) continue;
+				const a = o as any;
+				if (filterHidden && isLayerHidden(a.layerId)) continue;
+				a.__lo = layerOrderOf(a.layerId);
+				out.push({ obj: o, bounds: entries[i].bounds });
 			}
-			return out.sort(
-				(a, b) => ((a.obj as any).__z ?? 0) - ((b.obj as any).__z ?? 0),
-			);
+			return out.sort((a, b) => compareRenderOrder(a.obj, b.obj));
 		},
 	};
 
@@ -304,16 +338,109 @@ export function createDrawingSpatialIndex(
 		quadtree.clear();
 	}
 
+	/**
+	 * Unsorted region query, HIDDEN LAYERS EXCLUDED — the safe default. Callers
+	 * that paint (the vacated-region painter, the eraser's protect mask, bucket
+	 * fill) and callers that pick (below) must both ignore a hidden layer, so
+	 * hiding is the default and seeing everything is the explicit opt-in.
+	 */
 	function queryObjects(rect: WorldRect): FabricObject[] {
+		const entries = quadtree.query(rect);
+		const out: FabricObject[] = [];
+		const filterHidden = hasHiddenLayers();
+		for (let i = 0; i < entries.length; i++) {
+			const o = objectMap.get(entries[i].id);
+			if (!o) continue;
+			const a = o as any;
+			if (filterHidden && isLayerHidden(a.layerId)) continue;
+			a.__lo = layerOrderOf(a.layerId);
+			out.push(o);
+		}
+		return out;
+	}
+
+	/**
+	 * Every object in the region regardless of layer state. For bookkeeping that
+	 * must not depend on what the user is currently looking at: erase-undo repair
+	 * (an erase can be undone after its layer was hidden) and claimed-area
+	 * enforcement (a hidden object still occupies the area).
+	 */
+	function queryObjectsRaw(rect: WorldRect): FabricObject[] {
 		return quadtree
 			.query(rect)
 			.map((entry) => objectMap.get(entry.id))
 			.filter(Boolean) as FabricObject[];
 	}
 
+	/** Hit-testing: hidden AND locked layers are untouchable. */
+	function queryInteractiveObjects(rect: WorldRect): FabricObject[] {
+		const objs = queryObjects(rect);
+		if (!hasLockedLayers()) return objs;
+		return objs.filter((o) => !isLayerLocked((o as any).layerId));
+	}
+
+	/**
+	 * SELECTION targets — the active layer only, the standard layer-editor rule
+	 * ("you edit the layer you are on"). Without it, tapping picks whatever is
+	 * under the finger and the active layer stops meaning anything for every
+	 * operation except drawing.
+	 *
+	 * Single-layer drawings (every legacy document, and most new ones) skip the
+	 * filter entirely, so this changes nothing for them.
+	 */
+	function querySelectableObjects(rect: WorldRect): FabricObject[] {
+		const objs = queryInteractiveObjects(rect);
+		if (layerCount() < 2) return objs;
+		const active = activeLayerId();
+		return objs.filter((o) => ((o as any).layerId ?? BASE_LAYER_ID) === active);
+	}
+
+	/**
+	 * World footprint of one layer's contents, read off the quadtree ENTRIES so
+	 * it stays correct for objects that aren't hydrated on the fabric canvas.
+	 *
+	 * This is what keeps a visibility toggle cheap: instead of dropping the whole
+	 * tile cache, the engine invalidates only the region the layer actually
+	 * covers. O(scene) once per toggle — a deliberate, user-initiated action —
+	 * versus O(scene) per frame if we got it wrong.
+	 */
+	function layerContentBounds(layerId: string): WorldRect | null {
+		let x0 = Infinity,
+			y0 = Infinity,
+			x1 = -Infinity,
+			y1 = -Infinity;
+		for (const [id, entry] of entryMap) {
+			const obj = objectMap.get(id);
+			if (!obj) continue;
+			const objLayer = (obj as any).layerId ?? BASE_LAYER_ID;
+			if (objLayer !== layerId) continue;
+			const b = entry.bounds;
+			if (!isFinite(b.x) || b.w <= 0 || b.h <= 0) continue;
+			x0 = Math.min(x0, b.x);
+			y0 = Math.min(y0, b.y);
+			x1 = Math.max(x1, b.x + b.w);
+			y1 = Math.max(y1, b.y + b.h);
+		}
+		if (!isFinite(x0)) return null;
+		return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+	}
+
+	function objectIdsOnLayer(layerId: string): string[] {
+		const ids: string[] = [];
+		for (const [id, obj] of objectMap) {
+			if (((obj as any).layerId ?? BASE_LAYER_ID) === layerId) ids.push(id);
+		}
+		return ids;
+	}
+
 	return {
 		spatialIndex,
 		queryObjects,
+		queryObjectsRaw,
+		queryInteractiveObjects,
+		querySelectableObjects,
+		layerContentBounds,
+		objectIdsOnLayer,
 		clearSpatialIndex,
 		addToQuadTree,
 		removeFromQuadTree,

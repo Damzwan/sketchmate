@@ -1,4 +1,5 @@
 import type { FabricObject } from "fabric";
+import { layerOrderOf } from "@/draw/layers/layerRegistry";
 
 export class ExplicitZIndex {
 	private byId = new Map<string, number>();
@@ -23,6 +24,10 @@ export class ExplicitZIndex {
 			const z = this.byId.get(id) ?? 0;
 			this.byObject.set(object, z);
 			(object as any).__z = z;
+			// Layer rank is the PRIMARY sort key. Stamped in the same sweep that
+			// already touches every object, so ordering by layer costs nothing per
+			// query — see compareRenderOrder.
+			(object as any).__lo = layerOrderOf((object as any).layerId);
 		}
 		this.dirty = false;
 		return this.byObject;
@@ -113,6 +118,7 @@ export class ExplicitZIndex {
 	private setObjectZ(object: FabricObject, z: number): number {
 		this.byId.set(object.id, z);
 		(object as any).__z = z;
+		(object as any).__lo = layerOrderOf((object as any).layerId);
 		if (!this.dirty) {
 			this.byObject.set(object, z);
 		}

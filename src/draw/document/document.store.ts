@@ -16,6 +16,7 @@ import {
 import { createDraftSnapshotAssets } from "@/draw/document/draftThumbnail";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { useLayersStore } from "@/draw/layers/layers.store";
 
 export interface DrawingDraft {
 	id: string;
@@ -190,6 +191,15 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 					isPreExistingDraft.value = true;
 				}
 			}
+
+			// BEFORE any object reaches the canvas: `injectMetadata` stamps the
+			// active layer onto anything arriving without a `layerId` (every
+			// pre-layers drawing), and the spatial index resolves layer ranks
+			// through the registry. Both must already reflect this document.
+			useLayersStore().init({
+				isLobby: options.isLobby,
+				persisted: json?.layers ?? null,
+			});
 
 			if (json) {
 				if (json.objects && json.objects.length > 0) {

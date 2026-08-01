@@ -7,6 +7,8 @@ import {
 	rememberSerializedObject,
 	serializeAtRevision,
 } from "@/draw/objects/objectSerialization";
+import { useLayersStore } from "@/draw/layers/layers.store";
+import { compareDocumentOrder } from "@/draw/layers/layerRegistry";
 
 function enlivenComplexity(source: any): number {
 	if (!source || typeof source !== "object") return 1;
@@ -246,11 +248,21 @@ export async function generateChunkedJSON(
 		objects: [],
 		background: canvas.backgroundColor,
 	};
+	// Layer DOCUMENT (solo only — a room's set is a constant, so persisting it
+	// would just be a copy of a hard-coded array). Objects carry their own
+	// `layerId` through `customProperties`; this is only the names and order.
+	const layers = useLayersStore().serialize();
+	if (layers) json.layers = layers;
 	if (canvas.clipPath) json.clipPath = canvas.clipPath.toJSON();
 	if (canvas.backgroundImage)
 		json.backgroundImage = canvas.backgroundImage.toJSON();
 
-	const objects = canvas.getObjects();
+	// Serialize in PAINT order, not insertion order. Three things fall out of it:
+	// the draft reloads with canvas order already matching the layer stacking,
+	// the thumbnail worker (which renders the array as-is) is correct, and a
+	// client that knows nothing about layers still draws the array in the right
+	// order — the closest thing to layer support such a client can have.
+	const objects = [...canvas.getObjects()].sort(compareDocumentOrder);
 	const IS_MOBILE =
 		typeof navigator !== "undefined" &&
 		/Mobi|Android/i.test(navigator.userAgent);

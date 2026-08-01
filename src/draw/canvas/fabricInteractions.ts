@@ -1,5 +1,6 @@
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import * as transform from "@/draw/transform/transformController";
 import * as fabric from "fabric";
@@ -32,7 +33,9 @@ export function overrideFindTarget(c: Canvas) {
 
 		const zoom = this.getZoom();
 		const padWorld = SEARCH_PADDING_PX / zoom;
-		const candidates = useDrawObjectManager().query({
+		// Selection query: hidden, locked and OTHER LAYERS are not targets — you
+		// edit the layer you are on.
+		const candidates = useDrawObjectManager().querySelectable({
 			x: pointer.x - padWorld,
 			y: pointer.y - padWorld,
 			w: padWorld * 2,
@@ -43,8 +46,10 @@ export function overrideFindTarget(c: Canvas) {
 			return { target: undefined, subTargets: [], currentSubTargets: [] };
 		}
 
-		const zMap = useDrawObjectManager().getZIndexMap();
-		candidates.sort((a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0));
+		// Stamps __z/__lo, then rank by (layer, z) — the same order the renderer
+		// paints in, so the object on top visually is the one that gets picked.
+		useDrawObjectManager().getZIndexMap();
+		candidates.sort(compareRenderOrder);
 
 		const targetInfo = this.searchPossibleTargets(candidates, pointer);
 
@@ -323,7 +328,7 @@ export function overrideHandleSelection(c: Canvas) {
 		const isClick = x === x + deltaX && y === y + deltaY;
 
 		const claim = useClaimArea();
-		const collected = mgr.query(lassoBounds).filter((obj) => {
+		const collected = mgr.querySelectable(lassoBounds).filter((obj) => {
 			if (!obj.selectable || !obj.visible) return false;
 			// Skip objects locked inside another user's claimed area.
 			if (claim.isObjectProtected(obj)) return false;
@@ -339,8 +344,8 @@ export function overrideHandleSelection(c: Canvas) {
 			}
 		});
 
-		const zMap = mgr.getZIndexMap();
-		collected.sort((a, b) => (zMap.get(b) ?? 0) - (zMap.get(a) ?? 0));
+		mgr.getZIndexMap();
+		collected.sort((a, b) => compareRenderOrder(b, a)); // topmost first
 
 		const objects = isClick
 			? collected[0]

@@ -1,7 +1,19 @@
+import type { FabricObject } from "fabric";
 import { Canvas, StaticCanvas } from "fabric";
 import { compressImg } from "@/helper/general.helper";
 import { CANVAS_SIZE } from "@/draw/config/canvas.config";
 import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
+import { compareDocumentOrder } from "@/draw/layers/layerRegistry";
+
+/**
+ * Canvas order is NOT paint order once layers exist — the renderer ranks by
+ * (layer, explicit z) while `getObjects()` still returns insertion order. An
+ * export that ignores that ships a picture whose stacking differs from what the
+ * user is looking at, which is what the send preview showed.
+ */
+function inRenderOrder(objects: FabricObject[]): FabricObject[] {
+	return [...objects].sort(compareDocumentOrder);
+}
 
 export async function canvasToBuffer(canvasDataUrl: string, size = 1920) {
 	return await (
@@ -109,7 +121,7 @@ async function exportWithMainThreadChunking(
 	},
 ): Promise<{ img: string | ArrayBuffer; aspect_ratio: number } | null> {
 	const { signal } = options;
-	const objects = canvas.getObjects();
+	const objects = inRenderOrder(canvas.getObjects());
 
 	if (objects.length === 0) {
 		const size = options.maxSize;
@@ -273,16 +285,16 @@ async function exportWithMainThreadChunking(
 						img: await blob.arrayBuffer(),
 						aspect_ratio: width / height,
 					});
-					}
-					if (options.asDataUrl) {
-						const reader = new FileReader();
-						reader.onloadend = () => {
-							if (typeof reader.result !== "string") return resolve(null);
-							resolve({
-								img: reader.result,
-								aspect_ratio: width / height,
-							});
-						};
+				}
+				if (options.asDataUrl) {
+					const reader = new FileReader();
+					reader.onloadend = () => {
+						if (typeof reader.result !== "string") return resolve(null);
+						resolve({
+							img: reader.result,
+							aspect_ratio: width / height,
+						});
+					};
 					reader.readAsDataURL(blob);
 					return;
 				}
@@ -339,7 +351,7 @@ export async function cropCanvas(
 	img: string;
 	aspect_ratio: number;
 } | null> {
-	const objects = canvas?.getObjects();
+	const objects = canvas ? inRenderOrder(canvas.getObjects()) : undefined;
 	if (!canvas || !objects || objects.length === 0) return null;
 
 	const totalBounds = computeBounds(objects);

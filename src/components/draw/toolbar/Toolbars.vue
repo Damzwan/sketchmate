@@ -59,6 +59,10 @@
          the corner with SelectionPreview (mutually exclusive tool modes). -->
     <ColorSwatches />
 
+    <!-- Layers. Owns the bottom-right corner slot; the two conditional widgets
+         above sit one step higher so the stack can never overlap. -->
+    <LayerControl />
+
   </div>
 </template>
 
@@ -72,6 +76,7 @@ import { useSelect } from "@/draw/tools/select.store";
 import TopManagement from "@/components/draw/toolbar/TopManagement.vue";
 import SelectionPreview from "@/components/draw/toolbar/SelectionPreview.vue";
 import ColorSwatches from "@/components/draw/toolbar/ColorSwatches.vue";
+import LayerControl from "@/components/draw/layers/LayerControl.vue";
 import ToolDockText from "@/components/draw/toolbar/ToolDockText.vue";
 import ToolDockSelect from "@/components/draw/toolbar/ToolDockSelect.vue";
 import ToolDockDraw from "@/components/draw/toolbar/ToolDockDraw.vue";

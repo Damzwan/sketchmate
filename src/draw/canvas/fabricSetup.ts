@@ -15,6 +15,7 @@ import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
 import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
 import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
 import { useAuthStore } from "@/store/auth.store";
+import { activeLayerId } from "@/draw/layers/layerRegistry";
 import {
 	Canvas,
 	type CanvasOptions,
@@ -34,6 +35,12 @@ const customProperties = [
 	"isBucketFill",
 	"insertedIndex",
 	"userId",
+	// Layer membership. Registering it here is the whole layer wire format: it
+	// rides inside every toJSON, so drafts, the `draw-event` payload, history
+	// entries and the worker mirror all carry it with no new message and no
+	// server change. Objects from before layers existed simply lack it and fold
+	// into the base layer.
+	"layerId",
 ];
 
 const drawableClasses = [
@@ -147,6 +154,10 @@ function injectMetadata(object: any): void {
 	if (!object.id) object.id = uuidv4();
 	if (object.editable) object.editable = false;
 	if (!object.userId) object.userId = useAuthStore().user?._id;
+	// `??=`, never `=`: a remote object, a history restore and a loaded draft all
+	// arrive WITH a layerId and must keep it. Only genuinely new local content
+	// lands on the layer the user is drawing into.
+	if (object.layerId === undefined) object.layerId = activeLayerId();
 }
 
 function installZoomCalculation(): void {

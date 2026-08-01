@@ -27,6 +27,7 @@ built the way it is, where it hurts today, and what to do next.
 5. [Supporting systems](#supporting-systems)
    - [Spatial index (drawObjectManager + QuadTree)](#spatial-index-drawobjectmanager--quadtree)
    - [TransformController — the GPU drag layer](#transformcontroller--the-gpu-drag-layer)
+   - [Layers (the drawing-layer document, not the render tiers)](#layers)
    - [The tile renderer](#the-tile-renderer)
    - [The yielder](#the-yielder)
 6. [How a frame is produced](#how-a-frame-is-produced)
@@ -143,6 +144,7 @@ Files:
 | Fabric events and interactions | [`canvas/`](../src/draw/canvas/) |
 | Gestures and shortcuts | [`input/`](../src/draw/input/) |
 | Spatial index and z-order | [`objects/indexing/`](../src/draw/objects/indexing/) |
+| Layer document, policy and engine-facing registry | [`layers/`](../src/draw/layers/) |
 | Quadtree | [`utils/QuadTree.ts`](../src/draw/utils/QuadTree.ts) |
 | Drag layer | [`transform/transformController.ts`](../src/draw/transform/transformController.ts) |
 | Tile object renderer | [`rendering/fabricTileRenderer.ts`](../src/draw/rendering/fabricTileRenderer.ts) |
@@ -304,6 +306,98 @@ objects every pointer move, it:
 
 Ownership (`ownedIds`) persists through the post-commit bake so the manager keeps
 skipping the object's own modified-events until its tiles land.
+
+### Layers
+
+Layers are **metadata, not extra render buffers**. There is still exactly one
+tile cache, one overview and one live layer; a per-layer tile stack would
+multiply the single largest memory consumer on the device class that already
+ANRs (a mobile tile is ~270 KB against a 40 MB low-end budget).
+
+- **Membership** — objects carry `layerId`, registered in fabric's
+  `customProperties` ([`fabricSetup.ts`](../src/draw/canvas/fabricSetup.ts)). It
+  therefore rides inside every `toJSON`: drafts, the `draw-event` wire, history
+  entries and the worker mirror. **No new sync message and no server change.**
+  Objects predating layers carry no `layerId` and fold into `BASE_LAYER_ID`.
+- **Order** — paint order is `(layer rank, explicit z)`. `compareRenderOrder`
+  ([`layers/layerRegistry.ts`](../src/draw/layers/layerRegistry.ts)) replaces
+  every z-only sort. Reordering layers changes ranks, never object z, so no
+  renumbering. "Bring to front" stays inside its layer for free, because rank
+  dominates the comparison.
+- **Visibility** — applied by filtering `spatialIndex.query` /`queryBounds`
+  ([`objects/indexing/spatialIndex.ts`](../src/draw/objects/indexing/spatialIndex.ts)).
+  That is the one function tiles, the overview, the live layer and the worker
+  object lists all read, so every surface agrees by construction. Guarded by a
+  `Set.size` check: nothing hidden costs nothing per object.
+- **Lock** — hit-testing only, via `queryInteractive`. Locked content still
+  renders. `queryAll` is the explicit opt-out for bookkeeping that must see
+  everything (erase-undo repair, claimed-area enforcement).
+- **Selection and erasing are scoped to the active layer** (`querySelectable`,
+  used by `findTarget`, the lasso and the eraser's candidates) — the standard
+  layer-editor rule. Skipped entirely for single-layer documents. Switching
+  layers discards the active selection, since it could otherwise be dragged but
+  never re-picked.
+- **The eraser needs both halves.** Narrowing its candidates only fixes the
+  commit; the live mask is separate, so other layers visibly vanished mid-stroke
+  and snapped back on release. Both sides now read one predicate pair —
+  [`tools/erasePolicy.ts`](../src/draw/tools/erasePolicy.ts): `isEraseTarget`
+  backs `CustomEraserBrush.erasableFilter` (threaded through `walk`/`walk2`/
+  `draw`), and `isEraseProtected` selects what `protectObjectsProvider` hands to
+  the mask. The provider deliberately returns **only protected objects** rather
+  than everything-minus-dimming, so the mask cannot be wrong because two
+  predicates disagree — and it renders strictly fewer objects. Neither may ever
+  mutate `obj.erasable`: it is serialized, so the change would persist and sync
+  to peers. The programmatic brush (remote/replayed erases, which carry explicit
+  targets) is left unfiltered. `attachProviders` re-runs on the brush-reuse path,
+  because a brush instance outlives tool selections and a missing provider fails
+  silently by erasing too much.
+- **A destination-out punch is not layer-aware and cannot be made so.** The
+  erase fast path (`eraseStamp` + `overview.eraseObject`) subtracts the stroke
+  straight out of bitmaps that hold every layer composited together, so it
+  removes whatever else sits under the stroke. `canPunchRegion` (a
+  `RenderEngineOptions` hook, supplied by `drawObjectManager.isRegionSingleLayer`)
+  vetoes the fast path when another layer has content in the erased rect; that
+  erase falls back to `markDirtyAndRebuildSync`, which re-renders from the
+  objects and so applies only the clipPaths that actually changed. Single-layer
+  documents short-circuit to `true` and keep the punch. Any FUTURE pixel-level
+  subtract path must consult the same hook.
+- Bucket fill still samples **every visible layer** for barriers, and drops the
+  fill on the active layer. Sampling only the active layer is the Photoshop
+  default and breaks the common case — colour under lineart floods the canvas
+  because no barrier exists on that layer.
+- **`topmost` means render-topmost, not last-on-canvas.** `onObjectAdded`'s two
+  fast paths (the additive tile stamp and the live overlay) both paint the new
+  object ON TOP, so they are only valid when nothing outranks it. A stroke on a
+  low layer is still appended last to the fabric canvas, so the old canvas-order
+  test handed it both — and it showed above the content covering it until the
+  bake corrected it. `isRenderTopmost` in `drawObjectManager` adds the layer
+  check; the overlap query only runs when the object is genuinely below
+  something. A non-topmost add instead keeps its stale-but-usable tiles and gets
+  a bounded synchronous sub-rect repair, so it appears at once and in order.
+- **Invalidating a toggle** — `invalidateLayer(id)` invalidates only that
+  layer's content bounds (computed from quadtree entries), not the whole cache.
+  A reorder passes `null` and does mark everything dirty — that one genuinely
+  restacks the board.
+
+**Policy** ([`layers/layer.types.ts`](../src/draw/layers/layer.types.ts)):
+
+| | Solo | Any room |
+| --- | --- | --- |
+| Layer set | document state: persisted in `json.layers`, undoable | 4 fixed layers with constant ids, derived locally by every peer |
+| Add / delete / rename / reorder | yes | no |
+| Visibility / lock | local view state — never synced, never undoable | same |
+| Move objects between layers | yes | yes, carried by the existing `objectStyleChanged` → `ObjectStyleChanged` sync event |
+
+Nothing about layers is ever sent, replayed or reconciled: a room's set is a
+constant, so there is no layer document to conflict over, and an old peer
+receiving `{ layerId }` inside a style patch sets a prop it ignores. A dedicated
+sync event would have been a new `action.type` on a wire whose consumers look
+the type up in a map with no fallback.
+
+Per-layer **opacity is deliberately not implemented**. Group-correct opacity
+needs an extra scratch canvas per translucent layer per tile; per-object alpha
+is cheap but wrong for overlapping strokes. Neither earns its place until the
+feature is asked for.
 
 ### The tile renderer
 
@@ -489,7 +583,11 @@ reach the engine through the same seams as local edits.
 11. **Never invalidate a region you are about to stamp.** The stamp bumps the
     generation itself, so a pre-emptive `markDirty` turns the fast path into
     dead code with no error anywhere.
-12. **Composite destinations are integer-snapped outward.** Fragments overlap by
+12. **Layer state enters through the spatial index, nowhere else.** A new
+    consumer that filters or sorts objects itself will disagree with the tiles.
+    Sort with `compareRenderOrder`; pick with `queryInteractive`; only
+    bookkeeping uses `queryAll`.
+13. **Composite destinations are integer-snapped outward.** Fragments overlap by
     <1px; they never gap. A gap shows the canvas background and reads as a
     rendering defect (the "white lines" report).
 

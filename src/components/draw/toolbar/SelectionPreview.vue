@@ -12,7 +12,7 @@
         right: 'calc(0.75rem + env(safe-area-inset-right))',
         // Sits above the bottom-center dock (up to two stacked pills + margin)
         // so it can never overlap ToolDockSelect, whatever the screen width.
-        bottom: 'calc(9rem + env(safe-area-inset-bottom))',
+        bottom: 'calc(12.5rem + env(safe-area-inset-bottom))',
       }"
       @click="openBig"
     >

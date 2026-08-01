@@ -35,6 +35,16 @@ import {
 	undoMoveObjectsUpOneLayer,
 } from "@/draw/history/operations/layerHistory";
 import {
+	redoLayerAdded,
+	redoLayerDeleted,
+	redoLayerRenamed,
+	redoLayerReordered,
+	undoLayerAdded,
+	undoLayerDeleted,
+	undoLayerRenamed,
+	undoLayerReordered,
+} from "@/draw/history/operations/layerDocumentHistory";
+import {
 	redoPolygonCreation,
 	undoPolygonCreation,
 } from "@/draw/history/operations/shapeHistory";
@@ -105,6 +115,10 @@ export const undoActionMapping: {
 	[HistoryEvent.ObjectStyleChanged]: undoObjectStyle,
 	[HistoryEvent.ImgFilterChanged]: undoImgFilter,
 	[HistoryEvent.Merge]: undoMerge,
+	[HistoryEvent.LayerAdded]: undoLayerAdded,
+	[HistoryEvent.LayerDeleted]: undoLayerDeleted,
+	[HistoryEvent.LayerRenamed]: undoLayerRenamed,
+	[HistoryEvent.LayerReordered]: undoLayerReordered,
 };
 
 export const redoActionMapping: {
@@ -130,4 +144,8 @@ export const redoActionMapping: {
 	[HistoryEvent.ObjectStyleChanged]: redoObjectStyle,
 	[HistoryEvent.ImgFilterChanged]: redoImgFilter,
 	[HistoryEvent.Merge]: redoMerge,
+	[HistoryEvent.LayerAdded]: redoLayerAdded,
+	[HistoryEvent.LayerDeleted]: redoLayerDeleted,
+	[HistoryEvent.LayerRenamed]: redoLayerRenamed,
+	[HistoryEvent.LayerReordered]: redoLayerReordered,
 };

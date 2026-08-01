@@ -7,6 +7,7 @@ import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { isMobile } from "@/helper/general.helper";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { Rect } from "@/draw/utils/QuadTree";
 import * as transform from "@/draw/transform/transformController";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
@@ -228,7 +229,9 @@ export function createLassoTool(): ToolService {
 			w: lassoBBox.maxX - lassoBBox.minX,
 			h: lassoBBox.maxY - lassoBBox.minY,
 		};
-		const candidates = useDrawObjectManager().query(rect) as FabricObject[];
+		const candidates = useDrawObjectManager().querySelectable(
+			rect,
+		) as FabricObject[];
 		recordPhase("lassoHitTest", performance.now() - queryStartedAt);
 		return candidates;
 	}
@@ -365,11 +368,9 @@ export function createLassoTool(): ToolService {
 			selectTool(DrawTool.Select);
 			// Quadtree query order is arbitrary — sort by z like the normal drag
 			// select does, else copies of the selection stack in the wrong order.
-			const zMap = useDrawObjectManager().getZIndexMap();
+			useDrawObjectManager().getZIndexMap();
 			const sortStartedAt = performance.now();
-			const sorted = [...objects].sort(
-				(a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0),
-			);
+			const sorted = [...objects].sort(compareRenderOrder);
 			recordPhase("lassoSelectionSort", performance.now() - sortStartedAt);
 			let activeObject: FabricObject | undefined;
 			if (sorted.length > 1) {

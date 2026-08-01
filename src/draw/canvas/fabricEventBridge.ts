@@ -116,7 +116,24 @@ function handleEraseEnd(event: any, options: FabricEventBridgeOptions): void {
 	const rect = detail.dirtyRect as WorldRect | undefined;
 	transformLayer.invalidateCache();
 
-	for (const target of (detail.targets ?? []) as FabricObject[]) {
+	const targets = (detail.targets ?? []) as FabricObject[];
+
+	// An erase that clipped NOTHING changed no pixels, so there is nothing to
+	// invalidate — a stroke over empty space, or over content the lobby/claim
+	// rules protect. The brush still punched the live lower context while the
+	// pointer was down, so ask for one repaint to restore it from the tiles.
+	//
+	// This used to be harmless: the stroke took the stamp path, punched
+	// transparent pixels and left the tiles FRESH. Now that a cross-layer erase
+	// correctly falls back to invalidate-and-re-render, the same no-op stroke
+	// marked its whole footprint unusable and dropped it to the overview — the
+	// "blur after erasing over nothing".
+	if (targets.length === 0) {
+		engine.requestFrame();
+		return;
+	}
+
+	for (const target of targets) {
 		if (!target?.id) continue;
 		markObjectMutated(target);
 		if ((target as any).__hasImageClip) bakeryMarkDirty(target);

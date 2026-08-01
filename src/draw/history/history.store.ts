@@ -843,6 +843,9 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		clearStackOfPolygonHistory,
 		reset,
 		addToUndoStackWithResetRedo,
+		// Exposed so other recorders (layer deletion) can defer their payload the
+		// same way. Callers using it MUST precompute `action.__w`.
+		defineLazyJSON,
 		createHistoryContext,
 		lastActionType,
 		silentUndo,

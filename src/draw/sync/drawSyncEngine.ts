@@ -527,9 +527,19 @@ export function createDrawSyncEngine() {
 						const action = queued.action;
 
 						const start = performance.now();
+						// A peer on a NEWER build can send an action type this build has
+						// never heard of. The lookup below used to be unguarded, so that
+						// threw and killed the whole drain — every later action in the
+						// queue was dropped with it. Skipping one unknown action degrades
+						// gracefully instead, and it is what makes shipping any new
+						// action type survivable for clients already in the wild.
+						const handler = (drawSyncingMapping as any)[action.type];
+						if (typeof handler !== "function") {
+							console.warn("[sync] unknown action type, skipped:", action.type);
+							continue;
+						}
 						await actionWithoutEvents(async () => {
-							// @ts-ignore
-							await drawSyncingMapping[action.type](action.params);
+							await handler(action.params);
 						});
 						canvas.fire("sync:action:done" as any, {
 							type: action.type,

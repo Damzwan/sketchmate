@@ -56,12 +56,41 @@ export abstract class RenderInvalidationCoordinator<
 			// The overview is folded in at demote (see demoteSettled).
 		} else {
 			// An insertion never makes the old pixels incorrect; they are only
-			// missing the new object. For a non-topmost object (bucket fill is the
-			// common case) there is no z-correct live overlay, so retain the sharp
-			// previous tile until its replacement lands. Exposing the overview here
-			// made the whole fill footprint pixelate before sharpening again.
+			// missing the new object. For a non-topmost object (a bucket fill, or a
+			// stroke drawn on a lower LAYER) there is no z-correct live overlay, so
+			// retain the sharp previous tile until its replacement lands. Exposing
+			// the overview here made the whole fill footprint pixelate before
+			// sharpening again.
 			this.committed.markStale(rect);
 			this.patchOverview(rect);
+			// …but "retain the old tile" means the new object is INVISIBLE until the
+			// bake lands, which for a freehand stroke on a lower layer reads as the
+			// stroke not registering. Repair its own footprint synchronously, on the
+			// same bounded budget every other sub-rect repair uses, so it appears at
+			// once AND in the right order. Only for what is actually on screen and
+			// only while nothing else owns the frame.
+			//
+			// Deliberately WITHOUT markDirty: `markStale` already recorded the rect,
+			// so the sub-rect repair has everything it needs, and the tiles stay
+			// USABLE throughout. Marking them dirty first would drop the region to
+			// the overview for any tile the budget did not reach — the exact
+			// sharp→blurry→sharp flash this branch exists to prevent.
+			if (
+				!this.gesturing &&
+				!this.loading &&
+				!this.erasing &&
+				!this.mutating &&
+				tier > this.committed.overviewTier &&
+				this.intersectsView(rect)
+			) {
+				const vpt = this.surface.getVpt();
+				const vw = this.committed.viewWorld(
+					vpt,
+					this.surface.getSize(),
+					this.surface.getDpr(),
+				);
+				this.committed.rebuildRectSync(rect, tier, vw, MAX_SYNC_REPAIR_TILES);
+			}
 		}
 		this.requestFrame();
 		this.scheduleBake();
@@ -303,7 +332,12 @@ export abstract class RenderInvalidationCoordinator<
 	 */
 	onErase(eraserObj: T, rect: WorldRect, canStamp = false): void {
 		const tier = this.committed.pickActiveTier(this.surface.getVpt()[0]);
-		if (!canStamp) {
+		// The punch is pixel surgery on a bitmap that holds EVERY layer, so it
+		// cannot tell the erased layer's pixels from anyone else's. When another
+		// layer has content under the stroke, the only correct answer is to
+		// re-render the region from the objects — their clipPaths changed on the
+		// active layer alone, so everything else comes back intact.
+		if (!canStamp || this.canPunchRegion?.(rect) === false) {
 			this.markDirtyAndRebuildSync(rect, tier);
 			return;
 		}

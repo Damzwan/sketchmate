@@ -195,6 +195,77 @@ describe("RenderEngine erase bursts", () => {
 		engine.reset();
 	});
 
+	it("repairs a lower-z insertion in the same frame instead of waiting for the bake", () => {
+		// A stroke drawn on a lower LAYER takes this branch on every commit: it
+		// gets no live overlay (it must not paint over what covers it), so without
+		// a synchronous repair it stays invisible for the whole bake round-trip.
+		const engine = makeEngine() as any;
+		const repair = vi
+			.spyOn(engine.committed, "rebuildRectSync")
+			.mockReturnValue(1);
+		const object = {
+			id: "under-stroke",
+			getBoundingRect: () => ({ left: 20, top: 30, width: 100, height: 80 }),
+		};
+
+		engine.onObjectAdded(object, false);
+
+		expect(repair).toHaveBeenCalledWith(
+			{ x: 20, y: 30, w: 100, h: 80 },
+			expect.any(Number),
+			expect.anything(),
+			expect.any(Number),
+		);
+		engine.reset();
+	});
+
+	it("refuses to punch an erase across layers", () => {
+		// The tile bitmap is the composite of every layer, so a destination-out
+		// punch cannot tell the erased layer's pixels from anyone else's.
+		const engine = makeEngine({ canPunchRegion: () => false }) as any;
+		const stamp = vi.spyOn(engine.committed, "eraseStamp");
+		const overviewErase = vi.spyOn(engine.committed.overview, "eraseObject");
+		const rect = { x: 10, y: 10, w: 60, h: 60 };
+
+		engine.onErase({ id: "stroke" }, rect, true);
+
+		expect(stamp).not.toHaveBeenCalled();
+		expect(overviewErase).not.toHaveBeenCalled();
+		engine.reset();
+	});
+
+	it("keeps the punch when the region is single-layer", () => {
+		const engine = makeEngine({ canPunchRegion: () => true }) as any;
+		const stamp = vi
+			.spyOn(engine.committed, "eraseStamp")
+			.mockReturnValue(true);
+		const rect = { x: 10, y: 10, w: 60, h: 60 };
+
+		engine.onErase({ id: "stroke" }, rect, true);
+
+		expect(stamp).toHaveBeenCalledOnce();
+		engine.reset();
+	});
+
+	it("leaves an off-screen insertion entirely to the async bake", () => {
+		const engine = makeEngine() as any;
+		const repair = vi.spyOn(engine.committed, "rebuildRectSync");
+		const object = {
+			id: "far-away",
+			getBoundingRect: () => ({
+				left: 90_000,
+				top: 90_000,
+				width: 40,
+				height: 40,
+			}),
+		};
+
+		engine.onObjectAdded(object, false);
+
+		expect(repair).not.toHaveBeenCalled();
+		engine.reset();
+	});
+
 	it("treats transform footprints as WRONG, not merely incomplete", () => {
 		// A move is not additive: the old footprint still shows an object that has
 		// left it. Marking those tiles stale-but-usable keeps them composited in

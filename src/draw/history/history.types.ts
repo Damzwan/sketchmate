@@ -1,4 +1,5 @@
 import { FabricObjectProps } from "fabric";
+import type { DrawLayer } from "@/draw/layers/layer.types";
 
 export enum HistoryEvent {
 	ObjectAdded = "object:added",
@@ -21,6 +22,13 @@ export enum HistoryEvent {
 	ObjectStyleChanged = "objectStyleChanged",
 	ImgFilterChanged = "imgFilterChanged",
 	Merge = "merge",
+	// Layer DOCUMENT edits. Solo drawing only — in a room the layer set is a
+	// constant, so there is nothing structural to undo. Visibility and lock are
+	// view state and deliberately absent here.
+	LayerAdded = "layerAdded",
+	LayerDeleted = "layerDeleted",
+	LayerRenamed = "layerRenamed",
+	LayerReordered = "layerReordered",
 }
 
 export type HistoryParamsMap = {
@@ -89,6 +97,20 @@ export type HistoryParamsMap = {
 		prevBlendColorFilter: any;
 	};
 	[HistoryEvent.Merge]: { group: any | undefined; objectIds: string[] };
+	[HistoryEvent.LayerAdded]: { layer: DrawLayer; index: number };
+	/** `objectsJSON` is a LAZY param (defineLazyJSON) — never enumerate-and-read
+	 *  it casually, and keep `__w` precomputed on the action. */
+	[HistoryEvent.LayerDeleted]: {
+		layer: DrawLayer;
+		index: number;
+		objectsJSON: any[];
+	};
+	[HistoryEvent.LayerRenamed]: {
+		layerId: string;
+		previousName: string;
+		name: string;
+	};
+	[HistoryEvent.LayerReordered]: { from: number; to: number };
 };
 
 export type HistoryParams<T extends HistoryEvent> = HistoryParamsMap[T];

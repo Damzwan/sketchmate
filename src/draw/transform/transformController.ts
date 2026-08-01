@@ -1,5 +1,6 @@
 import { Canvas, FabricObject, InteractiveFabricObject } from "fabric";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import { getRenderDpr } from "@/draw/config/renderQuality.config";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
@@ -473,10 +474,8 @@ export function bakeThumbnail(
 	ctx.scale(physW / worldW, physH / worldH);
 	ctx.translate(-minX, -minY);
 
-	const zMap = useDrawObjectManager().getZIndexMap();
-	const ordered = objs
-		.slice()
-		.sort((a, b2) => (zMap.get(a) ?? 0) - (zMap.get(b2) ?? 0));
+	useDrawObjectManager().getZIndexMap();
+	const ordered = objs.slice().sort(compareRenderOrder);
 
 	for (const o of ordered) {
 		const prep = o as any;
@@ -1239,11 +1238,8 @@ function bakeSelectionBitmap(
 	ctx.translate(-minX, -minY);
 
 	if (isActiveSelection(target)) {
-		const zMap = useDrawObjectManager().getZIndexMap();
-		(target as any)._objects?.sort(
-			(a: FabricObject, b2: FabricObject) =>
-				(zMap.get(a) ?? 0) - (zMap.get(b2) ?? 0),
-		);
+		useDrawObjectManager().getZIndexMap();
+		(target as any)._objects?.sort(compareRenderOrder);
 	}
 
 	// Prep the object EXACTLY like isolatedTileRenderer (the proven-good tile
@@ -1357,7 +1353,7 @@ function vacatedObjects(target: FabricObject, origin: Origin): FabricObject[] {
 			: [target],
 	);
 	const mgr = useDrawObjectManager();
-	const zMap = mgr.getZIndexMap();
+	mgr.getZIndexMap();
 	return mgr
 		.query(originRect(origin))
 		.filter(
@@ -1366,7 +1362,7 @@ function vacatedObjects(target: FabricObject, origin: Origin): FabricObject[] {
 				object.visible !== false &&
 				object.opacity !== 0,
 		)
-		.sort((a, b) => (zMap.get(a) ?? 0) - (zMap.get(b) ?? 0));
+		.sort(compareRenderOrder);
 }
 
 function transparentBitmap(): ImageBitmap | null {

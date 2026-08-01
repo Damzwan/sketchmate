@@ -9,12 +9,22 @@ import { NO_HOLE } from "./tiles/tileLayerBase";
 
 interface TestObject extends Bounded {}
 
-function makeLayer(query: SpatialIndex<TestObject>["query"] = () => []) {
+function makeLayer(
+	query: SpatialIndex<TestObject>["query"] = () => [],
+	renderer: (
+		ctx: any,
+		obj: TestObject,
+		scale: number,
+		rect?: WorldRect,
+	) => void = () => {},
+	renderChunk?: number,
+) {
 	const index: SpatialIndex<TestObject> = { query };
-	return new CommittedLayer<TestObject>(index, () => {}, {
+	return new CommittedLayer<TestObject>(index, renderer, {
 		tileSize: 256,
 		overviewPx: 64,
 		memoryBudgetMB: 32,
+		renderChunk,
 	});
 }
 
@@ -515,6 +525,43 @@ describe("CommittedLayer safety bounds", () => {
 
 		expect(repaired).toBe(false);
 		expect(query).not.toHaveBeenCalled();
+	});
+
+	it("yields and aborts a dense background sub-rect repair between objects", async () => {
+		stubOffscreenCanvas();
+		const objects = Array.from({ length: 10 }, (_, id) => ({
+			id: String(id),
+			getBoundingRect: () => ({ left: 0, top: 0, width: 20, height: 20 }),
+		}));
+		const render = vi.fn();
+		// A two-object chunk makes the expected cancellation boundary explicit.
+		const layer = makeLayer(() => objects, render, 2) as any;
+		const tier = 4;
+		const key = `${tier}:0:0`;
+		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
+		layer.markDirty({ x: 10, y: 10, w: 20, h: 20 });
+
+		const ctrl = new AbortController();
+		const yielder = {
+			reset: vi.fn(),
+			shouldYield: vi.fn(() => false),
+			yield: vi.fn(async () => ctrl.abort()),
+		};
+		const repaired = await layer.repairTileRegionYielded(
+			tier,
+			0,
+			0,
+			{ x: 10, y: 10, w: 20, h: 20 },
+			yielder,
+			ctrl.signal,
+		);
+
+		expect(repaired).toBe(false);
+		expect(yielder.yield).toHaveBeenCalledOnce();
+		expect(render).toHaveBeenCalledTimes(2);
+		// The partially repaired private bitmap was discarded; the original tile
+		// remains stale and a later settled bake will retry it.
+		expect(layer.tiles.get(key).builtGen).toBe(0);
 	});
 
 	it("refuses a large synchronous hybrid overlay before allocating a canvas", () => {

@@ -22,6 +22,19 @@ const FULL_REBUILD_COST = 4;
  *  frame alongside the composite that follows it. */
 const REPAIR_BUDGET_MS = 6;
 
+interface PreparedRegionRepair<T> {
+	key: string;
+	tier: number;
+	tx: number;
+	ty: number;
+	scale: number;
+	sub: WorldRect;
+	objects: T[];
+	builtGen: number;
+	off: OffscreenCanvas;
+	c2d: OffscreenCanvasRenderingContext2D;
+}
+
 export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 	// ── baking ───────────────────────────────────────────────────────────────
 	async bake(
@@ -274,10 +287,20 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			const known = this.unionDirtyRects(key);
 			if (known && this.tiles.get(key)?.bitmap) {
 				const __tRepair = performance.now();
-				if (this.repairTileRegionSync(tier, tx, ty, known)) {
+				if (
+					await this.repairTileRegionYielded(
+						tier,
+						tx,
+						ty,
+						known,
+						yielder,
+						signal,
+					)
+				) {
 					recordPhase("localBake", performance.now() - __tRepair);
 					return;
 				}
+				if (signal.aborted) return;
 			}
 
 			// LOCAL FALLBACK. The worker refused this tile (or is paused/failed), so
@@ -303,7 +326,11 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			c2d.rect(q.x, q.y, q.w, q.h);
 			c2d.clip();
 			for (let i = 0; i < objects.length; i++) {
-				if (i > 0 && yielder.shouldYield()) {
+				// Querying, canvas setup and the previous tile all consume the same
+				// slice. Yield even before object zero when that prologue exhausted it;
+				// otherwise the first (possibly huge) Fabric render starts after the
+				// budget is already gone.
+				if (yielder.shouldYield()) {
 					await yielder.yield();
 					if (signal.aborted) {
 						c2d.restore();
@@ -566,15 +593,15 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 	 * Falls back to the full rebuild when the sub-rect is unknown, covers most
 	 * of the tile anyway, or the tile has no bitmap to patch.
 	 */
-	private repairTileRegionSync(
+	private prepareTileRegionRepair(
 		tier: number,
 		tx: number,
 		ty: number,
 		changed: WorldRect,
-	): boolean {
+	): PreparedRegionRepair<T> | null {
 		const key = `${tier}:${tx}:${ty}`;
 		const tile = this.tiles.get(key);
-		if (!tile?.bitmap) return false;
+		if (!tile?.bitmap) return null;
 
 		// A repair marks the tile FRESH, so it must cover EVERYTHING still owed on
 		// this tile — not merely the region the current caller cares about.
@@ -593,9 +620,9 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		//   undefined → nothing recorded. Fine if the tile is fresh (a forced
 		//               repair), never fine if it is stale for reasons unknown.
 		const recorded = this.dirtyRects.get(key);
-		if (recorded === null) return false;
+		if (recorded === null) return null;
 		const isFresh = tile.builtGen === (this.gen.get(key) ?? 0);
-		if (recorded === undefined && !isFresh) return false;
+		if (recorded === undefined && !isFresh) return null;
 		// The repair marks the tile fresh, so it must cover EVERY recorded region,
 		// not just the ones near the caller's rect.
 		const owed = this.unionDirtyRects(key);
@@ -616,7 +643,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		let y0 = Math.max(world.y - pad, changed.y - pad);
 		let x1 = Math.min(world.x + world.w + pad, changed.x + changed.w + pad);
 		let y1 = Math.min(world.y + world.h + pad, changed.y + changed.h + pad);
-		if (x1 <= x0 || y1 <= y0) return false;
+		if (x1 <= x0 || y1 <= y0) return null;
 
 		// SNAP TO WHOLE TILE PIXELS.
 		//
@@ -643,7 +670,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 
 		// Not worth the extra bitmap copy if we would redraw most of the tile.
 		const tileArea = (world.w + 2 * pad) * (world.h + 2 * pad);
-		if (sub.w * sub.h > tileArea * 0.6) return false;
+		if (sub.w * sub.h > tileArea * 0.6) return null;
 
 		const objects = this.index.query(sub);
 		const builtGen = this.gen.get(key) ?? 0;
@@ -652,7 +679,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		const c2d = off.getContext("2d");
 		if (!c2d) {
 			this.release(off);
-			return false;
+			return null;
 		}
 		c2d.setTransform(1, 0, 0, 1, 0, 0);
 		c2d.clearRect(0, 0, this.BMP, this.BMP);
@@ -660,7 +687,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			c2d.drawImage(tile.bitmap, 0, 0);
 		} catch {
 			this.release(off);
-			return false;
+			return null;
 		}
 		c2d.save();
 		c2d.translate(this.OS, this.OS);
@@ -671,14 +698,19 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		c2d.clip();
 		// Clear inside the clip, then repaint that region from scratch in z-order.
 		c2d.clearRect(sub.x, sub.y, sub.w, sub.h);
-		for (let i = 0; i < objects.length; i++) {
-			try {
-				this.renderer(c2d as any, objects[i], scale, sub);
-			} catch (err) {
-				if (this.debug) console.warn("[Committed] region repair threw", err);
-			}
-		}
+		return { key, tier, tx, ty, scale, sub, objects, builtGen, off, c2d };
+	}
+
+	private finishTileRegionRepair(
+		prepared: PreparedRegionRepair<T>,
+		commit: boolean,
+	): boolean {
+		const { key, tier, tx, ty, builtGen, off, c2d } = prepared;
 		c2d.restore();
+		if (!commit) {
+			this.release(off);
+			return false;
+		}
 
 		let bmp: ImageBitmap;
 		try {
@@ -688,6 +720,12 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			return false;
 		}
 		this.release(off);
+		// A yielded repair may race a new edit. The offscreen pixels are then a
+		// mixture of generations and must never be promoted to a fresh tile.
+		if ((this.gen.get(key) ?? 0) !== builtGen) {
+			bmp.close();
+			return false;
+		}
 		const bytes = this.BMP * this.BMP * 4;
 		if (!this.ensureMemory(bytes)) {
 			bmp.close();
@@ -695,6 +733,69 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		}
 		this.store(key, tier, tx, ty, bmp, bytes, builtGen);
 		return true;
+	}
+
+	private repairTileRegionSync(
+		tier: number,
+		tx: number,
+		ty: number,
+		changed: WorldRect,
+	): boolean {
+		const prepared = this.prepareTileRegionRepair(tier, tx, ty, changed);
+		if (!prepared) return false;
+		const { c2d, objects, scale, sub } = prepared;
+		for (let i = 0; i < objects.length; i++) {
+			try {
+				this.renderer(c2d as any, objects[i], scale, sub);
+			} catch (err) {
+				if (this.debug) console.warn("[Committed] region repair threw", err);
+			}
+		}
+		return this.finishTileRegionRepair(prepared, true);
+	}
+
+	/**
+	 * Background-bake variant of the same pixel-exact sub-rect repair. The old
+	 * async bake called repairTileRegionSync here, so a dense erase trail could
+	 * redraw dozens of clipped objects in one uninterruptible task even though
+	 * ordinary full-tile baking yielded between those same objects.
+	 *
+	 * Canvas state on an OffscreenCanvas remains valid across task/frame yields;
+	 * we keep the partially repaired bitmap private and publish it only if the
+	 * generation is still current at the end.
+	 */
+	private async repairTileRegionYielded(
+		tier: number,
+		tx: number,
+		ty: number,
+		changed: WorldRect,
+		yielder: Yieldable,
+		signal: AbortSignal,
+	): Promise<boolean> {
+		if (signal.aborted) return false;
+		const prepared = this.prepareTileRegionRepair(tier, tx, ty, changed);
+		if (!prepared) return false;
+		const { c2d, objects, scale, sub } = prepared;
+
+		if (objects.length && yielder.shouldYield()) {
+			await yielder.yield();
+			if (signal.aborted) return this.finishTileRegionRepair(prepared, false);
+		}
+
+		for (let i = 0; i < objects.length; i++) {
+			try {
+				this.renderer(c2d as any, objects[i], scale, sub);
+			} catch (err) {
+				if (this.debug) console.warn("[Committed] region repair threw", err);
+			}
+			if (i % this.CHUNK === this.CHUNK - 1 || yielder.shouldYield()) {
+				await yielder.yield();
+				if (signal.aborted) return this.finishTileRegionRepair(prepared, false);
+			}
+		}
+
+		if (signal.aborted) return this.finishTileRegionRepair(prepared, false);
+		return this.finishTileRegionRepair(prepared, true);
 	}
 
 	/** @returns true when the cheap sub-rect repair handled it. */

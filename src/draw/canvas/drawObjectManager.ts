@@ -4,6 +4,7 @@ import { getViewportRect } from "@/draw/utils/QuadTree";
 import {
 	getRenderDpr,
 	IS_LOW_END_DEVICE,
+	IS_MOBILE_DEVICE,
 } from "@/draw/config/renderQuality.config";
 import {
 	getDrawRenderBackend,
@@ -47,6 +48,14 @@ import {
 } from "@/draw/rendering/bakery/tileBakeryClient";
 
 const IS_LOW_END = IS_LOW_END_DEVICE;
+/**
+ * Main-thread raster work remains bursty for throughput, but it must hand a
+ * full frame to Android WebView regularly even when isInputPending is missing.
+ * 12 ms leaves useful headroom in a 60 Hz frame without reducing baking to one
+ * tiny slice per frame. Desktop can run longer between frame opportunities.
+ */
+const RENDER_WORK_BUDGET_MS = IS_LOW_END ? 3 : IS_MOBILE_DEVICE ? 5 : 8;
+const RENDER_FRAME_YIELD_INTERVAL_MS = IS_MOBILE_DEVICE ? 12 : 24;
 
 export function createDrawObjectManager() {
 	let c: Canvas | undefined;
@@ -436,7 +445,8 @@ export function createDrawObjectManager() {
 			surface,
 			(label) =>
 				createYielder({
-					budgetMs: IS_LOW_END ? 4 : 8,
+					budgetMs: RENDER_WORK_BUDGET_MS,
+					frameYieldIntervalMs: RENDER_FRAME_YIELD_INTERVAL_MS,
 					label: label ?? "render-work",
 				}) as any,
 			{

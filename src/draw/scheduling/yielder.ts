@@ -82,9 +82,7 @@ export function nextFrame(label = "unattributed"): Promise<void> {
  * If input IS pending, we wait a full RAF instead so the browser can dispatch
  * the input event AND repaint before we resume.
  */
-export function yieldToMain(label = "unattributed"): Promise<void> {
-	if (_isInputPending()) return nextFrame(label);
-
+function quickTaskYield(label: string): Promise<void> {
 	// MessageChannel postMessage is the fastest reliable yield. It runs as a
 	// task (not microtask), so it allows input/network/etc to interleave, but
 	// resolves much faster than setTimeout(0) which gets clamped to 4ms.
@@ -108,6 +106,11 @@ export function yieldToMain(label = "unattributed"): Promise<void> {
 	);
 }
 
+export function yieldToMain(label = "unattributed"): Promise<void> {
+	if (_isInputPending()) return nextFrame(label);
+	return quickTaskYield(label);
+}
+
 export interface Yielder {
 	/** Reset the frame timer to NOW. Call when starting a new work batch. */
 	reset(): void;
@@ -124,6 +127,18 @@ export interface Yielder {
 export interface YielderOptions {
 	/** Time budget per frame in ms. Default 8ms (half a 60Hz frame). */
 	budgetMs?: number;
+	/**
+	 * Maximum wall time background work may keep resuming through quick task
+	 * yields without giving the browser a full animation-frame opportunity.
+	 *
+	 * `navigator.scheduling.isInputPending()` normally upgrades a quick yield to
+	 * RAF as soon as touch input is queued, but that API is absent or reports late
+	 * in some Android WebViews. A finite interval is the backstop: quick yields
+	 * retain high bake throughput inside the interval, then one RAF lets input,
+	 * rendering and compositor work run before the background loop continues.
+	 * Omitted = retain the old input-pending-only behaviour.
+	 */
+	frameYieldIntervalMs?: number;
 	/** Signal that aborts pending yields. */
 	signal?: AbortSignal;
 	/** Stable subsystem name used to attribute resumed long-frame work. */
@@ -136,9 +151,14 @@ export interface YielderOptions {
  */
 export function createYielder(opts: YielderOptions = {}): Yielder {
 	const budgetMs = opts.budgetMs ?? 8;
+	const frameYieldIntervalMs =
+		opts.frameYieldIntervalMs === undefined
+			? Infinity
+			: Math.max(0, opts.frameYieldIntervalMs);
 	const signal = opts.signal;
 	const label = opts.label ?? "unattributed";
 	let frameStart = performance.now();
+	let lastFrameYield = frameStart;
 
 	const shouldYield = () => {
 		if (signal?.aborted) return true;
@@ -154,10 +174,22 @@ export function createYielder(opts: YielderOptions = {}): Yielder {
 		// If input is pending, wait a full RAF so the browser actually dispatches
 		// input events and paints before we resume. A short yield isn't enough
 		// because we'd just re-enter our loop before the input task runs.
-		if (_isInputPending()) {
+		//
+		// Periodically do the same even without a positive isInputPending signal.
+		// MessageChannel is excellent for throughput, but an uninterrupted chain of
+		// quick continuations can starve touch delivery on affected WebViews. This
+		// keeps most yields quick and pays for at most one RAF per configured window.
+		if (
+			_isInputPending() ||
+			performance.now() - lastFrameYield >= frameYieldIntervalMs
+		) {
 			await nextFrame(label);
+			lastFrameYield = performance.now();
 		} else {
-			await yieldToMain(label);
+			// We already made the input/frame decision above. Do not re-check through
+			// yieldToMain(): if the answer changed between checks it could take a RAF
+			// without advancing lastFrameYield, immediately paying for a second RAF.
+			await quickTaskYield(label);
 		}
 		reset();
 	};

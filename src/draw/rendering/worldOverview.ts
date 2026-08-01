@@ -326,15 +326,26 @@ export class WorldOverview<T extends Bounded> {
 		// offer it we keep the old call but yield through the loop.
 		const withBounds = this.index.queryBounds?.(bounds);
 		const visible: T[] = [];
+		yielder.reset();
 		if (withBounds) {
 			for (let i = 0; i < withBounds.length; i++) {
 				const b = withBounds[i].bounds;
 				if (b.w * sx >= minPx || b.h * sy >= minPx)
 					visible.push(withBounds[i].obj);
+				// Reading cached bounds is cheap, so checking once per block retains
+				// throughput. The loop is still O(scene), though, and a 50k-object board
+				// must not delay the first touch event just because no bounds are being
+				// recomputed.
+				if ((i & 255) === 255) {
+					await yielder.maybeYield();
+					if (signal.aborted) {
+						discardTmp();
+						return;
+					}
+				}
 			}
 		} else {
 			const objects = this.index.query(bounds);
-			yielder.reset();
 			for (let i = 0; i < objects.length; i++) {
 				const b = objects[i].getBoundingRect(true, true);
 				if (b.width * sx >= minPx || b.height * sy >= minPx)

@@ -69,6 +69,41 @@ describe("WorldOverview backing-store lifecycle", () => {
 		expect(overview.ctx.rect).toHaveBeenCalledWith(8, 18, 15, 13);
 	});
 
+	it("yields and aborts while filtering cached bounds on a massive scene", async () => {
+		vi.stubGlobal("OffscreenCanvas", FakeOffscreenCanvas);
+		const entries = Array.from({ length: 600 }, (_, id) => ({
+			obj: {
+				id: String(id),
+				getBoundingRect: () => ({ left: 0, top: 0, width: 1, height: 1 }),
+			},
+			bounds: { x: 0, y: 0, w: 10, h: 10 },
+		}));
+		const render = vi.fn();
+		const overview = new WorldOverview(
+			{
+				query: () => entries.map((entry) => entry.obj),
+				queryBounds: () => entries,
+			},
+			render,
+			{ px: 64 },
+		) as any;
+		const ctrl = new AbortController();
+		const yielder = {
+			reset: vi.fn(),
+			maybeYield: vi.fn(async () => ctrl.abort()),
+		};
+
+		await overview.rebuildIfNeeded(
+			{ x: 0, y: 0, w: 100, h: 100 },
+			yielder,
+			ctrl.signal,
+		);
+
+		expect(yielder.maybeYield).toHaveBeenCalledOnce();
+		expect(render).not.toHaveBeenCalled();
+		expect(overview.canvas).toBeNull();
+	});
+
 	it("never samples transparent pixels beyond the overview bounds", () => {
 		const canvas = new FakeOffscreenCanvas(100, 100);
 		const overview = new WorldOverview(

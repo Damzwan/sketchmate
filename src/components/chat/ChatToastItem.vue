@@ -8,11 +8,6 @@
     <!-- Every sender keeps their own customization. Worlds are frozen frames;
          effects may animate, but the toast stack is capped at three items. -->
     <div v-if="isCustomized" class="absolute inset-0 z-0 pointer-events-none" style="isolation: isolate;">
-      <ProfileEffect
-        :effect-id="customProps.customization.effectId"
-        radius-class="rounded-xl"
-        contained
-      />
       <!-- Kept static-mode to prevent heavy Lottie decoding -->
       <ProfileWorld
         :world-id="customProps.customization.worldId"
@@ -21,6 +16,11 @@
         mini
         contained
         radius-class="rounded-xl"
+      />
+      <ProfileEffect
+        :effect-id="customProps.customization.effectId"
+        radius-class="rounded-xl"
+        contained
       />
     </div>
 
@@ -118,14 +118,18 @@ import {
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveTitle,
-	resolveWorld,
 } from "@/config/profile_options.config";
 
 const props = defineProps<{
 	toast: any;
 }>();
 
-const isCustomized = computed(() => !!props.toast.customization);
+// Every direct-message toast uses the sender surface. Missing customization is
+// the Classic default, not a reason to fall back to the unrelated black lobby
+// toast treatment.
+const isCustomized = computed(
+	() => !props.toast.tabId?.toString().startsWith("lobby"),
+);
 
 const normalizedLines = computed(() => {
 	if (props.toast.lines && props.toast.lines.length) return props.toast.lines;
@@ -134,16 +138,12 @@ const normalizedLines = computed(() => {
 });
 
 const customProps = computed(() => {
-	if (!isCustomized.value) return {} as any;
-
 	const custom = hydrateCustomization(props.toast.customization);
 	const theme = resolveTheme(custom.themeId);
-	const world = resolveWorld(custom.worldId);
-
 	return {
 		customization: custom,
 		theme,
-		palette: resolveReadableCustomizationPalette(theme, world),
+		palette: resolveReadableCustomizationPalette(theme),
 		font: resolveFontFamily(custom.fontId),
 		fontClass: resolveFontEffectClass(custom.fontEffectId),
 		title: resolveTitle(custom.titleId),

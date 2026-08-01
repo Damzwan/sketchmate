@@ -10,6 +10,7 @@ import {
 import {
   getActiveChats,
   getChatMessages,
+  markAllAsRead,
   markAsRead
 } from '@/service/api/chat.api'
 import {
@@ -489,11 +490,12 @@ export const useChatStore = defineStore('chat', () => {
         if (existingIdx !== -1) {
           activeChats.value[existingIdx] = {
             ...activeChats.value[existingIdx],
+            last_message: response.message,
             status: response.conversation.status,
             trial_expires_at: response.conversation.trial_expires_at,
             initiator_id: response.conversation.initiator_id,
             relationship_id: response.conversation.relationship_id,
-            updatedAt: response.conversation.updatedAt
+            updatedAt: response.message.createdAt
           }
         }
 
@@ -577,7 +579,8 @@ export const useChatStore = defineStore('chat', () => {
           type: 'user',
           content: '',
           sender_id: me,
-          shared_inbox_id: inboxItemId
+          shared_inbox_item_id: inboxItemId,
+          createdAt: now
         } as any
       }
     }
@@ -693,7 +696,8 @@ export const useChatStore = defineStore('chat', () => {
       activeChats.value.find((c) => c._id === conversationId) ||
       friendStore.pendingRequests.find((c) => c._id === conversationId)
 
-    const hadUnread = (chat?.unread_counts?.[me] ?? 0) > 0
+    const previousUnread = chat?.unread_counts?.[me] ?? 0
+    const hadUnread = previousUnread > 0
     if (chat) {
       if (!chat.unread_counts) chat.unread_counts = {}
       chat.unread_counts[me] = 0
@@ -713,28 +717,54 @@ export const useChatStore = defineStore('chat', () => {
     } catch (e) {
       console.error('Failed to mark as read:', e)
       readAcknowledged.delete(conversationId)
+      if (chat) {
+        if (!chat.unread_counts) chat.unread_counts = {}
+        chat.unread_counts[me] = Math.max(
+          chat.unread_counts[me] || 0,
+          previousUnread
+        )
+      }
     }
   }
 
   /**
    * Mark every conversation read in one go.
    *
-   * Goes through `clearUnreads` per conversation rather than zeroing the counts
-   * locally and firing one bulk call: that function already owns the optimistic
-   * patch, the `readAcknowledged` bookkeeping that survives a re-fetch, and the
-   * rollback when the server write fails. A second path doing the same job by
-   * hand is how the badge starts coming back after a refresh.
-   *
-   * Only conversations that actually have unreads are touched, so this is a
-   * no-op call count of zero when the badge is already clear.
+   * One server-side update replaces the old request-per-conversation fan-out.
+   * The local patch is optimistic, survives list re-fetches through
+   * `readAcknowledged`, and restores every prior count if the bulk write fails.
    */
   async function markAllRead() {
     const me = authStore.user?._id
     if (!me) return
-    const ids = [...activeChats.value, ...friendStore.pendingRequests]
-      .filter((c) => (c.unread_counts?.[me] || 0) > 0)
-      .map((c) => c._id)
-    await Promise.all(ids.map((id) => clearUnreads(id)))
+    const chats = [...activeChats.value, ...friendStore.pendingRequests]
+    const unread = new Map<string, number>()
+    for (const chat of chats) {
+      const count = chat.unread_counts?.[me] || 0
+      if (count > 0) unread.set(chat._id, count)
+    }
+    if (unread.size === 0) return
+
+    for (const chat of chats) {
+      if (!unread.has(chat._id)) continue
+      if (!chat.unread_counts) chat.unread_counts = {}
+      chat.unread_counts[me] = 0
+      readAcknowledged.add(chat._id)
+    }
+
+    try {
+      await markAllAsRead()
+    } catch (e) {
+      for (const chat of chats) {
+        const previous = unread.get(chat._id)
+        if (previous === undefined) continue
+        if (!chat.unread_counts) chat.unread_counts = {}
+        chat.unread_counts[me] = Math.max(chat.unread_counts[me] || 0, previous)
+        readAcknowledged.delete(chat._id)
+      }
+      console.error('Failed to mark all chats as read:', e)
+      throw e
+    }
   }
 
   /**

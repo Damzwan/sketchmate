@@ -8,7 +8,6 @@
          the root above) with their effect + world layered over it, exactly like
          their ProfileCard. Private live chats only (not lobby/expired). -->
     <div v-if="showThemeBackdrop" class="absolute inset-0 z-0 pointer-events-none">
-      <ProfileEffect :effect-id="partnerCustomization.effectId" radius-class="rounded-none" />
       <ProfileWorld
         :world-id="partnerCustomization.worldId"
         :accent="theme.accentColor"
@@ -17,6 +16,11 @@
         mini
         contained
         radius-class="rounded-none"
+      />
+      <ProfileEffect
+        :effect-id="partnerCustomization.effectId"
+        radius-class="rounded-none"
+        contained
       />
     </div>
 
@@ -95,9 +99,14 @@
         <ion-button
           @click="$emit('open-report', partner)"
           fill="clear"
-          color="dark"
+          :style="{ '--color': toolbarUtilityColor }"
         >
-          <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg" slot="icon-only" />
+          <ion-icon
+            :icon="svg(mdiDotsHorizontal)"
+            class="text-lg"
+            slot="icon-only"
+            :style="{ color: toolbarUtilityColor }"
+          />
         </ion-button>
       </div>
     </div>
@@ -118,7 +127,8 @@
       v-if="!previewMode && activeTab !== 'lobby' && activeConversation"
       :chat="activeConversation"
       :current-user-id="user?._id"
-      :dark="stripOnDarkTheme"
+      :dark="stripOnDarkSurface"
+      :theme-dark="theme.isDark"
       :name-color="theme.nameColor"
       :desc-color="theme.descColor"
       @open-info="chatWidget.openRelationshipInfo()"
@@ -148,6 +158,7 @@ import {
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveTitle,
+	resolveWorld,
 } from "@/config/profile_options.config";
 
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -228,6 +239,15 @@ const fontEffectClass = computed(() =>
 const activeColors = computed(() =>
 	resolveReadableCustomizationPalette(theme.value),
 );
+const activeWorld = computed(() =>
+	resolveWorld(partnerCustomization.value.worldId),
+);
+const surfaceColors = computed(() =>
+	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+);
+const toolbarUtilityColor = computed(() =>
+	showThemeBackdrop.value ? surfaceColors.value.utility : "#18181b",
+);
 
 // The strip's text tone follows the THEME's surface, not the world.
 //
@@ -239,8 +259,8 @@ const activeColors = computed(() =>
 // a dark theme (Noir, Midnight) with no world kept black text over near-black.
 //
 // `theme.isDark` is the actual question, and it's now declared on the theme.
-const stripOnDarkTheme = computed(
-	() => showThemeBackdrop.value && theme.value.isDark,
+const stripOnDarkSurface = computed(
+	() => showThemeBackdrop.value && surfaceColors.value.isDark,
 );
 
 // Only dress the header with the partner's world/effect for a real, live
@@ -250,6 +270,7 @@ const showThemeBackdrop = computed(
 		previewMode.value ||
 		(activeTab.value !== "lobby" && !!partner.value && !isExpired.value),
 );
+
 // Paint the partner's theme surface (cardBg — often a gradient) + themed border
 // onto the header root; the effect/world layer sits over it.
 const toolbarStyle = computed(() =>

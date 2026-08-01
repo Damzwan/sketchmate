@@ -23,23 +23,12 @@ export const useQuotaStore = defineStore("quota", () => {
 		() => summary.value?.balloons ?? EMPTY_STATE,
 	);
 	const posts = computed<QuotaState>(() => summary.value?.posts ?? EMPTY_STATE);
-	const mates = computed<QuotaState>(() => summary.value?.mates ?? EMPTY_STATE);
 
 	const canSendBalloon = computed(() =>
 		summary.value ? balloons.value.remaining > 0 : true,
 	);
 	const canCreatePost = computed(() =>
 		summary.value ? posts.value.remaining > 0 : true,
-	);
-	// `limit === null` is the unlimited (Pro) tier — no weekly cap on new mates.
-	const canAddMate = computed(() =>
-		summary.value
-			? mates.value.limit === null || mates.value.remaining > 0
-			: true,
-	);
-	/** True only for a capped tier that has run out — drives the paywall nudge. */
-	const mateWeeklyLimitReached = computed(
-		() => !!summary.value && mates.value.limit !== null && mates.value.remaining <= 0,
 	);
 
 	async function refresh(force = false): Promise<void> {
@@ -58,9 +47,7 @@ export const useQuotaStore = defineStore("quota", () => {
 	/**
 	 * Re-derive `remaining` after a local `used` nudge.
 	 *
-	 * `limit === null` means unlimited (only mates use it today, but the field is
-	 * shared) — there is nothing to count down against, so leave `remaining`
-	 * alone rather than computing `null - used`.
+	 * Re-derive the remaining daily allowance after a local usage nudge.
 	 */
 	function syncRemaining(s: QuotaState) {
 		if (s.limit === null) return;
@@ -94,11 +81,8 @@ export const useQuotaStore = defineStore("quota", () => {
 		isPro,
 		balloons,
 		posts,
-		mates,
 		canSendBalloon,
 		canCreatePost,
-		canAddMate,
-		mateWeeklyLimitReached,
 		isLoading,
 		refresh,
 		decrementBalloon,

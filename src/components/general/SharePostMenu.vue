@@ -165,14 +165,18 @@ import { useMenuStore } from '@/store/menu.store'
 import { useToast } from '@/service/toast.service'
 import { Menu } from "@/types/menu.types";
 import { useShareService } from '@/draw/sharing/shareService.store'
+import { useChatStore } from '@/store/chat.store'
+import { recentActivityForPartner } from '@/helper/chat.helper'
 
 const authStore = useAuthStore()
 const friendStore = useFriendStore()
 const menuStore = useMenuStore()
 const shareService = useShareService()
+const chatStore = useChatStore()
 const { toast } = useToast()
 
 const { allConnectedPartners, isFriendOnline } = storeToRefs(friendStore)
+const { activeChats } = storeToRefs(chatStore)
 const { sharePostMenuOpen } = storeToRefs(menuStore)
 const { activeShareItem } = storeToRefs(shareService)
 
@@ -235,6 +239,10 @@ const sortedFriends = computed(() => {
     const aDisabled = isFriendDisabled(a)
     const bDisabled = isFriendDisabled(b)
     if (aDisabled !== bDisabled) return aDisabled ? 1 : -1
+    const recentDelta =
+      recentActivityForPartner(activeChats.value, b._id, b.last_interaction_at) -
+      recentActivityForPartner(activeChats.value, a._id, a.last_interaction_at)
+    if (recentDelta !== 0) return recentDelta
     const aOnline = isFriendOnline.value(a._id)
     const bOnline = isFriendOnline.value(b._id)
     if (aOnline !== bOnline) return aOnline ? -1 : 1

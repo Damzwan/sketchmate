@@ -27,7 +27,12 @@
     >
       <template #overlay>
         <div class="absolute top-2 right-2 z-20">
-          <ion-button @click="closeSheet" fill="clear" class="m-0" :style="{color: theme.nameColor}">
+          <ion-button
+            @click="closeSheet"
+            fill="clear"
+            class="m-0"
+            :style="{ '--color': surfacePalette.utility, color: surfacePalette.utility }"
+          >
             <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-2xl" />
           </ion-button>
         </div>
@@ -43,15 +48,19 @@
       <template #status>
         <div class="flex items-center gap-2 mt-2">
           <span v-if="isMe"
-                class="bg-secondary/10 text-secondary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">That's You</span>
+                class="text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border"
+                :style="statusChipStyle">That's You</span>
           <span v-else-if="isBlocked"
-                class="bg-black/10 text-black/80 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Blocked</span>
+                class="text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border"
+                :style="statusChipStyle">Blocked</span>
           <span v-else-if="status === 'mate'"
-                class="bg-secondary/10 text-secondary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-secondary/20">Mates</span>
+                class="text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border"
+                :style="statusChipStyle">Mates</span>
           <span v-else-if="status === 'temporary' || status === 'pending_mate'"
                 class="bg-secondary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest animate-pulse">Trial Active</span>
           <span v-if="targetProfile?.relationship?.areFollowingMe && !isFollowing && !isMe"
-                class="bg-black/5 text-black/80 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Follows You</span>
+                class="text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border"
+                :style="statusChipStyle">Follows You</span>
         </div>
       </template>
 
@@ -59,56 +68,61 @@
         <div v-if="!isMe" class="mt-8 w-full shrink-0">
             <div
               class="flex flex-col overflow-hidden rounded-[1.5rem] border transition-colors duration-500 shadow-sm backdrop-blur-sm"
-              :style="{ borderColor: theme.cardBorderColor, backgroundColor: 'rgba(255, 255, 255, 0.15)' }">
+              :style="{ borderColor: surfacePalette.controlBorder, backgroundColor: surfacePalette.controlBg }">
               <button
-                class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200"
+                class="profile-sheet-action flex items-center gap-3 w-full px-5 py-3.5 text-left cursor-pointer transition-colors duration-200 disabled:opacity-50"
+                :style="actionStyle"
                 @click="primaryCta.handler" :disabled="primaryCta.disabled">
                 <ion-icon :icon="svg(primaryCta.icon)" class="text-xl" :style="{ color: theme.accentColor }" />
                 <span class="text-sm font-black uppercase tracking-widest"
-                      :style="{ color: theme.nameColor }">{{ primaryCta.label }}</span>
+                      :style="{ color: surfacePalette.name }">{{ primaryCta.label }}</span>
               </button>
               <div class="h-px w-full transition-colors duration-500"
-                   :style="{ backgroundColor: theme.cardBorderColor }"></div>
+                   :style="{ backgroundColor: surfacePalette.controlBorder }"></div>
               <button
-                class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200"
+                class="profile-sheet-action flex items-center gap-3 w-full px-5 py-3.5 text-left cursor-pointer transition-colors duration-200"
+                :style="actionStyle"
                 @click="onToggleFollow">
                 <ion-icon :icon="svg(isFollowing ? mdiAccountMinusOutline : mdiAccountPlusOutline)"
-                          class="text-xl transition-colors duration-500" :style="{ color: theme.nameColor }" />
+                          class="text-xl transition-colors duration-500" :style="{ color: surfacePalette.name }" />
                 <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500"
-                      :style="{ color: theme.nameColor }">{{ isFollowing ? 'Unfollow' : 'Follow' }}</span>
+                      :style="{ color: surfacePalette.name }">{{ isFollowing ? 'Unfollow' : 'Follow' }}</span>
               </button>
               <template v-if="canUnfriend">
                 <div class="h-px w-full transition-colors duration-500"
-                     :style="{ backgroundColor: theme.cardBorderColor }"></div>
+                     :style="{ backgroundColor: surfacePalette.controlBorder }"></div>
                 <button
-                  class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200"
+                  class="profile-sheet-action flex items-center gap-3 w-full px-5 py-3.5 text-left cursor-pointer transition-colors duration-200"
+                  :style="actionStyle"
                   @click="onUnfriend">
                   <ion-icon :icon="svg(mdiHeartBroken)" class="text-xl transition-colors duration-500"
-                            :style="{ color: theme.descColor }" />
+                            :style="{ color: surfacePalette.desc }" />
                   <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500"
-                        :style="{ color: theme.descColor }">{{ status === 'mate' ? 'Unfriend Mate' : 'Cancel Connection'
+                        :style="{ color: surfacePalette.desc }">{{ status === 'mate' ? 'Unfriend Mate' : 'Cancel Connection'
                     }}</span>
                 </button>
               </template>
               <div class="h-px w-full transition-colors duration-500"
-                   :style="{ backgroundColor: theme.cardBorderColor }"></div>
+                   :style="{ backgroundColor: surfacePalette.controlBorder }"></div>
               <button
-                class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200"
+                class="profile-sheet-action flex items-center gap-3 w-full px-5 py-3.5 text-left cursor-pointer transition-colors duration-200"
+                :style="actionStyle"
                 @click="confirmToggleBlock">
                 <ion-icon :icon="svg(isBlocked ? mdiAccountReactivateOutline : mdiAccountCancelOutline)"
-                          class="text-xl transition-colors duration-500" :style="{ color: theme.descColor }" />
+                          class="text-xl transition-colors duration-500" :style="{ color: surfacePalette.desc }" />
                 <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500"
-                      :style="{ color: theme.nameColor }">{{ isBlocked ? 'Unblock User' : 'Block User' }}</span>
+                      :style="{ color: surfacePalette.name }">{{ isBlocked ? 'Unblock User' : 'Block User' }}</span>
               </button>
               <div class="h-px w-full transition-colors duration-500"
-                   :style="{ backgroundColor: theme.cardBorderColor }"></div>
+                   :style="{ backgroundColor: surfacePalette.controlBorder }"></div>
               <button
-                class="flex items-center gap-3 w-full px-5 py-3.5 text-left active:bg-black/5 cursor-pointer transition-colors duration-200"
+                class="profile-sheet-action flex items-center gap-3 w-full px-5 py-3.5 text-left cursor-pointer transition-colors duration-200"
+                :style="actionStyle"
                 @click="report">
                 <ion-icon :icon="svg(mdiFlagVariantOutline)" class="text-xl transition-colors duration-500"
-                          :style="{ color: theme.descColor }" />
+                          :style="{ color: surfacePalette.desc }" />
                 <span class="text-sm font-black uppercase tracking-widest transition-colors duration-500"
-                      :style="{ color: theme.nameColor }">Report user</span>
+                      :style="{ color: surfacePalette.name }">Report user</span>
               </button>
             </div>
           </div>
@@ -155,7 +169,9 @@ import {
 import { useToast } from "@/service/toast.service";
 import {
 	hydrateCustomization,
+	resolveReadableCustomizationPalette,
 	resolveTheme,
+	resolveWorld,
 } from "@/config/profile_options.config";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useChatStore } from "@/store/chat.store";
@@ -224,6 +240,21 @@ const effectiveCustomization = computed(() =>
 const theme = computed(() =>
 	resolveTheme(effectiveCustomization.value.themeId),
 );
+const activeWorld = computed(() =>
+	resolveWorld(effectiveCustomization.value.worldId),
+);
+const surfacePalette = computed(() =>
+	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+);
+const statusChipStyle = computed(() => ({
+	background: surfacePalette.value.controlBg,
+	borderColor: surfacePalette.value.controlBorder,
+	color: surfacePalette.value.name,
+	textShadow: surfacePalette.value.textShadow,
+}));
+const actionStyle = computed(() => ({
+	"--profile-action-active": surfacePalette.value.controlActiveBg,
+}));
 const isMe = computed(() => targetProfile.value?._id === me.value?._id);
 const isBlocked = computed(() =>
 	targetProfile.value?._id
@@ -448,6 +479,10 @@ onBeforeUnmount(() => {
 
 .pb-safe {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+.profile-sheet-action:active {
+  background: var(--profile-action-active);
 }
 
 ion-modal.liquid-user-sheet {

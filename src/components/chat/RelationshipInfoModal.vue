@@ -17,9 +17,9 @@
     </div>
 
     <p class="text-lg text-black/80 leading-snug text-center px-1">
-      The goal is real friendships, not a leaderboard. You can only have so many
-      people who matter, so a 24-hour trial lets both of you find out if it fits
-      before it becomes permanent.
+	  The goal is real friendships, not a leaderboard. A 24-hour trial gives both
+	  of you a low-pressure way to talk and draw before choosing a lasting
+	  connection.
     </p>
 
     <!-- Where they stand right now, in their own words rather than the generic
@@ -74,7 +74,7 @@
 import { computed } from "vue";
 import dayjs from "dayjs";
 import { IonButton, IonIcon } from "@ionic/vue";
-import { mdiHeart, mdiStar } from "@mdi/js";
+import { mdiHeart } from "@mdi/js";
 import { useNow } from "@vueuse/core";
 import { svg } from "@/helper/general.helper";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
@@ -85,8 +85,6 @@ import {
 import RelationshipJourney from "./RelationshipJourney.vue";
 import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
 import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
-import { useQuotaStore } from "@/store/quota.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
 
 const props = defineProps<{
 	open: boolean;
@@ -96,8 +94,6 @@ const props = defineProps<{
 }>();
 const emit = defineEmits(["update:open"]);
 
-const quotaStore = useQuotaStore();
-const chatWidget = useChatWidgetStore();
 const { requestMate, cancelMate } = useRelationshipActions(() => props.chat);
 
 const now = useNow({ interval: 60_000 });
@@ -157,16 +153,8 @@ const actions = computed<InfoAction[]>(() => {
 		// room to explain WHY the option is gone, so it does.
 		if (!canRequest.value) {
 			// no action
-		} else if (quotaStore.canAddMate) {
+		} else {
 			out.push({ label: "Become Mates", run: requestMate, icon: mdiHeart });
-		} else if (quotaStore.mateWeeklyLimitReached) {
-			// Hands off to the sheet that owns this explanation rather than
-			// duplicating a second, thinner version of it here.
-			out.push({
-				label: "Why can't I add them?",
-				run: chatWidget.openMateQuotaInfo,
-				icon: mdiStar,
-			});
 		}
 	}
 

@@ -58,8 +58,8 @@
                 v-if="descriptionLoading && !user?.description"
                 class="mt-4 flex flex-col items-center gap-1.5 w-full px-8"
               >
-                <div class="h-3.5 w-full bg-black/5 rounded-full animate-pulse"></div>
-                <div class="h-3.5 w-2/3 bg-black/5 rounded-full animate-pulse"></div>
+                <div class="h-3.5 w-full rounded-full animate-pulse" :style="{ background: activeColors.controlBg }"></div>
+                <div class="h-3.5 w-2/3 rounded-full animate-pulse" :style="{ background: activeColors.controlBg }"></div>
               </div>
               <p
                 v-else
@@ -83,14 +83,14 @@
           <template v-if="statsLoading && !user?.stats">
             <div v-for="i in 3" :key="i" class="flex flex-col items-center" :class="{ 'border-x': i === 1 }"
                  :style="{ borderColor: theme.cardBorderColor }">
-              <div class="h-6 w-8 bg-black/5 rounded animate-pulse mb-1"></div>
-              <div class="h-2 w-12 bg-black/5 rounded animate-pulse"></div>
+              <div class="h-6 w-8 rounded animate-pulse mb-1" :style="{ background: activeColors.controlBg }"></div>
+              <div class="h-2 w-12 rounded animate-pulse" :style="{ background: activeColors.controlBg }"></div>
             </div>
           </template>
           <template v-else>
             <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform"
                     @click="$emit('go-network', 'mates')">
-              <span class="text-xl font-black transition-colors duration-500" :style="{ color: theme.accentColor }">{{ user.stats?.mates || 0 }}</span>
+              <span class="text-xl font-black transition-colors duration-500" :style="{ color: activeColors.name }">{{ user.stats?.mates || 0 }}</span>
               <span class="text-[11px] font-bold uppercase tracking-widest transition-colors duration-500" :style="{ color: activeColors.desc }">Mates</span>
             </button>
             <button class="flex flex-col items-center active:scale-95 cursor-pointer transition-transform border-x"
@@ -136,11 +136,11 @@
             <h3 class="text-xl font-black italic transition-colors duration-500" :style="{ color: activeColors.name }">Portfolio</h3>
           </div>
           <div v-if="postsLoading && posts.length === 0" class="grid grid-cols-3 gap-2">
-            <div v-for="i in 6" :key="i" class="aspect-square bg-black/5 rounded-[1.5rem] animate-pulse"></div>
+            <div v-for="i in 6" :key="i" class="aspect-square rounded-[1.5rem] animate-pulse" :style="{ background: activeColors.controlBg }"></div>
           </div>
           <div v-else-if="posts.length === 0"
                class="text-center py-10 rounded-[2rem] border-2 border-dashed transition-colors duration-500"
-               :style="{ borderColor: theme.cardBorderColor, backgroundColor: 'rgba(0,0,0,0.02)' }">
+               :style="{ borderColor: activeColors.controlBorder, backgroundColor: activeColors.controlBg }">
             <p class="text-sm font-bold italic transition-colors duration-500" :style="{ color: activeColors.desc }">No public sketches yet.</p>
           </div>
           <div v-else class="grid grid-cols-3 gap-2">

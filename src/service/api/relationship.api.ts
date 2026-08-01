@@ -31,7 +31,7 @@ export async function fetchNetworkType(
 		...(params.search && { search: params.search }),
 	});
 
-	return await request<NetworkUser[]>(
+	return await request<{ total: number; data: NetworkUser[] }>(
 		`/relationship/${userId}/network/${type}?${query.toString()}`,
 	);
 }

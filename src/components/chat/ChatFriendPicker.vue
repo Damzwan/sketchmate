@@ -158,6 +158,8 @@ import { useUserCacheStore } from "@/store/userCache.store";
 import { useMenuStore } from "@/store/menu.store";
 import { hydrateCustomization } from "@/config/profile_options.config";
 import { Menu } from "@/types/menu.types";
+import { useChatStore } from "@/store/chat.store";
+import { recentActivityForPartner } from "@/helper/chat.helper";
 
 const props = defineProps<{
 	minChatVersion: string;
@@ -167,10 +169,12 @@ defineEmits(["cancel", "select-friend"]);
 
 const authStore = useAuthStore();
 const friendStore = useFriendStore();
+const chatStore = useChatStore();
 const userCache = useUserCacheStore();
 const menuStore = useMenuStore();
-const { networkLists, networkLoading, hasMore, isFriendOnline } =
+const { networkLists, networkLoading, hasMore, isFriendOnline, allConnectedPartners } =
 	storeToRefs(friendStore);
+const { activeChats } = storeToRefs(chatStore);
 
 const openConnectionMenu = () => menuStore.openMenu(Menu.ConnectionMenu);
 
@@ -188,6 +192,7 @@ const isQueryTooShort = computed(() => {
 // customization, last_seen_version) — mirrors network.view.
 const friends = computed(() => {
 	if (isQueryTooShort.value) return [];
+	if (!searchQuery.value.trim()) return allConnectedPartners.value;
 	return networkLists.value.mates.map((entry) => {
 		const cached = userCache.getUser(entry._id);
 		return {
@@ -217,6 +222,10 @@ const sortedFriends = computed(() => {
 
 		const aOnline = isFriendOnline.value(a._id);
 		const bOnline = isFriendOnline.value(b._id);
+		const recentDelta =
+			recentActivityForPartner(activeChats.value, b._id, b.last_interaction_at) -
+			recentActivityForPartner(activeChats.value, a._id, a.last_interaction_at);
+		if (recentDelta !== 0) return recentDelta;
 		if (aOnline !== bOnline) return aOnline ? -1 : 1;
 
 		return a.name.localeCompare(b.name);

@@ -1,6 +1,5 @@
 import { useChatStore } from "@/store/chat.store";
 import { useAuthStore } from "@/store/auth.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
 import {
 	acceptMatership,
 	declineMatership,
@@ -75,18 +74,6 @@ export function useRelationshipActions(getChat: () => any) {
 				);
 				return;
 			}
-			// Weekly new-mate cap hit. Free users get pushed to the paywall (Pro
-			// lifts it); the gate normally hides the button, so this is the backstop
-			// for a stale quota.
-			if (body?.error === "mate_quota_exceeded") {
-				useToast().toast(
-					"You've reached your weekly limit for new mates",
-					{ color: "warning" },
-				);
-				if (!useSubscriptionStore().isPro)
-					useSubscriptionStore().openPaywall();
-				return;
-			}
 			console.error("Mate request failed", e);
 		}
 	}
@@ -100,25 +87,6 @@ export function useRelationshipActions(getChat: () => any) {
 			)) as { conversation: PopulatedConversation };
 			chatStore.handleMateMatched({ conversation });
 		} catch (e: any) {
-			const body = e?.response?.data ?? e?.data;
-			if (body?.error === "mate_quota_exceeded") {
-				// `blocker` distinguishes "you're out of weekly slots" (upgradeable)
-				// from "they are" (the accepter upgrading wouldn't help).
-				if (body.blocker === "partner") {
-					useToast().toast(
-						"They've reached their weekly limit for new mates",
-						{ color: "warning" },
-					);
-				} else {
-					useToast().toast(
-						"You've reached your weekly limit for new mates",
-						{ color: "warning" },
-					);
-					if (!useSubscriptionStore().isPro)
-						useSubscriptionStore().openPaywall();
-				}
-				return;
-			}
 			console.error("Mate accept failed", e);
 		}
 	}
@@ -140,16 +108,11 @@ export function useRelationshipActions(getChat: () => any) {
 		return chatStore.handleCancelMateRequest(chat._id);
 	}
 
-	function openPaywall() {
-		useSubscriptionStore().openPaywall();
-	}
-
 	return {
 		respondToInvite,
 		requestMate,
 		acceptMate,
 		declineMate,
 		cancelMate,
-		openPaywall,
 	};
 }

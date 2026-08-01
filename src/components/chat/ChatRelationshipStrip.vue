@@ -20,7 +20,7 @@
 
     <span
       class="text-sm font-black uppercase tracking-wide shrink-0 cabin-sketch-regular"
-      :class="[dark ? 'on-world' : accent.text]"
+		:class="[themeDark ? 'on-world' : accent.text]"
       :style="dark ? { color: nameColor } : {}"
     >
       {{ rel.label }}
@@ -31,7 +31,7 @@
     <span
       v-if="countdown"
       class="text-sm font-black uppercase tracking-wide shrink-0 cabin-sketch-regular"
-      :class="[dark ? 'on-world' : 'text-black/80']"
+		:class="[themeDark ? 'on-world' : 'text-black/80']"
       :style="dark ? { color: nameColor } : {}"
     >
       · {{ countdown }}
@@ -42,7 +42,7 @@
          carry the state. -->
     <span
       class="text-sm truncate min-w-0 hidden sm:inline cabin-sketch-regular"
-      :class="[dark ? 'on-world' : 'text-black/80']"
+		:class="[themeDark ? 'on-world' : 'text-black/80']"
       :style="dark ? { color: descColor } : {}"
     >
       {{ rel.hint }}
@@ -96,8 +96,6 @@ import {
 } from "@/config/relationship.config";
 import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
 import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
-import { useQuotaStore } from "@/store/quota.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
 
 const props = defineProps<{
 	chat: any;
@@ -112,14 +110,14 @@ const props = defineProps<{
 	 * of that chain is a second thing to keep in sync.
 	 */
 	dark?: boolean;
+	/** Whether the theme itself uses light text; independent of a dark world. */
+	themeDark?: boolean;
 	/** theme.nameColor / descColor — already light on a dark theme. */
 	nameColor?: string;
 	descColor?: string;
 }>();
 defineEmits(["open-info"]);
 
-const quotaStore = useQuotaStore();
-const chatWidget = useChatWidgetStore();
 const { requestMate } = useRelationshipActions(() => props.chat);
 
 // One minute is plenty for a 24-hour countdown and keeps this off the frame
@@ -188,9 +186,6 @@ const { canRequest, shortReason } = useMateRequestGate(() => props.chat, now);
 // Only worth saying during a trial, where "Become Mates" is the thing they'd
 // otherwise be reaching for. Elsewhere it's noise about a button that was
 // never on screen.
-// The `canAddMate` condition that used to be here meant a user who was BOTH
-// cooling down and out of weekly slots got neither the pill nor the button —
-// the busiest state produced the emptiest row.
 const showGateReason = computed(
 	() => rel.value?.kind === "trial" && !!shortReason.value,
 );
@@ -200,17 +195,6 @@ const inlineAction = computed(() => {
 	// Cooling down or locked out after declines — the strip says so instead
 	// (see the pill below), rather than offering a button that 429s.
 	if (!canRequest.value) return null;
-	// Out of weekly slots. This used to render nothing at all, so the offer
-	// simply vanished mid-trial with no explanation — indistinguishable from a
-	// bug, and it hid the one fact the user needed. Say it, and make it lead
-	// somewhere: the sheet explains the limit and carries the Pro CTA. Still not
-	// a naked paywall button in a status row.
-	if (quotaStore.mateWeeklyLimitReached)
-		return {
-			label: "Weekly limit",
-			run: chatWidget.openMateQuotaInfo,
-			muted: true,
-		};
 	return { label: "Become Mates", run: requestMate, muted: false };
 });
 </script>

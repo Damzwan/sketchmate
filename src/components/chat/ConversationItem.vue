@@ -18,13 +18,21 @@
          The world runs in `mini` + `static-mode` — a frozen frame, not a live
          lottie per list row. -->
     <div v-if="showTheme" class="absolute inset-0 z-0 pointer-events-none">
-      <ProfileEffect :effect-id="partnerCustomization.effectId" radius-class="rounded-[1.6rem]" />
       <ProfileWorld
         :world-id="partnerCustomization.worldId"
         :accent="theme.accentColor"
         static-mode
         mini
+        contained
         radius-class="rounded-[1.6rem]"
+      />
+      <!-- Effects belong above worlds. Rendering Space after crumpled paper
+           hid the paper texture and made the selected theme/effect disappear. -->
+      <ProfileEffect
+        :effect-id="partnerCustomization.effectId"
+        radius-class="rounded-[1.6rem]"
+        static-effect
+        contained
       />
     </div>
 
@@ -67,7 +75,7 @@
       <div class="flex items-center gap-1.5 min-w-0">
         <span
           class="text-[14px] leading-none font-black truncate tracking-tight"
-          :class="[nameClass, showTheme ? fontEffectClass : '', onDarkSurface ? 'on-world' : '']"
+          :class="[nameClass, showTheme ? fontEffectClass : '', themeTextOnDark ? 'on-world' : '']"
           :style="showTheme ? { color: themedNameColor, fontFamily: resolvedFontFamily } : {}"
         >
           {{ partner?.name || 'Unknown User' }}
@@ -94,7 +102,7 @@
       <div class="flex items-center gap-1.5 mt-1.5">
         <p
           class="flex-1 min-w-0 text-[12px] truncate cabin-sketch-regular tracking-wide leading-none"
-          :class="[statusClass, onDarkSurface ? 'on-world' : '']"
+          :class="[statusClass, themeTextOnDark ? 'on-world' : '']"
           :style="showTheme && !isTyping ? { color: themedDescColor } : {}"
         >
           {{ statusLine }}
@@ -158,9 +166,11 @@ import {
 	hydrateCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
+	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveWorld,
 } from "@/config/profile_options.config";
+import { conversationActivityAt } from "@/helper/chat.helper";
 
 dayjs.extend(relativeTime);
 
@@ -206,14 +216,11 @@ const resolvedFontFamily = computed(() =>
 const fontEffectClass = computed(() =>
 	resolveFontEffectClass(partnerCustomization.value.fontEffectId),
 );
-// Rows that need the user to DO something keep their relationship-state colours
-// so the call to action isn't muddied by a partner's theme; everything at rest
-// gets themed. That's exactly what `actionable` already encodes in
-// relationship.config, so read it rather than maintaining a parallel list of
-// kinds here — the hand-written list is what silently dropped `trial` and
-// `outgoing_invite` (invite sent, nothing for you to do) out of theming.
+// Every live row uses the same customization surface as the toolbar and toast.
+// Relationship urgency is still carried by the chip, border and journey rail;
+// dropping the theme on actionable rows made customized paper appear broken.
 const showTheme = computed(
-	() => !isBlocked.value && !isExpired.value && !rel.value.actionable,
+	() => !isBlocked.value && !isExpired.value,
 );
 // Paint the partner's theme surface (cardBg, often a gradient) + themed border,
 // overriding the default white resting-card look. The world layer sits on top
@@ -223,44 +230,26 @@ const cardStyle = computed(() => ({
 	borderColor: theme.value.cardBorderColor,
 }));
 
-// Two independent ways this row's text can end up on a dark backdrop, and they
-// need different answers:
-//
-//  - DARK WORLD. `world-mini` is a right-hand vignette ~320px wide fading in
-//    from 48%, and the body column sits entirely inside that span, so on Cosmic
-//    Drift every text row lands on the starfield rather than the theme's cardBg.
-//    The theme's own nameColor/descColor are tuned against its (light) cardBg,
-//    so the *Dark* variants apply instead.
-//    (Opposite call to ChatToolbar, deliberately: there the vignette is on ONE
-//    side and the name row genuinely sits on cardBg.)
-//  - DARK THEME. Noir and Midnight paint a near-black cardBg with no world at
-//    all. Their own nameColor/descColor are ALREADY light, so no swap is needed
-//    — but the black-tinted resting colours further down (the journey rail, the
-//    time stamp's opacity trick) and the glyph halo still have to flip.
-//
-// Hence two flags. `themedNameColor` answers "which variant is the light one",
-// `onDarkSurface` answers "is the backdrop dark at all". Collapsing them would
-// have swapped Noir onto nameColorDark (identical, harmless) but left the rail
-// drawing black-on-black.
+// Compact worlds are a masked vignette, so contrast follows the theme surface,
+// exactly like ChatToolbar. This keeps Classic + Space black-on-paper while
+// Noir/Midnight (including crumpled paper) correctly use their light palette.
+const palette = computed(() => resolveReadableCustomizationPalette(theme.value));
 const activeWorld = computed(() =>
 	resolveWorld(partnerCustomization.value.worldId),
 );
-const onDarkWorld = computed(
-	() => showTheme.value && activeWorld.value.isDark === true,
+const surfacePalette = computed(() =>
+	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
 );
 const onDarkSurface = computed(
-	() => showTheme.value && (theme.value.isDark || onDarkWorld.value),
+	() => showTheme.value && surfacePalette.value.isDark,
 );
-const themedNameColor = computed(() =>
-	onDarkWorld.value ? theme.value.nameColorDark : theme.value.nameColor,
-);
-const themedDescColor = computed(() =>
-	onDarkWorld.value ? theme.value.descColorDark : theme.value.descColor,
-);
+const themeTextOnDark = computed(() => showTheme.value && palette.value.isDark);
+const themedNameColor = computed(() => palette.value.name);
+const themedDescColor = computed(() => palette.value.desc);
 // Time is tiny utility text, not part of the user's font/theme treatment.
 // Keep it predictably black on light cards and white on every dark surface.
 const timestampStyle = computed(() => ({
-	color: onDarkSurface.value ? "#ffffff" : "#18181b",
+	color: showTheme.value ? surfacePalette.value.utility : "#18181b",
 	opacity: onDarkSurface.value ? 0.9 : 0.68,
 	textShadow: onDarkSurface.value ? "0 1px 3px rgba(0, 0, 0, 0.65)" : "none",
 }));
@@ -288,8 +277,9 @@ const deleteCountdown = computed(() =>
 const unreadCount = computed(
 	() => props.chat.unread_counts?.[props.currentUserId] || 0,
 );
+const activityAt = computed(() => conversationActivityAt(props.chat));
 const formattedTime = computed(() =>
-	props.chat.updatedAt ? dayjs(props.chat.updatedAt).fromNow(true) : "",
+	activityAt.value ? dayjs(activityAt.value).fromNow(true) : "",
 );
 
 const showOnlinePip = computed(

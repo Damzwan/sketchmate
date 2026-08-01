@@ -295,6 +295,7 @@ export interface NetworkUser extends Mate {
 	chat_status?: ChatStatus;
 	expires_at?: string;
 	relationship_id?: string;
+	last_interaction_at?: string;
 }
 
 export interface UserProfileData {
@@ -841,8 +842,6 @@ export type SubscriptionTier = "free" | "pro";
 export interface DailyQuota {
 	balloons_per_day: number;
 	posts_per_day: number;
-	/** New mates per rolling week. `null` = unlimited (Pro). */
-	mates_per_week: number | null;
 }
 
 export interface QuotaState {
@@ -857,7 +856,8 @@ export interface QuotaSummary {
 	tier: string;
 	balloons: QuotaState;
 	posts: QuotaState;
-	mates: QuotaState;
+	/** Deprecated server compatibility field; current UI does not consume it. */
+	mates?: QuotaState;
 }
 
 // =============================================================================

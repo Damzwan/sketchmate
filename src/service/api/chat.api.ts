@@ -36,3 +36,8 @@ export async function markAsRead(conversationId: string): Promise<void> {
     method: 'POST'
   })
 }
+
+/** Clear every unread direct conversation with one server-side write. */
+export async function markAllAsRead(): Promise<void> {
+  return await request<void>('/chats/read-all', { method: 'POST' })
+}

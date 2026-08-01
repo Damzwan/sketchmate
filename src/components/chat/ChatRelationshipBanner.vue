@@ -45,11 +45,9 @@
              tracks that surface — tertiary, not white, or it'd draw a cold
              outline on a warm card. The glyph inside the badge stays white:
              that one is contrast against the fill, not a surface match.
-             At the mate limit the badge goes muted, matching the old outlined
-             heart — the request is still real, but not currently actionable. -->
+             The badge stays consistent across every incoming request. -->
         <div
-          class="absolute -bottom-1.5 -right-1.5 rounded-full p-1.5 border border-tertiary shadow-sm flex items-center justify-center"
-          :class="badgeMuted ? 'bg-black/40' : 'bg-secondary'"
+          class="absolute -bottom-1.5 -right-1.5 rounded-full p-1.5 border border-tertiary shadow-sm flex items-center justify-center bg-secondary"
         >
           <ion-icon :icon="svg(badgeIcon)" class="text-xs text-white" />
         </div>
@@ -76,11 +74,6 @@
         <h3 class="cabin-sketch-regular text-xl font-black text-black leading-tight">
           {{ partner?.name }} wants to be Mates!
         </h3>
-
-        <p v-if="atMateLimit" class="mt-1.5 text-sm font-black uppercase tracking-wide text-secondary">
-          {{ mateLimitLabel }}
-        </p>
-
         <div class="grid gap-3 mt-3.5 w-full max-w-[280px]"
              :class="secondaryChoice ? 'grid-cols-2' : 'grid-cols-1'">
           <ion-button fill="clear" color="dark" shape="round" class="cursor-pointer" @click="actions.declineMate()">
@@ -98,10 +91,8 @@
         <h3 class="cabin-sketch-regular text-xl font-black text-black leading-tight">
           Trial with {{ firstName }} ended
         </h3>
-        <p class="mt-1.5 text-sm uppercase tracking-wide"
-           :class="atMateLimit ? 'text-secondary font-black' : 'text-black/80'">
-          <template v-if="atMateLimit">{{ mateLimitLabel }}</template>
-          <template v-else>Become Mates to stay connected</template>
+		<p class="mt-1.5 text-sm uppercase tracking-wide text-black/80">
+		  Become Mates to stay connected
         </p>
         <ion-button v-if="secondaryChoice" color="secondary" shape="round" class="cursor-pointer mt-3.5" @click="secondaryChoice.run">
           <ion-icon v-if="secondaryChoice.icon" :icon="svg(secondaryChoice.icon)" slot="start" class="text-sm mr-1" />
@@ -116,10 +107,8 @@
       <template v-else-if="rel.kind === 'expired'">
         <ion-icon :icon="svg(mdiHeartBroken)" class="text-3xl text-black/50 mb-2" />
         <h3 class="cabin-sketch-regular text-xl font-black text-black">Connection ended</h3>
-        <p class="mt-1.5 text-sm uppercase tracking-wide"
-           :class="atMateLimit ? 'text-secondary font-black' : 'text-black/80'">
-          <template v-if="atMateLimit">{{ mateLimitLabel }}</template>
-          <template v-else>Start fresh with a new invite?</template>
+		<p class="mt-1.5 text-sm uppercase tracking-wide text-black/80">
+		  Start fresh with a new invite?
         </p>
         <ion-button v-if="secondaryChoice" color="secondary" shape="round" class="cursor-pointer mt-3.5" @click="secondaryChoice.run">
           <ion-icon v-if="secondaryChoice.icon" :icon="svg(secondaryChoice.icon)" slot="start" class="text-sm mr-1" />
@@ -153,20 +142,14 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { IonButton, IonIcon } from "@ionic/vue";
 import {
 	mdiHeart,
 	mdiHeartBroken,
-	mdiHeartOutline,
 	mdiHeartPlusOutline,
 	mdiPalette,
-	mdiStar,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
-import { useQuotaStore } from "@/store/quota.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useNow } from "@vueuse/core";
 import { needsDecision, resolveRelationship } from "@/config/relationship.config";
 import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
@@ -174,13 +157,9 @@ import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
-dayjs.extend(relativeTime);
-
 const props = defineProps<{ chat: any; partner: any; currentUserId?: string }>();
 defineEmits(["open-info"]);
 
-const quotaStore = useQuotaStore();
-const chatWidget = useChatWidgetStore();
 const actions = useRelationshipActions(() => props.chat);
 const { openUserActions } = useUserContextSheet();
 
@@ -189,17 +168,11 @@ const openPartner = () => {
 };
 
 // The glyph badged onto the partner's avatar says WHAT is being asked: a
-// palette for a draw invite, a heart for a mate request. Outlined + muted when
-// the request can't currently be accepted.
+// palette for a draw invite, a heart for a mate request.
 const badgeIcon = computed(() =>
 	rel.value.kind === "incoming_invite"
 		? mdiPalette
-		: atMateLimit.value
-			? mdiHeartOutline
-			: mdiHeart,
-);
-const badgeMuted = computed(
-	() => rel.value.kind === "incoming_mate" && atMateLimit.value,
+		: mdiHeart,
 );
 
 const rel = computed(() =>
@@ -219,39 +192,17 @@ const containerClass = computed(() =>
 	rel.value.accent === "amber" ? "border-amber-400/40" : "border-secondary/30",
 );
 
-// Weekly new-mate cap, free tier only (Pro is uncapped, so this is never true
-// for them). "This week" is the whole point — it's a pace limit, not a ceiling.
-const atMateLimit = computed(() => quotaStore.mateWeeklyLimitReached);
-const canUpgrade = computed(() => !quotaStore.isPro);
-const mateLimitLabel = computed(
-	() =>
-		`Weekly limit reached (${quotaStore.mates.used}/${quotaStore.mates.limit})`,
-);
-
 const now = useNow({ interval: 60_000 });
 const { canRequest, longReason } = useMateRequestGate(() => props.chat, now);
 
 /**
  * The affirmative half of every decision, resolved once instead of being
- * re-branched in three near-identical template blocks. Null means there is
- * genuinely no way forward right now (a Pro user who is simply full), and the
- * template collapses to a single Decline / message.
+ * re-branched in three near-identical template blocks. Null means the
+ * anti-pestering gate currently withholds a new outbound request.
  */
 const secondaryChoice = computed<
 	{ label: string; run: () => void; icon?: string } | null
 >(() => {
-	// At the weekly limit the card keeps an affirmative action instead of
-	// collapsing to a lone "Decline" — it routes to the explainer sheet, which
-	// states the limit, when the next slot opens, and carries the Pro CTA.
-	// Straight to the paywall would be an upsell in place of an answer.
-	if (atMateLimit.value) {
-		return {
-			label: canUpgrade.value ? "Why the limit?" : "Weekly limit",
-			run: chatWidget.openMateQuotaInfo,
-			icon: mdiStar,
-		};
-	}
-
 	switch (rel.value.kind) {
 		// Accepting is always allowed — the ladder gates ASKING, never answering.
 		case "incoming_mate":

@@ -77,45 +77,15 @@
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
-          <!-- Weekly new-mate pace, capped tier only. Hidden for Pro (limit null),
-               where there's nothing to count down.
-
-               Says what's LEFT, not "1/1 this week" — a bare fraction doesn't
-               say what's being counted, which way it fills, or whether it's a
-               good or bad number. Tapping opens the explainer rather than the
-               paywall: the limit needs a reason before it needs an upsell. -->
-          <button
-            v-if="quotaStore.mates.limit !== null"
-            type="button"
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border shadow-sm transition-all active:scale-95 cursor-pointer"
-            :class="quotaStore.mateWeeklyLimitReached
-              ? 'bg-amber-500 border-amber-500 text-white'
-              : 'bg-white/80 border-primary/40 text-black/60'"
-            @click="chatWidget.openMateQuotaInfo()"
-          >
-            <ion-icon :icon="svg(mdiHeart)" class="text-[9px]" :class="quotaStore.mateWeeklyLimitReached ? 'text-white' : 'text-black/30'" />
-            <span class="text-[9px] font-black uppercase tracking-widest mt-[0.5px]">
-              {{ matePaceLabel }}
-            </span>
-            <ion-icon :icon="svg(mdiInformationOutline)" class="text-[11px] -mr-0.5" :class="quotaStore.mateWeeklyLimitReached ? 'text-white/80' : 'text-black/30'" />
-          </button>
-
-          <!-- The network list was reachable only from the profile tab's card,
-               which is a strange place to keep "everyone you're connected to"
-               when the chat panel is where you think about those people.
-
-               Icon-only: this row also carries the pace pill and the
-               "Conversations" heading, and a second labelled chip pushed the
-               pill's own label (the one that had to become legible) off a
-               narrow phone. ConnectionHub carries the fully labelled version. -->
           <button
             type="button"
-            class="w-7 h-7 flex items-center justify-center rounded-full border border-primary/40 bg-white/80 shadow-sm transition-all active:scale-95 cursor-pointer"
+            class="h-8 flex items-center gap-1.5 px-3 rounded-full bg-tertiary text-black/70 shadow-sm transition-all active:scale-95 cursor-pointer"
             aria-label="Open your network"
             title="Your network"
             @click="openNetwork()"
           >
-            <ion-icon :icon="svg(mdiAccountGroupOutline)" class="text-[13px] text-black/50" />
+            <ion-icon :icon="svg(mdiAccountGroupOutline)" class="text-sm" />
+            <span class="text-xs font-black uppercase tracking-wide">Network</span>
           </button>
         </div>
       </div>
@@ -220,8 +190,6 @@ import {
 	mdiChatPlusOutline,
 	mdiChevronDown,
 	mdiChevronRight,
-	mdiHeart,
-	mdiInformationOutline,
 	mdiShieldAlertOutline,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
@@ -238,10 +206,10 @@ import { useFriendStore } from "@/store/friend.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { MIN_CHAT_VERSION } from "@/config/general.config";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import { useQuotaStore } from "@/store/quota.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { masterAnimation } from "@/helper/animation.helper";
 import { useIonRouter } from "@ionic/vue";
+import { compareConversationActivity } from "@/helper/chat.helper";
 
 defineEmits(["join-session"]);
 
@@ -249,7 +217,6 @@ const chatWidget = useChatWidgetStore();
 const chatStore = useChatStore();
 const friendStore = useFriendStore();
 const drawSyncer = useDrawSyncer();
-const quotaStore = useQuotaStore();
 
 const { activeChats, typingStatuses, chatsHydrated } = storeToRefs(chatStore);
 const { isExpanded } = storeToRefs(chatWidget);
@@ -307,11 +274,7 @@ const actionableChats = computed(() => {
 	const incomingChats = pendingRequests.value.filter(
 		(c) => c.initiator_id !== me,
 	);
-	return [...incomingMates, ...incomingChats].sort(
-		(a, b) =>
-			new Date(b.updatedAt || 0).getTime() -
-			new Date(a.updatedAt || 0).getTime(),
-	);
+	return [...incomingMates, ...incomingChats].sort(compareConversationActivity);
 });
 
 const regularChats = computed(() => {
@@ -320,11 +283,7 @@ const regularChats = computed(() => {
 		...activeChats.value.filter((c) => !actionableIds.has(c._id)),
 		...pendingRequests.value.filter((c) => c.initiator_id === user.value?._id),
 	];
-	return all.sort(
-		(a, b) =>
-			new Date(b.updatedAt || 0).getTime() -
-			new Date(a.updatedAt || 0).getTime(),
-	);
+	return all.sort(compareConversationActivity);
 });
 
 const onlineMates = computed(() => {
@@ -352,21 +311,7 @@ const startChatWithFriend = (friend: any) => {
 	isCreatingChat.value = false;
 };
 
-// Reads as a sentence at a glance, in the pill's ~20 characters. The old
-// "1/1 this week" left the reader to work out what was being counted and which
-// direction it filled — at a 1-per-week limit it even looked like a ratio that
-// was somehow complete.
-const matePaceLabel = computed(() => {
-	const { limit, remaining } = quotaStore.mates;
-	if (limit === null) return "";
-	// "this week" is the half that made the old label meaningless without it —
-	// the heart icon in front supplies the "mates" half, which is what buys the
-	// room to keep the timeframe.
-	return remaining <= 0 ? "None left this week" : `${remaining} left this week`;
-});
-
-// Guarded because `markAllRead` fans out one request per unread conversation —
-// a double tap would fire the whole set twice.
+// Guard the bulk mutation so a double tap cannot race two optimistic clears.
 const markingAllRead = ref(false);
 const readAll = async () => {
 	if (markingAllRead.value) return;

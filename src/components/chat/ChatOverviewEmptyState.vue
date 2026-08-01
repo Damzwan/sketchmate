@@ -111,9 +111,8 @@ const { openMenu } = useMenuStore();
 const { isUnderAge, user } = storeToRefs(useAuthStore());
 const router = useIonRouter();
 
-// TOTAL mates, from the user's own stat — not the quota's `used`, which now
-// counts only mates made THIS WEEK. A user with 30 mates and a quiet week still
-// "has mates" and should get the "message a mate" CTA, not "add your first".
+// Total mates from the user's own stat. A user with existing connections should
+// get the "message a mate" CTA, not "add your first".
 const hasMates = computed(() => (user.value?.stats?.mates ?? 0) > 0);
 
 const primaryCta = computed(() => {

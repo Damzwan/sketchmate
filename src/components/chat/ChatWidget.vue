@@ -103,13 +103,17 @@
     :current-user-id="authStore.user?._id"
   />
 
-  <!-- Same sibling placement, same reason: opened from the overview pill, the
-       header strip and the banner. -->
-  <MateQuotaInfoModal v-model:open="mateQuotaInfoOpen" />
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import {
+	computed,
+	defineAsyncComponent,
+	nextTick,
+	onBeforeUnmount,
+	ref,
+	watch,
+} from "vue";
 import {
 	alertController,
 	useBackButton,
@@ -123,12 +127,9 @@ import { svg } from "@/helper/general.helper";
 
 import ChatTabsHeader from "./ChatTabsHeader.vue";
 import ChatToolbar from "./ChatToolbar.vue";
-import ChatOverview from "./ChatOverview.vue";
-import ChatMessageFlow from "./ChatMessageFlow.vue";
 import ChatInputFooter from "./ChatInputFooter.vue";
 import LobbyInvitePopover from "./LobbyInvitePopover.vue";
 import RelationshipInfoModal from "./RelationshipInfoModal.vue";
-import MateQuotaInfoModal from "./MateQuotaInfoModal.vue";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -144,6 +145,14 @@ import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { useKeyboardInset } from "@/composables/general/useKeyboardInset";
 import { useEscapeKey } from "@/composables/general/useEscapeKey";
 
+// These are the two largest pane subtrees and neither is needed until the chat
+// sheet opens. Keeping them in separate chunks removes message rendering and
+// overview customization work from the app's initial bundle path.
+const ChatOverview = defineAsyncComponent(() => import("./ChatOverview.vue"));
+const ChatMessageFlow = defineAsyncComponent(
+	() => import("./ChatMessageFlow.vue"),
+);
+
 const authStore = useAuthStore();
 const chatWidget = useChatWidgetStore();
 const {
@@ -151,7 +160,6 @@ const {
 	isExpanded,
 	activeTab,
 	relationshipInfoOpen,
-	mateQuotaInfoOpen,
 } = storeToRefs(chatWidget);
 const { messagesByChat } = storeToRefs(useChatStore());
 const { lobbyChatMessages } = storeToRefs(useDrawSyncer());
@@ -267,7 +275,6 @@ useEscapeKey(() => chatWidget.closePanel(), {
 		isExpanded.value &&
 		!viewProfileMenuOpen.value &&
 		!relationshipInfoOpen.value &&
-		!mateQuotaInfoOpen.value &&
 		!invitePopoverOpen.value &&
 		!hasPresentedIonicOverlay(),
 });

@@ -373,6 +373,8 @@ import { useShareService } from "@/draw/sharing/shareService.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useQuotaStore } from "@/store/quota.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
+import { useChatStore } from "@/store/chat.store";
+import { recentActivityForPartner } from "@/helper/chat.helper";
 
 // @ts-ignore
 import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
@@ -389,9 +391,11 @@ const router = useIonRouter();
 
 const { user, isUnderAge } = storeToRefs(useAuthStore());
 const friendStore = useFriendStore();
+const chatStore = useChatStore();
 const userCache = useUserCacheStore();
 const { allConnectedPartners, networkLists, networkLoading, hasMore } =
 	storeToRefs(friendStore);
+const { activeChats } = storeToRefs(chatStore);
 
 const drawStore = useDrawStore();
 const { preview, newPreview } = storeToRefs(drawStore);
@@ -449,15 +453,18 @@ const hasMates = computed(
 		allConnectedPartners.value.length > 0,
 );
 
-const fetchedMates = computed(() =>
-	networkLists.value.mates.map((entry) => {
+const fetchedMates = computed(() => {
+	// An empty search can use active conversations immediately, before the
+	// paginated network request lands. A real search stays server-scoped.
+	if (!mateSearch.value.trim()) return allConnectedPartners.value;
+	return networkLists.value.mates.map((entry) => {
 		const cached = userCache.getUser(entry._id);
 		return {
 			...(cached || { _id: entry._id, name: "Artist", img: "" }),
 			...entry,
 		} as any;
-	}),
-);
+	});
+});
 
 const displayMates = computed(() => {
 	const map = new Map<string, any>();
@@ -471,6 +478,18 @@ const displayMates = computed(() => {
 		const aSel = selected.value.has(a._id) ? 1 : 0;
 		const bSel = selected.value.has(b._id) ? 1 : 0;
 		if (aSel !== bSel) return bSel - aSel;
+		const recentDelta =
+			recentActivityForPartner(
+				activeChats.value,
+				b._id,
+				b.last_interaction_at,
+			) -
+			recentActivityForPartner(
+				activeChats.value,
+				a._id,
+				a.last_interaction_at,
+			);
+		if (recentDelta !== 0) return recentDelta;
 		const aOnline = isOnline(a._id) ? 1 : 0;
 		const bOnline = isOnline(b._id) ? 1 : 0;
 		return bOnline - aOnline;

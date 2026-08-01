@@ -609,6 +609,13 @@ export interface ReadableCustomizationPalette {
 	name: string;
 	desc: string;
 	isDark: boolean;
+	/** Small timestamps/icons that sit at the edge of the full environment. */
+	utility: string;
+	utilityMuted: string;
+	/** Reusable glass treatment for controls placed on customized surfaces. */
+	controlBg: string;
+	controlActiveBg: string;
+	controlBorder: string;
 	/** A small translucent plate for compact surfaces over busy worlds. */
 	scrim: string;
 	/** Keeps ordinary text readable without replacing premium font effects. */
@@ -634,6 +641,15 @@ export const resolveReadableCustomizationPalette = (
 		name: worldIsDark ? theme.nameColorDark : theme.nameColor,
 		desc: worldIsDark ? theme.descColorDark : theme.descColor,
 		isDark,
+		utility: isDark ? "#ffffff" : "#18181b",
+		utilityMuted: isDark ? "rgba(255,255,255,0.78)" : "rgba(24,24,27,0.62)",
+		controlBg: isDark ? "rgba(0,0,0,0.34)" : "rgba(255,255,255,0.42)",
+		controlActiveBg: isDark
+			? "rgba(255,255,255,0.12)"
+			: "rgba(0,0,0,0.06)",
+		controlBorder: isDark
+			? "rgba(255,255,255,0.18)"
+			: "rgba(0,0,0,0.08)",
 		scrim: isDark ? "rgba(0,0,0,0.34)" : "rgba(255,255,255,0.52)",
 		textShadow: isDark
 			? "0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.35)"

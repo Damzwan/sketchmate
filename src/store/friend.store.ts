@@ -38,6 +38,7 @@ export const useFriendStore = defineStore("friend", () => {
 		chat_status?: ChatStatus;
 		expires_at?: string;
 		relationship_id?: string;
+		last_interaction_at?: string;
 	}
 
 	const networkLists = ref<{
@@ -87,6 +88,13 @@ export const useFriendStore = defineStore("friend", () => {
 		const ids = new Set<string>();
 		networkLists.value.mates.forEach((m) => ids.add(m._id));
 		chatStore.activeChats.forEach((chat) => {
+			if (!["mate", "temporary", "pending_mate"].includes(chat.status)) return;
+			if (
+				chat.status === "temporary" &&
+				chat.trial_expires_at &&
+				new Date(chat.trial_expires_at).getTime() <= Date.now()
+			)
+				return;
 			const partner = chat.participants.find((p) => p._id !== me);
 			if (partner) ids.add(partner._id);
 		});
@@ -100,6 +108,7 @@ export const useFriendStore = defineStore("friend", () => {
 					...cached,
 					chat_status: networkEntry?.chat_status ?? "mate",
 					relationship_id: networkEntry?.relationship_id,
+					last_interaction_at: networkEntry?.last_interaction_at,
 				} as NetworkUser);
 			}
 		}
@@ -134,13 +143,10 @@ export const useFriendStore = defineStore("friend", () => {
 	};
 
 	async function initializeSocialGraph() {
-		const me = authStore.user?._id;
-
 		const [onlineIds] = await Promise.all([
 			fetchInitialOnlineFriends(),
 			fetchPendingRequests(), // Seeds cache with pending users
 			fetchBlockedUsers(), // Evicts blocked users
-			me ? getNetworkList("mates", me, 1) : Promise.resolve(), // Seeds cache with Page 1 mates
 		]);
 
 		if (onlineIds && Array.isArray(onlineIds)) {
@@ -221,6 +227,7 @@ export const useFriendStore = defineStore("friend", () => {
 					chat_status?: ChatStatus;
 					expires_at?: string;
 					relationship_id?: string;
+					last_interaction_at?: string;
 				})[];
 			} = await fetchNetworkType(userId, type, { page, search, limit: 20 });
 
@@ -242,6 +249,7 @@ export const useFriendStore = defineStore("friend", () => {
 				chat_status: u.chat_status,
 				expires_at: u.expires_at,
 				relationship_id: u.relationship_id,
+				last_interaction_at: u.last_interaction_at,
 			}));
 
 			const before = networkLists.value[type].length;

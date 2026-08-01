@@ -113,7 +113,11 @@ export function buildWatercolorBristles(
 			const wave =
 				Math.sin(totalDistance * 0.05 + bristle) *
 				(safeWidth * 0.15 * spreadMultiplier);
-			const { nx, ny } = deterministicWatercolorNoise(point.x, point.y, bristle);
+			const { nx, ny } = deterministicWatercolorNoise(
+				point.x,
+				point.y,
+				bristle,
+			);
 			bristles[bristle][i * 2] =
 				point.x + wave + nx * (safeWidth * 0.2 * spreadMultiplier);
 			bristles[bristle][i * 2 + 1] =
@@ -121,6 +125,94 @@ export function buildWatercolorBristles(
 		}
 	}
 	return bristles;
+}
+
+/**
+ * Douglas-Peucker tolerance for the base points, in world units.
+ *
+ * The brush captures at `decimate = 0.3`, so a stroke is sampled several times
+ * per pixel — a 250px stroke is ~830 points, and each one becomes THREE path
+ * commands (one per bristle). Simplifying to 0.3 leaves ~28 points; the wobble
+ * that makes the brush look like watercolour comes from the deterministic noise
+ * applied per point, not from the sampling density, so the character survives.
+ *
+ * 0.3 is exactly what CustomPencilBrush already ships. Scaling gently with
+ * width lets a wide wash drop more, since a 40px stroke cannot show a
+ * third-of-a-pixel deviation.
+ */
+export function watercolorSimplifyTolerance(width: number): number {
+	const safeWidth = Number.isFinite(width) && width > 0 ? width : 10;
+	return Math.max(0.3, safeWidth * 0.02);
+}
+
+/**
+ * Drop points that contribute no visible shape. Pure geometry, no allocation
+ * beyond the result, and identical in spirit to the pencil's commit-time pass.
+ */
+export function simplifyWatercolorPoints(
+	points: readonly WatercolorPoint[],
+	tolerance: number,
+): WatercolorPoint[] {
+	const count = points.length;
+	if (count <= 2 || !(tolerance > 0)) return points.slice();
+
+	const squareTolerance = tolerance * tolerance;
+	const keep = new Uint8Array(count);
+	keep[0] = 1;
+	keep[count - 1] = 1;
+
+	// Iterative, not recursive: a dense stroke is thousands of points and a
+	// recursive split would risk the stack on the very inputs this exists for.
+	const stack: number[] = [0, count - 1];
+	while (stack.length) {
+		const end = stack.pop() as number;
+		const start = stack.pop() as number;
+		let furthest = -1;
+		let furthestDistance = 0;
+		for (let i = start + 1; i < end; i++) {
+			const distance = squareSegmentDistance(
+				points[i],
+				points[start],
+				points[end],
+			);
+			if (distance > furthestDistance) {
+				furthestDistance = distance;
+				furthest = i;
+			}
+		}
+		if (furthestDistance > squareTolerance && furthest > 0) {
+			keep[furthest] = 1;
+			stack.push(start, furthest, furthest, end);
+		}
+	}
+
+	const out: WatercolorPoint[] = [];
+	for (let i = 0; i < count; i++) if (keep[i]) out.push(points[i]);
+	return out;
+}
+
+function squareSegmentDistance(
+	point: WatercolorPoint,
+	start: WatercolorPoint,
+	end: WatercolorPoint,
+): number {
+	let x = start.x;
+	let y = start.y;
+	let dx = end.x - x;
+	let dy = end.y - y;
+	if (dx !== 0 || dy !== 0) {
+		const t = ((point.x - x) * dx + (point.y - y) * dy) / (dx * dx + dy * dy);
+		if (t > 1) {
+			x = end.x;
+			y = end.y;
+		} else if (t > 0) {
+			x += dx * t;
+			y += dy * t;
+		}
+	}
+	dx = point.x - x;
+	dy = point.y - y;
+	return dx * dx + dy * dy;
 }
 
 export function buildWatercolorPathData(
@@ -280,6 +372,7 @@ export function watercolorComplexity(source: any): number {
 		return Math.max(1, source.basePoints.length * 3);
 	}
 	if (Array.isArray(source?.path)) return Math.max(1, source.path.length);
-	if (typeof source?.path === "string") return Math.max(1, source.path.length / 12);
+	if (typeof source?.path === "string")
+		return Math.max(1, source.path.length / 12);
 	return 1;
 }

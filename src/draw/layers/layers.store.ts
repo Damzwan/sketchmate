@@ -11,6 +11,7 @@ import {
 	FIXED_ROOM_LAYERS,
 	type LayerOp,
 	type LayerPolicy,
+	FREE_LAYER_LIMIT,
 	MAX_LAYER_NAME,
 	MAX_SOLO_LAYERS,
 	orderBetween,
@@ -26,6 +27,7 @@ import { useCanvasController } from "@/draw/canvas/canvasController";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { HistoryEvent } from "@/draw/history/history.types";
 import { useAuthStore } from "@/store/auth.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 
 /**
  * Layer document + view state.
@@ -70,8 +72,22 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	const getCanvas = () => useCanvasController().getCanvas();
 
 	const canEditStructure = computed(() => policy.value === "mutable");
+	/** Free accounts create up to FREE_LAYER_LIMIT; Pro up to the hard cap. */
+	const maxLayers = computed(() =>
+		useSubscriptionStore().isPro ? MAX_SOLO_LAYERS : FREE_LAYER_LIMIT,
+	);
 	const canAddLayer = computed(
-		() => canEditStructure.value && layers.value.length < MAX_SOLO_LAYERS,
+		() => canEditStructure.value && layers.value.length < maxLayers.value,
+	);
+	/**
+	 * Out of layers because of the TIER, not the hard cap — the one case worth
+	 * offering an upgrade for. At the hard cap there is nothing to sell.
+	 */
+	const atTierLimit = computed(
+		() =>
+			canEditStructure.value &&
+			!canAddLayer.value &&
+			layers.value.length < MAX_SOLO_LAYERS,
 	);
 	const canDeleteLayer = computed(
 		() => canEditStructure.value && layers.value.length > 1,
@@ -531,6 +547,8 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		canEditStructure,
 		canAddLayer,
 		canDeleteLayer,
+		maxLayers,
+		atTierLimit,
 		init,
 		serialize,
 		setActive,

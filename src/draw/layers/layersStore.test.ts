@@ -1,6 +1,11 @@
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BASE_LAYER_ID, FIXED_ROOM_LAYERS } from "@/draw/layers/layer.types";
+import {
+	BASE_LAYER_ID,
+	FIXED_ROOM_LAYERS,
+	FREE_LAYER_LIMIT,
+	MAX_SOLO_LAYERS,
+} from "@/draw/layers/layer.types";
 import {
 	activeLayerId,
 	getLayers,
@@ -50,6 +55,17 @@ vi.mock("@/store/auth.store", () => ({
 	useAuthStore: () => ({ user: { _id: "me" } }),
 }));
 
+// Mocked to keep the app router (which the real store imports transitively, and
+// which needs `window`) out of a node test — and so the tier can be flipped.
+let isPro = false;
+vi.mock("@/store/subscription.store", () => ({
+	useSubscriptionStore: () => ({
+		get isPro() {
+			return isPro;
+		},
+	}),
+}));
+
 vi.mock("@/draw/history/history.store", () => ({
 	useDrawHistoryManager: () => ({
 		addToUndoStackWithResetRedo: (action: any) => recorded.push(action),
@@ -83,6 +99,52 @@ describe("layers store", () => {
 		fired.length = 0;
 		sceneObjects = [];
 		activeObjects = [];
+		isPro = false;
+	});
+
+	it("caps a free account and leaves something to upsell", () => {
+		const layers = useLayersStore();
+		layers.init({ isLobby: false });
+
+		expect(layers.maxLayers).toBe(FREE_LAYER_LIMIT);
+		while (layers.canAddLayer) layers.addLayer();
+
+		expect(layers.layers).toHaveLength(FREE_LAYER_LIMIT);
+		expect(layers.addLayer()).toBeNull();
+		// Out of layers because of the TIER, so the button offers Pro rather
+		// than sitting dead.
+		expect(layers.atTierLimit).toBe(true);
+	});
+
+	it("gives Pro the hard cap, where there is nothing left to sell", () => {
+		isPro = true;
+		const layers = useLayersStore();
+		layers.init({ isLobby: false });
+
+		expect(layers.maxLayers).toBe(MAX_SOLO_LAYERS);
+		while (layers.canAddLayer) layers.addLayer();
+
+		expect(layers.layers).toHaveLength(MAX_SOLO_LAYERS);
+		expect(layers.addLayer()).toBeNull();
+		expect(layers.atTierLimit).toBe(false);
+	});
+
+	it("never drops layers a lapsed subscriber already made", () => {
+		const layers = useLayersStore();
+		const persisted = Array.from({ length: MAX_SOLO_LAYERS }, (_, i) => ({
+			id: `l${i}`,
+			name: `Layer ${i}`,
+			order: i,
+			visible: true,
+			locked: false,
+		}));
+
+		isPro = false;
+		layers.init({ isLobby: false, persisted });
+
+		// Their work opens intact; only CREATING more is gated.
+		expect(layers.layers).toHaveLength(MAX_SOLO_LAYERS);
+		expect(layers.canAddLayer).toBe(false);
 	});
 
 	it("moves the live selection to the active layer", () => {

@@ -113,16 +113,23 @@
         </ion-button>
 
         <div v-if="canEditStructure" class="flex gap-2">
+          <!-- At the TIER limit this button goes straight to the paywall rather
+               than sitting disabled — a dead control teaches nothing, and the
+               paywall already explains itself. At the hard cap there is nothing
+               to sell, so it does disable. -->
           <ion-button
             expand="block"
             class="flex-1"
-            color="secondary"
+            :color="atTierLimit ? 'warning' : 'secondary'"
             shape="round"
-            :disabled="!canAddLayer"
-            @click="add"
+            :disabled="!canAddLayer && !atTierLimit"
+            @click="atTierLimit ? upgrade() : add()"
           >
-            <ion-icon :icon="svg(mdiPlus)" slot="start" />
-            Add layer
+            <ion-icon
+              :icon="svg(atTierLimit ? mdiStar : mdiPlus)"
+              slot="start"
+            />
+            {{ atTierLimit ? "More layers" : "Add layer" }}
           </ion-button>
           <ion-button
             expand="block"
@@ -139,6 +146,10 @@
         </div>
         <p v-else class="text-xs text-center opacity-60">
           Public lobbies share one fixed set of layers, so they can't be added or removed.
+        </p>
+        <p v-if="canEditStructure" class="text-[11px] text-center opacity-60">
+          {{ layerList.length }} of {{ maxLayers }} layers used<span v-if="atTierLimit">
+            · Pro gets {{ maxPro }}</span>
         </p>
       </div>
     </template>
@@ -159,12 +170,15 @@ import {
 	mdiLockOutline,
 	mdiPencilOutline,
 	mdiPlus,
+	mdiStar,
 	mdiTrashCanOutline,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import ToolButton from "@/components/draw/toolbar/ToolButton.vue";
 import { useLayersStore } from "@/draw/layers/layers.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
+import { MAX_SOLO_LAYERS } from "@/draw/layers/layer.types";
 import { useSelect } from "@/draw/tools/select.store";
 
 const layers = useLayersStore();
@@ -176,6 +190,8 @@ const {
 	canAddLayer,
 	canDeleteLayer,
 	shared,
+	maxLayers,
+	atTierLimit,
 } = storeToRefs(layers);
 
 const isOpen = ref(false);
@@ -209,6 +225,8 @@ const hiddenCount = computed(
 const activeLayerName = computed(
 	() => layerList.value.find((l) => l.id === activeId.value)?.name ?? "layer",
 );
+const maxPro = MAX_SOLO_LAYERS;
+
 const subtitle = computed(() => {
 	if (policy.value === "fixed") return "Public lobby · fixed layers";
 	return shared.value ? "Shared with the room" : undefined;
@@ -272,6 +290,11 @@ async function remove() {
 	useSelect().unSelect();
 	layers.deleteLayer(activeId.value);
 	refreshCounts();
+}
+
+function upgrade() {
+	isOpen.value = false;
+	useSubscriptionStore().openPaywall();
 }
 
 function moveSelection() {

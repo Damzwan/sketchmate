@@ -370,6 +370,34 @@ export abstract class RenderOverviewCoordinator<
 		this.contentBounds = null;
 	}
 
+	/**
+	 * Stop everything and never paint again.
+	 *
+	 * `reset()` clears state but leaves the engine live, which is right between
+	 * documents. This is for the canvas going AWAY: the surface it draws through
+	 * is about to be disposed, so any frame or bake still scheduled would reach
+	 * into a dead fabric canvas.
+	 */
+	destroy(): void {
+		this.frames.cancel();
+		if (this.progressRaf) {
+			cancelAnimationFrame(this.progressRaf);
+			this.progressRaf = 0;
+		}
+		if (this.progressTimer !== null) {
+			clearTimeout(this.progressTimer);
+			this.progressTimer = null;
+		}
+		if (this.bakeTimer !== null) {
+			clearTimeout(this.bakeTimer);
+			this.bakeTimer = null;
+		}
+		this.reset();
+		// Belt and braces: a bake already awaiting a worker reply resumes after
+		// this returns, and every scheduling path checks `loading` first.
+		this.loading = true;
+	}
+
 	// ── helpers ──────────────────────────────────────────────────────────────
 	protected boundsOf(obj: T): WorldRect | null {
 		return getObjectBounds(obj);

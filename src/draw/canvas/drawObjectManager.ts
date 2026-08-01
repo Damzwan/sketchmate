@@ -405,15 +405,28 @@ export function createDrawObjectManager() {
 		configureTileBakery(renderBackend === "worker");
 		initTileBakery(); // no-op in main mode; otherwise warms worker parse
 
+		// Every accessor tolerates the canvas being GONE.
+		//
+		// Fabric's `dispose()` tears down `elements`, so `getContext()` throws a
+		// TypeError on a disposed canvas rather than returning null. A frame or
+		// bake scheduled just before teardown lands just after it — leaving the
+		// draw page, or re-entering it (initCanvas disposes the old canvas and
+		// then awaits the document load), both open that window. `renderNow`
+		// already bails on a null context, so answering null is all it takes.
+		const alive = () => !!c && !!(c as any).elements?.lower;
 		const surface: Surface = {
-			getContext: () => c!.getContext(),
-			getSize: () => ({ w: c!.getElement().width, h: c!.getElement().height }),
-			getVpt: () => c!.viewportTransform!,
+			getContext: () => (alive() ? c!.getContext() : (null as any)),
+			getSize: () =>
+				alive()
+					? { w: c!.getElement().width, h: c!.getElement().height }
+					: { w: 0, h: 0 },
+			getVpt: () => (alive() ? c!.viewportTransform! : [1, 0, 0, 1, 0, 0]),
 			// MUST equal fabric's getRetinaScaling(): getSize() reports the backing
 			// store fabric sized from config.devicePixelRatio, and viewWorld divides
 			// by this. A mismatch scales the whole composite wrong.
 			getDpr: getRenderDpr,
-			getBackground: () => c!.backgroundColor as string,
+			getBackground: () =>
+				alive() ? (c!.backgroundColor as string) : "transparent",
 		};
 
 		renderEngine = new RenderEngine<FabricObject>(
@@ -445,6 +458,17 @@ export function createDrawObjectManager() {
 		renderEngine.warmOverview();
 		useDrawEventManager().addPermanentEvents(events);
 		renderEngine.requestFrame();
+	}
+
+	/**
+	 * The canvas is being disposed. Stop the engine before its surface dies, and
+	 * drop both references so nothing can resurrect a frame against a dead
+	 * fabric canvas. The next `init()` builds a fresh engine.
+	 */
+	function detach() {
+		renderEngine?.destroy();
+		renderEngine = null;
+		c = undefined;
 	}
 
 	function beginIndexRebuild() {
@@ -679,6 +703,7 @@ export function createDrawObjectManager() {
 
 	return {
 		init,
+		detach,
 		renderMain: gestures.requestFrame,
 		renderViewport: gestures.requestFrame,
 		renderViewportNow: gestures.renderFrameNow,

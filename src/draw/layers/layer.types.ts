@@ -59,12 +59,21 @@ export const FIXED_ROOM_LAYERS: readonly DrawLayer[] = [
 ];
 
 /**
- * Caps the layer count. Every hide/show toggle invalidates that layer's content
- * footprint, and the sheet is a flat list — both stay cheap only while the
- * count is small. In a shared room it also bounds what one peer can inflict on
- * everyone else.
+ * HARD cap, regardless of tier. Every hide/show toggle invalidates that layer's
+ * content footprint, and the sheet is a flat list — both stay cheap only while
+ * the count is small. In a shared room it also bounds what one peer can inflict
+ * on everyone else.
  */
-export const MAX_SOLO_LAYERS = 8;
+export const MAX_SOLO_LAYERS = 10;
+
+/**
+ * What a free account can CREATE. Deliberately not what it can OPEN: a lapsed
+ * subscriber's ten-layer drawing still loads with all ten intact (see
+ * `sanitizePersisted`, which clamps to MAX_SOLO_LAYERS, never to this). Losing
+ * access to work you already made is a different thing from not being able to
+ * make more, and only the second one is a fair thing to charge for.
+ */
+export const FREE_LAYER_LIMIT = 4;
 
 /**
  * A replicated layer-document edit.

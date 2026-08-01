@@ -6,7 +6,67 @@ import {
 	encodeWatercolorTrace,
 	traceWatercolorPath,
 	watercolorComplexity,
+	simplifyWatercolorPoints,
+	watercolorSimplifyTolerance,
 } from "./watercolorGeometry";
+
+describe("watercolor simplification", () => {
+	/** A hand stroke as the brush actually captures it: 0.3px spacing + tremor. */
+	function capturedStroke(lengthPx: number) {
+		const points: { x: number; y: number }[] = [];
+		let seed = 1;
+		const random = () => {
+			seed = Math.sin(seed * 12.9898) * 43758.5453;
+			return seed - Math.floor(seed);
+		};
+		for (let d = 0; d < lengthPx; d += 0.3) {
+			points.push({
+				x: d,
+				y: Math.sin(d / 40) * 25 + (random() - 0.5) * 0.35,
+			});
+		}
+		return points;
+	}
+
+	it("collapses sub-pixel sampling without moving the stroke", () => {
+		const points = capturedStroke(250);
+		const tolerance = watercolorSimplifyTolerance(20);
+		const simplified = simplifyWatercolorPoints(points, tolerance);
+
+		// The captured density is the problem: every point costs THREE path
+		// commands, one per bristle.
+		expect(points.length).toBeGreaterThan(800);
+		expect(simplified.length).toBeLessThan(points.length / 20);
+
+		// Endpoints are exact, so the stroke still starts and ends where drawn.
+		expect(simplified[0]).toEqual(points[0]);
+		expect(simplified.at(-1)).toEqual(points.at(-1));
+
+		// And nothing kept has moved — DP only ever drops points.
+		for (const point of simplified) expect(points).toContainEqual(point);
+	});
+
+	it("is idempotent, so re-loading a drawing cannot keep shrinking it", () => {
+		const tolerance = watercolorSimplifyTolerance(20);
+		const once = simplifyWatercolorPoints(capturedStroke(250), tolerance);
+		const twice = simplifyWatercolorPoints(once, tolerance);
+		expect(twice).toEqual(once);
+	});
+
+	it("leaves a tap or a two-point dab alone", () => {
+		const dab = [
+			{ x: 1, y: 1 },
+			{ x: 2, y: 2 },
+		];
+		expect(simplifyWatercolorPoints(dab, 5)).toEqual(dab);
+		expect(simplifyWatercolorPoints([{ x: 1, y: 1 }], 5)).toHaveLength(1);
+	});
+
+	it("widens the tolerance for wide washes only", () => {
+		expect(watercolorSimplifyTolerance(10)).toBe(0.3);
+		expect(watercolorSimplifyTolerance(40)).toBeCloseTo(0.8);
+	});
+});
 
 describe("watercolor geometry", () => {
 	it("decodes delta-compressed points without mutating the source", () => {
@@ -26,7 +86,9 @@ describe("watercolor geometry", () => {
 			{ x: 10.5, y: 19 },
 			{ x: 12, y: 21 },
 		];
-		expect(decodeWatercolorTrace(encodeWatercolorTrace(points))).toEqual(points);
+		expect(decodeWatercolorTrace(encodeWatercolorTrace(points))).toEqual(
+			points,
+		);
 	});
 
 	it("builds the same three-subpath command shape", () => {

@@ -311,6 +311,7 @@ import {
 	mdiBrush,
 	mdiCheck,
 	mdiCheckAll,
+	mdiLayersTripleOutline,
 	mdiCrown,
 	mdiCrownOutline,
 	mdiHeart,
@@ -346,6 +347,7 @@ const isPro = computed(() => subStore.isPro);
 // ─── Static marketing content ────────────────────────────────────────────────
 const proBullets = [
 	{ label: "All brushes", icon: mdiBrush },
+	{ label: "10 layers per drawing", icon: mdiLayersTripleOutline },
 	{ label: "Animated avatar", icon: mdiMotionPlayOutline },
 	{ label: "Advanced profile customization", icon: mdiPalette },
 	{ label: "VIP lobby slots", icon: mdiCrownOutline },
@@ -364,6 +366,7 @@ const compare: {
 }[] = [
 	{ label: "Unlock all cosmetics", pro: false, life: true },
 	{ label: "All brushes", pro: true, life: true },
+	{ label: "Layers per drawing", pro: "10", life: "10" },
 	{ label: "Animated avatar", pro: true, life: true },
 	{ label: "Custom signature & card doodle", pro: true, life: true },
 	{ label: "VIP lobby slots", pro: true, life: true },

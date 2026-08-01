@@ -32,6 +32,11 @@ function createCanvasController() {
 	function destroyCanvas() {
 		if (c) {
 			try {
+				// Stop the render engine FIRST. It holds this canvas as its surface,
+				// and a frame or bake scheduled a moment ago would otherwise land on
+				// a disposed one — "Cannot read properties of undefined (reading
+				// 'ctx')" after leaving and re-entering the draw page.
+				useDrawObjectManager().detach();
 				c.dispose?.(); // fabric >= x may have dispose
 				c.destroy();
 				c = null;

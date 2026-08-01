@@ -238,6 +238,8 @@ export interface User {
 	subscriptions: NotificationSubscription[];
 	date_of_birth?: string;
 	last_seen_version?: string;
+	/** Private IANA timezone used for local-time server scheduling. */
+	timezone?: string;
 	last_name_change?: string;
 	migration_version: number;
 

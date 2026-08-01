@@ -38,7 +38,11 @@ import {
 import { useFriendStore } from "@/store/friend.store";
 import { useChatStore } from "@/store/chat.store";
 import { useModerationStore } from "@/store/moderation.store";
-import { getUser, onLoginEvent } from "@/service/api/user.api";
+import {
+	getUser,
+	onLoginEvent,
+	updateUserTimezone,
+} from "@/service/api/user.api";
 import { useQuotaStore } from "@/store/quota.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
@@ -299,11 +303,12 @@ export const useAuthStore = defineStore("auth", () => {
 				useFriendStore().initializeSocialGraph(),
 				useQuotaStore().refresh(true),
 				useChatStore().loadActiveChats(),
-				useModerationStore().initFromUser(u),
-				useInAppNotificationStore().loadInitial(),
-				refreshPublicLobbies(),
-				useInventoryStore().hydrateFromUser(user.value),
-			]);
+					useModerationStore().initFromUser(u),
+					useInAppNotificationStore().loadInitial(),
+					refreshPublicLobbies(),
+					useInventoryStore().hydrateFromUser(user.value),
+					syncCurrentTimezone(),
+				]);
 
 			if (opts.arrivedFromLogin) {
 				// Await the fingerprint instead of reading the ref. It's populated by
@@ -374,6 +379,7 @@ export const useAuthStore = defineStore("auth", () => {
 				useInAppNotificationStore().loadInitial(),
 				refreshPublicLobbies(),
 				useInventoryStore().hydrateFromUser(user.value),
+				syncCurrentTimezone(),
 			]);
 
 			lastHydratedAt.value = Date.now();
@@ -382,6 +388,26 @@ export const useAuthStore = defineStore("auth", () => {
 			toast("Couldn't refresh, try again.", { color: "danger" });
 		} finally {
 			if (e) e.target.complete();
+		}
+	}
+
+	async function syncCurrentTimezone(): Promise<void> {
+		if (!user.value) return;
+
+		let timezone: string;
+		try {
+			timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		} catch {
+			return;
+		}
+
+		if (!timezone || timezone === user.value.timezone) return;
+
+		try {
+			const response = await updateUserTimezone(timezone);
+			if (user.value) user.value.timezone = response.timezone;
+		} catch (e) {
+			console.warn("[auth] timezone sync failed", e);
 		}
 	}
 

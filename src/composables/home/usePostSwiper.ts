@@ -5,15 +5,18 @@ import router from "@/router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { deletePost, postComment } from "@/service/api/post.api";
 import { usePostStore } from "@/store/post.store";
+import { useQuotaStore } from "@/store/quota.store";
 import { useUserCacheStore } from "@/store/userCache.store";
 import { alertController } from "@ionic/vue";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
+import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
 
 export function usePostSwiper() {
 	const swiperStore = usePhotoSwiper();
 	const { toast } = useToast();
 	const postStore = usePostStore();
+	const quotaStore = useQuotaStore();
 
 	function openPostSwiper(posts: any[], index: number) {
 		if (swiperStore.open && useMenuStore().viewProfileMenuOpen) {
@@ -71,7 +74,9 @@ export function usePostSwiper() {
 			onDelete: async (item) => {
 				try {
 					swiperStore.open = false;
-					await deletePost(item._id);
+					const { post_quota } = await deletePost(item._id);
+					const currentPostQuota = await quotaStore.syncPostQuota(post_quota);
+					void syncPostQuotaResetReminder(currentPostQuota);
 					toast("Post deleted", { color: "success" });
 					postStore.removePostLocally(item._id);
 				} catch (e) {

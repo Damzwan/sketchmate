@@ -76,6 +76,20 @@ export const useQuotaStore = defineStore("quota", () => {
 		syncRemaining(s);
 	}
 
+	/** Replace the optimistic post count with the server's authoritative state. */
+	async function syncPostQuota(state?: QuotaState): Promise<QuotaState> {
+		if (state && summary.value) {
+			summary.value.posts = state;
+			lastFetchedAt.value = Date.now();
+		} else {
+			// Supports a staggered deploy against an older server response and the
+			// rare case where auth has not hydrated the quota summary yet.
+			await refresh(true);
+		}
+
+		return posts.value;
+	}
+
 	return {
 		summary,
 		isPro,
@@ -87,6 +101,7 @@ export const useQuotaStore = defineStore("quota", () => {
 		refresh,
 		decrementBalloon,
 		decrementPost,
+		syncPostQuota,
 		incrementBalloon,
 	};
 });

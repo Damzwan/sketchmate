@@ -221,6 +221,15 @@ export async function updateUser(params: UpdateUserParams): Promise<Res<void>> {
   })
 }
 
+export async function updateUserTimezone(
+  timezone: string
+): Promise<{ timezone: string }> {
+  return request<{ timezone: string }>(`${ENDPOINTS.user}/timezone`, {
+    method: 'PUT',
+    body: JSON.stringify({ timezone })
+  })
+}
+
 export async function searchMate(
   params: SearchMateParams
 ): Promise<Res<Mate[]>> {

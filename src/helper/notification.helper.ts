@@ -19,8 +19,11 @@ import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { useInboxStore } from "@/store/inbox.store";
+import { useQuotaStore } from "@/store/quota.store";
+import type { QuotaState } from "@/types/server.types";
 
-const LOCAL_NOTIFICATION_ID = 1;
+const LEGACY_DAILY_REMINDER_ID = 1;
+const POST_QUOTA_RESET_REMINDER_ID = 2;
 const PUSH_REGISTRATION_TIMEOUT_MS = 15_000;
 
 // ============================================================
@@ -37,8 +40,10 @@ export async function requestNotifications(): Promise<boolean> {
 		if (isNative()) {
 			const granted = await ensureNativePermission();
 			if (!granted) return false;
-			await scheduleLocalReminder();
 			await registerForPush();
+			const quota = useQuotaStore();
+			await quota.refresh(true);
+			await syncPostQuotaResetReminder(quota.posts);
 		} else {
 			const ok = await pwaRequestNotifications();
 			if (!ok) return false;
@@ -62,7 +67,8 @@ export async function disableNotifications(): Promise<void> {
 		if (isNative()) {
 			await Promise.allSettled([
 				PushNotifications.unregister(),
-				cancelLocalReminder(),
+				cancelPostQuotaResetReminder(),
+				cancelLegacyDailyReminder(),
 			]);
 		} else {
 			try {
@@ -211,11 +217,44 @@ async function pwaRequestNotifications(): Promise<boolean> {
 }
 
 // ============================================================
-// Local reminder notification
+// Post quota reset reminder
 // ============================================================
 
-async function scheduleLocalReminder(): Promise<void> {
-	await cancelLocalReminder();
+/**
+ * Keep one native reminder for the next post-quota reset. It is deliberately
+ * local rather than server-scheduled, so 10:00 means 10:00 for the user without
+ * collecting their timezone. Users with no posts today have no reminder.
+ */
+export async function syncPostQuotaResetReminder(
+	postQuota: QuotaState,
+): Promise<void> {
+	try {
+		await syncPostQuotaResetReminderUnsafe(postQuota);
+	} catch (e) {
+		// Reminders are best-effort and must never break publishing/deleting posts
+		// or make the main notification toggle appear to have failed.
+		console.warn("Could not sync post quota reset reminder", e);
+	}
+}
+
+async function syncPostQuotaResetReminderUnsafe(
+	postQuota: QuotaState,
+): Promise<void> {
+	if (!isNative()) return;
+
+	if (postQuota.used <= 0 || !postQuota.reset_at) {
+		await cancelPostQuotaResetReminder();
+		return;
+	}
+
+	const permission = await LocalNotifications.checkPermissions();
+	if (permission.display !== "granted") return;
+
+	const resetAt = new Date(postQuota.reset_at);
+	if (Number.isNaN(resetAt.getTime())) return;
+
+	const at = favourableLocalTimeAfter(resetAt);
+	await cancelPostQuotaResetReminder();
 	// Brief delay because LocalNotifications.cancel isn't reliably synchronous
 	// on all platforms (the platform queue needs a tick to drain).
 	await new Promise((r) => setTimeout(r, 200));
@@ -223,19 +262,39 @@ async function scheduleLocalReminder(): Promise<void> {
 	await LocalNotifications.schedule({
 		notifications: [
 			{
-				title: "SketchMate time!",
-				body: "Surprise your mate with a nice drawing",
-				id: LOCAL_NOTIFICATION_ID,
-				schedule: { on: { hour: 14, minute: 0 } },
+				title: "Your post slots are ready",
+				body: "Your daily SketchMate post allowance has reset.",
+				id: POST_QUOTA_RESET_REMINDER_ID,
+				schedule: { at },
 			},
 		],
 	});
 }
 
-async function cancelLocalReminder(): Promise<void> {
+function favourableLocalTimeAfter(resetAt: Date): Date {
+	const at = new Date(resetAt);
+	const hour = at.getHours();
+
+	if (hour < 10) {
+		at.setHours(10, 0, 0, 0);
+	} else if (hour >= 20) {
+		at.setDate(at.getDate() + 1);
+		at.setHours(10, 0, 0, 0);
+	}
+
+	return at;
+}
+
+async function cancelPostQuotaResetReminder(): Promise<void> {
 	// getPending() is unreliable across platforms, so cancel the known id directly.
 	await LocalNotifications.cancel({
-		notifications: [{ id: LOCAL_NOTIFICATION_ID }],
+		notifications: [{ id: POST_QUOTA_RESET_REMINDER_ID }],
+	});
+}
+
+async function cancelLegacyDailyReminder(): Promise<void> {
+	await LocalNotifications.cancel({
+		notifications: [{ id: LEGACY_DAILY_REMINDER_ID }],
 	});
 }
 
@@ -244,6 +303,10 @@ async function cancelLocalReminder(): Promise<void> {
 // ============================================================
 
 async function setupNativeListeners(): Promise<void> {
+	// Older builds scheduled an unconditional repeating reminder. Remove it once
+	// this build starts; quota reminders below are selective and one-shot.
+	await cancelLegacyDailyReminder().catch(() => {});
+
 	// Notification channel (Android)
 	const channels = await PushNotifications.listChannels().catch(() => ({
 		channels: [],

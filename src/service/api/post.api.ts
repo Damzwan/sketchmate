@@ -1,5 +1,5 @@
 import { request } from "./http";
-import { FeedPost } from "@/types/server.types";
+import { FeedPost, QuotaState } from "@/types/server.types";
 import type { PresignedUploadBundle } from "@/draw/sharing/shareDrawings";
 
 export interface PublishPostParams {
@@ -75,9 +75,12 @@ export async function fetchPostComments(
 }
 
 export async function deletePost(postId: string) {
-	return await request<{ message: string }>(`/post/${postId}`, {
-		method: "DELETE",
-	});
+	return await request<{ message: string; post_quota?: QuotaState }>(
+		`/post/${postId}`,
+		{
+			method: "DELETE",
+		},
+	);
 }
 
 export async function logPostViews(postIds: string[]) {

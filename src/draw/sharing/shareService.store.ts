@@ -14,6 +14,7 @@ import {
 } from "@/service/api/balloon.api";
 import { useAuthStore } from "@/store/auth.store";
 import { useQuotaStore } from "@/store/quota.store";
+import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
 import { useInboxStore } from "@/store/inbox.store";
 import { usePostStore } from "@/store/post.store";
 import { FeedPost, InboxItem } from "@/types/server.types";
@@ -181,6 +182,7 @@ export const useShareService = defineStore("shareService", () => {
 		postStore.markProfileDirty();
 
 		quota.decrementPost();
+		void syncPostQuotaResetReminder(quota.posts);
 		toasts.pushPostToast({ post });
 	}
 

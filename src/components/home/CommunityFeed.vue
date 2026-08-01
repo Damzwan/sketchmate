@@ -122,6 +122,7 @@ import { useIntersectionObserver } from "@vueuse/core";
 
 import { useAuthStore } from "@/store/auth.store";
 import { usePostStore } from "@/store/post.store";
+import { useQuotaStore } from "@/store/quota.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useToast } from "@/service/toast.service";
 import { logPostViews, deletePost, type FeedTab } from "@/service/api/post.api";
@@ -133,9 +134,11 @@ import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
 import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
+import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
 
 const authStore = useAuthStore();
 const postStore = usePostStore();
+const quotaStore = useQuotaStore();
 const photoSwiperStore = usePhotoSwiper();
 const { openPostSwiper } = usePostSwiper();
 const { toast } = useToast();
@@ -365,7 +368,9 @@ watch(photoSwiperOpen, (open) => {
 
 const handleDelete = async (post: FeedPost) => {
 	try {
-		await deletePost(post._id);
+		const { post_quota } = await deletePost(post._id);
+		const currentPostQuota = await quotaStore.syncPostQuota(post_quota);
+		void syncPostQuotaResetReminder(currentPostQuota);
 		postStore.removePostLocally(post._id);
 		toast("Post deleted");
 	} catch (e) {

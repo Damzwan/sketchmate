@@ -83,7 +83,8 @@
         <div class="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            class="h-8 flex items-center gap-1.5 px-3 rounded-full bg-tertiary text-black/70 shadow-sm transition-all active:scale-95 cursor-pointer"
+            class="h-8 flex items-center gap-1.5 px-3 rounded-full border shadow-sm transition-all active:scale-95 cursor-pointer"
+            :style="networkButtonStyle"
             aria-label="Open your network"
             title="Your network"
             @click="openNetwork()"
@@ -329,6 +330,12 @@ const readAll = async () => {
 };
 
 const router = useIonRouter();
+
+const networkButtonStyle = {
+	background: "var(--chat-widget-control-bg, rgba(255,255,255,.72))",
+	borderColor: "var(--chat-widget-border, rgba(0,0,0,.12))",
+	color: "var(--chat-widget-utility, rgba(0,0,0,.72))",
+};
 
 // Leaves the panel first — routing under an open sheet lands the user on a page
 // with the chat modal still covering it.

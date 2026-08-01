@@ -8,15 +8,12 @@
        removed the need for a minimize button (and the state that remembered
        it): there is no longer anything to dismiss.
 
-       Surface is tertiary (#FFF2E4), not white. The panel behind this is
-       `background` (#F5E6D3, warm sand) and every other card surface in the app
-       is tertiary — a pure-white card was the one cold rectangle in a warm
-       palette, which is what made it read as pasted on rather than part of the
-       chat. tertiary is still lighter than the panel, so it keeps its lift. -->
+       The surface comes from the owner's resolved chat palette, just like the
+       toolbar and composer chrome. -->
   <div
     v-if="show"
-    class="w-full rounded-2xl border bg-tertiary shadow-sm overflow-hidden animate-fade-in"
-    :class="containerClass"
+    class="w-full rounded-2xl border shadow-sm overflow-hidden animate-fade-in"
+    :style="containerStyle"
   >
     <div class="px-4 py-4 flex flex-col items-center text-center">
 
@@ -42,44 +39,44 @@
           class="pointer-events-none"
         />
         <!-- This ring separates the badge from the surface it sits on, so it
-             tracks that surface — tertiary, not white, or it'd draw a cold
-             outline on a warm card. The glyph inside the badge stays white:
+             tracks the resolved chat control surface. The glyph stays white:
              that one is contrast against the fill, not a surface match.
              The badge stays consistent across every incoming request. -->
         <div
-          class="absolute -bottom-1.5 -right-1.5 rounded-full p-1.5 border border-tertiary shadow-sm flex items-center justify-center bg-secondary"
+          class="absolute -bottom-1.5 -right-1.5 rounded-full p-1.5 border shadow-sm flex items-center justify-center"
+          :style="badgeStyle"
         >
           <ion-icon :icon="svg(badgeIcon)" class="text-xs text-white" />
         </div>
       </button>
 
       <template v-if="rel.kind === 'incoming_invite'">
-        <h3 class="cabin-sketch-regular text-xl font-black text-black leading-tight">
+        <h3 class="cabin-sketch-regular text-xl font-black leading-tight" :style="nameStyle">
           Sketch with {{ partner?.name }}?
         </h3>
-        <p class="mt-1.5 text-sm text-black/80 uppercase tracking-wide">
+        <p class="mt-1.5 text-sm uppercase tracking-wide" :style="descStyle">
           Starts a 24-hour trial
         </p>
         <div class="grid grid-cols-2 gap-3 mt-3.5 w-full max-w-[280px]">
-          <ion-button fill="clear" color="dark" shape="round" class="cursor-pointer" @click="actions.respondToInvite('decline')">
+          <ion-button fill="clear" shape="round" class="cursor-pointer" :style="clearButtonStyle" @click="actions.respondToInvite('decline')">
             Ignore
           </ion-button>
-          <ion-button color="secondary" shape="round" class="cursor-pointer" @click="actions.respondToInvite('accept')">
+          <ion-button shape="round" class="cursor-pointer" :style="primaryButtonStyle" @click="actions.respondToInvite('accept')">
             Accept
           </ion-button>
         </div>
       </template>
 
       <template v-else-if="rel.kind === 'incoming_mate'">
-        <h3 class="cabin-sketch-regular text-xl font-black text-black leading-tight">
+        <h3 class="cabin-sketch-regular text-xl font-black leading-tight" :style="nameStyle">
           {{ partner?.name }} wants to be Mates!
         </h3>
         <div class="grid gap-3 mt-3.5 w-full max-w-[280px]"
              :class="secondaryChoice ? 'grid-cols-2' : 'grid-cols-1'">
-          <ion-button fill="clear" color="dark" shape="round" class="cursor-pointer" @click="actions.declineMate()">
+          <ion-button fill="clear" shape="round" class="cursor-pointer" :style="clearButtonStyle" @click="actions.declineMate()">
             Decline
           </ion-button>
-          <ion-button v-if="secondaryChoice" color="secondary" shape="round" class="cursor-pointer" @click="secondaryChoice.run">
+          <ion-button v-if="secondaryChoice" shape="round" class="cursor-pointer" :style="primaryButtonStyle" @click="secondaryChoice.run">
             <ion-icon v-if="secondaryChoice.icon" :icon="svg(secondaryChoice.icon)" slot="start" class="text-sm mr-1" />
             {{ secondaryChoice.label }}
           </ion-button>
@@ -87,14 +84,14 @@
       </template>
 
       <template v-else-if="rel.kind === 'trial_expired'">
-        <ion-icon :icon="svg(mdiHeartPlusOutline)" class="text-4xl text-secondary mb-2.5" />
-        <h3 class="cabin-sketch-regular text-xl font-black text-black leading-tight">
+        <ion-icon :icon="svg(mdiHeartPlusOutline)" class="text-4xl mb-2.5" :style="accentStyle" />
+        <h3 class="cabin-sketch-regular text-xl font-black leading-tight" :style="nameStyle">
           Trial with {{ firstName }} ended
         </h3>
-		<p class="mt-1.5 text-sm uppercase tracking-wide text-black/80">
+		<p class="mt-1.5 text-sm uppercase tracking-wide" :style="descStyle">
 		  Become Mates to stay connected
         </p>
-        <ion-button v-if="secondaryChoice" color="secondary" shape="round" class="cursor-pointer mt-3.5" @click="secondaryChoice.run">
+        <ion-button v-if="secondaryChoice" shape="round" class="cursor-pointer mt-3.5" :style="primaryButtonStyle" @click="secondaryChoice.run">
           <ion-icon v-if="secondaryChoice.icon" :icon="svg(secondaryChoice.icon)" slot="start" class="text-sm mr-1" />
           {{ secondaryChoice.label }}
         </ion-button>
@@ -105,12 +102,12 @@
            read it. Ending a connection and changing your mind an hour later is
            the common case, not the abuse case. -->
       <template v-else-if="rel.kind === 'expired'">
-        <ion-icon :icon="svg(mdiHeartBroken)" class="text-3xl text-black/50 mb-2" />
-        <h3 class="cabin-sketch-regular text-xl font-black text-black">Connection ended</h3>
-		<p class="mt-1.5 text-sm uppercase tracking-wide text-black/80">
+        <ion-icon :icon="svg(mdiHeartBroken)" class="text-3xl mb-2" :style="utilityStyle" />
+        <h3 class="cabin-sketch-regular text-xl font-black" :style="nameStyle">Connection ended</h3>
+		<p class="mt-1.5 text-sm uppercase tracking-wide" :style="descStyle">
 		  Start fresh with a new invite?
         </p>
-        <ion-button v-if="secondaryChoice" color="secondary" shape="round" class="cursor-pointer mt-3.5" @click="secondaryChoice.run">
+        <ion-button v-if="secondaryChoice" shape="round" class="cursor-pointer mt-3.5" :style="primaryButtonStyle" @click="secondaryChoice.run">
           <ion-icon v-if="secondaryChoice.icon" :icon="svg(secondaryChoice.icon)" slot="start" class="text-sm mr-1" />
           {{ secondaryChoice.label }}
         </ion-button>
@@ -121,7 +118,8 @@
            boundary the user understands. -->
       <p
         v-if="!canRequest && longReason && (rel.kind === 'trial_expired' || rel.kind === 'expired')"
-        class="mt-3 text-sm text-black/80 leading-snug max-w-[280px]"
+        class="mt-3 text-sm leading-snug max-w-[280px]"
+        :style="descStyle"
       >
         {{ longReason }}
       </p>
@@ -131,7 +129,8 @@
            what used to make this card tall enough to fight the keyboard. -->
       <button
         type="button"
-        class="mt-3.5 text-sm font-black uppercase tracking-wide text-black/80 underline decoration-black/20 underline-offset-4 md:hover:text-black cursor-pointer transition"
+        class="mt-3.5 text-sm font-black uppercase tracking-wide underline underline-offset-4 cursor-pointer transition"
+        :style="utilityStyle"
         @click="$emit('open-info')"
       >
         How connections work
@@ -188,9 +187,28 @@ const show = computed(() => !!props.chat && needsDecision(rel.value.kind));
 
 const firstName = computed(() => props.partner?.name?.split(" ")[0] || "them");
 
-const containerClass = computed(() =>
-	rel.value.accent === "amber" ? "border-amber-400/40" : "border-secondary/30",
-);
+const containerStyle = computed(() => ({
+	background: "var(--chat-widget-control-bg, rgba(255,255,255,.72))",
+	borderColor:
+		rel.value.accent === "amber"
+			? "color-mix(in srgb, #f59e0b 45%, var(--chat-widget-border, rgba(0,0,0,.12)))"
+			: "var(--chat-widget-border, rgba(0,0,0,.12))",
+}));
+const nameStyle = { color: "var(--chat-widget-name, #18181b)" };
+const descStyle = { color: "var(--chat-widget-desc, rgba(0,0,0,.72))" };
+const utilityStyle = { color: "var(--chat-widget-utility, rgba(0,0,0,.72))" };
+const accentStyle = { color: "var(--chat-widget-accent, var(--ion-color-secondary))" };
+const badgeStyle = {
+	background: "var(--chat-widget-accent, var(--ion-color-secondary))",
+	borderColor: "var(--chat-widget-control-bg, rgba(255,255,255,.72))",
+};
+const primaryButtonStyle = {
+	"--background": "var(--chat-widget-accent, var(--ion-color-secondary))",
+	"--color": "#ffffff",
+};
+const clearButtonStyle = {
+	"--color": "var(--chat-widget-utility, rgba(0,0,0,.72))",
+};
 
 const now = useNow({ interval: 60_000 });
 const { canRequest, longReason } = useMateRequestGate(() => props.chat, now);

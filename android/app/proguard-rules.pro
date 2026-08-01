@@ -37,6 +37,24 @@
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.android.gms.**
 
+# --- Sentry ------------------------------------------------------------------
+# The native Android SDK is what captures ANRs (post-mortem, from
+# ApplicationExitInfo) and NDK/native signals — the `libGLESv2_adreno` /
+# `libgsl` SIGSEGV cluster. The JS SDK cannot see either of those, so if R8
+# strips or renames the native side we lose exactly the reports we turned
+# Sentry on for, and the failure is silent: the app still runs, the JS errors
+# still arrive, and the ANRs simply never show up.
+#
+# Sentry loads integrations reflectively from AndroidManifest metadata (which
+# sentry-android-core contributes via manifest merging), so the classes are not
+# reachable from any call site R8 can trace.
+-keep class io.sentry.** { *; }
+-dontwarn io.sentry.**
+-keepnames class io.sentry.android.core.** { *; }
+# Options are read/written by name from the manifest and from the Capacitor
+# bridge's JS-supplied config.
+-keepclassmembers class io.sentry.SentryOptions { *; }
+
 # --- Missing classes for Capacitor plugins -----------------------------------
 # Some plugins have optional dependencies (e.g. Facebook SDK in Firebase Auth)
 -dontwarn com.facebook.**

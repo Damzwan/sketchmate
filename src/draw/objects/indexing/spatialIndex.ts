@@ -31,6 +31,35 @@ export function createDrawingSpatialIndex(
 	const quadtree = new InfiniteQuadtreeManager<FabricObject>();
 	const entryMap = new Map<string, QuadtreeEntry<FabricObject>>();
 
+	/**
+	 * Reusable buffers for the quadtree's raw hit list.
+	 *
+	 * Every query allocated TWO arrays: the entries from the quadtree, and the
+	 * objects built from them. In `main` backend mode a query runs per tile bake,
+	 * per synchronous repair, per region repair and per overview patch, so a
+	 * single bake pass allocated dozens of them (see
+	 * docs/DRAW_ENGINE_MAINTHREAD_REVIEW.md → M6). The entry list never escapes
+	 * the function that fills it, so it can be reused; the OBJECT array cannot be
+	 * — the async bake holds it across yields — and is still allocated fresh.
+	 *
+	 * A small stack rather than one buffer: nothing nests these today, but a
+	 * future caller that queries inside a query would otherwise silently corrupt
+	 * the outer result, and that failure would look like missing tile content
+	 * rather than like an aliasing bug.
+	 */
+	const entryScratch: QuadtreeEntry<FabricObject>[][] = [];
+	let scratchDepth = 0;
+
+	function takeScratch(): QuadtreeEntry<FabricObject>[] {
+		const buffer = (entryScratch[scratchDepth] ??= []);
+		scratchDepth++;
+		return buffer;
+	}
+
+	function releaseScratch(): void {
+		scratchDepth--;
+	}
+
 	// ── spatial index handed to the renderer (z-sorted query) ────────────────
 	//
 	// LAYERS ENTER HERE AND (almost) NOWHERE ELSE. Tiles, the overview, the live
@@ -50,18 +79,25 @@ export function createDrawingSpatialIndex(
 	const spatialIndex = {
 		query: (rect: WorldRect): FabricObject[] => {
 			getZIndexMap(); // ensure __z / __lo stamps are current
-			const entries = quadtree.query(rect);
+			const entries = quadtree.query(rect, takeScratch());
 			const objs: FabricObject[] = [];
 			const filterHidden = hasHiddenLayers();
-			for (let i = 0; i < entries.length; i++) {
-				const o = objectMap.get(entries[i].id);
-				if (!o) continue;
-				const a = o as any;
-				if (filterHidden && isLayerHidden(a.layerId)) continue;
-				a.__lo = layerOrderOf(a.layerId);
-				objs.push(o);
+			try {
+				for (let i = 0; i < entries.length; i++) {
+					const o = objectMap.get(entries[i].id);
+					if (!o) continue;
+					const a = o as any;
+					if (filterHidden && isLayerHidden(a.layerId)) continue;
+					a.__lo = layerOrderOf(a.layerId);
+					objs.push(o);
+				}
+			} finally {
+				releaseScratch();
 			}
-			return objs.sort(compareRenderOrder);
+			// A tile query returning one object is the common case on a sparse
+			// board, and Array.prototype.sort still allocates and calls into the
+			// comparator machinery for it.
+			return objs.length > 1 ? objs.sort(compareRenderOrder) : objs;
 		},
 		/**
 		 * z-ordered, carrying the bounds the quadtree already tracks (kept current
@@ -75,6 +111,11 @@ export function createDrawingSpatialIndex(
 			rect: WorldRect,
 		): { obj: FabricObject; bounds: WorldRect }[] => {
 			getZIndexMap();
+			// NOT the scratch buffer: the returned pairs alias `entries[i].bounds`,
+			// which is the LIVE entry rect, and the overview holds the result across
+			// yields. Reusing the buffer here is safe today only because nothing
+			// re-queries during that window — too fragile to rely on for a caller
+			// that is explicitly documented as long-lived.
 			const entries = quadtree.query(rect);
 			const out: { obj: FabricObject; bounds: WorldRect }[] = [];
 			const filterHidden = hasHiddenLayers();
@@ -350,16 +391,20 @@ export function createDrawingSpatialIndex(
 	 * hiding is the default and seeing everything is the explicit opt-in.
 	 */
 	function queryObjects(rect: WorldRect): FabricObject[] {
-		const entries = quadtree.query(rect);
+		const entries = quadtree.query(rect, takeScratch());
 		const out: FabricObject[] = [];
 		const filterHidden = hasHiddenLayers();
-		for (let i = 0; i < entries.length; i++) {
-			const o = objectMap.get(entries[i].id);
-			if (!o) continue;
-			const a = o as any;
-			if (filterHidden && isLayerHidden(a.layerId)) continue;
-			a.__lo = layerOrderOf(a.layerId);
-			out.push(o);
+		try {
+			for (let i = 0; i < entries.length; i++) {
+				const o = objectMap.get(entries[i].id);
+				if (!o) continue;
+				const a = o as any;
+				if (filterHidden && isLayerHidden(a.layerId)) continue;
+				a.__lo = layerOrderOf(a.layerId);
+				out.push(o);
+			}
+		} finally {
+			releaseScratch();
 		}
 		return out;
 	}

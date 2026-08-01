@@ -158,6 +158,18 @@ export interface DrawMetricsSnapshot {
 	dirtyTiles: number;
 	inFlightTiles: number;
 
+	/**
+	 * Synchronous repairs refused by the cost gate (see rendering/renderCost.ts),
+	 * and the largest estimate seen.
+	 *
+	 * These are the numbers that calibrate `syncRenderCostBudget`. A decline rate
+	 * near zero means the budget is too generous to be protecting anything; a
+	 * high one with users reporting blurriness means it is too tight. Neither is
+	 * knowable without field data, which is why they ship.
+	 */
+	syncRepairDeclines: number;
+	syncRepairCostMax: number;
+
 	// ── phase attribution: WHICH main-thread block is costing ─────────────
 	//
 	// Every entry here renders or serializes OBJECTS on the main thread, so each
@@ -255,6 +267,8 @@ interface Counters {
 	tileMemoryLimitBytes: number;
 	dirtyTiles: number;
 	inFlightTiles: number;
+	syncRepairDeclines: number;
+	syncRepairCostMax: number;
 	phaseMsTotal: Record<string, number>;
 	phaseMsMax: Record<string, number>;
 	phaseCount: Record<string, number>;
@@ -329,6 +343,8 @@ function blank(): Counters {
 		tileMemoryLimitBytes: 0,
 		dirtyTiles: 0,
 		inFlightTiles: 0,
+		syncRepairDeclines: 0,
+		syncRepairCostMax: 0,
 		phaseMsTotal: {},
 		phaseMsMax: {},
 		phaseCount: {},
@@ -534,6 +550,7 @@ export type DrawPhase =
 	| "historyTransformApply"
 	| "documentSerializeObject"
 	| "thumbnailTransfer"
+	| "draftThumbnailCopy"
 	| "draftPersistDispatch"
 	// WALL CLOCK, not CPU: both yield internally, so a big number means the work
 	// spanned many frames, not that it blocked for that long. They exist to
@@ -546,6 +563,41 @@ export type DrawPhase =
 	| "erasedSweep";
 
 /**
+ * A synchronous repair was refused because its estimated cost exceeded the
+ * device's `syncRenderCostBudget`. The work is not lost — the yielded async bake
+ * owns it — so this counts a deliberate trade of sharpness for a frame.
+ */
+export function recordSyncRepairDeclined(cost: number): void {
+	m.syncRepairDeclines++;
+	if (cost > m.syncRepairCostMax) m.syncRepairCostMax = cost;
+}
+
+/**
+ * The most recent instrumented block, kept as a rolling "what was the engine
+ * doing" marker.
+ *
+ * An Android ANR is captured post-mortem from `ApplicationExitInfo`: the report
+ * carries whatever scope was ALREADY persisted, so nothing written at error
+ * time can reach it. This is deliberately updated on every phase so a crash
+ * handler always has a current answer without paying for a subscription.
+ */
+let lastPhaseName: DrawPhase | "" = "";
+let lastPhaseMs = 0;
+let lastPhaseAt = 0;
+
+export function lastDrawPhase(): {
+	phase: string;
+	ms: number;
+	ageMs: number;
+} {
+	return {
+		phase: lastPhaseName,
+		ms: round2(lastPhaseMs),
+		ageMs: lastPhaseAt ? Math.round(performance.now() - lastPhaseAt) : -1,
+	};
+}
+
+/**
  * One synchronous main-thread block, attributed. Call sites wrap work that
  * already costs milliseconds, so the two `performance.now()` reads are free.
  */
@@ -553,6 +605,9 @@ export function recordPhase(phase: DrawPhase, ms: number): void {
 	m.phaseMsTotal[phase] = (m.phaseMsTotal[phase] ?? 0) + ms;
 	if (ms > (m.phaseMsMax[phase] ?? 0)) m.phaseMsMax[phase] = ms;
 	m.phaseCount[phase] = (m.phaseCount[phase] ?? 0) + 1;
+	lastPhaseName = phase;
+	lastPhaseMs = ms;
+	lastPhaseAt = performance.now();
 }
 
 function roundMap(src: Record<string, number>): Record<string, number> {
@@ -631,6 +686,8 @@ export function snapshotDrawMetrics(): DrawMetricsSnapshot {
 			: 0,
 		dirtyTiles: m.dirtyTiles,
 		inFlightTiles: m.inFlightTiles,
+		syncRepairDeclines: m.syncRepairDeclines,
+		syncRepairCostMax: Math.round(m.syncRepairCostMax),
 		phaseMsTotal: roundMap(m.phaseMsTotal),
 		phaseMsMax: roundMap(m.phaseMsMax),
 		phaseCount: { ...m.phaseCount },
@@ -708,6 +765,37 @@ export function setDrawMetricsSink(fn: Sink | null, intervalMs = 60_000): void {
  * `longtask` is unsupported on some engines; failure is silent and
  * `longTaskObserved` reports whether the numbers are meaningful.
  */
+/**
+ * A long task at or above this gets reported individually, not just counted.
+ *
+ * 50 ms (the `longtask` threshold itself) is far too chatty to attach to a
+ * crash report. 250 ms is the point where a block is a plausible contributor to
+ * an input-dispatch timeout rather than ordinary jank.
+ */
+export const LONG_TASK_REPORT_MS = 250;
+
+export interface LongTaskReport {
+	durationMs: number;
+	/** Phase that was running when the block started, if any. */
+	phase: string;
+	phaseMs: number;
+	phaseAgeMs: number;
+}
+
+let longTaskSink: ((report: LongTaskReport) => void) | null = null;
+
+/**
+ * Report individual long tasks somewhere durable (a Sentry breadcrumb).
+ *
+ * Kept as a seam rather than importing Sentry here: this module is imported BY
+ * the bakery and must stay free of app dependencies.
+ */
+export function setLongTaskSink(
+	fn: ((report: LongTaskReport) => void) | null,
+): void {
+	longTaskSink = fn;
+}
+
 function startLongTaskObserver(): void {
 	if (longTaskObserver) return;
 	if (typeof PerformanceObserver === "undefined") return;
@@ -717,6 +805,19 @@ function startLongTaskObserver(): void {
 				m.longTasks++;
 				m.longTaskMsTotal += entry.duration;
 				if (entry.duration > m.longTaskMsMax) m.longTaskMsMax = entry.duration;
+				if (longTaskSink && entry.duration >= LONG_TASK_REPORT_MS) {
+					const phase = lastDrawPhase();
+					try {
+						longTaskSink({
+							durationMs: Math.round(entry.duration),
+							phase: phase.phase,
+							phaseMs: phase.ms,
+							phaseAgeMs: phase.ageMs,
+						});
+					} catch {
+						/* a broken sink must never break drawing */
+					}
+				}
 			}
 		});
 		obs.observe({ type: "longtask", buffered: true });
@@ -812,6 +913,7 @@ function startLongAnimationFrameObserver(): void {
 }
 
 export function stopDrawMetrics(): void {
+	longTaskSink = null;
 	longTaskObserver?.disconnect();
 	longTaskObserver = null;
 	longAnimationFrameObserver?.disconnect();

@@ -9,18 +9,29 @@ import {
 } from "@/draw/canvas/viewport";
 import { v4 as uuidv4 } from "uuid";
 import {
+	documentJsonToBlob,
 	enlivenObjectsTimeSlivered,
 	generateChunkedJSON,
 	migrateLegacyOrigin,
 } from "@/draw/document/serialization";
-import {
-	createDraftSnapshotAssets,
-	createDraftThumbnailFromJSON,
-} from "@/draw/document/draftThumbnail";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { useLayersStore } from "@/draw/layers/layers.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
+
+/**
+ * Local idle helper.
+ *
+ * Deliberately NOT `whenIdle` from general.helper: that module transitively
+ * pulls the router, firebase and the auth store, and the draw module keeps them
+ * out of its import graph (see renderQuality.config for the same reasoning).
+ * The timeout guarantees it still runs on a device that never reports idle.
+ */
+function afterIdle(run: () => void, timeout: number): void {
+	const requestIdle = (globalThis as any).requestIdleCallback;
+	if (typeof requestIdle === "function") requestIdle(() => run(), { timeout });
+	else setTimeout(run, Math.min(timeout, 1_500));
+}
 
 export interface DrawingDraft {
 	id: string;
@@ -53,9 +64,8 @@ interface CanvasSnapshot {
 	thumbnail: string;
 }
 
-interface DetachedCanvasSnapshot extends CanvasSnapshot {
-	bounds?: { x: number; y: number; w: number; h: number } | null;
-}
+const DRAFT_THUMBNAIL_MAX_SIZE = 640;
+const DRAFT_THUMBNAIL_QUALITY = 0.72;
 
 export const useDocumentStore = defineStore("drawDocument", () => {
 	const { actionWithoutEvents } = useDrawEventManager();
@@ -289,7 +299,18 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				startAutosave(c, finalId);
 				if (isExternalLoad && hasContent()) {
 					markAsDirty();
-					performLiveSave();
+					// DEFERRED, not inline. An external load has just enlivened the whole
+					// scene, rebuilt the spatial index and warmed the overview; kicking a
+					// full snapshot off in the same breath means re-serializing every
+					// object while the first bake is still trying to run. On a 7,000-object
+					// drawing that is the difference between "opens, then settles" and
+					// "opens, then fights itself for several seconds".
+					//
+					// The draft is already marked dirty, so the autosave interval is a
+					// correct backstop if this idle callback never fires.
+					afterIdle(() => {
+						if (currentDraftId.value === finalId) void performLiveSave();
+					}, 5_000);
 				}
 			}
 		} catch (error) {
@@ -304,44 +325,74 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	async function detachCanvasSnapshot(
 		draftId: string,
 		signal?: AbortSignal,
-	): Promise<DetachedCanvasSnapshot | null> {
+	): Promise<CanvasSnapshot | null> {
 		if (!activeCanvas) return null;
 		const liveObjects = activeCanvas.getObjects();
 		if (liveObjects.length === 0) return null;
 
-		// The same detached JSON powers both persistence and the thumbnail worker.
-		// Rendering the live Fabric scene here made autosave block interaction for
-		// 289–585 ms on a heavy drawing.
-		const bounds = useDrawObjectManager().getContentBounds();
+		// Persistence is detached incrementally. Thumbnail generation uses the
+		// engine's existing low-resolution overview and never consumes this JSON.
 		const json = await generateChunkedJSON(activeCanvas, signal);
 		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-		return { draftId, json, thumbnail: "", bounds };
+		return { draftId, json, thumbnail: "" };
+	}
+
+	function overviewThumbnail(signal?: AbortSignal): Promise<string> {
+		if (signal?.aborted)
+			return Promise.reject(new DOMException("Aborted", "AbortError"));
+		// createDraftThumbnailBlob copies the overview before returning its promise.
+		// That matters on exit: the render engine may be destroyed while WebP
+		// encoding continues against the private 640px canvas.
+		return useDrawObjectManager()
+			.createDraftThumbnailBlob(
+				DRAFT_THUMBNAIL_MAX_SIZE,
+				DRAFT_THUMBNAIL_QUALITY,
+			)
+			.then((blob) => (blob ? blobToDataUrl(blob, signal) : ""));
+	}
+
+	function blobToDataUrl(blob: Blob, signal?: AbortSignal): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			const abort = () => {
+				reader.abort();
+				reject(new DOMException("Aborted", "AbortError"));
+			};
+			if (signal?.aborted) return abort();
+			signal?.addEventListener("abort", abort, { once: true });
+			reader.onerror = () => {
+				signal?.removeEventListener("abort", abort);
+				reject(reader.error ?? new Error("Could not read thumbnail"));
+			};
+			reader.onloadend = () => {
+				signal?.removeEventListener("abort", abort);
+				resolve(typeof reader.result === "string" ? reader.result : "");
+			};
+			reader.readAsDataURL(blob);
+		});
 	}
 
 	async function snapshotCanvas(
 		draftId: string,
 		signal?: AbortSignal,
 	): Promise<CanvasSnapshot | null> {
+		// Start with the lightweight overview copy. Its pixels are captured
+		// synchronously, before JSON serialization yields back to the app.
+		const thumbnailPromise = overviewThumbnail(signal).catch((error) => {
+			// Serialization owns cancellation for the save as a whole. Swallowing a
+			// thumbnail-only abort here also prevents an unhandled rejection if JSON
+			// detachment notices the same abort first and exits before Promise.all.
+			if (!(error instanceof DOMException && error.name === "AbortError"))
+				console.warn("Draft thumbnail generation failed:", error);
+			return "";
+		});
 		const detached = await detachCanvasSnapshot(draftId, signal);
 		if (!detached || !activeCanvas) return null;
 
-		let thumbnail = "";
-		let jsonBlob: Blob | undefined;
-		try {
-			const assets = await createDraftSnapshotAssets(
-				activeCanvas,
-				signal,
-				detached.json,
-				detached.bounds,
-			);
-			thumbnail = assets.thumbnail;
-			jsonBlob = assets.jsonBlob;
-		} catch (error) {
-			if (error instanceof DOMException && error.name === "AbortError") {
-				throw error;
-			}
-			console.warn("Draft thumbnail generation failed:", error);
-		}
+		const [thumbnail, jsonBlob] = await Promise.all([
+			thumbnailPromise,
+			documentJsonToBlob(detached.json, signal),
+		]);
 		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
 		return {
@@ -362,6 +413,12 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 		const draft: DrawingDraft = {
 			id: snapshot.draftId,
+			// ALWAYS the Blob. `put` structured-clones its value synchronously, and
+			// a Blob is cloned by reference while a plain document object is cloned
+			// field by field — the difference between a free write and a multi-second
+			// main-thread stall on a large drawing. `snapshotCanvas` guarantees this
+			// is set; the fallback is kept only so a future caller building a
+			// snapshot by hand degrades in behaviour rather than crashing.
 			json: snapshot.jsonBlob ?? snapshot.json,
 			thumbnail: snapshot.thumbnail,
 			updatedAt: Date.now(),
@@ -490,44 +547,38 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		if (liveAbortController) liveAbortController.abort();
 
 		const ctrl = new AbortController();
+		// Capture overview pixels before detaching/disposing the draw engine. The
+		// returned promise encodes a private 640px copy, so navigation can continue
+		// without keeping either the engine or a second Fabric scene alive.
+		const exitThumbnailPromise = detachBeforeThumbnail
+			? overviewThumbnail(ctrl.signal).catch((error) => {
+					if (!(error instanceof DOMException && error.name === "AbortError")) {
+						console.warn("Draft thumbnail generation failed:", error);
+					}
+					return "";
+				})
+			: undefined;
 
 		const snapshot = detachBeforeThumbnail
 			? await detachCanvasSnapshot(draftId, ctrl.signal)
 			: await snapshotCanvas(draftId, ctrl.signal);
 		if (!snapshot) return null;
 
-		// Exit only waits for JSON to detach from Fabric. Thumbnail rendering and
-		// IndexedDB persistence continue from that immutable snapshot after route
-		// navigation, so the canvas can be disposed without a long thumbnail stall.
-		const thumbnailPromise = detachBeforeThumbnail
-			? createDraftThumbnailFromJSON(
-					snapshot.json,
-					ctrl.signal,
-					(snapshot as DetachedCanvasSnapshot).bounds,
-				).catch((error) => {
-					if (!(error instanceof DOMException && error.name === "AbortError")) {
-						console.warn("Draft thumbnail generation failed:", error);
-					}
-					return "";
-				})
-			: Promise.resolve(snapshot.thumbnail);
+		const thumbnailPromise =
+			exitThumbnailPromise ?? Promise.resolve(snapshot.thumbnail);
 
-		const promise = runSave(snapshot, ctrl.signal)
-			.then(async () => {
-				const thumbnail = await thumbnailPromise;
-				if (!thumbnail || !db.value) return;
-				const tx = db.value.transaction([metadataStoreName], "readwrite");
-				tx.objectStore(metadataStoreName).put({
-					id: draftId,
-					updatedAt: Date.now(),
-					thumbnail,
-				} satisfies DrawingDraftMetadata);
-				await new Promise<void>((resolve, reject) => {
-					tx.oncomplete = () => resolve();
-					tx.onerror = () => reject(tx.error);
-					tx.onabort = () => reject(tx.error);
-				});
-			})
+		// On exit, build the Blob in the yielded background chain before touching
+		// IndexedDB. Passing the raw document object to put() would synchronously
+		// structured-clone all objects on the WebView main thread.
+		const promise = Promise.all([
+			detachBeforeThumbnail
+				? documentJsonToBlob(snapshot.json, ctrl.signal)
+				: Promise.resolve(snapshot.jsonBlob),
+			thumbnailPromise,
+		])
+			.then(([jsonBlob, thumbnail]) =>
+				runSave({ ...snapshot, jsonBlob, thumbnail }, ctrl.signal),
+			)
 			.then(() => {
 				pendingDrafts.value.delete(draftId);
 				pendingDrafts.value = new Map(pendingDrafts.value);

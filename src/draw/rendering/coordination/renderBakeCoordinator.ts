@@ -59,6 +59,68 @@ export abstract class RenderBakeCoordinator<
 			this.progressTimer = null;
 		}
 	}
+	/**
+	 * Bake the current viewport ONCE, awaited, as part of a load reveal.
+	 *
+	 * The load path used to reveal the canvas as soon as the overview existed.
+	 * That is enough to not be blank, but on a large board the first bake pass is
+	 * still tens of tiles of main-thread rasterization, so the user got a canvas
+	 * that looked ready and then fought them for several seconds on the first pan
+	 * or zoom. Waiting for the visible tiles here converts that into loading time,
+	 * which is time the user has already accepted.
+	 *
+	 * NOT routed through `runBake`: that returns immediately while `loading` is
+	 * set, and `loading` is exactly what must stay set until this finishes (it is
+	 * what suppresses painting a half-built frame).
+	 *
+	 * `budgetMs` bounds the WAIT, not the work. On timeout the pass keeps running
+	 * and its tiles land normally — aborting would throw away everything baked so
+	 * far and leave the user waiting for it to be redone. The reveal is safe at
+	 * any point because the overview is already built, so the worst case is a
+	 * soft picture that sharpens, never a blank one.
+	 */
+	async bakeVisibleBlocking(
+		budgetMs: number,
+		signal?: AbortSignal,
+	): Promise<void> {
+		if (this.baking || signal?.aborted) return;
+		const ctrl = new AbortController();
+		this.bakeCtrl = ctrl;
+		this.baking = true;
+		this.bakeAgain = false;
+		// Teardown (leaving the route mid-load) must still be able to stop it.
+		signal?.addEventListener("abort", () => ctrl.abort(), { once: true });
+
+		const pass = this.committed
+			.bake(
+				this.surface.getVpt(),
+				this.surface.getSize(),
+				this.surface.getDpr(),
+				this.makeYielder,
+				ctrl.signal,
+				this.contentBounds,
+			)
+			.catch(() => {
+				/* aborted / transient — the normal bake will pick up what is left */
+			})
+			.finally(() => {
+				this.baking = false;
+				if (this.bakeCtrl === ctrl) this.bakeCtrl = null;
+			});
+
+		await new Promise<void>((resolve) => {
+			let settled = false;
+			const done = () => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				resolve();
+			};
+			const timer = setTimeout(done, budgetMs);
+			void pass.then(done, done);
+		});
+	}
+
 	protected async runBake(): Promise<void> {
 		if (this.gesturing || this.loading || this.erasing || this.mutating) return;
 		if (this.baking) {

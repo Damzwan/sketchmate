@@ -37,8 +37,8 @@ export interface ClaimedArea {
 const MAX_AREAS_PER_USER = 2;
 // Fixed WORLD size — constant world extent means zooming out can't be used to
 // grab a huge region.
-const AREA_W = 600;
-const AREA_H = 600;
+const AREA_W = 1200;
+const AREA_H = 1200;
 const TOAST_THROTTLE_MS = 2500;
 
 export interface AreaGhost {

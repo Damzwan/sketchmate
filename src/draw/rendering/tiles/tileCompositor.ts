@@ -1,5 +1,6 @@
 import { recordComposite } from "@/draw/rendering/renderMetrics";
 import type { Tile } from "./tileStore";
+import { tileKey, type TileKey } from "./tileKey";
 import {
 	TileLayerBase,
 	type Bounded,
@@ -25,6 +26,10 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		const __t0all = performance.now();
 		const zoom = vpt[0];
 		const tier = this.pickActiveTier(zoom);
+		// Eviction protects this tier and its neighbours (see TileStore.reserve).
+		// Reported from the composite rather than the bake because this is the tier
+		// pixels are actually being read from, which is what must survive.
+		this.tileStore.setActiveTier(tier);
 		const vw = this.viewWorld(vpt, px, dpr);
 
 		// top instrumentation hook (debug only — dead telemetry off the hot path in prod)
@@ -103,7 +108,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 				const dw = dx1 - dx0,
 					dh = dy1 - dy0;
 
-				const key = `${tier}:${tx}:${ty}`;
+				const key = tileKey(tier, tx, ty);
 				const t = this.tiles.get(key);
 				const fresh = t ? this.isFresh(key, t) : false;
 				if (t) this.touchTile(key, t);
@@ -486,7 +491,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 	 *   a handful of edits.
 	 */
 	protected fallbackHole(
-		key: string,
+		key: TileKey,
 		t: Tile,
 		region: WorldRect,
 	): WorldRect | null | typeof NO_HOLE {
@@ -692,7 +697,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		const ctws = this.TILE / this.ZOOM_TIERS[ct];
 		const ctxi = Math.floor(cwx / ctws);
 		const ctyi = Math.floor(cwy / ctws);
-		const key = `${ct}:${ctxi}:${ctyi}`;
+		const key = tileKey(ct, ctxi, ctyi);
 		const t = this.tiles.get(key);
 		if (requireFresh && (!t || !this.isFresh(key, t) || this.dirtyRects.has(key)))
 			return null;
@@ -708,7 +713,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		const fx = (cwx - ctxi * ctws) / ctws;
 		const fy = (cwy - ctyi * ctws) / ctws;
 		const fw = cww / ctws;
-		this.touchTile(key, t);
+		this.touchTile(key, t, true);
 		const out: Draw = {
 			bmp: t.bitmap,
 			sx: this.OS + fx * this.TILE,
@@ -756,7 +761,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		const dph = dh / tws;
 		for (let fty = fr.ty0; fty <= fr.ty1; fty++) {
 			for (let ftx = fr.tx0; ftx <= fr.tx1; ftx++) {
-				const k = `${ft}:${ftx}:${fty}`;
+				const k = tileKey(ft, ftx, fty);
 				const t = this.tiles.get(k);
 				if (!t) return [];
 
@@ -798,7 +803,7 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 				const ddh = Math.floor(dy + (iy1 - cellWorld.y) * dph) - ddy;
 				if (ddw <= 0 || ddh <= 0) continue;
 
-				this.touchTile(k, t);
+				this.touchTile(k, t, true);
 				const out: Draw = {
 					bmp: t.bitmap,
 					sx,

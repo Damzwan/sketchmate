@@ -11,6 +11,14 @@ import {
 	installDrawRenderBackendDebugApi,
 } from "@/draw/config/renderBackend.config";
 import { initDrawMetrics } from "@/draw/rendering/renderMetrics";
+import {
+	installDrawDiagnostics,
+	uninstallDrawDiagnostics,
+} from "@/draw/diagnostics/drawDiagnostics";
+import {
+	installDrawMemoryPressure,
+	uninstallDrawMemoryPressure,
+} from "@/draw/diagnostics/drawMemoryPressure";
 import { createYielder } from "@/draw/scheduling/yielder";
 import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
 import { serializeOnce } from "@/draw/objects/objectSerialization";
@@ -58,6 +66,25 @@ const IS_LOW_END = IS_LOW_END_DEVICE;
  */
 const RENDER_WORK_BUDGET_MS = IS_LOW_END ? 3 : IS_MOBILE_DEVICE ? 5 : 8;
 const RENDER_FRAME_YIELD_INTERVAL_MS = IS_MOBILE_DEVICE ? 12 : 24;
+
+/**
+ * How long the load reveal may wait for the first bake of the visible viewport.
+ *
+ * Deliberately generous. Users accept loading time; what they do not accept is
+ * an indicator that clears and hands them a canvas that then stutters for
+ * several seconds. Spending that time before the reveal costs nothing they
+ * notice and buys a canvas that is genuinely ready.
+ *
+ * It is a ceiling, not a target: a small drawing bakes in a few hundred ms and
+ * reveals immediately. Only a very large board reaches it, and reaching it is
+ * safe — the overview is already built by then, so the reveal shows the whole
+ * drawing softly rather than blankly while the remaining tiles land.
+ */
+const FIRST_PAINT_BAKE_BUDGET_MS = IS_LOW_END
+	? 6_000
+	: IS_MOBILE_DEVICE
+		? 5_000
+		: 3_000;
 
 export function createDrawObjectManager() {
 	let c: Canvas | undefined;
@@ -408,6 +435,9 @@ export function createDrawObjectManager() {
 		const renderBackend = getDrawRenderBackend();
 		installDrawRenderBackendDebugApi();
 		initDrawMetrics(getRenderDpr, () => renderBackend);
+		// Persist engine state to the Sentry scope from here on. Must run AFTER
+		// initDrawMetrics (it owns the observers and the reporting sink).
+		installDrawDiagnostics(renderBackend);
 		configureTileBakery(renderBackend === "worker");
 		initTileBakery(); // no-op in main mode; otherwise warms worker parse
 
@@ -459,12 +489,75 @@ export function createDrawObjectManager() {
 			},
 		);
 
+		// Hand back every GPU-backed cache while the app is in the background, and
+		// on an Android memory-pressure signal. The scene is untouched — this only
+		// drops tiles, the overview and the canvas pool — so coming back is a
+		// repaint, not a reload. See drawMemoryPressure.ts.
+		installDrawMemoryPressure({
+			release: () => renderEngine?.releaseGraphicsMemory(),
+			restore: () => renderEngine?.restoreFromRelease(),
+		});
+
 		rebuildIndexFromCanvas();
 		renderEngine.setContentBounds(computeContentBounds());
 		renderEngine.markAllDirty();
-		renderEngine.warmOverview();
+		// Paint nothing until `prepareFirstPaint` says the picture is real.
+		//
+		// This used to fire `warmOverview()` (abortable, fire-and-forget) and then
+		// `requestFrame()` immediately, while the caller cleared its loading
+		// indicator in the very next statement. On a large board that meant the
+		// spinner disappeared before there was an overview to show — a white canvas
+		// for a beat — and long before any tile was baked, so the first pan or zoom
+		// ran straight into the whole first bake pass.
+		renderEngine.setLoading(true);
 		useDrawEventManager().addPermanentEvents(events);
-		renderEngine.requestFrame();
+	}
+
+	/**
+	 * Finish loading: guarantee the first painted frame is a real picture, and
+	 * that the engine is not still doing its heaviest work when the user gets
+	 * control.
+	 *
+	 * Awaited by the caller BEFORE it clears the loading indicator. That is the
+	 * whole point — a loading indicator that clears while the canvas is blank and
+	 * the main thread is saturated is worse than a slightly longer one, because
+	 * the user reads it as "ready" and immediately hits the lag.
+	 *
+	 * Two stages, in this order for a reason:
+	 *   1. The overview, BLOCKING and non-abortable. It is the base layer under
+	 *      every unbaked tile, so once it exists the canvas can never be blank
+	 *      again no matter what happens next.
+	 *   2. The visible tiles, on a wall-clock budget. Sharpness, and — more to
+	 *      the point — the bulk of the main-thread rasterization, moved inside
+	 *      the loading window instead of landing on the user's first gesture.
+	 *
+	 * Stage 2's budget bounds the WAIT, not the work: on timeout the bake keeps
+	 * going and reveals happen against the overview, which is soft but complete.
+	 */
+	async function prepareFirstPaint(signal?: AbortSignal): Promise<void> {
+		if (!renderEngine) return;
+		try {
+			await renderEngine.warmOverviewBlocking();
+			if (signal?.aborted) return;
+			await renderEngine.bakeVisibleBlocking(
+				FIRST_PAINT_BAKE_BUDGET_MS,
+				signal,
+			);
+		} finally {
+			// Reveal even if a stage threw. A soft or partial picture is recoverable;
+			// a canvas stuck behind a permanent loading gate is not.
+			//
+			// …but NOT if another load started while we were waiting. This await is
+			// now seconds long on a big board, which is ample time for a room join or
+			// a document swap to call beginLoading(); revealing here would un-suppress
+			// frames over a scene that is mid-rebuild. Whoever owns the new load will
+			// reveal when it is done.
+			if (loadingDepth === 0) {
+				renderEngine?.setLoading(false);
+				renderEngine?.requestFrame();
+				renderEngine?.scheduleBake();
+			}
+		}
 	}
 
 	/**
@@ -484,6 +577,8 @@ export function createDrawObjectManager() {
 		batchAdds = [];
 		retainedRemovalDepth = 0;
 		shutdownTileBakerySession();
+		uninstallDrawMemoryPressure();
+		uninstallDrawDiagnostics();
 		c = undefined;
 	}
 
@@ -564,10 +659,10 @@ export function createDrawObjectManager() {
 		renderEngine.reset();
 		await rebuildIndexFromCanvasYielded();
 		renderEngine.setContentBounds(computeContentBounds());
-		await renderEngine.warmOverviewBlocking();
-		renderEngine.setLoading(false);
-		renderEngine.requestFrame();
-		renderEngine.scheduleBake();
+		// Same reveal contract as the solo path: overview first so the canvas can
+		// never be blank, then the visible tiles so the first gesture after the
+		// reveal is not competing with the first bake pass.
+		await prepareFirstPaint();
 	}
 
 	// ── blocked users ────────────────────────────────────────────────────────
@@ -648,6 +743,20 @@ export function createDrawObjectManager() {
 		await renderEngine?.warmOverviewBlocking();
 	}
 
+	function createDraftThumbnailBlob(
+		maxSize: number,
+		quality: number,
+	): Promise<Blob | null> {
+		if (!renderEngine || !c) return Promise.resolve(null);
+		const background =
+			typeof c.backgroundColor === "string" ? c.backgroundColor : "#ffffff";
+		return renderEngine.createDraftThumbnailBlob(
+			maxSize,
+			quality,
+			background || "#ffffff",
+		);
+	}
+
 	function rebuildSpatialIndex() {
 		if (!c || !renderEngine) return;
 		rebuildIndexFromCanvas();
@@ -719,6 +828,7 @@ export function createDrawObjectManager() {
 
 	return {
 		init,
+		prepareFirstPaint,
 		detach,
 		renderMain: gestures.requestFrame,
 		renderViewport: gestures.requestFrame,
@@ -756,6 +866,7 @@ export function createDrawObjectManager() {
 		isLoading,
 		resetTileCache,
 		warmOverviewBlocking,
+		createDraftThumbnailBlob,
 		rebuildSpatialIndex,
 		scheduleRectPatch,
 		scheduleObjectPatch,

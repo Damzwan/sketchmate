@@ -32,7 +32,7 @@
           </div>
         </div>
 
-        <!-- Big Boss Solo Dev Message — pinned sketchbook note -->
+        <!-- Community note — pinned sketchbook note -->
         <div class="wn-rise wn-note relative bg-tertiary rounded-2xl px-4 py-4 shadow-md mt-1" style="--d: .06s">
           <span class="wn-tape" aria-hidden="true"></span>
           <div class="flex items-center gap-3 mb-2.5">
@@ -46,26 +46,26 @@
               <p class="text-lg font-black text-secondary cabin-sketch-regular leading-none">
                 SketchMate Big Boss
               </p>
-              <p class="text-[11px] uppercase tracking-widest text-black/80 mt-1">a note from the solo dev</p>
+              <p class="text-[11px] uppercase tracking-widest text-black/80 mt-1">a note to everyone supporting SketchMate</p>
             </div>
           </div>
           <div class="text-[15px] text-black/80 leading-relaxed space-y-2.5">
             <p>
-              Hey! I'm the solo dev behind SketchMate. Over the last 2 years, I've poured thousands of hours and my own money into this app.
+              The response to the last update has been incredible. In just two weeks, this community has created <b>1,000+ posts</b> and exchanged more than <b>100,000 messages</b>.
             </p>
             <p>
-              To keep it alive, mostly free, and ad-free, I'm introducing monetization through customization. It's a big shift, but the only way to cover the running costs.
+              Thank you for every drawing, conversation, bug report, and bit of support. This is a quieter update by design: v0.4.4 strengthens the foundation so SketchMate can keep growing reliably. ❤️
             </p>
           </div>
 
-          <!-- Gift sticker -->
-          <div class="wn-gift mt-3">
+          <!-- Next-release teaser -->
+          <div class="wn-next mt-3">
             <div class="flex items-center gap-2 mb-1.5">
-              <ion-icon :icon="svg(mdiGiftOutline)" class="text-xl text-secondary" />
-              <p class="cabin-sketch-regular text-lg font-black text-secondary leading-none">A thank-you, from me to you</p>
+              <ion-icon :icon="svg(mdiTrophyOutline)" class="text-xl text-secondary" />
+              <p class="cabin-sketch-regular text-lg font-black text-secondary leading-none">Next up: Drawing competitions</p>
             </div>
             <p class="text-[15px] text-black/80 leading-relaxed">
-              Existing users get an exclusive <b>"Gratitude"</b> World,  a <b>"Crumbled Paper"</b> profile effect and a <b>"Early Tester"</b> title that can <i>never</i> be bought. Past donors get a <b>lifetime subscription</b>. ❤️
+              With the canvas steadier, the next update will put the spotlight back on creating together. Get your brushes ready. 🏆
             </p>
           </div>
         </div>
@@ -111,13 +111,11 @@ import { storeToRefs } from "pinia";
 import { useMenuStore } from "@/store/menu.store";
 import { svg } from "@/helper/general.helper";
 import {
-	mdiAccountGroupOutline,
-	mdiBrushVariant,
-	mdiShieldCheckOutline,
-	mdiPaletteOutline,
+	mdiChatProcessingOutline,
 	mdiLayersOutline,
+	mdiWrenchCheckOutline,
 	mdiClose,
-	mdiGiftOutline,
+	mdiTrophyOutline,
 } from "@mdi/js";
 import bigbossImage from "@/assets/bigboss.jpg";
 
@@ -128,29 +126,19 @@ const appVersion = __APP_VERSION__;
 
 const features = [
 	{
-		icon: mdiAccountGroupOutline,
-		title: "Social",
-		text: "Posts, chatting, reacting, and a non-addictive chronological feed.",
-	},
-	{
-		icon: mdiPaletteOutline,
-		title: "Better Drawing",
-		text: "Improved drawing engine, significantly less lag, and new tools.",
-	},
-	{
-		icon: mdiShieldCheckOutline,
-		title: "Community Safety",
-		text: "Reporting, blocking, and private drawing areas within public lobbies.",
-	},
-	{
-		icon: mdiBrushVariant,
-		title: "Customization",
-		text: "Extensive new ways to personalize your profile and presence.",
-	},
-	{
 		icon: mdiLayersOutline,
-		title: "Reworked UI",
-		text: "A cleaner, faster, and more polished interface across the app.",
+		title: "Layers",
+		text: "Create, rename, reorder, hide, and lock layers to keep even complex collaborative drawings organized.",
+	},
+	{
+		icon: mdiChatProcessingOutline,
+		title: "Your Chat, Your Style",
+		text: "Customize your chat widget with themes, fonts, effects, and worlds that match your style.",
+	},
+	{
+		icon: mdiWrenchCheckOutline,
+		title: "A Stronger Drawing Engine",
+		text: "Smoother drawing, lower memory use, faster loading, and a long list of stability improvements and bug fixes.",
 	},
 ];
 </script>
@@ -209,8 +197,8 @@ ion-modal.sketch-modal {
   border-radius: 2px;
 }
 
-/* ── Gift sticker: torn-paper highlight ── */
-.wn-gift {
+/* ── Next-release teaser: torn-paper highlight ── */
+.wn-next {
   padding: 10px 12px;
   border-radius: 12px;
   border: 2px dashed rgba(var(--ion-color-secondary-rgb), 0.45);

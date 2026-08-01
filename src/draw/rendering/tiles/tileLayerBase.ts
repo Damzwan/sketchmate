@@ -6,7 +6,13 @@ import {
 	viewportToWorldRect,
 	type WorldRect,
 } from "./tileGeometry";
-import { type Tile, TileStore } from "./tileStore";
+import {
+	releaseTileSurface,
+	type Tile,
+	type TileSurface,
+	TileStore,
+} from "./tileStore";
+import { keyTier, keyTx, keyTy, tileKey, type TileKey } from "./tileKey";
 import { DEFAULT_OVERVIEW_TIER, DEFAULT_ZOOM_TIERS } from "../zoomLevels";
 
 export type { WorldRect } from "./tileGeometry";
@@ -134,6 +140,20 @@ export interface CommittedOptions {
 	overviewPx?: number;
 	renderChunk?: number;
 	fallbackDepth?: number;
+	/**
+	 * Cost ceiling for one UNINTERRUPTIBLE synchronous render block, in the units
+	 * of `rendering/renderCost.ts`. See `DrawMemoryProfile.syncRenderCostBudget`.
+	 */
+	syncCostBudget?: number;
+	/**
+	 * How many tiles may hold a writable OffscreenCanvas instead of an immutable
+	 * ImageBitmap (see `TileSurface`). This is the interactive working set — the
+	 * tiles under the stroke being drawn — so it wants to be small: each one
+	 * costs a canvas that the pool must then replace, and compositing from a
+	 * canvas can be slower than from a bitmap. 0 disables the optimisation and
+	 * restores the pre-existing bitmap-only behaviour exactly.
+	 */
+	hotTileMax?: number;
 	debug?: boolean;
 	/** Optional worker-side tile renderer; async bakes try it first. */
 	remoteBaker?: RemoteBaker<any>;
@@ -142,7 +162,8 @@ export interface CommittedOptions {
 }
 
 export interface Draw {
-	bmp: ImageBitmap;
+	/** A hot tile's source is an OffscreenCanvas; `drawImage` takes either. */
+	bmp: TileSurface;
 	sx: number;
 	sy: number;
 	sw: number;
@@ -185,7 +206,7 @@ export interface CompositeCell {
  * px, already intersected with the cell and snapped outward.
  */
 export interface PartialDraw {
-	bmp: ImageBitmap;
+	bmp: TileSurface;
 	dx: number;
 	dy: number;
 	dw: number;
@@ -239,6 +260,8 @@ export class TileLayerBase<T extends Bounded> {
 	protected readonly OVERVIEW_TIER: number;
 	protected readonly CHUNK: number;
 	protected readonly FALLBACK_DEPTH: number;
+	protected readonly SYNC_COST_BUDGET: number;
+	protected readonly HOT_TILE_MAX: number;
 	protected readonly debug: boolean;
 	protected readonly renderScale: number;
 
@@ -312,6 +335,11 @@ export class TileLayerBase<T extends Bounded> {
 		// search is map lookups only (see `searchMsMax`), and a gesture still caps
 		// it at 1.
 		this.FALLBACK_DEPTH = opts.fallbackDepth ?? 5;
+		// Infinity = no gate, which is the pre-existing behaviour. Every real
+		// caller passes a device-scaled budget; tests and benchmarks that want the
+		// old unbounded synchronous path can simply omit it.
+		this.SYNC_COST_BUDGET = opts.syncCostBudget ?? Infinity;
+		this.HOT_TILE_MAX = Math.max(0, opts.hotTileMax ?? 0);
 		this.debug = opts.debug ?? false;
 
 		const maxRS = opts.maxRenderScale ?? 2;
@@ -336,6 +364,7 @@ export class TileLayerBase<T extends Bounded> {
 				this.ZOOM_TIERS[this.OVERVIEW_TIER + 1] ??
 				this.ZOOM_TIERS[this.ZOOM_TIERS.length - 1],
 			remoteOverview: opts.remoteOverview,
+			syncCostBudget: this.SYNC_COST_BUDGET,
 		});
 	}
 
@@ -360,12 +389,14 @@ export class TileLayerBase<T extends Bounded> {
 		return tileToWorldRect(tier, tx, ty, this.TILE, this.ZOOM_TIERS);
 	}
 
-	protected isFresh(key: string, t: Tile): boolean {
+	protected isFresh(key: TileKey, t: Tile): boolean {
 		return this.tileStore.isFresh(key, t);
 	}
 
-	protected touchTile(key: string, tile: Tile): void {
-		this.tileStore.touch(key, tile);
+	/** @param weak sampled as a cross-tier fallback source only — see
+	 *  `TileStore.touch`. */
+	protected touchTile(key: TileKey, tile: Tile, weak = false): void {
+		this.tileStore.touch(key, tile, weak);
 	}
 
 	viewWorld(
@@ -396,7 +427,7 @@ export class TileLayerBase<T extends Bounded> {
 	 * the whole tile (the active-tier overlay, and the repair, which must cover
 	 * everything owed). `null` when the record is missing or whole-tile.
 	 */
-	protected unionDirtyRects(key: string): WorldRect | null {
+	protected unionDirtyRects(key: TileKey): WorldRect | null {
 		const rects = this.dirtyRects.get(key);
 		if (!rects || rects.length === 0) return null;
 		let x = rects[0].x;
@@ -414,7 +445,7 @@ export class TileLayerBase<T extends Bounded> {
 	}
 
 	protected invalidateKey(
-		key: string,
+		key: TileKey,
 		rect: WorldRect | null,
 		keepUsable = false,
 		transition = false,
@@ -424,9 +455,7 @@ export class TileLayerBase<T extends Bounded> {
 		// previous scene. Never promote an older dirty/additive tile to trusted just
 		// because a new history edit touched it as well.
 		const canTransition =
-			transition &&
-			!!t?.usable &&
-			(t.transition || this.isFresh(key, t));
+			transition && !!t?.usable && (t.transition || this.isFresh(key, t));
 		this.gen.set(key, (this.gen.get(key) ?? 0) + 1);
 		if (t) {
 			if (transition) {
@@ -505,10 +534,9 @@ export class TileLayerBase<T extends Bounded> {
 					this.invalidateKey(k, rect);
 			}
 			for (const k of this.inFlight) {
-				const parts = k.split(":");
-				const tier = parseInt(parts[0], 10);
-				const tx = parseInt(parts[1], 10);
-				const ty = parseInt(parts[2], 10);
+				const tier = keyTier(k);
+				const tx = keyTx(k);
+				const ty = keyTy(k);
 				const r = ranges[tier];
 				if (tx >= r.tx0 && tx <= r.tx1 && ty >= r.ty0 && ty <= r.ty1)
 					this.invalidateKey(k, rect);
@@ -519,7 +547,7 @@ export class TileLayerBase<T extends Bounded> {
 			const r = ranges[tier];
 			for (let ty = r.ty0; ty <= r.ty1; ty++)
 				for (let tx = r.tx0; tx <= r.tx1; tx++) {
-					const k = `${tier}:${tx}:${ty}`;
+					const k = tileKey(tier, tx, ty);
 					if (this.tiles.has(k) || this.inFlight.has(k))
 						this.invalidateKey(k, rect);
 				}
@@ -544,12 +572,7 @@ export class TileLayerBase<T extends Bounded> {
 	): void {
 		const ranges = this.ZOOM_TIERS.map((_, tier) => this.tileRange(rect, tier));
 		const visibleRange = this.tileRange(visible, activeTier);
-		const invalidate = (
-			key: string,
-			tier: number,
-			tx: number,
-			ty: number,
-		) => {
+		const invalidate = (key: TileKey, tier: number, tx: number, ty: number) => {
 			const r = ranges[tier];
 			if (tx < r.tx0 || tx > r.tx1 || ty < r.ty0 || ty > r.ty1) return;
 			const retain =
@@ -569,13 +592,7 @@ export class TileLayerBase<T extends Bounded> {
 		}
 		for (const key of this.inFlight) {
 			if (this.tiles.has(key)) continue; // already bumped through the map above
-			const [rawTier, rawTx, rawTy] = key.split(":");
-			invalidate(
-				key,
-				parseInt(rawTier, 10),
-				parseInt(rawTx, 10),
-				parseInt(rawTy, 10),
-			);
+			invalidate(key, keyTier(key), keyTx(key), keyTy(key));
 		}
 	}
 
@@ -622,7 +639,7 @@ export class TileLayerBase<T extends Bounded> {
 			}
 			for (let ty = r.ty0; ty <= r.ty1; ty++)
 				for (let tx = r.tx0; tx <= r.tx1; tx++) {
-					const k = `${tier}:${tx}:${ty}`;
+					const k = tileKey(tier, tx, ty);
 					if (this.tiles.has(k) || this.inFlight.has(k))
 						this.invalidateKey(k, rect, true);
 				}
@@ -643,17 +660,16 @@ export class TileLayerBase<T extends Bounded> {
 				if (t.tier !== tier) continue;
 				if (t.tx < r.tx0 || t.tx > r.tx1 || t.ty < r.ty0 || t.ty > r.ty1)
 					continue;
-				if (t.bitmap) t.bitmap.close();
+				releaseTileSurface(t.bitmap);
 				this.memoryBytes -= t.bytes;
 				this.tiles.delete(k);
 				this.dirtyRects.delete(k);
 				if (!this.inFlight.has(k)) this.gen.delete(k);
 			}
 			for (const k of this.inFlight) {
-				const parts = k.split(":");
-				const t_tier = parseInt(parts[0], 10);
-				const t_tx = parseInt(parts[1], 10);
-				const t_ty = parseInt(parts[2], 10);
+				const t_tier = keyTier(k);
+				const t_tx = keyTx(k);
+				const t_ty = keyTy(k);
 				if (t_tier !== tier) continue;
 				if (t_tx >= r.tx0 && t_tx <= r.tx1 && t_ty >= r.ty0 && t_ty <= r.ty1)
 					this.invalidateKey(k, rect);
@@ -662,11 +678,11 @@ export class TileLayerBase<T extends Bounded> {
 		}
 		for (let ty = r.ty0; ty <= r.ty1; ty++)
 			for (let tx = r.tx0; tx <= r.tx1; tx++) {
-				const k = `${tier}:${tx}:${ty}`;
+				const k = tileKey(tier, tx, ty);
 				if (this.inFlight.has(k)) this.invalidateKey(k, rect);
 				const t = this.tiles.get(k);
 				if (t) {
-					if (t.bitmap) t.bitmap.close();
+					releaseTileSurface(t.bitmap);
 					this.memoryBytes -= t.bytes;
 					this.tiles.delete(k);
 					this.dirtyRects.delete(k);
@@ -703,10 +719,9 @@ export class TileLayerBase<T extends Bounded> {
 				}
 			}
 			for (const key of this.inFlight) {
-				const [rawTier, rawTx, rawTy] = key.split(":");
-				const inFlightTier = parseInt(rawTier, 10);
-				const tx = parseInt(rawTx, 10);
-				const ty = parseInt(rawTy, 10);
+				const inFlightTier = keyTier(key);
+				const tx = keyTx(key);
+				const ty = keyTy(key);
 				if (
 					inFlightTier === tier &&
 					tx >= r.tx0 &&
@@ -721,7 +736,7 @@ export class TileLayerBase<T extends Bounded> {
 		}
 		for (let ty = r.ty0; ty <= r.ty1; ty++) {
 			for (let tx = r.tx0; tx <= r.tx1; tx++) {
-				const key = `${tier}:${tx}:${ty}`;
+				const key = tileKey(tier, tx, ty);
 				if (this.tiles.has(key) || this.inFlight.has(key)) {
 					this.invalidateKey(key, rect);
 				}

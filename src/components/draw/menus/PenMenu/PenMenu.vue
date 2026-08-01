@@ -42,8 +42,14 @@
         <div class="control_card shadow-sm">
           <div class="control_row">
             <label class="control_label">Width</label>
+            <!-- Max raised 50 → 120. Filling areas with the pencil is a normal
+                 workflow now that layers make block-fills worth doing, and 50
+                 forced dozens of overlapping passes where one should do. The
+                 eraser already went to 150, so this is not a new extreme for
+                 the engine. Stroke geometry cost no longer scales badly with
+                 width either — see strokeSimplification.ts. -->
             <ion-range aria-label="Stroke width" v-model="brushSize"
-                       :min="0.1" :step="0.1" :max="50" color="secondary" />
+                       :min="0.1" :step="0.1" :max="120" color="secondary" />
             <span class="value_pill">{{ brushSize }}</span>
           </div>
 

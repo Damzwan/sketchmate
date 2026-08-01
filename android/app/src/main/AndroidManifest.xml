@@ -45,6 +45,37 @@
                 android:resource="@xml/widget_info" />
         </receiver>
 
+        <!--
+            Sentry ANR / native-crash detection.
+
+            These are read by sentry-android's ManifestMetadataReader during the
+            init that @sentry/capacitor triggers from JS, so they apply even
+            though there is no `io.sentry.dsn` here (the DSN comes from
+            src/observability/sentry.ts and auto-init stays a no-op without one).
+
+            Every value below is already the library default on API 30+. They are
+            written out explicitly because the ANR pipeline is the one thing we
+            cannot verify from the JS side: if it silently turns off, the app
+            keeps working, JS errors keep arriving, and the ANRs — the reports we
+            enabled Sentry for — just never appear.
+
+            ANR v2 is the one that matters: it reads ApplicationExitInfo on the
+            NEXT app start, which is the only mechanism that can report a process
+            the system already killed.
+        -->
+        <meta-data
+            android:name="io.sentry.anr.enable"
+            android:value="true" />
+        <meta-data
+            android:name="io.sentry.anr.enable-v2"
+            android:value="true" />
+        <meta-data
+            android:name="io.sentry.anr.attach-thread-dump"
+            android:value="true" />
+        <meta-data
+            android:name="io.sentry.ndk.enable"
+            android:value="true" />
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_stat_name" />

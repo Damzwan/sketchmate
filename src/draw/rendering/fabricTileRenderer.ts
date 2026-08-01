@@ -37,10 +37,70 @@ function intersects(
 	);
 }
 
+/**
+ * Undo journal for one bake, as PARALLEL ARRAYS reused across every call.
+ *
+ * This used to be a fresh `Array<() => void>` per object per tile, holding one
+ * or two closures per node of the object's subtree. A merged Group with 500
+ * children spanning 6 tiles therefore allocated ~3,000 closures plus their
+ * captured environments in a single bake pass — steady-state garbage on the one
+ * device class whose young generation is small enough for that to show up as
+ * scavenge frequency (docs/DRAW_ENGINE_MAINTHREAD_REVIEW.md → M6).
+ *
+ * Three arrays, one entry per touched node, truncated rather than reallocated.
+ * Safe as module state because a bake is strictly synchronous between
+ * `prepareForBake` and its unwind — `isolatedTileRenderer` never awaits.
+ *
+ * An entry is EITHER a visibility flip (a culled group child) or a
+ * caching/scaling swap, never both, and `undoIsVisibility` is what says which.
+ * A separate boolean is required rather than testing the saved value: fabric's
+ * `visible` is legitimately `undefined` on some objects, and `undefined` is
+ * falsy, so restoring `true` in its place would make a deliberately-hidden
+ * object render.
+ */
+const undoNodes: any[] = [];
+const undoCaching: any[] = [];
+const undoScaling: any[] = [];
+const undoVisible: (boolean | undefined)[] = [];
+const undoIsVisibility: boolean[] = [];
+let undoCount = 0;
+
+function recordCachingUndo(node: any, caching: any, scaling: any): void {
+	undoNodes[undoCount] = node;
+	undoCaching[undoCount] = caching;
+	undoScaling[undoCount] = scaling;
+	undoIsVisibility[undoCount] = false;
+	undoCount++;
+}
+
+function recordVisibilityUndo(node: any, visible: boolean | undefined): void {
+	undoNodes[undoCount] = node;
+	undoVisible[undoCount] = visible;
+	undoIsVisibility[undoCount] = true;
+	undoCount++;
+}
+
+function unwindUndo(from: number): void {
+	for (let i = undoCount - 1; i >= from; i--) {
+		const node = undoNodes[i];
+		if (undoIsVisibility[i]) node.visible = undoVisible[i];
+		else {
+			node.objectCaching = undoCaching[i];
+			node.getTotalObjectScaling = undoScaling[i];
+		}
+		// Drop the references so one big bake cannot keep a whole scene graph (or
+		// its captured cache canvases) alive through this journal until a later,
+		// larger bake happens to overwrite the slot.
+		undoNodes[i] = null;
+		undoCaching[i] = null;
+		undoScaling[i] = null;
+	}
+	undoCount = from;
+}
+
 function prepareForBake(
 	o: any,
 	tierScale: number,
-	undo: Array<() => void>,
 	clipRect?: { x: number; y: number; w: number; h: number },
 ): void {
 	const prevCaching = o.objectCaching;
@@ -51,10 +111,7 @@ function prepareForBake(
 		return this.getObjectScaling().scalarMultiply(tierScale);
 	};
 
-	undo.push(() => {
-		o.objectCaching = prevCaching;
-		o.getTotalObjectScaling = prevScaling;
-	});
+	recordCachingUndo(o, prevCaching, prevScaling);
 
 	// The clipPath — an eraser ClippingGroup — is ALWAYS cached for masking
 	// (`renderCache({ forClipping: true })`), at ITS OWN total scaling. During a
@@ -69,7 +126,7 @@ function prepareForBake(
 		typeof clip === "object" &&
 		typeof clip.getObjectScaling === "function"
 	) {
-		prepareForBake(clip, tierScale, undo);
+		prepareForBake(clip, tierScale);
 	}
 
 	if (!Array.isArray(o._objects)) return;
@@ -102,9 +159,7 @@ function prepareForBake(
 				if (!intersects(clipRect, child.getBoundingRect())) {
 					const prevVisible = child.visible;
 					child.visible = false;
-					undo.push(() => {
-						child.visible = prevVisible;
-					});
+					recordVisibilityUndo(child, prevVisible);
 					continue; // skipped entirely — no need to prep its subtree
 				}
 			} catch {
@@ -112,7 +167,7 @@ function prepareForBake(
 			}
 		}
 
-		prepareForBake(child, tierScale, undo, clipRect);
+		prepareForBake(child, tierScale, clipRect);
 	}
 }
 
@@ -143,8 +198,22 @@ export const isolatedTileRenderer = (
 	const origIsOnScreen = obj.isOnScreen;
 	obj.isOnScreen = () => true;
 
-	const undo: Array<() => void> = [];
-	prepareForBake(obj, tierScale, undo, clipRect);
+	// Nested bakes are impossible (this is synchronous), but a clip's own prep
+	// runs inside the object's, so the journal is unwound to the depth this call
+	// started at rather than to zero.
+	const undoMark = undoCount;
+	try {
+		prepareForBake(obj, tierScale, clipRect);
+	} catch (err) {
+		// Prep is what makes the render correct; a partial prep must not be left
+		// applied to the scene, and the shared journal must not be left holding
+		// entries nobody will unwind.
+		unwindUndo(undoMark);
+		obj.visible = origVisible;
+		obj.isOnScreen = origIsOnScreen;
+		console.warn("[TileRenderer] Prepare failed:", err);
+		return;
+	}
 
 	ctx.save();
 	try {
@@ -157,6 +226,6 @@ export const isolatedTileRenderer = (
 		// Restore original states so baking never permanently mutates the object.
 		obj.visible = origVisible;
 		obj.isOnScreen = origIsOnScreen;
-		for (let i = undo.length - 1; i >= 0; i--) undo[i]();
+		unwindUndo(undoMark);
 	}
 };

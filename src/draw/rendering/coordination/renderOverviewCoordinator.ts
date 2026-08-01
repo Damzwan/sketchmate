@@ -161,6 +161,24 @@ export abstract class RenderOverviewCoordinator<
 	}
 
 	/**
+	 * Snapshot the already-maintained world overview for draft metadata. This is
+	 * intentionally a copy-only operation: autosave must not reconstruct the
+	 * entire Fabric scene merely to produce a 640px gallery image.
+	 */
+	createDraftThumbnailBlob(
+		maxSize: number,
+		quality: number,
+		background?: string,
+	): Promise<Blob | null> {
+		return this.committed.overview.createThumbnailBlob(
+			this.contentBounds,
+			maxSize,
+			quality,
+			background,
+		);
+	}
+
+	/**
 	 * On-screen edits patch the overview immediately (it's the fallback base
 	 * layer under not-yet-baked tiles). Off-screen edits DEFER the patch (item
 	 * C): an invisible region isn't drawn until the user pans there, and the
@@ -379,6 +397,90 @@ export abstract class RenderOverviewCoordinator<
 	}
 
 	/**
+	 * Give the GPU-backed TILE cache back, without tearing the engine down and
+	 * without ever leaving the board blank.
+	 *
+	 * For the app being BACKGROUNDED or Android signalling memory pressure. The
+	 * WebView renderer runs in its own sandboxed process with its own limit, and
+	 * on a 2 GB device that limit is low — `libwebviewchromium.so SIGTRAP` is a
+	 * Chromium CHECK(), most often exactly this. A backgrounded tab still holding
+	 * a full tile cache is the easiest process in the system to kill, and the user
+	 * comes back to a cold start instead of their drawing.
+	 *
+	 * THE OVERVIEW IS DELIBERATELY KEPT.
+	 *
+	 * An earlier version of this called `reset()`, which drops the overview too.
+	 * That is wrong, and it fails in the worst possible way. The overview is the
+	 * base layer under every not-yet-baked tile — with no tiles AND no overview,
+	 * `composite` paints the background colour and nothing else, i.e. the whole
+	 * drawing goes blank. Recovering then needs a full O(scene) overview rebuild,
+	 * and that rebuild is abortable, so every pan the confused user makes cancels
+	 * it again: the board stays white and only fills in tile-by-tile as they
+	 * navigate. That is precisely the "it loads, then goes white, then comes back
+	 * if I pan around a lot" report.
+	 *
+	 * The economics are not close either. On a mid Android the tile cache is tens
+	 * of megabytes; the overview is ONE bitmap (1024² × 4 ≈ 4 MB). Keeping it
+	 * costs a rounding error of what this method reclaims and removes the blank
+	 * -board failure mode outright.
+	 *
+	 * `contentBounds` also survives, so the overview stays valid and no O(all
+	 * objects) recompute is needed on return.
+	 *
+	 * Everything released here is a cache. The scene itself (fabric objects, the
+	 * quadtree, history) is untouched, so `restoreFromRelease()` is a repaint,
+	 * not a reload.
+	 */
+	releaseGraphicsMemory(): void {
+		this.abortBakes();
+		if (this.overviewTimer !== null) {
+			clearTimeout(this.overviewTimer);
+			this.overviewTimer = null;
+		}
+		if (this.remoteRaf) {
+			cancelAnimationFrame(this.remoteRaf);
+			this.remoteRaf = 0;
+		}
+		if (this.overviewSplitTimer !== null) {
+			clearTimeout(this.overviewSplitTimer);
+			this.overviewSplitTimer = null;
+		}
+		this.overviewSplitQueue = [];
+		this.pendingRemote = null;
+		this.pendingOverview = [];
+		this.live.clear();
+		// Tiles + canvas pool only. NOT the overview, NOT contentBounds.
+		this.committed.releaseTiles();
+	}
+
+	/**
+	 * Come back from `releaseGraphicsMemory()`.
+	 *
+	 * Normally a plain repaint: the overview survived the release, so the very
+	 * first frame already shows the whole drawing (soft, at overview resolution)
+	 * and the bake sharpens it from there.
+	 *
+	 * The overview can still be missing — a release that happened before the
+	 * first build ever completed, or a rebuild that was aborted. In that case a
+	 * frame would paint bare background, so this takes the same BLOCKING,
+	 * non-abortable rebuild the load path uses. `warmOverview()` would be wrong
+	 * here for the same reason it is wrong during load: it is abortable, and with
+	 * no tiles to fall back on an aborted rebuild leaves the board blank with
+	 * nothing to re-arm it except a bake that gesturing keeps deferring.
+	 */
+	restoreFromRelease(): void {
+		if (this.committed.overview.isDirty()) {
+			void this.warmOverviewBlocking().then(() => {
+				this.requestFrame();
+				this.scheduleBake();
+			});
+			return;
+		}
+		this.requestFrame();
+		this.scheduleBake();
+	}
+
+	/**
 	 * Stop everything and never paint again.
 	 *
 	 * `reset()` clears state but leaves the engine live, which is right between
@@ -465,7 +567,7 @@ export abstract class RenderOverviewCoordinator<
 	}
 
 	get minZoom(): number {
-		return this.committed.minTiledZoom;
+		return this.committed.minViewportZoom;
 	}
 
 	get maxZoom(): number {

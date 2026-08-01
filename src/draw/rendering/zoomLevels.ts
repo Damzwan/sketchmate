@@ -4,6 +4,20 @@ export const DEFAULT_ZOOM_TIERS = [
 
 export const DEFAULT_OVERVIEW_TIER = 1;
 
+/**
+ * Furthest the user may zoom out in world space.
+ *
+ * This is deliberately independent of DPR. At this scale the adaptive overview
+ * is the authoritative picture; forcing the viewport to stay on a tile-backed
+ * tier prevents collaborators from seeing the surrounding canvas for no memory
+ * benefit.
+ */
+export function minimumViewportZoom(
+	zoomTiers: readonly number[] = DEFAULT_ZOOM_TIERS,
+): number {
+	return zoomTiers[0] ?? 0.125;
+}
+
 export function minimumTiledZoom(
 	renderScale: number,
 	zoomTiers: readonly number[] = DEFAULT_ZOOM_TIERS,
@@ -14,11 +28,11 @@ export function minimumTiledZoom(
 	return firstTiledTier / renderScale;
 }
 
-export function clampToTiledZoom(
+export function clampToViewportZoom(
 	zoom: number,
 	maxZoom: number,
-	renderScale: number,
+	zoomTiers: readonly number[] = DEFAULT_ZOOM_TIERS,
 ): number {
-	const minZoom = minimumTiledZoom(renderScale);
+	const minZoom = minimumViewportZoom(zoomTiers);
 	return Math.min(Math.max(zoom, minZoom), Math.max(maxZoom, minZoom));
 }

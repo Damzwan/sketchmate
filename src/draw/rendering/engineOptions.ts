@@ -22,5 +22,7 @@ export function createEngineOptions(): RenderEngineOptions {
 		overviewPatchMax: DRAW_MEMORY_PROFILE.overviewPatchMax,
 		overviewWorkBudgetMs: DRAW_MEMORY_PROFILE.overviewWorkBudgetMs,
 		renderChunk: DRAW_MEMORY_PROFILE.renderChunk,
+		syncCostBudget: DRAW_MEMORY_PROFILE.syncRenderCostBudget,
+		hotTileMax: DRAW_MEMORY_PROFILE.hotTileMax,
 	};
 }

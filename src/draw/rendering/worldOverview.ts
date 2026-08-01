@@ -22,7 +22,11 @@ import type {
 	Yieldable,
 } from "./committedLayer";
 import { Yielder } from "@/draw/scheduling/yielder";
-import { recordPhase } from "@/draw/rendering/renderMetrics";
+import {
+	recordPhase,
+	recordSyncRepairDeclined,
+} from "@/draw/rendering/renderMetrics";
+import { estimateRenderCost } from "@/draw/rendering/renderCost";
 import { chooseOverviewDimensions } from "./overviewSizing";
 
 interface OverviewOptions {
@@ -30,12 +34,15 @@ interface OverviewOptions {
 	targetDensity?: number;
 	renderChunk?: number;
 	remoteOverview?: RemoteOverview<any>;
+	/** Cost ceiling for one synchronous `patchRect`. See renderCost.ts. */
+	syncCostBudget?: number;
 }
 
 export class WorldOverview<T extends Bounded> {
 	private readonly PIXEL_BUDGET_EDGE: number;
 	private readonly TARGET_DENSITY: number;
 	private readonly CHUNK: number;
+	private readonly SYNC_COST_BUDGET: number;
 	private readonly index: SpatialIndex<T>;
 	private readonly renderer: TileRenderer<T>;
 	private readonly remoteOverview?: RemoteOverview<T>;
@@ -59,6 +66,7 @@ export class WorldOverview<T extends Bounded> {
 		this.PIXEL_BUDGET_EDGE = opts.px ?? 2048;
 		this.TARGET_DENSITY = opts.targetDensity ?? 0.5;
 		this.CHUNK = opts.renderChunk ?? 128;
+		this.SYNC_COST_BUDGET = opts.syncCostBudget ?? Infinity;
 		this.remoteOverview = opts.remoteOverview;
 	}
 
@@ -164,14 +172,8 @@ export class WorldOverview<T extends Bounded> {
 		// Canvas antialiases the clip against transparency; the untouched pixels on
 		// the other side do not add back to full coverage, leaving a pale line that
 		// becomes a conspicuous white seam when the overview is upscaled on mobile.
-		const px0 = Math.max(
-			0,
-			Math.floor((desired.x - this.bounds.x) * this.sx),
-		);
-		const py0 = Math.max(
-			0,
-			Math.floor((desired.y - this.bounds.y) * this.sy),
-		);
+		const px0 = Math.max(0, Math.floor((desired.x - this.bounds.x) * this.sx));
+		const py0 = Math.max(0, Math.floor((desired.y - this.bounds.y) * this.sy));
 		const px1 = Math.min(
 			this.canvas.width,
 			Math.ceil((desired.x + desired.w - this.bounds.x) * this.sx),
@@ -201,6 +203,19 @@ export class WorldOverview<T extends Bounded> {
 		if (objects.length > maxObjects) {
 			recordPhase("overviewPatch", performance.now() - __t0);
 			return false;
+		}
+		// A COUNT cap does not bound cost: `maxObjects` pencil lines and the same
+		// number of watercolour strokes differ by orders of magnitude, and one
+		// heavily erased object can exceed both on its own. This loop cannot yield,
+		// so the honest gate is estimated work. Declining is already the supported
+		// outcome — the caller falls back to the yielded async rebuild.
+		if (this.SYNC_COST_BUDGET !== Infinity) {
+			const cost = estimateRenderCost(objects, this.SYNC_COST_BUDGET);
+			if (cost > this.SYNC_COST_BUDGET) {
+				recordSyncRepairDeclined(cost);
+				recordPhase("overviewPatch", performance.now() - __t0);
+				return false;
+			}
 		}
 
 		// Clear the sub-rect (identity space).
@@ -465,6 +480,112 @@ export class WorldOverview<T extends Bounded> {
 		recordPhase("overviewBuild", performance.now() - __t0);
 	}
 
+	/**
+	 * Copy the current low-resolution world overview into a small draft preview.
+	 *
+	 * This deliberately does not rebuild or enliven the scene. The overview is
+	 * already the engine's coherent whole-board fallback, so reusing it avoids a
+	 * second Fabric scene (and a second copy of every serialized object) during
+	 * autosave. The copy into `output` happens synchronously; the engine may then
+	 * be destroyed while `convertToBlob` finishes encoding that private canvas.
+	 */
+	createThumbnailBlob(
+		contentBounds: WorldRect | null,
+		maxSize: number,
+		quality: number,
+		background = "#ffffff",
+	): Promise<Blob | null> {
+		const copyStartedAt = performance.now();
+		if (
+			!this.canvas ||
+			!this.bounds ||
+			this.canvas.width <= 0 ||
+			this.canvas.height <= 0 ||
+			maxSize <= 0
+		) {
+			return Promise.resolve(null);
+		}
+
+		const content = contentBounds
+			? this.intersect(contentBounds, this.bounds)
+			: this.bounds;
+		if (!content || content.w <= 0 || content.h <= 0)
+			return Promise.resolve(null);
+
+		// Keep a little breathing room around the drawing, while never sampling
+		// outside the overview bitmap (which would add transparent edge pixels).
+		const padX = Math.max(content.w * 0.05, 2 / this.sx);
+		const padY = Math.max(content.h * 0.05, 2 / this.sy);
+		const framed = this.intersect(
+			{
+				x: content.x - padX,
+				y: content.y - padY,
+				w: content.w + padX * 2,
+				h: content.h + padY * 2,
+			},
+			this.bounds,
+		);
+		if (!framed) return Promise.resolve(null);
+
+		const aspect = framed.w / framed.h;
+		const width = Math.max(
+			1,
+			Math.round(aspect >= 1 ? maxSize : maxSize * aspect),
+		);
+		const height = Math.max(
+			1,
+			Math.round(aspect >= 1 ? maxSize / aspect : maxSize),
+		);
+		const output = new OffscreenCanvas(width, height);
+		const ctx = output.getContext("2d");
+		if (!ctx) {
+			output.width = 0;
+			output.height = 0;
+			return Promise.resolve(null);
+		}
+
+		ctx.setTransform(1, 0, 0, 1, 0, 0);
+		ctx.fillStyle = background;
+		ctx.fillRect(0, 0, width, height);
+		ctx.imageSmoothingEnabled = true;
+		ctx.imageSmoothingQuality = "high";
+		ctx.drawImage(
+			this.canvas,
+			(framed.x - this.bounds.x) * this.sx,
+			(framed.y - this.bounds.y) * this.sy,
+			framed.w * this.sx,
+			framed.h * this.sy,
+			0,
+			0,
+			width,
+			height,
+		);
+		recordPhase("draftThumbnailCopy", performance.now() - copyStartedAt);
+
+		const convert = (
+			output as OffscreenCanvas & {
+				convertToBlob?: (options: {
+					type: string;
+					quality: number;
+				}) => Promise<Blob>;
+			}
+		).convertToBlob;
+		if (!convert) {
+			output.width = 0;
+			output.height = 0;
+			return Promise.resolve(null);
+		}
+
+		return convert
+			.call(output, { type: "image/webp", quality })
+			.catch(() => null)
+			.finally(() => {
+				// Release the temporary backing store deterministically on WebView.
+				output.width = 0;
+				output.height = 0;
+			});
+	}
+
 	/** Draw the overview region matching the viewport into ctx (screen space). */
 	composite(
 		ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
@@ -538,7 +659,17 @@ export class WorldOverview<T extends Bounded> {
 		ctx.imageSmoothingEnabled = true;
 		// @ts-ignore
 		ctx.imageSmoothingQuality = "low";
-		ctx.drawImage(this.canvas, csx, csy, csx1 - csx, csy1 - csy, cdx, cdy, cdw, cdh);
+		ctx.drawImage(
+			this.canvas,
+			csx,
+			csy,
+			csx1 - csx,
+			csy1 - csy,
+			cdx,
+			cdy,
+			cdw,
+			cdh,
+		);
 		ctx.restore();
 	}
 

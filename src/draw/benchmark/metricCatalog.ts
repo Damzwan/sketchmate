@@ -388,17 +388,17 @@ export const DRAW_METRIC_CATALOG: readonly MetricDefinition[] = [
 		read: (engine) => engine.flushMsMax,
 	},
 	{
-		id: "thumbnailTransferMax",
-		label: "Draft thumbnail transfer max",
+		id: "draftThumbnailCopyMax",
+		label: "Draft thumbnail copy max",
 		unit: "ms",
 		warningAbove: 8,
 		criticalAbove: 20,
-		summary: "Worst JSON batch sent to the draft thumbnail worker.",
+		summary: "Worst copy of the world overview into a 640px draft preview.",
 		meaning:
-			"postMessage clones data synchronously on main; the snapshot is split across yielded batches to bound that cost.",
+			"Autosave reuses the engine's existing low-resolution overview instead of enlivening a second Fabric scene.",
 		whenHigh:
-			"Reduce the transfer batch size or compact unusually large object JSON.",
-		read: phaseMax("thumbnailTransfer"),
+			"Inspect overview dimensions and WebView canvas drawImage performance; object count should not affect this phase.",
+		read: phaseMax("draftThumbnailCopy"),
 	},
 	{
 		id: "draftSerializationMax",

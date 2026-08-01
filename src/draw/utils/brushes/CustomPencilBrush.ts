@@ -2,6 +2,10 @@ import type { TSimplePathData } from 'fabric'
 import { PencilBrush, Shadow } from 'fabric'
 import { enlivenStrokeProps, simplifyPathDouglasPeucker, toObjectWithoutPath } from '@/draw/utils/brushes/brush.helpers'
 import { TracedPath } from '@/draw/utils/brushes/TracedPath'
+import {
+  strokeDecimateDistance,
+  strokeSimplifyTolerance
+} from '@/draw/utils/brushes/strokeSimplification'
 import { isLayerHidden } from '@/draw/layers/layerRegistry'
 
 // ==========================================
@@ -12,11 +16,30 @@ import { isLayerHidden } from '@/draw/layers/layerRegistry'
 export class OptimizedPencilBrush extends PencilBrush {
   decimate = 0.3
 
+  /**
+   * Capture-time decimation is read by fabric in `_finalizeAndAddPath`, but the
+   * points it governs are collected from the first move event onward — so it has
+   * to be set when the stroke STARTS, not when it ends. Width and zoom are both
+   * fixed for the duration of one stroke (a gesture cancels drawing), so one
+   * read here is correct for the whole path.
+   */
+  onMouseDown(pointer: any, ev: any) {
+    this.decimate = strokeDecimateDistance(this.width, this.canvas.getZoom())
+    // @ts-ignore — fabric's signature is (Point, TEvent)
+    return super.onMouseDown(pointer, ev)
+  }
 
   // @ts-ignore
   createPath(pathData: TSimplePathData) {
     // 1. SURGICAL EXTRACTION: Run DP on the raw data to permanently remove bloat.
-    const optimizedData = simplifyPathDouglasPeucker(pathData, 0.3)
+    //
+    // Tolerance scales with the stroke's own width and with input resolution
+    // rather than being a fixed 0.3 world units — see strokeSimplification.ts.
+    // A wide fill stroke keeps a small fraction of the points it used to; a thin
+    // stroke zoomed in keeps MORE than it used to, which is the half of this
+    // that improves quality rather than cost.
+    const tolerance = strokeSimplifyTolerance(this.width, this.canvas.getZoom())
+    const optimizedData = simplifyPathDouglasPeucker(pathData, tolerance)
 
     const path = new OptimizedPencilStroke(optimizedData, {
       fill: null,

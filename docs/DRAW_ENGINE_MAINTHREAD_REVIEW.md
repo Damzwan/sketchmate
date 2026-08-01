@@ -392,19 +392,53 @@ ANRs happen**:
 
 ## Recommended order
 
-| # | Change | Effort | Expected effect |
-| --- | --- | --- | --- |
-| 1 | **M8** Sentry: native verification, persisted context, long-task breadcrumbs, stall detector | S | Turns every item below from a guess into a measurement |
-| 2 | **M1** Cost-estimate gate on all synchronous render paths; drop the first-tile exemption | S | Directly removes the ANR-shaped blocks |
-| 3 | **M7** `visibilitychange` release + `onTrimMemory` bridge | S–M | Converts OOM crashes into blurs |
-| 4 | **M2** Persistent canvas for hot tiles, demote when cold | M | Kills the continuous Adreno texture churn |
-| 5 | **M3** Per-tier quota + weaker fallback LRU bump | S | Stops the zoom-oscillation eviction storm |
-| 6 | **M6** Integer tile keys, scratch-array queries, allocation-free `prepareForBake` | M | Lowers GC pause frequency |
-| 7 | **M4** Tier-scoped sprite cache for expensive objects | M–L | Makes the render atom cheap; compounds with M1 |
-| 8 | **M5** Mipmap tier bake + overview seeded from tiles | M | Removes the repeated whole-scene renders |
+| # | Change | Effort | Expected effect | Status |
+| --- | --- | --- | --- | --- |
+| 1 | **M8** Sentry: native verification, persisted context, long-task breadcrumbs, stall detector | S | Turns every item below from a guess into a measurement | ✅ shipped |
+| 2 | **M1** Cost-estimate gate on all synchronous render paths; drop the first-tile exemption | S | Directly removes the ANR-shaped blocks | ✅ shipped |
+| 3 | **M7** `visibilitychange` release + `onTrimMemory` bridge | S–M | Converts OOM crashes into blurs | ✅ shipped (JS side; native trimMemory bridge still to build) |
+| 4 | **M2** Persistent canvas for hot tiles, demote when cold | M | Kills the continuous Adreno texture churn | ✅ shipped |
+| 5 | **M3** Per-tier quota + weaker fallback LRU bump | S | Stops the zoom-oscillation eviction storm | ✅ shipped |
+| 6 | **M6** Integer tile keys, scratch-array queries, allocation-free `prepareForBake` | M | Lowers GC pause frequency | ✅ shipped |
+| 7 | **M4** Tier-scoped sprite cache for expensive objects | M–L | Makes the render atom cheap; compounds with M1 | open |
+| 8 | **M5** Mipmap tier bake + overview seeded from tiles | M | Removes the repeated whole-scene renders | open |
 
-M1 + M8 together are a few days and should measurably move the ANR rate on their
-own. Do not start M4/M5 before M8 is reporting.
+Do not start M4/M5 before M8's numbers come back — they are large changes and
+the field data decides whether they are still the right ones.
+
+## What shipped, and what it now depends on
+
+| Area | Landed as |
+| --- | --- |
+| M8 | [`drawDiagnostics.ts`](../src/draw/diagnostics/drawDiagnostics.ts); `enableNdkScopeSync` / `attachThreads` / `maxBreadcrumbs` in [`sentry.ts`](../src/observability/sentry.ts); `io.sentry.**` keeps in `proguard-rules.pro`; ANR v1/v2 + NDK meta-data in `AndroidManifest.xml`; `lastDrawPhase()` + `setLongTaskSink` in `renderMetrics.ts` |
+| M1 | [`renderCost.ts`](../src/draw/rendering/renderCost.ts); `affordsSyncRender` gates in `tileBaker.ts`; cost gate in `WorldOverview.patchRect`; `syncRenderCostBudget` per device class; `rebuildTileSync` returns `repaired \| rebuilt \| declined` |
+| M7 | [`drawMemoryPressure.ts`](../src/draw/diagnostics/drawMemoryPressure.ts); `releaseGraphicsMemory()` / `restoreFromRelease()` on the engine |
+| M2 | `TileSurface` union + `isCanvasSurface` / `releaseTileSurface` in `tileStore.ts`; `stampInPlace` / `hotSurfaceFor` / `demoteHotTiles` in `tileStamps.ts`; `hotTileMax` per device class |
+| M3 | Class-ordered eviction in `TileStore.reserve` + `setActiveTier`; weak `touch` for fallback sampling |
+| M6 | [`tileKey.ts`](../src/draw/rendering/tiles/tileKey.ts) (packed integer keys everywhere); reusable entry buffers in `spatialIndex.ts` + `QuadTree.query(range, out)`; parallel-array undo journal in `fabricTileRenderer.ts` |
+
+### Numbers that are now guesses and must be replaced with field data
+
+These shipped with estimated values. Both have telemetry attached specifically
+so they can be corrected rather than argued about:
+
+- `syncRenderCostBudget` (6 000 / 9 000 / 18 000 / 40 000) — read
+  `syncRepairDeclines` and `syncRepairCostMax` from the draw context. A decline
+  rate near zero means the gate is not protecting anything; a high one alongside
+  blurriness reports means it is too tight.
+- `hotTileMax` (2 / 4 / 6) — watch `tileDrawMsMax` in the same context. If it
+  rises, compositing from a canvas is slower than from a bitmap on that
+  hardware and the hot set should shrink (0 disables the path entirely).
+
+### Still to build
+
+- The native `onTrimMemory` bridge. `drawMemoryPressure.ts` already listens for
+  a `trimMemory` event on the App plugin and releases at
+  `TRIM_MEMORY_RUNNING_LOW`; nothing emits it yet, so today only
+  `visibilitychange` and `appStateChange` drive the release.
+- **Verify native ANR capture in a real release build before trusting any of
+  this.** R8 was only recently enabled. If `ApplicationNotResponding` events do
+  not arrive, every other M8 change is inert.
 
 ---
 

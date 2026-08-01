@@ -129,6 +129,17 @@ export const useDrawStore = defineStore("draw", () => {
 			assertActiveInitialization(generation, signal);
 
 			toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true });
+
+			// Hold the loading indicator until the canvas is genuinely usable —
+			// overview built, visible tiles baked (or the budget spent). Clearing it
+			// any earlier hands the user a blank canvas and the first bake pass at
+			// the same time, which reads as "it loaded and then broke".
+			//
+			// A room load reaches the same state through drawObjectManager's
+			// endLoading(); this is the solo/draft path, which never went through it.
+			await drawObjectManager.prepareFirstPaint(signal);
+			assertActiveInitialization(generation, signal);
+
 			drawObjectManager.renderViewport();
 			isCanvasInitialized.value = true;
 		} catch (error) {

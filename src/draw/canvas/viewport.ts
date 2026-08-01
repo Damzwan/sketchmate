@@ -5,8 +5,7 @@ import { CANVAS_SIZE } from "@/draw/config/canvas.config";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { createYielder } from "@/draw/scheduling/yielder";
-import { getRenderDpr } from "@/draw/config/renderQuality.config";
-import { clampToTiledZoom } from "@/draw/rendering/zoomLevels";
+import { clampToViewportZoom } from "@/draw/rendering/zoomLevels";
 
 export function initViewport(c: Canvas) {
 	const initX = (c.width - CANVAS_SIZE) / 2;
@@ -101,7 +100,7 @@ export function precalculateAndSetViewport(
 
 	// Calculate zoom, apply padding, and clamp it to min/max bounds
 	let fitZoom = Math.min(scaleX, scaleY) * padding;
-	fitZoom = clampToTiledZoom(fitZoom, maxZoom, getRenderDpr());
+	fitZoom = clampToViewportZoom(fitZoom, maxZoom);
 
 	const centerX = canvasWidth / 2 - (minX + contentWidth / 2) * fitZoom;
 	const centerY = canvasHeight / 2 - (minY + contentHeight / 2) * fitZoom;
@@ -132,7 +131,7 @@ export function fitAndCenterAllActualObjects(
 	const scaleY = canvasHeight / (rect.height || 1);
 
 	let fitZoom = Math.min(scaleX, scaleY) * padding;
-	fitZoom = clampToTiledZoom(fitZoom, maxZoom, getRenderDpr());
+	fitZoom = clampToViewportZoom(fitZoom, maxZoom);
 
 	const contentCenterX = rect.left + rect.width / 2;
 	const contentCenterY = rect.top + rect.height / 2;
@@ -243,7 +242,7 @@ export async function fitToDensestRegion(
 	const sx = cw / (contentW || 1);
 	const sy = ch / (contentH || 1);
 	let zoom = Math.min(sx, sy) * padding;
-	zoom = clampToTiledZoom(zoom, maxZoom, getRenderDpr());
+	zoom = clampToViewportZoom(zoom, maxZoom);
 
 	const ccx = minX + contentW / 2;
 	const ccy = minY + contentH / 2;
@@ -258,5 +257,5 @@ export function getDefaultZoom(canvas: Canvas) {
 		1,
 		(Math.min(canvas.getWidth(), canvas.getHeight()) / CANVAS_SIZE) * 0.9,
 	);
-	return clampToTiledZoom(zoom, 1, getRenderDpr());
+	return clampToViewportZoom(zoom, 1);
 }

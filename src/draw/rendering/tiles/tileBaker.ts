@@ -1,9 +1,12 @@
 import {
 	recordLocalFallback,
 	recordPhase,
+	recordSyncRepairDeclined,
 	recordWorkerDeferral,
 } from "@/draw/rendering/renderMetrics";
+import { estimateRenderCost } from "@/draw/rendering/renderCost";
 import { TileCompositor } from "./tileCompositor";
+import { tileKey, type TileKey } from "./tileKey";
 import {
 	type Bounded,
 	isRemoteBakeFailure,
@@ -23,7 +26,7 @@ const FULL_REBUILD_COST = 4;
 const REPAIR_BUDGET_MS = 6;
 
 interface PreparedRegionRepair<T> {
-	key: string;
+	key: TileKey;
 	tier: number;
 	tx: number;
 	ty: number;
@@ -75,7 +78,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		const todo: { tx: number; ty: number; pri: number }[] = [];
 		for (let ty = range.ty0; ty <= range.ty1; ty++)
 			for (let tx = range.tx0; tx <= range.tx1; tx++) {
-				const key = `${tier}:${tx}:${ty}`;
+				const key = tileKey(tier, tx, ty);
 				const t = this.tiles.get(key);
 				if (t && this.isFresh(key, t)) continue;
 				todo.push({ tx, ty, pri: (tx - cx) ** 2 + (ty - cy) ** 2 });
@@ -140,7 +143,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			// measures the two together. W2 moves both operations into the worker.
 			recordPhase("workerPrepQuerySort", performance.now() - queryStartedAt);
 		}
-		const key = `${tier}:${tx}:${ty}`;
+		const key = tileKey(tier, tx, ty);
 		const builtGen = this.gen.get(key) ?? 0;
 		let localFallbackReason:
 			| "worker-unavailable"
@@ -525,6 +528,26 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		return out;
 	}
 
+	/**
+	 * "Can this object set be rendered in ONE uninterruptible block?"
+	 *
+	 * The synchronous paths cannot yield mid-object, so the honest question is
+	 * how much work they are about to commit to, not how many objects it is
+	 * spread across. Declining costs a moment of softness (the fallback ladder
+	 * covers the region until the yielded bake lands); accepting an over-budget
+	 * set costs a dropped frame, and on a bad enough device an ANR.
+	 *
+	 * Cheap by construction: `estimateRenderCost` reads properties only and
+	 * stops as soon as it passes the budget.
+	 */
+	protected affordsSyncRender(objects: ArrayLike<T>): boolean {
+		if (this.SYNC_COST_BUDGET === Infinity) return true;
+		const cost = estimateRenderCost(objects, this.SYNC_COST_BUDGET);
+		if (cost <= this.SYNC_COST_BUDGET) return true;
+		recordSyncRepairDeclined(cost);
+		return false;
+	}
+
 	/** @returns how many tiles were actually rebuilt, so a caller spreading one
 	 *  budget over several rects (a batched undo/redo) can track what is left. */
 	rebuildRectSync(
@@ -559,16 +582,24 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 				// small and medium edits then get their whole visible footprint
 				// repaired before the next paint and never show a fallback at all,
 				// while a pathological region still stops on schedule.
-				if (
-					cost >= budget ||
-					(count > 0 && performance.now() - __t0 >= REPAIR_BUDGET_MS)
-				) {
+				// `count > 0` used to exempt the FIRST tile from the deadline, on the
+				// reasoning that a repair should always make some progress. In
+				// practice that meant the single most expensive tile on the board
+				// always ran to completion no matter what it cost — the exemption
+				// applied precisely when the check was needed. The per-tile cost gate
+				// below now guarantees progress is affordable rather than assuming it,
+				// so the deadline can be honest.
+				if (cost >= budget || performance.now() - __t0 >= REPAIR_BUDGET_MS) {
 					recordPhase("rebuildSync", performance.now() - __t0);
 					return count;
 				}
-				cost += this.rebuildTileSync(tier, tx, ty, rect)
-					? 1
-					: FULL_REBUILD_COST;
+				const outcome = this.rebuildTileSync(tier, tx, ty, rect);
+				// Declined on cost: nothing was rendered, so charge nothing and do not
+				// count it as repaired. Charging it would drain the budget and starve
+				// the neighbouring tiles, which may well be cheap; counting it would
+				// tell the caller a region is repaired when it is still stale.
+				if (outcome === "declined") continue;
+				cost += outcome === "repaired" ? 1 : FULL_REBUILD_COST;
 				count++;
 			}
 		}
@@ -593,13 +624,20 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 	 * Falls back to the full rebuild when the sub-rect is unknown, covers most
 	 * of the tile anyway, or the tile has no bitmap to patch.
 	 */
+	/**
+	 * @param syncGate the caller will render this in ONE uninterruptible block, so
+	 *   refuse a region whose estimated cost exceeds the device budget. The
+	 *   yielded variant passes false: it can yield between objects, so cost is
+	 *   bounded by the yielder rather than by refusal.
+	 */
 	private prepareTileRegionRepair(
 		tier: number,
 		tx: number,
 		ty: number,
 		changed: WorldRect,
+		syncGate = false,
 	): PreparedRegionRepair<T> | null {
-		const key = `${tier}:${tx}:${ty}`;
+		const key = tileKey(tier, tx, ty);
 		const tile = this.tiles.get(key);
 		if (!tile?.bitmap) return null;
 
@@ -673,6 +711,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		if (sub.w * sub.h > tileArea * 0.6) return null;
 
 		const objects = this.index.query(sub);
+		if (syncGate && !this.affordsSyncRender(objects)) return null;
 		const builtGen = this.gen.get(key) ?? 0;
 
 		const off = this.acquire();
@@ -741,7 +780,11 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		ty: number,
 		changed: WorldRect,
 	): boolean {
-		const prepared = this.prepareTileRegionRepair(tier, tx, ty, changed);
+		// `syncGate` makes prepare() itself refuse an unaffordable region, BEFORE it
+		// acquires a pooled canvas and blits the tile into it. Checking here
+		// instead would either duplicate its query or pay a full-tile copy only to
+		// throw it away.
+		const prepared = this.prepareTileRegionRepair(tier, tx, ty, changed, true);
 		if (!prepared) return false;
 		const { c2d, objects, scale, sub } = prepared;
 		for (let i = 0; i < objects.length; i++) {
@@ -798,17 +841,25 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		return this.finishTileRegionRepair(prepared, true);
 	}
 
-	/** @returns true when the cheap sub-rect repair handled it. */
+	/**
+	 * @returns
+	 *   `"repaired"` — the cheap sub-rect repair handled it;
+	 *   `"rebuilt"`  — a full tile rebuild ran (or the tile was empty);
+	 *   `"declined"` — refused on cost; NOTHING was rendered and the tile is
+	 *                  unchanged, so the caller must neither charge budget for it
+	 *                  nor treat the region as repaired.
+	 */
 	protected rebuildTileSync(
 		tier: number,
 		tx: number,
 		ty: number,
 		changed?: WorldRect,
-	): boolean {
+	): "repaired" | "rebuilt" | "declined" {
 		// Sub-rect repair first: an erase (or its undo) changes a thin trail, not a
 		// whole tile, and re-rendering every object in the tile was the dominant
 		// `rebuildSync` cost. Falls through to the full rebuild when it declines.
-		if (changed && this.repairTileRegionSync(tier, tx, ty, changed)) return true;
+		if (changed && this.repairTileRegionSync(tier, tx, ty, changed))
+			return "repaired";
 		const scale = this.ZOOM_TIERS[tier];
 		const world = this.tileToWorld(tier, tx, ty);
 		const pad = this.OS / scale + 4 / scale;
@@ -819,19 +870,26 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			h: world.h + 2 * pad,
 		};
 		const objects = this.index.query(q);
-		const key = `${tier}:${tx}:${ty}`;
+		const key = tileKey(tier, tx, ty);
 		const builtGen = this.gen.get(key) ?? 0;
 
 		if (objects.length === 0) {
 			this.store(key, tier, tx, ty, null, 4, builtGen);
-			return false;
+			return "rebuilt";
 		}
+
+		// A FULL tile rebuild renders every object in the tile in one block that
+		// cannot yield. This is the single most expensive synchronous thing the
+		// engine does and it runs on interaction frames (undo, delete, style
+		// change, an erase that could not stamp). Over budget → leave the tile
+		// stale and let the yielded async bake own it.
+		if (!this.affordsSyncRender(objects)) return "declined";
 
 		const off = this.acquire();
 		const c2d = off.getContext("2d");
 		if (!c2d) {
 			this.release(off);
-			return false;
+			return "rebuilt";
 		}
 		c2d.setTransform(1, 0, 0, 1, 0, 0);
 		c2d.clearRect(0, 0, this.BMP, this.BMP);
@@ -856,17 +914,17 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			bmp = off.transferToImageBitmap();
 		} catch {
 			this.release(off);
-			return false;
+			return "rebuilt";
 		}
 		this.release(off);
 		const bytes = this.BMP * this.BMP * 4;
 		if (!this.ensureMemory(bytes)) {
 			bmp.close();
-			return false;
+			return "rebuilt";
 		}
 		this.store(key, tier, tx, ty, bmp, bytes, builtGen);
 
-		return false;
+		return "rebuilt";
 	}
 
 	/**
@@ -879,7 +937,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 	 *   because there the pixels are what the user is already looking at.
 	 */
 	private commitRemoteBitmap(
-		key: string,
+		key: TileKey,
 		tier: number,
 		tx: number,
 		ty: number,
@@ -900,7 +958,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 	}
 
 	protected store(
-		key: string,
+		key: TileKey,
 		tier: number,
 		tx: number,
 		ty: number,
@@ -921,7 +979,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		const r = this.tileRange(rect, tier);
 		for (let ty = r.ty0; ty <= r.ty1; ty++)
 			for (let tx = r.tx0; tx <= r.tx1; tx++) {
-				const key = `${tier}:${tx}:${ty}`;
+				const key = tileKey(tier, tx, ty);
 				const t = this.tiles.get(key);
 				if (!t || !this.isFresh(key, t)) return false;
 			}
@@ -937,7 +995,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 		const r = this.tileRange(rect, tier);
 		for (let ty = r.ty0; ty <= r.ty1; ty++)
 			for (let tx = r.tx0; tx <= r.tx1; tx++) {
-				const key = `${tier}:${tx}:${ty}`;
+				const key = tileKey(tier, tx, ty);
 				const t = this.tiles.get(key);
 				if (!t || !t.bitmap || !this.isFresh(key, t)) return false;
 			}

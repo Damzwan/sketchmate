@@ -1,12 +1,32 @@
 import { Canvas } from "fabric";
 
+/**
+ * Browsers refuse a custom cursor image above roughly 128×128 (Chrome silently
+ * falls back to the default; some Android WebViews drop it entirely), and the
+ * image is rebuilt through `toDataURL` on every size change.
+ *
+ * The old code passed `size * zoom` straight through, so a 50-wide brush at 3x
+ * zoom already produced a 150px cursor that simply did not render — the brush
+ * appeared to lose its size indicator at high zoom. Raising the width cap to 120
+ * would have made that the common case rather than an edge one.
+ *
+ * Clamping keeps a valid cursor at every size. Past the clamp the circle stops
+ * tracking the true brush size, which is the correct trade: an approximate
+ * indicator beats no indicator, and at that point the brush is wider than the
+ * cursor could usefully depict anyway.
+ */
+const MAX_CURSOR_PX = 128;
+
 export function updateFreeDrawingCursor(
 	c: Canvas,
 	size: number,
 	color: string,
 	eraser = false,
 ) {
-	const adjustedSize = size * c.getZoom();
+	const adjustedSize = Math.max(
+		1,
+		Math.min(MAX_CURSOR_PX, Math.round(size * c.getZoom())),
+	);
 
 	const canvas: HTMLCanvasElement = document.createElement("canvas");
 	canvas.width = adjustedSize;

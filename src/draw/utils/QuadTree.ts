@@ -247,22 +247,33 @@ export class InfiniteQuadtreeManager<T> {
 		}
 	}
 
-	query(range: Rect): QuadtreeEntry<T>[] {
+	/**
+	 * @param out optional array to fill instead of allocating one. Callers on the
+	 *   render hot path (a tile bake queries once per tile, a composite once per
+	 *   repair) pass a reusable scratch buffer — see `createDrawingSpatialIndex`.
+	 *   It is TRUNCATED, not appended to.
+	 */
+	query(range: Rect, out?: QuadtreeEntry<T>[]): QuadtreeEntry<T>[] {
 		const keys = this.getOverlappingChunkKeys(range);
+		const found = out ?? [];
+		found.length = 0;
 
 		// Hot path: a tile query almost always fits one chunk — within a chunk
 		// an entry lives in exactly one node, so no dedup needed and no Map.
 		if (keys.length === 1) {
 			const chunk = this.chunks.get(keys[0]);
-			return chunk ? chunk.query(range) : [];
+			return chunk ? chunk.query(range, found) : found;
 		}
 
-		const found: QuadtreeEntry<T>[] = [];
+		// Multi-chunk: an entry straddling a chunk boundary is present in each, so
+		// dedup. The Set is only allocated on this genuinely rarer path.
 		const seen = new Set<string>();
+		const items: QuadtreeEntry<T>[] = [];
 		for (const key of keys) {
 			const chunk = this.chunks.get(key);
 			if (!chunk) continue;
-			const items = chunk.query(range);
+			items.length = 0;
+			chunk.query(range, items);
 			for (const item of items) {
 				if (!seen.has(item.id)) {
 					seen.add(item.id);

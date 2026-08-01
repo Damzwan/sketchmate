@@ -1,7 +1,6 @@
 import type { Canvas, FabricObject } from "fabric";
-import { getRenderDpr } from "../config/renderQuality.config";
 import type { RenderEngine } from "../rendering/renderEngine";
-import { minimumTiledZoom } from "../rendering/zoomLevels";
+import { minimumViewportZoom } from "../rendering/zoomLevels";
 import {
 	bakeryPauseFlush,
 	bakeryTranslate,
@@ -111,7 +110,7 @@ export function createGestureController(options: GestureControllerOptions) {
 	function getZoomLimits() {
 		const renderEngine = engine();
 		if (!renderEngine) {
-			return { min: minimumTiledZoom(getRenderDpr()), max: 16 };
+			return { min: minimumViewportZoom(), max: 16 };
 		}
 		return { min: renderEngine.minZoom, max: renderEngine.maxZoom };
 	}

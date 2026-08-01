@@ -525,9 +525,11 @@ changed and the screen shows stale pixels.
 - **Tile size** — 512 px desktop, 384 px mobile, plus a 2 px overscan (`OS`) to
   avoid seams.
 
-Minimum zoom is the first tier above `OVERVIEW_TIER`, divided by `renderScale`.
-The viewport therefore never settles in the overview-only range. Maximum zoom
-is `ZOOM_TIERS[last] / renderScale`.
+Minimum viewport zoom is the first configured tier (`0.125`), independent of
+`renderScale`. Between `0.125` and the first tile-backed zoom
+(`0.5 / renderScale`), the adaptive overview is the authoritative picture. This
+lets collaborators survey the surrounding canvas without allocating hundreds
+of coarse tiles. Maximum zoom is `ZOOM_TIERS[last] / renderScale`.
 
 ---
 

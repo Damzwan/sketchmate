@@ -60,6 +60,8 @@ function emptyEngineMetrics(): DrawMetricsSnapshot {
 		tileMemoryPressure: 0,
 		dirtyTiles: 0,
 		inFlightTiles: 0,
+		syncRepairDeclines: 0,
+		syncRepairCostMax: 0,
 		phaseMsTotal: {},
 		phaseMsMax: {},
 		phaseCount: {},

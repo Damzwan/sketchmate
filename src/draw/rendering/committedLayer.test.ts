@@ -6,6 +6,7 @@ import {
 	type WorldRect,
 } from "./committedLayer";
 import { NO_HOLE } from "./tiles/tileLayerBase";
+import { tileKey } from "./tiles/tileKey";
 
 interface TestObject extends Bounded {}
 
@@ -92,6 +93,15 @@ function fakeCtx() {
 }
 
 describe("CommittedLayer safety bounds", () => {
+	it("allows navigation through the overview-only range", () => {
+		const layer = makeLayer();
+
+		expect(layer.minViewportZoom).toBe(0.125);
+		expect(layer.pickActiveTier(layer.minViewportZoom)).toBeLessThanOrEqual(
+			layer.overviewTier,
+		);
+	});
+
 	it("uses the first tile-backed tier as the minimum zoom", () => {
 		const layer = makeLayer();
 
@@ -104,14 +114,14 @@ describe("CommittedLayer safety bounds", () => {
 		const layer = makeLayer() as any;
 		const stale = tile(3, 0, 0);
 		const kept = tile(4, 0, 0);
-		layer.tiles.set("3:0:0", stale.value);
+		layer.tiles.set(tileKey(3, 0, 0), stale.value);
 		layer.tiles.set("4:0:0", kept.value);
 
 		layer.dropOtherTiers({ x: 0, y: 0, w: 1, h: 1 }, 4);
 
 		expect(stale.close).not.toHaveBeenCalled();
 		expect(kept.close).not.toHaveBeenCalled();
-		expect(layer.gen.get("3:0:0")).toBe(1);
+		expect(layer.gen.get(tileKey(3, 0, 0))).toBe(1);
 		expect(layer.gen.get("4:0:0")).toBeUndefined();
 	});
 
@@ -119,8 +129,8 @@ describe("CommittedLayer safety bounds", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
 		const stale = tile(tier, 0, 0);
-		layer.tiles.set(`${tier}:0:0`, stale.value);
-		layer.gen.set(`${tier}:0:0`, 1);
+		layer.tiles.set(tileKey(tier, 0, 0), stale.value);
+		layer.gen.set(tileKey(tier, 0, 0), 1);
 
 		const ctx = fakeCtx();
 		const overviewComposite = vi
@@ -146,8 +156,8 @@ describe("CommittedLayer safety bounds", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
 		const stamped = tile(tier, 0, 0, vi.fn(), true);
-		layer.tiles.set(`${tier}:0:0`, stamped.value);
-		layer.gen.set(`${tier}:0:0`, 1);
+		layer.tiles.set(tileKey(tier, 0, 0), stamped.value);
+		layer.gen.set(tileKey(tier, 0, 0), 1);
 
 		const ctx = fakeCtx();
 		vi.spyOn(layer.overview, "composite").mockImplementation(() => {});
@@ -168,7 +178,7 @@ describe("CommittedLayer safety bounds", () => {
 	it("keeps the sharp pixels outside a small edit", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
-		const key = `${tier}:0:0`;
+		const key = tileKey(tier, 0, 0);
 		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
 
 		layer.markDirty({ x: 0, y: 0, w: 10, h: 10 });
@@ -187,7 +197,7 @@ describe("CommittedLayer safety bounds", () => {
 	it("drops the whole tile when the edit covers it", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
-		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(tileKey(tier, 0, 0), tile(tier, 0, 0, vi.fn(), true).value);
 
 		layer.markDirty({ x: -10_000, y: -10_000, w: 20_000, h: 20_000 });
 
@@ -203,7 +213,7 @@ describe("CommittedLayer safety bounds", () => {
 		// overlay draws the new object, so the baked pixels must keep showing.
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
-		const key = `${tier}:0:0`;
+		const key = tileKey(tier, 0, 0);
 		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
 
 		layer.markStale({ x: 0, y: 0, w: 10, h: 10 });
@@ -233,8 +243,8 @@ describe("CommittedLayer safety bounds", () => {
 	it("keeps only visible active-tier tiles sharp during a discrete transition", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
-		const activeKey = `${tier}:0:0`;
-		const coarseKey = `${tier - 1}:0:0`;
+		const activeKey = tileKey(tier, 0, 0);
+		const coarseKey = tileKey(tier - 1, 0, 0);
 		layer.tiles.set(activeKey, tile(tier, 0, 0, vi.fn(), true).value);
 		layer.tiles.set(coarseKey, tile(tier - 1, 0, 0, vi.fn(), true).value);
 
@@ -273,7 +283,7 @@ describe("CommittedLayer safety bounds", () => {
 	it("revokes a sharp transition before the viewport changes", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
-		const key = `${tier}:0:0`;
+		const key = tileKey(tier, 0, 0);
 		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
 		layer.markDirtyWithSharpTransition(
 			{ x: 0, y: 0, w: 40, h: 40 },
@@ -296,7 +306,7 @@ describe("CommittedLayer safety bounds", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
 		const coarse = tier - 1;
-		const key = `${coarse}:0:0`;
+		const key = tileKey(coarse, 0, 0);
 		layer.tiles.set(key, tile(coarse, 0, 0, vi.fn(), true).value);
 		layer.markDirty({ x: 0, y: 0, w: 10, h: 10 });
 
@@ -321,9 +331,9 @@ describe("CommittedLayer safety bounds", () => {
 		// cross-tier fallback.
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
-		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(tileKey(tier, 0, 0), tile(tier, 0, 0, vi.fn(), true).value);
 		layer.tiles.set(
-			`${tier - 1}:0:0`,
+			tileKey(tier - 1, 0, 0),
 			tile(tier - 1, 0, 0, vi.fn(), true).value,
 		);
 		layer.markDirty({ x: 0, y: 0, w: 10, h: 10 });
@@ -348,7 +358,7 @@ describe("CommittedLayer safety bounds", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
 		const coarse = tier - 1;
-		const key = `${coarse}:0:0`;
+		const key = tileKey(coarse, 0, 0);
 		layer.tiles.set(key, tile(coarse, 0, 0, vi.fn(), true).value);
 		layer.markAllDirty(); // no rect → provenance unknown
 
@@ -362,7 +372,7 @@ describe("CommittedLayer safety bounds", () => {
 	it("keeps disjoint edits separate and merges touching ones", () => {
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
-		const key = `${tier}:0:0`;
+		const key = tileKey(tier, 0, 0);
 		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
 
 		layer.markDirty({ x: 0, y: 0, w: 10, h: 10 });
@@ -391,8 +401,8 @@ describe("CommittedLayer safety bounds", () => {
 		// picture dissolves for a moment.
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
-		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
-		layer.tiles.set(`${tier - 1}:0:0`, tile(tier - 1, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(tileKey(tier, 0, 0), tile(tier, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(tileKey(tier - 1, 0, 0), tile(tier - 1, 0, 0, vi.fn(), true).value);
 		// Only the active tier is invalidated, so the coarser tile stays fresh.
 		layer.markTierDirty({ x: 0, y: 0, w: 10, h: 10 }, tier);
 
@@ -414,7 +424,7 @@ describe("CommittedLayer safety bounds", () => {
 		// instead of dropping the cell to the whole-board overview.
 		const layer = makeLayer() as any;
 		const tier = layer.pickActiveTier(1);
-		const key = `${tier}:0:0`;
+		const key = tileKey(tier, 0, 0);
 		const t = tile(tier, 0, 0, vi.fn(), true).value;
 		layer.tiles.set(key, t);
 		layer.markDirty({ x: 0, y: 0, w: 10, h: 10 });
@@ -453,7 +463,7 @@ describe("CommittedLayer safety bounds", () => {
 		});
 		const layer = makeLayer(query) as any;
 		const tier = 4;
-		const key = `${tier}:0:0`;
+		const key = tileKey(tier, 0, 0);
 		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
 		const changed: WorldRect = { x: 10, y: 10, w: 20, h: 20 };
 
@@ -477,7 +487,7 @@ describe("CommittedLayer safety bounds", () => {
 		});
 		const layer = makeLayer(query) as any;
 		const tier = 4;
-		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(tileKey(tier, 0, 0), tile(tier, 0, 0, vi.fn(), true).value);
 
 		layer.markDirty({ x: 0, y: 0, w: 10, h: 10 }); // edit A, still owed
 		const repaired = layer.repairTileRegionSync(tier, 0, 0, {
@@ -498,7 +508,7 @@ describe("CommittedLayer safety bounds", () => {
 		const query = vi.fn(() => [] as TestObject[]);
 		const layer = makeLayer(query) as any;
 		const tier = 4;
-		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(tileKey(tier, 0, 0), tile(tier, 0, 0, vi.fn(), true).value);
 
 		layer.markAllDirty(); // records null = whole tile, provenance unknown
 
@@ -512,7 +522,7 @@ describe("CommittedLayer safety bounds", () => {
 		const query = vi.fn(() => []);
 		const layer = makeLayer(query) as any;
 		const tier = 4;
-		layer.tiles.set(`${tier}:0:0`, tile(tier, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(tileKey(tier, 0, 0), tile(tier, 0, 0, vi.fn(), true).value);
 
 		// Whole-tile change → the plain full rebuild is cheaper than copying the
 		// old bitmap first.
@@ -537,7 +547,7 @@ describe("CommittedLayer safety bounds", () => {
 		// A two-object chunk makes the expected cancellation boundary explicit.
 		const layer = makeLayer(() => objects, render, 2) as any;
 		const tier = 4;
-		const key = `${tier}:0:0`;
+		const key = tileKey(tier, 0, 0);
 		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
 		layer.markDirty({ x: 10, y: 10, w: 20, h: 20 });
 

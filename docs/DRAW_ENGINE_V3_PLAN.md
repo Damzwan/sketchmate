@@ -612,15 +612,16 @@ content-aware limit read the old canvas element during setup. Zoom limits no
 longer inspect the canvas or DOM; they come directly from the render tier
 configuration.
 
-### A5 — fixed tile-backed zoom floor ✅ implemented
+### A5 — fixed tile-backed zoom floor ✅ implemented, later superseded
 
 The earlier content-aware floor made navigation unpredictable: drawing farther
 from the center changed how far the same user could zoom out.
 
-The floor is now `firstTileBackedTier / renderScale`. With the default ladder,
-tiers `0` and `1` are overview-only, so tier `2` (`0.5`) defines the minimum.
-At render scale `2`, the viewport floor is therefore `0.25`. Content bounds no
-longer affect zoom limits.
+This phase originally set the floor to `firstTileBackedTier / renderScale`.
+That protected tile memory, but prevented collaborators from surveying the
+surrounding canvas. Navigation now has a fixed `0.125` floor and deliberately
+uses the adaptive overview below `0.5 / renderScale`; content bounds still do
+not affect zoom limits and coarse tiles are still not allocated in this range.
 
 ### Z1 — retier ✅ implemented
 
@@ -680,11 +681,12 @@ The worker protocol now accepts overview width and height separately, and the
 worker overview renderer is connected to the engine when the worker backend is
 enabled.
 
-### O2 — overview mip chain: not needed
+### O2 — overview mip chain: deferred
 
-The fixed tile-backed zoom floor means users cannot settle in the overview-only
-range. The overview is now a temporary base while tiles bake. Maintaining 2–3
-extra bitmaps would increase memory and update cost for little visible benefit.
+Users can now settle in the overview-only range down to `0.125`, making the
+adaptive overview an intentional navigation surface there. A mip chain remains
+deferred: maintaining 2–3 extra bitmaps would increase memory and update cost,
+and should be justified by measured overview quality at the new floor.
 
 ---
 
@@ -1055,19 +1057,19 @@ That gate identified `export-render` in both follow-up runs: 289 ms and 585 ms.
 The captures lasted 20–23 seconds, aligning exactly with the draft autosave's
 20-second interval. Autosave was traversing and rasterizing the entire live
 Fabric scene on main to create its thumbnail while the user was still drawing.
-Draft serialization now runs first, then a short-lived preview worker enlivens
-that detached JSON, calculates document bounds, renders the 640 px thumbnail,
-encodes WebP, and terminates. Autosave no longer renders live drawing objects or
-performs a second scene traversal on main. The JSON is posted in yielded batches
-instead of one whole-scene structured clone, and the worker enlivens/renders 32
-objects at a time to cap its live memory on Android. `draftSerializationMax` and
-`thumbnailTransferMax` expose the only remaining main-thread autosave seams.
+Draft serialization now runs incrementally into Blob parts, while the 640 px
+thumbnail is copied from the engine's already-maintained low-resolution world
+overview. Autosave no longer renders the live scene again, transfers the whole
+document to a short-lived preview worker, or enlivens a second Fabric scene.
+`draftSerializationMax`, `draftThumbnailCopyMax`, and `draftPersistDispatchMax`
+expose the remaining main-thread autosave seams.
 The 20-second interval also waits for 1.5 seconds without a drawing mutation
 before starting, so even off-thread thumbnail CPU and JSON serialization do not
 compete with an active stroke or undo burst.
 
-Three follow-up captures confirmed the autosave fix: thumbnail transfer stayed
-below 4 ms and draft serialization below 11 ms. The largest repeatable
+Earlier follow-up captures confirmed the batched-worker version kept thumbnail
+transfer below 4 ms and draft serialization below 11 ms. The overview-copy path
+removes that transfer entirely. The largest repeatable
 post-lasso script was instead the automatic tooldock selection preview, which
 re-rendered every selected Fabric object on main for a 52 px thumbnail and took
 74–104 ms. It now downscales the bitmap already prepared by the selection

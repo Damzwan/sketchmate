@@ -325,3 +325,68 @@ export function migrateLegacyOrigin(obj: any) {
 	obj.originY = "center";
 	return obj;
 }
+
+/**
+ * Serialize a document to a Blob in yielded slices.
+ *
+ * WHY A BLOB, ALWAYS
+ *
+ * `IDBObjectStore.put` structured-clones its value SYNCHRONOUSLY on the calling
+ * thread. For a plain document object that means cloning the entire scene
+ * graph — measured at 3.4 s of solid main-thread block on a Pixel 9 for a
+ * ~10 MB, 7,000-object drawing, reported by the stall detector as
+ * `draftPersistDispatch`. A Blob is cloned by REFERENCE: its bytes never touch
+ * the main thread again, so the same `put` is effectively free.
+ *
+ * The thumbnail worker already returns one, but only on its success path. Every
+ * failure — no worker support, a worker error, the 30 s timeout — silently fell
+ * back to persisting the raw object, i.e. the worst stall happened exactly when
+ * something else had already gone wrong. This is the fallback that makes the
+ * Blob unconditional.
+ *
+ * WHY CHUNKED
+ *
+ * A single `JSON.stringify` of the whole document is itself a few hundred ms of
+ * uninterruptible work at this size. Stringifying per object and letting the
+ * Blob constructor concatenate the parts keeps every slice inside the yielder's
+ * budget, and `new Blob(parts)` does the joining natively without ever
+ * materialising the full string in JS.
+ */
+export async function documentJsonToBlob(
+	json: any,
+	signal?: AbortSignal,
+): Promise<Blob> {
+	const { objects, ...rest } = json ?? {};
+	const list: any[] = Array.isArray(objects) ? objects : [];
+
+	// `rest` is metadata only (version, background, layers, clipPath) — small
+	// enough to stringify whole. Splice the objects array in by hand so the
+	// per-object parts can be appended without re-encoding anything.
+	const head = JSON.stringify(rest);
+	const parts: BlobPart[] = [
+		head.slice(0, -1),
+		head === "{}" ? '"objects":[' : ',"objects":[',
+	];
+
+	const IS_MOBILE =
+		typeof navigator !== "undefined" &&
+		/Mobi|Android/i.test(navigator.userAgent);
+	const yielder = createYielder({
+		budgetMs: IS_MOBILE ? 4 : 6,
+		signal,
+		label: "document-blob",
+	});
+	yielder.reset();
+	for (let i = 0; i < list.length; i++) {
+		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+		parts.push(
+			i === 0 ? JSON.stringify(list[i]) : `,${JSON.stringify(list[i])}`,
+		);
+		if (yielder.shouldYield()) {
+			await yielder.yield();
+			if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+		}
+	}
+	parts.push("]}");
+	return new Blob(parts, { type: "application/json" });
+}

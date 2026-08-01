@@ -24,6 +24,8 @@ import {
 	leaveRoom,
 	socketJoinRoom,
 } from "@/service/api/socket/drawSyncing.socket";
+import { useLayersStore } from "@/draw/layers/layers.store";
+import { createRoomCanvasSnapshot } from "@/draw/sync/roomSnapshot";
 
 /**
  * Heavy canvas-sync socket handlers. Loaded lazily by socket.service so that
@@ -52,6 +54,10 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			addRoomIdToUrl(roomId);
 			isPublicLobby.value = isPublic;
 			useClaimArea().setAreas(claimedAreas);
+			// A joiner initializes layers from the incoming canvas snapshot. The
+			// creator does not reload its already-open drawing, so explicitly promote
+			// that existing solo layer document into room-replicated mode.
+			if (isCreator) useLayersStore().adoptCurrentDocumentForRoom(!!isPublic);
 		},
 	);
 
@@ -149,7 +155,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			const canvas = getCanvas();
 			if (!canvas) return;
 
-			const canvasString = JSON.stringify(canvas.toJSON());
+			const canvasString = JSON.stringify(createRoomCanvasSnapshot(canvas));
 			const stream = new Blob([canvasString])
 				.stream()
 				.pipeThrough(new CompressionStream("gzip"));

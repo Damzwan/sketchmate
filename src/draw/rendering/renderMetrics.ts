@@ -526,8 +526,6 @@ export type DrawPhase =
 	| "lassoSelectionControls"
 	| "lassoSelectionPrewarm"
 	| "selectionBake"
-	| "selectionThumbnail"
-	| "selectionThumbnailFallback"
 	| "selectionTransformCommit"
 	| "selectionTransformLayout"
 	| "selectionTransformOldRegion"

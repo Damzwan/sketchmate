@@ -9,6 +9,9 @@ import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { isText } from "@/draw/tools/textEditing";
 import { getAbsoluteState } from "@/draw/objects/objectSerialization";
 import * as transform from "@/draw/transform/transformController";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
 
 interface Select extends ToolService {
 	unSelect: () => void;
@@ -45,7 +48,23 @@ export const useSelect = defineStore("select", (): Select => {
 
 	// ----------------- Helper Functions -----------------
 	function getObjectsUnderPointer(pointer: Point) {
-		return c!.getObjects().filter((obj) => obj.containsPoint(pointer));
+		const manager = useDrawObjectManager();
+		const claim = useClaimArea();
+		const candidates = manager.querySelectable({
+			x: pointer.x,
+			y: pointer.y,
+			w: 0,
+			h: 0,
+		});
+		manager.getZIndexMap();
+		return candidates
+			.filter((obj) => {
+				if (!obj.selectable || !obj.visible || claim.isObjectProtected(obj))
+					return false;
+				obj.setCoords();
+				return obj.containsPoint(pointer);
+			})
+			.sort((a, b) => compareRenderOrder(b, a));
 	}
 
 	function cycleSelection(pointer: Point) {
@@ -68,7 +87,6 @@ export const useSelect = defineStore("select", (): Select => {
 	function handleMultiSelect(pointer: Point) {
 		const currentSelection = c!.getActiveObjects() || [];
 		c!.discardActiveObject();
-		c!.getObjects().forEach((o) => o.setCoords());
 		const { actionWithoutEvents } = useDrawEventManager();
 
 		const objectsUnderPointer = getObjectsUnderPointer(pointer);

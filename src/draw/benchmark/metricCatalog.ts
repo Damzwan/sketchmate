@@ -286,32 +286,6 @@ export const DRAW_METRIC_CATALOG: readonly MetricDefinition[] = [
 		read: phaseMax("selectionBake"),
 	},
 	{
-		id: "selectionThumbnailMax",
-		label: "Selection thumbnail max",
-		unit: "ms",
-		warningAbove: 4,
-		criticalAbove: 12,
-		summary: "Worst automatic thumbnail update after selecting objects.",
-		meaning:
-			"Measures one bitmap downscale; selected objects are rendered in the worker.",
-		whenHigh:
-			"Check bitmap dimensions and whether the selection worker cache was available.",
-		read: phaseMax("selectionThumbnail"),
-	},
-	{
-		id: "selectionThumbnailFallbackMax",
-		label: "Selection thumbnail fallback max",
-		unit: "ms",
-		warningAbove: 8,
-		criticalAbove: 20,
-		summary: "Worst idle local thumbnail render when no worker bitmap existed.",
-		meaning:
-			"Small or worker-incompatible selections may render locally after interaction settles.",
-		whenHigh:
-			"Inspect unsupported object classes; large selections should use the worker cache.",
-		read: phaseMax("selectionThumbnailFallback"),
-	},
-	{
 		id: "selectionTransformCommitMax",
 		label: "Selection move commit max",
 		unit: "ms",

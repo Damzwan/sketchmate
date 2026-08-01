@@ -14,6 +14,10 @@ import {
 } from "@/draw/history/eraseUndoPolicy";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { TracedPath } from "@/draw/utils/brushes/TracedPath";
+import {
+	activeLayerId,
+	isLayerHidden,
+} from "@/draw/layers/layerRegistry";
 
 const IS_MOBILE_ERASE =
 	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
@@ -531,6 +535,7 @@ export class CustomEraserBrush extends PencilBrush {
 	}
 
 	drawEffect() {
+		if (isLayerHidden(activeLayerId())) return;
 		// Narrow the mask render to the provided objects when available.
 		const objects = this.protectObjectsProvider?.();
 		draw(
@@ -565,6 +570,7 @@ export class CustomEraserBrush extends PencilBrush {
 	 */
 	_render(ctx: CanvasRenderingContext2D = this.canvas.getTopContext()): void {
 		super._render(ctx);
+		if (isLayerHidden(activeLayerId())) return;
 
 		// 1. Grab the points of the current stroke
 		const points = this["_points"];

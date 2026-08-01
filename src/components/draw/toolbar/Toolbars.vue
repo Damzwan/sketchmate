@@ -50,17 +50,11 @@
       </div>
     </div>
 
-    <!-- Always mounted (self-hides via v-show) so its watcher exists BEFORE the
-         first selection — otherwise the very first selection is set before the
-         component mounts and the preview stays blank. -->
-    <SelectionPreview />
-
-    <!-- A/B color slots — bottom-right, active only in pen/bucket mode. Shares
-         the corner with SelectionPreview (mutually exclusive tool modes). -->
+    <!-- A/B color slots — bottom-right, active only in pen/bucket mode. -->
     <ColorSwatches />
 
-    <!-- Layers. Owns the bottom-right corner slot; the two conditional widgets
-         above sit one step higher so the stack can never overlap. -->
+    <!-- Layers. Owns the bottom-right corner slot; ColorSwatches sits one step
+         higher so the two controls can never overlap. -->
     <LayerControl />
 
   </div>
@@ -74,7 +68,6 @@ import { mdiChevronLeft, mdiFullscreenExit } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { useSelect } from "@/draw/tools/select.store";
 import TopManagement from "@/components/draw/toolbar/TopManagement.vue";
-import SelectionPreview from "@/components/draw/toolbar/SelectionPreview.vue";
 import ColorSwatches from "@/components/draw/toolbar/ColorSwatches.vue";
 import LayerControl from "@/components/draw/layers/LayerControl.vue";
 import ToolDockText from "@/components/draw/toolbar/ToolDockText.vue";

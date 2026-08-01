@@ -26,6 +26,7 @@ import { createGestureController } from "@/draw/input/gestureController";
 import { createEngineOptions } from "@/draw/rendering/engineOptions";
 import type { WorldRect } from "@/draw/rendering/committedLayer";
 import {
+	isLayerHidden,
 	isOnActiveLayer,
 	isOnTopLayer,
 	layerCount,
@@ -137,6 +138,7 @@ export function createDrawObjectManager() {
 		if (adds.length) {
 			for (const obj of adds) {
 				if (!obj.id || !objectMap.has(obj.id)) continue; // added then removed
+				if (isLayerHidden((obj as any).layerId)) continue;
 				renderEngine.onObjectAdded(obj, isRenderTopmost(obj));
 			}
 		}
@@ -285,6 +287,9 @@ export function createDrawObjectManager() {
 		bakeryFlushSoon();
 		addToQuadTree(obj);
 		zIndex.assignOnAdd(obj);
+		// Hidden-layer edits remain indexed, serialized, synced and undoable, but
+		// must not enter the immediate tile-stamp/live-overlay render path.
+		if (isLayerHidden((obj as any).layerId)) return;
 		if (isBatching()) {
 			// Hold it for the flush so it keeps the ADDITIVE path (stamp / live
 			// overlay) instead of collapsing into a destructive rect. Past the cap,

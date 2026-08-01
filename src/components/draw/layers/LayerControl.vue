@@ -1,7 +1,6 @@
 <template>
-  <!-- Bottom-right corner. Rendered inside the draw page (NOT teleported) for
-       the same reason as SelectionPreview: it must stay under SendHub / RoomMenu
-       / ChatWidget in the page's stacking context. -->
+  <!-- Bottom-right corner. Rendered inside the draw page (NOT teleported) so it
+       stays under SendHub / RoomMenu / ChatWidget in the page's stacking context. -->
   <button
     class="fixed z-40 pointer-events-auto cursor-pointer max-w-[9rem] h-10 flex items-center gap-1.5 pl-2 pr-2.5 rounded-2xl border border-primary/60 bg-primary/40 backdrop-blur-md shadow-lg active:scale-95 transition-all"
     :style="{
@@ -53,7 +52,7 @@
       >
         <button
           class="flex-1 min-w-0 text-left cursor-pointer disabled:opacity-40"
-          :disabled="layer.locked || !layer.visible"
+          :disabled="layer.locked"
           @click="setActive(layer.id)"
         >
           <p class="font-bold truncate leading-tight">{{ layer.name }}</p>
@@ -76,23 +75,26 @@
 <!--          @click="layers.setLocked(layer.id, !layer.locked)"-->
 <!--        />-->
 
-        <!-- Structural controls only on the row you are editing: six 40px
-             buttons per row does not fit a phone. -->
-        <template v-if="canEditStructure && layer.id === activeId">
+        <!-- Keep these controls mounted in every editable row. Conditional
+             mounting shifted the eye button after a quick layer switch, so a
+             second tap could hit a different action than the user's muscle
+             memory expected. Inactive rows are simply disabled. -->
+        <template v-if="canEditStructure">
           <ToolButton
             :icon="svg(mdiPencilOutline)"
+            :disabled="layer.id !== activeId"
             aria-label="Rename layer"
             @click="rename(layer.id)"
           />
           <ToolButton
             :icon="svg(mdiChevronUp)"
-            :disabled="index === 0"
+            :disabled="layer.id !== activeId || index === 0"
             aria-label="Move layer up"
             @click="moveUp(layer.id)"
           />
           <ToolButton
             :icon="svg(mdiChevronDown)"
-            :disabled="index === reversedLayers.length - 1"
+            :disabled="layer.id !== activeId || index === reversedLayers.length - 1"
             aria-label="Move layer down"
             @click="moveDown(layer.id)"
           />
@@ -103,10 +105,12 @@
     <template #footer>
       <div class="flex flex-col gap-2">
         <ion-button
-          v-if="hasSelection"
+          v-if="canMoveSelection"
           expand="block"
+          shape="round"
           fill="outline"
           color="secondary"
+          :class="{ invisible: !canMoveSelection }"
           @click="moveSelection"
         >
           Move selection to {{ activeLayerName }}
@@ -178,7 +182,7 @@ import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import ToolButton from "@/components/draw/toolbar/ToolButton.vue";
 import { useLayersStore } from "@/draw/layers/layers.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
-import { MAX_SOLO_LAYERS } from "@/draw/layers/layer.types";
+import { BASE_LAYER_ID, MAX_SOLO_LAYERS } from "@/draw/layers/layer.types";
 import { useSelect } from "@/draw/tools/select.store";
 
 const layers = useLayersStore();
@@ -204,12 +208,16 @@ const mounted = ref(false);
  * and fabric's active object is discarded on plenty of paths that leave the
  * user's selection conceptually intact (opening an overlay, `actionWithoutEvents`
  * flows, multi-select rebuilds). Reading fabric's copy meant the move ran
- * against an empty list and silently did nothing. This ref is also reactive, so
- * the footer button appears and disappears correctly instead of being sampled
- * once when the sheet opened.
+ * against an empty list and silently did nothing. This ref is reactive, so the
+ * reserved footer action slot immediately reflects the current selection and
+ * destination layer instead of being sampled once when the sheet opens.
  */
 const { selectedObjectsRef } = storeToRefs(useSelect());
-const hasSelection = computed(() => selectedObjectsRef.value.length > 0);
+const canMoveSelection = computed(() =>
+	selectedObjectsRef.value.some(
+		(object) => ((object as any).layerId ?? BASE_LAYER_ID) !== activeId.value,
+	),
+);
 
 /**
  * Object counts are O(scene) per layer, so they are sampled ONCE when the sheet

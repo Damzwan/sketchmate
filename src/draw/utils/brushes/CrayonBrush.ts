@@ -1,6 +1,7 @@
 import { PatternBrush, Canvas, Point, FabricImage } from 'fabric'
 import * as fabric from 'fabric'
 import { enlivenStrokeProps, TEXTURE_SUPERSAMPLE } from '@/draw/utils/brushes/brush.helpers'
+import { isLayerHidden } from '@/draw/layers/layerRegistry'
 
 // Deterministic PRNG so the random crayon texture regenerates identically from
 // a stored seed (no need to serialise the bitmap — same trick as charcoal).
@@ -300,12 +301,15 @@ export class CrayonBrush extends PatternBrush {
       stroke.setCoords()
 
       // Manual flush (no requestRenderAll) so it's visible before the tile bake.
-      const mainCtx = this.canvas.getContext()
-      mainCtx.save()
-      const vpt = this.canvas.viewportTransform
-      if (vpt) mainCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
-      stroke.render(mainCtx)
-      mainCtx.restore()
+      // A hidden layer deliberately skips this compatibility path.
+      if (!isLayerHidden((stroke as any).layerId)) {
+        const mainCtx = this.canvas.getContext()
+        mainCtx.save()
+        const vpt = this.canvas.viewportTransform
+        if (vpt) mainCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
+        stroke.render(mainCtx)
+        mainCtx.restore()
+      }
 
       this.canvas.fire('path:created', { path: stroke })
     } else {

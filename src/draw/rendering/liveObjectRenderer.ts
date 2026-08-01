@@ -1,9 +1,10 @@
 import type { Canvas, FabricObject } from "fabric";
+import { isLayerHidden } from "@/draw/layers/layerRegistry";
 
 export function createLiveObjectRenderer(getCanvas: () => Canvas | undefined) {
 	return (context: CanvasRenderingContext2D, object: FabricObject): void => {
 		const canvas = getCanvas();
-		if (!canvas) return;
+		if (!canvas || isLayerHidden((object as any).layerId)) return;
 
 		const item = object as any;
 		const needsCanvas = Boolean(item.clipPath || item.shadow);

@@ -1,10 +1,36 @@
 import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import {
+	activeLayerId,
+	compareRenderOrder,
+	isLayerHidden,
+} from "@/draw/layers/layerRegistry";
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import * as transform from "@/draw/transform/transformController";
 import * as fabric from "fabric";
 import { Canvas, IText, Point, type TPointerEvent } from "fabric";
+
+const HIDDEN_STROKE_OPACITY = "__hiddenLayerStrokeOpacity";
+
+function suppressHiddenLayerStrokePreview(canvas: Canvas): void {
+	if (!isLayerHidden(activeLayerId())) return;
+	const state = canvas as any;
+	const upper = state.upperCanvasEl as HTMLCanvasElement | undefined;
+	if (!upper || Object.hasOwn(state, HIDDEN_STROKE_OPACITY)) return;
+	state[HIDDEN_STROKE_OPACITY] = upper.style.opacity;
+	// Opacity preserves pointer events, so Fabric continues collecting the real
+	// stroke while its temporary top-canvas preview remains invisible.
+	upper.style.opacity = "0";
+}
+
+function restoreHiddenLayerStrokePreview(canvas: Canvas): void {
+	const state = canvas as any;
+	if (!Object.hasOwn(state, HIDDEN_STROKE_OPACITY)) return;
+	const upper = state.upperCanvasEl as HTMLCanvasElement | undefined;
+	canvas.clearContext(canvas.getTopContext());
+	if (upper) upper.style.opacity = state[HIDDEN_STROKE_OPACITY];
+	delete state[HIDDEN_STROKE_OPACITY];
+}
 
 export function overrideFindTarget(c: Canvas) {
 	const SEARCH_PADDING_PX = 10; // screen pixels
@@ -83,8 +109,14 @@ export function overrideMouseUp(c: Canvas) {
 				this._handleEvent(e, "up");
 			return;
 		}
-		if (this.isDrawingMode && this._isCurrentlyDrawing)
-			return this._onMouseUpInDrawingMode(e);
+		if (this.isDrawingMode && this._isCurrentlyDrawing) {
+			try {
+				return this._onMouseUpInDrawingMode(e);
+			} finally {
+				restoreHiddenLayerStrokePreview(this as Canvas);
+			}
+		}
+		restoreHiddenLayerStrokePreview(this as Canvas);
 		if (!this._isMainEvent(e)) return;
 
 		const transform = this._currentTransform;
@@ -195,7 +227,10 @@ export function overrideMouseDown(c: Canvas) {
 			}
 		}
 
-		if (this.isDrawingMode) return this._onMouseDownInDrawingMode(e);
+		if (this.isDrawingMode) {
+			suppressHiddenLayerStrokePreview(this as Canvas);
+			return this._onMouseDownInDrawingMode(e);
+		}
 
 		let shouldRender = this._shouldRender(target);
 		if (this.handleMultiSelection(e, target)) {

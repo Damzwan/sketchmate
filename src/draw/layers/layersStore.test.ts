@@ -353,7 +353,29 @@ describe("layers store", () => {
 		]);
 	});
 
-	it("moves the drawing cursor off a layer it just hid", () => {
+	it("promotes an existing solo document into private-room replication without resetting it", () => {
+		const layers = useLayersStore();
+		layers.init({
+			isLobby: false,
+			persisted: [layer("ink", 0), layer("details", 1)],
+		});
+		layers.setActive("details");
+
+		layers.adoptCurrentDocumentForRoom(false);
+
+		expect(layers.policy).toBe("mutable");
+		expect(layers.shared).toBe(true);
+		expect(layers.activeId).toBe("details");
+		expect(layers.layers.map((item) => item.id)).toEqual(["ink", "details"]);
+
+		layers.renameLayer("details", "Highlights");
+		expect(fired.at(-1)).toMatchObject({
+			name: "layerDocumentChanged",
+			payload: { op: { kind: "rename", id: "details", name: "Highlights" } },
+		});
+	});
+
+	it("keeps the hidden layer active", () => {
 		const layers = useLayersStore();
 		layers.init({ isLobby: true, isPublicLobby: true });
 		layers.setActive("l2");
@@ -362,10 +384,26 @@ describe("layers store", () => {
 		layers.setVisible("l2", false);
 
 		expect(isLayerHidden("l2")).toBe(true);
-		expect(layers.activeId).not.toBe("l2");
+		expect(layers.activeId).toBe("l2");
 		expect(activeLayerId()).toBe(layers.activeId);
 		// Bounded invalidation: the hidden layer's own footprint, not the board.
 		expect(invalidated).toEqual(["l2"]);
+	});
+
+	it("allows a hidden layer to become active without changing visibility", () => {
+		const layers = useLayersStore();
+		layers.init({ isLobby: true, isPublicLobby: true });
+		layers.setVisible("l2", false);
+		invalidated.length = 0;
+
+		layers.setActive("l2");
+
+		expect(layers.activeId).toBe("l2");
+		expect(layers.layers.find((layer) => layer.id === "l2")?.visible).toBe(
+			false,
+		);
+		expect(isLayerHidden("l2")).toBe(true);
+		expect(invalidated).toEqual([]);
 	});
 
 	it("records one undoable entry for a layer delete, with its objects", () => {

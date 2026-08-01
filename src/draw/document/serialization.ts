@@ -248,9 +248,9 @@ export async function generateChunkedJSON(
 		objects: [],
 		background: canvas.backgroundColor,
 	};
-	// Layer DOCUMENT (solo only — a room's set is a constant, so persisting it
-	// would just be a copy of a hard-coded array). Objects carry their own
-	// `layerId` through `customProperties`; this is only the names and order.
+	// Mutable layer DOCUMENT (solo and private rooms). Public rooms derive a
+	// fixed set, so serializing it would only copy a hard-coded constant. Objects
+	// carry their own `layerId`; this metadata supplies the names and order.
 	const layers = useLayersStore().serialize();
 	if (layers) json.layers = layers;
 	if (canvas.clipPath) json.clipPath = canvas.clipPath.toJSON();

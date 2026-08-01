@@ -36,10 +36,9 @@ import { useSubscriptionStore } from "@/store/subscription.store";
  * plain `layerRegistry` module instead, so no pinia proxy is touched per frame.
  *
  * Two policies (see layer.types.ts):
- *   solo  → the layer list is part of the DOCUMENT: persisted in the draft JSON
- *           and structural edits go on the undo stack.
- *   room  → the layer list is a CONSTANT every peer derives locally, so nothing
- *           about layers is ever sent, replayed or reconciled.
+ *   mutable → solo documents persist the list; private rooms additionally
+ *             replicate structural edits between peers.
+ *   fixed   → public rooms derive the same constant list locally.
  *
  * Visibility and lock are LOCAL VIEW STATE in both modes: not persisted, not
  * synced, not undoable. Hiding a layer is how you look at your drawing, not an
@@ -147,6 +146,37 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		commitLayout();
 	}
 
+	/**
+	 * Turn the CURRENT, already-open drawing into the creator's room document.
+	 *
+	 * Joiners go through `loadCanvas(...isLobby)` and therefore call `init` with
+	 * the snapshot's layers. A creator starts with its existing canvas and gets no
+	 * initial snapshot, so calling `init` would either lose the current document
+	 * or never enable replication. Private rooms preserve the exact current list
+	 * and only flip the sharing bit; public rooms intentionally adopt the fixed
+	 * policy every peer derives.
+	 */
+	function adoptCurrentDocumentForRoom(isPublicLobby: boolean): void {
+		revisions.clear();
+		tombstones.clear();
+		applyingRemote = false;
+		if (isPublicLobby) {
+			policy.value = "fixed";
+			shared.value = false;
+			layers.value = FIXED_ROOM_LAYERS.map((layer) => ({ ...layer }));
+			activeId.value = layers.value[0].id;
+		} else {
+			policy.value = "mutable";
+			shared.value = true;
+			// Preserve the creator's local visibility/lock choices as local view
+			// state. serialize() strips them for peers exactly as on a normal save.
+			if (!layers.value.length) layers.value = defaultSoloLayers();
+			if (!layers.value.some((layer) => layer.id === activeId.value))
+				activeId.value = layers.value[0].id;
+		}
+		commitLayout();
+	}
+
 	function sanitizePersisted(persisted?: DrawLayer[] | null): DrawLayer[] {
 		if (!Array.isArray(persisted) || persisted.length === 0) {
 			return defaultSoloLayers();
@@ -173,7 +203,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		return out.length ? out : defaultSoloLayers();
 	}
 
-	/** What `generateChunkedJSON` writes into the draft. */
+	/** What document and private-room snapshots persist. */
 	function serialize(): DrawLayer[] | undefined {
 		// A fixed set is a constant every peer derives locally — persisting it
 		// would just be a copy of a hard-coded array.
@@ -208,12 +238,6 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		if (!layer || layer.visible === visible) return;
 		layer.visible = visible;
 		commitFlags();
-		// Drawing into a layer you cannot see produces invisible strokes and a
-		// bug report. Move the cursor to the nearest usable layer instead.
-		if (!visible && activeId.value === id) {
-			const fallback = layers.value.find((l) => l.visible && !l.locked);
-			if (fallback) setActive(fallback.id);
-		}
 		useDrawObjectManager().invalidateLayer(id);
 	}
 
@@ -550,6 +574,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		maxLayers,
 		atTierLimit,
 		init,
+		adoptCurrentDocumentForRoom,
 		serialize,
 		setActive,
 		setVisible,

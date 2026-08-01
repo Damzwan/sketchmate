@@ -2,6 +2,7 @@ import type { TSimplePathData } from 'fabric'
 import { PencilBrush, Shadow } from 'fabric'
 import { enlivenStrokeProps, simplifyPathDouglasPeucker, toObjectWithoutPath } from '@/draw/utils/brushes/brush.helpers'
 import { TracedPath } from '@/draw/utils/brushes/TracedPath'
+import { isLayerHidden } from '@/draw/layers/layerRegistry'
 
 // ==========================================
 // THE OPTIMIZED BRUSH
@@ -51,21 +52,25 @@ export class OptimizedPencilBrush extends PencilBrush {
     this.canvas.add(path)
     path.setCoords()
 
-    // 3. THE FIX: Grab the MAIN lower canvas context
-    const mainCtx = this.canvas.getContext()
+    // Hidden-layer strokes are stored normally but stay off every render
+    // surface until the layer is shown.
+    if (!isLayerHidden((path as any).layerId)) {
+      // 3. THE FIX: Grab the MAIN lower canvas context
+      const mainCtx = this.canvas.getContext()
 
-    // 4. THE FIX: Apply the viewport transform so it renders correctly when zoomed/panned
-    mainCtx.save()
-    const vpt = this.canvas.viewportTransform
-    if (vpt) {
-      mainCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
+      // 4. THE FIX: Apply the viewport transform so it renders correctly when zoomed/panned
+      mainCtx.save()
+      const vpt = this.canvas.viewportTransform
+      if (vpt) {
+        mainCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
+      }
+
+      // 5. Render directly to the main canvas
+      path.render(mainCtx)
+
+      // Clean up the context state
+      mainCtx.restore()
     }
-
-    // 5. Render directly to the main canvas
-    path.render(mainCtx)
-
-    // Clean up the context state
-    mainCtx.restore()
     this._resetShadow()
 
     // Fire the final event

@@ -35,7 +35,7 @@
 import { IonIcon } from "@ionic/vue";
 import { mdiLock } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
-import { BrushType } from "@/draw/types/draw.types";
+import { BrushType } from "@/draw/tools/tool.types";
 
 defineProps<{
   type: BrushType;

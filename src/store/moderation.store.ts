@@ -20,7 +20,7 @@ import {
 	reportUser,
 } from "@/service/api/moderation.api";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { useToast } from "@/service/toast.service";
 import { blockUser } from "@/service/api/relationship.api";
 import { useFriendStore } from "@/store/friend.store";

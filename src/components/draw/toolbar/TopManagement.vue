@@ -81,12 +81,23 @@
             <p v-if="!isLobby" class="pl-2 text-sm">lobby only</p>
           </ion-item>
 
-          <ion-item color="tertiary" :detail="false">
+          <ion-item color="tertiary" :button="true" :detail="false" v-if="IS_TESTING_DRAW"
+            @click="runFromMore(() => emit('start-benchmark'))">
+            <ion-icon :icon="playCircleOutline" />
+            <div class="pl-2 min-w-0 flex-1">
+              <p class="text-base">Start performance capture</p>
+              <p class="text-sm text-black/60 leading-tight">
+                Record drawing, zoom, erase, and history
+              </p>
+            </div>
+          </ion-item>
+
+          <ion-item color="tertiary" :detail="false" v-if="IS_TESTING_DRAW">
             <ion-icon :icon="hardwareChipOutline" />
             <div class="pl-2 min-w-0 flex-1">
-              <p class="text-base">Experimental rendering</p>
+              <p class="text-base">Worker rendering</p>
               <p class="text-sm text-black/60 leading-tight">
-                {{ renderBackendPending ? 'Reopen drawing to apply' : 'Web worker based' }}
+                {{ renderBackendSubtitle }}
               </p>
             </div>
             <ion-toggle
@@ -96,6 +107,25 @@
               aria-label="Use experimental web-worker rendering"
               :checked="selectedRenderBackend === 'worker'"
               @ionChange="onRenderBackendChange"
+            />
+          </ion-item>
+
+          <ion-item color="tertiary" :detail="false" v-if="IS_TESTING_DRAW"
+            :disabled="selectedRenderBackend !== 'worker'">
+            <ion-icon :icon="gitBranchOutline" />
+            <div class="pl-2 min-w-0 flex-1">
+              <p class="text-base">Worker protocol v2</p>
+              <p class="text-sm text-black/60 leading-tight">
+                {{ workerProtocolSubtitle }}
+              </p>
+            </div>
+            <ion-toggle
+              slot="end"
+              mode="ios"
+              color="secondary"
+              aria-label="Use worker protocol version 2"
+              :checked="selectedWorkerProtocol === 'v2'"
+              @ionChange="onWorkerProtocolChange"
             />
           </ion-item>
         </ion-list>
@@ -111,7 +141,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useMenuStore } from "@/store/menu.store";
 import ToolButton from "./ToolButton.vue";
 import {
@@ -124,15 +154,17 @@ import {
 	mdiSend,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import SendHub from "../send/SendHub.vue";
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
 import {
 	bulbOutline,
 	chatbubblesOutline,
+	gitBranchOutline,
 	hardwareChipOutline,
 	megaphoneOutline,
+	playCircleOutline,
 } from "ionicons/icons";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
@@ -147,7 +179,7 @@ import {
 	modalController,
 	type ToggleCustomEvent,
 } from "@ionic/vue";
-import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { useDocumentStore } from "@/draw/document/document.store";
 import ReportUserMenu from "@/components/moderation/ReportUserMenu.vue";
 import SavePopover from "./SavePopover.vue";
 import {
@@ -156,8 +188,14 @@ import {
 	getDrawRenderBackend,
 	setDrawRenderBackend,
 } from "@/draw/config/renderBackend.config";
+import {
+	getWorkerProtocolMode,
+	setWorkerProtocolMode,
+	type WorkerProtocolMode,
+	WORKER_PROTOCOL_QUERY_KEY,
+} from "@/draw/config/workerProtocol.config";
 
-const emit = defineEmits(["toggle-fullscreen"]);
+const emit = defineEmits(["toggle-fullscreen", "start-benchmark"]);
 
 const { roomMembers, isLobby } = storeToRefs(useDrawSyncer());
 const { onlineFriends } = storeToRefs(useFriendStore());
@@ -165,8 +203,9 @@ const { openMenu } = useMenuStore();
 const { isLoggedIn, user } = storeToRefs(useAuthStore());
 const { openPanel } = useChatWidgetStore();
 const { isSaving, isDirty, sessionHasContent } = storeToRefs(
-	useDrawLoadStore(),
+	useDocumentStore(),
 );
+const IS_TESTING_DRAW = import.meta.env.VITE_DRAW_TESTING === "si";
 
 const { totalUnreadCount } = storeToRefs(useChatStore());
 const { toast } = useToast();
@@ -203,9 +242,24 @@ const moreOpen = ref(false);
 const moreEvent = ref<Event | undefined>();
 const activeRenderBackend = getDrawRenderBackend();
 const selectedRenderBackend = ref<DrawRenderBackend>(activeRenderBackend);
+const activeWorkerProtocol = getWorkerProtocolMode();
+const selectedWorkerProtocol = ref<WorkerProtocolMode>(activeWorkerProtocol);
 const renderBackendPending = computed(
 	() => selectedRenderBackend.value !== activeRenderBackend,
 );
+const workerProtocolPending = computed(
+	() => selectedWorkerProtocol.value !== activeWorkerProtocol,
+);
+const renderBackendSubtitle = computed(() => {
+	if (renderBackendPending.value) return "Reopen drawing to apply";
+	return selectedRenderBackend.value === "worker" ? "Enabled" : "Main thread";
+});
+const workerProtocolSubtitle = computed(() => {
+	if (workerProtocolPending.value) return "Reopen drawing to apply";
+	return selectedWorkerProtocol.value === "v2"
+		? "Revisioned batches"
+		: "Legacy protocol";
+});
 
 const openMore = (e: Event) => {
 	moreEvent.value = e;
@@ -232,6 +286,27 @@ const onRenderBackendChange = (e: ToggleCustomEvent) => {
 		toast("Renderer saved — reopen the drawing to apply");
 	} else {
 		toast("Renderer change cancelled");
+	}
+};
+
+const onWorkerProtocolChange = (e: ToggleCustomEvent) => {
+	const mode: WorkerProtocolMode = e.detail.checked ? "v2" : "legacy";
+	if (!setWorkerProtocolMode(mode)) {
+		toast("Could not save worker protocol setting");
+		return;
+	}
+	selectedWorkerProtocol.value = mode;
+
+	const url = new URL(window.location.href);
+	if (url.searchParams.has(WORKER_PROTOCOL_QUERY_KEY)) {
+		url.searchParams.set(WORKER_PROTOCOL_QUERY_KEY, mode);
+		window.history.replaceState(window.history.state, "", url);
+	}
+
+	if (workerProtocolPending.value) {
+		toast("Worker protocol saved — reopen the drawing to apply");
+	} else {
+		toast("Worker protocol change cancelled");
 	}
 };
 

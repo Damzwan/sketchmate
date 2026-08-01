@@ -157,7 +157,7 @@ import {
 	hydrateCustomization,
 	resolveTheme,
 } from "@/config/profile_options.config";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useChatStore } from "@/store/chat.store";
 import { useModerationStore } from "@/store/moderation.store";
 
@@ -406,7 +406,7 @@ async function confirmToggleBlock() {
 							// Only a live lobby needs canvas cleanup. Keep the Fabric-backed
 							// object manager out of ordinary profile-sheet chunks.
 							const { useDrawObjectManager } = await import(
-								"@/draw/store/drawObjectManager.store"
+								"@/draw/canvas/drawObjectManager"
 							);
 							useDrawObjectManager().purgeBlockedObjects();
 						}

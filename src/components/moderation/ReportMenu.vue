@@ -77,7 +77,7 @@ import { svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
 import { useModerationStore } from "@/store/moderation.store";
 import type { ReportReason } from "@/types/server.types";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 
 const menuStore = useMenuStore();
 const moderationStore = useModerationStore();

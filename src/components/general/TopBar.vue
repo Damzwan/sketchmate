@@ -78,7 +78,7 @@ import {
   notificationsOutline,
   storefrontOutline,
 } from "ionicons/icons";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { useMenuStore } from "@/store/menu.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";

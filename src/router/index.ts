@@ -57,6 +57,14 @@ const routes: Array<RouteRecordRaw> = [
 		path: `/${FRONTEND_ROUTES.notifications}`,
 		component: () => import("@/views/notification.view.vue"),
 	},
+	...(import.meta.env.DEV
+		? [
+				{
+					path: "/bench",
+					component: () => import("@/views/draw-benchmark.view.vue"),
+				},
+			]
+		: []),
 ];
 
 const router = createRouter({

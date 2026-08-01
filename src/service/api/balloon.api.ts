@@ -1,5 +1,5 @@
 import { request } from "./http";
-import type { PresignedUploadBundle } from "@/draw/shareDrawings";
+import type { PresignedUploadBundle } from "@/draw/sharing/shareDrawings";
 import type {
 	Balloon,
 	CreateBalloonPostRes,

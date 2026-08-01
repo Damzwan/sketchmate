@@ -73,8 +73,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useSelect } from '@/draw/store/tools/select.store'
-import { useDrawStore } from '@/draw/store/draw.store'
+import { useSelect } from '@/draw/tools/select.store'
+import { useDrawStore } from '@/draw/session/draw.store'
 import { useMenuStore } from '@/store/menu.store'
 import ToolButton from './ToolButton.vue'
 import { IonIcon } from '@ionic/vue'
@@ -91,8 +91,10 @@ import {
   mdiPencilOutline
 } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
-import { DrawAction, Menu, ObjectType } from '@/draw/types/draw.types'
-import { useDrawHistoryManager } from '@/draw/store/drawHistoryManager.store'
+import { DrawAction } from "@/draw/actions/drawAction.types";
+import { Menu } from "@/types/menu.types";
+import { ObjectType } from "@/draw/objects/object.types";
+import { useDrawHistoryManager } from '@/draw/history/history.store'
 
 const { selectedObjectsRef, multiSelectMode } = storeToRefs(useSelect())
 const { selectAction } = useDrawStore()

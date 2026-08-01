@@ -1,5 +1,5 @@
 import { BaseBrush, FabricObject, Point } from "fabric";
-import { getTopContextEpoch } from "@/draw/helpers/render.helper";
+import { getTopContextEpoch } from "@/draw/rendering/fabricRenderState";
 import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
 
 // @ts-ignore

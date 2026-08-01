@@ -13,8 +13,8 @@ import { IonButton, IonIcon } from '@ionic/vue'
 import { storeToRefs } from 'pinia'
 import { mdiMagnifyMinusOutline } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
-import { resetZoom } from '@/draw/helpers/viewport.helper'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
+import { resetZoom } from '@/draw/canvas/viewport'
+import { useDrawUIStore } from '@/draw/ui/drawUI.store'
 
 
 const { canResetView } = storeToRefs(useDrawUIStore())

@@ -104,9 +104,9 @@ import PhotoSwiperReactions from "@/components/photoswiper/PhotoSwiperReactions.
 import { reactionImages } from "@/config/post.config";
 import { useModerationStore } from "@/store/moderation.store";
 import { useAuthStore } from "@/store/auth.store";
-import { useShareService } from "@/draw/store/useShareService.store";
+import { useShareService } from "@/draw/sharing/shareService.store";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
 import ReactionBreakdownSheet from "@/components/general/ReactionBreakdownSheet.vue";
 

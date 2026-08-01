@@ -148,7 +148,7 @@ import {
 import IosPwaInstructions from "@/components/general/IosPwaInstructions.vue";
 import SettingCard from "@/components/settings/SettingCard.vue";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { contact_mail, discord_link } from "@/config/general.config";
 import { useSessionStore } from "@/store/session.store";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";

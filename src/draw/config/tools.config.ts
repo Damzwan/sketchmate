@@ -1,4 +1,4 @@
-import { BrushType, DrawTool, Eraser, SelectTool } from '@/draw/types/draw.types'
+import { BrushType, DrawTool, type Eraser, type SelectTool } from "@/draw/tools/tool.types";
 import {
   mdiBrushOutline,
   mdiBrushVariant,

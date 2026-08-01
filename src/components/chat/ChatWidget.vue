@@ -135,7 +135,7 @@ import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { masterAnimation } from "@/helper/animation.helper";
 import { FRONTEND_ROUTES } from "@/types/router.types";
@@ -484,6 +484,8 @@ onBeforeUnmount(() => {
 .sheet-wrapper {
   transform: translate3d(0, 0, 0);
   transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  max-width: 520px;
+  margin: auto;;
 }
 .sheet-wrapper.is-active,
 .sheet-wrapper.is-dragging {

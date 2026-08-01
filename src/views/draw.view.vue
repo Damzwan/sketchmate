@@ -9,7 +9,7 @@ import { ref } from 'vue'
 import { IonNav, IonPage, onIonViewWillLeave, useBackButton } from '@ionic/vue'
 import DrawMain from '@/components/draw/DrawMain.vue'
 import { slideTransition } from '@/helper/animation.helper'
-import { performRoomExit } from '@/draw/helpers/drawSyncing.helper'
+import { performRoomExit } from '@/draw/sync/syncStatus'
 
 const navRef = ref<InstanceType<typeof IonNav> | null>(null)
 

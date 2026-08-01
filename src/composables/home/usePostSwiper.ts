@@ -1,6 +1,6 @@
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useToast } from "@/service/toast.service";
-import { isInRoom } from "@/draw/helpers/drawSyncing.helper";
+import { isInRoom } from "@/draw/sync/syncStatus";
 import router from "@/router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { deletePost, postComment } from "@/service/api/post.api";
@@ -8,7 +8,7 @@ import { usePostStore } from "@/store/post.store";
 import { useUserCacheStore } from "@/store/userCache.store";
 import { alertController } from "@ionic/vue";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 
 export function usePostSwiper() {
 	const swiperStore = usePhotoSwiper();

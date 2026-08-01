@@ -9,7 +9,7 @@ import {
 	seeInboxItem,
 } from "@/service/api/inbox.api";
 import { useUserCacheStore } from "@/store/userCache.store";
-import { isInRoom } from "@/draw/helpers/drawSyncing.helper";
+import { isInRoom } from "@/draw/sync/syncStatus";
 import router from "@/router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { alertController } from "@ionic/vue";
@@ -93,7 +93,7 @@ export function useInboxSwiper() {
 									await router.replace({ query: queryParams });
 
 									const { useDrawStore } = await import(
-										"@/draw/store/draw.store"
+										"@/draw/session/draw.store"
 									);
 									const drawStore = useDrawStore();
 									const mainCanvasElement = document.getElementById(

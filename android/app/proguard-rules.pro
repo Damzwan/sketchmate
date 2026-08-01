@@ -37,6 +37,10 @@
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.android.gms.**
 
+# --- Missing classes for Capacitor plugins -----------------------------------
+# Some plugins have optional dependencies (e.g. Facebook SDK in Firebase Auth)
+-dontwarn com.facebook.**
+
 # Gson serialises via reflection on field names; obfuscating them breaks the
 # wire format. Keep annotations and any model fields it touches.
 -keepattributes Signature

@@ -1,10 +1,7 @@
 import { defineStore } from "pinia";
 import { Ref, ref } from "vue";
-import {
-	DrawTool,
-	Menu,
-	StickersEmblemsSavedTabOptions,
-} from "@/draw/types/draw.types";
+import { DrawTool } from "@/draw/tools/tool.types";
+import { Menu, type StickersEmblemsSavedTabOptions } from "@/types/menu.types";
 
 export const useMenuStore = defineStore("menu", () => {
 	const penMenuOpen = ref(false);

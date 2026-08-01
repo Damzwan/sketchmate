@@ -27,7 +27,7 @@
 // `getRenderDpr()` and fabric's own retina scaling MUST agree, or hit-testing,
 // pixel reads (bucket fill) and the eraser's screen-space clip rect all land at
 // the wrong coordinates. Agreement is enforced by:
-//   • changeFabricSettings() assigning `config.devicePixelRatio = getRenderDpr()`
+//   • configureFabric() assigning `config.devicePixelRatio = getRenderDpr()`
 //     — fabric's getRetinaScaling() reads that, so EVERY fabric-internal
 //     consumer is capped automatically.
 //   • the render surface's getDpr() returning getRenderDpr().
@@ -51,6 +51,8 @@ const HW = (navigator as any)?.hardwareConcurrency || 4;
 const DEVICE_MEM_GB = (navigator as any)?.deviceMemory || (IS_MOBILE ? 4 : 8);
 
 export const IS_MOBILE_DEVICE = IS_MOBILE;
+export const DRAW_HARDWARE_CONCURRENCY = HW;
+export const DRAW_DEVICE_MEMORY_GB = DEVICE_MEM_GB;
 
 /**
  * `hardwareConcurrency` alone was a bad proxy for "can this device hold a big

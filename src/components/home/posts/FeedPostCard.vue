@@ -351,7 +351,7 @@ import { useMenuStore } from "@/store/menu.store";
 import router from "@/router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { useModerationStore } from "@/store/moderation.store";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
@@ -372,7 +372,7 @@ import {
 	resolveTitle,
 	resolveWorld,
 } from "@/config/profile_options.config";
-import { useShareService } from "@/draw/store/useShareService.store";
+import { useShareService } from "@/draw/sharing/shareService.store";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 
 dayjs.extend(relativeTime);

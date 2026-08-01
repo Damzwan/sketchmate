@@ -23,7 +23,7 @@ import {
   UpdateProfilePayload,
   UpdateUserParams
 } from '@/types/server.types'
-import { PublicLobby } from '@/draw/store/drawSyncing.store'
+import { PublicLobby } from '@/draw/sync/session.store'
 
 // --- PROFILE MANAGEMENT ---
 export async function updateProfile(payload: UpdateProfilePayload) {

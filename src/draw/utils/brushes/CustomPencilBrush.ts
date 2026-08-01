@@ -1,6 +1,8 @@
 import type { TSimplePathData } from 'fabric'
-import { Path, PencilBrush, Shadow } from 'fabric'
+import { PencilBrush, Shadow } from 'fabric'
 import { enlivenStrokeProps, simplifyPathDouglasPeucker, toObjectWithoutPath } from '@/draw/utils/brushes/brush.helpers'
+import { TracedPath } from '@/draw/utils/brushes/TracedPath'
+import { isLayerHidden } from '@/draw/layers/layerRegistry'
 
 // ==========================================
 // THE OPTIMIZED BRUSH
@@ -50,21 +52,25 @@ export class OptimizedPencilBrush extends PencilBrush {
     this.canvas.add(path)
     path.setCoords()
 
-    // 3. THE FIX: Grab the MAIN lower canvas context
-    const mainCtx = this.canvas.getContext()
+    // Hidden-layer strokes are stored normally but stay off every render
+    // surface until the layer is shown.
+    if (!isLayerHidden((path as any).layerId)) {
+      // 3. THE FIX: Grab the MAIN lower canvas context
+      const mainCtx = this.canvas.getContext()
 
-    // 4. THE FIX: Apply the viewport transform so it renders correctly when zoomed/panned
-    mainCtx.save()
-    const vpt = this.canvas.viewportTransform
-    if (vpt) {
-      mainCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
+      // 4. THE FIX: Apply the viewport transform so it renders correctly when zoomed/panned
+      mainCtx.save()
+      const vpt = this.canvas.viewportTransform
+      if (vpt) {
+        mainCtx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5])
+      }
+
+      // 5. Render directly to the main canvas
+      path.render(mainCtx)
+
+      // Clean up the context state
+      mainCtx.restore()
     }
-
-    // 5. Render directly to the main canvas
-    path.render(mainCtx)
-
-    // Clean up the context state
-    mainCtx.restore()
     this._resetShadow()
 
     // Fire the final event
@@ -76,7 +82,7 @@ export class OptimizedPencilBrush extends PencilBrush {
 // THE OPTIMIZED STROKE
 // ==========================================
 
-export class OptimizedPencilStroke extends Path {
+export class OptimizedPencilStroke extends TracedPath {
   static type = 'OptimizedPencilStroke'
 
   constructor(path: any, options: any) {
@@ -85,7 +91,10 @@ export class OptimizedPencilStroke extends Path {
       inflatedPath = OptimizedPencilStroke.inflateTrace(options.compressedTrace)
     }
 
-    super(inflatedPath, options)
+    // The packed geometry can reproduce compressedTrace on demand. Do not keep
+    // the loaded JSON number[] as a second permanent copy beside it.
+    const { compressedTrace: _compressedTrace, ...pathOptions } = options || {}
+    super(inflatedPath, pathOptions)
   }
 
   // Note: The custom _render method has been amputated.
@@ -134,12 +143,12 @@ export class OptimizedPencilStroke extends Path {
     const compressedTrace: (number | string)[] = []
     let lastX = 0, lastY = 0
 
-    // Loop through the active path
-    for (const cmd of this.path) {
-      const type = cmd[0]
+    // Encode directly from resident typed geometry. Reading `this.path` here
+    // would materialize the array-of-arrays representation we are avoiding.
+    this._forEachPathCommand((type, coordinates, offset) => {
       if (type === 'M' || type === 'L') {
-        const ix = Math.round((cmd[1] as number) * 10)
-        const iy = Math.round((cmd[2] as number) * 10)
+        const ix = Math.round((coordinates[offset] as number) * 10)
+        const iy = Math.round((coordinates[offset + 1] as number) * 10)
         if (type === 'M') {
           compressedTrace.push('M', ix, iy)
         } else {
@@ -148,15 +157,15 @@ export class OptimizedPencilStroke extends Path {
         lastX = ix
         lastY = iy
       } else if (type === 'Q') {
-        const icpx = Math.round((cmd[1] as number) * 10)
-        const icpy = Math.round((cmd[2] as number) * 10)
-        const ix = Math.round((cmd[3] as number) * 10)
-        const iy = Math.round((cmd[4] as number) * 10)
+        const icpx = Math.round((coordinates[offset] as number) * 10)
+        const icpy = Math.round((coordinates[offset + 1] as number) * 10)
+        const ix = Math.round((coordinates[offset + 2] as number) * 10)
+        const iy = Math.round((coordinates[offset + 3] as number) * 10)
         compressedTrace.push('Q', icpx - lastX, icpy - lastY, ix - lastX, iy - lastY)
         lastX = ix
         lastY = iy
       }
-    }
+    })
 
 
     return { ...baseObj, compressedTrace }

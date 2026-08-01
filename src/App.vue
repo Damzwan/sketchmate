@@ -51,7 +51,7 @@ import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
 import { useBalloonStore } from "@/store/balloon.store";
-import { useShareToastStore } from "@/draw/store/useShareToastStore.store";
+import { useShareToastStore } from "@/draw/sharing/shareToast.store";
 import { useWhatsNewPrompt } from "@/composables/general/useWhatsNewPrompt";
 
 // LAZY LOADED COMPONENTS (Will create separate js chunks)

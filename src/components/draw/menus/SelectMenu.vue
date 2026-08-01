@@ -28,9 +28,9 @@ import { mdiCursorDefaultClickOutline, mdiLasso } from '@mdi/js'
 import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
 import { useMenuStore } from '@/store/menu.store'
 import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/draw/store/draw.store'
-import { DrawTool, SelectTool } from '@/draw/types/draw.types'
-import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { useDrawStore } from '@/draw/session/draw.store'
+import { DrawTool, type SelectTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from '@/draw/tools/toolSelection.store'
 
 const { selectMenuOpen, menuEvent } = storeToRefs(useMenuStore())
 const { selectTool } = useToolSelection()

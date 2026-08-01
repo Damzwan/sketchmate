@@ -10,9 +10,13 @@
         :class="{ 'transition-transform duration-75': !isGesturing }"
         :style="{ transform: `translate(${avatar.x}px, ${avatar.y}px)` }"
       >
-        <ion-avatar class="w-8 h-8 border-2 border-white shadow-md ring-2 ring-primary/50">
-          <img :src="avatar.img" :alt="avatar.name" />
-        </ion-avatar>
+        <UserAvatar
+          :user="avatar"
+          :customization="avatar.customization"
+          size="xs"
+          static
+          class="rounded-full border-2 border-white shadow-md ring-2 ring-primary/50"
+        />
 
         <div
           class="px-2 py-0.5 text-[10px] font-bold text-white bg-black/75 rounded-full shadow-sm whitespace-nowrap backdrop-blur-sm">
@@ -24,13 +28,13 @@
 </template>
 
 <script setup lang="ts">
-import { IonAvatar } from '@ionic/vue'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useGestureStore } from '@/draw/store/tools/gesture.store'
-import { storeToRefs } from 'pinia'
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { useGestureStore } from "@/draw/tools/gesture.store";
+import { storeToRefs } from "pinia";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
-const { activeAvatars } = storeToRefs(useDrawUIStore())
-const { isGesturing } = storeToRefs(useGestureStore())
+const { activeAvatars } = storeToRefs(useDrawUIStore());
+const { isGesturing } = storeToRefs(useGestureStore());
 </script>
 
 <style scoped>

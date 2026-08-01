@@ -24,20 +24,56 @@ export interface WatercolorPathContext {
 
 const NOISE_GRID = 10;
 
+/**
+ * The in-memory trace type.
+ *
+ * Float32Array, not `number[]`: V8 stores a plain array of numbers as 8 bytes
+ * per slot plus array overhead, so a 1,000-number trace is ~8 KB — and
+ * watercolour is the most numerous object on a real canvas. Float32 halves
+ * that and is EXACT here, because every value is an integer (coordinates are
+ * fixed-point ×10) far below the 2^24 limit where float32 stops representing
+ * integers exactly. Int16 would halve it again but overflows: the first pair is
+ * an ABSOLUTE coordinate ×10, which passes 32767 on a large canvas.
+ *
+ * The WIRE stays `number[]` — a typed array JSON-serializes to `{"0":…}` and
+ * would be unreadable to every peer and every saved drawing.
+ */
+export type WatercolorTrace = Float32Array;
+
 export function encodeWatercolorTrace(
 	points: readonly WatercolorPoint[],
-): number[] {
-	const trace: number[] = [];
+): WatercolorTrace {
+	const trace = new Float32Array(points.length * 2);
 	let lastX = 0;
 	let lastY = 0;
 	for (let i = 0; i < points.length; i++) {
 		const ix = Math.round(points[i].x * 10);
 		const iy = Math.round(points[i].y * 10);
-		trace.push(i === 0 ? ix : ix - lastX, i === 0 ? iy : iy - lastY);
+		trace[i * 2] = i === 0 ? ix : ix - lastX;
+		trace[i * 2 + 1] = i === 0 ? iy : iy - lastY;
 		lastX = ix;
 		lastY = iy;
 	}
 	return trace;
+}
+
+/** Accepts either representation — saved drawings carry the array form. */
+export function toWatercolorTrace(source: unknown): WatercolorTrace | null {
+	if (source instanceof Float32Array) return source;
+	if (!Array.isArray(source)) return null;
+	const out = new Float32Array(source.length);
+	for (let i = 0; i < source.length; i++) {
+		const value = Number(source[i]);
+		out[i] = Number.isFinite(value) ? value : 0;
+	}
+	return out;
+}
+
+/** Back to the wire/disk representation. */
+export function watercolorTraceToJSON(trace: WatercolorTrace): number[] {
+	const out = new Array<number>(trace.length);
+	for (let i = 0; i < trace.length; i++) out[i] = trace[i];
+	return out;
 }
 
 export function deterministicWatercolorNoise(
@@ -56,6 +92,19 @@ export function deterministicWatercolorNoise(
 }
 
 export function decodeWatercolorTrace(trace: unknown): WatercolorPoint[] {
+	if (trace instanceof Float32Array) {
+		const out: WatercolorPoint[] = [];
+		let lastX = 0;
+		let lastY = 0;
+		for (let i = 0; i + 1 < trace.length; i += 2) {
+			const ix = i > 0 ? trace[i] + lastX : trace[i];
+			const iy = i > 0 ? trace[i + 1] + lastY : trace[i + 1];
+			lastX = ix;
+			lastY = iy;
+			out.push({ x: ix / 10, y: iy / 10 });
+		}
+		return out;
+	}
 	if (!Array.isArray(trace)) return [];
 	const out: WatercolorPoint[] = [];
 	let lastX = 0;
@@ -113,7 +162,11 @@ export function buildWatercolorBristles(
 			const wave =
 				Math.sin(totalDistance * 0.05 + bristle) *
 				(safeWidth * 0.15 * spreadMultiplier);
-			const { nx, ny } = deterministicWatercolorNoise(point.x, point.y, bristle);
+			const { nx, ny } = deterministicWatercolorNoise(
+				point.x,
+				point.y,
+				bristle,
+			);
 			bristles[bristle][i * 2] =
 				point.x + wave + nx * (safeWidth * 0.2 * spreadMultiplier);
 			bristles[bristle][i * 2 + 1] =
@@ -121,6 +174,94 @@ export function buildWatercolorBristles(
 		}
 	}
 	return bristles;
+}
+
+/**
+ * Douglas-Peucker tolerance for the base points, in world units.
+ *
+ * The brush captures at `decimate = 0.3`, so a stroke is sampled several times
+ * per pixel — a 250px stroke is ~830 points, and each one becomes THREE path
+ * commands (one per bristle). Simplifying to 0.3 leaves ~28 points; the wobble
+ * that makes the brush look like watercolour comes from the deterministic noise
+ * applied per point, not from the sampling density, so the character survives.
+ *
+ * 0.3 is exactly what CustomPencilBrush already ships. Scaling gently with
+ * width lets a wide wash drop more, since a 40px stroke cannot show a
+ * third-of-a-pixel deviation.
+ */
+export function watercolorSimplifyTolerance(width: number): number {
+	const safeWidth = Number.isFinite(width) && width > 0 ? width : 10;
+	return Math.max(0.3, safeWidth * 0.02);
+}
+
+/**
+ * Drop points that contribute no visible shape. Pure geometry, no allocation
+ * beyond the result, and identical in spirit to the pencil's commit-time pass.
+ */
+export function simplifyWatercolorPoints(
+	points: readonly WatercolorPoint[],
+	tolerance: number,
+): WatercolorPoint[] {
+	const count = points.length;
+	if (count <= 2 || !(tolerance > 0)) return points.slice();
+
+	const squareTolerance = tolerance * tolerance;
+	const keep = new Uint8Array(count);
+	keep[0] = 1;
+	keep[count - 1] = 1;
+
+	// Iterative, not recursive: a dense stroke is thousands of points and a
+	// recursive split would risk the stack on the very inputs this exists for.
+	const stack: number[] = [0, count - 1];
+	while (stack.length) {
+		const end = stack.pop() as number;
+		const start = stack.pop() as number;
+		let furthest = -1;
+		let furthestDistance = 0;
+		for (let i = start + 1; i < end; i++) {
+			const distance = squareSegmentDistance(
+				points[i],
+				points[start],
+				points[end],
+			);
+			if (distance > furthestDistance) {
+				furthestDistance = distance;
+				furthest = i;
+			}
+		}
+		if (furthestDistance > squareTolerance && furthest > 0) {
+			keep[furthest] = 1;
+			stack.push(start, furthest, furthest, end);
+		}
+	}
+
+	const out: WatercolorPoint[] = [];
+	for (let i = 0; i < count; i++) if (keep[i]) out.push(points[i]);
+	return out;
+}
+
+function squareSegmentDistance(
+	point: WatercolorPoint,
+	start: WatercolorPoint,
+	end: WatercolorPoint,
+): number {
+	let x = start.x;
+	let y = start.y;
+	let dx = end.x - x;
+	let dy = end.y - y;
+	if (dx !== 0 || dy !== 0) {
+		const t = ((point.x - x) * dx + (point.y - y) * dy) / (dx * dx + dy * dy);
+		if (t > 1) {
+			x = end.x;
+			y = end.y;
+		} else if (t > 0) {
+			x += dx * t;
+			y += dy * t;
+		}
+	}
+	dx = point.x - x;
+	dy = point.y - y;
+	return dx * dx + dy * dy;
 }
 
 export function buildWatercolorPathData(
@@ -273,6 +414,9 @@ export function traceWatercolorPath(
 }
 
 export function watercolorComplexity(source: any): number {
+	if (source?.compressedTrace instanceof Float32Array) {
+		return Math.max(1, Math.ceil(source.compressedTrace.length * 1.5));
+	}
 	if (Array.isArray(source?.compressedTrace)) {
 		return Math.max(1, Math.ceil(source.compressedTrace.length * 1.5));
 	}
@@ -280,6 +424,7 @@ export function watercolorComplexity(source: any): number {
 		return Math.max(1, source.basePoints.length * 3);
 	}
 	if (Array.isArray(source?.path)) return Math.max(1, source.path.length);
-	if (typeof source?.path === "string") return Math.max(1, source.path.length / 12);
+	if (typeof source?.path === "string")
+		return Math.max(1, source.path.length / 12);
 	return 1;
 }

@@ -101,7 +101,7 @@ import { mdiPalette } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
 import { useQuotaStore } from '@/store/quota.store'
 import PremiumLobbyModal from '@/components/draw/PremiumLobbyModal.vue'
-import { Menu } from '@/draw/types/draw.types'
+import { Menu } from "@/types/menu.types";
 import { useMenuStore } from '@/store/menu.store'
 import { useSubscriptionStore } from '@/store/subscription.store'
 

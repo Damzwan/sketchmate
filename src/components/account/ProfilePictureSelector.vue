@@ -72,7 +72,7 @@ import { Preferences } from "@capacitor/preferences";
 import { LocalStorage } from "@/types/storage.types";
 import { deleteProfileImg } from "@/service/api/user.api";
 import { useMenuStore } from '@/store/menu.store'
-import { Menu } from '@/draw/types/draw.types'
+import { Menu } from "@/types/menu.types";
 
 defineProps<{
   img: string;

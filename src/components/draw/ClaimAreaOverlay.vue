@@ -40,8 +40,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { useClaimArea } from "@/draw/store/claimArea.store";
-import { useDrawStore } from "@/draw/store/draw.store";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { useAuthStore } from "@/store/auth.store";
 
 interface ScreenBox {

@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { storeToRefs } from "pinia";
 import { useToast } from "@/service/toast.service";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { useInboxStore } from "@/store/inbox.store";
 import { useBalloonStore } from "@/store/balloon.store";
 import { registerChatHandlers } from "@/service/api/socket/chat.socket";
@@ -36,7 +36,11 @@ export async function socketConnect(): Promise<void> {
 		withCredentials: true,
 		reconnection: true,
 		reconnectionAttempts: Infinity,
-		query: { clientVersion: "3" },
+		// v4 = this client understands DrawSyncingEvent.LayerDocument and guards
+		// unknown action types. The server only branches on '1' and '2', so
+		// anything above that takes the same path; what actually keeps v3 peers
+		// out of a room is `minimum_online_version` (see drawSyncing.socket).
+		query: { clientVersion: "4" },
 	});
 
 	// Register Sub-Socket Handlers

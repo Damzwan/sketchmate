@@ -40,12 +40,12 @@ import {
 	mdiContentSaveEditOutline,
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
-import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
+import { useDocumentStore } from "@/draw/document/document.store";
 
 const AUTOSAVE_SECONDS = 20;
 
-const { isSaving, isDirty } = storeToRefs(useDrawLoadStore());
-const { saveNow } = useDrawLoadStore();
+const { isSaving, isDirty } = storeToRefs(useDocumentStore());
+const { saveNow } = useDocumentStore();
 
 const isOpen = ref(false);
 const event = ref<Event | undefined>();

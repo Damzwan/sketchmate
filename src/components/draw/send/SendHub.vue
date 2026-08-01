@@ -366,23 +366,20 @@ import duration from "dayjs/plugin/duration";
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useUserCacheStore } from "@/store/userCache.store";
-import {
-	MAX_SEND_MATES,
-	useMateSelection,
-} from "@/draw/services/useMateSelection";
+import { MAX_SEND_MATES, useMateSelection } from "@/draw/sharing/mateSelection";
 import { useToast } from "@/service/toast.service";
-import { useDrawLoadStore } from "@/draw/store/drawLoad.store";
-import { useShareService } from "@/draw/store/useShareService.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDocumentStore } from "@/draw/document/document.store";
+import { useShareService } from "@/draw/sharing/shareService.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useQuotaStore } from "@/store/quota.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 
 // @ts-ignore
 import PreviewDrawing from "@/components/draw/PreviewDrawing.vue";
-import { useDrawUIStore } from "@/draw/store/drawUI.store";
-import { useDrawStore } from "@/draw/store/draw.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import { masterAnimation } from "@/helper/animation.helper";
 import { shareImg } from "@/helper/share.helper"; // Added share helper
 
@@ -688,9 +685,9 @@ async function executeShares() {
 	}
 
 	const isLobby = useDrawSyncer().isLobby;
-	const loadStore = useDrawLoadStore();
-	const sentDraftId = loadStore.currentDraftId;
-	if (!isLobby && sentDraftId) loadStore.markDraftRemoved(sentDraftId);
+	const documentStore = useDocumentStore();
+	const sentDraftId = documentStore.currentDraftId;
+	if (!isLobby && sentDraftId) documentStore.markDraftRemoved(sentDraftId);
 
 	if (!isLobby) {
 		resetCanvas();
@@ -736,7 +733,7 @@ async function executeShares() {
 
 			await shareService.runBatch(tasks);
 
-			if (!isLobby) void loadStore.removeDraft(sentDraftId);
+			if (!isLobby) void documentStore.removeDraft(sentDraftId);
 		} catch (error) {
 			console.error("Background sharing failed:", error);
 		} finally {

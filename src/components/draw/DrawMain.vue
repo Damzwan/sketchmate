@@ -16,11 +16,17 @@
       <ClaimAreaOverlay v-if="roomId" />
     </div>
 
-    <Toolbars :draw-mode="currentMode" />
+    <Toolbars :draw-mode="currentMode" @start-benchmark="openPerformanceCapture" />
 
     <DrawStatusIndicator />
 
     <DrawMenus />
+
+    <DrawPerformancePanel
+      v-if="showPerformancePanel"
+      :auto-start-signal="performanceAutoStartSignal"
+      @close="closePerformancePanel"
+    />
 
     <DrawExitGuard
       :draft-id="draftId"
@@ -30,17 +36,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, onUnmounted } from "vue";
+import {
+	computed,
+	defineAsyncComponent,
+	onMounted,
+	ref,
+	onUnmounted,
+} from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { v4 as uuidv4 } from "uuid";
 
 // Stores
-import { useDrawStore } from "@/draw/store/draw.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useSessionStore } from "@/store/session.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useShareService } from "@/draw/store/useShareService.store";
+import { useShareService } from "@/draw/sharing/shareService.store";
 
 // Components
 import Toolbars from "@/components/draw/toolbar/Toolbars.vue";
@@ -53,7 +65,7 @@ import DrawExitGuard from "@/components/draw/DrawExitGuard.vue";
 // Services & Sockets
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 
 const route = useRoute();
 const router = useRouter();
@@ -82,6 +94,28 @@ const drawTogether = computed(() => !!getParam("together"));
 const type = computed(() => getParam("type"));
 const targetRoomId = computed(() => getParam("room_id"));
 const canvasUrl = computed(() => getParam("canvas_url"));
+const performancePanelRequested = ref(false);
+const performanceAutoStartSignal = ref(0);
+const showPerformancePanel = computed(
+	() => performancePanelRequested.value || route.query.perf === "1",
+);
+const DrawPerformancePanel = defineAsyncComponent(
+	() => import("@/components/draw/benchmark/DrawPerformancePanel.vue"),
+);
+
+function openPerformanceCapture() {
+	performancePanelRequested.value = true;
+	performanceAutoStartSignal.value++;
+}
+
+function closePerformancePanel() {
+	performancePanelRequested.value = false;
+	if (route.query.perf !== "1") return;
+	const query = { ...route.query };
+	delete query.perf;
+	delete query.bench;
+	void router.replace({ query });
+}
 
 const draftId = ref(getParam("id"));
 

@@ -30,12 +30,13 @@
 </template>
 
 <script setup lang="ts">
-import { DrawAction, ObjectType } from '@/draw/types/draw.types'
-import { useDrawStore } from '@/draw/store/draw.store'
+import { DrawAction } from "@/draw/actions/drawAction.types";
+import { ObjectType } from "@/draw/objects/object.types";
+import { useDrawStore } from '@/draw/session/draw.store'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import PenMenu from '@/components/draw/menus/PenMenu/PenMenu.vue'
-import { useSelect } from '@/draw/store/tools/select.store'
+import { useSelect } from '@/draw/tools/select.store'
 import EraserMenu from '@/components/draw/menus/EraserMenu.vue'
 import SelectMenu from '@/components/draw/menus/SelectMenu.vue'
 import TextMenu from '@/components/draw/menus/TextMenu.vue'
@@ -46,10 +47,10 @@ import SelectExtraOptionsMenu from '@/components/draw/menus/SelectExtraOptionsMe
 import ShapesMenu from '@/components/draw/menus/ShapesMenu.vue'
 import SelectImgStyleMenu from '@/components/draw/menus/SelectImgStyleMenu.vue'
 import SelectColorMenu from '@/components/draw/menus/SelectColorMenu.vue'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useShapeCreation } from '@/draw/store/shapeCreation.store'
+import { useDrawUIStore } from '@/draw/ui/drawUI.store'
+import { useShapeCreation } from '@/draw/tools/shapeCreation.store'
 import RoomMenu from '@/components/draw/menus/RoomMenu.vue'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { useDrawSyncer } from '@/draw/sync/session.store'
 import BucketMenu from '@/components/draw/menus/BucketMenu.vue'
 import TextEditMenu from '@/components/draw/TextEditMenu.vue'
 import SavedDrawingMenu from '@/components/draw/menus/SavedDrawingMenu.vue'

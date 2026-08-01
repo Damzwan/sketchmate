@@ -78,11 +78,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import { useToolSelection } from "@/draw/store/tools/toolSelection.store";
-import { usePen } from "@/draw/store/tools/pen.store";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { usePen } from "@/draw/tools/pen.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useDrawHistoryManager } from "@/draw/store/drawHistoryManager.store";
-import { useDrawStore } from "@/draw/store/draw.store";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
+import { useDrawStore } from "@/draw/session/draw.store";
 import ToolButton from "./ToolButton.vue";
 
 import {
@@ -95,7 +95,9 @@ import {
 } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 import { penIconMapping, selectIconMapping } from "@/draw/config/tools.config";
-import { DrawTool, Menu, DrawAction } from "@/draw/types/draw.types";
+import { DrawTool } from "@/draw/tools/tool.types";
+import { Menu } from "@/types/menu.types";
+import { DrawAction } from "@/draw/actions/drawAction.types";
 import { IonIcon } from "@ionic/vue";
 
 const { lastSelectedPenMenuTool, lastSelectedSelectTool, selectedTool } =

@@ -66,7 +66,7 @@ Ranked by expected impact. File references are `path:line` on `enginev2`.
 
 ### F1 — ✅ FIXED — `flush()` runs the whole dirty set inside every tile bake — **P0**
 
-[`tileBakery.service.ts:460`](../src/draw/services/tileBakery.service.ts#L460)
+[`tileBakeryClient.ts:460`](../src/draw/rendering/bakery/tileBakeryClient.ts#L460)
 
 ```ts
 flush(w);                    // drains the GLOBAL dirty map, up to 192 items
@@ -74,7 +74,7 @@ flushObjects(w, objects);    // then the ones this tile actually needs
 ```
 
 `flush()` is bounded by `MAX_FLUSH_ITEMS = 192`
-([:215](../src/draw/services/tileBakery.service.ts#L215)) — but 192 fabric
+([:215](../src/draw/rendering/bakery/tileBakeryClient.ts#L215)) — but 192 fabric
 `toJSON()` calls is a **30–150 ms synchronous block** on a mid Android, and
 `postMessage` then structured-clones that whole payload on the calling thread.
 
@@ -89,13 +89,13 @@ Three things make it worse:
   `rebuildTile` can be interrupted. A single tile can hold the thread for 100 ms+.
 
 There is already an idle drain (`bakeryFlushSoon` → `requestIdleCallback`,
-[:216–237](../src/draw/services/tileBakery.service.ts#L216)). The bake-time
+[:216–237](../src/draw/rendering/bakery/tileBakeryClient.ts#L216)). The bake-time
 `flush()` bypasses it entirely and defeats its purpose.
 
 **Fix:** delete the unconditional `flush(w)` from `bakeryBakeTile` and
 `bakeryRenderOverview`. Keep only `flushObjects(w, objects)` — bounded by *this
 tile's* dirty objects, which is what correctness actually requires (the comment
-at [:283](../src/draw/services/tileBakery.service.ts#L283) already says so).
+at [:283](../src/draw/rendering/bakery/tileBakeryClient.ts#L283) already says so).
 Global drain stays on idle. Then measure whether `flushObjects` itself needs a
 cap + `missing`-driven retry for pathological tiles.
 
@@ -105,7 +105,7 @@ faster *and* it is chunkable, unlike structured clone.
 
 ### F2 — ✅ FIXED — The bakery permanently disables itself after 3 timeouts — **P0**
 
-[`tileBakery.service.ts:31,47,338`](../src/draw/services/tileBakery.service.ts#L31)
+[`tileBakeryClient.ts:31,47,338`](../src/draw/rendering/bakery/tileBakeryClient.ts#L31)
 
 ```ts
 const BAKE_TIMEOUT_MS = 2500;
@@ -113,7 +113,7 @@ const MAX_FAILURES = 3;
 ```
 
 `failures` resets to 0 only **after a successful bake**
-([:481](../src/draw/services/tileBakery.service.ts#L481)). With 4 lanes, four
+([:481](../src/draw/rendering/bakery/tileBakeryClient.ts#L481)). With 4 lanes, four
 requests are in flight at once. If the first pass is slow — cold worker, fabric
 module parse, a big board's first enliven, a device under memory pressure — all
 four time out before any success, `failures` hits 4, and `shutdown()` runs.
@@ -122,7 +122,7 @@ After shutdown:
 
 - Every tile bakes on the main thread via `isolatedTileRenderer`.
 - `dropRegionLight` flips from 0 sync tiles back to 8
-  ([`drawObjectManager.store.ts:804`](../src/draw/store/drawObjectManager.store.ts#L804)),
+  ([`drawObjectManager.ts`](../src/draw/canvas/drawObjectManager.ts)),
   adding 8 full object renders per drag commit.
 - The only signal is a `console.warn` nobody sees in production.
 
@@ -142,7 +142,7 @@ worker keeps rendering, the queue grows, every subsequent request times out too.
 
 ### F3 — ✅ MOSTLY FIXED (text + hybrid overlay) — Any text / image / group in a tile refuses the whole tile — **P0**
 
-[`tileBakery.service.ts:449–457`](../src/draw/services/tileBakery.service.ts#L449)
+[`tileBakeryClient.ts:449–457`](../src/draw/rendering/bakery/tileBakeryClient.ts#L449)
 
 ```ts
 if (a.text !== undefined) return null;
@@ -161,7 +161,7 @@ is the most likely direct cause of "it still lags when a tile changes."
 
 - **Phase A — fonts in the worker.** `WorkerGlobalScope.fonts` (FontFaceSet) +
   `new FontFace(...)` works in Chromium/Android WebView. Load the same faces as
-  [`text.helper.ts`](../src/draw/helpers/text.helper.ts) `loadFonts()` into the
+  [`text.helper.ts`](../src/draw/tools/textEditing.ts) `loadFonts()` into the
   worker at `initTileBakery`, feature-detect, and drop the text refusal when it
   succeeds. Removes the largest refusal class.
 - **Phase B — images as transferables.** Images never need `fetch` in the
@@ -169,7 +169,7 @@ is the most likely direct cause of "it still lags when a tile changes."
   transferable, keyed by src. Drops the `image` / `__hasImageClip` refusals.
 - **Phase C — hybrid tiles.** For anything still un-shippable, use the pattern
   `bakeryRenderOverview` already implements
-  ([:363–429](../src/draw/services/tileBakery.service.ts#L363)): worker returns a
+  ([:363–429](../src/draw/rendering/bakery/tileBakeryClient.ts#L363)): worker returns a
   bitmap plus a `skipped` list, main overlays only those objects. **Correct only
   when every skipped object's `__z` is above every shipped object's** — assert
   that, and fall back to a full local bake otherwise.
@@ -181,13 +181,13 @@ it tells us which phase is actually worth building.
 
 ### F4 — ✅ FIXED — Uncapped device pixel ratio — **P0 (GPU)**
 
-[`drawObjectManager.store.ts:662`](../src/draw/store/drawObjectManager.store.ts#L662)
+[`drawObjectManager.ts`](../src/draw/canvas/drawObjectManager.ts)
 
 ```ts
 getDpr: () => window.devicePixelRatio || 1,
 ```
 
-and [`fabricDefaults.helper.ts:193`](../src/draw/helpers/fabricDefaults.helper.ts#L193)
+and [`fabricSetup.ts:193`](../src/draw/canvas/fabricSetup.ts#L193)
 never sets `enableRetinaScaling`, so fabric defaults it **on** and sizes both the
 lower and upper canvases at full DPR.
 
@@ -198,10 +198,10 @@ Every frame does a full `clearRect` + `fillRect` over that
 ([`committedLayer.ts:340–345`](../src/draw/committedLayer.ts#L340)), plus
 `rerenderActiveObjectControls` clears the whole top context again whenever
 anything is selected
-([`renderCore.ts` → `afterComposite`, wired at `drawObjectManager.store.ts:680`](../src/draw/store/drawObjectManager.store.ts#L680)).
+([`renderEngine.ts` → `afterComposite`, wired in `drawObjectManager.ts`](../src/draw/canvas/drawObjectManager.ts)).
 
 The kicker: **tiles are baked at `maxRenderScale` ≤ 1.5–2 anyway**
-([`drawObjectManager.store.ts:695`](../src/draw/store/drawObjectManager.store.ts#L695)),
+([`drawObjectManager.ts`](../src/draw/canvas/drawObjectManager.ts)),
 so the extra device pixels are pure upscale for tile content. They only buy
 sharpness for text edit mode and selection controls.
 
@@ -248,14 +248,14 @@ Contributing:
 
 ### F6 — ✅ FIXED — `renderLive` forces `dirty = true` every frame — **P1**
 
-[`drawObjectManager.store.ts:454–486`](../src/draw/store/drawObjectManager.store.ts#L454)
+[`drawObjectManager.ts`](../src/draw/canvas/drawObjectManager.ts)
 
 ```ts
 a.objectCaching = false;
 a.dirty = true;
 ```
 
-[`isolatedTileRenderer`](../src/draw/helpers/drawTileRenderer.helper.ts#L106)
+[`isolatedTileRenderer`](../src/draw/rendering/fabricTileRenderer.ts#L106)
 deliberately does **not** do this, with a comment explaining exactly why: an
 object with a clipPath is force-cached by fabric (`needsItsOwnCache()`), and
 forcing `dirty` re-rasterizes the **whole clip stack** on every render — the
@@ -263,7 +263,7 @@ historical super-linear erase lag.
 
 `renderLive` does it unconditionally, every frame, for every live item. A live
 erased object therefore rebuilds its entire clip cache at 60 Hz. It also mutates
-`a.shadow.blur` per frame ([:468](../src/draw/store/drawObjectManager.store.ts#L468)).
+`a.shadow.blur` per frame ([drawObjectManager.ts](../src/draw/canvas/drawObjectManager.ts)).
 
 **Fix:** mirror the tile renderer — do not force `dirty`; apply the same
 `getTotalObjectScaling` override so the cache regenerates at the right
@@ -271,12 +271,12 @@ resolution by itself.
 
 ### F7 — `spatialIndex.query` allocates + sorts per tile — **P2**
 
-[`drawObjectManager.store.ts:166–177`](../src/draw/store/drawObjectManager.store.ts#L166)
+[`drawObjectManager.ts`](../src/draw/canvas/drawObjectManager.ts)
 
 Every tile bake allocates a new array and sorts it (~40 per bake pass), and
 `getZIndexMap()` rebuilds **O(all objects)** whenever `isZIndexDirty` — which is
 set on every `object:added` / `object:removed`
-([:496,:510](../src/draw/store/drawObjectManager.store.ts#L496)). During a remote
+([drawObjectManager.ts](../src/draw/canvas/drawObjectManager.ts)). During a remote
 sync burst that is a full rebuild between edits.
 
 **Fix:** reusable scratch array + insertion-sorted quadtree results; incremental
@@ -292,7 +292,7 @@ Give each lane its own yielder, or make the budget lane-aware.
 ### F9 — ✅ FIXED — No frame requested until the whole bake pass finishes — **P2 (perceived)**
 
 `rebuildTile` never repaints; only `runBake` does at the end
-([`renderCore.ts:200`](../src/draw/renderCore.ts#L200)). With 4 lanes over ~40
+([`renderEngine.ts:200`](../src/draw/rendering/renderEngine.ts#L200)). With 4 lanes over ~40
 tiles the viewport stays on fallback/overview for the entire pass. A coalesced
 `requestFrame()` on tile-stored (max one per RAF) would make the same work *feel*
 dramatically faster with no extra compute.
@@ -397,10 +397,10 @@ Changing the setting never hot-swaps a live canvas.
 | Finding | Change |
 | --- | --- |
 | F1 | `bakeryBakeTile` / `bakeryRenderOverview` no longer call the global `flush()`. Only `flushObjects(w, objects)` — bounded by the tile's own dirty objects — runs on the bake path; the rest of the dirty set drains on idle. `bakeryMarkDirty` now schedules that idle drain so the mirror still stays warm. |
-| F2 | Health model rewritten in [`tileBakery.service.ts`](../src/draw/services/tileBakery.service.ts). Timeouts abandon a request and no longer count as faults; only structured errors do, on a decaying budget. Cold start gets a 20 s timeout vs 8 s warm. In-flight requests are capped. Shutdown became a 30 s **pause + re-arm** with a fresh worker; permanent disable only after repeated pauses or an unsupported environment. |
+| F2 | Health model rewritten in [`tileBakeryClient.ts`](../src/draw/rendering/bakery/tileBakeryClient.ts). Timeouts abandon a request and no longer count as faults; only structured errors do, on a decaying budget. Cold start gets a 20 s timeout vs 8 s warm. In-flight requests are capped. Shutdown became a 30 s **pause + re-arm** with a fresh worker; permanent disable only after repeated pauses or an unsupported environment. |
 | F3 (text) | Worker now registers the app's own faces into its `FontFaceSet` ([`workerFonts.config.ts`](../src/draw/config/workerFonts.config.ts)) and reports which succeeded. Text is baked in the worker **only** for families it confirmed; anything else stays refused. |
 | F4 | `MAX_RENDER_SCALE` in [`renderQuality.config.ts`](../src/draw/config/renderQuality.config.ts) is now the single cap for the tile bake scale, fabric's `config.devicePixelRatio` and the composite DPR. Applied via `applyRenderDpr()` **before** `new Canvas` (fabric sizes the backing store in the constructor). Bucket fill's pixel read switched to `getRetinaScaling()` — it would otherwise have sampled the wrong pixel once the cap bit. |
-| — | [`drawMetrics.service.ts`](../src/draw/services/drawMetrics.service.ts): always-on counters for bakery pauses/disable, refusals by reason, flush ms, and a `longtask` observer. `__drawPerf()` in the console; `setDrawMetricsSink()` is the seam for a transport. |
+| — | [`renderMetrics.ts`](../src/draw/rendering/renderMetrics.ts): always-on counters for bakery pauses/disable, refusals by reason, flush ms, and a `longtask` observer. `__drawPerf()` in the console; `setDrawMetricsSink()` is the seam for a transport. |
 
 **P1**
 
@@ -414,9 +414,9 @@ Changing the setting never hot-swaps a live canvas.
 
 | Finding | Change |
 | --- | --- |
-| F3-C (hybrid tiles) | [`bakeryBakeTile`](../src/draw/services/tileBakery.service.ts) now **partitions** a tile's objects: everything the worker can render (all stroke types + text with a loaded face) is baked off-thread; whatever it can't (an image, a group, unloaded-font text) is returned in `skipped` and overlaid on the main thread by `CommittedLayer.overlaySkipped`. Correctness rests on one guard — the shippable set must be a z-**prefix** (all skipped objects sit above everything baked); the moment a shippable object appears above a skipped one, the z-orders interleave and it bails to a full local bake (`refuse("zorder")`). Transiently-hidden objects render in neither layer. So a board of strokes-plus-stickers now bakes the strokes off-thread and only paints the sticker locally, instead of refusing the whole tile. `tilesHybrid` / `hybridSkippedTotal` track it. |
+| F3-C (hybrid tiles) | [`bakeryBakeTile`](../src/draw/rendering/bakery/tileBakeryClient.ts) now **partitions** a tile's objects: everything the worker can render (all stroke types + text with a loaded face) is baked off-thread; whatever it can't (an image, a group, unloaded-font text) is returned in `skipped` and overlaid on the main thread by `CommittedLayer.overlaySkipped`. Correctness rests on one guard — the shippable set must be a z-**prefix** (all skipped objects sit above everything baked); the moment a shippable object appears above a skipped one, the z-orders interleave and it bails to a full local bake (`refuse("zorder")`). Transiently-hidden objects render in neither layer. So a board of strokes-plus-stickers now bakes the strokes off-thread and only paints the sticker locally, instead of refusing the whole tile. `tilesHybrid` / `hybridSkippedTotal` track it. |
 | F8 (per-lane yielders) | Each of the 4 bake lanes gets its OWN yielder. The single shared one had every lane `reset()` the same budget timer, collapsing the effective per-lane budget to `budgetMs / lanes`. |
-| F9 (progressive repaint) | `CommittedLayer.bake` takes an `onProgress` callback invoked after each tile stores; `RenderCore.requestBakeProgressFrame` composites the partial result on a coalesced RAF. The viewport now fills in tile-by-tile instead of staying on the overview/fallback for the whole ~40-tile pass. Deliberately bypasses `renderNow` so it doesn't re-trigger `scheduleBake` mid-pass. |
+| F9 (progressive repaint) | `CommittedLayer.bake` takes an `onProgress` callback invoked after each tile stores; `RenderEngine.requestBakeProgressFrame` composites the partial result on a coalesced RAF. The viewport now fills in tile-by-tile instead of staying on the overview/fallback for the whole ~40-tile pass. Deliberately bypasses `renderNow` so it doesn't re-trigger `scheduleBake` mid-pass. |
 
 ### Measured locally after the second pass
 
@@ -520,7 +520,7 @@ in — the exact bug the object tier-scale fix already solved for objects, never
 applied to the clip.
 
 **Fixed:** both bake paths — `prepareForBake`
-([`drawTileRenderer.helper.ts`](../src/draw/helpers/drawTileRenderer.helper.ts))
+([`drawTileRenderer.helper.ts`](../src/draw/rendering/fabricTileRenderer.ts))
 and the worker's `applyTierScaling`
 ([`tileBakery.worker.ts`](../src/draw/workers/tileBakery.worker.ts)) — now
 recurse into `obj.clipPath`, giving the clip and its stroke children the same
@@ -577,7 +577,7 @@ Falls back to the full sync repair only when the bakery is unavailable.
 The move diff is stored as `{ forward, backward }` deltas and applied by
 subtraction from live props. That is **mathematically reversible** (left/top/
 scale/angle are all linear), so pure move undo/redo round-trips exactly. It is
-also the **multiplayer wire format** (`drawSyncEngine`, `drawSyncing.config`) —
+also the **multiplayer wire format** (`drawSyncEngine`, `syncActions`) —
 switching to absolute before/after states would break mixed-client sync, so it
 stays diff-shaped.
 
@@ -653,8 +653,8 @@ Report: zoom into a dense board, wait until the tiles are **about to sharpen**,
 then start a gesture — it hitches. That moment is peak worker + GPU load, and
 the abort path turned out to be main-thread-only.
 
-`onGestureStart` → `RenderCore.setGesturing(true)` → `abortBakes()` flips an
-`AbortController` ([`renderCore.ts:579`](../src/draw/renderCore.ts#L579)). That
+`onGestureStart` → `RenderEngine.setGesturing(true)` → `abortBakes()` flips an
+`AbortController` ([`renderEngine.ts:579`](../src/draw/rendering/renderEngine.ts#L579)). That
 stops the main-thread `drain()` loop and nothing else. Four consequences, all
 fixed below.
 
@@ -761,7 +761,7 @@ user did. Right after loading a heavy board the overview is dirty
 (`markAllDirty()`), so a rebuild is exactly what is running when the user's first
 zoom arrives.
 
-**Fixed:** `RenderCore` tracks `overviewCtrl`; `abortBakes()` aborts it alongside
+**Fixed:** `RenderEngine` tracks `overviewCtrl`; `abortBakes()` aborts it alongside
 the bake, and `setGesturing(false)` re-arms via `scheduleOverviewRebuild()` when
 the overview is still dirty (nothing else would — `patchOverview` only schedules
 on a patch *failure*, so an interrupted rebuild would otherwise never finish).
@@ -790,7 +790,7 @@ every 128 objects and abort-checked.
 ### R26 — ✅ FIXED — R22's pause moved the flush cost onto the bake path — **P2**
 
 Parking the idle drain for the gesture (R22) meant the dirty set was still deep
-when the gesture ended. `RenderCore` restarts the bake `bakeDebounce` (80ms)
+when the gesture ended. `RenderEngine` restarts the bake `bakeDebounce` (80ms)
 later, and everything not yet shipped is then paid for by `flushObjects` *inside
 each tile's un-yieldable prologue* — a structured clone per tile. A plain idle
 callback (timeout 500) routinely lost that race, so the pause relocated the cost
@@ -955,7 +955,7 @@ latency on every pan and zoom reads exactly like "the main thread is busy" even
 when it is completely idle, and `touchmove` being a non-passive listener means
 nothing can hide it.
 
-**Fixed:** `RenderCore.renderFrameNow()` composites synchronously for callers
+**Fixed:** `RenderEngine.renderFrameNow()` composites synchronously for callers
 already inside a RAF, and cancels any frame already queued so it supersedes it
 rather than doubling the work (hence `frameRaf` now being tracked).
 
@@ -1548,7 +1548,7 @@ three separate `toJSON()` calls off the **same** `object:added` dispatch:
 At ~0.2 ms desktop / ~2 ms mid-Android for a long stroke, that is ~6 ms per
 stroke on the very frame that is also stamping tiles.
 
-**Fixed** with `serializeOnce()` (`helpers/object.helper.ts`): `toJSON()` memoized
+**Fixed** with `serializeOnce()` (`objects/objectSerialization.ts`): `toJSON()` memoized
 per object per **microtask tick**. All three consumers now share one result, and
 the bakery is seeded from it directly (`bakerySeed(obj, serializeOnce(obj))`)
 instead of marking dirty and re-serializing later. **3 → 1.**
@@ -1579,7 +1579,7 @@ after tick + mutation -> recomputes, reflects the new value, no stale reuse
 ## Ninth review — full sweep for remaining main-thread blockers
 
 Targeted scan of `drawObjectManager`, `drawHistoryManager`, `drawSyncEngine` +
-`drawSyncing.config`, `renderCore`, `committedLayer`, `worldOverview` and the
+`syncActions`, `RenderEngine`, `CommittedLayer`, `WorldOverview`, and the
 eraser, looking for the classic blockers: unbounded synchronous loops, pixel
 readbacks, image encodes, clones, and serialization on hot paths.
 
@@ -2057,7 +2057,7 @@ overlaid main-side). All four `img` outputs are **previews/thumbnails** — the
 real drawing is sent/saved as JSON and re-rendered by the recipient. So the
 right move is:
 
-1. Expose `RenderCore.exportContentBitmap(maxSize)` that composites the tiles
+1. Expose `RenderEngine.exportContentBitmap(maxSize)` that composites the tiles
    (or the overview for small targets) covering `contentBounds` into an
    `OffscreenCanvas` — O(tiles) `drawImage`, no per-object render, includes
    everything already baked. For a 300–400px thumbnail the overview alone is
@@ -2165,8 +2165,8 @@ board is O(1) per stroke again.
 
 ## History subsystem audit
 
-[`drawHistoryManager.store.ts`](../src/draw/store/drawHistoryManager.store.ts) +
-[`drawHistory.config.ts`](../src/draw/config/drawHistory.config.ts).
+[`history.store.ts`](../src/draw/history/history.store.ts) +
+[`historyActions.ts`](../src/draw/history/historyActions.ts).
 
 **Headline: history is not a major CPU offender, but it had an unbounded memory
 path.** Worth stating plainly, because the obvious suspect — `toJSON()` on every
@@ -2278,7 +2278,7 @@ the case that takes the "insert underneath" branch) produced
 `modifiedPixelsCount === 0` → `ok: false` with no `tooLarge` → `bucketFill`
 returned null → `if (!img) return` in the tool. Completely silent, no toast.
 
-Fixed in [`bucketFill.worker.ts`](../src/draw/helpers/tools/bucketFill.worker.ts):
+Fixed in [`bucketFill.worker.ts`](../src/draw/tools/bucketFill.worker.ts):
 the scan now uses a **sentinel** colour picked by seed luminance (black or
 white, always far outside the tolerance), and the contour field is built from
 `getFilledMask()` rather than re-scanning for pixels matching the fill colour.
@@ -2292,7 +2292,7 @@ background) a fill is now created and lands at z below every intersecting
 stroke; the normal different-colour path is geometrically unchanged.
 
 **Worth noting separately:** `if (!img) return` in
-[`bucket.store.ts`](../src/draw/store/tools/bucket.store.ts) still swallows every
+[`bucket.store.ts`](../src/draw/tools/bucket.store.ts) still swallows every
 other failure mode without feedback. Only `tooLarge` toasts.
 
 ---

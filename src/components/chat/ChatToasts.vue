@@ -21,7 +21,7 @@ import { storeToRefs } from "pinia";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useAuthStore } from "@/store/auth.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";

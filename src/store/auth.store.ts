@@ -107,7 +107,11 @@ export const useAuthStore = defineStore("auth", () => {
 			isAuthLoading.value = false;
 
 			const currentPath = router.currentRoute.value.path;
-			if (currentPath !== `/${FRONTEND_ROUTES.login}`) {
+			const isDevBenchmark = import.meta.env.DEV && currentPath === "/bench";
+			if (
+				currentPath !== `/${FRONTEND_ROUTES.login}` &&
+				!isDevBenchmark
+			) {
 				ionRouter.replace(FRONTEND_ROUTES.login, masterAnimation);
 			}
 			return;

@@ -1,9 +1,23 @@
 import * as fabric from "fabric";
 import { Canvas, FabricObject, Group, Path, PencilBrush } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
-import { bakeryMarkDirty } from "@/draw/services/tileBakery.service";
-import { stripType, toObjectWithoutPath } from "@/draw/utils/brushes/brush.helpers";
-import { createYielder } from "@/draw/helpers/yielding.helper";
+import { bakeryMarkDirty } from "@/draw/rendering/bakery/tileBakeryClient";
+import { restoreStrokeDefaults } from "@/draw/objects/strokeDefaults";
+import {
+	stripType,
+	toObjectWithoutPath,
+} from "@/draw/utils/brushes/brush.helpers";
+import { createYielder } from "@/draw/scheduling/yielder";
+import {
+	FLATTEN_ERASE_CLIP_AFTER,
+	LIVE_ERASE_STROKES,
+} from "@/draw/history/eraseUndoPolicy";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { TracedPath } from "@/draw/utils/brushes/TracedPath";
+import {
+	activeLayerId,
+	isLayerHidden,
+} from "@/draw/layers/layerRegistry";
 
 const IS_MOBILE_ERASE =
 	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
@@ -45,7 +59,7 @@ const drawImage = (
 	destination: CanvasRenderingContext2D,
 	source: CanvasRenderingContext2D,
 	globalCompositeOperation: GlobalCompositeOperation = "source-over",
-	clipRect?: { x: number; y: number; w: number; h: number }
+	clipRect?: { x: number; y: number; w: number; h: number },
 ) => {
 	destination.save();
 	destination.imageSmoothingEnabled = true;
@@ -76,7 +90,7 @@ const erase = (
 	destination: CanvasRenderingContext2D,
 	source: CanvasRenderingContext2D,
 	erasingEffect?: CanvasRenderingContext2D,
-	clipRect?: { x: number; y: number; w: number; h: number }
+	clipRect?: { x: number; y: number; w: number; h: number },
 ) => {
 	// clip destination
 	drawImage(destination, source, "destination-out", clipRect);
@@ -145,13 +159,19 @@ function draw(
 		background?: FabricObject;
 		overlay?: FabricObject;
 	},
+	/** What counts as erasable for THIS stroke. Anything it rejects is rendered
+	 *  at full opacity into the mask, i.e. protected from the stroke. */
+	isErasable: (object: FabricObject) => boolean = (object) => !!object.erasable,
 ) {
 	// prepare tree
 	const alpha = 1 - opacity;
-	const restore = walk2([
-		...objects,
-		...([background, overlay] as FabricObject[]).filter((d) => !!d),
-	]).map((object) => {
+	const restore = walk2(
+		[
+			...objects,
+			...([background, overlay] as FabricObject[]).filter((d) => !!d),
+		],
+		isErasable,
+	).map((object) => {
 		if (!inverted) {
 			//  render only non-erasable objects
 			const opacity = object.opacity;
@@ -186,24 +206,31 @@ function draw(
 	});
 }
 
-function walk(objects: FabricObject[], path: Path): FabricObject[] {
+function walk(
+	objects: FabricObject[],
+	path: Path,
+	isErasable: (object: FabricObject) => boolean = (object) => !!object.erasable,
+): FabricObject[] {
 	return objects.flatMap((object) => {
-		if (!object.erasable || !object.intersectsWithObject(path)) {
+		if (!isErasable(object) || !object.intersectsWithObject(path)) {
 			return [];
 		} else if (object instanceof Group && object.erasable === "deep") {
-			return walk(object.getObjects(), path);
+			return walk(object.getObjects(), path, isErasable);
 		} else {
 			return [object];
 		}
 	});
 }
 
-function walk2(objects: FabricObject[]): FabricObject[] {
+function walk2(
+	objects: FabricObject[],
+	isErasable: (object: FabricObject) => boolean = (object) => !!object.erasable,
+): FabricObject[] {
 	return objects.flatMap((object) => {
-		if (!object.erasable || object.isNotVisible()) {
+		if (!isErasable(object) || object.isNotVisible()) {
 			return [];
 		} else if (object instanceof Group && object.erasable === "deep") {
-			return walk2(object.getObjects());
+			return walk2(object.getObjects(), isErasable);
 		} else {
 			return [object];
 		}
@@ -259,13 +286,17 @@ export function commitErasing(
 /**
  * Fast per-target stroke clone. `source.clone()` is a full
  * toObject → compressedTrace → fromObject → SVG-parse round trip PER erased
- * object — a long stroke over many targets made commit() jank. The parsed
- * path array is never mutated (only transform props change via
- * sendObjectToPlane), so sharing it by reference is safe. `id` must be copied:
- * erase-undo removes clip children by stroke id.
+ * object — a long stroke over many targets made commit() jank. TracedPath
+ * geometry is immutable, so every per-target clip clone shares the same typed
+ * buffers while keeping its own transform. `id` must be copied: erase-undo
+ * removes clip children by stroke id.
  */
 function clonePathForErase(source: fabric.Path): fabric.Path {
-	const clone = new OptimizedEraserStroke(source.path as any, {
+	const geometry =
+		source instanceof TracedPath && source._hasCompactPathGeometry()
+			? source
+			: source.path;
+	const clone = new OptimizedEraserStroke(geometry as any, {
 		id: (source as any).id,
 		left: source.left,
 		top: source.top,
@@ -306,7 +337,6 @@ export async function eraseObject(
 	return clone;
 }
 
-
 export async function eraseCanvasDrawable(
 	object: fabric.FabricObject,
 	vpt: fabric.TMat2D | undefined,
@@ -330,12 +360,12 @@ export async function eraseCanvasDrawable(
 		undefined,
 		d
 			? fabric.util.multiplyTransformMatrixArray([
-				[1, 0, 0, 1, d.x, d.y],
-				// apply vpt from center of drawable
-				vpt,
-				[1, 0, 0, 1, -d.x, -d.y],
-				object.calcTransformMatrix(),
-			])
+					[1, 0, 0, 1, d.x, d.y],
+					// apply vpt from center of drawable
+					vpt,
+					[1, 0, 0, 1, -d.x, -d.y],
+					object.calcTransformMatrix(),
+				])
 			: object.calcTransformMatrix(),
 	);
 	commitErasing(object, clone);
@@ -424,22 +454,37 @@ export class CustomEraserBrush extends PencilBrush {
 	targetCandidatesProvider?: (path: Path) => FabricObject[];
 
 	/**
+	 * Optional. Overrides what this brush treats as erasable, for BOTH the live
+	 * mask and the committed targets.
+	 *
+	 * Layer scoping needs exactly this. Restricting only the target candidates
+	 * fixes the commit but not the stroke: {@link drawEffect} dims every erasable
+	 * object under the pointer, so content on other layers visibly disappeared
+	 * while erasing and snapped back on release. Rejecting it here renders it at
+	 * full opacity into the mask instead — protected, like a non-erasable object.
+	 *
+	 * NB this must never mutate `obj.erasable`: that property is serialized
+	 * (customProperties), so a mutation would persist and sync to peers.
+	 */
+	erasableFilter?: (object: FabricObject) => boolean;
+
+	/**
 	 * Once an object's ClippingGroup holds more than this many eraser strokes,
 	 * the strokes are collapsed into a single cached bitmap mask (see
 	 * {@link bakeClipGroupIfNeeded}). This bounds the per-render clip cost, which
 	 * otherwise grows with every erase and makes repeated erasing super-linear.
 	 * Set to 0 to disable (keep fully-vector clips).
 	 */
-	flattenClipAfter = 50;
+	flattenClipAfter = FLATTEN_ERASE_CLIP_AFTER;
 
 	/**
 	 * When a flatten fires, this many of the NEWEST stroke children are kept as
 	 * individual vectors (with their ids) so undo — which removes a stroke from
 	 * the clip by id — still works for recent erases. Only the older overflow is
 	 * baked into the single union image. Keep this comfortably above the erase
-	 * undo depth a user realistically reaches on ONE object; MAX_HISTORY is 50.
+	 * undo depth retained by history.
 	 */
-	keepVectorClips = 40;
+	keepVectorClips = LIVE_ERASE_STROKES;
 
 	private eventEmitter: EventTarget;
 	private active = false;
@@ -490,6 +535,7 @@ export class CustomEraserBrush extends PencilBrush {
 	}
 
 	drawEffect() {
+		if (isLayerHidden(activeLayerId())) return;
 		// Narrow the mask render to the provided objects when available.
 		const objects = this.protectObjectsProvider?.();
 		draw(
@@ -499,6 +545,7 @@ export class CustomEraserBrush extends PencilBrush {
 				inverted: this.inverted,
 			},
 			objects ? { canvas: this.canvas, objects } : { canvas: this.canvas },
+			this.erasableFilter,
 		);
 	}
 
@@ -523,13 +570,17 @@ export class CustomEraserBrush extends PencilBrush {
 	 */
 	_render(ctx: CanvasRenderingContext2D = this.canvas.getTopContext()): void {
 		super._render(ctx);
+		if (isLayerHidden(activeLayerId())) return;
 
 		// 1. Grab the points of the current stroke
 		const points = this["_points"];
 		if (!points || points.length === 0) return;
 
 		// 2. Calculate the World bounding box of the stroke so far
-		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		let minX = Infinity,
+			minY = Infinity,
+			maxX = -Infinity,
+			maxY = -Infinity;
 		for (const p of points) {
 			minX = Math.min(minX, p.x);
 			minY = Math.min(minY, p.y);
@@ -539,7 +590,9 @@ export class CustomEraserBrush extends PencilBrush {
 
 		// 3. Convert to physical screen pixels
 		const vpt = this.canvas.viewportTransform!;
-		const dpr = this.canvas.getRetinaScaling ? this.canvas.getRetinaScaling() : (window.devicePixelRatio || 1);
+		const dpr = this.canvas.getRetinaScaling
+			? this.canvas.getRetinaScaling()
+			: window.devicePixelRatio || 1;
 
 		// Pad the box by the brush width to ensure smooth anti-aliased edges aren't clipped
 		const pad = (this.width / 2) * vpt[0] * dpr + 5;
@@ -552,8 +605,8 @@ export class CustomEraserBrush extends PencilBrush {
 		const clipRect = {
 			x: screenMinX - pad,
 			y: screenMinY - pad,
-			w: (screenMaxX - screenMinX) + pad * 2,
-			h: (screenMaxY - screenMinY) + pad * 2
+			w: screenMaxX - screenMinX + pad * 2,
+			h: screenMaxY - screenMinY + pad * 2,
 		};
 
 		// 4. Pass the clipRect to drastically limit the GPU copy operation!
@@ -593,8 +646,8 @@ export class CustomEraserBrush extends PencilBrush {
 		// attach after:render handler once
 		if (!this._afterRenderHandler) {
 			this._afterRenderHandler = ({
-																		ctx,
-																	}: {
+				ctx,
+			}: {
 				ctx: CanvasRenderingContext2D;
 			}) => {
 				if (ctx !== this.canvas.getContext()) return;
@@ -680,14 +733,14 @@ export class CustomEraserBrush extends PencilBrush {
 			// Inject the @erase2d specific logic
 			...(this.inverted
 				? {
-					globalCompositeOperation: "source-over",
-					stroke: "white",
-				}
+						globalCompositeOperation: "source-over",
+						stroke: "white",
+					}
 				: {
-					globalCompositeOperation: "destination-out",
-					stroke: "black",
-					opacity: new fabric.Color(this.color).getAlpha(),
-				}),
+						globalCompositeOperation: "destination-out",
+						stroke: "black",
+						opacity: new fabric.Color(this.color).getAlpha(),
+					}),
 		});
 
 		if (this.shadow) {
@@ -733,9 +786,9 @@ export class CustomEraserBrush extends PencilBrush {
 	}
 
 	async commit({
-								 path,
-								 targets,
-							 }: EventDetailMap["end"]): Promise<Map<fabric.FabricObject, fabric.Path>> {
+		path,
+		targets,
+	}: EventDetailMap["end"]): Promise<Map<fabric.FabricObject, fabric.Path>> {
 		// A big erase hits MANY objects. `eraseObject` per target — clone the
 		// stroke into the object plane + add a clip child — is synchronous, and
 		// running them all through Promise.all fired every body back-to-back with
@@ -745,9 +798,17 @@ export class CustomEraserBrush extends PencilBrush {
 		// is purely about spacing them, not concurrency — order is irrelevant
 		// (destination-out masks commute).
 		const result = new Map<fabric.FabricObject, fabric.Path>();
-		const yielder = createYielder({ budgetMs: IS_MOBILE_ERASE ? 4 : 8 });
+		const yielder = createYielder({
+			budgetMs: IS_MOBILE_ERASE ? 4 : 8,
+			label: "erase-apply",
+		});
 		for (const object of targets) {
-			result.set(object, await eraseObject(object, path));
+			const startedAt = performance.now();
+			try {
+				result.set(object, await eraseObject(object, path));
+			} finally {
+				recordPhase("eraseClipApply", performance.now() - startedAt);
+			}
 			if (yielder.shouldYield()) await yielder.yield();
 		}
 
@@ -823,7 +884,14 @@ export class CustomEraserBrush extends PencilBrush {
 		if (!(cg instanceof ClippingGroup)) return;
 
 		const children = cg.getObjects();
-		if (children.length <= this.flattenClipAfter) return;
+		const bakedImages = children.filter((child) => child.type === "image");
+		const vectorStrokes = children.filter((child) => child.type !== "image");
+		if (
+			vectorStrokes.length <= this.flattenClipAfter &&
+			bakedImages.length <= 1
+		) {
+			return;
+		}
 
 		// PARTIAL flatten: bake only the OLDEST overflow, keep the newest
 		// `keepVectorClips` as individual vector children WITH their stroke ids so
@@ -831,7 +899,13 @@ export class CustomEraserBrush extends PencilBrush {
 		// destination-out is commutative over the mask union, so baking a subset
 		// and keeping the rest yields the identical hole. (A full flatten wiped
 		// EVERY id, which is why undo stopped matching the original.)
-		const toBake = children.slice(0, children.length - this.keepVectorClips);
+		const vectorOverflow = vectorStrokes.slice(
+			0,
+			Math.max(0, vectorStrokes.length - this.keepVectorClips),
+		);
+		// Include an existing baked image so every compaction replaces it instead
+		// of accumulating one image child per batch.
+		const toBake = [...bakedImages, ...vectorOverflow];
 		if (toBake.length === 0) return;
 
 		// Render the union of the existing strokes' SHAPES (force source-over so
@@ -858,7 +932,9 @@ export class CustomEraserBrush extends PencilBrush {
 		if (area > MAX_BAKE_PX) multiplier *= Math.sqrt(MAX_BAKE_PX / area);
 
 		// @ts-ignore — toCanvasElement exists on Group
+		const flattenStartedAt = performance.now();
 		const el: HTMLCanvasElement = union.toCanvasElement({ multiplier });
+		recordPhase("eraseClipFlatten", performance.now() - flattenStartedAt);
 		if (!el.width || !el.height) return;
 
 		const baked = new fabric.Image(el, {
@@ -909,8 +985,10 @@ export class CustomEraserBrush extends PencilBrush {
 		// limit; dropping the oldest just makes those very old erases
 		// un-undoable, which is exactly the pre-fix behaviour.
 		const RETAIN_CAP = 400;
-		const prevRetained: FabricObject[] = (object as any).__bakedClipStrokes ?? [];
-		let retained = [...prevRetained, ...toBake];
+		const prevRetained: FabricObject[] = (
+			(object as any).__bakedClipStrokes ?? []
+		).filter((child: FabricObject) => child.type !== "image");
+		let retained = [...prevRetained, ...vectorOverflow];
 		if (retained.length > RETAIN_CAP) {
 			const drop = retained.slice(0, retained.length - RETAIN_CAP);
 			drop.forEach((s) => (s as any).dispose?.());
@@ -944,7 +1022,7 @@ export class CustomEraserBrush extends PencilBrush {
 		const candidates = this.targetCandidatesProvider
 			? this.targetCandidatesProvider(path)
 			: this.canvas.getObjects();
-		const targets = walk(candidates, path);
+		const targets = walk(candidates, path, this.erasableFilter);
 
 		const r = path.getBoundingRect(true, true);
 
@@ -981,11 +1059,19 @@ export class CustomEraserBrush extends PencilBrush {
 	}
 }
 
-export class OptimizedEraserStroke extends Path {
+export class OptimizedEraserStroke extends TracedPath {
 	static type = "OptimizedEraserStroke";
 
-	constructor(path: string | any[], options: any) {
-		super(path, options);
+	constructor(path: string | any[] | TracedPath, options: any) {
+		const sharedSource =
+			path instanceof TracedPath && path._hasCompactPathGeometry() ? path : null;
+		// Like pencil, the packed geometry can regenerate compressedTrace. Keeping
+		// the loaded JSON array would retain a second copy for every clip clone.
+		const { compressedTrace: _compressedTrace, ...pathOptions } = options || {};
+		super(sharedSource ? [] : (path as string | any[]), pathOptions);
+		if (sharedSource && !this._shareCompactPathGeometryFrom(sharedSource)) {
+			throw new Error("Could not share compact eraser geometry");
+		}
 	}
 
 	// @ts-ignore
@@ -1003,12 +1089,10 @@ export class OptimizedEraserStroke extends Path {
 		let lastX = 0,
 			lastY = 0;
 
-		for (const cmd of this.path) {
-			const type = cmd[0];
-
+		this._forEachPathCommand((type, coordinates, offset) => {
 			if (type === "M" || type === "L") {
-				const ix = Math.round((cmd[1] as number) * 10);
-				const iy = Math.round((cmd[2] as number) * 10);
+				const ix = Math.round((coordinates[offset] as number) * 10);
+				const iy = Math.round((coordinates[offset + 1] as number) * 10);
 
 				if (type === "M") {
 					compressedTrace.push("M", ix, iy);
@@ -1018,10 +1102,10 @@ export class OptimizedEraserStroke extends Path {
 				lastX = ix;
 				lastY = iy;
 			} else if (type === "Q") {
-				const icpx = Math.round((cmd[1] as number) * 10);
-				const icpy = Math.round((cmd[2] as number) * 10);
-				const ix = Math.round((cmd[3] as number) * 10);
-				const iy = Math.round((cmd[4] as number) * 10);
+				const icpx = Math.round((coordinates[offset] as number) * 10);
+				const icpy = Math.round((coordinates[offset + 1] as number) * 10);
+				const ix = Math.round((coordinates[offset + 2] as number) * 10);
+				const iy = Math.round((coordinates[offset + 3] as number) * 10);
 
 				compressedTrace.push(
 					"Q",
@@ -1033,7 +1117,7 @@ export class OptimizedEraserStroke extends Path {
 				lastX = ix;
 				lastY = iy;
 			}
-		}
+		});
 
 		return {
 			...baseObj,
@@ -1043,7 +1127,8 @@ export class OptimizedEraserStroke extends Path {
 
 	static async fromObject(object: any) {
 		// INFLATION: Convert the flat delta array back into an SVG string
-		if (object.compressedTrace && !object.path) {
+		let path = object.path;
+		if (object.compressedTrace && !path) {
 			let svg = "";
 			let lastX = 0,
 				lastY = 0;
@@ -1079,10 +1164,15 @@ export class OptimizedEraserStroke extends Path {
 					i++;
 				}
 			}
-			object.path = svg.trim();
+			path = svg.trim();
 		}
 		// stripType: this path bypasses enlivenStrokeProps, so `type` would reach
 		// the constructor and trigger fabric's "Setting type has no effect" log.
-		return new OptimizedEraserStroke(object.path, stripType(object));
+		// It bypasses the default RESTORE for the same reason, so do it here —
+		// `toObjectWithoutPath` stripped them on the way out.
+		return new OptimizedEraserStroke(
+			path,
+			restoreStrokeDefaults(stripType(object)),
+		);
 	}
 }

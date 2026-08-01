@@ -19,11 +19,11 @@
 </template>
 
 <script setup lang="ts">
-import { useDrawStore } from '@/draw/store/draw.store'
+import { useDrawStore } from '@/draw/session/draw.store'
 import ToolButton from './ToolButton.vue'
 import { mdiClose } from '@mdi/js'
 import { svg } from '@/helper/general.helper'
-import { DrawAction } from '@/draw/types/draw.types'
+import { DrawAction } from "@/draw/actions/drawAction.types";
 
 const { selectAction } = useDrawStore()
 

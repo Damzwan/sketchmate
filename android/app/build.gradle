@@ -17,7 +17,7 @@ android {
         applicationId "ninja.sketchmate.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 137
+        versionCode 138
         versionName "0.4.3"
         testInstrumentationRunner "androi dx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -28,7 +28,7 @@ android {
         release {
             // Clears the Play vitals "app is not optimized" warning and cuts
             // APK size / cold start. Does NOT touch the WebView, so it does not
-            // affect the draw-engine ANRs (docs/DRAW_ENGINE_PERF.md, F10).
+            // affect the draw-engine ANRs (docs/DRAW_ENGINE_PERF.md, F1ch0).
             //
             // Capacitor discovers plugins reflectively — see proguard-rules.pro.
             // SMOKE-TEST A RELEASE BUILD before shipping: push notifications,

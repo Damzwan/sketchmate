@@ -105,8 +105,9 @@ import {
   mdiStickerEmoji
 } from '@mdi/js'
 import { computed, ref, watch } from 'vue'
-import { DrawAction, Menu } from '@/draw/types/draw.types'
-import { useDrawStore } from '@/draw/store/draw.store'
+import { DrawAction } from "@/draw/actions/drawAction.types";
+import { Menu } from "@/types/menu.types";
+import { useDrawStore } from '@/draw/session/draw.store'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { useMenuStore } from '@/store/menu.store'
 import ImageCropper from '@/components/draw/ImageCropper.vue'
@@ -114,10 +115,10 @@ import { storeToRefs } from 'pinia'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
 import { useAuthStore } from '@/store/auth.store'
 
-import { createSketchFromDataURL } from '@/draw/helpers/export.helper'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useClaimArea } from '@/draw/store/claimArea.store'
-import { useDrawSyncer } from '@/draw/store/drawSyncing.store'
+import { createSketchFromDataURL } from '@/draw/document/export'
+import { useDrawUIStore } from '@/draw/ui/drawUI.store'
+import { useClaimArea } from '@/draw/claims/claimArea.store'
+import { useDrawSyncer } from '@/draw/sync/session.store'
 
 const claimArea = useClaimArea()
 const { roomId } = storeToRefs(useDrawSyncer())

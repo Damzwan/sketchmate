@@ -79,15 +79,15 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 import { LocalStorage } from '@/types/storage.types'
 
-import { DrawAction } from '@/draw/types/draw.types'
-import { useDrawStore } from '@/draw/store/draw.store'
+import { DrawAction } from "@/draw/actions/drawAction.types";
+import { useDrawStore } from '@/draw/session/draw.store'
 import { storeToRefs } from 'pinia'
 import { isMobile, svg } from '@/helper/general.helper'
 import { mdiEyedropper, mdiChevronRight } from '@mdi/js'
 import { v4 as uuidv4 } from 'uuid'
 import Picker from 'vanilla-picker'
-import { useDrawEventManager } from '@/draw/store/drawEventManager.store'
-import { exitColorPickerMode } from '@/draw/actions/color.action'
+import { useDrawEventManager } from '@/draw/canvas/drawEventManager'
+import { exitColorPickerMode } from '@/draw/tools/colorActions'
 import {
   alphaHexToPercent,
   getColorRecommendations,
@@ -97,8 +97,8 @@ import {
 } from '@/draw/utils/color.utils'
 import { BLACK, COLORSWATCHES } from '@/draw/config/canvas.config'
 import { ERASERS, PENMENUTOOLS } from '@/draw/config/tools.config'
-import { useDrawUIStore } from '@/draw/store/drawUI.store'
-import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
+import { useDrawUIStore } from '@/draw/ui/drawUI.store'
+import { useToolSelection } from '@/draw/tools/toolSelection.store'
 
 const hmm = ref()
 const customColorPopoverId = uuidv4()

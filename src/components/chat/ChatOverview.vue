@@ -235,7 +235,7 @@ import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
-import { useDrawSyncer } from "@/draw/store/drawSyncing.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { MIN_CHAT_VERSION } from "@/config/general.config";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useQuotaStore } from "@/store/quota.store";

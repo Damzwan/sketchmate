@@ -3,31 +3,33 @@ import { storeToRefs } from "pinia";
 import {
 	LobbyChatItem,
 	useDrawSyncer,
-} from "@/draw/store/drawSyncing.store";
-import { useDrawSyncEngine } from "@/draw/store/drawSyncEngine.store";
+} from "@/draw/sync/session.store";
+import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
 import { useToast } from "@/service/toast.service";
-import { useDrawStore } from "@/draw/store/draw.store";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { SOCKET_ENDPONTS } from "@/types/server.types";
 import { ToastDuration } from "@/types/toast.types";
 import { useAuthStore } from "@/store/auth.store";
-import { exportBoundingBoxImage } from "@/draw/helpers/export.helper";
-import { fitToDensestRegion } from "@/draw/helpers/viewport.helper";
+import { exportBoundingBoxImage } from "@/draw/document/export";
+import { fitToDensestRegion } from "@/draw/canvas/viewport";
 import { useFriendStore } from "@/store/friend.store";
-import { useDrawObjectManager } from "@/draw/store/drawObjectManager.store";
-import { useClaimArea } from "@/draw/store/claimArea.store";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { useModerationStore } from "@/store/moderation.store";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/draw/types/draw.types";
+import { Menu } from "@/types/menu.types";
 import {
 	addRoomIdToUrl,
 	removeRoomIdFromUrl,
 	leaveRoom,
 	socketJoinRoom,
 } from "@/service/api/socket/drawSyncing.socket";
+import { useLayersStore } from "@/draw/layers/layers.store";
+import { createRoomCanvasSnapshot } from "@/draw/sync/roomSnapshot";
 
 /**
  * Heavy canvas-sync socket handlers. Loaded lazily by socket.service so that
- * the fabric / renderCore engine stays out of the app-start bundle and is only
+ * the Fabric render engine stays out of the app-start bundle and is only
  * fetched once a real-time drawing session is established.
  */
 export function registerDrawSyncingHandlers(socket: Socket) {
@@ -52,6 +54,10 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			addRoomIdToUrl(roomId);
 			isPublicLobby.value = isPublic;
 			useClaimArea().setAreas(claimedAreas);
+			// A joiner initializes layers from the incoming canvas snapshot. The
+			// creator does not reload its already-open drawing, so explicitly promote
+			// that existing solo layer document into room-replicated mode.
+			if (isCreator) useLayersStore().adoptCurrentDocumentForRoom(!!isPublic);
 		},
 	);
 
@@ -149,7 +155,7 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			const canvas = getCanvas();
 			if (!canvas) return;
 
-			const canvasString = JSON.stringify(canvas.toJSON());
+			const canvasString = JSON.stringify(createRoomCanvasSnapshot(canvas));
 			const stream = new Blob([canvasString])
 				.stream()
 				.pipeThrough(new CompressionStream("gzip"));

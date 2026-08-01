@@ -1,5 +1,9 @@
-import * as fabric from 'fabric'
-import { TSimplePathData } from 'fabric'
+import * as fabric from "fabric";
+import { TSimplePathData } from "fabric";
+import {
+	restoreStrokeDefaults,
+	stripStrokeDefaults,
+} from "@/draw/objects/strokeDefaults";
 
 /**
  * Supersampling factor for procedurally generated brush TEXTURES (charcoal
@@ -23,7 +27,7 @@ import { TSimplePathData } from 'fabric'
  * baseline; a generator may deterministically supersample further under its own
  * bounded pixel budget (charcoal does this for sharper grain).
  */
-export const TEXTURE_SUPERSAMPLE = 2
+export const TEXTURE_SUPERSAMPLE = 2;
 
 /**
  * Ensures that nested properties like clipPath and shadow are converted
@@ -41,15 +45,15 @@ export const TEXTURE_SUPERSAMPLE = 2
  * by then, so the field is dead weight.
  */
 export function stripType<T>(object: T): T {
-  if (!object || typeof object !== 'object' || !('type' in (object as any))) {
-    return object
-  }
-  // NON-DESTRUCTIVE — returns a copy. Deleting in place corrupted the caller's
-  // blob: at load, `drawload.helper` stashes the exact source JSON as
-  // `__bakeJSON` and ships it to the tile worker, so stripping `type` from it
-  // left the worker unable to resolve the class and unable to enliven anything.
-  const { type: _type, ...rest } = object as any
-  return rest as T
+	if (!object || typeof object !== "object" || !("type" in (object as any))) {
+		return object;
+	}
+	// NON-DESTRUCTIVE — returns a copy. Deleting in place corrupted the caller's
+	// blob: at load, `drawload.helper` stashes the exact source JSON as
+	// `__bakeJSON` and ships it to the tile worker, so stripping `type` from it
+	// left the worker unable to resolve the class and unable to enliven anything.
+	const { type: _type, ...rest } = object as any;
+	return rest as T;
 }
 
 /**
@@ -76,116 +80,161 @@ export function stripType<T>(object: T): T {
  * @param props extra properties to serialize
  */
 export function toObjectWithoutPath(
-  self: any,
-  superToObject: (props?: string[]) => any,
-  props: string[] = []
+	self: any,
+	superToObject: (props?: string[]) => any,
+	props: string[] = [],
 ): any {
-  const realPath = self.path
-  self.path = []
-  let out: any
-  try {
-    out = superToObject(props)
-  } finally {
-    // finally, not a trailing assignment: a throw inside toObject must never
-    // leave the LIVE object with an empty path — that would blank the stroke.
-    self.path = realPath
-  }
-  delete out.path
-  return out
+	let out: any;
+	if (
+		typeof self._hasCompactPathGeometry === "function" &&
+		self._hasCompactPathGeometry() &&
+		typeof self._serializeWithPathSuppressed === "function"
+	) {
+		// A TracedPath has no resident Fabric path array to swap out. Its getter
+		// returns [] only while Path.toObject runs, so serialization does not
+		// materialize the geometry merely to deep-copy and discard it.
+		out = self._serializeWithPathSuppressed(() => superToObject(props));
+	} else {
+		const realPath = self.path;
+		self.path = [];
+		try {
+			out = superToObject(props);
+		} finally {
+			// finally, not a trailing assignment: a throw inside toObject must never
+			// leave the LIVE object with an empty path — that would blank the stroke.
+			self.path = realPath;
+		}
+	}
+	delete out.path;
+	// Drop everything still at its default. Symmetric with restoreStrokeDefaults
+	// in enlivenStrokeProps below — the two must always ship together.
+	stripStrokeDefaults(out);
+	return out;
 }
 
 export async function enlivenStrokeProps(object: any): Promise<any> {
-  // COPY FIRST — never mutate the caller's serialized blob.
-  //
-  // At load, `drawload.helper` stashes the exact JSON an object was enlivened
-  // FROM as `__bakeJSON` and ships that to the tile worker, so anything we write
-  // into it travels to postMessage. Writing LIVE instances here (an enlivened
-  // ClippingGroup, a Shadow) made the payload un-structured-cloneable:
-  // postMessage threw and the fallback re-serialized the whole batch with
-  // `JSON.parse(JSON.stringify(...))` — up to 192 objects per batch, on the main
-  // thread, which is what made loading a dense drawing crawl (and logged
-  // "[TileBakery] upsert payload was not structured-cloneable").
-  //
-  // The worker wants the RAW clipPath/shadow JSON anyway — it enlivens them
-  // itself. So keep the original pristine and enliven only on our copy.
-  const out = { ...object }
+	// COPY FIRST — never mutate the caller's serialized blob.
+	//
+	// At load, `drawload.helper` stashes the exact JSON an object was enlivened
+	// FROM as `__bakeJSON` and ships that to the tile worker, so anything we write
+	// into it travels to postMessage. Writing LIVE instances here (an enlivened
+	// ClippingGroup, a Shadow) made the payload un-structured-cloneable:
+	// postMessage threw and the fallback re-serialized the whole batch with
+	// `JSON.parse(JSON.stringify(...))` — up to 192 objects per batch, on the main
+	// thread, which is what made loading a dense drawing crawl (and logged
+	// "[TileBakery] upsert payload was not structured-cloneable").
+	//
+	// The worker wants the RAW clipPath/shadow JSON anyway — it enlivens them
+	// itself. So keep the original pristine and enliven only on our copy.
+	const out = restoreStrokeDefaults({ ...object });
 
-  // 1. Enliven the ClipPath (The culprit for the 'transform' error)
-  if (out.clipPath && !(out.clipPath instanceof fabric.FabricObject)) {
-    const enlivened = await fabric.util.enlivenObjects([out.clipPath])
-    out.clipPath = enlivened[0]
-  }
+	// 1. Enliven the ClipPath (The culprit for the 'transform' error)
+	if (out.clipPath && !(out.clipPath instanceof fabric.FabricObject)) {
+		const enlivened = await fabric.util.enlivenObjects([out.clipPath]);
+		out.clipPath = enlivened[0];
+	}
 
-  // 2. Enliven the Shadow
-  if (out.shadow && !(out.shadow instanceof fabric.Shadow)) {
-    out.shadow = new fabric.Shadow(out.shadow)
-  }
+	// 2. Enliven the Shadow
+	if (out.shadow && !(out.shadow instanceof fabric.Shadow)) {
+		out.shadow = new fabric.Shadow(out.shadow);
+	}
 
-  // 3. Drop `type` before it reaches a constructor.
-  //
-  // In fabric v6 `type` is derived from the CLASS (`static type`), not stored
-  // per instance, so assigning it logs
-  //   "fabric: Setting type has no effect ..."
-  // and every one of our strokes hit it: `fromObject` passes the raw JSON —
-  // which carries `type` — straight into `new XStroke(props)`, whose `super()`
-  // assigns the options onto the instance. That fired once per stroke on every
-  // enliven, i.e. for the whole scene on load and again on every worker
-  // re-enliven, and fabric's logger builds the message string each time.
-  //
-  // The class is already resolved by the registry before we get here, so the
-  // field is pure dead weight. Deleting it removes the warning AND the work.
-  return stripType(out)
+	// 3. Drop `type` before it reaches a constructor.
+	//
+	// In fabric v6 `type` is derived from the CLASS (`static type`), not stored
+	// per instance, so assigning it logs
+	//   "fabric: Setting type has no effect ..."
+	// and every one of our strokes hit it: `fromObject` passes the raw JSON —
+	// which carries `type` — straight into `new XStroke(props)`, whose `super()`
+	// assigns the options onto the instance. That fired once per stroke on every
+	// enliven, i.e. for the whole scene on load and again on every worker
+	// re-enliven, and fabric's logger builds the message string each time.
+	//
+	// The class is already resolved by the registry before we get here, so the
+	// field is pure dead weight. Deleting it removes the warning AND the work.
+	return stripType(out);
 }
 
-function getSqSegDist(px: number, py: number, p1x: number, p1y: number, p2x: number, p2y: number) {
-  let x = p1x, y = p1y, dx = p2x - x, dy = p2y - y;
-  if (dx !== 0 || dy !== 0) {
-    const t = ((px - x) * dx + (py - y) * dy) / (dx * dx + dy * dy);
-    if (t > 1) { x = p2x; y = p2y; }
-    else if (t > 0) { x += dx * t; y += dy * t; }
-  }
-  dx = px - x; dy = py - y;
-  return dx * dx + dy * dy;
+function getSqSegDist(
+	px: number,
+	py: number,
+	p1x: number,
+	p1y: number,
+	p2x: number,
+	p2y: number,
+) {
+	let x = p1x,
+		y = p1y,
+		dx = p2x - x,
+		dy = p2y - y;
+	if (dx !== 0 || dy !== 0) {
+		const t = ((px - x) * dx + (py - y) * dy) / (dx * dx + dy * dy);
+		if (t > 1) {
+			x = p2x;
+			y = p2y;
+		} else if (t > 0) {
+			x += dx * t;
+			y += dy * t;
+		}
+	}
+	dx = px - x;
+	dy = py - y;
+	return dx * dx + dy * dy;
 }
 
-function simplifyDPStep(points: any[], first: number, last: number, sqTolerance: number, simplified: any[]) {
-  let maxSqDist = sqTolerance, index = -1;
+function simplifyDPStep(
+	points: any[],
+	first: number,
+	last: number,
+	sqTolerance: number,
+	simplified: any[],
+) {
+	let maxSqDist = sqTolerance,
+		index = -1;
 
-  for (let i = first + 1; i < last; i++) {
-    const sqDist = getSqSegDist(
-      points[i].x, points[i].y,
-      points[first].x, points[first].y,
-      points[last].x, points[last].y
-    );
-    if (sqDist > maxSqDist) {
-      index = i;
-      maxSqDist = sqDist;
-    }
-  }
+	for (let i = first + 1; i < last; i++) {
+		const sqDist = getSqSegDist(
+			points[i].x,
+			points[i].y,
+			points[first].x,
+			points[first].y,
+			points[last].x,
+			points[last].y,
+		);
+		if (sqDist > maxSqDist) {
+			index = i;
+			maxSqDist = sqDist;
+		}
+	}
 
-  if (index > -1) {
-    if (index - first > 1) simplifyDPStep(points, first, index, sqTolerance, simplified);
-    simplified.push(points[index]);
-    if (last - index > 1) simplifyDPStep(points, index, last, sqTolerance, simplified);
-  }
+	if (index > -1) {
+		if (index - first > 1)
+			simplifyDPStep(points, first, index, sqTolerance, simplified);
+		simplified.push(points[index]);
+		if (last - index > 1)
+			simplifyDPStep(points, index, last, sqTolerance, simplified);
+	}
 }
 
-export function simplifyPathDouglasPeucker(commands: TSimplePathData, tolerance: number): TSimplePathData {
-  if (commands.length <= 2) return commands
-  const sqTolerance = tolerance !== undefined ? tolerance * tolerance : 1
+export function simplifyPathDouglasPeucker(
+	commands: TSimplePathData,
+	tolerance: number,
+): TSimplePathData {
+	if (commands.length <= 2) return commands;
+	const sqTolerance = tolerance !== undefined ? tolerance * tolerance : 1;
 
-  // Map SVG commands to actionable points (using the destination X, Y of each command)
-  const points = commands.map(cmd => {
-    const len = cmd.length
-    return { x: cmd[len - 2] as number, y: cmd[len - 1] as number, cmd: cmd }
-  })
+	// Map SVG commands to actionable points (using the destination X, Y of each command)
+	const points = commands.map((cmd) => {
+		const len = cmd.length;
+		return { x: cmd[len - 2] as number, y: cmd[len - 1] as number, cmd: cmd };
+	});
 
-  const last = points.length - 1
-  const simplified = [points[0]] // Always keep the starting 'M'
+	const last = points.length - 1;
+	const simplified = [points[0]]; // Always keep the starting 'M'
 
-  simplifyDPStep(points, 0, last, sqTolerance, simplified)
+	simplifyDPStep(points, 0, last, sqTolerance, simplified);
 
-  simplified.push(points[last]) // Always keep the final point
+	simplified.push(points[last]); // Always keep the final point
 
-  return simplified.map(p => p.cmd) as TSimplePathData
+	return simplified.map((p) => p.cmd) as TSimplePathData;
 }

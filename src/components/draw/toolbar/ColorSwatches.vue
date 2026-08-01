@@ -8,7 +8,7 @@
     class="fixed z-40 flex flex-col gap-2 pointer-events-auto"
     :style="{
       right: 'calc(0.75rem + env(safe-area-inset-right))',
-      bottom: 'calc(9rem + env(safe-area-inset-bottom))',
+      bottom: 'calc(12.5rem + env(safe-area-inset-bottom))',
     }"
   >
       <button
@@ -54,10 +54,10 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { IonPopover, IonRange } from '@ionic/vue'
 import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { useColorProfiles, type ColorProfile } from '@/draw/store/tools/colorProfiles.store'
-import { useToolSelection } from '@/draw/store/tools/toolSelection.store'
-import { usePen } from '@/draw/store/tools/pen.store'
-import { DrawTool } from '@/draw/types/draw.types'
+import { useColorProfiles, type ColorProfile } from '@/draw/tools/colorProfiles.store'
+import { useToolSelection } from '@/draw/tools/toolSelection.store'
+import { usePen } from '@/draw/tools/pen.store'
+import { DrawTool } from "@/draw/tools/tool.types";
 import { hexWithOpacity, percentToAlphaHex } from '@/draw/utils/color.utils'
 
 const { profiles, activeIndex } = storeToRefs(useColorProfiles())

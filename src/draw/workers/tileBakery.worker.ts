@@ -12,7 +12,7 @@
 //      there is no fetch, no CORS surprise, no double download, and no fake
 //      HTMLImageElement to keep fabric happy. The only DOM shim is a canvas.
 //
-// Consistency guarantees the main-side client (tileBakery.service.ts) relies on:
+// Consistency guarantees the main-thread bakery client relies on:
 //   • postMessage is FIFO and the handler below is FIFO-chained, so an upsert /
 //     translate posted before a bake is applied before that bake renders.
 //   • A bake for an id the mirror lacks replies { missing }; the client
@@ -36,7 +36,15 @@ import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
 import type {
 	BakeryRequest,
 	BakeryResponse,
-} from "@/draw/types/tileBakery.types";
+} from "@/draw/rendering/bakery/bakery.types";
+import {
+	SceneCommitAssembler,
+	ObjectRevisionLedger,
+	SceneRevisionGate,
+	type AssembledSceneCommit,
+	type SceneDelta,
+	type WorkerTiming,
+} from "@/draw/rendering/bakery/protocol";
 import { WORKER_FONTS } from "@/draw/config/workerFonts.config";
 
 // --- fonts -------------------------------------------------------------------
@@ -197,6 +205,14 @@ const live = new Map<string, any>();
 // silent eviction would leave an object permanently unrenderable. Freed only on
 // remove/clear, where the bitmap is explicitly closed.
 const assets = new Map<string, ImageBitmap>();
+const objectRevisions = new ObjectRevisionLedger();
+const objectBounds = new Map<
+	string,
+	{ x: number; y: number; w: number; h: number }
+>();
+const objectZ = new Map<string, number>();
+const sceneCommits = new SceneCommitAssembler();
+const sceneRevision = new SceneRevisionGate();
 
 function dropAsset(id: string): void {
 	const a = assets.get(id);
@@ -204,6 +220,166 @@ function dropAsset(id: string): void {
 		a.close();
 		assets.delete(id);
 	}
+}
+
+function acceptsRevision(id: string, revision: number | undefined): boolean {
+	return objectRevisions.accept(id, revision);
+}
+
+function applyUpsert(
+	id: string,
+	source: any,
+	revision?: number,
+	bounds?: { x: number; y: number; w: number; h: number },
+	z?: number,
+): void {
+	if (!acceptsRevision(id, revision)) return;
+	let stored: any = source;
+	try {
+		stored = JSON.stringify(source);
+	} catch {
+		// Keep the structured-cloned object when stringification fails.
+	}
+	setJson(id, stored);
+	live.delete(id);
+	if (bounds) objectBounds.set(id, bounds);
+	if (typeof z === "number") objectZ.set(id, z);
+}
+
+function applyTranslate(
+	ids: string[],
+	revisions: number[] | undefined,
+	dx: number,
+	dy: number,
+): void {
+	for (let index = 0; index < ids.length; index++) {
+		const id = ids[index];
+		if (!acceptsRevision(id, revisions?.[index])) continue;
+		const raw = json.get(id);
+		if (raw !== undefined) {
+			try {
+				const value = typeof raw === "string" ? JSON.parse(raw) : raw;
+				if (typeof value.left === "number") value.left += dx;
+				if (typeof value.top === "number") value.top += dy;
+				setJson(id, typeof raw === "string" ? JSON.stringify(value) : value);
+			} catch {
+				// A later full upsert repairs malformed legacy data.
+			}
+		}
+		const bounds = objectBounds.get(id);
+		if (bounds) {
+			bounds.x += dx;
+			bounds.y += dy;
+		}
+		const object = live.get(id);
+		if (object) {
+			object.set({
+				left: (object.left ?? 0) + dx,
+				top: (object.top ?? 0) + dy,
+			});
+			object.setCoords();
+		}
+	}
+}
+
+function applyClip(id: string, clip: any | null, revision?: number): void {
+	if (!acceptsRevision(id, revision)) return;
+	const raw = json.get(id);
+	if (raw === undefined) return;
+	try {
+		const value = typeof raw === "string" ? JSON.parse(raw) : raw;
+		if (clip) value.clipPath = clip;
+		else delete value.clipPath;
+		setJson(id, typeof raw === "string" ? JSON.stringify(value) : value);
+	} catch {
+		// A later full upsert repairs malformed legacy data.
+	}
+	live.delete(id);
+}
+
+function applyStyle(
+	id: string,
+	patch: Record<string, unknown>,
+	revision?: number,
+): void {
+	if (!acceptsRevision(id, revision)) return;
+	const raw = json.get(id);
+	if (raw === undefined) return;
+	try {
+		const value = typeof raw === "string" ? JSON.parse(raw) : raw;
+		Object.assign(value, patch);
+		setJson(id, typeof raw === "string" ? JSON.stringify(value) : value);
+	} catch {
+		// A later full upsert repairs malformed legacy data.
+	}
+	live.delete(id);
+}
+
+function applyZOrder(ids: string[], revisions: number[], z: number[]): void {
+	for (let index = 0; index < ids.length; index++) {
+		const id = ids[index];
+		if (!acceptsRevision(id, revisions[index])) continue;
+		if (typeof z[index] === "number") objectZ.set(id, z[index]);
+	}
+}
+
+function applyRemove(id: string, revision?: number): void {
+	if (!acceptsRevision(id, revision)) return;
+	dropJson(id);
+	live.delete(id);
+	dropAsset(id);
+	objectBounds.delete(id);
+	objectZ.delete(id);
+}
+
+function resetMirror(): void {
+	json.clear();
+	jsonBytes = 0;
+	live.clear();
+	objectRevisions.clear();
+	objectBounds.clear();
+	objectZ.clear();
+	for (const [, asset] of assets) asset.close();
+	assets.clear();
+	sceneCommits.clear();
+}
+
+function applySceneDelta(delta: SceneDelta): void {
+	switch (delta.kind) {
+		case "upsert":
+			applyUpsert(
+				delta.id,
+				delta.json,
+				delta.objectRevision,
+				delta.bounds,
+				delta.z,
+			);
+			break;
+		case "translate":
+			applyTranslate(delta.ids, delta.objectRevisions, delta.dx, delta.dy);
+			break;
+		case "clip":
+			applyClip(delta.id, delta.clip, delta.objectRevision);
+			break;
+		case "style":
+			applyStyle(delta.id, delta.patch, delta.objectRevision);
+			break;
+		case "remove":
+			applyRemove(delta.id, delta.objectRevision);
+			break;
+		case "zOrder":
+			applyZOrder(delta.ids, delta.objectRevisions, delta.z);
+			break;
+		case "reset":
+			resetMirror();
+			break;
+	}
+}
+
+function applySceneCommit(commit: AssembledSceneCommit): void {
+	if (!sceneRevision.accept(commit.sceneRevision)) return;
+	for (const delta of commit.deltas) applySceneDelta(delta);
+	scheduleIdleShrink();
 }
 
 // Two caps, deliberately. LIVE_MAX is the WORKING cap during a bake pass: it
@@ -544,9 +720,21 @@ function applyTierScaling(
 // `cancelEpoch` is the generation of the newest `cancel` seen. A request whose
 // own epoch is older belongs to an abandoned pass and is dropped.
 let cancelEpoch = 0;
+let latestOverviewMsgId = -1;
+let queuedBakeRequests = 0;
 
 function isStale(epoch: number | undefined): boolean {
 	return epoch !== undefined && epoch < cancelEpoch;
+}
+
+function shouldAbortOverview(
+	req: Extract<BakeryRequest, { t: "overview" }>,
+): boolean {
+	return (
+		isStale(req.epoch) ||
+		req.msgId !== latestOverviewMsgId ||
+		queuedBakeRequests > 0
+	);
 }
 
 /**
@@ -596,55 +784,94 @@ function getRenderCanvas(size: number): OffscreenCanvas {
 	return renderCanvas;
 }
 
-// Separate from the tile scratch: an overview render is px×px (1024/2048) and
-// would otherwise force the tile canvas to resize back and forth every rebuild.
+// Separate from the tile scratch so overview rebuilds do not resize the tile
+// canvas back and forth.
 let overviewCanvas: OffscreenCanvas | null = null;
 
-function getOverviewCanvas(px: number): OffscreenCanvas {
+function getOverviewCanvas(width: number, height: number): OffscreenCanvas {
 	if (
 		!overviewCanvas ||
-		overviewCanvas.width !== px ||
-		overviewCanvas.height !== px
+		overviewCanvas.width !== width ||
+		overviewCanvas.height !== height
 	) {
-		overviewCanvas = new OffscreenCanvas(px, px);
+		overviewCanvas = new OffscreenCanvas(width, height);
 	}
 	return overviewCanvas;
 }
 
 async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 	const { msgId, ids, world, scale, overscan, size } = req;
+	const timing: WorkerTiming = {
+		queueWaitMs: Math.max(
+			0,
+			performance.now() - ((req as any).__receivedAt ?? performance.now()),
+		),
+		indexQueryMs: 0,
+		enlivenMs: 0,
+		rasterMs: 0,
+		bitmapTransferMs: 0,
+	};
+	const reply = (
+		payload: Omit<BakeryResponse, "msgId">,
+		transfer: Transferable[] = [],
+	) =>
+		post(
+			{
+				msgId,
+				sceneRevision: req.sceneRevision,
+				workerTiming: timing,
+				...payload,
+			},
+			transfer,
+		);
+
+	if (
+		req.sceneRevision !== undefined &&
+		!sceneRevision.matches(req.sceneRevision)
+	) {
+		reply({
+			error:
+				req.sceneRevision < sceneRevision.current
+					? "stale scene revision"
+					: "scene revision not committed",
+		});
+		return;
+	}
 
 	// Gesture started while this sat in the FIFO queue. Rasterizing it now would
 	// burn the worker AND the GPU on pixels the main side has already decided to
 	// discard — and on mobile that raster contends with the compositor driving
 	// the gesture. Drop it before doing any work.
 	if (isStale(req.epoch)) {
-		post({ msgId, aborted: true });
+		reply({ aborted: true });
 		return;
 	}
 
 	const missing = ids.filter((id) => !json.has(id));
 	if (missing.length) {
-		post({ msgId, missing });
+		reply({ missing });
 		return;
 	}
 
 	// Enliven exactly the ids this tile needs (LRU-cached across overlapping
 	// tiles in a bake burst). Cold objects are constructed in bounded batches so
 	// a gesture can cancel before the whole dense tile has been materialized.
+	const enlivenStartedAt = performance.now();
 	const objs = await ensureLiveMany(ids, req.epoch);
+	timing.enlivenMs = performance.now() - enlivenStartedAt;
 
 	// Re-check after enlivening. The raster loop below also creates real task
 	// boundaries so cancellation can land after rendering has begun.
 	if (!objs || isStale(req.epoch)) {
-		post({ msgId, aborted: true });
+		reply({ aborted: true });
 		return;
 	}
 
+	const rasterStartedAt = performance.now();
 	const canvas = getRenderCanvas(size);
 	const ctx = canvas.getContext("2d");
 	if (!ctx) {
-		post({ msgId, error: "no 2d context" });
+		reply({ error: "no 2d context" });
 		return;
 	}
 
@@ -690,7 +917,8 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 			await yieldToWorkerTasks();
 			if (isStale(req.epoch)) {
 				ctx.restore();
-				post({ msgId, aborted: true });
+				timing.rasterMs = performance.now() - rasterStartedAt;
+				reply({ aborted: true });
 				return;
 			}
 			sliceStartedAt = performance.now();
@@ -702,13 +930,16 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 	evictLive(new Set(ids));
 	scheduleIdleShrink();
 
+	timing.rasterMs = performance.now() - rasterStartedAt;
+	const transferStartedAt = performance.now();
 	const bitmap = canvas.transferToImageBitmap();
-	post({ msgId, bitmap }, [bitmap]);
+	timing.bitmapTransferMs = performance.now() - transferStartedAt;
+	reply({ bitmap }, [bitmap]);
 }
 
 /**
  * Whole-board overview render. Same math as WorldOverview's local rebuild:
- * fit `bounds` into px×px, draw z-ordered ids. Objects are enlivened through
+ * fit `bounds` into the requested bitmap, draw z-ordered ids. Objects are enlivened through
  * the same LRU as tiles (so a subsequent viewport bake reuses them). A fresh
  * offscreen is used per call — the overview canvas outlives the request on the
  * main side as a bitmap, so we must not reuse the tile scratch.
@@ -716,13 +947,49 @@ async function bake(req: Extract<BakeryRequest, { t: "bake" }>): Promise<void> {
 async function overview(
 	req: Extract<BakeryRequest, { t: "overview" }>,
 ): Promise<void> {
-	const { msgId, ids, bounds, px, scale } = req;
-	if (isStale(req.epoch)) {
-		post({ msgId, aborted: true });
+	const { msgId, ids, bounds, width, height, scale } = req;
+	const timing: WorkerTiming = {
+		queueWaitMs: Math.max(
+			0,
+			performance.now() - ((req as any).__receivedAt ?? performance.now()),
+		),
+		indexQueryMs: 0,
+		enlivenMs: 0,
+		rasterMs: 0,
+		bitmapTransferMs: 0,
+	};
+	const reply = (
+		payload: Omit<BakeryResponse, "msgId">,
+		transfer: Transferable[] = [],
+	) =>
+		post(
+			{
+				msgId,
+				sceneRevision: req.sceneRevision,
+				workerTiming: timing,
+				...payload,
+			},
+			transfer,
+		);
+
+	if (
+		req.sceneRevision !== undefined &&
+		!sceneRevision.matches(req.sceneRevision)
+	) {
+		reply({
+			error:
+				req.sceneRevision < sceneRevision.current
+					? "stale scene revision"
+					: "scene revision not committed",
+		});
+		return;
+	}
+	if (shouldAbortOverview(req)) {
+		reply({ aborted: true });
 		return;
 	}
 	if (bounds.w <= 0 || bounds.h <= 0) {
-		post({ msgId, error: "bad bounds" });
+		reply({ error: "bad bounds" });
 		return;
 	}
 	// Report unknown ids instead of silently rendering a blank overview — the
@@ -731,37 +998,44 @@ async function overview(
 	// when zoomed out (overview tier is the whole picture).
 	const missing = ids.filter((id) => !json.has(id));
 	if (missing.length) {
-		post({ msgId, missing });
+		reply({ missing });
 		return;
 	}
-	// Pooled, like the tile scratch. This was a fresh `new OffscreenCanvas(px,px)`
-	// per call — 4MB on mobile (1024²) or 16MB on desktop (2048²), allocated and
-	// thrown away on every overview rebuild. On Adreno that allocation churn is
-	// part of what faults libgsl (docs/DRAW_ENGINE_PERF.md finding F5).
+	// Pooled, like the tile scratch. Reallocating this bitmap every rebuild was
+	// significant GPU-memory churn on Adreno.
 	// transferToImageBitmap() detaches the backing store and leaves the canvas
 	// reusable at the same size, so one instance serves every rebuild.
-	const canvas = getOverviewCanvas(px);
+	const canvas = getOverviewCanvas(width, height);
 	const ctx = canvas.getContext("2d");
 	if (!ctx) {
-		post({ msgId, error: "no 2d context" });
+		reply({ error: "no 2d context" });
 		return;
 	}
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
-	ctx.clearRect(0, 0, px, px);
-	const sx = px / bounds.w;
-	const sy = px / bounds.h;
+	ctx.clearRect(0, 0, width, height);
+	const sx = width / bounds.w;
+	const sy = height / bounds.h;
 	ctx.setTransform(sx, 0, 0, sy, -bounds.x * sx, -bounds.y * sy);
 
+	const rasterStartedAt = performance.now();
+	let enlivenMs = 0;
 	let sliceStartedAt = performance.now();
 	for (let i = 0; i < ids.length; i++) {
 		// A warm-cache `await ensureLive()` only crosses a microtask boundary, which
 		// does NOT let a Worker message task run. The timed task yield below is what
 		// makes an in-progress overview genuinely cancellable.
-		if (isStale(req.epoch)) {
-			post({ msgId, aborted: true });
+		if (shouldAbortOverview(req)) {
+			timing.enlivenMs = enlivenMs;
+			timing.rasterMs = Math.max(
+				0,
+				performance.now() - rasterStartedAt - enlivenMs,
+			);
+			reply({ aborted: true });
 			return;
 		}
+		const objectEnlivenStartedAt = performance.now();
 		const obj = await ensureLive(ids[i]);
+		enlivenMs += performance.now() - objectEnlivenStartedAt;
 		if (!obj) continue;
 		obj.visible = true;
 		obj.canvas = null;
@@ -784,8 +1058,13 @@ async function overview(
 
 		if (performance.now() - sliceStartedAt >= RASTER_SLICE_MS) {
 			await yieldToWorkerTasks();
-			if (isStale(req.epoch)) {
-				post({ msgId, aborted: true });
+			if (shouldAbortOverview(req)) {
+				timing.enlivenMs = enlivenMs;
+				timing.rasterMs = Math.max(
+					0,
+					performance.now() - rasterStartedAt - enlivenMs,
+				);
+				reply({ aborted: true });
 				return;
 			}
 			sliceStartedAt = performance.now();
@@ -794,8 +1073,15 @@ async function overview(
 	evictLive();
 	scheduleIdleShrink();
 
+	timing.enlivenMs = enlivenMs;
+	timing.rasterMs = Math.max(
+		0,
+		performance.now() - rasterStartedAt - enlivenMs,
+	);
+	const transferStartedAt = performance.now();
 	const bitmap = canvas.transferToImageBitmap();
-	post({ msgId, bitmap }, [bitmap]);
+	timing.bitmapTransferMs = performance.now() - transferStartedAt;
+	reply({ bitmap }, [bitmap]);
 }
 
 function post(msg: BakeryResponse, transfer: Transferable[] = []): void {
@@ -834,6 +1120,7 @@ function withWatchdog<T>(work: Promise<T>, what: string): Promise<T> {
 
 self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 	const msg = e.data;
+	(msg as any).__receivedAt = performance.now();
 	// OUT OF BAND — deliberately NOT chained.
 	//
 	// The pump below is strictly serial, so a chained `cancel` would queue behind
@@ -849,6 +1136,8 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 		if (msg.epoch > cancelEpoch) cancelEpoch = msg.epoch;
 		return;
 	}
+	if (msg.t === "bake") queuedBakeRequests++;
+	if (msg.t === "overview") latestOverviewMsgId = msg.msgId;
 	const run = async () => {
 		try {
 			switch (msg.t) {
@@ -881,18 +1170,7 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 					break;
 				case "upsert":
 					for (const item of msg.items) {
-						// Store as a STRING, not the parsed graph — see ensureLive. Halves
-						// the mirror's steady-state memory on a large board (its biggest
-						// non-tile cost). Stringify runs off the main thread. Fall back to
-						// the object if it isn't serializable (main already sanitizes).
-						let stored: any = item.json;
-						try {
-							stored = JSON.stringify(item.json);
-						} catch {
-							/* keep the object */
-						}
-						setJson(item.id, stored);
-						live.delete(item.id); // geometry may have changed → re-enliven fresh
+						applyUpsert(item.id, item.json);
 					}
 					scheduleIdleShrink();
 					break;
@@ -902,25 +1180,7 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 					// world shift is a left/top shift. The stored json is a string, so
 					// parse+patch+re-stringify here (off the main thread); the main side
 					// still sends only this one tiny message.
-					const { dx, dy } = msg;
-					for (const id of msg.ids) {
-						const raw = json.get(id);
-						if (raw !== undefined) {
-							try {
-								const j = typeof raw === "string" ? JSON.parse(raw) : raw;
-								if (typeof j.left === "number") j.left += dx;
-								if (typeof j.top === "number") j.top += dy;
-								setJson(id, typeof raw === "string" ? JSON.stringify(j) : j);
-							} catch {
-								/* leave as-is; a later upsert corrects it */
-							}
-						}
-						const o = live.get(id);
-						if (o) {
-							o.set({ left: (o.left ?? 0) + dx, top: (o.top ?? 0) + dy });
-							o.setCoords();
-						}
-					}
+					applyTranslate(msg.ids, undefined, msg.dx, msg.dy);
 					scheduleIdleShrink();
 					break;
 				}
@@ -930,40 +1190,31 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 					// exactly what clipPath.toObject() produced, so this yields the
 					// identical mirror a full upsert would. No-op if the id is unknown —
 					// the next bake reports `missing` and re-upserts in full.
-					const raw = json.get(msg.id);
-					if (raw !== undefined) {
-						try {
-							const j = typeof raw === "string" ? JSON.parse(raw) : raw;
-							if (msg.clip) j.clipPath = msg.clip;
-							else delete j.clipPath;
-							setJson(msg.id, typeof raw === "string" ? JSON.stringify(j) : j);
-						} catch {
-							/* leave as-is; a later upsert / missing self-heal corrects it */
-						}
-						live.delete(msg.id); // clip changed → re-enliven fresh
-					}
+					applyClip(msg.id, msg.clip);
 					scheduleIdleShrink();
 					break;
 				}
+				case "sceneCommit": {
+					const commit = sceneCommits.push(msg);
+					if (commit) applySceneCommit(commit);
+					break;
+				}
 				case "asset": {
+					if (!acceptsRevision(msg.id, msg.objectRevision)) {
+						msg.bitmap.close();
+						break;
+					}
 					dropAsset(msg.id); // replace → free the old pixels
 					assets.set(msg.id, msg.bitmap);
 					live.delete(msg.id); // re-enliven so the new bitmap is picked up
 					break;
 				}
 				case "remove":
-					for (const id of msg.ids) {
-						dropJson(id);
-						live.delete(id);
-						dropAsset(id);
-					}
+					for (const id of msg.ids) applyRemove(id);
 					break;
 				case "clear":
-					json.clear();
-					jsonBytes = 0;
-					live.clear();
-					for (const [, a] of assets) a.close();
-					assets.clear();
+					resetMirror();
+					sceneRevision.reset();
 					break;
 				case "bake":
 					await withWatchdog(bake(msg), "bake");
@@ -978,11 +1229,16 @@ self.onmessage = (e: MessageEvent<BakeryRequest>) => {
 				if ((msg as any).msgId !== undefined) {
 					post({
 						msgId: (msg as any).msgId,
+						sceneRevision: (msg as any).sceneRevision,
 						error: err?.message ?? "worker error",
 					});
 				}
 			} catch {
 				/* reporting failed; the client's timeout still covers this request */
+			}
+		} finally {
+			if (msg.t === "bake") {
+				queuedBakeRequests = Math.max(0, queuedBakeRequests - 1);
 			}
 		}
 	};

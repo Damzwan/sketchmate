@@ -84,15 +84,26 @@ export function toObjectWithoutPath(
 	superToObject: (props?: string[]) => any,
 	props: string[] = [],
 ): any {
-	const realPath = self.path;
-	self.path = [];
 	let out: any;
-	try {
-		out = superToObject(props);
-	} finally {
-		// finally, not a trailing assignment: a throw inside toObject must never
-		// leave the LIVE object with an empty path — that would blank the stroke.
-		self.path = realPath;
+	if (
+		typeof self._hasCompactPathGeometry === "function" &&
+		self._hasCompactPathGeometry() &&
+		typeof self._serializeWithPathSuppressed === "function"
+	) {
+		// A TracedPath has no resident Fabric path array to swap out. Its getter
+		// returns [] only while Path.toObject runs, so serialization does not
+		// materialize the geometry merely to deep-copy and discard it.
+		out = self._serializeWithPathSuppressed(() => superToObject(props));
+	} else {
+		const realPath = self.path;
+		self.path = [];
+		try {
+			out = superToObject(props);
+		} finally {
+			// finally, not a trailing assignment: a throw inside toObject must never
+			// leave the LIVE object with an empty path — that would blank the stroke.
+			self.path = realPath;
+		}
 	}
 	delete out.path;
 	// Drop everything still at its default. Symmetric with restoreStrokeDefaults

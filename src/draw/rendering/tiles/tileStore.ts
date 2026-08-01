@@ -9,6 +9,13 @@ export interface Tile {
 	builtGen: number;
 	lastUsed: number;
 	usable: boolean;
+	/**
+	 * A settled discrete edit is replacing this tile, but the previous
+	 * full-resolution bitmap is being used as a short transition until the new
+	 * generation lands. Unlike an additive/stamped `usable` tile, these pixels
+	 * are not valid after a viewport change and must then be revoked.
+	 */
+	transition: boolean;
 }
 
 export class TileStore {
@@ -69,6 +76,7 @@ export class TileStore {
 			bytes,
 			builtGen,
 			usable,
+			transition: false,
 			lastUsed: performance.now(),
 		});
 		this.memoryBytes += bytes;
@@ -129,6 +137,19 @@ export class TileStore {
 		}
 	}
 
+	/**
+	 * Finish ownership of one async tile request. If it produced no resident
+	 * tile, none of its generation/dirty bookkeeping can affect future pixels;
+	 * retaining those string keys made the side maps grow without bound while
+	 * panning around an infinite canvas.
+	 */
+	finishFlight(key: string): void {
+		this.inFlight.delete(key);
+		if (this.tiles.has(key)) return;
+		this.generations.delete(key);
+		this.dirtyRects.delete(key);
+	}
+
 	reset(): void {
 		for (const tile of this.tiles.values()) tile.bitmap?.close();
 		this.tiles.clear();
@@ -144,5 +165,9 @@ export class TileStore {
 		this.memoryBytes -= tile.bytes;
 		this.tiles.delete(key);
 		this.dirtyRects.delete(key);
+		// An in-flight result still needs the generation to reject an obsolete
+		// bitmap. Once no request owns the key, the next visit can safely start at
+		// generation zero against the then-current scene.
+		if (!this.inFlight.has(key)) this.generations.delete(key);
 	}
 }

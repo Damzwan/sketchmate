@@ -301,8 +301,7 @@ export function createLassoTool(): ToolService {
 	}
 
 	function getPointRepresentation(obj: FabricObjectWithCache): number[][] {
-		// @ts-ignore
-		if (obj.type === "path" || obj.path) {
+		if (obj instanceof fabric.Path) {
 			return getPathPoints(obj as fabric.Path);
 		}
 		const coords = obj.getCoords().map((p) => [p.x, p.y]);
@@ -314,22 +313,25 @@ export function createLassoTool(): ToolService {
 	function getPathPoints(
 		path: fabric.Path & { _lassoPoints?: number[][]; _lassoMatrixSig?: string },
 	): number[][] {
-		if (!path.path || path.path.length === 0) return [];
-
 		try {
 			const matrix = path.calcTransformMatrix();
 			const sig = matrix.join(",");
 			if (path._lassoPoints && path._lassoMatrixSig === sig) {
 				return path._lassoPoints;
 			}
+			// TracedPath's compatibility getter intentionally returns a detached
+			// Fabric path. Read it once per cache miss instead of expanding it for
+			// every check/map/forEach below.
+			const pathData = path.path;
+			if (!pathData || pathData.length === 0) return [];
 
-			const pathString = path.path.map((cmd) => cmd.join(" ")).join(" ");
+			const pathString = pathData.map((cmd) => cmd.join(" ")).join(" ");
 			const properties = new svgPathProperties(pathString);
 			const totalLength = properties.getTotalLength();
 			const points: number[][] = [];
 
 			if (totalLength < 20) {
-				path.path.forEach((cmd: any) => {
+				pathData.forEach((cmd: any) => {
 					if (cmd.length >= 3) {
 						const rawP = new Point(
 							cmd[cmd.length - 2] - path.pathOffset.x,

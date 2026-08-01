@@ -316,21 +316,30 @@ export abstract class RenderInvalidationCoordinator<
 
 		for (const rect of merged) {
 			this.growContentBounds(rect);
-			this.committed.markDirty(rect);
 			const inView = this.intersectsView(rect);
+			if (vw && inView) {
+				this.committed.markDirtyWithSharpTransition(rect, tier, vw);
+			} else {
+				this.committed.markDirty(rect);
+			}
 			if (vw && inView) {
 				if (performance.now() < deadline) {
 					this.committed.rebuildRectSync(rect, tier, vw, DISCRETE_REPAIR_TILES);
 				} else {
 					unrepaired = true;
 				}
+				// rebuildRectSync has its own tighter wall-clock guard. A single large
+				// rect can therefore stop early even though the outer batch deadline has
+				// not expired; checking readiness is the only honest completion signal.
+				if (!this.committed.isRegionReady(rect, vpt[0])) unrepaired = true;
 			}
 			this.patchOverview(rect);
 			if (inView) anyInView = true;
 		}
 		if (anyInView) this.requestFrame();
-		// Whatever the repair could not reach is showing a fallback right now, so
-		// it has nothing to gain from waiting out the coalescing debounce.
+		// Whatever the repair could not reach is still on its sharp transition
+		// bitmap. Bake immediately so the previous-state window stays minimal; it
+		// has nothing to gain from waiting out the coalescing debounce.
 		this.scheduleBake(unrepaired);
 	}
 

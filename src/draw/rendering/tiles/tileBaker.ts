@@ -355,7 +355,7 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			this.store(key, tier, tx, ty, bmp, bytes, builtGen);
 			recordPhase("localBake", performance.now() - __tLocal);
 		} finally {
-			this.inFlight.delete(key);
+			this.tileStore.finishFlight(key);
 		}
 	}
 
@@ -390,7 +390,15 @@ export class TileBaker<T extends Bounded> extends TileCompositor<T> {
 			) {
 				return false;
 			}
-			if (Array.isArray(object.path) && object.path.length > maxPathPoints) {
+			const compactPathPoints =
+				typeof object._hasCompactPathGeometry === "function" &&
+				object._hasCompactPathGeometry()
+					? object.complexity()
+					: null;
+			const pathPoints =
+				compactPathPoints ??
+				(Array.isArray(object.path) ? object.path.length : 0);
+			if (pathPoints > maxPathPoints) {
 				return false;
 			}
 

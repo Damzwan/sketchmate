@@ -58,6 +58,8 @@ export interface RenderEngineOptions extends CommittedOptions {
 	/** Max objects a sync overview patch may render; denser regions defer to
 	 *  the async yielded rebuild. */
 	overviewPatchMax?: number;
+	/** Main-thread slice for incremental overview repair queues. */
+	overviewWorkBudgetMs?: number;
 	afterComposite?: () => void;
 	/**
 	 * "Is a destination-out punch safe over this region?"
@@ -85,6 +87,7 @@ export abstract class RenderEngineBase<T extends Bounded> {
 	protected readonly cancelRemoteWork?: () => void;
 	protected readonly bakeDebounce: number;
 	protected readonly overviewPatchMax: number;
+	protected readonly overviewWorkBudgetMs: number;
 
 	protected readonly frames: FrameScheduler;
 	protected progressRaf = 0;
@@ -142,6 +145,7 @@ export abstract class RenderEngineBase<T extends Bounded> {
 		this.cancelRemoteWork = opts.cancelRemoteWork;
 		this.bakeDebounce = opts.bakeDebounceMs ?? 80;
 		this.overviewPatchMax = opts.overviewPatchMax ?? 200;
+		this.overviewWorkBudgetMs = opts.overviewWorkBudgetMs ?? 8;
 		this.frames = new FrameScheduler(() => this.renderNow());
 	}
 

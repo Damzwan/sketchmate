@@ -225,14 +225,19 @@ prioritized center-out from the viewport and yields every `CHUNK` objects.
 
 There is also a **synchronous** repair path (`rebuildRectSync` / `rebuildTileSync`,
 bounded by `maxTiles`) used for instant feedback at drag seams, where waiting for
-the async bake would show a hole.
+the async bake would show a hole. Settled discrete edits (undo/redo/delete/move)
+also have a sharp-transition path: visible tiles at the current tier retain their
+previous full-resolution bitmap until the replacement generation lands. Every
+other tier is invalidated normally, and a gesture revokes the transition, so a
+zoom can never resurrect old object positions.
 
 ### WorldOverview — the low-res base
 
 [`worldOverview.ts`](../src/draw/rendering/worldOverview.ts) is one adaptive
 `OffscreenCanvas` mapped to the content bounds. Its dimensions follow the
 content aspect ratio and target the first tile-backed tier's density. The
-configured `overviewPx²` remains a hard pixel budget. It plays two roles:
+configured `overviewPx²` remains a hard pixel budget (768² on low-end mobile,
+1024² on other mobile, 2048² on desktop). It plays two roles:
 
 1. The **far-zoom picture** — at or below `OVERVIEW_TIER` we just `drawImage` the
    overview, no tiles.
@@ -243,8 +248,11 @@ It is kept *correct* (not merely approximate) by **localized patching**:
 `patchRect(rect)` clears that sub-region and redraws exactly the objects there
 from the index — so add / remove / move / erase / undo all stay consistent with
 zero drift. A full `rebuildIfNeeded()` (O(all objects), low-res, yielded) only
-runs on growth/init. `patchRect` bails to the async rebuild past
-`overviewPatchMax` objects (a dense patch would jank the frame).
+runs when coverage grows or the bitmap is globally dirty. Dense patches are
+subdivided and drained in 3–4 ms slices on low-end devices; gestures abort or
+defer overview work so it does not compete with input.
+`patchRect` refuses regions beyond the profile's `overviewPatchMax` and sends
+them through that incremental subdivision path instead of janking one frame.
 
 ### LiveLayer — in-flight objects
 
@@ -525,9 +533,14 @@ is `ZOOM_TIERS[last] / renderScale`.
 
 ## Memory management
 
-- **Honest budget.** `memoryBudgetMB` (256 desktop, 96 low-end) is the total.
+- **Honest tile-engine budget.** `memoryBudgetMB` is 128 MB desktop, 72 MB mobile,
+  32 MB low-end mobile, and 24 MB on severely constrained (≤2 GB / ≤2-core)
+  mobile. It covers the main-thread tile cache, overview and retained bake-canvas
+  pool. It does **not** represent the whole WebView process (Fabric
+  lower/upper canvases, transform snapshots and the worker mirror/assets are
+  separate allocations).
   Fixed costs (overview bitmap + pool ceiling) are **subtracted** up front so the
-  real total stays under the device limit, not just the tile portion.
+  configured tile-engine total stays under its limit, not just the bitmap map.
 - **Tile eviction (`ensureMemory`).** When storing a tile would exceed the hard
   cap, evict least-recently-used tiles down to a low-water mark (85%) in one
   sorted pass — this amortizes so a burst of stores during a pan doesn't re-sort
@@ -537,6 +550,15 @@ is `ZOOM_TIERS[last] / renderScale`.
 - **Empty-tile pruning (`pruneEmpties`).** Long-untouched "fresh empty" tiles are
   dropped (and their gen entry) so the maps don't grow unbounded on a sparse
   infinite canvas.
+- **Side-map pruning.** LRU eviction and failed/aborted in-flight requests drop
+  their generation and dirty-region keys once no bitmap/request can observe
+  them, so infinite-canvas navigation cannot grow bookkeeping without bound.
+- **Overview backing release.** Atomic overview rebuilds temporarily keep old and
+  new canvases, but replaced, aborted and reset canvases are explicitly resized
+  to `0×0` rather than waiting for WebView GC to reclaim their backing stores.
+- **Transform area cap.** Low-end selection/vacated snapshots are bounded by
+  total pixels (1.0–1.5 MP), not only a 2048 px edge. This bounds both their
+  `ImageBitmap`s and the DOM canvases that display them while dragging.
 - **Worker-mirror virtualization.** The bakery keeps a large hot Fabric working
   set while tiles are actively baking, then trims it after 30 seconds idle. Its
   compact JSON source mirror is independently byte-capped (24 MB low-end
@@ -545,6 +567,15 @@ is `ZOOM_TIERS[last] / renderScale`.
 - **Zero-copy transfer.** `transferToImageBitmap()` (not `createImageBitmap`)
   moves the canvas pixels into a bitmap with no memcpy; the canvas resets and
   stays poolable.
+- **Packed pencil and eraser geometry.** `OptimizedPencilStroke` and
+  `OptimizedEraserStroke` keep resident paths as a `Uint8Array` command stream
+  plus `Float32Array` coordinates instead of Fabric's array-of-arrays. Rendering,
+  bounds, complexity, SVG export and compact serialization read those typed
+  arrays directly; the normal `path` shape is materialized only for rare
+  compatibility consumers such as lasso selection. Per-target eraser clip
+  clones share one immutable geometry buffer, so an erase across many objects
+  no longer multiplies the stroke geometry. The runtime kill switch is
+  `?compactStrokeGeometry=off` (reload required).
 
 ---
 
@@ -572,8 +603,9 @@ reach the engine through the same seams as local edits.
   separately so a long move doesn't invalidate the empty span between them.
 - **Payload compaction.** Pencil and watercolor strokes serialize a
   delta-encoded, rounded `compressedTrace` and drop the raw `path`. A live
-  watercolor stroke also retains only that numeric trace, not a second
-  `Point[]` graph beside its expanded Fabric path.
+  pencil stroke also keeps its resident render geometry in typed arrays rather
+  than Fabric command arrays. A live watercolor stroke retains only its numeric
+  trace beside its expanded Fabric path, not a second `Point[]` graph.
 - **Autosave snapshot.** Autosave serializes the live scene once in short time
   slices and persists that detached JSON directly. It does not clone every
   Fabric object or rebuild a second `StaticCanvas` for the draft thumbnail.

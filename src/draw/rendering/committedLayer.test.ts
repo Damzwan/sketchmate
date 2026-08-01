@@ -54,6 +54,7 @@ function tile(
 			builtGen: 0,
 			lastUsed: 0,
 			usable,
+			transition: false,
 		},
 		close,
 	};
@@ -217,6 +218,65 @@ describe("CommittedLayer safety bounds", () => {
 		expect(ctx.drawImage).toHaveBeenCalledOnce(); // full tile, no clip
 		expect(ctx.clip).not.toHaveBeenCalled();
 		expect(result.needsBake).toBe(true);
+	});
+
+	it("keeps only visible active-tier tiles sharp during a discrete transition", () => {
+		const layer = makeLayer() as any;
+		const tier = layer.pickActiveTier(1);
+		const activeKey = `${tier}:0:0`;
+		const coarseKey = `${tier - 1}:0:0`;
+		layer.tiles.set(activeKey, tile(tier, 0, 0, vi.fn(), true).value);
+		layer.tiles.set(coarseKey, tile(tier - 1, 0, 0, vi.fn(), true).value);
+
+		layer.markDirtyWithSharpTransition(
+			{ x: 0, y: 0, w: 40, h: 40 },
+			tier,
+			{ x: 0, y: 0, w: 100, h: 100 },
+		);
+
+		expect(layer.tiles.get(activeKey)).toMatchObject({
+			usable: true,
+			transition: true,
+		});
+		// A different tier must never advertise previous-state pixels as exact;
+		// zooming after a move would otherwise resurrect the old position.
+		expect(layer.tiles.get(coarseKey)).toMatchObject({
+			usable: false,
+			transition: false,
+		});
+
+		const ctx = fakeCtx();
+		const overviewComposite = vi
+			.spyOn(layer.overview, "composite")
+			.mockImplementation(() => {});
+		layer.composite(
+			ctx,
+			[1, 0, 0, 1, 0, 0],
+			{ w: 100, h: 100 },
+			1,
+			"#ffffff",
+		);
+		expect(ctx.drawImage).toHaveBeenCalledOnce();
+		expect(overviewComposite).not.toHaveBeenCalled();
+	});
+
+	it("revokes a sharp transition before the viewport changes", () => {
+		const layer = makeLayer() as any;
+		const tier = layer.pickActiveTier(1);
+		const key = `${tier}:0:0`;
+		layer.tiles.set(key, tile(tier, 0, 0, vi.fn(), true).value);
+		layer.markDirtyWithSharpTransition(
+			{ x: 0, y: 0, w: 40, h: 40 },
+			tier,
+			{ x: 0, y: 0, w: 100, h: 100 },
+		);
+
+		layer.dropSharpTransitions();
+
+		expect(layer.tiles.get(key)).toMatchObject({
+			usable: false,
+			transition: false,
+		});
 	});
 
 	it("falls back to a stale coarser tile instead of the overview", () => {

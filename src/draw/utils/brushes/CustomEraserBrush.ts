@@ -13,6 +13,7 @@ import {
 	LIVE_ERASE_STROKES,
 } from "@/draw/history/eraseUndoPolicy";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { TracedPath } from "@/draw/utils/brushes/TracedPath";
 
 const IS_MOBILE_ERASE =
 	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
@@ -281,13 +282,17 @@ export function commitErasing(
 /**
  * Fast per-target stroke clone. `source.clone()` is a full
  * toObject → compressedTrace → fromObject → SVG-parse round trip PER erased
- * object — a long stroke over many targets made commit() jank. The parsed
- * path array is never mutated (only transform props change via
- * sendObjectToPlane), so sharing it by reference is safe. `id` must be copied:
- * erase-undo removes clip children by stroke id.
+ * object — a long stroke over many targets made commit() jank. TracedPath
+ * geometry is immutable, so every per-target clip clone shares the same typed
+ * buffers while keeping its own transform. `id` must be copied: erase-undo
+ * removes clip children by stroke id.
  */
 function clonePathForErase(source: fabric.Path): fabric.Path {
-	const clone = new OptimizedEraserStroke(source.path as any, {
+	const geometry =
+		source instanceof TracedPath && source._hasCompactPathGeometry()
+			? source
+			: source.path;
+	const clone = new OptimizedEraserStroke(geometry as any, {
 		id: (source as any).id,
 		left: source.left,
 		top: source.top,
@@ -1048,11 +1053,19 @@ export class CustomEraserBrush extends PencilBrush {
 	}
 }
 
-export class OptimizedEraserStroke extends Path {
+export class OptimizedEraserStroke extends TracedPath {
 	static type = "OptimizedEraserStroke";
 
-	constructor(path: string | any[], options: any) {
-		super(path, options);
+	constructor(path: string | any[] | TracedPath, options: any) {
+		const sharedSource =
+			path instanceof TracedPath && path._hasCompactPathGeometry() ? path : null;
+		// Like pencil, the packed geometry can regenerate compressedTrace. Keeping
+		// the loaded JSON array would retain a second copy for every clip clone.
+		const { compressedTrace: _compressedTrace, ...pathOptions } = options || {};
+		super(sharedSource ? [] : (path as string | any[]), pathOptions);
+		if (sharedSource && !this._shareCompactPathGeometryFrom(sharedSource)) {
+			throw new Error("Could not share compact eraser geometry");
+		}
 	}
 
 	// @ts-ignore
@@ -1070,12 +1083,10 @@ export class OptimizedEraserStroke extends Path {
 		let lastX = 0,
 			lastY = 0;
 
-		for (const cmd of this.path) {
-			const type = cmd[0];
-
+		this._forEachPathCommand((type, coordinates, offset) => {
 			if (type === "M" || type === "L") {
-				const ix = Math.round((cmd[1] as number) * 10);
-				const iy = Math.round((cmd[2] as number) * 10);
+				const ix = Math.round((coordinates[offset] as number) * 10);
+				const iy = Math.round((coordinates[offset + 1] as number) * 10);
 
 				if (type === "M") {
 					compressedTrace.push("M", ix, iy);
@@ -1085,10 +1096,10 @@ export class OptimizedEraserStroke extends Path {
 				lastX = ix;
 				lastY = iy;
 			} else if (type === "Q") {
-				const icpx = Math.round((cmd[1] as number) * 10);
-				const icpy = Math.round((cmd[2] as number) * 10);
-				const ix = Math.round((cmd[3] as number) * 10);
-				const iy = Math.round((cmd[4] as number) * 10);
+				const icpx = Math.round((coordinates[offset] as number) * 10);
+				const icpy = Math.round((coordinates[offset + 1] as number) * 10);
+				const ix = Math.round((coordinates[offset + 2] as number) * 10);
+				const iy = Math.round((coordinates[offset + 3] as number) * 10);
 
 				compressedTrace.push(
 					"Q",
@@ -1100,7 +1111,7 @@ export class OptimizedEraserStroke extends Path {
 				lastX = ix;
 				lastY = iy;
 			}
-		}
+		});
 
 		return {
 			...baseObj,
@@ -1110,7 +1121,8 @@ export class OptimizedEraserStroke extends Path {
 
 	static async fromObject(object: any) {
 		// INFLATION: Convert the flat delta array back into an SVG string
-		if (object.compressedTrace && !object.path) {
+		let path = object.path;
+		if (object.compressedTrace && !path) {
 			let svg = "";
 			let lastX = 0,
 				lastY = 0;
@@ -1146,14 +1158,14 @@ export class OptimizedEraserStroke extends Path {
 					i++;
 				}
 			}
-			object.path = svg.trim();
+			path = svg.trim();
 		}
 		// stripType: this path bypasses enlivenStrokeProps, so `type` would reach
 		// the constructor and trigger fabric's "Setting type has no effect" log.
 		// It bypasses the default RESTORE for the same reason, so do it here —
 		// `toObjectWithoutPath` stripped them on the way out.
 		return new OptimizedEraserStroke(
-			object.path,
+			path,
 			restoreStrokeDefaults(stripType(object)),
 		);
 	}

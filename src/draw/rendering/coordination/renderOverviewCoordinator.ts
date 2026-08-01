@@ -14,8 +14,13 @@ export abstract class RenderOverviewCoordinator<
 	// ── gesture / loading / erase seams ──────────────────────────────────────
 	setGesturing(on: boolean): void {
 		this.gesturing = on;
-		if (on) this.abortBakes();
-		else {
+		if (on) {
+			// A discrete history edit may briefly retain the previous active-tier
+			// bitmap while its replacement bakes. That is intentionally scoped to the
+			// unchanged viewport; panning/zooming must use honest cross-tier fallback.
+			this.committed.dropSharpTransitions();
+			this.abortBakes();
+		} else {
 			if (!this.erasing) this.flushPendingOverview();
 			this.requestFrame();
 			this.scheduleBake();
@@ -30,6 +35,7 @@ export abstract class RenderOverviewCoordinator<
 	setLoading(on: boolean): void {
 		this.loading = on;
 		if (on) {
+			this.committed.dropSharpTransitions();
 			this.abortBakes();
 			this.live.clear();
 		}
@@ -37,8 +43,10 @@ export abstract class RenderOverviewCoordinator<
 
 	setErasing(on: boolean): void {
 		this.erasing = on;
-		if (on) this.abortBakes();
-		else {
+		if (on) {
+			this.committed.dropSharpTransitions();
+			this.abortBakes();
+		} else {
 			if (!this.gesturing) this.flushPendingOverview();
 			this.requestFrame();
 			this.scheduleBake();
@@ -251,7 +259,7 @@ export abstract class RenderOverviewCoordinator<
 				this.scheduleOverviewSplitDrain();
 				return;
 			}
-			const budgetMs = 8;
+			const budgetMs = this.overviewWorkBudgetMs;
 			const t0 = performance.now();
 			while (this.overviewSplitQueue.length) {
 				if (performance.now() - t0 >= budgetMs) break;
@@ -299,7 +307,7 @@ export abstract class RenderOverviewCoordinator<
 	 * point. Anything still queued is picked up by the bake that follows, and by
 	 * the next gesture end.
 	 */
-	protected flushPendingOverview(budgetMs = 8): void {
+	protected flushPendingOverview(budgetMs = this.overviewWorkBudgetMs): void {
 		if (this.pendingOverview.length === 0) return;
 		if (this.committed.overview.usesRemoteRenderer()) {
 			this.pendingOverview = [];

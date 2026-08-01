@@ -80,3 +80,19 @@ desktop and the target Android devices.
 
 Do not commit private user drawings. Sanitise ownership metadata and external
 image URLs before turning a drawing into a repository fixture.
+
+## JSON size versus resident path memory
+
+The Ctrl+Shift+D canvas debugger reports these separately. **Serialized JSON
+Footprint** is the save/sync payload produced by `canvas.toObject()`. Packed
+pencil geometry deliberately keeps the existing `compressedTrace` schema, so
+that number is expected to remain unchanged.
+
+**Est. Resident Path Geometry** measures the representation held by live Fabric
+objects. Compact paths use their typed-array byte lengths; ordinary Fabric paths
+use a V8 object-layout estimate. **Est. Saved by Packed Paths** compares the live
+representation with the estimated array-of-arrays equivalent. Nested group and
+clip paths are included, and shared eraser geometry is counted once in resident
+memory while its Fabric equivalent is counted once per clip clone. The estimate
+is for relative comparisons rather than an exact whole-process heap measurement;
+browser heaps, tile bitmaps, history, JSON mirrors, and GPU memory are separate.

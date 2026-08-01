@@ -3,6 +3,8 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { compareRenderOrder } from "@/draw/layers/layerRegistry";
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import { getRenderDpr } from "@/draw/config/renderQuality.config";
+import { DRAW_MEMORY_PROFILE } from "@/draw/config/drawMemory.config";
+import { fitBitmapDimensions } from "@/draw/config/drawMemoryProfile";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import {
 	bakeryRenderSelection,
@@ -729,12 +731,7 @@ async function prepareVacatedForSession(s: Session): Promise<void> {
 	const scale = s.baseZoom * getRenderDpr();
 	let width = Math.ceil(origin.width * scale);
 	let height = Math.ceil(origin.height * scale);
-	const maxDimension = 2048;
-	if (width > maxDimension || height > maxDimension) {
-		const factor = Math.min(maxDimension / width, maxDimension / height);
-		width = Math.max(1, Math.floor(width * factor));
-		height = Math.max(1, Math.floor(height * factor));
-	}
+	({ width, height } = fitTransformBitmap(width, height));
 	if (width <= 0 || height <= 0) return;
 
 	const backgroundObjects = vacatedObjects(s.target, origin);
@@ -1237,13 +1234,10 @@ function bakeSelectionBitmap(
 	let physW = Math.ceil(worldW * scale);
 	let physH = Math.ceil(worldH * scale);
 
-	const MAX_DIM = 2048;
-	if (physW > MAX_DIM || physH > MAX_DIM) {
-		const factor = Math.min(MAX_DIM / physW, MAX_DIM / physH);
-		physW = Math.max(1, Math.floor(physW * factor));
-		physH = Math.max(1, Math.floor(physH * factor));
-		scale *= factor;
-	}
+	const fitted = fitTransformBitmap(physW, physH);
+	physW = fitted.width;
+	physH = fitted.height;
+	scale *= fitted.factor;
 
 	const off = new OffscreenCanvas(physW, physH);
 	const ctx = off.getContext("2d", { alpha: true });
@@ -1420,13 +1414,17 @@ function bitmapGeometry(
 	let scale = c.viewportTransform![0] * getRenderDpr();
 	let width = Math.ceil(origin.width * scale);
 	let height = Math.ceil(origin.height * scale);
-	const maxDimension = 2048;
-	if (width > maxDimension || height > maxDimension) {
-		const factor = Math.min(maxDimension / width, maxDimension / height);
-		width = Math.max(1, Math.floor(width * factor));
-		height = Math.max(1, Math.floor(height * factor));
-	}
+	({ width, height } = fitTransformBitmap(width, height));
 	return { origin, width, height };
+}
+
+function fitTransformBitmap(width: number, height: number) {
+	return fitBitmapDimensions(
+		width,
+		height,
+		DRAW_MEMORY_PROFILE.transformMaxDimension,
+		DRAW_MEMORY_PROFILE.transformMaxPixels,
+	);
 }
 
 function originRect(origin: Origin) {

@@ -417,10 +417,26 @@ export class TileLayerBase<T extends Bounded> {
 		key: string,
 		rect: WorldRect | null,
 		keepUsable = false,
+		transition = false,
 	): void {
-		this.gen.set(key, (this.gen.get(key) ?? 0) + 1);
 		const t = this.tiles.get(key);
-		if (t && !keepUsable) t.usable = false;
+		// A transition is safe only from a tile that represented the complete
+		// previous scene. Never promote an older dirty/additive tile to trusted just
+		// because a new history edit touched it as well.
+		const canTransition =
+			transition &&
+			!!t?.usable &&
+			(t.transition || this.isFresh(key, t));
+		this.gen.set(key, (this.gen.get(key) ?? 0) + 1);
+		if (t) {
+			if (transition) {
+				t.usable = canTransition;
+				t.transition = canTransition;
+			} else if (!keepUsable) {
+				t.usable = false;
+				t.transition = false;
+			}
+		}
 		if (rect === null) {
 			this.dirtyRects.set(key, null);
 			return;
@@ -511,6 +527,68 @@ export class TileLayerBase<T extends Bounded> {
 	}
 
 	/**
+	 * Destructively invalidate an edit at every tier, while keeping only the
+	 * already-visible active-tier tiles as a sharp, previous-state transition.
+	 *
+	 * This is for settled discrete operations (undo/redo/delete), never streamed
+	 * interaction. Synchronous sub-rect repair replaces most transitions before
+	 * the next frame; any tile outside that small time slice swaps atomically when
+	 * its async bake arrives instead of exposing a low-resolution fallback.
+	 * Other tiers are invalidated normally, so zoom cannot resurrect old object
+	 * positions.
+	 */
+	markDirtyWithSharpTransition(
+		rect: WorldRect,
+		activeTier: number,
+		visible: WorldRect,
+	): void {
+		const ranges = this.ZOOM_TIERS.map((_, tier) => this.tileRange(rect, tier));
+		const visibleRange = this.tileRange(visible, activeTier);
+		const invalidate = (
+			key: string,
+			tier: number,
+			tx: number,
+			ty: number,
+		) => {
+			const r = ranges[tier];
+			if (tx < r.tx0 || tx > r.tx1 || ty < r.ty0 || ty > r.ty1) return;
+			const retain =
+				tier === activeTier &&
+				tx >= visibleRange.tx0 &&
+				tx <= visibleRange.tx1 &&
+				ty >= visibleRange.ty0 &&
+				ty <= visibleRange.ty1;
+			this.invalidateKey(key, rect, retain, retain);
+		};
+
+		// The cache is memory bounded (tens of tiles on mobile), so a map walk is
+		// both cheaper and safer than expanding a large history footprint into
+		// thousands of coordinate cells at every zoom tier.
+		for (const [key, tile] of this.tiles) {
+			invalidate(key, tile.tier, tile.tx, tile.ty);
+		}
+		for (const key of this.inFlight) {
+			if (this.tiles.has(key)) continue; // already bumped through the map above
+			const [rawTier, rawTx, rawTy] = key.split(":");
+			invalidate(
+				key,
+				parseInt(rawTier, 10),
+				parseInt(rawTx, 10),
+				parseInt(rawTy, 10),
+			);
+		}
+	}
+
+	/** Revoke previous-state transition pixels before a viewport interaction. */
+	dropSharpTransitions(): void {
+		for (const [key, tile] of this.tiles) {
+			if (!tile.transition) continue;
+			tile.transition = false;
+			if (!this.isFresh(key, tile)) tile.usable = false;
+		}
+	}
+
+	/**
 	 * ADDITIVE invalidation: this region needs a re-bake, but the pixels already
 	 * on screen are not WRONG — they are merely incomplete, and the caller is
 	 * covering the difference (a live overlay of the new object).
@@ -569,6 +647,7 @@ export class TileLayerBase<T extends Bounded> {
 				this.memoryBytes -= t.bytes;
 				this.tiles.delete(k);
 				this.dirtyRects.delete(k);
+				if (!this.inFlight.has(k)) this.gen.delete(k);
 			}
 			for (const k of this.inFlight) {
 				const parts = k.split(":");
@@ -591,6 +670,7 @@ export class TileLayerBase<T extends Bounded> {
 					this.memoryBytes -= t.bytes;
 					this.tiles.delete(k);
 					this.dirtyRects.delete(k);
+					if (!this.inFlight.has(k)) this.gen.delete(k);
 				}
 			}
 	}

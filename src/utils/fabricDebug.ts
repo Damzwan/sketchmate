@@ -1,6 +1,11 @@
-import { Canvas, FabricObject } from "fabric";
+import { Canvas } from "fabric";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useDocumentStore } from "@/draw/document/document.store";
+import {
+	getObjectPathStorageMetrics,
+	summarizeObjectPathStorage,
+} from "@/draw/utils/brushes/pathStorage";
+import { snapshotDrawMetrics } from "@/draw/rendering/renderMetrics";
 
 interface ObjectTypeBreakdown {
 	type: string;
@@ -35,27 +40,45 @@ export function setupCanvasDebugger(canvas: Canvas) {
 		const objects = canvas.getObjects();
 		const totalCount = objects.length;
 
-		// JSON Payload Size
+		// Serialized payload size. This is deliberately NOT labelled canvas memory:
+		// compact resident paths preserve the existing compressedTrace wire format,
+		// so a geometry-memory optimization should not move this number.
 		const jsonString = JSON.stringify(canvas.toObject(["id", "userId"]));
 		const sizeInBytes = new Blob([jsonString]).size;
 		const sizeKB = (sizeInBytes / 1024).toFixed(2);
 		const sizeMB = (sizeInBytes / (1024 * 1024)).toFixed(2);
 
 		// Type Ratios & Node Counts
-		const typeCounts: Record<string, { count: number; totalPoints: number }> =
-			{};
+		const typeCounts: Record<
+			string,
+			{
+				count: number;
+				totalPoints: number;
+			}
+		> = {};
 		let totalNodes = 0;
 		let hiddenOrCulledCount = 0;
+		const pathGeometry = summarizeObjectPathStorage(objects);
 
 		objects.forEach((obj: any) => {
 			const type = obj.type || "unknown";
-			const nodeCount = obj.path?.length || obj._objects?.length || 1;
+			// Check the compact introspection seam before reading `path`. Reading the
+			// TracedPath compatibility getter would allocate the very arrays this
+			// dashboard is meant to prove are no longer resident.
+			const pathStorage = getObjectPathStorageMetrics(obj);
+			const nodeCount =
+				pathStorage?.commandCount ||
+				obj._objects?.length ||
+				(typeof obj.complexity === "function" ? obj.complexity() : 1);
 
 			totalNodes += nodeCount;
 			if (!obj.visible) hiddenOrCulledCount++;
 
 			if (!typeCounts[type]) {
-				typeCounts[type] = { count: 0, totalPoints: 0 };
+				typeCounts[type] = {
+					count: 0,
+					totalPoints: 0,
+				};
 			}
 			typeCounts[type].count += 1;
 			typeCounts[type].totalPoints += nodeCount;
@@ -78,12 +101,22 @@ export function setupCanvasDebugger(canvas: Canvas) {
 		const width = canvas.getWidth();
 		const height = canvas.getHeight();
 		const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+		const surfaceElements = new Set<HTMLCanvasElement>();
+		const lower = (canvas as any).lowerCanvasEl ?? canvas.getElement?.();
+		const upper = (canvas as any).upperCanvasEl;
+		if (lower) surfaceElements.add(lower);
+		if (upper) surfaceElements.add(upper);
+		let surfaceBytes = 0;
+		for (const element of surfaceElements) {
+			surfaceBytes += (element.width || 0) * (element.height || 0) * 4;
+		}
 
 		return {
 			dimensions: {
 				width,
 				height,
 				devicePixelRatio: window.devicePixelRatio || 1,
+				surfaceBytes,
 			},
 			viewport: {
 				zoom: zoom.toFixed(2),
@@ -91,6 +124,8 @@ export function setupCanvasDebugger(canvas: Canvas) {
 				panY: vpt[5].toFixed(0),
 			},
 			payload: { sizeKB, sizeMB },
+			pathGeometry,
+			render: snapshotDrawMetrics(),
 			objects: {
 				total: totalCount,
 				totalNodes,
@@ -126,7 +161,7 @@ export function setupCanvasDebugger(canvas: Canvas) {
 
 		console.clear();
 		console.log(
-			`%c 🕹️ EZPZ CANVAS DEBUGGER %c Zoom: ${stats.viewport.zoom}x | Size: ${stats.payload.sizeMB} MB `,
+			`%c 🕹️ EZPZ CANVAS DEBUGGER %c Zoom: ${stats.viewport.zoom}x | JSON: ${stats.payload.sizeMB} MB | Path RAM: ~${(stats.pathGeometry.estimatedResidentBytes / (1024 * 1024)).toFixed(2)} MB `,
 			"background: #673ab7; color: white; padding: 4px 8px; font-size: 14px; font-weight: bold; border-radius: 3px 0 0 3px;",
 			"background: #333; color: #00BCD4; padding: 4px 8px; font-size: 14px; font-weight: bold; border-radius: 0 3px 3px 0;",
 		);
@@ -140,10 +175,32 @@ export function setupCanvasDebugger(canvas: Canvas) {
 			"Device Pixel Ratio": stats.dimensions.devicePixelRatio,
 			"Zoom Level": `${stats.viewport.zoom}x`,
 			"Pan Offset (X, Y)": `(${stats.viewport.panX}, ${stats.viewport.panY})`,
-			"JSON Footprint": `${stats.payload.sizeKB} KB (${stats.payload.sizeMB} MB)`,
+			"Serialized JSON Footprint": `${stats.payload.sizeKB} KB (${stats.payload.sizeMB} MB)`,
+			"Fabric Surface Backing Stores": `${(stats.dimensions.surfaceBytes / (1024 * 1024)).toFixed(2)} MB`,
+			"Est. Resident Path Geometry": `${(stats.pathGeometry.estimatedResidentBytes / 1024).toFixed(2)} KB`,
+			"Est. Fabric Path Equivalent": `${(stats.pathGeometry.estimatedFabricBytes / 1024).toFixed(2)} KB`,
+			"Est. Saved by Packed Paths": `${(stats.pathGeometry.estimatedSavingsBytes / 1024).toFixed(2)} KB`,
+			"Compact Path Objects": stats.pathGeometry.compactPathCount,
+			"Unique Geometry Buffers": stats.pathGeometry.uniqueGeometryCount,
 			"Sync Room Status": syncer?.roomId
 				? `ACTIVE (${syncer.roomId})`
 				: "LOCAL ONLY",
+		});
+
+		console.log(
+			"\n%c 🧱 TILE CACHE & FRAME PRESSURE ",
+			"color: #FF7043; font-weight: bold;",
+		);
+		console.table({
+			"Render Backend": stats.render.renderBackend,
+			"Tile Cache": `${stats.render.tileCacheCount} tiles / ${stats.render.tileMemoryMB.toFixed(2)} MB`,
+			"Tile Cache Peak": `${stats.render.tileCacheCountMax} tiles / ${stats.render.tileMemoryMBMax.toFixed(2)} MB`,
+			"Tile Bitmap Limit": `${stats.render.tileMemoryLimitMB.toFixed(2)} MB`,
+			"Tile Memory Pressure": `${(stats.render.tileMemoryPressure * 100).toFixed(1)}%`,
+			"Dirty / In-flight Tiles": `${stats.render.dirtyTiles} / ${stats.render.inFlightTiles}`,
+			"Composite Max": `${stats.render.compositeMsMax.toFixed(2)} ms`,
+			"Tile drawImage Max": `${stats.render.tileDrawMsMax.toFixed(2)} ms`,
+			"Longest Observed Task": `${stats.render.longTaskMsMax.toFixed(2)} ms`,
 		});
 
 		console.log(
@@ -194,7 +251,11 @@ export function setupCanvasDebugger(canvas: Canvas) {
 		const objects = canvas.getObjects();
 		sortedReport = objects
 			.map((obj: any) => {
-				const complexity = obj.path?.length || obj._objects?.length || 1;
+				const pathStorage = getObjectPathStorageMetrics(obj);
+				const complexity =
+					pathStorage?.commandCount ||
+					obj._objects?.length ||
+					(typeof obj.complexity === "function" ? obj.complexity() : 1);
 				const json = JSON.stringify(obj.toObject(["id", "userId"]));
 				return {
 					id: obj.id || "unassigned",

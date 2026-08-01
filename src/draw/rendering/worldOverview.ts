@@ -154,11 +154,38 @@ export class WorldOverview<T extends Bounded> {
 		// region edges is fully cleared and redrawn — no half-erased seams.
 		const mx = 2 / this.sx,
 			my = 2 / this.sy;
-		const r: WorldRect = {
+		const desired: WorldRect = {
 			x: rect.x - mx,
 			y: rect.y - my,
 			w: rect.w + 2 * mx,
 			h: rect.h + 2 * my,
+		};
+		// Snap the clear + clip to WHOLE OVERVIEW PIXELS. At fractional boundaries
+		// Canvas antialiases the clip against transparency; the untouched pixels on
+		// the other side do not add back to full coverage, leaving a pale line that
+		// becomes a conspicuous white seam when the overview is upscaled on mobile.
+		const px0 = Math.max(
+			0,
+			Math.floor((desired.x - this.bounds.x) * this.sx),
+		);
+		const py0 = Math.max(
+			0,
+			Math.floor((desired.y - this.bounds.y) * this.sy),
+		);
+		const px1 = Math.min(
+			this.canvas.width,
+			Math.ceil((desired.x + desired.w - this.bounds.x) * this.sx),
+		);
+		const py1 = Math.min(
+			this.canvas.height,
+			Math.ceil((desired.y + desired.h - this.bounds.y) * this.sy),
+		);
+		if (px1 <= px0 || py1 <= py0) return true;
+		const r: WorldRect = {
+			x: this.bounds.x + px0 / this.sx,
+			y: this.bounds.y + py0 / this.sy,
+			w: (px1 - px0) / this.sx,
+			h: (py1 - py0) / this.sy,
 		};
 
 		// Query BEFORE clearing — bail out density check must not leave a hole.
@@ -177,13 +204,9 @@ export class WorldOverview<T extends Bounded> {
 		}
 
 		// Clear the sub-rect (identity space).
-		const cx = (r.x - this.bounds.x) * this.sx;
-		const cy = (r.y - this.bounds.y) * this.sy;
-		const cw = r.w * this.sx,
-			ch = r.h * this.sy;
 		ctx.save();
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
-		ctx.clearRect(cx, cy, cw, ch);
+		ctx.clearRect(px0, py0, px1 - px0, py1 - py0);
 		ctx.restore();
 
 		// Redraw objects intersecting r, clipped to r (z-ordered by the index).
@@ -262,10 +285,33 @@ export class WorldOverview<T extends Bounded> {
 		// until we swap atomically at the end — never cleared mid-repaint.
 		const tmp = new OffscreenCanvas(width, height);
 		const tctx = tmp.getContext("2d");
-		if (!tctx) return;
+		const discardTmp = () => {
+			// Dropping the JS reference leaves backing-store reclamation to GC, which
+			// is far too late under Android WebView memory pressure. Resizing to zero
+			// releases the raster allocation immediately.
+			tmp.width = 0;
+			tmp.height = 0;
+		};
+		if (!tctx) {
+			discardTmp();
+			return;
+		}
 		const sx = width / bounds.w;
 		const sy = height / bounds.h;
 		const minPx = 0.75;
+		const commitTmp = () => {
+			const previous = this.canvas;
+			this.canvas = tmp;
+			this.ctx = tctx;
+			this.bounds = bounds;
+			this.sx = sx;
+			this.sy = sy;
+			this.dirty = this.dirtyRevision !== buildRevision;
+			if (previous && previous !== tmp) {
+				previous.width = 0;
+				previous.height = 0;
+			}
+		};
 
 		// Objects big enough to leave a mark at overview resolution, z-ordered.
 		//
@@ -295,11 +341,17 @@ export class WorldOverview<T extends Bounded> {
 					visible.push(objects[i]);
 				if ((i & 127) === 127) {
 					await yielder.maybeYield();
-					if (signal.aborted) return;
+					if (signal.aborted) {
+						discardTmp();
+						return;
+					}
 				}
 			}
 		}
-		if (signal.aborted) return;
+		if (signal.aborted) {
+			discardTmp();
+			return;
+		}
 
 		// Worker path: render the whole board off the main thread (the O(N) render
 		// was the main-thread stall on big boards). Strokes bake in the worker;
@@ -318,6 +370,7 @@ export class WorldOverview<T extends Bounded> {
 				);
 				if (signal.aborted) {
 					remote?.bitmap.close();
+					discardTmp();
 					return;
 				}
 				if (remote) {
@@ -347,17 +400,13 @@ export class WorldOverview<T extends Bounded> {
 							await yielder.maybeYield();
 							if (signal.aborted) {
 								tctx.restore();
+								discardTmp();
 								return;
 							}
 						}
 						tctx.restore();
 					}
-					this.canvas = tmp;
-					this.ctx = tctx;
-					this.bounds = bounds;
-					this.sx = sx;
-					this.sy = sy;
-					this.dirty = this.dirtyRevision !== buildRevision;
+					commitTmp();
 					return;
 				}
 			} catch {
@@ -368,6 +417,7 @@ export class WorldOverview<T extends Bounded> {
 			// and remain dirty; the coordinator will re-arm this rebuild.
 			if (this.canvas) {
 				this.dirty = true;
+				discardTmp();
 				return;
 			}
 			// Initial load has no fallback bitmap yet, so retain the yielded local
@@ -389,18 +439,14 @@ export class WorldOverview<T extends Bounded> {
 			await yielder.maybeYield();
 			if (signal.aborted) {
 				tctx.restore();
+				discardTmp();
 				return;
 			} // discard temp, keep old overview visible
 		}
 		tctx.restore();
 
 		// Atomic swap.
-		this.canvas = tmp;
-		this.ctx = tctx;
-		this.bounds = bounds;
-		this.sx = sx;
-		this.sy = sy;
-		this.dirty = this.dirtyRevision !== buildRevision;
+		commitTmp();
 		// WALL CLOCK, not CPU: this loop yields, so a large number here means the
 		// rebuild spanned many frames, not that it blocked for that long. The
 		// per-frame cost is bounded by the yielder's budget. `longTasks` is the
@@ -459,16 +505,37 @@ export class WorldOverview<T extends Bounded> {
 		const sw = dw * spx;
 		const sh = dh * spy;
 
+		// The outward snap above can grow `sx/sy` just past zero (or the far edge)
+		// when the viewport intersects the overview's own bounds. drawImage treats
+		// out-of-source pixels as transparent, which exposes the white canvas below.
+		// Clamp the source and trim the destination by the identical proportion so
+		// world→device mapping remains unchanged and no transparent sample is made.
+		const csx = Math.max(0, sx);
+		const csy = Math.max(0, sy);
+		const csx1 = Math.min(this.canvas.width, sx + sw);
+		const csy1 = Math.min(this.canvas.height, sy + sh);
+		if (csx1 <= csx || csy1 <= csy) return;
+		const dstPerSrcX = dw / sw;
+		const dstPerSrcY = dh / sh;
+		const cdx = dx + (csx - sx) * dstPerSrcX;
+		const cdy = dy + (csy - sy) * dstPerSrcY;
+		const cdw = (csx1 - csx) * dstPerSrcX;
+		const cdh = (csy1 - csy) * dstPerSrcY;
+
 		ctx.save();
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.imageSmoothingEnabled = true;
 		// @ts-ignore
 		ctx.imageSmoothingQuality = "low";
-		ctx.drawImage(this.canvas, sx, sy, sw, sh, dx, dy, dw, dh);
+		ctx.drawImage(this.canvas, csx, csy, csx1 - csx, csy1 - csy, cdx, cdy, cdw, cdh);
 		ctx.restore();
 	}
 
 	reset(): void {
+		if (this.canvas) {
+			this.canvas.width = 0;
+			this.canvas.height = 0;
+		}
 		this.canvas = null;
 		this.ctx = null;
 		this.bounds = null;

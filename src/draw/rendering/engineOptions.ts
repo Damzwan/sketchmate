@@ -5,26 +5,22 @@ import {
 } from "@/draw/config/renderQuality.config";
 import type { RenderEngineOptions } from "@/draw/rendering/renderEngine";
 import { DEFAULT_OVERVIEW_TIER } from "@/draw/rendering/zoomLevels";
+import { DRAW_MEMORY_PROFILE } from "@/draw/config/drawMemory.config";
 
 export const isLowEndDrawDevice = IS_LOW_END_DEVICE;
 export const isMobileDrawDevice = IS_MOBILE_DEVICE;
 
 export function createEngineOptions(): RenderEngineOptions {
-	const memoryBudgetMB = isLowEndDrawDevice
-		? 40
-		: isMobileDrawDevice
-			? 72
-			: 128;
-
 	return {
-		memoryBudgetMB,
-		overviewPx: isMobileDrawDevice ? 1024 : 2048,
+		memoryBudgetMB: DRAW_MEMORY_PROFILE.tileBudgetMB,
+		overviewPx: DRAW_MEMORY_PROFILE.overviewPx,
 		overviewTier: DEFAULT_OVERVIEW_TIER,
 		liveMax: isLowEndDrawDevice ? 32 : 64,
 		tileSize: isMobileDrawDevice ? 384 : 512,
-		poolMax: isLowEndDrawDevice ? 3 : isMobileDrawDevice ? 4 : 8,
+		poolMax: DRAW_MEMORY_PROFILE.tilePoolMax,
 		maxRenderScale: MAX_RENDER_SCALE,
-		overviewPatchMax: isLowEndDrawDevice ? 80 : 200,
-		renderChunk: isLowEndDrawDevice ? 8 : isMobileDrawDevice ? 16 : 32,
+		overviewPatchMax: DRAW_MEMORY_PROFILE.overviewPatchMax,
+		overviewWorkBudgetMs: DRAW_MEMORY_PROFILE.overviewWorkBudgetMs,
+		renderChunk: DRAW_MEMORY_PROFILE.renderChunk,
 	};
 }

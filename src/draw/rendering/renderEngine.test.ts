@@ -260,6 +260,20 @@ describe("RenderEngine erase bursts", () => {
 		engine.reset();
 	});
 
+	it("detects an incomplete single-region repair and bakes immediately", () => {
+		// rebuildRectSync has its own 6 ms slice, shorter than the outer batch
+		// budget. Returning from it therefore does not mean the whole rect is ready.
+		const engine = makeEngine() as any;
+		vi.spyOn(engine.committed, "rebuildRectSync").mockReturnValue(1);
+		vi.spyOn(engine.committed, "isRegionReady").mockReturnValue(false);
+		const bake = vi.spyOn(engine, "scheduleBake");
+
+		engine.invalidateRegions([{ x: 0, y: 0, w: 400, h: 300 }]);
+
+		expect(bake).toHaveBeenCalledWith(true);
+		engine.reset();
+	});
+
 	it("refuses to punch an erase across layers", () => {
 		// The tile bitmap is the composite of every layer, so a destination-out
 		// punch cannot tell the erased layer's pixels from anyone else's.
@@ -307,15 +321,16 @@ describe("RenderEngine erase bursts", () => {
 		engine.reset();
 	});
 
-	it("treats transform footprints as WRONG, not merely incomplete", () => {
-		// A move is not additive: the old footprint still shows an object that has
-		// left it. Marking those tiles stale-but-usable keeps them composited in
-		// full AND advertises them hole-free to the cross-tier fallback at every
-		// tier — so zooming after an undo/redo sources pre-move pixels and the
-		// object appears back at its previous position.
+	it("limits transform transition pixels to the current visible tier", () => {
+		// A move is not additive. The active tier may briefly retain the previous
+		// sharp frame while its replacement lands, but every other tier is honestly
+		// invalidated so zoom cannot resurrect pre-move pixels.
 		const engine = makeEngine() as any;
 		const markStale = vi.spyOn(engine.committed, "markStale");
-		const markDirty = vi.spyOn(engine.committed, "markDirty");
+		const transition = vi.spyOn(
+			engine.committed,
+			"markDirtyWithSharpTransition",
+		);
 		const rects = [
 			{ x: 20, y: 30, w: 100, h: 80 },
 			{ x: 220, y: 130, w: 100, h: 80 },
@@ -323,7 +338,7 @@ describe("RenderEngine erase bursts", () => {
 
 		engine.retainRegionsUntilRebaked(rects);
 
-		expect(markDirty).toHaveBeenCalledTimes(2);
+		expect(transition).toHaveBeenCalledTimes(2);
 		expect(markStale).not.toHaveBeenCalled();
 		engine.reset();
 	});

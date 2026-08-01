@@ -51,6 +51,8 @@ const HW = (navigator as any)?.hardwareConcurrency || 4;
 const DEVICE_MEM_GB = (navigator as any)?.deviceMemory || (IS_MOBILE ? 4 : 8);
 
 export const IS_MOBILE_DEVICE = IS_MOBILE;
+export const DRAW_HARDWARE_CONCURRENCY = HW;
+export const DRAW_DEVICE_MEMORY_GB = DEVICE_MEM_GB;
 
 /**
  * `hardwareConcurrency` alone was a bad proxy for "can this device hold a big

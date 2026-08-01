@@ -1,4 +1,4 @@
-import { FabricObjectProps } from "fabric";
+import { FabricObject, FabricObjectProps } from "fabric";
 import type { DrawLayer } from "@/draw/layers/layer.types";
 
 export enum HistoryEvent {
@@ -33,7 +33,12 @@ export enum HistoryEvent {
 
 export type HistoryParamsMap = {
 	[HistoryEvent.ObjectAdded]: { objectJSON: any };
-	[HistoryEvent.ObjectsAdded]: { objectsJSON: any[] };
+	[HistoryEvent.ObjectsAdded]: {
+		/** Present for normal eager history entries and after the first undo of a
+		 * saved-object import. Bulk import initially records only objectIds. */
+		objectsJSON?: any[];
+		objectIds?: string[];
+	};
 	[HistoryEvent.ObjectsDeleted]: { objectsJSON: any[] };
 	[HistoryEvent.ObjectModified]: {
 		activeObjectId?: string | null;
@@ -49,7 +54,10 @@ export type HistoryParamsMap = {
 		strokeJSON: any;
 		deletedObjectsJSON: any[];
 	};
-	[HistoryEvent.FullErase]: { prevCanvasJSON: any };
+	[HistoryEvent.FullErase]: {
+		objects: FabricObject[];
+		previousBackgroundColor: string;
+	};
 	[HistoryEvent.MoveObjectToFront]: {
 		objectIds: string[];
 		prevObjectPositions: number[];

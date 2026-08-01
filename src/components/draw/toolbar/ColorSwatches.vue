@@ -8,7 +8,7 @@
     class="fixed z-40 flex flex-col gap-2 pointer-events-auto"
     :style="{
       right: 'calc(0.75rem + env(safe-area-inset-right))',
-      bottom: 'calc(12.5rem + env(safe-area-inset-bottom))',
+      bottom: 'calc(9.5rem + env(safe-area-inset-bottom))',
     }"
   >
       <button
@@ -50,43 +50,46 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { storeToRefs } from 'pinia'
-import { IonPopover, IonRange } from '@ionic/vue'
-import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { useColorProfiles, type ColorProfile } from '@/draw/tools/colorProfiles.store'
-import { useToolSelection } from '@/draw/tools/toolSelection.store'
-import { usePen } from '@/draw/tools/pen.store'
+import { computed, ref } from "vue";
+import { storeToRefs } from "pinia";
+import { IonPopover, IonRange } from "@ionic/vue";
+import ColorPicker from "@/components/draw/ColorPicker.vue";
+import {
+	useColorProfiles,
+	type ColorProfile,
+} from "@/draw/tools/colorProfiles.store";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { usePen } from "@/draw/tools/pen.store";
 import { DrawTool } from "@/draw/tools/tool.types";
-import { hexWithOpacity, percentToAlphaHex } from '@/draw/utils/color.utils'
+import { hexWithOpacity, percentToAlphaHex } from "@/draw/utils/color.utils";
 
-const { profiles, activeIndex } = storeToRefs(useColorProfiles())
-const { setActive } = useColorProfiles()
-const { selectedTool } = storeToRefs(useToolSelection())
-const { brushColor, opacity } = storeToRefs(usePen())
+const { profiles, activeIndex } = storeToRefs(useColorProfiles());
+const { setActive } = useColorProfiles();
+const { selectedTool } = storeToRefs(useToolSelection());
+const { brushColor, opacity } = storeToRefs(usePen());
 
-const pickerOpen = ref(false)
-const pickerEvent = ref<Event | undefined>(undefined)
+const pickerOpen = ref(false);
+const pickerEvent = ref<Event | undefined>(undefined);
 
 const enabled = computed(
-  () =>
-    selectedTool.value === DrawTool.Pen ||
-    selectedTool.value === DrawTool.Bucket
-)
+	() =>
+		selectedTool.value === DrawTool.Pen ||
+		selectedTool.value === DrawTool.Bucket,
+);
 
 function swatchCss(p: ColorProfile) {
-  return hexWithOpacity(p.color, percentToAlphaHex(p.opacity))
+	return hexWithOpacity(p.color, percentToAlphaHex(p.opacity));
 }
 
 function onClick(i: number, e: MouseEvent) {
-  // First click switches to the slot; only a second click on the ALREADY-active
-  // slot opens the color picker (not the full pen/bucket menu).
-  if (i !== activeIndex.value) {
-    setActive(i)
-    return
-  }
-  pickerEvent.value = e
-  pickerOpen.value = true
+	// First click switches to the slot; only a second click on the ALREADY-active
+	// slot opens the color picker (not the full pen/bucket menu).
+	if (i !== activeIndex.value) {
+		setActive(i);
+		return;
+	}
+	pickerEvent.value = e;
+	pickerOpen.value = true;
 }
 </script>
 

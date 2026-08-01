@@ -91,7 +91,7 @@ async function syncObjectsModified(
 }
 
 async function syncFullErase() {
-	fullErase(); // TODO select
+	await fullErase(); // TODO select
 }
 
 // TODO duplicates...

@@ -26,6 +26,7 @@ interface Select extends ToolService {
 
 export const useSelect = defineStore("select", (): Select => {
 	let c: Canvas | undefined = undefined;
+	let gestureRestoreTimer: ReturnType<typeof setTimeout> | null = null;
 	const isSelectActive = ref(false);
 
 	let selectedObjects: FabricObject[] = [];
@@ -228,6 +229,16 @@ export const useSelect = defineStore("select", (): Select => {
 		c = canvas;
 	}
 
+	function destroy() {
+		if (gestureRestoreTimer) clearTimeout(gestureRestoreTimer);
+		gestureRestoreTimer = null;
+		selectedObjects = [];
+		selectedObjectsRef.value = [];
+		isSelectActive.value = false;
+		pointerDownPos = null;
+		c = undefined;
+	}
+
 	async function select() {
 		c!.isDrawingMode = false;
 		c!.skipTargetFind = false;
@@ -294,7 +305,9 @@ export const useSelect = defineStore("select", (): Select => {
 		useGestures = false;
 		clicksAfterSelectionActive = 0;
 
-		setTimeout(() => {
+		if (gestureRestoreTimer) clearTimeout(gestureRestoreTimer);
+		gestureRestoreTimer = setTimeout(() => {
+			gestureRestoreTimer = null;
 			useGestures = true;
 			clicksAfterSelectionActive++;
 		}, 100);
@@ -307,6 +320,7 @@ export const useSelect = defineStore("select", (): Select => {
 	return {
 		select,
 		init,
+		destroy,
 		events,
 		unSelect,
 		isSelectActive,

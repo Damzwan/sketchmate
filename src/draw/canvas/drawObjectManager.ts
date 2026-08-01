@@ -44,6 +44,7 @@ import {
 	bakeryRemove,
 	bakeryRenderOverview,
 	bakerySeed,
+	shutdownTileBakerySession,
 	configureTileBakery,
 	initTileBakery,
 } from "@/draw/rendering/bakery/tileBakeryClient";
@@ -63,7 +64,14 @@ export function createDrawObjectManager() {
 	let renderEngine: RenderEngine<FabricObject> | null = null;
 
 	const objectMap = new Map<string, FabricObject>();
-	const zIndex = new ExplicitZIndex(() => c?.getObjects() ?? [], objectMap);
+	// Fabric.getObjects() copies the entire stack. New strokes and imported
+	// objects are overwhelmingly appended, and ExplicitZIndex checks the tail
+	// before doing any search, so hand it the internal read-only stack here. This
+	// turns bulk append z-assignment from O(N²) allocation/scanning into O(N).
+	const zIndex = new ExplicitZIndex(
+		() => (c ? ((c as any)._objects as FabricObject[]) : []),
+		objectMap,
+	);
 
 	let loadingDepth = 0;
 	const isLoading = () => loadingDepth > 0;
@@ -301,22 +309,6 @@ export function createDrawObjectManager() {
 		renderEngine?.onObjectAdded(obj, isRenderTopmost(obj));
 	}
 
-	/**
-	 * Register objects added while actionWithoutEvents() had Fabric's
-	 * object:added listener detached. Without this, they exist only in Fabric's
-	 * display list: the active-object layer can show them briefly, but the tile
-	 * renderer cannot find them after the next viewport redraw.
-	 */
-	function registerAddedObjects(objects: FabricObject[]) {
-		if (!objects.length) return;
-		beginBatch();
-		try {
-			for (const obj of objects) onObjectAdded(obj);
-		} finally {
-			endBatch();
-		}
-	}
-
 	function onObjectRemoved(obj: FabricObject) {
 		if (!obj.id) return;
 		localTransform.invalidateVacatedCache();
@@ -483,6 +475,15 @@ export function createDrawObjectManager() {
 	function detach() {
 		renderEngine?.destroy();
 		renderEngine = null;
+		objectMap.clear();
+		clearSpatialIndex();
+		zIndex.reset();
+		batchDepth = 0;
+		batchRects = [];
+		batchRetainedRemovalRects = [];
+		batchAdds = [];
+		retainedRemovalDepth = 0;
+		shutdownTileBakerySession();
 		c = undefined;
 	}
 
@@ -743,7 +744,6 @@ export function createDrawObjectManager() {
 		getVisibleObjects,
 		getObjectById,
 		getObjectsById,
-		registerAddedObjects,
 		translateMirror: gestures.translateMirror,
 		zToFront,
 		zToBack,

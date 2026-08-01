@@ -408,6 +408,19 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		c = canvas;
 	}
 
+	function destroy() {
+		cleanupQueue.length = 0;
+		erasureDeletionGuard = null;
+		pointerEraseActive = false;
+		cancelCircle = false;
+		brush?.dispose();
+		programmaticBrush?.dispose();
+		brush = null;
+		programmaticBrush = null;
+		c = undefined;
+		objMgr.setErasing(false);
+	}
+
 	function updateEraserCursor() {
 		updateFreeDrawingCursor(
 			c!,
@@ -419,10 +432,11 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 
 	function cancelErase() {
 		if (!c) return;
-		const brush = c.freeDrawingBrush as CustomEraserBrush;
-		if (!brush) return;
 		pointerEraseActive = false;
-		brush.cancel();
+		// The selected tool may have replaced freeDrawingBrush with a pen, crayon,
+		// or another Fabric brush. Only CustomEraserBrush owns cancel().
+		const brush = c.freeDrawingBrush as Partial<CustomEraserBrush> | undefined;
+		if (typeof brush?.cancel === "function") brush.cancel();
 		if (pendingEraseCommits === 0) objMgr.setErasing(false);
 	}
 
@@ -537,6 +551,8 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		// Commit side of the same rule. `walk()` still runs the precise
 		// intersection test, so a padded over-query is safe.
 		b.erasableFilter = isEraseTarget;
+		b.isEraseStrokeUndoable = (strokeId: string) =>
+			erasureDeletionGuard?.(strokeId) ?? true;
 		b.targetCandidatesProvider = (path: Path) => {
 			const r = (path as any).getBoundingRect(true, true);
 			const pad = (path as any).strokeWidth ?? 0;
@@ -629,12 +645,14 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 	}
 
 	watch(eraserSize, () => {
-		c!.freeDrawingBrush!.width = eraserSize.value;
+		if (!c?.freeDrawingBrush) return;
+		c.freeDrawingBrush.width = eraserSize.value;
 		updateEraserCursor();
 	});
 
 	return {
 		init,
+		destroy,
 		select,
 		eraserSize,
 		events,

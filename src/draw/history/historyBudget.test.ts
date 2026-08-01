@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { eraseHistoryWeight } from "@/draw/history/historyBudget";
+import {
+	eraseHistoryWeight,
+	referenceHistoryWeight,
+} from "@/draw/history/historyBudget";
 
 describe("history budget", () => {
 	it("keeps wide erase references lightweight", () => {
@@ -13,5 +16,9 @@ describe("history budget", () => {
 	it("does not evict a short burst of wide erases", () => {
 		const burstWeight = 8 * eraseHistoryWeight(200, 0);
 		expect(burstWeight).toBeLessThan(400);
+	});
+
+	it("charges an id-only bulk import as references, not retained snapshots", () => {
+		expect(referenceHistoryWeight(200)).toBe(5);
 	});
 });

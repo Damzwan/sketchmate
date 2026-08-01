@@ -1,5 +1,5 @@
 import { defineStore, storeToRefs } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type WatchStopHandle } from "vue";
 import { Canvas } from "fabric";
 import { v4 as uuidv4 } from "uuid";
 import { useAuthStore } from "@/store/auth.store";
@@ -55,6 +55,7 @@ export const useClaimArea = defineStore("claimArea", () => {
 	const isClaiming = ref(false);
 	const ghost = ref<AreaGhost | null>(null);
 	let lastToastAt = 0;
+	let stopRoomWatch: WatchStopHandle | null = null;
 
 	const auth = useAuthStore();
 	const me = () => (auth.user?._id ? String(auth.user._id) : undefined);
@@ -74,15 +75,24 @@ export const useClaimArea = defineStore("claimArea", () => {
 	}
 
 	function init(canvas: Canvas) {
+		stopRoomWatch?.();
 		c = canvas;
 		// Areas live only for the current lobby session — drop them on leave.
 		const { roomId } = storeToRefs(useDrawSyncer());
-		watch(roomId, (id) => {
+		stopRoomWatch = watch(roomId, (id) => {
 			if (!id) {
 				areas.value = [];
 				exitClaimMode();
 			}
 		});
+	}
+
+	function destroy() {
+		stopRoomWatch?.();
+		stopRoomWatch = null;
+		areas.value = [];
+		exitClaimMode();
+		c = undefined;
 	}
 
 	// ── enforcement API (read by Fabric setup overrides + eraser) ────────────
@@ -353,6 +363,7 @@ export const useClaimArea = defineStore("claimArea", () => {
 		foreignAreas,
 		canClaimMore,
 		init,
+		destroy,
 		pointInForeignArea,
 		isObjectProtected,
 		objectIntersectsForeignArea,

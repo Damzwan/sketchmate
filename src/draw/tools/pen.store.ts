@@ -52,6 +52,10 @@ export const usePen = defineStore("pen", (): Pen => {
 		c = canvas;
 	}
 
+	function destroy() {
+		c = undefined;
+	}
+
 	async function select() {
 		c!.isDrawingMode = true;
 		c!.skipTargetFind = true;
@@ -81,43 +85,51 @@ export const usePen = defineStore("pen", (): Pen => {
 	}
 
 	function updatePenCursor() {
-		updateFreeDrawingCursor(c!, brushSize.value, c!.freeDrawingBrush!.color);
+		if (!c?.freeDrawingBrush) return;
+		updateFreeDrawingCursor(c, brushSize.value, c.freeDrawingBrush.color);
 	}
 
 	watch(brushSize, () => {
-		c!.freeDrawingBrush!.width = brushSize.value;
+		if (!c?.freeDrawingBrush) return;
+		c.freeDrawingBrush.width = brushSize.value;
 		updatePenCursor();
 	});
 
 	watch(brushColor, () => {
-		c!.freeDrawingBrush!.color = brushColorWithOpacity();
+		if (!c?.freeDrawingBrush) return;
+		c.freeDrawingBrush.color = brushColorWithOpacity();
 		updatePenCursor();
 	});
 
 	watch(opacity, () => {
-		c!.freeDrawingBrush!.color = brushColorWithOpacity();
+		if (!c?.freeDrawingBrush) return;
+		c.freeDrawingBrush.color = brushColorWithOpacity();
 		updatePenCursor();
 	});
 
 	watch(density, () => {
-		(c!.freeDrawingBrush! as any).density = density.value;
+		if (c?.freeDrawingBrush)
+			(c.freeDrawingBrush as any).density = density.value;
 	});
 
 	watch(dotWidth, () => {
-		(c!.freeDrawingBrush! as any).dotWidth = dotWidth.value;
+		if (c?.freeDrawingBrush)
+			(c.freeDrawingBrush as any).dotWidth = dotWidth.value;
 	});
 
 	watch(pixelSize, () => {
-		(c!.freeDrawingBrush! as any).pixelSize = pixelSize.value;
+		if (c?.freeDrawingBrush)
+			(c.freeDrawingBrush as any).pixelSize = pixelSize.value;
 	});
 
 	watch(brushType, () => {
-		select();
+		if (c) void select();
 	});
 
 	return {
 		select,
 		init,
+		destroy,
 		brushSize,
 		brushType,
 		brushColor,

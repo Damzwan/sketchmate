@@ -64,7 +64,10 @@ import {
 } from "@/service/api/socket/drawSyncing.socket";
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import MyDrafts from "@/components/home/MyDrafts.vue";
-import { DrawingDraft, useDocumentStore } from "@/draw/document/document.store";
+import {
+	type DrawingDraftMetadata,
+	useDocumentStore,
+} from "@/draw/document/document.store";
 import CommunityFeed from "@/components/home/CommunityFeed.vue";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
@@ -92,7 +95,7 @@ const { isUnderAge } = storeToRefs(useAuthStore());
 const documentStore = useDocumentStore();
 const { pendingDraftsList, removedDraftIds } = storeToRefs(documentStore);
 
-const localDrafts = ref<DrawingDraft[]>([]);
+const localDrafts = ref<DrawingDraftMetadata[]>([]);
 const isLoadingDrafts = ref(true);
 const communityFeed = ref<{ reloadIfDirty: () => void } | null>(null);
 const communityFeedMounted = ref(true);
@@ -153,7 +156,7 @@ const pendingDraftIds = computed(
 	() => new Set(pendingDraftsList.value.map((p) => p.id)),
 );
 
-const mergedDrafts = computed<DrawingDraft[]>(() => {
+const mergedDrafts = computed<DrawingDraftMetadata[]>(() => {
 	const pendingIds = pendingDraftIds.value;
 	const removed = removedDraftIds.value;
 	const real = localDrafts.value.filter(
@@ -220,7 +223,7 @@ watch(
 
 const fetchDraftsBackground = async () => {
 	try {
-		localDrafts.value = await documentStore.getAllDrafts();
+		localDrafts.value = await documentStore.getAllDraftMetadata();
 	} catch (error) {
 		console.error("[home] background fetch failed:", error);
 	}
@@ -249,7 +252,7 @@ const joinLobby = (lobbyId: string) => {
 const fetchDrafts = async () => {
 	isLoadingDrafts.value = true;
 	try {
-		localDrafts.value = await documentStore.getAllDrafts();
+		localDrafts.value = await documentStore.getAllDraftMetadata();
 	} finally {
 		isLoadingDrafts.value = false;
 	}

@@ -29,7 +29,7 @@
     />
 
     <DrawExitGuard
-      :draft-id="draftId"
+	  :draft-id="draftId || ''"
       :is-lobby="isLobby"
     />
   </div>
@@ -66,6 +66,7 @@ import DrawExitGuard from "@/components/draw/DrawExitGuard.vue";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import { Menu } from "@/types/menu.types";
+import { useToast } from "@/service/toast.service";
 
 const route = useRoute();
 const router = useRouter();
@@ -118,9 +119,14 @@ function closePerformancePanel() {
 }
 
 const draftId = ref(getParam("id"));
+const { toast } = useToast();
+let mounted = false;
+let initFrame: number | null = null;
+let roomMenuTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ─── 2. LIFECYCLE & ROUTE SANITIZATION ─────────────────────────
 onMounted(() => {
+	mounted = true;
 	const newQuery = { ...route.query };
 	let routeNeedsUpdate = false;
 
@@ -150,25 +156,37 @@ onMounted(() => {
 	}
 
 	// ─── 3. CANVAS BOOTSTRAPPING ──────────────────────────────────
-	requestAnimationFrame(() => {
+	initFrame = requestAnimationFrame(() => {
+		initFrame = null;
 		if (!myCanvasRef.value) return;
 
-		initCanvas(myCanvasRef.value, {
-			isLobby: isLobby.value || drawTogether.value,
-			draftId: draftId.value,
-			canvasUrl: canvasUrl.value,
-		}).then(async () => {
-			if (drawTogether.value) {
-				canvasReady.value = true;
-				maybeOpenRoomMenu();
-			} else {
-				await socketLoggedInPromise;
+		void (async () => {
+			try {
+				await initCanvas(myCanvasRef.value!, {
+					isLobby: isLobby.value || drawTogether.value,
+					draftId: draftId.value,
+					canvasUrl: canvasUrl.value,
+				});
+				if (!mounted || !drawStore.isCanvasInitialized) return;
+				if (drawTogether.value) {
+					canvasReady.value = true;
+					maybeOpenRoomMenu();
+				} else {
+					await socketLoggedInPromise;
+					if (!mounted || !drawStore.isCanvasInitialized) return;
 
-				if (targetRoomId.value) {
-					socketJoinRoom({ roomId: targetRoomId.value, intent: "join" });
+					if (targetRoomId.value) {
+						socketJoinRoom({ roomId: targetRoomId.value, intent: "join" });
+					}
 				}
+			} catch (error) {
+				if (!mounted) return;
+				console.error("[draw] canvas initialization failed", error);
+				toast("Couldn't open this drawing. Please go back and try again.", {
+					color: "danger",
+				});
 			}
-		});
+		})();
 	});
 });
 
@@ -182,10 +200,20 @@ function maybeOpenRoomMenu() {
 	if (roomMenuOpened || !drawTogether.value || !canvasReady.value) return;
 	roomMenuOpened = true;
 	const { openMenu } = useMenuStore();
-	setTimeout(() => openMenu(Menu.DrawRoomMenu), 350);
+	roomMenuTimer = setTimeout(() => {
+		roomMenuTimer = null;
+		if (mounted && drawStore.isCanvasInitialized) openMenu(Menu.DrawRoomMenu);
+	}, 350);
 }
 
-onUnmounted(() => {});
+onUnmounted(() => {
+	mounted = false;
+	if (initFrame !== null) cancelAnimationFrame(initFrame);
+	if (roomMenuTimer) clearTimeout(roomMenuTimer);
+	initFrame = null;
+	roomMenuTimer = null;
+	drawStore.disposeSession();
+});
 </script>
 
 <style scoped>

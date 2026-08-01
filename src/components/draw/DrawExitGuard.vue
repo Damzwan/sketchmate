@@ -9,6 +9,8 @@ import { slideTransition } from "@/helper/animation.helper";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import DrawExitModal from "@/components/draw/DrawExitModal.vue";
 import { useSessionStore } from "@/store/session.store";
+import { useToast } from "@/service/toast.service";
+import * as Sentry from "@sentry/capacitor";
 
 const props = defineProps<{
 	draftId: string;
@@ -19,48 +21,80 @@ const router = useIonRouter();
 const documentStore = useDocumentStore();
 const drawStore = useDrawStore();
 const uiStore = useDrawUIStore();
+const { toast } = useToast();
 
 let isNavigationConfirmed = false;
+let exitPromise: Promise<boolean> | null = null;
 const isModalOpen = ref(false);
 
 const requestExit = async () => {
 	if (isNavigationConfirmed) {
-		commitExit();
+		await commitExit();
 		return;
 	}
 	const shouldLeave = await resolveExit();
-	if (shouldLeave) commitExit();
+	if (shouldLeave) await commitExit();
 };
 
 watch(() => uiStore.exitRequested, requestExit);
 
-const commitExit = (goBack = true) => {
+const commitExit = async (goBack = true): Promise<boolean> => {
+	if (exitPromise) return exitPromise;
 	isNavigationConfirmed = true;
-	documentStore.stopAutosave();
+	exitPromise = (async () => {
+		try {
+			// Abort a cold load and wait for an active eraser commit before taking
+			// the detached save snapshot. The live Fabric canvas remains valid here.
+			await drawStore.prepareForExit();
+			documentStore.stopAutosave();
 
-	if (!props.isLobby) {
-		const canvas = drawStore.getCanvas();
-		const totalObjects = canvas ? canvas.getObjects().length : 0;
-		const isPreExistingDraft = documentStore.isPreExistingDraft || false;
+			if (!props.isLobby && drawStore.isCanvasInitialized) {
+				const canvas = drawStore.getCanvas();
+				const totalObjects = canvas ? canvas.getObjects().length : 0;
+				const isPreExistingDraft = documentStore.isPreExistingDraft || false;
 
-		// FIX: Drop empty drawings from cache tracking completely if they were previous records
-		if (totalObjects === 0 && isPreExistingDraft) {
-			documentStore.removeDraft(props.draftId);
-		} else {
-			documentStore.exitWithBackgroundSave();
+				if (totalObjects === 0 && isPreExistingDraft) {
+					await documentStore.removeDraft(props.draftId);
+				} else if (
+					documentStore.isDirty ||
+					(!isPreExistingDraft && !documentStore.lastSavedAt)
+				) {
+					// Resolves once immutable JSON is detached. Thumbnail rendering and the
+					// IDB write can continue after disposeSession releases the live canvas.
+					await documentStore.exitWithBackgroundSave();
+				}
+			}
+
+			useSessionStore().setQueryParams(undefined);
+			drawStore.disposeSession();
+
+			if (goBack) {
+				if (router.canGoBack()) router.back();
+				else router.replace(FRONTEND_ROUTES.home, slideTransition);
+			}
+			return true;
+		} catch (error) {
+			console.error("[draw] exit preparation failed", error);
+			// This exception is intentionally caught to keep the drawing open, so the
+			// global unhandled-error integration cannot observe it automatically.
+			Sentry.captureException(error, {
+				tags: { subsystem: "drawing", operation: "session_exit" },
+			});
+			isNavigationConfirmed = false;
+			// The drawing stays open when its final snapshot fails. Restore periodic
+			// persistence so a transient IDB/storage error does not leave it unprotected.
+			if (!props.isLobby && props.draftId && drawStore.isCanvasInitialized) {
+				documentStore.startAutosave(drawStore.getCanvas(), props.draftId);
+			}
+			toast("Couldn't safely save this drawing. Please try again.", {
+				color: "danger",
+			});
+			return false;
+		} finally {
+			exitPromise = null;
 		}
-	}
-
-	// FIX: Clear query parameters explicitly before popping back routing history
-	const sessionStore = useSessionStore();
-	sessionStore.setQueryParams(undefined);
-
-	if (!goBack) return;
-	if (router.canGoBack()) {
-		router.back();
-	} else {
-		router.replace(FRONTEND_ROUTES.home, slideTransition);
-	}
+	})();
+	return exitPromise;
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -105,15 +139,18 @@ onBeforeRouteLeave(async (_to, _from, next) => {
 	// BYPASS: If we are coming from a successful share, skip the modal
 	if (uiStore.isForceExiting) {
 		uiStore.isForceExiting = false; // Reset it for the next session
-		commitExit(false); // we are already calling the exit logic from our sendhub.vue
-		return next();
+		const exited = await commitExit(false);
+		if (exited) next();
+		else next(false);
+		return;
 	}
 
 	// NORMAL CASE: Prompt the user with the modal
 	const shouldLeave = await resolveExit();
 	if (shouldLeave) {
-		commitExit();
-		next();
+		const exited = await commitExit(false);
+		if (exited) next();
+		else next(false);
 	} else {
 		next(false);
 	}

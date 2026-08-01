@@ -49,7 +49,8 @@ declare module "fabric" {
 		};
 
 		fullErase: Partial<TEvent> & {
-			prevCanvasJSON: string;
+			objects: FabricObject[];
+			previousBackgroundColor: string;
 		};
 
 		flip: Partial<TEvent> & {
@@ -90,6 +91,7 @@ declare module "fabric" {
 
 		"objects:added": Partial<TEvent> & {
 			target: FabricObject[];
+			deferHistorySnapshot?: boolean;
 		};
 
 		layerDocumentChanged: Partial<TEvent> & {

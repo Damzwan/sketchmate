@@ -26,7 +26,10 @@ import { getObjectDiff } from "@/draw/history/operations/objectHistory";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { yieldToMain } from "@/draw/scheduling/yielder";
-import { eraseHistoryWeight } from "@/draw/history/historyBudget";
+import {
+	eraseHistoryWeight,
+	referenceHistoryWeight,
+} from "@/draw/history/historyBudget";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import * as transform from "@/draw/transform/transformController";
 
@@ -305,10 +308,21 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			on: "objects:added",
 			handler: (e: any) => {
 				const targets = e.target as FabricObject[];
-				addToUndoStackWithResetRedo({
-					type: HistoryEvent.ObjectsAdded,
-					params: { objectsJSON: toJSON(targets) },
-				});
+				if (e.deferHistorySnapshot) {
+					const action: any = {
+						type: HistoryEvent.ObjectsAdded,
+						params: { objectIds: toObjectsIds(targets) },
+					};
+					// The import history entry retains UUIDs only. Its exact redo snapshot
+					// is captured in yielded slices if the user actually undoes it.
+					action.__w = referenceHistoryWeight(targets.length);
+					addToUndoStackWithResetRedo(action);
+				} else {
+					addToUndoStackWithResetRedo({
+						type: HistoryEvent.ObjectsAdded,
+						params: { objectsJSON: toJSON(targets) },
+					});
+				}
 			},
 		},
 		{
@@ -403,10 +417,15 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		{
 			on: "fullErase",
 			handler: (e: any) => {
-				addToUndoStackWithResetRedo({
+				const action: any = {
 					type: HistoryEvent.FullErase,
-					params: { prevCanvasJSON: e.prevCanvasJSON },
-				});
+					params: {
+						objects: e.objects,
+						previousBackgroundColor: e.previousBackgroundColor,
+					},
+				};
+				action.__w = 1 + e.objects.length;
+				addToUndoStackWithResetRedo(action);
 			},
 		},
 		{
@@ -832,6 +851,22 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		resetRedoStack();
 	}
 
+	function destroy() {
+		if (historyBurstCloseTimer !== null) clearTimeout(historyBurstCloseTimer);
+		historyBurstCloseTimer = null;
+		queuedHistoryOps = 0;
+		if (historyBurstOpen) {
+			historyBurstOpen = false;
+			const mgr = useDrawObjectManager();
+			mgr.setMutating(false);
+			mgr.endBatch();
+		}
+		useDrawEventManager().removeEventsOfService("history");
+		useEraser().setErasureDeletionGuard(() => false);
+		reset();
+		c = undefined;
+	}
+
 	return {
 		undo,
 		redo,
@@ -842,6 +877,7 @@ export const useDrawHistoryManager = defineStore("history", () => {
 		addToRedoStack,
 		clearStackOfPolygonHistory,
 		reset,
+		destroy,
 		addToUndoStackWithResetRedo,
 		// Exposed so other recorders (layer deletion) can defer their payload the
 		// same way. Callers using it MUST precompute `action.__w`.

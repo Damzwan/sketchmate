@@ -4,6 +4,8 @@ import { fullErase } from "@/draw/tools/eraseActions";
 import { storeToRefs } from "pinia";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { Canvas } from "fabric";
+import { createYielder } from "@/draw/scheduling/yielder";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 
 export async function redoChangeBackgroundColor(
 	ctx: HistoryContext,
@@ -32,13 +34,8 @@ export async function redoFullErase(
 ): Promise<HistoryAction<HistoryEvent.FullErase>> {
 	const { canvas } = ctx;
 
-	// Capture state before erasing to allow for undoing this redo
-	const prevCanvasJSON = canvas.toJSON();
-
-	// Execute the erase action
-	fullErase();
-
-	return { ...action, params: { prevCanvasJSON } };
+	await fullErase();
+	return action;
 }
 
 export async function undoFullErase(
@@ -47,7 +44,29 @@ export async function undoFullErase(
 ): Promise<HistoryAction<HistoryEvent.FullErase>> {
 	const { canvas } = ctx;
 
-	await canvas.loadFromJSON(action.params.prevCanvasJSON);
+	const mgr = useDrawObjectManager();
+	const yielder = createYielder({
+		budgetMs: 4,
+		frameYieldIntervalMs: 12,
+		label: "history-full-erase-restore",
+	});
+	mgr.beginBatch();
+	try {
+		for (const object of action.params.objects) {
+			canvas.add(object);
+			await yielder.maybeYield();
+		}
+	} finally {
+		mgr.endBatch();
+	}
+	const erasedBackgroundColor = canvas.backgroundColor as string;
+	canvas.backgroundColor = action.params.previousBackgroundColor;
+	const { backgroundColor } = storeToRefs(useDrawStore());
+	backgroundColor.value = action.params.previousBackgroundColor;
+	canvas.fire("backgroundColorChanged", {
+		previousColor: erasedBackgroundColor,
+		color: action.params.previousBackgroundColor,
+	});
 
 	return action;
 }

@@ -113,7 +113,7 @@ import {
 	IonIcon,
 	IonSpinner,
 } from "@ionic/vue";
-import { DrawingDraft } from "@/draw/document/document.store";
+import type { DrawingDraftMetadata } from "@/draw/document/document.store";
 import {
 	mdiDeleteOutline,
 	mdiDotsVertical,
@@ -124,7 +124,7 @@ import { svg } from "@/helper/general.helper";
 import { shareImg } from "@/helper/share.helper";
 
 const props = defineProps<{
-	drafts: DrawingDraft[];
+	drafts: DrawingDraftMetadata[];
 	loading: boolean;
 	pendingIds: Set<string>;
 }>();
@@ -145,7 +145,7 @@ const handleCardClick = (id: string) => {
 	emit("open", id);
 };
 
-const presentActionSheet = async (draft: DrawingDraft) => {
+const presentActionSheet = async (draft: DrawingDraftMetadata) => {
 	if (isPending(draft.id)) return;
 
 	const actionSheet = await actionSheetController.create({

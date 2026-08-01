@@ -451,6 +451,14 @@ export function createDrawSyncEngine() {
 
 	function init() {}
 
+	function destroy() {
+		clearActionQueue();
+		queueOverloaded = false;
+		EventBus.off("undo", handleUndo);
+		EventBus.off("redo", handleRedo);
+		useDrawEventManager().removeEventsOfService("actionSyncer");
+	}
+
 	async function loadRoomCanvas(
 		canvasJSON: any,
 		isInitialSync: boolean,
@@ -583,6 +591,7 @@ export function createDrawSyncEngine() {
 
 	return {
 		init,
+		destroy,
 		loadRoomCanvas,
 		addToDrawSyncingActionQueue,
 		executeDrawSyncingAction,

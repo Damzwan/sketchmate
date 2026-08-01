@@ -70,5 +70,10 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: [`@ionic/pwa-elements/loader`]
+  },
+  build: {
+    // Android diagnostic builds keep local source maps for chrome://inspect.
+    // Normal release builds remain unchanged and do not ship map files.
+    sourcemap: process.env.VITE_DRAW_TESTING === 'si'
   }
 })

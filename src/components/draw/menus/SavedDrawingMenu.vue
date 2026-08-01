@@ -90,6 +90,11 @@ import {
 	deleteSavedDrawing,
 	deleteLegacySavedDrawing,
 } from "@/service/api/savedDrawing.api";
+import * as Sentry from "@sentry/capacitor";
+import {
+	savedObjectLimitMessage,
+	validateSavedDrawingBytes,
+} from "@/draw/objects/savedObjectLimits";
 
 // Stores
 const { user } = storeToRefs(useAuthStore());
@@ -207,19 +212,63 @@ async function removeDrawing(saved: any) {
 async function loadToCanvas(saved: any) {
 	isLoading.value = true;
 	try {
-		const response = await fetch(saved.drawing);
-		if (!response.ok) throw new Error("Failed to download drawing data");
+		await Sentry.startSpan(
+			{
+				name: "draw.saved_object.import",
+				op: "ui.action",
+				forceTransaction: true,
+			},
+			async (span) => {
+				Sentry.addBreadcrumb({
+					category: "draw.import",
+					message: "download:start",
+				});
+				const response = await fetch(saved.drawing);
+				if (!response.ok) {
+					throw new Error("Failed to download drawing data");
+				}
 
-		const drawingJson = await response.json();
+				const drawingText = await response.text();
+				span.setAttribute("draw.json_bytes", drawingText.length);
+				const byteFailure = validateSavedDrawingBytes(drawingText.length);
+				if (byteFailure) {
+					throw new Error(savedObjectLimitMessage(byteFailure));
+				}
+				Sentry.addBreadcrumb({
+					category: "draw.import",
+					message: "parse:start",
+					data: { jsonBytes: drawingText.length },
+				});
+				const drawingJson = JSON.parse(drawingText);
+				const objectCount = Array.isArray(drawingJson?.objects)
+					? drawingJson.objects.length
+					: 0;
+				span.setAttribute("draw.object_count", objectCount);
+				Sentry.addBreadcrumb({
+					category: "draw.import",
+					message: "parse:end",
+					data: { objectCount },
+				});
 
-		drawStore.selectAction(DrawAction.AddSavedDrawingToCanvas, {
-			json: drawingJson,
-		});
+				// Keep the loading state and modal stable until Fabric has completely
+				// committed the scene. The previous fire-and-forget call dismissed the
+				// overlay while the import was still laying out and rendering objects.
+				await drawStore.selectAction(DrawAction.AddSavedDrawingToCanvas, {
+					json: drawingJson,
+					jsonBytes: drawingText.length,
+				});
+			},
+		);
 
 		onDismiss();
 	} catch (error) {
 		console.error("Error loading drawing:", error);
-		toast("Failed to load drawing onto canvas", { color: "danger" });
+		toast(
+			error instanceof Error
+				? error.message
+				: "Failed to load drawing onto canvas",
+			{ color: "danger" },
+		);
 	} finally {
 		isLoading.value = false;
 	}

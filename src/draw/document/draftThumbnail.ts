@@ -59,6 +59,22 @@ export async function createDraftThumbnail(
 	return createLocalDraftThumbnail(canvas, signal);
 }
 
+/** Render from detached document JSON without retaining the live Fabric canvas. */
+export async function createDraftThumbnailFromJSON(
+	snapshotJson: any,
+	signal?: AbortSignal,
+	snapshotBounds?: { x: number; y: number; w: number; h: number } | null,
+): Promise<string> {
+	if (!snapshotJson || !supportsDraftThumbnailWorker()) return "";
+	const blob = await renderDraftThumbnailInWorker(snapshotJson, {
+		maxSize: THUMBNAIL_MAX_SIZE,
+		quality: THUMBNAIL_QUALITY,
+		signal,
+		bounds: snapshotBounds,
+	});
+	return blob ? await blobToDataUrl(blob, signal) : "";
+}
+
 async function createLocalDraftThumbnail(
 	canvas: Canvas,
 	signal?: AbortSignal,

@@ -1,6 +1,7 @@
 import { Canvas, FabricObject, util } from "fabric";
 import { useFriendStore } from "@/store/friend.store";
 import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
+import { downsampleFabricImagesInObject } from "@/draw/tools/imageDownsampling";
 import { watercolorComplexity } from "@/draw/utils/brushes/watercolorGeometry";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import {
@@ -12,6 +13,10 @@ import { compareDocumentOrder } from "@/draw/layers/layerRegistry";
 
 function enlivenComplexity(source: any): number {
 	if (!source || typeof source !== "object") return 1;
+	// Fabric decodes image sources before returning from enlivenObjects. Treat a
+	// raster (including one nested in a saved group) as a complete batch so a
+	// mobile WebView never holds several legacy full-resolution decodes at once.
+	if (String(source.type).toLowerCase() === "image") return 10_000;
 	if (source.type === "WaterColorStroke") return watercolorComplexity(source);
 	if (Array.isArray(source.objects)) {
 		let total = 1;
@@ -94,8 +99,8 @@ export async function enlivenObjectsTimeSlivered(
 		const batch = picked.batch;
 		i += batch.length;
 
-		// Enliven the batch concurrently. Most objects enliven synchronously
-		// through microtasks; images await loading. Promise.all takes the max.
+		// Vector objects enliven concurrently. Raster-containing objects are given
+		// a complete complexity budget above, so they use this path one at a time.
 		let enlivened: FabricObject[];
 		try {
 			enlivened = await util.enlivenObjects<FabricObject>(batch);
@@ -112,17 +117,27 @@ export async function enlivenObjectsTimeSlivered(
 		for (let k = 0; k < enlivened.length; k++) {
 			const obj = enlivened[k];
 			if (obj && !isBlocked(obj.userId)) {
+				let exactJSON = batch[k];
+				try {
+					if (await downsampleFabricImagesInObject(obj)) {
+						// The main-thread object now owns a bounded source. Seed every
+						// downstream representation with that same bounded payload.
+						exactJSON = obj.toObject();
+					}
+				} catch (error) {
+					console.warn("[enliven] image downsample failed", error);
+				}
 				// Stash the exact JSON we enlivened from. The tile-bakery worker
 				// enlivens the SAME blob, so this lets the mirror be seeded without
 				// a second toJSON of every object at load (the big-canvas spike).
 				try {
-					(obj as any).__bakeJSON = batch[k];
+					(obj as any).__bakeJSON = exactJSON;
 				} catch {
 					/* non-fatal */
 				}
 				try {
 					onObjectEnlivened(obj);
-					rememberSerializedObject(obj, batch[k]);
+					rememberSerializedObject(obj, exactJSON);
 				} catch (e) {
 					// eslint-disable-next-line no-console
 					console.error("[enliven] onObjectEnlivened threw", e);

@@ -1,5 +1,9 @@
 import { defineStore } from "pinia";
-import { DrawTool, type PenMenuTool, type SelectTool } from "@/draw/tools/tool.types";
+import {
+	DrawTool,
+	type PenMenuTool,
+	type SelectTool,
+} from "@/draw/tools/tool.types";
 import { PENMENUTOOLS, SELECTMENUTOOLS } from "@/draw/config/tools.config";
 import { useMenuStore } from "@/store/menu.store";
 import { createToolsMapping } from "@/draw/tools/toolRegistry";
@@ -27,6 +31,11 @@ export const useToolSelection = defineStore("toolSelection", () => {
 		}
 	}
 
+	function destroy() {
+		for (const tool of Object.values(toolsMapping)) tool.destroy?.();
+		drawEventManager.removeEventsOfService("tool");
+	}
+
 	function selectTool(newTool: DrawTool, options?: SelectToolOption) {
 		if (selectedTool.value === newTool && !options?.skipOpenMenu) {
 			openToolMenu(newTool, options?.e);
@@ -52,5 +61,6 @@ export const useToolSelection = defineStore("toolSelection", () => {
 		lastSelectedSelectTool,
 		selectTool,
 		init,
+		destroy,
 	};
 });

@@ -21,6 +21,9 @@ import { useCanvasPreview } from "@/draw/document/canvasPreview";
 import { useDocumentStore } from "@/draw/document/document.store";
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { destroyGestures } from "@/draw/input/gestures";
+import { useEraser } from "@/draw/tools/eraser.store";
+import { shutdownErasureAnalysisWorker } from "@/draw/tools/erasureAnalysisClient";
 
 export const useDrawStore = defineStore("draw", () => {
 	const canvasController = useCanvasController();
@@ -34,6 +37,9 @@ export const useDrawStore = defineStore("draw", () => {
 	const drawUI = useDrawUIStore();
 
 	const isGesturing = ref(false);
+	const isCanvasInitialized = ref(false);
+	let initGeneration = 0;
+	let initController: AbortController | null = null;
 
 	const {
 		createPreview,
@@ -47,42 +53,109 @@ export const useDrawStore = defineStore("draw", () => {
 
 	const prevDrawingMode = ref(false);
 
+	function isAbortError(error: unknown): boolean {
+		return error instanceof DOMException && error.name === "AbortError";
+	}
+
+	function assertActiveInitialization(
+		generation: number,
+		signal: AbortSignal,
+	): void {
+		if (signal.aborted || generation !== initGeneration) {
+			throw new DOMException("Drawing initialization superseded", "AbortError");
+		}
+	}
+
+	function releaseSessionResources(): void {
+		// Remove handlers and stores that retain the Fabric canvas before disposing
+		// the canvas itself. Every function is idempotent so partial init is safe.
+		drawHistory.destroy();
+		drawSyncEngine.destroy();
+		toolSelection.destroy();
+		useClaimArea().destroy();
+		shortcutManager.destroy();
+		destroyGestures();
+		drawEventManager.destroy();
+		drawUI.destroy();
+		useDocumentStore().disposeSession();
+		shutdownErasureAnalysisWorker();
+		resetPreview();
+		canvasController.destroyCanvas();
+		isCanvasInitialized.value = false;
+		isGesturing.value = false;
+		useDrawSyncer().isLoadingCanvas = false;
+	}
+
 	async function initCanvas(
 		el: HTMLCanvasElement,
 		options: { isLobby: boolean; draftId?: string; canvasUrl?: string },
 	) {
+		initController?.abort();
+		const generation = ++initGeneration;
+		const controller = new AbortController();
+		initController = controller;
+		const { signal } = controller;
 		const { isLoadingCanvas } = storeToRefs(useDrawSyncer());
 		isLoadingCanvas.value = true;
 
-		canvasController.destroyCanvas();
-		drawUI.destroy();
+		try {
+			releaseSessionResources();
+			isLoadingCanvas.value = true;
+			assertActiveInitialization(generation, signal);
 
-		const c = canvasController.createCanvas(el);
-		// Mark the real drawing surface. The global Canvas.prototype.add override
-		// (Fabric setup) runs its claimed-area guard only for this canvas, so
-		// throwaway fabric canvases (PenMenu brush preview, avatar previews, …)
-		// aren't affected by lobby claim state.
-		(c as any).__isMainDrawCanvas = true;
+			const c = canvasController.createCanvas(el);
+			// Mark the real drawing surface. The global Canvas.prototype.add override
+			// (Fabric setup) runs its claimed-area guard only for this canvas, so
+			// throwaway fabric canvases (PenMenu brush preview, avatar previews, …)
+			// aren't affected by lobby claim state.
+			(c as any).__isMainDrawCanvas = true;
 
-		const documentStore = useDocumentStore();
-		documentStore.init(c);
-		await documentStore.loadCanvas(c, options);
+			const documentStore = useDocumentStore();
+			documentStore.init(c);
+			await documentStore.loadCanvas(c, { ...options, signal });
+			assertActiveInitialization(generation, signal);
 
-		canvasController.backgroundColor.value = c.backgroundColor as string;
+			canvasController.backgroundColor.value = c.backgroundColor as string;
 
-		drawEventManager.init(c);
-		enableGestures(c);
-		toolSelection.init(c);
-		drawHistory.init(c);
-		drawObjectManager.init(c);
-		useClaimArea().init(c);
-		shortcutManager.init(c);
-		drawSyncEngine.init();
-		drawUI.init(c);
+			drawEventManager.init(c);
+			enableGestures(c);
+			toolSelection.init(c);
+			drawHistory.init(c);
+			drawObjectManager.init(c);
+			useClaimArea().init(c);
+			shortcutManager.init(c);
+			drawSyncEngine.init();
+			drawUI.init(c);
+			assertActiveInitialization(generation, signal);
 
-		toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true });
-		drawObjectManager.renderViewport();
-		isLoadingCanvas.value = false;
+			toolSelection.selectTool(DrawTool.Pen, { skipOpenMenu: true });
+			drawObjectManager.renderViewport();
+			isCanvasInitialized.value = true;
+		} catch (error) {
+			if (generation === initGeneration) releaseSessionResources();
+			if (!isAbortError(error)) throw error;
+		} finally {
+			if (generation === initGeneration) {
+				isLoadingCanvas.value = false;
+				if (initController === controller) initController = null;
+			}
+		}
+	}
+
+	/** Stop new work and wait until an in-flight eraser commit is snapshot-safe. */
+	async function prepareForExit(): Promise<void> {
+		initController?.abort();
+		initController = null;
+		initGeneration++;
+		useEraser().cancelErase();
+		await useEraser().whenErasingSettled();
+	}
+
+	function disposeSession(): void {
+		initController?.abort();
+		initController = null;
+		initGeneration++;
+		releaseSessionResources();
 	}
 
 	async function selectAction<A extends DrawAction>(
@@ -116,6 +189,9 @@ export const useDrawStore = defineStore("draw", () => {
 		prevDrawingMode,
 		getAspectRatio,
 		isGesturing,
+		isCanvasInitialized,
+		prepareForExit,
+		disposeSession,
 		createPreview,
 		preview,
 		newPreview,

@@ -81,7 +81,23 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 
 	function init(c: Canvas) {}
 
-	function destroy() {}
+	function destroy() {
+		activeAvatars.value.forEach((avatar) => {
+			if (avatar?.timeoutId) clearTimeout(avatar.timeoutId);
+		});
+		activeAvatars.value.clear();
+		activeAvatars.value = new Map();
+		colorPickerMode.value = false;
+		addTextMode.value = false;
+		isEditingText.value = false;
+		shapeCreationMode.value = undefined;
+		isLoading.value = false;
+		loadingText.value = "";
+		canResetView.value = false;
+		isSavingDrawing.value = false;
+		isLoadingDrawing.value = false;
+		isForceExiting.value = false;
+	}
 
 	return {
 		colorPickerMode,

@@ -168,8 +168,6 @@ watch(
 		)
 			return;
 		chatPanelPrefetchQueued = true;
-		// Warm only the JS chunk during genuine browser idle time. The panel
-		// remains unmounted, and no timeout forces parsing during a draw frame.
 		window.requestIdleCallback(() => void loadChatPanel());
 	},
 	{ immediate: true },

@@ -18,6 +18,12 @@ import {
 	activeLayerId,
 	isLayerHidden,
 } from "@/draw/layers/layerRegistry";
+import {
+	allowedCompactionPixels,
+	canRetainCompactedStrokes,
+	measureEraserCompactionUsage,
+	pruneExpiredRetainedClipStrokes,
+} from "@/draw/tools/eraserCompactionBudget";
 
 const IS_MOBILE_ERASE =
 	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
@@ -467,6 +473,9 @@ export class CustomEraserBrush extends PencilBrush {
 	 * (customProperties), so a mutation would persist and sync to peers.
 	 */
 	erasableFilter?: (object: FabricObject) => boolean;
+	/** History-owned predicate used to release compacted vectors as soon as their
+	 * erase action is no longer reachable from undo or redo. */
+	isEraseStrokeUndoable?: (strokeId: string) => boolean;
 
 	/**
 	 * Once an object's ClippingGroup holds more than this many eraser strokes,
@@ -908,6 +917,37 @@ export class CustomEraserBrush extends PencilBrush {
 		const toBake = [...bakedImages, ...vectorOverflow];
 		if (toBake.length === 0) return;
 
+		const sceneObjects = this.canvas.getObjects();
+		pruneExpiredRetainedClipStrokes(
+			sceneObjects,
+			this.isEraseStrokeUndoable,
+		);
+		const prevRetained: FabricObject[] = (
+			(object as any).__bakedClipStrokes ?? []
+		).filter(
+			(child: FabricObject) =>
+				child.type !== "image" &&
+				(!this.isEraseStrokeUndoable ||
+					this.isEraseStrokeUndoable((child as any).id)),
+		);
+		const retained = [...prevRetained, ...vectorOverflow];
+		if (retained.length > LIVE_ERASE_STROKES) {
+			// Never discard an undoable vector just to make compaction fit. Leave the
+			// live clip untouched until older history falls out and can be pruned.
+			return;
+		}
+		const usage = measureEraserCompactionUsage(sceneObjects, object);
+		if (
+			!canRetainCompactedStrokes(
+				usage.retainedStrokes,
+				retained.length,
+			)
+		) {
+			// Keeping vectors live costs render time but does not duplicate them into
+			// both a bitmap and an off-tree undo list. Memory safety wins here.
+			return;
+		}
+
 		// Render the union of the existing strokes' SHAPES (force source-over so
 		// we get coverage, not the destination-out hole-punch). Clone so we never
 		// mutate the live children.
@@ -923,19 +963,35 @@ export class CustomEraserBrush extends PencilBrush {
 		const center = union.getCenterPoint();
 		const uw = union.width;
 		const uh = union.height;
-		if (!uw || !uh) return;
+		if (!uw || !uh) {
+			clones.forEach((clone) => (clone as any).dispose?.());
+			return;
+		}
 
 		// Retina resolution, capped so a giant object can't allocate a huge buffer.
 		let multiplier = this.canvas.getRetinaScaling?.() || 1;
-		const MAX_BAKE_PX = 4_194_304; // ~4MP
+		const MAX_BAKE_PX = 4_194_304; // ~4MP per object
 		const area = uw * uh * multiplier * multiplier;
-		if (area > MAX_BAKE_PX) multiplier *= Math.sqrt(MAX_BAKE_PX / area);
+		const allowedPixels = allowedCompactionPixels(
+			usage.bakedPixels,
+			Math.min(area, MAX_BAKE_PX),
+		);
+		if (allowedPixels < 1) {
+			clones.forEach((clone) => (clone as any).dispose?.());
+			return;
+		}
+		if (area > allowedPixels) {
+			multiplier *= Math.sqrt(allowedPixels / area);
+		}
 
 		// @ts-ignore — toCanvasElement exists on Group
 		const flattenStartedAt = performance.now();
 		const el: HTMLCanvasElement = union.toCanvasElement({ multiplier });
 		recordPhase("eraseClipFlatten", performance.now() - flattenStartedAt);
-		if (!el.width || !el.height) return;
+		if (!el.width || !el.height) {
+			clones.forEach((clone) => (clone as any).dispose?.());
+			return;
+		}
 
 		const baked = new fabric.Image(el, {
 			originX: "center",
@@ -981,19 +1037,8 @@ export class CustomEraserBrush extends PencilBrush {
 		// no render cost — only the image renders. On undo of a baked stroke the
 		// clip is un-flattened from this list (see removeStrokeFromClip in
 		// erase.helper), which also drops the image and its base64, freeing
-		// memory. Bounded so a pathologically-erased object can't grow it without
-		// limit; dropping the oldest just makes those very old erases
-		// un-undoable, which is exactly the pre-fix behaviour.
-		const RETAIN_CAP = 400;
-		const prevRetained: FabricObject[] = (
-			(object as any).__bakedClipStrokes ?? []
-		).filter((child: FabricObject) => child.type !== "image");
-		let retained = [...prevRetained, ...vectorOverflow];
-		if (retained.length > RETAIN_CAP) {
-			const drop = retained.slice(0, retained.length - RETAIN_CAP);
-			drop.forEach((s) => (s as any).dispose?.());
-			retained = retained.slice(retained.length - RETAIN_CAP);
-		}
+		// memory. Both the per-object and session-wide checks above fail safe by
+		// leaving the live clip un-compacted; no undoable stroke is discarded.
 		(object as any).__bakedClipStrokes = retained;
 
 		// Only the temporary source-over clones are dead; the originals are kept.

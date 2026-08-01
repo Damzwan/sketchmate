@@ -70,3 +70,6 @@ project(':revenuecat-purchases-capacitor').projectDir = new File('../node_module
 
 include ':revenuecat-purchases-capacitor-ui'
 project(':revenuecat-purchases-capacitor-ui').projectDir = new File('../node_modules/.pnpm/@revenuecat+purchases-capacitor-ui@12.3.2_@capacitor+core@8.2.0/node_modules/@revenuecat/purchases-capacitor-ui/android')
+
+include ':sentry-capacitor'
+project(':sentry-capacitor').projectDir = new File('../node_modules/.pnpm/@sentry+capacitor@4.2.0_@capacitor+core@8.2.0_@sentry+vue@10.60.0_pinia@3.0.4_typescrip_8e57313a8ec659c2348deb3d0cfc940e/node_modules/@sentry/capacitor/android')

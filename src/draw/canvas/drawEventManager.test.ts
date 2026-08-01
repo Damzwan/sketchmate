@@ -45,4 +45,33 @@ describe("DrawEventManager", () => {
 		expect(canvas.off).toHaveBeenCalledTimes(1);
 		expect(canvas.on).toHaveBeenCalledTimes(2);
 	});
+
+	it("detaches service and permanent events exactly once on repeated destroy", () => {
+		const canvas = createCanvasStub();
+		const manager = createDrawEventManager();
+		const serviceEvent = {
+			on: "object:added",
+			handler: vi.fn(),
+		} satisfies FabricEvent;
+		const permanentEvent = {
+			on: "after:render",
+			handler: vi.fn(),
+		} satisfies FabricEvent;
+
+		manager.init(canvas);
+		manager.addEventsOfService("objects", [serviceEvent]);
+		manager.addPermanentEvents([permanentEvent]);
+		manager.destroy();
+		manager.destroy();
+
+		expect(canvas.off).toHaveBeenCalledTimes(2);
+		expect(canvas.off).toHaveBeenCalledWith(
+			serviceEvent.on,
+			serviceEvent.handler,
+		);
+		expect(canvas.off).toHaveBeenCalledWith(
+			permanentEvent.on,
+			permanentEvent.handler,
+		);
+	});
 });

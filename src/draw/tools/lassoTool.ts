@@ -53,6 +53,19 @@ export function createLassoTool(): ToolService {
 		// transform-matrix signature (see getPathPoints), so undo / remote moves
 		// can never leave stale hit-test points behind.
 	}
+
+	function destroy() {
+		selectionRevision++;
+		if (rafId !== null) cancelAnimationFrame(rafId);
+		rafId = null;
+		isDrawing = false;
+		interactionActive = false;
+		pendingPointer = null;
+		lassoPolygonPoints = [];
+		ghostHighlighted = [];
+		upperCtx = null;
+		c = undefined;
+	}
 	// ─── Drawing helpers ─────────────────────────────────────────────────────────
 
 	function renderOverlay(highlightedObjects: FabricObject[]) {
@@ -417,5 +430,5 @@ export function createLassoTool(): ToolService {
 		c.defaultCursor = "crosshair";
 	}
 
-	return { select, events, init };
+	return { select, events, init, destroy };
 }

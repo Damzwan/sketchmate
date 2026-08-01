@@ -25,11 +25,8 @@ import { App } from "@capacitor/app";
 import { Preferences } from "@capacitor/preferences";
 import { LocalStorage } from "@/types/storage.types";
 import { useSessionStore } from "@/store/session.store";
-import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
-import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
 import { Purchases } from "@revenuecat/purchases-capacitor";
 import { updateUser } from "@/service/api/user.api";
-import { masterAnimation } from "@/helper/animation.helper";
 
 export const IS_PROD = import.meta.env.VITE_ENVIRONMENT === "prod";
 export const IS_DEV = !IS_PROD;

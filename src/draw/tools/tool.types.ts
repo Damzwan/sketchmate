@@ -5,6 +5,7 @@ export interface ToolService {
 	select: () => void;
 	events: FabricEvent[];
 	init: (canvas: Canvas) => void;
+	destroy?: () => void;
 }
 
 export enum DrawTool {

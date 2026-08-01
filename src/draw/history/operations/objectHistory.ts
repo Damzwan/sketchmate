@@ -4,10 +4,16 @@ import { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
 import { HistoryContext } from "@/draw/history/historyActions";
 import { drawActionMapping } from "@/draw/actions/drawActions";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { toObjectsIds } from "@/draw/objects/objectSerialization";
+import {
+	serializeOnce,
+	toObjectsIds,
+} from "@/draw/objects/objectSerialization";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
-import { yieldToMain } from "@/draw/scheduling/yielder";
+import { createYielder, yieldToMain } from "@/draw/scheduling/yielder";
+
+const IS_MOBILE_HISTORY_OP =
+	typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent);
 
 /** Coalesce multiple Fabric lifecycle events into one render pass. */
 function runBatched(count: number, fn: () => void): void {
@@ -253,11 +259,24 @@ export async function redoObjectsAdded(
 	const objectsToRedo = action.params.objectsJSON;
 	if (!objectsToRedo?.length) return action;
 
-	const enlivened =
-		await fabric.util.enlivenObjects<FabricObject>(objectsToRedo);
-
-	runBatched(enlivened.length, () => {
-		enlivened.forEach((obj) => {
+	const enlivened: FabricObject[] = [];
+	const enlivenBatchSize = IS_MOBILE_HISTORY_OP ? 16 : 32;
+	for (let index = 0; index < objectsToRedo.length; index += enlivenBatchSize) {
+		enlivened.push(
+			...(await fabric.util.enlivenObjects<FabricObject>(
+				objectsToRedo.slice(index, index + enlivenBatchSize),
+			)),
+		);
+		await yieldToMain("history-bulk-enliven");
+	}
+	const yielder = createYielder({
+		budgetMs: IS_MOBILE_HISTORY_OP ? 4 : 8,
+		label: "history-bulk-add",
+	});
+	const mgr = useDrawObjectManager();
+	mgr.beginBatch();
+	try {
+		for (const obj of enlivened) {
 			if (
 				(obj as any).insertedIndex !== undefined &&
 				(obj as any).insertedIndex !== null
@@ -266,10 +285,19 @@ export async function redoObjectsAdded(
 			} else {
 				ctx.canvas.add(obj);
 			}
-		});
-	});
+			await yielder.maybeYield();
+		}
+	} finally {
+		mgr.endBatch();
+	}
 
-	return action;
+	return {
+		...action,
+		params: {
+			...action.params,
+			objectIds: enlivened.map((obj) => obj.id),
+		},
+	};
 }
 
 export async function redoObjectModified(
@@ -388,12 +416,41 @@ export async function undoObjectsAdded(
 	action: HistoryAction<HistoryEvent.ObjectsAdded>,
 ) {
 	// ctx.unSelect() TODO was this necessary?
-	const toRemove = (action.params.objectsJSON ?? [])
-		.map((obj) => ctx.getObjectById(obj.id))
-		.filter(Boolean) as FabricObject[];
-	removeObjectsWithTileHandoff(ctx, toRemove);
+	const ids =
+		action.params.objectIds ??
+		(action.params.objectsJSON ?? []).map((obj) => obj.id);
+	const toRemove = ctx.getObjectsById(ids);
+	let objectsJSON = action.params.objectsJSON;
+	const yielder = createYielder({
+		budgetMs: IS_MOBILE_HISTORY_OP ? 4 : 8,
+		label: "history-bulk-remove",
+	});
 
-	return action;
+	if (!objectsJSON) {
+		objectsJSON = [];
+		for (const object of toRemove) {
+			objectsJSON.push(serializeOnce(object));
+			await yielder.maybeYield();
+		}
+	}
+
+	const mgr = useDrawObjectManager();
+	mgr.beginBatch();
+	try {
+		for (const object of toRemove) {
+			mgr.withRetainedRemovalTiles(() => ctx.canvas.remove(object));
+			await yielder.maybeYield();
+		}
+	} finally {
+		mgr.endBatch();
+	}
+
+	const nextAction: any = {
+		...action,
+		params: { ...action.params, objectIds: ids, objectsJSON },
+	};
+	nextAction.__w = 1 + objectsJSON.length;
+	return nextAction;
 }
 
 export async function undoObjectModified(

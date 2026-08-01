@@ -13,7 +13,10 @@ import {
 	generateChunkedJSON,
 	migrateLegacyOrigin,
 } from "@/draw/document/serialization";
-import { createDraftSnapshotAssets } from "@/draw/document/draftThumbnail";
+import {
+	createDraftSnapshotAssets,
+	createDraftThumbnailFromJSON,
+} from "@/draw/document/draftThumbnail";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { useLayersStore } from "@/draw/layers/layers.store";
@@ -25,6 +28,8 @@ export interface DrawingDraft {
 	updatedAt: number;
 	thumbnail: string;
 }
+
+export type DrawingDraftMetadata = Omit<DrawingDraft, "json">;
 
 /**
  * A draft whose save is in-flight. Surfaced reactively so the UI can render
@@ -48,6 +53,10 @@ interface CanvasSnapshot {
 	thumbnail: string;
 }
 
+interface DetachedCanvasSnapshot extends CanvasSnapshot {
+	bounds?: { x: number; y: number; w: number; h: number } | null;
+}
+
 export const useDocumentStore = defineStore("drawDocument", () => {
 	const { actionWithoutEvents } = useDrawEventManager();
 
@@ -55,6 +64,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	const db = ref<IDBDatabase | undefined>();
 	const dbName = "canvasDB";
 	const objectStoreName = "canvasHistory";
+	const metadataStoreName = "canvasMetadata";
 
 	// --- Reactive State ---
 	const currentDraftId = ref<string | undefined>();
@@ -109,13 +119,34 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 		const open = () =>
 			new Promise<IDBDatabase>((resolve, reject) => {
-				const request = indexedDB.open(dbName, 2);
+				const request = indexedDB.open(dbName, 3);
 				request.onupgradeneeded = (event) => {
 					const localDb = (event.target as IDBOpenDBRequest).result;
-					if (localDb.objectStoreNames.contains(objectStoreName)) {
-						localDb.deleteObjectStore(objectStoreName);
+					const transaction = (event.target as IDBOpenDBRequest).transaction!;
+					const drafts = localDb.objectStoreNames.contains(objectStoreName)
+						? transaction.objectStore(objectStoreName)
+						: localDb.createObjectStore(objectStoreName, { keyPath: "id" });
+					const metadata = localDb.objectStoreNames.contains(metadataStoreName)
+						? transaction.objectStore(metadataStoreName)
+						: localDb.createObjectStore(metadataStoreName, { keyPath: "id" });
+
+					// Version 2 stored list metadata beside the potentially huge JSON blob.
+					// Backfill the new lightweight store inside the upgrade transaction; the
+					// original draft store is deliberately preserved.
+					if ((event as IDBVersionChangeEvent).oldVersion < 3) {
+						const cursor = drafts.openCursor();
+						cursor.onsuccess = () => {
+							const row = cursor.result;
+							if (!row) return;
+							const draft = row.value as DrawingDraft;
+							metadata.put({
+								id: draft.id,
+								updatedAt: draft.updatedAt,
+								thumbnail: draft.thumbnail || "",
+							} satisfies DrawingDraftMetadata);
+							row.continue();
+						};
 					}
-					localDb.createObjectStore(objectStoreName, { keyPath: "id" });
 				};
 				request.onsuccess = (e) =>
 					resolve((e.target as IDBOpenDBRequest).result);
@@ -128,9 +159,10 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	}
 
 	function validateSchema(db: IDBDatabase) {
-		const tx = db.transaction([objectStoreName], "readonly");
+		const tx = db.transaction([objectStoreName, metadataStoreName], "readonly");
 		const store = tx.objectStore(objectStoreName);
-		if (store.keyPath !== "id") {
+		const metadata = tx.objectStore(metadataStoreName);
+		if (store.keyPath !== "id" || metadata.keyPath !== "id") {
 			console.warn("❌ Invalid schema detected. Rebuilding DB...");
 			db.close();
 			indexedDB.deleteDatabase(dbName);
@@ -149,8 +181,15 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			draftId?: string;
 			canvasUrl?: string;
 			json?: any;
+			signal?: AbortSignal;
 		},
 	) {
+		const { signal } = options;
+		const throwIfAborted = () => {
+			if (signal?.aborted)
+				throw new DOMException("Canvas load aborted", "AbortError");
+		};
+		throwIfAborted();
 		const finalId = options.draftId || currentDraftId.value || uuidv4();
 		currentDraftId.value = finalId;
 
@@ -165,7 +204,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				json = options.json;
 				isExternalLoad = true;
 			} else if (options.canvasUrl) {
-				const response = await fetch(options.canvasUrl);
+				const response = await fetch(options.canvasUrl, { signal });
 				if (!response.ok) throw new Error("Failed to fetch remote canvas");
 				const isGzipped =
 					options.canvasUrl.endsWith(".gz") ||
@@ -177,10 +216,13 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				} else {
 					json = await response.json();
 				}
+				throwIfAborted();
 				isExternalLoad = true;
 			} else if (!options.isLobby && options.draftId) {
 				await initDB();
+				throwIfAborted();
 				const draft = await getDraft(options.draftId);
+				throwIfAborted();
 				if (draft) {
 					json =
 						draft.json instanceof Blob
@@ -221,9 +263,14 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				await actionWithoutEvents(async () => {
 					c.clear();
 					if (json.objects && json.objects.length > 0) {
-						await enlivenObjectsTimeSlivered(json.objects, (obj) => {
-							c.add(obj);
-						});
+						await enlivenObjectsTimeSlivered(
+							json.objects,
+							(obj) => {
+								c.add(obj);
+							},
+							signal,
+						);
+						throwIfAborted();
 					}
 
 					if (json.version === "5.5.2" && c.getObjects().length > 0) {
@@ -246,16 +293,18 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 				}
 			}
 		} catch (error) {
-			console.error("❌ loadCanvas Failed:", error);
+			if (!(error instanceof DOMException && error.name === "AbortError"))
+				console.error("❌ loadCanvas Failed:", error);
+			throw error;
 		} finally {
 			if (!isExternalLoad) isDirty.value = false;
 		}
 	}
 
-	async function snapshotCanvas(
+	async function detachCanvasSnapshot(
 		draftId: string,
-		signal?: AbortSignal, // Added signal parameter
-	): Promise<CanvasSnapshot | null> {
+		signal?: AbortSignal,
+	): Promise<DetachedCanvasSnapshot | null> {
 		if (!activeCanvas) return null;
 		const liveObjects = activeCanvas.getObjects();
 		if (liveObjects.length === 0) return null;
@@ -266,6 +315,15 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		const bounds = useDrawObjectManager().getContentBounds();
 		const json = await generateChunkedJSON(activeCanvas, signal);
 		if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+		return { draftId, json, thumbnail: "", bounds };
+	}
+
+	async function snapshotCanvas(
+		draftId: string,
+		signal?: AbortSignal,
+	): Promise<CanvasSnapshot | null> {
+		const detached = await detachCanvasSnapshot(draftId, signal);
+		if (!detached || !activeCanvas) return null;
 
 		let thumbnail = "";
 		let jsonBlob: Blob | undefined;
@@ -273,8 +331,8 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			const assets = await createDraftSnapshotAssets(
 				activeCanvas,
 				signal,
-				json,
-				bounds,
+				detached.json,
+				detached.bounds,
 			);
 			thumbnail = assets.thumbnail;
 			jsonBlob = assets.jsonBlob;
@@ -288,7 +346,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 		return {
 			draftId,
-			json,
+			json: detached.json,
 			jsonBlob,
 			thumbnail,
 		};
@@ -308,16 +366,26 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			thumbnail: snapshot.thumbnail,
 			updatedAt: Date.now(),
 		};
-		const transaction = db.value.transaction([objectStoreName], "readwrite");
+		const transaction = db.value.transaction(
+			[objectStoreName, metadataStoreName],
+			"readwrite",
+		);
 		await new Promise<void>((resolve, reject) => {
 			const dispatchStartedAt = performance.now();
 			const req = transaction.objectStore(objectStoreName).put(draft);
+			transaction.objectStore(metadataStoreName).put({
+				id: draft.id,
+				updatedAt: draft.updatedAt,
+				thumbnail: draft.thumbnail,
+			} satisfies DrawingDraftMetadata);
 			recordPhase(
 				"draftPersistDispatch",
 				performance.now() - dispatchStartedAt,
 			);
-			req.onsuccess = () => resolve();
-			req.onerror = () => reject(req.error);
+			transaction.oncomplete = () => resolve();
+			transaction.onerror = () => reject(transaction.error ?? req.error);
+			transaction.onabort = () =>
+				reject(transaction.error ?? new Error("Draft save aborted"));
 		});
 	}
 
@@ -415,6 +483,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 	async function queueBackgroundSave(
 		draftId: string,
+		detachBeforeThumbnail = false,
 	): Promise<PendingDraft | null> {
 		if (!hasContent()) return null;
 
@@ -422,10 +491,43 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 
 		const ctrl = new AbortController();
 
-		const snapshot = await snapshotCanvas(draftId, ctrl.signal);
+		const snapshot = detachBeforeThumbnail
+			? await detachCanvasSnapshot(draftId, ctrl.signal)
+			: await snapshotCanvas(draftId, ctrl.signal);
 		if (!snapshot) return null;
 
+		// Exit only waits for JSON to detach from Fabric. Thumbnail rendering and
+		// IndexedDB persistence continue from that immutable snapshot after route
+		// navigation, so the canvas can be disposed without a long thumbnail stall.
+		const thumbnailPromise = detachBeforeThumbnail
+			? createDraftThumbnailFromJSON(
+					snapshot.json,
+					ctrl.signal,
+					(snapshot as DetachedCanvasSnapshot).bounds,
+				).catch((error) => {
+					if (!(error instanceof DOMException && error.name === "AbortError")) {
+						console.warn("Draft thumbnail generation failed:", error);
+					}
+					return "";
+				})
+			: Promise.resolve(snapshot.thumbnail);
+
 		const promise = runSave(snapshot, ctrl.signal)
+			.then(async () => {
+				const thumbnail = await thumbnailPromise;
+				if (!thumbnail || !db.value) return;
+				const tx = db.value.transaction([metadataStoreName], "readwrite");
+				tx.objectStore(metadataStoreName).put({
+					id: draftId,
+					updatedAt: Date.now(),
+					thumbnail,
+				} satisfies DrawingDraftMetadata);
+				await new Promise<void>((resolve, reject) => {
+					tx.oncomplete = () => resolve();
+					tx.onerror = () => reject(tx.error);
+					tx.onabort = () => reject(tx.error);
+				});
+			})
 			.then(() => {
 				pendingDrafts.value.delete(draftId);
 				pendingDrafts.value = new Map(pendingDrafts.value);
@@ -452,7 +554,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 	const exitWithBackgroundSave = async (): Promise<PendingDraft | null> => {
 		if (!currentDraftId.value) currentDraftId.value = uuidv4();
 		if (!hasContent()) return null;
-		return await queueBackgroundSave(currentDraftId.value);
+		return await queueBackgroundSave(currentDraftId.value, true);
 	};
 
 	async function awaitPendingSaves(): Promise<void> {
@@ -492,8 +594,12 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		}
 
 		await initDB();
-		const tx = db.value!.transaction([objectStoreName], "readwrite");
+		const tx = db.value!.transaction(
+			[objectStoreName, metadataStoreName],
+			"readwrite",
+		);
 		tx.objectStore(objectStoreName).delete(targetId);
+		tx.objectStore(metadataStoreName).delete(targetId);
 		await new Promise((resolve, reject) => {
 			tx.oncomplete = () => resolve(null);
 			tx.onerror = () => reject(tx.error);
@@ -511,6 +617,32 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		});
 	}
 
+	async function getAllDraftMetadata(): Promise<DrawingDraftMetadata[]> {
+		await initDB();
+		return new Promise((resolve, reject) => {
+			const req = db
+				.value!.transaction([metadataStoreName], "readonly")
+				.objectStore(metadataStoreName)
+				.getAll();
+			req.onsuccess = (e) => resolve((e.target as IDBRequest).result || []);
+			req.onerror = () => reject(req.error);
+		});
+	}
+
+	function disposeSession(): void {
+		stopAutosave();
+		activeCanvas = undefined;
+		currentDraftId.value = undefined;
+		isSaving.value = false;
+		isDirty.value = false;
+		sessionHasContent.value = false;
+		isPreExistingDraft.value = false;
+		lastSavedAt.value = undefined;
+		lastManualSaveAt = 0;
+		lastDirtyAt = 0;
+		liveAbortController = undefined;
+	}
+
 	function hasContent(): boolean {
 		if (!activeCanvas) return false;
 		return activeCanvas.getObjects().length > 0;
@@ -524,10 +656,9 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		sessionHasContent.value = false;
 	}
 
-	const pendingDraftsList = computed<DrawingDraft[]>(() => {
+	const pendingDraftsList = computed<DrawingDraftMetadata[]>(() => {
 		return Array.from(pendingDrafts.value.values()).map((p) => ({
 			id: p.id,
-			json: null,
 			thumbnail: p.thumbnail,
 			updatedAt: p.updatedAt,
 		}));
@@ -553,8 +684,10 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 		getDraft,
 		removeDraft,
 		getAllDrafts,
+		getAllDraftMetadata,
 		hasContent,
 		init,
 		resetToNewDraft,
+		disposeSession,
 	};
 });

@@ -72,10 +72,12 @@
                 <div
                   v-for="(inboxItem, i) in groupedInboxItems[date]"
                   :key="inboxItem._id"
+                  :ref="(element) => bindGalleryCell(element, inboxItem._id)"
                   class="gv-cell transition-all duration-300 overflow-visible"
                   :class="inboxItem.aspect_ratio > 1.2 ? 'col-span-2' : 'col-span-1'"
                 >
                   <Thumbnail
+                    v-if="isThumbnailActive(inboxItem._id)"
                     :inbox-item="inboxItem"
                     :user="user!"
                     :multi-selected-items="selectedItems"
@@ -85,6 +87,7 @@
                     @hover="seeItem(inboxItem)"
                     :eager="i < 8"
                   />
+                  <div v-else class="gv-placeholder bg-tertiary rounded-2xl border border-primary/40" />
                 </div>
               </div>
             </div>
@@ -167,7 +170,14 @@ import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { useGalleryData } from "@/composables/gallery/useGalleryData";
 import { useGallerySelection } from "@/composables/gallery/useGallerySelection";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
-import { nextTick, watch } from "vue";
+import {
+	type ComponentPublicInstance,
+	computed,
+	nextTick,
+	onBeforeUnmount,
+	ref,
+	watch,
+} from "vue";
 
 const { user } = storeToRefs(useAuthStore());
 
@@ -204,8 +214,77 @@ const {
 	deleteInboxItems,
 } = useGallerySelection(user, inbox, triggerSwiper);
 
+// Ionic keeps pages alive between tab switches. Only thumbnails within a wide
+// viewport buffer are mounted, which bounds image decodes, ResizeObservers and
+// component watchers regardless of how many metadata pages have been fetched.
+const galleryActive = ref(false);
+const visibleThumbnailIds = ref<Set<string>>(new Set());
+const eagerThumbnailIds = computed(
+	() => new Set(inbox.value.slice(0, 8).map((item) => item._id)),
+);
+const galleryCells = new Map<string, Element>();
+let thumbnailObserver: IntersectionObserver | null = null;
+
+function ensureThumbnailObserver() {
+	if (thumbnailObserver || typeof IntersectionObserver === "undefined") return;
+	thumbnailObserver = new IntersectionObserver(
+		(entries) => {
+			const next = new Set(visibleThumbnailIds.value);
+			let changed = false;
+			for (const entry of entries) {
+				const id = (entry.target as HTMLElement).dataset.inboxId;
+				if (!id) continue;
+				if (entry.isIntersecting && !next.has(id)) {
+					next.add(id);
+					changed = true;
+				} else if (!entry.isIntersecting && next.delete(id)) {
+					changed = true;
+				}
+			}
+			if (changed) visibleThumbnailIds.value = next;
+		},
+		{ rootMargin: "700px 0px" },
+	);
+}
+
+function bindGalleryCell(
+	element: Element | ComponentPublicInstance | null,
+	id: string,
+) {
+	const previous = galleryCells.get(id);
+	if (previous && previous !== element) thumbnailObserver?.unobserve(previous);
+	if (!(element instanceof Element)) {
+		galleryCells.delete(id);
+		return;
+	}
+	(element as HTMLElement).dataset.inboxId = id;
+	galleryCells.set(id, element);
+	if (galleryActive.value) {
+		ensureThumbnailObserver();
+		thumbnailObserver?.observe(element);
+	}
+}
+
+function isThumbnailActive(id: string): boolean {
+	if (!galleryActive.value) return false;
+	// Compatibility fallback for an unusually old WebView: retain functionality
+	// even when the browser cannot provide observer-driven windowing.
+	if (typeof IntersectionObserver === "undefined") return true;
+	return visibleThumbnailIds.value.has(id) || eagerThumbnailIds.value.has(id);
+}
+
+function stopThumbnailObservation() {
+	thumbnailObserver?.disconnect();
+	visibleThumbnailIds.value = new Set();
+}
+
 onIonViewWillEnter(async () => {
+	galleryActive.value = true;
 	await fetchInitialInbox();
+	await nextTick();
+	ensureThumbnailObserver();
+	for (const element of galleryCells.values())
+		thumbnailObserver?.observe(element);
 	nextTick(() => {
 		checkAutoLoadMore();
 	});
@@ -233,7 +312,17 @@ useBackButton(9999, (processNextHandler) => {
 	else processNextHandler();
 });
 
-onIonViewWillLeave(cancelMultiSelect);
+onIonViewWillLeave(() => {
+	cancelMultiSelect();
+	galleryActive.value = false;
+	stopThumbnailObservation();
+});
+
+onBeforeUnmount(() => {
+	stopThumbnailObservation();
+	thumbnailObserver = null;
+	galleryCells.clear();
+});
 </script>
 
 <style scoped>
@@ -254,6 +343,11 @@ ion-content{
 .gv-cell {
   content-visibility: auto;
   contain-intrinsic-size: auto 120px;
+}
+.gv-placeholder {
+  width: 100%;
+  height: 110px;
+  contain: strict;
 }
 ion-refresher {
   --color: var(--ion-color-secondary);

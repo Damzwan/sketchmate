@@ -4,6 +4,7 @@ import { DrawAction, type DrawActionParams } from "@/draw/actions/drawAction.typ
 import { DrawTool } from "@/draw/tools/tool.types";
 import { centerObjectInViewport } from "@/draw/canvas/viewport";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { downsampleImageToDataURL } from "@/draw/tools/imageDownsampling";
 
 export async function addImageToCanvas(
 	params: DrawActionParams[DrawAction.AddImage],
@@ -11,12 +12,11 @@ export async function addImageToCanvas(
 	const { getCanvas } = useDrawStore();
 	const c = getCanvas();
 
-	const fabricImg = await fabric.Image.fromURL(params.imageUrl, {
+	if (!c) return;
+	const boundedImageURL = await downsampleImageToDataURL(params.imageUrl);
+	const fabricImg = await fabric.Image.fromURL(boundedImageURL, {
 		crossOrigin: "anonymous",
 	});
-
-	const maxDimension = 256; // Maximum width or height for scaling
-	fabricImg.scaleToWidth(maxDimension);
 	centerObjectInViewport(c, fabricImg);
 
 	c.add(fabricImg);

@@ -31,6 +31,23 @@ export const useInboxStore = defineStore("inbox", () => {
 
 	const PAGE_SIZE = 30;
 
+	function mergeUnique(
+		current: InboxItem[],
+		incoming: InboxItem[],
+		position: "before" | "after",
+	): InboxItem[] {
+		const merged =
+			position === "before"
+				? [...incoming, ...current]
+				: [...current, ...incoming];
+		const seen = new Set<string>();
+		return merged.filter((item) => {
+			if (seen.has(item._id)) return false;
+			seen.add(item._id);
+			return true;
+		});
+	}
+
 	/**
 	 * Fetch the next page of inbox items.
 	 * @param reset - Clear current inbox and start from the beginning.
@@ -66,8 +83,8 @@ export const useInboxStore = defineStore("inbox", () => {
 			}
 
 			inbox.value = reset
-				? retrieved.inboxItems
-				: [...inbox.value, ...retrieved.inboxItems];
+				? mergeUnique([], retrieved.inboxItems, "after")
+				: mergeUnique(inbox.value, retrieved.inboxItems, "after");
 
 			// Single source of truth for user data
 			useUserCacheStore().upsertMany(retrieved.userInfo);
@@ -90,7 +107,7 @@ export const useInboxStore = defineStore("inbox", () => {
 		try {
 			const res = await syncInboxItems(newestDate);
 			if (res?.inboxItems?.length) {
-				inbox.value = [...res.inboxItems, ...inbox.value];
+				inbox.value = mergeUnique(inbox.value, res.inboxItems, "before");
 				useUserCacheStore().upsertMany(res.userInfo ?? []);
 			}
 		} catch (e) {
@@ -112,7 +129,7 @@ export const useInboxStore = defineStore("inbox", () => {
 			const res = await getSingleInboxItem(inboxId);
 			if (res?.inboxItem) {
 				useUserCacheStore().upsertMany(res.userInfo ?? []);
-				inbox.value.push(res.inboxItem);
+				inbox.value = mergeUnique(inbox.value, [res.inboxItem], "after");
 				return res.inboxItem;
 			}
 		} catch (e) {

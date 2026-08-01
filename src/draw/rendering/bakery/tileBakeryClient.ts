@@ -277,6 +277,24 @@ function teardown(): void {
 	cancelledAt.clear();
 }
 
+/** End one drawing session without disabling the worker backend for the next. */
+export function shutdownTileBakerySession(): void {
+	if (idleFlushHandle !== null) {
+		const cancelIdle = (globalThis as any).cancelIdleCallback;
+		if (typeof cancelIdle === "function") cancelIdle(idleFlushHandle);
+		clearTimeout(idleFlushHandle);
+		idleFlushHandle = null;
+	}
+	teardown();
+	for (const parked of dirty.values()) (parked as any).__bakeJSON = undefined;
+	dirty.clear();
+	flushPaused = false;
+	sceneBatchDepth = 0;
+	batchedSceneDeltas = [];
+	pausedUntil = 0;
+	sceneClock.resetObjects();
+}
+
 function getWorker(): Worker | null {
 	if (!enabled || disabled) return null;
 	if (isPaused()) return null;

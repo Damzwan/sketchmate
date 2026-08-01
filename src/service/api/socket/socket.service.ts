@@ -36,17 +36,9 @@ export async function socketConnect(): Promise<void> {
 		withCredentials: true,
 		reconnection: true,
 		reconnectionAttempts: Infinity,
-		// v4 = this client understands DrawSyncingEvent.LayerDocument and guards
-		// unknown action types. The server only branches on '1' and '2', so
-		// anything above that takes the same path; what actually keeps v3 peers
-		// out of a room is `minimum_online_version` (see drawSyncing.socket).
 		query: { clientVersion: "4" },
 	});
 
-	// Register Sub-Socket Handlers
-	// Draw-sync handlers pull in the heavy fabric/render engine, so we load them
-	// lazily off the critical path — the engine chunk is fetched shortly after
-	// connect instead of being part of the app-start bundle.
 	const drawSocket = socket;
 	void import("@/service/api/socket/drawRoomHandlers.socket").then((m) =>
 		m.registerDrawSyncingHandlers(drawSocket),

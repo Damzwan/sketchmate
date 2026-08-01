@@ -4,7 +4,7 @@ import { defineStore } from "pinia";
 import { isMobile } from "@/helper/general.helper";
 import { Canvas } from "fabric";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { bucketFill } from "@/draw/tools/bucketFill";
+import { bucketFill, shutdownBucketFillWorker } from "@/draw/tools/bucketFill";
 import { Ref, ref } from "vue";
 
 interface Bucket extends ToolService {
@@ -15,6 +15,7 @@ export const useBucket = defineStore("bucket", (): Bucket => {
 	let c: Canvas | undefined = undefined;
 	let gestureStart = false;
 	let fillInProgress = false;
+	let sessionAbortController = new AbortController();
 	const isFilling = ref(false);
 
 	const events: FabricEvent[] = [
@@ -72,7 +73,11 @@ export const useBucket = defineStore("bucket", (): Bucket => {
 					isFilling.value = true;
 				}, 220);
 				try {
-					const img = await bucketFill(c!, worldPoint);
+					const img = await bucketFill(
+						c!,
+						worldPoint,
+						sessionAbortController.signal,
+					);
 					if (!img) return;
 
 					if (isBackground) {
@@ -104,6 +109,10 @@ export const useBucket = defineStore("bucket", (): Bucket => {
 					} else {
 						c!.add(img);
 					}
+				} catch (error) {
+					if (!(error instanceof DOMException && error.name === "AbortError")) {
+						console.error("[BucketFill] fill failed", error);
+					}
 				} finally {
 					clearTimeout(spinnerTimer);
 					fillInProgress = false;
@@ -120,7 +129,17 @@ export const useBucket = defineStore("bucket", (): Bucket => {
 	];
 
 	function init(canvas: Canvas) {
+		sessionAbortController.abort();
+		sessionAbortController = new AbortController();
 		c = canvas;
+	}
+
+	function destroy() {
+		sessionAbortController.abort();
+		shutdownBucketFillWorker();
+		fillInProgress = false;
+		isFilling.value = false;
+		c = undefined;
 	}
 
 	async function select() {
@@ -130,5 +149,5 @@ export const useBucket = defineStore("bucket", (): Bucket => {
 		c.skipTargetFind = true;
 	}
 
-	return { select, init, events, isFilling };
+	return { select, init, destroy, events, isFilling };
 });

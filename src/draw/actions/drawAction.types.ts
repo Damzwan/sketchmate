@@ -70,7 +70,7 @@ export type DrawActionParams = {
 	[DrawAction.ExitColorPickerMode]: { lastSelectedObjectRef?: FabricObject };
 	[DrawAction.ExitTextAddingMode]: undefined;
 	[DrawAction.AddImage]: { imageUrl: string };
-	[DrawAction.AddSavedDrawingToCanvas]: { json: any };
+	[DrawAction.AddSavedDrawingToCanvas]: { json: any; jsonBytes?: number };
 	[DrawAction.SaveFabricObject]: DrawActionObjectParams;
 	[DrawAction.AddShape]: { shape: Shape };
 	[DrawAction.ConfirmShapeCreation]: undefined;

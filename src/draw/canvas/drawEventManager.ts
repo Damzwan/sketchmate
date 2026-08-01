@@ -5,10 +5,25 @@ import type { ToolService } from "@/draw/tools/tool.types";
 export function createDrawEventManager() {
 	let c: Canvas | undefined;
 	const eventsMapping: Record<string, FabricEvent[]> = {};
+	const permanentEvents: FabricEvent[] = [];
 
 	function init(canvas: Canvas) {
+		destroy();
 		c = canvas;
 		eventsMapping["tool"] = [];
+	}
+
+	function destroy() {
+		if (c) {
+			for (const key in eventsMapping) {
+				for (const ev of eventsMapping[key]) c.off(ev.on, ev.handler);
+			}
+			for (const ev of permanentEvents) c.off(ev.on, ev.handler);
+		}
+		for (const key in eventsMapping) delete eventsMapping[key];
+		permanentEvents.length = 0;
+		deactivationStack = 0;
+		c = undefined;
 	}
 
 	function addEventsOfService(name: string, events: FabricEvent[]) {
@@ -17,6 +32,7 @@ export function createDrawEventManager() {
 	}
 
 	function addPermanentEvents(events: FabricEvent[]) {
+		permanentEvents.push(...events);
 		events.forEach((ev) => c!.on(ev.on, ev.handler));
 	}
 
@@ -92,6 +108,7 @@ export function createDrawEventManager() {
 		activateExclusiveEvents,
 		deActivateExclusiveEvents,
 		addPermanentEvents,
+		destroy,
 	};
 }
 

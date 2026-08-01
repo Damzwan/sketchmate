@@ -54,6 +54,11 @@ const BASE_BLEED = 1.5; // Fill bleed (world units) tucked under surrounding str
 // no longer freeze the UI. Concurrency is guarded by the caller (one fill at a
 // time), so a single reusable worker + per-call listener is sufficient.
 let fillWorker: Worker | null = null;
+const FILL_TIMEOUT_MS = 15_000;
+const pendingFillRequests = new Set<{
+	reject: (reason?: unknown) => void;
+	cleanup: () => void;
+}>();
 
 function getFillWorker(): Worker {
 	if (!fillWorker) {
@@ -65,26 +70,69 @@ function getFillWorker(): Worker {
 	return fillWorker;
 }
 
+function resetFillWorker(reason: Error): void {
+	const pending = [...pendingFillRequests];
+	pendingFillRequests.clear();
+	for (const request of pending) {
+		request.cleanup();
+		request.reject(reason);
+	}
+	fillWorker?.terminate();
+	fillWorker = null;
+}
+
+export function shutdownBucketFillWorker(): void {
+	resetFillWorker(new DOMException("Drawing session ended", "AbortError"));
+}
+
 function runFloodFill(
 	payload: FloodFillRequest,
 	transfer: Transferable[],
+	signal?: AbortSignal,
 ): Promise<FloodFillResponse> {
 	return new Promise((resolve, reject) => {
+		if (signal?.aborted) {
+			reject(new DOMException("Bucket fill aborted", "AbortError"));
+			return;
+		}
 		const w = getFillWorker();
+		let settled = false;
+		let request!: { reject: (reason?: unknown) => void; cleanup: () => void };
 		const onMessage = (e: MessageEvent<FloodFillResponse>) => {
+			if (settled) return;
+			settled = true;
 			cleanup();
 			resolve(e.data);
 		};
 		const onError = (e: ErrorEvent) => {
-			cleanup();
-			reject(e.error ?? new Error(e.message));
+			if (settled) return;
+			settled = true;
+			resetFillWorker(e.error ?? new Error(e.message));
 		};
+		const onAbort = () => {
+			if (settled) return;
+			settled = true;
+			// The scan cannot be cancelled inside the worker. Terminate it so the
+			// expensive flood does not continue after its gesture/session has ended.
+			resetFillWorker(new DOMException("Bucket fill aborted", "AbortError"));
+		};
+		const timer = setTimeout(() => {
+			if (settled) return;
+			settled = true;
+			resetFillWorker(new Error("Bucket fill worker timed out"));
+		}, FILL_TIMEOUT_MS);
 		const cleanup = () => {
+			clearTimeout(timer);
 			w.removeEventListener("message", onMessage);
 			w.removeEventListener("error", onError);
+			signal?.removeEventListener("abort", onAbort);
+			pendingFillRequests.delete(request);
 		};
+		request = { reject, cleanup };
+		pendingFillRequests.add(request);
 		w.addEventListener("message", onMessage);
 		w.addEventListener("error", onError);
+		signal?.addEventListener("abort", onAbort, { once: true });
 		w.postMessage(payload, transfer);
 	});
 }
@@ -207,6 +255,7 @@ function buildSmartOffscreenCanvas(
 export async function bucketFill(
 	c: Canvas,
 	p: Point,
+	signal?: AbortSignal,
 ): Promise<BucketFillPath | null> {
 	const { brushColorWithOpacity } = usePen();
 
@@ -226,6 +275,8 @@ export async function bucketFill(
 	let minStrokeWorld = 0;
 
 	for (let level = 0; level < ESCALATION_BUFFERS.length; level++) {
+		if (signal?.aborted)
+			throw new DOMException("Bucket fill aborted", "AbortError");
 		const built = buildSmartOffscreenCanvas(c, p, ESCALATION_BUFFERS[level]);
 		const offscreen = built.offscreen;
 		worldRect = built.worldRect;
@@ -269,6 +320,7 @@ export async function bucketFill(
 				maxWorldArea: MAX_WORLD_AREA,
 			},
 			[imgData.data.buffer],
+			signal,
 		);
 
 		// Release the (now large) scratch canvas before a retry allocates the next.

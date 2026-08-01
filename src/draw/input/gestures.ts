@@ -22,15 +22,25 @@ const SETTLE_DELAY = 180;
 
 // --- VIEWPORT SCHEDULER ---
 let viewportFrameScheduled = false;
+let viewportRafId: number | null = null;
 
 function scheduleViewportUpdate(c: Canvas, postRenderCallback?: () => void) {
 	if (viewportFrameScheduled) return;
 	viewportFrameScheduled = true;
-	requestAnimationFrame(() => {
+	viewportRafId = requestAnimationFrame(() => {
+		viewportRafId = null;
 		viewportFrameScheduled = false;
 		syncVisuals(c);
 		if (postRenderCallback) postRenderCallback();
 	});
+}
+
+export function destroyGestures(): void {
+	clearTimeout(visibilityTimeout);
+	visibilityTimeout = null;
+	if (viewportRafId !== null) cancelAnimationFrame(viewportRafId);
+	viewportRafId = null;
+	viewportFrameScheduled = false;
 }
 
 function cancelPendingSettle() {

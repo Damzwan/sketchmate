@@ -196,6 +196,11 @@ export function createDrawingSpatialIndex(
 	}
 
 	function addToQuadTree(obj: FabricObject) {
+		// Registration is required to be idempotent. A stale entry is otherwise
+		// still returned by quadtree queries even though entryMap points at the new
+		// one, making the renderer rasterize one logical object multiple times.
+		const previous = entryMap.get(obj.id);
+		if (previous) quadtree.remove(previous);
 		const e = fabricObjectToEntry(obj);
 		entryMap.set(obj.id, e);
 		quadtree.insert(e);

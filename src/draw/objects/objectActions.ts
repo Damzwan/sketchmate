@@ -13,7 +13,6 @@ import { v4 as uuidv4 } from "uuid";
 import { useSelect } from "@/draw/tools/select.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useToast } from "@/service/toast.service";
-import { centerObjectInViewport } from "@/draw/canvas/viewport";
 import { computeBounds, exportBoundingBoxImage } from "@/draw/document/export";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
@@ -27,6 +26,35 @@ import {
 } from "@/draw/document/serialization";
 import { createSavedDrawing } from "@/service/api/savedDrawing.api";
 import { useShareToastStore } from "@/draw/sharing/shareToast.store";
+import { createYielder } from "@/draw/scheduling/yielder";
+import { fitAndCenterSavedObjects } from "@/draw/objects/savedObjectPlacement";
+import {
+	savedObjectLimitMessage,
+	validateSavedDrawingBytes,
+	validateSavedObjectCount,
+} from "@/draw/objects/savedObjectLimits";
+import * as Sentry from "@sentry/capacitor";
+
+async function runSavedImportPhase<T>(
+	phase: string,
+	work: () => Promise<T> | T,
+): Promise<T> {
+	Sentry.addBreadcrumb({
+		category: "draw.import",
+		message: `${phase}:start`,
+	});
+	try {
+		return await Sentry.startSpan(
+			{ name: `draw.import.${phase}`, op: "function" },
+			work,
+		);
+	} finally {
+		Sentry.addBreadcrumb({
+			category: "draw.import",
+			message: `${phase}:end`,
+		});
+	}
+}
 
 export async function removeObjects(objects: FabricObject[]) {
 	const { getCanvas } = useDrawStore();
@@ -405,6 +433,13 @@ export async function saveFabricObject(
 
 	const c = getCanvas();
 	if (!c || !user) return;
+	const countFailure = validateSavedObjectCount(params.objects.length);
+	if (countFailure) {
+		useToast().toast(savedObjectLimitMessage(countFailure), {
+			color: "warning",
+		});
+		return;
+	}
 
 	drawui.isSavingDrawing = true;
 	await new Promise((resolve) => setTimeout(resolve, 10));
@@ -430,23 +465,40 @@ export async function saveFabricObject(
 		});
 		tempCanvas = scratchCanvas;
 
-		const clonedObjects = await Promise.all(
-			params.objects.map((obj: fabric.Object) => obj.clone()),
-		);
-
-		clonedObjects.forEach((obj) => {
+		const clonedObjects: fabric.Object[] = [];
+		const cloneYielder = createYielder({
+			budgetMs: 4,
+			frameYieldIntervalMs: 12,
+			label: "saved-drawing-clone",
+		});
+		let estimatedJSONBytes = 0;
+		for (const source of params.objects) {
+			const obj = await source.clone();
 			obj.set({
 				left: obj.left! - bounds.minX,
 				top: obj.top! - bounds.minY,
 				userId: user._id,
 			});
+			// Bound the payload before all clones and the final scene JSON coexist.
+			// Each object is still serialized atomically, but no single bulk stringify
+			// runs until the accumulated payload is known to be safe.
+			estimatedJSONBytes += JSON.stringify(obj.toObject()).length;
+			const byteFailure = validateSavedDrawingBytes(estimatedJSONBytes);
+			if (byteFailure) {
+				(obj as any).dispose?.();
+				throw new Error(savedObjectLimitMessage(byteFailure));
+			}
+			clonedObjects.push(obj);
 			scratchCanvas.add(obj);
-		});
+			await cloneYielder.maybeYield();
+		}
 
 		// 1. Chunked JSON & Image Generation
 		scratchCanvas.backgroundColor = "transparent";
 		const jsonObj = await generateChunkedJSON(scratchCanvas as any);
 		const jsonString = JSON.stringify(jsonObj);
+		const byteFailure = validateSavedDrawingBytes(jsonString.length);
+		if (byteFailure) throw new Error(savedObjectLimitMessage(byteFailure));
 
 		const exportResult = await exportBoundingBoxImage(scratchCanvas as any, {
 			maxSize: 1080,
@@ -466,6 +518,10 @@ export async function saveFabricObject(
 		shareToastStore.pushSavedToast({ saved });
 	} catch (error) {
 		console.error("Save failed:", error);
+		useToast().toast(
+			error instanceof Error ? error.message : "Could not save this object",
+			{ color: "warning" },
+		);
 	} finally {
 		// Explicitly release cloned objects and the native backing store. Relying on
 		// GC here caused repeated saves to stack canvas memory on mobile.
@@ -502,111 +558,106 @@ export async function addSavedFabricObjectToCanvas(
 
 	try {
 		let jsonData = params.json;
+		let jsonBytes = params.jsonBytes;
 
 		if (typeof params.json === "string") {
 			const response = await fetch(params.json);
-			jsonData = await response.json();
+			if (!response.ok) {
+				throw new Error(`Saved object download failed (${response.status})`);
+			}
+			const jsonText = await response.text();
+			jsonBytes = jsonText.length;
+			const downloadFailure = validateSavedDrawingBytes(jsonBytes);
+			if (downloadFailure) {
+				throw new Error(savedObjectLimitMessage(downloadFailure));
+			}
+			jsonData = JSON.parse(jsonText);
+		}
+
+		const objectsJSON = Array.isArray(jsonData?.objects)
+			? jsonData.objects
+			: [];
+		const { roomId } = useDrawSyncer();
+		const countFailure = validateSavedObjectCount(objectsJSON.length);
+		if (countFailure) {
+			throw new Error(savedObjectLimitMessage(countFailure));
+		}
+		const byteFailure =
+			typeof jsonBytes === "number"
+				? validateSavedDrawingBytes(jsonBytes, { inRoom: !!roomId })
+				: null;
+		if (byteFailure) {
+			throw new Error(
+				savedObjectLimitMessage(byteFailure, { inRoom: !!roomId }),
+			);
 		}
 
 		const objects: fabric.Object[] = [];
 
-		await enlivenObjectsTimeSlivered(jsonData.objects, (obj) => {
-			const migrated = migrateLegacyOrigin(obj);
-			migrated.set({
-				id: uuidv4(),
-				userId: user?._id || migrated.get("userId"),
-			});
-			objects.push(migrated);
-		});
+		await runSavedImportPhase("enliven", () =>
+			enlivenObjectsTimeSlivered(objectsJSON, (obj) => {
+				const migrated = migrateLegacyOrigin(obj);
+				migrated.set({
+					id: uuidv4(),
+					userId: user?._id || migrated.get("userId"),
+				});
+				objects.push(migrated);
+			}),
+		);
 
-		const fitToViewport = (
-			obj: fabric.Object,
-			canvas: fabric.Canvas,
-			padding = 0.8,
-		) => {
-			const zoom = canvas.getZoom();
+		await runSavedImportPhase("layout", () =>
+			fitAndCenterSavedObjects(objects, c),
+		);
 
-			const viewportWidth = canvas.getWidth() / zoom;
-			const viewportHeight = canvas.getHeight() / zoom;
-
-			const objWidth = obj.getScaledWidth();
-			const objHeight = obj.getScaledHeight();
-
-			const maxWidth = viewportWidth * padding;
-			const maxHeight = viewportHeight * padding;
-
-			const widthScale = maxWidth / objWidth;
-			const heightScale = maxHeight / objHeight;
-
-			const scale = Math.min(widthScale, heightScale);
-
-			// Only shrink, never enlarge
-			if (scale < 1) {
-				obj.scale(obj.scaleX! * scale);
-			}
-
-			obj.setCoords();
-		};
-
-		await actionWithoutEvents(async () => {
-			drawObjects.beginBatch();
-			try {
-				if (objects.length === 1) {
-					const obj = objects[0];
-
-					fitToViewport(obj, c);
-
-					centerObjectInViewport(c, obj);
-					c.add(obj);
-
-					obj.setCoords();
-					c.setActiveObject(obj);
-				} else if (objects.length > 1) {
-					const selection = new fabric.ActiveSelection(objects, {
-						canvas: c,
-					});
-
-					fitToViewport(selection, c);
-
-					centerObjectInViewport(c, selection);
-
-					selection.forEachObject((obj) => {
-						c.add(obj);
-						obj.setCoords();
-					});
-
-					selection.removeAll();
+		await runSavedImportPhase("commit", () =>
+			actionWithoutEvents(async () => {
+				c.discardActiveObject();
+				const commitYielder = createYielder({
+					budgetMs: 4,
+					frameYieldIntervalMs: 12,
+					label: "saved-drawing-commit",
+				});
+				commitYielder.reset();
+				drawObjects.beginBatch();
+				try {
+					for (const object of objects) {
+						// One-at-a-time keeps each object at the tail while its Fabric
+						// object:added event assigns explicit z. The manager batches all
+						// invalidation, so no partial scene is rendered between yields.
+						c.add(object);
+						await commitYielder.maybeYield();
+					}
+				} finally {
+					drawObjects.endBatch();
 				}
-			} finally {
-				drawObjects.endBatch();
-			}
-		});
-
-		// object:added was intentionally detached above, so explicitly seed the
-		// custom renderer's quadtree, worker mirror, overview and tile invalidation.
-		// Otherwise Fabric can show the active selection, but zooming redraws from
-		// an index that does not contain these saved objects and they disappear.
-		drawObjects.registerAddedObjects(objects);
+			}),
+		);
 
 		if (selectedTool !== DrawTool.Select) {
 			selectTool(DrawTool.Select);
 		}
 
-		c.fire("objects:added", {
-			target: objects,
+		await runSavedImportPhase("history_sync", () => {
+			c.fire("objects:added", {
+				target: objects,
+				deferHistorySnapshot: true,
+			});
 		});
 
-		if (objects.length === 1) {
-			c.setActiveObject(objects[0]);
-		} else if (objects.length > 1) {
-			c.setActiveObject(
-				new fabric.ActiveSelection(objects, {
-					canvas: c,
-				}),
-			);
-		}
+		await runSavedImportPhase("selection", () => {
+			if (objects.length === 1) {
+				c.setActiveObject(objects[0]);
+			} else if (objects.length > 1) {
+				c.setActiveObject(
+					new fabric.ActiveSelection(objects, {
+						canvas: c,
+					}),
+				);
+			}
+		});
 	} catch (error) {
 		console.error("Failed to load saved drawing:", error);
+		throw error;
 	} finally {
 		drawui.isLoadingDrawing = false;
 	}

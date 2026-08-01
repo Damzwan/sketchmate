@@ -802,6 +802,10 @@ export const useChatStore = defineStore('chat', () => {
     if (chatWidget.isExpanded && chatWidget.activeTab === notif.tabId) return
     const existing = notifications.value.find((n) => n.tabId === notif.tabId)
     if (existing) {
+      // A conversation can first arrive through a partial relationship event
+      // and only later through a fully populated message payload. Refresh the
+      // sender snapshot instead of permanently keeping the first, unstyled one.
+      Object.assign(existing, notif)
       existing.lines.push({ id: Date.now(), text: notif.text })
       if (existing.lines.length > 2) existing.lines.shift()
       clearTimeout(existing.timer)
@@ -861,6 +865,7 @@ export const useChatStore = defineStore('chat', () => {
       subtitle: partner?.name || 'Sketchmate',
       text: 'Accepted your request! You have 24h to vibe.',
       img: partner?.img || '',
+      senderId: partner?._id,
       isTrial: true,
       customization: partner?.customization
     })
@@ -889,6 +894,7 @@ export const useChatStore = defineStore('chat', () => {
       subtitle: partner?.name || 'Artist',
       text: 'Not ready to connect yet. Keep sketching!',
       img: partner?.img || '',
+      senderId: partner?._id,
       isRequest: false,
       customization: partner?.customization
     })
@@ -913,6 +919,7 @@ export const useChatStore = defineStore('chat', () => {
       subtitle: partner?.name || 'New Mate!',
       text: `You and ${partner?.name} are now Mates!`,
       img: partner?.img || '',
+      senderId: partner?._id,
       isMateProposal: true,
       customization: partner?.customization
     })
@@ -947,6 +954,7 @@ export const useChatStore = defineStore('chat', () => {
         ? `${partner?.name} isn't ready to re-match yet.`
         : `${partner?.name} wants to stay in the trial phase.`,
       img: partner?.img || '',
+      senderId: partner?._id,
       isTrial: !isExpired,
       isRequest: false,
       customization: partner?.customization
@@ -978,6 +986,7 @@ export const useChatStore = defineStore('chat', () => {
       subtitle: 'Connection Ended',
       text: `Matership with ${partner?.name || 'Artist'} has ended.`,
       img: partner?.img || '',
+      senderId: partner?._id,
       isTrial: false,
       customization: partner?.customization
     })
@@ -1009,6 +1018,7 @@ export const useChatStore = defineStore('chat', () => {
         ? 'Wants to re-match as Mates! 🎨'
         : 'Wants to be Mates! 💖',
       img: partner?.img || '',
+      senderId: partner?._id,
       isMateProposal: true,
       customization: partner?.customization
     })

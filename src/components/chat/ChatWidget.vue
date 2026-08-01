@@ -25,20 +25,6 @@
           ...(sheetOffset > 0 ? { transform: `translate3d(0, ${sheetOffset}px, 0)` } : {})
         }"
       >
-        <div v-if="contentMounted && !customizationOpen" class="absolute inset-0 z-0 pointer-events-none">
-          <ProfileWorld
-            :world-id="chatCustomization.worldId"
-            :accent="chatTheme.accentColor"
-            :font="chatFontFamily"
-            contained
-            radius-class="rounded-t-[2.5rem]"
-          />
-          <ProfileEffect
-            :effect-id="chatCustomization.effectId"
-            contained
-            radius-class="rounded-t-[2.5rem]"
-          />
-        </div>
         <div
           class="relative z-10 w-full flex justify-center pt-3 pb-3 shrink-0 touch-none cursor-grab active:cursor-grabbing chat-widget-chrome"
           @pointerdown="onDragStart"
@@ -153,15 +139,12 @@ import ChatToolbar from "./ChatToolbar.vue";
 import ChatInputFooter from "./ChatInputFooter.vue";
 import LobbyInvitePopover from "./LobbyInvitePopover.vue";
 import RelationshipInfoModal from "./RelationshipInfoModal.vue";
-import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import {
 	hydrateChatCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 } from "@/config/profile_options.config";
 
 import { useAuthStore } from "@/store/auth.store";
@@ -215,9 +198,8 @@ const chatCustomization = computed(() =>
 	hydrateChatCustomization((authStore.user as any)?.chat_customization),
 );
 const chatTheme = computed(() => resolveTheme(chatCustomization.value.themeId));
-const chatWorld = computed(() => resolveWorld(chatCustomization.value.worldId));
 const chatPalette = computed(() =>
-	resolveReadableCustomizationPalette(chatTheme.value, chatWorld.value),
+	resolveReadableCustomizationPalette(chatTheme.value),
 );
 const chatFontFamily = computed(() => resolveFontFamily(chatCustomization.value.fontId));
 const chatFontEffectClass = computed(() =>

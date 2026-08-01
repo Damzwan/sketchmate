@@ -309,13 +309,34 @@ function withPrice(sku: ShopSku) {
 	return skusWithPrices.value[sku.id] || sku;
 }
 
+const CHAT_CATEGORIES = new Set<ItemCategory>([
+	"theme",
+	"font",
+	"font_effect",
+]);
+const isChatCompatibleSku = (sku: ShopSku) =>
+	sku.kind === "bundle"
+		? sku.grants.every((grant) =>
+				CHAT_CATEGORIES.has(grant.split(".")[0] as ItemCategory),
+			)
+		: CHAT_CATEGORIES.has(sku.category);
+const visibleCatalog = computed(() =>
+	shopEquipTarget.value === "chat"
+		? CATALOG.filter(isChatCompatibleSku)
+		: CATALOG,
+);
+
 const featuredPacks = computed(() =>
-	CATALOG.filter((s) => s.kind === "bundle" && s.featured).map(withPrice),
+	visibleCatalog.value
+		.filter((s) => s.kind === "bundle" && s.featured)
+		.map(withPrice),
 );
 
 const highlights = computed(() =>
 	HIGHLIGHT_IDS.map((id) => CATALOG_BY_ID[id])
-		.filter(Boolean)
+		.filter((sku): sku is ShopSku =>
+			!!sku && (shopEquipTarget.value !== "chat" || isChatCompatibleSku(sku)),
+		)
 		.map(withPrice),
 );
 
@@ -353,7 +374,7 @@ function bundleSavingsPct(pack: ShopSku): number {
 // users can just scroll; the rest narrow to one category. Grouped by feel:
 // card looks first, then text, then tools.
 type CategoryFilter = ItemCategory | "all";
-const categories: { id: CategoryFilter; label: string }[] = [
+const ALL_CATEGORIES: { id: CategoryFilter; label: string }[] = [
 	{ id: "all", label: "All" },
 	{ id: "theme", label: "Themes" },
 	{ id: "world", label: "Worlds" },
@@ -363,6 +384,15 @@ const categories: { id: CategoryFilter; label: string }[] = [
 	{ id: "font_effect", label: "Text" },
 	{ id: "brush", label: "Brushes" },
 ];
+const categories = computed(() =>
+	shopEquipTarget.value === "chat"
+		? ALL_CATEGORIES.filter(
+				(category) =>
+					category.id === "all" ||
+					CHAT_CATEGORIES.has(category.id as ItemCategory),
+			)
+		: ALL_CATEGORIES,
+);
 
 const cardComponents: Partial<Record<ItemCategory, any>> = {
 	theme: ShopCardTheme,
@@ -396,8 +426,14 @@ const shuffledSingleIds = shuffle(
 
 const activeItems = computed(() => {
 	if (activeCategory.value === "all")
-		return shuffledSingleIds.map((id) => withPrice(CATALOG_BY_ID[id]));
-	return CATALOG.filter(
+		return shuffledSingleIds
+			.map((id) => CATALOG_BY_ID[id])
+			.filter(
+				(sku) =>
+					shopEquipTarget.value !== "chat" || isChatCompatibleSku(sku),
+			)
+			.map(withPrice);
+	return visibleCatalog.value.filter(
 		(s) => s.kind === "single" && s.category === activeCategory.value,
 	).map(withPrice);
 });
@@ -478,7 +514,7 @@ const equipSku = async (patch: Record<string, any>) => {
 	const supportedPatch = target === "chat"
 		? Object.fromEntries(
 				Object.entries(patch).filter(([key]) =>
-					["themeId", "fontId", "fontEffectId", "effectId", "worldId"].includes(key),
+					["themeId", "fontId", "fontEffectId"].includes(key),
 				),
 			)
 		: patch;
@@ -503,7 +539,14 @@ const equipSku = async (patch: Record<string, any>) => {
 watch(
 	isShopOpen,
 	async (open) => {
-		if (!open) return;
+	if (!open) return;
+	if (
+		shopEquipTarget.value === "chat" &&
+		activeCategory.value !== "all" &&
+		!CHAT_CATEGORIES.has(activeCategory.value as ItemCategory)
+	) {
+		activeCategory.value = "all";
+	}
 		if (Object.keys(skusWithPrices.value).length === 0) await loadOfferings();
 		if (shopScrollTarget.value) {
 			const targetItem = shopScrollTarget.value;

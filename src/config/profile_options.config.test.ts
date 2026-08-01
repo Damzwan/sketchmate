@@ -8,12 +8,13 @@ import {
 
 describe("customized surface contrast", () => {
 	it("keeps chat customization independent with safe defaults", () => {
-		const chat = hydrateChatCustomization({ themeId: "noir", worldId: "space" });
+		const chat = hydrateChatCustomization({ themeId: "noir" });
 
 		expect(chat.themeId).toBe("noir");
-		expect(chat.worldId).toBe("space");
+		expect(Object.keys(chat)).toEqual(["themeId", "fontId", "fontEffectId"]);
 		expect(chat.fontId).toBe("sketch");
-		expect(chat.effectId).toBe("none");
+		expect(chat).not.toHaveProperty("effectId");
+		expect(chat).not.toHaveProperty("worldId");
 		expect(chat).not.toHaveProperty("decorationId");
 	});
 

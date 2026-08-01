@@ -6,26 +6,6 @@
     class="relative h-[420px] rounded-[2rem] border overflow-hidden shadow-lg pointer-events-none"
     :style="surfaceStyle"
   >
-    <div class="absolute inset-0 z-0 overflow-hidden rounded-[2rem]">
-      <!-- ProfileWorld's sprites are sized for the full 520px widget. This
-           preview is 280px wide, so 280 / 520 gives the 0.54 scale below.
-           Expanding the stage by the inverse keeps its background edge-to-edge. -->
-      <div class="absolute preview-world-stage">
-        <ProfileWorld
-          :world-id="style.worldId"
-          :accent="theme.accentColor"
-          :font="fontFamily"
-          contained
-          radius-class="rounded-none"
-        />
-      </div>
-      <ProfileEffect
-        :effect-id="style.effectId"
-        contained
-        radius-class="rounded-[2rem]"
-      />
-    </div>
-
     <div class="relative z-10 h-full flex flex-col" :style="{ fontFamily }">
       <div class="h-7 flex justify-center items-center shrink-0" :style="chromeStyle">
         <div class="w-10 h-1 rounded-full" :style="{ background: palette.controlBorder }"></div>
@@ -73,18 +53,45 @@
             <span class="text-[10px] font-black uppercase" :style="{ color: palette.desc }">Recent</span>
           </div>
 
-          <div v-if="previewChats.length" class="space-y-2">
-            <!-- Reusing the production row is intentional: names, actual last
-                 activity, relationship state and the other person's profile
-                 styling cannot drift away from the real overview. -->
-            <ConversationItem
-              v-for="chat in previewChats"
-              :key="chat._id"
-              :chat="chat"
-              :current-user-id="currentUser?._id || ''"
-              :is-online="isPartnerOnline(chat)"
-              :is-typing="isPartnerTyping(chat)"
-            />
+          <div v-if="previewRows.length" class="space-y-2">
+            <!-- Use real conversation data without mounting production rows.
+                 Those rows can own profile-world/effect renderers, which are
+                 unnecessary inside this small style preview. -->
+            <div
+              v-for="row in previewRows"
+              :key="row.chat._id"
+              class="flex items-center gap-2.5 rounded-2xl border px-2.5 py-2 shadow-sm backdrop-blur-sm"
+              :style="panelStyle"
+            >
+              <div class="relative shrink-0">
+                <UserAvatar
+                  v-if="row.partner"
+                  :user="row.partner"
+                  :customization="row.partner.customization"
+                  size="sm"
+                  static
+                />
+                <span v-if="row.online" class="absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white"></span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <p class="min-w-0 flex-1 truncate text-[15px] leading-none font-black" :style="{ color: palette.name }">
+                    {{ row.partner?.name || 'Unknown artist' }}
+                  </p>
+                  <span class="shrink-0 text-[9px] font-sans font-black uppercase" :style="{ color: palette.desc }">
+                    {{ row.time }}
+                  </span>
+                </div>
+                <div class="mt-1.5 flex items-center gap-1.5">
+                  <p class="min-w-0 flex-1 truncate text-[12px] font-sans font-semibold" :style="{ color: row.typing ? theme.accentColor : palette.desc }">
+                    {{ row.line }}
+                  </p>
+                  <span v-if="row.unread" class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-black leading-none text-white">
+                    {{ row.unread }}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div v-else class="mt-2 rounded-2xl border px-4 py-5 text-center backdrop-blur-sm" :style="panelStyle">
@@ -95,9 +102,7 @@
           </div>
       </div>
 
-      <!-- v-show is deliberate. The overview contains production conversation
-           rows with their own world canvases; destroying those rows whenever
-           the pager changes was another avoidable async teardown path. -->
+      <!-- Keep both pager pages stable while switching previews. -->
       <div v-show="mode === 'conversation'" class="flex-1 min-h-0 flex flex-col">
         <div v-if="previewPartner" class="flex items-center gap-2.5 px-3 py-2 border-y shrink-0" :style="chromeBorderStyle">
           <UserAvatar
@@ -174,15 +179,15 @@ import { IonIcon } from "@ionic/vue";
 import { chatbubblesOutline } from "ionicons/icons";
 import { mdiClose, mdiDotsHorizontal, mdiPaletteOutline } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
-import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import ConversationItem from "./ConversationItem.vue";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useFriendStore } from "@/store/friend.store";
-import { compareConversationActivity } from "@/helper/chat.helper";
+import {
+	compareConversationActivity,
+	conversationActivityAt,
+} from "@/helper/chat.helper";
 import type { BaseMessage, PopulatedConversation } from "@/types/server.types";
 import {
 	hydrateChatCustomization,
@@ -190,7 +195,6 @@ import {
 	resolveFontFamily,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	resolveWorld,
 	type ChatCustomization,
 } from "@/config/profile_options.config";
 
@@ -214,9 +218,8 @@ const { pendingRequests, onlineFriends } = storeToRefs(friendStore);
 const currentUser = computed(() => props.user || authStore.user);
 const style = computed(() => hydrateChatCustomization(props.customization));
 const theme = computed(() => resolveTheme(style.value.themeId));
-const world = computed(() => resolveWorld(style.value.worldId));
 const palette = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, world.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 const fontFamily = computed(() => resolveFontFamily(style.value.fontId));
 const fontEffectClass = computed(() =>
@@ -263,15 +266,6 @@ const partnerOnline = computed(() =>
 		? friendStore.isFriendOnline(previewPartner.value._id)
 		: false,
 );
-const isPartnerOnline = (chat: PopulatedConversation) => {
-	const partner = partnerFor(chat);
-	return partner ? friendStore.isFriendOnline(partner._id) : false;
-};
-const isPartnerTyping = (chat: PopulatedConversation) => {
-	const partner = partnerFor(chat);
-	return partner ? typingStatuses.value[partner._id] || false : false;
-};
-
 const messageText = (message: BaseMessage) => {
 	if (message.content) return message.content;
 	if (message.shared_post_id) return "Shared a post";
@@ -279,6 +273,39 @@ const messageText = (message: BaseMessage) => {
 	if (message.type === "system") return "New activity";
 	return "Sent a message";
 };
+const conversationTime = (chat: PopulatedConversation) => {
+	const timestamp = conversationActivityAt(chat);
+	if (!timestamp) return "";
+	const date = new Date(timestamp);
+	const now = new Date();
+	if (date.toDateString() === now.toDateString()) {
+		return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+	}
+	const elapsedDays = Math.floor((now.getTime() - timestamp) / 86_400_000);
+	if (elapsedDays < 7) return date.toLocaleDateString([], { weekday: "short" });
+	return date.toLocaleDateString([], { month: "short", day: "numeric" });
+};
+const previewRows = computed(() =>
+	previewChats.value.map((chat) => {
+		const partner = partnerFor(chat);
+		const typing = partner
+			? Boolean(typingStatuses.value[partner._id])
+			: false;
+		return {
+			chat,
+			partner,
+			online: partner ? friendStore.isFriendOnline(partner._id) : false,
+			typing,
+			line: typing
+				? "Typing…"
+				: chat.last_message
+					? messageText(chat.last_message)
+					: "Started a conversation",
+			time: conversationTime(chat),
+			unread: chat.unread_counts?.[currentUser.value?._id || ""] || 0,
+		};
+	}),
+);
 const messageTime = (value?: string) => {
 	if (!value) return "";
 	const date = new Date(value);
@@ -321,11 +348,3 @@ const activeTabStyle = computed(() => ({
 	color: "#ffffff",
 }));
 </script>
-
-<style scoped>
-.preview-world-stage {
-	inset: -42.6%;
-	transform: scale(0.54);
-	transform-origin: center;
-}
-</style>

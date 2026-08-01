@@ -1,6 +1,7 @@
 <template>
   <ion-modal
     :is-open="isOpen"
+    :keep-contents-mounted="keepContentsMounted"
     @did-dismiss="$emit('close')"
     @did-present="$emit('present')"
     :initial-breakpoint="1"
@@ -77,10 +78,12 @@ withDefaults(
 		subtitle?: string;
 		showBack?: boolean;
 		scrollable?: boolean; // New configuration prop
+		keepContentsMounted?: boolean;
 	}>(),
 	{
 		showBack: false,
 		scrollable: false, // Small content sheets stay auto-height by default
+		keepContentsMounted: false,
 	},
 );
 

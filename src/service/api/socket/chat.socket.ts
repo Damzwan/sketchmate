@@ -93,9 +93,7 @@ export function registerChatHandlers(socket: Socket) {
 			chatStore.addNotification({
 				tabId: payload.conversation_id,
 				subtitle: partner?.name || "New Message",
-				// Tiny earned-title tag next to the name (e.g. "· EARLY TESTER") — the
-				// one bit of customization we surface on toasts; kept text-only so
-				// the toast never gets cluttered.
+				senderId: partner?._id,
 				title: resolveTitle(
 					hydrateCustomization(partner?.customization).titleId,
 				),

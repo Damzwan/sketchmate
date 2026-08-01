@@ -30,7 +30,8 @@
     <!-- Avatar -->
     <div class="relative z-10 shrink-0 ml-1 flex items-center justify-center">
       <UserAvatar
-        :img="toast.img"
+        :user="sender"
+        :img="sender.img"
         :customization="isCustomized ? customProps.customization : undefined"
         size="xs"
         :static="!isCustomized"
@@ -111,13 +112,10 @@ import { svg } from "@/helper/general.helper";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue"; // <-- Imported UserAvatar
+import { resolveSenderStyle } from "@/composables/chat/useSenderStyle";
+import { useUserCacheStore } from "@/store/userCache.store";
 import {
-	hydrateCustomization,
-	resolveFontEffectClass,
-	resolveFontFamily,
 	resolveReadableCustomizationPalette,
-	resolveTheme,
-	resolveTitle,
 	resolveWorld,
 } from "@/config/profile_options.config";
 
@@ -125,11 +123,32 @@ const props = defineProps<{
 	toast: any;
 }>();
 
-// Every direct-message toast uses the sender surface. Missing customization is
-// the Classic default, not a reason to fall back to the unrelated black lobby
-// toast treatment.
+const userCache = useUserCacheStore();
+const cachedSender = computed(() =>
+	props.toast.senderId ? userCache.getUser(props.toast.senderId) : undefined,
+);
+const sender = computed(() => {
+	const cached = cachedSender.value;
+	return {
+		...cached,
+		_id: props.toast.senderId || cached?._id || "toast-sender",
+		name: props.toast.subtitle || cached?.name || "Artist",
+		img: props.toast.img || cached?.img || "",
+		// The socket snapshot wins because it represents the exact sender state
+		// at notification time. Cache is the recovery path for partial events.
+		customization: props.toast.customization ?? cached?.customization,
+	};
+});
+
+// User-authored lobby messages deserve the sender's surface too. Only a toast
+// with neither a customization snapshot nor a resolvable sender stays generic.
 const isCustomized = computed(
-	() => !props.toast.tabId?.toString().startsWith("lobby"),
+	() =>
+		!!(
+			props.toast.senderId ||
+			sender.value.customization ||
+			cachedSender.value?.customization
+		),
 );
 
 const normalizedLines = computed(() => {
@@ -139,16 +158,15 @@ const normalizedLines = computed(() => {
 });
 
 const customProps = computed(() => {
-	const custom = hydrateCustomization(props.toast.customization);
-	const theme = resolveTheme(custom.themeId);
-	const world = resolveWorld(custom.worldId);
+	const style = resolveSenderStyle(sender.value);
+	const world = resolveWorld(style.customization.worldId);
 	return {
-		customization: custom,
-		theme,
-		palette: resolveReadableCustomizationPalette(theme, world),
-		font: resolveFontFamily(custom.fontId),
-		fontClass: resolveFontEffectClass(custom.fontEffectId),
-		title: resolveTitle(custom.titleId),
+		customization: style.customization,
+		theme: style.theme,
+		palette: resolveReadableCustomizationPalette(style.theme, world),
+		font: style.fontFamily,
+		fontClass: style.fontEffectClass,
+		title: style.title,
 	};
 });
 

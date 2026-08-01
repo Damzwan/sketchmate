@@ -125,6 +125,11 @@ const GRANT_FIELD: Partial<Record<ItemCategory, keyof Customization>> = {
 	font_effect: "fontEffectId",
 	title: "titleId",
 };
+const CHAT_FIELDS = new Set<keyof Customization>([
+	"themeId",
+	"fontId",
+	"fontEffectId",
+]);
 
 // Start from the user's REAL customization so their signature, background
 // sketch, stats etc. show through, then fold the item's grants on top — i.e.
@@ -139,7 +144,10 @@ const previewCustomization = computed<Partial<Customization>>(() => {
 	for (const grant of props.sku?.grants ?? []) {
 		const [cat, ...rest] = grant.split(".");
 		const field = GRANT_FIELD[cat as ItemCategory];
-		if (field) c[field] = rest.join(".");
+		if (
+			field &&
+			(props.equipTarget !== "chat" || CHAT_FIELDS.has(field))
+		) c[field] = rest.join(".");
 	}
 	return c;
 });
@@ -152,23 +160,21 @@ const equipPatch = computed<Partial<Customization>>(() => {
 	for (const grant of props.sku?.grants ?? []) {
 		const [cat, ...rest] = grant.split(".");
 		const field = GRANT_FIELD[cat as ItemCategory];
-		if (field) patch[field] = rest.join(".");
+		if (
+			field &&
+			(props.equipTarget !== "chat" || CHAT_FIELDS.has(field))
+		) patch[field] = rest.join(".");
 	}
 	return patch;
 });
 
 // Brushes (and other tool-only grants) have no profile field, so there's
 // nothing to "equip" from here — fall back to the plain collection label.
-const CHAT_FIELDS = new Set([
-	"themeId",
-	"fontId",
-	"fontEffectId",
-	"effectId",
-	"worldId",
-]);
 const canEquip = computed(() =>
 	Object.keys(equipPatch.value).some(
-		(key) => props.equipTarget !== "chat" || CHAT_FIELDS.has(key),
+		(key) =>
+			props.equipTarget !== "chat" ||
+			CHAT_FIELDS.has(key as keyof Customization),
 	),
 );
 </script>

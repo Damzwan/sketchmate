@@ -585,7 +585,7 @@ export interface Customization {
  * change how other people see the user's profile. */
 export type ChatCustomization = Pick<
 	Customization,
-	"themeId" | "fontId" | "fontEffectId" | "effectId" | "worldId"
+	"themeId" | "fontId" | "fontEffectId"
 >;
 
 export const hydrateCustomization = (
@@ -610,8 +610,6 @@ export const hydrateChatCustomization = (
 	themeId: raw?.themeId || DEFAULT_THEME_ID,
 	fontId: raw?.fontId || DEFAULT_FONT_ID,
 	fontEffectId: raw?.fontEffectId || "",
-	effectId: raw?.effectId || DEFAULT_EFFECT_ID,
-	worldId: raw?.worldId || DEFAULT_WORLD_ID,
 });
 
 export const resolveTitle = (id?: string): string => {

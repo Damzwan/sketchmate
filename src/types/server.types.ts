@@ -281,7 +281,7 @@ export interface UserCustomization {
 
 export type ChatCustomization = Pick<
 	UserCustomization,
-	"themeId" | "fontId" | "fontEffectId" | "effectId" | "worldId"
+	"themeId" | "fontId" | "fontEffectId"
 >;
 
 export interface UserStats {

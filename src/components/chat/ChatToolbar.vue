@@ -142,7 +142,6 @@ import {
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveTitle,
-	resolveWorld,
 	type ChatCustomization,
 } from "@/config/profile_options.config";
 
@@ -218,11 +217,8 @@ const fontEffectClass = computed(() =>
 	resolveFontEffectClass(toolbarCustomization.value.fontEffectId),
 );
 
-const activeWorld = computed(() =>
-	resolveWorld(toolbarCustomization.value.worldId),
-);
 const surfaceColors = computed(() =>
-	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
+	resolveReadableCustomizationPalette(theme.value),
 );
 const activeColors = computed(() => surfaceColors.value);
 const toolbarUtilityColor = computed(() =>

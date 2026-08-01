@@ -13,9 +13,8 @@
       </button>
     </div>
 
-    <!-- Keep one animated preview surface alive while switching its contents.
-         Re-keying the full tree destroyed active world players during a Vue
-         transition and could race their async canvas cleanup. -->
+    <!-- Keep one preview surface alive while switching its contents so pager
+         changes never rebuild the subtree during a modal update. -->
     <ChatWidgetStylePreview
       :customization="customization"
       :user="user"

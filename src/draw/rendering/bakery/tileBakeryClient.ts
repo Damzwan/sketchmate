@@ -244,6 +244,14 @@ function disable(reason: string): void {
 	teardown();
 	// NB: dirty is only cleared here, on the permanent path. A PAUSE keeps the
 	// parked refs so the re-armed worker gets seeded from them.
+	//
+	// Release their stashed source JSON too: nothing will ever ship it now, and
+	// these are the objects of a session that just proved it is memory- or
+	// CPU-starved. Leaving the blobs attached doubles the scene's footprint at
+	// the worst possible moment.
+	for (const parked of dirty.values()) {
+		(parked as any).__bakeJSON = undefined;
+	}
 	dirty.clear();
 	console.warn(
 		`[TileBakery] disabled for this session (${reason}) — all tile baking falls back to the main thread`,
@@ -510,7 +518,18 @@ export function bakeryClipSet(obj: FabricObject): void {
  * object so flush ships it as-is until the object actually mutates.
  */
 export function bakerySeed(obj: FabricObject, srcJSON: any): void {
-	if (!enabled || disabled || !obj?.id || !srcJSON) return;
+	if (!obj?.id) return;
+	// The loader stashes `__bakeJSON` on EVERY enlivened object before it knows
+	// whether the bakery wants it. If we are not going to ship it, drop it here —
+	// otherwise the full parsed source JSON of every object (for a watercolour
+	// stroke, its entire trace) stays alive for the whole session next to the
+	// live object that was built from it. That is a silent second copy of the
+	// scene, and it bites hardest exactly where it hurts: the main-thread render
+	// backend, and any device whose bakery hit the kill-switch.
+	if (!enabled || disabled || !srcJSON) {
+		(obj as any).__bakeJSON = undefined;
+		return;
+	}
 	(obj as any).__bakeJSON = srcJSON;
 	dirty.set(obj.id, obj);
 }

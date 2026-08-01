@@ -24,20 +24,56 @@ export interface WatercolorPathContext {
 
 const NOISE_GRID = 10;
 
+/**
+ * The in-memory trace type.
+ *
+ * Float32Array, not `number[]`: V8 stores a plain array of numbers as 8 bytes
+ * per slot plus array overhead, so a 1,000-number trace is ~8 KB — and
+ * watercolour is the most numerous object on a real canvas. Float32 halves
+ * that and is EXACT here, because every value is an integer (coordinates are
+ * fixed-point ×10) far below the 2^24 limit where float32 stops representing
+ * integers exactly. Int16 would halve it again but overflows: the first pair is
+ * an ABSOLUTE coordinate ×10, which passes 32767 on a large canvas.
+ *
+ * The WIRE stays `number[]` — a typed array JSON-serializes to `{"0":…}` and
+ * would be unreadable to every peer and every saved drawing.
+ */
+export type WatercolorTrace = Float32Array;
+
 export function encodeWatercolorTrace(
 	points: readonly WatercolorPoint[],
-): number[] {
-	const trace: number[] = [];
+): WatercolorTrace {
+	const trace = new Float32Array(points.length * 2);
 	let lastX = 0;
 	let lastY = 0;
 	for (let i = 0; i < points.length; i++) {
 		const ix = Math.round(points[i].x * 10);
 		const iy = Math.round(points[i].y * 10);
-		trace.push(i === 0 ? ix : ix - lastX, i === 0 ? iy : iy - lastY);
+		trace[i * 2] = i === 0 ? ix : ix - lastX;
+		trace[i * 2 + 1] = i === 0 ? iy : iy - lastY;
 		lastX = ix;
 		lastY = iy;
 	}
 	return trace;
+}
+
+/** Accepts either representation — saved drawings carry the array form. */
+export function toWatercolorTrace(source: unknown): WatercolorTrace | null {
+	if (source instanceof Float32Array) return source;
+	if (!Array.isArray(source)) return null;
+	const out = new Float32Array(source.length);
+	for (let i = 0; i < source.length; i++) {
+		const value = Number(source[i]);
+		out[i] = Number.isFinite(value) ? value : 0;
+	}
+	return out;
+}
+
+/** Back to the wire/disk representation. */
+export function watercolorTraceToJSON(trace: WatercolorTrace): number[] {
+	const out = new Array<number>(trace.length);
+	for (let i = 0; i < trace.length; i++) out[i] = trace[i];
+	return out;
 }
 
 export function deterministicWatercolorNoise(
@@ -56,6 +92,19 @@ export function deterministicWatercolorNoise(
 }
 
 export function decodeWatercolorTrace(trace: unknown): WatercolorPoint[] {
+	if (trace instanceof Float32Array) {
+		const out: WatercolorPoint[] = [];
+		let lastX = 0;
+		let lastY = 0;
+		for (let i = 0; i + 1 < trace.length; i += 2) {
+			const ix = i > 0 ? trace[i] + lastX : trace[i];
+			const iy = i > 0 ? trace[i + 1] + lastY : trace[i + 1];
+			lastX = ix;
+			lastY = iy;
+			out.push({ x: ix / 10, y: iy / 10 });
+		}
+		return out;
+	}
 	if (!Array.isArray(trace)) return [];
 	const out: WatercolorPoint[] = [];
 	let lastX = 0;
@@ -365,6 +414,9 @@ export function traceWatercolorPath(
 }
 
 export function watercolorComplexity(source: any): number {
+	if (source?.compressedTrace instanceof Float32Array) {
+		return Math.max(1, Math.ceil(source.compressedTrace.length * 1.5));
+	}
 	if (Array.isArray(source?.compressedTrace)) {
 		return Math.max(1, Math.ceil(source.compressedTrace.length * 1.5));
 	}

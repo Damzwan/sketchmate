@@ -2,6 +2,7 @@ import * as fabric from "fabric";
 import { Canvas, FabricObject, Group, Path, PencilBrush } from "fabric";
 import { ClippingGroup } from "@erase2d/fabric";
 import { bakeryMarkDirty } from "@/draw/rendering/bakery/tileBakeryClient";
+import { restoreStrokeDefaults } from "@/draw/objects/strokeDefaults";
 import {
 	stripType,
 	toObjectWithoutPath,
@@ -1149,6 +1150,11 @@ export class OptimizedEraserStroke extends Path {
 		}
 		// stripType: this path bypasses enlivenStrokeProps, so `type` would reach
 		// the constructor and trigger fabric's "Setting type has no effect" log.
-		return new OptimizedEraserStroke(object.path, stripType(object));
+		// It bypasses the default RESTORE for the same reason, so do it here —
+		// `toObjectWithoutPath` stripped them on the way out.
+		return new OptimizedEraserStroke(
+			object.path,
+			restoreStrokeDefaults(stripType(object)),
+		);
 	}
 }

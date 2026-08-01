@@ -97,8 +97,18 @@ describe("WaterColorStroke compact rehydration", () => {
 		expect(source).toEqual(original);
 		expect(source.path).toBeUndefined();
 		expect(stroke.path.length).toBeGreaterThan(0);
-		expect(stroke.compressedTrace).toBe(source.compressedTrace);
 		expect((stroke as any).basePoints).toBeUndefined();
-		expect(stroke.toObject().compressedTrace).toBe(stroke.compressedTrace);
+
+		// Stored as a typed array — half the bytes of a plain number[], and this
+		// is the most numerous object on a real canvas.
+		expect(stroke.compressedTrace).toBeInstanceOf(Float32Array);
+		expect(Array.from(stroke.compressedTrace)).toEqual(source.compressedTrace);
+
+		// …but the WIRE form must stay a plain array: a typed array serializes
+		// to {"0":…} and no peer or saved drawing could read it back.
+		const wire = stroke.toObject().compressedTrace;
+		expect(Array.isArray(wire)).toBe(true);
+		expect(wire).toEqual(source.compressedTrace);
+		expect(JSON.parse(JSON.stringify(wire))).toEqual(source.compressedTrace);
 	});
 });

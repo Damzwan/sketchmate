@@ -11,10 +11,13 @@ import {
 	encodeWatercolorTrace,
 	normalizeWatercolorPoints,
 	simplifyWatercolorPoints,
+	toWatercolorTrace,
 	traceWatercolorPath,
 	watercolorSimplifyTolerance,
+	watercolorTraceToJSON,
 	type WatercolorPathCommand,
 	type WatercolorPoint,
+	type WatercolorTrace,
 } from "@/draw/utils/brushes/watercolorGeometry";
 
 // ==========================================
@@ -207,15 +210,19 @@ export class WaterColorStroke extends Path {
 	static type = "WaterColorStroke";
 	static cacheProperties = [...Path.cacheProperties, "compressedTrace"];
 
-	public readonly compressedTrace: number[];
+	/**
+	 * Float32Array, not `number[]` — half the bytes, and this is the most
+	 * numerous object on a real canvas. See WatercolorTrace. Immutable after
+	 * construction.
+	 */
+	public readonly compressedTrace: WatercolorTrace;
 
 	constructor(path: string | any[], options: any) {
 		super(path, options);
 
-		if (options.compressedTrace && Array.isArray(options.compressedTrace)) {
-			// Immutable after construction. Sharing this array avoids a second
-			// trace while loading or saving a dense watercolor drawing.
-			this.compressedTrace = options.compressedTrace;
+		const supplied = toWatercolorTrace(options.compressedTrace);
+		if (supplied) {
+			this.compressedTrace = supplied;
 		} else {
 			// Compact legacy `{x, y}` objects once instead of retaining another
 			// object graph for the lifetime of the stroke.
@@ -237,7 +244,9 @@ export class WaterColorStroke extends Path {
 
 		return {
 			...baseObj,
-			compressedTrace: this.compressedTrace,
+			// Back to a plain array: a typed array JSON-serializes as `{"0":…}`,
+			// which no peer and no saved drawing could read back.
+			compressedTrace: watercolorTraceToJSON(this.compressedTrace),
 		};
 	}
 
@@ -249,8 +258,9 @@ export class WaterColorStroke extends Path {
 		let path = object.path;
 		if (!path || path.length === 0) {
 			const width = object.strokeWidth / 0.8;
-			const points = Array.isArray(object.compressedTrace)
-				? decodeWatercolorTrace(object.compressedTrace)
+			const trace = toWatercolorTrace(object.compressedTrace);
+			const points = trace
+				? decodeWatercolorTrace(trace)
 				: normalizeWatercolorPoints(object.basePoints);
 			// Simplify on the way IN as well. Drawings made before the brush did
 			// this carry their original sub-pixel sampling, and they are exactly

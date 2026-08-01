@@ -367,6 +367,7 @@ const compare: {
 	{ label: "Layers per drawing", pro: "10", life: "10" },
 	{ label: "Animated avatar", pro: true, life: true },
 	{ label: "Custom signature & card doodle", pro: true, life: true },
+	{ label: "Custom chat background", pro: true, life: true },
 	{ label: "VIP lobby slots", pro: true, life: true },
 	{ label: "More posts", pro: "6", life: "6" },
 	{ label: "More balloons", pro: "5", life: "5" },

@@ -3,7 +3,7 @@
        of its height. The pager owns the 280px max-width; this taller viewport
        preserves that proportion instead of presenting the style as a card. -->
   <div
-    class="relative h-[420px] rounded-[2rem] border overflow-hidden shadow-lg pointer-events-none"
+    class="relative h-[520px] rounded-[2rem] border overflow-hidden shadow-lg pointer-events-none"
     :style="surfaceStyle"
   >
     <div class="relative z-10 h-full flex flex-col" :style="{ fontFamily }">
@@ -103,8 +103,17 @@
       </div>
 
       <!-- Keep both pager pages stable while switching previews. -->
-      <div v-show="mode === 'conversation'" class="flex-1 min-h-0 flex flex-col">
-        <div v-if="previewPartner" class="flex items-center gap-2.5 px-3 py-2 border-y shrink-0" :style="chromeBorderStyle">
+      <div v-show="mode === 'conversation'" class="relative flex-1 min-h-0 flex flex-col">
+        <img
+          v-if="style.backgroundImageUrl"
+          :src="style.backgroundImageUrl"
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+          class="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          :style="{ opacity: style.backgroundImageOpacity }"
+        />
+        <div v-if="previewPartner" class="relative z-10 flex items-center gap-2.5 px-3 py-2 border-y shrink-0" :style="chromeBorderStyle">
           <UserAvatar
             :user="previewPartner"
             :customization="previewPartner.customization"
@@ -122,7 +131,7 @@
           <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg" :style="{ color: palette.utility }" />
         </div>
 
-        <div v-if="previewPartner" class="flex-1 min-h-0 flex flex-col justify-end gap-2 px-2.5 py-3 overflow-hidden">
+        <div v-if="previewPartner" class="relative z-10 flex-1 min-h-0 flex flex-col justify-end gap-2 px-2.5 py-3 overflow-hidden">
           <div
             v-for="message in previewMessages"
             :key="message.id"
@@ -155,14 +164,14 @@
           </div>
         </div>
 
-        <div v-else class="flex-1 flex items-center justify-center text-center px-6">
+        <div v-else class="relative z-10 flex-1 flex items-center justify-center text-center px-6">
           <div>
             <p class="text-base font-black" :style="{ color: palette.name }">No chat to preview</p>
             <p class="text-xs font-sans mt-1" :style="{ color: palette.desc }">Start a conversation and it will appear here.</p>
           </div>
         </div>
 
-        <div class="px-2 py-2 shrink-0" :style="chromeStyle">
+        <div class="relative z-10 px-2 py-2 shrink-0" :style="chromeStyle">
           <div class="rounded-2xl bg-white/95 border border-black/10 px-3 py-2 text-xs font-sans font-bold text-black/45 shadow-sm">
             Write a message…
           </div>

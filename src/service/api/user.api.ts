@@ -33,6 +33,32 @@ export async function updateProfile(payload: UpdateProfilePayload) {
   })
 }
 
+export async function prepareChatBackground(
+  sourceType: 'inbox' | 'post',
+  sourceId: string
+) {
+  return await request<{ url: string }>('/user/chat-background', {
+    method: 'PUT',
+    body: JSON.stringify({ source_type: sourceType, source_id: sourceId })
+  })
+}
+
+export async function confirmChatBackground(
+  sourceType: 'inbox' | 'post',
+  sourceId: string
+) {
+  return await request<{ url: string }>('/user/chat-background/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ source_type: sourceType, source_id: sourceId })
+  })
+}
+
+export async function clearChatBackground() {
+  return await request<{ success: boolean }>('/user/chat-background', {
+    method: 'DELETE'
+  })
+}
+
 export async function uploadProfileImg(blob: Blob, previousImageUrl?: string, mimeType = 'image/webp') {
   const formData = new FormData()
   const extension = mimeType === 'image/gif' ? 'gif' : 'webp'

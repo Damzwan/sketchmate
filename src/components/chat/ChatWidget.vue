@@ -46,26 +46,38 @@
             @open-report="openUserActions"
           />
 
-          <div
-            ref="messageContainer"
-            class="flex-1 min-h-0 overflow-y-auto relative hide-scrollbar px-3 pt-3 pb-1"
-            @scroll="onScroll"
-            @touchmove.stop
-          >
-            <ChatOverview
-              v-if="activeTab === 'overview'"
-              :font-effect-class="chatFontEffectClass"
-              @join-session="joinSession"
+          <div class="relative flex-1 min-h-0">
+            <img
+              v-if="chatBackgroundVisible"
+              :src="chatCustomization.backgroundImageUrl"
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+              class="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
+              :style="{ opacity: chatCustomization.backgroundImageOpacity }"
             />
 
-            <ChatMessageFlow
-              v-else
-              :messages="currentMessages"
-              @inspect-profile="onInspectProfile"
-              @join-session="joinSession"
-              @load-more="handleLoadMore"
-              :isFetchingHistory="isFetchingHistory"
-            />
+            <div
+              ref="messageContainer"
+              class="absolute inset-0 overflow-y-auto hide-scrollbar px-3 pt-3 pb-1"
+              @scroll="onScroll"
+              @touchmove.stop
+            >
+              <ChatOverview
+                v-if="activeTab === 'overview'"
+                :font-effect-class="chatFontEffectClass"
+                @join-session="joinSession"
+              />
+
+              <ChatMessageFlow
+                v-else
+                :messages="currentMessages"
+                @inspect-profile="onInspectProfile"
+                @join-session="joinSession"
+                @load-more="handleLoadMore"
+                :isFetchingHistory="isFetchingHistory"
+              />
+            </div>
           </div>
 
           <Transition name="badge">
@@ -152,6 +164,7 @@ import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { masterAnimation } from "@/helper/animation.helper";
@@ -192,6 +205,7 @@ const inviteEvent = ref<Event | null>(null);
 const { openUserActions } = useUserContextSheet();
 const chatStore = useChatStore();
 const friendStore = useFriendStore();
+const subscriptionStore = useSubscriptionStore();
 const router = useIonRouter();
 
 const chatCustomization = computed(() =>
@@ -217,6 +231,12 @@ const chatWidgetSurfaceStyle = computed(() => ({
 	"--chat-widget-control-bg": chatPalette.value.controlBg,
 	"--chat-widget-accent": chatTheme.value.accentColor,
 }));
+const chatBackgroundVisible = computed(
+	() =>
+		subscriptionStore.isPro &&
+		activeTab.value !== "overview" &&
+		!!chatCustomization.value.backgroundImageUrl,
+);
 
 const isFetchingHistory = ref(false);
 const { scrollToBottom, captureScrollState, restoreScrollState } =
@@ -298,18 +318,6 @@ const onDragEnd = (event: PointerEvent) => {
 	}
 };
 
-useBackButton(101, (processNextHandler) => {
-	if (viewProfileMenuOpen.value) {
-		processNextHandler();
-		return;
-	}
-	if (isVisible.value && isExpanded.value) chatWidget.closePanel();
-	else processNextHandler();
-});
-
-// Ionic modals handle Escape themselves. The chat sheet is now a lightweight
-// custom overlay, so give it the same desktop/browser behavior without closing
-// it underneath a profile or relationship overlay.
 const hasPresentedIonicOverlay = () =>
 	!!document.querySelector(
 		[
@@ -320,6 +328,32 @@ const hasPresentedIonicOverlay = () =>
 		].join(","),
 	);
 
+// Ionic overlays and menus reserve priorities 100 and 99 respectively. Keep
+// this custom sheet immediately below both so the top Ionic layer gets Back
+// first. The explicit guards also cover non-dismissible overlays (which do not
+// register Ionic's Back handler) and the short gap while an overlay presents.
+useBackButton(98, (processNextHandler) => {
+	if (!isVisible.value || !isExpanded.value) {
+		processNextHandler();
+		return;
+	}
+
+	if (
+		viewProfileMenuOpen.value ||
+		relationshipInfoOpen.value ||
+		customizationOpen.value ||
+		invitePopoverOpen.value ||
+		hasPresentedIonicOverlay()
+	) {
+		return;
+	}
+
+	chatWidget.closePanel();
+});
+
+// Ionic modals handle Escape themselves. The chat sheet is now a lightweight
+// custom overlay, so give it the same desktop/browser behavior without closing
+// it underneath a profile or relationship overlay.
 useEscapeKey(() => chatWidget.closePanel(), {
 	enabled: () =>
 		isVisible.value &&

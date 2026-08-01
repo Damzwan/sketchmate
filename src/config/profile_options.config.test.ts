@@ -11,8 +11,16 @@ describe("customized surface contrast", () => {
 		const chat = hydrateChatCustomization({ themeId: "noir" });
 
 		expect(chat.themeId).toBe("noir");
-		expect(Object.keys(chat)).toEqual(["themeId", "fontId", "fontEffectId"]);
+		expect(Object.keys(chat)).toEqual([
+			"themeId",
+			"fontId",
+			"fontEffectId",
+			"backgroundImageUrl",
+			"backgroundImageOpacity",
+		]);
 		expect(chat.fontId).toBe("sketch");
+		expect(chat.backgroundImageUrl).toBe("");
+		expect(chat.backgroundImageOpacity).toBe(0.12);
 		expect(chat).not.toHaveProperty("effectId");
 		expect(chat).not.toHaveProperty("worldId");
 		expect(chat).not.toHaveProperty("decorationId");

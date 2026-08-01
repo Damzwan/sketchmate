@@ -162,6 +162,14 @@
               </div>
             </template>
           </CustomizeOptionRow>
+
+          <CustomizeOptionRow
+            class="col-span-2"
+            :icon="mdiChatProcessingOutline"
+            label="Chat Style"
+            value="Theme, type and chat sketch"
+            @click="chatStyleModalOpen = true"
+          />
         </section>
 
         <!-- SAVE ACTIONS -->
@@ -223,6 +231,9 @@
     <LazyMount :when="sketchModalOpen">
       <BackgroundSketchPadModal :is-open="sketchModalOpen" :color="currentTheme.nameColor" :customization="draft" :user="user" :initial-path="draft.backgroundSketchPath" :initial-view-box="draft.backgroundSketchViewBox" @close="sketchModalOpen = false" @save="handleSaveSketch" />
     </LazyMount>
+    <LazyMount :when="chatStyleModalOpen">
+      <ChatWidgetCustomizationModal v-model:open="chatStyleModalOpen" />
+    </LazyMount>
   </ion-page>
 </template>
 
@@ -247,6 +258,7 @@ import {
 	mdiAutoFix,
 	mdiBrush,
 	mdiCardAccountDetailsOutline,
+	mdiChatProcessingOutline,
 	mdiCheck,
 	mdiDraw,
 	mdiFormatColorText,
@@ -303,6 +315,9 @@ const BackgroundSketchPadModal = defineAsyncComponent(
 	() =>
 		import("@/components/profile/customization/BackgroundSketchPadModal.vue"),
 );
+const ChatWidgetCustomizationModal = defineAsyncComponent(
+	() => import("@/components/chat/ChatWidgetCustomizationModal.vue"),
+);
 
 import {
 	FONTS,
@@ -339,6 +354,7 @@ const worldModalOpen = ref(false);
 const titlesModalOpen = ref(false);
 const signatureModalOpen = ref(false);
 const sketchModalOpen = ref(false);
+const chatStyleModalOpen = ref(false);
 
 // While ANY picker sheet is up, freeze the hero ProfileCard (and every other
 // ambient layer) behind it — all GPU/CPU goes to the sheet's own live preview,
@@ -355,7 +371,8 @@ const anyModalOpen = computed(
 		worldModalOpen.value ||
 		titlesModalOpen.value ||
 		signatureModalOpen.value ||
-		sketchModalOpen.value,
+		sketchModalOpen.value ||
+		chatStyleModalOpen.value,
 );
 watch(anyModalOpen, (open) => (open ? ambient.hold() : ambient.release()));
 onBeforeUnmount(() => {

@@ -586,7 +586,10 @@ export interface Customization {
 export type ChatCustomization = Pick<
 	Customization,
 	"themeId" | "fontId" | "fontEffectId"
->;
+> & {
+	backgroundImageUrl?: string;
+	backgroundImageOpacity: number;
+};
 
 export const hydrateCustomization = (
 	raw?: Partial<Customization> | null,
@@ -610,6 +613,11 @@ export const hydrateChatCustomization = (
 	themeId: raw?.themeId || DEFAULT_THEME_ID,
 	fontId: raw?.fontId || DEFAULT_FONT_ID,
 	fontEffectId: raw?.fontEffectId || "",
+	backgroundImageUrl: raw?.backgroundImageUrl || "",
+	backgroundImageOpacity: Math.max(
+		0.06,
+		Math.min(0.35, raw?.backgroundImageOpacity ?? 0.12),
+	),
 });
 
 export const resolveTitle = (id?: string): string => {

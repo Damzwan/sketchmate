@@ -282,7 +282,10 @@ export interface UserCustomization {
 export type ChatCustomization = Pick<
 	UserCustomization,
 	"themeId" | "fontId" | "fontEffectId"
->;
+> & {
+	backgroundImageUrl?: string;
+	backgroundImageOpacity?: number;
+};
 
 export interface UserStats {
 	posts: number;

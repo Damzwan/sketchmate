@@ -13,6 +13,7 @@ import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import * as transform from "@/draw/transform/transformController";
+import { setLiveTransformCoords } from "@/draw/transform/liveTransformCoords";
 
 function zoomLimits() {
 	return useDrawObjectManager().getZoomLimits();
@@ -216,7 +217,7 @@ export function enableMobileGestures(c: Canvas, upperCanvasEl: any) {
 			const newAngle =
 				(gestureOriginalState.angle + totalObjectAngleDelta) % 360;
 			gestureTarget.set("angle", newAngle);
-			gestureTarget.setCoords();
+			setLiveTransformCoords(gestureTarget);
 
 			if (transform.isActive()) {
 				transform.markMoved();

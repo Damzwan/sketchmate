@@ -473,7 +473,7 @@ export function prewarm(c: Canvas): void {
 		target && isActiveSelection(target)
 			? ((target as any)._objects?.length ?? 0)
 			: 0;
-	if (target && childCount > FAST_BAKE_MIN_CHILDREN) {
+	if (target && childCount > FAST_BAKE_MIN_CHILDREN && isBakeryActive()) {
 		const generation = ++prewarmGeneration;
 		const pending = bakeSelectionBitmapInWorker(c, target, generation);
 		prewarmPromise = pending;
@@ -482,6 +482,10 @@ export function prewarm(c: Canvas): void {
 		});
 		return;
 	}
+	// Main-thread mode deliberately falls through to the idle callback below.
+	// Previously every >30-child selection tried the disabled bakery, returned
+	// null, and skipped local prewarm entirely; the full render then landed on
+	// mouse:down instead of during the selection's idle window.
 	prewarmHandle = requestIdle(() => {
 		prewarmHandle = null;
 		if (session) return; // a live drag owns the selection; commit re-prewarms
@@ -709,12 +713,12 @@ async function bakeSelectionBitmapInWorker(
 
 	let physW = Math.ceil(worldW * scale);
 	let physH = Math.ceil(worldH * scale);
-	const MAX_DIM = 2048;
-	if (physW > MAX_DIM || physH > MAX_DIM) {
-		const factor = Math.min(MAX_DIM / physW, MAX_DIM / physH);
-		physW = Math.max(1, Math.floor(physW * factor));
-		physH = Math.max(1, Math.floor(physH * factor));
-	}
+	// Worker and main-thread prewarm must obey the same area cap. The previous
+	// worker path only capped each edge at 2048, silently allowing a 4Mpx texture
+	// even on a phone whose main-thread path was limited to 0.5–1.5Mpx.
+	const fitted = fitTransformBitmap(physW, physH);
+	physW = fitted.width;
+	physH = fitted.height;
 
 	const bitmap = await bakeryRenderSelection(
 		objects,

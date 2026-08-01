@@ -72,8 +72,11 @@ export function resolveDrawMemoryProfile(
 			tileBudgetMB: 72,
 			overviewPx: 1024,
 			tilePoolMax: 4,
-			transformMaxPixels: 2048 * 2048,
-			transformMaxDimension: 2048,
+			// A transform is shown only while the pointer is down; exact tiles replace
+			// it on drop. Keep the compositor texture deliberately low-resolution and
+			// let CSS scale it instead of moving a 16 MB 2048² surface at 60 fps.
+			transformMaxPixels: 1_250_000,
+			transformMaxDimension: 1536,
 			overviewPatchMax: 200,
 			overviewWorkBudgetMs: 8,
 			renderChunk: 16,
@@ -90,10 +93,12 @@ export function resolveDrawMemoryProfile(
 		// clear/raster fill by 44% while remaining ample for a whole-board fallback.
 		overviewPx: 768,
 		tilePoolMax: 2,
-		// The old dimension-only 2048² limit allowed a selection bitmap, vacated
-		// bitmap and their two DOM canvases to peak near 64 MB. Bound area too.
-		transformMaxPixels: severelyConstrained ? 1_000_000 : 1_500_000,
-		transformMaxDimension: 2048,
+		// Selection + vacated ImageBitmaps are copied into two DOM canvases. At the
+		// old limits those four surfaces peaked at 16–24 MB even before tiles. These
+		// are transient previews, so prefer a little drag-time softness over GPU
+		// allocation pressure; the committed tiles are still rendered exactly.
+		transformMaxPixels: severelyConstrained ? 500_000 : 750_000,
+		transformMaxDimension: 1280,
 		overviewPatchMax: severelyConstrained ? 32 : 48,
 		overviewWorkBudgetMs: severelyConstrained ? 3 : 4,
 		renderChunk: severelyConstrained ? 4 : 6,

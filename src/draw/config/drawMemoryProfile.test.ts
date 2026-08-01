@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { fitBitmapDimensions, resolveDrawMemoryProfile } from "./drawMemoryProfile";
+import {
+	fitBitmapDimensions,
+	resolveDrawMemoryProfile,
+} from "./drawMemoryProfile";
 
 describe("draw memory profile", () => {
 	it("uses the smallest main-thread profile for a 2 GB phone", () => {
@@ -13,7 +16,7 @@ describe("draw memory profile", () => {
 			tileBudgetMB: 24,
 			overviewPx: 768,
 			tilePoolMax: 2,
-			transformMaxPixels: 1_000_000,
+			transformMaxPixels: 500_000,
 			overviewWorkBudgetMs: 3,
 		});
 	});
@@ -28,8 +31,21 @@ describe("draw memory profile", () => {
 		expect(profile).toMatchObject({
 			tileBudgetMB: 32,
 			overviewPx: 768,
-			transformMaxPixels: 1_500_000,
+			transformMaxPixels: 750_000,
 			overviewWorkBudgetMs: 4,
+		});
+	});
+
+	it("keeps even a high-end mobile drag preview below desktop texture size", () => {
+		const profile = resolveDrawMemoryProfile({
+			mobile: true,
+			lowEnd: false,
+			deviceMemoryGB: 8,
+			hardwareConcurrency: 8,
+		});
+		expect(profile).toMatchObject({
+			transformMaxPixels: 1_250_000,
+			transformMaxDimension: 1536,
 		});
 	});
 

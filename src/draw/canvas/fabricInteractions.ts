@@ -7,6 +7,7 @@ import {
 } from "@/draw/layers/layerRegistry";
 import { useGestureStore } from "@/draw/tools/gesture.store";
 import * as transform from "@/draw/transform/transformController";
+import { setLiveTransformCoords } from "@/draw/transform/liveTransformCoords";
 import * as fabric from "fabric";
 import { Canvas, IText, Point, type TPointerEvent } from "fabric";
 
@@ -287,6 +288,28 @@ export function overrideMouseDown(c: Canvas) {
 export function overrideTransform(canvas: Canvas) {
 	const MOVEMENT_THRESHOLD = 4;
 	let startPointer: { x: number; y: number } | null = null;
+
+	// Fabric's stock implementation calls ActiveSelection.setCoords() after every
+	// successful transform action. Group.setCoords recursively refreshes every
+	// child, so a 7,000-object selection did 7,000 matrix/coordinate updates per
+	// raw pointer event even though its pixels move as one CSS bitmap. Preserve
+	// Fabric's action/event semantics, but refresh only the wrapper while live.
+	(canvas as any)._performTransformAction = function (
+		e: TPointerEvent,
+		current: any,
+		pointer: Point,
+	) {
+		const { action, actionHandler, target } = current;
+		const actionPerformed =
+			!!actionHandler && actionHandler(e, current, pointer.x, pointer.y);
+		if (actionPerformed) setLiveTransformCoords(target);
+
+		if (action === "drag" && actionPerformed) {
+			target.isMoving = true;
+			this.setCursor(target.moveCursor || this.moveCursor);
+		}
+		current.actionPerformed = current.actionPerformed || actionPerformed;
+	};
 
 	canvas.on("mouse:down", (e: any) => {
 		if (e.target && e.e.button !== 1) {

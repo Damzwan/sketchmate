@@ -613,6 +613,7 @@ export interface ReadableCustomizationPalette {
 	utility: string;
 	utilityMuted: string;
 	/** Reusable glass treatment for controls placed on customized surfaces. */
+	controlForeground: string;
 	controlBg: string;
 	controlActiveBg: string;
 	controlBorder: string;
@@ -643,6 +644,7 @@ export const resolveReadableCustomizationPalette = (
 		isDark,
 		utility: isDark ? "#ffffff" : "#18181b",
 		utilityMuted: isDark ? "rgba(255,255,255,0.78)" : "rgba(24,24,27,0.62)",
+		controlForeground: isDark ? "#ffffff" : "#18181b",
 		controlBg: isDark ? "rgba(0,0,0,0.34)" : "rgba(255,255,255,0.42)",
 		controlActiveBg: isDark
 			? "rgba(255,255,255,0.12)"

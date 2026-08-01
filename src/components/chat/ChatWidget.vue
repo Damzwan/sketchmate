@@ -100,6 +100,7 @@
     v-model:open="relationshipInfoOpen"
     :chat="activeConversation"
     :partner="activePartner"
+    :current-user="authStore.user"
     :current-user-id="authStore.user?._id"
   />
 

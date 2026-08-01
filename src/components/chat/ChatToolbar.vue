@@ -76,12 +76,16 @@
           </div>
 
           <div class="flex items-center mt-0.5 leading-none">
-            <span v-if="activeTab !== 'lobby'" class="text-[8px] font-black uppercase tracking-widest leading-none" :style="showThemeBackdrop ? { color: activeColors.desc, textShadow: activeColors.textShadow } : {}">
+            <span
+              v-if="activeTab !== 'lobby'"
+              class="text-[10px] font-extrabold uppercase tracking-[0.12em] leading-none"
+              :style="statusMetaStyle"
+            >
               <template v-if="isExpired">
                 <span class="text-black/30">Archived History</span>
               </template>
               <template v-else-if="isTrackingOnline">
-                <span v-if="isOnline" class="text-green-600 font-bold">Online</span>
+                <span v-if="isOnline" :style="{ color: onlineStatusColor }">Online</span>
                 <span v-else :class="showThemeBackdrop ? '' : 'text-black/30'">Offline</span>
               </template>
               <template v-else>
@@ -99,6 +103,7 @@
         <ion-button
           @click="$emit('open-report', partner)"
           fill="clear"
+          class="m-0"
           :style="{ '--color': toolbarUtilityColor }"
         >
           <ion-icon
@@ -227,26 +232,24 @@ const fontEffectClass = computed(() =>
 	resolveFontEffectClass(partnerCustomization.value.fontEffectId),
 );
 
-// Always the theme's OWN colours — never the dark variants.
-//
-// This used to flip to nameColorDark/descColorDark whenever the WORLD was dark
-// (space/dragon), which is the rule ProfileCard uses. That rule doesn't hold
-// here: on the profile card the world fills the surface, but in the toolbar
-// (and in ConversationItem) it's a small masked vignette on one side, so the
-// text still sits on the theme's cardBg. Flipping to dark-mode text put light
-// glyphs on a light theme surface. Each theme's nameColor/descColor is already
-// tuned to its own cardBg, so this matches ConversationItem exactly.
-const activeColors = computed(() =>
-	resolveReadableCustomizationPalette(theme.value),
-);
 const activeWorld = computed(() =>
 	resolveWorld(partnerCustomization.value.worldId),
 );
 const surfaceColors = computed(() =>
 	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
 );
+const activeColors = computed(() => surfaceColors.value);
 const toolbarUtilityColor = computed(() =>
 	showThemeBackdrop.value ? surfaceColors.value.utility : "#18181b",
+);
+const statusMetaStyle = computed(() => ({
+	color: showThemeBackdrop.value ? activeColors.value.desc : "rgba(0,0,0,0.45)",
+	fontFamily:
+		'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+	textShadow: showThemeBackdrop.value ? activeColors.value.textShadow : "none",
+}));
+const onlineStatusColor = computed(() =>
+	showThemeBackdrop.value && surfaceColors.value.isDark ? "#4ade80" : "#15803d",
 );
 
 // The strip's text tone follows the THEME's surface, not the world.

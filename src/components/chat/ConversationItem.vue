@@ -230,18 +230,14 @@ const cardStyle = computed(() => ({
 	borderColor: theme.value.cardBorderColor,
 }));
 
-// Compact worlds are a masked vignette, so contrast follows the theme surface,
-// exactly like ChatToolbar. This keeps Classic + Space black-on-paper while
-// Noir/Midnight (including crumpled paper) correctly use their light palette.
-const palette = computed(() => resolveReadableCustomizationPalette(theme.value));
 const activeWorld = computed(() =>
 	resolveWorld(partnerCustomization.value.worldId),
 );
-const surfacePalette = computed(() =>
+const palette = computed(() =>
 	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
 );
 const onDarkSurface = computed(
-	() => showTheme.value && surfacePalette.value.isDark,
+	() => showTheme.value && palette.value.isDark,
 );
 const themeTextOnDark = computed(() => showTheme.value && palette.value.isDark);
 const themedNameColor = computed(() => palette.value.name);
@@ -249,7 +245,7 @@ const themedDescColor = computed(() => palette.value.desc);
 // Time is tiny utility text, not part of the user's font/theme treatment.
 // Keep it predictably black on light cards and white on every dark surface.
 const timestampStyle = computed(() => ({
-	color: showTheme.value ? surfacePalette.value.utility : "#18181b",
+	color: showTheme.value ? palette.value.utility : "#18181b",
 	opacity: onDarkSurface.value ? 0.9 : 0.68,
 	textShadow: onDarkSurface.value ? "0 1px 3px rgba(0, 0, 0, 0.65)" : "none",
 }));

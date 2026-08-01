@@ -131,19 +131,23 @@
                 v-for="mate in displayMates"
                 :key="mate._id"
                 @click.stop="toggleMate(mate._id)"
-                class="relative w-[64px] h-[64px] mt-2 cursor-pointer shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center"
+                class="relative w-[64px] h-[64px] mt-2 cursor-pointer shrink-0 rounded-2xl border-2 transition-all flex flex-col items-center justify-center overflow-visible"
                 :class="
             selected.has(mate._id)
-              ? 'border-secondary shadow-md scale-105 bg-secondary/20 hover:scale-105'
+              ? 'shadow-md scale-105 hover:scale-105'
               : mateLimitReached
-                ? 'border-transparent bg-primary/60 opacity-40'
-                : 'border-transparent bg-primary/60 hover:scale-105'
+                ? 'opacity-40'
+                : 'hover:scale-105'
           "
+                :style="mateTileStyle(mate)"
               >
                 <div class="relative mb-1">
-                  <img
-                    :src="mate.img"
-                    class="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm"
+                  <UserAvatar
+                    :user="mate"
+                    :customization="mateCustomization(mate)"
+                    size="xs"
+                    static
+                    class="shadow-sm rounded-full"
                   />
 
                   <div
@@ -162,7 +166,10 @@
                   />
                 </div>
 
-                <span class="text-[11px] font-black truncate w-full text-center px-1 text-black">
+                <span
+                  class="text-[11px] font-black truncate w-full text-center px-1"
+                  :style="mateNameStyle(mate)"
+                >
             {{ mate.name }}
           </span>
               </button>
@@ -384,6 +391,12 @@ import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
 import { masterAnimation } from "@/helper/animation.helper";
 import { shareImg } from "@/helper/share.helper"; // Added share helper
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import {
+	hydrateCustomization,
+	resolveFontFamily,
+	resolveTheme,
+} from "@/config/profile_options.config";
 
 dayjs.extend(duration);
 
@@ -440,6 +453,25 @@ const postEnableRemix = ref(true);
 const balloonNote = ref("");
 
 const isOnline = (id: string) => friendStore.isFriendOnline(id);
+const mateCustomization = (mate: any) =>
+	hydrateCustomization(mate?.customization);
+const mateTileStyle = (mate: any) => {
+	const theme = resolveTheme(mateCustomization(mate).themeId);
+	return {
+		background: theme.cardBg,
+		borderColor: selected.value.has(mate._id)
+			? "var(--ion-color-secondary)"
+			: theme.cardBorderColor,
+	};
+};
+const mateNameStyle = (mate: any) => {
+	const customization = mateCustomization(mate);
+	const theme = resolveTheme(customization.themeId);
+	return {
+		color: theme.nameColor,
+		fontFamily: resolveFontFamily(customization.fontId),
+	};
+};
 
 // ── Searchable / paginated mate picker ──────────────────────────────────────
 const mateSearch = ref("");

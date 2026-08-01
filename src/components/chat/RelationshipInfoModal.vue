@@ -9,6 +9,31 @@
     subtitle="How it works"
     @close="$emit('update:open', false)"
   >
+    <div class="flex flex-col items-center pt-2 pb-1">
+      <div class="flex items-center justify-center">
+        <UserAvatar
+          :user="displayCurrentUser"
+          :customization="displayCurrentUser?.customization"
+          size="md"
+          static
+          class="relative z-10"
+        />
+        <div class="relative z-20 -mx-2 w-9 h-9 rounded-full bg-secondary text-white border-4 border-tertiary flex items-center justify-center shadow-sm">
+          <ion-icon :icon="svg(mdiHeart)" class="text-base" />
+        </div>
+        <UserAvatar
+          :user="partnerUser"
+          :customization="partnerUser?.customization"
+          size="md"
+          static
+          class="relative z-10"
+        />
+      </div>
+      <p class="mt-2 text-sm font-black text-black/80 text-center">
+        You <span class="text-black/35 mx-1">+</span> {{ firstName }}
+      </p>
+    </div>
+
     <!-- Where they are, before what it means. The rail is interactive: each
          node explains its own step, so the copy is pulled rather than dumped
          as a wall of text. -->
@@ -16,15 +41,14 @@
       <RelationshipJourney :step="rel.step" :accent="rel.accent" />
     </div>
 
-    <p class="text-lg text-black/80 leading-snug text-center px-1">
-	  The goal is real friendships, not a leaderboard. A 24-hour trial gives both
-	  of you a low-pressure way to talk and draw before choosing a lasting
-	  connection.
+    <p class="text-base text-black/80 leading-snug text-center px-2 mt-1">
+	  Start with a 24-hour trial to chat and draw together. If it feels right,
+	  either of you can ask to become permanent Mates.
     </p>
 
     <!-- Where they stand right now, in their own words rather than the generic
          explainer above. -->
-    <div class="mt-5 rounded-2xl bg-white border border-primary/20 px-4 py-3.5 shadow-sm">
+    <div class="mt-5 rounded-2xl bg-tertiary border border-primary/30 px-4 py-3.5 shadow-sm">
       <div class="flex items-center gap-2">
         <span class="w-2 h-2 rounded-full shrink-0" :class="accent.dot" />
         <span class="text-sm font-black uppercase tracking-wider" :class="accent.text">
@@ -78,6 +102,7 @@ import { mdiHeart } from "@mdi/js";
 import { useNow } from "@vueuse/core";
 import { svg } from "@/helper/general.helper";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import {
 	RELATIONSHIP_ACCENT,
 	resolveRelationship,
@@ -90,6 +115,7 @@ const props = defineProps<{
 	open: boolean;
 	chat: any;
 	partner: any;
+	currentUser?: any;
 	currentUserId?: string;
 }>();
 const emit = defineEmits(["update:open"]);
@@ -110,6 +136,20 @@ const rel = computed(() =>
 
 const accent = computed(() => RELATIONSHIP_ACCENT[rel.value.accent]);
 const firstName = computed(() => props.partner?.name?.split(" ")[0] || "them");
+const displayCurrentUser = computed(
+	() =>
+		props.currentUser ||
+		props.chat?.participants?.find(
+			(participant: any) => participant?._id === props.currentUserId,
+		),
+);
+const partnerUser = computed(() =>
+	props.partner?._id
+		? props.partner
+		: props.chat?.participants?.find(
+				(participant: any) => participant?._id !== props.currentUserId,
+			),
+);
 
 const countdown = computed(() => {
 	const expiry = props.chat?.trial_expires_at;

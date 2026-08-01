@@ -59,7 +59,7 @@
     >
       <div class="flex items-center justify-between mb-0.5">
         <!-- Subtitle (Name) -->
-        <span class="text-[9px] font-black uppercase tracking-widest truncate"
+        <span class="text-[12px] leading-tight font-black uppercase tracking-wide truncate"
               :class="isCustomized ? customProps.fontClass : 'text-white/50'"
               :style="isCustomized
                 ? {
@@ -118,6 +118,7 @@ import {
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveTitle,
+	resolveWorld,
 } from "@/config/profile_options.config";
 
 const props = defineProps<{
@@ -140,10 +141,11 @@ const normalizedLines = computed(() => {
 const customProps = computed(() => {
 	const custom = hydrateCustomization(props.toast.customization);
 	const theme = resolveTheme(custom.themeId);
+	const world = resolveWorld(custom.worldId);
 	return {
 		customization: custom,
 		theme,
-		palette: resolveReadableCustomizationPalette(theme),
+		palette: resolveReadableCustomizationPalette(theme, world),
 		font: resolveFontFamily(custom.fontId),
 		fontClass: resolveFontEffectClass(custom.fontEffectId),
 		title: resolveTitle(custom.titleId),

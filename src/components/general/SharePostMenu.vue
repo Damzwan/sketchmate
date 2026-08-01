@@ -71,55 +71,16 @@
             Send to Mates
           </p>
 
-          <button
+          <ShareMateRow
             v-for="friend in sortedFriends"
             :key="friend._id"
-            :disabled="isFriendDisabled(friend) || isSending"
-            @click="!isFriendDisabled(friend) && toggleFriend(friend._id)"
-            :class="[
-              'w-full flex items-center p-3 rounded-[2rem] border transition-all duration-300 relative text-left',
-              isFriendDisabled(friend)
-                ? 'bg-white/10 border-black/5 opacity-40 cursor-not-allowed grayscale'
-                : isSending
-                  ? 'bg-white/40 border-white opacity-50 cursor-wait'
-                  : selectedFriendIds.includes(friend._id)
-                    ? 'bg-secondary/20 border-secondary shadow-inner scale-[0.99]'
-                    : 'bg-white/40 border-white shadow-sm active:scale-[0.97] cursor-pointer hover:bg-white/60'
-            ]"
-          >
-            <div
-              class="relative shrink-0 w-12 h-12 rounded-full bg-white/80 shadow-inner overflow-hidden border border-black/5">
-              <img v-if="friend.img" :src="friend.img" class="w-full h-full object-cover" />
-            </div>
-
-            <div class="flex flex-col ml-4 flex-1 min-w-0">
-              <span class="text-lg font-black text-black leading-none truncate">{{ friend.name }}</span>
-              <span
-                v-if="isFriendDisabled(friend)"
-                class="text-xs font-bold text-red-500 uppercase tracking-widest mt-1"
-              >
-                Needs update
-              </span>
-              <span
-                v-else-if="isFriendOnline(friend._id)"
-                class="text-xs font-bold text-green-600 uppercase tracking-widest mt-1"
-              >
-                Online now
-              </span>
-            </div>
-
-            <div
-              v-if="!isFriendDisabled(friend)"
-              :class="[
-                'w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300',
-                selectedFriendIds.includes(friend._id)
-                  ? 'border-secondary bg-secondary text-white'
-                  : 'border-black/5 bg-black/5 text-black/20'
-              ]"
-            >
-              <ion-icon :icon="svg(mdiCheck)" class="text-base font-black" />
-            </div>
-          </button>
+            :friend="friend"
+            :disabled="isFriendDisabled(friend)"
+            :busy="isSending"
+            :selected="selectedFriendIds.includes(friend._id)"
+            :online="isFriendOnline(friend._id)"
+            @toggle="toggleFriend(friend._id)"
+          />
         </div>
       </div>
 
@@ -155,7 +116,7 @@ import {
   IonFab,
   IonFabButton
 } from '@ionic/vue'
-import { mdiSendOutline, mdiCheck, mdiShareVariant, mdiClose } from '@mdi/js'
+import { mdiSendOutline, mdiShareVariant, mdiClose } from '@mdi/js'
 import { storeToRefs } from 'pinia'
 import { svg, compareVersions } from '@/helper/general.helper'
 import { shareImg } from '@/helper/share.helper'
@@ -167,6 +128,7 @@ import { Menu } from "@/types/menu.types";
 import { useShareService } from '@/draw/sharing/shareService.store'
 import { useChatStore } from '@/store/chat.store'
 import { recentActivityForPartner } from '@/helper/chat.helper'
+import ShareMateRow from '@/components/general/ShareMateRow.vue'
 
 const authStore = useAuthStore()
 const friendStore = useFriendStore()
@@ -196,8 +158,8 @@ const previewThumbnail = computed(() => {
   const item = activeShareItem.value
   if (!item) return ''
   return activeShareItem.value?.type === 'inbox'
-    ? item.data.thumbnail
-    : item.data.thumbnail_url
+    ? (item.data as any).thumbnail
+    : (item.data as any).thumbnail_url
 })
 
 const previewLabel = computed(() => {

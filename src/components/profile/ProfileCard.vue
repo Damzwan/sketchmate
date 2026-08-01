@@ -18,7 +18,7 @@
           class="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-all bg-white/25 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/45"
           aria-label="Settings"
         >
-          <ion-icon :icon="svg(mdiCog)" class="w-5 h-5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" :style="{'color': theme.accentColor}" />
+          <ion-icon :icon="svg(mdiCog)" class="w-5 h-5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" :style="{ color: theme.accentColor }" />
         </button>
 
         <button
@@ -27,7 +27,7 @@
           class="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-all bg-white/25 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/45"
           aria-label="Add Connection"
         >
-          <ion-icon :icon="svg(mdiAccountPlusOutline)" class="w-5 h-5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" :style="{'color': theme.accentColor}" />
+          <ion-icon :icon="svg(mdiAccountPlusOutline)" class="w-5 h-5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" :style="{ color: theme.accentColor }" />
         </button>
 
         <button
@@ -36,7 +36,7 @@
           class="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 active:scale-90 transition-all bg-white/25 backdrop-blur-md border border-black/5 shadow-sm hover:bg-white/45"
           aria-label="Customize"
         >
-          <ion-icon :icon="svg(mdiPalette)" class="w-5 h-5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" :style="{'color': theme.accentColor}" />
+          <ion-icon :icon="svg(mdiPalette)" class="w-5 h-5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]" :style="{ color: theme.accentColor }" />
         </button>
 
       </div>

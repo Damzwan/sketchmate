@@ -8,15 +8,16 @@ import {
 describe("customized surface contrast", () => {
 	it("keeps theme text dark on Classic while making Space utilities white", () => {
 		const theme = resolveTheme("classic");
-		const themeText = resolveReadableCustomizationPalette(theme);
 		const environment = resolveReadableCustomizationPalette(
 			theme,
 			resolveWorld("space"),
 		);
 
-		expect(themeText.name).toBe(theme.nameColor);
 		expect(environment.isDark).toBe(true);
+		expect(environment.name).toBe(theme.nameColorDark);
 		expect(environment.utility).toBe("#ffffff");
+		expect(environment.controlForeground).toBe("#ffffff");
+		expect(environment.controlBg).toContain("0,0,0");
 	});
 
 	it("uses white utilities and controls for a dark theme without a world", () => {
@@ -27,6 +28,7 @@ describe("customized surface contrast", () => {
 
 		expect(palette.isDark).toBe(true);
 		expect(palette.utility).toBe("#ffffff");
+		expect(palette.controlForeground).toBe("#ffffff");
 		expect(palette.controlBorder).toContain("255,255,255");
 	});
 

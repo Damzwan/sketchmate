@@ -46,6 +46,10 @@ vi.mock("@/draw/canvas/canvasController", () => ({
 	}),
 }));
 
+vi.mock("@/store/auth.store", () => ({
+	useAuthStore: () => ({ user: { _id: "me" } }),
+}));
+
 vi.mock("@/draw/history/history.store", () => ({
 	useDrawHistoryManager: () => ({
 		addToUndoStackWithResetRedo: (action: any) => recorded.push(action),
@@ -65,6 +69,10 @@ function object(id: string, layerId: string) {
 	return { id, layerId };
 }
 
+function layer(id: string, order: number) {
+	return { id, name: id, order, visible: true, locked: false };
+}
+
 describe("layers store", () => {
 	beforeEach(() => {
 		setActivePinia(createPinia());
@@ -79,7 +87,7 @@ describe("layers store", () => {
 
 	it("moves the live selection to the active layer", () => {
 		const layers = useLayersStore();
-		layers.init({ isLobby: true });
+		layers.init({ isLobby: true, isPublicLobby: true });
 		const moved = object("moved", "l0");
 		sceneObjects = [moved];
 		activeObjects = [moved];
@@ -100,7 +108,7 @@ describe("layers store", () => {
 
 	it("ignores a selection whose objects have left the scene", () => {
 		const layers = useLayersStore();
-		layers.init({ isLobby: true });
+		layers.init({ isLobby: true, isPublicLobby: true });
 		const stale = object("stale", "l0");
 		activeObjects = [stale]; // never added to sceneObjects
 		sceneObjects = [];
@@ -111,9 +119,9 @@ describe("layers store", () => {
 		expect(fired).toHaveLength(0);
 	});
 
-	it("gives a room the fixed set and refuses structural edits", () => {
+	it("gives a PUBLIC lobby the fixed set and refuses structural edits", () => {
 		const layers = useLayersStore();
-		layers.init({ isLobby: true });
+		layers.init({ isLobby: true, isPublicLobby: true });
 
 		expect(layers.layers.map((l) => l.id)).toEqual(
 			FIXED_ROOM_LAYERS.map((l) => l.id),
@@ -131,14 +139,133 @@ describe("layers store", () => {
 		expect(recorded).toHaveLength(0);
 	});
 
+	it("gives a PRIVATE room the editable, replicated document", () => {
+		const layers = useLayersStore();
+		layers.init({ isLobby: true, isPublicLobby: false });
+
+		expect(layers.canEditStructure).toBe(true);
+		expect(layers.shared).toBe(true);
+
+		const id = layers.addLayer("Ink");
+		expect(id).toBeTruthy();
+		// A local structural edit replicates; the sync engine listens for this.
+		const op = fired.find((f) => f.name === "layerDocumentChanged");
+		expect(op.payload.op.kind).toBe("add");
+		expect(op.payload.op.layer.id).toBe(id);
+	});
+
+	it("does not replicate anything when drawing solo", () => {
+		const layers = useLayersStore();
+		layers.init({ isLobby: false });
+		expect(layers.shared).toBe(false);
+
+		layers.addLayer("Ink");
+
+		expect(
+			fired.find((f) => f.name === "layerDocumentChanged"),
+		).toBeUndefined();
+	});
+
+	it("converges on the same stack whichever order ops arrive in", () => {
+		// The whole reason the ops carry absolute keys instead of indices: a
+		// replayed backlog and a live stream must land on the same document.
+		const forward = useLayersStore();
+		forward.init({ isLobby: true, isPublicLobby: false });
+		const a: any = { kind: "add", layer: layer("a", 1), at: 10, by: "p1" };
+		const b: any = { kind: "add", layer: layer("b", 0.5), at: 11, by: "p2" };
+		const r: any = { kind: "reorder", id: "a", order: 0.25, at: 12, by: "p2" };
+		forward.applyRemoteOp(a);
+		forward.applyRemoteOp(b);
+		forward.applyRemoteOp(r);
+		const forwardIds = forward.layers.map((l) => l.id);
+
+		setActivePinia(createPinia());
+		resetLayerRegistry();
+		const shuffled = useLayersStore();
+		shuffled.init({ isLobby: true, isPublicLobby: false });
+		shuffled.applyRemoteOp(b);
+		shuffled.applyRemoteOp(a);
+		shuffled.applyRemoteOp(r);
+
+		expect(shuffled.layers.map((l) => l.id)).toEqual(forwardIds);
+		expect(forwardIds).toEqual([BASE_LAYER_ID, "a", "b"]);
+	});
+
+	it("lets a delete win over an op that was already in flight", () => {
+		const layers = useLayersStore();
+		layers.init({ isLobby: true, isPublicLobby: false });
+		layers.applyRemoteOp({
+			kind: "add",
+			layer: layer("doomed", 1),
+			at: 1,
+			by: "p1",
+		} as any);
+		layers.applyRemoteOp({ kind: "remove", id: "doomed", at: 2, by: "p1" });
+
+		// A rename authored before the delete landed must not resurrect it.
+		layers.applyRemoteOp({
+			kind: "rename",
+			id: "doomed",
+			name: "back?",
+			at: 3,
+			by: "p2",
+		});
+
+		expect(layers.layers.map((l) => l.id)).toEqual([BASE_LAYER_ID]);
+	});
+
+	it("resolves a concurrent rename the same way on every peer", () => {
+		const layers = useLayersStore();
+		layers.init({ isLobby: true, isPublicLobby: false });
+		layers.applyRemoteOp({
+			kind: "add",
+			layer: layer("x", 1),
+			at: 1,
+			by: "p1",
+		} as any);
+
+		// Identical clocks: the higher author id wins, deterministically.
+		layers.applyRemoteOp({
+			kind: "rename",
+			id: "x",
+			name: "A",
+			at: 5,
+			by: "p1",
+		});
+		layers.applyRemoteOp({
+			kind: "rename",
+			id: "x",
+			name: "B",
+			at: 5,
+			by: "p2",
+		});
+		expect(layers.layers.find((l) => l.id === "x")?.name).toBe("B");
+
+		// And a straggler from the loser never wins later.
+		layers.applyRemoteOp({
+			kind: "rename",
+			id: "x",
+			name: "A",
+			at: 5,
+			by: "p1",
+		});
+		expect(layers.layers.find((l) => l.id === "x")?.name).toBe("B");
+	});
+
 	it("keeps the room layer set out of the persisted document", () => {
 		const layers = useLayersStore();
-		layers.init({ isLobby: true });
+		layers.init({ isLobby: true, isPublicLobby: true });
 		expect(layers.serialize()).toBeUndefined();
 
 		layers.init({ isLobby: false });
 		expect(layers.serialize()).toEqual([
-			{ id: BASE_LAYER_ID, name: "Layer 1", visible: true, locked: false },
+			{
+				id: BASE_LAYER_ID,
+				name: "Layer 1",
+				order: 0,
+				visible: true,
+				locked: false,
+			},
 		]);
 	});
 
@@ -147,20 +274,26 @@ describe("layers store", () => {
 		layers.init({
 			isLobby: false,
 			persisted: [
-				{ id: "a", name: "Sky", visible: false, locked: true },
-				{ id: "a", name: "duplicate id", visible: true, locked: false },
-				{ id: "b", name: "Ground", visible: true, locked: false },
-			],
+				{ id: "a", name: "Sky", order: 0, visible: false, locked: true },
+				{
+					id: "a",
+					name: "duplicate id",
+					order: 5,
+					visible: true,
+					locked: false,
+				},
+				{ id: "b", name: "Ground", order: 1, visible: true, locked: false },
+			] as any,
 		});
 		expect(layers.layers).toEqual([
-			{ id: "a", name: "Sky", visible: true, locked: false },
-			{ id: "b", name: "Ground", visible: true, locked: false },
+			{ id: "a", name: "Sky", order: 0, visible: true, locked: false },
+			{ id: "b", name: "Ground", order: 1, visible: true, locked: false },
 		]);
 	});
 
 	it("moves the drawing cursor off a layer it just hid", () => {
 		const layers = useLayersStore();
-		layers.init({ isLobby: true });
+		layers.init({ isLobby: true, isPublicLobby: true });
 		layers.setActive("l2");
 		expect(activeLayerId()).toBe("l2");
 
@@ -200,10 +333,13 @@ describe("layers store", () => {
 		layers.applyRemoveLayer(middle);
 		expect(getLayers().map((l) => l.id)).toEqual([BASE_LAYER_ID, top]);
 
-		layers.applyAddLayer(
-			{ id: middle, name: "Middle", visible: true, locked: false },
-			1,
-		);
+		layers.applyAddLayer({
+			id: middle,
+			name: "Middle",
+			order: 1,
+			visible: true,
+			locked: false,
+		});
 		expect(getLayers().map((l) => l.id)).toEqual([BASE_LAYER_ID, middle, top]);
 		// Re-inserting BELOW an existing layer restacks the board.
 		expect(invalidated.at(-1)).toBeNull();

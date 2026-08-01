@@ -52,7 +52,7 @@ describe("layer registry", () => {
 
 	it("folds unknown and legacy ids into the bottom layer", () => {
 		setLayerSet(
-			[createLayer(BASE_LAYER_ID, "Base"), createLayer("l1", "Top")],
+			[createLayer(BASE_LAYER_ID, "Base", 0), createLayer("l1", "Top", 1)],
 			"mutable",
 		);
 		expect(layerOrderOf(BASE_LAYER_ID)).toBe(0);
@@ -63,7 +63,7 @@ describe("layer registry", () => {
 
 	it("ranks by layer first and explicit z second", () => {
 		setLayerSet(
-			[createLayer(BASE_LAYER_ID, "Base"), createLayer("l1", "Top")],
+			[createLayer(BASE_LAYER_ID, "Base", 0), createLayer("l1", "Top", 1)],
 			"mutable",
 		);
 		// A LOW z on a HIGH layer still wins: layer rank dominates.
@@ -77,7 +77,7 @@ describe("layer registry", () => {
 
 	it("knows what can still be painted over an object", () => {
 		setLayerSet(
-			[createLayer(BASE_LAYER_ID, "Base"), createLayer("l1", "Top")],
+			[createLayer(BASE_LAYER_ID, "Base", 0), createLayer("l1", "Top", 1)],
 			"mutable",
 		);
 		expect(layerCount()).toBe(2);
@@ -90,7 +90,7 @@ describe("layer registry", () => {
 	it("scopes edits to the layer being worked on", () => {
 		// What the eraser's `erasableFilter` and `querySelectable` both rest on.
 		setLayerSet(
-			[createLayer(BASE_LAYER_ID, "Base"), createLayer("l1", "Top")],
+			[createLayer(BASE_LAYER_ID, "Base", 0), createLayer("l1", "Top", 1)],
 			"mutable",
 		);
 		setActiveLayerId("l1");
@@ -99,7 +99,7 @@ describe("layer registry", () => {
 		expect(isOnActiveLayer(undefined)).toBe(false);
 
 		// A single-layer drawing has no "other layer", so nothing is restricted.
-		setLayerSet([createLayer(BASE_LAYER_ID, "Base")], "mutable");
+		setLayerSet([createLayer(BASE_LAYER_ID, "Base", 0)], "mutable");
 		expect(isOnActiveLayer(undefined)).toBe(true);
 		expect(isOnActiveLayer("whatever")).toBe(true);
 	});
@@ -127,7 +127,7 @@ describe("spatial index with layers", () => {
 
 	it("sorts render queries by layer, not by insertion order", () => {
 		setLayerSet(
-			[createLayer(BASE_LAYER_ID, "Base"), createLayer("l1", "Top")],
+			[createLayer(BASE_LAYER_ID, "Base", 0), createLayer("l1", "Top", 1)],
 			"mutable",
 		);
 		// `top` was added FIRST, so its explicit z is lower than `base`'s.
@@ -147,8 +147,8 @@ describe("spatial index with layers", () => {
 		const index = indexFor([visible, hidden]);
 		setLayerSet(
 			[
-				createLayer(BASE_LAYER_ID, "Base"),
-				{ ...createLayer("l1", "Top"), visible: false },
+				createLayer(BASE_LAYER_ID, "Base", 0),
+				{ ...createLayer("l1", "Top", 1), visible: false },
 			],
 			"mutable",
 		);
@@ -175,8 +175,8 @@ describe("spatial index with layers", () => {
 		const index = indexFor([free, locked]);
 		setLayerSet(
 			[
-				createLayer(BASE_LAYER_ID, "Base"),
-				{ ...createLayer("l1", "Top"), locked: true },
+				createLayer(BASE_LAYER_ID, "Base", 0),
+				{ ...createLayer("l1", "Top", 1), locked: true },
 			],
 			"mutable",
 		);
@@ -196,7 +196,7 @@ describe("spatial index with layers", () => {
 		const above = object("above", "l1");
 		const index = indexFor([below, above]);
 		setLayerSet(
-			[createLayer(BASE_LAYER_ID, "Base"), createLayer("l1", "Top")],
+			[createLayer(BASE_LAYER_ID, "Base", 0), createLayer("l1", "Top", 1)],
 			"mutable",
 		);
 
@@ -222,7 +222,7 @@ describe("spatial index with layers", () => {
 
 	it("bounds a layer's footprint to its own objects", () => {
 		setLayerSet(
-			[createLayer(BASE_LAYER_ID, "Base"), createLayer("l1", "Top")],
+			[createLayer(BASE_LAYER_ID, "Base", 0), createLayer("l1", "Top", 1)],
 			"mutable",
 		);
 		const index = indexFor([

@@ -1,5 +1,6 @@
 import {
 	BASE_LAYER_ID,
+	byLayerOrder,
 	type DrawLayer,
 	type LayerPolicy,
 	defaultSoloLayers,
@@ -28,6 +29,11 @@ const layoutListeners = new Set<LayoutListener>();
 let layoutVersion = 0;
 
 function reindex(): void {
+	// Sort by the fractional key, then hand DOWNSTREAM a dense integer rank.
+	// `__lo` only ever gets compared, so the rank is all the renderer needs, and
+	// keeping the fractional value out of the hot path avoids float compares
+	// per object per query.
+	layers.sort(byLayerOrder);
 	orderById = new Map();
 	for (let index = 0; index < layers.length; index++) {
 		orderById.set(layers[index].id, index);

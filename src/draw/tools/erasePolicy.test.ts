@@ -17,7 +17,7 @@ describe("erase policy", () => {
 
 	it("erases only erasable objects on the active layer", () => {
 		setLayerSet(
-			[createLayer(BASE_LAYER_ID, "Base"), createLayer("l1", "Top")],
+			[createLayer(BASE_LAYER_ID, "Base", 0), createLayer("l1", "Top", 1)],
 			"mutable",
 		);
 		setActiveLayerId("l1");
@@ -30,7 +30,7 @@ describe("erase policy", () => {
 
 	it("protects exactly what it does not erase", () => {
 		setLayerSet(
-			[createLayer(BASE_LAYER_ID, "Base"), createLayer("l1", "Top")],
+			[createLayer(BASE_LAYER_ID, "Base", 0), createLayer("l1", "Top", 1)],
 			"mutable",
 		);
 		setActiveLayerId("l1");

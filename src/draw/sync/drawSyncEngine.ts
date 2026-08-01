@@ -409,6 +409,16 @@ export function createDrawSyncEngine() {
 			},
 		},
 		{
+			on: "layerDocumentChanged",
+			handler: (e: any) => {
+				if (!e?.op) return;
+				emitDrawSyncingEvent({
+					type: DrawSyncingEvent.LayerDocument,
+					params: { op: e.op },
+				});
+			},
+		},
+		{
 			on: "imgFilterChanged",
 			handler: (e: any) => {
 				emitDrawSyncingEvent({

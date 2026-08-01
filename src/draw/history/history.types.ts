@@ -97,12 +97,13 @@ export type HistoryParamsMap = {
 		prevBlendColorFilter: any;
 	};
 	[HistoryEvent.Merge]: { group: any | undefined; objectIds: string[] };
-	[HistoryEvent.LayerAdded]: { layer: DrawLayer; index: number };
+	/** The layer record carries its own fractional `order`, so restoring it needs
+	 *  no index — which is also what lets these replay in any order. */
+	[HistoryEvent.LayerAdded]: { layer: DrawLayer };
 	/** `objectsJSON` is a LAZY param (defineLazyJSON) — never enumerate-and-read
 	 *  it casually, and keep `__w` precomputed on the action. */
 	[HistoryEvent.LayerDeleted]: {
 		layer: DrawLayer;
-		index: number;
 		objectsJSON: any[];
 	};
 	[HistoryEvent.LayerRenamed]: {
@@ -110,7 +111,11 @@ export type HistoryParamsMap = {
 		previousName: string;
 		name: string;
 	};
-	[HistoryEvent.LayerReordered]: { from: number; to: number };
+	[HistoryEvent.LayerReordered]: {
+		layerId: string;
+		previousOrder: number;
+		order: number;
+	};
 };
 
 export type HistoryParams<T extends HistoryEvent> = HistoryParamsMap[T];

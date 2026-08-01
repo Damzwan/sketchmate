@@ -17,6 +17,7 @@ import { createDraftSnapshotAssets } from "@/draw/document/draftThumbnail";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { useLayersStore } from "@/draw/layers/layers.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 
 export interface DrawingDraft {
 	id: string;
@@ -198,6 +199,7 @@ export const useDocumentStore = defineStore("drawDocument", () => {
 			// through the registry. Both must already reflect this document.
 			useLayersStore().init({
 				isLobby: options.isLobby,
+				isPublicLobby: useDrawSyncer().isPublicLobby,
 				persisted: json?.layers ?? null,
 			});
 

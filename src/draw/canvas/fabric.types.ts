@@ -92,6 +92,9 @@ declare module "fabric" {
 			target: FabricObject[];
 		};
 
+		layerDocumentChanged: Partial<TEvent> & {
+			op: import("@/draw/layers/layer.types").LayerOp;
+		};
 		objectStyleChanged: Partial<TEvent> & {
 			target: FabricObject[];
 			prevStyles: object[];

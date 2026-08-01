@@ -59,7 +59,7 @@ export async function redoLayerAdded(
 	_ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.LayerAdded>,
 ) {
-	useLayersStore().applyAddLayer(action.params.layer, action.params.index);
+	useLayersStore().applyAddLayer(action.params.layer);
 	return action;
 }
 
@@ -70,7 +70,7 @@ export async function undoLayerDeleted(
 	const layers = useLayersStore();
 	// Layer first: the objects' `layerId` must resolve to a real rank before
 	// they are indexed, or they briefly sort as if they were on the base layer.
-	layers.applyAddLayer(action.params.layer, action.params.index);
+	layers.applyAddLayer(action.params.layer);
 	const json = action.params.objectsJSON;
 	if (json?.length) {
 		const enlivened = await fabric.util.enlivenObjects<FabricObject>(json);
@@ -128,7 +128,10 @@ export async function undoLayerReordered(
 	_ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.LayerReordered>,
 ) {
-	useLayersStore().applyMoveLayer(action.params.to, action.params.from);
+	useLayersStore().applyReorder(
+		action.params.layerId,
+		action.params.previousOrder,
+	);
 	return action;
 }
 
@@ -136,6 +139,6 @@ export async function redoLayerReordered(
 	_ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.LayerReordered>,
 ) {
-	useLayersStore().applyMoveLayer(action.params.from, action.params.to);
+	useLayersStore().applyReorder(action.params.layerId, action.params.order);
 	return action;
 }

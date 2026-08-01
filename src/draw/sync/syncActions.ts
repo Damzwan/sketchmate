@@ -3,6 +3,7 @@ import * as fabric from "fabric";
 import { FabricImage, FabricObject, IText } from "fabric";
 import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { useLayersStore } from "@/draw/layers/layers.store";
 import { applyObjectModificationsBulk } from "@/draw/history/operations/objectHistory";
 import { drawActionMapping } from "@/draw/actions/drawActions";
 import { fullErase } from "@/draw/tools/eraseActions";
@@ -347,6 +348,20 @@ async function syncTextChanged(
 	}
 }
 
+/**
+ * A peer restructured the layer document.
+ *
+ * No queueing, no rebasing, no acknowledgement: the ops are idempotent and
+ * carry absolute ordering keys rather than indices, so a replayed backlog and a
+ * live stream converge on the same document (see LayerOp).
+ */
+async function syncLayerDocument(
+	params: DrawSyncingParams<DrawSyncingEvent.LayerDocument>,
+) {
+	if (!params?.op) return;
+	useLayersStore().applyRemoteOp(params.op);
+}
+
 export const drawSyncingMapping: {
 	[K in DrawSyncingEvent]: (
 		params: DrawSyncingParams<K>,
@@ -372,4 +387,5 @@ export const drawSyncingMapping: {
 	[DrawSyncingEvent.ObjectsMerged]: syncObjectsMerged,
 	[DrawSyncingEvent.ErasingEnd]: syncErasingEnd,
 	[DrawSyncingEvent.TextChanged]: syncTextChanged,
+	[DrawSyncingEvent.LayerDocument]: syncLayerDocument,
 };

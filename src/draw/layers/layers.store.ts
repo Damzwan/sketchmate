@@ -4,12 +4,16 @@ import { v4 as uuidv4 } from "uuid";
 import type { FabricObject } from "fabric";
 import {
 	BASE_LAYER_ID,
+	byLayerOrder,
 	createLayer,
 	defaultSoloLayers,
 	type DrawLayer,
 	FIXED_ROOM_LAYERS,
+	type LayerOp,
 	type LayerPolicy,
+	MAX_LAYER_NAME,
 	MAX_SOLO_LAYERS,
+	orderBetween,
 } from "@/draw/layers/layer.types";
 import {
 	activeLayerId as registryActiveLayerId,
@@ -21,6 +25,7 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { useCanvasController } from "@/draw/canvas/canvasController";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { HistoryEvent } from "@/draw/history/history.types";
+import { useAuthStore } from "@/store/auth.store";
 
 /**
  * Layer document + view state.
@@ -42,6 +47,20 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	const layers = ref<DrawLayer[]>(defaultSoloLayers());
 	const activeId = ref<string>(BASE_LAYER_ID);
 	const policy = ref<LayerPolicy>("mutable");
+	/** Mutable AND in a room: every structural edit replicates to the peers. */
+	const shared = ref(false);
+
+	/**
+	 * Last-writer bookkeeping, per layer id. Session-scoped, never persisted.
+	 *
+	 * `revisions` decides rename/reorder races; `tombstones` makes a delete win
+	 * over any op that was already in flight for that layer, so a peer cannot
+	 * resurrect a layer by renaming it a moment too late.
+	 */
+	const revisions = new Map<string, { at: number; by: string }>();
+	const tombstones = new Set<string>();
+	/** Set while applying a remote op, so applying it does not echo it back. */
+	let applyingRemote = false;
 
 	/** Lightest possible canvas handle: pulling in `draw.store` here would close
 	 *  an import cycle (draw.store → document.store → serialization → us).
@@ -63,6 +82,11 @@ export const useLayersStore = defineStore("drawLayers", () => {
 
 	/** Push the whole set down to the engine-facing registry. */
 	function commitLayout() {
+		// Sort HERE, not only in the registry. The registry sorts its own copy, so
+		// leaving this array in insertion order made the store (and therefore the
+		// sheet) disagree with the render stack the moment an op arrived out of
+		// order — which is the normal case for a replayed backlog.
+		layers.value.sort(byLayerOrder);
 		setLayerSet(layers.value, policy.value);
 		setActiveLayerId(activeId.value);
 		activeId.value = registryActiveLayerId();
@@ -79,12 +103,28 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	 * absent (every drawing made before this feature) → one base layer, and the
 	 * objects that carry no `layerId` land on it by definition.
 	 */
-	function init(options: { isLobby: boolean; persisted?: DrawLayer[] | null }) {
-		if (options.isLobby) {
+	function init(options: {
+		isLobby: boolean;
+		isPublicLobby?: boolean;
+		persisted?: DrawLayer[] | null;
+	}) {
+		revisions.clear();
+		tombstones.clear();
+		applyingRemote = false;
+
+		// PUBLIC lobbies keep the fixed set: strangers must not be able to
+		// restructure a shared board, and a constant set needs no replication at
+		// all. A PRIVATE room is people who chose each other, so it gets the same
+		// editable document as solo — replicated.
+		if (options.isPublicLobby) {
 			policy.value = "fixed";
+			shared.value = false;
 			layers.value = FIXED_ROOM_LAYERS.map((l) => ({ ...l }));
 		} else {
 			policy.value = "mutable";
+			shared.value = !!options.isLobby;
+			// A private room's document arrives with the canvas snapshot like any
+			// other document state; an empty one starts from the default.
 			layers.value = sanitizePersisted(options.persisted);
 		}
 		activeId.value = layers.value[0].id;
@@ -104,21 +144,28 @@ export const useLayersStore = defineStore("drawLayers", () => {
 			out.push({
 				id,
 				name: typeof raw.name === "string" ? raw.name : "Layer",
+				// Documents written before ordering keys existed fall back to their
+				// position in the array, which is exactly what they meant.
+				order: typeof raw.order === "number" ? raw.order : out.length,
 				// Visibility/lock are view state and deliberately NOT restored: a
 				// drawing must never open with content silently missing.
 				visible: true,
 				locked: false,
 			});
 		}
+		out.sort(byLayerOrder);
 		return out.length ? out : defaultSoloLayers();
 	}
 
 	/** What `generateChunkedJSON` writes into the draft. */
 	function serialize(): DrawLayer[] | undefined {
+		// A fixed set is a constant every peer derives locally — persisting it
+		// would just be a copy of a hard-coded array.
 		if (policy.value !== "mutable") return undefined;
 		return layers.value.map((l) => ({
 			id: l.id,
 			name: l.name,
+			order: l.order,
 			visible: true,
 			locked: false,
 		}));
@@ -166,40 +213,144 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		}
 	}
 
-	// ── structural edits (solo only, undoable) ───────────────────────────────
+	// ── the replicated op pipeline ───────────────────────────────────────────
+	//
+	// Every structural edit — local or remote, live or replayed from history —
+	// is expressed as a LayerOp and applied through `applyOp`. One code path
+	// means a peer's add can never behave differently from your own, and the
+	// idempotence that makes replication safe is enforced in exactly one place.
+
+	function stamp(): { at: number; by: string } {
+		return { at: Date.now(), by: useAuthStore().user?._id ?? "local" };
+	}
+
+	/** Does this op supersede what we last applied to that layer? */
+	function accepts(id: string, at: number, by: string): boolean {
+		if (tombstones.has(id)) return false; // a delete is final
+		const seen = revisions.get(id);
+		if (!seen) return true;
+		if (at !== seen.at) return at > seen.at;
+		// Identical clocks: pick a winner every peer agrees on.
+		return by > seen.by;
+	}
+
+	function note(id: string, at: number, by: string): void {
+		revisions.set(id, { at, by });
+	}
+
+	/**
+	 * @param origin `local` records history and replicates; `remote` and
+	 *   `history` apply silently. A remote op that echoed back would loop, and a
+	 *   history replay must not push a second entry onto the stack.
+	 */
+	function applyOp(
+		op: LayerOp,
+		origin: "local" | "remote" | "history",
+	): boolean {
+		const id = op.kind === "add" ? op.layer.id : op.id;
+		if (origin !== "local" && !accepts(id, op.at, op.by)) return false;
+		note(id, op.at, op.by);
+
+		let restacked = false;
+		switch (op.kind) {
+			case "add": {
+				if (layers.value.some((l) => l.id === op.layer.id)) return false;
+				layers.value.push({ ...op.layer, visible: true, locked: false });
+				// A new EMPTY layer restacks nothing that exists yet — the first
+				// stroke on it invalidates through the normal add seam. One inserted
+				// BELOW existing content is the exception.
+				restacked = layers.value.some(
+					(l) => l.id !== op.layer.id && l.order > op.layer.order,
+				);
+				break;
+			}
+			case "remove": {
+				const index = layers.value.findIndex((l) => l.id === op.id);
+				if (index === -1) return false;
+				layers.value.splice(index, 1);
+				tombstones.add(op.id);
+				if (layers.value.length === 0) layers.value = defaultSoloLayers();
+				break;
+			}
+			case "rename": {
+				const layer = layers.value.find((l) => l.id === op.id);
+				if (!layer) return false;
+				layer.name = op.name;
+				commitFlags();
+				if (origin === "local") replicate(op);
+				return true; // no restack, no relayout
+			}
+			case "reorder": {
+				const layer = layers.value.find((l) => l.id === op.id);
+				if (!layer || layer.order === op.order) return false;
+				layer.order = op.order;
+				restacked = true;
+				break;
+			}
+		}
+
+		commitLayout();
+		// Reordering (or inserting underneath) changes stacking across the whole
+		// board — the one layer operation that genuinely costs the full cache.
+		if (restacked) useDrawObjectManager().invalidateLayer(null);
+		if (origin === "local") replicate(op);
+		return true;
+	}
+
+	/** Send a locally-authored op to the room. Solo and public lobbies: no-op. */
+	function replicate(op: LayerOp): void {
+		if (!shared.value || applyingRemote) return;
+		const canvas = getCanvas();
+		if (!canvas) return;
+		// Fired on the canvas rather than emitted directly so the store keeps no
+		// dependency on the sync engine — the same seam `objectStyleChanged` and
+		// `objectsMerged` already use.
+		canvas.fire("layerDocumentChanged" as any, { op });
+	}
+
+	/**
+	 * A peer's op. Idempotent and order-independent by construction (see
+	 * LayerOp), so this needs no queueing, no rebasing and no acknowledgement —
+	 * a replayed backlog converges on the same document as a live stream.
+	 */
+	function applyRemoteOp(op: LayerOp): void {
+		if (policy.value !== "mutable") return; // public lobby: not our document
+		applyingRemote = true;
+		try {
+			applyOp(op, "remote");
+		} finally {
+			applyingRemote = false;
+		}
+	}
+
+	// ── structural edits (undoable; replicated in a private room) ────────────
 
 	function addLayer(name?: string): string | null {
 		if (!canAddLayer.value) return null;
+		const top = layers.value[layers.value.length - 1];
 		const layer = createLayer(
 			uuidv4(),
 			name ?? `Layer ${layers.value.length + 1}`,
+			orderBetween(top?.order, undefined),
 		);
-		applyAddLayer(layer, layers.value.length);
+		const op: LayerOp = { kind: "add", layer: { ...layer }, ...stamp() };
+		if (!applyOp(op, "local")) return null;
 		useDrawHistoryManager().addToUndoStackWithResetRedo({
 			type: HistoryEvent.LayerAdded,
-			params: { layer: { ...layer }, index: layers.value.length - 1 },
+			params: { layer: { ...layer } },
 		});
 		setActive(layer.id);
 		return layer.id;
 	}
 
-	function applyAddLayer(layer: DrawLayer, index: number) {
-		layers.value.splice(index, 0, { ...layer });
-		commitLayout();
-		// A new EMPTY layer changes stacking for nothing that exists yet, so no
-		// invalidation — the first stroke on it invalidates through the normal add
-		// seam. Inserting BELOW existing layers is the exception.
-		if (index < layers.value.length - 1) {
-			useDrawObjectManager().invalidateLayer(null);
-		}
+	/** History-facing: re-apply an add without recording it again. */
+	function applyAddLayer(layer: DrawLayer) {
+		tombstones.delete(layer.id); // an undo legitimately revives it
+		applyOp({ kind: "add", layer, ...stamp() }, "local");
 	}
 
 	function applyRemoveLayer(id: string) {
-		const index = layers.value.findIndex((l) => l.id === id);
-		if (index === -1) return;
-		layers.value.splice(index, 1);
-		if (layers.value.length === 0) layers.value = defaultSoloLayers();
-		commitLayout();
+		applyOp({ kind: "remove", id, ...stamp() }, "local");
 	}
 
 	/**
@@ -210,9 +361,9 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	 */
 	function deleteLayer(id: string): boolean {
 		if (!canDeleteLayer.value) return false;
-		const index = layers.value.findIndex((l) => l.id === id);
-		if (index === -1) return false;
-		const layer = { ...layers.value[index] };
+		const existing = layers.value.find((l) => l.id === id);
+		if (!existing) return false;
+		const layer = { ...existing };
 
 		const manager = useDrawObjectManager();
 		const canvas = getCanvas();
@@ -236,13 +387,12 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		// layer in the tap frame is a guaranteed hitch on a low-end phone, for an
 		// entry most deletions never undo. The objects are off-canvas afterwards
 		// and never mutate, so a later serialization is identical.
-		const params: any = { layer, index };
+		const params: any = { layer };
 		history.defineLazyJSON(params, "objectsJSON", objects);
 
 		if (objects.length) {
 			manager.beginBatch();
 			try {
-				console.log(canvas, objects);
 				canvas?.remove(...objects);
 			} finally {
 				manager.endBatch();
@@ -261,41 +411,46 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		const layer = layers.value.find((l) => l.id === id);
 		if (!layer || !canEditStructure.value) return;
 		const previousName = layer.name;
-		if (previousName === name) return;
-		layer.name = name;
-		commitFlags();
+		const next = name.slice(0, MAX_LAYER_NAME);
+		if (!next || previousName === next) return;
+		if (!applyOp({ kind: "rename", id, name: next, ...stamp() }, "local"))
+			return;
 		useDrawHistoryManager().addToUndoStackWithResetRedo({
 			type: HistoryEvent.LayerRenamed,
-			params: { layerId: id, previousName, name },
+			params: { layerId: id, previousName, name: next },
 		});
 	}
 
 	function applyRename(id: string, name: string) {
-		const layer = layers.value.find((l) => l.id === id);
-		if (!layer) return;
-		layer.name = name;
-		commitFlags();
+		applyOp({ kind: "rename", id, name, ...stamp() }, "local");
 	}
 
+	/**
+	 * Reorder by POSITION at the UI edge, by fractional key on the wire.
+	 *
+	 * The sheet naturally speaks in positions, but an index means different
+	 * things to different peers once anything else has been replayed. Resolving
+	 * it to an absolute key here — before the op exists — is what keeps
+	 * concurrent reorders convergent.
+	 */
 	function moveLayer(from: number, to: number) {
-		if (!canEditStructure.value) return;
-		if (from === to) return;
-		applyMoveLayer(from, to);
+		if (!canEditStructure.value || from === to) return;
+		const list = layers.value;
+		if (from < 0 || from >= list.length || to < 0 || to >= list.length) return;
+		const moved = list[from];
+		const previousOrder = moved.order;
+		const without = list.filter((l) => l.id !== moved.id);
+		const order = orderBetween(without[to - 1]?.order, without[to]?.order);
+		if (!applyOp({ kind: "reorder", id: moved.id, order, ...stamp() }, "local"))
+			return;
 		useDrawHistoryManager().addToUndoStackWithResetRedo({
 			type: HistoryEvent.LayerReordered,
-			params: { from, to },
+			params: { layerId: moved.id, previousOrder, order },
 		});
 	}
 
-	function applyMoveLayer(from: number, to: number) {
-		const list = layers.value;
-		if (from < 0 || from >= list.length || to < 0 || to >= list.length) return;
-		const [moved] = list.splice(from, 1);
-		list.splice(to, 0, moved);
-		commitLayout();
-		// Reordering changes stacking across the whole board — the one layer
-		// operation that genuinely costs the full cache.
-		useDrawObjectManager().invalidateLayer(null);
+	function applyReorder(id: string, order: number) {
+		applyOp({ kind: "reorder", id, order, ...stamp() }, "local");
 	}
 
 	// ── moving objects between layers (both policies) ────────────────────────
@@ -387,12 +542,14 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		moveLayer,
 		moveObjectsToLayer,
 		moveSelectionToLayer,
+		applyRemoteOp,
+		shared,
 		objectCount,
 		reset,
 		// history-facing appliers (no recording, no redo-stack reset)
 		applyAddLayer,
 		applyRemoveLayer,
 		applyRename,
-		applyMoveLayer,
+		applyReorder,
 	};
 });

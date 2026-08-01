@@ -1,5 +1,6 @@
 import { HistoryAction } from "@/draw/history/history.types";
 import { FabricObjectProps } from "fabric";
+import type { LayerOp } from "@/draw/layers/layer.types";
 
 export enum DrawSyncingEvent {
 	added = "added",
@@ -22,6 +23,15 @@ export enum DrawSyncingEvent {
 	ObjectsMerged = "ObjectsMerged",
 	ErasingEnd = "ErasingEnd",
 	TextChanged = "TextChanged",
+	/**
+	 * Layer-document edit (private rooms only). Introduced with client v4.
+	 *
+	 * Safe to ship ONLY because `minimum_online_version` gates room entry: a v3
+	 * client looks its handler up in an unguarded map and would throw on an
+	 * unknown type, killing the rest of its action queue. Bump the minimum
+	 * version before enabling this in production.
+	 */
+	LayerDocument = "LayerDocument",
 }
 
 type ShowAvatarActionParams = { creator?: string };
@@ -83,6 +93,7 @@ export type DrawSyncingMap = {
 		objectId: string;
 		newText: string;
 	};
+	[DrawSyncingEvent.LayerDocument]: ShowAvatarActionParams & { op: LayerOp };
 };
 
 export type DrawSyncingParams<T extends DrawSyncingEvent> = DrawSyncingMap[T];

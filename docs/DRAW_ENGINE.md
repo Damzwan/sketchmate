@@ -381,12 +381,36 @@ ANRs (a mobile tile is ~270 KB against a 40 MB low-end budget).
 
 **Policy** ([`layers/layer.types.ts`](../src/draw/layers/layer.types.ts)):
 
-| | Solo | Any room |
-| --- | --- | --- |
-| Layer set | document state: persisted in `json.layers`, undoable | 4 fixed layers with constant ids, derived locally by every peer |
-| Add / delete / rename / reorder | yes | no |
-| Visibility / lock | local view state — never synced, never undoable | same |
-| Move objects between layers | yes | yes, carried by the existing `objectStyleChanged` → `ObjectStyleChanged` sync event |
+| | Solo | Private room | Public lobby |
+| --- | --- | --- | --- |
+| Layer set | document state: persisted in `json.layers`, undoable | same, and **replicated** | 4 fixed layers with constant ids, derived locally by every peer |
+| Add / delete / rename / reorder | yes | yes, as `LayerOp`s | no |
+| Visibility / lock | local view state — never synced, never undoable | same | same |
+| Move objects between layers | yes | yes | yes |
+
+Object→layer moves ride the existing `objectStyleChanged` → `ObjectStyleChanged`
+sync event in every mode.
+
+**Replication needs no conflict resolver, because the ops cannot conflict.**
+Every `LayerOp` is idempotent and carries an **absolute fractional order key**
+instead of an index — the same trick `ExplicitZIndex` uses for objects. An
+index-based reorder means something different depending on what else has been
+replayed, so two peers restructuring at once diverge; an absolute key states
+where the layer now sits, so a replayed backlog and a live stream converge on
+the same stack. `rename`/`reorder` are last-writer-wins on `(at, by)`, `remove`
+leaves a tombstone so a late op cannot resurrect a layer, and `remove` never
+touches objects — their originator deletes them through the normal object-
+removal sync, so a double-delete is impossible.
+
+Public lobbies stay fixed on purpose: strangers must not be able to restructure
+a board out from under each other, and a constant set needs no replication.
+
+`DrawSyncingEvent.LayerDocument` is a **v4** action. Shipping any new action type
+is only safe because `minimum_online_version` blocks room entry
+([`drawSyncing.socket.ts`](../src/service/api/socket/drawSyncing.socket.ts)) — a
+v3 client looks the handler up in a map with no fallback and would throw,
+killing the rest of its action queue. Bump the server-side minimum before
+enabling it. (This build guards unknown types on receipt; deployed ones do not.)
 
 Nothing about layers is ever sent, replayed or reconciled: a room's set is a
 constant, so there is no layer document to conflict over, and an old peer

@@ -37,7 +37,7 @@
     v-if="mounted"
     :is-open="isOpen"
     title="Layers"
-    :subtitle="policy === 'fixed' ? 'Shared room · fixed layers' : undefined"
+    :subtitle="subtitle"
     @close="isOpen = false"
     @present="refreshCounts"
   >
@@ -57,9 +57,9 @@
           @click="setActive(layer.id)"
         >
           <p class="font-bold truncate leading-tight">{{ layer.name }}</p>
-          <p class="text-xs opacity-60 leading-tight">
+          <p class="text-xs leading-tight">
             {{ counts[layer.id] ?? 0 }} object{{ counts[layer.id] === 1 ? '' : 's' }}
-            <span v-if="layer.id === activeId"> · drawing here</span>
+            <span v-if="layer.id === activeId" class="text-secondary"> · drawing here</span>
           </p>
         </button>
 
@@ -138,7 +138,7 @@
           </ion-button>
         </div>
         <p v-else class="text-xs text-center opacity-60">
-          Everyone in the room shares the same layers, so they can't be added or removed.
+          Public lobbies share one fixed set of layers, so they can't be added or removed.
         </p>
       </div>
     </template>
@@ -175,6 +175,7 @@ const {
 	canEditStructure,
 	canAddLayer,
 	canDeleteLayer,
+	shared,
 } = storeToRefs(layers);
 
 const isOpen = ref(false);
@@ -208,6 +209,10 @@ const hiddenCount = computed(
 const activeLayerName = computed(
 	() => layerList.value.find((l) => l.id === activeId.value)?.name ?? "layer",
 );
+const subtitle = computed(() => {
+	if (policy.value === "fixed") return "Public lobby · fixed layers";
+	return shared.value ? "Shared with the room" : undefined;
+});
 const layerCountLabel = computed(
 	() =>
 		`${layerList.value.length} layer${layerList.value.length === 1 ? "" : "s"}`,

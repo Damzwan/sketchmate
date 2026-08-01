@@ -12,7 +12,7 @@
          in dvh so it tracks the real viewport on web too. -->
     <div
       v-if="showRelationshipBanner && partner"
-      class="bg-background px-3 pt-2 pb-1 w-full min-h-0 overflow-y-auto max-h-[40dvh] hide-scrollbar"
+      class="chat-widget-chrome px-3 pt-2 pb-1 w-full min-h-0 overflow-y-auto max-h-[40dvh] hide-scrollbar"
     >
       <!-- All the relationship mutations moved into useRelationshipActions, so
            the banner runs them itself instead of emitting six events for this
@@ -33,7 +33,7 @@
          instead of replacing it (the two padding utilities would have fought). -->
     <!-- shrink-0 lives HERE now, not on the root: the input bar is the one part
          of this footer that must never be compressed or clipped away. -->
-    <div class="px-2 pt-1.5 chat-footer-pad bg-background shrink-0">
+    <div class="px-2 pt-1.5 chat-footer-pad chat-widget-chrome shrink-0">
       <div class="flex items-center gap-0.5">
 
         <ion-button
@@ -263,6 +263,10 @@ const handleSend = () => {
 <style scoped>
 .chat-footer-pad {
   padding-bottom: calc(var(--ion-safe-area-bottom, 0px) + 0.375rem);
+}
+.chat-widget-chrome {
+  background: var(--chat-widget-scrim, var(--ion-color-background));
+  border-color: var(--chat-widget-border, rgba(0,0,0,0.08));
 }
 
 /*

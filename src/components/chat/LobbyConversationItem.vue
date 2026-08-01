@@ -18,14 +18,14 @@
 
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-1.5 min-w-0">
-        <span class="text-[14px] leading-none font-black truncate tracking-tight text-cyan-800">
+        <span class="text-[15px] leading-none font-black truncate tracking-tight text-cyan-800">
           Lobby chat
         </span>
-        <span class="ml-auto shrink-0 text-[8px] font-black uppercase tracking-wider text-cyan-600/70 whitespace-nowrap">
+        <span class="ml-auto shrink-0 text-[10px] font-black uppercase tracking-wider text-cyan-600/70 whitespace-nowrap">
           {{ memberCount }} here
         </span>
       </div>
-      <p class="text-[12px] truncate cabin-sketch-regular tracking-wide leading-none mt-1.5 text-cyan-800/70">
+      <p class="text-[13px] truncate cabin-sketch-regular tracking-wide leading-none mt-1.5 text-cyan-800/70">
         {{ lastMessage || 'Jump in and say hi' }}
       </p>
     </div>

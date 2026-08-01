@@ -14,32 +14,48 @@
     <Transition name="sheet" appear>
       <div
         v-show="isVisible && isExpanded"
-        class="sheet-wrapper fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top,0px)] z-[9999] flex flex-col bg-background overflow-hidden overscroll-none rounded-t-[2.5rem] shadow-2xl"
+        class="sheet-wrapper fixed inset-x-0 bottom-0 top-[env(safe-area-inset-top,0px)] z-[9999] flex flex-col overflow-hidden overscroll-none rounded-t-[2.5rem] shadow-2xl"
         :class="{
           'is-dragging': isDragging,
           'is-active': isExpanded,
         }"
         :style="{
+          ...chatWidgetSurfaceStyle,
           paddingBottom: keyboardInset + 'px',
           ...(sheetOffset > 0 ? { transform: `translate3d(0, ${sheetOffset}px, 0)` } : {})
         }"
       >
+        <div v-if="contentMounted && !customizationOpen" class="absolute inset-0 z-0 pointer-events-none">
+          <ProfileWorld
+            :world-id="chatCustomization.worldId"
+            :accent="chatTheme.accentColor"
+            :font="chatFontFamily"
+            contained
+            radius-class="rounded-t-[2.5rem]"
+          />
+          <ProfileEffect
+            :effect-id="chatCustomization.effectId"
+            contained
+            radius-class="rounded-t-[2.5rem]"
+          />
+        </div>
         <div
-          class="w-full flex justify-center pt-3 pb-3 bg-background shrink-0 touch-none cursor-grab active:cursor-grabbing"
+          class="relative z-10 w-full flex justify-center pt-3 pb-3 shrink-0 touch-none cursor-grab active:cursor-grabbing chat-widget-chrome"
           @pointerdown="onDragStart"
           @pointermove.prevent="onDragMove"
           @pointerup="onDragEnd"
           @pointercancel="onDragEnd"
         >
-          <div class="w-12 h-1.5 bg-black/10 rounded-full pointer-events-none"></div>
+          <div class="w-12 h-1.5 rounded-full pointer-events-none" :style="{ background: chatPalette.controlBorder }"></div>
         </div>
 
         <!-- Frequent closes keep the hot subtree alive briefly. Long-idle panels
              release avatars, images and message component effects. -->
-        <template v-if="contentMounted">
+        <div v-if="contentMounted" class="relative z-10 flex flex-col flex-1 min-h-0">
           <ChatTabsHeader />
 
           <ChatToolbar
+            :widget-customization="chatCustomization"
             @inspect-profile="(_: any ,info: any) => openUserActions(info)"
             @open-report="openUserActions"
           />
@@ -52,6 +68,7 @@
           >
             <ChatOverview
               v-if="activeTab === 'overview'"
+              :font-effect-class="chatFontEffectClass"
               @join-session="joinSession"
             />
 
@@ -82,7 +99,7 @@
             @sent="onMessageSent"
             @open-invite-popover="openLobbyInvitePopover"
           />
-        </template>
+        </div>
       </div>
     </Transition>
   </Teleport>
@@ -102,6 +119,11 @@
     :partner="activePartner"
     :current-user="authStore.user"
     :current-user-id="authStore.user?._id"
+  />
+
+  <ChatWidgetCustomizationModal
+    v-if="customizationLoaded"
+    v-model:open="customizationOpen"
   />
 
 </template>
@@ -131,6 +153,16 @@ import ChatToolbar from "./ChatToolbar.vue";
 import ChatInputFooter from "./ChatInputFooter.vue";
 import LobbyInvitePopover from "./LobbyInvitePopover.vue";
 import RelationshipInfoModal from "./RelationshipInfoModal.vue";
+import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
+import {
+	hydrateChatCustomization,
+	resolveFontEffectClass,
+	resolveFontFamily,
+	resolveReadableCustomizationPalette,
+	resolveTheme,
+	resolveWorld,
+} from "@/config/profile_options.config";
 
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -153,6 +185,9 @@ const ChatOverview = defineAsyncComponent(() => import("./ChatOverview.vue"));
 const ChatMessageFlow = defineAsyncComponent(
 	() => import("./ChatMessageFlow.vue"),
 );
+const ChatWidgetCustomizationModal = defineAsyncComponent(
+	() => import("./ChatWidgetCustomizationModal.vue"),
+);
 
 const authStore = useAuthStore();
 const chatWidget = useChatWidgetStore();
@@ -161,6 +196,7 @@ const {
 	isExpanded,
 	activeTab,
 	relationshipInfoOpen,
+	customizationOpen,
 } = storeToRefs(chatWidget);
 const { messagesByChat } = storeToRefs(useChatStore());
 const { lobbyChatMessages } = storeToRefs(useDrawSyncer());
@@ -175,6 +211,31 @@ const chatStore = useChatStore();
 const friendStore = useFriendStore();
 const router = useIonRouter();
 
+const chatCustomization = computed(() =>
+	hydrateChatCustomization((authStore.user as any)?.chat_customization),
+);
+const chatTheme = computed(() => resolveTheme(chatCustomization.value.themeId));
+const chatWorld = computed(() => resolveWorld(chatCustomization.value.worldId));
+const chatPalette = computed(() =>
+	resolveReadableCustomizationPalette(chatTheme.value, chatWorld.value),
+);
+const chatFontFamily = computed(() => resolveFontFamily(chatCustomization.value.fontId));
+const chatFontEffectClass = computed(() =>
+	resolveFontEffectClass(chatCustomization.value.fontEffectId),
+);
+const chatWidgetSurfaceStyle = computed(() => ({
+	background: chatTheme.value.cardBg,
+	borderColor: chatTheme.value.cardBorderColor,
+	fontFamily: chatFontFamily.value,
+	"--chat-widget-name": chatPalette.value.name,
+	"--chat-widget-desc": chatPalette.value.desc,
+	"--chat-widget-utility": chatPalette.value.utility,
+	"--chat-widget-scrim": chatPalette.value.scrim,
+	"--chat-widget-border": chatPalette.value.controlBorder,
+	"--chat-widget-control-bg": chatPalette.value.controlBg,
+	"--chat-widget-accent": chatTheme.value.accentColor,
+}));
+
 const isFetchingHistory = ref(false);
 const { scrollToBottom, captureScrollState, restoreScrollState } =
 	useScrollAnchor(messageContainer);
@@ -182,6 +243,13 @@ const { scrollToBottom, captureScrollState, restoreScrollState } =
 const isAtBottom = ref(true);
 const showNewMessageBadge = ref(false);
 const contentMounted = ref(isExpanded.value);
+// `defineAsyncComponent` alone still starts loading when Vue first renders the
+// component. Gate the render as well so chat customization stays off the chat
+// opening path until the palette is actually requested.
+const customizationLoaded = ref(customizationOpen.value);
+watch(customizationOpen, (open) => {
+	if (open) customizationLoaded.value = true;
+});
 const lowEnd =
 	typeof document !== "undefined" &&
 	document.documentElement.classList.contains("low-end");
@@ -501,6 +569,10 @@ onBeforeUnmount(() => {
 }
 .sheet-wrapper.is-dragging {
   transition: none;
+}
+.chat-widget-chrome {
+  background: var(--chat-widget-scrim, var(--ion-color-background));
+  border-color: var(--chat-widget-border, rgba(0,0,0,0.08));
 }
 .sheet-enter-active,
 .sheet-leave-active {

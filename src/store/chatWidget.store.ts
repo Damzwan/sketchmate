@@ -22,6 +22,8 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
   // and only genuine decisions get a card.
   const relationshipInfoOpen = ref(false)
   const openRelationshipInfo = () => (relationshipInfoOpen.value = true)
+  const customizationOpen = ref(false)
+  const openCustomization = () => (customizationOpen.value = true)
 
   const showWidget = () => (isVisible.value = true)
   const hideWidget = () => {
@@ -93,7 +95,7 @@ export const useChatWidgetStore = defineStore('chatWidget', () => {
 
   return {
     isVisible, isExpanded, activeTab, activeChatHeads, bouncingBubbles, showLobbyPreview,
-    relationshipInfoOpen, openRelationshipInfo,
+    relationshipInfoOpen, openRelationshipInfo, customizationOpen, openCustomization,
     showWidget, hideWidget, openPanel, closePanel, togglePanel,
     openOverview, openLobby, openPrivateChat, openChatWithUser, addChatHead, removeChatHead,
     triggerNewMessageAlert

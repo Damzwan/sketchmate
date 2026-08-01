@@ -509,6 +509,7 @@ export const FREE_ITEMS = new Set<string>([
 	"theme.classic",
 	"decoration.none",
 	"effect.none",
+	"world.none",
 	"font.sketch",
 	"font_effect.",
 	// Default brushes

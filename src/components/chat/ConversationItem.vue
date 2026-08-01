@@ -74,7 +74,7 @@
       <!-- Row 1 — name · status chip · time -->
       <div class="flex items-center gap-1.5 min-w-0">
         <span
-          class="text-[14px] leading-none font-black truncate tracking-tight"
+          class="text-[15px] leading-none font-black truncate tracking-tight"
           :class="[nameClass, showTheme ? fontEffectClass : '', themeTextOnDark ? 'on-world' : '']"
           :style="showTheme ? { color: themedNameColor, fontFamily: resolvedFontFamily } : {}"
         >
@@ -91,7 +91,7 @@
         </span>
 
         <span
-          class="ml-auto shrink-0 text-[10px] leading-none font-black uppercase tracking-wide whitespace-nowrap mt-0.5"
+          class="ml-auto shrink-0 text-[11px] leading-none font-black uppercase tracking-wide whitespace-nowrap mt-0.5"
           :style="timestampStyle"
         >
           {{ rel.kind === 'live_invite' ? 'NOW' : formattedTime }}
@@ -101,7 +101,7 @@
       <!-- Row 2 — status line · unread -->
       <div class="flex items-center gap-1.5 mt-1.5">
         <p
-          class="flex-1 min-w-0 text-[12px] truncate cabin-sketch-regular tracking-wide leading-none"
+          class="flex-1 min-w-0 text-[13px] truncate cabin-sketch-regular tracking-wide leading-none"
           :class="[statusClass, themeTextOnDark ? 'on-world' : '']"
           :style="showTheme && !isTyping ? { color: themedDescColor } : {}"
         >

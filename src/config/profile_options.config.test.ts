@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
+	hydrateChatCustomization,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveWorld,
 } from "./profile_options.config";
 
 describe("customized surface contrast", () => {
+	it("keeps chat customization independent with safe defaults", () => {
+		const chat = hydrateChatCustomization({ themeId: "noir", worldId: "space" });
+
+		expect(chat.themeId).toBe("noir");
+		expect(chat.worldId).toBe("space");
+		expect(chat.fontId).toBe("sketch");
+		expect(chat.effectId).toBe("none");
+		expect(chat).not.toHaveProperty("decorationId");
+	});
+
 	it("keeps theme text dark on Classic while making Space utilities white", () => {
 		const theme = resolveTheme("classic");
 		const environment = resolveReadableCustomizationPalette(

@@ -232,6 +232,7 @@ export interface User {
 	emblems: string[];
 	saved: Saved[];
 	customization: UserCustomization;
+	chat_customization?: ChatCustomization;
 
 	// System / Auth
 	subscriptions: NotificationSubscription[];
@@ -275,6 +276,11 @@ export interface UserCustomization {
 	backgroundSketchPath?: string;
 	backgroundSketchViewBox?: string;
 }
+
+export type ChatCustomization = Pick<
+	UserCustomization,
+	"themeId" | "fontId" | "fontEffectId" | "effectId" | "worldId"
+>;
 
 export interface UserStats {
 	posts: number;
@@ -640,6 +646,7 @@ export interface UpdateProfilePayload {
 	name?: string;
 	description?: string;
 	customization?: UserCustomization;
+	chat_customization?: ChatCustomization;
 	subscription_tier?: string;
 }
 

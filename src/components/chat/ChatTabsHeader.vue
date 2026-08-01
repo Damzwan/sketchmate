@@ -5,7 +5,7 @@
        active chip aren't clipped by the horizontal scroller, and 6px covers
        both. Down to ~72px, all of it given back to the message list. -->
   <div
-    class="flex items-center gap-1 px-3 pt-2.5 pb-1.5 bg-background rounded-t-[2.5rem] shrink-0"
+    class="flex items-center gap-1 px-3 pt-2.5 pb-1.5 shrink-0 chat-widget-chrome"
   >
     <div class="flex-1 flex items-center gap-2.5 overflow-x-auto hide-scrollbar overflow-visible py-1.5 pl-1">
     <div
@@ -13,9 +13,15 @@
       class="relative shrink-0 w-11 h-11 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 cursor-pointer"
       :class="
         activeTab === 'overview'
-          ? 'bg-secondary text-white shadow-md scale-105'
-          : 'bg-secondary/10 text-secondary hover:bg-secondary/15'
+          ? 'text-white shadow-md scale-105'
+          : 'hover:brightness-95'
       "
+      :style="activeTab === 'overview'
+        ? { background: 'var(--chat-widget-accent, var(--ion-color-secondary))' }
+        : {
+            background: 'var(--chat-widget-control-bg, rgba(255,255,255,.42))',
+            color: 'var(--chat-widget-name, var(--ion-color-secondary))',
+          }"
     >
       <ion-icon :icon="chatbubblesOutline" class="text-lg" />
       <div
@@ -106,11 +112,21 @@
     </div>
 
     <ion-button
+      @click="chatWidget.openCustomization()"
+      aria-label="Customize chat"
+      fill="clear"
+      class="shrink-0 m-0 active:scale-90 transition-transform"
+      :style="{ '--color': 'var(--chat-widget-utility, #18181b)' }"
+    >
+      <ion-icon :icon="svg(mdiPaletteOutline)" slot="icon-only" class="text-xl" />
+    </ion-button>
+
+    <ion-button
       @click="chatWidget.closePanel()"
       aria-label="Close chat"
       fill="clear"
-      color="dark"
       class="shrink-0 m-0 active:scale-90 transition-transform"
+      :style="{ '--color': 'var(--chat-widget-utility, #18181b)' }"
     >
       <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-2xl" />
     </ion-button>
@@ -122,7 +138,7 @@ import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { chatbubblesOutline } from "ionicons/icons";
-import { mdiEarth, mdiClose } from "@mdi/js";
+import { mdiEarth, mdiClose, mdiPaletteOutline } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
@@ -217,5 +233,9 @@ const getUnreadCount = (headId: string) => {
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+.chat-widget-chrome {
+	background: var(--chat-widget-scrim, var(--ion-color-background));
+	border-color: var(--chat-widget-border, rgba(0,0,0,0.08));
 }
 </style>

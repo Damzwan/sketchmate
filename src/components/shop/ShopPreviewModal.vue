@@ -19,7 +19,14 @@
       <!-- Shop = the dedicated "show it off" surface: wide panes so the look
            reads big and clear, with the neighbour still peeking (tap or swipe
            to it). Taller box + higher zoom than the compact in-app pickers. -->
+      <ChatWidgetStylePager
+        v-if="equipTarget === 'chat'"
+        :customization="previewCustomization"
+        :user="user"
+        class="mx-1"
+      />
       <PreviewSurfacePager
+        v-else
         :user="user"
         :customization="previewCustomization"
         :active="isOpen && !!sku"
@@ -66,7 +73,7 @@
           size="large"
           @click="$emit('equip', equipPatch)"
         >
-          {{ isBundle ? 'Equip this look' : 'Equip' }}
+          {{ equipTarget === 'chat' ? 'Equip to Chat' : (isBundle ? 'Equip this look' : 'Equip') }}
         </ion-button>
         <ion-button v-else expand="block" fill="outline" shape="round" size="large" disabled>
           In your collection
@@ -89,6 +96,7 @@ import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
 import { SHOWCASE_PREVIEW } from "@/config/preview.config";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
+import ChatWidgetStylePager from "@/components/chat/ChatWidgetStylePager.vue";
 
 const props = defineProps<{
 	isOpen: boolean;
@@ -96,6 +104,7 @@ const props = defineProps<{
 	owned: boolean;
 	user?: any;
 	userImg?: string;
+	equipTarget?: "profile" | "chat";
 }>();
 defineEmits(["close", "purchase", "equip"]);
 
@@ -122,7 +131,11 @@ const GRANT_FIELD: Partial<Record<ItemCategory, keyof Customization>> = {
 // "your profile, with this item applied". Works for a single item (one grant)
 // and a bundle (many) alike.
 const previewCustomization = computed<Partial<Customization>>(() => {
-	const c: Partial<Customization> = { ...(props.user?.customization ?? {}) };
+	const c: Partial<Customization> = {
+		...(props.equipTarget === "chat"
+			? props.user?.chat_customization
+			: props.user?.customization) ?? {},
+	};
 	for (const grant of props.sku?.grants ?? []) {
 		const [cat, ...rest] = grant.split(".");
 		const field = GRANT_FIELD[cat as ItemCategory];
@@ -146,5 +159,16 @@ const equipPatch = computed<Partial<Customization>>(() => {
 
 // Brushes (and other tool-only grants) have no profile field, so there's
 // nothing to "equip" from here — fall back to the plain collection label.
-const canEquip = computed(() => Object.keys(equipPatch.value).length > 0);
+const CHAT_FIELDS = new Set([
+	"themeId",
+	"fontId",
+	"fontEffectId",
+	"effectId",
+	"worldId",
+]);
+const canEquip = computed(() =>
+	Object.keys(equipPatch.value).some(
+		(key) => props.equipTarget !== "chat" || CHAT_FIELDS.has(key),
+	),
+);
 </script>

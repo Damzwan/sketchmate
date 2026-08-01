@@ -580,6 +580,14 @@ export interface Customization {
 	backgroundSketchViewBox?: string;
 }
 
+/** Personal chrome for the owner's ChatWidget. Kept separate from the public
+ * profile look: buying an item grants it once, but equipping it here does not
+ * change how other people see the user's profile. */
+export type ChatCustomization = Pick<
+	Customization,
+	"themeId" | "fontId" | "fontEffectId" | "effectId" | "worldId"
+>;
+
 export const hydrateCustomization = (
 	raw?: Partial<Customization> | null,
 ): Customization => ({
@@ -594,6 +602,16 @@ export const hydrateCustomization = (
 	signatureViewBox: raw?.signatureViewBox,
 	backgroundSketchPath: raw?.backgroundSketchPath ?? "",
 	backgroundSketchViewBox: raw?.backgroundSketchViewBox ?? "",
+});
+
+export const hydrateChatCustomization = (
+	raw?: Partial<ChatCustomization> | null,
+): ChatCustomization => ({
+	themeId: raw?.themeId || DEFAULT_THEME_ID,
+	fontId: raw?.fontId || DEFAULT_FONT_ID,
+	fontEffectId: raw?.fontEffectId || "",
+	effectId: raw?.effectId || DEFAULT_EFFECT_ID,
+	worldId: raw?.worldId || DEFAULT_WORLD_ID,
 });
 
 export const resolveTitle = (id?: string): string => {

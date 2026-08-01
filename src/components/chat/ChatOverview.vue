@@ -31,7 +31,7 @@
       />
 
       <div v-if="onlineMates.length > 0" class="pt-0.5">
-        <div class="px-1 mb-1.5 text-[9px] font-black text-black/70 uppercase tracking-widest">Online Now</div>
+        <div class="px-1 mb-1.5 text-[10px] font-black uppercase tracking-widest" :style="{ color: 'var(--chat-widget-desc, rgba(0,0,0,.7))' }">Online Now</div>
         <div class="flex overflow-x-auto hide-scrollbar gap-3.5 px-1 mb-3 overflow-visible">
           <div
             v-for="friend in onlineMates"
@@ -48,7 +48,7 @@
               />
               <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white z-20 shadow-sm"></div>
             </div>
-            <span class="text-[9px] font-black text-black/80 truncate w-full text-center uppercase tracking-tight mt-1">
+            <span class="text-[10px] font-black truncate w-full text-center uppercase tracking-tight mt-1" :style="{ color: 'var(--chat-widget-name, #18181b)' }">
               {{ friend.name.split(' ')[0] }}
             </span>
           </div>
@@ -57,7 +57,11 @@
 
       <div class="px-1 mb-2 flex items-center justify-between gap-2">
         <div class="flex items-baseline gap-2 min-w-0">
-          <span class="text-xl font-normal cabin-sketch-regular text-black tracking-tight shrink-0">
+          <span
+            class="text-xl font-normal tracking-tight shrink-0"
+            :class="props.fontEffectClass"
+            :style="{ color: props.fontEffectClass ? undefined : 'var(--chat-widget-name, #18181b)' }"
+          >
             Conversations
           </span>
 
@@ -68,7 +72,7 @@
           <button
             v-if="chatStore.totalUnreadCount > 0"
             type="button"
-            class="shrink-0 text-[9px] font-black uppercase tracking-widest text-secondary underline decoration-secondary/30 underline-offset-4 active:opacity-50 transition cursor-pointer disabled:opacity-40"
+            class="shrink-0 text-[10px] font-black uppercase tracking-widest text-secondary underline decoration-secondary/30 underline-offset-4 active:opacity-50 transition cursor-pointer disabled:opacity-40"
             :disabled="markingAllRead"
             @click="readAll"
           >
@@ -158,7 +162,7 @@
         </div>
 
         <div v-if="(fauxInvitations.length > 0 || actionableChats.length > 0) && regularChats.length > 0" class="pt-2 pb-0.5 pl-1">
-          <div class="text-[9px] font-black text-black uppercase tracking-widest">Active Chats</div>
+          <div class="text-[10px] font-black uppercase tracking-widest" :style="{ color: 'var(--chat-widget-name, #18181b)' }">Active Chats</div>
         </div>
 
         <ConversationItem
@@ -211,6 +215,7 @@ import { masterAnimation } from "@/helper/animation.helper";
 import { useIonRouter } from "@ionic/vue";
 import { compareConversationActivity } from "@/helper/chat.helper";
 
+const props = defineProps<{ fontEffectClass?: string }>();
 defineEmits(["join-session"]);
 
 const chatWidget = useChatWidgetStore();

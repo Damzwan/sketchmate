@@ -189,6 +189,7 @@
         :owned="previewSku ? isItemOwned(previewSku.id) : false"
         :user="user"
         :user-img="user?.img"
+        :equip-target="shopEquipTarget"
         @close="previewSku = null"
         @purchase="previewSku && purchaseItem(previewSku)"
         @equip="equipSku"
@@ -289,7 +290,7 @@ const inventoryStore = useInventoryStore();
 const userStore = useAuthStore();
 const { toast } = useToast();
 
-const { isShopOpen, shopScrollTarget } = storeToRefs(menuStore);
+const { isShopOpen, shopScrollTarget, shopEquipTarget } = storeToRefs(menuStore);
 const user = computed(() => userStore.user);
 const isLoading = ref(true);
 // Shop content waits on ALL of: RC prices, subscription status resolved, and
@@ -419,6 +420,7 @@ const isItemOwned = (skuId: string): boolean => {
 const closeShop = () => {
 	isShopOpen.value = false;
 	highlightedId.value = null;
+	shopEquipTarget.value = "profile";
 };
 
 const loadOfferings = async () => {
@@ -472,15 +474,28 @@ const equipSku = async (patch: Record<string, any>) => {
 		previewSku.value = null;
 		return;
 	}
-	const prev = { ...(u.customization ?? {}) };
-	const next = { ...prev, ...patch };
-	u.customization = next as any;
+	const target = shopEquipTarget.value;
+	const supportedPatch = target === "chat"
+		? Object.fromEntries(
+				Object.entries(patch).filter(([key]) =>
+					["themeId", "fontId", "fontEffectId", "effectId", "worldId"].includes(key),
+				),
+			)
+		: patch;
+	if (Object.keys(supportedPatch).length === 0) {
+		toast("That item is for profiles or drawing tools.");
+		return;
+	}
+	const field = target === "chat" ? "chat_customization" : "customization";
+	const prev = { ...((u as any)[field] ?? {}) };
+	const next = { ...prev, ...supportedPatch };
+	(u as any)[field] = next;
 	previewSku.value = null;
 	try {
-		await updateProfile({ customization: next });
-		toast("Equipped! ✨", { color: "success" });
+		await updateProfile({ [field]: next } as any);
+		toast(target === "chat" ? "Equipped to Chat! ✨" : "Equipped! ✨", { color: "success" });
 	} catch (e) {
-		u.customization = prev as any;
+		(u as any)[field] = prev;
 		toast("Couldn't equip that. Please try again.", { color: "danger" });
 	}
 };

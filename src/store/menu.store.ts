@@ -37,6 +37,7 @@ export const useMenuStore = defineStore("menu", () => {
 	const isWhatsNewOpen = ref(false);
 
 	const shopScrollTarget = ref<string | null>(null);
+	const shopEquipTarget = ref<"profile" | "chat">("profile");
 
 	const stickersEmblemsSavedSelectedTab =
 		ref<StickersEmblemsSavedTabOptions>("sticker");
@@ -97,8 +98,12 @@ export const useMenuStore = defineStore("menu", () => {
 		menuMapping[menu].value = false;
 	}
 
-	function openShop(targetItemId?: string) {
+	function openShop(
+		targetItemId?: string,
+		equipTarget: "profile" | "chat" = "profile",
+	) {
 		shopScrollTarget.value = targetItemId ?? null;
+		shopEquipTarget.value = equipTarget;
 		isShopOpen.value = true;
 	}
 
@@ -139,6 +144,7 @@ export const useMenuStore = defineStore("menu", () => {
 		isOnlineUpgradeMenuOpen,
 		isPaywallOpen,
 		shopScrollTarget,
+		shopEquipTarget,
 		openShop,
 		isWhatsNewOpen,
 	};

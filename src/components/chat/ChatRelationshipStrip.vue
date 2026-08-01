@@ -101,18 +101,13 @@ const props = defineProps<{
 	chat: any;
 	currentUserId?: string;
 	/**
-	 * Is the surface under this row dark? That is the partner's THEME
-	 * (`theme.isDark`) — Noir and Midnight — not their world. The world in the
-	 * toolbar is a masked vignette on one side and never sits under this text.
-	 *
-	 * Resolved by ChatToolbar and passed down rather than re-derived here: it
-	 * already hydrates the partner's customization and theme, and a second copy
-	 * of that chain is a second thing to keep in sync.
+	 * Whether the combined widget theme/world surface is dark. Resolved once by
+	 * ChatToolbar so Space and other dark worlds follow the same contrast rule.
 	 */
 	dark?: boolean;
-	/** Whether the theme itself uses light text; independent of a dark world. */
+	/** Whether the resolved surface palette uses light text. */
 	themeDark?: boolean;
-	/** theme.nameColor / descColor — already light on a dark theme. */
+	/** Resolved name/description colors for the combined surface. */
 	nameColor?: string;
 	descColor?: string;
 }>();

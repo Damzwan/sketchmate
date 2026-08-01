@@ -7,7 +7,9 @@
   >
     <template #sub-header>
       <div class="px-3">
+        <ChatWidgetStylePager v-if="previewMode === 'chat'" :customization="previewCustomization" :user="user" />
         <PreviewSurfacePager
+          v-else
           :user="user"
           :customization="previewCustomization"
           :active="isOpen"
@@ -88,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiCheck, mdiLock } from "@mdi/js";
 import { svg } from "@/helper/general.helper";
@@ -104,12 +106,16 @@ import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
 import { usePickerPreview } from "@/config/preview.config";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 
+const ChatWidgetStylePager = defineAsyncComponent(
+	() => import("@/components/chat/ChatWidgetStylePager.vue"),
+);
 const pickerPreview = usePickerPreview();
 
 const props = defineProps<{
 	isOpen: boolean;
 	user: any;
 	customization: Partial<Customization>;
+	previewMode?: "profile" | "chat";
 }>();
 
 const emit = defineEmits(["close", "select"]);

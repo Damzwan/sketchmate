@@ -1,29 +1,9 @@
 <template>
   <div
     v-if="previewMode || activeTab !== 'overview'"
-    class="relative flex flex-col bg-background shrink-0 border-b border-primary/10 overflow-hidden"
+    class="relative flex flex-col shrink-0 border-b overflow-hidden chat-widget-chrome"
     :style="toolbarStyle"
   >
-    <!-- Partner's profile surface, in miniature: their theme cardBg (painted on
-         the root above) with their effect + world layered over it, exactly like
-         their ProfileCard. Private live chats only (not lobby/expired). -->
-    <div v-if="showThemeBackdrop" class="absolute inset-0 z-0 pointer-events-none">
-      <ProfileWorld
-        :world-id="partnerCustomization.worldId"
-        :accent="theme.accentColor"
-        :font="resolvedFontFamily"
-        static-mode
-        mini
-        contained
-        radius-class="rounded-none"
-      />
-      <ProfileEffect
-        :effect-id="partnerCustomization.effectId"
-        radius-class="rounded-none"
-        contained
-      />
-    </div>
-
     <div class="relative z-10 flex items-center justify-between px-4 pt-2 pb-2">
       <div
         class="flex items-center gap-3 min-w-0 cursor-pointer group active:scale-[0.99] transition-all"
@@ -133,9 +113,9 @@
       :chat="activeConversation"
       :current-user-id="user?._id"
       :dark="stripOnDarkSurface"
-      :theme-dark="theme.isDark"
-      :name-color="theme.nameColor"
-      :desc-color="theme.descColor"
+      :theme-dark="surfaceColors.isDark"
+      :name-color="surfaceColors.name"
+      :desc-color="surfaceColors.desc"
       @open-info="chatWidget.openRelationshipInfo()"
     />
   </div>
@@ -154,9 +134,8 @@ import {
 import { svg } from "@/helper/general.helper";
 
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import {
+	hydrateChatCustomization,
 	hydrateCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
@@ -164,6 +143,7 @@ import {
 	resolveTheme,
 	resolveTitle,
 	resolveWorld,
+	type ChatCustomization,
 } from "@/config/profile_options.config";
 
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -181,6 +161,7 @@ import ChatRelationshipStrip from "./ChatRelationshipStrip.vue";
 // stores, so it can be shown outside a live chat as a "here's how it looks".
 const props = defineProps<{
 	preview?: { partner: any };
+	widgetCustomization?: Partial<ChatCustomization>;
 }>();
 const previewMode = computed(() => !!props.preview);
 
@@ -224,16 +205,21 @@ const partner = computed(() => {
 const partnerCustomization = computed(() =>
 	hydrateCustomization(partner.value?.customization),
 );
-const theme = computed(() => resolveTheme(partnerCustomization.value.themeId));
+const toolbarCustomization = computed(() =>
+	hydrateChatCustomization(
+		props.widgetCustomization || partnerCustomization.value,
+	),
+);
+const theme = computed(() => resolveTheme(toolbarCustomization.value.themeId));
 const resolvedFontFamily = computed(() =>
-	resolveFontFamily(partnerCustomization.value.fontId),
+	resolveFontFamily(toolbarCustomization.value.fontId),
 );
 const fontEffectClass = computed(() =>
-	resolveFontEffectClass(partnerCustomization.value.fontEffectId),
+	resolveFontEffectClass(toolbarCustomization.value.fontEffectId),
 );
 
 const activeWorld = computed(() =>
-	resolveWorld(partnerCustomization.value.worldId),
+	resolveWorld(toolbarCustomization.value.worldId),
 );
 const surfaceColors = computed(() =>
 	resolveReadableCustomizationPalette(theme.value, activeWorld.value),
@@ -252,35 +238,21 @@ const onlineStatusColor = computed(() =>
 	showThemeBackdrop.value && surfaceColors.value.isDark ? "#4ade80" : "#15803d",
 );
 
-// The strip's text tone follows the THEME's surface, not the world.
-//
-// It used to key on the world being dark (Cosmic Drift), which got both cases
-// wrong. The world here is `mini` + `contained` — a masked vignette pinned to
-// one side — so the strip's text never sits on it; it sits on the theme's
-// cardBg, exactly like the name row above it. That meant a dark world on a
-// light theme flipped the strip to near-white text over a cream surface, while
-// a dark theme (Noir, Midnight) with no world kept black text over near-black.
-//
-// `theme.isDark` is the actual question, and it's now declared on the theme.
+// The strip shares the widget's full surface. A dark world (not only a dark
+// theme) therefore needs the same light palette as the title and utilities.
 const stripOnDarkSurface = computed(
 	() => showThemeBackdrop.value && surfaceColors.value.isDark,
 );
 
-// Only dress the header with the partner's world/effect for a real, live
-// private chat — never the lobby or an archived (expired) thread.
 const showThemeBackdrop = computed(
-	() =>
-		previewMode.value ||
-		(activeTab.value !== "lobby" && !!partner.value && !isExpired.value),
+	() => previewMode.value || !!props.widgetCustomization,
 );
 
-// Paint the partner's theme surface (cardBg — often a gradient) + themed border
-// onto the header root; the effect/world layer sits over it.
 const toolbarStyle = computed(() =>
 	showThemeBackdrop.value
 		? {
-				background: theme.value.cardBg,
-				borderColor: theme.value.cardBorderColor,
+				background: surfaceColors.value.scrim,
+				borderColor: surfaceColors.value.controlBorder,
 			}
 		: {},
 );
@@ -330,3 +302,10 @@ const openRoomMenu = () => {
 	menuStore.openMenu(Menu.DrawRoomMenu);
 };
 </script>
+
+<style scoped>
+.chat-widget-chrome {
+	background: var(--chat-widget-scrim, var(--ion-color-background));
+	border-color: var(--chat-widget-border, rgba(0,0,0,0.08));
+}
+</style>

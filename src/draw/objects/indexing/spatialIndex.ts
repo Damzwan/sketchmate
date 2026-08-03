@@ -1,7 +1,6 @@
 import type { FabricObject } from "fabric";
 import type { WorldRect } from "../../rendering/committedLayer";
 import {
-	fabricObjectToEntry,
 	InfiniteQuadtreeManager,
 	type QuadtreeEntry,
 } from "../../utils/QuadTree";
@@ -139,8 +138,18 @@ export function createDrawingSpatialIndex(
 		let sig =
 			`${a.left},${a.top},${a.scaleX},${a.scaleY},${a.angle},` +
 			`${a.skewX},${a.skewY},${a.flipX},${a.flipY},` +
-			`${a.width},${a.height},${a.strokeWidth},` +
-			`${a.text !== undefined ? a.text.length : 0}`;
+			`${a.width},${a.height},${a.strokeWidth}`;
+
+		// Text re-lays-out on any of these, and width/height only catch it AFTER
+		// fabric's initDimensions has run. Signing the layout inputs themselves
+		// means an edit is detected even when the re-measure is deferred or was
+		// skipped — the difference between "stale cache heals" and "the old
+		// glyphs stay baked into the tiles as artifacts".
+		if (a.text !== undefined) {
+			sig +=
+				`,${a.text.length},${a.fontFamily},${a.fontSize},${a.fontWeight},` +
+				`${a.fontStyle},${a.textAlign},${a.lineHeight},${a.charSpacing}`;
+		}
 
 		if (g) {
 			sig += `|g:${g.left},${g.top},${g.scaleX},${g.scaleY},${g.angle}`;
@@ -242,7 +251,18 @@ export function createDrawingSpatialIndex(
 		// one, making the renderer rasterize one logical object multiple times.
 		const previous = entryMap.get(obj.id);
 		if (previous) quadtree.remove(previous);
-		const e = fabricObjectToEntry(obj);
+		// Seed the bounds CACHE, not just the entry. `staleBounds` is the only
+		// record of an object's pre-edit footprint on the style-change path, and it
+		// answers null when the cache was never built — so a font/text edit on an
+		// object that had never been measured invalidated only its NEW (possibly
+		// smaller) rect and left the old glyphs baked in the tiles.
+		const b = cachedBounds(obj);
+		const e: QuadtreeEntry<FabricObject> = {
+			id: obj.id,
+			// Copy: updateQuadTree mutates entry bounds in place, and the cache entry
+			// must stay an accurate record of what was last measured.
+			bounds: { x: b.x, y: b.y, w: b.w, h: b.h },
+		};
 		entryMap.set(obj.id, e);
 		quadtree.insert(e);
 	}
@@ -364,8 +384,13 @@ export function createDrawingSpatialIndex(
 		};
 		try {
 			if (transform?.original) o.set(transform.original);
-			if (isTextChanged && oldText.length > (o as any).text.length)
-				o.set({ text: oldText });
+			// ALWAYS restore the old string, never "only when it was longer".
+			// Character count is not width: "wwww" → "iiiiiiii" grows in length and
+			// SHRINKS in pixels, and a wrapped edit can lose width while gaining
+			// height. Measuring the current text in those cases reported a footprint
+			// smaller than the one actually painted, so the vacated pixels were never
+			// invalidated and the old glyphs survived in the tiles.
+			if (isTextChanged) o.set({ text: oldText });
 			o.setCoords();
 			const b = cachedBounds(o);
 			const snapshot = { ...b }; // copy — cache entry will be overwritten on restore
@@ -376,6 +401,11 @@ export function createDrawingSpatialIndex(
 			o.set(cur);
 			o.setCoords();
 			return null;
+		} finally {
+			// One edit, one rewind. Left in place it makes EVERY later modify of this
+			// object (a drag, a resize) rewind to text it no longer has, producing a
+			// bogus "old" rect and re-laying-out the glyphs twice per gesture.
+			if (isTextChanged) delete (o as any)._textBeforeEdit;
 		}
 	}
 

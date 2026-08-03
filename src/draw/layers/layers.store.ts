@@ -23,11 +23,13 @@ import {
 	syncLayerFlags,
 } from "@/draw/layers/layerRegistry";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useCanvasController } from "@/draw/canvas/canvasController";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { HistoryEvent } from "@/draw/history/history.types";
 import { useAuthStore } from "@/store/auth.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
+import { serializeOnce, toJSON } from "@/draw/objects/objectSerialization";
 
 /**
  * Layer document + view state.
@@ -556,6 +558,116 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		return useDrawObjectManager().objectIdsOnLayer(id).length;
 	}
 
+	/** A flatten is only worth its cost — and only worth its loss of editability
+	 *  — once a layer holds real object count. */
+	const MIN_FLATTEN_OBJECTS = 2;
+
+	/**
+	 * Solo and PRIVATE rooms. Not public lobbies: those run the `fixed` policy,
+	 * where the layer set is a constant everyone derives locally and the drawing
+	 * is a free-for-all — replacing a shared layer with one user's raster there
+	 * destroys other people's work with no way to attribute or refuse it.
+	 * `canEditStructure` is already exactly that distinction.
+	 */
+	const canFlattenLayer = (id: string): boolean =>
+		canEditStructure.value && objectCount(id) >= MIN_FLATTEN_OBJECTS;
+
+	/**
+	 * Replace every object on a layer with ONE image of them.
+	 *
+	 * This is the escape hatch for a layer that has become expensive: N objects
+	 * each carry index entries, z-order, serialization on every save and a bake
+	 * pass; one image carries one of each. Finished background/lineart layers pay
+	 * that cost forever for content the user is done editing.
+	 *
+	 * In a private room this replicates as the two primitives the peers already
+	 * understand — a bulk delete and an add — while recording ONE local history
+	 * entry (`skipHistory` keeps the re-dispatch from writing a second one). Undo
+	 * and redo then replicate for free: `handleUndo` ships the whole
+	 * HistoryAction, and every peer runs the same LayerFlattened handler against
+	 * the payload it carries.
+	 *
+	 * Undoable as a single entry; both the originals and the raster are recorded
+	 * so undo restores the exact strokes and redo restores the exact image.
+	 */
+	async function flattenLayer(id: string): Promise<boolean> {
+		if (!canFlattenLayer(id)) return false;
+		const canvas = getCanvas();
+		if (!canvas) return false;
+
+		const manager = useDrawObjectManager();
+		const objects = manager
+			.objectIdsOnLayer(id)
+			.map((objectId) => manager.getObjectById(objectId))
+			.filter(Boolean) as FabricObject[];
+		if (objects.length < MIN_FLATTEN_OBJECTS) return false;
+
+		// Same contract as delete: record each object's stack position so undo puts
+		// it back where it was rather than on top of everything.
+		const stack = canvas.getObjects();
+		let lowestIndex = stack.length;
+		for (const obj of objects) {
+			const index = stack.indexOf(obj);
+			(obj as any).insertedIndex = index;
+			if (index >= 0) lowestIndex = Math.min(lowestIndex, index);
+		}
+
+		// Serialize BEFORE the raster: these are the undo payload, and they must be
+		// captured while the objects are still on the canvas.
+		const objectsJSON = toJSON(objects);
+
+		// Loaded on demand: the rasterizer pulls in the whole export pipeline, which
+		// nothing else in this store needs and which most sessions never flatten.
+		const {
+			FLATTENED_LAYER_MAX_DIMENSION,
+			FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION,
+			rasterizeObjectsToImage,
+		} = await import("@/draw/objects/savedObjectFlatten");
+		// A room raster crosses the wire on the add AND again inside every undo /
+		// redo of it, so it takes the room budget rather than the solo one.
+		const image = await rasterizeObjectsToImage(objects, {
+			userId: useAuthStore().user?._id,
+			maxDimension: shared.value
+				? FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION
+				: FLATTENED_LAYER_MAX_DIMENSION,
+		});
+		if (!image) return false;
+		(image as any).layerId = id;
+		(image as any).insertedIndex = lowestIndex;
+
+		// Events suppressed: a bare `canvas.add` fires `object:added`, which history
+		// records as its own entry and the sync engine emits on its own terms. This
+		// operation owns both — one history entry below, and one explicit
+		// re-dispatch for the peers. The object manager's handlers are PERMANENT and
+		// keep running, so the index, bakery mirror and invalidation are unaffected.
+		await useDrawEventManager().actionWithoutEvents(async () => {
+			manager.beginBatch();
+			try {
+				canvas.remove(...objects);
+				canvas.add(image);
+			} finally {
+				manager.endBatch();
+			}
+		});
+
+		useDrawHistoryManager().addToUndoStackWithResetRedo({
+			type: HistoryEvent.LayerFlattened,
+			params: { layerId: id, objectsJSON, imageJSON: serializeOnce(image) },
+		} as any);
+
+		if (shared.value) {
+			canvas.fire("objectsDeleted" as any, {
+				target: objects,
+				skipHistory: true,
+			} as any);
+			canvas.fire("objects:added" as any, {
+				target: [image],
+				skipHistory: true,
+			} as any);
+		}
+		return true;
+	}
+
 	function reset() {
 		layers.value = defaultSoloLayers();
 		activeId.value = BASE_LAYER_ID;
@@ -588,6 +700,8 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		applyRemoteOp,
 		shared,
 		objectCount,
+		canFlattenLayer,
+		flattenLayer,
 		reset,
 		// history-facing appliers (no recording, no redo-stack reset)
 		applyAddLayer,

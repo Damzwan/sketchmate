@@ -1,9 +1,11 @@
 <template>
-  <!-- The real widget is narrow relative to a modern phone and consumes most
-       of its height. The pager owns the 280px max-width; this taller viewport
-       preserves that proportion instead of presenting the style as a card. -->
+  <!-- Renders at ONE fixed design size (see DESIGN_W/DESIGN_H in the pager) and
+       is scaled to fit by its host. Laying it out at the real widget's
+       proportions and then scaling keeps every type size, radius and gap
+       faithful at any pane height — re-flowing it into a short box instead
+       would misrepresent the style the user is picking. -->
   <div
-    class="relative h-[520px] rounded-[2rem] border overflow-hidden shadow-lg pointer-events-none"
+    class="relative w-full h-full rounded-[2rem] border overflow-hidden shadow-lg pointer-events-none"
     :style="surfaceStyle"
   >
     <div class="relative z-10 h-full flex flex-col" :style="{ fontFamily }">
@@ -30,7 +32,8 @@
         </div>
       </div>
 
-      <div v-show="mode === 'overview'" class="flex-1 min-h-0 px-2.5 pt-3 overflow-hidden">
+      <div v-show="mode === 'overview'" class="relative flex-1 min-h-0 px-2.5 pt-3 overflow-hidden">
+
           <div v-if="onlinePeople.length" class="mb-3">
             <p class="px-1 mb-1.5 text-[10px] font-black uppercase tracking-widest" :style="{ color: palette.desc }">
               Online now
@@ -48,8 +51,14 @@
             </div>
           </div>
 
+          <!-- Mirror ChatOverview: the stacked-shadow/float effects paint outside
+               their layout box, and this pane clips. Reserve the offset room. -->
           <div class="flex items-center justify-between px-1 mb-2">
-            <p class="text-xl font-black" :class="fontEffectClass" :style="headingStyle">Conversations</p>
+            <p
+              class="text-xl font-black leading-none"
+              :class="[fontEffectClass, fontEffectClass ? 'pr-3.5 pb-2' : '']"
+              :style="headingStyle"
+            >Conversations</p>
             <span class="text-[10px] font-black uppercase" :style="{ color: palette.desc }">Recent</span>
           </div>
 
@@ -104,15 +113,6 @@
 
       <!-- Keep both pager pages stable while switching previews. -->
       <div v-show="mode === 'conversation'" class="relative flex-1 min-h-0 flex flex-col">
-        <img
-          v-if="style.backgroundImageUrl"
-          :src="style.backgroundImageUrl"
-          alt=""
-          aria-hidden="true"
-          decoding="async"
-          class="absolute inset-0 w-full h-full object-contain pointer-events-none"
-          :style="{ opacity: style.backgroundImageOpacity }"
-        />
         <div v-if="previewPartner" class="relative z-10 flex items-center gap-2.5 px-3 py-2 border-y shrink-0" :style="chromeBorderStyle">
           <UserAvatar
             :user="previewPartner"
@@ -131,11 +131,27 @@
           <ion-icon :icon="svg(mdiDotsHorizontal)" class="text-lg" :style="{ color: palette.utility }" />
         </div>
 
-        <div v-if="previewPartner" class="relative z-10 flex-1 min-h-0 flex flex-col justify-end gap-2 px-2.5 py-3 overflow-hidden">
+        <!-- The sketch lives ONLY in the message region — same span ChatWidget
+             paints it over (below the toolbar, above the composer) and only
+             outside the overview tab. Painting it across the whole panel here
+             would promise a look the real widget never renders. -->
+        <div
+          v-if="previewPartner"
+          class="relative z-10 flex-1 min-h-0 flex flex-col justify-end gap-2 px-2.5 py-3 overflow-hidden"
+        >
+          <img
+            v-if="style.backgroundImageUrl"
+            :src="style.backgroundImageUrl"
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            class="absolute inset-0 w-full h-full object-contain pointer-events-none"
+            :style="{ opacity: style.backgroundImageOpacity }"
+          />
           <div
             v-for="message in previewMessages"
             :key="message.id"
-            class="flex items-end gap-1.5"
+            class="relative z-10 flex items-end gap-1.5"
             :class="message.isMe ? 'justify-end' : 'justify-start'"
           >
             <UserAvatar
@@ -158,7 +174,7 @@
             </div>
           </div>
 
-          <div v-if="!previewMessages.length" class="self-center text-center px-4">
+          <div v-if="!previewMessages.length" class="relative z-10 self-center text-center px-4">
             <p class="text-base font-black" :style="{ color: palette.name }">Say hi to {{ firstName(previewPartner.name) }}!</p>
             <p class="text-xs font-sans mt-1" :style="{ color: palette.desc }">This conversation has no messages yet.</p>
           </div>

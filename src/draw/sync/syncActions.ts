@@ -219,6 +219,12 @@ async function syncTextStyleChanged(
 		textObject.set(key, value);
 	});
 
+	// Re-measure before the renderer reads the bounds — same reason as the local
+	// path in textActions: a stale width/height leaves the previous glyphs baked
+	// into the tiles.
+	textObject.initDimensions?.();
+	textObject.setCoords();
+
 	// @ts-ignore
 	c.fire("textStyleChanged", { target: textObject });
 }

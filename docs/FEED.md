@@ -54,11 +54,20 @@ slot has to earn its place, and a stale ranking is immediately obvious.
 
 Two-stage fill:
 
-1. **Connections** — mates first, then follows, newest first. Capped at
-   `CONNECTION_SHARE` (60%) of the page when `feed_level === 'open'`.
-   The cap exists because a few chatty mates would otherwise fill all 20 slots
-   and global discovery would never run. When `feed_level === 'mates'` there is
-   no discovery stage, so the cap is lifted to the full page.
+1. **Connections** — mates first, then follows, newest first, and bounded three
+   ways:
+   - Capped at `CONNECTION_SHARE` (40%) of the page when `feed_level === 'open'`.
+     The cap exists because a few chatty mates would otherwise fill all 20 slots
+     and global discovery would never run. When `feed_level === 'mates'` there
+     is no discovery stage, so the cap is lifted to the full page.
+   - Limited to the last `CONNECTION_WINDOW_DAYS` (10). "Newest first" is not
+     the same as "recent": a mate who last posted in spring would otherwise
+     hold a slot indefinitely.
+   - Seen-aware — see [Repeat suppression](#repeat-suppression).
+
+   A `feed_level === 'mates'` viewer whose window comes up short is topped up
+   with older / already-seen connection posts, since no discovery stage exists
+   to fill the gap for them.
 2. **Discovery** — the remaining slots, scored (below), suppressed (below), and
    jittered.
 
@@ -138,6 +147,18 @@ have seen it. The `post_views` collection is the per-viewer ledger:
   discovery.
 - `seen_count === 1` → **demoted**, still eligible but its score is multiplied
   by `SEEN_DEMOTE_FACTOR` (0.25).
+
+The connection tier in For You applies the same ledger, adapted to a stage that
+has no score to multiply:
+
+- Suppressed posts are excluded **in the query**, not trimmed afterwards, so a
+  mate whose only recent post is burned yields the slot to discovery instead of
+  returning it and re-showing it.
+- Demoted posts are stably reordered below unseen ones, preserving
+  mate-then-follow, newest-first order within each group. The stage over-fetches
+  `slots × 2` so there is unseen material to swap upward.
+
+The Mates and Latest tabs stay unsuppressed and unwindowed by design.
 
 So in practice a user sees a given post at most twice. Seeing something twice is
 normal; seeing it on every app open was the bug.
@@ -260,7 +281,8 @@ All in `post.router.ts` unless noted.
 | `SEEN_DEMOTE_FACTOR` | 0.25 | Score multiplier for a post seen once |
 | `SEEN_LOOKBACK` | 400 | Ledger rows consulted per request |
 | `DISCOVERY_WINDOW_DAYS` | 30 | Age limit for the scored pool |
-| `CONNECTION_SHARE` | 0.6 | Max share of For You given to mates/follows |
+| `CONNECTION_SHARE` | 0.4 | Max share of For You given to mates/follows |
+| `CONNECTION_WINDOW_DAYS` | 10 | Age limit for the For You connection tier |
 | `DISCOVERY_OVERFETCH` | 4 | Candidate multiplier before jitter |
 | `POST_VIEW_TTL_DAYS` | 30 | Ledger expiry (`post.model.ts`) |
 
@@ -272,11 +294,6 @@ most of the difference.
 
 ## Known limitations
 
-- **Connection posts are not suppressed.** Only discovery consults the seen
-  ledger. If your mates post rarely, For You will keep showing their latest
-  drawing at the top. Arguably correct — but if it becomes a complaint, the fix
-  is to apply the demote factor (not the hard suppression) to the connection
-  tier too.
 - **Suppression is impression-based, so it depends on the client reporting.**
   A client that never calls `/post/views` gets no suppression at all. It fails
   open, which is the right direction, but it is not authoritative.

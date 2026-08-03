@@ -1,5 +1,26 @@
 export const INSERTED_IMAGE_MAX_DIMENSION = 256;
 
+/**
+ * Ceiling for an image the user did not insert but the app PRODUCED as a
+ * replacement for vector content — a flattened layer, a rasterized oversized
+ * import (see savedObjectFlatten).
+ *
+ * 256 is the right bound for a photo dropped onto the canvas: there can be
+ * dozens, and they are decoration. It is completely wrong for a raster that IS
+ * the drawing. Reloading a draft ran every enlivened image through the 256 bound
+ * and crushed a 2048px flattened layer to a thumbnail — the "flatten, save a
+ * draft, come back and it's incredibly blurry" report. These carry
+ * `flattened: true` from the moment they are created, so the restore path can
+ * tell them apart from anything the user pasted in.
+ */
+export const FLATTENED_IMAGE_MAX_DIMENSION = 2048;
+
+export function imageMaxDimensionFor(object: any): number {
+	return object?.flattened
+		? FLATTENED_IMAGE_MAX_DIMENSION
+		: INSERTED_IMAGE_MAX_DIMENSION;
+}
+
 export function containImageDimensions(
 	width: number,
 	height: number,
@@ -141,13 +162,18 @@ export async function downsampleFabricImagesInObject(root: any): Promise<boolean
 		const sourceHeight = Number(
 			(element as HTMLImageElement)?.naturalHeight || element?.height || 0,
 		);
-		if (
-			Math.max(sourceWidth, sourceHeight) <= INSERTED_IMAGE_MAX_DIMENSION
-		) {
+		// Per-object bound: a produced raster (flattened layer / rasterized import)
+		// is the artwork itself and keeps its resolution; an inserted photo does not.
+		const maxDimension = imageMaxDimensionFor(object);
+		if (Math.max(sourceWidth, sourceHeight) <= maxDimension) {
 			continue;
 		}
 
-		const target = containImageDimensions(sourceWidth, sourceHeight);
+		const target = containImageDimensions(
+			sourceWidth,
+			sourceHeight,
+			maxDimension,
+		);
 		const canvas = document.createElement("canvas");
 		canvas.width = target.width;
 		canvas.height = target.height;

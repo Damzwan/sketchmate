@@ -308,6 +308,10 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			on: "objects:added",
 			handler: (e: any) => {
 				const targets = e.target as FabricObject[];
+				// The caller already recorded ONE entry covering this change and is
+				// firing the event purely to reach the sync engine (layer flatten in a
+				// room). A second entry here would make one action take two undos.
+				if (e.skipHistory) return;
 				if (e.deferHistorySnapshot) {
 					const action: any = {
 						type: HistoryEvent.ObjectsAdded,
@@ -329,6 +333,8 @@ export const useDrawHistoryManager = defineStore("history", () => {
 			on: "objectsDeleted",
 			handler: (e: any) => {
 				const targets = e.target as FabricObject[];
+				// See `skipHistory` on objects:added — sync-only re-dispatch.
+				if (e.skipHistory) return;
 				// Deferred for the same reason as the erase payload: deleting a
 				// 300-object selection ran 300 synchronous `toJSON()` calls in the
 				// delete frame, and the result is only ever read if the user

@@ -7,7 +7,12 @@
       @select-friend="startChatWithFriend"
     />
 
-    <div v-else class="animate-fade-in pb-20 overflow-y-auto hide-scrollbar overflow-visible">
+    <!-- pt-3: `overflow-y-auto` makes this a scroll container, so it clips at its
+         padding box on BOTH axes. The animated text effects lift their glyphs out
+         of the layout box (jawbreaker floats to translateY(-8px) and rotates), so
+         the "Conversations" heading was shaved off along the top edge whenever it
+         sat near it. The padding is the headroom that transform needs. -->
+    <div v-else class="animate-fade-in pt-3 pb-20 overflow-y-auto hide-scrollbar overflow-visible">
 
       <!-- GOOGLE PLAY POLICY: Child Safety Reminder -->
       <div
@@ -57,9 +62,13 @@
 
       <div class="px-1 mb-2 flex items-center justify-between gap-2">
         <div class="flex items-baseline gap-2 min-w-0">
+          <!-- The stacked-shadow effects (jawbreaker/puffy/velvet) paint up to
+               ~12px right and ~16px below the glyphs. Reserve that in the span's
+               OWN box so the offset layers aren't clipped by the scroll container
+               or overlapped by the first conversation row. -->
           <span
-            class="text-xl font-normal tracking-tight shrink-0"
-            :class="props.fontEffectClass"
+            class="text-xl font-normal tracking-tight shrink-0 leading-none"
+            :class="[props.fontEffectClass, props.fontEffectClass ? 'pr-3.5 pb-2' : '']"
             :style="{ color: props.fontEffectClass ? undefined : 'var(--chat-widget-name, #18181b)' }"
           >
             Conversations

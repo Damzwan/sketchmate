@@ -91,10 +91,6 @@ import {
 	deleteLegacySavedDrawing,
 } from "@/service/api/savedDrawing.api";
 import * as Sentry from "@sentry/capacitor";
-import {
-	savedObjectLimitMessage,
-	validateSavedDrawingBytes,
-} from "@/draw/objects/savedObjectLimits";
 
 // Stores
 const { user } = storeToRefs(useAuthStore());
@@ -230,10 +226,8 @@ async function loadToCanvas(saved: any) {
 
 				const drawingText = await response.text();
 				span.setAttribute("draw.json_bytes", drawingText.length);
-				const byteFailure = validateSavedDrawingBytes(drawingText.length);
-				if (byteFailure) {
-					throw new Error(savedObjectLimitMessage(byteFailure));
-				}
+				// Oversized drawings are flattened into a single static image by the
+				// import action rather than rejected — see savedObjectFlatten.
 				Sentry.addBreadcrumb({
 					category: "draw.import",
 					message: "parse:start",

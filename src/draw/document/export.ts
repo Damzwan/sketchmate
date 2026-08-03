@@ -4,6 +4,7 @@ import { compressImg } from "@/helper/general.helper";
 import { CANVAS_SIZE } from "@/draw/config/canvas.config";
 import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
 import { compareDocumentOrder } from "@/draw/layers/layerRegistry";
+import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
 
 /**
  * Canvas order is NOT paint order once layers exist — the renderer ranks by
@@ -221,9 +222,20 @@ async function exportWithMainThreadChunking(
 	canvas.skipOffscreen = false;
 
 	// ── 2. Render pass ───────────────────────────────────────────────────────
-	// Each obj.render() is synchronous and uncancellable — but we yield BEFORE
+	// Each render is synchronous and uncancellable — but we yield BEFORE
 	// each one if budget/input demands it. So worst case: one heavy object runs,
 	// then we yield, then input is processed, then we continue.
+	//
+	// Rasterizing goes through the ENGINE's isolated renderer, not a bare
+	// `obj.render(ctx)`. Clearing `objectCaching` here does not stop fabric
+	// caching an ERASED object (`needsItsOwnCache()` is true whenever there is a
+	// clipPath), and such a cache — mask included — rasterizes at
+	// objectScale × canvas.getZoom(), i.e. whatever the viewport happened to sit
+	// at, never this export's scale. Zoomed out to see the whole board and then
+	// exported at 2000px, every erased edge was a low-res mask blown up several
+	// times: soft white bands through the strokes that the live tiles never show.
+	// `isolatedTileRenderer` reports THIS scale (recursively, clip included), so
+	// the mask rasterizes at export resolution.
 	renderYielder.reset();
 	try {
 		for (let i = 0; i < objects.length; i++) {
@@ -238,19 +250,7 @@ async function exportWithMainThreadChunking(
 				if (signal?.aborted) return null;
 			}
 
-			const obj = objects[i];
-			const wasVisible = obj.visible;
-			const wasObjectCaching = obj.objectCaching;
-			obj.visible = true;
-			obj.objectCaching = false;
-			try {
-				obj.render(ctx);
-			} catch (e) {
-				// eslint-disable-next-line no-console
-				console.warn("[export] obj.render threw, skipping:", e);
-			}
-			obj.objectCaching = wasObjectCaching;
-			obj.visible = wasVisible;
+			isolatedTileRenderer(ctx, objects[i], scale);
 		}
 	} finally {
 		canvas.skipOffscreen = wasSkipOffscreen;
@@ -398,18 +398,9 @@ export async function cropCanvas(
 				await yielder.yield();
 				if (signal?.aborted) return null;
 			}
-			const wasVisible = obj.visible;
-			const wasObjectCaching = obj.objectCaching;
-			obj.visible = true;
-			obj.objectCaching = false;
-			try {
-				obj.render(ctx);
-			} catch (e) {
-				// eslint-disable-next-line no-console
-				console.warn("[cropCanvas] obj.render threw, skipping:", e);
-			}
-			obj.objectCaching = wasObjectCaching;
-			obj.visible = wasVisible;
+			// Same engine renderer as the full export — see the note there on why a
+			// bare obj.render() blurs every erased edge into a white seam.
+			isolatedTileRenderer(ctx, obj, scale);
 		}
 	} finally {
 		ctx.restore();

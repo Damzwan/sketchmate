@@ -29,6 +29,7 @@ export enum HistoryEvent {
 	LayerDeleted = "layerDeleted",
 	LayerRenamed = "layerRenamed",
 	LayerReordered = "layerReordered",
+	LayerFlattened = "layerFlattened",
 }
 
 export type HistoryParamsMap = {
@@ -123,6 +124,14 @@ export type HistoryParamsMap = {
 		layerId: string;
 		previousOrder: number;
 		order: number;
+	};
+	/** Both payloads are recorded EAGERLY, unlike LayerDeleted: the flatten
+	 *  already had to serialize the originals, and the raster has to be kept
+	 *  verbatim or a redo would re-encode to a subtly different image. */
+	[HistoryEvent.LayerFlattened]: {
+		layerId: string;
+		objectsJSON: any[];
+		imageJSON: any;
 	};
 };
 

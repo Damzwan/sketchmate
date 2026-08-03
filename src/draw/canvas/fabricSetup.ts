@@ -41,6 +41,12 @@ const customProperties = [
 	// server change. Objects from before layers existed simply lack it and fold
 	// into the base layer.
 	"layerId",
+	// Marks an image the APP produced to replace vector content (a flattened
+	// layer, a rasterized oversized import) rather than one the user inserted.
+	// Must round-trip: the draft/document restore path uses it to keep the raster
+	// at full resolution instead of applying the inserted-photo bound
+	// (see imageMaxDimensionFor).
+	"flattened",
 ];
 
 const drawableClasses = [

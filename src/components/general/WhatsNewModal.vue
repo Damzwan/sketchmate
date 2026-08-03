@@ -4,95 +4,90 @@
     @didDismiss="isWhatsNewOpen = false"
     class="sketch-modal"
   >
-    <div class="wn-paper bg-background p-5 pt-6 overflow-y-auto max-h-[85vh] hide-scrollbar relative">
-      <!-- soft warm glow -->
-      <div class="absolute -top-10 -right-10 w-32 h-32 bg-secondary/10 rounded-full blur-3xl pointer-events-none" />
+    <div class="wn-paper bg-background p-4 pt-5 overflow-y-auto max-h-[82vh] hide-scrollbar relative">
+      <!-- Soft warm glow -->
+      <div class="absolute -top-10 -right-10 w-28 h-28 bg-secondary/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div class="relative flex flex-col gap-6">
+      <div class="relative flex flex-col gap-4">
 
         <!-- Close -->
-        <div class="absolute -top-1 -right-1 z-20">
+        <div class="absolute -top-2 -right-2 z-20">
           <ion-button @click="isWhatsNewOpen=false" fill="clear" color="dark" class="m-0">
-            <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-2xl" />
+            <ion-icon :icon="svg(mdiClose)" slot="icon-only" class="text-xl" />
           </ion-button>
         </div>
 
         <!-- Header / Version -->
-        <div class="wn-rise text-center pt-1">
-          <h2 class="relative inline-block text-4xl font-bold cabin-sketch-regular tracking-wide text-secondary leading-none">
+        <div class="wn-rise text-center">
+          <h2 class="relative inline-block text-3xl font-bold cabin-sketch-regular tracking-wide text-secondary leading-none">
             What's New
-            <!-- hand-drawn underline squiggle -->
-            <svg class="wn-squiggle absolute -bottom-3 left-1/2 -translate-x-1/2" width="150" height="12" viewBox="0 0 150 12" fill="none">
+            <!-- Hand-drawn underline squiggle -->
+            <svg class="wn-squiggle absolute -bottom-2.5 left-1/2 -translate-x-1/2" width="120" height="10" viewBox="0 0 150 12" fill="none">
               <path d="M2 7C22 2 42 10 62 6C82 2 102 10 122 6C132 4 142 5 148 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
             </svg>
           </h2>
-          <!-- inked rubber stamp -->
-          <div class="wn-stamp mt-5 mx-auto">
+          <!-- Rubber stamp badge -->
+          <div class="wn-stamp mt-3 mx-auto">
             v{{ appVersion }}
           </div>
         </div>
 
         <!-- Community note — pinned sketchbook note -->
-        <div class="wn-rise wn-note relative bg-tertiary rounded-2xl px-4 py-4 shadow-md mt-1" style="--d: .06s">
+        <div class="wn-rise wn-note relative bg-tertiary rounded-xl p-3.5 shadow-sm" style="--d: .06s">
           <span class="wn-tape" aria-hidden="true"></span>
-          <div class="flex items-center gap-3 mb-2.5">
+          <div class="flex items-center gap-2.5 mb-2">
             <img
               :src="bigbossImage"
               alt="Developer"
-              class="w-11 h-11 rounded-full object-cover shadow-sm shrink-0"
-              style="border: 2.5px solid var(--ion-color-secondary)"
+              class="w-9 h-9 rounded-full object-cover shadow-sm shrink-0"
+              style="border: 2px solid var(--ion-color-secondary)"
             />
             <div class="leading-tight">
-              <p class="text-lg font-black text-secondary cabin-sketch-regular leading-none">
+              <p class="text-base font-black text-secondary cabin-sketch-regular leading-none">
                 SketchMate Big Boss
               </p>
-              <p class="text-[11px] uppercase tracking-widest text-black/80 mt-1">a note to everyone supporting SketchMate</p>
+              <p class="text-[10px] uppercase tracking-wider text-black/70 mt-0.5">a note to everyone supporting SketchMate</p>
             </div>
           </div>
-          <div class="text-[15px] text-black/80 leading-relaxed space-y-2.5">
-            <p>
-              The response to the last update has been incredible. In just two weeks, this community has created <b>1,000+ posts</b> and exchanged more than <b>100,000 messages</b>.
-            </p>
-            <p>
-              Thank you for every drawing, conversation, bug report, and bit of support. This is a quieter update by design: v0.4.4 strengthens the foundation so SketchMate can keep growing reliably. ❤️
-            </p>
-          </div>
+          <p class="text-xs text-black/80 leading-relaxed">
+            Thank you for <b>1,000+ posts</b> and <b>100k+ messages</b>! v0.4.4 strengthens the foundation so SketchMate can keep growing reliably. ❤️
+          </p>
 
-          <!-- Next-release teaser -->
-          <div class="wn-next mt-3">
-            <div class="flex items-center gap-2 mb-1.5">
-              <ion-icon :icon="svg(mdiTrophyOutline)" class="text-xl text-secondary" />
-              <p class="cabin-sketch-regular text-lg font-black text-secondary leading-none">Next up: Drawing competitions</p>
+          <!-- Next-release teaser — torn dashed box -->
+          <div class="wn-next mt-2.5 p-2">
+            <div class="flex items-center gap-1.5 mb-0.5">
+              <ion-icon :icon="svg(mdiTrophyOutline)" class="text-base text-secondary shrink-0" />
+              <p class="cabin-sketch-regular text-sm font-black text-secondary leading-none">Next up: Drawing competitions</p>
             </div>
-            <p class="text-[15px] text-black/80 leading-relaxed">
-              With the canvas steadier, the next update will put the spotlight back on creating together. Get your brushes ready. 🏆
+            <p class="text-xs text-black/80 leading-tight">
+              Get your brushes ready. 🏆
             </p>
           </div>
         </div>
 
         <!-- Changelog Features — sketchbook list with dashed rail -->
-        <div class="wn-list relative pl-1 mt-1">
+        <div class="wn-list relative pl-1">
           <div
             v-for="(f, i) in features"
             :key="f.title"
-            class="wn-rise wn-item flex gap-3 items-center"
-            :style="{ '--d': 0.12 + i * 0.07 + 's' }"
+            class="wn-rise wn-item flex gap-2.5 items-center"
+            :style="{ '--d': 0.12 + i * 0.05 + 's' }"
           >
-            <div class="wn-icon flex-shrink-0 w-11 h-11 flex items-center justify-center">
-              <ion-icon :icon="svg(f.icon)" class="text-xl text-secondary" />
+            <div class="wn-icon flex-shrink-0 w-9 h-9 flex items-center justify-center">
+              <ion-icon :icon="svg(f.icon)" class="text-lg text-secondary" />
             </div>
             <div>
-              <h3 class="font-bold text-xl leading-tight cabin-sketch-regular text-black/90">{{ f.title }}</h3>
-              <p class="text-[15px] text-black/80 mt-0.5 leading-snug">{{ f.text }}</p>
+              <h3 class="font-bold text-base leading-tight cabin-sketch-regular text-black/90">{{ f.title }}</h3>
+              <p class="text-xs text-black/80 mt-0.5 leading-snug">{{ f.text }}</p>
             </div>
           </div>
         </div>
 
         <!-- Actions -->
-        <div class="wn-rise flex flex-col gap-3 mt-2" style="--d: .5s">
+        <div class="wn-rise flex flex-col" style="--d: .3s">
           <ion-button
             expand="block"
-            class="cabin-sketch-regular text-xl tracking-wide m-0"
+            class="cabin-sketch-regular text-lg tracking-wide m-0"
             shape="round"
             color="secondary"
             @click="isWhatsNewOpen = false"
@@ -128,27 +123,27 @@ const features = [
 	{
 		icon: mdiLayersOutline,
 		title: "Layers",
-		text: "Create, rename, reorder, hide, and lock layers to keep even complex collaborative drawings organized.",
+		text: "Create, rename, reorder, hide, and lock layers for complex drawings.",
 	},
 	{
 		icon: mdiChatProcessingOutline,
 		title: "Your Chat, Your Style",
-		text: "Customize your chat widget with themes, fonts, effects, and worlds that match your style.",
+		text: "Customize your chat widget with themes, fonts, effects, and styles.",
 	},
 	{
 		icon: mdiWrenchCheckOutline,
-		title: "A Stronger Drawing Engine",
-		text: "Smoother drawing, lower memory use, faster loading, and a long list of stability improvements and bug fixes.",
+		title: "A Stronger Engine",
+		text: "Smoother drawing, lower memory use, faster loading, and bug fixes.",
 	},
 ];
 </script>
 
 <style scoped>
 ion-modal.sketch-modal {
-  --width: 92%;
-  --max-width: 420px;
+  --width: 90%;
+  --max-width: 390px;
   --height: fit-content;
-  --border-radius: 28px;
+  --border-radius: 24px;
 }
 
 .hide-scrollbar {
@@ -167,41 +162,40 @@ ion-modal.sketch-modal {
 /* ── Inked rubber-stamp version badge ── */
 .wn-stamp {
   display: inline-block;
-  transform: rotate(-4deg);
-  padding: 3px 12px;
-  border: 2px solid rgba(var(--ion-color-secondary-rgb), 0.65);
-  border-radius: 8px;
+  transform: rotate(-3deg);
+  padding: 2px 10px;
+  border: 1.5px solid rgba(var(--ion-color-secondary-rgb), 0.65);
+  border-radius: 6px;
   color: rgba(var(--ion-color-secondary-rgb), 0.85);
   font-family: "Cabin Sketch", sans-serif;
   font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.15em;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  box-shadow: inset 0 0 0 1px rgba(var(--ion-color-secondary-rgb), 0.25);
+  box-shadow: inset 0 0 0 1px rgba(var(--ion-color-secondary-rgb), 0.2);
 }
 
-/* ── Dev note: pinned paper, slightly askew with a strip of tape ── */
+/* ── Dev note: pinned paper ── */
 .wn-note {
-  transform: rotate(-0.6deg);
+  transform: rotate(-0.5deg);
   border: 1.5px solid rgba(var(--ion-color-secondary-rgb), 0.18);
 }
 .wn-tape {
   position: absolute;
-  top: -9px;
+  top: -7px;
   left: 50%;
-  transform: translateX(-50%) rotate(-2.5deg);
-  width: 74px;
-  height: 20px;
+  transform: translateX(-50%) rotate(-2deg);
+  width: 56px;
+  height: 15px;
   background: rgba(var(--ion-color-secondary-rgb), 0.14);
   border: 1px dashed rgba(var(--ion-color-secondary-rgb), 0.3);
   border-radius: 2px;
 }
 
-/* ── Next-release teaser: torn-paper highlight ── */
+/* ── Next-release teaser: torn-paper highlight box ── */
 .wn-next {
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 2px dashed rgba(var(--ion-color-secondary-rgb), 0.45);
+  border-radius: 10px;
+  border: 1.5px dashed rgba(var(--ion-color-secondary-rgb), 0.45);
   background: rgba(var(--ion-color-secondary-rgb), 0.06);
 }
 
@@ -209,47 +203,46 @@ ion-modal.sketch-modal {
 .wn-list {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 10px;
 }
 .wn-list::before {
   content: "";
   position: absolute;
-  left: 22px;
-  top: 8px;
-  bottom: 8px;
+  left: 18px;
+  top: 6px;
+  bottom: 6px;
   border-left: 2px dashed rgba(var(--ion-color-secondary-rgb), 0.22);
 }
 .wn-icon {
-  border: 2px solid rgba(var(--ion-color-secondary-rgb), 0.35);
-  border-radius: 14px 12px 15px 11px; /* wobbly hand-drawn corners */
+  border: 1.5px solid rgba(var(--ion-color-secondary-rgb), 0.35);
+  border-radius: 10px 8px 11px 8px; /* hand-drawn corners */
   background: var(--ion-color-tertiary);
 }
-.wn-item:nth-child(even) .wn-icon { transform: rotate(3deg); }
-.wn-item:nth-child(odd) .wn-icon { transform: rotate(-3deg); }
+.wn-item:nth-child(even) .wn-icon { transform: rotate(2.5deg); }
+.wn-item:nth-child(odd) .wn-icon { transform: rotate(-2.5deg); }
 
 /* ── Entrance: staggered rise-in ── */
 @keyframes wn-rise-kf {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .wn-rise {
   opacity: 0;
-  animation: wn-rise-kf 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: wn-rise-kf 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   animation-delay: var(--d, 0s);
 }
-/* keep the note's tilt after it rises in */
 .wn-note.wn-rise { animation-name: wn-note-rise-kf; }
 @keyframes wn-note-rise-kf {
-  from { opacity: 0; transform: translateY(10px) rotate(-0.6deg); }
-  to   { opacity: 1; transform: translateY(0) rotate(-0.6deg); }
+  from { opacity: 0; transform: translateY(8px) rotate(-0.5deg); }
+  to   { opacity: 1; transform: translateY(0) rotate(-0.5deg); }
 }
 
-/* squiggle draws itself in */
+/* Squiggle animation */
 @keyframes wn-draw { from { stroke-dashoffset: 320; } to { stroke-dashoffset: 0; } }
 .wn-squiggle path {
   stroke-dasharray: 320;
   stroke-dashoffset: 320;
-  animation: wn-draw 0.9s ease-out 0.35s forwards;
+  animation: wn-draw 0.8s ease-out 0.2s forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

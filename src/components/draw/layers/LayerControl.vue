@@ -98,6 +98,14 @@
             aria-label="Move layer down"
             @click="moveDown(layer.id)"
           />
+          <!-- Merge the layer down to a single image. Offered per row because it
+               is a property of THAT layer's weight, not of the active one. -->
+          <ToolButton
+            :icon="svg(mdiImageSyncOutline)"
+            :disabled="flattening || (counts[layer.id] ?? 0) < 2"
+            aria-label="Flatten layer to an image"
+            @click="flatten(layer.id)"
+          />
         </template>
       </div>
     </div>
@@ -169,6 +177,7 @@ import {
 	mdiChevronUp,
 	mdiEyeOffOutline,
 	mdiEyeOutline,
+	mdiImageSyncOutline,
 	mdiLayersTripleOutline,
 	mdiLockOpenVariantOutline,
 	mdiLockOutline,
@@ -298,6 +307,41 @@ async function remove() {
 	useSelect().unSelect();
 	layers.deleteLayer(activeId.value);
 	refreshCounts();
+}
+
+const flattening = ref(false);
+
+/**
+ * Flattening trades editability for weight: N indexed, serialized, baked objects
+ * become one image. Irreversible except through undo, so it asks first and says
+ * so plainly.
+ */
+async function flatten(id: string) {
+	const layer = layerList.value.find((l) => l.id === id);
+	if (!layer || flattening.value) return;
+	const count = counts.value[id] ?? 0;
+	const alert = await alertController.create({
+		header: "Flatten layer",
+		cssClass: "liquid-alert",
+		message: `${layer.name}'s ${count} object${count === 1 ? "" : "s"} become one image. Faster to draw on, but you can no longer edit the individual strokes.${shared.value ? " This changes the layer for everyone in the room." : ""} You can undo this.`,
+		buttons: [
+			{ text: "Cancel", role: "cancel" },
+			{ text: "Flatten", role: "confirm" },
+		],
+	});
+	await alert.present();
+	const { role } = await alert.onDidDismiss();
+	if (role !== "confirm") return;
+
+	// The selection can hold objects the flatten is about to remove.
+	useSelect().unSelect();
+	flattening.value = true;
+	try {
+		await layers.flattenLayer(id);
+	} finally {
+		flattening.value = false;
+		refreshCounts();
+	}
 }
 
 function upgrade() {

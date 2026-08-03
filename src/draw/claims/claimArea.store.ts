@@ -102,11 +102,48 @@ export const useClaimArea = defineStore("claimArea", () => {
 		return null;
 	}
 
+	function areaAtPoint(x: number, y: number): ClaimedArea | null {
+		for (const a of areas.value)
+			if (x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h) return a;
+		return null;
+	}
+
+	/**
+	 * "May I edit something owned by `ownerId` sitting at this point?"
+	 *
+	 * A claimed area is a PRIVATE workspace, which means two rules, not one:
+	 *   • someone else's area — hands off entirely, whoever drew it;
+	 *   • my own area — mine to edit, but only MY objects.
+	 *
+	 * The second rule is the anti-griefing half and used to be missing. Claiming
+	 * only checks for foreign objects at claim time (`isRectClaimable`), and the
+	 * add-guard in fabricSetup only rejects LOCAL strokes entering a foreign area
+	 * — a remote stroke that was already in flight, or that came from a client
+	 * which hadn't yet seen the claim, lands inside the area anyway. Everything
+	 * that arrives that way was freely selectable, movable and erasable by the
+	 * area owner, which is the opposite of what claiming an area is for.
+	 */
+	function canEditAt(x: number, y: number, ownerId?: string): boolean {
+		const area = areaAtPoint(x, y);
+		if (!area) return true;
+		const mine = me();
+		if (String(area.userId) !== mine) return false;
+		return !ownerId || ownerId === mine;
+	}
+
+	function objectOwner(obj: any): string | undefined {
+		return obj?.userId ? String(obj.userId) : undefined;
+	}
+
 	function isObjectProtected(obj: any): boolean {
-		if (foreignAreas.value.length === 0 || !obj) return false;
+		if (areas.value.length === 0 || !obj) return false;
 		try {
 			const b = obj.getBoundingRect(true, true);
-			return !!pointInForeignArea(b.left + b.width / 2, b.top + b.height / 2);
+			return !canEditAt(
+				b.left + b.width / 2,
+				b.top + b.height / 2,
+				objectOwner(obj),
+			);
 		} catch {
 			return false;
 		}
@@ -133,12 +170,11 @@ export const useClaimArea = defineStore("claimArea", () => {
 	 * return true so the caller skips the sync emit — the move never happened.
 	 */
 	function rejectMoveIfProtected(): boolean {
-		if (foreignAreas.value.length === 0) return false;
+		if (areas.value.length === 0) return false;
 		const canvas = useDrawStore().getCanvas();
 		if (!canvas) return false;
 		const active = canvas.getActiveObjects();
 		if (active.length === 0) return false;
-		if (!active.some((o) => objectIntersectsForeignArea(o))) return false;
 
 		// Snapshot the objects + their pre-transform absolute states now, but do the
 		// actual revert one frame later: the transform release (which stamps the
@@ -149,6 +185,19 @@ export const useClaimArea = defineStore("claimArea", () => {
 			o,
 			orig: originals.get((o as any).id),
 		}));
+
+		// Where it ENDED (pushing anything into a foreign area) and where it
+		// STARTED both disqualify a move. The start check is what stops a claimed
+		// area from being emptied by dragging its contents out — targeting already
+		// refuses to hand those objects over, but a multi-object selection assembled
+		// before the claim arrived can still carry one along.
+		const blockedAfter = active.some((o) => objectIntersectsForeignArea(o));
+		const blockedBefore = snapshot.some(({ o, orig }) => {
+			const from = orig as any;
+			if (!from) return false;
+			return !canEditAt(from.left, from.top, objectOwner(o));
+		});
+		if (!blockedAfter && !blockedBefore) return false;
 
 		requestAnimationFrame(() => {
 			const mgr = useDrawObjectManager();

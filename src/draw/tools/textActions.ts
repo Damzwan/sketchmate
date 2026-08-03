@@ -59,27 +59,46 @@ async function addTextHelper(c: Canvas, location: Point) {
 	useMenuStore().openMenu(Menu.TextEditMenu);
 }
 
+/**
+ * Apply a layout-affecting text style and re-measure BEFORE anyone reads the
+ * object's bounds.
+ *
+ * Fabric re-runs `initDimensions()` from `_set` for these properties, but the
+ * renderer's invalidation is only as correct as `width`/`height` are at the
+ * moment `textStyleChanged` is handled: the handler unions the object's OLD
+ * cached footprint with its new one, and a stale measurement there leaves the
+ * vacated pixels baked into the tiles — the leftover ghost of the previous font.
+ * Measuring explicitly makes that independent of fabric's internals.
+ */
+function applyTextStyle(
+	textObj: IText,
+	prevStyle: Record<string, unknown>,
+	newStyle: Record<string, unknown>,
+) {
+	const { getCanvas } = useDrawStore();
+	const c = getCanvas();
+	textObj.set(newStyle as any);
+	textObj.initDimensions?.();
+	textObj.setCoords();
+	c.fire("textStyleChanged", { target: [textObj], prevStyle, style: newStyle });
+}
+
 export async function changeFont(
 	params: DrawActionParams[DrawAction.ChangeFont],
 ) {
 	const font = params.font;
 	const { selectedObjectsRef } = useSelect();
 
-	const { getCanvas } = useDrawStore();
-	const c = getCanvas();
-
 	// TODO should no longer be necessary, we preload now
 	const textObj = selectedObjectsRef[0] as IText;
 	// const fontFaceObserver = new FontFaceObserver(font)
 	// await fontFaceObserver.load()
 
-	const prevStyle = {
-		fontFamily: textObj.fontFamily,
-	};
-	const newStyle = { fontFamily: font };
-	textObj.set(newStyle);
-
-	c.fire("textStyleChanged", { target: [textObj], prevStyle, style: newStyle });
+	applyTextStyle(
+		textObj,
+		{ fontFamily: textObj.fontFamily },
+		{ fontFamily: font },
+	);
 }
 
 export async function changeFontWeight(
@@ -88,17 +107,13 @@ export async function changeFontWeight(
 	const { selectedObjectsRef } = useSelect();
 	const weight = params.weight;
 
-	const { getCanvas } = useDrawStore();
-	const c = getCanvas();
-
 	const textObj = selectedObjectsRef[0] as IText;
 
-	const prevStyle = {
-		fontWeight: textObj.fontWeight,
-	};
-	const newStyle = { fontWeight: weight };
-	textObj.set(newStyle);
-	c.fire("textStyleChanged", { target: [textObj], prevStyle, style: newStyle });
+	applyTextStyle(
+		textObj,
+		{ fontWeight: textObj.fontWeight },
+		{ fontWeight: weight },
+	);
 }
 
 export async function changeTextAlign(
@@ -107,18 +122,13 @@ export async function changeTextAlign(
 	const { selectedObjectsRef } = useSelect();
 	const align = params.align;
 
-	const { getCanvas } = useDrawStore();
-	const c = getCanvas();
-
 	const textObj = selectedObjectsRef[0] as IText;
 
-	const prevStyle = {
-		textAlign: textObj.textAlign,
-	};
-	const newStyle = { textAlign: align };
-
-	textObj.set(newStyle);
-	c.fire("textStyleChanged", { target: [textObj], prevStyle, style: newStyle });
+	applyTextStyle(
+		textObj,
+		{ textAlign: textObj.textAlign },
+		{ textAlign: align },
+	);
 }
 
 export async function changeFontStyle(
@@ -127,17 +137,13 @@ export async function changeFontStyle(
 	const { selectedObjectsRef } = useSelect();
 	const fontStyle = params.fontStyle;
 
-	const { getCanvas } = useDrawStore();
-	const c = getCanvas();
-
 	const textObj = selectedObjectsRef[0] as IText;
-	const prevStyle = {
-		fontStyle: textObj.fontStyle,
-	};
-	const newStyle = { fontStyle: fontStyle };
 
-	textObj.set(newStyle);
-	c.fire("textStyleChanged", { target: [textObj], prevStyle, style: newStyle });
+	applyTextStyle(
+		textObj,
+		{ fontStyle: textObj.fontStyle },
+		{ fontStyle: fontStyle },
+	);
 }
 
 export function exitTextAddingMode() {

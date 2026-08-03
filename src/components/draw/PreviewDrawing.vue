@@ -149,6 +149,11 @@ const initCropper = () => {
       zoomable: true,
       scalable: true,
       background: false,
+      // The rule-of-thirds guides are 1px #eee borders drawn straight across the
+      // image, and the centre indicator a white cross — on a drawing they read
+      // as white seams cutting through the artwork, not as UI.
+      guides: false,
+      center: false,
       responsive: true,
       restore: false, // Prevents it from resetting oddly on window resize
 
@@ -371,7 +376,12 @@ ion-modal {
   outline: 3px solid var(--ion-color-secondary) !important;
 }
 
-/* 2. Hide all the non-corner elements */
+/* 2. Hide all the non-corner elements.
+   .cropper-dashed / .cropper-center belong here too: the `guides: false` and
+   `center: false` options above already drop them, this keeps them gone if an
+   instance is ever built without those options. */
+.cropper-dashed,
+.cropper-center,
 .cropper-line,
 .point-e,
 .point-n,

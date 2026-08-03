@@ -607,6 +607,19 @@ export const hydrateCustomization = (
 	backgroundSketchViewBox: raw?.backgroundSketchViewBox ?? "",
 });
 
+/**
+ * Chat sketch strength bounds. Exported because the SLIDER must offer exactly
+ * this range: it used to run to 0.50 while hydration capped at 0.35, so the last
+ * third of the track moved the label and the stored value but changed nothing on
+ * screen, and any re-hydrate snapped the knob back.
+ *
+ * The ceiling is a readability floor, not a preference — past it the messages
+ * stop being legible over the sketch.
+ */
+export const CHAT_BACKGROUND_OPACITY_MIN = 0.1;
+export const CHAT_BACKGROUND_OPACITY_MAX = 0.8;
+export const CHAT_BACKGROUND_OPACITY_DEFAULT = 0.2;
+
 export const hydrateChatCustomization = (
 	raw?: Partial<ChatCustomization> | null,
 ): ChatCustomization => ({
@@ -615,8 +628,11 @@ export const hydrateChatCustomization = (
 	fontEffectId: raw?.fontEffectId || "",
 	backgroundImageUrl: raw?.backgroundImageUrl || "",
 	backgroundImageOpacity: Math.max(
-		0.06,
-		Math.min(0.35, raw?.backgroundImageOpacity ?? 0.12),
+		CHAT_BACKGROUND_OPACITY_MIN,
+		Math.min(
+			CHAT_BACKGROUND_OPACITY_MAX,
+			raw?.backgroundImageOpacity ?? CHAT_BACKGROUND_OPACITY_DEFAULT,
+		),
 	),
 });
 
@@ -670,12 +686,8 @@ export const resolveReadableCustomizationPalette = (
 		utilityMuted: isDark ? "rgba(255,255,255,0.78)" : "rgba(24,24,27,0.62)",
 		controlForeground: isDark ? "#ffffff" : "#18181b",
 		controlBg: isDark ? "rgba(0,0,0,0.34)" : "rgba(255,255,255,0.42)",
-		controlActiveBg: isDark
-			? "rgba(255,255,255,0.12)"
-			: "rgba(0,0,0,0.06)",
-		controlBorder: isDark
-			? "rgba(255,255,255,0.18)"
-			: "rgba(0,0,0,0.08)",
+		controlActiveBg: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)",
+		controlBorder: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.08)",
 		scrim: isDark ? "rgba(0,0,0,0.34)" : "rgba(255,255,255,0.52)",
 		textShadow: isDark
 			? "0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.35)"

@@ -37,10 +37,12 @@ import {
 import {
 	redoLayerAdded,
 	redoLayerDeleted,
+	redoLayerFlattened,
 	redoLayerRenamed,
 	redoLayerReordered,
 	undoLayerAdded,
 	undoLayerDeleted,
+	undoLayerFlattened,
 	undoLayerRenamed,
 	undoLayerReordered,
 } from "@/draw/history/operations/layerDocumentHistory";
@@ -119,6 +121,7 @@ export const undoActionMapping: {
 	[HistoryEvent.LayerDeleted]: undoLayerDeleted,
 	[HistoryEvent.LayerRenamed]: undoLayerRenamed,
 	[HistoryEvent.LayerReordered]: undoLayerReordered,
+	[HistoryEvent.LayerFlattened]: undoLayerFlattened,
 };
 
 export const redoActionMapping: {
@@ -148,4 +151,5 @@ export const redoActionMapping: {
 	[HistoryEvent.LayerDeleted]: redoLayerDeleted,
 	[HistoryEvent.LayerRenamed]: redoLayerRenamed,
 	[HistoryEvent.LayerReordered]: redoLayerReordered,
+	[HistoryEvent.LayerFlattened]: redoLayerFlattened,
 };

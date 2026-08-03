@@ -29,6 +29,11 @@ import { useShareToastStore } from "@/draw/sharing/shareToast.store";
 import { createYielder } from "@/draw/scheduling/yielder";
 import { fitAndCenterSavedObjects } from "@/draw/objects/savedObjectPlacement";
 import {
+	FLATTENED_SAVED_OBJECT_MAX_DIMENSION,
+	FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION,
+	flattenSavedObjectsToImage,
+} from "@/draw/objects/savedObjectFlatten";
+import {
 	savedObjectLimitMessage,
 	validateSavedDrawingBytes,
 	validateSavedObjectCount,
@@ -567,10 +572,8 @@ export async function addSavedFabricObjectToCanvas(
 			}
 			const jsonText = await response.text();
 			jsonBytes = jsonText.length;
-			const downloadFailure = validateSavedDrawingBytes(jsonBytes);
-			if (downloadFailure) {
-				throw new Error(savedObjectLimitMessage(downloadFailure));
-			}
+			// No size gate here any more — an oversized payload is handled below by
+			// flattening, not by refusing the import.
 			jsonData = JSON.parse(jsonText);
 		}
 
@@ -578,32 +581,48 @@ export async function addSavedFabricObjectToCanvas(
 			? jsonData.objects
 			: [];
 		const { roomId } = useDrawSyncer();
-		const countFailure = validateSavedObjectCount(objectsJSON.length);
-		if (countFailure) {
-			throw new Error(savedObjectLimitMessage(countFailure));
-		}
-		const byteFailure =
-			typeof jsonBytes === "number"
-				? validateSavedDrawingBytes(jsonBytes, { inRoom: !!roomId })
-				: null;
-		if (byteFailure) {
-			throw new Error(
-				savedObjectLimitMessage(byteFailure, { inRoom: !!roomId }),
-			);
-		}
+		// Past the object/byte budget the scene cannot live in the document as
+		// individual objects — but refusing to open the user's own artwork is a
+		// dead end, not a limit. Flatten it into one static image instead: they
+		// get the drawing, placed and movable, and lose only per-stroke editing
+		// of that import. Both budgets collapse to a single bounded image, so the
+		// in-room case is covered by the same path.
+		const flatten =
+			!!validateSavedObjectCount(objectsJSON.length) ||
+			(typeof jsonBytes === "number" &&
+				!!validateSavedDrawingBytes(jsonBytes, { inRoom: !!roomId }));
 
 		const objects: fabric.Object[] = [];
 
-		await runSavedImportPhase("enliven", () =>
-			enlivenObjectsTimeSlivered(objectsJSON, (obj) => {
-				const migrated = migrateLegacyOrigin(obj);
-				migrated.set({
-					id: uuidv4(),
-					userId: user?._id || migrated.get("userId"),
-				});
-				objects.push(migrated);
-			}),
-		);
+		if (flatten) {
+			const flattened = await runSavedImportPhase("flatten", () =>
+				flattenSavedObjectsToImage(objectsJSON, {
+					userId: user?._id,
+					maxDimension: roomId
+						? FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION
+						: FLATTENED_SAVED_OBJECT_MAX_DIMENSION,
+				}),
+			);
+			if (!flattened) {
+				throw new Error("Couldn't open this drawing");
+			}
+			objects.push(flattened as fabric.Object);
+			useToast().toast(
+				`Big drawing — added as a single image so it stays smooth (${objectsJSON.length} pieces).`,
+				{ color: "warning" },
+			);
+		} else {
+			await runSavedImportPhase("enliven", () =>
+				enlivenObjectsTimeSlivered(objectsJSON, (obj) => {
+					const migrated = migrateLegacyOrigin(obj);
+					migrated.set({
+						id: uuidv4(),
+						userId: user?._id || migrated.get("userId"),
+					});
+					objects.push(migrated);
+				}),
+			);
+		}
 
 		await runSavedImportPhase("layout", () =>
 			fitAndCenterSavedObjects(objects, c),

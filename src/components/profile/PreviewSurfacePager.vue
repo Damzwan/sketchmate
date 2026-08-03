@@ -44,7 +44,6 @@
                 :customization="customization"
                 :mock-post="mockPost"
                 :mock-chat="mockChat"
-                :chat-preview="chatPreview"
                 :mock-toast="mockToast"
               />
             </div>
@@ -117,9 +116,7 @@
               :customization="customization"
               :mock-post="mockPost"
               :mock-chat="mockChat"
-              :chat-preview="chatPreview"
               :mock-toast="mockToast"
-
             />
           </AmbientScope>
         </div>
@@ -404,20 +401,6 @@ const mockChat = computed<any>(() => {
 		last_message: { type: "text", content: "This is how your chats look 🎨" },
 		unread_counts: { "preview-me": 2 },
 		updatedAt: new Date().toISOString(),
-	};
-});
-
-// Partner descriptor for the ChatToolbar header preview (bypasses its store
-// resolution). Same look as the conversation row's partner.
-const chatPreview = computed<any>(() => {
-	const u = props.user ?? {};
-	return {
-		partner: {
-			_id: "preview-partner",
-			name: u.name ?? "You",
-			img: u.img,
-			customization: props.customization,
-		},
 	};
 });
 </script>

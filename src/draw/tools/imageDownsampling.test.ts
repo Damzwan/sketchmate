@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { containImageDimensions } from "./imageDownsampling";
+import {
+	containImageDimensions,
+	FLATTENED_IMAGE_MAX_DIMENSION,
+	imageMaxDimensionFor,
+	INSERTED_IMAGE_MAX_DIMENSION,
+} from "./imageDownsampling";
 
 describe("image downsampling", () => {
 	it("contains landscape and portrait images without distortion", () => {
@@ -18,5 +23,26 @@ describe("image downsampling", () => {
 			width: 80,
 			height: 40,
 		});
+	});
+
+	it("keeps inserted photos on the small bound", () => {
+		expect(imageMaxDimensionFor({ type: "image" })).toBe(
+			INSERTED_IMAGE_MAX_DIMENSION,
+		);
+		expect(imageMaxDimensionFor(undefined)).toBe(INSERTED_IMAGE_MAX_DIMENSION);
+	});
+
+	it("keeps a produced raster at full resolution", () => {
+		// A flattened layer IS the drawing. Restoring a draft ran it through the
+		// 256px inserted-photo bound and handed back a thumbnail.
+		expect(imageMaxDimensionFor({ type: "image", flattened: true })).toBe(
+			FLATTENED_IMAGE_MAX_DIMENSION,
+		);
+		expect(
+			containImageDimensions(2_048, 1_024, FLATTENED_IMAGE_MAX_DIMENSION),
+		).toEqual({ width: 2_048, height: 1_024 });
+		expect(
+			containImageDimensions(4_096, 2_048, FLATTENED_IMAGE_MAX_DIMENSION),
+		).toEqual({ width: 2_048, height: 1_024 });
 	});
 });

@@ -54,9 +54,12 @@
           <span class="text-xs font-black uppercase tracking-wider text-black/60">Sketch strength</span>
           <span class="text-xs font-black text-secondary">{{ Math.round(draft.backgroundImageOpacity * 100) }}%</span>
         </div>
+        <!-- Bounds come from the config, never literals: hydration clamps to the
+             same numbers, and a wider track is a third of a slider that does
+             nothing. -->
         <ion-range
-          :min="0.06"
-          :max="0.35"
+          :min="CHAT_BACKGROUND_OPACITY_MIN"
+          :max="CHAT_BACKGROUND_OPACITY_MAX"
           :step="0.01"
           :value="draft.backgroundImageOpacity"
           @ionInput="draft.backgroundImageOpacity = Number($event.detail.value)"
@@ -103,14 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-	computed,
-	nextTick,
-	onBeforeUnmount,
-	reactive,
-	ref,
-	watch,
-} from "vue";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { IonButton, IonIcon, IonRange } from "@ionic/vue";
 import {
 	mdiCrownOutline,
@@ -129,6 +125,8 @@ import FontEffectModal from "@/components/profile/customization/FontEffectModal.
 import ChatWidgetStylePager from "./ChatWidgetStylePager.vue";
 import ChatBackgroundPickerModal from "./ChatBackgroundPickerModal.vue";
 import {
+	CHAT_BACKGROUND_OPACITY_MAX,
+	CHAT_BACKGROUND_OPACITY_MIN,
 	FONTS,
 	FONT_EFFECTS,
 	hydrateChatCustomization,

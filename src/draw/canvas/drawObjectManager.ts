@@ -174,9 +174,39 @@ export function createDrawObjectManager() {
 			for (const obj of adds) {
 				if (!obj.id || !objectMap.has(obj.id)) continue; // added then removed
 				if (isLayerHidden((obj as any).layerId)) continue;
-				renderEngine.onObjectAdded(obj, isRenderTopmost(obj));
+				// An add whose footprint the destructive pass just touched must NOT
+				// take the additive stamp path.
+				//
+				// `invalidateRegions` above repairs visible tiles synchronously, and it
+				// repairs them FROM THE SPATIAL INDEX — which already contains this
+				// object, because it was added before the flush. Stamping it again
+				// composites it twice. That is invisible for opaque content and
+				// visibly DARKER for anything semi-transparent, until some later edit
+				// forces a real re-bake. A batch that both removes and adds over the
+				// same area — flattening a layer, undoing one — hits this every time.
+				//
+				// `topmost: false` routes it through the re-render-its-own-footprint
+				// path instead, which is idempotent whether or not the repair already
+				// covered it (the rects are merged inside invalidateRegions, so a
+				// footprint can overlap one and still sit in a hole).
+				const covered =
+					rects.length > 0 && rectsIntersect(rects, objectBounds(obj));
+				renderEngine.onObjectAdded(obj, !covered && isRenderTopmost(obj));
 			}
 		}
+	}
+
+	function rectsIntersect(list: readonly WorldRect[], rect: WorldRect): boolean {
+		for (const r of list) {
+			if (
+				r.x < rect.x + rect.w &&
+				rect.x < r.x + r.w &&
+				r.y < rect.y + rect.h &&
+				rect.y < r.y + r.h
+			)
+				return true;
+		}
+		return false;
 	}
 
 	/** Returns true if the region was absorbed by the batch (skip per-event renderEngine). */

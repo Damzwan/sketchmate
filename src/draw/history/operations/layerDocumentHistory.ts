@@ -105,6 +105,86 @@ export async function redoLayerDeleted(
 	return action;
 }
 
+/**
+ * Flatten undo/redo.
+ *
+ * The raster is replayed from the RECORDED JSON rather than re-rasterized: a
+ * second encode of the same scene is not guaranteed to be byte-identical (nor
+ * even to happen — the originals are off-canvas by then), and a redo that
+ * silently changes the picture is worse than the work it saves.
+ */
+async function enliven(json: any[]): Promise<FabricObject[]> {
+	if (!json?.length) return [];
+	return await fabric.util.enlivenObjects<FabricObject>(json);
+}
+
+function objectsOnLayer(layerId: string): FabricObject[] {
+	const manager = useDrawObjectManager();
+	return manager
+		.objectIdsOnLayer(layerId)
+		.map((id) => manager.getObjectById(id))
+		.filter(Boolean) as FabricObject[];
+}
+
+/** Swap a layer's whole content in ONE batch. Enlivening happens first, on
+ *  purpose: an await inside an open batch leaves the manager mid-transaction
+ *  across an image decode. */
+function swapLayerContent(
+	ctx: HistoryContext,
+	layerId: string,
+	remove: FabricObject[],
+	add: FabricObject[],
+) {
+	const manager = useDrawObjectManager();
+	manager.beginBatch();
+	try {
+		if (remove.length) ctx.canvas.remove(...remove);
+		for (const obj of add) {
+			(obj as any).layerId = layerId;
+			const index = (obj as any).insertedIndex;
+			if (
+				typeof index === "number" &&
+				index >= 0 &&
+				index <= ctx.canvas.getObjects().length
+			) {
+				ctx.canvas.insertAt(index, obj);
+			} else {
+				ctx.canvas.add(obj);
+			}
+		}
+	} finally {
+		manager.endBatch();
+	}
+}
+
+export async function undoLayerFlattened(
+	ctx: HistoryContext,
+	action: HistoryAction<HistoryEvent.LayerFlattened>,
+) {
+	const { layerId, objectsJSON, imageJSON } = action.params;
+	const enlivened = await enliven(objectsJSON);
+	const sorted = [...enlivened].sort(
+		(a: any, b: any) =>
+			((a.insertedIndex ?? Infinity) as number) -
+			((b.insertedIndex ?? Infinity) as number),
+	);
+	const image = imageJSON?.id
+		? useDrawObjectManager().getObjectById(imageJSON.id)
+		: null;
+	swapLayerContent(ctx, layerId, image ? [image] : [], sorted);
+	return action;
+}
+
+export async function redoLayerFlattened(
+	ctx: HistoryContext,
+	action: HistoryAction<HistoryEvent.LayerFlattened>,
+) {
+	const { layerId, imageJSON } = action.params;
+	const enlivened = await enliven([imageJSON]);
+	swapLayerContent(ctx, layerId, objectsOnLayer(layerId), enlivened);
+	return action;
+}
+
 export async function undoLayerRenamed(
 	_ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.LayerRenamed>,

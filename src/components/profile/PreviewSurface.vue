@@ -14,12 +14,12 @@
     <FeedPostCard :post="mockPost" :is-mine="true" preview />
   </div>
 
-  <!-- Chat: Toolbar + Conversation + Scaled Toast Preview -->
+  <!-- Chat: Conversation row + Scaled Toast Preview.
+       No ChatToolbar here — the in-chat header is owned by the Chat Style sheet
+       (ChatWidgetStylePreview), which overrides it with the chat customization.
+       Showing it from the PROFILE customization advertised a look that the chat
+       does not actually use. -->
   <div v-else class="w-full max-w-[420px] px-1 pointer-events-none flex flex-col gap-4">
-
-    <div class="rounded-[1.6rem] overflow-hidden border border-primary/30 shadow-sm relative z-10">
-      <ChatToolbar :preview="chatPreview" />
-    </div>
 
     <ConversationItem
       class="relative z-10"
@@ -50,7 +50,6 @@ import type { Customization } from "@/config/profile_options.config";
 import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import FeedPostCard from "@/components/home/posts/FeedPostCard.vue";
 import ConversationItem from "@/components/chat/ConversationItem.vue";
-import ChatToolbar from "@/components/chat/ChatToolbar.vue";
 import ChatToastItem from "@/components/chat/ChatToastItem.vue";
 
 defineProps<{
@@ -59,7 +58,6 @@ defineProps<{
 	customization: Partial<Customization>;
 	mockPost: any;
 	mockChat: any;
-	chatPreview: any;
 	mockToast?: any;
 }>();
 </script>

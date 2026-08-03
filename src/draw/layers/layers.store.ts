@@ -29,6 +29,7 @@ import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { HistoryEvent } from "@/draw/history/history.types";
 import { useAuthStore } from "@/store/auth.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
+import { drawBakePressure } from "@/draw/rendering/renderMetrics";
 import { serializeOnce, toJSON } from "@/draw/objects/objectSerialization";
 
 /**
@@ -562,6 +563,60 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	 *  — once a layer holds real object count. */
 	const MIN_FLATTEN_OBJECTS = 2;
 
+	// ── "this layer is getting heavy" hint ──────────────────────────────────
+	//
+	// Deliberately hard to trigger. Flatten is lossy, and the drawing worth
+	// nudging about is the one the user cares most about — a hint that fires on a
+	// healthy scene teaches them to ignore the badge, and a hint that talks
+	// someone into rasterizing art they wanted to keep editable is worse than no
+	// hint at all. So: MEASURED cost, never a raw object count.
+	//
+	// A count alone is meaningless across devices; 600 objects is nothing on a
+	// desktop and painful on a cheap Android. The bake counters say what this
+	// device is actually paying — and because they are a MEASUREMENT, they need
+	// no device-class probe to adapt: the same threshold trips readily on a slow
+	// phone and almost never on a desktop, which is the whole point.
+	const HEAVY_LAYER_OBJECTS = 150;
+	const HEAVY_BAKE_MS_MEAN = 28;
+	const HEAVY_BAKE_OBJECTS_MAX = 120;
+	/** Layers already hinted this session. One nudge per layer: opening the sheet
+	 *  and not flattening IS an answer. Session-scoped on purpose — nothing about
+	 *  a transient tip belongs in the saved document. */
+	const hintedLayerIds = new Set<string>();
+	const heavyLayerIds = ref<string[]>([]);
+
+	/** True when the engine is measurably struggling, whatever the scene size. */
+	function underBakePressure(): boolean {
+		const { bakeMsMean, bakeObjectsMax } = drawBakePressure();
+		return (
+			bakeMsMean > HEAVY_BAKE_MS_MEAN ||
+			bakeObjectsMax > HEAVY_BAKE_OBJECTS_MAX
+		);
+	}
+
+	/**
+	 * Recompute which layers are worth hinting about. Cheap enough to call on a
+	 * slow timer, and it short-circuits before touching the index when the engine
+	 * is keeping up — which is the common case and the one that must stay free.
+	 */
+	function refreshHeavyLayers(): void {
+		if (!canEditStructure.value || !underBakePressure()) {
+			if (heavyLayerIds.value.length) heavyLayerIds.value = [];
+			return;
+		}
+		const next: string[] = [];
+		for (const layer of layers.value) {
+			if (hintedLayerIds.has(layer.id)) continue;
+			if (objectCount(layer.id) >= HEAVY_LAYER_OBJECTS) next.push(layer.id);
+		}
+		heavyLayerIds.value = next;
+	}
+
+	/** Called when the user has SEEN the hint for a layer (opened the sheet). */
+	function acknowledgeHeavyLayers(): void {
+		for (const id of heavyLayerIds.value) hintedLayerIds.add(id);
+	}
+
 	/**
 	 * Solo and PRIVATE rooms. Not public lobbies: those run the `fixed` policy,
 	 * where the layer set is a constant everyone derives locally and the drawing
@@ -621,19 +676,21 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		const {
 			FLATTENED_LAYER_MAX_DIMENSION,
 			FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION,
-			rasterizeObjectsToImage,
+			rasterizeObjectsToImages,
 		} = await import("@/draw/objects/savedObjectFlatten");
 		// A room raster crosses the wire on the add AND again inside every undo /
-		// redo of it, so it takes the room budget rather than the solo one.
-		const image = await rasterizeObjectsToImage(objects, {
+		// redo of it, so it takes the room budget AND stays a single tile.
+		const images = await rasterizeObjectsToImages(objects, {
 			userId: useAuthStore().user?._id,
 			maxDimension: shared.value
 				? FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION
 				: FLATTENED_LAYER_MAX_DIMENSION,
 		});
-		if (!image) return false;
-		(image as any).layerId = id;
-		(image as any).insertedIndex = lowestIndex;
+		if (!images.length) return false;
+		for (const image of images) {
+			(image as any).layerId = id;
+			(image as any).insertedIndex = lowestIndex;
+		}
 
 		// Events suppressed: a bare `canvas.add` fires `object:added`, which history
 		// records as its own entry and the sync engine emits on its own terms. This
@@ -644,7 +701,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 			manager.beginBatch();
 			try {
 				canvas.remove(...objects);
-				canvas.add(image);
+				canvas.add(...images);
 			} finally {
 				manager.endBatch();
 			}
@@ -652,7 +709,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 
 		useDrawHistoryManager().addToUndoStackWithResetRedo({
 			type: HistoryEvent.LayerFlattened,
-			params: { layerId: id, objectsJSON, imageJSON: serializeOnce(image) },
+			params: { layerId: id, objectsJSON, imagesJSON: toJSON(images as any) },
 		} as any);
 
 		if (shared.value) {
@@ -661,7 +718,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 				skipHistory: true,
 			} as any);
 			canvas.fire("objects:added" as any, {
-				target: [image],
+				target: images,
 				skipHistory: true,
 			} as any);
 		}
@@ -702,6 +759,9 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		objectCount,
 		canFlattenLayer,
 		flattenLayer,
+		heavyLayerIds,
+		refreshHeavyLayers,
+		acknowledgeHeavyLayers,
 		reset,
 		// history-facing appliers (no recording, no redo-stack reset)
 		applyAddLayer,

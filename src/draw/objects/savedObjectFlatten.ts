@@ -7,7 +7,10 @@ import {
 } from "@/draw/document/serialization";
 import { computeBounds, exportBoundingBoxImage } from "@/draw/document/export";
 import { FLATTENED_IMAGE_MAX_DIMENSION } from "@/draw/tools/imageDownsampling";
-import { MAX_RENDER_SCALE } from "@/draw/config/renderQuality.config";
+import {
+	IS_LOW_END_DEVICE,
+	MAX_RENDER_SCALE,
+} from "@/draw/config/renderQuality.config";
 
 /**
  * Resolution of a flattened saved object.
@@ -32,6 +35,44 @@ export const FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION = 512;
  */
 export const FLATTENED_LAYER_MAX_DIMENSION = FLATTENED_IMAGE_MAX_DIMENSION;
 
+/**
+ * What a single flatten canvas is allowed to be on THIS device.
+ *
+ * 4096² is a 67MB transient RGBA allocation plus the encode — fine on a desktop,
+ * a real risk in a low-end WebView, which is the class of device that ANRs on
+ * exactly this kind of allocation (see renderQuality.config). The DOCUMENT bound
+ * stays at FLATTENED_IMAGE_MAX_DIMENSION for everyone, so a drawing flattened on
+ * a desktop is not resampled when it is reopened on a phone.
+ */
+const flattenProductionCeiling = () =>
+	IS_LOW_END_DEVICE ? 2048 : FLATTENED_IMAGE_MAX_DIMENSION;
+
+/**
+ * Raster size for a region of `extent` world units.
+ *
+ * Renders at DEVICE pixels, not world pixels. MAX_RENDER_SCALE is the resolution
+ * the committed tiles rasterize vector content at, so matching it puts the raster
+ * on equal footing with the strokes it replaced; going past it is pixels the
+ * compositor only downsamples again. (renderQuality.config is explicit that
+ * nothing here may read window.devicePixelRatio.)
+ *
+ * A big drawing still runs into the ceiling and loses some resolution — that is
+ * the honest trade for staying ONE object, and what the flatten confirmation
+ * warns about.
+ */
+export function flattenRasterSize(extent: number, maxDimension: number): number {
+	return Math.min(
+		maxDimension,
+		flattenProductionCeiling(),
+		extent * MAX_RENDER_SCALE,
+	);
+}
+
+/** Lossless while it is affordable — see LOSSLESS_PIXEL_BUDGET. */
+function pickFormat(pixels: number): "image/png" | "image/webp" {
+	return pixels <= LOSSLESS_PIXEL_BUDGET ? "image/png" : "image/webp";
+}
+
 /** `exportBoundingBoxImage` hardcodes this margin around the content box; the
  *  placement maths below has to use the same number to land pixel-aligned. */
 const EXPORT_PADDING = 50;
@@ -48,24 +89,37 @@ const LOSSLESS_PIXEL_BUDGET = 1_500_000;
 const LOSSLESS_BYTE_BUDGET = 320_000;
 
 /**
- * Render a set of LIVE fabric objects into one image object covering exactly the
+ * Render a set of LIVE fabric objects into ONE image object covering exactly the
  * world rect they occupied.
  *
- * Renders straight off the live objects — no clone, no re-enliven. The exporter
- * only ever asks its canvas for `getObjects()`, `backgroundColor` and
- * `skipOffscreen`, so a minimal stand-in keeps peak memory at ONE copy of the
- * scene instead of two. The objects themselves are untouched (the exporter
- * restores `visible`/`objectCaching` per object).
+ * Deliberately one object, not a grid.
+ *
+ * A tiled version reached full render-scale resolution on paper, and was wrong
+ * in practice for two reasons. It made a flatten N draggable things — the user
+ * has to grab the artwork piece by piece, which is not what "flatten this layer"
+ * promises. And N adds land in a single batch, where each one past the engine's
+ * bounded sync-repair budget keeps its previous tiles until an async bake lands:
+ * that is the "tiles disappearing / not a perfect match" report, and it does not
+ * happen with a single add.
+ *
+ * Resolution instead comes from the ceiling (FLATTENED_LAYER_MAX_DIMENSION) and
+ * from rendering at DEVICE pixels — see the scale maths below.
+ *
+ * Renders straight off the live objects — no clone, no re-enliven, so peak
+ * memory is ONE copy of the scene plus one canvas. The exporter only ever asks
+ * its canvas for `getObjects()`, `backgroundColor` and `skipOffscreen`, so a
+ * minimal stand-in is enough, and it restores `visible`/`objectCaching` per
+ * object.
  */
-export async function rasterizeObjectsToImage(
+export async function rasterizeObjectsToImages(
 	objects: FabricObject[],
 	options: {
 		userId?: string;
 		maxDimension: number;
 		signal?: AbortSignal;
 	},
-): Promise<fabric.FabricObject | null> {
-	if (!objects.length) return null;
+): Promise<fabric.FabricObject[]> {
+	if (!objects.length) return [];
 
 	const bounds = computeBounds(objects, EXPORT_PADDING);
 	if (
@@ -73,43 +127,18 @@ export async function rasterizeObjectsToImage(
 		!(bounds.width > 0) ||
 		!(bounds.height > 0)
 	) {
-		return null;
+		return [];
 	}
 
 	const extent = Math.max(bounds.width, bounds.height);
-
-	// Render at DEVICE pixels, not world pixels.
-	//
-	// The exporter's scale is `maxSize / extent`. Capping maxSize at the extent
-	// means one world unit → one raster pixel, and the canvas then paints that
-	// raster onto a 2–3x DPR backing store: a 10px stroke that was crisp vector
-	// geometry becomes 10 source pixels stretched over 20–30 device pixels. It
-	// reads as an obvious quality drop precisely when the content is SMALL, and
-	// hides on a big drawing only because the maxDimension cap was already
-	// downsampling everything uniformly there.
-	//
-	// MAX_RENDER_SCALE, not raw devicePixelRatio: it is exactly the resolution the
-	// committed tiles rasterize vector content at, so matching it puts the raster
-	// on equal footing with the strokes it replaced — no more, which would be
-	// wasted pixels the compositor only downsamples again. (renderQuality.config
-	// is explicit that nothing in the engine may read window.devicePixelRatio.)
-	//
-	// It cannot survive zooming in past that — rasterizing is still lossy, which
-	// is what the flatten confirmation warns about.
-	const maxSize = Math.min(options.maxDimension, extent * MAX_RENDER_SCALE);
+	const maxSize = flattenRasterSize(extent, options.maxDimension);
+	const scale = maxSize / extent;
 
 	const surface = {
 		getObjects: () => objects,
 		backgroundColor: "transparent",
 		skipOffscreen: false,
 	};
-
-	// Lossless for anything small enough to afford it. WebP's chroma subsampling
-	// puts coloured halos around thin dark strokes on transparency — the exact
-	// case ("a couple of lines") where the artefact is most visible and the PNG
-	// is cheapest, since line art over transparency compresses extremely well.
-	const scale = maxSize / extent;
-	const pixels = bounds.width * scale * (bounds.height * scale);
 
 	const encode = (format: "image/png" | "image/webp") =>
 		exportBoundingBoxImage(surface as any, {
@@ -120,19 +149,19 @@ export async function rasterizeObjectsToImage(
 			signal: options.signal,
 		});
 
-	let dataUrl =
-		pixels <= LOSSLESS_PIXEL_BUDGET
-			? ((await encode("image/png"))?.img as string | undefined)
-			: ((await encode("image/webp"))?.img as string | undefined);
+	// Lossless while it is affordable. WebP's chroma subsampling puts coloured
+	// halos around thin dark strokes on transparency, and line art over
+	// transparency is exactly what PNG compresses well.
+	const pixels = bounds.width * scale * (bounds.height * scale);
+	let dataUrl = (await encode(pickFormat(pixels)))?.img as string | undefined;
 
-	// Line art was the bet; a dense, colourful region of the same pixel count is
-	// the case that loses it. Re-encode rather than let a flatten in a room blow
-	// past the wire budget (this raster crosses it on the add and inside every
-	// undo of it) or bloat a draft.
+	// Line art was the bet PNG makes; a dense, colourful drawing is the case that
+	// loses it. Re-encode rather than bloat a draft or blow a room's wire budget
+	// (the raster crosses it on the add and inside every undo of it).
 	if (typeof dataUrl === "string" && dataUrl.length > LOSSLESS_BYTE_BUDGET) {
 		dataUrl = (await encode("image/webp"))?.img as string | undefined;
 	}
-	if (typeof dataUrl !== "string" || !dataUrl) return null;
+	if (typeof dataUrl !== "string" || !dataUrl) return [];
 
 	// A data URL, deliberately — same shape every other image in the document has
 	// (see addImageToCanvas). A remote src would make the canvas's origin depend
@@ -150,16 +179,16 @@ export async function rasterizeObjectsToImage(
 		// rect is what makes a flatten look like nothing moved.
 		scaleX: bounds.width / (image.width || 1),
 		scaleY: bounds.height / (image.height || 1),
-		// The strokes are gone; the flag lets the UI explain why this one can't be
-		// broken apart.
+		// The strokes are gone; the flag keeps this raster at full resolution
+		// through draft restore (see imageMaxDimensionFor).
 		flattened: true,
 	} as any);
 	image.setCoords();
-	return image;
+	return [image];
 }
 
 /**
- * Rasterize an oversized saved scene into ONE static image object.
+ * Rasterize an oversized saved scene into static image objects.
  *
  * A drawing past MAX_SAVED_OBJECTS is not something the live document can carry
  * — every object of it is indexed, z-ordered, baked, serialized on every save
@@ -172,18 +201,18 @@ export async function rasterizeObjectsToImage(
  * that is disposed before we return, so the cost is a one-off import spike
  * rather than a permanently heavier document.
  *
- * Returns null when the scene rasterizes to nothing (every object filtered out,
- * or an empty/failed export) — callers should treat that as "nothing imported".
+ * Returns an empty array when the scene rasterizes to nothing (every object
+ * filtered out, or a failed encode) — callers treat that as "nothing imported".
  */
-export async function flattenSavedObjectsToImage(
+export async function flattenSavedObjectsToImages(
 	objectsJSON: any[],
 	options: {
 		userId?: string;
 		maxDimension?: number;
 		signal?: AbortSignal;
 	} = {},
-): Promise<fabric.FabricObject | null> {
-	if (!Array.isArray(objectsJSON) || objectsJSON.length === 0) return null;
+): Promise<fabric.FabricObject[]> {
+	if (!Array.isArray(objectsJSON) || objectsJSON.length === 0) return [];
 
 	// Backing store stays 1×1: object coordinates and the bounded export helper
 	// do not depend on it, and sizing it to the scene's world extent is how you
@@ -207,9 +236,9 @@ export async function flattenSavedObjectsToImage(
 			},
 			options.signal,
 		);
-		if (objects.length === 0) return null;
+		if (objects.length === 0) return [];
 
-		return await rasterizeObjectsToImage(objects, {
+		return await rasterizeObjectsToImages(objects, {
 			userId: options.userId,
 			maxDimension:
 				options.maxDimension ?? FLATTENED_SAVED_OBJECT_MAX_DIMENSION,

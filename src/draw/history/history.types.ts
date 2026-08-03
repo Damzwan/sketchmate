@@ -126,12 +126,14 @@ export type HistoryParamsMap = {
 		order: number;
 	};
 	/** Both payloads are recorded EAGERLY, unlike LayerDeleted: the flatten
-	 *  already had to serialize the originals, and the raster has to be kept
-	 *  verbatim or a redo would re-encode to a subtly different image. */
+	 *  already had to serialize the originals, and the rasters have to be kept
+	 *  verbatim or a redo would re-encode to subtly different images.
+	 *  `imagesJSON` is a GRID — a big layer tiles so every tile can hold full
+	 *  render-scale pixels (see rasterizeObjectsToImages). */
 	[HistoryEvent.LayerFlattened]: {
 		layerId: string;
 		objectsJSON: any[];
-		imageJSON: any;
+		imagesJSON: any[];
 	};
 };
 

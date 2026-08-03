@@ -38,11 +38,16 @@ describe("image downsampling", () => {
 		expect(imageMaxDimensionFor({ type: "image", flattened: true })).toBe(
 			FLATTENED_IMAGE_MAX_DIMENSION,
 		);
-		expect(
-			containImageDimensions(2_048, 1_024, FLATTENED_IMAGE_MAX_DIMENSION),
-		).toEqual({ width: 2_048, height: 1_024 });
-		expect(
-			containImageDimensions(4_096, 2_048, FLATTENED_IMAGE_MAX_DIMENSION),
-		).toEqual({ width: 2_048, height: 1_024 });
+		// Derived from the constant, never literals: the bound is tuned for device
+		// memory and a pinned number here just fails first when it moves.
+		const max = FLATTENED_IMAGE_MAX_DIMENSION;
+		expect(containImageDimensions(max, max / 2, max)).toEqual({
+			width: max,
+			height: max / 2,
+		});
+		expect(containImageDimensions(max * 2, max, max)).toEqual({
+			width: max,
+			height: max / 2,
+		});
 	});
 });

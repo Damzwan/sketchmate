@@ -450,6 +450,26 @@ export function recordTileRemote(): void {
 	m.tilesRemote++;
 }
 
+/**
+ * The two bake counters, without building a full snapshot.
+ *
+ * `snapshotDrawMetrics()` allocates a large object with a dozen map copies — it
+ * is a reporting call, not something to poll. The flatten hint needs exactly
+ * these two numbers on a timer, so it reads them directly.
+ *
+ * `bakeObjectsMax` is the density signal (objects in the heaviest tile — the
+ * cost driver); `bakeMsMean` is what that density actually costs on THIS device.
+ */
+export function drawBakePressure(): {
+	bakeMsMean: number;
+	bakeObjectsMax: number;
+} {
+	return {
+		bakeMsMean: m.bakeMsCount ? m.bakeMsTotal / m.bakeMsCount : 0,
+		bakeObjectsMax: m.bakeObjectsMax,
+	};
+}
+
 /** One completed worker tile bake: round-trip ms and how many objects it held. */
 export function recordBakeTiming(ms: number, objects: number): void {
 	m.bakeMsTotal += ms;

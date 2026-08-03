@@ -161,17 +161,20 @@ export async function undoLayerFlattened(
 	ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.LayerFlattened>,
 ) {
-	const { layerId, objectsJSON, imageJSON } = action.params;
+	const { layerId, objectsJSON, imagesJSON } = action.params;
 	const enlivened = await enliven(objectsJSON);
 	const sorted = [...enlivened].sort(
 		(a: any, b: any) =>
 			((a.insertedIndex ?? Infinity) as number) -
 			((b.insertedIndex ?? Infinity) as number),
 	);
-	const image = imageJSON?.id
-		? useDrawObjectManager().getObjectById(imageJSON.id)
-		: null;
-	swapLayerContent(ctx, layerId, image ? [image] : [], sorted);
+	// Remove by recorded id rather than "everything on the layer": a peer applying
+	// this over the wire may have had other content land there since.
+	const manager = useDrawObjectManager();
+	const rasters = (imagesJSON ?? [])
+		.map((json: any) => (json?.id ? manager.getObjectById(json.id) : null))
+		.filter(Boolean) as FabricObject[];
+	swapLayerContent(ctx, layerId, rasters, sorted);
 	return action;
 }
 
@@ -179,8 +182,8 @@ export async function redoLayerFlattened(
 	ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.LayerFlattened>,
 ) {
-	const { layerId, imageJSON } = action.params;
-	const enlivened = await enliven([imageJSON]);
+	const { layerId, imagesJSON } = action.params;
+	const enlivened = await enliven(imagesJSON ?? []);
 	swapLayerContent(ctx, layerId, objectsOnLayer(layerId), enlivened);
 	return action;
 }

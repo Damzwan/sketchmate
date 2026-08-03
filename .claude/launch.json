@@ -7,6 +7,18 @@
       "runtimeArgs": ["run", "dev"],
       "port": 5173,
       "autoPort": true
+    },
+    {
+      "name": "cropflip-scratch",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8899",
+        "--directory",
+        "/private/tmp/claude-501/-Users-dv-Projects-sketchmate/f3d74c18-22c9-4cff-a99d-c4d53ede15ef/scratchpad/cropflip"
+      ],
+      "port": 8899
     }
   ]
 }

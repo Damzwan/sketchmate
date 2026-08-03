@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+	CHAT_BACKGROUND_OPACITY_DEFAULT,
+	CHAT_BACKGROUND_OPACITY_MAX,
+	CHAT_BACKGROUND_OPACITY_MIN,
 	hydrateChatCustomization,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
@@ -20,10 +23,25 @@ describe("customized surface contrast", () => {
 		]);
 		expect(chat.fontId).toBe("sketch");
 		expect(chat.backgroundImageUrl).toBe("");
-		expect(chat.backgroundImageOpacity).toBe(0.12);
+		// The constant, not a literal: the slider reads the same one, and pinning a
+		// number here just makes tuning the range a two-file edit that fails first.
+		expect(chat.backgroundImageOpacity).toBe(CHAT_BACKGROUND_OPACITY_DEFAULT);
 		expect(chat).not.toHaveProperty("effectId");
 		expect(chat).not.toHaveProperty("worldId");
 		expect(chat).not.toHaveProperty("decorationId");
+	});
+
+	it("clamps chat sketch strength to the range the slider offers", () => {
+		// The bug this guards: the range ran to 0.50 while hydration capped at 0.35,
+		// so the top of the track moved the label and changed nothing on screen.
+		expect(
+			hydrateChatCustomization({ backgroundImageOpacity: 5 })
+				.backgroundImageOpacity,
+		).toBe(CHAT_BACKGROUND_OPACITY_MAX);
+		expect(
+			hydrateChatCustomization({ backgroundImageOpacity: 0 })
+				.backgroundImageOpacity,
+		).toBe(CHAT_BACKGROUND_OPACITY_MIN);
 	});
 
 	it("keeps theme text dark on Classic while making Space utilities white", () => {

@@ -31,7 +31,7 @@ import { fitAndCenterSavedObjects } from "@/draw/objects/savedObjectPlacement";
 import {
 	FLATTENED_SAVED_OBJECT_MAX_DIMENSION,
 	FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION,
-	flattenSavedObjectsToImage,
+	flattenSavedObjectsToImages,
 } from "@/draw/objects/savedObjectFlatten";
 import {
 	savedObjectLimitMessage,
@@ -596,17 +596,17 @@ export async function addSavedFabricObjectToCanvas(
 
 		if (flatten) {
 			const flattened = await runSavedImportPhase("flatten", () =>
-				flattenSavedObjectsToImage(objectsJSON, {
+				flattenSavedObjectsToImages(objectsJSON, {
 					userId: user?._id,
 					maxDimension: roomId
 						? FLATTENED_SAVED_OBJECT_ROOM_MAX_DIMENSION
 						: FLATTENED_SAVED_OBJECT_MAX_DIMENSION,
 				}),
 			);
-			if (!flattened) {
+			if (!flattened.length) {
 				throw new Error("Couldn't open this drawing");
 			}
-			objects.push(flattened as fabric.Object);
+			objects.push(...(flattened as fabric.Object[]));
 			useToast().toast(
 				`Big drawing — added as a single image so it stays smooth (${objectsJSON.length} pieces).`,
 				{ color: "warning" },

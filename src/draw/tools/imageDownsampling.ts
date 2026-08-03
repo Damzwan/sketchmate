@@ -13,7 +13,7 @@ export const INSERTED_IMAGE_MAX_DIMENSION = 256;
  * `flattened: true` from the moment they are created, so the restore path can
  * tell them apart from anything the user pasted in.
  */
-export const FLATTENED_IMAGE_MAX_DIMENSION = 2048;
+export const FLATTENED_IMAGE_MAX_DIMENSION = 4096;
 
 export function imageMaxDimensionFor(object: any): number {
 	return object?.flattened

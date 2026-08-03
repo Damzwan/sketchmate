@@ -60,8 +60,8 @@
       <ion-content>
         <div class="w-full h-full bg-black flex items-center justify-center relative">
           <div
-            class="transition-opacity duration-300"
-            :class="isCropperReady ? 'opacity-100' : 'opacity-0'"
+            class="crop-stage"
+            :class="[isCropperReady ? 'is-ready' : '', isSettling ? 'is-settling' : '']"
             style="max-width: 90%; max-height: 80%;"
           >
             <img
@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import {
   IonButton,
   IonContent,
@@ -93,6 +93,7 @@ import 'cropperjs/dist/cropper.css'
 
 import { mdiClose, mdiCrop, mdiFullscreen } from '@mdi/js'
 import { svg } from '@/helper/general.helper.ts'
+import { IS_LOW_END_DEVICE } from '@/draw/config/renderQuality.config'
 
 const props = defineProps({
   src: {
@@ -158,26 +159,142 @@ const initCropper = () => {
       restore: false, // Prevents it from resetting oddly on window resize
 
       ready() {
+        cacheCropperElements()
         isCropperReady.value = true
+      },
+
+      cropstart() {
+        // A new grip owns the geometry from here: drop any settle still in
+        // flight (the element snaps to the state cropper is already reasoning
+        // about, which is where it was heading anyway) and forget the previous
+        // gesture's area sample. Seeded HIGH, not 0: the first frame of a grab
+        // has nothing to compare against, and 0 would read as "expanding" and
+        // could fire a zoom-out on a box the user is actually shrinking.
+        endSettle()
+        previousBoxArea = Number.POSITIVE_INFINITY
       },
 
       cropmove(event) {
         syncImageToCrop(event)
       },
 
-      cropend(event) {
+      cropend() {
         autoZoomToSelection()
       }
     })
   }
 }
 
+// ── Settle animation ────────────────────────────────────────────────────────
+//
+// Releasing a handle re-frames the selection, and that used to be one instant
+// jump. It is now a FLIP: the new state is still applied SYNCHRONOUSLY, so
+// cropper stays the single source of truth and the numbers a later crop reads
+// are never mid-tween — then the canvas and crop box are transformed back to
+// where they just were and released.
+//
+// Why not tween cropper's own data over rAF: setCanvasData writes CSS
+// width/height on both the wrapper and the <img>, so every frame would re-lay
+// out and force the WebView to re-raster a 2000px bitmap at a new size. A
+// transform is composited, costs no layout, and reuses the existing texture —
+// which is what makes this survivable on a cheap Android WebView. The tradeoff
+// is that the image is a scaled texture for the length of the flight; at these
+// ratios and durations it is not perceptible, and it is sharp again the moment
+// the transform is dropped.
+const SETTLE_MS = IS_LOW_END_DEVICE ? 220 : 320
+const SETTLE_EASING = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
+
+const isSettling = ref(false)
+let canvasEl = null
+let cropBoxEl = null
+let settleTimer = null
+
+function cacheCropperElements() {
+  const root = imageRef.value?.parentElement
+  canvasEl = root?.querySelector('.cropper-canvas') ?? null
+  cropBoxEl = root?.querySelector('.cropper-crop-box') ?? null
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+}
+
+/** Drop the transition and leave the element on its committed transform. */
+function endSettle() {
+  if (settleTimer) {
+    clearTimeout(settleTimer)
+    settleTimer = null
+  }
+  for (const el of [canvasEl, cropBoxEl]) {
+    if (!el) continue
+    el.style.transition = ''
+    el.style.willChange = ''
+    el.style.transformOrigin = ''
+  }
+  isSettling.value = false
+}
+
+/**
+ * `before`/`after` are cropper's own canvas rects, read either side of the
+ * commit. The crop box takes the SAME transform on purpose: the selection is a
+ * fixed region of the image, so its screen rect maps through the identical
+ * similarity — one matrix keeps the box glued to the pixels it selects for the
+ * whole flight.
+ */
+function playSettle(before, after) {
+  if (!canvasEl || !cropBoxEl || !after.width || prefersReducedMotion()) return
+
+  const scale = before.width / after.width
+  const dx = before.left - after.left * scale
+  const dy = before.top - after.top * scale
+
+  // Nothing moved far enough to be worth promoting two layers for.
+  if (Math.abs(scale - 1) < 0.002 && Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+    return
+  }
+
+  // Cropper positions both elements with a transform of its own; the inverse
+  // has to compose with it, not replace it, so it is captured and kept as the
+  // tail of the list (and as the exact value to land on).
+  const targets = [
+    { el: canvasEl, committed: canvasEl.style.transform },
+    { el: cropBoxEl, committed: cropBoxEl.style.transform }
+  ]
+
+  isSettling.value = true
+  for (const { el, committed } of targets) {
+    el.style.transformOrigin = '0 0'
+    el.style.willChange = 'transform'
+    el.style.transition = 'none'
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale}) ${committed}`
+  }
+
+  // Deliberate single reflow: without reading layout here the browser coalesces
+  // the inverted transform and the committed one into no change at all.
+  void canvasEl.offsetWidth
+
+  for (const { el, committed } of targets) {
+    el.style.transition = `transform ${SETTLE_MS}ms ${SETTLE_EASING}`
+    el.style.transform = committed
+  }
+
+  // A timer rather than `transitionend`: it also covers the case where the
+  // WebView drops the transition entirely under load.
+  settleTimer = setTimeout(endSettle, SETTLE_MS + 60)
+}
+
 const autoZoomToSelection = () => {
   if (!cropperInstance) return
+
+  // A queued drag frame would fire against post-commit geometry and undo the
+  // re-frame we are about to animate.
+  cancelSync()
+  endSettle()
 
   // 1. Save the exact area of the image currently selected (natural pixels)
   const cropData = cropperInstance.getData()
   const containerData = cropperInstance.getContainerData()
+  const before = cropperInstance.getCanvasData()
 
   // 2. Calculate the zoom ratio to make this selection fill 80% of the screen
   const scaleX = (containerData.width * 0.8) / cropData.width
@@ -203,6 +320,22 @@ const autoZoomToSelection = () => {
 
   // 6. Force the crop box to clamp back down onto the exact same objects we saved in Step 1
   cropperInstance.setData(cropData)
+
+  // 7. Read back what cropper ACTUALLY landed on — viewMode 1 clamps — so the
+  //    animation ends on the real state and cannot pop at the last frame.
+  playSettle(before, cropperInstance.getCanvasData())
+}
+
+function teardownCropper() {
+  endSettle()
+  cancelSync()
+  canvasEl = null
+  cropBoxEl = null
+  if (cropperInstance) {
+    cropperInstance.destroy()
+    cropperInstance = null
+  }
+  isCropperReady.value = false
 }
 
 const handleModalDismiss = () => {
@@ -227,13 +360,19 @@ const handleModalDismiss = () => {
       relativeBoundary.height === 1
     newAspectRatio.value = cropData.width / cropData.height
 
-    cropperInstance.destroy()
-    cropperInstance = null
-    isCropperReady.value = false
+    teardownCropper()
 
     emit('crop-completed', relativeBoundary)
+    return
   }
+
+  // Dismissing WITHOUT cropping has to tear down too. `Cropper.init()` bails on
+  // an element that already carries an instance, so a surviving one made every
+  // later open a no-op: no `ready()`, no crop UI, just the faded-out stage.
+  teardownCropper()
 }
+
+onBeforeUnmount(teardownCropper)
 
 let shouldCrop = false
 
@@ -242,24 +381,43 @@ function crop() {
   shouldCrop = true
 }
 
-// Add these to your script setup to track velocity/state
-let isProcessingSync = false
-
 // Define this outside your function/event listener so it persists
 let previousBoxArea = 0
+
+// `cropmove` fires once per pointermove — up to 120Hz on an Android panel, and
+// every one of them used to run a zoom or a pan through cropper, each of which
+// re-styles the wrapper and the <img>. The work is now coalesced onto one frame,
+// so the cost is bounded by the refresh rate instead of by the touch rate, and
+// the elastic pan advances once per PAINTED frame (it was already rAF-gated, so
+// the feel is unchanged — just no longer paying for the events it dropped).
+let syncFrame = 0
+let pendingAction = null
+
+function cancelSync() {
+  if (syncFrame) cancelAnimationFrame(syncFrame)
+  syncFrame = 0
+  pendingAction = null
+}
+
 const syncImageToCrop = (event) => {
-  if (!cropperInstance || isProcessingSync) return
+  pendingAction = event.detail.action
+  if (syncFrame) return
+  syncFrame = requestAnimationFrame(runSync)
+}
+
+function runSync() {
+  syncFrame = 0
+  const action = pendingAction
+  pendingAction = null
+  if (!cropperInstance || !action) return
 
   const container = cropperInstance.getContainerData()
-  const canvas = cropperInstance.getCanvasData()
   const box = cropperInstance.getCropBoxData()
-  const action = event.detail.originalEvent.type // check if touch or mouse
 
   // 1. GENTLE ZOOM OUT (When box gets too big for the screen)
   // If the user is expanding the box and it hits 90% of the screen,
   // we zoom the image OUT so they can see more context.
-  // 1. GENTLE ZOOM OUT (When box gets too big for the screen)
-  if (event.detail.action !== 'all') {
+  if (action !== 'all') {
     const coverage = Math.max(
       box.width / container.width,
       box.height / container.height
@@ -281,7 +439,6 @@ const syncImageToCrop = (event) => {
       const newRatio = currentRatio * 0.99
 
       // Find the stationary anchor point (pivot) based on the drag handle
-      const action = event.detail.action
       let pivotX = box.left + box.width / 2 // Default to center
       let pivotY = box.top + box.height / 2
 
@@ -334,8 +491,6 @@ const syncImageToCrop = (event) => {
     moveY = edgeBottom - (box.top + box.height)
 
   if (moveX !== 0 || moveY !== 0) {
-    isProcessingSync = true
-
     // LOWER multiplier: 0.05 at 60fps is too fast. 0.015 gives a tighter, heavier feel.
     const speedMultiplier = 0.1
 
@@ -352,11 +507,11 @@ const syncImageToCrop = (event) => {
       Math.min(maxSpeed, moveY * speedMultiplier)
     )
 
+    // Strictly event-driven, deliberately: `move()` shifts the CANVAS while the
+    // crop box stays put in container space, so the "past the edge" test that
+    // got us here never clears by itself. A self-scheduling frame would drift
+    // forever after the finger lifts.
     cropperInstance.move(deltaX, deltaY)
-
-    requestAnimationFrame(() => {
-      isProcessingSync = false
-    })
   }
 }
 </script>
@@ -367,6 +522,25 @@ ion-modal {
   --width: 100%;
 }
 
+/* Opacity + transform only, so the entrance is composited and never asks the
+   WebView to lay out or re-raster the preview bitmap. */
+.crop-stage {
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity 260ms ease-out, transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.crop-stage.is-ready {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crop-stage {
+    transition: none;
+    transform: none;
+  }
+}
 </style>
 
 <style>
@@ -396,6 +570,25 @@ ion-modal {
   height: 100px !important;
   opacity: 1 !important;
   background-color: transparent !important;
+  transition: opacity 140ms ease-out;
+}
+
+/* 3b. The settle scales the crop box, brackets included — a 10px border briefly
+   becoming 14px and snapping back is exactly the jitter the animation exists to
+   remove. Fading them for the flight hides it, and reads as the selection
+   "letting go" and re-arming. Opacity only: still one composited layer. */
+.is-settling .cropper-point {
+  opacity: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cropper-point {
+    transition: none;
+  }
+
+  .is-settling .cropper-point {
+    opacity: 1 !important;
+  }
 }
 
 /* 4. Extra-Bold "L" Brackets */

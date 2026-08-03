@@ -28,6 +28,15 @@
     >
       {{ hiddenCount }}
     </span>
+    <!-- The ONLY thing that reaches a user who never opens the sheet. A dot, not
+         a toast: interrupting someone mid-stroke to offer them a lossy,
+         confirm-gated action is the spam we are avoiding. It appears only when
+         the engine is measurably struggling, and only once per layer. -->
+    <span
+      v-else-if="heavyLayerIds.length > 0"
+      class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-secondary shadow-md border border-white/60 pointer-events-none animate-pulse"
+      aria-hidden="true"
+    ></span>
   </button>
 
   <!-- Mounted only while open: an always-mounted sheet keeps its rows (and their
@@ -59,6 +68,11 @@
           <p class="text-xs leading-tight">
             {{ counts[layer.id] ?? 0 }} object{{ counts[layer.id] === 1 ? '' : 's' }}
             <span v-if="layer.id === activeId" class="text-secondary"> · drawing here</span>
+          </p>
+          <!-- Says what it costs, not what to click. The flatten button on this
+               same row is the action; selling it here would make the row an ad. -->
+          <p v-if="hintedIds.includes(layer.id)" class="text-[11px] leading-tight font-bold text-secondary">
+            Getting heavy — flatten to speed up drawing
           </p>
         </button>
 
@@ -169,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { IonButton, IonIcon, alertController } from "@ionic/vue";
 import {
@@ -205,6 +219,7 @@ const {
 	shared,
 	maxLayers,
 	atTierLimit,
+	heavyLayerIds,
 } = storeToRefs(layers);
 
 const isOpen = ref(false);
@@ -260,8 +275,35 @@ function refreshCounts() {
 	counts.value = next;
 }
 
+/**
+ * Which rows carry the "getting heavy" line, frozen at open.
+ *
+ * Snapshotted rather than read live because opening the sheet ACKNOWLEDGES the
+ * hint (clearing the FAB dot for good) — reading the store list directly would
+ * make the line vanish out from under the user in the same frame they came to
+ * look at it.
+ */
+const hintedIds = ref<string[]>([]);
+
+/**
+ * Slow poll for the FAB dot. The check short-circuits on the bake counters
+ * before it touches the index, so a healthy session pays a couple of number
+ * comparisons a minute. Nothing here is worth a reactive dependency on the
+ * scene.
+ */
+let heavyTimer = 0;
+onMounted(() => {
+	heavyTimer = window.setInterval(() => layers.refreshHeavyLayers(), 20_000);
+});
+onBeforeUnmount(() => window.clearInterval(heavyTimer));
+
 function open() {
 	mounted.value = true;
+	layers.refreshHeavyLayers();
+	hintedIds.value = [...heavyLayerIds.value];
+	// Seen it. The dot does not come back for these layers this session — opening
+	// the sheet and not flattening is an answer.
+	layers.acknowledgeHeavyLayers();
 	refreshCounts();
 	isOpen.value = true;
 }

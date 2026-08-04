@@ -93,13 +93,39 @@ function fakeCtx() {
 }
 
 describe("CommittedLayer safety bounds", () => {
-	it("allows navigation through the overview-only range", () => {
+	it("stays on tile-backed tiers until the overview bitmap exists", () => {
+		// The zoom floor is now a SHARPNESS guarantee, not a constant: with no
+		// bitmap yet there is nothing that can serve the overview-only range, so
+		// the viewport is held on tiles.
 		const layer = makeLayer();
+
+		expect(layer.overview.pixelDensity()).toBe(0);
+		expect(layer.minViewportZoom).toBe(layer.minTiledZoom);
+		expect(layer.pickActiveTier(layer.minViewportZoom)).toBeGreaterThan(
+			layer.overviewTier,
+		);
+	});
+
+	it("opens the overview-only range once the bitmap is dense enough", () => {
+		const layer = makeLayer() as any;
+		// Enough overview pixels to cover the whole gap up to the first tiled tier.
+		vi.spyOn(layer.overview, "pixelDensity").mockReturnValue(
+			layer.minTiledZoom * layer.renderScale,
+		);
 
 		expect(layer.minViewportZoom).toBe(0.125);
 		expect(layer.pickActiveTier(layer.minViewportZoom)).toBeLessThanOrEqual(
 			layer.overviewTier,
 		);
+	});
+
+	it("keeps a sparse overview out of reach", () => {
+		// The massive-lobby case: a budget-capped bitmap spread over a huge world
+		// would be upscaled ~5x, which is the blur this floor exists to prevent.
+		const layer = makeLayer() as any;
+		vi.spyOn(layer.overview, "pixelDensity").mockReturnValue(0.02);
+
+		expect(layer.minViewportZoom).toBe(layer.minTiledZoom);
 	});
 
 	it("uses the first tile-backed tier as the minimum zoom", () => {

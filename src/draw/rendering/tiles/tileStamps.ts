@@ -2,7 +2,7 @@ import { TileBaker } from "./tileBaker";
 import type { Bounded, WorldRect } from "./tileLayerBase";
 import { isCanvasSurface } from "./tileStore";
 import { tileKey, type TileKey } from "./tileKey";
-import { minimumTiledZoom, minimumViewportZoom } from "../zoomLevels";
+import { minimumTiledZoom, sharpMinimumViewportZoom } from "../zoomLevels";
 
 export class TileStamps<T extends Bounded> extends TileBaker<T> {
 	/**
@@ -454,8 +454,35 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 			this.OVERVIEW_TIER,
 		);
 	}
+	/**
+	 * How far out the viewport may go and still be SHARP everywhere.
+	 *
+	 * Two things can serve a zoom level: tiles (always sharp, they rasterize at
+	 * the tier they are shown at) and the overview bitmap (sharp only while it
+	 * holds at least as many pixels as the screen asks for).
+	 *
+	 * The overview is budget-capped, so its density falls as the world grows. On a
+	 * big spread-out lobby it ends up around 0.1 px per world unit while the top
+	 * of its own zoom range wants ~0.5 — a ~5x upscale, which is the "everything
+	 * is blurry when you zoom out" report. The floor used to be a flat 0.125
+	 * regardless, so that blur was always reachable.
+	 *
+	 * So: let the viewport into overview territory ONLY when the bitmap can cover
+	 * the whole gap up to the first tiled tier. It usually can — a normal drawing
+	 * keeps every bit of today's zoom-out range. When it cannot, the floor stops
+	 * at the tiled tier: less zoom-out on a huge board, in exchange for never
+	 * rendering an upscaled bitmap.
+	 *
+	 * Costs nothing at runtime and, deliberately, no extra pixels — spending more
+	 * memory on the overview is what we cannot afford on a low-end Android.
+	 */
 	get minViewportZoom(): number {
-		return minimumViewportZoom(this.ZOOM_TIERS);
+		return sharpMinimumViewportZoom(
+			this.overview.pixelDensity(),
+			this.renderScale,
+			this.ZOOM_TIERS,
+			this.OVERVIEW_TIER,
+		);
 	}
 	get maxUsableZoom(): number {
 		// Finest tier ÷ renderScale — past this we'd ask for a tier we never bake.

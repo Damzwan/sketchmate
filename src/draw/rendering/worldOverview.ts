@@ -95,6 +95,21 @@ export class WorldOverview<T extends Bounded> {
 		return this.dirty || !this.canvas;
 	}
 
+	/**
+	 * Overview pixels per WORLD unit, on its coarser axis. 0 before the first
+	 * bitmap exists.
+	 *
+	 * This is the number that decides whether the overview can be shown sharply.
+	 * The bitmap is budget-capped (PIXEL_BUDGET_EDGE), so density collapses as the
+	 * world grows: a lobby spread over 20k world units gets ~0.1 px/unit, and
+	 * displaying that where the viewport wants 0.5 is the blur users see. The zoom
+	 * policy in TileStamps reads it to decide how far out the viewport may go.
+	 */
+	pixelDensity(): number {
+		if (!this.canvas) return 0;
+		return Math.min(this.sx, this.sy);
+	}
+
 	/** Incrementally fold one freshly-committed object into the overview. */
 	add(obj: T): void {
 		if (!this.canvas || !this.ctx || !this.bounds) {

@@ -216,6 +216,26 @@ describe("layers store", () => {
 		expect(op.payload.op.layer.id).toBe(id);
 	});
 
+	it("replicates for a private joiner that never receives a snapshot", () => {
+		// The server replays the action buffer instead of sending a snapshot, so
+		// `init` never runs again after the solo boot. Without markRoomShared this
+		// peer's structural edits are dropped and the room silently diverges.
+		const layers = useLayersStore();
+		layers.init({ isLobby: false });
+		const soloIds = layers.layers.map((l) => l.id);
+
+		layers.markRoomShared();
+
+		expect(layers.shared).toBe(true);
+		expect(layers.canEditStructure).toBe(true);
+		// The open document is left alone — a later snapshot still decides it.
+		expect(layers.layers.map((l) => l.id)).toEqual(soloIds);
+
+		const id = layers.addLayer("Ink");
+		const op = fired.find((f) => f.name === "layerDocumentChanged");
+		expect(op.payload.op.layer.id).toBe(id);
+	});
+
 	it("does not replicate anything when drawing solo", () => {
 		const layers = useLayersStore();
 		layers.init({ isLobby: false });

@@ -1,9 +1,6 @@
 import { Socket } from "socket.io-client";
 import { storeToRefs } from "pinia";
-import {
-	LobbyChatItem,
-	useDrawSyncer,
-} from "@/draw/sync/session.store";
+import { LobbyChatItem, useDrawSyncer } from "@/draw/sync/session.store";
 import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
 import { useToast } from "@/service/toast.service";
 import { useDrawStore } from "@/draw/session/draw.store";
@@ -54,10 +51,22 @@ export function registerDrawSyncingHandlers(socket: Socket) {
 			addRoomIdToUrl(roomId);
 			isPublicLobby.value = isPublic;
 			useClaimArea().setAreas(claimedAreas);
-			// A joiner initializes layers from the incoming canvas snapshot. The
-			// creator does not reload its already-open drawing, so explicitly promote
-			// that existing solo layer document into room-replicated mode.
-			if (isCreator) useLayersStore().adoptCurrentDocumentForRoom(!!isPublic);
+			// PUBLIC: every peer — creator or joiner — installs the fixed set here.
+			// Deriving it from `init` alone is not enough: a URL/deep-link join opens
+			// the canvas before `isPublic` is known (it is only known now), and the
+			// cold-start `missed-actions` path reloads no canvas at all, so `init`
+			// may never run again. The set is a local constant, so applying it on
+			// every peer is idempotent.
+			//
+			// PRIVATE: only the creator, whose already-open drawing must be promoted
+			// into replicated mode. A joiner's document arrives with the snapshot and
+			// must not be clobbered by the local one.
+			// A private joiner only enables replication; its document is whatever the
+			// snapshot brings (or, when the server replays actions instead of sending
+			// one, whatever is already open).
+			if (isPublic) useLayersStore().adoptCurrentDocumentForRoom(true);
+			else if (isCreator) useLayersStore().adoptCurrentDocumentForRoom(false);
+			else useLayersStore().markRoomShared();
 		},
 	);
 

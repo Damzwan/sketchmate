@@ -13,12 +13,20 @@ import { socket } from "@/service/api/socket/socket.service";
 import { useToast } from "@/service/toast.service";
 import { ToastDuration } from "@/types/toast.types";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
+import {
+	type ClaimViolation,
+	claimViolation,
+	canEditAt as rulesCanEditAt,
+	rectsOverlap,
+} from "@/draw/claims/claimRules";
 
 /**
- * A lobby-scoped rectangular region claimed by one user. Objects whose centre
- * falls inside a FOREIGN area (owned by someone else) are read-only to us:
- * they can't be selected, moved or erased, and we can't draw inside the region.
- * Areas are synced through the room socket and cleared when the owner leaves.
+ * A lobby-scoped rectangular region claimed by one user. Two rules, both in
+ * claimRules.ts: someone else's area is read-only to us whoever drew what is in
+ * it (no selecting, moving, erasing or drawing inside it), and our OWN area
+ * accepts only our own objects — so a claim cannot be used to impound other
+ * people's work. Areas are synced through the room socket and cleared when the
+ * owner leaves.
  *
  * Rendering lives in the DOM overlay (ClaimAreaOverlay.vue), NOT the canvas
  * renderer — the tile compositor clears the top context between frames, which
@@ -102,33 +110,9 @@ export const useClaimArea = defineStore("claimArea", () => {
 		return null;
 	}
 
-	function areaAtPoint(x: number, y: number): ClaimedArea | null {
-		for (const a of areas.value)
-			if (x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h) return a;
-		return null;
-	}
-
-	/**
-	 * "May I edit something owned by `ownerId` sitting at this point?"
-	 *
-	 * A claimed area is a PRIVATE workspace, which means two rules, not one:
-	 *   • someone else's area — hands off entirely, whoever drew it;
-	 *   • my own area — mine to edit, but only MY objects.
-	 *
-	 * The second rule is the anti-griefing half and used to be missing. Claiming
-	 * only checks for foreign objects at claim time (`isRectClaimable`), and the
-	 * add-guard in fabricSetup only rejects LOCAL strokes entering a foreign area
-	 * — a remote stroke that was already in flight, or that came from a client
-	 * which hadn't yet seen the claim, lands inside the area anyway. Everything
-	 * that arrives that way was freely selectable, movable and erasable by the
-	 * area owner, which is the opposite of what claiming an area is for.
-	 */
+	/** See claimRules.canEditAt — the rules live there, pure and tested. */
 	function canEditAt(x: number, y: number, ownerId?: string): boolean {
-		const area = areaAtPoint(x, y);
-		if (!area) return true;
-		const mine = me();
-		if (String(area.userId) !== mine) return false;
-		return !ownerId || ownerId === mine;
+		return rulesCanEditAt(areas.value, x, y, me(), ownerId);
 	}
 
 	function objectOwner(obj: any): string | undefined {
@@ -146,6 +130,27 @@ export const useClaimArea = defineStore("claimArea", () => {
 			);
 		} catch {
 			return false;
+		}
+	}
+
+	/**
+	 * Would this object, where it is NOW, violate a claim? See
+	 * claimRules.claimViolation — notably it checks EVERY area, not only the ones
+	 * foreign to us, which is what stops a claim being used to impound other
+	 * people's drawings. The reason it returns drives which toast the user sees.
+	 */
+	function objectClaimViolation(obj: any): ClaimViolation {
+		if (areas.value.length === 0 || !obj) return "none";
+		try {
+			const b = obj.getBoundingRect(true, true);
+			return claimViolation(
+				areas.value,
+				{ x: b.left, y: b.top, w: b.width, h: b.height },
+				me(),
+				objectOwner(obj),
+			);
+		} catch {
+			return "none";
 		}
 	}
 
@@ -186,18 +191,35 @@ export const useClaimArea = defineStore("claimArea", () => {
 			orig: originals.get((o as any).id),
 		}));
 
-		// Where it ENDED (pushing anything into a foreign area) and where it
-		// STARTED both disqualify a move. The start check is what stops a claimed
-		// area from being emptied by dragging its contents out — targeting already
-		// refuses to hand those objects over, but a multi-object selection assembled
-		// before the claim arrived can still carry one along.
-		const blockedAfter = active.some((o) => objectIntersectsForeignArea(o));
+		// Where it ENDED and where it STARTED both disqualify a move.
+		//
+		// The end check is `objectClaimViolation`, NOT "does it touch a foreign
+		// area" — an area is only foreign to people who don't own it, so the
+		// foreign-only test silently permitted the one move that matters: dragging
+		// somebody else's object into your OWN claim.
+		//
+		// The start check stops the mirror image, a claim being emptied by dragging
+		// its contents out. Targeting already refuses to hand those objects over,
+		// but a multi-object selection assembled before the claim arrived can still
+		// carry one along.
+		// The reason is carried through so the toast can say what actually went
+		// wrong. "That's someone's area" is simply untrue when the area is YOURS and
+		// the problem is whose drawing you tried to put in it.
+		let reason: ClaimViolation = "none";
+		for (const o of active) {
+			const violation = objectClaimViolation(o);
+			if (violation === "foreign-area") {
+				reason = violation;
+				break; // strongest reason; stop looking
+			}
+			if (violation !== "none") reason = violation;
+		}
 		const blockedBefore = snapshot.some(({ o, orig }) => {
 			const from = orig as any;
 			if (!from) return false;
 			return !canEditAt(from.left, from.top, objectOwner(o));
 		});
-		if (!blockedAfter && !blockedBefore) return false;
+		if (reason === "none" && !blockedBefore) return false;
 
 		requestAnimationFrame(() => {
 			const mgr = useDrawObjectManager();
@@ -225,36 +247,35 @@ export const useClaimArea = defineStore("claimArea", () => {
 			mgr.renderMain();
 		});
 
-		notifyBlocked();
+		if (reason === "own-area-intrusion") notifyOwnAreaIntrusion();
+		else notifyBlocked();
 		return true;
 	}
 
-	function notifyBlocked(area?: ClaimedArea | null) {
+	function toastBlocked(message: string) {
 		const now = Date.now();
 		if (now - lastToastAt < TOAST_THROTTLE_MS) return;
 		lastToastAt = now;
-		const who = area?.userName ? `${area.userName}'s` : "a claimed";
-		useToast().toast(`That's ${who} area — you can't edit here`, {
+		useToast().toast(message, {
 			color: "warning",
-			duration: ToastDuration.short,
 		});
+	}
+
+	function notifyBlocked(area?: ClaimedArea | null) {
+		const who = area?.userName ? `${area.userName}'s` : "a claimed";
+		toastBlocked(`That's ${who} area — you can't edit here`);
+	}
+
+	/** Your own area, someone else's drawing. Naming the actual rule matters here:
+	 *  the generic "that's a claimed area" message reads as a bug when the area is
+	 *  visibly yours. */
+	function notifyOwnAreaIntrusion() {
+		toastBlocked("You can't move other people's drawings into your area");
 	}
 
 	// ── claim placement (fixed-size, tap to place) ─────────────────────────────
 	function rectFromCenter(cx: number, cy: number) {
 		return { x: cx - AREA_W / 2, y: cy - AREA_H / 2, w: AREA_W, h: AREA_H };
-	}
-
-	function rectsOverlap(
-		a: { x: number; y: number; w: number; h: number },
-		b: { x: number; y: number; w: number; h: number },
-	): boolean {
-		return !(
-			a.x + a.w <= b.x ||
-			b.x + b.w <= a.x ||
-			a.y + a.h <= b.y ||
-			b.y + b.h <= a.y
-		);
 	}
 
 	/** A rect is claimable only if it holds no OTHER user's objects and does not

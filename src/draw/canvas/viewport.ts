@@ -7,6 +7,21 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { createYielder } from "@/draw/scheduling/yielder";
 import { clampToViewportZoom } from "@/draw/rendering/zoomLevels";
 
+/**
+ * The engine's CURRENT zoom floor, which adapts to what the overview bitmap can
+ * render sharply (see TileStamps.minViewportZoom). A fit-to-content that lands
+ * below it would drop the user straight onto an upscaled overview — the exact
+ * blur the floor exists to prevent — so every fit clamps to it too, showing part
+ * of a huge board sharply instead of all of it softly.
+ */
+function viewportMinZoom(): number {
+	try {
+		return useDrawObjectManager().getZoomLimits().min;
+	} catch {
+		return 0;
+	}
+}
+
 export function initViewport(c: Canvas) {
 	const initX = (c.width - CANVAS_SIZE) / 2;
 	const initY = (c.height - CANVAS_SIZE) / 2;
@@ -100,7 +115,7 @@ export function precalculateAndSetViewport(
 
 	// Calculate zoom, apply padding, and clamp it to min/max bounds
 	let fitZoom = Math.min(scaleX, scaleY) * padding;
-	fitZoom = clampToViewportZoom(fitZoom, maxZoom);
+	fitZoom = Math.max(clampToViewportZoom(fitZoom, maxZoom), viewportMinZoom());
 
 	const centerX = canvasWidth / 2 - (minX + contentWidth / 2) * fitZoom;
 	const centerY = canvasHeight / 2 - (minY + contentHeight / 2) * fitZoom;
@@ -131,7 +146,7 @@ export function fitAndCenterAllActualObjects(
 	const scaleY = canvasHeight / (rect.height || 1);
 
 	let fitZoom = Math.min(scaleX, scaleY) * padding;
-	fitZoom = clampToViewportZoom(fitZoom, maxZoom);
+	fitZoom = Math.max(clampToViewportZoom(fitZoom, maxZoom), viewportMinZoom());
 
 	const contentCenterX = rect.left + rect.width / 2;
 	const contentCenterY = rect.top + rect.height / 2;
@@ -242,7 +257,7 @@ export async function fitToDensestRegion(
 	const sx = cw / (contentW || 1);
 	const sy = ch / (contentH || 1);
 	let zoom = Math.min(sx, sy) * padding;
-	zoom = clampToViewportZoom(zoom, maxZoom);
+	zoom = Math.max(clampToViewportZoom(zoom, maxZoom), viewportMinZoom());
 
 	const ccx = minX + contentW / 2;
 	const ccy = minY + contentH / 2;

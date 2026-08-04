@@ -180,6 +180,25 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		commitLayout();
 	}
 
+	/**
+	 * A PRIVATE-room joiner, before (or without) a canvas snapshot.
+	 *
+	 * The document itself arrives with the snapshot and `init` installs it. But a
+	 * joiner is not always served a snapshot: when the room has none cached yet
+	 * the server replays the action buffer as `missed-actions` instead, and that
+	 * path loads no canvas, so `init` never runs a second time and `shared` stays
+	 * at its solo value — every structural edit this peer makes would then be
+	 * dropped by `replicate` and the peers would silently diverge.
+	 *
+	 * So flip only the sharing bit, and leave the list, the active layer and the
+	 * revision bookkeeping untouched: a snapshot arriving later must still be the
+	 * thing that decides what the document IS.
+	 */
+	function markRoomShared(): void {
+		policy.value = "mutable";
+		shared.value = true;
+	}
+
 	function sanitizePersisted(persisted?: DrawLayer[] | null): DrawLayer[] {
 		if (!Array.isArray(persisted) || persisted.length === 0) {
 			return defaultSoloLayers();
@@ -589,8 +608,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 	function underBakePressure(): boolean {
 		const { bakeMsMean, bakeObjectsMax } = drawBakePressure();
 		return (
-			bakeMsMean > HEAVY_BAKE_MS_MEAN ||
-			bakeObjectsMax > HEAVY_BAKE_OBJECTS_MAX
+			bakeMsMean > HEAVY_BAKE_MS_MEAN || bakeObjectsMax > HEAVY_BAKE_OBJECTS_MAX
 		);
 	}
 
@@ -713,14 +731,20 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		} as any);
 
 		if (shared.value) {
-			canvas.fire("objectsDeleted" as any, {
-				target: objects,
-				skipHistory: true,
-			} as any);
-			canvas.fire("objects:added" as any, {
-				target: images,
-				skipHistory: true,
-			} as any);
+			canvas.fire(
+				"objectsDeleted" as any,
+				{
+					target: objects,
+					skipHistory: true,
+				} as any,
+			);
+			canvas.fire(
+				"objects:added" as any,
+				{
+					target: images,
+					skipHistory: true,
+				} as any,
+			);
 		}
 		return true;
 	}
@@ -744,6 +768,7 @@ export const useLayersStore = defineStore("drawLayers", () => {
 		atTierLimit,
 		init,
 		adoptCurrentDocumentForRoom,
+		markRoomShared,
 		serialize,
 		setActive,
 		setVisible,

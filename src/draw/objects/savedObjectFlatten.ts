@@ -171,10 +171,24 @@ export async function rasterizeObjectsToImages(
 	image.set({
 		id: uuidv4(),
 		userId: options.userId,
-		originX: "left",
-		originY: "top",
-		left: bounds.minX,
-		top: bounds.minY,
+		// CENTER origin, like every other object in the document —
+		// `InteractiveFabricObject.ownDefaults` (fabricSetup.ts) overrides fabric's
+		// "left"/"top" globally, and `migrateLegacyOrigin` rewrites anything read
+		// back that still carries the old one.
+		//
+		// This was the ONE place that set "left"/"top" explicitly, so a flattened
+		// layer or imported saved object was the only left/top object in a
+		// center-origin scene. Fabric rotates and scales about the origin, so the
+		// raster swung around its top-left corner under the mobile rotate gesture
+		// instead of turning in place.
+		//
+		// `left`/`top` are the origin POINT, so they move to the middle of the same
+		// padded content box — the object does not move, only what its coordinates
+		// mean does.
+		originX: "center",
+		originY: "center",
+		left: bounds.minX + bounds.width / 2,
+		top: bounds.minY + bounds.height / 2,
 		// The raster covers the padded content box; scaling it back to that exact
 		// rect is what makes a flatten look like nothing moved.
 		scaleX: bounds.width / (image.width || 1),

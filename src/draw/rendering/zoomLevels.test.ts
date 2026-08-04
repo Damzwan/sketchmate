@@ -6,7 +6,7 @@ import {
 	clampToViewportZoom,
 	minimumTiledZoom,
 	minimumViewportZoom,
-	sharpMinimumViewportZoom,
+	minimumViewportZoomFor,
 } from "./zoomLevels";
 
 describe("render zoom levels", () => {
@@ -23,7 +23,7 @@ describe("render zoom levels", () => {
 		expect(minimumTiledZoom(2)).toBe(0.25);
 	});
 
-	it("allows the viewport into the overview-only range", () => {
+	it("keeps the ladder's bottom rung inside the overview-only range", () => {
 		expect(minimumViewportZoom()).toBe(0.125);
 		expect(clampToViewportZoom(0.01, 16)).toBe(0.125);
 		expect(clampToViewportZoom(0.125, 16)).toBe(0.125);
@@ -33,58 +33,81 @@ describe("render zoom levels", () => {
 			).toBeLessThanOrEqual(DEFAULT_OVERVIEW_TIER);
 		}
 	});
+
+	it("clamps against an explicit floor below the ladder", () => {
+		// The big-board case: the engine's floor sits under 0.125 and a
+		// fit-to-content must be allowed to land there.
+		expect(clampToViewportZoom(0.02, 16, DEFAULT_ZOOM_TIERS, 0.02)).toBe(0.02);
+		expect(clampToViewportZoom(0.005, 16, DEFAULT_ZOOM_TIERS, 0.02)).toBe(0.02);
+	});
 });
 
-describe("sharp zoom floor", () => {
+describe("content-derived zoom floor", () => {
 	const RENDER_SCALE = 2;
 	const TILED = minimumTiledZoom(RENDER_SCALE); // 0.25
+	const DENSITY = 0.04; // a budget-capped bitmap over a ~20k-unit lobby
 
-	it("keeps the full zoom-out range when the overview can serve it", () => {
-		// A normal drawing: the bitmap holds >= the pixels the screen asks for all
-		// the way up to the first tiled tier, so nothing is taken away.
-		const density = TILED * RENDER_SCALE; // exactly enough
-		expect(sharpMinimumViewportZoom(density, RENDER_SCALE)).toBe(
-			minimumViewportZoom(),
-		);
-		expect(sharpMinimumViewportZoom(density * 4, RENDER_SCALE)).toBe(
-			minimumViewportZoom(),
-		);
+	it("stops at the tiled tier for a drawing that already fits", () => {
+		// A normal drawing fits on screen well above the tiled floor. Nothing is
+		// gained by going further out, so this is the pre-existing behaviour.
+		expect(minimumViewportZoomFor(1, 0.5, RENDER_SCALE)).toBe(TILED);
+		expect(minimumViewportZoomFor(TILED, 0.5, RENDER_SCALE)).toBe(TILED);
 	});
 
-	it("stops at the tiled tier when the overview would be upscaled", () => {
-		// The massive-lobby case. ~0.1 px per world unit against a top-of-range
-		// demand of 0.5 is the ~5x upscale users see as blur; the floor rises so it
-		// is simply not reachable.
-		expect(sharpMinimumViewportZoom(0.1, RENDER_SCALE)).toBe(TILED);
-		expect(sharpMinimumViewportZoom(TILED * RENDER_SCALE * 0.5, RENDER_SCALE)).toBe(
-			TILED,
+	it("reaches the fit zoom on a board too big for the tiled floor", () => {
+		// The lobby case: ~20k world units on a ~1000 px screen fits around 0.04,
+		// far below the 0.25 tiled floor.
+		expect(minimumViewportZoomFor(0.05, DENSITY, RENDER_SCALE)).toBeCloseTo(
+			0.05,
 		);
 	});
 
-	it("stays on tiles before the first bitmap exists", () => {
-		expect(sharpMinimumViewportZoom(0, RENDER_SCALE)).toBe(TILED);
-		expect(sharpMinimumViewportZoom(Number.NaN, RENDER_SCALE)).toBe(TILED);
+	it("goes below the tier ladder entirely when the content needs it", () => {
+		expect(
+			minimumViewportZoomFor(0.02, DENSITY, RENDER_SCALE),
+		).toBeLessThan(minimumViewportZoom());
 	});
 
-	it("never returns a zoom that is served by an upscaled overview", () => {
-		// The guarantee itself, swept: whatever the floor is, at that zoom either
-		// tiles serve it or the bitmap has the pixels for it.
+	it("does not shorten the reach of a coarse overview", () => {
+		// Zooming out LOWERS the pixels the screen asks for, so a sparse bitmap is
+		// at its best here, not its worst. Density must not gate the floor — that
+		// reading is what closed the band on big boards in the first place.
+		for (const density of [0.001, 0.04, 4]) {
+			expect(minimumViewportZoomFor(0.01, density, RENDER_SCALE)).toBe(0.01);
+		}
+	});
+
+	it("stays on tiles with no bitmap or no content bounds yet", () => {
+		expect(minimumViewportZoomFor(0.01, 0, RENDER_SCALE)).toBe(TILED);
+		expect(minimumViewportZoomFor(0.01, Number.NaN, RENDER_SCALE)).toBe(TILED);
+		expect(
+			minimumViewportZoomFor(Number.POSITIVE_INFINITY, 0.5, RENDER_SCALE),
+		).toBe(TILED);
+		expect(minimumViewportZoomFor(Number.NaN, 0.5, RENDER_SCALE)).toBe(TILED);
+		expect(minimumViewportZoomFor(0, 0.5, RENDER_SCALE)).toBe(TILED);
+	});
+
+	it("never returns a floor above the old one, at any scale", () => {
+		// The regression this replaces RAISED the floor. Swept guarantee that the
+		// new one cannot: it is always the tiled tier or further out.
 		for (const renderScale of [1, 1.5, 2]) {
 			for (const density of [0, 0.02, 0.1, 0.25, 0.5, 1, 4]) {
-				const floor = sharpMinimumViewportZoom(density, renderScale);
-				const tiled = minimumTiledZoom(renderScale);
-				const servedByTiles = floor >= tiled;
-				const servedSharply = density >= floor * renderScale;
-				expect(servedByTiles || servedSharply).toBe(true);
+				for (const fit of [0.001, 0.02, 0.125, 0.5, 4]) {
+					expect(
+						minimumViewportZoomFor(fit, density, renderScale),
+					).toBeLessThanOrEqual(minimumTiledZoom(renderScale));
+				}
 			}
 		}
 	});
 
-	it("only ever restricts, never opens the range wider than before", () => {
-		for (const density of [0, 0.1, 0.5, 10]) {
-			expect(
-				sharpMinimumViewportZoom(density, 2),
-			).toBeGreaterThanOrEqual(minimumViewportZoom());
+	it("never demands more zoom-out than the content actually needs", () => {
+		for (const fit of [0.001, 0.02, 0.125, 0.5, 4]) {
+			for (const density of [0.02, 0.5, 4]) {
+				expect(minimumViewportZoomFor(fit, density, 2)).toBeGreaterThanOrEqual(
+					Math.min(fit, minimumTiledZoom(2)),
+				);
+			}
 		}
 	});
 });

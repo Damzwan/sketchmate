@@ -3,6 +3,16 @@ import type { LiveMode } from "../liveLayer";
 import { getObjectBounds, mergeNearbyRects, unionRects } from "./invalidation";
 import { RenderInvalidationCoordinator } from "./renderInvalidationCoordinator";
 
+/**
+ * Breathing room at the far end of the zoom range: the floor must let the whole
+ * drawing sit on screen with a margin, not pressed against the bezels.
+ *
+ * Kept BELOW the 0.8 padding the fit-to-content helpers in canvas/viewport.ts
+ * use, so those fits land inside the range instead of being clamped back up by
+ * it — a floor that equals the fit would crop every "fit to content".
+ */
+const FIT_ZOOM_MARGIN = 0.75;
+
 export abstract class RenderOverviewCoordinator<
 	T extends Bounded,
 > extends RenderInvalidationCoordinator<T> {
@@ -566,8 +576,26 @@ export abstract class RenderOverviewCoordinator<
 		this.patchOverview(rect);
 	}
 
+	/**
+	 * The zoom at which the whole drawing fits on screen, in CSS px per world
+	 * unit. `Infinity` while there is nothing to fit.
+	 *
+	 * `getSize()` reports the BACKING STORE, so it is divided by the render DPR to
+	 * get CSS pixels — zoom is a CSS-space quantity everywhere else in the engine.
+	 */
+	protected fitToContentZoom(): number {
+		const c = this.contentBounds;
+		if (!c || !(c.w > 0) || !(c.h > 0)) return Number.POSITIVE_INFINITY;
+		const { w, h } = this.surface.getSize();
+		const dpr = this.surface.getDpr() || 1;
+		const cssW = w / dpr;
+		const cssH = h / dpr;
+		if (!(cssW > 0) || !(cssH > 0)) return Number.POSITIVE_INFINITY;
+		return Math.min(cssW / c.w, cssH / c.h) * FIT_ZOOM_MARGIN;
+	}
+
 	get minZoom(): number {
-		return this.committed.minViewportZoom;
+		return this.committed.minViewportZoomFor(this.fitToContentZoom());
 	}
 
 	get maxZoom(): number {

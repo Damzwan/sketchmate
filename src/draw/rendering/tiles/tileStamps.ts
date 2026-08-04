@@ -2,7 +2,7 @@ import { TileBaker } from "./tileBaker";
 import type { Bounded, WorldRect } from "./tileLayerBase";
 import { isCanvasSurface } from "./tileStore";
 import { tileKey, type TileKey } from "./tileKey";
-import { minimumTiledZoom, sharpMinimumViewportZoom } from "../zoomLevels";
+import { minimumTiledZoom, minimumViewportZoomFor } from "../zoomLevels";
 
 export class TileStamps<T extends Bounded> extends TileBaker<T> {
 	/**
@@ -454,35 +454,34 @@ export class TileStamps<T extends Bounded> extends TileBaker<T> {
 			this.OVERVIEW_TIER,
 		);
 	}
+	/** Overview pixels per world unit; 0 until the first bitmap exists. */
+	get overviewDensity(): number {
+		return this.overview.pixelDensity();
+	}
+
 	/**
-	 * How far out the viewport may go and still be SHARP everywhere.
+	 * How far out the viewport may go, given the zoom at which the whole drawing
+	 * fits on screen.
 	 *
-	 * Two things can serve a zoom level: tiles (always sharp, they rasterize at
-	 * the tier they are shown at) and the overview bitmap (sharp only while it
-	 * holds at least as many pixels as the screen asks for).
-	 *
-	 * The overview is budget-capped, so its density falls as the world grows. On a
-	 * big spread-out lobby it ends up around 0.1 px per world unit while the top
-	 * of its own zoom range wants ~0.5 — a ~5x upscale, which is the "everything
-	 * is blurry when you zoom out" report. The floor used to be a flat 0.125
-	 * regardless, so that blur was always reachable.
-	 *
-	 * So: let the viewport into overview territory ONLY when the bitmap can cover
-	 * the whole gap up to the first tiled tier. It usually can — a normal drawing
-	 * keeps every bit of today's zoom-out range. When it cannot, the floor stops
-	 * at the tiled tier: less zoom-out on a huge board, in exchange for never
-	 * rendering an upscaled bitmap.
-	 *
-	 * Costs nothing at runtime and, deliberately, no extra pixels — spending more
-	 * memory on the overview is what we cannot afford on a low-end Android.
+	 * The floor is content-derived, not a ladder constant: always reach the tiled
+	 * tier, then as far out as `fitZoom` if the overview bitmap can serve it
+	 * without visible upscale. See `minimumViewportZoomFor` for why. Callers that
+	 * do not know the content bounds pass a non-finite `fitZoom` and get the
+	 * tiled floor.
 	 */
-	get minViewportZoom(): number {
-		return sharpMinimumViewportZoom(
+	minViewportZoomFor(fitZoom: number): number {
+		return minimumViewportZoomFor(
+			fitZoom,
 			this.overview.pixelDensity(),
 			this.renderScale,
 			this.ZOOM_TIERS,
 			this.OVERVIEW_TIER,
 		);
+	}
+
+	/** The floor with no content information at all: the first tiled tier. */
+	get minViewportZoom(): number {
+		return this.minViewportZoomFor(Number.POSITIVE_INFINITY);
 	}
 	get maxUsableZoom(): number {
 		// Finest tier ÷ renderScale — past this we'd ask for a tier we never bake.

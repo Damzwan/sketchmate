@@ -94,37 +94,47 @@ function fakeCtx() {
 
 describe("CommittedLayer safety bounds", () => {
 	it("stays on tile-backed tiers until the overview bitmap exists", () => {
-		// The zoom floor is now a SHARPNESS guarantee, not a constant: with no
-		// bitmap yet there is nothing that can serve the overview-only range, so
-		// the viewport is held on tiles.
-		const layer = makeLayer();
+		// The zoom floor is content-derived, not a constant: with no bitmap yet
+		// there is nothing that can serve the overview-only range, so the viewport
+		// is held on tiles whatever the content asks for.
+		const layer = makeLayer() as any;
 
-		expect(layer.overview.pixelDensity()).toBe(0);
-		expect(layer.minViewportZoom).toBe(layer.minTiledZoom);
+		expect(layer.overviewDensity).toBe(0);
+		expect(layer.minViewportZoomFor(0.01)).toBe(layer.minTiledZoom);
 		expect(layer.pickActiveTier(layer.minViewportZoom)).toBeGreaterThan(
 			layer.overviewTier,
 		);
 	});
 
-	it("opens the overview-only range once the bitmap is dense enough", () => {
+	it("opens the overview-only range for content that needs it", () => {
+		// The massive-lobby case: the board only fits well below the tiled floor,
+		// and the bitmap has the pixels for that zoom.
 		const layer = makeLayer() as any;
-		// Enough overview pixels to cover the whole gap up to the first tiled tier.
+		const fit = 0.05;
 		vi.spyOn(layer.overview, "pixelDensity").mockReturnValue(
-			layer.minTiledZoom * layer.renderScale,
+			fit * layer.renderScale,
 		);
 
-		expect(layer.minViewportZoom).toBe(0.125);
-		expect(layer.pickActiveTier(layer.minViewportZoom)).toBeLessThanOrEqual(
-			layer.overviewTier,
-		);
+		const floor = layer.minViewportZoomFor(fit);
+		expect(floor).toBeCloseTo(fit);
+		expect(layer.pickActiveTier(floor)).toBeLessThanOrEqual(layer.overviewTier);
 	});
 
-	it("keeps a sparse overview out of reach", () => {
-		// The massive-lobby case: a budget-capped bitmap spread over a huge world
-		// would be upscaled ~5x, which is the blur this floor exists to prevent.
+	it("keeps that reach even with a sparse overview", () => {
+		// Zooming out lowers the pixels the screen asks for, so a coarse bitmap is
+		// at its sharpest at the far end. Density gates whether the band can be
+		// painted at all, never how far it reaches.
 		const layer = makeLayer() as any;
-		vi.spyOn(layer.overview, "pixelDensity").mockReturnValue(0.02);
+		vi.spyOn(layer.overview, "pixelDensity").mockReturnValue(0.002);
 
+		expect(layer.minViewportZoomFor(0.05)).toBeCloseTo(0.05);
+	});
+
+	it("stops at the tiled tier for a drawing that already fits", () => {
+		const layer = makeLayer() as any;
+		vi.spyOn(layer.overview, "pixelDensity").mockReturnValue(0.5);
+
+		expect(layer.minViewportZoomFor(1)).toBe(layer.minTiledZoom);
 		expect(layer.minViewportZoom).toBe(layer.minTiledZoom);
 	});
 

@@ -8,18 +8,28 @@ import { createYielder } from "@/draw/scheduling/yielder";
 import { clampToViewportZoom } from "@/draw/rendering/zoomLevels";
 
 /**
- * The engine's CURRENT zoom floor, which adapts to what the overview bitmap can
- * render sharply (see TileStamps.minViewportZoom). A fit-to-content that lands
- * below it would drop the user straight onto an upscaled overview — the exact
- * blur the floor exists to prevent — so every fit clamps to it too, showing part
- * of a huge board sharply instead of all of it softly.
+ * Clamp a fit-to-content zoom into the engine's CURRENT range.
+ *
+ * The floor adapts to the content and to what the overview bitmap can render
+ * sharply (see TileStamps.minViewportZoomFor), so it may sit BELOW the tier
+ * ladder's own bottom rung on a big board — which is exactly the case a
+ * fit-to-content cares about. Clamping to the ladder constant first would pin
+ * every such fit back up to 0.125 and crop the board, so the engine's floor is
+ * passed through as the minimum rather than applied on top of it.
  */
-function viewportMinZoom(): number {
+function clampFitZoom(zoom: number, maxZoom: number): number {
+	let engineMin = 0;
 	try {
-		return useDrawObjectManager().getZoomLimits().min;
+		engineMin = useDrawObjectManager().getZoomLimits().min;
 	} catch {
-		return 0;
+		engineMin = 0;
 	}
+	return clampToViewportZoom(
+		zoom,
+		maxZoom,
+		undefined,
+		engineMin > 0 ? engineMin : undefined,
+	);
 }
 
 export function initViewport(c: Canvas) {
@@ -115,7 +125,7 @@ export function precalculateAndSetViewport(
 
 	// Calculate zoom, apply padding, and clamp it to min/max bounds
 	let fitZoom = Math.min(scaleX, scaleY) * padding;
-	fitZoom = Math.max(clampToViewportZoom(fitZoom, maxZoom), viewportMinZoom());
+	fitZoom = clampFitZoom(fitZoom, maxZoom);
 
 	const centerX = canvasWidth / 2 - (minX + contentWidth / 2) * fitZoom;
 	const centerY = canvasHeight / 2 - (minY + contentHeight / 2) * fitZoom;
@@ -146,7 +156,7 @@ export function fitAndCenterAllActualObjects(
 	const scaleY = canvasHeight / (rect.height || 1);
 
 	let fitZoom = Math.min(scaleX, scaleY) * padding;
-	fitZoom = Math.max(clampToViewportZoom(fitZoom, maxZoom), viewportMinZoom());
+	fitZoom = clampFitZoom(fitZoom, maxZoom);
 
 	const contentCenterX = rect.left + rect.width / 2;
 	const contentCenterY = rect.top + rect.height / 2;
@@ -257,7 +267,7 @@ export async function fitToDensestRegion(
 	const sx = cw / (contentW || 1);
 	const sy = ch / (contentH || 1);
 	let zoom = Math.min(sx, sy) * padding;
-	zoom = Math.max(clampToViewportZoom(zoom, maxZoom), viewportMinZoom());
+	zoom = clampFitZoom(zoom, maxZoom);
 
 	const ccx = minX + contentW / 2;
 	const ccy = minY + contentH / 2;

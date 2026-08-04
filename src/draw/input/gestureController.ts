@@ -1,6 +1,7 @@
 import type { Canvas, FabricObject } from "fabric";
 import type { RenderEngine } from "../rendering/renderEngine";
-import { minimumViewportZoom } from "../rendering/zoomLevels";
+import { minimumTiledZoom } from "../rendering/zoomLevels";
+import { MAX_RENDER_SCALE } from "../config/renderQuality.config";
 import {
 	bakeryPauseFlush,
 	bakeryTranslate,
@@ -110,7 +111,11 @@ export function createGestureController(options: GestureControllerOptions) {
 	function getZoomLimits() {
 		const renderEngine = engine();
 		if (!renderEngine) {
-			return { min: minimumViewportZoom(), max: 16 };
+			// No engine yet, so no content bounds and no overview to reason about.
+			// The tiled floor is the only zoom guaranteed to render sharply without
+			// them; the ladder constant below it would let a pinch out into overview
+			// territory the engine has not yet said is safe.
+			return { min: minimumTiledZoom(MAX_RENDER_SCALE), max: 16 };
 		}
 		return { min: renderEngine.minZoom, max: renderEngine.maxZoom };
 	}

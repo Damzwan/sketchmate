@@ -85,6 +85,21 @@ export function getRenderDpr(): number {
 	return cachedRenderDpr;
 }
 
+/**
+ * Longest screen edge in RENDER pixels — the most pixels the engine can ever be
+ * asked to put on screen at once.
+ *
+ * `screen` rather than the canvas element: the canvas is not sized yet when the
+ * memory profile is resolved, and a rotation or a resized window must not
+ * change a budget the tile cache was built against. Uses `getRenderDpr()`, not
+ * raw `devicePixelRatio`, because the composite itself is capped there.
+ */
+export const DRAW_SCREEN_EDGE_PX =
+	typeof window !== "undefined" && window.screen
+		? Math.max(window.screen.width || 0, window.screen.height || 0) *
+			getRenderDpr()
+		: 0;
+
 /** True when the cap is actually biting — useful for reporting the A/B cohort. */
 export function isRenderDprCapped(): boolean {
 	const raw = (typeof window !== "undefined" && window.devicePixelRatio) || 1;

@@ -525,11 +525,32 @@ changed and the screen shows stale pixels.
 - **Tile size** — 512 px desktop, 384 px mobile, plus a 2 px overscan (`OS`) to
   avoid seams.
 
-Minimum viewport zoom is the first configured tier (`0.125`), independent of
-`renderScale`. Between `0.125` and the first tile-backed zoom
-(`0.5 / renderScale`), the adaptive overview is the authoritative picture. This
-lets collaborators survey the surrounding canvas without allocating hundreds
-of coarse tiles. Maximum zoom is `ZOOM_TIERS[last] / renderScale`.
+Minimum viewport zoom is **content-derived**, not a ladder constant
+(`zoomLevels.ts` → `minimumViewportZoomFor`, called from the coordinator's
+`minZoom` with a fit-to-content zoom):
+
+- the first tile-backed zoom (`0.5 / renderScale`) is always reachable — tiles
+  serve it unconditionally;
+- past that, the viewport may go as far out as the whole drawing needs to fit on
+  screen, which on a big lobby is well below the ladder's own bottom rung
+  (`0.125`), and no further, since past it only empty canvas appears;
+- with no overview bitmap yet there is nothing to paint that band with, so the
+  floor stays at the tiled tier.
+
+Between the floor and the first tile-backed zoom the adaptive overview is the
+authoritative picture. This lets collaborators survey the surrounding canvas
+without allocating hundreds of coarse tiles. Maximum zoom is
+`ZOOM_TIERS[last] / renderScale`.
+
+**Which end of that band is soft.** The screen asks the overview for
+`zoom × renderScale` pixels per world unit, so demand RISES with zoom: the
+bitmap is at its worst just under the tiled tier and gets sharper the further
+out the viewport goes. At the far end — whole board on screen — the demand is
+one *screenful* of pixels regardless of how big the board is, which is why
+`overviewPx` carries a screen-derived floor (`resolveDrawMemoryProfile`,
+bounded by `MAX_OVERVIEW_UPSCALE`). Zooming out cures the blur; it does not
+cause it. A floor that reads it the other way round closes the band on exactly
+the big boards it exists for.
 
 ---
 
@@ -721,9 +742,12 @@ reach the engine through the same seams as local edits.
 3. **Text + fonts in a worker are unsolved.** A worker has no `@font-face`, so
    text would bake blank there. Any worker offload needs either FontFace loading
    in the worker or a client-side refusal of text tiles (main-thread fallback).
-4. **Overview resolution is bounded.** A very large board can still exceed the
-   overview pixel budget. The tile-backed zoom floor and progressive tile bakes
-   keep that lower-resolution bitmap temporary.
+4. **Overview resolution is bounded.** `overviewPx` is sized to hold a screenful
+   of pixels, so the far end of the zoom range (whole board on screen) is sharp
+   at any board size. The band between there and the first tiled tier is served
+   by the same bitmap at rising demand, so it stays soft on a very large board —
+   a viewport-anchored detail bitmap rebuilt on gesture-settle is the fix, and is
+   not implemented.
 5. **Compositing is CPU `drawImage`.** Fine for a few dozen tiles, but there is no
    GPU batch path; a pathological viewport (many small fallback fragments from
    `findBestSource`) does many `drawImage` calls.

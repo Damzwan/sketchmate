@@ -1,3 +1,5 @@
+import { MAX_OVERVIEW_UPSCALE } from "@/draw/rendering/zoomLevels";
+
 export interface DrawMemoryProfile {
 	tileBudgetMB: number;
 	overviewPx: number;
@@ -46,10 +48,73 @@ export interface DrawMemoryDevice {
 	lowEnd: boolean;
 	deviceMemoryGB: number;
 	hardwareConcurrency: number;
+	/**
+	 * Longest screen edge in RENDER pixels (CSS px x the capped render DPR).
+	 * Optional: omitted in tests and on any host without a screen, where the
+	 * device-class `overviewPx` stands on its own.
+	 */
+	screenEdgePx?: number;
+}
+
+/**
+ * Ceiling on the screen-derived `overviewPx` floor, per device class.
+ *
+ * The floor exists so a phone-sized screen never outruns the overview bitmap;
+ * these caps stop a large tablet or a HiDPI desktop from turning that into an
+ * unbounded allocation. Raising `overviewPx` is not free elsewhere either — the
+ * tile budget subtracts it (see TileLayerBase's MEM_HARD), so a bigger overview
+ * is paid for out of the tile cache.
+ */
+const OVERVIEW_SCREEN_FLOOR_CAP = {
+	lowEnd: 1024,
+	mobile: 1536,
+	desktop: 2560,
+} as const;
+
+/**
+ * Raise `overviewPx` so the bitmap can fill the screen at full zoom-out.
+ *
+ * The zoom floor is "the whole drawing fits on screen"
+ * (rendering/zoomLevels.ts → `minimumViewportZoomFor`), and the pixels THAT asks
+ * for are `screenPixels`, not `contentSize x someDensity` — a bigger board is
+ * shown smaller, so the demand at full zoom-out does not grow with it. That
+ * makes the honest overview budget a function of the SCREEN, which is what these
+ * device-class constants were only accidentally approximating: they land right
+ * for a phone, but on a tablet the same 1024² is a 2x upscale of the one view
+ * this whole band exists to serve.
+ *
+ * Divided by the upscale tolerance because the far end is allowed to spend it.
+ */
+function withScreenOverviewFloor(
+	profile: DrawMemoryProfile,
+	device: DrawMemoryDevice,
+	maxUpscale: number,
+): DrawMemoryProfile {
+	const edge = device.screenEdgePx;
+	if (!edge || !(edge > 0) || !Number.isFinite(edge)) return profile;
+	const cap = !device.mobile
+		? OVERVIEW_SCREEN_FLOOR_CAP.desktop
+		: device.lowEnd
+			? OVERVIEW_SCREEN_FLOOR_CAP.lowEnd
+			: OVERVIEW_SCREEN_FLOOR_CAP.mobile;
+	const floor = Math.min(cap, Math.ceil(edge / Math.max(1, maxUpscale)));
+	if (floor <= profile.overviewPx) return profile;
+	return { ...profile, overviewPx: floor };
 }
 
 /** Pure device-class policy, kept separate so it can be regression-tested. */
 export function resolveDrawMemoryProfile(
+	device: DrawMemoryDevice,
+	maxOverviewUpscale = MAX_OVERVIEW_UPSCALE,
+): DrawMemoryProfile {
+	return withScreenOverviewFloor(
+		resolveDeviceClassProfile(device),
+		device,
+		maxOverviewUpscale,
+	);
+}
+
+function resolveDeviceClassProfile(
 	device: DrawMemoryDevice,
 ): DrawMemoryProfile {
 	if (!device.mobile) {

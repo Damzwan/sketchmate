@@ -1,6 +1,10 @@
-Chrome >=79
-ChromeAndroid >=79
-Firefox >=70
-Edge >=79
-Safari >=14
-iOS >=14
+# Android WebView is Play-updatable, so minSdkVersion 24 devices still run a
+# modern Chromium. Chrome >= 79 forced down-levelling of ??, ?., class fields
+# and async generators for no real coverage gain.
+# Keep in sync with build.target in vite.config.ts.
+Chrome >=100
+ChromeAndroid >=100
+Firefox >=100
+Edge >=100
+Safari >=15
+iOS >=15

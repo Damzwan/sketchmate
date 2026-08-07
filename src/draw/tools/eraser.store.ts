@@ -20,7 +20,7 @@ import { analyzeErasureInWorker } from "@/draw/tools/erasureAnalysisClient";
 import { EraserSize, type ToolService } from "@/draw/tools/tool.types";
 import { isActive as transformSessionActive } from "@/draw/transform/transformController";
 import { CustomEraserBrush } from "@/draw/utils/brushes/CustomEraserBrush";
-import { isMobile } from "@/helper/general.helper";
+import { isMobile } from "@/helper/platform.helper";
 import { useAuthStore } from "@/store/auth.store";
 
 interface Eraser extends ToolService {

@@ -5,7 +5,7 @@ import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { bucketFill, shutdownBucketFillWorker } from "@/draw/tools/bucketFill";
 import type { ToolService } from "@/draw/tools/tool.types";
-import { isMobile } from "@/helper/general.helper";
+import { isMobile } from "@/helper/platform.helper";
 
 interface Bucket extends ToolService {
 	isFilling: Ref<boolean>;

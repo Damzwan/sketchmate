@@ -2,12 +2,8 @@ import { App } from "@capacitor/app";
 import { Preferences } from "@capacitor/preferences";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar } from "@capacitor/status-bar";
-import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { NavigationBar } from "@capgo/capacitor-navigation-bar";
-import { isPlatform, useBackButton } from "@ionic/vue";
-import { Purchases } from "@revenuecat/purchases-capacitor";
-import Compressor from "compressorjs";
-import { initializeApp } from "firebase/app";
+import { useBackButton } from "@ionic/vue";
 import { storeToRefs } from "pinia";
 import { type Ref, watch } from "vue";
 import avatar from "@/assets/avatar.svg";
@@ -16,6 +12,7 @@ import {
 	account_blob,
 	minimum_age_social_features,
 } from "@/config/general.config";
+import { isNative } from "@/helper/platform.helper";
 import router from "@/router";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
@@ -28,60 +25,9 @@ import type { Mate, User } from "@/types/server.types";
 import { LocalStorage } from "@/types/storage.types";
 import { ToastDuration } from "@/types/toast.types";
 
-export const IS_PROD = import.meta.env.VITE_ENVIRONMENT === "prod";
-export const IS_DEV = !IS_PROD;
-
 export function sortDates(arr: string[]) {
 	return (arr as any).toSorted((a: any, b: any) => {
 		return new Date(b).getTime() - new Date(a).getTime();
-	});
-}
-
-// TODO does not work well for mobile
-
-type CompressImgReturnType = "file" | "blob";
-
-export interface CompressImgOptions {
-	size?: number;
-	quality?: number;
-	returnType?: CompressImgReturnType;
-}
-
-const compressImgBaseSettings: CompressImgOptions = {
-	quality: 0.6,
-	returnType: "file",
-};
-
-export async function compressImg(
-	file: File | Blob | string,
-	options?: CompressImgOptions,
-): Promise<Blob | File> {
-	const o: CompressImgOptions = { ...compressImgBaseSettings, ...options };
-
-	if (typeof file === "string") {
-		file = await fetch(file).then((res) => res.blob());
-	}
-
-	return new Promise((resolve, reject) => {
-		new Compressor(file as Blob | File, {
-			quality: o.quality,
-			maxWidth: o.size,
-			maxHeight: o.size,
-			mimeType: "image/webp",
-			success(result) {
-				if (o.returnType === "file") {
-					resolve(result as File);
-				} else if (o.returnType === "blob") {
-					resolve(result as Blob);
-				} else {
-					reject(new Error('Invalid returnType. Expected "blob" or "file".'));
-				}
-			},
-			error(err) {
-				console.log(err.message);
-				reject(err);
-			},
-		});
 	});
 }
 
@@ -94,7 +40,7 @@ export function senderName(mate: Mate | undefined) {
 }
 
 export function svg(path: string, fill?: string) {
-	return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="${
+	return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${
 		fill ? fill : ""
 	}"><path d="${path}"/></svg>`;
 }
@@ -110,58 +56,6 @@ export async function setAppColors(colorConfig: AppColorConfig) {
 		StatusBar.setBackgroundColor({ color: colorConfig.statusBar }),
 	]);
 }
-
-export function isMobile() {
-	return (
-		isPlatform("mobile") ||
-		isPlatform("capacitor") ||
-		isPlatform("android") ||
-		isPlatform("ios")
-	);
-}
-
-export function isNative() {
-	return isPlatform("capacitor");
-}
-
-export function isIOS() {
-	return isPlatform("ios");
-}
-
-export function isSafari() {
-	const userAgentString = navigator.userAgent;
-	const chromeAgent = userAgentString.indexOf("Chrome") > -1;
-	let safariAgent = userAgentString.indexOf("Safari") > -1;
-	if (chromeAgent && safariAgent) safariAgent = false;
-	return safariAgent;
-}
-
-export function blurIonInput(ionInput: any) {
-	ionInput.$el.querySelector("input").blur();
-}
-
-export function initFirebase() {
-	const firebaseConfig = {
-		apiKey: "AIzaSyA0QXGKwWkDCMkyL4SEvdHGlaVQNyc7FUk",
-		authDomain: "sketchmate-b5977.firebaseapp.com",
-		projectId: "sketchmate-b5977",
-		storageBucket: "sketchmate-b5977.appspot.com",
-		messagingSenderId: "454566721535",
-		appId: "1:454566721535:web:019875100e884ea61519ca",
-		measurementId: "G-GD43HDZD3D",
-	};
-
-	initializeApp(firebaseConfig);
-}
-
-export function isRunningStandalone() {
-	return window.matchMedia("(display-mode: standalone)").matches;
-}
-
-export function showIosSafariInstructions() {
-	return isIOS() && isSafari() && !isRunningStandalone();
-}
-
 export function getRandomStockAvatar() {
 	const randomNum = Math.floor(Math.random() * 5) + 1;
 	return `${account_blob}/stock_${randomNum}.webp`;
@@ -169,9 +63,7 @@ export function getRandomStockAvatar() {
 
 /**
  * Stable, unique-per-install device identifier. Persisted once and reused, so
- * it survives token rotation and never collides between two identical devices
- * (the old `browser-platform-model` scheme did). The server keys each push
- * subscription on this value.
+ * it survives token rotation and never collides between two identical devices.
  */
 export async function generateDeviceFingerprint(): Promise<string> {
 	const existing = await Preferences.get({ key: LocalStorage.installId });
@@ -185,16 +77,6 @@ export async function generateDeviceFingerprint(): Promise<string> {
 
 	await Preferences.set({ key: LocalStorage.installId, value: id });
 	return id;
-}
-
-export const getCurrentUser = async () => {
-	const result = await FirebaseAuthentication.getCurrentUser();
-	return result.user;
-};
-
-export async function getCurrentAuthUser() {
-	const result = await FirebaseAuthentication.getCurrentUser();
-	return result.user;
 }
 
 export function compareVersions(
@@ -236,7 +118,7 @@ export async function toDataUrl(blob: any) {
 }
 
 export function shuffleArray<T = string>(array: any[]): Array<T> {
-	const arr = [...array]; // to avoid mutating original array
+	const arr = [...array];
 	for (let i = arr.length - 1; i > 0; i--) {
 		const j = Math.floor(Math.random() * (i + 1));
 		[arr[i], arr[j]] = [arr[j], arr[i]];
@@ -311,7 +193,6 @@ export function calculateAge(dob: Date | string): number {
 export function isOldEnough(dob: Date | string): boolean {
 	const dateObj = typeof dob === "string" ? new Date(dob) : dob;
 
-	// Handle invalid date strings gracefully
 	if (Number.isNaN(dateObj.getTime())) {
 		return false;
 	}
@@ -360,14 +241,12 @@ export function setupWidget() {
 export function setupBackButtonBehavior() {
 	const { isOpen, dismiss } = useToast();
 
-	// Default handler: exit the app
 	useBackButton(-1, () => {
 		if (!window.history.state?.back) {
 			App.exitApp();
 		}
 	});
 
-	// Toast handler: close toast first
 	useBackButton(10, (next) => {
 		if (isOpen.value) dismiss();
 		else next();
@@ -387,28 +266,6 @@ export function setupPWAPromptListener() {
 		installPrompt.value = e;
 	});
 }
-
-// export function setupRouterReadyWatcher(
-// 	isRouterReady: Ref<boolean>,
-// 	isAuthLoading: Ref<boolean>,
-// ) {
-// 	router.isReady().then(() => {
-// 		isRouterReady.value = true;
-// 	});
-//
-// 	if (isNative()) {
-// 		const unwatch = watch(
-// 			[isAuthLoading, isRouterReady],
-// 			([authLoading, routerReady]) => {
-// 				if (routerReady && !authLoading) {
-// 					SplashScreen.hide();
-// 					unwatch();
-// 				}
-// 			},
-// 			{ immediate: true },
-// 		);
-// 	}
-// }
 
 export function setupRouterReadyWatcher(
 	isRouterReady: Ref<boolean>,
@@ -432,32 +289,6 @@ export function setupRouterReadyWatcher(
 	}
 }
 
-export function isMac() {
-	return /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-}
-
-export async function initBilling() {
-	if (!isNative()) return;
-
-	const env = import.meta.env.VITE_ENVIRONMENT;
-	const testKey =
-		env === "prod"
-			? import.meta.env.VITE_REVENUECAT_ANDROID_KEY
-			: import.meta.env.VITE_REVENUECAT_TEST_KEY;
-
-	if (!testKey) {
-		console.error("Missing RevenueCat Test Key! Check your .env file.");
-		return;
-	}
-
-	try {
-		await Purchases.configure({ apiKey: testKey });
-		console.log("RevenueCat configured successfully with Key!");
-	} catch (error) {
-		console.error("Error configuring RevenueCat:", error);
-	}
-}
-
 export function generateRandomCode() {
 	const code = Math.floor(Math.random() * 10000);
 	return String(code).padStart(4, "0");
@@ -465,7 +296,7 @@ export function generateRandomCode() {
 
 export function shouldShowThoughtPrompt(user: User): boolean {
 	const meta = user.engagement_metadata;
-	if (!meta) return true; // First time, always prompt
+	if (!meta) return true;
 
 	const lastPromptDate = new Date(meta.last_thought_prompt_at || 0);
 	const daysSinceLastPrompt =
@@ -476,18 +307,4 @@ export function shouldShowThoughtPrompt(user: User): boolean {
 		meta.tasks_completed_since_last_prompt >= 3 &&
 		daysSinceLastPrompt >= 7
 	);
-}
-
-type IdleCallback = (deadline: {
-	timeRemaining: () => number;
-	didTimeout: boolean;
-}) => void;
-
-export function whenIdle(cb: IdleCallback, timeout = 3000): void {
-	if (typeof (window as any).requestIdleCallback === "function") {
-		(window as any).requestIdleCallback(cb, { timeout });
-	} else {
-		// Safari fallback. Don't pretend to honor deadlines; just defer.
-		setTimeout(() => cb({ timeRemaining: () => 50, didTimeout: false }), 1500);
-	}
 }

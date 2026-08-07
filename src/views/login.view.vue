@@ -11,7 +11,7 @@ import { markRaw, ref, watch } from "vue";
 import LoginAccountCustomizationPage from "@/components/login/LoginAccountCustomizationPage.vue";
 import LoginMainPage from "@/components/login/LoginMainPage.vue";
 import LoginNotificationPage from "@/components/login/LoginNotificationPage.vue";
-import { isNative } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useNotificationStore } from "@/store/notification.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";

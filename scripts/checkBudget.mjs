@@ -20,10 +20,12 @@ const dist = join(root, "dist");
 
 const BUDGETS = {
 	// Baseline measured 2026-08-07 at 1,503,199 raw / ~350 kB gzip.
-	eagerRawBytes: 1_550_000,
-	eagerGzipBytes: 380_000,
+	// Ratcheted 2026-08-07 after P2.1 (Ionic trim) + P2.2 (main.ts split):
+	// 1,125.3 kB raw / 297.2 kB gzip, largest chunk 766.8 kB.
+	eagerRawBytes: 1_180_000,
+	eagerGzipBytes: 310_000,
 	// Largest single emitted chunk. Today this is the Ionic component bundle.
-	singleChunkRawBytes: 1_200_000,
+	singleChunkRawBytes: 800_000,
 };
 
 const indexPath = join(dist, "index.html");

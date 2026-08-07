@@ -327,7 +327,8 @@ import crazyCat from "@/assets/stickers/crazy.webp";
 import fireCat from "@/assets/stickers/fire.webp";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import { LIFETIME_RC_PRODUCT } from "@/config/catalog.config";
-import { isNative, svg } from "@/helper/general.helper";
+import { svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import { useMenuStore } from "@/store/menu.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
 

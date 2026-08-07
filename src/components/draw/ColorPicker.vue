@@ -96,7 +96,8 @@ import {
 	hexWithoutOpacity,
 	percentToAlphaHex,
 } from "@/draw/utils/color.utils";
-import { isMobile, svg } from "@/helper/general.helper";
+import { svg } from "@/helper/general.helper";
+import { isMobile } from "@/helper/platform.helper";
 import { LocalStorage } from "@/types/storage.types";
 
 const hmm = ref();

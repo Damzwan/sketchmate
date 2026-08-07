@@ -118,11 +118,12 @@ import {
 import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import SettingCard from "@/components/settings/SettingCard.vue";
-import { isNative, svg } from "@/helper/general.helper";
+import { svg } from "@/helper/general.helper";
 import {
 	disableNotifications,
 	requestNotifications,
 } from "@/helper/notification.helper";
+import { isNative } from "@/helper/platform.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";

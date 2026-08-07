@@ -1,10 +1,15 @@
 import path from "node:path";
-// @ts-expect-error
+import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
-import tailwindcss from "./node_modules/@tailwindcss/vite/dist/index.mjs";
+// @ts-expect-error — plain .mjs build script, no type declarations
+import { ionicTrimAliases } from "./scripts/vite-ionic-trim.mjs";
+
+// Stubs out every @ionic/core component the app never renders. See the plugin
+// for why this is needed and how the dev-time guard works.
+const ionicAliases = ionicTrimAliases(__dirname);
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -15,14 +20,12 @@ export default defineConfig({
 		vue({
 			template: {
 				compilerOptions: {
-					// Swiper Element registers these web components at runtime. Without
-					// this, Vue tries to resolve them as Vue components on every render.
 					isCustomElement: (tag) => tag.startsWith("swiper-"),
 				},
 			},
 		}),
 		tailwindcss(),
-		visualizer() as any,
+		process.env.ANALYZE ? (visualizer() as any) : null,
 		VitePWA({
 			registerType: "autoUpdate",
 			injectRegister: "auto",
@@ -35,7 +38,7 @@ export default defineConfig({
 			srcDir: "src",
 			filename: "sw.js",
 			devOptions: {
-				enabled: true,
+				enabled: false,
 				type: "module",
 			},
 			workbox: {
@@ -63,16 +66,17 @@ export default defineConfig({
 	],
 	assetsInclude: ["**/*.md", "**/*.lottie"],
 	resolve: {
-		alias: {
-			"@": path.resolve(__dirname, "./src"),
-		},
+		// Switched to array syntax for exact alias matching
+		alias: [
+			{ find: "@", replacement: path.resolve(__dirname, "./src") },
+			...ionicAliases,
+		],
 	},
 	optimizeDeps: {
 		exclude: [`@ionic/pwa-elements/loader`],
 	},
 	build: {
-		// Android diagnostic builds keep local source maps for chrome://inspect.
-		// Normal release builds remain unchanged and do not ship map files.
+		target: ["es2022", "chrome100", "safari15"],
 		sourcemap: process.env.VITE_DRAW_TESTING === "si",
 	},
 });

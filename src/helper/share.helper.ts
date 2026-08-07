@@ -3,7 +3,7 @@ import { CapacitorHttp } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { useShare } from "@vueuse/core";
-import { isMobile, isNative } from "@/helper/general.helper";
+import { isMobile, isNative } from "@/helper/platform.helper";
 import { useToast } from "@/service/toast.service";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 import { ToastDuration } from "@/types/toast.types";

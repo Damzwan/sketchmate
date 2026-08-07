@@ -26,7 +26,8 @@ import { IonIcon, IonImg, IonSkeletonText } from "@ionic/vue";
 import { mdiClose } from "@mdi/js";
 import { onLongPress } from "@vueuse/core";
 import { ref } from "vue";
-import { isMobile, svg } from "@/helper/general.helper";
+import { svg } from "@/helper/general.helper";
+import { isMobile } from "@/helper/platform.helper";
 
 const item = ref();
 const isLoading = ref(true);

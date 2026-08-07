@@ -165,7 +165,21 @@ sampled at each route transition across a fixed 10-minute scenario (Home → Gal
 
 ---
 
-## 4. P1 — Dependency surgery
+## 4. P1 — Dependency surgery — **DONE (2026-08-07, branch `quality`)**
+
+| Item | Status |
+|---|---|
+| P1.1 Remove dead deps | **Done** — all removed **except `mixpanel-browser`** |
+| P1.2 `express` → devDependencies | **Done** |
+| P1.3 Align duplicates | **Done** — `@ionic/core` resolves to a single 8.8.17; `ionicons` 8; `@types/fabric` gone; direct `@firebase/firestore` gone |
+
+Correction to the plan: **`mixpanel-browser` is not dead.** `src/service/mixpanel.ts` loads it via
+`await import("mixpanel-browser/src/loaders/loader-module-core")` — a deep subpath a `from '<pkg>'`
+grep cannot see — and `TopBar`, `CommunityFeed` and `FeedPostCard` call `trackEvent`. It is already
+lazy (its own 127 kB chunk, not eager). Keep it.
+
+Still open, deliberately: `@vueuse/core` stays on 10.11.1 (bump belongs to P5), and `ws` still
+resolves to 8.18.3 + 8.19.0 — both transitive and dev-only, so not worth forcing.
 
 ### P1.1 Remove — zero imports found in `src/`
 
@@ -210,7 +224,62 @@ Run `pnpm dedupe` **only after** manifests are aligned, and review the lockfile 
 
 ---
 
-## 5. P2 — Cold start and eager bundle (the big one)
+## 5. P2 — Cold start and eager bundle (the big one) — **DONE except P2.5 (2026-08-07, branch `quality`)**
+
+| Item | Status |
+|---|---|
+| P2.1 Ionic trimming | **Done** — 47 of 98 core components stubbed |
+| P2.2 Split `main.ts` helpers | **Done** — `platform.helper` / `image.helper` / `billing.helper` / `firebase.helper`; `firebase/messaging` now dynamic |
+| P2.3 Forced draw prefetch | **Done** — intent-based, idle path gated |
+| P2.4 Build config hygiene | **Done** — incl. `.browserslistrc` raised to Chrome ≥ 100 |
+| P2.5 Icon strategy | **Deferred** as planned — measure first |
+
+### Measured result
+
+| | Before | After |
+|---|---:|---:|
+| Eager cold-start raw | 1,503.2 kB | **1,125.3 kB** |
+| Eager cold-start gzip | ~350 kB | **297.2 kB** |
+| Ionic chunk (`toast.service-*.js`) | 1,118.3 kB | **766.8 kB** |
+
+Budgets in `scripts/checkBudget.mjs` ratcheted to 1,180 kB raw / 310 kB gzip / 800 kB single chunk.
+
+**P2.1's acceptance criterion (≤ 700 kB eager raw) is not met.** The remaining eager weight is the
+767 kB Ionic chunk plus the 261 kB entry. The 51 components that are genuinely used are the floor of
+that chunk, so getting under 700 kB needs P2.5 (drop `ion-icon` → `ionicons` disappears) or P2.1b
+(split `@ionic/vue`'s wrappers so unused *wrappers*, not just their core implementations, tree-shake).
+Neither is blocking; the ratcheted budget locks in what was won.
+
+### How the trim is wired (differs from the plan as written)
+
+The scan and the aliasing live in one place, `scripts/vite-ionic-trim.mjs`, called from
+`vite.config.ts` at config time — **not** from `prestart` / `prebuild` npm hooks. Lifecycle hooks do
+not fire for `vite build`, which is what `pnpm verify` and `build_android` actually run, so the
+generated used-set could go stale against the templates and silently stub a component that is in use.
+Running the scan inside the config makes that impossible.
+
+Stubs are generated one file per component into `src/generated/ionic-stubs/` (gitignored) rather than
+a single shared stub module, because the stub needs to know its own tag name — see below.
+
+### Dev guard: why the original one cried wolf
+
+A `console.warn` inside the shared stub's `defineCustomElement` fired ~47 times on every page load.
+That is not a bug in the trim, it is where `@ionic/vue` calls it: `defineContainer` invokes
+`defineCustomElement()` at module scope for *every* wrapper (`@ionic/vue/dist/index.js:143`) as the
+module evaluates. So the warning fired for "this component exists", never for "this component was
+used" — the exact signal it was supposed to give.
+
+The per-tag stub instead registers a custom element for its own tag that logs from
+`connectedCallback`. It fires only when a stubbed component is really attached to the DOM, including
+inside another component's shadow root, and it is silent otherwise. Dev-only (`import.meta.env.DEV`),
+so production stubs minify to `() => {}`.
+
+Three components were added to the allowlist as a result of thinking that through: `ion-ripple-effect`
+(composed into `ion-button` / `ion-item` shadow DOM in MD mode) and `ion-picker-column` /
+`ion-picker-column-option` (composed by `pickerController`). None are visible to a template scan.
+
+**Not yet verified:** a signed-in sweep over every route with the dev guard on. The guard was
+confirmed to fire correctly, and Home renders clean, but authenticated routes have not been walked.
 
 ### P2.1 Ionic component trimming — target −60% of the 1.1 MB eager chunk
 

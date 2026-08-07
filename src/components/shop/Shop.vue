@@ -251,7 +251,8 @@ import {
 	type ItemCategory,
 	type ShopSku,
 } from "@/config/catalog.config";
-import { isNative, svg } from "@/helper/general.helper";
+import { svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import { updateProfile } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { AMBIENT_FOREGROUND } from "@/store/ambientPause.store";

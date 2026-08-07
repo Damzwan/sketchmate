@@ -13,7 +13,7 @@ import {
 	PRO_ENTITLEMENT,
 } from "@/config/catalog.config";
 import { useShareToastStore } from "@/draw/sharing/shareToast.store";
-import { isNative } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import { updateProfile } from "@/service/api/user.api";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
 import { useToast } from "@/service/toast.service";

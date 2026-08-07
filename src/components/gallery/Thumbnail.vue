@@ -97,7 +97,8 @@ import {
 } from "@mdi/js";
 import { onLongPress } from "@vueuse/core";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { isMobile, isNative, senderImg, svg } from "@/helper/general.helper";
+import { senderImg, svg } from "@/helper/general.helper";
+import { isMobile, isNative } from "@/helper/platform.helper";
 import { useInboxStore } from "@/store/inbox.store";
 import { InboxItem, User } from "@/types/server.types";
 

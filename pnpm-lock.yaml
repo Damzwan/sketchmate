@@ -222,6 +222,9 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
+      glob:
+        specifier: ^13.0.6
+        version: 13.0.6
       husky:
         specifier: ^8.0.3
         version: 8.0.3

@@ -102,11 +102,12 @@ import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import SketchDatePicker from "@/components/general/SketchDatePicker.vue";
 import LoginNotificationPage from "@/components/login/LoginNotificationPage.vue";
-import { isNative, isOldEnough, svg } from "@/helper/general.helper";
+import { isOldEnough, svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper"; // Adjust path as needed
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
-import { FRONTEND_ROUTES } from "@/types/router.types"; // Adjust path as needed
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const { user } = storeToRefs(useAuthStore());
 const { toast } = useToast();

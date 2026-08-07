@@ -65,7 +65,6 @@ import {
 	settingsModalColorConfig,
 } from "@/config/colors.config";
 import {
-	compressImg,
 	getRandomStockAvatar,
 	setAppColors,
 	svg,
@@ -74,6 +73,7 @@ import "cropperjs/dist/cropper.css";
 import { Preferences } from "@capacitor/preferences";
 import { mdiCamera, mdiClose } from "@mdi/js";
 import { storeToRefs } from "pinia";
+import { compressImg } from "@/helper/image.helper";
 import { deleteProfileImg } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";

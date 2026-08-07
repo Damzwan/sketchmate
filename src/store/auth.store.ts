@@ -8,13 +8,13 @@ import { Purchases } from "@revenuecat/purchases-capacitor";
 import { defineStore, storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
 import { masterAnimation, routerAnimation } from "@/helper/animation.helper";
+import { getCurrentAuthUser } from "@/helper/firebase.helper";
 import {
 	compareVersions,
 	generateDeviceFingerprint,
-	getCurrentAuthUser,
-	isNative,
 	isOldEnough,
 } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import router from "@/router";
 import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
 import {

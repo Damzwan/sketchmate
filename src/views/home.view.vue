@@ -12,6 +12,7 @@
         <HomeQuickActions
           :is-under-age="isUnderAge"
           @action="handleQuickAction"
+          @pointerdown.capture="prefetchDrawView"
         />
 
         <!-- PUBLIC LOBBIES -->
@@ -57,8 +58,6 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
 import draw_together from "@/assets/illustrations/home/draw_together.webp";
 import share from "@/assets/illustrations/home/share.webp";
-import balloonLottie from "@/assets/lottie/balloon.lottie";
-import Lottie from "@/components/general/Lottie.vue";
 import AgeGatedBanner from "@/components/home/AgeGatedBanner.vue";
 import CommunityFeed from "@/components/home/CommunityFeed.vue";
 import GuestWarningBanner from "@/components/home/GuestWarningBanner.vue";
@@ -70,7 +69,7 @@ import {
 } from "@/draw/document/document.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { masterAnimation } from "@/helper/animation.helper";
-import { whenIdle } from "@/helper/general.helper";
+import { isMobile, whenIdle } from "@/helper/platform.helper";
 import {
 	refreshPublicLobbies,
 	startWatchingLobbies,
@@ -165,10 +164,22 @@ const mergedDrafts = computed<DrawingDraftMetadata[]>(() => {
 	return [...pending, ...real].sort((a, b) => b.updatedAt - a.updatedAt);
 });
 
+// `whenIdle` has a timeout, so on a device that never actually goes idle — a
+// low-end phone during startup — the draw graph gets parsed on top of boot
+// hydration. Prefetch on intent instead, and keep the idle path only for
+// devices with headroom.
+let drawPrefetched = false;
+const prefetchDrawView = () => {
+	if (drawPrefetched) return;
+	drawPrefetched = true;
+	import("@/views/draw.view.vue").catch(() => {});
+};
+
 onMounted(() => {
-	whenIdle(() => {
-		import("@/views/draw.view.vue").catch(() => {});
-	}, 1500);
+	const cores = navigator.hardwareConcurrency ?? 8;
+	if (!constrainedDevice && (!isMobile() || cores > 4)) {
+		whenIdle(prefetchDrawView, 1500);
+	}
 });
 
 onIonViewDidEnter(() => {

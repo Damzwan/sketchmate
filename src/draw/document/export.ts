@@ -4,7 +4,7 @@ import { CANVAS_SIZE } from "@/draw/config/canvas.config";
 import { compareDocumentOrder } from "@/draw/layers/layerRegistry";
 import { isolatedTileRenderer } from "@/draw/rendering/fabricTileRenderer";
 import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
-import { compressImg } from "@/helper/general.helper";
+import { compressImg } from "@/helper/image.helper";
 
 /**
  * Canvas order is NOT paint order once layers exist — the renderer ranks by

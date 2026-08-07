@@ -12,7 +12,7 @@ import { setLiveTransformCoords } from "@/draw/transform/liveTransformCoords";
 import * as transform from "@/draw/transform/transformController";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { gestureDetector } from "@/draw/utils/gestureDetector";
-import { isMobile } from "@/helper/general.helper";
+import { isMobile } from "@/helper/platform.helper";
 
 function zoomLimits() {
 	return useDrawObjectManager().getZoomLimits();

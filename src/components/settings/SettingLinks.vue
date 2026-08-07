@@ -142,13 +142,12 @@ import IosPwaInstructions from "@/components/general/IosPwaInstructions.vue";
 import SettingCard from "@/components/settings/SettingCard.vue";
 import { contact_mail, discord_link } from "@/config/general.config";
 import { masterAnimation } from "@/helper/animation.helper";
+import { installPWA, svg } from "@/helper/general.helper";
 import {
-	installPWA,
 	isIOS,
 	isNative,
 	showIosSafariInstructions,
-	svg,
-} from "@/helper/general.helper";
+} from "@/helper/platform.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
 import { useSessionStore } from "@/store/session.store";

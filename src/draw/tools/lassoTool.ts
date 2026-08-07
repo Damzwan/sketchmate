@@ -10,7 +10,7 @@ import { DrawTool, type ToolService } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import * as transform from "@/draw/transform/transformController";
 import type { Rect } from "@/draw/utils/QuadTree";
-import { isMobile } from "@/helper/general.helper";
+import { isMobile } from "@/helper/platform.helper";
 
 type FabricObjectWithCache = FabricObject & {
 	_lassoPoints?: number[][];

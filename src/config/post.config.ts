@@ -22,7 +22,7 @@ export const reactionLabels: Record<string, string> = {
 };
 
 import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
-import { isNative } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const impact = (style: ImpactStyle) => Haptics.impact({ style });

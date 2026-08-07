@@ -22,16 +22,16 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import mitt from "mitt";
 import { createPinia } from "pinia";
 import App from "@/App.vue";
+import { initFirebase } from "@/helper/firebase.helper";
+// --- Updated Helper Imports (P2.2 Split) ---
 import {
 	handleWebDeeplink,
-	initBilling,
-	initFirebase,
-	isMobile,
 	setupDeeplinkListener,
 	setupPwa,
 	setupWidget,
 } from "@/helper/general.helper";
 import { addNotificationListeners } from "@/helper/notification.helper";
+import { isMobile } from "@/helper/platform.helper";
 
 const pinia = createPinia();
 initFirebase();
@@ -74,7 +74,8 @@ async function bootstrap() {
 	}
 
 	app.mount("#app");
-	initBilling();
+
+	// Eager synchronous setup
 	addNotificationListeners();
 	setupDeeplinkListener();
 	handleWebDeeplink();
@@ -84,6 +85,10 @@ async function bootstrap() {
 	if (Capacitor.isNativePlatform()) {
 		StatusBar.setStyle({ style: Style.Light });
 	}
+
+	import("@/helper/billing.helper").then(({ initBilling }) => {
+		initBilling();
+	});
 }
 
 void bootstrap();

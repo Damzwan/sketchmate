@@ -134,7 +134,8 @@ import {
 	isColorTooLight,
 	percentToAlphaHex,
 } from "@/draw/utils/color.utils";
-import { isNative, svg } from "@/helper/general.helper";
+import { svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import { useInventoryStore } from "@/store/inventory.store";
 import { useMenuStore } from "@/store/menu.store";
 import BrushTile from "./BrushTile.vue";

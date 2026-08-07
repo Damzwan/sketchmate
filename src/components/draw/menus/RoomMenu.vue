@@ -227,7 +227,8 @@ import {
 import { useDocumentStore } from "@/draw/document/document.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
-import { generateRandomCode, isNative, svg } from "@/helper/general.helper";
+import { generateRandomCode, svg } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import { createRoomLink, shareUrl } from "@/helper/share.helper";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { useScanner } from "@/service/scanner.service";

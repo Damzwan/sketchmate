@@ -9,7 +9,7 @@ import { useDrawStore } from "@/draw/session/draw.store";
 import { useSelect } from "@/draw/tools/select.store";
 import { DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
-import { isMac } from "@/helper/general.helper";
+import { isMac } from "@/helper/platform.helper";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
 import { setupCanvasDebugger } from "@/utils/fabricDebug";

@@ -5,9 +5,8 @@ import {
 	type ActionPerformed,
 	PushNotifications,
 } from "@capacitor/push-notifications";
-import { deleteToken, getMessaging, getToken } from "firebase/messaging";
 import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
-import { isNative } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import router from "@/router";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
@@ -72,9 +71,12 @@ export async function disableNotifications(): Promise<void> {
 			]);
 		} else {
 			try {
+				// DYNAMIC IMPORT HERE
+				const { getMessaging, deleteToken } = await import(
+					"firebase/messaging"
+				);
 				await deleteToken(getMessaging());
 			} catch (e) {
-				// Non-fatal: continue with server-side unsubscribe regardless
 				console.warn("deleteToken failed (continuing)", e);
 			}
 		}
@@ -186,7 +188,6 @@ function waitForNextRegistration(timeoutMs: number): Promise<string> {
 
 async function pwaRequestNotifications(): Promise<boolean> {
 	const { toast } = useToast();
-
 	if (!navigator.serviceWorker) {
 		toast("No service worker available", { color: "danger" });
 		return false;
@@ -199,6 +200,9 @@ async function pwaRequestNotifications(): Promise<boolean> {
 		});
 		return false;
 	}
+
+	// DYNAMIC IMPORT HERE
+	const { getMessaging, getToken } = await import("firebase/messaging");
 
 	const registration = await navigator.serviceWorker.getRegistration();
 	const messaging = getMessaging();

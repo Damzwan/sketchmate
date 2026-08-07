@@ -7,7 +7,7 @@ import {
 } from "@capacitor-mlkit/barcode-scanning";
 import QrScanner from "qr-scanner";
 import { onMounted, onUnmounted, type Ref, ref } from "vue";
-import { isNative } from "@/helper/general.helper";
+import { isNative } from "@/helper/platform.helper";
 import { useToast } from "@/service/toast.service";
 
 export function useScanner(

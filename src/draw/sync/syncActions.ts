@@ -1,22 +1,25 @@
-import { DrawSyncingEvent, DrawSyncingParams } from "@/draw/sync/sync.types";
+import type { FabricImage, FabricObject, IText } from "fabric";
 import * as fabric from "fabric";
-import { FabricImage, FabricObject, IText } from "fabric";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { useLayersStore } from "@/draw/layers/layers.store";
-import { applyObjectModificationsBulk } from "@/draw/history/operations/objectHistory";
-import { drawActionMapping } from "@/draw/actions/drawActions";
-import { fullErase } from "@/draw/tools/eraseActions";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { setCanvasBackground } from "@/draw/tools/colorActions";
+import { drawActionMapping } from "@/draw/actions/drawActions";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
 import {
 	redoActionMapping,
 	undoActionMapping,
 } from "@/draw/history/historyActions";
-import { useDrawHistoryManager } from "@/draw/history/history.store";
+import { applyObjectModificationsBulk } from "@/draw/history/operations/objectHistory";
+import { useLayersStore } from "@/draw/layers/layers.store";
 import { mergeHelper } from "@/draw/objects/objectActions";
-import { eraseObject } from "@/draw/utils/brushes/CustomEraserBrush";
+import { useDrawStore } from "@/draw/session/draw.store";
+import {
+	DrawSyncingEvent,
+	type DrawSyncingParams,
+} from "@/draw/sync/sync.types";
+import { setCanvasBackground } from "@/draw/tools/colorActions";
+import { fullErase } from "@/draw/tools/eraseActions";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { eraseObject } from "@/draw/utils/brushes/CustomEraserBrush";
 
 // TODO duplicate logic from history... think!
 async function syncObjectsAdded(
@@ -32,7 +35,7 @@ async function syncObjectsAdded(
 	const enlivened =
 		await fabric.util.enlivenObjects<FabricObject>(objectsToRedo);
 
-	enlivened.forEach((enlivened, index) => {
+	enlivened.forEach((enlivened, _index) => {
 		if (
 			enlivened.insertedIndex !== undefined &&
 			enlivened.insertedIndex !== null
@@ -225,7 +228,7 @@ async function syncTextStyleChanged(
 	textObject.initDimensions?.();
 	textObject.setCoords();
 
-	// @ts-ignore
+	// @ts-expect-error
 	c.fire("textStyleChanged", { target: textObject });
 }
 
@@ -242,7 +245,7 @@ async function syncObjectStyleChanged(
 		canvasObject.set(params.style);
 	});
 
-	// @ts-ignore
+	// @ts-expect-error
 	c.fire("objectStyleChanged", { target: canvasObjects });
 
 	if (params.creator) {
@@ -274,7 +277,7 @@ async function syncImgFilterChanged(
 
 	const { getCanvas } = useDrawStore();
 	const c = getCanvas();
-	// @ts-ignore
+	// @ts-expect-error
 	c.fire("imgFilterChanged", { target: img });
 
 	if (params.creator) {
@@ -320,7 +323,7 @@ async function syncErasingEnd(
 	await Promise.all(
 		objects.map(async (o) => {
 			if (o) await eraseObject(o, newStroke);
-			// @ts-ignore
+			// @ts-expect-error
 			c.fire("invalidateCanvas", { target: o });
 		}),
 	);

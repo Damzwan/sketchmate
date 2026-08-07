@@ -1,16 +1,5 @@
-import { classRegistry, util } from "fabric";
-import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
-import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
-import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
-import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
-import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
-import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
-import { BucketFillPath } from "@/draw/utils/BucketFillPath";
-import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
-import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
-import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
-import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
 import { ClippingGroup } from "@erase2d/fabric";
+import { classRegistry, util } from "fabric";
 import {
 	type AlphaCoverage,
 	confirmsEffectiveErasure,
@@ -18,6 +7,17 @@ import {
 	measureAlphaCoverage,
 	preciseErasureMultiplier,
 } from "@/draw/tools/erasureAnalysisPolicy";
+import { BucketFillPath } from "@/draw/utils/BucketFillPath";
+import { CalligraphyStroke } from "@/draw/utils/brushes/CalligraphyBrush";
+import { CharcoalStroke } from "@/draw/utils/brushes/CharcoalBrush";
+import { CrayonStroke } from "@/draw/utils/brushes/CrayonBrush";
+import { CircleStroke } from "@/draw/utils/brushes/CustomCircleBrush";
+import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
+import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
+import { SprayStroke } from "@/draw/utils/brushes/CustomSprayBrush";
+import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
+import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
+import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
 
 const COARSE_PIXEL_BUDGET = 262_144;
 

@@ -1,15 +1,15 @@
-import { Canvas, FabricObject, util } from "fabric";
-import { useFriendStore } from "@/store/friend.store";
-import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
-import { downsampleFabricImagesInObject } from "@/draw/tools/imageDownsampling";
-import { watercolorComplexity } from "@/draw/utils/brushes/watercolorGeometry";
-import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { type Canvas, type FabricObject, util } from "fabric";
+import { compareDocumentOrder } from "@/draw/layers/layerRegistry";
+import { useLayersStore } from "@/draw/layers/layers.store";
 import {
 	rememberSerializedObject,
 	serializeAtRevision,
 } from "@/draw/objects/objectSerialization";
-import { useLayersStore } from "@/draw/layers/layers.store";
-import { compareDocumentOrder } from "@/draw/layers/layerRegistry";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { createYielder, nextFrame } from "@/draw/scheduling/yielder";
+import { downsampleFabricImagesInObject } from "@/draw/tools/imageDownsampling";
+import { watercolorComplexity } from "@/draw/utils/brushes/watercolorGeometry";
+import { useFriendStore } from "@/store/friend.store";
 
 function enlivenComplexity(source: any): number {
 	if (!source || typeof source !== "object") return 1;

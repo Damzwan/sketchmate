@@ -1,13 +1,13 @@
+import { request } from "@/service/api/http";
 import {
 	ENDPOINTS,
-	GetInboxRes,
-	InboxItem,
-	Mate,
-	RemoveFromInboxParams,
-	Res,
-	SeeInboxParams,
+	type GetInboxRes,
+	type InboxItem,
+	type Mate,
+	type RemoveFromInboxParams,
+	type Res,
+	type SeeInboxParams,
 } from "@/types/server.types";
-import { request } from "@/service/api/http";
 
 export interface PublishInboxItemParams {
 	followers: string[];

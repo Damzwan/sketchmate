@@ -1,32 +1,32 @@
-import { Mate, User } from "@/types/server.types";
-import Compressor from "compressorjs";
-import router from "@/router";
+import { App } from "@capacitor/app";
+import { Preferences } from "@capacitor/preferences";
+import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar } from "@capacitor/status-bar";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { NavigationBar } from "@capgo/capacitor-navigation-bar";
 import { isPlatform, useBackButton } from "@ionic/vue";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { AppColorConfig } from "@/config/colors.config";
+import { Purchases } from "@revenuecat/purchases-capacitor";
+import Compressor from "compressorjs";
 import { initializeApp } from "firebase/app";
+import { storeToRefs } from "pinia";
+import { type Ref, watch } from "vue";
+import avatar from "@/assets/avatar.svg";
+import type { AppColorConfig } from "@/config/colors.config";
 import {
 	account_blob,
 	minimum_age_social_features,
 } from "@/config/general.config";
-import avatar from "@/assets/avatar.svg";
-import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
-import { Ref, watch } from "vue";
-import { SplashScreen } from "@capacitor/splash-screen";
-import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/types/menu.types";
-import { useAuthStore } from "@/store/auth.store";
-import { useToast } from "@/service/toast.service";
-import { ToastDuration } from "@/types/toast.types";
-import { storeToRefs } from "pinia";
-import { App } from "@capacitor/app";
-import { Preferences } from "@capacitor/preferences";
-import { LocalStorage } from "@/types/storage.types";
-import { useSessionStore } from "@/store/session.store";
-import { Purchases } from "@revenuecat/purchases-capacitor";
+import router from "@/router";
 import { updateUser } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useSessionStore } from "@/store/session.store";
+import { Menu } from "@/types/menu.types";
+import type { FRONTEND_ROUTES } from "@/types/router.types";
+import type { Mate, User } from "@/types/server.types";
+import { LocalStorage } from "@/types/storage.types";
+import { ToastDuration } from "@/types/toast.types";
 
 export const IS_PROD = import.meta.env.VITE_ENVIRONMENT === "prod";
 export const IS_DEV = !IS_PROD;
@@ -292,7 +292,7 @@ export async function getDateOfBirthConfirmationResponse(): Promise<DateOfBirthR
 export function calculateAge(dob: Date | string): number {
 	const birthDate = typeof dob === "string" ? new Date(dob) : dob;
 
-	if (isNaN(birthDate.getTime())) return 0;
+	if (Number.isNaN(birthDate.getTime())) return 0;
 
 	const today = new Date();
 	let age = today.getFullYear() - birthDate.getFullYear();
@@ -312,7 +312,7 @@ export function isOldEnough(dob: Date | string): boolean {
 	const dateObj = typeof dob === "string" ? new Date(dob) : dob;
 
 	// Handle invalid date strings gracefully
-	if (isNaN(dateObj.getTime())) {
+	if (Number.isNaN(dateObj.getTime())) {
 		return false;
 	}
 
@@ -412,7 +412,7 @@ export function setupPWAPromptListener() {
 
 export function setupRouterReadyWatcher(
 	isRouterReady: Ref<boolean>,
-	isAuthLoading: Ref<boolean>,
+	_isAuthLoading: Ref<boolean>,
 ) {
 	router.isReady().then(() => {
 		isRouterReady.value = true;

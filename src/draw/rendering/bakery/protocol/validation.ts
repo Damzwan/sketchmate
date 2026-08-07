@@ -1,7 +1,7 @@
 import {
-	WORKER_PROTOCOL_VERSION,
 	type SceneCommitChunk,
 	type SceneDelta,
+	WORKER_PROTOCOL_VERSION,
 } from "./messages";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

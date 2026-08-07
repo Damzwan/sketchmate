@@ -1,15 +1,15 @@
+import type { Canvas } from "fabric";
 import { defineStore } from "pinia";
+import { ref, watch } from "vue";
+import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { PENMENUTOOLS, SELECTMENUTOOLS } from "@/draw/config/tools.config";
 import {
 	DrawTool,
 	type PenMenuTool,
 	type SelectTool,
 } from "@/draw/tools/tool.types";
-import { PENMENUTOOLS, SELECTMENUTOOLS } from "@/draw/config/tools.config";
-import { useMenuStore } from "@/store/menu.store";
 import { createToolsMapping } from "@/draw/tools/toolRegistry";
-import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { ref, watch } from "vue";
-import { Canvas } from "fabric";
+import { useMenuStore } from "@/store/menu.store";
 
 type SelectToolOption = {
 	skipOpenMenu?: boolean;

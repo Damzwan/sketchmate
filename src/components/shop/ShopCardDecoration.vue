@@ -15,14 +15,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { mdiAccountCircle } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { computed } from "vue";
+import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
 import type { ShopSku } from "@/config/catalog.config";
 import { resolveDecoration } from "@/config/profile_options.config";
+import { svg } from "@/helper/general.helper";
 import ShopCardShell from "./ShopCardShell.vue";
-import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
 
 const props = defineProps<{
 	sku: ShopSku;

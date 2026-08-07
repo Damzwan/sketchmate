@@ -95,83 +95,81 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { IonIcon, useIonRouter } from '@ionic/vue'
-import { mdiPalette } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { useQuotaStore } from '@/store/quota.store'
-import PremiumLobbyModal from '@/components/draw/PremiumLobbyModal.vue'
+import { IonIcon, useIonRouter } from "@ionic/vue";
+import { mdiPalette } from "@mdi/js";
+import { computed, ref } from "vue";
+import PremiumLobbyModal from "@/components/draw/PremiumLobbyModal.vue";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
+import { useQuotaStore } from "@/store/quota.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 import { Menu } from "@/types/menu.types";
-import { useMenuStore } from '@/store/menu.store'
-import { useSubscriptionStore } from '@/store/subscription.store'
 
 export interface PublicLobbyProps {
-  id: string;
-  name: string;
-  users: number;
-  maxUsers: number;
-  premiumSlots: number;
-  thumbnailUrl?: string;
+	id: string;
+	name: string;
+	users: number;
+	maxUsers: number;
+	premiumSlots: number;
+	thumbnailUrl?: string;
 }
 
 const props = defineProps<{
-  lobbies: PublicLobbyProps[];
-  loading: boolean;
-}>()
+	lobbies: PublicLobbyProps[];
+	loading: boolean;
+}>();
 
-const emit = defineEmits<{
-  (e: 'join', id: string): void;
-}>()
+const emit = defineEmits<(e: "join", id: string) => void>();
 
-const router = useIonRouter()
-const quotaStore = useQuotaStore()
+const router = useIonRouter();
+const quotaStore = useQuotaStore();
 
-const showPremiumModal = ref(false)
-const imageLoaded = ref<Record<string, boolean>>({})
+const showPremiumModal = ref(false);
+const imageLoaded = ref<Record<string, boolean>>({});
 
 const sortedLobbies = computed(() => {
-  return [...props.lobbies].sort((a, b) => b.users - a.users)
-})
+	return [...props.lobbies].sort((a, b) => b.users - a.users);
+});
 
 /* Modern minimal badge background tints */
 const getBadgeClass = (lobby: PublicLobbyProps) => {
-  const totalCap = lobby.maxUsers + lobby.premiumSlots
-  if (lobby.users >= totalCap) return 'bg-zinc-800 text-white/90'
-  if (lobby.users >= lobby.maxUsers) return 'bg-amber-500 text-white'
-  return 'bg-secondary text-white'
-}
+	const totalCap = lobby.maxUsers + lobby.premiumSlots;
+	if (lobby.users >= totalCap) return "bg-zinc-800 text-white/90";
+	if (lobby.users >= lobby.maxUsers) return "bg-amber-500 text-white";
+	return "bg-secondary text-white";
+};
 
 /* Micro Status indicator dot colors inside the layout badge frame */
 const getDotClass = (lobby: PublicLobbyProps) => {
-  if (lobby.users >= lobby.maxUsers) return 'bg-amber-200 animate-pulse'
-  return 'bg-green-400 animate-pulse'
-}
+	if (lobby.users >= lobby.maxUsers) return "bg-amber-200 animate-pulse";
+	return "bg-green-400 animate-pulse";
+};
 
 const handleImageError = (lobbyId: string) => {
-  imageLoaded.value[lobbyId] = false
-}
+	imageLoaded.value[lobbyId] = false;
+};
 
 const handleLobbyClick = (lobby: PublicLobbyProps) => {
-  const totalCapacity = lobby.maxUsers + lobby.premiumSlots
+	const totalCapacity = lobby.maxUsers + lobby.premiumSlots;
 
-  if (lobby.users >= totalCapacity) return
+	if (lobby.users >= totalCapacity) return;
 
-  if (lobby.users >= lobby.maxUsers) {
-    if (quotaStore.isPro) {
-      emit('join', lobby.id)
-    } else {
-      showPremiumModal.value = true
-    }
-    return
-  }
+	if (lobby.users >= lobby.maxUsers) {
+		if (quotaStore.isPro) {
+			emit("join", lobby.id);
+		} else {
+			showPremiumModal.value = true;
+		}
+		return;
+	}
 
-  emit('join', lobby.id)
-}
+	emit("join", lobby.id);
+};
 
 const goToPro = () => {
-  const { openPaywall } = useSubscriptionStore()
-  openPaywall()
-}
+	const { openPaywall } = useSubscriptionStore();
+	openPaywall();
+};
 </script>
 
 <style scoped>

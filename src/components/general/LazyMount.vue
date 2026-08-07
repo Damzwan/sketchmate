@@ -12,15 +12,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch } from "vue";
 
-const props = defineProps<{ when: boolean }>()
-const mounted = ref(props.when)
+const props = defineProps<{ when: boolean }>();
+const mounted = ref(props.when);
 
 watch(
-  () => props.when,
-  (v) => {
-    if (v) mounted.value = true
-  }
-)
+	() => props.when,
+	(v) => {
+		if (v) mounted.value = true;
+	},
+);
 </script>

@@ -1,15 +1,18 @@
+import { type Canvas, IText, type Point } from "fabric";
 import { storeToRefs } from "pinia";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { Canvas, IText, Point } from "fabric";
+import type {
+	DrawAction,
+	DrawActionParams,
+} from "@/draw/actions/drawAction.types";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { DrawAction, type DrawActionParams } from "@/draw/actions/drawAction.types";
-import { DrawTool } from "@/draw/tools/tool.types";
-import { Menu } from "@/types/menu.types";
-import { useSelect } from "@/draw/tools/select.store";
 import { BLACK } from "@/draw/config/canvas.config";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useSelect } from "@/draw/tools/select.store";
+import { DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/types/menu.types";
 
 export function addText() {
 	const { getCanvas } = useDrawStore();

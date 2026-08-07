@@ -68,9 +68,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import dayjs from "dayjs";
 import { mdiAlertCircleOutline, mdiCheckAll, mdiClockOutline } from "@mdi/js";
+import dayjs from "dayjs";
+import { computed } from "vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import { useSenderStyle } from "@/composables/chat/useSenderStyle";
 import ChatMediaMessage from "./ChatMediaMessage.vue";
@@ -83,9 +83,9 @@ const props = defineProps<{
 	activeTab: string;
 }>();
 
-defineEmits<{
-	(event: "inspect-profile", pointerEvent: Event, user: any): void;
-}>();
+defineEmits<
+	(event: "inspect-profile", pointerEvent: Event, user: any) => void
+>();
 
 const sender = computed(() => props.msg.member || props.partner);
 const senderStyle = useSenderStyle(sender);

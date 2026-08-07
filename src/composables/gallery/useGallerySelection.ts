@@ -1,9 +1,9 @@
-import { Ref, ref } from "vue";
+import { type Ref, ref } from "vue";
+import { shareImages } from "@/helper/share.helper";
+import { removeFromInbox } from "@/service/api/inbox.api";
 import { useToast } from "@/service/toast.service";
 import { useInboxStore } from "@/store/inbox.store";
-import { shareImages } from "@/helper/share.helper";
-import { InboxItem, User } from "@/types/server.types";
-import { removeFromInbox } from "@/service/api/inbox.api";
+import type { InboxItem, User } from "@/types/server.types";
 
 export function useGallerySelection(
 	user: Ref<User | undefined>,
@@ -77,7 +77,7 @@ export function useGallerySelection(
 					removeFromInbox({ user_id: user.value!._id, inbox_id: id }),
 				),
 			);
-		} catch (e) {
+		} catch (_e) {
 			toast("Some items could not be deleted.", { color: "danger" });
 			await getInboxBatch(true);
 		}

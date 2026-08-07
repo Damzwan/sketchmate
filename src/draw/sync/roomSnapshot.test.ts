@@ -16,7 +16,13 @@ describe("room snapshot layer bootstrap", () => {
 	it("includes an existing mutable layer document beside Fabric objects", () => {
 		serializedLayers = [
 			{ id: "l0", name: "Ink", order: 0, visible: true, locked: false },
-			{ id: "details", name: "Details", order: 1, visible: true, locked: false },
+			{
+				id: "details",
+				name: "Details",
+				order: 1,
+				visible: true,
+				locked: false,
+			},
 		];
 		const fabricJSON = { version: "7", objects: [{ id: "stroke" }] };
 		const canvas = { toJSON: vi.fn(() => ({ ...fabricJSON })) } as any;

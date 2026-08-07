@@ -89,17 +89,17 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref, onUnmounted, watch } from "vue";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { IonIcon, IonSkeletonText } from "@ionic/vue";
-import { InboxItem, User } from "@/types/server.types";
-import { isMobile, isNative, senderImg, svg } from "@/helper/general.helper";
-import { onLongPress } from "@vueuse/core";
 import {
 	mdiCheckboxBlankCircleOutline,
 	mdiCheckboxMarkedCircleOutline,
 } from "@mdi/js";
+import { onLongPress } from "@vueuse/core";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { isMobile, isNative, senderImg, svg } from "@/helper/general.helper";
 import { useInboxStore } from "@/store/inbox.store";
-import { Haptics, ImpactStyle } from "@capacitor/haptics";
+import { InboxItem, User } from "@/types/server.types";
 
 const props = defineProps<{
 	inboxItem: InboxItem;

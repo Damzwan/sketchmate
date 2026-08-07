@@ -1,5 +1,5 @@
-import type { WorldRect } from "@/draw/rendering/committedLayer";
 import type { BenchmarkScene } from "@/draw/benchmark/sceneFactory";
+import type { WorldRect } from "@/draw/rendering/committedLayer";
 
 export type BenchmarkScenarioId =
 	| "zoom-ladder"
@@ -121,7 +121,8 @@ export const BENCHMARK_SCENARIOS: Record<
 	},
 	"gesture-during-bake": {
 		label: "Gesture during bake",
-		description: "Starts a large invalidation, then immediately pans and zooms.",
+		description:
+			"Starts a large invalidation, then immediately pans and zooms.",
 		async run(scene, driver) {
 			await driver.invalidate({ ...scene.bounds });
 			await driver.beginGesture();

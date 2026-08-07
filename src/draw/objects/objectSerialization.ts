@@ -1,8 +1,5 @@
+import type { FabricObject, FabricObjectProps } from "fabric";
 import * as fabric from "fabric";
-import { type Canvas, FabricObject, FabricObjectProps } from "fabric";
-import { ObjectType } from "@/draw/objects/object.types";
-import { HistoryAction } from "@/draw/history/history.types";
-import { ref } from "vue";
 
 export function toObjectsIds(objects: FabricObject[]): string[] {
 	return objects.map((item) => item.id);

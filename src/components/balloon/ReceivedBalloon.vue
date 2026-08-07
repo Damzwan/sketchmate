@@ -179,17 +179,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { IonIcon, IonButton } from "@ionic/vue";
+import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiBellOffOutline, mdiFlagVariantOutline } from "@mdi/js";
-
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import balloonLottie from "@/assets/lottie/balloon.lottie";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
+import Lottie from "@/components/general/Lottie.vue";
+import { svg } from "@/helper/general.helper";
 import { useBalloonStore } from "@/store/balloon.store";
 import { useModerationStore } from "@/store/moderation.store";
-import { svg } from "@/helper/general.helper";
-
-import balloonLottie from "@/assets/lottie/balloon.lottie";
-import Lottie from "@/components/general/Lottie.vue";
-import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 
 const balloonStore = useBalloonStore();
 const disableConfirmationOpen = ref(false);

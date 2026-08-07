@@ -1,11 +1,11 @@
-import { Canvas } from "fabric";
-import { useDrawSyncer } from "@/draw/sync/session.store";
+import type { Canvas } from "fabric";
 import { useDocumentStore } from "@/draw/document/document.store";
+import { snapshotDrawMetrics } from "@/draw/rendering/renderMetrics";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import {
 	getObjectPathStorageMetrics,
 	summarizeObjectPathStorage,
 } from "@/draw/utils/brushes/pathStorage";
-import { snapshotDrawMetrics } from "@/draw/rendering/renderMetrics";
 
 interface ObjectTypeBreakdown {
 	type: string;

@@ -1,15 +1,15 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { useSubscriptionStore } from "./subscription.store";
-import { useAuthStore } from "./auth.store";
 import {
 	CATALOG_BY_ID,
 	FREE_ITEMS,
-	PRO_UNLOCKED_CATEGORIES,
 	grantsForSku,
 	type ItemCategory,
+	PRO_UNLOCKED_CATEGORIES,
 	type ShopSku,
 } from "@/config/catalog.config";
+import { useAuthStore } from "./auth.store";
+import { useSubscriptionStore } from "./subscription.store";
 
 const DEV_UNLOCK_ALL = true;
 

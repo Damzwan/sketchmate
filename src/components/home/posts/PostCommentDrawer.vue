@@ -13,7 +13,7 @@
       <!-- Header -->
       <div class="shrink-0 pt-4 px-5 pb-3 text-center relative border-b border-black/5">
         <h1 class="text-xl text-black font-black tracking-tight italic leading-none">Comments</h1>
-        <p v-if="post?.comment_count > 0" class="text-xs text-black/80 font-bold uppercase tracking-widest mt-1">
+        <p v-if="post && (post.comment_count ?? 0) > 0" class="text-xs text-black/80 font-bold uppercase tracking-widest mt-1">
           {{ post.comment_count }} {{ post.comment_count === 1 ? 'reply' : 'replies' }}
         </p>
       </div>
@@ -134,37 +134,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from "vue";
-import { useInfiniteScroll } from "@vueuse/core";
 import {
-	IonModal,
-	IonSpinner,
-	IonIcon,
-	IonAvatar,
-	IonInput,
 	actionSheetController,
 	alertController,
+	IonAvatar,
 	IonButton,
+	IonIcon,
+	IonInput,
+	IonModal,
+	IonSpinner,
 } from "@ionic/vue";
-import { storeToRefs } from "pinia";
 import {
-	mdiSend,
-	mdiFlagVariantOutline,
+	mdiClose,
 	mdiDeleteOutline,
 	mdiDotsHorizontal,
-	mdiClose,
+	mdiFlagVariantOutline,
+	mdiSend,
 } from "@mdi/js";
+import { useInfiniteScroll } from "@vueuse/core";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { storeToRefs } from "pinia";
+import { nextTick, ref, watch } from "vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import { svg } from "@/helper/general.helper";
 import { fetchPostComments, postComment } from "@/service/api/post.api";
-import { useAuthStore } from "@/store/auth.store";
-import { usePostStore } from "@/store/post.store";
-import { useModerationStore } from "@/store/moderation.store";
 import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { usePostStore } from "@/store/post.store";
 import { FeedPost } from "@/types/server.types";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 
 dayjs.extend(relativeTime);
 

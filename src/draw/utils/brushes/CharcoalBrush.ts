@@ -1,11 +1,13 @@
-import { BaseBrush, Point, Canvas, FabricObject } from "fabric";
-import * as fabric from "fabric";
-import { enlivenStrokeProps, TEXTURE_SUPERSAMPLE } from "@/draw/utils/brushes/brush.helpers";
+import { BaseBrush, FabricObject, type Point } from "fabric";
 import { getTopContextEpoch } from "@/draw/rendering/fabricRenderState";
+import {
+	enlivenStrokeProps,
+	TEXTURE_SUPERSAMPLE,
+} from "@/draw/utils/brushes/brush.helpers";
 
 // --- Utility: Deterministic Generator ---
 export function seededRandom(seed: number) {
-	return function () {
+	return () => {
 		seed = (seed * 9301 + 49297) % 233280;
 		return seed / 233280;
 	};
@@ -43,7 +45,11 @@ export function charcoalTextureDimension(width: number): number {
 	);
 }
 
-export function generateCharcoalStamp(seed: number, width: number, color: string): HTMLCanvasElement {
+export function generateCharcoalStamp(
+	seed: number,
+	width: number,
+	color: string,
+): HTMLCanvasElement {
 	const rand = seededRandom(seed);
 	// Device-independent — see TEXTURE_SUPERSAMPLE. Was devicePixelRatio-based,
 	// which made the worker (no devicePixelRatio → 1) and the main thread (2–3)
@@ -94,16 +100,16 @@ export class CharcoalBrush extends BaseBrush {
 	private _renderedVpt = "";
 	private _renderedEpoch = -1;
 
-	constructor(canvas: Canvas) {
-		super(canvas);
-	}
-
 	onMouseDown(pointer: Point) {
 		this._trace = [];
 		this._drawnDistance = 0;
 		this._seed = Math.floor(Math.random() * 1_000_000);
 		this._stampSize = this.width * 2;
-		this._stampCanvas = generateCharcoalStamp(this._seed, this.width, this.color);
+		this._stampCanvas = generateCharcoalStamp(
+			this._seed,
+			this.width,
+			this.color,
+		);
 		this._renderedUpTo = 0; // new stroke → repaint from scratch
 		this._renderedVpt = "";
 		this._lastPoint = pointer;
@@ -136,7 +142,13 @@ export class CharcoalBrush extends BaseBrush {
 
 	private _addPoint(pointer: Point, isFirstPoint = false) {
 		if (isFirstPoint) {
-			this._trace.push({ x: pointer.x, y: pointer.y, opacity: 1, offsetX: 0, offsetY: 0 });
+			this._trace.push({
+				x: pointer.x,
+				y: pointer.y,
+				opacity: 1,
+				offsetX: 0,
+				offsetY: 0,
+			});
 			return true;
 		}
 		if (!this._lastPoint) return false;
@@ -156,9 +168,11 @@ export class CharcoalBrush extends BaseBrush {
 			const dryFrictionMultiplier = 1 + depletion * 2.5;
 			const jitter = (this.width / 6) * dryFrictionMultiplier;
 			this._trace.push({
-				x, y, opacity: fadeRatio,
+				x,
+				y,
+				opacity: fadeRatio,
 				offsetX: (Math.random() - 0.5) * jitter,
-				offsetY: (Math.random() - 0.5) * jitter
+				offsetY: (Math.random() - 0.5) * jitter,
 			});
 			pointsAdded = true;
 		}
@@ -203,7 +217,13 @@ export class CharcoalBrush extends BaseBrush {
 		for (let i = from; i < this._trace.length; i++) {
 			const p = this._trace[i];
 			ctx.globalAlpha = p.opacity;
-			ctx.drawImage(this._stampCanvas, p.x + p.offsetX - radius, p.y + p.offsetY - radius, this._stampSize, this._stampSize);
+			ctx.drawImage(
+				this._stampCanvas,
+				p.x + p.offsetX - radius,
+				p.y + p.offsetY - radius,
+				this._stampSize,
+				this._stampSize,
+			);
 		}
 		ctx.restore();
 
@@ -215,7 +235,13 @@ export class CharcoalBrush extends BaseBrush {
 	}
 }
 
-interface CharcoalPoint { x: number; y: number; opacity: number; offsetX: number; offsetY: number; }
+interface CharcoalPoint {
+	x: number;
+	y: number;
+	opacity: number;
+	offsetX: number;
+	offsetY: number;
+}
 
 // --- Stroke Implementation ---
 export class CharcoalStroke extends FabricObject {
@@ -230,10 +256,12 @@ export class CharcoalStroke extends FabricObject {
 
 	constructor(options: any) {
 		super(options);
-		this.trace = options.compressedTrace ? this._decodeTrace(options.compressedTrace) : (options.trace || []);
+		this.trace = options.compressedTrace
+			? this._decodeTrace(options.compressedTrace)
+			: options.trace || [];
 		this.stampSize = options.stampSize || 0;
 		this.seed = options.seed;
-		this.baseWidth = options.baseWidth || (options.stampSize / 2);
+		this.baseWidth = options.baseWidth || options.stampSize / 2;
 		this.stampCanvas = options.stampCanvas;
 		this.minX = options.minX || 0;
 		this.minY = options.minY || 0;
@@ -244,48 +272,94 @@ export class CharcoalStroke extends FabricObject {
 
 	private _decodeTrace(compressed: number[]) {
 		const trace = [];
-		let lastX = 0, lastY = 0;
+		let lastX = 0,
+			lastY = 0;
 		for (let i = 0; i < compressed.length; i += 5) {
-			let ix = compressed[i] + (i > 0 ? lastX : 0);
-			let iy = compressed[i + 1] + (i > 0 ? lastY : 0);
-			lastX = ix; lastY = iy;
-			trace.push({ x: ix / 100, y: iy / 100, opacity: compressed[i + 2] / 100, offsetX: compressed[i + 3] / 100, offsetY: compressed[i + 4] / 100 });
+			const ix = compressed[i] + (i > 0 ? lastX : 0);
+			const iy = compressed[i + 1] + (i > 0 ? lastY : 0);
+			lastX = ix;
+			lastY = iy;
+			trace.push({
+				x: ix / 100,
+				y: iy / 100,
+				opacity: compressed[i + 2] / 100,
+				offsetX: compressed[i + 3] / 100,
+				offsetY: compressed[i + 4] / 100,
+			});
 		}
 		return trace;
 	}
 
 	private _calcDimensions() {
-		let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+		let minX = Infinity,
+			maxX = -Infinity,
+			minY = Infinity,
+			maxY = -Infinity;
 		for (const p of this.trace) {
-			const px = p.x + p.offsetX, py = p.y + p.offsetY;
-			if (px < minX) minX = px; if (px > maxX) maxX = px;
-			if (py < minY) minY = py; if (py > maxY) maxY = py;
+			const px = p.x + p.offsetX,
+				py = p.y + p.offsetY;
+			if (px < minX) minX = px;
+			if (px > maxX) maxX = px;
+			if (py < minY) minY = py;
+			if (py > maxY) maxY = py;
 		}
-		this.minX = minX; this.minY = minY;
+		this.minX = minX;
+		this.minY = minY;
 		this.width = maxX - minX + this.stampSize;
 		this.height = maxY - minY + this.stampSize;
-		this.left = minX - (this.stampSize / 2) + this.width / 2;
-		this.top = minY - (this.stampSize / 2) + this.height / 2;
+		this.left = minX - this.stampSize / 2 + this.width / 2;
+		this.top = minY - this.stampSize / 2 + this.height / 2;
 	}
 
 	_render(ctx: CanvasRenderingContext2D) {
 		if (!this.stampCanvas) return;
-		const halfWidth = this.width / 2, halfHeight = this.height / 2;
+		const halfWidth = this.width / 2,
+			halfHeight = this.height / 2;
 		for (const p of this.trace) {
 			ctx.globalAlpha = p.opacity;
-			ctx.drawImage(this.stampCanvas, p.x + p.offsetX - this.minX - halfWidth, p.y + p.offsetY - this.minY - halfHeight, this.stampSize, this.stampSize);
+			ctx.drawImage(
+				this.stampCanvas,
+				p.x + p.offsetX - this.minX - halfWidth,
+				p.y + p.offsetY - this.minY - halfHeight,
+				this.stampSize,
+				this.stampSize,
+			);
 		}
 	}
 
 	toObject(additionalProperties: string[] = []) {
 		const flatTrace: number[] = [];
-		let lastX = 0, lastY = 0;
+		let lastX = 0,
+			lastY = 0;
 		for (const p of this.trace) {
-			const ix = Math.round(p.x * 100), iy = Math.round(p.y * 100);
-			flatTrace.push(ix - lastX, iy - lastY, Math.round(p.opacity * 100), Math.round(p.offsetX * 100), Math.round(p.offsetY * 100));
-			lastX = ix; lastY = iy;
+			const ix = Math.round(p.x * 100),
+				iy = Math.round(p.y * 100);
+			flatTrace.push(
+				ix - lastX,
+				iy - lastY,
+				Math.round(p.opacity * 100),
+				Math.round(p.offsetX * 100),
+				Math.round(p.offsetY * 100),
+			);
+			lastX = ix;
+			lastY = iy;
 		}
-		return { ...super.toObject(["left", "top", "width", "height", "fill", "stampSize", "seed", "baseWidth", "minX", "minY", ...additionalProperties]), compressedTrace: flatTrace };
+		return {
+			...super.toObject([
+				"left",
+				"top",
+				"width",
+				"height",
+				"fill",
+				"stampSize",
+				"seed",
+				"baseWidth",
+				"minX",
+				"minY",
+				...additionalProperties,
+			]),
+			compressedTrace: flatTrace,
+		};
 	}
 
 	static async fromObject(object: any) {
@@ -296,7 +370,11 @@ export class CharcoalStroke extends FabricObject {
 		// JSON.stringify/parse on the main thread (the dense-load stall).
 		const props = await enlivenStrokeProps(object);
 		if (!props.stampCanvas && object.seed !== undefined) {
-			props.stampCanvas = generateCharcoalStamp(object.seed, object.baseWidth, object.fill);
+			props.stampCanvas = generateCharcoalStamp(
+				object.seed,
+				object.baseWidth,
+				object.fill,
+			);
 		}
 		return new CharcoalStroke(props);
 	}

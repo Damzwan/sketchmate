@@ -43,10 +43,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import { IonPopover } from "@ionic/vue";
-import { resolveTitleDef, type Theme } from "@/config/profile_options.config";
+import { computed, ref } from "vue";
 import { buildItemId } from "@/config/catalog.config";
+import { resolveTitleDef, type Theme } from "@/config/profile_options.config";
 import { useInventoryStore } from "@/store/inventory.store";
 
 const props = withDefaults(

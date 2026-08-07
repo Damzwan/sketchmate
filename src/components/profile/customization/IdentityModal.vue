@@ -76,67 +76,67 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { IonButton, IonIcon, IonInput, IonTextarea } from '@ionic/vue'
-import { mdiInformationOutline, mdiLockClock } from '@mdi/js'
-import ProfilePictureSelector from '@/components/account/ProfilePictureSelector.vue'
-import BaseSheetModal from '@/components/general/BaseSheetModal.vue'
-import { type Customization } from '@/config/profile_options.config'
-import { svg } from '@/helper/general.helper'
-import { useProfileUpload } from '@/composables/general/useProfileUpload'
-import { useSubscriptionStore } from '@/store/subscription.store'
+import { IonButton, IonIcon, IonInput, IonTextarea } from "@ionic/vue";
+import { mdiInformationOutline, mdiLockClock } from "@mdi/js";
+import { computed, ref, watch } from "vue";
+import ProfilePictureSelector from "@/components/account/ProfilePictureSelector.vue";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { useProfileUpload } from "@/composables/general/useProfileUpload";
+import { type Customization } from "@/config/profile_options.config";
+import { svg } from "@/helper/general.helper";
+import { useSubscriptionStore } from "@/store/subscription.store";
 
 const props = defineProps<{
-  isOpen: boolean;
-  user: any;
-  customization: Partial<Customization>;
-  initialName: string;
-  initialDesc: string;
-  previewImg: string | null;
-}>()
+	isOpen: boolean;
+	user: any;
+	customization: Partial<Customization>;
+	initialName: string;
+	initialDesc: string;
+	previewImg: string | null;
+}>();
 
-const emit = defineEmits(['close', 'save'])
+const emit = defineEmits(["close", "save"]);
 
-const localName = ref(props.initialName)
-const localDesc = ref(props.initialDesc)
-const localImg = ref<string | null>(null)
+const localName = ref(props.initialName);
+const localDesc = ref(props.initialDesc);
+const localImg = ref<string | null>(null);
 
 const displayImg = computed(
-  () => localImg.value ?? props.previewImg ?? props.user.img
-)
+	() => localImg.value ?? props.previewImg ?? props.user.img,
+);
 
 // One-time rename lock. The signup name (from the default 'Anonymous') is free;
 // the first real rename stamps `last_name_change` server-side, which locks it.
 // Pro/Lifetime are exempt. `last_name_change` present ⇒ the one edit was used.
-const subStore = useSubscriptionStore()
+const subStore = useSubscriptionStore();
 const nameLocked = computed(
-  () => !subStore.isPro && Boolean(props.user?.last_name_change)
-)
+	() => !subStore.isPro && Boolean(props.user?.last_name_change),
+);
 
 watch(
-  () => props.isOpen,
-  (open) => {
-    if (open) {
-      localName.value = props.initialName
-      localDesc.value = props.initialDesc
-      localImg.value = null
-    }
-  }
-)
+	() => props.isOpen,
+	(open) => {
+		if (open) {
+			localName.value = props.initialName;
+			localDesc.value = props.initialDesc;
+			localImg.value = null;
+		}
+	},
+);
 
-const { uploadImage } = useProfileUpload()
+const { uploadImage } = useProfileUpload();
 
 const confirm = () => {
-  emit('save', {
-    // While locked, never submit a changed name (the input is read-only, but
-    // guard here too so the cooldown can't be bypassed).
-    name: (nameLocked.value ? props.initialName : localName.value).trim(),
-    description: localDesc.value.trim(),
-    img: localImg.value
-  })
-}
+	emit("save", {
+		// While locked, never submit a changed name (the input is read-only, but
+		// guard here too so the cooldown can't be bypassed).
+		name: (nameLocked.value ? props.initialName : localName.value).trim(),
+		description: localDesc.value.trim(),
+		img: localImg.value,
+	});
+};
 
-const handleDismiss = () => emit('close')
+const handleDismiss = () => emit("close");
 </script>
 
 <style scoped>

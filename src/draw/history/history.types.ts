@@ -1,4 +1,4 @@
-import { FabricObject, FabricObjectProps } from "fabric";
+import type { FabricObject, FabricObjectProps } from "fabric";
 import type { DrawLayer } from "@/draw/layers/layer.types";
 
 export enum HistoryEvent {

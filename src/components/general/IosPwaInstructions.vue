@@ -23,13 +23,19 @@
 </template>
 
 <script lang="ts" setup>
-import { IonIcon, IonModal, IonContent, IonToolbar, IonHeader } from '@ionic/vue'
-import { svg } from '@/helper/general.helper'
-import { mdiExportVariant } from '@mdi/js'
+import {
+	IonContent,
+	IonHeader,
+	IonIcon,
+	IonModal,
+	IonToolbar,
+} from "@ionic/vue";
+import { mdiExportVariant } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
 defineProps<{
-  trigger: string
-}>()
+	trigger: string;
+}>();
 </script>
 
 <style scoped>

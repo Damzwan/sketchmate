@@ -1,6 +1,4 @@
 import type { Canvas, FabricObject } from "fabric";
-import type { RenderEngine } from "../rendering/renderEngine";
-import { minimumTiledZoom } from "../rendering/zoomLevels";
 import { MAX_RENDER_SCALE } from "../config/renderQuality.config";
 import {
 	bakeryPauseFlush,
@@ -8,6 +6,8 @@ import {
 	isBakeryActive,
 } from "../rendering/bakery/tileBakeryClient";
 import type { WorldRect } from "../rendering/committedLayer";
+import type { RenderEngine } from "../rendering/renderEngine";
+import { minimumTiledZoom } from "../rendering/zoomLevels";
 import * as transformLayer from "../transform/transformController";
 
 interface GestureControllerOptions {

@@ -82,9 +82,9 @@
 <script setup lang="ts">
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiDraw } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import type { DrawInvitation } from "@/draw/sync/session.store";
+import { svg } from "@/helper/general.helper";
 
 defineProps<{ invite: DrawInvitation }>();
 

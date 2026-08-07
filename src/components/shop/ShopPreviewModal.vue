@@ -84,19 +84,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonButton } from "@ionic/vue";
+import { computed } from "vue";
+import ChatWidgetStylePager from "@/components/chat/ChatWidgetStylePager.vue";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
 import {
 	describeGrant,
 	type ItemCategory,
 	type ShopSku,
 } from "@/config/catalog.config";
-import type { Customization } from "@/config/profile_options.config";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
-import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
 import { SHOWCASE_PREVIEW } from "@/config/preview.config";
+import type { Customization } from "@/config/profile_options.config";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
-import ChatWidgetStylePager from "@/components/chat/ChatWidgetStylePager.vue";
 
 const props = defineProps<{
 	isOpen: boolean;
@@ -137,17 +137,15 @@ const CHAT_FIELDS = new Set<keyof Customization>([
 // and a bundle (many) alike.
 const previewCustomization = computed<Partial<Customization>>(() => {
 	const c: Partial<Customization> = {
-		...(props.equipTarget === "chat"
+		...((props.equipTarget === "chat"
 			? props.user?.chat_customization
-			: props.user?.customization) ?? {},
+			: props.user?.customization) ?? {}),
 	};
 	for (const grant of props.sku?.grants ?? []) {
 		const [cat, ...rest] = grant.split(".");
 		const field = GRANT_FIELD[cat as ItemCategory];
-		if (
-			field &&
-			(props.equipTarget !== "chat" || CHAT_FIELDS.has(field))
-		) c[field] = rest.join(".");
+		if (field && (props.equipTarget !== "chat" || CHAT_FIELDS.has(field)))
+			c[field] = rest.join(".");
 	}
 	return c;
 });
@@ -160,10 +158,8 @@ const equipPatch = computed<Partial<Customization>>(() => {
 	for (const grant of props.sku?.grants ?? []) {
 		const [cat, ...rest] = grant.split(".");
 		const field = GRANT_FIELD[cat as ItemCategory];
-		if (
-			field &&
-			(props.equipTarget !== "chat" || CHAT_FIELDS.has(field))
-		) patch[field] = rest.join(".");
+		if (field && (props.equipTarget !== "chat" || CHAT_FIELDS.has(field)))
+			patch[field] = rest.join(".");
 	}
 	return patch;
 });

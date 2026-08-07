@@ -33,15 +33,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { Preferences } from "@capacitor/preferences";
 import { IonIcon } from "@ionic/vue";
 import { mdiContentSaveAlertOutline } from "@mdi/js";
-import { Preferences } from "@capacitor/preferences";
 import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
+import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
 import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { LocalStorage } from "@/types/storage.types";
-import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
 
 // Guest = anonymous firebase account; art is device-only until they link one.
 const guestUpgradeTriggerId = "home-guest-upgrade-trigger";

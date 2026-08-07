@@ -1,5 +1,5 @@
+import type { Canvas } from "fabric"; // Adjust based on your fabric version
 import { ref } from "vue";
-import { Canvas } from "fabric"; // Adjust based on your fabric version
 import {
 	canvasToBuffer,
 	cropCanvas,
@@ -18,7 +18,7 @@ export function useCanvasPreview() {
 
 	// Keep a reference to the original instead of cloning it
 	let originalCanvas: Canvas | null = null;
-	let aspect_ratio: number | undefined = undefined;
+	let aspect_ratio: number | undefined;
 
 	// Store the chunked JSON here so we don't have to calculate it on send
 	let cachedJson: any = null;

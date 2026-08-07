@@ -106,7 +106,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { IonButton, IonIcon, IonRange } from "@ionic/vue";
 import {
 	mdiCrownOutline,
@@ -116,34 +115,35 @@ import {
 	mdiPalette,
 	mdiShoppingOutline,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import CustomizeOptionRow from "@/components/profile/customization/CustomizeOptionRow.vue";
-import ThemeModal from "@/components/profile/customization/ThemeModal.vue";
-import FontModal from "@/components/profile/customization/FontModal.vue";
 import FontEffectModal from "@/components/profile/customization/FontEffectModal.vue";
-import ChatWidgetStylePager from "./ChatWidgetStylePager.vue";
-import ChatBackgroundPickerModal from "./ChatBackgroundPickerModal.vue";
+import FontModal from "@/components/profile/customization/FontModal.vue";
+import ThemeModal from "@/components/profile/customization/ThemeModal.vue";
 import {
 	CHAT_BACKGROUND_OPACITY_MAX,
 	CHAT_BACKGROUND_OPACITY_MIN,
-	FONTS,
+	type ChatCustomization,
 	FONT_EFFECTS,
+	FONTS,
 	hydrateChatCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
-	type ChatCustomization,
 } from "@/config/profile_options.config";
+import { svg } from "@/helper/general.helper";
 import {
 	clearChatBackground,
 	confirmChatBackground,
 	updateProfile,
 } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
-import { useToast } from "@/service/toast.service";
 import { useSubscriptionStore } from "@/store/subscription.store";
+import ChatBackgroundPickerModal from "./ChatBackgroundPickerModal.vue";
+import ChatWidgetStylePager from "./ChatWidgetStylePager.vue";
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ "update:open": [value: boolean] }>();

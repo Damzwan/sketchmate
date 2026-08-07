@@ -1,4 +1,4 @@
 export interface DynamicTextPart {
-  text: string
-  duration: number
+	text: string;
+	duration: number;
 }

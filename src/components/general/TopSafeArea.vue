@@ -6,8 +6,7 @@
 </template>
 
 <script setup lang="ts">
-
-const props = defineProps<{ color: string }>()
+const props = defineProps<{ color: string }>();
 </script>
 
 <style lang="scss" scoped>

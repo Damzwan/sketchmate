@@ -77,9 +77,9 @@
 
 <script setup lang="ts">
 import { IonIcon } from "@ionic/vue";
-import { mdiHeart, mdiEye, mdiBrush } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { mdiBrush, mdiEye, mdiHeart } from "@mdi/js";
 import { usePostSwiper } from "@/composables/home/usePostSwiper";
+import { svg } from "@/helper/general.helper";
 
 defineProps<{
 	posts: any[];

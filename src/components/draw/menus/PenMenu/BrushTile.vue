@@ -34,22 +34,20 @@
 <script lang="ts" setup>
 import { IonIcon } from "@ionic/vue";
 import { mdiLock } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
 import { BrushType } from "@/draw/tools/tool.types";
+import { svg } from "@/helper/general.helper";
 
 defineProps<{
-  type: BrushType;
-  accent: string;
-  selected: boolean;
-  owned: boolean;
-  previewed: boolean;
-  label: string;
-  iconPath: string;
+	type: BrushType;
+	accent: string;
+	selected: boolean;
+	owned: boolean;
+	previewed: boolean;
+	label: string;
+	iconPath: string;
 }>();
 
-defineEmits<{
-  (e: "tap", type: BrushType): void;
-}>();
+defineEmits<(e: "tap", type: BrushType) => void>();
 </script>
 
 <style scoped>

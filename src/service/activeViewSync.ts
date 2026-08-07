@@ -1,7 +1,8 @@
 // src/composables/useActiveViewSync.ts
-import { onMounted, onUnmounted } from "vue";
+
 import { App } from "@capacitor/app";
-import { PluginListenerHandle } from "@capacitor/core";
+import type { PluginListenerHandle } from "@capacitor/core";
+import { onMounted, onUnmounted } from "vue";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatStore } from "@/store/chat.store";
 

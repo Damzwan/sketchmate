@@ -239,7 +239,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import {
 	mdiAccountPlusOutline,
@@ -248,14 +247,14 @@ import {
 	mdiDraw,
 	mdiPalette,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileWorld from "@/components/profile/ProfileWorld.vue";
+import { computed, ref } from "vue";
 import BackgroundSketch from "@/components/profile/customization/BackgroundSketch.vue";
+import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import TitleBadge from "@/components/profile/TitleBadge.vue";
-
 import {
+	type Customization,
 	calculateSignatureStroke,
 	formatStatNumber,
 	hydrateCustomization,
@@ -264,8 +263,8 @@ import {
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveWorld,
-	type Customization,
 } from "@/config/profile_options.config";
+import { svg } from "@/helper/general.helper";
 
 const props = withDefaults(
 	defineProps<{

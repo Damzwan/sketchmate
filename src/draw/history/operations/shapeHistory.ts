@@ -1,5 +1,5 @@
-import { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
-import { HistoryContext } from "@/draw/history/historyActions";
+import type { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
+import type { HistoryContext } from "@/draw/history/historyActions";
 import { EventBus } from "@/main";
 
 export async function redoPolygonCreation(

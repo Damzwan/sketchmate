@@ -130,8 +130,6 @@
 
 <script setup lang="ts">
 import { IonButton, IonIcon, IonModal, IonSpinner } from "@ionic/vue";
-import { computed, ref } from "vue";
-import { storeToRefs } from "pinia";
 import {
 	mdiAccountGroupOutline,
 	mdiBalloon,
@@ -145,13 +143,15 @@ import {
 	mdiShieldAlertOutline,
 	mdiSproutOutline,
 } from "@mdi/js";
-import { useAuthStore } from "@/store/auth.store";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
+import SketchDatePicker from "@/components/general/SketchDatePicker.vue"; // Adjust path as needed
 import { isOldEnough, svg } from "@/helper/general.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
-import { ToastDuration } from "@/types/toast.types";
+import { useAuthStore } from "@/store/auth.store";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
-import SketchDatePicker from "@/components/general/SketchDatePicker.vue"; // Adjust path as needed
+import { ToastDuration } from "@/types/toast.types";
 
 const modalStore = useDateOfBirthModalStore();
 const { isOpen, mode } = storeToRefs(modalStore);

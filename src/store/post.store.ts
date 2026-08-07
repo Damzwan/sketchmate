@@ -1,14 +1,14 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { FeedPost } from "@/types/server.types";
-import { fetchUserPosts } from "@/service/api/user.api";
 import {
+	toggleReaction as apiReact,
 	deleteComment,
+	type FeedTab,
 	fetchFeed,
 	fetchPost,
-	toggleReaction as apiReact,
-	type FeedTab,
 } from "@/service/api/post.api";
+import { fetchUserPosts } from "@/service/api/user.api";
+import type { FeedPost } from "@/types/server.types";
 
 export const FEED_TABS: FeedTab[] = ["for_you", "mates", "latest"];
 

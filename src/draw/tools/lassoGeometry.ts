@@ -1,4 +1,4 @@
-import { Circle, Ellipse, FabricObject, Point } from "fabric";
+import type { Circle, Ellipse, FabricObject } from "fabric";
 import { useDrawStore } from "@/draw/session/draw.store";
 
 export function downSampleCircle(

@@ -1,18 +1,8 @@
-import { DrawAction, type DrawActionParams } from "@/draw/actions/drawAction.types";
-import { Shape, ShapeCreationMode } from "@/draw/tools/tool.types";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { EventBus } from "@/main";
-import { storeToRefs } from "pinia";
 import {
-	exitClickShapeCreationMode,
-	exitDragShapeCreationMode,
-	findNearestPoint,
-} from "@/draw/tools/shapeEvents";
-import {
-	Canvas,
+	type Canvas,
 	Circle,
 	Ellipse,
-	FabricObject,
+	type FabricObject,
 	Line,
 	Path,
 	Point,
@@ -21,11 +11,24 @@ import {
 	Rect,
 	Triangle,
 } from "fabric";
+import { storeToRefs } from "pinia";
+import type {
+	DrawAction,
+	DrawActionParams,
+} from "@/draw/actions/drawAction.types";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { HistoryEvent } from "@/draw/history/history.types";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { useShapeCreation } from "@/draw/tools/shapeCreation.store";
+import {
+	exitClickShapeCreationMode,
+	exitDragShapeCreationMode,
+	findNearestPoint,
+} from "@/draw/tools/shapeEvents";
+import { Shape, ShapeCreationMode } from "@/draw/tools/tool.types";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { EventBus } from "@/main";
 
 export function confirmShapeCreation() {
 	const { shapeCreationMode } = useDrawUIStore();
@@ -199,7 +202,7 @@ function addShapeWithDrag(c: Canvas, shape: Shape) {
 		},
 		{
 			on: "mouse:up",
-			handler: (o) => {
+			handler: (_o) => {
 				createdShape.setCoords(); // important to update the bounding box of the shape
 				c.fire("object:added", { target: createdShape });
 				exitDragShapeCreationMode();
@@ -244,17 +247,18 @@ function updateShape(
 	startY: number,
 ) {
 	switch (shape) {
-		case Shape.Circle:
+		case Shape.Circle: {
 			const dxc = pointer.x - startX;
 			const dyc = pointer.y - startY;
-			const radius = Math.sqrt(Math.pow(dxc, 2) + Math.pow(dyc, 2)) / 2;
+			const radius = Math.sqrt(dxc ** 2 + dyc ** 2) / 2;
 			createdShape.set({
 				left: (startX + pointer.x) / 2 - radius,
 				top: (startY + pointer.y) / 2 - radius,
 				radius: radius,
 			});
 			break;
-		case Shape.Ellipse:
+		}
+		case Shape.Ellipse: {
 			const dxEllipse = pointer.x - startX;
 			const dyEllipse = pointer.y - startY;
 			const rx = Math.abs(dxEllipse) / 2;
@@ -266,8 +270,9 @@ function updateShape(
 				ry: ry,
 			});
 			break;
+		}
 		case Shape.Rectangle:
-		case Shape.Triangle:
+		case Shape.Triangle: {
 			const width = Math.abs(startX - pointer.x);
 			const height = Math.abs(startY - pointer.y);
 			createdShape.set({
@@ -277,10 +282,11 @@ function updateShape(
 				height: height,
 			});
 			break;
+		}
 		case Shape.Line:
 			createdShape.set({ x2: pointer.x, y2: pointer.y });
 			break;
-		case Shape.HEART:
+		case Shape.HEART: {
 			const scalingSpeed = 200;
 			const dx = pointer.x - startX;
 			const dy = pointer.y - startY;
@@ -294,6 +300,7 @@ function updateShape(
 				scaleY: scale,
 			});
 			break;
+		}
 		default:
 			break;
 	}
@@ -305,7 +312,7 @@ function createShape(
 	startY: number,
 ): FabricObject {
 	const { shapeCreationSettings } = useShapeCreation();
-	let o: FabricObject | undefined = undefined;
+	let o: FabricObject | undefined;
 	switch (shape) {
 		case Shape.Circle:
 			o = new Circle({
@@ -323,7 +330,12 @@ function createShape(
 			});
 			break;
 		case Shape.Rectangle:
-			o = { x: startX, y: startY, w: 1, h: 1 };
+			o = new Rect({
+				left: startX,
+				top: startY,
+				width: 1,
+				height: 1,
+			});
 			break;
 		case Shape.Triangle:
 			o = new Triangle({
@@ -336,7 +348,7 @@ function createShape(
 		case Shape.Line:
 			o = new Line([startX, startY, startX, startY]);
 			break;
-		case Shape.HEART:
+		case Shape.HEART: {
 			const pathString =
 				"M 272.70141,238.71731 C 206.46141,238.71731 152.70146,292.4773 152.70146,358.71731 C 152.70146,493.47282 288.63461,528.80461 381.26391,662.02535 C 468.83815,529.62199 609.82641,489.17075 609.82641,358.71731 C 609.82641,292.47731 556.06651,238.7173 489.82641,238.71731 C 441.77851,238.71731 400.42481,267.08774 381.26391,307.90481 C 362.10311,267.08773 320.74941,238.7173 272.70141,238.71731 z";
 
@@ -352,6 +364,7 @@ function createShape(
 
 			o = heart;
 			break;
+		}
 	}
 	o?.set({
 		fill: shapeCreationSettings.fill || null,

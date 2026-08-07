@@ -9,16 +9,14 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonIcon } from '@ionic/vue'
-import { storeToRefs } from 'pinia'
-import { mdiMagnifyMinusOutline } from '@mdi/js'
-import { svg } from '@/helper/general.helper'
-import { resetZoom } from '@/draw/canvas/viewport'
-import { useDrawUIStore } from '@/draw/ui/drawUI.store'
+import { IonButton, IonIcon } from "@ionic/vue";
+import { mdiMagnifyMinusOutline } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { resetZoom } from "@/draw/canvas/viewport";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { svg } from "@/helper/general.helper";
 
-
-const { canResetView } = storeToRefs(useDrawUIStore())
-
+const { canResetView } = storeToRefs(useDrawUIStore());
 </script>
 
 <style scoped>

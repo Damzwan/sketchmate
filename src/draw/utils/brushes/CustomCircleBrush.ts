@@ -1,8 +1,8 @@
-import { BaseBrush, FabricObject, Point } from "fabric";
+import { BaseBrush, FabricObject, type Point } from "fabric";
 import { getTopContextEpoch } from "@/draw/rendering/fabricRenderState";
 import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
 
-// @ts-ignore
+// @ts-expect-error
 export class CustomCircleBrush extends BaseBrush {
 	width = 10;
 	private _activePoints: { x: number; y: number; r: number; a: number }[] = [];
@@ -25,8 +25,7 @@ export class CustomCircleBrush extends BaseBrush {
 
 		const lastPoint = this._activePoints[this._activePoints.length - 1];
 		const distance = Math.sqrt(
-			Math.pow(pointer.x - lastPoint.x, 2) +
-				Math.pow(pointer.y - lastPoint.y, 2),
+			(pointer.x - lastPoint.x) ** 2 + (pointer.y - lastPoint.y) ** 2,
 		);
 
 		// DECIMATION STRATEGY:

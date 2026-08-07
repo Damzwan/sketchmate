@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { Ref, ref } from "vue";
+import { type Ref, ref } from "vue";
 import { DrawTool } from "@/draw/tools/tool.types";
 import { Menu, type StickersEmblemsSavedTabOptions } from "@/types/menu.types";
 

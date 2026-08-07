@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import baseline from "../../../bench/baseline/algorithmic.json";
-import { runHeadlessBenchmark } from "@/draw/benchmark/headlessBenchmark";
-import type { HeadlessBenchmarkResult } from "@/draw/benchmark/headlessBenchmark";
-import type { BenchmarkSceneId } from "@/draw/benchmark/sceneFactory";
 import type { BenchmarkScenarioId } from "@/draw/benchmark/benchScenarios";
+import type { HeadlessBenchmarkResult } from "@/draw/benchmark/headlessBenchmark";
+import { runHeadlessBenchmark } from "@/draw/benchmark/headlessBenchmark";
+import type { BenchmarkSceneId } from "@/draw/benchmark/sceneFactory";
+import baseline from "../../../bench/baseline/algorithmic.json";
 
 const workloadMetrics: Array<keyof HeadlessBenchmarkResult> = [
 	"totalInvalidatedCells",

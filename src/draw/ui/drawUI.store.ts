@@ -1,10 +1,9 @@
-import { defineStore } from "pinia";
-import { ShapeCreationMode } from "@/draw/tools/tool.types";
+import { type Canvas, Point } from "fabric";
+import { defineStore, storeToRefs } from "pinia";
 import { ref } from "vue";
-import { storeToRefs } from "pinia";
 import { useDrawStore } from "@/draw/session/draw.store";
-import { Canvas, Point } from "fabric";
 import { useDrawSyncer } from "@/draw/sync/session.store";
+import type { ShapeCreationMode } from "@/draw/tools/tool.types";
 import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
 
 const AVATAR_DISAPPEAR_TIMEOUT_MS = 3000;
@@ -79,7 +78,7 @@ export const useDrawUIStore = defineStore("drawUI", () => {
 		});
 	}
 
-	function init(c: Canvas) {}
+	function init(_c: Canvas) {}
 
 	function destroy() {
 		activeAvatars.value.forEach((avatar) => {

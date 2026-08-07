@@ -196,9 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { storeToRefs } from "pinia";
-import { IonFab, IonFabButton, IonIcon } from "@ionic/vue";
+import { IonFab, IonFabButton, IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	mdiAccountGroupOutline,
 	mdiChatPlusOutline,
@@ -206,24 +204,23 @@ import {
 	mdiChevronRight,
 	mdiShieldAlertOutline,
 } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { MIN_CHAT_VERSION } from "@/config/general.config";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { masterAnimation } from "@/helper/animation.helper";
+import { compareConversationActivity } from "@/helper/chat.helper";
 import { svg } from "@/helper/general.helper";
-
-import LobbyConversationItem from "./LobbyConversationItem.vue";
-import ConversationItem from "./ConversationItem.vue";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 import ChatFriendPicker from "./ChatFriendPicker.vue";
 import ChatOverviewEmptyState from "./ChatOverviewEmptyState.vue";
-
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useChatStore } from "@/store/chat.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useFriendStore } from "@/store/friend.store";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { MIN_CHAT_VERSION } from "@/config/general.config";
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
-import { useIonRouter } from "@ionic/vue";
-import { compareConversationActivity } from "@/helper/chat.helper";
+import ConversationItem from "./ConversationItem.vue";
+import LobbyConversationItem from "./LobbyConversationItem.vue";
 
 const props = defineProps<{ fontEffectClass?: string }>();
 defineEmits(["join-session"]);

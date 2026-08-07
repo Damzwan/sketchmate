@@ -1,11 +1,11 @@
-import { ActiveSelection, Canvas, FabricObject, Point } from "fabric";
-import { useDrawStore } from "@/draw/session/draw.store";
+import { ActiveSelection, type Canvas, type FabricObject } from "fabric";
 import { storeToRefs } from "pinia";
-import { CANVAS_SIZE } from "@/draw/config/canvas.config";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { createYielder } from "@/draw/scheduling/yielder";
+import { CANVAS_SIZE } from "@/draw/config/canvas.config";
 import { clampToViewportZoom } from "@/draw/rendering/zoomLevels";
+import { createYielder } from "@/draw/scheduling/yielder";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 
 /**
  * Clamp a fit-to-content zoom into the engine's CURRENT range.
@@ -192,9 +192,8 @@ export async function fitToDensestRegion(
 	});
 	yielder.reset();
 	for (const o of objects) {
-		// @ts-ignore — same call as objectBounds()
-		const b = o.getBoundingRect(true, true);
-		if (!isFinite(b.left) || !isFinite(b.top)) continue;
+		const b = o.getBoundingRect();
+		if (!Number.isFinite(b.left) || !Number.isFinite(b.top)) continue;
 		if (b.width <= 0 || b.height <= 0) continue;
 		items.push({
 			cx: b.left + b.width / 2,

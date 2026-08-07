@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	containImageDimensions,
 	FLATTENED_IMAGE_MAX_DIMENSION,
-	imageMaxDimensionFor,
 	INSERTED_IMAGE_MAX_DIMENSION,
+	imageMaxDimensionFor,
 } from "./imageDownsampling";
 
 describe("image downsampling", () => {

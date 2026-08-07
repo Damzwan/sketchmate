@@ -1,8 +1,8 @@
-import * as fabric from "fabric";
 import type { Canvas, FabricObject } from "fabric";
+import * as fabric from "fabric";
 import { v4 } from "uuid";
-import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { useEraser } from "@/draw/tools/eraser.store";
 import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
 import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
@@ -136,7 +136,7 @@ async function stressLoadedDrawing(
 			world,
 			Math.floor((index / DRAWING_ERASE_STROKES) * ERASE_STROKES),
 		);
-		const bounds = stroke.getBoundingRect(true, true);
+		const bounds = stroke.getBoundingRect();
 		const pad = stroke.strokeWidth ?? 0;
 		const nearby = manager.query({
 			x: bounds.left - pad,

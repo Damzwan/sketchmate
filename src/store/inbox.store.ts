@@ -1,13 +1,13 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { InboxItem, CommentRes, GetInboxRes } from "@/types/server.types";
-import { useAuthStore } from "@/store/auth.store";
-import { useUserCacheStore } from "@/store/userCache.store";
 import {
 	getInbox,
 	getSingleInboxItem,
 	syncInboxItems,
 } from "@/service/api/inbox.api";
+import { useAuthStore } from "@/store/auth.store";
+import { useUserCacheStore } from "@/store/userCache.store";
+import type { CommentRes, GetInboxRes, InboxItem } from "@/types/server.types";
 
 export const useInboxStore = defineStore("inbox", () => {
 	const inbox = ref<InboxItem[]>([]);

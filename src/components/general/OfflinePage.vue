@@ -15,11 +15,11 @@
 </template>
 
 <script lang="ts" setup>
-import offline from '@/assets/illustrations/offline.svg'
-import { IonButton } from '@ionic/vue'
+import { IonButton } from "@ionic/vue";
+import offline from "@/assets/illustrations/offline.svg";
 
 function reload() {
-  location.reload()
+	location.reload();
 }
 </script>
 

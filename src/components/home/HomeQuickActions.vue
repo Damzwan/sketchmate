@@ -19,7 +19,7 @@
         </template>
         <template v-else>
           <img
-            :src="action.img"
+            :src="action.img ?? undefined"
             class="absolute pointer-events-none object-contain transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 z-20"
             :class="getImageLayoutClasses(action.id)"
             alt=""
@@ -45,11 +45,11 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import Lottie from "@/components/general/Lottie.vue";
-import balloonLottie from "@/assets/lottie/balloon.lottie";
 import draw_alone from "@/assets/illustrations/home/draw_alone.webp";
 import draw_together from "@/assets/illustrations/home/draw_together.webp";
 import share from "@/assets/illustrations/home/share.webp";
+import balloonLottie from "@/assets/lottie/balloon.lottie";
+import Lottie from "@/components/general/Lottie.vue";
 
 const props = defineProps<{ isUnderAge: boolean }>();
 defineEmits(["action"]);

@@ -81,8 +81,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { storeToRefs } from "pinia";
 import { IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	mdiAccountMultiplePlusOutline,
@@ -93,13 +91,15 @@ import {
 	mdiPencilPlusOutline,
 	mdiPlus,
 } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
+import { masterAnimation } from "@/helper/animation.helper";
 import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
 
 // Emitted rather than handled here: opening the friend picker flips a piece of
 // ChatOverview's own view state, and this component has no business reaching

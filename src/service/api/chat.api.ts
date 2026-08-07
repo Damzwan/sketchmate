@@ -1,5 +1,5 @@
-import { request } from './http'
-import { BaseMessage, PopulatedConversation } from '@/types/server.types'
+import type { BaseMessage, PopulatedConversation } from "@/types/server.types";
+import { request } from "./http";
 
 /**
  * Returns active mates + temporary 24h chats.
@@ -7,7 +7,7 @@ import { BaseMessage, PopulatedConversation } from '@/types/server.types'
  * chat_status in the linked relationship document.
  */
 export async function getActiveChats() {
-  return await request<PopulatedConversation[]>('/chats/active')
+	return await request<PopulatedConversation[]>("/chats/active");
 }
 
 /**
@@ -15,29 +15,33 @@ export async function getActiveChats() {
  * This is the "Message Request" folder.
  */
 export async function getPendingRequests() {
-  return await request<PopulatedConversation[]>('/chats/requests')
+	return await request<PopulatedConversation[]>("/chats/requests");
 }
 
 /**
  * Standard message history fetcher.
  */
-export async function getChatMessages(conversationId: string, before?: string, limit = 30) {
-  let url = `/chats/${conversationId}/messages?limit=${limit}`
-  if (before) url += `&before=${before}`
+export async function getChatMessages(
+	conversationId: string,
+	before?: string,
+	limit = 30,
+) {
+	let url = `/chats/${conversationId}/messages?limit=${limit}`;
+	if (before) url += `&before=${before}`;
 
-  return await request<BaseMessage[]>(url)
+	return await request<BaseMessage[]>(url);
 }
 
 /**
  * Simple POST to clear unread counts for the current user.
  */
 export async function markAsRead(conversationId: string): Promise<void> {
-  return await request<void>(`/chats/${conversationId}/read`, {
-    method: 'POST'
-  })
+	return await request<void>(`/chats/${conversationId}/read`, {
+		method: "POST",
+	});
 }
 
 /** Clear every unread direct conversation with one server-side write. */
 export async function markAllAsRead(): Promise<void> {
-  return await request<void>('/chats/read-all', { method: 'POST' })
+	return await request<void>("/chats/read-all", { method: "POST" });
 }

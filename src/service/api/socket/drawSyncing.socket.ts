@@ -1,15 +1,15 @@
-import { socket } from "@/service/api/socket/socket.service";
 import { storeToRefs } from "pinia";
-import { PublicLobby, useDrawSyncer } from "@/draw/sync/session.store";
-import router from "@/router";
-import { useAuthStore } from "@/store/auth.store";
-import { useParentalStore } from "@/store/parental.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useChatStore } from "@/store/chat.store";
-import { Menu } from "@/types/menu.types";
-import { EventBus } from "@/main";
 import { v4 as uuidv4 } from "uuid";
+import { type PublicLobby, useDrawSyncer } from "@/draw/sync/session.store";
+import { EventBus } from "@/main";
+import router from "@/router";
+import { socket } from "@/service/api/socket/socket.service";
 import { fetchPublicLobbies } from "@/service/api/user.api";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useParentalStore } from "@/store/parental.store";
+import { Menu } from "@/types/menu.types";
 
 /**
  * Light room/lobby socket helpers. Deliberately free of any fabric / draw-engine

@@ -1,12 +1,12 @@
-import { Canvas } from "fabric";
-import { useEraser } from "@/draw/tools/eraser.store";
-import { DrawTool } from "@/draw/tools/tool.types";
+import type { Canvas } from "fabric";
 import { ERASERS } from "@/draw/config/tools.config";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { useEraser } from "@/draw/tools/eraser.store";
 import { useSelect } from "@/draw/tools/select.store";
+import { DrawTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import * as transform from "@/draw/transform/transformController";
 
-function cancelEraserAction(c: Canvas) {
+function cancelEraserAction(_c: Canvas) {
 	const { cancelErase } = useEraser();
 	cancelErase();
 }

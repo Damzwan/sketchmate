@@ -52,9 +52,9 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon, IonButton } from "@ionic/vue";
-import { svg } from "@/helper/general.helper";
+import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiClose, mdiDeleteOutline, mdiShareVariantOutline } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
 defineProps<{
 	selectedMode: boolean;

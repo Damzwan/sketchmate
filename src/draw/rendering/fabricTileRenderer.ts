@@ -1,4 +1,4 @@
-import { FabricObject } from "fabric";
+import type { FabricObject } from "fabric";
 
 /**
  * Prepare one object (and, recursively, a group's children) to be rasterized

@@ -1,5 +1,5 @@
-import { DotLottie } from "@lottiefiles/dotlottie-web";
 import { Capacitor } from "@capacitor/core";
+import { DotLottie } from "@lottiefiles/dotlottie-web";
 import { absLottieSrc, createLottie, type LottiePlayer } from "./lottie.helper";
 
 /**
@@ -242,7 +242,7 @@ function updateRunState(entry: PoolEntry) {
 }
 
 function getPoolEntry(src: string, masterSize: number): PoolEntry {
-	let entry = pool.get(src);
+	const entry = pool.get(src);
 	if (entry) return entry;
 
 	const master = document.createElement("canvas");

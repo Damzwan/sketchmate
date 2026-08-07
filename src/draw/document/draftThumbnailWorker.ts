@@ -1,5 +1,5 @@
-import { yieldToMain } from "@/draw/scheduling/yielder";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { yieldToMain } from "@/draw/scheduling/yielder";
 
 interface DraftThumbnailOptions {
 	maxSize: number;

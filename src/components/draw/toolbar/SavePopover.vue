@@ -31,16 +31,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { storeToRefs } from "pinia";
 import { IonButton, IonContent, IonIcon, IonPopover } from "@ionic/vue";
 import {
 	mdiCloudCheckOutline,
 	mdiCloudSyncOutline,
 	mdiContentSaveEditOutline,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
 import { useDocumentStore } from "@/draw/document/document.store";
+import { svg } from "@/helper/general.helper";
 
 const AUTOSAVE_SECONDS = 20;
 

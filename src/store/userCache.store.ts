@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref, shallowRef, triggerRef } from "vue";
+import { computed, shallowRef, triggerRef } from "vue";
 import { getPartialUsers } from "@/service/api/user.api";
 
 interface CacheEntry {

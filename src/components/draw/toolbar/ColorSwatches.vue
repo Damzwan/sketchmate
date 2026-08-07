@@ -50,17 +50,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { storeToRefs } from "pinia";
 import { IonPopover, IonRange } from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
 import ColorPicker from "@/components/draw/ColorPicker.vue";
 import {
-	useColorProfiles,
 	type ColorProfile,
+	useColorProfiles,
 } from "@/draw/tools/colorProfiles.store";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { usePen } from "@/draw/tools/pen.store";
 import { DrawTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { hexWithOpacity, percentToAlphaHex } from "@/draw/utils/color.utils";
 
 const { profiles, activeIndex } = storeToRefs(useColorProfiles());

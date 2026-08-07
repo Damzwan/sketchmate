@@ -74,79 +74,80 @@
 </template>
 
 <script lang="ts" setup>
-import { IonIcon, IonPopover, IonRange, popoverController } from '@ionic/vue'
-import { computed, onMounted, ref, watch } from 'vue'
-import { Preferences } from '@capacitor/preferences'
-import { LocalStorage } from '@/types/storage.types'
-
+import { Preferences } from "@capacitor/preferences";
+import { IonIcon, IonPopover, IonRange, popoverController } from "@ionic/vue";
+import { mdiChevronRight, mdiEyedropper } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { v4 as uuidv4 } from "uuid";
+import Picker from "vanilla-picker";
+import { computed, onMounted, ref, watch } from "vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { useDrawStore } from '@/draw/session/draw.store'
-import { storeToRefs } from 'pinia'
-import { isMobile, svg } from '@/helper/general.helper'
-import { mdiEyedropper, mdiChevronRight } from '@mdi/js'
-import { v4 as uuidv4 } from 'uuid'
-import Picker from 'vanilla-picker'
-import { useDrawEventManager } from '@/draw/canvas/drawEventManager'
-import { exitColorPickerMode } from '@/draw/tools/colorActions'
+import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { BLACK, COLORSWATCHES } from "@/draw/config/canvas.config";
+import { ERASERS, PENMENUTOOLS } from "@/draw/config/tools.config";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { exitColorPickerMode } from "@/draw/tools/colorActions";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import {
-  alphaHexToPercent,
-  getColorRecommendations,
-  hexWithOpacity,
-  hexWithoutOpacity,
-  percentToAlphaHex
-} from '@/draw/utils/color.utils'
-import { BLACK, COLORSWATCHES } from '@/draw/config/canvas.config'
-import { ERASERS, PENMENUTOOLS } from '@/draw/config/tools.config'
-import { useDrawUIStore } from '@/draw/ui/drawUI.store'
-import { useToolSelection } from '@/draw/tools/toolSelection.store'
+	alphaHexToPercent,
+	getColorRecommendations,
+	hexWithOpacity,
+	hexWithoutOpacity,
+	percentToAlphaHex,
+} from "@/draw/utils/color.utils";
+import { isMobile, svg } from "@/helper/general.helper";
+import { LocalStorage } from "@/types/storage.types";
 
-const hmm = ref()
-const customColorPopoverId = uuidv4()
-const customColorParent = ref()
-const colorHistory = ref<string[]>([])
-const emptySpaces = computed(() => Math.max(0, 6 - colorHistory.value.length))
+const hmm = ref();
+const customColorPopoverId = uuidv4();
+const customColorParent = ref();
+const colorHistory = ref<string[]>([]);
+const emptySpaces = computed(() => Math.max(0, 6 - colorHistory.value.length));
 
-let picker: any
+let picker: any;
 
-getSavedColorHistory()
+getSavedColorHistory();
 
 onMounted(() => {
-  picker = new Picker({
-    parent: customColorParent.value,
-    popup: false,
-    alpha: false,
-    editor: false,
-    color: props.color,
-    onDone: async (c) => {
-      onColorSelect(c.hex)
-      hmm.value.click()
-    }
-  })
-})
+	picker = new Picker({
+		parent: customColorParent.value,
+		popup: false,
+		alpha: false,
+		editor: false,
+		color: props.color,
+		onDone: async (c) => {
+			onColorSelect(c.hex);
+			hmm.value.click();
+		},
+	});
+});
 
 const props = defineProps<{
-  color?: string
-  reset?: boolean
-  showOpacity?: boolean
-  colorPickerAction?: DrawAction
-}>()
+	color?: string;
+	reset?: boolean;
+	showOpacity?: boolean;
+	colorPickerAction?: DrawAction;
+}>();
 
-const emit = defineEmits(['update:color'])
+const emit = defineEmits(["update:color"]);
 
-const c = computed(() => props?.color || BLACK)
-const opacityHex = computed(() => (c.value.substring(7, 9) != '' ? c.value.substring(7, 9) : 'FF'))
+const c = computed(() => props?.color || BLACK);
+const opacityHex = computed(() =>
+	c.value.substring(7, 9) != "" ? c.value.substring(7, 9) : "FF",
+);
 
-const flatSwatches = computed(() => COLORSWATCHES.flat())
-const recommendations = computed(() => getColorRecommendations(c.value))
-const displayHex = computed(() => hexWithoutOpacity(c.value).toUpperCase())
+const flatSwatches = computed(() => COLORSWATCHES.flat());
+const recommendations = computed(() => getColorRecommendations(c.value));
+const displayHex = computed(() => hexWithoutOpacity(c.value).toUpperCase());
 
 const isSelected = (swatch: string): boolean =>
-  props.color === hexWithOpacity(swatch, opacityHex.value)
+	props.color === hexWithOpacity(swatch, opacityHex.value);
 
 function getSavedColorHistory() {
-  Preferences.get({ key: LocalStorage.color_history }).then(
-    res => (colorHistory.value = res.value ? JSON.parse(res.value) : [])
-  )
+	Preferences.get({ key: LocalStorage.color_history }).then(
+		(res) => (colorHistory.value = res.value ? JSON.parse(res.value) : []),
+	);
 }
 
 /**
@@ -154,150 +155,173 @@ function getSavedColorHistory() {
  * Tracks unified usage history cleanly.
  */
 async function onColorSelect(newColor: string) {
-  newColor = hexWithoutOpacity(newColor).toUpperCase()
-  emit('update:color', hexWithOpacity(newColor, opacityHex.value))
+	newColor = hexWithoutOpacity(newColor).toUpperCase();
+	emit("update:color", hexWithOpacity(newColor, opacityHex.value));
 
-  // Remove existing occurrence to cycle duplicates to the front
-  colorHistory.value = colorHistory.value.filter(h => h !== newColor)
-  colorHistory.value.unshift(newColor)
+	// Remove existing occurrence to cycle duplicates to the front
+	colorHistory.value = colorHistory.value.filter((h) => h !== newColor);
+	colorHistory.value.unshift(newColor);
 
-  if (colorHistory.value.length > 6) colorHistory.value.pop()
-  Preferences.set({ key: LocalStorage.color_history, value: JSON.stringify(colorHistory.value) })
+	if (colorHistory.value.length > 6) colorHistory.value.pop();
+	Preferences.set({
+		key: LocalStorage.color_history,
+		value: JSON.stringify(colorHistory.value),
+	});
 }
 
 function pickColor(e: any) {
-  const { getCanvas, selectAction } = useDrawStore()
-  const { activateExclusiveEvents } = useDrawEventManager()
-  const { selectedTool } = useToolSelection()
-  const { colorPickerMode } = storeToRefs(useDrawUIStore())
-  const c = getCanvas()
+	const { getCanvas, selectAction } = useDrawStore();
+	const { activateExclusiveEvents } = useDrawEventManager();
+	const { selectedTool } = useToolSelection();
+	const { colorPickerMode } = storeToRefs(useDrawUIStore());
+	const c = getCanvas();
 
-  const lastSelectedObject = c.getActiveObject()
-  colorPickerMode.value = true
+	const lastSelectedObject = c.getActiveObject();
+	colorPickerMode.value = true;
 
-  c.selection = false
-  c.skipTargetFind = true
+	c.selection = false;
+	c.skipTargetFind = true;
 
-  if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
-    c.isDrawingMode = false
-  }
+	if (PENMENUTOOLS.includes(selectedTool) || ERASERS.includes(selectedTool)) {
+		c.isDrawingMode = false;
+	}
 
-  function updateColorIndicator(color: string, e?: any, size = isMobile() ? 80 : 32) {
-    const zoom = c.getZoom()
-    const adjustedSize = size * zoom
+	function updateColorIndicator(
+		color: string,
+		e?: any,
+		size = isMobile() ? 80 : 32,
+	) {
+		const zoom = c.getZoom();
+		const adjustedSize = size * zoom;
 
-    if (!isMobile()) {
-      const canvas = document.createElement('canvas')
-      canvas.width = adjustedSize
-      canvas.height = adjustedSize
-      const ctx = canvas.getContext('2d')!
+		if (!isMobile()) {
+			const canvas = document.createElement("canvas");
+			canvas.width = adjustedSize;
+			canvas.height = adjustedSize;
+			const ctx = canvas.getContext("2d")!;
 
-      const center = adjustedSize / 2
-      const radius = adjustedSize / 2 - 1
+			const center = adjustedSize / 2;
+			const radius = adjustedSize / 2 - 1;
 
-      ctx.beginPath()
-      ctx.arc(center, center, radius, 0, Math.PI * 2)
-      ctx.fillStyle = color
-      ctx.fill()
+			ctx.beginPath();
+			ctx.arc(center, center, radius, 0, Math.PI * 2);
+			ctx.fillStyle = color;
+			ctx.fill();
 
-      ctx.strokeStyle = '#000'
-      ctx.lineWidth = 2
-      ctx.stroke()
+			ctx.strokeStyle = "#000";
+			ctx.lineWidth = 2;
+			ctx.stroke();
 
-      ctx.lineWidth = 2
-      ctx.strokeStyle = '#000'
-      ctx.beginPath()
-      ctx.moveTo(center, 0)
-      ctx.lineTo(center, adjustedSize)
-      ctx.moveTo(0, center)
-      ctx.lineTo(adjustedSize, center)
-      ctx.stroke()
+			ctx.lineWidth = 2;
+			ctx.strokeStyle = "#000";
+			ctx.beginPath();
+			ctx.moveTo(center, 0);
+			ctx.lineTo(center, adjustedSize);
+			ctx.moveTo(0, center);
+			ctx.lineTo(adjustedSize, center);
+			ctx.stroke();
 
-      ctx.lineWidth = 1
-      ctx.strokeStyle = '#fff'
-      ctx.beginPath()
-      ctx.moveTo(center, 0)
-      ctx.lineTo(center, adjustedSize)
-      ctx.moveTo(0, center)
-      ctx.lineTo(adjustedSize, center)
-      ctx.stroke()
+			ctx.lineWidth = 1;
+			ctx.strokeStyle = "#fff";
+			ctx.beginPath();
+			ctx.moveTo(center, 0);
+			ctx.lineTo(center, adjustedSize);
+			ctx.moveTo(0, center);
+			ctx.lineTo(adjustedSize, center);
+			ctx.stroke();
 
-      const url = canvas.toDataURL('image/png')
-      c.freeDrawingCursor = `url(${url}) ${center} ${center}, crosshair`
-      c.setCursor(c.freeDrawingCursor)
-    } else if (e) {
-      const pointer = e.pointer
-      const ctx = c.contextTop
+			const url = canvas.toDataURL("image/png");
+			c.freeDrawingCursor = `url(${url}) ${center} ${center}, crosshair`;
+			c.setCursor(c.freeDrawingCursor);
+		} else if (e) {
+			const pointer = e.pointer;
+			const ctx = c.contextTop;
 
-      ctx.clearRect(0, 0, c.width, c.height)
+			ctx.clearRect(0, 0, c.width, c.height);
 
-      const offsetY = -60 * zoom
-      const centerX = pointer.x
-      const centerY = pointer.y + offsetY
-      const radius = adjustedSize / 2
+			const offsetY = -60 * zoom;
+			const centerX = pointer.x;
+			const centerY = pointer.y + offsetY;
+			const radius = adjustedSize / 2;
 
-      ctx.beginPath()
-      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
-      ctx.strokeStyle = '#000'
-      ctx.lineWidth = 3
-      ctx.stroke()
+			ctx.beginPath();
+			ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+			ctx.strokeStyle = "#000";
+			ctx.lineWidth = 3;
+			ctx.stroke();
 
-      ctx.beginPath()
-      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
-      ctx.strokeStyle = '#fff'
-      ctx.lineWidth = 1.5
-      ctx.stroke()
+			ctx.beginPath();
+			ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+			ctx.strokeStyle = "#fff";
+			ctx.lineWidth = 1.5;
+			ctx.stroke();
 
-      ctx.beginPath()
-      ctx.arc(centerX, centerY, radius - 2, 0, 2 * Math.PI)
-      ctx.fillStyle = color
-      ctx.fill()
-    }
-  }
+			ctx.beginPath();
+			ctx.arc(centerX, centerY, radius - 2, 0, 2 * Math.PI);
+			ctx.fillStyle = color;
+			ctx.fill();
+		}
+	}
 
-  activateExclusiveEvents([
-    {
-      on: 'mouse:up', handler: (options: any) => {
-        exitColorPickerMode({ lastSelectedObjectRef: lastSelectedObject })
-        const pointer = c.getViewportPoint(options.e)
+	activateExclusiveEvents([
+		{
+			on: "mouse:up",
+			handler: (options: any) => {
+				exitColorPickerMode({ lastSelectedObjectRef: lastSelectedObject });
+				const pointer = c.getViewportPoint(options.e);
 
-        const dpr = window.devicePixelRatio || 1
-        const ctx = c.getContext()
-        const pixel = ctx.getImageData(pointer.x * dpr, pointer.y * dpr, 1, 1).data
+				const dpr = window.devicePixelRatio || 1;
+				const ctx = c.getContext();
+				const pixel = ctx.getImageData(
+					pointer.x * dpr,
+					pointer.y * dpr,
+					1,
+					1,
+				).data;
 
-        const hex =
-          '#' +
-          ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase() +
-          pixel[3].toString(16).toUpperCase().padStart(2, '0')
+				const hex =
+					"#" +
+					((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2])
+						.toString(16)
+						.slice(1)
+						.toUpperCase() +
+					pixel[3].toString(16).toUpperCase().padStart(2, "0");
 
-        onColorSelect(hex)
-        if (props.colorPickerAction) selectAction(props.colorPickerAction, { color: hex })
+				onColorSelect(hex);
+				if (props.colorPickerAction)
+					selectAction(props.colorPickerAction, { color: hex });
 
-        c.freeDrawingCursor = 'default'
+				c.freeDrawingCursor = "default";
 
-        if (c.contextTop) {
-          c.contextTop.clearRect(0, 0, c.width, c.height)
-        }
-      }
-    },
-    {
-      on: 'mouse:move', handler: (options: any) => {
-        const pointer = c.getViewportPoint(options.e)
-        const dpr = window.devicePixelRatio || 1
-        const ctx = c.getContext()
-        const pixel = ctx.getImageData(pointer.x * dpr, pointer.y * dpr, 1, 1).data
-        const color = `rgba(${pixel[0]},${pixel[1]},${pixel[2]},${pixel[3] / 255})`
-        updateColorIndicator(color, options)
-      }
-    }
-  ])
+				if (c.contextTop) {
+					c.contextTop.clearRect(0, 0, c.width, c.height);
+				}
+			},
+		},
+		{
+			on: "mouse:move",
+			handler: (options: any) => {
+				const pointer = c.getViewportPoint(options.e);
+				const dpr = window.devicePixelRatio || 1;
+				const ctx = c.getContext();
+				const pixel = ctx.getImageData(
+					pointer.x * dpr,
+					pointer.y * dpr,
+					1,
+					1,
+				).data;
+				const color = `rgba(${pixel[0]},${pixel[1]},${pixel[2]},${pixel[3] / 255})`;
+				updateColorIndicator(color, options);
+			},
+		},
+	]);
 
-  popoverController.dismiss()
+	popoverController.dismiss();
 }
 
 watch(props, async () => {
-  if (props.reset) getSavedColorHistory()
-})
+	if (props.reset) getSavedColorHistory();
+});
 </script>
 
 <style scoped>

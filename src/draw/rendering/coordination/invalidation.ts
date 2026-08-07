@@ -2,7 +2,7 @@ import type { Bounded, WorldRect } from "../committedLayer";
 
 export function getObjectBounds(object: Bounded): WorldRect | null {
 	try {
-		const bounds = object.getBoundingRect(true, true);
+		const bounds = object.getBoundingRect();
 		if (
 			!Number.isFinite(bounds.left) ||
 			bounds.width <= 0 ||

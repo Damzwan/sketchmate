@@ -42,7 +42,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
 import {
 	IonContent,
 	IonInfiniteScroll,
@@ -52,18 +51,18 @@ import {
 	useIonRouter,
 } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { useAuthStore } from "@/store/auth.store";
-import { usePostStore } from "@/store/post.store";
-import { masterAnimation } from "@/helper/animation.helper";
-import { useToast } from "@/service/toast.service";
-
+import { ref } from "vue";
 import TopBar from "@/components/general/TopBar.vue";
+import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
 import ProfileCardSkeleton from "@/components/profile/ProfileCardSkeleton.vue";
 import ProfilePost from "@/components/profile/ProfilePost.vue";
+import { masterAnimation } from "@/helper/animation.helper";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
+import { usePostStore } from "@/store/post.store";
 import { Menu } from "@/types/menu.types";
-import PreviewProfileCard from "@/components/profile/PreviewProfileCard.vue";
 
 const router = useIonRouter();
 const authStore = useAuthStore();

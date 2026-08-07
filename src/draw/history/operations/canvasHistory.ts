@@ -1,11 +1,11 @@
-import { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
-import { HistoryContext } from "@/draw/history/historyActions";
-import { fullErase } from "@/draw/tools/eraseActions";
+import type { Canvas } from "fabric";
 import { storeToRefs } from "pinia";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { Canvas } from "fabric";
-import { createYielder } from "@/draw/scheduling/yielder";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import type { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
+import type { HistoryContext } from "@/draw/history/historyActions";
+import { createYielder } from "@/draw/scheduling/yielder";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { fullErase } from "@/draw/tools/eraseActions";
 
 export async function redoChangeBackgroundColor(
 	ctx: HistoryContext,
@@ -29,11 +29,10 @@ export async function redoChangeBackgroundColor(
 }
 
 export async function redoFullErase(
-	ctx: HistoryContext,
+	// Dispatched from a uniform (ctx, action) handler table in historyActions.ts.
+	_ctx: HistoryContext,
 	action: HistoryAction<HistoryEvent.FullErase>,
 ): Promise<HistoryAction<HistoryEvent.FullErase>> {
-	const { canvas } = ctx;
-
 	await fullErase();
 	return action;
 }

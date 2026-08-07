@@ -82,7 +82,7 @@ export async function analyzeErasureInWorker(
 		const reqId = ++reqSeq;
 		const objectJSON = serializeOnce(obj);
 		const objectRevision = objectMutationRevision(obj);
-		const b = (obj as any).getBoundingRect(true, true);
+		const b = (obj as any).getBoundingRect();
 
 		const timer = setTimeout(() => {
 			// A timed-out analysis may still be consuming CPU and retaining its object

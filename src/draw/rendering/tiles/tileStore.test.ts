@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { TileStore } from "./tileStore";
 import { tileKey } from "./tileKey";
+import { TileStore } from "./tileStore";
 
 function bitmap() {
 	return { close: vi.fn() } as unknown as ImageBitmap;

@@ -59,23 +59,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from "vue";
 import { Canvas, Point } from "fabric";
-import { type ItemCategory } from "@/config/catalog.config";
-import {
-	resolveTheme,
-	resolveEffect,
-	resolveWorld,
-	resolveDecoration,
-	resolveFontFamily,
-	resolveFontEffectClass,
-	FONTS,
-} from "@/config/profile_options.config";
-import { BrushType } from "@/draw/tools/tool.types";
-import { penBrushMapping } from "@/draw/config/tools.config";
+import { computed, nextTick, onMounted, ref } from "vue";
+import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
-import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
+import { type ItemCategory } from "@/config/catalog.config";
+import {
+	FONTS,
+	resolveDecoration,
+	resolveEffect,
+	resolveFontEffectClass,
+	resolveFontFamily,
+	resolveTheme,
+	resolveWorld,
+} from "@/config/profile_options.config";
+import { penBrushMapping } from "@/draw/config/tools.config";
+import { BrushType } from "@/draw/tools/tool.types";
 
 const props = defineProps<{ itemId: string; userImg?: string }>();
 

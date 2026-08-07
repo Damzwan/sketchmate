@@ -259,26 +259,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
-import { IonModal, IonButton, IonIcon, IonRange } from "@ionic/vue";
+import { IonButton, IonIcon, IonModal, IonRange } from "@ionic/vue";
 import {
-	mdiClose,
-	mdiUndoVariant,
-	mdiRedoVariant,
 	mdiBrush,
+	mdiClose,
 	mdiEraser,
-	mdiLock,
 	mdiFitToScreenOutline,
+	mdiLock,
+	mdiRedoVariant,
+	mdiUndoVariant,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
 import {
+	type Customization,
 	hydrateCustomization,
 	resolveTheme,
-	type Customization,
 } from "@/config/profile_options.config";
-import { useSubscriptionStore } from "@/store/subscription.store";
+import { svg } from "@/helper/general.helper";
 import { useAmbientPause } from "@/store/ambientPause.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
 
 type Point = [number, number];
 type Stroke = { points: Point[]; width: number };

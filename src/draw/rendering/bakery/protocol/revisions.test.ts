@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-	SceneCommitAssembler,
 	ObjectRevisionLedger,
-	SceneRevisionGate,
-	SceneRevisionClock,
-	WORKER_PROTOCOL_VERSION,
+	SceneCommitAssembler,
 	type SceneCommitChunk,
 	type SceneDelta,
+	SceneRevisionClock,
+	SceneRevisionGate,
+	WORKER_PROTOCOL_VERSION,
 } from "@/draw/rendering/bakery/protocol";
 
 const upsert = (id: string, objectRevision: number): SceneDelta => ({

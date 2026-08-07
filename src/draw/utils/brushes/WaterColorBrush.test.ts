@@ -1,10 +1,10 @@
+import { Point } from "fabric";
 import { describe, expect, it } from "vitest";
 import {
 	SIMPLIFY_CHUNK,
 	WaterColorBrush,
 	WaterColorStroke,
 } from "@/draw/utils/brushes/WaterColorBrush";
-import { Point } from "fabric";
 
 /** A canvas stub that records nothing — the preview render still runs through
  *  it, so the real `_render` path is exercised rather than stepped around. */

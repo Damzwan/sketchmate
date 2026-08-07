@@ -141,29 +141,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { useRoute } from "vue-router";
 import {
-	IonPage,
 	IonContent,
-	IonSpinner,
 	IonIcon,
 	IonInfiniteScroll,
 	IonInfiniteScrollContent,
+	IonPage,
+	IonSpinner,
 } from "@ionic/vue";
+import { mdiClockOutline } from "@mdi/js";
+import dayjs from "dayjs";
 import { chevronForward, peopleOutline, searchOutline } from "ionicons/icons";
 import { storeToRefs } from "pinia";
-
+import { computed, onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
+import SubPageBar from "@/components/general/SubPageBar.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { hydrateCustomization } from "@/config/profile_options.config";
+import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useUserCacheStore } from "@/store/userCache.store";
-import SubPageBar from "@/components/general/SubPageBar.vue";
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import { hydrateCustomization } from "@/config/profile_options.config";
-import { svg } from "@/helper/general.helper";
-import { mdiClockOutline } from "@mdi/js";
-import dayjs from "dayjs";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 
 const route = useRoute();
 const activeTab = ref<"mates" | "followers" | "following">(

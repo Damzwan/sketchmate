@@ -1,5 +1,5 @@
-import { type TEvent } from "fabric";
-import { DrawAction } from "@/draw/actions/drawAction.types";
+import type { TEvent } from "fabric";
+import type { DrawAction } from "@/draw/actions/drawAction.types";
 
 declare module "fabric" {
 	interface CanvasOptions {

@@ -120,8 +120,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
-import { useInfiniteScroll } from "@vueuse/core";
 import {
 	actionSheetController,
 	alertController,
@@ -139,14 +137,16 @@ import {
 	mdiFlagVariantOutline,
 	mdiSend,
 } from "@mdi/js";
+import { useInfiniteScroll } from "@vueuse/core";
 import dayjs from "dayjs";
-import { svg } from "@/helper/general.helper";
-import { fetchPostComments, postComment } from "@/service/api/post.api";
-import { usePostStore } from "@/store/post.store";
-import { useModerationStore } from "@/store/moderation.store";
-import { useToast } from "@/service/toast.service";
+import { computed, nextTick, ref, watch } from "vue";
 import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { svg } from "@/helper/general.helper";
 import { deleteInboxComment, getInboxComments } from "@/service/api/inbox.api";
+import { fetchPostComments, postComment } from "@/service/api/post.api";
+import { useToast } from "@/service/toast.service";
+import { useModerationStore } from "@/store/moderation.store";
+import { usePostStore } from "@/store/post.store";
 
 const props = defineProps<{
 	open: boolean;

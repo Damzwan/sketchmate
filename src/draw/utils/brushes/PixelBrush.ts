@@ -1,7 +1,7 @@
-import { BaseBrush, Canvas, FabricObject, Point } from "fabric";
-import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
-import { getTopContextEpoch } from "@/draw/rendering/fabricRenderState";
 import * as fabric from "fabric";
+import { BaseBrush, FabricObject, Point } from "fabric";
+import { getTopContextEpoch } from "@/draw/rendering/fabricRenderState";
+import { enlivenStrokeProps } from "@/draw/utils/brushes/brush.helpers";
 
 export class PixelBrush extends BaseBrush {
 	/** Live-preview incremental state — see _render. */
@@ -14,10 +14,6 @@ export class PixelBrush extends BaseBrush {
 	// Vital signs: tracking the stamp instead of coordinates
 	private _stampCanvas!: HTMLCanvasElement;
 	private _stampSize: number = 0;
-
-	constructor(canvas: Canvas) {
-		super(canvas);
-	}
 
 	// TREATMENT: Generate a single bitmap stamp of the brush tip
 	private _generateBrushTipCanvas() {
@@ -45,7 +41,7 @@ export class PixelBrush extends BaseBrush {
 			for (let dy = start; dy <= end; dy += step) {
 				const distance = Math.sqrt(dx * dx + dy * dy);
 				if (distance <= radius) {
-					const probability = 1 - Math.pow(distance / radius, 3);
+					const probability = 1 - (distance / radius) ** 3;
 					if (Math.random() < probability || distance <= step) {
 						ctx.fillRect(
 							center + dx - step / 2,
@@ -175,7 +171,11 @@ export class PixelBrush extends BaseBrush {
 		const offset = this._stampSize / 2;
 		for (let i = from; i < this._points.length; i++) {
 			const p = this._points[i];
-			ctx.drawImage(this._stampCanvas, Math.round(p.x - offset), Math.round(p.y - offset));
+			ctx.drawImage(
+				this._stampCanvas,
+				Math.round(p.x - offset),
+				Math.round(p.y - offset),
+			);
 		}
 		ctx.restore();
 

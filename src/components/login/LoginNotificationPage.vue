@@ -43,13 +43,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
 import { IonButton, IonContent, IonSpinner, useIonRouter } from "@ionic/vue";
-import { useAuthStore } from "@/store/auth.store";
-import { FRONTEND_ROUTES } from "@/types/router.types";
+import { onMounted, ref } from "vue";
+import notificationsImage from "@/assets/illustrations/notifications.webp";
 import { slideTransition } from "@/helper/animation.helper";
 import { requestNotifications } from "@/helper/notification.helper";
-import notificationsImage from "@/assets/illustrations/notifications.webp";
+import { useAuthStore } from "@/store/auth.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const ionRouter = useIonRouter();
 const requesting = ref(false);

@@ -1,8 +1,7 @@
-import { ToastButton } from "@ionic/vue";
-import { useToast } from "@/service/toast.service";
+import type { ToastButton } from "@ionic/vue";
+import { storeToRefs } from "pinia";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
-import { storeToRefs } from "pinia";
 
 export const viewSavedButton: ToastButton = {
 	text: "View",

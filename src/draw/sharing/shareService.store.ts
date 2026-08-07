@@ -1,30 +1,27 @@
 import { defineStore, storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import {
-	DrawingExportInput,
+	type DrawingExportInput,
 	exportDrawingBlobs,
 	uploadAssets,
 } from "@/draw/sharing/shareDrawings";
 import { useShareToastStore } from "@/draw/sharing/shareToast.store";
-import { getInboxUploadUrls, publishInboxItem } from "@/service/api/inbox.api";
-import { getPostUploadUrls, publishPost } from "@/service/api/post.api";
+import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
 import {
 	getBalloonUploadUrls,
 	publishBalloon,
 } from "@/service/api/balloon.api";
+import { getInboxUploadUrls, publishInboxItem } from "@/service/api/inbox.api";
+import { getPostUploadUrls, publishPost } from "@/service/api/post.api";
+import { recordEngagementAction } from "@/service/api/user.api";
 import { useAuthStore } from "@/store/auth.store";
-import { useQuotaStore } from "@/store/quota.store";
-import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
-import { useInboxStore } from "@/store/inbox.store";
-import { usePostStore } from "@/store/post.store";
-import { FeedPost, InboxItem } from "@/types/server.types";
 import { useChatStore } from "@/store/chat.store";
-import { shouldShowThoughtPrompt } from "@/helper/general.helper";
-import { recordEngagementAction, updateProfile } from "@/service/api/user.api";
+import { useInboxStore } from "@/store/inbox.store";
 import { useMenuStore } from "@/store/menu.store";
+import { usePostStore } from "@/store/post.store";
+import { useQuotaStore } from "@/store/quota.store";
 import { Menu } from "@/types/menu.types";
-import { useGalleryData } from "@/composables/gallery/useGalleryData";
-import { useRoute } from "vue-router";
+import type { FeedPost, InboxItem } from "@/types/server.types";
 
 export interface PostSettings {
 	caption: string;
@@ -39,6 +36,15 @@ export type ShareableItem =
 export const useShareService = defineStore("shareService", () => {
 	const toasts = useShareToastStore();
 	const isSending = computed(() => toasts.isSending);
+
+	/**
+	 * `isSending` is a computed proxy, so assigning to it from a component is a
+	 * silent no-op. Callers that need to hold the sending flag across their own
+	 * async prologue — before `runBatch()` takes over — must go through here.
+	 */
+	function setSending(value: boolean): void {
+		toasts.isSending = value;
+	}
 	const quota = useQuotaStore();
 	const preSelected = ref<"mate" | "balloon" | "post">("mate");
 	const { user } = storeToRefs(useAuthStore());
@@ -236,6 +242,7 @@ export const useShareService = defineStore("shareService", () => {
 
 	return {
 		isSending,
+		setSending,
 		sendToMates,
 		publishCommunityPost,
 		releaseBalloon,

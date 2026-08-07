@@ -1,16 +1,16 @@
 import * as fabric from "fabric";
-import { ActiveSelection, Canvas, FabricObject, Point } from "fabric";
-import { svgPathProperties } from "svg-path-properties";
+import { ActiveSelection, type Canvas, type FabricObject, Point } from "fabric";
 import inside from "point-in-polygon";
-import { DrawTool, type ToolService } from "@/draw/tools/tool.types";
-import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
-import { isMobile } from "@/helper/general.helper";
+import { svgPathProperties } from "svg-path-properties";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { compareRenderOrder } from "@/draw/layers/layerRegistry";
-import { Rect } from "@/draw/utils/QuadTree";
-import * as transform from "@/draw/transform/transformController";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { DrawTool, type ToolService } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import * as transform from "@/draw/transform/transformController";
+import type { Rect } from "@/draw/utils/QuadTree";
+import { isMobile } from "@/helper/general.helper";
 
 type FabricObjectWithCache = FabricObject & {
 	_lassoPoints?: number[][];
@@ -18,7 +18,7 @@ type FabricObjectWithCache = FabricObject & {
 };
 
 export function createLassoTool(): ToolService {
-	let c: Canvas | undefined = undefined;
+	let c: Canvas | undefined;
 	let upperCtx: CanvasRenderingContext2D | null = null;
 
 	let isDrawing = false;

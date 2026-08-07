@@ -1,5 +1,5 @@
 // src/draw/utils/QuadTree.ts
-import { Canvas, FabricObject } from "fabric";
+import type { Canvas, FabricObject } from "fabric";
 
 // ─── 1. Changed to a plain interface for high performance ──────────────
 export interface Rect {
@@ -295,8 +295,7 @@ export class InfiniteQuadtreeManager<T> {
 export function fabricObjectToEntry(
 	obj: FabricObject,
 ): QuadtreeEntry<FabricObject> {
-	// @ts-ignore
-	const b = obj.getBoundingRect(true, true);
+	const b = obj.getBoundingRect();
 
 	return {
 		id: obj.id,

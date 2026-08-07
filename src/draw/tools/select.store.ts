@@ -1,17 +1,17 @@
-import { defineStore } from "pinia";
+import type { Canvas, FabricObject, Point } from "fabric";
 import * as fabric from "fabric";
-import { type Canvas, type FabricObject, Point } from "fabric";
-import { type Ref, ref, shallowRef } from "vue";
+import { defineStore } from "pinia";
 import { v4 } from "uuid";
-import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
-import type { ToolService } from "@/draw/tools/tool.types";
+import { type Ref, ref, shallowRef } from "vue";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { isText } from "@/draw/tools/textEditing";
-import { getAbsoluteState } from "@/draw/objects/objectSerialization";
-import * as transform from "@/draw/transform/transformController";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import { getAbsoluteState } from "@/draw/objects/objectSerialization";
+import { isText } from "@/draw/tools/textEditing";
+import type { ToolService } from "@/draw/tools/tool.types";
+import * as transform from "@/draw/transform/transformController";
 
 interface Select extends ToolService {
 	unSelect: () => void;
@@ -25,7 +25,7 @@ interface Select extends ToolService {
 }
 
 export const useSelect = defineStore("select", (): Select => {
-	let c: Canvas | undefined = undefined;
+	let c: Canvas | undefined;
 	let gestureRestoreTimer: ReturnType<typeof setTimeout> | null = null;
 	const isSelectActive = ref(false);
 
@@ -36,7 +36,7 @@ export const useSelect = defineStore("select", (): Select => {
 	let clicksAfterSelectionActive = 0;
 
 	const isEditingText = ref(false);
-	const isBottomHalf = ref(false);
+	const _isBottomHalf = ref(false);
 
 	let wasDragging = false;
 	let pointerDownPos: Point | null = null;

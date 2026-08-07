@@ -1,14 +1,14 @@
+import type { FabricObject, FabricObjectProps, Group } from "fabric";
 import * as fabric from "fabric";
-import { FabricObject, FabricObjectProps, Group } from "fabric";
-import { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
-import { HistoryContext } from "@/draw/history/historyActions";
-import { drawActionMapping } from "@/draw/actions/drawActions";
 import { DrawAction } from "@/draw/actions/drawAction.types";
+import { drawActionMapping } from "@/draw/actions/drawActions";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import type { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
+import type { HistoryContext } from "@/draw/history/historyActions";
 import {
 	serializeOnce,
 	toObjectsIds,
 } from "@/draw/objects/objectSerialization";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { createYielder, yieldToMain } from "@/draw/scheduling/yielder";
 
@@ -82,7 +82,7 @@ function applyObjectModifications(
 		// object here (old measure, new measure, quadtree) — now at most once
 		// per state via the manager's cache.
 		const ob = mgr.getObjectBounds(obj);
-		if (isFinite(ob.x)) {
+		if (Number.isFinite(ob.x)) {
 			oMinX = Math.min(oMinX, ob.x);
 			oMinY = Math.min(oMinY, ob.y);
 			oMaxX = Math.max(oMaxX, ob.x + ob.w);
@@ -100,7 +100,7 @@ function applyObjectModifications(
 		obj.setCoords();
 		mgr.updateQuadTree(obj); // computes + caches the new bounds once
 		const nb = mgr.getObjectBounds(obj); // cache hit
-		if (isFinite(nb.x)) {
+		if (Number.isFinite(nb.x)) {
 			nMinX = Math.min(nMinX, nb.x);
 			nMinY = Math.min(nMinY, nb.y);
 			nMaxX = Math.max(nMaxX, nb.x + nb.w);
@@ -353,7 +353,7 @@ export function patchObjectsAppearance(objects: FabricObject[]): void {
 		maxX = -Infinity,
 		maxY = -Infinity;
 	const swallow = (x: number, y: number, w: number, h: number) => {
-		if (!isFinite(x)) return;
+		if (!Number.isFinite(x)) return;
 		minX = Math.min(minX, x);
 		minY = Math.min(minY, y);
 		maxX = Math.max(maxX, x + w);
@@ -364,9 +364,8 @@ export function patchObjectsAppearance(objects: FabricObject[]): void {
 		const old = mgr.getStaleObjectBounds(obj);
 		if (old) swallow(old.x, old.y, old.w, old.h);
 		mgr.updateQuadTree(obj); // strokeWidth etc. can shift bounds slightly
-		// @ts-ignore
-		const b = obj.getBoundingRect(true, true);
-		if (!b || !isFinite(b.left)) continue;
+		const b = obj.getBoundingRect();
+		if (!b || !Number.isFinite(b.left)) continue;
 		swallow(b.left, b.top, b.width, b.height);
 	}
 	if (minX === Infinity) return;

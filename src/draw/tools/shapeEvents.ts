@@ -1,12 +1,12 @@
-import { useDrawStore } from "@/draw/session/draw.store";
-import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { DrawTool } from "@/draw/tools/tool.types";
-import { EventBus } from "@/main";
-import { Point } from "fabric";
-import { useDrawHistoryManager } from "@/draw/history/history.store";
+import type { Point } from "fabric";
 import { storeToRefs } from "pinia";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { DrawTool } from "@/draw/tools/tool.types";
 import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { EventBus } from "@/main";
 
 export function exitClickShapeCreationMode(isNewShape: boolean = true) {
 	const { getCanvas } = useDrawStore();

@@ -1,15 +1,15 @@
-import { TileStamps } from "./tiles/tileStamps";
 import type { Bounded } from "./tiles/tileLayerBase";
+import { TileStamps } from "./tiles/tileStamps";
 
 export class CommittedLayer<T extends Bounded> extends TileStamps<T> {}
 
 export type {
 	Bounded,
 	CommittedOptions,
-	RemoteBaker,
 	RemoteBakeFailure,
 	RemoteBakeFailureReason,
 	RemoteBakeResult,
+	RemoteBaker,
 	RemoteOverview,
 	SpatialIndex,
 	TileRenderer,

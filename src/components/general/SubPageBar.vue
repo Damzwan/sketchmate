@@ -16,10 +16,10 @@
 </template>
 
 <script setup lang="ts">
-import { IonHeader, IonBackButton } from '@ionic/vue'
-import { chevronBackOutline } from 'ionicons/icons'
+import { IonBackButton, IonHeader } from "@ionic/vue";
+import { chevronBackOutline } from "ionicons/icons";
 
-defineProps<{ title: string }>()
+defineProps<{ title: string }>();
 </script>
 
 <style scoped>

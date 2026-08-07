@@ -1,10 +1,10 @@
-import { request } from "./http";
 import type {
 	ReportReason,
 	SubmitReportParams,
 	SubmitReportRes,
 	UserStandingData,
 } from "@/types/server.types";
+import { request } from "./http";
 
 export async function submitReport(payload: SubmitReportParams) {
 	return await request<SubmitReportRes>("/moderation", {

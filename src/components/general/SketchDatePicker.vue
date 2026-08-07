@@ -98,105 +98,123 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
-import { IonPopover } from '@ionic/vue';
+import { IonPopover } from "@ionic/vue";
+import { computed, nextTick, ref, watch } from "vue";
 
 const props = defineProps<{ modelValue?: string }>();
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(["update:modelValue"]);
 
 const triggerId = `date-picker-${Math.random().toString(36).slice(2, 9)}`;
 
 const day = ref("");
 const month = ref("");
 const year = ref("");
-const activeDropdown = ref<'day' | 'month' | 'year' | null>(null);
+const activeDropdown = ref<"day" | "month" | "year" | null>(null);
 
 const dayContainer = ref<HTMLDivElement | null>(null);
 const monthContainer = ref<HTMLDivElement | null>(null);
 const yearContainer = ref<HTMLDivElement | null>(null);
 
-const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const monthNames = [
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec",
+];
 
 const yearsList = computed(() => {
-  const currentYear = new Date().getFullYear();
-  const list = [];
-  for (let i = currentYear; i >= 1910; i--) list.push(i);
-  return list;
+	const currentYear = new Date().getFullYear();
+	const list = [];
+	for (let i = currentYear; i >= 1910; i--) list.push(i);
+	return list;
 });
 
 const daysInMonth = computed(() => {
-  const y = year.value ? parseInt(year.value) : new Date().getFullYear();
-  const m = month.value ? parseInt(month.value) : 1;
-  return new Date(y, m, 0).getDate();
+	const y = year.value ? parseInt(year.value, 10) : new Date().getFullYear();
+	const m = month.value ? parseInt(month.value, 10) : 1;
+	return new Date(y, m, 0).getDate();
 });
 
 const padZero = (num: number) => (num < 10 ? `0${num}` : `${num}`);
 
 // Instant, pre-render scrolling calculator
-const onWillPresent = async (type: 'day' | 'month' | 'year') => {
-  activeDropdown.value = type;
-  await nextTick();
+const onWillPresent = async (type: "day" | "month" | "year") => {
+	activeDropdown.value = type;
+	await nextTick();
 
-  let container: HTMLDivElement | null = null;
-  let activeIndex = -1;
+	let container: HTMLDivElement | null = null;
+	let activeIndex = -1;
 
-  // Approximate item height (padding + text height) to center perfectly
-  const itemHeight = 44;
-  const containerHeight = 192; // equivalent to max-h-48 (12rem)
+	// Approximate item height (padding + text height) to center perfectly
+	const itemHeight = 44;
+	const containerHeight = 192; // equivalent to max-h-48 (12rem)
 
-  if (type === 'day' && day.value) {
-    container = dayContainer.value;
-    activeIndex = parseInt(day.value) - 1;
-  } else if (type === 'month' && month.value) {
-    container = monthContainer.value;
-    activeIndex = parseInt(month.value) - 1;
-  } else if (type === 'year' && year.value) {
-    container = yearContainer.value;
-    activeIndex = yearsList.value.indexOf(parseInt(year.value));
-  }
+	if (type === "day" && day.value) {
+		container = dayContainer.value;
+		activeIndex = parseInt(day.value, 10) - 1;
+	} else if (type === "month" && month.value) {
+		container = monthContainer.value;
+		activeIndex = parseInt(month.value, 10) - 1;
+	} else if (type === "year" && year.value) {
+		container = yearContainer.value;
+		activeIndex = yearsList.value.indexOf(parseInt(year.value, 10));
+	}
 
-  if (container && activeIndex >= 0) {
-    // Math logic to position the selected row perfectly center frame
-    const scrollOffset = (activeIndex * itemHeight) - (containerHeight / 2) + (itemHeight / 2);
-    container.scrollTop = Math.max(0, scrollOffset);
-  }
+	if (container && activeIndex >= 0) {
+		// Math logic to position the selected row perfectly center frame
+		const scrollOffset =
+			activeIndex * itemHeight - containerHeight / 2 + itemHeight / 2;
+		container.scrollTop = Math.max(0, scrollOffset);
+	}
 };
 
-const selectDate = (type: 'day' | 'month' | 'year', value: string) => {
-  if (type === 'day') day.value = value;
-  if (type === 'month') month.value = value;
-  if (type === 'year') year.value = value;
+const selectDate = (type: "day" | "month" | "year", value: string) => {
+	if (type === "day") day.value = value;
+	if (type === "month") month.value = value;
+	if (type === "year") year.value = value;
 
-  if (day.value && parseInt(day.value) > daysInMonth.value) {
-    day.value = padZero(daysInMonth.value);
-  }
+	if (day.value && parseInt(day.value, 10) > daysInMonth.value) {
+		day.value = padZero(daysInMonth.value);
+	}
 
-  updateModel();
+	updateModel();
 };
 
 const updateModel = () => {
-  if (day.value && month.value && year.value) {
-    emit('update:modelValue', `${year.value}-${month.value}-${day.value}`);
-  } else {
-    emit('update:modelValue', undefined);
-  }
+	if (day.value && month.value && year.value) {
+		emit("update:modelValue", `${year.value}-${month.value}-${day.value}`);
+	} else {
+		emit("update:modelValue", undefined);
+	}
 };
 
-watch(() => props.modelValue, (newVal) => {
-  if (newVal) {
-    const parts = newVal.split('-');
-    if (parts.length >= 3) {
-      year.value = parts[0];
-      month.value = parts[1];
-      const rawDay = parts[2];
-      day.value = rawDay.substring(0, 2);
-      return;
-    }
-  }
-  day.value = "";
-  month.value = "";
-  year.value = "";
-}, { immediate: true });
+watch(
+	() => props.modelValue,
+	(newVal) => {
+		if (newVal) {
+			const parts = newVal.split("-");
+			if (parts.length >= 3) {
+				year.value = parts[0];
+				month.value = parts[1];
+				const rawDay = parts[2];
+				day.value = rawDay.substring(0, 2);
+				return;
+			}
+		}
+		day.value = "";
+		month.value = "";
+		year.value = "";
+	},
+	{ immediate: true },
+);
 </script>
 
 <style scoped>

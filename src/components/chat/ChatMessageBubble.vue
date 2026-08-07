@@ -37,9 +37,10 @@ const props = defineProps<{
 	activeTab: string;
 }>();
 
-const emit = defineEmits<{
-	(event: "inspect-profile", pointerEvent: Event, user: any): void;
-}>();
+const emit =
+	defineEmits<
+		(event: "inspect-profile", pointerEvent: Event, user: any) => void
+	>();
 
 const emitInspectProfile = (pointerEvent: Event, user: any) => {
 	emit("inspect-profile", pointerEvent, user);

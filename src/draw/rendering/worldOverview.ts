@@ -13,20 +13,19 @@
 // erase / undo uniformly with no drift, so the overview is always safe to use
 // as the base layer under not-yet-baked tiles.
 
+import { estimateRenderCost } from "@/draw/rendering/renderCost";
+import {
+	recordPhase,
+	recordSyncRepairDeclined,
+} from "@/draw/rendering/renderMetrics";
+import type { Yielder } from "@/draw/scheduling/yielder";
 import type {
 	Bounded,
 	RemoteOverview,
 	SpatialIndex,
 	TileRenderer,
 	WorldRect,
-	Yieldable,
 } from "./committedLayer";
-import { Yielder } from "@/draw/scheduling/yielder";
-import {
-	recordPhase,
-	recordSyncRepairDeclined,
-} from "@/draw/rendering/renderMetrics";
-import { estimateRenderCost } from "@/draw/rendering/renderCost";
 import { chooseOverviewDimensions } from "./overviewSizing";
 
 interface OverviewOptions {
@@ -39,9 +38,16 @@ interface OverviewOptions {
 }
 
 export class WorldOverview<T extends Bounded> {
+	/**
+	 * Assigned from the device memory profile's `renderChunk` (4–32 by tier) but
+	 * never read here, so the per-tier chunking never reaches this overview.
+	 * Kept as-is rather than deleted: the knob is intended to be honoured. Wiring
+	 * it up is a draw-engine change and is tracked separately.
+	 */
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: see above.
+	private readonly CHUNK: number;
 	private readonly PIXEL_BUDGET_EDGE: number;
 	private readonly TARGET_DENSITY: number;
-	private readonly CHUNK: number;
 	private readonly SYNC_COST_BUDGET: number;
 	private readonly index: SpatialIndex<T>;
 	private readonly renderer: TileRenderer<T>;
@@ -116,7 +122,7 @@ export class WorldOverview<T extends Bounded> {
 			this.markDirty();
 			return;
 		}
-		const b = obj.getBoundingRect(true, true);
+		const b = obj.getBoundingRect();
 		const r: WorldRect = { x: b.left, y: b.top, w: b.width, h: b.height };
 		// Object outside current coverage → grow lazily via full rebuild.
 		if (!this.contains(this.bounds, r)) {
@@ -377,7 +383,7 @@ export class WorldOverview<T extends Bounded> {
 		} else {
 			const objects = this.index.query(bounds);
 			for (let i = 0; i < objects.length; i++) {
-				const b = objects[i].getBoundingRect(true, true);
+				const b = objects[i].getBoundingRect();
 				if (b.width * sx >= minPx || b.height * sy >= minPx)
 					visible.push(objects[i]);
 				if ((i & 127) === 127) {
@@ -605,7 +611,7 @@ export class WorldOverview<T extends Bounded> {
 	composite(
 		ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
 		vpt: number[],
-		px: { w: number; h: number },
+		_px: { w: number; h: number },
 		dpr: number,
 		vw: WorldRect,
 	): void {
@@ -672,7 +678,6 @@ export class WorldOverview<T extends Bounded> {
 		ctx.save();
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.imageSmoothingEnabled = true;
-		// @ts-ignore
 		ctx.imageSmoothingQuality = "low";
 		ctx.drawImage(
 			this.canvas,

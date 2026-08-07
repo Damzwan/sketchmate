@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { fetchQuotaSummary } from "@/service/api/quota.api";
-import { QuotaState, QuotaSummary } from "@/types/server.types";
 import { useSubscriptionStore } from "@/store/subscription.store";
+import type { QuotaState, QuotaSummary } from "@/types/server.types";
 
 const EMPTY_STATE: QuotaState = {
 	used: 0,

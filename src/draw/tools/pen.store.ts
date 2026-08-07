@@ -1,12 +1,12 @@
+import type { Canvas } from "fabric";
 import { defineStore } from "pinia";
-import { ref, Ref, watch } from "vue";
-import { BrushType, type ToolService } from "@/draw/tools/tool.types";
+import { type Ref, ref, watch } from "vue";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
-import { Canvas } from "fabric";
-import { hexWithOpacity, percentToAlphaHex } from "@/draw/utils/color.utils";
-import { updateFreeDrawingCursor } from "@/draw/tools/cursor";
 import { BASE_BRUSH_SIZE, BLACK } from "@/draw/config/canvas.config";
 import { penBrushMapping } from "@/draw/config/tools.config";
+import { updateFreeDrawingCursor } from "@/draw/tools/cursor";
+import { BrushType, type ToolService } from "@/draw/tools/tool.types";
+import { hexWithOpacity, percentToAlphaHex } from "@/draw/utils/color.utils";
 
 interface Pen extends ToolService {
 	brushSize: Ref<number>;
@@ -21,7 +21,7 @@ interface Pen extends ToolService {
 }
 
 export const usePen = defineStore("pen", (): Pen => {
-	let c: Canvas | undefined = undefined;
+	let c: Canvas | undefined;
 	const brushSize = ref(BASE_BRUSH_SIZE);
 	const brushType = ref<BrushType>(BrushType.Pencil);
 	const brushColor = ref(BLACK);
@@ -42,7 +42,7 @@ export const usePen = defineStore("pen", (): Pen => {
 		},
 		{
 			on: "zoomReset",
-			handler: (e: any) => {
+			handler: (_e: any) => {
 				updatePenCursor();
 			},
 		},
@@ -65,9 +65,9 @@ export const usePen = defineStore("pen", (): Pen => {
 		c!.freeDrawingBrush.width = brushSize.value;
 
 		// TODO think of something
-		// @ts-ignore
+		// @ts-expect-error
 		c!.freeDrawingBrush.density = density.value;
-		// @ts-ignore
+		// @ts-expect-error
 
 		c!.freeDrawingBrush.dotWidth = dotWidth.value;
 		// c!.freeDrawingBrush.pixelSize

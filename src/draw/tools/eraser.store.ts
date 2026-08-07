@@ -1,27 +1,27 @@
-import { Canvas, FabricObject, Path } from "fabric";
-import { ref, type Ref, watch } from "vue";
-import { EraserSize, type ToolService } from "@/draw/tools/tool.types";
-import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
+import type { Canvas, FabricObject, Path } from "fabric";
 import { defineStore } from "pinia";
-import { CustomEraserBrush } from "@/draw/utils/brushes/CustomEraserBrush";
-import { isMobile } from "@/helper/general.helper";
-import { updateFreeDrawingCursor } from "@/draw/tools/cursor";
 import { v4 } from "uuid";
-import { analyzeErasureInWorker } from "@/draw/tools/erasureAnalysisClient";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { type Ref, ref, watch } from "vue";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { createYielder, yieldToMain } from "@/draw/scheduling/yielder";
-import { isActive as transformSessionActive } from "@/draw/transform/transformController";
-import { recordPhase } from "@/draw/rendering/renderMetrics";
+import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import { objectMutationRevision } from "@/draw/objects/objectSerialization";
 import {
 	bakeryBeginSceneBatch,
 	bakeryEndSceneBatch,
 } from "@/draw/rendering/bakery/tileBakeryClient";
-import { objectMutationRevision } from "@/draw/objects/objectSerialization";
-import { compareRenderOrder } from "@/draw/layers/layerRegistry";
+import { recordPhase } from "@/draw/rendering/renderMetrics";
+import { createYielder, yieldToMain } from "@/draw/scheduling/yielder";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { updateFreeDrawingCursor } from "@/draw/tools/cursor";
 import { isEraseProtected, isEraseTarget } from "@/draw/tools/erasePolicy";
+import { analyzeErasureInWorker } from "@/draw/tools/erasureAnalysisClient";
+import { EraserSize, type ToolService } from "@/draw/tools/tool.types";
+import { isActive as transformSessionActive } from "@/draw/transform/transformController";
+import { CustomEraserBrush } from "@/draw/utils/brushes/CustomEraserBrush";
+import { isMobile } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
 
 interface Eraser extends ToolService {
 	eraserSize: Ref<number>;
@@ -50,7 +50,7 @@ interface CleanupJob {
 const IS_MOBILE = isMobile();
 
 export const useEraser = defineStore("eraser", (): Eraser => {
-	let c: Canvas | undefined = undefined;
+	let c: Canvas | undefined;
 	const objMgr = useDrawObjectManager();
 
 	const eraserSize = ref<EraserSize>(EraserSize.small);
@@ -367,19 +367,19 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		},
 		{
 			on: "zoomReset",
-			handler: (e: any) => {
+			handler: (_e: any) => {
 				updateEraserCursor();
 			},
 		},
 		{
 			on: "gestureStart",
-			handler: (e: any) => {
+			handler: (_e: any) => {
 				cancelCircle = true;
 			},
 		},
 		{
 			on: "mouse:up",
-			handler: (e: any) => {
+			handler: (_e: any) => {
 				cancelCircle = false;
 				// Backstop: guarantee compositing resumes even if a stroke was
 				// cancelled or 'start' was prevented (so the flag can't stick).
@@ -499,13 +499,17 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 			programmaticBrush?.dispose();
 			programmaticBrush = new CustomEraserBrush(c);
 		}
-		const bounds = path.getBoundingRect(true, true);
+		// Captured before enqueueing: the commit below runs later, and the store
+		// level `programmaticBrush` can be disposed or replaced in the meantime.
+		// Named distinctly from the pointer-erase `brush` declared above.
+		const committingBrush = programmaticBrush;
+		const bounds = path.getBoundingRect();
 		const pad = (path.strokeWidth ?? 0) * 1.5;
 
 		objMgr.setErasing(true);
 		await enqueueEraseCommit(async () => {
 			await applyErase(
-				programmaticBrush,
+				committingBrush,
 				{
 					path,
 					targets,
@@ -554,7 +558,7 @@ export const useEraser = defineStore("eraser", (): Eraser => {
 		b.isEraseStrokeUndoable = (strokeId: string) =>
 			erasureDeletionGuard?.(strokeId) ?? true;
 		b.targetCandidatesProvider = (path: Path) => {
-			const r = (path as any).getBoundingRect(true, true);
+			const r = (path as any).getBoundingRect();
 			const pad = (path as any).strokeWidth ?? 0;
 			return objMgr.querySelectable({
 				x: r.left - pad,

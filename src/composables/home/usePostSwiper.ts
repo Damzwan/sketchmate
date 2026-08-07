@@ -1,16 +1,16 @@
-import { usePhotoSwiper } from "@/store/photoswiper.store";
-import { useToast } from "@/service/toast.service";
+import { alertController } from "@ionic/vue";
 import { isInRoom } from "@/draw/sync/syncStatus";
+import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
 import router from "@/router";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { deletePost, postComment } from "@/service/api/post.api";
+import { deletePost } from "@/service/api/post.api";
+import { useToast } from "@/service/toast.service";
+import { useMenuStore } from "@/store/menu.store";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { usePostStore } from "@/store/post.store";
 import { useQuotaStore } from "@/store/quota.store";
 import { useUserCacheStore } from "@/store/userCache.store";
-import { alertController } from "@ionic/vue";
-import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
-import { syncPostQuotaResetReminder } from "@/helper/notification.helper";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 export function usePostSwiper() {
 	const swiperStore = usePhotoSwiper();
@@ -79,7 +79,7 @@ export function usePostSwiper() {
 					void syncPostQuotaResetReminder(currentPostQuota);
 					toast("Post deleted", { color: "success" });
 					postStore.removePostLocally(item._id);
-				} catch (e) {
+				} catch (_e) {
 					toast("Failed to delete post", { color: "danger" });
 				}
 			},

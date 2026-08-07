@@ -1,11 +1,11 @@
+import { alertController } from "@ionic/vue";
 import { defineStore, storeToRefs } from "pinia";
 import { computed, ref } from "vue";
-import { alertController } from "@ionic/vue";
-import type { ParentalControls } from "@/types/server.types";
-import { useAuthStore } from "@/store/auth.store";
+import { presentAdultGate } from "@/helper/adultGate.helper";
 import { updateUser } from "@/service/api/user.api";
 import { useToast } from "@/service/toast.service";
-import { presentAdultGate } from "@/helper/adultGate.helper";
+import { useAuthStore } from "@/store/auth.store";
+import type { ParentalControls } from "@/types/server.types";
 
 /**
  * Peer-to-peer features that let a child exchange freeform media or personal
@@ -88,7 +88,7 @@ export const useParentalStore = defineStore("parental", () => {
 		try {
 			await updateUser({ _id: user.value._id, parental: next });
 			return true;
-		} catch (e) {
+		} catch (_e) {
 			if (user.value) user.value.parental = previous;
 			toast("Could not save the parental setting", { color: "danger" });
 			return false;

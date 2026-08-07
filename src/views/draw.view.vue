@@ -5,7 +5,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
 import {
 	IonNav,
 	IonPage,
@@ -13,10 +12,11 @@ import {
 	onIonViewWillLeave,
 	useBackButton,
 } from "@ionic/vue";
+import { ref } from "vue";
 import DrawMain from "@/components/draw/DrawMain.vue";
-import { slideTransition } from "@/helper/animation.helper";
-import { performRoomExit } from "@/draw/sync/syncStatus";
 import { useDrawStore } from "@/draw/session/draw.store";
+import { performRoomExit } from "@/draw/sync/syncStatus";
+import { slideTransition } from "@/helper/animation.helper";
 
 const navRef = ref<InstanceType<typeof IonNav> | null>(null);
 

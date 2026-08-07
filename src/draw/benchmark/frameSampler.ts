@@ -4,7 +4,10 @@ const SLOW_FRAME_MS = 25;
 
 function percentile(sorted: number[], ratio: number): number {
 	if (!sorted.length) return 0;
-	const index = Math.min(sorted.length - 1, Math.ceil(sorted.length * ratio) - 1);
+	const index = Math.min(
+		sorted.length - 1,
+		Math.ceil(sorted.length * ratio) - 1,
+	);
 	return sorted[index];
 }
 

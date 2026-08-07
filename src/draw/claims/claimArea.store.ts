@@ -1,24 +1,24 @@
+import type { Canvas } from "fabric";
 import { defineStore, storeToRefs } from "pinia";
-import { computed, ref, watch, type WatchStopHandle } from "vue";
-import { Canvas } from "fabric";
 import { v4 as uuidv4 } from "uuid";
-import { useAuthStore } from "@/store/auth.store";
-import { useDrawSyncer } from "@/draw/sync/session.store";
+import { computed, ref, type WatchStopHandle, watch } from "vue";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { useSelect } from "@/draw/tools/select.store";
-import { socket } from "@/service/api/socket/socket.service";
-import { useToast } from "@/service/toast.service";
-import { ToastDuration } from "@/types/toast.types";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import {
 	type ClaimViolation,
 	claimViolation,
-	canEditAt as rulesCanEditAt,
 	rectsOverlap,
+	canEditAt as rulesCanEditAt,
 } from "@/draw/claims/claimRules";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { useSelect } from "@/draw/tools/select.store";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { socket } from "@/service/api/socket/socket.service";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { ToastDuration } from "@/types/toast.types";
 
 /**
  * A lobby-scoped rectangular region claimed by one user. Two rules, both in
@@ -122,7 +122,7 @@ export const useClaimArea = defineStore("claimArea", () => {
 	function isObjectProtected(obj: any): boolean {
 		if (areas.value.length === 0 || !obj) return false;
 		try {
-			const b = obj.getBoundingRect(true, true);
+			const b = obj.getBoundingRect();
 			return !canEditAt(
 				b.left + b.width / 2,
 				b.top + b.height / 2,
@@ -142,7 +142,7 @@ export const useClaimArea = defineStore("claimArea", () => {
 	function objectClaimViolation(obj: any): ClaimViolation {
 		if (areas.value.length === 0 || !obj) return "none";
 		try {
-			const b = obj.getBoundingRect(true, true);
+			const b = obj.getBoundingRect();
 			return claimViolation(
 				areas.value,
 				{ x: b.left, y: b.top, w: b.width, h: b.height },
@@ -160,7 +160,7 @@ export const useClaimArea = defineStore("claimArea", () => {
 	function objectIntersectsForeignArea(obj: any): boolean {
 		if (foreignAreas.value.length === 0 || !obj) return false;
 		try {
-			const b = obj.getBoundingRect(true, true);
+			const b = obj.getBoundingRect();
 			const r = { x: b.left, y: b.top, w: b.width, h: b.height };
 			return foreignAreas.value.some((a) => rectsOverlap(r, a));
 		} catch {

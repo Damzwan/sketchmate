@@ -57,11 +57,11 @@
 </template>
 
 <script setup lang="ts">
-import { IonModal, IonIcon, IonButton } from "@ionic/vue";
+import { IonButton, IonIcon, IonModal } from "@ionic/vue";
 import { mdiChevronRight, mdiClose } from "@mdi/js";
-import { svg, senderImg, senderName } from "@/helper/general.helper";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { senderImg, senderName, svg } from "@/helper/general.helper";
 
 const props = defineProps<{
 	followers: string[];

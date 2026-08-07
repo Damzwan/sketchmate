@@ -9,12 +9,12 @@
 </template>
 
 <script lang="ts" setup>
-import { IonSpinner } from '@ionic/vue'
+import { IonSpinner } from "@ionic/vue";
 
 defineProps<{
-  text?: string
-  bgColor?: string
-}>()
+	text?: string;
+	bgColor?: string;
+}>();
 </script>
 
 <style scoped>

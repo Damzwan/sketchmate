@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { Preferences } from "@capacitor/preferences";
 import { IonButton, IonIcon } from "@ionic/vue";
 import {
 	mdiClose,
@@ -53,8 +53,8 @@ import {
 	mdiShieldAccountOutline,
 	mdiSproutOutline,
 } from "@mdi/js";
-import { Preferences } from "@capacitor/preferences";
 import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
 import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
 import { type ChildFeature, useParentalStore } from "@/store/parental.store";

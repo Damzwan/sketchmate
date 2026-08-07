@@ -20,65 +20,91 @@
 </template>
 
 <script lang="ts" setup>
-import { IonContent, IonList, IonPopover, IonToggle, IonItem, IonIcon } from '@ionic/vue'
-import ColorPicker from '@/components/draw/ColorPicker.vue'
+import {
+	IonContent,
+	IonIcon,
+	IonItem,
+	IonList,
+	IonPopover,
+	IonToggle,
+} from "@ionic/vue";
+import { mdiClose } from "@mdi/js";
+import * as fabric from "fabric";
+import { FabricImage } from "fabric";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
+import ColorPicker from "@/components/draw/ColorPicker.vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { computed } from 'vue'
-import { svg } from '@/helper/general.helper'
-import { mdiClose } from '@mdi/js'
-import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/menu.store'
-import { FabricImage } from 'fabric'
-import * as fabric from 'fabric'
-import { opacityFromOpacityHex } from '@/draw/utils/color.utils'
+import { opacityFromOpacityHex } from "@/draw/utils/color.utils";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
 
-
-const { selectImgStyleMenuOpen, menuEvent } = storeToRefs(useMenuStore())
+const { selectImgStyleMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 
 const props = defineProps<{
-  img: FabricImage
-}>()
+	img: FabricImage;
+}>();
 
-const isGrayScale = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Grayscale'))
-const isSepia = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Sepia'))
-const isInvert = computed(() => !!props.img.filters?.find((f: any) => f.type == 'Invert'))
-const colorFilter = computed(() => props.img.filters?.find((f: any) => f.type == 'BlendColor'))
+const isGrayScale = computed(
+	() => !!props.img.filters?.find((f: any) => f.type == "Grayscale"),
+);
+const isSepia = computed(
+	() => !!props.img.filters?.find((f: any) => f.type == "Sepia"),
+);
+const isInvert = computed(
+	() => !!props.img.filters?.find((f: any) => f.type == "Invert"),
+);
+// Narrowed to BlendColor so `.color` is typed; `filters` is an array of the
+// BaseFilter union, which carries no per-filter properties.
+const colorFilter = computed(
+	() =>
+		props.img.filters?.find((f: any) => f.type === "BlendColor") as
+			| fabric.filters.BlendColor
+			| undefined,
+);
 
 function addGrayScaleFilter(e: any) {
-  emits('add-filter', { filter: new fabric.filters.Grayscale(), remove: !e.detail.checked })
+	emits("add-filter", {
+		filter: new fabric.filters.Grayscale(),
+		remove: !e.detail.checked,
+	});
 }
 
 function addSepiaFilter(e: any) {
-  emits('add-filter', { filter: new fabric.filters.Sepia(), remove: !e.detail.checked })
+	emits("add-filter", {
+		filter: new fabric.filters.Sepia(),
+		remove: !e.detail.checked,
+	});
 }
 
 function addInvertFilter(e: any) {
-  emits('add-filter', { filter: new fabric.filters.Invert(), remove: !e.detail.checked })
+	emits("add-filter", {
+		filter: new fabric.filters.Invert(),
+		remove: !e.detail.checked,
+	});
 }
 
 function removeColorFilter() {
-  emits('add-filter', {
-    filter: new fabric.filters.BlendColor({
-      color: '#000000',
-      mode: 'tint'
-    }),
-    remove: true
-  })
+	emits("add-filter", {
+		filter: new fabric.filters.BlendColor({
+			color: "#000000",
+			mode: "tint",
+		}),
+		remove: true,
+	});
 }
 
 function addColorFilter(c: string) {
-  emits('add-filter', {
-    filter: new fabric.filters.BlendColor({
-      color: c,
-      mode: 'tint',
-      alpha: opacityFromOpacityHex(c)
-    })
-  })
+	emits("add-filter", {
+		filter: new fabric.filters.BlendColor({
+			color: c,
+			mode: "tint",
+			alpha: opacityFromOpacityHex(c),
+		}),
+	});
 }
 
-const emits = defineEmits<{
-  (e: 'add-filter', options: any): void
-}>()
+const emits = defineEmits<(e: "add-filter", options: any) => void>();
 </script>
 
 <style scoped>

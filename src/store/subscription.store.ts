@@ -1,29 +1,26 @@
-import { defineStore } from "pinia";
-import { ref, watch } from "vue";
 import {
 	Purchases,
 	type PurchasesPackage,
 } from "@revenuecat/purchases-capacitor";
-import { isNative } from "@/helper/general.helper";
-import {
-	PAYWALL_RESULT,
-	RevenueCatUI,
-} from "@revenuecat/purchases-capacitor-ui";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
-import { updateProfile } from "@/service/api/user.api";
-import { useToast } from "@/service/toast.service";
-import { useQuotaStore } from "@/store/quota.store";
-import { useInventoryStore } from "@/store/inventory.store";
+import { RevenueCatUI } from "@revenuecat/purchases-capacitor-ui";
+import { defineStore } from "pinia";
+import { ref, watch } from "vue";
 import {
 	CATALOG_BY_ID,
 	grantsForSku,
-	PRO_ENTITLEMENT,
 	LIFETIME_ENTITLEMENT,
 	LIFETIME_RC_PRODUCT,
+	PRO_ENTITLEMENT,
 } from "@/config/catalog.config";
-import { useAuthStore } from "@/store/auth.store";
-import { useMenuStore } from "@/store/menu.store";
 import { useShareToastStore } from "@/draw/sharing/shareToast.store";
+import { isNative } from "@/helper/general.helper";
+import { updateProfile } from "@/service/api/user.api";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useInventoryStore } from "@/store/inventory.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useQuotaStore } from "@/store/quota.store";
 
 /**
  * Subscription + shop-purchase store.

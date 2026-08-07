@@ -1,32 +1,35 @@
+import type { FabricObject } from "fabric";
 import { storeToRefs } from "pinia";
 import { ref, watch } from "vue";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { DrawSyncingAction, DrawSyncingEvent } from "@/draw/sync/sync.types";
-import { drawSyncingMapping } from "@/draw/sync/syncActions";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { FabricObject } from "fabric";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { useDocumentStore } from "@/draw/document/document.store";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
+import { type HistoryAction, HistoryEvent } from "@/draw/history/history.types";
+import { getObjectDiff } from "@/draw/history/operations/objectHistory";
+import { handleTextModificationSync } from "@/draw/history/operations/textHistory";
 import {
 	getAbsoluteState,
 	serializeOnce,
 	toJSON,
 	toObjectsIds,
 } from "@/draw/objects/objectSerialization";
-import { isText } from "@/draw/tools/textEditing";
-import { getObjectDiff } from "@/draw/history/operations/objectHistory";
-import { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
-import { EventBus } from "@/main";
-import { useSelect } from "@/draw/tools/select.store";
-import { handleTextModificationSync } from "@/draw/history/operations/textHistory";
-import { useDocumentStore } from "@/draw/document/document.store";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { createYielder } from "@/draw/scheduling/yielder";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useClaimArea } from "@/draw/claims/claimArea.store";
-import { socket } from "@/service/api/socket/socket.service";
+import {
+	type DrawSyncingAction,
+	DrawSyncingEvent,
+} from "@/draw/sync/sync.types";
+import { drawSyncingMapping } from "@/draw/sync/syncActions";
+import { useSelect } from "@/draw/tools/select.store";
+import { isText } from "@/draw/tools/textEditing";
+import { EventBus } from "@/main";
 import { leaveRoom } from "@/service/api/socket/drawSyncing.socket";
+import { socket } from "@/service/api/socket/socket.service";
 import { useToast } from "@/service/toast.service";
 import { ToastDuration } from "@/types/toast.types";
 

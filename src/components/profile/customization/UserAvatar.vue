@@ -24,12 +24,12 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import AvatarDecoration from "./AvatarDecoration.vue";
 import {
-	resolveTheme,
-	type Decoration,
 	type Customization,
+	type Decoration,
+	resolveTheme,
 } from "@/config/profile_options.config";
+import AvatarDecoration from "./AvatarDecoration.vue";
 
 const props = defineProps<{
 	user?: any;

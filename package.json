@@ -15,10 +15,12 @@
 		"test:e2e": "cypress run",
 		"test:unit": "vitest",
 		"bench:check": "node scripts/benchCompare.mjs",
-		"lint": "eslint",
-		"lint_fix_and_add": "git add .",
+		"lint": "biome check .",
 		"heroku:start": "node server.js",
-		"prepare": "husky install"
+		"prepare": "husky install",
+		"lint:fix": "biome check . --write",
+		"typecheck": "vue-tsc --noEmit",
+		"verify": "biome check . && vue-tsc --noEmit && vitest run && vite build"
 	},
 	"dependencies": {
 		"@capacitor-firebase/authentication": "^8.1.0",
@@ -89,7 +91,7 @@
 		"swiper": "^12.1.2",
 		"uuid": "^9.0.1",
 		"vanilla-picker": "^2.12.3",
-		"vue": "^3.5.30",
+		"vue": "3.6.0-rc.2",
 		"vue-router": "^4.6.4"
 	},
 	"devDependencies": {
@@ -103,16 +105,9 @@
 		"@types/node": "^20.19.37",
 		"@types/point-in-polygon": "^1.1.5",
 		"@types/uuid": "^9.0.8",
-		"@typescript-eslint/eslint-plugin": "^8.57.1",
-		"@typescript-eslint/parser": "^8.57.1",
-		"@typescript-eslint/utils": "^8.57.1",
 		"@vitejs/plugin-vue": "^6.0.5",
-		"@vue/eslint-config-typescript": "^14.7.0",
 		"@vue/test-utils": "^2.4.6",
 		"cypress": "^12.17.4",
-		"eslint": "^9.39.4",
-		"eslint-plugin-unused-imports": "^4.4.1",
-		"eslint-plugin-vue": "^9.33.0",
 		"husky": "^8.0.3",
 		"ionicons": "^7.4.0",
 		"rollup-plugin-visualizer": "^7.0.1",

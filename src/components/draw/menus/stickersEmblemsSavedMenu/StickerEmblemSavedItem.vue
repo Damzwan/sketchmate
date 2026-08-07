@@ -22,24 +22,28 @@
 </template>
 
 <script lang="ts" setup>
-import { onLongPress } from '@vueuse/core'
-import { isMobile, svg } from '@/helper/general.helper'
-import { mdiClose } from '@mdi/js'
-import { IonIcon, IonImg, IonSkeletonText } from '@ionic/vue'
-import { ref } from 'vue'
+import { IonIcon, IonImg, IonSkeletonText } from "@ionic/vue";
+import { mdiClose } from "@mdi/js";
+import { onLongPress } from "@vueuse/core";
+import { ref } from "vue";
+import { isMobile, svg } from "@/helper/general.helper";
 
-const item = ref()
-const isLoading = ref(true)
+const item = ref();
+const isLoading = ref(true);
 
 const props = defineProps<{
-  deleteMode: boolean
-  img: string
-}>()
+	deleteMode: boolean;
+	img: string;
+}>();
 
-if (isMobile()) onLongPress(item, () => emits('long-press', true), { modifiers: { prevent: true }, delay: 100 })
+if (isMobile())
+	onLongPress(item, () => emits("long-press", true), {
+		modifiers: { prevent: true },
+		delay: 100,
+	});
 // onClickOutside(item, () => (props.deleteMode ? emits('cancel-delete', false) : undefined))
 
-const emits = defineEmits(['click', 'long-press', 'cancel-delete'])
+const emits = defineEmits(["click", "long-press", "cancel-delete"]);
 </script>
 
 <style scoped></style>

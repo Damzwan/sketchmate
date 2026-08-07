@@ -122,8 +122,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { storeToRefs } from "pinia";
 import { IonButton, IonIcon } from "@ionic/vue";
 import {
 	mdiChevronRight,
@@ -131,10 +129,11 @@ import {
 	mdiEarth,
 	mdiLockOutline,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import {
+	type ChatCustomization,
 	hydrateChatCustomization,
 	hydrateCustomization,
 	resolveFontEffectClass,
@@ -142,18 +141,17 @@ import {
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 	resolveTitle,
-	type ChatCustomization,
 } from "@/config/profile_options.config";
-
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useChatStore } from "@/store/chat.store";
-import { useFriendStore } from "@/store/friend.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
+import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
-import LobbyMemberBar from "./LobbyMemberBar.vue";
 import ChatRelationshipStrip from "./ChatRelationshipStrip.vue";
+import LobbyMemberBar from "./LobbyMemberBar.vue";
 
 // Optional preview descriptor (shop preview modal) — when set, the toolbar
 // renders from these props instead of resolving partner/room from the chat

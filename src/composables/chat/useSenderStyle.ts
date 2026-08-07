@@ -1,11 +1,11 @@
-import { computed, type ComputedRef, type Ref } from "vue";
+import { type ComputedRef, computed, type Ref } from "vue";
 import {
+	type Customization,
 	hydrateCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
 	resolveTitle,
-	type Customization,
 	type Theme,
 } from "@/config/profile_options.config";
 
@@ -40,7 +40,10 @@ const MAX_ENTRIES = 300;
  * cache entry — which is the entire point — while an actual customization
  * change has to miss so the new look takes effect immediately.
  */
-function styleKey(senderId: string, raw?: Partial<Customization> | null): string {
+function styleKey(
+	senderId: string,
+	raw?: Partial<Customization> | null,
+): string {
 	if (!raw) return `${senderId}|-`;
 	return [
 		senderId,

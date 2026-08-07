@@ -49,19 +49,18 @@
 </template>
 
 <script setup lang="ts">
-import { IonPage, IonContent } from "@ionic/vue";
+import { IonContent, IonPage } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { useAuthStore } from "@/store/auth.store";
-import { useToast } from "@/service/toast.service";
-
-import SubPageBar from "@/components/general/SubPageBar.vue";
-import SettingLinks from "@/components/settings/SettingLinks.vue";
-import SubscriptionManager from "@/components/settings/SubscriptionManager.vue";
-import SettingSwitches from "@/components/settings/SettingSwitches.vue";
-import AccountSettings from "@/components/settings/AccountSettings.vue";
 import { ref } from "vue";
-import { NotificationSubscription } from "@/types/server.types";
+import SubPageBar from "@/components/general/SubPageBar.vue";
+import AccountSettings from "@/components/settings/AccountSettings.vue";
+import SettingLinks from "@/components/settings/SettingLinks.vue";
+import SettingSwitches from "@/components/settings/SettingSwitches.vue";
+import SubscriptionManager from "@/components/settings/SubscriptionManager.vue";
 import { unsubscribe } from "@/service/api/user.api";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { NotificationSubscription } from "@/types/server.types";
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);

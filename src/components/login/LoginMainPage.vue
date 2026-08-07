@@ -194,27 +194,29 @@
 </template>
 
 <script setup lang="ts">
-import {
-	IonButton,
-	IonContent,
-	IonIcon,
-	IonInputPasswordToggle,
-	IonInput,
-	IonSpinner,
-} from "@ionic/vue";
-import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useToast } from "@/service/toast.service";
+import { Preferences } from "@capacitor/preferences";
 import {
 	FirebaseAuthentication,
 	SignInResult,
 } from "@capacitor-firebase/authentication";
-import { ToastDuration } from "@/types/toast.types";
-import { isNative, shuffleArray, svg } from "@/helper/general.helper";
-import { Preferences } from "@capacitor/preferences";
-import { LocalStorage } from "@/types/storage.types";
-import { email, minLength, required, sameAs } from "@vuelidate/validators";
+import {
+	IonButton,
+	IonContent,
+	IonIcon,
+	IonInput,
+	IonInputPasswordToggle,
+	IonSpinner,
+} from "@ionic/vue";
+import {
+	mdiEmail,
+	mdiEmailOutline,
+	mdiGoogle,
+	mdiLockOutline,
+	mdiSend,
+} from "@mdi/js";
 import { useVuelidate } from "@vuelidate/core";
-
+import { email, minLength, required, sameAs } from "@vuelidate/validators";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import drawing1 from "@/assets/login_images/1.webp";
 import drawing2 from "@/assets/login_images/2.webp";
 import drawing3 from "@/assets/login_images/3.webp";
@@ -235,16 +237,13 @@ import drawing17 from "@/assets/login_images/17.webp";
 import drawing18 from "@/assets/login_images/18.webp";
 import drawing19 from "@/assets/login_images/19.webp";
 import drawing20 from "@/assets/login_images/20.webp";
-import LoginMovingDrawingRow from "@/components/login/LoginMovingDrawingRow.vue";
-import {
-	mdiEmail,
-	mdiEmailOutline,
-	mdiGoogle,
-	mdiLockOutline,
-	mdiSend,
-} from "@mdi/js";
-import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 import logo from "@/assets/logo.webp";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
+import LoginMovingDrawingRow from "@/components/login/LoginMovingDrawingRow.vue";
+import { isNative, shuffleArray, svg } from "@/helper/general.helper";
+import { useToast } from "@/service/toast.service";
+import { LocalStorage } from "@/types/storage.types";
+import { ToastDuration } from "@/types/toast.types";
 
 const drawings1 = shuffleArray([
 	drawing1,

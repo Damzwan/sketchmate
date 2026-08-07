@@ -64,10 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { IonIcon, IonButton, useIonRouter } from "@ionic/vue";
-import { computed } from "vue";
-import { storeToRefs } from "pinia";
-import dayjs from "dayjs";
+import { IonButton, IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	mdiCakeVariantOutline,
 	mdiLockOutline,
@@ -75,18 +72,21 @@ import {
 	mdiPencilOutline,
 	mdiShieldAccountOutline,
 } from "@mdi/js";
+import dayjs from "dayjs";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
+import SettingCard from "@/components/settings/SettingCard.vue";
+import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
+import { masterAnimation } from "@/helper/animation.helper";
 import { svg } from "@/helper/general.helper";
 import { useAuthStore } from "@/store/auth.store";
+import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
 import {
 	type ChildFeature,
 	FEATURE_COPY,
 	useParentalStore,
 } from "@/store/parental.store";
-import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
-import UpgradeAccountModal from "@/components/settings/UpgradeAccountModal.vue";
-import SettingCard from "@/components/settings/SettingCard.vue";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
 
 const r = useIonRouter();
 

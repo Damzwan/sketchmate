@@ -1,28 +1,28 @@
-import { Socket } from "socket.io-client";
 import { storeToRefs } from "pinia";
-import { LobbyChatItem, useDrawSyncer } from "@/draw/sync/session.store";
-import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
-import { useToast } from "@/service/toast.service";
-import { useDrawStore } from "@/draw/session/draw.store";
-import { SOCKET_ENDPONTS } from "@/types/server.types";
-import { ToastDuration } from "@/types/toast.types";
-import { useAuthStore } from "@/store/auth.store";
-import { exportBoundingBoxImage } from "@/draw/document/export";
-import { fitToDensestRegion } from "@/draw/canvas/viewport";
-import { useFriendStore } from "@/store/friend.store";
+import type { Socket } from "socket.io-client";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { fitToDensestRegion } from "@/draw/canvas/viewport";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
-import { useModerationStore } from "@/store/moderation.store";
-import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/types/menu.types";
+import { exportBoundingBoxImage } from "@/draw/document/export";
+import { useLayersStore } from "@/draw/layers/layers.store";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
+import { createRoomCanvasSnapshot } from "@/draw/sync/roomSnapshot";
+import { type LobbyChatItem, useDrawSyncer } from "@/draw/sync/session.store";
 import {
 	addRoomIdToUrl,
-	removeRoomIdFromUrl,
 	leaveRoom,
+	removeRoomIdFromUrl,
 	socketJoinRoom,
 } from "@/service/api/socket/drawSyncing.socket";
-import { useLayersStore } from "@/draw/layers/layers.store";
-import { createRoomCanvasSnapshot } from "@/draw/sync/roomSnapshot";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { Menu } from "@/types/menu.types";
+import { SOCKET_ENDPONTS } from "@/types/server.types";
+import { ToastDuration } from "@/types/toast.types";
 
 /**
  * Heavy canvas-sync socket handlers. Loaded lazily by socket.service so that

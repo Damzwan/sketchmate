@@ -53,78 +53,95 @@
 </template>
 
 <script lang="ts" setup>
-import { DrawAction } from "@/draw/actions/drawAction.types";
-import { svg } from '@/helper/general.helper'
 import {
-  mdiContentCopy,
-  mdiContentSave,
-  mdiFlipToBack,
-  mdiFlipToFront,
-  mdiMerge,
-  mdiNumericNegative1,
-  mdiNumericPositive1,
-  mdiFlipHorizontal,
-  mdiFlipVertical
-} from '@mdi/js'
-import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
-import { useDrawStore } from '@/draw/session/draw.store'
-import { storeToRefs } from 'pinia'
-import { useMenuStore } from '@/store/menu.store'
-import { useSelect } from '@/draw/tools/select.store'
-import { toObjectsIds } from '@/draw/objects/objectSerialization'
+	IonContent,
+	IonIcon,
+	IonItem,
+	IonList,
+	IonPopover,
+	popoverController,
+} from "@ionic/vue";
+import {
+	mdiContentCopy,
+	mdiContentSave,
+	mdiFlipHorizontal,
+	mdiFlipToBack,
+	mdiFlipToFront,
+	mdiFlipVertical,
+	mdiMerge,
+	mdiNumericNegative1,
+	mdiNumericPositive1,
+} from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { DrawAction } from "@/draw/actions/drawAction.types";
+import { toObjectsIds } from "@/draw/objects/objectSerialization";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useSelect } from "@/draw/tools/select.store";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
 
-const { selectAction } = useDrawStore()
-const { selectedObjectsRef } = storeToRefs(useSelect())
-const { getSelectedObjects } = useSelect()
-const { selectMoreOptionsMenuOpen, menuEvent } = storeToRefs(useMenuStore())
+const { selectAction } = useDrawStore();
+const { selectedObjectsRef } = storeToRefs(useSelect());
+const { getSelectedObjects } = useSelect();
+const { selectMoreOptionsMenuOpen, menuEvent } = storeToRefs(useMenuStore());
 
 function saveObjects() {
-  selectAction(DrawAction.SaveFabricObject, { objects: getSelectedObjects() })
-  closePopover()
+	selectAction(DrawAction.SaveFabricObject, { objects: getSelectedObjects() });
+	closePopover();
 }
 
 function copyObjects() {
-  selectAction(DrawAction.CopyObject, { objects: getSelectedObjects() })
-  closePopover()
+	selectAction(DrawAction.CopyObject, { objects: getSelectedObjects() });
+	closePopover();
 }
 
 function mergeObjects() {
-  selectAction(DrawAction.Merge, { objects: getSelectedObjects() })
-  closePopover()
+	selectAction(DrawAction.Merge, { objects: getSelectedObjects() });
+	closePopover();
 }
 
 function bringToFront() {
-  selectAction(DrawAction.MoveObjectToFront, { objects: getSelectedObjects() })
-  closePopover()
+	selectAction(DrawAction.MoveObjectToFront, { objects: getSelectedObjects() });
+	closePopover();
 }
 
 function bringToBack() {
-  selectAction(DrawAction.MoveObjectToBack, { objects: getSelectedObjects() })
-  closePopover()
+	selectAction(DrawAction.MoveObjectToBack, { objects: getSelectedObjects() });
+	closePopover();
 }
 
 function moveUpOneLayer() {
-  selectAction(DrawAction.MoveObjectUpOneLayer, { objects: getSelectedObjects() })
-  closePopover()
+	selectAction(DrawAction.MoveObjectUpOneLayer, {
+		objects: getSelectedObjects(),
+	});
+	closePopover();
 }
 
 function moveDownOneLayer() {
-  selectAction(DrawAction.MoveObjectDownOneLayer, { objects: getSelectedObjects() })
-  closePopover()
+	selectAction(DrawAction.MoveObjectDownOneLayer, {
+		objects: getSelectedObjects(),
+	});
+	closePopover();
 }
 
 function flipX() {
-  selectAction(DrawAction.FlipX, { objects: getSelectedObjects(), setActiveObject: true })
-  closePopover()
+	selectAction(DrawAction.FlipX, {
+		objects: getSelectedObjects(),
+		setActiveObject: true,
+	});
+	closePopover();
 }
 
 function flipY() {
-  selectAction(DrawAction.FlipY, { objects: getSelectedObjects(), setActiveObject: true })
-  closePopover()
+	selectAction(DrawAction.FlipY, {
+		objects: getSelectedObjects(),
+		setActiveObject: true,
+	});
+	closePopover();
 }
 
 function closePopover() {
-  popoverController.dismiss()
+	popoverController.dismiss();
 }
 </script>
 

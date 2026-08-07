@@ -45,16 +45,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiCheck } from "@mdi/js";
-import type { ShopSku } from "@/config/catalog.config";
-import {
-	resolveEffect,
-	resolveWorld,
-} from "@/config/profile_options.config";
+import { computed } from "vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
+import type { ShopSku } from "@/config/catalog.config";
+import { resolveEffect, resolveWorld } from "@/config/profile_options.config";
 
 const props = defineProps<{ sku: ShopSku; owned: boolean }>();
 defineEmits(["purchase", "preview"]);

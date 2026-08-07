@@ -121,23 +121,27 @@
 </template>
 
 <script lang="ts" setup>
-import { v4 as uuidv4 } from "uuid";
 import { IonIcon, useIonRouter } from "@ionic/vue";
 import {
 	mdiCellphoneArrowDown,
 	mdiChevronRight,
 	mdiEmailOutline,
 	mdiFlagOutline,
-	mdiPartyPopper,
 	mdiLogoutVariant,
 	mdiMessageStarOutline,
 	mdiNewspaperVariantOutline,
 	mdiOpenInNew,
+	mdiPartyPopper,
 } from "@mdi/js";
 import { logoDiscord } from "ionicons/icons";
 import { storeToRefs } from "pinia";
+import { v4 as uuidv4 } from "uuid";
 import { computed, ref } from "vue";
-import { useAuthStore } from "@/store/auth.store";
+import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
+import IosPwaInstructions from "@/components/general/IosPwaInstructions.vue";
+import SettingCard from "@/components/settings/SettingCard.vue";
+import { contact_mail, discord_link } from "@/config/general.config";
+import { masterAnimation } from "@/helper/animation.helper";
 import {
 	installPWA,
 	isIOS,
@@ -145,15 +149,11 @@ import {
 	showIosSafariInstructions,
 	svg,
 } from "@/helper/general.helper";
-import IosPwaInstructions from "@/components/general/IosPwaInstructions.vue";
-import SettingCard from "@/components/settings/SettingCard.vue";
+import { useAuthStore } from "@/store/auth.store";
 import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/types/menu.types";
-import { contact_mail, discord_link } from "@/config/general.config";
 import { useSessionStore } from "@/store/session.store";
-import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
+import { Menu } from "@/types/menu.types";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
 
 const { installPrompt } = storeToRefs(useSessionStore());
 const { logout } = useAuthStore();

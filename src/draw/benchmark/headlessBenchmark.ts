@@ -1,15 +1,15 @@
 import {
-	runBenchmarkScenario,
 	type BenchmarkDriver,
 	type BenchmarkScenarioId,
+	runBenchmarkScenario,
 } from "@/draw/benchmark/benchScenarios";
 import {
-	createBenchmarkScene,
 	type BenchmarkScene,
 	type BenchmarkSceneId,
+	createBenchmarkScene,
 } from "@/draw/benchmark/sceneFactory";
-import { DEFAULT_ZOOM_TIERS } from "@/draw/rendering/zoomLevels";
 import type { WorldRect } from "@/draw/rendering/committedLayer";
+import { DEFAULT_ZOOM_TIERS } from "@/draw/rendering/zoomLevels";
 
 export interface HeadlessBenchmarkResult {
 	scene: BenchmarkSceneId;

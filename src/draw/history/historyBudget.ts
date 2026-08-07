@@ -16,5 +16,7 @@ export function eraseHistoryWeight(
 }
 
 export function referenceHistoryWeight(referenceCount: number): number {
-	return 1 + Math.ceil(Math.max(0, referenceCount) / OBJECT_IDS_PER_WEIGHT_UNIT);
+	return (
+		1 + Math.ceil(Math.max(0, referenceCount) / OBJECT_IDS_PER_WEIGHT_UNIT)
+	);
 }

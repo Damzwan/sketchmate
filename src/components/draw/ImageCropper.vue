@@ -15,51 +15,53 @@
 </template>
 
 <script lang="ts" setup>
-import { IonButton, IonModal } from '@ionic/vue'
-import { useMenuStore } from '@/store/menu.store'
-import { storeToRefs } from 'pinia'
-import { setAppColors } from '@/helper/general.helper'
-import { colorsPerRoute, photoSwiperColorConfig } from '@/config/colors.config'
-import { FRONTEND_ROUTES } from '@/types/router.types'
-
+import { IonButton, IonModal } from "@ionic/vue";
 // import 'cropperjs/dist/cropper.min.css'
-import Cropper from 'cropperjs'
-import { ref } from 'vue'
-import { useDrawStore } from '@/draw/session/draw.store'
-import CircularLoader from '@/components/general/loaders/CircularLoader.vue'
+import Cropper from "cropperjs";
+import { storeToRefs } from "pinia";
+import { ref } from "vue";
+import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
+import {
+	photoSwiperColorConfig,
+	routeColorConfig,
+} from "@/config/colors.config";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { setAppColors } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
-const { cropperMenuOpen } = storeToRefs(useMenuStore())
-const { getCanvas } = useDrawStore()
+const { cropperMenuOpen } = storeToRefs(useMenuStore());
+const { getCanvas } = useDrawStore();
 
-let cropper: Cropper
-const imgRef = ref<HTMLImageElement>()
-const loading = ref(true)
+let cropper: Cropper;
+const imgRef = ref<HTMLImageElement>();
+const loading = ref(true);
 
 defineProps<{
-  imgUrl: string | undefined
-}>()
+	imgUrl: string | undefined;
+}>();
 
 function close() {
-  cropperMenuOpen.value = false
-  loading.value = true
-  setAppColors(colorsPerRoute[FRONTEND_ROUTES.draw])
-  if (cropper) cropper.destroy()
+	cropperMenuOpen.value = false;
+	loading.value = true;
+	setAppColors(routeColorConfig(FRONTEND_ROUTES.draw));
+	if (cropper) cropper.destroy();
 }
 
 function init() {
-  setAppColors(photoSwiperColorConfig)
-  imgRef.value?.addEventListener('ready', () => (loading.value = false))
-  cropper = new Cropper(imgRef.value!, {
-    aspectRatio: getCanvas().width! / getCanvas().height!,
-    background: false,
-    viewMode: 2
-  })
+	setAppColors(photoSwiperColorConfig);
+	imgRef.value?.addEventListener("ready", () => (loading.value = false));
+	cropper = new Cropper(imgRef.value!, {
+		aspectRatio: getCanvas().width! / getCanvas().height!,
+		background: false,
+		viewMode: 2,
+	});
 }
 
 function apply() {
-  const imgUrl = cropper.getCroppedCanvas().toDataURL()
-  // selectAction(DrawAction.AddBackgroundImage, { img: imgUrl })
-  close()
+	const imgUrl = cropper.getCroppedCanvas().toDataURL();
+	// selectAction(DrawAction.AddBackgroundImage, { img: imgUrl })
+	close();
 }
 </script>
 

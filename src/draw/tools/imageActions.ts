@@ -1,10 +1,13 @@
-import { useDrawStore } from "@/draw/session/draw.store";
 import * as fabric from "fabric";
-import { DrawAction, type DrawActionParams } from "@/draw/actions/drawAction.types";
-import { DrawTool } from "@/draw/tools/tool.types";
+import type {
+	DrawAction,
+	DrawActionParams,
+} from "@/draw/actions/drawAction.types";
 import { centerObjectInViewport } from "@/draw/canvas/viewport";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { downsampleImageToDataURL } from "@/draw/tools/imageDownsampling";
+import { DrawTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
 
 export async function addImageToCanvas(
 	params: DrawActionParams[DrawAction.AddImage],

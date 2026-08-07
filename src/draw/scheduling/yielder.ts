@@ -1,15 +1,23 @@
-// @ts-ignore — scheduling is experimental
+/**
+ * `navigator.scheduling.isInputPending()` is an experimental Chromium API with
+ * no lib.dom typing. Declared here rather than suppressed per-call site: the
+ * previous `@ts-expect-error` trio silently covered the wrong lines because the
+ * directive only applies to the line that follows it, and the `if` spans four.
+ */
+interface NavigatorScheduling {
+	isInputPending?: (options?: { includeContinuous?: boolean }) => boolean;
+}
+
+const _scheduling = (): NavigatorScheduling | undefined =>
+	typeof navigator === "undefined"
+		? undefined
+		: (navigator as Navigator & { scheduling?: NavigatorScheduling })
+				.scheduling;
+
 const _isInputPending = (): boolean => {
-	// @ts-ignore
-	if (
-		typeof navigator !== "undefined" &&
-		navigator.scheduling &&
-		typeof navigator.scheduling.isInputPending === "function"
-	) {
-		// @ts-ignore
-		return navigator.scheduling.isInputPending({ includeContinuous: true });
-	}
-	return false;
+	const scheduling = _scheduling();
+	if (typeof scheduling?.isInputPending !== "function") return false;
+	return scheduling.isInputPending({ includeContinuous: true });
 };
 
 const _isVisible = (): boolean => {

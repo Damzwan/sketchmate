@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { Path, type TSimplePathData } from "fabric";
+import { describe, expect, it } from "vitest";
 import { OptimizedPencilStroke } from "./CustomPencilBrush";
 import { TracedPath } from "./TracedPath";
 

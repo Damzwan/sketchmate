@@ -1,5 +1,4 @@
-import { BaseBrush, Canvas, Path, Point, Shadow } from "fabric";
-import { opacityFromOpacityHex } from "@/draw/utils/color.utils";
+import { BaseBrush, Path, type Point } from "fabric";
 import {
 	enlivenStrokeProps,
 	toObjectWithoutPath,
@@ -13,12 +12,13 @@ import {
 	simplifyWatercolorPoints,
 	toWatercolorTrace,
 	traceWatercolorPath,
-	watercolorSimplifyTolerance,
-	watercolorTraceToJSON,
 	type WatercolorPathCommand,
 	type WatercolorPoint,
 	type WatercolorTrace,
+	watercolorSimplifyTolerance,
+	watercolorTraceToJSON,
 } from "@/draw/utils/brushes/watercolorGeometry";
+import { opacityFromOpacityHex } from "@/draw/utils/color.utils";
 
 // ==========================================
 // THE OPTIMIZED WATERCOLOR BRUSH
@@ -45,10 +45,6 @@ export class WaterColorBrush extends BaseBrush {
 	private _tail: WatercolorPoint[] = [];
 
 	public decimate = 0.3;
-
-	constructor(canvas: Canvas) {
-		super(canvas);
-	}
 
 	private get _tolerance(): number {
 		return watercolorSimplifyTolerance(this.width);
@@ -232,7 +228,7 @@ export class WaterColorStroke extends Path {
 		}
 	}
 
-	// @ts-ignore
+	// @ts-expect-error
 	toObject(additionalProperties: string[] = []) {
 		// Path.toObject deep-copies every segment and it is discarded — fromObject
 		// rebuilds from `compressedTrace`. A watercolor stroke is 3 bristles × N

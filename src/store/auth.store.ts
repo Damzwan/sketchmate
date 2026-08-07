@@ -1,18 +1,13 @@
-import { defineStore, storeToRefs } from "pinia";
-import { computed, ref, watch } from "vue";
 import { Preferences } from "@capacitor/preferences";
 import {
 	FirebaseAuthentication,
-	User as FirebaseUser,
+	type User as FirebaseUser,
 } from "@capacitor-firebase/authentication";
-import { UseIonRouterResult } from "@ionic/vue";
-import router from "@/router";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-
-import { User } from "@/types/server.types";
-import { LocalStorage } from "@/types/storage.types";
-import { useToast } from "@/service/toast.service";
-
+import type { UseIonRouterResult } from "@ionic/vue";
+import { Purchases } from "@revenuecat/purchases-capacitor";
+import { defineStore, storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
+import { masterAnimation, routerAnimation } from "@/helper/animation.helper";
 import {
 	compareVersions,
 	generateDeviceFingerprint,
@@ -20,39 +15,42 @@ import {
 	isNative,
 	isOldEnough,
 } from "@/helper/general.helper";
-import { masterAnimation, routerAnimation } from "@/helper/animation.helper";
-import { useNotificationStore } from "@/store/notification.store";
-import { useBalloonStore } from "@/store/balloon.store";
-import { useInboxStore } from "@/store/inbox.store";
+import router from "@/router";
+import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
 import {
 	socketConnect,
 	socketDisconnect,
 	socketLogin,
 } from "@/service/api/socket/socket.service";
-import { useSessionStore } from "@/store/session.store";
-import {
-	mixpanelEvents,
-	mixpanelIdentify,
-	trackEvent,
-} from "@/service/mixpanel";
-import { useFriendStore } from "@/store/friend.store";
-import { useChatStore } from "@/store/chat.store";
-import { useModerationStore } from "@/store/moderation.store";
 import {
 	getUser,
 	onLoginEvent,
 	updateUserTimezone,
 } from "@/service/api/user.api";
-import { useQuotaStore } from "@/store/quota.store";
-import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
-import { refreshPublicLobbies } from "@/service/api/socket/drawSyncing.socket";
+import {
+	mixpanelEvents,
+	mixpanelIdentify,
+	trackEvent,
+} from "@/service/mixpanel";
+import { useToast } from "@/service/toast.service";
+import { useBalloonStore } from "@/store/balloon.store";
+import { useChatStore } from "@/store/chat.store";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
+import { useInboxStore } from "@/store/inbox.store";
 import { useInventoryStore } from "@/store/inventory.store";
-import { useSubscriptionStore } from "@/store/subscription.store";
-import { usePostStore } from "@/store/post.store";
-import { useUserCacheStore } from "@/store/userCache.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { useNotificationStore } from "@/store/notification.store";
 import { useOverlayRuntimeStore } from "@/store/overlayRuntime.store";
-import { Purchases } from "@revenuecat/purchases-capacitor";
+import { usePostStore } from "@/store/post.store";
+import { useQuotaStore } from "@/store/quota.store";
+import { useSessionStore } from "@/store/session.store";
+import { useSubscriptionStore } from "@/store/subscription.store";
+import { useUserCacheStore } from "@/store/userCache.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
+import type { User } from "@/types/server.types";
+import { LocalStorage } from "@/types/storage.types";
 
 export const useAuthStore = defineStore("auth", () => {
 	// --- STATE ---
@@ -72,7 +70,7 @@ export const useAuthStore = defineStore("auth", () => {
 
 	const minimum_online_version = ref<string>("");
 
-	let ionRouter: UseIonRouterResult | undefined = undefined;
+	let ionRouter: UseIonRouterResult | undefined;
 
 	// --- DERIVED ---
 	const hasConfirmedAge = computed(() => !!user.value?.date_of_birth);

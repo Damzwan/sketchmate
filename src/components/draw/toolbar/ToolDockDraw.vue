@@ -76,29 +76,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { storeToRefs } from "pinia";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
-import { usePen } from "@/draw/tools/pen.store";
-import { useMenuStore } from "@/store/menu.store";
-import { useDrawHistoryManager } from "@/draw/history/history.store";
-import { useDrawStore } from "@/draw/session/draw.store";
-import ToolButton from "./ToolButton.vue";
-
+import { IonIcon } from "@ionic/vue";
 import {
 	mdiChevronDown,
 	mdiEraser,
 	mdiFormatColorFill,
 	mdiPlus,
-	mdiUndo,
 	mdiRedo,
+	mdiUndo,
 } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { penIconMapping, selectIconMapping } from "@/draw/config/tools.config";
-import { DrawTool } from "@/draw/tools/tool.types";
-import { Menu } from "@/types/menu.types";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { IonIcon } from "@ionic/vue";
+import { penIconMapping, selectIconMapping } from "@/draw/config/tools.config";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { usePen } from "@/draw/tools/pen.store";
+import { DrawTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/types/menu.types";
+import ToolButton from "./ToolButton.vue";
 
 const { lastSelectedPenMenuTool, lastSelectedSelectTool, selectedTool } =
 	storeToRefs(useToolSelection());

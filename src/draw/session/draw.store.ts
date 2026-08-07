@@ -1,29 +1,28 @@
 import { defineStore, storeToRefs } from "pinia";
-import { useDrawHistoryManager } from "@/draw/history/history.store";
-import {
-	DrawAction,
-	type DrawActionParams,
-} from "@/draw/actions/drawAction.types";
-import { DrawTool } from "@/draw/tools/tool.types";
-import { useCanvasController } from "@/draw/canvas/canvasController";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
-import { drawActionMapping } from "@/draw/actions/drawActions";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { useShortcutManager } from "@/draw/input/shortcutManager";
-import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { enableGestures } from "@/draw/input/gestures";
 import { ref } from "vue";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
-import { computeBounds } from "@/draw/document/export";
+import type {
+	DrawAction,
+	DrawActionParams,
+} from "@/draw/actions/drawAction.types";
+import { drawActionMapping } from "@/draw/actions/drawActions";
+import { useCanvasController } from "@/draw/canvas/canvasController";
+import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
 import { useCanvasPreview } from "@/draw/document/canvasPreview";
 import { useDocumentStore } from "@/draw/document/document.store";
-import { useGestureStore } from "@/draw/tools/gesture.store";
-import { useClaimArea } from "@/draw/claims/claimArea.store";
-import { destroyGestures } from "@/draw/input/gestures";
+import { computeBounds } from "@/draw/document/export";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
+import { destroyGestures, enableGestures } from "@/draw/input/gestures";
+import { useShortcutManager } from "@/draw/input/shortcutManager";
+import { useDrawSyncEngine } from "@/draw/sync/drawSyncEngine";
+import { useDrawSyncer } from "@/draw/sync/session.store";
 import { useEraser } from "@/draw/tools/eraser.store";
 import { shutdownErasureAnalysisWorker } from "@/draw/tools/erasureAnalysisClient";
+import { useGestureStore } from "@/draw/tools/gesture.store";
+import { DrawTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 
 export const useDrawStore = defineStore("draw", () => {
 	const canvasController = useCanvasController();

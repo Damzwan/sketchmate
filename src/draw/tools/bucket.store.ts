@@ -1,18 +1,18 @@
-import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
-import type { ToolService } from "@/draw/tools/tool.types";
+import type { Canvas } from "fabric";
 import { defineStore } from "pinia";
-import { isMobile } from "@/helper/general.helper";
-import { Canvas } from "fabric";
+import { type Ref, ref } from "vue";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
 import { bucketFill, shutdownBucketFillWorker } from "@/draw/tools/bucketFill";
-import { Ref, ref } from "vue";
+import type { ToolService } from "@/draw/tools/tool.types";
+import { isMobile } from "@/helper/general.helper";
 
 interface Bucket extends ToolService {
 	isFilling: Ref<boolean>;
 }
 
 export const useBucket = defineStore("bucket", (): Bucket => {
-	let c: Canvas | undefined = undefined;
+	let c: Canvas | undefined;
 	let gestureStart = false;
 	let fillInProgress = false;
 	let sessionAbortController = new AbortController();

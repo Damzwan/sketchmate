@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { Mate } from "@/types/server.types";
+import type { Mate } from "@/types/server.types";
 
 export interface DrawInvitation {
 	friend: Mate;

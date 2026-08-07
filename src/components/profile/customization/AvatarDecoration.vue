@@ -39,14 +39,13 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
+import gamerLottie from "@/assets/lottie/avatar/gamer.lottie";
+import waveLottie from "@/assets/lottie/avatar/wave.lottie";
 import {
 	type Decoration,
 	resolveDecoration,
 } from "@/config/profile_options.config";
-
-import gamerLottie from "@/assets/lottie/avatar/gamer.lottie";
-import waveLottie from "@/assets/lottie/avatar/wave.lottie";
+import { createLottie, type LottiePlayer } from "@/helper/lottie.helper";
 
 const props = defineProps<{
 	decorationId?: string;

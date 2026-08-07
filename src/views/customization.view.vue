@@ -239,20 +239,12 @@
 
 <script setup lang="ts">
 import {
-	computed,
-	defineAsyncComponent,
-	onBeforeUnmount,
-	ref,
-	watch,
-} from "vue";
-import {
-	IonContent,
-	IonPage,
 	IonButton,
+	IonContent,
 	IonIcon,
+	IonPage,
 	onIonViewDidEnter,
 } from "@ionic/vue";
-import { useAmbientPause } from "@/store/ambientPause.store";
 import {
 	mdiAccountCircleOutline,
 	mdiAutoFix,
@@ -268,20 +260,27 @@ import {
 	mdiWeatherHurricane,
 } from "@mdi/js";
 import { storeToRefs } from "pinia";
+import {
+	computed,
+	defineAsyncComponent,
+	onBeforeUnmount,
+	ref,
+	watch,
+} from "vue";
+import LazyMount from "@/components/general/LazyMount.vue";
+import SubPageBar from "@/components/general/SubPageBar.vue";
+import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
+import CustomizeOptionRow from "@/components/profile/customization/CustomizeOptionRow.vue";
+import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import ProfileCard from "@/components/profile/ProfileCard.vue";
+import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import { svg } from "@/helper/general.helper";
+import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
+import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { useToast } from "@/service/toast.service";
+import { useAmbientPause } from "@/store/ambientPause.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
-import { updateProfile, uploadProfileImg } from "@/service/api/user.api";
-import { useToast } from "@/service/toast.service";
-import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
-
-import SubPageBar from "@/components/general/SubPageBar.vue";
-import ProfileCard from "@/components/profile/ProfileCard.vue";
-import CustomizeOptionRow from "@/components/profile/customization/CustomizeOptionRow.vue";
-import AvatarDecoration from "@/components/profile/customization/AvatarDecoration.vue";
-import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
-import ProfileWorld from "@/components/profile/ProfileWorld.vue";
-import LazyMount from "@/components/general/LazyMount.vue";
 
 // Each picker is a separate chunk and is not instantiated until first use.
 const IdentityModal = defineAsyncComponent(
@@ -320,17 +319,17 @@ const ChatWidgetCustomizationModal = defineAsyncComponent(
 );
 
 import {
-	FONTS,
+	type Customization,
 	FONT_EFFECTS,
+	FONTS,
 	hydrateCustomization,
 	resolveDecoration,
 	resolveEffect,
-	resolveWorld,
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveTheme,
 	resolveTitle,
-	type Customization,
+	resolveWorld,
 } from "@/config/profile_options.config";
 
 const authStore = useAuthStore();

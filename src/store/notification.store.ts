@@ -1,15 +1,16 @@
 // store/notification.store.ts
+
+import { Device } from "@capacitor/device";
+import { Preferences } from "@capacitor/preferences";
+import { PushNotifications } from "@capacitor/push-notifications";
 import { defineStore, storeToRefs } from "pinia";
 import { computed, ref } from "vue";
-import { Preferences } from "@capacitor/preferences";
-import { Device } from "@capacitor/device";
-import { PushNotifications } from "@capacitor/push-notifications";
-import { NotificationSubscription, User } from "@/types/server.types";
-import { LocalStorage } from "@/types/storage.types";
 import { generateDeviceFingerprint, isNative } from "@/helper/general.helper";
-import { useAuthStore } from "@/store/auth.store";
 import { disableNotifications } from "@/helper/notification.helper";
 import { subscribe, unsubscribe } from "@/service/api/user.api";
+import { useAuthStore } from "@/store/auth.store";
+import type { NotificationSubscription, User } from "@/types/server.types";
+import { LocalStorage } from "@/types/storage.types";
 
 export const useNotificationStore = defineStore("notification", () => {
 	const localSubscription = ref<string | undefined>(undefined);

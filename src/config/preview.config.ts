@@ -1,5 +1,5 @@
-import { computed } from "vue";
 import { useWindowSize } from "@vueuse/core";
+import { computed } from "vue";
 
 // Shared sizing presets for <PreviewSurfacePager>. One place to tune every
 // preview surface instead of hand-editing props in each modal.

@@ -1,25 +1,24 @@
+import { alertController } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { usePhotoSwiper } from "@/store/photoswiper.store";
-import { useToast } from "@/service/toast.service";
-import { useAuthStore } from "@/store/auth.store";
-import { useInboxStore } from "@/store/inbox.store";
+import { isInRoom } from "@/draw/sync/syncStatus";
+import router from "@/router";
 import {
 	commentOnInbox,
 	removeFromInbox,
 	seeInboxItem,
 } from "@/service/api/inbox.api";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useInboxStore } from "@/store/inbox.store";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
 import { useUserCacheStore } from "@/store/userCache.store";
-import { isInRoom } from "@/draw/sync/syncStatus";
-import router from "@/router";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { alertController } from "@ionic/vue";
 
 export function useInboxSwiper() {
 	const swiperStore = usePhotoSwiper();
 	const { toast } = useToast();
 	const { user } = storeToRefs(useAuthStore());
-	const { removeFromLocalInbox, findUserInInboxUsers, addComment } =
-		useInboxStore();
+	const { removeFromLocalInbox, findUserInInboxUsers } = useInboxStore();
 
 	const userCache = useUserCacheStore();
 
@@ -51,7 +50,7 @@ export function useInboxSwiper() {
 						user_id: user.value!._id,
 						inbox_id: item._id,
 					});
-				} catch (e) {
+				} catch (_e) {
 					toast("Failed to delete item from server", { color: "danger" });
 				}
 			},

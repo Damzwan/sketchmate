@@ -13,10 +13,10 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 import type { ShopSku } from "@/config/catalog.config";
 import { resolveEffect } from "@/config/profile_options.config";
 import ShopCardShell from "./ShopCardShell.vue";
-import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
 
 const props = defineProps<{
 	sku: ShopSku;

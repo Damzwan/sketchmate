@@ -1,7 +1,7 @@
 {
-  "name": "SketchMate",
-  "integrations": {
-    "capacitor": {}
-  },
-  "type": "vue-vite"
+	"name": "SketchMate",
+	"integrations": {
+		"capacitor": {}
+	},
+	"type": "vue-vite"
 }

@@ -10,9 +10,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import dayjs from "dayjs";
 import { mdiAlertCircleOutline, mdiCheckAll, mdiClockOutline } from "@mdi/js";
+import dayjs from "dayjs";
+import { computed } from "vue";
 
 const props = defineProps<{ msg: any; isMe: boolean; activeTab: string }>();
 

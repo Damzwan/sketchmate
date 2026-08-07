@@ -54,12 +54,12 @@ import {
 	useIonRouter,
 } from "@ionic/vue";
 import { homeOutline, imagesOutline, personOutline } from "ionicons/icons";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import { masterAnimation } from "@/helper/animation.helper";
-import { useRoute } from "vue-router";
 import { storeToRefs } from "pinia";
-import { useAuthStore } from "@/store/auth.store";
 import { computed } from "vue";
+import { useRoute } from "vue-router";
+import { masterAnimation } from "@/helper/animation.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const router = useIonRouter();
 const route = useRoute();

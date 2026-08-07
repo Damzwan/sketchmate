@@ -277,33 +277,32 @@ import {
 	toValue,
 	watch,
 } from "vue";
+import logo from "@/assets/logo.webp";
+import astronaut from "@/assets/lottie/avatar/astronaut.lottie";
+import autumn_leaves from "@/assets/lottie/avatar/autumn_leaves.lottie";
+import catLottie from "@/assets/lottie/avatar/cat.lottie";
+import dragon from "@/assets/lottie/avatar/dragon.lottie";
+import fire from "@/assets/lottie/avatar/fire.lottie";
+import fishLottie from "@/assets/lottie/avatar/fish.lottie";
+import jellyFishLottie from "@/assets/lottie/avatar/jellyfish.lottie";
+import meteor from "@/assets/lottie/avatar/meteor.lottie";
+import moon from "@/assets/lottie/avatar/moon.lottie";
+import mushroom_walking from "@/assets/lottie/avatar/mushroom.lottie";
+import plantLottie from "@/assets/lottie/avatar/plant.lottie";
+import rocket from "@/assets/lottie/avatar/rocket.lottie";
+import turtleLottie from "@/assets/lottie/avatar/turtle.lottie";
+import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
 import {
 	acquireSprite,
-	SPRITE_DPR,
 	prefetchSprite,
-	warmFrozenFrame,
+	SPRITE_DPR,
 	type SpriteHandle,
+	warmFrozenFrame,
 } from "@/helper/lottie_sprite.helper";
-import { resolveWorld, type WorldDef } from "@/config/profile_options.config";
 import {
 	AMBIENT_FOREGROUND,
 	useAmbientPause,
 } from "@/store/ambientPause.store";
-
-import turtleLottie from "@/assets/lottie/avatar/turtle.lottie";
-import fishLottie from "@/assets/lottie/avatar/fish.lottie";
-import jellyFishLottie from "@/assets/lottie/avatar/jellyfish.lottie";
-import catLottie from "@/assets/lottie/avatar/cat.lottie";
-import plantLottie from "@/assets/lottie/avatar/plant.lottie";
-import mushroom_walking from "@/assets/lottie/avatar/mushroom.lottie";
-import autumn_leaves from "@/assets/lottie/avatar/autumn_leaves.lottie";
-import logo from "@/assets/logo.webp";
-import meteor from "@/assets/lottie/avatar/meteor.lottie";
-import astronaut from "@/assets/lottie/avatar/astronaut.lottie";
-import moon from "@/assets/lottie/avatar/moon.lottie";
-import rocket from "@/assets/lottie/avatar/rocket.lottie";
-import dragon from "@/assets/lottie/avatar/dragon.lottie";
-import fire from "@/assets/lottie/avatar/fire.lottie";
 
 const props = withDefaults(
 	defineProps<{

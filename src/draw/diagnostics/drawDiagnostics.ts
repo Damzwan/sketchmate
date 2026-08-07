@@ -25,14 +25,7 @@
 // and one stall timer. No allocation happens per frame or per tile.
 
 import * as Sentry from "@sentry/capacitor";
-import {
-	lastDrawPhase,
-	setDrawMetricsSink,
-	setLongTaskSink,
-	snapshotDrawMetrics,
-	type DrawMetricsSnapshot,
-	type LongTaskReport,
-} from "@/draw/rendering/renderMetrics";
+import type { DrawRenderBackend } from "@/draw/config/renderBackend.config";
 import {
 	DRAW_DEVICE_MEMORY_GB,
 	DRAW_HARDWARE_CONCURRENCY,
@@ -41,7 +34,14 @@ import {
 	IS_MOBILE_DEVICE,
 	isRenderDprCapped,
 } from "@/draw/config/renderQuality.config";
-import type { DrawRenderBackend } from "@/draw/config/renderBackend.config";
+import {
+	type DrawMetricsSnapshot,
+	type LongTaskReport,
+	lastDrawPhase,
+	setDrawMetricsSink,
+	setLongTaskSink,
+	snapshotDrawMetrics,
+} from "@/draw/rendering/renderMetrics";
 
 /**
  * How often the engine snapshot is written to the Sentry scope.

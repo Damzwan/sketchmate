@@ -67,12 +67,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonIcon } from "@ionic/vue";
 import { mdiCheck } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { computed } from "vue";
 import ProfileEffect from "@/components/profile/customization/ProfileEffect.vue";
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
 import ProfileWorld from "@/components/profile/ProfileWorld.vue";
 import {
 	hydrateCustomization,
@@ -81,6 +80,7 @@ import {
 	resolveTheme,
 	resolveWorld,
 } from "@/config/profile_options.config";
+import { svg } from "@/helper/general.helper";
 
 const props = defineProps<{
 	friend: any;
@@ -97,7 +97,9 @@ const customization = computed(() =>
 );
 const theme = computed(() => resolveTheme(customization.value.themeId));
 const world = computed(() => resolveWorld(customization.value.worldId));
-const fontFamily = computed(() => resolveFontFamily(customization.value.fontId));
+const fontFamily = computed(() =>
+	resolveFontFamily(customization.value.fontId),
+);
 const surfacePalette = computed(() =>
 	resolveReadableCustomizationPalette(theme.value, world.value),
 );
@@ -114,9 +116,7 @@ const nameStyle = computed(() => ({
 	textShadow: surfacePalette.value.textShadow,
 }));
 const selectionStyle = computed(() => ({
-	background: props.selected
-		? "var(--ion-color-secondary)"
-		: "transparent",
+	background: props.selected ? "var(--ion-color-secondary)" : "transparent",
 	borderColor: props.selected
 		? "var(--ion-color-secondary)"
 		: surfacePalette.value.controlBorder,

@@ -1,26 +1,26 @@
 // helper/notification.helper.ts
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Preferences } from "@capacitor/preferences";
-import { LocalStorage } from "@/types/storage.types";
-import { FRONTEND_ROUTES } from "@/types/router.types";
-import router from "@/router";
 import {
-	PushNotifications,
 	type ActionPerformed,
+	PushNotifications,
 } from "@capacitor/push-notifications";
-import { NotificationType } from "@/types/server.types";
-import { useToast } from "@/service/toast.service";
-import { isNative } from "@/helper/general.helper";
 import { deleteToken, getMessaging, getToken } from "firebase/messaging";
-import { useNotificationStore } from "@/store/notification.store";
-import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
+import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
+import { isNative } from "@/helper/general.helper";
+import router from "@/router";
 import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
+import { socketLoggedInPromise } from "@/service/api/socket/socket.service";
+import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useInboxSwiper } from "@/composables/gallery/useInboxSwiper";
 import { useInboxStore } from "@/store/inbox.store";
+import { useNotificationStore } from "@/store/notification.store";
 import { useQuotaStore } from "@/store/quota.store";
+import { FRONTEND_ROUTES } from "@/types/router.types";
 import type { QuotaState } from "@/types/server.types";
+import { NotificationType } from "@/types/server.types";
+import { LocalStorage } from "@/types/storage.types";
 
 const LEGACY_DAILY_REMINDER_ID = 1;
 const POST_QUOTA_RESET_REMINDER_ID = 2;

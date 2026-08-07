@@ -28,33 +28,32 @@
 </template>
 
 <script setup lang="ts">
-import { IonApp, IonRouterOutlet, useIonRouter } from "@ionic/vue";
-import { defineAsyncComponent, onMounted, ref, watch } from "vue";
 import { defineCustomElements } from "@ionic/pwa-elements/loader";
+import { IonApp, IonRouterOutlet, useIonRouter } from "@ionic/vue";
+import { storeToRefs } from "pinia";
+import { defineAsyncComponent, onMounted, ref, watch } from "vue";
+import LazyMount from "@/components/general/LazyMount.vue";
+// Eagerly loaded components
+import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
+import { useWhatsNewPrompt } from "@/composables/general/useWhatsNewPrompt";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
+import { useShareToastStore } from "@/draw/sharing/shareToast.store";
 import {
 	setupBackButtonBehavior,
 	setupPWAPromptListener,
 	setupRouterReadyWatcher,
 } from "@/helper/general.helper";
-import { storeToRefs } from "pinia";
-import { useNetworkStore } from "@/store/network.store";
-import { useAuthStore } from "@/store/auth.store";
 import { useActiveViewSync } from "@/service/activeViewSync";
-
-// Eagerly loaded components
-import CircularLoader from "@/components/general/loaders/CircularLoader.vue";
-import LazyMount from "@/components/general/LazyMount.vue";
-import { useMenuStore } from "@/store/menu.store";
-import { useSessionStore } from "@/store/session.store";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { usePhotoSwiper } from "@/store/photoswiper.store";
+import { useAuthStore } from "@/store/auth.store";
+import { useBalloonStore } from "@/store/balloon.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useDateOfBirthModalStore } from "@/store/dateOfBirth.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useNetworkStore } from "@/store/network.store";
 import { useParentalStore } from "@/store/parental.store";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
+import { useSessionStore } from "@/store/session.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
-import { useBalloonStore } from "@/store/balloon.store";
-import { useShareToastStore } from "@/draw/sharing/shareToast.store";
-import { useWhatsNewPrompt } from "@/composables/general/useWhatsNewPrompt";
 
 // LAZY LOADED COMPONENTS (Will create separate js chunks)
 const GlobalToast = defineAsyncComponent(

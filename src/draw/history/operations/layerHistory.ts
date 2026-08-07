@@ -1,9 +1,9 @@
-import { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
-import { HistoryContext } from "@/draw/history/historyActions";
-import { drawActionMapping } from "@/draw/actions/drawActions";
+import type { FabricObject } from "fabric";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { FabricObject } from "fabric";
+import { drawActionMapping } from "@/draw/actions/drawActions";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import type { HistoryAction, HistoryEvent } from "@/draw/history/history.types";
+import type { HistoryContext } from "@/draw/history/historyActions";
 
 function patchObjectsRegion(objects: (FabricObject | undefined)[]): void {
 	const mgr = useDrawObjectManager();
@@ -13,9 +13,8 @@ function patchObjectsRegion(objects: (FabricObject | undefined)[]): void {
 		maxY = -Infinity;
 	for (const obj of objects) {
 		if (!obj) continue;
-		// @ts-ignore
-		const b = obj.getBoundingRect(true, true);
-		if (!b || !isFinite(b.left)) continue;
+		const b = obj.getBoundingRect();
+		if (!b || !Number.isFinite(b.left)) continue;
 		minX = Math.min(minX, b.left);
 		minY = Math.min(minY, b.top);
 		maxX = Math.max(maxX, b.left + b.width);

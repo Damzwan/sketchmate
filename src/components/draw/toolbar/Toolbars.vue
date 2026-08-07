@@ -61,21 +61,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { storeToRefs } from "pinia";
-import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { mdiChevronLeft, mdiFullscreenExit } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-import { useSelect } from "@/draw/tools/select.store";
-import TopManagement from "@/components/draw/toolbar/TopManagement.vue";
-import ColorSwatches from "@/components/draw/toolbar/ColorSwatches.vue";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
 import LayerControl from "@/components/draw/layers/LayerControl.vue";
-import ToolDockText from "@/components/draw/toolbar/ToolDockText.vue";
-import ToolDockSelect from "@/components/draw/toolbar/ToolDockSelect.vue";
-import ToolDockDraw from "@/components/draw/toolbar/ToolDockDraw.vue";
-import ToolDockClaimArea from "@/components/draw/toolbar/ToolDockClaimArea.vue";
+import ColorSwatches from "@/components/draw/toolbar/ColorSwatches.vue";
 import ToolButton from "@/components/draw/toolbar/ToolButton.vue";
+import ToolDockClaimArea from "@/components/draw/toolbar/ToolDockClaimArea.vue";
+import ToolDockDraw from "@/components/draw/toolbar/ToolDockDraw.vue";
+import ToolDockSelect from "@/components/draw/toolbar/ToolDockSelect.vue";
+import ToolDockText from "@/components/draw/toolbar/ToolDockText.vue";
+import TopManagement from "@/components/draw/toolbar/TopManagement.vue";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { useSelect } from "@/draw/tools/select.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { svg } from "@/helper/general.helper";
 
 const emit = defineEmits(["start-benchmark"]);
 

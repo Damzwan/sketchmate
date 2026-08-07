@@ -1,6 +1,6 @@
-import { onScopeDispose, ref } from "vue";
-import { Keyboard } from "@capacitor/keyboard";
 import type { PluginListenerHandle } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
+import { onScopeDispose, ref } from "vue";
 import { isNative } from "@/helper/general.helper";
 
 /**

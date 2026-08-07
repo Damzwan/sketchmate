@@ -75,37 +75,36 @@
 
 <script setup lang="ts">
 import {
-  IonButton,
-  IonContent,
-  IonInfiniteScroll,
-  IonInfiniteScrollContent,
-  IonPage,
-  IonIcon,
-  onIonViewWillEnter,
+	IonButton,
+	IonContent,
+	IonIcon,
+	IonInfiniteScroll,
+	IonInfiniteScrollContent,
+	IonPage,
+	onIonViewWillEnter,
 } from "@ionic/vue";
-import { storeToRefs } from "pinia";
 import { mdiBellOutline } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-
+import { storeToRefs } from "pinia";
 import SubPageBar from "@/components/general/SubPageBar.vue";
 import NotificationCard from "@/components/notification/NotificationCard.vue";
+import { svg } from "@/helper/general.helper";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
 
 const store = useInAppNotificationStore();
 const { notifications, isLoading, hasMore, groupedByDay, unread } =
-  storeToRefs(store);
+	storeToRefs(store);
 
 onIonViewWillEnter(() => {
-  store.markAllSeen();
+	store.markAllSeen();
 });
 
 async function handleLoadMore(event: any) {
-  await store.loadMore();
-  event.target.complete();
+	await store.loadMore();
+	event.target.complete();
 }
 
 async function handleMarkAllRead() {
-  await store.markAllRead();
+	await store.markAllRead();
 }
 </script>
 

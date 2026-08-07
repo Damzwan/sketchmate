@@ -120,7 +120,6 @@ import {
 	IonSpinner,
 	modalController,
 } from "@ionic/vue";
-import { svg } from "@/helper/general.helper";
 import {
 	mdiChevronLeft,
 	mdiEmailOutline,
@@ -128,6 +127,7 @@ import {
 	mdiLockOutline,
 	mdiSend,
 } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
 
 withDefaults(
 	defineProps<{
@@ -137,16 +137,17 @@ withDefaults(
 		trigger: "openUpgradeAccountModal",
 	},
 );
-import { computed, reactive, ref } from "vue";
-import { email, minLength, required, sameAs } from "@vuelidate/validators";
-import { useVuelidate } from "@vuelidate/core";
+
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
+import { useVuelidate } from "@vuelidate/core";
+import { email, minLength, required, sameAs } from "@vuelidate/validators";
 import { GoogleAuthProvider, getAuth, linkWithCredential } from "firebase/auth";
-import { ToastDuration } from "@/types/toast.types";
-import { useToast } from "@/service/toast.service";
-import connectImage from "@/assets/illustrations/connect.webp";
 import { storeToRefs } from "pinia";
+import { computed, reactive, ref } from "vue";
+import connectImage from "@/assets/illustrations/connect.webp";
+import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
+import { ToastDuration } from "@/types/toast.types";
 
 const { toast } = useToast();
 const { firebaseUser } = storeToRefs(useAuthStore());

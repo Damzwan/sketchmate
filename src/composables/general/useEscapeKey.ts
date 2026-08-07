@@ -1,5 +1,5 @@
-import { toValue, type MaybeRefOrGetter } from "vue";
 import { useEventListener } from "@vueuse/core";
+import { type MaybeRefOrGetter, toValue } from "vue";
 
 interface EscapeKeyOptions {
 	enabled?: MaybeRefOrGetter<boolean>;

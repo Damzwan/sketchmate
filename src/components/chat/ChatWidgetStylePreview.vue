@@ -198,30 +198,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { storeToRefs } from "pinia";
 import { IonIcon } from "@ionic/vue";
-import { chatbubblesOutline } from "ionicons/icons";
 import { mdiClose, mdiDotsHorizontal, mdiPaletteOutline } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { chatbubblesOutline } from "ionicons/icons";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
-import { useAuthStore } from "@/store/auth.store";
-import { useChatStore } from "@/store/chat.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useFriendStore } from "@/store/friend.store";
 import {
-	compareConversationActivity,
-	conversationActivityAt,
-} from "@/helper/chat.helper";
-import type { BaseMessage, PopulatedConversation } from "@/types/server.types";
-import {
+	type ChatCustomization,
 	hydrateChatCustomization,
 	resolveFontEffectClass,
 	resolveFontFamily,
 	resolveReadableCustomizationPalette,
 	resolveTheme,
-	type ChatCustomization,
 } from "@/config/profile_options.config";
+import {
+	compareConversationActivity,
+	conversationActivityAt,
+} from "@/helper/chat.helper";
+import { svg } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
+import type { BaseMessage, PopulatedConversation } from "@/types/server.types";
 
 const props = withDefaults(
 	defineProps<{
@@ -271,13 +271,15 @@ const previewConversation = computed(() => {
 	return conversations.value[0] || null;
 });
 const partnerFor = (chat?: PopulatedConversation | null) =>
-	chat?.participants?.find((person) => person._id !== currentUser.value?._id) || null;
+	chat?.participants?.find((person) => person._id !== currentUser.value?._id) ||
+	null;
 const previewPartner = computed(() => partnerFor(previewConversation.value));
-const tabPeople = computed(() =>
-	conversations.value
-		.map((chat) => partnerFor(chat))
-		.filter(Boolean)
-		.slice(0, 2) as any[],
+const tabPeople = computed(
+	() =>
+		conversations.value
+			.map((chat) => partnerFor(chat))
+			.filter(Boolean)
+			.slice(0, 2) as any[],
 );
 const onlinePeople = computed(() =>
 	onlineFriends.value
@@ -313,9 +315,7 @@ const conversationTime = (chat: PopulatedConversation) => {
 const previewRows = computed(() =>
 	previewChats.value.map((chat) => {
 		const partner = partnerFor(chat);
-		const typing = partner
-			? Boolean(typingStatuses.value[partner._id])
-			: false;
+		const typing = partner ? Boolean(typingStatuses.value[partner._id]) : false;
 		return {
 			chat,
 			partner,
@@ -341,7 +341,11 @@ const previewMessages = computed(() => {
 	const chat = previewConversation.value;
 	if (!chat) return [];
 	const cached = messagesByChat.value[chat._id] || [];
-	const source = cached.length ? cached : chat.last_message ? [chat.last_message] : [];
+	const source = cached.length
+		? cached
+		: chat.last_message
+			? [chat.last_message]
+			: [];
 	return source.slice(-3).map((message) => ({
 		id: message._id,
 		text: messageText(message),

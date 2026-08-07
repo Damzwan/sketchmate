@@ -67,9 +67,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiCheck } from "@mdi/js";
+import { computed } from "vue";
 import { describeGrant, type ShopSku } from "@/config/catalog.config";
 import ShopGrantPreview from "./ShopGrantPreview.vue";
 

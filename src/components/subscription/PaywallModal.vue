@@ -297,39 +297,39 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { IonButton, IonContent, IonIcon, IonModal } from "@ionic/vue";
-import { storeToRefs } from "pinia";
-import {
-	Purchases,
-	type PurchasesPackage,
-} from "@revenuecat/purchases-capacitor";
 import { Browser } from "@capacitor/browser";
-import { chevronBackOutline } from "ionicons/icons";
+import { IonButton, IonContent, IonIcon, IonModal } from "@ionic/vue";
 import {
 	mdiBrush,
 	mdiCheck,
 	mdiCheckAll,
-	mdiLayersTripleOutline,
 	mdiCrown,
 	mdiCrownOutline,
 	mdiHeart,
 	mdiInfinity,
+	mdiLayersTripleOutline,
 	mdiMinus,
 	mdiMotionPlayOutline,
 	mdiPalette,
 	mdiShimmer,
 } from "@mdi/js";
-import { isNative, svg } from "@/helper/general.helper";
-import logo from "@/assets/logo.webp";
+import {
+	Purchases,
+	type PurchasesPackage,
+} from "@revenuecat/purchases-capacitor";
+import { chevronBackOutline } from "ionicons/icons";
+import { storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
 import bigbossImage from "@/assets/bigboss.jpg";
+import logo from "@/assets/logo.webp";
 // TODO: swap in two distinct cat illustrations later; same image for now.
 import crazyCat from "@/assets/stickers/crazy.webp";
 import fireCat from "@/assets/stickers/fire.webp";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import { LIFETIME_RC_PRODUCT } from "@/config/catalog.config";
+import { isNative, svg } from "@/helper/general.helper";
 import { useMenuStore } from "@/store/menu.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
-import { LIFETIME_RC_PRODUCT } from "@/config/catalog.config";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 
 // TODO: point these at the live pages before release.
 const TERMS_URL = "https://sketchmate.app/terms";

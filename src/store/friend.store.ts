@@ -1,23 +1,23 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import type {
-	ChatStatus,
-	FeedPost,
-	NetworkUser,
-	PopulatedConversation,
-} from "@/types/server.types";
 import { getPendingRequests } from "@/service/api/chat.api";
-import { fetchOnlineFriends, getFullProfile } from "@/service/api/user.api";
 import {
 	fetchNetworkType,
 	fetchUserStats,
 	getBlockedIds,
 	toggleFollow,
 } from "@/service/api/relationship.api";
-import { useChatStore } from "@/store/chat.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useUserCacheStore } from "@/store/userCache.store";
+import { fetchOnlineFriends, getFullProfile } from "@/service/api/user.api";
 import { mixpanelEvents, trackEvent } from "@/service/mixpanel";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useUserCacheStore } from "@/store/userCache.store";
+import type {
+	ChatStatus,
+	FeedPost,
+	NetworkUser,
+	PopulatedConversation,
+} from "@/types/server.types";
 
 export const useFriendStore = defineStore("friend", () => {
 	const authStore = useAuthStore();
@@ -272,8 +272,7 @@ export const useFriendStore = defineStore("friend", () => {
 				page === 1
 					? networkLists.value[type].length
 					: networkLists.value[type].length - before;
-			hasMore.value =
-				added > 0 && networkLists.value[type].length < totalCount;
+			hasMore.value = added > 0 && networkLists.value[type].length < totalCount;
 		} catch (e) {
 			console.error(`Failed to fetch ${type}`, e);
 			if (token !== networkRequestToken[type]) return;

@@ -106,27 +106,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
 import { IonModal } from "@ionic/vue";
-import { storeToRefs } from "pinia";
 import { onLongPress, useEventListener } from "@vueuse/core";
+import { storeToRefs } from "pinia";
 import { register } from "swiper/element/bundle";
-import { playSelectionTick } from "@/config/post.config";
-
-import { usePhotoSwiper } from "@/store/photoswiper.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useSessionStore } from "@/store/session.store";
-import { fetchPostComments } from "@/service/api/post.api";
-import { EventBus } from "@/main";
-import router from "@/router";
-
-import PhotoSwiperItem from "@/components/photoswiper/PhotoSwiperItem.vue";
-import PhotoSwiperHeader from "@/components/photoswiper/PhotoSwiperHeader.vue";
-import PhotoSwiperFooter from "@/components/photoswiper/PhotoSwiperFooter.vue";
-import SwiperCommentDrawer from "@/components/photoswiper/SwiperCommentDrawer.vue";
-import SwiperFollowersDrawer from "@/components/photoswiper/SwiperFollowersDrawer.vue";
+import { computed, nextTick, ref, watch } from "vue";
 import ReactionBurst from "@/components/general/ReactionBurst.vue";
 import ReactionPopover from "@/components/general/ReactionPopover.vue";
+import PhotoSwiperFooter from "@/components/photoswiper/PhotoSwiperFooter.vue";
+import PhotoSwiperHeader from "@/components/photoswiper/PhotoSwiperHeader.vue";
+import PhotoSwiperItem from "@/components/photoswiper/PhotoSwiperItem.vue";
+import SwiperCommentDrawer from "@/components/photoswiper/SwiperCommentDrawer.vue";
+import SwiperFollowersDrawer from "@/components/photoswiper/SwiperFollowersDrawer.vue";
+import { playSelectionTick } from "@/config/post.config";
+import { EventBus } from "@/main";
+import router from "@/router";
+import { fetchPostComments } from "@/service/api/post.api";
+import { useAuthStore } from "@/store/auth.store";
+import { usePhotoSwiper } from "@/store/photoswiper.store";
+import { useSessionStore } from "@/store/session.store";
 
 register();
 
@@ -369,9 +367,13 @@ const activePointers = new Set<number>();
 const onArtPointerDown = (e: PointerEvent) => activePointers.add(e.pointerId);
 const onArtPointerUp = (e: PointerEvent) => activePointers.delete(e.pointerId);
 
-useEventListener(artSurface, "pointerdown", onArtPointerDown, { passive: true });
+useEventListener(artSurface, "pointerdown", onArtPointerDown, {
+	passive: true,
+});
 useEventListener(artSurface, "pointerup", onArtPointerUp, { passive: true });
-useEventListener(artSurface, "pointercancel", onArtPointerUp, { passive: true });
+useEventListener(artSurface, "pointercancel", onArtPointerUp, {
+	passive: true,
+});
 
 const isZoomedIn = () => (swiper.value?.swiper?.zoom?.scale ?? 1) > 1.01;
 

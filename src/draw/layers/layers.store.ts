@@ -1,17 +1,22 @@
-import { defineStore } from "pinia";
-import { computed, ref } from "vue";
-import { v4 as uuidv4 } from "uuid";
 import type { FabricObject } from "fabric";
+import { defineStore } from "pinia";
+import { v4 as uuidv4 } from "uuid";
+import { computed, ref } from "vue";
+import { useCanvasController } from "@/draw/canvas/canvasController";
+import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
+import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
+import { useDrawHistoryManager } from "@/draw/history/history.store";
+import { HistoryEvent } from "@/draw/history/history.types";
 import {
 	BASE_LAYER_ID,
 	byLayerOrder,
 	createLayer,
-	defaultSoloLayers,
 	type DrawLayer,
+	defaultSoloLayers,
 	FIXED_ROOM_LAYERS,
+	FREE_LAYER_LIMIT,
 	type LayerOp,
 	type LayerPolicy,
-	FREE_LAYER_LIMIT,
 	MAX_LAYER_NAME,
 	MAX_SOLO_LAYERS,
 	orderBetween,
@@ -22,15 +27,10 @@ import {
 	setLayerSet,
 	syncLayerFlags,
 } from "@/draw/layers/layerRegistry";
-import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
-import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
-import { useCanvasController } from "@/draw/canvas/canvasController";
-import { useDrawHistoryManager } from "@/draw/history/history.store";
-import { HistoryEvent } from "@/draw/history/history.types";
+import { toJSON } from "@/draw/objects/objectSerialization";
+import { drawBakePressure } from "@/draw/rendering/renderMetrics";
 import { useAuthStore } from "@/store/auth.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
-import { drawBakePressure } from "@/draw/rendering/renderMetrics";
-import { serializeOnce, toJSON } from "@/draw/objects/objectSerialization";
 
 /**
  * Layer document + view state.

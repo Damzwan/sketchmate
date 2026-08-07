@@ -1,25 +1,25 @@
-import { io, Socket } from "socket.io-client";
-import {
-	CommentRes,
-	Res,
-	SOCKET_ENDPONTS,
-	SocketLoginParams,
-} from "@/types/server.types";
-import { useAuthStore } from "@/store/auth.store";
 import { storeToRefs } from "pinia";
-import { useToast } from "@/service/toast.service";
-import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/types/menu.types";
-import { useInboxStore } from "@/store/inbox.store";
-import { useBalloonStore } from "@/store/balloon.store";
+import { io, type Socket } from "socket.io-client";
 import { registerChatHandlers } from "@/service/api/socket/chat.socket";
-import { useModerationStore } from "@/store/moderation.store";
+import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useBalloonStore } from "@/store/balloon.store";
 import { useInAppNotificationStore } from "@/store/inAppNotificationStore";
+import { useInboxStore } from "@/store/inbox.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useModerationStore } from "@/store/moderation.store";
+import { Menu } from "@/types/menu.types";
+import {
+	type CommentRes,
+	type Res,
+	SOCKET_ENDPONTS,
+	type SocketLoginParams,
+} from "@/types/server.types";
 
 export let socket: Socket | undefined;
 
 let resolveSocketLoggedIn: () => void;
-export let socketLoggedInPromise = new Promise<void>((resolve) => {
+export const socketLoggedInPromise = new Promise<void>((resolve) => {
 	resolveSocketLoggedIn = resolve;
 });
 
@@ -55,7 +55,7 @@ export async function socketConnect(): Promise<void> {
 	});
 
 	socket.on("disconnect", () => {
-		const store = useAuthStore();
+		const _store = useAuthStore();
 	});
 
 	socket.on(SOCKET_ENDPONTS.login, () => {

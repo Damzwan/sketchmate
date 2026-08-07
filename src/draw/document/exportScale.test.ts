@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { Rect } from "fabric";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 // Only `compressImg` is used by the module under test, and the real helper
 // drags firebase (and the whole app bootstrap) into the import graph.
 vi.mock("@/helper/general.helper", () => ({ compressImg: vi.fn() }));

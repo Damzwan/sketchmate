@@ -34,21 +34,17 @@
 
 
 <script setup lang="ts">
+import { IonIcon, IonItem } from "@ionic/vue";
+import { mdiCheckBold } from "@mdi/js";
+import { svg } from "@/helper/general.helper";
+import { Mate } from "@/types/server.types";
 
-import { svg } from '@/helper/general.helper'
-import { mdiCheckBold } from '@mdi/js'
-import { IonIcon, IonItem } from '@ionic/vue'
-import { Mate } from '@/types/server.types'
-
-
-const emits = defineEmits(['click'])
+const emits = defineEmits(["click"]);
 defineProps<{
-  mate: Mate
-  isSelected: boolean
-  isDisabled: boolean
-}>()
-
-
+	mate: Mate;
+	isSelected: boolean;
+	isDisabled: boolean;
+}>();
 </script>
 
 <style scoped>

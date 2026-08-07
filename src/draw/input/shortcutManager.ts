@@ -1,17 +1,17 @@
-import { useDrawStore } from "@/draw/session/draw.store";
+import { modalController, popoverController } from "@ionic/vue";
+import type { Canvas } from "fabric";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
-import { DrawTool } from "@/draw/tools/tool.types";
-import { Menu } from "@/types/menu.types";
 import { Shortcut } from "@/draw/config/shortcut.config";
-import { modalController, popoverController } from "@ionic/vue";
-import { Canvas } from "fabric/fabric-impl";
-import { useSelect } from "@/draw/tools/select.store";
-import { isMac } from "@/helper/general.helper";
-import { useToolSelection } from "@/draw/tools/toolSelection.store";
-import { useMenuStore } from "@/store/menu.store";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useSelect } from "@/draw/tools/select.store";
+import { DrawTool } from "@/draw/tools/tool.types";
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { isMac } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
+import { Menu } from "@/types/menu.types";
 import { setupCanvasDebugger } from "@/utils/fabricDebug";
 
 export enum ToolbarIds {
@@ -198,7 +198,7 @@ export function useShortcutManager() {
 				dismissPopover();
 				break;
 
-			case Shortcut.manual:
+			case Shortcut.manual: {
 				event.preventDefault();
 				if (isSelectMode.value) return;
 				const { openMenu } = useMenuStore();
@@ -207,6 +207,7 @@ export function useShortcutManager() {
 				const modal = await modalController.getTop();
 				if (modal) modalController.dismiss();
 				break;
+			}
 
 			case Shortcut.undoredo:
 				event.preventDefault();
@@ -309,7 +310,7 @@ export function useShortcutManager() {
 				dismissPopover();
 				break;
 
-			case Shortcut.paste:
+			case Shortcut.paste: {
 				if (isSelectMode.value) c?.discardActiveObject();
 				const items = await navigator.clipboard.read();
 
@@ -331,6 +332,7 @@ export function useShortcutManager() {
 					}
 				}
 				break;
+			}
 		}
 	}
 

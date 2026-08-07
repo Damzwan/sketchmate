@@ -1,5 +1,5 @@
 import {
-	ColorRGBA,
+	type ColorRGBA,
 	getColorAtPixel,
 	isSameColor,
 	setColorAtPixel,

@@ -1,5 +1,5 @@
-import { HistoryAction } from "@/draw/history/history.types";
-import { FabricObjectProps } from "fabric";
+import type { FabricObjectProps } from "fabric";
+import type { HistoryAction } from "@/draw/history/history.types";
 import type { LayerOp } from "@/draw/layers/layer.types";
 
 export enum DrawSyncingEvent {

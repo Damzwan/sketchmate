@@ -7,13 +7,13 @@
 <script setup lang="ts">
 import { IonNav, IonPage, useIonRouter } from "@ionic/vue";
 import { storeToRefs } from "pinia";
-import { useAuthStore } from "@/store/auth.store";
 import { markRaw, ref, watch } from "vue";
-import LoginMainPage from "@/components/login/LoginMainPage.vue";
 import LoginAccountCustomizationPage from "@/components/login/LoginAccountCustomizationPage.vue";
+import LoginMainPage from "@/components/login/LoginMainPage.vue";
 import LoginNotificationPage from "@/components/login/LoginNotificationPage.vue";
-import { useNotificationStore } from "@/store/notification.store";
 import { isNative } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { useNotificationStore } from "@/store/notification.store";
 import { FRONTEND_ROUTES } from "@/types/router.types";
 
 const { isNewAccount } = storeToRefs(useAuthStore());

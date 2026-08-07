@@ -5,7 +5,8 @@ interface ShapeCreationSettings {
 	stroke?: string;
 	fill?: string;
 	backgroundColor?: string;
-	strokeWidth?: number;
+	/** Always set — shapes cannot be created without a stroke width. */
+	strokeWidth: number;
 }
 
 export const useShapeCreation = defineStore("shapeCreation", () => {

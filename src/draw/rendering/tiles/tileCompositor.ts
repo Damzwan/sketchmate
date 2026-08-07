@@ -1,17 +1,17 @@
 import { recordComposite } from "@/draw/rendering/renderMetrics";
-import type { Tile } from "./tileStore";
-import { tileKey, type TileKey } from "./tileKey";
+import { type TileKey, tileKey } from "./tileKey";
 import {
-	TileLayerBase,
 	type Bounded,
 	type CompositeCell,
 	type Draw,
-	type PartialDraw,
-	type WorldRect,
+	isOpaqueColor,
 	MAX_PARTIAL_OVERLAYS,
 	NO_HOLE,
-	isOpaqueColor,
+	type PartialDraw,
+	TileLayerBase,
+	type WorldRect,
 } from "./tileLayerBase";
+import type { Tile } from "./tileStore";
 
 export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 	// ── compositing ────────────────────────────────────────────────────────
@@ -343,7 +343,6 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		ctx.save();
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.imageSmoothingEnabled = true;
-		// @ts-ignore
 		ctx.imageSmoothingQuality = "low";
 
 		// Draw tiles on top safely without stacking transparency. Iterate by fill
@@ -699,7 +698,10 @@ export class TileCompositor<T extends Bounded> extends TileLayerBase<T> {
 		const ctyi = Math.floor(cwy / ctws);
 		const key = tileKey(ct, ctxi, ctyi);
 		const t = this.tiles.get(key);
-		if (requireFresh && (!t || !this.isFresh(key, t) || this.dirtyRects.has(key)))
+		if (
+			requireFresh &&
+			(!t || !this.isFresh(key, t) || this.dirtyRects.has(key))
+		)
 			return null;
 		if (!t || !t.bitmap) return null;
 		// Only the part of the coarse tile that maps to THIS cell is in play.

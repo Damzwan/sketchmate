@@ -33,8 +33,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
 import { IonIcon } from "@ionic/vue";
+import { computed } from "vue";
 import { svg } from "@/helper/general.helper";
 
 const props = withDefaults(

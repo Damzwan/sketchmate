@@ -1,16 +1,4 @@
 import type { FabricObject } from "fabric";
-import type { WorldRect } from "../../rendering/committedLayer";
-import {
-	InfiniteQuadtreeManager,
-	type QuadtreeEntry,
-} from "../../utils/QuadTree";
-import {
-	bakeryClipSet,
-	bakeryMarkDirty,
-	bakeryZOrder,
-} from "../../rendering/bakery/tileBakeryClient";
-import type { ExplicitZIndex } from "./zIndex";
-import { markObjectMutated } from "../objectSerialization";
 import { BASE_LAYER_ID } from "@/draw/layers/layer.types";
 import {
 	activeLayerId,
@@ -22,6 +10,18 @@ import {
 	layerCount,
 	layerOrderOf,
 } from "@/draw/layers/layerRegistry";
+import {
+	bakeryClipSet,
+	bakeryMarkDirty,
+	bakeryZOrder,
+} from "../../rendering/bakery/tileBakeryClient";
+import type { WorldRect } from "../../rendering/committedLayer";
+import {
+	InfiniteQuadtreeManager,
+	type QuadtreeEntry,
+} from "../../utils/QuadTree";
+import { markObjectMutated } from "../objectSerialization";
+import type { ExplicitZIndex } from "./zIndex";
 
 export function createDrawingSpatialIndex(
 	objectMap: Map<string, FabricObject>,
@@ -163,8 +163,7 @@ export function createDrawingSpatialIndex(
 
 		if (a.__brSig === sig && a.__br) return a.__br as WorldRect;
 
-		// @ts-ignore
-		const b = obj.getBoundingRect(true, true);
+		const b = obj.getBoundingRect();
 		const r: WorldRect = { x: b.left, y: b.top, w: b.width, h: b.height };
 		a.__brSig = sig;
 		a.__br = r;
@@ -348,13 +347,13 @@ export function createDrawingSpatialIndex(
 			y1 = -Infinity;
 		for (const e of entryMap.values()) {
 			const b = e.bounds;
-			if (!isFinite(b.x) || b.w <= 0 || b.h <= 0) continue;
+			if (!Number.isFinite(b.x) || b.w <= 0 || b.h <= 0) continue;
 			x0 = Math.min(x0, b.x);
 			y0 = Math.min(y0, b.y);
 			x1 = Math.max(x1, b.x + b.w);
 			y1 = Math.max(y1, b.y + b.h);
 		}
-		if (!isFinite(x0)) return null;
+		if (!Number.isFinite(x0)) return null;
 		return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 	}
 
@@ -495,13 +494,13 @@ export function createDrawingSpatialIndex(
 			const objLayer = (obj as any).layerId ?? BASE_LAYER_ID;
 			if (objLayer !== layerId) continue;
 			const b = entry.bounds;
-			if (!isFinite(b.x) || b.w <= 0 || b.h <= 0) continue;
+			if (!Number.isFinite(b.x) || b.w <= 0 || b.h <= 0) continue;
 			x0 = Math.min(x0, b.x);
 			y0 = Math.min(y0, b.y);
 			x1 = Math.max(x1, b.x + b.w);
 			y1 = Math.max(y1, b.y + b.h);
 		}
-		if (!isFinite(x0)) return null;
+		if (!Number.isFinite(x0)) return null;
 		return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 	}
 

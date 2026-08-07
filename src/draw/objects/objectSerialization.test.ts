@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { FabricObject } from "fabric";
+import { describe, expect, it, vi } from "vitest";
 import {
 	markObjectMutated,
 	objectMutationRevision,

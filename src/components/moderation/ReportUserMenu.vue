@@ -65,37 +65,37 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { IonButton, IonIcon, modalController } from '@ionic/vue'
-import { mdiClose } from '@mdi/js'
-import { peopleOutline } from 'ionicons/icons'
-import { storeToRefs } from 'pinia'
+import { IonButton, IonIcon, modalController } from "@ionic/vue";
+import { mdiClose } from "@mdi/js";
+import { peopleOutline } from "ionicons/icons";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
 
-import UserAvatar from '@/components/profile/customization/UserAvatar.vue'
-import { useModerationStore } from '@/store/moderation.store'
-import { useAuthStore } from '@/store/auth.store'
-import { svg } from '@/helper/general.helper'
+import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { svg } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { useModerationStore } from "@/store/moderation.store";
 
-const props = defineProps<{ roomMembers: any[] }>()
+const props = defineProps<{ roomMembers: any[] }>();
 
-const { user } = storeToRefs(useAuthStore())
+const { user } = storeToRefs(useAuthStore());
 
 // Filter out your own profile from the actionable report queue
 const reportableMembers = computed(() => {
-  if (!props.roomMembers) return []
-  return props.roomMembers.filter((member) => member._id !== user.value?._id)
-})
+	if (!props.roomMembers) return [];
+	return props.roomMembers.filter((member) => member._id !== user.value?._id);
+});
 
 const handleReport = (member: any) => {
-  useModerationStore().openReport({
-    type: 'user',
-    id: member._id,
-    label: member.name
-  })
-  dismiss()
-}
+	useModerationStore().openReport({
+		type: "user",
+		id: member._id,
+		label: member.name,
+	});
+	dismiss();
+};
 
-const dismiss = () => modalController.dismiss()
+const dismiss = () => modalController.dismiss();
 </script>
 
 <style scoped>

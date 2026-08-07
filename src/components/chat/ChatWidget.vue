@@ -127,6 +127,10 @@
 </template>
 
 <script setup lang="ts">
+import { IonIcon, useBackButton, useIonRouter } from "@ionic/vue";
+import { mdiChevronDown } from "@mdi/js";
+import { useThrottleFn } from "@vueuse/core";
+import { storeToRefs } from "pinia";
 import {
 	computed,
 	defineAsyncComponent,
@@ -135,17 +139,10 @@ import {
 	ref,
 	watch,
 } from "vue";
-import { useBackButton, useIonRouter, IonIcon } from "@ionic/vue";
-import { storeToRefs } from "pinia";
-import { useThrottleFn } from "@vueuse/core";
-import { mdiChevronDown } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
-
-import ChatTabsHeader from "./ChatTabsHeader.vue";
-import ChatToolbar from "./ChatToolbar.vue";
-import ChatInputFooter from "./ChatInputFooter.vue";
-import LobbyInvitePopover from "./LobbyInvitePopover.vue";
-import RelationshipInfoModal from "./RelationshipInfoModal.vue";
+import { useEscapeKey } from "@/composables/general/useEscapeKey";
+import { useKeyboardInset } from "@/composables/general/useKeyboardInset";
+import { useScrollAnchor } from "@/composables/general/useScrollAnchor";
+import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
 import {
 	hydrateChatCustomization,
 	resolveFontEffectClass,
@@ -153,22 +150,23 @@ import {
 	resolveReadableCustomizationPalette,
 	resolveTheme,
 } from "@/config/profile_options.config";
-
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { masterAnimation } from "@/helper/animation.helper";
+import { svg } from "@/helper/general.helper";
+import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
 import { useAuthStore } from "@/store/auth.store";
-import { useParentalStore } from "@/store/parental.store";
-import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
 import { useFriendStore } from "@/store/friend.store";
 import { useMenuStore } from "@/store/menu.store";
+import { useParentalStore } from "@/store/parental.store";
 import { useSubscriptionStore } from "@/store/subscription.store";
-import { useDrawSyncer } from "@/draw/sync/session.store";
-import { socketJoinRoom } from "@/service/api/socket/drawSyncing.socket";
-import { masterAnimation } from "@/helper/animation.helper";
 import { FRONTEND_ROUTES } from "@/types/router.types";
-import { useScrollAnchor } from "@/composables/general/useScrollAnchor";
-import { useUserContextSheet } from "@/composables/profile/useUserContextSheet";
-import { useKeyboardInset } from "@/composables/general/useKeyboardInset";
-import { useEscapeKey } from "@/composables/general/useEscapeKey";
+import ChatInputFooter from "./ChatInputFooter.vue";
+import ChatTabsHeader from "./ChatTabsHeader.vue";
+import ChatToolbar from "./ChatToolbar.vue";
+import LobbyInvitePopover from "./LobbyInvitePopover.vue";
+import RelationshipInfoModal from "./RelationshipInfoModal.vue";
 
 // These are the two largest pane subtrees and neither is needed until the chat
 // sheet opens. Keeping them in separate chunks removes message rendering and

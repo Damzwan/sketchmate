@@ -105,8 +105,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
-import { storeToRefs } from "pinia";
 import {
 	actionSheetController,
 	alertController,
@@ -123,28 +121,28 @@ import {
 	mdiSend,
 	mdiShieldLockOutline,
 } from "@mdi/js";
-import { generateRandomCode, svg } from "@/helper/general.helper";
-
-import ChatRelationshipBanner from "./ChatRelationshipBanner.vue";
+import { storeToRefs } from "pinia";
+import { computed, nextTick, ref } from "vue";
 import {
 	needsDecision,
 	resolveRelationship,
 } from "@/config/relationship.config";
-
-import { useChatWidgetStore } from "@/store/chatWidget.store";
-import { useChatStore } from "@/store/chat.store";
-import { useAuthStore } from "@/store/auth.store";
-import { useParentalStore } from "@/store/parental.store";
 import { useDrawSyncer } from "@/draw/sync/session.store";
-import { useFriendStore } from "@/store/friend.store";
-import { useMenuStore } from "@/store/menu.store";
-import { Menu } from "@/types/menu.types";
+import { generateRandomCode, svg } from "@/helper/general.helper";
 import {
 	inviteFriendToRoom,
 	leaveRoom,
 	sendLobbyMessage,
 	socketJoinRoom,
 } from "@/service/api/socket/drawSyncing.socket";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
+import { useChatWidgetStore } from "@/store/chatWidget.store";
+import { useFriendStore } from "@/store/friend.store";
+import { useMenuStore } from "@/store/menu.store";
+import { useParentalStore } from "@/store/parental.store";
+import { Menu } from "@/types/menu.types";
+import ChatRelationshipBanner from "./ChatRelationshipBanner.vue";
 
 const emit = defineEmits(["sent", "open-invite-popover"]);
 

@@ -95,21 +95,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import dayjs from "dayjs";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiHeart } from "@mdi/js";
 import { useNow } from "@vueuse/core";
-import { svg } from "@/helper/general.helper";
+import dayjs from "dayjs";
+import { computed } from "vue";
 import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 import UserAvatar from "@/components/profile/customization/UserAvatar.vue";
+import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
+import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
 import {
 	RELATIONSHIP_ACCENT,
 	resolveRelationship,
 } from "@/config/relationship.config";
+import { svg } from "@/helper/general.helper";
 import RelationshipJourney from "./RelationshipJourney.vue";
-import { useRelationshipActions } from "@/composables/chat/useRelationshipActions";
-import { useMateRequestGate } from "@/composables/chat/useMateRequestGate";
 
 const props = defineProps<{
 	open: boolean;

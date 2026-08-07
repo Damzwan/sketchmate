@@ -90,21 +90,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, watch } from "vue";
 import { IonButton, IonIcon } from "@ionic/vue";
 import { mdiCheck, mdiLock } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
+import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
+import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
+import { useUnlockItem } from "@/composables/shop/useUnlockItem";
+import { buildItemId } from "@/config/catalog.config";
+import { usePickerPreview } from "@/config/preview.config";
 import {
+	type Customization,
 	DEFAULT_FONT_ID,
 	FONTS,
-	type Customization,
 } from "@/config/profile_options.config";
-import { buildItemId } from "@/config/catalog.config";
+import { svg } from "@/helper/general.helper";
 import { useInventoryStore } from "@/store/inventory.store";
-import { useUnlockItem } from "@/composables/shop/useUnlockItem";
-import PreviewSurfacePager from "@/components/profile/PreviewSurfacePager.vue";
-import { usePickerPreview } from "@/config/preview.config";
-import BaseSheetModal from "@/components/general/BaseSheetModal.vue";
 
 const ChatWidgetStylePager = defineAsyncComponent(
 	() => import("@/components/chat/ChatWidgetStylePager.vue"),

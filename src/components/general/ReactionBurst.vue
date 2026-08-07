@@ -19,36 +19,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref } from "vue";
 import {
-  playHapticPattern,
-  reactionAnimDuration,
-  reactionImages
-} from '@/config/post.config'
+	playHapticPattern,
+	reactionAnimDuration,
+	reactionImages,
+} from "@/config/post.config";
 
-const activeAnim = ref<string | null>(null)
-let timer: ReturnType<typeof setTimeout> | null = null
+const activeAnim = ref<string | null>(null);
+let timer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Fire the on-image reaction burst (sticker + halo + particles) plus the
  * matching haptic. Safe to call repeatedly — it restarts cleanly.
  */
 function play(reaction: string) {
-  if (!reaction || !reactionImages[reaction]) return
-  if (timer) clearTimeout(timer)
-  // Force a fresh mount so the CSS animation replays even on the same type.
-  activeAnim.value = null
-  requestAnimationFrame(() => {
-    activeAnim.value = reaction
-    playHapticPattern(reaction)
-    timer = setTimeout(() => {
-      activeAnim.value = null
-      timer = null
-    }, reactionAnimDuration[reaction] ?? 1400)
-  })
+	if (!reaction || !reactionImages[reaction]) return;
+	if (timer) clearTimeout(timer);
+	// Force a fresh mount so the CSS animation replays even on the same type.
+	activeAnim.value = null;
+	requestAnimationFrame(() => {
+		activeAnim.value = reaction;
+		playHapticPattern(reaction);
+		timer = setTimeout(() => {
+			activeAnim.value = null;
+			timer = null;
+		}, reactionAnimDuration[reaction] ?? 1400);
+	});
 }
 
-defineExpose({ play })
+defineExpose({ play });
 </script>
 
 <style scoped>

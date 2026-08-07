@@ -43,7 +43,8 @@ function canvasToBlob(
 ): Promise<Blob> {
 	return new Promise((resolve, reject) => {
 		canvas.toBlob(
-			(blob) => (blob ? resolve(blob) : reject(new Error("Image encode failed"))),
+			(blob) =>
+				blob ? resolve(blob) : reject(new Error("Image encode failed")),
 			type,
 			quality,
 		);
@@ -53,7 +54,8 @@ function canvasToBlob(
 function blobToDataURL(blob: Blob): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
-		reader.onerror = () => reject(reader.error ?? new Error("Image read failed"));
+		reader.onerror = () =>
+			reject(reader.error ?? new Error("Image read failed"));
 		reader.onload = () => resolve(reader.result as string);
 		reader.readAsDataURL(blob);
 	});
@@ -93,7 +95,8 @@ export async function downsampleImageToDataURL(
 	maxDimension = INSERTED_IMAGE_MAX_DIMENSION,
 ): Promise<string> {
 	const response = await fetch(sourceURL);
-	if (!response.ok) throw new Error(`Image download failed (${response.status})`);
+	if (!response.ok)
+		throw new Error(`Image download failed (${response.status})`);
 	const blob = await response.blob();
 
 	let source: CanvasImageSource;
@@ -142,7 +145,9 @@ export async function downsampleImageToDataURL(
 
 /** Release full-resolution elements from legacy drafts/saved objects after
  * Fabric enlivening while preserving the object's world-space geometry. */
-export async function downsampleFabricImagesInObject(root: any): Promise<boolean> {
+export async function downsampleFabricImagesInObject(
+	root: any,
+): Promise<boolean> {
 	const pending = [root];
 	let changed = false;
 	while (pending.length) {

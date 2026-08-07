@@ -25,7 +25,7 @@ export function initSentry(app: VueApp) {
 	}
 
 	Sentry.init(
-		({
+		{
 			dsn: "https://bb1ec4b0dc787509006ffeb476017518@o4511837030711296.ingest.de.sentry.io/4511837041328208",
 			siblingOptions: {
 				vueOptions: {
@@ -68,7 +68,7 @@ export function initSentry(app: VueApp) {
 			environment: IS_DRAW_TESTING
 				? `${environment}-draw-testing`
 				: environment,
-		} as any),
+		} as any,
 		SentryVue.init,
 	);
 	Sentry.setTag("draw.testing", IS_DRAW_TESTING);

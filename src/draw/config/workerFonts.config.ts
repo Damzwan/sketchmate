@@ -36,8 +36,10 @@ export const WORKER_FONTS: WorkerFontSpec[] = [
 	{
 		family: "Anton",
 		weight: "400",
-		url: new URL("../../assets/fonts/anton-v27-latin-regular.woff2", import.meta.url)
-			.href,
+		url: new URL(
+			"../../assets/fonts/anton-v27-latin-regular.woff2",
+			import.meta.url,
+		).href,
 	},
 	{
 		family: "Cabin Sketch",
@@ -48,7 +50,8 @@ export const WORKER_FONTS: WorkerFontSpec[] = [
 	{
 		family: "Cabin Sketch",
 		weight: "700",
-		url: new URL("../../assets/fonts/CabinSketch-Bold.ttf", import.meta.url).href,
+		url: new URL("../../assets/fonts/CabinSketch-Bold.ttf", import.meta.url)
+			.href,
 	},
 	{
 		family: "Chokokutai",
@@ -77,8 +80,10 @@ export const WORKER_FONTS: WorkerFontSpec[] = [
 	{
 		family: "Krub",
 		weight: "400",
-		url: new URL("../../assets/fonts/krub-v11-latin-regular.woff2", import.meta.url)
-			.href,
+		url: new URL(
+			"../../assets/fonts/krub-v11-latin-regular.woff2",
+			import.meta.url,
+		).href,
 	},
 	{
 		family: "Rubik Puddles",

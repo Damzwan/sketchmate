@@ -11,6 +11,6 @@
 <script setup lang="ts">
 import { IonIcon } from "@ionic/vue";
 import { mdiHeart } from "@mdi/js";
-import { svg } from "@/helper/general.helper";
 import DevNote from "@/components/general/DevNote.vue";
+import { svg } from "@/helper/general.helper";
 </script>

@@ -1,13 +1,13 @@
-import { useChatStore } from "@/store/chat.store";
-import { useAuthStore } from "@/store/auth.store";
 import {
 	acceptMatership,
 	declineMatership,
 	requestMatership,
 } from "@/service/api/relationship.api";
-import { PopulatedConversation } from "@/types/server.types";
 import { useToast } from "@/service/toast.service";
+import { useAuthStore } from "@/store/auth.store";
+import { useChatStore } from "@/store/chat.store";
 import { useParentalStore } from "@/store/parental.store";
+import type { PopulatedConversation } from "@/types/server.types";
 
 /**
  * Every mutation on the Invite → Trial → Mates journey, in one place.

@@ -10,16 +10,16 @@ import {
 	hasHiddenLayers,
 	isLayerHidden,
 	isLayerLocked,
-	layerOrderOf,
 	isOnActiveLayer,
 	isOnTopLayer,
 	layerCount,
+	layerOrderOf,
 	resetLayerRegistry,
 	setActiveLayerId,
 	setLayerSet,
 } from "@/draw/layers/layerRegistry";
-import { ExplicitZIndex } from "@/draw/objects/indexing/zIndex";
 import { createDrawingSpatialIndex } from "@/draw/objects/indexing/spatialIndex";
+import { ExplicitZIndex } from "@/draw/objects/indexing/zIndex";
 
 vi.mock("@/draw/rendering/bakery/tileBakeryClient", () => ({
 	bakeryClipSet: () => {},

@@ -1,10 +1,5 @@
 import { defineStore } from "pinia";
-import {
-	computed,
-	ref,
-	type InjectionKey,
-	type MaybeRefOrGetter,
-} from "vue";
+import { computed, type InjectionKey, type MaybeRefOrGetter, ref } from "vue";
 import { useMenuStore } from "@/store/menu.store";
 import { usePhotoSwiper } from "@/store/photoswiper.store";
 

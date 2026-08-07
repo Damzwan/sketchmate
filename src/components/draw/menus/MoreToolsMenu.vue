@@ -78,197 +78,196 @@
 </template>
 
 <script lang="ts" setup>
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import {
-  ActionSheetButton,
-  IonActionSheet,
-  IonContent,
-  IonIcon,
-  IonItem,
-  IonList,
-  IonPopover,
-  popoverController
-} from '@ionic/vue'
-import { compressImg, svg } from '@/helper/general.helper'
+	ActionSheetButton,
+	IonActionSheet,
+	IonContent,
+	IonIcon,
+	IonItem,
+	IonList,
+	IonPopover,
+	popoverController,
+} from "@ionic/vue";
 import {
-  mdiCamera,
-  mdiContentSave,
-  mdiDraw,
-  mdiFormatText,
-  mdiImage,
-  mdiImagePlusOutline,
-  mdiPaletteOutline,
-  mdiPanoramaVariantOutline,
-  mdiSelectionDrag,
-  mdiSelectionRemove,
-  mdiShapeOutline,
-  mdiStickerCircleOutline,
-  mdiStickerEmoji
-} from '@mdi/js'
-import { computed, ref, watch } from 'vue'
+	mdiCamera,
+	mdiContentSave,
+	mdiDraw,
+	mdiFormatText,
+	mdiImage,
+	mdiImagePlusOutline,
+	mdiPaletteOutline,
+	mdiPanoramaVariantOutline,
+	mdiSelectionDrag,
+	mdiSelectionRemove,
+	mdiShapeOutline,
+	mdiStickerCircleOutline,
+	mdiStickerEmoji,
+} from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { computed, ref, watch } from "vue";
+import ColorPicker from "@/components/draw/ColorPicker.vue";
+import ImageCropper from "@/components/draw/ImageCropper.vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
+import { useClaimArea } from "@/draw/claims/claimArea.store";
+import { createSketchFromDataURL } from "@/draw/document/export";
+import { useDrawStore } from "@/draw/session/draw.store";
+import { useDrawSyncer } from "@/draw/sync/session.store";
+import { useDrawUIStore } from "@/draw/ui/drawUI.store";
+import { compressImg, svg } from "@/helper/general.helper";
+import { useAuthStore } from "@/store/auth.store";
+import { useMenuStore } from "@/store/menu.store";
 import { Menu } from "@/types/menu.types";
-import { useDrawStore } from '@/draw/session/draw.store'
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
-import { useMenuStore } from '@/store/menu.store'
-import ImageCropper from '@/components/draw/ImageCropper.vue'
-import { storeToRefs } from 'pinia'
-import ColorPicker from '@/components/draw/ColorPicker.vue'
-import { useAuthStore } from '@/store/auth.store'
 
-import { createSketchFromDataURL } from '@/draw/document/export'
-import { useDrawUIStore } from '@/draw/ui/drawUI.store'
-import { useClaimArea } from '@/draw/claims/claimArea.store'
-import { useDrawSyncer } from '@/draw/sync/session.store'
-
-const claimArea = useClaimArea()
-const { roomId } = storeToRefs(useDrawSyncer())
-const inLobby = computed(() => !!roomId.value)
-const myAreaCount = computed(() => claimArea.myAreas.length)
+const claimArea = useClaimArea();
+const { roomId } = storeToRefs(useDrawSyncer());
+const inLobby = computed(() => !!roomId.value);
+const myAreaCount = computed(() => claimArea.myAreas.length);
 
 function onClaimArea() {
-  closePopover()
-  claimArea.enterClaimMode()
+	closePopover();
+	claimArea.enterClaimMode();
 }
 
 function onReleaseAreas() {
-  claimArea.releaseMine()
-  closePopover()
+	claimArea.releaseMine();
+	closePopover();
 }
 
-const imgInput = ref<HTMLInputElement>()
-const compressedImgDataUrl = ref<string | undefined>()
-const imageActionSheetOpen = ref(false)
-const { selectAction } = useDrawStore()
-const { user } = storeToRefs(useAuthStore())
-const { openMenu } = useMenuStore()
-const { backgroundColor } = storeToRefs(useDrawStore())
+const imgInput = ref<HTMLInputElement>();
+const compressedImgDataUrl = ref<string | undefined>();
+const imageActionSheetOpen = ref(false);
+const { selectAction } = useDrawStore();
+const { user } = storeToRefs(useAuthStore());
+const { openMenu } = useMenuStore();
+const { backgroundColor } = storeToRefs(useDrawStore());
 
 const {
-  shapesMenuOpen,
-  stickersEmblemsSavedSelectedTab,
-  moreToolsMenuOpen,
-  menuEvent
-} = storeToRefs(useMenuStore())
-const t = ref<any>()
+	shapesMenuOpen,
+	stickersEmblemsSavedSelectedTab,
+	moreToolsMenuOpen,
+	menuEvent,
+} = storeToRefs(useMenuStore());
+const t = ref<any>();
 
 watch(shapesMenuOpen, () => {
-  if (!shapesMenuOpen.value) {
-    t.value.$el.dismiss()
-  }
-})
+	if (!shapesMenuOpen.value) {
+		t.value.$el.dismiss();
+	}
+});
 
 function openStickerMenu() {
-  openMenu(Menu.StickerEmblemSaved)
-  stickersEmblemsSavedSelectedTab.value = 'sticker'
-  closePopover()
+	openMenu(Menu.StickerEmblemSaved);
+	stickersEmblemsSavedSelectedTab.value = "sticker";
+	closePopover();
 }
 
 function openEmblemMenu() {
-  openMenu(Menu.StickerEmblemSaved)
-  stickersEmblemsSavedSelectedTab.value = 'emblem'
-  closePopover()
+	openMenu(Menu.StickerEmblemSaved);
+	stickersEmblemsSavedSelectedTab.value = "emblem";
+	closePopover();
 }
 
 function openShapesMenu(e: any) {
-  openMenu(Menu.Shapes, e)
+	openMenu(Menu.Shapes, e);
 }
 
 function openSavedMenu() {
-  openMenu(Menu.StickerEmblemSaved)
-  stickersEmblemsSavedSelectedTab.value = 'saved'
-  closePopover()
+	openMenu(Menu.StickerEmblemSaved);
+	stickersEmblemsSavedSelectedTab.value = "saved";
+	closePopover();
 }
 
 // TODO move this
 const imageActionSheetButtons: ActionSheetButton[] = [
-  {
-    text: 'Add image to canvas',
-    role: 'selected',
-    icon: svg(mdiImagePlusOutline),
-    handler: addImage
-  },
-  {
-    text: 'Create sketch from image',
-    role: 'selected',
-    icon: svg(mdiDraw),
-    handler: createSketchFromImage
-  },
-  // TODO this does not really work anymore with a big canvas
-  // {
-  //   text: 'Use image as background',
-  //   icon: svg(mdiPanoramaVariantOutline),
-  //   role: 'selected',
-  //   handler: () => openMenu(Menu.Cropper)
-  // },
-  {
-    text: 'Cancel',
-    role: 'cancel',
-    data: {
-      action: 'cancel'
-    }
-  }
-]
+	{
+		text: "Add image to canvas",
+		role: "selected",
+		icon: svg(mdiImagePlusOutline),
+		handler: addImage,
+	},
+	{
+		text: "Create sketch from image",
+		role: "selected",
+		icon: svg(mdiDraw),
+		handler: createSketchFromImage,
+	},
+	// TODO this does not really work anymore with a big canvas
+	// {
+	//   text: 'Use image as background',
+	//   icon: svg(mdiPanoramaVariantOutline),
+	//   role: 'selected',
+	//   handler: () => openMenu(Menu.Cropper)
+	// },
+	{
+		text: "Cancel",
+		role: "cancel",
+		data: {
+			action: "cancel",
+		},
+	},
+];
 
 function closePopover() {
-  return popoverController.dismiss()
+	return popoverController.dismiss();
 }
 
 function addImage() {
-  if (!compressedImgDataUrl.value) return
-  selectAction(DrawAction.AddImage, { imageUrl: compressedImgDataUrl.value })
+	if (!compressedImgDataUrl.value) return;
+	selectAction(DrawAction.AddImage, { imageUrl: compressedImgDataUrl.value });
 }
 
 async function createSketchFromImage() {
-  selectAction(DrawAction.AddImage, {
-    imageUrl: await createSketchFromDataURL(compressedImgDataUrl.value!)
-  })
+	selectAction(DrawAction.AddImage, {
+		imageUrl: await createSketchFromDataURL(compressedImgDataUrl.value!),
+	});
 }
 
 function onTextClick() {
-  selectAction(DrawAction.AddText, undefined)
-  closePopover()
+	selectAction(DrawAction.AddText, undefined);
+	closePopover();
 }
 
 function onCanvasBackgroundChange(color: string) {
-  selectAction(DrawAction.SetCanvasBackground, { color })
+	selectAction(DrawAction.SetCanvasBackground, { color });
 }
 
 async function onImgClick() {
-  imgInput.value?.click()
+	imgInput.value?.click();
 }
 
 async function onCameraClick() {
-  await closePopover() // weird location but it does not work otherwise haha
+	await closePopover(); // weird location but it does not work otherwise haha
 
-  const image = await Camera.getPhoto({
-    quality: 100,
-    resultType: CameraResultType.Uri,
-    source: CameraSource.Camera,
-    allowEditing: false
-  })
+	const image = await Camera.getPhoto({
+		quality: 100,
+		resultType: CameraResultType.Uri,
+		source: CameraSource.Camera,
+		allowEditing: false,
+	});
 
-  const blob = await fetch(image.webPath!).then((res) => res.blob())
-  const compressedFile = await compressImg(blob, { size: 500 }) // TODO maybe too big
-  const reader = new FileReader()
-  reader.onload = (e) =>
-    (compressedImgDataUrl.value = e.target?.result?.toString())
+	const blob = await fetch(image.webPath!).then((res) => res.blob());
+	const compressedFile = await compressImg(blob, { size: 500 }); // TODO maybe too big
+	const reader = new FileReader();
+	reader.onload = (e) =>
+		(compressedImgDataUrl.value = e.target?.result?.toString());
 
-  reader.readAsDataURL(compressedFile)
-  imageActionSheetOpen.value = true
+	reader.readAsDataURL(compressedFile);
+	imageActionSheetOpen.value = true;
 }
 
 async function onImgUpload(e: any) {
-  closePopover() // TODO weird location but it does not work otherwise haha
-  const file = e.target.files?.[0]
-  e.target.value = ''
-  imageActionSheetOpen.value = true
-  if (file) {
-    const compressedFile = await compressImg(file, { size: 500 }) // TODO maybe too big
-    const reader = new FileReader()
-    reader.onload = (e) =>
-      (compressedImgDataUrl.value = e.target?.result?.toString())
-    reader.readAsDataURL(compressedFile)
-  }
+	closePopover(); // TODO weird location but it does not work otherwise haha
+	const file = e.target.files?.[0];
+	e.target.value = "";
+	imageActionSheetOpen.value = true;
+	if (file) {
+		const compressedFile = await compressImg(file, { size: 500 }); // TODO maybe too big
+		const reader = new FileReader();
+		reader.onload = (e) =>
+			(compressedImgDataUrl.value = e.target?.result?.toString());
+		reader.readAsDataURL(compressedFile);
+	}
 }
 </script>
 

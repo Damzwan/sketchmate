@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { Rect, type TSimplePathData } from "fabric";
+import { describe, expect, it } from "vitest";
 import { eraseObject, OptimizedEraserStroke } from "./CustomEraserBrush";
 
 const ERASER_PATH: TSimplePathData = [

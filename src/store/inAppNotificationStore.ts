@@ -1,17 +1,18 @@
 // store/notification.store.ts
+
+import dayjs from "dayjs";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import type { Notification } from "@/types/server.types";
 import {
-	fetchNotifications,
-	fetchNotificationCounts,
-	markAllSeen as apiMarkAllSeen,
-	markAllRead as apiMarkAllRead,
-	markRead as apiMarkRead,
 	deleteNotification as apiDeleteNotification,
+	markAllRead as apiMarkAllRead,
+	markAllSeen as apiMarkAllSeen,
+	markRead as apiMarkRead,
+	fetchNotificationCounts,
+	fetchNotifications,
 } from "@/service/api/notification.api";
 import { socket } from "@/service/api/socket/socket.service";
-import dayjs from "dayjs";
+import type { Notification } from "@/types/server.types";
 
 export const useInAppNotificationStore = defineStore(
 	"inAppNotification",

@@ -23,21 +23,28 @@
 </template>
 
 <script lang="ts" setup>
-import { svg } from '@/helper/general.helper'
-import { mdiCursorDefaultClickOutline, mdiLasso } from '@mdi/js'
-import { IonContent, IonIcon, IonItem, IonList, IonPopover, popoverController } from '@ionic/vue'
-import { useMenuStore } from '@/store/menu.store'
-import { storeToRefs } from 'pinia'
-import { useDrawStore } from '@/draw/session/draw.store'
+import {
+	IonContent,
+	IonIcon,
+	IonItem,
+	IonList,
+	IonPopover,
+	popoverController,
+} from "@ionic/vue";
+import { mdiCursorDefaultClickOutline, mdiLasso } from "@mdi/js";
+import { storeToRefs } from "pinia";
+import { useDrawStore } from "@/draw/session/draw.store";
 import { DrawTool, type SelectTool } from "@/draw/tools/tool.types";
-import { useToolSelection } from '@/draw/tools/toolSelection.store'
+import { useToolSelection } from "@/draw/tools/toolSelection.store";
+import { svg } from "@/helper/general.helper";
+import { useMenuStore } from "@/store/menu.store";
 
-const { selectMenuOpen, menuEvent } = storeToRefs(useMenuStore())
-const { selectTool } = useToolSelection()
+const { selectMenuOpen, menuEvent } = storeToRefs(useMenuStore());
+const { selectTool } = useToolSelection();
 
 function select(tool: SelectTool) {
-  selectTool(tool)
-  popoverController.dismiss()
+	selectTool(tool);
+	popoverController.dismiss();
 }
 </script>
 

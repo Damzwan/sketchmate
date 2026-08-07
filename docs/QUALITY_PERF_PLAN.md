@@ -355,7 +355,114 @@ Consolidating on `@mdi/js` + a 20-line `<Icon>` component would remove `ion-icon
 
 ---
 
-## 6. P3 — Memory ceilings
+## 6. P3 — Memory ceilings — **DONE (2026-08-07, branch `quality`)**
+
+| Item | Status |
+|---|---|
+| P3.1 Store reset matrix | **Done** — all 22 stores + `resetAllStores` + contract test |
+| P3.2 Bounded collections | **Done** — inbox, chat heads, doodle history, profile gallery |
+| P3.3 Android memory-pressure bridge | **Done** — native emitter + JS bus + handlers |
+| P3.4 Lifecycle hygiene | **Done** — network listener, auth timeout, ProfileWorld warm |
+
+### P3.1 — how it actually works
+
+Every store exposes `resetRuntimeState()`; logout calls only `resetAllStores()`
+([`src/store/resetStores.ts`](../src/store/resetStores.ts)). It iterates Pinia's
+`_s` map — **only stores that were actually instantiated**. The plan called for a
+registry of store factories, but that would have forced every dormant store (and
+its dependencies) to be constructed during teardown just to be emptied.
+
+`storeResetContract.test.ts` enumerates `src/store/*.ts` and asserts each module
+both defines and returns `resetRuntimeState`. It reads the source rather than
+importing the modules: several stores touch Capacitor, Firebase or `window` on
+setup and there is no jsdom in this suite.
+
+Three resets are deliberate near-no-ops, each documented at the definition:
+`network` (connectivity is a device property, and clearing it leaves nothing to
+refill it), `notification` (the push token identifies the install, not the user —
+dropping it would force a re-prompt on next login), and `session`
+(`installPrompt` fires once per session; dropping it kills the PWA install
+button for good).
+
+### P3.2 — the four bounds
+
+| Target | Bound | Note |
+|---|---|---|
+| `inbox.store` items | 200 | Prepends trim the tail; **pagination stops at the ceiling** rather than evicting |
+| `chatWidget` heads | 8, MRU | Open conversation never evicted |
+| Doodle `past`/`future` | 30 steps **and** 60k points | Cleared on dismiss, not only on present |
+| `post.store` profile gallery | 200 | Stops paginating; the swiper indexes into this array |
+
+Eviction direction is the whole design here. Every one of these lists is
+indexed into by something on screen, so dropping the *head* renumbers what the
+user is looking at. The tail is either re-fetchable (inbox) or simply not
+reached (gallery), so all four either trim the tail or stop growing.
+
+`inbox`, `chat` and `post` already deduped by id on every ingress path, and
+`chat`/`post` already had LRU caches — the audit's "no cap present" was about the
+lists, not the caches.
+
+PhotoSwiper needed no bound of its own: it holds references to arrays owned by
+`inbox` and `post`, both now capped, and already releases decoded slides via
+`releaseRetainedContent`.
+
+### P3.3 — the bridge was half-built
+
+`draw/diagnostics/drawMemoryPressure.ts` already released the draw engine's
+GPU caches on hide/background, and already listened for a `trimMemory` event —
+but **that listener could never have fired**. It used
+`CapacitorApp.addListener("trimMemory")`, a plugin-listener channel, while
+nothing native emitted on it.
+
+The missing half, now in place:
+
+1. `MainActivity.onTrimMemory` / `onLowMemory` forward the raw
+   `ComponentCallbacks2` constant via `triggerWindowJSEvent("nativeTrimMemory")`
+   — matching the `nativeImeInset` event the same file already emits, rather
+   than adding a plugin class to carry one integer.
+2. [`service/memoryPressure.ts`](../src/service/memoryPressure.ts) maps the raw
+   level to `moderate` / `low` / `critical` / `uiHidden`, fans out to
+   subscribers, and files a Sentry **breadcrumb** with the current route. A trim
+   on its own is normal Android behaviour; it is only interesting as the trail
+   before a crash.
+3. [`service/memoryPressureHandlers.ts`](../src/service/memoryPressureHandlers.ts)
+   holds the app-side policy, cumulative by tier: view caches → dormant
+   conversations → inbox tail.
+4. The draw module subscribes to the same bus and releases from `low` upwards.
+
+`uiHidden` (20) is treated as the *mildest* signal despite being numerically the
+highest — it means the UI went away, not that memory is short. It sheds view
+caches only, and must not short-circuit the draw engine's 20 s hide grace period.
+
+Test with `adb shell am send-trim-memory ninja.sketchmate.app RUNNING_CRITICAL`,
+or in a browser: `window.dispatchEvent(new CustomEvent("nativeTrimMemory", {
+detail: { level: 15 } }))`.
+
+### P3.4
+
+- `network.store.init()` is now idempotent, retains the handle, and has a
+  `teardown()`. It is called from `App.vue`, which re-runs on hot reload — each
+  extra registration meant one extra "You are now offline" toast per flip.
+- `auth.store.waitUntilInitialized()` cleared its 10 s bail-out timer only on
+  the timeout path. Every caller (each route entry, each socket reconnect) left
+  a timer holding the closure, and `user` with it, alive for 10 s.
+- `ProfileWorld` sprite warm is skipped entirely on low-end devices, and the
+  2000 ms `requestIdleCallback` **timeout is gone** — that timeout meant the warm
+  fired whether or not the device ever idled, decoding every sprite type during
+  the first profile view on the phones least able to afford it. Those devices
+  render a frozen frame and a reduced sprite count anyway.
+
+### Still not verified
+
+**No device numbers.** P0.5's harness (`scripts/memProfile.mjs`) still has not
+been run — every claim above is structural, not measured. The audit's premise
+was PSS growth over a 10-minute session; nothing here proves that curve
+flattened. That is the first thing to do before calling P3 closed on a device.
+
+Also unverified: the native `onTrimMemory` path has only been exercised through
+the synthetic window event above, not on a real Android build.
+
+## 6b. P3 — as planned
 
 Re-verified against current `develop`. Status column corrects the audit where it has drifted.
 

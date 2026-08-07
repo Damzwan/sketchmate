@@ -44,9 +44,30 @@ export const useChatWidgetStore = defineStore("chatWidget", () => {
 		openPanel();
 	};
 
+	/**
+	 * Heads accumulate for the whole session — every push notification, every
+	 * profile tap adds one and nothing ever removed them but an explicit close.
+	 * Each head keeps a conversation alive in the chat store's cache, so the list
+	 * is what pins that memory. Cap it MRU-style: the newest are at the front, so
+	 * the tail is the least recently opened.
+	 */
+	const MAX_CHAT_HEADS = 8;
+
+	const trimChatHeads = () => {
+		if (activeChatHeads.value.length <= MAX_CHAT_HEADS) return;
+		const active = activeTab.value;
+		const kept: ChatHead[] = [];
+		for (const head of activeChatHeads.value) {
+			// The open conversation is never evicted, however stale it has become.
+			if (kept.length < MAX_CHAT_HEADS || head.id === active) kept.push(head);
+		}
+		activeChatHeads.value = kept;
+	};
+
 	const addChatHead = (id: string, type: "chat" | "user") => {
 		if (!activeChatHeads.value.some((h) => h.id === id)) {
 			activeChatHeads.value.unshift({ id, type });
+			trimChatHeads();
 		}
 	};
 
@@ -89,17 +110,39 @@ export const useChatWidgetStore = defineStore("chatWidget", () => {
 		if (activeTab.value === id) activeTab.value = "overview";
 	};
 
+	// Retained so a logout (or a rapid burst of alerts) can't leave a timer
+	// pending that re-touches store state after everything has been reset.
+	const bounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 	const triggerNewMessageAlert = (chatId: string) => {
 		addChatHead(chatId, "chat");
 		if (!bouncingBubbles.value.includes(chatId)) {
 			bouncingBubbles.value.push(chatId);
-			setTimeout(() => {
-				bouncingBubbles.value = bouncingBubbles.value.filter(
-					(b) => b !== chatId,
-				);
-			}, 3000);
+			bounceTimers.set(
+				chatId,
+				setTimeout(() => {
+					bounceTimers.delete(chatId);
+					bouncingBubbles.value = bouncingBubbles.value.filter(
+						(b) => b !== chatId,
+					);
+				}, 3000),
+			);
 		}
 	};
+
+	function resetRuntimeState() {
+		for (const timer of bounceTimers.values()) clearTimeout(timer);
+		bounceTimers.clear();
+
+		activeChatHeads.value = [];
+		bouncingBubbles.value = [];
+		activeTab.value = "overview";
+		isExpanded.value = false;
+		isVisible.value = true;
+		showLobbyPreview.value = false;
+		relationshipInfoOpen.value = false;
+		customizationOpen.value = false;
+	}
 
 	return {
 		isVisible,
@@ -124,5 +167,6 @@ export const useChatWidgetStore = defineStore("chatWidget", () => {
 		addChatHead,
 		removeChatHead,
 		triggerNewMessageAlert,
+		resetRuntimeState,
 	};
 });

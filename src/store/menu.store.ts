@@ -98,6 +98,19 @@ export const useMenuStore = defineStore("menu", () => {
 		menuMapping[menu].value = false;
 	}
 
+	// Menus are closed through the mapping rather than one assignment per ref, so
+	// adding a Menu member cannot silently leave an overlay stuck open across a
+	// logout. isPaywallOpen / isWhatsNewOpen are not in the mapping.
+	function resetRuntimeState() {
+		for (const open of Object.values(menuMapping)) open.value = false;
+		isPaywallOpen.value = false;
+		isWhatsNewOpen.value = false;
+		menuEvent.value = undefined;
+		shopScrollTarget.value = null;
+		shopEquipTarget.value = "profile";
+		stickersEmblemsSavedSelectedTab.value = "sticker";
+	}
+
 	function openShop(
 		targetItemId?: string,
 		equipTarget: "profile" | "chat" = "profile",
@@ -147,5 +160,6 @@ export const useMenuStore = defineStore("menu", () => {
 		shopEquipTarget,
 		openShop,
 		isWhatsNewOpen,
+		resetRuntimeState,
 	};
 });

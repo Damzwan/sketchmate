@@ -53,6 +53,20 @@ export const useFriendStore = defineStore("friend", () => {
 	const targetPosts = ref<FeedPost[]>([]);
 	const loadingProfile = ref(false);
 
+	function resetRuntimeState() {
+		onlineFriendIds.value = new Set();
+		blockedUserIds.value = new Set();
+		pendingRequests.value = [];
+		friendRequestLoading.value = false;
+		totalCounts.value = { mates: 0, following: 0, followers: 0 };
+		networkLists.value = { mates: [], following: [], followers: [] };
+		networkLoading.value = false;
+		hasMore.value = true;
+		targetProfile.value = null;
+		targetPosts.value = [];
+		loadingProfile.value = false;
+	}
+
 	const myStats = computed(
 		() =>
 			authStore.user?.stats || {
@@ -405,5 +419,6 @@ export const useFriendStore = defineStore("friend", () => {
 		toggleFollowUser,
 		addFriendLocally,
 		refreshMyStats,
+		resetRuntimeState,
 	};
 });

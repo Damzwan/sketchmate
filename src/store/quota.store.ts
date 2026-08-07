@@ -90,6 +90,12 @@ export const useQuotaStore = defineStore("quota", () => {
 		return posts.value;
 	}
 
+	function resetRuntimeState() {
+		summary.value = null;
+		isLoading.value = false;
+		lastFetchedAt.value = 0;
+	}
+
 	return {
 		summary,
 		isPro,
@@ -103,5 +109,6 @@ export const useQuotaStore = defineStore("quota", () => {
 		decrementPost,
 		syncPostQuota,
 		incrementBalloon,
+		resetRuntimeState,
 	};
 });

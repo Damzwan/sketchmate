@@ -53,5 +53,11 @@ export const useAmbientPause = defineStore("ambientPause", () => {
 			manualHolds.value > 0,
 	);
 
-	return { paused, hold, release };
+	// A logout mid-overlay would otherwise strand a hold and freeze every
+	// ambient animation for the rest of the process.
+	const resetRuntimeState = () => {
+		manualHolds.value = 0;
+	};
+
+	return { paused, hold, release, resetRuntimeState };
 });

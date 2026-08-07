@@ -32,6 +32,7 @@ export const usePostStore = defineStore("post", () => {
 	const isProfileDirty = ref(false);
 	const isFeedDirty = ref(false);
 	const limit = 20;
+	const MAX_USER_POSTS = 200;
 	const postCache = ref<Record<string, FeedPost>>({});
 	const POST_CACHE_LIMIT = 60;
 	const postCacheAccess = new Map<string, number>();
@@ -39,14 +40,15 @@ export const usePostStore = defineStore("post", () => {
 	const VIEWED_FEED_POST_LIMIT = 500;
 	let postCacheClock = 0;
 
-	function prunePostCache() {
+	/** @param keep cache ceiling; memory pressure passes a smaller number. */
+	function prunePostCache(keep = POST_CACHE_LIMIT) {
 		const ids = Object.keys(postCache.value);
-		if (ids.length <= POST_CACHE_LIMIT) return;
+		if (ids.length <= keep) return;
 		ids
 			.sort(
 				(a, b) => (postCacheAccess.get(a) || 0) - (postCacheAccess.get(b) || 0),
 			)
-			.slice(0, ids.length - POST_CACHE_LIMIT)
+			.slice(0, ids.length - keep)
 			.forEach((id) => {
 				delete postCache.value[id];
 				postCacheAccess.delete(id);
@@ -117,7 +119,13 @@ export const usePostStore = defineStore("post", () => {
 			if (isInitial) userPosts.value = fetchedPosts;
 			else userPosts.value.push(...fetchedPosts);
 
-			hasMoreUserPosts.value = fetchedPosts.length === limit;
+			// Profile galleries are the one paginated list with no natural end, and
+			// each entry drives a decoded thumbnail. Stop at the ceiling rather than
+			// evict: the swiper indexes straight into this array, so dropping the
+			// head would silently renumber every open slide.
+			hasMoreUserPosts.value =
+				fetchedPosts.length === limit &&
+				userPosts.value.length < MAX_USER_POSTS;
 			userPage.value++;
 			isProfileDirty.value = false;
 		} catch (error) {
@@ -219,7 +227,7 @@ export const usePostStore = defineStore("post", () => {
 		return null;
 	}
 
-	function clearRuntimeState() {
+	function resetRuntimeState() {
 		resetFeeds();
 		userPosts.value = [];
 		userPage.value = 1;
@@ -236,6 +244,7 @@ export const usePostStore = defineStore("post", () => {
 		feedByTab,
 		fetchedTabs,
 		resetFeeds,
+		prunePostCache,
 		userPosts,
 		userPage,
 		hasMoreUserPosts,
@@ -253,7 +262,7 @@ export const usePostStore = defineStore("post", () => {
 		getCachedPost,
 		hasViewedFeedPost,
 		markFeedPostViewed,
-		clearRuntimeState,
+		resetRuntimeState,
 		postCache,
 	};
 });

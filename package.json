@@ -80,7 +80,7 @@
 		"swiper": "^12.1.2",
 		"uuid": "^9.0.1",
 		"vanilla-picker": "^2.12.3",
-		"vue": "3.6.0-rc.2",
+		"vue": "3.5.41",
 		"vue-router": "^4.6.4"
 	},
 	"devDependencies": {

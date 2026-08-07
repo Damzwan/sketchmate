@@ -9,7 +9,7 @@ import { ionicTrimAliases } from "./scripts/vite-ionic-trim.mjs";
 
 // Stubs out every @ionic/core component the app never renders. See the plugin
 // for why this is needed and how the dev-time guard works.
-const ionicAliases = ionicTrimAliases(__dirname);
+const ionicAliases = ionicTrimAliases(import.meta.dirname);
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -68,7 +68,7 @@ export default defineConfig({
 	resolve: {
 		// Switched to array syntax for exact alias matching
 		alias: [
-			{ find: "@", replacement: path.resolve(__dirname, "./src") },
+			{ find: "@", replacement: path.resolve(import.meta.dirname, "./src") },
 			...ionicAliases,
 		],
 	},

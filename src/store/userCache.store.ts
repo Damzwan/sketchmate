@@ -231,7 +231,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 	/**
 	 * Nuke everything. Called on logout.
 	 */
-	const clear = () => {
+	const resetRuntimeState = () => {
 		cache.value = new Map();
 		pendingIds.clear();
 		inflight.clear();
@@ -254,7 +254,7 @@ export const useUserCacheStore = defineStore("userCache", () => {
 		upsert,
 		upsertMany,
 		invalidate,
-		clear,
+		resetRuntimeState,
 		size,
 	};
 });

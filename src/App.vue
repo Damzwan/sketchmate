@@ -44,6 +44,7 @@ import {
 	setupRouterReadyWatcher,
 } from "@/helper/general.helper";
 import { useActiveViewSync } from "@/service/activeViewSync";
+import { installMemoryPressureHandlers } from "@/service/memoryPressureHandlers";
 import { useAuthStore } from "@/store/auth.store";
 import { useBalloonStore } from "@/store/balloon.store";
 import { useChatWidgetStore } from "@/store/chatWidget.store";
@@ -196,6 +197,7 @@ setupRouterReadyWatcher(isRouterReady, isAuthLoading);
 setupBackButtonBehavior();
 setupPWAPromptListener();
 networkStore.init();
+installMemoryPressureHandlers();
 useWhatsNewPrompt();
 </script>
 

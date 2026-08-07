@@ -64,6 +64,12 @@ export const usePhotoSwiper = defineStore("photoswiper", () => {
 		isCommentDrawerOpen.value = false;
 	}
 
+	function resetRuntimeState() {
+		open.value = false;
+		openedAt.value = 0;
+		releaseRetainedContent();
+	}
+
 	return {
 		open,
 		openedAt,
@@ -76,5 +82,6 @@ export const usePhotoSwiper = defineStore("photoswiper", () => {
 		close,
 		releaseRetainedContent,
 		isCommentDrawerOpen,
+		resetRuntimeState,
 	};
 });

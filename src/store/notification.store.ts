@@ -27,6 +27,16 @@ export const useNotificationStore = defineStore("notification", () => {
 		return next;
 	};
 
+	/**
+	 * `localSubscription` deliberately survives: the push token identifies this
+	 * install, not the user, and keeping it lets `init()` silently re-activate
+	 * push on the next login without re-prompting for permission. Explicit
+	 * "disable notifications" still drops it via `setNotifications(undefined)`.
+	 */
+	function resetRuntimeState() {
+		showEnableNotificationsAfterLogin.value = false;
+	}
+
 	const deviceNotificationsAllowed = computed(() => {
 		const auth = useAuthStore();
 		const fp = auth.deviceFingerprint;
@@ -247,5 +257,6 @@ export const useNotificationStore = defineStore("notification", () => {
 		setNotifications,
 		init,
 		handleTokenRefresh,
+		resetRuntimeState,
 	};
 });

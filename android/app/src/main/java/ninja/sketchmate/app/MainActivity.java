@@ -52,6 +52,39 @@ public class MainActivity extends BridgeActivity {
         );
     }
 
+    /**
+     * Android asks a process to give memory back before it kills it. Nothing in
+     * the web layer could hear that ask, so the first signal SketchMate got was
+     * the process disappearing — the "app dies after 20 minutes" reports on
+     * low-end devices.
+     *
+     * Forwarded as a window event to match the nativeImeInset convention above;
+     * a Capacitor plugin listener would need a whole plugin class to carry one
+     * integer. The raw ComponentCallbacks2 constant is passed through unmapped:
+     * the JS side (src/service/memoryPressure.ts) owns the policy.
+     */
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        emitTrimMemory(level);
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        // Predates onTrimMemory and still fires on some OEM builds. Reported at
+        // RUNNING_CRITICAL, which is what it means.
+        emitTrimMemory(15);
+    }
+
+    private void emitTrimMemory(int level) {
+        if (getBridge() == null) return;
+        getBridge().triggerWindowJSEvent(
+            "nativeTrimMemory",
+            "{ \"detail\": { \"level\": " + level + " } }"
+        );
+    }
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);

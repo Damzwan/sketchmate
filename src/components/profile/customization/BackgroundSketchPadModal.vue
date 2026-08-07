@@ -269,7 +269,15 @@ import {
 	mdiRedoVariant,
 	mdiUndoVariant,
 } from "@mdi/js";
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
+import {
+	computed,
+	nextTick,
+	onBeforeUnmount,
+	type Ref,
+	reactive,
+	ref,
+	watch,
+} from "vue";
 import ProfileCard from "@/components/profile/ProfileCard.vue";
 import {
 	type Customization,
@@ -478,25 +486,60 @@ const cloneStrokes = (s: Stroke[]): Stroke[] =>
 		points: st.points.map((p) => [p[0], p[1]] as Point),
 	}));
 
+/**
+ * History bounds.
+ *
+ * Every entry is a deep clone of the WHOLE drawing, so cost grows with strokes ×
+ * steps: a long doodling session on a busy card was retaining tens of thousands
+ * of points per stack with no ceiling at all. Two limits, because either alone
+ * misses a case — 30 flick-erases of an empty pad are cheap, while 30 steps on a
+ * dense pad are not.
+ */
+const MAX_HISTORY_STEPS = 30;
+const MAX_HISTORY_POINTS = 60_000;
+
+const countPoints = (snapshot: Stroke[]) =>
+	snapshot.reduce((n, st) => n + st.points.length, 0);
+
+/** Push, then evict the OLDEST entries — those are the ones nobody undoes to. */
+const pushHistory = (stack: Ref<Stroke[][]>, snapshot: Stroke[]) => {
+	const next = [...stack.value, snapshot];
+
+	while (next.length > MAX_HISTORY_STEPS) next.shift();
+
+	let points = next.reduce((n, s) => n + countPoints(s), 0);
+	while (next.length > 1 && points > MAX_HISTORY_POINTS) {
+		points -= countPoints(next.shift()!);
+	}
+
+	stack.value = next;
+};
+
+const clearHistory = () => {
+	past.value = [];
+	future.value = [];
+	gestureSnapshot = null;
+};
+
 const beginHistory = () => {
 	gestureSnapshot = JSON.stringify(strokes.value);
 };
 const commitHistory = () => {
 	if (gestureSnapshot === null) return;
 	if (gestureSnapshot !== JSON.stringify(strokes.value)) {
-		past.value.push(JSON.parse(gestureSnapshot));
+		pushHistory(past, JSON.parse(gestureSnapshot));
 		future.value = [];
 	}
 	gestureSnapshot = null;
 };
 const undo = () => {
 	if (!canUndo.value) return;
-	future.value.push(cloneStrokes(strokes.value));
+	pushHistory(future, cloneStrokes(strokes.value));
 	strokes.value = past.value.pop()!;
 };
 const redo = () => {
 	if (!canRedo.value) return;
-	past.value.push(cloneStrokes(strokes.value));
+	pushHistory(past, cloneStrokes(strokes.value));
 	strokes.value = future.value.pop()!;
 };
 
@@ -583,8 +626,7 @@ const onPresent = async () => {
 	ty.value = 0;
 	CANONICAL_ZONE_WIDTH.value = 0;
 	CANONICAL_ZONE_HEIGHT.value = 0;
-	past.value = [];
-	future.value = [];
+	clearHistory();
 	activePoints = [];
 	isDrawing.value = false;
 
@@ -618,6 +660,9 @@ onBeforeUnmount(() => {
 	resizeObserver?.disconnect();
 	if (liveRaf) cancelAnimationFrame(liveRaf);
 	if (eraseRaf) cancelAnimationFrame(eraseRaf);
+	// The stacks hold full clones of the drawing and nothing reads them once the
+	// pad is closed — they were surviving until the next open purely by accident.
+	clearHistory();
 	if (ambientHeld) {
 		ambient.release();
 		ambientHeld = false;
@@ -629,8 +674,7 @@ watch(
 	(val) => {
 		if (props.isOpen) {
 			strokes.value = val ? parsePathToStrokes(val) : [];
-			past.value = [];
-			future.value = [];
+			clearHistory();
 		}
 	},
 );

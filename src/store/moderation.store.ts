@@ -171,7 +171,7 @@ export const useModerationStore = defineStore("moderation", () => {
 		};
 	}
 
-	function reset() {
+	function resetRuntimeState() {
 		restriction.value = null;
 		cachedCapabilities.value = [];
 		strikeSummary.value = { active_strikes: 0, total_strikes: 0 };
@@ -280,7 +280,7 @@ export const useModerationStore = defineStore("moderation", () => {
 		dismissStrikeNotice,
 		fetchStanding,
 		notifyCapabilityBlocked,
-		reset,
+		resetRuntimeState,
 		targetToReport,
 		isSubmittingReport,
 		blockableUserId,

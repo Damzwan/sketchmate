@@ -31,6 +31,12 @@ export const useBalloonStore = defineStore("balloon", () => {
 
 	const { toast } = useToast();
 
+	function resetRuntimeState() {
+		sentBalloon.value = null;
+		receivedBalloon.value = null;
+		senderInfo.value = undefined;
+	}
+
 	async function init(_user: User) {
 		try {
 			const { balloons } = await fetchMyBalloons();
@@ -164,5 +170,6 @@ export const useBalloonStore = defineStore("balloon", () => {
 		setupSocketListeners,
 		disableBalloons,
 		senderInfo,
+		resetRuntimeState,
 	};
 });

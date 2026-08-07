@@ -71,6 +71,13 @@ export const useParentalStore = defineStore("parental", () => {
 	/** True when this account is subject to the child restrictions. */
 	const isChildAccount = computed(() => isUnderAge.value);
 
+	// `controls` is derived from the auth store's user, so it empties on its own
+	// once auth resets. Only the sheet's own UI state is owned here.
+	function resetRuntimeState() {
+		controlsOpen.value = false;
+		savingFeature.value = null;
+	}
+
 	function isAllowed(feature: ChildFeature): boolean {
 		if (!isChildAccount.value) return true;
 		return controls.value[FEATURE_FLAG[feature]] === true;
@@ -228,5 +235,6 @@ export const useParentalStore = defineStore("parental", () => {
 		closeControls,
 		setFeature,
 		ensureCanExchange,
+		resetRuntimeState,
 	};
 });

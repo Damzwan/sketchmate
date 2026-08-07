@@ -24,6 +24,18 @@ export const useSessionStore = defineStore("session", () => {
 		userDeletedError.value = value;
 	}
 
+	/**
+	 * `installPrompt` and `queryParams` survive: both belong to this browsing
+	 * session/install rather than to the account, and the beforeinstallprompt
+	 * event fires once — dropping it means the PWA install button never works
+	 * again this session.
+	 */
+	function resetRuntimeState() {
+		updateSlide.value = false;
+		userDeletedError.value = false;
+		redirectIntent.value = "";
+	}
+
 	return {
 		queryParams,
 		installPrompt,
@@ -35,5 +47,6 @@ export const useSessionStore = defineStore("session", () => {
 		setUpdateSlide,
 		setUserDeletedError,
 		redirectIntent,
+		resetRuntimeState,
 	};
 });

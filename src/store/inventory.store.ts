@@ -98,7 +98,7 @@ export const useInventoryStore = defineStore("inventory", () => {
 		grantOptimistic(grantsForSku(skuId));
 	};
 
-	const clear = () => {
+	const resetRuntimeState = () => {
 		owned.value = new Set();
 		optimisticGrants.value = new Set();
 		hydrated.value = false;
@@ -127,7 +127,7 @@ export const useInventoryStore = defineStore("inventory", () => {
 		grantOptimistic,
 		grantSkuOptimistic,
 		findSkuForItem,
-		clear,
+		resetRuntimeState,
 		devUnlockAll,
 		setDevUnlockAll,
 	};

@@ -399,9 +399,16 @@ const SPRITES = {
 // always-frozen snapshots (shop tiles/previews then stamp instantly instead of
 // popping in after a load+decode round-trip) and prime the HTTP cache for the
 // animated ones so their players load from cache when a preview mounts.
+//
+// Skipped entirely on low-end devices. The 2000 ms idle TIMEOUT means the kick
+// fires whether or not the device ever went idle, so on the phones that can
+// least afford it this decoded EVERY sprite type — the full set, not the ones
+// on screen — while the first profile view was still laying out. Those devices
+// render a single frozen frame anyway (`freezeFrame`) and show a reduced sprite
+// count (`cap`), so most of what the warm produced was never used.
 let spritesWarmed = false;
 function warmSprites() {
-	if (spritesWarmed) return;
+	if (spritesWarmed || lowEnd) return;
 	spritesWarmed = true;
 	const kick = () => {
 		Object.values(SPRITES).forEach((spec: SpriteSpec) => {
@@ -409,8 +416,9 @@ function warmSprites() {
 			else prefetchSprite(spec.src);
 		});
 	};
+	// No timeout: on a device that never goes idle this should never run.
 	"requestIdleCallback" in window
-		? requestIdleCallback(kick, { timeout: 2000 })
+		? requestIdleCallback(kick)
 		: setTimeout(kick, 300);
 }
 

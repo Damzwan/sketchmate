@@ -93,9 +93,13 @@ export const useChatStore = defineStore("chat", () => {
 		messageCacheAccess.set(chatId, ++messageCacheClock);
 	}
 
-	function pruneMessageCaches() {
+	/**
+	 * @param keep how many conversations may stay cached. Defaults to the normal
+	 * ceiling; memory pressure passes a smaller number to shed harder.
+	 */
+	function pruneMessageCaches(keep = MAX_CACHED_CONVERSATIONS) {
 		const ids = Object.keys(messagesByChat.value);
-		if (ids.length <= MAX_CACHED_CONVERSATIONS) return;
+		if (ids.length <= keep) return;
 
 		const protectedId =
 			chatWidget.isExpanded &&
@@ -117,7 +121,7 @@ export const useChatStore = defineStore("chat", () => {
 
 		let retained = ids.length;
 		for (const id of candidates) {
-			if (retained <= MAX_CACHED_CONVERSATIONS) break;
+			if (retained <= keep) break;
 			delete messagesByChat.value[id];
 			delete hasMoreMessagesByChat.value[id];
 			messageCacheAccess.delete(id);
@@ -125,7 +129,7 @@ export const useChatStore = defineStore("chat", () => {
 		}
 	}
 
-	function clearRuntimeState() {
+	function resetRuntimeState() {
 		notifications.value.forEach((notification) =>
 			clearTimeout(notification.timer),
 		);
@@ -1144,7 +1148,8 @@ export const useChatStore = defineStore("chat", () => {
 		sendMessage,
 		loadMessages,
 		trimOldMessages,
-		clearRuntimeState,
+		pruneMessageCaches,
+		resetRuntimeState,
 		syncActiveConversation,
 		clearUnreads,
 		markAllRead,

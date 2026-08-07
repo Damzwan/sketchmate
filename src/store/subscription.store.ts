@@ -209,7 +209,7 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		}
 	}
 
-	function clearSubscriptionState() {
+	function resetRuntimeState() {
 		isPro.value = false;
 		isLifetime.value = false;
 		showConfetti.value = false;
@@ -305,7 +305,7 @@ export const useSubscriptionStore = defineStore("subscription", () => {
 		isLifetime,
 		isLoading,
 		checkProStatus,
-		clearSubscriptionState,
+		resetRuntimeState,
 		openPaywall,
 		purchaseSubscription,
 		purchaseSku,

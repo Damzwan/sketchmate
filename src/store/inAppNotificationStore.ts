@@ -166,7 +166,7 @@ export const useInAppNotificationStore = defineStore(
 			}
 		}
 
-		function reset() {
+		function resetRuntimeState() {
 			notifications.value = [];
 			unseen.value = 0;
 			unread.value = 0;
@@ -213,7 +213,7 @@ export const useInAppNotificationStore = defineStore(
 			dismiss,
 			registerSocketListener,
 			ingest,
-			reset,
+			resetRuntimeState,
 			markAllRead,
 		};
 	},

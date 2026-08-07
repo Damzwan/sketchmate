@@ -78,7 +78,6 @@ import { Preferences } from "@capacitor/preferences";
 import { IonIcon, IonPopover, IonRange, popoverController } from "@ionic/vue";
 import { mdiChevronRight, mdiEyedropper } from "@mdi/js";
 import { storeToRefs } from "pinia";
-import { v4 as uuidv4 } from "uuid";
 import Picker from "vanilla-picker";
 import { computed, onMounted, ref, watch } from "vue";
 import { DrawAction } from "@/draw/actions/drawAction.types";
@@ -99,6 +98,7 @@ import {
 import { svg } from "@/helper/general.helper";
 import { isMobile } from "@/helper/platform.helper";
 import { LocalStorage } from "@/types/storage.types";
+import { uuidv4 } from "@/utils/uuid";
 
 const hmm = ref();
 const customColorPopoverId = uuidv4();

@@ -1,7 +1,6 @@
 import type { Canvas, FabricObject, Point } from "fabric";
 import * as fabric from "fabric";
 import { defineStore } from "pinia";
-import { v4 } from "uuid";
 import { type Ref, ref, shallowRef } from "vue";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
@@ -12,6 +11,7 @@ import { getAbsoluteState } from "@/draw/objects/objectSerialization";
 import { isText } from "@/draw/tools/textEditing";
 import type { ToolService } from "@/draw/tools/tool.types";
 import * as transform from "@/draw/transform/transformController";
+import { v4 } from "@/utils/uuid";
 
 interface Select extends ToolService {
 	unSelect: () => void;

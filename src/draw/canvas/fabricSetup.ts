@@ -8,7 +8,6 @@ import {
 	IText,
 	util,
 } from "fabric";
-import { v4 as uuidv4 } from "uuid";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { useClaimArea } from "@/draw/claims/claimArea.store";
@@ -27,6 +26,7 @@ import { NeonStroke } from "@/draw/utils/brushes/NeonSignBrush";
 import { PixelStroke } from "@/draw/utils/brushes/PixelBrush";
 import { WaterColorStroke } from "@/draw/utils/brushes/WaterColorBrush";
 import { useAuthStore } from "@/store/auth.store";
+import { uuidv4 } from "@/utils/uuid";
 
 const customProperties = [
 	"id",

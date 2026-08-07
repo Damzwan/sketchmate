@@ -135,7 +135,6 @@ import {
 } from "@mdi/js";
 import { logoDiscord } from "ionicons/icons";
 import { storeToRefs } from "pinia";
-import { v4 as uuidv4 } from "uuid";
 import { computed, ref } from "vue";
 import ConfirmationAlert from "@/components/general/ConfirmationAlert.vue";
 import IosPwaInstructions from "@/components/general/IosPwaInstructions.vue";
@@ -153,6 +152,7 @@ import { useMenuStore } from "@/store/menu.store";
 import { useSessionStore } from "@/store/session.store";
 import { Menu } from "@/types/menu.types";
 import { FRONTEND_ROUTES } from "@/types/router.types";
+import { uuidv4 } from "@/utils/uuid";
 
 const { installPrompt } = storeToRefs(useSessionStore());
 const { logout } = useAuthStore();

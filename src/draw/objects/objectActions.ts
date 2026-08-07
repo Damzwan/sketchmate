@@ -1,8 +1,6 @@
 import * as Sentry from "@sentry/capacitor";
 import * as fabric from "fabric";
 import { ActiveSelection, type Canvas, type FabricObject, Group } from "fabric";
-import { v4 as uuidv4 } from "uuid";
-
 import {
 	DrawAction,
 	type DrawActionParams,
@@ -39,6 +37,7 @@ import { useDrawUIStore } from "@/draw/ui/drawUI.store";
 import { createSavedDrawing } from "@/service/api/savedDrawing.api";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
+import { uuidv4 } from "@/utils/uuid";
 
 async function runSavedImportPhase<T>(
 	phase: string,

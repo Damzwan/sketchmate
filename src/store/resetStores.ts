@@ -19,10 +19,8 @@ import { getActivePinia, type Pinia } from "pinia";
 export function resetAllStores(pinia: Pinia | undefined = getActivePinia()) {
 	if (!pinia) return;
 
-	// `_s` is Pinia's internal id → store map. There is no public equivalent.
-	const stores = (pinia as unknown as { _s: Map<string, unknown> })._s;
-
-	for (const [id, store] of stores) {
+	// Pinia 4 exposes `_s`, its id → store map, in the public types.
+	for (const [id, store] of pinia._s) {
 		const reset = (store as { resetRuntimeState?: () => void })
 			.resetRuntimeState;
 		if (typeof reset !== "function") continue;

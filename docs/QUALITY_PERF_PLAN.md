@@ -544,7 +544,105 @@ Signals across `src/` (99,743 LOC, 513 files):
 
 ---
 
-## 8. P5 — Framework upgrades
+## 8. P5 — Framework upgrades — **DONE, scope reduced (2026-08-07, branch `quality`)**
+
+**Vue 3.6 and vue-router 5 are deliberately NOT done.** Neither is stable enough
+against Ionic to be worth the exposure right now; `vue` is back on 3.5.41 and
+`vue-router` stays on 4.6.4. §8.1 and §8.2 below are kept as the standing
+analysis for when that changes.
+
+### Upgrades applied
+
+| Package | From | To |
+|---|---|---|
+| `pinia` | 3.0.4 | **4.0.2** |
+| `@vueuse/core` | 10.11.1 | **14.4.0** |
+| `ionicons` | ^8.0.13 | **^8.1.0** |
+| `vite` | 8.2.0 | **8.2.1** |
+
+`@ionic/vue` + `@ionic/vue-router` were already at 8.8.17 (P1), so the row in
+§8.3 is stale.
+
+Pinia 4 made one thing better rather than worse: `_s`, the id → store map that
+`resetAllStores` walks, is now **public in the shipped types**, so the cast in
+`resetStores.ts` is gone. VueUse 14 crossed four majors, but the ten composables
+this app uses (`useEventListener`, `useInfiniteScroll`, `useIntersectionObserver`,
+`useNow`, `useShare`, `useSwipe`, `useThrottleFn`, `useWindowSize`, plus two
+Ionic look-alikes) came through with no call-site changes. The one runtime
+break to watch for — `useSwipe`'s `direction` values changing from enum members
+to lowercase strings — does not apply: the single call site ignores the argument.
+
+### Removals — four dependencies deleted rather than upgraded
+
+**`cypress` (12.17.4) — removed. There are no tests.** `cypress.config.ts`
+pointed at `tests/e2e/specs/**`, a directory that does not exist; there is not
+one `.cy.ts` file in the repo, and `pnpm test:e2e` had never had anything to
+run. Upgrading it three majors would have been maintenance on a fiction.
+
+This matters beyond the dependency: **P2.1's acceptance criterion says "every
+route renders identically in a full Cypress pass."** That gate was never real.
+The Ionic trim's actual safety net is the dev-time stub guard plus a manual
+route sweep. If an E2E suite is wanted, it is new work, not an upgrade.
+
+**`husky` (8.0.3) — removed, hook kept.** Husky's entire job is running
+`git config core.hooksPath` for you. The hook is already a plain shell script
+(P0.3 rewrote it off `git add .`), so it moved to `.githooks/pre-commit` and
+`prepare` now does the one-line git config directly. Same behaviour, same
+guarantee on fresh clones, one less dependency and no deprecated `_/husky.sh`
+shim to migrate for v9.
+
+**`@vuelidate/core` + `@vuelidate/validators` — replaced by a local
+composable.** Two unmaintained packages for four rules — `required`, `email`,
+`minLength(8)`, `sameAs` — duplicated byte-for-byte across LoginMainPage and
+UpgradeAccountModal.
+[`useCredentialsValidation`](../src/composables/general/useCredentialsValidation.ts)
+mirrors Vuelidate's exposed shape (`$errors` with `$uid`/`$message`,
+`$validate`, `$invalid`, `$reset`) so neither template needed rewriting.
+
+Zod was considered and rejected *for this*. Swapping two unmaintained
+dependencies for one maintained one is still a dependency for four rules that
+fit in a regex and a length check. Zod earns its place the day something
+validates an API response or a persisted document schema — at which point these
+two forms should move onto it too.
+
+**`uuid` + `@types/uuid` — replaced by `crypto.randomUUID`.** 14 call sites,
+all `v4()`. [`src/utils/uuid.ts`](../src/utils/uuid.ts) wraps the native API.
+
+The fallback in it is not legacy-browser hedging: `randomUUID` is exposed **only
+in secure contexts**, and `ionic serve --external` serves over plain http on a
+LAN address — which is exactly how the app gets tested on a real phone. There
+`crypto.randomUUID` is `undefined` while `crypto.getRandomValues` is not, so the
+fallback builds a v4 from 16 CSPRNG bytes. Four unit tests cover both paths and
+the version/variant bits.
+
+**`@tailwindcss/typography` — removed, and `tailwind.config.cjs` deleted.**
+Tailwind v4 reads a JS config only when CSS names it with `@config`.
+`src/theme/main.css` does not, so **the entire file was dead** — not just the
+typography plugin (whose `prose` classes appear nowhere in `src/`), but the
+custom `grid-cols-14`/`grid-cols-16`/`text-sm2`/`animate-ping-slow` extensions
+too. All four are unused in templates, and the one class that looked at risk,
+`animate-wiggle`, comes from `tailwindcss-animated`, which is imported from CSS
+and still resolves (verified in the browser: `animation-name: wiggle`, 1s).
+
+`autoprefixer`, `i` and `install` were already removed in P1 — see §4.
+
+### Not done, on purpose
+
+| Package | Why held |
+|---|---|
+| `vue` 3.6 / `vue-router` 5 | Not stable enough with Ionic. Owner's call. |
+| `typescript` 7.x | `vue-tsc` 3.3.9's TS 7 support unconfirmed. Spike, don't schedule. |
+| `fabric` 7.2 → 7.4 | Its own PR and its own device pass, never bundled with other changes. |
+
+Remaining duplicate versions in the lockfile are all transitive CLI tooling
+(`glob`, `commander`, `ansi-*`). Nothing shipped is duplicated.
+
+`pnpm verify` green: 377 tests (65 files), 0 type errors, budget unchanged at
+1124.7 kB raw / 297.2 kB gzip.
+
+---
+
+## 8b. P5 — as planned
 
 ### 8.1 Vue 3.6 — already in, mostly
 

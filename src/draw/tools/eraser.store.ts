@@ -1,6 +1,5 @@
 import type { Canvas, FabricObject, Path } from "fabric";
 import { defineStore } from "pinia";
-import { v4 } from "uuid";
 import { type Ref, ref, watch } from "vue";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import type { FabricEvent } from "@/draw/canvas/fabricEvent.types";
@@ -22,6 +21,7 @@ import { isActive as transformSessionActive } from "@/draw/transform/transformCo
 import { CustomEraserBrush } from "@/draw/utils/brushes/CustomEraserBrush";
 import { isMobile } from "@/helper/platform.helper";
 import { useAuthStore } from "@/store/auth.store";
+import { v4 } from "@/utils/uuid";
 
 interface Eraser extends ToolService {
 	eraserSize: Ref<number>;

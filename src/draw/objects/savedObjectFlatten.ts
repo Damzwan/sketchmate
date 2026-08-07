@@ -1,6 +1,5 @@
 import type { FabricObject } from "fabric";
 import * as fabric from "fabric";
-import { v4 as uuidv4 } from "uuid";
 import {
 	IS_LOW_END_DEVICE,
 	MAX_RENDER_SCALE,
@@ -11,6 +10,7 @@ import {
 	migrateLegacyOrigin,
 } from "@/draw/document/serialization";
 import { FLATTENED_IMAGE_MAX_DIMENSION } from "@/draw/tools/imageDownsampling";
+import { uuidv4 } from "@/utils/uuid";
 
 /**
  * Resolution of a flattened saved object.

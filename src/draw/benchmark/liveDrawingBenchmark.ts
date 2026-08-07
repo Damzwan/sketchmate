@@ -1,11 +1,11 @@
 import type { Canvas, FabricObject } from "fabric";
 import * as fabric from "fabric";
-import { v4 } from "uuid";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
 import { useDrawHistoryManager } from "@/draw/history/history.store";
 import { useEraser } from "@/draw/tools/eraser.store";
 import { OptimizedEraserStroke } from "@/draw/utils/brushes/CustomEraserBrush";
 import { OptimizedPencilStroke } from "@/draw/utils/brushes/CustomPencilBrush";
+import { v4 } from "@/utils/uuid";
 
 const ERASE_STROKES = 80;
 const FIXTURE_STROKES = 6;

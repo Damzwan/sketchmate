@@ -37,7 +37,6 @@
 
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
-import { v4 as uuidv4 } from "uuid";
 import {
 	computed,
 	defineAsyncComponent,
@@ -51,7 +50,6 @@ import DrawExitGuard from "@/components/draw/DrawExitGuard.vue";
 import DrawStatusIndicator from "@/components/draw/DrawStatusIndicator.vue";
 import MultiplayerAvatars from "@/components/draw/MultiplayerAvatars.vue";
 import DrawMenus from "@/components/draw/menus/DrawMenus.vue";
-
 // Components
 import Toolbars from "@/components/draw/toolbar/Toolbars.vue";
 // Stores
@@ -65,6 +63,7 @@ import { useToast } from "@/service/toast.service";
 import { useMenuStore } from "@/store/menu.store";
 import { useSessionStore } from "@/store/session.store";
 import { Menu } from "@/types/menu.types";
+import { uuidv4 } from "@/utils/uuid";
 
 const route = useRoute();
 const router = useRouter();

@@ -9,7 +9,6 @@
 		"includes": [
 			"src/**",
 			"scripts/**",
-			"cypress/**",
 			"*.ts",
 			"*.mjs",
 			"*.cjs",

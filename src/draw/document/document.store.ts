@@ -1,6 +1,5 @@
 import { ActiveSelection, type Canvas } from "fabric";
 import { defineStore } from "pinia";
-import { v4 as uuidv4 } from "uuid";
 import { computed, ref } from "vue";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
@@ -18,6 +17,7 @@ import { useLayersStore } from "@/draw/layers/layers.store";
 import { recordPhase } from "@/draw/rendering/renderMetrics";
 import { useDrawSyncer } from "@/draw/sync/session.store";
 import { EventBus } from "@/main";
+import { uuidv4 } from "@/utils/uuid";
 
 /**
  * Local idle helper.

@@ -1,6 +1,4 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 # Format + safe lint fixes on STAGED files only, then re-stage exactly those.
 # The previous hook ran `git add .`, which swept every unstaged file in the
 # working tree into each commit.

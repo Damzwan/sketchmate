@@ -127,6 +127,7 @@ import {
 	mdiLockOutline,
 	mdiSend,
 } from "@mdi/js";
+import { useCredentialsValidation } from "@/composables/general/useCredentialsValidation";
 import { svg } from "@/helper/general.helper";
 
 withDefaults(
@@ -139,8 +140,6 @@ withDefaults(
 );
 
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
-import { useVuelidate } from "@vuelidate/core";
-import { email, minLength, required, sameAs } from "@vuelidate/validators";
 import { GoogleAuthProvider, getAuth, linkWithCredential } from "firebase/auth";
 import { storeToRefs } from "pinia";
 import { computed, reactive, ref } from "vue";
@@ -152,25 +151,9 @@ import { ToastDuration } from "@/types/toast.types";
 const { toast } = useToast();
 const { firebaseUser } = storeToRefs(useAuthStore());
 
-const state = reactive({
-	loginEmail: "",
-	password: "",
-	confirmPassword: "",
-});
+const { state, v$ } = useCredentialsValidation();
 const loginErrorMsg = ref("");
 
-const confirmRef = computed(() => state.password);
-
-const rules = {
-	loginEmail: { required, email },
-	password: { required, minLength: minLength(8) },
-	confirmPassword: {
-		required,
-		minLength: minLength(8),
-		confirmRef: sameAs(confirmRef),
-	},
-};
-const v$ = useVuelidate(rules, state);
 const isRegisterInvalid = computed(
 	() =>
 		v$.value.loginEmail.$invalid ||

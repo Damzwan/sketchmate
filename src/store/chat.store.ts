@@ -1,6 +1,5 @@
 import dayjs from "dayjs";
 import { defineStore } from "pinia";
-import { v4 as uuidv4 } from "uuid";
 import { computed, markRaw, ref } from "vue";
 import {
 	getActiveChats,
@@ -28,6 +27,7 @@ import type {
 	Mate,
 	PopulatedConversation,
 } from "@/types/server.types";
+import { uuidv4 } from "@/utils/uuid";
 
 type FrontendMessage = BaseMessage & {
 	isOptimistic?: boolean;

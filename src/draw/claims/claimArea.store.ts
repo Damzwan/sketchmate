@@ -1,6 +1,5 @@
 import type { Canvas } from "fabric";
 import { defineStore, storeToRefs } from "pinia";
-import { v4 as uuidv4 } from "uuid";
 import { computed, ref, type WatchStopHandle, watch } from "vue";
 import { useDrawEventManager } from "@/draw/canvas/drawEventManager";
 import { useDrawObjectManager } from "@/draw/canvas/drawObjectManager";
@@ -19,6 +18,7 @@ import { socket } from "@/service/api/socket/socket.service";
 import { useToast } from "@/service/toast.service";
 import { useAuthStore } from "@/store/auth.store";
 import { ToastDuration } from "@/types/toast.types";
+import { uuidv4 } from "@/utils/uuid";
 
 /**
  * A lobby-scoped rectangular region claimed by one user. Two rules, both in

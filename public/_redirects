@@ -1,0 +1,10 @@
+# SPA fallback for Cloudflare Pages — the equivalent of server.js's
+# `app.get(/.*/)` catch-all. Without it, a hard refresh on /gallery or a deep
+# link into /draw returns Pages' own 404 instead of the app.
+#
+# Status 200 (rewrite), not 301/302: the URL must stay as the user typed it so
+# vue-router resolves the right route once index.html boots.
+#
+# Existing static files win over this rule, so /assets/*, /sw.js and
+# /.well-known/* are still served as themselves.
+/*  /index.html  200

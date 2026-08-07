@@ -201,7 +201,19 @@ That is 11 packages, 4 of which are package managers. `i` and `install` are almo
 
 **Expected:** production dependency count drops sharply (audit measured 467), and `pnpm audit --prod` becomes readable — most of its 52 advisories route through these tooling packages, not shipped code.
 
-### P1.2 Move to `devDependencies`
+### P1.2 — **REVERSED (2026-08-07).** `express` belongs in `dependencies`
+
+Moving it was wrong and would have broken the next deploy. `Procfile` runs
+`node server.js`, and Heroku's Node buildpack prunes `devDependencies` after the
+build — the dyno would have started and died on
+`ERR_MODULE_NOT_FOUND: Cannot find package 'express'`. A runtime dependency of
+the thing named in the `Procfile` is a production dependency, whatever the
+audit's dependency count prefers.
+
+`@types/express` (v4, against express v5) **is** gone: `server.js` is plain JS
+and `tsconfig.json` only includes `src/**`, so nothing ever read those types.
+
+See §9.3 for what auditing the server actually turned up.
 
 `express` — only `server.js` (the Heroku static host) uses it. It must stay installed on Heroku, so this needs the Heroku `NPM_CONFIG_PRODUCTION=false` / `--prod=false` treatment, **or** better: see P6.3, which removes Express entirely.
 
@@ -705,9 +717,70 @@ Also worth knowing: vue-router 5 peer-depends `pinia ^3.0.4 || ^4.0.2` and `vite
 
 **Do not** migrate Heroku to Bun and upgrade the framework stack in the same window. If the PWA breaks you need to know which one did it.
 
-### P6.3 Simplify the server regardless
+### P6.3 — Server audited and fixed (2026-08-07). Express stays.
 
-If the container route is taken, `server.js` becomes ~15 lines of `Bun.serve` and `express` (plus `@types/express`) leaves the dependency list entirely. Even staying on Node, Express 5 for 44 lines of static serving is more surface than the job needs.
+Auditing `server.js` for "can this be simplified" found something bigger than
+its line count: **the web app was being served completely uncompressed.**
+
+Heroku's router does not compress responses, Vite does not emit `.gz`/`.br`
+assets, and `server.js` had no `compression` middleware. So every web visitor
+downloaded **6.6 MB of assets instead of 2.9 MB** — and the eager cold-start
+payload the budget tracks as *297 kB gzip* was arriving as *1,125 kB*. The
+entire gzip column of §1 and §5 was fiction on web. Adding one middleware
+recovered more than every byte P2 saved, for one line.
+
+Two cache-header bugs alongside it, both of the "reload does not fix it" kind:
+
+- `index.html` was served by `sendFile` with no `Cache-Control`, so browsers
+  heuristically cached the one file that names the current build's hashed entry
+  chunk. A user holding a stale copy points at assets that no longer exist on
+  the next deploy — white screen, and a refresh serves the same cached shell.
+  Now `no-store`.
+- `sw.js` fell through the same `express.static` as the hashed assets. An
+  `autoUpdate` PWA learns about a new build **only** by re-fetching `sw.js`, so
+  a cached one freezes that user's app version indefinitely. Now `no-cache`.
+- `/assets/*` is content-hashed, so it moved the other way: `max-age=1y,
+  immutable` instead of 30 days.
+- `.well-known` (deep-link association files) gets a 1 h cache. It was inheriting
+  the 30-day asset policy, and a stale `assetlinks.json` silently breaks deep
+  links on every device holding it.
+
+`app.set("trust proxy", true)` was also missing — the HTTPS redirect read
+`x-forwarded-proto` by hand instead of letting Express normalise it.
+
+**Express stays, and stays in `dependencies`.** It is ~50 lines doing static
+serving, compression negotiation, conditional requests, range requests and MIME
+types correctly. Hand-rolling that on `node:http` to remove one dependency is a
+straight downgrade. Moving it to `devDependencies` (P1.2) would have crashed the
+dyno outright — see §4.
+
+`engines.node` is now pinned to `22.x`; the buildpack was previously free to
+pick whatever default it liked.
+
+**Decided, then paused (2026-08-07): staying on Heroku for now.** Runbook in
+[`HOSTING_CLOUDFLARE.md`](./HOSTING_CLOUDFLARE.md); repo side (`public/_headers`,
+`public/_redirects`) is done and is inert on Heroku, so it ships safely ahead of
+the cutover.
+
+It is the low-risk case because only a **subdomain** moves. `app.sketchmate.ninja`
+is a CNAME at name.com; the apex (GitHub Pages) and `server.sketchmate.ninja`
+(the API) are untouched, and no nameserver migration is needed — that is only
+required for apex domains, which cannot be CNAMEd. Rollback is the same one
+record.
+
+Cloudflare then does HTTPS redirection, brotli and static serving itself, so
+after a cutover `server.js`, `Procfile`, `express` and `compression` all go.
+
+Paused on a dashboard snag, not a technical one:
+`Variables cannot be added to a Worker that only has static assets` — a
+**Worker** had been created instead of a **Pages** project, and the `VITE_*`
+values are build-time anyway, not runtime bindings. Diagnosis and fix are at the
+top of the runbook so the next attempt does not lose time to it.
+
+Heroku therefore stays the production path, with the §P6.3 fixes (compression,
+cache headers) doing the work in the meantime. `_headers` and `_redirects` are
+committed and inert; `server.js` hands back the app for those two paths rather
+than serving them as files.
 
 **Scope note:** Heroku serves the PWA only. The Android app ships `dist` inside the APK via `cap sync`. So Heroku risk is contained to web users — but that's still real users, and the deploy path is the app-update mechanism for them.
 

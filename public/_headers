@@ -1,0 +1,30 @@
+# Cloudflare Pages response headers for app.sketchmate.ninja.
+#
+# Mirrors what server.js does on Heroku. Cloudflare handles HTTPS redirection
+# and brotli/gzip itself, so only caching policy is left — and caching is where
+# a static SPA breaks in ways a reload cannot fix.
+#
+# Copied verbatim into dist/ by Vite (it lives in public/). It has no file
+# extension, so the service worker's globPatterns (js,css,html,svg) skips it.
+
+# Content-hashed by Vite: a given URL's bytes can never change.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# An autoUpdate PWA learns about a new build ONLY by re-fetching this file.
+# A cached copy freezes that user on their current version indefinitely.
+/sw.js
+  Cache-Control: no-cache
+
+# Names the current build's hashed entry chunk. A stale copy points at assets
+# the next deploy has already deleted — a white screen that refreshing repeats.
+/index.html
+  Cache-Control: no-store
+
+# Deep-link association files. A stale assetlinks.json silently breaks Android
+# App Links on every device holding it, so keep the window short.
+# Content-Type is inferred from the .json extension. If an
+# apple-app-site-association file is ever added it has NO extension and will
+# need an explicit `Content-Type: application/json` rule here.
+/.well-known/*
+  Cache-Control: public, max-age=3600
